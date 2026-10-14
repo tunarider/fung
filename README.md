@@ -9,7 +9,7 @@
 - 용도: 간단한 스크립트(파일 일괄 처리 등), 간단한 웹서버, 추후 GUI 앱
 
 설계 문서는 [docs/design](docs/design/README.md)에 있다. 마일스톤별 설명은 [docs/notes](docs/notes/)에.
-매뉴얼(HTML)은 [docs/index.html](docs/index.html).
+매뉴얼은 <https://blog.tunarider.net/fung/> (원본 [docs/index.html](docs/index.html)).
 
 ## 설치
 
