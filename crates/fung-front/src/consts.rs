@@ -125,35 +125,14 @@ pub fn quote_str(s: &str) -> String {
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
             '$' if chars.get(i + 1) == Some(&'{') => out.push_str("\\$"),
-            c if c != ' ' && !is_print(c) => out.push_str(&format!("\\u{{{:X}}}", c as u32)),
+            c if c != ' ' && !crate::diag::is_print(c) => {
+                out.push_str(&format!("\\u{{{:X}}}", c as u32))
+            }
             c => out.push(c),
         }
     }
     out.push('"');
     out
-}
-
-/// Approximation of Go `unicode.IsPrint` (letters, marks, numbers,
-/// punctuation, symbols, and ASCII space). The standard library has no
-/// general-category tables, so this excludes controls, non-ASCII-space
-/// whitespace, format characters, private use, and noncharacters.
-fn is_print(c: char) -> bool {
-    if c == ' ' {
-        return true;
-    }
-    if c.is_control() || c.is_whitespace() {
-        return false;
-    }
-    let u = c as u32;
-    !matches!(u,
-        0xAD
-        | 0x600..=0x605 | 0x61C | 0x6DD | 0x70F | 0x180E
-        | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x206F
-        | 0xFEFF | 0xFFF9..=0xFFFB
-        | 0xE000..=0xF8FF | 0xFDD0..=0xFDEF | 0xFFFE | 0xFFFF
-        | 0xE0001 | 0xE0020..=0xE007F
-        | 0xF0000..=0x10FFFF)
-        && (u & 0xFFFE) != 0xFFFE
 }
 
 /// Renders a union type for messages: `int | nil`.
@@ -255,6 +234,11 @@ mod tests {
         assert_eq!(Const::Float(0.0), Const::Float(-0.0));
         assert_ne!(Const::Float(f64::NAN), Const::Float(f64::NAN));
         assert_eq!(Const::Builtin("x".into()), Const::Builtin("x".into()));
+    }
+
+    #[test]
+    fn nbsp_is_escaped() {
+        assert_eq!(quote_str("a\u{A0}b"), "\"a\\u{A0}b\"");
     }
 
     #[test]

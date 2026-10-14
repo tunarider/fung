@@ -220,7 +220,7 @@ pub fn quote(s: &str) -> String {
 /// format, surrogate, private-use and noncharacter code points, and
 /// spaces other than U+0020. Unassigned code points are not detected
 /// (the standard library carries no Unicode category tables).
-fn is_print(c: char) -> bool {
+pub(crate) fn is_print(c: char) -> bool {
     if c == ' ' {
         return true;
     }
@@ -238,11 +238,13 @@ fn is_print(c: char) -> bool {
         | 0x180e
         | 0x200b..=0x200f
         | 0x202a..=0x202e
-        | 0x2060..=0x2064
-        | 0x2066..=0x206f
+        | 0x2060..=0x206f
         | 0xe000..=0xf8ff
+        | 0xfdd0..=0xfdef
         | 0xfeff
         | 0xfff9..=0xfffb
+        | 0xe0001
+        | 0xe0020..=0xe007f
         | 0xf0000..=0x10ffff)
         && (u & 0xfffe) != 0xfffe
 }
@@ -250,6 +252,15 @@ fn is_print(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn is_print_cases() {
+        for u in [0xA0u32, 0x2003, 0x200B, 0x8E2, 0xFDD0, 0xE0001] {
+            assert!(!is_print(char::from_u32(u).unwrap()), "U+{u:X}");
+        }
+        assert!(is_print('한') && is_print('a') && is_print(' '));
+    }
+
     use crate::source::{Pos, SourceMap};
 
     fn at(sm: &mut SourceMap, name: &str, text: &str, line: u32, col: u32) -> Pos {
