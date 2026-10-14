@@ -35,10 +35,10 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
 - git 작성자: `tunarider <tunarider@tunaground.net>` (저장소 로컬 설정). **다른 개인 이메일은 절대 커밋·문서·설정에 쓰지 않는다.**
 - Go 모듈 `github.com/tunarider/fung`, Go 1.27, **Go 표준 라이브러리만 사용** (REPL 줄 편집 등도 직접 구현).
 - 원격 저장소: `origin` = https://github.com/tunarider/fung (공개). 2026-10-14에 기록을 커밋 하나로 합쳐 처음 푸시했다.
+  옛 기록(커밋 195개)은 저장소 밖 `~/fung-history-2026-10-14.bundle`에만 있다.
 - Rust 이식(진행 중): 루트 Cargo 워크스페이스, `crates/fung-front`(앞단)·`crates/fung-cli`(`fung dump`). 크레이트 의존성은 허용 목록(open-questions "Rust 이전")만,
   앞단은 0개. `spec/builtins.txt`·`spec/errors.txt`는 Go가 생성(`go test ./tests -run TestSpecFiles -update`). 커밋 전 `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `cargo test`도 통과해야 한다(`parity` 테스트가 Go 버전과 dump 출력을 비교).
-  옛 기록(커밋 195개)은 저장소 밖 `~/fung-history-2026-10-14.bundle`에만 있다.
 
 ## 현재 상태
 

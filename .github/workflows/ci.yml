@@ -56,4 +56,6 @@ jobs:
       - name: clippy
         run: cargo clippy --all-targets -- -D warnings
       - name: test
+        env:
+          FUNG_REQUIRE_PARITY: "1"
         run: cargo test

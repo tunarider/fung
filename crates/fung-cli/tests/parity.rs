@@ -11,17 +11,27 @@ fn repo() -> PathBuf {
         .unwrap()
 }
 
+/// Builds the Go implementation. `None` only when `go` cannot be run at all
+/// and parity is not required; a failing `go build` always panics.
 fn go_fung() -> Option<PathBuf> {
     let out = std::env::temp_dir().join(format!("fung-go-parity-{}", std::process::id()));
-    let ok = Command::new("go")
+    let built = Command::new("go")
         .args(["build", "-o"])
         .arg(&out)
         .arg("./cmd/fung")
         .current_dir(repo())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-    ok.then_some(out)
+        .output();
+    match built {
+        Err(e) => {
+            assert!(
+                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
+                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
+            );
+            None
+        }
+        Ok(o) if o.status.success() => Some(out),
+        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
+    }
 }
 
 fn corpus() -> Vec<String> {
