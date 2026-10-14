@@ -1,0 +1,6 @@
+print(1 == 1.0, 1 != true, 2 >= 3, 1 < 2, 2.5 > 2)
+# expect: true true false true true
+print(not true, true and false, false or true, not (1 < 2))
+# expect: false false true false
+print(false and (1 / 0 == 1), true or (1 / 0 == 1))
+# expect: false true

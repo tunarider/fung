@@ -1,0 +1,39 @@
+# Runs the same gate as a local commit (CLAUDE.md): gofmt, vet, tests,
+# plus the race detector. tests/fmt_test.go also runs `fung fmt --check`
+# over the repository's .fung files, and tests/install_test.go runs
+# install.sh against a fake release.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt-ed:"; echo "$unformatted"; exit 1
+          fi
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test ./...
+      - name: race
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race ./internal/... ./cmd/...

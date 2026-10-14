@@ -1,0 +1,28 @@
+# kebab: file-name normalisation used by rename.fung.
+import path
+
+# Lowercase, keep letters and digits, turn everything else into "-",
+# squeeze repeats, trim the ends.
+fn kebab(name):
+  kept = for c in chars(lower(name)): c in "abcdefghijklmnopqrstuvwxyz0123456789" then c else "-" ;;
+  join(kept) |> split("-") |> filter(p => p != "") |> join("-")
+;;
+
+# The new name for one entry; names that would vanish (no ASCII letters at
+# all) are kept as they are.
+fn target(file):
+  stem = kebab(path.stem(file))
+  stem == "" then file else stem + lower(path.ext(file))
+;;
+
+test "kebab squeezes and trims":
+  assert kebab("My Report (final)") == "my-report-final"
+  assert kebab("--a--b--") == "a-b"
+  assert kebab("참치") == ""
+;;
+
+test "target keeps names without ascii letters":
+  assert target("My File (1).TXT") == "my-file-1.txt"
+  assert target("참치.md") == "참치.md"
+  assert target("already-ok.txt") == "already-ok.txt"
+;;

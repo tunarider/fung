@@ -1,0 +1,2 @@
+print({a: 1}.b)
+# expect-error: E0508

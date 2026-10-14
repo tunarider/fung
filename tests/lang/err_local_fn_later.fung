@@ -1,0 +1,6 @@
+fn outer():
+  fn a() = b()
+  fn b() = 1
+  a()
+;;
+# expect-error: E0208

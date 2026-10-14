@@ -1,0 +1,41 @@
+# fs: files and directories (06). The primitives live in _native.fs; this
+# file decides the public names and adds the fung-level wrappers.
+import _native.fs as _n
+
+read = _n.read
+write = _n.write
+append = _n.append
+list = _n.list
+glob = _n.glob
+walk = _n.walk
+exists = _n.exists
+stat = _n.stat
+mkdir = _n.mkdir
+remove = _n.remove
+remove_all = _n.remove_all
+move = _n.move
+copy = _n.copy
+open = _n.open
+close = _n.close
+write_line = _n.write_line
+
+# Reads a whole file as a list of lines (the same rule as read_lines).
+fn read_lines(path) = Ok(lines(_n.read(path)?))
+
+# Opens path, calls f with the handle, and always closes it (03: defer 대신
+# 감싸는 함수). f's result — a value or the Err that `?` returned — is
+# passed through.
+fn with_open(path, f, mode = 'read):
+  h = _n.open(path, mode)?
+  result = f(h)
+  _n.close(h)!
+  result
+;;
+
+# Creates a temporary directory, calls f with its path, and removes it.
+fn with_temp_dir(f):
+  dir = _n.temp_dir()?
+  result = f(dir)
+  _n.remove_all(dir)!
+  result
+;;

@@ -1,0 +1,17 @@
+#!/usr/bin/env fung
+# Serves the files under a directory over HTTP (GET only), logging each request.
+# usage: fung examples/static.fung [dir] [--addr 127.0.0.1:8000]
+import http
+import cli
+import "./staticfiles" (handler)
+
+opts = cli.parse(args)
+root = first(opts.rest) ?? "."
+addr = get(opts.flags, "addr", "127.0.0.1:8000")
+serve = handler(root)
+logged = fn(req):
+  res = serve(req)
+  print(req.method, req.path, res.status)
+  res
+;;
+http.serve(addr, logged, ready: a => print("serving ${root} on http://${a}/"))!

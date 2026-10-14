@@ -1,0 +1,11 @@
+#!/usr/bin/env fung
+# A small JSON API server.
+# usage: fung examples/serve.fung [--addr 127.0.0.1:8080]
+import http
+import time
+import cli
+import "./api" (handler)
+
+opts = cli.parse(args)
+addr = get(opts.flags, "addr", "127.0.0.1:8080")
+http.serve(addr, handler(time.now(), atom(0)), ready: a => print("listening on", a))!

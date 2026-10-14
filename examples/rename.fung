@@ -1,0 +1,23 @@
+#!/usr/bin/env fung
+# Renames every file in a directory to kebab-case:
+#   "My Report (final).TXT" -> "my-report-final.txt"
+# usage: fung examples/rename.fung <dir> [--dry-run]
+import fs
+import path
+import cli
+import "./kebab" (target)
+
+fn rename_all(dir, dry):
+  files = fs.list(dir)!
+  each(files, fn(file):
+    to = target(file)
+    if to != file:
+      print(file, "->", to)
+      if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
+    ;;
+  ;;)
+;;
+
+opts = cli.parse(args, bools: ["dry-run"])
+dir = first(opts.rest) ?? fail("usage: rename.fung <dir> [--dry-run]")
+rename_all(dir, get(opts.flags, "dry_run", false))

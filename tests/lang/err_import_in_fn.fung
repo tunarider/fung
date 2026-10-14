@@ -1,0 +1,2 @@
+fn f(): import fs ;;
+# expect-error: E0311

@@ -1,0 +1,3 @@
+if true: y = 1 ;;
+print(y)
+# expect-error: E0206

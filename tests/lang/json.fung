@@ -1,0 +1,26 @@
+import json
+text = `{"name": "fung", "tags": ["a", "b"], "n": 3, "pi": 3.5, "ok": true, "none": null}`
+data = json.parse(text)!
+print(data.name, data.tags, data.n + 1, data.pi, data.ok, data.none)
+# expect: fung ["a", "b"] 4 3.5 true nil
+print(json.stringify(data))
+# expect: {"name":"fung","tags":["a","b"],"n":3,"pi":3.5,"ok":true,"none":null}
+print(json.stringify({a: [1, {b: 'sym}], t: (1, 2)}, indent: 2))
+# expect: {
+# expect:   "a": [
+# expect:     1,
+# expect:     {
+# expect:       "b": "sym"
+# expect:     }
+# expect:   ],
+# expect:   "t": [
+# expect:     1,
+# expect:     2
+# expect:   ]
+# expect: }
+match json.parse("{bad}"):
+  Err({kind: 'parse, line: l, col: c}) => print("parse error at", l, c)
+;;
+# expect: parse error at 1 2
+print(json.parse("12345678901234567890"))
+# expect: Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 12345678901234567890 is out of range"})

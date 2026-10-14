@@ -1,0 +1,10 @@
+fn f(a, b = a * 2) = a + b
+print(f(1), f(1, 5), f(b: 1, a: 1))
+# expect: 3 6 2
+fn greet(greeting = "hi", name = "you") = greeting + ", " + name
+print(greet(), greet(name: "fung"), greet("yo"))
+# expect: hi, you hi, fung yo, you
+fn log(a = print("default evaluated")) = a
+log(1)
+log()
+# expect: default evaluated

@@ -1,0 +1,2 @@
+print(group_by([1], x => x))
+# expect-error: E0514

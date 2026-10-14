@@ -1,0 +1,33 @@
+# bigfiles: find the largest files under a directory.
+import fs
+import path
+
+# Files below dir as (path, size), largest first, keeping at most n.
+fn largest(dir, n):
+  files = fs.walk(dir)!
+  sized = files |> map(p => (p, get(fs.stat(p) ?? {}, "size", 0)))
+  sized |> sort_by(e => match e: (_, s) => -s ;;) |> take(n)
+;;
+
+# Bytes as a short human string: 1536 → "1.5K".
+fn human(n):
+  n < 1024 then "${n}B"
+    else n < 1024 * 1024 then "${n * 10 // 1024 / 10.0}K"
+    else "${n * 10 // (1024 * 1024) / 10.0}M"
+;;
+
+test "human sizes":
+  assert human(10) == "10B"
+  assert human(1536) == "1.5K"
+  assert human(3 * 1024 * 1024) == "3.0M"
+;;
+
+test "largest keeps order and count":
+  fs.with_temp_dir(fn(d):
+    fs.write(path.join(d, "a"), repeat("x", 10))!
+    fs.write(path.join(d, "b"), repeat("x", 30))!
+    fs.write(path.join(d, "c"), repeat("x", 20))!
+    got = largest(d, 2) |> map(e => match e: (p, s) => (path.base(p), s) ;;)
+    assert got == [("b", 30), ("c", 20)]
+  ;;)
+;;

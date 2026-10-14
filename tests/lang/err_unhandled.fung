@@ -1,0 +1,4 @@
+print(1)
+# expect: 1
+Err("boom")!
+# expect-error: E0603

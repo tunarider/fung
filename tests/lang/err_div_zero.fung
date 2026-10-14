@@ -1,0 +1,4 @@
+print(1)
+# expect: 1
+print(1 / 0)
+# expect-error: E0502

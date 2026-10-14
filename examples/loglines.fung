@@ -1,0 +1,39 @@
+# loglines: parse "2026-10-13 12:00:01 LEVEL message" lines and summarise them.
+# Used by logsum.fung; the tests document the format.
+
+# One line → {level, message} or nil for lines that do not fit.
+fn parse(line):
+  parts = split(trim(line), " ")
+  match parts:
+    [_, _, level, ...rest] when level in ["INFO", "WARN", "ERROR"] => {level: level, message: join(rest, " ")}
+    _                                                              => nil
+  ;;
+;;
+
+# Lines → parsed entries, skipping what does not parse.
+fn entries(xs) = xs |> map(parse) |> filter(e => e != nil)
+
+# Count of entries per level, every level present (zero when absent).
+fn by_level(es):
+  counts = group_by(es, e => e.level)
+  for level in ["INFO", "WARN", "ERROR"]: (level, len(get(counts, level, []))) ;;
+;;
+
+# The n most frequent messages of one level, as (message, count), most first.
+fn top_messages(es, level, n):
+  same = filter(es, e => e.level == level)
+  groups = group_by(same, e => e.message)
+  pairs(groups) |> map(p => match p: (m, xs) => (m, len(xs)) ;;) |> sort_by(p => match p: (_, c) => -c ;;) |> take(n)
+;;
+
+test "parse keeps the message words together":
+  assert parse("2026-10-13 12:00:01 ERROR disk full on /var") == {level: "ERROR", message: "disk full on /var"}
+  assert parse("garbage") == nil
+  assert parse("2026-10-13 12:00:01 DEBUG x") == nil
+;;
+
+test "counts and top messages":
+  es = entries(["t d ERROR a", "t d ERROR b", "t d ERROR a", "t d WARN w", "noise"])
+  assert by_level(es) == [("INFO", 0), ("WARN", 1), ("ERROR", 3)]
+  assert top_messages(es, "ERROR", 1) == [("a", 2)]
+;;

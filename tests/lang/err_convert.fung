@@ -1,0 +1,2 @@
+print(int("x"))
+# expect-error: E0513

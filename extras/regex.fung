@@ -1,0 +1,8 @@
+# regex: Go RE2 over fung strings (06). Positions are rune indexes.
+import _native.regex as _n
+
+is_match = _n.is_match
+find = _n.find
+find_all = _n.find_all
+replace = _n.replace
+split = _n.split

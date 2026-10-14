@@ -1,0 +1,4 @@
+print(split("a,b", ","), join([1, "x"], "-"), trim("  a "), upper("ab"), replace("aXa", "X", "-"))
+# expect: ["a", "b"] 1-x a AB a-a
+print(pad_left("7", 3, "0"), repeat("ab", 2), starts_with("abc", "a"), chars("참치") |> reverse |> join)
+# expect: 007 abab true 치참

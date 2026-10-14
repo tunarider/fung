@@ -1,0 +1,2 @@
+import _native.fs
+# expect-error: E0310

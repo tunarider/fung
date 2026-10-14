@@ -1,0 +1,6 @@
+fn parse_port(s):
+  n = parse_int(s)?
+  n > 0 and n < 65536 then Ok(n) else Err({kind: 'invalid, message: "port out of range: ${n}"})
+;;
+print(parse_port("80"), parse_port("x") |> is_err, parse_port("70000"))
+# expect: Ok(80) true Err({kind: 'invalid, message: "port out of range: 70000"})

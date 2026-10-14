@@ -1,0 +1,4 @@
+fn _prefix() = "hi"
+fn greet(name) = "${_prefix()}, ${name}"
+fn _secret() = 1
+version = 2

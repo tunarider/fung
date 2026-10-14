@@ -1,0 +1,9 @@
+ch = channel()
+spawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)
+print(fold(ch, 0, (a, x) => a + x))
+# expect: 15
+buf = channel(2)
+send(buf, "a")
+close(buf)
+print(recv(buf), recv(buf), send(buf, "b"))
+# expect: Ok("a") Err({kind: 'closed}) Err({kind: 'closed})

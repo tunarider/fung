@@ -1,0 +1,18 @@
+n = 0
+label = if n > 0:
+  "pos"
+else if n < 0:
+  "neg"
+else:
+  "zero"
+;;
+print(label)
+# expect: zero
+print(if true: if false: 1 else: 2 ;; ;;)
+# expect: 2
+print(
+  if 1 < 2:
+    "yes"
+  ;;
+)
+# expect: yes

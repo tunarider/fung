@@ -1,0 +1,3 @@
+fn f(a) = a
+f(1, 2)
+# expect-error: E0402

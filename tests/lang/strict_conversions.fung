@@ -1,0 +1,2 @@
+print(int("1_000"), parse_int("1_") |> is_err, sym("ok"))
+# expect: 1000 true 'ok

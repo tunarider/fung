@@ -1,0 +1,3 @@
+import json
+print(json.stringify({d: 5s}))
+# expect-error: E0513

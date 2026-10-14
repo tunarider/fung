@@ -1,0 +1,5 @@
+print(map([(1, "a"), (2, "b")], ((n, s)) => "${n}${s}"))
+# expect: ["1a", "2b"]
+fn area((w, h)) = w * h
+print(area((2, 3)), map([{x: 1}, {x: 2}], ({x: v}) => v))
+# expect: 6 [1, 2]

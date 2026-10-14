@@ -1,0 +1,21 @@
+fn add(a, b) = a + b
+fn fib(n) = n < 2 then n else fib(n - 1) + fib(n - 2)
+print(add(1, 2), fib(20))
+# expect: 3 6765
+print(even(10), odd(7))
+# expect: true true
+fn even(n) = n == 0 then true else odd(n - 1)
+fn odd(n) = n == 0 then false else even(n - 1)
+fn stats(xs_len):
+  avg = xs_len / 2
+  fn half(v) = v / 2
+  half(avg)
+;;
+print(stats(8))
+# expect: 2.0
+print((fn(a):
+  a + 1
+;;)(1), (x => x * 2)(21))
+# expect: 2 42
+print(add, x => x)
+# expect: <fn add> <fn>

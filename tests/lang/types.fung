@@ -1,0 +1,6 @@
+fn f(n: int, s: str = "x") -> str = s
+fn g(n: num) = n
+fn h(v: str | nil) = v
+fn k(v: any) = v
+print(f(1), f(2, "y"), g(1), g(1.5), h(nil), h("a"), k('s))
+# expect: x y 1 1.5 nil a 's

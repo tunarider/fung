@@ -1,0 +1,6 @@
+at_exit(() => print("first"))
+at_exit(() => print("second"))
+print("body")
+# expect: body
+# expect: second
+# expect: first

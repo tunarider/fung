@@ -1,0 +1,4 @@
+t = spawn(() => sleep(10s))
+cancel(t)
+print(await(t), await(spawn(() => sleep(10s)), timeout: 10ms), recv(channel(), timeout: 5ms))
+# expect: Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})

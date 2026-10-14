@@ -1,0 +1,3 @@
+ch = channel()
+recv(ch)
+# expect-error: E0702

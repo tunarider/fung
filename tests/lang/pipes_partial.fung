@@ -1,0 +1,8 @@
+import_free = [3, 1, 2]
+fn double(x) = x * 2
+print(import_free |> map(double) |> len, 5 |> double)
+# expect: 3 10
+fn join3(a, b, c) = a + b + c
+wrap = join3("<", _, ">")
+print(wrap("x"), map(["a", "b"], join3("[", _, "]")))
+# expect: <x> ["[a]", "[b]"]

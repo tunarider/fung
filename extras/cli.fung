@@ -1,0 +1,41 @@
+# cli: command-line argument parsing (06). Small on purpose: flags and the
+# rest; checking and converting values is ordinary code.
+#
+#   cli.parse(["in", "--out", "x", "--", "-v"])
+#   → {flags: {out: "x"}, rest: ["in", "-v"]}
+#
+# `--name value` and `--name=value` set a flag; `--name` alone, or a name
+# listed in `bools`, is true. Flag names turn `-` into `_` (`dry_run`).
+# Arguments not starting with `--` go to rest in order; everything after
+# a bare `--` goes to rest. A lone `-` is an ordinary argument.
+fn parse(argv, bools = []) = _parse(argv, bools, {flags: {}, rest: []})
+
+fn _parse(argv, bools, acc) = match argv:
+  []                                     => acc
+  ["--", ...rest]                        => put(acc, "rest", acc.rest + rest)
+  [a, ...rest] when starts_with(a, "--") =>
+    (k, v, left) = _flag(a[2..], rest, bools)
+    _parse(left, bools, put(acc, "flags", put(acc.flags, k, v)))
+  [a, ...rest]                           => _parse(rest, bools, put(acc, "rest", acc.rest + [a]))
+;;
+
+# One flag body (after `--`) with the remaining arguments → (key, value, rest).
+fn _flag(body, rest, bools) = match split(body, "="):
+  [name, ...vals] when not is_empty(vals) => (_key(name), join(vals, "="), rest)
+  _                                       => body in bools then (_key(body), true, rest)
+    else match rest:
+      [v, ...more] when not starts_with(v, "--") => (_key(body), v, more)
+      _                                          => (_key(body), true, rest)
+    ;;
+;;
+
+fn _key(name) = replace(name, "-", "_")
+
+test "flags, values, and rest":
+  assert parse(["a", "--trash", "dir", "b"]) == {flags: {trash: "dir"}, rest: ["a", "b"]}
+  assert parse(["--dry-run", "x"], bools: ["dry-run"]) == {flags: {dry_run: true}, rest: ["x"]}
+  assert parse(["--n=3", "--", "--not-a-flag", "-"]) == {flags: {n: "3"}, rest: ["--not-a-flag", "-"]}
+  assert parse(["--v"]) == {flags: {v: true}, rest: []}
+  assert parse(["--a", "--b", "1"]) == {flags: {a: true, b: "1"}, rest: []}
+  assert parse([]) == {flags: {}, rest: []}
+;;

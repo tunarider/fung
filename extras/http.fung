@@ -1,0 +1,8 @@
+# http: client and server over Go's net/http (06). Any response is Ok;
+# only transport failures and deadlines are Err.
+import _native.http as _n
+
+get = _n.get
+post = _n.post
+request = _n.request
+serve = _n.serve

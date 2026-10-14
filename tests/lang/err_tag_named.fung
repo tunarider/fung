@@ -1,0 +1,2 @@
+print(Ok(a: 1))
+# expect-error: E0110

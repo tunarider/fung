@@ -1,0 +1,6 @@
+at_exit(() => print("bye"))
+spawn(fn(): sleep(10ms); exit(5) ;;)
+sleep(10s)
+print("never")
+# expect: bye
+# expect-exit: 5

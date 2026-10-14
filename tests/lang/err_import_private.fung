@@ -1,0 +1,3 @@
+import "./_lib/greet"
+print(greet._secret())
+# expect-error: E0304

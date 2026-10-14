@@ -1,0 +1,6 @@
+fn f():
+  unused = 1
+  2
+;;
+print(f())
+# expect: 2

@@ -1,0 +1,3 @@
+print(exec(["echo", "hi"])!.out, sh("exit 2") |> is_err, env("FUNG_SURELY_UNSET_VAR_1"))
+# expect: hi
+# expect:  true nil

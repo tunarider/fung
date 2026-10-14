@@ -1,0 +1,3 @@
+fn f(s: Circle) = s
+f(1)
+# expect-error: E0403

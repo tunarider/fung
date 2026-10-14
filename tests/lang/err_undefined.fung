@@ -1,0 +1,2 @@
+print(fiels)
+# expect-error: E0204

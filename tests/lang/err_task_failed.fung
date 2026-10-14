@@ -1,0 +1,5 @@
+spawn(() => fail("x"))
+sleep(20ms)
+print("entry done")
+# expect: entry done
+# expect-error: E0803

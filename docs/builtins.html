@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내장 함수 — fung 매뉴얼</title>
+<meta name="description" content="fung의 prelude 함수와 표준 모듈(fs, path, cli, json, time, regex, http) 참조.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="frame">
+<aside class="side">
+  <a class="brand" href="index.html"><b>fung</b><span>;;</span></a>
+  <nav aria-label="매뉴얼">
+    <ol class="pages">
+      <li><a href="index.html">기조와 핵심</a></li>
+      <li><a href="syntax.html">문법</a></li>
+      <li><a href="builtins.html" aria-current="page">내장 함수</a>
+        <ol class="toc">
+          <li><a href="#reading">읽는 법</a></li>
+          <li><a href="#io">출력과 입력</a></li>
+          <li><a href="#convert">타입과 변환</a></li>
+          <li><a href="#collections">컬렉션</a></li>
+          <li><a href="#maps">맵</a></li>
+          <li><a href="#strings">문자열</a></li>
+          <li><a href="#results">결과값</a></li>
+          <li><a href="#loops">반복 패턴</a></li>
+          <li><a href="#program">에러와 종료</a></li>
+          <li><a href="#process">프로세스와 환경</a></li>
+          <li><a href="#concurrency">동시성</a></li>
+          <li><a href="#fs">fs</a></li>
+          <li><a href="#path">path</a></li>
+          <li><a href="#cli">cli</a></li>
+          <li><a href="#json">json</a></li>
+          <li><a href="#time">time</a></li>
+          <li><a href="#regex">regex</a></li>
+          <li><a href="#http">http</a></li>
+        </ol>
+      </li>
+      <li><a href="internals.html">내부 구조</a></li>
+    </ol>
+  </nav>
+  <p class="side-foot">fung 0.1.0 · 설계 문서는 <a href="design/README.md">docs/design</a></p>
+</aside>
+
+<main>
+<div class="col">
+<h1>내장 함수</h1>
+<p class="lede">import 없이 쓰는 prelude와, 이름으로 가져오는 표준 모듈. 모든 서명은 실제 매개변수 표에서 뽑았다.</p>
+
+<h2 id="reading">읽는 법</h2>
+<ul>
+  <li><code>f(a, b = 1, ...rest)</code>: <code>b</code>는 기본값이 있고 <code>rest</code>는 남는 위치 인자를 리스트로 받는다. 내장 함수도 이름 붙인 인자를 받는다: <code>exec(cmd, cwd: "/tmp")</code>.</li>
+  <li>모든 함수는 "대상이 첫 번째 인자"라서 파이프로 이어진다: <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같다(<a href="syntax.html#pipe">파이프</a>).</li>
+  <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code>.</li>
+  <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러(E0403)다.</li>
+  <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Go로 구현했다(<a href="internals.html#layers">네 층</a>).</li>
+</ul>
+
+<div class="filter">
+  <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
+  <input id="fn-search" type="search" placeholder="예: split, 정렬, Err" autocomplete="off">
+  <p id="fn-count">128개 함수</p>
+</div>
+
+<h2 id="prelude">prelude: 늘 쓸 수 있는 함수</h2>
+<p>import 없이 쓴다. 같은 이름의 변수나 함수를 만들면 경고(W0103)가 난다.</p>
+<section class="group" id="io">
+<h3>출력과 입력</h3>
+<p>표준 출력·에러에 쓰고, 표준 입력이나 파일 핸들에서 줄을 읽는다.</p>
+<div class="fn" id="fn-print"><code>print(...args)</code>
+  <p>인자들을 공백으로 이어 한 줄로 표준 출력에 쓴다. 문자열은 따옴표 없이, 나머지는 리터럴 형태로 찍는다. 태스크 여럿이 동시에 찍어도 줄이 섞이지 않는다.</p>
+  <pre><code>print(&quot;total:&quot;, 3, [1, 2], &#x27;ok)</code></pre>
+</div>
+<div class="fn" id="fn-eprint"><code>eprint(...args)</code>
+  <p><code>print</code>와 같지만 표준 에러에 쓴다.</p>
+</div>
+<div class="fn" id="fn-read_line"><code>read_line(f = nil)</code>
+  <p>한 줄을 읽어 <code>Ok(줄)</code>, 끝이면 <code>Ok(nil)</code>. 줄 끝의 <code>\n</code>·<code>\r</code>는 뗀다. <code>f</code>가 <code>nil</code>이면 표준 입력, 파일 핸들이면 그 파일. 닫힌 핸들이면 <code>Err({kind: 'closed})</code>.</p>
+</div>
+<div class="fn" id="fn-read_lines"><code>read_lines(f = nil)</code>
+  <p>남은 줄 전부를 <code>Ok(리스트)</code>로. 규칙은 <code>read_line</code>과 같다.</p>
+</div>
+<div class="fn" id="fn-dbg"><code>dbg(x)</code>
+  <p><code>[파일:줄] 식 = 값</code>을 표준 에러에 찍고 <code>x</code>를 그대로 돌려준다. 식의 소스 텍스트는 컴파일러가 채운다.</p>
+</div>
+</section>
+<section class="group" id="convert">
+<h3>타입과 변환</h3>
+<p><code>int</code>·<code>float</code>·<code>str</code>·<code>sym</code>은 잘못된 입력에 런타임 에러를 낸다(코드가 틀린 것으로 본다). 믿을 수 없는 입력은 <code>parse_*</code>로 검사한다.</p>
+<div class="fn" id="fn-type_of"><code>type_of(x)</code>
+  <p>값의 타입 이름을 심볼로: <code>'int</code> <code>'str</code> <code>'list</code> <code>'map</code> <code>'fn</code> …, 태그 값이면 태그 이름(<code>'Ok</code>, <code>'Circle</code>).</p>
+  <pre><code>print(type_of(1.5), type_of(Ok(1)), type_of(&#x27;x))</code></pre>
+</div>
+<div class="fn" id="fn-int"><code>int(x)</code>
+  <p>문자열(<code>"42"</code>, <code>"-1_000"</code>)이나 실수(0 쪽으로 버림)를 정수로. 변환할 수 없으면 E0513.</p>
+  <pre><code>print(int(&quot;42&quot;) + 1, int(-3.9))</code></pre>
+</div>
+<div class="fn" id="fn-float"><code>float(x)</code>
+  <p>정수나 문자열을 실수로.</p>
+</div>
+<div class="fn" id="fn-str"><code>str(x)</code>
+  <p>문자열이면 그대로, 아니면 리터럴 형태의 문자열.</p>
+</div>
+<div class="fn" id="fn-sym"><code>sym(x)</code>
+  <p>이름 모양의 문자열을 심볼로(<code>sym("ok") == 'ok</code>).</p>
+</div>
+<div class="fn" id="fn-parse_int"><code>parse_int(s)</code>
+  <p><code>Ok(정수)</code> 또는 <code>Err({kind: 'parse, message})</code>. 공백은 허용하지 않는다.</p>
+  <pre><code>print(parse_int(&quot;1_000&quot;), parse_int(&quot;x&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-parse_float"><code>parse_float(s)</code>
+  <p><code>Ok(실수)</code> 또는 <code>Err('parse)</code>.</p>
+</div>
+<div class="fn" id="fn-parse_dur"><code>parse_dur(s)</code>
+  <p>기간 리터럴 문법(<code>1h30m</code>, <code>500ms</code>, <code>-5s</code>, 앞뒤 공백 허용)을 <code>Ok(dur)</code> 또는 <code>Err('parse)</code>로. <code>--timeout 30s</code> 같은 옵션에 쓴다.</p>
+  <pre><code>print(parse_dur(&quot;90s&quot;)!, parse_dur(&quot;soon&quot;))</code></pre>
+</div>
+</section>
+<section class="group" id="collections">
+<h3>컬렉션</h3>
+<p>리스트를 받는 함수는 범위와 채널(닫힐 때까지 받는다)도 받는다. 원소를 도는 함수는 Go로, 그 위의 조합은 fung으로 썼다.</p>
+<div class="fn" id="fn-len"><code>len(x)</code>
+  <p>문자열(글자 수), 리스트, 맵, 튜플, 범위의 길이.</p>
+  <pre><code>print(len(&quot;참치&quot;), len([1, 2]), len(0..10))</code></pre>
+</div>
+<div class="fn" id="fn-is_empty"><code>is_empty(x)</code><span class="by">fung으로 작성</span>
+  <p><code>len(x) == 0</code>.</p>
+</div>
+<div class="fn" id="fn-map"><code>map(xs, f)</code>
+  <p><code>f(x)</code>를 모은 새 리스트.</p>
+  <pre><code>print([1, 2, 3] |&gt; map(x =&gt; x * 10))</code></pre>
+</div>
+<div class="fn" id="fn-filter"><code>filter(xs, f)</code>
+  <p><code>f(x)</code>가 <code>true</code>인 원소만. <code>f</code>는 bool을 돌려줘야 한다.</p>
+</div>
+<div class="fn" id="fn-fold"><code>fold(xs, init, f)</code>
+  <p>왼쪽부터 접는다: <code>f(f(init, x1), x2)</code>…</p>
+  <pre><code>print(fold([1, 2, 3], 0, (acc, x) =&gt; acc + x))</code></pre>
+</div>
+<div class="fn" id="fn-each"><code>each(xs, f)</code>
+  <p>부수효과용 순회. <code>nil</code>을 돌려준다(<code>for</code>는 리스트를 만든다).</p>
+</div>
+<div class="fn" id="fn-find"><code>find(xs, f)</code>
+  <p><code>f(x)</code>가 참인 첫 원소, 없으면 <code>nil</code>.</p>
+</div>
+<div class="fn" id="fn-any"><code>any(xs, f)</code>
+  <p>하나라도 참이면 <code>true</code>.</p>
+</div>
+<div class="fn" id="fn-all"><code>all(xs, f)</code>
+  <p>모두 참이면 <code>true</code>. 빈 리스트는 <code>true</code>.</p>
+</div>
+<div class="fn" id="fn-sort"><code>sort(xs)</code>
+  <p>비교 표의 순서로 정렬한 새 리스트. 비교할 수 없는 값이 섞이면 에러.</p>
+</div>
+<div class="fn" id="fn-sort_by"><code>sort_by(xs, f)</code>
+  <p><code>f(x)</code>를 키로 안정 정렬. 내림차순은 키에 <code>-</code>를 붙이거나 <code>reverse</code>.</p>
+  <pre><code>print([&quot;bb&quot;, &quot;a&quot;, &quot;ccc&quot;] |&gt; sort_by(len))</code></pre>
+</div>
+<div class="fn" id="fn-reverse"><code>reverse(xs)</code><span class="by">fung으로 작성</span>
+  <p>거꾸로 뒤집은 리스트.</p>
+</div>
+<div class="fn" id="fn-unique"><code>unique(xs)</code><span class="by">fung으로 작성</span>
+  <p>처음 나온 순서를 지키며 중복을 뺀다.</p>
+</div>
+<div class="fn" id="fn-flatten"><code>flatten(xs)</code>
+  <p>한 단계만 펼친다: <code>[[1, [2]], 3]</code> → <code>[1, [2], 3]</code>.</p>
+</div>
+<div class="fn" id="fn-group_by"><code>group_by(xs, f)</code>
+  <p><code>f(x)</code>(문자열이어야 한다)를 키로 묶은 맵. 키와 각 목록은 처음 나온 순서.</p>
+  <pre><code>print(group_by([&quot;ab&quot;, &quot;c&quot;, &quot;de&quot;], s =&gt; str(len(s))))</code></pre>
+</div>
+<div class="fn" id="fn-zip"><code>zip(xs, ys)</code><span class="by">fung으로 작성</span>
+  <p>짝지은 튜플의 리스트. 짧은 쪽 길이까지.</p>
+</div>
+<div class="fn" id="fn-first"><code>first(xs)</code><span class="by">fung으로 작성</span>
+  <p>첫 원소, 비었으면 <code>nil</code>.</p>
+</div>
+<div class="fn" id="fn-last"><code>last(xs)</code><span class="by">fung으로 작성</span>
+  <p>마지막 원소, 비었으면 <code>nil</code>.</p>
+</div>
+<div class="fn" id="fn-take"><code>take(xs, n)</code><span class="by">fung으로 작성</span>
+  <p>앞에서 최대 <code>n</code>개. 넘쳐도 에러가 아니다(슬라이스와 다른 점).</p>
+</div>
+<div class="fn" id="fn-drop"><code>drop(xs, n)</code><span class="by">fung으로 작성</span>
+  <p>앞의 <code>n</code>개를 뺀 나머지. 넘쳐도 에러가 아니다.</p>
+</div>
+<div class="fn" id="fn-range"><code>range(a, b = nil)</code><span class="by">fung으로 작성</span>
+  <p><code>range(n)</code>은 <code>0..n</code>, <code>range(a, b)</code>는 <code>a..b</code>.</p>
+</div>
+<div class="fn" id="fn-sum"><code>sum(xs)</code><span class="by">fung으로 작성</span>
+  <p>숫자의 합. 빈 리스트는 0.</p>
+</div>
+<div class="fn" id="fn-min"><code>min(xs)</code><span class="by">fung으로 작성</span>
+  <p>가장 작은 값, 비었으면 <code>nil</code>.</p>
+</div>
+<div class="fn" id="fn-max"><code>max(xs)</code><span class="by">fung으로 작성</span>
+  <p>가장 큰 값, 비었으면 <code>nil</code>.</p>
+</div>
+<div class="fn" id="fn-contains"><code>contains(c, x)</code><span class="by">fung으로 작성</span>
+  <p><code>x in c</code>와 같다: 리스트 원소, 맵 키, 부분 문자열.</p>
+</div>
+</section>
+<section class="group" id="maps">
+<h3>맵</h3>
+<p>맵은 불변이다. 아래 함수들은 모두 새 맵을 돌려준다.</p>
+<div class="fn" id="fn-get"><code>get(m, k, default = nil)</code><span class="by">fung으로 작성</span>
+  <p>키가 있으면 값, 없으면 <code>default</code>. 맵이 아니면 에러.</p>
+  <pre><code>print(get({a: 1}, &quot;b&quot;, 0))</code></pre>
+</div>
+<div class="fn" id="fn-put"><code>put(m, k, v)</code>
+  <p><code>k</code>를 <code>v</code>로 둔 사본. 기존 키면 자리를 지킨다.</p>
+</div>
+<div class="fn" id="fn-merge"><code>merge(a, b)</code>
+  <p>둘을 합친 사본. 같은 키는 <code>b</code>가 이긴다.</p>
+</div>
+<div class="fn" id="fn-remove"><code>remove(m, k)</code>
+  <p><code>k</code>를 뺀 사본. 없는 키면 그대로.</p>
+</div>
+<div class="fn" id="fn-keys"><code>keys(m)</code><span class="by">fung으로 작성</span>
+  <p>키의 리스트(넣은 순서).</p>
+</div>
+<div class="fn" id="fn-values"><code>values(m)</code><span class="by">fung으로 작성</span>
+  <p>값의 리스트.</p>
+</div>
+<div class="fn" id="fn-pairs"><code>pairs(m)</code>
+  <p><code>(키, 값)</code> 튜플의 리스트. <code>for (k, v) in pairs(m):</code>로 돈다.</p>
+</div>
+</section>
+<section class="group" id="strings">
+<h3>문자열</h3>
+<p>인덱스와 길이는 글자 단위다.</p>
+<div class="fn" id="fn-chars"><code>chars(s)</code>
+  <p>글자 하나짜리 문자열의 리스트.</p>
+</div>
+<div class="fn" id="fn-split"><code>split(s, sep)</code>
+  <p><code>sep</code>로 나눈다. 빈 조각도 남긴다. <code>sep</code>가 <code>""</code>면 글자 단위.</p>
+  <pre><code>print(split(&quot;a,,b&quot;, &quot;,&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-join"><code>join(xs, sep = &quot;&quot;)</code>
+  <p>원소를 <code>sep</code>로 잇는다. 문자열이 아닌 원소는 <code>str</code>로 바꾼다.</p>
+</div>
+<div class="fn" id="fn-lines"><code>lines(s)</code><span class="by">fung으로 작성</span>
+  <p>줄 리스트. <code>\n</code>으로 나누고 줄 끝의 <code>\r</code>을 떼며, 마지막 줄바꿈은 빈 줄을 만들지 않는다. <code>split(s, "\n")</code> 대신 쓴다.</p>
+  <pre><code>print(lines(&quot;a\nb\n&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-trim"><code>trim(s, cut = nil)</code>
+  <p>양 끝의 공백을, <code>cut</code>을 주면 그 글자들을 지운다.</p>
+  <pre><code>print(trim(&quot;  x &quot;), trim(&quot;--x--&quot;, &quot;-&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-upper"><code>upper(s)</code>
+  <p>대문자로.</p>
+</div>
+<div class="fn" id="fn-lower"><code>lower(s)</code>
+  <p>소문자로.</p>
+</div>
+<div class="fn" id="fn-replace"><code>replace(s, old, new)</code>
+  <p>모든 <code>old</code>를 <code>new</code>로. 패턴이 필요하면 <code>regex.replace</code>.</p>
+</div>
+<div class="fn" id="fn-starts_with"><code>starts_with(s, prefix)</code>
+  <p>접두사 검사.</p>
+</div>
+<div class="fn" id="fn-ends_with"><code>ends_with(s, suffix)</code>
+  <p>접미사 검사.</p>
+</div>
+<div class="fn" id="fn-repeat"><code>repeat(s, n)</code>
+  <p><code>s</code>를 <code>n</code>번 이어 붙인다(<code>"a" * 3</code>은 없다).</p>
+</div>
+<div class="fn" id="fn-pad_left"><code>pad_left(s, n, pad = &quot; &quot;)</code><span class="by">fung으로 작성</span>
+  <p>왼쪽을 <code>pad</code>로 채워 <code>n</code>글자로. 이미 길면 그대로.</p>
+  <pre><code>print(pad_left(&quot;7&quot;, 3, &quot;0&quot;), &quot;[&quot; + pad_right(&quot;ab&quot;, 4) + &quot;]&quot;)</code></pre>
+</div>
+<div class="fn" id="fn-pad_right"><code>pad_right(s, n, pad = &quot; &quot;)</code><span class="by">fung으로 작성</span>
+  <p>오른쪽을 채운다.</p>
+</div>
+</section>
+<section class="group" id="results">
+<h3>결과값</h3>
+<p><code>Ok</code>·<code>Err</code>는 평범한 태그다. 풀 때는 주로 <code>!</code> <code>?</code> <code>??</code>나 <code>match</code>를 쓴다(<a href="syntax.html#results">문법</a>).</p>
+<div class="fn" id="fn-is_ok"><code>is_ok(x)</code><span class="by">fung으로 작성</span>
+  <p><code>Ok(…)</code>이면 <code>true</code>.</p>
+</div>
+<div class="fn" id="fn-is_err"><code>is_err(x)</code><span class="by">fung으로 작성</span>
+  <p><code>Err(…)</code>이면 <code>true</code>.</p>
+</div>
+</section>
+<section class="group" id="loops">
+<h3>반복 패턴</h3>
+<p><code>while</code> 대신 쓰는 꼬리 재귀 도우미들. 모두 fung으로 썼다.</p>
+<div class="fn" id="fn-until"><code>until(x, f, pred)</code><span class="by">fung으로 작성</span>
+  <p><code>pred(x)</code>가 참이 될 때까지 <code>x = f(x)</code>를 되풀이한 값.</p>
+  <pre><code>print(until(1, x =&gt; x * 2, x =&gt; x &gt; 100))</code></pre>
+</div>
+<div class="fn" id="fn-iterate"><code>iterate(x, f, n)</code><span class="by">fung으로 작성</span>
+  <p><code>f</code>를 <code>n</code>번 적용한 값.</p>
+</div>
+<div class="fn" id="fn-retry"><code>retry(f, times = 3, delay = 0ms)</code><span class="by">fung으로 작성</span>
+  <p><code>f()</code>가 <code>Ok</code>를 돌려줄 때까지 최대 <code>times</code>번, 사이에 <code>delay</code>만큼 쉬며 부른다. 모두 실패하면 마지막 <code>Err</code>.</p>
+</div>
+</section>
+<section class="group" id="program">
+<h3>에러와 종료</h3>
+<div class="fn" id="fn-fail"><code>fail(...args)</code>
+  <p>인자를 <code>print</code>처럼 이은 메시지로 런타임 에러(E0803)를 낸다. "여기 오면 버그"를 말할 때 쓴다: <code>x ?? fail("x is required")</code>.</p>
+</div>
+<div class="fn" id="fn-at_exit"><code>at_exit(f)</code>
+  <p>프로그램이 끝날 때(정상, <code>exit</code>, 에러 모두) <code>f()</code>를 부른다. 등록의 역순으로 실행된다.</p>
+</div>
+<div class="fn" id="fn-exit"><code>exit(code = 0)</code>
+  <p>어느 태스크에서 불러도 프로그램을 끝낸다. 남은 태스크는 취소되고 <code>at_exit</code> 핸들러가 돈 뒤 그 코드로 끝난다.</p>
+</div>
+<div class="fn" id="fn-args"><code>args</code>
+  <p>스크립트 경로 뒤의 명령행 인자(문자열 리스트). 함수가 아니라 값이다.</p>
+</div>
+</section>
+<section class="group" id="process">
+<h3>프로세스와 환경</h3>
+<p>명령은 쉘을 거치지 않는 <code>exec</code>가 기본이다. 종료 코드 0이 아니면 <code>Err</code>이므로 <code>exec(…)!</code>가 쉘의 <code>set -e</code>와 같다.</p>
+<div class="fn" id="fn-exec"><code>exec(cmd, cwd = nil, env = nil, stdin = nil)</code>
+  <p><code>cmd</code>는 문자열 리스트(<code>["git", "status"]</code>). 성공하면 <code>Ok({out, err, code})</code>, 0이 아닌 종료는 <code>Err({kind: 'exit, code, out, err, message})</code>, 실행 파일이 없으면 <code>Err('not_found)</code>. <code>env</code>는 현재 환경에 덧붙일 맵.</p>
+  <pre><code>r = exec([&quot;echo&quot;, &quot;hi&quot;])!
+print(trim(r.out))</code></pre>
+</div>
+<div class="fn" id="fn-sh"><code>sh(cmd, cwd = nil, env = nil, stdin = nil)</code>
+  <p><code>/bin/sh -c cmd</code>. 파이프나 글로브 같은 쉘 기능이 필요할 때만.</p>
+</div>
+<div class="fn" id="fn-env"><code>env(name = nil)</code>
+  <p>환경 변수 값(문자열) 또는 <code>nil</code>. 인자가 없으면 전체를 맵으로.</p>
+  <pre><code>port = env(&quot;PORT&quot;) ?? &quot;8080&quot;
+print(port)</code></pre>
+</div>
+</section>
+<section class="group" id="concurrency">
+<h3>동시성</h3>
+<p>태스크는 고루틴 위에서 돈다. 값은 불변이라 태스크 사이에 그냥 넘긴다. 바뀌는 상자는 <code>atom</code>뿐이다.</p>
+<div class="fn" id="fn-spawn"><code>spawn(f)</code>
+  <p><code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 취소는 자식 태스크에 전파된다.</p>
+</div>
+<div class="fn" id="fn-await"><code>await(t, timeout = nil)</code>
+  <p>태스크의 결과. 정상 종료면 반환값, 런타임 에러로 죽었으면 <code>Err({kind: 'error, message})</code>, 취소됐으면 <code>Err('cancelled)</code>, 시간이 지나면 <code>Err('timeout)</code>. 여러 번 불러도 같은 결과.</p>
+  <pre><code>t = spawn(() =&gt; 6 * 7)
+print(await(t))</code></pre>
+</div>
+<div class="fn" id="fn-cancel"><code>cancel(t)</code>
+  <p>태스크를 취소한다. 취소는 실패가 아니라 종료 코드에 영향이 없다.</p>
+</div>
+<div class="fn" id="fn-channel"><code>channel(n = 0)</code>
+  <p>채널. <code>n</code>은 버퍼 크기이고, 0이면 받는 쪽이 있을 때까지 <code>send</code>가 막힌다. <code>for</code>와 <code>map</code> 등으로 닫힐 때까지 순회할 수 있다.</p>
+</div>
+<div class="fn" id="fn-send"><code>send(ch, v)</code>
+  <p><code>Ok(nil)</code>, 닫혔으면 <code>Err('closed)</code>.</p>
+</div>
+<div class="fn" id="fn-recv"><code>recv(ch, timeout = nil)</code>
+  <p><code>Ok(v)</code>, 닫혔으면 <code>Err('closed)</code>, 시간이 지나면 <code>Err('timeout)</code>.</p>
+  <pre><code>ch = channel(1)
+send(ch, &quot;hi&quot;)
+print(recv(ch)!)</code></pre>
+</div>
+<div class="fn" id="fn-close"><code>close(ch)</code>
+  <p>채널을 닫는다.</p>
+</div>
+<div class="fn" id="fn-atom"><code>atom(v)</code>
+  <p>바꿀 수 있는 상자.</p>
+</div>
+<div class="fn" id="fn-swap"><code>swap(a, f)</code>
+  <p>잠금 아래서 <code>f(현재 값)</code>을 정확히 한 번 실행해 새 값으로 바꾸고 그 값을 돌려준다. <code>f</code> 안에서 같은 atom을 <code>swap</code>하면 E0703.</p>
+  <pre><code>hits = atom(0)
+each(1..=3, _ =&gt; swap(hits, n =&gt; n + 1))
+print(deref(hits))</code></pre>
+</div>
+<div class="fn" id="fn-deref"><code>deref(a)</code>
+  <p>현재 값.</p>
+</div>
+<div class="fn" id="fn-sleep"><code>sleep(d)</code>
+  <p>기간만큼 기다린다. 취소되면 깨어난다.</p>
+</div>
+<div class="fn" id="fn-pmap"><code>pmap(xs, f, limit = 0)</code><span class="by">fung으로 작성</span>
+  <p>병렬 <code>map</code>. <code>limit</code>은 동시에 도는 태스크 수(0은 제한 없음). 결과 순서는 입력 순서.</p>
+  <pre><code>print(pmap([1, 2, 3], x =&gt; x * x, limit: 2))</code></pre>
+</div>
+<div class="fn" id="fn-fan_in"><code>fan_in(chs)</code><span class="by">fung으로 작성</span>
+  <p>여러 채널을 하나로 모은 채널. 모두 닫히면 닫힌다.</p>
+</div>
+</section>
+<h2 id="modules">모듈</h2>
+<p>표준 모듈은 이름으로 가져온다: <code>import fs</code>. 모두 실행 파일에 들어 있다.</p>
+<section class="group" id="fs">
+<h3>fs — 파일과 디렉터리</h3>
+<p><code>import fs</code>. 실패할 수 있는 연산은 <code>Ok</code>/<code>Err</code>를 돌려주고, <code>Err</code>의 <code>kind</code>는 <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> 중 하나다.</p>
+<div class="fn" id="fn-fs-read"><code>fs.read(path)</code>
+  <p>파일 전체를 <code>Ok(문자열)</code>로.</p>
+</div>
+<div class="fn" id="fn-fs-read_lines"><code>fs.read_lines(path)</code><span class="by">fung으로 작성</span>
+  <p>파일을 줄 리스트로(<code>lines</code>와 같은 규칙).</p>
+</div>
+<div class="fn" id="fn-fs-write"><code>fs.write(path, text)</code>
+  <p>덮어쓴다. <code>Ok(nil)</code>.</p>
+</div>
+<div class="fn" id="fn-fs-append"><code>fs.append(path, text)</code>
+  <p>끝에 덧붙인다(없으면 만든다).</p>
+</div>
+<div class="fn" id="fn-fs-list"><code>fs.list(dir, full = false)</code>
+  <p>디렉터리 안의 이름들(이름순). <code>full: true</code>면 <code>dir</code>을 붙인 경로.</p>
+</div>
+<div class="fn" id="fn-fs-glob"><code>fs.glob(pattern)</code>
+  <p>패턴에 맞는 경로들(정렬됨). <code>*</code> <code>?</code> <code>[…]</code>.</p>
+</div>
+<div class="fn" id="fn-fs-walk"><code>fs.walk(dir)</code>
+  <p>아래의 모든 파일 경로(디렉터리 제외, 재귀).</p>
+</div>
+<div class="fn" id="fn-fs-exists"><code>fs.exists(path)</code>
+  <p><code>true</code>/<code>false</code>(결과값이 아니다).</p>
+</div>
+<div class="fn" id="fn-fs-stat"><code>fs.stat(path)</code>
+  <p><code>Ok({name, size, is_dir})</code>.</p>
+</div>
+<div class="fn" id="fn-fs-mkdir"><code>fs.mkdir(path)</code>
+  <p>중간 디렉터리까지 만든다.</p>
+</div>
+<div class="fn" id="fn-fs-remove"><code>fs.remove(path)</code>
+  <p>파일이나 빈 디렉터리를 지운다.</p>
+</div>
+<div class="fn" id="fn-fs-remove_all"><code>fs.remove_all(path)</code>
+  <p>디렉터리를 통째로 지운다.</p>
+</div>
+<div class="fn" id="fn-fs-move"><code>fs.move(from, to)</code>
+  <p>이름을 바꾸거나 옮긴다.</p>
+</div>
+<div class="fn" id="fn-fs-copy"><code>fs.copy(from, to)</code>
+  <p>파일 하나를 복사한다(권한 유지).</p>
+</div>
+<div class="fn" id="fn-fs-open"><code>fs.open(path, mode = &#x27;read)</code>
+  <p>파일 핸들을 <code>Ok(file)</code>로. <code>mode</code>는 <code>'read</code> <code>'write</code> <code>'append</code>. 핸들은 태스크 사이에 공유해도 연산 단위로 직렬화된다.</p>
+</div>
+<div class="fn" id="fn-fs-close"><code>fs.close(f)</code>
+  <p>닫는다. 닫힌 핸들에 읽고 쓰면 <code>Err('closed)</code>.</p>
+</div>
+<div class="fn" id="fn-fs-write_line"><code>fs.write_line(f, line)</code>
+  <p>핸들에 한 줄 쓴다.</p>
+</div>
+<div class="fn" id="fn-fs-with_open"><code>fs.with_open(path, f, mode = &#x27;read)</code><span class="by">fung으로 작성</span>
+  <p>열고 <code>f(핸들)</code>을 부른 뒤 결과가 무엇이든 닫고 그 결과를 돌려준다. <code>defer</code> 대신 쓰는 모양이다.</p>
+  <pre class="frag"><code>fs.with_open(&quot;notes.txt&quot;, fn(h):
+  line = read_line(h)?
+  print(line)
+;;)</code></pre>
+</div>
+<div class="fn" id="fn-fs-with_temp_dir"><code>fs.with_temp_dir(f)</code><span class="by">fung으로 작성</span>
+  <p>임시 디렉터리를 만들어 <code>f(경로)</code>를 부르고 지운다.</p>
+</div>
+</section>
+<section class="group" id="path">
+<h3>path — 경로 계산</h3>
+<p><code>import path</code>. 파일 시스템을 건드리지 않는 순수한 경로 연산이다.</p>
+<div class="fn" id="fn-path-join"><code>path.join(...parts)</code>
+  <p>이어 붙이고 정리한다.</p>
+</div>
+<div class="fn" id="fn-path-base"><code>path.base(p)</code>
+  <p>마지막 요소: <code>"a/b.txt"</code> → <code>"b.txt"</code>.</p>
+</div>
+<div class="fn" id="fn-path-dir"><code>path.dir(p)</code>
+  <p>마지막 요소를 뺀 부분.</p>
+</div>
+<div class="fn" id="fn-path-ext"><code>path.ext(p)</code>
+  <p>점을 포함한 확장자: <code>"a.tar.gz"</code> → <code>".gz"</code>.</p>
+</div>
+<div class="fn" id="fn-path-stem"><code>path.stem(p)</code>
+  <p>확장자를 뺀 이름: <code>"a.tar.gz"</code> → <code>"a.tar"</code>.</p>
+</div>
+<div class="fn" id="fn-path-abs"><code>path.abs(p)</code>
+  <p>현재 디렉터리 기준 절대 경로(문자열).</p>
+</div>
+</section>
+<section class="group" id="cli">
+<h3>cli — 명령행 옵션</h3>
+<p><code>import cli</code>. fung으로 썼다.</p>
+<div class="fn" id="fn-cli-parse"><code>cli.parse(argv, bools = [])</code><span class="by">fung으로 작성</span>
+  <p><code>{flags, rest}</code>를 돌려준다. <code>--name value</code>, <code>--name=value</code>, 값 없는 <code>--name</code>(<code>true</code>)를 받고, <code>bools</code>에 있는 이름은 값을 먹지 않는다. <code>--</code> 뒤는 전부 <code>rest</code>. 이름의 <code>-</code>는 <code>_</code>가 된다. 값은 문자열이므로 변환은 직접 한다.</p>
+  <pre><code>import cli
+opts = cli.parse([&quot;--dry-run&quot;, &quot;--n&quot;, &quot;3&quot;, &quot;a.txt&quot;], bools: [&quot;dry-run&quot;])
+print(opts.flags.dry_run, int(opts.flags.n), opts.rest)</code></pre>
+</div>
+</section>
+<section class="group" id="json">
+<h3>json — JSON</h3>
+<p><code>import json</code>. 파서는 성능 때문에 Go로 썼다.</p>
+<div class="fn" id="fn-json-parse"><code>json.parse(s)</code>
+  <p><code>Ok(값)</code> 또는 <code>Err({kind: 'parse, line, col, message})</code>. 객체는 키 순서를 지키는 맵, 소수점·지수 없는 숫자는 정수(int64를 넘으면 <code>Err</code>), 그 외 숫자는 실수, <code>null</code>은 <code>nil</code>.</p>
+  <pre><code>import json
+data = json.parse(`{&quot;name&quot;: &quot;fung&quot;, &quot;tags&quot;: [&quot;a&quot;], &quot;n&quot;: 3}`)!
+print(data.name, data.tags, data.n + 1)</code></pre>
+</div>
+<div class="fn" id="fn-json-stringify"><code>json.stringify(v, indent = nil)</code>
+  <p>JSON 문자열. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. 기간·함수·태그 등은 런타임 에러(E0513). <code>indent</code>는 들여쓰기 칸 수. HTML 이스케이프는 하지 않는다.</p>
+  <pre><code>import json
+print(json.stringify({ok: true, ids: (1, 2), at: &#x27;now}))</code></pre>
+</div>
+</section>
+<section class="group" id="time">
+<h3>time — 시각</h3>
+<p><code>import time</code>. 시각은 언어의 값 타입이라 <code>==</code>, <code>&lt;</code>, <code>t + 1h</code>, <code>t2 - t1</code>(기간)이 바로 된다.</p>
+<div class="fn" id="fn-time-now"><code>time.now()</code>
+  <p>현재 시각(로컬 시간대).</p>
+</div>
+<div class="fn" id="fn-time-parse"><code>time.parse(s, format = nil)</code>
+  <p><code>Ok(time)</code> 또는 <code>Err('parse)</code>. 형식이 없으면 ISO 8601(RFC 3339). 범위를 넘는 값(13월, 2월 30일)은 <code>Err</code>.</p>
+  <pre><code>import time
+t = time.parse(&quot;2026-10-04 09:05&quot;, &quot;YYYY-MM-DD HH:mm&quot;)!
+print(time.format(t + 90m, &quot;HH:mm&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-time-format"><code>time.format(t, format = nil)</code>
+  <p>문자열로. 형식이 없으면 ISO 8601.</p>
+</div>
+<div class="fn" id="fn-time-utc"><code>time.utc(t)</code>
+  <p>같은 순간을 UTC로.</p>
+</div>
+<div class="fn" id="fn-time-local"><code>time.local(t)</code>
+  <p>같은 순간을 로컬 시간대로.</p>
+</div>
+<div class="fn" id="fn-time-unix"><code>time.unix(t)</code>
+  <p>유닉스 초(정수).</p>
+</div>
+<div class="fn" id="fn-time-from_unix"><code>time.from_unix(n)</code>
+  <p>유닉스 초에서 시각으로(로컬 시간대).</p>
+</div>
+<div class="fn" id="fn-time-parts"><code>time.parts(t)</code>
+  <p><code>{year, month, day, hour, minute, second, weekday}</code>. <code>weekday</code>는 <code>'mon</code>…<code>'sun</code>.</p>
+</div>
+</section>
+<section class="group" id="regex">
+<h3>regex — 정규식</h3>
+<p><code>import regex</code>. Go의 RE2 문법이다: 역참조와 전후방 탐색이 없는 대신 항상 선형 시간에 돈다. 위치는 글자 단위 인덱스이고, 잘못된 패턴은 런타임 에러(E0515)다. 컴파일한 패턴은 캐시된다.</p>
+<div class="fn" id="fn-regex-is_match"><code>regex.is_match(s, pat)</code>
+  <p>맞는 곳이 있으면 <code>true</code>. (<code>match</code>는 예약어라 이 이름이다.)</p>
+</div>
+<div class="fn" id="fn-regex-find"><code>regex.find(s, pat)</code>
+  <p>첫 매치 <code>{text, start, end, groups, named}</code> 또는 <code>nil</code>. <code>groups</code>는 캡처 그룹 리스트(안 잡힌 그룹은 <code>nil</code>), <code>named</code>는 이름 있는 그룹 맵.</p>
+  <pre><code>import regex
+m = regex.find(&quot;port=8080&quot;, `(?P&lt;key&gt;\w+)=(?P&lt;val&gt;\d+)`)
+print(m.named.key, int(m.named.val) + 1)</code></pre>
+</div>
+<div class="fn" id="fn-regex-find_all"><code>regex.find_all(s, pat)</code>
+  <p>겹치지 않는 모든 매치의 리스트.</p>
+</div>
+<div class="fn" id="fn-regex-replace"><code>regex.replace(s, pat, repl)</code>
+  <p>모든 매치를 바꾼다. <code>repl</code>에서 <code>$1</code>, <code>${name}</code>으로 그룹을 쓴다.</p>
+  <pre><code>import regex
+print(regex.replace(&quot;2026-10-04&quot;, `(\d+)-(\d+)-(\d+)`, &quot;$3/$2/$1&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-regex-split"><code>regex.split(s, pat)</code>
+  <p>매치로 나눈다. 빈 조각도 남긴다.</p>
+</div>
+</section>
+<section class="group" id="http">
+<h3>http — HTTP</h3>
+<p><code>import http</code>. 응답을 받았으면 상태 코드와 무관하게 <code>Ok</code>다(404도 <code>Ok</code>). 전송 실패는 <code>Err('network)</code>, 시간 초과는 <code>Err('timeout)</code>. 응답 헤더 키는 소문자다.</p>
+<div class="fn" id="fn-http-get"><code>http.get(url, headers = {}, timeout = 30s)</code>
+  <p><code>Ok({status, headers, body})</code>. <code>timeout</code>이 <code>0s</code>면 제한 없음.</p>
+  <pre class="frag"><code>import http
+r = http.get(&quot;https://example.com&quot;)!
+print(r.status, r.headers[&quot;content-type&quot;])</code></pre>
+</div>
+<div class="fn" id="fn-http-post"><code>http.post(url, body, headers = {}, timeout = 30s)</code>
+  <p>본문은 문자열(JSON은 <code>json.stringify</code>로).</p>
+</div>
+<div class="fn" id="fn-http-request"><code>http.request(method, url, body = nil, headers = {}, timeout = 30s)</code>
+  <p>임의의 메서드.</p>
+</div>
+<div class="fn" id="fn-http-serve"><code>http.serve(addr, handler, ready = nil)</code>
+  <p><code>addr</code>(<code>":8080"</code>)에서 요청을 받으며 막힌다. 요청마다 새 태스크에서 <code>handler(req)</code>를 부른다. <code>req</code>는 <code>{method, path, query, headers, body}</code>, 응답은 문자열(200) 또는 <code>{status = 200, headers = {}, body = ""}</code>. 핸들러 에러는 500으로 답하고 서버는 계속 돈다. 끝내려면 서버 태스크를 <code>cancel</code>한다. <code>ready</code>는 리스닝 직후 실제 주소로 한 번 불린다(<code>":0"</code>의 포트를 아는 방법). 헤더는 10초 안에 와야 하고 본문은 16MB까지(넘으면 413).</p>
+  <pre class="frag"><code>import http
+http.serve(&quot;:8080&quot;, req =&gt; match req.path:
+  &quot;/health&quot; =&gt; &quot;ok&quot;
+  _         =&gt; {status: 404, body: &quot;not found&quot;}
+;;)</code></pre>
+</div>
+</section>
+
+<nav class="pager" aria-label="이전·다음 쪽"><a href="syntax.html">이전: 문법</a><a href="internals.html">다음: 내부 구조</a></nav>
+</div>
+</main>
+</div>
+<script src="assets/site.js"></script>
+</body>
+</html>
+

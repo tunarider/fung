@@ -1,0 +1,7 @@
+fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+print(count(1000000, 0))
+# expect: 1000000
+fn even(n) = n == 0 then true else odd(n - 1)
+fn odd(n) = n == 0 then false else even(n - 1)
+print(even(300000))
+# expect: true

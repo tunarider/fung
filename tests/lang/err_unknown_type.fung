@@ -1,0 +1,2 @@
+fn f(a: integer) = a
+# expect-error: E0212

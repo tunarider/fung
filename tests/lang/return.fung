@@ -1,0 +1,10 @@
+fn classify(n):
+  if n > 0: return "pos" ;;
+  if n < 0: return "neg" ;;
+  "zero"
+;;
+print(classify(1), classify(-1), classify(0))
+# expect: pos neg zero
+fn nothing() = return
+print(nothing())
+# expect: nil

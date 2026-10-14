@@ -1,0 +1,3 @@
+import "./_lib/greet" (greet, version)
+print(greet("b"), version)
+# expect: hi, b 2

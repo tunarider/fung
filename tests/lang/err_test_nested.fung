@@ -1,0 +1,4 @@
+fn f():
+  test "nested": assert true ;;
+;;
+# expect-error: E0114

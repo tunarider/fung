@@ -1,0 +1,160 @@
+# The part of the prelude written in fung (06: 네 층, built-in extras):
+# the combinators the core's fold/map/for/slices can build, the process
+# functions bridged from Go, and the concurrency helpers (05). The core
+# keeps the functions that walk elements in Go (map, filter, fold, …).
+import _native.conc as _c
+import _native.process as _p
+
+# Process functions (06), bridged from Go.
+exec = _p.exec
+sh = _p.sh
+env = _p.env
+
+# ---- Collections ----------------------------------------------------
+
+fn is_empty(x) = len(x) == 0
+
+fn sum(xs) = fold(xs, 0, (acc, x) => acc + x)
+
+# Positional access needs a list: ranges (and channels) become one.
+fn _list(xs) = type_of(xs) == 'list then xs else map(xs, x => x)
+
+# min/max: nil for an empty collection; the first element seeds the fold
+# so a nil element fails as `<` does instead of being skipped.
+fn min(xs):
+  ys = _list(xs)
+  is_empty(ys) then nil else fold(ys[1..], ys[0], (best, x) => x < best then x else best)
+;;
+
+fn max(xs):
+  ys = _list(xs)
+  is_empty(ys) then nil else fold(ys[1..], ys[0], (best, x) => x > best then x else best)
+;;
+
+fn reverse(xs):
+  ys = _list(xs)
+  n = len(ys)
+  for i in 0..n: ys[n - 1 - i] ;;
+;;
+
+fn range(a, b = nil) = b == nil then 0..a else a..b
+
+fn zip(xs, ys):
+  left = _list(xs)
+  right = _list(ys)
+  n = min([len(left), len(right)])
+  for i in 0..n: (left[i], right[i]) ;;
+;;
+
+fn first(xs):
+  ys = _list(xs)
+  is_empty(ys) then nil else ys[0]
+;;
+
+fn last(xs):
+  ys = _list(xs)
+  is_empty(ys) then nil else ys[-1]
+;;
+
+# take/drop never fail on a count out of range (06): n is clamped into
+# 0..=len before slicing. A count that is not an int is the caller's bug.
+fn _clamp(verb, n, size):
+  if type_of(n) != 'int: fail("${verb} expects an int count, got ${type_of(n)}") ;;
+  n < 0 then 0 else (n > size then size else n)
+;;
+
+fn take(xs, n):
+  ys = _list(xs)
+  ys[.._clamp("take", n, len(ys))]
+;;
+
+fn drop(xs, n):
+  ys = _list(xs)
+  ys[_clamp("drop", n, len(ys))..]
+;;
+
+fn contains(c, x) = x in c
+
+fn unique(xs) = fold(xs, [], (acc, x) => x in acc then acc else acc + [x])
+
+fn keys(m) = pairs(m) |> map(((k, _)) => k)
+fn values(m) = pairs(m) |> map(((_, v)) => v)
+
+# `in` on a list would test membership of the value, so the map check
+# comes first (06: fung extras check arguments with fail).
+fn get(m, k, default = nil) = match type_of(m):
+  'map => k in m then m[k] else default
+  t    => fail("get expects a map, got ${t}")
+;;
+
+# ---- Strings --------------------------------------------------------
+
+# The padding that brings s up to n characters, cycling pad. repeat
+# builds just enough copies (never more than missing + len(pad) chars).
+fn _padding(s, n, pad) = match (pad, n - len(s)):
+  ("", _)                        => fail("pad must be a non-empty string")
+  (_, missing) when missing <= 0 => ""
+  (_, missing)                   => repeat(pad, int(missing / len(pad)) + 1)[..missing]
+;;
+
+fn pad_left(s, n, pad = " ") = _padding(s, n, pad) + s
+fn pad_right(s, n, pad = " ") = s + _padding(s, n, pad)
+
+fn _chomp(s, suffix) = ends_with(s, suffix) then s[..len(s) - len(suffix)] else s
+
+# Text to lines, the same rule as read_lines (06): split on `\n`, drop a
+# trailing `\r` per line, and a final newline makes no empty line.
+fn lines(s) = match s:
+  "" => []
+  _  => split(_chomp(s, "\n"), "\n") |> map(l => _chomp(l, "\r"))
+;;
+
+# ---- Results --------------------------------------------------------
+
+fn is_ok(x) = type_of(x) == 'Ok
+fn is_err(x) = type_of(x) == 'Err
+
+# ---- Iteration and concurrency --------------------------------------
+
+# Applies f until pred holds.
+fn until(x, f, pred) = pred(x) then x else until(f(x), f, pred)
+
+# Applies f n times.
+fn iterate(x, f, n) = n <= 0 then x else iterate(f(x), f, n - 1)
+
+# Merges channels into one (05): a forwarding task per input; the output
+# closes when every input has closed.
+fn fan_in(chs):
+  out = channel(len(chs))
+  tasks = for ch in chs: _c.spawn_awaited(() => each(ch, v => send(out, v))) ;;
+  spawn(fn():
+    each(tasks, await)
+    close(out)
+  ;;)
+  out
+;;
+
+# Parallel map: at most `limit` tasks at once (0 = no limit), results in
+# input order. A failing f shows up as its Err, like await would.
+fn pmap(xs, f, limit = 0):
+  items = xs |> map(x => x)
+  limit <= 0 or limit >= len(items)
+    then items |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)
+    else _pmap_chunks(items, f, limit, [])
+;;
+
+fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
+  else _pmap_chunks(drop(items, limit), f, limit,
+    acc + (take(items, limit) |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)))
+
+# Calls f until it returns a non-Err value, at most `times` tries,
+# sleeping `delay` between tries; the last Err is returned (06).
+fn retry(f, times = 3, delay = 0ms):
+  r = f()
+  times <= 1 or not is_err(r) then r else _retry_after(f, times - 1, delay)
+;;
+
+fn _retry_after(f, times, delay):
+  sleep(delay)
+  retry(f, times: times, delay: delay)
+;;

@@ -1,0 +1,2 @@
+fn f(xs) = for x in xs: x? ;;
+# expect-error: E0220

@@ -1,0 +1,9 @@
+# path: path arithmetic without I/O (06).
+import _native.path as _n
+
+join = _n.join
+base = _n.base
+dir = _n.dir
+ext = _n.ext
+stem = _n.stem
+abs = _n.abs

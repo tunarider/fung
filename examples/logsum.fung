@@ -1,0 +1,29 @@
+#!/usr/bin/env fung
+# Summarises a log file: lines per level and the most frequent errors.
+# usage: fung examples/logsum.fung <file> [top]      (or: cat log | fung examples/logsum.fung -)
+import fs
+import "./loglines" (entries, by_level, top_messages)
+
+fn read_input(source) = source == "-" then read_lines()! else fs.read_lines(source)!
+
+fn report(lines, top):
+  es = entries(lines)
+  print("lines:", len(lines), " parsed:", len(es))
+  each(by_level(es), fn(pair):
+    (level, count) = pair
+    print(pad_right(level, 6), count)
+  ;;)
+  errors = top_messages(es, "ERROR", top)
+  if not is_empty(errors):
+    print("top errors:")
+    each(errors, fn(pair):
+      (message, count) = pair
+      print(" ", pad_left(str(count), 4), message)
+    ;;)
+  ;;
+  nil
+;;
+
+source = first(args) ?? fail("usage: logsum.fung <file|-> [top]")
+top = len(args) > 1 then int(args[1]) else 3
+report(read_input(source), top)

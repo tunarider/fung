@@ -1,0 +1,73 @@
+# staticfiles: the handler behind static.fung — serves the files under a
+# root directory, never anything outside it.
+import fs
+import path
+
+# The file a request path names under root, or nil when the path would
+# climb out of it (`..`). Empty and `.` segments are dropped.
+fn resolve(root, req_path):
+  parts = split(req_path, "/") |> filter(p => p != "" and p != ".")
+  if ".." in parts: return nil ;;
+  is_empty(parts) then root else path.join(root, join(parts, "/"))
+;;
+
+fn content_type(file) = match lower(path.ext(file)):
+  ".html" | ".htm"         => "text/html; charset=utf-8"
+  ".css"                   => "text/css; charset=utf-8"
+  ".js"                    => "text/javascript; charset=utf-8"
+  ".json"                  => "application/json"
+  ".md" | ".txt" | ".fung" => "text/plain; charset=utf-8"
+  ".svg"                   => "image/svg+xml"
+  ".png"                   => "image/png"
+  ".jpg" | ".jpeg"         => "image/jpeg"
+  _                        => "application/octet-stream"
+;;
+
+# A directory stands for its index.html.
+fn _file_for(target) = match fs.stat(target):
+  Ok({is_dir: true}) => path.join(target, "index.html")
+  _                  => target
+;;
+
+fn _serve_file(file, req_path) = match fs.read(file):
+  Ok(text)                => {status: 200, headers: {"content-type": content_type(file)}, body: text}
+  Err({kind: 'not_found}) => {status: 404, body: "not found: ${req_path}"}
+  Err(e)                  => {status: 500, body: e.message}
+;;
+
+# Builds the request handler for http.serve.
+fn handler(root):
+  fn(req):
+    if req.method != "GET" and req.method != "HEAD":
+      return {status: 405, body: "method not allowed"}
+    ;;
+    match resolve(root, req.path):
+      nil    => {status: 403, body: "forbidden"}
+      target => _serve_file(_file_for(target), req.path)
+    ;;
+  ;;
+;;
+
+test "a directory serves its index.html, files get their type":
+  fs.with_temp_dir(fn(root):
+    fs.mkdir(path.join(root, "assets"))!
+    fs.write(path.join(root, "index.html"), "<h1>hi</h1>")!
+    fs.write(path.join(root, "assets", "site.css"), "body {}")!
+    h = handler(root)
+    home = h({method: "GET", path: "/"})
+    assert home.status == 200
+    assert home.body == "<h1>hi</h1>"
+    assert home.headers["content-type"] == "text/html; charset=utf-8"
+    css = h({method: "GET", path: "/assets/site.css"})
+    assert css.headers["content-type"] == "text/css; charset=utf-8"
+    assert h({method: "GET", path: "/nope.html"}).status == 404
+    assert h({method: "POST", path: "/"}).status == 405
+  ;;)
+;;
+
+test "paths cannot leave the root":
+  assert resolve("/srv", "/../etc/passwd") == nil
+  assert resolve("/srv", "/a/../../b") == nil
+  assert resolve("/srv", "/a/./b.txt") == "/srv/a/b.txt"
+  assert resolve("/srv", "/") == "/srv"
+;;

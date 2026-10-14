@@ -1,0 +1,15 @@
+print(1 +
+
+  2)
+# expect: 3
+print(true
+  and false)
+# expect: false
+print(
+  1,
+  2,
+)
+# expect: 1 2
+print(1); print(2)
+# expect: 1
+# expect: 2

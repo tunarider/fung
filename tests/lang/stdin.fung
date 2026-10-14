@@ -1,0 +1,4 @@
+# stdin: first
+# stdin: second
+print(read_line(), read_lines(), read_line())
+# expect: Ok("first") Ok(["second"]) Ok(nil)

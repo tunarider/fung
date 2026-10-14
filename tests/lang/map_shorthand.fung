@@ -1,0 +1,12 @@
+name = "fung"
+port = 8080
+cfg = {name, port, debug: false}
+print(cfg)
+# expect: {name: "fung", port: 8080, debug: false}
+{name: n, port} = cfg
+print(n, port)
+# expect: fung 8080
+match {kind: 'parse, line: 3}:
+  {kind, line} => print(kind, line)
+;;
+# expect: 'parse 3

@@ -1,0 +1,3 @@
+import fs
+fs = 1
+# expect-error: E0308

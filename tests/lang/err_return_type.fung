@@ -1,0 +1,3 @@
+fn f() -> str = 1
+f()
+# expect-error: E0404

@@ -1,0 +1,9 @@
+n = 5
+print(n > 0 then "pos" else "neg")
+# expect: pos
+print(n > 10 then "big" else n > 3 then "mid" else "small")
+# expect: mid
+label = n == 5 then "five"
+  else "other"
+print(label)
+# expect: five

@@ -1,0 +1,2 @@
+print("C:\path")
+# expect-error: E0103

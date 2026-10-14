@@ -1,0 +1,2 @@
+fn f(): type a = int ;;
+# expect-error: E0219

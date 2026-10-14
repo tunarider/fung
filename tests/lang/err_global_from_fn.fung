@@ -1,0 +1,3 @@
+x = 1
+f = fn(): x = 2 ;;
+# expect-error: E0205

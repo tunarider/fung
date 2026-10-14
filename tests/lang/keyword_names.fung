@@ -1,0 +1,11 @@
+import json
+data = json.parse(`{"type": "disk", "match": {"if": 1}, "for": [1]}`)!
+print(data.type, data.match.if, data.for)
+# expect: disk 1 [1]
+m = {type: "x", test: 2, nil: 3}
+print(m.type, m["test"], m.nil)
+# expect: x 2 3
+match m:
+  {type: t, test: n} => print(t, n)
+;;
+# expect: x 2

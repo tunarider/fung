@@ -1,0 +1,37 @@
+# dotenv: read KEY=VALUE files and check them against requirements.
+
+# Text → map of KEY → VALUE. Blank lines and # comments are skipped;
+# a `export ` prefix and surrounding quotes are removed.
+fn parse(text):
+  rows = lines(text) |> map(trim) |> filter(l => l != "" and not starts_with(l, "#"))
+  fold(rows, {}, fn(acc, line):
+    (k, v) = match split(line, "="):
+      [k, ...rest] => (trim(replace(k, "export ", "")), trim(join(rest, "=")))
+    ;;
+    put(acc, k, trim(trim(v, "\""), "'"))
+  ;;)
+;;
+
+# Problems with a config: missing or empty required keys, bad ports.
+fn problems(cfg, required, ports):
+  missing = filter(required, k => get(cfg, k, "") == "") |> map(k => "missing: ${k}")
+  bad_ports = filter(ports, k => contains(cfg, k) and not valid_port(get(cfg, k)))
+    |> map(k => "not a port: ${k}=${get(cfg, k)}")
+  missing + bad_ports
+;;
+
+fn valid_port(s) = match parse_int(s):
+  Ok(n) => n > 0 and n < 65536
+  _     => false
+;;
+
+test "parse handles comments, export and quotes":
+  cfg = parse("# db\nexport DB_HOST=\"localhost\"\nDB_PORT=5432\n\nTOKEN='a=b=c'\n")
+  assert cfg == {"DB_HOST": "localhost", "DB_PORT": "5432", "TOKEN": "a=b=c"}
+;;
+
+test "problems reports missing keys and bad ports":
+  cfg = parse("DB_HOST=x\nDB_PORT=99999\nEMPTY=\n")
+  assert problems(cfg, ["DB_HOST", "EMPTY", "SECRET"], ["DB_PORT"]) == ["missing: EMPTY", "missing: SECRET", "not a port: DB_PORT=99999"]
+  assert problems(parse("DB_PORT=80"), [], ["DB_PORT"]) == []
+;;

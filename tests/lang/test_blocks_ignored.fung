@@ -1,0 +1,4 @@
+x = 1
+test "ignored by run": assert x == 2 ;;
+print(x)
+# expect: 1

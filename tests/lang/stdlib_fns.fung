@@ -1,0 +1,2 @@
+print(until(1, x => x * 3, x => x > 20), iterate("a", s => s + "b", 2))
+# expect: 27 abb

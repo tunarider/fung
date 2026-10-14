@@ -1,0 +1,8 @@
+fn count(...xs) = len(xs)
+fn head(x, ...rest) = (x, rest)
+print(count(), count(1, 2), head(1), head(1, 2, 3))
+# expect: 0 2 (1, []) (1, [2, 3])
+type shape = Circle | Rect
+fn area(s: shape) = match s: Circle(r) => r * r * 3; Rect(w, h) => w * h ;;
+print(area(Circle(2)), area(Rect(2, 5)))
+# expect: 12 10

@@ -1,0 +1,47 @@
+# api: the handlers behind serve.fung — GET /health, POST /echo (echoes
+# the JSON body back with a timestamp), anything else 404.
+import http
+import json
+import time
+
+fn json_response(status, data) =
+  {status, headers: {"content-type": "application/json"}, body: json.stringify(data)}
+
+fn health(started, requests) =
+  json_response(200, {ok: true, uptime: str(time.now() - started), requests: deref(requests)})
+
+fn echo(req):
+  match json.parse(req.body):
+    Ok(data) => json_response(200, {received: data, at: time.format(time.now())})
+    Err(e)   => {status: 400, body: "bad json: ${e.message}"}
+  ;;
+;;
+
+# Builds the handler: the server's state lives in the closure (05: 공유
+# 상태는 atom).
+fn handler(started, requests):
+  fn(req):
+    swap(requests, n => n + 1)
+    match (req.method, req.path):
+      ("GET", "/health") => health(started, requests)
+      ("POST", "/echo")  => echo(req)
+      _                  => {status: 404, body: "not found: ${req.path}"}
+    ;;
+  ;;
+;;
+
+test "health, echo and 404":
+  port = channel(1)
+  h = handler(time.now(), atom(0))
+  s = spawn(() => http.serve("127.0.0.1:0", h, ready: a => send(port, a)))
+  base = "http://" + recv(port)!
+  r = http.get("${base}/health")!
+  assert r.status == 200
+  assert json.parse(r.body)!.ok == true
+  e = http.post("${base}/echo", json.stringify({x: 1}))!
+  assert json.parse(e.body)!.received.x == 1
+  assert http.post("${base}/echo", "{")!.status == 400
+  assert http.get("${base}/nope")!.status == 404
+  assert json.parse(http.get("${base}/health")!.body)!.requests == 5
+  cancel(s)
+;;

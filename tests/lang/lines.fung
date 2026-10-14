@@ -1,0 +1,2 @@
+print(lines("a\nb\n"), lines(""), len(lines("x\n\ny")))
+# expect: ["a", "b"] [] 3

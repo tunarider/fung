@@ -1,0 +1,310 @@
+# 01. 문법
+
+## 문장과 블록
+
+- 문장 구분: 줄바꿈 또는 `;`
+- 블록 시작: `:`, 블록 끝: `;;`
+- 들여쓰기는 의미 없음. 한 줄로도, 여러 줄로도 쓸 수 있다.
+- 빈 문장은 허용한다: `a; ;;`, `;a`, 빈 줄 모두 괜찮다.
+- `;;`는 렉서가 항상 가장 길게 자른다. `a;;`는 `a` + 블록 끝, `;;;`는 블록 끝 + 빈 문장, `;;;;`는 블록 끝 둘.
+
+```
+fn myfun(a, v):
+  somefn(a)
+  somefn(v)
+;;
+
+# 같은 코드
+a = 1; v = 2; fn myfun(a, v): somefn(a); somefn(v); ;;
+```
+
+### `:`의 두 역할
+
+`:`는 블록 시작이기도 하고, 괄호 안에서는 구분자(이름 붙인 인자 `f(dir: ".")`, 맵 키 `{name: 1}`,
+타입 표기 `fn f(a: int)`)이기도 하다. 렉서는 구분하지 않고 **파서가 문맥으로 정한다.**
+`if`, `else`, `fn` 시그니처, `match` 대상, `for … in …`, `test "이름"` 뒤의 `:`만 블록 시작이다.
+반환 타입을 `->`로 쓰는 이유도 `fn f() -> int:`에서 `:`와 겹치지 않게 하기 위해서다.
+
+## 식과 문장
+
+00의 "모든 것은 식"은 정확히는 **값을 만드는 구문은 모두 식이며, 문장 자리와 식 자리를 구분하지 않는다**는 뜻이다.
+
+| 종류 | 구문 |
+|------|------|
+| 식 (값을 만든다) | 리터럴, 이름, 연산자 식, 호출, 인덱스·필드, 람다, 익명 함수, 블록 `if`, `then … else`, `match`, `for`, `return` |
+| 문장 (값을 만들지 않는다) | `fn` 정의, `import`, `type`, `test`, `assert`, 대입 |
+
+- **대입은 문장이다.** `y = x = 1`, `if x = f(): …`는 문법 에러. `=`와 `==` 혼동을 문법 단계에서 막는다.
+- `return`은 값이 없지만 `if c: return x ;;`처럼 식 자리에 올 수 있는 "절대 돌아오지 않는 식"이다.
+- **블록의 값**: 마지막 항목이 식이면 그 값, 문장이면 `nil`. `else` 없는 `if`가 거짓이면 `nil`.
+  (값 자리의 블록이 문장으로 끝날 때 경고를 낼지는 M6에서 검토.)
+
+## 줄 이어짐 규칙
+
+줄바꿈은 문장 끝이지만, 다음 셋 중 하나면 이어지는 줄로 본다.
+
+1. **줄이 식을 끝낼 수 없는 토큰으로 끝날 때**: 모든 이항 연산자
+   (`+ - * / // % ** == != < > <= >= in ?? |> .. ..= and or`), `not`, `,`, `=`, `=>`, `->`, `.`,
+   여는 괄호 `( [ {`, 블록 시작 `:`.
+2. **다음 줄이 이어짐 전용 토큰으로 시작할 때**: `|>` `.` `??` `and` `or` `then` `else`.
+   이 토큰들은 문장을 시작할 수 없으므로 모호함이 없다 (`.5` 같은 숫자를 불허한 이유).
+3. **`( ) [ ] { }` 안**: 줄바꿈은 공백. 단, 괄호 안에서 `fn(f):`처럼 블록이 열리면
+   그 `;;`까지는 줄바꿈이 다시 문장 구분자다.
+
+```
+sizes = fs.list("./logs")
+  |> filter(is_log)
+  |> map(f => fs.size(f))
+
+ok = fs.exists(p)
+  and not is_dir(p)
+```
+
+줄바꿈 처리는 렉서가 아니라 **파서가** 한다. 렉서는 줄바꿈 토큰을 그대로 내보내고,
+파서가 "호출 인자 안이면 무시"처럼 문맥에 따라 건너뛴다 (09. 구현 계획).
+
+## 글자 수준 규칙
+
+### 식별자
+
+- 첫 글자가 **유니코드 대문자**면 태그 (02. 값과 타입), 그 외 글자나 `_`로 시작하면 이름.
+  이어지는 글자는 글자·숫자·`_`.
+- 유니코드 글자를 허용한다. `파일목록 = fs.list(".")`. 한글은 대소문자가 없으므로 항상 이름이다.
+- 렉서는 첫 글자만 본다. `myVar` 같은 camelCase는 문법 에러가 아니고 포맷터·경고 몫이다.
+
+### 숫자
+
+| 형태 | 예 | 비고 |
+|------|----|------|
+| 정수 | `42`, `1_000_000` | `_`는 숫자 사이에만 |
+| 실수 | `3.14`, `2.5e-3`, `1e9` | 소수점 양쪽에 숫자 필수 (`.5`, `1.` 불허). 지수가 있으면 항상 실수 |
+| 진법 | `0xff`, `0o17`, `0b1010` | 정수 |
+
+- 정수 리터럴의 범위는 64비트 부호 있는 정수. 넘으면 컴파일 에러.
+- 예외: 가장 작은 정수 `-9223372036854775808`은 렉서가 크기 `9223372036854775808`을 거부하기 전에
+  파서가 `-` 바로 뒤의 이 값만 특례로 접어 허용한다 (Go·Rust·Java와 같음). M2에서 구현.
+
+### 문자열
+
+- `"…"`: 보간 `${…}`과 이스케이프 지원. 실제 줄바꿈은 에러 (여러 줄은 원시 문자열 또는 `\n`).
+- 이스케이프는 `\n` `\t` `\r` `\\` `\"` `\$` `\u{1F600}` **만**. 모르는 이스케이프는 컴파일 에러
+  (`"C:\new"` 같은 함정을 잡는다). `${`를 글자 그대로 쓰려면 `\$`.
+- 보간 `${…}` 안에는 어떤 식이든 올 수 있고 따옴표도 중첩 가능: `"${m["k"]}"`.
+- `` `…` ``: 원시 문자열. 이스케이프·보간 없음, 여러 줄 가능, `` ` `` 자체는 넣을 수 없다 (Go와 같음).
+- `'`는 심볼 전용이라 문자열에 쓰지 않는다.
+
+### 기간
+
+- `500ms`, `30s`, `1.5s`, `1h30m`. 단위 `ms` `s` `m` `h`.
+- 복합은 큰 단위부터 내림차순, 각 성분에 소수점 허용.
+- 숫자 **바로 뒤에** 단위가 붙어야 한다. `30 s`는 숫자와 이름 `s`.
+
+### 심볼, 주석
+
+- 심볼: `'ok`, `'not_found`. `'` 뒤에 이름 규칙.
+- 주석: `#`만. (`//`는 정수 나눗셈이고, 같은 일을 하는 방법은 하나로.) shebang `#!/usr/bin/env fung`은 자연히 주석이다.
+
+## 이름 표기
+
+- 변수·함수·모듈 이름은 **snake_case**: `is_log`, `read_config`, `cache_ttl`
+- 대문자로 시작하는 이름은 태그 전용 (02. 값과 타입)
+- `_`로 시작하는 이름은 비공개 (04. 모듈 체계)
+
+## 함수
+
+```
+fn report(dir):                        # 여러 줄 함수
+  ...
+;;
+
+fn add(a, b) = a + b                   # 식 하나짜리 짧은 함수
+
+fn is_log(name: str) -> bool = ...      # 인자 타입 `:`, 반환 타입 `->`
+
+files |> map(f => fs.size(f))          # 람다
+spawn(() => work())                    # 인자 없는 람다
+fold(xs, 0, (acc, x) => acc + x)       # 인자 여러 개 람다
+
+files |> map(fn(f):                    # 여러 줄 익명 함수
+  s = fs.size(f)
+  s // 1024
+;;)
+```
+
+### 람다
+
+- `x => 식`, `(a, b) => 식`, `() => 식`. 본문은 식 하나이며 가능한 한 길게 읽는다 (`then`보다도 낮은 우선순위).
+- 인자는 이름 또는 **패턴**(`((a, b)) => a + b`, `(Ok(x)) => x`, `_ => 0`). 기본값·타입 표기는 없다.
+  `(a, b) => …`의 바깥 괄호는 인자 목록이다(인자 둘); 튜플 하나를 받으려면 `((a, b)) => …`. 맞지 않으면 E0602.
+- 여러 문장, 기본값, 타입 표기가 필요하면 익명 함수 `fn(x): … ;;`. 람다 블록 `x => : … ;;`은 없다.
+- 익명 함수는 블록 형태만 있다. `fn(x) = …`는 람다와 겹치므로 없다.
+- `(a, b) => …`는 파서가 괄호식을 읽은 뒤 `=>`를 보면 인자 목록으로 다시 해석한다.
+
+## 조건
+
+```
+# 여러 줄 블록: if-else 체인 전체를 ;; 하나로 닫는다
+if n > 0:
+  "양수"
+else if n < 0:
+  "음수"
+else:
+  "0"
+;;
+
+# 한 줄 값: then 연산자
+label = n > 0 then "양수" else "음수"
+label = n > 0 then "양수" else n < 0 then "음수" else "0"
+```
+
+- `then`은 대입 `=` 다음으로 우선순위가 낮다. 조건의 괄호는 선택.
+- `then`을 쓸 때 `else`는 필수.
+- 삼항 연산자 `c ? a : b`는 `?`(에러 전파), `:`(블록 시작)와 충돌해서 채택하지 않음.
+
+## match
+
+```
+match fs.read("a.json"):
+  Ok(text) =>
+    lines = split(text, "\n")
+    len(lines)
+  Err(e)   => print("실패: ${e}"); 0
+;;
+
+match x: 0 => "zero"; _ => "other" ;;      # 한 줄도 된다
+```
+
+- 절은 `패턴 [when 조건] => 본문`. **본문은 다음 절이 시작되거나 `;;`가 나올 때까지의 문장들**이다.
+- 파서는 `match` 안에서 각 문장 시작마다 "`패턴 =>`로 읽히는가"를 먼저 시도한다. 되면 새 절, 안 되면 현재 절의 문장.
+- 대가: 절 본문 안의 람다 단독 문장(`x => x + 1`)은 새 절로 읽힌다. 람다를 만들고 버리는 문장은 쓸모가 없으므로 받아들인다.
+- `when` 조건의 맨 바깥에서 `이름 =>`·`(이름들) =>`는 람다가 아니라 절의 화살표다 (`y when y == x => …`).
+  조건 안에서 람다가 필요하면 괄호 안(호출 인자 등)에 쓴다: `n when any(xs, x => x > n) => …`.
+- 패턴 목록은 03. 함수와 패턴 매칭.
+
+## 변수와 재할당
+
+- 같은 이름 재할당 허용. 값을 바꾸는 게 아니라 이름을 새 값에 다시 붙이는 것 (Elixir 방식).
+- 데이터 내부 변경은 불가 (`list.push`, `user.name = ...` 없음). 수정된 사본을 만든다.
+  - 사본은 `put`/`merge`/`remove` 함수로 만든다 (02).
+- **블록 안에서 바깥 변수 이름에 재할당하면 컴파일 에러.** 아래 코드가 조용히 0을 출력하는 함정을 막기 위함.
+
+```
+total = 0
+for f in files:
+  total = total + fs.size(f)   # 에러: fold / sum 을 쓸 것
+;;
+
+total = files |> map(f => fs.size(f)) |> sum   # 올바른 방법
+```
+
+- 구조 분해 대입 `(q, r) = divmod(7, 2)`는 "패턴 = 식" 문장이다. 파서는 문장 시작에서 `패턴 =`를 먼저 시도하고,
+  실패하면 식으로 읽는다 (`match` 절과 같은 기법).
+- 클로저는 만들어진 시점의 값을 붙잡는다.
+
+## for
+
+- `map`의 문법 설탕. 결과로 리스트를 돌려준다.
+- `while`처럼 상태 변화에 의존하는 루프는 없다 (00. 기본 컨셉: 상태가 있는 반복은 꼬리 재귀).
+
+```
+for (k, v) in pairs(config):
+  print("${k} = ${v}")
+;;
+```
+
+## 파이프
+
+- `x |> f(a)`는 `f(x, a)`. 파이프 대상은 **첫 번째 인자**로 들어간다 (Elixir 방식).
+- 표준 라이브러리 함수는 모두 "대상이 첫 번째 인자" 규칙을 따른다.
+
+## 예약어
+
+`fn` `if` `else` `then` `match` `when` `for` `in` `not` `and` `or` `return` `import` `as` `type` `test` `assert` `true` `false` `nil`
+
+- **이름만 올 수 있는 자리에서는 예약어도 이름이다** (2026-10-14): `.` 뒤(`m.type`, `req.match`), 맵 리터럴 키(`{type: 1}`),
+  맵 패턴 키(`{type: t}`). 그 자리에는 문법상 예약어가 올 일이 없어 모호함이 없고, JSON의 `type` 같은 흔한 키를 막지 않기 위해서다.
+  변수·함수·매개변수 이름으로는 여전히 쓸 수 없다(`type = 1`은 에러).
+- `with`는 예약어가 아니다 (맵 사본은 함수로, 02).
+- `defer`는 없다. 자원 정리는 감싸는 함수와 `at_exit`로 (03).
+
+## 형식 문법 (EBNF)
+
+파서는 이 문법을 그대로 옮긴다. 뒤 섹션의 결정이 바뀌면 여기도 같이 고친다.
+
+```
+(* 토큰: NAME(소문자·_·대소문자 없는 글자로 시작) TAG(대문자 시작) INT FLOAT DURATION
+         STRING(보간 조각 포함) RAW_STRING SYMBOL NEWLINE, 예약어, 연산자 *)
+
+program     = body .
+body        = { sep } { stmt { sep } } .
+sep         = NEWLINE | ";" .
+block       = ":" body ";;" .
+
+stmt        = fn_def | import | type_alias | test_block | assert | assign | expr .
+fn_def      = "fn" NAME "(" [ params ] ")" [ "->" type ] fn_body .
+fn_body     = "=" expr | block .
+params      = param { "," param } [ "," ] .
+param       = [ "..." ] NAME [ ":" type ] [ "=" expr ] | pattern .   (* 패턴 매개변수에는 타입·기본값 없음 *)
+import      = "import" ( NAME | STRING ) [ "as" NAME ] [ "(" NAME { "," NAME } ")" ] .
+type_alias  = "type" NAME "=" type .
+test_block  = "test" STRING block .
+assert      = "assert" expr .
+assign      = pattern "=" expr .                   (* 문장 시작에서 `pattern =`를 먼저 시도 *)
+
+expr        = lambda | then_expr .
+lambda      = ( NAME | "_" | "(" [ pattern { "," pattern } ] ")" ) "=>" expr .
+then_expr   = or_expr [ "then" expr "else" expr ] .          (* else는 필수, 오른쪽 결합 *)
+or_expr     = and_expr { "or" and_expr } .
+and_expr    = not_expr { "and" not_expr } .
+not_expr    = "not" not_expr | cmp_expr .
+cmp_expr    = pipe_expr [ cmp_op pipe_expr ] .               (* 연쇄 없음: a < b < c 는 문법 에러 *)
+cmp_op      = "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "not" "in" .
+pipe_expr   = coalesce { "|>" coalesce } .
+coalesce    = range { "??" range } .
+range       = add [ ( ".." | "..=" ) add ] .
+add         = mul { ( "+" | "-" ) mul } .
+mul         = unary { ( "*" | "/" | "//" | "%" ) unary } .
+unary       = "-" unary | pow .
+pow         = postfix [ "**" unary ] .                       (* 오른쪽 결합, -2 ** 2 = -(2 ** 2) *)
+postfix     = primary { call | index | "." key_name | "!" | "?" } .
+key_name    = NAME | TAG | KEYWORD .            (* 이름만 올 수 있는 자리: 예약어도 이름 *)
+call        = "(" [ arg { "," arg } [ "," ] ] ")" .
+arg         = [ NAME ":" ] expr | "_" .                      (* 이름 붙인 인자, 부분 적용 자리 *)
+index       = "[" ( expr | [ expr ] ".." [ expr ] | expr "..=" expr ) "]" .
+
+primary     = INT | FLOAT | STRING | RAW_STRING | DURATION | SYMBOL
+            | "true" | "false" | "nil" | NAME | TAG
+            | "(" expr ")" | tuple | list | map
+            | if_expr | match_expr | for_expr
+            | "return" [ expr ]
+            | "fn" "(" [ params ] ")" [ "->" type ] block .  (* 익명 함수는 블록 형태만 *)
+tuple       = "(" ")" | "(" expr "," [ expr { "," expr } [ "," ] ] ")" .
+list        = "[" [ expr { "," expr } [ "," ] ] "]" .
+map         = "{" [ entry { "," entry } [ "," ] ] "}" .
+entry       = ( key_name | STRING ) ":" expr
+            | NAME | TAG .                      (* {a, b} = {a: a, b: b}; 예약어·문자열은 축약 없음 *)
+if_expr     = "if" expr ":" body { "else" "if" expr ":" body } [ "else" ":" body ] ";;" .
+match_expr  = "match" expr ":" { sep } { arm } ";;" .
+arm         = pattern [ "when" expr ] "=>" body .            (* 다음 arm 또는 ;; 까지 *)
+for_expr    = "for" pattern "in" expr ":" body ";;" .
+
+pattern     = pat_term { "|" pat_term } .
+pat_term    = "_" | NAME | [ "-" ] ( INT | FLOAT ) | STRING | SYMBOL | DURATION
+            | "true" | "false" | "nil"
+            | TAG [ "(" [ pattern { "," pattern } ] ")" ]
+            | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
+            | "[" [ pattern { "," pattern } ] [ [ "," ] "..." [ NAME ] ] "]"
+            | "{" [ pat_entry { "," pat_entry } ] "}" .
+pat_entry   = key_name ":" pattern | NAME | TAG .   (* {line, col} = {line: line, col: col} *)
+
+type        = type_term { "|" type_term } .
+type_term   = NAME [ "[" type "]" ] | TAG .
+```
+
+문법에서 따라오는 것:
+
+- 비교 연산자는 연쇄하지 않는다. `a < b < c`는 문법 에러이고 "`and`로 나누세요" 힌트를 붙인다.
+- 인자 없는 태그 `Red`는 그대로 값(심볼)이고, `Ok(x)`는 TAG에 대한 호출 형태다.
+- 슬라이스의 열린 끝(`s[..3]`, `s[-4..]`)은 인덱스 안에서만 허용되는 특별 형태다.
+- 리스트 패턴의 `...rest`는 맨 끝에서만.
+- `_` 부분 적용 자리는 호출 인자에서만 쓴다. `_ * 2` 같은 연산식에는 쓰지 않는다 (미결 사항이었음).

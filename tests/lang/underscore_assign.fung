@@ -1,0 +1,4 @@
+_ = print("side")
+print(1)
+# expect: side
+# expect: 1

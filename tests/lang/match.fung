@@ -1,0 +1,23 @@
+fn describe(v) = match v:
+  0            => "zero"
+  1 | 2        => "small"
+  "s"          => "string"
+  'ok          => "ok symbol"
+  Ok(x)        => "ok ${x}"
+  (x, 0)       => "x-axis ${x}"
+  []           => "empty"
+  [first, ...] => "list from ${first}"
+  {name: n}    => "named ${n}"
+  n when n < 0 => "negative"
+  _            => "other"
+;;
+print(describe(0), describe(-5), describe(2), describe("s"), describe('ok))
+# expect: zero negative small string ok symbol
+print(describe(Ok(9)), describe((4, 0)), describe([]), describe([7, 8]), describe({name: "z"}), describe(3.5))
+# expect: ok 9 x-axis 4 empty list from 7 named z other
+fn len2(xs) = match xs:
+  []           => 0
+  [_, ...rest] => 1 + len2(rest)
+;;
+print(len2([1, 2, 3]))
+# expect: 3

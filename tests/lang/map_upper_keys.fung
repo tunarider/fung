@@ -1,0 +1,6 @@
+m = {DB_HOST: "localhost", Port: 80}
+print(m, m.DB_HOST, m["Port"])
+# expect: {DB_HOST: "localhost", Port: 80} localhost 80
+{DB_HOST: h} = m
+print(h)
+# expect: localhost

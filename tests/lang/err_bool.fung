@@ -1,0 +1,2 @@
+print(1 and true)
+# expect-error: E0505

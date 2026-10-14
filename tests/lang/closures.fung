@@ -1,0 +1,26 @@
+fn mk():
+  x = 1
+  f = () => x
+  x = 2
+  f()
+;;
+print(mk())
+# expect: 1
+fn adder(n) = x => x + n
+add5 = adder(5)
+print(add5(1), adder(10)(1))
+# expect: 6 11
+fn outer(a) = b => c => a + b + c
+print(outer(1)(2)(3))
+# expect: 6
+fn sum_to(n):
+  fn loop(i, acc) = i == 0 then acc else loop(i - 1, acc + i)
+  loop(n, 0)
+;;
+print(sum_to(100))
+# expect: 5050
+g = 1
+read_g = () => g
+g = 2
+print(read_g())
+# expect: 1

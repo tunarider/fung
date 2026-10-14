@@ -1,0 +1,2 @@
+print(1e308 * 10)
+# expect-error: E0504

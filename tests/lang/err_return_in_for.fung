@@ -1,0 +1,2 @@
+for x in [1]: return x ;;
+# expect-error: E0213

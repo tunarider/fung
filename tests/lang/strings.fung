@@ -1,0 +1,11 @@
+name = "fung"
+print("hello, ${name}!")
+# expect: hello, fung!
+print("quote\"d", "\$notvar ${1 + 1}", "${"nested ${name}"}")
+# expect: quote"d $notvar 2 nested fung
+print(`raw \n ${x}`)
+# expect: raw \n ${x}
+print("a" + "b" == "ab", "abc" < "abd", "가" < "나")
+# expect: true true true
+print("${'sym} ${1.5} ${nil} ${true}")
+# expect: 'sym 1.5 nil true

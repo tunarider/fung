@@ -1,0 +1,2 @@
+import "./_lib/cyc_a"
+# expect-error: E0302

@@ -1,0 +1,6 @@
+print(int("42") + 1, int(3.9), float(2), str(1.5), sym("ok"), parse_int("x"), parse_int("7")!)
+# expect: 43 3 2.0 1.5 'ok Err({kind: 'parse, message: "not an integer: x"}) 7
+print(parse_dur("90s")!, parse_dur("1.5h")!, parse_dur("soon"))
+# expect: 1m30s 1h30m Err({kind: 'parse, message: "not a duration: soon"})
+print(is_ok(Ok(1)), is_err(Ok(1)), is_err(Err(1)))
+# expect: true false true

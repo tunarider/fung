@@ -1,0 +1,9 @@
+print([3, 1, 2] |> sort, [1, 2, 3] |> filter(x => x > 1) |> map(x => x * 10), fold(1..=4, 0, (a, x) => a + x))
+# expect: [1, 2, 3] [20, 30] 10
+print(take([1, 2, 3], 2), drop([1, 2, 3], 2), first([]), zip([1], ["a"]), unique([1, 1]), flatten([[1], [2]]))
+# expect: [1, 2] [3] nil [(1, "a")] [1] [1, 2]
+print(group_by(["aa", "b", "cc"], s => str(len(s))), pairs({a: 1}), get({}, "x", 0), put({}, "k", 1))
+# expect: {"2": ["aa", "cc"], "1": ["b"]} [("a", 1)] 0 {k: 1}
+each([1, 2], x => print(x))
+# expect: 1
+# expect: 2

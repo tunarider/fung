@@ -1,0 +1,6 @@
+# json: parse and stringify (06). The decoder keeps object key order and
+# keeps integers exact; the work is in Go because it walks every character.
+import _native.json as _n
+
+parse = _n.parse
+stringify = _n.stringify

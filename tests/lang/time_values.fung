@@ -1,0 +1,9 @@
+import time
+a = time.parse("2026-10-04T09:00:00+09:00")!
+b = a + 90m
+print(b, b - a, a - 1h, b > a, a == b - 90m)
+# expect: 2026-10-04T10:30:00+09:00 1h30m 2026-10-04T08:00:00+09:00 true true
+print(sort([b, a]) == [a, b], str(a), "${a}")
+# expect: true 2026-10-04T09:00:00+09:00 2026-10-04T09:00:00+09:00
+print(a + a)
+# expect-error: E0501

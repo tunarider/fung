@@ -1,0 +1,4 @@
+import "./_lib/greet"
+import "./_lib/greet" as g
+print(greet.greet("a"), g.version, type_of(greet), greet == g)
+# expect: hi, a 2 'module true

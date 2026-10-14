@@ -1,0 +1,8 @@
+# args: one two
+print(args, len(args))
+# expect: ["one", "two"] 2
+at_exit(() => print("bye"))
+exit(4)
+print("unreachable")
+# expect: bye
+# expect-exit: 4

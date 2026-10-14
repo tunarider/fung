@@ -1,0 +1,3 @@
+import fs
+import fs
+# expect-error: E0309

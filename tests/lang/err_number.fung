@@ -1,0 +1,2 @@
+print(30abc)
+# expect-error: E0102

@@ -1,0 +1,12 @@
+# time: instants and the token formats (06). The type itself is core
+# (02); this module only makes and renders values.
+import _native.time as _n
+
+now = _n.now
+parse = _n.parse
+format = _n.format
+utc = _n.utc
+local = _n.local
+unix = _n.unix
+from_unix = _n.from_unix
+parts = _n.parts

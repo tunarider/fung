@@ -1,0 +1,14 @@
+import regex
+s = "가나다 나다"
+m = regex.find(s, "나(다)")
+print(m.text, m.start, m.end, s[m.start..m.end], m.groups)
+# expect: 나다 1 3 나다 ["다"]
+print(regex.is_match("app.log", `\.log$`), regex.find("abc", "z"))
+# expect: true nil
+print(regex.find_all("a1 b22", `\d+`) |> map(m => m.text))
+# expect: ["1", "22"]
+print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"), regex.split("a, b,c", `\s*,\s*`))
+# expect: 04/10/2026 ["a", "b", "c"]
+kv = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
+print(kv.named.key, int(kv.named.val) + 1)
+# expect: port 8081

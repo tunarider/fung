@@ -1,0 +1,4 @@
+print(0..3, 0..=3, len(0..10), 5 in 0..10, 10 in 0..10, 10 in 0..=10)
+# expect: 0..3 0..=3 10 true false true
+print(for i in 1..=3: i * i ;;, map(0..2, x => x))
+# expect: [1, 4, 9] [0, 1]

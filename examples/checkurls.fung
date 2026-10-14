@@ -1,0 +1,9 @@
+#!/usr/bin/env fung
+# Fetches every URL in parallel and prints status, time taken, and — for
+# JSON answers — the top-level keys. Exit code 1 if any URL failed.
+# usage: fung examples/checkurls.fung URL...
+import "./urlcheck" (check, report)
+
+if is_empty(args): fail("usage: checkurls.fung URL...") ;;
+results = pmap(args, u => check(u), limit: 8)
+if not report(results): exit(1) ;;
