@@ -1,7 +1,9 @@
+pub mod builtins;
 pub mod consts;
 pub mod desugar;
 pub mod diag;
 pub mod lexer;
 pub mod parser;
+pub mod resolve;
 pub mod source;
 pub mod tree;
