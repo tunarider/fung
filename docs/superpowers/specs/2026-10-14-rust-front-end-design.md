@@ -62,7 +62,7 @@ cmd/ internal/ go.mod     Go 구현 (정답지)
 
 `fung-cli`:
 - `fung dump ast|core|bytecode <file>`과 `fung dump <stage> -e '<code>'`. 출력·에러·종료 코드·사용법 에러 문구가 Go와 같다.
-- 다른 하위 명령은 "not implemented yet in the Rust port"를 표준 에러에 쓰고 종료 코드 2.
+- 다른 하위 명령은 "not implemented yet in the Rust port"를 표준 에러에 쓰고 종료 코드 3(`ExitUsage`, Go에서 명령을 잘못 쓴 경우와 같은 코드).
 
 ## 2. 핵심 타입과 판단
 
