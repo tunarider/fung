@@ -1,6 +1,9 @@
 package diag
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // catalog maps error numbers to message templates. Numbers never change
 // once assigned (golden tests and users depend on them); messages may be
@@ -140,3 +143,16 @@ func Message(code string, args ...any) string {
 
 // Hint returns the help line for a code, or "".
 func Hint(code string) string { return hints[code] }
+
+// Codes lists every catalog number in sorted order (spec/errors.txt).
+func Codes() []string {
+	codes := make([]string, 0, len(catalog))
+	for c := range catalog {
+		codes = append(codes, c)
+	}
+	sort.Strings(codes)
+	return codes
+}
+
+// Template is the raw message template of a code ("" if unknown).
+func Template(code string) string { return catalog[code] }
