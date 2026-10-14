@@ -52,6 +52,50 @@ func JoinForPrint(args []value.Value) string {
 	return strings.Join(parts, " ")
 }
 
+// Each walks what Items lists, one element at a time, stopping at the
+// first error yield returns. Lists and ranges are walked in place: a range
+// yields its numbers without ever building a list of them.
+func Each(ctx value.Context, v value.Value, verb string, yield func(value.Value) error) error {
+	switch x := v.(type) {
+	case *value.List:
+		for _, e := range x.All() {
+			if err := yield(e); err != nil {
+				return err
+			}
+		}
+		return nil
+	case value.Range:
+		n := x.Len()
+		for i := int64(0); i < n; i++ {
+			if err := yield(value.Int(x.Start + i)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	xs, err := Items(ctx, v, verb)
+	if err != nil {
+		return err
+	}
+	for _, e := range xs {
+		if err := yield(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SizeHint is the element count of a list or range, 0 for anything else.
+func SizeHint(v value.Value) int {
+	switch x := v.(type) {
+	case *value.List:
+		return x.Len()
+	case value.Range:
+		return int(x.Len())
+	}
+	return 0
+}
+
 // Items lists what a collection function iterates (02): lists, ranges,
 // and iterables such as channels, which drain until closed (05).
 func Items(ctx value.Context, v value.Value, verb string) ([]value.Value, error) {

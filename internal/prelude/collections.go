@@ -31,57 +31,62 @@ func collections(add func(*value.Native)) {
 }
 
 func filterFn(ctx value.Context, args []value.Value) (value.Value, error) {
-	xs, err := nat.Items(ctx, args[0], "filter")
-	if err != nil {
-		return nil, err
-	}
 	if err := nat.NeedFn("f", args[1]); err != nil {
+		if _, e := nat.Items(ctx, args[0], "filter"); e != nil {
+			return nil, e // the collection's error comes first, as before
+		}
 		return nil, err
 	}
 	out := []value.Value{}
-	for _, x := range xs {
+	err := nat.Each(ctx, args[0], "filter", func(x value.Value) error {
 		keep, err := nat.CallBool(ctx, args[1], x)
-		if err != nil {
-			return nil, err
-		}
 		if keep {
 			out = append(out, x)
 		}
+		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 	return nat.NewList(out), nil
 }
 
 func foldFn(ctx value.Context, args []value.Value) (value.Value, error) {
-	xs, err := nat.Items(ctx, args[0], "fold")
-	if err != nil {
-		return nil, err
-	}
 	if err := nat.NeedFn("f", args[2]); err != nil {
+		if _, e := nat.Items(ctx, args[0], "fold"); e != nil {
+			return nil, e
+		}
 		return nil, err
 	}
 	acc := args[1]
-	for _, x := range xs {
-		r, err := ctx.Call(args[2], []value.Value{acc, x})
-		if err != nil {
-			return nil, err
-		}
+	buf := make([]value.Value, 2) // reused: a call copies its arguments onward
+	err := nat.Each(ctx, args[0], "fold", func(x value.Value) error {
+		buf[0], buf[1] = acc, x
+		r, err := ctx.Call(args[2], buf)
 		acc = r
+		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 	return acc, nil
 }
 
 func eachFn(ctx value.Context, args []value.Value) (value.Value, error) {
-	xs, err := nat.Items(ctx, args[0], "iterate over")
+	if err := nat.NeedFn("f", args[1]); err != nil {
+		if _, e := nat.Items(ctx, args[0], "iterate over"); e != nil {
+			return nil, e
+		}
+		return nil, err
+	}
+	buf := make([]value.Value, 1)
+	err := nat.Each(ctx, args[0], "iterate over", func(x value.Value) error {
+		buf[0] = x
+		_, err := ctx.Call(args[1], buf)
+		return err
+	})
 	if err != nil {
 		return nil, err
-	}
-	if err := nat.NeedFn("f", args[1]); err != nil {
-		return nil, err
-	}
-	for _, x := range xs {
-		if _, err := ctx.Call(args[1], []value.Value{x}); err != nil {
-			return nil, err
-		}
 	}
 	return value.Nil{}, nil
 }

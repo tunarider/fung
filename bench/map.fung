@@ -1,0 +1,3 @@
+n = 200000
+m = fold(0..n, {}, (m, i) => put(m, "k${i}", i))
+print(fold(0..n, 0, (s, i) => s + m["k${i}"]))

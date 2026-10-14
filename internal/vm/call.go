@@ -24,20 +24,27 @@ type argSpec struct {
 	def    value.Value // natives only
 }
 
-func protoSpecs(p *bytecode.Proto) []argSpec {
-	specs := make([]argSpec, len(p.Params))
-	for i, prm := range p.Params {
-		specs[i] = argSpec{name: prm.Name, rest: prm.Rest, hasDef: prm.HasDefault}
-	}
-	return specs
+// paramList is a function's parameters seen as argSpecs, read in place:
+// building an []argSpec on every call was a heap allocation per call.
+type paramList struct {
+	proto  []bytecode.Param
+	native []value.NativeParam
 }
 
-func nativeSpecs(n *value.Native) []argSpec {
-	specs := make([]argSpec, len(n.Params))
-	for i, prm := range n.Params {
-		specs[i] = argSpec{name: prm.Name, rest: prm.Rest, hasDef: prm.Default != nil, def: prm.Default}
+func (l paramList) len() int {
+	if l.proto != nil {
+		return len(l.proto)
 	}
-	return specs
+	return len(l.native)
+}
+
+func (l paramList) at(i int) argSpec {
+	if l.proto != nil {
+		p := l.proto[i]
+		return argSpec{name: p.Name, rest: p.Rest, hasDef: p.HasDefault}
+	}
+	p := l.native[i]
+	return argSpec{name: p.Name, rest: p.Rest, hasDef: p.Default != nil, def: p.Default}
 }
 
 // bindArgs lays out a call's arguments in a fresh slot array (09. 호출
@@ -46,10 +53,10 @@ func nativeSpecs(n *value.Native) []argSpec {
 // "use the default" (a fung prologue fills it; a native default is
 // filled here); a required slot left empty is E0407. Natives share this
 // one function with fung functions (06: 같은 호출 규약).
-func bindArgs(name string, specs []argSpec, numSlots int, positional []value.Value, named []namedArg) ([]value.Value, *diag.Error) {
-	fixed := len(specs)
+func bindArgs(name string, specs paramList, numSlots int, positional []value.Value, named []namedArg) ([]value.Value, *diag.Error) {
+	fixed := specs.len()
 	rest := -1
-	if fixed > 0 && specs[fixed-1].rest {
+	if fixed > 0 && specs.at(fixed-1).rest {
 		fixed--
 		rest = fixed
 	}
@@ -69,7 +76,7 @@ func bindArgs(name string, specs []argSpec, numSlots int, positional []value.Val
 	for _, na := range named {
 		idx := -1
 		for i := 0; i < fixed; i++ {
-			if specs[i].name == na.name.Name() {
+			if specs.at(i).name == na.name.Name() {
 				idx = i
 				break
 			}
@@ -86,29 +93,34 @@ func bindArgs(name string, specs []argSpec, numSlots int, positional []value.Val
 		if slots[i] != nil {
 			continue
 		}
-		if !specs[i].hasDef {
-			return nil, diag.Errorf("E0407", diag.Pos{}, specs[i].name)
+		spec := specs.at(i)
+		if !spec.hasDef {
+			return nil, diag.Errorf("E0407", diag.Pos{}, spec.name)
 		}
-		if specs[i].def != nil {
-			slots[i] = specs[i].def
+		if spec.def != nil {
+			slots[i] = spec.def
 		}
 	}
 	return slots, nil
 }
 
 // splitCall pops a call's operands off the stack: the callee, positional
-// arguments, and (name, value) pairs for named arguments.
+// arguments, and (name, value) pairs for named arguments. The argument
+// slices are the task's reusable buffers: enter copies them onward (into
+// the callee's frame or a native's fresh slot array) before anything can
+// make another call, so they are free again by then.
 func (t *Task) splitCall(arg int) (value.Value, []value.Value, []namedArg) {
 	npos, nnamed := bytecode.DecodeCall(arg)
 	top := len(t.stack)
 	namedStart := top - 2*nnamed
-	named := make([]namedArg, nnamed)
-	for i := range named {
-		named[i] = namedArg{name: t.stack[namedStart+2*i].(value.Sym), value: t.stack[namedStart+2*i+1]}
+	named := t.namedBuf[:0]
+	for i := 0; i < nnamed; i++ {
+		named = append(named, namedArg{name: t.stack[namedStart+2*i].(value.Sym), value: t.stack[namedStart+2*i+1]})
 	}
+	t.namedBuf = named
 	posStart := namedStart - npos
-	positional := make([]value.Value, npos)
-	copy(positional, t.stack[posStart:namedStart])
+	positional := append(t.argBuf[:0], t.stack[posStart:namedStart]...)
+	t.argBuf = positional
 	callee := t.stack[posStart-1]
 	t.truncate(posStart - 1)
 	return callee, positional, named
@@ -124,7 +136,7 @@ func (t *Task) enter(callee value.Value, positional []value.Value, named []named
 	}
 	switch fn := callee.(type) {
 	case *value.Native:
-		slots, e := bindArgs(fn.Name, nativeSpecs(fn), len(fn.Params), positional, named)
+		slots, e := bindArgs(fn.Name, paramList{native: fn.Params}, len(fn.Params), positional, named)
 		if e != nil {
 			return nil, true, e.WithPos(pos)
 		}
@@ -149,13 +161,20 @@ func (t *Task) enter(callee value.Value, positional []value.Value, named []named
 		if name == "" {
 			name = "the function"
 		}
-		slots, e := bindArgs(name, protoSpecs(fn.Proto), fn.Proto.NumLocals, positional, named)
-		if e != nil {
-			return nil, true, e.WithPos(pos)
+		slots := positional
+		if !exactPositional(fn.Proto, len(positional), len(named)) {
+			// Defaults, a rest parameter, named arguments or an arity
+			// error: lay the slots out the general way.
+			s, e := bindArgs(name, paramList{proto: fn.Proto.Params}, fn.Proto.NumLocals, positional, named)
+			if e != nil {
+				return nil, true, e.WithPos(pos)
+			}
+			slots = s
 		}
 		if tail {
 			f := &t.frames[len(t.frames)-1]
-			t.stack = append(t.stack[:f.base], slots...)
+			t.truncate(f.base)
+			t.pushFrameSlots(slots, fn.Proto.NumLocals)
 			f.proto, f.closure, f.globals, f.ip = fn.Proto, fn, fn.Globals, 0
 			f.tailCalls++
 			return nil, false, nil
@@ -164,10 +183,27 @@ func (t *Task) enter(callee value.Value, positional []value.Value, named []named
 			return nil, true, diag.Errorf("E0804", pos, maxFrames)
 		}
 		t.frames = append(t.frames, frame{proto: fn.Proto, closure: fn, base: len(t.stack), globals: fn.Globals})
-		t.stack = append(t.stack, slots...)
+		t.pushFrameSlots(slots, fn.Proto.NumLocals)
 		return nil, false, nil
 	}
 	return nil, true, diag.Errorf("E0401", pos, callee.TypeName())
+}
+
+// exactPositional reports whether a call fills every parameter of p by
+// position and nothing else: the arguments are then the first slots of
+// the frame as they are, with no binding work (09: 호출 규약, fast path).
+func exactPositional(p *bytecode.Proto, npos, nnamed int) bool {
+	n := len(p.Params)
+	return nnamed == 0 && npos == n && (n == 0 || !p.Params[n-1].Rest)
+}
+
+// pushFrameSlots appends a frame's slots: the given leading values, then
+// unassigned (Go nil) slots up to numLocals.
+func (t *Task) pushFrameSlots(lead []value.Value, numLocals int) {
+	t.stack = append(t.stack, lead...)
+	for i := len(lead); i < numLocals; i++ {
+		t.stack = append(t.stack, nil)
+	}
 }
 
 // ret pops the current frame, leaving its result on the caller's stack.

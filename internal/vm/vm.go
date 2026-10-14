@@ -58,6 +58,9 @@ type Task struct {
 	cancel    context.CancelFunc // cancels this task and its children
 	cancelled atomic.Bool        // set when ctx ends; enter() reads it on every call
 	handle    *TaskHandle        // the handle spawn gave out, nil for the entry
+
+	argBuf   []value.Value // splitCall's reusable argument buffers
+	namedBuf []namedArg
 }
 
 // Stdout implements value.Context for natives: one Write at a time (05).
@@ -194,10 +197,14 @@ func (t *Task) truncate(n int) {
 
 type binop func(a, b value.Value) (value.Value, *diag.Error)
 
-var arith = map[bytecode.Op]binop{
-	bytecode.OpAdd: value.Add, bytecode.OpSub: value.Sub, bytecode.OpMul: value.Mul,
-	bytecode.OpDiv: value.Div, bytecode.OpFloorDiv: value.FloorDiv, bytecode.OpMod: value.Mod,
-	bytecode.OpPow: value.Pow,
+// arith holds the binary arithmetic ops, OpAdd through OpPow in opcode
+// order. The loop checks that range before its switch, so an array index
+// replaces what used to be a Go map lookup on every instruction.
+var arith = [...]binop{
+	bytecode.OpAdd - bytecode.OpAdd: value.Add, bytecode.OpSub - bytecode.OpAdd: value.Sub,
+	bytecode.OpMul - bytecode.OpAdd: value.Mul, bytecode.OpDiv - bytecode.OpAdd: value.Div,
+	bytecode.OpFloorDiv - bytecode.OpAdd: value.FloorDiv, bytecode.OpMod - bytecode.OpAdd: value.Mod,
+	bytecode.OpPow - bytecode.OpAdd: value.Pow,
 }
 
 func (t *Task) loop(stopDepth int) (value.Value, *diag.Error) {
@@ -209,9 +216,9 @@ func (t *Task) loop(stopDepth int) (value.Value, *diag.Error) {
 		f.ip++
 		op := in.Op()
 
-		if fn, ok := arith[op]; ok {
+		if op >= bytecode.OpAdd && op <= bytecode.OpPow {
 			b, a := t.pop(), t.pop()
-			r, err := fn(a, b)
+			r, err := arith[op-bytecode.OpAdd](a, b)
 			if err != nil {
 				return nil, err.WithPos(pos)
 			}

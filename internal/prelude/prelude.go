@@ -81,20 +81,22 @@ func typeOfFn(_ value.Context, args []value.Value) (value.Value, error) {
 // mapFn applies f to every element of a list or range and collects the
 // results (06). `for` lowers to this (03).
 func mapFn(ctx value.Context, args []value.Value) (value.Value, error) {
-	items, err := nat.Items(ctx, args[0], "map over")
-	if err != nil {
-		return nil, err
-	}
 	if _, ok := args[1].(value.Fn); !ok {
+		if _, e := nat.Items(ctx, args[0], "map over"); e != nil {
+			return nil, e
+		}
 		return nil, diag.Errorf("E0403", diag.Pos{}, "f", "fn", args[1].TypeName())
 	}
-	out := make([]value.Value, 0, len(items))
-	for _, x := range items {
-		r, err := ctx.Call(args[1], []value.Value{x})
-		if err != nil {
-			return nil, err
-		}
+	out := make([]value.Value, 0, nat.SizeHint(args[0]))
+	buf := make([]value.Value, 1)
+	err := nat.Each(ctx, args[0], "map over", func(x value.Value) error {
+		buf[0] = x
+		r, err := ctx.Call(args[1], buf)
 		out = append(out, r)
+		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 	return value.NewList(out), nil
 }
