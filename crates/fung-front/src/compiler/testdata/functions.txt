@@ -1,0 +1,123 @@
+== <main> ==
+0000  1:1   CLOSURE      0    ; outer
+0001  1:1   STOREGLOBAL  0    ; outer
+0002  8:1   CLOSURE      1    ; h
+0003  8:1   STOREGLOBAL  1    ; h
+0004  9:8   LOADGLOBAL   1    ; h
+0005  9:10  CONST        0    ; 'Ok
+0006  9:13  CONST        1    ; 1
+0007  9:10  TAG          1    ; 1 args
+0008  9:9   CALL         1    ; 1 positional, 0 named
+0009  9:20  CONST        2    ; 2
+0010  9:1   ASSERT       0    ; h(Ok(1)) == 2
+0011  10:8  CONST        3    ; true
+0012  10:1  ASSERT       1    ; true
+0013  12:6  CONST        1    ; 1
+0014  12:10 CONST        2    ; 2
+0015  12:8  LT
+0016  12:1  NOT
+0017  12:1  JUMPIFFALSE  24
+0018  12:18 CONST        1    ; 1
+0019  12:17 NEG
+0020  12:22 CONST        4    ; 0
+0021  12:20 GT
+0022  12:20 CHECKBOOL
+0023  12:13 JUMP         25
+0024  12:13 CONST        5    ; false
+0025  12:13 JUMPIFFALSE  28
+0026  12:24 CONST        3    ; true
+0027  12:24 JUMP         30
+0028  12:27 CONST        5    ; false
+0029  12:27 CHECKBOOL
+0030  12:24 POP
+0031  13:1  CONST        6    ; "x"
+0032  13:8  CONST        6    ; "x"
+0033  13:5  EQ
+0034  13:5  POP
+0035  13:13 CONST        7    ; 2.0
+0036  13:19 CONST        1    ; 1
+0037  13:17 DIV
+0038  13:17 POP
+0039  13:22 CONST        8    ; 7
+0040  13:27 CONST        2    ; 2
+0041  13:24 FLOORDIV
+0042  13:24 POP
+0043  13:30 CONST        8    ; 7
+0044  13:34 CONST        2    ; 2
+0045  13:32 MOD
+0046  13:32 POP
+0047  13:37 CONST        2    ; 2
+0048  13:42 CONST        9    ; 3
+0049  13:39 POW
+0050  13:39 POP
+0051  13:45 CONST        1    ; 1
+0052  13:50 CONST        2    ; 2
+0053  13:47 NE
+0054  13:47 POP
+0055  13:53 CONST        1    ; 1
+0056  13:58 CONST        2    ; 2
+0057  13:55 LE
+0058  13:55 POP
+0059  13:61 CONST        1    ; 1
+0060  13:66 CONST        2    ; 2
+0061  13:63 GE
+0062  1:1   RETURN
+
+== outer ==
+0000  2:3   CLOSURE      0    ; loop
+0001  2:3   STORELOCAL   1
+0002  3:7   CLOSURE      1    ; <lambda>
+0003  3:3   STORELOCAL   2
+0004  4:3   CONST        0    ; <fn map>
+0005  4:13  CONST        1    ; 1
+0006  4:12  LIST         1
+0007  4:3   CLOSURE      2    ; <lambda>
+0008  4:3   CALL         2    ; 2 positional, 0 named
+0009  4:3   POP
+0010  5:20  CONST        1    ; 1
+0011  5:24  CONST        2    ; 2
+0012  5:23  LIST         1
+0013  5:19  TUPLE        2
+0014  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
+0015  6:10  LOADLOCAL    1
+0016  6:15  CONST        2    ; 2
+0017  6:14  TAILCALL     1    ; 1 positional, 0 named
+0018  6:3   RETURN
+0019  1:1   RETURN
+
+== loop ==
+0000  2:16  LOADLOCAL    0
+0001  2:21  CONST        0    ; 0
+0002  2:18  EQ
+0003  2:18  JUMPIFFALSE  6
+0004  2:28  LOADCAPTURED 0
+0005  2:23  JUMP         11
+0006  2:35  LOADSELF
+0007  2:40  LOADLOCAL    0
+0008  2:44  CONST        1    ; 1
+0009  2:42  SUB
+0010  2:39  TAILCALL     1    ; 1 positional, 0 named
+0011  2:14  RETURN
+
+== <lambda> ==
+0000  3:12  LOADLOCAL    0
+0001  3:16  LOADCAPTURED 0
+0002  3:14  ADD
+0003  3:9   RETURN
+
+== <lambda> ==
+0000  4:17  CONST        0    ; <fn print>
+0001  4:23  LOADLOCAL    0
+0002  4:22  TAILCALL     1    ; 1 positional, 0 named
+0003  4:3   RETURN
+
+== h ==
+0000  8:18  LOADLOCAL    0
+0001  8:19  UNWRAPTEST   3
+0002  8:19  JUMP         5
+0003  8:19  CHECKRETURN  0    ; -> int
+0004  8:19  RETURN
+0005  8:23  CONST        0    ; 1
+0006  8:21  ADD
+0007  8:16  CHECKRETURN  0    ; -> int
+0008  8:16  RETURN

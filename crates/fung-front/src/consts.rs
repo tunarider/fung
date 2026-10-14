@@ -13,6 +13,9 @@ pub enum Const {
     /// Nanoseconds.
     Dur(i64),
     Builtin(String),
+    /// A list value. The only one the front end makes is the prelude's
+    /// `args`, which is empty at compile time.
+    List(Vec<Const>),
 }
 
 /// Constant-pool equality, following Go `Proto.Const`: same type and equal
@@ -29,6 +32,7 @@ impl PartialEq for Const {
             (Const::Sym(a), Const::Sym(b)) => a == b,
             (Const::Dur(a), Const::Dur(b)) => a == b,
             (Const::Builtin(a), Const::Builtin(b)) => a == b,
+            (Const::List(a), Const::List(b)) => a == b,
             _ => false,
         }
     }
@@ -46,6 +50,10 @@ pub fn format(c: &Const) -> String {
         Const::Sym(s) => format!("'{s}"),
         Const::Dur(ns) => format_dur(*ns),
         Const::Builtin(n) => format!("<fn {n}>"),
+        Const::List(items) => {
+            let items: Vec<String> = items.iter().map(format).collect();
+            format!("[{}]", items.join(", "))
+        }
     }
 }
 
@@ -239,6 +247,15 @@ mod tests {
     #[test]
     fn nbsp_is_escaped() {
         assert_eq!(quote_str("a\u{A0}b"), "\"a\\u{A0}b\"");
+    }
+
+    #[test]
+    fn lists_format_and_compare_by_items() {
+        let l = Const::List(vec![Const::Int(1), Const::Str("a".into())]);
+        assert_eq!(format(&l), "[1, \"a\"]");
+        assert_eq!(format(&Const::List(vec![])), "[]");
+        assert_eq!(l, l.clone());
+        assert_ne!(Const::List(vec![]), l);
     }
 
     #[test]
