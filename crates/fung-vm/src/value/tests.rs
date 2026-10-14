@@ -432,3 +432,17 @@ fn symbols_intern_and_format() {
     assert_eq!(compare(&a, &b).unwrap_err().code, "E0501");
     fails(add, a, b, "E0501");
 }
+
+#[test]
+fn dur_sub_of_min_is_overflow_like_go() {
+    // Go negates the right side first, so MIN overflows even when the
+    // subtraction itself would fit.
+    fails(sub, Value::Dur(-1), Value::Dur(i64::MIN), "E0503");
+    // Int subtraction does not negate first.
+    ok(
+        sub,
+        Value::Int(-1),
+        Value::Int(i64::MIN),
+        Value::Int(i64::MAX),
+    );
+}
