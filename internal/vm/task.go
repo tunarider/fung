@@ -38,9 +38,16 @@ func errKind(kind string) value.Value {
 
 // spawn runs fn on a new task whose context descends from this one, so
 // cancelling the parent cancels it too (05).
-func (t *Task) spawn(fn value.Value) *TaskHandle {
+//
+// awaited marks the task as awaited before it starts: a helper that
+// promises to await it (spawn_awaited) must have its waiter counted before
+// the task can finish, or a quick failure would be reported as unawaited.
+func (t *Task) spawn(fn value.Value, awaited bool) *TaskHandle {
 	child := t.rt.newTask(t.ctxOrRoot())
 	h := &TaskHandle{done: make(chan struct{}), cancel: child.cancel}
+	if awaited {
+		h.waiters.Add(1) // never released; the failure stays with its Err
+	}
 	child.handle = h
 	rt := t.rt
 	rt.conc.wg.Add(1)
@@ -101,7 +108,7 @@ func spawnFn(ctx value.Context, args []value.Value) (value.Value, error) {
 	if _, ok := args[0].(value.Fn); !ok {
 		return nil, diag.Errorf("E0403", diag.Pos{}, "f", "fn", args[0].TypeName())
 	}
-	return ctx.(*Task).spawn(args[0]), nil
+	return ctx.(*Task).spawn(args[0], false), nil
 }
 
 // timeoutArg reads a `timeout` argument: nil, or a duration.
@@ -183,9 +190,7 @@ func spawnAwaitedFn(ctx value.Context, args []value.Value) (value.Value, error) 
 	if _, ok := args[0].(value.Fn); !ok {
 		return nil, diag.Errorf("E0403", diag.Pos{}, "f", "fn", args[0].TypeName())
 	}
-	h := ctx.(*Task).spawn(args[0])
-	h.waiters.Add(1) // the helper promises to await; the failure stays with its Err
-	return h, nil
+	return ctx.(*Task).spawn(args[0], true), nil
 }
 
 func cancelFn(_ value.Context, args []value.Value) (value.Value, error) {
