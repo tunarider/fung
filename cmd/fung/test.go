@@ -157,10 +157,6 @@ func runTestFile(path string, stdout, stderr io.Writer, seen map[string]bool) te
 	}
 	rt.CancelAll()
 	rt.Wait()
-	if rt.Failed() {
-		fmt.Fprintf(stdout, "FAIL %s: <tasks>\n  a task failed and nothing awaited it (see standard error)\n", path)
-		r.failed++
-	}
 	for _, err := range rt.RunExitHandlers() {
 		if _, ok := err.ExitCode(); ok {
 			continue
@@ -169,6 +165,13 @@ func runTestFile(path string, stdout, stderr io.Writer, seen map[string]bool) te
 			continue
 		}
 		reportErrors([]*diag.Error{err}, prog.Sources, stderr)
+	}
+	// The file is done: a task failure nobody retrieved fails it (05).
+	rt.Wait()
+	rt.ReportUnretrieved()
+	if rt.Failed() {
+		fmt.Fprintf(stdout, "FAIL %s: <tasks>\n  a task failed and nothing awaited it (see standard error)\n", path)
+		r.failed++
 	}
 	return r
 }

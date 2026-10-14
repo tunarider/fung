@@ -2,7 +2,7 @@ package vm
 
 import (
 	"context"
-	"io"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -16,8 +16,20 @@ import (
 type TaskHandle struct {
 	done    chan struct{}
 	result  value.Value
-	waiters atomic.Int32 // tasks currently inside await (05: 죽는 순간 기다리는 이)
+	fail    *failure // set before done closes when the task failed, unless awaited
+	awaited bool     // spawned by a helper that awaits it (spawn_awaited)
+	rt      *Runtime
 	cancel  context.CancelFunc
+}
+
+// failure is a task failure nobody has retrieved yet (05). It lives apart
+// from the handle so the runtime can track it without keeping the handle
+// reachable: the GC must be free to find a dropped handle.
+type failure struct {
+	err       *diag.Error
+	seq       uint64 // report order at the end of the program
+	retrieved atomic.Bool
+	reported  atomic.Bool
 }
 
 func (*TaskHandle) TypeName() string { return "task" }
@@ -44,10 +56,8 @@ func errKind(kind string) value.Value {
 // the task can finish, or a quick failure would be reported as unawaited.
 func (t *Task) spawn(fn value.Value, awaited bool) *TaskHandle {
 	child := t.rt.newTask(t.ctxOrRoot())
-	h := &TaskHandle{done: make(chan struct{}), cancel: child.cancel}
-	if awaited {
-		h.waiters.Add(1) // never released; the failure stays with its Err
-	}
+	h := &TaskHandle{done: make(chan struct{}), cancel: child.cancel, rt: t.rt}
+	h.awaited = awaited
 	child.handle = h
 	rt := t.rt
 	rt.conc.wg.Add(1)
@@ -77,8 +87,10 @@ func (t *Task) ctxOrRoot() context.Context {
 	return t.ctx
 }
 
-// finish stores the task's result (05: 태스크의 결과와 에러). A failure
-// nobody is awaiting is reported now and makes the exit code 1.
+// finish stores the task's result (05: 태스크의 결과와 에러). A failure is
+// tracked until someone retrieves it with await; if the handle is dropped
+// first, the GC runs reportFailure, and the end of the program reports
+// whatever is left (ReportUnretrieved).
 func (h *TaskHandle) finish(rt *Runtime, v value.Value, err *diag.Error) {
 	switch {
 	case err == nil:
@@ -95,11 +107,12 @@ func (h *TaskHandle) finish(rt *Runtime, v value.Value, err *diag.Error) {
 		m.Set("kind", value.Intern("error"))
 		m.Set("message", value.Str(err.Error()))
 		h.result = &value.Tag{Name: value.Intern("Err"), Args: []value.Value{m.Map()}}
-		if h.waiters.Load() == 0 {
-			io.WriteString(rt.stderr(), "task failed: "+diag.Format(err, rt.Sources[err.Pos.File]))
-			rt.conc.mu.Lock()
-			rt.conc.failed = true
-			rt.conc.mu.Unlock()
+		if !h.awaited {
+			f := &failure{err: err}
+			rt.trackFailure(f)
+			h.fail = f
+			// The cleanup must not reach h, or h would never be collected.
+			runtime.AddCleanup(h, rt.reportFailure, f)
 		}
 	}
 }
@@ -134,13 +147,11 @@ func awaitFn(ctx value.Context, args []value.Value) (value.Value, error) {
 		return nil, err
 	}
 	t := ctx.(*Task)
-	h.waiters.Add(1)
-	defer h.waiters.Add(-1)
 	// Fast path: a finished task is not something to wait for, so it must
 	// not count toward the deadlock detector.
 	select {
 	case <-h.done:
-		return h.result, nil
+		return h.retrieve(), nil
 	default:
 	}
 	timedOut := false
@@ -167,7 +178,7 @@ func awaitFn(ctx value.Context, args []value.Value) (value.Value, error) {
 	}
 	select {
 	case <-h.done:
-		return h.result, nil
+		return h.retrieve(), nil
 	default:
 	}
 	if timedOut {
@@ -200,4 +211,13 @@ func cancelFn(_ value.Context, args []value.Value) (value.Value, error) {
 	}
 	h.cancel()
 	return value.Nil{}, nil
+}
+
+// retrieve returns the stored result and marks a failure as seen: await
+// got it, so it is the caller's to handle (05).
+func (h *TaskHandle) retrieve() value.Value {
+	if f := h.fail; f != nil && f.retrieved.CompareAndSwap(false, true) {
+		h.rt.untrack(f)
+	}
+	return h.result
 }

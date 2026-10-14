@@ -85,6 +85,8 @@ func (s *Session) finish(code int) int {
 		}
 		io.WriteString(s.err, diag.Format(err, ""))
 	}
+	s.rt.Wait()
+	s.rt.ReportUnretrieved() // failures no one awaited during the session (05)
 	if n, ok := s.rt.ExitCode(); ok {
 		code = n
 	}

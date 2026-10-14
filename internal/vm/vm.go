@@ -178,9 +178,18 @@ func (t *Task) attach(err *diag.Error) {
 func (t *Task) push(v value.Value) { t.stack = append(t.stack, v) }
 
 func (t *Task) pop() value.Value {
-	v := t.stack[len(t.stack)-1]
-	t.stack = t.stack[:len(t.stack)-1]
+	n := len(t.stack) - 1
+	v := t.stack[n]
+	t.stack[n] = nil // a stale slot would keep the value alive (05: dropped task handles)
+	t.stack = t.stack[:n]
 	return v
+}
+
+// truncate shrinks the stack to n, clearing the vacated slots so the GC
+// can collect what they held.
+func (t *Task) truncate(n int) {
+	clear(t.stack[n:])
+	t.stack = t.stack[:n]
 }
 
 type binop func(a, b value.Value) (value.Value, *diag.Error)
@@ -346,7 +355,7 @@ func (t *Task) loop(stopDepth int) (value.Value, *diag.Error) {
 			for _, part := range t.stack[len(t.stack)-n:] {
 				b.WriteString(value.FormatForPrint(part))
 			}
-			t.stack = t.stack[:len(t.stack)-n]
+			t.truncate(len(t.stack) - n)
 			t.push(value.Str(b.String()))
 		case bytecode.OpReturn:
 			if v, stop := t.ret(stopDepth); stop {

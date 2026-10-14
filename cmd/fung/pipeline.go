@@ -57,8 +57,6 @@ func execute(file, src string, scriptArgs []string, stdin io.Reader, stdout, std
 	}
 	if n, ok := rt.ExitCode(); ok {
 		code = n
-	} else if code == exitOK && rt.Failed() {
-		code = exitRuntimeError // an un-awaited task failed (05)
 	}
 	before, hadBefore := rt.ExitCode()
 	for _, err := range rt.RunExitHandlers() {
@@ -73,8 +71,14 @@ func execute(file, src string, scriptArgs []string, stdin io.Reader, stdout, std
 			code = exitRuntimeError
 		}
 	}
+	// The program is over: report every task failure nobody retrieved,
+	// handlers included, since a handler may still await a task (05).
+	rt.Wait()
+	rt.ReportUnretrieved()
 	if n, ok := rt.ExitCode(); ok && (!hadBefore || n != before) {
 		code = n // an exit requested inside a handler, or by a task it spawned
+	} else if _, ok := rt.ExitCode(); !ok && code == exitOK && rt.Failed() {
+		code = exitRuntimeError // a task failure nobody retrieved (05)
 	}
 	return code
 }

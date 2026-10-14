@@ -9,7 +9,7 @@ import (
 // popN removes the top n values and returns them in push order.
 func (t *Task) popN(n int) []value.Value {
 	items := append([]value.Value(nil), t.stack[len(t.stack)-n:]...)
-	t.stack = t.stack[:len(t.stack)-n]
+	t.truncate(len(t.stack) - n)
 	return items
 }
 

@@ -110,7 +110,7 @@ func (t *Task) splitCall(arg int) (value.Value, []value.Value, []namedArg) {
 	positional := make([]value.Value, npos)
 	copy(positional, t.stack[posStart:namedStart])
 	callee := t.stack[posStart-1]
-	t.stack = t.stack[:posStart-1]
+	t.truncate(posStart - 1)
 	return callee, positional, named
 }
 
@@ -175,7 +175,7 @@ func (t *Task) enter(callee value.Value, positional []value.Value, named []named
 func (t *Task) ret(stopDepth int) (value.Value, bool) {
 	v := t.pop()
 	f := t.frames[len(t.frames)-1]
-	t.stack = t.stack[:f.base]
+	t.truncate(f.base)
 	t.frames = t.frames[:len(t.frames)-1]
 	if len(t.frames) == stopDepth {
 		return v, true

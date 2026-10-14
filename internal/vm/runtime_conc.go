@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"io"
+	"sort"
 	"sync"
 	"time"
 
@@ -47,7 +48,10 @@ type concState struct {
 	deadlocked bool
 	exitSet    bool
 	exit       int
-	failed     bool // a task died unawaited (05: exit code 1)
+	failed     bool // a failure nobody retrieved was reported (05: exit code 1)
+
+	unretrieved map[*failure]struct{} // failures not yet retrieved or reported
+	failSeq     uint64
 }
 
 // deadlockGrace is how long every live task must stay blocked, with no
@@ -274,4 +278,52 @@ func Concurrency() map[string]value.Value {
 	registerChannels(add)
 	registerAtoms(add)
 	return p
+}
+
+// trackFailure records a failure until it is retrieved or reported.
+func (rt *Runtime) trackFailure(f *failure) {
+	rt.conc.mu.Lock()
+	defer rt.conc.mu.Unlock()
+	if rt.conc.unretrieved == nil {
+		rt.conc.unretrieved = map[*failure]struct{}{}
+	}
+	rt.conc.failSeq++
+	f.seq = rt.conc.failSeq
+	rt.conc.unretrieved[f] = struct{}{}
+}
+
+func (rt *Runtime) untrack(f *failure) {
+	rt.conc.mu.Lock()
+	delete(rt.conc.unretrieved, f)
+	rt.conc.mu.Unlock()
+}
+
+// reportFailure reports a failure nobody can retrieve any more: its handle
+// was collected, or the program is over. It runs at most once per failure,
+// and never for one that await already returned.
+func (rt *Runtime) reportFailure(f *failure) {
+	if f.retrieved.Load() || !f.reported.CompareAndSwap(false, true) {
+		return
+	}
+	rt.untrack(f)
+	io.WriteString(rt.stderr(), "task failed: "+diag.Format(f.err, rt.Sources[f.err.Pos.File]))
+	rt.conc.mu.Lock()
+	rt.conc.failed = true
+	rt.conc.mu.Unlock()
+}
+
+// ReportUnretrieved reports, in the order the tasks failed, every failure
+// nobody retrieved (05). Call it once the program is over (the entry,
+// every task and the exit handlers are done), so nothing can await them.
+func (rt *Runtime) ReportUnretrieved() {
+	rt.conc.mu.Lock()
+	left := make([]*failure, 0, len(rt.conc.unretrieved))
+	for f := range rt.conc.unretrieved {
+		left = append(left, f)
+	}
+	rt.conc.mu.Unlock()
+	sort.Slice(left, func(i, j int) bool { return left[i].seq < left[j].seq })
+	for _, f := range left {
+		rt.reportFailure(f)
+	}
 }

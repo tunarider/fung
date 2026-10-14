@@ -130,6 +130,7 @@ func TestUnawaitedFailureIsReportedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt.Wait()
+	rt.ReportUnretrieved() // the program is over (05)
 	if out.String() != "after\n" || !strings.HasPrefix(errOut.String(), "task failed: error[E0803]: boom\n  --> t.fung:1:") || !rt.Failed() {
 		t.Fatalf("out=%q err=%q failed=%v", out.String(), errOut.String(), rt.Failed())
 	}
@@ -320,6 +321,7 @@ func TestAwaitTimeoutDoesNotHideALaterFailure(t *testing.T) {
 	rt := &Runtime{Stdout: &out, Stderr: &errOut}
 	rt.Run(p)
 	rt.Wait()
+	rt.ReportUnretrieved()
 	if !strings.Contains(out.String(), "timeout") || !strings.Contains(errOut.String(), "task failed: error[E0803]: later") || !rt.Failed() {
 		t.Fatalf("out=%q err=%q failed=%v", out.String(), errOut.String(), rt.Failed())
 	}
