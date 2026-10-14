@@ -26,8 +26,11 @@ pub fn format(v: &Value) -> String {
         }
         Value::Native(n) if n.name.is_empty() => "<fn>".into(),
         Value::Native(n) => format!("<fn {}>", n.name),
-        // Placeholders until lists, maps, closures and modules are ported.
-        Value::List(_) => "<list>".into(),
+        Value::List(l) => {
+            let items: Vec<String> = l.iter().map(format).collect();
+            format!("[{}]", items.join(", "))
+        }
+        // Placeholders until maps, closures and modules are ported.
         Value::Map(_) => "<map>".into(),
         Value::Closure(_) => "<fn>".into(),
         Value::Module(_) => "<module>".into(),

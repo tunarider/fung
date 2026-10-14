@@ -446,3 +446,457 @@ fn dur_sub_of_min_is_overflow_like_go() {
         Value::Int(i64::MAX),
     );
 }
+
+// ---- persistent vectors and lists (Go pvec_test.go, list_test.go,
+// list_api_test.go, collections_test.go) ----
+
+use super::pvec::Pvec;
+
+/// A small deterministic PRNG (xorshift64*) for the model tests.
+struct Rng(u64);
+
+impl Rng {
+    fn new(seed: u64) -> Rng {
+        Rng(seed)
+    }
+
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
+    }
+
+    fn int_n(&mut self, n: usize) -> usize {
+        (self.next() % n as u64) as usize
+    }
+
+    fn int(&mut self) -> i64 {
+        (self.next() >> 1) as i64
+    }
+}
+
+fn list(items: Vec<Value>) -> Value {
+    Value::List(Rc::new(List::new(items)))
+}
+
+fn ints(xs: &[i64]) -> Vec<Value> {
+    xs.iter().map(|&x| Value::Int(x)).collect()
+}
+
+fn int_of(v: &Value) -> i64 {
+    match v {
+        Value::Int(n) => *n,
+        other => panic!("not an int: {other:?}"),
+    }
+}
+
+/// `l` holds exactly `want`, read through `at`, `iter` and `to_vec`.
+fn same_list(what: &str, l: &List, want: &[i64]) {
+    assert_eq!(l.len(), want.len(), "{what}: len");
+    for (i, &x) in want.iter().enumerate() {
+        assert_eq!(l.at(i).map(int_of), Some(x), "{what}: at({i})");
+    }
+    assert!(l.at(want.len()).is_none(), "{what}: at(len)");
+    let got: Vec<i64> = l.iter().map(int_of).collect();
+    assert_eq!(got, want, "{what}: iter");
+    let got: Vec<i64> = l.to_vec().iter().map(int_of).collect();
+    assert_eq!(got, want, "{what}: to_vec");
+}
+
+// TestPvecMatchesSlice: every version stays readable and unchanged.
+#[test]
+fn pvec_matches_slice() {
+    let mut r = Rng::new(0x1234_5678_9abc_def1);
+    let mut cur: (Pvec<i64>, Vec<i64>) = (Pvec::of(vec![]), vec![]);
+    let mut history = vec![cur.clone()];
+    for step in 0..40000 {
+        let op = r.int_n(10);
+        if op < 7 || cur.1.is_empty() {
+            let x = r.int();
+            cur.0.push(x);
+            cur.1.push(x);
+        } else {
+            let i = r.int_n(cur.1.len());
+            let x = r.int();
+            cur.0.set(i, x);
+            cur.1[i] = x;
+        }
+        if step % 997 == 0 {
+            history.push(cur.clone());
+        }
+        if step % 4999 == 0 {
+            // fork from an old version: the fork must not touch its parent
+            let old = &history[r.int_n(history.len())];
+            let mut f = old.0.clone();
+            f.push(-1);
+            assert_eq!(*f.at(f.len() - 1), -1);
+            assert_eq!(old.0.len(), old.1.len(), "fork changed its parent");
+        }
+    }
+    history.push(cur);
+    for (v, want) in &history {
+        assert_eq!(v.len(), want.len());
+        for (i, x) in want.iter().enumerate() {
+            assert_eq!(v.at(i), x, "at({i}) len {}", want.len());
+        }
+    }
+}
+
+// TestPvecOfBoundaries
+#[test]
+fn pvec_of_boundaries() {
+    for n in [0, 1, 31, 32, 33, 64, 1023, 1024, 1025, 1056, 32768, 32800] {
+        let v = Pvec::of((0..n as i64).map(|i| i * 3).collect());
+        assert_eq!(v.len(), n);
+        for i in 0..n {
+            assert_eq!(*v.at(i), i as i64 * 3, "n={n} at({i})");
+        }
+        let mut w = v.clone();
+        for k in 0..1100 {
+            // push across several tail flushes and a root growth
+            w.push(-k);
+        }
+        for k in 0..1100 {
+            assert_eq!(*w.at(n + k as usize), -k, "n={n} push {k}");
+        }
+        for i in 0..n {
+            assert_eq!(*w.at(i), i as i64 * 3, "n={n} prefix changed at {i}");
+            assert_eq!(*v.at(i), i as i64 * 3, "n={n} prefix changed at {i}");
+        }
+        if n > 1 {
+            let mut s = v.clone();
+            s.set(0, 7);
+            s.set(n - 1, 8);
+            assert_eq!((*s.at(0), *s.at(n - 1)), (7, 8), "n={n} set");
+            assert_eq!(
+                (*v.at(0), *v.at(n - 1)),
+                (0, (n as i64 - 1) * 3),
+                "n={n} set"
+            );
+        }
+    }
+}
+
+// TestListMatchesSlice: random lists against plain vectors; old versions
+// are re-read to check that no operation changes a list it came from.
+#[test]
+fn list_matches_slice() {
+    let mut r = Rng::new(0x0bad_cafe_f00d_5eed);
+    let mut cur: (List, Vec<i64>) = (List::new(vec![]), vec![]);
+    let mut history: Vec<(List, Vec<i64>)> = vec![];
+    for step in 0..30000 {
+        let n = cur.1.len();
+        let op = r.int_n(20);
+        if op < 11 || n < 2 {
+            // append, most of the time
+            let x = r.int_n(1000) as i64;
+            cur.0.push(Value::Int(x));
+            cur.1.push(x);
+        } else if op < 14 {
+            // drop from the front (rest / slicing a tail)
+            let k = 1 + r.int_n(n.min(40));
+            cur = (cur.0.slice(k, n), cur.1[k..].to_vec());
+        } else if op < 16 {
+            // take a front part
+            let k = r.int_n(n);
+            cur = (cur.0.slice(0, k), cur.1[..k].to_vec());
+        } else if op < 18 {
+            // concat a small or big list made from cur
+            let k = r.int_n(n);
+            let o = cur.0.slice(k, n);
+            let mut want = cur.1.clone();
+            want.extend_from_slice(&cur.1[k..]);
+            cur = (cur.0.concat(&o), want);
+        } else if !history.is_empty() {
+            // jump back to an old version
+            cur = history[r.int_n(history.len())].clone();
+        }
+        let n = cur.1.len();
+        if n > 6000 {
+            // keep sizes moving across the small/big boundary
+            cur = (cur.0.slice(n - 30, n), cur.1[n - 30..].to_vec());
+        }
+        if step % 301 == 0 {
+            history.push(cur.clone());
+        }
+        if step % 2003 == 0 {
+            for (l, want) in &history {
+                same_list("history", l, want);
+            }
+        }
+    }
+    same_list("final", &cur.0, &cur.1);
+}
+
+// TestListViewAppendKeepsOriginal
+#[test]
+fn list_view_append_keeps_original() {
+    let mut xs = List::new(vec![]);
+    for i in 0..100 {
+        xs.push(Value::Int(i));
+    }
+    let ys = xs.slice(0, 40);
+    let mut zs = ys.clone();
+    zs.push(Value::Int(-1));
+    assert_eq!(
+        xs.at(40).map(int_of),
+        Some(40),
+        "front slice append changed the original"
+    );
+    assert_eq!(zs.at(40).map(int_of), Some(-1));
+    assert_eq!((zs.len(), ys.len()), (41, 40));
+    let (mut a, mut b) = (xs.clone(), xs.clone());
+    a.push(Value::Int(1));
+    b.push(Value::Int(2));
+    assert_eq!(a.at(100).map(int_of), Some(1), "forked appends interfere");
+    assert_eq!(b.at(100).map(int_of), Some(2), "forked appends interfere");
+    assert_eq!(xs.len(), 100);
+    let mut tz = xs.slice(60, 100);
+    tz.push(Value::Int(-2));
+    assert_eq!(xs.len(), 100, "appending to a tail view");
+    assert_eq!(tz.at(40).map(int_of), Some(-2));
+    assert_eq!(tz.at(0).map(int_of), Some(60));
+}
+
+// TestListRestIsCheap: appending and taking the tail one at a time is
+// linear overall. Timed only in release builds.
+#[cfg(not(debug_assertions))]
+#[test]
+fn list_rest_is_cheap() {
+    let start = std::time::Instant::now();
+    let mut xs = List::new(vec![]);
+    for i in 0..100_000 {
+        xs.push(Value::Int(i));
+    }
+    let mut i = 0;
+    while xs.len() > 0 {
+        assert_eq!(xs.at(0).map(int_of), Some(i), "rest {i}");
+        xs = xs.slice(1, xs.len());
+        i += 1;
+    }
+    let took = start.elapsed();
+    assert!(
+        took.as_secs_f64() < 2.0,
+        "100,000 appends and rests took {took:?}"
+    );
+}
+
+// TestListBoundaries
+#[test]
+fn list_boundaries() {
+    for n in [0, 1, 31, 32, 33, 64, 65, 1056] {
+        let items: Vec<i64> = (0..n).collect();
+        let l = List::new(ints(&items));
+        same_list("new", &l, &items);
+        let mut appended = l.clone();
+        appended.push(Value::Int(-1));
+        let mut want = items.clone();
+        want.push(-1);
+        same_list("push", &appended, &want);
+        same_list("original after push", &l, &items);
+        if n > 0 {
+            same_list("slice", &l.slice(1, n as usize), &items[1..]);
+        }
+        let built = list(ints(&items));
+        let Value::List(rc) = &built else {
+            unreachable!()
+        };
+        assert_eq!(format(&Value::List(Rc::new(l.clone()))), format(&built));
+        assert_eq!(rc.len(), l.len());
+    }
+}
+
+// TestListAPI
+#[test]
+fn list_api() {
+    let a = List::new(ints(&[1, 2, 3]));
+    assert_eq!(a.len(), 3);
+    assert_eq!(a.at(0).map(int_of), Some(1));
+    assert_eq!(a.at(2).map(int_of), Some(3));
+    let mut b = a.clone();
+    b.push(Value::Int(4));
+    assert_eq!(
+        (a.len(), b.len()),
+        (3, 4),
+        "push must not change the original"
+    );
+    assert_eq!(b.at(3).map(int_of), Some(4));
+    let fmt = |l: &List| format(&Value::List(Rc::new(l.clone())));
+    assert_eq!(fmt(&b.slice(1, 3)), "[2, 3]");
+    assert_eq!(fmt(&b), "[1, 2, 3, 4]");
+    assert_eq!(fmt(&a.concat(&List::new(ints(&[9])))), "[1, 2, 3, 9]");
+    let got: Vec<i64> = b.iter().map(int_of).collect();
+    assert_eq!(got, [1, 2, 3, 4]);
+    let mut raw = b.to_vec();
+    raw[0] = Value::Int(99);
+    assert_eq!(b.at(0).map(int_of), Some(1), "to_vec must copy");
+    let mut lb = ListBuilder::default();
+    lb.push(Value::Int(7));
+    lb.push(Value::Int(8));
+    assert_eq!(fmt(&lb.finish()), "[7, 8]");
+    assert_eq!(List::new(vec![]).len(), 0);
+    assert_eq!(fmt(&List::new(vec![])), "[]");
+    assert_eq!(SMALL_MAX, 32);
+}
+
+#[test]
+fn shared_list_is_never_changed() {
+    let mut a = List::new((0..100).map(Value::Int).collect());
+    let b = a.clone(); // shared
+    a.push(Value::Int(-1));
+    assert_eq!(b.len(), 100);
+    assert_eq!(a.len(), 101);
+    assert!(matches!(b.at(99), Some(Value::Int(99))));
+}
+
+#[test]
+fn shared_small_list_and_tail_are_never_changed() {
+    // small: the flat vector is copied by clone
+    let mut a = List::new(ints(&[1, 2]));
+    let b = a.clone();
+    a.push(Value::Int(3));
+    same_list("small original", &b, &[1, 2]);
+    // big with a partly filled tail shared by two lists
+    let base: Vec<i64> = (0..40).collect();
+    let mut c = List::new(ints(&base));
+    let d = c.clone();
+    c.push(Value::Int(-1));
+    same_list("tail original", &d, &base);
+    // big with a full tail that moves into the trie
+    let base: Vec<i64> = (0..64).collect();
+    let mut e = List::new(ints(&base));
+    let f = e.clone();
+    for i in 0..100 {
+        e.push(Value::Int(-i));
+    }
+    same_list("trie original", &f, &base);
+}
+
+#[test]
+fn dropping_a_huge_list_does_not_overflow() {
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(|| {
+            let mut l = List::new(vec![]);
+            for i in 0..1_000_000 {
+                l.push(Value::Int(i));
+            }
+            drop(l);
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn dropping_deeply_nested_lists_does_not_overflow() {
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(|| {
+            // small lists inside small lists
+            let mut v = Value::Nil;
+            for _ in 0..1_000_000 {
+                v = list(vec![v]);
+            }
+            drop(v);
+            // big lists (pvec leaves) holding the next level, via tuples too
+            let mut v = Value::Nil;
+            for _ in 0..20_000 {
+                let mut items = ints(&[0; 40]);
+                items.push(Value::Tuple(Rc::new(vec![v])));
+                v = list(items);
+            }
+            drop(v);
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+// TestCollectionFormat (list cases; maps arrive with the map task)
+#[test]
+fn list_format() {
+    let cases = [
+        (
+            list(vec![Value::Int(1), s("a"), Value::Nil]),
+            r#"[1, "a", nil]"#,
+        ),
+        (list(vec![]), "[]"),
+        (
+            list(vec![list(ints(&[1])), Value::Tuple(Rc::new(vec![s("s")]))]),
+            r#"[[1], ("s",)]"#,
+        ),
+    ];
+    for (v, want) in cases {
+        assert_eq!(format(&v), want);
+    }
+    assert_eq!(type_name(&list(vec![])), "list");
+    // print and ${} quote strings inside a list
+    assert_eq!(
+        format_for_print(&list(vec![Value::Int(1), s("s")])),
+        r#"[1, "s"]"#
+    );
+}
+
+// TestCollectionEquality (list cases)
+#[test]
+fn list_equality() {
+    let cases = [
+        (
+            list(ints(&[1, 2])),
+            list(vec![Value::Int(1), Value::Float(2.0)]),
+            true,
+        ),
+        (list(ints(&[1])), list(ints(&[1, 2])), false),
+        (list(ints(&[1])), Value::Tuple(Rc::new(ints(&[1]))), false),
+        (list(vec![]), Value::Nil, false),
+    ];
+    for (a, b, want) in cases {
+        assert_eq!(equal(&a, &b), want, "{} == {}", format(&a), format(&b));
+    }
+    // big lists and views compare by items
+    let big: Vec<i64> = (0..100).collect();
+    let l = List::new(ints(&big));
+    let view = Value::List(Rc::new(l.slice(10, 90)));
+    assert!(equal(&view, &list(ints(&big[10..90]))));
+    assert!(!equal(&view, &list(ints(&big[10..89]))));
+}
+
+// TestCollectionOrdering (list cases)
+#[test]
+fn list_ordering() {
+    let c = compare(&list(ints(&[1, 2])), &list(ints(&[1, 3])));
+    assert_eq!(c.unwrap(), Ordering::Less, "lexicographic");
+    let c = compare(&list(ints(&[1])), &list(ints(&[1, 0])));
+    assert_eq!(c.unwrap(), Ordering::Less, "shorter is smaller");
+    let pairs = [
+        (list(vec![]), Value::Tuple(Rc::new(vec![]))),
+        (list(ints(&[1])), list(vec![s("a")])),
+    ];
+    for (a, b) in pairs {
+        let e = compare(&a, &b).unwrap_err();
+        assert_eq!(e.code, "E0501", "{} <=> {}", format(&a), format(&b));
+    }
+}
+
+// TestListConcatAndMapPut (list cases)
+#[test]
+fn list_concat() {
+    let v = add(&list(ints(&[1])), &list(ints(&[2]))).unwrap();
+    assert_eq!(format(&v), "[1, 2]");
+    fails(add, list(vec![]), Value::Int(1), "E0501");
+    fails(add, Value::Int(1), list(vec![]), "E0501");
+    // big + small and big + big stay correct and leave the operands alone
+    let a: Vec<i64> = (0..50).collect();
+    let b: Vec<i64> = (100..140).collect();
+    let (la, lb) = (list(ints(&a)), list(ints(&b)));
+    let v = add(&la, &lb).unwrap();
+    let Value::List(l) = &v else { unreachable!() };
+    let want: Vec<i64> = a.iter().chain(&b).copied().collect();
+    same_list("concat", l, &want);
+    let Value::List(l) = &la else { unreachable!() };
+    same_list("left operand", l, &a);
+}

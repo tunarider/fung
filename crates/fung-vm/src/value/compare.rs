@@ -20,11 +20,14 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Str(x), Value::Str(y)) => x == y,
         (Value::Sym(x), Value::Sym(y)) => x == y,
         (Value::Dur(x), Value::Dur(y)) => x == y,
-        (Value::Tuple(x), Value::Tuple(y)) => equal_items(x, y),
-        (Value::Tag(x), Value::Tag(y)) => x.name == y.name && equal_items(&x.args, &y.args),
+        (Value::Tuple(x), Value::Tuple(y)) => equal_items(x.iter(), x.len(), y.iter(), y.len()),
+        (Value::List(x), Value::List(y)) => equal_items(x.iter(), x.len(), y.iter(), y.len()),
+        (Value::Tag(x), Value::Tag(y)) => {
+            x.name == y.name
+                && equal_items(x.args.iter(), x.args.len(), y.args.iter(), y.args.len())
+        }
         (Value::Range(x), Value::Range(y)) => x == y,
-        // Identity until the real collections arrive.
-        (Value::List(x), Value::List(y)) => Rc::ptr_eq(x, y),
+        // Identity until the real map arrives.
         (Value::Map(x), Value::Map(y)) => Rc::ptr_eq(x, y),
         (Value::Closure(x), Value::Closure(y)) => Rc::ptr_eq(x, y),
         (Value::Native(x), Value::Native(y)) => std::ptr::eq(*x, *y),
@@ -33,12 +36,17 @@ pub fn equal(a: &Value, b: &Value) -> bool {
     }
 }
 
-fn equal_items(a: &[Value], b: &[Value]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| equal(x, y))
+fn equal_items<'a>(
+    a: impl Iterator<Item = &'a Value>,
+    an: usize,
+    b: impl Iterator<Item = &'a Value>,
+    bn: usize,
+) -> bool {
+    an == bn && a.zip(b).all(|(x, y)| equal(x, y))
 }
 
-/// `< > <= >=` for numbers, strings (code point order), durations and
-/// tuples. Anything else is E0501.
+/// `< > <= >=` for numbers, strings (code point order), durations, lists
+/// and tuples. Anything else is E0501.
 pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
     match (a, b) {
         (Value::Int(x), Value::Int(y)) => Ok(x.cmp(y)),
@@ -49,7 +57,10 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
         (Value::Str(x), Value::Str(y)) => Ok(x.as_str().cmp(y.as_str())),
         (Value::Dur(x), Value::Dur(y)) => Ok(x.cmp(y)),
         (Value::Tuple(x), Value::Tuple(y)) => {
-            compare_items(x, y).ok_or_else(|| compare_error(a, b))
+            compare_items(x.iter(), x.len(), y.iter(), y.len()).ok_or_else(|| compare_error(a, b))
+        }
+        (Value::List(x), Value::List(y)) => {
+            compare_items(x.iter(), x.len(), y.iter(), y.len()).ok_or_else(|| compare_error(a, b))
         }
         _ => Err(compare_error(a, b)),
     }
@@ -67,14 +78,19 @@ fn cmp_floats(x: f64, y: f64) -> Ordering {
 
 /// Lexicographic; a shorter prefix is smaller. `None` if two elements are
 /// not comparable.
-fn compare_items(a: &[Value], b: &[Value]) -> Option<Ordering> {
-    for (x, y) in a.iter().zip(b) {
+fn compare_items<'a>(
+    a: impl Iterator<Item = &'a Value>,
+    an: usize,
+    b: impl Iterator<Item = &'a Value>,
+    bn: usize,
+) -> Option<Ordering> {
+    for (x, y) in a.zip(b) {
         match compare(x, y).ok()? {
             Ordering::Equal => {}
             o => return Some(o),
         }
     }
-    Some(a.len().cmp(&b.len()))
+    Some(an.cmp(&bn))
 }
 
 /// Compares an int and a float exactly, without converting the int to f64.

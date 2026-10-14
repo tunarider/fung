@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::{FileId, Pos};
 
@@ -71,6 +73,16 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             return Ok(Value::Str(s.into()));
         }
         (Value::Dur(x), Value::Dur(y)) => return add_dur(*x, *y),
+        (Value::List(x), Value::List(y)) => {
+            // An empty side returns the other operand itself, as Go does.
+            if y.is_empty() {
+                return Ok(a.clone());
+            }
+            if x.is_empty() {
+                return Ok(b.clone());
+            }
+            return Ok(Value::List(Rc::new(x.concat(y))));
+        }
         (Value::Str(_) | Value::Dur(_) | Value::List(_), _) => {
             return Err(type_error("add", &type_name(a), &type_name(b)));
         }

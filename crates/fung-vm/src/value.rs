@@ -6,6 +6,8 @@ mod arith;
 mod compare;
 mod dur;
 mod format;
+mod list;
+mod pvec;
 mod sym;
 mod types;
 
@@ -14,6 +16,7 @@ use std::rc::Rc;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
 pub use format::{format, format_for_print, type_name};
+pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use sym::{Sym, intern};
 pub use types::matches_type;
 
@@ -44,10 +47,6 @@ impl Value {
         Value::Str(Rc::new(s.to_string()))
     }
 }
-
-/// Placeholder; the real list (persistent vector) arrives with a later task.
-#[derive(Debug)]
-pub struct List {}
 
 /// Placeholder; the real map (ordered HAMT) arrives with a later task.
 #[derive(Debug)]
