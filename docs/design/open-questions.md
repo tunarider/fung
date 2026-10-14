@@ -122,6 +122,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     ④ 네이티브 원시 기능(파일·프로세스·시간·정규식·소켓·TLS)과 fung 라이브러리(HTTP 프로토콜은 fung으로 새로 작성) ⑤ 도구(REPL·`fmt`·`test`·`check`)
     ⑥ 동등 도달(골든 테스트 136개 전부, 벤치마크) → 릴리스 전환, Go 삭제.
   - 골든 테스트는 에러 출력까지 글자 단위로 비교하므로 Rust 구현도 에러 형식을 똑같이 맞춘다.
+  - 1단계(앞단) 완료 (2026-10-15): dump 세 단계·컴파일 에러가 Go와 같음, 계획 `docs/plans/2026-10-14-rust-front-end.md`, 노트 `docs/notes/R1-front-end.md`
 - [x] 배포 → **플랫폼별 CI 러너**(TLS 암호 부분의 C 코드 때문에 대상용 C 컴파일러가 필요; Linux x86_64·ARM64, macOS ARM64·x86_64 러너 각자 빌드),
   Linux는 musl 정적 바이너리, CI 컴파일 캐시. 릴리스 파일 이름·`SHA256SUMS`·빌드 증명·설치 스크립트·CHANGELOG 릴리스 노트는 그대로.
   `go install` 경로는 사라지고 `cargo install`이 생긴다.
