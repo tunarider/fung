@@ -59,6 +59,9 @@ pub struct Loader {
     pub tests: bool,
     /// The entry is an embedded extras file: it may import `_native.*`.
     pub internal: bool,
+    /// Names added to the prelude, like a Go test passing its own prelude
+    /// table (VM tests use it for natives that exist only in tests).
+    pub extra_prelude: Vec<String>,
 }
 
 impl Default for Loader {
@@ -67,6 +70,7 @@ impl Default for Loader {
             read_file: |p| std::fs::read(p).map(|b| decode_go(&b)),
             tests: false,
             internal: false,
+            extra_prelude: Vec::new(),
         }
     }
 }
@@ -95,6 +99,7 @@ impl Loader {
             .prelude_native
             .iter()
             .chain(builtins().prelude_fung.iter())
+            .chain(self.extra_prelude.iter())
             .cloned()
             .collect();
         prelude.sort();

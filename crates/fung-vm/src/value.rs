@@ -16,7 +16,10 @@ mod release;
 mod sym;
 mod types;
 
+use std::cell::RefCell;
 use std::rc::Rc;
+
+use crate::vm::{RtProto, Stop, Task};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
@@ -59,9 +62,41 @@ impl Value {
     }
 }
 
-/// Placeholder; filled in when the VM's function values are ported.
-#[derive(Debug)]
-pub struct Closure {}
+/// A fung function value: a linked proto plus the values it copied when it
+/// was made (03, model C) and the globals of the module it was made in (04).
+pub struct Closure {
+    pub proto: Rc<RtProto>,
+    pub captured: Vec<Value>,
+    /// The module's globals; `None` is a slot not assigned yet.
+    pub globals: Globals,
+}
+
+/// A module's global table, shared by its frames and closures.
+pub type Globals = Rc<RefCell<Vec<Option<Value>>>>;
+
+impl Closure {
+    /// Moves the captured values out for `release`.
+    fn spill(&mut self, stack: &mut Vec<Value>) {
+        for v in std::mem::take(&mut self.captured) {
+            release::keep(stack, v);
+        }
+    }
+}
+
+/// Frees captured values without recursion (`release`), so a long chain of
+/// closures that each captured the previous one drops in constant stack.
+impl Drop for Closure {
+    fn drop(&mut self) {
+        release::drop_children(|stack| self.spill(stack));
+    }
+}
+
+/// Not derived: the globals can hold the closure itself.
+impl std::fmt::Debug for Closure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<fn {}>", self.proto.name)
+    }
+}
 
 /// Placeholder; filled in when modules are ported.
 #[derive(Debug)]
@@ -158,19 +193,24 @@ pub struct NativeParam {
     pub rest: bool,
 }
 
-/// A function implemented in Rust. The callable part is added by a later
-/// task; for now a native is its name and parameter table.
+/// The Rust function behind a native: it gets one argument per parameter
+/// (defaults filled in, a rest parameter as a list), laid out by the same
+/// calling convention as fung functions (06).
+pub type NativeFn = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
+
+/// A function implemented in Rust.
 #[derive(Debug)]
 pub struct Native {
     pub name: &'static str,
     pub params: Vec<NativeParam>,
+    pub func: NativeFn,
 }
 
 impl Native {
     /// Leaks the native so values can hold a plain `&'static` reference.
     /// Natives live for the whole process, so nothing is lost.
-    pub fn leak(name: &'static str, params: Vec<NativeParam>) -> &'static Native {
-        Box::leak(Box::new(Native { name, params }))
+    pub fn leak(name: &'static str, params: Vec<NativeParam>, func: NativeFn) -> &'static Native {
+        Box::leak(Box::new(Native { name, params, func }))
     }
 }
 

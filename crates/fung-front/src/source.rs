@@ -27,6 +27,15 @@ impl SourceMap {
     pub fn text(&self, id: FileId) -> &str {
         &self.files[id.0 as usize].1
     }
+
+    /// The number of files registered.
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
 }
 
 /// A source position. `line` and `col` are 1-based and `col` counts

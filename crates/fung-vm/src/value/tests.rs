@@ -37,7 +37,10 @@ fn fails(f: BinOp, a: Value, b: Value, code: &str) {
 }
 
 fn native(name: &'static str) -> Value {
-    Value::Native(Native::leak(name, vec![]))
+    fn never(_: &mut crate::vm::Task, _: Vec<Value>) -> Result<Value, crate::vm::Stop> {
+        Ok(Value::Nil)
+    }
+    Value::Native(Native::leak(name, vec![], never))
 }
 
 #[test]
