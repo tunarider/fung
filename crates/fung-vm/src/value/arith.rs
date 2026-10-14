@@ -7,7 +7,7 @@ use super::dur::{add_dur, div_dur, scale_dur, sub_dur};
 use super::{Value, type_name};
 
 /// A position-less location; the VM fills the real one in with `with_pos`.
-fn no_pos() -> Pos {
+pub(super) fn no_pos() -> Pos {
     Pos {
         file: FileId(0),
         line: 0,

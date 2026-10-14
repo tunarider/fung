@@ -4,10 +4,10 @@
 //! appending and taking the tail are cheap and old versions stay valid.
 
 use std::fmt;
-use std::rc::Rc;
 
 use super::Value;
 use super::pvec::{MASK, Pvec};
+use super::release::{drop_children, keep};
 
 /// The largest list kept as a plain vector (Go `smallMax`); 32 is one
 /// trie node.
@@ -160,57 +160,23 @@ impl List {
     }
 }
 
-/// Whether dropping `v` could go deep: a value holding more values that
-/// this is the last reference to.
-fn nests(v: &Value) -> bool {
-    match v {
-        Value::List(rc) => Rc::strong_count(rc) == 1,
-        Value::Tuple(rc) => Rc::strong_count(rc) == 1,
-        Value::Tag(rc) => Rc::strong_count(rc) == 1,
-        _ => false,
-    }
-}
-
-fn spill(repr: Repr, stack: &mut Vec<Value>) {
-    let mut keep = |v: Value| {
-        if nests(&v) {
-            stack.push(v);
+impl List {
+    /// Moves the items out for `release`, leaving the list empty.
+    pub(super) fn spill(&mut self, stack: &mut Vec<Value>) {
+        match self.take_repr() {
+            Repr::Flat(items) => items.into_iter().for_each(|v| keep(stack, v)),
+            Repr::Big { vec, .. } => vec.drain(|v| keep(stack, v)),
         }
-    };
-    match repr {
-        Repr::Flat(items) => items.into_iter().for_each(keep),
-        Repr::Big { vec, .. } => vec.drain(&mut keep),
     }
 }
 
-/// Frees nested lists (and the tuples and tags between them) with an
-/// explicit stack, so a deeply nested list cannot overflow the stack when
-/// its last reference goes away. The persistent vector's own nodes are
-/// freed iteratively too (`Pvec::drain`, `Node`'s `Drop`).
+/// Frees nested values with an explicit stack (`release`), so a deeply
+/// nested list cannot overflow the stack when its last reference goes
+/// away. The persistent vector's own nodes are freed iteratively too
+/// (`Pvec::drain`, `Node`'s `Drop`).
 impl Drop for List {
     fn drop(&mut self) {
-        let mut stack = Vec::new();
-        spill(self.take_repr(), &mut stack);
-        while let Some(v) = stack.pop() {
-            match v {
-                Value::List(rc) => {
-                    if let Ok(mut l) = Rc::try_unwrap(rc) {
-                        spill(l.take_repr(), &mut stack);
-                    }
-                }
-                Value::Tuple(rc) => {
-                    if let Ok(items) = Rc::try_unwrap(rc) {
-                        stack.extend(items.into_iter().filter(nests));
-                    }
-                }
-                Value::Tag(rc) => {
-                    if let Ok(t) = Rc::try_unwrap(rc) {
-                        stack.extend(t.args.into_iter().filter(nests));
-                    }
-                }
-                _ => {}
-            }
-        }
+        drop_children(|stack| self.spill(stack));
     }
 }
 

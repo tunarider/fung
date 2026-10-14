@@ -30,8 +30,21 @@ pub fn format(v: &Value) -> String {
             let items: Vec<String> = l.iter().map(format).collect();
             format!("[{}]", items.join(", "))
         }
-        // Placeholders until maps, closures and modules are ported.
-        Value::Map(_) => "<map>".into(),
+        Value::Map(m) => {
+            let parts: Vec<String> = m
+                .iter()
+                .map(|(k, v)| {
+                    let key = if is_plain_key(k) {
+                        k.into()
+                    } else {
+                        quote_str(k)
+                    };
+                    format!("{key}: {}", format(v))
+                })
+                .collect();
+            format!("{{{}}}", parts.join(", "))
+        }
+        // Placeholders until closures and modules are ported.
         Value::Closure(_) => "<fn>".into(),
         Value::Module(_) => "<module>".into(),
     }
@@ -39,6 +52,18 @@ pub fn format(v: &Value) -> String {
 
 fn format_items(items: &[Value]) -> String {
     items.iter().map(format).collect::<Vec<_>>().join(", ")
+}
+
+/// Whether a map key can be written without quotes: a letter or `_`, then
+/// letters, digits and `_`. Like the lexer, Unicode letters and digits are
+/// approximated with `is_alphabetic` and `is_numeric`.
+fn is_plain_key(k: &str) -> bool {
+    let mut cs = k.chars();
+    let Some(first) = cs.next() else {
+        return false;
+    };
+    (first == '_' || first.is_alphabetic())
+        && cs.all(|c| c == '_' || c.is_alphabetic() || c.is_numeric())
 }
 
 /// What `print` and `${}` use: strings bare, the rest in literal form.

@@ -223,8 +223,6 @@ impl<T: Clone> Pvec<T> {
         }
     }
 
-    // Only the tests use it until the map's entry vector does.
-    #[allow(dead_code)]
     pub(crate) fn set(&mut self, i: usize, x: T) {
         if i >= self.tail_off() {
             Rc::make_mut(&mut self.tail).vals_mut()[i & MASK] = x;

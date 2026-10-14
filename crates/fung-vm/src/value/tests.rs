@@ -48,7 +48,7 @@ fn value_is_16_bytes() {
 #[test]
 fn print_forms_like_go() {
     let vals = [
-        Value::Tuple(Rc::new(vec![Value::Int(1), s("x")])),
+        Value::tuple(vec![Value::Int(1), s("x")]),
         Value::Float(1.5),
         Value::Dur(90 * MIN),
         Value::Sym(intern("s")),
@@ -259,7 +259,7 @@ fn type_names() {
         (s("a"), "str"),
         (Value::Sym(intern("a")), "sym"),
         (Value::Dur(1), "dur"),
-        (Value::Tuple(Rc::new(vec![])), "tuple"),
+        (Value::tuple(vec![]), "tuple"),
         (
             Value::Range(Rc::new(Range {
                 start: 1,
@@ -283,7 +283,7 @@ fn type_names() {
 
 #[test]
 fn tuple_tag_range_forms() {
-    let one = Value::Tuple(Rc::new(vec![Value::Int(1)]));
+    let one = Value::tuple(vec![Value::Int(1)]);
     assert_eq!(format(&one), "(1,)");
     let ok2 = Value::Tag(Rc::new(Tag {
         name: intern("Ok"),
@@ -300,11 +300,11 @@ fn tuple_tag_range_forms() {
     assert_eq!(format(&r(false)), "1..3");
     assert_eq!(format(&r(true)), "1..=3");
     assert!(equal(&r(false), &r(false)) && !equal(&r(false), &r(true)));
-    let t = |a, b| Value::Tuple(Rc::new(vec![Value::Int(a), Value::Int(b)]));
+    let t = |a, b| Value::tuple(vec![Value::Int(a), Value::Int(b)]);
     assert!(equal(&t(1, 2), &t(1, 2)) && !equal(&t(1, 2), &t(1, 3)));
     assert_eq!(compare(&t(1, 2), &t(1, 3)).unwrap(), Ordering::Less);
     assert_eq!(
-        compare(&t(1, 2), &Value::Tuple(Rc::new(vec![Value::Int(1)]))).unwrap(),
+        compare(&t(1, 2), &Value::tuple(vec![Value::Int(1)])).unwrap(),
         Ordering::Greater
     );
 }
@@ -452,31 +452,7 @@ fn dur_sub_of_min_is_overflow_like_go() {
 
 use super::pvec::Pvec;
 
-/// A small deterministic PRNG (xorshift64*) for the model tests.
-struct Rng(u64);
-
-impl Rng {
-    fn new(seed: u64) -> Rng {
-        Rng(seed)
-    }
-
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    fn int_n(&mut self, n: usize) -> usize {
-        (self.next() % n as u64) as usize
-    }
-
-    fn int(&mut self) -> i64 {
-        (self.next() >> 1) as i64
-    }
-}
+use super::testutil::Rng;
 
 fn list(items: Vec<Value>) -> Value {
     Value::List(Rc::new(List::new(items)))
@@ -806,7 +782,7 @@ fn dropping_deeply_nested_lists_does_not_overflow() {
             let mut v = Value::Nil;
             for _ in 0..20_000 {
                 let mut items = ints(&[0; 40]);
-                items.push(Value::Tuple(Rc::new(vec![v])));
+                items.push(Value::tuple(vec![v]));
                 v = list(items);
             }
             drop(v);
@@ -826,7 +802,7 @@ fn list_format() {
         ),
         (list(vec![]), "[]"),
         (
-            list(vec![list(ints(&[1])), Value::Tuple(Rc::new(vec![s("s")]))]),
+            list(vec![list(ints(&[1])), Value::tuple(vec![s("s")])]),
             r#"[[1], ("s",)]"#,
         ),
     ];
@@ -851,7 +827,7 @@ fn list_equality() {
             true,
         ),
         (list(ints(&[1])), list(ints(&[1, 2])), false),
-        (list(ints(&[1])), Value::Tuple(Rc::new(ints(&[1]))), false),
+        (list(ints(&[1])), Value::tuple(ints(&[1])), false),
         (list(vec![]), Value::Nil, false),
     ];
     for (a, b, want) in cases {
@@ -873,7 +849,7 @@ fn list_ordering() {
     let c = compare(&list(ints(&[1])), &list(ints(&[1, 0])));
     assert_eq!(c.unwrap(), Ordering::Less, "shorter is smaller");
     let pairs = [
-        (list(vec![]), Value::Tuple(Rc::new(vec![]))),
+        (list(vec![]), Value::tuple(vec![])),
         (list(ints(&[1])), list(vec![s("a")])),
     ];
     for (a, b) in pairs {

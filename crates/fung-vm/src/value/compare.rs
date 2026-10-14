@@ -27,8 +27,12 @@ pub fn equal(a: &Value, b: &Value) -> bool {
                 && equal_items(x.args.iter(), x.args.len(), y.args.iter(), y.args.len())
         }
         (Value::Range(x), Value::Range(y)) => x == y,
-        // Identity until the real map arrives.
-        (Value::Map(x), Value::Map(y)) => Rc::ptr_eq(x, y),
+        // Same keys with equal values; order does not matter.
+        (Value::Map(x), Value::Map(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(k, xv)| y.get(k).is_some_and(|yv| equal(xv, yv)))
+        }
         (Value::Closure(x), Value::Closure(y)) => Rc::ptr_eq(x, y),
         (Value::Native(x), Value::Native(y)) => std::ptr::eq(*x, *y),
         (Value::Module(x), Value::Module(y)) => Rc::ptr_eq(x, y),
