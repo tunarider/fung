@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "fung-cli"
+version = "0.0.0"
+dependencies = [
+ "fung-front",
+]
+
+[[package]]
 name = "fung-front"
 version = "0.0.0"

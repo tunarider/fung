@@ -1,0 +1,13 @@
+[package]
+name = "fung-cli"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fung"
+path = "src/main.rs"
+
+[dependencies]
+fung-front = { path = "../fung-front" }
