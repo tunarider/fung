@@ -1,4 +1,9 @@
-# fung
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo/logo-dark.svg">
+    <img src="docs/assets/logo/logo-light.svg" alt="fung;;" height="72">
+  </picture>
+</h1>
 
 개인 학습 + 일상의 소소한 자동화를 목표로 하는 실용적 함수형 스크립트 언어.
 

@@ -74,6 +74,8 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   `scripts/build-release.sh <ver>`(Linux·macOS × amd64·arm64 tar.gz + `SHA256SUMS`), `install.sh`(체크섬 검증, `~/.local/bin`,
   `tests/install_test.go`가 가짜 릴리스로 검사), `.github/workflows/ci.yml`·`release.yml`(`v*` 태그 → 테스트·빌드·빌드 증명·릴리스).
   첫 버전 `v0.1.0`. **사용자에게 보이는 변화는 `CHANGELOG.md`의 `[Unreleased]`에 적는다. 릴리스 때 그 절과 매뉴얼 사이드바 버전을 함께 고친다**(`tests/changelog_test.go`가 짝을 검사). 설명 `docs/notes/release.md`, 보류는 open-questions "배포 후속".
+- 로고 (2026-10-14): `docs/assets/logo/` — IBM Plex Mono Medium 500을 도형으로 바꾼 `fung;;`(`;;` 간격 좁힘, 강조색 `#198f7b`),
+  가로형·아이콘 밝은/어두운 판, 파비콘, 소셜 미리보기 1280×640. 규격과 다시 만드는 법은 `docs/assets/logo/README.md`, 스크립트 `scripts/logo/`.
 - 다음 작업: tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에(기존 결정 유지). 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 에러 번호는 `internal/diag/catalog.go`에서 할당하며 한 번 붙이면 바꾸지 않는다.
 - 학습용 설명은 `docs/notes/M<n>-<주제>.md`에 한국어로 남긴다. 마일스톤마다 무엇을 만들었고 왜 그렇게 했는지 쓴다.

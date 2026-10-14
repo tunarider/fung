@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>PNG 렌더</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+KR:wght@400&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#888;padding:12px} canvas{display:block;margin:0 0 12px;max-width:100%;height:auto;outline:1px solid #555}</style>
+</head><body>
+<script>
+const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+const save = (name, cv) => fetch('/save/' + name + '.png', {method: 'POST', body: cv.toDataURL('image/png')});
+function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; document.body.appendChild(c); return c; }
+
+async function icon(name, src, size) {
+  const img = await load(src);
+  const c = canvas(size, size);
+  c.getContext('2d').drawImage(img, 0, 0, size, size);
+  await save(name, c);
+}
+
+async function social(name, bg, logoSrc, muted) {
+  const text = await (await fetch(logoSrc)).text();
+  const [, , vw, vh] = text.match(/viewBox="([^"]+)"/)[1].split(' ').map(Number);
+  const img = await load(logoSrc);
+  const c = canvas(1280, 640), g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 1280, 640);
+  const s = 0.176;                  // 176px type, as in the 640x320 mock at 88px
+  const lw = vw * s, lh = vh * s;
+  const left = 112, top = 200;
+  g.drawImage(img, left, top, lw, lh);
+  g.fillStyle = muted;
+  g.font = '400 34px "IBM Plex Sans KR"';
+  g.textBaseline = 'top';
+  g.fillText('Go처럼 쓰고 Lisp처럼 도는 작은 함수형 스크립트 언어', left, top + lh + 44);
+  g.font = '500 26px "IBM Plex Mono"';
+  g.textBaseline = 'alphabetic';
+  g.fillText('github.com/tunarider/fung', left, 640 - 56);
+  await save(name, c);
+}
+
+(async () => {
+  await Promise.all([document.fonts.load('400 34px "IBM Plex Sans KR"', '가나다 Go'), document.fonts.load('500 26px "IBM Plex Mono"', 'github')]);
+  await icon('favicon-32', 'icon-light.svg', 32);
+  await icon('apple-touch-icon', 'icon-light.svg', 180);
+  await icon('icon-light-512', 'icon-light.svg', 512);
+  await icon('icon-dark-512', 'icon-dark.svg', 512);
+  await social('social-preview-light', '#f3f5f2', 'logo-light.svg', '#586664');
+  await social('social-preview-dark', '#172221', 'logo-dark.svg', '#94a5a0');
+  document.title = 'done';
+})();
+</script>
+</body></html>
