@@ -38,6 +38,19 @@ pub struct Diag {
     pub help: Option<String>,
     /// Extra lines after the excerpt.
     pub notes: Vec<String>,
+    /// Runtime call path, innermost first; set by the VM.
+    pub call_path: Vec<CallSite>,
+}
+
+/// One frame of the call path shown with runtime errors.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallSite {
+    pub file: String,
+    pub line: u32,
+    /// `<main>` for the entry file.
+    pub func: String,
+    /// Tail calls that reused this frame.
+    pub elided: u32,
 }
 
 pub fn error(code: &str, pos: Pos, args: Vec<Arg>) -> Diag {
@@ -48,6 +61,7 @@ pub fn error(code: &str, pos: Pos, args: Vec<Arg>) -> Diag {
         args,
         help: None,
         notes: Vec::new(),
+        call_path: Vec::new(),
     }
 }
 
@@ -59,6 +73,23 @@ impl Diag {
 
     pub fn with_help(mut self, h: &str) -> Self {
         self.help = Some(h.to_string());
+        self
+    }
+
+    /// Fills in the position if the error does not have one yet.
+    pub fn with_pos(mut self, p: Pos) -> Self {
+        if self.pos.is_zero() {
+            self.pos = p;
+        }
+        self
+    }
+
+    /// Records the call path if none was recorded yet. The innermost run
+    /// loop records it; outer loops leave it alone.
+    pub fn with_call_path(mut self, p: Vec<CallSite>) -> Self {
+        if self.call_path.is_empty() {
+            self.call_path = p;
+        }
         self
     }
 }
@@ -130,6 +161,9 @@ pub fn format(d: &Diag, sources: &SourceMap) -> String {
     for note in &d.notes {
         b.push_str(&format!("  {note}\n"));
     }
+    if !d.call_path.is_empty() {
+        write_call_path(&mut b, &d.call_path);
+    }
     let help = match &d.help {
         Some(h) => h.as_str(),
         None => catalog::entry(&d.code).map_or("", |e| e.help.as_str()),
@@ -138,6 +172,41 @@ pub fn format(d: &Diag, sources: &SourceMap) -> String {
         b.push_str(&format!(" help: {help}\n"));
     }
     b
+}
+
+/// Long call paths (deep recursion) show the innermost and outermost frames.
+const CALL_PATH_HEAD: usize = 8;
+const CALL_PATH_TAIL: usize = 2;
+
+fn write_call_path(b: &mut String, path: &[CallSite]) {
+    b.push_str(" call path (innermost first):\n");
+    let write = |b: &mut String, c: &CallSite| {
+        let func = if c.func == "<main>" {
+            "<entry>"
+        } else {
+            &c.func
+        };
+        let place = format!("{}:{}", c.file, c.line);
+        b.push_str(&format!("   {place:<10} {func}"));
+        if c.elided > 0 {
+            b.push_str(&format!(" ({} tail calls elided)", c.elided));
+        }
+        b.push('\n');
+    };
+    if path.len() <= CALL_PATH_HEAD + CALL_PATH_TAIL + 2 {
+        for c in path {
+            write(b, c);
+        }
+        return;
+    }
+    for c in &path[..CALL_PATH_HEAD] {
+        write(b, c);
+    }
+    let more = path.len() - CALL_PATH_HEAD - CALL_PATH_TAIL;
+    b.push_str(&format!("   \u{2026} {more} more\n"));
+    for c in &path[path.len() - CALL_PATH_TAIL..] {
+        write(b, c);
+    }
 }
 
 const TAB_WIDTH: usize = 4;
@@ -543,6 +612,98 @@ mod tests {
         assert_eq!(
             (EXIT_OK, EXIT_RUNTIME, EXIT_COMPILE, EXIT_USAGE),
             (0, 1, 2, 3)
+        );
+    }
+
+    // Call paths; ported from Go internal/diag/error_test.go.
+
+    fn site(file: &str, line: u32, func: &str, elided: u32) -> CallSite {
+        CallSite {
+            file: file.into(),
+            line,
+            func: func.into(),
+            elided,
+        }
+    }
+
+    #[test]
+    fn format_call_path() {
+        let mut sm = SourceMap::new();
+        let pos = at(&mut sm, "r.fung", "", 7, 11);
+        let d = error(
+            "E0501",
+            pos,
+            vec![
+                Arg::Str("add".into()),
+                Arg::Str("int".into()),
+                Arg::Str("str".into()),
+            ],
+        )
+        .with_call_path(vec![
+            site("r.fung", 7, "format_size", 0),
+            site("r.fung", 15, "report", 3),
+            site("r.fung", 22, "<main>", 0),
+        ]);
+        assert_eq!(
+            format(&d, &sm),
+            "error[E0501]: cannot add int and str\n  --> r.fung:7:11\n call path (innermost first):\n   r.fung:7   format_size\n   r.fung:15  report (3 tail calls elided)\n   r.fung:22  <entry>\n"
+        );
+    }
+
+    #[test]
+    fn format_call_path_is_truncated() {
+        let mut sm = SourceMap::new();
+        let pos = at(&mut sm, "a.fung", "", 1, 1);
+        let path: Vec<CallSite> = (0..30).map(|i| site("a.fung", i + 1, "f", 0)).collect();
+        let d = error("E0804", pos, vec![Arg::Int(100000)]).with_call_path(path);
+        let got = format(&d, &sm);
+        assert!(got.contains("   \u{2026} 20 more\n"), "{got}");
+        assert_eq!(got.matches("\n   a.fung").count(), 10, "{got}");
+    }
+
+    #[test]
+    fn with_call_path_keeps_existing() {
+        let mut sm = SourceMap::new();
+        let d = error("E0502", nowhere(&mut sm), vec![])
+            .with_call_path(vec![site("", 0, "a", 0)])
+            .with_call_path(vec![site("", 0, "b", 0)]);
+        assert_eq!(d.call_path.len(), 1);
+        assert_eq!(d.call_path[0].func, "a");
+    }
+
+    #[test]
+    fn with_pos_fills_only_when_zero() {
+        let mut sm = SourceMap::new();
+        let first = at(&mut sm, "a.fung", "", 1, 2);
+        let second = at(&mut sm, "a.fung", "", 3, 4);
+        let d = error("E0502", nowhere(&mut sm), vec![])
+            .with_pos(first)
+            .with_pos(second);
+        assert_eq!((d.pos.line, d.pos.col), (1, 2));
+    }
+
+    #[test]
+    fn format_call_path_from_task_brief() {
+        let mut sm = SourceMap::new();
+        let src = "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))";
+        let file = sm.add("-e", src);
+        let d = error(
+            "E0502",
+            Pos {
+                file,
+                line: 1,
+                col: 25,
+            },
+            vec![],
+        )
+        .with_call_path(vec![
+            site("-e", 1, "f", 3),
+            site("-e", 2, "g", 0),
+            site("-e", 3, "<main>", 0),
+        ]);
+        assert_eq!(
+            format(&d, &sm),
+            "error[E0502]: division by zero\n  --> -e:1:25\n  |\n1 | fn f(n) = n == 0 then 1 / 0 else f(n - 1)\n  |                         ^\n  |\n call path (innermost first):\n   -e:1       f (3 tail calls elided)\n   -e:2       g\n   -e:3       <entry>\n"
         );
     }
 }

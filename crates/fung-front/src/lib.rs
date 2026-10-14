@@ -1,3 +1,7 @@
+// Diag carries a call path now and exceeds clippy's 128-byte Err limit; errors are
+// the cold path, so boxing every Result<_, Diag> is not worth the churn.
+#![allow(clippy::result_large_err)]
+
 pub mod builtins;
 pub mod bytecode;
 pub mod compiler;
