@@ -13,7 +13,7 @@ use crate::diag::{Arg, Diag, error};
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{self, ModuleInfo};
-use crate::source::{FileId, Pos, SourceMap};
+use crate::source::{FileId, Pos, SourceMap, decode_go};
 use crate::tree::{Head, Import, Lit, Node};
 
 /// How far `compile` should go.
@@ -52,7 +52,8 @@ pub struct Build {
 
 /// Compiles an entry file and everything it imports.
 pub struct Loader {
-    /// Reads an imported file; `std::fs::read_to_string` by default.
+    /// Reads an imported file. By default it reads the bytes and decodes
+    /// them like Go (one U+FFFD per invalid byte, see `decode_go`).
     pub read_file: fn(&str) -> std::io::Result<String>,
     /// Keep test blocks of the entry (`fung test` / `check`), see 08.
     pub tests: bool,
@@ -63,7 +64,7 @@ pub struct Loader {
 impl Default for Loader {
     fn default() -> Loader {
         Loader {
-            read_file: |p| std::fs::read_to_string(p),
+            read_file: |p| std::fs::read(p).map(|b| decode_go(&b)),
             tests: false,
             internal: false,
         }
@@ -504,6 +505,22 @@ mod tests {
             }))
             .unwrap_or(false)
         })
+    }
+
+    #[test]
+    fn default_reader_decodes_invalid_utf8_like_go() {
+        let dir = std::env::temp_dir().join(format!("fung-loader-utf8-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("m.fung"), b"x = \"\xeb\x8b\"\n").unwrap();
+        let entry = dir.join("main.fung").to_string_lossy().into_owned();
+        let (b, errs) = Loader::default().compile(&entry, "import \"./m\"\nprint(m.x)", Stage::All);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(errs.is_empty(), "{errs:?}");
+        assert!(b.modules.iter().any(|m| m.name == "m"));
+        let text = "x = \"\u{fffd}\u{fffd}\"\n";
+        assert!((0..8).map(FileId).any(|id| {
+            std::panic::catch_unwind(|| b.sources.text(id) == text).unwrap_or(false)
+        }));
     }
 
     // frontend_test.go

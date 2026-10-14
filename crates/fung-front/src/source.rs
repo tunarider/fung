@@ -43,3 +43,54 @@ impl Pos {
         self.line == 0
     }
 }
+
+/// Decodes bytes the way Go reads a string rune by rune: every byte that
+/// is not part of a valid UTF-8 sequence becomes one U+FFFD (Rust's
+/// `from_utf8_lossy` would merge a whole invalid run into one).
+pub fn decode_go(mut bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len());
+    loop {
+        match std::str::from_utf8(bytes) {
+            Ok(s) => {
+                out.push_str(s);
+                return out;
+            }
+            Err(e) => {
+                let (ok, rest) = bytes.split_at(e.valid_up_to());
+                // `valid_up_to` marks a valid UTF-8 prefix.
+                out.push_str(std::str::from_utf8(ok).unwrap_or_default());
+                let bad = e.error_len().unwrap_or(rest.len());
+                out.extend(std::iter::repeat_n('\u{fffd}', bad));
+                bytes = &rest[bad..];
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_go;
+
+    #[test]
+    fn decode_go_replaces_each_bad_byte() {
+        let cases: &[(&[u8], &str)] = &[
+            (b"abc", "abc"),
+            (b"", ""),
+            (b"\xeb\x8b", "\u{fffd}\u{fffd}"),
+            (
+                b"x = \"\xeb\x8b\" + nope",
+                "x = \"\u{fffd}\u{fffd}\" + nope",
+            ),
+            (b"a\xffb", "a\u{fffd}b"),
+            (b"\xff\xfe", "\u{fffd}\u{fffd}"),
+            (b"\xed\xa0\x80", "\u{fffd}\u{fffd}\u{fffd}"),
+            (b"\xf0\x9f\x98", "\u{fffd}\u{fffd}\u{fffd}"),
+            (b"\xed\x95\x9c\xc3", "\u{d55c}\u{fffd}"),
+            (b"\xf0\x9f\x98a", "\u{fffd}\u{fffd}\u{fffd}a"),
+            ("한글".as_bytes(), "한글"),
+        ];
+        for (input, want) in cases {
+            assert_eq!(decode_go(input), *want, "{input:?}");
+        }
+    }
+}

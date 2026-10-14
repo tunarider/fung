@@ -1,5 +1,7 @@
 // crates/fung-cli/tests/parity.rs
 use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -58,20 +60,22 @@ fn corpus() -> Vec<String> {
     files
 }
 
-fn run(bin: &Path, args: &[&str]) -> (String, String, i32) {
+/// Standard output, standard error (bytes, compared exactly) and the exit
+/// status, compared as its debug text so two different signal deaths differ.
+fn run(bin: &Path, args: &[OsString]) -> (Vec<u8>, Vec<u8>, String) {
     let o = Command::new(bin)
         .args(args)
         .current_dir(repo())
         .output()
         .unwrap();
-    (
-        String::from_utf8_lossy(&o.stdout).into(),
-        String::from_utf8_lossy(&o.stderr).into(),
-        o.status.code().unwrap_or(-1),
-    )
+    (o.stdout, o.stderr, format!("{:?}", o.status))
 }
 
-fn first_diff(a: &str, b: &str) -> String {
+fn first_diff(a: &[u8], b: &[u8]) -> String {
+    let (a, b) = (String::from_utf8_lossy(a), String::from_utf8_lossy(b));
+    if a == b {
+        return "same text, different bytes (invalid UTF-8)".into();
+    }
     for (i, (x, y)) in a.lines().zip(b.lines()).enumerate() {
         if x != y {
             return format!("line {}:\n  go:   {x}\n  rust: {y}", i + 1);
@@ -92,6 +96,19 @@ fn odd_files() -> Vec<(&'static str, &'static [u8])> {
         ("tab_err.fung", b"x = 1\n\tprint(nope)\n"),
         ("bad_utf8_string.fung", b"x = \"a\xffb\"\nprint(x)\n"),
         ("bad_utf8_code.fung", b"print(1)\n\xff\n"),
+        ("bad_utf8_run.fung", b"x = \"\xeb\x8b\" + nope\n"),
+        ("bad_utf8_ok.fung", b"x = \"\xeb\x8b\"\nprint(x)\n"),
+        ("badmod.fung", b"x = \"\xff\"\n"),
+        (
+            "uses_badmod.fung",
+            b"import \"./badmod\"\nprint(badmod.x)\n",
+        ),
+        // Format (Cf) characters print as escapes, U+13440 does not.
+        (
+            "format_chars.fung",
+            "x = \"\u{890}\u{110bd}\u{110cd}\u{1343f}\u{13440}\u{1bca3}\u{1d17a}\"\nprint(x)\n"
+                .as_bytes(),
+        ),
     ]
 }
 
@@ -127,6 +144,23 @@ fn deep_shapes() -> Vec<String> {
     ]
 }
 
+/// Long flat chains: the parser loops, but later passes recurse once per
+/// link, so they need a stack as deep as Go's (see `STACK` in main.rs).
+fn long_chains() -> Vec<String> {
+    let n = 200_000;
+    vec![
+        format!("y = 1{}", " + 1".repeat(n)),
+        format!("x = {{b: 1}}\ny = x{}", ".b".repeat(n)),
+        format!("y = nope{}", ".b".repeat(n)),
+        format!("fn f() = f\ny = f{}", "()".repeat(n)),
+        format!("y = nope{}", "()".repeat(n)),
+        format!("fn f(x) = x\ny = 1{}", " |> f".repeat(n)),
+        // One error at the end: n undefined names would make Go's output
+        // (an excerpt of the whole line per error) quadratic.
+        format!("fn f(x) = x\ny = 1{} |> nope", " |> f".repeat(n)),
+    ]
+}
+
 #[test]
 fn dumps_match_the_go_implementation() {
     let Some(go) = go_fung() else {
@@ -135,10 +169,10 @@ fn dumps_match_the_go_implementation() {
     };
     let rust = PathBuf::from(env!("CARGO_BIN_EXE_fung"));
     let mut failures = Vec::new();
-    let mut cases: Vec<Vec<String>> = Vec::new();
+    let mut cases: Vec<Vec<OsString>> = Vec::new();
     for f in corpus() {
         for stage in ["ast", "core", "bytecode"] {
-            cases.push(vec!["dump".into(), stage.into(), f.clone()]);
+            cases.push(vec!["dump".into(), stage.into(), f.clone().into()]);
         }
     }
     for extra in [
@@ -149,12 +183,26 @@ fn dumps_match_the_go_implementation() {
         vec!["dump", "core", "no/such/file.fung"],
         vec!["dump", "bytecode", "-e", "x = )"],
     ] {
-        cases.push(extra.into_iter().map(String::from).collect());
+        cases.push(extra.into_iter().map(OsString::from).collect());
     }
     let deep = format!("x = {}1{}", "(".repeat(20_000), ")".repeat(20_000));
-    cases.push(vec!["dump".into(), "ast".into(), "-e".into(), deep]);
+    cases.push(vec!["dump".into(), "ast".into(), "-e".into(), deep.into()]);
     let dir = std::env::temp_dir().join(format!("fung-parity-files-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
+    // Arguments that are not UTF-8: Go decodes each bad byte to U+FFFD.
+    cases.push(vec![
+        "dump".into(),
+        "core".into(),
+        "-e".into(),
+        OsString::from_vec(b"print(\"\xff\")".to_vec()),
+    ]);
+    let mut bad_path = dir.clone().into_os_string().into_vec();
+    bad_path.extend_from_slice(b"/\xff.fung");
+    cases.push(vec![
+        "dump".into(),
+        "core".into(),
+        OsString::from_vec(bad_path),
+    ]);
     for (name, bytes) in odd_files() {
         let path = dir.join(name);
         std::fs::write(&path, bytes).unwrap();
@@ -162,7 +210,7 @@ fn dumps_match_the_go_implementation() {
             cases.push(vec![
                 "dump".into(),
                 stage.into(),
-                path.to_string_lossy().into_owned(),
+                path.clone().into_os_string(),
             ]);
         }
     }
@@ -173,16 +221,25 @@ fn dumps_match_the_go_implementation() {
         vec!["dump", "core", "-e", "print(없는)"],
         vec!["dump", "core", "-e", "\tprint(nope)"],
     ] {
-        cases.push(extra.into_iter().map(String::from).collect());
+        cases.push(extra.into_iter().map(OsString::from).collect());
     }
-    for code in deep_shapes() {
+    // Linux limits one argument to 128 KiB, so long sources go in files.
+    for (i, code) in deep_shapes().into_iter().chain(long_chains()).enumerate() {
+        let src: Vec<OsString> = if code.len() < 100_000 {
+            vec!["-e".into(), code.into()]
+        } else {
+            let path = dir.join(format!("deep_{i}.fung"));
+            std::fs::write(&path, code).unwrap();
+            vec![path.into_os_string()]
+        };
         for stage in ["ast", "core", "bytecode"] {
-            cases.push(vec!["dump".into(), stage.into(), "-e".into(), code.clone()]);
+            let mut args: Vec<OsString> = vec!["dump".into(), stage.into()];
+            args.extend(src.iter().cloned());
+            cases.push(args);
         }
     }
-    for args in &cases {
-        let a: Vec<&str> = args.iter().map(String::as_str).collect();
-        let (g, r) = (run(&go, &a), run(&rust, &a));
+    for a in &cases {
+        let (g, r) = (run(&go, a), run(&rust, a));
         if g != r {
             let what = if g.0 != r.0 {
                 first_diff(&g.0, &r.0)
@@ -193,7 +250,11 @@ fn dumps_match_the_go_implementation() {
             };
             failures.push(format!(
                 "{}: {what}",
-                a.iter().take(3).cloned().collect::<Vec<_>>().join(" ")
+                a.iter()
+                    .take(3)
+                    .map(|x| x.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(" ")
             ));
         }
     }
