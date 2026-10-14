@@ -54,30 +54,10 @@ pub struct Import {
     pub name_pos: Vec<Pos>,
 }
 
-/// Go-style quoting (`strconv.Quote`) for the common cases.
-fn go_quote(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\t' => out.push_str("\\t"),
-            '\r' => out.push_str("\\r"),
-            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
-                out.push_str(&format!("\\x{:02x}", c as u32))
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
-}
-
 impl fmt::Display for Import {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_path {
-            f.write_str(&go_quote(&self.spec))?;
+            f.write_str(&crate::diag::quote(&self.spec))?;
         } else {
             f.write_str(&self.spec)?;
         }

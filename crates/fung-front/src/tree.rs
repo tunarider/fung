@@ -470,6 +470,18 @@ mod tests {
     }
 
     #[test]
+    fn import_path_is_quoted_like_go() {
+        let im = Import {
+            spec: "a\u{7}\u{A0}b".into(),
+            is_path: true,
+            alias: String::new(),
+            names: None,
+            name_pos: vec![],
+        };
+        assert_eq!(im.to_string(), "\"a\\a\\u00a0b\"");
+    }
+
+    #[test]
     fn head_names_round_trip_and_text_span() {
         assert_eq!(Head::SelfFn.as_str(), "self");
         assert_eq!(Head::Pwild.as_str(), "pwild");
