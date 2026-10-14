@@ -50,7 +50,7 @@ pub struct CallSite {
     /// `<main>` for the entry file.
     pub func: String,
     /// Tail calls that reused this frame.
-    pub elided: u32,
+    pub elided: u64,
 }
 
 pub fn error(code: &str, pos: Pos, args: Vec<Arg>) -> Diag {
@@ -617,7 +617,7 @@ mod tests {
 
     // Call paths; ported from Go internal/diag/error_test.go.
 
-    fn site(file: &str, line: u32, func: &str, elided: u32) -> CallSite {
+    fn site(file: &str, line: u32, func: &str, elided: u64) -> CallSite {
         CallSite {
             file: file.into(),
             line,

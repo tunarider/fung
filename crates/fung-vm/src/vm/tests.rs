@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use crate::testutil::{self, Opts, exec, run};
 use crate::value::{Closure, Native, NativeParam, Value, format};
-use crate::vm::{Prelude, Stop, Task, link};
+use crate::vm::{Prelude, Runtime, Stop, Task, link};
 
 fn run_src(src: &str) -> (String, String, i32) {
     run(src)
@@ -769,4 +769,40 @@ fn a_program_building_a_deep_closure_chain_ends_cleanly() {
 #[test]
 fn stack_slots_are_16_bytes() {
     assert_eq!(std::mem::size_of::<Option<Value>>(), 16);
+}
+
+/// Go counts elided tail calls in an `int`; past u32::MAX the count keeps
+/// growing instead of overflowing.
+#[test]
+fn elided_tail_calls_count_past_u32() {
+    use fung_front::diag;
+    use fung_front::loader::{Loader, Stage};
+    let (b, errs) = Loader::default().compile("-e", "1 / 0", Stage::All);
+    assert!(errs.is_empty());
+    let main = link(b.proto.as_ref().unwrap(), &Prelude::default());
+    let mut rt = Runtime::new(
+        Box::new(std::io::sink()),
+        Box::new(std::io::sink()),
+        Box::new(std::io::Cursor::new(Vec::new())),
+        b.sources,
+    );
+    let globals = rt.new_globals(0);
+    let mut t = Task::new(&mut rt);
+    t.frames.push(super::frame::Frame {
+        proto: main,
+        ip: 1,
+        base: 0,
+        closure: None,
+        globals,
+        tail_calls: u32::MAX as u64,
+    });
+    t.frames[0].tail_calls += 1;
+    let path = t.call_path();
+    assert_eq!(path[0].elided, 4_294_967_296);
+    let d = fung_front::diag::error("E0502", crate::vm::no_pos(), vec![]).with_call_path(path);
+    let text = diag::format(&d, rt.sources());
+    assert!(
+        text.contains("   -e:1       <entry> (4294967296 tail calls elided)\n"),
+        "{text}"
+    );
 }

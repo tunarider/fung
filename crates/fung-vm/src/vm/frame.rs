@@ -15,7 +15,7 @@ pub(super) struct Frame {
     pub closure: Option<Rc<Closure>>,
     pub globals: Globals,
     /// How many tail calls reused this frame (shown in call paths).
-    pub tail_calls: u32,
+    pub tail_calls: u64,
 }
 
 impl Frame {
