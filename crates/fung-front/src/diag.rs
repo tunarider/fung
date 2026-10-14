@@ -234,6 +234,7 @@ pub(crate) fn is_print(c: char) -> bool {
         | 0x061c
         | 0x06dd
         | 0x070f
+        | 0x0890..=0x0891
         | 0x08e2
         | 0x180e
         | 0x200b..=0x200f
@@ -243,6 +244,11 @@ pub(crate) fn is_print(c: char) -> bool {
         | 0xfdd0..=0xfdef
         | 0xfeff
         | 0xfff9..=0xfffb
+        | 0x110bd
+        | 0x110cd
+        | 0x13430..=0x1343f
+        | 0x1bca0..=0x1bca3
+        | 0x1d173..=0x1d17a
         | 0xe0001
         | 0xe0020..=0xe007f
         | 0xf0000..=0x10ffff)
@@ -257,6 +263,15 @@ mod tests {
     fn is_print_cases() {
         for u in [0xA0u32, 0x2003, 0x200B, 0x8E2, 0xFDD0, 0xE0001] {
             assert!(!is_print(char::from_u32(u).unwrap()), "U+{u:X}");
+        }
+        // Every format (Cf) character of Go's tables, by range ends.
+        for u in [
+            0x890u32, 0x891, 0x110BD, 0x110CD, 0x13430, 0x1343F, 0x1BCA0, 0x1BCA3, 0x1D173, 0x1D17A,
+        ] {
+            assert!(!is_print(char::from_u32(u).unwrap()), "U+{u:X}");
+        }
+        for u in [0x8E3u32, 0x13440, 0x1D172, 0x1D17B] {
+            assert!(is_print(char::from_u32(u).unwrap()), "U+{u:X}");
         }
         assert!(is_print('한') && is_print('a') && is_print(' '));
     }
