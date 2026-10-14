@@ -337,7 +337,7 @@ print(port)</code></pre>
 <h3>동시성</h3>
 <p>태스크는 고루틴 위에서 돈다. 값은 불변이라 태스크 사이에 그냥 넘긴다. 바뀌는 상자는 <code>atom</code>뿐이다.</p>
 <div class="fn" id="fn-spawn"><code>spawn(f)</code>
-  <p><code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 취소는 자식 태스크에 전파된다.</p>
+  <p><code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 취소는 자식 태스크에 전파된다. 태스크가 실패했는데 그 결과를 끝내 아무도 <code>await</code>하지 않으면 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다. 보고 시점은 핸들이 버려져 GC가 알아챌 때나 프로그램이 끝날 때다. 핸들을 들고 있는 한 나중에 <code>await</code>해도 된다.</p>
 </div>
 <div class="fn" id="fn-await"><code>await(t, timeout = nil)</code>
   <p>태스크의 결과. 정상 종료면 반환값, 런타임 에러로 죽었으면 <code>Err({kind: 'error, message})</code>, 취소됐으면 <code>Err('cancelled)</code>, 시간이 지나면 <code>Err('timeout)</code>. 여러 번 불러도 같은 결과.</p>
