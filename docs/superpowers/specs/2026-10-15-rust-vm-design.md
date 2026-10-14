@@ -52,13 +52,13 @@ crates/
 ```rust
 enum Value {
     Int(i64), Float(f64), Bool(bool), Nil,
-    Str(Rc<str>), Sym(Sym), Dur(i64),
-    List(Rc<List>), Map(Rc<Map>), Tuple(Rc<[Value]>),
-    Tag(Rc<Tag>), Range(Range),
+    Str(Rc<String>), Sym(Sym), Dur(i64),
+    List(Rc<List>), Map(Rc<Map>), Tuple(Rc<Vec<Value>>),
+    Tag(Rc<Tag>), Range(Rc<Range>),
     Closure(Rc<Closure>), Native(&'static Native), Module(Rc<Module>),
 }
 ```
-- 16바이트를 목표로 한다(크기를 테스트로 고정). 정수·실수·불·기간은 칸에 바로 들어간다.
+- 16바이트를 목표로 한다(크기를 테스트로 고정). 정수·실수·불·기간은 칸에 바로 들어간다. 이를 위해 포인터는 모두 얇은 `Rc`다(`Rc<String>`, `Rc<Vec<Value>>`, `Rc<Range>`; `Rc<str>`·`Rc<[T]>`는 두 워드라 쓰지 않는다).
 - 심볼은 전역 표에 등록해 번호로 비교한다.
 - `Time`·파일 핸들·태스크·채널은 3·4단계에서 이 `enum`에 더한다.
 - 회수는 참조 계수만으로 한다. 2단계에는 순환이 생길 길이 없다(`atom`이 동작하지 않음).
