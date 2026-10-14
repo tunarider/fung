@@ -57,8 +57,8 @@ a:hover { text-decoration-thickness: 2px; }
   font-size: 14.5px; line-height: 1.55;
 }
 .brand { display: flex; align-items: baseline; gap: .5rem; text-decoration: none; color: var(--ink); margin-bottom: 1.5rem; }
-.brand b { font: 600 1.6rem/1 var(--mono); letter-spacing: -.02em; }
-.brand span { font: 500 .95rem/1 var(--mono); color: var(--accent); }
+.wordmark { display: block; height: 1em; width: auto; }
+.brand .wordmark { height: 1.55rem; }
 .side nav ol { list-style: none; margin: 0; padding: 0; }
 .pages > li { margin: 0 0 .35rem; }
 .pages > li > a { display: block; padding: .3rem .55rem; border-radius: 4px; color: var(--ink); text-decoration: none; font-weight: 500; }
@@ -116,8 +116,8 @@ td code { white-space: nowrap; }
 
 /* ---- the 겉/속 hero ---- */
 .hero { margin: .5rem 0 2.5rem; }
-.hero h1 { font: 600 clamp(3.5rem, 9vw, 6.5rem)/.95 var(--mono); letter-spacing: -.04em; margin: 0 0 1rem; }
-.hero h1 .semi { color: var(--accent); }
+.hero h1 { margin: 0 0 1rem; }
+.hero h1 .wordmark { height: clamp(3.2rem, 8.5vw, 6rem); }
 .twofold { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 2rem 0 1rem; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .twofold figure { margin: 0; display: flex; flex-direction: column; min-width: 0; }
 .twofold figcaption { padding: .7rem 1.1rem; font-size: .9rem; border-bottom: 1px solid var(--rule); background: var(--paper-2); }
