@@ -16,6 +16,18 @@ pub struct Builtins {
     pub prelude_fung: Vec<String>,
     /// `_native.x` → its member names.
     pub modules: BTreeMap<String, Vec<String>>,
+    /// Prelude natives that are functions → their parameter list as the
+    /// spec writes it (`xs, sep=?`, `...args`).
+    native_params: BTreeMap<String, String>,
+}
+
+impl Builtins {
+    /// The parameter list of a prelude native function as recorded in the
+    /// spec, without the parentheses: `xs, f`, `code=?`, `...args`. `None`
+    /// for an unknown name or a plain value such as `args`.
+    pub fn native_signature(&self, name: &str) -> Option<&str> {
+        self.native_params.get(name).map(String::as_str)
+    }
 }
 
 pub fn builtins() -> &'static Builtins {
@@ -26,6 +38,12 @@ pub fn builtins() -> &'static Builtins {
 /// `name(params)` or a bare `name` → `name`.
 fn entry_name(s: &str) -> String {
     s.split('(').next().unwrap_or(s).trim().to_string()
+}
+
+/// `name(params)` → `params`; a bare `name` → `None`.
+fn entry_params(s: &str) -> Option<String> {
+    let (_, rest) = s.split_once('(')?;
+    Some(rest.strip_suffix(')').unwrap_or(rest).to_string())
 }
 
 fn parse(spec: &str) -> Builtins {
@@ -39,7 +57,11 @@ fn parse(spec: &str) -> Builtins {
         let (kind, layer, rest) = (parts.next(), parts.next(), parts.next());
         match (kind, layer, rest) {
             (Some("prelude"), Some("native"), Some(rest)) => {
-                b.prelude_native.push(entry_name(rest))
+                let name = entry_name(rest);
+                if let Some(params) = entry_params(rest) {
+                    b.native_params.insert(name.clone(), params);
+                }
+                b.prelude_native.push(name)
             }
             (Some("prelude"), Some("fung"), Some(rest)) => b.prelude_fung.push(entry_name(rest)),
             (Some("module"), Some(module), Some(rest)) => b
@@ -56,4 +78,19 @@ fn parse(spec: &str) -> Builtins {
         names.sort();
     }
     b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::builtins;
+
+    #[test]
+    fn native_signature_is_the_spec_parameter_list() {
+        let b = builtins();
+        assert_eq!(b.native_signature("fold"), Some("xs, init, f"));
+        assert_eq!(b.native_signature("join"), Some("xs, sep=?"));
+        assert_eq!(b.native_signature("print"), Some("...args"));
+        assert_eq!(b.native_signature("args"), None);
+        assert_eq!(b.native_signature("take"), None);
+    }
 }

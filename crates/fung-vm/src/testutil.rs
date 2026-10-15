@@ -1,23 +1,22 @@
-//! Test helpers: compile a program with the front end, link it against a
-//! small test prelude, and run it the way the fung command will (Go
+//! Test helpers: compile a program with the front end, link it against
+//! the core prelude, and run it the way the fung command will (Go
 //! `cmd/fung/pipeline.go` `execute`): the entry, then the exit handlers,
 //! then the exit code. Everything runs on a 4 GiB thread, because value
 //! formatting and comparison recurse on deep nesting like Go.
 //!
-//! The prelude here is a stand-in until the real natives are ported: just
-//! what the VM tests need, with Go's parameter tables and errors.
+//! The prelude is `crate::prelude::core()` plus test-only natives (Go's
+//! VM tests pass their own natives the same way).
 
 use std::cell::RefCell;
 use std::io::{Cursor, Write};
 use std::rc::Rc;
 
 use fung_front::bytecode::Proto;
-use fung_front::diag::{self, Arg, CallSite, Diag, error};
+use fung_front::diag::{self, CallSite, Diag};
 use fung_front::loader::{Loader, Stage};
 
-use crate::value::{
-    List, Native, NativeParam, Tag, Value, format, format_for_print, intern, type_name,
-};
+use crate::native::nat;
+use crate::value::{Native, Value, format};
 use crate::vm::{Prelude, Runtime, Stop, Task, link};
 
 /// Runs `f` on a thread with a 4 GiB stack and returns its result.
@@ -288,6 +287,12 @@ pub fn run_file(path: &std::path::Path) -> (String, String, i32) {
     (o.out, o.err, o.exit)
 }
 
+/// The process exit status a shell sees for exit(n): the operating system
+/// keeps the low 8 bits (Go `os.Exit(300)` gives 44).
+pub fn status(n: i64) -> i32 {
+    (n & 0xff) as i32
+}
+
 fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
     let mut o = Outcome::default();
     let Setup {
@@ -319,7 +324,7 @@ fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
     }
     let before = rt.exit_code();
     if let Some(n) = before {
-        o.exit = n;
+        o.exit = status(n);
     }
     for d in rt.run_exit_handlers() {
         let text = diag::format(&d, rt.sources());
@@ -330,7 +335,7 @@ fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
         o.handler_errors.push(ErrInfo::of(&d));
     }
     if let (None, Some(n)) = (before, rt.exit_code()) {
-        o.exit = n; // an exit requested inside a handler
+        o.exit = status(n); // an exit requested inside a handler
     }
     drop(rt);
     o.out = out.text();
@@ -338,236 +343,38 @@ fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
     o
 }
 
-fn param(name: &'static str) -> NativeParam {
-    NativeParam {
-        name,
-        default: None,
-        rest: false,
-    }
-}
-
-fn opt(name: &'static str, default: Value) -> NativeParam {
-    NativeParam {
-        name,
-        default: Some(default),
-        rest: false,
-    }
-}
-
-fn rest(name: &'static str) -> NativeParam {
-    NativeParam {
-        name,
-        default: None,
-        rest: true,
-    }
-}
-
-fn fail(code: &str, args: Vec<Arg>) -> Stop {
-    Stop::Error(Box::new(error(code, crate::vm::no_pos(), args)))
-}
-
-fn s(x: &str) -> Arg {
-    Arg::Str(x.to_string())
-}
-
-fn items(v: &Value) -> Vec<Value> {
-    match v {
-        Value::List(l) => l.to_vec(),
-        _ => Vec::new(),
-    }
-}
-
-fn join_for_print(v: &Value) -> String {
-    items(v)
-        .iter()
-        .map(format_for_print)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn ok(v: Value) -> Value {
-    Value::Tag(Rc::new(Tag {
-        name: intern("Ok"),
-        args: vec![v],
-    }))
-}
-
-fn is_fn(v: &Value) -> bool {
-    matches!(v, Value::Closure(_) | Value::Native(_))
-}
-
-fn write_err(e: std::io::Error) -> Stop {
-    fail("E0801", vec![s(&e.to_string())])
-}
-
-/// The test prelude: Go's `print`, `eprint`, `fail`, `exit`, `at_exit`,
-/// `len`, `type_of`, `read_line`, `read_lines`, `dbg`, and simple list and
-/// range versions of `fold`, `map`, `each`, `sort_by`, `pairs` and
-/// `is_empty` (Task 8 ports the real ones).
+/// The prelude the tests run with: the real core natives, plus stand-ins
+/// for the `extras/prelude.fung` functions the VM tests use (Go's tests
+/// boot the fung prelude; Task 9 does that here).
 pub fn prelude() -> Prelude {
     let mut p = Prelude::default();
-    let mut add = |name: &'static str, params: Vec<NativeParam>, f: crate::value::NativeFn| {
-        p.0.insert(
-            name.to_string(),
-            Value::Native(Native::leak(name, params, f)),
-        );
-    };
-    add("print", vec![rest("args")], |t, a| {
-        let line = join_for_print(&a[0]) + "\n";
-        t.stdout().write_all(line.as_bytes()).map_err(write_err)?;
-        Ok(Value::Nil)
-    });
-    add("eprint", vec![rest("args")], |t, a| {
-        let line = join_for_print(&a[0]) + "\n";
-        t.stderr().write_all(line.as_bytes()).map_err(write_err)?;
-        Ok(Value::Nil)
-    });
-    add("fail", vec![rest("args")], |_, a| {
-        let msg = if items(&a[0]).is_empty() {
-            "fail".to_string()
-        } else {
-            join_for_print(&a[0])
-        };
-        Err(fail("E0803", vec![Arg::Str(msg)]))
-    });
-    add("exit", vec![opt("code", Value::Int(0))], |_, a| {
-        match a[0] {
-            Value::Int(n) => Err(Stop::Exit(n as i32)),
-            ref v => Err(fail("E0403", vec![s("code"), s("int"), s(&type_name(v))])),
-        }
-    });
-    add("at_exit", vec![param("f")], |t, a| {
-        if !is_fn(&a[0]) {
-            return Err(fail("E0403", vec![s("f"), s("fn"), s(&type_name(&a[0]))]));
-        }
-        t.at_exit(a[0].clone());
-        Ok(Value::Nil)
-    });
-    add("len", vec![param("x")], |_, a| {
-        crate::value::index::len(&a[0])
-            .map(Value::Int)
-            .map_err(|d| Stop::Error(Box::new(d)))
-    });
-    add("type_of", vec![param("x")], |_, a| {
-        Ok(Value::Sym(intern(&type_name(&a[0]))))
-    });
-    add("read_line", vec![opt("f", Value::Nil)], |t, _| {
-        Ok(ok(match t.read_line() {
-            Some(l) => Value::str(trim_line(&l)),
-            None => Value::Nil,
-        }))
-    });
-    add("read_lines", vec![opt("f", Value::Nil)], |t, _| {
-        let mut lines = Vec::new();
-        while let Some(l) = t.read_line() {
-            lines.push(Value::str(trim_line(&l)));
-        }
-        Ok(ok(Value::List(Rc::new(List::new(lines)))))
-    });
-    add(
-        "fold",
-        vec![param("xs"), param("init"), param("f")],
-        |t, a| {
-            let xs: Vec<Value> = match &a[0] {
-                Value::Range(r) => {
-                    let end = if r.inclusive { r.end + 1 } else { r.end };
-                    (r.start..end).map(Value::Int).collect()
-                }
-                v => items(v),
-            };
-            let mut acc = a[1].clone();
-            for x in xs {
-                acc = t.call(&a[2], vec![acc, x])?;
-            }
-            Ok(acc)
-        },
-    );
-    add("map", vec![param("xs"), param("f")], |t, a| {
-        let xs = seq(&a[0], "map over")?;
-        if !is_fn(&a[1]) {
-            return Err(fail("E0403", vec![s("f"), s("fn"), s(&type_name(&a[1]))]));
-        }
-        let mut out = Vec::with_capacity(xs.len());
-        for x in xs {
-            out.push(t.call(&a[1], vec![x])?);
-        }
-        Ok(Value::List(Rc::new(List::new(out))))
-    });
-    add("each", vec![param("xs"), param("f")], |t, a| {
-        let xs = seq(&a[0], "iterate over")?;
-        if !is_fn(&a[1]) {
-            return Err(fail("E0403", vec![s("f"), s("fn"), s(&type_name(&a[1]))]));
-        }
-        for x in xs {
-            t.call(&a[1], vec![x])?;
-        }
-        Ok(Value::Nil)
-    });
-    add("sort_by", vec![param("xs"), param("f")], |t, a| {
-        let xs = seq(&a[0], "sort")?;
-        let mut keyed = Vec::with_capacity(xs.len());
-        for x in xs {
-            let k = t.call(&a[1], vec![x.clone()])?;
-            keyed.push((k, x));
-        }
-        let mut bad = None;
-        keyed.sort_by(|(a, _), (b, _)| match crate::value::compare(a, b) {
-            Ok(o) => o,
-            Err(d) => {
-                bad.get_or_insert(d);
-                std::cmp::Ordering::Equal
-            }
-        });
-        if let Some(d) = bad {
-            return Err(Stop::Error(Box::new(d)));
-        }
-        let out = keyed.into_iter().map(|(_, x)| x).collect();
-        Ok(Value::List(Rc::new(List::new(out))))
-    });
-    add("pairs", vec![param("m")], |_, a| {
-        let Value::Map(m) = &a[0] else {
-            return Err(fail(
-                "E0506",
-                vec![s("list the pairs of"), s(&type_name(&a[0]))],
-            ));
-        };
-        let out = m
-            .iter()
-            .map(|(k, v)| Value::tuple(vec![Value::str(k), v.clone()]))
-            .collect();
-        Ok(Value::List(Rc::new(List::new(out))))
-    });
-    add("is_empty", vec![param("x")], |_, a| {
-        crate::value::index::len(&a[0])
-            .map(|n| Value::Bool(n == 0))
-            .map_err(|d| Stop::Error(Box::new(d)))
-    });
-    p.0.insert("dbg".to_string(), Value::Native(crate::vm::dbg()));
-    p
-}
-
-/// The items of a list or range, or E0506 with `verb`.
-fn seq(v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
-    match v {
-        Value::List(l) => Ok(l.to_vec()),
-        Value::Range(r) => Ok((0..r.len()).map(|i| Value::Int(r.start + i)).collect()),
-        _ => Err(fail("E0506", vec![s(verb), s(&type_name(v))])),
+    for (name, v) in crate::prelude::core() {
+        p.0.insert(name.to_string(), v);
     }
-}
-
-fn trim_line(l: &str) -> &str {
-    let l = l.strip_suffix('\n').unwrap_or(l);
-    l.strip_suffix('\r').unwrap_or(l)
+    // extras/prelude.fung `is_empty(x) = len(x) == 0`.
+    p.0.insert(
+        "is_empty".to_string(),
+        nat::def(
+            "is_empty",
+            |_, a| Ok(Value::Bool(crate::value::index::len(&a[0])? == 0)),
+            vec![nat::param("x")],
+        ),
+    );
+    p
 }
 
 /// Go `native_test.go` `padNative`: a default and a rest parameter.
 pub fn pad() -> Vec<Value> {
     vec![Value::Native(Native::leak(
         "pad",
-        vec![param("s"), opt("n", Value::Int(2)), rest("tail")],
+        vec![
+            nat::param("s"),
+            nat::opt("n", Value::Int(2)),
+            nat::rest("tail"),
+        ],
         |_, a| {
             let (Value::Str(s), Value::Int(n)) = (&a[0], &a[1]) else {
-                return Err(fail("E0801", vec![self::s("pad: bad arguments")]));
+                return Err(nat::fail("E0801", vec![nat::s("pad: bad arguments")]));
             };
             Ok(Value::str(&format!(
                 "{s}{}{}",

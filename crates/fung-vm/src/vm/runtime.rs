@@ -22,7 +22,7 @@ pub struct Runtime {
     sources: SourceMap,
     exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
-    exit: Option<i32>,
+    exit: Option<i64>,
     /// The script arguments (the prelude's `args`).
     pub args: Vec<String>,
     /// Every global table the runtime made. A closure stored in a global
@@ -85,11 +85,11 @@ impl Runtime {
     }
 
     /// The code of the first exit(n) requested, if any.
-    pub fn exit_code(&self) -> Option<i32> {
+    pub fn exit_code(&self) -> Option<i64> {
         self.exit
     }
 
-    pub(super) fn request_exit(&mut self, code: i32) {
+    pub(super) fn request_exit(&mut self, code: i64) {
         self.exit.get_or_insert(code);
     }
 

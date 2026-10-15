@@ -39,7 +39,7 @@ use fung_front::tree::CaptureKind;
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
 pub use call::MAX_FRAMES;
 pub use link::{Prelude, RtProto, link};
-pub use m6::{TestCase, dbg};
+pub use m6::TestCase;
 pub use matcher::RtPattern;
 pub use runtime::Runtime;
 
@@ -48,10 +48,13 @@ use frame::Frame;
 
 /// Why fung code stopped early: a runtime error (with its position and
 /// call path) or `exit(n)`, which unwinds like an error but is not one.
+/// The exit code is fung's int, as Go keeps it: `fung test` prints it in
+/// full, and only the process exit status is cut to its low 8 bits (by
+/// the operating system).
 #[derive(Debug)]
 pub enum Stop {
     Error(Box<Diag>),
-    Exit(i32),
+    Exit(i64),
 }
 
 impl From<Diag> for Stop {
@@ -96,7 +99,7 @@ pub struct Task<'rt> {
 }
 
 impl<'rt> Task<'rt> {
-    fn new(rt: &'rt mut Runtime) -> Task<'rt> {
+    pub(crate) fn new(rt: &'rt mut Runtime) -> Task<'rt> {
         Task {
             rt,
             stack: Vec::new(),

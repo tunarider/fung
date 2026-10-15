@@ -726,8 +726,9 @@ fn closures_print_like_go() {
 
 #[test]
 fn unknown_builtins_link_to_an_internal_error() {
-    // The test prelude has no `upper`; the linked placeholder reports E0801.
-    let o = exec("upper(\"a\")", Opts::default());
+    // The test prelude has no concurrency natives yet (Task 9); the linked
+    // placeholder reports E0801.
+    let o = exec("channel(1)", Opts::default());
     assert_eq!(o.code, "E0801");
 }
 

@@ -119,7 +119,7 @@ impl Map {
     }
 
     /// Like `iter`, with the shared key strings.
-    fn entries(&self) -> impl Iterator<Item = (&Rc<String>, &Value)> {
+    pub fn entries(&self) -> impl Iterator<Item = (&Rc<String>, &Value)> {
         let (flat, big) = match &self.repr {
             Repr::Flat(es) => (Some(es.iter().map(|(k, v)| (k, v))), None),
             Repr::Big(o) => (None, Some(o.iter().map(|e| (&e.key, &e.val)))),

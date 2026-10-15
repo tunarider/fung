@@ -222,6 +222,21 @@ pub struct ListBuilder {
 }
 
 impl ListBuilder {
+    /// A builder with room for `n` items.
+    pub fn with_capacity(n: usize) -> ListBuilder {
+        ListBuilder {
+            items: Vec::with_capacity(n),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     pub fn push(&mut self, v: Value) {
         self.items.push(v);
     }

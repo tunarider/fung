@@ -345,4 +345,44 @@ impl Task<'_> {
         }
         r
     }
+
+    /// `call` with the arguments taken from `args`, which is left empty
+    /// with its capacity kept: natives that call a function per element
+    /// (`map`, `fold`, …) reuse one buffer. A fung function called with
+    /// exactly its parameters gets them moved straight onto the stack.
+    // `drain(..).collect()` keeps the buffer's capacity for the next call
+    // (`mem::take` would hand the allocation to the callee).
+    #[allow(clippy::drain_collect)]
+    pub fn call_buf(&mut self, f: &Value, args: &mut Vec<Value>) -> Result<Value, Stop> {
+        if let Value::Native(n) = f
+            && n.params.len() == args.len()
+            && n.params.last().is_none_or(|p| !p.rest)
+        {
+            // Every parameter given by position: nothing to bind. A panic
+            // inside reaches the fence of the run that called the native.
+            let outer = self.native.replace(n);
+            let r = (n.func)(self, args.drain(..).collect());
+            self.native = outer;
+            if let Err(Stop::Exit(code)) = r {
+                self.rt.request_exit(code);
+            }
+            return r;
+        }
+        let Value::Closure(c) = f else {
+            return self.call(f, args.drain(..).collect());
+        };
+        if !exact_positional(&c.proto, args.len(), 0) || self.frames.len() >= MAX_FRAMES {
+            return self.call(f, args.drain(..).collect());
+        }
+        let depth = self.frames.len();
+        let height = self.stack.len();
+        self.stack.extend(args.drain(..).map(Some));
+        self.push_frame(c.clone(), height);
+        let r = self.guarded(|t| t.run(depth));
+        if r.is_err() {
+            self.frames.truncate(depth);
+            self.stack.truncate(height);
+        }
+        r
+    }
 }
