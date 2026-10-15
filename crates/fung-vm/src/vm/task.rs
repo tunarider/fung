@@ -37,12 +37,17 @@ use super::{Stop, Task, internal, token};
 use crate::native::nat;
 use crate::value::{MapBuilder, Value, drop_children, intern, keep};
 
-/// The stack each spawned task's thread reserves. fung calls do not use
-/// it (frames live on the VM's heap); only natives that call back into
-/// fung (`map`, `fold`, …) nest Rust frames, and formatting or comparing
-/// deeply nested values recurses. It is address space, not memory: the
-/// pages are touched only when used. The entry keeps its 4 GiB stack.
-pub(crate) const TASK_STACK: usize = 256 << 20;
+/// The stack each spawned task's thread reserves: 1 GiB, the most a Go
+/// goroutine may grow to, so a program that fits in a goroutine fits in
+/// a task. fung calls do not use it (frames live on the VM's heap); only
+/// natives that call back into fung (`map`, `fold`, …) nest Rust frames,
+/// and formatting or comparing deeply nested values recurses. It is
+/// address space, not memory: the pages are touched only when used (with
+/// 256 MiB, `map` calling back 99,000 deep overflowed and aborted the
+/// process where Go and the entry thread succeed). If the system refuses
+/// the reservation, `spawn` fails with an error rather than aborting.
+/// The entry keeps its 4 GiB stack.
+pub(crate) const TASK_STACK: usize = 1 << 30;
 
 /// A node of the cancellation tree. Only the flag is read on the hot path
 /// (one relaxed load per call); the rest is touched when a task is
