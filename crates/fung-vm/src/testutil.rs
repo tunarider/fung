@@ -190,7 +190,7 @@ fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (St
     let mut entry = b.proto.expect("a compiled entry");
     (opts.patch)(&mut entry);
     let (out, err) = (Buf::default(), Buf::default());
-    let mut rt = Runtime::new(
+    let rt = Runtime::new(
         Box::new(out.clone()),
         Box::new(err.clone()),
         Box::new(Cursor::new(opts.stdin.as_bytes().to_vec())),
@@ -202,8 +202,11 @@ fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (St
         Some(p) => p.clone(),
         None => {
             let args = opts.args.iter().map(|a| a.to_string()).collect();
-            boot(&mut rt, args).unwrap_or_else(|errs| {
-                let text: String = errs.iter().map(|e| diag::format(e, rt.sources())).collect();
+            boot(&rt, args).unwrap_or_else(|errs| {
+                let text: String = errs
+                    .iter()
+                    .map(|e| diag::format(e, &rt.sources()))
+                    .collect();
                 panic!("boot failed:\n{text}")
             })
         }
@@ -216,7 +219,7 @@ fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (St
     let main = link(&entry, &p);
     // Go `register` (cmd/fung/pipeline.go), as the command does it. A
     // caller may register other natives over it (`register_native`).
-    crate::boot::register(&mut rt, &b.modules, &p);
+    crate::boot::register(&rt, &b.modules, &p);
     Ok(Setup { rt, main, out, err })
 }
 
@@ -327,12 +330,7 @@ pub fn status(n: i64) -> i32 {
 
 fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
     let mut o = Outcome::default();
-    let Setup {
-        mut rt,
-        main,
-        out,
-        err,
-    } = match setup_on(src, given, opts) {
+    let Setup { rt, main, out, err } = match setup_on(src, given, opts) {
         Ok(s) => s,
         Err((text, code)) => {
             o.err = text;
@@ -348,7 +346,7 @@ fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
             o.code = d.code.clone();
             o.error = Some(ErrInfo::of(&d));
             if rt.exit_code().is_none() {
-                let text = diag::format(&d, rt.sources());
+                let text = diag::format(&d, &rt.sources());
                 err.clone().write_all(text.as_bytes()).unwrap();
                 o.exit = diag::EXIT_RUNTIME;
             }
@@ -359,7 +357,7 @@ fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
         o.exit = status(n);
     }
     for d in rt.run_exit_handlers() {
-        let text = diag::format(&d, rt.sources());
+        let text = diag::format(&d, &rt.sources());
         err.clone().write_all(text.as_bytes()).unwrap();
         if o.exit == diag::EXIT_OK {
             o.exit = diag::EXIT_RUNTIME;

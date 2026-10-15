@@ -116,13 +116,13 @@ fn fung_helpers_over_placeholders_fail_at_the_user_call() {
 #[test]
 fn booted_prelude_has_every_spec_name_and_spec_parameters() {
     on_big_stack(|| {
-        let mut rt = Runtime::new(
+        let rt = Runtime::new(
             Box::new(std::io::sink()),
             Box::new(std::io::sink()),
             Box::new(Cursor::new(Vec::new())),
             SourceMap::default(),
         );
-        let p = boot(&mut rt, vec!["a".into(), "b c".into()]).expect("boot");
+        let p = boot(&rt, vec!["a".into(), "b c".into()]).expect("boot");
         let spec = builtins();
         let want: BTreeSet<&str> = spec
             .prelude_native
@@ -142,7 +142,7 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
             assert_eq!(render_params(&n.params), line, "{name}");
         }
         assert_eq!(format(&p.0["args"]), "[\"a\", \"b c\"]");
-        assert_eq!(rt.args, ["a", "b c"]);
+        assert_eq!(rt.args(), ["a", "b c"]);
         assert_eq!(format(&p.0["take"]), "<fn take>");
     });
 }

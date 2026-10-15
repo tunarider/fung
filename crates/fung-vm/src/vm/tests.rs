@@ -793,14 +793,14 @@ fn elided_tail_calls_count_past_u32() {
     let (b, errs) = Loader::default().compile("-e", "1 / 0", Stage::All);
     assert!(errs.is_empty());
     let main = link(b.proto.as_ref().unwrap(), &Prelude::default());
-    let mut rt = Runtime::new(
+    let rt = Runtime::new(
         Box::new(std::io::sink()),
         Box::new(std::io::sink()),
         Box::new(std::io::Cursor::new(Vec::new())),
         b.sources,
     );
-    let globals = rt.new_globals(0);
-    let mut t = Task::new(&mut rt);
+    let mut t = rt.task();
+    let globals = t.world.new_globals(0);
     t.frames.push(super::frame::Frame {
         proto: main,
         ip: 1,
@@ -811,11 +811,27 @@ fn elided_tail_calls_count_past_u32() {
     });
     t.frames[0].tail_calls += 1;
     let path = t.call_path();
+    drop(t); // gives the run token back for `rt.sources()`
     assert_eq!(path[0].elided, 4_294_967_296);
     let d = fung_front::diag::error("E0502", crate::vm::no_pos(), vec![]).with_call_path(path);
-    let text = diag::format(&d, rt.sources());
+    let text = diag::format(&d, &rt.sources());
     assert!(
         text.contains("   -e:1       <entry> (4294967296 tail calls elided)\n"),
         "{text}"
     );
+}
+
+// --- the run token (stage 3a) ---
+
+#[test]
+fn the_runtime_can_move_to_another_thread() {
+    fn assert_send<T: Send>() {}
+    assert_send::<crate::vm::Runtime>();
+}
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "without the run token")]
+fn touching_the_world_without_the_token_is_caught() {
+    crate::vm::token::assert_holds_token();
 }

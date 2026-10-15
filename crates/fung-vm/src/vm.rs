@@ -26,6 +26,8 @@ mod module_tests;
 mod runtime;
 #[cfg(test)]
 mod tests;
+pub(crate) mod token;
+mod world;
 
 use std::cmp::Ordering;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -41,10 +43,11 @@ pub use call::MAX_FRAMES;
 pub use link::{Prelude, RtProto, link};
 pub use m6::TestCase;
 pub use matcher::RtPattern;
-pub use runtime::Runtime;
+pub use runtime::{Runtime, Sources};
 
 use crate::value::{self, Value};
 use frame::Frame;
+use world::{Shared, Token};
 
 /// Why fung code stopped early: a runtime error (with its position and
 /// call path) or `exit(n)`, which unwinds like an error but is not one.
@@ -87,50 +90,63 @@ pub(crate) fn internal(args: Vec<Arg>) -> Stop {
 }
 
 /// One thread of fung execution: an operand stack (whose first slots are
-/// the entry frame's) and the call frames. Natives get the task so they
-/// can write output, read input, register exit handlers and call fung
-/// functions back.
+/// the entry frame's) and the call frames, the per-task part of the
+/// runtime. Natives get the task so they can write output, read input,
+/// register exit handlers and call fung functions back; those reach the
+/// shared part (`World`) through the run token the task holds.
+///
+/// A task takes the token when it is made and holds it until it drops
+/// (stage 3a: one task holds it for its whole run; the run loop never
+/// locks). Drop order matters: the stack and frames hold fung values, and
+/// dropping a value changes `Rc` counts, which only the token's holder may
+/// do. So `world` is the last field (fields drop in declaration order)
+/// and `Drop` empties the stack and frames explicitly before it, after
+/// taking the token back if a blocking point had given it up.
 pub struct Task<'rt> {
-    rt: &'rt mut Runtime,
     stack: Vec<Option<Value>>,
     frames: Vec<Frame>,
     /// The native being called, for natives that need their own name.
     native: Option<&'static Native>,
+    /// The run token, and through it the shared part. Keep it last.
+    world: Token<'rt>,
 }
 
 impl<'rt> Task<'rt> {
-    pub(crate) fn new(rt: &'rt mut Runtime) -> Task<'rt> {
+    /// A task on this thread; waits for the run token.
+    pub(crate) fn new(shared: &'rt Shared) -> Task<'rt> {
+        let world = shared.lock();
+        token::assert_holds_token();
         Task {
-            rt,
             stack: Vec::new(),
             frames: Vec::new(),
             native: None,
+            world,
         }
     }
 
     /// Standard output (print).
     pub fn stdout(&mut self) -> &mut dyn std::io::Write {
-        self.rt.stdout()
+        self.world.stdout()
     }
 
     /// Standard error (eprint, dbg).
     pub fn stderr(&mut self) -> &mut dyn std::io::Write {
-        self.rt.stderr()
+        self.world.stderr()
     }
 
     /// One line of standard input with its line ending, `None` at the end.
     pub fn read_line(&mut self) -> Option<String> {
-        self.rt.read_line()
+        self.world.read_line()
     }
 
     /// Registers an exit handler (03).
     pub fn at_exit(&mut self, f: Value) {
-        self.rt.at_exit(f);
+        self.world.at_exit(f);
     }
 
     /// The script arguments.
     pub fn args(&self) -> &[String] {
-        &self.rt.args
+        &self.world.args
     }
 
     /// The name of the native being called.
@@ -159,6 +175,9 @@ impl<'rt> Task<'rt> {
         match catch_unwind(AssertUnwindSafe(|| f(self))) {
             Ok(r) => r,
             Err(payload) => {
+                // A panic never leaves the token given up: a blocking
+                // point that panicked mid-wait would; take it back.
+                self.world.reacquire();
                 let msg = if let Some(s) = payload.downcast_ref::<&str>() {
                     s.to_string()
                 } else if let Some(s) = payload.downcast_ref::<String>() {
@@ -215,7 +234,7 @@ impl<'rt> Task<'rt> {
             .rev()
             .map(|f| {
                 let (file, line) = match f.current_pos() {
-                    Some(p) => (self.rt.file_name(p.file).to_string(), p.line),
+                    Some(p) => (self.world.file_name(p.file).to_string(), p.line),
                     None => (String::new(), 0),
                 };
                 let func = if f.proto.name.is_empty() {
@@ -515,5 +534,17 @@ impl<'rt> Task<'rt> {
             captured,
             globals: f.globals.clone(),
         }))
+    }
+}
+
+impl Drop for Task<'_> {
+    /// The end of a task is a value boundary (token.rs): the stack and
+    /// frames drop here, with the token held, before `world` releases it.
+    fn drop(&mut self) {
+        self.world.reacquire();
+        token::assert_holds_token();
+        self.native = None;
+        self.frames.clear();
+        self.stack.clear();
     }
 }

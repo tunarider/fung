@@ -70,9 +70,7 @@ fn test_blocks_register_only_when_requested() {
         let (out, _, code) = run(src);
         assert_eq!((out.as_str(), code), ("body\n", 0), "run ignores tests");
 
-        let Setup {
-            mut rt, main, out, ..
-        } = with_tests(src);
+        let Setup { rt, main, out, .. } = with_tests(src);
         rt.run(main).expect("the body runs");
         let tests: Vec<_> = rt.tests().to_vec();
         let names: Vec<&str> = tests.iter().map(|t| t.name.as_str()).collect();
@@ -84,7 +82,7 @@ fn test_blocks_register_only_when_requested() {
             r => panic!("test two: {r:?}"),
         }
 
-        let Setup { mut rt, main, .. } = with_tests("x = 1\ntest \"t\": assert x == 1 ;;\nx = 2");
+        let Setup { rt, main, .. } = with_tests("x = 1\ntest \"t\": assert x == 1 ;;\nx = 2");
         rt.run(main).expect("the body runs");
         let f = rt.tests()[0].func.clone();
         assert!(
@@ -92,7 +90,7 @@ fn test_blocks_register_only_when_requested() {
             "a test sees the variables that existed when it was defined (model C)"
         );
 
-        let Setup { mut rt, main, .. } = with_tests("test \"e\": exit(3) ;;");
+        let Setup { rt, main, .. } = with_tests("test \"e\": exit(3) ;;");
         rt.run(main).expect("the body runs");
         let f = rt.tests()[0].func.clone();
         assert!(

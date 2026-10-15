@@ -267,7 +267,7 @@ fn a_registered_native_module_is_what_import_gives() {
     // User code cannot import `_native.*` (E0310), so the native module
     // takes the place of a file module's key.
     on_big_stack(|| {
-        let mut s = setup(
+        let s = setup(
             "import \"./lib\"\nprint(lib.answer)",
             Opts {
                 file: "/p/main.fung",
@@ -285,7 +285,7 @@ fn a_registered_native_module_is_what_import_gives() {
 #[test]
 fn import_module_runs_the_body_once_and_register_does_not_reset_it() {
     on_big_stack(|| {
-        let mut s = setup(
+        let s = setup(
             "import \"./lib\"\nprint(lib.x)",
             Opts {
                 file: "/p/main.fung",
@@ -314,7 +314,7 @@ fn import_module_runs_the_body_once_and_register_does_not_reset_it() {
 #[test]
 fn unregistered_and_self_importing_modules_are_internal_errors() {
     on_big_stack(|| {
-        let mut s = setup(
+        let s = setup(
             "import \"./lib\"\nprint(lib.x)",
             Opts {
                 file: "/p/main.fung",

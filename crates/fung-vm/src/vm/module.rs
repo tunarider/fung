@@ -27,11 +27,12 @@ pub(super) struct ModuleState {
 impl Runtime {
     /// Makes a compiled module importable under `key`. A module that
     /// already ran keeps its value: a module's top level runs once (04).
-    pub fn register_module(&mut self, key: &str, proto: Rc<RtProto>) {
-        if self.modules.get(key).is_some_and(|st| st.value.is_some()) {
+    pub fn register_module(&self, key: &str, proto: Rc<RtProto>) {
+        let mut w = self.lock();
+        if w.modules.get(key).is_some_and(|st| st.value.is_some()) {
             return;
         }
-        self.modules.insert(
+        w.modules.insert(
             key.to_string(),
             ModuleState {
                 proto: Some(proto),
@@ -43,8 +44,8 @@ impl Runtime {
     }
 
     /// Makes a Rust-built module (a `_native.*` bridge) importable under `key`.
-    pub fn register_native(&mut self, key: &str, module: Rc<Module>) {
-        self.modules.insert(
+    pub fn register_native(&self, key: &str, module: Rc<Module>) {
+        self.lock().modules.insert(
             key.to_string(),
             ModuleState {
                 proto: None,
@@ -58,8 +59,8 @@ impl Runtime {
     /// Makes importing `key` report E0805 `not supported yet: <key>` at
     /// the import: a standard module whose `_native.*` bridge stage 2 does
     /// not have (see `boot::unsupported_module`).
-    pub fn register_unsupported(&mut self, key: &str) {
-        self.modules.insert(
+    pub fn register_unsupported(&self, key: &str) {
+        self.lock().modules.insert(
             key.to_string(),
             ModuleState {
                 proto: None,
@@ -72,8 +73,8 @@ impl Runtime {
 
     /// A module's value from a fresh task, running its body first if
     /// needed (the command uses it for prelude.fung, Go `ImportModule`).
-    pub fn import_module(&mut self, key: &str) -> Result<Rc<Module>, Stop> {
-        let mut t = Task::new(self);
+    pub fn import_module(&self, key: &str) -> Result<Rc<Module>, Stop> {
+        let mut t = self.task();
         let mut out = None;
         t.guarded(|t| {
             let m = t.import(key, no_pos())?;
@@ -108,7 +109,7 @@ impl Task<'_> {
                 vec![Arg::Str(format!("module `{key}` was not registered"))],
             )
         };
-        let st = self.rt.modules.get_mut(key).ok_or_else(not_registered)?;
+        let st = self.world.modules.get_mut(key).ok_or_else(not_registered)?;
         if let Some(m) = &st.value {
             return Ok(m.clone());
         }
@@ -126,7 +127,7 @@ impl Task<'_> {
         }
         st.loading = true;
         let proto = st.proto.clone().ok_or_else(not_registered)?;
-        let globals = self.rt.new_globals(proto.global_names.len());
+        let globals = self.world.new_globals(proto.global_names.len());
         let depth = self.frames.len();
         let base = self.stack.len();
         self.stack.resize(base + proto.num_locals, None);
@@ -151,7 +152,7 @@ impl Task<'_> {
             }
         }
         let m = Rc::new(m);
-        let st = self.rt.modules.get_mut(key).expect("registered above");
+        let st = self.world.modules.get_mut(key).expect("registered above");
         st.value = Some(m.clone());
         st.loading = false;
         Ok(m)

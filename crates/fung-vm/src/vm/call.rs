@@ -228,7 +228,7 @@ impl Task<'_> {
                     Ok(v) => Ok(Some(v)),
                     Err(Stop::Exit(code)) => {
                         // exit(n) ends the whole program (05).
-                        self.rt.request_exit(code);
+                        self.world.request_exit(code);
                         Err(Stop::Exit(code))
                     }
                     Err(Stop::Error(d)) => Err(at(*d, pos)),
@@ -366,7 +366,7 @@ impl Task<'_> {
             let r = (n.func)(self, args.drain(..).collect());
             self.native = outer;
             if let Err(Stop::Exit(code)) = r {
-                self.rt.request_exit(code);
+                self.world.request_exit(code);
             }
             return r;
         }

@@ -37,7 +37,7 @@ const PRELUDE_FILE: &str = "extras/prelude.fung";
 /// with positions in `rt.sources()`. Booting the embedded file does not
 /// fail in practice; a runtime whose boot failed should not be reused (a
 /// module whose body failed stays "loading", like Go).
-pub fn boot(rt: &mut Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
+pub fn boot(rt: &Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
     let mut p = Prelude::default();
     for (name, v) in prelude::core() {
         p.0.insert(name.to_string(), v);
@@ -46,7 +46,7 @@ pub fn boot(rt: &mut Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
         "args".to_string(),
         nat::list(args.iter().map(|a| Value::str(a)).collect()),
     );
-    rt.args = args;
+    rt.set_args(args);
     for (name, v) in conc::placeholders() {
         p.0.insert(name.to_string(), v);
     }
@@ -129,7 +129,7 @@ pub fn unsupported_module(key: &str) -> bool {
 /// standard modules it does not run as E0805 placeholders. A bridge stage
 /// 2 does not have stays unregistered (only those placeholders import
 /// it), so a lookup of it is still an internal error.
-pub fn register(rt: &mut Runtime, modules: &[Loaded], p: &Prelude) {
+pub fn register(rt: &Runtime, modules: &[Loaded], p: &Prelude) {
     for m in modules {
         match &m.proto {
             Some(_) if unsupported_module(&m.key) => rt.register_unsupported(&m.key),

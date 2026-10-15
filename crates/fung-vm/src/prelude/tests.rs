@@ -12,7 +12,7 @@ use fung_front::source::SourceMap;
 use super::core;
 use crate::testutil::{self, Buf, Opts, exec, run};
 use crate::value::{List, MapBuilder, NativeParam, Value, format, intern};
-use crate::vm::{Runtime, Stop, Task};
+use crate::vm::{Runtime, Stop};
 
 /// The concurrency natives Task 9 adds (as E0805 placeholders).
 const CONCURRENCY: &[&str] = &[
@@ -163,13 +163,13 @@ fn call_out(name: &str, args: Vec<Value>) -> (Result<Value, Stop>, String) {
         panic!("no native {name}");
     };
     let (out, err) = (Buf::default(), Buf::default());
-    let mut rt = Runtime::new(
+    let rt = Runtime::new(
         Box::new(out.clone()),
         Box::new(err),
         Box::new(Cursor::new(Vec::new())),
         SourceMap::default(),
     );
-    let r = (n.func)(&mut Task::new(&mut rt), args);
+    let r = (n.func)(&mut rt.task(), args);
     drop(rt);
     (r, out.text())
 }
@@ -599,7 +599,7 @@ fn write_errors_are_internal_errors_at_the_call() {
     for (src, col) in [("print(1)", 6), ("eprint(1)", 7), ("dbg(1)", 4)] {
         let o = testutil::on_big_stack(move || {
             let s = testutil::setup(src, Opts::default()).unwrap();
-            let mut rt = Runtime::new(
+            let rt = Runtime::new(
                 Box::new(Broken),
                 Box::new(Broken),
                 Box::new(Cursor::new(Vec::new())),

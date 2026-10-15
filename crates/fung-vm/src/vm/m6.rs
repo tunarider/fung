@@ -18,14 +18,14 @@ pub struct TestCase {
 impl Runtime {
     /// The test blocks registered so far, in order. A body registers them
     /// only when it was compiled with test blocks kept (`fung test`).
-    pub fn tests(&self) -> &[TestCase] {
-        &self.tests
+    pub fn tests(&self) -> Vec<TestCase> {
+        self.lock().tests.clone()
     }
 
     /// Runs a test function on a fresh task. An `exit(n)` inside it comes
     /// back as `Stop::Exit` so `fung test` can stop.
-    pub fn call_test(&mut self, f: &Value) -> Result<Value, Stop> {
-        Task::new(self).call(f, Vec::new())
+    pub fn call_test(&self, f: &Value) -> Result<Value, Stop> {
+        self.task().call(f, Vec::new())
     }
 }
 
@@ -79,7 +79,7 @@ impl Task<'_> {
                 let Value::Str(name) = &proto.consts[arg] else {
                     panic!("TEST with a name that is not a string");
                 };
-                self.rt.tests.push(TestCase {
+                self.world.tests.push(TestCase {
                     name: name.to_string(),
                     func,
                 });

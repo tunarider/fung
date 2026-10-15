@@ -83,24 +83,24 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // The runtime holds the program's files first and boot appends the
     // prelude's after them (see `fung_vm::boot`). Go boots before it
     // compiles; boot cannot fail, so the output is the same.
-    let mut rt = Runtime::new(stdout, Box::new(ProcessOut::stderr()), stdin, b.sources);
-    let p = match boot(&mut rt, args) {
+    let rt = Runtime::new(stdout, Box::new(ProcessOut::stderr()), stdin, b.sources);
+    let p = match boot(&rt, args) {
         Ok(p) => p,
         Err(errs) => {
-            report(stderr, &errs, rt.sources());
+            report(stderr, &errs, &rt.sources());
             return EXIT_COMPILE.into();
         }
     };
     let main = link(&entry, &p);
     // Go `register`; the standard modules stage 2 does not run report
     // E0805 at their import.
-    register(&mut rt, &b.modules, &p);
+    register(&rt, &b.modules, &p);
     let mut code = i64::from(EXIT_OK);
     let result = rt.run(main);
     if let Err(Stop::Error(d)) = &result
         && rt.exit_code().is_none()
     {
-        report(stderr, std::slice::from_ref(&**d), rt.sources());
+        report(stderr, std::slice::from_ref(&**d), &rt.sources());
         code = EXIT_RUNTIME.into();
     }
     drop(result);
@@ -112,7 +112,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // An exit(n) inside a handler is not among the errors (the runtime
     // records it instead); every other handler error is reported.
     for d in &handler_errs {
-        report(stderr, std::slice::from_ref(d), rt.sources());
+        report(stderr, std::slice::from_ref(d), &rt.sources());
         if code == i64::from(EXIT_OK) {
             code = EXIT_RUNTIME.into();
         }
