@@ -124,8 +124,28 @@ impl WaitList {
 /// came true at the same time (Go checks it first).
 pub(crate) fn block<T>(
     t: &mut Task<'_>,
-    mut ready: impl FnMut(&mut World, &Arc<Waiter>) -> Option<T>,
+    ready: impl FnMut(&mut World, &Arc<Waiter>) -> Option<T>,
     timeout: Option<Duration>,
+) -> Result<Option<T>, Stop> {
+    block_until(t, ready, deadline_after(timeout), timeout.is_some())
+}
+
+/// The deadline `timeout` from now; a deadline past what `Instant` can
+/// hold is no deadline.
+pub(crate) fn deadline_after(timeout: Option<Duration>) -> Option<Instant> {
+    timeout.and_then(|d| Instant::now().checked_add(d))
+}
+
+/// `block` with the deadline already computed, for a waiter whose
+/// deadline others must see too (a channel receiver's slot): the wait
+/// times out exactly when `Instant::now() >= deadline`. `timed` says a
+/// timeout was given (it counts for the deadlock check even when the
+/// deadline is too far to hold).
+pub(crate) fn block_until<T>(
+    t: &mut Task<'_>,
+    mut ready: impl FnMut(&mut World, &Arc<Waiter>) -> Option<T>,
+    deadline: Option<Instant>,
+    timed: bool,
 ) -> Result<Option<T>, Stop> {
     token::assert_holds_token();
     let me = t.waiter.clone();
@@ -134,9 +154,6 @@ pub(crate) fn block<T>(
         return Ok(Some(v));
     }
     t.cancel.watch(&me);
-    // A deadline past what `Instant` can hold is no deadline.
-    let deadline = timeout.and_then(|d| Instant::now().checked_add(d));
-    let timed = timeout.is_some();
     t.world.blocked += 1;
     if timed {
         t.world.waking += 1;

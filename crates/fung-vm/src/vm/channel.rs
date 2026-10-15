@@ -22,11 +22,20 @@
 //!   which see `closed` (a sender's value is never delivered).
 //!
 //! A blocked task waits through `block`; its slot holds its `Waiter`, so
-//! completing or closing wakes exactly that task. A wait that ends by
-//! cancellation or timeout takes its slot back out of the queue, unless
-//! the slot was completed first: then the value has moved and the
-//! operation succeeded, as in Go, where the `select` case that moved the
-//! value wins over cancellation.
+//! completing or closing wakes exactly that task.
+//!
+//! Cancellation and timeouts claim a waiter at once, as Go's `select`
+//! does, even though the slot stays queued until its task next holds the
+//! token: the slot carries the task's cancellation node and its deadline,
+//! and pairing skips (and drops from the queue) any slot whose node is
+//! cancelled or whose deadline has passed. Pairing happens with the token
+//! held and the flag and the clock only move one way, so that check is
+//! the moment the slot is decided: a skipped slot's task finds it not
+//! done and returns E0701 or `timeout`; a completed slot's task finds it
+//! done and succeeds even if it was cancelled just after (the `select`
+//! case that moved the value wins, as in Go). A wait that ends without
+//! completion takes its slot out of the queue (`leave`, a no-op if
+//! pairing already dropped it).
 //!
 //! A channel can hold values that hold the channel itself (`send(c, c)`):
 //! an `Rc` cycle that is never freed, where Go's collector would free it.
@@ -37,10 +46,10 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use super::block::{Waiter, block};
-use super::{Stop, Task, token};
+use super::block::{Waiter, block_until, deadline_after};
+use super::{CancelNode, Stop, Task, token};
 use crate::value::{Value, drop_children, keep};
 
 /// The value `channel()` returns. Two channels are equal only when they
@@ -61,21 +70,33 @@ struct Inner {
 }
 
 /// One blocked `send` or `recv`: the value in transit, whether the other
-/// side completed it, and the task to wake. Only the token's holder
-/// touches it (it holds a fung value).
+/// side completed it, the task to wake, and what claims the slot before
+/// any pairing: the task's cancellation and the receive's deadline. Only
+/// the token's holder touches it (it holds a fung value).
 struct Slot {
     value: RefCell<Option<Value>>,
     done: Cell<bool>,
     waiter: Arc<Waiter>,
+    cancel: Arc<CancelNode>,
+    deadline: Option<Instant>,
 }
 
 impl Slot {
-    fn new(value: Option<Value>, waiter: &Arc<Waiter>) -> Rc<Slot> {
+    fn new(t: &Task<'_>, value: Option<Value>, deadline: Option<Instant>) -> Rc<Slot> {
         Rc::new(Slot {
             value: RefCell::new(value),
             done: Cell::new(false),
-            waiter: waiter.clone(),
+            waiter: t.waiter.clone(),
+            cancel: t.cancel.clone(),
+            deadline,
         })
+    }
+
+    /// Whether the slot can no longer be paired: its task was cancelled or
+    /// its deadline passed. `block_until` uses the same deadline and the
+    /// same comparison, so a slot skipped for its deadline times out.
+    fn claimed(&self) -> bool {
+        self.cancel.is_cancelled() || self.deadline.is_some_and(|at| Instant::now() >= at)
     }
 
     /// The other side moved the value: mark it and wake the task.
@@ -113,7 +134,7 @@ impl Channel {
     /// neither can take it.
     fn try_send(&self, v: Value) -> Result<(), Value> {
         let mut c = self.inner.borrow_mut();
-        if let Some(r) = c.receivers.pop_front() {
+        if let Some(r) = first_live(&mut c.receivers) {
             *r.value.borrow_mut() = Some(v);
             r.complete();
             return Ok(());
@@ -130,14 +151,14 @@ impl Channel {
     fn try_recv(&self) -> Option<Value> {
         let mut c = self.inner.borrow_mut();
         if let Some(v) = c.buf.pop_front() {
-            if let Some(s) = c.senders.pop_front() {
+            if let Some(s) = first_live(&mut c.senders) {
                 let moved = s.value.borrow_mut().take().expect("a sender's value");
                 c.buf.push_back(moved);
                 s.complete();
             }
             return Some(v);
         }
-        let s = c.senders.pop_front()?;
+        let s = first_live(&mut c.senders)?;
         let v = s.value.borrow_mut().take().expect("a sender's value");
         s.complete();
         Some(v)
@@ -183,6 +204,17 @@ impl Channel {
     }
 }
 
+/// Pops the first slot that can still be paired, dropping the claimed
+/// ones before it from the queue (their tasks leave on their own).
+fn first_live(q: &mut VecDeque<Rc<Slot>>) -> Option<Rc<Slot>> {
+    while let Some(s) = q.pop_front() {
+        if !s.claimed() {
+            return Some(s);
+        }
+    }
+    None
+}
+
 impl std::fmt::Debug for Channel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("<channel>")
@@ -209,9 +241,9 @@ pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool,
         Ok(()) => return Ok(true),
         Err(v) => v,
     };
-    let slot = Slot::new(Some(v), &t.waiter);
+    let slot = Slot::new(t, Some(v), None);
     ch.inner.borrow_mut().senders.push_back(slot.clone());
-    let r = block(
+    let r = block_until(
         t,
         |_, _| {
             if slot.done.get() {
@@ -223,6 +255,7 @@ pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool,
             }
         },
         None,
+        false,
     );
     match r {
         Ok(Some(true)) => Ok(true),
@@ -252,9 +285,10 @@ pub(crate) fn recv(
     if ch.closed() {
         return Ok(Received::Closed);
     }
-    let slot = Slot::new(None, &t.waiter);
+    let deadline = deadline_after(timeout);
+    let slot = Slot::new(t, None, deadline);
     ch.inner.borrow_mut().receivers.push_back(slot.clone());
-    let r = block(
+    let r = block_until(
         t,
         |_, _| {
             if slot.done.get() {
@@ -265,7 +299,8 @@ pub(crate) fn recv(
                 None
             }
         },
-        timeout,
+        deadline,
+        timeout.is_some(),
     );
     let took = |slot: &Slot| Received::Value(slot.value.borrow_mut().take().expect("a value"));
     match r {
@@ -277,9 +312,10 @@ pub(crate) fn recv(
             ch.leave(&slot);
             Ok(ch.try_recv().map_or(Received::Closed, Received::Value))
         }
-        // `block` checks the deadline only right after a check that found
-        // the slot not done, with the token held throughout, so a timed-out
-        // slot is never done; Go's order (a value first) is kept anyway.
+        // Pairing skips a slot past its deadline, and `block_until` checks
+        // the same deadline only right after a check that found the slot
+        // not done, so a timed-out slot is never done; Go's order (a value
+        // first) is kept anyway.
         Ok(None) | Err(_) if slot.done.get() => Ok(took(&slot)),
         Ok(None) => {
             ch.leave(&slot);

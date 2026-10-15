@@ -214,12 +214,10 @@ pub fn size_hint(v: &Value) -> usize {
 /// and channels (drained until closed). Prefer `each` where the elements
 /// are only walked.
 pub fn items(t: &mut Task<'_>, v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
-    if let Value::Channel(ch) = v {
-        return channel::drain(t, ch);
-    }
-    check_items(t, &mut v.clone(), verb)?;
     match v {
         Value::List(l) => Ok(l.to_vec()),
+        Value::Range(r) if r.len() as u64 > MAX_SLICE as u64 => Err(too_long()),
+        Value::Channel(ch) => channel::drain(t, ch),
         Value::Range(r) => Ok((0..r.len())
             .map(|i| Value::Int(r.start.wrapping_add(i)))
             .collect()),

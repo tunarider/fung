@@ -306,3 +306,75 @@ fn values_in_a_buffer_drop_with_the_runtime() {
         run("c = channel(3)\nsend(c, [1, [2, [3]]])\nsend(c, c)\nsend(c, () => c)\nprint(recv(c))");
     assert_eq!((out.as_str(), code), ("Ok([1, [2, [3]]])\n", 0));
 }
+
+/// A cancelled waiter is never paired: cancellation claims it at once (Go
+/// `select`), even though its slot stays queued until its task next holds
+/// the token. Here the token holder cancels and pairs without giving the
+/// token up in between.
+#[test]
+fn a_cancelled_waiter_is_never_paired() {
+    let cases = [
+        // The wrong receiver: r2 must get the value, not the cancelled r1.
+        (
+            "ch = channel()\nr1 = spawn(() => recv(ch))\nsleep(10ms)\nr2 = spawn(() => recv(ch))\nsleep(10ms)\ncancel(r1)\nprint(send(ch, 1), await(r1), await(r2))",
+            "Ok(nil) Err({kind: 'cancelled}) Ok(1)\n",
+        ),
+        // A lost value: the send must wait for the receiver that comes
+        // after the cancel instead of handing the value to the cancelled one.
+        (
+            "ch = channel()\nr = spawn(() => recv(ch))\nsleep(10ms)\ncancel(r)\nr2 = spawn(() => recv(ch))\nprint(send(ch, 1), await(r), await(r2))",
+            "Ok(nil) Err({kind: 'cancelled}) Ok(1)\n",
+        ),
+        // A cancelled sender delivers nothing.
+        (
+            "ch = channel()\nt = spawn(() => send(ch, 1))\nsleep(10ms)\ncancel(t)\nprint(recv(ch, timeout: 20ms), await(t))",
+            "Err({kind: 'timeout}) Err({kind: 'cancelled})\n",
+        ),
+        (
+            "ch = channel()\ns1 = spawn(() => send(ch, 1))\nsleep(10ms)\ns2 = spawn(() => send(ch, 2))\nsleep(10ms)\ncancel(s1)\nprint(recv(ch), await(s1), await(s2))",
+            "Ok(2) Err({kind: 'cancelled}) Ok(nil)\n",
+        ),
+        // The same with a full buffer: the cancelled sender's value does
+        // not move into the freed place.
+        (
+            "ch = channel(1)\nsend(ch, 0)\nt = spawn(() => send(ch, 1))\nsleep(10ms)\ncancel(t)\nprint(recv(ch), recv(ch, timeout: 20ms), await(t))",
+            "Ok(0) Err({kind: 'timeout}) Err({kind: 'cancelled})\n",
+        ),
+    ];
+    for (src, want) in cases {
+        let o = exec(src, Opts::default());
+        assert_eq!((o.code.as_str(), o.out.as_str()), ("", want), "{src}");
+    }
+}
+
+/// A receiver whose deadline has passed is never paired, even before its
+/// task wakes to see the timeout: `hold(ms)` keeps the token past the
+/// deadline, then the send must go to the second receiver.
+#[test]
+fn a_timed_out_receiver_is_never_paired() {
+    fn natives() -> Vec<crate::value::Value> {
+        use crate::value::{Native, Value};
+        use crate::vm::Task;
+        vec![Value::Native(Native::leak(
+            "hold",
+            vec![crate::native::nat::param("ms")],
+            |_: &mut Task, a| {
+                let Value::Int(ms) = a[0] else { unreachable!() };
+                std::thread::sleep(Duration::from_millis(ms as u64));
+                Ok(Value::Nil)
+            },
+        ))]
+    }
+    let opts = Opts {
+        extra: natives,
+        ..Opts::default()
+    };
+    let o = exec(
+        "ch = channel()\nr = spawn(() => recv(ch, timeout: 30ms))\nr2 = spawn(() => recv(ch))\nsleep(10ms)\nhold(60)\nprint(send(ch, 1), await(r), await(r2))",
+        opts,
+    );
+    assert_eq!(
+        (o.code.as_str(), o.out.as_str()),
+        ("", "Ok(nil) Err({kind: 'timeout}) Ok(1)\n")
+    );
+}
