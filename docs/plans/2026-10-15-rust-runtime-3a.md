@@ -355,7 +355,7 @@ git commit -m "feat(rust): report unretrieved task failures and detect deadlocks
 "at_exit(() => print(\"bye\"))\nspawn(fn(): sleep(10ms); exit(5) ;;)\nsleep(10s)\nprint(\"never\")",
 "at_exit(() => print(\"bye\"))\nch = channel()\nspawn(() => recv(ch))\nspawn(fn(): sleep(10ms); exit(3) ;;)\nrecv(channel())",
 "t = spawn(() => each(1..=3, x => sleep(10s)))\nspawn(fn(): sleep(10ms); cancel(t) ;;)\nprint(await(t))",
-"spawn(() => fail(\"boom\"))\nfail(\"entry\")",
+"t = spawn(() => sleep(10s))\nfail(\"entry\")",
 "print(retry(() => Err(1), times: 2, delay: 1ms), pmap([1, 2, 3], x => x * x, limit: 2), fan_in([]) |> map(x => x))",
 "ts = for i in 0..200: spawn(() => i) ;;\nprint(fold(ts, 0, (a, t) => a + await(t)))",
 ```
