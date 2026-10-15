@@ -112,17 +112,19 @@ fn an_exit_from_a_task_cancels_every_task() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
-/// Stage 3b replaced atoms with agents. An exit while an agent runs an
-/// `f`: the agent (a background task) is not cancelled before the exit
-/// handlers, so the update it had taken commits and a handler sees it.
+/// Stage 3b replaced atoms with agents. An exit while an agent runs the
+/// `f` of a task the exit cancels: that `f` is cancelled with the task
+/// (as Go's atom ran it on the task), so the update is not applied, and
+/// the agent (a background task, alive until after the handlers) serves
+/// the handler with the old state.
 #[test]
-fn an_exit_while_an_agent_runs_f_lets_the_update_commit() {
+fn an_exit_while_an_agent_runs_f_cancels_the_update() {
     let (out, err, code) = within(10, || {
         run(
             "a = agent(1)\nch = channel()\nat_exit(() => print(\"ae\", deref(a)))\nspawn(() => swap(a, fn(x): send(ch, 1); sleep(30ms); x + 1 ;;))\nrecv(ch)\nexit(4)",
         )
     });
-    assert_eq!((out.as_str(), err.as_str(), code), ("ae 2\n", "", 4));
+    assert_eq!((out.as_str(), err.as_str(), code), ("ae 1\n", "", 4));
 }
 
 /// An exit inside an agent's own `f` is handed back to the caller's

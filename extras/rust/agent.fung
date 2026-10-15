@@ -35,9 +35,12 @@ fn _serve(ch, state) = match recv(ch):
 # Runs f on the state, marked as serving (for E0704 and for deref inside
 # f and the tasks it spawns), and answers Ok(new) or the caught
 # Err(error). Returns the state to keep: a failing f changes nothing.
+# try_call runs f following the task that asked (reply carries its
+# cancellation): if that task is cancelled, so is f, and the update is
+# not applied; a request whose asker is already cancelled is skipped.
 fn _apply(ch, state, f, reply):
   _c.agent_busy(ch, true, state)
-  r = _c.try_call(f, state)
+  r = _c.try_call(f, state, reply)
   _c.agent_busy(ch, false)
   _c.send_unchecked(reply, r)
   match r:

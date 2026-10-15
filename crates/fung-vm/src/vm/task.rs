@@ -74,11 +74,21 @@ pub(crate) const TASK_STACK: usize = 1 << 30;
 /// pile up: every spawned task's node is cancelled when the task ends,
 /// and the nodes made for test blocks, exit handlers and `run_task` are
 /// cancelled when they return.
+///
+/// One kind of node has two parents (stage 3b, `agent.rs`): the node an
+/// agent's `f` runs under is below the agent's task and also below the
+/// task that asked (`also_under`), so cancelling either reaches it. It
+/// ends once `f` has returned and the tasks `f` spawned have ended
+/// (`end_when_empty`), leaving both lists.
 pub(crate) struct CancelNode {
     cancelled: AtomicBool,
     parent: Weak<CancelNode>,
     inner: Mutex<NodeInner>,
 }
+
+/// What `take` takes from a node being cancelled: its children and the
+/// nodes it is linked under.
+type Taken = (Vec<Arc<CancelNode>>, Vec<Weak<CancelNode>>);
 
 #[derive(Default)]
 struct NodeInner {
@@ -86,6 +96,11 @@ struct NodeInner {
     children: HashMap<usize, Arc<CancelNode>>,
     /// The tasks blocked under this node, woken when it is cancelled.
     watchers: WaitList,
+    /// Other nodes this one is also a child of (`also_under`): it is in
+    /// their `children` too, and leaves them when it is cancelled.
+    links: Vec<Weak<CancelNode>>,
+    /// Cancel this node once its last child leaves (`end_when_empty`).
+    end_when_empty: bool,
 }
 
 impl CancelNode {
@@ -139,32 +154,94 @@ impl CancelNode {
 
     /// Cancels this node and every node below it (without recursion: a
     /// chain of nested spawns can be long), wakes the tasks blocked under
-    /// them, and takes this node out of its parent's list.
+    /// them, and takes each cancelled node out of its parent's list and
+    /// out of the lists of the nodes it is linked under (`also_under`; a
+    /// node reached through a link has a parent that is not being
+    /// cancelled). A parent waiting to end once empty (`end_when_empty`)
+    /// ends when its last child leaves this way.
     pub(crate) fn cancel(&self) {
-        let Some(mut todo) = self.take() else {
+        let Some((mut todo, links)) = self.take() else {
             return;
         };
-        if let Some(p) = self.parent.upgrade() {
-            p.inner()
-                .children
-                .remove(&(self as *const CancelNode as usize));
-        }
+        self.leave(&links);
         while let Some(n) = todo.pop() {
-            if let Some(more) = n.take() {
+            if let Some((more, links)) = n.take() {
+                n.leave(&links);
                 todo.extend(more);
             }
         }
     }
 
-    /// Sets the flag, wakes this node's watchers and takes its children;
-    /// `None` if it was already cancelled.
-    fn take(&self) -> Option<Vec<Arc<CancelNode>>> {
+    /// Takes this (cancelled) node out of its parent's list and the lists
+    /// of the nodes it was linked under.
+    fn leave(&self, links: &[Weak<CancelNode>]) {
+        let me = self as *const CancelNode as usize;
+        for l in links {
+            if let Some(o) = l.upgrade() {
+                o.inner().children.remove(&me);
+            }
+        }
+        if let Some(p) = self.parent.upgrade() {
+            let end = {
+                let mut inner = p.inner();
+                inner.children.remove(&me).is_some()
+                    && inner.end_when_empty
+                    && inner.children.is_empty()
+            };
+            if end {
+                p.cancel();
+            }
+        }
+    }
+
+    /// Sets the flag, wakes this node's watchers and takes its children
+    /// and links; `None` if it was already cancelled.
+    fn take(&self) -> Option<Taken> {
         if self.cancelled.swap(true, Ordering::SeqCst) {
             return None;
         }
         let mut inner = self.inner();
         inner.watchers.wake_all();
-        Some(std::mem::take(&mut inner.children).into_values().collect())
+        let children = std::mem::take(&mut inner.children).into_values().collect();
+        Some((children, std::mem::take(&mut inner.links)))
+    }
+
+    /// Makes this node a child of `other` as well as of its parent
+    /// (stage 3b: an agent's `f` runs under a node below the agent's
+    /// task and below the task that asked for it): cancelling either
+    /// cancels it. If `other` is already cancelled, so is this node.
+    pub(crate) fn also_under(self: &Arc<Self>, other: &Arc<CancelNode>) {
+        // The link first: a `cancel` of this node from now on takes it
+        // and leaves `other`'s list.
+        self.inner().links.push(Arc::downgrade(other));
+        let me = Arc::as_ptr(self) as usize;
+        let joined = {
+            let mut o = other.inner();
+            // Under `other`'s lock, as in `child`: `cancel` sets the flag
+            // before it takes the children.
+            !other.is_cancelled() && o.children.insert(me, self.clone()).is_none()
+        };
+        if !joined {
+            self.cancel();
+        } else if self.is_cancelled() {
+            // Cancelled between the link and the insert: its `leave` may
+            // have run before the insert.
+            other.inner().children.remove(&me);
+        }
+    }
+
+    /// Cancels this node now if it has no children, or else once its
+    /// last child leaves: what was spawned under it may run on, but the
+    /// node does not outlive it.
+    pub(crate) fn end_when_empty(&self) {
+        let empty = {
+            let mut inner = self.inner();
+            inner.end_when_empty = true;
+            inner.children.is_empty()
+        };
+        if empty {
+            self.cancel();
+        }
     }
 }
 

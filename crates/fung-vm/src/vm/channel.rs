@@ -72,6 +72,9 @@ struct Inner {
     /// For an agent's request channel (stage 3b, `agent.rs`): the task
     /// serving a request right now and its state.
     serving: Option<Serving>,
+    /// For an agent's reply channel (`agent_ask`): the cancellation node
+    /// of the task that asked, which the agent's `f` runs below.
+    asker: Option<Arc<CancelNode>>,
 }
 
 /// One blocked `send` or `recv`: the value in transit, whether the other
@@ -128,6 +131,7 @@ impl Channel {
                 receivers: VecDeque::new(),
                 closed: false,
                 serving: None,
+                asker: None,
             }),
         }
     }
@@ -191,6 +195,17 @@ impl Channel {
         for s in senders.iter().chain(receivers.iter()) {
             s.waiter.wake();
         }
+    }
+
+    /// Records the cancellation node of the task asking through this
+    /// reply channel (`agent_ask`).
+    pub(crate) fn set_asker(&self, node: Arc<CancelNode>) {
+        self.inner.borrow_mut().asker = Some(node);
+    }
+
+    /// Takes the node `set_asker` recorded (`try_call`).
+    pub(crate) fn take_asker(&self) -> Option<Arc<CancelNode>> {
+        self.inner.borrow_mut().asker.take()
     }
 
     /// Records the task serving a request on this agent channel (or none)

@@ -44,13 +44,15 @@ fn all() -> Vec<(&'static str, Value)> {
                 // of `_native.conc` that `extras/rust/agent.fung` uses.
                 ("spawn_background", vec![param("f")]),
                 ("agent_handle", vec![param("ch")]),
-                ("agent_channel", vec![param("a")]),
                 ("check_swap", vec![param("a"), param("f")]),
                 (
                     "agent_ask",
                     vec![param("a"), param("request"), param("reply")],
                 ),
-                ("try_call", vec![param("f"), param("x")]),
+                (
+                    "try_call",
+                    vec![param("f"), param("x"), opt("reply", Lit::Nil)],
+                ),
                 ("raise", vec![param("e")]),
                 ("send_unchecked", vec![param("ch"), param("v")]),
                 (
@@ -74,7 +76,6 @@ fn all() -> Vec<(&'static str, Value)> {
                         "close" => close,
                         "spawn_background" => agent::spawn_background,
                         "agent_handle" => agent::agent_handle,
-                        "agent_channel" => agent::agent_channel,
                         "check_swap" => agent::check_swap,
                         "agent_ask" => agent::agent_ask,
                         "try_call" => agent::try_call,
@@ -103,7 +104,6 @@ const MODULE_ONLY: &[&str] = &[
     "spawn_awaited",
     "spawn_background",
     "agent_handle",
-    "agent_channel",
     "check_swap",
     "agent_ask",
     "try_call",

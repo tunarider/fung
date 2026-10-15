@@ -88,14 +88,11 @@ fn user_code_still_cannot_import_native_modules() {
 #[test]
 fn an_agent_handle_prints_types_and_compares_by_identity() {
     let o = exec_plain(
-        "import _native.conc as c\nch = channel()\na = c.agent_handle(ch)\nb = c.agent_handle(ch)\nprint(a, [a], \"${a}\", type_of(a), a == a, a == b, a != b, c.agent_channel(a) == ch)",
+        "import _native.conc as c\nch = channel()\na = c.agent_handle(ch)\nb = c.agent_handle(ch)\nprint(a, [a], \"${a}\", type_of(a), a == a, a == b, a != b)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        (
-            "<agent> [<agent>] <agent> 'agent true false true true\n",
-            ""
-        )
+        ("<agent> [<agent>] <agent> 'agent true false true\n", "")
     );
 }
 
@@ -740,4 +737,129 @@ fn deref_from_a_subtask_while_f_ends() {
             "depth {depth}"
         );
     }
+}
+
+// --- `f` follows the task that asked for it (final fix wave) ---
+//
+// An agent runs `f` on its own task, but under a cancellation node that
+// is also below the requester's: cancelling the requester (an `exit`, a
+// deadlock report, `cancel(t)`) cancels its `f`, the state stays, and the
+// agent serves the next request. Go's atom ran `f` on the caller's task;
+// the expected outputs come from Go with `atom` for `agent`.
+
+/// `bounded_user`, also giving how long the program took.
+fn timed_user(src: &str) -> (Outcome, std::time::Duration) {
+    let start = std::time::Instant::now();
+    let o = bounded_user(src);
+    (o, start.elapsed())
+}
+
+const SPIN: &str = "fn spin(n) = n == 0 then 0 else spin(n - 1)\n";
+
+/// An `exit` while another task's `f` runs (a loop that would take
+/// hours): `f` is cancelled, the handler reads the old state at once.
+#[test]
+fn an_exit_cancels_the_f_of_a_task_it_cancels() {
+    let (o, took) = timed_user(&format!(
+        "{SPIN}a = agent(0)\ngo = channel(1)\nat_exit(() => print(\"handler\", deref(a)))\nspawn(() => swap(a, fn(x): send(go, 1); spin(100000000000) + 1 ;;))\nrecv(go)\nexit(2)"
+    ));
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("handler 0\n", "", 2)
+    );
+    assert!(took < std::time::Duration::from_secs(5), "took {took:?}");
+}
+
+/// `cancel(t)` while `t`'s `f` runs: the update is not applied, and the
+/// agent goes on to serve the next request (the entry's `deref`).
+#[test]
+fn cancelling_the_requester_cancels_its_f() {
+    let o = bounded_user(&format!(
+        "{SPIN}a = agent(0)\ngo = channel(1)\nat_exit(() => print(\"handler\", deref(a)))\nt = spawn(() => swap(a, fn(x): send(go, 1); spin(100000000000) + 1 ;;))\nrecv(go)\ncancel(t)\nprint(await(t), deref(a))"
+    ));
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err({kind: 'cancelled}) 0\nhandler 0\n", "", 0)
+    );
+    let o = bounded_user(
+        "a = agent(0)\ngo = channel(1)\nt = spawn(() => swap(a, fn(x): send(go, 1); sleep(1s); x + 1 ;;))\nrecv(go)\ncancel(t)\nprint(deref(a))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("0\n", "", 0));
+}
+
+/// An `f` asleep when the program exits is woken and cancelled: the exit
+/// does not wait out the sleep.
+#[test]
+fn an_exit_wakes_a_sleeping_f() {
+    let (o, took) = timed_user(
+        "a = agent(0)\ngo = channel(1)\nat_exit(() => print(\"handler\", deref(a)))\nspawn(() => swap(a, fn(x): send(go, 1); sleep(3s); x + 1 ;;))\nrecv(go)\nexit(2)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("handler 0\n", "", 2)
+    );
+    assert!(took < std::time::Duration::from_secs(2), "took {took:?}");
+}
+
+/// A deadlock inside `f` is reported once: the report cancels the
+/// program, so the entry's `f` with it, and the handler's `deref` is
+/// served.
+#[test]
+fn a_deadlock_inside_f_is_reported_once_and_the_agent_serves_on() {
+    let o = bounded_user(
+        "a = agent(0)\nc = channel()\nat_exit(() => print(\"handler\", deref(a)))\nswap(a, x => recv(c)!)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "handler 0\n",
+            "error[E0702]: deadlock: all tasks are waiting\n",
+            1
+        )
+    );
+}
+
+/// The same in an exit handler: the deadlock cancels that handler and
+/// its `f`, and the next handler is served.
+#[test]
+fn a_deadlock_inside_a_handlers_f_leaves_the_next_handler_served() {
+    let o = bounded_user(
+        "a = agent(0)\nc = channel()\nat_exit(() => print(\"second\", deref(a)))\nat_exit(() => print(\"first\", swap(a, x => recv(c)!)))\nprint(\"main\", deref(a))",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "main 0\nsecond 0\n",
+            "error[E0702]: deadlock: all tasks are waiting\n",
+            1
+        )
+    );
+}
+
+/// The tasks `f` spawned end with the task that asked, as when Go's
+/// atom ran `f` on that task: they do not outlive it.
+#[test]
+fn tasks_spawned_inside_f_end_with_the_requester() {
+    let (o, took) = timed_user(
+        "a = agent(0)\nsc = channel(1)\nt = spawn(() => swap(a, fn(x): send(sc, spawn(() => sleep(5s))); x + 1 ;;))\nprint(await(t))\nprint(await(recv(sc)!), background())",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("1\nErr({kind: 'cancelled}) 1\n", "", 0)
+    );
+    assert!(took < std::time::Duration::from_secs(3), "took {took:?}");
+}
+
+/// A request whose requester was cancelled before the agent took it up
+/// is skipped: its `f` does not run. (`agent_ask` over a buffered
+/// channel leaves the request queued while the requester waits.)
+#[test]
+fn a_request_whose_requester_is_cancelled_is_skipped() {
+    let o = exec_internal(
+        "import _native.conc as c\nreq = channel(1)\na = c.agent_handle(req)\nran = channel(1)\nreply = channel(1)\nt = spawn(() => c.agent_ask(a, 1, reply))\nblocked(reply, 1)\ncancel(t)\nawait(t)\nrecv(req)\nprint(c.try_call(fn(x): send(ran, x); x ;;, 7, reply), recv(ran, timeout: 0s))",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err(<error>) Err({kind: 'timeout})\n", "", 0)
+    );
 }

@@ -401,6 +401,46 @@ fn a_grandchild_stays_cancellable_after_its_parent_is_gone() {
     assert_eq!(fresh.child_count(), 0);
 }
 
+/// A node linked under a second parent (an agent's `f`, below the agent
+/// and below the task that asked): cancelling either cancels it, and
+/// once cancelled it is in neither list. `end_when_empty` cancels a node
+/// at once without children, or when its last child leaves.
+#[test]
+fn a_node_also_under_a_second_parent_follows_both() {
+    use super::task::CancelNode;
+    let (agent, asker) = (CancelNode::root(), CancelNode::root());
+    let n = agent.child();
+    n.also_under(&asker);
+    assert_eq!((agent.child_count(), asker.child_count()), (1, 1));
+    asker.cancel();
+    assert!(n.is_cancelled() && !agent.is_cancelled());
+    assert_eq!(agent.child_count(), 0);
+
+    let asker = CancelNode::root();
+    let n = agent.child();
+    n.also_under(&asker);
+    n.end_when_empty();
+    assert!(n.is_cancelled());
+    assert_eq!((agent.child_count(), asker.child_count()), (0, 0));
+
+    let n = agent.child();
+    n.also_under(&asker);
+    let sub = n.child();
+    n.end_when_empty();
+    assert!(!n.is_cancelled());
+    sub.cancel();
+    assert!(n.is_cancelled());
+    assert_eq!((agent.child_count(), asker.child_count()), (0, 0));
+
+    // Linked under a node already cancelled: cancelled at once.
+    let gone = CancelNode::root();
+    gone.cancel();
+    let n = agent.child();
+    n.also_under(&gone);
+    assert!(n.is_cancelled());
+    assert_eq!(agent.child_count(), 0);
+}
+
 /// A task event wakes only the tasks waiting on it: 200 tasks sleeping
 /// for different times, each awaited in turn, wake about once per sleep
 /// and once per await, not once per event per blocked task.

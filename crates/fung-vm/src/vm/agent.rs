@@ -9,17 +9,19 @@
 //!   cannot help (`deadlock.rs`), is cancelled after the exit handlers,
 //!   and its failure is never reported as unretrieved.
 //! - `agent_handle(ch)`: the handle (`Value::Agent`) over the request
-//!   channel `ch`; `agent_channel(a)` gives `ch` back.
+//!   channel `ch`.
 //! - `check_swap(a, f)`: checks a `swap`'s arguments as a native would
 //!   (E0403) and that the current task is not inside `a` (E0704, `swap`
 //!   inside its own `f`).
 //! - `agent_ask(a, request, reply)`: sends `request` to `a` and waits
 //!   for the answer on `reply`, holding the handle `a` until then (the
 //!   caller's may be the last copy, and dropping it would close the
-//!   channel the answer is coming through).
-//! - `try_call(f, x)`: `Ok(f(x))`, or `Err(e)` where `e` is what stopped
-//!   `f`, as an opaque value (`Value::Caught`): an error, or an `exit`.
-//!   Cancellation (E0701, E0702) is not caught.
+//!   channel the answer is coming through). It records the asking
+//!   task's cancellation node on `reply`.
+//! - `try_call(f, x, reply = nil)`: `Ok(f(x))`, or `Err(e)` where `e` is
+//!   what stopped `f`, as an opaque value (`Value::Caught`): an error, or
+//!   an `exit`. With a `reply` from `agent_ask`, `f` runs following the
+//!   task that asked (below).
 //! - `raise(e)`: stops again as `e` did: an `exit` exits, an error is
 //!   raised with its code and message at the position of the call (the
 //!   original position and call path are gone, except for E0704, which
@@ -50,14 +52,31 @@
 //! agent nobody can reach would never end. Everything the loop needs
 //! (`agent_busy`, `send_unchecked`, `recv`) therefore takes the channel.
 //!
+//! **`f` follows the task that asked.** Go's atom ran `f` on the
+//! caller's task, so cancelling the caller (an `exit`, a deadlock report,
+//! `cancel(t)`) stopped `f`. An agent runs `f` on its own task, so
+//! `try_call` runs it under a node of its own that is below both the
+//! agent's node and the asking task's node (`CancelNode::also_under`):
+//! cancelling the asker cancels `f` (and what `f` spawned), while the
+//! agent's task itself is not cancelled. `try_call` then answers
+//! `Err(<error>)` with the cancellation, nobody reads it, the state stays
+//! and the loop serves the next request. A request whose asker was
+//! cancelled before the agent took it up is skipped (`f` is not
+//! called). After `f` the node lives as long as the tasks `f` spawned
+//! (`end_when_empty`), still below the asker: they end when the asker
+//! does, as under Go's atom. Cancelling the agent's own node (after the
+//! exit handlers) still unwinds the agent.
+//!
 //! A task the agent's `f` spawns is a background task too (`task.rs`):
-//! it ends with the agent's root, not the program's.
+//! it does not keep the program alive, and it ends with the asker or
+//! with the agent's root, whichever comes first.
 
 use std::rc::Rc;
 use std::sync::Arc;
 
 use fung_front::diag::Diag;
 
+use super::block::cancelled;
 use super::channel::{self, Channel, Received};
 use super::task::is_cancel;
 use super::{Stop, Task, internal, no_pos, token};
@@ -147,6 +166,13 @@ fn need_channel(v: &Value) -> Result<&Rc<Channel>, Stop> {
     }
 }
 
+fn need_channel_named<'v>(name: &str, v: &'v Value) -> Result<&'v Rc<Channel>, Stop> {
+    match v {
+        Value::Channel(c) => Ok(c),
+        _ => Err(nat::wrong_arg(name, "channel", v)),
+    }
+}
+
 fn need_agent(v: &Value) -> Result<&Rc<Agent>, Stop> {
     match v {
         Value::Agent(a) => Ok(a),
@@ -165,11 +191,6 @@ pub(crate) fn spawn_background(t: &mut Task<'_>, args: Vec<Value>) -> Result<Val
 pub(crate) fn agent_handle(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let ch = need_channel(&args[0])?.clone();
     Ok(Value::Agent(Rc::new(Agent { channel: Some(ch) })))
-}
-
-/// `agent_channel(a)`: the handle's request channel.
-pub(crate) fn agent_channel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
-    Ok(Value::Channel(need_agent(&args[0])?.channel().clone()))
 }
 
 /// `check_swap(a, f)`: E0403 when `a` is not an agent or `f` not a
@@ -201,10 +222,12 @@ pub(crate) fn check_swap(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, St
 /// handle until the answer is in, so the channel stays open even when
 /// the caller passed its last copy (`deref(agent(5))`). A closed channel
 /// either way is an internal error: the handle keeps the request channel
-/// open, and the agent always answers.
+/// open, and the agent always answers. `reply` carries this task's
+/// cancellation node to the agent, whose `f` runs below it (`try_call`).
 pub(crate) fn agent_ask(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let a = need_agent(&args[0])?.clone();
     let reply = need_channel(&args[2])?.clone();
+    reply.set_asker(t.cancel.clone());
     if !channel::send(t, a.channel(), args[1].clone())? {
         return Err(internal(vec![fung_front::diag::Arg::Str(
             "an agent's request channel is closed".into(),
@@ -218,16 +241,57 @@ pub(crate) fn agent_ask(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Sto
     }
 }
 
-/// `try_call(f, x)`: `Ok(f(x))`, or `Err(<error>)` for what stopped `f`:
-/// a fung error or an `exit` (handed back to the caller's `swap`, so the
-/// agent's loop keeps serving). Cancellation (E0701, or E0702 for a task
-/// woken by the deadlock report) unwinds on through.
+/// `try_call(f, x, reply = nil)`: `Ok(f(x))`, or `Err(<error>)` for what
+/// stopped `f`: a fung error or an `exit` (handed back to the caller's
+/// `swap`, so the agent's loop keeps serving).
+///
+/// With a `reply` that `agent_ask` sent, `f` runs under a node below
+/// this task's and the asking task's (module doc, "`f` follows the task
+/// that asked"). The asker's cancellation stopping `f` (E0701, or E0702
+/// after a deadlock report) is caught too, as "not applied"; an asker
+/// already cancelled means `f` is not called at all. Cancellation of
+/// this task itself (E0701, E0702) unwinds on through.
 pub(crate) fn try_call(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+    let reply = args.pop().expect("reply");
     let x = args.pop().expect("x");
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
-    let caught = match t.call(&f, vec![x]) {
+    let asker = match &reply {
+        Value::Nil => None,
+        v => need_channel_named("reply", v)?.take_asker(),
+    };
+    let asked = asker.is_some();
+    let own = t.cancel.clone();
+    let r = match asker {
+        None => t.call(&f, vec![x]),
+        Some(asker) => {
+            let node = own.child();
+            node.also_under(&asker);
+            let r = if node.is_cancelled() {
+                // Asked by a task cancelled before the agent took the
+                // request up: skipped.
+                Err(cancelled(no_pos()))
+            } else {
+                t.cancel = node.clone();
+                let r = t.call(&f, vec![x]);
+                t.cancel = own.clone();
+                r
+            };
+            node.end_when_empty();
+            r
+        }
+    };
+    let caught = match r {
         Ok(v) => return Ok(nat::ok(v)),
+        Err(Stop::Error(d)) if asked && is_cancel(&d) && !own.is_cancelled() => {
+            // The asker was cancelled: the update is not applied. The
+            // answer goes to a task that no longer waits for it.
+            let mut d = *d;
+            d.pos = no_pos();
+            d.len = 0;
+            d.call_path.clear();
+            Caught::Error(d)
+        }
         Err(Stop::Error(d)) if !is_cancel(&d) => {
             let mut d = *d;
             // E0704 keeps where the inner `swap` was when that is user
