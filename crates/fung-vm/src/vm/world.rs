@@ -27,7 +27,7 @@ use std::time::Duration;
 use fung_front::source::{FileId, SourceMap, decode_go};
 
 use super::module::ModuleState;
-use super::{Globals, TestCase, token};
+use super::{Globals, Prelude, RtProto, TestCase, token};
 use crate::value::Value;
 
 /// The shared part of the runtime. Reachable only through `Shared`'s
@@ -41,7 +41,7 @@ pub(crate) struct World {
     /// The first exit(n) requested anywhere.
     pub(super) exit: Option<i64>,
     /// The script arguments (the prelude's `args`).
-    pub(super) args: Vec<String>,
+    pub(crate) args: Vec<String>,
     /// Every global table the runtime made. A closure stored in a global
     /// holds its table, an `Rc` cycle; dropping the runtime empties the
     /// tables to break it.
@@ -50,16 +50,29 @@ pub(crate) struct World {
     pub(super) tests: Vec<TestCase>,
     /// The importable modules by key (IMPORT).
     pub(super) modules: BTreeMap<String, ModuleState>,
+    /// The booted prelude the entry and its modules link against.
+    pub(crate) prelude: Prelude,
+    /// The linked entry (`Runtime::load`), run by `Runtime::run`.
+    pub(super) main: Option<Rc<RtProto>>,
 }
 
-// SAFETY: `World` holds fung values (`Rc`s with non-atomic counts) and is
-// moved to, and reached from, other threads only as the contents of
-// `Shared::world`. Every access goes through that mutex, so at any moment
-// at most one thread reaches the values in it, and the run token rule
-// (constraints: 실행권 규칙) extends the same to every clone of them: a
-// value taken out of `World` lives on the stack of a task that holds the
-// token whenever it runs, and is dropped while it holds it (`Task`'s
-// `Drop`, `Runtime`'s `Drop`). The streams are `Send` themselves.
+// SAFETY: `World` holds fung values (`Rc`s with non-atomic counts). The
+// invariant that makes sending it sound: every fung value that shares an
+// `Rc` with a value reachable from the world is created, cloned and
+// dropped only by the thread that holds `Shared::world`'s mutex (the run
+// token). It holds because
+// - `World` is reachable only through that mutex (`Shared` owns it, and
+//   only `Token`, which marks the holder, derefs to it);
+// - values leave the world only onto a `Task`'s stack and frames or into
+//   locals of a function that holds a `Token` or `Task`, and the `Task` /
+//   `Token` drops them before it releases the mutex (`Task`'s `Drop`
+//   empties the stack and frames first; `Runtime`'s `Drop` empties the
+//   world under the token);
+// - the public API of `Runtime` (see `runtime.rs`) takes no fung value in
+//   and gives none out: only `Send` data without an `Rc` crosses it, and
+//   `Value` is itself `!Send`, so no value can be carried to another
+//   thread around the API either.
+// The streams are `Send` themselves.
 unsafe impl Send for World {}
 
 impl World {
@@ -80,12 +93,14 @@ impl World {
             globals: Vec::new(),
             tests: Vec::new(),
             modules: BTreeMap::new(),
+            prelude: Prelude::default(),
+            main: None,
         }
     }
 
     /// Appends another compile's files after the ones already here and
     /// returns how far its `FileId`s move.
-    pub(super) fn add_sources(&mut self, other: &SourceMap) -> u32 {
+    pub(crate) fn add_sources(&mut self, other: &SourceMap) -> u32 {
         let base = self.sources.len() as u32;
         for i in 0..other.len() as u32 {
             let id = FileId(i);
@@ -153,6 +168,8 @@ impl World {
         drop(std::mem::take(&mut self.exit_handlers));
         drop(std::mem::take(&mut self.tests));
         drop(std::mem::take(&mut self.modules));
+        drop(std::mem::take(&mut self.prelude));
+        drop(self.main.take());
     }
 }
 

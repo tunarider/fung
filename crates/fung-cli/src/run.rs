@@ -8,8 +8,7 @@ use std::io::Write;
 use fung_front::diag::{self, Diag, EXIT_COMPILE, EXIT_OK, EXIT_RUNTIME};
 use fung_front::loader::{Loader, Stage};
 use fung_front::source::SourceMap;
-use fung_vm::boot::{boot, register};
-use fung_vm::vm::{Runtime, Stop, link};
+use fung_vm::vm::{Runtime, Stop};
 
 /// The status a shell shows for a process killed by SIGPIPE (128 + 13).
 pub const EXIT_BROKEN_PIPE: i32 = 141;
@@ -84,23 +83,20 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // prelude's after them (see `fung_vm::boot`). Go boots before it
     // compiles; boot cannot fail, so the output is the same.
     let rt = Runtime::new(stdout, Box::new(ProcessOut::stderr()), stdin, b.sources);
-    let p = match boot(&rt, args) {
-        Ok(p) => p,
-        Err(errs) => {
-            report(stderr, &errs, &rt.sources());
-            return EXIT_COMPILE.into();
-        }
-    };
-    let main = link(&entry, &p);
-    // Go `register`; the standard modules stage 2 does not run report
-    // E0805 at their import.
-    register(&rt, &b.modules, &p);
+    if let Err(errs) = rt.boot(args) {
+        rt.with_sources(|s| report(stderr, &errs, s));
+        return EXIT_COMPILE.into();
+    }
+    // Links the entry against the booted prelude and registers the modules
+    // (Go `register`); the standard modules stage 2 does not run report
+    // E0805 at their import. No fung value comes back out of the runtime.
+    rt.load(&entry, &b.modules);
     let mut code = i64::from(EXIT_OK);
-    let result = rt.run(main);
+    let result = rt.run();
     if let Err(Stop::Error(d)) = &result
         && rt.exit_code().is_none()
     {
-        report(stderr, std::slice::from_ref(&**d), &rt.sources());
+        rt.with_sources(|s| report(stderr, std::slice::from_ref(&**d), s));
         code = EXIT_RUNTIME.into();
     }
     drop(result);
@@ -112,7 +108,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // An exit(n) inside a handler is not among the errors (the runtime
     // records it instead); every other handler error is reported.
     for d in &handler_errs {
-        report(stderr, std::slice::from_ref(d), &rt.sources());
+        rt.with_sources(|s| report(stderr, std::slice::from_ref(d), s));
         if code == i64::from(EXIT_OK) {
             code = EXIT_RUNTIME.into();
         }

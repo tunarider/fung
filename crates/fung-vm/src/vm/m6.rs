@@ -5,27 +5,33 @@ use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
-use super::{Runtime, Stop, Task, at, err};
+use super::{Runtime, Stop, Task, at, err, internal};
 use crate::value::{Value, compare, equal, format, type_name};
 
 /// One registered test block: its name and the function to run.
 #[derive(Clone, Debug)]
-pub struct TestCase {
+pub(crate) struct TestCase {
     pub name: String,
     pub func: Value,
 }
 
 impl Runtime {
-    /// The test blocks registered so far, in order. A body registers them
-    /// only when it was compiled with test blocks kept (`fung test`).
-    pub fn tests(&self) -> Vec<TestCase> {
-        self.lock().tests.clone()
+    /// The names of the test blocks registered so far, in order. A body
+    /// registers them only when it was compiled with test blocks kept
+    /// (`fung test`). The functions stay in the runtime: `call_test`
+    /// runs one by its index here.
+    pub fn tests(&self) -> Vec<String> {
+        self.lock().tests.iter().map(|t| t.name.clone()).collect()
     }
 
-    /// Runs a test function on a fresh task. An `exit(n)` inside it comes
+    /// Runs test block `i` on a fresh task. An `exit(n)` inside it comes
     /// back as `Stop::Exit` so `fung test` can stop.
-    pub fn call_test(&self, f: &Value) -> Result<Value, Stop> {
-        self.task().call(f, Vec::new())
+    pub fn call_test(&self, i: usize) -> Result<(), Stop> {
+        let mut t = self.task();
+        let Some(f) = t.world.tests.get(i).map(|c| c.func.clone()) else {
+            return Err(internal(vec![Arg::Str(format!("no test block {i}"))]));
+        };
+        t.call(&f, Vec::new()).map(|_| ())
     }
 }
 

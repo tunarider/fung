@@ -70,33 +70,26 @@ fn test_blocks_register_only_when_requested() {
         let (out, _, code) = run(src);
         assert_eq!((out.as_str(), code), ("body\n", 0), "run ignores tests");
 
-        let Setup { rt, main, out, .. } = with_tests(src);
-        rt.run(main).expect("the body runs");
-        let tests: Vec<_> = rt.tests().to_vec();
-        let names: Vec<&str> = tests.iter().map(|t| t.name.as_str()).collect();
-        assert_eq!(names, ["one", "two"]);
+        let Setup { rt, out, .. } = with_tests(src);
+        rt.run().expect("the body runs");
+        assert_eq!(rt.tests(), ["one", "two"]);
         assert_eq!(out.text(), "body\n");
-        assert!(rt.call_test(&tests[0].func).is_ok(), "test one");
-        match rt.call_test(&tests[1].func) {
+        assert!(rt.call_test(0).is_ok(), "test one");
+        match rt.call_test(1) {
             Err(Stop::Error(d)) => assert_eq!(d.code, "E0807"),
             r => panic!("test two: {r:?}"),
         }
 
-        let Setup { rt, main, .. } = with_tests("x = 1\ntest \"t\": assert x == 1 ;;\nx = 2");
-        rt.run(main).expect("the body runs");
-        let f = rt.tests()[0].func.clone();
+        let Setup { rt, .. } = with_tests("x = 1\ntest \"t\": assert x == 1 ;;\nx = 2");
+        rt.run().expect("the body runs");
         assert!(
-            rt.call_test(&f).is_ok(),
+            rt.call_test(0).is_ok(),
             "a test sees the variables that existed when it was defined (model C)"
         );
 
-        let Setup { rt, main, .. } = with_tests("test \"e\": exit(3) ;;");
-        rt.run(main).expect("the body runs");
-        let f = rt.tests()[0].func.clone();
-        assert!(
-            matches!(rt.call_test(&f), Err(Stop::Exit(3))),
-            "exit signal"
-        );
+        let Setup { rt, .. } = with_tests("test \"e\": exit(3) ;;");
+        rt.run().expect("the body runs");
+        assert!(matches!(rt.call_test(0), Err(Stop::Exit(3))), "exit signal");
     });
 }
 

@@ -814,7 +814,7 @@ fn elided_tail_calls_count_past_u32() {
     drop(t); // gives the run token back for `rt.sources()`
     assert_eq!(path[0].elided, 4_294_967_296);
     let d = fung_front::diag::error("E0502", crate::vm::no_pos(), vec![]).with_call_path(path);
-    let text = diag::format(&d, &rt.sources());
+    let text = rt.with_sources(|s| diag::format(&d, s));
     assert!(
         text.contains("   -e:1       <entry> (4294967296 tail calls elided)\n"),
         "{text}"
@@ -834,4 +834,59 @@ fn the_runtime_can_move_to_another_thread() {
 #[should_panic(expected = "without the run token")]
 fn touching_the_world_without_the_token_is_caught() {
     crate::vm::token::assert_holds_token();
+}
+
+/// The public flow the command uses: boot, load, run, exit handlers. No
+/// step hands a fung value back; everything that comes out is plain data.
+#[test]
+fn the_public_api_runs_a_program_without_handing_out_values() {
+    testutil::on_big_stack(|| {
+        use fung_front::loader::{Loader, Stage};
+        let (b, errs) = Loader::default().compile(
+            "-e",
+            "at_exit(() => print(\"bye\"))\nprint(args)\n1 / 0",
+            Stage::All,
+        );
+        assert!(errs.is_empty());
+        let out = testutil::Buf::default();
+        let rt = Runtime::new(
+            Box::new(out.clone()),
+            Box::new(std::io::sink()),
+            Box::new(std::io::Cursor::new(Vec::new())),
+            b.sources,
+        );
+        rt.boot(vec!["a".into()]).expect("boot");
+        rt.load(b.proto.as_ref().expect("an entry"), &b.modules);
+        let r: Result<(), Stop> = rt.run();
+        let Err(Stop::Error(d)) = r else {
+            panic!("{r:?}")
+        };
+        let text = rt.with_sources(|s| fung_front::diag::format(&d, s));
+        assert!(text.contains("-e:3"), "{text}");
+        assert!(rt.run_exit_handlers().is_empty());
+        assert_eq!(rt.exit_code(), None);
+        assert_eq!(rt.args(), ["a"]);
+        assert_eq!(out.text(), "[\"a\"]\nbye\n");
+    });
+}
+
+/// Test blocks are reached by index; their functions stay in the runtime.
+#[test]
+fn test_blocks_are_named_and_called_by_index() {
+    testutil::on_big_stack(|| {
+        let s = testutil::setup(
+            "test \"ok\": assert 1 == 1 ;;\ntest \"bad\": assert 1 == 2 ;;",
+            Opts {
+                tests: true,
+                ..Opts::default()
+            },
+        )
+        .unwrap_or_else(|(e, _)| panic!("{e}"));
+        s.rt.run().expect("the body runs");
+        let names: Vec<String> = s.rt.tests();
+        assert_eq!(names, ["ok", "bad"]);
+        assert!(s.rt.call_test(0).is_ok());
+        assert!(matches!(s.rt.call_test(1), Err(Stop::Error(d)) if d.code == "E0807"));
+        assert!(matches!(s.rt.call_test(2), Err(Stop::Error(d)) if d.code == "E0801"));
+    });
 }

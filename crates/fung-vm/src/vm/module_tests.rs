@@ -277,7 +277,7 @@ fn a_registered_native_module_is_what_import_gives() {
         )
         .unwrap_or_else(|(e, _)| panic!("{e}"));
         s.rt.register_native("/p/lib.fung", fake_native());
-        s.rt.run(s.main).unwrap_or_else(|e| panic!("{e:?}"));
+        s.rt.run().unwrap_or_else(|e| panic!("{e:?}"));
         assert_eq!(s.out.text(), "42\n");
     });
 }
@@ -304,9 +304,8 @@ fn import_module_runs_the_body_once_and_register_does_not_reset_it() {
         // A module that already ran keeps its value (Go `Register`).
         let again = s.rt.import_module("/p/lib.fung").unwrap();
         assert!(Rc::ptr_eq(&m, &again));
-        let proto = s.main.clone();
-        s.rt.register_module("/p/lib.fung", proto);
-        s.rt.run(s.main).unwrap_or_else(|e| panic!("{e:?}"));
+        s.rt.register_main_as("/p/lib.fung");
+        s.rt.run().unwrap_or_else(|e| panic!("{e:?}"));
         assert_eq!(s.out.text(), "body\nnil\n");
     });
 }
@@ -332,7 +331,7 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
         }
         // A module whose body imports itself at run time: the entry
         // (which imports ./lib) registered as ./lib.
-        s.rt.register_module("/p/lib.fung", s.main.clone());
+        s.rt.register_main_as("/p/lib.fung");
         match s.rt.import_module("/p/lib.fung") {
             Err(Stop::Error(d)) => assert_eq!(
                 fung_front::diag::headline(&d),

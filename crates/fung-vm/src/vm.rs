@@ -40,13 +40,15 @@ use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
 pub use call::MAX_FRAMES;
-pub use link::{Prelude, RtProto, link};
-pub use m6::TestCase;
+pub use link::RtProto;
+pub(crate) use link::{Prelude, link};
+pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
-pub use runtime::{Runtime, Sources};
+pub use runtime::Runtime;
 
 use crate::value::{self, Value};
 use frame::Frame;
+pub(crate) use world::World;
 use world::{Shared, Token};
 
 /// Why fung code stopped early: a runtime error (with its position and
@@ -147,6 +149,11 @@ impl<'rt> Task<'rt> {
     /// The script arguments.
     pub fn args(&self) -> &[String] {
         &self.world.args
+    }
+
+    /// The shared part, for the crate's boot steps (`crate::boot`).
+    pub(crate) fn world(&mut self) -> &mut World {
+        &mut self.world
     }
 
     /// The name of the native being called.

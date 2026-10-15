@@ -9,8 +9,11 @@ use std::rc::Rc;
 use fung_front::diag::Arg;
 use fung_front::source::Pos;
 
+#[cfg(test)]
+use super::Runtime;
 use super::frame::Frame;
-use super::{RtProto, Runtime, Stop, Task, err, no_pos};
+use super::world::World;
+use super::{RtProto, Stop, Task, err, no_pos};
 use crate::value::{Module, Value};
 
 /// One registered module: its compiled body and, once the body has run
@@ -24,15 +27,14 @@ pub(super) struct ModuleState {
     unsupported: bool,
 }
 
-impl Runtime {
+impl World {
     /// Makes a compiled module importable under `key`. A module that
     /// already ran keeps its value: a module's top level runs once (04).
-    pub fn register_module(&self, key: &str, proto: Rc<RtProto>) {
-        let mut w = self.lock();
-        if w.modules.get(key).is_some_and(|st| st.value.is_some()) {
+    pub(crate) fn register_module(&mut self, key: &str, proto: Rc<RtProto>) {
+        if self.modules.get(key).is_some_and(|st| st.value.is_some()) {
             return;
         }
-        w.modules.insert(
+        self.modules.insert(
             key.to_string(),
             ModuleState {
                 proto: Some(proto),
@@ -44,8 +46,8 @@ impl Runtime {
     }
 
     /// Makes a Rust-built module (a `_native.*` bridge) importable under `key`.
-    pub fn register_native(&self, key: &str, module: Rc<Module>) {
-        self.lock().modules.insert(
+    pub(crate) fn register_native(&mut self, key: &str, module: Rc<Module>) {
+        self.modules.insert(
             key.to_string(),
             ModuleState {
                 proto: None,
@@ -59,8 +61,8 @@ impl Runtime {
     /// Makes importing `key` report E0805 `not supported yet: <key>` at
     /// the import: a standard module whose `_native.*` bridge stage 2 does
     /// not have (see `boot::unsupported_module`).
-    pub fn register_unsupported(&self, key: &str) {
-        self.lock().modules.insert(
+    pub(crate) fn register_unsupported(&mut self, key: &str) {
+        self.modules.insert(
             key.to_string(),
             ModuleState {
                 proto: None,
@@ -70,22 +72,40 @@ impl Runtime {
             },
         );
     }
+}
 
-    /// A module's value from a fresh task, running its body first if
-    /// needed (the command uses it for prelude.fung, Go `ImportModule`).
-    pub fn import_module(&self, key: &str) -> Result<Rc<Module>, Stop> {
-        let mut t = self.task();
-        let mut out = None;
-        t.guarded(|t| {
-            let m = t.import(key, no_pos())?;
-            out = Some(m);
-            Ok(Value::Nil)
-        })?;
-        Ok(out.expect("import returned a module"))
+/// Test access to the module table. These hand modules and protos across
+/// the API, so they exist only for the crate's single-threaded tests.
+#[cfg(test)]
+impl Runtime {
+    pub(crate) fn register_native(&self, key: &str, module: Rc<Module>) {
+        self.lock().register_native(key, module);
+    }
+
+    /// Registers the loaded entry as the module `key`.
+    pub(crate) fn register_main_as(&self, key: &str) {
+        let mut w = self.lock();
+        let main = w.main.clone().expect("a loaded entry");
+        w.register_module(key, main);
+    }
+
+    pub(crate) fn import_module(&self, key: &str) -> Result<Rc<Module>, Stop> {
+        self.task().import_module(key)
     }
 }
 
 impl Task<'_> {
+    /// A module's value, running its body first if needed, behind the
+    /// panic fence (boot uses it for prelude.fung, Go `ImportModule`).
+    pub(crate) fn import_module(&mut self, key: &str) -> Result<Rc<Module>, Stop> {
+        let mut out = None;
+        self.guarded(|t| {
+            out = Some(t.import(key, no_pos())?);
+            Ok(Value::Nil)
+        })?;
+        Ok(out.expect("import returned a module"))
+    }
+
     /// IMPORT: pushes the module registered under the constant `key`.
     pub(super) fn exec_import(&mut self, fi: usize, arg: usize, pos: Pos) -> Result<(), Stop> {
         let key = match &self.frames[fi].proto.consts[arg] {

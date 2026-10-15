@@ -21,7 +21,7 @@ use fung_front::loader::{Loaded, Loader, Stage};
 
 use crate::native::{nat, process};
 use crate::value::{Module, Value};
-use crate::vm::{Prelude, Runtime, Stop, link, no_pos};
+use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
 
 #[cfg(test)]
@@ -30,14 +30,16 @@ mod tests;
 /// The name prelude.fung positions show (Go `bootPrelude`).
 const PRELUDE_FILE: &str = "extras/prelude.fung";
 
-/// Builds the prelude on `rt` and returns it; the program is linked
-/// against it. `args` become the prelude's `args` and the runtime's.
+/// Builds the prelude on the task's runtime and returns it; the program is
+/// linked against it (`Runtime::boot` keeps it in the world). `args`
+/// become the prelude's `args` and the runtime's. Everything here runs
+/// with the task's run token held.
 ///
 /// The errors are prelude.fung's compile errors or the error of its body,
-/// with positions in `rt.sources()`. Booting the embedded file does not
-/// fail in practice; a runtime whose boot failed should not be reused (a
-/// module whose body failed stays "loading", like Go).
-pub fn boot(rt: &Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
+/// with positions in the runtime's sources. Booting the embedded file does
+/// not fail in practice; a runtime whose boot failed should not be reused
+/// (a module whose body failed stays "loading", like Go).
+pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
     let mut p = Prelude::default();
     for (name, v) in prelude::core() {
         p.0.insert(name.to_string(), v);
@@ -46,7 +48,7 @@ pub fn boot(rt: &Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
         "args".to_string(),
         nat::list(args.iter().map(|a| Value::str(a)).collect()),
     );
-    rt.set_args(args);
+    t.world().args = args;
     for (name, v) in conc::placeholders() {
         p.0.insert(name.to_string(), v);
     }
@@ -58,7 +60,7 @@ pub fn boot(rt: &Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
         ..Loader::default()
     };
     let (b, errs) = loader.compile(PRELUDE_FILE, src, Stage::All);
-    let base = rt.add_sources(&b.sources);
+    let base = t.world().add_sources(&b.sources);
     if !errs.is_empty() {
         return Err(errs
             .into_iter()
@@ -73,10 +75,10 @@ pub fn boot(rt: &Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
         match m.proto {
             Some(mut proto) => {
                 shift_files(&mut proto, base);
-                rt.register_module(&m.key, link(&proto, &p));
+                t.world().register_module(&m.key, link(&proto, &p));
             }
             None => match native_module(&m.key) {
-                Some(module) => rt.register_native(&m.key, module),
+                Some(module) => t.world().register_native(&m.key, module),
                 None => {
                     return Err(vec![internal(format!(
                         "no native module `{}` for the prelude",
@@ -88,8 +90,8 @@ pub fn boot(rt: &Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
     }
     let mut entry = b.proto.expect("a compiled prelude");
     shift_files(&mut entry, base);
-    rt.register_module("prelude", link(&entry, &p));
-    let m = match rt.import_module("prelude") {
+    t.world().register_module("prelude", link(&entry, &p));
+    let m = match t.import_module("prelude") {
         Ok(m) => m,
         Err(Stop::Error(d)) => return Err(vec![*d]),
         Err(Stop::Exit(n)) => {
@@ -129,14 +131,14 @@ pub fn unsupported_module(key: &str) -> bool {
 /// standard modules it does not run as E0805 placeholders. A bridge stage
 /// 2 does not have stays unregistered (only those placeholders import
 /// it), so a lookup of it is still an internal error.
-pub fn register(rt: &Runtime, modules: &[Loaded], p: &Prelude) {
+pub(crate) fn register(w: &mut World, modules: &[Loaded], p: &Prelude) {
     for m in modules {
         match &m.proto {
-            Some(_) if unsupported_module(&m.key) => rt.register_unsupported(&m.key),
-            Some(proto) => rt.register_module(&m.key, link(proto, p)),
+            Some(_) if unsupported_module(&m.key) => w.register_unsupported(&m.key),
+            Some(proto) => w.register_module(&m.key, link(proto, p)),
             None => {
                 if let Some(module) = native_module(&m.key) {
-                    rt.register_native(&m.key, module);
+                    w.register_native(&m.key, module);
                 }
             }
         }

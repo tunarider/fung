@@ -10,6 +10,11 @@
 //! just before it is released, and assert it at the boundaries: a task's
 //! start and end, the points where a task blocks, and the runtime's drop.
 //! Release builds compile all of this away.
+//!
+//! The mark is per thread, not per runtime: it says "this thread holds
+//! a run token", not which runtime's. Two runtimes used from one thread
+//! (tests do this) must not be locked at the same time; the check before
+//! locking reports that as "taken twice" rather than telling them apart.
 
 #[cfg(debug_assertions)]
 use std::cell::Cell;

@@ -10,16 +10,14 @@
 
 use std::cell::RefCell;
 use std::io::{Cursor, Write};
-use std::rc::Rc;
 
 use fung_front::bytecode::Proto;
 use fung_front::diag::{self, CallSite, Diag};
 use fung_front::loader::{Loader, Stage};
 
-use crate::boot::boot;
 use crate::native::nat;
 use crate::value::{Lit, Native, Value, format};
-use crate::vm::{Prelude, Runtime, Stop, Task, link};
+use crate::vm::{Prelude, Runtime, Stop, Task};
 
 /// Runs `f` on a thread with a 4 GiB stack and returns its result.
 pub fn on_big_stack<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
@@ -125,7 +123,7 @@ pub fn exec(src: &str, opts: Opts) -> Outcome {
 
 /// Runs a program with a given prelude (no boot) on the current thread.
 pub fn exec_with_prelude(src: &str, p: Prelude) -> Outcome {
-    exec_on(src, Some(&p), Opts::default())
+    exec_on(src, Some(p), Opts::default())
 }
 
 /// A shared byte buffer the runtime writes into.
@@ -151,8 +149,8 @@ impl Buf {
 
 /// A compiled, linked entry with a runtime writing into two buffers.
 pub struct Setup {
+    /// The runtime with the entry loaded: `rt.run()` runs it.
     pub rt: Runtime,
-    pub main: Rc<crate::vm::RtProto>,
     pub out: Buf,
     pub err: Buf,
 }
@@ -164,7 +162,7 @@ pub fn setup(src: &str, opts: Opts) -> Result<Setup, (String, String)> {
     setup_on(src, None, opts)
 }
 
-fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (String, String)> {
+fn setup_on(src: &str, given: Option<Prelude>, opts: Opts) -> Result<Setup, (String, String)> {
     let extra = (opts.extra)();
     let mut names: Vec<String> = extra
         .iter()
@@ -173,7 +171,7 @@ fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (St
             _ => None,
         })
         .collect();
-    if let Some(p) = given {
+    if let Some(p) = &given {
         names.extend(p.0.keys().cloned());
     }
     let loader = Loader {
@@ -198,29 +196,29 @@ fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (St
     );
     // Booted after the program is compiled: the runtime holds the
     // program's sources, and boot appends the prelude's after them.
-    let mut p = match given {
-        Some(p) => p.clone(),
+    match given {
+        Some(p) => rt.set_prelude(p),
         None => {
             let args = opts.args.iter().map(|a| a.to_string()).collect();
-            boot(&rt, args).unwrap_or_else(|errs| {
-                let text: String = errs
-                    .iter()
-                    .map(|e| diag::format(e, &rt.sources()))
-                    .collect();
+            rt.boot(args).unwrap_or_else(|errs| {
+                let text: String =
+                    rt.with_sources(|s| errs.iter().map(|e| diag::format(e, s)).collect());
                 panic!("boot failed:\n{text}")
             })
         }
-    };
-    for v in extra {
-        if let Value::Native(n) = &v {
-            p.0.insert(n.name.to_string(), v.clone());
-        }
     }
-    let main = link(&entry, &p);
-    // Go `register` (cmd/fung/pipeline.go), as the command does it. A
-    // caller may register other natives over it (`register_native`).
-    crate::boot::register(&rt, &b.modules, &p);
-    Ok(Setup { rt, main, out, err })
+    // The extra natives are `&'static` (no `Rc`), made on this thread.
+    rt.with_prelude(|p| {
+        for v in extra {
+            if let Value::Native(n) = &v {
+                p.0.insert(n.name.to_string(), v.clone());
+            }
+        }
+    });
+    // Links the entry and registers the modules (Go `register`), as the
+    // command does. A caller may register other natives over them.
+    rt.load(&entry, &b.modules);
+    Ok(Setup { rt, out, err })
 }
 
 thread_local! {
@@ -328,9 +326,9 @@ pub fn status(n: i64) -> i32 {
     (n & 0xff) as i32
 }
 
-fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
+fn exec_on(src: &str, given: Option<Prelude>, opts: Opts) -> Outcome {
     let mut o = Outcome::default();
-    let Setup { rt, main, out, err } = match setup_on(src, given, opts) {
+    let Setup { rt, out, err } = match setup_on(src, given, opts) {
         Ok(s) => s,
         Err((text, code)) => {
             o.err = text;
@@ -339,14 +337,14 @@ fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
             return o;
         }
     };
-    match rt.run(main) {
-        Ok(v) => o.value = Some(format(&v)),
+    match rt.run_with(format) {
+        Ok(v) => o.value = Some(v),
         Err(Stop::Exit(_)) => o.code = "exit".into(),
         Err(Stop::Error(d)) => {
             o.code = d.code.clone();
             o.error = Some(ErrInfo::of(&d));
             if rt.exit_code().is_none() {
-                let text = diag::format(&d, &rt.sources());
+                let text = rt.with_sources(|s| diag::format(&d, s));
                 err.clone().write_all(text.as_bytes()).unwrap();
                 o.exit = diag::EXIT_RUNTIME;
             }
@@ -357,7 +355,7 @@ fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
         o.exit = status(n);
     }
     for d in rt.run_exit_handlers() {
-        let text = diag::format(&d, &rt.sources());
+        let text = rt.with_sources(|s| diag::format(&d, s));
         err.clone().write_all(text.as_bytes()).unwrap();
         if o.exit == diag::EXIT_OK {
             o.exit = diag::EXIT_RUNTIME;

@@ -11,7 +11,6 @@ use std::io::Cursor;
 use fung_front::builtins::builtins;
 use fung_front::source::SourceMap;
 
-use super::boot;
 use crate::testutil::{Opts, exec, on_big_stack, run_booted, run_file, temp_dir};
 use crate::value::{NativeParam, Value, format};
 use crate::vm::Runtime;
@@ -122,28 +121,30 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
             Box::new(Cursor::new(Vec::new())),
             SourceMap::default(),
         );
-        let p = boot(&rt, vec!["a".into(), "b c".into()]).expect("boot");
-        let spec = builtins();
-        let want: BTreeSet<&str> = spec
-            .prelude_native
-            .iter()
-            .chain(spec.prelude_fung.iter())
-            .map(String::as_str)
-            .collect();
-        let got: BTreeSet<&str> = p.0.keys().map(String::as_str).collect();
-        assert_eq!(got, want);
-        for name in &spec.prelude_native {
-            let Value::Native(n) = &p.0[name] else {
-                assert_eq!(name, "args");
-                continue;
-            };
-            assert_eq!(n.name, name);
-            let line = spec.native_signature(name).expect(name);
-            assert_eq!(render_params(&n.params), line, "{name}");
-        }
-        assert_eq!(format(&p.0["args"]), "[\"a\", \"b c\"]");
+        rt.boot(vec!["a".into(), "b c".into()]).expect("boot");
+        rt.with_prelude(|p| {
+            let spec = builtins();
+            let want: BTreeSet<&str> = spec
+                .prelude_native
+                .iter()
+                .chain(spec.prelude_fung.iter())
+                .map(String::as_str)
+                .collect();
+            let got: BTreeSet<&str> = p.0.keys().map(String::as_str).collect();
+            assert_eq!(got, want);
+            for name in &spec.prelude_native {
+                let Value::Native(n) = &p.0[name] else {
+                    assert_eq!(name, "args");
+                    continue;
+                };
+                assert_eq!(n.name, name);
+                let line = spec.native_signature(name).expect(name);
+                assert_eq!(render_params(&n.params), line, "{name}");
+            }
+            assert_eq!(format(&p.0["args"]), "[\"a\", \"b c\"]");
+            assert_eq!(format(&p.0["take"]), "<fn take>");
+        });
         assert_eq!(rt.args(), ["a", "b c"]);
-        assert_eq!(format(&p.0["take"]), "<fn take>");
     });
 }
 

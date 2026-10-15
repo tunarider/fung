@@ -598,15 +598,18 @@ fn write_errors_are_internal_errors_at_the_call() {
     }
     for (src, col) in [("print(1)", 6), ("eprint(1)", 7), ("dbg(1)", 4)] {
         let o = testutil::on_big_stack(move || {
-            let s = testutil::setup(src, Opts::default()).unwrap();
+            use fung_front::loader::{Loader, Stage};
+            let (b, errs) = Loader::default().compile("-e", src, Stage::All);
+            assert!(errs.is_empty());
             let rt = Runtime::new(
                 Box::new(Broken),
                 Box::new(Broken),
                 Box::new(Cursor::new(Vec::new())),
-                fung_front::source::SourceMap::default(),
+                b.sources,
             );
-            drop(s.rt);
-            match rt.run(s.main) {
+            rt.boot(Vec::new()).expect("boot");
+            rt.load(b.proto.as_ref().expect("an entry"), &b.modules);
+            match rt.run() {
                 Err(Stop::Error(d)) => (d.code.clone(), d.pos.col, diag::headline(&d)),
                 r => panic!("{r:?}"),
             }
