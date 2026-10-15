@@ -151,6 +151,10 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     Rust 골든 실행기(`crates/fung-cli/tests/golden.rs`, Go 없이 파일의 기대값과 비교: `tests/lang` 130개 확인, `# only: go` 3개, 네이티브 모듈 9개 건너뜀, 바닥 127).
     실행 비교는 표시된 파일을 빼고 그대로 같음(`tests/lang` 125개). 스펙 `docs/superpowers/specs/2026-10-15-rust-agent-3b-design.md`,
     계획 `docs/plans/2026-10-15-rust-agent-3b.md`, 노트 `docs/notes/R3b-agent.md`. 예제·매뉴얼·CHANGELOG는 6단계(아래 "Rust 첫 릴리스(0.2.0)에서 바뀌는 것").
+  - 4a단계(`fs`·`path`) 완료 (2026-10-16): `_native.fs` 17개·`_native.path` 6개, 운영체제 에러의 Go 문구, 파일 핸들(`Value::File`, 핸들 잠금, 실행권 밖 입출력,
+    마지막 사본에서 닫힘), `fs_and_path`를 Go 대조와 Rust 골든 실행기에 넣음, 3b 취소 노드 누수 수정. 실행 비교 `tests/lang` 131개(네이티브 모듈 8개·`# only: go` 3개 제외),
+    Rust 골든 131개, 경로 입력 38개·에러 11개, errno 표 161개(살아 있는 `go run`과 대조), 무작위 `Match` 30만 쌍, 핸들 프로그램 14개가 Go와 같음.
+    스펙 `docs/superpowers/specs/2026-10-15-rust-fs-4a-design.md`, 계획 `docs/plans/2026-10-15-rust-fs-4a.md`, 노트 `docs/notes/R4a-fs.md`.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - 스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉(GitHub Actions의 Linux·macOS 러너에서는 정상 동작 확인, 2026-10-15). 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -220,6 +224,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - `send` 비용이 보내는 값의 크기에 비례한다: 정수 100만 개 리스트 한 번에 약 0.75 ms, 원소 하나짜리 리스트 100만 개는 약 4.75 ms(릴리스). 에이전트 내부 요청은 해당 없음.
     같은 영속 벡터를 공유하는 여러 보기는 보기마다 자기 범위를 다시 훑는다(일부러 만든 입력에서는 지수적으로 커질 수 있음).
   - 에이전트는 값이 아니라 `<agent>`로 출력된다(값을 보이려면 에이전트에 물어야 해서 출력이 막히는 연산이 된다). atom은 `<atom 1>`.
+  - ~~겹친 `swap`의 취소 노드 누수~~ 해결 (4a Task 0, 2026-10-15): 연결 부모(`also_under`)가 마지막 연결 자식이 떠날 때 끝나지 않아
+    `swap(a, x => x + swap(b, fn(y): spawn(() => 1); y + 1 ;;))`마다 노드가 남았다. `CancelNode::leave`가 연결 부모에도 주 부모와 같은 검사를 한다. 노트 `docs/notes/R4a-fs.md` 6절.
 - [ ] Rust 첫 릴리스(0.2.0)에서 바뀌는 것 (6단계 CHANGELOG·예제·매뉴얼의 근거, 2026-10-15). 사용자에게 보이는 호환성 깨짐과 새 동작:
   - `atom` → `agent`. 옮겨 쓰기는 `atom(` → `agent(`이고 `swap`·`deref`는 이름 그대로. 타입 표기도 `atom` → `agent`(`fn f(a: agent)`), `type_of`는 `'agent`.
   - `swap(a, f)`의 `f`는 부른 태스크가 아니라 **에이전트의 태스크**에서 돈다. 요청은 받은 순서대로 하나씩. `f`의 실패는 상태를 그대로 두고 부른 쪽 `swap(`에서 같은 에러로 난다.
@@ -251,6 +257,9 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 운영체제 에러를 Go 문구로(4a): errno → Go `syscall.Errno.Error()` 표(`crates/fung-vm/src/native/oserr.rs`, macOS·Linux 따로, arm64 한 줄씩 더함)와
     Go `os`의 여러 시스템 호출 함수를 단계 그대로 옮긴 것(`native/fs.rs`의 `mkdir_all`·`remove`·`remove_all`·`rename`·`make_temp_dir`, NUL 바이트 경로의 EINVAL).
     Rust `io::Error`의 문구 대신 Go 문구를 내려고 붙였다. `native/process.rs`도 같은 `reason`을 쓴다.
+  - Go `filepath` 규칙과 디렉터리 순서(4a): `Clean`·`Join`·`Base`·`Dir`·`Ext`를 바이트 단위로 옮긴 것(`native/path.rs`; Rust `std::path`는 `..`를 지우지 않고 `.hidden`을 확장자로 보지 않음),
+    `list`·`walk`의 이름 바이트 순서 정렬(Go `os.ReadDir`)과 `walk`의 `WalkDir` 동작(루트는 `lstat`, 읽지 못하는 첫 디렉터리에서 시작 경로로 에러), `glob` 결과의 전체 재정렬(`native/fs.rs`).
+    경로 정리 규칙과 순서는 그때 언어 규칙으로 정한다.
   - `glob`의 Go `filepath.Match`·`Glob` 우연(4a, `native/glob.rs`): 잘못된 패턴은 매칭이 그 조각에 닿을 때만 드러난다(`a*[`는 `a`로 시작하는 이름이 있어야 에러),
     디렉터리 부분 재귀 한도 10,000, `\` 이스케이프, `!`는 부정이 아님, 읽지 못하는 디렉터리는 조용히 건너뜀. 패턴 문법과 에러 시점은 그때 언어 규칙으로 정한다.
   - 파일 핸들 쓰기 버퍼(4a, `native/file.rs`의 `GoWriter`): Go `bufio.Writer`의 4096바이트 버퍼와 비우는 시점(넘치면 채워서 비움, 버퍼가 비었으면 바로 씀, 첫 쓰기 에러가 남음)을
@@ -261,6 +270,9 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 닫지 않은 핸들: Rust는 마지막 사본이 사라지는 순간 파일을 닫는다(참조 계수). Go는 GC가 거둘 때까지 열려 있을 수 있다. 그래서 핸들 수천 개를 버려도 디스크립터가 새지 않는다.
     두 구현 모두 버리는 핸들의 버퍼는 **비우지 않는다**(Go 동등; `close`만 비운다). 닫지 않고 버린 핸들에 쓴 마지막 4 KiB 미만은 사라진다. 버릴 때 비울지는 그때 언어 규칙으로 정한다.
   - `close(2)`의 에러: `fs.close`·`write`·`append`·`copy` 모두 Rust는 파일을 닫을 때의 에러를 보고하지 않는다(Go는 보고). NFS 같은 파일 시스템에서만 드러난다.
+  - 마지막 사본이 사라질 때의 `close(2)`는 실행권을 쥔 채 돈다(`Drop`은 실행권 안에서 일어남). 로컬 파일은 순식간이지만 NFS 같은 곳에서 멈추면 그동안 다른 태스크도 멈춘다.
+    고친다면 닫을 파일을 배경 닫기 스레드에 넘긴다. Go는 GC의 finalizer가 따로 닫아서 해당 없음.
+  - `remove_all`: 디렉터리 안쪽은 `std::fs::remove_dir_all`에 맡겨서, 깊은 곳에 실패가 여럿 섞이면 보고하는 첫 errno가 Go `removeAllFrom`과 다를 수 있다. 첫 errno 하나만 보고하는 것은 같다.
   - Go 문자열은 잘못된 UTF-8 바이트를 그대로 품어 핸들 표시에서 `\xff`로 보이지만, Rust 경로 문자열은 U+FFFD로 바뀌어 있어 그대로 보인다(2단계 U+FFFD 차이와 같은 뿌리).
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.
