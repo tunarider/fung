@@ -1,9 +1,16 @@
 //! Standard input, shared by every task (05; Go `Task.ReadLine`).
 //!
-//! One reader thread owns the input and reads lines ahead into a
-//! queue; `read_line` takes the next one. So two tasks reading at once
-//! each get whole lines, every line once (Go guards its `bufio.Reader`
-//! with a mutex for the same reason).
+//! One reader thread owns the input and makes the reads; `read_line`
+//! takes the next line from a queue. So two tasks reading at once each
+//! get whole lines, every line once (Go guards its `bufio.Reader` with a
+//! mutex for the same reason).
+//!
+//! Reads happen only on demand, like Go's `bufio.Reader`: the reader
+//! thread reads only while a task waits for a line and none is queued,
+//! one buffer (`BUFFER`, Go's 4 KiB default; `fung` gives the input that
+//! buffer) at a time, and queues every whole line in it. What the
+//! program never asked for stays in the input: a command after fung in
+//! a shell reads it, and keys typed ahead on a terminal are not taken.
 //!
 //! A task takes a queued line with the run token held, without waiting.
 //! When the queue is empty it waits outside the token (`outside`), so the
@@ -13,14 +20,14 @@
 //! `exit(n)` from another task ends the program while a task (or the
 //! entry) still waits for a line nobody types. Go's read cannot be cut
 //! short, so Go's program waits for the line first (open-questions).
-//! The line, if it comes, stays queued for the next reader.
+//! A read already made goes on; the lines it brings stay queued for the
+//! next reader.
 //!
 //! The reader thread starts at the first read (most programs never read
-//! standard input), reads ahead about `AHEAD_BYTES` (Go's `bufio`
-//! reads ahead too), and stops once the runtime is gone and it is not
-//! inside a read; a read the operating system never ends keeps it parked
-//! there until the process exits. It handles bytes only: decoding into
-//! fung strings happens with the token held.
+//! standard input) and stops once the runtime is gone, unless it is
+//! inside a read the operating system never ends; then it stays there
+//! until the process exits. It handles bytes only: decoding into fung
+//! strings happens with the token held.
 
 use std::collections::VecDeque;
 use std::io::BufRead;
@@ -29,8 +36,9 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use super::block::Waiter;
 use super::task::CancelNode;
 
-/// How far the reader thread reads ahead of the program.
-const AHEAD_BYTES: usize = 64 << 10;
+/// The buffer the command reads standard input with (Go `bufio`'s
+/// default size): one read takes at most this much.
+pub const BUFFER: usize = 4096;
 
 /// The world's handle on standard input. Dropping it (with the world)
 /// tells the reader thread to stop.
@@ -38,23 +46,16 @@ pub(crate) struct Stdin(Arc<Pump>);
 
 struct Pump {
     state: Mutex<PumpState>,
-    /// The reader thread waits here for room in the queue.
-    room: Condvar,
+    /// The reader thread waits here for a task to want a line.
+    demand: Condvar,
 }
 
 struct PumpState {
     /// The input until the reader thread takes it.
     source: Option<Box<dyn BufRead + Send>>,
-    /// Lines read ahead, each with its line ending; `None` is the end of
-    /// the input (or a read error), queued once until it is taken.
+    /// Lines read, each with its line ending; `None` is the end of the
+    /// input (or a read error).
     lines: VecDeque<Option<Vec<u8>>>,
-    /// The bytes in `lines`.
-    bytes: usize,
-    /// The end of the input is queued (the reader thread waits until it
-    /// is taken before it reads again).
-    ended: bool,
-    /// The reader thread waits for room (`Pump::room`).
-    parked: bool,
     /// Tasks waiting for a line, woken when one comes.
     waiting: Vec<Arc<Waiter>>,
     /// The runtime is gone: the reader thread stops.
@@ -62,9 +63,10 @@ struct PumpState {
 }
 
 impl PumpState {
-    /// Whether the reader thread should read another line now.
-    fn wants_more(&self) -> bool {
-        !self.closed && self.bytes < AHEAD_BYTES && !self.ended
+    /// Whether the reader thread should read now: a task waits for a line
+    /// and none is queued.
+    fn wanted(&self) -> bool {
+        !self.waiting.is_empty() && self.lines.is_empty()
     }
 }
 
@@ -79,33 +81,30 @@ impl Stdin {
             state: Mutex::new(PumpState {
                 source: Some(source),
                 lines: VecDeque::new(),
-                bytes: 0,
-                ended: false,
-                parked: false,
                 waiting: Vec::new(),
                 closed: false,
             }),
-            room: Condvar::new(),
+            demand: Condvar::new(),
         }))
     }
 
     /// The next line if one is queued (`Some(None)` at the end of the
-    /// input), `None` if the caller has to wait. Starts the reader thread
-    /// at the first call.
+    /// input), `None` if the caller has to wait (`Reader::wait`).
     pub(crate) fn try_take(&self) -> Option<Option<Vec<u8>>> {
+        lock(&self.0.state).lines.pop_front()
+    }
+
+    /// A handle for waiting outside the run token. Starts the reader
+    /// thread the first time.
+    pub(crate) fn handle(&self) -> Reader {
         let mut s = lock(&self.0.state);
         if let Some(source) = s.source.take() {
             let pump = self.0.clone();
             std::thread::Builder::new()
                 .name("fung-stdin".into())
-                .spawn(move || pump.read_ahead(source))
+                .spawn(move || pump.read_on_demand(source))
                 .expect("start the standard input reader");
         }
-        self.0.take(&mut s)
-    }
-
-    /// A handle for waiting outside the run token.
-    pub(crate) fn handle(&self) -> Reader {
         Reader(self.0.clone())
     }
 
@@ -128,7 +127,7 @@ impl Reader {
         loop {
             {
                 let mut s = lock(&self.0.state);
-                if let Some(line) = self.0.take(&mut s) {
+                if let Some(line) = s.lines.pop_front() {
                     s.waiting.retain(|w| !Arc::ptr_eq(w, me));
                     return Some(line);
                 }
@@ -138,6 +137,7 @@ impl Reader {
                 }
                 if !s.waiting.iter().any(|w| Arc::ptr_eq(w, me)) {
                     s.waiting.push(me.clone());
+                    self.0.demand.notify_one();
                 }
             }
             while !me.take_woken() {
@@ -150,45 +150,27 @@ impl Reader {
 impl Drop for Stdin {
     fn drop(&mut self) {
         lock(&self.0.state).closed = true;
-        self.0.room.notify_all();
+        self.0.demand.notify_all();
     }
 }
 
 impl Pump {
-    /// Takes the next queued line and makes room for the reader thread.
-    fn take(&self, s: &mut PumpState) -> Option<Option<Vec<u8>>> {
-        let line = s.lines.pop_front()?;
-        match &line {
-            Some(b) => s.bytes -= b.len(),
-            None => s.ended = false,
-        }
-        // The reader thread is woken once the queue is half empty (or the
-        // end was taken), not for every line: it then reads a run of lines
-        // while the program takes them.
-        if s.parked && (s.bytes <= AHEAD_BYTES / 2 || line.is_none()) {
-            s.parked = false;
-            self.room.notify_one();
-        }
-        Some(line)
-    }
-
-    /// The reader thread: while there is room, reads what the input has
-    /// (one `fill_buf`: whatever is there, waiting only when nothing is),
-    /// queues the whole lines in it at once and wakes the tasks waiting
-    /// for one. A line split across reads waits in `part` for its end. A
-    /// terminal gives a line per read, so a typed line is queued at once.
-    fn read_ahead(&self, mut source: Box<dyn BufRead + Send>) {
+    /// The reader thread: whenever a task wants a line and none is
+    /// queued, makes one read (`fill_buf`: what the input has, up to the
+    /// buffer, waiting only when nothing is there), queues the whole
+    /// lines in it and wakes the waiting tasks. A line split across reads
+    /// waits in `part` for its end; the thread reads on while a task
+    /// still wants a line.
+    fn read_on_demand(&self, mut source: Box<dyn BufRead + Send>) {
         let mut part = Vec::new();
         loop {
             {
                 let mut s = lock(&self.state);
-                while !s.wants_more() {
+                while !s.wanted() {
                     if s.closed {
                         return;
                     }
-                    s.parked = true;
-                    s = self.room.wait(s).unwrap_or_else(PoisonError::into_inner);
-                    s.parked = false;
+                    s = self.demand.wait(s).unwrap_or_else(PoisonError::into_inner);
                 }
             }
             let mut lines = Vec::new();
@@ -217,13 +199,9 @@ impl Pump {
                 continue;
             }
             let mut s = lock(&self.state);
-            for line in lines {
-                s.bytes += line.len();
-                s.lines.push_back(Some(line));
-            }
+            s.lines.extend(lines.into_iter().map(Some));
             if end {
                 s.lines.push_back(None);
-                s.ended = true;
             }
             for w in s.waiting.drain(..) {
                 w.wake();

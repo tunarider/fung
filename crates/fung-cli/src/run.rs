@@ -8,7 +8,7 @@ use std::io::Write;
 use fung_front::diag::{self, Diag, EXIT_COMPILE, EXIT_OK, EXIT_RUNTIME};
 use fung_front::loader::{Loader, Stage};
 use fung_front::source::SourceMap;
-use fung_vm::vm::{Runtime, Stop};
+use fung_vm::vm::{Runtime, STDIN_BUFFER, Stop};
 
 /// The status a shell shows for a process killed by SIGPIPE (128 + 13).
 pub const EXIT_BROKEN_PIPE: i32 = 141;
@@ -71,7 +71,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // Standard error is unbuffered; the runtime and the reports below
     // write to it through separate handles, in order.
     let stdout = Box::new(ProcessOut::stdout());
-    let stdin = Box::new(std::io::BufReader::new(std::io::stdin()));
+    let stdin = Box::new(std::io::BufReader::with_capacity(STDIN_BUFFER, raw_stdin()));
     let stderr = &mut ProcessOut::stderr();
     let (b, errs) = Loader::default().compile(file, src, Stage::All);
     if !errs.is_empty() {
@@ -142,6 +142,19 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     drop(handler_errs);
     drop(rt);
     code
+}
+
+/// Standard input without the standard library's own buffer (which
+/// would read 8 KiB at a time): the runtime reads it one `STDIN_BUFFER`
+/// at a time, as Go's `bufio.Reader` over `os.Stdin` does, so what fung
+/// leaves unread stays for the next reader of the same input.
+fn raw_stdin() -> Box<dyn std::io::Read + Send> {
+    use std::os::fd::AsFd;
+    match std::io::stdin().as_fd().try_clone_to_owned() {
+        Ok(fd) => Box::new(std::fs::File::from(fd)),
+        // No descriptor 0 to share: the buffered handle reads the same.
+        Err(_) => Box::new(std::io::stdin()),
+    }
 }
 
 /// Prints errors with source excerpts (Go `reportErrors`).

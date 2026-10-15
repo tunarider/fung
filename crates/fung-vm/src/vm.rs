@@ -66,6 +66,7 @@ pub(crate) use link::{Prelude, link};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub use runtime::Runtime;
+pub use stdin::BUFFER as STDIN_BUFFER;
 pub use task::TaskHandle;
 pub(crate) use task::err_kind;
 

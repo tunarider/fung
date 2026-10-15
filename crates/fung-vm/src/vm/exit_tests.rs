@@ -298,3 +298,49 @@ fn a_task_waiting_for_a_process_lets_others_run() {
     assert_eq!(o.err, "");
     assert_eq!(o.out, "true\nOk({out: \"done\\n\", err: \"\", code: 0})\n");
 }
+
+/// Standard input that counts the reads made on it; each read gives the
+/// next chunk.
+struct Counted {
+    chunks: std::collections::VecDeque<&'static [u8]>,
+    reads: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Read for Counted {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let Some(c) = self.chunks.pop_front() else {
+            return Ok(0);
+        };
+        buf[..c.len()].copy_from_slice(c);
+        Ok(c.len())
+    }
+}
+
+/// Standard input is read only when a task asks for a line and none is
+/// queued (Go `bufio.Reader`): reading one line makes one read, and what
+/// the program never asked for stays in the input for whoever reads it
+/// next (a command after fung in a shell pipeline).
+#[test]
+fn stdin_is_read_only_on_demand() {
+    let reads = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let stdin = Box::new(BufReader::with_capacity(
+        4096,
+        Counted {
+            chunks: [b"a\n" as &[u8], b"b\n", b"c\n"].into(),
+            reads: reads.clone(),
+        },
+    ));
+    let o = within(10, move || {
+        exec_with_stdin(
+            "print(read_line())\nsleep(20ms)\nprint(\"end\")",
+            Opts::default(),
+            stdin,
+        )
+    });
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Ok(\"a\")\nend\n", "", 0)
+    );
+    assert_eq!(reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
