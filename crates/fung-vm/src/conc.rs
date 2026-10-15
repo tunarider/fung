@@ -246,10 +246,14 @@ fn need_channel(v: &Value) -> Result<&Rc<Channel>, Stop> {
 }
 
 /// `send(ch, v)` (Go `sendFn`): `Ok(nil)` once delivered,
-/// `Err({kind: 'closed})` on a closed channel. The check that a channel
-/// is not sent into itself (stage 3b Task 5) belongs here, before
-/// `deliver`, and only here.
+/// `Err({kind: 'closed})` on a closed channel. Rust only: E0705 when `v`
+/// contains `ch` (`channel::contains`), checked before anything else
+/// happens, so the error is the same whether or not the channel is
+/// closed or full.
 fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    if channel::contains(need_channel(&args[0])?, &args[1]) {
+        return Err(nat::fail("E0705", vec![]));
+    }
     deliver(t, args)
 }
 

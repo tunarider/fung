@@ -1,0 +1,4 @@
+# only: rust
+ch = channel(1)
+send(ch, [ch])
+# expect-error: E0705

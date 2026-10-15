@@ -303,11 +303,22 @@ fn iterating_natives_drain_a_channel() {
 
 /// A buffer of values that hold the channel itself: the values drop with
 /// the token held, and dropping the runtime does not hang or panic.
+/// `send` refuses these (E0705); `send_unchecked` still makes them.
 #[test]
 fn values_in_a_buffer_drop_with_the_runtime() {
-    let (out, _, code) =
-        run("c = channel(3)\nsend(c, [1, [2, [3]]])\nsend(c, c)\nsend(c, () => c)\nprint(recv(c))");
-    assert_eq!((out.as_str(), code), ("Ok([1, [2, [3]]])\n", 0));
+    let o = exec(
+        "import _native.conc as k\nc = channel(3)\nsend(c, [1, [2, [3]]])\nk.send_unchecked(c, c)\nk.send_unchecked(c, () => c)\nprint(recv(c))",
+        Opts {
+            internal: true,
+            ..Opts::default()
+        },
+    );
+    assert_eq!(
+        (o.out.as_str(), o.exit),
+        ("Ok([1, [2, [3]]])\n", 0),
+        "{}",
+        o.err
+    );
 }
 
 /// A cancelled waiter is never paired: cancellation claims it at once (Go
@@ -380,4 +391,82 @@ fn a_sender_cancelled_before_it_runs_sends_nothing() {
         (out.as_str(), code),
         ("Ok(0) Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0)
     );
+}
+
+/// Stage 3b Task 5: a channel whose buffer held a value containing the
+/// channel itself would never be freed (`Rc`), so `send` refuses it.
+#[test]
+fn a_channel_inside_what_is_sent_is_e0705() {
+    for src in [
+        "ch = channel(1)\nsend(ch, ch)",
+        "ch = channel(1)\nsend(ch, [1, {k: (2, ch)}])",
+        "ch = channel(1)\nf = () => ch\nsend(ch, f)",
+        "ch = channel(1)\nsend(ch, Ok([(1..40) |> map(_ => [ch])]))",
+        "ch = channel(1)\nm = fold(0..20, {}, (a, i) => put(a, \"k${i}\", i))\nsend(ch, put(m, \"z\", ch))",
+    ] {
+        let o = exec(src, Opts::default());
+        assert!(
+            o.err.starts_with("error[E0705]: channel sent into itself"),
+            "{src}: {}",
+            o.err
+        );
+        assert_eq!(o.exit, 1, "{src}");
+    }
+}
+
+#[test]
+fn e0705_is_reported_at_the_send_call() {
+    let o = exec("ch = channel(1)\nx = 1\n  send(ch, [ch])", Opts::default());
+    let e = o.error.expect("an error");
+    assert_eq!(
+        (e.code.as_str(), e.line, e.col),
+        ("E0705", 3, 7),
+        "{}",
+        o.err
+    );
+}
+
+#[test]
+fn other_channels_and_deep_values_are_fine() {
+    let o = exec(
+        "a = channel(1)\nb = channel(1)\nsend(a, [b])\nfn nest(x, n) = n == 0 then x else nest([x], n - 1)\nsend(b, nest(1, 1000000))\nprint(\"ok\")",
+        Opts::default(),
+    );
+    assert_eq!((o.out.as_str(), o.exit), ("ok\n", 0), "{}", o.err);
+}
+
+#[test]
+fn shared_sub_values_are_scanned_once() {
+    // 2^40 paths through 40 levels of [x, x]: walking each path would
+    // never end, walking each node once is instant.
+    let o = exec(
+        "ch = channel(1)\nfn dup(x, n) = n == 0 then x else dup([x, x], n - 1)\nsend(ch, dup(1, 40))\nprint(\"ok\")\nc2 = channel(1)\nsend(c2, dup(c2, 40))",
+        Opts::default(),
+    );
+    assert_eq!(o.out, "ok\n", "{}", o.err);
+    assert!(o.err.starts_with("error[E0705]"), "{}", o.err);
+}
+
+#[test]
+fn an_agent_handle_over_the_channel_is_e0705() {
+    let o = exec(
+        "import _native.conc as c\nch = channel(1)\na = c.agent_handle(ch)\nsend(ch, [a])",
+        Opts {
+            internal: true,
+            ..Opts::default()
+        },
+    );
+    assert!(o.err.starts_with("error[E0705]"), "{}", o.err);
+}
+
+#[test]
+fn send_unchecked_skips_the_e0705_check() {
+    let o = exec(
+        "import _native.conc as c\nch = channel(1)\nprint(c.send_unchecked(ch, [ch]), type_of(recv(ch)))",
+        Opts {
+            internal: true,
+            ..Opts::default()
+        },
+    );
+    assert_eq!((o.out.as_str(), o.exit), ("Ok(nil) 'Ok\n", 0), "{}", o.err);
 }

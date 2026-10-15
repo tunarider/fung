@@ -39,11 +39,12 @@
 //!
 //! A channel can hold values that hold the channel itself (`send(c, c)`):
 //! an `Rc` cycle that is never freed, where Go's collector would free it.
-//! Stage 3b makes sending a channel into itself an error; until then such
-//! a channel leaks.
+//! So `send` refuses a value that contains the channel (E0705, stage 3b,
+//! Rust only; `contains`). Two channels holding each other are not
+//! caught, and an agent's own requests skip the check (`send_unchecked`).
 
 use std::cell::{Cell, RefCell};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -262,6 +263,80 @@ impl Drop for Channel {
     fn drop(&mut self) {
         token::assert_holds_token();
         drop_children(|stack| self.spill(stack));
+    }
+}
+
+/// Whether `v` contains `ch` (E0705, `send` only): `v` is `ch`, or holds
+/// it somewhere inside. Cost is linear in the size of `v`, in constant
+/// Rust stack.
+///
+/// - Scanned: lists (their items, so views of a persistent vector are
+///   walked through the view), map values (keys are strings), tuples,
+///   tag arguments, the values a closure captured, and an agent handle's
+///   request channel (compared, not scanned).
+/// - Not scanned:
+///   - other channels' buffers: a cycle through two channels is not
+///     caught (spec, documented);
+///   - a closure's module globals and module values: a module's globals
+///     already hold its closures, which hold the globals, so those
+///     cycles exist without channels and are broken when the runtime
+///     ends (`World::release_values`) — which frees a channel reached
+///     only through them too; walking them would also mean walking the
+///     whole program's state on every send;
+///   - task handles: a running task's result does not exist yet, so
+///     looking at it would make the error depend on timing;
+///   - caught errors (they hold no values), strings, numbers, symbols,
+///     durations, ranges, natives and nil.
+///
+/// Explicit stack, no recursion: a million nested lists must not
+/// overflow. A container reached through a shared `Rc` (count above 1)
+/// is recorded by address and walked once, so a value with many paths
+/// to the same part (`[x, x]` nested) costs its node count, not its
+/// path count; an unshared one has one path, so it is not recorded.
+pub(crate) fn contains(ch: &Rc<Channel>, v: &Value) -> bool {
+    let mut stack: Vec<&Value> = Vec::new();
+    let mut seen: HashSet<*const ()> = HashSet::new();
+    if visit(ch, v, &mut stack) {
+        return true;
+    }
+    while let Some(x) = stack.pop() {
+        let (ptr, shared) = match x {
+            Value::List(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+            Value::Map(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+            Value::Tuple(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+            Value::Tag(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+            Value::Closure(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+            _ => continue,
+        };
+        if shared && !seen.insert(ptr) {
+            continue;
+        }
+        let found = match x {
+            Value::List(l) => l.iter().any(|c| visit(ch, c, &mut stack)),
+            Value::Map(m) => m.iter().any(|(_, c)| visit(ch, c, &mut stack)),
+            Value::Tuple(t) => t.iter().any(|c| visit(ch, c, &mut stack)),
+            Value::Tag(t) => t.args.iter().any(|c| visit(ch, c, &mut stack)),
+            Value::Closure(f) => f.captured.iter().any(|c| visit(ch, c, &mut stack)),
+            _ => false,
+        };
+        if found {
+            return true;
+        }
+    }
+    false
+}
+
+/// One value met by `contains`: `true` if it is `ch` (or an agent over
+/// it); a container is pushed to be walked, anything else is skipped.
+fn visit<'a>(ch: &Rc<Channel>, v: &'a Value, stack: &mut Vec<&'a Value>) -> bool {
+    match v {
+        Value::Channel(c) => Rc::ptr_eq(c, ch),
+        Value::Agent(a) => Rc::ptr_eq(a.channel(), ch),
+        Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_) | Value::Closure(_) => {
+            stack.push(v);
+            false
+        }
+        _ => false,
     }
 }
 
