@@ -540,4 +540,17 @@ print(run("exit 2")?)"#,
         "",
     ),
     (r#"print(sh("exit 2")!)"#, ""),
+    // Go's Unicode classes (spec/unicode.txt): map keys, sym, quoting.
+    (
+        r#"print({"x²": 1, "Ⅻ": 2, "हिंदी": 3, "ß": 4, "Σ1": 5, "한글": 6, "x٣": 7, "Ⓐ": 8})"#,
+        "",
+    ),
+    (r#"print(sym("ß1"), sym("x٣"), sym("한글"), sym("ǅx"))"#, ""),
+    (r#"print(sym("x²"))"#, ""),
+    (r#"print(sym("ⓐ"))"#, ""),
+    (r#"print(sym("हिंदी"))"#, ""),
+    (
+        r#"print(["a\u{378}b", "\u{E000}", "\u{A0}"], {"\u{378}": 1})"#,
+        "",
+    ),
 ];

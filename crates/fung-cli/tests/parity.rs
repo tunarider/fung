@@ -44,6 +44,17 @@ fn odd_files() -> Vec<(&'static str, &'static [u8])> {
             "uses_badmod.fung",
             b"import \"./badmod\"\nprint(badmod.x)\n",
         ),
+        // A module stem Go's `unicode.IsLetter` rejects (So, Nl).
+        ("mⓐ.fung", b"v = 1\n"),
+        (
+            "uses_odd_stem.fung",
+            "import \"./mⓐ\"\nprint(1)\n".as_bytes(),
+        ),
+        ("mⅻ.fung", b"v = 1\n"),
+        (
+            "uses_numeral_stem.fung",
+            "import \"./mⅻ\"\nprint(1)\n".as_bytes(),
+        ),
         // Format (Cf) characters print as escapes, U+13440 does not.
         (
             "format_chars.fung",
@@ -161,6 +172,21 @@ fn dumps_match_the_go_implementation() {
         vec!["dump", "ast", "-e", "x = 1", "extra"],
         vec!["dump", "core", "-e", "print(없는)"],
         vec!["dump", "core", "-e", "\tprint(nope)"],
+        // Go's Unicode classes (spec/unicode.txt): identifiers stop at
+        // characters `unicode.IsLetter`/`IsDigit` reject, and quoting
+        // escapes what `unicode.IsPrint` rejects.
+        vec!["dump", "ast", "-e", "x² = 1"],
+        vec!["dump", "core", "-e", "aⅫ = 1"],
+        vec!["dump", "ast", "-e", "Ⓐ = 1"],
+        vec!["dump", "ast", "-e", "हिंदी = 1"],
+        vec!["dump", "core", "-e", "ß1 = 2\nprint(ß1)"],
+        vec!["dump", "ast", "-e", "Σ1 = 1\nǅx = 2"],
+        vec!["dump", "core", "-e", "x٣ = 1\nprint(x٣)"],
+        vec!["dump", "ast", "-e", "x = ٣"],
+        vec!["dump", "ast", "-e", "x = \u{378}"],
+        vec!["dump", "ast", "-e", "x = \"a\u{378}b\u{E000}\""],
+        vec!["dump", "bytecode", "-e", "x = \"a\u{378}b\""],
+        vec!["dump", "core", "-e", "fn f(x: Ⓐ) = x"],
     ] {
         cases.push(extra.into_iter().map(OsString::from).collect());
     }

@@ -16,7 +16,7 @@ pub(super) fn is_builtin_type(name: &str) -> bool {
 }
 
 pub(super) fn is_tag_name(s: &str) -> bool {
-    s.chars().next().is_some_and(char::is_uppercase)
+    s.chars().next().is_some_and(crate::unicode::is_upper)
 }
 
 impl Resolver<'_> {

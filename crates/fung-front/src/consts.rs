@@ -133,7 +133,7 @@ pub fn quote_str(s: &str) -> String {
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
             '$' if chars.get(i + 1) == Some(&'{') => out.push_str("\\$"),
-            c if c != ' ' && !crate::diag::is_print(c) => {
+            c if c != ' ' && !crate::unicode::is_print(c) => {
                 out.push_str(&format!("\\u{{{:X}}}", c as u32))
             }
             c => out.push(c),

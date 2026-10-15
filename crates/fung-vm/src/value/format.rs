@@ -1,4 +1,5 @@
 use fung_front::consts::{format_dur, format_float, quote_str};
+use fung_front::unicode::{is_digit, is_letter};
 
 use super::Value;
 
@@ -56,15 +57,13 @@ fn format_items(items: &[Value]) -> String {
 }
 
 /// Whether a map key can be written without quotes: a letter or `_`, then
-/// letters, digits and `_`. Like the lexer, Unicode letters and digits are
-/// approximated with `is_alphabetic` and `is_numeric`.
+/// letters, digits and `_`, by Go's `unicode.IsLetter` and `IsDigit`.
 fn is_plain_key(k: &str) -> bool {
     let mut cs = k.chars();
     let Some(first) = cs.next() else {
         return false;
     };
-    (first == '_' || first.is_alphabetic())
-        && cs.all(|c| c == '_' || c.is_alphabetic() || c.is_numeric())
+    (first == '_' || is_letter(first)) && cs.all(|c| c == '_' || is_letter(c) || is_digit(c))
 }
 
 /// What `print` and `${}` use: strings bare, the rest in literal form.

@@ -5,6 +5,7 @@
 
 use crate::diag::{Arg, Diag, error};
 use crate::source::{FileId, Pos};
+use crate::unicode;
 
 mod number;
 mod string;
@@ -290,11 +291,11 @@ fn is_digit(c: Option<char>) -> bool {
 }
 
 fn is_ident_start(c: Option<char>) -> bool {
-    c.is_some_and(|c| c == '_' || c.is_alphabetic())
+    c.is_some_and(|c| c == '_' || unicode::is_letter(c))
 }
 
 fn is_ident_part(c: Option<char>) -> bool {
-    c.is_some_and(|c| c == '_' || c.is_alphabetic() || c.is_numeric())
+    c.is_some_and(|c| c == '_' || unicode::is_letter(c) || unicode::is_digit(c))
 }
 
 fn is_hex_digit(c: Option<char>) -> bool {
@@ -419,7 +420,7 @@ impl<'a> Lexer<'a> {
         let text = &self.src[start..self.off];
         let kind = if let Some((_, k)) = KEYWORDS.iter().find(|(w, _)| *w == text) {
             *k
-        } else if first.is_uppercase() {
+        } else if unicode::is_upper(first) {
             Kind::Tag
         } else {
             Kind::Name

@@ -273,7 +273,7 @@ pub fn quote(s: &str) -> String {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             '\u{b}' => out.push_str("\\v"),
-            c if is_print(c) => out.push(c),
+            c if crate::unicode::is_print(c) => out.push(c),
             c if (c as u32) < 0x20 || c as u32 == 0x7f => {
                 out.push_str(&format!("\\x{:02x}", c as u32));
             }
@@ -285,48 +285,10 @@ pub fn quote(s: &str) -> String {
     out
 }
 
-/// Approximates Go's `unicode.IsPrint`: everything except control,
-/// format, surrogate, private-use and noncharacter code points, and
-/// spaces other than U+0020. Unassigned code points are not detected
-/// (the standard library carries no Unicode category tables).
-pub(crate) fn is_print(c: char) -> bool {
-    if c == ' ' {
-        return true;
-    }
-    if c.is_control() || c.is_whitespace() {
-        return false;
-    }
-    let u = c as u32;
-    !matches!(u,
-        0x00ad
-        | 0x0600..=0x0605
-        | 0x061c
-        | 0x06dd
-        | 0x070f
-        | 0x0890..=0x0891
-        | 0x08e2
-        | 0x180e
-        | 0x200b..=0x200f
-        | 0x202a..=0x202e
-        | 0x2060..=0x206f
-        | 0xe000..=0xf8ff
-        | 0xfdd0..=0xfdef
-        | 0xfeff
-        | 0xfff9..=0xfffb
-        | 0x110bd
-        | 0x110cd
-        | 0x13430..=0x1343f
-        | 0x1bca0..=0x1bca3
-        | 0x1d173..=0x1d17a
-        | 0xe0001
-        | 0xe0020..=0xe007f
-        | 0xf0000..=0x10ffff)
-        && (u & 0xfffe) != 0xfffe
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::unicode::is_print;
 
     #[test]
     fn is_print_cases() {

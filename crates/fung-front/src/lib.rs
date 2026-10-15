@@ -15,3 +15,4 @@ pub mod parser;
 pub mod resolve;
 pub mod source;
 pub mod tree;
+pub mod unicode;

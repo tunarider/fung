@@ -15,6 +15,7 @@ use crate::parser::parse;
 use crate::resolve::{self, ModuleInfo};
 use crate::source::{FileId, Pos, SourceMap, decode_go};
 use crate::tree::{Head, Import, Lit, Node};
+use crate::unicode;
 
 /// How far `compile` should go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -359,10 +360,10 @@ fn mark_builtin(p: &mut Proto) {
 fn is_name(s: &str) -> bool {
     let mut cs = s.chars();
     match cs.next() {
-        Some(c) if c == '_' || (c.is_alphabetic() && !c.is_uppercase()) => {}
+        Some(c) if c == '_' || (unicode::is_letter(c) && !unicode::is_upper(c)) => {}
         _ => return false,
     }
-    cs.all(|c| c == '_' || c.is_alphabetic() || c.is_numeric())
+    cs.all(|c| c == '_' || unicode::is_letter(c) || unicode::is_digit(c))
 }
 
 /// Lexical path cleaning, like Go `filepath.Clean` on Unix.
@@ -796,5 +797,7 @@ mod tests {
         assert_eq!(rel("/a/b", "/a/x.fung"), "../x.fung");
         assert_eq!(module_stem("/p/q/x.fung"), "x");
         assert!(is_name("x_1") && !is_name("bad-name") && !is_name("Up") && !is_name(""));
+        // Go `unicode` classes: So and No are not letters, Ll and Nd are.
+        assert!(!is_name("mⓐ") && !is_name("x²") && is_name("ß1") && is_name("x٣"));
     }
 }

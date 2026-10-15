@@ -5,6 +5,7 @@
 use fung_front::diag::Arg;
 use fung_front::lexer::{Kind, lex};
 use fung_front::source::FileId;
+use fung_front::unicode::{is_digit, is_letter, is_upper};
 
 use crate::native::nat::{self, def, fail, param};
 use crate::value::{Value, format, intern};
@@ -175,14 +176,14 @@ fn str_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// Go `value.IsName`: a lowercase letter or `_`, then letters, digits and
-/// `_`. Unicode classes are approximated as in the lexer.
+/// `_`, by Go's `unicode` classes.
 fn is_name(s: &str) -> bool {
     let mut cs = s.chars();
     let Some(first) = cs.next() else {
         return false;
     };
-    (first == '_' || (first.is_alphabetic() && !first.is_uppercase()))
-        && cs.all(|c| c == '_' || c.is_alphabetic() || c.is_numeric())
+    (first == '_' || (is_letter(first) && !is_upper(first)))
+        && cs.all(|c| c == '_' || is_letter(c) || is_digit(c))
 }
 
 fn sym_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {

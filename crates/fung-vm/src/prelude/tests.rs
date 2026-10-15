@@ -332,10 +332,22 @@ fn numeric_separators_are_strict() {
 /// Go `TestSymRequiresAName`.
 #[test]
 fn sym_requires_a_name() {
-    for bad in ["", "a b", "Ab", "1a", "a-b"] {
+    // Not Go letters or digits: superscript two, roman numeral, circled
+    // letter, a Devanagari vowel sign (Go answers checked with the binary).
+    for bad in ["", "a b", "Ab", "1a", "a-b", "x²", "Ⅻ", "ⓐ", "हिंदी", "ⅻ"] {
         assert_eq!(code(&call("sym", vec![st(bad)])), "E0513", "sym({bad:?})");
     }
-    for good in ["ok", "snake_case", "참치", "_x", "a1"] {
+    for good in [
+        "ok",
+        "snake_case",
+        "참치",
+        "_x",
+        "a1",
+        "ß1",
+        "x٣",
+        "한글",
+        "ǅx",
+    ] {
         assert!(call("sym", vec![st(good)]).is_ok(), "sym({good:?})");
     }
 }

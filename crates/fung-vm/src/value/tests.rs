@@ -245,6 +245,24 @@ fn format_literals() {
     }
 }
 
+/// Map keys print bare only when Go's `unicode.IsLetter`/`IsDigit` would
+/// accept them (expected output from the Go binary).
+#[test]
+fn format_map_keys_use_go_classes() {
+    let mut m = Map::new();
+    for (i, k) in ["x²", "Ⅻ", "हिंदी", "ß", "Σ1", "한글", "x٣", "Ⓐ"]
+        .into_iter()
+        .enumerate()
+    {
+        m.put(Rc::new(k.to_string()), Value::Int(i as i64 + 1));
+    }
+    assert_eq!(
+        format(&Value::Map(Rc::new(m))),
+        r#"{"x²": 1, "Ⅻ": 2, "हिंदी": 3, ß: 4, Σ1: 5, 한글: 6, x٣: 7, "Ⓐ": 8}"#
+    );
+    assert_eq!(format(&s("a\u{378}b")), r#""a\u{378}b""#);
+}
+
 #[test]
 fn format_shortest_round_trip() {
     let (a, b) = (std::hint::black_box(0.1), std::hint::black_box(0.2));
