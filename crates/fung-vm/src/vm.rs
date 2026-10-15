@@ -303,6 +303,12 @@ impl<'rt> Task<'rt> {
 
     /// Runs until the frame count drops to `stop` and attaches the call
     /// path to any error (innermost run loop first; outer loops keep it).
+    ///
+    /// Always inlined: natives call fung functions through `call_buf` once
+    /// per element, and an out-of-line `run` there cost `bench/loop.fung`
+    /// about 6% (stage 3a measurement; the compiler stopped inlining it on
+    /// its own after an unrelated change).
+    #[inline(always)]
     fn run(&mut self, stop: usize) -> Result<Value, Stop> {
         match self.exec(stop) {
             Err(Stop::Error(d)) => Err(Stop::Error(self.attach(d))),
