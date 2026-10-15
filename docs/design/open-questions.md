@@ -139,6 +139,14 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - `at_exit` 핸들러 안의 `exit()`: Rust는 남은 핸들러를 항상 돌린다. Go는 취소 플래그를 고루틴이 세워서 경쟁 상태(짧은 핸들러는 대개 돌고 긴 것은 E0701로 끊김). 3단계에서 취소를 만들 때 규칙을 정한다.
   - 해결 (Task 12): 유니코드 글자·숫자·대문자·출력 가능 판정(렉서, 로더, 맵 키·문자열 따옴표, `sym`)은 Go가 생성한 `spec/unicode.txt`(`unicode.IsLetter`/`IsDigit`/`IsUpper`/`IsPrint`/`IsSpace`의 구간, Unicode 17.0.0)를 Rust가 읽어 Go와 같다.
   - 동시성 내장 함수는 `E0805 not supported yet`, 실행 비교 제외 18개(동시성 9, 네이티브 모듈 9)는 3단계·4단계에서 하나씩 비교에 넣는다.
+  - 2단계에 없는 표준 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`)을 `import`하면 직접이든 사용자 모듈을 거쳐서든 그 `import` 위치에서 `E0805 not supported yet: <모듈>`. 진짜 등록 누락은 그대로 E0801.
+- [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
+  - 런타임 빌림: `Task<'rt>`가 `&'rt mut Runtime`을 쥔다(`crates/fung-vm/src/vm.rs`). 태스크 여럿이 주차된 스케줄러에서는 각자 배타적으로 빌릴 수 없으므로
+    `Runtime`을 공유 부분(스트림, 종료 핸들러, 종료 코드, 모듈)과 태스크별 부분으로 나눈다. 내장 함수는 이미 `t.stdout()`·`t.at_exit`·`t.call`로만 런타임을 쓰므로 고칠 범위는 그 안에 머문다.
+  - 워커 하나(먼저 할 것)는 지금 구조로 된다. 여러 코어는 그 다음 단계이고, 그때 세 가지를 바꾼다.
+    - 내장 함수는 `&'static`(스레드 지역, 누수로 만든 것)이고 `NativeParam.default`가 `Rc`를 품은 `Value`다. 기본값을 `Send`인 것(리터럴 enum 등)으로 바꾼다.
+    - `RtProto.consts`에 코드와 링크된 `Rc` 값이 섞여 있다. 코드와 링크된 상수를 나누지 않으면 태스크 경계를 넘는 클로저 복사가 코드까지 깊이 복사한다.
+    - 클로저·내장 함수·모듈은 포인터로 비교한다(`value/compare.rs`). 워커 사이에 복사한 뒤에도 `print == print` 같은 동일성이 유지되도록 다시 짝지어 준다.
 - [x] 배포 → **플랫폼별 CI 러너**(TLS 암호 부분의 C 코드 때문에 대상용 C 컴파일러가 필요; Linux x86_64·ARM64, macOS ARM64·x86_64 러너 각자 빌드),
   Linux는 musl 정적 바이너리, CI 컴파일 캐시. 릴리스 파일 이름·`SHA256SUMS`·빌드 증명·설치 스크립트·CHANGELOG 릴리스 노트는 그대로.
   `go install` 경로는 사라지고 `cargo install`이 생긴다.

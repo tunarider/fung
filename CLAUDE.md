@@ -38,8 +38,8 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   옛 기록(커밋 195개)은 저장소 밖 `~/fung-history-2026-10-14.bundle`에만 있다.
 - Rust 이식(진행 중): 루트 Cargo 워크스페이스, `crates/fung-front`(앞단)·`crates/fung-vm`(값·VM)·`crates/fung-cli`(`fung dump`·`run`·`-e`). 크레이트 의존성은 허용 목록(open-questions "Rust 이전")만,
   앞단·VM은 0개. `spec/builtins.txt`·`spec/errors.txt`·`spec/unicode.txt`(Go `unicode` 글자 범주 표)는 Go가 생성(`go test ./tests -run TestSpecFiles -update`). 커밋 전 `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo test --release`도 통과해야 한다(`parity`·`run_parity` 테스트가 Go 버전과
-  dump·실행 출력을 비교, 릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지킴).
+  `cargo clippy --all-targets -- -D warnings`, `FUNG_REQUIRE_PARITY=1 cargo test`, `FUNG_REQUIRE_PARITY=1 cargo test --release`도 통과해야 한다(`parity`·`run_parity` 테스트가 Go 버전과
+  dump·실행 출력을 비교, 이 변수가 없으면 `go`가 없을 때 비교를 조용히 건너뜀; 릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지킴).
 
 ## 현재 상태
 
