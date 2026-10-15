@@ -1,0 +1,3 @@
+# 2,000 tasks spawned at once, then awaited: the cost of a task
+ts = map(0..2000, i => spawn(() => i * i % 7))
+print(fold(ts, 0, (s, t) => s + await(t)))

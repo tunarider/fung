@@ -40,6 +40,7 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   앞단·VM은 0개. `spec/builtins.txt`·`spec/errors.txt`·`spec/unicode.txt`(Go `unicode` 글자 범주 표)는 Go가 생성(`go test ./tests -run TestSpecFiles -update`). 커밋 전 `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `FUNG_REQUIRE_PARITY=1 cargo test`, `FUNG_REQUIRE_PARITY=1 cargo test --release`도 통과해야 한다(`parity`·`run_parity` 테스트가 Go 버전과
   dump·실행 출력을 비교, 이 변수가 없으면 `go`가 없을 때 비교를 조용히 건너뜀; 릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지킴).
+  동시성(3a): fung 값(`Rc`)은 실행권을 쥔 스레드만 만지고, `unsafe impl Send`는 `// SAFETY:` 근거와 디버그 단언으로 지킨다(`docs/notes/R3a-runtime.md` 3절). 동시성 테스트는 `sleep` 대신 상태로 순서를 정한다(`testutil`의 탐침).
 
 ## 현재 상태
 
@@ -85,6 +86,7 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   측정 스크립트 `bench/`, 기록과 3단계 이후 계획은 open-questions "성능".
 - Rust 이식 1단계(앞단) 완료 (2026-10-15): `fung dump ast|core|bytecode`와 컴파일 에러가 Go와 글자 단위로 같다(parity 561건). 노트 `docs/notes/R1-front-end.md`. 다음은 2단계(값·VM).
 - Rust 이식 2단계(값·VM) 완료 (2026-10-15): `fung run`/`-e`가 동시성·네이티브 다리 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`) 밖의 프로그램을 Go와 같은 출력·종료 코드로 실행한다(dump parity 561건 이상, 실행 비교 152건, 제외 18개는 `crates/fung-cli/tests/run_parity_skip.txt`). 동시성 내장 함수는 E0805. 계획 `docs/plans/2026-10-15-rust-vm.md`, 노트 `docs/notes/R2-vm.md`. 다음은 3단계(런타임·동시성).
+- Rust 이식 3a단계(동시성, Go와 같은 의미) 완료 (2026-10-15): 태스크마다 운영체제 스레드 + 실행권 잠금 하나로 `spawn`·채널·취소·`atom`·교착 감지·꺼내지 않은 실패·어디서든 `exit`가 Go와 같은 출력·종료 코드(실행 비교 187건, 제외는 네이티브 모듈 9개; 동시성 31건은 릴리스에서 Rust·Go 각 50번 반복). Go와 남은 차이는 open-questions "3a단계에서 알고 남긴 차이". 스펙 `docs/superpowers/specs/2026-10-15-rust-runtime-3a-design.md`, 계획 `docs/plans/2026-10-15-rust-runtime-3a.md`, 노트 `docs/notes/R3a-runtime.md`. 다음은 3b(`atom` 제거 등 Go와 일부러 달라지는 언어 변경).
 - 다음 작업: tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에(기존 결정 유지). 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 에러 번호는 `internal/diag/catalog.go`에서 할당하며 한 번 붙이면 바꾸지 않는다.
 - 학습용 설명은 `docs/notes/M<n>-<주제>.md`에 한국어로 남긴다. 마일스톤마다 무엇을 만들었고 왜 그렇게 했는지 쓴다.

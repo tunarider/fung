@@ -272,7 +272,7 @@ fn cases() -> Vec<Case> {
 
 /// The comparison cannot pass by comparing nothing: a broken file walk or
 /// an overgrown skip list fails here. The minimums sit just below the
-/// counts when they were set (127 `tests/lang` files, 4 benchmarks, 185
+/// counts when they were set (127 `tests/lang` files, 6 benchmarks, 187
 /// cases in all); raise them as cases are added.
 #[test]
 fn enough_cases_are_compared() {
@@ -280,9 +280,9 @@ fn enough_cases_are_compared() {
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
     let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
     assert!(lang >= 126, "only {lang} tests/lang files are compared");
-    assert!(bench >= 3, "only {bench} benchmarks are compared");
+    assert!(bench >= 5, "only {bench} benchmarks are compared");
     assert!(
-        cases.len() >= 184,
+        cases.len() >= 186,
         "only {} cases are compared",
         cases.len()
     );
