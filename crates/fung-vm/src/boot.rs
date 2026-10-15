@@ -1,5 +1,5 @@
 //! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
-//! prelude만 시작 시): the core natives, the concurrency placeholders,
+//! prelude만 시작 시): the core natives, the concurrency natives,
 //! the `_native.conc` and `_native.process` bridges, and the public names
 //! of `extras/prelude.fung`, compiled and run on the runtime at startup.
 //!
@@ -49,7 +49,7 @@ pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<D
         nat::list(args.iter().map(|a| Value::str(a)).collect()),
     );
     t.world().args = args;
-    for (name, v) in conc::placeholders() {
+    for (name, v) in conc::natives() {
         p.0.insert(name.to_string(), v);
     }
     let Some(src) = extras::source("prelude") else {

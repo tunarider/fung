@@ -450,8 +450,7 @@ r(1)"#,
     (r#"recv()"#, ""),
     (r#"swap(1)"#, ""),
     (r#"sleep(d: 1ms, d: 2ms)"#, ""),
-    // Tasks, `sleep` and channels run for real (stage 3a); atoms are
-    // still placeholders.
+    // Tasks, `sleep`, channels and atoms run for real (stage 3a).
     (r#"print(sleep(1ms), sleep(0s), sleep(-1s))"#, ""),
     (r#"spawn(1)"#, ""),
     (r#"await(1)"#, ""),
@@ -542,6 +541,52 @@ print(any(c, x => true), all(c, x => false), group_by(c, x => "a"), sort_by(c, x
 send(c, 1)
 close(c)
 map(c, 3)"#,
+        "",
+    ),
+    // Atoms (stage 3a; removed in stage 3b).
+    (
+        r#"a = atom([])
+print(swap(a, xs => xs + [1]), deref(a), a, [a], type_of(a), a == a, atom(1) == atom(1), atom("s"), "${a}")"#,
+        "",
+    ),
+    (r#"atom(1) < atom(1)"#, ""),
+    (r#"len(atom(1))"#, ""),
+    (r#"swap(1, x => x)"#, ""),
+    (r#"swap(atom(1), 1)"#, ""),
+    (r#"swap(1, 1)"#, ""),
+    (r#"deref(1)"#, ""),
+    (
+        r#"a = atom(0)
+swap(a, x => swap(a, y => y))"#,
+        "",
+    ),
+    (
+        r#"a = atom(1)
+print(swap(a, fn(x): print(deref(a), a); x + 1 ;;), swap(a, x => nil), deref(a))"#,
+        "",
+    ),
+    (
+        r#"a = atom(0)
+swap(a, x => 1 / 0)"#,
+        "",
+    ),
+    (
+        r#"a = atom(5)
+t = spawn(() => swap(a, x => fail("no")))
+print(await(t), swap(a, x => x + 1))"#,
+        "",
+    ),
+    (
+        r#"a = atom(0)
+ts = for _ in 0..4: spawn(() => each(0..25, _ => swap(a, x => x + 1))) ;;
+each(ts, await)
+print(deref(a))"#,
+        "",
+    ),
+    (
+        r#"a = atom(0)
+at_exit(() => print(swap(a, x => x + 1)))
+swap(a, x => exit(3))"#,
         "",
     ),
     // --- process functions ---

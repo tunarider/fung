@@ -49,6 +49,11 @@ const MORE: &[&str] = &[
     "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
     "ch = channel()\nt = spawn(() => each(1..=5, x => send(ch, x)))\ncancel(t)\nprint(await(t))",
     "print(channel(-1))",
+    // Atoms (stage 3a).
+    "a = atom(0)\nts = for _ in 0..4: spawn(() => each(0..25, _ => swap(a, x => x + 1))) ;;\neach(ts, await)\nprint(deref(a), a, type_of(a))",
+    "a = atom(1)\nprint(swap(a, fn(x): print(deref(a), a); x + 1 ;;))",
+    "a = atom(0)\nswap(a, x => swap(a, y => y))",
+    "deref(1)",
 ];
 
 /// The skip list: `<file name> <reason>`; the reason must be one of

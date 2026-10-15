@@ -1,6 +1,6 @@
 //! Boot tests: ports of Go `internal/vm/prelude_test.go`
 //! `TestProcessFunctions`, `TestFungPreludeFunctions` and
-//! `TestTakeDropCheckTheirCount`, the atom placeholders, the
+//! `TestTakeDropCheckTheirCount`, the concurrency natives, the
 //! parameter tables against `spec/builtins.txt`, and the positions of
 //! errors raised inside `extras/prelude.fung` (expected text from the Go
 //! binary).
@@ -31,14 +31,13 @@ fn render_params(ps: &[NativeParam]) -> String {
 }
 
 #[test]
-fn concurrency_builtins_report_e0805_with_a_position() {
+fn concurrency_builtin_errors_have_a_position() {
     // A native's error points at the call's `(` like every other native
-    // error in Go (`spawn(1)` → E0403 at 2:6). Atoms are still
-    // placeholders (stage 3a, Task 5).
-    let (out, err, code) = run_booted("print(1)\natom(1)");
+    // error in Go (`spawn(1)` → E0403 at 2:6).
+    let (out, err, code) = run_booted("print(1)\nderef(1)");
     assert_eq!(out, "1\n");
     assert!(
-        err.starts_with("error[E0805]: not supported yet: atom\n  --> -e:2:5\n"),
+        err.starts_with("error[E0403]: argument `a` must be atom, got int\n  --> -e:2:6\n"),
         "{err}"
     );
     assert_eq!(code, 1);
@@ -51,28 +50,23 @@ fn fung_prelude_and_process_functions() {
 }
 
 #[test]
-fn every_placeholder_gives_e0805_without_a_panic() {
-    // Tasks and channels are real since stage 3a (vm/task_tests.rs,
-    // vm/channel_tests.rs); atoms come in Task 5.
-    let calls = [
-        ("atom(1)", "atom"),
-        ("swap(1, x => x)", "swap"),
-        ("deref(1)", "deref"),
-    ];
-    for (src, name) in calls {
-        let o = exec(src, Opts::default());
-        let e = o.error.unwrap_or_else(|| panic!("{src}: no error"));
-        assert_eq!(
-            (e.code.as_str(), e.headline.as_str(), e.line, e.col),
-            (
-                "E0805",
-                format!("error[E0805]: not supported yet: {name}").as_str(),
-                1,
-                name.chars().count() as u32 + 1
-            ),
-            "{src}"
-        );
-        assert_eq!(o.exit, 1, "{src}");
+fn atoms_run() {
+    // Atoms are real since stage 3a (vm/atom_tests.rs): no concurrency
+    // builtin gives E0805 any more.
+    let (out, err, code) = run_booted("a = atom(1)\nprint(swap(a, x => x + 1), deref(a), a)");
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("2 2 <atom 2>\n", "", 0)
+    );
+    for (name, _) in crate::conc::natives() {
+        let src = match name {
+            "atom" => "atom(1)".to_string(),
+            "channel" => "channel(-1)".to_string(),
+            "send" | "swap" => format!("{name}(1, 2)"),
+            _ => format!("{name}(1)"),
+        };
+        let o = exec(&src, Opts::default());
+        assert_ne!(o.code, "E0805", "{src}");
     }
 }
 

@@ -14,7 +14,7 @@ use crate::testutil::{self, Buf, Opts, exec, run};
 use crate::value::{List, MapBuilder, NativeParam, Value, format, intern};
 use crate::vm::{Runtime, Stop};
 
-/// The concurrency natives (tasks and channels real, atoms E0805 placeholders).
+/// The concurrency natives (`crate::conc`, not in `core()`).
 const CONCURRENCY: &[&str] = &[
     "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "atom", "swap",
     "deref",

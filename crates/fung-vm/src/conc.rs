@@ -1,9 +1,8 @@
-//! The concurrency natives (05; Go `vm.Concurrency()`). Tasks and
-//! channels are real (stage 3a: `spawn`, `await`, `cancel`, `sleep`,
+//! The concurrency natives (05; Go `vm.Concurrency()`), all real since
+//! stage 3a: `spawn`, `await`, `cancel`, `sleep`,
 //! `_native.conc.spawn_awaited`, `channel`, `send`, `recv` and `close`, on
-//! `crate::vm`'s tasks and blocking point). Atoms are not ported yet:
-//! calling them raises
-//! E0805 `not supported yet: <name>`. The parameter tables are Go's
+//! `crate::vm`'s tasks and blocking point, and `atom`, `swap` and `deref`
+//! (`crate::vm::atom`, removed in stage 3b). The parameter tables are Go's
 //! (`spec/builtins.txt`), so arity and named-argument errors, which the
 //! VM reports before the native runs, are the same as Go's.
 
@@ -15,17 +14,18 @@ use fung_front::diag::Arg;
 
 use crate::native::nat::{self, native, opt, param};
 use crate::value::{Lit, Module, Native, NativeFn, Value, format};
+use crate::vm::atom;
 use crate::vm::channel::{self, Channel, Received};
 use crate::vm::{Stop, Task, block, err_kind};
 
 /// Made once per process: natives are leaked (`Native::leak`).
-static PLACEHOLDERS: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
+static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
 /// The prelude's concurrency natives (Go `vm.Concurrency()`): `spawn`
 /// `await` `cancel` `channel` `send` `recv` `close` `sleep` `atom` `swap`
 /// `deref`, and `_native.conc.spawn_awaited` last.
 fn all() -> Vec<(&'static str, Value)> {
-    PLACEHOLDERS
+    NATIVES
         .get_or_init(|| {
             let tables: Vec<(&'static str, Vec<_>)> = vec![
                 ("sleep", vec![param("d")]),
@@ -54,7 +54,10 @@ fn all() -> Vec<(&'static str, Value)> {
                         "send" => send,
                         "recv" => recv,
                         "close" => close,
-                        _ => unsupported,
+                        "atom" => atom::atom_fn,
+                        "swap" => atom::swap_fn,
+                        "deref" => atom::deref_fn,
+                        _ => unreachable!("no native {name}"),
                     };
                     (name, native(name, f, params))
                 })
@@ -67,7 +70,7 @@ fn all() -> Vec<(&'static str, Value)> {
 
 /// The prelude's concurrency natives, without `spawn_awaited` (which only
 /// `_native.conc` holds).
-pub fn placeholders() -> Vec<(&'static str, Value)> {
+pub fn natives() -> Vec<(&'static str, Value)> {
     all()
         .into_iter()
         .filter(|(n, _)| *n != "spawn_awaited")
@@ -84,14 +87,6 @@ pub fn module() -> Rc<Module> {
         }
     }
     Rc::new(m)
-}
-
-/// Every placeholder: E0805 with the native's own name. The VM gives the
-/// error the call's position (or, inside `extras/prelude.fung`, the user
-/// call's).
-fn unsupported(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
-    let name = t.calling_native().unwrap_or("?");
-    Err(nat::fail("E0805", vec![nat::s(name)]))
 }
 
 /// A duration argument as a wait: zero for zero and negative ones.

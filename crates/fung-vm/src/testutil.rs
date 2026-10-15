@@ -5,7 +5,7 @@
 //! comparison recurse on deep nesting like Go.
 //!
 //! The prelude is the booted one (`crate::boot::boot`: the core natives,
-//! the concurrency placeholders and `extras/prelude.fung`), like Go's VM
+//! the concurrency natives and `extras/prelude.fung`), like Go's VM
 //! tests (`bootTestPrelude`), plus test-only natives passed in `Opts`.
 
 use std::cell::RefCell;

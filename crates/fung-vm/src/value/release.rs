@@ -1,7 +1,7 @@
 //! Iterative teardown of nested values. Rust drops a value by dropping
 //! its fields, so the last reference to a list of lists of lists ... would
 //! free it with one stack frame per level and overflow on deep nesting.
-//! Every container that holds values (list, map, tuple, tag, closure, module, channel) therefore
+//! Every container that holds values (list, map, tuple, tag, closure, module, channel, atom) therefore
 //! moves its children out in its `Drop` and hands the ones that could go
 //! deep to `release`, which frees them with an explicit stack. A shell
 //! whose children were moved out drops in constant stack.
@@ -21,6 +21,7 @@ fn nests(v: &Value) -> bool {
         Value::Closure(rc) => Rc::strong_count(rc) == 1,
         Value::Module(rc) => Rc::strong_count(rc) == 1,
         Value::Channel(rc) => Rc::strong_count(rc) == 1,
+        Value::Atom(rc) => Rc::strong_count(rc) == 1,
         _ => false,
     }
 }
@@ -73,6 +74,11 @@ pub(super) fn release(mut stack: Vec<Value>) {
             Value::Channel(rc) => {
                 if let Ok(mut c) = Rc::try_unwrap(rc) {
                     c.spill(&mut stack);
+                }
+            }
+            Value::Atom(rc) => {
+                if let Ok(mut a) = Rc::try_unwrap(rc) {
+                    a.spill(&mut stack);
                 }
             }
             _ => {}

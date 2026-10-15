@@ -8,6 +8,9 @@
 //! other read of an empty slot is a VM bug and panics, which the panic
 //! fence turns into E0801 like Go's recovered nil dereference.
 
+pub(crate) mod atom;
+#[cfg(test)]
+mod atom_tests;
 mod block;
 mod call;
 pub(crate) mod channel;
@@ -47,6 +50,7 @@ use fung_front::source::{FileId, Pos};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
+pub use atom::Atom;
 pub(crate) use block::{YIELD_EVERY, block};
 pub use call::MAX_FRAMES;
 pub use channel::Channel;

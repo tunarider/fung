@@ -1,7 +1,7 @@
 //! The one place a task waits (stage 3a: 막히는 지점).
 //!
 //! Every operation that waits for another task goes through `block`:
-//! `await`, `sleep`, `send`, `recv`, and later `swap`. It registers the
+//! `await`, `sleep`, `send`, `recv` and `swap`. It registers the
 //! task's `Waiter` on what it waits for, gives the run token up while it
 //! sleeps until woken (`Token::sleep`), so other tasks run, and takes it
 //! back to check its condition. An event wakes only the waiters
