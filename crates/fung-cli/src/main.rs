@@ -66,9 +66,8 @@ fn main() {
             code: diag::EXIT_RUNTIME,
             ..Out::default()
         });
-    let _ = std::io::stdout().write_all(&out.stdout);
-    let _ = std::io::stdout().flush();
-    let _ = std::io::stderr().write_all(&out.stderr);
+    let _ = run::ProcessOut::stdout().write_all(&out.stdout);
+    let _ = run::ProcessOut::stderr().write_all(&out.stderr);
     std::process::exit(out.code);
 }
 

@@ -11,18 +11,50 @@ use fung_front::source::SourceMap;
 use fung_vm::boot::{boot, native_module};
 use fung_vm::vm::{Runtime, Stop, link};
 
-/// A writer that flushes after every write.
-struct Unbuffered<W: Write>(W);
+/// The status a shell shows for a process killed by SIGPIPE (128 + 13).
+pub const EXIT_BROKEN_PIPE: i32 = 141;
 
-impl<W: Write> Write for Unbuffered<W> {
+/// Ends the command when a write found the reading end of a pipe closed
+/// (`fung run x | head -1`). Go dies of SIGPIPE there: no report, no exit
+/// handlers. Rust ignores SIGPIPE (so a child's closed stdin stays an
+/// ordinary error in `_native.process`), and exits with the status the
+/// shell would show instead.
+fn exit_on_broken_pipe<T>(r: std::io::Result<T>) -> std::io::Result<T> {
+    if let Err(e) = &r
+        && e.kind() == std::io::ErrorKind::BrokenPipe
+    {
+        std::process::exit(EXIT_BROKEN_PIPE);
+    }
+    r
+}
+
+/// A process stream (standard output or error) as the command writes it:
+/// every write goes through at once, as Go's `os.Stdout` does (a prompt
+/// without a newline shows before the program reads its answer), and a
+/// closed pipe ends the command (`exit_on_broken_pipe`).
+pub struct ProcessOut<W: Write>(pub W);
+
+impl ProcessOut<std::io::Stdout> {
+    pub fn stdout() -> Self {
+        ProcessOut(std::io::stdout())
+    }
+}
+
+impl ProcessOut<std::io::Stderr> {
+    pub fn stderr() -> Self {
+        ProcessOut(std::io::stderr())
+    }
+}
+
+impl<W: Write> Write for ProcessOut<W> {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        self.0.write_all(b)?;
-        self.0.flush()?;
+        exit_on_broken_pipe(self.0.write_all(b))?;
+        exit_on_broken_pipe(self.0.flush())?;
         Ok(b.len())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.0.flush()
+        exit_on_broken_pipe(self.0.flush())
     }
 }
 
@@ -37,13 +69,11 @@ pub fn status(code: i64) -> i32 {
 /// code of exit(n). Every value the run made is dropped before it
 /// returns, so it runs on the big stack together with its caller.
 pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
-    // Standard output is written through on every write, as Go's
-    // `os.Stdout` is: a prompt without a newline shows before the program
-    // reads its answer. Standard error is unbuffered; the runtime and the
-    // reports below write to it through separate handles, in order.
-    let stdout = Box::new(Unbuffered(std::io::stdout()));
+    // Standard error is unbuffered; the runtime and the reports below
+    // write to it through separate handles, in order.
+    let stdout = Box::new(ProcessOut::stdout());
     let stdin = Box::new(std::io::stdin().lock());
-    let stderr = &mut std::io::stderr();
+    let stderr = &mut ProcessOut::stderr();
     let (b, errs) = Loader::default().compile(file, src, Stage::All);
     if !errs.is_empty() {
         report(stderr, &errs, &b.sources);
@@ -53,7 +83,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // The runtime holds the program's files first and boot appends the
     // prelude's after them (see `fung_vm::boot`). Go boots before it
     // compiles; boot cannot fail, so the output is the same.
-    let mut rt = Runtime::new(stdout, Box::new(std::io::stderr()), stdin, b.sources);
+    let mut rt = Runtime::new(stdout, Box::new(ProcessOut::stderr()), stdin, b.sources);
     let p = match boot(&mut rt, args) {
         Ok(p) => p,
         Err(errs) => {

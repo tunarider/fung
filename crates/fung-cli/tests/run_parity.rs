@@ -40,30 +40,65 @@ const MORE: &[&str] = &[
     "print(nope)",
 ];
 
-/// The skip list: `<file name> <reason>`; the reason must be one of these,
-/// with a word in the file that shows it.
-const REASONS: &[(&str, &[&str])] = &[
-    (
-        "concurrency",
-        &[
-            "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "atom",
-            "swap", "deref", "pmap", "fan_in", "retry",
-        ],
-    ),
-    (
-        "native-module",
-        &[
-            "import fs",
-            "import json",
-            "import time",
-            "import regex",
-            "import path",
-            "import http",
-            "import cli",
-            "import _native.fs",
-        ],
-    ),
+/// The skip list: `<file name> <reason>`; the reason must be one of
+/// these, shown by a call of a concurrency builtin or an import of a
+/// module stage 2 does not have.
+const CONCURRENCY: &[&str] = &[
+    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "atom", "swap",
+    "deref", "pmap", "fan_in", "retry",
 ];
+const NATIVE_MODULES: &[&str] = &[
+    "fs",
+    "json",
+    "time",
+    "regex",
+    "path",
+    "http",
+    "cli",
+    "_native.fs",
+];
+
+/// Whether `src` calls `name`: `name(` not preceded by a name character
+/// (so `closure(` or `resend(` do not count, nor do words in comments
+/// without a parenthesis).
+fn calls(src: &str, name: &str) -> bool {
+    let call = format!("{name}(");
+    src.match_indices(&call).any(|(i, _)| {
+        !src[..i]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    })
+}
+
+/// Whether a line of `src` is `import <module>` (with anything after).
+fn imports(src: &str, module: &str) -> bool {
+    src.lines().any(|l| {
+        let mut w = l.split_whitespace();
+        w.next() == Some("import") && w.next() == Some(module)
+    })
+}
+
+fn shows_reason(src: &str, reason: &str) -> Option<bool> {
+    match reason {
+        "concurrency" => Some(CONCURRENCY.iter().any(|n| calls(src, n))),
+        "native-module" => Some(NATIVE_MODULES.iter().any(|m| imports(src, m))),
+        _ => None,
+    }
+}
+
+#[test]
+fn the_reason_checks_match_calls_and_imports_only() {
+    assert!(calls("x = spawn(f)", "spawn"));
+    assert!(calls("spawn(f)", "spawn"));
+    assert!(!calls("closure(1)", "close"));
+    assert!(!calls("resend(1)", "send"));
+    assert!(!calls("m.close(1)", "close"));
+    assert!(!calls("# close the file", "close"));
+    assert!(imports("import json\n", "json"));
+    assert!(!imports("import jsonx\n", "json"));
+    assert!(!imports("# import json is not here\n", "json"));
+}
 
 fn skip_list() -> Vec<(String, String)> {
     let text = include_str!("run_parity_skip.txt");
@@ -88,11 +123,11 @@ fn the_skip_list_names_real_files_for_real_reasons() {
     for (name, reason) in skip_list() {
         let src = std::fs::read_to_string(dir.join(&name))
             .unwrap_or_else(|e| panic!("skip list: cannot read tests/lang/{name}: {e}"));
-        let Some((_, words)) = REASONS.iter().find(|(r, _)| *r == reason) else {
+        let Some(shown) = shows_reason(&src, &reason) else {
             panic!("skip list: unknown reason `{reason}` for {name}");
         };
         assert!(
-            words.iter().any(|w| src.contains(w)),
+            shown,
             "skip list: {name} does not use anything that is `{reason}`"
         );
     }
