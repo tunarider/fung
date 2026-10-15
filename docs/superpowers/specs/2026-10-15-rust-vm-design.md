@@ -87,7 +87,8 @@ enum Value {
 | 변환 | `str` `int` `float` `sym` `parse_int` `parse_float` `parse_dur` `type_of` | 구현 |
 | 입출력·제어 | `print` `eprint` `read_line` `read_lines` `fail` `exit` `at_exit` `dbg` `args` | 구현 |
 | 프로세스 | `env` `exec` `sh` | 구현 |
-| 동시성 | `spawn` `await` `cancel` `channel` `send` `recv` `close` `sleep` `atom` `swap` `deref` | 부르면 E0805 |
+| 동시성 | `spawn` `await` `cancel` `channel` `send` `recv` `close` `atom` `swap` `deref` | 부르면 E0805 |
+| 동시성 중 `sleep` | `sleep` | 실제로 기다림(태스크 하나라 Go와 같음, `retry`용; 2026-10-15 사용자 결정) |
 | fung prelude | `spec/builtins.txt`의 `prelude fung` 이름 | `prelude.fung` 실행으로 얻음 |
 
 ## 4. 검증과 성능

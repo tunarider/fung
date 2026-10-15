@@ -15,7 +15,7 @@ Rust 이식의 두 번째 단계가 끝났다. 1단계(`docs/notes/R1-front-end.
 - `vm`: 명령 실행 루프, 프레임, 호출 규약, 꼬리 호출, 패턴 매칭, `assert`·`test`, 모듈 실행, 런타임 에러와 호출 경로.
 - `prelude`: Go 코어 내장 함수 42개(`print`·`map`·`fold`·`put`·`split`·`int`…)와 `args`.
 - `native/process.rs`: `_native.process`(`exec`·`sh`·`env`).
-- `conc.rs`: 동시성 내장 함수 자리. 부르면 `E0805 not supported yet: <이름>`.
+- `conc.rs`: 동시성 내장 함수 자리. 부르면 `E0805 not supported yet: <이름>`. `sleep`만은 실제로 기다린다(태스크가 하나라 취소될 일이 없어 Go와 같고, `retry`가 동작한다).
 - `boot.rs`: 바이너리에 들어 있는 `extras/prelude.fung`를 컴파일하고 실행해 fung으로 쓴 prelude 함수(`take`·`sum`·`retry`…)를 붙인다.
 
 `crates/fung-cli`에는 `run.rs`가 생겼다. `fung run <파일>`, `fung <파일>`, `fung -e '<코드>'`가 Go `execute`와 같은 순서로 동작한다.

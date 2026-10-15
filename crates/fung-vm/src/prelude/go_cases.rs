@@ -450,6 +450,13 @@ r(1)"#,
     (r#"recv()"#, ""),
     (r#"swap(1)"#, ""),
     (r#"sleep(d: 1ms, d: 2ms)"#, ""),
+    // `sleep` runs for real (one task, nothing to cancel it), so the
+    // fung helpers built on it work as in Go.
+    (r#"print(sleep(1ms), sleep(0s), sleep(-1s))"#, ""),
+    (r#"sleep(1)"#, ""),
+    (r#"sleep("1s")"#, ""),
+    (r#"print(retry(() => Err(1), times: 2, delay: 1ms))"#, ""),
+    (r#"print(retry(() => Err("x"), times: 3, delay: 0s))"#, ""),
     (r#"print(spawn, type_of(await), channel == channel)"#, ""),
     // --- process functions ---
     (r#"print(exec(["echo", "hi there"]))"#, ""),

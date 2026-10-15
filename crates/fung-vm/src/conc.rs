@@ -1,8 +1,10 @@
-//! The concurrency natives (05) as placeholders: stage 2 of the Rust port
-//! has no tasks, channels or atoms, so calling any of them raises E0805
-//! `not supported yet: <name>`. The parameter tables are Go's
-//! (`spec/builtins.txt`), so arity and named-argument errors, which the VM
-//! reports before the native runs, are the same as Go's.
+//! The concurrency natives (05). Stage 2 of the Rust port has no tasks,
+//! channels or atoms, so calling any of them raises E0805
+//! `not supported yet: <name>`, except `sleep`: with one task and nothing
+//! to cancel it, a plain thread sleep is exactly Go's behavior, and it keeps
+//! `retry` usable. The parameter tables are Go's (`spec/builtins.txt`), so
+//! arity and named-argument errors, which the VM reports before the native
+//! runs, are the same as Go's.
 
 use std::cell::OnceCell;
 use std::rc::Rc;
@@ -38,7 +40,10 @@ fn all() -> Vec<(&'static str, Value)> {
             ];
             tables
                 .into_iter()
-                .map(|(name, params)| (name, def(name, unsupported, params)))
+                .map(|(name, params)| {
+                    let f = if name == "sleep" { sleep } else { unsupported };
+                    (name, def(name, f, params))
+                })
                 .collect()
         })
         .clone()
@@ -72,4 +77,18 @@ pub fn module() -> Rc<Module> {
 fn unsupported(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
     let name = t.calling_native().unwrap_or("?");
     Err(nat::fail("E0805", vec![nat::s(name)]))
+}
+
+/// `sleep(d)` (Go `sleepFn`): waits for `d`; zero and negative durations
+/// return at once. Stage 3 makes it park the task and end early with E0701
+/// when the task is cancelled.
+fn sleep(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let d = match &args[0] {
+        Value::Dur(d) => *d,
+        v => return Err(nat::wrong_arg("d", "dur", v)),
+    };
+    if d > 0 {
+        std::thread::sleep(std::time::Duration::from_nanos(d as u64));
+    }
+    Ok(Value::Nil)
 }

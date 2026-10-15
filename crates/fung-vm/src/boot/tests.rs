@@ -62,7 +62,6 @@ fn every_placeholder_gives_e0805_without_a_panic() {
         ("send(1, 2)", "send"),
         ("recv(1)", "recv"),
         ("close(1)", "close"),
-        ("sleep(1ms)", "sleep"),
         ("atom(1)", "atom"),
         ("swap(1, x => x)", "swap"),
         ("deref(1)", "deref"),
@@ -92,7 +91,6 @@ fn fung_helpers_over_placeholders_fail_at_the_user_call() {
     let cases = [
         ("print(1)\npmap([1], x => x)", "spawn_awaited", 2, 5),
         ("fan_in([])", "channel", 1, 7),
-        ("x = retry(() => Err(1), times: 2)", "sleep", 1, 10),
     ];
     for (src, name, line, col) in cases {
         let o = exec(src, Opts::default());
@@ -452,4 +450,16 @@ fn files_that_are_not_programs_give_exec_format_error() {
             )
         );
     }
+}
+
+/// `sleep` waits for real (stage 2 has one task and nothing can cancel
+/// it), so `retry` with a delay works as in Go.
+#[test]
+fn sleep_waits_and_retry_uses_it() {
+    let start = std::time::Instant::now();
+    let (out, err, code) = crate::testutil::run(
+        "print(sleep(30ms))\nprint(retry(() => Err(1), times: 3, delay: 10ms))",
+    );
+    assert_eq!((out.as_str(), err.as_str(), code), ("nil\nErr(1)\n", "", 0));
+    assert!(start.elapsed() >= std::time::Duration::from_millis(50));
 }
