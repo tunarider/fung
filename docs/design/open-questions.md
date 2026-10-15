@@ -274,6 +274,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     고친다면 닫을 파일을 배경 닫기 스레드에 넘긴다. Go는 GC의 finalizer가 따로 닫아서 해당 없음.
   - `remove_all`: 디렉터리 안쪽은 `std::fs::remove_dir_all`에 맡겨서, 깊은 곳에 실패가 여럿 섞이면 보고하는 첫 errno가 Go `removeAllFrom`과 다를 수 있다. 첫 errno 하나만 보고하는 것은 같다.
   - Go 문자열은 잘못된 UTF-8 바이트를 그대로 품어 핸들 표시에서 `\xff`로 보이지만, Rust 경로 문자열은 U+FFFD로 바뀌어 있어 그대로 보인다(2단계 U+FFFD 차이와 같은 뿌리).
+  - `fs.read`·`read_lines`·`read_line(h)`는 파일 내용의 잘못된 UTF-8 바이트를 바이트마다 U+FFFD로 바꾼다. Go는 원래 바이트를 그대로 보존한다(같은 뿌리).
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.
   - 런타임 빌림: `Task<'rt>`가 `&'rt mut Runtime`을 쥔다(`crates/fung-vm/src/vm.rs`). 태스크 여럿이 주차된 스케줄러에서는 각자 배타적으로 빌릴 수 없으므로
