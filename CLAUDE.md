@@ -36,9 +36,10 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
 - Go 모듈 `github.com/tunarider/fung`, Go 1.27, **Go 표준 라이브러리만 사용** (REPL 줄 편집 등도 직접 구현).
 - 원격 저장소: `origin` = https://github.com/tunarider/fung (공개). 2026-10-14에 기록을 커밋 하나로 합쳐 처음 푸시했다.
   옛 기록(커밋 195개)은 저장소 밖 `~/fung-history-2026-10-14.bundle`에만 있다.
-- Rust 이식(진행 중): 루트 Cargo 워크스페이스, `crates/fung-front`(앞단)·`crates/fung-cli`(`fung dump`). 크레이트 의존성은 허용 목록(open-questions "Rust 이전")만,
-  앞단은 0개. `spec/builtins.txt`·`spec/errors.txt`는 Go가 생성(`go test ./tests -run TestSpecFiles -update`). 커밋 전 `cargo fmt --check`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo test`도 통과해야 한다(`parity` 테스트가 Go 버전과 dump 출력을 비교).
+- Rust 이식(진행 중): 루트 Cargo 워크스페이스, `crates/fung-front`(앞단)·`crates/fung-vm`(값·VM)·`crates/fung-cli`(`fung dump`·`run`·`-e`). 크레이트 의존성은 허용 목록(open-questions "Rust 이전")만,
+  앞단·VM은 0개. `spec/builtins.txt`·`spec/errors.txt`는 Go가 생성(`go test ./tests -run TestSpecFiles -update`). 커밋 전 `cargo fmt --check`,
+  `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo test --release`도 통과해야 한다(`parity`·`run_parity` 테스트가 Go 버전과
+  dump·실행 출력을 비교, 릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지킴).
 
 ## 현재 상태
 
@@ -83,6 +84,7 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   `fold`·`map`·`each`·`filter`는 범위를 펼치지 않고(`nat.Each`) 인자 배열 재사용. fib·loop 약 2.5배. `internal/vm/alloc_test.go`가 할당 수를 지킨다.
   측정 스크립트 `bench/`, 기록과 3단계 이후 계획은 open-questions "성능".
 - Rust 이식 1단계(앞단) 완료 (2026-10-15): `fung dump ast|core|bytecode`와 컴파일 에러가 Go와 글자 단위로 같다(parity 561건). 노트 `docs/notes/R1-front-end.md`. 다음은 2단계(값·VM).
+- Rust 이식 2단계(값·VM) 완료 (2026-10-15): `fung run`/`-e`가 동시성·네이티브 다리 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`) 밖의 프로그램을 Go와 같은 출력·종료 코드로 실행한다(dump parity 561건 이상, 실행 비교 152건, 제외 18개는 `crates/fung-cli/tests/run_parity_skip.txt`). 동시성 내장 함수는 E0805. 계획 `docs/plans/2026-10-15-rust-vm.md`, 노트 `docs/notes/R2-vm.md`. 다음은 3단계(런타임·동시성).
 - 다음 작업: tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에(기존 결정 유지). 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 에러 번호는 `internal/diag/catalog.go`에서 할당하며 한 번 붙이면 바꾸지 않는다.
 - 학습용 설명은 `docs/notes/M<n>-<주제>.md`에 한국어로 남긴다. 마일스톤마다 무엇을 만들었고 왜 그렇게 했는지 쓴다.

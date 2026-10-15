@@ -59,3 +59,7 @@ jobs:
         env:
           FUNG_REQUIRE_PARITY: "1"
         run: cargo test
+      - name: test (release)
+        env:
+          FUNG_REQUIRE_PARITY: "1"
+        run: cargo test --release
