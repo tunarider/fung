@@ -88,6 +88,10 @@ func runGolden(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 
+	if c.Only == "rust" {
+		t.Skip("only the Rust implementation runs this file (# only: rust)")
+	}
+
 	cmd := exec.Command(fungBinary, append([]string{path}, c.Args...)...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdin = strings.NewReader(c.Stdin)

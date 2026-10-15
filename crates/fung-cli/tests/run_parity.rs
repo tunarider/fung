@@ -184,6 +184,20 @@ fn directives(src: &str) -> (Vec<String>, String) {
     (args, stdin)
 }
 
+/// True when the file carries a `# only:` line, so only one implementation
+/// runs it and the two cannot be compared (the value is checked by Go's
+/// `internal/golden`).
+fn only_one_implementation(src: &str) -> bool {
+    src.lines().any(|l| l.trim().starts_with("# only:"))
+}
+
+#[test]
+fn an_only_file_is_not_compared() {
+    assert!(only_one_implementation("# only: rust\nprint(1)\n"));
+    assert!(only_one_implementation("print(1)\n  # only: go\n"));
+    assert!(!only_one_implementation("print(1)\n# expect: 1\n"));
+}
+
 /// Every `*.fung` directly in `dir` (relative to the repository root).
 fn fung_files(dir: &str) -> Vec<String> {
     let mut files: Vec<String> = std::fs::read_dir(repo().join(dir))
@@ -224,6 +238,9 @@ fn cases() -> Vec<Case> {
             continue;
         }
         let src = std::fs::read_to_string(repo().join(&f)).unwrap();
+        if only_one_implementation(&src) {
+            continue;
+        }
         let (args, stdin) = directives(&src);
         let mut a: Vec<OsString> = vec!["run".into(), f.clone().into()];
         a.extend(args.into_iter().map(OsString::from));
