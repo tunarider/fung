@@ -441,6 +441,37 @@ fn a_node_also_under_a_second_parent_follows_both() {
     assert_eq!(agent.child_count(), 0);
 }
 
+/// A node waiting to end once empty also ends when its last child leaves
+/// through a link (the child's second parent), not only its primary one.
+#[test]
+fn a_linked_parent_ends_when_its_last_linked_child_leaves() {
+    use super::task::CancelNode;
+    let (other, n) = (CancelNode::root(), CancelNode::root());
+    let kid = other.child();
+    kid.also_under(&n);
+    n.end_when_empty();
+    assert!(!n.is_cancelled());
+    kid.cancel();
+    assert!(n.is_cancelled());
+}
+
+/// Nested `swap`s whose inner `f` spawns a task that outlives it leave
+/// no cancellation nodes behind: the count stays small however many
+/// rounds ran.
+#[test]
+fn nested_swaps_do_not_leak_cancellation_nodes() {
+    let src = "a = agent(0)\nb = agent(0)\n\
+        each(0..2000, _ => swap(a, x => x + swap(b, fn(y): spawn(() => 1); y + 1 ;;)))";
+    let left = on_big_stack(move || {
+        let s = setup(src, Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
+        s.rt.run().unwrap();
+        s.rt.wait();
+        assert_eq!(s.err.text(), "");
+        s.rt.shared().root.descendant_count()
+    });
+    assert!(left < 50, "{left} cancellation nodes left");
+}
+
 /// A task event wakes only the tasks waiting on it: 200 tasks sleeping
 /// for different times, each awaited in turn, wake about once per sleep
 /// and once per await, not once per event per blocked task.

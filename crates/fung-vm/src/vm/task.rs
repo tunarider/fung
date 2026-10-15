@@ -146,6 +146,19 @@ impl CancelNode {
         self.inner().children.len()
     }
 
+    /// The number of nodes below this one, through the primary lists
+    /// (tests). Never holds two locks: each level is copied out first.
+    #[cfg(test)]
+    pub(crate) fn descendant_count(&self) -> usize {
+        let mut todo: Vec<Arc<CancelNode>> = self.inner().children.values().cloned().collect();
+        let mut n = 0;
+        while let Some(c) = todo.pop() {
+            n += 1;
+            todo.extend(c.inner().children.values().cloned());
+        }
+        n
+    }
+
     /// Wakes `w` when this node is cancelled (`block`). Already cancelled
     /// nodes are checked by the caller after registering.
     pub(crate) fn watch(&self, w: &Arc<Waiter>) {
@@ -178,7 +191,17 @@ impl CancelNode {
         let me = self as *const CancelNode as usize;
         for l in links {
             if let Some(o) = l.upgrade() {
-                o.inner().children.remove(&me);
+                // A linked parent waiting to end once empty ends when its
+                // last child leaves, as for the primary parent.
+                let end = {
+                    let mut inner = o.inner();
+                    inner.children.remove(&me).is_some()
+                        && inner.end_when_empty
+                        && inner.children.is_empty()
+                };
+                if end {
+                    o.cancel();
+                }
             }
         }
         if let Some(p) = self.parent.upgrade() {
