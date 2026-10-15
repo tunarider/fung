@@ -26,8 +26,10 @@
 //! same way, on a thread of their own under the run token, but hang from
 //! the background root (`Shared::background`) instead of their spawner's
 //! node, are counted in `World::background` instead of `running` and
-//! `live`, never report a failure, and are cancelled after the exit
-//! handlers (`Runtime::end_background`). The deadlock check counts them
+//! `live`, and are cancelled after the exit handlers
+//! (`Runtime::end_background`). A task a background task spawns is a
+//! background task too; only the one `spawn_background` starts never
+//! reports a failure. The deadlock check counts them
 //! apart (`deadlock.rs`).
 
 use std::cell::{Cell, RefCell};
@@ -233,8 +235,9 @@ pub(crate) struct TaskState {
     result: RefCell<Option<Value>>,
     /// The tasks waiting for the result (`await`), woken when it is set.
     pub(crate) waiters: RefCell<WaitList>,
-    /// Spawned by a helper that awaits it (`_native.conc.spawn_awaited`):
-    /// its failure counts as retrieved from the start.
+    /// Its failure counts as retrieved from the start: spawned by a helper
+    /// that awaits it (`_native.conc.spawn_awaited`), or the task
+    /// `spawn_background` starts (an agent's loop, internal code).
     awaited: bool,
     /// The number of the task's failure in `Failures` while it is neither
     /// retrieved nor reported.
@@ -308,13 +311,18 @@ pub(crate) fn err_kind(kind: &str) -> Value {
 
 /// What kind of task `spawn` starts.
 #[derive(Clone, Copy)]
-pub(crate) enum Kind {
-    /// A task of the program (`spawn`); `awaited` for `spawn_awaited`.
-    Normal { awaited: bool },
-    /// A background task (`spawn_background`, stage 3b): it does not keep
-    /// the program alive, its failure is never reported, and the deadlock
-    /// check counts it apart (`deadlock.rs`).
-    Background,
+pub(crate) struct Kind {
+    /// A background task (stage 3b): the task `spawn_background` starts
+    /// and every task spawned below it, directly or not. It does not keep
+    /// the program alive, the deadlock check counts it apart
+    /// (`deadlock.rs`), and it ends with the background root
+    /// (`Runtime::end_background`), not with the program's.
+    pub(crate) background: bool,
+    /// Its failure is tracked and reported if nobody retrieves it: not
+    /// for `spawn_awaited` (its helper awaits it) nor for the task
+    /// `spawn_background` starts (internal code). A task spawned below a
+    /// background task runs user code (an agent's `f`), so it is.
+    pub(crate) reported: bool,
 }
 
 /// What a task's run becomes as its result (Go `finish`): the value, or
@@ -339,9 +347,19 @@ impl<'rt> Task<'rt> {
     /// Starts `f` on a new task below this one and returns its handle
     /// (Go `spawn`). `awaited` marks a task a helper promises to await
     /// (`spawn_awaited`).
+    ///
+    /// A task spawned by a background task is a background task too (it
+    /// hangs below it in the cancellation tree, under the background
+    /// root): the program's end, an exit, an entry error or a deadlock
+    /// report cancel only the program's root, so counting it as the
+    /// program's would leave the command waiting for it.
     pub(crate) fn spawn(&mut self, f: Value, awaited: bool) -> Result<Value, Stop> {
         let node = self.cancel.child();
-        self.start(f, node, Kind::Normal { awaited })
+        let kind = Kind {
+            background: self.background,
+            reported: !awaited,
+        };
+        self.start(f, node, kind)
     }
 
     /// Starts `f` on a background task (stage 3b, `agent.rs`) and returns
@@ -350,7 +368,11 @@ impl<'rt> Task<'rt> {
     /// and is cancelled after the exit handlers (`Runtime::end_background`).
     pub(crate) fn spawn_background(&mut self, f: Value) -> Result<Value, Stop> {
         let node = self.shared.background.child();
-        self.start(f, node, Kind::Background)
+        let kind = Kind {
+            background: true,
+            reported: false,
+        };
+        self.start(f, node, kind)
     }
 
     fn start(&mut self, f: Value, node: Arc<CancelNode>, kind: Kind) -> Result<Value, Stop> {
@@ -358,7 +380,7 @@ impl<'rt> Task<'rt> {
         let state = Rc::new(TaskState {
             result: RefCell::new(None),
             waiters: RefCell::new(WaitList::default()),
-            awaited: matches!(kind, Kind::Normal { awaited: true }),
+            awaited: !kind.reported,
             failure: Cell::new(None),
             orphan: Cell::new(false),
         });
@@ -412,7 +434,7 @@ impl<'rt> Task<'rt> {
 /// file; the values would then be dropped in an unknown state, so the
 /// process stops instead.
 fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff, kind: Kind) {
-    let background = matches!(kind, Kind::Background);
+    let background = kind.background;
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut t = Task::spawned(&shared, node.clone(), background);
         token::assert_holds_token();
@@ -423,7 +445,6 @@ fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff, kind:
         if let Err(Stop::Error(d)) = &r
             && !is_cancel(d)
             && !state.awaited
-            && !background
         {
             // Go `finish`: a failure someone must see (`failure.rs`).
             let text = format!("task failed: {}", diag::format(d, &t.world.sources));

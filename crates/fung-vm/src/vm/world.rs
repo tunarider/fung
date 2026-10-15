@@ -76,8 +76,8 @@ pub(crate) struct World {
     /// deadlock check (`deadlock.rs`) compares it with `Census::blocked`.
     pub(super) live: usize,
     /// Background tasks that have not finished (stage 3b): spawned by
-    /// `spawn_background`, counted from the spawn until their `Task`
-    /// drops. Not in `running` or `live`; the deadlock check counts them
+    /// `spawn_background` or by another background task, counted from
+    /// the spawn until their `Task` drops. Not in `running` or `live`; the deadlock check counts them
     /// apart (`deadlock.rs`), and `idle` is woken when this drops to 0
     /// too (`Runtime::end_background`).
     pub(super) background: usize,
@@ -171,17 +171,17 @@ impl World {
     /// normal task is running and live, a background task is counted
     /// apart.
     pub(super) fn count(&mut self, kind: Kind, up: bool) {
-        match (kind, up) {
-            (Kind::Normal { .. }, true) => {
+        match (kind.background, up) {
+            (false, true) => {
                 self.running += 1;
                 self.live += 1;
             }
-            (Kind::Normal { .. }, false) => {
+            (false, false) => {
                 self.running -= 1;
                 self.live -= 1;
             }
-            (Kind::Background, true) => self.background += 1,
-            (Kind::Background, false) => self.background -= 1,
+            (true, true) => self.background += 1,
+            (true, false) => self.background -= 1,
         }
     }
 

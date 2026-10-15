@@ -94,8 +94,11 @@ fn all() -> Vec<(&'static str, Value)> {
 }
 
 /// The members of `_native.conc`: Go's `spawn_awaited`, then the Rust
-/// only ones (`fung_front::builtins` lists them as differences from the
-/// spec).
+/// only ones. The front end learns the Rust-only ones from
+/// `RUST_MODULE_MEMBERS` in `crates/fung-front/src/builtins.rs` (the
+/// differences from `spec/builtins.txt`); the boot test
+/// `native_modules_match_the_spec` keeps the two lists, and the
+/// parameter tables, in sync.
 const MODULE_ONLY: &[&str] = &[
     "spawn_awaited",
     "spawn_background",

@@ -20,11 +20,19 @@
 //!   not sent into itself (stage 3b Task 5), for the agent's own
 //!   requests (`conc.rs`).
 //! - `agent_busy(ch, on, state = nil)`: the agent's task marks itself as
-//!   serving a request on `ch` with `state` (on) or not (off); kept on
-//!   the channel, since the agent's loop holds the channel and must not
-//!   hold a handle (that would keep its own channel open forever).
+//!   serving a request on `ch` with `state` (on) or not (off). The mark
+//!   is kept on the channel, not the handle (see the rule below).
 //! - `in_agent(a)`: whether the current task is the one serving a request
 //!   of `a` right now; `agent_state(a)` is then the state it serves with.
+//!
+//! **The agent's loop holds only the request channel, never a handle.**
+//! The handle is the closer: while any copy is alive the channel stays
+//! open, so a loop holding one would keep itself alive forever and an
+//! agent nobody can reach would never end. Everything the loop needs
+//! (`agent_busy`, `send_unchecked`, `recv`) therefore takes the channel.
+//!
+//! A task the agent's `f` spawns is a background task too (`task.rs`):
+//! it ends with the agent's root, not the program's.
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -41,6 +49,10 @@ use crate::value::{Value, drop_children, keep};
 /// An agent's handle: the closer of its request channel. Two handles are
 /// equal only when they are the same handle; it prints as `<agent>`
 /// (the state is the agent's, and reading it means asking the agent).
+///
+/// The agent's own loop must hold only the channel, never a handle: a
+/// handle it held would keep the channel open, and the agent alive,
+/// forever (module doc).
 pub struct Agent {
     /// The request channel; taken out (and closed) when the handle drops.
     channel: Option<Rc<Channel>>,
@@ -165,6 +177,13 @@ pub(crate) fn raise(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 
 /// `agent_busy(ch, on, state = nil)`: marks the current task as serving a
 /// request on `ch` with `state`, or clears the mark.
+///
+/// A mark that is never cleared (the loop's `f` exited, or the agent was
+/// cancelled in the middle of it) stays on the channel and keeps its
+/// state alive until the channel drops. Accepted: the dead task's
+/// identity never matches again, so `in_agent` stays false, and the
+/// state goes with the channel (with the agent, at the latest at the
+/// program's end).
 pub(crate) fn agent_busy(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let state = args.pop().expect("state");
     let on = match &args[1] {

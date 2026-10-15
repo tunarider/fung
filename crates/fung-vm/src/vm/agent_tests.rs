@@ -355,3 +355,98 @@ fn deeply_nested_agent_handles_drop_in_constant_stack() {
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("freed\n", ""));
 }
+
+/// `exec_internal` bounded in time: a hang fails the test instead of
+/// stalling the run (the runaway thread is left behind).
+fn bounded(src: &str, limit: std::time::Duration) -> (Outcome, std::time::Duration) {
+    let src = src.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let start = std::time::Instant::now();
+        let o = exec_internal(&src);
+        let _ = tx.send((o, start.elapsed()));
+    });
+    rx.recv_timeout(limit)
+        .unwrap_or_else(|_| panic!("the program did not end within {limit:?}"))
+}
+
+const LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// A task the background task spawned and left blocked must not keep
+/// the program from ending on `exit`.
+#[test]
+fn exit_ends_a_program_whose_background_task_spawned_a_blocked_task() {
+    let (o, _) = bounded(
+        "import _native.conc as c\nready = channel()\nc.spawn_background(fn(): spawn(() => recv(channel())); send(ready, 1); recv(channel()) ;;)\nrecv(ready)\nexit(3)",
+        LIMIT,
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("", "", 3));
+}
+
+#[test]
+fn an_entry_error_ends_a_program_whose_background_task_spawned_a_blocked_task() {
+    let (o, _) = bounded(
+        "import _native.conc as c\nready = channel()\nc.spawn_background(fn(): spawn(() => recv(channel())); send(ready, 1); recv(channel()) ;;)\nrecv(ready)\n1 / 0",
+        LIMIT,
+    );
+    assert!(o.err.starts_with("error[E0502]"), "{}", o.err);
+    assert_eq!(o.exit, 1);
+}
+
+#[test]
+fn a_deadlock_ends_a_program_whose_background_task_spawned_a_blocked_task() {
+    let (o, _) = bounded(
+        "import _native.conc as c\nready = channel()\nc.spawn_background(fn(): spawn(() => recv(channel())); send(ready, 1); recv(channel()) ;;)\nrecv(ready)\nrecv(channel())",
+        LIMIT,
+    );
+    assert!(
+        o.err
+            .starts_with("error[E0702]: deadlock: all tasks are waiting"),
+        "{}",
+        o.err
+    );
+    assert_eq!(o.exit, 1);
+}
+
+/// The background task's sleeping subtask is cancelled with it: the
+/// exit does not wait out the sleep.
+#[test]
+fn exit_does_not_wait_for_a_background_tasks_sleeping_subtask() {
+    let (o, took) = bounded(
+        "import _native.conc as c\nready = channel()\nc.spawn_background(fn(): t = spawn(() => sleep(3s)); send(ready, 1); await(t) ;;)\nrecv(ready)\nexit(3)",
+        LIMIT,
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("", "", 3));
+    assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
+}
+
+/// A real deadlock through an agent's subtask: the agent awaits a task
+/// that waits on a silent channel while the entry waits for the agent's
+/// reply. Everything is blocked, nothing has a timer.
+#[test]
+fn a_deadlock_through_a_background_tasks_subtask_is_reported() {
+    let (o, _) = bounded(
+        "import _native.conc as c\nreq = channel()\nreply = channel()\nc.spawn_background(fn(): recv(req); t = spawn(() => recv(channel())); await(t); send(reply, 1) ;;)\nsend(req, 1)\nrecv(reply)",
+        LIMIT,
+    );
+    assert!(
+        o.err
+            .starts_with("error[E0702]: deadlock: all tasks are waiting"),
+        "{}",
+        o.err
+    );
+    assert_eq!(o.exit, 1);
+}
+
+/// Only the task `spawn_background` starts is exempt from failure
+/// reports: a task it spawns is user code, and its failure is reported.
+#[test]
+fn a_failure_of_a_background_tasks_subtask_is_reported() {
+    let (o, _) = bounded(
+        "import _native.conc as c\nready = channel()\nc.spawn_background(fn(): spawn(() => 1 / 0); send(ready, 1); recv(channel()) ;;)\nrecv(ready)\nuntil(() => background() == 1)\nprint(\"end\")",
+        LIMIT,
+    );
+    assert_eq!(o.out, "end\n");
+    assert!(o.err.contains("task failed: error[E0502]"), "{}", o.err);
+    assert_eq!(o.exit, 1);
+}

@@ -41,7 +41,8 @@
 //! before the entry task drops (`Runtime::run_with`): the tasks it leaves
 //! blocked are then being cancelled, not deadlocked.
 //!
-//! **Background tasks** (stage 3b, `spawn_background`; agents) are not
+//! **Background tasks** (stage 3b, `spawn_background` and every task
+//! spawned below one; agents and what their `f` spawns) are not
 //! the program's tasks: they never keep it alive, so they are not in
 //! `World::live` nor in `Census::blocked`. They are counted apart
 //! (`World::background`, `Census::bg_blocked` / `bg_waking`), by the same
