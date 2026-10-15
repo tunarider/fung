@@ -366,21 +366,23 @@ mod tests {
     }
 
     #[test]
-    fn glob_reads_the_working_directory() {
-        // `cargo test` runs in the crate directory.
-        assert_eq!(glob(b"*.toml"), Ok(vec![b"Cargo.toml".to_vec()]));
-        assert_eq!(glob(b"./*.toml"), Ok(vec![b"Cargo.toml".to_vec()]));
-        assert_eq!(glob(b"Cargo.toml"), Ok(vec![b"Cargo.toml".to_vec()]));
-        assert_eq!(glob(b"./Cargo.toml"), Ok(vec![b"./Cargo.toml".to_vec()]));
-        assert_eq!(glob(b"no-such-file"), Ok(vec![]));
+    fn glob_reads_the_file_system() {
+        // Absolute patterns: independent of the working directory.
+        let d = env!("CARGO_MANIFEST_DIR");
+        let one = |p: &str| glob(p.as_bytes());
+        let at = |rel: &str| Ok(vec![format!("{d}/{rel}").into_bytes()]);
+        assert_eq!(one(&format!("{d}/*.toml")), at("Cargo.toml"));
+        // A pattern with a wildcard has its directory part cleaned; one
+        // without is returned as written.
+        assert_eq!(one(&format!("{d}/./*.toml")), at("Cargo.toml"));
+        assert_eq!(one(&format!("{d}/Cargo.toml")), at("Cargo.toml"));
+        assert_eq!(one(&format!("{d}/./Cargo.toml")), at("./Cargo.toml"));
+        assert_eq!(one(&format!("{d}/no-such-file")), Ok(vec![]));
         assert_eq!(
-            glob(b"src/nat*/glob.r?"),
-            Ok(vec![b"src/native/glob.rs".to_vec()])
+            one(&format!("{d}/src/nat*/glob.r?")),
+            at("src/native/glob.rs")
         );
-        assert_eq!(
-            glob(b"src/*/glob.rs"),
-            Ok(vec![b"src/native/glob.rs".to_vec()])
-        );
+        assert_eq!(one(&format!("{d}/src/*/glob.rs")), at("src/native/glob.rs"));
         assert_eq!(glob(b"[").unwrap_err(), BadPattern);
         assert_eq!(glob(b"src/[/x").unwrap_err(), BadPattern);
         assert_eq!(glob(b"/").unwrap(), vec![b"/".to_vec()]);

@@ -60,20 +60,9 @@ fn abs_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// Go `filepath.Abs`: a relative path is joined onto the working
-/// directory; when that cannot be read the path is only cleaned.
+/// directory (`$PWD` when it names the same directory, like `os.Getwd`).
 pub(crate) fn abs(p: &str) -> String {
-    if p.starts_with('/') {
-        return clean(p);
-    }
-    match std::env::current_dir() {
-        Ok(wd) => {
-            let wd = fung_front::source::decode_go(std::os::unix::ffi::OsStrExt::as_bytes(
-                wd.as_os_str(),
-            ));
-            join(&[wd, p.to_string()])
-        }
-        Err(_) => clean(p),
-    }
+    fung_front::loader::abs_path(p)
 }
 
 /// Go `filepath.Join`: empty elements are dropped, the rest joined with
@@ -256,10 +245,11 @@ mod tests {
 
     #[test]
     fn abs_joins_the_working_directory() {
-        let wd = std::env::current_dir().unwrap();
-        let wd = wd.to_str().unwrap();
+        // The working directory as `$PWD` or `getcwd` names it; the
+        // symlinked case is covered by the CLI test `path_abs`.
+        let wd = fung_front::loader::abs_path(".");
         assert_eq!(abs("/x/../y"), "/y");
-        assert_eq!(abs(""), clean(wd));
+        assert_eq!(abs(""), wd);
         assert_eq!(abs("a/./b"), clean(&format!("{wd}/a/b")));
     }
 }
