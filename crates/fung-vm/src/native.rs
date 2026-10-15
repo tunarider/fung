@@ -2,4 +2,5 @@
 //! and the `_native.*` bridges themselves (Go `internal/native`).
 
 pub mod nat;
+pub mod path;
 pub mod process;

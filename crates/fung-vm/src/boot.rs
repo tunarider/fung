@@ -20,7 +20,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
 
-use crate::native::{nat, process};
+use crate::native::{nat, path, process};
 use crate::value::{Module, Value};
 use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
@@ -135,6 +135,7 @@ fn boot_file(
 pub fn native_module(key: &str) -> Option<Rc<Module>> {
     match key {
         "_native.conc" => Some(conc::module()),
+        "_native.path" => Some(path::module()),
         "_native.process" => Some(process::module()),
         _ => None,
     }
@@ -144,7 +145,7 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
 /// over a `_native.*` bridge the Rust port does not have yet. `cli` is
 /// pure fung and is not among them.
 pub fn unsupported_module(key: &str) -> bool {
-    matches!(key, "fs" | "path" | "json" | "time" | "regex" | "http")
+    matches!(key, "fs" | "json" | "time" | "regex" | "http")
 }
 
 /// Makes a program's modules importable (Go `register`): compiled modules

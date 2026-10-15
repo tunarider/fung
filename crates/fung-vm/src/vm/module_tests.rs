@@ -347,7 +347,7 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
 /// that import. (Go runs them; this is the Rust port's own output.)
 #[test]
 fn out_of_scope_standard_modules_are_not_supported_yet() {
-    for name in ["fs", "path", "json", "time", "regex", "http"] {
+    for name in ["fs", "json", "time", "regex", "http"] {
         let main = format!("import {name}\nprint(1)");
         let o = run_files(&[("/p/main.fung", main.as_str())], "/p/main.fung");
         assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"), "{name}");

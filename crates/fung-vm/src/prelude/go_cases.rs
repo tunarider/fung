@@ -648,4 +648,45 @@ print(run("exit 2")?)"#,
         r#"print(["a\u{378}b", "\u{E000}", "\u{A0}"], {"\u{378}": 1})"#,
         "",
     ),
+    // The path module (stage 4a): filepath's Clean, Join, Base, Dir, Ext.
+    (
+        r#"import path
+print(path.join("a//b", "../c/"), path.join(), path.join("", ""), path.join("/", "..", "x"), path.join("..", "..", "a"))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(["", "/", "//", "a/", "a//b/", ".hidden", "a.b.c", "..", "/..", "a/b.d/c", "한/글.txt"] |> map(p => [path.base(p), path.dir(p), path.ext(p), path.stem(p)]))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(path.abs("a/../b/./c"), path.abs("/x/../y/"), path.abs(""))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(path.join("a", 1))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(path.base(1))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(path.stem(nil), path.dir([]))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(path.abs(1))"#,
+        "",
+    ),
+    (
+        r#"import path
+print(path.ext(nil))"#,
+        "",
+    ),
 ];
