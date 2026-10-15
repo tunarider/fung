@@ -2,6 +2,7 @@
 //! texts for error reports, the exit handlers and the exit code.
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::rc::Rc;
 
@@ -30,6 +31,8 @@ pub struct Runtime {
     globals: Vec<Globals>,
     /// The test blocks the body registered (TEST).
     pub(super) tests: Vec<super::TestCase>,
+    /// The importable modules by key (IMPORT).
+    pub(super) modules: BTreeMap<String, super::module::ModuleState>,
 }
 
 impl Runtime {
@@ -49,6 +52,7 @@ impl Runtime {
             args: Vec::new(),
             globals: Vec::new(),
             tests: Vec::new(),
+            modules: BTreeMap::new(),
         }
     }
 

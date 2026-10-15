@@ -133,10 +133,8 @@ impl Task<'_> {
             }
             Op::Field => {
                 let v = self.pop();
-                // Task 7 hook: a module answers with its member here
-                // (E0303 no member, E0304 private). Until modules are
-                // ported, a module falls through to `index`, which
-                // reports E0509 like any value that has no fields.
+                // `index` answers for a module too: its member, E0303
+                // for no such member, E0304 for a private one (Go m4.go).
                 let name = &self.frames[fi].proto.consts[arg];
                 let r = index::index(&v, name).map_err(|d| at(d, pos))?;
                 self.push(r);

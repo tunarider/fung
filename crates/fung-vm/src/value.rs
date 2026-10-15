@@ -98,9 +98,59 @@ impl std::fmt::Debug for Closure {
     }
 }
 
-/// Placeholder; filled in when modules are ported.
+/// A module's public names (04: 모듈은 값): an immutable record once the
+/// module body has run. Members keep export order. Two modules are equal
+/// only when they are the same module.
 #[derive(Debug)]
-pub struct Module {}
+pub struct Module {
+    /// What the user wrote or the file stem: `fs`, `rename`.
+    pub name: String,
+    /// The runtime key: a stdlib name, `_native.x`, or the absolute path.
+    pub key: String,
+    entries: Vec<(String, Value)>,
+}
+
+impl Module {
+    pub fn new(name: &str, key: &str) -> Module {
+        Module {
+            name: name.to_string(),
+            key: key.to_string(),
+            entries: Vec::new(),
+        }
+    }
+
+    /// Adds or replaces a member, keeping first-insertion order.
+    pub fn set(&mut self, name: &str, v: Value) {
+        match self.entries.iter_mut().find(|(k, _)| k == name) {
+            Some(e) => e.1 = v,
+            None => self.entries.push((name.to_string(), v)),
+        }
+    }
+
+    /// A member by name. A linear scan: modules have tens of members.
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.entries.iter().find(|(k, _)| k == name).map(|(_, v)| v)
+    }
+
+    /// The member names in order.
+    pub fn names(&self) -> Vec<&str> {
+        self.entries.iter().map(|(k, _)| k.as_str()).collect()
+    }
+
+    /// Moves the members out for `release`.
+    fn spill(&mut self, stack: &mut Vec<Value>) {
+        for (_, v) in std::mem::take(&mut self.entries) {
+            release::keep(stack, v);
+        }
+    }
+}
+
+/// Frees the members without recursion (`release`).
+impl Drop for Module {
+    fn drop(&mut self) {
+        release::drop_children(|stack| self.spill(stack));
+    }
+}
 
 /// A fixed-size group of values (02). It reads as a slice of its items.
 #[derive(Debug)]

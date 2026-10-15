@@ -879,3 +879,79 @@ fn list_concat() {
     let Value::List(l) = &la else { unreachable!() };
     same_list("left operand", l, &a);
 }
+
+// module_test.go
+
+#[test]
+fn module_value() {
+    let mut m = Module::new("fs", "fs");
+    m.set("read", Value::Int(1));
+    m.set("write", Value::Int(2));
+    let m = Value::Module(Rc::new(m));
+    assert_eq!(type_name(&m), "module");
+    assert_eq!(format(&m), "<module fs>");
+    let Value::Module(rc) = &m else {
+        unreachable!()
+    };
+    assert_eq!(rc.names(), ["read", "write"]);
+    assert_eq!(rc.name, "fs");
+    assert_eq!(rc.key, "fs");
+    let got = index::index(&m, &s("read")).unwrap();
+    assert!(same(&got, &Value::Int(1)));
+    assert_eq!(index::index(&m, &s("nope")).unwrap_err().code, "E0303");
+    assert_eq!(index::index(&m, &s("_hidden")).unwrap_err().code, "E0304");
+    assert_eq!(index::index(&m, &Value::Int(0)).unwrap_err().code, "E0501");
+    let other = Value::Module(Rc::new(Module::new("fs", "fs")));
+    assert!(
+        equal(&m, &m) && !equal(&m, &other),
+        "modules compare by identity"
+    );
+    assert_eq!(compare(&m, &other).unwrap_err().code, "E0501");
+}
+
+#[test]
+fn module_set_replaces_in_place_and_messages_match_go() {
+    let mut m = Module::new("init", "/p/init.fung");
+    m.set("a", Value::Int(1));
+    m.set("b", Value::Int(2));
+    m.set("a", Value::Int(3));
+    assert_eq!(m.names(), ["a", "b"]);
+    assert!(same(m.get("a").unwrap(), &Value::Int(3)));
+    assert!(m.get("c").is_none());
+    let m = Value::Module(Rc::new(m));
+    let msg = |i: Value| fung_front::diag::headline(&index::index(&m, &i).unwrap_err());
+    assert_eq!(
+        msg(s("nope")),
+        "error[E0303]: module `init` has no member `nope`"
+    );
+    assert_eq!(
+        msg(s("_h")),
+        "error[E0304]: `_h` is private to module `init`"
+    );
+    assert_eq!(
+        msg(Value::Int(1)),
+        "error[E0501]: cannot index module and int"
+    );
+    assert_eq!(
+        fung_front::diag::headline(&index::field(&m, "nope").unwrap_err()),
+        "error[E0303]: module `init` has no member `nope`"
+    );
+}
+
+#[test]
+fn deep_module_chain_drops_without_recursion() {
+    // Each module holds the previous one as a member.
+    let t = std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(|| {
+            let mut v = Value::Nil;
+            for _ in 0..200_000 {
+                let mut m = Module::new("m", "m");
+                m.set("prev", v);
+                v = Value::Module(Rc::new(m));
+            }
+            drop(v);
+        })
+        .unwrap();
+    t.join().unwrap();
+}

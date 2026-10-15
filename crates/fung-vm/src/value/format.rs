@@ -47,7 +47,7 @@ pub fn format(v: &Value) -> String {
         Value::Closure(c) if c.proto.name.is_empty() => "<fn>".into(),
         Value::Closure(c) => format!("<fn {}>", c.proto.name),
         // Placeholder until modules are ported.
-        Value::Module(_) => "<module>".into(),
+        Value::Module(m) => format!("<module {}>", m.name),
     }
 }
 

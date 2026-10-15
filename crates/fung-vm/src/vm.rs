@@ -20,6 +20,9 @@ mod m6_tests;
 #[cfg(test)]
 mod match_tests;
 mod matcher;
+mod module;
+#[cfg(test)]
+mod module_tests;
 mod runtime;
 #[cfg(test)]
 mod tests;
@@ -466,19 +469,14 @@ impl<'rt> Task<'rt> {
                 | Op::Match
                 | Op::MatchOrFail
                 | Op::NoMatch => self.exec_m4(fi, instr.op(), arg, pos)?,
+                Op::Import => self.exec_import(fi, arg, pos)?,
                 Op::Assert | Op::Test => self.exec_m6(fi, instr.op(), arg, pos)?,
                 Op::Return => {
                     if let Some(v) = self.ret(stop) {
                         return Ok(v);
                     }
-                }
-                op => {
-                    return Err(err(
-                        "E0801",
-                        pos,
-                        vec![Arg::Str(format!("unknown opcode {}", op.name()))],
-                    ));
-                }
+                } // Every opcode is handled: the match is exhaustive, so Go's
+                  // "unknown opcode" default cannot arise.
             }
         }
     }

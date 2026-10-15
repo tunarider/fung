@@ -84,6 +84,8 @@ pub struct Opts {
     pub file: &'static str,
     /// Keep test blocks (`fung test`).
     pub tests: bool,
+    /// Reads imported files (the loader's default reads the disk).
+    pub read: fn(&str) -> std::io::Result<String>,
 }
 
 impl Default for Opts {
@@ -94,6 +96,7 @@ impl Default for Opts {
             patch: |_| {},
             file: "-e",
             tests: false,
+            read: Loader::default().read_file,
         }
     }
 }
@@ -158,6 +161,7 @@ pub fn setup(src: &str, p: &Prelude, opts: Opts) -> Result<Setup, (String, Strin
     let loader = Loader {
         extra_prelude: p.0.keys().cloned().collect(),
         tests: opts.tests,
+        read_file: opts.read,
         ..Loader::default()
     };
     let (b, errs) = loader.compile(opts.file, src, Stage::All);
@@ -169,13 +173,119 @@ pub fn setup(src: &str, p: &Prelude, opts: Opts) -> Result<Setup, (String, Strin
     (opts.patch)(&mut entry);
     let main = link(&entry, p);
     let (out, err) = (Buf::default(), Buf::default());
-    let rt = Runtime::new(
+    let mut rt = Runtime::new(
         Box::new(out.clone()),
         Box::new(err.clone()),
         Box::new(Cursor::new(opts.stdin.as_bytes().to_vec())),
         b.sources,
     );
+    // Go `register` (cmd/fung/pipeline.go). Native `_native.*` modules
+    // have no proto; the caller registers them (`register_native`).
+    for m in &b.modules {
+        if let Some(proto) = &m.proto {
+            rt.register_module(&m.key, link(proto, p));
+        }
+    }
     Ok(Setup { rt, main, out, err })
+}
+
+thread_local! {
+    /// The in-memory files `run_files` serves to the loader.
+    static FILES: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
+}
+
+fn mem_read(path: &str) -> std::io::Result<String> {
+    FILES.with(|f| {
+        f.borrow()
+            .iter()
+            .find(|(k, _)| k == path)
+            .map(|(_, v)| v.clone())
+            .ok_or_else(|| std::io::Error::other(format!("no file {path}")))
+    })
+}
+
+/// Runs the in-memory file `entry` with its imports read from `files`
+/// (absolute paths), like Go `module_test.go` `runProgram`.
+pub fn run_files(files: &[(&str, &str)], entry: &str) -> Outcome {
+    let files: Vec<(String, String)> = files
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    let entry = entry.to_string();
+    on_big_stack(move || {
+        let src = files
+            .iter()
+            .find(|(k, _)| *k == entry)
+            .map(|(_, v)| v.clone())
+            .expect("the entry is one of the files");
+        FILES.with(|f| *f.borrow_mut() = files);
+        let opts = Opts {
+            file: leak(entry),
+            read: mem_read,
+            ..Opts::default()
+        };
+        exec_on(&src, prelude(), opts)
+    })
+}
+
+/// Test-only: `Opts.file` is `&'static str` so `Opts` stays `Copy`.
+fn leak(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+/// A fresh directory under the system temp dir, removed when dropped.
+pub struct TempDir(std::path::PathBuf);
+
+impl std::ops::Deref for TempDir {
+    type Target = std::path::Path;
+
+    fn deref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Makes a uniquely named temp dir (process id, a counter and the time).
+pub fn temp_dir() -> TempDir {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!(
+        "fung-vm-test-{}-{}-{nanos}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    TempDir(dir)
+}
+
+/// Runs a file from disk as `fung run <path>` would: (stdout, stderr,
+/// exit code). The path is passed to the loader as given, so it is the
+/// entry's display name, like Go's `fung run` with that argument; tests
+/// pass the absolute temp path, which is also what Go prints for it when
+/// run from the repository root (imports outside the working directory
+/// show as absolute paths).
+pub fn run_file(path: &std::path::Path) -> (String, String, i32) {
+    let path = path.to_string_lossy().into_owned();
+    let o = on_big_stack(move || {
+        let src = std::fs::read(&path)
+            .map(|b| fung_front::source::decode_go(&b))
+            .expect("read the entry file");
+        let opts = Opts {
+            file: leak(path),
+            ..Opts::default()
+        };
+        exec_on(&src, prelude(), opts)
+    });
+    (o.out, o.err, o.exit)
 }
 
 fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {

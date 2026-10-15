@@ -60,7 +60,8 @@ fn norm_index(i: i64, n: usize) -> Result<usize, Diag> {
 }
 
 /// `x[i]` (02): lists and strings by position (negative from the end),
-/// maps by string key. Out of range is an error.
+/// maps by string key, modules by member name (04: a private name is
+/// E0304, a missing one E0303). Out of range is an error.
 pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
     match x {
         Value::List(l) => {
@@ -87,7 +88,24 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
                 None => Err(err("E0508", vec![Arg::Str(k.to_string())])),
             }
         }
-        // Module members (E0303, E0304) arrive with the module task.
+        Value::Module(m) => {
+            let Value::Str(k) = i else {
+                return Err(type_error("index", x, i));
+            };
+            if k.starts_with('_') {
+                return Err(err(
+                    "E0304",
+                    vec![Arg::Str(k.to_string()), Arg::Str(m.name.clone())],
+                ));
+            }
+            match m.get(k) {
+                Some(v) => Ok(v.clone()),
+                None => Err(err(
+                    "E0303",
+                    vec![Arg::Str(m.name.clone()), Arg::Str(k.to_string())],
+                )),
+            }
+        }
         _ => Err(err("E0509", vec![Arg::Str(type_name(x))])),
     }
 }
