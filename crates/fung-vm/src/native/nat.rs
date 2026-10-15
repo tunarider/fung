@@ -112,11 +112,28 @@ fn not_iterable(verb: &str, v: &Value) -> Stop {
     fail("E0506", vec![s(verb), Arg::Str(type_name(v))])
 }
 
-/// Checks that `v` is something `each` and `items` walk: a list or a range
-/// (channels come with concurrency, 05).
+/// The most elements Go can put in one slice: `make` refuses more than
+/// 2^48 bytes, and a value is 16 bytes.
+pub const MAX_SLICE: usize = 1 << 44;
+
+/// Go's panic when `make` cannot make a slice that long, which its VM
+/// reports as E0801 at the call.
+pub fn too_long() -> Stop {
+    fail(
+        "E0801",
+        vec![s("runtime error: makeslice: cap out of range")],
+    )
+}
+
+/// Checks what Go's `nat.Items` checks without listing anything: `v` is a
+/// list or a range (channels come with concurrency, 05), and a range is
+/// short enough for Go to list (`MAX_SLICE`). Every native that lists its
+/// collection in Go calls this first, so huge ranges fail like Go's.
 pub fn check_items(v: &Value, verb: &str) -> Result<(), Stop> {
     match v {
-        Value::List(_) | Value::Range(_) => Ok(()),
+        Value::List(_) => Ok(()),
+        Value::Range(r) if r.len() as u64 > MAX_SLICE as u64 => Err(too_long()),
+        Value::Range(_) => Ok(()),
         _ => Err(not_iterable(verb, v)),
     }
 }
@@ -175,6 +192,7 @@ pub fn size_hint(v: &Value) -> usize {
 /// What a collection function iterates (02), as a vector: lists and
 /// ranges. Prefer `each` where the elements are only walked.
 pub fn items(v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
+    check_items(v, verb)?;
     match v {
         Value::List(l) => Ok(l.to_vec()),
         Value::Range(r) => Ok((0..r.len())

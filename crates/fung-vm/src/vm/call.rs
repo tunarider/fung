@@ -348,8 +348,10 @@ impl Task<'_> {
 
     /// `call` with the arguments taken from `args`, which is left empty
     /// with its capacity kept: natives that call a function per element
-    /// (`map`, `fold`, …) reuse one buffer. A fung function called with
-    /// exactly its parameters gets them moved straight onto the stack.
+    /// (`map`, `fold`, …) reuse one buffer. Only a fung function called
+    /// with exactly its parameters is allocation-free: the arguments move
+    /// straight onto the stack. A native gets a fresh argument vector
+    /// (but skips binding); anything else goes through `call`.
     // `drain(..).collect()` keeps the buffer's capacity for the next call
     // (`mem::take` would hand the allocation to the callee).
     #[allow(clippy::drain_collect)]

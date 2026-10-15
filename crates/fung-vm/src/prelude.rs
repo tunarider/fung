@@ -116,10 +116,6 @@ fn type_of_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Sym(intern(&type_name(&a[0]))))
 }
 
-/// Go cannot make a slice of more than 2^48 bytes (16-byte interfaces):
-/// `make` panics, which the VM reports as E0801.
-const MAX_SLICE: usize = 1 << 44;
-
 /// `map(xs, f)` applies `f` to every element of a list or range and
 /// collects the results (06). `for` lowers to this (03).
 fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
@@ -127,14 +123,10 @@ fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         nat::check_items(&a[0], "map over")?;
         return Err(nat::wrong_arg("f", "fn", &a[1]));
     }
+    // Go makes the result with the collection's size as capacity.
     let hint = nat::size_hint(&a[0]);
-    if hint > MAX_SLICE {
-        return Err(fail(
-            "E0801",
-            vec![Arg::Str(
-                "runtime error: makeslice: cap out of range".into(),
-            )],
-        ));
+    if hint > nat::MAX_SLICE {
+        return Err(nat::too_long());
     }
     // Room for a modest hint only: memory comes as results arrive.
     let mut out = ListBuilder::with_capacity(hint.min(1 << 16));

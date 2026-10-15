@@ -308,6 +308,7 @@ fn all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// `flatten(xs)` splices nested lists one level deep. It stays in Rust:
 /// a fung fold with `acc + x` would copy the accumulator per element.
 fn flatten_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], "flatten")?;
     let mut out = ListBuilder::default();
     nat::each(t, &a[0], "flatten", |_, x| {
         match &x {

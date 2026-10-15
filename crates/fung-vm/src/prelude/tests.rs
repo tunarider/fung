@@ -70,12 +70,68 @@ fn fold_over_a_range_and_strings() {
     assert_eq!(out, "10 1-2 1.0\n");
 }
 
-/// Every program in `go_cases.rs` gives the Go binary's stdout, stderr and
-/// exit status.
+/// Builds the Go implementation once per test run (like
+/// `crates/fung-cli/tests/parity.rs`). `None` when `go` cannot be run and
+/// `FUNG_REQUIRE_PARITY=1` is not set; a failing `go build` panics.
+fn go_fung() -> Option<std::path::PathBuf> {
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let out = std::env::temp_dir().join(format!("fung-go-prelude-{}", std::process::id()));
+    let built = std::process::Command::new("go")
+        .args(["build", "-o"])
+        .arg(&out)
+        .arg("./cmd/fung")
+        .current_dir(&repo)
+        .output();
+    match built {
+        Err(e) => {
+            assert!(
+                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
+                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
+            );
+            eprintln!("skipping the Go comparison: `go` cannot be run: {e}");
+            None
+        }
+        Ok(o) if o.status.success() => Some(out),
+        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
+    }
+}
+
+/// `go-fung -e src` with `stdin`: stdout, stderr, exit status (-1 for a
+/// signal death).
+fn run_go(bin: &std::path::Path, src: &str, stdin: &str) -> (String, String, i32) {
+    use std::io::Write as _;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(bin)
+        .args(["-e", src])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("run the Go binary");
+    let mut input = child.stdin.take().expect("stdin");
+    input.write_all(stdin.as_bytes()).expect("write stdin");
+    drop(input);
+    let o = child.wait_with_output().expect("wait for the Go binary");
+    (
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+        o.status.code().unwrap_or(-1),
+    )
+}
+
+/// Every program in `go_cases.rs`, and the huge-range programs, give the
+/// live Go binary's stdout, stderr and exit status.
 #[test]
 fn runs_match_the_go_binary() {
+    let Some(bin) = go_fung() else { return };
+    let mut cases: Vec<(String, &'static str)> = super::go_cases::GO_CASES
+        .iter()
+        .map(|(src, stdin)| (src.to_string(), *stdin))
+        .collect();
+    cases.extend(huge_range_cases().into_iter().map(|(src, _)| (src, "")));
     let mut bad = Vec::new();
-    for (src, stdin, out, err, code) in super::go_cases::GO_CASES {
+    for (src, stdin) in &cases {
+        let go = run_go(&bin, src, stdin);
         let o = exec(
             src,
             Opts {
@@ -83,13 +139,13 @@ fn runs_match_the_go_binary() {
                 ..Opts::default()
             },
         );
-        if (o.out.as_str(), o.err.as_str(), o.exit) != (*out, *err, *code) {
-            bad.push(format!(
-                "{src}\n  got  out={:?} err={:?} exit={}\n  want out={out:?} err={err:?} exit={code}",
-                o.out, o.err, o.exit
-            ));
+        let rust = (o.out, o.err, o.exit);
+        if rust != go {
+            bad.push(format!("{src}\n  rust {rust:?}\n  go   {go:?}"));
         }
     }
+    let _ = std::fs::remove_file(&bin);
+    eprintln!("compared {} programs with the Go binary", cases.len());
     assert!(
         bad.is_empty(),
         "{} mismatches:\n{}",
@@ -559,7 +615,9 @@ fn write_errors_are_internal_errors_at_the_call() {
 
 /// Natives called with a range never build its list: a huge range is
 /// walked in constant memory, and `map` refuses a result Go cannot
-/// allocate either.
+/// allocate either. (Between about 10^9 and 2^44 elements Go's `make`
+/// succeeds but the process dies of memory exhaustion where a native lists
+/// the range; that zone is left alone.)
 #[test]
 fn ranges_are_walked_in_place() {
     let (out, _, _) = run(
@@ -574,6 +632,67 @@ fn ranges_are_walked_in_place() {
         "{err}"
     );
     assert_eq!(code, 1);
+}
+
+/// The programs `huge_range_cases` builds: every native that, in Go, lists
+/// a range's elements (`nat.Items`) on a range of 10^17 and 10^18 elements,
+/// with the column of the call. Go cannot make the slice (more than 2^44
+/// elements) and reports E0801 there.
+pub(super) fn huge_range_cases() -> Vec<(String, u32)> {
+    let calls: &[(&str, u32)] = &[
+        ("sort(R)", 11),
+        ("sort_by(R, x => x)", 14),
+        ("sort_by(R, 1)", 14),
+        ("join(R, \"\")", 11),
+        ("join(R, 1)", 11),
+        ("flatten(R)", 14),
+        ("find(R, x => true)", 11),
+        ("find(R, 1)", 11),
+        ("any(R, x => true)", 10),
+        ("all(R, x => false)", 10),
+        ("group_by(R, x => 1)", 15),
+        ("map(R, 1)", 10),
+        ("map(R, x => x)", 10),
+        ("filter(R, 1)", 13),
+        ("fold(R, 0, 1)", 11),
+        ("each(R, 1)", 11),
+    ];
+    let mut out = Vec::new();
+    for n in ["100000000000000000", "1000000000000000000"] {
+        for (call, col) in calls {
+            out.push((
+                format!("print({})", call.replace('R', &format!("0..{n}"))),
+                *col,
+            ));
+        }
+    }
+    out
+}
+
+/// Go's `make` panics for a slice of more than 2^44 elements (2^48 bytes);
+/// the natives that list a range give the same E0801 at the call.
+#[test]
+fn huge_ranges_fail_like_go() {
+    for (src, col) in huge_range_cases() {
+        let o = exec(&src, Opts::default());
+        let e = o
+            .error
+            .as_ref()
+            .unwrap_or_else(|| panic!("{src}: no error"));
+        assert_eq!(
+            (e.headline.as_str(), e.line, e.col, o.exit),
+            (
+                "error[E0801]: internal error: runtime error: makeslice: cap out of range",
+                1,
+                col,
+                1
+            ),
+            "{src}"
+        );
+    }
+    // Natives that walk a range in place (Go `nat.Each`) start walking.
+    let (_, err, _) = run("print(fold(0..100000000000000000, 0, (a, x) => x / 0))");
+    assert!(err.starts_with("error[E0502]"), "{err}");
 }
 
 /// Sorting is stable and follows Go's `sort.SliceStable` comparison order,
