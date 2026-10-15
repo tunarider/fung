@@ -69,65 +69,13 @@ fn fold_over_a_range_and_strings() {
     assert_eq!(out, "10 1-2 1.0\n");
 }
 
-/// Builds the Go implementation once per test run (like
-/// `crates/fung-cli/tests/parity.rs`). `None` when `go` cannot be run and
-/// `FUNG_REQUIRE_PARITY=1` is not set; a failing `go build` panics.
-fn go_fung() -> Option<std::path::PathBuf> {
-    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let out = std::env::temp_dir().join(format!("fung-go-prelude-{}", std::process::id()));
-    let built = std::process::Command::new("go")
-        .args(["build", "-o"])
-        .arg(&out)
-        .arg("./cmd/fung")
-        .current_dir(&repo)
-        .output();
-    match built {
-        Err(e) => {
-            assert!(
-                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
-                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
-            );
-            eprintln!("skipping the Go comparison: `go` cannot be run: {e}");
-            None
-        }
-        Ok(o) if o.status.success() => Some(out),
-        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
-    }
-}
-
-/// `go-fung -e src` with `stdin`: stdout, stderr, exit status (-1 for a
-/// signal death).
-fn run_go(bin: &std::path::Path, src: &str, stdin: &str) -> (String, String, i32) {
-    use std::io::Write as _;
-    use std::process::{Command, Stdio};
-    let mut child = Command::new(bin)
-        .args(["-e", src])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("run the Go binary");
-    let mut input = child.stdin.take().expect("stdin");
-    // A program that does not read its input may exit before the write
-    // ends; the pipe is then closed, which is no failure of the run.
-    match input.write_all(stdin.as_bytes()) {
-        Err(e) if e.kind() != std::io::ErrorKind::BrokenPipe => panic!("write stdin: {e}"),
-        _ => {}
-    }
-    drop(input);
-    let o = child.wait_with_output().expect("wait for the Go binary");
-    (
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
-        o.status.code().unwrap_or(-1),
-    )
-}
-
 /// Every program in `go_cases.rs`, and the huge-range programs, give the
 /// live Go binary's stdout, stderr and exit status.
 #[test]
 fn runs_match_the_go_binary() {
-    let Some(bin) = go_fung() else { return };
+    let Some(bin) = testutil::go_fung("prelude") else {
+        return;
+    };
     let mut cases: Vec<(String, &'static str)> = super::go_cases::GO_CASES
         .iter()
         .map(|(src, stdin)| (src.to_string(), *stdin))
@@ -135,7 +83,7 @@ fn runs_match_the_go_binary() {
     cases.extend(huge_range_cases().into_iter().map(|(src, _)| (src, "")));
     let mut bad = Vec::new();
     for (src, stdin) in &cases {
-        let go = run_go(&bin, src, stdin);
+        let go = testutil::run_go(&bin, src, stdin);
         let o = exec(
             src,
             Opts {

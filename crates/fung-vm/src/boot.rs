@@ -20,7 +20,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
 
-use crate::native::{nat, path, process};
+use crate::native::{fs, nat, path, process};
 use crate::value::{Module, Value};
 use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
@@ -135,6 +135,7 @@ fn boot_file(
 pub fn native_module(key: &str) -> Option<Rc<Module>> {
     match key {
         "_native.conc" => Some(conc::module()),
+        "_native.fs" => Some(fs::module()),
         "_native.path" => Some(path::module()),
         "_native.process" => Some(process::module()),
         _ => None,

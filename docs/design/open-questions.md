@@ -248,6 +248,9 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `spec/builtins.txt`는 Go가 만들어 atom을 담으므로, Rust는 차이(네이티브 `atom`·`swap`·`deref` 빠짐, `extras/rust/agent.fung`의 공개 이름 더함, 타입 이름 `atom` → `agent`,
     `_native.conc`의 Rust 전용 멤버)를 이 한 곳에 두고 앞단·부팅·명세 테스트가 함께 읽는다. 6단계에서 명세에 합치고 목록을 지운다. `extras/rust/`를 따로 둔 것(Go의 `embed`가 하위 디렉터리를 넣지 않음)도 그때 정리한다.
   - Go 방식 그대로: 16진 실수 파싱(`prelude/convert.rs`의 `parse_hex_float`), 대소문자 변환의 Go 단순 매핑(`prelude/strings.rs`의 `upper_rune`·`lower_rune`), 실행 파일 형식 사전 검사로 만드는 `exec format error`(`native/process.rs`).
+  - 운영체제 에러를 Go 문구로(4a): errno → Go `syscall.Errno.Error()` 표(`crates/fung-vm/src/native/oserr.rs`, macOS·Linux 따로, arm64 한 줄씩 더함)와
+    Go `os`의 여러 시스템 호출 함수를 단계 그대로 옮긴 것(`native/fs.rs`의 `mkdir_all`·`remove`·`remove_all`·`rename`·`make_temp_dir`, NUL 바이트 경로의 EINVAL).
+    Rust `io::Error`의 문구 대신 Go 문구를 내려고 붙였다. `native/process.rs`도 같은 `reason`을 쓴다.
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서·닫힌 파이프 141)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.

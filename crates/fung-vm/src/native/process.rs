@@ -22,6 +22,7 @@ use fung_front::loader::abs_path;
 use fung_front::source::decode_go;
 
 use super::nat::{self, native, opt, param};
+use super::oserr::reason;
 use crate::value::{Lit, MapBuilder, Module, Native, Value, type_name};
 use crate::vm::{Stop, Task};
 
@@ -308,20 +309,4 @@ fn kernel_can_run(path: &str) -> bool {
 /// A file (not a directory) with an execute bit set.
 fn is_executable(path: &str) -> bool {
     std::fs::metadata(path).is_ok_and(|m| !m.is_dir() && m.permissions().mode() & 0o111 != 0)
-}
-
-/// Go `nat.Reason`: an OS error's text without the operation, which for
-/// an errno is the C library's message in lower case
-/// ("no such file or directory").
-fn reason(e: &std::io::Error) -> String {
-    let text = e.to_string();
-    let text = match text.rfind(" (os error ") {
-        Some(i) if e.raw_os_error().is_some() => &text[..i],
-        _ => &text,
-    };
-    let mut cs = text.chars();
-    match cs.next() {
-        Some(c) => c.to_lowercase().chain(cs).collect(),
-        None => String::new(),
-    }
 }
