@@ -20,6 +20,8 @@ pub(super) struct ModuleState {
     value: Option<Rc<Module>>,
     /// The body is running: importing it again is a run-time cycle.
     loading: bool,
+    /// A standard module stage 2 does not run: importing it is E0805.
+    unsupported: bool,
 }
 
 impl Runtime {
@@ -35,6 +37,7 @@ impl Runtime {
                 proto: Some(proto),
                 value: None,
                 loading: false,
+                unsupported: false,
             },
         );
     }
@@ -47,6 +50,22 @@ impl Runtime {
                 proto: None,
                 value: Some(module),
                 loading: false,
+                unsupported: false,
+            },
+        );
+    }
+
+    /// Makes importing `key` report E0805 `not supported yet: <key>` at
+    /// the import: a standard module whose `_native.*` bridge stage 2 does
+    /// not have (see `boot::unsupported_module`).
+    pub fn register_unsupported(&mut self, key: &str) {
+        self.modules.insert(
+            key.to_string(),
+            ModuleState {
+                proto: None,
+                value: None,
+                loading: false,
+                unsupported: true,
             },
         );
     }
@@ -92,6 +111,9 @@ impl Task<'_> {
         let st = self.rt.modules.get_mut(key).ok_or_else(not_registered)?;
         if let Some(m) = &st.value {
             return Ok(m.clone());
+        }
+        if st.unsupported {
+            return Err(err("E0805", pos, vec![Arg::Str(key.to_string())]));
         }
         if st.loading {
             return Err(err(

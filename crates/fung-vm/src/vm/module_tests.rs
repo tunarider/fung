@@ -342,3 +342,40 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
         }
     });
 }
+
+/// Stage 2 does not run the native bridge modules: importing one, directly
+/// or through a user module, is E0805 with the name the program wrote, at
+/// that import. (Go runs them; this is the Rust port's own output.)
+#[test]
+fn out_of_scope_standard_modules_are_not_supported_yet() {
+    for name in ["fs", "path", "json", "time", "regex", "http"] {
+        let main = format!("import {name}\nprint(1)");
+        let o = run_files(&[("/p/main.fung", main.as_str())], "/p/main.fung");
+        assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"), "{name}");
+        assert!(
+            o.err.starts_with(&format!(
+                "error[E0805]: not supported yet: {name}\n  --> /p/main.fung:1:1\n"
+            )),
+            "{name}: {}",
+            o.err
+        );
+    }
+    let files = [
+        ("/p/lib.fung", "import fs\nfn f() = 1"),
+        ("/p/main.fung", "import \"./lib\"\nprint(lib.f())"),
+    ];
+    let o = run_files(&files, "/p/main.fung");
+    assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"));
+    assert!(
+        o.err
+            .starts_with("error[E0805]: not supported yet: fs\n  --> /p/lib.fung:1:1\n"),
+        "{}",
+        o.err
+    );
+    // `cli` is pure fung and runs.
+    let o = run_files(
+        &[("/p/main.fung", "import cli\nprint(cli.parse([\"a\"]).rest)")],
+        "/p/main.fung",
+    );
+    assert_eq!((o.out.as_str(), o.code.as_str()), ("[\"a\"]\n", ""));
+}

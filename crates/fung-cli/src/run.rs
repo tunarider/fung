@@ -8,7 +8,7 @@ use std::io::Write;
 use fung_front::diag::{self, Diag, EXIT_COMPILE, EXIT_OK, EXIT_RUNTIME};
 use fung_front::loader::{Loader, Stage};
 use fung_front::source::SourceMap;
-use fung_vm::boot::{boot, native_module};
+use fung_vm::boot::{boot, register};
 use fung_vm::vm::{Runtime, Stop, link};
 
 /// The status a shell shows for a process killed by SIGPIPE (128 + 13).
@@ -92,18 +92,9 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
         }
     };
     let main = link(&entry, &p);
-    // Go `register`. A `_native.*` module stage 2 does not have stays
-    // unregistered: importing it is an internal error at the import.
-    for m in &b.modules {
-        match &m.proto {
-            Some(proto) => rt.register_module(&m.key, link(proto, &p)),
-            None => {
-                if let Some(module) = native_module(&m.key) {
-                    rt.register_native(&m.key, module);
-                }
-            }
-        }
-    }
+    // Go `register`; the standard modules stage 2 does not run report
+    // E0805 at their import.
+    register(&mut rt, &b.modules, &p);
     let mut code = i64::from(EXIT_OK);
     let result = rt.run(main);
     if let Err(Stop::Error(d)) = &result

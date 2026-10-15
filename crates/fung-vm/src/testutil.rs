@@ -214,13 +214,9 @@ fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (St
         }
     }
     let main = link(&entry, &p);
-    // Go `register` (cmd/fung/pipeline.go). Native `_native.*` modules
-    // have no proto; the caller registers them (`register_native`).
-    for m in &b.modules {
-        if let Some(proto) = &m.proto {
-            rt.register_module(&m.key, link(proto, &p));
-        }
-    }
+    // Go `register` (cmd/fung/pipeline.go), as the command does it. A
+    // caller may register other natives over it (`register_native`).
+    crate::boot::register(&mut rt, &b.modules, &p);
     Ok(Setup { rt, main, out, err })
 }
 

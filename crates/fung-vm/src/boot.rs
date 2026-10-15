@@ -17,7 +17,7 @@ use std::rc::Rc;
 use fung_front::bytecode::Proto;
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::extras;
-use fung_front::loader::{Loader, Stage};
+use fung_front::loader::{Loaded, Loader, Stage};
 
 use crate::native::{nat, process};
 use crate::value::{Module, Value};
@@ -114,6 +114,32 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
         "_native.conc" => Some(conc::module()),
         "_native.process" => Some(process::module()),
         _ => None,
+    }
+}
+
+/// The standard modules stage 2 does not run: each is a thin fung file
+/// over a `_native.*` bridge the Rust port does not have yet. `cli` is
+/// pure fung and is not among them.
+pub fn unsupported_module(key: &str) -> bool {
+    matches!(key, "fs" | "path" | "json" | "time" | "regex" | "http")
+}
+
+/// Makes a program's modules importable (Go `register`): compiled modules
+/// linked against `p`, the `_native.*` bridges stage 2 has, and the
+/// standard modules it does not run as E0805 placeholders. A bridge stage
+/// 2 does not have stays unregistered (only those placeholders import
+/// it), so a lookup of it is still an internal error.
+pub fn register(rt: &mut Runtime, modules: &[Loaded], p: &Prelude) {
+    for m in modules {
+        match &m.proto {
+            Some(_) if unsupported_module(&m.key) => rt.register_unsupported(&m.key),
+            Some(proto) => rt.register_module(&m.key, link(proto, p)),
+            None => {
+                if let Some(module) = native_module(&m.key) {
+                    rt.register_native(&m.key, module);
+                }
+            }
+        }
     }
 }
 
