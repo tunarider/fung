@@ -13,37 +13,40 @@ mod go_cases;
 #[cfg(test)]
 mod tests;
 
-use std::cell::OnceCell;
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 use fung_front::diag::Arg;
 
 use crate::native::nat::{self, def, fail, opt, param, rest};
-use crate::value::{ListBuilder, Value, intern, type_name};
+use crate::value::{ListBuilder, Lit, Native, Value, intern, type_name};
 use crate::vm::{Stop, Task};
 
 pub use io::dbg;
 
-thread_local! {
-    /// The natives are made once per thread: they are leaked (`Native::leak`).
-    static CORE: OnceCell<Vec<(&'static str, Value)>> = const { OnceCell::new() };
-}
+/// The natives are made once per process: they are leaked (`Native::leak`).
+static CORE: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
 /// The core prelude: the value operations the language guarantees (06),
 /// plus `args`, an empty list here (the runtime puts the script arguments
 /// in its place).
 pub fn core() -> Vec<(&'static str, Value)> {
-    CORE.with(|c| c.get_or_init(build).clone())
+    let mut p = vec![("args", nat::list(Vec::new()))];
+    p.extend(
+        CORE.get_or_init(build)
+            .iter()
+            .map(|(n, f)| (*n, Value::Native(f))),
+    );
+    p
 }
 
-fn build() -> Vec<(&'static str, Value)> {
-    let mut p: Vec<(&'static str, Value)> = Vec::new();
-    p.push(("args", nat::list(Vec::new())));
+fn build() -> Vec<(&'static str, &'static Native)> {
+    let mut p: Vec<(&'static str, &'static Native)> = Vec::new();
     let mut add = |v: Value| {
         let Value::Native(n) = &v else {
             unreachable!("def makes natives")
         };
-        p.push((n.name, v));
+        p.push((n.name, *n));
     };
     add(def("print", print_fn, vec![rest("args")]));
     add(def("eprint", io::eprint_fn, vec![rest("args")]));
@@ -52,16 +55,12 @@ fn build() -> Vec<(&'static str, Value)> {
     add(def("len", len_fn, vec![param("x")]));
     add(def("map", map_fn, vec![param("xs"), param("f")]));
     add(def("type_of", type_of_fn, vec![param("x")]));
-    add(def("exit", io::exit_fn, vec![opt("code", Value::Int(0))]));
-    add(def(
-        "read_line",
-        io::read_line_fn,
-        vec![opt("f", Value::Nil)],
-    ));
+    add(def("exit", io::exit_fn, vec![opt("code", Lit::Int(0))]));
+    add(def("read_line", io::read_line_fn, vec![opt("f", Lit::Nil)]));
     add(def(
         "read_lines",
         io::read_lines_fn,
-        vec![opt("f", Value::Nil)],
+        vec![opt("f", Lit::Nil)],
     ));
     add(Value::Native(dbg()));
     collections::add(&mut add);

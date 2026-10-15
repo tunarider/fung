@@ -9,50 +9,45 @@
 //! bytes, the working directory) are made here in the same order, so the
 //! `not_found` messages read the same.
 
-use std::cell::OnceCell;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 use fung_front::diag::Arg;
 use fung_front::loader::abs_path;
 use fung_front::source::decode_go;
 
-use super::nat::{self, def, opt, param};
-use crate::value::{MapBuilder, Module, Value, type_name};
+use super::nat::{self, native, opt, param};
+use crate::value::{Lit, MapBuilder, Module, Native, Value, type_name};
 use crate::vm::{Stop, Task};
 
-thread_local! {
-    /// Made once per thread: natives are leaked (`Native::leak`).
-    static NATIVES: OnceCell<Vec<(&'static str, Value)>> = const { OnceCell::new() };
-}
+/// Made once per process: natives are leaked (`Native::leak`).
+static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
 /// The `_native.process` module.
 pub fn module() -> Rc<Module> {
-    let natives = NATIVES.with(|c| {
-        c.get_or_init(|| {
-            let run = || {
-                vec![
-                    param("cmd"),
-                    opt("cwd", Value::Nil),
-                    opt("env", Value::Nil),
-                    opt("stdin", Value::Nil),
-                ]
-            };
+    let natives = NATIVES.get_or_init(|| {
+        let run = || {
             vec![
-                ("exec", def("exec", exec_fn, run())),
-                ("sh", def("sh", sh_fn, run())),
-                ("env", def("env", env_fn, vec![opt("name", Value::Nil)])),
+                param("cmd"),
+                opt("cwd", Lit::Nil),
+                opt("env", Lit::Nil),
+                opt("stdin", Lit::Nil),
             ]
-        })
-        .clone()
+        };
+        vec![
+            ("exec", native("exec", exec_fn, run())),
+            ("sh", native("sh", sh_fn, run())),
+            ("env", native("env", env_fn, vec![opt("name", Lit::Nil)])),
+        ]
     });
     let mut m = Module::new("process", "_native.process");
-    for (name, v) in natives {
-        m.set(name, v);
+    for (name, n) in natives {
+        m.set(name, Value::Native(n));
     }
     Rc::new(m)
 }

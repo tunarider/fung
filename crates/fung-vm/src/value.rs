@@ -239,8 +239,34 @@ impl Range {
 #[derive(Clone, Debug)]
 pub struct NativeParam {
     pub name: &'static str,
-    pub default: Option<Value>,
+    pub default: Option<Lit>,
     pub rest: bool,
+}
+
+/// A literal default of a native parameter. Natives are shared by every
+/// thread, so their defaults cannot hold reference-counted values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Lit {
+    Nil,
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    Str(&'static str),
+    Dur(i64),
+}
+
+impl Lit {
+    /// The value this literal stands for, made fresh at each call.
+    pub fn to_value(&self) -> Value {
+        match *self {
+            Lit::Nil => Value::Nil,
+            Lit::Bool(b) => Value::Bool(b),
+            Lit::Int(i) => Value::Int(i),
+            Lit::Float(f) => Value::Float(f),
+            Lit::Str(s) => Value::str(s),
+            Lit::Dur(d) => Value::Dur(d),
+        }
+    }
 }
 
 /// The Rust function behind a native: it gets one argument per parameter

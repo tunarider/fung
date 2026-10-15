@@ -56,7 +56,7 @@ impl Params<'_> {
     fn default(self, i: usize) -> Option<Value> {
         match self {
             Params::Fung(_) => None,
-            Params::Native(p) => p[i].default.clone(),
+            Params::Native(p) => p[i].default.map(|l| l.to_value()),
         }
     }
 }

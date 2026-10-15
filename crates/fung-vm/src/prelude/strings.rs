@@ -6,7 +6,7 @@ use std::rc::Rc;
 use fung_front::diag::Arg;
 
 use crate::native::nat::{self, def, fail, opt, param};
-use crate::value::{Value, format_for_print};
+use crate::value::{Lit, Value, format_for_print};
 use crate::vm::{Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -14,13 +14,9 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def(
         "join",
         join_fn,
-        vec![param("xs"), opt("sep", Value::str(""))],
+        vec![param("xs"), opt("sep", Lit::Str(""))],
     ));
-    add(def(
-        "trim",
-        trim_fn,
-        vec![param("s"), opt("cut", Value::Nil)],
-    ));
+    add(def("trim", trim_fn, vec![param("s"), opt("cut", Lit::Nil)]));
     add(def("upper", upper_fn, vec![param("s")]));
     add(def("lower", lower_fn, vec![param("s")]));
     add(def(

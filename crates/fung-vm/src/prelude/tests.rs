@@ -714,3 +714,23 @@ fn sort_matches_go_order_on_big_inputs() {
     );
     assert_eq!(out, "true [0, 2, 4]\n");
 }
+
+#[test]
+fn natives_are_the_same_on_every_thread() {
+    fn print_addr() -> usize {
+        match core().into_iter().find(|(n, _)| *n == "print").unwrap().1 {
+            Value::Native(n) => n as *const _ as usize,
+            _ => 0,
+        }
+    }
+    let here = print_addr();
+    let there = std::thread::spawn(print_addr).join().unwrap();
+    assert_ne!(here, 0);
+    assert_eq!(here, there);
+}
+
+#[test]
+fn natives_can_cross_threads() {
+    fn assert_sync<T: Send + Sync>() {}
+    assert_sync::<crate::value::Native>();
+}

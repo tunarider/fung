@@ -3,7 +3,7 @@
 //! module; until then `f` must be nil (standard input).
 
 use crate::native::nat::{self, opt, param};
-use crate::value::{Native, Value, format};
+use crate::value::{Lit, Native, Value, format};
 use crate::vm::{Stop, Task};
 
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds, the
@@ -17,15 +17,14 @@ pub(super) fn exit_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// error and returns `x`. The compiler passes the source text and place
 /// for a direct `dbg(e)` call (08).
 pub fn dbg() -> &'static Native {
-    Native::leak(
-        "dbg",
-        vec![
-            param("x"),
-            opt("text", Value::Nil),
-            opt("where", Value::Nil),
-        ],
-        dbg_fn,
-    )
+    static DBG: std::sync::OnceLock<&'static Native> = std::sync::OnceLock::new();
+    DBG.get_or_init(|| {
+        Native::leak(
+            "dbg",
+            vec![param("x"), opt("text", Lit::Nil), opt("where", Lit::Nil)],
+            dbg_fn,
+        )
+    })
 }
 
 fn dbg_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {

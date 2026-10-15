@@ -16,9 +16,9 @@ use crate::value::Value;
 const MAX_EXIT_HANDLERS: usize = 10_000;
 
 pub struct Runtime {
-    stdout: Box<dyn Write>,
-    stderr: Box<dyn Write>,
-    stdin: Box<dyn BufRead>,
+    stdout: Box<dyn Write + Send>,
+    stderr: Box<dyn Write + Send>,
+    stdin: Box<dyn BufRead + Send>,
     sources: SourceMap,
     exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
@@ -37,9 +37,9 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn new(
-        stdout: Box<dyn Write>,
-        stderr: Box<dyn Write>,
-        stdin: Box<dyn BufRead>,
+        stdout: Box<dyn Write + Send>,
+        stderr: Box<dyn Write + Send>,
+        stdin: Box<dyn BufRead + Send>,
         sources: SourceMap,
     ) -> Runtime {
         Runtime {

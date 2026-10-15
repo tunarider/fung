@@ -72,7 +72,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // Standard error is unbuffered; the runtime and the reports below
     // write to it through separate handles, in order.
     let stdout = Box::new(ProcessOut::stdout());
-    let stdin = Box::new(std::io::stdin().lock());
+    let stdin = Box::new(std::io::BufReader::new(std::io::stdin()));
     let stderr = &mut ProcessOut::stderr();
     let (b, errs) = Loader::default().compile(file, src, Stage::All);
     if !errs.is_empty() {

@@ -6,32 +6,30 @@
 //! arity and named-argument errors, which the VM reports before the native
 //! runs, are the same as Go's.
 
-use std::cell::OnceCell;
 use std::rc::Rc;
+use std::sync::OnceLock;
 
-use crate::native::nat::{self, def, opt, param};
-use crate::value::{Module, Value};
+use crate::native::nat::{self, native, opt, param};
+use crate::value::{Lit, Module, Native, Value};
 use crate::vm::{Stop, Task};
 
-thread_local! {
-    /// Made once per thread: natives are leaked (`Native::leak`).
-    static PLACEHOLDERS: OnceCell<Vec<(&'static str, Value)>> = const { OnceCell::new() };
-}
+/// Made once per process: natives are leaked (`Native::leak`).
+static PLACEHOLDERS: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
 /// The prelude's concurrency natives (Go `vm.Concurrency()`): `spawn`
 /// `await` `cancel` `channel` `send` `recv` `close` `sleep` `atom` `swap`
 /// `deref`, and `_native.conc.spawn_awaited` last.
 fn all() -> Vec<(&'static str, Value)> {
-    PLACEHOLDERS.with(|c| {
-        c.get_or_init(|| {
+    PLACEHOLDERS
+        .get_or_init(|| {
             let tables: Vec<(&'static str, Vec<_>)> = vec![
                 ("sleep", vec![param("d")]),
                 ("spawn", vec![param("f")]),
-                ("await", vec![param("t"), opt("timeout", Value::Nil)]),
+                ("await", vec![param("t"), opt("timeout", Lit::Nil)]),
                 ("cancel", vec![param("t")]),
-                ("channel", vec![opt("n", Value::Int(0))]),
+                ("channel", vec![opt("n", Lit::Int(0))]),
                 ("send", vec![param("ch"), param("v")]),
-                ("recv", vec![param("ch"), opt("timeout", Value::Nil)]),
+                ("recv", vec![param("ch"), opt("timeout", Lit::Nil)]),
                 ("close", vec![param("ch")]),
                 ("atom", vec![param("v")]),
                 ("swap", vec![param("a"), param("f")]),
@@ -42,12 +40,13 @@ fn all() -> Vec<(&'static str, Value)> {
                 .into_iter()
                 .map(|(name, params)| {
                     let f = if name == "sleep" { sleep } else { unsupported };
-                    (name, def(name, f, params))
+                    (name, native(name, f, params))
                 })
                 .collect()
         })
-        .clone()
-    })
+        .iter()
+        .map(|(n, f)| (*n, Value::Native(f)))
+        .collect()
 }
 
 /// The prelude's concurrency natives, without `spawn_awaited` (which only

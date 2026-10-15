@@ -18,7 +18,7 @@ use fung_front::loader::{Loader, Stage};
 
 use crate::boot::boot;
 use crate::native::nat;
-use crate::value::{Native, Value, format};
+use crate::value::{Lit, Native, Value, format};
 use crate::vm::{Prelude, Runtime, Stop, Task, link};
 
 /// Runs `f` on a thread with a 4 GiB stack and returns its result.
@@ -130,11 +130,11 @@ pub fn exec_with_prelude(src: &str, p: Prelude) -> Outcome {
 
 /// A shared byte buffer the runtime writes into.
 #[derive(Clone, Default)]
-pub struct Buf(Rc<RefCell<Vec<u8>>>);
+pub struct Buf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl Write for Buf {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(b);
+        self.0.lock().unwrap().extend_from_slice(b);
         Ok(b.len())
     }
 
@@ -145,7 +145,7 @@ impl Write for Buf {
 
 impl Buf {
     pub fn text(&self) -> String {
-        String::from_utf8_lossy(&self.0.borrow()).into_owned()
+        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
     }
 }
 
@@ -381,7 +381,7 @@ pub fn pad() -> Vec<Value> {
         "pad",
         vec![
             nat::param("s"),
-            nat::opt("n", Value::Int(2)),
+            nat::opt("n", Lit::Int(2)),
             nat::rest("tail"),
         ],
         |_, a| {

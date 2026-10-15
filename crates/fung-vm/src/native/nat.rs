@@ -7,8 +7,8 @@ use std::rc::Rc;
 use fung_front::diag::{Arg, error};
 
 use crate::value::{
-    ListBuilder, MapBuilder, Native, NativeFn, NativeParam, Tag, Value, format_for_print, intern,
-    type_name,
+    ListBuilder, Lit, MapBuilder, Native, NativeFn, NativeParam, Tag, Value, format_for_print,
+    intern, type_name,
 };
 use crate::vm::{Stop, Task, no_pos};
 
@@ -22,7 +22,7 @@ pub fn param(name: &'static str) -> NativeParam {
 }
 
 /// An optional parameter with its default.
-pub fn opt(name: &'static str, default: Value) -> NativeParam {
+pub fn opt(name: &'static str, default: Lit) -> NativeParam {
     NativeParam {
         name,
         default: Some(default),
@@ -43,6 +43,11 @@ pub fn rest(name: &'static str) -> NativeParam {
 /// checks arity and names; `func` gets one value per parameter.
 pub fn def(name: &'static str, func: NativeFn, params: Vec<NativeParam>) -> Value {
     Value::Native(Native::leak(name, params, func))
+}
+
+/// Like [`def`], but the bare native, for the process-wide tables.
+pub fn native(name: &'static str, func: NativeFn, params: Vec<NativeParam>) -> &'static Native {
+    Native::leak(name, params, func)
 }
 
 /// An error without a position: the VM gives it the call's.
