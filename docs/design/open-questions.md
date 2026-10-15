@@ -140,6 +140,13 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 해결 (Task 12): 유니코드 글자·숫자·대문자·출력 가능 판정(렉서, 로더, 맵 키·문자열 따옴표, `sym`)은 Go가 생성한 `spec/unicode.txt`(`unicode.IsLetter`/`IsDigit`/`IsUpper`/`IsPrint`/`IsSpace`의 구간, Unicode 17.0.0)를 Rust가 읽어 Go와 같다.
   - 동시성 내장 함수는 `E0805 not supported yet`, 실행 비교 제외 18개(동시성 9, 네이티브 모듈 9)는 3단계·4단계에서 하나씩 비교에 넣는다.
   - 2단계에 없는 표준 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`)을 `import`하면 직접이든 사용자 모듈을 거쳐서든 그 `import` 위치에서 `E0805 not supported yet: <모듈>`. 진짜 등록 누락은 그대로 E0801.
+- [ ] Go 동등을 위한 과도기 잔가지 → **이식 중에는 Go와 맞추고, Go를 지운 뒤 따로 걷어낸다** (2026-10-15).
+  Go 구현은 빠르게 해 본 첫 시도로 본다. 아래는 언어 설계가 아니라 Go 구현의 우연을 바이트 단위로 따라 하려고 붙인 것들이다.
+  걷어낼 때 각 항목의 바른 동작을 설계 문서와 `tests/lang`에 정한 뒤 지운다. 이식 중 새로 붙이는 것도 여기에 더한다.
+  - 유니코드 판정 표: Go가 생성하는 `spec/unicode.txt`(`tests/spec_test.go`의 `unicodeSpec`)와 `crates/fung-front/src/unicode.rs`. 식별자 규칙은 그때 정한다(Rust 표준 판정 또는 UAX #31).
+  - Go 런타임 메시지 흉내: 2^44개 넘는 범위의 `E0801 ... makeslice: cap out of range`(`crates/fung-vm/src/native/nat.rs`의 `MAX_SLICE`, `prelude.rs`의 `map`), `repeat` 넘침의 `strings: Repeat output length overflow`(`prelude/strings.rs`).
+  - Go 방식 그대로: 16진 실수 파싱(`prelude/convert.rs`의 `parse_hex_float`), 대소문자 변환의 Go 단순 매핑(`prelude/strings.rs`의 `upper_rune`·`lower_rune`), 실행 파일 형식 사전 검사로 만드는 `exec format error`(`native/process.rs`).
+  - 바로 위 "2단계에서 알고 남긴 차이" 중 U+FFFD·환경 순서·닫힌 파이프 141·`at_exit` 안의 `exit`는 반대 방향(Rust가 Go를 못 따라간 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 런타임 빌림: `Task<'rt>`가 `&'rt mut Runtime`을 쥔다(`crates/fung-vm/src/vm.rs`). 태스크 여럿이 주차된 스케줄러에서는 각자 배타적으로 빌릴 수 없으므로
     `Runtime`을 공유 부분(스트림, 종료 핸들러, 종료 코드, 모듈)과 태스크별 부분으로 나눈다. 내장 함수는 이미 `t.stdout()`·`t.at_exit`·`t.call`로만 런타임을 쓰므로 고칠 범위는 그 안에 머문다.
