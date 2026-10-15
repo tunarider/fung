@@ -49,6 +49,7 @@ pub fn format(v: &Value) -> String {
         Value::Closure(c) => format!("<fn {}>", c.proto.name),
         // Placeholder until modules are ported.
         Value::Module(m) => format!("<module {}>", m.name),
+        Value::Task(_) => "<task>".into(),
     }
 }
 
@@ -91,5 +92,6 @@ pub fn type_name(v: &Value) -> String {
         Value::Range(_) => "range".into(),
         Value::Closure(_) | Value::Native(_) => "fn".into(),
         Value::Module(_) => "module".into(),
+        Value::Task(_) => "task".into(),
     }
 }

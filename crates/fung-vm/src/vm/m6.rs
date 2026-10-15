@@ -27,11 +27,16 @@ impl Runtime {
     /// Runs test block `i` on a fresh task. An `exit(n)` inside it comes
     /// back as `Stop::Exit` so `fung test` can stop.
     pub fn call_test(&self, i: usize) -> Result<(), Stop> {
-        let mut t = self.task();
+        let mut t = self.child_task();
         let Some(f) = t.world.tests.get(i).map(|c| c.func.clone()) else {
             return Err(internal(vec![Arg::Str(format!("no test block {i}"))]));
         };
-        t.call(&f, Vec::new()).map(|_| ())
+        let r = t.call(&f, Vec::new()).map(|_| ());
+        // Go runs the block on a fresh child context, cancelled when it
+        // returns.
+        t.cancel.cancel();
+        t.shared.notify_all();
+        r
     }
 }
 

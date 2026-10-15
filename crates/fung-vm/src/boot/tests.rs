@@ -32,12 +32,13 @@ fn render_params(ps: &[NativeParam]) -> String {
 
 #[test]
 fn concurrency_builtins_report_e0805_with_a_position() {
-    // The brief wrote `-e:2:1`; a native's error points at the call's
-    // `(` like every other native error in Go (`spawn(1)` → E0403 at 2:6).
-    let (out, err, code) = run_booted("print(1)\nspawn(() => 1)");
+    // A native's error points at the call's `(` like every other native
+    // error in Go (`spawn(1)` → E0403 at 2:6). Channels are still
+    // placeholders (stage 3a, Task 4).
+    let (out, err, code) = run_booted("print(1)\nchannel()");
     assert_eq!(out, "1\n");
     assert!(
-        err.starts_with("error[E0805]: not supported yet: spawn\n  --> -e:2:6\n"),
+        err.starts_with("error[E0805]: not supported yet: channel\n  --> -e:2:8\n"),
         "{err}"
     );
     assert_eq!(code, 1);
@@ -51,11 +52,9 @@ fn fung_prelude_and_process_functions() {
 
 #[test]
 fn every_placeholder_gives_e0805_without_a_panic() {
+    // Tasks are real since stage 3a (vm/task_tests.rs); channels and
+    // atoms come in Tasks 4 and 5.
     let calls = [
-        ("spawn(() => 1)", "spawn"),
-        ("await(1)", "await"),
-        ("await(1, timeout: 1s)", "await"),
-        ("cancel(1)", "cancel"),
         ("channel()", "channel"),
         ("channel(2)", "channel"),
         ("send(1, 2)", "send"),
@@ -84,12 +83,13 @@ fn every_placeholder_gives_e0805_without_a_panic() {
 
 /// The fung helpers built on the concurrency natives fail at the user's
 /// call (the extras frames are builtin, Go `attach`), with the extras
-/// frames in the call path.
+/// frames in the call path. (`pmap` runs since stage 3a: see
+/// `pmap_runs_its_tasks`.)
 #[test]
 fn fung_helpers_over_placeholders_fail_at_the_user_call() {
     let cases = [
-        ("print(1)\npmap([1], x => x)", "spawn_awaited", 2, 5),
         ("fan_in([])", "channel", 1, 7),
+        ("print(1)\nfan_in([])", "channel", 2, 7),
     ];
     for (src, name, line, col) in cases {
         let o = exec(src, Opts::default());
@@ -287,7 +287,7 @@ fn commands_that_cannot_run_are_not_found_like_go() {
 #[test]
 fn fung_prelude_functions() {
     // The two channel cases (`first(ch)`, `last(ch)`) need channels: the
-    // concurrency natives are E0805 placeholders in stage 2.
+    // channels are E0805 placeholders until stage 3a Task 4.
     let cases: &[(&str, &str)] = &[
         (
             "xs = [1, 2, 3]\nprint(take(xs, 2), take(xs, 9), take(xs, -1), drop(xs, 1), drop(xs, 9), drop(xs, -1), xs)",
@@ -453,8 +453,23 @@ fn files_that_are_not_programs_give_exec_format_error() {
     }
 }
 
-/// `sleep` waits for real (stage 2 has one task and nothing can cancel
-/// it), so `retry` with a delay works as in Go.
+/// `pmap` spawns its tasks with `_native.conc.spawn_awaited` and awaits
+/// them (expected output from the Go binary).
+#[test]
+fn pmap_runs_its_tasks() {
+    let (out, err, code) =
+        crate::testutil::run("print(pmap([1, 2, 3], x => x * x, limit: 2), pmap([1], x => 1 / 0))");
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
+            "[1, 4, 9] [Err({kind: 'error, message: \"error[E0502]: division by zero\"})]\n",
+            "",
+            0
+        )
+    );
+}
+
+/// `sleep` waits for real, so `retry` with a delay works as in Go.
 #[test]
 fn sleep_waits_and_retry_uses_it() {
     let start = std::time::Instant::now();

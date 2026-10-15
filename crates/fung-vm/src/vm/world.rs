@@ -6,27 +6,33 @@
 //! modules. A `Task` (`vm.rs`) is the per-task part: its value stack, its
 //! frames and the native it is calling.
 //!
-//! `World` sits in one `Mutex`, shared through an `Arc` with one `Condvar`
-//! (stage 3a: 실행권 잠금). Holding that mutex is holding the run token:
-//! only the holder runs fung code, so only the holder touches fung values,
-//! whose `Rc` counts are not atomic. A task takes the token when it starts
-//! and holds it for its whole run; the run loop never locks per
-//! instruction. `Token` is the guard: it keeps the debug mark of
-//! `token.rs` in step with the mutex, and it can give the mutex up and
-//! take it back (waiting on the condvar, from Task 3 on) without ever
-//! being a guard whose mark is wrong.
+//! `World` sits in one `Mutex`, shared through an `Arc` (stage 3a:
+//! 실행권 잠금), with a fair queue in front of it (`Gate`) and a wake
+//! generation blocked tasks sleep on. Owning the gate and holding that
+//! mutex is holding the run token: only the holder runs fung code, so
+//! only the holder touches fung values, whose `Rc` counts are not atomic.
+//! A task takes the token when it starts and holds it while it runs,
+//! giving it up only to wait (`block`), to let waiting tasks have a turn
+//! (`yield_turn`) or to call the operating system (`outside`); the run
+//! loop never locks per instruction. `Token` is the guard: it keeps the
+//! debug mark of `token.rs` in step with the mutex, and it can give the
+//! mutex up and take it back without ever being a guard whose mark is
+//! wrong.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::io::{BufRead, Write};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::thread::Thread;
+use std::time::{Duration, Instant};
 
 use fung_front::source::{FileId, SourceMap, decode_go};
 
 use super::module::ModuleState;
+use super::task::CancelNode;
 use super::{Globals, Prelude, RtProto, TestCase, token};
 use crate::value::Value;
 
@@ -54,6 +60,14 @@ pub(crate) struct World {
     pub(crate) prelude: Prelude,
     /// The linked entry (`Runtime::load`), run by `Runtime::run`.
     pub(super) main: Option<Rc<RtProto>>,
+    /// Spawned tasks that have not finished (`Runtime::wait`).
+    pub(super) running: usize,
+    /// Tasks waiting in `block`, and how many of those a timeout will
+    /// wake: what the deadlock check (Task 6) reads.
+    #[allow(dead_code)]
+    pub(super) blocked: usize,
+    #[allow(dead_code)]
+    pub(super) waking: usize,
 }
 
 // SAFETY: `World` holds fung values (`Rc`s with non-atomic counts). The
@@ -72,6 +86,9 @@ pub(crate) struct World {
 //   and gives none out: only `Send` data without an `Rc` crosses it, and
 //   `Value` is itself `!Send`, so no value can be carried to another
 //   thread around the API either.
+// Tasks on other threads (stage 3a) keep to the same rule: a spawned
+// task's thread touches values only between taking the token and
+// giving it up (`task.rs`).
 // The streams are `Send` themselves.
 unsafe impl Send for World {}
 
@@ -95,6 +112,9 @@ impl World {
             modules: BTreeMap::new(),
             prelude: Prelude::default(),
             main: None,
+            running: 0,
+            blocked: 0,
+            waking: 0,
         }
     }
 
@@ -173,31 +193,71 @@ impl World {
     }
 }
 
-/// The run token's mutex and the condvar blocked tasks wait on.
+/// The run token's mutex, the fair queue in front of it, what blocked
+/// tasks sleep on, and the roots of the cancellation tree.
 pub(crate) struct Shared {
     world: Mutex<World>,
-    /// Signalled when a blocked task may go on (Task 3 on).
-    #[cfg_attr(not(test), allow(dead_code))]
-    cv: Condvar,
+    /// The wake generation: bumped (with the token held) whenever
+    /// something a blocked task may wait for changes, such as a task
+    /// finishing or being cancelled. A blocked task sleeps on `wake`
+    /// until the generation moves past the one it saw while it still held
+    /// the token. This mutex is separate from the world's and held only
+    /// for a moment, so a woken task never needs the world mutex (which a
+    /// computing task holds) just to stop sleeping: it queues at the gate
+    /// like everyone else, where `yield_turn` sees it.
+    wake_gen: Mutex<u64>,
+    wake: Condvar,
+    gate: Gate,
+    /// Every task descends from this node (Go `rt.root()`): the entry
+    /// runs on it, `cancel_all` cancels it.
+    pub(super) root: Arc<CancelNode>,
+    /// Exit handlers run under this node, not the root: the root is
+    /// cancelled by then (Go `handlerContext`).
+    pub(super) handlers: Arc<CancelNode>,
 }
 
 impl Shared {
     pub(super) fn new(world: World) -> Shared {
         Shared {
             world: Mutex::new(world),
-            cv: Condvar::new(),
+            wake_gen: Mutex::new(0),
+            wake: Condvar::new(),
+            gate: Gate::default(),
+            root: CancelNode::root(),
+            handlers: CancelNode::root(),
         }
     }
 
-    /// Takes the run token, waiting for the thread that holds it.
+    /// Takes the run token, waiting for the thread that holds it. Waiters
+    /// get the token in the order they asked for it (`Gate`).
     pub(super) fn lock(&self) -> Token<'_> {
         token::assert_not_held();
+        self.gate.enter();
         let guard = self.world.lock().unwrap_or_else(recover);
         token::mark_taken();
         Token {
             shared: self,
             guard: Some(guard),
         }
+    }
+
+    /// Wakes every blocked task so it checks its condition again. Call it
+    /// with the token held, after changing what they wait for. A waiter
+    /// reads the generation while it still holds the token (after its
+    /// check), so a change made after that check bumps the generation
+    /// past what it read, and it does not sleep through it.
+    pub(super) fn notify_all(&self) {
+        token::assert_holds_token();
+        *self.wake_gen.lock().unwrap_or_else(recover) += 1;
+        self.wake.notify_all();
+    }
+
+    /// Cancels every task (Go `CancelAll`): the root and everything below
+    /// it, and wakes the blocked ones. Takes the token.
+    pub(crate) fn cancel_all(&self) {
+        let _t = self.lock();
+        self.root.cancel();
+        self.notify_all();
     }
 }
 
@@ -207,20 +267,123 @@ impl Shared {
 /// method leaves half-changed across a call that can panic, so refusing
 /// the lock would only wedge the runtime: every later task, the exit
 /// handlers and the runtime's drop would fail on a lock nobody can clear.
-/// Take the guard as it is.
+/// Take the guard as it is. (The gate's state is changed only in short
+/// sections that do not panic; the same reasoning applies.)
 fn recover<T>(e: PoisonError<T>) -> T {
     e.into_inner()
+}
+
+/// The fair queue in front of the run token (stage 3a: 차례 넘기기).
+///
+/// `std::sync::Mutex` is not fair: a thread that unlocks and locks again
+/// at once usually gets the lock back, and the others starve. So a thread
+/// may lock the world mutex only while it owns the gate, and the gate
+/// passes ownership in first-come order: a thread that finds the gate
+/// owned queues a `Turn` and parks until the owner, leaving, hands the
+/// turn to the first in the queue. Ownership passes directly, so a thread
+/// that leaves and enters again goes to the back of the queue.
+///
+/// The gate's own mutex is held only for a few instructions (to queue or
+/// to hand over), never while fung code runs.
+#[derive(Default)]
+struct Gate {
+    state: Mutex<GateState>,
+    /// How many threads are queued. The token's holder reads it without
+    /// any lock to decide whether yielding would help anyone.
+    queued: AtomicUsize,
+}
+
+#[derive(Default)]
+struct GateState {
+    /// Whether some thread owns the gate (holds or is about to take the
+    /// token).
+    owned: bool,
+    queue: VecDeque<Arc<Turn>>,
+}
+
+/// A queued thread's ticket: set ready when the gate is handed to it.
+struct Turn {
+    thread: Thread,
+    ready: AtomicBool,
+}
+
+impl Turn {
+    fn new() -> Arc<Turn> {
+        Arc::new(Turn {
+            thread: std::thread::current(),
+            ready: AtomicBool::new(false),
+        })
+    }
+
+    /// Parks until the gate is handed to this thread (park can wake
+    /// spuriously; the flag is the truth).
+    fn wait(&self) {
+        while !self.ready.load(Ordering::Acquire) {
+            std::thread::park();
+        }
+    }
+
+    fn give(&self) {
+        self.ready.store(true, Ordering::Release);
+        self.thread.unpark();
+    }
+}
+
+impl Gate {
+    fn state(&self) -> MutexGuard<'_, GateState> {
+        self.state.lock().unwrap_or_else(recover)
+    }
+
+    /// Becomes the owner, waiting in line if another thread owns it.
+    fn enter(&self) {
+        let mut g = self.state();
+        if !g.owned {
+            g.owned = true;
+            return;
+        }
+        let turn = Turn::new();
+        g.queue.push_back(turn.clone());
+        self.queued.fetch_add(1, Ordering::Relaxed);
+        drop(g);
+        turn.wait();
+    }
+
+    /// Stops owning: hands the gate to the first thread in line, if any.
+    fn leave(&self) {
+        let mut g = self.state();
+        match g.queue.pop_front() {
+            Some(next) => {
+                self.queued.fetch_sub(1, Ordering::Relaxed);
+                next.give();
+            }
+            None => g.owned = false,
+        }
+    }
+
+    /// Hands the gate to the first thread in line and queues this one
+    /// behind the rest, in one step. Returns the turn to wait for, or
+    /// `None` (still the owner) when nobody is in line.
+    fn pass(&self) -> Option<Arc<Turn>> {
+        let mut g = self.state();
+        let next = g.queue.pop_front()?;
+        let turn = Turn::new();
+        g.queue.push_back(turn.clone());
+        next.give();
+        Some(turn)
+    }
 }
 
 /// The run token: the guard of `Shared::world` while this thread holds it.
 /// The debug mark (`token.rs`) is set right after the mutex is locked and
 /// cleared right before it is unlocked, in every path: `Shared::lock`,
-/// `release`, `wait_timeout` and the drop.
+/// `release`, `reacquire`, `wait`, `yield_turn` and the drop.
 ///
 /// The guard is an `Option` so the token can be given up and taken back
-/// without dropping the `Token` (a task keeps one for its whole life): a
-/// blocking point waits with `wait_timeout`, which hands the guard to the
-/// condvar and puts back the one it returns.
+/// without dropping the `Token` (a task keeps one for its whole life).
+///
+/// Holding the token means owning the gate and holding the mutex. Giving
+/// it up drops the mutex guard first and then leaves the gate, so the
+/// next owner finds the mutex free (or about to be).
 pub(crate) struct Token<'a> {
     shared: &'a Shared,
     guard: Option<MutexGuard<'a, World>>,
@@ -232,6 +395,7 @@ impl Token<'_> {
         if let Some(g) = self.guard.take() {
             token::mark_released();
             drop(g);
+            self.shared.gate.leave();
         }
     }
 
@@ -240,23 +404,71 @@ impl Token<'_> {
     pub(super) fn reacquire(&mut self) {
         if self.guard.is_none() {
             token::assert_not_held();
+            self.shared.gate.enter();
             let g = self.shared.world.lock().unwrap_or_else(recover);
             token::mark_taken();
             self.guard = Some(g);
         }
     }
 
-    /// Waits on the condvar for at most `d`, giving the token up while it
-    /// sleeps (atomically with starting to wait, so no signal is lost) and
-    /// holding it again when it returns. True if the wait timed out.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(super) fn wait_timeout(&mut self, d: Duration) -> bool {
-        let g = self.guard.take().expect("waiting without the run token");
+    /// Gives the token up until notified (`Shared::notify_all`) or for at
+    /// most `d`, then takes it back in line. Spurious wakeups happen: the
+    /// caller checks its condition again.
+    ///
+    /// The generation is read before the token is given up, so every
+    /// change made after the caller checked its condition (changes need
+    /// the token) moves it, and the sleep below ends at once.
+    pub(super) fn wait(&mut self, d: Option<Duration>) {
+        let seen = *self.shared.wake_gen.lock().unwrap_or_else(recover);
+        self.release();
+        let deadline = d.and_then(|d| Instant::now().checked_add(d));
+        let mut g = self.shared.wake_gen.lock().unwrap_or_else(recover);
+        while *g == seen {
+            match deadline {
+                Some(at) => {
+                    let Some(left) = at.checked_duration_since(Instant::now()) else {
+                        break;
+                    };
+                    if left.is_zero() {
+                        break;
+                    }
+                    g = self
+                        .shared
+                        .wake
+                        .wait_timeout(g, left)
+                        .unwrap_or_else(recover)
+                        .0;
+                }
+                None => g = self.shared.wake.wait(g).unwrap_or_else(recover),
+            }
+        }
+        drop(g);
+        self.reacquire();
+    }
+
+    /// Whether another thread is waiting for the token. Reads one atomic,
+    /// without any lock.
+    #[inline]
+    pub(super) fn contended(&self) -> bool {
+        self.shared.gate.queued.load(Ordering::Relaxed) > 0
+    }
+
+    /// Lets every thread already waiting for the token run first, then
+    /// takes it back (turn handoff). Does nothing when nobody waits.
+    pub(super) fn yield_turn(&mut self) {
+        if !self.contended() {
+            return;
+        }
+        let Some(turn) = self.shared.gate.pass() else {
+            return;
+        };
+        let g = self.guard.take().expect("yielding without the run token");
         token::mark_released();
-        let (g, r) = self.shared.cv.wait_timeout(g, d).unwrap_or_else(recover);
+        drop(g);
+        turn.wait();
+        let g = self.shared.world.lock().unwrap_or_else(recover);
         token::mark_taken();
         self.guard = Some(g);
-        r.timed_out()
     }
 }
 
@@ -324,11 +536,11 @@ mod tests {
                 let mut t = s.lock();
                 token::assert_holds_token();
                 t.exit = Some(2);
-                s.cv.notify_all();
+                s.notify_all();
             })
         };
         while t.exit != Some(2) {
-            t.wait_timeout(Duration::from_millis(10));
+            t.wait(Some(Duration::from_millis(10)));
         }
         token::assert_holds_token();
         drop(t);
@@ -347,5 +559,36 @@ mod tests {
         .join();
         assert!(r.is_err());
         assert_eq!(s.lock().exit, Some(7));
+    }
+
+    /// Threads waiting for the token get it in the order they asked, and
+    /// a yield lets every thread already waiting run first.
+    #[test]
+    fn the_token_goes_round_in_line() {
+        let s = shared();
+        let order = Arc::new(Mutex::new(Vec::new()));
+        let mut t = s.lock();
+        let mut threads = Vec::new();
+        for i in 0..4 {
+            let (s2, order) = (s.clone(), order.clone());
+            threads.push(std::thread::spawn(move || {
+                let _t = s2.lock();
+                order.lock().unwrap().push(i);
+            }));
+            // Wait until thread i is in line before starting the next.
+            while s.gate.queued.load(Ordering::Relaxed) <= i {
+                std::thread::yield_now();
+            }
+        }
+        assert!(t.contended());
+        t.yield_turn();
+        assert_eq!(*order.lock().unwrap(), vec![0, 1, 2, 3]);
+        assert!(!t.contended());
+        t.yield_turn(); // nobody waits: keeps the token
+        token::assert_holds_token();
+        drop(t);
+        for th in threads {
+            th.join().unwrap();
+        }
     }
 }

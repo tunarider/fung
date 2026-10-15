@@ -72,9 +72,37 @@ impl Runtime {
         self.shared.lock()
     }
 
-    /// A fresh task on this thread, holding the run token until it drops.
+    /// A fresh task on this thread under the root of the cancellation
+    /// tree (the entry's place, Go `rootTask`), holding the run token
+    /// until it drops.
     pub(crate) fn task(&self) -> Task<'_> {
-        Task::new(&self.shared)
+        Task::new(&self.shared, self.shared.root.clone())
+    }
+
+    /// A fresh task below the root (Go `newTask(rt.root())`): a test
+    /// block. Cancelling it at the end ends what it spawned and left.
+    pub(super) fn child_task(&self) -> Task<'_> {
+        Task::new(&self.shared, self.shared.root.child())
+    }
+
+    /// Waits until every spawned task has finished (Go `Wait`).
+    pub fn wait(&self) {
+        let mut w = self.lock();
+        while w.running > 0 {
+            w.wait(None);
+        }
+    }
+
+    /// Cancels every task below the root (Go `CancelAll`): an exit, an
+    /// entry error, the end of a test run. Blocked tasks wake and unwind.
+    pub fn cancel_all(&self) {
+        self.shared.cancel_all();
+    }
+
+    /// The shared part, for tests that cancel from another thread.
+    #[cfg(test)]
+    pub(crate) fn shared(&self) -> Arc<Shared> {
+        self.shared.clone()
     }
 
     /// Calls `f` with the source texts error reports excerpt, with the
@@ -157,8 +185,9 @@ impl Runtime {
         let mut ran = 0;
         loop {
             // The handler is popped by the task that runs it, so the
-            // value never lives outside the run token.
-            let mut t = self.task();
+            // value never lives outside the run token. Handlers run below
+            // their own root: the program's is cancelled by now.
+            let mut t = Task::new(&self.shared, self.shared.handlers.child());
             let Some(h) = t.world.exit_handlers.pop() else {
                 break;
             };
@@ -196,10 +225,20 @@ impl Runtime {
 }
 
 impl Drop for Runtime {
-    /// Drops every fung value the world holds while holding the run
-    /// token (a value boundary: token.rs). What stays for the `Arc` to
-    /// drop afterwards (streams, sources, arguments) holds no `Rc`.
+    /// Ends the tasks still running (cancelled, then waited for: they
+    /// read the world's tables) and drops every fung value the world
+    /// holds while holding the run token (a value boundary: token.rs).
+    /// What stays for the `Arc` to drop afterwards, possibly on a task's
+    /// thread that is just ending (streams, sources, arguments), holds no
+    /// `Rc`.
     fn drop(&mut self) {
+        {
+            let _t = self.lock();
+            self.shared.root.cancel();
+            self.shared.handlers.cancel();
+            self.shared.notify_all();
+        }
+        self.wait();
         let mut w = self.lock();
         token::assert_holds_token();
         w.release_values();

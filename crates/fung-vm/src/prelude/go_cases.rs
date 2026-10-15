@@ -442,7 +442,7 @@ r(1)"#,
         "",
     ),
     // --- concurrency: argument binding happens before the native runs,
-    // so both give the same errors (the placeholders' tables are Go's) ---
+    // so both give the same errors (the parameter tables are Go's) ---
     (r#"spawn()"#, ""),
     (r#"spawn(1, 2)"#, ""),
     (r#"channel(1, 2)"#, ""),
@@ -450,9 +450,38 @@ r(1)"#,
     (r#"recv()"#, ""),
     (r#"swap(1)"#, ""),
     (r#"sleep(d: 1ms, d: 2ms)"#, ""),
-    // `sleep` runs for real (one task, nothing to cancel it), so the
-    // fung helpers built on it work as in Go.
+    // Tasks and `sleep` run for real (stage 3a); channels and atoms are
+    // still placeholders.
     (r#"print(sleep(1ms), sleep(0s), sleep(-1s))"#, ""),
+    (r#"spawn(1)"#, ""),
+    (r#"await(1)"#, ""),
+    (r#"cancel(1)"#, ""),
+    (r#"await(spawn(() => 1), timeout: 1)"#, ""),
+    (
+        r#"t = spawn(() => 1)
+print(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"#,
+        "",
+    ),
+    (r#"print(spawn(() => 1) == spawn(() => 1))"#, ""),
+    (
+        r#"print(await(spawn(() => 1 / 0)), await(spawn(() => [1][5])))"#,
+        "",
+    ),
+    (
+        r#"t = spawn(() => sleep(10s))
+cancel(t)
+print(await(t))"#,
+        "",
+    ),
+    (
+        r#"t = spawn(() => 1)
+t < t"#,
+        "",
+    ),
+    (
+        r#"print(pmap([1, 2, 3], x => x * x, limit: 2), pmap([], x => x))"#,
+        "",
+    ),
     (r#"sleep(1)"#, ""),
     (r#"sleep("1s")"#, ""),
     (r#"print(retry(() => Err(1), times: 2, delay: 1ms))"#, ""),

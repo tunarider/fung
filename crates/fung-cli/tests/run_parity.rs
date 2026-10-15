@@ -38,6 +38,12 @@ const MORE: &[&str] = &[
     "fn f(x) = map([1, 2], (y) => y / x)\nprint(f(0))",
     "x = )",
     "print(nope)",
+    // Tasks (stage 3a); exits from tasks and unretrieved failures come
+    // with the exit rules.
+    "print(await(spawn(() => 1 + 1)), await(spawn(() => 1 / 0)), pmap([1, 2, 3], x => x * x, limit: 2))",
+    "t = spawn(() => sleep(10s))\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 1ms))\ncancel(u)",
+    "t = spawn(fn(): spawn(() => sleep(10s)) ;;)\nprint(await(await(t)))",
+    "print(retry(() => Err(1), times: 2, delay: 1ms))",
 ];
 
 /// The skip list: `<file name> <reason>`; the reason must be one of
@@ -199,7 +205,7 @@ fn cases() -> Vec<Case> {
             stdin: None,
         });
     }
-    for code in CASES.iter().take(CASES.len() - 1).chain(MORE) {
+    for code in CASES.iter().chain(MORE) {
         out.push(Case {
             kind: Kind::Other,
             label: format!("-e {code:?}"),
@@ -274,24 +280,6 @@ fn runs_match_the_go_implementation() {
         cases.len(),
         failures.join("\n")
     );
-}
-
-/// Concurrency is not part of the Rust port yet: Go runs the task, the
-/// Rust port reports E0805 at the call.
-#[test]
-fn spawn_is_not_supported_yet() {
-    let code = CASES[CASES.len() - 1];
-    let o = std::process::Command::new(rust_fung())
-        .args(["-e", code])
-        .output()
-        .unwrap();
-    let (out, err) = (o.stdout, o.stderr);
-    assert_eq!(String::from_utf8_lossy(&out), "");
-    assert_eq!(
-        String::from_utf8_lossy(&err),
-        "error[E0805]: not supported yet: spawn\n  --> -e:1:6\n  |\n1 | spawn(() => 1)\n  |      ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
-    );
-    assert_eq!(o.status.code(), Some(1));
 }
 
 /// The native bridge modules are not part of the Rust port yet: Go runs

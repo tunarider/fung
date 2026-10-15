@@ -36,6 +36,7 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Closure(x), Value::Closure(y)) => Rc::ptr_eq(x, y),
         (Value::Native(x), Value::Native(y)) => std::ptr::eq(*x, *y),
         (Value::Module(x), Value::Module(y)) => Rc::ptr_eq(x, y),
+        (Value::Task(x), Value::Task(y)) => Rc::ptr_eq(x, y),
         _ => false,
     }
 }

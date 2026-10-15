@@ -331,6 +331,7 @@ impl Task<'_> {
     /// and `map`, exit handlers) and returns when that call returns. On an
     /// error the task is put back as it was, with the call path recorded.
     pub fn call(&mut self, f: &Value, args: Vec<Value>) -> Result<Value, Stop> {
+        self.tick(no_pos())?;
         let depth = self.frames.len();
         let height = self.stack.len();
         let r = self.guarded(
@@ -356,6 +357,10 @@ impl Task<'_> {
     // (`mem::take` would hand the allocation to the callee).
     #[allow(clippy::drain_collect)]
     pub fn call_buf(&mut self, f: &Value, args: &mut Vec<Value>) -> Result<Value, Stop> {
+        if let Err(e) = self.tick(no_pos()) {
+            args.clear();
+            return Err(e);
+        }
         if let Value::Native(n) = f
             && n.params.len() == args.len()
             && n.params.last().is_none_or(|p| !p.rest)

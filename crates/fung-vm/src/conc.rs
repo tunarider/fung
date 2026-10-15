@@ -1,17 +1,18 @@
-//! The concurrency natives (05). Stage 2 of the Rust port has no tasks,
-//! channels or atoms, so calling any of them raises E0805
-//! `not supported yet: <name>`, except `sleep`: with one task and nothing
-//! to cancel it, a plain thread sleep is exactly Go's behavior, and it keeps
-//! `retry` usable. The parameter tables are Go's (`spec/builtins.txt`), so
-//! arity and named-argument errors, which the VM reports before the native
-//! runs, are the same as Go's.
+//! The concurrency natives (05; Go `vm.Concurrency()`). Tasks are real
+//! (stage 3a: `spawn`, `await`, `cancel`, `sleep` and
+//! `_native.conc.spawn_awaited`, on `crate::vm`'s tasks and blocking
+//! point). Channels and atoms are not ported yet: calling them raises
+//! E0805 `not supported yet: <name>`. The parameter tables are Go's
+//! (`spec/builtins.txt`), so arity and named-argument errors, which the
+//! VM reports before the native runs, are the same as Go's.
 
 use std::rc::Rc;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use crate::native::nat::{self, native, opt, param};
-use crate::value::{Lit, Module, Native, Value};
-use crate::vm::{Stop, Task};
+use crate::value::{Lit, Module, Native, NativeFn, Value};
+use crate::vm::{Stop, Task, block, err_kind};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static PLACEHOLDERS: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -39,7 +40,14 @@ fn all() -> Vec<(&'static str, Value)> {
             tables
                 .into_iter()
                 .map(|(name, params)| {
-                    let f = if name == "sleep" { sleep } else { unsupported };
+                    let f: NativeFn = match name {
+                        "sleep" => sleep,
+                        "spawn" => spawn,
+                        "await" => await_fn,
+                        "cancel" => cancel,
+                        "spawn_awaited" => spawn_awaited,
+                        _ => unsupported,
+                    };
                     (name, native(name, f, params))
                 })
                 .collect()
@@ -78,16 +86,67 @@ fn unsupported(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
     Err(nat::fail("E0805", vec![nat::s(name)]))
 }
 
+/// A duration argument as a wait: zero for zero and negative ones.
+fn wait_of(d: i64) -> Duration {
+    Duration::from_nanos(d.max(0) as u64)
+}
+
 /// `sleep(d)` (Go `sleepFn`): waits for `d`; zero and negative durations
-/// return at once. Stage 3 makes it park the task and end early with E0701
-/// when the task is cancelled.
-fn sleep(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+/// return at once. A cancelled task wakes and unwinds with E0701.
+fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let d = match &args[0] {
         Value::Dur(d) => *d,
         v => return Err(nat::wrong_arg("d", "dur", v)),
     };
     if d > 0 {
-        std::thread::sleep(std::time::Duration::from_nanos(d as u64));
+        block(t, |_| None::<()>, Some(wait_of(d)))?;
     }
+    Ok(Value::Nil)
+}
+
+/// `spawn(f)` (Go `spawnFn`): runs `f` on a new task below this one.
+fn spawn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    spawn_with(t, args, false)
+}
+
+/// `_native.conc.spawn_awaited(f)`: a spawn whose task counts as awaited
+/// from the start (`pmap`, `fan_in`).
+fn spawn_awaited(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    spawn_with(t, args, true)
+}
+
+fn spawn_with(t: &mut Task<'_>, args: Vec<Value>, awaited: bool) -> Result<Value, Stop> {
+    let f = args.into_iter().next().expect("one argument");
+    nat::need_fn("f", &f)?;
+    t.spawn(f, awaited)
+}
+
+/// `await(t, timeout: nil)` (Go `awaitFn`): the task's result, kept for
+/// later calls; `Err({kind: 'timeout})` when the timeout passes first (the
+/// task keeps running).
+fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let Value::Task(h) = &args[0] else {
+        return Err(nat::wrong_arg("t", "task", &args[0]));
+    };
+    let timeout = match &args[1] {
+        Value::Nil => None,
+        Value::Dur(d) => Some(wait_of(*d)),
+        v => return Err(nat::wrong_arg("timeout", "dur | nil", v)),
+    };
+    let state = h.state.clone();
+    match block(t, |_| state.result(), timeout)? {
+        Some(v) => Ok(v),
+        None => Ok(err_kind("timeout")),
+    }
+}
+
+/// `cancel(t)` (Go `cancelFn`): cancels the task and every task below it;
+/// a finished task is left as it is.
+fn cancel(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let Value::Task(h) = &args[0] else {
+        return Err(nat::wrong_arg("t", "task", &args[0]));
+    };
+    h.cancel.cancel();
+    t.notify_all();
     Ok(Value::Nil)
 }

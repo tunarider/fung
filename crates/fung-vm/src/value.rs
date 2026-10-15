@@ -19,7 +19,7 @@ mod types;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::vm::{RtProto, Stop, Task};
+use crate::vm::{RtProto, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
@@ -48,6 +48,8 @@ pub enum Value {
     Closure(Rc<Closure>),
     Native(&'static Native),
     Module(Rc<Module>),
+    /// A task handle (05, `spawn`).
+    Task(Rc<TaskHandle>),
 }
 
 impl Value {

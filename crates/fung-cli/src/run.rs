@@ -93,6 +93,16 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     rt.load(&entry, &b.modules);
     let mut code = i64::from(EXIT_OK);
     let result = rt.run();
+    match &result {
+        // The entry is done; the tasks it left keep the program alive (05).
+        Ok(()) => rt.wait(),
+        // An entry error (or an exit) ends the program: cancel what is
+        // left and wait for it to unwind.
+        Err(_) => {
+            rt.cancel_all();
+            rt.wait();
+        }
+    }
     if let Err(Stop::Error(d)) = &result
         && rt.exit_code().is_none()
     {

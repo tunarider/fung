@@ -8,6 +8,7 @@
 //! other read of an empty slot is a VM bug and panics, which the panic
 //! fence turns into E0801 like Go's recovered nil dereference.
 
+mod block;
 mod call;
 mod frame;
 mod link;
@@ -24,6 +25,9 @@ mod module;
 #[cfg(test)]
 mod module_tests;
 mod runtime;
+mod task;
+#[cfg(test)]
+mod task_tests;
 #[cfg(test)]
 mod tests;
 pub(crate) mod token;
@@ -32,6 +36,7 @@ mod world;
 use std::cmp::Ordering;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, CallSite, Diag, error};
@@ -39,15 +44,19 @@ use fung_front::source::{FileId, Pos};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
+pub(crate) use block::{YIELD_EVERY, block};
 pub use call::MAX_FRAMES;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub use runtime::Runtime;
+pub use task::TaskHandle;
+pub(crate) use task::err_kind;
 
 use crate::value::{self, Value};
 use frame::Frame;
+use task::CancelNode;
 pub(crate) use world::World;
 use world::{Shared, Token};
 
@@ -97,9 +106,10 @@ pub(crate) fn internal(args: Vec<Arg>) -> Stop {
 /// register exit handlers and call fung functions back; those reach the
 /// shared part (`World`) through the run token the task holds.
 ///
-/// A task takes the token when it is made and holds it until it drops
-/// (stage 3a: one task holds it for its whole run; the run loop never
-/// locks). Drop order matters: the stack and frames hold fung values, and
+/// A task takes the token when it is made and holds it until it drops,
+/// except while it waits (`block`), yields its turn (`tick`) or calls the
+/// operating system (`outside`); the run loop never locks per
+/// instruction. Drop order matters: the stack and frames hold fung values, and
 /// dropping a value changes `Rc` counts, which only the token's holder may
 /// do. So `world` is the last field (fields drop in declaration order)
 /// and `Drop` empties the stack and frames explicitly before it, after
@@ -109,19 +119,29 @@ pub struct Task<'rt> {
     frames: Vec<Frame>,
     /// The native being called, for natives that need their own name.
     native: Option<&'static Native>,
+    /// This task's node in the cancellation tree (`task.rs`).
+    cancel: Arc<CancelNode>,
+    /// Ticks left before the next turn-handoff check (`block.rs`).
+    budget: u32,
+    /// The shared part's owner, for spawning tasks on other threads.
+    shared: &'rt Arc<Shared>,
     /// The run token, and through it the shared part. Keep it last.
     world: Token<'rt>,
 }
 
 impl<'rt> Task<'rt> {
-    /// A task on this thread; waits for the run token.
-    pub(crate) fn new(shared: &'rt Shared) -> Task<'rt> {
+    /// A task on this thread under the cancellation node `cancel`; waits
+    /// for the run token.
+    pub(crate) fn new(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
         let world = shared.lock();
         token::assert_holds_token();
         Task {
             stack: Vec::new(),
             frames: Vec::new(),
             native: None,
+            cancel,
+            budget: YIELD_EVERY,
+            shared,
             world,
         }
     }
@@ -366,7 +386,15 @@ impl<'rt> Task<'rt> {
                         return Err(err("E0505", pos, vec![Arg::Str(tn)]));
                     }
                 }
-                Op::Jump => self.frames[fi].ip = arg,
+                Op::Jump => {
+                    // The compiler emits forward jumps only today; a
+                    // backward one would be a loop, which must stay
+                    // cancellable and share the token like a call.
+                    if arg <= ip {
+                        self.tick(pos)?;
+                    }
+                    self.frames[fi].ip = arg;
+                }
                 Op::JumpIfFalse => match self.pop() {
                     Value::Bool(true) => {}
                     Value::Bool(false) => self.frames[fi].ip = arg,
@@ -376,6 +404,7 @@ impl<'rt> Task<'rt> {
                     }
                 },
                 Op::Call | Op::TailCall => {
+                    self.tick(pos)?;
                     let tail = instr.op() == Op::TailCall;
                     if let Some(r) = self.call_op(arg, pos, tail)? {
                         // A native ran to completion.
