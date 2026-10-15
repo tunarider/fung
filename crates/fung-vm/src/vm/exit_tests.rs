@@ -125,19 +125,18 @@ fn an_exit_while_an_agent_runs_f_lets_the_update_commit() {
     assert_eq!((out.as_str(), err.as_str(), code), ("ae 2\n", "", 4));
 }
 
-/// An exit inside an agent's own `f` ends the agent's task with the
-/// program (`try_call` does not catch an exit), so nothing serves the
-/// agent any more: a handler that asks it waits for good, which the
-/// deadlock check reports (the exit code stays the exit's).
+/// An exit inside an agent's own `f` is handed back to the caller's
+/// `swap`, which unwinds with it (Go's atom `swap` did the same); the
+/// agent keeps serving with its state unchanged, so a handler can still
+/// ask it.
 #[test]
-fn an_exit_inside_an_agents_f_ends_the_agent() {
+fn an_exit_inside_an_agents_f_leaves_the_agent_serving() {
     let (out, err, code) = within(10, || {
-        run("a = agent(1)\nat_exit(() => print(\"ae\", deref(a)))\nswap(a, x => exit(4))")
+        run(
+            "a = agent(1)\nat_exit(() => print(\"ae\", deref(a), swap(a, x => x + 1)))\nswap(a, x => exit(4))\nprint(\"never\")",
+        )
     });
-    assert_eq!(
-        (out.as_str(), err.as_str(), code),
-        ("", "error[E0702]: deadlock: all tasks are waiting\n", 4)
-    );
+    assert_eq!((out.as_str(), err.as_str(), code), ("ae 1 2\n", "", 4));
 }
 
 /// An exit inside a lambda a native calls (`each`) unwinds through the

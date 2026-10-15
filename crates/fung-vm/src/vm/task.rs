@@ -40,6 +40,7 @@ use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use fung_front::diag::{self, Arg, Diag, headline};
 
+use super::agent::Mark;
 use super::block::{WaitList, Waiter};
 use super::failure::Failures;
 use super::world::Shared;
@@ -359,7 +360,9 @@ impl<'rt> Task<'rt> {
             background: self.background,
             reported: !awaited,
         };
-        self.start(f, node, kind)
+        // Inside the agents this task is inside (`agent.rs`).
+        let serving = self.serving.clone();
+        self.start(f, node, kind, serving)
     }
 
     /// Starts `f` on a background task (stage 3b, `agent.rs`) and returns
@@ -372,10 +375,16 @@ impl<'rt> Task<'rt> {
             background: true,
             reported: false,
         };
-        self.start(f, node, kind)
+        self.start(f, node, kind, Vec::new())
     }
 
-    fn start(&mut self, f: Value, node: Arc<CancelNode>, kind: Kind) -> Result<Value, Stop> {
+    fn start(
+        &mut self,
+        f: Value,
+        node: Arc<CancelNode>,
+        kind: Kind,
+        serving: Vec<Arc<Mark>>,
+    ) -> Result<Value, Stop> {
         token::assert_holds_token();
         let state = Rc::new(TaskState {
             result: RefCell::new(None),
@@ -397,7 +406,7 @@ impl<'rt> Task<'rt> {
         let started = std::thread::Builder::new()
             .name("fung-task".into())
             .stack_size(TASK_STACK)
-            .spawn(move || run_spawned(shared, node, cargo, kind));
+            .spawn(move || run_spawned(shared, node, cargo, kind, serving));
         if let Err(e) = started {
             // The closure, and the values in it, were dropped here, on
             // this thread, with the token held.
@@ -433,10 +442,17 @@ impl<'rt> Task<'rt> {
 /// order). A panic that escapes the panic fence here is a bug in this
 /// file; the values would then be dropped in an unknown state, so the
 /// process stops instead.
-fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff, kind: Kind) {
+fn run_spawned(
+    shared: Arc<Shared>,
+    node: Arc<CancelNode>,
+    cargo: Handoff,
+    kind: Kind,
+    serving: Vec<Arc<Mark>>,
+) {
     let background = kind.background;
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut t = Task::spawned(&shared, node.clone(), background);
+        t.serving = serving;
         token::assert_holds_token();
         let (f, state) = cargo.open(&t);
         let r = t.call(&f, Vec::new());

@@ -5,14 +5,21 @@ use super::{Resolver, fn_info};
 use crate::source::Pos;
 use crate::tree::{FnInfo, Head, Lit, Node};
 
-/// The type names of 07; tag names (uppercase) are also accepted.
+/// The type names of 07 as the Go implementation has them (see
+/// `is_builtin_type`); tag names (uppercase) are also accepted.
 const BUILTIN_TYPES: &[&str] = &[
     "int", "float", "num", "str", "bool", "nil", "sym", "dur", "time", "list", "map", "tuple",
     "range", "fn", "module", "task", "channel", "atom", "any",
 ];
 
+/// Go's type names (`BUILTIN_TYPES`) with the Rust renames applied
+/// (`builtins::RUST_TYPE_RENAMES`: `agent` for `atom`).
 pub(super) fn is_builtin_type(name: &str) -> bool {
-    BUILTIN_TYPES.contains(&name)
+    use crate::builtins::RUST_TYPE_RENAMES;
+    if RUST_TYPE_RENAMES.iter().any(|(_, to)| *to == name) {
+        return true;
+    }
+    BUILTIN_TYPES.contains(&name) && !RUST_TYPE_RENAMES.iter().any(|(from, _)| *from == name)
 }
 
 pub(super) fn is_tag_name(s: &str) -> bool {

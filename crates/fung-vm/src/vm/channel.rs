@@ -48,7 +48,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::agent::Serving;
+use super::agent::{Mark, Serving};
 use super::block::{Waiter, block_until, deadline_after};
 use super::{CancelNode, Stop, Task, token};
 use crate::value::{Value, drop_children, keep};
@@ -199,12 +199,15 @@ impl Channel {
         std::mem::replace(&mut self.inner.borrow_mut().serving, s)
     }
 
-    /// The state the task with waiter `w` serves a request on this
-    /// channel with, if it is the serving task.
-    pub(crate) fn serving_state(&self, w: &Arc<Waiter>) -> Option<Value> {
+    /// The state the request on this channel is served with, if one of
+    /// `marks` (a task's, `Task::serving`) is that request's mark.
+    pub(crate) fn serving_state(&self, marks: &[Arc<Mark>]) -> Option<Value> {
         let c = self.inner.borrow();
         let s = c.serving.as_ref()?;
-        Arc::ptr_eq(&s.waiter, w).then(|| s.state.clone())
+        marks
+            .iter()
+            .any(|m| Arc::ptr_eq(m, &s.mark))
+            .then(|| s.state.clone())
     }
 
     /// How many blocked sends and receives wait in the queues (tests:

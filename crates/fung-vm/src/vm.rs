@@ -147,6 +147,9 @@ pub struct Task<'rt> {
     /// A background task (stage 3b): counted in `World::background`
     /// instead, and blocked apart in the census (`deadlock.rs`).
     background: bool,
+    /// The agent requests this task is inside (stage 3b, `agent.rs`):
+    /// the one it serves, and those of the task that spawned it.
+    pub(crate) serving: Vec<Arc<agent::Mark>>,
     /// The shared part's owner, for spawning tasks on other threads.
     shared: &'rt Arc<Shared>,
     /// The run token, and through it the shared part. Keep it last.
@@ -195,6 +198,7 @@ impl<'rt> Task<'rt> {
             waiter: block::Waiter::new(shared.census.clone()),
             live: false,
             background: false,
+            serving: Vec::new(),
             shared,
             world,
         }
@@ -345,17 +349,23 @@ impl<'rt> Task<'rt> {
             return d;
         }
         d.call_path = self.call_path();
-        if self.frames.last().is_some_and(|f| f.proto.builtin) {
-            for f in self.frames.iter().rev().skip(1) {
-                if !f.proto.builtin
-                    && let Some(p) = f.current_pos()
-                {
-                    d.pos = p;
-                    break;
-                }
-            }
+        if self.frames.last().is_some_and(|f| f.proto.builtin)
+            && let Some(p) = self.user_pos()
+        {
+            d.pos = p;
         }
         d
+    }
+
+    /// Where the innermost frame of user code is (its current call), for
+    /// an error raised inside an embedded extras file (`attach`, and
+    /// `agent.rs` for E0704, which must keep it through `try_call`).
+    pub(crate) fn user_pos(&self) -> Option<Pos> {
+        self.frames
+            .iter()
+            .rev()
+            .filter(|f| !f.proto.builtin)
+            .find_map(|f| f.current_pos())
     }
 
     /// The frames innermost first, for error reports (08).

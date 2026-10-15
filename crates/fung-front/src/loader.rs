@@ -775,7 +775,7 @@ mod tests {
         assert_eq!(exports, spec);
     }
 
-    /// `extras/agent.fung` (read only by the Rust boot) compiles as an
+    /// `extras/rust/agent.fung` (read only by the Rust boot) compiles as an
     /// embedded file and exports exactly the agent names of the Rust
     /// difference list (`builtins.rs`).
     #[test]
@@ -784,7 +784,7 @@ mod tests {
             internal: true,
             ..Loader::default()
         };
-        let (b, errs) = loader.compile("extras/agent.fung", crate::extras::AGENT, Stage::All);
+        let (b, errs) = loader.compile("extras/rust/agent.fung", crate::extras::AGENT, Stage::All);
         assert!(errs.is_empty(), "{errs:?}");
         let mut exports = b.proto.unwrap().exports;
         exports.sort();

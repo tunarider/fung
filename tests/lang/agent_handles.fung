@@ -1,0 +1,30 @@
+# only: rust
+# deref and swap keep the handle alive until the agent answers, even
+# when their argument is its last copy.
+print(deref(agent(5)), swap(agent(5), x => x + 1))
+# expect: 5 6
+
+fn count(xs):
+  a = agent(0)
+  each(xs, x => swap(a, n => n + x))
+  deref(a)
+;;
+print(count([1, 2, 3]))
+# expect: 6
+
+fn mk() = agent(7)
+print(deref(mk()), swap(mk(), x => x + 1))
+# expect: 7 8
+
+fn bump(a) = swap(a, x => x + 1)
+print(bump(agent(1)))
+# expect: 2
+
+# Tasks spawned inside f are inside the agent: deref does not wait.
+a = agent(1)
+print(swap(a, x => sum(pmap([1, 2], y => deref(a)))), deref(a))
+# expect: 2 2
+
+fn peek(b: agent) = deref(b)
+print(peek(a))
+# expect: 2

@@ -34,7 +34,7 @@ fn render_params(ps: &[NativeParam]) -> String {
 fn concurrency_builtin_errors_have_a_position() {
     // A native's error points at the call's `(` like every other native
     // error in Go (`spawn(1)` → E0403 at 2:6); so does the error of the
-    // fung `deref` (stage 3b, `extras/agent.fung`).
+    // fung `deref` (stage 3b, `extras/rust/agent.fung`).
     for (src, want) in [
         (
             "print(1)\nspawn(1)",
@@ -60,7 +60,7 @@ fn fung_prelude_and_process_functions() {
 
 #[test]
 fn agents_run() {
-    // Stage 3b: agents (`extras/agent.fung`) replace atoms; no
+    // Stage 3b: agents (`extras/rust/agent.fung`) replace atoms; no
     // concurrency builtin gives E0805.
     let (out, err, code) = run_booted("a = agent(1)\nprint(swap(a, x => x + 1), deref(a), a)");
     assert_eq!((out.as_str(), err.as_str(), code), ("2 2 <agent>\n", "", 0));

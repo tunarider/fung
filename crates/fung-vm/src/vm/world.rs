@@ -49,6 +49,9 @@ pub(crate) struct World {
     /// Read by a thread of its own (`stdin.rs`).
     pub(super) stdin: Stdin,
     pub(super) sources: SourceMap,
+    /// The first file `add_sources` added: the boot's embedded extras
+    /// files are this one and every one after it.
+    embedded_from: Option<u32>,
     pub(super) exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
     pub(super) exit: Option<i64>,
@@ -122,6 +125,7 @@ impl World {
             stderr: Stream::new(stderr),
             stdin: Stdin::new(stdin),
             sources,
+            embedded_from: None,
             exit_handlers: Vec::new(),
             exit: None,
             args: Vec::new(),
@@ -141,13 +145,22 @@ impl World {
 
     /// Appends another compile's files after the ones already here and
     /// returns how far its `FileId`s move.
+    /// Only the boot adds files this way: the embedded extras files
+    /// (`is_embedded`).
     pub(crate) fn add_sources(&mut self, other: &SourceMap) -> u32 {
         let base = self.sources.len() as u32;
+        self.embedded_from.get_or_insert(base);
         for i in 0..other.len() as u32 {
             let id = FileId(i);
             self.sources.add(other.name(id), other.text(id));
         }
         base
+    }
+
+    /// Whether a file is one of the embedded extras files the boot added
+    /// (`agent.rs`: a position there is never shown for E0704).
+    pub(super) fn is_embedded(&self, id: FileId) -> bool {
+        self.embedded_from.is_some_and(|from| id.0 >= from)
     }
 
     /// A file's name for call paths ("" for a file this runtime does not

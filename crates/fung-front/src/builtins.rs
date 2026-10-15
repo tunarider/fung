@@ -19,10 +19,16 @@ const SPEC: &str = include_str!("../../../spec/builtins.txt");
 /// have: Go's atoms. (`swap` and `deref` come back as agent functions.)
 const RUST_PRELUDE_NATIVES_REMOVED: &[&str] = &["atom", "deref", "swap"];
 
-/// The public names of `extras/agent.fung`, which only the Rust boot
+/// The public names of `extras/rust/agent.fung`, which only the Rust boot
 /// reads (`crate::extras::AGENT`); they join the prelude. The loader test
 /// `agent_fung_exports_match_the_list` keeps this list honest.
 const RUST_PRELUDE_AGENT: &[&str] = &["agent", "deref", "swap"];
+
+/// Built-in type names (07) of the spec's language that the Rust
+/// implementation renames: Go's `atom` is `agent` here. Type names are
+/// not in `spec/builtins.txt`; the resolver's list
+/// (`resolve/fn_.rs`) is Go's, and `is_builtin_type` applies this.
+pub(crate) const RUST_TYPE_RENAMES: &[(&str, &str)] = &[("atom", "agent")];
 
 /// The members the Rust `_native.*` modules add, in the spec's
 /// `name(params)` form. Only embedded extras files can import
@@ -31,7 +37,8 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.conc", "spawn_background(f)"),
     ("_native.conc", "agent_handle(ch)"),
     ("_native.conc", "agent_channel(a)"),
-    ("_native.conc", "swap_channel(a, f)"),
+    ("_native.conc", "check_swap(a, f)"),
+    ("_native.conc", "agent_ask(a, request, reply)"),
     ("_native.conc", "try_call(f, x)"),
     ("_native.conc", "raise(e)"),
     ("_native.conc", "send_unchecked(ch, v)"),
@@ -47,7 +54,7 @@ pub struct Builtins {
     pub prelude_native: Vec<String>,
     /// Public names of `extras/prelude.fung`.
     pub prelude_fung: Vec<String>,
-    /// Public names of `extras/agent.fung` (Rust only,
+    /// Public names of `extras/rust/agent.fung` (Rust only,
     /// `RUST_PRELUDE_AGENT`): also prelude names.
     pub prelude_agent: Vec<String>,
     /// `_native.x` → its member names.
@@ -87,7 +94,7 @@ pub fn builtins() -> &'static Builtins {
 
 impl Builtins {
     /// Every prelude name: the natives, then the public names of
-    /// `extras/prelude.fung` and `extras/agent.fung`, sorted.
+    /// `extras/prelude.fung` and `extras/rust/agent.fung`, sorted.
     pub fn prelude_names(&self) -> Vec<String> {
         let mut names: Vec<String> = self
             .prelude_native
@@ -193,7 +200,7 @@ mod tests {
     }
 
     /// The Rust differences (stage 3b): Go's atom natives are gone, the
-    /// agent functions of `extras/agent.fung` are prelude names.
+    /// agent functions of `extras/rust/agent.fung` are prelude names.
     #[test]
     fn the_rust_differences_are_applied() {
         let b = builtins();

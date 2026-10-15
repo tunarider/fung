@@ -1,5 +1,5 @@
 //! What agents are built from (stage 3b, Rust only): the members of
-//! `_native.conc` that only `extras/agent.fung` uses. An agent is a
+//! `_native.conc` that only `extras/rust/agent.fung` uses. An agent is a
 //! background task (`task.rs`) that holds a state and serves requests
 //! from a channel; its handle is a value that closes that channel when
 //! its last copy drops, so an agent nobody can reach ends.
@@ -10,23 +10,37 @@
 //!   and its failure is never reported as unretrieved.
 //! - `agent_handle(ch)`: the handle (`Value::Agent`) over the request
 //!   channel `ch`; `agent_channel(a)` gives `ch` back.
-//! - `swap_channel(a, f)`: `ch` for a `swap` request, after checking the
-//!   arguments as a native would (E0403) and that the current task is
-//!   not serving a request of `a` (E0704, `swap` inside its own `f`).
-//! - `try_call(f, x)`: `Ok(f(x))`, or `Err(e)` where `e` is the caught
-//!   error as an opaque value (`Value::Caught`). Cancellation (E0701,
-//!   E0702) and `exit` are not caught.
-//! - `raise(e)`: raises the caught error again, with its code and
-//!   message, at the position of the call (the original position and
-//!   call path are gone).
+//! - `check_swap(a, f)`: checks a `swap`'s arguments as a native would
+//!   (E0403) and that the current task is not inside `a` (E0704, `swap`
+//!   inside its own `f`).
+//! - `agent_ask(a, request, reply)`: sends `request` to `a` and waits
+//!   for the answer on `reply`, holding the handle `a` until then (the
+//!   caller's may be the last copy, and dropping it would close the
+//!   channel the answer is coming through).
+//! - `try_call(f, x)`: `Ok(f(x))`, or `Err(e)` where `e` is what stopped
+//!   `f`, as an opaque value (`Value::Caught`): an error, or an `exit`.
+//!   Cancellation (E0701, E0702) is not caught.
+//! - `raise(e)`: stops again as `e` did: an `exit` exits, an error is
+//!   raised with its code and message at the position of the call (the
+//!   original position and call path are gone, except for E0704, which
+//!   keeps the position of the inner `swap`).
 //! - `send_unchecked(ch, v)`: `send` without the check that a channel is
 //!   not sent into itself (stage 3b Task 5), for the agent's own
 //!   requests (`conc.rs`).
 //! - `agent_busy(ch, on, state = nil)`: the agent's task marks itself as
-//!   serving a request on `ch` with `state` (on) or not (off). The mark
+//!   serving a request on `ch` with `state` (on) or not (off). The record
 //!   is kept on the channel, not the handle (see the rule below).
-//! - `in_agent(a)`: whether the current task is the one serving a request
-//!   of `a` right now; `agent_state(a)` is then the state it serves with.
+//! - `in_agent(a)`: whether the current task is inside `a` right now:
+//!   the task serving `a`'s request, or a task it spawned (at any depth)
+//!   while serving it; `agent_state(a)` is then the state it serves with.
+//!
+//! **Inside an agent.** `agent_busy` makes a fresh `Mark` per request,
+//! records it on the channel and adds it to the serving task's marks
+//! (`Task::serving`); `spawn` copies a task's marks into the task it
+//! starts (`spawn_background` does not: an agent made inside `f` is its
+//! own). A task is inside `a` when the mark on `a`'s channel is among its
+//! marks. A task `f` spawned that outlives that request holds an old mark
+//! and so is outside again, waiting its turn like any other.
 //!
 //! **The agent's loop holds only the request channel, never a handle.**
 //! The handle is the closer: while any copy is alive the channel stays
@@ -42,8 +56,7 @@ use std::sync::Arc;
 
 use fung_front::diag::Diag;
 
-use super::block::Waiter;
-use super::channel::Channel;
+use super::channel::{self, Channel, Received};
 use super::task::is_cancel;
 use super::{Stop, Task, internal, no_pos, token};
 use crate::native::nat;
@@ -96,22 +109,32 @@ impl Drop for Agent {
     }
 }
 
-/// An error `try_call` caught: its code, arguments, help and notes,
-/// without the position, underline or call path it had.
-pub struct Caught(Diag);
+/// What `try_call` caught: an error (its code, arguments, help and
+/// notes; no underline or call path, and a position only for E0704) or
+/// an `exit`.
+pub enum Caught {
+    Error(Diag),
+    Exit(i64),
+}
 
 impl std::fmt::Debug for Caught {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<error {}>", self.0.code)
+        match self {
+            Caught::Error(d) => write!(f, "<error {}>", d.code),
+            Caught::Exit(n) => write!(f, "<exit {n}>"),
+        }
     }
 }
 
-/// The task serving a request of an agent and the state it serves with
+/// One request being served: the identity tasks inside it share
+/// (module doc, "Inside an agent").
+pub(crate) struct Mark;
+
+/// The request an agent is serving and the state it serves with
 /// (`agent_busy`). Kept on the request channel; a fung value, so only
 /// the token's holder touches it.
 pub(crate) struct Serving {
-    /// The serving task, by its waiter (a task keeps one for its life).
-    pub(crate) waiter: Arc<Waiter>,
+    pub(crate) mark: Arc<Mark>,
     pub(crate) state: Value,
 }
 
@@ -147,59 +170,112 @@ pub(crate) fn agent_channel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value,
     Ok(Value::Channel(need_agent(&args[0])?.channel().clone()))
 }
 
-/// `swap_channel(a, f)`: the request channel for `swap(a, f)`. E0403 when
-/// `a` is not an agent or `f` not a function (the order of Go's atom
-/// `swap`); E0704 when the current task is serving a request of `a`,
-/// that is, inside `a`'s own `f` (it would wait for itself).
-pub(crate) fn swap_channel(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+/// `check_swap(a, f)`: E0403 when `a` is not an agent or `f` not a
+/// function (the order of Go's atom `swap`); E0704 when the current task
+/// is inside `a` (its own `f`, or a task that `f` spawned): it would
+/// wait for itself.
+pub(crate) fn check_swap(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let a = need_agent(&args[0])?;
     nat::need_fn("f", &args[1])?;
     if serving_state(t, a).is_some() {
-        return Err(nat::fail("E0704", Vec::new()));
+        // At the user's inner `swap(`, which `try_call` keeps (Go's atom
+        // reported its E0703 there). An inner `swap` in tail position
+        // replaced the user's frame, so no frame of user code is left on
+        // this task: the error then gets the position of this call, in
+        // the embedded file, which `try_call` drops, and it lands on the
+        // caller's `swap(` like any error of `f`.
+        let pos = t.user_pos().unwrap_or_else(no_pos);
+        return Err(Stop::Error(Box::new(fung_front::diag::error(
+            "E0704",
+            pos,
+            Vec::new(),
+        ))));
     }
-    Ok(Value::Channel(a.channel().clone()))
+    Ok(Value::Nil)
 }
 
-/// `try_call(f, x)`: `Ok(f(x))` or `Err(<error>)`. Only fung errors are
-/// caught: `exit` (`Stop::Exit`) and cancellation (E0701, or E0702 for a
-/// task woken by the deadlock report) unwind on through.
+/// `agent_ask(a, request, reply)`: sends `request` on `a`'s channel and
+/// returns what arrives on `reply`. The arguments own a copy of the
+/// handle until the answer is in, so the channel stays open even when
+/// the caller passed its last copy (`deref(agent(5))`). A closed channel
+/// either way is an internal error: the handle keeps the request channel
+/// open, and the agent always answers.
+pub(crate) fn agent_ask(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let a = need_agent(&args[0])?.clone();
+    let reply = need_channel(&args[2])?.clone();
+    if !channel::send(t, a.channel(), args[1].clone())? {
+        return Err(internal(vec![fung_front::diag::Arg::Str(
+            "an agent's request channel is closed".into(),
+        )]));
+    }
+    match channel::recv(t, &reply, None)? {
+        Received::Value(v) => Ok(v),
+        _ => Err(internal(vec![fung_front::diag::Arg::Str(
+            "an agent's reply channel is closed".into(),
+        )])),
+    }
+}
+
+/// `try_call(f, x)`: `Ok(f(x))`, or `Err(<error>)` for what stopped `f`:
+/// a fung error or an `exit` (handed back to the caller's `swap`, so the
+/// agent's loop keeps serving). Cancellation (E0701, or E0702 for a task
+/// woken by the deadlock report) unwinds on through.
 pub(crate) fn try_call(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let x = args.pop().expect("x");
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
-    match t.call(&f, vec![x]) {
-        Ok(v) => Ok(nat::ok(v)),
+    let caught = match t.call(&f, vec![x]) {
+        Ok(v) => return Ok(nat::ok(v)),
         Err(Stop::Error(d)) if !is_cancel(&d) => {
             let mut d = *d;
-            d.pos = no_pos();
-            d.len = 0;
+            // E0704 keeps where the inner `swap` was when that is user
+            // code (`check_swap`); every other error lands on the
+            // caller's `swap(`.
+            if d.code != "E0704" || t.world.is_embedded(d.pos.file) {
+                d.pos = no_pos();
+                d.len = 0;
+            }
             d.call_path.clear();
-            Ok(nat::tag("Err", vec![Value::Caught(Rc::new(Caught(d)))]))
+            Caught::Error(d)
         }
-        Err(e) => Err(e),
-    }
+        Err(Stop::Exit(n)) => Caught::Exit(n),
+        Err(e) => return Err(e),
+    };
+    Ok(nat::tag("Err", vec![Value::Caught(Rc::new(caught))]))
 }
 
-/// `raise(e)`: the caught error again. It has no position, so the VM
-/// gives it the position of this call (and, when the call is inside an
-/// embedded extras file, of the nearest user frame) and the call path of
-/// this task.
-pub(crate) fn raise(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+/// `raise(e)`: stops as `e` did. An error without a position gets the
+/// position of this call (and, when the call is inside an embedded
+/// extras file, of the nearest user frame) and the call path of this
+/// task; one with a position (E0704) keeps it, with this task's call
+/// path.
+pub(crate) fn raise(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     match &args[0] {
-        Value::Caught(c) => Err(Stop::Error(Box::new(c.0.clone()))),
+        Value::Caught(c) => match &**c {
+            Caught::Exit(n) => Err(Stop::Exit(*n)),
+            Caught::Error(d) => {
+                let mut d = d.clone();
+                if !d.pos.is_zero() {
+                    // A recorded call path stops the VM from moving the
+                    // position to the nearest user frame (`attach`).
+                    d.call_path = t.call_path();
+                }
+                Err(Stop::Error(Box::new(d)))
+            }
+        },
         v => Err(nat::wrong_arg("e", "error", v)),
     }
 }
 
 /// `agent_busy(ch, on, state = nil)`: marks the current task as serving a
-/// request on `ch` with `state`, or clears the mark.
+/// request on `ch` with `state` (a fresh `Mark`, also added to the task's
+/// marks so the tasks it spawns are inside too), or clears the mark.
 ///
-/// A mark that is never cleared (the loop's `f` exited, or the agent was
-/// cancelled in the middle of it) stays on the channel and keeps its
-/// state alive until the channel drops. Accepted: the dead task's
-/// identity never matches again, so `in_agent` stays false, and the
-/// state goes with the channel (with the agent, at the latest at the
-/// program's end).
+/// A mark that is never cleared (the agent was cancelled in the middle
+/// of `f`) stays on the channel and keeps its state alive until the
+/// channel drops. Accepted: no live task holds that mark any more, so
+/// `in_agent` stays false, and the state goes with the channel (with the
+/// agent, at the latest at the program's end).
 pub(crate) fn agent_busy(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let state = args.pop().expect("state");
     let on = match &args[1] {
@@ -207,30 +283,36 @@ pub(crate) fn agent_busy(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value
         v => return Err(nat::wrong_arg("on", "bool", v)),
     };
     let ch = need_channel(&args[0])?;
-    let serving = on.then(|| Serving {
-        waiter: t.waiter.clone(),
-        state,
+    let serving = on.then(|| {
+        let mark = Arc::new(Mark);
+        t.serving.push(mark.clone());
+        Serving { mark, state }
     });
-    // The old mark (and its state) drops here, after the channel's
+    let old = ch.set_serving(serving);
+    if !on && let Some(s) = &old {
+        t.serving.retain(|m| !Arc::ptr_eq(m, &s.mark));
+    }
+    // The old record (and its state) drops here, after the channel's
     // borrow ended.
-    drop(ch.set_serving(serving));
+    drop(old);
     Ok(Value::Nil)
 }
 
-/// The state `a`'s request is served with, if the current task serves it.
+/// The state `a`'s request is served with, if the current task is
+/// inside it.
 fn serving_state(t: &Task<'_>, a: &Agent) -> Option<Value> {
-    a.channel().serving_state(&t.waiter)
+    a.channel().serving_state(&t.serving)
 }
 
-/// `in_agent(a)`: whether the current task is serving a request of `a`.
+/// `in_agent(a)`: whether the current task is inside `a`.
 pub(crate) fn in_agent(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let a = need_agent(&args[0])?;
     Ok(Value::Bool(serving_state(t, a).is_some()))
 }
 
-/// `agent_state(a)`: the state the current task serves `a`'s request
-/// with; an internal error anywhere else (`extras/agent.fung` asks
-/// `in_agent` first).
+/// `agent_state(a)`: the state `a`'s current request is served with,
+/// for a task inside `a`; an internal error anywhere else
+/// (`extras/rust/agent.fung` asks `in_agent` first).
 pub(crate) fn agent_state(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let a = need_agent(&args[0])?;
     serving_state(t, a).ok_or_else(|| {

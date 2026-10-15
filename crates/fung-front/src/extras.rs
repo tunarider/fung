@@ -17,11 +17,12 @@ pub fn source(name: &str) -> Option<&'static str> {
     })
 }
 
-/// `extras/agent.fung`: `agent`, `swap` and `deref` (stage 3b). Only
-/// the Rust boot reads it and adds its public names to the prelude; it
-/// is not a module a program can import (`source` does not know it), and
-/// the Go implementation, which keeps its atoms, never reads it.
-pub const AGENT: &str = include_str!("../../../extras/agent.fung");
+/// `extras/rust/agent.fung`: `agent`, `swap` and `deref` (stage 3b).
+/// Only the Rust boot reads it and adds its public names to the
+/// prelude; it is not a module a program can import (`source` does not
+/// know it). The Go implementation, which keeps its atoms, never reads
+/// it: its own directory keeps it out of Go's `//go:embed *.fung`.
+pub const AGENT: &str = include_str!("../../../extras/rust/agent.fung");
 
 #[cfg(test)]
 mod tests {

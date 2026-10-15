@@ -1,7 +1,7 @@
 //! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
 //! prelude만 시작 시): the core natives, the concurrency natives,
 //! the `_native.conc` and `_native.process` bridges, and the public names
-//! of `extras/prelude.fung` and (Rust only, stage 3b) `extras/agent.fung`,
+//! of `extras/prelude.fung` and (Rust only, stage 3b) `extras/rust/agent.fung`,
 //! compiled and run on the runtime at startup.
 //!
 //! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
@@ -33,7 +33,7 @@ const PRELUDE_FILE: &str = "extras/prelude.fung";
 
 /// The name agent.fung positions show, and the module key it runs as (a
 /// key no `import` can name: the loader does not know the file).
-const AGENT_FILE: &str = "extras/agent.fung";
+const AGENT_FILE: &str = "extras/rust/agent.fung";
 const AGENT_KEY: &str = "<agent>";
 
 /// Builds the prelude on the task's runtime and returns it; the program is

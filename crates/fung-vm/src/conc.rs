@@ -5,7 +5,7 @@
 //! `_native.conc` agents are built from (`crate::vm::agent`, stage 3b).
 //! Go's `atom`, `swap` and `deref` are not here: stage 3b replaced atoms
 //! with agents, whose `agent`, `swap` and `deref` are fung
-//! (`extras/agent.fung`). The parameter tables are Go's
+//! (`extras/rust/agent.fung`). The parameter tables are Go's
 //! (`spec/builtins.txt`), so arity and named-argument errors, which the
 //! VM reports before the native runs, are the same as Go's.
 
@@ -41,11 +41,15 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("close", vec![param("ch")]),
                 ("spawn_awaited", vec![param("f")]),
                 // Rust only (stage 3b, `crate::vm::agent`): the members
-                // of `_native.conc` that `extras/agent.fung` uses.
+                // of `_native.conc` that `extras/rust/agent.fung` uses.
                 ("spawn_background", vec![param("f")]),
                 ("agent_handle", vec![param("ch")]),
                 ("agent_channel", vec![param("a")]),
-                ("swap_channel", vec![param("a"), param("f")]),
+                ("check_swap", vec![param("a"), param("f")]),
+                (
+                    "agent_ask",
+                    vec![param("a"), param("request"), param("reply")],
+                ),
                 ("try_call", vec![param("f"), param("x")]),
                 ("raise", vec![param("e")]),
                 ("send_unchecked", vec![param("ch"), param("v")]),
@@ -72,7 +76,8 @@ fn all() -> Vec<(&'static str, Value)> {
                         "spawn_background" => agent::spawn_background,
                         "agent_handle" => agent::agent_handle,
                         "agent_channel" => agent::agent_channel,
-                        "swap_channel" => agent::swap_channel,
+                        "check_swap" => agent::check_swap,
+                        "agent_ask" => agent::agent_ask,
                         "try_call" => agent::try_call,
                         "raise" => agent::raise,
                         "send_unchecked" => send_unchecked,
@@ -101,7 +106,8 @@ const MODULE_ONLY: &[&str] = &[
     "spawn_background",
     "agent_handle",
     "agent_channel",
-    "swap_channel",
+    "check_swap",
+    "agent_ask",
     "try_call",
     "raise",
     "send_unchecked",
@@ -121,7 +127,7 @@ pub fn natives() -> Vec<(&'static str, Value)> {
 
 /// `_native.conc` (Go `vm.NativeModules()`): `spawn_awaited`, which
 /// `extras/prelude.fung` uses for `fan_in` and `pmap`, and the helpers
-/// `extras/agent.fung` is built from (stage 3b, `crate::vm::agent`).
+/// `extras/rust/agent.fung` is built from (stage 3b, `crate::vm::agent`).
 pub fn module() -> Rc<Module> {
     let mut m = Module::new("conc", "_native.conc");
     for (name, v) in all() {

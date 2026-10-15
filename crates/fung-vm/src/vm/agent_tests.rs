@@ -288,13 +288,16 @@ fn raise_inside_a_builtin_function_lands_on_the_users_call() {
 }
 
 #[test]
-fn try_call_lets_exit_through() {
+fn try_call_catches_an_exit() {
+    // An exit inside `f` still ends the program (the entry is cancelled
+    // and the exit code is 3), but `try_call` hands it back as a value,
+    // so the background task calling it carries on.
     let o = exec_plain(
-        "import _native.conc as c\nat_exit(() => print(\"handler\"))\nr = c.try_call(fn(x): exit(x) ;;, 3)\nprint(\"not reached\", r)",
+        "import _native.conc as c\ndone = channel(1)\nat_exit(fn(): print(\"handler\", recv(done)!) ;;)\nc.spawn_background(fn(): r = c.try_call(fn(x): exit(x) ;;, 3); send(done, r) ;;)\nrecv(channel())\nprint(\"not reached\")",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("handler\n", "", 3)
+        ("handler Err(<error>)\n", "", 3)
     );
 }
 
@@ -454,7 +457,7 @@ fn a_failure_of_a_background_tasks_subtask_is_reported() {
     assert_eq!(o.exit, 1);
 }
 
-// --- agents: `agent`, `swap` and `deref` (`extras/agent.fung`, Task 4) ---
+// --- agents: `agent`, `swap` and `deref` (`extras/rust/agent.fung`, Task 4) ---
 
 /// Runs user code (not internal) with the probes and `until`, on a
 /// thread bounded by `LIMIT`.
@@ -487,7 +490,7 @@ fn an_error_in_f_is_raised_at_the_users_swap() {
     assert_eq!(
         path,
         [
-            ("extras/agent.fung", "swap"),
+            ("extras/rust/agent.fung", "swap"),
             ("-e", "<lambda>"),
             ("-e", "<main>")
         ]
@@ -538,20 +541,32 @@ fn swap_and_deref_reject_what_is_not_an_agent() {
     }
 }
 
-/// `swap` on the same agent inside its own `f` is E0704, raised at the
-/// outer `swap(`.
+/// `swap` on the same agent inside its own `f` is E0704, at the inner
+/// `swap(` (where Go's atom reported E0703), with the caller's call path.
+/// An inner `swap` in tail position has replaced `f`'s frame, so its
+/// position is gone, and the error lands on the outer `swap(` like any
+/// error of `f` (the tail-call rule of every fung prelude function).
 #[test]
 fn swap_inside_its_own_f_is_e0704() {
-    let o = bounded_user("a = agent(0)\nswap(a, x => swap(a, y => y))");
-    let e = o.error.expect("an error");
-    assert_eq!(
-        (e.headline.as_str(), e.line, e.col),
-        (
-            "error[E0704]: agent called from inside its own swap",
-            2 + 2,
-            5
-        )
-    );
+    for (src, col) in [
+        ("a = agent(0)\nswap(a, x => 1 + swap(a, y => y))", 22),
+        ("a = agent(0)\nswap(a, fn(x): swap(a, y => y); x ;;)", 20),
+        ("a = agent(0)\nswap(a, x => swap(a, y => y))", 5),
+    ] {
+        let o = bounded_user(src);
+        let e = o.error.unwrap_or_else(|| panic!("{src}: no error"));
+        assert_eq!(
+            (e.headline.as_str(), e.line, e.col),
+            (
+                "error[E0704]: agent called from inside its own swap",
+                2 + 2,
+                col
+            ),
+            "{src}"
+        );
+        let path: Vec<&str> = e.path.iter().map(|c| c.func.as_str()).collect();
+        assert_eq!(path, ["swap", "<main>"], "{src}");
+    }
     // Another agent inside `f` is fine.
     let o = bounded_user(
         "a = agent(1)\nb = agent(10)\nprint(swap(a, x => swap(b, y => y + x)), deref(a), deref(b))",
@@ -637,4 +652,72 @@ fn an_agent_serves_more_requests_than_the_frame_limit() {
         "a = agent(0)\neach(0..{n}, _ => deref(a))\nprint(swap(a, x => x + 1))"
     ));
     assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("1\n", "", 0));
+}
+
+/// The loop does not keep the agent's first state: once a `swap`
+/// replaced it, an agent handle inside it can close.
+#[test]
+fn the_first_state_is_not_kept_by_the_loop() {
+    let o = bounded_user(
+        "b = agent(1)\na = agent([b])\nswap(a, _ => nil)\nb = nil\nuntil(() => background() == 1)\nprint(background())",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("1\n", "", 0));
+}
+
+/// The last handle passed to `deref`/`swap` stays alive until the
+/// answer, also beside another live task (no hang, no E0702).
+#[test]
+fn deref_of_the_last_handle_beside_a_live_task() {
+    let o = bounded_user(
+        "ch = channel()\nt = spawn(() => recv(ch))\nprint(deref(agent(5)), swap(agent(1), x => x + 1))\nsend(ch, 1)\nawait(t)",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("5 2\n", "", 0));
+}
+
+/// A task spawned (at any depth) inside an agent's `f` counts as inside
+/// the agent: `deref` gives the state before the update, `swap` is E0704.
+#[test]
+fn tasks_spawned_inside_f_are_inside_the_agent() {
+    let o = bounded_user(
+        "a = agent(1)\nprint(swap(a, x => await(spawn(() => await(spawn(() => deref(a))))) + x), deref(a))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("2 2\n", "", 0));
+    let o = bounded_user("a = agent(1)\nprint(swap(a, x => await(spawn(() => swap(a, y => y)))))");
+    assert!(
+        o.out
+            .starts_with("Err({kind: 'error, message: \"error[E0704]"),
+        "{} {}",
+        o.out,
+        o.err
+    );
+}
+
+/// A task `f` spawned that outlives that request is not inside the
+/// agent any more: its `swap` waits its turn like anyone's.
+#[test]
+fn a_task_outliving_its_request_is_outside_the_agent() {
+    let o = bounded_user(
+        "a = agent(1)\ngo = channel(1)\ndone = channel(1)\nswap(a, fn(x): spawn(fn(): recv(go); send(done, swap(a, y => y + 10)) ;;); x + 1 ;;)\nsend(go, 1)\nprint(recv(done)!, deref(a))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("12 12\n", "", 0));
+}
+
+/// An agent made inside another agent's `f` is not inside that agent.
+#[test]
+fn an_agent_made_inside_f_is_its_own() {
+    let o = bounded_user(
+        "a = agent(1)\nprint(swap(a, fn(x): b = agent(x); swap(b, y => y + 1) ;;), deref(a))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("2 2\n", "", 0));
+}
+
+/// `agent` is a type name (where Go has `atom`).
+#[test]
+fn agent_is_a_type_name() {
+    let o = bounded_user("fn f(a: agent) = deref(a)\nprint(f(agent(3)))");
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("3\n", "", 0));
+    let o = bounded_user("fn f(a: agent) = a\nf(1)");
+    assert_eq!(o.error.expect("an error").code, "E0403", "{}", o.err);
+    let o = crate::testutil::exec("fn f(a: atom) = a", crate::testutil::Opts::default());
+    assert_eq!(o.code, "E0212", "{}", o.err);
 }

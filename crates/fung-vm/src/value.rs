@@ -57,7 +57,7 @@ pub enum Value {
     /// request channel when its last copy drops (`vm/agent.rs`).
     Agent(Rc<Agent>),
     /// An error `_native.conc.try_call` caught, for `raise` (stage 3b,
-    /// Rust only; only `extras/agent.fung` handles one).
+    /// Rust only; only `extras/rust/agent.fung` handles one).
     Caught(Rc<Caught>),
 }
 
