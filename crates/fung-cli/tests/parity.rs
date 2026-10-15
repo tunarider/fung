@@ -1,40 +1,9 @@
 // crates/fung-cli/tests/parity.rs
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-    path::{Path, PathBuf},
-    process::Command,
-};
+mod common;
 
-fn repo() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .unwrap()
-}
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-/// Builds the Go implementation. `None` only when `go` cannot be run at all
-/// and parity is not required; a failing `go build` always panics.
-fn go_fung() -> Option<PathBuf> {
-    let out = std::env::temp_dir().join(format!("fung-go-parity-{}", std::process::id()));
-    let built = Command::new("go")
-        .args(["build", "-o"])
-        .arg(&out)
-        .arg("./cmd/fung")
-        .current_dir(repo())
-        .output();
-    match built {
-        Err(e) => {
-            assert!(
-                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
-                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
-            );
-            None
-        }
-        Ok(o) if o.status.success() => Some(out),
-        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
-    }
-}
+use common::{diff, go_fung, repo, run, rust_fung};
 
 fn corpus() -> Vec<String> {
     let mut files = Vec::new();
@@ -58,34 +27,6 @@ fn corpus() -> Vec<String> {
     }
     files.sort();
     files
-}
-
-/// Standard output, standard error (bytes, compared exactly) and the exit
-/// status, compared as its debug text so two different signal deaths differ.
-fn run(bin: &Path, args: &[OsString]) -> (Vec<u8>, Vec<u8>, String) {
-    let o = Command::new(bin)
-        .args(args)
-        .current_dir(repo())
-        .output()
-        .unwrap();
-    (o.stdout, o.stderr, format!("{:?}", o.status))
-}
-
-fn first_diff(a: &[u8], b: &[u8]) -> String {
-    let (a, b) = (String::from_utf8_lossy(a), String::from_utf8_lossy(b));
-    if a == b {
-        return "same text, different bytes (invalid UTF-8)".into();
-    }
-    for (i, (x, y)) in a.lines().zip(b.lines()).enumerate() {
-        if x != y {
-            return format!("line {}:\n  go:   {x}\n  rust: {y}", i + 1);
-        }
-    }
-    format!(
-        "lengths differ: go {} lines, rust {} lines",
-        a.lines().count(),
-        b.lines().count()
-    )
 }
 
 /// Files the corpus does not have: BOM, CRLF, tabs, invalid UTF-8.
@@ -163,11 +104,11 @@ fn long_chains() -> Vec<String> {
 
 #[test]
 fn dumps_match_the_go_implementation() {
-    let Some(go) = go_fung() else {
+    let Some(go) = go_fung("dump") else {
         eprintln!("skipping parity: `go` is not available");
         return;
     };
-    let rust = PathBuf::from(env!("CARGO_BIN_EXE_fung"));
+    let rust = rust_fung();
     let mut failures = Vec::new();
     let mut cases: Vec<Vec<OsString>> = Vec::new();
     for f in corpus() {
@@ -239,15 +180,7 @@ fn dumps_match_the_go_implementation() {
         }
     }
     for a in &cases {
-        let (g, r) = (run(&go, a), run(&rust, a));
-        if g != r {
-            let what = if g.0 != r.0 {
-                first_diff(&g.0, &r.0)
-            } else if g.1 != r.1 {
-                first_diff(&g.1, &r.1)
-            } else {
-                format!("exit {} vs {}", g.2, r.2)
-            };
+        if let Some(what) = diff(&run(&go, a), &run(&rust, a)) {
             failures.push(format!(
                 "{}: {what}",
                 a.iter()

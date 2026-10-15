@@ -1,0 +1,21 @@
+# tests/lang files the run comparison leaves out: `<file> <reason>`.
+# concurrency: runs tasks, channels or atoms (E0805 in the Rust port).
+# native-module: imports a module stage 2 does not have.
+atoms.fung concurrency
+cancel.fung concurrency
+channels.fung concurrency
+conc_helpers.fung concurrency
+err_atom_reentry.fung concurrency
+err_deadlock.fung concurrency
+err_task_failed.fung concurrency
+exit_from_task.fung concurrency
+tasks.fung concurrency
+err_json_stringify.fung native-module
+err_regex.fung native-module
+fs_and_path.fung native-module
+http_serve.fung native-module
+json.fung native-module
+keyword_names.fung native-module
+regex.fung native-module
+time_module.fung native-module
+time_values.fung native-module

@@ -107,8 +107,9 @@ pub fn boot(rt: &mut Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
 }
 
 /// The Rust-built `_native.*` modules (Go `vm.NativeModules()` and
-/// `native.Bridges()`, the part stage 2 has).
-fn native_module(key: &str) -> Option<Rc<Module>> {
+/// `native.Bridges()`, the part stage 2 has). The command registers the
+/// ones a program imports with it, as Go `register` does.
+pub fn native_module(key: &str) -> Option<Rc<Module>> {
     match key {
         "_native.conc" => Some(conc::module()),
         "_native.process" => Some(process::module()),

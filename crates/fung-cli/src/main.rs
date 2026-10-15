@@ -1,5 +1,8 @@
-//! The `fung` command of the Rust port. Only `fung dump` exists so far;
-//! it mirrors `cmd/fung` of the Go implementation byte for byte.
+//! The `fung` command of the Rust port: `fung dump`, `fung run`,
+//! `fung <script.fung>` and `fung -e` so far. It mirrors `cmd/fung` of
+//! the Go implementation byte for byte.
+
+mod run;
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
@@ -23,16 +26,20 @@ const USAGE: &str = "usage:
   fung help                               print this text
 ";
 
-/// The front end recurses on the shape of the tree, so it runs on a
-/// thread with a large stack: deeply nested input and long flat chains
-/// (`1 + 1 + ...`, `x.b.b...`) recurse once per level in the later
-/// passes. 4 GiB is only reserved address space (pages are committed
-/// when touched) and leaves a margin over Go's 1 GB goroutine stack limit.
+/// The command runs on a thread with a large stack. The front end
+/// recurses on the shape of the tree: deeply nested input and long flat
+/// chains (`1 + 1 + ...`, `x.b.b...`) recurse once per level in the later
+/// passes. At run time, natives that call fung functions (`fold`, `map`)
+/// recurse on the Rust stack, and formatting, comparing and dropping
+/// deeply nested values recurse too. 4 GiB is only reserved address space
+/// (pages are committed when touched) and leaves a margin over Go's 1 GB
+/// goroutine stack limit.
 const STACK: usize = 4 << 30;
 
 /// What a command produced: standard output, standard error, exit code.
 /// The streams are bytes because Go echoes arguments that are not UTF-8
-/// unchanged.
+/// unchanged. A run writes to the process streams as it goes and leaves
+/// both empty.
 #[derive(Default)]
 struct Out {
     stdout: Vec<u8>,
@@ -41,6 +48,10 @@ struct Out {
 }
 
 fn main() {
+    // A Rust panic inside fung code becomes an E0801 report (the VM's
+    // panic fence); the default hook would also print the panic message,
+    // which Go does not.
+    std::panic::set_hook(Box::new(|_| {}));
     let raw: Vec<Vec<u8>> = std::env::args_os()
         .skip(1)
         .map(OsString::into_vec)
@@ -48,10 +59,10 @@ fn main() {
     let out = std::thread::Builder::new()
         .stack_size(STACK)
         .spawn(move || run(&raw))
-        .expect("spawn the front-end thread")
+        .expect("spawn the command thread")
         .join()
         .unwrap_or_else(|_| Out {
-            stderr: b"error: internal error in the front end\n".to_vec(),
+            stderr: b"error: internal error in the fung command\n".to_vec(),
             code: diag::EXIT_RUNTIME,
             ..Out::default()
         });
@@ -68,11 +79,28 @@ fn run(raw: &[Vec<u8>]) -> Out {
     let args: Vec<String> = raw.iter().map(|a| decode_go(a)).collect();
     match args.first().map(String::as_str) {
         Some("dump") => run_dump(&args[1..], &raw[1..]),
-        Some(_) => Out {
+        Some("run") => run_file(&args[1..], &raw[1..]),
+        Some("-e") => match args.get(1) {
+            Some(code) => executed(run::execute("-e", code, args[2..].to_vec())),
+            None => usage_error(b"-e needs code"),
+        },
+        Some("version" | "help" | "-h" | "--help" | "check" | "fmt" | "test") => Out {
             stderr: [
                 b"not implemented yet in the Rust port: ",
                 &raw[0][..],
                 b"\n",
+            ]
+            .concat(),
+            code: EXIT_USAGE,
+            ..Out::default()
+        },
+        Some(a) if is_script_path(a) => run_file(&args, raw),
+        Some(_) => Out {
+            stderr: [
+                b"error: unknown command `",
+                &raw[0][..],
+                b"`\n\n",
+                USAGE.as_bytes(),
             ]
             .concat(),
             code: EXIT_USAGE,
@@ -91,6 +119,39 @@ fn usage_error(msg: &[u8]) -> Out {
         stderr: [b"error: ", msg, b"\n\n", USAGE.as_bytes()].concat(),
         code: EXIT_USAGE,
         ..Out::default()
+    }
+}
+
+/// Whether a first argument is a script to run rather than a command
+/// name (Go `isScriptPath`): a script carries the .fung extension or is
+/// written as a path.
+fn is_script_path(arg: &str) -> bool {
+    !arg.is_empty()
+        && !arg.starts_with('-')
+        && (arg.ends_with(".fung") || arg.contains(['/', '\\']))
+}
+
+/// The outcome of a run: its output is already written.
+fn executed(code: i64) -> Out {
+    Out {
+        code: run::status(code),
+        ..Out::default()
+    }
+}
+
+/// `fung run FILE ARGS...` and `fung FILE ARGS...` (Go `runFile`):
+/// `args[0]` is the path, the rest are the script's arguments.
+fn run_file(args: &[String], raw: &[Vec<u8>]) -> Out {
+    let Some(path) = raw.first() else {
+        return usage_error(b"run needs a script path");
+    };
+    match read_file(path) {
+        Ok(src) => executed(run::execute(&args[0], &src, args[1..].to_vec())),
+        Err(msg) => Out {
+            stderr: [b"error: cannot read ", &path[..], b": ", &msg[..], b"\n"].concat(),
+            code: EXIT_USAGE,
+            ..Out::default()
+        },
     }
 }
 

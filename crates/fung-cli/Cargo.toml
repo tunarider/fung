@@ -11,3 +11,4 @@ path = "src/main.rs"
 
 [dependencies]
 fung-front = { path = "../fung-front" }
+fung-vm = { path = "../fung-vm" }
