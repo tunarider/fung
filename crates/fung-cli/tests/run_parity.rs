@@ -8,7 +8,7 @@ use std::ffi::OsString;
 
 use std::path::Path;
 
-use common::{Run, diff, go_fung, repo, run_with_stdin, rust_fung};
+use common::{Run, diff, go_fung, repo, run_with_stdin, rust_fung, skip_list};
 
 const CASES: &[&str] = &[
     "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))",
@@ -134,23 +134,6 @@ fn the_reason_checks_match_calls_and_imports_only() {
     assert_eq!(shows_reason("import cli\n", "native-module"), Some(false));
     assert!(!imports("import jsonx\n", "json"));
     assert!(!imports("# import json is not here\n", "json"));
-}
-
-fn skip_list() -> Vec<(String, String)> {
-    let text = include_str!("run_parity_skip.txt");
-    let mut out = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let mut parts = line.split_whitespace();
-        let (Some(name), Some(reason), None) = (parts.next(), parts.next(), parts.next()) else {
-            panic!("malformed skip line `{line}` (want `<file> <reason>`)");
-        };
-        out.push((name.to_string(), reason.to_string()));
-    }
-    out
 }
 
 #[test]

@@ -63,6 +63,16 @@ pub fn run(bin: &Path, args: &[OsString]) -> Run {
 /// Runs `bin` from the repository root; `stdin` is written to its
 /// standard input and closed (`None`: standard input is closed at once).
 pub fn run_with_stdin(bin: &Path, args: &[OsString], stdin: Option<&[u8]>) -> Run {
+    let (out, err, status) = run_status(bin, args, stdin);
+    (out, err, format!("{status:?}"))
+}
+
+/// Like [`run_with_stdin`], with the exit status itself.
+pub fn run_status(
+    bin: &Path,
+    args: &[OsString],
+    stdin: Option<&[u8]>,
+) -> (Vec<u8>, Vec<u8>, std::process::ExitStatus) {
     let mut child = Command::new(bin)
         .args(args)
         .current_dir(repo())
@@ -109,7 +119,7 @@ pub fn run_with_stdin(bin: &Path, args: &[OsString], stdin: Option<&[u8]>) -> Ru
     if let Some(w) = writer {
         w.join().unwrap();
     }
-    (o.stdout, o.stderr, format!("{:?}", o.status))
+    (o.stdout, o.stderr, o.status)
 }
 
 /// Where two runs first differ, or `None` when they are the same.
@@ -142,4 +152,23 @@ pub fn first_diff(a: &[u8], b: &[u8]) -> String {
         a.lines().count(),
         b.lines().count()
     )
+}
+
+/// The skip list (`run_parity_skip.txt`): `(file name, reason)` pairs of
+/// `tests/lang` files the Rust port cannot run yet.
+pub fn skip_list() -> Vec<(String, String)> {
+    let text = include_str!("../run_parity_skip.txt");
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let (Some(name), Some(reason), None) = (parts.next(), parts.next(), parts.next()) else {
+            panic!("malformed skip line `{line}` (want `<file> <reason>`)");
+        };
+        out.push((name.to_string(), reason.to_string()));
+    }
+    out
 }
