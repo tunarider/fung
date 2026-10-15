@@ -326,31 +326,28 @@ fn send_unchecked_sends_like_send() {
 }
 
 #[test]
-fn in_agent_is_true_only_in_the_task_serving_the_agent() {
-    // The background task marks itself busy with state 10, answers
-    // whether it is inside the agent and with what state, then clears it.
+fn agent_peek_gives_the_state_only_in_the_task_serving_the_agent() {
+    // The background task marks itself busy with state 10, peeks, then
+    // clears the mark and peeks again. A nil state is still `Ok(nil)`.
     let o = exec_internal(
-        "import _native.conc as c\nfn serve(req, a) = match recv(req):\n  Ok(r) => fn():\n    c.agent_busy(req, true, 10)\n    inside = (c.in_agent(a), c.agent_state(a))\n    c.agent_busy(req, false)\n    send(r, (inside, c.in_agent(a)))\n  ;;()\n  _ => nil\n;;\nreq = channel()\na = c.agent_handle(req)\nc.spawn_background(() => serve(req, a))\nr = channel()\nsend(req, r)\nprint(c.in_agent(a), recv(r)!)\nprint(c.in_agent(a))",
+        "import _native.conc as c\nfn serve(req, a) = match recv(req):\n  Ok(r) => fn():\n    c.agent_busy(req, true, 10)\n    inside = c.agent_peek(a)\n    c.agent_busy(req, false)\n    c.agent_busy(req, true, nil)\n    none = c.agent_peek(a)\n    c.agent_busy(req, false)\n    send(r, (inside, none, c.agent_peek(a)))\n  ;;()\n  _ => nil\n;;\nreq = channel()\na = c.agent_handle(req)\nc.spawn_background(() => serve(req, a))\nr = channel()\nsend(req, r)\nprint(c.agent_peek(a), recv(r)!)\nprint(c.agent_peek(a))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("false ((true, 10), false)\nfalse\n", "", 0)
+        ("Err(nil) (Ok(10), Ok(nil), Err(nil))\nErr(nil)\n", "", 0)
     );
 }
 
 #[test]
-fn in_agent_is_false_in_another_task_while_the_agent_is_busy() {
-    // While the agent's task is busy, the entry asks: not inside.
+fn agent_peek_is_err_in_another_task_while_the_agent_is_busy() {
+    // While the agent's task is busy, the entry peeks: not inside.
     let o = exec_internal(
-        "import _native.conc as c\nreq = channel()\ngo = channel()\na = c.agent_handle(req)\nc.spawn_background(fn(): c.agent_busy(req, true, 1); recv(go); c.agent_busy(req, false) ;;)\nblocked(go, 1)\nprint(c.in_agent(a))\nsend(go, nil)",
+        "import _native.conc as c\nreq = channel()\ngo = channel()\na = c.agent_handle(req)\nc.spawn_background(fn(): c.agent_busy(req, true, 1); recv(go); c.agent_busy(req, false) ;;)\nblocked(go, 1)\nprint(c.agent_peek(a))\nsend(go, nil)",
     );
-    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("false\n", "", 0));
-}
-
-#[test]
-fn agent_state_outside_the_agent_is_an_internal_error() {
-    let o = exec_plain("import _native.conc as c\nc.agent_state(c.agent_handle(channel()))");
-    assert!(o.err.starts_with("error[E0801]"), "{}", o.err);
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err(nil)\n", "", 0)
+    );
 }
 
 #[test]
@@ -720,4 +717,27 @@ fn agent_is_a_type_name() {
     assert_eq!(o.error.expect("an error").code, "E0403", "{}", o.err);
     let o = crate::testutil::exec("fn f(a: atom) = a", crate::testutil::Opts::default());
     assert_eq!(o.code, "E0212", "{}", o.err);
+}
+
+/// A task spawned inside `f` reads the state with `deref` while `f`
+/// ends: the "inside?" check and the read are one step, so the agent
+/// finishing `f` between them (the turn can pass at any call) cannot
+/// make the read fail. The loop's wrapper depth moves where the turn
+/// passes (every `YIELD_EVERY` ticks), so one of them lands between two
+/// calls inside `deref`.
+#[test]
+fn deref_from_a_subtask_while_f_ends() {
+    for depth in 0..=6 {
+        let wrap = |e: &str| format!("{}{e}{}", "id(".repeat(depth), ")".repeat(depth));
+        let src = format!(
+            "fn id(x) = x\nfn signal(half, n) = n == 10000 then send(half, 1) else nil\nfn work(a, half, n, acc) = n == 0 then acc else fn(): signal(half, n); work(a, half, n - 1, acc + {}) ;;()\na = agent(1)\nhalf = channel(1)\ntc = channel(1)\nswap(a, fn(x): send(tc, spawn(() => work(a, half, 20000, 0))); recv(half); x ;;)\nprint(await(recv(tc)!))",
+            wrap("deref(a)")
+        );
+        let o = bounded_user(&src);
+        assert_eq!(
+            (o.out.as_str(), o.err.as_str(), o.exit),
+            ("20000\n", "", 0),
+            "depth {depth}"
+        );
+    }
 }

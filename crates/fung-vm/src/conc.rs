@@ -57,8 +57,7 @@ fn all() -> Vec<(&'static str, Value)> {
                     "agent_busy",
                     vec![param("ch"), param("on"), opt("state", Lit::Nil)],
                 ),
-                ("in_agent", vec![param("a")]),
-                ("agent_state", vec![param("a")]),
+                ("agent_peek", vec![param("a")]),
             ];
             tables
                 .into_iter()
@@ -82,8 +81,7 @@ fn all() -> Vec<(&'static str, Value)> {
                         "raise" => agent::raise,
                         "send_unchecked" => send_unchecked,
                         "agent_busy" => agent::agent_busy,
-                        "in_agent" => agent::in_agent,
-                        "agent_state" => agent::agent_state,
+                        "agent_peek" => agent::agent_peek,
                         _ => unreachable!("no native {name}"),
                     };
                     (name, native(name, f, params))
@@ -112,8 +110,7 @@ const MODULE_ONLY: &[&str] = &[
     "raise",
     "send_unchecked",
     "agent_busy",
-    "in_agent",
-    "agent_state",
+    "agent_peek",
 ];
 
 /// The prelude's concurrency natives, without the members only

@@ -65,7 +65,12 @@ fn swap(a, f):
 ;;
 
 # Inside the agent's own f (or a task it spawned), the state before the
-# update, without waiting (the agent is busy running f).
-fn deref(a) = _c.in_agent(a) then _c.agent_state(a) else _deref(a, channel(1))
+# update, without waiting (the agent is busy running f). Checking and
+# reading are one call, agent_peek: the turn can pass between two calls,
+# and f may end in between.
+fn deref(a) = match _c.agent_peek(a):
+  Ok(state) => state
+  Err(_)    => _deref(a, channel(1))
+;;
 
 fn _deref(a, reply) = _c.agent_ask(a, ('deref, reply), reply)

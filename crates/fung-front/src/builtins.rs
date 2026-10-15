@@ -43,8 +43,7 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.conc", "raise(e)"),
     ("_native.conc", "send_unchecked(ch, v)"),
     ("_native.conc", "agent_busy(ch, on, state=?)"),
-    ("_native.conc", "in_agent(a)"),
-    ("_native.conc", "agent_state(a)"),
+    ("_native.conc", "agent_peek(a)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

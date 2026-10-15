@@ -30,9 +30,11 @@
 //! - `agent_busy(ch, on, state = nil)`: the agent's task marks itself as
 //!   serving a request on `ch` with `state` (on) or not (off). The record
 //!   is kept on the channel, not the handle (see the rule below).
-//! - `in_agent(a)`: whether the current task is inside `a` right now:
-//!   the task serving `a`'s request, or a task it spawned (at any depth)
-//!   while serving it; `agent_state(a)` is then the state it serves with.
+//! - `agent_peek(a)`: `Ok(state)` when the current task is inside `a`
+//!   right now (the task serving `a`'s request, or a task it spawned, at
+//!   any depth, while serving it), with the state it serves with;
+//!   `Err(nil)` otherwise. Checking and reading are one call on purpose:
+//!   the turn can pass between two calls, and `f` can end there.
 //!
 //! **Inside an agent.** `agent_busy` makes a fresh `Mark` per request,
 //! records it on the channel and adds it to the serving task's marks
@@ -274,7 +276,7 @@ pub(crate) fn raise(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 /// A mark that is never cleared (the agent was cancelled in the middle
 /// of `f`) stays on the channel and keeps its state alive until the
 /// channel drops. Accepted: no live task holds that mark any more, so
-/// `in_agent` stays false, and the state goes with the channel (with the
+/// `agent_peek` finds nothing, and the state goes with the channel (with the
 /// agent, at the latest at the program's end).
 pub(crate) fn agent_busy(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let state = args.pop().expect("state");
@@ -304,20 +306,14 @@ fn serving_state(t: &Task<'_>, a: &Agent) -> Option<Value> {
     a.channel().serving_state(&t.serving)
 }
 
-/// `in_agent(a)`: whether the current task is inside `a`.
-pub(crate) fn in_agent(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+/// `agent_peek(a)`: `Ok(state)` when the current task is inside `a` (the
+/// state its current request is served with), `Err(nil)` otherwise (a
+/// tag, since the state may be nil). One call checks and reads: between
+/// two calls the turn can pass, and the agent can end its `f` there.
+pub(crate) fn agent_peek(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let a = need_agent(&args[0])?;
-    Ok(Value::Bool(serving_state(t, a).is_some()))
-}
-
-/// `agent_state(a)`: the state `a`'s current request is served with,
-/// for a task inside `a`; an internal error anywhere else
-/// (`extras/rust/agent.fung` asks `in_agent` first).
-pub(crate) fn agent_state(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
-    let a = need_agent(&args[0])?;
-    serving_state(t, a).ok_or_else(|| {
-        internal(vec![fung_front::diag::Arg::Str(
-            "agent_state outside the agent".into(),
-        )])
+    Ok(match serving_state(t, a) {
+        Some(state) => nat::ok(state),
+        None => nat::tag("Err", vec![Value::Nil]),
     })
 }
