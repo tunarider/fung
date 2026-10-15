@@ -195,11 +195,14 @@ impl Runtime {
         let mut errs = Vec::new();
         let mut ran = 0;
         loop {
-            // The handler is popped by the task that runs it, so the
-            // value never lives outside the run token. Handlers run below
-            // their own root: the program's is cancelled by now.
-            let node = self.shared.handlers.child();
-            let mut t = Task::new(&self.shared, node.clone());
+            // The handler is popped by a task holding the token, so the
+            // value never lives outside it. The task starts on the
+            // handlers' root and moves to its own node below it once
+            // there is a handler to run (Go makes the context after the
+            // pop), so the last pop and the E0806 stop leave no node
+            // behind. Handlers run below their own root: the program's is
+            // cancelled by now.
+            let mut t = Task::new(&self.shared, self.shared.handlers.clone());
             let Some(h) = t.world.exit_handlers.pop() else {
                 break;
             };
@@ -215,6 +218,8 @@ impl Runtime {
                 break;
             }
             ran += 1;
+            let node = self.shared.handlers.child();
+            t.cancel = node.clone();
             let r = t.call(&h, Vec::new());
             // Go cancels each handler's context when it returns: what the
             // handler spawned and left running ends with it.

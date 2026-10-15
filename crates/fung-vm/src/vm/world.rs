@@ -7,8 +7,9 @@
 //! frames and the native it is calling.
 //!
 //! `World` sits in one `Mutex`, shared through an `Arc` (stage 3a:
-//! 실행권 잠금), with a fair queue in front of it (`Gate`) and a wake
-//! generation blocked tasks sleep on. Owning the gate and holding that
+//! 실행권 잠금), with a fair queue in front of it (`Gate`). A blocked task
+//! sleeps on its own `Waiter` (`block.rs`) without the token, and only
+//! what it waits for wakes it. Owning the gate and holding that
 //! mutex is holding the run token: only the holder runs fung code, so
 //! only the holder touches fung values, whose `Rc` counts are not atomic.
 //! A task takes the token when it starts and holds it while it runs,
@@ -197,8 +198,8 @@ impl World {
     }
 }
 
-/// The run token's mutex, the fair queue in front of it, what blocked
-/// tasks sleep on, and the roots of the cancellation tree.
+/// The run token's mutex, the fair queue in front of it, and the roots of
+/// the cancellation tree. (Blocked tasks sleep on their own `Waiter`.)
 pub(crate) struct Shared {
     world: Mutex<World>,
     /// How many times a sleeping task woke up (tests count wakeups).

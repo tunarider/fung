@@ -425,3 +425,24 @@ fn exit_handlers_run_after_cancel_all() {
     });
     assert_eq!(o, "1\nh\n");
 }
+
+/// Each exit handler's node is made after its pop (Go makes the context
+/// there): the final empty pop and the E0806 stop leave no node under
+/// the handlers' root.
+#[test]
+fn exit_handlers_leave_no_cancellation_nodes() {
+    for (src, errors) in [
+        ("at_exit(() => 1)\nat_exit(() => 2)", 0),
+        ("fn again() = at_exit(again)\nat_exit(again)", 1),
+    ] {
+        let left = on_big_stack(move || {
+            let s = setup(src, Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
+            s.rt.run().unwrap();
+            s.rt.wait();
+            let errs = s.rt.run_exit_handlers();
+            assert_eq!(errs.len(), errors, "{src}");
+            s.rt.shared().handlers.child_count()
+        });
+        assert_eq!(left, 0, "{src}");
+    }
+}
