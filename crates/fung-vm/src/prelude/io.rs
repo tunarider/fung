@@ -52,7 +52,7 @@ pub(super) fn eprint_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> 
 /// `None` at the end.
 fn next_line(t: &mut Task<'_>, f: &Value) -> Result<Option<String>, Stop> {
     match f {
-        Value::Nil => Ok(t.read_line().map(|l| trim_line(&l).to_string())),
+        Value::Nil => Ok(t.read_line()?.map(|l| trim_line(&l).to_string())),
         _ => Err(nat::wrong_arg("f", "file | nil", f)),
     }
 }

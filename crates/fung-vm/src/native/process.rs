@@ -53,7 +53,7 @@ pub fn module() -> Rc<Module> {
 }
 
 /// `exec(cmd, cwd, env, stdin)`: runs a program with arguments, no shell.
-fn exec_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn exec_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let argv = nat::str_list("cmd", &a[0])?;
     if argv.is_empty() {
         return Err(nat::fail(
@@ -65,13 +65,13 @@ fn exec_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
             ],
         ));
     }
-    run_command(argv, &a)
+    run_command(t, argv, &a)
 }
 
 /// `sh(cmd, cwd, env, stdin)`: `/bin/sh -c cmd`.
-fn sh_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn sh_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let cmd = nat::need_str("cmd", &a[0])?;
-    run_command(vec!["/bin/sh".into(), "-c".into(), cmd.to_string()], &a)
+    run_command(t, vec!["/bin/sh".into(), "-c".into(), cmd.to_string()], &a)
 }
 
 /// `env(name = nil)`: one variable (nil when unset), or all of them as a
@@ -101,8 +101,14 @@ fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// the command, and returns `Ok({out, err, code})`, `Err({kind: 'exit,
 /// code, out, err, message})` for a non-zero exit (code -1 when a signal
 /// ended it), or `Err({kind: 'not_found, message})` when it cannot start.
-fn run_command(argv: Vec<String>, a: &[Value]) -> Result<Value, Stop> {
-    let cwd = nat::opt_str("cwd", &a[1])?.filter(|d| !d.is_empty());
+///
+/// The command runs outside the run token (stage 3a): other tasks run
+/// while it does. Like Go's, it is not cut short by a cancellation or an
+/// exit; the program waits for it to end.
+fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Value, Stop> {
+    let cwd = nat::opt_str("cwd", &a[1])?
+        .filter(|d| !d.is_empty())
+        .map(str::to_string);
     let env = match &a[2] {
         Value::Nil => None,
         Value::Map(m) => {
@@ -124,46 +130,19 @@ fn run_command(argv: Vec<String>, a: &[Value]) -> Result<Value, Stop> {
         }
         v => return Err(nat::wrong_arg("env", "map | nil", v)),
     };
-    let stdin = nat::opt_str("stdin", &a[3])?;
+    let stdin = nat::opt_str("stdin", &a[3])?.map(|s| s.as_bytes().to_vec());
+    let name = argv[0].clone();
     let not_found = |reason: &str| {
         Ok(nat::err_value(
             "not_found",
-            &format!("cannot run `{}`: {reason}", argv[0]),
+            &format!("cannot run `{name}`: {reason}"),
             Vec::new(),
         ))
     };
-    let mut cmd = match prepare(&argv, cwd, env) {
-        Ok(cmd) => cmd,
-        Err(reason) => return not_found(&reason),
-    };
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    cmd.stdin(if stdin.is_some() {
-        Stdio::piped()
-    } else {
-        Stdio::null()
-    });
-    let mut child = match cmd.spawn() {
-        Ok(c) => c,
-        Err(e) => return not_found(&reason(&e)),
-    };
-    // Go copies stdin from a goroutine and ignores a reader that stops
-    // early (EPIPE); a thread does the same here.
-    let feeder = match (stdin, child.stdin.take()) {
-        (Some(text), Some(mut pipe)) => {
-            let text = text.as_bytes().to_vec();
-            Some(std::thread::spawn(move || {
-                let _ = pipe.write_all(&text);
-            }))
-        }
-        _ => None,
-    };
-    let output = child.wait_with_output();
-    if let Some(f) = feeder {
-        let _ = f.join();
-    }
-    let output = match output {
+    let output = match crate::vm::outside(t, move || run_process(&argv, cwd.as_deref(), env, stdin))
+    {
         Ok(o) => o,
-        Err(e) => return not_found(&reason(&e)),
+        Err(reason) => return not_found(&reason),
     };
     let out = Value::str(&decode_go(&output.stdout));
     let err = Value::str(&decode_go(&output.stderr));
@@ -177,9 +156,41 @@ fn run_command(argv: Vec<String>, a: &[Value]) -> Result<Value, Stop> {
     let code = output.status.code().map_or(-1, i64::from);
     Ok(nat::err_value(
         "exit",
-        &format!("`{}` exited with code {code}", argv[0]),
+        &format!("`{name}` exited with code {code}"),
         vec![("code", Value::Int(code)), ("out", out), ("err", err)],
     ))
+}
+
+/// Starts the command and waits for it, with its output captured, or
+/// gives the reason it cannot start. Handles no fung value: it runs
+/// without the run token.
+fn run_process(
+    argv: &[String],
+    cwd: Option<&str>,
+    env: Option<Vec<(String, String)>>,
+    stdin: Option<Vec<u8>>,
+) -> Result<std::process::Output, String> {
+    let mut cmd = prepare(argv, cwd, env)?;
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.stdin(if stdin.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    });
+    let mut child = cmd.spawn().map_err(|e| reason(&e))?;
+    // Go copies stdin from a goroutine and ignores a reader that stops
+    // early (EPIPE); a thread does the same here.
+    let feeder = match (stdin, child.stdin.take()) {
+        (Some(text), Some(mut pipe)) => Some(std::thread::spawn(move || {
+            let _ = pipe.write_all(&text);
+        })),
+        _ => None,
+    };
+    let output = child.wait_with_output();
+    if let Some(f) = feeder {
+        let _ = f.join();
+    }
+    output.map_err(|e| reason(&e))
 }
 
 /// The command Go's `exec.Command` + `Start` would run, or the reason it

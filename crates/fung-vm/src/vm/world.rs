@@ -30,11 +30,12 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::Thread;
 use std::time::Instant;
 
-use fung_front::source::{FileId, SourceMap, decode_go};
+use fung_front::source::{FileId, SourceMap};
 
 use super::block::{Census, WaitList, Waiter};
 use super::failure::Failures;
 use super::module::ModuleState;
+use super::stdin::Stdin;
 use super::task::CancelNode;
 use super::{Globals, Prelude, RtProto, TestCase, token};
 use crate::value::Value;
@@ -45,7 +46,8 @@ pub(crate) struct World {
     stdout: Box<dyn Write + Send>,
     /// Shared with `Failures`, which reports on it when a handle drops.
     stderr: Stream,
-    stdin: Box<dyn BufRead + Send>,
+    /// Read by a thread of its own (`stdin.rs`).
+    pub(super) stdin: Stdin,
     pub(super) sources: SourceMap,
     pub(super) exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
@@ -112,7 +114,7 @@ impl World {
         World {
             stdout,
             stderr: Stream::new(stderr),
-            stdin,
+            stdin: Stdin::new(stdin),
             sources,
             exit_handlers: Vec::new(),
             exit: None,
@@ -172,18 +174,6 @@ impl World {
 
     pub(super) fn stderr(&mut self) -> &mut dyn Write {
         &mut self.stderr
-    }
-
-    /// One line of standard input with its line ending, `None` at the end.
-    /// Bytes that are not UTF-8 become U+FFFD one by one, like source text.
-    pub(super) fn read_line(&mut self) -> Option<String> {
-        let mut buf = Vec::new();
-        let r = self.stdin.read_until(b'\n', &mut buf);
-        if buf.is_empty() {
-            let _ = r;
-            return None;
-        }
-        Some(decode_go(&buf))
     }
 
     /// Empties everything that holds fung values, dropping them here: the

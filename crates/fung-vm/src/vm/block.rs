@@ -268,7 +268,6 @@ pub(crate) fn block_until<T>(
 /// A panic in `f` is caught, the token taken back, and the panic resumed:
 /// unwinding then drops the values of the native frames above with the
 /// token held, and the panic fence reports it as E0801.
-#[cfg_attr(not(test), allow(dead_code))] // Task 7 moves stdin and processes onto it.
 pub(crate) fn outside<T: Send>(t: &mut Task<'_>, f: impl FnOnce() -> T + Send) -> T {
     token::assert_holds_token();
     t.world.release();

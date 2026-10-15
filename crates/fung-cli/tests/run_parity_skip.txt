@@ -1,15 +1,7 @@
 # tests/lang files the run comparison leaves out: `<file> <reason>`.
-# concurrency: runs atoms (E0805 in the Rust port) or needs what stage 3a
-# has not ported yet (deadlock detection, exits from tasks, failure reports).
+# concurrency: needs what the Rust port does not run yet (none since
+# stage 3a; the reason stays for later stages).
 # native-module: imports a module stage 2 does not have.
-atoms.fung concurrency
-cancel.fung concurrency
-conc_helpers.fung concurrency
-err_atom_reentry.fung concurrency
-err_deadlock.fung concurrency
-err_task_failed.fung concurrency
-exit_from_task.fung concurrency
-tasks.fung concurrency
 err_json_stringify.fung native-module
 err_regex.fung native-module
 fs_and_path.fung native-module

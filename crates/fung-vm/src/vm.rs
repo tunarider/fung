@@ -17,6 +17,8 @@ pub(crate) mod channel;
 #[cfg(test)]
 mod channel_tests;
 mod deadlock;
+#[cfg(test)]
+mod exit_tests;
 mod failure;
 #[cfg(test)]
 mod failure_tests;
@@ -35,6 +37,7 @@ mod module;
 #[cfg(test)]
 mod module_tests;
 mod runtime;
+mod stdin;
 mod task;
 #[cfg(test)]
 mod task_tests;
@@ -50,12 +53,12 @@ use std::sync::Arc;
 
 use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, CallSite, Diag, error};
-use fung_front::source::{FileId, Pos};
+use fung_front::source::{FileId, Pos, decode_go};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
 pub use atom::Atom;
-pub(crate) use block::{YIELD_EVERY, block};
+pub(crate) use block::{YIELD_EVERY, block, outside};
 pub use call::MAX_FRAMES;
 pub use channel::Channel;
 pub use link::RtProto;
@@ -192,9 +195,47 @@ impl<'rt> Task<'rt> {
         self.world.stderr()
     }
 
-    /// One line of standard input with its line ending, `None` at the end.
-    pub fn read_line(&mut self) -> Option<String> {
-        self.world.read_line()
+    /// One line of standard input with its line ending, `None` at the
+    /// end. Bytes that are not UTF-8 become U+FFFD one by one, like source
+    /// text. With no line read yet, the task waits outside the run token
+    /// (`stdin.rs`); a cancellation ends that wait with E0701.
+    pub fn read_line(&mut self) -> Result<Option<String>, Stop> {
+        let line = match self.world.stdin.try_take() {
+            Some(line) => line,
+            None => {
+                let me = self.waiter.clone();
+                me.take_woken();
+                self.cancel.watch(&me);
+                let cancel = self.cancel.clone();
+                let stdin = self.world.stdin.handle();
+                match block::outside(self, move || stdin.wait(&me, &cancel)) {
+                    Some(line) => line,
+                    None => return Err(block::cancelled(no_pos())),
+                }
+            }
+        };
+        Ok(line.map(|b| decode_go(&b)))
+    }
+
+    /// How many tasks wait for a line of standard input (a test probe).
+    #[cfg(test)]
+    pub(crate) fn stdin_waiting(&self) -> usize {
+        self.world.stdin.waiting()
+    }
+
+    /// exit(n) from any task (05 "종료"; Go `requestExit`): records the
+    /// first code requested and cancels every task of the program, so
+    /// the requesting task unwinds on its exit and the others on E0701,
+    /// wherever they wait. An exit while an exit handler runs (from the
+    /// handler or a task it spawned) cancels that handler's node instead,
+    /// since the program's root is cancelled by then; the handlers after
+    /// it still run (`Runtime::run_exit_handlers`).
+    pub(super) fn request_exit(&mut self, code: i64) {
+        self.world.request_exit(code);
+        self.shared.root.cancel();
+        if let Some(node) = self.world.handler.clone() {
+            node.cancel();
+        }
     }
 
     /// Registers an exit handler (03).

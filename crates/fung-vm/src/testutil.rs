@@ -11,7 +11,7 @@
 //! tests (`bootTestPrelude`), plus test-only natives passed in `Opts`.
 
 use std::cell::RefCell;
-use std::io::{Cursor, Write};
+use std::io::{BufRead, Cursor, Write};
 
 use fung_front::bytecode::Proto;
 use fung_front::diag::{self, CallSite, Diag};
@@ -123,6 +123,15 @@ pub fn exec(src: &str, opts: Opts) -> Outcome {
     on_big_stack(move || exec_on(&src, None, opts))
 }
 
+/// `exec` with `stdin` as standard input instead of `opts.stdin`.
+pub fn exec_with_stdin(src: &str, opts: Opts, stdin: Box<dyn BufRead + Send>) -> Outcome {
+    let src = src.to_string();
+    on_big_stack(move || {
+        let s = setup_with(&src, None, opts, Some(stdin));
+        finish(s)
+    })
+}
+
 /// Runs a program with a given prelude (no boot) on the current thread.
 pub fn exec_with_prelude(src: &str, p: Prelude) -> Outcome {
     exec_on(src, Some(p), Opts::default())
@@ -161,10 +170,15 @@ pub struct Setup {
 /// (plus `opts.extra`), or returns the compile errors formatted as the
 /// fung command prints them.
 pub fn setup(src: &str, opts: Opts) -> Result<Setup, (String, String)> {
-    setup_on(src, None, opts)
+    setup_with(src, None, opts, None)
 }
 
-fn setup_on(src: &str, given: Option<Prelude>, opts: Opts) -> Result<Setup, (String, String)> {
+fn setup_with(
+    src: &str,
+    given: Option<Prelude>,
+    opts: Opts,
+    stdin: Option<Box<dyn BufRead + Send>>,
+) -> Result<Setup, (String, String)> {
     let extra = (opts.extra)();
     let mut names: Vec<String> = extra
         .iter()
@@ -193,7 +207,7 @@ fn setup_on(src: &str, given: Option<Prelude>, opts: Opts) -> Result<Setup, (Str
     let rt = Runtime::new(
         Box::new(out.clone()),
         Box::new(err.clone()),
-        Box::new(Cursor::new(opts.stdin.as_bytes().to_vec())),
+        stdin.unwrap_or_else(|| Box::new(Cursor::new(opts.stdin.as_bytes().to_vec()))),
         b.sources,
     );
     // Booted after the program is compiled: the runtime holds the
@@ -329,8 +343,13 @@ pub fn status(n: i64) -> i32 {
 }
 
 fn exec_on(src: &str, given: Option<Prelude>, opts: Opts) -> Outcome {
+    finish(setup_with(src, given, opts, None))
+}
+
+/// Runs a set-up program the way the command does (Go `execute`).
+fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
     let mut o = Outcome::default();
-    let Setup { rt, out, err } = match setup_on(src, given, opts) {
+    let Setup { rt, out, err } = match setup {
         Ok(s) => s,
         Err((text, code)) => {
             o.err = text;

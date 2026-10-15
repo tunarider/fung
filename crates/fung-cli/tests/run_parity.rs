@@ -6,7 +6,9 @@ mod common;
 
 use std::ffi::OsString;
 
-use common::{diff, go_fung, repo, run_with_stdin, rust_fung};
+use std::path::Path;
+
+use common::{Run, diff, go_fung, repo, run_with_stdin, rust_fung};
 
 const CASES: &[&str] = &[
     "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))",
@@ -38,22 +40,47 @@ const MORE: &[&str] = &[
     "fn f(x) = map([1, 2], (y) => y / x)\nprint(f(0))",
     "x = )",
     "print(nope)",
-    // Tasks (stage 3a); exits from tasks and unretrieved failures come
-    // with the exit rules.
+];
+
+/// Concurrent programs (stage 3a), compared once in the run comparison
+/// and `REPEAT` times in the release build (`concurrent_runs_are_stable`).
+/// Each one's output must not depend on how the tasks are scheduled.
+const CONCURRENT: &[&str] = &[
+    // Tasks.
     "print(await(spawn(() => 1 + 1)), await(spawn(() => 1 / 0)), pmap([1, 2, 3], x => x * x, limit: 2))",
     "t = spawn(() => sleep(10s))\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 1ms))\ncancel(u)",
     "t = spawn(fn(): spawn(() => sleep(10s)) ;;)\nprint(await(await(t)))",
     "print(retry(() => Err(1), times: 2, delay: 1ms))",
-    // Channels (stage 3a).
+    // Channels.
     "ch = channel()\nspawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))",
     "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
     "ch = channel()\nt = spawn(() => each(1..=5, x => send(ch, x)))\ncancel(t)\nprint(await(t))",
     "print(channel(-1))",
-    // Atoms (stage 3a).
+    // Atoms.
     "a = atom(0)\nts = for _ in 0..4: spawn(() => each(0..25, _ => swap(a, x => x + 1))) ;;\neach(ts, await)\nprint(deref(a), a, type_of(a))",
     "a = atom(1)\nprint(swap(a, fn(x): print(deref(a), a); x + 1 ;;))",
     "a = atom(0)\nswap(a, x => swap(a, y => y))",
     "deref(1)",
+    // Exit rules: an exit from any task cancels every other
+    // task, wherever it waits; the handlers run once.
+    "at_exit(() => print(\"bye\"))\nspawn(fn(): sleep(10ms); exit(5) ;;)\nsleep(10s)\nprint(\"never\")",
+    "at_exit(() => print(\"bye\"))\nch = channel()\nspawn(() => recv(ch))\nspawn(fn(): sleep(10ms); exit(3) ;;)\nrecv(channel())",
+    "t = spawn(() => each(1..=3, x => sleep(10s)))\nspawn(fn(): sleep(10ms); cancel(t) ;;)\nprint(await(t))",
+    "t = spawn(() => sleep(10s))\nfail(\"entry\")",
+    "print(retry(() => Err(1), times: 2, delay: 1ms), pmap([1, 2, 3], x => x * x, limit: 2), fan_in([]) |> map(x => x))",
+    "ts = for i in 0..200: spawn(() => i) ;;\nprint(fold(ts, 0, (a, t) => a + await(t)))",
+    "spawn(fn(): sleep(10ms); exit(4) ;;)\nsleep(100ms)\nprint(\"main\")",
+    // Not here: a task holding an atom exits while the entry waits for
+    // it. Go usually prints `ae 1`, but sometimes `101` and `ae 101`: its
+    // waiting swap is not cancellable (`a.mu.Lock`), and the entry's
+    // cancellation flag is set by a goroutine of its own, so the entry
+    // can take the released atom and run its function before the flag is
+    // set. Rust always gives `ae 1` (`exit_tests.rs`).
+    "at_exit(() => print(\"h\"))\nspawn(() => each(1..=3, x => x == 2 then exit(6) else print(x)))\nsleep(10s)",
+    "ch = channel()\nspawn(fn(): recv(ch); exit(2) ;;)\nat_exit(() => print(\"once\"))\neach(1..=3, x => send(ch, x))",
+    // Standard input and processes from tasks.
+    "ts = for _ in 0..2: spawn(() => read_line()) ;;\nprint(sort(for t in ts: await(t)! ;;))",
+    "print(await(spawn(() => sh(\"echo hi; sleep 0.05; echo there\"))))",
 ];
 
 /// The skip list: `<file name> <reason>`; the reason must be one of
@@ -215,7 +242,7 @@ fn cases() -> Vec<Case> {
             stdin: None,
         });
     }
-    for code in CASES.iter().chain(MORE) {
+    for code in CASES.iter().chain(MORE).chain(CONCURRENT) {
         out.push(Case {
             kind: Kind::Other,
             label: format!("-e {code:?}"),
@@ -245,20 +272,31 @@ fn cases() -> Vec<Case> {
 
 /// The comparison cannot pass by comparing nothing: a broken file walk or
 /// an overgrown skip list fails here. The minimums sit just below the
-/// counts when they were set (118 `tests/lang` files, 4 benchmarks, 152
+/// counts when they were set (127 `tests/lang` files, 4 benchmarks, 185
 /// cases in all); raise them as cases are added.
 #[test]
 fn enough_cases_are_compared() {
     let cases = cases();
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
     let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
-    assert!(lang >= 117, "only {lang} tests/lang files are compared");
+    assert!(lang >= 126, "only {lang} tests/lang files are compared");
     assert!(bench >= 3, "only {bench} benchmarks are compared");
     assert!(
-        cases.len() >= 151,
+        cases.len() >= 184,
         "only {} cases are compared",
         cases.len()
     );
+}
+
+/// Runs `go` and `rust` on the same case at the same time (a case that
+/// leaves a task sleeping, like `tests/lang/cancel.fung`, takes 10 s in
+/// both).
+fn run_both(go: &Path, rust: &Path, c: &Case) -> (Run, Run) {
+    std::thread::scope(|s| {
+        let g = s.spawn(|| run_with_stdin(go, &c.args, c.stdin.as_deref()));
+        let r = run_with_stdin(rust, &c.args, c.stdin.as_deref());
+        (g.join().unwrap(), r)
+    })
 }
 
 #[test]
@@ -271,8 +309,7 @@ fn runs_match_the_go_implementation() {
     let cases = cases();
     let mut failures = Vec::new();
     for c in &cases {
-        let g = run_with_stdin(&go, &c.args, c.stdin.as_deref());
-        let r = run_with_stdin(&rust, &c.args, c.stdin.as_deref());
+        let (g, r) = run_both(&go, &rust, c);
         // Two silent runs would compare equal for the wrong reason.
         if c.kind == Kind::Lang && g.0.is_empty() && g.1.is_empty() {
             failures.push(format!("{}: Go printed nothing", c.label));
@@ -289,6 +326,138 @@ fn runs_match_the_go_implementation() {
         failures.len(),
         cases.len(),
         failures.join("\n")
+    );
+}
+
+/// How many times `concurrent_runs_are_stable` runs each case with each
+/// implementation.
+#[cfg(not(debug_assertions))]
+const REPEAT: usize = 50;
+
+/// The concurrent cases: the `tests/lang` files that call a concurrency
+/// builtin, and `CONCURRENT`.
+#[cfg(not(debug_assertions))]
+fn concurrent_cases() -> Vec<Case> {
+    cases()
+        .into_iter()
+        .filter(|c| match c.kind {
+            Kind::Lang => {
+                let src = std::fs::read_to_string(repo().join(&c.label)).unwrap();
+                shows_reason(&src, "concurrency") == Some(true)
+            }
+            Kind::Other => CONCURRENT
+                .iter()
+                .any(|code| c.label == format!("-e {code:?}")),
+            Kind::Bench => false,
+        })
+        .collect()
+}
+
+/// Scheduling must not change what a concurrent program prints (release
+/// build only, where tasks run fastest and interleave most): every
+/// concurrent case runs `REPEAT` times with Go and `REPEAT` times with
+/// Rust, and every run must equal Go's first. A Go run that differs from
+/// Go's first means the case itself depends on scheduling.
+///
+/// Go's first runs go all at once, then up to `POOL` runs at a time. A
+/// case whose first Go run takes over a second only sleeps
+/// (`tests/lang/cancel.fung` leaves a 10 s task), so all its runs start
+/// at once; the whole test then takes about twice as long as that case.
+#[cfg(not(debug_assertions))]
+#[test]
+fn concurrent_runs_are_stable() {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    const POOL: usize = 16;
+    let Some(go) = go_fung("repeat") else {
+        eprintln!("skipping the repeat check: `go` is not available");
+        return;
+    };
+    let rust = rust_fung();
+    let (go, rust) = (go.as_path(), rust.as_path());
+    let start = Instant::now();
+    let cases = concurrent_cases();
+    assert!(cases.len() >= 31, "only {} concurrent cases", cases.len());
+    let failures = Mutex::new(Vec::new());
+    let check = |c: &Case, want: &Run, bin: &Path, who: &str| {
+        let got = run_with_stdin(bin, &c.args, c.stdin.as_deref());
+        if let Some(what) = diff(want, &got) {
+            failures
+                .lock()
+                .unwrap()
+                .push(format!("{} ({who}): {what}", c.label));
+        }
+    };
+    // Go's first run of each case, all at once: what every other run must
+    // print, and how long the case takes.
+    let wants: Vec<(Run, Duration)> = std::thread::scope(|s| {
+        let firsts: Vec<_> = cases
+            .iter()
+            .map(|c| {
+                s.spawn(move || {
+                    let t = Instant::now();
+                    let r = run_with_stdin(go, &c.args, c.stdin.as_deref());
+                    (r, t.elapsed())
+                })
+            })
+            .collect();
+        firsts.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    std::thread::scope(|s| {
+        let mut fast = Vec::new();
+        for (c, (want, took)) in cases.iter().zip(&wants) {
+            if *took < Duration::from_secs(1) {
+                fast.push((c, want));
+                continue;
+            }
+            for i in 0..2 * REPEAT - 1 {
+                let (bin, who) = if i < REPEAT {
+                    (rust, "rust")
+                } else {
+                    (go, "go")
+                };
+                let check = &check;
+                s.spawn(move || check(c, want, bin, who));
+            }
+        }
+        let jobs: Vec<(&Case, &Run, &Path, &str)> = fast
+            .iter()
+            .flat_map(|&(c, want)| {
+                (0..2 * REPEAT - 1).map(move |i| {
+                    if i < REPEAT {
+                        (c, want, rust, "rust")
+                    } else {
+                        (c, want, go, "go")
+                    }
+                })
+            })
+            .collect();
+        // Dealt round-robin, so each worker gets a share of every case.
+        let mut shares: Vec<Vec<_>> = (0..POOL).map(|_| Vec::new()).collect();
+        for (i, job) in jobs.into_iter().enumerate() {
+            shares[i % POOL].push(job);
+        }
+        let check = &check;
+        for share in shares {
+            s.spawn(move || {
+                for (c, want, bin, who) in share {
+                    check(c, want, bin, who);
+                }
+            });
+        }
+    });
+    let _ = std::fs::remove_file(go);
+    let failures = failures.into_inner().unwrap();
+    assert!(
+        failures.is_empty(),
+        "{} runs differ from Go's first:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(30),
+        "the repeat check took {:?}",
+        start.elapsed()
     );
 }
 

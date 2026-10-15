@@ -52,6 +52,9 @@ pub fn rust_fung() -> PathBuf {
 /// status, compared as its debug text so two different signal deaths differ.
 pub type Run = (Vec<u8>, Vec<u8>, String);
 
+/// How long one run may take before it is killed.
+pub const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Runs `bin` from the repository root with no standard input.
 pub fn run(bin: &Path, args: &[OsString]) -> Run {
     run_with_stdin(bin, args, None)
@@ -81,7 +84,28 @@ pub fn run_with_stdin(bin: &Path, args: &[OsString], stdin: Option<&[u8]>) -> Ru
             let _ = pipe.write_all(&data);
         })
     });
+    // A run that hangs is killed (and then differs) rather than hanging
+    // the test.
+    let pid = child.id();
+    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let watch = {
+        let done = done.clone();
+        std::thread::spawn(move || {
+            let until = std::time::Instant::now() + RUN_LIMIT;
+            while std::time::Instant::now() < until {
+                if done.load(std::sync::atomic::Ordering::Acquire) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            let _ = Command::new("kill")
+                .args(["-KILL", &pid.to_string()])
+                .status();
+        })
+    };
     let o = child.wait_with_output().unwrap();
+    done.store(true, std::sync::atomic::Ordering::Release);
+    let _ = watch.join();
     if let Some(w) = writer {
         w.join().unwrap();
     }
