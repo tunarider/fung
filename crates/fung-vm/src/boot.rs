@@ -146,7 +146,7 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
 /// over a `_native.*` bridge the Rust port does not have yet. `cli` is
 /// pure fung and is not among them.
 pub fn unsupported_module(key: &str) -> bool {
-    matches!(key, "fs" | "json" | "time" | "regex" | "http")
+    matches!(key, "json" | "time" | "regex" | "http")
 }
 
 /// Makes a program's modules importable (Go `register`): compiled modules

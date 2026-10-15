@@ -19,6 +19,7 @@ mod types;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+pub use crate::native::file::File;
 use crate::vm::{Agent, Caught, Channel, RtProto, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
@@ -56,6 +57,9 @@ pub enum Value {
     /// An agent's handle (stage 3b, Rust only): it closes the agent's
     /// request channel when its last copy drops (`vm/agent.rs`).
     Agent(Rc<Agent>),
+    /// An open file handle (`fs.open`); it closes the file when its last
+    /// copy drops (`native/file.rs`).
+    File(Rc<File>),
     /// An error `_native.conc.try_call` caught, for `raise` (stage 3b,
     /// Rust only; only `extras/rust/agent.fung` handles one).
     Caught(Rc<Caught>),
@@ -264,6 +268,8 @@ pub enum Lit {
     Float(f64),
     Str(&'static str),
     Dur(i64),
+    /// A symbol by its name (`'read`).
+    Sym(&'static str),
 }
 
 impl Lit {
@@ -276,6 +282,7 @@ impl Lit {
             Lit::Float(f) => Value::Float(f),
             Lit::Str(s) => Value::str(s),
             Lit::Dur(d) => Value::Dur(d),
+            Lit::Sym(s) => Value::Sym(intern(s)),
         }
     }
 }

@@ -1,5 +1,5 @@
 use fung_front::consts::{format_dur, format_float, quote_str};
-use fung_front::unicode::{is_digit, is_letter};
+use fung_front::unicode::{is_digit, is_letter, is_print};
 
 use super::Value;
 
@@ -52,8 +52,38 @@ pub fn format(v: &Value) -> String {
         Value::Task(_) => "<task>".into(),
         Value::Channel(_) => "<channel>".into(),
         Value::Agent(_) => "<agent>".into(),
+        Value::File(f) => format!("<file {}>", go_quote(&f.path)),
         Value::Caught(_) => "<error>".into(),
     }
+}
+
+/// Go `strconv.Quote`, which Go uses for a file handle's path (not fung's
+/// own string form): `\x01`, `\u00a0`, `\U000e0001` for what does not
+/// print. A path is valid UTF-8 here; Go would show a bad byte as `\xff`
+/// where the Rust string holds U+FFFD.
+fn go_quote(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if is_print(c) => out.push(c),
+            '\u{7}' => out.push_str("\\a"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{b}' => out.push_str("\\v"),
+            c if c < ' ' || c == '\u{7f}' => out.push_str(&format!("\\x{:02x}", c as u32)),
+            c if (c as u32) < 0x10000 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push_str(&format!("\\U{:08x}", c as u32)),
+        }
+    }
+    out.push('"');
+    out
 }
 
 fn format_items(items: &[Value]) -> String {
@@ -98,6 +128,7 @@ pub fn type_name(v: &Value) -> String {
         Value::Task(_) => "task".into(),
         Value::Channel(_) => "channel".into(),
         Value::Agent(_) => "agent".into(),
+        Value::File(_) => "file".into(),
         Value::Caught(_) => "error".into(),
     }
 }

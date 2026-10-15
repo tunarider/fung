@@ -18,6 +18,9 @@ use std::sync::OnceLock;
 
 use fung_front::source::decode_go;
 
+use fung_front::diag::Arg;
+
+use super::file::{self, Fault, File, Mode};
 use super::glob;
 use super::nat::{self, native, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, ENOENT, ENOTDIR, errno};
@@ -67,6 +70,19 @@ pub fn module() -> Rc<Module> {
                 "copy",
                 native("copy", copy_fn, vec![param("from"), param("to")]),
             ),
+            (
+                "open",
+                native(
+                    "open",
+                    open_fn,
+                    vec![param("path"), opt("mode", Lit::Sym("read"))],
+                ),
+            ),
+            ("close", native("close", close_fn, vec![param("f")])),
+            (
+                "write_line",
+                native("write_line", write_line_fn, vec![param("f"), param("line")]),
+            ),
             ("temp_dir", native("temp_dir", temp_dir_fn, vec![])),
         ]
     });
@@ -78,7 +94,7 @@ pub fn module() -> Rc<Module> {
 }
 
 /// Go `fsErr`: `Err({kind, message})` with ``cannot <verb> `<path>`: <reason>``.
-fn fs_err(verb: &str, path: &str, e: &io::Error) -> Value {
+pub(super) fn fs_err(verb: &str, path: &str, e: &io::Error) -> Value {
     nat::err_value(
         oserr::kind(e),
         &format!("cannot {verb} `{path}`: {}", oserr::reason(e)),
@@ -437,6 +453,86 @@ fn copy(from: &str, to: &str) -> Result<(), (bool, io::Error)> {
     let perm = std::fs::metadata(from).map_err(src)?.permissions().mode() & 0o777;
     let bytes = std::fs::read(from).map_err(src)?;
     write_file(to, &bytes, perm).map_err(|e| (false, e))
+}
+
+const MODES: &str = "'read | 'write | 'append";
+
+/// Go `fsOpenFn`: `Ok(<file>)` or the open failure.
+fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let p = nat::need_str("path", &a[0])?.to_string();
+    let Value::Sym(mode) = a[1] else {
+        return Err(nat::wrong_arg("mode", MODES, &a[1]));
+    };
+    let mode = match mode.name() {
+        "read" => Mode::Read,
+        "write" => Mode::Write,
+        "append" => Mode::Append,
+        other => {
+            return Err(nat::fail(
+                "E0403",
+                vec![nat::s("mode"), nat::s(MODES), Arg::Str(format!("'{other}"))],
+            ));
+        }
+    };
+    let r = {
+        let p = p.clone();
+        outside(t, move || file::open(checked(&p)?, mode))
+    };
+    Ok(match r {
+        Ok(io) => nat::ok(Value::File(Rc::new(File::new(p, io)))),
+        Err(e) => fs_err("open", &p, &e),
+    })
+}
+
+/// Go `needFile`.
+pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a File, Stop> {
+    match v {
+        Value::File(f) => Ok(f),
+        _ => Err(nat::wrong_arg(name, "file", v)),
+    }
+}
+
+/// A failed handle operation as Go reports it (`closedErr`, the
+/// `'invalid` direction errors, `fsErr` with `verb`).
+pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
+    let p = &f.path;
+    match e {
+        Fault::Closed => nat::err_value("closed", &format!("file `{p}` is closed"), Vec::new()),
+        Fault::NotReading => nat::err_value(
+            "invalid",
+            &format!("file `{p}` is not open for reading"),
+            Vec::new(),
+        ),
+        Fault::NotWriting => nat::err_value(
+            "invalid",
+            &format!("file `{p}` is not open for writing"),
+            Vec::new(),
+        ),
+        Fault::Io(e) => fs_err(verb, p, &e),
+    }
+}
+
+/// Go `fsCloseFn`. The flush and the close run without the token.
+fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let f = need_file("f", &a[0])?;
+    Ok(match outside(t, || f.close()) {
+        Ok(()) => nat::ok(Value::Nil),
+        Err(e) => fault_value(f, "close", e),
+    })
+}
+
+/// Go `fsWriteLineFn`: the line and its `\n` go in under the handle's
+/// lock, without the token.
+fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let f = need_file("f", &a[0])?;
+    let line = nat::need_str("line", &a[1])?;
+    let mut bytes = Vec::with_capacity(line.len() + 1);
+    bytes.extend_from_slice(line.as_bytes());
+    bytes.push(b'\n');
+    Ok(match outside(t, || f.write_line(&bytes)) {
+        Ok(()) => nat::ok(Value::Nil),
+        Err(e) => fault_value(f, "write", e),
+    })
 }
 
 fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {

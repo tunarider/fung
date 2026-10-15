@@ -1,10 +1,13 @@
 //! Input and output natives (Go `prelude/io.go`): `exit`, `dbg`,
-//! `eprint`, `read_line`, `read_lines`. File handles come with the `fs`
-//! module; until then `f` must be nil (standard input).
+//! `eprint`, `read_line`, `read_lines`. `f` is nil (standard input) or a
+//! file handle from `fs.open`, read without the run token.
 
+use fung_front::source::decode_go;
+
+use crate::native::fs::fault_value;
 use crate::native::nat::{self, opt, param};
-use crate::value::{Lit, Native, Value, format};
-use crate::vm::{Stop, Task};
+use crate::value::{File, Lit, Native, Value, format};
+use crate::vm::{Stop, Task, outside};
 
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds, the
 /// command runs the at_exit handlers, then the process ends with the code.
@@ -48,12 +51,39 @@ pub(super) fn eprint_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> 
     Ok(Value::Nil)
 }
 
-/// One line from standard input (`f` is nil) without its line ending;
-/// `None` at the end.
-fn next_line(t: &mut Task<'_>, f: &Value) -> Result<Option<String>, Stop> {
+/// One line from standard input (`f` is nil) or a file handle, without
+/// its line ending; `None` at the end. A handle that cannot be read gives
+/// its `Err` value (Go `nextLine`).
+fn next_line(t: &mut Task<'_>, f: &Value) -> Result<Result<Option<String>, Value>, Stop> {
     match f {
-        Value::Nil => Ok(t.read_line()?.map(|l| trim_line(&l).to_string())),
+        Value::Nil => Ok(Ok(t.read_line()?.map(|l| trim_line(&l).to_string()))),
+        Value::File(h) => {
+            let h: &File = h;
+            Ok(match outside(t, || h.read_line()) {
+                Ok(l) => Ok(l.map(|l| trim_line(&decode_go(&l)).to_string())),
+                Err(e) => Err(fault_value(h, "read", e)),
+            })
+        }
         _ => Err(nat::wrong_arg("f", "file | nil", f)),
+    }
+}
+
+/// Every remaining line of a handle, read without the token in one go
+/// (the handle is locked for each line, as Go's `nextLine` locks it).
+fn handle_lines(t: &mut Task<'_>, h: &File) -> Result<Vec<Value>, Value> {
+    let r = outside(t, || {
+        let mut lines = Vec::new();
+        while let Some(l) = h.read_line()? {
+            lines.push(l);
+        }
+        Ok(lines)
+    });
+    match r {
+        Ok(lines) => Ok(lines
+            .iter()
+            .map(|l| Value::str(trim_line(&decode_go(l))))
+            .collect()),
+        Err(e) => Err(fault_value(h, "read", e)),
     }
 }
 
@@ -64,17 +94,28 @@ fn trim_line(line: &str) -> &str {
 
 /// `read_line(f = nil)`: Ok(line), Ok(nil) at the end.
 pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    Ok(nat::ok(match next_line(t, &a[0])? {
-        Some(l) => Value::str(&l),
-        None => Value::Nil,
-    }))
+    Ok(match next_line(t, &a[0])? {
+        Ok(Some(l)) => nat::ok(Value::str(&l)),
+        Ok(None) => nat::ok(Value::Nil),
+        Err(e) => e,
+    })
 }
 
 /// `read_lines(f = nil)`: every remaining line in a list.
 pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    if let Value::File(h) = &a[0] {
+        return Ok(match handle_lines(t, h) {
+            Ok(lines) => nat::ok(nat::list(lines)),
+            Err(e) => e,
+        });
+    }
     let mut lines = Vec::new();
-    while let Some(l) = next_line(t, &a[0])? {
-        lines.push(Value::str(&l));
+    loop {
+        match next_line(t, &a[0])? {
+            Ok(Some(l)) => lines.push(Value::str(&l)),
+            Ok(None) => break,
+            Err(e) => return Ok(e),
+        }
     }
     Ok(nat::ok(nat::list(lines)))
 }

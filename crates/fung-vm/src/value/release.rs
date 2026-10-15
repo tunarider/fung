@@ -6,6 +6,10 @@
 //! children out in its `Drop` and hands the ones that could go deep to
 //! `release`, which frees them with an explicit stack. A shell whose
 //! children were moved out drops in constant stack.
+//!
+//! A file handle (`Value::File`) holds no values, only its path and the
+//! open file: dropping it closes the file and never goes deep, so it is
+//! not handed to `release`.
 
 use std::rc::Rc;
 

@@ -689,4 +689,143 @@ print(path.abs(1))"#,
 print(path.ext(nil))"#,
         "",
     ),
+    // The fs module (stage 4a) on fixed paths; `native/fs_tests.rs` runs
+    // the programs that need a fixture directory.
+    (
+        r#"import fs
+print(fs, fs.open, fs.with_open, fs.read_lines("Cargo.toml")! |> take(1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+h = fs.open("/dev/null")!
+print(h, type_of(h), [h] == [h], h == fs.open("/dev/null")!, {a: h})
+print(read_line(h), read_lines(h), fs.write_line(h, "x"), fs.close(h), fs.close(h), read_line(h))"#,
+        "",
+    ),
+    (
+        r#"import fs
+w = fs.open(path: "/dev/null", mode: 'append)!
+print(fs.write_line(w, "x"), read_lines(w), fs.close(w), fs.write_line(w, "y"))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.open("/nonexistent-fung-test/x"), fs.with_open("/nonexistent-fung-test/x", h => 1), fs.read_lines("/nonexistent-fung-test/x"))
+print(fs.with_open("Cargo.toml", h => read_line(h)), fs.with_open("/dev/null", h => fs.write_line(h, "z"), 'write))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.read(1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.write("x", nil))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.copy(nil, 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.stat())"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.exists("x", "y"))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.mkdir(path: 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.list(1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.glob(nil))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.walk())"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.walk(dir: 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.open(1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.open("/dev/null", "read"))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.open("/dev/null", mode: 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.open("/dev/null", 'rw))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.open("/dev/null", 'read, 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.close(1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.close())"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.write_line("x", "y"))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.write_line(fs.open("/dev/null", 'write)!, 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+print(fs.write_line(fs.open("/dev/null")!, 1))"#,
+        "",
+    ),
+    (r#"print(read_line(1))"#, ""),
+    (r#"print(read_lines("x"))"#, ""),
+    (
+        r#"import fs
+print(fs.with_open("/dev/null", 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
+fn g(h: str) = h
+print(fs.with_open("/dev/null", g))"#,
+        "",
+    ),
 ];

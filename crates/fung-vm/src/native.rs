@@ -1,6 +1,7 @@
 //! What the core prelude and the native bridges share (Go `internal/nat`),
 //! and the `_native.*` bridges themselves (Go `internal/native`).
 
+pub(crate) mod file;
 pub mod fs;
 pub(crate) mod glob;
 pub mod nat;

@@ -82,7 +82,7 @@ const CONCURRENCY: &[&str] = &[
     "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
     "deref", "pmap", "fan_in", "retry",
 ];
-const NATIVE_MODULES: &[&str] = &["fs", "json", "time", "regex", "path", "http", "_native.fs"];
+const NATIVE_MODULES: &[&str] = &["json", "time", "regex", "http"];
 
 /// Whether `src` calls `name`: `name(` not preceded by a name character
 /// (so `closure(` or `resend(` do not count, nor do words in comments
@@ -122,8 +122,13 @@ fn the_reason_checks_match_calls_and_imports_only() {
     assert!(!calls("m.close(1)", "close"));
     assert!(!calls("# close the file", "close"));
     assert!(imports("import json\n", "json"));
-    // `cli` is pure fung and runs in the Rust port: not a skip reason.
+    // `cli` is pure fung and runs in the Rust port: not a skip reason;
+    // nor are `fs` and `path` since stage 4a.
     assert_eq!(shows_reason("import cli\n", "native-module"), Some(false));
+    assert_eq!(
+        shows_reason("import fs\nimport path\n", "native-module"),
+        Some(false)
+    );
     assert!(!imports("import jsonx\n", "json"));
     assert!(!imports("# import json is not here\n", "json"));
 }
@@ -272,7 +277,7 @@ fn enough_cases_are_compared() {
     let cases = cases();
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
     let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
-    assert!(lang >= 124, "only {lang} tests/lang files are compared");
+    assert!(lang >= 125, "only {lang} tests/lang files are compared");
     assert!(bench >= 5, "only {bench} benchmarks are compared");
     assert!(
         cases.len() >= 180,
@@ -468,13 +473,13 @@ fn concurrent_runs_are_stable() {
 #[test]
 fn native_modules_are_not_supported_yet() {
     let o = std::process::Command::new(rust_fung())
-        .args(["-e", "import fs\nprint(1)"])
+        .args(["-e", "import time\nprint(1)"])
         .output()
         .unwrap();
     assert_eq!(String::from_utf8_lossy(&o.stdout), "");
     assert_eq!(
         String::from_utf8_lossy(&o.stderr),
-        "error[E0805]: not supported yet: fs\n  --> -e:1:1\n  |\n1 | import fs\n  | ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0805]: not supported yet: time\n  --> -e:1:1\n  |\n1 | import time\n  | ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
     assert_eq!(o.status.code(), Some(1));
 

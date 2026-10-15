@@ -96,8 +96,8 @@ fn restore_and_remove(dir: &Path) -> std::io::Result<()> {
 }
 
 /// The fixture the failure cases run in: `a.txt`, `bad.txt` (invalid
-/// UTF-8), `sub/deep/f`, an empty `emptyd`, an unreadable `locked` and a
-/// read-only directory `ro`.
+/// UTF-8), `sub/deep/f`, an empty `emptyd`, an unreadable `locked`, a
+/// write-only `wonly` and a read-only directory `ro`.
 fn fixture(dir: &Path) {
     std::fs::create_dir_all(dir.join("sub/deep")).unwrap();
     std::fs::create_dir(dir.join("emptyd")).unwrap();
@@ -106,6 +106,8 @@ fn fixture(dir: &Path) {
     std::fs::write(dir.join("bad.txt"), b"a\xffb\xc3").unwrap();
     std::fs::write(dir.join("locked"), "secret").unwrap();
     std::fs::set_permissions(dir.join("locked"), std::fs::Permissions::from_mode(0o000)).unwrap();
+    std::fs::write(dir.join("wonly"), "w").unwrap();
+    std::fs::set_permissions(dir.join("wonly"), std::fs::Permissions::from_mode(0o200)).unwrap();
     std::fs::create_dir(dir.join("ro")).unwrap();
     std::fs::set_permissions(dir.join("ro"), std::fs::Permissions::from_mode(0o555)).unwrap();
     tree(&dir.join("t"));
@@ -817,11 +819,206 @@ fn go_errno_texts() -> Option<String> {
     }
 }
 
+// --- file handles ---
+
+/// Runs `body` after `import fs` with `d` bound to the scratch directory.
+fn run_in(d: &Scratch, body: &str) -> testutil::Outcome {
+    exec(
+        &format!("import fs\nd = \"{}\"\n{body}", d.text()),
+        Opts::default(),
+    )
+}
+
+/// Go `TestFsHandles` and `TestReadLineOnWriteHandle`: write, close,
+/// closed and wrong-direction handles, `read_line` and `read_lines` on a
+/// handle, append mode, the handle's text, type and equality.
+#[test]
+fn handles_like_go() {
+    let d = Scratch::new("handles");
+    let o = run_in(
+        &d,
+        r#"h = fs.open("${d}/h.txt", 'write)!
+print(fs.write_line(h, "one"), fs.write_line(h, "two"), fs.read("${d}/h.txt"))
+print(fs.close(h), fs.close(h), fs.write_line(h, "x"), read_line(h))
+r = fs.open("${d}/h.txt")!
+print(fs.write_line(r, "x"), read_line(r), read_lines(r), read_line(r))
+print(fs.close(r), read_line(r), read_lines(r))
+a = fs.open("${d}/h.txt", 'append)!
+print(fs.write_line(a, "three"), read_line(a), fs.close(a), fs.read("${d}/h.txt"))
+print(type_of(a), a == a, a == r, a != h)
+print(fs.with_open("${d}/h.txt", read_lines), fs.with_open("${d}/none", f => 1) |> is_err)"#,
+    );
+    let h = d.at("h.txt");
+    let h = h.display();
+    assert_eq!(
+        o.out,
+        format!(
+            "Ok(nil) Ok(nil) Ok(\"\")
+Ok(nil) Err({{kind: 'closed, message: \"file `{h}` is closed\"}}) Err({{kind: 'closed, message: \"file `{h}` is closed\"}}) Err({{kind: 'closed, message: \"file `{h}` is closed\"}})
+Err({{kind: 'invalid, message: \"file `{h}` is not open for writing\"}}) Ok(\"one\") Ok([\"two\"]) Ok(nil)
+Ok(nil) Err({{kind: 'closed, message: \"file `{h}` is closed\"}}) Err({{kind: 'closed, message: \"file `{h}` is closed\"}})
+Ok(nil) Err({{kind: 'invalid, message: \"file `{h}` is not open for reading\"}}) Ok(nil) Ok(\"one\\ntwo\\nthree\\n\")
+'file true false true
+Ok([\"one\", \"two\", \"three\"]) true
+"
+        ),
+        "{}",
+        o.err
+    );
+    let o = run_in(&d, r#"print(fs.open("${d}/h.txt")!)"#);
+    assert_eq!(o.out, format!("<file \"{h}\">\n"));
+    let o = run_in(&d, r#"print(fs.open(d, 'rw))"#);
+    assert_eq!(o.code, "E0403");
+    assert!(
+        o.err.starts_with(
+            "error[E0403]: argument `mode` must be 'read | 'write | 'append, got 'rw\n"
+        ),
+        "{}",
+        o.err
+    );
+}
+
+/// A handle shows its path the way Go's `strconv.Quote` does (`\x01`,
+/// not fung's `\u{1}`), and other values holding it show it the same way.
+#[test]
+fn handle_text_quotes_like_go() {
+    let d = Scratch::new("quote");
+    let o = run_in(
+        &d,
+        r#"h = fs.open("${d}/\u{1}é\t\"\\\${\u{7f}\u{a0}\u{e000}\u{e0001}", 'write)!
+print([h], h)"#,
+    );
+    let q = format!(
+        "{}/\\x01é\\t\\\"\\\\${{\\x7f\\u00a0\\ue000\\U000e0001",
+        d.text()
+    );
+    assert_eq!(
+        o.out,
+        format!("[<file \"{q}\">] <file \"{q}\">\n"),
+        "{}",
+        o.err
+    );
+}
+
+/// Review Focus 2: eight tasks write 200 lines each into one handle at
+/// the same time; every line arrives whole (the handle's lock covers a
+/// whole `write_line`, which runs without the run token). The lines are
+/// longer than the 4096-byte buffer is divided by, so flushes fall inside
+/// lines.
+#[test]
+fn concurrent_write_lines_stay_whole() {
+    let d = Scratch::new("concurrent");
+    let o = run_in(
+        &d,
+        r#"h = fs.open("${d}/out.txt", 'write)!
+pad = repeat("x", 300)
+ts = for i in 0..8: spawn(() => each(0..200, j => fs.write_line(h, "task ${i} line ${j} ${pad}")!)) ;;
+each(ts, t => await(t))
+print(fs.close(h))"#,
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(nil)\n", ""));
+    let text = std::fs::read_to_string(d.at("out.txt")).unwrap();
+    let pad = "x".repeat(300);
+    let mut seen: Vec<String> = text.lines().map(str::to_string).collect();
+    assert_eq!(seen.len(), 1600);
+    seen.sort();
+    let mut want: Vec<String> = (0..8)
+        .flat_map(|i| (0..200).map(move |j| (i, j)))
+        .map(|(i, j)| format!("task {i} line {j} {pad}"))
+        .collect();
+    want.sort();
+    assert!(seen == want, "some lines are torn or missing");
+}
+
+/// Review Focus 3: a handle closes its file when its last copy goes, so
+/// thousands of handles dropped without `close` leak no descriptors. The
+/// program runs in a child process (this test binary again) whose
+/// descriptor limit is 128: keeping 5000 handles fails there, dropping
+/// them one at a time does not.
+#[test]
+fn dropped_handles_free_their_descriptors() {
+    const CHILD: &str = "FUNG_FD_LIMIT_CHILD";
+    let name = concat!(module_path!(), "::dropped_handles_free_their_descriptors");
+    let name = name.split_once("::").unwrap().1;
+    if std::env::var(CHILD).is_err() {
+        let exe = std::env::current_exe().unwrap();
+        let o = std::process::Command::new("sh")
+            .args(["-c", "ulimit -n 128 && exec \"$@\"", "sh"])
+            .arg(exe)
+            .args(["--exact", name, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        let out = String::from_utf8_lossy(&o.stdout);
+        assert!(
+            o.status.success() && out.contains("1 passed"),
+            "child failed:\n{out}\n{}",
+            String::from_utf8_lossy(&o.stderr)
+        );
+        return;
+    }
+    let d = Scratch::new("fdleak");
+    std::fs::write(d.at("a.txt"), "hi\n").unwrap();
+    let o = run_in(
+        &d,
+        r#"p = "${d}/a.txt"
+fn keep(p, n) = map(0..n, _ => fs.open(p)) |> filter(is_err) |> take(1)
+print(keep(p, 5000))
+each(0..5000, _ => fs.open(p)!)
+each(0..5000, _ => fs.open("${d}/w.txt", 'write)!)
+print(fs.open(p) |> is_ok, fs.with_open(p, read_lines))"#,
+    );
+    assert_eq!(
+        o.out,
+        format!(
+            "[Err({{kind: 'io, message: \"cannot open `{}`: too many open files\"}})]\ntrue Ok([\"hi\"])\n",
+            d.at("a.txt").display()
+        ),
+        "{}",
+        o.err
+    );
+}
+
+/// File input and output run without the run token: two tasks open the
+/// two ends of a FIFO, and each open blocks until the other end is open,
+/// in whichever order they run; then one writes and the other reads.
+/// Holding the token while blocked would never end (the bound turns that
+/// into a failure; no sleep orders the tasks). The writer uses 'append
+/// (write only): 'write opens read-write like Go's `os.Create`, which
+/// does not wait for a reader, so its data could be gone before the
+/// reader opens (in Go too).
+#[test]
+fn file_io_runs_without_the_run_token() {
+    let d = Scratch::new("fifo");
+    let fifo = d.at("pipe");
+    let made = std::process::Command::new("mkfifo")
+        .arg(&fifo)
+        .status()
+        .unwrap();
+    assert!(made.success());
+    let src = format!(
+        "import fs\np = \"{}\"\nr = spawn(() => fs.with_open(p, read_lines))\nw = spawn(fn(): h = fs.open(p, 'append)!; each(0..3, i => fs.write_line(h, \"l${{i}}\")!); fs.close(h) ;;)\nprint(await(w), await(r))",
+        fifo.display()
+    );
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let o = exec(&src, Opts::default());
+        let _ = tx.send((o.out, o.err));
+    });
+    let (out, err) = rx
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .expect("blocked file input held the run token");
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        ("Ok(nil) Ok([\"l0\", \"l1\", \"l2\"])\n", "")
+    );
+}
+
 // --- whole runs against the Go binary ---
 
 /// Programs run by both implementations in a fresh `fixture` directory
-/// bound to `d`: Go imports `fs`, Rust `_native.fs` (the `fs` module
-/// itself comes with the rest of `_native.fs`).
+/// bound to `d` (the programs that need no fixture are in
+/// `prelude/go_cases.rs`).
 const PROGRAMS: &[&str] = &[
     r#"print(fs.read("/nonexistent-fung-test/x"))
 print(fs.read(d))
@@ -879,12 +1076,42 @@ print(fs.remove_all("${d}/sub"), fs.exists("${d}/sub"))
 print(fs.stat("${d}/new.txt/"), fs.stat("${d}/new.txt"))
 print(fs.write("${d}/u.txt", "한글 ok"), fs.read("${d}/u.txt"), fs.stat("${d}/u.txt"))
 print(fs.stat("${d}/./u.txt"), fs.stat("${d}/ro/.."))"#,
-    "print(fs.read(1))",
-    "print(fs.write(d, nil))",
-    "print(fs.copy(nil, 1))",
-    "print(fs.stat())",
-    "print(fs.exists(d, d))",
-    "print(fs.mkdir(path: d))",
+    r#"h = fs.open("${d}/h.txt", 'write)!
+print(h, type_of(h), h == h, h == fs.open("${d}/a.txt")!, [h] == [h])
+print(fs.write_line(h, "one"), fs.write_line(h, "two"), fs.read("${d}/h.txt"))
+print(fs.close(h), fs.close(h), fs.write_line(h, "x"), read_line(h), read_lines(h), fs.read("${d}/h.txt"))
+r = fs.open("${d}/h.txt")!
+print(fs.write_line(r, "x"), read_line(r), read_lines(r), read_line(r), read_lines(r))
+print(fs.close(r), read_line(r), read_lines(r), fs.write_line(r, "x"))
+a = fs.open("${d}/h.txt", 'append)!
+print(fs.write_line(a, "three"), read_line(a), read_lines(a), fs.close(a), fs.read("${d}/h.txt"))
+print(fs.open("${d}/none"), fs.open("${d}/nope/x", 'write), fs.open("${d}/nope/x", 'append))
+print(fs.open("${d}/locked"), fs.open("${d}/locked", 'write), fs.open("${d}/locked", 'append))
+print(fs.open("${d}/wonly"), fs.open("${d}/wonly", 'write), fs.open("${d}/wonly", 'append) |> is_ok)
+print(fs.open("${d}/ro/x", 'write), fs.open(d, 'write), fs.open(d, 'append), fs.open("${d}/a.txt/x"))
+print(fs.open("a\u{0}b"), fs.open("a\u{0}b", 'write), fs.open(""), fs.open("", 'append))
+print(fs.with_open(d, read_lines), fs.with_open("${d}/bad.txt", read_lines), fs.with_open("${d}/a.txt", h => [read_line(h), read_line(h)]))
+print(fs.with_open("${d}/sub/deep/f", read_lines, mode: 'read), fs.with_open("${d}/w.txt", h => fs.write_line(h, "w"), mode: 'write), fs.read("${d}/w.txt"))
+print(fs.with_open("${d}/none", h => 1), fs.with_open("${d}/w.txt", h => read_line(h), 'append), fs.read_lines("${d}/w.txt"), fs.read_lines("${d}/none"))
+print(fs.write("${d}/crlf.txt", "a\r\nb\r\n\r\n\nc\r"), fs.with_open("${d}/crlf.txt", read_lines), fs.read_lines("${d}/crlf.txt"))
+fn lost(p) = fs.write_line(fs.open(p, 'write)!, "lost")
+print(lost("${d}/lost.txt"), fs.read("${d}/lost.txt"))
+k = fs.with_open("${d}/a.txt", h => h)
+print(k, read_line(k), fs.close(k), fs.write_line(k, ""))"#,
+    r#"p = "${d}/big.txt"
+w = fs.open(p, 'write)!
+fn size(p) = len(fs.read(p)!)
+print(fs.write_line(w, repeat("a", 4094)), size(p))
+print(fs.write_line(w, "b"), size(p))
+print(fs.write_line(w, repeat("c", 5000)), size(p))
+print(fs.write_line(w, repeat("d", 9000)), size(p))
+print(fs.write_line(w, repeat("e", 10000)), size(p))
+print(fs.write_line(w, ""), fs.write_line(w, "한글"), size(p))
+print(fs.close(w), size(p))
+r = fs.open(p)!
+print(fold(read_lines(r)!, "", (acc, l) => "${acc} ${len(l)}"), read_line(r), fs.close(r))
+x = fs.open(p, 'append)!
+print(fs.write_line(x, repeat("f", 5000)), size(p), fs.close(x), size(p))"#,
     r#"t = "${d}/t"
 print(fs.list(t))
 print(fs.list(t, full: true))
@@ -941,12 +1168,8 @@ print(fs.glob("${t}/none/["))
 print(fs.glob("${t}/\\"))
 print(fs.glob(""), fs.glob("*.toml"), fs.glob("src/nat*/glob.rs"), fs.glob("./*.toml"))
 print(fs.glob("a\u{0}*"), fs.glob("a\u{0}b"))"#,
-    "print(fs.list(1))",
     "print(fs.list(d, full: 1))",
     "print(fs.list(d, true, 1))",
-    "print(fs.glob(nil))",
-    "print(fs.walk())",
-    "print(fs.walk(dir: 1))",
 ];
 
 #[test]
@@ -965,14 +1188,7 @@ fn runs_match_the_go_binary() {
         let _ = restore_and_remove(&d.0);
         std::fs::create_dir_all(&d.0).unwrap();
         fixture(&d.0);
-        let src = format!("import _native.fs as fs\n{decl}{body}");
-        let o = exec(
-            &src,
-            Opts {
-                internal: true,
-                ..Opts::default()
-            },
-        );
+        let o = exec(&format!("import fs\n{decl}{body}"), Opts::default());
         let rust = (o.out, o.err, o.exit);
         if rust != go {
             bad.push(format!("{body}\n  rust {rust:?}\n  go   {go:?}"));
