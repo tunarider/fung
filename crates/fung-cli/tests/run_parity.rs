@@ -47,16 +47,7 @@ const CONCURRENCY: &[&str] = &[
     "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "atom", "swap",
     "deref", "pmap", "fan_in", "retry",
 ];
-const NATIVE_MODULES: &[&str] = &[
-    "fs",
-    "json",
-    "time",
-    "regex",
-    "path",
-    "http",
-    "cli",
-    "_native.fs",
-];
+const NATIVE_MODULES: &[&str] = &["fs", "json", "time", "regex", "path", "http", "_native.fs"];
 
 /// Whether `src` calls `name`: `name(` not preceded by a name character
 /// (so `closure(` or `resend(` do not count, nor do words in comments
@@ -96,6 +87,8 @@ fn the_reason_checks_match_calls_and_imports_only() {
     assert!(!calls("m.close(1)", "close"));
     assert!(!calls("# close the file", "close"));
     assert!(imports("import json\n", "json"));
+    // `cli` is pure fung and runs in the Rust port: not a skip reason.
+    assert_eq!(shows_reason("import cli\n", "native-module"), Some(false));
     assert!(!imports("import jsonx\n", "json"));
     assert!(!imports("# import json is not here\n", "json"));
 }
@@ -160,8 +153,20 @@ fn fung_files(dir: &str) -> Vec<String> {
     files
 }
 
-/// One case: a label, the arguments and the standard input.
+/// Where a case comes from.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// A `tests/lang` golden file: Go always prints something for it
+    /// (each has a `# expect` header).
+    Lang,
+    Bench,
+    Other,
+}
+
+/// One case: where it comes from, a label, the arguments and the
+/// standard input.
 struct Case {
+    kind: Kind,
     label: String,
     args: Vec<OsString>,
     stdin: Option<Vec<u8>>,
@@ -180,6 +185,7 @@ fn cases() -> Vec<Case> {
         let mut a: Vec<OsString> = vec!["run".into(), f.clone().into()];
         a.extend(args.into_iter().map(OsString::from));
         out.push(Case {
+            kind: Kind::Lang,
             label: f,
             args: a,
             stdin: Some(stdin.into_bytes()),
@@ -187,6 +193,7 @@ fn cases() -> Vec<Case> {
     }
     for f in fung_files("bench") {
         out.push(Case {
+            kind: Kind::Bench,
             label: f.clone(),
             args: vec!["run".into(), f.into()],
             stdin: None,
@@ -194,6 +201,7 @@ fn cases() -> Vec<Case> {
     }
     for code in CASES.iter().take(CASES.len() - 1).chain(MORE) {
         out.push(Case {
+            kind: Kind::Other,
             label: format!("-e {code:?}"),
             args: vec!["-e".into(), (*code).into(), "x".into(), "y z".into()],
             stdin: Some(b"one\ntwo".to_vec()),
@@ -210,12 +218,31 @@ fn cases() -> Vec<Case> {
         vec!["frobnicate"],
     ] {
         out.push(Case {
+            kind: Kind::Other,
             label: args.join(" "),
             args: args.into_iter().map(OsString::from).collect(),
             stdin: None,
         });
     }
     out
+}
+
+/// The comparison cannot pass by comparing nothing: a broken file walk or
+/// an overgrown skip list fails here. The minimums sit just below the
+/// counts when they were set (118 `tests/lang` files, 4 benchmarks, 152
+/// cases in all); raise them as cases are added.
+#[test]
+fn enough_cases_are_compared() {
+    let cases = cases();
+    let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
+    let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
+    assert!(lang >= 117, "only {lang} tests/lang files are compared");
+    assert!(bench >= 3, "only {bench} benchmarks are compared");
+    assert!(
+        cases.len() >= 151,
+        "only {} cases are compared",
+        cases.len()
+    );
 }
 
 #[test]
@@ -230,6 +257,11 @@ fn runs_match_the_go_implementation() {
     for c in &cases {
         let g = run_with_stdin(&go, &c.args, c.stdin.as_deref());
         let r = run_with_stdin(&rust, &c.args, c.stdin.as_deref());
+        // Two silent runs would compare equal for the wrong reason.
+        if c.kind == Kind::Lang && g.0.is_empty() && g.1.is_empty() {
+            failures.push(format!("{}: Go printed nothing", c.label));
+            continue;
+        }
         if let Some(what) = diff(&g, &r) {
             failures.push(format!("{}: {what}", c.label));
         }
