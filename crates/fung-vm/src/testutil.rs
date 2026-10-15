@@ -1,8 +1,9 @@
 //! Test helpers: compile a program with the front end, boot the prelude
 //! and run it the way the fung command will (Go `cmd/fung/pipeline.go`
 //! `execute`): the entry, waiting for the tasks it left (or cancelling
-//! them after an error), the exit handlers, the report of task failures
-//! nobody retrieved, then the exit code.
+//! them after an error), the exit handlers, the end of the background
+//! tasks (stage 3b), the report of task failures nobody retrieved, then
+//! the exit code.
 //! Everything runs on a 4 GiB thread, because value formatting and
 //! comparison recurse on deep nesting like Go.
 //!
@@ -89,6 +90,11 @@ pub struct Opts {
     pub read: fn(&str) -> std::io::Result<String>,
     /// The script arguments (the prelude's `args`).
     pub args: &'static [&'static str],
+    /// Compiles the entry as an embedded extras file would be, so it may
+    /// import `_native.*` (test-only: user code gets E0310). Its protos
+    /// are then unmarked builtin, so errors report where they arise, as
+    /// in user code; `patch` may mark some again.
+    pub internal: bool,
 }
 
 impl Default for Opts {
@@ -101,6 +107,7 @@ impl Default for Opts {
             tests: false,
             read: Loader::default().read_file,
             args: &[],
+            internal: false,
         }
     }
 }
@@ -194,7 +201,7 @@ fn setup_with(
         extra_prelude: names,
         tests: opts.tests,
         read_file: opts.read,
-        ..Loader::default()
+        internal: opts.internal,
     };
     let (b, errs) = loader.compile(opts.file, src, Stage::All);
     if !errs.is_empty() {
@@ -202,6 +209,9 @@ fn setup_with(
         return Err((text, errs[0].code.clone()));
     }
     let mut entry = b.proto.expect("a compiled entry");
+    if opts.internal {
+        unmark_builtin(&mut entry);
+    }
     (opts.patch)(&mut entry);
     let (out, err) = (Buf::default(), Buf::default());
     let rt = Runtime::new(
@@ -235,6 +245,14 @@ fn setup_with(
     // command does. A caller may register other natives over them.
     rt.load(&entry, &b.modules);
     Ok(Setup { rt, out, err })
+}
+
+/// Clears the builtin mark an internal compile put on every proto.
+fn unmark_builtin(p: &mut Proto) {
+    p.builtin = false;
+    for c in &mut p.protos {
+        unmark_builtin(c);
+    }
 }
 
 thread_local! {
@@ -397,7 +415,9 @@ fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
         }
         o.handler_errors.push(ErrInfo::of(&d));
     }
-    // The program is over: report every task failure nobody retrieved.
+    // The handlers are done: end the background tasks (stage 3b), then
+    // the program is over: report every task failure nobody retrieved.
+    rt.end_background();
     rt.wait();
     rt.report_unretrieved();
     match (before, rt.exit_code()) {
@@ -449,7 +469,8 @@ pub fn boom() -> Vec<Value> {
 /// - `held(a)`: whether a `swap` holds the atom `a`;
 /// - `waiters(a)`: how many swappers wait for `a`;
 /// - `hold(ms)`: sleeps the thread without giving the run token up, so no
-///   other task runs meanwhile.
+///   other task runs meanwhile;
+/// - `background()`: how many background tasks have not finished.
 pub fn probes() -> Vec<Value> {
     fn int_arg(a: &[Value]) -> i64 {
         let Value::Int(n) = a[0] else {
@@ -488,6 +509,9 @@ pub fn probes() -> Vec<Value> {
                 Ok(Value::Int(x.waiting() as i64))
             },
         )),
+        Value::Native(Native::leak("background", vec![], |t: &mut Task, _| {
+            Ok(Value::Int(t.background_tasks() as i64))
+        })),
         Value::Native(Native::leak(
             "hold",
             vec![nat::param("ms")],

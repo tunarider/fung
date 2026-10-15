@@ -61,10 +61,15 @@ pub(crate) fn cancelled(pos: Pos) -> Stop {
 /// the number of live tasks that cannot run until another task wakes
 /// them. The fields are atomics only so that a waiter can change them
 /// without reaching the world; every change happens with the token held.
+///
+/// Background tasks (stage 3b) are counted apart, by the same rules, in
+/// `bg_blocked` and `bg_waking`, against `World::background`.
 #[derive(Default)]
 pub(crate) struct Census {
     blocked: AtomicUsize,
     waking: AtomicUsize,
+    bg_blocked: AtomicUsize,
+    bg_waking: AtomicUsize,
 }
 
 impl Census {
@@ -74,6 +79,25 @@ impl Census {
 
     pub(crate) fn waking(&self) -> usize {
         self.waking.load(Ordering::Relaxed)
+    }
+
+    /// Blocked background tasks.
+    pub(crate) fn bg_blocked(&self) -> usize {
+        self.bg_blocked.load(Ordering::Relaxed)
+    }
+
+    /// Blocked background tasks a timer will wake.
+    pub(crate) fn bg_waking(&self) -> usize {
+        self.bg_waking.load(Ordering::Relaxed)
+    }
+
+    /// The (blocked, waking) counters of a normal or a background task.
+    fn counters(&self, background: bool) -> (&AtomicUsize, &AtomicUsize) {
+        if background {
+            (&self.bg_blocked, &self.bg_waking)
+        } else {
+            (&self.blocked, &self.waking)
+        }
     }
 }
 
@@ -95,16 +119,30 @@ pub(crate) struct Waiter {
     /// blocked in `census`.
     counted: AtomicU8,
     census: Arc<Census>,
+    /// A background task's waiter counts in the census's background
+    /// counters.
+    background: bool,
 }
 
 impl Waiter {
     /// A waiter for the current thread, counted in `census` when blocked.
     pub(crate) fn new(census: Arc<Census>) -> Arc<Waiter> {
+        Waiter::make(census, false)
+    }
+
+    /// A waiter for the current thread, a background task's: counted in
+    /// the census's background counters (stage 3b).
+    pub(crate) fn background(census: Arc<Census>) -> Arc<Waiter> {
+        Waiter::make(census, true)
+    }
+
+    fn make(census: Arc<Census>, background: bool) -> Arc<Waiter> {
         Arc::new(Waiter {
             thread: std::thread::current(),
             woken: AtomicBool::new(false),
             counted: AtomicU8::new(FREE),
             census,
+            background,
         })
     }
 
@@ -123,9 +161,10 @@ impl Waiter {
         if self.counted.swap(state, Ordering::Relaxed) != FREE {
             return false;
         }
-        self.census.blocked.fetch_add(1, Ordering::Relaxed);
+        let (blocked, waking) = self.census.counters(self.background);
+        blocked.fetch_add(1, Ordering::Relaxed);
         if timed {
-            self.census.waking.fetch_add(1, Ordering::Relaxed);
+            waking.fetch_add(1, Ordering::Relaxed);
         }
         true
     }
@@ -135,9 +174,10 @@ impl Waiter {
         match self.counted.swap(FREE, Ordering::Relaxed) {
             FREE => {}
             state => {
-                self.census.blocked.fetch_sub(1, Ordering::Relaxed);
+                let (blocked, waking) = self.census.counters(self.background);
+                blocked.fetch_sub(1, Ordering::Relaxed);
                 if state == TIMED {
-                    self.census.waking.fetch_sub(1, Ordering::Relaxed);
+                    waking.fetch_sub(1, Ordering::Relaxed);
                 }
             }
         }
@@ -196,8 +236,8 @@ impl WaitList {
 /// (Go's fast path); after a wait, cancellation wins over a condition that
 /// came true at the same time (Go checks it first).
 ///
-/// Deadlock (05, `deadlock.rs`): a live task counts itself blocked just
-/// before it sleeps, after its condition was found false, and the check
+/// Deadlock (05, `deadlock.rs`): a live or background task counts itself
+/// blocked just before it sleeps, after its condition was found false, and the check
 /// runs right then. A wake uncounts it; if its condition is still false
 /// it counts itself again and the check runs again.
 pub(crate) fn block<T>(
@@ -239,7 +279,7 @@ pub(crate) fn block_until<T>(
         if deadline.is_some_and(|at| Instant::now() >= at) {
             break Ok(None);
         }
-        if t.live && me.count(timed) && t.judge() {
+        if (t.live || t.background) && me.count(timed) && t.judge() {
             // A deadlock was reported, which cancelled this task (unless
             // it runs under a node nothing cancels): check again.
             continue;

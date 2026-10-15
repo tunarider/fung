@@ -39,6 +39,8 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Task(x), Value::Task(y)) => Rc::ptr_eq(x, y),
         (Value::Channel(x), Value::Channel(y)) => Rc::ptr_eq(x, y),
         (Value::Atom(x), Value::Atom(y)) => Rc::ptr_eq(x, y),
+        (Value::Agent(x), Value::Agent(y)) => Rc::ptr_eq(x, y),
+        (Value::Caught(x), Value::Caught(y)) => Rc::ptr_eq(x, y),
         _ => false,
     }
 }

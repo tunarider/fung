@@ -86,15 +86,36 @@ impl Runtime {
         Task::new(&self.shared, self.shared.root.child())
     }
 
-    /// Waits until every spawned task has finished (Go `Wait`).
+    /// Waits until every spawned task has finished (Go `Wait`). The
+    /// background tasks (stage 3b) are not waited for: they do not keep
+    /// the program alive (`end_background`).
     pub fn wait(&self) {
+        self.wait_until(|w| w.running == 0);
+    }
+
+    /// Cancels the background tasks (stage 3b, `spawn_background`) and
+    /// waits until they have ended. The command calls it after the exit
+    /// handlers, which may still use an agent, and before it reports the
+    /// failures nobody retrieved (a background task's failure is never
+    /// among them). Background tasks spawned later start cancelled.
+    pub fn end_background(&self) {
+        {
+            let _t = self.lock();
+            self.shared.background.cancel();
+        }
+        self.wait_until(|w| w.background == 0);
+    }
+
+    /// Waits until `done` holds; `idle` is woken whenever the spawned
+    /// tasks or the background tasks drop to none.
+    fn wait_until(&self, done: fn(&World) -> bool) {
         // On a node of its own: `cancel_all` must not cut this wait short.
         // Not live: the command waiting is not a task (`deadlock.rs`).
         let mut t = Task::unlisted(&self.shared, CancelNode::root());
         let r = block(
             &mut t,
             |w, me| {
-                if w.running == 0 {
+                if done(w) {
                     return Some(());
                 }
                 w.idle.add(me);
@@ -284,8 +305,9 @@ impl Drop for Runtime {
             let _t = self.lock();
             self.shared.root.cancel();
             self.shared.handlers.cancel();
+            self.shared.background.cancel();
         }
-        self.wait();
+        self.wait_until(|w| w.running == 0 && w.background == 0);
         let mut w = self.lock();
         token::assert_holds_token();
         w.release_values();

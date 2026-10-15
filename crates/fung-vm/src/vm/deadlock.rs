@@ -40,6 +40,25 @@
 //! The entry's end is judged too, so an entry error cancels the program
 //! before the entry task drops (`Runtime::run_with`): the tasks it leaves
 //! blocked are then being cancelled, not deadlocked.
+//!
+//! **Background tasks** (stage 3b, `spawn_background`; agents) are not
+//! the program's tasks: they never keep it alive, so they are not in
+//! `World::live` nor in `Census::blocked`. They are counted apart
+//! (`World::background`, `Census::bg_blocked` / `bg_waking`), by the same
+//! rules and with the same exactness, and the check adds one condition:
+//! **no deadlock is judged while any background task can still run** —
+//! one that is runnable, running, waiting for the token, in `outside`, or
+//! blocked with a timer. Such a task may still wake a blocked task of the
+//! program (an agent about to answer the request a task waits on), so
+//! judging then could report a deadlock that is not one. Once every
+//! background task is blocked with no timer, none of them can run again
+//! unless some task wakes it, and no task can: every task of the program
+//! is blocked too. So the report is exact in both directions with respect
+//! to the counts. Since the condition can now also become true when a
+//! background task blocks or ends, both are judged as well. What it gives
+//! up: a background task that runs forever (a loop that never blocks)
+//! hides a deadlock of the program's tasks, as a normal task that spins
+//! does today.
 
 use fung_front::diag::{error, headline};
 
@@ -48,14 +67,23 @@ use super::{Stop, Task, no_pos, token};
 
 impl Task<'_> {
     /// Reports a deadlock if every live task is blocked with no timer to
-    /// wake one; true if it did. Called with the token held, when this
-    /// task has counted itself blocked and when a live task ends.
+    /// wake one, and so is every background task; true if it did. Called
+    /// with the token held, when this task (live or background) has
+    /// counted itself blocked and when a live or background task ends.
     pub(super) fn judge(&mut self) -> bool {
         token::assert_holds_token();
         let census = &self.shared.census;
         let w = &mut *self.world;
         debug_assert!(census.blocked() <= w.live, "more blocked than live");
+        debug_assert!(
+            census.bg_blocked() <= w.background,
+            "more background tasks blocked than running"
+        );
         if w.live == 0 || census.blocked() != w.live || census.waking() != 0 {
+            return false;
+        }
+        // A background task that can still run may wake one of them.
+        if census.bg_blocked() != w.background || census.bg_waking() != 0 {
             return false;
         }
         // During an exit handler, only the handler and what it spawned

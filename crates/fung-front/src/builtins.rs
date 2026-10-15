@@ -7,6 +7,25 @@ use std::sync::OnceLock;
 
 const SPEC: &str = include_str!("../../../spec/builtins.txt");
 
+/// Where the Rust implementation's built-in names differ from
+/// `spec/builtins.txt`, which the Go implementation generates (stage 3b):
+/// the members the Rust `_native.*` modules add, in the spec's
+/// `name(params)` form. Only embedded extras files can import `_native.*`
+/// (E0310), so these never change what user code can name. `builtins()`
+/// applies them, so resolve, the boot and the spec tests all read one
+/// list. (Stage 6 folds the differences into the spec.)
+const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
+    ("_native.conc", "spawn_background(f)"),
+    ("_native.conc", "agent_handle(ch)"),
+    ("_native.conc", "agent_channel(a)"),
+    ("_native.conc", "try_call(f, x)"),
+    ("_native.conc", "raise(e)"),
+    ("_native.conc", "send_unchecked(ch, v)"),
+    ("_native.conc", "agent_busy(ch, on, state=?)"),
+    ("_native.conc", "in_agent(a)"),
+    ("_native.conc", "agent_state(a)"),
+];
+
 /// Built-in names by layer. Every list is sorted.
 #[derive(Debug, Default)]
 pub struct Builtins {
@@ -42,7 +61,29 @@ impl Builtins {
 
 pub fn builtins() -> &'static Builtins {
     static CELL: OnceLock<Builtins> = OnceLock::new();
-    CELL.get_or_init(|| parse(SPEC))
+    CELL.get_or_init(|| {
+        let mut b = parse(SPEC);
+        b.add_rust_members();
+        b
+    })
+}
+
+impl Builtins {
+    /// Adds `RUST_MODULE_MEMBERS`, keeping every list sorted.
+    fn add_rust_members(&mut self) {
+        for (module, entry) in RUST_MODULE_MEMBERS {
+            let name = entry_name(entry);
+            if let Some(params) = entry_params(entry) {
+                self.module_params
+                    .insert((module.to_string(), name.clone()), params);
+            }
+            let names = self.modules.entry(module.to_string()).or_default();
+            if !names.contains(&name) {
+                names.push(name);
+                names.sort();
+            }
+        }
+    }
 }
 
 /// `name(params)` or a bare `name` → `name`.
@@ -120,6 +161,12 @@ mod tests {
             Some("f")
         );
         assert_eq!(b.module_signature("_native.fs", "temp_dir"), Some(""));
+        // A Rust-only member (`RUST_MODULE_MEMBERS`).
+        assert_eq!(
+            b.module_signature("_native.conc", "agent_busy"),
+            Some("ch, on, state=?")
+        );
+        assert!(b.modules["_native.conc"].contains(&"try_call".to_string()));
         assert_eq!(b.module_signature("_native.process", "nope"), None);
         assert_eq!(b.module_signature("_native.nope", "exec"), None);
     }

@@ -2,7 +2,9 @@
 //! stage 3a: `spawn`, `await`, `cancel`, `sleep`,
 //! `_native.conc.spawn_awaited`, `channel`, `send`, `recv` and `close`, on
 //! `crate::vm`'s tasks and blocking point, and `atom`, `swap` and `deref`
-//! (`crate::vm::atom`, removed in stage 3b). The parameter tables are Go's
+//! (`crate::vm::atom`, removed in stage 3b), and the Rust-only members of
+//! `_native.conc` agents are built from (`crate::vm::agent`, stage 3b).
+//! The parameter tables are Go's
 //! (`spec/builtins.txt`), so arity and named-argument errors, which the
 //! VM reports before the native runs, are the same as Go's.
 
@@ -14,9 +16,9 @@ use fung_front::diag::Arg;
 
 use crate::native::nat::{self, native, opt, param};
 use crate::value::{Lit, Module, Native, NativeFn, Value, format};
-use crate::vm::atom;
 use crate::vm::channel::{self, Channel, Received};
 use crate::vm::{Stop, Task, block, err_kind};
+use crate::vm::{agent, atom};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -40,6 +42,20 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("swap", vec![param("a"), param("f")]),
                 ("deref", vec![param("a")]),
                 ("spawn_awaited", vec![param("f")]),
+                // Rust only (stage 3b, `crate::vm::agent`): the members
+                // of `_native.conc` that `extras/agent.fung` uses.
+                ("spawn_background", vec![param("f")]),
+                ("agent_handle", vec![param("ch")]),
+                ("agent_channel", vec![param("a")]),
+                ("try_call", vec![param("f"), param("x")]),
+                ("raise", vec![param("e")]),
+                ("send_unchecked", vec![param("ch"), param("v")]),
+                (
+                    "agent_busy",
+                    vec![param("ch"), param("on"), opt("state", Lit::Nil)],
+                ),
+                ("in_agent", vec![param("a")]),
+                ("agent_state", vec![param("a")]),
             ];
             tables
                 .into_iter()
@@ -57,6 +73,15 @@ fn all() -> Vec<(&'static str, Value)> {
                         "atom" => atom::atom_fn,
                         "swap" => atom::swap_fn,
                         "deref" => atom::deref_fn,
+                        "spawn_background" => agent::spawn_background,
+                        "agent_handle" => agent::agent_handle,
+                        "agent_channel" => agent::agent_channel,
+                        "try_call" => agent::try_call,
+                        "raise" => agent::raise,
+                        "send_unchecked" => send_unchecked,
+                        "agent_busy" => agent::agent_busy,
+                        "in_agent" => agent::in_agent,
+                        "agent_state" => agent::agent_state,
                         _ => unreachable!("no native {name}"),
                     };
                     (name, native(name, f, params))
@@ -68,21 +93,38 @@ fn all() -> Vec<(&'static str, Value)> {
         .collect()
 }
 
-/// The prelude's concurrency natives, without `spawn_awaited` (which only
-/// `_native.conc` holds).
+/// The members of `_native.conc`: Go's `spawn_awaited`, then the Rust
+/// only ones (`fung_front::builtins` lists them as differences from the
+/// spec).
+const MODULE_ONLY: &[&str] = &[
+    "spawn_awaited",
+    "spawn_background",
+    "agent_handle",
+    "agent_channel",
+    "try_call",
+    "raise",
+    "send_unchecked",
+    "agent_busy",
+    "in_agent",
+    "agent_state",
+];
+
+/// The prelude's concurrency natives, without the members only
+/// `_native.conc` holds.
 pub fn natives() -> Vec<(&'static str, Value)> {
     all()
         .into_iter()
-        .filter(|(n, _)| *n != "spawn_awaited")
+        .filter(|(n, _)| !MODULE_ONLY.contains(n))
         .collect()
 }
 
 /// `_native.conc` (Go `vm.NativeModules()`): `spawn_awaited`, which
-/// `extras/prelude.fung` uses for `fan_in` and `pmap`.
+/// `extras/prelude.fung` uses for `fan_in` and `pmap`, and the helpers
+/// `extras/agent.fung` is built from (stage 3b, `crate::vm::agent`).
 pub fn module() -> Rc<Module> {
     let mut m = Module::new("conc", "_native.conc");
     for (name, v) in all() {
-        if name == "spawn_awaited" {
+        if MODULE_ONLY.contains(&name) {
             m.set(name, v);
         }
     }
@@ -200,8 +242,22 @@ fn need_channel(v: &Value) -> Result<&Rc<Channel>, Stop> {
 }
 
 /// `send(ch, v)` (Go `sendFn`): `Ok(nil)` once delivered,
-/// `Err({kind: 'closed})` on a closed channel.
-fn send(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+/// `Err({kind: 'closed})` on a closed channel. The check that a channel
+/// is not sent into itself (stage 3b Task 5) belongs here, before
+/// `deliver`, and only here.
+fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    deliver(t, args)
+}
+
+/// `_native.conc.send_unchecked(ch, v)` (stage 3b, Rust only): `send`
+/// without that check, for an agent's own requests, which are taken out
+/// of the channel at once and so leave no cycle behind.
+fn send_unchecked(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    deliver(t, args)
+}
+
+/// What `send` and `send_unchecked` share: the delivery itself.
+fn deliver(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let v = args.pop().expect("v");
     let ch = need_channel(&args[0])?;
     if channel::send(t, ch, v)? {

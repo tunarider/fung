@@ -21,6 +21,14 @@
 //! at every call and backward jump (`Task::tick`) and `block` checks it
 //! while waiting; a cancelled task unwinds with E0701, which its handle
 //! turns into `Err({kind: 'cancelled})`.
+//!
+//! **Background tasks** (stage 3b, `spawn_background`, Rust only) run the
+//! same way, on a thread of their own under the run token, but hang from
+//! the background root (`Shared::background`) instead of their spawner's
+//! node, are counted in `World::background` instead of `running` and
+//! `live`, never report a failure, and are cancelled after the exit
+//! handlers (`Runtime::end_background`). The deadlock check counts them
+//! apart (`deadlock.rs`).
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -298,6 +306,17 @@ pub(crate) fn err_kind(kind: &str) -> Value {
     nat::tag("Err", vec![Value::Map(Rc::new(m.finish()))])
 }
 
+/// What kind of task `spawn` starts.
+#[derive(Clone, Copy)]
+pub(crate) enum Kind {
+    /// A task of the program (`spawn`); `awaited` for `spawn_awaited`.
+    Normal { awaited: bool },
+    /// A background task (`spawn_background`, stage 3b): it does not keep
+    /// the program alive, its failure is never reported, and the deadlock
+    /// check counts it apart (`deadlock.rs`).
+    Background,
+}
+
 /// What a task's run becomes as its result (Go `finish`): the value, or
 /// `Err({kind: 'cancelled})` for a cancelled task (E0701), one woken by
 /// the deadlock report (E0702) or one that called `exit`, or
@@ -312,7 +331,7 @@ fn outcome(r: &Result<Value, Stop>) -> Value {
 }
 
 /// Cancelled, or woken by the deadlock report: not the task's failure.
-fn is_cancel(d: &Diag) -> bool {
+pub(super) fn is_cancel(d: &Diag) -> bool {
     d.code == "E0701" || d.code == "E0702"
 }
 
@@ -321,12 +340,25 @@ impl<'rt> Task<'rt> {
     /// (Go `spawn`). `awaited` marks a task a helper promises to await
     /// (`spawn_awaited`).
     pub(crate) fn spawn(&mut self, f: Value, awaited: bool) -> Result<Value, Stop> {
-        token::assert_holds_token();
         let node = self.cancel.child();
+        self.start(f, node, Kind::Normal { awaited })
+    }
+
+    /// Starts `f` on a background task (stage 3b, `agent.rs`) and returns
+    /// its handle. It hangs from the background root, not from this task:
+    /// it outlives the task that started it and the program's own end,
+    /// and is cancelled after the exit handlers (`Runtime::end_background`).
+    pub(crate) fn spawn_background(&mut self, f: Value) -> Result<Value, Stop> {
+        let node = self.shared.background.child();
+        self.start(f, node, Kind::Background)
+    }
+
+    fn start(&mut self, f: Value, node: Arc<CancelNode>, kind: Kind) -> Result<Value, Stop> {
+        token::assert_holds_token();
         let state = Rc::new(TaskState {
             result: RefCell::new(None),
             waiters: RefCell::new(WaitList::default()),
-            awaited,
+            awaited: matches!(kind, Kind::Normal { awaited: true }),
             failure: Cell::new(None),
             orphan: Cell::new(false),
         });
@@ -337,19 +369,17 @@ impl<'rt> Task<'rt> {
         });
         let cargo = Handoff(Some((f, state)));
         let shared = Arc::clone(self.shared);
-        self.world.running += 1;
-        // Live from now (Go `addLive` before the goroutine starts): a
+        // Counted from now (Go `addLive` before the goroutine starts): a
         // task whose thread has not taken the token yet will still run.
-        self.world.live += 1;
+        self.world.count(kind, true);
         let started = std::thread::Builder::new()
             .name("fung-task".into())
             .stack_size(TASK_STACK)
-            .spawn(move || run_spawned(shared, node, cargo));
+            .spawn(move || run_spawned(shared, node, cargo, kind));
         if let Err(e) = started {
             // The closure, and the values in it, were dropped here, on
             // this thread, with the token held.
-            self.world.running -= 1;
-            self.world.live -= 1;
+            self.world.count(kind, false);
             return Err(internal(vec![Arg::Str(format!(
                 "cannot start a task: {e}"
             ))]));
@@ -381,9 +411,10 @@ impl<'rt> Task<'rt> {
 /// order). A panic that escapes the panic fence here is a bug in this
 /// file; the values would then be dropped in an unknown state, so the
 /// process stops instead.
-fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff) {
+fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff, kind: Kind) {
+    let background = matches!(kind, Kind::Background);
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut t = Task::spawned(&shared, node.clone());
+        let mut t = Task::spawned(&shared, node.clone(), background);
         token::assert_holds_token();
         let (f, state) = cargo.open(&t);
         let r = t.call(&f, Vec::new());
@@ -392,6 +423,7 @@ fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff) {
         if let Err(Stop::Error(d)) = &r
             && !is_cancel(d)
             && !state.awaited
+            && !background
         {
             // Go `finish`: a failure someone must see (`failure.rs`).
             let text = format!("task failed: {}", diag::format(d, &t.world.sources));
@@ -407,13 +439,15 @@ fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff) {
         // Go `defer child.cancel()`: what this task spawned and left
         // running ends with it.
         node.cancel();
-        t.world.running -= 1;
-        if t.world.running == 0 {
-            t.world.idle.wake_all();
+        if !background {
+            t.world.running -= 1;
+            if t.world.running == 0 {
+                t.world.idle.wake_all();
+            }
         }
         token::assert_holds_token();
-        // Dropping the task empties its stack and frames, then gives the
-        // token up.
+        // Dropping the task empties its stack and frames, uncounts a
+        // background task, then gives the token up.
         drop(t);
     }));
     if r.is_err() {

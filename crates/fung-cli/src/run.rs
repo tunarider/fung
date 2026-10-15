@@ -1,7 +1,7 @@
 //! `fung run`, `fung <script.fung>` and `fung -e` (Go `cmd/fung/main.go`
 //! `runFile` and `cmd/fung/pipeline.go` `execute`): compile the entry
 //! with its import graph, boot the prelude, run, then the exit handlers,
-//! then the exit code.
+//! then the background tasks' end (stage 3b), then the exit code.
 
 use std::io::Write;
 
@@ -128,8 +128,12 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
             code = EXIT_RUNTIME.into();
         }
     }
-    // The program is over: report every task failure nobody retrieved,
-    // handlers included, since a handler may still await a task (05).
+    // The handlers are done: cancel the background tasks (stage 3b; an
+    // agent serves the handlers too) and wait for them. Then the program
+    // is over: report every task failure nobody retrieved, handlers
+    // included, since a handler may still await a task (05). A
+    // background task's failure is never among them.
+    rt.end_background();
     rt.wait();
     rt.report_unretrieved();
     match (before, rt.exit_code()) {

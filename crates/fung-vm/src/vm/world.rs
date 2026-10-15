@@ -36,7 +36,7 @@ use super::block::{Census, WaitList, Waiter};
 use super::failure::Failures;
 use super::module::ModuleState;
 use super::stdin::Stdin;
-use super::task::CancelNode;
+use super::task::{CancelNode, Kind};
 use super::{Globals, Prelude, RtProto, TestCase, token};
 use crate::value::Value;
 
@@ -75,6 +75,12 @@ pub(crate) struct World {
     /// and the prelude's boot; not `Runtime::wait`'s observer. The
     /// deadlock check (`deadlock.rs`) compares it with `Census::blocked`.
     pub(super) live: usize,
+    /// Background tasks that have not finished (stage 3b): spawned by
+    /// `spawn_background`, counted from the spawn until their `Task`
+    /// drops. Not in `running` or `live`; the deadlock check counts them
+    /// apart (`deadlock.rs`), and `idle` is woken when this drops to 0
+    /// too (`Runtime::end_background`).
+    pub(super) background: usize,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
     /// The cancellation node of the exit handler running now: a deadlock
@@ -127,6 +133,7 @@ impl World {
             running: 0,
             idle: WaitList::default(),
             live: 0,
+            background: 0,
             deadlocked: false,
             handler: None,
         }
@@ -158,6 +165,24 @@ impl World {
         let g = Rc::new(RefCell::new(vec![None; n]));
         self.globals.push(g.clone());
         g
+    }
+
+    /// Counts a task being spawned (`up`) or one whose spawn failed: a
+    /// normal task is running and live, a background task is counted
+    /// apart.
+    pub(super) fn count(&mut self, kind: Kind, up: bool) {
+        match (kind, up) {
+            (Kind::Normal { .. }, true) => {
+                self.running += 1;
+                self.live += 1;
+            }
+            (Kind::Normal { .. }, false) => {
+                self.running -= 1;
+                self.live -= 1;
+            }
+            (Kind::Background, true) => self.background += 1,
+            (Kind::Background, false) => self.background -= 1,
+        }
     }
 
     pub(super) fn request_exit(&mut self, code: i64) {
@@ -239,6 +264,11 @@ pub(crate) struct Shared {
     /// Exit handlers run under this node, not the root: the root is
     /// cancelled by then (Go `handlerContext`).
     pub(super) handlers: Arc<CancelNode>,
+    /// Background tasks (stage 3b) hang from this node, apart from the
+    /// program's root: an exit or an entry error cancels the program,
+    /// and the background tasks are cancelled only after the exit
+    /// handlers (`Runtime::end_background`).
+    pub(super) background: Arc<CancelNode>,
 }
 
 impl Shared {
@@ -253,6 +283,7 @@ impl Shared {
             gate: Gate::default(),
             root: CancelNode::root(),
             handlers: CancelNode::root(),
+            background: CancelNode::root(),
         }
     }
 

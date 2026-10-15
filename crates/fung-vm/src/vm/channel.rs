@@ -48,6 +48,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use super::agent::Serving;
 use super::block::{Waiter, block_until, deadline_after};
 use super::{CancelNode, Stop, Task, token};
 use crate::value::{Value, drop_children, keep};
@@ -67,6 +68,9 @@ struct Inner {
     /// Blocked receivers, oldest first; each slot is empty.
     receivers: VecDeque<Rc<Slot>>,
     closed: bool,
+    /// For an agent's request channel (stage 3b, `agent.rs`): the task
+    /// serving a request right now and its state.
+    serving: Option<Serving>,
 }
 
 /// One blocked `send` or `recv`: the value in transit, whether the other
@@ -122,6 +126,7 @@ impl Channel {
                 senders: VecDeque::new(),
                 receivers: VecDeque::new(),
                 closed: false,
+                serving: None,
             }),
         }
     }
@@ -187,6 +192,21 @@ impl Channel {
         }
     }
 
+    /// Records the task serving a request on this agent channel (or none)
+    /// and returns the previous record, for the caller to drop once the
+    /// borrow has ended.
+    pub(crate) fn set_serving(&self, s: Option<Serving>) -> Option<Serving> {
+        std::mem::replace(&mut self.inner.borrow_mut().serving, s)
+    }
+
+    /// The state the task with waiter `w` serves a request on this
+    /// channel with, if it is the serving task.
+    pub(crate) fn serving_state(&self, w: &Arc<Waiter>) -> Option<Value> {
+        let c = self.inner.borrow();
+        let s = c.serving.as_ref()?;
+        Arc::ptr_eq(&s.waiter, w).then(|| s.state.clone())
+    }
+
     /// How many blocked sends and receives wait in the queues (tests:
     /// a test waits for a task to be blocked instead of sleeping and
     /// hoping it is).
@@ -201,6 +221,9 @@ impl Channel {
         let c = self.inner.get_mut();
         for v in std::mem::take(&mut c.buf) {
             keep(stack, v);
+        }
+        if let Some(s) = c.serving.take() {
+            keep(stack, s.state);
         }
         for s in std::mem::take(&mut c.senders)
             .into_iter()

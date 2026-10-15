@@ -8,6 +8,9 @@
 //! other read of an empty slot is a VM bug and panics, which the panic
 //! fence turns into E0801 like Go's recovered nil dereference.
 
+pub(crate) mod agent;
+#[cfg(test)]
+mod agent_tests;
 pub(crate) mod atom;
 #[cfg(test)]
 mod atom_tests;
@@ -57,6 +60,7 @@ use fung_front::source::{FileId, Pos, decode_go};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
+pub use agent::{Agent, Caught};
 pub use atom::Atom;
 pub(crate) use block::{YIELD_EVERY, block, outside};
 pub use call::MAX_FRAMES;
@@ -141,8 +145,12 @@ pub struct Task<'rt> {
     budget: u32,
     /// What wakes this task when it blocks (`block.rs`).
     waiter: Arc<block::Waiter>,
-    /// Counted in `World::live` (every task but `Runtime::wait`'s).
+    /// Counted in `World::live` (every task but `Runtime::wait`'s and the
+    /// background tasks).
     live: bool,
+    /// A background task (stage 3b): counted in `World::background`
+    /// instead, and blocked apart in the census (`deadlock.rs`).
+    background: bool,
     /// The shared part's owner, for spawning tasks on other threads.
     shared: &'rt Arc<Shared>,
     /// The run token, and through it the shared part. Keep it last.
@@ -159,11 +167,20 @@ impl<'rt> Task<'rt> {
         t
     }
 
-    /// A spawned task on its own thread: its parent counted it live
-    /// when it spawned it (`task.rs`).
-    pub(crate) fn spawned(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
+    /// A spawned task on its own thread: its parent counted it live (or
+    /// background) when it spawned it (`task.rs`).
+    pub(crate) fn spawned(
+        shared: &'rt Arc<Shared>,
+        cancel: Arc<CancelNode>,
+        background: bool,
+    ) -> Task<'rt> {
         let mut t = Task::unlisted(shared, cancel);
-        t.live = true;
+        if background {
+            t.background = true;
+            t.waiter = block::Waiter::background(shared.census.clone());
+        } else {
+            t.live = true;
+        }
         t
     }
 
@@ -181,6 +198,7 @@ impl<'rt> Task<'rt> {
             budget: YIELD_EVERY,
             waiter: block::Waiter::new(shared.census.clone()),
             live: false,
+            background: false,
             shared,
             world,
         }
@@ -216,6 +234,12 @@ impl<'rt> Task<'rt> {
             }
         };
         Ok(line.map(|b| decode_go(&b)))
+    }
+
+    /// How many background tasks have not finished (a test probe).
+    #[cfg(test)]
+    pub(crate) fn background_tasks(&self) -> usize {
+        self.world.background
     }
 
     /// How many tasks wait for a line of standard input (a test probe).
@@ -670,6 +694,15 @@ impl Drop for Task<'_> {
         // (`deadlock.rs`).
         if self.live {
             self.world.live -= 1;
+            self.judge();
+        }
+        // A background task ending can leave the program's tasks blocked
+        // with nothing left to wake them (`deadlock.rs`).
+        if self.background {
+            self.world.background -= 1;
+            if self.world.background == 0 {
+                self.world.idle.wake_all();
+            }
             self.judge();
         }
     }
