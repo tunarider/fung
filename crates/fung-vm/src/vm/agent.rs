@@ -10,6 +10,9 @@
 //!   and its failure is never reported as unretrieved.
 //! - `agent_handle(ch)`: the handle (`Value::Agent`) over the request
 //!   channel `ch`; `agent_channel(a)` gives `ch` back.
+//! - `swap_channel(a, f)`: `ch` for a `swap` request, after checking the
+//!   arguments as a native would (E0403) and that the current task is
+//!   not serving a request of `a` (E0704, `swap` inside its own `f`).
 //! - `try_call(f, x)`: `Ok(f(x))`, or `Err(e)` where `e` is the caught
 //!   error as an opaque value (`Value::Caught`). Cancellation (E0701,
 //!   E0702) and `exit` are not caught.
@@ -142,6 +145,19 @@ pub(crate) fn agent_handle(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, 
 /// `agent_channel(a)`: the handle's request channel.
 pub(crate) fn agent_channel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Channel(need_agent(&args[0])?.channel().clone()))
+}
+
+/// `swap_channel(a, f)`: the request channel for `swap(a, f)`. E0403 when
+/// `a` is not an agent or `f` not a function (the order of Go's atom
+/// `swap`); E0704 when the current task is serving a request of `a`,
+/// that is, inside `a`'s own `f` (it would wait for itself).
+pub(crate) fn swap_channel(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let a = need_agent(&args[0])?;
+    nat::need_fn("f", &args[1])?;
+    if serving_state(t, a).is_some() {
+        return Err(nat::fail("E0704", Vec::new()));
+    }
+    Ok(Value::Channel(a.channel().clone()))
 }
 
 /// `try_call(f, x)`: `Ok(f(x))` or `Err(<error>)`. Only fung errors are

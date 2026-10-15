@@ -112,18 +112,32 @@ fn an_exit_from_a_task_cancels_every_task() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
-/// The case from the Task 5 review: a task holding an atom exits while
-/// the entry waits for the atom. The swap the task was in never commits,
-/// the entry's swap never runs, and the handler sees the atom as it was
-/// (Go: `ae 1`, exit code 4).
+/// Stage 3b replaced atoms with agents. An exit while an agent runs an
+/// `f`: the agent (a background task) is not cancelled before the exit
+/// handlers, so the update it had taken commits and a handler sees it.
 #[test]
-fn an_exit_while_holding_an_atom_commits_nothing() {
+fn an_exit_while_an_agent_runs_f_lets_the_update_commit() {
     let (out, err, code) = within(10, || {
         run(
-            "a = atom(1)\nch = channel()\nat_exit(() => print(\"ae\", swap(a, x => x)))\nspawn(() => swap(a, fn(x): send(ch, 1); sleep(30ms); exit(4) ;;))\nrecv(ch)\nprint(swap(a, x => x + 100))",
+            "a = agent(1)\nch = channel()\nat_exit(() => print(\"ae\", deref(a)))\nspawn(() => swap(a, fn(x): send(ch, 1); sleep(30ms); x + 1 ;;))\nrecv(ch)\nexit(4)",
         )
     });
-    assert_eq!((out.as_str(), err.as_str(), code), ("ae 1\n", "", 4));
+    assert_eq!((out.as_str(), err.as_str(), code), ("ae 2\n", "", 4));
+}
+
+/// An exit inside an agent's own `f` ends the agent's task with the
+/// program (`try_call` does not catch an exit), so nothing serves the
+/// agent any more: a handler that asks it waits for good, which the
+/// deadlock check reports (the exit code stays the exit's).
+#[test]
+fn an_exit_inside_an_agents_f_ends_the_agent() {
+    let (out, err, code) = within(10, || {
+        run("a = agent(1)\nat_exit(() => print(\"ae\", deref(a)))\nswap(a, x => exit(4))")
+    });
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("", "error[E0702]: deadlock: all tasks are waiting\n", 4)
+    );
 }
 
 /// An exit inside a lambda a native calls (`each`) unwinds through the

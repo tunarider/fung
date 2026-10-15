@@ -294,7 +294,7 @@ fn golden_files_meet_their_expectations() {
         failures.len(),
         failures.join("\n")
     );
-    // The check cannot pass by checking nothing: one below the 127 files
-    // checked when this was written; raise it as files are added.
-    assert!(checked >= 126, "only {checked} golden files were checked");
+    // The check cannot pass by checking nothing: one below the 128 files
+    // checked after stage 3b's agent files; raise it as files are added.
+    assert!(checked >= 127, "only {checked} golden files were checked");
 }

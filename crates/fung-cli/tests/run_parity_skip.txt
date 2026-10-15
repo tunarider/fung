@@ -5,7 +5,6 @@
 err_json_stringify.fung native-module
 err_regex.fung native-module
 fs_and_path.fung native-module
-http_serve.fung native-module
 json.fung native-module
 keyword_names.fung native-module
 regex.fung native-module

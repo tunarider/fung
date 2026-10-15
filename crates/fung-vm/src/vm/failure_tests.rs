@@ -482,7 +482,7 @@ fn an_entry_error_beside_a_blocked_task_is_not_a_deadlock() {
 fn an_entry_error_beside_a_task_about_to_block_is_not_a_deadlock() {
     let o = within(10, || {
         exec_waiting(
-            "a = atom(false)\nready = channel(1)\nspawn(fn(): send(ready, nil); until(() => deref(a)); recv(channel()) ;;)\nrecv(ready)\nswap(a, _ => true)\nhold(5)\nfail(\"real error\")",
+            "go = channel(1)\nready = channel(1)\nspawn(fn(): send(ready, nil); until(() => is_ok(recv(go, timeout: 0s))); recv(channel()) ;;)\nrecv(ready)\nsend(go, true)\nhold(5)\nfail(\"real error\")",
         )
     });
     assert!(o.err.starts_with("error[E0803]: real error\n"), "{}", o.err);

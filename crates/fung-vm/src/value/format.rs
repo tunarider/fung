@@ -51,7 +51,6 @@ pub fn format(v: &Value) -> String {
         Value::Module(m) => format!("<module {}>", m.name),
         Value::Task(_) => "<task>".into(),
         Value::Channel(_) => "<channel>".into(),
-        Value::Atom(a) => a.display(),
         Value::Agent(_) => "<agent>".into(),
         Value::Caught(_) => "<error>".into(),
     }
@@ -98,7 +97,6 @@ pub fn type_name(v: &Value) -> String {
         Value::Module(_) => "module".into(),
         Value::Task(_) => "task".into(),
         Value::Channel(_) => "channel".into(),
-        Value::Atom(_) => "atom".into(),
         Value::Agent(_) => "agent".into(),
         Value::Caught(_) => "error".into(),
     }

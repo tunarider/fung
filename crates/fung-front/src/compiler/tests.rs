@@ -528,14 +528,7 @@ fn bytecode(src: &str) -> String {
     let mut sm = SourceMap::new();
     let f = sm.add("-e", src);
     let (toks, _) = lex(f, src).unwrap();
-    let b = builtins();
-    let mut names: Vec<String> = b
-        .prelude_native
-        .iter()
-        .chain(&b.prelude_fung)
-        .cloned()
-        .collect();
-    names.sort();
+    let names = builtins().prelude_names();
     let r = resolve(
         &desugar(&parse(&toks).unwrap()).unwrap(),
         &names,

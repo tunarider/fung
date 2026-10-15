@@ -96,13 +96,8 @@ impl Loader {
     /// a stage. Syntax errors stop at the first; name errors are all
     /// collected (08).
     pub fn compile(&self, file: &str, src: &str, up_to: Stage) -> (Build, Vec<Diag>) {
-        let mut prelude: Vec<String> = builtins()
-            .prelude_native
-            .iter()
-            .chain(builtins().prelude_fung.iter())
-            .chain(self.extra_prelude.iter())
-            .cloned()
-            .collect();
+        let mut prelude: Vec<String> = builtins().prelude_names();
+        prelude.extend(self.extra_prelude.iter().cloned());
         prelude.sort();
         prelude.dedup();
         let key = if file == "-e" {
@@ -778,6 +773,22 @@ mod tests {
         let mut spec = crate::builtins::builtins().prelude_fung.clone();
         spec.sort();
         assert_eq!(exports, spec);
+    }
+
+    /// `extras/agent.fung` (read only by the Rust boot) compiles as an
+    /// embedded file and exports exactly the agent names of the Rust
+    /// difference list (`builtins.rs`).
+    #[test]
+    fn agent_fung_exports_match_the_list() {
+        let loader = Loader {
+            internal: true,
+            ..Loader::default()
+        };
+        let (b, errs) = loader.compile("extras/agent.fung", crate::extras::AGENT, Stage::All);
+        assert!(errs.is_empty(), "{errs:?}");
+        let mut exports = b.proto.unwrap().exports;
+        exports.sort();
+        assert_eq!(exports, crate::builtins::builtins().prelude_agent);
     }
 
     #[test]

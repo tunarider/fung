@@ -54,10 +54,13 @@ fn a_blocked_normal_task_is_still_a_deadlock_beside_a_background_one() {
     assert_eq!(o.exit, 1);
 }
 
+/// The handler waits for the background task's answer: once the
+/// handlers end, the background task is cancelled, so without the
+/// answer it could be cancelled between its `recv` and its `print`.
 #[test]
 fn background_tasks_outlive_exit_handlers() {
     let o = exec_plain(
-        "import _native.conc as c\nch = channel()\nc.spawn_background(fn(): x = recv(ch)!; print(\"bg got\", x) ;;)\nat_exit(() => send(ch, 7))",
+        "import _native.conc as c\nch = channel()\ndone = channel()\nc.spawn_background(fn(): x = recv(ch)!; print(\"bg got\", x); send(done, 1) ;;)\nat_exit(fn(): send(ch, 7); recv(done) ;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -449,4 +452,189 @@ fn a_failure_of_a_background_tasks_subtask_is_reported() {
     assert_eq!(o.out, "end\n");
     assert!(o.err.contains("task failed: error[E0502]"), "{}", o.err);
     assert_eq!(o.exit, 1);
+}
+
+// --- agents: `agent`, `swap` and `deref` (`extras/agent.fung`, Task 4) ---
+
+/// Runs user code (not internal) with the probes and `until`, on a
+/// thread bounded by `LIMIT`.
+fn bounded_user(src: &str) -> Outcome {
+    let src = src.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(crate::testutil::exec_waiting(&src));
+    });
+    rx.recv_timeout(LIMIT)
+        .unwrap_or_else(|_| panic!("the program did not end within {LIMIT:?}"))
+}
+
+/// An error in `f` is raised again at the user's `swap(`, with its code
+/// and message; the agent's task (its loop, `f`) is not in the call
+/// path, only the `swap` the user called and the user's frames.
+#[test]
+fn an_error_in_f_is_raised_at_the_users_swap() {
+    let o = bounded_user("a = agent(1)\nprint(2)\ng = x => [swap(a, y => y / 0)]\nx = g(1)");
+    let e = o.error.expect("an error");
+    assert_eq!(
+        (e.headline.as_str(), e.line, e.col),
+        ("error[E0502]: division by zero", 3 + 2, 15),
+    );
+    let path: Vec<(&str, &str)> = e
+        .path
+        .iter()
+        .map(|c| (c.file.as_str(), c.func.as_str()))
+        .collect();
+    assert_eq!(
+        path,
+        [
+            ("extras/agent.fung", "swap"),
+            ("-e", "<lambda>"),
+            ("-e", "<main>")
+        ]
+    );
+    assert_eq!(o.exit, 1);
+}
+
+/// The state is kept when `f` fails, and the agent serves on.
+#[test]
+fn a_failing_f_leaves_the_state() {
+    let o = bounded_user(
+        "a = agent(5)\nt = spawn(() => swap(a, x => fail(\"no\")))\nprint(await(t) |> is_err, swap(a, x => x + 1), deref(a))",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("true 6 6\n", "", 0)
+    );
+}
+
+/// `swap` and `deref` check their agent like a native does: E0403 at the
+/// call's `(`.
+#[test]
+fn swap_and_deref_reject_what_is_not_an_agent() {
+    for (src, headline, col) in [
+        (
+            "print(1)\nderef(1)",
+            "error[E0403]: argument `a` must be agent, got int",
+            6,
+        ),
+        (
+            "print(1)\nswap(1, x => x)",
+            "error[E0403]: argument `a` must be agent, got int",
+            5,
+        ),
+        (
+            "print(1)\nswap(agent(1), 1)",
+            "error[E0403]: argument `f` must be fn, got int",
+            5,
+        ),
+    ] {
+        let o = bounded_user(src);
+        let e = o.error.unwrap_or_else(|| panic!("{src}: no error"));
+        assert_eq!(
+            (e.headline.as_str(), e.line, e.col),
+            (headline, 2 + 2, col),
+            "{src}"
+        );
+    }
+}
+
+/// `swap` on the same agent inside its own `f` is E0704, raised at the
+/// outer `swap(`.
+#[test]
+fn swap_inside_its_own_f_is_e0704() {
+    let o = bounded_user("a = agent(0)\nswap(a, x => swap(a, y => y))");
+    let e = o.error.expect("an error");
+    assert_eq!(
+        (e.headline.as_str(), e.line, e.col),
+        (
+            "error[E0704]: agent called from inside its own swap",
+            2 + 2,
+            5
+        )
+    );
+    // Another agent inside `f` is fine.
+    let o = bounded_user(
+        "a = agent(1)\nb = agent(10)\nprint(swap(a, x => swap(b, y => y + x)), deref(a), deref(b))",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("11 11 11\n", "", 0)
+    );
+    // But `deref(a)` inside `b`'s `f`, inside `a`'s: `b`'s task is not
+    // `a`'s, so it asks `a`, which waits for `b`. A real deadlock.
+    let o = bounded_user("a = agent(1)\nb = agent(10)\nswap(a, x => swap(b, y => y + deref(a)))");
+    assert!(o.err.starts_with("error[E0702]: deadlock"), "{}", o.err);
+}
+
+/// An agent whose handles are all gone ends while the program runs.
+#[test]
+fn an_agent_whose_handles_are_dropped_ends_mid_run() {
+    let o = bounded_user(
+        "a = agent(1)\nprint(swap(a, x => x + 1), background())\na = nil\nuntil(() => background() == 0)\nprint(background())",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("2 1\n0\n", "", 0)
+    );
+}
+
+/// An agent at a module's top level: the program ends on its own (no
+/// E0702, no hang), and an exit handler can still ask the agent.
+#[test]
+fn a_module_level_agent_ends_cleanly_and_serves_exit_handlers() {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let o = crate::testutil::run_files(
+            &[
+                (
+                    "/p/lib.fung",
+                    "counter = agent(0)\nbump = () => swap(counter, n => n + 1)\n",
+                ),
+                (
+                    "/p/main.fung",
+                    "import \"./lib\"\nlib.bump()\nat_exit(() => print(\"at exit\", deref(lib.counter)))\nprint(lib.bump())",
+                ),
+            ],
+            "/p/main.fung",
+        );
+        let _ = tx.send(o);
+    });
+    let o = rx.recv_timeout(LIMIT).expect("the program ended");
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("2\nat exit 2\n", "", 0)
+    );
+}
+
+/// `f` may spawn tasks (here through `pmap`); they run as the agent's
+/// background subtasks.
+#[test]
+fn f_may_spawn_tasks() {
+    let o =
+        bounded_user("a = agent([1, 2, 3])\nprint(swap(a, xs => pmap(xs, x => x * 10)), deref(a))");
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("[10, 20, 30] [10, 20, 30]\n", "", 0)
+    );
+}
+
+/// An `f` that holds its own agent is sent as a request without the
+/// check that a channel is not sent into itself (`send_unchecked`).
+#[test]
+fn f_may_hold_its_own_agent() {
+    let o = bounded_user("a = agent(1)\nprint(swap(a, x => x + len([a])), deref(a))");
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("2 2\n", "", 0));
+}
+
+/// The agent's loop is a tail call: it serves more requests than a task
+/// has frames (`MAX_FRAMES`). Not time-bounded (it takes seconds in a
+/// loaded debug build): a loop that ran out of frames would end the
+/// agent, and the waiting entry would be reported as a deadlock.
+#[test]
+fn an_agent_serves_more_requests_than_the_frame_limit() {
+    let n = crate::vm::MAX_FRAMES + 1;
+    let o = crate::testutil::exec_waiting(&format!(
+        "a = agent(0)\neach(0..{n}, _ => deref(a))\nprint(swap(a, x => x + 1))"
+    ));
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("1\n", "", 0));
 }

@@ -19,7 +19,7 @@ mod types;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::vm::{Agent, Atom, Caught, Channel, RtProto, Stop, Task, TaskHandle};
+use crate::vm::{Agent, Caught, Channel, RtProto, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
@@ -53,8 +53,6 @@ pub enum Value {
     Task(Rc<TaskHandle>),
     /// A channel (05, `channel`).
     Channel(Rc<Channel>),
-    /// An atom (05, `atom`; removed in stage 3b).
-    Atom(Rc<Atom>),
     /// An agent's handle (stage 3b, Rust only): it closes the agent's
     /// request channel when its last copy drops (`vm/agent.rs`).
     Agent(Rc<Agent>),

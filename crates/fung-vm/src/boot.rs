@@ -1,7 +1,8 @@
 //! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
 //! prelude만 시작 시): the core natives, the concurrency natives,
 //! the `_native.conc` and `_native.process` bridges, and the public names
-//! of `extras/prelude.fung`, compiled and run on the runtime at startup.
+//! of `extras/prelude.fung` and (Rust only, stage 3b) `extras/agent.fung`,
+//! compiled and run on the runtime at startup.
 //!
 //! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
 //! the program and the prelude are compiled separately, so both start at
@@ -30,12 +31,17 @@ mod tests;
 /// The name prelude.fung positions show (Go `bootPrelude`).
 const PRELUDE_FILE: &str = "extras/prelude.fung";
 
+/// The name agent.fung positions show, and the module key it runs as (a
+/// key no `import` can name: the loader does not know the file).
+const AGENT_FILE: &str = "extras/agent.fung";
+const AGENT_KEY: &str = "<agent>";
+
 /// Builds the prelude on the task's runtime and returns it; the program is
 /// linked against it (`Runtime::boot` keeps it in the world). `args`
 /// become the prelude's `args` and the runtime's. Everything here runs
 /// with the task's run token held.
 ///
-/// The errors are prelude.fung's compile errors or the error of its body,
+/// The errors are the files' compile errors or the error of a body,
 /// with positions in the runtime's sources. Booting the embedded file does
 /// not fail in practice; a runtime whose boot failed should not be reused
 /// (a module whose body failed stays "loading", like Go).
@@ -55,11 +61,28 @@ pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<D
     let Some(src) = extras::source("prelude") else {
         return Ok(p);
     };
+    boot_file(t, &mut p, PRELUDE_FILE, "prelude", src)?;
+    // Stage 3b, Rust only: `agent`, `swap` and `deref`, written in fung
+    // over the prelude (`fung_front::builtins` lists the difference).
+    boot_file(t, &mut p, AGENT_FILE, AGENT_KEY, extras::AGENT)?;
+    Ok(p)
+}
+
+/// Compiles an embedded prelude file (`internal`, so it may import
+/// `_native.*`), runs it as the module `key` and adds its public names
+/// to `p`; its code links against the names `p` has so far.
+fn boot_file(
+    t: &mut Task<'_>,
+    p: &mut Prelude,
+    file: &str,
+    key: &str,
+    src: &str,
+) -> Result<(), Vec<Diag>> {
     let loader = Loader {
         internal: true,
         ..Loader::default()
     };
-    let (b, errs) = loader.compile(PRELUDE_FILE, src, Stage::All);
+    let (b, errs) = loader.compile(file, src, Stage::All);
     let base = t.world().add_sources(&b.sources);
     if !errs.is_empty() {
         return Err(errs
@@ -70,34 +93,32 @@ pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<D
             })
             .collect());
     }
-    // Go `register`: the bridges prelude.fung imports, then its modules.
+    // Go `register`: the bridges the file imports, then its modules.
     for m in b.modules {
         match m.proto {
             Some(mut proto) => {
                 shift_files(&mut proto, base);
-                t.world().register_module(&m.key, link(&proto, &p));
+                t.world().register_module(&m.key, link(&proto, p));
             }
             None => match native_module(&m.key) {
                 Some(module) => t.world().register_native(&m.key, module),
                 None => {
                     return Err(vec![internal(format!(
-                        "no native module `{}` for the prelude",
+                        "no native module `{}` for {file}",
                         m.key
                     ))]);
                 }
             },
         }
     }
-    let mut entry = b.proto.expect("a compiled prelude");
+    let mut entry = b.proto.expect("a compiled prelude file");
     shift_files(&mut entry, base);
-    t.world().register_module("prelude", link(&entry, &p));
-    let m = match t.import_module("prelude") {
+    t.world().register_module(key, link(&entry, p));
+    let m = match t.import_module(key) {
         Ok(m) => m,
         Err(Stop::Error(d)) => return Err(vec![*d]),
         Err(Stop::Exit(n)) => {
-            return Err(vec![internal(format!(
-                "exit({n}) while booting the prelude"
-            ))]);
+            return Err(vec![internal(format!("exit({n}) while booting {file}"))]);
         }
     };
     for name in m.names() {
@@ -105,7 +126,7 @@ pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<D
             p.0.insert(name.to_string(), v.clone());
         }
     }
-    Ok(p)
+    Ok(())
 }
 
 /// The Rust-built `_native.*` modules (Go `vm.NativeModules()` and

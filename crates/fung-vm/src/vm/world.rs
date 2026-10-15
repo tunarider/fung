@@ -77,9 +77,9 @@ pub(crate) struct World {
     pub(super) live: usize,
     /// Background tasks that have not finished (stage 3b): spawned by
     /// `spawn_background` or by another background task, counted from
-    /// the spawn until their `Task` drops. Not in `running` or `live`; the deadlock check counts them
-    /// apart (`deadlock.rs`), and `idle` is woken when this drops to 0
-    /// too (`Runtime::end_background`).
+    /// the spawn until their `Task` drops. Not in `running` or `live`;
+    /// the deadlock check counts them apart (`deadlock.rs`), and `idle`
+    /// is woken when this drops to 0 too (`Runtime::end_background`).
     pub(super) background: usize,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,

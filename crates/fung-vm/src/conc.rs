@@ -1,10 +1,11 @@
 //! The concurrency natives (05; Go `vm.Concurrency()`), all real since
 //! stage 3a: `spawn`, `await`, `cancel`, `sleep`,
 //! `_native.conc.spawn_awaited`, `channel`, `send`, `recv` and `close`, on
-//! `crate::vm`'s tasks and blocking point, and `atom`, `swap` and `deref`
-//! (`crate::vm::atom`, removed in stage 3b), and the Rust-only members of
+//! `crate::vm`'s tasks and blocking point, and the Rust-only members of
 //! `_native.conc` agents are built from (`crate::vm::agent`, stage 3b).
-//! The parameter tables are Go's
+//! Go's `atom`, `swap` and `deref` are not here: stage 3b replaced atoms
+//! with agents, whose `agent`, `swap` and `deref` are fung
+//! (`extras/agent.fung`). The parameter tables are Go's
 //! (`spec/builtins.txt`), so arity and named-argument errors, which the
 //! VM reports before the native runs, are the same as Go's.
 
@@ -16,16 +17,16 @@ use fung_front::diag::Arg;
 
 use crate::native::nat::{self, native, opt, param};
 use crate::value::{Lit, Module, Native, NativeFn, Value, format};
+use crate::vm::agent;
 use crate::vm::channel::{self, Channel, Received};
 use crate::vm::{Stop, Task, block, err_kind};
-use crate::vm::{agent, atom};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
 /// The prelude's concurrency natives (Go `vm.Concurrency()`): `spawn`
-/// `await` `cancel` `channel` `send` `recv` `close` `sleep` `atom` `swap`
-/// `deref`, and `_native.conc.spawn_awaited` last.
+/// `await` `cancel` `channel` `send` `recv` `close` `sleep`, then the
+/// members only `_native.conc` holds.
 fn all() -> Vec<(&'static str, Value)> {
     NATIVES
         .get_or_init(|| {
@@ -38,15 +39,13 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("send", vec![param("ch"), param("v")]),
                 ("recv", vec![param("ch"), opt("timeout", Lit::Nil)]),
                 ("close", vec![param("ch")]),
-                ("atom", vec![param("v")]),
-                ("swap", vec![param("a"), param("f")]),
-                ("deref", vec![param("a")]),
                 ("spawn_awaited", vec![param("f")]),
                 // Rust only (stage 3b, `crate::vm::agent`): the members
                 // of `_native.conc` that `extras/agent.fung` uses.
                 ("spawn_background", vec![param("f")]),
                 ("agent_handle", vec![param("ch")]),
                 ("agent_channel", vec![param("a")]),
+                ("swap_channel", vec![param("a"), param("f")]),
                 ("try_call", vec![param("f"), param("x")]),
                 ("raise", vec![param("e")]),
                 ("send_unchecked", vec![param("ch"), param("v")]),
@@ -70,12 +69,10 @@ fn all() -> Vec<(&'static str, Value)> {
                         "send" => send,
                         "recv" => recv,
                         "close" => close,
-                        "atom" => atom::atom_fn,
-                        "swap" => atom::swap_fn,
-                        "deref" => atom::deref_fn,
                         "spawn_background" => agent::spawn_background,
                         "agent_handle" => agent::agent_handle,
                         "agent_channel" => agent::agent_channel,
+                        "swap_channel" => agent::swap_channel,
                         "try_call" => agent::try_call,
                         "raise" => agent::raise,
                         "send_unchecked" => send_unchecked,
@@ -104,6 +101,7 @@ const MODULE_ONLY: &[&str] = &[
     "spawn_background",
     "agent_handle",
     "agent_channel",
+    "swap_channel",
     "try_call",
     "raise",
     "send_unchecked",

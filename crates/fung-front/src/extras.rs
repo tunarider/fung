@@ -17,6 +17,12 @@ pub fn source(name: &str) -> Option<&'static str> {
     })
 }
 
+/// `extras/agent.fung`: `agent`, `swap` and `deref` (stage 3b). Only
+/// the Rust boot reads it and adds its public names to the prelude; it
+/// is not a module a program can import (`source` does not know it), and
+/// the Go implementation, which keeps its atoms, never reads it.
+pub const AGENT: &str = include_str!("../../../extras/agent.fung");
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -29,6 +35,7 @@ mod tests {
             assert!(!source(name).unwrap().is_empty(), "{name}");
         }
         assert!(source("nope").is_none());
+        assert!(source("agent").is_none());
         assert!(
             source("prelude")
                 .unwrap()

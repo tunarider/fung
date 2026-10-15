@@ -1,0 +1,4 @@
+# only: go
+n = atom(0)
+print(retry(fn(): swap(n, x => x + 1) < 3 then Err('again) else Ok("done") ;;, times: 5), deref(n), retry(() => Err("never"), times: 2))
+# expect: Ok("done") 3 Err("never")

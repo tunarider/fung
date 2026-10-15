@@ -11,9 +11,6 @@
 pub(crate) mod agent;
 #[cfg(test)]
 mod agent_tests;
-pub(crate) mod atom;
-#[cfg(test)]
-mod atom_tests;
 mod block;
 mod call;
 pub(crate) mod channel;
@@ -61,7 +58,6 @@ use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
 pub use agent::{Agent, Caught};
-pub use atom::Atom;
 pub(crate) use block::{YIELD_EVERY, block, outside};
 pub use call::MAX_FRAMES;
 pub use channel::Channel;

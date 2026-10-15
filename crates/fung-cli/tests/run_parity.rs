@@ -56,11 +56,9 @@ const CONCURRENT: &[&str] = &[
     "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
     "ch = channel()\nt = spawn(() => each(1..=5, x => send(ch, x)))\ncancel(t)\nprint(await(t))",
     "print(channel(-1))",
-    // Atoms.
-    "a = atom(0)\nts = for _ in 0..4: spawn(() => each(0..25, _ => swap(a, x => x + 1))) ;;\neach(ts, await)\nprint(deref(a), a, type_of(a))",
-    "a = atom(1)\nprint(swap(a, fn(x): print(deref(a), a); x + 1 ;;))",
-    "a = atom(0)\nswap(a, x => swap(a, y => y))",
-    "deref(1)",
+    // No atoms: stage 3b replaced them with agents in Rust only, so they
+    // cannot be compared (Go's golden files keep testing its atoms;
+    // `tests/lang/agents.fung` and `vm/agent_tests.rs` test agents).
     // Exit rules: an exit from any task cancels every other
     // task, wherever it waits; the handlers run once.
     "at_exit(() => print(\"bye\"))\nspawn(fn(): sleep(10ms); exit(5) ;;)\nsleep(10s)\nprint(\"never\")",
@@ -70,12 +68,6 @@ const CONCURRENT: &[&str] = &[
     "print(retry(() => Err(1), times: 2, delay: 1ms), pmap([1, 2, 3], x => x * x, limit: 2), fan_in([]) |> map(x => x))",
     "ts = for i in 0..200: spawn(() => i) ;;\nprint(fold(ts, 0, (a, t) => a + await(t)))",
     "spawn(fn(): sleep(10ms); exit(4) ;;)\nsleep(10s)\nprint(\"main\")",
-    // Not here: a task holding an atom exits while the entry waits for
-    // it. Go usually prints `ae 1`, but sometimes `101` and `ae 101`: its
-    // waiting swap is not cancellable (`a.mu.Lock`), and the entry's
-    // cancellation flag is set by a goroutine of its own, so the entry
-    // can take the released atom and run its function before the flag is
-    // set. Rust always gives `ae 1` (`exit_tests.rs`).
     "at_exit(() => print(\"h\"))\nspawn(() => each(1..=3, x => x == 2 then exit(6) else print(x)))\nsleep(10s)",
     "ch = channel()\nspawn(fn(): recv(ch); exit(2) ;;)\nat_exit(() => print(\"once\"))\neach(1..=3, x => send(ch, x))",
     // Standard input and processes from tasks.
@@ -87,7 +79,7 @@ const CONCURRENT: &[&str] = &[
 /// these, shown by a call of a concurrency builtin or an import of a
 /// module stage 2 does not have.
 const CONCURRENCY: &[&str] = &[
-    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "atom", "swap",
+    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
     "deref", "pmap", "fan_in", "retry",
 ];
 const NATIVE_MODULES: &[&str] = &["fs", "json", "time", "regex", "path", "http", "_native.fs"];
@@ -272,17 +264,18 @@ fn cases() -> Vec<Case> {
 
 /// The comparison cannot pass by comparing nothing: a broken file walk or
 /// an overgrown skip list fails here. The minimums sit just below the
-/// counts when they were set (127 `tests/lang` files, 6 benchmarks, 187
-/// cases in all); raise them as cases are added.
+/// counts when they were set (125 `tests/lang` files, 6 benchmarks, 181
+/// cases in all, after stage 3b left the atom cases to Go); raise them as
+/// cases are added.
 #[test]
 fn enough_cases_are_compared() {
     let cases = cases();
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
     let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
-    assert!(lang >= 126, "only {lang} tests/lang files are compared");
+    assert!(lang >= 124, "only {lang} tests/lang files are compared");
     assert!(bench >= 5, "only {bench} benchmarks are compared");
     assert!(
-        cases.len() >= 186,
+        cases.len() >= 180,
         "only {} cases are compared",
         cases.len()
     );
@@ -380,7 +373,9 @@ fn concurrent_runs_are_stable() {
     let (go, rust) = (go.as_path(), rust.as_path());
     let start = Instant::now();
     let cases = concurrent_cases();
-    assert!(cases.len() >= 31, "only {} concurrent cases", cases.len());
+    // One below the 26 cases there were after stage 3b left the atom
+    // cases to Go.
+    assert!(cases.len() >= 25, "only {} concurrent cases", cases.len());
     let failures = Mutex::new(Vec::new());
     let compare = |c: &Case, want: &Run, got: &Run, who: &str| {
         if let Some(what) = diff(want, got) {

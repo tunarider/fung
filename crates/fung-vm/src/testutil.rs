@@ -466,8 +466,6 @@ pub fn boom() -> Vec<Value> {
 /// (a fixed sleep is not enough under load, where a spawned thread can
 /// take longer than the sleep to start):
 /// - `queued(ch)`: how many blocked sends and receives wait in `ch`;
-/// - `held(a)`: whether a `swap` holds the atom `a`;
-/// - `waiters(a)`: how many swappers wait for `a`;
 /// - `hold(ms)`: sleeps the thread without giving the run token up, so no
 ///   other task runs meanwhile;
 /// - `background()`: how many background tasks have not finished.
@@ -487,26 +485,6 @@ pub fn probes() -> Vec<Value> {
                     panic!("a channel argument")
                 };
                 Ok(Value::Int(c.queued() as i64))
-            },
-        )),
-        Value::Native(Native::leak(
-            "held",
-            vec![nat::param("a")],
-            |_: &mut Task, a| {
-                let Value::Atom(x) = &a[0] else {
-                    panic!("an atom argument")
-                };
-                Ok(Value::Bool(x.held()))
-            },
-        )),
-        Value::Native(Native::leak(
-            "waiters",
-            vec![nat::param("a")],
-            |_: &mut Task, a| {
-                let Value::Atom(x) = &a[0] else {
-                    panic!("an atom argument")
-                };
-                Ok(Value::Int(x.waiting() as i64))
             },
         )),
         Value::Native(Native::leak("background", vec![], |t: &mut Task, _| {

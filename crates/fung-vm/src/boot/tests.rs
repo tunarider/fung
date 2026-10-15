@@ -33,14 +33,23 @@ fn render_params(ps: &[NativeParam]) -> String {
 #[test]
 fn concurrency_builtin_errors_have_a_position() {
     // A native's error points at the call's `(` like every other native
-    // error in Go (`spawn(1)` → E0403 at 2:6).
-    let (out, err, code) = run_booted("print(1)\nderef(1)");
-    assert_eq!(out, "1\n");
-    assert!(
-        err.starts_with("error[E0403]: argument `a` must be atom, got int\n  --> -e:2:6\n"),
-        "{err}"
-    );
-    assert_eq!(code, 1);
+    // error in Go (`spawn(1)` → E0403 at 2:6); so does the error of the
+    // fung `deref` (stage 3b, `extras/agent.fung`).
+    for (src, want) in [
+        (
+            "print(1)\nspawn(1)",
+            "error[E0403]: argument `f` must be fn, got int\n  --> -e:2:6\n",
+        ),
+        (
+            "print(1)\nderef(1)",
+            "error[E0403]: argument `a` must be agent, got int\n  --> -e:2:6\n",
+        ),
+    ] {
+        let (out, err, code) = run_booted(src);
+        assert_eq!(out, "1\n");
+        assert!(err.starts_with(want), "{err}");
+        assert_eq!(code, 1);
+    }
 }
 
 #[test]
@@ -50,19 +59,21 @@ fn fung_prelude_and_process_functions() {
 }
 
 #[test]
-fn atoms_run() {
-    // Atoms are real since stage 3a (vm/atom_tests.rs): no concurrency
-    // builtin gives E0805 any more.
-    let (out, err, code) = run_booted("a = atom(1)\nprint(swap(a, x => x + 1), deref(a), a)");
-    assert_eq!(
-        (out.as_str(), err.as_str(), code),
-        ("2 2 <atom 2>\n", "", 0)
+fn agents_run() {
+    // Stage 3b: agents (`extras/agent.fung`) replace atoms; no
+    // concurrency builtin gives E0805.
+    let (out, err, code) = run_booted("a = agent(1)\nprint(swap(a, x => x + 1), deref(a), a)");
+    assert_eq!((out.as_str(), err.as_str(), code), ("2 2 <agent>\n", "", 0));
+    let (_, err, code) = run_booted("atom(1)");
+    assert!(
+        err.starts_with("error[E0204]: undefined name `atom`"),
+        "{err}"
     );
+    assert_eq!(code, 2);
     for (name, _) in crate::conc::natives() {
         let src = match name {
-            "atom" => "atom(1)".to_string(),
             "channel" => "channel(-1)".to_string(),
-            "send" | "swap" => format!("{name}(1, 2)"),
+            "send" => format!("{name}(1, 2)"),
             _ => format!("{name}(1)"),
         };
         let o = exec(&src, Opts::default());
@@ -105,13 +116,11 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
         );
         rt.boot(vec!["a".into(), "b c".into()]).expect("boot");
         rt.with_prelude(|p| {
+            // The spec's names with the Rust differences applied
+            // (`fung_front::builtins`: no atom natives, the agent names).
             let spec = builtins();
-            let want: BTreeSet<&str> = spec
-                .prelude_native
-                .iter()
-                .chain(spec.prelude_fung.iter())
-                .map(String::as_str)
-                .collect();
+            let names = spec.prelude_names();
+            let want: BTreeSet<&str> = names.iter().map(String::as_str).collect();
             let got: BTreeSet<&str> = p.0.keys().map(String::as_str).collect();
             assert_eq!(got, want);
             for name in &spec.prelude_native {
@@ -125,6 +134,9 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
             }
             assert_eq!(format(&p.0["args"]), "[\"a\", \"b c\"]");
             assert_eq!(format(&p.0["take"]), "<fn take>");
+            for name in ["agent", "swap", "deref"] {
+                assert_eq!(format(&p.0[name]), format!("<fn {name}>"));
+            }
         });
         assert_eq!(rt.args(), ["a", "b c"]);
     });

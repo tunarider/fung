@@ -16,8 +16,7 @@ use crate::vm::{Runtime, Stop};
 
 /// The concurrency natives (`crate::conc`, not in `core()`).
 const CONCURRENCY: &[&str] = &[
-    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "atom", "swap",
-    "deref",
+    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep",
 ];
 
 fn render_params(ps: &[NativeParam]) -> String {

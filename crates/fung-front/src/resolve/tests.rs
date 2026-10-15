@@ -71,15 +71,7 @@ fn fn_info<'a>(core: &'a Node, path: &[usize]) -> &'a FnInfo {
 }
 
 fn prelude() -> Vec<String> {
-    let b = builtins();
-    let mut names: Vec<String> = b
-        .prelude_native
-        .iter()
-        .chain(&b.prelude_fung)
-        .cloned()
-        .collect();
-    names.sort();
-    names
+    builtins().prelude_names()
 }
 
 fn core(src: &str) -> Result<String, Vec<String>> {

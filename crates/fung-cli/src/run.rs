@@ -131,8 +131,9 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // The handlers are done: cancel the background tasks (stage 3b; an
     // agent serves the handlers too) and wait for them. Then the program
     // is over: report every task failure nobody retrieved, handlers
-    // included, since a handler may still await a task (05). A
-    // background task's failure is never among them.
+    // included, since a handler may still await a task (05). Only the
+    // task `spawn_background` itself starts is exempt: a task it spawns
+    // is user code, and its failure is reported.
     rt.end_background();
     rt.wait();
     rt.report_unretrieved();

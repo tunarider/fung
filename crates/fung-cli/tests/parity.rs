@@ -29,6 +29,33 @@ fn corpus() -> Vec<String> {
     files
 }
 
+/// The examples that still use atoms, which only the Go implementation
+/// has (stage 3b); stage 6 rewrites them to agents.
+const ATOM_EXAMPLES: &[&str] = &["examples/api.fung", "examples/serve.fung"];
+
+/// Whether a corpus file's names resolve the same in both
+/// implementations. Since stage 3b they differ for a `# only:` golden
+/// file (atoms are Go only, agents Rust only) and for `ATOM_EXAMPLES`:
+/// their syntax is shared, so only `dump ast` is compared for them.
+fn resolves_alike(path: &str) -> bool {
+    if ATOM_EXAMPLES.contains(&path) {
+        return false;
+    }
+    let src = std::fs::read_to_string(repo().join(path)).unwrap();
+    !src.lines().any(|l| l.trim().starts_with("# only:"))
+}
+
+#[test]
+fn the_atom_examples_still_use_atoms() {
+    for path in ATOM_EXAMPLES {
+        let src = std::fs::read_to_string(repo().join(path)).unwrap();
+        assert!(src.contains("atom("), "{path} no longer uses atoms");
+    }
+    assert!(resolves_alike("tests/lang/arith.fung"));
+    assert!(!resolves_alike("tests/lang/agents.fung"));
+    assert!(!resolves_alike("tests/lang/atoms.fung"));
+}
+
 /// Files the corpus does not have: BOM, CRLF, tabs, invalid UTF-8.
 fn odd_files() -> Vec<(&'static str, &'static [u8])> {
     vec![
@@ -123,8 +150,13 @@ fn dumps_match_the_go_implementation() {
     let mut failures = Vec::new();
     let mut cases: Vec<Vec<OsString>> = Vec::new();
     for f in corpus() {
-        for stage in ["ast", "core", "bytecode"] {
-            cases.push(vec!["dump".into(), stage.into(), f.clone().into()]);
+        let stages: &[&str] = if resolves_alike(&f) {
+            &["ast", "core", "bytecode"]
+        } else {
+            &["ast"]
+        };
+        for stage in stages {
+            cases.push(vec!["dump".into(), (*stage).into(), f.clone().into()]);
         }
     }
     for extra in [

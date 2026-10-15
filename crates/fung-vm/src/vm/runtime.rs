@@ -96,8 +96,10 @@ impl Runtime {
     /// Cancels the background tasks (stage 3b, `spawn_background`) and
     /// waits until they have ended. The command calls it after the exit
     /// handlers, which may still use an agent, and before it reports the
-    /// failures nobody retrieved (a background task's failure is never
-    /// among them). Background tasks spawned later start cancelled.
+    /// failures nobody retrieved (only the failure of a task
+    /// `spawn_background` itself started is never among them; a task it
+    /// spawns reports like any other). Background tasks spawned later
+    /// start cancelled.
     pub fn end_background(&self) {
         {
             let _t = self.lock();
