@@ -6,12 +6,13 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use fung_front::bytecode::{Assert, Instr, Param, Pattern, Proto};
+use fung_front::bytecode::{Assert, Instr, Param, Proto};
 use fung_front::consts::Const;
 use fung_front::diag::Arg;
 use fung_front::source::Pos;
 use fung_front::tree::Capture;
 
+use super::matcher::{RtPattern, link_pattern};
 use super::{Stop, Task, internal};
 use crate::value::{List, Native, NativeParam, Value, intern};
 
@@ -36,7 +37,7 @@ pub struct RtProto {
     pub captures: Vec<Capture>,
     pub types: Vec<Vec<String>>,
     pub return_type: i32,
-    pub patterns: Vec<Pattern>,
+    pub patterns: Vec<RtPattern>,
     pub exports: Vec<String>,
     pub asserts: Vec<Assert>,
     /// Compiled from an embedded extras file: errors point at the caller (06).
@@ -57,14 +58,18 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         captures: p.captures.clone(),
         types: p.types.clone(),
         return_type: p.return_type,
-        patterns: p.patterns.clone(),
+        patterns: p
+            .patterns
+            .iter()
+            .map(|q| link_pattern(q, prelude))
+            .collect(),
         exports: p.exports.clone(),
         asserts: p.asserts.clone(),
         builtin: p.builtin,
     })
 }
 
-fn constant(c: &Const, prelude: &Prelude) -> Value {
+pub(super) fn constant(c: &Const, prelude: &Prelude) -> Value {
     match c {
         Const::Int(n) => Value::Int(*n),
         Const::Float(f) => Value::Float(*f),

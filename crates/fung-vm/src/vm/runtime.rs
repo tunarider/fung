@@ -28,6 +28,8 @@ pub struct Runtime {
     /// holds its table, an `Rc` cycle; dropping the runtime empties the
     /// tables to break it.
     globals: Vec<Globals>,
+    /// The test blocks the body registered (TEST).
+    pub(super) tests: Vec<super::TestCase>,
 }
 
 impl Runtime {
@@ -46,6 +48,7 @@ impl Runtime {
             exit: None,
             args: Vec::new(),
             globals: Vec::new(),
+            tests: Vec::new(),
         }
     }
 

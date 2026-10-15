@@ -11,6 +11,15 @@
 mod call;
 mod frame;
 mod link;
+mod m4;
+#[cfg(test)]
+mod m4_tests;
+mod m6;
+#[cfg(test)]
+mod m6_tests;
+#[cfg(test)]
+mod match_tests;
+mod matcher;
 mod runtime;
 #[cfg(test)]
 mod tests;
@@ -27,6 +36,8 @@ use fung_front::tree::CaptureKind;
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
 pub use call::MAX_FRAMES;
 pub use link::{Prelude, RtProto, link};
+pub use m6::{TestCase, dbg};
+pub use matcher::RtPattern;
 pub use runtime::Runtime;
 
 use crate::value::{self, Value};
@@ -440,38 +451,22 @@ impl<'rt> Task<'rt> {
                     }
                     self.push(Value::Str(Rc::new(s)));
                 }
-                // The other collection instructions arrive with patterns
-                // (Go m4.go); these two are what calls over ranges and
-                // lists need first.
-                Op::List => {
-                    let start = self.stack.len() - arg;
-                    let items = self
-                        .stack
-                        .drain(start..)
-                        .map(|v| v.expect("LIST of an unassigned slot"))
-                        .collect();
-                    self.push(Value::List(Rc::new(value::List::new(items))));
-                }
-                Op::Range => {
-                    let end = self.pop();
-                    let start = self.pop();
-                    let (Value::Int(s), Value::Int(e)) = (&start, &end) else {
-                        return Err(err(
-                            "E0501",
-                            pos,
-                            vec![
-                                Arg::Str("make a range from".into()),
-                                Arg::Str(value::type_name(&start)),
-                                Arg::Str(value::type_name(&end)),
-                            ],
-                        ));
-                    };
-                    self.push(Value::Range(Rc::new(value::Range {
-                        start: *s,
-                        end: *e,
-                        inclusive: arg == 1,
-                    })));
-                }
+                Op::List
+                | Op::Map
+                | Op::Tuple
+                | Op::Tag
+                | Op::Range
+                | Op::Index
+                | Op::Slice
+                | Op::Field
+                | Op::In
+                | Op::UnwrapAbort
+                | Op::UnwrapTest
+                | Op::Coalesce
+                | Op::Match
+                | Op::MatchOrFail
+                | Op::NoMatch => self.exec_m4(fi, instr.op(), arg, pos)?,
+                Op::Assert | Op::Test => self.exec_m6(fi, instr.op(), arg, pos)?,
                 Op::Return => {
                     if let Some(v) = self.ret(stop) {
                         return Ok(v);

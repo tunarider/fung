@@ -38,6 +38,7 @@ pub struct ErrInfo {
     pub col: u32,
     /// `error[E0803]: boom`.
     pub headline: String,
+    pub notes: Vec<String>,
     pub path: Vec<CallSite>,
 }
 
@@ -48,6 +49,7 @@ impl ErrInfo {
             line: d.pos.line,
             col: d.pos.col,
             headline: diag::headline(d),
+            notes: d.notes.clone(),
             path: d.call_path.clone(),
         }
     }
@@ -78,6 +80,10 @@ pub struct Opts {
     pub extra: fn() -> Vec<Value>,
     /// Changes the compiled entry before it is linked.
     pub patch: fn(&mut Proto),
+    /// The entry's file name (Go tests compile `t.fung`).
+    pub file: &'static str,
+    /// Keep test blocks (`fung test`).
+    pub tests: bool,
 }
 
 impl Default for Opts {
@@ -86,6 +92,8 @@ impl Default for Opts {
             stdin: "",
             extra: Vec::new,
             patch: |_| {},
+            file: "-e",
+            tests: false,
         }
     }
 }
@@ -117,7 +125,7 @@ pub fn exec_with_prelude(src: &str, p: Prelude) -> Outcome {
 
 /// A shared byte buffer the runtime writes into.
 #[derive(Clone, Default)]
-struct Buf(Rc<RefCell<Vec<u8>>>);
+pub struct Buf(Rc<RefCell<Vec<u8>>>);
 
 impl Write for Buf {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
@@ -131,34 +139,61 @@ impl Write for Buf {
 }
 
 impl Buf {
-    fn text(&self) -> String {
+    pub fn text(&self) -> String {
         String::from_utf8_lossy(&self.0.borrow()).into_owned()
     }
 }
 
-fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
-    let mut o = Outcome::default();
+/// A compiled, linked entry with a runtime writing into two buffers.
+pub struct Setup {
+    pub rt: Runtime,
+    pub main: Rc<crate::vm::RtProto>,
+    pub out: Buf,
+    pub err: Buf,
+}
+
+/// Compiles `src` and makes a runtime for it, or returns the compile
+/// errors formatted as the fung command prints them.
+pub fn setup(src: &str, p: &Prelude, opts: Opts) -> Result<Setup, (String, String)> {
     let loader = Loader {
         extra_prelude: p.0.keys().cloned().collect(),
+        tests: opts.tests,
         ..Loader::default()
     };
-    let (b, errs) = loader.compile("-e", src, Stage::All);
+    let (b, errs) = loader.compile(opts.file, src, Stage::All);
     if !errs.is_empty() {
-        o.err = errs.iter().map(|e| diag::format(e, &b.sources)).collect();
-        o.code = errs[0].code.clone();
-        o.exit = diag::EXIT_COMPILE;
-        return o;
+        let text = errs.iter().map(|e| diag::format(e, &b.sources)).collect();
+        return Err((text, errs[0].code.clone()));
     }
     let mut entry = b.proto.expect("a compiled entry");
     (opts.patch)(&mut entry);
-    let main = link(&entry, &p);
+    let main = link(&entry, p);
     let (out, err) = (Buf::default(), Buf::default());
-    let mut rt = Runtime::new(
+    let rt = Runtime::new(
         Box::new(out.clone()),
         Box::new(err.clone()),
         Box::new(Cursor::new(opts.stdin.as_bytes().to_vec())),
         b.sources,
     );
+    Ok(Setup { rt, main, out, err })
+}
+
+fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
+    let mut o = Outcome::default();
+    let Setup {
+        mut rt,
+        main,
+        out,
+        err,
+    } = match setup(src, &p, opts) {
+        Ok(s) => s,
+        Err((text, code)) => {
+            o.err = text;
+            o.code = code;
+            o.exit = diag::EXIT_COMPILE;
+            return o;
+        }
+    };
     match rt.run(main) {
         Ok(v) => o.value = Some(format(&v)),
         Err(Stop::Exit(_)) => o.code = "exit".into(),
@@ -256,7 +291,9 @@ fn write_err(e: std::io::Error) -> Stop {
 }
 
 /// The test prelude: Go's `print`, `eprint`, `fail`, `exit`, `at_exit`,
-/// `len`, `type_of`, `read_line`, `read_lines` and a list/range `fold`.
+/// `len`, `type_of`, `read_line`, `read_lines`, `dbg`, and simple list and
+/// range versions of `fold`, `map`, `each`, `sort_by`, `pairs` and
+/// `is_empty` (Task 8 ports the real ones).
 pub fn prelude() -> Prelude {
     let mut p = Prelude::default();
     let mut add = |name: &'static str, params: Vec<NativeParam>, f: crate::value::NativeFn| {
@@ -335,7 +372,77 @@ pub fn prelude() -> Prelude {
             Ok(acc)
         },
     );
+    add("map", vec![param("xs"), param("f")], |t, a| {
+        let xs = seq(&a[0], "map over")?;
+        if !is_fn(&a[1]) {
+            return Err(fail("E0403", vec![s("f"), s("fn"), s(&type_name(&a[1]))]));
+        }
+        let mut out = Vec::with_capacity(xs.len());
+        for x in xs {
+            out.push(t.call(&a[1], vec![x])?);
+        }
+        Ok(Value::List(Rc::new(List::new(out))))
+    });
+    add("each", vec![param("xs"), param("f")], |t, a| {
+        let xs = seq(&a[0], "iterate over")?;
+        if !is_fn(&a[1]) {
+            return Err(fail("E0403", vec![s("f"), s("fn"), s(&type_name(&a[1]))]));
+        }
+        for x in xs {
+            t.call(&a[1], vec![x])?;
+        }
+        Ok(Value::Nil)
+    });
+    add("sort_by", vec![param("xs"), param("f")], |t, a| {
+        let xs = seq(&a[0], "sort")?;
+        let mut keyed = Vec::with_capacity(xs.len());
+        for x in xs {
+            let k = t.call(&a[1], vec![x.clone()])?;
+            keyed.push((k, x));
+        }
+        let mut bad = None;
+        keyed.sort_by(|(a, _), (b, _)| match crate::value::compare(a, b) {
+            Ok(o) => o,
+            Err(d) => {
+                bad.get_or_insert(d);
+                std::cmp::Ordering::Equal
+            }
+        });
+        if let Some(d) = bad {
+            return Err(Stop::Error(Box::new(d)));
+        }
+        let out = keyed.into_iter().map(|(_, x)| x).collect();
+        Ok(Value::List(Rc::new(List::new(out))))
+    });
+    add("pairs", vec![param("m")], |_, a| {
+        let Value::Map(m) = &a[0] else {
+            return Err(fail(
+                "E0506",
+                vec![s("list the pairs of"), s(&type_name(&a[0]))],
+            ));
+        };
+        let out = m
+            .iter()
+            .map(|(k, v)| Value::tuple(vec![Value::str(k), v.clone()]))
+            .collect();
+        Ok(Value::List(Rc::new(List::new(out))))
+    });
+    add("is_empty", vec![param("x")], |_, a| {
+        crate::value::index::len(&a[0])
+            .map(|n| Value::Bool(n == 0))
+            .map_err(|d| Stop::Error(Box::new(d)))
+    });
+    p.0.insert("dbg".to_string(), Value::Native(crate::vm::dbg()));
     p
+}
+
+/// The items of a list or range, or E0506 with `verb`.
+fn seq(v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
+    match v {
+        Value::List(l) => Ok(l.to_vec()),
+        Value::Range(r) => Ok((0..r.len()).map(|i| Value::Int(r.start + i)).collect()),
+        _ => Err(fail("E0506", vec![s(verb), s(&type_name(v))])),
+    }
 }
 
 fn trim_line(l: &str) -> &str {
