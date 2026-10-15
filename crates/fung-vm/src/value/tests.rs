@@ -669,7 +669,7 @@ fn list_rest_is_cheap() {
         xs.push(Value::Int(i));
     }
     let mut i = 0;
-    while xs.len() > 0 {
+    while !xs.is_empty() {
         assert_eq!(xs.at(0).map(int_of), Some(i), "rest {i}");
         xs = xs.slice(1, xs.len());
         i += 1;
