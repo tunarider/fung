@@ -3,7 +3,7 @@
 //! plus the release and waiting cases. Expected outputs come from the Go
 //! binary.
 
-use crate::testutil::{Opts, boom, exec, run};
+use crate::testutil::{Opts, boom, exec, exec_waiting, run};
 
 #[test]
 fn concurrent_swaps_do_not_lose_updates() {
@@ -25,15 +25,17 @@ fn reentrant_swap_is_e0703() {
 
 #[test]
 fn a_swap_that_sleeps_makes_the_others_wait() {
-    let (out, _, code) = run(
-        "a = atom(0)\nt = spawn(() => swap(a, fn(x): sleep(20ms); x + 1 ;;))\nsleep(5ms)\nswap(a, x => x * 10)\nawait(t)\nprint(deref(a))",
+    // The spawned swap holds the atom before the entry's swap starts.
+    let o = exec_waiting(
+        "a = atom(0)\nt = spawn(() => swap(a, fn(x): sleep(20ms); x + 1 ;;))\nuntil(() => held(a))\nswap(a, x => x * 10)\nawait(t)\nprint(deref(a))",
     );
-    assert_eq!((out.as_str(), code), ("10\n", 0));
+    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "10\n"));
 }
 
+/// Runs each case with the ordering probes (`testutil::exec_waiting`).
 fn outputs(cases: &[(&str, &str)]) {
     for (src, want) in cases {
-        let o = exec(src, Opts::default());
+        let o = exec_waiting(src);
         assert_eq!(
             (o.code.as_str(), o.out.as_str()),
             ("", *want),
@@ -168,7 +170,7 @@ fn every_way_out_of_f_releases_the_atom() {
             "true 1\n",
         ),
         (
-            "a = atom(0)\nt = spawn(() => swap(a, fn(x): sleep(10s); x ;;))\nsleep(5ms)\ncancel(t)\nprint(await(t), swap(a, x => x + 1))",
+            "a = atom(0)\nt = spawn(() => swap(a, fn(x): sleep(10s); x ;;))\nuntil(() => held(a))\ncancel(t)\nprint(await(t), swap(a, x => x + 1))",
             "Err({kind: 'cancelled}) 1\n",
         ),
     ]);
@@ -198,24 +200,24 @@ fn every_way_out_of_f_releases_the_atom() {
 fn waiters_are_served_in_order_and_cancelled_ones_skipped() {
     outputs(&[
         (
-            "a = atom([])\nheld = channel()\nh = spawn(() => swap(a, fn(xs): send(held, nil); sleep(150ms); xs + [\"h\"] ;;))\nrecv(held)\nws = for i in 1..=4: spawn(fn(): sleep(i * 20ms); swap(a, xs => xs + [i]) ;;) ;;\neach(ws, await)\nawait(h)\nprint(deref(a))",
+            "a = atom([])\nheld = channel()\ngo = channel()\nh = spawn(() => swap(a, fn(xs): send(held, nil); recv(go); xs + [\"h\"] ;;))\nrecv(held)\nws = for i in 1..=4: fn(): w = spawn(() => swap(a, xs => xs + [i])); until(() => waiters(a) >= i); w ;;() ;;\nsend(go, nil)\neach(ws, await)\nawait(h)\nprint(deref(a))",
             "[\"h\", 1, 2, 3, 4]\n",
         ),
         (
-            "a = atom(0)\nheld = channel()\nh = spawn(() => swap(a, fn(x): send(held, nil); sleep(100ms); x + 1 ;;))\nrecv(held)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nsleep(20ms)\nw2 = spawn(() => swap(a, x => x * 10))\nsleep(20ms)\ncancel(w1)\nprint(await(h), await(w1), await(w2), deref(a))",
+            "a = atom(0)\nheld = channel()\ngo = channel()\nh = spawn(() => swap(a, fn(x): send(held, nil); recv(go); x + 1 ;;))\nrecv(held)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nuntil(() => waiters(a) >= 1)\nw2 = spawn(() => swap(a, x => x * 10))\nuntil(() => waiters(a) >= 2)\ncancel(w1)\nsend(go, nil)\nprint(await(h), await(w1), await(w2), deref(a))",
             "1 Err({kind: 'cancelled}) 10 10\n",
         ),
         // The holder cancels a queued waiter and releases in the same
         // turn, before that waiter can leave the queue: it is skipped.
         (
-            "a = atom(0)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nw2 = spawn(() => swap(a, x => x + 1))\nprint(swap(a, fn(x): sleep(20ms); cancel(w1); x ;;), await(w1), await(w2), deref(a))",
+            "a = atom(0)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nw2 = spawn(() => swap(a, x => x + 1))\nprint(swap(a, fn(x): until(() => waiters(a) >= 2); cancel(w1); x ;;), await(w1), await(w2), deref(a))",
             "0 Err({kind: 'cancelled}) 1 1\n",
         ),
         // A waiter granted the atom and cancelled before it runs passes
         // the atom on (the fallback in `acquire`); without that the last
         // swap would wait forever.
         (
-            "a = atom(0)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nswap(a, fn(x): sleep(20ms); x ;;)\ncancel(w1)\nprint(await(w1), swap(a, x => x + 1))",
+            "a = atom(0)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nswap(a, fn(x): until(() => waiters(a) >= 1); x ;;)\ncancel(w1)\nprint(await(w1), swap(a, x => x + 1))",
             "Err({kind: 'cancelled}) 1\n",
         ),
     ]);
@@ -227,7 +229,7 @@ fn waiters_are_served_in_order_and_cancelled_ones_skipped() {
 fn a_waiting_swap_can_be_cancelled() {
     let start = std::time::Instant::now();
     outputs(&[(
-        "a = atom(0)\nheld = channel()\nt = spawn(() => swap(a, fn(x): send(held, nil); sleep(10s); x + 1 ;;))\nrecv(held)\nw = spawn(() => swap(a, x => x + 10))\nsleep(20ms)\ncancel(w)\nprint(await(w), deref(a))\ncancel(t)\nprint(await(t), swap(a, x => x + 2))",
+        "a = atom(0)\nheld = channel()\nt = spawn(() => swap(a, fn(x): send(held, nil); sleep(10s); x + 1 ;;))\nrecv(held)\nw = spawn(() => swap(a, x => x + 10))\nuntil(() => waiters(a) >= 1)\ncancel(w)\nprint(await(w), deref(a))\ncancel(t)\nprint(await(t), swap(a, x => x + 2))",
         "Err({kind: 'cancelled}) 0\nErr({kind: 'cancelled}) 2\n",
     )]);
     assert!(start.elapsed() < std::time::Duration::from_secs(2));

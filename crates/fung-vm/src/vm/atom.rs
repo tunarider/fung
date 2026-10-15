@@ -95,6 +95,18 @@ impl Atom {
         }
     }
 
+    /// Whether a `swap` holds the atom (tests order tasks by it).
+    #[cfg(test)]
+    pub(crate) fn held(&self) -> bool {
+        self.lock.borrow().holder.is_some()
+    }
+
+    /// How many swappers wait for the atom (tests).
+    #[cfg(test)]
+    pub(crate) fn waiting(&self) -> usize {
+        self.lock.borrow().queue.len()
+    }
+
     /// Takes a waiter whose wait ended without a grant out of the queue.
     fn leave(&self, w: &Rc<Wanting>) {
         self.lock.borrow_mut().queue.retain(|x| !Rc::ptr_eq(x, w));

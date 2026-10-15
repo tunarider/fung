@@ -155,7 +155,7 @@ fn a_finished_task_cancels_its_children() {
 #[test]
 fn an_await_timeout_does_not_hide_a_later_failure() {
     let (out, _, code) = run(
-        "t = spawn(fn(): sleep(20ms); fail(\"later\") ;;)\nprint(await(t, timeout: 1ms))\nprint(await(t))",
+        "go = channel()\nt = spawn(fn(): recv(go); fail(\"later\") ;;)\nprint(await(t, timeout: 1ms))\nsend(go, nil)\nprint(await(t))",
     );
     assert_eq!(
         (out.as_str(), code),

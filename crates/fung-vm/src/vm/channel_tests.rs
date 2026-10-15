@@ -4,55 +4,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::testutil::{Opts, exec, run};
-use crate::value::{Native, Value};
-use crate::vm::Task;
-
-/// Test natives: `queued(ch)`, how many blocked sends and receives wait
-/// in `ch`, and `hold(ms)`, which sleeps the thread without giving the
-/// run token up (so no other task runs meanwhile).
-fn natives() -> Vec<Value> {
-    vec![
-        Value::Native(Native::leak(
-            "queued",
-            vec![crate::native::nat::param("ch")],
-            |_: &mut Task, a| {
-                let Value::Channel(c) = &a[0] else {
-                    unreachable!()
-                };
-                Ok(Value::Int(c.queued() as i64))
-            },
-        )),
-        Value::Native(Native::leak(
-            "hold",
-            vec![crate::native::nat::param("ms")],
-            |_: &mut Task, a| {
-                let Value::Int(ms) = a[0] else { unreachable!() };
-                std::thread::sleep(Duration::from_millis(ms as u64));
-                Ok(Value::Nil)
-            },
-        )),
-    ]
-}
-
-fn with_natives() -> Opts {
-    Opts {
-        extra: natives,
-        ..Opts::default()
-    }
-}
-
-/// `until(f)` sleeps 1 ms at a time (letting the other tasks run) until
-/// `f()` is true; `blocked(ch, n)` until `n` tasks wait in `ch`. A test
-/// that needs a task to be blocked waits for it this way: a fixed sleep
-/// is not enough under load, where a spawned thread can take longer than
-/// the sleep to start.
-const UNTIL: &str = "fn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nfn blocked(ch, n) = until(() => queued(ch) >= n)\n";
-
-/// Runs `src` after `UNTIL` with the test natives.
-fn exec_waiting(src: &str) -> crate::testutil::Outcome {
-    exec(&format!("{UNTIL}{src}"), with_natives())
-}
+use crate::testutil::{Opts, exec, exec_waiting, run};
 
 #[test]
 fn a_native_blocked_inside_a_lambda_still_works() {
@@ -223,20 +175,20 @@ fn a_send_waits_for_a_receiver_or_for_room() {
 fn close_wakes_waiting_senders_and_receivers() {
     let cases = [
         (
-            "ch = channel()\nt = spawn(() => send(ch, 1))\nsleep(10ms)\nclose(ch)\nprint(await(t), recv(ch))",
+            "ch = channel()\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\nclose(ch)\nprint(await(t), recv(ch))",
             "Err({kind: 'closed}) Err({kind: 'closed})\n",
         ),
         (
-            "ch = channel()\nt = spawn(() => recv(ch))\nsleep(10ms)\nclose(ch)\nprint(await(t))",
+            "ch = channel()\nt = spawn(() => recv(ch))\nblocked(ch, 1)\nclose(ch)\nprint(await(t))",
             "Err({kind: 'closed})\n",
         ),
         (
-            "ch = channel(1)\nsend(ch, 1)\nt = spawn(() => send(ch, 2))\nsleep(10ms)\nclose(ch)\nprint(await(t), recv(ch), recv(ch))",
+            "ch = channel(1)\nsend(ch, 1)\nt = spawn(() => send(ch, 2))\nblocked(ch, 1)\nclose(ch)\nprint(await(t), recv(ch), recv(ch))",
             "Err({kind: 'closed}) Ok(1) Err({kind: 'closed})\n",
         ),
     ];
     for (src, want) in cases {
-        let o = exec(src, Opts::default());
+        let o = exec_waiting(src);
         assert_eq!((o.code.as_str(), o.out.as_str()), ("", want), "{src}");
     }
 }
@@ -261,7 +213,7 @@ fn a_delivered_value_wins_over_a_later_cancel() {
             "Ok(nil) Ok(1)\n",
         ),
         (
-            "ch = channel()\nt = spawn(() => recv(ch))\ncancel(t)\nprint(await(t))\nt2 = spawn(() => recv(ch, timeout: 10s))\nsleep(5ms)\ncancel(t2)\nprint(await(t2))",
+            "ch = channel()\nt = spawn(() => recv(ch))\ncancel(t)\nprint(await(t))\nt2 = spawn(() => recv(ch, timeout: 10s))\nblocked(ch, 1)\ncancel(t2)\nprint(await(t2))",
             "Err({kind: 'cancelled})\nErr({kind: 'cancelled})\n",
         ),
     ];
@@ -301,11 +253,11 @@ fn a_delivered_value_wins_over_a_later_cancel() {
 #[test]
 fn a_cancelled_sender_takes_its_value_back() {
     let start = Instant::now();
-    let (out, _, code) = run(
-        "ch = channel()\nt = spawn(() => send(ch, 1))\nsleep(10ms)\ncancel(t)\nprint(await(t), recv(ch, timeout: 20ms))",
+    let o = exec_waiting(
+        "ch = channel()\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\ncancel(t)\nprint(await(t), recv(ch, timeout: 20ms))",
     );
     assert_eq!(
-        (out.as_str(), code),
+        (o.out.as_str(), o.exit),
         ("Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0)
     );
     assert!(start.elapsed() < Duration::from_secs(2));

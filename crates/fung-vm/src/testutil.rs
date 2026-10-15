@@ -401,3 +401,76 @@ pub fn boom() -> Vec<Value> {
         |_: &mut Task, _| panic!("x"),
     ))]
 }
+
+/// Probes for ordering concurrent tests by state instead of by sleeping
+/// (a fixed sleep is not enough under load, where a spawned thread can
+/// take longer than the sleep to start):
+/// - `queued(ch)`: how many blocked sends and receives wait in `ch`;
+/// - `held(a)`: whether a `swap` holds the atom `a`;
+/// - `waiters(a)`: how many swappers wait for `a`;
+/// - `hold(ms)`: sleeps the thread without giving the run token up, so no
+///   other task runs meanwhile.
+pub fn probes() -> Vec<Value> {
+    fn int_arg(a: &[Value]) -> i64 {
+        let Value::Int(n) = a[0] else {
+            panic!("an int argument")
+        };
+        n
+    }
+    vec![
+        Value::Native(Native::leak(
+            "queued",
+            vec![nat::param("ch")],
+            |_: &mut Task, a| {
+                let Value::Channel(c) = &a[0] else {
+                    panic!("a channel argument")
+                };
+                Ok(Value::Int(c.queued() as i64))
+            },
+        )),
+        Value::Native(Native::leak(
+            "held",
+            vec![nat::param("a")],
+            |_: &mut Task, a| {
+                let Value::Atom(x) = &a[0] else {
+                    panic!("an atom argument")
+                };
+                Ok(Value::Bool(x.held()))
+            },
+        )),
+        Value::Native(Native::leak(
+            "waiters",
+            vec![nat::param("a")],
+            |_: &mut Task, a| {
+                let Value::Atom(x) = &a[0] else {
+                    panic!("an atom argument")
+                };
+                Ok(Value::Int(x.waiting() as i64))
+            },
+        )),
+        Value::Native(Native::leak(
+            "hold",
+            vec![nat::param("ms")],
+            |_: &mut Task, a| {
+                std::thread::sleep(std::time::Duration::from_millis(int_arg(&a) as u64));
+                Ok(Value::Nil)
+            },
+        )),
+    ]
+}
+
+/// fung helpers over `probes`, put before a program by `exec_waiting`:
+/// `until(f)` sleeps 1 ms at a time (letting the other tasks run) until
+/// `f()` is true; `blocked(ch, n)` waits until `n` tasks wait in `ch`.
+pub const UNTIL: &str = "fn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nfn blocked(ch, n) = until(() => queued(ch) >= n)\n";
+
+/// Runs `src` after `UNTIL` with the probes.
+pub fn exec_waiting(src: &str) -> Outcome {
+    exec(
+        &format!("{UNTIL}{src}"),
+        Opts {
+            extra: probes,
+            ..Opts::default()
+        },
+    )
+}
