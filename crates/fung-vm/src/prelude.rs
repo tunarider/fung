@@ -117,9 +117,9 @@ fn type_of_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `map(xs, f)` applies `f` to every element of a list or range and
 /// collects the results (06). `for` lowers to this (03).
-fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn map_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     if !nat::is_fn(&a[1]) {
-        nat::check_items(&a[0], "map over")?;
+        nat::check_items(t, &mut a[0], "map over")?;
         return Err(nat::wrong_arg("f", "fn", &a[1]));
     }
     // Go makes the result with the collection's size as capacity.

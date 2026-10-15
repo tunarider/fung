@@ -1,0 +1,305 @@
+//! Channels (05, stage 3a; Go `internal/vm/channel.go`): a queue between
+//! tasks. `channel()` is unbuffered, so `send` waits until a receiver
+//! takes the value (맞교환); `channel(n)` holds up to `n` values. `close`
+//! is a flag, not an end of the queue: values buffered before it can
+//! still be received, then `recv` gives `Err({kind: 'closed})`, and so
+//! does any `send` after it.
+//!
+//! The state is fung values behind the run token, so it lives in a
+//! `RefCell` touched only by the token's holder. The waiting is Go's
+//! runtime channel, written out: a sender that cannot hand its value over
+//! queues a `Slot` holding the value; a receiver that finds nothing
+//! queues an empty one. The other side completes a slot (moves the value
+//! across, marks it done, wakes its task) while holding the token, so the
+//! hand-over happens exactly once, on one side, at one moment:
+//!
+//! - `send` gives the value to the first waiting receiver, or puts it in
+//!   the buffer if there is room, or queues and blocks;
+//! - `recv` takes the oldest buffered value (refilling the buffer from
+//!   the first waiting sender), or the first waiting sender's value, or
+//!   queues and blocks;
+//! - `close` sets the flag, empties both queues and wakes their tasks,
+//!   which see `closed` (a sender's value is never delivered).
+//!
+//! A blocked task waits through `block`; its slot holds its `Waiter`, so
+//! completing or closing wakes exactly that task. A wait that ends by
+//! cancellation or timeout takes its slot back out of the queue, unless
+//! the slot was completed first: then the value has moved and the
+//! operation succeeded, as in Go, where the `select` case that moved the
+//! value wins over cancellation.
+//!
+//! A channel can hold values that hold the channel itself (`send(c, c)`):
+//! an `Rc` cycle that is never freed, where Go's collector would free it.
+//! Stage 3b makes sending a channel into itself an error; until then such
+//! a channel leaks.
+
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::time::Duration;
+
+use super::block::{Waiter, block};
+use super::{Stop, Task, token};
+use crate::value::{Value, drop_children, keep};
+
+/// The value `channel()` returns. Two channels are equal only when they
+/// are the same channel; it prints as `<channel>`.
+pub struct Channel {
+    inner: RefCell<Inner>,
+}
+
+struct Inner {
+    /// The buffer size: 0 for a rendezvous channel.
+    cap: usize,
+    buf: VecDeque<Value>,
+    /// Blocked senders, oldest first; each slot holds its value.
+    senders: VecDeque<Rc<Slot>>,
+    /// Blocked receivers, oldest first; each slot is empty.
+    receivers: VecDeque<Rc<Slot>>,
+    closed: bool,
+}
+
+/// One blocked `send` or `recv`: the value in transit, whether the other
+/// side completed it, and the task to wake. Only the token's holder
+/// touches it (it holds a fung value).
+struct Slot {
+    value: RefCell<Option<Value>>,
+    done: Cell<bool>,
+    waiter: Arc<Waiter>,
+}
+
+impl Slot {
+    fn new(value: Option<Value>, waiter: &Arc<Waiter>) -> Rc<Slot> {
+        Rc::new(Slot {
+            value: RefCell::new(value),
+            done: Cell::new(false),
+            waiter: waiter.clone(),
+        })
+    }
+
+    /// The other side moved the value: mark it and wake the task.
+    fn complete(&self) {
+        self.done.set(true);
+        self.waiter.wake();
+    }
+}
+
+/// How a receive ended.
+pub(crate) enum Received {
+    Value(Value),
+    Closed,
+    Timeout,
+}
+
+impl Channel {
+    pub(crate) fn new(cap: usize) -> Channel {
+        Channel {
+            inner: RefCell::new(Inner {
+                cap,
+                buf: VecDeque::new(),
+                senders: VecDeque::new(),
+                receivers: VecDeque::new(),
+                closed: false,
+            }),
+        }
+    }
+
+    fn closed(&self) -> bool {
+        self.inner.borrow().closed
+    }
+
+    /// Hands `v` to a waiting receiver or the buffer; gives it back when
+    /// neither can take it.
+    fn try_send(&self, v: Value) -> Result<(), Value> {
+        let mut c = self.inner.borrow_mut();
+        if let Some(r) = c.receivers.pop_front() {
+            *r.value.borrow_mut() = Some(v);
+            r.complete();
+            return Ok(());
+        }
+        if c.buf.len() < c.cap {
+            c.buf.push_back(v);
+            return Ok(());
+        }
+        Err(v)
+    }
+
+    /// The oldest buffered value (the first waiting sender's value moves
+    /// into the freed place), or a waiting sender's value.
+    fn try_recv(&self) -> Option<Value> {
+        let mut c = self.inner.borrow_mut();
+        if let Some(v) = c.buf.pop_front() {
+            if let Some(s) = c.senders.pop_front() {
+                let moved = s.value.borrow_mut().take().expect("a sender's value");
+                c.buf.push_back(moved);
+                s.complete();
+            }
+            return Some(v);
+        }
+        let s = c.senders.pop_front()?;
+        let v = s.value.borrow_mut().take().expect("a sender's value");
+        s.complete();
+        Some(v)
+    }
+
+    /// Takes a slot whose wait ended without completion out of its queue.
+    fn leave(&self, slot: &Rc<Slot>) {
+        let mut c = self.inner.borrow_mut();
+        c.senders.retain(|s| !Rc::ptr_eq(s, slot));
+        c.receivers.retain(|s| !Rc::ptr_eq(s, slot));
+    }
+
+    /// `close`: idempotent. Every blocked task wakes and sees `closed`;
+    /// the senders' values are dropped by their own tasks (with the slot).
+    pub(crate) fn close(&self) {
+        let (senders, receivers) = {
+            let mut c = self.inner.borrow_mut();
+            c.closed = true;
+            (
+                std::mem::take(&mut c.senders),
+                std::mem::take(&mut c.receivers),
+            )
+        };
+        for s in senders.iter().chain(receivers.iter()) {
+            s.waiter.wake();
+        }
+    }
+
+    /// Moves every value out for `release` (`value/release.rs`).
+    pub(crate) fn spill(&mut self, stack: &mut Vec<Value>) {
+        let c = self.inner.get_mut();
+        for v in std::mem::take(&mut c.buf) {
+            keep(stack, v);
+        }
+        for s in std::mem::take(&mut c.senders)
+            .into_iter()
+            .chain(std::mem::take(&mut c.receivers))
+        {
+            if let Some(v) = s.value.borrow_mut().take() {
+                keep(stack, v);
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for Channel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<channel>")
+    }
+}
+
+/// A channel is a value: it drops only on the token's holder, and frees
+/// its buffer without recursion (`release`).
+impl Drop for Channel {
+    fn drop(&mut self) {
+        token::assert_holds_token();
+        drop_children(|stack| self.spill(stack));
+    }
+}
+
+/// `send(ch, v)`: `true` once delivered (to a receiver or the buffer),
+/// `false` when the channel is or becomes closed first. A cancelled wait
+/// unwinds with E0701 unless a receiver already took the value.
+pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool, Stop> {
+    if ch.closed() {
+        return Ok(false);
+    }
+    let v = match ch.try_send(v) {
+        Ok(()) => return Ok(true),
+        Err(v) => v,
+    };
+    let slot = Slot::new(Some(v), &t.waiter);
+    ch.inner.borrow_mut().senders.push_back(slot.clone());
+    let r = block(
+        t,
+        |_, _| {
+            if slot.done.get() {
+                Some(true)
+            } else if ch.closed() {
+                Some(false)
+            } else {
+                None
+            }
+        },
+        None,
+    );
+    match r {
+        Ok(Some(true)) => Ok(true),
+        Ok(_) => {
+            ch.leave(&slot);
+            Ok(false)
+        }
+        Err(_) if slot.done.get() => Ok(true),
+        Err(e) => {
+            ch.leave(&slot);
+            Err(e)
+        }
+    }
+}
+
+/// `recv(ch, timeout:)`: buffered values come out even after close; then
+/// `Closed`. `Timeout` when `timeout` passes first. A cancelled wait
+/// unwinds with E0701 unless a sender already delivered a value.
+pub(crate) fn recv(
+    t: &mut Task<'_>,
+    ch: &Rc<Channel>,
+    timeout: Option<Duration>,
+) -> Result<Received, Stop> {
+    if let Some(v) = ch.try_recv() {
+        return Ok(Received::Value(v));
+    }
+    if ch.closed() {
+        return Ok(Received::Closed);
+    }
+    let slot = Slot::new(None, &t.waiter);
+    ch.inner.borrow_mut().receivers.push_back(slot.clone());
+    let r = block(
+        t,
+        |_, _| {
+            if slot.done.get() {
+                Some(true)
+            } else if ch.closed() {
+                Some(false)
+            } else {
+                None
+            }
+        },
+        timeout,
+    );
+    let took = |slot: &Slot| Received::Value(slot.value.borrow_mut().take().expect("a value"));
+    match r {
+        Ok(Some(true)) => Ok(took(&slot)),
+        // Closed while waiting. A waiting receiver means the buffer was
+        // empty and nothing can be sent after the close, but look again,
+        // as Go does.
+        Ok(Some(false)) => {
+            ch.leave(&slot);
+            Ok(ch.try_recv().map_or(Received::Closed, Received::Value))
+        }
+        // `block` checks the deadline only right after a check that found
+        // the slot not done, with the token held throughout, so a timed-out
+        // slot is never done; Go's order (a value first) is kept anyway.
+        Ok(None) | Err(_) if slot.done.get() => Ok(took(&slot)),
+        Ok(None) => {
+            ch.leave(&slot);
+            Ok(Received::Timeout)
+        }
+        Err(e) => {
+            ch.leave(&slot);
+            Err(e)
+        }
+    }
+}
+
+/// Receives until the channel is closed (Go `Channel.Drain`): what the
+/// iterating natives walk for a channel.
+pub(crate) fn drain(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Vec<Value>, Stop> {
+    let mut out = Vec::new();
+    loop {
+        match recv(t, ch, None)? {
+            Received::Value(v) => out.push(v),
+            Received::Closed | Received::Timeout => return Ok(out),
+        }
+    }
+}

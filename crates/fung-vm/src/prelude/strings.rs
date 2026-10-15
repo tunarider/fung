@@ -58,8 +58,8 @@ fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `join(xs, sep = "")` renders elements as print would (06): strings
 /// bare, the rest in literal form.
-fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(&a[0], "join")?;
+fn join_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(t, &mut a[0], "join")?;
     let sep = nat::need_str("sep", &a[1])?;
     let mut out = String::new();
     let mut first = true;

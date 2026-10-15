@@ -10,6 +10,9 @@
 
 mod block;
 mod call;
+pub(crate) mod channel;
+#[cfg(test)]
+mod channel_tests;
 mod frame;
 mod link;
 mod m4;
@@ -46,6 +49,7 @@ use fung_front::tree::CaptureKind;
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
 pub(crate) use block::{YIELD_EVERY, block};
 pub use call::MAX_FRAMES;
+pub use channel::Channel;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
 pub(crate) use m6::TestCase;

@@ -1,7 +1,7 @@
 //! Iterative teardown of nested values. Rust drops a value by dropping
 //! its fields, so the last reference to a list of lists of lists ... would
 //! free it with one stack frame per level and overflow on deep nesting.
-//! Every container that holds values (list, map, tuple, tag, closure, module) therefore
+//! Every container that holds values (list, map, tuple, tag, closure, module, channel) therefore
 //! moves its children out in its `Drop` and hands the ones that could go
 //! deep to `release`, which frees them with an explicit stack. A shell
 //! whose children were moved out drops in constant stack.
@@ -20,12 +20,13 @@ fn nests(v: &Value) -> bool {
         Value::Tag(rc) => Rc::strong_count(rc) == 1,
         Value::Closure(rc) => Rc::strong_count(rc) == 1,
         Value::Module(rc) => Rc::strong_count(rc) == 1,
+        Value::Channel(rc) => Rc::strong_count(rc) == 1,
         _ => false,
     }
 }
 
 /// Keeps `v` on the stack if it could go deep, drops it otherwise.
-pub(super) fn keep(stack: &mut Vec<Value>, v: Value) {
+pub(crate) fn keep(stack: &mut Vec<Value>, v: Value) {
     if nests(&v) {
         stack.push(v);
     }
@@ -69,6 +70,11 @@ pub(super) fn release(mut stack: Vec<Value>) {
                     m.spill(&mut stack);
                 }
             }
+            Value::Channel(rc) => {
+                if let Ok(mut c) = Rc::try_unwrap(rc) {
+                    c.spill(&mut stack);
+                }
+            }
             _ => {}
         }
     }
@@ -76,7 +82,7 @@ pub(super) fn release(mut stack: Vec<Value>) {
 
 /// Drops a container's children: the common body of the containers' `Drop`.
 /// Allocates nothing unless a child nests.
-pub(super) fn drop_children(children: impl FnOnce(&mut Vec<Value>)) {
+pub(crate) fn drop_children(children: impl FnOnce(&mut Vec<Value>)) {
     let mut stack = Vec::new();
     children(&mut stack);
     if !stack.is_empty() {

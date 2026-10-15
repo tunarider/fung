@@ -1,6 +1,6 @@
 //! Boot tests: ports of Go `internal/vm/prelude_test.go`
 //! `TestProcessFunctions`, `TestFungPreludeFunctions` and
-//! `TestTakeDropCheckTheirCount`, the concurrency placeholders, the
+//! `TestTakeDropCheckTheirCount`, the atom placeholders, the
 //! parameter tables against `spec/builtins.txt`, and the positions of
 //! errors raised inside `extras/prelude.fung` (expected text from the Go
 //! binary).
@@ -33,12 +33,12 @@ fn render_params(ps: &[NativeParam]) -> String {
 #[test]
 fn concurrency_builtins_report_e0805_with_a_position() {
     // A native's error points at the call's `(` like every other native
-    // error in Go (`spawn(1)` → E0403 at 2:6). Channels are still
-    // placeholders (stage 3a, Task 4).
-    let (out, err, code) = run_booted("print(1)\nchannel()");
+    // error in Go (`spawn(1)` → E0403 at 2:6). Atoms are still
+    // placeholders (stage 3a, Task 5).
+    let (out, err, code) = run_booted("print(1)\natom(1)");
     assert_eq!(out, "1\n");
     assert!(
-        err.starts_with("error[E0805]: not supported yet: channel\n  --> -e:2:8\n"),
+        err.starts_with("error[E0805]: not supported yet: atom\n  --> -e:2:5\n"),
         "{err}"
     );
     assert_eq!(code, 1);
@@ -52,14 +52,9 @@ fn fung_prelude_and_process_functions() {
 
 #[test]
 fn every_placeholder_gives_e0805_without_a_panic() {
-    // Tasks are real since stage 3a (vm/task_tests.rs); channels and
-    // atoms come in Tasks 4 and 5.
+    // Tasks and channels are real since stage 3a (vm/task_tests.rs,
+    // vm/channel_tests.rs); atoms come in Task 5.
     let calls = [
-        ("channel()", "channel"),
-        ("channel(2)", "channel"),
-        ("send(1, 2)", "send"),
-        ("recv(1)", "recv"),
-        ("close(1)", "close"),
         ("atom(1)", "atom"),
         ("swap(1, x => x)", "swap"),
         ("deref(1)", "deref"),
@@ -83,24 +78,17 @@ fn every_placeholder_gives_e0805_without_a_panic() {
 
 /// The fung helpers built on the concurrency natives fail at the user's
 /// call (the extras frames are builtin, Go `attach`), with the extras
-/// frames in the call path. (`pmap` runs since stage 3a: see
-/// `pmap_runs_its_tasks`.)
+/// frames in the call path. (`pmap` and `fan_in` run since stage 3a: see
+/// `pmap_runs_its_tasks` and `fan_in_merges_its_channels`.)
 #[test]
-fn fung_helpers_over_placeholders_fail_at_the_user_call() {
-    let cases = [
-        ("fan_in([])", "channel", 1, 7),
-        ("print(1)\nfan_in([])", "channel", 2, 7),
-    ];
-    for (src, name, line, col) in cases {
+fn fung_helpers_over_concurrency_fail_at_the_user_call() {
+    let cases = [("fan_in(1)", 1, 7), ("print(1)\nfan_in(1)", 2, 7)];
+    for (src, line, col) in cases {
         let o = exec(src, Opts::default());
         let e = o.error.unwrap_or_else(|| panic!("{src}: no error"));
         assert_eq!(
             (e.headline.as_str(), e.line, e.col),
-            (
-                format!("error[E0805]: not supported yet: {name}").as_str(),
-                line,
-                col
-            ),
+            ("error[E0506]: cannot take the length of int", line, col),
             "{src}"
         );
         assert!(
@@ -286,9 +274,15 @@ fn commands_that_cannot_run_are_not_found_like_go() {
 
 #[test]
 fn fung_prelude_functions() {
-    // The two channel cases (`first(ch)`, `last(ch)`) need channels: the
-    // channels are E0805 placeholders until stage 3a Task 4.
     let cases: &[(&str, &str)] = &[
+        (
+            "ch = channel(3)\nsend(ch, 1)\nsend(ch, 2)\nclose(ch)\nprint(first(ch))",
+            "1\n",
+        ),
+        (
+            "ch = channel(3)\nsend(ch, 1)\nsend(ch, 2)\nclose(ch)\nprint(last(ch))",
+            "2\n",
+        ),
         (
             "xs = [1, 2, 3]\nprint(take(xs, 2), take(xs, 9), take(xs, -1), drop(xs, 1), drop(xs, 9), drop(xs, -1), xs)",
             "[1, 2] [1, 2, 3] [] [2, 3] [] [1, 2, 3] [1, 2, 3]\n",
@@ -451,6 +445,19 @@ fn files_that_are_not_programs_give_exec_format_error() {
             )
         );
     }
+}
+
+/// `fan_in` drains each channel on its own task into one channel, closed
+/// when all are drained (expected output from the Go binary).
+#[test]
+fn fan_in_merges_its_channels() {
+    let (out, err, code) = crate::testutil::run(
+        "a = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(fan_in([a, b]) |> map(x => x) |> sort, fan_in([]) |> map(x => x))",
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("[1, 2, 3] []\n", "", 0)
+    );
 }
 
 /// `pmap` spawns its tasks with `_native.conc.spawn_awaited` and awaits

@@ -33,18 +33,19 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("chars", chars_fn, vec![param("s")]));
 }
 
-/// `f` must be a function; when it is not, a collection error comes first
-/// (Go checks the collection again in that case).
-fn need_fn_after(xs: &Value, verb: &str, f: &Value) -> Result<(), Stop> {
-    if !nat::is_fn(f) {
-        nat::check_items(xs, verb)?;
-        return Err(nat::wrong_arg("f", "fn", f));
+/// `a[f_at]` must be a function; when it is not, a collection error comes
+/// first (Go checks the collection again in that case, draining a
+/// channel).
+fn need_fn_after(t: &mut Task<'_>, a: &mut [Value], f_at: usize, verb: &str) -> Result<(), Stop> {
+    if !nat::is_fn(&a[f_at]) {
+        nat::check_items(t, &mut a[0], verb)?;
+        return Err(nat::wrong_arg("f", "fn", &a[f_at]));
     }
     Ok(())
 }
 
-fn filter_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    need_fn_after(&a[0], "filter", &a[1])?;
+fn filter_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    need_fn_after(t, &mut a, 1, "filter")?;
     let mut out = ListBuilder::default();
     let mut buf = Vec::with_capacity(1);
     let f = &a[1];
@@ -58,7 +59,7 @@ fn filter_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 fn fold_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    need_fn_after(&a[0], "fold", &a[2])?;
+    need_fn_after(t, &mut a, 2, "fold")?;
     let f = a.pop().expect("f");
     let mut acc = Some(a.pop().expect("init"));
     // One argument buffer for every call: the accumulator moves in and the
@@ -73,8 +74,8 @@ fn fold_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     Ok(acc.expect("the accumulator"))
 }
 
-fn each_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    need_fn_after(&a[0], "iterate over", &a[1])?;
+fn each_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    need_fn_after(t, &mut a, 1, "iterate over")?;
     let mut buf = Vec::with_capacity(1);
     let f = &a[1];
     nat::each(t, &a[0], "iterate over", |t, x| {
@@ -250,14 +251,14 @@ fn sorted_by(xs: Vec<Value>, keys: &[Value]) -> Result<Value, Stop> {
     Ok(Value::List(Rc::new(out.finish())))
 }
 
-fn sort_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let xs = nat::items(&a[0], "sort")?;
+fn sort_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let xs = nat::items(t, &a[0], "sort")?;
     let keys = xs.clone();
     sorted_by(xs, &keys)
 }
 
 fn sort_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let xs = nat::items(&a[0], "sort")?;
+    let xs = nat::items(t, &a[0], "sort")?;
     nat::need_fn("f", &a[1])?;
     let mut keys = Vec::with_capacity(xs.len());
     let mut buf = Vec::with_capacity(1);
@@ -268,8 +269,8 @@ fn sort_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     sorted_by(xs, &keys)
 }
 
-fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(&a[0], "search")?;
+fn find_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(t, &mut a[0], "search")?;
     nat::need_fn("f", &a[1])?;
     let mut buf = Vec::with_capacity(1);
     let mut hit = Value::Nil;
@@ -286,8 +287,8 @@ fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `any` (stop = true) and `all` (stop = false): stops at the first
 /// element whose predicate result equals `stop`.
-fn quantify(t: &mut Task<'_>, a: &[Value], stop: bool) -> Result<Value, Stop> {
-    nat::check_items(&a[0], "test")?;
+fn quantify(t: &mut Task<'_>, a: &mut [Value], stop: bool) -> Result<Value, Stop> {
+    nat::check_items(t, &mut a[0], "test")?;
     nat::need_fn("f", &a[1])?;
     let mut buf = Vec::with_capacity(1);
     let f = &a[1];
@@ -297,18 +298,18 @@ fn quantify(t: &mut Task<'_>, a: &[Value], stop: bool) -> Result<Value, Stop> {
     Ok(Value::Bool(stopped == stop))
 }
 
-fn any_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    quantify(t, &a, true)
+fn any_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    quantify(t, &mut a, true)
 }
 
-fn all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    quantify(t, &a, false)
+fn all_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    quantify(t, &mut a, false)
 }
 
 /// `flatten(xs)` splices nested lists one level deep. It stays in Rust:
 /// a fung fold with `acc + x` would copy the accumulator per element.
-fn flatten_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(&a[0], "flatten")?;
+fn flatten_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(t, &mut a[0], "flatten")?;
     let mut out = ListBuilder::default();
     nat::each(t, &a[0], "flatten", |_, x| {
         match &x {
@@ -320,8 +321,8 @@ fn flatten_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::List(Rc::new(out.finish())))
 }
 
-fn group_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(&a[0], "group")?;
+fn group_by_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(t, &mut a[0], "group")?;
     nat::need_fn("f", &a[1])?;
     // Keys in first-seen order, each group in input order. The hash map
     // only finds a key's group; the order comes from `groups`.

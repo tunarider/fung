@@ -19,13 +19,14 @@ mod types;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::vm::{RtProto, Stop, Task, TaskHandle};
+use crate::vm::{Channel, RtProto, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
 pub use format::{format, format_for_print, type_name};
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
+pub(crate) use release::{drop_children, keep};
 pub use sym::{Sym, intern};
 pub use types::matches_type;
 
@@ -50,6 +51,8 @@ pub enum Value {
     Module(Rc<Module>),
     /// A task handle (05, `spawn`).
     Task(Rc<TaskHandle>),
+    /// A channel (05, `channel`).
+    Channel(Rc<Channel>),
 }
 
 impl Value {

@@ -1,7 +1,8 @@
-//! The concurrency natives (05; Go `vm.Concurrency()`). Tasks are real
-//! (stage 3a: `spawn`, `await`, `cancel`, `sleep` and
-//! `_native.conc.spawn_awaited`, on `crate::vm`'s tasks and blocking
-//! point). Channels and atoms are not ported yet: calling them raises
+//! The concurrency natives (05; Go `vm.Concurrency()`). Tasks and
+//! channels are real (stage 3a: `spawn`, `await`, `cancel`, `sleep`,
+//! `_native.conc.spawn_awaited`, `channel`, `send`, `recv` and `close`, on
+//! `crate::vm`'s tasks and blocking point). Atoms are not ported yet:
+//! calling them raises
 //! E0805 `not supported yet: <name>`. The parameter tables are Go's
 //! (`spec/builtins.txt`), so arity and named-argument errors, which the
 //! VM reports before the native runs, are the same as Go's.
@@ -10,8 +11,11 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use fung_front::diag::Arg;
+
 use crate::native::nat::{self, native, opt, param};
-use crate::value::{Lit, Module, Native, NativeFn, Value};
+use crate::value::{Lit, Module, Native, NativeFn, Value, format};
+use crate::vm::channel::{self, Channel, Received};
 use crate::vm::{Stop, Task, block, err_kind};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -46,6 +50,10 @@ fn all() -> Vec<(&'static str, Value)> {
                         "await" => await_fn,
                         "cancel" => cancel,
                         "spawn_awaited" => spawn_awaited,
+                        "channel" => channel_fn,
+                        "send" => send,
+                        "recv" => recv,
+                        "close" => close,
                         _ => unsupported,
                     };
                     (name, native(name, f, params))
@@ -128,11 +136,7 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let Value::Task(h) = &args[0] else {
         return Err(nat::wrong_arg("t", "task", &args[0]));
     };
-    let timeout = match &args[1] {
-        Value::Nil => None,
-        Value::Dur(d) => Some(wait_of(*d)),
-        v => return Err(nat::wrong_arg("timeout", "dur | nil", v)),
-    };
+    let timeout = timeout_arg(&args[1])?;
     let state = h.state.clone();
     let ready = |_: &mut _, me: &_| {
         let r = state.result();
@@ -155,4 +159,77 @@ fn cancel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     };
     h.cancel.cancel();
     Ok(Value::Nil)
+}
+
+/// A `timeout: dur | nil` argument (Go `timeoutArg`).
+fn timeout_arg(v: &Value) -> Result<Option<Duration>, Stop> {
+    match v {
+        Value::Nil => Ok(None),
+        Value::Dur(d) => Ok(Some(wait_of(*d))),
+        v => Err(nat::wrong_arg("timeout", "dur | nil", v)),
+    }
+}
+
+/// The largest buffer Go's `make(chan Value, n)` accepts: past it Go
+/// panics with `makechan: size out of range` (16-byte elements against
+/// its 2^48-byte allocation limit), which its VM reports as E0801. Below
+/// it Rust allocates nothing up front.
+const MAX_CHANNEL_BUFFER: i64 = 17_592_186_044_409;
+
+/// `channel(n = 0)` (Go `channelFn`): a rendezvous channel, or one that
+/// buffers `n` values.
+fn channel_fn(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    match &args[0] {
+        Value::Int(n) if *n > MAX_CHANNEL_BUFFER => Err(nat::fail(
+            "E0801",
+            vec![nat::s("makechan: size out of range")],
+        )),
+        Value::Int(n) if *n >= 0 => Ok(Value::Channel(Rc::new(Channel::new(*n as usize)))),
+        v => Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("n"),
+                nat::s("a non-negative int"),
+                Arg::Str(format(v)),
+            ],
+        )),
+    }
+}
+
+fn need_channel(v: &Value) -> Result<&Rc<Channel>, Stop> {
+    match v {
+        Value::Channel(c) => Ok(c),
+        _ => Err(nat::wrong_arg("ch", "channel", v)),
+    }
+}
+
+/// `send(ch, v)` (Go `sendFn`): `Ok(nil)` once delivered,
+/// `Err({kind: 'closed})` on a closed channel.
+fn send(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+    let v = args.pop().expect("v");
+    let ch = need_channel(&args[0])?;
+    if channel::send(t, ch, v)? {
+        Ok(nat::ok(Value::Nil))
+    } else {
+        Ok(err_kind("closed"))
+    }
+}
+
+/// `recv(ch, timeout: nil)` (Go `recvFn`): `Ok(v)`, or
+/// `Err({kind: 'closed})` once the channel is closed and empty, or
+/// `Err({kind: 'timeout})`.
+fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let ch = need_channel(&args[0])?;
+    let timeout = timeout_arg(&args[1])?;
+    Ok(match channel::recv(t, ch, timeout)? {
+        Received::Value(v) => nat::ok(v),
+        Received::Closed => err_kind("closed"),
+        Received::Timeout => err_kind("timeout"),
+    })
+}
+
+/// `close(ch)` (Go `closeFn`): `Ok(nil)`, also on a closed channel.
+fn close(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    need_channel(&args[0])?.close();
+    Ok(nat::ok(Value::Nil))
 }

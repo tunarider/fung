@@ -10,7 +10,7 @@ use crate::value::{
     ListBuilder, Lit, MapBuilder, Native, NativeFn, NativeParam, Tag, Value, format_for_print,
     intern, type_name,
 };
-use crate::vm::{Stop, Task, no_pos};
+use crate::vm::{Stop, Task, channel, no_pos};
 
 /// A required parameter.
 pub fn param(name: &'static str) -> NativeParam {
@@ -130,15 +130,22 @@ pub fn too_long() -> Stop {
     )
 }
 
-/// Checks what Go's `nat.Items` checks without listing anything: `v` is a
-/// list or a range (channels come with concurrency, 05), and a range is
-/// short enough for Go to list (`MAX_SLICE`). Every native that lists its
-/// collection in Go calls this first, so huge ranges fail like Go's.
-pub fn check_items(v: &Value, verb: &str) -> Result<(), Stop> {
+/// Does what Go's `nat.Items` does first, without listing a list or a
+/// range: `v` is a list, a range short enough for Go to list
+/// (`MAX_SLICE`), or a channel, which is drained until it is closed (05)
+/// and replaced by a list of what it held. Every native that lists its
+/// collection in Go calls this first, so huge ranges fail like Go's and a
+/// channel is drained before any other argument is checked.
+pub fn check_items(t: &mut Task<'_>, v: &mut Value, verb: &str) -> Result<(), Stop> {
     match v {
         Value::List(_) => Ok(()),
         Value::Range(r) if r.len() as u64 > MAX_SLICE as u64 => Err(too_long()),
         Value::Range(_) => Ok(()),
+        Value::Channel(ch) => {
+            let ch = ch.clone();
+            *v = list(channel::drain(t, &ch)?);
+            Ok(())
+        }
         _ => Err(not_iterable(verb, v)),
     }
 }
@@ -157,7 +164,8 @@ pub fn each(
 }
 
 /// `each` that also stops when `f` returns true; the result says whether
-/// it did (`find`, `any`, `all`).
+/// it did (`find`, `any`, `all`). A channel is drained until it is closed
+/// before `f` sees its first element, as Go's `nat.Each` does.
 pub fn each_until(
     t: &mut Task<'_>,
     v: &Value,
@@ -181,6 +189,14 @@ pub fn each_until(
             }
             Ok(false)
         }
+        Value::Channel(ch) => {
+            for x in channel::drain(t, ch)? {
+                if f(t, x)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         _ => Err(not_iterable(verb, v)),
     }
 }
@@ -194,10 +210,14 @@ pub fn size_hint(v: &Value) -> usize {
     }
 }
 
-/// What a collection function iterates (02), as a vector: lists and
-/// ranges. Prefer `each` where the elements are only walked.
-pub fn items(v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
-    check_items(v, verb)?;
+/// What a collection function iterates (02), as a vector: lists, ranges
+/// and channels (drained until closed). Prefer `each` where the elements
+/// are only walked.
+pub fn items(t: &mut Task<'_>, v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
+    if let Value::Channel(ch) = v {
+        return channel::drain(t, ch);
+    }
+    check_items(t, &mut v.clone(), verb)?;
     match v {
         Value::List(l) => Ok(l.to_vec()),
         Value::Range(r) => Ok((0..r.len())

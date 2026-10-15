@@ -450,7 +450,7 @@ r(1)"#,
     (r#"recv()"#, ""),
     (r#"swap(1)"#, ""),
     (r#"sleep(d: 1ms, d: 2ms)"#, ""),
-    // Tasks and `sleep` run for real (stage 3a); channels and atoms are
+    // Tasks, `sleep` and channels run for real (stage 3a); atoms are
     // still placeholders.
     (r#"print(sleep(1ms), sleep(0s), sleep(-1s))"#, ""),
     (r#"spawn(1)"#, ""),
@@ -487,6 +487,63 @@ t < t"#,
     (r#"print(retry(() => Err(1), times: 2, delay: 1ms))"#, ""),
     (r#"print(retry(() => Err("x"), times: 3, delay: 0s))"#, ""),
     (r#"print(spawn, type_of(await), channel == channel)"#, ""),
+    (
+        r#"c = channel()
+print(c, [c], type_of(c), c == c, c == channel(), c != 1)"#,
+        "",
+    ),
+    (r#"channel() < channel()"#, ""),
+    (r#"len(channel())"#, ""),
+    (r#"1 in channel()"#, ""),
+    (r#"channel(1)[0]"#, ""),
+    (r#"channel(-1)"#, ""),
+    (r#"channel(1.5)"#, ""),
+    (r#"channel("a")"#, ""),
+    (r#"channel(17592186044410)"#, ""),
+    (r#"send(1, 2)"#, ""),
+    (r#"recv(1)"#, ""),
+    (r#"close(1)"#, ""),
+    (r#"recv(channel(), timeout: 1)"#, ""),
+    (
+        r#"buf = channel(2)
+send(buf, "a")
+close(buf)
+print(recv(buf), recv(buf), send(buf, "b"), close(buf), recv(channel(), timeout: 1ms), recv(channel(), timeout: -1s))"#,
+        "",
+    ),
+    (
+        r#"ch = channel()
+t = spawn(() => send(ch, 1))
+print(await(t, timeout: 10ms), recv(ch), await(t))"#,
+        "",
+    ),
+    (
+        r#"ch = channel()
+t = spawn(() => recv(ch))
+s = send(ch, 1)
+cancel(t)
+print(s, await(t))"#,
+        "",
+    ),
+    (
+        r#"ch = channel(1)
+spawn(fn(): each(0..50, i => send(ch, i)); close(ch) ;;)
+print(fold(ch, 0, (a, x) => a + x))"#,
+        "",
+    ),
+    (
+        r#"c = channel()
+close(c)
+print(any(c, x => true), all(c, x => false), group_by(c, x => "a"), sort_by(c, x => x), filter(c, x => true), fold(c, 1, (a, b) => a), each(c, x => x), first(c), last(c), take(c, 1), join(c), flatten(c), find(c, x => true), sort(c))"#,
+        "",
+    ),
+    (
+        r#"c = channel(1)
+send(c, 1)
+close(c)
+map(c, 3)"#,
+        "",
+    ),
     // --- process functions ---
     (r#"print(exec(["echo", "hi there"]))"#, ""),
     (r#"print(sh("echo a; echo b >&2; exit 3"))"#, ""),

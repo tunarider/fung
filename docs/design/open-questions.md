@@ -145,6 +145,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   걷어낼 때 각 항목의 바른 동작을 설계 문서와 `tests/lang`에 정한 뒤 지운다. 이식 중 새로 붙이는 것도 여기에 더한다.
   - 유니코드 판정 표: Go가 생성하는 `spec/unicode.txt`(`tests/spec_test.go`의 `unicodeSpec`)와 `crates/fung-front/src/unicode.rs`. 식별자 규칙은 그때 정한다(Rust 표준 판정 또는 UAX #31).
   - Go 런타임 메시지 흉내: 2^44개 넘는 범위의 `E0801 ... makeslice: cap out of range`(`crates/fung-vm/src/native/nat.rs`의 `MAX_SLICE`, `prelude.rs`의 `map`), `repeat` 넘침의 `strings: Repeat output length overflow`(`prelude/strings.rs`).
+  - `channel(n)`의 Go 할당 한도 흉내: `n`이 2^44 − 6 이상이면 `E0801 ... makechan: size out of range`(`crates/fung-vm/src/conc.rs`의 `MAX_CHANNEL_BUFFER`). Rust는 버퍼를 미리 잡지 않는다.
+  - 채널 순회는 Go `nat.Items`처럼 **닫힐 때까지 다 받은 뒤** 함수를 부른다(`native/nat.rs`의 `check_items`·`each_until`·`items`). `each(ch, f)`가 값이 올 때마다 `f`를 부르는 편이 자연스럽고, `map(ch, 3)`처럼 함수가 틀려도 먼저 채널을 비우는 것도 Go의 우연이다.
   - Go 방식 그대로: 16진 실수 파싱(`prelude/convert.rs`의 `parse_hex_float`), 대소문자 변환의 Go 단순 매핑(`prelude/strings.rs`의 `upper_rune`·`lower_rune`), 실행 파일 형식 사전 검사로 만드는 `exec format error`(`native/process.rs`).
   - 바로 위 "2단계에서 알고 남긴 차이" 중 U+FFFD·환경 순서·닫힌 파이프 141·`at_exit` 안의 `exit`는 반대 방향(Rust가 Go를 못 따라간 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):

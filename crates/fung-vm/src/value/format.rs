@@ -50,6 +50,7 @@ pub fn format(v: &Value) -> String {
         // Placeholder until modules are ported.
         Value::Module(m) => format!("<module {}>", m.name),
         Value::Task(_) => "<task>".into(),
+        Value::Channel(_) => "<channel>".into(),
     }
 }
 
@@ -93,5 +94,6 @@ pub fn type_name(v: &Value) -> String {
         Value::Closure(_) | Value::Native(_) => "fn".into(),
         Value::Module(_) => "module".into(),
         Value::Task(_) => "task".into(),
+        Value::Channel(_) => "channel".into(),
     }
 }

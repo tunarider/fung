@@ -44,6 +44,11 @@ const MORE: &[&str] = &[
     "t = spawn(() => sleep(10s))\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 1ms))\ncancel(u)",
     "t = spawn(fn(): spawn(() => sleep(10s)) ;;)\nprint(await(await(t)))",
     "print(retry(() => Err(1), times: 2, delay: 1ms))",
+    // Channels (stage 3a).
+    "ch = channel()\nspawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))",
+    "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
+    "ch = channel()\nt = spawn(() => each(1..=5, x => send(ch, x)))\ncancel(t)\nprint(await(t))",
+    "print(channel(-1))",
 ];
 
 /// The skip list: `<file name> <reason>`; the reason must be one of

@@ -1,9 +1,9 @@
 # tests/lang files the run comparison leaves out: `<file> <reason>`.
-# concurrency: runs tasks, channels or atoms (E0805 in the Rust port).
+# concurrency: runs atoms (E0805 in the Rust port) or needs what stage 3a
+# has not ported yet (deadlock detection, exits from tasks, failure reports).
 # native-module: imports a module stage 2 does not have.
 atoms.fung concurrency
 cancel.fung concurrency
-channels.fung concurrency
 conc_helpers.fung concurrency
 err_atom_reentry.fung concurrency
 err_deadlock.fung concurrency
