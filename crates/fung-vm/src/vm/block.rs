@@ -15,8 +15,12 @@
 //! blocking gives the token to the tasks waiting for it every
 //! `YIELD_EVERY` calls (`Task::tick`).
 //!
-//! When tasks become green threads, this file is what changes: `block`
-//! parks the task and returns to a scheduler.
+//! When tasks become green threads, `block` parks the task and returns to
+//! a scheduler, but the seam is wider than this file. What changes is
+//! every place a task's thread sleeps or starts: `Token::sleep`,
+//! `Token::yield_turn` and `Gate` (`world.rs`), `Waiter`'s park and
+//! unpark (here), `Task::spawn` (`task.rs`) and `Reader::wait`
+//! (`stdin.rs`).
 
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::sync::Arc;

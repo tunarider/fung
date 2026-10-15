@@ -151,6 +151,17 @@ fn a_finished_task_cancels_its_children() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
+/// A task that cancels itself stops at its next call (05: the flag is
+/// checked at every call). Go differs: `context.AfterFunc` sets its flag
+/// later, so the task usually runs on and returns 1 (open-questions, 3a).
+#[test]
+fn a_task_that_cancels_itself_stops_at_its_next_call() {
+    let (out, _, code) = run(
+        "ch = channel(1)\nt = spawn(fn(): me = recv(ch)!; cancel(me); print(\"after self cancel\"); 1 ;;)\nsend(ch, t)\nprint(await(t))",
+    );
+    assert_eq!((out.as_str(), code), ("Err({kind: 'cancelled})\n", 0));
+}
+
 /// The failure of a task stays retrievable after a timed-out `await`
 /// (the output half of Go `TestAwaitTimeoutDoesNotHideALaterFailure`;
 /// the report of a never-retrieved failure is Task 6).

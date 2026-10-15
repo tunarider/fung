@@ -34,7 +34,9 @@ thread_local! {
 }
 
 /// Replaces the hash on this thread so tests can force collisions; `None`
-/// restores the real one.
+/// restores the real one. Only on this thread: a test that sets it must
+/// not rely on it in tasks it spawns, which run on their own threads with
+/// the real hash.
 #[cfg(test)]
 pub(super) fn set_test_hash(f: TestHash) {
     TEST_HASH.with(|h| h.set(f));
