@@ -61,6 +61,18 @@ impl Runtime {
         &self.sources
     }
 
+    /// Appends another compile's files after the ones already here and
+    /// returns how far its `FileId`s move (the number of files before
+    /// them). `boot` uses it for prelude.fung.
+    pub fn add_sources(&mut self, other: &SourceMap) -> u32 {
+        let base = self.sources.len() as u32;
+        for i in 0..other.len() as u32 {
+            let id = FileId(i);
+            self.sources.add(other.name(id), other.text(id));
+        }
+        base
+    }
+
     /// A file's name for call paths ("" for a file this runtime does not
     /// know, rather than a panic while reporting an error).
     pub(super) fn file_name(&self, id: FileId) -> &str {

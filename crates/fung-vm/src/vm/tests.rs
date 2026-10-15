@@ -726,10 +726,22 @@ fn closures_print_like_go() {
 
 #[test]
 fn unknown_builtins_link_to_an_internal_error() {
-    // The test prelude has no concurrency natives yet (Task 9); the linked
-    // placeholder reports E0801.
-    let o = exec("channel(1)", Opts::default());
+    // The booted prelude has every spec name; a prelude without `upper`
+    // links it to a placeholder that reports E0801.
+    let o = testutil::on_big_stack(|| {
+        let mut p = Prelude::default();
+        for (name, v) in crate::prelude::core() {
+            if name != "upper" {
+                p.0.insert(name.to_string(), v);
+            }
+        }
+        testutil::exec_with_prelude("upper(\"a\")", p)
+    });
     assert_eq!(o.code, "E0801");
+    assert_eq!(
+        o.error.unwrap().headline,
+        "error[E0801]: internal error: builtin `upper` is not available"
+    );
 }
 
 /// A long chain of closures, each capturing the previous one, frees

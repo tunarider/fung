@@ -1,11 +1,12 @@
-//! Test helpers: compile a program with the front end, link it against
-//! the core prelude, and run it the way the fung command will (Go
-//! `cmd/fung/pipeline.go` `execute`): the entry, then the exit handlers,
-//! then the exit code. Everything runs on a 4 GiB thread, because value
-//! formatting and comparison recurse on deep nesting like Go.
+//! Test helpers: compile a program with the front end, boot the prelude
+//! and run it the way the fung command will (Go `cmd/fung/pipeline.go`
+//! `execute`): the entry, then the exit handlers, then the exit code.
+//! Everything runs on a 4 GiB thread, because value formatting and
+//! comparison recurse on deep nesting like Go.
 //!
-//! The prelude is `crate::prelude::core()` plus test-only natives (Go's
-//! VM tests pass their own natives the same way).
+//! The prelude is the booted one (`crate::boot::boot`: the core natives,
+//! the concurrency placeholders and `extras/prelude.fung`), like Go's VM
+//! tests (`bootTestPrelude`), plus test-only natives passed in `Opts`.
 
 use std::cell::RefCell;
 use std::io::{Cursor, Write};
@@ -15,6 +16,7 @@ use fung_front::bytecode::Proto;
 use fung_front::diag::{self, CallSite, Diag};
 use fung_front::loader::{Loader, Stage};
 
+use crate::boot::boot;
 use crate::native::nat;
 use crate::value::{Native, Value, format};
 use crate::vm::{Prelude, Runtime, Stop, Task, link};
@@ -85,6 +87,8 @@ pub struct Opts {
     pub tests: bool,
     /// Reads imported files (the loader's default reads the disk).
     pub read: fn(&str) -> std::io::Result<String>,
+    /// The script arguments (the prelude's `args`).
+    pub args: &'static [&'static str],
 }
 
 impl Default for Opts {
@@ -96,33 +100,32 @@ impl Default for Opts {
             file: "-e",
             tests: false,
             read: Loader::default().read_file,
+            args: &[],
         }
     }
 }
 
-/// Runs a program as `fung -e` would: (stdout, stderr, exit code).
+/// Runs a program as `fung -e` would, with the booted prelude: (stdout,
+/// stderr, exit code).
 pub fn run(src: &str) -> (String, String, i32) {
     let o = exec(src, Opts::default());
     (o.out, o.err, o.exit)
 }
 
-/// Runs a program with the test prelude plus `opts.extra`.
-pub fn exec(src: &str, opts: Opts) -> Outcome {
-    let src = src.to_string();
-    on_big_stack(move || {
-        let mut p = prelude();
-        for v in (opts.extra)() {
-            if let Value::Native(n) = &v {
-                p.0.insert(n.name.to_string(), v.clone());
-            }
-        }
-        exec_on(&src, p, opts)
-    })
+/// `run` under the name the boot tests use: the prelude is always booted.
+pub fn run_booted(src: &str) -> (String, String, i32) {
+    run(src)
 }
 
-/// Runs a program with a given prelude on the current thread.
+/// Runs a program with the booted prelude plus `opts.extra`.
+pub fn exec(src: &str, opts: Opts) -> Outcome {
+    let src = src.to_string();
+    on_big_stack(move || exec_on(&src, None, opts))
+}
+
+/// Runs a program with a given prelude (no boot) on the current thread.
 pub fn exec_with_prelude(src: &str, p: Prelude) -> Outcome {
-    exec_on(src, p, Opts::default())
+    exec_on(src, Some(&p), Opts::default())
 }
 
 /// A shared byte buffer the runtime writes into.
@@ -154,11 +157,27 @@ pub struct Setup {
     pub err: Buf,
 }
 
-/// Compiles `src` and makes a runtime for it, or returns the compile
-/// errors formatted as the fung command prints them.
-pub fn setup(src: &str, p: &Prelude, opts: Opts) -> Result<Setup, (String, String)> {
+/// Compiles `src`, makes a runtime for it and boots the prelude on it
+/// (plus `opts.extra`), or returns the compile errors formatted as the
+/// fung command prints them.
+pub fn setup(src: &str, opts: Opts) -> Result<Setup, (String, String)> {
+    setup_on(src, None, opts)
+}
+
+fn setup_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Result<Setup, (String, String)> {
+    let extra = (opts.extra)();
+    let mut names: Vec<String> = extra
+        .iter()
+        .filter_map(|v| match v {
+            Value::Native(n) => Some(n.name.to_string()),
+            _ => None,
+        })
+        .collect();
+    if let Some(p) = given {
+        names.extend(p.0.keys().cloned());
+    }
     let loader = Loader {
-        extra_prelude: p.0.keys().cloned().collect(),
+        extra_prelude: names,
         tests: opts.tests,
         read_file: opts.read,
         ..Loader::default()
@@ -170,7 +189,6 @@ pub fn setup(src: &str, p: &Prelude, opts: Opts) -> Result<Setup, (String, Strin
     }
     let mut entry = b.proto.expect("a compiled entry");
     (opts.patch)(&mut entry);
-    let main = link(&entry, p);
     let (out, err) = (Buf::default(), Buf::default());
     let mut rt = Runtime::new(
         Box::new(out.clone()),
@@ -178,11 +196,29 @@ pub fn setup(src: &str, p: &Prelude, opts: Opts) -> Result<Setup, (String, Strin
         Box::new(Cursor::new(opts.stdin.as_bytes().to_vec())),
         b.sources,
     );
+    // Booted after the program is compiled: the runtime holds the
+    // program's sources, and boot appends the prelude's after them.
+    let mut p = match given {
+        Some(p) => p.clone(),
+        None => {
+            let args = opts.args.iter().map(|a| a.to_string()).collect();
+            boot(&mut rt, args).unwrap_or_else(|errs| {
+                let text: String = errs.iter().map(|e| diag::format(e, rt.sources())).collect();
+                panic!("boot failed:\n{text}")
+            })
+        }
+    };
+    for v in extra {
+        if let Value::Native(n) = &v {
+            p.0.insert(n.name.to_string(), v.clone());
+        }
+    }
+    let main = link(&entry, &p);
     // Go `register` (cmd/fung/pipeline.go). Native `_native.*` modules
     // have no proto; the caller registers them (`register_native`).
     for m in &b.modules {
         if let Some(proto) = &m.proto {
-            rt.register_module(&m.key, link(proto, p));
+            rt.register_module(&m.key, link(proto, &p));
         }
     }
     Ok(Setup { rt, main, out, err })
@@ -223,7 +259,7 @@ pub fn run_files(files: &[(&str, &str)], entry: &str) -> Outcome {
             read: mem_read,
             ..Opts::default()
         };
-        exec_on(&src, prelude(), opts)
+        exec_on(&src, None, opts)
     })
 }
 
@@ -282,7 +318,7 @@ pub fn run_file(path: &std::path::Path) -> (String, String, i32) {
             file: leak(path),
             ..Opts::default()
         };
-        exec_on(&src, prelude(), opts)
+        exec_on(&src, None, opts)
     });
     (o.out, o.err, o.exit)
 }
@@ -293,14 +329,14 @@ pub fn status(n: i64) -> i32 {
     (n & 0xff) as i32
 }
 
-fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
+fn exec_on(src: &str, given: Option<&Prelude>, opts: Opts) -> Outcome {
     let mut o = Outcome::default();
     let Setup {
         mut rt,
         main,
         out,
         err,
-    } = match setup(src, &p, opts) {
+    } = match setup_on(src, given, opts) {
         Ok(s) => s,
         Err((text, code)) => {
             o.err = text;
@@ -341,26 +377,6 @@ fn exec_on(src: &str, p: Prelude, opts: Opts) -> Outcome {
     o.out = out.text();
     o.err = err.text();
     o
-}
-
-/// The prelude the tests run with: the real core natives, plus stand-ins
-/// for the `extras/prelude.fung` functions the VM tests use (Go's tests
-/// boot the fung prelude; Task 9 does that here).
-pub fn prelude() -> Prelude {
-    let mut p = Prelude::default();
-    for (name, v) in crate::prelude::core() {
-        p.0.insert(name.to_string(), v);
-    }
-    // extras/prelude.fung `is_empty(x) = len(x) == 0`.
-    p.0.insert(
-        "is_empty".to_string(),
-        nat::def(
-            "is_empty",
-            |_, a| Ok(Value::Bool(crate::value::index::len(&a[0])? == 0)),
-            vec![nat::param("x")],
-        ),
-    );
-    p
 }
 
 /// Go `native_test.go` `padNative`: a default and a rest parameter.

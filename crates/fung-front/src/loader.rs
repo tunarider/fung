@@ -413,6 +413,12 @@ fn cwd() -> Option<String> {
     Some(real.to_string_lossy().into_owned())
 }
 
+/// Go `filepath.Abs`: an absolute, clean path, relative paths taken from
+/// the working directory (`$PWD` when it names the same directory).
+pub fn abs_path(path: &str) -> String {
+    abs_key(path)
+}
+
 fn abs_key(path: &str) -> String {
     if path.starts_with('/') {
         return clean(path);

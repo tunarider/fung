@@ -269,7 +269,6 @@ fn a_registered_native_module_is_what_import_gives() {
     on_big_stack(|| {
         let mut s = setup(
             "import \"./lib\"\nprint(lib.answer)",
-            &crate::testutil::prelude(),
             Opts {
                 file: "/p/main.fung",
                 read: |_| Ok("answer = 1".to_string()),
@@ -288,7 +287,6 @@ fn import_module_runs_the_body_once_and_register_does_not_reset_it() {
     on_big_stack(|| {
         let mut s = setup(
             "import \"./lib\"\nprint(lib.x)",
-            &crate::testutil::prelude(),
             Opts {
                 file: "/p/main.fung",
                 read: |_| Ok("x = print(\"body\")\ny = 2".to_string()),
@@ -318,7 +316,6 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
     on_big_stack(|| {
         let mut s = setup(
             "import \"./lib\"\nprint(lib.x)",
-            &crate::testutil::prelude(),
             Opts {
                 file: "/p/main.fung",
                 read: |_| Ok("x = 1".to_string()),

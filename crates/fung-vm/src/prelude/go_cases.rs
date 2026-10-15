@@ -404,4 +404,140 @@ print(r(30000))"#,
         r#"print(chars("👍🏽x"), len("👍🏽x"), upper("straße"), split("a👍b", "👍"))"#,
         "",
     ),
+    // --- extras/prelude.fung (booted): results and errors inside it ---
+    (
+        r#"print(take([1, 2, 3], 2), drop(0..5, 3), sum([1, 2.5]), min([3, 1]), reverse("ab" |> chars))"#,
+        "",
+    ),
+    (
+        r#"print(1)
+take([1], "x")"#,
+        "",
+    ),
+    (
+        r#"fn f(x) = take(x, "a")
+f([1])"#,
+        "",
+    ),
+    (r#"sum([1, "a"])"#, ""),
+    (r#"map([[1, "a"]], sum)"#, ""),
+    (r#"pad_left("a", 3, "")"#, ""),
+    (r#"pad_left("a", 200000000, " ")"#, ""),
+    (r#"until(1, x => x + "a", x => false)"#, ""),
+    (
+        r#"fn r(n) = iterate(n, x => x / 0, 1)
+r(1)"#,
+        "",
+    ),
+    (r#"print(get([1], 0))"#, ""),
+    (r#"print(lines(1))"#, ""),
+    (r#"print(keys([]))"#, ""),
+    (r#"print(take([1]))"#, ""),
+    (
+        r#"print(retry(() => Ok(1)), retry(() => 2, times: 1), until(1, x => x * 2, x => x > 50), iterate(1, x => x + 1, 3))"#,
+        "",
+    ),
+    (
+        r#"print(is_ok(Ok(1)), is_err(Err(1)), first([]), last(0..3), zip([1], [2, 3]), unique([1, 1]), contains("abc", "b"))"#,
+        "",
+    ),
+    // --- concurrency: argument binding happens before the native runs,
+    // so both give the same errors (the placeholders' tables are Go's) ---
+    (r#"spawn()"#, ""),
+    (r#"spawn(1, 2)"#, ""),
+    (r#"channel(1, 2)"#, ""),
+    (r#"await(t: 1, x: 2)"#, ""),
+    (r#"recv()"#, ""),
+    (r#"swap(1)"#, ""),
+    (r#"sleep(d: 1ms, d: 2ms)"#, ""),
+    (r#"print(spawn, type_of(await), channel == channel)"#, ""),
+    // --- process functions ---
+    (r#"print(exec(["echo", "hi there"]))"#, ""),
+    (r#"print(sh("echo a; echo b >&2; exit 3"))"#, ""),
+    (r#"print(sh("exit 300"))"#, ""),
+    (r#"print(sh("kill -9 $$"))"#, ""),
+    (r#"print(exec(["cat"], stdin: "x"))"#, ""),
+    (
+        r#"print(exec(["sh", "-c", "cat; echo e >&2"], stdin: "in"))"#,
+        "",
+    ),
+    (r#"print(sh("cat"), sh("true", stdin: "abc"))"#, ""),
+    (
+        r#"print(exec(["sh", "-c", "echo $A$B"], env: {"B": "2", "A": "1"}))"#,
+        "",
+    ),
+    (
+        r#"print(exec(["sh", "-c", "echo \"$fung_x\""], env: {"fung_x": "lo"}))"#,
+        "",
+    ),
+    (
+        r#"print(exec(["pwd"], cwd: "/")!.out, sh("pwd", cwd: "/usr/../")!.out)"#,
+        "",
+    ),
+    (
+        r#"print(sh("echo $PWD", cwd: "/tmp"), sh("echo $PWD", cwd: "/usr/../tmp/"))"#,
+        "",
+    ),
+    (
+        r#"print(sh("echo $PWD", cwd: "/tmp", env: {"X": "1"}))"#,
+        "",
+    ),
+    (r#"print(sh("echo $PWD", cwd: ""))"#, ""),
+    (r#"print(sh("echo \"$X\"", env: {"X": "a b=c"}))"#, ""),
+    (r#"print(exec(["definitely-not-a-command-xyz"]))"#, ""),
+    (
+        r#"print(exec(["/nonexistent/x"]), exec(["/etc"]), exec([""]))"#,
+        "",
+    ),
+    (
+        r#"print(exec(["ls"], cwd: "/nonexistent"), exec(["ls"], cwd: "/etc/hosts"))"#,
+        "",
+    ),
+    (
+        r#"print(exec(["sh", "-c", "echo\u{0}"]), exec(["/bin/ls\u{0}"]), exec(["x\u{0}y"]))"#,
+        "",
+    ),
+    (
+        r#"print(exec(["sh"], env: {"A\u{0}": "x"}), exec(["sh"], env: {"A": "x\u{0}"}), exec(["ls"], cwd: "/\u{0}"))"#,
+        "",
+    ),
+    (r#"print(exec(["ls"], cwd: "/\u{0}", env: {}))"#, ""),
+    (
+        r#"print(exec(["./definitely-not-here"]), exec(["sh/"]))"#,
+        "",
+    ),
+    (
+        r#"print(exec(["sh", "-c", "echo $FOO"], env: {"FOO": 1}))"#,
+        "",
+    ),
+    (r#"print(exec(["sh"], env: 1))"#, ""),
+    (r#"print(exec(["cat"], stdin: 1))"#, ""),
+    (r#"print(exec(["cat"], cwd: 1, env: 1))"#, ""),
+    (r#"print(exec([1], cwd: 1))"#, ""),
+    (r#"print(sh(1), 2)"#, ""),
+    (r#"print(exec("ls"))"#, ""),
+    (r#"print(exec([1]))"#, ""),
+    (r#"print(exec([]))"#, ""),
+    (r#"print(exec())"#, ""),
+    (r#"print(exec(["true"], shell: 1))"#, ""),
+    (r#"print(env(1))"#, ""),
+    (
+        r#"print(env("FUNG_TEST_UNSET_VAR"), env(""), env("A=B"), type_of(env()), env("HOME") == env()["HOME"])"#,
+        "",
+    ),
+    (
+        r#"print(sh("printf 'a\\nb\\n'")!.out |> lines, sh("printf ok")!.out |> len)"#,
+        "",
+    ),
+    (
+        r#"x = sh("echo 참치")!
+print(x.out, len(x.out), x.code)"#,
+        "",
+    ),
+    (
+        r#"fn run(c) = sh(c)
+print(run("exit 2")?)"#,
+        "",
+    ),
+    (r#"print(sh("exit 2")!)"#, ""),
 ];

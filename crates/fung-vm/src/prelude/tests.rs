@@ -489,7 +489,6 @@ fn collection_functions() {
 /// `extras/prelude.fung` (`is_empty`, `sum`, `min`, `reverse`, `zip`, …),
 /// which Task 9 compiles and boots.
 #[test]
-#[ignore = "needs extras/prelude.fung booted (Task 9)"]
 fn collection_functions_with_the_fung_prelude() {
     let cases: &[(&str, &str)] = &[
         (
@@ -587,8 +586,7 @@ fn write_errors_are_internal_errors_at_the_call() {
     }
     for (src, col) in [("print(1)", 6), ("eprint(1)", 7), ("dbg(1)", 4)] {
         let o = testutil::on_big_stack(move || {
-            let p = testutil::prelude();
-            let s = testutil::setup(src, &p, Opts::default()).unwrap();
+            let s = testutil::setup(src, Opts::default()).unwrap();
             let mut rt = Runtime::new(
                 Box::new(Broken),
                 Box::new(Broken),

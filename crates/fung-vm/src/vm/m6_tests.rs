@@ -3,7 +3,7 @@
 //! patterns.
 
 use super::m4_tests::{check_code, check_out};
-use crate::testutil::{Opts, Setup, exec, on_big_stack, prelude, run, setup};
+use crate::testutil::{Opts, Setup, exec, on_big_stack, run, setup};
 use crate::vm::Stop;
 
 #[test]
@@ -57,7 +57,7 @@ fn with_tests(src: &'static str) -> Setup {
         tests: true,
         ..Opts::default()
     };
-    match setup(src, &prelude(), opts) {
+    match setup(src, opts) {
         Ok(s) => s,
         Err((text, _)) => panic!("{text}"),
     }

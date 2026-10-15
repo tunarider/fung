@@ -1,0 +1,131 @@
+//! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
+//! prelude만 시작 시): the core natives, the concurrency placeholders,
+//! the `_native.conc` and `_native.process` bridges, and the public names
+//! of `extras/prelude.fung`, compiled and run on the runtime at startup.
+//!
+//! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
+//! the program and the prelude are compiled separately, so both start at
+//! 0. `boot` appends the prelude's files to the runtime's source map and
+//! moves every position of the prelude's protos (and of its compile
+//! errors) past the files already there. Create the runtime with the
+//! program's sources first, then boot: every proto's `FileId` then names
+//! its own file in call paths and excerpts. (Go positions carry the file
+//! name, so it has no such step.)
+
+use std::rc::Rc;
+
+use fung_front::bytecode::Proto;
+use fung_front::diag::{Arg, Diag, error};
+use fung_front::extras;
+use fung_front::loader::{Loader, Stage};
+
+use crate::native::{nat, process};
+use crate::value::{Module, Value};
+use crate::vm::{Prelude, Runtime, Stop, link, no_pos};
+use crate::{conc, prelude};
+
+#[cfg(test)]
+mod tests;
+
+/// The name prelude.fung positions show (Go `bootPrelude`).
+const PRELUDE_FILE: &str = "extras/prelude.fung";
+
+/// Builds the prelude on `rt` and returns it; the program is linked
+/// against it. `args` become the prelude's `args` and the runtime's.
+///
+/// The errors are prelude.fung's compile errors or the error of its body,
+/// with positions in `rt.sources()`. Booting the embedded file does not
+/// fail in practice; a runtime whose boot failed should not be reused (a
+/// module whose body failed stays "loading", like Go).
+pub fn boot(rt: &mut Runtime, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
+    let mut p = Prelude::default();
+    for (name, v) in prelude::core() {
+        p.0.insert(name.to_string(), v);
+    }
+    p.0.insert(
+        "args".to_string(),
+        nat::list(args.iter().map(|a| Value::str(a)).collect()),
+    );
+    rt.args = args;
+    for (name, v) in conc::placeholders() {
+        p.0.insert(name.to_string(), v);
+    }
+    let Some(src) = extras::source("prelude") else {
+        return Ok(p);
+    };
+    let loader = Loader {
+        internal: true,
+        ..Loader::default()
+    };
+    let (b, errs) = loader.compile(PRELUDE_FILE, src, Stage::All);
+    let base = rt.add_sources(&b.sources);
+    if !errs.is_empty() {
+        return Err(errs
+            .into_iter()
+            .map(|mut d| {
+                d.pos.file.0 += base;
+                d
+            })
+            .collect());
+    }
+    // Go `register`: the bridges prelude.fung imports, then its modules.
+    for m in b.modules {
+        match m.proto {
+            Some(mut proto) => {
+                shift_files(&mut proto, base);
+                rt.register_module(&m.key, link(&proto, &p));
+            }
+            None => match native_module(&m.key) {
+                Some(module) => rt.register_native(&m.key, module),
+                None => {
+                    return Err(vec![internal(format!(
+                        "no native module `{}` for the prelude",
+                        m.key
+                    ))]);
+                }
+            },
+        }
+    }
+    let mut entry = b.proto.expect("a compiled prelude");
+    shift_files(&mut entry, base);
+    rt.register_module("prelude", link(&entry, &p));
+    let m = match rt.import_module("prelude") {
+        Ok(m) => m,
+        Err(Stop::Error(d)) => return Err(vec![*d]),
+        Err(Stop::Exit(n)) => {
+            return Err(vec![internal(format!(
+                "exit({n}) while booting the prelude"
+            ))]);
+        }
+    };
+    for name in m.names() {
+        if let Some(v) = m.get(name) {
+            p.0.insert(name.to_string(), v.clone());
+        }
+    }
+    Ok(p)
+}
+
+/// The Rust-built `_native.*` modules (Go `vm.NativeModules()` and
+/// `native.Bridges()`, the part stage 2 has).
+fn native_module(key: &str) -> Option<Rc<Module>> {
+    match key {
+        "_native.conc" => Some(conc::module()),
+        "_native.process" => Some(process::module()),
+        _ => None,
+    }
+}
+
+/// Moves every position of a proto tree `base` files on.
+fn shift_files(p: &mut Proto, base: u32) {
+    for pos in &mut p.pos {
+        pos.file.0 += base;
+    }
+    for child in &mut p.protos {
+        shift_files(child, base);
+    }
+}
+
+fn internal(msg: String) -> Diag {
+    error("E0801", no_pos(), vec![Arg::Str(msg)])
+}

@@ -19,6 +19,8 @@ pub struct Builtins {
     /// Prelude natives that are functions → their parameter list as the
     /// spec writes it (`xs, sep=?`, `...args`).
     native_params: BTreeMap<String, String>,
+    /// `(_native.x, name)` → the member's parameter list.
+    module_params: BTreeMap<(String, String), String>,
 }
 
 impl Builtins {
@@ -27,6 +29,14 @@ impl Builtins {
     /// for an unknown name or a plain value such as `args`.
     pub fn native_signature(&self, name: &str) -> Option<&str> {
         self.native_params.get(name).map(String::as_str)
+    }
+
+    /// The parameter list of a `_native.x` module member as the spec
+    /// writes it, like [`Builtins::native_signature`].
+    pub fn module_signature(&self, module: &str, name: &str) -> Option<&str> {
+        self.module_params
+            .get(&(module.to_string(), name.to_string()))
+            .map(String::as_str)
     }
 }
 
@@ -64,11 +74,14 @@ fn parse(spec: &str) -> Builtins {
                 b.prelude_native.push(name)
             }
             (Some("prelude"), Some("fung"), Some(rest)) => b.prelude_fung.push(entry_name(rest)),
-            (Some("module"), Some(module), Some(rest)) => b
-                .modules
-                .entry(module.to_string())
-                .or_default()
-                .push(entry_name(rest)),
+            (Some("module"), Some(module), Some(rest)) => {
+                let name = entry_name(rest);
+                if let Some(params) = entry_params(rest) {
+                    b.module_params
+                        .insert((module.to_string(), name.clone()), params);
+                }
+                b.modules.entry(module.to_string()).or_default().push(name)
+            }
             _ => panic!("spec/builtins.txt: malformed line {line:?}"),
         }
     }
@@ -92,5 +105,22 @@ mod tests {
         assert_eq!(b.native_signature("print"), Some("...args"));
         assert_eq!(b.native_signature("args"), None);
         assert_eq!(b.native_signature("take"), None);
+    }
+
+    #[test]
+    fn module_signature_is_the_spec_parameter_list() {
+        let b = builtins();
+        assert_eq!(
+            b.module_signature("_native.process", "exec"),
+            Some("cmd, cwd=?, env=?, stdin=?")
+        );
+        assert_eq!(b.module_signature("_native.process", "env"), Some("name=?"));
+        assert_eq!(
+            b.module_signature("_native.conc", "spawn_awaited"),
+            Some("f")
+        );
+        assert_eq!(b.module_signature("_native.fs", "temp_dir"), Some(""));
+        assert_eq!(b.module_signature("_native.process", "nope"), None);
+        assert_eq!(b.module_signature("_native.nope", "exec"), None);
     }
 }
