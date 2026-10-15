@@ -120,10 +120,33 @@ pub(crate) fn ext(p: &str) -> &str {
 /// Go `filepath.Clean` (Unix): the shortest equivalent path by lexical
 /// processing alone.
 pub(crate) fn clean(path: &str) -> String {
-    if path.is_empty() {
-        return ".".into();
+    // Only ASCII bytes are dropped or added around whole characters.
+    String::from_utf8(clean_bytes(path.as_bytes())).expect("clean keeps UTF-8")
+}
+
+/// Go `filepath.Join(dir, name)` over bytes (file names need not be
+/// UTF-8): `name` alone when `dir` is empty, else the two cleaned.
+pub(crate) fn join_bytes(dir: &[u8], name: &[u8]) -> Vec<u8> {
+    if dir.is_empty() {
+        return if name.is_empty() {
+            Vec::new()
+        } else {
+            clean_bytes(name)
+        };
     }
-    let p = path.as_bytes();
+    let mut p = dir.to_vec();
+    if !name.is_empty() {
+        p.push(b'/');
+        p.extend_from_slice(name);
+    }
+    clean_bytes(&p)
+}
+
+/// [`clean`] over bytes.
+pub(crate) fn clean_bytes(p: &[u8]) -> Vec<u8> {
+    if p.is_empty() {
+        return b".".to_vec();
+    }
     let n = p.len();
     let rooted = p[0] == b'/';
     let mut out: Vec<u8> = Vec::with_capacity(n);
@@ -163,10 +186,9 @@ pub(crate) fn clean(path: &str) -> String {
         }
     }
     if out.is_empty() {
-        return ".".into();
+        return b".".to_vec();
     }
-    // Only ASCII bytes were dropped or added around whole characters.
-    String::from_utf8(out).expect("clean keeps UTF-8")
+    out
 }
 
 #[cfg(test)]
@@ -207,6 +229,11 @@ mod tests {
         assert_eq!(join(&["".into(), "a".into()]), "a");
         assert_eq!(join(&["/".into(), "".into()]), "/");
         assert_eq!(join(&["a".into(), "..".into()]), ".");
+        assert_eq!(join_bytes(b"", b""), b"");
+        assert_eq!(join_bytes(b"", b"./a"), b"a");
+        assert_eq!(join_bytes(b"/", b"a"), b"/a");
+        assert_eq!(join_bytes(b"a/", b""), b"a");
+        assert_eq!(join_bytes(b"./x//", b"\xff"), b"x/\xff");
         assert_eq!(base(""), ".");
         assert_eq!(base("/"), "/");
         assert_eq!(base("///"), "/");

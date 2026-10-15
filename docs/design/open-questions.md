@@ -251,6 +251,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 운영체제 에러를 Go 문구로(4a): errno → Go `syscall.Errno.Error()` 표(`crates/fung-vm/src/native/oserr.rs`, macOS·Linux 따로, arm64 한 줄씩 더함)와
     Go `os`의 여러 시스템 호출 함수를 단계 그대로 옮긴 것(`native/fs.rs`의 `mkdir_all`·`remove`·`remove_all`·`rename`·`make_temp_dir`, NUL 바이트 경로의 EINVAL).
     Rust `io::Error`의 문구 대신 Go 문구를 내려고 붙였다. `native/process.rs`도 같은 `reason`을 쓴다.
+  - `glob`의 Go `filepath.Match`·`Glob` 우연(4a, `native/glob.rs`): 잘못된 패턴은 매칭이 그 조각에 닿을 때만 드러난다(`a*[`는 `a`로 시작하는 이름이 있어야 에러),
+    디렉터리 부분 재귀 한도 10,000, `\` 이스케이프, `!`는 부정이 아님, 읽지 못하는 디렉터리는 조용히 건너뜀. 패턴 문법과 에러 시점은 그때 언어 규칙으로 정한다.
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서·닫힌 파이프 141)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.

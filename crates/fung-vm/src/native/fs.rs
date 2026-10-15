@@ -18,10 +18,11 @@ use std::sync::OnceLock;
 
 use fung_front::source::decode_go;
 
-use super::nat::{self, native, param};
+use super::glob;
+use super::nat::{self, native, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, ENOENT, ENOTDIR, errno};
 use super::path;
-use crate::value::{MapBuilder, Module, Native, Value};
+use crate::value::{Lit, MapBuilder, Module, Native, Value};
 use crate::vm::{Stop, Task, outside};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -40,6 +41,16 @@ pub fn module() -> Rc<Module> {
                 "append",
                 native("append", append_fn, vec![param("path"), param("text")]),
             ),
+            (
+                "list",
+                native(
+                    "list",
+                    list_fn,
+                    vec![param("dir"), opt("full", Lit::Bool(false))],
+                ),
+            ),
+            ("glob", native("glob", glob_fn, vec![param("pattern")])),
+            ("walk", native("walk", walk_fn, vec![param("dir")])),
             ("exists", native("exists", exists_fn, vec![param("path")])),
             ("stat", native("stat", stat_fn, vec![param("path")])),
             ("mkdir", native("mkdir", mkdir_fn, vec![param("path")])),
@@ -141,6 +152,117 @@ fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         })
     };
     Ok(done("append to", &p, r))
+}
+
+/// A fung list of the strings `paths` holds (file names need not be
+/// UTF-8; Go prints a bad byte as U+FFFD).
+fn str_list(paths: &[Vec<u8>]) -> Value {
+    nat::list(paths.iter().map(|p| Value::str(&decode_go(p))).collect())
+}
+
+fn os_path(p: &[u8]) -> &std::ffi::OsStr {
+    std::ffi::OsStr::from_bytes(p)
+}
+
+/// Go `os.ReadDir`: the directory's entries in byte order of their
+/// names, each with whether it is a directory itself (a link is not).
+fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(os_path(dir))? {
+        let e = e?;
+        let is_dir = match e.file_type() {
+            Ok(t) => t.is_dir(),
+            // Go drops an entry gone before its type could be read.
+            Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
+            Err(err) => return Err(err),
+        };
+        out.push((e.file_name().as_bytes().to_vec(), is_dir));
+    }
+    out.sort_unstable();
+    Ok(out)
+}
+
+fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let dir = nat::need_str("dir", &a[0])?.to_string();
+    let Value::Bool(full) = a[1] else {
+        return Err(nat::wrong_arg("full", "bool", &a[1]));
+    };
+    let r = {
+        let dir = dir.clone();
+        outside(t, move || {
+            let names = read_dir(checked(&dir)?.as_bytes())?.into_iter();
+            Ok::<_, io::Error>(if full {
+                names
+                    .map(|(n, _)| path::join_bytes(dir.as_bytes(), &n))
+                    .collect::<Vec<_>>()
+            } else {
+                names.map(|(n, _)| n).collect()
+            })
+        })
+    };
+    Ok(match r {
+        Ok(names) => nat::ok(str_list(&names)),
+        Err(e) => fs_err("list", &dir, &e),
+    })
+}
+
+fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let pattern = nat::need_str("pattern", &a[0])?.to_string();
+    let r = {
+        let pattern = pattern.clone();
+        outside(t, move || glob::glob(pattern.as_bytes()))
+    };
+    Ok(match r {
+        Ok(mut found) => {
+            // Go sorts the whole result once more (`sort.Strings`).
+            found.sort_unstable();
+            nat::ok(str_list(&found))
+        }
+        Err(glob::BadPattern) => nat::err_value(
+            "invalid",
+            &format!("bad glob pattern `{pattern}`: syntax error in pattern"),
+            Vec::new(),
+        ),
+    })
+}
+
+fn walk_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let dir = nat::need_str("dir", &a[0])?.to_string();
+    let r = {
+        let dir = dir.clone();
+        outside(t, move || walk(checked(&dir)?.as_bytes()))
+    };
+    Ok(match r {
+        Ok(files) => nat::ok(str_list(&files)),
+        Err(e) => fs_err("walk", &dir, &e),
+    })
+}
+
+/// Go `fsWalkFn` over `filepath.WalkDir`: every file below `root` (not
+/// the directories), depth first in byte order, as paths joined onto
+/// `root`. Links are not followed (a link is listed like a file), except
+/// a root the system resolves itself (`link/`). The root is `lstat`ed;
+/// a directory that cannot be read ends the walk with its error.
+fn walk(root: &[u8]) -> io::Result<Vec<Vec<u8>>> {
+    let mut files = Vec::new();
+    if std::fs::symlink_metadata(os_path(root))?.is_dir() {
+        walk_dir(root, &mut files)?;
+    } else {
+        files.push(root.to_vec());
+    }
+    Ok(files)
+}
+
+fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> io::Result<()> {
+    for (name, is_dir) in read_dir(dir)? {
+        let p = path::join_bytes(dir, &name);
+        if is_dir {
+            walk_dir(&p, files)?;
+        } else {
+            files.push(p);
+        }
+    }
+    Ok(())
 }
 
 fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {

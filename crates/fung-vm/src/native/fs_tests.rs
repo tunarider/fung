@@ -1,5 +1,5 @@
-//! `_native.fs` tests: Go `TestFsReadWriteListStat` (the functions this
-//! file has), the exact failure messages, the errno table, and whole runs
+//! `_native.fs` tests: Go `TestFsReadWriteListStat` and `TestFsListFull`,
+//! the directory listings on a tree, the exact failure messages, the errno table, and whole runs
 //! compared with the Go binary in a scratch directory.
 
 use std::io::Cursor;
@@ -80,9 +80,11 @@ fn restore_and_remove(dir: &Path) -> std::io::Result<()> {
         let _ = std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o755));
         if let Ok(rd) = std::fs::read_dir(p) {
             for e in rd.flatten() {
-                if e.file_type().is_ok_and(|t| t.is_dir()) {
+                let Ok(t) = e.file_type() else { continue };
+                if t.is_dir() {
                     open_up(&e.path());
-                } else {
+                } else if !t.is_symlink() {
+                    // A link's mode is its target's: leave both alone.
                     let _ =
                         std::fs::set_permissions(e.path(), std::fs::Permissions::from_mode(0o644));
                 }
@@ -106,6 +108,40 @@ fn fixture(dir: &Path) {
     std::fs::set_permissions(dir.join("locked"), std::fs::Permissions::from_mode(0o000)).unwrap();
     std::fs::create_dir(dir.join("ro")).unwrap();
     std::fs::set_permissions(dir.join("ro"), std::fs::Permissions::from_mode(0o555)).unwrap();
+    tree(&dir.join("t"));
+}
+
+/// The tree `list`, `glob` and `walk` run on: names that sort
+/// differently by byte and by locale, hidden files and directories, an
+/// empty directory, symbolic links (to a directory, to a file, to
+/// nothing) and an unreadable directory `locked_d`.
+fn tree(t: &Path) {
+    for dir in [".hdir", "Z", "emptyd", "sub/A", "sub/deep", "locked_d"] {
+        std::fs::create_dir_all(t.join(dir)).unwrap();
+    }
+    for file in [
+        "a.md",
+        "B.md",
+        "10.txt",
+        "9.txt",
+        "a b.txt",
+        "_u",
+        ".hidden",
+        ".hdir/x",
+        "é.txt",
+        "Z/z.md",
+        "sub/b.md",
+        "sub/.g",
+        "sub/A/c.md",
+        "sub/deep/f",
+        "locked_d/inner",
+    ] {
+        std::fs::write(t.join(file), file).unwrap();
+    }
+    std::os::unix::fs::symlink("sub", t.join("ln_dir")).unwrap();
+    std::os::unix::fs::symlink("a.md", t.join("ln_file")).unwrap();
+    std::os::unix::fs::symlink("nope", t.join("dangling")).unwrap();
+    std::fs::set_permissions(t.join("locked_d"), std::fs::Permissions::from_mode(0o000)).unwrap();
 }
 
 /// Root reads files without permission bits: the permission cases then
@@ -145,6 +181,9 @@ fn params_match_the_spec() {
         "move",
         "copy",
         "temp_dir",
+        "list",
+        "glob",
+        "walk",
     ] {
         assert!(names.contains(&name), "{name}");
     }
@@ -213,6 +252,177 @@ fn read_write_stat_copy_move_remove() {
     let Value::Tag(t) = &r else { unreachable!() };
     assert_eq!(show(call("remove_all", vec![t.args[0].clone()])), "Ok(nil)");
     assert_eq!(show(call("read", vec![Value::Int(1)])), "E0403");
+}
+
+/// Go `TestFsReadWriteListStat`'s `list`, `walk` and `glob`, and
+/// `TestFsListFull`.
+#[test]
+fn list_walk_glob() {
+    let d = Scratch::new("lwg");
+    let a = d.at("a.txt");
+    std::fs::write(&a, "hi\n").unwrap();
+    std::fs::create_dir_all(d.at("sub/deep")).unwrap();
+    std::fs::write(d.at("sub/deep/b.txt"), "").unwrap();
+    let no = Value::Bool(false);
+    assert_eq!(
+        show(call("list", vec![p(&d.0), no.clone()])),
+        r#"Ok(["a.txt", "sub"])"#
+    );
+    assert_eq!(
+        show(call("list", vec![p(&d.0), Value::Bool(true)])),
+        format!(r#"Ok(["{}", "{}"])"#, a.display(), d.at("sub").display())
+    );
+    assert_eq!(
+        show(call(
+            "list",
+            vec![s(&format!("{}/./", d.text())), Value::Bool(true)]
+        )),
+        format!(r#"Ok(["{}", "{}"])"#, a.display(), d.at("sub").display())
+    );
+    assert_eq!(
+        show(call("walk", vec![p(&d.0)])),
+        format!(
+            r#"Ok(["{}", "{}"])"#,
+            a.display(),
+            d.at("sub/deep/b.txt").display()
+        )
+    );
+    assert_eq!(
+        show(call("glob", vec![p(&d.at("*.txt"))])),
+        format!(r#"Ok(["{}"])"#, a.display())
+    );
+    assert_eq!(
+        show(call("glob", vec![p(&d.at("*/*/*"))])),
+        format!(r#"Ok(["{}"])"#, d.at("sub/deep/b.txt").display())
+    );
+    let none = d.at("none");
+    assert_eq!(
+        show(call("list", vec![p(&none), no.clone()])),
+        format!(
+            "Err({{kind: 'not_found, message: \"cannot list `{}`: no such file or directory\"}})",
+            none.display()
+        )
+    );
+    assert_eq!(
+        show(call("list", vec![p(&a), no.clone()])),
+        format!(
+            "Err({{kind: 'io, message: \"cannot list `{}`: not a directory\"}})",
+            a.display()
+        )
+    );
+    assert_eq!(
+        show(call("walk", vec![p(&none)])),
+        format!(
+            "Err({{kind: 'not_found, message: \"cannot walk `{}`: no such file or directory\"}})",
+            none.display()
+        )
+    );
+    assert_eq!(
+        show(call("walk", vec![p(&a)])),
+        format!(r#"Ok(["{}"])"#, a.display())
+    );
+    assert_eq!(show(call("glob", vec![p(&none)])), "Ok([])");
+    assert_eq!(
+        show(call("glob", vec![s("x/[")])),
+        "Err({kind: 'invalid, message: \"bad glob pattern `x/[`: syntax error in pattern\"})"
+    );
+    assert_eq!(show(call("list", vec![p(&d.0), Value::Int(1)])), "E0403");
+    assert_eq!(show(call("list", vec![Value::Nil, no])), "E0403");
+    assert_eq!(show(call("glob", vec![Value::Nil])), "E0403");
+    assert_eq!(show(call("walk", vec![Value::Nil])), "E0403");
+}
+
+/// Byte order (not locale order), hidden names, links not followed by
+/// `walk` and followed by `glob` and `list`, and an unreadable directory:
+/// `glob` passes over it, `walk` stops there.
+#[test]
+fn listings_keep_gos_order() {
+    let d = Scratch::new("order");
+    let t = d.at("t");
+    tree(&t);
+    let tt = t.display().to_string();
+    let quoted = |xs: &[&str], full: bool| {
+        let xs: Vec<String> = xs
+            .iter()
+            .map(|x| {
+                if full {
+                    format!("\"{tt}/{x}\"")
+                } else {
+                    format!("\"{x}\"")
+                }
+            })
+            .collect();
+        format!("Ok([{}])", xs.join(", "))
+    };
+    let top = [
+        ".hdir", ".hidden", "10.txt", "9.txt", "B.md", "Z", "_u", "a b.txt", "a.md", "dangling",
+        "emptyd", "ln_dir", "ln_file", "locked_d", "sub", "é.txt",
+    ];
+    assert_eq!(
+        show(call("list", vec![p(&t), Value::Bool(false)])),
+        quoted(&top, false)
+    );
+    assert_eq!(
+        show(call("list", vec![p(&t), Value::Bool(true)])),
+        quoted(&top, true)
+    );
+    assert_eq!(
+        show(call("glob", vec![s(&format!("{tt}/*"))])),
+        quoted(&top, true)
+    );
+    assert_eq!(
+        show(call("glob", vec![s(&format!("{tt}/*/*"))])),
+        quoted(
+            &[
+                ".hdir/x",
+                "Z/z.md",
+                "ln_dir/.g",
+                "ln_dir/A",
+                "ln_dir/b.md",
+                "ln_dir/deep",
+                "sub/.g",
+                "sub/A",
+                "sub/b.md",
+                "sub/deep",
+            ],
+            true
+        )
+    );
+    assert_eq!(
+        show(call("walk", vec![p(&t.join("sub"))])),
+        quoted(&["sub/.g", "sub/A/c.md", "sub/b.md", "sub/deep/f"], true)
+    );
+    assert_eq!(
+        show(call("walk", vec![p(&t.join("ln_dir"))])),
+        quoted(&["ln_dir"], true)
+    );
+    assert_eq!(
+        show(call("walk", vec![s(&format!("{tt}/ln_dir/"))])),
+        quoted(
+            &["ln_dir/.g", "ln_dir/A/c.md", "ln_dir/b.md", "ln_dir/deep/f"],
+            true
+        )
+    );
+    if running_as_root(&t.join("locked_d")) {
+        return;
+    }
+    assert_eq!(
+        show(call("walk", vec![p(&t)])),
+        format!("Err({{kind: 'permission, message: \"cannot walk `{tt}`: permission denied\"}})")
+    );
+    assert_eq!(
+        show(call(
+            "list",
+            vec![p(&t.join("locked_d")), Value::Bool(false)]
+        )),
+        format!(
+            "Err({{kind: 'permission, message: \"cannot list `{tt}/locked_d`: permission denied\"}})"
+        )
+    );
+    assert_eq!(
+        show(call("glob", vec![s(&format!("{tt}/locked_d/*"))])),
+        "Ok([])"
+    );
 }
 
 #[test]
@@ -675,6 +885,68 @@ print(fs.stat("${d}/./u.txt"), fs.stat("${d}/ro/.."))"#,
     "print(fs.stat())",
     "print(fs.exists(d, d))",
     "print(fs.mkdir(path: d))",
+    r#"t = "${d}/t"
+print(fs.list(t))
+print(fs.list(t, full: true))
+print(fs.list("${t}/", true))
+print(fs.list("${t}/sub/../sub/", full: true))
+print(fs.list("${t}/emptyd"), fs.list("${t}/emptyd", full: true))
+print(fs.list("${t}/ln_dir"), fs.list("${t}/ln_dir", full: true))
+print(fs.list("${t}/a.md"))
+print(fs.list("${t}/ln_file"))
+print(fs.list("${t}/dangling"))
+print(fs.list("${t}/none"))
+print(fs.list("${t}/locked_d"))
+print(fs.list(""), fs.list("a\u{0}b"))
+print(fs.list("src", full: true) == fs.glob("src/*"))"#,
+    r#"t = "${d}/t"
+print(fs.walk(t))
+print(fs.walk("${t}/sub"))
+print(fs.walk("${t}/sub/"))
+print(fs.walk("${t}//sub/./"))
+print(fs.walk("${t}/ln_dir"))
+print(fs.walk("${t}/ln_dir/"))
+print(fs.walk("${t}/a.md"), fs.walk("${t}/ln_file"), fs.walk("${t}/dangling"))
+print(fs.walk("${t}/emptyd"), fs.walk("${t}/Z"), fs.walk("${t}/.hdir"))
+print(fs.walk("${t}/none"))
+print(fs.walk("${t}/a.md/"))
+print(fs.walk("${t}/locked_d"))
+print(fs.walk(""), fs.walk("a\u{0}b"))
+print(fs.walk("src") == fs.walk("./src"))"#,
+    r#"t = "${d}/t"
+print(fs.glob("${t}/*"))
+print(fs.glob("${t}/.*"))
+print(fs.glob("${t}/*/*"))
+print(fs.glob("${t}/*.md"))
+print(fs.glob("${t}/[a-z]*"))
+print(fs.glob("${t}/[^a-z]*"))
+print(fs.glob("${t}/[!a]*"))
+print(fs.glob("${t}/s*/*/*"))
+print(fs.glob("${t}/**"))
+print(fs.glob("${t}/?.md"), fs.glob("${t}/?.txt"), fs.glob("${t}/??.txt"))
+print(fs.glob("${t}//*.md"))
+print(fs.glob("${t}/s*/"))
+print(fs.glob("${t}/*/deep"))
+print(fs.glob("${t}/a.md"), fs.glob("${t}/none"), fs.glob("${t}/dangling"), fs.glob("${t}/a.md/"))
+print(fs.glob("${t}/\\a.md"), fs.glob("${t}/a\\ b.txt"), fs.glob("${t}/\\[a].md"))
+print(fs.glob("${t}/locked_d/*"), fs.glob("${t}/locked_d"))
+print(fs.glob("${t}/ln_*/*"))
+print(fs.glob("${t}/*/A/*"))
+print(fs.glob("${t}/["))
+print(fs.glob("${t}/*/["))
+print(fs.glob("${t}/*["))
+print(fs.glob("${t}/[/*"))
+print(fs.glob("${t}/a[/*"))
+print(fs.glob("${t}/none/["))
+print(fs.glob("${t}/\\"))
+print(fs.glob(""), fs.glob("*.toml"), fs.glob("src/nat*/glob.rs"), fs.glob("./*.toml"))
+print(fs.glob("a\u{0}*"), fs.glob("a\u{0}b"))"#,
+    "print(fs.list(1))",
+    "print(fs.list(d, full: 1))",
+    "print(fs.list(d, true, 1))",
+    "print(fs.glob(nil))",
+    "print(fs.walk())",
+    "print(fs.walk(dir: 1))",
 ];
 
 #[test]
