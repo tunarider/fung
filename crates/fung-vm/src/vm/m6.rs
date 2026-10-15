@@ -35,7 +35,6 @@ impl Runtime {
         // Go runs the block on a fresh child context, cancelled when it
         // returns.
         t.cancel.cancel();
-        t.shared.notify_all();
         r
     }
 }

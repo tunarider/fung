@@ -249,29 +249,161 @@ fn run_task_runs_on_a_fresh_task() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
+/// Set by `mark()` in `outside_lets_other_tasks_run`.
+static MARKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// `outside` gives the token up for a wait on the operating system, so
-/// another task runs meanwhile.
+/// another task runs meanwhile: `os_wait` waits outside the token until
+/// the spawned task has called `mark()`, which it can only do if it got
+/// the token (no timing: without `outside` this never ends, and the
+/// test's own bound reports it).
 #[test]
 fn outside_lets_other_tasks_run() {
-    fn os_wait() -> Vec<Value> {
+    use std::sync::atomic::Ordering;
+    fn natives() -> Vec<Value> {
+        vec![
+            Value::Native(Native::leak("os_wait", vec![], |t: &mut Task, _| {
+                let seen = super::block::outside(t, || {
+                    let until = Instant::now() + Duration::from_secs(10);
+                    while !MARKED.load(Ordering::SeqCst) && Instant::now() < until {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    MARKED.load(Ordering::SeqCst)
+                });
+                Ok(Value::Bool(seen))
+            })),
+            Value::Native(Native::leak("mark", vec![], |_: &mut Task, _| {
+                MARKED.store(true, Ordering::SeqCst);
+                Ok(Value::Nil)
+            })),
+        ]
+    }
+    MARKED.store(false, Ordering::SeqCst);
+    let opts = Opts {
+        extra: natives,
+        ..Opts::default()
+    };
+    let o = exec(
+        "t = spawn(fn(): print(\"ran\"); mark() ;;)\nprint(os_wait())\nprint(\"after\")",
+        opts,
+    );
+    assert_eq!(
+        (o.code.as_str(), o.out.as_str()),
+        ("", "ran\ntrue\nafter\n")
+    );
+}
+
+/// A panic inside `outside`'s closure takes the token back before it
+/// unwinds through the native's frames (which hold values; here a task
+/// handle, whose drop asserts the token): the panic fence reports E0801.
+#[test]
+fn a_panic_outside_the_token_is_e0801() {
+    fn natives() -> Vec<Value> {
         vec![Value::Native(Native::leak(
-            "os_wait",
-            vec![],
+            "os_panic",
+            vec![nat::param("x")],
             |t: &mut Task, _| {
-                super::block::outside(t, || std::thread::sleep(Duration::from_millis(50)));
+                super::block::outside(t, || panic!("outside"));
                 Ok(Value::Nil)
             },
         ))]
     }
     let opts = Opts {
-        extra: os_wait,
+        extra: natives,
         ..Opts::default()
     };
-    let o = exec(
-        "t = spawn(() => print(\"ran\"))\nos_wait()\nprint(\"after\")",
-        opts,
+    let o = exec("os_panic(spawn(() => 1))", opts);
+    assert_eq!(o.code, "E0801");
+    assert!(o.err.contains("outside"), "{}", o.err);
+}
+
+/// Runs `src` like `run`, failing the test if it takes longer than
+/// `secs` (the run is left behind on its thread).
+fn run_within(src: &str, secs: u64) -> (String, String, i32) {
+    let src = src.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(run(&src));
+    });
+    rx.recv_timeout(Duration::from_secs(secs))
+        .unwrap_or_else(|_| panic!("the run did not end within {secs}s"))
+}
+
+/// Each exit handler runs on its own child of the handlers' root, which is
+/// cancelled when it returns (Go `RunExitHandlers`): what the handler
+/// spawned and left running ends with it. Expected output from Go.
+#[test]
+fn an_exit_handlers_tasks_end_with_it() {
+    let (out, _, code) = run_within(
+        "fn spin(n) = spin(n + 1)\nat_exit(fn(): spawn(() => spin(0)); print(\"h\") ;;)\nprint(1)",
+        5,
     );
-    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "ran\nafter\n"));
+    assert_eq!((out.as_str(), code), ("1\nh\n", 0));
+    let (out, _, code) = run_within(
+        "at_exit(fn(): spawn(fn(): sleep(50ms); print(\"late\") ;;); print(\"h\") ;;)\nprint(1)",
+        5,
+    );
+    assert_eq!((out.as_str(), code), ("1\nh\n", 0));
+    // Go's order: wait for the tasks after the handlers. The handler's
+    // tasks are already cancelled then, so the wait ends at once.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let out = on_big_stack(|| {
+            let s = setup(
+                "fn spin(n) = spin(n + 1)\nat_exit(fn(): spawn(() => spin(0)); spawn(fn(): sleep(50ms); print(\"late\") ;;); print(\"h\") ;;)\nprint(1)",
+                Opts::default(),
+            )
+            .unwrap_or_else(|e| panic!("{e:?}"));
+            s.rt.run().unwrap();
+            s.rt.wait();
+            assert!(s.rt.run_exit_handlers().is_empty());
+            s.rt.wait();
+            std::thread::sleep(Duration::from_millis(80));
+            s.out.text()
+        });
+        let _ = tx.send(out);
+    });
+    let out = rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the wait after the handlers did not end");
+    assert_eq!(out, "1\nh\n");
+}
+
+/// A node below one whose task and handle are gone stays reachable from
+/// the root: cancelling the root reaches it.
+#[test]
+fn a_grandchild_stays_cancellable_after_its_parent_is_gone() {
+    let root = super::task::CancelNode::root();
+    let mid = root.child();
+    let leaf = mid.child();
+    drop(mid);
+    root.cancel();
+    assert!(leaf.is_cancelled());
+    // A cancelled node leaves its parent's list.
+    let a = root.child();
+    assert!(a.is_cancelled());
+    let fresh = super::task::CancelNode::root();
+    let b = fresh.child();
+    b.cancel();
+    assert_eq!(fresh.child_count(), 0);
+}
+
+/// A task event wakes only the tasks waiting on it: 200 tasks sleeping
+/// for different times, each awaited in turn, wake about once per sleep
+/// and once per await, not once per event per blocked task.
+#[test]
+fn an_event_wakes_only_its_waiters() {
+    let (wakeups, out) = on_big_stack(|| {
+        let s = setup(
+            "ts = for i in 0..200: spawn(() => sleep(i * 1ms)) ;;\nprint(len(map(ts, await)))",
+            Opts::default(),
+        )
+        .unwrap_or_else(|e| panic!("{e:?}"));
+        s.rt.run().unwrap();
+        (s.rt.shared().wakeups(), s.out.text())
+    });
+    assert_eq!(out, "200\n");
+    assert!(wakeups < 1_000, "{wakeups} wakeups");
 }
 
 /// An exit handler still runs after the program's tasks were cancelled:

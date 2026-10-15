@@ -26,8 +26,9 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::loader::Loaded;
 use fung_front::source::SourceMap;
 
+use super::task::CancelNode;
 use super::world::{Shared, Token, World};
-use super::{Stop, Task, internal, link, no_pos, token};
+use super::{Stop, Task, block, internal, link, no_pos, token};
 use crate::value::Value;
 
 /// Bounds a handler that keeps registering handlers.
@@ -87,10 +88,20 @@ impl Runtime {
 
     /// Waits until every spawned task has finished (Go `Wait`).
     pub fn wait(&self) {
-        let mut w = self.lock();
-        while w.running > 0 {
-            w.wait(None);
-        }
+        // On a node of its own: `cancel_all` must not cut this wait short.
+        let mut t = Task::new(&self.shared, CancelNode::root());
+        let r = block(
+            &mut t,
+            |w, me| {
+                if w.running == 0 {
+                    return Some(());
+                }
+                w.idle.add(me);
+                None
+            },
+            None,
+        );
+        debug_assert!(matches!(r, Ok(Some(()))));
     }
 
     /// Cancels every task below the root (Go `CancelAll`): an exit, an
@@ -187,7 +198,8 @@ impl Runtime {
             // The handler is popped by the task that runs it, so the
             // value never lives outside the run token. Handlers run below
             // their own root: the program's is cancelled by now.
-            let mut t = Task::new(&self.shared, self.shared.handlers.child());
+            let node = self.shared.handlers.child();
+            let mut t = Task::new(&self.shared, node.clone());
             let Some(h) = t.world.exit_handlers.pop() else {
                 break;
             };
@@ -203,7 +215,11 @@ impl Runtime {
                 break;
             }
             ran += 1;
-            if let Err(Stop::Error(d)) = t.call(&h, Vec::new()) {
+            let r = t.call(&h, Vec::new());
+            // Go cancels each handler's context when it returns: what the
+            // handler spawned and left running ends with it.
+            node.cancel();
+            if let Err(Stop::Error(d)) = r {
                 errs.push(*d);
             }
         }
@@ -236,7 +252,6 @@ impl Drop for Runtime {
             let _t = self.lock();
             self.shared.root.cancel();
             self.shared.handlers.cancel();
-            self.shared.notify_all();
         }
         self.wait();
         let mut w = self.lock();

@@ -123,6 +123,8 @@ pub struct Task<'rt> {
     cancel: Arc<CancelNode>,
     /// Ticks left before the next turn-handoff check (`block.rs`).
     budget: u32,
+    /// What wakes this task when it blocks (`block.rs`).
+    waiter: Arc<block::Waiter>,
     /// The shared part's owner, for spawning tasks on other threads.
     shared: &'rt Arc<Shared>,
     /// The run token, and through it the shared part. Keep it last.
@@ -141,6 +143,7 @@ impl<'rt> Task<'rt> {
             native: None,
             cancel,
             budget: YIELD_EVERY,
+            waiter: block::Waiter::new(),
             shared,
             world,
         }

@@ -23,12 +23,14 @@
 //! turns into `Err({kind: 'cancelled})`.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use fung_front::diag::{Arg, headline};
 
+use super::block::{WaitList, Waiter};
 use super::world::Shared;
 use super::{Stop, Task, internal, token};
 use crate::native::nat;
@@ -42,21 +44,48 @@ use crate::value::{MapBuilder, Value, intern};
 pub(crate) const TASK_STACK: usize = 256 << 20;
 
 /// A node of the cancellation tree. Only the flag is read on the hot path
-/// (one relaxed load per call); the child list is touched when a task is
-/// spawned or cancelled.
+/// (one relaxed load per call); the rest is touched when a task is
+/// spawned, blocks, finishes or is cancelled.
+///
+/// A parent holds its children strongly and a child leaves its parent's
+/// list when it is cancelled, as in Go's `context`. The other way to keep
+/// the tree whole, cancelling a node's children when the node drops,
+/// would end a task just because the task or handle above it went away;
+/// with strong links nothing below a live node can become unreachable
+/// from the roots, whichever tasks, handles or intermediate nodes are
+/// gone, so cancelling a root reaches every task under it. Nodes do not
+/// pile up: every spawned task's node is cancelled when the task ends,
+/// and the nodes made for test blocks, exit handlers and `run_task` are
+/// cancelled when they return.
 pub(crate) struct CancelNode {
     cancelled: AtomicBool,
-    /// The nodes below this one. Weak: a node lives as long as its task
-    /// runs or its handle is held, not as long as its parent.
-    children: Mutex<Vec<Weak<CancelNode>>>,
+    parent: Weak<CancelNode>,
+    inner: Mutex<NodeInner>,
+}
+
+#[derive(Default)]
+struct NodeInner {
+    /// The live children by address.
+    children: HashMap<usize, Arc<CancelNode>>,
+    /// The tasks blocked under this node, woken when it is cancelled.
+    watchers: WaitList,
 }
 
 impl CancelNode {
     pub(crate) fn root() -> Arc<CancelNode> {
+        CancelNode::under(Weak::new())
+    }
+
+    fn under(parent: Weak<CancelNode>) -> Arc<CancelNode> {
         Arc::new(CancelNode {
             cancelled: AtomicBool::new(false),
-            children: Mutex::new(Vec::new()),
+            parent,
+            inner: Mutex::new(NodeInner::default()),
         })
+    }
+
+    fn inner(&self) -> std::sync::MutexGuard<'_, NodeInner> {
+        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Whether this node or one above it was cancelled.
@@ -66,43 +95,59 @@ impl CancelNode {
     }
 
     /// A new node below this one; already cancelled if this one is.
-    pub(crate) fn child(&self) -> Arc<CancelNode> {
-        let c = CancelNode::root();
-        let mut kids = self.children.lock().unwrap_or_else(PoisonError::into_inner);
-        // Checked under the list's lock: `cancel` sets the flag before it
-        // takes the list, so a child is either in the list it takes or
-        // sees the flag here.
+    pub(crate) fn child(self: &Arc<Self>) -> Arc<CancelNode> {
+        let c = CancelNode::under(Arc::downgrade(self));
+        let mut inner = self.inner();
+        // Checked under the lock: `cancel` sets the flag before it takes
+        // the children, so a child is either among them or sees the flag.
         if self.is_cancelled() {
             c.cancelled.store(true, Ordering::Relaxed);
-            return c;
+        } else {
+            inner.children.insert(Arc::as_ptr(&c) as usize, c.clone());
         }
-        // Drop the entries of nodes that are gone once the list doubles,
-        // so a long-lived parent spawning many short tasks stays small.
-        if kids.len() == kids.capacity() {
-            kids.retain(|w| w.strong_count() > 0);
-        }
-        kids.push(Arc::downgrade(&c));
         c
     }
 
+    /// The number of live children (tests).
+    #[cfg(test)]
+    pub(crate) fn child_count(&self) -> usize {
+        self.inner().children.len()
+    }
+
+    /// Wakes `w` when this node is cancelled (`block`). Already cancelled
+    /// nodes are checked by the caller after registering.
+    pub(crate) fn watch(&self, w: &Arc<Waiter>) {
+        self.inner().watchers.add(w);
+    }
+
     /// Cancels this node and every node below it (without recursion: a
-    /// chain of nested spawns can be long). Wake blocked tasks afterwards
-    /// (`Shared::notify_all`).
+    /// chain of nested spawns can be long), wakes the tasks blocked under
+    /// them, and takes this node out of its parent's list.
     pub(crate) fn cancel(&self) {
-        let mut todo = self.take_children();
-        while let Some(w) = todo.pop() {
-            if let Some(n) = w.upgrade() {
-                todo.extend(n.take_children());
+        let Some(mut todo) = self.take() else {
+            return;
+        };
+        if let Some(p) = self.parent.upgrade() {
+            p.inner()
+                .children
+                .remove(&(self as *const CancelNode as usize));
+        }
+        while let Some(n) = todo.pop() {
+            if let Some(more) = n.take() {
+                todo.extend(more);
             }
         }
     }
 
-    /// Sets the flag and takes the child list (empty if it was set).
-    fn take_children(&self) -> Vec<Weak<CancelNode>> {
+    /// Sets the flag, wakes this node's watchers and takes its children;
+    /// `None` if it was already cancelled.
+    fn take(&self) -> Option<Vec<Arc<CancelNode>>> {
         if self.cancelled.swap(true, Ordering::SeqCst) {
-            return Vec::new();
+            return None;
         }
-        std::mem::take(&mut *self.children.lock().unwrap_or_else(PoisonError::into_inner))
+        let mut inner = self.inner();
+        inner.watchers.wake_all();
+        Some(std::mem::take(&mut inner.children).into_values().collect())
     }
 }
 
@@ -132,6 +177,8 @@ pub(crate) struct TaskState {
     /// Set once, when the task finishes. Results are kept: `await` can
     /// be called any number of times.
     result: RefCell<Option<Value>>,
+    /// The tasks waiting for the result (`await`), woken when it is set.
+    pub(crate) waiters: RefCell<WaitList>,
     /// Spawned by a helper that awaits it (`_native.conc.spawn_awaited`):
     /// its failure is never reported as unretrieved (Task 6).
     #[allow(dead_code)]
@@ -208,6 +255,7 @@ impl<'rt> Task<'rt> {
         let node = self.cancel.child();
         let state = Rc::new(TaskState {
             result: RefCell::new(None),
+            waiters: RefCell::new(WaitList::default()),
             awaited,
         });
         let handle = Rc::new(TaskHandle {
@@ -242,14 +290,7 @@ impl<'rt> Task<'rt> {
         let r = self.call(f, args);
         self.cancel = outer;
         child.cancel();
-        self.shared.notify_all();
         r
-    }
-
-    /// Wakes the blocked tasks to check their conditions again, after a
-    /// change they may wait for (a cancellation, later a channel send).
-    pub(crate) fn notify_all(&self) {
-        self.shared.notify_all();
     }
 
     /// Whether this task was cancelled (Go `Done()` being ready), for
@@ -271,12 +312,15 @@ fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff) {
         let r = t.call(&f, Vec::new());
         drop(f);
         *state.result.borrow_mut() = Some(outcome(r));
+        state.waiters.borrow_mut().wake_all();
         drop(state);
         // Go `defer child.cancel()`: what this task spawned and left
         // running ends with it.
         node.cancel();
         t.world.running -= 1;
-        shared.notify_all();
+        if t.world.running == 0 {
+            t.world.idle.wake_all();
+        }
         token::assert_holds_token();
         // Dropping the task empties its stack and frames, then gives the
         // token up.

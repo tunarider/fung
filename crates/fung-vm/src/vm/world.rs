@@ -25,12 +25,13 @@ use std::io::{BufRead, Write};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::Thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use fung_front::source::{FileId, SourceMap, decode_go};
 
+use super::block::{WaitList, Waiter};
 use super::module::ModuleState;
 use super::task::CancelNode;
 use super::{Globals, Prelude, RtProto, TestCase, token};
@@ -62,6 +63,8 @@ pub(crate) struct World {
     pub(super) main: Option<Rc<RtProto>>,
     /// Spawned tasks that have not finished (`Runtime::wait`).
     pub(super) running: usize,
+    /// Woken when `running` drops to 0.
+    pub(super) idle: WaitList,
     /// Tasks waiting in `block`, and how many of those a timeout will
     /// wake: what the deadlock check (Task 6) reads.
     #[allow(dead_code)]
@@ -113,6 +116,7 @@ impl World {
             prelude: Prelude::default(),
             main: None,
             running: 0,
+            idle: WaitList::default(),
             blocked: 0,
             waking: 0,
         }
@@ -197,16 +201,9 @@ impl World {
 /// tasks sleep on, and the roots of the cancellation tree.
 pub(crate) struct Shared {
     world: Mutex<World>,
-    /// The wake generation: bumped (with the token held) whenever
-    /// something a blocked task may wait for changes, such as a task
-    /// finishing or being cancelled. A blocked task sleeps on `wake`
-    /// until the generation moves past the one it saw while it still held
-    /// the token. This mutex is separate from the world's and held only
-    /// for a moment, so a woken task never needs the world mutex (which a
-    /// computing task holds) just to stop sleeping: it queues at the gate
-    /// like everyone else, where `yield_turn` sees it.
-    wake_gen: Mutex<u64>,
-    wake: Condvar,
+    /// How many times a sleeping task woke up (tests count wakeups).
+    #[cfg(test)]
+    wakeups: AtomicUsize,
     gate: Gate,
     /// Every task descends from this node (Go `rt.root()`): the entry
     /// runs on it, `cancel_all` cancels it.
@@ -220,8 +217,8 @@ impl Shared {
     pub(super) fn new(world: World) -> Shared {
         Shared {
             world: Mutex::new(world),
-            wake_gen: Mutex::new(0),
-            wake: Condvar::new(),
+            #[cfg(test)]
+            wakeups: AtomicUsize::new(0),
             gate: Gate::default(),
             root: CancelNode::root(),
             handlers: CancelNode::root(),
@@ -241,15 +238,10 @@ impl Shared {
         }
     }
 
-    /// Wakes every blocked task so it checks its condition again. Call it
-    /// with the token held, after changing what they wait for. A waiter
-    /// reads the generation while it still holds the token (after its
-    /// check), so a change made after that check bumps the generation
-    /// past what it read, and it does not sleep through it.
-    pub(super) fn notify_all(&self) {
-        token::assert_holds_token();
-        *self.wake_gen.lock().unwrap_or_else(recover) += 1;
-        self.wake.notify_all();
+    /// How many times a sleeping task woke up so far.
+    #[cfg(test)]
+    pub(crate) fn wakeups(&self) -> usize {
+        self.wakeups.load(Ordering::Relaxed)
     }
 
     /// Cancels every task (Go `CancelAll`): the root and everything below
@@ -257,7 +249,6 @@ impl Shared {
     pub(crate) fn cancel_all(&self) {
         let _t = self.lock();
         self.root.cancel();
-        self.notify_all();
     }
 }
 
@@ -411,38 +402,31 @@ impl Token<'_> {
         }
     }
 
-    /// Gives the token up until notified (`Shared::notify_all`) or for at
-    /// most `d`, then takes it back in line. Spurious wakeups happen: the
-    /// caller checks its condition again.
-    ///
-    /// The generation is read before the token is given up, so every
-    /// change made after the caller checked its condition (changes need
-    /// the token) moves it, and the sleep below ends at once.
-    pub(super) fn wait(&mut self, d: Option<Duration>) {
-        let seen = *self.shared.wake_gen.lock().unwrap_or_else(recover);
+    /// Gives the token up until `w` is woken or `deadline` passes, then
+    /// takes it back in line. The sleep parks the thread; it never needs
+    /// the world mutex (which a computing task holds), so a woken task
+    /// queues at the gate, where `yield_turn` sees it. A wake that came
+    /// before the sleep started is not lost: it set `w`'s flag, which is
+    /// checked before every park.
+    pub(super) fn sleep(&mut self, w: &Waiter, deadline: Option<Instant>) {
         self.release();
-        let deadline = d.and_then(|d| Instant::now().checked_add(d));
-        let mut g = self.shared.wake_gen.lock().unwrap_or_else(recover);
-        while *g == seen {
+        loop {
+            if w.take_woken() {
+                break;
+            }
             match deadline {
                 Some(at) => {
-                    let Some(left) = at.checked_duration_since(Instant::now()) else {
-                        break;
-                    };
-                    if left.is_zero() {
+                    let now = Instant::now();
+                    if now >= at {
                         break;
                     }
-                    g = self
-                        .shared
-                        .wake
-                        .wait_timeout(g, left)
-                        .unwrap_or_else(recover)
-                        .0;
+                    std::thread::park_timeout(at - now);
                 }
-                None => g = self.shared.wake.wait(g).unwrap_or_else(recover),
+                None => std::thread::park(),
             }
         }
-        drop(g);
+        #[cfg(test)]
+        self.shared.wakeups.fetch_add(1, Ordering::Relaxed);
         self.reacquire();
     }
 
@@ -501,6 +485,7 @@ mod tests {
     use super::*;
     use std::io::Cursor;
     use std::sync::Arc;
+    use std::time::Duration;
 
     fn shared() -> Arc<Shared> {
         Arc::new(Shared::new(World::new(
@@ -526,21 +511,22 @@ mod tests {
     }
 
     #[test]
-    fn a_wait_gives_the_token_to_another_thread() {
+    fn a_sleep_gives_the_token_to_another_thread() {
         let s = shared();
         let mut t = s.lock();
         t.exit = Some(1);
+        let me = Waiter::new();
         let other = {
-            let s = s.clone();
+            let (s, me) = (s.clone(), me.clone());
             std::thread::spawn(move || {
                 let mut t = s.lock();
                 token::assert_holds_token();
                 t.exit = Some(2);
-                s.notify_all();
+                me.wake();
             })
         };
         while t.exit != Some(2) {
-            t.wait(Some(Duration::from_millis(10)));
+            t.sleep(&me, Some(Instant::now() + Duration::from_millis(10)));
         }
         token::assert_holds_token();
         drop(t);

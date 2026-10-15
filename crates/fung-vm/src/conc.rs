@@ -99,7 +99,7 @@ fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
         v => return Err(nat::wrong_arg("d", "dur", v)),
     };
     if d > 0 {
-        block(t, |_| None::<()>, Some(wait_of(d)))?;
+        block(t, |_, _| None::<()>, Some(wait_of(d)))?;
     }
     Ok(Value::Nil)
 }
@@ -134,7 +134,14 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
         v => return Err(nat::wrong_arg("timeout", "dur | nil", v)),
     };
     let state = h.state.clone();
-    match block(t, |_| state.result(), timeout)? {
+    let ready = |_: &mut _, me: &_| {
+        let r = state.result();
+        if r.is_none() {
+            state.waiters.borrow_mut().add(me);
+        }
+        r
+    };
+    match block(t, ready, timeout)? {
         Some(v) => Ok(v),
         None => Ok(err_kind("timeout")),
     }
@@ -142,11 +149,10 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 
 /// `cancel(t)` (Go `cancelFn`): cancels the task and every task below it;
 /// a finished task is left as it is.
-fn cancel(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn cancel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let Value::Task(h) = &args[0] else {
         return Err(nat::wrong_arg("t", "task", &args[0]));
     };
     h.cancel.cancel();
-    t.notify_all();
     Ok(Value::Nil)
 }
