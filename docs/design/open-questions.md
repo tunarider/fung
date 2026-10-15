@@ -109,9 +109,16 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   (Elixir의 `Agent` 같은 것, 이름·API·`update(a, f)`의 `f` 실패를 부른 쪽에 돌려주는 규칙은 만들 때 정함)가 대신한다.
   대가: 읽기·쓰기가 편지 왕복이라 자물쇠보다 느리다. Go 버전은 그대로 두고, 0.x의 호환성 깨짐으로 Rust 버전 CHANGELOG에 적는다.
   고칠 코드: `examples/api.fung`의 요청 카운터, `tests/lang`의 `atoms`·`conc_helpers`·`http_serve`.
-- [x] 채널의 순환 → **유지하고, 채널에 그 채널 자신을 보내면 에러.** 보낼 때 메시지를 복사하며 훑으므로 비용이 거의 없다.
-  두 채널이 서로를 버퍼에 담은 채 버려지는 간접 순환은 잡지 못한다(읽히지 않은 메시지가 남은 채 버려진 경우라 드묾). 문서에 적는다.
-  참조 계수 덕분에 보낼 쪽이 모두 사라진 채널은 자동으로 닫혀, 상태를 쥔 태스크가 `Err('closed)`를 받고 스스로 끝난다.
+  - 완료 (3b, 2026-10-15): `agent(v)`·`swap(a, f)`·`deref(a)`(atom의 이름을 이음, Elixir `Agent`처럼). fung 코드 `extras/rust/agent.fung`(Rust 부팅만 읽음)와
+    `_native.conc`의 Rust 전용 도우미. 에이전트는 배경 태스크(프로그램 끝을 막지 않고 교착 집계에 따로 들며 `at_exit` 뒤에 취소)이고, 핸들은 닫개다.
+    `f`는 에이전트의 태스크에서 돌고, 실패하면 상태는 그대로 두고 같은 에러를 부른 쪽 `swap(` 위치에서 다시 낸다. 자기 `f` 안의 같은 에이전트 `swap`은 E0704.
+    `tests/lang`의 atom 파일은 `# only: go`(`atoms`·`err_atom_reentry`·`conc_atoms`·`http_serve`), `conc_helpers`의 atom 부분은 `conc_atoms`로 떼어 냄.
+    예제는 6단계에서 고친다(아래 "Rust 첫 릴리스(0.2.0)에서 바뀌는 것"). 노트 `docs/notes/R3b-agent.md`.
+- [x] 채널의 순환 → **유지하고, 채널에 그 채널 자신을 보내면 에러.** 두 채널이 서로를 버퍼에 담은 채 버려지는 간접 순환은 잡지 못한다(읽히지 않은 메시지가 남은 채 버려진 경우라 드묾).
+  - 완료 (3b, 2026-10-15): `send(ch, v)`가 `v`를 깊이 훑어 `ch`가 있으면 E0705 `channel sent into itself`(재귀 없이, 공유된 부분은 한 번만). 에이전트 내부 요청은 검사하지 않는다.
+    비용은 "거의 없다"가 아니라 **보내는 값의 크기에 비례**한다(아래 3b 목록). 훑지 않는 곳도 아래 3b 목록에.
+  - 자동 닫힘 → **에이전트에 한해, 닫개로.** 에이전트 핸들의 마지막 사본이 사라지면 요청 채널을 닫아 에이전트가 `Err('closed)`를 받고 끝난다.
+    일반 채널은 보내는 쪽과 받는 쪽이 같은 값이라 자동으로 닫지 않고 지금처럼 `close`로 닫는다(3b 스펙).
 - [ ] 언어 층 후보(지금 결정하지 않음): 구조적 동시성(`scope`), 채널 대신 메일박스(태스크 번호 + 골라 받기; 순환이 완전히 사라지지만
   자동 종료를 잃고 link·monitor 설계가 필요).
 - [x] 라이브러리 구조 → **언어 핵심은 최소, 공식 라이브러리는 패키지 구조로 만들되 패키지 관리자가 생길 때까지 바이너리에 함께 넣는다.**
@@ -135,8 +142,10 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 3a단계(동시성, Go와 같은 의미) 완료 (2026-10-15): 태스크·채널·취소·`atom`·교착 감지·꺼내지 않은 실패·어디서든 `exit`가 Go와 같은 출력·종료 코드
     (실행 비교 187건: `tests/lang` 136개 중 127개, `bench/` 6개, `-e` 47개 중 동시성 23개, 실행 방식 7가지; 동시성 31건은 릴리스에서 Rust·Go 각 50번 반복),
     제외는 네이티브 모듈 9개만. 스펙 `docs/superpowers/specs/2026-10-15-rust-runtime-3a-design.md`, 계획 `docs/plans/2026-10-15-rust-runtime-3a.md`, 노트 `docs/notes/R3a-runtime.md`
-  - [ ] 3b단계 할 일: `atom` 제거와 대체 fung 라이브러리, 채널에 자기 자신 보내기 에러, 보낼 쪽이 모두 사라진 채널 자동 닫힘,
-    구현마다 갈라지는 골든 테스트(`atoms`·`conc_helpers`·`http_serve`, `examples/api.fung`) 정리, Rust 버전 CHANGELOG. 아래 "3a단계에서 알고 남긴 차이"의 `Rc` 순환이 함께 풀린다.
+  - 3b단계(Go와 일부러 갈라지는 언어 변경) 완료 (2026-10-15): `atom` → `agent`(배경 태스크 + 닫개), E0704·E0705, 갈라지는 테스트의 `# only: go|rust` 표시와
+    Rust 골든 실행기(`crates/fung-cli/tests/golden.rs`, Go 없이 파일의 기대값과 비교: `tests/lang` 130개 확인, `# only: go` 3개, 네이티브 모듈 9개 건너뜀, 바닥 127).
+    실행 비교는 표시된 파일을 빼고 그대로 같음(`tests/lang` 125개). 스펙 `docs/superpowers/specs/2026-10-15-rust-agent-3b-design.md`,
+    계획 `docs/plans/2026-10-15-rust-agent-3b.md`, 노트 `docs/notes/R3b-agent.md`. 예제·매뉴얼·CHANGELOG는 6단계(아래 "Rust 첫 릴리스(0.2.0)에서 바뀌는 것").
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - 스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉(GitHub Actions의 Linux·macOS 러너에서는 정상 동작 확인, 2026-10-15). 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -181,6 +190,29 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     버퍼 앞으로 옮기고 나머지만 채워 읽는 크기가 달라진다. Go 내부 동작이라 따라 하지 않는다(첫 4 KiB까지는 같다: `crates/fung-cli/tests/stdin.rs`).
   - 핸들러가 띄운 태스크가 `outside`(표준 입력·자식 프로세스 대기)에 남아 있으면 살아 있고 막히지 않은 것으로 세므로, 뒤 핸들러의 교착을 알아채지 못한다.
   - 자기 자신을 품은 채널·atom(`send(c, c)`, `swap(a, _ => [a])`, 자기 핸들을 결과로 담은 태스크)은 `Rc` 순환이라 3b까지 해제되지 않고 새어 나간다. Go는 GC가 회수한다.
+    3b: atom은 없어졌고 `send(c, c)`는 E0705. 남은 것(두 채널, 태스크 결과, 자기 핸들을 품은 에이전트)은 아래 "3b단계에서 알고 남긴 차이와 한계".
+- [ ] 3b단계에서 알고 남긴 차이와 한계 (진행 기록 `.superpowers/sdd/2026-10-15-rust-agent-3b/progress.md`, 노트 `docs/notes/R3b-agent.md` 9절).
+  - 꼬리 위치의 `swap`: fung으로 쓴 모든 prelude 함수처럼 부른 쪽 프레임을 대신하므로, `f`의 에러가 `swap(`이 아니라 바깥 호출 위치에서 난다(생략된 꼬리 호출은 호출 경로에 셈).
+    꼬리 위치의 E0704도 같다(`swap(a, x => swap(a, y => y))`는 바깥 `swap(`). Go도 자기 fung prelude 함수에서 똑같다. atom은 네이티브라 프레임이 남았다.
+    안쪽 위치를 얻으려면 꼬리 호출마다 호출 자리를 프레임에 적어야 해서(VM 변경, 모든 꼬리 호출에 저장 하나) 하지 않았다.
+  - 에이전트끼리의 `deref`: 에이전트 b의 `f` 안에서 `deref(a)`를 하는데 a가 b를 기다리고 있으면 진짜 교착이고 E0702로 보고된다.
+  - 막히지 않는 배경 태스크(끝없이 도는 것)는 다른 태스크들 사이의 진짜 교착을 가린다. 끝없이 도는 보통 태스크도 이미 그렇다.
+  - 끝까지 남는 에이전트: 상태가 자기 핸들을 품었거나(`swap(a, _ => a)`), `f`가 바쁜 도중 끊긴 에이전트는 프로그램이 끝날 때까지 남는다.
+    배경 태스크라 프로그램을 멈추게 하지는 않고 `at_exit` 뒤에 취소된다.
+  - 배경 태스크가 띄운 태스크는 배경 종류를 물려받는다(세기·수명). 그래서 에이전트의 `f`가 띄운 태스크가 끝없이 돌아도 프로그램 끝을 막지 않는다. 실패 보고는 남는다.
+  - E0705가 훑지 않는 곳: 다른 채널의 버퍼(두 채널 순환), 모듈·클로저의 전역(런타임 끝에 `World::release_values`가 끊음), 태스크 핸들(결과를 보면 에러가 시점에 달림).
+  - `send` 비용이 보내는 값의 크기에 비례한다: 정수 100만 개 리스트 한 번에 약 0.75 ms, 원소 하나짜리 리스트 100만 개는 약 4.75 ms(릴리스). 에이전트 내부 요청은 해당 없음.
+    같은 영속 벡터를 공유하는 여러 보기는 보기마다 자기 범위를 다시 훑는다(일부러 만든 입력에서는 지수적으로 커질 수 있음).
+  - 에이전트는 값이 아니라 `<agent>`로 출력된다(값을 보이려면 에이전트에 물어야 해서 출력이 막히는 연산이 된다). atom은 `<atom 1>`.
+- [ ] Rust 첫 릴리스(0.2.0)에서 바뀌는 것 (6단계 CHANGELOG·예제·매뉴얼의 근거, 2026-10-15). 사용자에게 보이는 호환성 깨짐과 새 동작:
+  - `atom` → `agent`. 옮겨 쓰기는 `atom(` → `agent(`이고 `swap`·`deref`는 이름 그대로. 타입 표기도 `atom` → `agent`(`fn f(a: agent)`), `type_of`는 `'agent`.
+  - `swap(a, f)`의 `f`는 부른 태스크가 아니라 **에이전트의 태스크**에서 돈다. 요청은 받은 순서대로 하나씩. `f`의 실패는 상태를 그대로 두고 부른 쪽 `swap(`에서 같은 에러로 난다.
+    `f` 안의 `exit(n)`은 부른 쪽의 `exit(n)`이 되고 에이전트는 계속 일한다. `f` 안(과 `f`가 띄운 태스크)의 `deref`는 바꾸기 전 값.
+  - 출력은 `<agent>`(atom은 `<atom 1>`처럼 값을 보였다).
+  - 새 에러: E0704 `agent called from inside its own swap`(atom의 재진입 에러를 이음), E0705 `channel sent into itself`.
+  - 핸들이 모두 사라진 에이전트는 실행 중에 끝난다. 에이전트는 프로그램이 끝나기를 막지 않고 `at_exit` 핸들러에서 쓸 수 있다.
+  - 고칠 것: `examples/api.fung`(요청 카운터)·`examples/serve.fung`, `docs/builtins.html`(`atom`·`swap`·`deref` 항목과 서명), `tests/lang`의 `# only: go` 파일(`atoms`·`err_atom_reentry`·`conc_atoms`·`http_serve`)과
+    dump 대조의 `ATOM_EXAMPLES`(`crates/fung-cli/tests/parity.rs`). 6단계에서 Go를 지우면 `# only:` 표시도 정리한다.
 - [ ] Go 동등을 위한 과도기 잔가지 → **이식 중에는 Go와 맞추고, Go를 지운 뒤 따로 걷어낸다** (2026-10-15).
   Go 구현은 빠르게 해 본 첫 시도로 본다. 아래는 언어 설계가 아니라 Go 구현의 우연을 바이트 단위로 따라 하려고 붙인 것들이다.
   걷어낼 때 각 항목의 바른 동작을 설계 문서와 `tests/lang`에 정한 뒤 지운다. 이식 중 새로 붙이는 것도 여기에 더한다.
@@ -190,6 +222,9 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 표준 입력 읽기 단위 4 KiB(`crates/fung-vm/src/vm/stdin.rs`의 `BUFFER`, 명령의 `raw_stdin` 버퍼): Go `bufio`의 기본 크기라서, `read_line` 한 번 뒤 파일 위치가 Go와 같다
     (`crates/fung-cli/tests/stdin.rs`). 필요할 때만 읽는 것은 설계이고, 크기는 Go의 우연이다.
   - 채널 순회는 Go `nat.Items`처럼 **닫힐 때까지 다 받은 뒤** 함수를 부른다(`native/nat.rs`의 `check_items`·`each_until`·`items`). `each(ch, f)`가 값이 올 때마다 `f`를 부르는 편이 자연스럽고, `map(ch, 3)`처럼 함수가 틀려도 먼저 채널을 비우는 것도 Go의 우연이다.
+  - Rust의 내장 함수 차이 목록(`crates/fung-front/src/builtins.rs`의 `RUST_PRELUDE_NATIVES_REMOVED`·`RUST_PRELUDE_AGENT`·`RUST_TYPE_RENAMES`·`RUST_MODULE_MEMBERS`, 3b):
+    `spec/builtins.txt`는 Go가 만들어 atom을 담으므로, Rust는 차이(네이티브 `atom`·`swap`·`deref` 빠짐, `extras/rust/agent.fung`의 공개 이름 더함, 타입 이름 `atom` → `agent`,
+    `_native.conc`의 Rust 전용 멤버)를 이 한 곳에 두고 앞단·부팅·명세 테스트가 함께 읽는다. 6단계에서 명세에 합치고 목록을 지운다. `extras/rust/`를 따로 둔 것(Go의 `embed`가 하위 디렉터리를 넣지 않음)도 그때 정리한다.
   - Go 방식 그대로: 16진 실수 파싱(`prelude/convert.rs`의 `parse_hex_float`), 대소문자 변환의 Go 단순 매핑(`prelude/strings.rs`의 `upper_rune`·`lower_rune`), 실행 파일 형식 사전 검사로 만드는 `exec format error`(`native/process.rs`).
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서·닫힌 파이프 141)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
