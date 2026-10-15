@@ -159,7 +159,7 @@ fn spawn_and_await_like_go() {
 #[test]
 fn cancel_reaches_a_sleeping_task_and_its_children() {
     let start = std::time::Instant::now();
-    let (out, _, code) = run("t = spawn(fn(): spawn(() => sleep(10s)) ;; sleep(10s) ;;)\ncancel(t)\nprint(await(t), await(spawn(() => sleep(10s)), timeout: 10ms))");
+    let (out, _, code) = run("t = spawn(fn(): spawn(() => sleep(10s)); sleep(10s) ;;)\ncancel(t)\nprint(await(t), await(spawn(() => sleep(10s)), timeout: 10ms))");
     assert_eq!((out.as_str(), code), ("Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0));
     assert!(start.elapsed() < std::time::Duration::from_secs(2));
 }
@@ -266,11 +266,11 @@ fn reentrant_swap_is_e0703() {
 
 #[test]
 fn a_swap_that_sleeps_makes_the_others_wait() {
-    let (out, _, code) = run("a = atom(0)\nt = spawn(() => swap(a, x => do sleep(20ms) ;; x + 1 end))\nsleep(5ms)\nswap(a, x => x * 10)\nawait(t)\nprint(deref(a))");
+    let (out, _, code) = run("a = atom(0)\nt = spawn(() => swap(a, fn(x): sleep(20ms); x + 1 ;;))\nsleep(5ms)\nswap(a, x => x * 10)\nawait(t)\nprint(deref(a))");
     assert_eq!((out.as_str(), code), ("10\n", 0));
 }
 ```
-마지막 테스트는 Go 바이너리로 먼저 확인한다(`do … end` 문법이 다르면 Go가 받는 형태로 고친다).
+마지막 테스트는 Go 바이너리로 먼저 확인한다.
 
 - [ ] **Step 2: 실패 확인** — Run: `cargo test -p fung-vm atom_tests` / Expected: FAIL.
 - [ ] **Step 3: 구현** — Go `atom.go`를 옮긴다. `open-questions.md` "Go 동등을 위한 과도기 잔가지"에는 넣지 않는다(언어 기능이고, 3b에서 언어 변경으로 지운다).
@@ -311,8 +311,8 @@ fn a_dropped_failed_task_is_reported_once_and_fails_the_run() {
 
 #[test]
 fn awaited_and_helper_failures_are_not_reported() {
-    let (_, err, code) = run("t = spawn(() => fail(\"x\"))\nprint(await(t) |> is_err, pmap([1], x => 1 / 0) |> is_err)");
-    assert_eq!((err.as_str(), code), ("", 0));
+    let (out, err, code) = run("t = spawn(() => fail(\"x\"))\nr = pmap([1], x => 1 / 0)\nprint(await(t) |> is_err, type_of(r))");
+    assert_eq!((out.as_str(), err.as_str(), code), ("true 'list\n", "", 0));
 }
 
 #[test]
