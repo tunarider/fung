@@ -187,6 +187,15 @@ impl Channel {
         }
     }
 
+    /// How many blocked sends and receives wait in the queues (tests:
+    /// a test waits for a task to be blocked instead of sleeping and
+    /// hoping it is).
+    #[cfg(test)]
+    pub(crate) fn queued(&self) -> usize {
+        let c = self.inner.borrow();
+        c.senders.len() + c.receivers.len()
+    }
+
     /// Moves every value out for `release` (`value/release.rs`).
     pub(crate) fn spill(&mut self, stack: &mut Vec<Value>) {
         let c = self.inner.get_mut();

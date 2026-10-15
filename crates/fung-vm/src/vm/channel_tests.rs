@@ -5,6 +5,54 @@
 use std::time::{Duration, Instant};
 
 use crate::testutil::{Opts, exec, run};
+use crate::value::{Native, Value};
+use crate::vm::Task;
+
+/// Test natives: `queued(ch)`, how many blocked sends and receives wait
+/// in `ch`, and `hold(ms)`, which sleeps the thread without giving the
+/// run token up (so no other task runs meanwhile).
+fn natives() -> Vec<Value> {
+    vec![
+        Value::Native(Native::leak(
+            "queued",
+            vec![crate::native::nat::param("ch")],
+            |_: &mut Task, a| {
+                let Value::Channel(c) = &a[0] else {
+                    unreachable!()
+                };
+                Ok(Value::Int(c.queued() as i64))
+            },
+        )),
+        Value::Native(Native::leak(
+            "hold",
+            vec![crate::native::nat::param("ms")],
+            |_: &mut Task, a| {
+                let Value::Int(ms) = a[0] else { unreachable!() };
+                std::thread::sleep(Duration::from_millis(ms as u64));
+                Ok(Value::Nil)
+            },
+        )),
+    ]
+}
+
+fn with_natives() -> Opts {
+    Opts {
+        extra: natives,
+        ..Opts::default()
+    }
+}
+
+/// `until(f)` sleeps 1 ms at a time (letting the other tasks run) until
+/// `f()` is true; `blocked(ch, n)` until `n` tasks wait in `ch`. A test
+/// that needs a task to be blocked waits for it this way: a fixed sleep
+/// is not enough under load, where a spawned thread can take longer than
+/// the sleep to start.
+const UNTIL: &str = "fn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nfn blocked(ch, n) = until(() => queued(ch) >= n)\n";
+
+/// Runs `src` after `UNTIL` with the test natives.
+fn exec_waiting(src: &str) -> crate::testutil::Outcome {
+    exec(&format!("{UNTIL}{src}"), with_natives())
+}
 
 #[test]
 fn a_native_blocked_inside_a_lambda_still_works() {
@@ -217,29 +265,32 @@ fn a_delivered_value_wins_over_a_later_cancel() {
             "Err({kind: 'cancelled})\nErr({kind: 'cancelled})\n",
         ),
     ];
-    // With the sleep, the task is already blocked when the other side
-    // moves the value, and wakes to a cancelled flag.
+    // Here the task is already blocked when the other side moves the
+    // value, and wakes to a cancelled flag. (These waited with a fixed 5 ms
+    // sleep, and the buffered one hung under load: a sender that had not
+    // started was cancelled before it sent, so the last `recv` waited
+    // for a value that never came; Go reports E0702 there.)
     let blocked_first = [
         (
-            "ch = channel()\nt = spawn(() => send(ch, 1))\nsleep(5ms)\nr = recv(ch)\ncancel(t)\nprint(r, await(t))",
+            "ch = channel()\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\nr = recv(ch)\ncancel(t)\nprint(r, await(t))",
             "Ok(1) Ok(nil)\n",
         ),
         (
-            "ch = channel()\nt = spawn(() => recv(ch))\nsleep(5ms)\ns = send(ch, 1)\ncancel(t)\nprint(s, await(t))",
+            "ch = channel()\nt = spawn(() => recv(ch))\nblocked(ch, 1)\ns = send(ch, 1)\ncancel(t)\nprint(s, await(t))",
             "Ok(nil) Ok(1)\n",
         ),
         (
-            "ch = channel()\nt = spawn(() => recv(ch, timeout: 10s))\nsleep(5ms)\ns = send(ch, 1)\ncancel(t)\nprint(s, await(t))",
+            "ch = channel()\nt = spawn(() => recv(ch, timeout: 10s))\nblocked(ch, 1)\ns = send(ch, 1)\ncancel(t)\nprint(s, await(t))",
             "Ok(nil) Ok(1)\n",
         ),
         (
-            "ch = channel(1)\nsend(ch, 0)\nt = spawn(() => send(ch, 1))\nsleep(5ms)\nr = recv(ch)\ncancel(t)\nprint(r, await(t), recv(ch))",
+            "ch = channel(1)\nsend(ch, 0)\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\nr = recv(ch)\ncancel(t)\nprint(r, await(t), recv(ch))",
             "Ok(0) Ok(nil) Ok(1)\n",
         ),
     ];
     for _ in 0..10 {
         for (src, want) in cases.iter().chain(blocked_first.iter()) {
-            let o = exec(src, Opts::default());
+            let o = exec_waiting(src);
             assert_eq!((o.code.as_str(), o.out.as_str()), ("", *want), "{src}");
         }
     }
@@ -316,33 +367,33 @@ fn a_cancelled_waiter_is_never_paired() {
     let cases = [
         // The wrong receiver: r2 must get the value, not the cancelled r1.
         (
-            "ch = channel()\nr1 = spawn(() => recv(ch))\nsleep(10ms)\nr2 = spawn(() => recv(ch))\nsleep(10ms)\ncancel(r1)\nprint(send(ch, 1), await(r1), await(r2))",
+            "ch = channel()\nr1 = spawn(() => recv(ch))\nblocked(ch, 1)\nr2 = spawn(() => recv(ch))\nblocked(ch, 2)\ncancel(r1)\nprint(send(ch, 1), await(r1), await(r2))",
             "Ok(nil) Err({kind: 'cancelled}) Ok(1)\n",
         ),
         // A lost value: the send must wait for the receiver that comes
         // after the cancel instead of handing the value to the cancelled one.
         (
-            "ch = channel()\nr = spawn(() => recv(ch))\nsleep(10ms)\ncancel(r)\nr2 = spawn(() => recv(ch))\nprint(send(ch, 1), await(r), await(r2))",
+            "ch = channel()\nr = spawn(() => recv(ch))\nblocked(ch, 1)\ncancel(r)\nr2 = spawn(() => recv(ch))\nprint(send(ch, 1), await(r), await(r2))",
             "Ok(nil) Err({kind: 'cancelled}) Ok(1)\n",
         ),
         // A cancelled sender delivers nothing.
         (
-            "ch = channel()\nt = spawn(() => send(ch, 1))\nsleep(10ms)\ncancel(t)\nprint(recv(ch, timeout: 20ms), await(t))",
+            "ch = channel()\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\ncancel(t)\nprint(recv(ch, timeout: 20ms), await(t))",
             "Err({kind: 'timeout}) Err({kind: 'cancelled})\n",
         ),
         (
-            "ch = channel()\ns1 = spawn(() => send(ch, 1))\nsleep(10ms)\ns2 = spawn(() => send(ch, 2))\nsleep(10ms)\ncancel(s1)\nprint(recv(ch), await(s1), await(s2))",
+            "ch = channel()\ns1 = spawn(() => send(ch, 1))\nblocked(ch, 1)\ns2 = spawn(() => send(ch, 2))\nblocked(ch, 2)\ncancel(s1)\nprint(recv(ch), await(s1), await(s2))",
             "Ok(2) Err({kind: 'cancelled}) Ok(nil)\n",
         ),
         // The same with a full buffer: the cancelled sender's value does
         // not move into the freed place.
         (
-            "ch = channel(1)\nsend(ch, 0)\nt = spawn(() => send(ch, 1))\nsleep(10ms)\ncancel(t)\nprint(recv(ch), recv(ch, timeout: 20ms), await(t))",
+            "ch = channel(1)\nsend(ch, 0)\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\ncancel(t)\nprint(recv(ch), recv(ch, timeout: 20ms), await(t))",
             "Ok(0) Err({kind: 'timeout}) Err({kind: 'cancelled})\n",
         ),
     ];
     for (src, want) in cases {
-        let o = exec(src, Opts::default());
+        let o = exec_waiting(src);
         assert_eq!((o.code.as_str(), o.out.as_str()), ("", want), "{src}");
     }
 }
@@ -352,29 +403,29 @@ fn a_cancelled_waiter_is_never_paired() {
 /// deadline, then the send must go to the second receiver.
 #[test]
 fn a_timed_out_receiver_is_never_paired() {
-    fn natives() -> Vec<crate::value::Value> {
-        use crate::value::{Native, Value};
-        use crate::vm::Task;
-        vec![Value::Native(Native::leak(
-            "hold",
-            vec![crate::native::nat::param("ms")],
-            |_: &mut Task, a| {
-                let Value::Int(ms) = a[0] else { unreachable!() };
-                std::thread::sleep(Duration::from_millis(ms as u64));
-                Ok(Value::Nil)
-            },
-        ))]
-    }
-    let opts = Opts {
-        extra: natives,
-        ..Opts::default()
-    };
-    let o = exec(
-        "ch = channel()\nr = spawn(() => recv(ch, timeout: 30ms))\nr2 = spawn(() => recv(ch))\nsleep(10ms)\nhold(60)\nprint(send(ch, 1), await(r), await(r2))",
-        opts,
+    // r is blocked (or already timed out, under heavy load) before r2
+    // exists, so only r can be the first queued receiver.
+    let o = exec_waiting(
+        "ch = channel()\nr = spawn(() => recv(ch, timeout: 30ms))\nuntil(() => queued(ch) >= 1 or await(r, timeout: 0s) != Err({kind: 'timeout}))\nr2 = spawn(() => recv(ch))\nhold(60)\nprint(send(ch, 1), await(r), await(r2))",
     );
     assert_eq!(
         (o.code.as_str(), o.out.as_str()),
         ("", "Ok(nil) Err({kind: 'timeout}) Ok(1)\n")
+    );
+}
+
+/// The interleaving that hung `a_delivered_value_wins_over_a_later_cancel`
+/// under load, made deterministic: the entry keeps the run token from the
+/// spawn to the cancel, so the sender is cancelled before it ever runs
+/// and sends nothing. A last `recv` without a timeout would wait forever
+/// (Go reports E0702 there); with one it times out.
+#[test]
+fn a_sender_cancelled_before_it_runs_sends_nothing() {
+    let (out, _, code) = run(
+        "ch = channel(1)\nsend(ch, 0)\nt = spawn(() => send(ch, 1))\nr = recv(ch)\ncancel(t)\nprint(r, await(t), recv(ch, timeout: 50ms))",
+    );
+    assert_eq!(
+        (out.as_str(), code),
+        ("Ok(0) Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0)
     );
 }

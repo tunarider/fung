@@ -211,6 +211,13 @@ fn waiters_are_served_in_order_and_cancelled_ones_skipped() {
             "a = atom(0)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nw2 = spawn(() => swap(a, x => x + 1))\nprint(swap(a, fn(x): sleep(20ms); cancel(w1); x ;;), await(w1), await(w2), deref(a))",
             "0 Err({kind: 'cancelled}) 1 1\n",
         ),
+        // A waiter granted the atom and cancelled before it runs passes
+        // the atom on (the fallback in `acquire`); without that the last
+        // swap would wait forever.
+        (
+            "a = atom(0)\nw1 = spawn(() => swap(a, fn(x): print(\"w1 ran\"); x + 100 ;;))\nswap(a, fn(x): sleep(20ms); x ;;)\ncancel(w1)\nprint(await(w1), swap(a, x => x + 1))",
+            "Err({kind: 'cancelled}) 1\n",
+        ),
     ]);
 }
 

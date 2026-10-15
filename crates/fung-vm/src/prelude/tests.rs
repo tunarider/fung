@@ -109,7 +109,12 @@ fn run_go(bin: &std::path::Path, src: &str, stdin: &str) -> (String, String, i32
         .spawn()
         .expect("run the Go binary");
     let mut input = child.stdin.take().expect("stdin");
-    input.write_all(stdin.as_bytes()).expect("write stdin");
+    // A program that does not read its input may exit before the write
+    // ends; the pipe is then closed, which is no failure of the run.
+    match input.write_all(stdin.as_bytes()) {
+        Err(e) if e.kind() != std::io::ErrorKind::BrokenPipe => panic!("write stdin: {e}"),
+        _ => {}
+    }
     drop(input);
     let o = child.wait_with_output().expect("wait for the Go binary");
     (
