@@ -75,9 +75,9 @@ pub(crate) struct World {
     pub(super) live: usize,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
-    /// The exit handlers have started: a deadlock from now on cancels
-    /// them too (Go cancels `handlerContext` once it exists).
-    pub(super) handlers_started: bool,
+    /// The cancellation node of the exit handler running now: a deadlock
+    /// while it runs cuts that handler short (`deadlock.rs`).
+    pub(super) handler: Option<Arc<CancelNode>>,
 }
 
 // SAFETY: `World` holds fung values (`Rc`s with non-atomic counts). The
@@ -126,7 +126,7 @@ impl World {
             idle: WaitList::default(),
             live: 0,
             deadlocked: false,
-            handlers_started: false,
+            handler: None,
         }
     }
 

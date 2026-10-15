@@ -23,12 +23,23 @@
 //! task is not live (the command waiting for the program is not a task).
 //!
 //! After the report (Go `deadlock`): E0702 on standard error, exit code 1
-//! (the first exit request), and every task cancelled — the program's
-//! root, and the exit handlers' root once handlers run. Each blocked task
-//! wakes and unwinds with E0702 (its handle turns that into
-//! `Err({kind: 'cancelled})`); the command does not report the entry's
-//! E0702 again (an exit was requested) and skips it among the handlers'
-//! errors, and the exit handlers registered before still run.
+//! (the first exit request), and every task of the program cancelled
+//! (the root). Each blocked task wakes and unwinds with E0702 (its handle
+//! turns that into `Err({kind: 'cancelled})`); the command does not
+//! report the entry's E0702 again (an exit was requested) and skips it
+//! among the handlers' errors, and the exit handlers still run.
+//!
+//! While an exit handler runs, the check is the handler's own: a deadlock
+//! is reported even after an earlier exit or deadlock, and it cancels
+//! only that handler's node, so the handler is cut short and the next one
+//! runs; the exit code stays as it was (1 if nothing set one). Go's
+//! detector is off once an exit was requested, and Go's runtime then
+//! kills the process ("all goroutines are asleep", exit 2); hanging would
+//! be worse than both (open-questions).
+//!
+//! The entry's end is judged too, so an entry error cancels the program
+//! before the entry task drops (`Runtime::run_with`): the tasks it leaves
+//! blocked are then being cancelled, not deadlocked.
 
 use fung_front::diag::{error, headline};
 
@@ -44,12 +55,14 @@ impl Task<'_> {
         let census = &self.shared.census;
         let w = &mut *self.world;
         debug_assert!(census.blocked() <= w.live, "more blocked than live");
-        if w.live == 0
-            || census.blocked() != w.live
-            || census.waking() != 0
-            || w.deadlocked
-            || w.exit.is_some()
-        {
+        if w.live == 0 || census.blocked() != w.live || census.waking() != 0 {
+            return false;
+        }
+        // During an exit handler, only the handler and what it spawned
+        // run, all under the handler's node: a deadlock there is judged
+        // on its own, whatever happened before the handlers.
+        let handler = w.handler.clone();
+        if handler.is_none() && (w.deadlocked || w.exit.is_some()) {
             return false;
         }
         w.deadlocked = true;
@@ -57,10 +70,9 @@ impl Task<'_> {
         let _ = w.stderr().write_all(line.as_bytes());
         let _ = w.stderr().flush();
         w.request_exit(1);
-        let handlers = w.handlers_started;
-        self.shared.root.cancel();
-        if handlers {
-            self.shared.handlers.cancel();
+        match handler {
+            Some(node) => node.cancel(),
+            None => self.shared.root.cancel(),
         }
         true
     }

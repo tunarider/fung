@@ -173,7 +173,15 @@ impl Runtime {
             return Err(internal(vec![Arg::Str("run before load".into())]));
         };
         let globals = t.world.new_globals(main.global_names.len());
-        let v = t.run_main(main, globals)?;
+        let r = t.run_main(main, globals);
+        if let Err(Stop::Error(_)) = &r {
+            // An entry error ends the program (Go `execute` cancels right
+            // after it). Cancelled here, while the entry still holds the
+            // token: its end is judged for a deadlock when it drops, and
+            // the tasks it leaves must not count as stuck by then.
+            self.shared.root.cancel();
+        }
+        let v = r?;
         Ok(f(&v))
     }
 
@@ -235,10 +243,11 @@ impl Runtime {
                 break;
             }
             ran += 1;
-            t.world.handlers_started = true;
             let node = self.shared.handlers.child();
             t.cancel = node.clone();
+            t.world.handler = Some(node.clone());
             let r = t.call(&h, Vec::new());
+            t.world.handler = None;
             // Go cancels each handler's context when it returns: what the
             // handler spawned and left running ends with it.
             node.cancel();

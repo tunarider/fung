@@ -252,8 +252,14 @@ fn a_sleeper_keeps_a_waiting_chain_alive() {
         )
         .unwrap_or_else(|e| panic!("{e:?}"));
         let shared = s.rt.shared();
+        // Cancel only once the chain is in place: the sleeper, `u` and
+        // the entry all blocked (the sleeper with its timer).
         let canceller = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(20));
+            let until = Instant::now() + Duration::from_secs(10);
+            while shared.census.blocked() < 3 && Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert_eq!(shared.census.blocked(), 3, "the chain never blocked");
             shared.cancel_all();
         });
         let code = match s.rt.run() {
@@ -443,4 +449,76 @@ fn a_long_chain_of_task_results_drops_without_recursion() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+// --- fix round 1 ---
+
+/// An entry error while another task is blocked is the entry's error, not
+/// a deadlock: the entry's end must not be judged before the program is
+/// cancelled (Go `execute` cancels right after an entry error). Expected
+/// text from the Go binary.
+#[test]
+fn an_entry_error_beside_a_blocked_task_is_not_a_deadlock() {
+    let (out, err, code) =
+        run_within("spawn(() => recv(channel()))\nsleep(5ms)\nfail(\"real error\")");
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
+            "",
+            "error[E0803]: real error\n  --> -e:3:5\n  |\n3 | fail(\"real error\")\n  |     ^\n  |\n call path (innermost first):\n   -e:3       <entry>\n",
+            1
+        )
+    );
+    // The same for exit: the exit code, no deadlock report.
+    let (_, err, code) = run_within("spawn(() => recv(channel()))\nsleep(5ms)\nexit(3)");
+    assert_eq!((err.as_str(), code), ("", 3));
+}
+
+/// The variant with a task still running when the entry fails: it is
+/// queued for the token (its 1 ms sleep ran out during `hold`), so it
+/// gets the token right after the entry, before the command can cancel
+/// anything, and then blocks for good.
+#[test]
+fn an_entry_error_beside_a_task_about_to_block_is_not_a_deadlock() {
+    let o = within(10, || {
+        exec_waiting(
+            "a = atom(false)\nready = channel(1)\nspawn(fn(): send(ready, nil); until(() => deref(a)); recv(channel()) ;;)\nrecv(ready)\nswap(a, _ => true)\nhold(5)\nfail(\"real error\")",
+        )
+    });
+    assert!(o.err.starts_with("error[E0803]: real error\n"), "{}", o.err);
+    assert!(!o.err.contains("E0702"), "{}", o.err);
+    assert_eq!(o.exit, 1);
+}
+
+/// A deadlock inside an exit handler is judged on its own, even after an
+/// exit or a deadlock before the handlers: it is reported, the handler is
+/// cut short, and the exit code stays what it was. (Go's own runtime
+/// detector kills the process with exit 2 here; see open-questions.)
+#[test]
+fn a_deadlock_in_a_handler_after_an_exit_or_a_deadlock() {
+    let (out, err, code) =
+        run_within("at_exit(() => print(\"second\"))\nat_exit(() => recv(channel()))\nexit(0)");
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("second\n", DEADLOCK, 0)
+    );
+    let (out, err, code) = run_within(
+        "at_exit(() => print(\"second\"))\nat_exit(() => recv(channel()))\nrecv(channel())",
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
+            "second\n",
+            "error[E0702]: deadlock: all tasks are waiting\nerror[E0702]: deadlock: all tasks are waiting\n",
+            1
+        )
+    );
+    // Its tasks are cut short with it.
+    let (out, err, code) = run_within(
+        "at_exit(() => print(\"second\"))\nat_exit(fn(): ch = channel(); spawn(() => recv(ch)); recv(ch) ;;)\nexit(4)",
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("second\n", DEADLOCK, 4)
+    );
 }
