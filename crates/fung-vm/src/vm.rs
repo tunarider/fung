@@ -16,6 +16,10 @@ mod call;
 pub(crate) mod channel;
 #[cfg(test)]
 mod channel_tests;
+mod deadlock;
+mod failure;
+#[cfg(test)]
+mod failure_tests;
 mod frame;
 mod link;
 mod m4;
@@ -133,6 +137,8 @@ pub struct Task<'rt> {
     budget: u32,
     /// What wakes this task when it blocks (`block.rs`).
     waiter: Arc<block::Waiter>,
+    /// Counted in `World::live` (every task but `Runtime::wait`'s).
+    live: bool,
     /// The shared part's owner, for spawning tasks on other threads.
     shared: &'rt Arc<Shared>,
     /// The run token, and through it the shared part. Keep it last.
@@ -143,6 +149,24 @@ impl<'rt> Task<'rt> {
     /// A task on this thread under the cancellation node `cancel`; waits
     /// for the run token.
     pub(crate) fn new(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
+        let mut t = Task::unlisted(shared, cancel);
+        t.world.live += 1;
+        t.live = true;
+        t
+    }
+
+    /// A spawned task on its own thread: its parent counted it live
+    /// when it spawned it (`task.rs`).
+    pub(crate) fn spawned(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
+        let mut t = Task::unlisted(shared, cancel);
+        t.live = true;
+        t
+    }
+
+    /// A task that is not live: it runs no fung code and nothing in fung
+    /// waits for it (`Runtime::wait`, the command waiting for the
+    /// program), so the deadlock check leaves it out.
+    pub(crate) fn unlisted(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
         let world = shared.lock();
         token::assert_holds_token();
         Task {
@@ -151,7 +175,8 @@ impl<'rt> Task<'rt> {
             native: None,
             cancel,
             budget: YIELD_EVERY,
-            waiter: block::Waiter::new(),
+            waiter: block::Waiter::new(shared.census.clone()),
+            live: false,
             shared,
             world,
         }
@@ -593,5 +618,11 @@ impl Drop for Task<'_> {
         self.native = None;
         self.frames.clear();
         self.stack.clear();
+        // The last running task ending can leave only blocked ones
+        // (`deadlock.rs`).
+        if self.live {
+            self.world.live -= 1;
+            self.judge();
+        }
     }
 }

@@ -22,19 +22,20 @@
 //! while waiting; a cancelled task unwinds with E0701, which its handle
 //! turns into `Err({kind: 'cancelled})`.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
-use fung_front::diag::{Arg, headline};
+use fung_front::diag::{self, Arg, Diag, headline};
 
 use super::block::{WaitList, Waiter};
+use super::failure::Failures;
 use super::world::Shared;
 use super::{Stop, Task, internal, token};
 use crate::native::nat;
-use crate::value::{MapBuilder, Value, intern};
+use crate::value::{MapBuilder, Value, drop_children, intern, keep};
 
 /// The stack each spawned task's thread reserves. fung calls do not use
 /// it (frames live on the VM's heap); only natives that call back into
@@ -157,6 +158,8 @@ impl CancelNode {
 pub struct TaskHandle {
     pub(crate) state: Rc<TaskState>,
     pub(crate) cancel: Arc<CancelNode>,
+    /// Where a failure is reported when this handle drops (`failure.rs`).
+    failures: Arc<Failures>,
 }
 
 impl std::fmt::Debug for TaskHandle {
@@ -165,10 +168,48 @@ impl std::fmt::Debug for TaskHandle {
     }
 }
 
-/// A handle is a value: it drops only on the token's holder.
+/// A handle is a value: it drops only on the token's holder. With it goes
+/// the last way to retrieve the task's result (every copy of the value
+/// shares this one handle), so a failure nobody retrieved is reported
+/// now, or when the task fails if it is still running (`failure.rs`).
 impl Drop for TaskHandle {
     fn drop(&mut self) {
         token::assert_holds_token();
+        self.state.orphan.set(true);
+        if let Some(n) = self.state.failure.take() {
+            self.failures.report(n);
+        }
+    }
+}
+
+impl TaskHandle {
+    /// A handle of a finished task with result `v`, without a thread
+    /// (tests of value lifetimes).
+    #[cfg(test)]
+    pub(crate) fn finished(v: Value, cancel: Arc<CancelNode>, failures: Arc<Failures>) -> Value {
+        Value::Task(Rc::new(TaskHandle {
+            state: Rc::new(TaskState {
+                result: RefCell::new(Some(v)),
+                waiters: RefCell::new(WaitList::default()),
+                awaited: false,
+                failure: Cell::new(None),
+                orphan: Cell::new(false),
+            }),
+            cancel,
+            failures,
+        }))
+    }
+
+    /// The task's result, if it has finished, as `await` gets it: a
+    /// failure in it is now the caller's to handle (Go `retrieve`).
+    pub(crate) fn retrieve(&self) -> Option<Value> {
+        let r = self.state.result();
+        if r.is_some()
+            && let Some(n) = self.state.failure.take()
+        {
+            self.failures.untrack(n);
+        }
+        r
     }
 }
 
@@ -180,15 +221,34 @@ pub(crate) struct TaskState {
     /// The tasks waiting for the result (`await`), woken when it is set.
     pub(crate) waiters: RefCell<WaitList>,
     /// Spawned by a helper that awaits it (`_native.conc.spawn_awaited`):
-    /// its failure is never reported as unretrieved (Task 6).
-    #[allow(dead_code)]
-    pub(crate) awaited: bool,
+    /// its failure counts as retrieved from the start.
+    awaited: bool,
+    /// The number of the task's failure in `Failures` while it is neither
+    /// retrieved nor reported.
+    failure: Cell<Option<u64>>,
+    /// The handle is gone: a failure is reported as it happens.
+    orphan: Cell<bool>,
 }
 
 impl TaskState {
     /// The result, if the task has finished.
     pub(crate) fn result(&self) -> Option<Value> {
         self.result.borrow().clone()
+    }
+
+    /// Takes the result out (`value/release.rs`).
+    pub(crate) fn take_result(&self) -> Option<Value> {
+        self.result.borrow_mut().take()
+    }
+}
+
+/// A result holding another task's handle, whose result holds another,
+/// and so on, drops in constant stack (`value/release.rs`).
+impl Drop for TaskState {
+    fn drop(&mut self) {
+        if let Some(v) = self.result.get_mut().take() {
+            drop_children(|s| keep(s, v));
+        }
     }
 }
 
@@ -237,13 +297,18 @@ pub(crate) fn err_kind(kind: &str) -> Value {
 /// `Err({kind: 'cancelled})` for a cancelled task (E0701), one woken by
 /// the deadlock report (E0702) or one that called `exit`, or
 /// `Err({kind: 'error, message: "error[E…]: …"})` for a failure.
-fn outcome(r: Result<Value, Stop>) -> Value {
+fn outcome(r: &Result<Value, Stop>) -> Value {
     match r {
-        Ok(v) => v,
+        Ok(v) => v.clone(),
         Err(Stop::Exit(_)) => err_kind("cancelled"),
-        Err(Stop::Error(d)) if d.code == "E0701" || d.code == "E0702" => err_kind("cancelled"),
-        Err(Stop::Error(d)) => nat::err_value("error", &headline(&d), Vec::new()),
+        Err(Stop::Error(d)) if is_cancel(d) => err_kind("cancelled"),
+        Err(Stop::Error(d)) => nat::err_value("error", &headline(d), Vec::new()),
     }
+}
+
+/// Cancelled, or woken by the deadlock report: not the task's failure.
+fn is_cancel(d: &Diag) -> bool {
+    d.code == "E0701" || d.code == "E0702"
 }
 
 impl<'rt> Task<'rt> {
@@ -257,14 +322,20 @@ impl<'rt> Task<'rt> {
             result: RefCell::new(None),
             waiters: RefCell::new(WaitList::default()),
             awaited,
+            failure: Cell::new(None),
+            orphan: Cell::new(false),
         });
         let handle = Rc::new(TaskHandle {
             state: state.clone(),
             cancel: node.clone(),
+            failures: self.shared.failures.clone(),
         });
         let cargo = Handoff(Some((f, state)));
         let shared = Arc::clone(self.shared);
         self.world.running += 1;
+        // Live from now (Go `addLive` before the goroutine starts): a
+        // task whose thread has not taken the token yet will still run.
+        self.world.live += 1;
         let started = std::thread::Builder::new()
             .name("fung-task".into())
             .stack_size(TASK_STACK)
@@ -273,6 +344,7 @@ impl<'rt> Task<'rt> {
             // The closure, and the values in it, were dropped here, on
             // this thread, with the token held.
             self.world.running -= 1;
+            self.world.live -= 1;
             return Err(internal(vec![Arg::Str(format!(
                 "cannot start a task: {e}"
             ))]));
@@ -306,12 +378,25 @@ impl<'rt> Task<'rt> {
 /// process stops instead.
 fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff) {
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut t = Task::new(&shared, node.clone());
+        let mut t = Task::spawned(&shared, node.clone());
         token::assert_holds_token();
         let (f, state) = cargo.open(&t);
         let r = t.call(&f, Vec::new());
         drop(f);
-        *state.result.borrow_mut() = Some(outcome(r));
+        *state.result.borrow_mut() = Some(outcome(&r));
+        if let Err(Stop::Error(d)) = &r
+            && !is_cancel(d)
+            && !state.awaited
+        {
+            // Go `finish`: a failure someone must see (`failure.rs`).
+            let text = format!("task failed: {}", diag::format(d, &t.world.sources));
+            if state.orphan.get() {
+                shared.failures.report_now(&text);
+            } else {
+                state.failure.set(Some(shared.failures.track(text)));
+            }
+        }
+        drop(r);
         state.waiters.borrow_mut().wake_all();
         drop(state);
         // Go `defer child.cancel()`: what this task spawned and left

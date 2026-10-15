@@ -1,6 +1,8 @@
 //! Test helpers: compile a program with the front end, boot the prelude
 //! and run it the way the fung command will (Go `cmd/fung/pipeline.go`
-//! `execute`): the entry, then the exit handlers, then the exit code.
+//! `execute`): the entry, waiting for the tasks it left (or cancelling
+//! them after an error), the exit handlers, the report of task failures
+//! nobody retrieved, then the exit code.
 //! Everything runs on a 4 GiB thread, because value formatting and
 //! comparison recurse on deep nesting like Go.
 //!
@@ -337,7 +339,16 @@ fn exec_on(src: &str, given: Option<Prelude>, opts: Opts) -> Outcome {
             return o;
         }
     };
-    match rt.run_with(format) {
+    let r = rt.run_with(format);
+    // Go `execute`: the entry is done, the tasks it left keep the program
+    // alive; an entry error (or an exit) cancels them first.
+    if r.is_ok() {
+        rt.wait();
+    } else {
+        rt.cancel_all();
+        rt.wait();
+    }
+    match r {
         Ok(v) => o.value = Some(v),
         Err(Stop::Exit(_)) => o.code = "exit".into(),
         Err(Stop::Error(d)) => {
@@ -355,6 +366,11 @@ fn exec_on(src: &str, given: Option<Prelude>, opts: Opts) -> Outcome {
         o.exit = status(n);
     }
     for d in rt.run_exit_handlers() {
+        if d.code == "E0701" || d.code == "E0702" {
+            // A handler cut short by the deadlock report (or an exit),
+            // already told (Go `execute`).
+            continue;
+        }
         let text = rt.with_sources(|s| diag::format(&d, s));
         err.clone().write_all(text.as_bytes()).unwrap();
         if o.exit == diag::EXIT_OK {
@@ -362,8 +378,13 @@ fn exec_on(src: &str, given: Option<Prelude>, opts: Opts) -> Outcome {
         }
         o.handler_errors.push(ErrInfo::of(&d));
     }
-    if let (None, Some(n)) = (before, rt.exit_code()) {
-        o.exit = status(n); // an exit requested inside a handler
+    // The program is over: report every task failure nobody retrieved.
+    rt.wait();
+    rt.report_unretrieved();
+    match (before, rt.exit_code()) {
+        (None, Some(n)) => o.exit = status(n), // an exit requested inside a handler
+        (None, None) if o.exit == diag::EXIT_OK && rt.failed() => o.exit = diag::EXIT_RUNTIME,
+        _ => {}
     }
     drop(rt);
     o.out = out.text();

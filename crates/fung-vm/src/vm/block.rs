@@ -20,14 +20,14 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::thread::Thread;
 use std::time::{Duration, Instant};
 
 use fung_front::diag::error;
 use fung_front::source::Pos;
 
-use super::{Stop, Task, World, no_pos, token};
+use super::{Stop, Task, World, token};
 
 /// How many calls and backward jumps a task makes between checks whether
 /// another task waits for the token. With no other task waiting, the
@@ -47,28 +47,96 @@ pub(crate) fn cancelled(pos: Pos) -> Stop {
     Stop::Error(Box::new(error("E0701", pos, Vec::new())))
 }
 
+/// How many live tasks are blocked in `block`, and how many of those a
+/// timer will wake (Go `concState.blocked` and `waking`): what the
+/// deadlock check (`deadlock.rs`) compares with `World::live`.
+///
+/// A blocked task is counted from the moment it decides to sleep until
+/// it is woken: the waker uncounts it (`Waiter::wake`), with the token
+/// held, before the woken task has run again. So `blocked` is exactly
+/// the number of live tasks that cannot run until another task wakes
+/// them. The fields are atomics only so that a waiter can change them
+/// without reaching the world; every change happens with the token held.
+#[derive(Default)]
+pub(crate) struct Census {
+    blocked: AtomicUsize,
+    waking: AtomicUsize,
+}
+
+impl Census {
+    pub(crate) fn blocked(&self) -> usize {
+        self.blocked.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn waking(&self) -> usize {
+        self.waking.load(Ordering::Relaxed)
+    }
+}
+
+/// `Waiter::counted`: not counted, blocked, blocked with a timer.
+const FREE: u8 = 0;
+const BLOCKED: u8 = 1;
+const TIMED: u8 = 2;
+
 /// A blocked task's wake-up call: the thread to unpark and a flag that
 /// says it was woken (park can return spuriously; the flag is the truth).
 /// Each `Task` has one for its life; `block` registers it on what the
 /// task waits for, and whoever changes that thing wakes the waiters
-/// registered on it, and only those.
+/// registered on it, and only those. It also carries the task's place in
+/// the `Census` while it is blocked.
 pub(crate) struct Waiter {
     thread: Thread,
     woken: AtomicBool,
+    /// `FREE`, `BLOCKED` or `TIMED`: whether this waiter is counted as
+    /// blocked in `census`.
+    counted: AtomicU8,
+    census: Arc<Census>,
 }
 
 impl Waiter {
-    /// A waiter for the current thread.
-    pub(crate) fn new() -> Arc<Waiter> {
+    /// A waiter for the current thread, counted in `census` when blocked.
+    pub(crate) fn new(census: Arc<Census>) -> Arc<Waiter> {
         Arc::new(Waiter {
             thread: std::thread::current(),
             woken: AtomicBool::new(false),
+            counted: AtomicU8::new(FREE),
+            census,
         })
     }
 
+    /// Wakes the task: it is no longer blocked from this moment (it is
+    /// uncounted here, under the waker's token, not when it runs).
     pub(crate) fn wake(&self) {
+        self.uncount();
         self.woken.store(true, Ordering::Release);
         self.thread.unpark();
+    }
+
+    /// Counts the task as blocked (with a timer if `timed`); false if it
+    /// already was.
+    fn count(&self, timed: bool) -> bool {
+        let state = if timed { TIMED } else { BLOCKED };
+        if self.counted.swap(state, Ordering::Relaxed) != FREE {
+            return false;
+        }
+        self.census.blocked.fetch_add(1, Ordering::Relaxed);
+        if timed {
+            self.census.waking.fetch_add(1, Ordering::Relaxed);
+        }
+        true
+    }
+
+    /// Takes the task out of the count, if it is in it.
+    fn uncount(&self) {
+        match self.counted.swap(FREE, Ordering::Relaxed) {
+            FREE => {}
+            state => {
+                self.census.blocked.fetch_sub(1, Ordering::Relaxed);
+                if state == TIMED {
+                    self.census.waking.fetch_sub(1, Ordering::Relaxed);
+                }
+            }
+        }
     }
 
     /// Takes the woken flag (true once per wake).
@@ -106,7 +174,8 @@ impl WaitList {
 }
 
 /// Waits until `ready` gives a value (`Some`), the timeout passes (`None`)
-/// or the task is cancelled (E0701).
+/// or the task is cancelled (E0701, or E0702 once a deadlock was
+/// reported).
 ///
 /// `ready(world, me)` runs with the token held, at the start and after
 /// every wakeup. When it returns `None` it must register `me` on what it
@@ -122,6 +191,11 @@ impl WaitList {
 /// A condition already true returns at once, even in a cancelled task
 /// (Go's fast path); after a wait, cancellation wins over a condition that
 /// came true at the same time (Go checks it first).
+///
+/// Deadlock (05, `deadlock.rs`): a live task counts itself blocked just
+/// before it sleeps, after its condition was found false, and the check
+/// runs right then. A wake uncounts it; if its condition is still false
+/// it counts itself again and the check runs again.
 pub(crate) fn block<T>(
     t: &mut Task<'_>,
     ready: impl FnMut(&mut World, &Arc<Waiter>) -> Option<T>,
@@ -154,21 +228,22 @@ pub(crate) fn block_until<T>(
         return Ok(Some(v));
     }
     t.cancel.watch(&me);
-    t.world.blocked += 1;
-    if timed {
-        t.world.waking += 1;
-    }
     let r = loop {
         if t.cancel.is_cancelled() {
-            break Err(cancelled(no_pos()));
+            break Err(t.unwound());
         }
         if deadline.is_some_and(|at| Instant::now() >= at) {
             break Ok(None);
         }
+        if t.live && me.count(timed) && t.judge() {
+            // A deadlock was reported, which cancelled this task (unless
+            // it runs under a node nothing cancels): check again.
+            continue;
+        }
         t.world.sleep(&me, deadline);
         token::assert_holds_token();
         if t.cancel.is_cancelled() {
-            break Err(cancelled(no_pos()));
+            break Err(t.unwound());
         }
         me.take_woken();
         t.cancel.watch(&me);
@@ -176,10 +251,10 @@ pub(crate) fn block_until<T>(
             break Ok(Some(v));
         }
     };
-    t.world.blocked -= 1;
-    if timed {
-        t.world.waking -= 1;
-    }
+    // A woken task was uncounted by its waker; one that leaves without a
+    // wake (its timeout passed, or its own deadlock check cancelled it)
+    // uncounts itself.
+    me.uncount();
     token::assert_holds_token();
     r
 }

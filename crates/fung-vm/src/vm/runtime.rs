@@ -89,7 +89,8 @@ impl Runtime {
     /// Waits until every spawned task has finished (Go `Wait`).
     pub fn wait(&self) {
         // On a node of its own: `cancel_all` must not cut this wait short.
-        let mut t = Task::new(&self.shared, CancelNode::root());
+        // Not live: the command waiting is not a task (`deadlock.rs`).
+        let mut t = Task::unlisted(&self.shared, CancelNode::root());
         let r = block(
             &mut t,
             |w, me| {
@@ -176,6 +177,22 @@ impl Runtime {
         Ok(f(&v))
     }
 
+    /// Reports every task failure nobody retrieved, in the order the
+    /// tasks failed (Go `ReportUnretrieved`). Call it once the program is
+    /// over (the entry, every task and the exit handlers are done), so
+    /// nothing can await them any more.
+    pub fn report_unretrieved(&self) {
+        let _t = self.lock();
+        self.shared.failures.report_all();
+    }
+
+    /// Whether a task failure nobody retrieved was reported (05: the
+    /// exit code becomes 1).
+    pub fn failed(&self) -> bool {
+        let _t = self.lock();
+        self.shared.failures.failed()
+    }
+
     /// The code of the first exit(n) requested, if any.
     pub fn exit_code(&self) -> Option<i64> {
         self.lock().exit
@@ -218,6 +235,7 @@ impl Runtime {
                 break;
             }
             ran += 1;
+            t.world.handlers_started = true;
             let node = self.shared.handlers.child();
             t.cancel = node.clone();
             let r = t.call(&h, Vec::new());

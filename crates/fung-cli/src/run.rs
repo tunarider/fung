@@ -116,15 +116,28 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     }
     let handler_errs = rt.run_exit_handlers();
     // An exit(n) inside a handler is not among the errors (the runtime
-    // records it instead); every other handler error is reported.
+    // records it instead); a handler cut short by the deadlock report
+    // (E0702) or a cancellation (E0701) was already told (Go `execute`);
+    // every other handler error is reported.
     for d in &handler_errs {
+        if d.code == "E0701" || d.code == "E0702" {
+            continue;
+        }
         rt.with_sources(|s| report(stderr, std::slice::from_ref(d), s));
         if code == i64::from(EXIT_OK) {
             code = EXIT_RUNTIME.into();
         }
     }
-    if let (None, Some(n)) = (before, rt.exit_code()) {
-        code = n; // an exit requested inside a handler
+    // The program is over: report every task failure nobody retrieved,
+    // handlers included, since a handler may still await a task (05).
+    rt.wait();
+    rt.report_unretrieved();
+    match (before, rt.exit_code()) {
+        (None, Some(n)) => code = n, // an exit requested inside a handler
+        (None, None) if code == i64::from(EXIT_OK) && rt.failed() => {
+            code = EXIT_RUNTIME.into(); // a task failure nobody retrieved (05)
+        }
+        _ => {}
     }
     drop(handler_errs);
     drop(rt);

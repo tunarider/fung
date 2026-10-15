@@ -132,11 +132,12 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
         return Err(nat::wrong_arg("t", "task", &args[0]));
     };
     let timeout = timeout_arg(&args[1])?;
-    let state = h.state.clone();
+    let h = h.clone();
+    // Getting the result retrieves a failure in it; a timeout does not.
     let ready = |_: &mut _, me: &_| {
-        let r = state.result();
+        let r = h.retrieve();
         if r.is_none() {
-            state.waiters.borrow_mut().add(me);
+            h.state.waiters.borrow_mut().add(me);
         }
         r
     };

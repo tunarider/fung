@@ -32,7 +32,8 @@ use std::time::Instant;
 
 use fung_front::source::{FileId, SourceMap, decode_go};
 
-use super::block::{WaitList, Waiter};
+use super::block::{Census, WaitList, Waiter};
+use super::failure::Failures;
 use super::module::ModuleState;
 use super::task::CancelNode;
 use super::{Globals, Prelude, RtProto, TestCase, token};
@@ -42,7 +43,8 @@ use crate::value::Value;
 /// mutex, that is, only by the thread holding the run token.
 pub(crate) struct World {
     stdout: Box<dyn Write + Send>,
-    stderr: Box<dyn Write + Send>,
+    /// Shared with `Failures`, which reports on it when a handle drops.
+    stderr: Stream,
     stdin: Box<dyn BufRead + Send>,
     pub(super) sources: SourceMap,
     pub(super) exit_handlers: Vec<Value>,
@@ -66,12 +68,16 @@ pub(crate) struct World {
     pub(super) running: usize,
     /// Woken when `running` drops to 0.
     pub(super) idle: WaitList,
-    /// Tasks waiting in `block`, and how many of those a timeout will
-    /// wake: what the deadlock check (Task 6) reads.
-    #[allow(dead_code)]
-    pub(super) blocked: usize,
-    #[allow(dead_code)]
-    pub(super) waking: usize,
+    /// Tasks running fung code (Go `concState.live`): the entry, spawned
+    /// tasks from the moment they are spawned, test blocks, exit handlers
+    /// and the prelude's boot; not `Runtime::wait`'s observer. The
+    /// deadlock check (`deadlock.rs`) compares it with `Census::blocked`.
+    pub(super) live: usize,
+    /// A deadlock was reported (it is reported once).
+    pub(super) deadlocked: bool,
+    /// The exit handlers have started: a deadlock from now on cancels
+    /// them too (Go cancels `handlerContext` once it exists).
+    pub(super) handlers_started: bool,
 }
 
 // SAFETY: `World` holds fung values (`Rc`s with non-atomic counts). The
@@ -105,7 +111,7 @@ impl World {
     ) -> World {
         World {
             stdout,
-            stderr,
+            stderr: Stream::new(stderr),
             stdin,
             sources,
             exit_handlers: Vec::new(),
@@ -118,8 +124,9 @@ impl World {
             main: None,
             running: 0,
             idle: WaitList::default(),
-            blocked: 0,
-            waking: 0,
+            live: 0,
+            deadlocked: false,
+            handlers_started: false,
         }
     }
 
@@ -164,7 +171,7 @@ impl World {
     }
 
     pub(super) fn stderr(&mut self) -> &mut dyn Write {
-        &mut *self.stderr
+        &mut self.stderr
     }
 
     /// One line of standard input with its line ending, `None` at the end.
@@ -198,10 +205,40 @@ impl World {
     }
 }
 
+/// A stream shared by the world and `Failures` (standard error). Each
+/// write locks it for that write only; it is only written with the run
+/// token held, so the lock is never contended.
+#[derive(Clone)]
+pub(crate) struct Stream(Arc<Mutex<Box<dyn Write + Send>>>);
+
+impl Stream {
+    fn new(w: Box<dyn Write + Send>) -> Stream {
+        Stream(Arc::new(Mutex::new(w)))
+    }
+}
+
+impl Write for Stream {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap_or_else(recover).write(b)
+    }
+
+    fn write_all(&mut self, b: &[u8]) -> std::io::Result<()> {
+        self.0.lock().unwrap_or_else(recover).write_all(b)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.lock().unwrap_or_else(recover).flush()
+    }
+}
+
 /// The run token's mutex, the fair queue in front of it, and the roots of
 /// the cancellation tree. (Blocked tasks sleep on their own `Waiter`.)
 pub(crate) struct Shared {
     world: Mutex<World>,
+    /// How many tasks are blocked, for the deadlock check (`block.rs`).
+    pub(super) census: Arc<Census>,
+    /// Failures nobody retrieved yet (`failure.rs`).
+    pub(super) failures: Arc<Failures>,
     /// How many times a sleeping task woke up (tests count wakeups).
     #[cfg(test)]
     wakeups: AtomicUsize,
@@ -216,8 +253,11 @@ pub(crate) struct Shared {
 
 impl Shared {
     pub(super) fn new(world: World) -> Shared {
+        let failures = Arc::new(Failures::new(world.stderr.clone()));
         Shared {
             world: Mutex::new(world),
+            census: Arc::default(),
+            failures,
             #[cfg(test)]
             wakeups: AtomicUsize::new(0),
             gate: Gate::default(),
@@ -516,7 +556,7 @@ mod tests {
         let s = shared();
         let mut t = s.lock();
         t.exit = Some(1);
-        let me = Waiter::new();
+        let me = Waiter::new(Arc::default());
         let other = {
             let (s, me) = (s.clone(), me.clone());
             std::thread::spawn(move || {

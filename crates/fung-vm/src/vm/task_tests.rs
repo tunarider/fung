@@ -26,8 +26,10 @@ fn spawn_and_await_like_go() {
 #[test]
 fn cancel_reaches_a_sleeping_task_and_its_children() {
     let start = Instant::now();
+    // The run waits for the tasks the entry leaves (Go `execute`), so the
+    // sleeper the timed-out await leaves is cancelled at the end.
     let (out, _, code) = run(
-        "t = spawn(fn(): spawn(() => sleep(10s)); sleep(10s) ;;)\ncancel(t)\nprint(await(t), await(spawn(() => sleep(10s)), timeout: 10ms))",
+        "t = spawn(fn(): spawn(() => sleep(10s)); sleep(10s) ;;)\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 10ms))\ncancel(u)",
     );
     assert_eq!(
         (out.as_str(), code),
