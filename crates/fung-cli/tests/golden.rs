@@ -294,7 +294,8 @@ fn golden_files_meet_their_expectations() {
         failures.len(),
         failures.join("\n")
     );
-    // The check cannot pass by checking nothing: one below the 133 files
-    // checked after stage 4b's `time` files; raise it as files are added.
-    assert!(checked >= 132, "only {checked} golden files were checked");
+    // The check cannot pass by checking nothing: one below the 136 files
+    // checked after stage 4b's `time` and `json` files; raise it as files
+    // are added.
+    assert!(checked >= 135, "only {checked} golden files were checked");
 }

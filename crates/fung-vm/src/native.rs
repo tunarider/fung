@@ -4,6 +4,7 @@
 pub(crate) mod file;
 pub mod fs;
 pub(crate) mod glob;
+pub mod json;
 pub mod nat;
 pub(crate) mod oserr;
 pub mod path;

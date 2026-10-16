@@ -82,7 +82,7 @@ const CONCURRENCY: &[&str] = &[
     "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
     "deref", "pmap", "fan_in", "retry",
 ];
-const NATIVE_MODULES: &[&str] = &["json", "regex", "http"];
+const NATIVE_MODULES: &[&str] = &["regex", "http"];
 
 /// Whether `src` calls `name`: `name(` not preceded by a name character
 /// (so `closure(` or `resend(` do not count, nor do words in comments
@@ -269,18 +269,18 @@ fn cases() -> Vec<Case> {
 
 /// The comparison cannot pass by comparing nothing: a broken file walk or
 /// an overgrown skip list fails here. The minimums sit just below the
-/// counts when they were set (128 `tests/lang` files, 6 benchmarks, 184
-/// cases in all, after stage 4b added the two `time` files); raise them
+/// counts when they were set (131 `tests/lang` files, 6 benchmarks, 187
+/// cases in all, after stage 4b added the `time` and `json` files); raise them
 /// as cases are added.
 #[test]
 fn enough_cases_are_compared() {
     let cases = cases();
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
     let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
-    assert!(lang >= 127, "only {lang} tests/lang files are compared");
+    assert!(lang >= 130, "only {lang} tests/lang files are compared");
     assert!(bench >= 5, "only {bench} benchmarks are compared");
     assert!(
-        cases.len() >= 183,
+        cases.len() >= 186,
         "only {} cases are compared",
         cases.len()
     );
@@ -485,7 +485,7 @@ fn native_modules_are_not_supported_yet() {
 
     let dir = std::env::temp_dir().join(format!("fung-native-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("lib.fung"), "import json\nfn f() = 1\n").unwrap();
+    std::fs::write(dir.join("lib.fung"), "import http\nfn f() = 1\n").unwrap();
     std::fs::write(dir.join("main.fung"), "import \"./lib\"\nprint(lib.f())\n").unwrap();
     let o = std::process::Command::new(rust_fung())
         .arg("run")
@@ -496,7 +496,7 @@ fn native_modules_are_not_supported_yet() {
     let err = String::from_utf8_lossy(&o.stderr);
     assert_eq!(String::from_utf8_lossy(&o.stdout), "");
     assert!(
-        err.starts_with("error[E0805]: not supported yet: json\n  --> ")
+        err.starts_with("error[E0805]: not supported yet: http\n  --> ")
             && err.contains("lib.fung:1:1\n"),
         "{err}"
     );

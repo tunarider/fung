@@ -74,7 +74,7 @@ pub(crate) fn format_time(t: &Time, mut layout: &str) -> String {
 
 /// Go `strconv.Quote` of bytes that may end inside a character: each
 /// byte of an invalid sequence is `\xNN`.
-fn quote_bytes(s: &[u8]) -> String {
+pub(crate) fn quote_bytes(s: &[u8]) -> String {
     let mut out = String::from("\"");
     for chunk in s.utf8_chunks() {
         let q = quote(chunk.valid());

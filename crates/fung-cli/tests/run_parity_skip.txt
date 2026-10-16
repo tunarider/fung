@@ -2,9 +2,6 @@
 # concurrency: needs what the Rust port does not run yet (none since
 # stage 3a; the reason stays for later stages).
 # native-module: imports a module stage 2 does not have.
-err_json_stringify.fung native-module
 err_regex.fung native-module
 http_serve.fung native-module
-json.fung native-module
-keyword_names.fung native-module
 regex.fung native-module
