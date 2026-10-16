@@ -36,8 +36,9 @@ allow = [
     # standard output or error (4c spec, section 3)
     "libc",
     # fung-vm: regular expressions (`_native.regex`, 4c spec, section 2);
-    # regex-syntax is also a direct dependency for the AST that the Go
-    # semantics layer walks (native/regex_go.rs)
+    # regex-syntax is also a direct dependency: the Go semantics layer
+    # (native/regex_go.rs) builds its HIR, prints it and uses its class
+    # types
     "regex",
     "regex-automata",
     "regex-syntax",
