@@ -1,0 +1,7 @@
+# A file with errors shows only its errors.
+import fs
+
+fn f():
+  unused = 1
+  nope
+;;

@@ -1,0 +1,63 @@
+# Nothing here may warn (Review Focus 3).
+import fs
+import json as j
+import path (ext)
+
+fn closure():
+  x = 1
+  fetch = () => x
+  fetch()
+;;
+
+fn nested():
+  x = 1
+  fn g() = x
+  g()
+;;
+
+fn deeper():
+  x = 1
+  fn g():
+    fn h() = x
+    h()
+  ;;
+  g()
+;;
+
+fn reassigned():
+  x = 1
+  x = x + 1
+  x
+;;
+
+fn patterns(v):
+  (a, b) = v
+  match a:
+    [h, ...t] when len(t) > 0 => h + b
+    {k: kv}                   => kv
+    Ok(n) | Err(n)            => n
+    _                         => 0
+  ;;
+;;
+
+fn underscored():
+  _ignored = 1
+  (_p, _q) = (1, 2)
+  0
+;;
+
+fn params(unused_param, other = unused_param) = 1
+
+fn loops(xs) = for (k, v) in xs: k + v ;;
+
+fn defaults(a, b = a + 1) = b
+
+total = 0
+top_level_unused = 1
+
+test "uses imports and globals":
+  assert fs.exists(".")
+  assert j.stringify(1) == "1"
+  assert ext("a.b") == ".b"
+  assert total == 0
+;;

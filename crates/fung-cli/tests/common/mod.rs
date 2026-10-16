@@ -23,9 +23,16 @@ pub fn repo() -> PathBuf {
 /// failure); a failing `go build` always panics. `tag` keeps the binaries
 /// of concurrently running test programs apart.
 pub fn go_fung(tag: &str) -> Option<PathBuf> {
+    go_fung_with(tag, &[])
+}
+
+/// [`go_fung`] with extra `go build` flags (e.g. `-ldflags=...`).
+pub fn go_fung_with(tag: &str, flags: &[&str]) -> Option<PathBuf> {
     let out = std::env::temp_dir().join(format!("fung-go-{tag}-{}", std::process::id()));
     let built = Command::new("go")
-        .args(["build", "-o"])
+        .arg("build")
+        .args(flags)
+        .arg("-o")
         .arg(&out)
         .arg("./cmd/fung")
         .current_dir(repo())

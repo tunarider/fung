@@ -115,7 +115,7 @@ pub(crate) fn clean(path: &str) -> String {
 
 /// Go `filepath.Join(dir, name)` over bytes (file names need not be
 /// UTF-8): `name` alone when `dir` is empty, else the two cleaned.
-pub(crate) fn join_bytes(dir: &[u8], name: &[u8]) -> Vec<u8> {
+pub fn join_bytes(dir: &[u8], name: &[u8]) -> Vec<u8> {
     if dir.is_empty() {
         return if name.is_empty() {
             Vec::new()

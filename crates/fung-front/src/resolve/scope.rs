@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::source::Pos;
 use crate::tree::Capture;
 
 /// Where a name lives.
@@ -22,6 +23,11 @@ pub(super) struct Scope {
     pub(super) file: bool,
     /// First slot this block may use; restored on exit.
     pub(super) base: usize,
+    /// For warnings (08): where each name was bound, which were read,
+    /// and which are parameters (never reported as unused).
+    pub(super) pos: HashMap<String, Pos>,
+    pub(super) used: HashSet<String>,
+    pub(super) param: HashSet<String>,
 }
 
 impl Scope {
@@ -30,6 +36,9 @@ impl Scope {
             names: HashMap::new(),
             file,
             base,
+            pos: HashMap::new(),
+            used: HashSet::new(),
+            param: HashSet::new(),
         }
     }
 }

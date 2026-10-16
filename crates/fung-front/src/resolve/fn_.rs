@@ -56,11 +56,15 @@ impl Resolver<'_> {
                 di += 1;
             }
             self.check_shadow(&prm.name, prm.pos);
+            self.warn_shadow(&prm.name, prm.pos);
             let b = Binding {
                 index: i,
                 ..Binding::default()
             };
-            self.cur_block().names.insert(prm.name.clone(), b);
+            let sc = self.cur_block();
+            sc.names.insert(prm.name.clone(), b);
+            sc.pos.insert(prm.name.clone(), prm.pos);
+            sc.param.insert(prm.name.clone());
             self.cur_mut().next_slot = i + 1;
         }
         let f = self.cur_mut();

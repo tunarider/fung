@@ -1,0 +1,37 @@
+# W0104: a block used as a value whose last statement is an assignment.
+fn a():
+  x = if true: _y = 1 ;;
+  x
+;;
+
+fn b():
+  x = if true: 1 else if false: _z = 2 else: 3 ;;
+  x
+;;
+
+fn c(v):
+  return match v:
+    1 => _w = 1
+    _ => 2
+  ;;
+;;
+
+print(if true: _q = 1 ;;)
+print(if true: (_m, _n) = (1, 2) ;;)
+
+fn d():
+  x = if true:
+    _inner = if false: _deep = 1 ;;
+  ;;
+  x
+;;
+
+fn fine() = if true: _not_checked = 2 ;;
+
+fn also_fine():
+  x = if true:
+    y = 1
+    y
+  ;;
+  x
+;;

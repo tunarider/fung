@@ -1,0 +1,9 @@
+# W0101: imports never read in the file.
+import fs
+import path as p
+import json (parse, stringify)
+import regex (is_match)
+import time
+
+print(stringify([1]))
+fn now_text() = time.now()

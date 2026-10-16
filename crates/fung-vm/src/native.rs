@@ -16,3 +16,9 @@ pub(crate) mod sock;
 pub mod time;
 pub(crate) mod timefmt;
 pub(crate) mod tz;
+
+/// Go's text for an operating-system error (`syscall.Errno.Error()`), for
+/// the command's own messages (`fung check`/`test`/`fmt` path errors).
+pub fn os_error_text(e: &std::io::Error) -> String {
+    oserr::reason(e)
+}

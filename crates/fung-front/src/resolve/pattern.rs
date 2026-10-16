@@ -50,7 +50,8 @@ impl Resolver<'_> {
         {
             return Some(*b);
         }
-        Some(self.bind_here(name))
+        self.warn_shadow(name, pos);
+        Some(self.bind_here(name, pos))
     }
 
     /// Rewrites the names of a pattern into `(local n)`/`(global n)`

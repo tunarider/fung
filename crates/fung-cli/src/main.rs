@@ -1,8 +1,13 @@
-//! The `fung` command of the Rust port: `fung dump`, `fung run`,
-//! `fung <script.fung>` and `fung -e` so far. It mirrors `cmd/fung` of
-//! the Go implementation byte for byte.
+//! The `fung` command of the Rust port: `fung dump`, `run`,
+//! `<script.fung>`, `-e`, `check`, `version` and `help` so far. It
+//! mirrors `cmd/fung` of the Go implementation byte for byte.
 
+mod check;
+// `fung test` and `fung fmt` (stage 5 tasks 2 and 3) are its users.
+#[allow(dead_code)]
+mod paths;
 mod run;
+mod version;
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
@@ -41,7 +46,7 @@ const STACK: usize = 4 << 30;
 /// unchanged. A run writes to the process streams as it goes and leaves
 /// both empty.
 #[derive(Default)]
-struct Out {
+pub(crate) struct Out {
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     code: i32,
@@ -83,7 +88,16 @@ fn run(raw: &[Vec<u8>]) -> Out {
             Some(code) => executed(run::execute("-e", code, args[2..].to_vec())),
             None => usage_error(b"-e needs code"),
         },
-        Some("version" | "help" | "-h" | "--help" | "check" | "fmt" | "test") => Out {
+        Some("version") => Out {
+            stdout: format!("fung {}\n", version::version()).into_bytes(),
+            ..Out::default()
+        },
+        Some("help" | "-h" | "--help") => Out {
+            stdout: USAGE.as_bytes().to_vec(),
+            ..Out::default()
+        },
+        Some("check") => check::run_check(&args[1..], &raw[1..]),
+        Some("fmt" | "test") => Out {
             stderr: [
                 b"not implemented yet in the Rust port: ",
                 &raw[0][..],
@@ -113,7 +127,7 @@ fn run(raw: &[Vec<u8>]) -> Out {
     }
 }
 
-fn usage_error(msg: &[u8]) -> Out {
+pub(crate) fn usage_error(msg: &[u8]) -> Out {
     Out {
         stderr: [b"error: ", msg, b"\n\n", USAGE.as_bytes()].concat(),
         code: EXIT_USAGE,
@@ -146,11 +160,16 @@ fn run_file(args: &[String], raw: &[Vec<u8>]) -> Out {
     };
     match read_file(path) {
         Ok(src) => executed(run::execute(&args[0], &src, args[1..].to_vec())),
-        Err(msg) => Out {
-            stderr: [b"error: cannot read ", &path[..], b": ", &msg[..], b"\n"].concat(),
-            code: EXIT_USAGE,
-            ..Out::default()
-        },
+        Err(msg) => read_error(path, &msg),
+    }
+}
+
+/// Go's `error: cannot read PATH: ...` for a script that cannot be read.
+pub(crate) fn read_error(path: &[u8], msg: &[u8]) -> Out {
+    Out {
+        stderr: [b"error: cannot read ", path, b": ", msg, b"\n"].concat(),
+        code: EXIT_USAGE,
+        ..Out::default()
     }
 }
 
@@ -184,11 +203,7 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
             let path = &raw[1];
             match read_file(path) {
                 Ok(src) => dump(up_to, path, &src),
-                Err(msg) => Out {
-                    stderr: [b"error: cannot read ", &path[..], b": ", &msg[..], b"\n"].concat(),
-                    code: EXIT_USAGE,
-                    ..Out::default()
-                },
+                Err(msg) => read_error(path, &msg),
             }
         }
         _ => usage_error(b"dump needs a script path or -e code"),
@@ -197,7 +212,7 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
 
 /// Reads a script and decodes it like Go. A failure is described the way
 /// Go's `os.ReadFile` does, with the path bytes unchanged.
-fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
+pub(crate) fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
     use std::io::ErrorKind;
     let bytes = std::fs::read(OsStr::from_bytes(path)).map_err(|e| {
         let (op, text) = match e.kind() {
@@ -242,7 +257,7 @@ fn dump(up_to: Stage, file: &[u8], src: &str) -> Out {
 }
 
 /// Puts the undecoded entry file name back into the `  --> NAME:` lines.
-fn restore_name(text: &str, name: &str, raw: &[u8]) -> Vec<u8> {
+pub(crate) fn restore_name(text: &str, name: &str, raw: &[u8]) -> Vec<u8> {
     if name.as_bytes() == raw {
         return text.as_bytes().to_vec();
     }

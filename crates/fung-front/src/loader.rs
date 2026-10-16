@@ -49,6 +49,11 @@ pub struct Build {
     /// The imported modules in dependency order (a module comes after
     /// what it imports).
     pub modules: Vec<Loaded>,
+    /// W01xx warnings of every module that resolved, in dependency order
+    /// (a module's come after those of what it imports), without the
+    /// embedded stdlib's: users cannot act on them. Only `check` and
+    /// `test` show them (08).
+    pub warnings: Vec<Diag>,
 }
 
 /// Compiles an entry file and everything it imports.
@@ -87,6 +92,7 @@ struct State<'a> {
     sources: SourceMap,
     prelude: Vec<String>,
     prelude_set: BTreeSet<String>,
+    warnings: Vec<Diag>,
 }
 
 type Errs = Vec<Diag>;
@@ -115,12 +121,14 @@ impl Loader {
             sources: SourceMap::new(),
             prelude_set: prelude.iter().cloned().collect(),
             prelude,
+            warnings: Vec::new(),
         };
         st.loading.insert(key.clone());
         let id = st.sources.add(file, src);
         let (mut b, errs) = st.compile_file(&key, file, id, src, false, self.internal, up_to);
         b.sources = st.sources;
         b.modules = st.modules;
+        b.warnings = st.warnings;
         (b, errs)
     }
 }
@@ -170,11 +178,14 @@ impl State<'_> {
             Err(e) => return (b, vec![e]),
         };
         let ropts = resolve::Options { imports, library };
-        let res = match resolve::resolve(&core, &self.prelude, &ropts) {
+        let mut res = match resolve::resolve(&core, &self.prelude, &ropts) {
             Ok(r) => r,
             Err(errs) => return (b, errs),
         };
         b.core = Some(res.core.clone());
+        if !is_stdlib {
+            self.warnings.append(&mut res.warnings);
+        }
         if up_to == Stage::Core {
             return (b, Vec::new());
         }
@@ -810,5 +821,32 @@ mod tests {
         assert!(is_name("x_1") && !is_name("bad-name") && !is_name("Up") && !is_name(""));
         // Go `unicode` classes: So and No are not letters, Ll and Nd are.
         assert!(!is_name("mⓐ") && !is_name("x²") && is_name("ß1") && is_name("x٣"));
+    }
+
+    #[test]
+    fn warnings_come_from_every_user_module_in_dependency_order() {
+        // Go `Program.Warnings`: each module's warnings once it resolves,
+        // so an import's come before its importer's; the embedded stdlib's
+        // are hidden (users cannot act on them).
+        let main = "import \"./lib\"\nimport fs\nfn f():\n  unused = 1\n  lib.v\n;;";
+        set_files(&[("/p/lib.fung", "fn g():\n  dead = 1\n  2\n;;\nv = 1")]);
+        let (b, errs) = mem_loader().compile("/p/main.fung", main, Stage::All);
+        assert!(errs.is_empty(), "{errs:?}");
+        let got: Vec<String> = b
+            .warnings
+            .iter()
+            .map(|w| format!("{} {}:{}", w.code, b.sources.name(w.pos.file), w.pos.line))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "W0102 /p/lib.fung:2",
+                "W0101 /p/main.fung:2",
+                "W0102 /p/main.fung:4"
+            ]
+        );
+        let (b, errs) = mem_loader().compile("-e", "fn f():\n  x = 1\n  y\n;;", Stage::All);
+        assert_eq!(codes(&errs), ["E0204"]);
+        assert!(b.warnings.is_empty(), "a file with errors has no warnings");
     }
 }

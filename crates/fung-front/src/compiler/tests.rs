@@ -76,6 +76,7 @@ fn bare(core: Node) -> Resolved {
         globals: vec![],
         imports: vec![],
         exports: vec![],
+        warnings: vec![],
     }
 }
 
