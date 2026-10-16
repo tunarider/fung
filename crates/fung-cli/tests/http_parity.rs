@@ -630,7 +630,7 @@ const ARG_ERRORS: &[(&str, &str, &str, &str)] = &[
         "http.serve(\"a\", r => r, ready: 1)",
         "error[E0403]: argument `ready` must be fn, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
         "   -e:2       <entry>\n",
-        "   extras/rust/http.fung:@fn _ready_check(@ _ready_check\n   extras/rust/http.fung:@    _ready_check(ready)@ _serve (1 tail calls elided)\n   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn _ready_check(@ _ready_check\n   extras/rust/http.fung:@    _ready_check(ready)@ serve\n   -e:2       <entry>\n",
     ),
     // the call itself is wrong: no frame of http.fung yet
     (

@@ -1060,7 +1060,7 @@ fn hold_returns_when_the_listener_is_closed_elsewhere() {
 /// task yields its turn; with `k` such that the yield falls right after
 /// the accept task starts, the listener used to stay open (the accept
 /// task kept it and answered 503). The window is one tick wide; this
-/// range holds it for the current `_serve` (the release build sweeps a
+/// range holds it for the current `serve` (the release build sweeps a
 /// whole yield period: `cancel_at_every_tick_closes_the_listener`).
 #[test]
 fn a_cancel_before_hold_closes_the_listener() {

@@ -296,7 +296,7 @@ serve(사용자 태스크 S): 검사 → listen → close_on_cancel → ready(�
 
 **(15) Go 포매터의 결함.** `fn f(h: fn, x = 1):` 뒤의 블록 몸통을 Go `fung fmt`가 내어쓴다. 매개변수 타입의 `fn`을 람다로 읽기 때문이다.
 Go가 정답지라 고치지 않고 `serve = _serve(...)`라는 한 줄 감싸개로 피했다. 그 대가로 `ready` 인자 에러의 호출 경로에 `_serve (1 tail calls elided)` 프레임이 하나 더 보인다.
-open-questions에 M9 결함으로 적었다.
+open-questions에 M9 결함으로 적었다. (5단계 Task 0에서 Go 포매터를 고치고 감싸개를 걷었다. 지금 `ready` 에러의 호출 경로는 `_ready_check`·`serve`다.)
 
 **(16) `gofmt -l .`과 cargo가 겹쳤다.** 동시에 돌리면 `target/` 아래 cargo의 임시 파일을 `gofmt`가 보려다 부딪힐 수 있다. 검사는 차례로 돌린다.
 

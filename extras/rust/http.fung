@@ -35,12 +35,8 @@ fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, time
 # Go `httpServeFn`: binds `addr`, tells `ready` the address, and serves
 # until the task is cancelled (or the program exits): then it stops
 # accepting, waits up to 2 s for the requests in flight (Go `Shutdown`)
-# and ends with E0701. A bind failure is `Err 'network`. (The body is
-# `_serve`: Go's formatter does not indent a block after a `fn` type in
-# the parameters.)
-fn serve(addr: str, handler: fn, ready = nil) = _serve(addr, handler, ready)
-
-fn _serve(addr, handler, ready):
+# and ends with E0701. A bind failure is `Err 'network`.
+fn serve(addr: str, handler: fn, ready = nil):
   if ready != nil:
     _ready_check(ready)
   ;;
