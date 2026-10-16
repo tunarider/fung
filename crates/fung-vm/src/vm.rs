@@ -186,6 +186,11 @@ impl<'rt> Task<'rt> {
     pub(crate) fn driven(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
         let mut t = Task::unlisted(shared, cancel);
         if t.world.held {
+            // One count to lend: a second driven task alive at the same
+            // time (a future caller that overlaps them) would make the
+            // counts wrong and hide or invent deadlocks.
+            debug_assert!(!t.world.hold_taken, "two driven tasks share the held count");
+            t.world.hold_taken = true;
             t.holds = true;
         } else {
             t.world.live += 1;
@@ -727,6 +732,9 @@ impl Drop for Task<'_> {
         self.stack.clear();
         // The last running task ending can leave only blocked ones
         // (`deadlock.rs`).
+        if self.holds {
+            self.world.hold_taken = false;
+        }
         if self.live && !self.holds {
             self.world.live -= 1;
             self.judge();

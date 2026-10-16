@@ -1,6 +1,9 @@
+ch = channel()
 test "spawns a failure":
-  t = spawn(() => fail("boom"))
-  _ = t
-  sleep(10ms)
+  spawn(fn():
+    send(ch, 1)
+    [1][5]
+  ;;)
+  recv(ch)
 ;;
 test "fine": assert true ;;

@@ -89,6 +89,9 @@ pub(crate) struct World {
     /// run more fung code, so it is live and not blocked. The task it
     /// runs takes that count over while it runs (`Task::driven`).
     pub(super) held: bool,
+    /// A driven task has taken the held count over and has not dropped
+    /// yet. There is at most one: `Task::driven` asserts it.
+    pub(super) hold_taken: bool,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
     /// The cancellation node of the exit handler running now: a deadlock
@@ -143,6 +146,7 @@ impl World {
             idle: WaitList::default(),
             live: 0,
             held: false,
+            hold_taken: false,
             background: 0,
             deadlocked: false,
             handler: None,

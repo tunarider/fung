@@ -108,6 +108,7 @@ impl Runtime {
     /// the program's tasks first, as Go's `fung test` does.
     pub fn release(&self) {
         let mut w = self.lock();
+        debug_assert!(!w.hold_taken, "release while a driven task runs");
         if w.held {
             w.held = false;
             w.live -= 1;
