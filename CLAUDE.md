@@ -42,6 +42,8 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   dump·실행 출력을 비교, 이 변수가 없으면 `go`가 없을 때 비교를 조용히 건너뜀; 릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지킴).
   동시성(3a): fung 값(`Rc`)은 실행권을 쥔 스레드만 만지고, `unsafe impl Send`는 `// SAFETY:` 근거와 디버그 단언으로 지킨다(`docs/notes/R3a-runtime.md` 3절). 동시성 테스트는 `sleep` 대신 상태로 순서를 정한다(`testutil`의 탐침).
   갈라지는 테스트(3b): Go와 일부러 다른 `tests/lang` 파일은 맨 위에 `# only: go|rust`. Rust 골든 실행기(`crates/fung-cli/tests/golden.rs`)가 `# only: go`가 아닌 파일을 Go 없이 파일의 기대값과 비교하고, 실행 비교는 표시된 파일을 건너뛴다.
+  4d부터 `# only:`가 구현마다 갈라지는 유일한 장치다(지원 안 함 E0805 장치와 제외 목록 `run_parity_skip.txt`는 지웠다; 실행 비교에서 빼는 파일 없음).
+  크레이트 보안 공지: 우리 설정에 닿지 않으면 2주 규칙을 지키고 `deny.toml`·`.cargo/audit.toml`에 이유와 함께 무시(해제 날짜는 open-questions에서 추적), 닿으면 바로 올린다.
 
 ## 현재 상태
 
@@ -86,12 +88,18 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   `fold`·`map`·`each`·`filter`는 범위를 펼치지 않고(`nat.Each`) 인자 배열 재사용. fib·loop 약 2.5배. `internal/vm/alloc_test.go`가 할당 수를 지킨다.
   측정 스크립트 `bench/`, 기록과 3단계 이후 계획은 open-questions "성능".
 - Rust 이식 1단계(앞단) 완료 (2026-10-15): `fung dump ast|core|bytecode`와 컴파일 에러가 Go와 글자 단위로 같다(parity 561건). 노트 `docs/notes/R1-front-end.md`. 다음은 2단계(값·VM).
-- Rust 이식 2단계(값·VM) 완료 (2026-10-15): `fung run`/`-e`가 동시성·네이티브 다리 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`) 밖의 프로그램을 Go와 같은 출력·종료 코드로 실행한다(dump parity 561건 이상, 실행 비교 152건, 제외 18개는 `crates/fung-cli/tests/run_parity_skip.txt`). 동시성 내장 함수는 E0805. 계획 `docs/plans/2026-10-15-rust-vm.md`, 노트 `docs/notes/R2-vm.md`. 다음은 3단계(런타임·동시성).
+- Rust 이식 2단계(값·VM) 완료 (2026-10-15): `fung run`/`-e`가 동시성·네이티브 다리 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`) 밖의 프로그램을 Go와 같은 출력·종료 코드로 실행한다(dump parity 561건 이상, 실행 비교 152건, 제외 18개는 `crates/fung-cli/tests/run_parity_skip.txt`). 동시성 내장 함수는 E0805(지난 기록: 제외 목록과 E0805 장치는 4d에서 지움). 계획 `docs/plans/2026-10-15-rust-vm.md`, 노트 `docs/notes/R2-vm.md`. 다음은 3단계(런타임·동시성).
 - Rust 이식 3a단계(동시성, Go와 같은 의미) 완료 (2026-10-15): 태스크마다 운영체제 스레드 + 실행권 잠금 하나로 `spawn`·채널·취소·`atom`·교착 감지·꺼내지 않은 실패·어디서든 `exit`가 Go와 같은 출력·종료 코드(실행 비교 187건, 제외는 네이티브 모듈 9개; 동시성 31건은 릴리스에서 Rust·Go 각 50번 반복). Go와 남은 차이는 open-questions "3a단계에서 알고 남긴 차이". 스펙 `docs/superpowers/specs/2026-10-15-rust-runtime-3a-design.md`, 계획 `docs/plans/2026-10-15-rust-runtime-3a.md`, 노트 `docs/notes/R3a-runtime.md`. 다음은 3b(`atom` 제거 등 Go와 일부러 달라지는 언어 변경).
 - Rust 이식 3b단계(Go와 일부러 갈라지는 언어 변경) 완료 (2026-10-15): Rust만 `atom` → `agent`(`extras/rust/agent.fung`, 배경 태스크 + 닫개 핸들), E0704·E0705, `# only:` 표시와 Rust 골든 실행기(130개 확인). Go와의 내장 함수 차이는 `crates/fung-front/src/builtins.rs`의 목록. 0.2.0에서 바뀌는 것과 남은 한계는 open-questions "Rust 이전". 스펙 `docs/superpowers/specs/2026-10-15-rust-agent-3b-design.md`, 계획 `docs/plans/2026-10-15-rust-agent-3b.md`, 노트 `docs/notes/R3b-agent.md`.
 - Rust 이식 4a단계(`fs`·`path`) 완료 (2026-10-16): `_native.fs` 17개·`_native.path` 6개(Go `filepath`·`Match`·`Glob`·`WalkDir` 직접 구현), errno → Go 문구 표(`native/oserr.rs`), 파일 핸들(`Value::File`, 핸들마다 잠금, 실행권 밖 입출력, 마지막 사본에서 닫힘, Go `bufio`를 흉내 낸 `GoWriter`), `fs_and_path`를 Go 대조·Rust 골든에 넣음(각 131개), 3b 취소 노드 누수 수정. 남은 차이는 open-questions "4a단계(fs)에서 알고 남긴 차이". 스펙 `docs/superpowers/specs/2026-10-15-rust-fs-4a-design.md`, 계획 `docs/plans/2026-10-15-rust-fs-4a.md`, 노트 `docs/notes/R4a-fs.md`.
 - Rust 이식 4b단계(`time`·`json`) 완료 (2026-10-16): `_native.time` 8개·`_native.json` 2개, `Value::Time`(Go `time.Time`의 벽시계 표현, 붙기·자르기 산술 그대로), TZif 시간대 직접 해석(`native/tz.rs`, Go `initLocal` 탐색 순서), 서식 토큰·RFC 3339(`timefmt.rs`), 순서 유지·정수/실수 구분 반복 JSON 해석기(Go 1.27 `jsontext` 경로와 읽기 버퍼까지 흉내, 깊이 10,000), 골든 4개+`keyword_names`를 Go 대조·Rust 골든에 넣음(골든 136개, 실행 비교 187건, `time_parity` 189건, `json_parity`). 남은 차이는 open-questions "4b단계(time·json)에서 알고 남긴 차이". 스펙 `docs/superpowers/specs/2026-10-16-rust-time-json-4b-design.md`, 계획 `docs/plans/2026-10-16-rust-time-json-4b.md`, 노트 `docs/notes/R4b-time-json.md`.
 - Rust 이식 4c단계(`regex`, 첫 크레이트, SIGPIPE) 완료 (2026-10-16): 크레이트 허용 목록(`deny.toml` 원본, `tests/deps.rs`, CI `cargo-deny` 0.20.2·`cargo-audit` 0.22.2, 2주 규칙), `libc`로 표준 출력·에러의 EPIPE에서 Go처럼 신호 13으로 죽기(`fung-vm/src/sigpipe.rs`), Go `regexp/syntax` 파서를 옮긴 `native/regex_go.rs`(사용자 결정: fung 정규식 문법의 정의, Go 삭제 뒤에도 남기고 6단계 뒤 재판단; 유니코드 표 `spec/regex_unicode.txt`는 과도기 잔가지) 위의 `_native.regex`(`regex` 크레이트), `regex`·`err_regex`를 Go 대조·Rust 골든에 넣음(골든 138개, 실행 비교 189건, 남은 제외 `http_serve`). 허용 목록 표·남은 차이는 open-questions "Rust 이전". 스펙 `docs/superpowers/specs/2026-10-16-rust-regex-crates-4c-design.md`, 계획 `docs/plans/2026-10-16-rust-regex-crates-4c.md`, 노트 `docs/notes/R4c-regex-crates.md`. 다음은 4d(`http`·소켓·TLS, 스케줄러).
+- Rust 이식 4d단계(소켓·TLS·fung으로 쓴 HTTP) 완료 (2026-10-16): `_native.net` 19개(비차단 소켓 + `poll` + 취소 노드의 깨우개 파이프 `vm/watch.rs`, 한 연결에 읽는 쪽 하나·쓰는 쪽 하나,
+  바이트 버퍼 `read_bytes_into`·`take_body`), `rustls`(ring)·`rustls-native-certs` TLS 클라이언트(`native/tls.rs`, Go 1.27은 macOS에서도 `SSL_CERT_FILE`을 따름),
+  HTTP/1.1 클라이언트·리다이렉트·프록시·`CONNECT`(`start_tls`)·서버를 fung으로 쓴 `extras/rust/http.fung`(서버 끝내기는 `hold`·`close_on_cancel`, 핸들러는 `set_asker`로 서버 아래).
+  06에 "fung HTTP 약속"(응답 본문 64 MiB 상한은 사용자 결정, Rust만). E0805 장치와 `run_parity_skip.txt` 삭제. 실행 비교 189건(빼는 파일 없음), Rust 골든 139개, `http_parity` 14개(Go 서버·클라이언트와 원문 비교), `tls.rs`.
+  rustls 공지 4건은 닿지 않아 무시, **2026-10-28 이후 0.23.46으로 올리고 무시 항목 삭제**. 그린 스레드는 6단계 뒤 "R7 스케줄러"로 미룸. 남은 차이·과도기 잔가지·R7 항목은 open-questions "Rust 이전".
+  스펙 `docs/superpowers/specs/2026-10-16-rust-net-http-4d-design.md`, 계획 `docs/plans/2026-10-16-rust-net-http-4d.md`, 노트 `docs/notes/R4d-net-http.md`. 다음은 5단계(도구: REPL·`fmt`·`test`·`check`).
 - 다음 작업: tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에(기존 결정 유지). 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 에러 번호는 `internal/diag/catalog.go`에서 할당하며 한 번 붙이면 바꾸지 않는다.
 - 학습용 설명은 `docs/notes/M<n>-<주제>.md`에 한국어로 남긴다. 마일스톤마다 무엇을 만들었고 왜 그렇게 했는지 쓴다.

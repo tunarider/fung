@@ -101,9 +101,10 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     **3a는 운영체제 스레드 + 실행권 잠금(2026-10-15), 그린 스레드는 4단계 이벤트 루프와 함께 재검토.** 태스크마다 스레드 하나, fung 코드는
     실행권을 쥔 스레드만 돌리고(Python GIL·OCaml 4 모델), 막히는 곳은 `crates/fung-vm/src/vm/block.rs`의 `block` 하나로 모아 갈아끼울 자리를 남겼다.
     측정과 판단 자료는 `docs/notes/R3a-runtime.md` 9절(태스크 생성 약 55 µs로 Go의 약 25배, 채널 주고받기 약 2.5 µs로 약 3배; 태스크 하나일 때는 비용 없음).
+    **4d(2026-10-16)에서 다시 미룸**: 그린 스레드는 6단계(Go 삭제) 뒤의 별도 단계로 한다. 아래 "R7 스케줄러" 항목.
     태스크별 힙과 경계 복사도 여러 코어로 갈 때 한다(실행권 아래에서는 값 공유가 안전하다).
   - 람다를 부르는 Rust 내장 함수 안에서 태스크가 막히는 경우("C 경계를 넘는 yield"): 그 경우만 워커째 막고 대체 워커를 띄운다(Go의 syscall 처리 방식).
-    3a는 태스크가 스레드째 잠들므로 이 문제가 없다. 그린 스레드를 만들 때 다시 본다.
+    3a는 태스크가 스레드째 잠들므로 이 문제가 없다. 그린 스레드를 만들 때(R7) 다시 본다.
 - [x] `atom` → **Rust 구현에서 처음부터 없앤다** (2026-10-14). 공유되는 변경 칸을 언어에서 없애 원칙 5·6에 맞추고 순환의 주된 원인을 없앤다.
   상태는 그 상태를 쥔 태스크가 지역 변수로 들고, 다른 태스크는 채널로 편지를 보낸다(Erlang·Elixir). 이 패턴을 감싼 fung 라이브러리
   (Elixir의 `Agent` 같은 것, 이름·API·`update(a, f)`의 `f` 실패를 부른 쪽에 돌려주는 규칙은 만들 때 정함)가 대신한다.
@@ -126,12 +127,13 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
 - [x] 의존성 정책 → **허용 목록.** 기본은 Rust 표준 라이브러리. 크레이트는 직접 짜면 위험한 것(암호·TLS)과 운영체제 접근에 `unsafe`가
   필요한 것(이벤트 루프·터미널·시그널)만, 이유를 설계 문서에 적고 CI에서 `cargo-deny`·`cargo-audit`로 검사한다. 공부 가치가 있는 것(HTTP, JSON, 시간 서식, `cli`)은 직접 짠다.
   - 허용 후보: `libc`(운영체제 함수), `mio`(이벤트 루프), `rustls` + 루트 인증서(TLS; 암호 부분에 C·어셈블리가 있어 크로스 빌드에 C 컴파일러 필요), `regex`(RE2 계열이라 지금 의미 유지).
+    `libc`·`regex`는 4c, `rustls`·`rustls-native-certs`는 4d에서 들였다(아래 표). `mio`는 들이지 않았고 R7에서 판단한다.
   - 정규식 엔진 직접 구현(Thompson NFA)은 나중의 공부 과제로 남긴다.
   - 허용 목록 → **`deny.toml`의 `[bans] allow`가 유일한 원본** (4c, 2026-10-16). 직접 들인 것과 따라오는 것을 모두 적는다. 지키는 장치는 세 겹이다.
     - 저장소 테스트 `crates/fung-cli/tests/deps.rs`(표준 라이브러리만, 도구 없이 `cargo test`에서 돈다): `Cargo.lock`의 모든 패키지(작업 공간 크레이트 제외)가 목록 안인지,
       `crates/fung-front/Cargo.toml`에 의존성 표(`[dependencies]`·`[dev-dependencies]`·`[build-dependencies]`, `[target.*.]`·`[dependencies.이름]` 형태 포함)가 없는지.
     - CI `rust` 작업(Ubuntu만): `cargo-deny` 0.20.2·`cargo-audit` 0.22.2를 `cargo install --locked`로 버전 고정 설치하고 버전 문자열까지 확인한 뒤 `cargo deny check`·`cargo audit`.
-    - `deny.toml`: 한 크레이트 여러 버전 금지, `*` 버전 금지(작업 공간 경로 의존성은 `publish = false` + `allow-wildcard-paths`), 라이선스는 `MIT` 하나, 출처는 crates.io만.
+    - `deny.toml`: 한 크레이트 여러 버전 금지, `*` 버전 금지(작업 공간 경로 의존성은 `publish = false` + `allow-wildcard-paths`), 라이선스는 실제로 필요한 것만(4c는 `MIT` 하나, 4d에서 `Apache-2.0`·`ISC`·`BSD-3-Clause`를 더함), 출처는 crates.io만.
       **빈 `allow`는 cargo-deny에서 "모두 허용"**이고 비어 있지 않으면 작업 공간 크레이트도 막으므로, 목록에 `fung-front`·`fung-vm`·`fung-cli`를 늘 둔다.
     - **2주 규칙**: 크레이트와 점검 도구는 올라온 지 2주 넘은 버전만 쓴다(최신판이 2주 안 됐으면 `cargo update -p <이름> --precise <그 전 버전>`).
     - 크레이트는 `fung-vm`에만. `fung-front`(앞단)는 0개.
@@ -143,10 +145,32 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     | `regex-automata` | 0.4.18 (2026-08-04) | MIT OR Apache-2.0 | `regex`가 끌고 옴 | `regex`의 실제 엔진들 | `aho-corasick`, `memchr`, `regex-syntax` |
     | `aho-corasick` | 1.1.5 (2026-08-03) | Unlicense OR MIT | `regex`·`regex-automata`가 끌고 옴 | 여러 글자열 동시 찾기(패턴의 고정 글자열을 먼저 찾는 가속) | `memchr` |
     | `memchr` | 2.8.3 (2026-07-08) | Unlicense OR MIT | `regex`·`regex-automata`·`aho-corasick`가 끌고 옴 | 빠른 바이트 찾기 | 없음 |
-    | `libc` | 0.2.189 (2026-07-21; 0.2.190은 2주 미만이라 고정) | MIT OR Apache-2.0 | `fung-vm` 직접, 유닉스 대상만 | `signal`·`raise`·`pthread_sigmask`(SIGPIPE로 죽기)는 표준 라이브러리에 없고, `sigset_t` 배치가 운영체제마다 달라 손으로 선언하면 틀리기 쉽다 | 없음 |
+    | `libc` | 0.2.189 (2026-07-21; 0.2.190은 2주 미만이라 고정) | MIT OR Apache-2.0 | `fung-vm` 직접, 유닉스 대상만 | `signal`·`raise`·`pthread_sigmask`(SIGPIPE로 죽기)는 표준 라이브러리에 없고, `sigset_t` 배치가 운영체제마다 달라 손으로 선언하면 틀리기 쉽다. 4d부터 소켓(`native/sock.rs`: 비차단·close-on-exec·`SO_NOSIGPIPE`·`poll`·`getaddrinfo`)에도 쓴다 | 없음 |
+    | `rustls` | 0.23.45 (2026-09-14; 공지 아래 참고) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접(4d), 기본 기능 끄고 `ring`·`std`·`tls12` | TLS(암호와 프로토콜 상태 기계)는 직접 짜면 위험하다(의존성 정책). 소켓을 만지지 않는 상태 기계라 비차단 소켓 + `poll` + 취소 깨우개 위에서 돈다 | `ring`, `rustls-pki-types`, `rustls-webpki`, `subtle`, `zeroize`, `once_cell` |
+    | `rustls-native-certs` | 0.8.4 (2026-06-01; 0.8.5는 2주 미만) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접(4d) | 운영체제 루트 인증서(macOS 키체인, Linux 인증서 파일)와 `SSL_CERT_FILE`·`SSL_CERT_DIR`을 읽는다. 운영체제마다 다른 저장소를 직접 읽는 것은 플랫폼 코드다 | `rustls-pki-types`, `openssl-probe`(macOS 밖 유닉스), `security-framework`(macOS), `schannel`(Windows) |
+    | `rustls-pki-types` | 1.15.1 (2026-07-23) | MIT OR Apache-2.0 | `rustls`·`rustls-webpki`·`rustls-native-certs`가 끌고 옴 | 인증서·키·서버 이름 타입 | `zeroize` |
+    | `rustls-webpki` | 0.103.15 (2026-08-21) | ISC | `rustls`가 끌고 옴 | 인증서 사슬·이름 검증(`native/tls.rs`의 `GoOrder`가 공개 부품으로 Go의 검사 순서를 조립) | `ring`, `rustls-pki-types`, `untrusted` |
+    | `ring` | 0.17.14 (2025-03-11) | Apache-2.0 AND ISC | `rustls`가 끌고 옴(암호 공급자로 고름) | 암호 기본 연산. C·어셈블리를 빌드하므로 C 컴파일러가 필요하다(CI 러너에 있음) | `cc`·`find-msvc-tools`·`shlex`(빌드 때만), `cfg-if`, `getrandom`, `untrusted`, `windows-sys`(Windows) |
+    | `untrusted` | 0.9.0 (2021-07-13) | ISC | `ring`·`rustls-webpki`가 끌고 옴 | 믿을 수 없는 입력을 안전하게 읽는 도우미 | 없음 |
+    | `subtle` | 2.6.1 (2024-06-24) | BSD-3-Clause | `rustls`가 끌고 옴 | 상수 시간 비교 | 없음 |
+    | `zeroize` | 1.9.0 (2026-06-12; 1.9.1은 2주 미만) | Apache-2.0 OR MIT | `rustls`·`rustls-pki-types`가 끌고 옴 | 비밀 값을 메모리에서 지우기 | 없음 |
+    | `once_cell` | 1.21.4 (2026-03-12) | MIT OR Apache-2.0 | `rustls`가 끌고 옴 | 한 번만 초기화하는 칸 | 없음 |
+    | `getrandom` | 0.2.17 (2026-01-11) | MIT OR Apache-2.0 | `ring`이 끌고 옴 | 운영체제 난수 | `cfg-if`, `libc`, `wasi`(wasm) |
+    | `cfg-if` | 1.0.5 (2026-09-16) | MIT OR Apache-2.0 | `ring`·`getrandom`이 끌고 옴 | 조건부 컴파일 매크로 | 없음 |
+    | `cc`, `find-msvc-tools`, `shlex` | 1.5.1 (2026-09-25; 1.8.0은 2주 미만), 0.1.14 (2026-09-25), 2.0.1 (2026-05-17) | 모두 MIT OR Apache-2.0 | `ring`의 빌드 스크립트 | `ring`의 C·어셈블리 빌드(실행 파일에는 들어가지 않음) | 서로 |
+    | `openssl-probe` | 0.2.1 (2026-01-20) | MIT OR Apache-2.0 | `rustls-native-certs`, macOS 밖 유닉스 | Linux 등에서 인증서 파일·디렉터리 위치 찾기 | 없음 |
+    | `security-framework`, `security-framework-sys`, `core-foundation`, `core-foundation-sys`, `bitflags` | 3.7.0 (2026-02-20), 2.17.0 (2026-02-20), 0.10.1 (2025-05-26), 0.8.7 (2024-08-11), 2.13.2 (2026-09-10) | 모두 MIT OR Apache-2.0 | `rustls-native-certs`, macOS | macOS 키체인의 루트 인증서 읽기 | 서로, `libc` |
+    | `schannel`, `wasi`, `windows-sys`, `windows-targets`, `windows_*` 8개 | 0.1.23 (2023-12-27; `windows-sys` 0.52 하나로 맞추려고 낮춤), 0.11.1, 0.52.0 / 0.52.6 | MIT / Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT / MIT OR Apache-2.0 | Windows·wasm 대상만 | `Cargo.lock`에는 있지만 fung의 대상(Linux·macOS)에서는 빌드하지 않는다 | — |
 
-    `OR`로 묶인 라이선스는 하나만 허용되면 되므로 `MIT` 하나로 모두 덮인다. 다른 라이선스(유니코드 데이터 등)를 더할 필요는 없었다.
-    `cargo-deny check`: advisories·bans·licenses·sources 모두 ok, `cargo-audit`: 9개 크레이트에서 발견 없음(2026-10-16).
+    `OR`로 묶인 라이선스는 하나만 허용되면 된다. 4c까지는 `MIT` 하나로 모두 덮였다. 4d에서 `ring`(`Apache-2.0 AND ISC`, 둘 다 필요), `rustls-webpki`·`untrusted`(`ISC`),
+    `subtle`(`BSD-3-Clause`) 때문에 `Apache-2.0`·`ISC`·`BSD-3-Clause`를 더했다. `ring`의 라이선스 칸이 깨끗한 SPDX라 `[[licenses.clarify]]`는 필요 없었다.
+    `cargo-deny check`: advisories·bans·licenses·sources 모두 ok, `cargo-audit`: 41개 크레이트에서 무시한 4건 밖의 발견 없음(2026-10-16, 4d Task 2).
+  - **보안 공지 정책** (사용자 결정, 2026-10-16): 공지가 우리 설정에 **닿지 않으면** 2주 규칙을 지키고 이유를 적어 무시하며 해제 날짜를 여기서 추적한다.
+    **닿으면** 2주를 기다리지 않고 바로 올린다. 무시는 `deny.toml`의 `[advisories] ignore`(이유와 함께)와 `.cargo/audit.toml`(cargo-audit용, 같은 번호) 두 곳에 적는다.
+  - [ ] **추적: rustls 공지 4건 해제, 2026-10-28 이후.** RUSTSEC-2026-0346(사용자 세션 저장소의 `Debug` 출력), -0347(ECH 거절 뒤 바깥 서버로 보낸 데이터),
+    -0348(brotli 인증서 압축 풀기), -0349(서버 이름별 키 공유 예측). 2026-10-14에 0.23.46의 수정과 함께 나왔고, 넷 다 fung 설정에 닿지 않는다
+    (세션 재개 끔, ECH 안 켬, `brotli` 기능 끔, `ring`에 하이브리드(ML-KEM) 그룹이 없음). 2026-10-28 이후 `cargo update -p rustls --precise 0.23.46`으로 올리고
+    `deny.toml`의 `ignore` 네 줄과 `.cargo/audit.toml`을 지운다. 그때 새로 따라오는 크레이트가 있으면 이 표와 2주 규칙을 다시 확인한다.
 - [x] 정규식 문법 → **Go `regexp/syntax` 파서를 옮긴 것(`crates/fung-vm/src/native/regex_go.rs`)이 fung 정규식 문법의 정의** (사용자 결정, 2026-10-16).
   계획은 `regex-syntax` 구문 트리를 고치는 얇은 층이었으나, 그 방식으로는 Go가 먼저 내는 에러·에러의 문제 부분·`\<`·`[[a]]`처럼 뜻이 다른 패턴을 맞출 수 없었다(노트 `docs/notes/R4c-regex-crates.md` 3절).
   매칭은 `regex` 크레이트가, 받아들이는 문법과 뜻은 이 파서가 정하므로 크레이트를 올려도 문법이 바뀌지 않는다. Go를 지운 뒤에도 남기고 **6단계 뒤에 다시 판단한다.**
@@ -162,18 +186,18 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     (나중에 prelude에 더하는 것은 W0103 경고뿐이라 안전하고, 빼는 것은 호환성 깨짐).
   - 구현 언어 지침(2026-10-15, 사용자 원칙을 다듬음): "빠지면 다른 것을 만들기 힘들어지는 것"이 핵심이다. 함수마다 아래 표로 정한다.
     fung으로 쓸 수 없는 것(OS·외부 세계) → Rust. 핵심이면서 람다를 부르지 않는 순수 계산(문자열, `len`, json 파싱, 정규식) → Rust.
-    핵심이면서 람다를 부르는 고차 함수(`map`·`fold`·`sort_by`·`each`) → 지금은 Rust, 4d의 스케줄러(그린 스레드) 결정 때 다시 판단
+    핵심이면서 람다를 부르는 고차 함수(`map`·`fold`·`sort_by`·`each`) → 지금은 Rust, R7 스케줄러(그린 스레드) 때 다시 판단(4d에서 미룸)
     (Rust 안에서 람다를 부르면 그 사이에 태스크를 멈출 수 없고 Rust 스택을 쓴다). 핵심이 아닌 조합·프로토콜(`take`·`retry`·`pmap`·HTTP) → fung.
     구현 언어 이동은 사용자 코드에 영향이 없어 나중에 바꿔도 된다.
   - 골든 테스트는 에러 출력까지 글자 단위로 비교하므로 Rust 구현도 에러 형식을 똑같이 맞춘다.
   - 1단계(앞단) 완료 (2026-10-15): dump 세 단계·컴파일 에러가 Go와 같음, 계획 `docs/plans/2026-10-14-rust-front-end.md`, 노트 `docs/notes/R1-front-end.md`
-  - 2단계(값·VM) 완료 (2026-10-15): `fung run`/`-e`가 Go와 같은 출력·종료 코드(실행 비교 152건, `tests/lang` 136개 중 118개), 제외 18개(동시성 9, 네이티브 모듈 9: `crates/fung-cli/tests/run_parity_skip.txt`), 계획 `docs/plans/2026-10-15-rust-vm.md`, 노트 `docs/notes/R2-vm.md`
+  - 2단계(값·VM) 완료 (2026-10-15): `fung run`/`-e`가 Go와 같은 출력·종료 코드(실행 비교 152건, `tests/lang` 136개 중 118개), 제외 18개(동시성 9, 네이티브 모듈 9: `crates/fung-cli/tests/run_parity_skip.txt`; 이 파일과 제외 장치는 4d에서 지웠다, 지난 기록), 계획 `docs/plans/2026-10-15-rust-vm.md`, 노트 `docs/notes/R2-vm.md`
   - 3a단계(동시성, Go와 같은 의미) 완료 (2026-10-15): 태스크·채널·취소·`atom`·교착 감지·꺼내지 않은 실패·어디서든 `exit`가 Go와 같은 출력·종료 코드
     (실행 비교 187건: `tests/lang` 136개 중 127개, `bench/` 6개, `-e` 47개 중 동시성 23개, 실행 방식 7가지; 동시성 31건은 릴리스에서 Rust·Go 각 50번 반복),
     제외는 네이티브 모듈 9개만. 스펙 `docs/superpowers/specs/2026-10-15-rust-runtime-3a-design.md`, 계획 `docs/plans/2026-10-15-rust-runtime-3a.md`, 노트 `docs/notes/R3a-runtime.md`
   - 3b단계(Go와 일부러 갈라지는 언어 변경) 완료 (2026-10-15): `atom` → `agent`(배경 태스크 + 닫개), E0704·E0705, 갈라지는 테스트의 `# only: go|rust` 표시와
     Rust 골든 실행기(`crates/fung-cli/tests/golden.rs`, Go 없이 파일의 기대값과 비교: `tests/lang` 130개 확인, `# only: go` 3개, 네이티브 모듈 9개 건너뜀, 바닥 127).
-    실행 비교는 표시된 파일을 빼고 그대로 같음(`tests/lang` 125개). 스펙 `docs/superpowers/specs/2026-10-15-rust-agent-3b-design.md`,
+    실행 비교는 표시된 파일을 빼고 그대로 같음(`tests/lang` 125개; 그때는 네이티브 모듈 제외 목록이 따로 있었고 4d에서 지웠다). 스펙 `docs/superpowers/specs/2026-10-15-rust-agent-3b-design.md`,
     계획 `docs/plans/2026-10-15-rust-agent-3b.md`, 노트 `docs/notes/R3b-agent.md`. 예제·매뉴얼·CHANGELOG는 6단계(아래 "Rust 첫 릴리스(0.2.0)에서 바뀌는 것").
   - 4a단계(`fs`·`path`) 완료 (2026-10-16): `_native.fs` 17개·`_native.path` 6개, 운영체제 에러의 Go 문구, 파일 핸들(`Value::File`, 핸들 잠금, 실행권 밖 입출력,
     마지막 사본에서 닫힘), `fs_and_path`를 Go 대조와 Rust 골든 실행기에 넣음, 3b 취소 노드 누수 수정. 실행 비교 `tests/lang` 131개(네이티브 모듈 8개·`# only: go` 3개 제외),
@@ -189,6 +213,12 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `_native.regex` 5개(`native/regex.rs`, `regex` 크레이트), `regex`·`err_regex`를 Go 대조와 Rust 골든 실행기에 넣음. 실행 비교 189건(`tests/lang` 133개), Rust 골든 138개,
     남은 실행 비교 제외는 `http_serve.fung` 하나. Go 대조 800쌍·프로그램 47개(`regex_parity.rs`), 파서 표 334개·매치 173쌍·무작위 2,000개 + 겹친 반복 600개, SIGPIPE 11개(`sigpipe.rs`).
     스펙 `docs/superpowers/specs/2026-10-16-rust-regex-crates-4c-design.md`, 계획 `docs/plans/2026-10-16-rust-regex-crates-4c.md`, 노트 `docs/notes/R4c-regex-crates.md`.
+  - 4d단계(소켓·TLS·fung으로 쓴 HTTP) 완료 (2026-10-16, 커밋 `6bdcab6..4660516`): `_native.net` 19개(`native/net.rs`·`sock.rs`, 비차단 소켓 + `poll` + 취소 노드의 깨우개 파이프 `vm/watch.rs`,
+    `Value::Conn`·`Value::Listener`), rustls TLS 클라이언트(`native/tls.rs`, 위 허용 목록 표), `_native.conc`의 `set_asker`·`describe`, HTTP/1.1 클라이언트·리다이렉트·프록시·`CONNECT` 터널·서버를
+    fung으로 쓴 `extras/rust/http.fung`. 06에 "fung HTTP 약속"을 적고 그 안에서 Go와 같다. 지원 안 함(E0805) 장치와 `run_parity_skip.txt`를 지웠다: 이제 구현마다 갈라지는 파일은 `# only:` 표시뿐이다.
+    실행 비교 189건(`tests/lang` 143개 중 표시 없는 133개, 빼는 파일 없음), Rust 골든 139개(`http_serve_rust` 포함), `http_parity.rs` 14개(디버그 13개; 클라이언트 프로그램 61개·연결 없는 경우 30개·인자 에러 13개,
+    리다이렉트·프록시, `NO_PROXY` 표 23줄, 서버 원시 요청 88개를 Go·Rust 서버에 보내 바이트 비교, 헤더 10초 한도, 바인드 실패, 예제), `tls.rs`(Go TLS 서버로 인증서 문구 비교, macOS·Linux).
+    스펙 `docs/superpowers/specs/2026-10-16-rust-net-http-4d-design.md`, 계획 `docs/plans/2026-10-16-rust-net-http-4d.md`, 노트 `docs/notes/R4d-net-http.md`.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - 스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉(GitHub Actions의 Linux·macOS 러너에서는 정상 동작 확인, 2026-10-15). 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -203,7 +233,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - ~~닫힌 표준 출력·에러 파이프: Go는 SIGPIPE로 죽고, Rust는 조용히 `exit(141)`.~~ 해결 (4c, 2026-10-16): 표준 출력·에러의 EPIPE에서 `libc`로 SIGPIPE를 기본 동작으로 되돌리고 막힘을 푼 뒤 `raise`(Go `dieFromSignal`과 같은 순서, 그래도 살면 141). 어느 태스크·종료 처리기에서든, SIGPIPE를 무시한 채 시작해도 신호 13으로 죽는다. 다른 파일·자식 표준 입력의 EPIPE는 그대로 에러 값, 자식은 기본 동작으로 시작(std `Command`가 되돌림). `crates/fung-cli/tests/sigpipe.rs`가 Go와 비교.
   - 해결 (Task 12): 유니코드 글자·숫자·대문자·출력 가능 판정(렉서, 로더, 맵 키·문자열 따옴표, `sym`)은 Go가 생성한 `spec/unicode.txt`(`unicode.IsLetter`/`IsDigit`/`IsUpper`/`IsPrint`/`IsSpace`의 구간, Unicode 17.0.0)를 Rust가 읽어 Go와 같다.
   - ~~동시성 내장 함수는 `E0805 not supported yet`~~ 해결 (3a, 2026-10-15): 모두 Go와 같이 동작한다(`sleep`도 취소되면 E0701로 풀림). 실행 비교 제외는 네이티브 모듈 9개가 남았고 4단계에서 하나씩 비교에 넣는다.
-  - 2단계에 없는 표준 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`)을 `import`하면 직접이든 사용자 모듈을 거쳐서든 그 `import` 위치에서 `E0805 not supported yet: <모듈>`. 진짜 등록 누락은 그대로 E0801.
+  - ~~2단계에 없는 표준 모듈(`fs`·`path`·`json`·`time`·`regex`·`http`)을 `import`하면 직접이든 사용자 모듈을 거쳐서든 그 `import` 위치에서 `E0805 not supported yet: <모듈>`. 진짜 등록 누락은 그대로 E0801.~~
+    지난 기록: 4a~4d에서 모듈이 하나씩 들어왔고, 4d에서 `http`까지 돌게 되어 이 장치(`boot::unsupported_module`, `ModuleState.unsupported`)를 지웠다. E0805 번호는 카탈로그에 남는다(Go에 있음).
 - [ ] 3a단계(동시성)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-15-rust-runtime-3a/progress.md`, 노트 `docs/notes/R3a-runtime.md` 8절).
   출력이 Go와 갈라지는 것은 모두 시점이나 스케줄에 달린 경우라서 실행 비교에는 결정적인 사례만 넣었다. 3b·Go 제거 때 어느 쪽을 언어 규칙으로 삼을지 05에 적는다.
   - `at_exit` 핸들러 안의 교착: 앞에서 `exit`이 불렸거나 교착이 이미 보고된 뒤라면 Go는 교착 감지가 꺼져 Go 런타임이 죽는다
@@ -244,7 +275,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `f`가 에이전트의 태스크에서 돌기 때문이다. 겉모습만의 차이로 남긴다.
   - **에이전트 하나 = 운영체제 스레드 하나**(3a의 태스크 모델, 2026-10-15 최종 리뷰). 살아 있는 에이전트 수에 운영체제 스레드 한도가 천장이다.
     `map(0..20000, i => agent(i))`는 약 2.5초 뒤 `E0801 cannot start a task`(Go atom은 0.01초), 만들고 `deref`하기 22,000번은 3.58초(Go 0.012초),
-    `swap` 한 번은 약 7 µs(Go 0.4 µs). 지금은 기록만 하고(사용자 결정) 그린 스레드(위 스케줄러 항목, 4단계 이벤트 루프와 함께)로 푼다. 노트 `docs/notes/R3b-agent.md` 2절.
+    `swap` 한 번은 약 7 µs(Go 0.4 µs). 지금은 기록만 하고(사용자 결정) 그린 스레드(아래 "R7 스케줄러")로 푼다. 노트 `docs/notes/R3b-agent.md` 2절.
   - `f`는 부른 태스크를 따른다(2026-10-15 사용자 결정, 최종 리뷰 뒤): 부른 태스크가 `exit`·교착 보고·`cancel`로 취소되면 그 `f`도 취소되고 갱신은 반영되지 않는다.
     `f`의 취소 노드는 에이전트 노드와 부른 태스크 노드 양쪽 아래에 걸린다(`CancelNode::also_under`). 꺼내기 전에 부른 쪽이 취소된 요청은 건너뛴다.
     `f`가 띄운 태스크도 부른 태스크와 함께 끝난다(atom과 같음). 처음 스펙의 "꺼낸 요청은 반영"은 이 결정으로 바뀌었다(노트 9절 (7)).
@@ -267,7 +298,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     부른 태스크가 취소되면(`exit`, 교착 보고, `cancel`) 그 `f`도 취소되고 갱신은 반영되지 않는다(atom과 같은 결과).
   - **수천 개의 살아 있는 칸에는 `atom(` → `agent(`이 그대로 대체되지 않는다.** 에이전트마다 운영체제 스레드가 하나라서, 2만 개를 살려 두면 스레드 한도에 걸려
     `E0801 cannot start a task`로 끝나고, 만들기·`swap`도 atom보다 수십 배 느리다(위 3b 목록의 수치). 값마다 칸을 두던 프로그램은 에이전트 하나에 맵으로 모은다.
-    그린 스레드가 들어오면(4단계) 풀릴 한계라서 그때 이 항목을 고친다.
+    그린 스레드가 들어오면(R7, 6단계 뒤) 풀릴 한계라서 그때 이 항목을 고친다. 0.2.0 릴리스에는 이 한계가 그대로 들어간다.
   - 다른 에이전트를 겹쳐 쓰는 `f`: `swap(a, x => swap(b, y => deref(a) + 5))`는 atom에서 6이었지만 E0702(교착)다. `f` 안의 `deref`가 기다리지 않는 것은 같은 에이전트에서만.
   - 서로의 핸들을 품은 두 에이전트(`b = agent(a)`, `swap(a, _ => b)`)는 핸들이 모두 사라져도 끝나지 않고 프로그램 끝까지 남는다(배경 태스크라 프로그램 끝은 막지 않음). atom에는 해당 없던 일(GC가 회수).
   - 출력은 `<agent>`(atom은 `<atom 1>`처럼 값을 보였다).
@@ -275,6 +306,15 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 핸들이 모두 사라진 에이전트는 실행 중에 끝난다. 에이전트는 프로그램이 끝나기를 막지 않고 `at_exit` 핸들러에서 쓸 수 있다.
   - 고칠 것: `examples/api.fung`(요청 카운터)·`examples/serve.fung`, `docs/builtins.html`(`atom`·`swap`·`deref` 항목과 서명), `tests/lang`의 `# only: go` 파일(`atoms`·`err_atom_reentry`·`conc_atoms`·`http_serve`)과
     dump 대조의 `ATOM_EXAMPLES`(`crates/fung-cli/tests/parity.rs`). 6단계에서 Go를 지우면 `# only:` 표시도 정리한다.
+  - `http` (4d, 06 "fung HTTP 약속"; 약속 밖의 차이):
+    - 응답 본문 상한 **64 MiB**(사용자 결정, 2026-10-16). 넘으면 `Err 'network`. Go에는 상한이 없다. 더 큰 응답은 나중에 요청별 `max_body` 같은 옵션으로.
+    - 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축 없음. 서버는 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙고,
+      HTTP/1.0 keep-alive 요청에 `Connection: keep-alive`로 답하지 않는다. 2 KB 넘는 응답 본문도 `Content-Length`로 보낸다(Go는 조각 전송; 클라이언트가 읽는 결과는 같음).
+    - 바이너리 본문: UTF-8이 아니면 바이트마다 U+FFFD(4a와 같은 뿌리).
+    - SOCKS 프록시(`socks5://`·`socks5h://`)와 `https://` 프록시 너머의 https는 지원하지 않는다(`proxyconnect tcp: socks5 proxies are not supported`,
+      `proxyconnect tcp: https through an https proxy is not supported`). Go는 둘 다 지원한다.
+    - 서버가 끝내는 중에 읽은 요청: Go는 답 없이 닫고 Rust는 503으로 답한다.
+    - Go가 덧붙이는 그 밖의 헤더, 흔하지 않은 에러 문구(아래 "4d단계(http)에서 알고 남긴 차이").
 - [ ] Go 동등을 위한 과도기 잔가지 → **이식 중에는 Go와 맞추고, Go를 지운 뒤 따로 걷어낸다** (2026-10-15).
   Go 구현은 빠르게 해 본 첫 시도로 본다. 아래는 언어 설계가 아니라 Go 구현의 우연을 바이트 단위로 따라 하려고 붙인 것들이다.
   걷어낼 때 각 항목의 바른 동작을 설계 문서와 `tests/lang`에 정한 뒤 지운다. 이식 중 새로 붙이는 것도 여기에 더한다.
@@ -331,6 +371,28 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     (손으로 고른 컴파일 334개·매치 173쌍, PCG(2026, 1016) 무작위 2,000개 + 겹친 반복 600개). Go를 지우면 생성기는 함께 지우고 만들어진 파일은 고정된 회귀 데이터로 남긴다.
   - SIGPIPE의 Go 런타임 세부(4c, `crates/fung-vm/src/sigpipe.rs`): 부모가 SIGPIPE를 무시로 둔 채 띄워도 기본 동작으로 되돌려 신호 13으로 죽는 것(C 프로그램이라면 EPIPE),
     신호로도 안 죽으면 `exit(141)`하는 대비책(Go `dieFromSignal`의 `exit(128+sig)`). 닫힌 표준 출력·에러에서 신호로 죽는 것 자체는 유닉스의 보통 동작이라 남긴다.
+  - Go `net` 문구와 주소 규칙(4d, `native/net.rs`·`sock.rs`): `OpError` 형식(`dial tcp …: connect: …`, `read tcp L->R: read: …`, `i/o timeout`,
+    `use of closed network connection`, 닫힌 연결의 기한 설정은 `set tcp <local>: …`), `SplitHostPort`·`parsePort` 문구와 `lookup tcp/<x>: unknown port`,
+    `getaddrinfo` 결과 → Go 문구(`no such host`), 에러의 `accept4`(Linux)/`accept`(macOS), 빈 listen 호스트 = `[::]` 이중 스택, 빈 dial 호스트 = 로컬 시스템,
+    `io.ReadFull`의 `EOF`/`unexpected EOF`, 두 번째 `close`가 에러인 것.
+  - Go TLS 문구와 순서(4d, `native/tls.rs`): `x509: …`·`tls: …` 문구, Go `alert.String()` 표 34개(`remote error: …`), `local error: tls: bad record MAC`,
+    `GoOrder`의 검사 순서(날짜, 이름, 사슬)와 이름 에러 문구(IP 호스트는 IP SAN), Go 형식의 RFC 3339 시각, `Records`의 Go 끝 규칙(레코드 사이 EOF는 끝, 안쪽은 `unexpected EOF`)과
+    첫 레코드 검사, 핸드셰이크 시간 초과의 `context deadline exceeded`, 세션 재개 없음, close_notify는 `close`에서만.
+  - Go HTTP 클라이언트 흉내(4d, `extras/rust/http.fung`): `User-Agent: Go-http-client/1.1`(사용자 값이 덮고, 빈 값이면 보내지 않음), `POST`·`PUT`·`PATCH`는 빈 본문에도 `Content-Length`,
+    사용자 헤더의 `CanonicalMIMEHeaderKey`·정렬, `url.Error` 형식(`Op "URL": `, 비밀번호 `***`), "transport connection broken" 접두사, TCP 연결 30초 상한,
+    **TLS 핸드셰이크 10초 상한과 그 문구 `net/http: TLS handshake timeout`**(`'network`), Go `ReadResponse`·`textproto.ReadMIMEHeader`·`parseTransferEncoding`·`fixLength`·`fixTrailer`·
+    `shouldClose`·`fixPragmaCacheControl` 규칙과 문구, 101 밖의 1xx 건너뛰기, 헤더 예산 10 MiB와 문구, Go `chunkedReader`(4096바이트 줄, 16진 규칙, 16 KiB "excess" 검사, 트레일러 규칙),
+    `net/url` 해석과 에러 문구의 부분집합, 사용자 정보의 `Authorization: Basic`.
+  - Go 리다이렉트·프록시 흉내(4d): 10번 한도와 그 문구(원래 `Location`을 에러 URL로), `Referer` 규칙, 민감한 헤더·본문 헤더 목록과 "첫 호스트나 그 하위 도메인, 한 번 버리면 계속" 규칙,
+    홉마다의 Basic 인증, `failed to parse Location header` 문구, **리다이렉트 본문을 2 KB까지 읽고 버리기**(Go가 연결 재사용을 위해 하는 일, 재사용이 없는 Rust에는 필요 없음; 멈춘 본문에서 Go처럼 기다림),
+    `Location` 해석 → 본문 버리기 → 한도 검사 순서, 프록시 변수 우선순위와 빈 값 건너뛰기, CGI 안전장치 문구, `parseProxy`의 `http://` 재시도, `localhost`를 쓴 그대로 비교,
+    `NO_PROXY` 문법(Go의 CIDR v4/v6 구분, `IP.Equal`), `proxyconnect tcp: ` 접두사, `CONNECT` 요청 바이트(Go `User-Agent` 포함), 이유 문구 에러와 `unknown status code`,
+    `CONNECT` 60초 기한, 프록시 http 요청의 `Proxy-Authorization`을 맨 뒤에.
+  - Go HTTP 서버 흉내(4d): Go `StatusText` 표와 `NNN status code NNN`, 헤더 순서·형식(정렬·정규화 뒤 `Date`, `Content-Length`, `Connection: close`; 잘못된 이름 버림, CR/LF는 공백),
+    **`Date`의 Go `http.TimeFormat` 형식**, 본문 없는 상태(1xx 먼저 보내기, 204·304), `http.Error` 형식(500·503·413·400의 `X-Content-Type-Options: nosniff`와 끝 `\n`),
+    Go가 스스로 내는 답(400, `400 Bad Request: <이유>`, 505, 501, 431)과 EOF·시간 초과·읽기 에러의 침묵, 요청 읽기 규칙(`parseRequestLine`, `ValidHostHeader`, 머리 1 MB + 4 KB·값 500개),
+    `url.ParseQuery`(1만 쌍 한도, `;`·잘못된 이스케이프 건너뜀), `Expect: 100-continue`·417, `OPTIONS *`를 서버가 답하기, 413·431 뒤 500 ms 읽고 버리기, `accept` 재시도 5 ms → 1 s,
+    핸들러 실패 줄 `http: handler failed: …`와 내부 에러 줄 `http: internal error: …`.
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서; 닫힌 파이프 141은 4c에서 해결)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 4a단계(fs)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-15-rust-fs-4a/progress.md`).
   - 닫지 않은 핸들: Rust는 마지막 사본이 사라지는 순간 파일을 닫는다(참조 계수). Go는 GC가 거둘 때까지 열려 있을 수 있다. 그래서 핸들 수천 개를 버려도 디스크립터가 새지 않는다.
@@ -350,7 +412,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - `now()`에 단조 시계가 없다. Go는 `now()`끼리의 `-`·`==`·`<`에 단조 시계를 쓰므로, 두 `now()` 사이에 시스템 시각이 바뀌면(NTP 보정 등) 결과가 다르다. 경과 시간 재기가 그때 틀릴 수 있다.
   - 값 출력(`value/format.rs`, `print`·`str`)은 아직 재귀다. 2026-10-16에 재 보니 JSON이 만들 수 있는 가장 깊은 값(10,000겹 `[`·`{"a":`, `[{"a":` 5,000번)은
     디버그·릴리스 모두 진입 스레드(4 GiB 스택)와 `spawn`한 태스크(1 GiB 스택)에서 정상 출력된다. `fold`로 만든 백만 겹 리스트도 진입 스레드에서 출력된다(디버그 80초, 릴리스 75초).
-    5백만 겹 리스트는 만들고 버리는 것은 되지만 `str`하면 디버그 진입 스레드에서 스택이 넘쳐 프로세스가 죽는다(종료 코드 134). 큰 스택에 기대는 것이므로 출력을 반복으로 바꿀지는 스택 크기를 줄일 때(그린 스레드, 4d) 다시 본다.
+    5백만 겹 리스트는 만들고 버리는 것은 되지만 `str`하면 디버그 진입 스레드에서 스택이 넘쳐 프로세스가 죽는다(종료 코드 134). 큰 스택에 기대는 것이므로 출력을 반복으로 바꿀지는 스택 크기를 줄일 때(그린 스레드, R7) 다시 본다.
   - 잘못된 UTF-8 입력: Rust 문자열에 들어올 때 이미 U+FFFD라서 `json.parse` 에러가 Go의 `'\xNN'` 대신 `'�'`를 보인다(4a와 같은 뿌리). 출력은 둘 다 U+FFFD.
   - 2^30~2^48 사이의 들여쓰기: 두 구현 모두 메모리를 잡으려다 죽지만 죽는 출력이 다르다.
   - Rust에만 있는 종류(`agent`, 잡은 에러)는 `stringify`에서 E0513 `cannot convert agent to JSON`·`cannot convert error to JSON`(Go가 채널·함수에 쓰는 기본 분기와 같은 규칙).
@@ -362,13 +424,81 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     Go는 캐시 뮤텍스를 쥔 채 컴파일해서 다른 정규식 호출자도 기다리지만, Rust는 아무도 기다리지 않고 같은 패턴을 동시에 놓친 두 태스크가 각자 컴파일한다(캐시에는 먼저 넣은 것이 남음).
     `regex_tests.rs`의 `other_tasks_run_while_a_pattern_compiles`가 컴파일을 관문에 세워 두고 다른 태스크가 그 관문을 여는지로 확인한다.
   - 깊은 중첩: 약 999단계에서 `regex` 크레이트의 컴파일러가 디버그 빌드의 2 MB 스택을 넘친다. fung의 명령 스레드(4 GiB)·태스크 스레드(1 GiB)는 괜찮고, 테스트는 1 GiB 스레드에서 돈다.
-    스택 크기를 줄일 때(그린 스레드, 4d) 다시 본다.
+    스택 크기를 줄일 때(그린 스레드, R7) 다시 본다.
   - 엔진이 크기 밖의 이유로 옮긴 패턴을 거부하면 Go의 `regexp/syntax: internal error` 문구가 나온다. Go는 이 에러를 내지 않으며, 테스트로 닿는 경우는 없다.
   - ~~내부 에러 보고(`crates/fung-vm/src/vm/task.rs`의 `eprintln!`)는 표준 에러가 닫혀 있으면 SIGPIPE로 죽지 않고 패닉한다.~~ 해결 (4c 최종 수정): 결과를 버리는 `writeln!`으로 바꿔 표준 에러가 닫혀 있어도 `abort`까지 간다.
   - 4c 보류 (최종 리뷰에서 머지 전 수정 불필요로 분류한 사소한 항목):
     - `native/regex_go.rs`의 HIR 왕복 확인은 `debug_assert!`라서, 옮긴 패턴을 다시 읽은 결과가 다르면 디버그 빌드에서만 패닉한다(릴리스는 그대로 진행). 무작위 패턴 4만 7천 개에서 어긋난 적은 없다.
     - 무작위 기대값(`regex_go_fixtures.rs`)이 Go `math/rand/v2`의 PCG와 `IntN` 결과에 기댄다. Go가 바뀌어 같은 시드에서 다른 패턴이 나오면 `-update`가 파일 전체를 바꾼다(회귀 검사 자체는 고정 파일이라 영향 없음).
     - `crates/fung-cli/tests/sigpipe.rs`의 fifo 시험에서 읽는 쪽 스레드가 시험이 실패하는 길에서는 거둬지지 않고 남는다(시험 프로세스가 끝나면 사라짐).
+- [ ] 4d단계(http)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-16-rust-net-http-4d/progress.md`, 노트 `docs/notes/R4d-net-http.md` 8절).
+  약속 밖이라 사용자에게 보이는 것은 위 "0.2.0에서 바뀌는 것"의 `http` 항목에 있다. 아래는 그 밖의 세부다.
+  - 소켓(Task 1):
+    - `set_deadline`은 이미 막힌 호출에 닿지 않는다. 막힌 `poll`은 시작할 때의 기한을 들고 있고, 새 기한은 다음 기다림부터다(Go는 막힌 호출도 깨운다).
+    - 호스트 없음: Linux의 Go(순수 Go 해석기)는 `lookup x on <서버>: no such host`, Rust는 시스템 해석기의 `lookup x: no such host`.
+    - 이름 붙은 포트(`:http`)를 찾지 않는다(`lookup tcp/http: unknown port`).
+    - Go는 두 번째 주소 계열을 300 ms 뒤에 경주시키고(Happy Eyeballs) 시간 제한을 주소마다 나눈다. Rust는 한 기한 안에서 차례로 시도한다. 첫 에러를 보고하는 것은 같다.
+    - IPv6 영역 표시: Go `%en0`, Rust `SocketAddr`의 `%4`.
+    - `close`는 바로 `shutdown`하고 디스크립터는 진행 중인 연산이 놓을 때 닫는다. 상대가 보는 동작은 같다.
+    - 한 연결에 읽는 쪽 하나, 쓰는 쪽 하나(노트 2절). 두 번째로 기다리는 쪽은 잠금에서 기다리며 취소되지 않는다.
+  - TLS(Task 2):
+    - Linux의 Go는 `SSL_CERT_FILE`만 있어도 기본 디렉터리(`/etc/ssl/certs` 등)를 함께 읽는다. `rustls-native-certs`는 변수가 하나라도 있으면 변수의 위치만 읽는다(macOS는 같음).
+    - 변수 없는 macOS의 Go는 Apple 검증기를 써서 문구가 다르다(100년짜리 인증서는 `not standards compliant`, 825/398일 한도). Rust는 키체인의 루트로 WebPKI 검증, Go의 Linux 문구.
+    - 첫 레코드 검사(`first record does not look like a TLS handshake`)가 Go보다 좁다.
+    - 치명적 경고를 받은 뒤 쓰기 에러가 Go처럼 "끈적"(sticky)하게 남지 않는다.
+    - 이름 불일치 문구의 이름 목록은 webpki의 `Debug` 출력(`DnsName("…")`·`IpAddress(…)`, rustls-webpki 0.103)을 해석해 얻는다. 형식이 바뀌면 `a_name_mismatch_reads_like_go`가 알린다.
+    - Go의 "legacy Common Name" 문구를 내지 않는다(webpki는 CN을 보지 않음). 중간·루트 인증서의 만료는 문구가 다를 수 있다(잎 인증서의 날짜만 정확히 맞춤).
+      그 밖의 rustls 에러는 `tls: <rustls 문구>`, Go의 `SystemRootsError`는 없다(루트가 하나도 없으면 unknown authority).
+    - DNS 이름으로 맞지 않는 호스트(`_` 등)는 `tls: invalid server name <host>`(Go는 보내고 검증에서 실패).
+    - close_notify를 기다리지 않고 보낸다(소켓 버퍼가 차 있으면 버려짐). Go는 5초까지 기다린다. ALPN을 보내지 않는다(Go는 `h2, http/1.1`).
+  - 클라이언트(Task 3):
+    - 인자 에러의 호출 경로에 `extras/rust/http.fung` 프레임이 보인다. Go의 함수는 네이티브라 없다(06은 extras 프레임을 보이게 둔다).
+    - 사용자 함수가 `http.*`를 꼬리 위치에서 부르면 그 프레임이 사라져, 에러가 부른 쪽의 부른 쪽 위치를 가리키고 경로에 `get (1 tail calls elided)`가 보인다. fung으로 쓴 모든 라이브러리 함수와 같다(3b `swap`과 같은 뿌리).
+    - TCP 연결과 핸드셰이크를 `min(10초, 남은 시간)` 기한 하나로 묶는다(Go는 30초 + 10초).
+    - URL: IDN·퓨니코드 없음, 호스트의 `%XX`(0x80 이상) 풀지 않음, 괄호 IPv6는 "IPv4인가 아닌가"만 검사(잘못된 IPv6는 연결에서 다른 문구로 실패, IPv4 앞자리 0 문구도),
+      에러 URL의 조각(fragment)은 다시 이스케이프하지 않음, 출력할 수 없는 비ASCII 글자의 `%q`(Go는 `\u`).
+    - 사용자 정보에 비ASCII가 있으면 가린 에러 URL이 `%C3%A9`로 보인다(Go는 `é`).
+    - 101 응답은 본문 없음(Go는 연결을 넘겨줌).
+    - 헤더 예산을 "줄 바이트 + 2"로 센다(Go는 소켓에서 읽은 양). 경계에서만 다를 수 있다.
+    - 서버가 일찍 닫아 쓰기가 실패하면 쓰기 에러를 보고한다(Go는 답을 읽을 수 있으면 읽음).
+    - 헤더 폭탄의 비용: 접히거나 끝없는 머리를 fung으로 해석하므로 10 MiB 예산 안에서 40만 줄에 릴리스 약 1초.
+    - `need_str_map`(Go의 "map of strings" E0403)은 HTTP와 무관한 인자 검사인데 `_native.net`에 있다. 자리는 6단계 내장 함수 배치 검토 때 다시 본다.
+    - IPv6 영역(`%25en0`)이 연결할 때 떨어진다(`IpAddr` 해석이 영역을 받지 않음). 최종 리뷰 대기.
+    - 에러 URL에서 `%` → `%25` 바꿈이 괄호 IPv6만이 아니라 모든 호스트에 적용되어 `http://%C3%A9:1/` 같은 입력의 문구가 Go와 다르다. 최종 리뷰 대기.
+  - 리다이렉트·프록시(Task 4):
+    - 알 수 없는 스킴의 프록시 URL에 포트가 없으면 Rust는 80(Go는 빈 포트로 연결).
+    - IDN·퓨니코드 없음(`NO_PROXY`, 같은 사이트 판정).
+    - `NO_PROXY`의 공백 다듬기는 ASCII(공백·탭·CR·LF)만. Go `TrimSpace`는 유니코드 공백 전체.
+    - `CONNECT` 답은 상태 줄과 헤더 줄만 검사한다. Go `ReadResponse`는 그 답의 `Content-Length`·`Transfer-Encoding` 틀도 거부한다.
+    - 프록시 요청의 `ValidHostHeader` 검사(`http: invalid Host header`)가 없다.
+    - `CONNECT` 60초 기한을 넘기면 요청 시간 초과 문구(`request to … timed out`)로 보고한다.
+    - 프록시는 요청마다 환경에서 고른다(Go는 프로세스마다 한 번). fung 프로그램은 자기 환경을 바꿀 수 없어 보이지 않는다.
+  - 서버(Task 5):
+    - 이름이 대소문자만 다른 응답 헤더(`{"x-a": .., "X-A": ..}`): Go는 맵 순서라 아무것이나, Rust는 뒤의 것.
+    - 핸들러가 넣은 틀 헤더는 쓴 그대로: `Content-Length`는 자동 값을 끄지만 본문은 달라도 다 쓴다(Go는 거부하거나 자르고 기록), `Transfer-Encoding`은 해석하지 않음, 101 전환의 `Connection: upgrade` 세부는 없음.
+    - 413: Go는 16 MiB + 1을 먼저 읽고, Rust는 선언된 길이가 넘으면 바로 답한 뒤 500 ms 읽고 버린다(선 위의 바이트는 같고 시점이 다름). 431에서 Go는 FIN을 보내고 기다리지만 Rust는 반쯤 닫기 원시 기능이 없어 읽기만 한다.
+    - 431 경계: Go는 bufio 읽기 양, Rust는 줄 바이트 + 2(클라이언트와 같음).
+    - 핸들러가 띄운 태스크는 핸들러 아래에 걸려 핸들러와 함께, 서버와 함께 취소되지만 배경 종류다. 프로그램을 붙잡지 않고, 교착 집계에 따로 들며, 꺼내지 않은 실패는 보고된다.
+    - `serve` 인자 에러의 호출 경로에 extras 프레임이 보이고, `ready` 에러에는 `_ready_check`·`_serve (1 tail calls elided)` 두 프레임이 더 있다(아래 포매터 결함의 우회).
+    - 따라 하지 않은 것: `PRI * HTTP/2.0`, `CONNECT`의 2xx 답, 요청 컨텍스트를 취소하는 배경 읽기.
+    - 본문 중간에 멈춘 클라이언트는 닫을 때까지 연결 태스크의 스레드 하나를 붙잡는다(Go도 `ReadTimeout`이 없어 붙잡지만 고루틴이라 쌈). R7에서 푼다.
+  - 테스트: `http_parity`는 프로필마다 약 45초 걸린다. 헤더 10초 한도 시험(`a_slow_client_is_cut_off_after_ten_seconds`)은 시간을 주입하지 않고 실제로 10초를 기다린다.
+- [ ] Go 포매터 결함 (M9, 4d Task 5에서 발견): 매개변수에 `fn` 타입 표기가 있는 함수의 블록 몸통을 Go `fung fmt`가 내어쓴다(`fn` 타입을 람다로 읽음). 최소 재현:
+  `fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;`의 몸통이 들여쓰기를 잃는다. Go가 정답지라 이식 중에는 고치지 않았고, `extras/rust/http.fung`는 `serve = _serve(...)` 한 줄 감싸개로 피했다
+  (그래서 `ready` 인자 에러에 `_serve` 프레임이 하나 더 보인다). Rust 포매터(5단계)를 만들 때 바른 동작을 정하고, Go를 지운 뒤 감싸개를 걷어낸다.
+- [ ] **R7 스케줄러** (6단계 Go 삭제 뒤의 별도 단계, 4d 스펙 결정 2026-10-16). 언어 의미를 바꾸지 않는 내부 교체다. 막히는 곳은 `vm/block.rs`의 `block()`과
+  소켓의 `vm/watch.rs`(`Watch`)로 모여 있어 그 자리를 갈아끼운다. 그때 함께 판단할 것:
+  - 그린 스레드: 태스크를 운영체제 스레드가 아니라 VM이 주차·재개하는 단위로. 이벤트 루프 크레이트 `mio`를 들일지(4d에서는 들이지 않음).
+  - 태스크 생성 비용: 지금 태스크 하나에 약 55 µs(Go 약 2 µs, 약 25배; `docs/notes/R3a-runtime.md` 9절). 채널 주고받기 약 2.5 µs(Go 약 3배).
+  - 스레드 천장: 살아 있는 태스크·에이전트마다 운영체제 스레드 하나라서 프로세스 스레드 한도(macOS `kern.num_taskthreads` 8192)가 천장이다.
+    `map(0..20000, i => agent(i))`는 `E0801 cannot start a task`, 에이전트 `swap` 한 번은 약 7 µs(Go atom 0.4 µs; 위 3b 목록).
+  - 람다를 부르는 고차 내장 함수(`map`·`fold`·`sort_by`·`each`)의 구현 언어: Rust 안에서 람다를 부르면 그 사이에 태스크를 멈출 수 없고 Rust 스택을 쓴다(위 "구현 언어 지침").
+  - 스택 크기: 지금은 진입 스레드 4 GiB, 태스크 스레드 1 GiB 예약에 기댄다(깊은 정규식 컴파일, 깊은 값 출력). 그린 스레드는 작은 스택이 전제라 다시 정한다.
+  - 값 출력의 재귀(`value/format.rs`, 위 4b 목록): 스택을 줄이면 반복으로 바꿔야 할 수 있다.
+  - 멈춘 HTTP 클라이언트 하나 = 스레드 하나(위 4d 서버 목록).
+  - 막히는 기다림마다 깨우개 파이프 하나(디스크립터 2개, 막힐 때만 만들고 호출이 끝나면 닫음). 이벤트 루프가 생기면 하나로 모을 수 있다.
+  - 이름 조회 스레드: `getaddrinfo`는 끊을 수 없어 스레드에서 돈다. 취소되거나 시간이 다 된 `connect`는 바로 돌아오지만 조회 스레드는 해석기가 답할 때까지 남는다.
+    시간으로는 해석기 제한에 묶이지만 개수로는 묶이지 않는다(응답 없는 해석기에 취소된 `connect`를 많이 하면 그만큼 남음).
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.
   - 런타임 빌림: `Task<'rt>`가 `&'rt mut Runtime`을 쥔다(`crates/fung-vm/src/vm.rs`). 태스크 여럿이 주차된 스케줄러에서는 각자 배타적으로 빌릴 수 없으므로
