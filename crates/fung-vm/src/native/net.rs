@@ -236,6 +236,9 @@ pub struct Conn {
     wr: Mutex<()>,
     /// When reads and writes time out (`set_deadline`).
     deadline: Mutex<Option<Instant>>,
+    /// The rustls state of a TLS connection (`tls.rs`), locked only for
+    /// steps that do not wait.
+    tls: Option<Mutex<tls::Session>>,
     /// `local->peer` as Go's messages show it.
     name: String,
     /// The local address.
@@ -258,6 +261,7 @@ impl Conn {
             rd: Mutex::new(ReadState::default()),
             wr: Mutex::new(()),
             deadline: Mutex::new(None),
+            tls: None,
         }
     }
 
@@ -288,6 +292,9 @@ impl Conn {
     /// Reads what the socket has into `buf` (waiting for something):
     /// the count, 0 at the end of the stream.
     fn fill(&self, w: &mut Watch, s: &TcpStream, buf: &mut Vec<u8>) -> Result<usize, Fail> {
+        if let Some(t) = &self.tls {
+            return tls::fill(self, t, w, s, buf);
+        }
         let mut chunk = [0u8; CHUNK];
         loop {
             // also between reads that never wait (a fast peer)
@@ -433,6 +440,9 @@ impl Conn {
     fn write(&self, w: &mut Watch, b: &[u8]) -> Result<(), Fail> {
         let _g = lock(&self.wr);
         let s = self.sock("write")?;
+        if let Some(t) = &self.tls {
+            return tls::write(self, t, w, &s.0, b);
+        }
         let mut off = 0;
         while off < b.len() {
             if w.cancelled() {
@@ -475,6 +485,9 @@ impl Conn {
         let s = lock(&self.sock)
             .take()
             .ok_or_else(|| self.closed("close"))?;
+        if let Some(t) = &self.tls {
+            tls::close_notify(t, &s.0);
+        }
         let _ = s.0.shutdown(Shutdown::Both);
         Ok(())
     }
@@ -833,8 +846,8 @@ fn text(b: &[u8]) -> Value {
 }
 
 /// `connect(host, port, tls = false, timeout = 0s)`: `Ok(<conn>)`. A
-/// timeout covers the lookup and the connection; 0 is none. TLS comes
-/// with Task 2 of stage 4d.
+/// timeout covers the lookup, the connection and the TLS handshake; 0 is
+/// none. With `tls`, the connection is a TLS client of `host` (`tls.rs`).
 fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let host = nat::need_str("host", &a[0])?.to_string();
     let port = nat::need_int("port", &a[1])?;
@@ -849,15 +862,18 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
             "dial tcp: address {port}: invalid port"
         ))));
     };
-    if tls {
-        return Ok(fail_value(Fail::Network("tls is not supported yet".into())));
-    }
     let deadline = if timeout > 0 {
         Instant::now().checked_add(Duration::from_nanos(timeout as u64))
     } else {
         None
     };
-    let r = outside_watched(t, move |w| dial(w, &host, port, deadline))?;
+    let r = outside_watched(t, move |w| {
+        let mut c = dial(w, &host, port, deadline)?;
+        if tls {
+            c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, deadline)?));
+        }
+        Ok(c)
+    })?;
     Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
 }
 
@@ -1025,6 +1041,13 @@ pub(crate) mod probe {
     }
 }
 
+#[path = "tls.rs"]
+mod tls;
+
 #[cfg(test)]
 #[path = "net_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tls_tests.rs"]
+mod tls_tests;

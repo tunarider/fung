@@ -20,14 +20,14 @@ use crate::vm::{CancelNodeForTests as CancelNode, Stop, Task, Watch, live_wakes,
 
 /// One net test at a time: the counters are process-wide (the lock is
 /// shared with the wake-pipe tests of `vm/watch.rs`).
-fn serial() -> MutexGuard<'static, ()> {
+pub(super) fn serial() -> MutexGuard<'static, ()> {
     watch_serial()
 }
 
 /// The probes plus the net ones: `net_waiting()` (tasks inside a socket
 /// wait now), `read_waits()` / `write_waits()` (waits for reading or
 /// writing so far), `sockets()` (live sockets).
-fn net_probes() -> Vec<Value> {
+pub(super) fn net_probes() -> Vec<Value> {
     type F = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
     let natives: [(&'static str, F); 4] = [
         ("net_waiting", |_, _| {
@@ -50,13 +50,13 @@ fn net_probes() -> Vec<Value> {
 
 /// fung helpers: `msg(r)` is the message of an `Err` (anything else as
 /// it is), `host(addr)` an address without its port.
-const HELPERS: &str = "fn msg(r) = match r:\n  Err(e) => e.message\n  v => v\n;;\nfn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nfn host(a) = join(reverse(drop(reverse(split(a, \":\")), 1)), \":\")\n";
+pub(super) const HELPERS: &str = "fn msg(r) = match r:\n  Err(e) => e.message\n  v => v\n;;\nfn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nfn host(a) = join(reverse(drop(reverse(split(a, \":\")), 1)), \":\")\n";
 
 /// Runs `src` with `_native.net` imported as `net`, the probes and
 /// `until`; then checks that nothing is left open: no socket, no wake
 /// pipe, no lookup thread (one may still be finishing: it is waited for
 /// by state, with a generous bound).
-fn run(src: &str) -> Outcome {
+pub(super) fn run(src: &str) -> Outcome {
     let o = exec(
         &format!("import _native.net as net\n{UNTIL}{HELPERS}{src}"),
         Opts {
@@ -75,12 +75,12 @@ fn run(src: &str) -> Outcome {
     o
 }
 
-fn out(o: &Outcome) -> (&str, &str, i32) {
+pub(super) fn out(o: &Outcome) -> (&str, &str, i32) {
     (o.out.as_str(), o.err.as_str(), o.exit)
 }
 
 /// Waits (by state) until `f` holds.
-fn wait_for(mut f: impl FnMut() -> bool) {
+pub(super) fn wait_for(mut f: impl FnMut() -> bool) {
     let until = Instant::now() + Duration::from_secs(20);
     while !f() {
         assert!(Instant::now() < until, "state not reached");
@@ -332,9 +332,12 @@ fn errors_read_like_go() {
             "net.connect(\"127.0.0.1\", 65536)".into(),
             "Err({kind: 'network, message: \"dial tcp: address 65536: invalid port\"})".into(),
         ),
+        // with TLS, the TCP error comes first (Go's dial error)
         (
-            "net.connect(\"127.0.0.1\", 80, tls: true)".into(),
-            "Err({kind: 'network, message: \"tls is not supported yet\"})".into(),
+            format!("net.connect(\"127.0.0.1\", {closed}, tls: true)"),
+            format!(
+                "Err({{kind: 'network, message: \"dial tcp 127.0.0.1:{closed}: connect: connection refused\"}})"
+            ),
         ),
         (
             format!("net.listen(\"127.0.0.1:{busy_port}\")"),
@@ -615,7 +618,7 @@ fn a_connect_timeout_covers_the_lookup() {
 
 /// `run`, with `release` called after the program (the lookup gate is
 /// opened before the leak check, so the held thread can finish).
-fn run_then(src: &str, release: impl FnOnce()) -> Outcome {
+pub(super) fn run_then(src: &str, release: impl FnOnce()) -> Outcome {
     let o = exec(
         &format!("import _native.net as net\n{UNTIL}{HELPERS}{src}"),
         Opts {

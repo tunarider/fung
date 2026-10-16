@@ -15,11 +15,31 @@ all-features = true
 
 [advisories]
 version = 2
+# Each ignored advisory says why fung is not affected; .cargo/audit.toml
+# lists the same ids for cargo-audit.
+ignore = [
+    # rustls 0.23.45: four advisories published 2026-10-14 with 0.23.46,
+    # which is not two weeks old yet. None reaches fung's configuration
+    # (native/tls.rs): move to 0.23.46 after 2026-10-28 and drop them.
+    # Debug output of session values in a custom session store: fung has
+    # no session store (resumption disabled).
+    { id = "RUSTSEC-2026-0346", reason = "no session store: resumption disabled" },
+    # Data sent to the outer server after an ECH rejection: fung does not
+    # enable ECH.
+    { id = "RUSTSEC-2026-0347", reason = "ECH not enabled" },
+    # Brotli certificate decompression: the `brotli` feature is off.
+    { id = "RUSTSEC-2026-0348", reason = "brotli feature off" },
+    # Key share prediction remembered per server name in the session
+    # store: resumption disabled, and ring has no hybrid group to lose.
+    { id = "RUSTSEC-2026-0349", reason = "resumption disabled; ring has no hybrid key exchange" },
+]
 
 [licenses]
 version = 2
 # Only what the dependency tree needs. The workspace crates are MIT.
-allow = ["MIT"]
+# Apache-2.0 and ISC: rustls, its WebPKI and ring ("Apache-2.0 AND ISC");
+# BSD-3-Clause: subtle (rustls).
+allow = ["MIT", "Apache-2.0", "ISC", "BSD-3-Clause"]
 
 [bans]
 multiple-versions = "deny"
@@ -44,6 +64,46 @@ allow = [
     "regex-syntax",
     "aho-corasick",
     "memchr",
+    # fung-vm: TLS client connections (`_native.net`, 4d spec, section 1):
+    # rustls with ring for the cryptography and the operating system's
+    # roots through rustls-native-certs
+    "rustls",
+    "rustls-pki-types",
+    "rustls-webpki",
+    "rustls-native-certs",
+    "ring",
+    "untrusted",
+    "subtle",
+    "zeroize",
+    "once_cell",
+    "getrandom",
+    "cfg-if",
+    # ring's build script compiles its C and assembly
+    "cc",
+    "find-msvc-tools",
+    "shlex",
+    # rustls-native-certs, Linux and other Unix: where the roots live
+    "openssl-probe",
+    # rustls-native-certs, macOS: the keychain's roots
+    "security-framework",
+    "security-framework-sys",
+    "core-foundation",
+    "core-foundation-sys",
+    "bitflags",
+    # Windows only (ring, getrandom, schannel): in Cargo.lock, never built
+    # for fung's targets (Linux and macOS)
+    "schannel",
+    "wasi",
+    "windows-sys",
+    "windows-targets",
+    "windows_aarch64_gnullvm",
+    "windows_aarch64_msvc",
+    "windows_i686_gnu",
+    "windows_i686_gnullvm",
+    "windows_i686_msvc",
+    "windows_x86_64_gnu",
+    "windows_x86_64_gnullvm",
+    "windows_x86_64_msvc",
 ]
 
 [sources]
