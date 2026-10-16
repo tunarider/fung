@@ -9,6 +9,7 @@
 //! operations, so even absurd instants give the answer Go gives.
 
 use std::ffi::{OsStr, OsString};
+use std::io::Read;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::sync::OnceLock;
 
@@ -35,8 +36,9 @@ pub(crate) struct Zone {
     zones: Vec<ZoneType>,
     tx: Vec<Trans>,
     /// The POSIX TZ rule after the TZif data, for instants past the last
-    /// transition (`EST5EDT,M3.2.0,M11.1.0`).
-    extend: String,
+    /// transition (`EST5EDT,M3.2.0,M11.1.0`), parsed; `None` when the file
+    /// has none or Go's `tzset` would not accept it.
+    extend: Option<Footer>,
 }
 
 /// Go's `alpha` and `omega`: the beginning and end of time for transitions.
@@ -70,7 +72,7 @@ impl Zone {
             name: "UTC".to_string(),
             zones: Vec::new(),
             tx: Vec::new(),
-            extend: String::new(),
+            extend: None,
         }
     }
 
@@ -123,10 +125,9 @@ impl Zone {
         let start = tx[lo].when;
         // At the end of the known transitions, try the POSIX rule.
         if lo == tx.len() - 1
-            && !self.extend.is_empty()
-            && let Some(l) = tzset(&self.extend, start, sec)
+            && let Some(f) = &self.extend
         {
-            return l;
+            return tzset(f, start, sec);
         }
         Lookup {
             name: &z.name,
@@ -298,7 +299,7 @@ fn days_in(m: i64, year: i64) -> i64 {
 // --- POSIX TZ rules (Go `tzset` and helpers) ---
 
 /// A rule from a POSIX TZ string (Go `rule`).
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum RuleKind {
     /// `Jn`: day 1..=365, February 29 never counted.
     Julian,
@@ -308,7 +309,7 @@ enum RuleKind {
     MonthWeekDay,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Rule {
     kind: RuleKind,
     day: i64,
@@ -318,25 +319,44 @@ struct Rule {
     time: i64,
 }
 
-/// Go `tzset`: the zone at `sec` under the POSIX TZ string `s`, given the
-/// last transition `last_tx_sec`. `None` when `s` does not parse.
-fn tzset(s: &str, last_tx_sec: i64, sec: i64) -> Option<Lookup<'_>> {
-    let (mut std_name, s) = tzset_name(s)?;
+/// A parsed POSIX TZ footer. Go reparses the string on every lookup; the
+/// result is the same each time, so it is parsed once here. Names are
+/// decoded lossily only after parsing, which works on bytes as Go's does.
+#[derive(Clone, Debug)]
+struct Footer {
+    std_name: String,
+    /// Seconds east of UTC (already negated from the POSIX sign).
+    std_offset: i64,
+    dst: Option<DstRule>,
+}
+
+#[derive(Clone, Debug)]
+struct DstRule {
+    name: String,
+    offset: i64,
+    start: Rule,
+    end: Rule,
+}
+
+/// The parsing half of Go `tzset`. `None` where Go's `tzset` returns
+/// `ok == false` (the footer is then ignored).
+fn parse_footer(s: &[u8]) -> Option<Footer> {
+    let (std_name, s) = tzset_name(s)?;
     let (std_offset, s) = tzset_offset(s)?;
     // POSIX offsets are added to local time to get UTC; ours are the reverse.
-    let mut std_offset = -std_offset;
-    if s.is_empty() || s.as_bytes()[0] == b',' {
+    let std_offset = -std_offset;
+    let std_name = String::from_utf8_lossy(std_name).into_owned();
+    if s.is_empty() || s[0] == b',' {
         // No daylight saving time.
-        return Some(Lookup {
-            name: std_name,
-            offset: std_offset as i32,
-            start: last_tx_sec,
-            end: OMEGA,
+        return Some(Footer {
+            std_name,
+            std_offset,
+            dst: None,
         });
     }
-    let (mut dst_name, mut s) = tzset_name(s)?;
-    let mut dst_offset;
-    if s.is_empty() || s.as_bytes()[0] == b',' {
+    let (dst_name, mut s) = tzset_name(s)?;
+    let dst_offset;
+    if s.is_empty() || s[0] == b',' {
         dst_offset = std_offset + SECONDS_PER_HOUR;
     } else {
         let (o, rest) = tzset_offset(s)?;
@@ -345,20 +365,46 @@ fn tzset(s: &str, last_tx_sec: i64, sec: i64) -> Option<Lookup<'_>> {
     }
     if s.is_empty() {
         // Default DST rules per tzcode.
-        s = ",M3.2.0,M11.1.0";
+        s = b",M3.2.0,M11.1.0";
     }
     // POSIX does not mention ';' here but tzcode accepts it.
-    if s.as_bytes()[0] != b',' && s.as_bytes()[0] != b';' {
+    if s[0] != b',' && s[0] != b';' {
         return None;
     }
-    let (start_rule, s) = tzset_rule(&s[1..])?;
-    if s.is_empty() || s.as_bytes()[0] != b',' {
+    let (start, s) = tzset_rule(&s[1..])?;
+    if s.is_empty() || s[0] != b',' {
         return None;
     }
-    let (end_rule, s) = tzset_rule(&s[1..])?;
+    let (end, s) = tzset_rule(&s[1..])?;
     if !s.is_empty() {
         return None;
     }
+    let dst = DstRule {
+        name: String::from_utf8_lossy(dst_name).into_owned(),
+        offset: dst_offset,
+        start,
+        end,
+    };
+    Some(Footer {
+        std_name,
+        std_offset,
+        dst: Some(dst),
+    })
+}
+
+/// The evaluating half of Go `tzset`: the zone at `sec` under footer `f`,
+/// given the last transition `last_tx_sec`.
+fn tzset(f: &Footer, last_tx_sec: i64, sec: i64) -> Lookup<'_> {
+    let Some(dst) = &f.dst else {
+        return Lookup {
+            name: &f.std_name,
+            offset: f.std_offset as i32,
+            start: last_tx_sec,
+            end: OMEGA,
+        };
+    };
+    let (mut std_name, mut std_offset) = (f.std_name.as_str(), f.std_offset);
+    let (mut dst_name, mut dst_offset) = (dst.name.as_str(), dst.offset);
 
     // The start of the year containing sec, and seconds since then.
     let abs = sec.wrapping_add(UNIX_TO_ABSOLUTE) as u64;
@@ -368,8 +414,8 @@ fn tzset(s: &str, last_tx_sec: i64, sec: i64) -> Option<Lookup<'_>> {
         .wrapping_add(sec % SECONDS_PER_DAY);
     let ystart = sec.wrapping_sub(ysec);
 
-    let mut start_sec = tzrule_time(year, start_rule, std_offset);
-    let mut end_sec = tzrule_time(year, end_rule, dst_offset);
+    let mut start_sec = tzrule_time(year, dst.start, std_offset);
+    let mut end_sec = tzrule_time(year, dst.end, dst_offset);
     // Southern hemisphere: the rule's "DST" spans the year boundary, so
     // swap the halves while keeping Go's labels.
     if end_sec < start_sec {
@@ -378,7 +424,7 @@ fn tzset(s: &str, last_tx_sec: i64, sec: i64) -> Option<Lookup<'_>> {
         std::mem::swap(&mut std_offset, &mut dst_offset);
     }
 
-    Some(if ysec < start_sec {
+    if ysec < start_sec {
         Lookup {
             name: std_name,
             offset: std_offset as i32,
@@ -399,17 +445,19 @@ fn tzset(s: &str, last_tx_sec: i64, sec: i64) -> Option<Lookup<'_>> {
             start: start_sec.wrapping_add(ystart),
             end: end_sec.wrapping_add(ystart),
         }
-    })
+    }
 }
 
 /// Go `tzsetName`: a zone name (`EST`, or `<+0330>` without the brackets).
-fn tzset_name(s: &str) -> Option<(&str, &str)> {
+/// Go ranges over runes, but every byte it tests for is ASCII, so scanning
+/// bytes finds the same positions.
+fn tzset_name(s: &[u8]) -> Option<(&[u8], &[u8])> {
     if s.is_empty() {
         return None;
     }
-    if !s.starts_with('<') {
-        for (i, r) in s.char_indices() {
-            if matches!(r, '0'..='9' | ',' | '-' | '+') {
+    if s[0] != b'<' {
+        for (i, &b) in s.iter().enumerate() {
+            if matches!(b, b'0'..=b'9' | b',' | b'-' | b'+') {
                 if i < 3 {
                     return None;
                 }
@@ -419,19 +467,19 @@ fn tzset_name(s: &str) -> Option<(&str, &str)> {
         if s.len() < 3 {
             return None;
         }
-        Some((s, ""))
+        Some((s, b""))
     } else {
-        let i = s.find('>')?;
+        let i = s.iter().position(|&b| b == b'>')?;
         Some((&s[1..i], &s[i + 1..]))
     }
 }
 
 /// Go `tzsetOffset`: `[+-]hh[:mm[:ss]]` in seconds.
-fn tzset_offset(s: &str) -> Option<(i64, &str)> {
+fn tzset_offset(s: &[u8]) -> Option<(i64, &[u8])> {
     if s.is_empty() {
         return None;
     }
-    let (neg, s) = match s.as_bytes()[0] {
+    let (neg, s) = match s[0] {
         b'+' => (false, &s[1..]),
         b'-' => (true, &s[1..]),
         _ => (false, s),
@@ -440,21 +488,21 @@ fn tzset_offset(s: &str) -> Option<(i64, &str)> {
     // tzdata permits hours up to 24*7, although POSIX does not.
     let (hours, s) = tzset_num(s, 0, 24 * 7)?;
     let mut off = hours * SECONDS_PER_HOUR;
-    if !s.starts_with(':') {
+    let Some(s) = s.strip_prefix(b":") else {
         return Some((sign(off), s));
-    }
-    let (mins, s) = tzset_num(&s[1..], 0, 59)?;
+    };
+    let (mins, s) = tzset_num(s, 0, 59)?;
     off += mins * SECONDS_PER_MINUTE;
-    if !s.starts_with(':') {
+    let Some(s) = s.strip_prefix(b":") else {
         return Some((sign(off), s));
-    }
-    let (secs, s) = tzset_num(&s[1..], 0, 59)?;
+    };
+    let (secs, s) = tzset_num(s, 0, 59)?;
     off += secs;
     Some((sign(off), s))
 }
 
 /// Go `tzsetRule`: `Jn`, `n` or `Mm.w.d`, then an optional `/time`.
-fn tzset_rule(s: &str) -> Option<(Rule, &str)> {
+fn tzset_rule(s: &[u8]) -> Option<(Rule, &[u8])> {
     if s.is_empty() {
         return None;
     }
@@ -466,16 +514,16 @@ fn tzset_rule(s: &str) -> Option<(Rule, &str)> {
         time: 0,
     };
     let mut s = s;
-    if let Some(rest) = s.strip_prefix('J') {
+    if let Some(rest) = s.strip_prefix(b"J") {
         let (jday, rest) = tzset_num(rest, 1, 365)?;
         r.kind = RuleKind::Julian;
         r.day = jday;
         s = rest;
-    } else if let Some(rest) = s.strip_prefix('M') {
+    } else if let Some(rest) = s.strip_prefix(b"M") {
         let (mon, rest) = tzset_num(rest, 1, 12)?;
-        let rest = rest.strip_prefix('.')?;
+        let rest = rest.strip_prefix(b".")?;
         let (week, rest) = tzset_num(rest, 1, 5)?;
-        let rest = rest.strip_prefix('.')?;
+        let rest = rest.strip_prefix(b".")?;
         let (day, rest) = tzset_num(rest, 0, 6)?;
         r.kind = RuleKind::MonthWeekDay;
         r.day = day;
@@ -487,7 +535,7 @@ fn tzset_rule(s: &str) -> Option<(Rule, &str)> {
         r.day = day;
         s = rest;
     }
-    let Some(rest) = s.strip_prefix('/') else {
+    let Some(rest) = s.strip_prefix(b"/") else {
         r.time = 2 * SECONDS_PER_HOUR; // 2am is the default
         return Some((r, s));
     };
@@ -497,19 +545,19 @@ fn tzset_rule(s: &str) -> Option<(Rule, &str)> {
 }
 
 /// Go `tzsetNum`: a decimal number in `min..=max`.
-fn tzset_num(s: &str, min: i64, max: i64) -> Option<(i64, &str)> {
+fn tzset_num(s: &[u8], min: i64, max: i64) -> Option<(i64, &[u8])> {
     if s.is_empty() {
         return None;
     }
     let mut num = 0;
-    for (i, r) in s.char_indices() {
-        if !r.is_ascii_digit() {
+    for (i, &b) in s.iter().enumerate() {
+        if !b.is_ascii_digit() {
             if i == 0 || num < min {
                 return None;
             }
             return Some((num, &s[i..]));
         }
-        num = num * 10 + i64::from(r as u8 - b'0');
+        num = num * 10 + i64::from(b - b'0');
         if num > max {
             return None;
         }
@@ -517,7 +565,7 @@ fn tzset_num(s: &str, min: i64, max: i64) -> Option<(i64, &str)> {
     if num < min {
         return None;
     }
-    Some((num, ""))
+    Some((num, b""))
 }
 
 /// Go `tzruleTime`: seconds since the start of `year` at which rule `r`
@@ -700,9 +748,9 @@ pub(crate) fn from_tzdata(name: &str, data: &[u8]) -> Option<Zone> {
 
     let rest = std::mem::take(&mut d.p);
     let extend = if rest.len() > 2 && rest[0] == b'\n' && rest[rest.len() - 1] == b'\n' {
-        String::from_utf8_lossy(&rest[1..rest.len() - 1]).into_owned()
+        parse_footer(&rest[1..rest.len() - 1])
     } else {
-        String::new()
+        None
     };
 
     // Reject files with no zone types: nothing useful in them.
@@ -773,7 +821,13 @@ fn read_zone_file(dir: &[u8], name: &[u8]) -> Option<Vec<u8>> {
         path.push(b'/');
     }
     path.extend_from_slice(name);
-    let data = std::fs::read(OsString::from_vec(path)).ok()?;
+    // Read at most one byte past the limit, so an endless file
+    // (`TZ=/dev/zero`) is refused as Go refuses it, not read forever.
+    let file = std::fs::File::open(OsString::from_vec(path)).ok()?;
+    let mut data = Vec::new();
+    file.take(MAX_FILE_SIZE as u64 + 1)
+        .read_to_end(&mut data)
+        .ok()?;
     if data.len() > MAX_FILE_SIZE {
         return None;
     }

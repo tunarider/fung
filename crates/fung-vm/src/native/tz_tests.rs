@@ -661,3 +661,84 @@ fn tz_local_resolution_matches_go() {
 fn tz_local_is_made_once() {
     assert!(std::ptr::eq(super::local(), super::local()));
 }
+
+/// Go's `readFile` gives up past 10 MB, so an endless file is refused and
+/// the local zone falls back to UTC instead of reading forever.
+#[test]
+fn tz_endless_zone_file_is_refused() {
+    for tz in ["/dev/zero", ":/dev/zero"] {
+        let z = resolve_local(Some(OsStr::new(tz)));
+        assert_eq!(z.name, "UTC", "TZ={tz}");
+        assert_eq!(z.lookup(0), ("UTC", 0));
+    }
+}
+
+/// The POSIX footer is parsed as bytes, as Go does: `\xff\xff5` is a
+/// two-byte name (too short, so the footer is ignored), not a six-byte
+/// U+FFFD pair. Names with invalid UTF-8 are shown lossily.
+#[test]
+fn tz_footer_is_parsed_as_bytes() {
+    type Case = (&'static str, &'static [(i64, &'static str, i32)]);
+    let cases: &[Case] = &[
+        (
+            "545a696632000000000000000000000000000000000000000000000000000000000000010000000100000004000000000000000e10000041414100545a69663200000000000000000000000000000000000000000000000000000000000001000000010000000400000000000000000000000e100000414141000affff350a",
+            &[
+                (-10, "AAA", 3600),
+                (10, "AAA", 3600),
+                (1772953200, "AAA", 3600),
+            ],
+        ),
+        (
+            "545a696632000000000000000000000000000000000000000000000000000000000000010000000100000004000000000000000e10000041414100545a69663200000000000000000000000000000000000000000000000000000000000001000000010000000400000000000000000000000e100000414141000a3cfffe3e350a",
+            &[
+                (-10, "AAA", 3600),
+                (10, "\u{FFFD}\u{FFFD}", -18000),
+                (1772953200, "\u{FFFD}\u{FFFD}", -18000),
+            ],
+        ),
+        (
+            "545a696632000000000000000000000000000000000000000000000000000000000000010000000100000004000000000000000e10000041414100545a69663200000000000000000000000000000000000000000000000000000000000001000000010000000400000000000000000000000e100000414141000aff414235ff43442c4d332e322e302c4d31312e312e300a",
+            &[
+                (-10, "AAA", 3600),
+                (10, "\u{FFFD}AB", -18000),
+                (1772953200, "\u{FFFD}CD", -14400),
+            ],
+        ),
+    ];
+    for &(hex, want) in cases {
+        let z = from_tzdata("x", &unhex(hex)).unwrap();
+        for &(sec, abbrev, offset) in want {
+            assert_eq!(z.lookup(sec), (abbrev, offset), "{hex} at {sec}");
+        }
+    }
+}
+
+/// Every truncation and every single-byte change of a valid file either
+/// is rejected or gives a zone that answers lookups and dates.
+#[test]
+fn tz_damaged_tzif_never_panics() {
+    // A v1 file with transitions and a v2 file whose footer covers all time.
+    for name in ["v1", "v2ny"] {
+        let (_, hex, _) = SYNTHETIC.iter().find(|c| c.0 == name).unwrap();
+        let good = unhex(hex);
+        let probe = |data: &[u8]| {
+            if let Some(z) = from_tzdata("damaged", data) {
+                for sec in [i64::MIN, -1, 0, 1772953200, i64::MAX] {
+                    let _ = z.lookup(sec);
+                }
+                let _ = z.date(2026, 3, 8, 2, 30, 0, 0);
+                let _ = z.date(i64::MAX, 13, 32, 25, 61, 61, i64::MIN);
+            }
+        };
+        for n in 0..=good.len() {
+            probe(&good[..n]);
+        }
+        for i in 0..good.len() {
+            for flip in [0x01, 0x80, 0xff] {
+                let mut d = good.clone();
+                d[i] ^= flip;
+                probe(&d);
+            }
+        }
+    }
+}
