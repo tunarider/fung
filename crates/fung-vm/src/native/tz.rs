@@ -168,11 +168,13 @@ impl Zone {
     /// Out-of-range fields are normalized (month 13 is January of the next
     /// year, second -1 is the last second of the previous minute). A wall
     /// time that the zone skips or repeats at a DST change gets Go's choice:
-    /// the offset in effect just before the change is tried first, and kept
-    /// unless the resulting instant falls outside that offset's span — so a
-    /// skipped time (02:30 on a spring-forward day in New York) lands an
-    /// hour later in UTC terms than read with the new offset, and a repeated
-    /// time (01:30 on a fall-back day) takes the first, DST occurrence.
+    /// the offset in effect at the wall time read as if it were UTC is tried
+    /// first, and kept unless the resulting instant falls outside that
+    /// offset's span, in which case the other offset is used. In New York
+    /// (west of UTC) a skipped 02:30 on a spring-forward day lands an hour
+    /// earlier than the new offset would put it and a repeated 01:30 on a
+    /// fall-back day takes the first (DST) occurrence; east of UTC, e.g.
+    /// `2024-10-27 02:30` in Europe/Berlin, the second occurrence (`+01:00`).
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn date(
         &self,

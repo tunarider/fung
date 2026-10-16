@@ -157,7 +157,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     스펙 `docs/superpowers/specs/2026-10-15-rust-fs-4a-design.md`, 계획 `docs/plans/2026-10-15-rust-fs-4a.md`, 노트 `docs/notes/R4a-fs.md`.
   - 4b단계(`time`·`json`) 완료 (2026-10-16): `_native.time` 8개·`_native.json` 2개, `Value::Time`(Go `time.Time`의 벽시계 표현), TZif 시간대(`native/tz.rs`, Go `initLocal` 순서),
     순서를 지키고 정수·실수를 구분하는 반복 JSON 해석기(Go 1.27 `jsontext` 경로), `time_module`·`time_values`·`json`·`err_json_stringify`·`keyword_names`를 Go 대조와 Rust 골든 실행기에 넣음.
-    실행 비교 187건(`tests/lang` 131개), Rust 골든 136개, 시간 프로그램 20개 × `TZ` 7가지 = 140건(`crates/fung-cli/tests/time_parity.rs`),
+    실행 비교 187건(`tests/lang` 131개), Rust 골든 136개, 시간 프로그램 21개 × `TZ` 9가지 = 189건(`crates/fung-cli/tests/time_parity.rs`),
     JSON 입력 약 150개 + 버퍼 경계 13개·프로그램 36개(`json_parity.rs`)가 Go와 같음. 남은 실행 비교 제외는 `regex`·`http`(3개).
     스펙 `docs/superpowers/specs/2026-10-16-rust-time-json-4b-design.md`, 계획 `docs/plans/2026-10-16-rust-time-json-4b.md`, 노트 `docs/notes/R4b-time-json.md`.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
@@ -288,8 +288,9 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     읽기 경계에 걸친 글자가 `'\xc3'`처럼 잘려 보이는 것까지 같게 하려는 것이다. 이 모두가 Go 1.27의 기본 경로에 묶여 있어서, Go를 올리거나 `GOEXPERIMENT=nojsonv2`로 빌드하면
     Go의 출력이 바뀔 수 있고 parity 테스트(`crates/fung-cli/tests/json_parity.rs`)가 그것을 알려 준다. 언어 규칙으로는 "입력 전체를 보고 에러를 말한다"가 자연스럽다.
   - Go json 이스케이프와 출력(4b, `native/json.rs`): `jsontext.AppendQuote`(HTML 이스케이프 끔, JS 이스케이프 켬: `<>&`는 그대로, U+2028·U+2029는 `\u2028`·`\u2029`,
-    `\b \f \n \r \t`, 그 밖의 제어 문자는 `\u00XX`, DEL은 그대로), `NaN.0`·`+Inf.0`을 그대로 써서 틀린 JSON이 되는 것,
-    아주 큰 들여쓰기의 Go `strings.Repeat`·`makeslice` 패닉 문구(2^48 넘으면 `E0801 runtime error: makeslice: len out of range`, 음수로 감기면 `strings: negative Repeat count`).
+    `\b \f \n \r \t`, 그 밖의 제어 문자는 `\u00XX`, DEL은 그대로),
+    (`NaN`·무한대 실수는 지금 만들 수 없다: 넘침은 E0504, `0.0/0.0`은 E0502, `float("nan")`은 거부. 만들어지면 fung 서식 그대로 써서 틀린 JSON이 된다.)
+    아주 큰 들여쓰기의 Go `strings.Repeat`·`makeslice` 패닉 문구(2^48 넘으면 `E0801 runtime error: makeslice: len out of range`).
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서·닫힌 파이프 141)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 4a단계(fs)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-15-rust-fs-4a/progress.md`).
   - 닫지 않은 핸들: Rust는 마지막 사본이 사라지는 순간 파일을 닫는다(참조 계수). Go는 GC가 거둘 때까지 열려 있을 수 있다. 그래서 핸들 수천 개를 버려도 디스크립터가 새지 않는다.

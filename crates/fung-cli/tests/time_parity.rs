@@ -1,7 +1,7 @@
 //! `time` programs run by the Go and the Rust binaries under the same
 //! pinned `TZ` (set on each child, not on the test process): every format
 //! token, the zone tokens, normalisation blocking, and `parse`, `local`
-//! and `parts` around the 2026 daylight-saving changes in New York.
+//! and `parts` around the 2026 daylight-saving changes in New York and Berlin.
 
 mod common;
 
@@ -13,6 +13,8 @@ use common::{go_fung, repo, rust_fung};
 const ZONES: &[Option<&str>] = &[
     Some("America/New_York"),
     Some(":America/New_York"),
+    Some("/usr/share/zoneinfo/Europe/Berlin"),
+    Some("Europe/Berlin"),
     Some("Asia/Seoul"),
     Some("UTC"),
     Some(""),
@@ -41,6 +43,15 @@ for n in [1772953200 - 1, 1772953200, 1772955000, 1793512800 - 1, 1793512800, 17
     r#"for s in ["2026-03-08 01:59", "2026-03-08 02:00", "2026-03-08 02:30", "2026-03-08 03:00", "2026-11-01 00:59", "2026-11-01 01:00", "2026-11-01 01:30", "2026-11-01 02:00", "2026-11-01 02:30"]:
   t = time.parse(s, "YYYY-MM-DD HH:mm")!
   print(s, t, time.unix(t), time.parts(t), time.format(t, "HH:mm Z"), time.utc(t))
+;;"#,
+    // the 2026 Berlin changes (east of UTC): 2026-03-29 01:00 UTC skips
+    // 02:00-03:00, 2026-10-25 01:00 UTC repeats 02:00-03:00
+    r#"for s in ["2026-03-29 01:59", "2026-03-29 02:00", "2026-03-29 02:30", "2026-03-29 03:00", "2026-10-25 01:59", "2026-10-25 02:00", "2026-10-25 02:30", "2026-10-25 03:00"]:
+  t = time.parse(s, "YYYY-MM-DD HH:mm")!
+  print(s, t, time.unix(t), time.parts(t), time.format(t, "HH:mm Z"), time.utc(t))
+for n in [1774746000 - 1, 1774746000, 1792890000 - 1, 1792890000]:
+  show = time.from_unix(n)
+  print(show, time.parts(show), time.format(show, "HH:mm Z"))
 ;;"#,
     // RFC 3339: an offset the local zone has at that instant keeps the local
     // zone (seen after a move across a change), any other a fixed offset
@@ -117,6 +128,19 @@ fn time_runs_match_go_under_each_tz() {
         bad.len(),
         bad.join("\n")
     );
+}
+
+/// East of UTC the repeated wall time takes the second occurrence (Go
+/// `time.Date` tries the offset at the wall time read as UTC first).
+#[test]
+fn berlin_changes_follow_go_date() {
+    let src = r#"print(time.parse("2026-03-29 02:30", "YYYY-MM-DD HH:mm")!, time.parse("2026-10-25 02:30", "YYYY-MM-DD HH:mm")!)"#;
+    let (out, err, code) = run(&rust_fung(), src, Some("Europe/Berlin"));
+    assert_eq!((out.as_str(), err.as_str(), code), (
+            "2026-03-29T03:30:00+02:00 2026-10-25T02:30:00+01:00\n",
+            "",
+            Some(0)
+        ));
 }
 
 /// The comparison is not vacuous: in New York the skipped 02:30 reads one

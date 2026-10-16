@@ -30,7 +30,6 @@ pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
 pub(crate) use release::{drop_children, keep};
 pub use sym::{Sym, intern};
-#[allow(unused_imports)] // `_native.time` (next in stage 4b) uses it
 pub(crate) use time::Loc;
 pub use time::Time;
 pub use types::matches_type;
