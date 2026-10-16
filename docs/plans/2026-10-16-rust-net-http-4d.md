@@ -73,7 +73,7 @@
 
 **Interfaces:**
 - Consumes: `_native.net`.
-- Produces: `http.get(url, headers = {}, timeout = 30s)`, `http.post(url, body, headers = {}, timeout = 30s)`, `http.request(method, url, body = nil, headers = {}, timeout = 30s)` — 스펙 2절 "클라이언트"(리다이렉트·프록시 제외). `serve`는 Task 5까지 E0805 또는 미정의가 아니라 **아직 없음을 알리는 실패**로 두지 말고, 이 작업에서는 `serve`를 등록하지 않아도 되는지 확인하고 판단을 보고서에.
+- Produces: `http.get(url, headers = {}, timeout = 30s)`, `http.post(url, body, headers = {}, timeout = 30s)`, `http.request(method, url, body = nil, headers = {}, timeout = 30s)` — 스펙 2절 "클라이언트"(리다이렉트·프록시 제외). `serve`는 Task 5에서 만든다. 그 사이 `http.serve`를 부르면 실패해도 되지만, 매개변수 표 검사(`spec/builtins.txt`)를 어떻게 통과시킬지(예: 이름만 먼저 두고 E0805로 실패)는 구현자가 정해 보고서에 적는다.
 
 - [ ] **Step 1: 실패하는 테스트** — Go 대조(가짜 서버는 Rust 테스트 코드, 같은 서버에 Go fung·Rust fung 클라이언트): 상태·헤더(소문자, 같은 이름 `", "`)·본문, `Content-Length`/조각 전송/연결 닫힘까지 읽기, `HEAD`·204·304, 한글 본문(Review Focus 3), 사용자 헤더가 기본 헤더를 덮음, 가짜 서버가 받은 요청 원문(시작 줄·`Host`·`User-Agent`·`Content-Length`) 비교, 연결 거부·잘못된 URL·호스트 없음 문구, 시간 초과(가짜 서버가 응답을 미룸, 상태로 제어), 인자 타입 에러. 망가진 응답(잘못된 상태 줄, 잘못된 조각 크기, 실제보다 큰 `Content-Length`, 끝없는 헤더 줄) → 패닉·무한 대기 없이 Go와 같은 종류의 `Err`(Review Focus 2).
 - [ ] **Step 2: 실패 확인** — Run: `FUNG_REQUIRE_PARITY=1 cargo test -p fung-cli --test http_parity` / Expected: FAIL.
