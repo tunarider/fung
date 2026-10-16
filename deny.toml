@@ -35,6 +35,14 @@ allow = [
     # fung-vm, unix only: raise SIGPIPE to die like Go on a closed
     # standard output or error (4c spec, section 3)
     "libc",
+    # fung-vm: regular expressions (`_native.regex`, 4c spec, section 2);
+    # regex-syntax is also a direct dependency for the AST that the Go
+    # semantics layer walks (native/regex_go.rs)
+    "regex",
+    "regex-automata",
+    "regex-syntax",
+    "aho-corasick",
+    "memchr",
 ]
 
 [sources]

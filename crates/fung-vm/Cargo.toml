@@ -8,6 +8,11 @@ publish = false
 
 [dependencies]
 fung-front = { path = "../fung-front" }
+# Go-semantics regular expressions (native/regex_go.rs). The patterns
+# handed to the engine spell every class out as code point ranges and use
+# no \p, \w or (?i), so the crates' Unicode tables are not needed.
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+regex-syntax = { version = "0.8", default-features = false, features = ["std"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
