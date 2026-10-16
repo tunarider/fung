@@ -19,6 +19,16 @@ pub fn source(name: &str) -> Option<&'static str> {
     })
 }
 
+/// Where a built-in module's source lives, as call paths show it:
+/// `extras/<name>.fung`, but `extras/rust/http.fung` for the Rust-only
+/// `http` (stage 4d).
+pub fn path(name: &str) -> String {
+    match name {
+        "http" => "extras/rust/http.fung".to_string(),
+        _ => format!("extras/{name}.fung"),
+    }
+}
+
 /// `extras/rust/agent.fung`: `agent`, `swap` and `deref` (stage 3b).
 /// Only the Rust boot reads it and adds its public names to the
 /// prelude; it is not a module a program can import (`source` does not
@@ -38,6 +48,8 @@ mod tests {
             assert!(!source(name).unwrap().is_empty(), "{name}");
         }
         assert!(source("nope").is_none());
+        assert_eq!(path("json"), "extras/json.fung");
+        assert_eq!(path("http"), "extras/rust/http.fung");
         assert!(source("agent").is_none());
         assert!(
             source("prelude")

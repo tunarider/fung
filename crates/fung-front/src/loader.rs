@@ -245,7 +245,7 @@ impl State<'_> {
             Some(src) if spec != "prelude" => src,
             _ => return Err(e("E0301", vec![s(spec)])),
         };
-        let file = format!("extras/{spec}.fung");
+        let file = crate::extras::path(spec);
         self.load_module(spec, spec, &file, pos, true, &mut || Ok(src.to_string()))
     }
 

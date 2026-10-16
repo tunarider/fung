@@ -68,6 +68,7 @@ impl Fake {
 /// holds a thread past 60 s.
 fn answer(mut s: TcpStream, reply: &Reply, seen: &Mutex<Vec<Vec<u8>>>) {
     s.set_read_timeout(Some(Duration::from_secs(60))).unwrap();
+    s.set_write_timeout(Some(Duration::from_secs(60))).unwrap();
     let mut req = Vec::new();
     let mut buf = [0u8; 4096];
     let head_end = loop {
@@ -252,6 +253,57 @@ print(http.request("GET", URL, "x"))"#,
         case(r#"print(http.get(URL + "/a%20b/%41%zz"))"#, ok(simple)),
         case(r#"print(http.get(URL + "/a%2Fb/c(d)!*'~"))"#, ok(simple)),
         case(r#"print(http.get("HTTP://127.0.0.1:PORT?"))"#, ok(simple)),
+        // userinfo becomes Basic authorization unless the user set one
+        case(
+            r#"print(http.get("http://user:pass@127.0.0.1:PORT/a"))
+print(http.get("http://us%20er@127.0.0.1:PORT/b"))
+print(http.get("http://only@127.0.0.1:PORT/c"))
+print(http.get("http://u:@127.0.0.1:PORT/d"))
+print(http.get("http://u:p%3Aw@127.0.0.1:PORT/e", headers: {"authorization": "Bearer t"}))
+print(http.get("http://u:p@127.0.0.1:PORT/f", headers: {"Authorization": ""}))
+print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
+            ok(simple),
+        ),
+        // an empty port is dropped (Go `removeEmptyPort`)
+        case(r#"print(http.get("http://127.0.0.1:/x"))"#, ok(simple)),
+        // a chunk size's leading zeros count as digits in Go: 16 digits
+        // are fine, 17 are too many
+        case(
+            r#"print(http.get(URL))"#,
+            ok(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0000000000000002\r\nab\r\n0\r\n\r\n",
+            ),
+        ),
+        case(
+            r#"print(http.get(URL))"#,
+            ok(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n00000000000000002\r\nab\r\n0\r\n\r\n",
+            ),
+        ),
+        // trailer lines are checked as header lines
+        case(
+            r#"print(http.get(URL))"#,
+            ok(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n0\r\nbad trailer\r\n\r\n",
+            ),
+        ),
+        case(
+            r#"print(http.get(URL))"#,
+            ok(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n0\r\n folded: x\r\n\r\n",
+            ),
+        ),
+        case(
+            r#"print(http.get(URL))"#,
+            ok(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n0\r\nX: 1\r\nY: 2\r\n",
+            ),
+        ),
+        // folded header lines
+        case(
+            r#"print(http.get(URL))"#,
+            ok("HTTP/1.1 200 OK\r\nX-Fold: a\r\n  b\r\n\tc  \r\nContent-Length: 0\r\n\r\n"),
+        ),
         // malformed responses: an Err like Go's, never a hang or a panic
         case(r#"print(http.get(URL))"#, ok("garbage\r\n\r\n")),
         case(r#"print(http.get(URL))"#, ok("HTTP/1.1 abc OK\r\n\r\n")),
@@ -402,37 +454,135 @@ const NO_SERVER: &[&str] = &[
     r#"print(http.get("http://[nope]/"))"#,
     r#"print(http.get("http://[127.0.0.1]/"))"#,
     r#"print(http.get("http://u@[::1]:REFUSED/"))"#,
+    r#"print(http.get("http://u:secret@127.0.0.1:REFUSED/"))"#,
+    r#"print(http.get("http://us%20er:secret@127.0.0.1:REFUSED/"))"#,
+    // an IPv6 zone is kept, shown as %25 (never dialled: the port is bad)
+    r#"print(http.get("http://[fe80::1%25en0]:99999/"))"#,
+    r#"print(http.get("https://127.0.0.1:/"))"#,
 ];
 
 /// Argument errors: E0403 at the user's call, in Go's order (the URL is
-/// read before the headers' values).
-const ARG_ERRORS: &[&str] = &[
-    "print(1)\nhttp.get(1)",
-    // not in tail position: a tail call to a fung function replaces the
-    // caller's frame, so the error would point at the caller's caller
-    // (Go's natives replace no frame; 4d known differences)
-    "fn f() = print(http.post(\"x\", 1))\nf()",
-    "http.get(\"http://x\", headers: {a: 1})",
+/// read before the headers' values). `(program, the error and excerpt
+/// both print, Go's call path, Rust's call path)`. Go's `http` functions
+/// are natives and leave no frame; the Rust ones are fung functions whose
+/// frames stay visible, like every fung extras function's (06; a 4d known
+/// difference). In Rust's call path `@needle@` stands for the line of
+/// `extras/rust/http.fung` that holds `needle`.
+const ARG_ERRORS: &[(&str, &str, &str, &str)] = &[
+    (
+        "print(1)\nhttp.get(1)",
+        "error[E0403]: argument `url` must be str, got int\n  --> -e:3:9\n  |\n3 | http.get(1)\n  |         ^\n  |\n",
+        "   -e:3       <entry>\n",
+        "   extras/rust/http.fung:@fn get(@ get\n   -e:3       <entry>\n",
+    ),
+    (
+        "fn f() = print(http.post(\"x\", 1))\nf()",
+        "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:25\n  |\n2 | fn f() = print(http.post(\"x\", 1))\n  |                         ^\n  |\n",
+        "   -e:2       f\n   -e:3       <entry>\n",
+        "   extras/rust/http.fung:@fn post(@ post\n   -e:2       f\n   -e:3       <entry>\n",
+    ),
+    (
+        "http.get(\"http://x\", headers: {a: 1})",
+        "error[E0403]: argument `headers` must be a map of strings, got a map holding int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: {a: 1})\n  |         ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@need_str_map(\"headers\"@ _attempt\n   extras/rust/http.fung:@match _attempt(@ _request (1 tail calls elided)\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.get(\"http://x\", headers: 1)",
+        "error[E0403]: argument `headers` must be map, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: 1)\n  |         ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn get(@ get\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.get(\"http://x\", timeout: 1)",
+        "error[E0403]: argument `timeout` must be dur, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", timeout: 1)\n  |         ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn get(@ get\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.request(1, \"x\")",
+        "error[E0403]: argument `method` must be str, got int\n  --> -e:2:13\n  |\n2 | http.request(1, \"x\")\n  |             ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.request(\"GET\", 1)",
+        "error[E0403]: argument `url` must be str, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", 1)\n  |             ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.request(\"GET\", \"x\", 1)",
+        "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", \"x\", 1)\n  |             ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
+    ),
+    // the call itself is wrong: no frame of http.fung yet
+    (
+        "http.get()",
+        "error[E0407]: missing argument `url`\n  --> -e:2:9\n  |\n2 | http.get()\n  |         ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
+    ),
+    (
+        "http.get(\"x\", nope: 1)",
+        "error[E0406]: get has no argument named `nope`\n  --> -e:2:9\n  |\n2 | http.get(\"x\", nope: 1)\n  |         ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
+    ),
+];
+
+/// Programs whose output is the same in both, without a server.
+const PLAIN: &[&str] = &[
     "http.get(\"::bad\", headers: {a: 1})",
-    "http.get(\"http://x\", headers: 1)",
-    "http.get(\"http://x\", timeout: 1)",
-    "http.request(1, \"x\")",
-    "http.request(\"GET\", 1)",
-    "http.request(\"GET\", \"x\", 1)",
-    "http.get()",
-    "http.get(\"x\", nope: 1)",
     "print(http, http.get, http.post, http.request, type_of(http.get))",
 ];
 
+/// Rust's call path with each `@needle@` replaced by its line number in
+/// `extras/rust/http.fung`.
+fn rust_frames(template: &str) -> String {
+    let src = std::fs::read_to_string(common::repo().join("extras/rust/http.fung")).unwrap();
+    let mut out = String::new();
+    let mut parts = template.split('@');
+    out.push_str(parts.next().unwrap());
+    while let (Some(needle), Some(rest)) = (parts.next(), parts.next()) {
+        let line = src
+            .lines()
+            .position(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no `{needle}` in http.fung"));
+        out.push_str(&(line + 1).to_string());
+        out.push_str(rest);
+    }
+    out
+}
+
 type Out = (String, String, Option<i32>);
 
+/// How long one run may take: a hang is a failure, not a stuck test.
+const CHILD_LIMIT: Duration = Duration::from_secs(30);
+
 fn run(bin: &Path, src: &str) -> Out {
-    let o = std::process::Command::new(bin)
+    let mut child = std::process::Command::new(bin)
         .args(["-e", src])
         .current_dir(common::repo())
         .stdin(std::process::Stdio::null())
-        .output()
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .unwrap();
+    let start = std::time::Instant::now();
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if start.elapsed() > CHILD_LIMIT {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("{} ran over {CHILD_LIMIT:?} on:\n{src}", bin.display());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let o = child.wait_with_output().unwrap();
     (
         String::from_utf8_lossy(&o.stdout).into_owned(),
         String::from_utf8_lossy(&o.stderr).into_owned(),
@@ -443,17 +593,6 @@ fn run(bin: &Path, src: &str) -> Out {
 /// Go's request without the `Accept-Encoding: gzip` line its transport adds.
 fn without_gzip(req: &[u8]) -> String {
     String::from_utf8_lossy(req).replace("Accept-Encoding: gzip\r\n", "")
-}
-
-/// The call path lines of frames inside the embedded `http.fung`: Go's
-/// `http` functions are natives and leave no frame, the Rust ones are
-/// fung functions whose frames stay visible in the call path, like those
-/// of every fung extras function (06).
-fn without_extras_frames(err: &str) -> String {
-    err.lines()
-        .filter(|l| !l.trim_start().starts_with("extras/http.fung:"))
-        .map(|l| format!("{l}\n"))
-        .collect()
 }
 
 #[test]
@@ -501,14 +640,54 @@ fn http_client_matches_go() {
             failures.push(format!("{src}\n  go:   {g:?}\n  rust: {r:?}"));
         }
     }
-    for prog in ARG_ERRORS {
+    for (prog, head, go_frames, rust_template) in ARG_ERRORS {
         let src = format!("import http\n{prog}");
-        let g = run(&go, &src);
-        let r = run(&rust, &src);
-        let r = (r.0, without_extras_frames(&r.1), r.2);
+        let path = " call path (innermost first):\n";
+        let want_go = ("".to_string(), format!("{head}{path}{go_frames}"), Some(1));
+        let want_rust = (
+            if prog.starts_with("print(1)") {
+                "1\n"
+            } else {
+                ""
+            }
+            .to_string(),
+            format!("{head}{path}{}", rust_frames(rust_template)),
+            Some(1),
+        );
+        let want_go = (want_rust.0.clone(), want_go.1, want_go.2);
+        let (g, r) = (run(&go, &src), run(&rust, &src));
+        if g != want_go {
+            failures.push(format!("{src}\n  go:   {g:?}\n  want: {want_go:?}"));
+        }
+        if r != want_rust {
+            failures.push(format!("{src}\n  rust: {r:?}\n  want: {want_rust:?}"));
+        }
+    }
+    for prog in PLAIN {
+        let src = format!("import http\n{prog}");
+        let (g, r) = (run(&go, &src), run(&rust, &src));
         if g != r {
             failures.push(format!("{src}\n  go:   {g:?}\n  rust: {r:?}"));
         }
+    }
+    // A known difference (4d): a user function whose last call is
+    // `http.get` is replaced by it (a tail call to a fung function), so
+    // the error points at that function's caller and its frame is gone
+    // from the path. Go's native replaces no frame.
+    let src = "import http\nfn g(x) = http.get(x)\nfn h() = print(g(1))\nh()";
+    let go_want = "error[E0403]: argument `url` must be str, got int\n  --> -e:2:19\n  |\n2 | fn g(x) = http.get(x)\n  |                   ^\n  |\n call path (innermost first):\n   -e:2       g\n   -e:3       h\n   -e:4       <entry>\n";
+    let rust_want = format!(
+        "error[E0403]: argument `url` must be str, got int\n  --> -e:3:17\n  |\n3 | fn h() = print(g(1))\n  |                 ^\n  |\n call path (innermost first):\n{}",
+        rust_frames(
+            "   extras/rust/http.fung:@fn get(@ get (1 tail calls elided)\n   -e:3       h\n   -e:4       <entry>\n"
+        )
+    );
+    let (g, r) = (run(&go, src), run(&rust, src));
+    if g != (String::new(), go_want.to_string(), Some(1)) {
+        failures.push(format!("tail call, go: {g:?}"));
+    }
+    if r != (String::new(), rust_want.clone(), Some(1)) {
+        failures.push(format!("tail call, rust: {r:?}\n  want: {rust_want:?}"));
     }
     let _ = std::fs::remove_file(go);
     assert!(
@@ -530,11 +709,15 @@ fn no_such_host_matches_go() {
     let src = "import http\nprint(http.get(\"http://nosuchhost.invalid/x\"))";
     let g = run(&go, src);
     let _ = std::fs::remove_file(&go);
+    let r = run(&rust_fung(), src);
     if !g.0.contains("lookup nosuchhost.invalid: no such host\"") {
-        eprintln!("no_such_host_matches_go: skipped, Go said {g:?}");
+        // Go's resolver words it differently here (Linux, or no DNS):
+        // Rust still names the failed lookup, through the system resolver.
+        eprintln!("no_such_host_matches_go: Go comparison skipped, Go said {g:?}");
+        assert!(r.0.contains("lookup nosuchhost.invalid: "), "{r:?}");
         return;
     }
-    assert_eq!(run(&rust_fung(), src), g);
+    assert_eq!(r, g);
 }
 
 /// Rust only: a body may hold at most 64 MB (06; Go's client has no
@@ -560,4 +743,26 @@ fn bodies_past_the_limit_are_errors() {
         );
         assert_eq!(got, (want, String::new(), Some(0)));
     }
+}
+
+/// Release only (a debug build says nothing about the shape): 400,000
+/// continuation lines of one header gather in linear time: the pieces are
+/// joined once, not grown line by line (that took 7.8 s here; this
+/// takes under 1 s).
+#[cfg(not(debug_assertions))]
+#[test]
+fn many_folded_lines_stay_linear() {
+    let mut reply = bytes("HTTP/1.1 200 OK\r\nX-Fold: a\r\n");
+    reply.extend(b" b\r\n".repeat(400_000));
+    reply.extend_from_slice(b"Content-Length: 0\r\n\r\n");
+    let fake = Fake::start(Reply::Bytes(reply));
+    let src = format!(
+        "import http\nr = http.get(\"http://127.0.0.1:{}/\")!\nprint(r.status, len(r.headers[\"x-fold\"]))",
+        fake.port
+    );
+    let start = std::time::Instant::now();
+    let got = run(&rust_fung(), &src);
+    let took = start.elapsed();
+    assert_eq!(got, ("200 800001\n".to_string(), String::new(), Some(0)));
+    assert!(took < Duration::from_secs(4), "took {took:?}");
 }

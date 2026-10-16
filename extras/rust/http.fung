@@ -66,11 +66,55 @@ fn _attempt(method0, url, body, headers, timeout, start):
   if not _is_token(method):
     return Err(_err("net/http: invalid method ${_quote(method)}"))
   ;;
-  u = _parse_url(url)?
+  u0 = _parse_url(url)?
+  u = put(u0, "host", _remove_empty_port(u0.host))
   _net.need_str_map("headers", headers)
-  hs = fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v))
+  hs = _basic_auth(u, fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v)))
   op = "${_op(method)} ${_quote(_url_string(u))}: "
   _send(method, u, body, hs, timeout, start, op)
+;;
+
+# Go `removeEmptyPort` (in `NewRequest`): "host:" → "host".
+fn _remove_empty_port(h) = ends_with(h, ":") and ":" in _after_last(h, "]") then h[..len(h) - 1] else h
+
+fn _after_last(s, sep) = split(s, sep)[-1]
+
+# Go `Client.send`: userinfo in the URL becomes Basic authorization when
+# the user set no Authorization header (an empty one counts as none).
+# (Redirects to another host drop it again: Task 4.)
+fn _basic_auth(u, hs):
+  if u.user == nil or ("Authorization" in hs and hs["Authorization"] != ""):
+    return hs
+  ;;
+  (name, password) = _cut(u.user, ":")
+  bytes = _unescape_bytes(name) + [58] + _unescape_bytes(password)
+  put(hs, "Authorization", "Basic " + _base64(bytes, 0, []))
+;;
+
+# The bytes of a checked URL part with its %XX escapes decoded.
+fn _unescape_bytes(s) = _unescape_from(_net.utf8_bytes(s), 0, [])
+
+fn _unescape_from(bs, i, out) = if i >= len(bs):
+  out
+else if bs[i] == 37:
+  _unescape_from(bs, i + 3, out + [_hex_value(bs[i + 1]) * 16 + _hex_value(bs[i + 2])])
+else:
+  _unescape_from(bs, i + 1, out + [bs[i]])
+;;
+
+# Standard base64 with padding (Go `base64.StdEncoding`).
+fn _base64(bs, i, out):
+  abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  n = len(bs) - i
+  if n <= 0:
+    return join(out, "")
+  ;;
+  b0 = bs[i]
+  b1 = n > 1 then bs[i + 1] else 0
+  b2 = n > 2 then bs[i + 2] else 0
+  c2 = n > 1 then abc[(b1 % 16) * 4 + b2 // 64] else "="
+  c3 = n > 2 then abc[b2 % 64] else "="
+  _base64(bs, i + 3, out + [abc[b0 // 4], abc[(b0 % 4) * 16 + b1 // 16], c2, c3])
 ;;
 
 # Go `urlErrorOp`: "Get", "Post", ...
@@ -293,37 +337,55 @@ fn _version(v):
 
 # Go `textproto.ReadMIMEHeader`: header lines up to the blank one, a line
 # starting with a space or a tab continuing the one before. `pending` is
-# the field being gathered, `acc` the fields so far as (key, value).
+# the field being gathered (its pieces, joined by a space when it is
+# done; nil before the first), `acc` the fields so far as (key, value).
 # Ok((fields, budget left)).
 fn _fields(c, left, op, pending, acc) = match _head_line(c, left):
   Err(e)   => Err(_head_err(e, op))
-  Ok(nil)  => _fields_end(pending, acc, op, "unexpected EOF", left)
-  Ok(line) => _field_line(c, left - _net.byte_len(line) - 2, op, pending, acc, line)
+  Ok(nil)  => _fields_eof(pending, acc, op)
+  Ok(line) => _fields_next(c, left - _net.byte_len(line) - 2, op, _field_step(pending, acc, line))
 ;;
 
-fn _field_line(c, left, op, pending, acc, line):
+fn _fields_next(c, left, op, step) = match step:
+  Err(why)              => Err(_broken('network, op, why))
+  Ok((_, acc, true))    => Ok((acc, left))
+  Ok((pending, acc, _)) => _fields(c, left, op, pending, acc)
+;;
+
+# The connection ended before the blank line: the field being gathered
+# is still checked first, as Go does.
+fn _fields_eof(pending, acc, op) = match _flush(pending, acc):
+  Err(why) => Err(_broken('network, op, why))
+  Ok(_)    => Err(_broken('network, op, "unexpected EOF"))
+;;
+
+# One header line into the state: Ok((pending, acc, done)) or Err(why).
+fn _field_step(pending, acc, line):
   folded = starts_with(line, " ") or starts_with(line, "\t")
-  if folded and pending == nil and acc == []:
-    Err(_broken('network, op, "malformed MIME header initial line: ${_quote(line)}"))
-  else if folded and pending != nil:
-    _fields(c, left, op, "${pending} ${_trim_ows(line)}", acc)
-  else if line == "":
-    _fields_end(pending, acc, op, nil, left)
+  if folded and pending == nil:
+    Err("malformed MIME header initial line: ${_quote(line)}")
+  else if folded:
+    Ok((pending + [_trim_ows(line)], acc, false))
   else:
     match _flush(pending, acc):
-      Err(why) => Err(_broken('network, op, why))
-      Ok(more) => ":" in line
-        then _fields(c, left, op, _trim_ows(line), more)
-        else Err(_broken('network, op, "malformed MIME header: missing colon: ${_quote(line)}"))
+      Err(why)                 => Err(why)
+      Ok(more) when line == "" => Ok((nil, more, true))
+      Ok(more)                 => ":" in line
+        then Ok(([_trim_ows(line)], more, false))
+        else Err("malformed MIME header: missing colon: ${_quote(line)}")
     ;;
   ;;
 ;;
 
-# The end of the header lines: the last field, then Ok, or the read
-# error `why`.
-fn _fields_end(pending, acc, op, why, left) = match _flush(pending, acc):
-  Err(bad) => Err(_broken('network, op, bad))
-  Ok(more) => why == nil then Ok((more, left)) else Err(_broken('network, op, why))
+# Header lines already read (a trailer), up to the blank one: Ok(fields)
+# or Err(why).
+fn _fields_of(lines, pending, acc) = match lines:
+  []              => _flush(pending, acc)
+  [line, ...rest] => match _field_step(pending, acc, line):
+    Err(why)            => Err(why)
+    Ok((_, more, true)) => Ok(more)
+    Ok((p, more, _))    => _fields_of(rest, p, more)
+  ;;
 ;;
 
 # Adds the gathered field to acc, checked like Go's: a key of token
@@ -333,9 +395,10 @@ fn _flush(pending, acc):
   if pending == nil:
     return Ok(acc)
   ;;
-  (k, v) = _cut(pending, ":")
+  kv = join(pending, " ")
+  (k, v) = _cut(kv, ":")
   ok = k != "" and all(chars(k), ch => ch == " " or _is_tchar(ch)) and _valid_value(v)
-  ok then Ok(acc + [(_canonical(k), _trim_left(v, " \t"))]) else Err("malformed MIME header line: ${_quote(pending)}")
+  ok then Ok(acc + [(_canonical(k), _trim_left(v, " \t"))]) else Err("malformed MIME header line: ${_quote(kv)}")
 ;;
 
 # Go `readTransfer` and friends: the headers Go removes or adds, how the
@@ -492,7 +555,7 @@ fn _chunked(c, excess) = match _chunk_line(c, [], 0):
 
 fn _chunk(c, excess, line) = match _hex(_before(_trim_right_ows(line), ";")):
   Err(why) => _drop(c, _err(why))
-  Ok(0)    => _trailer(c, 0)
+  Ok(0)    => _trailer(c)
   Ok(n)    => _chunk_data(c, max([excess - 16 - 2 * n, 0]), n)
 ;;
 
@@ -541,7 +604,8 @@ fn _chunk_line_end(line):
   ;;
 ;;
 
-# Go `parseHexUint`. More than 15 digits cannot fit a body anyway.
+# Go `parseHexUint`: at most 16 digits, leading zeros included. More than
+# 15 digits past the leading zeros cannot fit a body anyway.
 fn _hex(s):
   cs = chars(s)
   digits = {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, a: 10, b: 11, c: 12, d: 13, e: 14, f: 15, A: 10, B: 11, C: 12, D: 13, E: 14, F: 15}
@@ -552,26 +616,35 @@ fn _hex(s):
     Err("invalid byte in chunk length")
   else if bad != nil:
     Err("http chunk length too large")
-  else if len(cs) > 15:
+  else if len(_trim_left(s, "0")) > 15:
     Ok(_body_cap() + 1)
   else:
     Ok(fold(cs, 0, (n, ch) => n * 16 + digits[ch]))
   ;;
 ;;
 
-# Go `body.readTrailer`: after the last chunk, either CRLF or trailer
-# lines up to a blank one (within Go's 4096-byte buffer).
-fn _trailer(c, seen):
-  if seen > 4096:
-    return _drop(c, _err("http: suspiciously long trailer after chunked body"))
-  ;;
-  match _net.read_line(c, 4096):
-    Ok(nil)             => _drop(c, _err("http: unexpected EOF reading trailer"))
-    Ok("")              => Ok(_net.take_body(c))
-    Ok(line)            => _trailer(c, seen + _net.byte_len(line) + 2)
-    Err({kind: 'limit}) => _drop(c, _err("http: suspiciously long trailer after chunked body"))
-    Err(e)              => _drop(c, e)
-  ;;
+# Go `body.readTrailer`: after the last chunk, either CRLF, or trailer
+# lines whose blank end comes within Go's 4096-byte buffer (else the
+# trailer is "suspiciously long"), checked as header lines and dropped.
+fn _trailer(c) = match _net.read_line(c, 4096):
+  Ok(nil)  => _drop(c, _err("http: unexpected EOF reading trailer"))
+  Ok("")   => Ok(_net.take_body(c))
+  Ok(line) => _trailer_lines(c, 4096 - _net.byte_len(line) - 2, [line])
+  Err(e)   => _drop(c, _trailer_err(e))
+;;
+
+fn _trailer_err(e) = e.kind == 'limit then _err("http: suspiciously long trailer after chunked body") else e
+
+fn _trailer_lines(c, left, lines) = match _head_line(c, left):
+  Ok(nil)  => _drop(c, _err("http: suspiciously long trailer after chunked body"))
+  Ok("")   => _trailer_end(c, _fields_of(lines, nil, []))
+  Ok(line) => _trailer_lines(c, left - _net.byte_len(line) - 2, lines + [line])
+  Err(e)   => _drop(c, _trailer_err(e))
+;;
+
+fn _trailer_end(c, fields) = match fields:
+  Ok(_)    => Ok(_net.take_body(c))
+  Err(why) => _drop(c, _err(why))
 ;;
 
 # ---- URLs (Go `net/url`) --------------------------------------------
@@ -769,10 +842,10 @@ fn _url_string(u):
   if u.opaque != "":
     return head + u.opaque + _url_tail(u)
   ;;
-  user = u.user == nil then nil else (":" in u.user then _before(u.user, ":") + ":***" else u.user)
+  user = u.user == nil then nil else (":" in u.user then _unescape_ascii(_before(u.user, ":")) + ":***" else u.user)
   shows_host = (u.scheme != "" or u.host != "" or user != nil) and not (u.omit_host and u.host == "" and user == nil)
   slashes = shows_host and (u.host != "" or u.path != "" or user != nil) then "//" else ""
-  auth = shows_host then slashes + (user == nil then "" else user + "@") + u.host else ""
+  auth = shows_host then slashes + (user == nil then "" else user + "@") + replace(u.host, "%", "%25") else ""
   path0 = _escaped_path(u.path)
   path = u.omit_host and u.host == "" and user == nil and starts_with(path0, "//") then "%2F" + path0[1..] else path0
   sep = path != "" and not starts_with(path, "/") and u.host != "" then "/" else ""
@@ -782,6 +855,19 @@ fn _url_string(u):
 ;;
 
 fn _url_tail(u) = (u.force_query or u.query != "" then "?${u.query}" else "") + (u.fragment != "" then "#${u.fragment}" else "")
+
+# Go `Userinfo.Username`, as `stripPassword` shows it: the %XX escapes of
+# ASCII characters decoded (others are left as written).
+fn _unescape_ascii(s):
+  parts = split(s, "%")
+  rest = drop(parts, 1) |> map(p => len(p) >= 2 and _is_hex(p[0]) and p[0] in "01234567" and _is_hex(p[1]) then _ascii_at(p) else "%" + p)
+  parts[0] + join(rest, "")
+;;
+
+fn _ascii_at(p):
+  n = _hex_value(_net.utf8_bytes(p[0])[0]) * 16 + _hex_value(_net.utf8_bytes(p[1])[0])
+  (n >= 32 and n <= 126 then _printable()[n - 32] else "%" + p[..2]) + p[2..]
+;;
 
 # ---- Text helpers -------------------------------------------------------
 
