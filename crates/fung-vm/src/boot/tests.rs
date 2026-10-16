@@ -153,6 +153,7 @@ fn native_modules_match_the_spec() {
             ("_native.path", crate::native::path::module()),
             ("_native.time", crate::native::time::module()),
             ("_native.json", crate::native::json::module()),
+            ("_native.regex", crate::native::regex::module()),
         ] {
             assert_eq!(m.key, key);
             let names: Vec<&str> = m.names();

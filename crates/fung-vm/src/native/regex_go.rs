@@ -2130,8 +2130,6 @@ const NEST_LIMIT: u32 = 4 * MAX_HEIGHT as u32;
 
 /// Go `regexp.Compile(pat)`: an engine that matches as Go's would, or
 /// Go's error text.
-// Used by `_native.regex` (4c Task 4).
-#[allow(dead_code)]
 pub(crate) fn compile_go(pat: &str) -> Result<Regex, String> {
     let src = translate(pat)?;
     RegexBuilder::new(&src)
@@ -2146,8 +2144,6 @@ pub(crate) fn compile_go(pat: &str) -> Result<Regex, String> {
 
 /// Go `Regexp.SubexpNames()` for an engine from `compile_go`: index 0 and
 /// unnamed groups are `""`.
-// Used by `_native.regex` (4c Task 4).
-#[allow(dead_code)]
 pub(crate) fn go_capture_names(re: &Regex) -> Vec<String> {
     re.capture_names()
         .map(|n| {
@@ -2156,6 +2152,20 @@ pub(crate) fn go_capture_names(re: &Regex) -> Vec<String> {
                 .map_or_else(String::new, |(_, name)| name.to_string())
         })
         .collect()
+}
+
+/// Go `unicode.IsLetter(c) || unicode.IsDigit(c)` (categories L and Nd
+/// from Go's tables): with `_`, what Go's `Regexp.Expand` reads as a
+/// group name in a replacement.
+pub(crate) fn go_letter_or_digit(c: char) -> bool {
+    let t = tables();
+    let c = c as i32;
+    ["L", "Nd"].iter().any(|cat| {
+        t.categories.get(cat).is_some_and(|runs| {
+            let i = runs.partition_point(|&(_, hi)| hi < c);
+            runs.get(i).is_some_and(|&(lo, _)| lo <= c)
+        })
+    })
 }
 
 #[cfg(test)]

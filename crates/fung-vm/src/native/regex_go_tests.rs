@@ -24,39 +24,21 @@ fn on_big_stack(f: impl FnOnce() + Send + 'static) {
         .unwrap();
 }
 
-/// Go `Regexp.FindAllStringSubmatchIndex(s, -1)` over a Rust engine: the
-/// loop of Go's `allMatches`, where an empty match right after the
-/// previous match is skipped and the search then moves on one character.
+/// Go `Regexp.FindAllStringSubmatchIndex(s, -1)` over a Rust engine
+/// (`_native.regex`'s `go_all`), with -1 for a group that did not take
+/// part.
 fn go_all(re: &Regex, s: &str) -> Vec<Vec<isize>> {
     let mut out = Vec::new();
-    let mut locs = re.capture_locations();
-    let mut pos = 0;
-    let mut prev_end: isize = -1;
-    while pos <= s.len() {
-        let Some(m) = re.captures_read_at(&mut locs, s, pos) else {
-            break;
-        };
-        let mut accept = true;
-        if m.end() == pos {
-            if m.start() as isize == prev_end {
-                accept = false;
+    crate::native::regex::go_all(re, s, |locs| {
+        let mut one = Vec::new();
+        for i in 0..locs.len() {
+            match locs.get(i) {
+                Some((a, b)) => one.extend([a as isize, b as isize]),
+                None => one.extend([-1, -1]),
             }
-            pos += s[pos..].chars().next().map_or(1, char::len_utf8);
-        } else {
-            pos = m.end();
         }
-        prev_end = m.end() as isize;
-        if accept {
-            let mut one = Vec::new();
-            for i in 0..locs.len() {
-                match locs.get(i) {
-                    Some((a, b)) => one.extend([a as isize, b as isize]),
-                    None => one.extend([-1, -1]),
-                }
-            }
-            out.push(one);
-        }
-    }
+        out.push(one);
+    });
     out
 }
 

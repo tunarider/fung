@@ -9,6 +9,7 @@ pub mod nat;
 pub(crate) mod oserr;
 pub mod path;
 pub mod process;
+pub mod regex;
 pub(crate) mod regex_go;
 pub mod time;
 pub(crate) mod timefmt;
