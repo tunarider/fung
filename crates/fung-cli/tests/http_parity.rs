@@ -593,6 +593,25 @@ const ARG_ERRORS: &[(&str, &str, &str, &str)] = &[
         "   -e:2       <entry>\n",
         "   extras/rust/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
     ),
+    // `serve` (Task 5): `ready` may be nil, so a helper checks it
+    (
+        "http.serve(1, r => r)",
+        "error[E0403]: argument `addr` must be str, got int\n  --> -e:2:11\n  |\n2 | http.serve(1, r => r)\n  |           ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn serve(@ serve\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.serve(\"a\", 1)",
+        "error[E0403]: argument `handler` must be fn, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", 1)\n  |           ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn serve(@ serve\n   -e:2       <entry>\n",
+    ),
+    (
+        "http.serve(\"a\", r => r, ready: 1)",
+        "error[E0403]: argument `ready` must be fn, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
+        "   -e:2       <entry>\n",
+        "   extras/rust/http.fung:@fn _ready_check(@ _ready_check\n   extras/rust/http.fung:@    _ready_check(ready)@ _serve (1 tail calls elided)\n   -e:2       <entry>\n",
+    ),
     // the call itself is wrong: no frame of http.fung yet
     (
         "http.get()",
@@ -1918,4 +1937,659 @@ fn unsupported_proxies_are_errors() {
         );
         assert_eq!(got, (want, String::new(), Some(0)));
     }
+}
+
+// ---- The server (Task 5) ---------------------------------------------
+//
+// The same raw requests go to a Go fung server and a Rust fung server
+// running `SERVER`, and their answers are compared byte for byte, the
+// value of `Date` aside (checked for Go's form, then masked). Each
+// request says `Connection: close` unless noted, so Go closes as the
+// Rust server always does (06 "fung HTTP 약속": one request per
+// connection); `keep_alive_answers_differ_only_in_connection` pins what
+// differs without it.
+
+/// The program both servers run. The handler's path names what it
+/// answers; `/count` prints, so a request that must not reach the
+/// handler (413) shows in the standard output if it does.
+const SERVER: &str = r#"import http
+import json
+fn handle(req) = match req.path:
+  "/text"      => "hello"
+  "/map"       => {status: 201, headers: {"x-b": "2", "X-A": "1", "x-c": ""}, body: "made"}
+  "/typed"     => {headers: {"content-type": "application/json"}, body: "{}"}
+  "/empty"     => {status: 404}
+  "/hangul"    => "안녕하세요, 한글 본문"
+  "/count"     => fn(): print("called ${req.method}"); "counted" ;;()
+  "/fail"      => fail("bug ${req.method}")
+  "/badtype"   => 42
+  "/badstatus" => {status: "200"}
+  "/range"     => {status: 600}
+  "/badbody"   => {body: 1}
+  "/badheader" => {headers: {"x-a": 1}}
+  "/headers"   => {headers: {"x-nl": "a\nb\r c", "x-sp": "  d  ", "bad key": "v", "date": "Mon, 01 Jan 2001 00:00:00 GMT"}, body: "h"}
+  "/close"     => {headers: {connection: "close"}, body: "c"}
+  "/keep"      => {headers: {connection: "keep-alive"}, body: "k"}
+  "/length"    => {headers: {"content-length": "1"}, body: "l"}
+  "/nocontent" => {status: 204, body: "x"}
+  "/notmod"    => {status: 304, headers: {etag: "e"}, body: "x"}
+  "/early"     => {status: 103, headers: {link: "</a>"}, body: "x"}
+  "/switch"    => {status: 101}
+  "/odd"       => {status: 299, body: "odd"}
+  "/quit"      => exit(3)
+  p when starts_with(p, "/echo") or p == "" or p == "*" => json.stringify(req)
+  _            => {status: 404, body: "no such page"}
+;;
+print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))
+"#;
+
+/// A running server: the child, its address, and its standard output
+/// after the address (read by a thread).
+struct Served {
+    child: std::process::Child,
+    addr: String,
+    out: std::thread::JoinHandle<String>,
+}
+
+/// Starts `bin -e src` and reads the address it prints when ready.
+fn serve(bin: &Path, src: &str) -> Served {
+    serve_args(bin, &["-e", src])
+}
+
+/// Starts `bin args` and reads the address in the first line it prints
+/// (the line itself, or the host and port of an `http://` URL in it).
+fn serve_args(bin: &Path, args: &[&str]) -> Served {
+    use std::io::BufRead;
+    let mut child = std::process::Command::new(bin)
+        .args(args)
+        .current_dir(common::repo())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = std::io::BufReader::new(child.stdout.take().unwrap());
+    let (tx, rx) = std::sync::mpsc::channel();
+    let out = std::thread::spawn(move || {
+        let mut first = String::new();
+        lines.read_line(&mut first).unwrap();
+        let first = first.trim_end();
+        let addr = match first.split_once("http://") {
+            Some((_, url)) => url.split('/').next().unwrap(),
+            None => first,
+        };
+        tx.send(addr.to_string()).unwrap();
+        let mut rest = String::new();
+        let _ = lines.read_to_string(&mut rest);
+        rest
+    });
+    let addr = match rx.recv_timeout(CHILD_LIMIT) {
+        Ok(a) => a,
+        Err(_) => {
+            let _ = child.kill();
+            panic!("{} did not start serving", bin.display());
+        }
+    };
+    Served { child, addr, out }
+}
+
+impl Served {
+    /// Ends a server that would serve on: (stdout after the address,
+    /// stderr).
+    fn kill(mut self) -> (String, String) {
+        let _ = self.child.kill();
+        let o = self.finish();
+        (o.0, o.1)
+    }
+
+    /// Waits for the server to end (a request ends it), killing it after
+    /// `CHILD_LIMIT`: (stdout after the address, stderr, exit code).
+    fn finish(mut self) -> Out {
+        let start = std::time::Instant::now();
+        while self.child.try_wait().unwrap().is_none() {
+            if start.elapsed() > CHILD_LIMIT {
+                let _ = self.child.kill();
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let status = self.child.wait().unwrap();
+        let mut err = String::new();
+        self.child
+            .stderr
+            .take()
+            .unwrap()
+            .read_to_string(&mut err)
+            .unwrap();
+        (self.out.join().unwrap(), err, status.code())
+    }
+}
+
+/// Sends `req` (from a thread, so a big one cannot block the reading)
+/// and reads the answer to the end of the connection. `half_close` ends
+/// the sending side after the request.
+fn exchange(addr: &str, req: Vec<u8>, half_close: bool) -> Vec<u8> {
+    let mut s = TcpStream::connect(addr).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+    let mut w = s.try_clone().unwrap();
+    let writer = std::thread::spawn(move || {
+        // a server that answers early may close before all of it is sent
+        let _ = w.write_all(&req);
+        if half_close {
+            let _ = w.shutdown(Shutdown::Write);
+        }
+    });
+    let mut got = Vec::new();
+    let mut buf = [0u8; 65536];
+    loop {
+        match s.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => got.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                got.extend_from_slice(format!("<{}>", e.kind()).as_bytes());
+                break;
+            }
+        }
+    }
+    writer.join().unwrap();
+    got
+}
+
+/// The answer with each `Date` value checked for Go's form
+/// (`Mon, 02 Jan 2006 15:04:05 GMT`) and replaced by `<date>`; a handler's
+/// own `Date` (2001) is kept.
+fn mask_date(b: &[u8]) -> String {
+    let text = String::from_utf8_lossy(b).into_owned();
+    let mut out = String::new();
+    let mut rest = text.as_str();
+    while let Some(i) = rest.find("\r\nDate: ") {
+        let start = i + "\r\nDate: ".len();
+        let end = start + rest[start..].find("\r\n").unwrap_or(rest.len() - start);
+        let v = &rest[start..end];
+        out.push_str(&rest[..start]);
+        if v.contains("2001") {
+            out.push_str(v);
+        } else {
+            let form = v.len() == 29
+                && v.ends_with(" GMT")
+                && v.as_bytes()[3] == b','
+                && v[17..25].chars().filter(|c| *c == ':').count() == 2;
+            out.push_str(if form { "<date>" } else { v });
+        }
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `GET <target>` with a Host and `Connection: close`.
+fn get(target: &str) -> Vec<u8> {
+    format!("GET {target} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").into_bytes()
+}
+
+/// A chunked body: each piece one chunk (sizes in hex), then the end and
+/// a trailer.
+fn chunked(pieces: &[&[u8]]) -> Vec<u8> {
+    let mut b = Vec::new();
+    for p in pieces {
+        b.extend_from_slice(format!("{:x}\r\n", p.len()).as_bytes());
+        b.extend_from_slice(p);
+        b.extend_from_slice(b"\r\n");
+    }
+    b.extend_from_slice(b"0\r\nX-Trailer: t\r\n\r\n");
+    b
+}
+
+/// The requests both servers get, in order: (raw bytes, end the sending
+/// side after them). The last one (`/quit`) ends the server.
+fn server_requests() -> Vec<(Vec<u8>, bool)> {
+    let post = |path: &str, head: &str, body: &[u8]| {
+        let mut b = format!("POST {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n{head}\r\n")
+            .into_bytes();
+        b.extend_from_slice(body);
+        b
+    };
+    let han = "한".as_bytes();
+    let big = 16 * 1024 * 1024 + 1;
+    let mut big_chunks: Vec<u8> = Vec::new();
+    for _ in 0..17 {
+        big_chunks.extend_from_slice(format!("{:x}\r\n", 1024 * 1024).as_bytes());
+        big_chunks.extend(std::iter::repeat_n(b'x', 1024 * 1024));
+        big_chunks.extend_from_slice(b"\r\n");
+    }
+    big_chunks.extend_from_slice(b"0\r\n\r\n");
+    let many = "a=1&".repeat(10000);
+    let raw = |s: &str| (s.as_bytes().to_vec(), false);
+    let mut v: Vec<(Vec<u8>, bool)> = vec![
+        // answers
+        (get("/text"), false),
+        (get("/map"), false),
+        (get("/typed"), false),
+        (get("/empty"), false),
+        (get("/hangul"), false),
+        (get("/count"), false),
+        (get("/headers"), false),
+        (get("/close"), false),
+        (get("/keep"), false),
+        (get("/length"), false),
+        (get("/nocontent"), false),
+        (get("/notmod"), false),
+        (get("/early"), false),
+        (get("/switch"), false),
+        (get("/odd"), false),
+        (get("/nowhere"), false),
+        raw("HEAD /text HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+        raw("HEAD /empty HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+        raw("GET /text HTTP/1.0\r\n\r\n"),
+        // what the handler gets
+        (
+            get("/echo?a=1&b=x+y&a=2&c=%41%zz&d;e=1&%ED%95%9C=%ED%95%9C&&e=&f&%41=%2B"),
+            false,
+        ),
+        (get("/echo%20x/%ED%95%9C/a+b"), false),
+        (get("/echo?"), false),
+        (get(&format!("/echo?{many}b=2")), false),
+        (get(&format!("/echo?{many}")), false),
+        raw(
+            "GET /echo HTTP/1.1\r\nHost: x\r\nX-Foo: a\r\nx-foo: b\r\nPragma: no-cache\r\nX-Folded: one\r\n  two\r\nX-Empty:\r\nConnection: close\r\n\r\n",
+        ),
+        raw("GET http://example.com/echo/abs?q=1 HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+        raw("OPTIONS * HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+        raw("GET /echo\r\nHost: x\r\n\r\n"),
+        raw("GET /echo HTTP/1.1\nHost: x\nConnection: close\n\n"),
+        (post("/echo", "Content-Length: 5\r\n", b"hello"), false),
+        raw("HEAD /echo HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 2\r\n\r\nhi"),
+        (post("/echo", "Content-Length: 0\r\n", b""), false),
+        (post("/echo", "", b""), false),
+        (
+            post(
+                "/echo",
+                "Transfer-Encoding: chunked\r\nContent-Length: 99\r\n",
+                &chunked(&[b"ab", &han[..1], &han[1..], b"c"]),
+            ),
+            false,
+        ),
+        (
+            post(
+                "/echo",
+                "Content-Length: 3\r\nContent-Length: 3\r\n",
+                b"abc",
+            ),
+            false,
+        ),
+        (
+            post(
+                "/echo",
+                "Expect: 100-continue\r\nContent-Length: 2\r\n",
+                b"hi",
+            ),
+            false,
+        ),
+        (post("/echo", "Expect: 100-Continue, x\r\n", b""), false),
+        (post("/echo", "Expect: x\r\n", b""), false),
+        raw("POST /echo HTTP/1.0\r\nExpect: 100-continue\r\nContent-Length: 2\r\n\r\nhi"),
+        raw("POST /echo HTTP/1.0\r\nTransfer-Encoding: chunked\r\nContent-Length: 2\r\n\r\nhi"),
+        // the handler fails: 500 and a line on stderr
+        (get("/fail"), false),
+        (get("/badtype"), false),
+        (get("/badstatus"), false),
+        (get("/range"), false),
+        (get("/badbody"), false),
+        (get("/badheader"), false),
+        raw("HEAD /fail HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+        // malformed requests: Go's own answers, the handler not called
+        raw("GARBAGE\r\n\r\n"),
+        raw("\r\nGET /count HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("GE T /count HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("G(T /count HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("GET /count HTTP/1.x\r\nHost: x\r\n\r\n"),
+        raw("GET /count HTTP/2.0\r\nHost: x\r\n\r\n"),
+        raw("GET /count HTTP/0.9\r\nHost: x\r\n\r\n"),
+        raw("GET count HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("GET /count%zz HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("GET /count\u{1} HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("GET  HTTP/1.1\r\nHost: x\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: a b\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nHost: y\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nX Y: 1\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nBad header\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\n Host: x\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nX: a\u{1}b\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nContent-Length: abc\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\n"),
+        raw("GET /count HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: gzip\r\n\r\n"),
+        raw(
+            "GET /count HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: chunked\r\n\r\n",
+        ),
+        raw(
+            "POST /count HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\nTrailer: Content-Length\r\n\r\n0\r\n\r\n",
+        ),
+        (raw("GET /count HTTP/1.1\r\nHost: x\r\n").0, true),
+        (raw("GET /count HTTP/1.1\r\nHost: x\r\nX-A: 1").0, true),
+        (raw("GET /count HTT").0, true),
+        (raw("").0, true),
+        // bodies that cannot be read: 400, the handler not called
+        (post("/count", "Content-Length: 5\r\n", b"abc"), true),
+        (
+            post(
+                "/count",
+                "Transfer-Encoding: chunked\r\n",
+                b"zz\r\nab\r\n0\r\n\r\n",
+            ),
+            false,
+        ),
+        (
+            post(
+                "/count",
+                "Transfer-Encoding: chunked\r\n",
+                b"2\r\nabX\r\n0\r\n\r\n",
+            ),
+            false,
+        ),
+        (
+            post(
+                "/count",
+                "Transfer-Encoding: chunked\r\n",
+                b"2\nab\r\n0\r\n\r\n",
+            ),
+            false,
+        ),
+        (
+            post("/count", "Transfer-Encoding: chunked\r\n", b"2\r\nab"),
+            true,
+        ),
+        // past the 16 MB limit: 413, the handler not called
+        (
+            post(
+                "/count",
+                &format!("Content-Length: {big}\r\n"),
+                &vec![b'x'; big],
+            ),
+            false,
+        ),
+        (
+            post("/count", "Transfer-Encoding: chunked\r\n", &big_chunks),
+            false,
+        ),
+        (
+            post(
+                "/count",
+                &format!("Content-Length: {}\r\n", big - 1),
+                &vec![b'x'; big - 1],
+            ),
+            false,
+        ),
+        // header lines past Go's limits: 431
+        (
+            raw(&format!(
+                "GET /count HTTP/1.1\r\nHost: x\r\nX: {}\r\n\r\n",
+                "a".repeat(1100 * 1024)
+            ))
+            .0,
+            false,
+        ),
+        // 500 values in all pass, 501 do not
+        (
+            raw(&format!(
+                "GET /count HTTP/1.1\r\nHost: x\r\nConnection: close\r\n{}\r\n",
+                "X: 1\r\n".repeat(499)
+            ))
+            .0,
+            false,
+        ),
+        (
+            raw(&format!(
+                "GET /count HTTP/1.1\r\nHost: x\r\nConnection: close\r\n{}\r\n",
+                "X: 1\r\n".repeat(498)
+            ))
+            .0,
+            false,
+        ),
+    ];
+    // the end: exit in the handler answers 503, not reported
+    v.push((get("/quit"), false));
+    v
+}
+
+#[test]
+fn http_server_matches_go() {
+    let Some(go) = go_fung("http-serve") else {
+        return;
+    };
+    let rust = rust_fung();
+    let reqs = server_requests();
+    let answers = |bin: &Path| {
+        let s = serve(bin, SERVER);
+        let got: Vec<String> = reqs
+            .iter()
+            .map(|(r, half)| mask_date(&exchange(&s.addr, r.clone(), *half)))
+            .collect();
+        (got, s.finish())
+    };
+    let (g, r) = std::thread::scope(|sc| {
+        let g = sc.spawn(|| answers(&go));
+        let r = answers(&rust);
+        (g.join().unwrap(), r)
+    });
+    let mut failures = Vec::new();
+    for (i, (req, _)) in reqs.iter().enumerate() {
+        if g.0[i] != r.0[i] {
+            let shown: String = String::from_utf8_lossy(req).chars().take(200).collect();
+            failures.push(format!(
+                "{shown:?}\n  go:   {:?}\n  rust: {:?}",
+                g.0[i].chars().take(600).collect::<String>(),
+                r.0[i].chars().take(600).collect::<String>()
+            ));
+        }
+    }
+    if g.1 != r.1 {
+        failures.push(format!("the end\n  go:   {:?}\n  rust: {:?}", g.1, r.1));
+    }
+    // what both must hold, besides being equal
+    assert!(g.0[0].starts_with("HTTP/1.1 200 OK\r\n"), "{}", g.0[0]);
+    assert_eq!(g.1.2, Some(3));
+    let _ = std::fs::remove_file(go);
+    report(failures);
+}
+
+/// Without `Connection: close` Go keeps the connection open and says
+/// nothing; the Rust server answers one request per connection and says
+/// `Connection: close` (06 "fung HTTP 약속", a known difference). The
+/// answers are otherwise the same. Read by `Content-Length`, since Go's
+/// connection stays open.
+#[test]
+fn keep_alive_answers_differ_only_in_connection() {
+    let Some(go) = go_fung("http-keep") else {
+        return;
+    };
+    let rust = rust_fung();
+    let read_one = |addr: &str, req: &str| {
+        let mut s = TcpStream::connect(addr).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+        s.write_all(req.as_bytes()).unwrap();
+        let mut got = Vec::new();
+        let mut b = [0u8; 4096];
+        loop {
+            let n = s.read(&mut b).unwrap();
+            assert!(n > 0, "the connection ended early: {got:?}");
+            got.extend_from_slice(&b[..n]);
+            let text = String::from_utf8_lossy(&got).into_owned();
+            if let Some(end) = text.find("\r\n\r\n") {
+                let len: usize = text
+                    .lines()
+                    .find_map(|l| l.strip_prefix("Content-Length: "))
+                    .map_or(0, |v| v.trim().parse().unwrap());
+                if got.len() >= end + 4 + len {
+                    return mask_date(&got);
+                }
+            }
+        }
+    };
+    let quit = |addr: &str| {
+        exchange(addr, get("/quit"), false);
+    };
+    let g = serve(&go, SERVER);
+    let r = serve(&rust, SERVER);
+    for target in ["/text", "/empty", "/fail"] {
+        let req = format!("GET {target} HTTP/1.1\r\nHost: x\r\n\r\n");
+        let (ga, ra) = (read_one(&g.addr, &req), read_one(&r.addr, &req));
+        let pinned = ga.replacen("\r\n\r\n", "\r\nConnection: close\r\n\r\n", 1);
+        assert_eq!(ra, pinned, "{target}");
+    }
+    // HTTP/1.0 asking to keep the connection: Go says it will; Rust
+    // closes and says nothing, as for any HTTP/1.0 request
+    let req = "GET /text HTTP/1.0\r\nConnection: keep-alive\r\n\r\n";
+    let (ga, ra) = (read_one(&g.addr, req), read_one(&r.addr, req));
+    assert!(ga.contains("\r\nConnection: keep-alive\r\n"), "{ga}");
+    assert_eq!(ra, ga.replacen("Connection: keep-alive\r\n", "", 1));
+    quit(&g.addr);
+    quit(&r.addr);
+    let (go_end, rust_end) = (g.finish(), r.finish());
+    assert_eq!(go_end, rust_end);
+    let _ = std::fs::remove_file(go);
+}
+
+/// A client that sends part of its headers and then nothing: after 10 s
+/// (Go's `ReadHeaderTimeout`, which fung fixes) both servers close the
+/// connection without an answer. The two servers wait at once, so the
+/// test takes 10 s, not 20; the limit is not made shorter for tests.
+#[test]
+fn a_slow_client_is_cut_off_after_ten_seconds() {
+    let Some(go) = go_fung("http-slow") else {
+        return;
+    };
+    let rust = rust_fung();
+    let slow = |bin: &Path| {
+        let s = serve(bin, SERVER);
+        let start = std::time::Instant::now();
+        let got = exchange(
+            &s.addr,
+            b"GET /count HTTP/1.1\r\nHost: x\r\n".to_vec(),
+            false,
+        );
+        let took = start.elapsed();
+        exchange(&s.addr, get("/quit"), false);
+        (got, took, s.finish())
+    };
+    let (g, r) = std::thread::scope(|sc| {
+        let g = sc.spawn(|| slow(&go));
+        let r = slow(&rust);
+        (g.join().unwrap(), r)
+    });
+    for (name, (got, took, end)) in [("go", &g), ("rust", &r)] {
+        assert_eq!(got, &Vec::<u8>::new(), "{name}");
+        assert!(
+            *took >= Duration::from_millis(9500) && *took < Duration::from_secs(15),
+            "{name} took {took:?}"
+        );
+        assert_eq!(end.0, "", "{name}: the handler was called");
+    }
+    assert_eq!(g.2, r.2);
+    let _ = std::fs::remove_file(go);
+}
+
+/// The examples that serve and fetch run under Rust (`serve.fung` and
+/// `api.fung` use `atom`, which is stage 6's: not here). `static.fung`
+/// answers the same requests as under Go, logging the same lines;
+/// `checkurls.fung` reads from it.
+#[test]
+fn the_http_examples_run() {
+    let Some(go) = go_fung("http-examples") else {
+        return;
+    };
+    let rust = rust_fung();
+    let tmp = std::env::temp_dir().join(format!("fung-static-{}", std::process::id()));
+    std::fs::create_dir_all(tmp.join("docs")).unwrap();
+    std::fs::write(tmp.join("index.html"), "<h1>hi</h1>").unwrap();
+    std::fs::write(tmp.join("docs/a.txt"), "안녕, 한글\n").unwrap();
+    std::fs::write(tmp.join("data.json"), r#"{"b":1,"a":2}"#).unwrap();
+    let dir = tmp.to_string_lossy().into_owned();
+    let static_args = [
+        "run",
+        "examples/static.fung",
+        dir.as_str(),
+        "--addr",
+        "127.0.0.1:0",
+    ];
+    let reqs = [
+        get("/"),
+        get("/docs/a.txt"),
+        get("/data.json"),
+        get("/nope.html"),
+        get("/../etc/passwd"),
+        b"POST / HTTP/1.1\r\nHost: x\r\nConnection: close\r\nContent-Length: 1\r\n\r\nx".to_vec(),
+        b"HEAD /docs/a.txt HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".to_vec(),
+    ];
+    let answers = |bin: &Path| {
+        let s = serve_args(bin, &static_args);
+        let got: Vec<String> = reqs
+            .iter()
+            .map(|r| mask_date(&exchange(&s.addr, r.clone(), false)))
+            .collect();
+        (got, s)
+    };
+    let (g, g_server) = answers(&go);
+    let (r, r_server) = answers(&rust);
+    assert_eq!(g, r);
+    assert!(r[1].contains("안녕, 한글"), "{}", r[1]);
+    // checkurls (pmap over http.get) against the Rust server
+    let base = format!("http://{}", r_server.addr);
+    let urls = [format!("{base}/data.json"), format!("{base}/nope")];
+    let mut cmd = std::process::Command::new(&rust);
+    cmd.args(["run", "examples/checkurls.fung"])
+        .args(&urls)
+        .current_dir(common::repo());
+    let o = cmd.output().unwrap();
+    let out = String::from_utf8_lossy(&o.stdout).into_owned();
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    assert!(
+        lines[0].starts_with("ok   200 ") && lines[0].ends_with(&format!("{} b,a", urls[0])),
+        "{out}"
+    );
+    assert!(
+        lines[1].starts_with("FAIL 404 ") && lines[1].ends_with(&format!("{} ", urls[1])),
+        "{out}"
+    );
+    assert_eq!(o.status.code(), Some(1));
+    // the log lines of the same requests (Rust's has checkurls' too)
+    let (g_log, r_log) = (g_server.kill(), r_server.kill());
+    let first = |log: &str| log.lines().take(reqs.len()).collect::<Vec<_>>().join("\n");
+    assert_eq!(first(&g_log.0), first(&r_log.0));
+    assert_eq!(r_log.0.lines().count(), reqs.len() + 2, "{}", r_log.0);
+    assert_eq!((g_log.1.as_str(), r_log.1.as_str()), ("", ""));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let _ = std::fs::remove_file(go);
+}
+
+/// Binding fails as in Go: an address in use, a bad port, a name with
+/// no port, a port name. `ready` is not called then.
+#[test]
+fn serve_bind_failures_match_go() {
+    let Some(go) = go_fung("http-bind") else {
+        return;
+    };
+    let rust = rust_fung();
+    let held = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = held.local_addr().unwrap().port();
+    let mut failures = Vec::new();
+    for addr in [
+        format!("127.0.0.1:{port}"),
+        "127.0.0.1:99999".to_string(),
+        "nope".to_string(),
+        "127.0.0.1:x".to_string(),
+        "a:b:c".to_string(),
+    ] {
+        let src = format!(
+            "import http\nprint(http.serve(\"{addr}\", r => r, ready: a => print(\"ready\", a)))"
+        );
+        let (g, r) = (run(&go, &src), run(&rust, &src));
+        if g != r {
+            failures.push(format!("{src}\n  go:   {g:?}\n  rust: {r:?}"));
+        }
+    }
+    drop(held);
+    let _ = std::fs::remove_file(go);
+    report(failures);
 }

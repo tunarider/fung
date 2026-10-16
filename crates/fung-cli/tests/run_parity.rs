@@ -1,6 +1,8 @@
 //! Runs compared with the Go implementation: every `tests/lang` golden file
-//! (with its `# args:` and `# stdin:` lines) except the skip list, the
-//! benchmarks, and handwritten `-e` programs.
+//! (with its `# args:` and `# stdin:` lines) but those only one
+//! implementation runs (`# only:`), the benchmarks, and handwritten `-e`
+//! programs. Nothing else is left out: the list of files the Rust port
+//! could not run yet emptied at stage 4d and is gone.
 
 mod common;
 
@@ -8,7 +10,7 @@ use std::ffi::OsString;
 
 use std::path::Path;
 
-use common::{Run, diff, go_fung, repo, run_with_stdin, rust_fung, skip_list};
+use common::{Run, diff, go_fung, repo, run_with_stdin, rust_fung};
 
 const CASES: &[&str] = &[
     "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))",
@@ -75,80 +77,6 @@ const CONCURRENT: &[&str] = &[
     "print(await(spawn(() => sh(\"echo hi; sleep 0.05; echo there\"))))",
 ];
 
-/// The skip list: `<file name> <reason>`; the reason must be one of
-/// these, shown by a call of a concurrency builtin or an import of a
-/// module stage 2 does not have.
-const CONCURRENCY: &[&str] = &[
-    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
-    "deref", "pmap", "fan_in", "retry",
-];
-const NATIVE_MODULES: &[&str] = &["http"];
-
-/// Whether `src` calls `name`: `name(` not preceded by a name character
-/// (so `closure(` or `resend(` do not count, nor do words in comments
-/// without a parenthesis).
-fn calls(src: &str, name: &str) -> bool {
-    let call = format!("{name}(");
-    src.match_indices(&call).any(|(i, _)| {
-        !src[..i]
-            .chars()
-            .next_back()
-            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
-    })
-}
-
-/// Whether a line of `src` is `import <module>` (with anything after).
-fn imports(src: &str, module: &str) -> bool {
-    src.lines().any(|l| {
-        let mut w = l.split_whitespace();
-        w.next() == Some("import") && w.next() == Some(module)
-    })
-}
-
-fn shows_reason(src: &str, reason: &str) -> Option<bool> {
-    match reason {
-        "concurrency" => Some(CONCURRENCY.iter().any(|n| calls(src, n))),
-        "native-module" => Some(NATIVE_MODULES.iter().any(|m| imports(src, m))),
-        _ => None,
-    }
-}
-
-#[test]
-fn the_reason_checks_match_calls_and_imports_only() {
-    assert!(calls("x = spawn(f)", "spawn"));
-    assert!(calls("spawn(f)", "spawn"));
-    assert!(!calls("closure(1)", "close"));
-    assert!(!calls("resend(1)", "send"));
-    assert!(!calls("m.close(1)", "close"));
-    assert!(!calls("# close the file", "close"));
-    assert!(imports("import json\n", "json"));
-    // `cli` is pure fung and runs in the Rust port: not a skip reason;
-    // nor are `fs` and `path` since stage 4a.
-    assert_eq!(shows_reason("import cli\n", "native-module"), Some(false));
-    assert_eq!(
-        shows_reason("import fs\nimport path\n", "native-module"),
-        Some(false)
-    );
-    assert!(!imports("import jsonx\n", "json"));
-    assert!(!imports("# import json is not here\n", "json"));
-}
-
-#[test]
-fn the_skip_list_names_real_files_for_real_reasons() {
-    let dir = repo().join("tests/lang");
-    for (name, reason) in skip_list() {
-        let src = std::fs::read_to_string(dir.join(&name))
-            .unwrap_or_else(|e| panic!("skip list: cannot read tests/lang/{name}: {e}"));
-        let Some(shown) = shows_reason(&src, &reason) else {
-            panic!("skip list: unknown reason `{reason}` for {name}");
-        };
-        assert!(
-            shown,
-            "skip list: {name} does not use anything that is `{reason}`"
-        );
-    }
-}
-
 /// `# args:` and `# stdin:` lines, as Go `internal/golden` reads them.
 fn directives(src: &str) -> (Vec<String>, String) {
     let (mut args, mut stdin) = (Vec::new(), String::new());
@@ -210,13 +138,8 @@ struct Case {
 }
 
 fn cases() -> Vec<Case> {
-    let skipped: Vec<String> = skip_list().into_iter().map(|(n, _)| n).collect();
     let mut out = Vec::new();
     for f in fung_files("tests/lang") {
-        let name = f.rsplit('/').next().unwrap();
-        if skipped.iter().any(|s| s == name) {
-            continue;
-        }
         let src = std::fs::read_to_string(repo().join(&f)).unwrap();
         if only_one_implementation(&src) {
             continue;
@@ -268,7 +191,7 @@ fn cases() -> Vec<Case> {
 }
 
 /// The comparison cannot pass by comparing nothing: a broken file walk or
-/// an overgrown skip list fails here. The minimums sit just below the
+/// a file left out by mistake fails here. The minimums sit just below the
 /// counts when they were set (133 `tests/lang` files, 6 benchmarks, 189
 /// cases in all, after stage 4c added the `regex` files); raise them as
 /// cases are added.
@@ -327,6 +250,28 @@ fn runs_match_the_go_implementation() {
     );
 }
 
+/// The concurrency builtins: a `tests/lang` file that calls one is a
+/// concurrent case.
+#[cfg(not(debug_assertions))]
+const CONCURRENCY: &[&str] = &[
+    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
+    "deref", "pmap", "fan_in", "retry",
+];
+
+/// Whether `src` calls `name`: `name(` not preceded by a name character
+/// (so `closure(` or `resend(` do not count, nor do words in comments
+/// without a parenthesis).
+#[cfg(not(debug_assertions))]
+fn calls(src: &str, name: &str) -> bool {
+    let call = format!("{name}(");
+    src.match_indices(&call).any(|(i, _)| {
+        !src[..i]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    })
+}
+
 /// How many times `concurrent_runs_are_stable` runs each case with each
 /// implementation.
 #[cfg(not(debug_assertions))]
@@ -341,7 +286,7 @@ fn concurrent_cases() -> Vec<Case> {
         .filter(|c| match c.kind {
             Kind::Lang => {
                 let src = std::fs::read_to_string(repo().join(&c.label)).unwrap();
-                shows_reason(&src, "concurrency") == Some(true)
+                CONCURRENCY.iter().any(|n| calls(&src, n))
             }
             Kind::Other => CONCURRENT
                 .iter()

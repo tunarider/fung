@@ -147,22 +147,14 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
     }
 }
 
-/// The standard modules the Rust port does not run (E0805 at their
-/// import). None since stage 4d wrote `http` in fung; the mechanism
-/// stays for Task 5 to keep or remove.
-pub fn unsupported_module(_key: &str) -> bool {
-    false
-}
-
 /// Makes a program's modules importable (Go `register`): compiled modules
-/// linked against `p`, the `_native.*` bridges stage 2 has, and the
-/// standard modules it does not run as E0805 placeholders. A bridge stage
-/// 2 does not have stays unregistered (only those placeholders import
-/// it), so a lookup of it is still an internal error.
+/// linked against `p`, and the `_native.*` bridges. Every standard module
+/// runs since stage 4d (the E0805 placeholders for those that did not are
+/// gone); a bridge the Rust port does not have stays unregistered, so a
+/// lookup of it is an internal error.
 pub(crate) fn register(w: &mut World, modules: &[Loaded], p: &Prelude) {
     for m in modules {
         match &m.proto {
-            Some(_) if unsupported_module(&m.key) => w.register_unsupported(&m.key),
             Some(proto) => w.register_module(&m.key, link(proto, p)),
             None => {
                 if let Some(module) = native_module(&m.key) {

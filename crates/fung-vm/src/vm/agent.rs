@@ -22,6 +22,8 @@
 //!   what stopped `f`, as an opaque value (`Value::Caught`): an error, or
 //!   an `exit`. With a `reply` from `agent_ask`, `f` runs following the
 //!   task that asked (below).
+//! - `set_asker(ch)`, `describe(e)` (stage 4d, the `http` server): see
+//!   their functions.
 //! - `raise(e)`: stops again as `e` did: an `exit` exits, an error is
 //!   raised with its code and message at the position of the call (the
 //!   original position and call path are gone, except for E0704, which
@@ -258,7 +260,7 @@ pub(crate) fn try_call(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, 
     nat::need_fn("f", &f)?;
     let asker = match &reply {
         Value::Nil => None,
-        v => need_channel_named("reply", v)?.take_asker(),
+        v => need_channel_named("reply", v)?.asker(),
     };
     let asked = asker.is_some();
     let own = t.cancel.clone();
@@ -308,6 +310,36 @@ pub(crate) fn try_call(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, 
         Err(e) => return Err(e),
     };
     Ok(nat::tag("Err", vec![Value::Caught(Rc::new(caught))]))
+}
+
+/// `set_asker(ch)` (stage 4d Task 5, the `http` server): records this
+/// task's cancellation node on `ch` as `agent_ask` does on a reply
+/// channel. The record stays (`try_call` copies it), so every `try_call`
+/// with `ch` runs its `f` below this task: the server's task marks one
+/// channel and each request's handler follows it, as Go runs handlers
+/// under the server's context.
+pub(crate) fn set_asker(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    need_channel_named("ch", &args[0])?.set_asker(t.cancel.clone());
+    Ok(Value::Nil)
+}
+
+/// `describe(e)` (stage 4d Task 5): what a value `try_call` caught was,
+/// as `{code, text}`: an error's code and headline (Go's `Error()`), or
+/// `{code: "exit", text: "exit(<n>)"}`. The `http` server reports a
+/// failing handler with it and tells a shutdown (an exit, E0701, E0702)
+/// from a bug.
+pub(crate) fn describe(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let Value::Caught(c) = &args[0] else {
+        return Err(nat::wrong_arg("e", "error", &args[0]));
+    };
+    let (code, text) = match &**c {
+        Caught::Exit(n) => ("exit".to_string(), format!("exit({n})")),
+        Caught::Error(d) => (d.code.clone(), fung_front::diag::headline(d)),
+    };
+    let mut m = crate::value::MapBuilder::default();
+    m.set(Rc::new("code".to_string()), Value::str(&code));
+    m.set(Rc::new("text".to_string()), Value::str(&text));
+    Ok(Value::Map(Rc::new(m.finish())))
 }
 
 /// `raise(e)`: stops as `e` did. An error without a position gets the

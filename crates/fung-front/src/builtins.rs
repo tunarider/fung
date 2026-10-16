@@ -43,6 +43,9 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.conc", "send_unchecked(ch, v)"),
     ("_native.conc", "agent_busy(ch, on, state=?)"),
     ("_native.conc", "agent_peek(a)"),
+    // Stage 4d Task 5: what the `http` server runs its handlers with.
+    ("_native.conc", "set_asker(ch)"),
+    ("_native.conc", "describe(e)"),
     // Stage 4d: the TCP primitives `extras/rust/http.fung` is written
     // over (Go's `_native.http` does HTTP in Go instead).
     ("_native.net", "connect(host, port, tls=?, timeout=?)"),
@@ -65,6 +68,10 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     // Task 4: TLS over a connection already made (an HTTP proxy's
     // CONNECT tunnel).
     ("_native.net", "start_tls(c, host, timeout=?)"),
+    // Task 5: the server's end (Go `Server.Shutdown`), and the text of
+    // percent-decoded bytes.
+    ("_native.net", "hold(l, grace)"),
+    ("_native.net", "utf8_string(bs)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

@@ -834,3 +834,149 @@ fn reads_and_writes_stop_on_cancel_without_waiting() {
     assert_eq!(probe::sockets(), 0);
     assert_eq!(live_wakes(), 0);
 }
+
+/// `hold(l, grace)` (Task 5, the server's end, Go `Server.Shutdown`):
+/// waits until its task is cancelled, then closes `l` and waits until
+/// every connection accepted from `l` is closed, at most `grace`, and
+/// ends with E0701. Here the open connection closes long before the
+/// grace is over: the cancelled task ends then, not at the grace.
+#[test]
+fn hold_waits_for_the_connections_of_its_listener() {
+    let _g = serial();
+    let start = Instant::now();
+    let o = run(&format!(
+        "{PAIR}t = spawn(() => net.hold(l, 20s))\nuntil(() => net_waiting() == 1)\ncancel(t)\nuntil(() => kind(net.connect(\"127.0.0.1\", port)) == 'network)\nprint(await(t, timeout: 0s))\nnet.close(s)!\nprint(await(t))\nprint(net_waiting())"
+    ));
+    assert_eq!(
+        out(&o),
+        ("Err({kind: 'timeout})\nErr({kind: 'cancelled})\n0\n", "", 0)
+    );
+    assert!(start.elapsed() < Duration::from_secs(10));
+}
+
+/// A connection still open when the grace is over is left as it is.
+/// A connection whose last copy goes counts as closed.
+#[test]
+fn hold_gives_up_after_the_grace() {
+    let _g = serial();
+    let start = Instant::now();
+    let o = run(&format!(
+        "{PAIR}t = spawn(() => net.hold(l, 200ms))\nuntil(() => net_waiting() == 1)\ncancel(t)\nprint(await(t))\nprint(net.write(s, \"x\\n\"), net.read_line(c, 5))"
+    ));
+    assert_eq!(
+        out(&o),
+        ("Err({kind: 'cancelled})\nOk(nil) Ok(\"x\")\n", "", 0)
+    );
+    assert!(start.elapsed() >= Duration::from_millis(200));
+    let o = run(
+        "l = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nc = net.connect(\"127.0.0.1\", port)!\nr = await(spawn(() => net.accept(l)!))\nt = spawn(() => net.hold(l, 20s))\nuntil(() => net_waiting() == 1)\nr = nil\ncancel(t)\nprint(await(t))",
+    );
+    assert_eq!(out(&o), ("Err({kind: 'cancelled})\n", "", 0));
+}
+
+/// `hold` waits for nothing while its task is not cancelled, and wrong
+/// arguments are E0403.
+#[test]
+fn hold_checks_its_arguments() {
+    let _g = serial();
+    for (src, want) in [
+        ("net.hold(1, 1s)", "argument `l` must be listener, got int"),
+        (
+            "net.hold(net.listen(\"127.0.0.1:0\")!, 1)",
+            "argument `grace` must be dur, got int",
+        ),
+        ("net.utf8_string(1)", "argument `bs` must be list, got int"),
+        (
+            "net.utf8_string([1, 256])",
+            "argument `bs` must be a list of bytes (ints from 0 to 255), got int",
+        ),
+    ] {
+        let o = run(src);
+        assert!(
+            o.err.starts_with(&format!("error[E0403]: {want}")),
+            "{src}: {}",
+            o.err
+        );
+    }
+}
+
+/// `utf8_string(bs)` is `utf8_bytes` backwards: the text of the bytes, a
+/// byte that is not UTF-8 becoming U+FFFD (the `http` server decodes
+/// percent-escapes with it).
+#[test]
+fn utf8_string_decodes_bytes() {
+    let _g = serial();
+    let o = run(
+        "print([net.utf8_string([237, 149, 156, 97]), net.utf8_string([]), net.utf8_string([97, 255, 98]), net.utf8_string(net.utf8_bytes(\"é~\"))])",
+    );
+    assert_eq!(
+        out(&o),
+        ("[\"한a\", \"\", \"a\u{fffd}b\", \"é~\"]\n", "", 0)
+    );
+}
+
+// ---- `http.serve` (Task 5): its tasks, its end, what it leaves --------
+//
+// The server is fung (`extras/rust/http.fung`); these runs check what
+// the Go comparison cannot see: the order of concurrent requests (by
+// state: a handler waiting on a channel), the end of the server task,
+// and that no socket, wake pipe or task is left (`run` checks).
+
+/// The start of a program with a server on `h` (a fung function defined
+/// before): `s` is its task, `base` its URL.
+const SERVE: &str = "port = channel(1)\ns = spawn(() => http.serve(\"127.0.0.1:0\", h, ready: a => send(port, a)))\naddr = recv(port)!\nbase = \"http://\" + addr\n";
+
+/// A handler that waits does not hold up other requests: each request
+/// runs on a task of its own (Review Focus 5).
+#[test]
+fn a_slow_handler_does_not_hold_up_the_others() {
+    let _g = serial();
+    let o = run(&format!(
+        "import http\ngate = channel()\nh = fn(req):\n  if req.path == \"/slow\":\n    recv(gate)!\n  ;;\n  req.path == \"/slow\" then \"slow\" else \"fast\"\n;;\n{SERVE}t = spawn(() => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nprint(http.get(base + \"/fast\")!.body)\nprint(http.get(base + \"/fast\")!.body)\nsend(gate, 1)\nprint(await(t))\ncancel(s)\nprint(await(s))\nuntil(() => background() == 0 and sockets() == 0)\nprint(\"no task left\")"
+    ));
+    assert_eq!(
+        out(&o),
+        (
+            "fast\nfast\nslow\nErr({kind: 'cancelled})\nno task left\n",
+            "",
+            0
+        )
+    );
+}
+
+/// Cancelling the server cancels a handler that is running: its request
+/// gets 503 (not reported), and the server task ends once that answer
+/// is out, well before the 2 s grace (Go `Shutdown`; Review Focus 1).
+#[test]
+fn cancelling_the_server_answers_running_requests_503() {
+    let _g = serial();
+    let start = Instant::now();
+    let o = run(&format!(
+        "import http\ngate = channel()\nh = fn(req): recv(gate); \"never\" ;;\n{SERVE}t = spawn(() => http.get(base + \"/slow\"))\nblocked(gate, 1)\ncancel(s)\nprint(await(s))\nr = await(t)!\nprint(r.status, r.body)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)))"
+    ));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'cancelled})\n503 server shutting down\n\n'network\n",
+            "",
+            0
+        )
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// A connection that never sends its request keeps the server task
+/// waiting the whole 2 s grace after a cancel, no longer; the task
+/// reading it ends with the program (`run` checks nothing is left).
+#[test]
+fn the_server_waits_two_seconds_at_most() {
+    let _g = serial();
+    let o = run(&format!(
+        "import http\nimport time\nfn h(req) = \"x\"\n{SERVE}until(() => net_waiting() == 2)\nc = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)!\nuntil(() => net_waiting() == 3)\nt0 = time.now()\ncancel(s)\nprint(await(s))\ntook = time.now() - t0\nprint(took >= 2s, took < 4s)"
+    ));
+    assert_eq!(out(&o), ("Err({kind: 'cancelled})\ntrue true\n", "", 0));
+}

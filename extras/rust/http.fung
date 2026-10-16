@@ -14,10 +14,12 @@
 # Redirects follow Go's `Client` (`_hop`), proxies Go's
 # `ProxyFromEnvironment` (`_proxies`, `_open`), both copied the same way.
 #
-# The parts the server will reuse: `_parse_url` and `_url_string`
-# (URLs), `_status_line`, `_fields`, `_group` and `_header_map` (a
-# message head), `_chunked`, `_fixed` and `_until_close` (bodies),
-# `_quote`, `_canonical`. `serve` comes in Task 5.
+# The server (`serve`, "The server" below) is written the same way over
+# `_native.net`, after Go's `net/http` server as Go fung drives it
+# (`internal/native/http.go`), reusing the client's head and body
+# readers (`_field_step`, `_group`, `_header_map`, `_transfer_encoding`,
+# `_length`, `_chunked`).
+import _native.conc as _c
 import _native.net as _net
 import _native.process as _proc
 import _native.time as _time
@@ -30,9 +32,33 @@ fn post(url: str, body: str | nil, headers: map = {}, timeout: dur = 30s) = _req
 
 fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur = 30s) = _request(upper(method), url, body, headers, timeout)
 
-# Placeholder until Task 5 writes the server; the parameters are the
-# spec's (`spec/builtins.txt`).
-fn serve(addr, handler, ready = nil) = fail("not supported yet: http.serve")
+# Go `httpServeFn`: binds `addr`, tells `ready` the address, and serves
+# until the task is cancelled (or the program exits): then it stops
+# accepting, waits up to 2 s for the requests in flight (Go `Shutdown`)
+# and ends with E0701. A bind failure is `Err 'network`. (The body is
+# `_serve`: Go's formatter does not indent a block after a `fn` type in
+# the parameters.)
+fn serve(addr: str, handler: fn, ready = nil) = _serve(addr, handler, ready)
+
+fn _serve(addr, handler, ready):
+  if ready != nil:
+    _ready_check(ready)
+  ;;
+  l = match _net.listen(addr):
+    Ok(l)  => l
+    Err(e) => return Err({kind: 'network, message: "cannot listen on `${addr}`: ${e.message}"})
+  ;;
+  if ready != nil:
+    ready(_net.local_addr(l))
+  ;;
+  scope = channel()
+  _c.set_asker(scope)
+  _c.spawn_background(() => _accept(l, handler, scope, 0s))
+  _net.hold(l, 2s)
+;;
+
+# Go's check of `ready` (E0403 `must be fn`; the parameter may be nil).
+fn _ready_check(ready: fn) = nil
 
 # ---- One request ----------------------------------------------------------
 
@@ -729,7 +755,11 @@ fn _header_limit() = 10485760
 # promises no unbounded memory).
 fn _body_cap() = 67108864
 
-fn _too_long() = _err("http: response body longer than ${_body_cap()} bytes")
+fn _too_long() = _too_long_for(_body_cap())
+
+# A body past `cap` bytes: kind 'limit, so the server (16 MB) can tell it
+# from a broken body; the client reports it as any other failure.
+fn _too_long_for(cap) = {kind: 'limit, message: "http: response body longer than ${cap} bytes"}
 
 fn _exceeded() = "net/http: server response headers exceeded ${_header_limit()} bytes; aborted"
 
@@ -1036,7 +1066,7 @@ fn _body_allowed(code) = not (code // 100 == 1 or code == 204 or code == 304)
 
 fn _read_body(c, method, code, chunked, length):
   if chunked:
-    method == "HEAD" or not _body_allowed(code) then Ok("") else _chunked(c, 0)
+    method == "HEAD" or not _body_allowed(code) then Ok("") else _chunked(c, 0, _body_cap())
   else if length == 0:
     Ok("")
   else if length > 0:
@@ -1069,28 +1099,29 @@ fn _until_close(c) = match _net.read_all(c, _body_cap()):
 #
 # The chunks gather raw in the connection's body buffer and are decoded
 # once at the end, so a character cut between two chunks comes out
-# whole. `excess` is Go's count of bytes that are not data.
+# whole. `excess` is Go's count of bytes that are not data; a body past
+# `cap` bytes is an error of kind 'limit (`_too_long_for`).
 
-fn _chunked(c, excess) = match _chunk_line(c, [], 0):
+fn _chunked(c, excess, cap) = match _chunk_line(c, [], 0):
   Err(e)   => _drop(c, e)
-  Ok(line) => _chunk(c, excess + _net.byte_len(line) + 2, line)
+  Ok(line) => _chunk(c, excess + _net.byte_len(line) + 2, line, cap)
 ;;
 
-fn _chunk(c, excess, line) = match _hex(_before(_trim_right_ows(line), ";")):
+fn _chunk(c, excess, line, cap) = match _hex(_before(_trim_right_ows(line), ";")):
   Err(why) => _drop(c, _err(why))
   Ok(0)    => _trailer(c)
-  Ok(n)    => _chunk_data(c, max([excess - 16 - 2 * n, 0]), n)
+  Ok(n)    => _chunk_data(c, max([excess - 16 - 2 * n, 0]), n, cap)
 ;;
 
-fn _chunk_data(c, excess, n):
+fn _chunk_data(c, excess, n, cap):
   if excess > 16384:
     return _drop(c, _err("chunked encoding contains too much non-data"))
   ;;
-  match _net.read_bytes_into(c, n, _body_cap()):
-    Err({kind: 'limit}) => _drop(c, _too_long())
+  match _net.read_bytes_into(c, n, cap):
+    Err({kind: 'limit}) => _drop(c, _too_long_for(cap))
     Err(e)              => _drop(c, _body_err(e))
     Ok(_)               => match _net.read_bytes(c, 2):
-      Ok("\r\n") => _chunked(c, excess)
+      Ok("\r\n") => _chunked(c, excess, cap)
       Ok(_)      => _drop(c, _err("malformed chunked encoding"))
       Err(e)     => _drop(c, _body_err(e))
     ;;
@@ -1476,3 +1507,420 @@ fn _trim_left(s, cut):
 ;;
 
 fn _trim_right_ows(s) = trim("\u{1}" + s, " \t")[1..]
+
+# ---- The server (Go `http.Server` as Go fung's `httpServeFn` runs it) ----
+#
+# `serve` waits in `_net.hold` while a background task accepts
+# (`_accept`) and each connection is a background task of its own
+# (`_conn`): the server's cancellation does not reach them, so a request
+# in flight is still answered (503) while `hold` waits for its
+# connection to close, as Go's `Shutdown` waits. The handler itself runs
+# below the server's task (`try_call` with the channel `serve` marked):
+# cancelling the server, or an exit anywhere, cancels it, as Go cancels
+# the handler's task with the server's context. Background tasks are not
+# the program's, so a request never keeps the program alive (the server's
+# task does).
+#
+# One request per connection, answered with `Connection: close` (06 "fung
+# HTTP 약속"). Within that, the answers copy Go's `net/http` server (its
+# status lines, the order of its headers, its own answers to malformed
+# requests and limits) and Go fung's `serveOne` (500, 503, 413, 400 and
+# their texts): transitional parity measures (open-questions "Go 동등을
+# 위한 과도기 잔가지").
+
+# Go fung's limits (06): headers within 10 s, a body of at most 16 MB.
+fn _header_timeout() = 10s
+
+fn _max_body() = 16777216
+
+# Go `initialReadLimitSize`: 1 MB of request head (`DefaultMaxHeaderBytes`)
+# plus 4 KB of slack, and at most 500 header lines
+# (`DefaultMaxHeaderValueCount`).
+fn _max_head() = 1052672
+
+fn _max_values() = 500
+
+# Go `Server.Serve`: accepts until the listener is closed (by `hold`).
+# Go retries an accept that failed for want of resources, waiting 5 ms,
+# doubling up to 1 s.
+fn _accept(l, handler, scope, delay) = match _net.accept(l):
+  Ok(c)  => _accept(l, handler, scope, _spawn_conn(c, handler, scope))
+  Err(e) => ends_with(e.message, "use of closed network connection")
+    then nil else _accept(l, handler, scope, _backoff(delay))
+;;
+
+fn _spawn_conn(c, handler, scope):
+  _c.spawn_background(() => _conn(c, handler, scope))
+  0s
+;;
+
+fn _backoff(delay):
+  next = delay == 0s then 5ms else (delay * 2 > 1s then 1s else delay * 2)
+  sleep(next)
+  next
+;;
+
+# One connection: its request, the answer, the end.
+fn _conn(c, handler, scope):
+  _net.set_deadline(c, _header_timeout())
+  match _read_request(c):
+    Ok(rq)   => _respond(c, rq, handler, scope)
+    Err(nil) => nil
+    Err(no)  => _refuse(c, no)
+  ;;
+  _net.close(c)
+;;
+
+# Go's own answer to a request it could not read. After 431 Go stops
+# writing and waits before it closes (`closeWriteAndWait`), so the client
+# can read the answer while it still sends.
+fn _refuse(c, no):
+  _net.write(c, no.text)
+  if no.linger:
+    _linger(c)
+  ;;
+;;
+
+# Reads (and drops) what the client still sends, for at most 500 ms
+# (Go's `rstAvoidanceDelay`): closing with unread bytes would reset the
+# connection, and the client could lose the answer.
+fn _linger(c):
+  _net.set_deadline(c, 500ms)
+  _discard(c)
+;;
+
+fn _discard(c) = match _net.read_bytes_into(c, 65536, 65536):
+  Ok(_)  => _discard(_drained(c))
+  Err(_) => _drained(c)
+;;
+
+fn _drained(c):
+  _net.take_body(c)
+  c
+;;
+
+# ---- Reading a request (Go `conn.readRequest`, `http.readRequest`) ----
+#
+# Ok(rq), Err(nil) when nothing is answered (the connection ended, failed
+# or timed out before a whole head: Go `isCommonNetReadError`), or
+# Err({text, linger}) with Go's own answer.
+
+fn _read_request(c) = match _net.read_line(c, _max_head()):
+  Ok(nil)  => Err(nil)
+  Ok(line) => _request_head(c, line, _max_head() - _net.byte_len(line) - 2)
+  Err(e)   => Err(e.kind == 'limit then _too_large() else nil)
+;;
+
+fn _request_head(c, line, budget):
+  # Go `parseRequestLine`: method, target, protocol
+  (method, rest) = _cut(line, " ")
+  (target, proto) = _cut(rest, " ")
+  version = _version(proto)
+  if " " not in line or " " not in rest or not _is_token(method) or version == nil:
+    return Err(_bad_request())
+  ;;
+  (major, minor) = version
+  u = match _request_target(method, target):
+    nil => return Err(_bad_request())
+    u   => u
+  ;;
+  fields = _req_fields(c, budget, nil, [])?
+  h0 = _fix_pragma(_group(fields))
+  if "Host" in h0 and len(h0["Host"]) > 1:
+    return Err(_bad_request())
+  ;;
+  (h1, chunked) = match _transfer_encoding(h0, major, minor):
+    Ok(x)  => x
+    Err(_) => return Err(_unsupported_te())
+  ;;
+  (h2, n) = match _length(h1, 200, "", chunked):
+    Ok(x)  => x
+    Err(_) => return Err(_bad_request())
+  ;;
+  h = match _trailer_header(h2, chunked):
+    Ok(x)  => x
+    Err(_) => return Err(_bad_request())
+  ;;
+  if major != 1:
+    return Err(_status_error(505, "unsupported protocol version"))
+  else if _at_least_11(major, minor) and "Host" not in h and method != "CONNECT":
+    return Err(_status_error(400, "missing required Host header"))
+  else if "Host" in h and not _valid_host(h["Host"][0]):
+    return Err(_status_error(400, "malformed Host header"))
+  else if any(keys(h), k => not _is_token(k)):
+    return Err(_status_error(400, "invalid header name"))
+  ;;
+  length = chunked then -1 else max([n, 0])
+  Ok({method, target, major, minor, path: u.path, query: _query(u.query), headers: _header_map(remove(h, "Host")), h, length, chunked})
+;;
+
+# Go `readMIMEHeader` within the head's budget: Ok(fields) or Err(Go's
+# answer).
+fn _req_fields(c, left, pending, acc) = match _head_line(c, left):
+  Err(e)   => Err(e.kind == 'limit then _too_large() else nil)
+  Ok(nil)  => Err(_bad_request())
+  Ok(line) => _req_field(c, left - _net.byte_len(line) - 2, _field_step(pending, acc, line))
+;;
+
+fn _req_field(c, left, step) = match step:
+  Err(_)                                        => Err(_bad_request())
+  Ok((_, acc, _)) when len(acc) > _max_values() => Err(_too_large())
+  Ok((_, acc, true))                            => Ok(acc)
+  Ok((pending, acc, _))                         => _req_fields(c, left, pending, acc)
+;;
+
+# Go `url.ParseRequestURI` (and a CONNECT's bare authority): {path,
+# query} with the path unescaped, or nil.
+fn _request_target(method, target):
+  raw = method == "CONNECT" and not starts_with(target, "/") then "http://" + target else target
+  if raw == "" or "\t" in raw or any(_ctls(), ch => ch in raw):
+    return nil
+  else if raw == "*":
+    return {path: "*", query: ""}
+  ;;
+  (scheme, rest0) = match _scheme(chars(raw), 0, raw):
+    Ok(x)  => x
+    Err(_) => return nil
+  ;;
+  (rest1, query) = ends_with(rest0, "?") and len(split(rest0, "?")) == 2 then (rest0[..len(rest0) - 1], "") else _cut(rest0, "?")
+  if not starts_with(rest1, "/"):
+    return scheme != "" then {path: "", query} else nil
+  ;;
+  rest = if scheme != "" and starts_with(rest1, "//"):
+    _after_authority(rest1[2..])
+  else:
+    rest1
+  ;;
+  path = rest == nil then nil else _unescape(rest, false)
+  path == nil then nil else {path, query}
+;;
+
+# The path after an authority that Go `parseAuthority` takes, or nil.
+fn _after_authority(a):
+  i = _index(a, "/")
+  (auth, path) = i < 0 then (a, "") else (a[..i], a[i..])
+  type_of(_authority(auth)) == 'Ok then path else nil
+;;
+
+# Go `url.ParseQuery` then `Query().Get`: the first value of each key,
+# keys sorted; a pair with a bad escape or a ";" is left out, and so is
+# the whole query past 10000 pairs.
+fn _query(raw):
+  pieces = split(raw, "&")
+  if raw == "" or len(pieces) > 10000:
+    return {}
+  ;;
+  m = fold(pieces, {}, _query_pair)
+  fold(sort(keys(m)), {}, (acc, k) => put(acc, k, m[k]))
+;;
+
+fn _query_pair(m, piece):
+  if piece == "" or ";" in piece:
+    return m
+  ;;
+  (k0, v0) = _cut(piece, "=")
+  k = _unescape(k0, true)
+  v = _unescape(v0, true)
+  k == nil or v == nil or k in m then m else put(m, k, v)
+;;
+
+# Go `unescape`: the text with its %XX escapes decoded (and, for a query,
+# + as a space), or nil when a % is not followed by two hex digits.
+fn _unescape(s, plus):
+  if "%" not in s and not (plus and "+" in s):
+    return s
+  ;;
+  if any(drop(split(s, "%"), 1), p => len(p) < 2 or not _is_hex(p[0]) or not _is_hex(p[1])):
+    return nil
+  ;;
+  _net.utf8_string(_decode(_net.utf8_bytes(s), 0, [], plus))
+;;
+
+fn _decode(bs, i, out, plus) = if i >= len(bs):
+  out
+else if bs[i] == 37:
+  _decode(bs, i + 3, out + [_hex_value(bs[i + 1]) * 16 + _hex_value(bs[i + 2])], plus)
+else if plus and bs[i] == 43:
+  _decode(bs, i + 1, out + [32], plus)
+else:
+  _decode(bs, i + 1, out + [bs[i]], plus)
+;;
+
+# Go `httpguts.ValidHostHeader`.
+fn _valid_host(h) = all(chars(h), ch => _is_alnum(ch) or ch in "!\$%&'()*+,-.:;=[]_~")
+
+# Go `hasToken`: `token` (lower case) among the words of `v`, split at
+# spaces, commas and tabs, in any case.
+fn _has_token(v, token) = any(split(replace(replace(v, ",", " "), "\t", " "), " "), w => lower(w) == token)
+
+# Go's answers to what it cannot read (`conn.serve`).
+fn _error_head() = "\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
+
+fn _bad_request() = {text: "HTTP/1.1 400 Bad Request${_error_head()}400 Bad Request", linger: false}
+
+fn _status_error(code, why):
+  line = "${code} ${_status_text(code)}: ${why}"
+  {text: "HTTP/1.1 ${line}${_error_head()}${line}", linger: false}
+;;
+
+fn _too_large() = {text: "HTTP/1.1 431 Request Header Fields Too Large${_error_head()}431 Request Header Fields Too Large", linger: true}
+
+fn _unsupported_te() = {text: "HTTP/1.1 501 Not Implemented${_error_head()}Unsupported transfer encoding", linger: false}
+
+# ---- Answering (Go fung `serveOne`, Go `response`) --------------------
+
+fn _respond(c, rq, handler, scope):
+  _net.set_deadline(c, 0s)
+  expect = "Expect" in rq.h then rq.h["Expect"][0] else ""
+  continues = _has_token(expect, "100-continue")
+  if not continues and expect != "":
+    return _write_reply(c, rq, 417, {Connection: "close"}, "")
+  ;;
+  if continues and _at_least_11(rq.major, rq.minor) and rq.length != 0:
+    _net.write(c, "HTTP/1.1 100 Continue\r\n\r\n")
+  ;;
+  # Go answers `OPTIONS *` itself (`globalOptionsHandler`)
+  if rq.method == "OPTIONS" and rq.target == "*":
+    return _write_reply(c, rq, 200, {"Content-Length": "0"}, "")
+  ;;
+  match _request_body(c, rq):
+    Ok(body)            => _call(c, rq, handler, scope, body)
+    Err({kind: 'limit}) => _linger(_http_error(c, rq, 413, "request body too large"))
+    Err(_)              => _http_error(c, rq, 400, "cannot read the request body")
+  ;;
+;;
+
+# The body, at most 16 MB (Go `MaxBytesReader`): past it, an error of
+# kind 'limit.
+fn _request_body(c, rq) = if rq.chunked:
+  _chunked(c, 0, _max_body())
+else if rq.length > _max_body():
+  Err({kind: 'limit, message: ""})
+else if rq.length > 0:
+  _net.read_bytes(c, rq.length)
+else:
+  Ok("")
+;;
+
+# Go fung `serveOne`: the handler on its task; an exit or a cancellation
+# there is the program ending (503, no report), any other failure a bug
+# (500 and a line on stderr).
+fn _call(c, rq, handler, scope, body):
+  req = {method: rq.method, path: rq.path, query: rq.query, headers: rq.headers, body}
+  match _c.try_call(handler, req, scope):
+    Ok(res) => _answer(c, rq, res)
+    Err(e)  => _failed_handler(c, rq, _c.describe(e))
+  ;;
+;;
+
+fn _failed_handler(c, rq, d):
+  if d.code in ["exit", "E0701", "E0702"]:
+    _http_error(c, rq, 503, "server shutting down")
+  else:
+    eprint("http: handler failed: ${d.text}")
+    _http_error(c, rq, 500, "handler failed")
+  ;;
+;;
+
+fn _answer(c, rq, res) = match _parts(res):
+  Ok((status, hs, body)) => _write_reply(c, rq, status, _with_type(hs, body), body)
+  Err(why)               => _bad_answer(c, rq, why)
+;;
+
+fn _bad_answer(c, rq, why):
+  eprint("http: handler response: ${why}")
+  _http_error(c, rq, 500, "handler failed")
+;;
+
+# Go fung `responseParts`: (status, headers by canonical name, body), or
+# Err(what is wrong).
+fn _parts(res):
+  t = _type_name(res)
+  if t == "str":
+    return Ok((200, {}, res))
+  else if t != "map":
+    return Err("handler returned ${t}, expected a str or a map")
+  ;;
+  status = "status" in res then res["status"] else 200
+  body = "body" in res then res["body"] else ""
+  hs = "headers" in res then res["headers"] else {}
+  if _type_name(status) != "int":
+    return Err("`status` must be int, got ${_type_name(status)}")
+  else if status < 100 or status > 599:
+    return Err("`status` must be between 100 and 599, got ${status}")
+  else if _type_name(body) != "str":
+    return Err("`body` must be str, got ${_type_name(body)}")
+  else if _type_name(hs) != "map":
+    return Err("`headers` must be map, got ${_type_name(hs)}")
+  ;;
+  match find(pairs(hs), ((_, v)) => _type_name(v) != "str"):
+    (k, v) => Err("header `${k}` must be str, got ${_type_name(v)}")
+    nil    => Ok((status, fold(pairs(hs), {}, (m, (k, v)) => put(m, _canonical(k), v)), body))
+  ;;
+;;
+
+fn _type_name(v) = "${type_of(v)}"[1..]
+
+# Go fung's default type for a body without one.
+fn _with_type(hs, body) = body != "" and ("Content-Type" not in hs or hs["Content-Type"] == "")
+  then put(hs, "Content-Type", "text/plain; charset=utf-8") else hs
+
+# Go `http.Error`.
+fn _http_error(c, rq, status, text):
+  hs = {"Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff"}
+  # Go `requestTooLarge`: the connection is closing, said among the
+  # handler's headers.
+  _write_reply(c, rq, status, status == 413 then put(hs, "Connection", "close") else hs, text + "\n")
+  c
+;;
+
+fn _write_reply(c, rq, status, hs, body):
+  _net.write(c, _reply(rq, status, hs, body))
+  c
+;;
+
+# Go `chunkWriter.writeHeader` for an answer written whole once the
+# handler is done: the status line, the handler's headers sorted, then
+# Date, Content-Length and Connection. An informational status (1xx but
+# 101) goes out first on its own, then the answer as 200 (Go does that
+# with a 1xx `WriteHeader` followed by the body).
+fn _reply(rq, status, hs, body):
+  is11 = _at_least_11(rq.major, rq.minor)
+  if status >= 100 and status <= 199 and status != 101:
+    early = _reply_line(is11, status) + _header_lines(hs, ["Content-Length", "Transfer-Encoding"]) + "\r\n"
+    return early + _reply(rq, 200, hs, body)
+  ;;
+  allowed = _body_allowed(status)
+  suppressed = status == 304 then ["Content-Type", "Content-Length", "Transfer-Encoding"] else (allowed then [] else ["Content-Length", "Transfer-Encoding"])
+  closes = _has_token("Connection" in hs then hs["Connection"] else "", "close")
+  head = rq.method == "HEAD"
+  date = "Date" in hs then "" else "Date: ${_http_date()}\r\n"
+  length = allowed and "Content-Length" not in hs and (not head or body != "") then "Content-Length: ${_net.byte_len(body)}\r\n" else ""
+  connection = not closes and is11 then "Connection: close\r\n" else ""
+  lines = _header_lines(hs, closes then suppressed else suppressed + ["Connection"])
+  _reply_line(is11, status) + lines + date + length + connection + "\r\n" + (allowed and not head then body else "")
+;;
+
+# Go `writeStatusLine`.
+fn _reply_line(is11, status):
+  text = _status_text(status)
+  version = is11 then "HTTP/1.1" else "HTTP/1.0"
+  text != "" then "${version} ${status} ${text}\r\n" else "${version} ${status} status code ${status}\r\n"
+;;
+
+# Go `Header.writeSubset`: sorted, names that are not tokens left out,
+# line breaks in values made spaces, values trimmed.
+fn _header_lines(hs, excluded) = sort(keys(hs))
+  |> filter(k => k not in excluded and _is_token(k))
+  |> map(k => "${k}: ${trim(replace(replace(hs[k], "\n", " "), "\r", " "), " \t\r\n")}\r\n")
+  |> join("")
+
+# Go `TimeFormat` (`http.TimeFormat`) of now, in UTC.
+fn _http_date() = _time.format(_time.utc(_time.now()), "ddd, DD MMM YYYY HH:mm:ss") + " GMT"
+
+# Go `StatusText`, "" for a code it does not name.
+fn _status_text(code):
+  texts = {"100": "Continue", "101": "Switching Protocols", "102": "Processing", "103": "Early Hints", "200": "OK", "201": "Created", "202": "Accepted", "203": "Non-Authoritative Information", "204": "No Content", "205": "Reset Content", "206": "Partial Content", "207": "Multi-Status", "208": "Already Reported", "226": "IM Used", "300": "Multiple Choices", "301": "Moved Permanently", "302": "Found", "303": "See Other", "304": "Not Modified", "305": "Use Proxy", "307": "Temporary Redirect", "308": "Permanent Redirect", "400": "Bad Request", "401": "Unauthorized", "402": "Payment Required", "403": "Forbidden", "404": "Not Found", "405": "Method Not Allowed", "406": "Not Acceptable", "407": "Proxy Authentication Required", "408": "Request Timeout", "409": "Conflict", "410": "Gone", "411": "Length Required", "412": "Precondition Failed", "413": "Request Entity Too Large", "414": "Request URI Too Long", "415": "Unsupported Media Type", "416": "Requested Range Not Satisfiable", "417": "Expectation Failed", "418": "I'm a teapot", "421": "Misdirected Request", "422": "Unprocessable Entity", "423": "Locked", "424": "Failed Dependency", "425": "Too Early", "426": "Upgrade Required", "428": "Precondition Required", "429": "Too Many Requests", "431": "Request Header Fields Too Large", "451": "Unavailable For Legal Reasons", "500": "Internal Server Error", "501": "Not Implemented", "502": "Bad Gateway", "503": "Service Unavailable", "504": "Gateway Timeout", "505": "HTTP Version Not Supported", "506": "Variant Also Negotiates", "507": "Insufficient Storage", "508": "Loop Detected", "510": "Not Extended", "511": "Network Authentication Required"}
+  key = "${code}"
+  key in texts then texts[key] else ""
+;;

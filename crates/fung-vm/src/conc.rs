@@ -60,6 +60,10 @@ fn all() -> Vec<(&'static str, Value)> {
                     vec![param("ch"), param("on"), opt("state", Lit::Nil)],
                 ),
                 ("agent_peek", vec![param("a")]),
+                // Rust only (stage 4d Task 5): what `extras/rust/http.fung`
+                // runs its handlers with.
+                ("set_asker", vec![param("ch")]),
+                ("describe", vec![param("e")]),
             ];
             tables
                 .into_iter()
@@ -83,6 +87,8 @@ fn all() -> Vec<(&'static str, Value)> {
                         "send_unchecked" => send_unchecked,
                         "agent_busy" => agent::agent_busy,
                         "agent_peek" => agent::agent_peek,
+                        "set_asker" => agent::set_asker,
+                        "describe" => agent::describe,
                         _ => unreachable!("no native {name}"),
                     };
                     (name, native(name, f, params))
@@ -111,6 +117,8 @@ const MODULE_ONLY: &[&str] = &[
     "send_unchecked",
     "agent_busy",
     "agent_peek",
+    "set_asker",
+    "describe",
 ];
 
 /// The prelude's concurrency natives, without the members only

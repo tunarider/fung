@@ -42,13 +42,21 @@
 //! **Strings.** What is read is decoded as UTF-8, a byte that is not
 //! UTF-8 becoming U+FFFD (as for files); `byte_len` gives the UTF-8 size
 //! a string is sent with.
+//!
+//! **A server's end** (Task 5, `hold`): a listener counts the connections
+//! accepted from it that are still open (closed, or their last copy
+//! gone). `hold(l, grace)` waits until its task is cancelled, then closes
+//! `l` and waits, at most `grace`, until that count is zero, and ends
+//! with E0701: Go's `Server.Shutdown`, which `http.serve` runs when its
+//! task is cancelled. Its task waits outside the token the whole time,
+//! so the tasks answering those connections run meanwhile.
 
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::os::fd::{AsRawFd, RawFd};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use fung_front::source::decode_go;
@@ -145,6 +153,14 @@ pub fn module() -> Rc<Module> {
                     need_str_map_fn,
                     vec![param("name"), param("m")],
                 ),
+            ),
+            (
+                "hold",
+                native("hold", hold_fn, vec![param("l"), param("grace")]),
+            ),
+            (
+                "utf8_string",
+                native("utf8_string", utf8_string_fn, vec![param("bs")]),
             ),
         ]
     });
@@ -272,6 +288,10 @@ pub struct Conn {
     name: String,
     /// The local address.
     local: String,
+    /// For a connection a listener accepted: its place in the
+    /// listener's count of open connections, given up when the
+    /// connection closes or goes (`hold`).
+    track: Mutex<Option<Track>>,
 }
 
 impl std::fmt::Debug for Conn {
@@ -291,6 +311,7 @@ impl Conn {
             wr: Mutex::new(()),
             deadline: Mutex::new(None),
             tls: None,
+            track: Mutex::new(None),
         }
     }
 
@@ -534,6 +555,7 @@ impl Conn {
             tls: None,
             name: self.name.clone(),
             local: self.local.clone(),
+            track: Mutex::new(lock(&self.track).take()),
         })
     }
 
@@ -548,6 +570,7 @@ impl Conn {
             tls::close_notify(t, &s.0);
         }
         let _ = s.0.shutdown(Shutdown::Both);
+        drop(lock(&self.track).take());
         Ok(())
     }
 
@@ -580,6 +603,52 @@ pub struct Listener {
     closer: (io::PipeReader, io::PipeWriter),
     /// The address, as Go's `Addr().String()`.
     addr: String,
+    /// The connections accepted from it that are still open (`hold`).
+    open: Arc<Tracker>,
+}
+
+/// A listener's count of open connections, and the signal `hold` waits
+/// on for it to reach zero.
+#[derive(Default)]
+struct Tracker {
+    open: Mutex<usize>,
+    closed: Condvar,
+}
+
+impl Tracker {
+    /// Waits until no connection is open, at most until `until`.
+    fn wait_idle(&self, until: Instant) {
+        let mut n = lock(&self.open);
+        while *n > 0 {
+            let now = Instant::now();
+            if now >= until {
+                return;
+            }
+            n = self
+                .closed
+                .wait_timeout(n, until - now)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+}
+
+/// One open connection in a listener's count; dropping it counts the
+/// connection closed.
+struct Track(Arc<Tracker>);
+
+impl Track {
+    fn new(t: &Arc<Tracker>) -> Track {
+        *lock(&t.open) += 1;
+        Track(t.clone())
+    }
+}
+
+impl Drop for Track {
+    fn drop(&mut self) {
+        *lock(&self.0.open) -= 1;
+        self.0.closed.notify_all();
+    }
 }
 
 impl std::fmt::Debug for Listener {
@@ -620,7 +689,9 @@ impl Listener {
                             oserr::reason(&e)
                         )));
                     }
-                    return Ok(Conn::new(s, peer));
+                    let c = Conn::new(s, peer);
+                    *lock(&c.track) = Some(Track::new(&self.open));
+                    return Ok(c);
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     let fds = [
@@ -877,6 +948,7 @@ fn listen(w: &mut Watch, addr: &str) -> Result<Listener, Fail> {
         sock: Mutex::new(Some(Arc::new(Counted::new(l)))),
         closer,
         addr: local.to_string(),
+        open: Arc::default(),
     })
 }
 
@@ -1099,6 +1171,70 @@ fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         ));
     }
     Ok(Value::Nil)
+}
+
+/// `hold(l, grace)`: waits until this task is cancelled; then closes `l`,
+/// waits until every connection accepted from it is closed, at most
+/// `grace`, and ends with E0701 (Go `Server.Shutdown` with a deadline,
+/// which `http.serve` runs when its task is cancelled). A connection
+/// still open after the grace is left to whoever holds it.
+fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let Value::Listener(l) = &a[0] else {
+        return Err(nat::wrong_arg("l", "listener", &a[0]));
+    };
+    let Value::Dur(grace) = a[1] else {
+        return Err(nat::wrong_arg("grace", "dur", &a[1]));
+    };
+    let l: &Listener = l;
+    let grace = Duration::from_nanos(grace.max(0) as u64);
+    outside_watched(t, |w| {
+        WAITING.fetch_add(1, Ordering::SeqCst);
+        // Only a cancellation ends this wait. Should `poll` itself fail,
+        // the flag is looked at now and then instead.
+        loop {
+            match w.wait(&[], None) {
+                Ok(Waited::Cancelled) => break,
+                Ok(_) => {}
+                Err(_) => {
+                    while !w.cancelled() {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                    break;
+                }
+            }
+        }
+        let _ = l.close();
+        l.open.wait_idle(Instant::now() + grace);
+        WAITING.fetch_sub(1, Ordering::SeqCst);
+    })?;
+    // The wait ends only once the task is cancelled, and then
+    // `outside_watched` unwinds (E0701).
+    unreachable!("hold returned without a cancellation")
+}
+
+/// `utf8_string(bs)`: the text of a list of bytes (ints from 0 to 255),
+/// decoded as everything read is (U+FFFD for what is not UTF-8): what
+/// `utf8_bytes` gives, backwards. The `http` server decodes the
+/// percent-escapes of a request's path and query with it (Go
+/// `url.PathUnescape`, `QueryUnescape`).
+fn utf8_string_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let Value::List(items) = &a[0] else {
+        return Err(nat::wrong_arg("bs", "list", &a[0]));
+    };
+    let mut bytes = Vec::with_capacity(items.len());
+    for v in items.iter() {
+        match v {
+            Value::Int(n) if (0..=255).contains(n) => bytes.push(*n as u8),
+            v => {
+                return Err(nat::wrong_arg(
+                    "bs",
+                    "a list of bytes (ints from 0 to 255)",
+                    v,
+                ));
+            }
+        }
+    }
+    Ok(text(&bytes))
 }
 
 /// Test probes: the counters, and a gate that holds lookups of

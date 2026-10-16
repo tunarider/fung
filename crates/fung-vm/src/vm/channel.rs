@@ -203,9 +203,10 @@ impl Channel {
         self.inner.borrow_mut().asker = Some(node);
     }
 
-    /// Takes the node `set_asker` recorded (`try_call`).
-    pub(crate) fn take_asker(&self) -> Option<Arc<CancelNode>> {
-        self.inner.borrow_mut().asker.take()
+    /// The node `set_asker` recorded (`try_call`). It stays recorded: a
+    /// channel the `http` server marks once serves every request.
+    pub(crate) fn asker(&self) -> Option<Arc<CancelNode>> {
+        self.inner.borrow().asker.clone()
     }
 
     /// Records the task serving a request on this agent channel (or none)

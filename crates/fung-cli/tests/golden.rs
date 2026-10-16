@@ -1,7 +1,7 @@
 //! Golden files checked against their own expectations, with no Go
 //! involved: every `tests/lang/**/*.fung` (directories starting with `_`
-//! are module fixtures) that is not `# only: go` and not on the skip list
-//! runs with `fung run`, and is judged by the rules of Go's
+//! are module fixtures) that is not `# only: go` runs with `fung run`,
+//! and is judged by the rules of Go's
 //! `internal/golden` (`Parse`, `Check`).
 
 mod common;
@@ -9,7 +9,7 @@ mod common;
 use std::ffi::OsString;
 use std::path::Path;
 
-use common::{repo, rust_fung, skip_list};
+use common::{repo, rust_fung};
 
 /// What a golden file expects (Go: `golden.Case`).
 #[derive(Debug, Default, PartialEq)]
@@ -244,12 +244,7 @@ fn golden_files_meet_their_expectations() {
     let mut files = Vec::new();
     walk(&root.join("tests/lang"), &mut files);
     files.sort();
-    let skipped: Vec<String> = skip_list()
-        .into_iter()
-        .filter(|(_, reason)| reason == "native-module")
-        .map(|(n, _)| n)
-        .collect();
-    let (mut checked, mut only, mut skip) = (0, 0, 0);
+    let (mut checked, mut only) = (0, 0);
     let mut failures = Vec::new();
     for f in &files {
         let rel = f
@@ -257,11 +252,6 @@ fn golden_files_meet_their_expectations() {
             .unwrap()
             .to_string_lossy()
             .into_owned();
-        let name = f.file_name().unwrap().to_string_lossy();
-        if skipped.iter().any(|s| *s == name) {
-            skip += 1;
-            continue;
-        }
         let src = std::fs::read_to_string(f).unwrap();
         let c = match parse(&rel, &src) {
             Ok(c) => c,
@@ -287,14 +277,15 @@ fn golden_files_meet_their_expectations() {
             failures.push(format!("{rel}: {e}"));
         }
     }
-    eprintln!("golden: {checked} checked, {only} only-go, {skip} native-module skipped");
+    eprintln!("golden: {checked} checked, {only} only-go");
     assert!(
         failures.is_empty(),
         "{} of {checked} golden files fail:\n{}",
         failures.len(),
         failures.join("\n")
     );
-    // The check cannot pass by checking nothing: one below the 138 files
-    // checked after stage 4c's `regex` files; raise it as files are added.
-    assert!(checked >= 137, "only {checked} golden files were checked");
+    // The check cannot pass by checking nothing: one below the 139 files
+    // checked after stage 4d's `http_serve_rust`; raise it as files are
+    // added.
+    assert!(checked >= 138, "only {checked} golden files were checked");
 }

@@ -863,3 +863,43 @@ fn a_request_whose_requester_is_cancelled_is_skipped() {
         ("Err(<error>) Err({kind: 'timeout})\n", "", 0)
     );
 }
+
+/// `set_asker(ch)` (stage 4d Task 5, the `http` server) records the
+/// current task on `ch` for every later `try_call` with it, not just one:
+/// each `f` runs below the marking task, so cancelling that task stops a
+/// running `f` (caught, E0701) and skips a later one.
+#[test]
+fn set_asker_lets_every_try_call_follow_the_marking_task() {
+    let o = exec_internal(
+        "import _native.conc as c\nscope = channel()\nmarked = channel(1)\nt = spawn(fn(): c.set_asker(scope); send(marked, 1); recv(channel()) ;;)\nrecv(marked)!\nout = channel(5)\nwait = channel()\nfn code(r) = match r:\n  Err(e) => c.describe(e).code\n  v => v\n;;\nc.spawn_background(fn():\n  send(out, c.try_call(x => x + 1, 1, scope))\n  send(out, code(c.try_call(fn(x): recv(wait) ;;, 0, scope)))\n  send(out, code(c.try_call(x => x, 0, scope)))\n;;)\nprint(recv(out)!)\nblocked(wait, 1)\ncancel(t)\nprint(recv(out)!, recv(out)!)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Ok(2)\nE0701 E0701\n", "", 0)
+    );
+}
+
+/// `describe(e)`: what a caught stop was, for the `http` server's report:
+/// `{code, text}` with the error's code and headline, or `exit` and Go's
+/// `exit(n)`.
+#[test]
+fn describe_tells_what_stopped_a_call() {
+    let o = exec_internal(
+        "import _native.conc as c\nfn d(f) = match c.try_call(f, 3):\n  Err(e) => c.describe(e)\n  v => v\n;;\nprint(d(x => fail(\"boom ${x}\")))\nprint(d(x => 1 / 0))\nout = channel(1)\nc.spawn_background(() => send(out, d(fn(x): exit(x) ;;)))\nat_exit(() => print(recv(out)!))\nrecv(channel())",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "{code: \"E0803\", text: \"error[E0803]: boom 3\"}\n{code: \"E0502\", text: \"error[E0502]: division by zero\"}\n{code: \"exit\", text: \"exit(3)\"}\n",
+            "",
+            3
+        )
+    );
+    let o = exec_internal("import _native.conc as c\nc.describe(1)");
+    assert!(
+        o.err
+            .starts_with("error[E0403]: argument `e` must be error, got int"),
+        "{}",
+        o.err
+    );
+}

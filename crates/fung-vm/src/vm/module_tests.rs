@@ -342,33 +342,10 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
     });
 }
 
-/// Every standard module runs since stage 4d wrote `http` in fung. The
-/// E0805 mechanism (`boot::unsupported_module`) stays until Task 5
-/// decides on it: a module registered as unsupported reports E0805 at its
-/// import.
+/// Every standard module runs since stage 4d wrote `http` in fung (the
+/// E0805 placeholders for the modules the port did not run are gone).
 #[test]
-fn standard_modules_run_and_unsupported_ones_report_e0805() {
-    for key in ["http", "cli", "fs", "path", "time", "json", "regex"] {
-        assert!(!crate::boot::unsupported_module(key), "{key}");
-    }
-    on_big_stack(|| {
-        let s = setup(
-            "import cli\nprint(1)",
-            Opts {
-                file: "/p/main.fung",
-                ..Opts::default()
-            },
-        )
-        .unwrap_or_else(|(e, _)| panic!("{e}"));
-        s.rt.register_unsupported("cli");
-        match s.rt.import_module("cli") {
-            Err(Stop::Error(d)) => assert_eq!(
-                fung_front::diag::headline(&d),
-                "error[E0805]: not supported yet: cli"
-            ),
-            other => panic!("{other:?}"),
-        }
-    });
+fn standard_modules_run() {
     // `http` runs since stage 4d (its client: the arguments are checked).
     let o = run_files(
         &[("/p/main.fung", "import http\nprint(http.get)\nhttp.get(1)")],

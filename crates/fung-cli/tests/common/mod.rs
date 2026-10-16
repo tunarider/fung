@@ -153,22 +153,3 @@ pub fn first_diff(a: &[u8], b: &[u8]) -> String {
         b.lines().count()
     )
 }
-
-/// The skip list (`run_parity_skip.txt`): `(file name, reason)` pairs of
-/// `tests/lang` files the Rust port cannot run yet.
-pub fn skip_list() -> Vec<(String, String)> {
-    let text = include_str!("../run_parity_skip.txt");
-    let mut out = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let mut parts = line.split_whitespace();
-        let (Some(name), Some(reason), None) = (parts.next(), parts.next(), parts.next()) else {
-            panic!("malformed skip line `{line}` (want `<file> <reason>`)");
-        };
-        out.push((name.to_string(), reason.to_string()));
-    }
-    out
-}
