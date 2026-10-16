@@ -62,6 +62,9 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     // Go's E0403 for a header map).
     ("_native.net", "utf8_bytes(s)"),
     ("_native.net", "need_str_map(name, m)"),
+    // Task 4: TLS over a connection already made (an HTTP proxy's
+    // CONNECT tunnel).
+    ("_native.net", "start_tls(c, host, timeout=?)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

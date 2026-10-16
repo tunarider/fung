@@ -563,3 +563,67 @@ fn ssl_cert_file_gives_the_roots() {
         );
     }
 }
+
+/// A plain server that reads one line, answers `ready`, then speaks TLS
+/// (presenting `cert`) on the same socket, as an HTTP proxy's CONNECT
+/// tunnel does: the port, and the thread giving the plain line read.
+fn tunnel_peer(cert: &str, serve: impl FnOnce(Tls) + Send + 'static) -> (u16, JoinHandle<String>) {
+    let cfg = server_config(cert);
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    l.set_nonblocking(true).unwrap();
+    let h = std::thread::spawn(move || {
+        let mut s = None;
+        wait_for(|| {
+            s = l.accept().ok().map(|(s, _)| s);
+            s.is_some()
+        });
+        let mut s = s.unwrap();
+        s.set_nonblocking(false).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        let mut b = [0u8; 1];
+        let mut v = Vec::new();
+        while s.read(&mut b).unwrap() == 1 && b[0] != b'\n' {
+            v.push(b[0]);
+        }
+        s.write_all(b"ready\n").unwrap();
+        serve(StreamOwned::new(ServerConnection::new(cfg).unwrap(), s));
+        String::from_utf8(v).unwrap()
+    });
+    (port, h)
+}
+
+/// Stage 4d Task 4: `start_tls` makes a plain connection a TLS client of
+/// a name over the same socket (an HTTP proxy's CONNECT tunnel); the old
+/// value is closed without ending the socket. Errors read like connect's.
+#[test]
+fn start_tls_upgrades_a_plain_connection() {
+    let _g = serial();
+    let _t = trust_ca();
+    let (port, h) = tunnel_peer("localhost", echo);
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hello\\n\")!\nprint(net.read_line(c, 100))\nt = net.start_tls(c, \"localhost\", timeout: 5s)!\nprint(msg(net.write(c, \"x\")) == \"write tcp ${{net.local_addr(c)}}->127.0.0.1:{port}: use of closed network connection\")\nprint(net.write(t, \"secret\\n\"))\nprint(net.read_line(t, 100))\nprint(net.read_line(t, 100))\nprint(net.close(t))\nprint(msg(net.start_tls(c, \"localhost\")) == \"read tcp ${{net.local_addr(c)}}->127.0.0.1:{port}: use of closed network connection\")"
+    ));
+    assert_eq!(h.join().unwrap(), "hello");
+    assert_eq!(
+        out(&o),
+        (
+            "Ok(\"ready\")\ntrue\nOk(nil)\nOk(\"got secret\")\nOk(nil)\nOk(nil)\ntrue\n",
+            "",
+            0
+        )
+    );
+    let (port, h) = tunnel_peer("wrongname", |mut s| {
+        let _ = handshake(&mut s);
+    });
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hi\\n\")!\nnet.read_line(c, 100)!\nprint(msg(net.start_tls(c, \"localhost\")))\nprint(type_of(net.start_tls(c, \"localhost\", timeout: 1)))"
+    ));
+    h.join().unwrap();
+    assert_eq!(out(&o).0, format!("{WRONG_NAME}\n"));
+    assert!(
+        out(&o)
+            .1
+            .contains("argument `timeout` must be dur, got int")
+    );
+}

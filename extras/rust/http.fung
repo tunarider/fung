@@ -11,13 +11,15 @@
 # copies are transitional parity measures (open-questions "Go 동등을
 # 위한 과도기 잔가지"); the comments name what each copies ("Go `...`").
 #
-# The parts the redirects, proxies and server will reuse: `_parse_url`
-# and `_url_string` (URLs), `_request_text` (a request), `_status_line`,
-# `_fields`, `_group` and `_header_map` (a message head), `_chunked`,
-# `_fixed` and `_until_close` (bodies), `_quote`, `_canonical`.
+# Redirects follow Go's `Client` (`_hop`), proxies Go's
+# `ProxyFromEnvironment` (`_proxies`, `_open`), both copied the same way.
 #
-# Redirects and proxies come in Task 4, `serve` in Task 5.
+# The parts the server will reuse: `_parse_url` and `_url_string`
+# (URLs), `_status_line`, `_fields`, `_group` and `_header_map` (a
+# message head), `_chunked`, `_fixed` and `_until_close` (bodies),
+# `_quote`, `_canonical`. `serve` comes in Task 5.
 import _native.net as _net
+import _native.process as _proc
 import _native.time as _time
 
 # ---- The public functions (06) -----------------------------------------
@@ -58,9 +60,9 @@ fn _left(timeout, start) = timeout > 0s then timeout - (_time.now() - start) els
 fn _err(message) = {kind: 'network, message}
 
 # Go `http.NewRequest` (the method, the URL), then fung's check of the
-# header values (E0403), then what the client does with the request.
-# The errors of `_send` start with Go's `url.Error` prefix
-# `Get "<url>": `.
+# header values (E0403), then what the client does with the request:
+# one request, and one for each redirect (`_hop`). The errors of `_send`
+# start with Go's `url.Error` prefix `Get "<url>": `.
 fn _attempt(method0, url, body, headers, timeout, start):
   method = method0 == "" then "GET" else method0
   if not _is_token(method):
@@ -69,9 +71,9 @@ fn _attempt(method0, url, body, headers, timeout, start):
   u0 = _parse_url(url)?
   u = put(u0, "host", _remove_empty_port(u0.host))
   _net.need_str_map("headers", headers)
-  hs = _basic_auth(u, fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v)))
-  op = "${_op(method)} ${_quote(_url_string(u))}: "
-  _send(method, u, body, hs, timeout, start, op)
+  hs = fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v))
+  r = {first: u, headers: hs, body, op: _op(method), timeout, start, proxies: _proxies()}
+  _hop(r, u, method, true, false, nil, 1)
 ;;
 
 # Go `removeEmptyPort` (in `NewRequest`): "host:" → "host".
@@ -80,15 +82,15 @@ fn _remove_empty_port(h) = ends_with(h, ":") and ":" in _after_last(h, "]") then
 fn _after_last(s, sep) = split(s, sep)[-1]
 
 # Go `Client.send`: userinfo in the URL becomes Basic authorization when
-# the user set no Authorization header (an empty one counts as none).
-# (Redirects to another host drop it again: Task 4.)
-fn _basic_auth(u, hs):
-  if u.user == nil or ("Authorization" in hs and hs["Authorization"] != ""):
-    return hs
-  ;;
-  (name, password) = _cut(u.user, ":")
-  bytes = _unescape_bytes(name) + [58] + _unescape_bytes(password)
-  put(hs, "Authorization", "Basic " + _base64(bytes, 0, []))
+# the user set no Authorization header (an empty one counts as none). It
+# is made for each request from its own URL, never copied to the next.
+fn _basic_auth(u, hs) = u.user == nil or ("Authorization" in hs and hs["Authorization"] != "")
+  then hs else put(hs, "Authorization", "Basic " + _basic(u.user))
+
+# base64(user ":" password), both unescaped (Go `basicAuth`).
+fn _basic(user):
+  (name, password) = _cut(user, ":")
+  _base64(_unescape_bytes(name) + [58] + _unescape_bytes(password), 0, [])
 ;;
 
 # The bytes of a checked URL part with its %XX escapes decoded.
@@ -120,15 +122,143 @@ fn _base64(bs, i, out):
 # Go `urlErrorOp`: "Get", "Post", ...
 fn _op(method) = method[..1] + lower(method[1..])
 
-fn _send(method, u, body, hs, timeout, start, op):
+# ---- Redirects (Go `Client.do`) ----------------------------------------
+#
+# `r` is what the requests share: the first URL, the user's headers, the
+# body, the error's Op, the timeout (one for them all, Go's
+# `Client.Timeout`) and the proxies. `n` counts the requests, this one
+# included; `prev` is the URL of the one before (nil for the first).
+fn _hop(r, u, method, with_body, strip, prev, n):
+  hs = prev == nil then r.headers else _hop_headers(r, u, with_body, strip, prev)
+  op = "${r.op} ${_quote(_url_string(u))}: "
+  (res, loc) = _send(method, u, (with_body then r.body else nil), _basic_auth(u, hs), r, op)?
+  if loc == nil:
+    return Ok(res)
+  ;;
+  next = match _resolve(u, loc):
+    Ok(x)    => x
+    Err(why) => return Err(_err("${op}failed to parse Location header ${_quote(loc)}: ${why}"))
+  ;;
+  if n >= 10:
+    return Err(_err("${r.op} ${_quote(loc)}: stopped after 10 redirects"))
+  ;;
+  # Go `redirectBehavior`: 307 and 308 keep the method and the body (a
+  # string can always be sent again); 301, 302 and 303 make a GET (a HEAD
+  # stays one) without the body, and no later request has it.
+  keep = res.status == 307 or res.status == 308
+  m = keep or method == "GET" or method == "HEAD" then method else "GET"
+  away = strip or (next.host != r.first.host and not _same_site(r.first.host, next.host))
+  _hop(r, next, m, with_body and keep, away, u, n + 1)
+;;
+
+# Go `makeHeadersCopier` and `refererForURL`: the user's headers again,
+# without the credentials once a request left the first host and its
+# subdomains (for good), without the body's once the body was dropped,
+# with the URL before as Referer (without its userinfo; none from https
+# to http; the user's own wins).
+fn _hop_headers(r, u, with_body, strip, prev):
+  kept = fold(pairs(r.headers), {}, (m, (k, v)) => (strip and k in _sensitive()) or (not with_body and k in _body_headers()) then m else put(m, k, v))
+  if prev.scheme == "https" and u.scheme == "http":
+    kept
+  else if "Referer" in kept and kept["Referer"] != "":
+    kept
+  else:
+    put(kept, "Referer", _url_string(put(prev, "user", nil)))
+  ;;
+;;
+
+fn _sensitive() = ["Authorization", "Www-Authenticate", "Cookie", "Cookie2", "Proxy-Authorization", "Proxy-Authenticate"]
+
+fn _body_headers() = ["Content-Encoding", "Content-Language", "Content-Location", "Content-Type"]
+
+# Go `shouldCopyHeaderOnRedirect`: the new host name (port and case
+# aside) is the first one or a subdomain of it.
+fn _same_site(first, next):
+  (parent, _) = _host_port(first)
+  (sub, _) = _host_port(next)
+  _domain_or_sub(lower(sub), lower(parent))
+;;
+
+fn _domain_or_sub(sub, parent) = sub == parent or (not (":" in sub or "%" in sub) and ends_with(sub, "." + parent))
+
+# A response that redirects: the Location, else nil (Go follows 301,
+# 302, 303, 307 and 308, and returns one without a Location as it is).
+fn _location(code, h) = code in [301, 302, 303, 307, 308] and "Location" in h and h["Location"][0] != ""
+  then h["Location"][0] else nil
+
+# Go `URL.Parse` of a Location against the URL it came from: Ok(url) or
+# Err(why).
+fn _resolve(base, loc) = match _parse_url(loc):
+  Err(e)  => Err(e.message)
+  Ok(ref) => Ok(_reference(base, ref))
+;;
+
+# Go `URL.ResolveReference`.
+fn _reference(u, ref):
+  url = ref.scheme == "" then put(ref, "scheme", u.scheme) else ref
+  if ref.scheme != "" or ref.host != "" or ref.user != nil:
+    return put(url, "path", _resolve_path(_escaped_path(ref.path), ""))
+  ;;
+  if ref.opaque != "":
+    return put(put(put(url, "user", nil), "host", ""), "path", "")
+  ;;
+  bare = ref.path == "" and not ref.force_query and ref.query == ""
+  q = bare then put(url, "query", u.query) else url
+  f = bare and ref.fragment == "" then put(q, "fragment", u.fragment) else q
+  if ref.path == "" and u.opaque != "":
+    put(put(put(put(f, "opaque", u.opaque), "user", nil), "host", ""), "path", "")
+  else:
+    put(put(put(f, "host", u.host), "user", u.user), "path", _resolve_path(_escaped_path(u.path), _escaped_path(ref.path)))
+  ;;
+;;
+
+# Go `resolvePath`: the reference against the base, dot segments
+# removed.
+fn _resolve_path(base, ref):
+  full = if ref == "":
+    base
+  else if starts_with(ref, "/"):
+    ref
+  else:
+    base[..(_last_index(base, "/") + 1)] + ref
+  ;;
+  if full == "":
+    return ""
+  ;;
+  elems = split(full, "/")
+  (dst, _) = fold(elems, ("/", true), _path_step)
+  out = elems[-1] == "." or elems[-1] == ".." then dst + "/" else dst
+  len(out) > 1 and out[1] == "/" then out[1..] else out
+;;
+
+fn _path_step((dst, first), elem) = match elem:
+  "."  => (dst, false)
+  ".." => _path_up(dst)
+  _    => ((first then dst else dst + "/") + elem, false)
+;;
+
+fn _path_up(dst):
+  i = _last_index(dst[1..], "/")
+  d = i >= 0 then dst[..i + 1] else "/"
+  (d, len(d) == 1)
+;;
+
+# ---- Sending one request ------------------------------------------------
+
+fn _send(method, u, body, hs, r, op):
   why = _check_request(u, hs)
   if why != nil:
     return Err(_err(op + why))
   ;;
-  c = _dial(u, timeout, start, op)?
-  r = _exchange(c, method, u, body, hs, timeout, start, op)
+  proxy = match _proxy_for(r.proxies, u):
+    Ok(p)    => p
+    Err(why) => return Err(_err(op + why))
+  ;;
+  c = _open(u, proxy, r.timeout, r.start, op)?
+  via = proxy != nil and u.scheme == "http" then proxy else nil
+  res = _exchange(c, method, u, body, hs, via, r.timeout, r.start, op)
   _net.close(c)
-  r
+  res
 ;;
 
 # Go `Transport.roundTrip`: the checks before connecting.
@@ -153,13 +283,12 @@ fn _bad_header(hs) = match find(sort(pairs(hs)), ((k, v)) => not _is_token(k) or
     else "net/http: invalid header field name ${_quote(k)}"
 ;;
 
-# Connects (TLS for https). Go's transport gives the TCP connection 30s
-# and the TLS handshake 10s (`net/http: TLS handshake timeout`), both
-# within the request's own timeout; here one `connect` covers both, so
-# for https the 10s cover the TCP connection too.
-fn _dial(u, timeout, start, op):
-  (host, port_text) = _host_port(u.host)
-  tls = u.scheme == "https"
+# Connects to `hostport` (TLS when `tls`). Go's transport gives the TCP
+# connection 30s and the TLS handshake 10s (`net/http: TLS handshake
+# timeout`), both within the request's own timeout; here one `connect`
+# covers both, so for https the 10s cover the TCP connection too.
+fn _dial(hostport, tls, timeout, start, op):
+  (host, port_text) = _host_port(hostport)
   port = _port(port_text, tls)
   if port == nil:
     return Err(_err("${op}dial tcp: address ${port_text}: invalid port"))
@@ -194,8 +323,10 @@ fn _port(text, tls):
   ;;
 ;;
 
-# Writes the request and reads the answer, all before the deadline.
-fn _exchange(c, method, u, body, hs, timeout, start, op):
+# Writes the request and reads the answer, all before the deadline:
+# Ok((response, the Location to follow or nil)). `via` is the proxy an
+# http request goes through.
+fn _exchange(c, method, u, body, hs, via, timeout, start, op):
   left = _left(timeout, start)
   if left != nil and left <= 0s:
     return Err({kind: 'timeout, message: ""})
@@ -203,9 +334,330 @@ fn _exchange(c, method, u, body, hs, timeout, start, op):
   if left != nil:
     _net.set_deadline(c, left)
   ;;
-  match _net.write(c, _request_text(method, u, body, hs)):
+  match _net.write(c, _request_text(method, u, body, hs, via)):
     Err(e) => Err({kind: e.kind, message: op + e.message})
     Ok(_)  => _read_response(c, method, op)
+  ;;
+;;
+
+# ---- Proxies (Go `ProxyFromEnvironment`, `httpproxy`) ------------------
+
+# Go `httpproxy.FromEnvironment` and `config.init`: the proxy for http,
+# the one for https, the NO_PROXY patterns, and whether this is a CGI
+# program. Read for each request (Go reads them once; a fung program
+# cannot change its own environment).
+fn _proxies():
+  http = _parse_proxy(_env_any("HTTP_PROXY", "http_proxy"))
+  https = _parse_proxy(_env_any("HTTPS_PROXY", "https_proxy"))
+  no = http == nil and https == nil then nil else _no_proxy(_env_any("NO_PROXY", "no_proxy"))
+  {http, https, no, cgi: (_proc.env("REQUEST_METHOD") ?? "") != ""}
+;;
+
+# Go `getEnvAny`: the first variable that is set and not empty.
+fn _env_any(upper_name, lower_name):
+  x = _proc.env(upper_name) ?? ""
+  x != "" then x else (_proc.env(lower_name) ?? "")
+;;
+
+# Go `parseProxy`: a URL; one without a scheme or a host is tried again
+# with "http://" in front; one that does not parse is no proxy.
+fn _parse_proxy(s):
+  if s == "":
+    return nil
+  ;;
+  first = _parse_url(s)
+  fine = match first:
+    Ok(p) => p.scheme != "" and p.host != ""
+    _     => false
+  ;;
+  if fine:
+    return first!
+  ;;
+  match _parse_url("http://" + s):
+    Ok(p) => p
+    _     => first ?? nil
+  ;;
+;;
+
+# Go `proxyForURL`: Ok(the proxy or nil), or Err(why).
+fn _proxy_for(p, u):
+  proxy = u.scheme == "https" then p.https else p.http
+  if proxy == nil:
+    Ok(nil)
+  else if u.scheme == "http" and p.cgi:
+    Err("refusing to use HTTP_PROXY value in CGI environment; see golang.org/s/cgihttpproxy")
+  else if _use_proxy(p.no, u):
+    Ok(proxy)
+  else:
+    Ok(nil)
+  ;;
+;;
+
+# Go `config.useProxy`: never for localhost (as written) or a loopback
+# address; else unless a NO_PROXY pattern matches the host and port.
+fn _use_proxy(no, u):
+  (host, port0) = _host_port(u.host)
+  port = port0 != "" then port0 else (u.scheme == "https" then "443" else "80")
+  ip = _parse_addr(host, true)
+  if host == "localhost" or (ip != nil and _is_loopback(ip)) or no.all:
+    false
+  else if ip != nil:
+    not any(no.ips, m => _ip_hit(m, ip, port))
+  else:
+    h = lower(_trim_space(host))
+    not any(no.domains, m => (ends_with(h, m.host) or (m.whole and h == m.host[1..])) and (m.port == "" or m.port == port))
+  ;;
+;;
+
+fn _ip_hit(m, ip, port) = m.net != nil then _cidr_has(m.net, ip) else m.ip == ip and (m.port == "" or m.port == port)
+
+# Go `config.init`: NO_PROXY as {all, ips, domains}. "*" is every host;
+# an IP or CIDR range (with an optional port) matches IP addresses; a
+# name matches itself and its subdomains, ".name" or "*.name" only the
+# subdomains (with an optional port, all in lower case).
+fn _no_proxy(s) = fold(split(s, ","), {all: false, ips: [], domains: []}, _no_proxy_step)
+
+fn _no_proxy_step(acc, raw):
+  p = lower(_trim_space(raw))
+  if acc.all or p == "":
+    return acc
+  ;;
+  if p == "*":
+    return {all: true, ips: [], domains: []}
+  ;;
+  net = _parse_cidr(p)
+  if net != nil:
+    return put(acc, "ips", acc.ips + [{net, ip: nil, port: ""}])
+  ;;
+  (host, port) = match _split_host_port(p):
+    Ok(hp) => hp
+    Err(_) => (p, "")
+  ;;
+  ip = _parse_addr(host, false)
+  if ip != nil:
+    put(acc, "ips", acc.ips + [{net: nil, ip, port}])
+  else if host == "":
+    acc
+  else:
+    h = starts_with(host, "*.") then host[1..] else host
+    whole = not starts_with(h, ".")
+    put(acc, "domains", acc.domains + [{host: whole then "." + h else h, port, whole}])
+  ;;
+;;
+
+# Go `net.SplitHostPort` (only whether it fails: the patterns that do
+# are taken whole).
+fn _split_host_port(s):
+  i = _last_index(s, ":")
+  if i < 0:
+    Err("missing port in address")
+  else if starts_with(s, "["):
+    end = _index(s, "]")
+    end < 0 or end + 1 != i or "[" in s[1..] or "]" in s[end + 1..]
+      then Err("bad address") else Ok((s[1..end], s[i + 1..]))
+  else:
+    host = s[..i]
+    ":" in host or "[" in s or "]" in s then Err("bad address") else Ok((host, s[i + 1..]))
+  ;;
+;;
+
+# ---- IP addresses (Go `netip.ParseAddr`, `net.ParseCIDR`) ---------------
+#
+# An address is its 16 bytes, an IPv4 one as ::ffff:a.b.c.d (Go
+# `As16`), so that the two ways to write an IPv4 address compare equal
+# (Go `IP.Equal`).
+
+# 16 bytes, or nil when `s` is no address; a zone ("%en0") only when
+# `zone` allows it.
+fn _parse_addr(s, zone):
+  if ":" not in s:
+    v4 = _parse4(s)
+    return v4 == nil then nil else _v4_prefix() + v4
+  ;;
+  (addr, z) = _cut(s, "%")
+  if "%" in s and (z == "" or not zone):
+    return nil
+  ;;
+  halves = split(addr, "::")
+  if len(halves) == 1:
+    bs = _groups(addr, true)
+    bs != nil and len(bs) == 16 then bs else nil
+  else if len(halves) == 2:
+    left = halves[0] == "" then [] else _groups(halves[0], false)
+    right = halves[1] == "" then [] else _groups(halves[1], true)
+    ok = left != nil and right != nil and len(left) + len(right) <= 14
+    ok then left + map(0..(16 - len(left) - len(right)), _ => 0) + right else nil
+  else:
+    nil
+  ;;
+;;
+
+# The bytes of colon-separated groups; an IPv4 address may end them.
+fn _groups(s, v4_last):
+  parts = split(s, ":")
+  fold(0..len(parts), [], (acc, i) => acc == nil then nil else _ip_group(parts[i], v4_last and i == len(parts) - 1, acc))
+;;
+
+fn _ip_group(g, v4_ok, acc):
+  if v4_ok and "." in g:
+    v4 = _parse4(g)
+    v4 == nil then nil else acc + v4
+  else if g != "" and len(g) <= 4 and all(chars(g), _is_hex):
+    n = fold(chars(g), 0, (n, ch) => n * 16 + _index("0123456789abcdef", lower(ch)))
+    acc + [n // 256, n % 256]
+  else:
+    nil
+  ;;
+;;
+
+# Go `parse4`: four decimal numbers up to 255, no leading zeros.
+fn _parse4(s):
+  parts = split(s, ".")
+  digits = len(parts) == 4 and all(parts, p => p != "" and len(p) <= 3 and all(chars(p), ch => ch in "0123456789") and (p == "0" or not starts_with(p, "0")))
+  ns = digits then map(parts, p => parse_int(p)!) else []
+  digits and all(ns, n => n <= 255) then ns else nil
+;;
+
+fn _v4_prefix() = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255]
+
+fn _is_v4(bs) = bs[..12] == _v4_prefix()
+
+fn _is_loopback(bs) = (_is_v4(bs) and bs[12] == 127) or bs == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+
+# Go `net.ParseCIDR` and `IPNet.Contains`: {bytes (the network), bits
+# (of the 16 bytes)}, nil when `p` is no range. A range holds IPv4
+# addresses when its network is one, else only IPv6 ones.
+fn _parse_cidr(p):
+  if "/" not in p:
+    return nil
+  ;;
+  (addr, n_text) = _cut(p, "/")
+  ip = _parse_addr(addr, false)
+  if ip == nil or n_text == "" or len(n_text) > 3 or not all(chars(n_text), ch => ch in "0123456789"):
+    return nil
+  ;;
+  n = parse_int(n_text)!
+  v4 = ":" not in addr
+  if n > (v4 then 32 else 128):
+    return nil
+  ;;
+  bits = v4 then 96 + n else n
+  {bytes: _mask(ip, bits), bits}
+;;
+
+fn _cidr_has(net, ip) = _is_v4(net.bytes) == _is_v4(ip) and _mask(ip, net.bits) == net.bytes
+
+fn _mask(bs, bits) = map(0..16, i => _mask_byte(bs[i], bits - 8 * i))
+
+fn _mask_byte(b, k) = k >= 8 then b else (k <= 0 then 0 else b - b % [1, 2, 4, 8, 16, 32, 64, 128][8 - k])
+
+# ---- Connecting -----------------------------------------------------------
+
+# Go `Transport.dialConn`: to the server, or to the proxy (its errors
+# then start "proxyconnect tcp: "); https through a proxy is a CONNECT
+# tunnel. Not supported: SOCKS proxies, and https through an https
+# proxy (TLS inside TLS).
+fn _open(u, proxy, timeout, start, op):
+  tls = u.scheme == "https"
+  if proxy == nil:
+    return _dial(u.host, tls, timeout, start, op)
+  ;;
+  if proxy.scheme == "socks5" or proxy.scheme == "socks5h":
+    return Err(_err("${op}proxyconnect tcp: ${proxy.scheme} proxies are not supported"))
+  ;;
+  if tls and proxy.scheme == "https":
+    return Err(_err("${op}proxyconnect tcp: https through an https proxy is not supported"))
+  ;;
+  c = match _dial(proxy.host, proxy.scheme == "https", timeout, start, ""):
+    Ok(c)  => c
+    Err(e) => return Err({kind: e.kind, message: "${op}proxyconnect tcp: ${e.message}"})
+  ;;
+  if not tls:
+    return Ok(c)
+  ;;
+  r = _tunnel(c, u, proxy, timeout, start, op)
+  if type_of(r) == 'Err:
+    _net.close(c)
+  ;;
+  r
+;;
+
+# Go's CONNECT: `CONNECT host:port` with Host, Go's User-Agent and the
+# proxy's Proxy-Authorization; an answer but 200 fails with its reason;
+# then TLS to the server through the tunnel, its name the server's (the
+# handshake capped at 10s as for any https). Go gives the CONNECT a
+# minute of its own.
+fn _tunnel(c, u, proxy, timeout, start, op):
+  (host, port_text) = _host_port(u.host)
+  addr = (":" in host then "[${host}]" else host) + ":" + (port_text == "" then "443" else port_text)
+  auth = _proxy_auth(proxy)
+  lines = ["CONNECT ${addr} HTTP/1.1", "Host: ${_host_header(addr)}", "User-Agent: Go-http-client/1.1"] + (auth == nil then [] else ["Proxy-Authorization: ${auth}"])
+  left = _left(timeout, start)
+  if left != nil and left <= 0s:
+    return Err({kind: 'timeout, message: ""})
+  ;;
+  # (Go's minute ends with `context.DeadlineExceeded`: a timeout.)
+  _net.set_deadline(c, left == nil or left > 60s then 60s else left)
+  answer = match _net.write(c, join(lines, "\r\n") + "\r\n\r\n"):
+    Err(e) => Err(e)
+    Ok(_)  => _connect_answer(c)
+  ;;
+  match answer:
+    Err(e)          => Err({kind: e.kind, message: op + e.message})
+    Ok((200, _))    => _start_tls(c, host, timeout, start, op)
+    Ok((_, reason)) => Err(_err(op + (reason ?? "unknown status code")))
+  ;;
+;;
+
+# The proxy's Basic authorization from its URL's userinfo (Go
+# `connectMethod.proxyAuth`), nil without one.
+fn _proxy_auth(p) = p.user == nil then nil else "Basic " + _basic(p.user)
+
+# Go `ReadResponse` for the CONNECT's answer: Ok((code, reason or nil)).
+# Its errors are plain (no "connection broken"); an early end is
+# "unexpected EOF".
+fn _connect_answer(c) = match _net.read_line(c, _header_limit()):
+  Ok(nil)  => Err(_err("unexpected EOF"))
+  Ok(line) => _connect_head(c, line)
+  Err(e)   => Err(e.kind == 'limit then _err("unexpected EOF") else e)
+;;
+
+fn _connect_head(c, line) = match _status_line(line):
+  Err(why)         => Err(_err(why))
+  Ok((_, _, code)) => match _fields(c, _header_limit() - _net.byte_len(line) - 2, "", nil, []):
+    Err(e) => Err({kind: e.kind, message: _plain(e.message)})
+    Ok(_)  => Ok((code, _reason(line)))
+  ;;
+;;
+
+# A head error without the "connection broken" words `_fields` adds.
+fn _plain(m):
+  words = "net/http: HTTP/1.x transport connection broken: "
+  why = starts_with(m, words) then m[len(words)..] else m
+  why == _exceeded() then "unexpected EOF" else why
+;;
+
+# What follows the status code (Go cuts `resp.Status` at its first
+# space), nil without it.
+fn _reason(line):
+  (_, rest) = _cut(line, " ")
+  status = _trim_left(rest, " ")
+  if " " not in status:
+    return nil
+  ;;
+  (_, text) = _cut(status, " ")
+  text
+;;
+
+fn _start_tls(c, host, timeout, start, op):
+  left = _left(timeout, start)
+  limit = left == nil or left > 10s then 10s else left
+  if limit <= 0s:
+    return Err({kind: 'timeout, message: ""})
+  ;;
+  match _net.start_tls(c, host, timeout: limit):
+    Ok(t)  => Ok(t)
+    Err(e) => Err(_dial_err(e, limit == 10s, op))
   ;;
 ;;
 
@@ -214,15 +666,19 @@ fn _exchange(c, method, u, body, hs, timeout, start, op):
 # Go `Request.write`: the request line, Host, User-Agent (Go's default
 # unless the user set one; an empty one sends none), Content-Length (in
 # bytes; always for POST, PUT and PATCH), then the user's headers sorted
-# by name. No Accept-Encoding: the body comes back as sent (06).
-fn _request_text(method, u, body, hs):
+# by name. No Accept-Encoding: the body comes back as sent (06). Through
+# a proxy (`via`) the request names the whole URL and ends with the
+# proxy's own Proxy-Authorization (Go's transport adds it last).
+fn _request_text(method, u, body, hs, via):
   n = body == nil then 0 else _net.byte_len(body)
   ua = "User-Agent" in hs then _trim_ows(hs["User-Agent"]) else "Go-http-client/1.1"
-  start = ["${method} ${_request_uri(u)} HTTP/1.1", "Host: ${_host_header(u.host)}"]
+  target = via != nil and u.opaque == "" then "${u.scheme}://${_host_header(u.host)}${_request_uri(u)}" else _request_uri(u)
+  start = ["${method} ${target} HTTP/1.1", "Host: ${_host_header(u.host)}"]
   agent = ua == "" then [] else ["User-Agent: ${ua}"]
   length = n > 0 or method in ["POST", "PUT", "PATCH"] then ["Content-Length: ${n}"] else []
   rest = sort(pairs(hs)) |> filter(((k, _)) => k not in _not_written()) |> map(((k, v)) => "${k}: ${_trim_ows(v)}")
-  join(start + agent + length + rest, "\r\n") + "\r\n\r\n" + (body ?? "")
+  auth = via == nil or via.user == nil then [] else ["Proxy-Authorization: ${_proxy_auth(via)}"]
+  join(start + agent + length + rest + auth, "\r\n") + "\r\n\r\n" + (body ?? "")
 ;;
 
 # Go `reqWriteExcludeHeader`: headers the request writes itself.
@@ -418,8 +874,15 @@ fn _finish(c, method, op, major, minor, code, fields):
     Ok(x)    => x
     Err(why) => return Err(_broken('network, op, why))
   ;;
+  headers = _header_map(_close_header(h3, major, minor))
+  # The body of a redirect is not read (Go reads 2 KB at most, ignoring
+  # errors, and closes).
+  loc = _location(code, h3)
+  if loc != nil:
+    return Ok(({status: code, headers, body: ""}, loc))
+  ;;
   body = _read_body(c, method, code, chunked, length)?
-  Ok({status: code, headers: _header_map(_close_header(h3, major, minor)), body})
+  Ok(({status: code, headers, body}, nil))
 ;;
 
 # Fields as canonical key → values, in the order they came. (The

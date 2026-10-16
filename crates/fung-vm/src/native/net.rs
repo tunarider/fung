@@ -131,6 +131,14 @@ pub fn module() -> Rc<Module> {
                 native("utf8_bytes", utf8_bytes_fn, vec![param("s")]),
             ),
             (
+                "start_tls",
+                native(
+                    "start_tls",
+                    start_tls_fn,
+                    vec![param("c"), param("host"), opt("timeout", Lit::Dur(0))],
+                ),
+            ),
+            (
                 "need_str_map",
                 native(
                     "need_str_map",
@@ -493,6 +501,29 @@ impl Conn {
     /// Go `Close`: shuts the socket down (waking a blocked read or write
     /// of another task, which then reports the close) and lets it go; a
     /// second close is an error.
+    /// A new connection over this one's socket, which this one gives up
+    /// (it reads as closed, and dropping it ends nothing). What was read
+    /// ahead is dropped: `start_tls` uses this once a proxy has answered a
+    /// CONNECT, and a TLS server says nothing until spoken to (Go drops
+    /// its reader there too). A TLS connection cannot carry another.
+    fn take_over(&self) -> Result<Conn, Fail> {
+        if self.tls.is_some() {
+            return Err(Fail::Network(
+                "tls: a TLS connection cannot carry another".into(),
+            ));
+        }
+        let s = lock(&self.sock).take().ok_or_else(|| self.closed("read"))?;
+        Ok(Conn {
+            sock: Mutex::new(Some(s)),
+            rd: Mutex::new(ReadState::default()),
+            wr: Mutex::new(()),
+            deadline: Mutex::new(None),
+            tls: None,
+            name: self.name.clone(),
+            local: self.local.clone(),
+        })
+    }
+
     fn close(&self) -> Result<(), Fail> {
         let s = lock(&self.sock)
             .take()
@@ -884,6 +915,34 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         if tls {
             c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, deadline)?));
         }
+        Ok(c)
+    })?;
+    Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
+}
+
+/// `start_tls(c, host, timeout = 0s)`: `Ok(<conn>)`, a TLS client of
+/// `host` over `c`'s socket, as `connect(tls: true)` makes one (stage 4d
+/// Task 4: https through an HTTP proxy's CONNECT tunnel, which fung
+/// cannot do over the other primitives). `c` reads as closed afterwards;
+/// the timeout covers the handshake.
+fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let c = need_conn("c", &a[0])?;
+    let host = nat::need_str("host", &a[1])?.to_string();
+    let Value::Dur(timeout) = a[2] else {
+        return Err(nat::wrong_arg("timeout", "dur", &a[2]));
+    };
+    let deadline = if timeout > 0 {
+        Instant::now().checked_add(Duration::from_nanos(timeout as u64))
+    } else {
+        None
+    };
+    let plain = match c.take_over() {
+        Ok(p) => p,
+        Err(f) => return Ok(fail_value(f)),
+    };
+    let r = outside_watched(t, move |w| {
+        let mut c = plain;
+        c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, deadline)?));
         Ok(c)
     })?;
     Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
