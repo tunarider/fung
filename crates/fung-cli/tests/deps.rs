@@ -105,6 +105,10 @@ fn entries(line: &str, out: &mut Vec<String>, open: &mut bool) {
 }
 
 /// Packages of `lock` with a source that `allow` does not name.
+///
+/// `name@ver` is matched exactly against the locked version, while
+/// cargo-deny reads it as a semver requirement. Use full versions or bare
+/// names in deny.toml so the two agree.
 fn violations(lock: &str, allow: &[String]) -> Vec<String> {
     let names: BTreeSet<&str> = allow
         .iter()
@@ -123,21 +127,60 @@ fn violations(lock: &str, allow: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Entries under `[dependencies]` or `[target.*.dependencies]` of a manifest.
+/// Is `table` (a header without brackets) a dependency table of any kind?
+fn is_dependency_table(table: &str) -> bool {
+    ["dependencies", "dev-dependencies", "build-dependencies"]
+        .iter()
+        .any(|kind| {
+            table == *kind
+                || table.starts_with(&format!("{kind}."))
+                || (table.starts_with("target.")
+                    && (table.ends_with(&format!(".{kind}"))
+                        || table.contains(&format!(".{kind}."))))
+        })
+}
+
+/// Entries of any dependency table of a manifest: `[dependencies]`,
+/// `[dev-dependencies]`, `[build-dependencies]`, their `[target.*.]` forms,
+/// and `[dependencies.<name>]`-style headers (the header line is the entry).
+/// A line starts a new table only when it is a real header: not inside a
+/// multi-line value (tracked by bracket/brace depth).
 fn dependency_entries(manifest: &str) -> Vec<String> {
     let mut in_deps = false;
+    let mut depth: i32 = 0;
     let mut out = Vec::new();
     for raw in manifest.lines() {
         let line = raw.split('#').next().unwrap_or("").trim();
-        if line.starts_with('[') {
-            let table = line.trim_matches(|c| c == '[' || c == ']');
-            in_deps = table == "dependencies"
-                || (table.starts_with("target.") && table.ends_with(".dependencies"));
-        } else if in_deps && !line.is_empty() {
+        if depth == 0 && line.starts_with('[') {
+            let table = line.trim_matches(|c| c == '[' || c == ']').trim();
+            in_deps = is_dependency_table(table);
+            if in_deps && table.contains('.') && line_has_name(table) {
+                out.push(line.to_string());
+            }
+            continue;
+        }
+        if in_deps && !line.is_empty() {
             out.push(line.to_string());
         }
+        let mut quoted = false;
+        for c in line.chars() {
+            match c {
+                '"' => quoted = !quoted,
+                '[' | '{' if !quoted => depth += 1,
+                ']' | '}' if !quoted => depth -= 1,
+                _ => {}
+            }
+        }
+        depth = depth.max(0);
     }
     out
+}
+
+/// `[dependencies.libc]`-style: a dependency kind followed by a crate name.
+fn line_has_name(table: &str) -> bool {
+    ["dependencies.", "dev-dependencies.", "build-dependencies."]
+        .iter()
+        .any(|k| table.starts_with(k) || table.contains(&format!(".{k}")))
 }
 
 #[test]
@@ -185,14 +228,40 @@ fn allowlist_parser_reads_all_entry_forms() {
 }
 
 #[test]
-fn dependency_scanner_sees_plain_and_target_tables() {
-    let clean =
-        "[package]\nname = \"x\"\n\n[dependencies]\n# nothing\n\n[dev-dependencies]\nq = \"1\"\n";
+fn dependency_scanner_sees_every_dependency_table_form() {
+    let clean = "[package]\nname = \"x\"\n\n[dependencies]\n# nothing\n\n[features]\nf = [\"a\"]\n";
     assert!(dependency_entries(clean).is_empty());
-    let dirty = "[dependencies]\nlibc = \"0.2\"\n";
-    assert_eq!(dependency_entries(dirty), vec!["libc = \"0.2\""]);
-    let target = "[target.'cfg(unix)'.dependencies]\nlibc = \"0.2\"\n";
-    assert_eq!(dependency_entries(target), vec!["libc = \"0.2\""]);
+    for table in [
+        "dependencies",
+        "dev-dependencies",
+        "build-dependencies",
+        "target.'cfg(unix)'.dependencies",
+        "target.'cfg(unix)'.dev-dependencies",
+        "target.'cfg(unix)'.build-dependencies",
+    ] {
+        let m = format!("[{table}]\nlibc = \"0.2\"\n");
+        assert_eq!(dependency_entries(&m), vec!["libc = \"0.2\""], "{table}");
+    }
+    // Table-header style: the header itself is the entry.
+    for header in [
+        "[dependencies.libc]",
+        "[dev-dependencies.libc]",
+        "[build-dependencies.libc]",
+        "[target.'cfg(unix)'.dependencies.libc]",
+    ] {
+        let m = format!("{header}\nversion = \"0.2\"\n");
+        assert!(!dependency_entries(&m).is_empty(), "{header}");
+    }
+}
+
+#[test]
+fn only_a_real_table_header_ends_a_section() {
+    // A `[` at the start of a continuation line inside a value is not a header.
+    let m = "[dependencies]\nlibc = { version = \"0.2\", features = [\n[\"x\"]\n] }\n\n[features]\nf = []\n";
+    assert_eq!(dependency_entries(m).len(), 3);
+    // After a real header, a later `[` inside another table's value stays out.
+    let m = "[features]\nf = [\n[\"x\"]\n]\n\n[package]\nname = \"x\"\n";
+    assert!(dependency_entries(m).is_empty());
 }
 
 #[test]

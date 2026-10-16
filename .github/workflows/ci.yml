@@ -44,6 +44,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_DENY_VERSION: 0.20.2
+      CARGO_AUDIT_VERSION: 0.22.2
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -59,10 +62,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo-audit-tools
-          key: audit-tools-deny-0.20.2-audit-0.22.2-${{ runner.os }}
+          key: audit-tools-deny-${{ env.CARGO_DENY_VERSION }}-audit-${{ env.CARGO_AUDIT_VERSION }}-${{ runner.os }}
       - name: install cargo-deny and cargo-audit
         if: matrix.os == 'ubuntu-latest' && steps.audit-tools.outputs.cache-hit != 'true'
-        run: cargo install --locked --root ~/.cargo-audit-tools cargo-deny@0.20.2 cargo-audit@0.22.2
+        run: cargo install --locked --root ~/.cargo-audit-tools cargo-deny@${CARGO_DENY_VERSION} cargo-audit@${CARGO_AUDIT_VERSION}
+      - name: check tool versions
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export PATH="$HOME/.cargo-audit-tools/bin:$PATH"
+          cargo deny --version | grep -E "^cargo-deny ${CARGO_DENY_VERSION}$"
+          cargo audit --version | grep -E " ${CARGO_AUDIT_VERSION}$"
       - name: cargo deny
         if: matrix.os == 'ubuntu-latest'
         run: ~/.cargo-audit-tools/bin/cargo-deny check
