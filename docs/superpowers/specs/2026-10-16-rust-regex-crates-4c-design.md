@@ -46,6 +46,14 @@ Go처럼 SIGPIPE로 죽는다. 골든 테스트 `regex`·`err_regex`를 Go 대�
 
 이 층 전체는 open-questions "Go 동등을 위한 과도기 잔가지"에 등록한다.
 
+**2026-10-16 구현 중 개정(사용자 결정).** AST를 훑는 얇은 층으로는 Go가 먼저 내는 에러·에러 문구·`\<`·`[[a]]` 같은 패턴의 뜻을 맞출 수 없어,
+Go `regexp/syntax` 파서를 Rust로 옮겼다(`native/regex_go.rs`). 해석 결과는 `regex_syntax` HIR로 바꿔 `regex` 엔진에 넘긴다(매칭은 크레이트).
+- 이 파서는 **fung 정규식 문법의 정의**로 본다. 크레이트를 올려도 받아들이는 문법이 바뀌지 않는다. Go 삭제 뒤에도 남기고 6단계 뒤에 다시 판단한다.
+- 유니코드 표(`\pL`, 대소문자 무시)는 Go가 생성하는 `spec/regex_unicode.txt`를 쓴다(앞단의 `spec/unicode.txt`와 같은 방식). 과도기 잔가지로 기록한다.
+- 무작위 패턴 2,000개의 Go 기대값은 저장소에 테스트 데이터로 둔다(Go 삭제 뒤의 회귀 검사).
+- Go는 받지만 Rust 엔진의 크기 한도를 넘는 아주 큰 패턴은 Go의 "expression too large" 문구로 실패한다(알려진 차이).
+
+
 ## 3. SIGPIPE
 
 - Rust 런타임은 시작할 때 SIGPIPE를 무시로 둔다. 그래서 닫힌 파이프에 쓰면 EPIPE 에러가 오고, 지금은 `exit(141)`로 흉내 낸다.
