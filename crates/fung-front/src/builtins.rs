@@ -30,8 +30,8 @@ const RUST_PRELUDE_AGENT: &[&str] = &["agent", "deref", "swap"];
 /// (`resolve/fn_.rs`) is Go's, and `is_builtin_type` applies this.
 pub(crate) const RUST_TYPE_RENAMES: &[(&str, &str)] = &[("atom", "agent")];
 
-/// The members the Rust `_native.*` modules add, in the spec's
-/// `name(params)` form. Only embedded extras files can import
+/// The members the Rust `_native.*` modules add, and the members of the
+/// Rust-only `_native.net`, in the spec's `name(params)` form. Only embedded extras files can import
 /// `_native.*` (E0310), so these never change what user code can name.
 const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.conc", "spawn_background(f)"),
@@ -43,6 +43,19 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.conc", "send_unchecked(ch, v)"),
     ("_native.conc", "agent_busy(ch, on, state=?)"),
     ("_native.conc", "agent_peek(a)"),
+    // Stage 4d: the TCP primitives `extras/rust/http.fung` is written
+    // over (Go's `_native.http` does HTTP in Go instead).
+    ("_native.net", "connect(host, port, tls=?, timeout=?)"),
+    ("_native.net", "listen(addr)"),
+    ("_native.net", "local_addr(x)"),
+    ("_native.net", "accept(l)"),
+    ("_native.net", "read_line(c, limit)"),
+    ("_native.net", "read_bytes(c, n)"),
+    ("_native.net", "read_all(c, limit)"),
+    ("_native.net", "write(c, s)"),
+    ("_native.net", "close(x)"),
+    ("_native.net", "set_deadline(c, d)"),
+    ("_native.net", "byte_len(s)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

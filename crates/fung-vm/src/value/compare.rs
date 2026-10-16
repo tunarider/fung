@@ -41,6 +41,8 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Channel(x), Value::Channel(y)) => Rc::ptr_eq(x, y),
         (Value::Agent(x), Value::Agent(y)) => Rc::ptr_eq(x, y),
         (Value::File(x), Value::File(y)) => Rc::ptr_eq(x, y),
+        (Value::Conn(x), Value::Conn(y)) => Rc::ptr_eq(x, y),
+        (Value::Listener(x), Value::Listener(y)) => Rc::ptr_eq(x, y),
         (Value::Caught(x), Value::Caught(y)) => Rc::ptr_eq(x, y),
         _ => false,
     }

@@ -55,6 +55,8 @@ pub fn format(v: &Value) -> String {
         Value::Channel(_) => "<channel>".into(),
         Value::Agent(_) => "<agent>".into(),
         Value::File(f) => format!("<file {}>", quote(&f.path)),
+        Value::Conn(_) => "<conn>".into(),
+        Value::Listener(_) => "<listener>".into(),
         Value::Caught(_) => "<error>".into(),
     }
 }
@@ -103,6 +105,8 @@ pub fn type_name(v: &Value) -> String {
         Value::Channel(_) => "channel".into(),
         Value::Agent(_) => "agent".into(),
         Value::File(_) => "file".into(),
+        Value::Conn(_) => "conn".into(),
+        Value::Listener(_) => "listener".into(),
         Value::Caught(_) => "error".into(),
     }
 }

@@ -44,6 +44,7 @@ mod task_tests;
 #[cfg(test)]
 mod tests;
 pub(crate) mod token;
+mod watch;
 mod world;
 
 use std::cmp::Ordering;
@@ -69,6 +70,9 @@ pub use runtime::Runtime;
 pub use stdin::BUFFER as STDIN_BUFFER;
 pub use task::TaskHandle;
 pub(crate) use task::err_kind;
+pub(crate) use watch::{Interest, Waited, Watch, outside_watched};
+#[cfg(test)]
+pub(crate) use watch::{live_wakes, serial as watch_serial};
 
 use crate::value::{self, Value};
 use frame::Frame;

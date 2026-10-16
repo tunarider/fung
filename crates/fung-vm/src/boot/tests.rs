@@ -154,6 +154,7 @@ fn native_modules_match_the_spec() {
             ("_native.time", crate::native::time::module()),
             ("_native.json", crate::native::json::module()),
             ("_native.regex", crate::native::regex::module()),
+            ("_native.net", crate::native::net::module()),
         ] {
             assert_eq!(m.key, key);
             let names: Vec<&str> = m.names();

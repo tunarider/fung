@@ -20,7 +20,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
 
-use crate::native::{fs, json, nat, path, process, regex, time};
+use crate::native::{fs, json, nat, net, path, process, regex, time};
 use crate::value::{Module, Value};
 use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
@@ -141,6 +141,8 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
         "_native.time" => Some(time::module()),
         "_native.json" => Some(json::module()),
         "_native.regex" => Some(regex::module()),
+        // stage 4d, Rust only (`fung_front::builtins` lists its members)
+        "_native.net" => Some(net::module()),
         _ => None,
     }
 }

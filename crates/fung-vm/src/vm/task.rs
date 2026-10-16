@@ -101,7 +101,14 @@ struct NodeInner {
     links: Vec<Weak<CancelNode>>,
     /// Cancel this node once its last child leaves (`end_when_empty`).
     end_when_empty: bool,
+    /// Run once when this node is cancelled (`on_cancel`, stage 4d): what
+    /// wakes a task that waits on the operating system (`watch.rs`).
+    hooks: Vec<(u64, Hook)>,
 }
+
+/// What `CancelNode::on_cancel` registers. It runs on the cancelling
+/// thread, under the node's lock, so it must be short and take no lock.
+pub(crate) type Hook = Box<dyn FnOnce() + Send>;
 
 impl CancelNode {
     pub(crate) fn root() -> Arc<CancelNode> {
@@ -146,6 +153,12 @@ impl CancelNode {
         self.inner().children.len()
     }
 
+    /// The number of hooks registered (tests).
+    #[cfg(test)]
+    pub(crate) fn hook_count(&self) -> usize {
+        self.inner().hooks.len()
+    }
+
     /// The number of nodes below this one, through the primary lists
     /// (tests). Never holds two locks: each level is copied out first.
     #[cfg(test)]
@@ -163,6 +176,35 @@ impl CancelNode {
     /// nodes are checked by the caller after registering.
     pub(crate) fn watch(&self, w: &Arc<Waiter>) {
         self.inner().watchers.add(w);
+    }
+
+    /// Registers `hook` (under `id`) to run when this node is cancelled,
+    /// unless it already is: then it returns false and drops the hook.
+    ///
+    /// No cancellation is missed: `take` sets the flag before it takes
+    /// the lock to run the hooks, and the flag is checked here under that
+    /// lock. Either this registration holds the lock first, and `take`
+    /// finds the hook and runs it, or the flag is already visible here.
+    pub(crate) fn on_cancel(&self, id: u64, hook: Hook) -> bool {
+        let mut inner = self.inner();
+        if self.cancelled.load(Ordering::SeqCst) {
+            return false;
+        }
+        inner.hooks.push((id, hook));
+        true
+    }
+
+    /// Unregisters the hook `id`, dropping it unrun; nothing if it has
+    /// run already. Once this returns, the hook is not running and never
+    /// will (both happen under the node's lock).
+    pub(crate) fn remove_hook(&self, id: u64) {
+        let hook = {
+            let mut inner = self.inner();
+            let i = inner.hooks.iter().position(|(h, _)| *h == id);
+            i.map(|i| inner.hooks.swap_remove(i))
+        };
+        // dropped outside the lock (a hook owns a pipe end)
+        drop(hook);
     }
 
     /// Cancels this node and every node below it (without recursion: a
@@ -225,6 +267,9 @@ impl CancelNode {
         }
         let mut inner = self.inner();
         inner.watchers.wake_all();
+        for (_, hook) in inner.hooks.drain(..) {
+            hook();
+        }
         let children = std::mem::take(&mut inner.children).into_values().collect();
         Some((children, std::mem::take(&mut inner.links)))
     }

@@ -9,7 +9,8 @@
 //!
 //! A file handle (`Value::File`) holds no values, only its path and the
 //! open file: dropping it closes the file and never goes deep, so it is
-//! not handed to `release`.
+//! not handed to `release`. Nor are connections and listeners
+//! (`Value::Conn`, `Value::Listener`), for the same reason.
 
 use std::rc::Rc;
 

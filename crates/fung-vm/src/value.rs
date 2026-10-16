@@ -21,6 +21,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub use crate::native::file::File;
+pub use crate::native::net::{Conn, Listener};
 use crate::vm::{Agent, Caught, Channel, RtProto, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
@@ -63,6 +64,11 @@ pub enum Value {
     /// An open file handle (`fs.open`); it closes the file when its last
     /// copy drops (`native/file.rs`).
     File(Rc<File>),
+    /// A TCP connection (stage 4d, Rust only; only `_native.net` makes
+    /// one): it closes when its last copy drops (`native/net.rs`).
+    Conn(Rc<Conn>),
+    /// A listening TCP socket (stage 4d, like `Conn`).
+    Listener(Rc<Listener>),
     /// An instant with its zone (02, `time`).
     Time(Rc<Time>),
     /// An error `_native.conc.try_call` caught, for `raise` (stage 3b,
