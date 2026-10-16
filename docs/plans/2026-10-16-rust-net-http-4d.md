@@ -58,7 +58,7 @@
 - Consumes: Task 1 `connect`.
 - Produces: `connect(host, port, tls = true, …)`이 SNI와 운영체제 루트(또는 `SSL_CERT_FILE`·`SSL_CERT_DIR`)로 검증한 TLS 연결을 준다. 나머지 원시 기능은 TLS 연결에서도 같게 동작한다. 루트 저장소는 프로세스당 한 번 읽는다(Rust 값만).
 
-- [ ] **Step 1: 실패하는 테스트** — 테스트 안에서 rustls 서버(테스트 인증서)를 띄워: 신뢰(`SSL_CERT_FILE`) 시 주고받기 성공, 신뢰 안 함 → `Err 'network` + Go 문구, 이름 불일치 → Go 문구, 핸드셰이크 중 취소 → E0701. Go 대조는 Linux에서만(`#[cfg(target_os = "linux")]`), macOS는 Rust만.
+- [ ] **Step 1: 실패하는 테스트** — 테스트 안에서 rustls 서버(테스트 인증서)를 띄워: 신뢰(`SSL_CERT_FILE`) 시 주고받기 성공, 신뢰 안 함 → `Err 'network` + Go 문구, 이름 불일치 → Go 문구, 핸드셰이크 중 취소 → E0701. Go 대조는 macOS·Linux 모두(Go 1.27은 `SSL_CERT_FILE`이 있으면 macOS에서도 그 인증서를 쓴다).
 - [ ] **Step 2: 실패 확인** — Run: `cargo test -p fung-vm net` / Expected: FAIL.
 - [ ] **Step 3: 구현** — `rustls`(기본 기능 끄고 `ring`·`std`·`tls12`·로깅 없음), `rustls-native-certs`. `cargo-deny check`·`cargo-audit`.
 - [ ] **Step 4: 통과 확인** — Run: 커밋 전 검사 전체 / Expected: PASS.

@@ -64,7 +64,7 @@ Go가 덧붙이는 그 밖의 헤더, 흔하지 않은 에러 문구.
   - 클라이언트: 같은 로컬 테스트 서버(Rust 테스트 코드의 가짜 서버)에 Go fung과 Rust fung 클라이언트를 붙여 출력 비교 — 상태·헤더·본문,
     조각 전송, 연결 닫힘까지 읽기, `HEAD`·204, 리다이렉트 각 코드·10번 초과·상대 경로·호스트 바뀜, 시간 초과, 연결 거부, 잘못된 URL, 프록시(가짜 프록시 서버, `CONNECT` 포함).
   - 서버: Go fung 서버와 Rust fung 서버에 같은 원시 요청을 보내 응답 비교(`Date` 값은 가림) — 기본 헤더, 413, 400, 500·503, 헤더 10초 한도(시간을 줄일 수 없으면 Rust만 따로).
-  - https: 저장소의 테스트 인증서(긴 유효 기간, 생성 스크립트와 함께)로 TLS 서버를 띄우고 `SSL_CERT_FILE`로 신뢰. Go 대조는 Linux에서만(macOS Go는 이 변수를 안 읽음), macOS는 Rust만.
+  - https: 저장소의 테스트 인증서(긴 유효 기간, 생성 스크립트와 함께)로 TLS 서버를 띄우고 `SSL_CERT_FILE`로 신뢰. Go 대조는 macOS·Linux 모두(Go 1.27부터 `SSL_CERT_FILE`·`SSL_CERT_DIR`이 있으면 macOS에서도 운영체제 검증기 대신 그 인증서를 쓴다; 옛 동작은 GODEBUG `x509sslcertoverrideplatform`).
 - 취소: `accept`·`read`에서 막힌 태스크를 `cancel`하면 바로 E0701로 끝나는지(상태로 순서를 정하는 탐침).
 - 예제 `examples/serve.fung`·`api.fung`·`checkurls.fung`·`urlcheck.fung`·`static.fung`이 Rust로 도는지(필요하면 `atom` → `agent`는 6단계 몫이므로 Rust판 테스트에서만).
 - `_native.net` 단위 테스트: 부분 읽기, 긴 줄, `byte_len`, 닫힌 연결, 마지막 사본에서 닫힘.
