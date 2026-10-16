@@ -1143,6 +1143,41 @@ print(http.get(URL + "/chunks"))"#,
         ])],
         &[],
     ));
+    // Go drains up to 2 KB of a redirect's body (when its length is
+    // unknown or at most that) before following it, waiting for it: a
+    // stalled body runs into the timeout; a longer one is not read
+    v.push(multi(
+        r#"print(http.get(URL + "/hold", timeout: 2s))
+print(http.get(URL + "/holdnolen", timeout: 2s))
+print(http.get(URL + "/holdchunks", timeout: 2s))
+print(http.get(URL + "/holdlong", timeout: 2s))"#,
+        vec![routes(vec![
+            (
+                "/hold",
+                Reply::Hold(bytes(
+                    "HTTP/1.1 302 Found\r\nLocation: /end\r\nContent-Length: 10\r\n\r\nabc",
+                )),
+            ),
+            (
+                "/holdnolen",
+                Reply::Hold(bytes("HTTP/1.1 302 Found\r\nLocation: /end\r\n\r\nabc")),
+            ),
+            (
+                "/holdchunks",
+                Reply::Hold(bytes(
+                    "HTTP/1.1 307 Temp\r\nLocation: /end\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n",
+                )),
+            ),
+            (
+                "/holdlong",
+                Reply::Hold(bytes(
+                    "HTTP/1.1 302 Found\r\nLocation: /end\r\nContent-Length: 5000\r\n\r\nabc",
+                )),
+            ),
+            ("*", named("end")),
+        ])],
+        &[],
+    ));
     // ten requests at most: nine redirects pass, the tenth fails; a loop
     v.push(multi(
         r#"print(http.get(URL + "/r/0"))"#,
@@ -1176,19 +1211,16 @@ print(http.get(URL + "/start?q=1", headers: {"Referer": ""}))"#,
     // the timeout covers every request together: each answer comes in
     // time for it alone, not both
     v.push(multi(
-        r#"print(http.get(URL + "/slow1", timeout: 600ms))
+        r#"print(http.get(URL + "/slow1", timeout: 1500ms))
 print(http.get(URL + "/slow1", timeout: 5s))"#,
         vec![routes(vec![
             (
                 "/slow1",
-                Reply::Slow(
-                    Duration::from_millis(400),
-                    Box::new(redirect(302, "/slow2")),
-                ),
+                Reply::Slow(Duration::from_secs(1), Box::new(redirect(302, "/slow2"))),
             ),
             (
                 "*",
-                Reply::Slow(Duration::from_millis(400), Box::new(named("late"))),
+                Reply::Slow(Duration::from_secs(1), Box::new(named("late"))),
             ),
         ])],
         &[],
@@ -1455,7 +1487,8 @@ type NoProxyRow = (
 /// value (Go `httpproxy`): `(variables, [(url, "proxy" | "direct")])`.
 /// Each table row is one run; its requests run at once, each telling by
 /// the proxy's answer whether it went through the proxy (a direct one to
-/// these hosts fails or times out). `HTTP_PROXY` and `HTTPS_PROXY` are
+/// these hosts fails or times out; 3 s leaves the proxied ones a wide
+/// margin). `HTTP_PROXY` and `HTTPS_PROXY` are
 /// always the proxy.
 const NO_PROXY_TABLE: &[NoProxyRow] = &[
     (
@@ -1558,6 +1591,16 @@ const NO_PROXY_TABLE: &[NoProxyRow] = &[
         ],
     ),
     (
+        &[(
+            "NO_PROXY",
+            "192.0.2.0/0024,198.51.100.0/99999999999999999999",
+        )],
+        &[
+            ("http://192.0.2.5/", "direct"),
+            ("http://198.51.100.1/", "proxy"),
+        ],
+    ),
+    (
         &[("NO_PROXY", "2001:db8::1")],
         &[
             ("http://[2001:db8::1]/", "direct"),
@@ -1639,7 +1682,7 @@ fn no_proxy_patterns_match_go() {
             .map(|(u, _)| format!("{:?}", u.replace("REFUSED", &refused)))
             .collect();
         let src = format!(
-            "import http\nfn probe(u) = match http.get(u, timeout: 1s):\n  Ok(r)  => r.body == \"via-proxy\" then \"proxy\" else \"direct\"\n  Err(e) => \"via-proxy\" in e.message then \"proxy\" else \"direct\"\n;;\nts = map([{}], u => spawn(() => probe(u)))\nprint(join(map(ts, t => await(t)), \" \"))",
+            "import http\nfn probe(u) = match http.get(u, timeout: 3s):\n  Ok(r)  => r.body == \"via-proxy\" then \"proxy\" else \"direct\"\n  Err(e) => \"via-proxy\" in e.message then \"proxy\" else \"direct\"\n;;\nts = map([{}], u => spawn(() => probe(u)))\nprint(join(map(ts, t => await(t)), \" \"))",
             list.join(", ")
         );
         let addr = format!("http://127.0.0.1:{}", proxy.port);

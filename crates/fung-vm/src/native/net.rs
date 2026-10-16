@@ -232,6 +232,15 @@ impl<T> Drop for Counted<T> {
     }
 }
 
+/// The lock if no one holds it (`None` if someone does).
+fn try_lock<T>(m: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
+    match m.try_lock() {
+        Ok(g) => Some(g),
+        Err(std::sync::TryLockError::Poisoned(p)) => Some(p.into_inner()),
+        Err(std::sync::TryLockError::WouldBlock) => None,
+    }
+}
+
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     // The state is plain data that no panic leaves half-changed.
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -498,20 +507,24 @@ impl Conn {
         Ok(())
     }
 
-    /// Go `Close`: shuts the socket down (waking a blocked read or write
-    /// of another task, which then reports the close) and lets it go; a
-    /// second close is an error.
     /// A new connection over this one's socket, which this one gives up
-    /// (it reads as closed, and dropping it ends nothing). What was read
-    /// ahead is dropped: `start_tls` uses this once a proxy has answered a
-    /// CONNECT, and a TLS server says nothing until spoken to (Go drops
-    /// its reader there too). A TLS connection cannot carry another.
+    /// (it reads as closed, and dropping it ends nothing). The caller
+    /// must own the connection alone: while another task reads or writes
+    /// it, this fails at once (`tls: the connection is in use`). What was
+    /// read ahead is dropped on purpose: `start_tls` uses this once a
+    /// proxy has answered a CONNECT, a TLS server says nothing until
+    /// spoken to, and Go discards its bufio reader there the same way. A
+    /// TLS connection cannot carry another.
     fn take_over(&self) -> Result<Conn, Fail> {
         if self.tls.is_some() {
             return Err(Fail::Network(
                 "tls: a TLS connection cannot carry another".into(),
             ));
         }
+        let in_use = || Fail::Network("tls: the connection is in use".into());
+        let (Some(_rd), Some(_wr)) = (try_lock(&self.rd), try_lock(&self.wr)) else {
+            return Err(in_use());
+        };
         let s = lock(&self.sock).take().ok_or_else(|| self.closed("read"))?;
         Ok(Conn {
             sock: Mutex::new(Some(s)),
@@ -524,6 +537,9 @@ impl Conn {
         })
     }
 
+    /// Go `Close`: shuts the socket down (waking a blocked read or write
+    /// of another task, which then reports the close) and lets it go; a
+    /// second close is an error.
     fn close(&self) -> Result<(), Fail> {
         let s = lock(&self.sock)
             .take()

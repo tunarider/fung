@@ -627,3 +627,31 @@ fn start_tls_upgrades_a_plain_connection() {
             .contains("argument `timeout` must be dur, got int")
     );
 }
+
+/// `start_tls` needs the connection to itself: while another task reads
+/// (or writes) it, the upgrade fails at once instead of waiting.
+#[test]
+fn start_tls_refuses_a_connection_in_use() {
+    let _g = serial();
+    let _t = trust_ca();
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let h = std::thread::spawn(move || {
+        let (mut s, _) = l.accept().unwrap();
+        let mut rest = Vec::new();
+        let _ = s.read_to_end(&mut rest);
+    });
+    let base = probe::read_waits();
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port})!\nt = spawn(() => net.read_line(c, 10))\nuntil(() => read_waits() > {base} and net_waiting() == 1)\nprint(net.start_tls(c, \"localhost\", timeout: 2s))\ncancel(t)\nprint(await(t))\nprint(net.close(c))"
+    ));
+    h.join().unwrap();
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'network, message: \"tls: the connection is in use\"})\nErr({kind: 'cancelled})\nOk(nil)\n",
+            "",
+            0
+        )
+    );
+}

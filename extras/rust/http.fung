@@ -533,10 +533,11 @@ fn _parse_cidr(p):
   ;;
   (addr, n_text) = _cut(p, "/")
   ip = _parse_addr(addr, false)
-  if ip == nil or n_text == "" or len(n_text) > 3 or not all(chars(n_text), ch => ch in "0123456789"):
+  if ip == nil or n_text == "" or not all(chars(n_text), ch => ch in "0123456789"):
     return nil
   ;;
-  n = parse_int(n_text)!
+  # Go `dtoi` takes leading zeros; a number too big to read is too big.
+  n = parse_int(n_text) ?? 1000
   v4 = ":" not in addr
   if n > (v4 then 32 else 128):
     return nil
@@ -875,14 +876,60 @@ fn _finish(c, method, op, major, minor, code, fields):
     Err(why) => return Err(_broken('network, op, why))
   ;;
   headers = _header_map(_close_header(h3, major, minor))
-  # The body of a redirect is not read (Go reads 2 KB at most, ignoring
-  # errors, and closes).
   loc = _location(code, h3)
   if loc != nil:
+    _drain(c, method, chunked, length)?
     return Ok(({status: code, headers, body: ""}, loc))
   ;;
   body = _read_body(c, method, code, chunked, length)?
   Ok(({status: code, headers, body}, nil))
+;;
+
+# Go `Client.do` before it follows a redirect: it reads at most 2 KB of
+# the body when the length is unknown or at most that, and ignores what
+# goes wrong, but waits for it: a body that stalls runs into the
+# deadline, which is the request's timeout. Ok(nil) or that timeout.
+# (Go mimicry: open-questions "Go 동등을 위한 과도기 잔가지".)
+fn _drain(c, method, chunked, length):
+  e = if method == "HEAD" or length == 0 or length > 2048:
+    nil
+  else if chunked:
+    _drain_chunks(c, 2048)
+  else if length > 0:
+    _error_of(_net.read_bytes(c, length))
+  else:
+    _error_of(_net.read_all(c, 2047))
+  ;;
+  e != nil and e.kind == 'timeout then Err(e) else Ok(nil)
+;;
+
+fn _error_of(r) = match r:
+  Err(e) => e
+  _      => nil
+;;
+
+# Go's chunked reader asked for `left` more bytes: the error that ended
+# it, or nil.
+fn _drain_chunks(c, left) = match _chunk_line(c, [], 0):
+  Err(e)   => e
+  Ok(line) => match _hex(_before(_trim_right_ows(line), ";")):
+    Err(_) => nil
+    Ok(0)  => _error_of(_trailer(c))
+    Ok(n)  => _drain_chunk(c, n, left)
+  ;;
+;;
+
+fn _drain_chunk(c, n, left):
+  take = n < left then n else left
+  match _net.read_bytes(c, take):
+    Err(e) => e
+    Ok(_)  => take == left then nil else _drain_next(c, left - take)
+  ;;
+;;
+
+fn _drain_next(c, left) = match _net.read_bytes(c, 2):
+  Err(e) => e
+  Ok(_)  => _drain_chunks(c, left)
 ;;
 
 # Fields as canonical key → values, in the order they came. (The
