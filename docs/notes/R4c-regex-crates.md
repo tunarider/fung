@@ -19,6 +19,8 @@
 - `crates/fung-vm/src/native/regex_go.rs`: Go 1.27 `regexp/syntax/parse.go`를 단계 그대로 옮긴 파서(약 2,000줄). 결과를 `regex_syntax`의 HIR로 바꿔 `regex` 엔진에 넘긴다(3절).
 - `crates/fung-vm/src/native/regex.rs`: `_native.regex` 5개(`is_match` `find` `find_all` `replace` `split`), 패턴 캐시 256개(차면 통째로 비움),
   Go `allMatches`·`replaceAll`·`Split`·`Expand`를 옮긴 반복 코드, 바이트 → 글자 위치를 앞으로만 가는 커서(`RuneCursor`)로 선형 변환.
+  캐시에 없는 패턴은 실행권 밖에서(`outside`, 파일 읽기와 같은 장치) 컴파일한다. 몇 초 걸리는 패턴이 다른 태스크를 모두 멈추지 않게 하려는 것이다.
+  캐시 뮤텍스는 기다림이 없는 짧은 구간에서만 쥐고, 실행권 밖의 컴파일은 아무 잠금도 쥐지 않으므로 서로를 기다리는 순서가 생기지 않는다.
 - `spec/regex_unicode.txt`(96 KB): Go가 만드는 유니코드 표(범주, 문자 체계, 대소문자 접기). `tests/spec_test.go`의 `regexUnicodeSpec`이 생성하고 `TestSpecFiles`가 지킨다.
 - `crates/fung-vm/src/sigpipe.rs`: `die()`. 표준 출력·에러의 EPIPE에서 부른다(5절).
 - `deny.toml`, `crates/fung-cli/tests/deps.rs`, CI의 `cargo-deny`·`cargo-audit`(4절).

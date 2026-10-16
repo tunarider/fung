@@ -19,7 +19,7 @@ use regex::{CaptureLocations, Regex};
 use super::nat::{self, native, param};
 use super::regex_go::{compile_go, go_capture_names, go_letter_or_digit};
 use crate::value::{MapBuilder, Module, Native, Value};
-use crate::vm::{Stop, Task};
+use crate::vm::{Stop, Task, outside};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -84,29 +84,74 @@ fn cache() -> MutexGuard<'static, HashMap<String, Arc<Compiled>>> {
 
 /// The compiled pattern, cached. A bad pattern is a code error (E0515):
 /// patterns are written in the script. Only good patterns are cached.
-fn compile_pattern(pat: &str) -> Result<Arc<Compiled>, Stop> {
-    if let Some(c) = cache().get(pat) {
-        return Ok(c.clone());
+///
+/// A cache miss compiles without the run token (`outside`), as a file read
+/// does: a pattern that takes seconds to compile must not stall every
+/// task. Go compiles under its cache mutex, so there only other regex
+/// callers wait; here nobody does, and two tasks that miss on the same
+/// pattern at once both compile it (`remember` keeps the first).
+///
+/// Locks and the token, so that no two threads wait on each other:
+/// - the cache mutex is held only inside `cache().get(..)` and `remember`,
+///   short sections that wait for nothing (no token, no other lock), so a
+///   thread holding it always lets it go;
+/// - the compile running without the token takes no lock and touches no
+///   fung value: it gets an owned `String` and gives back a plain
+///   `Compiled` (both `Send`, as `outside` requires);
+/// - so while this task waits for the token (`outside` taking it back) it
+///   holds neither the cache mutex nor an `Arc<Compiled>` from the cache.
+fn compile_pattern(t: &mut Task<'_>, pat: &str) -> Result<Arc<Compiled>, Stop> {
+    // The guard is a temporary: it is dropped at the end of the statement.
+    let hit = cache().get(pat).cloned();
+    if let Some(c) = hit {
+        return Ok(c);
     }
-    let re = compile_go(pat).map_err(|e| nat::fail("E0515", vec![Arg::Str(e)]))?;
-    let c = Arc::new(Compiled {
+    let owned = pat.to_string();
+    let compiled =
+        outside(t, move || compile(owned)).map_err(|e| nat::fail("E0515", vec![Arg::Str(e)]))?;
+    Ok(remember(&mut cache(), pat, Arc::new(compiled)))
+}
+
+/// Compiles `pat` with Go's syntax and meaning. Runs without the run
+/// token: plain Rust values in and out.
+fn compile(pat: String) -> Result<Compiled, String> {
+    let re = compile_go(&pat)?;
+    #[cfg(test)]
+    tests::compile_hook(&pat);
+    Ok(Compiled {
         names: go_capture_names(&re),
         re,
-    });
-    let mut cache = cache();
+    })
+}
+
+/// Adds `c` to `cache` as `pat` and returns what the cache holds for
+/// `pat`: the entry already there if another task compiled it first.
+/// A full cache is emptied first rather than evicted one by one (Go).
+fn remember(
+    cache: &mut HashMap<String, Arc<Compiled>>,
+    pat: &str,
+    c: Arc<Compiled>,
+) -> Arc<Compiled> {
+    if let Some(first) = cache.get(pat) {
+        return first.clone();
+    }
     if cache.len() >= MAX_CACHED_PATTERNS {
         cache.clear();
     }
     cache.insert(pat.to_string(), c.clone());
-    Ok(c)
+    c
 }
 
 /// Reads the `(s, pat)` arguments every function takes: the subject is
-/// checked first, then the pattern, which is then compiled.
-fn subject_and_pattern(a: &[Value]) -> Result<(&str, Arc<Compiled>), Stop> {
+/// checked first, then the pattern, which is then compiled. The pattern
+/// text comes back too (`split` needs it).
+fn subject_and_pattern<'a>(
+    t: &mut Task<'_>,
+    a: &'a [Value],
+) -> Result<(&'a str, &'a str, Arc<Compiled>), Stop> {
     let s = nat::need_str("s", &a[0])?;
     let pat = nat::need_str("pat", &a[1])?;
-    Ok((s, compile_pattern(pat)?))
+    Ok((s, pat, compile_pattern(t, pat)?))
 }
 
 /// The length of the character at `pos`, 0 at the end (Go's
@@ -201,13 +246,13 @@ fn match_value(s: &str, c: &Compiled, locs: &CaptureLocations, cur: &mut RuneCur
     Value::Map(Rc::new(m.finish()))
 }
 
-fn is_match_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let (s, c) = subject_and_pattern(&a)?;
+fn is_match_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let (s, _, c) = subject_and_pattern(t, &a)?;
     Ok(Value::Bool(c.re.is_match(s)))
 }
 
-fn find_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let (s, c) = subject_and_pattern(&a)?;
+fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let (s, _, c) = subject_and_pattern(t, &a)?;
     let mut locs = c.re.capture_locations();
     Ok(match c.re.captures_read(&mut locs, s) {
         Some(_) => match_value(s, &c, &locs, &mut RuneCursor::new(s)),
@@ -215,8 +260,8 @@ fn find_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     })
 }
 
-fn find_all_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let (s, c) = subject_and_pattern(&a)?;
+fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let (s, _, c) = subject_and_pattern(t, &a)?;
     let mut out = Vec::new();
     let mut cur = RuneCursor::new(s);
     go_all(&c.re, s, |locs| {
@@ -228,8 +273,8 @@ fn find_all_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// Go `Regexp.ReplaceAllString` (`replaceAll`): its own loop, where an
 /// empty match right after the previous match is not replaced and the
 /// search always moves on at least one character.
-fn replace_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let (s, c) = subject_and_pattern(&a)?;
+fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let (s, _, c) = subject_and_pattern(t, &a)?;
     let repl = nat::need_str("repl", &a[2])?;
     let mut out = String::with_capacity(s.len());
     let mut locs = c.re.capture_locations();
@@ -336,9 +381,8 @@ fn extract(t: &str) -> Option<(&str, Option<usize>, &str)> {
 /// Go `Regexp.Split(s, -1)`: an empty pattern on an empty subject gives
 /// no pieces, an empty match at the start cuts nothing, and the text after
 /// the last match is kept unless that match started at the very end.
-fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let (s, c) = subject_and_pattern(&a)?;
-    let pat = nat::need_str("pat", &a[1])?;
+fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let (s, pat, c) = subject_and_pattern(t, &a)?;
     if !pat.is_empty() && s.is_empty() {
         return Ok(nat::list(vec![Value::str("")]));
     }

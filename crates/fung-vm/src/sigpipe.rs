@@ -26,6 +26,12 @@ pub const EXIT_BROKEN_PIPE: i32 = 141;
 /// Like Go's `dieFromSignal`, it unblocks SIGPIPE in the calling thread
 /// first. If the signal still does not kill the process, it exits with
 /// [`EXIT_BROKEN_PIPE`], what a shell would show, as Go does there.
+///
+/// Two parts of this are Go runtime behaviour, not a language rule, and
+/// are listed for removal after the port in open-questions "Go 동등을 위한
+/// 과도기 잔가지": dying even when the process was started with SIGPIPE
+/// ignored (a C program would see EPIPE instead), and the 141 fallback
+/// (Go `dieFromSignal`'s `exit(128 + sig)`).
 pub fn die() -> ! {
     #[cfg(unix)]
     // SAFETY: `signal`, `sigemptyset`, `sigaddset`, `pthread_sigmask` and

@@ -18,7 +18,7 @@ import (
 	"github.com/tunarider/fung/internal/vm"
 )
 
-var update = flag.Bool("update", false, "rewrite spec/*.txt")
+var update = flag.Bool("update", false, "rewrite spec/*.txt and crates/fung-vm/src/native/regex_go_fixtures.rs")
 
 func params(ps []value.NativeParam) string {
 	out := make([]string, len(ps))

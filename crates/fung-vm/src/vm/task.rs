@@ -588,7 +588,13 @@ fn run_spawned(
         drop(t);
     }));
     if r.is_err() {
-        eprintln!("fung: internal error: a task thread panicked outside the panic fence");
+        use std::io::Write as _;
+        // `writeln!` with the result dropped, not `eprintln!`: with standard
+        // error closed `eprintln!` panics, and `abort` must still run.
+        let _ = writeln!(
+            std::io::stderr(),
+            "fung: internal error: a task thread panicked outside the panic fence"
+        );
         std::process::abort();
     }
 }

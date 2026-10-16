@@ -1,7 +1,14 @@
-# Runs the same gate as a local commit (CLAUDE.md): gofmt, vet, tests,
-# plus the race detector. tests/fmt_test.go also runs `fung fmt --check`
-# over the repository's .fung files, and tests/install_test.go runs
-# install.sh against a fake release.
+# Runs the same gates as a local commit (CLAUDE.md).
+# - test (Go): gofmt, vet, tests, plus the race detector on Linux.
+#   tests/fmt_test.go also runs `fung fmt --check` over the repository's
+#   .fung files, and tests/install_test.go runs install.sh against a fake
+#   release.
+# - rust: cargo-deny (deny.toml crate allowlist, licenses, sources) and
+#   cargo-audit (RustSec advisories) on Linux, then on both systems
+#   `cargo fmt --check`, clippy with -D warnings, and the tests in debug
+#   and release with FUNG_REQUIRE_PARITY=1 (the Go comparison must run).
+#   Every cargo build uses --locked: Cargo.lock is what deny and audit
+#   checked.
 name: ci
 
 on:
@@ -81,12 +88,12 @@ jobs:
       - name: fmt
         run: cargo fmt --check
       - name: clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
       - name: test
         env:
           FUNG_REQUIRE_PARITY: "1"
-        run: cargo test
+        run: cargo test --locked
       - name: test (release)
         env:
           FUNG_REQUIRE_PARITY: "1"
-        run: cargo test --release
+        run: cargo test --locked --release

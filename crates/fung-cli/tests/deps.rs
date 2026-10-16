@@ -3,7 +3,9 @@
 //! `deny.toml` `[bans] allow` is the single source of the allowlist. Every
 //! package in `Cargo.lock` that has a `source` (that is, comes from a
 //! registry or git; workspace crates have none) must be named there.
-//! `fung-front` must stay free of dependencies.
+//! `fung-front` must stay free of dependencies, and `fung-cli` may depend
+//! only on workspace crates (`path = "../…"`, in every dependency table
+//! kind): crates from outside enter through `fung-vm` alone.
 //!
 //! Allowlist entry forms understood by this test (and by cargo-deny):
 //!   "name"                          any version
@@ -183,6 +185,98 @@ fn line_has_name(table: &str) -> bool {
         .any(|k| table.starts_with(k) || table.contains(&format!(".{k}")))
 }
 
+/// `key = "value"` or `key = value`: the key and the value without its
+/// quotes.
+fn pair(text: &str) -> Option<(String, String)> {
+    let (k, v) = text.split_once('=')?;
+    let v = v.trim();
+    let v = v
+        .strip_prefix('"')
+        .and_then(|v| v.strip_suffix('"'))
+        .unwrap_or(v);
+    Some((k.trim().to_string(), v.to_string()))
+}
+
+/// The dependencies of a manifest (every dependency table kind, plain and
+/// `[dependencies.<name>]` style) that are not workspace path
+/// dependencies: written as nothing but `path = "../…"`. A version, git
+/// source, `workspace = true`, any other key, or an inline table spread
+/// over several lines does not pass.
+fn not_workspace_paths(manifest: &str) -> Vec<String> {
+    // Per dependency, its keys; `None` when its form was not understood.
+    type Keys = Option<Vec<(String, String)>>;
+    let mut deps: Vec<(String, Keys)> = Vec::new();
+    // Outside a dependency table: None. In a plain one: Some(None). In a
+    // `[dependencies.<name>]` one: Some(Some(index into deps)).
+    let mut table: Option<Option<usize>> = None;
+    let mut depth: i32 = 0;
+    for raw in manifest.lines() {
+        let line = raw.split('#').next().unwrap_or("").trim();
+        let continued = depth > 0;
+        for c in line.chars().scan(false, |q, c| {
+            if c == '"' {
+                *q = !*q;
+            }
+            Some((c, *q))
+        }) {
+            match c {
+                ('[' | '{', false) => depth += 1,
+                (']' | '}', false) => depth -= 1,
+                _ => {}
+            }
+        }
+        depth = depth.max(0);
+        if line.is_empty() || continued {
+            continue;
+        }
+        if line.starts_with('[') {
+            depth = 0;
+            let t = line.trim_matches(|c| c == '[' || c == ']').trim();
+            table = if !is_dependency_table(t) {
+                None
+            } else if line_has_name(t) {
+                let name = t.rsplit('.').next().unwrap_or(t).to_string();
+                deps.push((name, Some(Vec::new())));
+                Some(Some(deps.len() - 1))
+            } else {
+                Some(None)
+            };
+            continue;
+        }
+        match table {
+            None => {}
+            Some(Some(i)) => match (pair(line), deps[i].1.as_mut()) {
+                (Some(kv), Some(keys)) => keys.push(kv),
+                _ => deps[i].1 = None,
+            },
+            Some(None) => {
+                let Some((name, value)) = line.split_once('=') else {
+                    deps.push((line.to_string(), None));
+                    continue;
+                };
+                let keys = value
+                    .trim()
+                    .strip_prefix('{')
+                    .and_then(|v| v.strip_suffix('}'))
+                    .and_then(|inner| {
+                        inner
+                            .split(',')
+                            .filter(|p| !p.trim().is_empty())
+                            .map(pair)
+                            .collect::<Option<Vec<_>>>()
+                    });
+                deps.push((name.trim().to_string(), keys));
+            }
+        }
+    }
+    deps.into_iter()
+        .filter(|(_, keys)| {
+            !matches!(keys.as_deref(), Some([(k, v)]) if k == "path" && v.starts_with("../"))
+        })
+        .map(|(name, _)| name)
+        .collect()
+}
+
 #[test]
 fn repository_lock_is_inside_the_allowlist() {
     let lock = fs::read_to_string(root().join("Cargo.lock")).unwrap();
@@ -272,4 +366,56 @@ fn fung_front_has_no_dependencies() {
         deps.is_empty(),
         "fung-front must have 0 dependencies: {deps:?}"
     );
+}
+
+#[test]
+fn fung_cli_depends_only_on_workspace_crates() {
+    let manifest = fs::read_to_string(root().join("crates/fung-cli/Cargo.toml")).unwrap();
+    let bad = not_workspace_paths(&manifest);
+    assert!(
+        bad.is_empty(),
+        "fung-cli may only depend on workspace crates (path = \"../…\"): {bad:?}"
+    );
+}
+
+#[test]
+fn workspace_path_fence_rejects_other_dependencies() {
+    let ok = "[package]\nname = \"x\"\n\n[dependencies]\na = { path = \"../a\" }\nb = {path=\"../b\"}\n\n\
+        [dev-dependencies]\nc = { path = \"../c\" }\n\n[dependencies.d]\npath = \"../d\"\n\n\
+        [target.'cfg(unix)'.build-dependencies]\ne = { path = \"../e\" }\n\n[features]\nf = [\"a\"]\n";
+    assert_eq!(not_workspace_paths(ok), Vec::<String>::new());
+    for (manifest, want) in [
+        ("[dependencies]\nregex = \"1\"\n", "regex"),
+        ("[dev-dependencies]\nregex = { version = \"1\" }\n", "regex"),
+        (
+            "[build-dependencies]\ncc = { path = \"../cc\", version = \"1\" }\n",
+            "cc",
+        ),
+        ("[dependencies]\nlib = { path = \"/abs/lib\" }\n", "lib"),
+        ("[dependencies]\nlib = { path = \"lib\" }\n", "lib"),
+        (
+            "[dependencies]\ng = { git = \"https://example.com/g\" }\n",
+            "g",
+        ),
+        ("[dependencies]\nw = { workspace = true }\n", "w"),
+        (
+            "[dependencies]\nm = { path = \"../m\",\n  features = [\"x\"] }\n",
+            "m",
+        ),
+        ("[dependencies.libc]\nversion = \"0.2\"\n", "libc"),
+        (
+            "[dependencies.libc]\npath = \"../libc\"\nversion = \"0.2\"\n",
+            "libc",
+        ),
+        (
+            "[target.'cfg(unix)'.dependencies]\nlibc = \"0.2\"\n",
+            "libc",
+        ),
+    ] {
+        assert_eq!(
+            not_workspace_paths(manifest),
+            vec![want.to_string()],
+            "{manifest}"
+        );
+    }
 }

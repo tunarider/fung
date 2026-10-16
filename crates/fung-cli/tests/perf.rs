@@ -70,19 +70,21 @@ fn collections_stay_linear() {
     assert!(slow.is_empty(), "{}", slow.join("\n"));
 }
 
-/// `regex.find_all` over 100,000 characters of multibyte text with 10,000
-/// matches: rune positions must not be recounted from the start of the
-/// subject for every match (Go `runeCursor`), and the whole program must
-/// finish within a second.
+/// `regex.find_all` over 1,000,000 characters of multibyte text with
+/// 100,000 matches: rune positions must not be recounted from the start of
+/// the subject for every match (Go `runeCursor`), and the whole program
+/// must finish within a second. Measured on an Apple M-series release
+/// build: about 0.06 s with the cursor, about 8 s when it recounts from
+/// the start for every match.
 #[test]
 fn regex_find_all_stays_linear() {
-    let src = "import regex\ns = repeat(\"가나다라 마바 1 \", 10000)\nms = regex.find_all(s, `\\d`)\nprint(len(s), len(ms), ms[-1].end)";
+    let src = "import regex\ns = repeat(\"가나다라 마바 1 \", 100000)\nms = regex.find_all(s, `\\d`)\nprint(len(s), len(ms), ms[-1].end)";
     run(src);
     let (out, took) = run(src);
     eprintln!("regex find_all {took:?}");
-    assert_eq!(out, "100000 10000 99999\n");
+    assert_eq!(out, "1000000 100000 999999\n");
     assert!(
         took < Duration::from_secs(1),
-        "find_all over 100,000 characters took {took:?}"
+        "find_all over 1,000,000 characters took {took:?}"
     );
 }

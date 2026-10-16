@@ -122,6 +122,13 @@ const REPLACEMENTS: &[&str] = &[
     "$$1",
     "$$$1",
     "$é",
+    // Not letters or digits to Go (`unicode.IsLetter`/`IsDigit`), but
+    // alphanumeric to Rust's `char::is_alphanumeric`: superscript two (No),
+    // Roman numeral four (Nl), vulgar fraction one half (No). They end the
+    // name, so these read group 1 (`go_letter_or_digit`).
+    "$1²",
+    "$1Ⅳ",
+    "$1½",
 ];
 
 /// `bin -e src args…`: stdout, stderr, status.
