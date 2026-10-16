@@ -1134,18 +1134,16 @@ fn quote_json(out: &mut String, s: &str) {
     out.push('"');
 }
 
-/// Go writes a line break and `strings.Repeat(" ", indent*depth)`; the
-/// product wraps like Go's `int`, and a count Go cannot allocate panics
-/// there (`maxAlloc` is 2^48 bytes), which its VM reports as E0801.
+/// Go writes a line break and `strings.Repeat(" ", indent*depth)`; a
+/// count Go cannot allocate panics there (`maxAlloc` is 2^48 bytes), which
+/// its VM reports as E0801.
 fn newline(out: &mut String, indent: i64, depth: i64) -> Result<(), Stop> {
     if indent > 0 {
         let count = indent.wrapping_mul(depth);
-        if count < 0 {
-            return Err(nat::fail(
-                "E0801",
-                vec![nat::s("strings: negative Repeat count")],
-            ));
-        }
+        // Never negative: a line at depth d follows one at depth d - 1,
+        // which already failed if the count passed 2^48, so the product
+        // stops growing long before it could wrap.
+        debug_assert!(count >= 0);
         if count > 1 << 48 {
             return Err(nat::fail(
                 "E0801",

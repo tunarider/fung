@@ -354,7 +354,8 @@ fn stringify_with_huge_indents_fails_like_go() {
         Err(Stop::Error(d)) => assert_eq!(d.code, "E0801"),
         _ => panic!("not an error"),
     }
-    // indent * depth wraps to a negative count in Go
+    // the first line break, at depth 1, already fails: deeper ones are
+    // never reached
     let deeper = list(vec![list(vec![one()])]);
     match call("stringify", vec![deeper, Value::Int(1 << 62)]) {
         Err(Stop::Error(d)) => assert_eq!(
@@ -472,4 +473,41 @@ fn errors_show_what_go_has_read() {
     );
     let whole = format!("[{}1é]", "1,".repeat(31));
     assert!(parse(&whole).contains("column 66: invalid character 'é' after array element"));
+}
+
+/// Kinds only the Rust port has are rejected like Go's channel or task:
+/// E0513 with their type names, wherever they sit.
+#[test]
+fn stringify_rejects_rust_only_kinds() {
+    let o = crate::testutil::exec(
+        "import json\na = agent(1)\nprint(json.stringify([1, {x: a}]))",
+        crate::testutil::Opts::default(),
+    );
+    assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0513"));
+    assert!(
+        o.err
+            .starts_with("error[E0513]: cannot convert agent to JSON\n"),
+        "{}",
+        o.err
+    );
+    let o = crate::testutil::exec(
+        "import json\nprint(json.stringify(agent(1)))",
+        crate::testutil::Opts::default(),
+    );
+    assert!(
+        o.err
+            .starts_with("error[E0513]: cannot convert agent to JSON\n"),
+        "{}",
+        o.err
+    );
+    let caught = Value::Caught(Rc::new(crate::vm::Caught::Exit(1)));
+    for v in [caught.clone(), list(vec![map(vec![("e", caught)])])] {
+        match call("stringify", vec![v, Value::Nil]) {
+            Err(Stop::Error(d)) => assert_eq!(
+                fung_front::diag::message(&d.code, &d.args),
+                "cannot convert error to JSON"
+            ),
+            _ => panic!("not an error"),
+        }
+    }
 }
