@@ -272,6 +272,18 @@ fn calls(src: &str, name: &str) -> bool {
     })
 }
 
+#[cfg(not(debug_assertions))]
+#[test]
+fn calls_finds_calls_only() {
+    assert!(calls("x = spawn(f)", "spawn"));
+    assert!(calls("spawn(f)", "spawn"));
+    assert!(!calls("closure(1)", "close"));
+    assert!(!calls("resend(1)", "send"));
+    assert!(!calls("m.close(1)", "close"));
+    assert!(!calls("# close the file", "close"));
+    assert!(calls("x = agent(0)\n", "agent"));
+}
+
 /// How many times `concurrent_runs_are_stable` runs each case with each
 /// implementation.
 #[cfg(not(debug_assertions))]

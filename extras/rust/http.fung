@@ -48,13 +48,22 @@ fn _serve(addr, handler, ready):
     Ok(l)  => l
     Err(e) => return Err({kind: 'network, message: "cannot listen on `${addr}`: ${e.message}"})
   ;;
+  # closed the moment this task is cancelled, wherever it is (Go's
+  # `Shutdown` closes it before the server's call returns)
+  _net.close_on_cancel(l)
   if ready != nil:
     ready(_net.local_addr(l))
   ;;
   scope = channel()
   _c.set_asker(scope)
-  _c.spawn_background(() => _accept(l, handler, scope, 0s))
+  failed = channel(1)
+  _c.spawn_background(() => _acceptor(l, handler, scope, failed))
   _net.hold(l, 2s)
+  # `hold` came back without a cancellation: the accept task failed
+  match recv(failed, timeout: 0s):
+    Ok(e) => _c.raise(e)
+    _     => nil
+  ;;
 ;;
 
 # Go's check of `ready` (E0403 `must be fn`; the parameter may be nil).
@@ -1540,6 +1549,25 @@ fn _max_head() = 1052672
 
 fn _max_values() = 500
 
+# The accept task. Its loop runs below the server's task (`try_call`
+# with `scope`), so cancelling the server ends it at any moment, even
+# before `serve` reaches `hold`: the task then closes the listener
+# itself. A failure of the loop (a bug of this file, which no request can
+# cause) closes the listener too, which ends `hold`; `serve` then fails
+# with that error (Go's `Serve` would return it), instead of waiting
+# deaf until cancelled.
+fn _acceptor(l, handler, scope, failed):
+  match _c.try_call(_ => _accept(l, handler, scope, 0s), nil, scope):
+    Err(e) when not _stopping(e) => send(failed, e)
+    _                            => nil
+  ;;
+  _net.close(l)
+;;
+
+# What stopped a call was the program or the server ending (an exit, a
+# cancellation, a deadlock report), not a bug.
+fn _stopping(e) = _c.describe(e).code in ["exit", "E0701", "E0702"]
+
 # Go `Server.Serve`: accepts until the listener is closed (by `hold`).
 # Go retries an accept that failed for want of resources, waiting 5 ms,
 # doubling up to 1 s.
@@ -1550,8 +1578,20 @@ fn _accept(l, handler, scope, delay) = match _net.accept(l):
 ;;
 
 fn _spawn_conn(c, handler, scope):
-  _c.spawn_background(() => _conn(c, handler, scope))
+  _c.spawn_background(() => _guarded(c, handler, scope))
   0s
+;;
+
+# A failure answering a connection (a bug of this file: the handler's
+# own failures are answered 500) is reported on stderr and the
+# connection closed, and the server goes on, as Go logs `http: panic
+# serving …` (the cancellations of the end of the program unwind on).
+fn _guarded(c, handler, scope):
+  match _c.try_call(_ => _conn(c, handler, scope), nil):
+    Err(e) when not _stopping(e) => eprint("http: internal error: ${_c.describe(e).text}")
+    _                            => nil
+  ;;
+  _net.close(c)
 ;;
 
 fn _backoff(delay):
@@ -1809,15 +1849,15 @@ fn _call(c, rq, handler, scope, body):
   req = {method: rq.method, path: rq.path, query: rq.query, headers: rq.headers, body}
   match _c.try_call(handler, req, scope):
     Ok(res) => _answer(c, rq, res)
-    Err(e)  => _failed_handler(c, rq, _c.describe(e))
+    Err(e)  => _failed_handler(c, rq, e)
   ;;
 ;;
 
-fn _failed_handler(c, rq, d):
-  if d.code in ["exit", "E0701", "E0702"]:
+fn _failed_handler(c, rq, e):
+  if _stopping(e):
     _http_error(c, rq, 503, "server shutting down")
   else:
-    eprint("http: handler failed: ${d.text}")
+    eprint("http: handler failed: ${_c.describe(e).text}")
     _http_error(c, rq, 500, "handler failed")
   ;;
 ;;
@@ -1918,9 +1958,70 @@ fn _header_lines(hs, excluded) = sort(keys(hs))
 # Go `TimeFormat` (`http.TimeFormat`) of now, in UTC.
 fn _http_date() = _time.format(_time.utc(_time.now()), "ddd, DD MMM YYYY HH:mm:ss") + " GMT"
 
-# Go `StatusText`, "" for a code it does not name.
-fn _status_text(code):
-  texts = {"100": "Continue", "101": "Switching Protocols", "102": "Processing", "103": "Early Hints", "200": "OK", "201": "Created", "202": "Accepted", "203": "Non-Authoritative Information", "204": "No Content", "205": "Reset Content", "206": "Partial Content", "207": "Multi-Status", "208": "Already Reported", "226": "IM Used", "300": "Multiple Choices", "301": "Moved Permanently", "302": "Found", "303": "See Other", "304": "Not Modified", "305": "Use Proxy", "307": "Temporary Redirect", "308": "Permanent Redirect", "400": "Bad Request", "401": "Unauthorized", "402": "Payment Required", "403": "Forbidden", "404": "Not Found", "405": "Method Not Allowed", "406": "Not Acceptable", "407": "Proxy Authentication Required", "408": "Request Timeout", "409": "Conflict", "410": "Gone", "411": "Length Required", "412": "Precondition Failed", "413": "Request Entity Too Large", "414": "Request URI Too Long", "415": "Unsupported Media Type", "416": "Requested Range Not Satisfiable", "417": "Expectation Failed", "418": "I'm a teapot", "421": "Misdirected Request", "422": "Unprocessable Entity", "423": "Locked", "424": "Failed Dependency", "425": "Too Early", "426": "Upgrade Required", "428": "Precondition Required", "429": "Too Many Requests", "431": "Request Header Fields Too Large", "451": "Unavailable For Legal Reasons", "500": "Internal Server Error", "501": "Not Implemented", "502": "Bad Gateway", "503": "Service Unavailable", "504": "Gateway Timeout", "505": "HTTP Version Not Supported", "506": "Variant Also Negotiates", "507": "Insufficient Storage", "508": "Loop Detected", "510": "Not Extended", "511": "Network Authentication Required"}
-  key = "${code}"
-  key in texts then texts[key] else ""
+# Go `StatusText`, "" for a code it does not name (a `match` of
+# constants, not a table built for each answer).
+fn _status_text(code) = match code:
+  100 => "Continue"
+  101 => "Switching Protocols"
+  102 => "Processing"
+  103 => "Early Hints"
+  200 => "OK"
+  201 => "Created"
+  202 => "Accepted"
+  203 => "Non-Authoritative Information"
+  204 => "No Content"
+  205 => "Reset Content"
+  206 => "Partial Content"
+  207 => "Multi-Status"
+  208 => "Already Reported"
+  226 => "IM Used"
+  300 => "Multiple Choices"
+  301 => "Moved Permanently"
+  302 => "Found"
+  303 => "See Other"
+  304 => "Not Modified"
+  305 => "Use Proxy"
+  307 => "Temporary Redirect"
+  308 => "Permanent Redirect"
+  400 => "Bad Request"
+  401 => "Unauthorized"
+  402 => "Payment Required"
+  403 => "Forbidden"
+  404 => "Not Found"
+  405 => "Method Not Allowed"
+  406 => "Not Acceptable"
+  407 => "Proxy Authentication Required"
+  408 => "Request Timeout"
+  409 => "Conflict"
+  410 => "Gone"
+  411 => "Length Required"
+  412 => "Precondition Failed"
+  413 => "Request Entity Too Large"
+  414 => "Request URI Too Long"
+  415 => "Unsupported Media Type"
+  416 => "Requested Range Not Satisfiable"
+  417 => "Expectation Failed"
+  418 => "I'm a teapot"
+  421 => "Misdirected Request"
+  422 => "Unprocessable Entity"
+  423 => "Locked"
+  424 => "Failed Dependency"
+  425 => "Too Early"
+  426 => "Upgrade Required"
+  428 => "Precondition Required"
+  429 => "Too Many Requests"
+  431 => "Request Header Fields Too Large"
+  451 => "Unavailable For Legal Reasons"
+  500 => "Internal Server Error"
+  501 => "Not Implemented"
+  502 => "Bad Gateway"
+  503 => "Service Unavailable"
+  504 => "Gateway Timeout"
+  505 => "HTTP Version Not Supported"
+  506 => "Variant Also Negotiates"
+  507 => "Insufficient Storage"
+  508 => "Loop Detected"
+  510 => "Not Extended"
+  511 => "Network Authentication Required"
+  _   => ""
 ;;

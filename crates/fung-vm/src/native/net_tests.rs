@@ -14,7 +14,7 @@ use std::sync::MutexGuard;
 use std::time::{Duration, Instant};
 
 use super::probe;
-use crate::testutil::{Opts, Outcome, UNTIL, exec, probes};
+use crate::testutil::{Opts, Outcome, UNTIL, exec, exec_prepared, probes};
 use crate::value::{Native, Value};
 use crate::vm::{CancelNodeForTests as CancelNode, Stop, Task, Watch, live_wakes, watch_serial};
 
@@ -979,4 +979,159 @@ fn the_server_waits_two_seconds_at_most() {
         "import http\nimport time\nfn h(req) = \"x\"\n{SERVE}until(() => net_waiting() == 2)\nc = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)!\nuntil(() => net_waiting() == 3)\nt0 = time.now()\ncancel(s)\nprint(await(s))\ntook = time.now() - t0\nprint(took >= 2s, took < 4s)"
     ));
     assert_eq!(out(&o), ("Err({kind: 'cancelled})\ntrue true\n", "", 0));
+}
+
+/// `hold` also ends when another task closes the listener: then it
+/// waits for the connections the same way and returns nil (the `http`
+/// server's accept task closes it when it fails).
+#[test]
+fn hold_returns_when_the_listener_is_closed_elsewhere() {
+    let _g = serial();
+    let o = run(
+        "l = net.listen(\"127.0.0.1:0\")!\nt = spawn(() => net.hold(l, 5s))\nuntil(() => net_waiting() == 1)\nnet.close(l)!\nprint(await(t))",
+    );
+    assert_eq!(out(&o), ("nil\n", "", 0));
+}
+
+/// The server task cancelled at any tick between starting its accept task
+/// and waiting in `hold`: the listener still closes (the accept task runs
+/// below the server's task). `burn(k)` in `ready` moves where the server
+/// task yields its turn; with `k` such that the yield falls right after
+/// the accept task starts, the listener used to stay open (the accept
+/// task kept it and answered 503). The window is one tick wide; this
+/// range holds it for the current `_serve` (the release build sweeps a
+/// whole yield period: `cancel_at_every_tick_closes_the_listener`).
+#[test]
+fn a_cancel_before_hold_closes_the_listener() {
+    let _g = serial();
+    let o = run(&cancel_sweep(9900, 10001));
+    assert_eq!(out(&o), ("done\n", "", 0));
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn cancel_at_every_tick_closes_the_listener() {
+    let _g = serial();
+    let o = run(&cancel_sweep(0, crate::vm::YIELD_EVERY as i64 + 1));
+    assert_eq!(out(&o), ("done\n", "", 0));
+}
+
+/// A program that starts a server, burns `k` ticks in `ready`, cancels
+/// it, and checks that nothing answers HTTP on its port afterwards, for
+/// each `k` in `from..to`. (Only an HTTP answer counts: in a busy test
+/// process another test may bind the freed port number at once.)
+fn cancel_sweep(from: i64, to: i64) -> String {
+    format!(
+        "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(c) => fn():\n    net.set_deadline(c, 2s)\n    net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(c, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  port = channel(1)\n  s = spawn(() => http.serve(\"127.0.0.1:0\", r => \"x\", ready: fn(a): send(port, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  ;;\n;;\neach({from}..{to}, attempt)\nprint(\"done\")"
+    )
+}
+
+/// `_native.net` with `member` replaced by a native that fails with
+/// E0803 `injected`: a bug in the server's own code, which no request can
+/// cause.
+fn failing_net(rt: &crate::vm::Runtime, member: &'static str, params: Vec<crate::vm::NativeParam>) {
+    let real = super::module();
+    let mut m = crate::value::Module::new("net", "_native.net");
+    for name in real.names() {
+        let v = if name == member {
+            Value::Native(Native::leak(member, params.clone(), |_, _| {
+                Err(crate::native::nat::fail(
+                    "E0803",
+                    vec![crate::native::nat::s("injected")],
+                ))
+            }))
+        } else {
+            real.get(name).unwrap().clone()
+        };
+        m.set(name, v);
+    }
+    rt.register_native("_native.net", std::rc::Rc::new(m));
+}
+
+/// A failure in the code answering a connection (here `set_deadline`,
+/// its first call) is reported on stderr, the connection is closed, and
+/// the server goes on (Go logs `http: panic serving …` the same way).
+#[test]
+fn a_failure_answering_a_connection_is_reported() {
+    let _g = serial();
+    let o = exec_prepared(
+        &format!(
+            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}p = parse_int(split(addr, \":\")[1])!\nask = fn():\n  c = net.connect(\"127.0.0.1\", p)!\n  net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")!\n  net.read_line(c, 100)\n;;\nprint(ask(), ask())\ncancel(s)\nprint(await(s))"
+        ),
+        Opts {
+            internal: true,
+            extra: net_probes,
+            ..Opts::default()
+        },
+        |rt| {
+            failing_net(
+                rt,
+                "set_deadline",
+                vec![
+                    crate::native::nat::param("c"),
+                    crate::native::nat::param("d"),
+                ],
+            )
+        },
+    );
+    assert_eq!(
+        out(&o),
+        (
+            "Ok(nil) Ok(nil)\nErr({kind: 'cancelled})\n",
+            "http: internal error: error[E0803]: injected\nhttp: internal error: error[E0803]: injected\n",
+            0
+        )
+    );
+    assert_eq!(probe::sockets(), 0);
+}
+
+/// A failure in the accept loop ends the server: the listener closes,
+/// and the server task fails with that error (it would otherwise wait,
+/// deaf, until cancelled).
+#[test]
+fn a_failure_accepting_ends_the_server() {
+    let _g = serial();
+    let o = exec_prepared(
+        &format!(
+            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}r = await(s)\nprint(r)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)))"
+        ),
+        Opts {
+            internal: true,
+            extra: net_probes,
+            ..Opts::default()
+        },
+        |rt| failing_net(rt, "accept", vec![crate::native::nat::param("l")]),
+    );
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'error, message: \"error[E0803]: injected\"})\n'network\n",
+            "",
+            0
+        )
+    );
+    assert_eq!(probe::sockets(), 0);
+}
+
+/// `close_on_cancel(l)`: the listener closes inside `cancel` itself (the
+/// connection right after is refused, before the task has even run
+/// again), and when the task ends; arguments are checked.
+#[test]
+fn close_on_cancel_closes_the_listener_at_once() {
+    let _g = serial();
+    let o = run(
+        "l = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nch = channel()\nt = spawn(fn(): net.close_on_cancel(l); recv(ch) ;;)\nblocked(ch, 1)\nprint(kind(net.connect(\"127.0.0.1\", port)))\ncancel(t)\nprint(kind(net.connect(\"127.0.0.1\", port)), kind(net.close(l)))\nl2 = net.listen(\"127.0.0.1:0\")!\nawait(spawn(() => net.close_on_cancel(l2)))\nprint(kind(net.accept(l2)))",
+    );
+    assert_eq!(
+        (o.out.lines().collect::<Vec<_>>(), o.err.as_str(), o.exit),
+        (vec!["Ok(<conn>)", "'network 'network", "'network"], "", 0),
+        "{o:?}"
+    );
+    let o = run("net.close_on_cancel(1)");
+    assert!(
+        o.err
+            .starts_with("error[E0403]: argument `l` must be listener, got int"),
+        "{}",
+        o.err
+    );
 }

@@ -159,6 +159,10 @@ pub fn module() -> Rc<Module> {
                 native("hold", hold_fn, vec![param("l"), param("grace")]),
             ),
             (
+                "close_on_cancel",
+                native("close_on_cancel", close_on_cancel_fn, vec![param("l")]),
+            ),
+            (
                 "utf8_string",
                 native("utf8_string", utf8_string_fn, vec![param("bs")]),
             ),
@@ -597,10 +601,12 @@ impl Conn {
 
 /// A listening socket.
 pub struct Listener {
-    /// `None` once closed. Locked only to take or drop a reference.
-    sock: Mutex<Option<Arc<Counted<TcpListener>>>>,
+    /// `None` once closed. Locked only to take or drop a reference (a
+    /// leaf lock: nothing else is locked while it is held, so a
+    /// cancellation hook may take it, `close_on_cancel`).
+    sock: Arc<Mutex<Option<Arc<Counted<TcpListener>>>>>,
     /// `close` writes a byte into the pipe, waking a blocked `accept`.
-    closer: (io::PipeReader, io::PipeWriter),
+    closer: (io::PipeReader, Arc<io::PipeWriter>),
     /// The address, as Go's `Addr().String()`.
     addr: String,
     /// The connections accepted from it that are still open (`hold`).
@@ -721,14 +727,27 @@ impl Listener {
     }
 
     fn close(&self) -> Result<(), Fail> {
-        let l = lock(&self.sock)
-            .take()
-            .ok_or_else(|| self.closed("close"))?;
-        // one byte into an empty pipe never blocks
-        let _ = (&self.closer.1).write(&[1]);
-        drop(l);
+        if !close_listener(&self.sock, &self.closer.1) {
+            return Err(self.closed("close"));
+        }
         Ok(())
     }
+}
+
+/// Closes a listener's socket and wakes its `accept` (and `hold`); false
+/// if it was closed already. It takes only the socket slot's lock, a
+/// leaf lock, and one byte into an empty pipe never blocks: short and
+/// safe enough for a cancellation hook (`close_on_cancel`).
+fn close_listener(
+    sock: &Mutex<Option<Arc<Counted<TcpListener>>>>,
+    closer: &io::PipeWriter,
+) -> bool {
+    let Some(l) = lock(sock).take() else {
+        return false;
+    };
+    let _ = (&*closer).write(&[1]);
+    drop(l);
+    true
 }
 
 /// Go `net.SplitHostPort`, with its messages (`address <addr>: <why>`).
@@ -945,8 +964,8 @@ fn listen(w: &mut Watch, addr: &str) -> Result<Listener, Fail> {
     let closer = io::pipe()
         .map_err(|e| Fail::Network(format!("listen tcp {local}: {}", oserr::reason(&e))))?;
     Ok(Listener {
-        sock: Mutex::new(Some(Arc::new(Counted::new(l)))),
-        closer,
+        sock: Arc::new(Mutex::new(Some(Arc::new(Counted::new(l))))),
+        closer: (closer.0, Arc::new(closer.1)),
         addr: local.to_string(),
         open: Arc::default(),
     })
@@ -1173,11 +1192,13 @@ fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Nil)
 }
 
-/// `hold(l, grace)`: waits until this task is cancelled; then closes `l`,
-/// waits until every connection accepted from it is closed, at most
-/// `grace`, and ends with E0701 (Go `Server.Shutdown` with a deadline,
-/// which `http.serve` runs when its task is cancelled). A connection
-/// still open after the grace is left to whoever holds it.
+/// `hold(l, grace)`: waits until this task is cancelled or another task
+/// closes `l`; then closes `l`, waits until every connection accepted
+/// from it is closed, at most `grace`, and ends with E0701 when
+/// cancelled, else returns nil (Go `Server.Shutdown` with a deadline,
+/// which `http.serve` runs when its task is cancelled; the server's
+/// accept task closes `l` when it fails). A connection still open after
+/// the grace is left to whoever holds it.
 fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let Value::Listener(l) = &a[0] else {
         return Err(nat::wrong_arg("l", "listener", &a[0]));
@@ -1189,17 +1210,19 @@ fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let grace = Duration::from_nanos(grace.max(0) as u64);
     outside_watched(t, |w| {
         WAITING.fetch_add(1, Ordering::SeqCst);
-        // Only a cancellation ends this wait. Should `poll` itself fail,
-        // the flag is looked at now and then instead.
-        loop {
-            match w.wait(&[], None) {
+        // A cancellation, or `close` writing to the listener's pipe (the
+        // byte stays: a blocked `accept` sees it too). Should `poll`
+        // itself fail, both are looked at now and then instead.
+        let closer = [(l.closer.0.as_raw_fd(), Interest::Read)];
+        while !l.is_closed() {
+            match w.wait(&closer, None) {
                 Ok(Waited::Cancelled) => break,
                 Ok(_) => {}
                 Err(_) => {
-                    while !w.cancelled() {
-                        std::thread::sleep(Duration::from_millis(50));
+                    if w.cancelled() {
+                        break;
                     }
-                    break;
+                    std::thread::sleep(Duration::from_millis(50));
                 }
             }
         }
@@ -1207,9 +1230,25 @@ fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         l.open.wait_idle(Instant::now() + grace);
         WAITING.fetch_sub(1, Ordering::SeqCst);
     })?;
-    // The wait ends only once the task is cancelled, and then
-    // `outside_watched` unwinds (E0701).
-    unreachable!("hold returned without a cancellation")
+    // Not cancelled (then `outside_watched` unwinds with E0701): the
+    // listener was closed by another task.
+    Ok(Value::Nil)
+}
+
+/// `close_on_cancel(l)`: closes `l` the moment this task is cancelled
+/// (by whoever cancels it, before `cancel` returns) or ends. The `http`
+/// server registers its listener so: cancelled at any tick, even before
+/// it waits in `hold`, it leaves no listener open behind it (Go's
+/// `Shutdown` closes the listener before the server's call returns).
+fn close_on_cancel_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let Value::Listener(l) = &a[0] else {
+        return Err(nat::wrong_arg("l", "listener", &a[0]));
+    };
+    let (sock, closer) = (l.sock.clone(), l.closer.1.clone());
+    crate::vm::when_cancelled(t, move || {
+        close_listener(&sock, &closer);
+    });
+    Ok(Value::Nil)
 }
 
 /// `utf8_string(bs)`: the text of a list of bytes (ints from 0 to 255),

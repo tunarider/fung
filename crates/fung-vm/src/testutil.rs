@@ -139,6 +139,19 @@ pub fn exec_with_stdin(src: &str, opts: Opts, stdin: Box<dyn BufRead + Send>) ->
     })
 }
 
+/// `exec`, with `prepare` called on the loaded runtime before the entry
+/// runs (a test registers a module of its own over a standard one).
+pub fn exec_prepared(src: &str, opts: Opts, prepare: fn(&Runtime)) -> Outcome {
+    let src = src.to_string();
+    on_big_stack(move || {
+        let s = setup_with(&src, None, opts, None);
+        if let Ok(s) = &s {
+            prepare(&s.rt);
+        }
+        finish(s)
+    })
+}
+
 /// Runs a program with a given prelude (no boot) on the current thread.
 pub fn exec_with_prelude(src: &str, p: Prelude) -> Outcome {
     exec_on(src, Some(p), Opts::default())

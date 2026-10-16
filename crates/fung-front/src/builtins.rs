@@ -71,6 +71,7 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     // Task 5: the server's end (Go `Server.Shutdown`), and the text of
     // percent-decoded bytes.
     ("_native.net", "hold(l, grace)"),
+    ("_native.net", "close_on_cancel(l)"),
     ("_native.net", "utf8_string(bs)"),
 ];
 

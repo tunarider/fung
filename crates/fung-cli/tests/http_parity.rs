@@ -2151,14 +2151,19 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
     };
     let han = "한".as_bytes();
     let big = 16 * 1024 * 1024 + 1;
-    let mut big_chunks: Vec<u8> = Vec::new();
-    for _ in 0..17 {
-        big_chunks.extend_from_slice(format!("{:x}\r\n", 1024 * 1024).as_bytes());
-        big_chunks.extend(std::iter::repeat_n(b'x', 1024 * 1024));
-        big_chunks.extend_from_slice(b"\r\n");
-    }
-    big_chunks.extend_from_slice(b"0\r\n\r\n");
-    let many = "a=1&".repeat(10000);
+    // chunked bodies of 1 MiB chunks plus `extra` bytes
+    let mib_chunks = |n: usize, extra: usize| {
+        let mut b: Vec<u8> = Vec::new();
+        for size in std::iter::repeat_n(1024 * 1024, n).chain((extra > 0).then_some(extra)) {
+            b.extend_from_slice(format!("{size:x}\r\n").as_bytes());
+            b.extend(std::iter::repeat_n(b'x', size));
+            b.extend_from_slice(b"\r\n");
+        }
+        b.extend_from_slice(b"0\r\n\r\n");
+        b
+    };
+    // 9999 `&`: 10000 pairs (Go's limit), then 10001
+    let many = "a=1&".repeat(9999);
     let raw = |s: &str| (s.as_bytes().to_vec(), false);
     let mut v: Vec<(Vec<u8>, bool)> = vec![
         // answers
@@ -2189,7 +2194,7 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         (get("/echo%20x/%ED%95%9C/a+b"), false),
         (get("/echo?"), false),
         (get(&format!("/echo?{many}b=2")), false),
-        (get(&format!("/echo?{many}")), false),
+        (get(&format!("/echo?{many}a=1&b=2")), false),
         raw(
             "GET /echo HTTP/1.1\r\nHost: x\r\nX-Foo: a\r\nx-foo: b\r\nPragma: no-cache\r\nX-Folded: one\r\n  two\r\nX-Empty:\r\nConnection: close\r\n\r\n",
         ),
@@ -2309,7 +2314,27 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
             false,
         ),
         (
-            post("/count", "Transfer-Encoding: chunked\r\n", &big_chunks),
+            post(
+                "/count",
+                "Transfer-Encoding: chunked\r\n",
+                &mib_chunks(17, 0),
+            ),
+            false,
+        ),
+        (
+            post(
+                "/count",
+                "Transfer-Encoding: chunked\r\n",
+                &mib_chunks(16, 1),
+            ),
+            false,
+        ),
+        (
+            post(
+                "/count",
+                "Transfer-Encoding: chunked\r\n",
+                &mib_chunks(16, 0),
+            ),
             false,
         ),
         (

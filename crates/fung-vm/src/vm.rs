@@ -72,7 +72,7 @@ pub use stdin::BUFFER as STDIN_BUFFER;
 pub(crate) use task::CancelNode as CancelNodeForTests;
 pub use task::TaskHandle;
 pub(crate) use task::err_kind;
-pub(crate) use watch::{Interest, Waited, Watch, outside_watched};
+pub(crate) use watch::{Interest, Waited, Watch, outside_watched, when_cancelled};
 #[cfg(test)]
 pub(crate) use watch::{live_wakes, serial as watch_serial};
 

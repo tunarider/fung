@@ -213,6 +213,20 @@ impl Drop for Watch {
     }
 }
 
+/// Runs `hook` once when `t`'s cancellation node is cancelled (which
+/// happens too when the task ends), on the cancelling thread under the
+/// node's lock: it must be short and take only leaf locks. If the node
+/// is cancelled already, the hook runs now. (`_native.net`'s
+/// `close_on_cancel`.)
+pub(crate) fn when_cancelled(t: &Task<'_>, hook: impl Fn() + Send + Sync + 'static) {
+    let hook = std::sync::Arc::new(hook);
+    let id = NEXT_HOOK.fetch_add(1, Ordering::Relaxed);
+    let h = hook.clone();
+    if !t.cancel.on_cancel(id, Box::new(move || h())) {
+        hook();
+    }
+}
+
 /// `outside` for a call that waits on the operating system through a
 /// `Watch` on the task's cancellation node: `f` runs without the token;
 /// if one of its waits ended as cancelled (or it saw the task
