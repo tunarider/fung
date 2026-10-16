@@ -32,6 +32,9 @@ allow = [
     "fung-front",
     "fung-vm",
     "fung-cli",
+    # fung-vm, unix only: raise SIGPIPE to die like Go on a closed
+    # standard output or error (4c spec, section 3)
+    "libc",
 ]
 
 [sources]

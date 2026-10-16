@@ -9,6 +9,7 @@ pub mod boot;
 pub mod conc;
 pub mod native;
 pub mod prelude;
+pub mod sigpipe;
 pub mod value;
 pub mod vm;
 

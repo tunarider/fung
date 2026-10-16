@@ -10,19 +10,15 @@ use fung_front::loader::{Loader, Stage};
 use fung_front::source::SourceMap;
 use fung_vm::vm::{Runtime, STDIN_BUFFER, Stop};
 
-/// The status a shell shows for a process killed by SIGPIPE (128 + 13).
-pub const EXIT_BROKEN_PIPE: i32 = 141;
-
 /// Ends the command when a write found the reading end of a pipe closed
-/// (`fung run x | head -1`). Go dies of SIGPIPE there: no report, no exit
-/// handlers. Rust ignores SIGPIPE (so a child's closed stdin stays an
-/// ordinary error in `_native.process`), and exits with the status the
-/// shell would show instead.
+/// (`fung run x | head -1`): the process dies by SIGPIPE, as Go's does on
+/// file descriptor 1 or 2, with no report and no exit handlers. Only the
+/// standard streams come here; every other write keeps EPIPE as an error.
 fn exit_on_broken_pipe<T>(r: std::io::Result<T>) -> std::io::Result<T> {
     if let Err(e) = &r
         && e.kind() == std::io::ErrorKind::BrokenPipe
     {
-        std::process::exit(EXIT_BROKEN_PIPE);
+        fung_vm::sigpipe::die();
     }
     r
 }
@@ -30,7 +26,7 @@ fn exit_on_broken_pipe<T>(r: std::io::Result<T>) -> std::io::Result<T> {
 /// A process stream (standard output or error) as the command writes it:
 /// every write goes through at once, as Go's `os.Stdout` does (a prompt
 /// without a newline shows before the program reads its answer), and a
-/// closed pipe ends the command (`exit_on_broken_pipe`).
+/// closed pipe kills the command (`exit_on_broken_pipe`).
 pub struct ProcessOut<W: Write>(pub W);
 
 impl ProcessOut<std::io::Stdout> {
