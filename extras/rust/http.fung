@@ -962,7 +962,7 @@ fn _error_of(r) = match r:
 
 # Go's chunked reader asked for `left` more bytes: the error that ended
 # it, or nil.
-fn _drain_chunks(c, left) = match _chunk_line(c, [], 0):
+fn _drain_chunks(c, left) = match _chunk_line(c):
   Err(e)   => e
   Ok(line) => match _hex(_before(_trim_right_ows(line), ";")):
     Err(_) => nil
@@ -1111,7 +1111,7 @@ fn _until_close(c) = match _net.read_all(c, _body_cap()):
 # whole. `excess` is Go's count of bytes that are not data; a body past
 # `cap` bytes is an error of kind 'limit (`_too_long_for`).
 
-fn _chunked(c, excess, cap) = match _chunk_line(c, [], 0):
+fn _chunked(c, excess, cap) = match _chunk_line(c):
   Err(e)   => _drop(c, e)
   Ok(line) => _chunk(c, excess + _net.byte_len(line) + 2, line, cap)
 ;;
@@ -1144,17 +1144,12 @@ fn _drop(c, e):
 ;;
 
 # Go `readChunkLine`: a line ending in CRLF (a bare LF or a CR elsewhere
-# is an error), at most 4096 bytes. Read a byte at a time: `read_line`
-# would hide which line end came.
-fn _chunk_line(c, acc, n):
-  if n >= 4096:
-    return Err(_err("header line too long"))
-  ;;
-  match _net.read_bytes(c, 1):
-    Err(e)   => Err(_body_err(e))
-    Ok("\n") => _chunk_line_end(join(acc, ""))
-    Ok(b)    => _chunk_line(c, acc + [b], n + 1)
-  ;;
+# is an error), at most 4096 bytes with its LF. `read_raw_line` keeps the
+# line end (`read_line` would hide which one came).
+fn _chunk_line(c) = match _net.read_raw_line(c, 4096):
+  Ok(line)            => _chunk_line_end(line[..len(line) - 1])
+  Err({kind: 'limit}) => Err(_err("header line too long"))
+  Err(e)              => Err(_body_err(e))
 ;;
 
 fn _chunk_line_end(line):
@@ -1169,21 +1164,43 @@ fn _chunk_line_end(line):
 
 # Go `parseHexUint`: at most 16 digits, leading zeros included. More than
 # 15 digits past the leading zeros cannot fit a body anyway.
-fn _hex(s):
-  cs = chars(s)
-  digits = {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, a: 10, b: 11, c: 12, d: 13, e: 14, f: 15, A: 10, B: 11, C: 12, D: 13, E: 14, F: 15}
-  bad = find(0..len(cs), i => cs[i] not in digits or i == 16)
-  if s == "":
-    Err("empty hex number for chunk length")
-  else if bad != nil and cs[bad] not in digits:
-    Err("invalid byte in chunk length")
-  else if bad != nil:
-    Err("http chunk length too large")
-  else if len(_trim_left(s, "0")) > 15:
-    Ok(_body_cap() + 1)
-  else:
-    Ok(fold(cs, 0, (n, ch) => n * 16 + digits[ch]))
-  ;;
+fn _hex(s) = s == "" then Err("empty hex number for chunk length") else _hex_from(chars(s), 0, 0)
+
+# One pass over the digits: the first byte that is no digit (or the 17th
+# digit) decides the error; past 15 digits without the leading zeros
+# (`n` is then -1) no body fits, which `_body_cap() + 1` says.
+fn _hex_from(cs, i, n) = i == len(cs) then Ok(n < 0 then _body_cap() + 1 else n) else match _digit(cs[i]):
+  nil => Err("invalid byte in chunk length")
+  d   => i == 16 then Err("http chunk length too large")
+    else _hex_from(cs, i + 1, n < 0 or n >= 72057594037927936 then -1 else n * 16 + d)
+;;
+
+# A hex digit's value, or nil (a `match`: a map literal would be built
+# again for every chunk).
+fn _digit(ch) = match ch:
+  "0" => 0
+  "1" => 1
+  "2" => 2
+  "3" => 3
+  "4" => 4
+  "5" => 5
+  "6" => 6
+  "7" => 7
+  "8" => 8
+  "9" => 9
+  "a" => 10
+  "b" => 11
+  "c" => 12
+  "d" => 13
+  "e" => 14
+  "f" => 15
+  "A" => 10
+  "B" => 11
+  "C" => 12
+  "D" => 13
+  "E" => 14
+  "F" => 15
+  _   => nil
 ;;
 
 # Go `body.readTrailer`: after the last chunk, either CRLF, or trailer
@@ -1572,14 +1589,27 @@ fn _stopping(e) = _c.describe(e).code in ["exit", "E0701", "E0702"]
 # Go retries an accept that failed for want of resources, waiting 5 ms,
 # doubling up to 1 s.
 fn _accept(l, handler, scope, delay) = match _net.accept(l):
-  Ok(c)  => _accept(l, handler, scope, _spawn_conn(c, handler, scope))
+  Ok(c)  => _accept(l, handler, scope, _spawn_conn(c, handler, scope, delay))
   Err(e) => ends_with(e.message, "use of closed network connection")
     then nil else _accept(l, handler, scope, _backoff(delay))
 ;;
 
-fn _spawn_conn(c, handler, scope):
-  _c.spawn_background(() => _guarded(c, handler, scope))
-  0s
+# A connection's task that cannot start (E0801 `cannot start a task`: no
+# thread can be made) is reported, the connection closed unanswered and
+# the loop backs off as for a failed accept; the server goes on (Go has
+# no such case: a goroutine always starts). No 503 is written: the
+# request is still unread, so closing would reset the connection and the
+# client could lose the answer anyway, and lingering here would stall
+# the accept loop.
+fn _spawn_conn(c, handler, scope, delay) = match _c.try_call(_ => _c.spawn_background(() => _guarded(c, handler, scope)), nil):
+  Ok(_)  => 0s
+  Err(e) => _unstarted(c, e, delay)
+;;
+
+fn _unstarted(c, e, delay):
+  eprint("http: cannot start a connection task: ${_c.describe(e).text}")
+  _net.close(c)
+  _backoff(delay)
 ;;
 
 # A failure answering a connection (a bug of this file: the handler's

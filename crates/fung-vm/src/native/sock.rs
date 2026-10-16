@@ -199,11 +199,12 @@ pub(crate) fn listen(addr: &SocketAddr) -> Result<TcpListener, (&'static str, io
     Ok(TcpListener::from(fd))
 }
 
-/// The addresses `host` names, in the resolver's order (Go's cgo
-/// resolver, `getaddrinfo` without flags for any family), or Go's reason
-/// for the failure: `no such host`, an errno's text, or the resolver's
-/// own text. It blocks: callers run it on a thread of its own.
-pub(crate) fn lookup(host: &str) -> Result<Vec<IpAddr>, String> {
+/// The addresses `host` names, each with its IPv6 scope (0 for none), in
+/// the resolver's order (Go's cgo resolver, `getaddrinfo` without flags
+/// for any family), or Go's reason for the failure: `no such host`, an
+/// errno's text, or the resolver's own text. It blocks: callers run it on
+/// a thread of its own.
+pub(crate) fn lookup(host: &str) -> Result<Vec<(IpAddr, u32)>, String> {
     let no_such_host = || "no such host".to_string();
     let c_host = CString::new(host).map_err(|_| no_such_host())?;
     // SAFETY: all-zero bytes are a valid `addrinfo` hints value (null
@@ -229,13 +230,17 @@ pub(crate) fn lookup(host: &str) -> Result<Vec<IpAddr>, String> {
                 match ai.ai_family {
                     libc::AF_INET => {
                         let sin = &*(ai.ai_addr as *const libc::sockaddr_in);
-                        ips.push(IpAddr::V4(Ipv4Addr::from(
-                            sin.sin_addr.s_addr.to_ne_bytes(),
-                        )));
+                        ips.push((
+                            IpAddr::V4(Ipv4Addr::from(sin.sin_addr.s_addr.to_ne_bytes())),
+                            0,
+                        ));
                     }
                     libc::AF_INET6 => {
                         let sin6 = &*(ai.ai_addr as *const libc::sockaddr_in6);
-                        ips.push(IpAddr::V6(Ipv6Addr::from(sin6.sin6_addr.s6_addr)));
+                        ips.push((
+                            IpAddr::V6(Ipv6Addr::from(sin6.sin6_addr.s6_addr)),
+                            sin6.sin6_scope_id,
+                        ));
                     }
                     _ => {}
                 }
@@ -249,6 +254,57 @@ pub(crate) fn lookup(host: &str) -> Result<Vec<IpAddr>, String> {
         return Err(no_such_host());
     }
     Ok(ips)
+}
+
+/// Go `zoneCache.index`: the scope of an IPv6 zone, an interface's name
+/// or else a decimal number (its leading digits, as Go's `dtoi` reads
+/// them; 0, no scope, without any).
+pub(crate) fn zone_index(zone: &str) -> u32 {
+    if let Ok(name) = CString::new(zone) {
+        // SAFETY: a NUL-terminated name; the call only reads it.
+        let i = unsafe { libc::if_nametoindex(name.as_ptr()) };
+        if i != 0 {
+            return i;
+        }
+    }
+    let mut n: u32 = 0;
+    for b in zone.bytes().take_while(u8::is_ascii_digit) {
+        n = n * 10 + u32::from(b - b'0');
+        if n >= 0xFF_FFFF {
+            return 0xFF_FFFF;
+        }
+    }
+    n
+}
+
+/// Go `zoneCache.name`: the zone of an IPv6 scope, its interface's name
+/// or else the number; "" for no scope.
+pub(crate) fn zone_name(scope: u32) -> String {
+    if scope == 0 {
+        return String::new();
+    }
+    let mut buf = [0 as libc::c_char; libc::IF_NAMESIZE];
+    // SAFETY: `buf` has the `IF_NAMESIZE` bytes the call may write; on
+    // success it holds a NUL-terminated name.
+    let p = unsafe { libc::if_indextoname(scope, buf.as_mut_ptr()) };
+    if p.is_null() {
+        return scope.to_string();
+    }
+    // SAFETY: as above, `buf` is NUL-terminated after a successful call.
+    unsafe { CStr::from_ptr(buf.as_ptr()) }
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// An address as Go prints it: an IPv6 scope as its zone's name
+/// (`[fe80::1%lo0]:80`, where `SocketAddr` would print `%1`).
+pub(crate) fn addr_text(a: &SocketAddr) -> String {
+    match a {
+        SocketAddr::V6(v6) if v6.scope_id() != 0 => {
+            format!("[{}%{}]:{}", v6.ip(), zone_name(v6.scope_id()), v6.port())
+        }
+        a => a.to_string(),
+    }
 }
 
 /// Go's text for a `getaddrinfo` failure (`cgoLookupIPCNAME`): a name

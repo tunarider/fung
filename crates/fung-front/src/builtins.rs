@@ -73,6 +73,8 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.net", "hold(l, grace)"),
     ("_native.net", "close_on_cancel(l)"),
     ("_native.net", "utf8_string(bs)"),
+    // Final review: a chunk-size line in one call (its end kept).
+    ("_native.net", "read_raw_line(c, limit)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

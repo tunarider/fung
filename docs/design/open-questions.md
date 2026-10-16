@@ -213,7 +213,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `_native.regex` 5개(`native/regex.rs`, `regex` 크레이트), `regex`·`err_regex`를 Go 대조와 Rust 골든 실행기에 넣음. 실행 비교 189건(`tests/lang` 133개), Rust 골든 138개,
     남은 실행 비교 제외는 `http_serve.fung` 하나. Go 대조 800쌍·프로그램 47개(`regex_parity.rs`), 파서 표 334개·매치 173쌍·무작위 2,000개 + 겹친 반복 600개, SIGPIPE 11개(`sigpipe.rs`).
     스펙 `docs/superpowers/specs/2026-10-16-rust-regex-crates-4c-design.md`, 계획 `docs/plans/2026-10-16-rust-regex-crates-4c.md`, 노트 `docs/notes/R4c-regex-crates.md`.
-  - 4d단계(소켓·TLS·fung으로 쓴 HTTP) 완료 (2026-10-16, 커밋 `6bdcab6..4660516`): `_native.net` 19개(`native/net.rs`·`sock.rs`, 비차단 소켓 + `poll` + 취소 노드의 깨우개 파이프 `vm/watch.rs`,
+  - 4d단계(소켓·TLS·fung으로 쓴 HTTP) 완료 (2026-10-16, 커밋 `6bdcab6..4660516`): `_native.net` 20개(최종 수정의 `read_raw_line` 포함; `native/net.rs`·`sock.rs`, 비차단 소켓 + `poll` + 취소 노드의 깨우개 파이프 `vm/watch.rs`,
     `Value::Conn`·`Value::Listener`), rustls TLS 클라이언트(`native/tls.rs`, 위 허용 목록 표), `_native.conc`의 `set_asker`·`describe`, HTTP/1.1 클라이언트·리다이렉트·프록시·`CONNECT` 터널·서버를
     fung으로 쓴 `extras/rust/http.fung`. 06에 "fung HTTP 약속"을 적고 그 안에서 Go와 같다. 지원 안 함(E0805) 장치와 `run_parity_skip.txt`를 지웠다: 이제 구현마다 갈라지는 파일은 `# only:` 표시뿐이다.
     실행 비교 189건(`tests/lang` 143개 중 표시 없는 133개, 빼는 파일 없음), Rust 골든 139개(`http_serve_rust` 포함), `http_parity.rs` 14개(디버그 13개; 클라이언트 프로그램 61개·연결 없는 경우 30개·인자 에러 13개,
@@ -438,7 +438,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - 호스트 없음: Linux의 Go(순수 Go 해석기)는 `lookup x on <서버>: no such host`, Rust는 시스템 해석기의 `lookup x: no such host`.
     - 이름 붙은 포트(`:http`)를 찾지 않는다(`lookup tcp/http: unknown port`).
     - Go는 두 번째 주소 계열을 300 ms 뒤에 경주시키고(Happy Eyeballs) 시간 제한을 주소마다 나눈다. Rust는 한 기한 안에서 차례로 시도한다. 첫 에러를 보고하는 것은 같다.
-    - IPv6 영역 표시: Go `%en0`, Rust `SocketAddr`의 `%4`.
+    - ~~IPv6 영역 표시: Go `%en0`, Rust `SocketAddr`의 `%4`.~~ 해결 (4d 최종 수정): 영역이 붙은 IPv6 글자는 Go `parseIPZone`처럼 직접 읽어 scope(인터페이스 이름, 아니면 숫자,
+      둘 다 아니면 0)를 싣고, 연결·듣기 문구는 쓴 그대로(`dial tcp [::1%lo0]:P`), 소켓에서 얻은 주소는 인터페이스 이름(`[fe80::1%lo0]:P`)으로 Go와 같다.
     - `close`는 바로 `shutdown`하고 디스크립터는 진행 중인 연산이 놓을 때 닫는다. 상대가 보는 동작은 같다.
     - 한 연결에 읽는 쪽 하나, 쓰는 쪽 하나(노트 2절). 두 번째로 기다리는 쪽은 잠금에서 기다리며 취소되지 않는다.
   - TLS(Task 2):
@@ -455,7 +456,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - 인자 에러의 호출 경로에 `extras/rust/http.fung` 프레임이 보인다. Go의 함수는 네이티브라 없다(06은 extras 프레임을 보이게 둔다).
     - 사용자 함수가 `http.*`를 꼬리 위치에서 부르면 그 프레임이 사라져, 에러가 부른 쪽의 부른 쪽 위치를 가리키고 경로에 `get (1 tail calls elided)`가 보인다. fung으로 쓴 모든 라이브러리 함수와 같다(3b `swap`과 같은 뿌리).
     - TCP 연결과 핸드셰이크를 `min(10초, 남은 시간)` 기한 하나로 묶는다(Go는 30초 + 10초).
-    - URL: IDN·퓨니코드 없음, 호스트의 `%XX`(0x80 이상) 풀지 않음, 괄호 IPv6는 "IPv4인가 아닌가"만 검사(잘못된 IPv6는 연결에서 다른 문구로 실패, IPv4 앞자리 0 문구도),
+    - URL: IDN·퓨니코드 없음, 호스트의 `%XX`(0x80 이상) 풀지 않음(그래서 에러 URL의 `%` → `%25` 바꿈도 괄호 IPv6만이 아니라 모든 호스트에 적용되어
+      `http://%C3%A9:1/` 같은 입력의 문구가 Go와 다르다. IDN이 없어 어느 쪽이든 연결은 실패하므로 문구 하나의 차이로 둔다), 괄호 IPv6는 "IPv4인가 아닌가"만 검사(잘못된 IPv6는 연결에서 다른 문구로 실패, IPv4 앞자리 0 문구도),
       에러 URL의 조각(fragment)은 다시 이스케이프하지 않음, 출력할 수 없는 비ASCII 글자의 `%q`(Go는 `\u`).
     - 사용자 정보에 비ASCII가 있으면 가린 에러 URL이 `%C3%A9`로 보인다(Go는 `é`).
     - 101 응답은 본문 없음(Go는 연결을 넘겨줌).
@@ -463,8 +465,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - 서버가 일찍 닫아 쓰기가 실패하면 쓰기 에러를 보고한다(Go는 답을 읽을 수 있으면 읽음).
     - 헤더 폭탄의 비용: 접히거나 끝없는 머리를 fung으로 해석하므로 10 MiB 예산 안에서 40만 줄에 릴리스 약 1초.
     - `need_str_map`(Go의 "map of strings" E0403)은 HTTP와 무관한 인자 검사인데 `_native.net`에 있다. 자리는 6단계 내장 함수 배치 검토 때 다시 본다.
-    - IPv6 영역(`%25en0`)이 연결할 때 떨어진다(`IpAddr` 해석이 영역을 받지 않음). 최종 리뷰 대기.
-    - 에러 URL에서 `%` → `%25` 바꿈이 괄호 IPv6만이 아니라 모든 호스트에 적용되어 `http://%C3%A9:1/` 같은 입력의 문구가 Go와 다르다. 최종 리뷰 대기.
+    - ~~IPv6 영역(`%25en0`)이 연결할 때 떨어진다.~~ 해결 (4d 최종 수정): 위 소켓 목록의 영역 항목.
+    - 작은 청크의 비용: 크기 줄은 한 번에 읽지만(`read_raw_line`, 4d 최종 수정) 청크마다 fung 해석과 네이티브 호출 세 번이 남아 1바이트 청크 10만 개에 릴리스 약 0.6초(Go는 거의 0).
   - 리다이렉트·프록시(Task 4):
     - 알 수 없는 스킴의 프록시 URL에 포트가 없으면 Rust는 80(Go는 빈 포트로 연결).
     - IDN·퓨니코드 없음(`NO_PROXY`, 같은 사이트 판정).
@@ -482,7 +484,15 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - `serve` 인자 에러의 호출 경로에 extras 프레임이 보이고, `ready` 에러에는 `_ready_check`·`_serve (1 tail calls elided)` 두 프레임이 더 있다(아래 포매터 결함의 우회).
     - 따라 하지 않은 것: `PRI * HTTP/2.0`, `CONNECT`의 2xx 답, 요청 컨텍스트를 취소하는 배경 읽기.
     - 본문 중간에 멈춘 클라이언트는 닫을 때까지 연결 태스크의 스레드 하나를 붙잡는다(Go도 `ReadTimeout`이 없어 붙잡지만 고루틴이라 쌈). R7에서 푼다.
+    - 헤더 폭탄의 비용(서버): 요청 머리(1 MB + 4 KB, 값 500개)를 fung으로 해석하므로 꽉 찬 머리 하나에 요청마다 약 0.1~0.25초(Go는 거의 0).
+    - 연결 태스크를 띄우지 못하면(스레드 천장, `E0801 cannot start a task`) 그 연결을 답 없이 닫고 표준 에러에 `http: cannot start a connection task: …`를 쓴 뒤
+      받기 재시도처럼 물러났다가 계속 받는다(4d 최종 수정; 그 전에는 서버 전체가 멈췄다). Go에는 이런 경우가 없다(고루틴은 늘 뜬다).
   - 테스트: `http_parity`는 프로필마다 약 45초 걸린다. 헤더 10초 한도 시험(`a_slow_client_is_cut_off_after_ten_seconds`)은 시간을 주입하지 않고 실제로 10초를 기다린다.
+  - 4d 보류 (시험 부채; 최종 리뷰에서 머지 전 수정 불필요로 분류):
+    - `read_all` 쪽 취소 시험은 실패(RED)를 먼저 확인하지 않았다(`read_line` 쪽만 확인).
+    - 교착 없음 시험의 `free_port`: 닫은 포트를 다른 프로세스가 그 사이에 잡을 수 있다(드묾).
+    - `crates/fung-cli/tests/tls.rs`: 실패하는 길에서 Go TLS 서버 프로세스와 임시 디렉터리를 거두는 정리 장치(`Drop` guard)가 없다(성공하는 길에서만 치움).
+    - 시험 없음: `SSL_CERT_FILE`의 깨진 PEM, `SSL_CERT_DIR`만 있는 경우, TLS 읽기 도중의 취소.
 - [ ] Go 포매터 결함 (M9, 4d Task 5에서 발견): 매개변수에 `fn` 타입 표기가 있는 함수의 블록 몸통을 Go `fung fmt`가 내어쓴다(`fn` 타입을 람다로 읽음). 최소 재현:
   `fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;`의 몸통이 들여쓰기를 잃는다. Go가 정답지라 이식 중에는 고치지 않았고, `extras/rust/http.fung`는 `serve = _serve(...)` 한 줄 감싸개로 피했다
   (그래서 `ready` 인자 에러에 `_serve` 프레임이 하나 더 보인다). Rust 포매터(5단계)를 만들 때 바른 동작을 정하고, Go를 지운 뒤 감싸개를 걷어낸다.
@@ -492,6 +502,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 태스크 생성 비용: 지금 태스크 하나에 약 55 µs(Go 약 2 µs, 약 25배; `docs/notes/R3a-runtime.md` 9절). 채널 주고받기 약 2.5 µs(Go 약 3배).
   - 스레드 천장: 살아 있는 태스크·에이전트마다 운영체제 스레드 하나라서 프로세스 스레드 한도(macOS `kern.num_taskthreads` 8192)가 천장이다.
     `map(0..20000, i => agent(i))`는 `E0801 cannot start a task`, 에이전트 `swap` 한 번은 약 7 µs(Go atom 0.4 µs; 위 3b 목록).
+    HTTP 서버는 천장에 닿아도 죽지 않지만(4d 최종 수정), 스레드가 바닥난 동안 새 연결은 운영체제 대기열에서 거절되거나 답 없이 바로 닫힌다.
   - 람다를 부르는 고차 내장 함수(`map`·`fold`·`sort_by`·`each`)의 구현 언어: Rust 안에서 람다를 부르면 그 사이에 태스크를 멈출 수 없고 Rust 스택을 쓴다(위 "구현 언어 지침").
   - 스택 크기: 지금은 진입 스레드 4 GiB, 태스크 스레드 1 GiB 예약에 기댄다(깊은 정규식 컴파일, 깊은 값 출력). 그린 스레드는 작은 스택이 전제라 다시 정한다.
   - 값 출력의 재귀(`value/format.rs`, 위 4b 목록): 스택을 줄이면 반복으로 바꿔야 할 수 있다.

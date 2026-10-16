@@ -433,6 +433,26 @@ print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
             r#"print(http.get(URL))"#,
             ok("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\nab\r\n0\r\n\r\n"),
         ),
+        // a chunk-size line fits Go's 4096-byte buffer with its LF, or
+        // is too long; a stream that ends inside one
+        case(
+            r#"print(http.get(URL))"#,
+            ok(&format!(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2;{}\r\nab\r\n0\r\n\r\n",
+                "e".repeat(4092)
+            )),
+        ),
+        case(
+            r#"print(http.get(URL))"#,
+            ok(&format!(
+                "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2;{}\r\nab\r\n0\r\n\r\n",
+                "e".repeat(4093)
+            )),
+        ),
+        case(
+            r#"print(http.get(URL))"#,
+            ok("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2;e"),
+        ),
         case(
             r#"print(http.get(URL))"#,
             ok("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nab"),
@@ -698,24 +718,38 @@ fn run_env(bin: &Path, src: &str, env: &[(String, String)]) -> Out {
         .stderr(std::process::Stdio::piped())
         .spawn()
         .unwrap();
+    // The pipes are read on threads while the child runs, so a child
+    // writing more than a pipe holds cannot block waiting for us.
+    let drain = |p: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut b = Vec::new();
+            if let Some(mut p) = p {
+                let _ = p.read_to_end(&mut b);
+            }
+            String::from_utf8_lossy(&b).into_owned()
+        })
+    };
+    let out = drain(child.stdout.take().map(|p| Box::new(p) as _));
+    let err = drain(child.stderr.take().map(|p| Box::new(p) as _));
     let start = std::time::Instant::now();
-    loop {
-        if child.try_wait().unwrap().is_some() {
-            break;
+    let status = loop {
+        if let Some(st) = child.try_wait().unwrap() {
+            break Some(st);
         }
         if start.elapsed() > CHILD_LIMIT {
             let _ = child.kill();
             let _ = child.wait();
-            return (String::new(), RAN_OVER.to_string(), None);
+            break None;
         }
         std::thread::sleep(Duration::from_millis(10));
+    };
+    // the child is gone, so the pipes end (unless a grandchild holds
+    // them: this runner starts none)
+    let (out, err) = (out.join().unwrap(), err.join().unwrap());
+    match status {
+        Some(st) => (out, err, st.code()),
+        None => (String::new(), RAN_OVER.to_string(), None),
     }
-    let o = child.wait_with_output().unwrap();
-    (
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
-        o.status.code(),
-    )
 }
 
 /// Go's request without the `Accept-Encoding: gzip` line its transport adds.

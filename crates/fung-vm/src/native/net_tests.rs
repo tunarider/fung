@@ -488,6 +488,67 @@ fn ipv6_listen_addresses_read_like_go() {
     assert_eq!(out(&o), ("[::] true\n[::1] true\n", "", 0));
 }
 
+/// The loopback interface's name, for an IPv6 zone.
+#[cfg(target_os = "linux")]
+const LOOPBACK: &str = "lo";
+#[cfg(not(target_os = "linux"))]
+const LOOPBACK: &str = "lo0";
+
+/// An IPv6 literal with a zone keeps it: Go names the address with the
+/// zone as written (`dial tcp [::1%lo0]:P: connect: connection refused`,
+/// also for a numeric or unknown zone, which mean no scope), and a
+/// link-local address dials through its zone's interface. Skipped where
+/// IPv6 is missing.
+#[test]
+fn an_ipv6_zone_is_kept() {
+    let _g = serial();
+    let Ok(l) = TcpListener::bind("[::1]:0") else {
+        eprintln!("skipping: no IPv6 loopback");
+        return;
+    };
+    let closed = l.local_addr().unwrap().port();
+    drop(l);
+    let o = run(&format!(
+        "each([\"::1%{LOOPBACK}\", \"::1%1\", \"::1%nosuch\"], h => print(msg(net.connect(h, {closed}))))\nl = net.listen(\"[::1%{LOOPBACK}]:0\")!\np = parse_int(last(split(net.local_addr(l), \":\")))!\nc = net.connect(\"::1%{LOOPBACK}\", p)!\nprint(host(net.local_addr(l)), host(net.local_addr(c)))\nnet.close(c)\nnet.close(l)"
+    ));
+    assert_eq!(
+        out(&o),
+        (
+            format!(
+                "dial tcp [::1%{LOOPBACK}]:{closed}: connect: connection refused\ndial tcp [::1%1]:{closed}: connect: connection refused\ndial tcp [::1%nosuch]:{closed}: connect: connection refused\n[::1] [::1]\n"
+            )
+            .as_str(),
+            "",
+            0
+        )
+    );
+}
+
+/// macOS gives `lo0` the link-local `fe80::1`, which only its scope
+/// reaches (without it: `connect: no route to host`). Go 1.27 prints the
+/// zone in every address (`[fe80::1%lo0]:P`).
+#[cfg(target_os = "macos")]
+#[test]
+fn a_link_local_address_dials_through_its_zone() {
+    let _g = serial();
+    // SAFETY: a NUL-terminated name.
+    let lo0 = unsafe { libc::if_nametoindex(c"lo0".as_ptr()) };
+    let a = std::net::SocketAddrV6::new(
+        std::net::Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1),
+        0,
+        0,
+        lo0,
+    );
+    if lo0 == 0 || TcpListener::bind(a).is_err() {
+        eprintln!("skipping: no fe80::1 on lo0");
+        return;
+    }
+    let o = run(
+        "l = net.listen(\"[fe80::1%lo0]:0\")!\na = net.local_addr(l)\np = parse_int(last(split(a, \":\")))!\nc = net.connect(\"fe80::1%lo0\", p)!\nprint(host(a), host(net.local_addr(c)))\nprint(msg(net.listen(a)) == \"listen tcp ${a}: bind: address already in use\")\nnet.close(c)\nnet.close(l)",
+    );
+    assert_eq!(out(&o), ("[fe80::1%lo0] [fe80::1%lo0]\ntrue\n", "", 0));
+}
+
 /// Go: `read tcp 127.0.0.1:55927->127.0.0.1:55925: read: connection
 /// reset by peer`, then `write tcp …: write: broken pipe`; after
 /// `Close`, `… use of closed network connection` for read, write and a
@@ -1016,11 +1077,49 @@ fn cancel_at_every_tick_closes_the_listener() {
     assert_eq!(out(&o), ("done\n", "", 0));
 }
 
+/// A chunk-size line is read in one native call, not a byte at a time:
+/// 2,000 chunks of 1,000 bytes whose size lines carry a 1,000-byte
+/// extension (Go ignores it) read in well under half a second. A byte
+/// per call took about 1.8 s in release on an Apple M-series machine;
+/// one call per line, about 0.06 s.
+#[cfg(not(debug_assertions))]
+#[test]
+fn a_chunk_size_line_is_read_whole() {
+    let _g = serial();
+    let (port, h) = peer(|mut s| {
+        let mut b = [0u8; 4096];
+        let _ = s.read(&mut b);
+        let mut res = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
+        for _ in 0..2000 {
+            res.extend_from_slice(b"3e8;");
+            res.extend_from_slice(&[b'e'; 1000]);
+            res.extend_from_slice(b"\r\n");
+            res.extend_from_slice(&[b'x'; 1000]);
+            res.extend_from_slice(b"\r\n");
+        }
+        res.extend_from_slice(b"0\r\n\r\n");
+        s.write_all(&res).unwrap();
+    });
+    let start = Instant::now();
+    let o = run(&format!(
+        "import http\nprint(len(http.get(\"http://127.0.0.1:{port}/\")!.body))"
+    ));
+    let took = start.elapsed();
+    h.join().unwrap();
+    assert_eq!(out(&o), ("2000000\n", "", 0));
+    assert!(took < Duration::from_millis(500), "took {took:?}");
+}
+
 /// A program that starts a server, burns `k` ticks in `ready`, cancels
 /// it, and checks that nothing answers HTTP on its port afterwards, for
 /// each `k` in `from..to`. (Only an HTTP answer counts: in a busy test
 /// process another test may bind the freed port number at once.)
 fn cancel_sweep(from: i64, to: i64) -> String {
+    // What keeps a reused port from a false positive is the caller's
+    // `serial()` lock: no other HTTP server in this process runs at the
+    // same time, so an answer on the freed port can only come from the
+    // server that should be closed. (Another process could still bind
+    // the port, but would hardly answer HTTP within the 2 s deadline.)
     format!(
         "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(c) => fn():\n    net.set_deadline(c, 2s)\n    net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(c, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  port = channel(1)\n  s = spawn(() => http.serve(\"127.0.0.1:0\", r => \"x\", ready: fn(a): send(port, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  ;;\n;;\neach({from}..{to}, attempt)\nprint(\"done\")"
     )
@@ -1107,6 +1206,66 @@ fn a_failure_accepting_ends_the_server() {
         (
             "Err({kind: 'error, message: \"error[E0803]: injected\"})\n'network\n",
             "",
+            0
+        )
+    );
+    assert_eq!(probe::sockets(), 0);
+}
+
+/// Calls of `spawn_background` so far, for `failing_spawn`.
+static SPAWNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `_native.conc` with a `spawn_background` whose second call (the
+/// server's first connection: the first starts the accept task) fails
+/// with E0801 `cannot start a task`, as when no thread can be made.
+fn failing_spawn(rt: &crate::vm::Runtime) {
+    use std::sync::atomic::Ordering;
+    SPAWNS.store(0, Ordering::SeqCst);
+    let real = crate::conc::module();
+    let mut m = crate::value::Module::new("conc", "_native.conc");
+    for name in real.names() {
+        let v = if name == "spawn_background" {
+            Value::Native(Native::leak(
+                "spawn_background",
+                vec![crate::native::nat::param("f")],
+                |t, args| {
+                    if SPAWNS.fetch_add(1, Ordering::SeqCst) == 1 {
+                        return Err(crate::vm::internal(vec![fung_front::diag::Arg::Str(
+                            "cannot start a task: injected".into(),
+                        )]));
+                    }
+                    crate::vm::agent::spawn_background(t, args)
+                },
+            ))
+        } else {
+            real.get(name).unwrap().clone()
+        };
+        m.set(name, v);
+    }
+    rt.register_native("_native.conc", std::rc::Rc::new(m));
+}
+
+/// A connection whose task cannot start (no thread left) is closed and
+/// reported, and the server keeps accepting (it used to stop serving).
+#[test]
+fn a_connection_task_that_cannot_start_is_dropped() {
+    let _g = serial();
+    let o = exec_prepared(
+        &format!(
+            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}p = parse_int(split(addr, \":\")[1])!\nc = net.connect(\"127.0.0.1\", p)!\nnet.set_deadline(c, 5s)\nprint(net.read_line(c, 100))\nnet.close(c)\nprint(http.get(base)!.body)\ncancel(s)\nprint(await(s))"
+        ),
+        Opts {
+            internal: true,
+            extra: net_probes,
+            ..Opts::default()
+        },
+        failing_spawn,
+    );
+    assert_eq!(
+        out(&o),
+        (
+            "Ok(nil)\nx\nErr({kind: 'cancelled})\n",
+            "http: cannot start a connection task: error[E0801]: internal error: cannot start a task: injected\n",
             0
         )
     );

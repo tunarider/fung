@@ -20,13 +20,14 @@
   E0805 번호는 카탈로그에 그대로 둔다(번호는 바꾸지 않고 Go에는 아직 있다). 구현마다 갈라지는 파일은 이제 `# only:` 표시 하나로만 다룬다.
 
 내부:
-- `crates/fung-vm/src/native/net.rs`(+ `sock.rs`): `_native.net` 19개. `connect` `listen` `local_addr` `accept` `read_line` `read_bytes` `read_all` `write` `close`
-  `set_deadline` `byte_len`에 더해, 작업 중에 필요해서 더한 것이 여덟이다.
+- `crates/fung-vm/src/native/net.rs`(+ `sock.rs`): `_native.net` 20개. `connect` `listen` `local_addr` `accept` `read_line` `read_bytes` `read_all` `write` `close`
+  `set_deadline` `byte_len`에 더해, 작업 중에 필요해서 더한 것이 아홉이다.
   - `read_bytes_into`·`take_body`: 본문을 바이트로 모았다가 한 번에 글자로 바꾼다(2절 끝).
   - `utf8_bytes`·`utf8_string`: 글자 ↔ 바이트. fung 문자열은 글자로만 보여서, URL의 `%XX`를 만들고 풀 방법이 없었다.
   - `need_str_map`: Go와 같은 E0403 "map of strings" 에러. fung 코드는 원하는 에러 번호를 낼 수 없다.
   - `start_tls`: 이미 열린 연결 위에서 TLS를 시작한다(프록시 터널, 5절).
   - `hold`·`close_on_cancel`: 서버의 끝(6절).
+  - `read_raw_line`: 줄 끝(`\r\n`인지 `\n`인지)을 남긴 채 한 줄을 읽는다. 청크 크기 줄을 한 바이트씩 읽던 것을 최종 리뷰에서 바꿨다(8절 (18)).
 - `_native.conc`에 둘: `set_asker`(핸들러를 서버 태스크 아래에서 돌림), `describe`(잡은 에러의 번호와 문구).
 - 값 종류 둘: `Value::Conn`, `Value::Listener`. 파일 핸들(4a)과 같은 방식이다. 출력은 `<conn>`·`<listener>`이고, 같음은 동일성으로 본다. 마지막 사본이 사라지면 닫힌다.
 - `crates/fung-vm/src/vm/watch.rs`: 실행권 밖에서 **취소할 수 있게** 기다리는 장치(2절).
@@ -301,6 +302,16 @@ open-questions에 M9 결함으로 적었다.
 
 **(17) 컨트롤러의 `commit -a`.** 작업을 나눠 주는 쪽(컨트롤러)이 스펙 결정을 커밋하면서 `git commit -qam`을 썼다. 그때 다른 작업자가 아직 커밋하지 않은 Task 4 파일까지 쓸려 들어갔다.
 푸시 전이라 문서만의 커밋과 Task 4 커밋으로 다시 나눴다(트리는 같음). 교훈: 여럿이 한 작업 트리를 쓰는 동안에는 `-a`·`-A`를 쓰지 않고 경로를 하나씩 적는다.
+
+**(18) 최종 리뷰에서 고친 것.**
+- 연결 태스크를 띄우지 못하면(스레드가 바닥나 `E0801 cannot start a task`) 그 에러가 받기 루프까지 올라가 서버 전체가 멈췄다.
+  이제 `_spawn_conn`이 `try_call`로 잡아 표준 에러에 한 줄 쓰고, 그 연결을 답 없이 닫고, 받기 실패처럼 물러났다가(`_backoff`) 계속 받는다.
+  503을 쓰지 않은 까닭: 요청을 읽지 않은 채 닫으면 연결이 리셋되어 클라이언트가 답을 잃을 수 있고, 읽으며 기다리면 받기 루프가 멈춘다.
+- IPv6 영역: `getaddrinfo`가 준 `sin6_scope_id`를 버리고 있었다. 이제 영역이 붙은 IPv6 글자(`fe80::1%lo0`)는 Go `parseIPZone`처럼 직접 읽어
+  scope(인터페이스 이름, 아니면 숫자, 둘 다 아니면 0)를 소켓 주소에 싣고, 에러 문구는 Go처럼 쓴 그대로(`dial tcp [::1%lo0]:P`), 받은 주소는 인터페이스 이름(`%lo0`)으로 보인다.
+- 청크 크기 줄을 한 바이트씩 네이티브 호출로 읽어서, 1바이트 청크 10만 개가 릴리스에서 약 1초 걸렸다. 줄 끝을 남기는 `read_raw_line`(Go `ReadSlice`처럼 4096바이트 안에 LF가 없으면 'limit)과
+  `match`로 쓴 16진수 숫자표(맵 리터럴은 부를 때마다 새로 만들어진다), 한 번에 훑는 `_hex`로 약 0.6초가 되었다. 1,000바이트 확장이 붙은 크기 줄 2,000개로 재면 1.8초 → 0.06초다
+  (`a_chunk_size_line_is_read_whole`, 릴리스 전용). 남은 비용은 청크마다 fung 해석과 네이티브 호출 세 번이다.
 
 ### 알고 남긴 동작
 
