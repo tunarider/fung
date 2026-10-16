@@ -136,11 +136,14 @@ fn time_runs_match_go_under_each_tz() {
 fn berlin_changes_follow_go_date() {
     let src = r#"print(time.parse("2026-03-29 02:30", "YYYY-MM-DD HH:mm")!, time.parse("2026-10-25 02:30", "YYYY-MM-DD HH:mm")!)"#;
     let (out, err, code) = run(&rust_fung(), src, Some("Europe/Berlin"));
-    assert_eq!((out.as_str(), err.as_str(), code), (
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
             "2026-03-29T03:30:00+02:00 2026-10-25T02:30:00+01:00\n",
             "",
             Some(0)
-        ));
+        )
+    );
 }
 
 /// The comparison is not vacuous: in New York the skipped 02:30 reads one

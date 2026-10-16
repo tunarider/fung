@@ -51,6 +51,24 @@ jobs:
           go-version-file: go.mod
       - name: toolchain
         run: rustup show active-toolchain
+      # Crate allowlist (deny.toml). One OS is enough: the lock file and
+      # advisory database do not depend on the platform.
+      - name: cache cargo-deny and cargo-audit
+        if: matrix.os == 'ubuntu-latest'
+        id: audit-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo-audit-tools
+          key: audit-tools-deny-0.20.2-audit-0.22.2-${{ runner.os }}
+      - name: install cargo-deny and cargo-audit
+        if: matrix.os == 'ubuntu-latest' && steps.audit-tools.outputs.cache-hit != 'true'
+        run: cargo install --locked --root ~/.cargo-audit-tools cargo-deny@0.20.2 cargo-audit@0.22.2
+      - name: cargo deny
+        if: matrix.os == 'ubuntu-latest'
+        run: ~/.cargo-audit-tools/bin/cargo-deny check
+      - name: cargo audit
+        if: matrix.os == 'ubuntu-latest'
+        run: ~/.cargo-audit-tools/bin/cargo-audit audit
       - name: fmt
         run: cargo fmt --check
       - name: clippy

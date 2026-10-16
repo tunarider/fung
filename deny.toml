@@ -1,0 +1,41 @@
+# Crate policy for the Rust port. [bans] allow is the single source of the
+# allowlist: crates/fung-cli/tests/deps.rs reads it and checks Cargo.lock
+# against it, and CI runs `cargo deny check` and `cargo audit`.
+#
+# Adding a crate: add it (and everything it pulls in) to `allow` below, with
+# its license under [licenses] if new, and record why in docs/design/
+# open-questions.md ("Rust 이전"). fung-front must stay at zero dependencies.
+#
+# Entry forms: "name", "name@1.2.3", or { crate = "name", reason = "..." }.
+# The workspace crates are listed so the list is never empty: cargo-deny
+# treats an empty `allow` as "allow everything".
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+
+[licenses]
+version = 2
+# Only what the dependency tree needs. The workspace crates are MIT.
+allow = ["MIT"]
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+# Path dependencies between workspace crates have no version requirement
+# (allowed because the crates are `publish = false`).
+allow-wildcard-paths = true
+allow = [
+    # workspace
+    "fung-front",
+    "fung-vm",
+    "fung-cli",
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
