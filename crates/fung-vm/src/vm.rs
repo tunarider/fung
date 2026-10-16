@@ -68,6 +68,8 @@ pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub use runtime::Runtime;
 pub use stdin::BUFFER as STDIN_BUFFER;
+#[cfg(test)]
+pub(crate) use task::CancelNode as CancelNodeForTests;
 pub use task::TaskHandle;
 pub(crate) use task::err_kind;
 pub(crate) use watch::{Interest, Waited, Watch, outside_watched};

@@ -12,7 +12,10 @@
 //! **Locks.** A connection has a read lock (the read-ahead buffer, held
 //! for one whole `read_line`, `read_bytes` or `read_all`) and a write
 //! lock (held for one whole `write`), so one read and one write can run
-//! at once, and lines from two readers never mix. The socket itself sits
+//! at once, and lines from two readers never mix. **One reader and one
+//! writer at a time per connection**: a second concurrent reader (or
+//! writer) waits for the first on the lock, and cannot be cancelled
+//! while it waits there (HTTP needs one of each). The socket itself sits
 //! in a slot of its own, locked only to take a reference: `close` never
 //! waits for a read or a write. It empties the slot and shuts the socket
 //! down, which wakes a read or write blocked on it (Go's `Close` does the
@@ -111,6 +114,18 @@ pub fn module() -> Rc<Module> {
                 "byte_len",
                 native("byte_len", byte_len_fn, vec![param("s")]),
             ),
+            (
+                "read_bytes_into",
+                native(
+                    "read_bytes_into",
+                    read_bytes_into_fn,
+                    vec![param("c"), param("n"), param("cap")],
+                ),
+            ),
+            (
+                "take_body",
+                native("take_body", take_body_fn, vec![param("c")]),
+            ),
         ]
     });
     let mut m = Module::new("net", "_native.net");
@@ -202,12 +217,21 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// What a connection's read lock guards.
+#[derive(Default)]
+struct ReadState {
+    /// Bytes read from the socket and not taken yet.
+    buf: Vec<u8>,
+    /// Raw bytes `read_bytes_into` gathered for `take_body`.
+    body: Vec<u8>,
+}
+
 /// A TCP connection.
 pub struct Conn {
     /// `None` once closed. Locked only to take or drop a reference.
     sock: Mutex<Option<Arc<Counted<TcpStream>>>>,
-    /// The read-ahead buffer, locked for a whole read.
-    rd: Mutex<Vec<u8>>,
+    /// The read-ahead and body buffers, locked for a whole read.
+    rd: Mutex<ReadState>,
     /// Locked for a whole write.
     wr: Mutex<()>,
     /// When reads and writes time out (`set_deadline`).
@@ -231,7 +255,7 @@ impl Conn {
             name: format!("{local}->{peer}"),
             local,
             sock: Mutex::new(Some(Arc::new(Counted::new(s)))),
-            rd: Mutex::new(Vec::new()),
+            rd: Mutex::new(ReadState::default()),
             wr: Mutex::new(()),
             deadline: Mutex::new(None),
         }
@@ -266,6 +290,10 @@ impl Conn {
     fn fill(&self, w: &mut Watch, s: &TcpStream, buf: &mut Vec<u8>) -> Result<usize, Fail> {
         let mut chunk = [0u8; CHUNK];
         loop {
+            // also between reads that never wait (a fast peer)
+            if w.cancelled() {
+                return Err(Fail::Cancelled);
+            }
             if self.is_closed() {
                 return Err(self.closed("read"));
             }
@@ -306,7 +334,8 @@ impl Conn {
     /// bytes of it (past `limit` + 1 bytes, or `limit` + 1 bytes not
     /// ending in `\r`, no line end can make it fit).
     fn read_line(&self, w: &mut Watch, limit: usize) -> Result<Option<Vec<u8>>, Fail> {
-        let mut buf = lock(&self.rd);
+        let mut st = lock(&self.rd);
+        let buf = &mut st.buf;
         let s = self.sock("read")?;
         let too_long = || Fail::Limit(format!("line longer than {limit} bytes"));
         let mut scanned = 0;
@@ -326,7 +355,7 @@ impl Conn {
             if buf.len() > limit + 1 || (buf.len() == limit + 1 && buf[limit] != b'\r') {
                 return Err(too_long());
             }
-            if self.fill(w, &s.0, &mut buf)? == 0 {
+            if self.fill(w, &s.0, buf)? == 0 {
                 if buf.is_empty() {
                     return Ok(None);
                 }
@@ -335,7 +364,7 @@ impl Conn {
                 if buf.len() > limit {
                     return Err(too_long());
                 }
-                return Ok(Some(std::mem::take(&mut *buf)));
+                return Ok(Some(std::mem::take(buf)));
             }
         }
     }
@@ -343,11 +372,12 @@ impl Conn {
     /// Exactly `n` bytes; Go's `io.ReadFull` errors when the stream ends
     /// first (`EOF` with nothing read, `unexpected EOF` after a part).
     fn read_bytes(&self, w: &mut Watch, n: usize) -> Result<Vec<u8>, Fail> {
-        let mut buf = lock(&self.rd);
+        let mut st = lock(&self.rd);
+        let buf = &mut st.buf;
         let s = self.sock("read")?;
         while buf.len() < n {
             let before = buf.len();
-            if self.fill(w, &s.0, &mut buf)? == 0 {
+            if self.fill(w, &s.0, buf)? == 0 {
                 let msg = if before == 0 { "EOF" } else { "unexpected EOF" };
                 return Err(Fail::Network(msg.into()));
             }
@@ -358,16 +388,45 @@ impl Conn {
     /// Everything up to the end of the stream; more than `limit` bytes
     /// is a `'limit` error (what was read stays unread).
     fn read_all(&self, w: &mut Watch, limit: usize) -> Result<Vec<u8>, Fail> {
-        let mut buf = lock(&self.rd);
+        let mut st = lock(&self.rd);
+        let buf = &mut st.buf;
         let s = self.sock("read")?;
         loop {
             if buf.len() > limit {
                 return Err(Fail::Limit(format!("more than {limit} bytes")));
             }
-            if self.fill(w, &s.0, &mut buf)? == 0 {
-                return Ok(std::mem::take(&mut *buf));
+            if self.fill(w, &s.0, buf)? == 0 {
+                return Ok(std::mem::take(buf));
             }
         }
+    }
+
+    /// `read_bytes`, but the `n` bytes go raw into the body buffer, to be
+    /// decoded once by `take_body` (a character split between two reads
+    /// comes out whole). If the buffer would then hold more than `cap`
+    /// bytes, nothing is read: `Err('limit, "body longer than <cap>
+    /// bytes")`.
+    fn read_bytes_into(&self, w: &mut Watch, n: usize, cap: usize) -> Result<(), Fail> {
+        let mut st = lock(&self.rd);
+        if st.body.len().saturating_add(n) > cap {
+            return Err(Fail::Limit(format!("body longer than {cap} bytes")));
+        }
+        let s = self.sock("read")?;
+        let st = &mut *st;
+        while st.buf.len() < n {
+            let before = st.buf.len();
+            if self.fill(w, &s.0, &mut st.buf)? == 0 {
+                let msg = if before == 0 { "EOF" } else { "unexpected EOF" };
+                return Err(Fail::Network(msg.into()));
+            }
+        }
+        st.body.extend(st.buf.drain(..n));
+        Ok(())
+    }
+
+    /// The body buffer's bytes, emptied.
+    fn take_body(&self) -> Vec<u8> {
+        std::mem::take(&mut lock(&self.rd).body)
     }
 
     /// Writes all of `b`, waiting while the socket's buffer is full.
@@ -376,6 +435,9 @@ impl Conn {
         let s = self.sock("write")?;
         let mut off = 0;
         while off < b.len() {
+            if w.cancelled() {
+                return Err(Fail::Cancelled);
+            }
             if self.is_closed() {
                 return Err(self.closed("write"));
             }
@@ -421,7 +483,11 @@ impl Conn {
     /// removes the deadline, a negative `d` is already past.
     fn set_deadline(&self, d: i64) -> Result<(), Fail> {
         if self.is_closed() {
-            return Err(self.closed("set"));
+            // Go names only the local address here
+            return Err(Fail::Network(format!(
+                "set tcp {}: use of closed network connection",
+                self.local
+            )));
         }
         let now = Instant::now();
         *lock(&self.deadline) = match d {
@@ -646,7 +712,11 @@ fn lookup(host: &str) -> Result<Vec<IpAddr>, String> {
     #[cfg(test)]
     if host == "gate.invalid" {
         probe::gate();
-        return Err("no such host".into());
+        // the resolver's answer for a name that does not exist
+        return Err(sock::lookup_reason(
+            libc::EAI_NONAME,
+            io::Error::from_raw_os_error(0),
+        ));
     }
     sock::lookup(host)
 }
@@ -840,6 +910,25 @@ fn read_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let limit = need_count("limit", &a[1])?;
     let r = outside_watched(t, |w| c.read_all(w, limit))?;
     Ok(result(r.map(|b| text(&b))))
+}
+
+/// `read_bytes_into(c, n, cap)`: `Ok(nil)` once `n` more raw bytes are
+/// in `c`'s body buffer; `Err('limit)` (nothing read) if it would hold
+/// more than `cap` bytes.
+fn read_bytes_into_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let c = need_conn("c", &a[0])?;
+    let n = need_count("n", &a[1])?;
+    let cap = need_count("cap", &a[2])?;
+    let r = outside_watched(t, |w| c.read_bytes_into(w, n, cap))?;
+    Ok(result(r.map(|()| Value::Nil)))
+}
+
+/// `take_body(c)`: the body buffer decoded once (U+FFFD for bytes that
+/// are not UTF-8), emptied. Waits for a read in progress on `c`.
+fn take_body_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let c = need_conn("c", &a[0])?;
+    let body = crate::vm::outside(t, || c.take_body());
+    Ok(text(&body))
 }
 
 /// `write(c, s)`: `Ok(nil)` once all of `s` is written.

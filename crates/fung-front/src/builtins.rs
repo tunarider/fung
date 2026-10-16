@@ -56,6 +56,8 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.net", "close(x)"),
     ("_native.net", "set_deadline(c, d)"),
     ("_native.net", "byte_len(s)"),
+    ("_native.net", "read_bytes_into(c, n, cap)"),
+    ("_native.net", "take_body(c)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

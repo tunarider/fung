@@ -38,6 +38,11 @@ fn socket(addr: &SocketAddr) -> io::Result<OwnedFd> {
     let fd = unsafe { OwnedFd::from_raw_fd(fd) };
     #[cfg(not(target_os = "linux"))]
     {
+        // Between `socket` and `FD_CLOEXEC`, a child spawned by another
+        // thread (`process.rs`) can inherit the descriptor: Go closes the
+        // window with its fork lock; this runtime has no such lock (the
+        // standard library leaves the same window on macOS).
+        //
         // SAFETY: `fd` is an open descriptor; fcntl takes no pointers here.
         unsafe {
             if libc::fcntl(fd.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) < 0 {
@@ -249,7 +254,7 @@ pub(crate) fn lookup(host: &str) -> Result<Vec<IpAddr>, String> {
 /// Go's text for a `getaddrinfo` failure (`cgoLookupIPCNAME`): a name
 /// that does not exist is `no such host`, a system error its errno's
 /// text, anything else the resolver's own message (`gai_strerror`).
-fn lookup_reason(rc: libc::c_int, errno: io::Error) -> String {
+pub(crate) fn lookup_reason(rc: libc::c_int, errno: io::Error) -> String {
     #[cfg(target_os = "linux")]
     const NODATA: libc::c_int = -5;
     #[cfg(not(target_os = "linux"))]

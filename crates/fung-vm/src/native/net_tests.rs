@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use super::probe;
 use crate::testutil::{Opts, Outcome, UNTIL, exec, probes};
 use crate::value::{Native, Value};
-use crate::vm::{Stop, Task, live_wakes, watch_serial};
+use crate::vm::{CancelNodeForTests as CancelNode, Stop, Task, Watch, live_wakes, watch_serial};
 
 /// One net test at a time: the counters are process-wide (the lock is
 /// shared with the wake-pipe tests of `vm/watch.rs`).
@@ -329,11 +329,6 @@ fn errors_read_like_go() {
             ),
         ),
         (
-            "net.connect(\"nosuchhost.invalid\", 80)".into(),
-            "Err({kind: 'network, message: \"dial tcp: lookup nosuchhost.invalid: no such host\"})"
-                .into(),
-        ),
-        (
             "net.connect(\"127.0.0.1\", 65536)".into(),
             "Err({kind: 'network, message: \"dial tcp: address 65536: invalid port\"})".into(),
         ),
@@ -374,11 +369,6 @@ fn errors_read_like_go() {
             "net.listen(\"127.0.0.1:abc\")".into(),
             "Err({kind: 'network, message: \"listen tcp: lookup tcp/abc: unknown port\"})".into(),
         ),
-        (
-            "net.listen(\"nosuchhost.invalid:0\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: lookup nosuchhost.invalid: no such host\"})"
-                .into(),
-        ),
     ];
     let src: String = cases.iter().map(|(e, _)| format!("print({e})\n")).collect();
     let want: String = cases.iter().map(|(_, w)| format!("{w}\n")).collect();
@@ -387,22 +377,75 @@ fn errors_read_like_go() {
     assert_eq!(out(&o), (want.as_str(), "", 0));
 }
 
-/// Go: `:0` listens on `[::]`, `[::1]:0` on `[::1]`, `[127.0.0.1]:0`
-/// and `localhost:0` on 127.0.0.1, and a missing port is port 0.
+/// Go's lookup failure text (`lookup <host>: no such host`) for a
+/// resolver answer of `EAI_NONAME`, given deterministically by the test
+/// hook (`gate.invalid`, not held: it answers at once).
 #[test]
-fn listen_addresses_read_like_go() {
+fn a_name_that_does_not_exist_reads_like_go() {
     let _g = serial();
-    let o = run(
-        "each([\":0\", \"[::1]:0\", \"[127.0.0.1]:0\", \"localhost:0\", \"127.0.0.1:\"], fn(a):\n  l = net.listen(a)!\n  addr = net.local_addr(l)\n  print(host(addr), parse_int(last(split(addr, \":\")))! > 0)\n;;)",
-    );
+    let o = run("print(net.connect(\"gate.invalid\", 80))\nprint(net.listen(\"gate.invalid:0\"))");
     assert_eq!(
         out(&o),
         (
-            "[::] true\n[::1] true\n127.0.0.1 true\n127.0.0.1 true\n127.0.0.1 true\n",
+            "Err({kind: 'network, message: \"dial tcp: lookup gate.invalid: no such host\"})\nErr({kind: 'network, message: \"listen tcp: lookup gate.invalid: no such host\"})\n",
             "",
             0
         )
     );
+}
+
+/// The same through the system resolver, where it says so: a machine
+/// without DNS answers otherwise (`Temporary failure in name resolution`),
+/// and the test is skipped there.
+#[test]
+fn a_real_lookup_failure_reads_like_go() {
+    let _g = serial();
+    if super::sock::lookup("nosuchhost.invalid") != Err("no such host".to_string()) {
+        eprintln!(
+            "skipping: the system resolver does not answer `no such host` for nosuchhost.invalid"
+        );
+        return;
+    }
+    let o = run(
+        "print(net.connect(\"nosuchhost.invalid\", 80))\nprint(net.listen(\"nosuchhost.invalid:0\"))",
+    );
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'network, message: \"dial tcp: lookup nosuchhost.invalid: no such host\"})\nErr({kind: 'network, message: \"listen tcp: lookup nosuchhost.invalid: no such host\"})\n",
+            "",
+            0
+        )
+    );
+}
+
+/// Go: `[127.0.0.1]:0` and `localhost:0` listen on 127.0.0.1, and a
+/// missing port is port 0.
+#[test]
+fn listen_addresses_read_like_go() {
+    let _g = serial();
+    let o = run(
+        "each([\"[127.0.0.1]:0\", \"localhost:0\", \"127.0.0.1:\"], fn(a):\n  l = net.listen(a)!\n  addr = net.local_addr(l)\n  print(host(addr), parse_int(last(split(addr, \":\")))! > 0)\n;;)",
+    );
+    assert_eq!(
+        out(&o),
+        ("127.0.0.1 true\n127.0.0.1 true\n127.0.0.1 true\n", "", 0)
+    );
+}
+
+/// Go: `:0` listens on `[::]` (both families), `[::1]:0` on `[::1]`.
+/// Skipped where IPv6 is missing.
+#[test]
+fn ipv6_listen_addresses_read_like_go() {
+    let _g = serial();
+    if TcpListener::bind("[::1]:0").is_err() {
+        eprintln!("skipping: no IPv6 loopback");
+        return;
+    }
+    let o = run(
+        "each([\":0\", \"[::1]:0\"], fn(a):\n  l = net.listen(a)!\n  addr = net.local_addr(l)\n  print(host(addr), parse_int(last(split(addr, \":\")))! > 0)\n;;)",
+    );
+    assert_eq!(out(&o), ("[::] true\n[::1] true\n", "", 0));
 }
 
 /// Go: `read tcp 127.0.0.1:55927->127.0.0.1:55925: read: connection
@@ -433,13 +476,13 @@ fn reset_and_closed_connections_read_like_go() {
     });
     // the read waits for the reset
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nname = net.local_addr(c) + \"->127.0.0.1:{port}\"\nshow = (r) => replace(msg(r), name, \"A->B\")\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(net.close(c))\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(show(net.close(c)))\nprint(show(net.set_deadline(c, 1s)))"
+        "c = net.connect(\"127.0.0.1\", {port})!\nname = net.local_addr(c) + \"->127.0.0.1:{port}\"\nlocal = net.local_addr(c)\nshow = (r) => replace(replace(msg(r), name, \"A->B\"), local, \"A\")\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(net.close(c))\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(show(net.close(c)))\nprint(show(net.set_deadline(c, 1s)))"
     ));
     h.join().unwrap();
     assert_eq!(
         out(&o),
         (
-            "read tcp A->B: read: connection reset by peer\nwrite tcp A->B: write: broken pipe\nOk(nil)\nread tcp A->B: use of closed network connection\nwrite tcp A->B: use of closed network connection\nclose tcp A->B: use of closed network connection\nset tcp A->B: use of closed network connection\n",
+            "read tcp A->B: read: connection reset by peer\nwrite tcp A->B: write: broken pipe\nOk(nil)\nread tcp A->B: use of closed network connection\nwrite tcp A->B: use of closed network connection\nclose tcp A->B: use of closed network connection\nset tcp A: use of closed network connection\n",
             "",
             0
         )
@@ -598,14 +641,74 @@ fn exit_from_another_task_ends_a_blocked_accept() {
 }
 
 /// A task waiting on the network is not blocked for the deadlock check:
-/// the entry awaiting it is no deadlock.
+/// the entry awaiting it is no deadlock, though no fung task can run
+/// meanwhile (the client is a Rust thread that connects only once the
+/// task waits in `accept`).
 #[test]
 fn awaiting_a_task_in_accept_is_no_deadlock() {
     let _g = serial();
-    let o = run(
-        "l = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nt = spawn(() => net.read_line(net.accept(l)!, 10))\nspawn(fn(): until(() => net_waiting() == 1); c = net.connect(\"127.0.0.1\", port)!; net.write(c, \"ok\\n\")! ;;)\nprint(await(t))",
-    );
+    let port = free_port();
+    let client = std::thread::spawn(move || {
+        wait_for(|| probe::waiting() == 1);
+        let mut c = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        c.write_all(b"ok\n").unwrap();
+    });
+    let o = run(&format!(
+        "l = net.listen(\"127.0.0.1:{port}\")!\nt = spawn(() => net.read_line(net.accept(l)!, 10))\nprint(await(t))"
+    ));
+    client.join().unwrap();
     assert_eq!(out(&o), ("Ok(\"ok\")\n", "", 0));
+}
+
+/// One reader at a time per connection: a second reader waits for the
+/// first (on the read lock, not cancellable meanwhile) and then reads
+/// what follows.
+#[test]
+fn a_second_reader_waits_for_the_first() {
+    let _g = serial();
+    let o = run(&format!(
+        "{PAIR}r1 = spawn(() => net.read_line(s, 10))\nuntil(() => net_waiting() == 1)\nr2 = spawn(() => net.read_line(s, 10))\nnet.write(c, \"one\\ntwo\\n\")!\nprint(await(r1), await(r2))"
+    ));
+    assert_eq!(out(&o), ("Ok(\"one\") Ok(\"two\")\n", "", 0));
+}
+
+/// A body read in raw pieces is decoded once: a character split between
+/// two reads comes out whole. The cap counts what the buffer holds.
+#[test]
+fn raw_reads_gather_a_body_decoded_once() {
+    let _g = serial();
+    let (port, h) = peer(|mut s| s.write_all("a한b한!".as_bytes()).unwrap());
+    // "a" + first byte of 한 | other two bytes + "b" + 한, then 1 too many
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port})!\nprint(net.read_bytes_into(c, 2, 10), net.read_bytes_into(c, 6, 10))\nprint([net.take_body(c), net.take_body(c)])\nprint(net.read_bytes_into(c, 1, 0))\nprint(net.read_bytes_into(c, 1, 1), net.read_bytes_into(c, 1, 2))"
+    ));
+    h.join().unwrap();
+    assert_eq!(
+        out(&o),
+        (
+            "Ok(nil) Ok(nil)\n[\"a한b한\", \"\"]\nErr({kind: 'limit, message: \"body longer than 0 bytes\"})\nOk(nil) Err({kind: 'network, message: \"EOF\"})\n",
+            "",
+            0
+        )
+    );
+}
+
+#[test]
+fn a_raw_read_past_the_cap_reads_nothing() {
+    let _g = serial();
+    let (port, h) = peer(|mut s| s.write_all(b"abcdef").unwrap());
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port})!\nprint(net.read_bytes_into(c, 4, 5), net.read_bytes_into(c, 2, 5))\nprint([net.take_body(c)], net.read_bytes(c, 2))\nprint(net.read_bytes_into(c, 1, 5))"
+    ));
+    h.join().unwrap();
+    assert_eq!(
+        out(&o),
+        (
+            "Ok(nil) Err({kind: 'limit, message: \"body longer than 5 bytes\"})\n[\"abcd\"] Ok(\"ef\")\nErr({kind: 'network, message: \"EOF\"})\n",
+            "",
+            0
+        )
+    );
 }
 
 #[test]
@@ -632,6 +735,11 @@ fn wrong_arguments_are_e0403() {
             "argument `c` must be conn, got int",
         ),
         ("net.byte_len(1)", "argument `s` must be str, got int"),
+        ("net.take_body(1)", "argument `c` must be conn, got int"),
+        (
+            "net.read_bytes_into(1, 1, 1)",
+            "argument `c` must be conn, got int",
+        ),
         (
             "net.local_addr(1)",
             "argument `x` must be conn | listener, got int",
@@ -651,4 +759,33 @@ fn wrong_arguments_are_e0403() {
         "{}",
         o.err
     );
+}
+
+/// A cancelled task stops between reads and between writes even when
+/// the socket never makes it wait (a fast peer): the loops check.
+#[test]
+fn reads_and_writes_stop_on_cancel_without_waiting() {
+    let _g = serial();
+    let (port, h) = peer(|mut s| {
+        s.write_all(b"data").unwrap();
+        let mut rest = Vec::new();
+        let _ = s.read_to_end(&mut rest);
+    });
+    let s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    s.set_nonblocking(true).unwrap();
+    let peer_addr = s.peer_addr().unwrap();
+    let c = super::Conn::new(s, peer_addr);
+    let node = CancelNode::root();
+    node.cancel();
+    let mut w = Watch::new(node);
+    assert!(matches!(
+        c.read_all(&mut w, 100),
+        Err(super::Fail::Cancelled)
+    ));
+    assert!(matches!(c.write(&mut w, b"x"), Err(super::Fail::Cancelled)));
+    drop(c);
+    drop(w);
+    h.join().unwrap();
+    assert_eq!(probe::sockets(), 0);
+    assert_eq!(live_wakes(), 0);
 }
