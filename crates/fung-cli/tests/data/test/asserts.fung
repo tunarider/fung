@@ -1,0 +1,19 @@
+fn slug(s) = lower(s)
+
+test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
+test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
+test "plain false": assert false ;;
+test "not a bool": assert 3 ;;
+test "an error":
+  _x = 1
+  fail("bad")
+;;
+test "return and ?":
+  v = Ok(3)?
+  assert v == 3
+  return nil
+;;
+test "unused warning":
+  y = 1
+  assert true
+;;

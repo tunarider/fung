@@ -1,0 +1,2 @@
+import "./_lib/broken"
+test "t": assert broken.f() == 1 ;;

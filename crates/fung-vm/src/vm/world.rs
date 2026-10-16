@@ -84,6 +84,11 @@ pub(crate) struct World {
     /// the deadlock check counts them apart (`deadlock.rs`), and `idle`
     /// is woken when this drops to 0 too (`Runtime::end_background`).
     pub(super) background: usize,
+    /// The command holds one count of `live` between the tasks it runs
+    /// one after another (`Runtime::hold`, `fung test`): it is about to
+    /// run more fung code, so it is live and not blocked. The task it
+    /// runs takes that count over while it runs (`Task::driven`).
+    pub(super) held: bool,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
     /// The cancellation node of the exit handler running now: a deadlock
@@ -137,6 +142,7 @@ impl World {
             running: 0,
             idle: WaitList::default(),
             live: 0,
+            held: false,
             background: 0,
             deadlocked: false,
             handler: None,

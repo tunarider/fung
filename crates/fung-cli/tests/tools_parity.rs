@@ -598,3 +598,177 @@ fn manual_examples_are_extracted() {
     assert_eq!(only("x\n  # only: rust\n").as_deref(), Some("rust"));
     assert_eq!(only("# onlyx\n"), None);
 }
+
+// ---- `fung test` (stage 5 task 2) ----
+
+/// The `fung test` fixtures: deliberate failures, `assert` displays,
+/// load errors shared through `_lib`, and one file per way a file could
+/// leak into the next (exit, at_exit, a deadlock, an unretrieved
+/// failure, tasks left running). `test_rust` holds the Rust-only ones.
+const TEST_DATA: &str = "crates/fung-cli/tests/data/test";
+const TEST_RUST: &str = "crates/fung-cli/tests/data/test_rust";
+
+fn test_case(arg: &str) -> (String, Vec<OsString>) {
+    (format!("test {arg}"), os_args(&["test", arg]))
+}
+
+#[test]
+fn test_matches_go_on_fixtures() {
+    let Some(b) = both("tools-test") else { return };
+    let files = corpus(&[TEST_DATA]);
+    assert!(files.len() >= 19, "{files:?}");
+    let mut cases: Vec<_> = files.iter().map(|f| test_case(f)).collect();
+    // Every file in one run: what one file leaves must not reach the
+    // next (z_clean.fung runs last), a broken library is reported once,
+    // and the exit code adds the files up. A `_` root is walked.
+    let root = format!("{TEST_DATA}/");
+    for arg in [
+        TEST_DATA,
+        root.as_str(),
+        &format!("{TEST_DATA}/_lib"),
+        &format!("./{TEST_DATA}/../test/z_clean.fung"),
+        &repo().join(TEST_DATA).to_string_lossy(),
+    ] {
+        cases.push(test_case(arg));
+    }
+    let arg_cases: &[&[&str]] = &[
+        &["test", "a.fung", "b.fung"],
+        &["test", "nope"],
+        &["test", "nope.fung"],
+        &["test", "tests/lang/test_blocks_ignored.fung", "-e"],
+        &["test", "--help"],
+    ];
+    for a in arg_cases {
+        cases.push((a.join(" "), os_args(a)));
+    }
+    assert_same(&b, &cases);
+    // The fixtures do fail in every way the comparison is about.
+    let (out, err, _) = run(&b.go, &os_args(&["test", &root]));
+    let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
+    for want in [
+        "  exit(4) called inside a test file",
+        "FAIL crates/fung-cli/tests/data/test/unretrieved.fung: <tasks>",
+        "    slug(\"Hello World\") = \"hello world\"",
+        "FAIL crates/fung-cli/tests/data/test/deadlock.fung: deadlocks",
+        "FAIL crates/fung-cli/tests/data/test/exit_in_task.fung: a task exits",
+        "ok   crates/fung-cli/tests/data/test/blocked_top.fung: again",
+        "ok   crates/fung-cli/tests/data/test/top_task.fung: talks to a top-level task",
+        "ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked",
+        "FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>",
+        "FAIL crates/fung-cli/tests/data/test/top_exit.fung: <top level>",
+    ] {
+        assert!(out.contains(want), "{want}\n{out}");
+    }
+    assert!(!out.contains("must not run") && !out.contains("only when it is the entry"));
+    assert!(err.contains("error[E0702]") && err.contains("handler broke"));
+    assert_eq!(err.matches("undefined name `missing`").count(), 1);
+}
+
+/// `fung test` with no path walks the working directory.
+#[test]
+fn test_without_a_path_walks_the_working_directory() {
+    let Some(b) = both("tools-test-cwd") else {
+        return;
+    };
+    let dir = repo().join(TEST_DATA).join("_lib");
+    let go = std::process::Command::new(&b.go)
+        .arg("test")
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let rust = std::process::Command::new(&b.rust)
+        .arg("test")
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert_eq!(
+        (String::from_utf8_lossy(&rust.stdout), rust.status.code()),
+        (String::from_utf8_lossy(&go.stdout), go.status.code())
+    );
+    assert_eq!(rust.stderr, go.stderr);
+    assert!(String::from_utf8_lossy(&go.stdout).contains("ok   good.fung"));
+}
+
+#[test]
+fn test_matches_go_on_the_repository() {
+    let Some(b) = both("tools-test-repo") else {
+        return;
+    };
+    let files = corpus(&["tests/lang", "examples", "extras"]);
+    let cases: Vec<_> = files
+        .iter()
+        .filter(|f| shared(f))
+        .map(|f| test_case(f))
+        .collect();
+    assert!(cases.len() > 140, "{} files", cases.len());
+    assert_same(&b, &cases);
+    // The examples directory in one run, without the atom examples.
+    let dir = scratch("tools-test-examples").join("examples");
+    let mut stack = vec![repo().join("examples")];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            let rel = p.strip_prefix(repo()).unwrap();
+            let to = dir.join(p.strip_prefix(repo().join("examples")).unwrap());
+            if p.is_dir() {
+                std::fs::create_dir_all(&to).unwrap();
+                stack.push(p);
+            } else if !ATOM_EXAMPLES.contains(&rel.to_string_lossy().as_ref()) {
+                std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+                std::fs::copy(&p, &to).unwrap();
+            }
+        }
+    }
+    let d = dir.to_string_lossy().into_owned();
+    let (out, _, _) = run(&b.go, &os_args(&["test", &d]));
+    let out = String::from_utf8_lossy(&out);
+    assert!(
+        out.contains("ok   ") && out.ends_with(" passed, 0 failed\n"),
+        "{out}"
+    );
+    assert_same(&b, &[test_case(&d)]);
+}
+
+/// Rust only: agents (stage 3b) end with their file, after its exit
+/// handlers, which may still use them: one that holds its own handle and
+/// one whose `f` left a task sleeping too. And a test block after a
+/// deadlock is cancelled (Go runs a short one to the end; open-questions).
+/// The next file starts clean.
+#[test]
+fn test_ends_each_files_agents() {
+    let start = std::time::Instant::now();
+    let (out, err, status) = run_status(&rust_fung(), &os_args(&["test", TEST_RUST]), None);
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+    let p = |f: &str| format!("{TEST_RUST}/{f}");
+    let after = p("after_cancel.fung");
+    let want = [
+        format!("FAIL {after}: deadlocks"),
+        "  error[E0702]: deadlock: all tasks are waiting".to_string(),
+        format!("    --> {after}:3:7"),
+        "    |".to_string(),
+        "  3 |   recv(ch)".to_string(),
+        "    |       ^".to_string(),
+        "    |".to_string(),
+        "   call path (innermost first):".to_string(),
+        format!("     {after}:3 test: deadlocks"),
+        format!("FAIL {after}: after the deadlock"),
+        "  error[E0701]: task cancelled".to_string(),
+        format!("ok   {}: swap", p("agents.fung")),
+        format!(
+            "ok   {}: an agent that holds its own handle",
+            p("agents.fung")
+        ),
+        format!("ok   {}: a background loop", p("agents.fung")),
+        "1".to_string(),
+        format!("ok   {}: a fresh file", p("next.fung")),
+        "4 passed, 2 failed".to_string(),
+    ]
+    .map(|l| l + "\n")
+    .concat();
+    assert_eq!(String::from_utf8_lossy(&out), want);
+    assert_eq!(
+        String::from_utf8_lossy(&err),
+        "error[E0702]: deadlock: all tasks are waiting\n"
+    );
+    assert_eq!(status.code(), Some(1));
+}

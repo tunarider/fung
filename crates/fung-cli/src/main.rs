@@ -1,12 +1,13 @@
 //! The `fung` command of the Rust port: `fung dump`, `run`,
-//! `<script.fung>`, `-e`, `check`, `version` and `help` so far. It
+//! `<script.fung>`, `-e`, `check`, `test`, `version` and `help` so far. It
 //! mirrors `cmd/fung` of the Go implementation byte for byte.
 
 mod check;
-// `fung test` and `fung fmt` (stage 5 tasks 2 and 3) are its users.
+// `fung fmt` (stage 5 task 3) uses the rest.
 #[allow(dead_code)]
 mod paths;
 mod run;
+mod test;
 mod version;
 
 use std::ffi::{OsStr, OsString};
@@ -19,7 +20,7 @@ use fung_front::loader::{Loader, Stage};
 use fung_front::source::decode_go;
 
 /// Copied verbatim from `cmd/fung/main.go`.
-const USAGE: &str = "usage:
+pub(crate) const USAGE: &str = "usage:
   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
   fung                                    start the REPL
   fung -e '<code>'                        run one line of code
@@ -97,7 +98,8 @@ fn run(raw: &[Vec<u8>]) -> Out {
             ..Out::default()
         },
         Some("check") => check::run_check(&args[1..], &raw[1..]),
-        Some("fmt" | "test") => Out {
+        Some("test") => test::run_test(&raw[1..]),
+        Some("fmt") => Out {
             stderr: [
                 b"not implemented yet in the Rust port: ",
                 &raw[0][..],

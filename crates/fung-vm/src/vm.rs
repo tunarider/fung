@@ -150,6 +150,10 @@ pub struct Task<'rt> {
     /// Counted in `World::live` (every task but `Runtime::wait`'s and the
     /// background tasks).
     live: bool,
+    /// A task the command runs while it holds the runtime open
+    /// (`Runtime::hold`): it took the command's count of `World::live`
+    /// over instead of adding one, and gives it back when it drops.
+    holds: bool,
     /// A background task (stage 3b): counted in `World::background`
     /// instead, and blocked apart in the census (`deadlock.rs`).
     background: bool,
@@ -168,6 +172,24 @@ impl<'rt> Task<'rt> {
     pub(crate) fn new(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
         let mut t = Task::unlisted(shared, cancel);
         t.world.live += 1;
+        t.live = true;
+        t
+    }
+
+    /// A task the command runs on this thread (the entry, a test block):
+    /// live like `new`, except while the command holds the runtime open
+    /// (`Runtime::hold`). Then it takes over the command's count, so the
+    /// counts are as for `new` while it runs, and when it ends the count
+    /// goes back to the command, which is about to run more: its end is
+    /// not judged for a deadlock (Go's 50 ms grace covers the gap between
+    /// two test blocks; `deadlock.rs`).
+    pub(crate) fn driven(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
+        let mut t = Task::unlisted(shared, cancel);
+        if t.world.held {
+            t.holds = true;
+        } else {
+            t.world.live += 1;
+        }
         t.live = true;
         t
     }
@@ -203,6 +225,7 @@ impl<'rt> Task<'rt> {
             budget: YIELD_EVERY,
             waiter: block::Waiter::new(shared.census.clone()),
             live: false,
+            holds: false,
             background: false,
             serving: Vec::new(),
             shared,
@@ -704,7 +727,7 @@ impl Drop for Task<'_> {
         self.stack.clear();
         // The last running task ending can leave only blocked ones
         // (`deadlock.rs`).
-        if self.live {
+        if self.live && !self.holds {
             self.world.live -= 1;
             self.judge();
         }

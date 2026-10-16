@@ -1,0 +1,2 @@
+fn f() = 1
+test "only when it is the entry": assert f() == 1 ;;

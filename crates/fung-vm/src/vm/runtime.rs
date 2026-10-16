@@ -77,13 +77,41 @@ impl Runtime {
     /// tree (the entry's place, Go `rootTask`), holding the run token
     /// until it drops.
     pub(crate) fn task(&self) -> Task<'_> {
-        Task::new(&self.shared, self.shared.root.clone())
+        Task::driven(&self.shared, self.shared.root.clone())
     }
 
     /// A fresh task below the root (Go `newTask(rt.root())`): a test
     /// block. Cancelling it at the end ends what it spawned and left.
     pub(super) fn child_task(&self) -> Task<'_> {
-        Task::new(&self.shared, self.shared.root.child())
+        Task::driven(&self.shared, self.shared.root.child())
+    }
+
+    /// Holds the runtime open for more code the command will run one
+    /// after another (`fung test`: the entry, then each test block). The
+    /// command counts as a live task that is not blocked between them,
+    /// so a task the entry left waiting for a later test block is not a
+    /// deadlock when the entry ends; while a block runs, it stands in for
+    /// the command (`Task::driven`), so a deadlock inside it is judged as
+    /// usual. Go has no such count: its 50 ms grace absorbs the gap.
+    /// Call `release` once the program's tasks are cancelled and waited
+    /// for, before the exit handlers (a deadlock inside one must still
+    /// be judged).
+    pub fn hold(&self) {
+        let mut w = self.lock();
+        if !w.held {
+            w.held = true;
+            w.live += 1;
+        }
+    }
+
+    /// Ends `hold`. Nothing is judged: the command cancels and waits for
+    /// the program's tasks first, as Go's `fung test` does.
+    pub fn release(&self) {
+        let mut w = self.lock();
+        if w.held {
+            w.held = false;
+            w.live -= 1;
+        }
     }
 
     /// Waits until every spawned task has finished (Go `Wait`). The

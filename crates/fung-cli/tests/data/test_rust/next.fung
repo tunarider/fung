@@ -1,0 +1,1 @@
+test "a fresh file": assert deref(agent(5)) == 5 ;;
