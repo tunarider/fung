@@ -1150,7 +1150,9 @@ print(http.get(URL + "/chunks"))"#,
         r#"print(http.get(URL + "/hold", timeout: 2s))
 print(http.get(URL + "/holdnolen", timeout: 2s))
 print(http.get(URL + "/holdchunks", timeout: 2s))
-print(http.get(URL + "/holdlong", timeout: 2s))"#,
+print(http.get(URL + "/holdlong", timeout: 2s))
+print(http.get(URL + "/badhold", timeout: 2s))
+print(http.request("HEAD", URL + "/headchunks", timeout: 2s))"#,
         vec![routes(vec![
             (
                 "/hold",
@@ -1172,6 +1174,22 @@ print(http.get(URL + "/holdlong", timeout: 2s))"#,
                 "/holdlong",
                 Reply::Hold(bytes(
                     "HTTP/1.1 302 Found\r\nLocation: /end\r\nContent-Length: 5000\r\n\r\nabc",
+                )),
+            ),
+            // Go parses the Location before it drains: a bad one fails at
+            // once, whatever the body does
+            (
+                "/badhold",
+                Reply::Hold(bytes(
+                    "HTTP/1.1 302 Found\r\nLocation: http://[::1\r\nContent-Length: 10\r\n\r\nabc",
+                )),
+            ),
+            // a HEAD answer has no body to drain (`Connection: close`
+            // keeps Go from finding the chunk on an idle connection)
+            (
+                "/headchunks",
+                Reply::Hold(bytes(
+                    "HTTP/1.1 302 Found\r\nLocation: /end\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n",
                 )),
             ),
             ("*", named("end")),

@@ -131,13 +131,9 @@ fn _op(method) = method[..1] + lower(method[1..])
 fn _hop(r, u, method, with_body, strip, prev, n):
   hs = prev == nil then r.headers else _hop_headers(r, u, with_body, strip, prev)
   op = "${r.op} ${_quote(_url_string(u))}: "
-  (res, loc) = _send(method, u, (with_body then r.body else nil), _basic_auth(u, hs), r, op)?
-  if loc == nil:
+  (res, next, loc) = _send(method, u, (with_body then r.body else nil), _basic_auth(u, hs), r, op)?
+  if next == nil:
     return Ok(res)
-  ;;
-  next = match _resolve(u, loc):
-    Ok(x)    => x
-    Err(why) => return Err(_err("${op}failed to parse Location header ${_quote(loc)}: ${why}"))
   ;;
   if n >= 10:
     return Err(_err("${r.op} ${_quote(loc)}: stopped after 10 redirects"))
@@ -256,9 +252,26 @@ fn _send(method, u, body, hs, r, op):
   ;;
   c = _open(u, proxy, r.timeout, r.start, op)?
   via = proxy != nil and u.scheme == "http" then proxy else nil
-  res = _exchange(c, method, u, body, hs, via, r.timeout, r.start, op)
+  res = match _exchange(c, method, u, body, hs, via, r.timeout, r.start, op):
+    Ok((x, nil)) => Ok((x, nil, nil))
+    Ok((x, to))  => _redirect(c, method, u, x, to, op)
+    Err(e)       => Err(e)
+  ;;
   _net.close(c)
   res
+;;
+
+# Go `Client.do` with a redirect in hand, in its order: the Location is
+# parsed against the URL (Go `URL.Parse`), then the body drained, and
+# only then the limit checked (`_hop`). Ok((response, next URL,
+# Location)).
+fn _redirect(c, method, u, res, to, op):
+  next = match _resolve(u, to.loc):
+    Ok(x)    => x
+    Err(why) => return Err(_err("${op}failed to parse Location header ${_quote(to.loc)}: ${why}"))
+  ;;
+  _drain(c, method, to.chunked, to.length)?
+  Ok((res, next, to.loc))
 ;;
 
 # Go `Transport.roundTrip`: the checks before connecting.
@@ -324,7 +337,8 @@ fn _port(text, tls):
 ;;
 
 # Writes the request and reads the answer, all before the deadline:
-# Ok((response, the Location to follow or nil)). `via` is the proxy an
+# Ok((response, nil)), or for a redirect Ok((response, {loc, chunked,
+# length})) with its body still unread. `via` is the proxy an
 # http request goes through.
 fn _exchange(c, method, u, body, hs, via, timeout, start, op):
   left = _left(timeout, start)
@@ -878,8 +892,7 @@ fn _finish(c, method, op, major, minor, code, fields):
   headers = _header_map(_close_header(h3, major, minor))
   loc = _location(code, h3)
   if loc != nil:
-    _drain(c, method, chunked, length)?
-    return Ok(({status: code, headers, body: ""}, loc))
+    return Ok(({status: code, headers, body: ""}, {loc, chunked, length}))
   ;;
   body = _read_body(c, method, code, chunked, length)?
   Ok(({status: code, headers, body}, nil))
