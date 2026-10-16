@@ -7,6 +7,9 @@
 //!
 //! The arithmetic follows Go's 64-bit `int` and `uint64` code with wrapping
 //! operations, so even absurd instants give the answer Go gives.
+//!
+//! Go's zone search order and its quirks are transitional (open-questions
+//! "Go 동등을 위한 과도기 잔가지").
 
 use std::ffi::{OsStr, OsString};
 use std::io::Read;

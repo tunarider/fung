@@ -9,6 +9,9 @@
 //! (`Add` saturating, `Sub` clamping, years beyond 9999 or before 0).
 //! Go's monotonic clock reading is not kept: it only shows when the wall
 //! clock jumps between two `now()` calls.
+//!
+//! Keeping Go's representation is transitional (open-questions
+//! "Go 동등을 위한 과도기 잔가지").
 
 use std::cmp::Ordering;
 

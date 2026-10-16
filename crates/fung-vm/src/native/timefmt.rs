@@ -1,6 +1,9 @@
 //! The time format tokens (06: 시간 형식; Go `internal/native/timefmt.go`)
 //! and Go's `time.Parse(time.RFC3339Nano, …)`, which `time.parse` uses
 //! without a format, with Go's own error messages.
+//!
+//! Go's padding, lax RFC 3339 forms and error texts are transitional
+//! (open-questions "Go 동등을 위한 과도기 잔가지").
 
 use fung_front::diag::quote;
 

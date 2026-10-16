@@ -15,6 +15,10 @@
 //!
 //! Neither parsing nor writing recurses: deep input stops at Go's limit,
 //! and values of any depth are written with an explicit stack.
+//!
+//! Following Go's read buffer, error wording and escape rules is
+//! transitional, and tied to Go 1.27's default `jsonv2` path (open-questions
+//! "Go 동등을 위한 과도기 잔가지").
 
 use std::rc::Rc;
 use std::sync::OnceLock;

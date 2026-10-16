@@ -155,6 +155,11 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     마지막 사본에서 닫힘), `fs_and_path`를 Go 대조와 Rust 골든 실행기에 넣음, 3b 취소 노드 누수 수정. 실행 비교 `tests/lang` 131개(네이티브 모듈 8개·`# only: go` 3개 제외),
     Rust 골든 131개, 경로 입력 38개·에러 11개, errno 표 161개(살아 있는 `go run`과 대조), 무작위 `Match` 30만 쌍, 핸들 프로그램 14개가 Go와 같음.
     스펙 `docs/superpowers/specs/2026-10-15-rust-fs-4a-design.md`, 계획 `docs/plans/2026-10-15-rust-fs-4a.md`, 노트 `docs/notes/R4a-fs.md`.
+  - 4b단계(`time`·`json`) 완료 (2026-10-16): `_native.time` 8개·`_native.json` 2개, `Value::Time`(Go `time.Time`의 벽시계 표현), TZif 시간대(`native/tz.rs`, Go `initLocal` 순서),
+    순서를 지키고 정수·실수를 구분하는 반복 JSON 해석기(Go 1.27 `jsontext` 경로), `time_module`·`time_values`·`json`·`err_json_stringify`·`keyword_names`를 Go 대조와 Rust 골든 실행기에 넣음.
+    실행 비교 187건(`tests/lang` 131개), Rust 골든 136개, 시간 프로그램 20개 × `TZ` 7가지 = 140건(`crates/fung-cli/tests/time_parity.rs`),
+    JSON 입력 약 150개 + 버퍼 경계 13개·프로그램 36개(`json_parity.rs`)가 Go와 같음. 남은 실행 비교 제외는 `regex`·`http`(3개).
+    스펙 `docs/superpowers/specs/2026-10-16-rust-time-json-4b-design.md`, 계획 `docs/plans/2026-10-16-rust-time-json-4b.md`, 노트 `docs/notes/R4b-time-json.md`.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - 스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉(GitHub Actions의 Linux·macOS 러너에서는 정상 동작 확인, 2026-10-15). 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -265,6 +270,26 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 파일 핸들 쓰기 버퍼(4a, `native/file.rs`의 `GoWriter`): Go `bufio.Writer`의 4096바이트 버퍼와 비우는 시점(넘치면 채워서 비움, 버퍼가 비었으면 바로 씀, 첫 쓰기 에러가 남음)을
     단계 그대로 옮겼다. `close` 전에 같은 파일을 읽는 프로그램이 Go와 같은 바이트를 보게 하려는 것이다. 핸들의 표시 `<file "...">`가 fung 문자열 표기가 아니라
     Go `strconv.Quote`(`\x01`, `\u00a0`)인 것도 같다(`value/format.rs`가 앞단의 `fung_front::diag::quote`를 그대로 쓴다). 버퍼 크기·비우는 시점과 표시 형식은 그때 정한다.
+  - Go 시간대 탐색 순서(4b, `crates/fung-vm/src/native/tz.rs`): Go `initLocal`·`loadLocation` 그대로. `TZ` 없음 → `/etc/localtime`(이름 "Local"), `""`·`UTC`·`:` → UTC(`Etc/UTC`는 파일을 읽음),
+    앞의 `:` 떼기, 상대 이름의 `..`를 막지 않음, `platformZoneSources` 디렉터리 넷(`/usr/share/zoneinfo/`, `/usr/share/lib/zoneinfo/`, `/usr/lib/locale/TZ/`, `/etc/zoneinfo`), 실패하면 조용히 UTC,
+    파일 10 MB 한도, `Location` 이름(fung에서는 보이지 않음). `tzset`의 해 구간 근사(윤년에도 `365*day`, `Date`만 씀)와 터무니없는 순간에서의 Go식 감싸기 산술도 같다.
+    `Date`의 없는/두 번 있는 벽시계 시각 선택(먼저 추측한 오프셋, 구간을 벗어나면 다시 찾기)은 의미 규칙이지만 Go가 정한 것이다. 시간대를 찾는 규칙은 그때 언어 규칙으로 정한다.
+  - 시각 값의 Go 표현(4b, `value/time.rs`): 서기 1년부터의 초(Go `ext`) + 나노초 + 위치, Go `Add`의 붙기(±(2^63-1))·`Sub`의 자르기·`Unix()`의 감싸기를 그대로.
+    `time - time`이 정확히 i64 끝값이면 E0503(Go `Sub`의 자른 값을 넘침으로 봄), `time - Dur(i64 최솟값)`이 E0503(Go가 먼저 부호를 뒤집음).
+    ISO 출력이 오프셋의 초를 버리고 1분 미만 오프셋을 `+00:00`으로 쓰는 것(Go `appendFormatRFC3339`). Go를 지우면 `i128` 나노초 같은 단순한 표현과 명확한 넘침 규칙으로 바꿀 수 있다.
+  - Go 시간 서식·파싱 세부(4b, `native/timefmt.rs`): `format`의 Go `pad(strconv.Itoa(n))`(연도 -1이 `00-1`, `YY`가 부호를 유지), 이름 토큰 에러의 `strconv.Quote` 앞 3바이트(`"ab\xc3"`),
+    서식 없는 `parse`의 Go `time.Parse(time.RFC3339Nano)` 일반 경로(느슨한 형태: 시 한 자리, 소수점 대신 쉼표, `+24:00`·`:60`까지의 오프셋, 9자리 넘는 소수 버림),
+    Go `time.ParseError` 문구(Go 레이아웃 `2006-01-02T15:04:05.999999999Z07:00`, `time.quote`의 `\xNN`), 숫자 오프셋이 지역 시간대와 같으면 지역 시간대를 붙이는 Go `setLoc` 규칙.
+    fung만의 RFC 3339 규칙과 에러 문구는 그때 정한다.
+  - Go 1.27 `encoding/json` → `jsontext` 경로(4b, `native/json.rs`): Go 1.27은 `jsonv2` 실험이 기본이라 `Decoder.Token()`이 `jsontext`와 v1 호환 층(`v2_stream.go`)으로 돈다.
+    그 토큰 읽기·상태 기계·스캐너 에러 문구, 호환 층의 문구 치환(`transformSyntacticError`, "(expecting…" 자르기)·옛 위치 계산(`hadPeeked`/`hadEOF`)·에러 뒤에도 참인 `More`,
+    깊이 한도 10,000, 에러 위치까지의 바이트를 글자 수로 세는 열(BOM·`é`), 공백 뒤 구분자 에러가 앞의 `,` 위치에 나는 것을 옮겼다.
+    **읽기 버퍼가 커지는 과정까지 흉내 낸다**(64바이트에서 4096까지 두 배, 3/4 규칙, `invalidatePreviousRead`). 에러 문구가 그 순간 버퍼에 든 바이트로 만들어지므로
+    읽기 경계에 걸친 글자가 `'\xc3'`처럼 잘려 보이는 것까지 같게 하려는 것이다. 이 모두가 Go 1.27의 기본 경로에 묶여 있어서, Go를 올리거나 `GOEXPERIMENT=nojsonv2`로 빌드하면
+    Go의 출력이 바뀔 수 있고 parity 테스트(`crates/fung-cli/tests/json_parity.rs`)가 그것을 알려 준다. 언어 규칙으로는 "입력 전체를 보고 에러를 말한다"가 자연스럽다.
+  - Go json 이스케이프와 출력(4b, `native/json.rs`): `jsontext.AppendQuote`(HTML 이스케이프 끔, JS 이스케이프 켬: `<>&`는 그대로, U+2028·U+2029는 `\u2028`·`\u2029`,
+    `\b \f \n \r \t`, 그 밖의 제어 문자는 `\u00XX`, DEL은 그대로), `NaN.0`·`+Inf.0`을 그대로 써서 틀린 JSON이 되는 것,
+    아주 큰 들여쓰기의 Go `strings.Repeat`·`makeslice` 패닉 문구(2^48 넘으면 `E0801 runtime error: makeslice: len out of range`, 음수로 감기면 `strings: negative Repeat count`).
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서·닫힌 파이프 141)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 4a단계(fs)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-15-rust-fs-4a/progress.md`).
   - 닫지 않은 핸들: Rust는 마지막 사본이 사라지는 순간 파일을 닫는다(참조 계수). Go는 GC가 거둘 때까지 열려 있을 수 있다. 그래서 핸들 수천 개를 버려도 디스크립터가 새지 않는다.
@@ -275,6 +300,19 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - `remove_all`: 디렉터리 안쪽은 `std::fs::remove_dir_all`에 맡겨서, 깊은 곳에 실패가 여럿 섞이면 보고하는 첫 errno가 Go `removeAllFrom`과 다를 수 있다. 첫 errno 하나만 보고하는 것은 같다.
   - Go 문자열은 잘못된 UTF-8 바이트를 그대로 품어 핸들 표시에서 `\xff`로 보이지만, Rust 경로 문자열은 U+FFFD로 바뀌어 있어 그대로 보인다(2단계 U+FFFD 차이와 같은 뿌리).
   - `fs.read`·`read_lines`·`read_line(h)`는 파일 내용의 잘못된 UTF-8 바이트를 바이트마다 U+FFFD로 바꾼다. Go는 원래 바이트를 그대로 보존한다(같은 뿌리).
+- [ ] 4b단계(time·json)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-16-rust-time-json-4b/progress.md`, 노트 `docs/notes/R4b-time-json.md` 7절).
+  - Go `loadLocation`의 마지막 수단 `$GOROOT/lib/time/zoneinfo.zip`을 옮기지 않았다. 시스템 zoneinfo 디렉터리에 없는 이름만 해당한다.
+    릴리스 Go 바이너리는 `-trimpath`라 GOROOT가 비어 Go도 쓰지 않지만, `-trimpath` 없이 빌드한 parity용 Go는 Rust가 못 찾는 시간대를 찾을 수 있다.
+  - Go `Location`의 "지금" 구간 캐시를 옮기지 않았다. 캐시가 맞으면 Go `lookup`은 계산한 구간 대신 캐시 구간을 돌려주는데, 그 구간은 `Date`의 오프셋 재확인에만 쓰인다.
+    무작위 6만 건 대조에서 차이는 없었지만, 올해 안에 마지막 전환이 있는 특이한 tzdata에서는 이론상 `Date`가 갈라질 수 있다(벽시계에 따라 달라지는 차이).
+  - UTF-8이 아닌 시간대 약어·POSIX 규칙의 이름은 출력할 때 U+FFFD로 바뀐다(Go는 바이트 그대로). 해석은 바이트로 하므로 받아들이고 거부하는 것은 같다. 실제 tzdata는 ASCII다.
+  - `now()`에 단조 시계가 없다. Go는 `now()`끼리의 `-`·`==`·`<`에 단조 시계를 쓰므로, 두 `now()` 사이에 시스템 시각이 바뀌면(NTP 보정 등) 결과가 다르다. 경과 시간 재기가 그때 틀릴 수 있다.
+  - 값 출력(`value/format.rs`, `print`·`str`)은 아직 재귀다. 2026-10-16에 재 보니 JSON이 만들 수 있는 가장 깊은 값(10,000겹 `[`·`{"a":`, `[{"a":` 5,000번)은
+    디버그·릴리스 모두 진입 스레드(4 GiB 스택)와 `spawn`한 태스크(1 GiB 스택)에서 정상 출력된다. `fold`로 만든 백만 겹 리스트도 진입 스레드에서 출력된다(디버그 80초, 릴리스 75초).
+    5백만 겹 리스트는 만들고 버리는 것은 되지만 `str`하면 디버그 진입 스레드에서 스택이 넘쳐 프로세스가 죽는다(종료 코드 134). 큰 스택에 기대는 것이므로 출력을 반복으로 바꿀지는 스택 크기를 줄일 때(그린 스레드, 4d) 다시 본다.
+  - 잘못된 UTF-8 입력: Rust 문자열에 들어올 때 이미 U+FFFD라서 `json.parse` 에러가 Go의 `'\xNN'` 대신 `'�'`를 보인다(4a와 같은 뿌리). 출력은 둘 다 U+FFFD.
+  - 2^30~2^48 사이의 들여쓰기: 두 구현 모두 메모리를 잡으려다 죽지만 죽는 출력이 다르다.
+  - Rust에만 있는 종류(`agent`, 잡은 에러)는 `stringify`에서 E0513 `cannot convert agent to JSON`·`cannot convert error to JSON`(Go가 채널·함수에 쓰는 기본 분기와 같은 규칙).
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.
   - 런타임 빌림: `Task<'rt>`가 `&'rt mut Runtime`을 쥔다(`crates/fung-vm/src/vm.rs`). 태스크 여럿이 주차된 스케줄러에서는 각자 배타적으로 빌릴 수 없으므로
