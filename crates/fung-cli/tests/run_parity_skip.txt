@@ -8,5 +8,3 @@ http_serve.fung native-module
 json.fung native-module
 keyword_names.fung native-module
 regex.fung native-module
-time_module.fung native-module
-time_values.fung native-module

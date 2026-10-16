@@ -82,7 +82,7 @@ const CONCURRENCY: &[&str] = &[
     "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
     "deref", "pmap", "fan_in", "retry",
 ];
-const NATIVE_MODULES: &[&str] = &["json", "time", "regex", "http"];
+const NATIVE_MODULES: &[&str] = &["json", "regex", "http"];
 
 /// Whether `src` calls `name`: `name(` not preceded by a name character
 /// (so `closure(` or `resend(` do not count, nor do words in comments
@@ -269,18 +269,18 @@ fn cases() -> Vec<Case> {
 
 /// The comparison cannot pass by comparing nothing: a broken file walk or
 /// an overgrown skip list fails here. The minimums sit just below the
-/// counts when they were set (125 `tests/lang` files, 6 benchmarks, 181
-/// cases in all, after stage 3b left the atom cases to Go); raise them as
-/// cases are added.
+/// counts when they were set (128 `tests/lang` files, 6 benchmarks, 184
+/// cases in all, after stage 4b added the two `time` files); raise them
+/// as cases are added.
 #[test]
 fn enough_cases_are_compared() {
     let cases = cases();
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
     let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
-    assert!(lang >= 125, "only {lang} tests/lang files are compared");
+    assert!(lang >= 127, "only {lang} tests/lang files are compared");
     assert!(bench >= 5, "only {bench} benchmarks are compared");
     assert!(
-        cases.len() >= 180,
+        cases.len() >= 183,
         "only {} cases are compared",
         cases.len()
     );
@@ -473,13 +473,13 @@ fn concurrent_runs_are_stable() {
 #[test]
 fn native_modules_are_not_supported_yet() {
     let o = std::process::Command::new(rust_fung())
-        .args(["-e", "import time\nprint(1)"])
+        .args(["-e", "import regex\nprint(1)"])
         .output()
         .unwrap();
     assert_eq!(String::from_utf8_lossy(&o.stdout), "");
     assert_eq!(
         String::from_utf8_lossy(&o.stderr),
-        "error[E0805]: not supported yet: time\n  --> -e:1:1\n  |\n1 | import time\n  | ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0805]: not supported yet: regex\n  --> -e:1:1\n  |\n1 | import regex\n  | ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
     assert_eq!(o.status.code(), Some(1));
 

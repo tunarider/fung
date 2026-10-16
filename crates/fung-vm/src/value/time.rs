@@ -24,7 +24,6 @@ const NANOS_PER_SEC: i64 = 1_000_000_000;
 
 /// Where a time is shown (Go `*Location`). Zone data is process-static, so
 /// a zone is a plain `&'static` reference and a time copies cheaply.
-#[allow(dead_code)] // `_native.time` (next in stage 4b) makes these
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Loc {
     /// Go's `time.UTC`.
@@ -50,7 +49,6 @@ pub struct Time {
 impl Time {
     /// Go `time.Unix(sec, nsec)` shown in `loc`: `nsec` outside `0..1e9`
     /// carries into the seconds.
-    #[allow(dead_code)] // `_native.time` (next in stage 4b) uses it
     pub(crate) fn from_unix(mut sec: i64, mut nsec: i64, loc: Loc) -> Time {
         if !(0..NANOS_PER_SEC).contains(&nsec) {
             let n = nsec / NANOS_PER_SEC;
@@ -69,19 +67,16 @@ impl Time {
     }
 
     /// The same instant shown in `loc` (Go `In`).
-    #[allow(dead_code)] // `_native.time` (next in stage 4b) uses it
     pub(crate) fn in_loc(&self, loc: Loc) -> Time {
         Time { loc, ..*self }
     }
 
     /// Go `UTC()`.
-    #[allow(dead_code)] // `_native.time` (next in stage 4b) uses it
     pub(crate) fn utc(&self) -> Time {
         self.in_loc(Loc::Utc)
     }
 
     /// Go `Local()`: the process's local zone (`tz::local()`).
-    #[allow(dead_code)] // `_native.time` (next in stage 4b) uses it
     pub(crate) fn local(&self) -> Time {
         self.in_loc(Loc::Zone(tz::local()))
     }
@@ -92,7 +87,6 @@ impl Time {
     }
 
     /// Go `Nanosecond()`.
-    #[allow(dead_code)] // `_native.time` (next in stage 4b) uses it
     pub(crate) fn nanosecond(&self) -> u32 {
         self.nsec
     }
@@ -127,7 +121,6 @@ impl Time {
     }
 
     /// Go `Weekday()`: 0 is Sunday.
-    #[allow(dead_code)] // `_native.time` (next in stage 4b) uses it
     pub(crate) fn weekday(&self) -> u32 {
         // March 1 of the absolute year was a Wednesday (3).
         ((self.abs() / SECONDS_PER_DAY as u64 + 3) % 7) as u32

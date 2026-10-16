@@ -151,6 +151,7 @@ fn native_modules_match_the_spec() {
             ("_native.process", crate::native::process::module()),
             ("_native.fs", crate::native::fs::module()),
             ("_native.path", crate::native::path::module()),
+            ("_native.time", crate::native::time::module()),
         ] {
             assert_eq!(m.key, key);
             let names: Vec<&str> = m.names();

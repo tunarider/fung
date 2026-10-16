@@ -171,7 +171,6 @@ impl Zone {
     /// hour later in UTC terms than read with the new offset, and a repeated
     /// time (01:30 on a fall-back day) takes the first, DST occurrence.
     #[allow(clippy::too_many_arguments)]
-    #[allow(dead_code)] // `time.parse` (next in stage 4b) uses it
     pub(crate) fn date(
         &self,
         year: i64,

@@ -347,7 +347,7 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
 /// that import. (Go runs them; this is the Rust port's own output.)
 #[test]
 fn out_of_scope_standard_modules_are_not_supported_yet() {
-    for name in ["json", "time", "regex", "http"] {
+    for name in ["json", "regex", "http"] {
         let main = format!("import {name}\nprint(1)");
         let o = run_files(&[("/p/main.fung", main.as_str())], "/p/main.fung");
         assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"), "{name}");
@@ -360,14 +360,14 @@ fn out_of_scope_standard_modules_are_not_supported_yet() {
         );
     }
     let files = [
-        ("/p/lib.fung", "import time\nfn f() = 1"),
+        ("/p/lib.fung", "import regex\nfn f() = 1"),
         ("/p/main.fung", "import \"./lib\"\nprint(lib.f())"),
     ];
     let o = run_files(&files, "/p/main.fung");
     assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"));
     assert!(
         o.err
-            .starts_with("error[E0805]: not supported yet: time\n  --> /p/lib.fung:1:1\n"),
+            .starts_with("error[E0805]: not supported yet: regex\n  --> /p/lib.fung:1:1\n"),
         "{}",
         o.err
     );
@@ -377,4 +377,13 @@ fn out_of_scope_standard_modules_are_not_supported_yet() {
         "/p/main.fung",
     );
     assert_eq!((o.out.as_str(), o.code.as_str()), ("[\"a\"]\n", ""));
+    // `time` runs since stage 4b.
+    let o = run_files(
+        &[(
+            "/p/main.fung",
+            "import time\nprint(time.unix(time.from_unix(5)))",
+        )],
+        "/p/main.fung",
+    );
+    assert_eq!((o.out.as_str(), o.code.as_str()), ("5\n", ""));
 }
