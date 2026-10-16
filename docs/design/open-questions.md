@@ -127,6 +127,30 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   필요한 것(이벤트 루프·터미널·시그널)만, 이유를 설계 문서에 적고 CI에서 `cargo-deny`·`cargo-audit`로 검사한다. 공부 가치가 있는 것(HTTP, JSON, 시간 서식, `cli`)은 직접 짠다.
   - 허용 후보: `libc`(운영체제 함수), `mio`(이벤트 루프), `rustls` + 루트 인증서(TLS; 암호 부분에 C·어셈블리가 있어 크로스 빌드에 C 컴파일러 필요), `regex`(RE2 계열이라 지금 의미 유지).
   - 정규식 엔진 직접 구현(Thompson NFA)은 나중의 공부 과제로 남긴다.
+  - 허용 목록 → **`deny.toml`의 `[bans] allow`가 유일한 원본** (4c, 2026-10-16). 직접 들인 것과 따라오는 것을 모두 적는다. 지키는 장치는 세 겹이다.
+    - 저장소 테스트 `crates/fung-cli/tests/deps.rs`(표준 라이브러리만, 도구 없이 `cargo test`에서 돈다): `Cargo.lock`의 모든 패키지(작업 공간 크레이트 제외)가 목록 안인지,
+      `crates/fung-front/Cargo.toml`에 의존성 표(`[dependencies]`·`[dev-dependencies]`·`[build-dependencies]`, `[target.*.]`·`[dependencies.이름]` 형태 포함)가 없는지.
+    - CI `rust` 작업(Ubuntu만): `cargo-deny` 0.20.2·`cargo-audit` 0.22.2를 `cargo install --locked`로 버전 고정 설치하고 버전 문자열까지 확인한 뒤 `cargo deny check`·`cargo audit`.
+    - `deny.toml`: 한 크레이트 여러 버전 금지, `*` 버전 금지(작업 공간 경로 의존성은 `publish = false` + `allow-wildcard-paths`), 라이선스는 `MIT` 하나, 출처는 crates.io만.
+      **빈 `allow`는 cargo-deny에서 "모두 허용"**이고 비어 있지 않으면 작업 공간 크레이트도 막으므로, 목록에 `fung-front`·`fung-vm`·`fung-cli`를 늘 둔다.
+    - **2주 규칙**: 크레이트와 점검 도구는 올라온 지 2주 넘은 버전만 쓴다(최신판이 2주 안 됐으면 `cargo update -p <이름> --precise <그 전 버전>`).
+    - 크레이트는 `fung-vm`에만. `fung-front`(앞단)는 0개.
+
+    | 크레이트 | 버전(올라온 날) | 라이선스 | 들인 길 | 왜 직접 짜지 않는가 | 끌고 오는 것 |
+    |---|---|---|---|---|---|
+    | `regex` | 1.13.1 (2026-07-15) | MIT OR Apache-2.0 | `fung-vm` 직접, 기본 기능 끄고 `std`·`perf` | 선형 시간 엔진(여러 엔진과 최적화)은 크고 틀리기 쉽다. RE2 계열이라 Go `regexp`의 약속(선형 시간, 역참조 없음)이 이어진다. 직접 구현(Thompson NFA)은 공부 과제로 남김 | `regex-automata`, `regex-syntax`, `aho-corasick`, `memchr` |
+    | `regex-syntax` | 0.8.11 (2026-06-09) | MIT OR Apache-2.0 | `fung-vm` 직접(`std`만) + `regex`·`regex-automata`가 끌고 옴 | 옮긴 Go 파서(`native/regex_go.rs`)가 HIR을 만들고 찍고 클래스 타입을 쓴다. 어차피 `regex`가 끌고 오는 크레이트라 새 코드가 늘지 않는다 | 없음 |
+    | `regex-automata` | 0.4.18 (2026-08-04) | MIT OR Apache-2.0 | `regex`가 끌고 옴 | `regex`의 실제 엔진들 | `aho-corasick`, `memchr`, `regex-syntax` |
+    | `aho-corasick` | 1.1.5 (2026-08-03) | Unlicense OR MIT | `regex`·`regex-automata`가 끌고 옴 | 여러 글자열 동시 찾기(패턴의 고정 글자열을 먼저 찾는 가속) | `memchr` |
+    | `memchr` | 2.8.3 (2026-07-08) | Unlicense OR MIT | `regex`·`regex-automata`·`aho-corasick`가 끌고 옴 | 빠른 바이트 찾기 | 없음 |
+    | `libc` | 0.2.189 (2026-07-21; 0.2.190은 2주 미만이라 고정) | MIT OR Apache-2.0 | `fung-vm` 직접, 유닉스 대상만 | `signal`·`raise`·`pthread_sigmask`(SIGPIPE로 죽기)는 표준 라이브러리에 없고, `sigset_t` 배치가 운영체제마다 달라 손으로 선언하면 틀리기 쉽다 | 없음 |
+
+    `OR`로 묶인 라이선스는 하나만 허용되면 되므로 `MIT` 하나로 모두 덮인다. 다른 라이선스(유니코드 데이터 등)를 더할 필요는 없었다.
+    `cargo-deny check`: advisories·bans·licenses·sources 모두 ok, `cargo-audit`: 9개 크레이트에서 발견 없음(2026-10-16).
+- [x] 정규식 문법 → **Go `regexp/syntax` 파서를 옮긴 것(`crates/fung-vm/src/native/regex_go.rs`)이 fung 정규식 문법의 정의** (사용자 결정, 2026-10-16).
+  계획은 `regex-syntax` 구문 트리를 고치는 얇은 층이었으나, 그 방식으로는 Go가 먼저 내는 에러·에러의 문제 부분·`\<`·`[[a]]`처럼 뜻이 다른 패턴을 맞출 수 없었다(노트 `docs/notes/R4c-regex-crates.md` 3절).
+  매칭은 `regex` 크레이트가, 받아들이는 문법과 뜻은 이 파서가 정하므로 크레이트를 올려도 문법이 바뀌지 않는다. Go를 지운 뒤에도 남기고 **6단계 뒤에 다시 판단한다.**
+  그래서 파서 자체는 아래 "과도기 잔가지"가 아니다(Go의 유니코드 표와 에러 문구 쪽은 잔가지). 무작위 패턴의 Go 기대값(`regex_go_fixtures.rs`)은 Go를 지운 뒤 회귀 검사로 남는다.
 - [x] 옮기는 방식 → **같은 저장소에 Rust 코드를 나란히 두고, Go 버전을 정답지로 쓴다.** 동등해지면 릴리스를 Rust로 바꾸고 Go 코드를 지운다.
   - 첫 이식은 명령 체계를 지금과 똑같이 옮겨, 같은 소스의 `fung dump ast`·`core`·`bytecode` 출력이 두 구현에서 글자 단위로 같은지 비교한다.
     명령 설계를 바꾸는 것은 그 다음.
@@ -160,6 +184,11 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     실행 비교 187건(`tests/lang` 131개), Rust 골든 136개, 시간 프로그램 21개 × `TZ` 9가지 = 189건(`crates/fung-cli/tests/time_parity.rs`),
     JSON 입력 약 150개 + 버퍼 경계 13개·프로그램 36개(`json_parity.rs`)가 Go와 같음. 남은 실행 비교 제외는 `regex`·`http`(3개).
     스펙 `docs/superpowers/specs/2026-10-16-rust-time-json-4b-design.md`, 계획 `docs/plans/2026-10-16-rust-time-json-4b.md`, 노트 `docs/notes/R4b-time-json.md`.
+  - 4c단계(`regex`, 첫 크레이트, SIGPIPE) 완료 (2026-10-16): 크레이트 허용 목록 장치(`deny.toml` + `crates/fung-cli/tests/deps.rs` + CI `cargo-deny`·`cargo-audit`),
+    `libc`로 표준 출력·에러의 EPIPE에서 Go처럼 신호 13으로 죽기(`crates/fung-vm/src/sigpipe.rs`), Go `regexp/syntax` 파서를 옮긴 Go 의미 층(`native/regex_go.rs`, 위 "정규식 문법" 결정) 위의
+    `_native.regex` 5개(`native/regex.rs`, `regex` 크레이트), `regex`·`err_regex`를 Go 대조와 Rust 골든 실행기에 넣음. 실행 비교 189건(`tests/lang` 133개), Rust 골든 138개,
+    남은 실행 비교 제외는 `http_serve.fung` 하나. Go 대조 800쌍·프로그램 47개(`regex_parity.rs`), 파서 표 334개·매치 173쌍·무작위 2,000개 + 겹친 반복 600개, SIGPIPE 11개(`sigpipe.rs`).
+    스펙 `docs/superpowers/specs/2026-10-16-rust-regex-crates-4c-design.md`, 계획 `docs/plans/2026-10-16-rust-regex-crates-4c.md`, 노트 `docs/notes/R4c-regex-crates.md`.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - 스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉(GitHub Actions의 Linux·macOS 러너에서는 정상 동작 확인, 2026-10-15). 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -291,6 +320,17 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `\b \f \n \r \t`, 그 밖의 제어 문자는 `\u00XX`, DEL은 그대로),
     (`NaN`·무한대 실수는 지금 만들 수 없다: 넘침은 E0504, `0.0/0.0`은 E0502, `float("nan")`은 거부. 만들어지면 fung 서식 그대로 써서 틀린 JSON이 된다.)
     아주 큰 들여쓰기의 Go `strings.Repeat`·`makeslice` 패닉 문구(2^48 넘으면 `E0801 runtime error: makeslice: len out of range`).
+  - Go 정규식의 유니코드 표(4c): Go가 생성하는 `spec/regex_unicode.txt`(`tests/spec_test.go`의 `regexUnicodeSpec`; `unicode.Categories`·`Scripts`·`FoldCategory`·`FoldScript`·`CategoryAliases`와
+    모든 `SimpleFold` 궤도, Unicode 17)를 `native/regex_go.rs`가 읽는다(`\pL`·`\p{Greek}`, `(?i)`, `$name`의 이름 글자 판정 `go_letter_or_digit`). 크레이트의 표(`regex-syntax` 0.8.11은 Unicode 16)와
+    받아들이는 속성 이름이 다르다. Go를 지우면 유니코드 판정 표(맨 위 항목)와 함께 어디서 표를 얻을지 정한다. 옮긴 파서 자체는 잔가지가 아니다(위 "정규식 문법").
+  - Go 정규식 에러 문구(4c, `native/regex_go.rs`): Go `syntax.ErrorCode` 문구와 Go가 고르는 문제 부분(`Expr`), 여러 에러 중 Go가 먼저 내는 것, 노드 재사용으로 낡는 한도 캐시까지.
+    엔진의 "너무 큼"은 Go의 `expression too large`로, 그 밖의 엔진 거부는 Go의 `regexp/syntax: internal error`로 바꾼다. fung의 에러 문구는 그때 정한다.
+  - Go `regexp`의 반복 규칙(4c, `native/regex.rs`): `Expand`·`extract`(`$1a`는 이름, 앞자리 0이면 이름, 1억 이상 자름, 잘못된 참조는 `$`를 남김), `allMatches`의 빈 매치 규칙(`go_all`),
+    `replaceAll`의 다른 빈 매치·전진 규칙, `Split`의 우연(빈 주어에 빈 패턴이면 `[]`, 꼬리 규칙 `end != len(s)`), 패턴 캐시 256개를 통째로 비우기. 빈 매치와 바꿈 문자열 규칙은 그때 언어 규칙으로 정한다.
+  - 정규식 기대값 생성기(4c): `tests/regex_fixtures_test.go`(`go test ./tests -run TestRegexFixtures -update`)가 Go로 `crates/fung-vm/src/native/regex_go_fixtures.rs`를 만든다
+    (손으로 고른 컴파일 334개·매치 173쌍, PCG(2026, 1016) 무작위 2,000개 + 겹친 반복 600개). Go를 지우면 생성기는 함께 지우고 만들어진 파일은 고정된 회귀 데이터로 남긴다.
+  - SIGPIPE의 Go 런타임 세부(4c, `crates/fung-vm/src/sigpipe.rs`): 부모가 SIGPIPE를 무시로 둔 채 띄워도 기본 동작으로 되돌려 신호 13으로 죽는 것(C 프로그램이라면 EPIPE),
+    신호로도 안 죽으면 `exit(141)`하는 대비책(Go `dieFromSignal`의 `exit(128+sig)`). 닫힌 표준 출력·에러에서 신호로 죽는 것 자체는 유닉스의 보통 동작이라 남긴다.
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서; 닫힌 파이프 141은 4c에서 해결)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
 - [ ] 4a단계(fs)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-15-rust-fs-4a/progress.md`).
   - 닫지 않은 핸들: Rust는 마지막 사본이 사라지는 순간 파일을 닫는다(참조 계수). Go는 GC가 거둘 때까지 열려 있을 수 있다. 그래서 핸들 수천 개를 버려도 디스크립터가 새지 않는다.
@@ -314,6 +354,14 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 잘못된 UTF-8 입력: Rust 문자열에 들어올 때 이미 U+FFFD라서 `json.parse` 에러가 Go의 `'\xNN'` 대신 `'�'`를 보인다(4a와 같은 뿌리). 출력은 둘 다 U+FFFD.
   - 2^30~2^48 사이의 들여쓰기: 두 구현 모두 메모리를 잡으려다 죽지만 죽는 출력이 다르다.
   - Rust에만 있는 종류(`agent`, 잡은 에러)는 `stringify`에서 E0513 `cannot convert agent to JSON`·`cannot convert error to JSON`(Go가 채널·함수에 쓰는 기본 분기와 같은 규칙).
+- [ ] 4c단계(regex·SIGPIPE)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-16-rust-regex-crates-4c/progress.md`, 노트 `docs/notes/R4c-regex-crates.md` 6절).
+  - 아주 큰 패턴: Go의 명령 수 예산(3,355,443)에는 들어가지만 Rust NFA의 크기 한도(128 MiB)를 넘는 패턴(`[a-z]{1000}` × 3,355, `\pL`을 약 5,000번 넘게 반복)은 Go가 받는데 Rust는
+    Go 문구 `` error parsing regexp: expression too large: `<패턴>` ``로 실패한다(E0515). 유니코드 클래스마다 UTF-8 오토마타를 만들기 때문이다.
+    실패까지 시간이 걸린다(`\pL` × 5,000이 릴리스 1.3초, × 20,000이 릴리스 약 3초·디버그 약 30초). 필요하면 더 싼 사전 추정을 붙인다.
+  - 깊은 중첩: 약 999단계에서 `regex` 크레이트의 컴파일러가 디버그 빌드의 2 MB 스택을 넘친다. fung의 명령 스레드(4 GiB)·태스크 스레드(1 GiB)는 괜찮고, 테스트는 1 GiB 스레드에서 돈다.
+    스택 크기를 줄일 때(그린 스레드, 4d) 다시 본다.
+  - 엔진이 크기 밖의 이유로 옮긴 패턴을 거부하면 Go의 `regexp/syntax: internal error` 문구가 나온다. Go는 이 에러를 내지 않으며, 테스트로 닿는 경우는 없다.
+  - 내부 에러 보고(`crates/fung-vm/src/vm/task.rs`의 `eprintln!`)는 표준 에러가 닫혀 있으면 SIGPIPE로 죽지 않고 패닉한다. 내부 에러 경로뿐이다.
 - [ ] 3단계(런타임)가 바꿔야 할 Rust 구조 (2단계 최종 리뷰, 2026-10-15):
   - 해결 (3a): 런타임을 `World`(공유, 실행권 아래)와 `Task`(태스크별)로 나눴고, 기본값은 `Lit`, 내장 함수 표는 프로세스에 하나(`OnceLock`)다. 아래는 그 전의 기록.
   - 런타임 빌림: `Task<'rt>`가 `&'rt mut Runtime`을 쥔다(`crates/fung-vm/src/vm.rs`). 태스크 여럿이 주차된 스케줄러에서는 각자 배타적으로 빌릴 수 없으므로

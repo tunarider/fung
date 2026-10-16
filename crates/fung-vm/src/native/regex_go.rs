@@ -26,9 +26,11 @@
 //! `_<index>_<go name>`; `go_capture_names` gives back Go's
 //! `SubexpNames()`.
 //!
-//! The whole layer is transitional (open-questions "Go 동등을 위한 과도기
-//! 잔가지"): once Go is gone, fung's regular-expression syntax can be
-//! defined in its own terms.
+//! The parser is the definition of fung's regular-expression syntax and
+//! stays after Go is gone (user decision 2026-10-16, to be revisited after
+//! stage 6; open-questions "Rust 이전"). What only copies Go's accidents is
+//! transitional (open-questions "Go 동등을 위한 과도기 잔가지"): Go's
+//! Unicode tables (`spec/regex_unicode.txt`) and the Go error texts.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;

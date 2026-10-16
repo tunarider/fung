@@ -276,6 +276,7 @@ fn nests(v: &Value) -> bool {
 - Rust 표준 라이브러리는 시작할 때 SIGPIPE를 **무시**하도록 설정한다. 그래서 쓰기가 에러(`BrokenPipe`)로 돌아오고, 처음 버전은 이를 `E0801 internal error: Broken pipe`로 보고하고 종료 코드 1로 끝나며 `at_exit` 핸들러까지 돌렸다.
 - SIGPIPE를 다시 기본값으로 돌리면 될 것 같지만 안 된다. 자식 프로세스의 표준 입력에 쓸 때(`exec(..., stdin: ...)`)는 끊긴 파이프가 에러 값이어야 하는데, 그때도 fung이 죽어 버린다.
 - 해결: 표준 출력·에러에 쓰는 곳만 감싸서(`ProcessOut`), `BrokenPipe`를 만나면 바로 `exit(141)`. 셸에서는 같은 141이다. 신호로 진짜 죽는 것은 `libc`가 필요해 3단계로 미뤘다.
+- 이후: 4c에서 `libc`로 신호 13으로 죽게 바꿨다(`docs/notes/R4c-regex-crates.md` 5절).
 
 **(6) 빈 칸은 `nil`이 아니다.**
 - Go VM에서 아직 값이 들어가지 않은 지역 변수·전역 변수 칸은 Go의 `nil`이다. fung의 `nil` 값과는 다르다. `JUMPIFSET`(기본값 매개변수에서 "인자가 들어왔나"를 묻는 명령)이 이 둘을 구분한다.
