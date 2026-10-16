@@ -1,5 +1,6 @@
 # tests/lang files the run comparison leaves out: `<file> <reason>`.
 # concurrency: needs what the Rust port does not run yet (none since
 # stage 3a; the reason stays for later stages).
-# native-module: imports a module stage 2 does not have.
+# native-module: imports a module the Rust port does not run all of yet
+# (`http.serve` until stage 4d Task 5; the client runs since Task 3).
 http_serve.fung native-module

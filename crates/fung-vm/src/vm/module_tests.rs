@@ -342,31 +342,39 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
     });
 }
 
-/// Stage 2 does not run the native bridge modules: importing one, directly
-/// or through a user module, is E0805 with the name the program wrote, at
-/// that import. (Go runs them; this is the Rust port's own output.)
+/// Every standard module runs since stage 4d wrote `http` in fung. The
+/// E0805 mechanism (`boot::unsupported_module`) stays until Task 5
+/// decides on it: a module registered as unsupported reports E0805 at its
+/// import.
 #[test]
-fn out_of_scope_standard_modules_are_not_supported_yet() {
-    let o = run_files(&[("/p/main.fung", "import http\nprint(1)")], "/p/main.fung");
-    assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"));
-    assert!(
-        o.err
-            .starts_with("error[E0805]: not supported yet: http\n  --> /p/main.fung:1:1\n"),
-        "{}",
-        o.err
+fn standard_modules_run_and_unsupported_ones_report_e0805() {
+    for key in ["http", "cli", "fs", "path", "time", "json", "regex"] {
+        assert!(!crate::boot::unsupported_module(key), "{key}");
+    }
+    on_big_stack(|| {
+        let s = setup(
+            "import cli\nprint(1)",
+            Opts {
+                file: "/p/main.fung",
+                ..Opts::default()
+            },
+        )
+        .unwrap_or_else(|(e, _)| panic!("{e}"));
+        s.rt.register_unsupported("cli");
+        match s.rt.import_module("cli") {
+            Err(Stop::Error(d)) => assert_eq!(
+                fung_front::diag::headline(&d),
+                "error[E0805]: not supported yet: cli"
+            ),
+            other => panic!("{other:?}"),
+        }
+    });
+    // `http` runs since stage 4d (its client: the arguments are checked).
+    let o = run_files(
+        &[("/p/main.fung", "import http\nprint(http.get)\nhttp.get(1)")],
+        "/p/main.fung",
     );
-    let files = [
-        ("/p/lib.fung", "import http\nfn f() = 1"),
-        ("/p/main.fung", "import \"./lib\"\nprint(lib.f())"),
-    ];
-    let o = run_files(&files, "/p/main.fung");
-    assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0805"));
-    assert!(
-        o.err
-            .starts_with("error[E0805]: not supported yet: http\n  --> /p/lib.fung:1:1\n"),
-        "{}",
-        o.err
-    );
+    assert_eq!((o.out.as_str(), o.code.as_str()), ("<fn get>\n", "E0403"));
     // `cli` is pure fung and runs.
     let o = run_files(
         &[("/p/main.fung", "import cli\nprint(cli.parse([\"a\"]).rest)")],

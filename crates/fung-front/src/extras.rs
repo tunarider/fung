@@ -12,7 +12,9 @@ pub fn source(name: &str) -> Option<&'static str> {
         "time" => include_str!("../../../extras/time.fung"),
         "json" => include_str!("../../../extras/json.fung"),
         "regex" => include_str!("../../../extras/regex.fung"),
-        "http" => include_str!("../../../extras/http.fung"),
+        // Stage 4d: the Rust `http` is written in fung over `_native.net`
+        // (Go's `extras/http.fung` bridges Go's net/http instead).
+        "http" => include_str!("../../../extras/rust/http.fung"),
         _ => return None,
     })
 }

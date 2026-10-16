@@ -176,6 +176,51 @@ fn native_modules_match_the_spec() {
     });
 }
 
+/// The Rust `http` (stage 4d, `extras/rust/http.fung`) is a fung module
+/// where Go has the natives of `_native.http`: its public functions are
+/// the spec's, with the spec's parameter tables.
+#[test]
+fn http_module_matches_the_spec() {
+    on_big_stack(|| {
+        let spec = builtins();
+        let s = crate::testutil::setup("import http\nprint(1)", Opts::default())
+            .unwrap_or_else(|(e, _)| panic!("{e}"));
+        let m = s.rt.import_module("http").expect("http");
+        let mut names: Vec<&str> = m.names();
+        names.sort();
+        let want: Vec<&str> = spec.modules["_native.http"]
+            .iter()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(names, want);
+        for name in names {
+            let Some(Value::Closure(c)) = m.get(name) else {
+                panic!("http.{name} is not a fung function")
+            };
+            let got = c
+                .proto
+                .params
+                .iter()
+                .map(|p| {
+                    if p.rest {
+                        format!("...{}", p.name)
+                    } else if p.has_default {
+                        format!("{}=?", p.name)
+                    } else {
+                        p.name.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            assert_eq!(
+                got,
+                spec.module_signature("_native.http", name).expect(name),
+                "http.{name}"
+            );
+        }
+    });
+}
+
 #[test]
 fn script_args_reach_the_program() {
     let o = exec(

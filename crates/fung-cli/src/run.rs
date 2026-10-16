@@ -84,8 +84,9 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
         return EXIT_COMPILE.into();
     }
     // Links the entry against the booted prelude and registers the modules
-    // (Go `register`); the standard modules stage 2 does not run report
-    // E0805 at their import. No fung value comes back out of the runtime.
+    // (Go `register`); a standard module the Rust port does not run would
+    // report E0805 at its import (none since stage 4d). No fung value
+    // comes back out of the runtime.
     rt.load(&entry, &b.modules);
     let mut code = i64::from(EXIT_OK);
     let result = rt.run();

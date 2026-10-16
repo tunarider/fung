@@ -1,4 +1,5 @@
-//! TLS error texts against Go (stage 4d, Task 2).
+//! TLS error texts against Go (stage 4d, Task 2), and since Task 3 the
+//! Rust `http` client against the same Go TLS server.
 //!
 //! The Rust texts are checked in `fung-vm` (`native/tls_tests.rs`, a
 //! rustls server in the test process), since `_native.net` is not
@@ -115,8 +116,31 @@ fn go_gives_the_tls_texts_the_rust_tests_expect() {
             .env("SSL_CERT_DIR", tmp.join("certs"))
             .output()
             .unwrap();
+        // Stage 4d Task 3: the Rust `http` meets the same server, and its
+        // output must be Go's (the expiry check's "current time" aside).
+        let r = Command::new(common::rust_fung())
+            .arg("run")
+            .arg(tmp.join("get.fung"))
+            .arg(&url)
+            .env("SSL_CERT_FILE", data.join(roots))
+            .env("SSL_CERT_DIR", tmp.join("certs"))
+            .output()
+            .unwrap();
         let _ = server.kill();
         let _ = server.wait();
+        assert_eq!(
+            (
+                without_now(&String::from_utf8_lossy(&r.stdout)),
+                String::from_utf8_lossy(&r.stderr),
+                r.status.code()
+            ),
+            (
+                without_now(&String::from_utf8_lossy(&o.stdout)),
+                String::from_utf8_lossy(&o.stderr),
+                o.status.code()
+            ),
+            "{cert} {roots} {host}: rust and go differ"
+        );
         let got = String::from_utf8_lossy(&o.stdout);
         let got = got.trim_end();
         let case = format!("{cert} {roots} {host}: {got:?} {:?}", o.stderr);
@@ -140,4 +164,13 @@ fn go_gives_the_tls_texts_the_rust_tests_expect() {
     }
     let _ = std::fs::remove_dir_all(&tmp);
     let _ = std::fs::remove_file(go_fung);
+}
+
+/// The text with the time of an expiry error ("current time <t> is
+/// after") left out: the two runs happen at different seconds.
+fn without_now(s: &str) -> String {
+    match (s.find("current time "), s.find(" is after")) {
+        (Some(a), Some(b)) if a < b => format!("{}{}", &s[..a + 13], &s[b..]),
+        _ => s.to_string(),
+    }
 }

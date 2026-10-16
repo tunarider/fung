@@ -1,0 +1,869 @@
+# http (stage 4d, the Rust implementation only): an HTTP/1.1 client
+# written in fung over the TCP and TLS primitives of `_native.net`. The
+# Go implementation keeps its own `extras/http.fung` over Go's net/http
+# and never reads this file (its directory keeps it out of Go's embed).
+#
+# The contract is 06 "fung HTTP 약속": one connection per request, no
+# compression, no keep-alive, any response is Ok({status, headers,
+# body}), header names in lower case with repeated ones joined by ", ".
+# Within it the results match Go's client, so much here copies Go's
+# rules and words (`net/url`, `net/http`, `net/textproto`): those
+# copies are transitional parity measures (open-questions "Go 동등을
+# 위한 과도기 잔가지"); the comments name what each copies ("Go `...`").
+#
+# The parts the redirects, proxies and server will reuse: `_parse_url`
+# and `_url_string` (URLs), `_request_text` (a request), `_status_line`,
+# `_fields`, `_group` and `_header_map` (a message head), `_chunked`,
+# `_fixed` and `_until_close` (bodies), `_quote`, `_canonical`.
+#
+# Redirects and proxies come in Task 4, `serve` in Task 5.
+import _native.net as _net
+import _native.time as _time
+
+# ---- The public functions (06) -----------------------------------------
+
+fn get(url: str, headers: map = {}, timeout: dur = 30s) = _request("GET", url, nil, headers, timeout)
+
+fn post(url: str, body: str | nil, headers: map = {}, timeout: dur = 30s) = _request("POST", url, body, headers, timeout)
+
+fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur = 30s) = _request(upper(method), url, body, headers, timeout)
+
+# Placeholder until Task 5 writes the server; the parameters are the
+# spec's (`spec/builtins.txt`).
+fn serve(addr, handler, ready = nil) = fail("not supported yet: http.serve")
+
+# ---- One request ----------------------------------------------------------
+
+# Internal errors are maps {kind, message}: message is the reason Go
+# would print after "cannot request `<url>`: ", kind is 'timeout when a
+# deadline passed. `_failed` gives the public Err.
+fn _request(method, url, body, headers, timeout):
+  start = _time.now()
+  match _attempt(method, url, body, headers, timeout, start):
+    Ok(res) => Ok(res)
+    Err(e)  => _failed(url, e, timeout, start)
+  ;;
+;;
+
+# Go `requestError`: past the deadline every failure is a timeout.
+fn _failed(url, e, timeout, start) = _timed_out(timeout, start) or e.kind == 'timeout
+  then Err({kind: 'timeout, message: "request to `${url}` timed out"})
+  else Err({kind: 'network, message: "cannot request `${url}`: ${e.message}"})
+
+fn _timed_out(timeout, start) = timeout > 0s and _time.now() - start >= timeout
+
+# The time left before the request's deadline, nil without one.
+fn _left(timeout, start) = timeout > 0s then timeout - (_time.now() - start) else nil
+
+fn _err(message) = {kind: 'network, message}
+
+# Go `http.NewRequest` (the method, the URL), then fung's check of the
+# header values (E0403), then what the client does with the request.
+# The errors of `_send` start with Go's `url.Error` prefix
+# `Get "<url>": `.
+fn _attempt(method0, url, body, headers, timeout, start):
+  method = method0 == "" then "GET" else method0
+  if not _is_token(method):
+    return Err(_err("net/http: invalid method ${_quote(method)}"))
+  ;;
+  u = _parse_url(url)?
+  _net.need_str_map("headers", headers)
+  hs = fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v))
+  op = "${_op(method)} ${_quote(_url_string(u))}: "
+  _send(method, u, body, hs, timeout, start, op)
+;;
+
+# Go `urlErrorOp`: "Get", "Post", ...
+fn _op(method) = method[..1] + lower(method[1..])
+
+fn _send(method, u, body, hs, timeout, start, op):
+  why = _check_request(u, hs)
+  if why != nil:
+    return Err(_err(op + why))
+  ;;
+  c = _dial(u, timeout, start, op)?
+  r = _exchange(c, method, u, body, hs, timeout, start, op)
+  _net.close(c)
+  r
+;;
+
+# Go `Transport.roundTrip`: the checks before connecting.
+fn _check_request(u, hs):
+  web = u.scheme == "http" or u.scheme == "https"
+  bad = web then _bad_header(hs) else nil
+  if bad != nil:
+    bad
+  else if not web:
+    "unsupported protocol scheme ${_quote(u.scheme)}"
+  else if u.host == "":
+    "http: no Host in request URL"
+  else:
+    nil
+  ;;
+;;
+
+fn _bad_header(hs) = match find(sort(pairs(hs)), ((k, v)) => not _is_token(k) or not _valid_value(v)):
+  nil    => nil
+  (k, _) => _is_token(k)
+    then "net/http: invalid header field value for ${_quote(k)}"
+    else "net/http: invalid header field name ${_quote(k)}"
+;;
+
+# Connects (TLS for https). Go's transport gives the TCP connection 30s
+# and the TLS handshake 10s (`net/http: TLS handshake timeout`), both
+# within the request's own timeout; here one `connect` covers both, so
+# for https the 10s cover the TCP connection too.
+fn _dial(u, timeout, start, op):
+  (host, port_text) = _host_port(u.host)
+  tls = u.scheme == "https"
+  port = _port(port_text, tls)
+  if port == nil:
+    return Err(_err("${op}dial tcp: address ${port_text}: invalid port"))
+  ;;
+  cap = tls then 10s else 30s
+  left = _left(timeout, start)
+  limit = left == nil or left > cap then cap else left
+  if limit <= 0s:
+    return Err({kind: 'timeout, message: ""})
+  ;;
+  match _net.connect(host, port, tls: tls, timeout: limit):
+    Ok(c)  => Ok(c)
+    Err(e) => Err(_dial_err(e, tls and limit == cap, op))
+  ;;
+;;
+
+# With TLS, `connect` names a handshake past its deadline "context
+# deadline exceeded"; when the 10s cap (not the request's own deadline)
+# ended it, Go says so.
+fn _dial_err(e, capped, op) = capped and e.message == "context deadline exceeded"
+  then _err("${op}net/http: TLS handshake timeout")
+  else {kind: e.kind, message: op + e.message}
+
+fn _port(text, tls):
+  if text == "":
+    tls then 443 else 80
+  else:
+    match parse_int(text):
+      Ok(n) when n <= 65535 => n
+      _                     => nil
+    ;;
+  ;;
+;;
+
+# Writes the request and reads the answer, all before the deadline.
+fn _exchange(c, method, u, body, hs, timeout, start, op):
+  left = _left(timeout, start)
+  if left != nil and left <= 0s:
+    return Err({kind: 'timeout, message: ""})
+  ;;
+  if left != nil:
+    _net.set_deadline(c, left)
+  ;;
+  match _net.write(c, _request_text(method, u, body, hs)):
+    Err(e) => Err({kind: e.kind, message: op + e.message})
+    Ok(_)  => _read_response(c, method, op)
+  ;;
+;;
+
+# ---- The request ------------------------------------------------------
+
+# Go `Request.write`: the request line, Host, User-Agent (Go's default
+# unless the user set one; an empty one sends none), Content-Length (in
+# bytes; always for POST, PUT and PATCH), then the user's headers sorted
+# by name. No Accept-Encoding: the body comes back as sent (06).
+fn _request_text(method, u, body, hs):
+  n = body == nil then 0 else _net.byte_len(body)
+  ua = "User-Agent" in hs then _trim_ows(hs["User-Agent"]) else "Go-http-client/1.1"
+  start = ["${method} ${_request_uri(u)} HTTP/1.1", "Host: ${_host_header(u.host)}"]
+  agent = ua == "" then [] else ["User-Agent: ${ua}"]
+  length = n > 0 or method in ["POST", "PUT", "PATCH"] then ["Content-Length: ${n}"] else []
+  rest = sort(pairs(hs)) |> filter(((k, _)) => k not in _not_written()) |> map(((k, v)) => "${k}: ${_trim_ows(v)}")
+  join(start + agent + length + rest, "\r\n") + "\r\n\r\n" + (body ?? "")
+;;
+
+# Go `reqWriteExcludeHeader`: headers the request writes itself.
+fn _not_written() = ["Host", "User-Agent", "Content-Length", "Transfer-Encoding", "Trailer"]
+
+# Go `removeZone`: the Host header has no IPv6 zone.
+fn _host_header(host):
+  if not starts_with(host, "["):
+    return host
+  ;;
+  i = _last_index(host, "]")
+  j = i < 0 then -1 else _last_index(host[..i], "%")
+  j < 0 then host else host[..j] + host[i..]
+;;
+
+# Go `URL.RequestURI`.
+fn _request_uri(u):
+  base = if u.opaque != "":
+    starts_with(u.opaque, "//") then "${u.scheme}:${u.opaque}" else u.opaque
+  else:
+    p = _escaped_path(u.path)
+    p == "" then "/" else p
+  ;;
+  u.force_query or u.query != "" then "${base}?${u.query}" else base
+;;
+
+# ---- The response -----------------------------------------------------
+
+# Go's transport reads at most 10 MB of response headers.
+fn _header_limit() = 10485760
+
+# A body may hold at most 64 MB (Go's client has no limit; the contract
+# promises no unbounded memory).
+fn _body_cap() = 67108864
+
+fn _too_long() = _err("http: response body longer than ${_body_cap()} bytes")
+
+fn _exceeded() = "net/http: server response headers exceeded ${_header_limit()} bytes; aborted"
+
+# Go: an error after the first byte of the answer is "transport
+# connection broken"; one before it is the plain read error.
+fn _broken(kind, op, why) = {kind, message: "${op}net/http: HTTP/1.x transport connection broken: ${why}"}
+
+fn _head_err(e, op) = e.kind == 'limit then _broken('network, op, _exceeded()) else _broken(e.kind, op, e.message)
+
+fn _head_line(c, budget) = budget < 0 then Err({kind: 'limit, message: ""}) else _net.read_line(c, budget)
+
+fn _read_response(c, method, op) = match _net.read_line(c, _header_limit()):
+  Ok(nil)  => Err(_err(op + "EOF"))
+  Ok(line) => _read_head(c, method, op, line, _header_limit() - _net.byte_len(line) - 2)
+  Err(e)   => Err(e.kind == 'limit then _head_err(e, op) else {kind: e.kind, message: op + e.message})
+;;
+
+# Go `ReadResponse` after the status line; informational answers (1xx
+# but 101) are skipped, as Go's transport does.
+fn _read_head(c, method, op, line, budget):
+  (major, minor, code) = match _status_line(line):
+    Ok(s)    => s
+    Err(why) => return Err(_broken('network, op, why))
+  ;;
+  (fields, left) = _fields(c, budget, op, nil, [])?
+  if code >= 100 and code <= 199 and code != 101:
+    return _next_head(c, method, op, left)
+  ;;
+  _finish(c, method, op, major, minor, code, fields)
+;;
+
+fn _next_head(c, method, op, budget) = match _head_line(c, budget):
+  Ok(nil)  => Err(_broken('network, op, "unexpected EOF"))
+  Ok(line) => _read_head(c, method, op, line, budget - _net.byte_len(line) - 2)
+  Err(e)   => Err(_head_err(e, op))
+;;
+
+# Go `ReadResponse`: "HTTP/1.1 200 OK" → Ok((1, 1, 200)).
+fn _status_line(line):
+  if " " not in line:
+    return Err("malformed HTTP response ${_quote(line)}")
+  ;;
+  (proto, rest) = _cut(line, " ")
+  status = _trim_left(rest, " ")
+  code_text = _before(status, " ")
+  code = _atoi(code_text)
+  version = _version(proto)
+  if _net.byte_len(code_text) != 3 or code == nil or code < 0:
+    Err("malformed HTTP status code ${_quote(code_text)}")
+  else if version == nil:
+    Err("malformed HTTP version ${_quote(proto)}")
+  else:
+    (major, minor) = version
+    Ok((major, minor, code))
+  ;;
+;;
+
+# Go `strconv.Atoi`: an optional sign, then digits.
+fn _atoi(s):
+  digits = starts_with(s, "+") or starts_with(s, "-") then s[1..] else s
+  digits != "" and all(chars(digits), ch => ch in "0123456789") then parse_int(s) ?? nil else nil
+;;
+
+# Go `ParseHTTPVersion`: HTTP/<digit>.<digit>.
+fn _version(v):
+  if v == "HTTP/1.1":
+    (1, 1)
+  else if v == "HTTP/1.0":
+    (1, 0)
+  else if starts_with(v, "HTTP/") and len(v) == 8 and _net.byte_len(v) == 8 and v[6] == "." and v[5] in "0123456789" and v[7] in "0123456789":
+    (parse_int(v[5])!, parse_int(v[7])!)
+  else:
+    nil
+  ;;
+;;
+
+# Go `textproto.ReadMIMEHeader`: header lines up to the blank one, a line
+# starting with a space or a tab continuing the one before. `pending` is
+# the field being gathered, `acc` the fields so far as (key, value).
+# Ok((fields, budget left)).
+fn _fields(c, left, op, pending, acc) = match _head_line(c, left):
+  Err(e)   => Err(_head_err(e, op))
+  Ok(nil)  => _fields_end(pending, acc, op, "unexpected EOF", left)
+  Ok(line) => _field_line(c, left - _net.byte_len(line) - 2, op, pending, acc, line)
+;;
+
+fn _field_line(c, left, op, pending, acc, line):
+  folded = starts_with(line, " ") or starts_with(line, "\t")
+  if folded and pending == nil and acc == []:
+    Err(_broken('network, op, "malformed MIME header initial line: ${_quote(line)}"))
+  else if folded and pending != nil:
+    _fields(c, left, op, "${pending} ${_trim_ows(line)}", acc)
+  else if line == "":
+    _fields_end(pending, acc, op, nil, left)
+  else:
+    match _flush(pending, acc):
+      Err(why) => Err(_broken('network, op, why))
+      Ok(more) => ":" in line
+        then _fields(c, left, op, _trim_ows(line), more)
+        else Err(_broken('network, op, "malformed MIME header: missing colon: ${_quote(line)}"))
+    ;;
+  ;;
+;;
+
+# The end of the header lines: the last field, then Ok, or the read
+# error `why`.
+fn _fields_end(pending, acc, op, why, left) = match _flush(pending, acc):
+  Err(bad) => Err(_broken('network, op, bad))
+  Ok(more) => why == nil then Ok((more, left)) else Err(_broken('network, op, why))
+;;
+
+# Adds the gathered field to acc, checked like Go's: a key of token
+# characters (a space keeps it as written), a value without control
+# characters but tabs, the value without leading blanks.
+fn _flush(pending, acc):
+  if pending == nil:
+    return Ok(acc)
+  ;;
+  (k, v) = _cut(pending, ":")
+  ok = k != "" and all(chars(k), ch => ch == " " or _is_tchar(ch)) and _valid_value(v)
+  ok then Ok(acc + [(_canonical(k), _trim_left(v, " \t"))]) else Err("malformed MIME header line: ${_quote(pending)}")
+;;
+
+# Go `readTransfer` and friends: the headers Go removes or adds, how the
+# body ends, and reading it. Errors before the body are "connection
+# broken"; errors in the body are plain.
+fn _finish(c, method, op, major, minor, code, fields):
+  h0 = _fix_pragma(_group(fields))
+  (h1, chunked) = match _transfer_encoding(h0, major, minor):
+    Ok(x)    => x
+    Err(why) => return Err(_broken('network, op, why))
+  ;;
+  (h2, length) = match _length(h1, code, method, chunked):
+    Ok(x)    => x
+    Err(why) => return Err(_broken('network, op, why))
+  ;;
+  h3 = match _trailer_header(h2, chunked):
+    Ok(x)    => x
+    Err(why) => return Err(_broken('network, op, why))
+  ;;
+  body = _read_body(c, method, code, chunked, length)?
+  Ok({status: code, headers: _header_map(_close_header(h3, major, minor)), body})
+;;
+
+# Fields as canonical key → values, in the order they came. (The
+# prelude's `get` is hidden here by this module's own.)
+fn _group(fields) = fold(fields, {}, (h, (k, v)) => put(h, k, (k in h then h[k] else []) + [v]))
+
+# Go `headerMap` (06): keys sorted, lower case, values joined.
+fn _header_map(h) = fold(sort(keys(h)), {}, (m, k) => put(m, lower(k), join(h[k], ", ")))
+
+# Go `fixPragmaCacheControl`.
+fn _fix_pragma(h) = "Pragma" in h and h["Pragma"][0] == "no-cache" and "Cache-Control" not in h
+  then put(h, "Cache-Control", ["no-cache"]) else h
+
+fn _at_least_11(major, minor) = major > 1 or (major == 1 and minor >= 1)
+
+# Go `parseTransferEncoding`: only "chunked", and only from HTTP/1.1.
+fn _transfer_encoding(h, major, minor):
+  if "Transfer-Encoding" not in h:
+    return Ok((h, false))
+  ;;
+  raw = h["Transfer-Encoding"]
+  rest = remove(h, "Transfer-Encoding")
+  if not _at_least_11(major, minor):
+    Ok((rest, false))
+  else if len(raw) != 1:
+    Err("too many transfer encodings: ${_quote_list(raw)}")
+  else if lower(raw[0]) != "chunked":
+    Err("unsupported transfer encoding: ${_quote(raw[0])}")
+  else:
+    Ok((rest, true))
+  ;;
+;;
+
+# Go `fixLength`: Ok((headers, n)), n -1 when the body runs to the end
+# of the connection or is chunked.
+fn _length(h, code, method, chunked):
+  cls = "Content-Length" in h then h["Content-Length"] else []
+  first = len(cls) > 0 then _trim_space(cls[0]) else ""
+  if len(cls) > 1 and any(cls, v => _trim_space(v) != first):
+    return Err("http: message cannot contain multiple Content-Length headers; got ${_quote_list(cls)}")
+  ;;
+  h1 = len(cls) > 1 then put(h, "Content-Length", [first]) else h
+  n = len(cls) > 0 then _parse_length(first) else Ok(-1)
+  if type_of(n) == 'Err:
+    n
+  else if method == "HEAD" or code // 100 == 1 or code == 204 or code == 304:
+    Ok((h1, 0))
+  else if chunked:
+    Ok((remove(h1, "Content-Length"), -1))
+  else:
+    Ok((h1, n!))
+  ;;
+;;
+
+# Go `parseContentLength`.
+fn _parse_length(cl):
+  if cl == "":
+    Err("invalid empty Content-Length ${_quote(cl)}")
+  else if all(chars(cl), ch => ch in "0123456789"):
+    match parse_int(cl):
+      Ok(n)  => Ok(n)
+      Err(_) => Err("bad Content-Length ${_quote(cl)}")
+    ;;
+  else:
+    Err("bad Content-Length ${_quote(cl)}")
+  ;;
+;;
+
+# Go `fixTrailer`: a chunked answer's Trailer header goes; it may not
+# name the framing headers.
+fn _trailer_header(h, chunked):
+  if not chunked or "Trailer" not in h:
+    return Ok(h)
+  ;;
+  names = h["Trailer"] |> map(v => split(v, ",")) |> flatten |> map(_trim_space) |> filter(n => n != "") |> map(_canonical)
+  bad = find(names, n => n in ["Transfer-Encoding", "Trailer", "Content-Length"])
+  bad == nil then Ok(remove(h, "Trailer")) else Err("bad trailer key ${_quote(bad)}")
+;;
+
+# Go `shouldClose`: from HTTP/1.1 a "close" in Connection is taken out.
+fn _close_header(h, major, minor):
+  if not _at_least_11(major, minor) or "Connection" not in h:
+    h
+  else:
+    close = any(h["Connection"], v => any(split(v, ","), t => lower(_trim_ows(t)) == "close"))
+    close then remove(h, "Connection") else h
+  ;;
+;;
+
+fn _body_allowed(code) = not (code // 100 == 1 or code == 204 or code == 304)
+
+fn _read_body(c, method, code, chunked, length):
+  if chunked:
+    method == "HEAD" or not _body_allowed(code) then Ok("") else _chunked(c, 0)
+  else if length == 0:
+    Ok("")
+  else if length > 0:
+    _fixed(c, length)
+  else:
+    _until_close(c)
+  ;;
+;;
+
+# Go reports a body cut short as "unexpected EOF".
+fn _body_err(e) = e.message == "EOF" then _err("unexpected EOF") else e
+
+fn _fixed(c, n):
+  if n > _body_cap():
+    return Err(_too_long())
+  ;;
+  match _net.read_bytes(c, n):
+    Ok(s)  => Ok(s)
+    Err(e) => Err(_body_err(e))
+  ;;
+;;
+
+fn _until_close(c) = match _net.read_all(c, _body_cap()):
+  Ok(s)               => Ok(s)
+  Err({kind: 'limit}) => Err(_too_long())
+  Err(e)              => Err(e)
+;;
+
+# ---- Chunked bodies (Go `internal.chunkedReader`) --------------------
+#
+# The chunks gather raw in the connection's body buffer and are decoded
+# once at the end, so a character cut between two chunks comes out
+# whole. `excess` is Go's count of bytes that are not data.
+
+fn _chunked(c, excess) = match _chunk_line(c, [], 0):
+  Err(e)   => _drop(c, e)
+  Ok(line) => _chunk(c, excess + _net.byte_len(line) + 2, line)
+;;
+
+fn _chunk(c, excess, line) = match _hex(_before(_trim_right_ows(line), ";")):
+  Err(why) => _drop(c, _err(why))
+  Ok(0)    => _trailer(c, 0)
+  Ok(n)    => _chunk_data(c, max([excess - 16 - 2 * n, 0]), n)
+;;
+
+fn _chunk_data(c, excess, n):
+  if excess > 16384:
+    return _drop(c, _err("chunked encoding contains too much non-data"))
+  ;;
+  match _net.read_bytes_into(c, n, _body_cap()):
+    Err({kind: 'limit}) => _drop(c, _too_long())
+    Err(e)              => _drop(c, _body_err(e))
+    Ok(_)               => match _net.read_bytes(c, 2):
+      Ok("\r\n") => _chunked(c, excess)
+      Ok(_)      => _drop(c, _err("malformed chunked encoding"))
+      Err(e)     => _drop(c, _body_err(e))
+    ;;
+  ;;
+;;
+
+# The body buffer is emptied on an error too.
+fn _drop(c, e):
+  _net.take_body(c)
+  Err(e)
+;;
+
+# Go `readChunkLine`: a line ending in CRLF (a bare LF or a CR elsewhere
+# is an error), at most 4096 bytes. Read a byte at a time: `read_line`
+# would hide which line end came.
+fn _chunk_line(c, acc, n):
+  if n >= 4096:
+    return Err(_err("header line too long"))
+  ;;
+  match _net.read_bytes(c, 1):
+    Err(e)   => Err(_body_err(e))
+    Ok("\n") => _chunk_line_end(join(acc, ""))
+    Ok(b)    => _chunk_line(c, acc + [b], n + 1)
+  ;;
+;;
+
+fn _chunk_line_end(line):
+  if "\r" not in line:
+    Err(_err("chunked line ends with bare LF"))
+  else if _index(line, "\r") != len(line) - 1:
+    Err(_err("invalid CR in chunked line"))
+  else:
+    Ok(line[..len(line) - 1])
+  ;;
+;;
+
+# Go `parseHexUint`. More than 15 digits cannot fit a body anyway.
+fn _hex(s):
+  cs = chars(s)
+  digits = {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, a: 10, b: 11, c: 12, d: 13, e: 14, f: 15, A: 10, B: 11, C: 12, D: 13, E: 14, F: 15}
+  bad = find(0..len(cs), i => cs[i] not in digits or i == 16)
+  if s == "":
+    Err("empty hex number for chunk length")
+  else if bad != nil and cs[bad] not in digits:
+    Err("invalid byte in chunk length")
+  else if bad != nil:
+    Err("http chunk length too large")
+  else if len(cs) > 15:
+    Ok(_body_cap() + 1)
+  else:
+    Ok(fold(cs, 0, (n, ch) => n * 16 + digits[ch]))
+  ;;
+;;
+
+# Go `body.readTrailer`: after the last chunk, either CRLF or trailer
+# lines up to a blank one (within Go's 4096-byte buffer).
+fn _trailer(c, seen):
+  if seen > 4096:
+    return _drop(c, _err("http: suspiciously long trailer after chunked body"))
+  ;;
+  match _net.read_line(c, 4096):
+    Ok(nil)             => _drop(c, _err("http: unexpected EOF reading trailer"))
+    Ok("")              => Ok(_net.take_body(c))
+    Ok(line)            => _trailer(c, seen + _net.byte_len(line) + 2)
+    Err({kind: 'limit}) => _drop(c, _err("http: suspiciously long trailer after chunked body"))
+    Err(e)              => _drop(c, e)
+  ;;
+;;
+
+# ---- URLs (Go `net/url`) --------------------------------------------
+#
+# A parsed URL is a map: scheme (lower case), opaque, user (the raw
+# userinfo or nil), host, path (as written, checked), query, force_query
+# (a lone "?" at the end), fragment, omit_host. Errors are Go's texts.
+
+fn _parse_url(raw):
+  (u, frag) = _cut(raw, "#")
+  match _parse(u):
+    Err(why) => Err(_err("parse ${_quote(u)}: ${why}"))
+    Ok(url)  => frag == "" then Ok(url) else _with_fragment(url, raw, frag)
+  ;;
+;;
+
+fn _with_fragment(url, raw, frag) = match _escape_error(frag, 'fragment):
+  nil => Ok(put(url, "fragment", frag))
+  why => Err(_err("parse ${_quote(raw)}: ${why}"))
+;;
+
+fn _url(scheme, opaque, user, host, path, query, force, omit) = {scheme, opaque, user, host, path, query, force_query: force, fragment: "", omit_host: omit}
+
+fn _parse(raw):
+  if any(_ctls(), ch => ch in raw) or "\t" in raw:
+    return Err("net/url: invalid control character in URL")
+  ;;
+  if raw == "*":
+    return Ok(_url("", "", nil, "", "*", "", false, false))
+  ;;
+  (scheme, rest0) = _scheme(chars(raw), 0, raw)?
+  (rest, query, force) = ends_with(rest0, "?") and len(split(rest0, "?")) == 2
+    then (rest0[..len(rest0) - 1], "", true)
+    else _cut3(rest0, "?")
+  if not starts_with(rest, "/") and scheme != "":
+    return Ok(_url(scheme, rest, nil, "", "", query, force, false))
+  ;;
+  if not starts_with(rest, "/") and ":" in _before(rest, "/"):
+    return Err("first path segment in URL cannot contain colon")
+  ;;
+  if (scheme != "" or not starts_with(rest, "///")) and starts_with(rest, "//"):
+    (authority, path) = "/" in rest[2..] then _cut(rest[2..], "/") else (rest[2..], nil)
+    (user, host) = _authority(authority)?
+    p = path == nil then "" else "/" + path
+    why = _escape_error(p, 'path)
+    why == nil then Ok(_url(scheme, "", user, host, p, query, force, false)) else Err(why)
+  else:
+    why = _escape_error(rest, 'path)
+    why == nil then Ok(_url(scheme, "", nil, "", rest, query, force, scheme != "" and starts_with(rest, "/"))) else Err(why)
+  ;;
+;;
+
+# Go `getScheme`: Ok((scheme in lower case, the rest)).
+fn _scheme(cs, i, raw) = if i >= len(cs):
+  Ok(("", raw))
+else if _is_alpha(cs[i]):
+  _scheme(cs, i + 1, raw)
+else if cs[i] in "0123456789+-.":
+  i == 0 then Ok(("", raw)) else _scheme(cs, i + 1, raw)
+else if cs[i] == ":":
+  i == 0 then Err("missing protocol scheme") else Ok((lower(join(cs[..i], "")), join(cs[i + 1..], "")))
+else:
+  Ok(("", raw))
+;;
+
+# Go `parseAuthority`: Ok((userinfo or nil, host)).
+fn _authority(a):
+  i = _last_index(a, "@")
+  host = _host(i < 0 then a else a[i + 1..])?
+  if i < 0:
+    return Ok((nil, host))
+  ;;
+  user = a[..i]
+  if not all(chars(user), ch => _is_alnum(ch) or ch in "-._:~!\$&'()*+,;=%@"):
+    return Err("net/url: invalid userinfo")
+  ;;
+  why = _escape_error(user, 'user)
+  why == nil then Ok((user, host)) else Err(why)
+;;
+
+# Go `parseHost` (for http and https).
+fn _host(h):
+  open = _last_index(h, "[")
+  if open > 0:
+    Err("invalid IP-literal")
+  else if open == 0:
+    _ip_literal(h)
+  else:
+    i = _index(h, ":")
+    if i >= 0 and not _valid_port(h[i..]):
+      Err("invalid port ${_quote(h[i..])} after host")
+    else:
+      why = _escape_error(h, 'host)
+      why == nil then Ok(h) else Err(why)
+    ;;
+  ;;
+;;
+
+# "[...]" with an optional port. Only the IPv4-or-not question of Go's
+# `netip.ParseAddr` is copied; a malformed IPv6 address fails later, at
+# the connection.
+fn _ip_literal(h):
+  close = _last_index(h, "]")
+  if close < 0:
+    return Err("missing ']' in host")
+  ;;
+  colon_port = h[close + 1..]
+  if not _valid_port(colon_port):
+    return Err("invalid port ${_quote(colon_port)} after host")
+  ;;
+  name = h[1..close]
+  why = _escape_error(_before(name, "%25"), 'host)
+  addr = replace(name, "%25", "%")
+  if why != nil:
+    Err(why)
+  else if ":" in addr:
+    Ok("[${addr}]${colon_port}")
+  else if _is_ipv4(addr):
+    Err("invalid IP-literal")
+  else:
+    Err("invalid host: ParseAddr(${_quote(addr)}): unable to parse IP")
+  ;;
+;;
+
+fn _is_ipv4(s):
+  parts = split(s, ".")
+  len(parts) == 4 and all(parts, p => p != "" and len(p) <= 3 and all(chars(p), ch => ch in "0123456789") and parse_int(p)! <= 255)
+;;
+
+fn _valid_port(p) = p == "" or (starts_with(p, ":") and all(chars(p[1..]), ch => ch in "0123456789"))
+
+# Go `splitHostPort` of a URL host: (name without brackets, port).
+fn _host_port(h):
+  i = _last_index(h, ":")
+  (name, port) = i >= 0 and _valid_port(h[i..]) then (h[..i], h[i + 1..]) else (h, "")
+  starts_with(name, "[") and ends_with(name, "]") then (name[1..len(name) - 1], port) else (name, port)
+;;
+
+# Go `unescape`, its errors only: nil, or why `s` is not valid in
+# `mode` ('path, 'fragment, 'user, 'host).
+fn _escape_error(s, mode) = "%" not in s and (mode != 'host or all(chars(s), _host_char))
+  then nil else _scan(chars(s), 0, mode)
+
+fn _scan(cs, i, mode) = if i >= len(cs):
+  nil
+else if cs[i] == "%":
+  _scan_escape(cs, i, mode)
+else if mode == 'host and not _host_char(cs[i]):
+  "invalid character ${_quote(cs[i])} in host name"
+else:
+  _scan(cs, i + 1, mode)
+;;
+
+fn _scan_escape(cs, i, mode):
+  three = join(take(drop(cs, i), 3), "")
+  if i + 2 >= len(cs) or not _is_hex(cs[i + 1]) or not _is_hex(cs[i + 2]):
+    "invalid URL escape ${_quote(three)}"
+  else if mode == 'host and cs[i + 1] in "01234567" and three != "%25":
+    "invalid URL escape ${_quote(three)}"
+  else:
+    _scan(cs, i + 3, mode)
+  ;;
+;;
+
+# Go `shouldEscape(c, encodeHost)` is false: a character a host may hold.
+fn _host_char(ch) = ch >= "\u{80}" or _is_alnum(ch) or ch in "!\$&'()*+,;=:[]<>\"-_.~"
+
+# Go `URL.EscapedPath`: the path as written when it is validly encoded,
+# else re-encoded byte by byte.
+fn _escaped_path(p) = all(chars(p), ch => _is_alnum(ch) or ch in "-_.~\$&+,/:;=@!'()*[]%")
+  then p else _encode_path(_net.utf8_bytes(p), 0, [])
+
+fn _encode_path(bs, i, out) = if i >= len(bs):
+  join(out, "")
+else if bs[i] == 37:
+  _encode_path(bs, i + 3, out + [_encode_byte(_hex_value(bs[i + 1]) * 16 + _hex_value(bs[i + 2]))])
+else:
+  _encode_path(bs, i + 1, out + [_encode_byte(bs[i])])
+;;
+
+fn _encode_byte(b) = _path_safe(b) then _printable()[b - 32] else "%" + "0123456789ABCDEF"[b // 16] + "0123456789ABCDEF"[b % 16]
+
+fn _path_safe(b) = (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
+  or b in [45, 95, 46, 126, 36, 38, 43, 44, 47, 58, 59, 61, 64]
+
+fn _hex_value(b) = b <= 57 then b - 48 else (b <= 70 then b - 55 else b - 87)
+
+# ASCII 32 to 126, indexed by code - 32.
+fn _printable() = " !\"#\$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+# Go `URL.String`, with a password shown as *** (Go `stripPassword`):
+# the URL in Go's `url.Error`.
+fn _url_string(u):
+  head = u.scheme != "" then "${u.scheme}:" else ""
+  if u.opaque != "":
+    return head + u.opaque + _url_tail(u)
+  ;;
+  user = u.user == nil then nil else (":" in u.user then _before(u.user, ":") + ":***" else u.user)
+  shows_host = (u.scheme != "" or u.host != "" or user != nil) and not (u.omit_host and u.host == "" and user == nil)
+  slashes = shows_host and (u.host != "" or u.path != "" or user != nil) then "//" else ""
+  auth = shows_host then slashes + (user == nil then "" else user + "@") + u.host else ""
+  path0 = _escaped_path(u.path)
+  path = u.omit_host and u.host == "" and user == nil and starts_with(path0, "//") then "%2F" + path0[1..] else path0
+  sep = path != "" and not starts_with(path, "/") and u.host != "" then "/" else ""
+  start = head + auth
+  dot = start == "" and ":" in _before(path, "/") then "./" else ""
+  start + sep + dot + path + _url_tail(u)
+;;
+
+fn _url_tail(u) = (u.force_query or u.query != "" then "?${u.query}" else "") + (u.fragment != "" then "#${u.fragment}" else "")
+
+# ---- Text helpers -------------------------------------------------------
+
+fn _is_alpha(ch) = ch in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+fn _is_alnum(ch) = _is_alpha(ch) or ch in "0123456789"
+
+fn _is_hex(ch) = ch in "0123456789abcdefABCDEF"
+
+# RFC 7230 token characters (Go `httpguts.IsTokenRune`).
+fn _is_tchar(ch) = _is_alnum(ch) or ch in "!#\$%&'*+-.^_`|~"
+
+fn _is_token(s) = s != "" and all(chars(s), _is_tchar)
+
+# The control characters but tab, and DEL.
+fn _ctls() = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\u{a}", "\u{b}", "\u{c}", "\u{d}", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}", "\u{7f}"]
+
+# Go `httpguts.ValidHeaderFieldValue`.
+fn _valid_value(v) = not any(_ctls(), ch => ch in v)
+
+# Go `CanonicalMIMEHeaderKey`: "content-type" → "Content-Type"; a key
+# with a character that is not a token character stays as written.
+fn _canonical(k):
+  if not _is_token(k):
+    return k
+  ;;
+  (out, _) = fold(chars(k), ("", true), ((acc, up), ch) => (acc + (up then upper(ch) else lower(ch)), ch == "-"))
+  out
+;;
+
+# Go `strconv.Quote` for the texts URLs and headers hold.
+fn _quote(s) = "\"" + join(map(chars(s), _quote_char), "") + "\""
+
+fn _quote_char(ch) = ch < " " or ch == "\u{7f}" or ch == "\"" or ch == "\\" then _escape_char(ch) else ch
+
+fn _escape_char(ch) = match ch:
+  "\""    => "\\\""
+  "\\"    => "\\\\"
+  "\n"    => "\\n"
+  "\r"    => "\\r"
+  "\t"    => "\\t"
+  "\u{7}" => "\\a"
+  "\u{8}" => "\\b"
+  "\u{b}" => "\\v"
+  "\u{c}" => "\\f"
+  _       => "\\x" + _hex2(ch)
+;;
+
+fn _hex2(ch):
+  n = ch == "\u{7f}" then 127 else len(_before("\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}\u{8}\u{9}\u{a}\u{b}\u{c}\u{d}\u{e}\u{f}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1a}\u{1b}\u{1c}\u{1d}\u{1e}\u{1f}", ch))
+  "0123456789abcdef"[n // 16] + "0123456789abcdef"[n % 16]
+;;
+
+# Go's %q of a []string: ["a" "b"].
+fn _quote_list(xs) = "[" + join(map(xs, _quote), " ") + "]"
+
+# Go `strings.Cut`: (before, after) the first sep, (s, "") without one.
+fn _cut(s, sep) = sep in s then (split(s, sep)[0], join(drop(split(s, sep), 1), sep)) else (s, "")
+
+# What comes before the first sep (all of s without one).
+fn _before(s, sep) = split(s, sep)[0]
+
+fn _cut3(s, sep):
+  (a, b) = _cut(s, sep)
+  (a, b, false)
+;;
+
+# Character indexes of the first and the last sep, -1 without one.
+fn _index(s, sep) = sep in s then len(split(s, sep)[0]) else -1
+
+fn _last_index(s, sep) = sep in s then len(s) - len(split(s, sep)[-1]) - len(sep) else -1
+
+fn _trim_ows(s) = trim(s, " \t")
+
+# Go `textproto.TrimString`.
+fn _trim_space(s) = trim(s, " \t\r\n")
+
+# Only the left (or the right) end: `trim` cuts both, so a character
+# not in `cut` guards the other end.
+fn _trim_left(s, cut):
+  t = trim(s + "\u{1}", cut)
+  t[..len(t) - 1]
+;;
+
+fn _trim_right_ows(s) = trim("\u{1}" + s, " \t")[1..]

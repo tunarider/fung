@@ -310,6 +310,43 @@ fn byte_len_counts_utf8_bytes() {
     assert_eq!(out(&o), ("4 0\n", "", 0));
 }
 
+/// `utf8_bytes` gives what `write` would send, one int per byte (the
+/// `http` module percent-encodes URL paths with it).
+#[test]
+fn utf8_bytes_lists_the_bytes() {
+    let _g = serial();
+    let o =
+        run("print(net.utf8_bytes(\"한a\"), net.utf8_bytes(\"\"), net.utf8_bytes(\"\\u{0}~\"))");
+    assert_eq!(out(&o), ("[237, 149, 156, 97] [] [0, 126]\n", "", 0));
+}
+
+/// `need_str_map(name, m)` is Go's check of a header map: nil when every
+/// value is a str, else E0403 naming the first value that is not (in the
+/// map's order), at the user's call.
+#[test]
+fn need_str_map_checks_every_value() {
+    let _g = serial();
+    let o = run(
+        "print(net.need_str_map(\"headers\", {}), net.need_str_map(\"headers\", {a: \"1\", b: \"2\"}))",
+    );
+    assert_eq!(out(&o), ("nil nil\n", "", 0));
+    let o = run("print(1)\nnet.need_str_map(\"headers\", {a: \"1\", b: 2, c: nil})");
+    assert!(
+        o.err.starts_with(
+            "error[E0403]: argument `headers` must be a map of strings, got a map holding int\n"
+        ),
+        "{}",
+        o.err
+    );
+    let o = run("net.need_str_map(\"headers\", 1)");
+    assert!(
+        o.err
+            .starts_with("error[E0403]: argument `headers` must be map, got int\n"),
+        "{}",
+        o.err
+    );
+}
+
 /// The Go 1.27 texts (darwin; Linux has the same apart from the errno
 /// wording, which `oserr` covers): `dial tcp 127.0.0.1:1: connect:
 /// connection refused`, `dial tcp: lookup nosuchhost.invalid: no such
@@ -738,6 +775,11 @@ fn wrong_arguments_are_e0403() {
             "argument `c` must be conn, got int",
         ),
         ("net.byte_len(1)", "argument `s` must be str, got int"),
+        ("net.utf8_bytes(1)", "argument `s` must be str, got int"),
+        (
+            "net.need_str_map(1, {})",
+            "argument `name` must be str, got int",
+        ),
         ("net.take_body(1)", "argument `c` must be conn, got int"),
         (
             "net.read_bytes_into(1, 1, 1)",

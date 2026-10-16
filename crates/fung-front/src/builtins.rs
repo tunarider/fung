@@ -58,6 +58,10 @@ const RUST_MODULE_MEMBERS: &[(&str, &str)] = &[
     ("_native.net", "byte_len(s)"),
     ("_native.net", "read_bytes_into(c, n, cap)"),
     ("_native.net", "take_body(c)"),
+    // Task 3: what fung cannot do itself (a string's bytes, raising
+    // Go's E0403 for a header map).
+    ("_native.net", "utf8_bytes(s)"),
+    ("_native.net", "need_str_map(name, m)"),
 ];
 
 /// Built-in names by layer. Every list is sorted.

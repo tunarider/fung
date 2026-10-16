@@ -82,6 +82,10 @@ impl Runtime {
         self.lock().register_native(key, module);
     }
 
+    pub(crate) fn register_unsupported(&self, key: &str) {
+        self.lock().register_unsupported(key);
+    }
+
     /// Registers the loaded entry as the module `key`.
     pub(crate) fn register_main_as(&self, key: &str) {
         let mut w = self.lock();

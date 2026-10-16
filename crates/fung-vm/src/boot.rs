@@ -147,11 +147,11 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
     }
 }
 
-/// The standard modules stage 2 does not run: each is a thin fung file
-/// over a `_native.*` bridge the Rust port does not have yet. `cli` is
-/// pure fung and is not among them.
-pub fn unsupported_module(key: &str) -> bool {
-    matches!(key, "http")
+/// The standard modules the Rust port does not run (E0805 at their
+/// import). None since stage 4d wrote `http` in fung; the mechanism
+/// stays for Task 5 to keep or remove.
+pub fn unsupported_module(_key: &str) -> bool {
+    false
 }
 
 /// Makes a program's modules importable (Go `register`): compiled modules

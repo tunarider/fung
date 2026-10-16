@@ -466,39 +466,3 @@ fn concurrent_runs_are_stable() {
         start.elapsed()
     );
 }
-
-/// The native bridge modules are not part of the Rust port yet: Go runs
-/// them, the Rust port reports E0805 at the import the program wrote,
-/// also when the import is inside a module the entry imports.
-#[test]
-fn native_modules_are_not_supported_yet() {
-    let o = std::process::Command::new(rust_fung())
-        .args(["-e", "import http\nprint(1)"])
-        .output()
-        .unwrap();
-    assert_eq!(String::from_utf8_lossy(&o.stdout), "");
-    assert_eq!(
-        String::from_utf8_lossy(&o.stderr),
-        "error[E0805]: not supported yet: http\n  --> -e:1:1\n  |\n1 | import http\n  | ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
-    );
-    assert_eq!(o.status.code(), Some(1));
-
-    let dir = std::env::temp_dir().join(format!("fung-native-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("lib.fung"), "import http\nfn f() = 1\n").unwrap();
-    std::fs::write(dir.join("main.fung"), "import \"./lib\"\nprint(lib.f())\n").unwrap();
-    let o = std::process::Command::new(rust_fung())
-        .arg("run")
-        .arg(dir.join("main.fung"))
-        .output()
-        .unwrap();
-    let _ = std::fs::remove_dir_all(&dir);
-    let err = String::from_utf8_lossy(&o.stderr);
-    assert_eq!(String::from_utf8_lossy(&o.stdout), "");
-    assert!(
-        err.starts_with("error[E0805]: not supported yet: http\n  --> ")
-            && err.contains("lib.fung:1:1\n"),
-        "{err}"
-    );
-    assert_eq!(o.status.code(), Some(1));
-}

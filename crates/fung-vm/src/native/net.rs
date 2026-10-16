@@ -126,6 +126,18 @@ pub fn module() -> Rc<Module> {
                 "take_body",
                 native("take_body", take_body_fn, vec![param("c")]),
             ),
+            (
+                "utf8_bytes",
+                native("utf8_bytes", utf8_bytes_fn, vec![param("s")]),
+            ),
+            (
+                "need_str_map",
+                native(
+                    "need_str_map",
+                    need_str_map_fn,
+                    vec![param("name"), param("m")],
+                ),
+            ),
         ]
     });
     let mut m = Module::new("net", "_native.net");
@@ -981,6 +993,37 @@ fn set_deadline_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 fn byte_len_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let s = nat::need_str("s", &a[0])?;
     Ok(Value::Int(s.len() as i64))
+}
+
+/// `utf8_bytes(s)`: the bytes `write` would send for `s`, as ints. fung
+/// sees strings as characters only; the `http` module needs the bytes to
+/// percent-encode a URL path (Go `url.URL.EscapedPath`).
+fn utf8_bytes_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let s = nat::need_str("s", &a[0])?;
+    Ok(nat::list(
+        s.bytes().map(|b| Value::Int(i64::from(b))).collect(),
+    ))
+}
+
+/// `need_str_map(name, m)`: `nil`, or E0403 when `m` is not a map or a
+/// value of it is not a str (the first one, in the map's order): Go
+/// `http`'s check of a header map, which fung code cannot raise itself.
+fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let name = nat::need_str("name", &a[0])?;
+    let Value::Map(m) = &a[1] else {
+        return Err(nat::wrong_arg(name, "map", &a[1]));
+    };
+    if let Some((_, v)) = m.iter().find(|(_, v)| !matches!(v, Value::Str(_))) {
+        return Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s(name),
+                nat::s("a map of strings"),
+                fung_front::diag::Arg::Str(format!("a map holding {}", crate::value::type_name(v))),
+            ],
+        ));
+    }
+    Ok(Value::Nil)
 }
 
 /// Test probes: the counters, and a gate that holds lookups of
