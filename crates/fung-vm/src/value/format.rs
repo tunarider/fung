@@ -14,6 +14,7 @@ pub fn format(v: &Value) -> String {
         Value::Str(s) => quote_str(s),
         Value::Sym(s) => format!("'{}", s.name()),
         Value::Dur(d) => format_dur(*d),
+        Value::Time(t) => t.iso(),
         Value::Tuple(items) => {
             if items.len() == 1 {
                 format!("({},)", format(&items[0]))
@@ -90,6 +91,7 @@ pub fn type_name(v: &Value) -> String {
         Value::Str(_) => "str".into(),
         Value::Sym(_) => "sym".into(),
         Value::Dur(_) => "dur".into(),
+        Value::Time(_) => "time".into(),
         Value::List(_) => "list".into(),
         Value::Map(_) => "map".into(),
         Value::Tuple(_) => "tuple".into(),

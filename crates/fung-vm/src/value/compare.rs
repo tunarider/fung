@@ -20,6 +20,7 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Str(x), Value::Str(y)) => x == y,
         (Value::Sym(x), Value::Sym(y)) => x == y,
         (Value::Dur(x), Value::Dur(y)) => x == y,
+        (Value::Time(x), Value::Time(y)) => x.equal(y),
         (Value::Tuple(x), Value::Tuple(y)) => equal_items(x.iter(), x.len(), y.iter(), y.len()),
         (Value::List(x), Value::List(y)) => equal_items(x.iter(), x.len(), y.iter(), y.len()),
         (Value::Tag(x), Value::Tag(y)) => {
@@ -54,7 +55,7 @@ fn equal_items<'a>(
     an == bn && a.zip(b).all(|(x, y)| equal(x, y))
 }
 
-/// `< > <= >=` for numbers, strings (code point order), durations, lists
+/// `< > <= >=` for numbers, strings (code point order), durations, times, lists
 /// and tuples. Anything else is E0501.
 pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
     match (a, b) {
@@ -65,6 +66,7 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
         // Rust compares UTF-8 bytes, which orders the same as code points.
         (Value::Str(x), Value::Str(y)) => Ok(x.as_str().cmp(y.as_str())),
         (Value::Dur(x), Value::Dur(y)) => Ok(x.cmp(y)),
+        (Value::Time(x), Value::Time(y)) => Ok(x.cmp_instant(y)),
         (Value::Tuple(x), Value::Tuple(y)) => {
             compare_items(x.iter(), x.len(), y.iter(), y.len()).ok_or_else(|| compare_error(a, b))
         }

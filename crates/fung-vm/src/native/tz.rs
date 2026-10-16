@@ -47,7 +47,7 @@ const OMEGA: i64 = i64::MAX;
 
 const SECONDS_PER_MINUTE: i64 = 60;
 const SECONDS_PER_HOUR: i64 = 60 * SECONDS_PER_MINUTE;
-const SECONDS_PER_DAY: i64 = 24 * SECONDS_PER_HOUR;
+pub(crate) const SECONDS_PER_DAY: i64 = 24 * SECONDS_PER_HOUR;
 
 /// Days from March 1 through the end of the year.
 const MARCH_THRU_DECEMBER: i64 = 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31;
@@ -58,12 +58,13 @@ const ABSOLUTE_TO_INTERNAL: i64 =
     -((ABSOLUTE_YEARS as i64 / 400 * 146097 + MARCH_THRU_DECEMBER) * SECONDS_PER_DAY);
 const INTERNAL_TO_ABSOLUTE: i64 = -ABSOLUTE_TO_INTERNAL;
 /// Go's `unixToInternal`: seconds from January 1, year 1 to the Unix epoch.
-const UNIX_TO_INTERNAL: i64 = (1969 * 365 + 1969 / 4 - 1969 / 100 + 1969 / 400) * SECONDS_PER_DAY;
-const INTERNAL_TO_UNIX: i64 = -UNIX_TO_INTERNAL;
+pub(crate) const UNIX_TO_INTERNAL: i64 =
+    (1969 * 365 + 1969 / 4 - 1969 / 100 + 1969 / 400) * SECONDS_PER_DAY;
+pub(crate) const INTERNAL_TO_UNIX: i64 = -UNIX_TO_INTERNAL;
 /// Go's `absoluteToUnix`.
 const ABSOLUTE_TO_UNIX: i64 = ABSOLUTE_TO_INTERNAL + INTERNAL_TO_UNIX;
 /// Go's `unixToAbsolute`.
-const UNIX_TO_ABSOLUTE: i64 = UNIX_TO_INTERNAL + INTERNAL_TO_ABSOLUTE;
+pub(crate) const UNIX_TO_ABSOLUTE: i64 = UNIX_TO_INTERNAL + INTERNAL_TO_ABSOLUTE;
 
 impl Zone {
     /// Go's `UTC` location (no zone types: every lookup is `UTC`, offset 0).
@@ -170,6 +171,7 @@ impl Zone {
     /// hour later in UTC terms than read with the new offset, and a repeated
     /// time (01:30 on a fall-back day) takes the first, DST occurrence.
     #[allow(clippy::too_many_arguments)]
+    #[allow(dead_code)] // `time.parse` (next in stage 4b) uses it
     pub(crate) fn date(
         &self,
         year: i64,
@@ -274,6 +276,19 @@ pub(crate) fn year_yday(days: u64) -> (i64, i64) {
     let leap = i64::from(cyear % 4 == 0 && (cyear != 0 || century % 4 == 0));
     let yday = i64::from(ayday) + (1 + 31 + 28) + (leap & !jan_feb) - 365 * jan_feb;
     (year, yday)
+}
+
+/// Go `absDays.date`: the standard year, month (1-based) and day.
+pub(crate) fn abs_date(days: u64) -> (i64, i64, i64) {
+    let (century, cyear, ayday) = split_days(days);
+    // Go `absYday.split`.
+    let d = 2141 * ayday + 197913;
+    let (amonth, mday) = (i64::from(d >> 16), 1 + i64::from((d & 0xFFFF) / 2141));
+    let jan_feb = i64::from(i64::from(ayday) >= MARCH_THRU_DECEMBER);
+    let year = (century.wrapping_mul(100).wrapping_sub(ABSOLUTE_YEARS) as i64)
+        .wrapping_add(i64::from(cyear))
+        .wrapping_add(jan_feb);
+    (year, amonth - 12 * jan_feb, mday)
 }
 
 /// Go `isLeap`.
@@ -845,7 +860,9 @@ fn load_from(name: &[u8], sources: &[&str]) -> Option<Zone> {
 }
 
 /// The zone `name` (`"Asia/Seoul"`) from the system zone directories, as
-/// Go's `initLocal` loads a relative `TZ`.
+/// Go's `initLocal` loads a relative `TZ`. fung itself only uses the local
+/// zone, so only tests load one by name.
+#[cfg(test)]
 pub(crate) fn load(name: &str) -> Option<Zone> {
     load_from(name.as_bytes(), PLATFORM_ZONE_SOURCES)
 }

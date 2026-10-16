@@ -4,6 +4,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::{FileId, Pos};
 
 use super::dur::{add_dur, div_dur, scale_dur, sub_dur};
+use super::time::{add_time_dur, sub_times};
 use super::{Value, type_name};
 
 /// A position-less location; the VM fills the real one in with `with_pos`.
@@ -73,6 +74,9 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             return Ok(Value::Str(s.into()));
         }
         (Value::Dur(x), Value::Dur(y)) => return add_dur(*x, *y),
+        (Value::Time(t), Value::Dur(d)) | (Value::Dur(d), Value::Time(t)) => {
+            return add_time_dur(t, *d);
+        }
         (Value::List(x), Value::List(y)) => {
             // An empty side returns the other operand itself, as Go does.
             if y.is_empty() {
@@ -83,7 +87,7 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             }
             return Ok(Value::List(Rc::new(x.concat(y))));
         }
-        (Value::Str(_) | Value::Dur(_) | Value::List(_), _) => {
+        (Value::Str(_) | Value::Dur(_) | Value::List(_) | Value::Time(_), _) => {
             return Err(type_error("add", &type_name(a), &type_name(b)));
         }
         _ => {}
@@ -95,6 +99,15 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
 }
 
 pub fn sub(a: &Value, b: &Value) -> Result<Value, Diag> {
+    if let Value::Time(x) = a {
+        return match b {
+            // Go negates `b` first, so the minimum overflows.
+            Value::Dur(i64::MIN) => Err(overflow()),
+            Value::Dur(y) => add_time_dur(x, -y),
+            Value::Time(y) => sub_times(x, y),
+            _ => Err(type_error("subtract", &type_name(a), &type_name(b))),
+        };
+    }
     if let Value::Dur(x) = a {
         return match b {
             Value::Dur(y) => sub_dur(*x, *y),

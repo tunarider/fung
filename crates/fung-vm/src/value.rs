@@ -14,6 +14,7 @@ mod omap;
 mod pvec;
 mod release;
 mod sym;
+mod time;
 mod types;
 
 use std::cell::RefCell;
@@ -29,6 +30,9 @@ pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
 pub(crate) use release::{drop_children, keep};
 pub use sym::{Sym, intern};
+#[allow(unused_imports)] // `_native.time` (next in stage 4b) uses it
+pub(crate) use time::Loc;
+pub use time::Time;
 pub use types::matches_type;
 
 /// A fung value. Every pointer is a thin `Rc`, so a value is 16 bytes.
@@ -60,6 +64,8 @@ pub enum Value {
     /// An open file handle (`fs.open`); it closes the file when its last
     /// copy drops (`native/file.rs`).
     File(Rc<File>),
+    /// An instant with its zone (02, `time`).
+    Time(Rc<Time>),
     /// An error `_native.conc.try_call` caught, for `raise` (stage 3b,
     /// Rust only; only `extras/rust/agent.fung` handles one).
     Caught(Rc<Caught>),
@@ -314,3 +320,5 @@ mod map_tests;
 mod tests;
 #[cfg(test)]
 mod testutil;
+#[cfg(test)]
+mod time_tests;
