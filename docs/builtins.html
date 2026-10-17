@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>내장 함수 — fung 매뉴얼</title>
-<meta name="description" content="fung의 prelude 함수와 표준 모듈(fs, path, cli, json, time, regex, http) 참조.">
+<meta name="description" content="fung의 prelude 함수와 표준 모듈(fs, path, cli, json, time, regex, http, conc) 참조.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="fung">
 <meta property="og:title" content="내장 함수 — fung 매뉴얼">
-<meta property="og:description" content="fung의 prelude 함수와 표준 모듈(fs, path, cli, json, time, regex, http) 참조.">
+<meta property="og:description" content="fung의 prelude 함수와 표준 모듈(fs, path, cli, json, time, regex, http, conc) 참조.">
 <meta property="og:url" content="https://blog.tunarider.net/fung/builtins.html">
 <meta property="og:image" content="https://blog.tunarider.net/fung/assets/logo/social-preview-light.png">
 <meta property="og:image:width" content="1280">
@@ -50,6 +50,7 @@
           <li><a href="#time">time</a></li>
           <li><a href="#regex">regex</a></li>
           <li><a href="#http">http</a></li>
+          <li><a href="#conc">conc</a></li>
         </ol>
       </li>
       <li><a href="internals.html">내부 구조</a></li>
@@ -61,7 +62,7 @@
 <main>
 <div class="col">
 <h1>내장 함수</h1>
-<p class="lede">import 없이 쓰는 prelude와, 이름으로 가져오는 표준 모듈. 모든 서명은 실제 매개변수 표에서 뽑았다.</p>
+<p class="lede">import 없이 쓰는 prelude와, 이름으로 가져오는 표준 모듈. 모든 서명은 Rust 구현의 실제 매개변수 표와 맞춰 본다(테스트가 지킨다).</p>
 
 <h2 id="reading">읽는 법</h2>
 <ul>
@@ -69,7 +70,7 @@
   <li>모든 함수는 "대상이 첫 번째 인자"라서 파이프로 이어진다: <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같다(<a href="syntax.html#pipe">파이프</a>).</li>
   <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code>.</li>
   <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러(E0403)다.</li>
-  <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Go로 구현했다(<a href="internals.html#layers">네 층</a>).</li>
+  <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="internals.html#layers">네 층</a>).</li>
 </ul>
 
 <div class="filter">
@@ -91,7 +92,7 @@
   <p><code>print</code>와 같지만 표준 에러에 쓴다.</p>
 </div>
 <div class="fn" id="fn-read_line"><code>read_line(f = nil)</code>
-  <p>한 줄을 읽어 <code>Ok(줄)</code>, 끝이면 <code>Ok(nil)</code>. 줄 끝의 <code>\n</code>·<code>\r</code>는 뗀다. <code>f</code>가 <code>nil</code>이면 표준 입력, 파일 핸들이면 그 파일. 닫힌 핸들이면 <code>Err({kind: 'closed})</code>.</p>
+  <p>한 줄을 읽어 <code>Ok(줄)</code>, 끝이면 <code>Ok(nil)</code>. 줄 끝의 <code>\n</code>·<code>\r</code>는 뗀다. <code>f</code>가 <code>nil</code>이면 표준 입력, 파일 핸들이면 그 파일. 닫힌 핸들이면 <code>Err({kind: 'closed})</code>. UTF-8이 아닌 바이트는 바이트마다 U+FFFD(<code>�</code>)로 바뀐다.</p>
 </div>
 <div class="fn" id="fn-read_lines"><code>read_lines(f = nil)</code>
   <p>남은 줄 전부를 <code>Ok(리스트)</code>로. 규칙은 <code>read_line</code>과 같다.</p>
@@ -104,7 +105,7 @@
 <h3>타입과 변환</h3>
 <p><code>int</code>·<code>float</code>·<code>str</code>·<code>sym</code>은 잘못된 입력에 런타임 에러를 낸다(코드가 틀린 것으로 본다). 믿을 수 없는 입력은 <code>parse_*</code>로 검사한다.</p>
 <div class="fn" id="fn-type_of"><code>type_of(x)</code>
-  <p>값의 타입 이름을 심볼로: <code>'int</code> <code>'str</code> <code>'list</code> <code>'map</code> <code>'fn</code> …, 태그 값이면 태그 이름(<code>'Ok</code>, <code>'Circle</code>).</p>
+  <p>값의 타입 이름을 심볼로: <code>'int</code> <code>'str</code> <code>'list</code> <code>'map</code> <code>'fn</code> <code>'agent</code> …, 태그 값이면 태그 이름(<code>'Ok</code>, <code>'Circle</code>).</p>
   <pre><code>print(type_of(1.5), type_of(Ok(1)), type_of(&#x27;x))</code></pre>
 </div>
 <div class="fn" id="fn-int"><code>int(x)</code>
@@ -134,7 +135,7 @@
 </section>
 <section class="group" id="collections">
 <h3>컬렉션</h3>
-<p>리스트를 받는 함수는 범위와 채널(닫힐 때까지 받는다)도 받는다. 원소를 도는 함수는 Go로, 그 위의 조합은 fung으로 썼다.</p>
+<p>리스트를 받는 함수는 범위와 채널(닫힐 때까지 받는다)도 받는다. 원소를 도는 함수는 Rust로, 그 위의 조합은 fung으로 썼다.</p>
 <div class="fn" id="fn-len"><code>len(x)</code>
   <p>문자열(글자 수), 리스트, 맵, 튜플, 범위의 길이.</p>
   <pre><code>print(len(&quot;참치&quot;), len([1, 2]), len(0..10))</code></pre>
@@ -309,9 +310,6 @@
 <div class="fn" id="fn-iterate"><code>iterate(x, f, n)</code><span class="by">fung으로 작성</span>
   <p><code>f</code>를 <code>n</code>번 적용한 값.</p>
 </div>
-<div class="fn" id="fn-retry"><code>retry(f, times = 3, delay = 0ms)</code><span class="by">fung으로 작성</span>
-  <p><code>f()</code>가 <code>Ok</code>를 돌려줄 때까지 최대 <code>times</code>번, 사이에 <code>delay</code>만큼 쉬며 부른다. 모두 실패하면 마지막 <code>Err</code>.</p>
-</div>
 </section>
 <section class="group" id="program">
 <h3>에러와 종료</h3>
@@ -347,9 +345,9 @@ print(port)</code></pre>
 </section>
 <section class="group" id="concurrency">
 <h3>동시성</h3>
-<p>태스크는 고루틴 위에서 돈다. 값은 불변이라 태스크 사이에 그냥 넘긴다. 바뀌는 상자는 <code>atom</code>뿐이다.</p>
+<p>태스크마다 운영체제 스레드가 하나 붙고, fung 코드는 실행권을 쥔 스레드 하나만 돌린다(<a href="internals.html#concurrency">런타임</a>). 값은 불변이라 태스크 사이에 그냥 넘긴다. 태스크 사이의 상태는 채널이나 <code>agent</code>로 나눈다. 병렬 <code>map</code> 같은 도우미는 <a href="#conc"><code>conc</code> 모듈</a>에 있다.</p>
 <div class="fn" id="fn-spawn"><code>spawn(f)</code>
-  <p><code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 취소는 자식 태스크에 전파된다. 태스크가 실패했는데 그 결과를 끝내 아무도 <code>await</code>하지 않으면 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다. 보고 시점은 핸들이 버려져 GC가 알아챌 때나 프로그램이 끝날 때다. 핸들을 들고 있는 한 나중에 <code>await</code>해도 된다.</p>
+  <p><code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 취소는 자식 태스크에 전파된다. 태스크가 실패했는데 그 결과를 끝내 아무도 <code>await</code>하지 않으면 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다. 보고 시점은 핸들의 마지막 사본이 사라질 때(이미 실패했으면 그 순간, 아니면 실패하는 순간)나 프로그램이 끝날 때다. 핸들을 들고 있는 한 나중에 <code>await</code>해도 된다.</p>
 </div>
 <div class="fn" id="fn-await"><code>await(t, timeout = nil)</code>
   <p>태스크의 결과. 정상 종료면 반환값, 런타임 에러로 죽었으면 <code>Err({kind: 'error, message})</code>, 취소됐으면 <code>Err('cancelled)</code>, 시간이 지나면 <code>Err('timeout)</code>. 여러 번 불러도 같은 결과.</p>
@@ -363,7 +361,7 @@ print(await(t))</code></pre>
   <p>채널. <code>n</code>은 버퍼 크기이고, 0이면 받는 쪽이 있을 때까지 <code>send</code>가 막힌다. <code>for</code>와 <code>map</code> 등으로 닫힐 때까지 순회할 수 있다.</p>
 </div>
 <div class="fn" id="fn-send"><code>send(ch, v)</code>
-  <p><code>Ok(nil)</code>, 닫혔으면 <code>Err('closed)</code>.</p>
+  <p><code>Ok(nil)</code>, 닫혔으면 <code>Err('closed)</code>. 채널에 그 채널 자신을 보내면(<code>v</code> 안 어디에 들어 있어도) 런타임 에러 E0705다. 메모리를 참조 계수로 회수하므로 자기 자신을 담은 채널은 해제되지 않기 때문이다. 그래서 <code>send</code>는 보내는 값을 훑고, 비용은 값의 크기에 비례한다.</p>
 </div>
 <div class="fn" id="fn-recv"><code>recv(ch, timeout = nil)</code>
   <p><code>Ok(v)</code>, 닫혔으면 <code>Err('closed)</code>, 시간이 지나면 <code>Err('timeout)</code>.</p>
@@ -372,36 +370,30 @@ send(ch, &quot;hi&quot;)
 print(recv(ch)!)</code></pre>
 </div>
 <div class="fn" id="fn-close"><code>close(ch)</code>
-  <p>채널을 닫는다.</p>
+  <p>채널을 닫는다. 파일 핸들은 <code>fs.close</code>로 닫는다(이름이 같지만 다른 함수다).</p>
 </div>
-<div class="fn" id="fn-atom"><code>atom(v)</code>
-  <p>바꿀 수 있는 상자.</p>
+<div class="fn" id="fn-agent"><code>agent(v)</code><span class="by">fung으로 작성</span>
+  <p>상태 <code>v</code>를 쥔 <b>에이전트</b>를 만든다. 에이전트는 상태를 지역 변수로 들고 채널로 요청을 받는 배경 태스크이고, 돌려주는 값은 그 핸들이다. 요청은 받은 순서대로 하나씩 처리하므로 자물쇠가 필요 없다. 핸들의 마지막 사본이 사라지면 에이전트도 끝난다. 에이전트는 프로그램이 끝나기를 막지 않고, <code>at_exit</code> 핸들러에서도 쓸 수 있다. 출력은 <code>&lt;agent&gt;</code>, <code>type_of</code>는 <code>'agent</code>, 타입 표기는 <code>a: agent</code>, <code>==</code>는 같은 에이전트인지.</p>
+  <p class="note">에이전트마다 운영체제 스레드가 하나라서, 살아 있는 에이전트 수천 개는 스레드 한도에 걸려 <code>E0801 cannot start a task</code>로 끝난다. 값마다 칸을 두지 말고 에이전트 하나에 맵으로 모은다.</p>
 </div>
-<div class="fn" id="fn-swap"><code>swap(a, f)</code>
-  <p>잠금 아래서 <code>f(현재 값)</code>을 정확히 한 번 실행해 새 값으로 바꾸고 그 값을 돌려준다. <code>f</code> 안에서 같은 atom을 <code>swap</code>하면 E0703.</p>
-  <pre><code>hits = atom(0)
+<div class="fn" id="fn-swap"><code>swap(a, f)</code><span class="by">fung으로 작성</span>
+  <p>에이전트의 태스크에서 <code>f(현재 값)</code>을 돌려 상태를 바꾸고 새 값을 돌려준다. <code>f</code>가 실패하면 상태는 그대로이고 같은 에러가 <code>swap(</code>을 부른 자리에서 난다. <code>f</code> 안의 <code>exit(n)</code>은 부른 쪽의 <code>exit(n)</code>이 된다. 부른 태스크가 취소되면 <code>f</code>도 취소되고 바꾸지 않는다. <code>f</code> 안(과 <code>f</code>가 띄운 태스크)에서 같은 에이전트에 <code>swap</code>하면 E0704, <code>deref</code>는 기다리지 않고 바꾸기 전 값이다. 다른 에이전트를 겹쳐 쓰다 서로 기다리게 되면 교착(E0702)이다.</p>
+  <pre><code>hits = agent(0)
 each(1..=3, _ =&gt; swap(hits, n =&gt; n + 1))
 print(deref(hits))</code></pre>
 </div>
-<div class="fn" id="fn-deref"><code>deref(a)</code>
-  <p>현재 값.</p>
+<div class="fn" id="fn-deref"><code>deref(a)</code><span class="by">fung으로 작성</span>
+  <p>현재 상태. 에이전트에 물어 답을 기다린다.</p>
 </div>
 <div class="fn" id="fn-sleep"><code>sleep(d)</code>
   <p>기간만큼 기다린다. 취소되면 깨어난다.</p>
-</div>
-<div class="fn" id="fn-pmap"><code>pmap(xs, f, limit = 0)</code><span class="by">fung으로 작성</span>
-  <p>병렬 <code>map</code>. <code>limit</code>은 동시에 도는 태스크 수(0은 제한 없음). 결과 순서는 입력 순서.</p>
-  <pre><code>print(pmap([1, 2, 3], x =&gt; x * x, limit: 2))</code></pre>
-</div>
-<div class="fn" id="fn-fan_in"><code>fan_in(chs)</code><span class="by">fung으로 작성</span>
-  <p>여러 채널을 하나로 모은 채널. 모두 닫히면 닫힌다.</p>
 </div>
 </section>
 <h2 id="modules">모듈</h2>
 <p>표준 모듈은 이름으로 가져온다: <code>import fs</code>. 모두 실행 파일에 들어 있다.</p>
 <section class="group" id="fs">
 <h3>fs — 파일과 디렉터리</h3>
-<p><code>import fs</code>. 실패할 수 있는 연산은 <code>Ok</code>/<code>Err</code>를 돌려주고, <code>Err</code>의 <code>kind</code>는 <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> 중 하나다.</p>
+<p><code>import fs</code>. 실패할 수 있는 연산은 <code>Ok</code>/<code>Err</code>를 돌려주고, <code>Err</code>의 <code>kind</code>는 <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> 중 하나다. 파일 내용의 UTF-8이 아닌 바이트는 바이트마다 U+FFFD로 바뀐다. <code>fs.remove</code>·<code>fs.close</code>는 prelude의 <code>remove</code>(맵에서 키 빼기)·<code>close</code>(채널 닫기)와 이름만 같은 다른 함수다.</p>
 <div class="fn" id="fn-fs-read"><code>fs.read(path)</code>
   <p>파일 전체를 <code>Ok(문자열)</code>로.</p>
 </div>
@@ -448,7 +440,7 @@ print(deref(hits))</code></pre>
   <p>파일 핸들을 <code>Ok(file)</code>로. <code>mode</code>는 <code>'read</code> <code>'write</code> <code>'append</code>. 핸들은 태스크 사이에 공유해도 연산 단위로 직렬화된다.</p>
 </div>
 <div class="fn" id="fn-fs-close"><code>fs.close(f)</code>
-  <p>닫는다. 닫힌 핸들에 읽고 쓰면 <code>Err('closed)</code>.</p>
+  <p>닫는다(쓴 내용을 비운다). 닫힌 핸들에 읽고 쓰면 <code>Err('closed)</code>. 닫지 않은 핸들은 마지막 사본이 사라질 때 닫히지만, 그때는 버퍼에 남은 쓰기를 비우지 않는다.</p>
 </div>
 <div class="fn" id="fn-fs-write_line"><code>fs.write_line(f, line)</code>
   <p>핸들에 한 줄 쓴다.</p>
@@ -498,7 +490,7 @@ print(opts.flags.dry_run, int(opts.flags.n), opts.rest)</code></pre>
 </section>
 <section class="group" id="json">
 <h3>json — JSON</h3>
-<p><code>import json</code>. 파서는 성능 때문에 Go로 썼다.</p>
+<p><code>import json</code>. 파서는 성능 때문에 Rust로 썼다.</p>
 <div class="fn" id="fn-json-parse"><code>json.parse(s)</code>
   <p><code>Ok(값)</code> 또는 <code>Err({kind: 'parse, line, col, message})</code>. 객체는 키 순서를 지키는 맵, 소수점·지수 없는 숫자는 정수(int64를 넘으면 <code>Err</code>), 그 외 숫자는 실수, <code>null</code>은 <code>nil</code>.</p>
   <pre><code>import json
@@ -506,7 +498,7 @@ data = json.parse(`{&quot;name&quot;: &quot;fung&quot;, &quot;tags&quot;: [&quot
 print(data.name, data.tags, data.n + 1)</code></pre>
 </div>
 <div class="fn" id="fn-json-stringify"><code>json.stringify(v, indent = nil)</code>
-  <p>JSON 문자열. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. 기간·함수·태그 등은 런타임 에러(E0513). <code>indent</code>는 들여쓰기 칸 수. HTML 이스케이프는 하지 않는다.</p>
+  <p>JSON 문자열. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. 기간·함수·태그·채널·에이전트 등은 런타임 에러(E0513). <code>indent</code>는 들여쓰기 칸 수. HTML 이스케이프는 하지 않는다.</p>
   <pre><code>import json
 print(json.stringify({ok: true, ids: (1, 2), at: &#x27;now}))</code></pre>
 </div>
@@ -515,7 +507,7 @@ print(json.stringify({ok: true, ids: (1, 2), at: &#x27;now}))</code></pre>
 <h3>time — 시각</h3>
 <p><code>import time</code>. 시각은 언어의 값 타입이라 <code>==</code>, <code>&lt;</code>, <code>t + 1h</code>, <code>t2 - t1</code>(기간)이 바로 된다.</p>
 <div class="fn" id="fn-time-now"><code>time.now()</code>
-  <p>현재 시각(로컬 시간대).</p>
+  <p>현재 시각(로컬 시간대). 단조 시계를 싣지 않으므로, 두 <code>now()</code> 사이에 시스템 시각이 바뀌면(NTP 보정 등) 그 차이로 잰 경과 시간이 틀릴 수 있다.</p>
 </div>
 <div class="fn" id="fn-time-parse"><code>time.parse(s, format = nil)</code>
   <p><code>Ok(time)</code> 또는 <code>Err('parse)</code>. 형식이 없으면 ISO 8601(RFC 3339). 범위를 넘는 값(13월, 2월 30일)은 <code>Err</code>.</p>
@@ -544,7 +536,7 @@ print(time.format(t + 90m, &quot;HH:mm&quot;))</code></pre>
 </section>
 <section class="group" id="regex">
 <h3>regex — 정규식</h3>
-<p><code>import regex</code>. Go의 RE2 문법이다: 역참조와 전후방 탐색이 없는 대신 항상 선형 시간에 돈다. 위치는 글자 단위 인덱스이고, 잘못된 패턴은 런타임 에러(E0515)다. 컴파일한 패턴은 캐시된다.</p>
+<p><code>import regex</code>. RE2 문법이다(Go <code>regexp/syntax</code>를 옮긴 해석기가 문법을 정한다): 역참조와 전후방 탐색이 없는 대신 항상 선형 시간에 돈다. 위치는 글자 단위 인덱스이고, 잘못된 패턴은 런타임 에러(E0515)다. 컴파일한 패턴은 캐시된다.</p>
 <div class="fn" id="fn-regex-is_match"><code>regex.is_match(s, pat)</code>
   <p>맞는 곳이 있으면 <code>true</code>. (<code>match</code>는 예약어라 이 이름이다.)</p>
 </div>
@@ -568,26 +560,53 @@ print(regex.replace(&quot;2026-10-04&quot;, `(\d+)-(\d+)-(\d+)`, &quot;$3/$2/$1&
 </section>
 <section class="group" id="http">
 <h3>http — HTTP</h3>
-<p><code>import http</code>. 응답을 받았으면 상태 코드와 무관하게 <code>Ok</code>다(404도 <code>Ok</code>). 전송 실패는 <code>Err('network)</code>, 시간 초과는 <code>Err('timeout)</code>. 응답 헤더 키는 소문자다.</p>
-<div class="fn" id="fn-http-get"><code>http.get(url, headers = {}, timeout = 30s)</code>
-  <p><code>Ok({status, headers, body})</code>. <code>timeout</code>이 <code>0s</code>면 제한 없음.</p>
+<p><code>import http</code>. 소켓·TLS 원시 기능 위에 HTTP/1.1을 fung으로 썼다. 응답을 받았으면 상태 코드와 무관하게 <code>Ok</code>다(404도 <code>Ok</code>). 전송 실패는 <code>Err('network)</code>, 시간 초과는 <code>Err('timeout)</code>. 에러 문구는 <code>cannot request `URL`: 이유</code>. 응답 헤더 키는 소문자이고, 같은 이름이 여럿이면 <code>", "</code>로 잇는다. 취소되면 E0701.</p>
+<div class="fn" id="fn-http-get"><code>http.get(url, headers = {}, timeout = 30s)</code><span class="by">fung으로 작성</span>
+  <p><code>Ok({status, headers, body})</code>. <code>timeout</code>은 리다이렉트까지 포함한 요청 전체의 한도이고, <code>0s</code>면 제한 없음.</p>
   <pre class="frag"><code>import http
 r = http.get(&quot;https://example.com&quot;)!
 print(r.status, r.headers[&quot;content-type&quot;])</code></pre>
 </div>
-<div class="fn" id="fn-http-post"><code>http.post(url, body, headers = {}, timeout = 30s)</code>
+<div class="fn" id="fn-http-post"><code>http.post(url, body, headers = {}, timeout = 30s)</code><span class="by">fung으로 작성</span>
   <p>본문은 문자열(JSON은 <code>json.stringify</code>로).</p>
 </div>
-<div class="fn" id="fn-http-request"><code>http.request(method, url, body = nil, headers = {}, timeout = 30s)</code>
+<div class="fn" id="fn-http-request"><code>http.request(method, url, body = nil, headers = {}, timeout = 30s)</code><span class="by">fung으로 작성</span>
   <p>임의의 메서드.</p>
 </div>
-<div class="fn" id="fn-http-serve"><code>http.serve(addr, handler, ready = nil)</code>
-  <p><code>addr</code>(<code>":8080"</code>)에서 요청을 받으며 막힌다. 요청마다 새 태스크에서 <code>handler(req)</code>를 부른다. <code>req</code>는 <code>{method, path, query, headers, body}</code>, 응답은 문자열(200) 또는 <code>{status = 200, headers = {}, body = ""}</code>. 핸들러 에러는 500으로 답하고 서버는 계속 돈다. 끝내려면 서버 태스크를 <code>cancel</code>한다. <code>ready</code>는 리스닝 직후 실제 주소로 한 번 불린다(<code>":0"</code>의 포트를 아는 방법). 헤더는 10초 안에 와야 하고 본문은 16MB까지(넘으면 413).</p>
+<div class="fn" id="fn-http-serve"><code>http.serve(addr, handler, ready = nil)</code><span class="by">fung으로 작성</span>
+  <p><code>addr</code>(<code>":8080"</code>)에서 요청을 받으며 막힌다. 요청마다 새 태스크에서 <code>handler(req)</code>를 부른다(동시에 돌 수 있으니 공유 상태는 <code>agent</code>에). <code>req</code>는 <code>{method, path, query, headers, body}</code>(<code>query</code>는 이름마다 첫 값, <code>headers</code>는 소문자 키), 응답은 문자열(200, <code>text/plain; charset=utf-8</code>) 또는 <code>{status = 200, headers = {}, body = ""}</code>. 응답에 <code>Date</code>와 <code>Content-Length</code>가 붙는다. 핸들러가 에러를 내거나 다른 타입을 돌려주면 500으로 답하고 표준 에러에 <code>http: handler failed: …</code> 한 줄을 쓴 뒤 서버는 계속 돈다. 핸들러 안의 <code>exit</code>·취소는 503. 끝내려면 서버 태스크를 <code>cancel</code>한다(리스너를 닫고 처리 중인 요청을 최대 2초 기다린 뒤 E0701). <code>ready</code>는 리스닝 직후 실제 주소로 한 번 불린다(<code>":0"</code>의 포트를 아는 방법). 헤더는 10초 안에 와야 하고 본문은 16MB까지(넘으면 413), 형식 오류는 400.</p>
   <pre class="frag"><code>import http
 http.serve(&quot;:8080&quot;, req =&gt; match req.path:
   &quot;/health&quot; =&gt; &quot;ok&quot;
   _         =&gt; {status: 404, body: &quot;not found&quot;}
 ;;)</code></pre>
+</div>
+<h4>약속하는 것과 하지 않는 것</h4>
+<ul>
+  <li><b>클라이언트</b>: 요청에 <code>Host</code>, <code>User-Agent: Go-http-client/1.1</code>, 본문이 있으면 <code>Content-Length</code>. 같은 이름의 사용자 헤더가 이긴다. URL의 <code>user:pass@</code>는 <code>Authorization: Basic</code>이 된다. 응답 본문은 <code>Content-Length</code>, 조각 전송, 연결 닫힘 중 하나로 읽는다.</li>
+  <li><b>리다이렉트</b>: 301·302·303은 <code>GET</code>으로(본문 버림), 307·308은 메서드와 본문을 지킨다. 10번을 넘으면 <code>Err('network)</code>. 다른 호스트로 넘어가면 <code>Authorization</code>·<code>Cookie</code> 같은 민감한 헤더를 버린다.</li>
+  <li><b>프록시</b>: <code>HTTP_PROXY</code>·<code>HTTPS_PROXY</code>·<code>NO_PROXY</code>(소문자도). <code>localhost</code>와 루프백 주소는 거치지 않는다. SOCKS 프록시와 https 프록시 너머의 https는 지원하지 않는다(<code>Err('network)</code>).</li>
+  <li><b>https</b>: 운영체제 루트 인증서(<code>SSL_CERT_FILE</code>·<code>SSL_CERT_DIR</code>이 있으면 그것)와 SNI. 인증서 오류는 <code>Err('network)</code>.</li>
+  <li><b>응답 본문 상한 64 MiB</b>. 넘으면 <code>Err('network)</code>.</li>
+  <li>본문은 문자열이다. UTF-8이 아닌 바이트는 바이트마다 U+FFFD로 바뀌므로 바이너리 본문은 그대로 받을 수 없다.</li>
+  <li>없는 것: 연결 재사용(keep-alive)과 파이프라이닝, HTTP/2, 압축. 서버는 연결마다 요청 하나만 받으므로 HTTP/1.1 응답에 늘 <code>Connection: close</code>가 붙는다.</li>
+</ul>
+</section>
+<section class="group" id="conc">
+<h3>conc — 동시성 도우미</h3>
+<p><code>import conc</code>. prelude의 동시성 함수 위에 fung으로 쓴 조합이다. prelude에는 확실한 것만 두므로 모듈로 뺐다.</p>
+<div class="fn" id="fn-conc-pmap"><code>conc.pmap(xs, f, limit = 0)</code><span class="by">fung으로 작성</span>
+  <p>병렬 <code>map</code>. <code>limit</code>은 동시에 도는 태스크 수(0은 제한 없음). 결과 순서는 입력 순서. <code>f</code>가 실패한 원소는 <code>await</code>처럼 그 <code>Err</code>가 된다.</p>
+  <pre><code>import conc
+print(conc.pmap([1, 2, 3], x =&gt; x * x, limit: 2))</code></pre>
+</div>
+<div class="fn" id="fn-conc-fan_in"><code>conc.fan_in(chs)</code><span class="by">fung으로 작성</span>
+  <p>여러 채널을 하나로 모은 채널. 모두 닫히면 닫힌다.</p>
+</div>
+<div class="fn" id="fn-conc-retry"><code>conc.retry(f, times = 3, delay = 0ms)</code><span class="by">fung으로 작성</span>
+  <p><code>f()</code>가 <code>Err</code>가 아닌 값을 돌려줄 때까지 최대 <code>times</code>번, 사이에 <code>delay</code>만큼 쉬며 부른다. 모두 실패하면 마지막 <code>Err</code>.</p>
+  <pre><code>import conc
+print(conc.retry(() =&gt; Err(&quot;down&quot;), times: 2))</code></pre>
 </div>
 </section>
 

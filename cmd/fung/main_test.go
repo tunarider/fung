@@ -368,9 +368,30 @@ func TestTestCommand(t *testing.T) {
 	}
 }
 
+// rustOnlyExamples use agents or the module conc, which only the Rust
+// implementation has (Rust port stage 6a); the Rust tests run them.
+var rustOnlyExamples = map[string]bool{"api.fung": true, "checkurls.fung": true, "serve.fung": true}
+
 func TestExamplesPassTheirTests(t *testing.T) {
-	out, errOut, code := invoke(t, "test", filepath.Join("..", "..", "examples"))
-	if code != 0 || !strings.HasSuffix(out, "12 passed, 0 failed\n") || errOut != "" {
+	dir := filepath.Join(t.TempDir(), "examples")
+	os.Mkdir(dir, 0o755)
+	src := filepath.Join("..", "..", "examples")
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || rustOnlyExamples[e.Name()] {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(src, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(dir, e.Name()), data, 0o644)
+	}
+	out, errOut, code := invoke(t, "test", dir)
+	if code != 0 || !strings.HasSuffix(out, "11 passed, 0 failed\n") || errOut != "" {
 		t.Fatalf("code=%d out=%q err=%q", code, out, errOut)
 	}
 }

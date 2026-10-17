@@ -3,7 +3,7 @@ mod common;
 
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use common::{diff, go_fung, repo, run, rust_fung};
+use common::{RUST_ONLY_EXAMPLES, diff, go_fung, repo, run, rust_fung, uses_rust_only};
 
 fn corpus() -> Vec<String> {
     let mut files = Vec::new();
@@ -29,21 +29,13 @@ fn corpus() -> Vec<String> {
     files
 }
 
-/// The examples that still use atoms, which only the Go implementation
-/// has (stage 3b); stage 6 rewrites them to agents.
-const ATOM_EXAMPLES: &[&str] = &["examples/api.fung", "examples/serve.fung"];
-
-/// The examples that still call `pmap`, `fan_in` or `retry` as prelude
-/// names, which only Go has since stage 6a (Rust: the module `conc`);
-/// Task 2 of stage 6a rewrites them.
-const CONC_EXAMPLES: &[&str] = &["examples/checkurls.fung"];
-
 /// Whether a corpus file's names resolve the same in both
 /// implementations. Since stage 3b they differ for a `# only:` golden
-/// file (atoms are Go only, agents Rust only) and for `ATOM_EXAMPLES`:
-/// their syntax is shared, so only `dump ast` is compared for them.
+/// file (atoms are Go only, agents Rust only) and since stage 6a for the
+/// Rust-only examples (`common::RUST_ONLY_EXAMPLES`): their syntax is
+/// shared, so only `dump ast` is compared for them.
 fn resolves_alike(path: &str) -> bool {
-    if ATOM_EXAMPLES.contains(&path) || CONC_EXAMPLES.contains(&path) {
+    if RUST_ONLY_EXAMPLES.contains(&path) {
         return false;
     }
     let src = std::fs::read_to_string(repo().join(path)).unwrap();
@@ -51,14 +43,21 @@ fn resolves_alike(path: &str) -> bool {
 }
 
 #[test]
-fn the_atom_examples_still_use_atoms() {
-    for path in ATOM_EXAMPLES {
+fn the_rust_only_examples_are_listed() {
+    let examples: Vec<String> = corpus()
+        .into_iter()
+        .filter(|f| f.starts_with("examples/"))
+        .collect();
+    for path in &examples {
         let src = std::fs::read_to_string(repo().join(path)).unwrap();
-        assert!(src.contains("atom("), "{path} no longer uses atoms");
+        assert_eq!(
+            uses_rust_only(&src),
+            RUST_ONLY_EXAMPLES.contains(&path.as_str()),
+            "{path}: RUST_ONLY_EXAMPLES is out of date"
+        );
     }
-    for path in CONC_EXAMPLES {
-        let src = std::fs::read_to_string(repo().join(path)).unwrap();
-        assert!(!src.contains("import conc"), "{path} uses the module conc");
+    for path in RUST_ONLY_EXAMPLES {
+        assert!(examples.iter().any(|f| f == path), "{path} is gone");
     }
     assert!(resolves_alike("tests/lang/arith.fung"));
     assert!(!resolves_alike("tests/lang/agents.fung"));

@@ -2556,10 +2556,11 @@ fn a_slow_client_is_cut_off_after_ten_seconds() {
     let _ = std::fs::remove_file(go);
 }
 
-/// The examples that serve and fetch run under Rust (`serve.fung` and
-/// `api.fung` use `atom`, which is stage 6's: not here). `static.fung`
+/// The examples that serve and fetch run under Rust. `static.fung`
 /// answers the same requests as under Go, logging the same lines;
-/// `checkurls.fung` reads from it.
+/// `checkurls.fung` (Rust only since stage 6a: `conc.pmap`) reads from
+/// it. `api.fung` (agents, Rust only) is run by its `test` block
+/// (`tools_parity.rs`, `test_runs_the_examples`).
 #[test]
 fn the_http_examples_run() {
     let Some(go) = go_fung("http-examples") else {
@@ -2600,26 +2601,13 @@ fn the_http_examples_run() {
     let (r, r_server) = answers(&rust);
     assert_eq!(g, r);
     assert!(r[1].contains("안녕, 한글"), "{}", r[1]);
-    // checkurls (pmap over http.get) against the Rust server
+    // checkurls (conc.pmap over http.get) against the Rust server
     let base = format!("http://{}", r_server.addr);
     let urls = [format!("{base}/data.json"), format!("{base}/nope")];
-    // Since stage 6a `pmap` is in the Rust module `conc`; until Task 2 of
-    // stage 6a rewrites the example, it runs with `conc.pmap` from `-e`
-    // (in `examples/`, where its `./urlcheck` import resolves).
-    let src = std::fs::read_to_string(common::repo().join("examples/checkurls.fung")).unwrap();
-    assert!(
-        src.contains("results = pmap("),
-        "the example changed: run it directly"
-    );
-    let src = format!(
-        "import conc\n{}",
-        src.replace("results = pmap(", "results = conc.pmap(")
-    );
     let mut cmd = std::process::Command::new(&rust);
-    cmd.arg("-e")
-        .arg(&src)
+    cmd.args(["run", "examples/checkurls.fung"])
         .args(&urls)
-        .current_dir(common::repo().join("examples"));
+        .current_dir(common::repo());
     let o = cmd.output().unwrap();
     let out = String::from_utf8_lossy(&o.stdout).into_owned();
     let lines: Vec<&str> = out.lines().collect();

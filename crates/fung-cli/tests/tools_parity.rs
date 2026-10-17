@@ -11,12 +11,16 @@
 //! What is compared, and what is not:
 //! - `check` on every `.fung` file of `tests/lang` (with `_lib`),
 //!   `examples` and `extras` (with `extras/rust`), the warning fixtures in
-//!   `tests/data/check`, the manual's runnable examples, `-e` programs,
-//!   and argument errors.
-//! - Not compared: a `# only: go` file and the atom examples (atoms are
-//!   Go only since stage 3b; Rust reports `atom` as undefined by design)
-//!   and a manual example using atoms (stage 6 rewrites them). A
-//!   `# only: rust` file is checked by Rust alone and must have no errors.
+//!   `tests/data/check`, `-e` programs, and argument errors.
+//! - Not compared: a `# only: go` file (atoms are Go only since stage 3b;
+//!   Rust reports `atom` as undefined by design). A `# only: rust` file
+//!   and a Rust-only example (`common::RUST_ONLY_EXAMPLES`: agents and
+//!   the module `conc`, stage 6a) are checked by Rust alone and must have
+//!   no errors.
+//! - The manual (stage 6a describes the Rust implementation): its
+//!   runnable examples pass Rust's `check`, `fmt --check` and a run, with
+//!   no Go comparison (`manual_examples_check_format_and_run`); only
+//!   their formatting is compared with Go, as for any source.
 
 mod common;
 #[allow(dead_code)]
@@ -27,7 +31,7 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-use common::{diff, go_fung, repo, run, run_status, rust_fung};
+use common::{RUST_ONLY_EXAMPLES, diff, go_fung, repo, run, run_status, rust_fung};
 
 /// Both implementations: Go built for this test program, Rust under test.
 pub struct Both {
@@ -131,20 +135,11 @@ pub fn only(src: &str) -> Option<String> {
     found
 }
 
-/// The examples that still use atoms, which only Go has (as in
-/// `parity.rs`); stage 6 rewrites them to agents.
-pub const ATOM_EXAMPLES: &[&str] = &["examples/api.fung", "examples/serve.fung"];
-
-/// The examples that still call `pmap`, `fan_in` or `retry` as prelude
-/// names, which only Go has since stage 6a (as in `parity.rs`); Task 2
-/// of stage 6a rewrites them.
-pub const CONC_EXAMPLES: &[&str] = &["examples/checkurls.fung"];
-
 /// Whether both implementations are meant to treat a repository file
-/// alike: not a `# only:` file, not an atom example.
+/// alike: not a `# only:` file, not a Rust-only example.
 pub fn shared(path: &str) -> bool {
     let src = std::fs::read_to_string(repo().join(path)).unwrap();
-    !ATOM_EXAMPLES.contains(&path) && !CONC_EXAMPLES.contains(&path) && only(&src).is_none()
+    !RUST_ONLY_EXAMPLES.contains(&path) && only(&src).is_none()
 }
 
 /// The manual's runnable examples: every `<pre>` of `docs/*.html` that is
@@ -256,10 +251,14 @@ fn check_matches_go_on_the_repository() {
     let (same, own): (Vec<&String>, Vec<&String>) = files.iter().partition(|f| shared(f));
     let cases: Vec<_> = same.iter().map(|f| check(f)).collect();
     assert_same(&b, &cases);
-    // A `# only: rust` file compiles in Rust (its run is golden-tested).
+    // A `# only: rust` file compiles in Rust (its run is golden-tested),
+    // and so does a Rust-only example (its tests run in
+    // `test_runs_the_examples`).
+    let mut rust_only = 0;
     for f in own {
         let src = std::fs::read_to_string(repo().join(f)).unwrap();
-        if only(&src).as_deref() == Some("rust") {
+        if only(&src).as_deref() == Some("rust") || RUST_ONLY_EXAMPLES.contains(&f.as_str()) {
+            rust_only += 1;
             let (_, err, status) = run_status(&b.rust, &os_args(&["check", f]), None);
             assert!(
                 status.success() && !String::from_utf8_lossy(&err).contains("error["),
@@ -268,6 +267,10 @@ fn check_matches_go_on_the_repository() {
             );
         }
     }
+    assert!(
+        rust_only >= RUST_ONLY_EXAMPLES.len(),
+        "{rust_only} Rust-only files"
+    );
 }
 
 #[test]
@@ -285,34 +288,110 @@ fn check_matches_go_on_warning_fixtures() {
     assert!(String::from_utf8_lossy(&err).contains("warning[W0102]"));
 }
 
+/// Runs `bin` with `args` in `dir`, killing it after `limit`: the
+/// standard output and error, and the exit code (`None`: killed).
+fn run_limited(
+    bin: &Path,
+    dir: &Path,
+    args: &[OsString],
+    limit: std::time::Duration,
+) -> (String, String, Option<i32>) {
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(bin)
+        .args(args)
+        .current_dir(dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let start = std::time::Instant::now();
+    let mut killed = false;
+    while child.try_wait().unwrap().is_none() {
+        if start.elapsed() > limit {
+            let _ = child.kill();
+            killed = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let o = child.wait_with_output().unwrap();
+    (
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+        if killed { None } else { o.status.code() },
+    )
+}
+
+/// The arguments a manual example runs with: its `<pre data-args="...">`
+/// split at blanks.
+fn manual_example_args(label: &str) -> Vec<String> {
+    let (page, n) = label.split_once(':').unwrap();
+    let n: usize = n.parse().unwrap();
+    let html = std::fs::read_to_string(repo().join(format!("docs/{page}.html"))).unwrap();
+    let mut seen = 0;
+    let mut rest = html.as_str();
+    while let Some(i) = rest.find("<pre") {
+        rest = &rest[i..];
+        let open_end = rest.find('>').unwrap();
+        let attrs = &rest[4..open_end];
+        rest = &rest[open_end..];
+        if excluded(attrs) {
+            continue;
+        }
+        seen += 1;
+        if seen == n {
+            return attrs
+                .find("data-args=\"")
+                .map(|i| {
+                    let v = &attrs[i + "data-args=\"".len()..];
+                    v[..v.find('"').unwrap()]
+                        .split_whitespace()
+                        .map(String::from)
+                        .collect()
+                })
+                .unwrap_or_default();
+        }
+    }
+    panic!("no example {label}")
+}
+
+/// Rust only (stage 6a: the manual describes the Rust implementation).
+/// Every runnable manual example passes `fung check` with no errors, is
+/// formatted (`fmt --check`), and runs to the end with exit code 0, in a
+/// scratch directory, with its `data-args` as arguments, and within a few
+/// seconds.
 #[test]
-fn check_matches_go_on_manual_examples() {
-    let Some(b) = both("tools-manual") else {
-        return;
-    };
+fn manual_examples_check_format_and_run() {
+    let rust = rust_fung();
     let dir = scratch("tools-manual");
     let examples = manual_examples();
     assert!(examples.len() > 40, "{} examples", examples.len());
-    let mut cases = Vec::new();
-    for (label, src) in &examples {
-        if src.contains("atom(") {
-            continue; // atoms are Go only (stage 6 rewrites the manual)
+    let results = par_map(&examples, |(label, src)| {
+        let name = format!("{}.fung", label.replace(':', "_"));
+        // A `<pre>` ends without the final newline a file has.
+        std::fs::write(dir.join(&name), format!("{src}\n")).unwrap();
+        let limit = std::time::Duration::from_secs(20);
+        let mut bad = Vec::new();
+        let (_, err, code) = run_limited(&rust, &dir, &os_args(&["check", &name]), limit);
+        if code != Some(0) || err.contains("error[") {
+            bad.push(format!("{label}: check: {code:?}\n{err}"));
         }
-        if ["pmap(", "fan_in(", "retry("]
-            .iter()
-            .any(|n| src.contains(n))
-        {
-            continue; // prelude names in Go only since stage 6a (Task 2 rewrites the manual)
+        let (_, err, code) = run_limited(&rust, &dir, &os_args(&["fmt", "--check", &name]), limit);
+        if code != Some(0) {
+            bad.push(format!("{label}: fmt --check: {code:?}\n{err}"));
         }
-        let path = dir.join(format!("{}.fung", label.replace(':', "_")));
-        std::fs::write(&path, src).unwrap();
-        cases.push((
-            format!("check {label}"),
-            vec!["check".into(), path.into_os_string()],
-        ));
-    }
-    assert!(cases.len() + 3 >= examples.len());
-    assert_same(&b, &cases);
+        let mut args = vec!["run".to_string(), name.clone()];
+        args.extend(manual_example_args(label));
+        let a: Vec<OsString> = args.iter().map(OsString::from).collect();
+        let (_, err, code) = run_limited(&rust, &dir, &a, limit);
+        if code != Some(0) {
+            bad.push(format!("{label}: run: {code:?}\n{err}"));
+        }
+        bad
+    });
+    let bad: Vec<String> = results.into_iter().flatten().collect();
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
 const CHECK_E: &[&str] = &[
@@ -775,7 +854,7 @@ fn test_matches_go_on_the_repository() {
         .collect();
     assert!(cases.len() > 140, "{} files", cases.len());
     assert_same(&b, &cases);
-    // The examples directory in one run, without the atom and conc examples.
+    // The examples directory in one run, without the Rust-only examples.
     let dir = scratch("tools-test-examples").join("examples");
     let mut stack = vec![repo().join("examples")];
     while let Some(d) = stack.pop() {
@@ -786,9 +865,7 @@ fn test_matches_go_on_the_repository() {
             if p.is_dir() {
                 std::fs::create_dir_all(&to).unwrap();
                 stack.push(p);
-            } else if !ATOM_EXAMPLES.contains(&rel.to_string_lossy().as_ref())
-                && !CONC_EXAMPLES.contains(&rel.to_string_lossy().as_ref())
-            {
+            } else if !RUST_ONLY_EXAMPLES.contains(&rel.to_string_lossy().as_ref()) {
                 std::fs::create_dir_all(to.parent().unwrap()).unwrap();
                 std::fs::copy(&p, &to).unwrap();
             }
@@ -802,6 +879,20 @@ fn test_matches_go_on_the_repository() {
         "{out}"
     );
     assert_same(&b, &[test_case(&d)]);
+}
+
+/// Rust only (stage 6a). The examples directory as it is, the Rust-only
+/// examples included: every `test` block passes, nothing on standard
+/// error.
+#[test]
+fn test_runs_the_examples() {
+    let (out, err, status) = run_status(&rust_fung(), &os_args(&["test", "examples"]), None);
+    let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
+    assert!(
+        status.success() && out.ends_with("12 passed, 0 failed\n") && err.is_empty(),
+        "{status}\n{out}\n{err}"
+    );
+    assert!(out.contains("ok   examples/api.fung: "), "{out}");
 }
 
 /// Rust only. Agents (stage 3b) end with their file, after its exit

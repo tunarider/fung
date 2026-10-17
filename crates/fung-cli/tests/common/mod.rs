@@ -160,3 +160,20 @@ pub fn first_diff(a: &[u8], b: &[u8]) -> String {
         b.lines().count()
     )
 }
+
+/// The examples only the Rust implementation runs (stage 6a): they use
+/// agents (`api.fung`, `serve.fung`) or the module `conc`
+/// (`checkurls.fung`), which Go does not have. The parity tests compare
+/// only their syntax (`dump ast`, `fmt`) with Go and check, test and run
+/// them with Rust alone; `parity.rs` checks that the list is complete.
+pub const RUST_ONLY_EXAMPLES: &[&str] = &[
+    "examples/api.fung",
+    "examples/checkurls.fung",
+    "examples/serve.fung",
+];
+
+/// Whether an example's source uses what only Rust has: an agent or the
+/// module `conc`.
+pub fn uses_rust_only(src: &str) -> bool {
+    src.contains("agent(") || src.lines().any(|l| l.trim() == "import conc")
+}
