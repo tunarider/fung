@@ -270,6 +270,27 @@ fn undefined_name_suggests_similar_name() {
     assert_eq!(errs[0].help, None);
 }
 
+/// A name the Rust prelude moved to the module `conc` (stage 6a) is
+/// still undefined, but the help says where it went, ahead of any
+/// similar name. Rust only: Go's prelude keeps these names.
+#[test]
+fn a_name_moved_to_conc_points_at_the_module() {
+    for name in crate::builtins::RUST_PRELUDE_FUNG_MOVED {
+        let (_, errs) = resolve_with(
+            &format!("{name}(1)"),
+            &["print", "map"],
+            &Options::default(),
+        );
+        assert_eq!(codes(&errs), vec!["E0204"]);
+        assert_eq!(
+            help(&errs[0]),
+            format!("moved to module conc: import conc, then conc.{name}")
+        );
+    }
+    // A local of that name is not undefined at all.
+    ok("pmap = 1\nprint(pmap)");
+}
+
 #[test]
 fn similar_name_threshold_scales_with_length() {
     let cases = [

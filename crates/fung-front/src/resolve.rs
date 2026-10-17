@@ -562,6 +562,11 @@ impl Resolver<'_> {
                 "`{name}` is a file-level variable (assigned on line {}) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument",
                 p.line
             ));
+        } else if crate::builtins::RUST_PRELUDE_FUNG_MOVED.contains(&name) {
+            // Rust only (stage 6a): Go's prelude still has these names.
+            e = e.with_help(&format!(
+                "moved to module conc: import conc, then conc.{name}"
+            ));
         } else if let Some(s) = similar::similar(name, &self.visible()) {
             e = e.with_help(&format!("a similar name exists: `{s}`"));
         }

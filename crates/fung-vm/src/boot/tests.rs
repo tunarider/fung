@@ -224,7 +224,7 @@ fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
         (out.as_str(), err.as_str(), code),
         (
             "",
-            "error[E0204]: undefined name `pmap`\n  --> -e:2:1\n  |\n2 | pmap([1], x => x)\n  | ^^^^ not found in this scope\n  |\n help: a similar name exists: `map`\n",
+            "error[E0204]: undefined name `pmap`\n  --> -e:2:1\n  |\n2 | pmap([1], x => x)\n  | ^^^^ not found in this scope\n  |\n help: moved to module conc: import conc, then conc.pmap\n",
             2
         )
     );
