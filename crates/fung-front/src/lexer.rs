@@ -228,6 +228,9 @@ pub struct Token {
 pub struct Comment {
     pub pos: Pos,
     pub text: String,
+    /// Byte offset of the `#` in the source (the formatter maps it back
+    /// to the bytes Go would slice).
+    pub off: usize,
 }
 
 /// Lexes source text into tokens. The last token is always `Eof`. Only the
@@ -407,6 +410,7 @@ impl<'a> Lexer<'a> {
         self.comments.push(Comment {
             pos: p,
             text: self.src[start..self.off].to_string(),
+            off: self.base + start,
         });
     }
 

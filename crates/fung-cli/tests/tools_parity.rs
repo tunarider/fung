@@ -2,7 +2,10 @@
 //! `fung check`, `version`, `help` and unknown commands, byte for byte
 //! (standard output, standard error, exit status), plus the path walker
 //! `fung test` and `fung fmt` share (`src/paths.rs`), compared with the
-//! files Go's commands visit. Later tasks add `test` and `fmt` here.
+//! files Go's commands visit, `fung test` on its fixtures and the
+//! repository, and `fung fmt` (output, `--check`, in place, standard
+//! input, arguments) on the repository and thousands of messed-up
+//! variants of it.
 //!
 //! What is compared, and what is not:
 //! - `check` on every `.fung` file of `tests/lang` (with `_lib`),
@@ -785,4 +788,691 @@ fn test_ends_each_files_agents() {
         "error[E0702]: deadlock: all tasks are waiting\n"
     );
     assert_eq!(status.code(), Some(1));
+}
+
+// ---- `fung fmt` (stage 5 task 3) ----
+
+/// Every `.fung` file of the repository the formatter is compared on:
+/// the golden tests (with `_lib` and the deliberate `err_*` syntax
+/// errors, whose error output must match), the examples, the extras
+/// (with `extras/rust`) and the CLI test fixtures.
+fn fmt_corpus() -> Vec<String> {
+    let files = corpus(&[
+        "tests/lang",
+        "examples",
+        "extras",
+        "crates/fung-cli/tests/data",
+    ]);
+    assert!(files.len() > 180, "corpus: {} files", files.len());
+    files
+}
+
+/// Runs `bin` in `dir` (a scratch copy) with `stdin` piped in.
+fn run_in(bin: &Path, dir: &Path, args: &[OsString], stdin: Option<&[u8]>) -> common::Run {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(bin)
+        .args(args)
+        .current_dir(dir)
+        .stdin(if stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    if let Some(data) = stdin {
+        let mut pipe = child.stdin.take().unwrap();
+        let data = data.to_vec();
+        std::thread::spawn(move || {
+            let _ = pipe.write_all(&data);
+        });
+    }
+    let o = child.wait_with_output().unwrap();
+    (o.stdout, o.stderr, format!("{:?}", o.status))
+}
+
+/// Go `strconv.Unquote` for the escapes `format_test.go` uses.
+fn go_unquote(s: &str) -> (String, &str) {
+    let mut out = String::new();
+    let mut cs = s.strip_prefix('"').expect("a Go string").char_indices();
+    while let Some((i, c)) = cs.next() {
+        match c {
+            '"' => return (out, &s[i + 2..]),
+            '\\' => out.push(match cs.next().unwrap().1 {
+                'n' => '\n',
+                't' => '\t',
+                'r' => '\r',
+                '"' => '"',
+                '\\' => '\\',
+                e => panic!("escape \\{e} in format_test.go"),
+            }),
+            c => out.push(c),
+        }
+    }
+    panic!("unterminated Go string {s}")
+}
+
+/// The `"input": "want"` cases of Go's `internal/format/format_test.go`,
+/// read from the file so the comparison follows the Go tests.
+fn go_format_cases() -> Vec<(String, String)> {
+    let text = std::fs::read_to_string(repo().join("internal/format/format_test.go")).unwrap();
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let l = line.trim_start();
+        if !l.starts_with('"') {
+            continue;
+        }
+        let (src, rest) = go_unquote(l);
+        let Some(rest) = rest.trim_start().strip_prefix(':') else {
+            continue;
+        };
+        let (want, rest) = go_unquote(rest.trim_start());
+        assert_eq!(rest.trim(), ",", "{line}");
+        out.push((src, want));
+    }
+    assert!(out.len() > 110, "{} Go cases", out.len());
+    out
+}
+
+/// The kinds of token a messed-up variant may glue to its neighbour.
+fn is_word(k: fung_front::lexer::Kind) -> bool {
+    use fung_front::lexer::Kind::*;
+    k.is_keyword()
+        || matches!(
+            k,
+            Int | Float | String | RawString | Duration | Symbol | Name | Tag
+        )
+}
+
+fn is_bracket_or_sep(k: fung_front::lexer::Kind) -> bool {
+    use fung_front::lexer::Kind::*;
+    matches!(
+        k,
+        LParen | RParen | LBracket | RBracket | LBrace | RBrace | Comma | Semi | Colon
+    )
+}
+
+/// Deliberately messed-up variants of a source, deterministic, as
+/// `(name, bytes)`. Some no longer parse; those compare error output.
+/// Text edits: indentation stripped, re-indented with tabs, 3 or 4
+/// spaces per level; blank lines removed or tripled; CRLF; trailing
+/// blanks; no final newline; truncated at a line and at half its bytes; a byte
+/// order mark. Token edits (from the lexer's spans): one space between
+/// all tokens on a line, no space where a bracket, separator or a
+/// word/operator pair allows it; lines joined after an opener or a
+/// comma, split after them, after line-ending operators and before
+/// continuation tokens; comments glued to the code or pushed away, `#x`
+/// for `# x`, comment lines indented anyhow.
+fn variants(src: &str) -> Vec<(&'static str, Vec<u8>)> {
+    use fung_front::lexer::{Kind, lex};
+    let mut out: Vec<(&'static str, Vec<u8>)> = Vec::new();
+    let lines: Vec<&str> = src.split_inclusive('\n').collect();
+    let map_lines = |f: &dyn Fn(&str) -> String| -> Vec<u8> {
+        lines.iter().map(|l| f(l)).collect::<String>().into_bytes()
+    };
+    let lead = |l: &str| l.len() - l.trim_start_matches([' ', '\t']).len();
+    out.push((
+        "dedent",
+        map_lines(&|l| l.trim_start_matches([' ', '\t']).to_string()),
+    ));
+    out.push((
+        "tabs",
+        map_lines(&|l| {
+            let n = lead(l);
+            "\t".repeat(n / 2) + &" ".repeat(n % 2) + &l[n..]
+        }),
+    ));
+    out.push((
+        "wide4",
+        map_lines(&|l| " ".repeat(lead(l) * 2) + &l[lead(l)..]),
+    ));
+    out.push((
+        "odd3",
+        map_lines(&|l| " ".repeat(lead(l) * 3 / 2) + &l[lead(l)..]),
+    ));
+    out.push((
+        "noblank",
+        map_lines(&|l| {
+            if l.trim().is_empty() {
+                String::new()
+            } else {
+                l.to_string()
+            }
+        }),
+    ));
+    out.push(("moreblank", src.replace('\n', "\n\n\n").into_bytes()));
+    out.push(("crlf", src.replace('\n', "\r\n").into_bytes()));
+    out.push((
+        "trailing",
+        map_lines(&|l| match l.strip_suffix('\n') {
+            Some(body) => format!("{body}  \t\n"),
+            None => format!("{l} "),
+        }),
+    ));
+    out.push(("nofinal", src.trim_end_matches('\n').as_bytes().to_vec()));
+    out.push(("halflines", lines[..lines.len() / 2].concat().into_bytes()));
+    // Cut anywhere, even inside a character: the bytes need not be UTF-8.
+    out.push(("halfbytes", src.as_bytes()[..src.len() / 2].to_vec()));
+    out.push(("bom", ["\u{feff}", src].concat().into_bytes()));
+    // Token edits.
+    let Ok((toks, comments)) = lex(fung_front::source::FileId(0), src) else {
+        return out;
+    };
+    let toks: Vec<_> = toks.into_iter().filter(|t| t.kind != Kind::Eof).collect();
+    // Rebuilds the source: `piece(i, gap)` gives what replaces the text
+    // between token i-1 and token i, whether token i's own text stays,
+    // and what follows it.
+    let rebuild = |piece: &dyn Fn(usize, &str) -> (String, bool, &'static str)| {
+        let mut s = String::new();
+        let mut prev = 0;
+        for (i, t) in toks.iter().enumerate() {
+            let g = &src[prev..t.off];
+            let (gap, keep, after) = if i == 0 {
+                (g.to_string(), true, "")
+            } else {
+                piece(i, g)
+            };
+            s.push_str(&gap);
+            if keep {
+                s.push_str(&src[t.off..t.end]);
+            }
+            s.push_str(after);
+            prev = t.end;
+        }
+        s.push_str(&src[prev..]);
+        s.into_bytes()
+    };
+    let same = |g: &str| (g.to_string(), true, "");
+    let inline = |i: usize, g: &str| {
+        toks[i].kind != Kind::Newline
+            && toks[i - 1].kind != Kind::Newline
+            && !g.contains(['\n', '#'])
+    };
+    out.push((
+        "spaced",
+        rebuild(&|i, g| {
+            if inline(i, g) {
+                (" ".into(), true, "")
+            } else {
+                same(g)
+            }
+        }),
+    ));
+    out.push((
+        "tight",
+        rebuild(&|i, g| {
+            let (p, n) = (toks[i - 1].kind, toks[i].kind);
+            let glue = is_bracket_or_sep(p) || is_bracket_or_sep(n) || is_word(p) != is_word(n);
+            if inline(i, g) && glue {
+                (String::new(), true, "")
+            } else {
+                same(g)
+            }
+        }),
+    ));
+    let opener_or_comma = |k: Kind| {
+        matches!(
+            k,
+            Kind::LParen | Kind::LBracket | Kind::LBrace | Kind::Comma
+        )
+    };
+    // The newline after an opener or a comma (with no comment before it)
+    // becomes one space, and the next line's indentation goes.
+    out.push((
+        "joined",
+        rebuild(&|i, g| {
+            if toks[i].kind == Kind::Newline
+                && opener_or_comma(toks[i - 1].kind)
+                && !g.contains('#')
+            {
+                (" ".into(), false, "")
+            } else if i >= 2
+                && toks[i - 1].kind == Kind::Newline
+                && opener_or_comma(toks[i - 2].kind)
+                && !src[toks[i - 2].end..toks[i - 1].off].contains('#')
+            {
+                (String::new(), true, "")
+            } else {
+                same(g)
+            }
+        }),
+    ));
+    let next_is_newline = |i: usize| toks.get(i + 1).is_none_or(|t| t.kind == Kind::Newline);
+    out.push((
+        "split",
+        rebuild(&|i, g| {
+            let after = if opener_or_comma(toks[i].kind) && !next_is_newline(i) {
+                "\n"
+            } else {
+                ""
+            };
+            (g.to_string(), true, after)
+        }),
+    ));
+    let ends_open = |k: Kind| {
+        matches!(
+            k,
+            Kind::Plus
+                | Kind::Minus
+                | Kind::Star
+                | Kind::Slash
+                | Kind::Pipe
+                | Kind::Coalesce
+                | Kind::KwAnd
+                | Kind::KwOr
+                | Kind::Assign
+                | Kind::FatArrow
+                | Kind::Eq
+                | Kind::Lt
+                | Kind::KwThen
+                | Kind::KwElse
+        )
+    };
+    out.push((
+        "opsplit",
+        rebuild(&|i, g| {
+            let after = if ends_open(toks[i].kind) && !next_is_newline(i) {
+                "\n"
+            } else {
+                ""
+            };
+            (g.to_string(), true, after)
+        }),
+    ));
+    let continuation = |k: Kind| {
+        matches!(
+            k,
+            Kind::Pipe
+                | Kind::Dot
+                | Kind::Coalesce
+                | Kind::KwAnd
+                | Kind::KwOr
+                | Kind::KwThen
+                | Kind::KwElse
+        )
+    };
+    out.push((
+        "contsplit",
+        rebuild(&|i, g| {
+            if continuation(toks[i].kind) && inline(i, g) {
+                ("\n".into(), true, "")
+            } else {
+                same(g)
+            }
+        }),
+    ));
+    // Comment edits, on lines: a trailing comment glued to its code or
+    // pushed far away, `# x` written `#x`, comment lines indented by
+    // their index.
+    let comment_lines: std::collections::HashMap<u32, (usize, String)> = comments
+        .iter()
+        .enumerate()
+        .map(|(n, c)| (c.pos.line, (n, c.text.clone())))
+        .collect();
+    let edit_comments = |how: u8| -> Vec<u8> {
+        let mut s = String::new();
+        for (n, l) in lines.iter().enumerate() {
+            let Some((k, text)) = comment_lines.get(&(n as u32 + 1)) else {
+                s.push_str(l);
+                continue;
+            };
+            let Some(at) = l.rfind(text.as_str()) else {
+                s.push_str(l);
+                continue;
+            };
+            let (code, rest) = l.split_at(at);
+            let code_part = code.trim_end_matches([' ', '\t']);
+            let own_line = code_part.trim().is_empty();
+            match how {
+                0 if own_line => s.push_str(&format!("{}{rest}", " ".repeat(k % 7))),
+                0 => s.push_str(&format!("{code_part}{rest}")),
+                1 if own_line => s.push_str(&format!("\t{rest}")),
+                1 => s.push_str(&format!("{code_part}{}{rest}", " ".repeat(10 + k % 5))),
+                _ => s.push_str(&format!("{code}{}", rest.replacen("# ", "#", 1))),
+            }
+        }
+        s.into_bytes()
+    };
+    out.push(("cglued", edit_comments(0)));
+    out.push(("cpushed", edit_comments(1)));
+    out.push(("cnospace", edit_comments(2)));
+    out
+}
+
+/// A file name for a corpus path in a flat directory: `/` → `~` (no
+/// directory, so `_lib` files are not skipped by the walker).
+fn flat(path: &str) -> String {
+    path.replace('/', "~")
+}
+
+/// Fills `dir/in` with every corpus file and every variant of it.
+fn fmt_inputs(dir: &Path) -> usize {
+    let input = dir.join("in");
+    std::fs::create_dir_all(&input).unwrap();
+    let mut n = 0;
+    for f in fmt_corpus() {
+        let src = std::fs::read_to_string(repo().join(&f)).unwrap();
+        let name = flat(&f);
+        std::fs::write(input.join(&name), &src).unwrap();
+        n += 1;
+        for (v, bytes) in variants(&src) {
+            std::fs::write(
+                input.join(format!("{}@{v}.fung", name.trim_end_matches(".fung"))),
+                bytes,
+            )
+            .unwrap();
+            n += 1;
+        }
+    }
+    n
+}
+
+/// The files of a directory, by name.
+fn tree(dir: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| {
+            let p = e.unwrap().path();
+            (
+                p.file_name().unwrap().to_string_lossy().into_owned(),
+                std::fs::read(&p).unwrap(),
+            )
+        })
+        .collect()
+}
+
+/// `fmt --check` and `fmt` in place over the repository's files and
+/// thousands of messed-up variants of them, in one directory: the same
+/// listing, errors and exit code, and the same rewritten files. Then the
+/// Rust output is stable (a second `--check` lists nothing) and keeps
+/// every token and comment.
+#[test]
+fn fmt_matches_go_on_files_and_variants() {
+    let Some(b) = both("tools-fmt") else { return };
+    let base = scratch("tools-fmt");
+    let (gdir, rdir) = (base.join("go"), base.join("rust"));
+    let n = fmt_inputs(&gdir);
+    fmt_inputs(&rdir);
+    assert!(n > 3000, "{n} inputs");
+    let check = os_args(&["fmt", "--check", "in"]);
+    let go = run_in(&b.go, &gdir, &check, None);
+    let rust = run_in(&b.rust, &rdir, &check, None);
+    assert_eq!(diff(&go, &rust), None, "fmt --check in");
+    // The variants do exercise the formatter: many need formatting, many
+    // are refused as syntax errors, and most still parse.
+    let listed = String::from_utf8_lossy(&go.0).lines().count();
+    let refused = String::from_utf8_lossy(&go.1)
+        .matches("\n  --> in/")
+        .count();
+    assert!(
+        listed > n / 3 && refused > 300 && refused < n / 2,
+        "{listed} listed, {refused} refused of {n}"
+    );
+    let before = tree(&rdir.join("in"));
+    let write = os_args(&["fmt", "in"]);
+    let go = run_in(&b.go, &gdir, &write, None);
+    let rust = run_in(&b.rust, &rdir, &write, None);
+    assert_eq!(diff(&go, &rust), None, "fmt in");
+    let (gt, rt) = (tree(&gdir.join("in")), tree(&rdir.join("in")));
+    let bad: Vec<&String> = gt.keys().filter(|k| gt[*k] != rt[*k]).collect();
+    assert!(
+        bad.is_empty(),
+        "{} files formatted differently: {:?}",
+        bad.len(),
+        &bad[..bad.len().min(20)]
+    );
+    // Idempotent: the formatted files need nothing more.
+    let (out, _, _) = run_in(&b.rust, &rdir, &check, None);
+    assert_eq!(String::from_utf8_lossy(&out), "", "second fmt --check");
+    // The code survived: same tokens (newlines aside) and comments.
+    for (name, after) in &rt {
+        let src = &before[name];
+        if src != after {
+            assert_eq!(code_of(after), code_of(src), "{name}: tokens changed");
+        }
+    }
+}
+
+/// The tokens' texts (newlines aside) and the comments, trimmed.
+fn code_of(src: &[u8]) -> (Vec<String>, Vec<String>) {
+    use fung_front::lexer::{Kind, lex};
+    let text = String::from_utf8_lossy(src);
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    let (toks, comments) = lex(fung_front::source::FileId(0), text).unwrap();
+    (
+        toks.iter()
+            .filter(|t| !matches!(t.kind, Kind::Newline | Kind::Eof))
+            .map(|t| text[t.off..t.end].to_string())
+            .collect(),
+        comments
+            .iter()
+            .map(|c| c.text.trim_end_matches([' ', '\t']).to_string())
+            .collect(),
+    )
+}
+
+/// Standard input (`-`): the inputs of Go's formatter tests, inputs only
+/// Go's byte-level handling explains (not UTF-8, a byte order mark, CRLF,
+/// a lone `\r`), broken inputs, the manual's examples and every corpus
+/// file. `--check -` formats standard input too (Go ignores `--check`
+/// there).
+#[test]
+fn fmt_matches_go_on_standard_input() {
+    let Some(b) = both("tools-fmt-stdin") else {
+        return;
+    };
+    let go_cases = go_format_cases();
+    let mut inputs: Vec<(String, Vec<u8>)> = go_cases
+        .iter()
+        .map(|(src, _)| (format!("go case {src:?}"), src.clone().into_bytes()))
+        .collect();
+    for raw in [
+        &b"f(\n"[..],
+        b"\"open",
+        b"",
+        b"\n\n\n",
+        b"x = \"a\xffb\" # c\xfe\nlong = 1 # d\n",
+        b"match v:\n\"\xff\" => 1\n\"ab\" => 2\n;;\n",
+        b"\xff",
+        b"x = 1 # \xe2\x82\n",
+        b"\xef\xbb\xbfx = 1\n",
+        b"\xef\xbb\xbf# only a comment\n",
+        b"\xef\xbb\xbf",
+        b"\xef\xbb\xbf\xef\xbb\xbfx\n",
+        b"\xef\xbb\xbfx = )\n",
+        b"x = 1\r\ny = 2\r\n",
+        b"x = 1\ry = 2\n",
+        b"s = `a\r\nb`\n",
+        b"x = 1   \t\n\t\ty = 2\n",
+        b"fn f():\n  x\n",
+        b";;\n",
+        b"x = [1,\n",
+        b"\tmatch v:\n\t\t1 => 2\n\t;;\n",
+    ] {
+        inputs.push((format!("{:?}", String::from_utf8_lossy(raw)), raw.to_vec()));
+    }
+    for (label, src) in manual_examples() {
+        inputs.push((format!("manual {label}"), src.into_bytes()));
+    }
+    for f in fmt_corpus() {
+        let src = std::fs::read(repo().join(&f)).unwrap();
+        inputs.push((f, src));
+    }
+    let dir = scratch("tools-fmt-stdin");
+    let runs = par_map(&inputs, |(_, src)| {
+        let a = os_args(&["fmt", "-"]);
+        (
+            run_in(&b.go, &dir, &a, Some(src)),
+            run_in(&b.rust, &dir, &a, Some(src)),
+        )
+    });
+    let bad: Vec<String> = inputs
+        .iter()
+        .zip(&runs)
+        .filter_map(|((label, _), (go, rust))| diff(go, rust).map(|d| format!("{label}: {d}")))
+        .collect();
+    assert!(
+        bad.is_empty(),
+        "{} of {} differ:\n{}",
+        bad.len(),
+        inputs.len(),
+        bad.join("\n")
+    );
+    // Go's own expectations hold for Rust too.
+    for ((src, want), (_, rust)) in go_cases.iter().zip(&runs) {
+        assert_eq!(String::from_utf8_lossy(&rust.0), *want, "{src:?}");
+    }
+    let a = os_args(&["fmt", "--check", "-"]);
+    let src = b"x=1\n";
+    assert_eq!(
+        diff(
+            &run_in(&b.go, &dir, &a, Some(src)),
+            &run_in(&b.rust, &dir, &a, Some(src))
+        ),
+        None
+    );
+}
+
+/// Arguments, mixed paths and file errors: a file and a directory
+/// together, a file named twice, `-` among paths, a missing path, an
+/// unknown option, a link to a directory named `x.fung` (read error), an
+/// unreadable and a read-only file needing formatting (read and write
+/// errors), a name that is not UTF-8, a file with a syntax error next to
+/// good ones (exit 2 wins over 1).
+#[test]
+fn fmt_arguments_match_go() {
+    let Some(b) = both("tools-fmt-args") else {
+        return;
+    };
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let base = scratch("tools-fmt-args");
+    let setup = |d: &Path| {
+        std::fs::create_dir_all(d.join("t/sub/_fix")).unwrap();
+        std::fs::create_dir_all(d.join("t/.hid")).unwrap();
+        for (f, s) in [
+            ("t/a.fung", "x=1\n"),
+            ("t/ok.fung", "x = 1\n"),
+            ("t/sub/b.fung", "fn f():\nx\n;;\n"),
+            ("t/sub/_fix/c.fung", "y=2\n"),
+            ("t/.hid/d.fung", "y=2\n"),
+            ("t/bad.fung", "x = )\n"),
+            ("t/notes.txt", "x=1\n"),
+            ("lone.fung", "z  =  3\n"),
+            ("넓은.fung", "w=4\n"),
+            ("ro.fung", "r=1\n"),
+            ("locked.fung", "l=1\n"),
+        ] {
+            std::fs::write(d.join(f), s).unwrap();
+        }
+        symlink("sub", d.join("t/dirlink.fung")).unwrap();
+        symlink("t", d.join("tlink")).unwrap();
+        std::fs::set_permissions(d.join("ro.fung"), std::fs::Permissions::from_mode(0o444))
+            .unwrap();
+        std::fs::set_permissions(
+            d.join("locked.fung"),
+            std::fs::Permissions::from_mode(0o000),
+        )
+        .unwrap();
+        // macOS file systems refuse names that are not UTF-8.
+        let _ = std::fs::write(d.join(OsString::from_vec(b"q\xfe.fung".to_vec())), "q=1\n");
+    };
+    let (gdir, rdir) = (base.join("go"), base.join("rust"));
+    setup(&gdir);
+    setup(&rdir);
+    let cases: &[&[&str]] = &[
+        &["fmt"],
+        &["fmt", "--check"],
+        &["fmt", "--check", "-x"],
+        &["fmt", "-x", "lone.fung"],
+        &["fmt", "--chek", "lone.fung"],
+        &["fmt", "-", "lone.fung"],
+        &["fmt", "nope.fung"],
+        &["fmt", "lone.fung", "nope", "t"],
+        &["fmt", ""],
+        &["fmt", "--check", "t"],
+        &["fmt", "--check", "tlink"],
+        &["fmt", "--check", "tlink/"],
+        &[
+            "fmt",
+            "--check",
+            "t/sub",
+            "lone.fung",
+            "t/a.fung",
+            "lone.fung",
+        ],
+        &["fmt", "--check", "t/sub/_fix/c.fung", "t/.hid"],
+        &["fmt", "--check", "t/ok.fung"],
+        &["fmt", "--check", "t/notes.txt"],
+        &["fmt", "--check", "locked.fung", "ro.fung"],
+        &["fmt", "--check", "넓은.fung", "lone.fung", "--check"],
+        &["fmt", "--check", "."],
+        &["fmt", "--check", "./t/../lone.fung"],
+        // In place: these change the trees, compared below.
+        &["fmt", "ro.fung", "locked.fung", "lone.fung"],
+        &["fmt", "t", "넓은.fung"],
+        &["fmt", "."],
+    ];
+    let mut bad = Vec::new();
+    for a in cases {
+        let args = os_args(a);
+        let (go, rust) = (
+            run_in(&b.go, &gdir, &args, None),
+            run_in(&b.rust, &rdir, &args, None),
+        );
+        if let Some(d) = diff(&go, &rust) {
+            bad.push(format!("{}: {d}", a.join(" ")));
+        }
+    }
+    let non_utf8 = vec!["fmt".into(), OsString::from_vec(b"q\xfe.fung".to_vec())];
+    let (go, rust) = (
+        run_in(&b.go, &gdir, &non_utf8, None),
+        run_in(&b.rust, &rdir, &non_utf8, None),
+    );
+    if let Some(d) = diff(&go, &rust) {
+        bad.push(format!("non-UTF-8 name: {d}"));
+    }
+    std::fs::set_permissions(
+        gdir.join("locked.fung"),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .unwrap();
+    std::fs::set_permissions(
+        rdir.join("locked.fung"),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .unwrap();
+    for f in [
+        "t/a.fung",
+        "t/sub/b.fung",
+        "t/sub/_fix/c.fung",
+        "t/.hid/d.fung",
+        "lone.fung",
+        "넓은.fung",
+        "ro.fung",
+        "locked.fung",
+    ] {
+        let (g, r) = (
+            std::fs::read(gdir.join(f)).unwrap(),
+            std::fs::read(rdir.join(f)).unwrap(),
+        );
+        if g != r {
+            bad.push(format!(
+                "{f}: {:?} vs {:?}",
+                String::from_utf8_lossy(&g),
+                String::from_utf8_lossy(&r)
+            ));
+        }
+    }
+    // The file modes are kept.
+    let mode = |d: &Path| {
+        std::fs::metadata(d.join("ro.fung"))
+            .unwrap()
+            .permissions()
+            .mode()
+    };
+    assert_eq!(mode(&gdir), mode(&rdir));
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

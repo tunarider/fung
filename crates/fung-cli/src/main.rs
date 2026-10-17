@@ -1,10 +1,9 @@
 //! The `fung` command of the Rust port: `fung dump`, `run`,
-//! `<script.fung>`, `-e`, `check`, `test`, `version` and `help` so far. It
-//! mirrors `cmd/fung` of the Go implementation byte for byte.
+//! `<script.fung>`, `-e`, `check`, `test`, `fmt`, `version` and `help` so
+//! far. It mirrors `cmd/fung` of the Go implementation byte for byte.
 
 mod check;
-// `fung fmt` (stage 5 task 3) uses the rest.
-#[allow(dead_code)]
+mod fmt;
 mod paths;
 mod run;
 mod test;
@@ -99,16 +98,7 @@ fn run(raw: &[Vec<u8>]) -> Out {
         },
         Some("check") => check::run_check(&args[1..], &raw[1..]),
         Some("test") => test::run_test(&raw[1..]),
-        Some("fmt") => Out {
-            stderr: [
-                b"not implemented yet in the Rust port: ",
-                &raw[0][..],
-                b"\n",
-            ]
-            .concat(),
-            code: EXIT_USAGE,
-            ..Out::default()
-        },
+        Some("fmt") => fmt::run_fmt(&args[1..], &raw[1..]),
         Some(a) if is_script_path(a) => run_file(&args, raw),
         Some(_) => Out {
             stderr: [
@@ -215,8 +205,13 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
 /// Reads a script and decodes it like Go. A failure is described the way
 /// Go's `os.ReadFile` does, with the path bytes unchanged.
 pub(crate) fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
+    read_bytes(path).map(|b| decode_go(&b))
+}
+
+/// Reads a file's bytes; a failure reads like [`read_file`]'s.
+pub(crate) fn read_bytes(path: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
     use std::io::ErrorKind;
-    let bytes = std::fs::read(OsStr::from_bytes(path)).map_err(|e| {
+    std::fs::read(OsStr::from_bytes(path)).map_err(|e| {
         let (op, text) = match e.kind() {
             ErrorKind::NotFound => ("open ", "no such file or directory".to_string()),
             ErrorKind::PermissionDenied => ("open ", "permission denied".to_string()),
@@ -228,8 +223,7 @@ pub(crate) fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
             }
         };
         [op.as_bytes(), path, b": ", text.as_bytes()].concat()
-    })?;
-    Ok(decode_go(&bytes))
+    })
 }
 
 /// Prints one stage of a source text (Go `dump`). `file` is the name as
