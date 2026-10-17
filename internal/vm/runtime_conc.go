@@ -131,16 +131,26 @@ func (rt *Runtime) deadlock() {
 
 // watchdog runs after deadlockGrace: if nothing moved since gen and every
 // live task is still blocked with no timer to wake one, it is a deadlock.
-func (rt *Runtime) watchdog(gen uint64) {
+//
+// The first look (confirm false) that finds this only arms a second one,
+// a grace later. A grace of wall time is not a grace of running time: a
+// host that stops the process for longer (a loaded machine) fires the
+// timer late, possibly before a task woken just before the stop has run
+// and counted itself awake. The first look runs only once the process
+// runs again, so by the second look that task has had its chance.
+func (rt *Runtime) watchdog(gen uint64, confirm bool) {
 	c := &rt.conc
 	c.mu.Lock()
 	stuck := c.gen == gen && c.live > 0 && c.blocked == c.live && c.waking == 0 && !c.exitSet && !c.deadlocked
-	if stuck {
+	if stuck && confirm {
 		c.deadlocked = true
 	}
 	c.mu.Unlock()
-	if stuck {
+	switch {
+	case stuck && confirm:
 		rt.deadlock()
+	case stuck:
+		time.AfterFunc(deadlockGrace, func() { rt.watchdog(gen, true) })
 	}
 }
 
@@ -168,7 +178,7 @@ func (rt *Runtime) armWatchdog() {
 	c := &rt.conc
 	if c.live > 0 && c.blocked == c.live && c.waking == 0 && !c.deadlocked && !c.exitSet {
 		gen := c.gen
-		time.AfterFunc(deadlockGrace, func() { rt.watchdog(gen) })
+		time.AfterFunc(deadlockGrace, func() { rt.watchdog(gen, false) })
 	}
 }
 

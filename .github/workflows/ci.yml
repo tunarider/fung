@@ -93,14 +93,19 @@ jobs:
         run: cargo fmt --check
       - name: clippy
         run: cargo clippy --all-targets --locked -- -D warnings
+      # --no-fail-fast: a failing test binary must not hide the ones after
+      # it, and the release run goes on after a debug failure for the same
+      # reason (a slow runner can fail one test in one profile only).
       - name: test
+        id: test
         env:
           FUNG_REQUIRE_PARITY: "1"
-        run: cargo test --locked
+        run: cargo test --locked --no-fail-fast
       - name: test (release)
+        if: success() || steps.test.outcome == 'failure'
         env:
           FUNG_REQUIRE_PARITY: "1"
-        run: cargo test --locked --release
+        run: cargo test --locked --release --no-fail-fast
       - name: build version
         env:
           FUNG_BUILD_VERSION: v9.9.9-ci

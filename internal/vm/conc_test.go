@@ -353,3 +353,36 @@ func TestStdinIsSharedSafely(t *testing.T) {
 		t.Fatalf("out=%q", out.String())
 	}
 }
+
+func TestWatchdogConfirmsAfterAStall(t *testing.T) {
+	// A host that stops the process for longer than the grace (a loaded
+	// CI runner) fires the watchdog late, before a task woken just before
+	// the stop has run and counted itself awake: every live task still
+	// looks blocked. The first look must only arm a second one; the woken
+	// task runs in between and the second look sees that it moved.
+	var errOut bytes.Buffer
+	rt := &Runtime{Stdout: &bytes.Buffer{}, Stderr: &errOut}
+	c := &rt.conc
+	c.live, c.blocked, c.gen = 2, 2, 7
+	rt.watchdog(7, false)
+	if c.deadlocked || errOut.Len() != 0 {
+		t.Fatalf("the first look judged: %q", errOut.String())
+	}
+	c.mu.Lock()
+	c.blocked-- // the woken task runs
+	c.gen++
+	c.mu.Unlock()
+	rt.watchdog(7, true)
+	if c.deadlocked || errOut.Len() != 0 {
+		t.Fatalf("the second look judged a task that moved: %q", errOut.String())
+	}
+	// Nothing moved across both looks: a deadlock.
+	c.mu.Lock()
+	c.blocked++
+	gen := c.gen
+	c.mu.Unlock()
+	rt.watchdog(gen, true)
+	if !c.deadlocked || !strings.Contains(errOut.String(), "E0702") {
+		t.Fatalf("a confirmed deadlock was not reported: %q", errOut.String())
+	}
+}
