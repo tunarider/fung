@@ -135,7 +135,15 @@ pub fn diff(go: &Run, rust: &Run) -> Option<String> {
         return None;
     }
     Some(if go.0 != rust.0 {
-        format!("stdout {}", first_diff(&go.0, &rust.0))
+        // A run that failed on one side prints less: say how it ended.
+        let mut s = format!("stdout {}", first_diff(&go.0, &rust.0));
+        if go.1 != rust.1 {
+            s += &format!("\n  stderr {}", first_diff(&go.1, &rust.1));
+        }
+        if go.2 != rust.2 {
+            s += &format!("\n  exit {} vs {}", go.2, rust.2);
+        }
+        s
     } else if go.1 != rust.1 {
         format!("stderr {}", first_diff(&go.1, &rust.1))
     } else {
