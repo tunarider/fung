@@ -10,6 +10,7 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ### 고침
 
+- `fung fmt`가 `fn` 타입 표기가 있는 매개변수(`fn f(h: fn, x = 1):`) 뒤의 블록 몸통을 내어쓰던 문제. 타입 이름 `fn`을 함수 머리로 읽었다.
 - `fung fmt`가 BOM(U+FEFF)으로 시작하는 파일을 "formatter changed the code"로 거절하던 문제. 이제 BOM을 떼고 포맷한다.
 - `fung fmt --check -`가 `--check`를 무시하고 포맷 결과를 찍던 문제. 이제 바뀔 게 있으면 `<stdin>`을 찍고 종료 코드 1이다.
 

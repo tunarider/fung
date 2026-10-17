@@ -22,16 +22,16 @@ Go의 `fung check`·`test`·`fmt`·REPL·`version`·`help`를 Rust로 옮겨 Rus
 |---|---|---|
 | Go 포매터 버그 수정 | `internal/format` + 테스트. 최소 재현 `fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;`가 본문을 내어 쓴다(타입 표기 `fn` 뒤 블록 본문). 고친 뒤 저장소 `.fung` 재포맷 확인, `_serve` 감싸개 제거, open-questions 항목 해결 표시 | `internal/format` |
 | 경고 W0101~W0104 | `crates/fung-front` 해석 단계. `check`·`test`에서만 낸다(`run`·`-e`·`dump`는 내지 않음) | `internal/resolve/warn.go`, `m6_test.go` |
-| `fung check <path>…` | `fung-cli` | `cmd/fung/check.go`, `pipeline.go` |
-| `version`·`help` | `fung-cli`. 버전 문자열의 출처(빌드 시 주입 → 크레이트 버전 → `0.0.0-dev`)는 계획에서 정하고 6단계 릴리스 스크립트와 맞춘다 | `cmd/fung/version.go`, `main.go` |
+| `fung check <path>\|-e <code>` | `fung-cli`. Go처럼 경로 하나 또는 `-e`만 받는다(디렉터리는 읽기 에러, 경로 둘은 사용법 에러; 구현 중 확인) | `cmd/fung/check.go`, `pipeline.go` |
+| `version`·`help` | `fung-cli`. 버전 문자열은 빌드 시 주입한 `FUNG_VERSION` → 없으면 `0.0.0-dev`(Task 1에서 정함: 크레이트 버전은 모두 `0.0.0`이라 쓰지 않는다). 6단계 릴리스 스크립트는 `FUNG_VERSION=$version cargo build --release` | `cmd/fung/version.go`, `main.go` |
 | `test` 블록·`assert`(E0807)·`fung test [path]` | 앞단: `test` 블록을 함수로 컴파일(`run`은 버림). CLI: 경로 순회(`_`로 시작하는 이름 건너뜀 등 Go 규칙), 파일마다 런타임, 핸들러 → `end_background` → 꺼내지 않은 실패 보고, 테스트 없는 파일 건너뜀, `<load>` 집계, 에러 중복 제거 | `cmd/fung/test.go`, Go 컴파일러의 test 블록 처리 |
 | `fung fmt [--check] <path>…\|-` | `crates/fung-front/src/format/`: 줄 묶기·들여쓰기 상태 기계·공백 표·정렬, 출력 토큰 열 보존 안전장치 | `internal/format`, `cmd/fung/fmt.go` |
-| REPL | `crates/fung-cli/src/repl/`: raw 모드 줄 편집기(`libc` termios, 유닉스), 기록 파일, 파이프 입력 대체 경로, 재정의 허용, 입력 하나마다 `end_background` | `internal/repl`, `cmd/fung/repl.go` |
+| REPL | `crates/fung-cli/src/repl/`: raw 모드 줄 편집기(`libc` termios, 유닉스), 기록 파일, 파이프 입력 대체 경로, 재정의 허용, **세션 끝에** `end_background`(2026-10-17 사용자 결정: 입력 사이에 정의가 남으므로 전역에 담은 에이전트도 남아야 한다. 입력마다 부르면 배경 루트가 취소되어 다음 입력부터 에이전트가 일하지 않는다) | `internal/repl`, `cmd/fung/repl.go` |
 
 ## 2. 동작
 
 - 출력 문구·종료 코드·경로 순회 순서는 Go와 같다.
-- `fung test`·REPL은 3b의 종료 순서를 지킨다: 핸들러 → `end_background` → 꺼내지 않은 실패 보고. 에이전트가 다음 파일·다음 입력으로 넘어가지 않는다.
+- `fung test`·REPL은 3b의 종료 순서를 지킨다: 핸들러 → `end_background` → 꺼내지 않은 실패 보고. 에이전트가 다음 파일로 넘어가지 않는다. REPL은 세션 끝에 한 번(위 표; 아무도 붙잡지 않은 에이전트는 핸들이 사라질 때 끝난다).
 - 포매터는 Go와 바이트 단위로 같은 출력을 낸다(고친 버그 포함). 출력 토큰 열이 입력과 다르면 포맷을 거부한다(Go 안전장치와 같음).
 - REPL 편집 키·기록 파일 위치·형식은 Go와 같다.
 

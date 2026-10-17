@@ -36,13 +36,15 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
 - Go 모듈 `github.com/tunarider/fung`, Go 1.27, **Go 표준 라이브러리만 사용** (REPL 줄 편집 등도 직접 구현).
 - 원격 저장소: `origin` = https://github.com/tunarider/fung (공개). 2026-10-14에 기록을 커밋 하나로 합쳐 처음 푸시했다.
   옛 기록(커밋 195개)은 저장소 밖 `~/fung-history-2026-10-14.bundle`에만 있다.
-- Rust 이식(진행 중): 루트 Cargo 워크스페이스, `crates/fung-front`(앞단)·`crates/fung-vm`(값·VM)·`crates/fung-cli`(`fung dump`·`run`·`-e`). 크레이트 의존성: 앞단은 0개, `fung-vm`은 `deny.toml`의
+- Rust 이식(진행 중): 루트 Cargo 워크스페이스, `crates/fung-front`(앞단)·`crates/fung-vm`(값·VM)·`crates/fung-cli`(Go CLI의 명령 전체: `dump`·`run`·`-e`·`check`·`test`·`fmt`·REPL·`version`·`help`). 크레이트 의존성: 앞단은 0개, `fung-vm`은 `deny.toml`의
   허용 목록만(이유는 open-questions "Rust 이전"; `crates/fung-cli/tests/deps.rs`·CI `cargo-deny`·`cargo-audit`가 지킴, 2주 넘은 버전만). `spec/builtins.txt`·`spec/errors.txt`·`spec/unicode.txt`(Go `unicode` 글자 범주 표)·`spec/regex_unicode.txt`(Go 정규식 유니코드 표)는 Go가 생성(`go test ./tests -run TestSpecFiles -update`), 정규식 기대값 `regex_go_fixtures.rs`는 `tests/regex_fixtures_test.go`가 생성(`go test ./tests -run TestRegexFixtures -update`). 커밋 전 `cargo fmt --check`,
   `cargo clippy --all-targets -- -D warnings`, `FUNG_REQUIRE_PARITY=1 cargo test`, `FUNG_REQUIRE_PARITY=1 cargo test --release`도 통과해야 한다(`parity`·`run_parity` 테스트가 Go 버전과
   dump·실행 출력을 비교, 이 변수가 없으면 `go`가 없을 때 비교를 조용히 건너뜀; 릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지킴).
   동시성(3a): fung 값(`Rc`)은 실행권을 쥔 스레드만 만지고, `unsafe impl Send`는 `// SAFETY:` 근거와 디버그 단언으로 지킨다(`docs/notes/R3a-runtime.md` 3절). 동시성 테스트는 `sleep` 대신 상태로 순서를 정한다(`testutil`의 탐침).
   갈라지는 테스트(3b): Go와 일부러 다른 `tests/lang` 파일은 맨 위에 `# only: go|rust`. Rust 골든 실행기(`crates/fung-cli/tests/golden.rs`)가 `# only: go`가 아닌 파일을 Go 없이 파일의 기대값과 비교하고, 실행 비교는 표시된 파일을 건너뛴다.
   4d부터 `# only:`가 구현마다 갈라지는 유일한 장치다(지원 안 함 E0805 장치와 제외 목록 `run_parity_skip.txt`는 지웠다; 실행 비교에서 빼는 파일 없음).
+  도구(5): `tools_parity`가 `check`·`test`·`fmt`·파이프 REPL을 Go와 비교하고, `fmt_repo`가 Rust `fung fmt --check`로 `extras`·`examples`·`tests/lang`(`err_*`만 예외)·`crates/fung-cli/tests/data`를 검사한다.
+  `fmt_repo`가 `cargo test` 안에서 돌므로 Rust `fung fmt --check`는 커밋 전 목록에 따로 두지 않는다(Go `fung fmt --check extras examples tests/lang`은 그대로).
   크레이트 보안 공지: 우리 설정에 닿지 않으면 2주 규칙을 지키고 `deny.toml`·`.cargo/audit.toml`에 이유와 함께 무시(해제 날짜는 open-questions에서 추적), 닿으면 바로 올린다.
 
 ## 현재 상태
@@ -99,7 +101,12 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   HTTP/1.1 클라이언트·리다이렉트·프록시·`CONNECT`(`start_tls`)·서버를 fung으로 쓴 `extras/rust/http.fung`(서버 끝내기는 `hold`·`close_on_cancel`, 핸들러는 `set_asker`로 서버 아래).
   06에 "fung HTTP 약속"(응답 본문 64 MiB 상한은 사용자 결정, Rust만). E0805 장치와 `run_parity_skip.txt` 삭제. 실행 비교 189건(빼는 파일 없음), Rust 골든 139개, `http_parity` 14개(Go 서버·클라이언트와 원문 비교), `tls.rs`.
   rustls 공지 4건은 닿지 않아 무시, **2026-10-28 이후 0.23.46으로 올리고 무시 항목 삭제**. 그린 스레드는 6단계 뒤 "R7 스케줄러"로 미룸. 남은 차이·과도기 잔가지·R7 항목은 open-questions "Rust 이전".
-  스펙 `docs/superpowers/specs/2026-10-16-rust-net-http-4d-design.md`, 계획 `docs/plans/2026-10-16-rust-net-http-4d.md`, 노트 `docs/notes/R4d-net-http.md`. 다음은 5단계(도구: REPL·`fmt`·`test`·`check`).
+  스펙 `docs/superpowers/specs/2026-10-16-rust-net-http-4d-design.md`, 계획 `docs/plans/2026-10-16-rust-net-http-4d.md`, 노트 `docs/notes/R4d-net-http.md`.
+- Rust 이식 5단계(도구) 완료 (2026-10-17): Go 포매터 결함 셋을 Go·Rust 함께 고친 뒤(타입 표기 `fn`, BOM, `fmt --check -`; 사용자 승인) 경고 W0101~W0104·`check`·`version`(`FUNG_VERSION` → `0.0.0-dev`)·`help`,
+  `fung test`(파일마다 런타임, `Runtime::hold`·`release`로 블록 사이의 틈은 교착 아님, 핸들러 → `end_background` → 실패 보고), `fung fmt`(Go를 줄 단위로, 바이트 보존), REPL(세션 전역 표, `resolve::Options`의 `globals`·`redefine`,
+  raw 모드는 `fung_vm::term`). 사용자 결정으로 Go와 일부러 다른 것: 교착·태스크 `exit` 뒤 테스트 파일의 나머지 건너뛰기, REPL의 교착 회복(그 입력만 실패)과 태스크 `exit`로 세션 끝, REPL `end_background`는 세션 끝.
+  Go 대조 `tools_parity` 20개, 가짜 터미널 `repl_tty` 4개, `fmt_repo`. 남은 차이·잔가지는 open-questions "Rust 이전"의 5단계 항목.
+  스펙 `docs/superpowers/specs/2026-10-17-rust-tools-5-design.md`, 계획 `docs/plans/2026-10-17-rust-tools-5.md`, 노트 `docs/notes/R5-tools.md`. 다음은 6단계(동등 도달, 릴리스 전환, Go 삭제).
 - 다음 작업: tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에(기존 결정 유지). 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 에러 번호는 `internal/diag/catalog.go`에서 할당하며 한 번 붙이면 바꾸지 않는다.
 - 학습용 설명은 `docs/notes/M<n>-<주제>.md`에 한국어로 남긴다. 마일스톤마다 무엇을 만들었고 왜 그렇게 했는지 쓴다.
