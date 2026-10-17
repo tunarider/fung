@@ -1,0 +1,1647 @@
+# Redirects: the `http` client against fake servers (crates/fung-cli/tests/http.rs,
+# `redirect_cases`).
+# `URL` in a program is "http://127.0.0.1:PORT0"; `PORTn` and `$PORTn` are server
+# n's port, `REFUSED` one nothing listens on. `request <s>.<n>`: the raw requests
+# server s got.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== case 00
+-- program
+| print(http.get(URL + "/start"))
+| print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
+| print(http.request("HEAD", URL + "/start"))
+| print(http.request("put", URL + "/start", "b"))
+| print(http.request("DELETE", URL + "/start"))
+| print(http.request("POST", URL + "/start"))
+| print(http.request("GET", URL + "/start", "get body"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.2 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.3 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| X-Keep: 1\r
+| \r
+-- request 0.4 (escaped)
+| HEAD /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| HEAD /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.6 (escaped)
+| PUT /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| b
+\ no newline
+-- request 0.7 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.8 (escaped)
+| DELETE /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.9 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.10 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.11 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.12 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| \r
+| get body
+\ no newline
+-- request 0.13 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+==== case 01
+-- program
+| print(http.get(URL + "/start"))
+| print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
+| print(http.request("HEAD", URL + "/start"))
+| print(http.request("put", URL + "/start", "b"))
+| print(http.request("DELETE", URL + "/start"))
+| print(http.request("POST", URL + "/start"))
+| print(http.request("GET", URL + "/start", "get body"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.2 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.3 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| X-Keep: 1\r
+| \r
+-- request 0.4 (escaped)
+| HEAD /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| HEAD /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.6 (escaped)
+| PUT /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| b
+\ no newline
+-- request 0.7 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.8 (escaped)
+| DELETE /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.9 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.10 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.11 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.12 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| \r
+| get body
+\ no newline
+-- request 0.13 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+==== case 02
+-- program
+| print(http.get(URL + "/start"))
+| print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
+| print(http.request("HEAD", URL + "/start"))
+| print(http.request("put", URL + "/start", "b"))
+| print(http.request("DELETE", URL + "/start"))
+| print(http.request("POST", URL + "/start"))
+| print(http.request("GET", URL + "/start", "get body"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.2 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.3 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| X-Keep: 1\r
+| \r
+-- request 0.4 (escaped)
+| HEAD /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| HEAD /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.6 (escaped)
+| PUT /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| b
+\ no newline
+-- request 0.7 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.8 (escaped)
+| DELETE /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.9 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.10 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.11 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.12 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| \r
+| get body
+\ no newline
+-- request 0.13 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+==== case 03
+-- program
+| print(http.get(URL + "/start"))
+| print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
+| print(http.request("HEAD", URL + "/start"))
+| print(http.request("put", URL + "/start", "b"))
+| print(http.request("DELETE", URL + "/start"))
+| print(http.request("POST", URL + "/start"))
+| print(http.request("GET", URL + "/start", "get body"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.2 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.3 (escaped)
+| POST /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.4 (escaped)
+| HEAD /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| HEAD /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.6 (escaped)
+| PUT /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| b
+\ no newline
+-- request 0.7 (escaped)
+| PUT /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+| b
+\ no newline
+-- request 0.8 (escaped)
+| DELETE /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.9 (escaped)
+| DELETE /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.10 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.11 (escaped)
+| POST /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.12 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| \r
+| get body
+\ no newline
+-- request 0.13 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+| get body
+\ no newline
+==== case 04
+-- program
+| print(http.get(URL + "/start"))
+| print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
+| print(http.request("HEAD", URL + "/start"))
+| print(http.request("put", URL + "/start", "b"))
+| print(http.request("DELETE", URL + "/start"))
+| print(http.request("POST", URL + "/start"))
+| print(http.request("GET", URL + "/start", "get body"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.2 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.3 (escaped)
+| POST /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 11\r
+| Content-Encoding: identity\r
+| Content-Language: ko\r
+| Content-Location: /x\r
+| Content-Type: text/plain\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| X-Keep: 1\r
+| \r
+| 한글 data
+\ no newline
+-- request 0.4 (escaped)
+| HEAD /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| HEAD /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.6 (escaped)
+| PUT /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| b
+\ no newline
+-- request 0.7 (escaped)
+| PUT /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+| b
+\ no newline
+-- request 0.8 (escaped)
+| DELETE /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.9 (escaped)
+| DELETE /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.10 (escaped)
+| POST /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.11 (escaped)
+| POST /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+-- request 0.12 (escaped)
+| GET /start HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| \r
+| get body
+\ no newline
+-- request 0.13 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 8\r
+| Referer: http://127.0.0.1:$PORT0/start\r
+| \r
+| get body
+\ no newline
+==== case 05
+-- program
+| print(http.get(URL + "/300"))
+| print(http.get(URL + "/304"))
+| print(http.get(URL + "/305"))
+| print(http.get(URL + "/306"))
+| print(http.get(URL + "/309"))
+| print(http.get(URL + "/none"))
+| print(http.get(URL + "/empty"))
+| print(http.request("HEAD", URL + "/none"))
+| sleep(200ms)
+\ no newline
+-- stdout
+| Ok({status: 300, headers: {"content-length": "0", location: "/end"}, body: ""})
+| Ok({status: 304, headers: {"content-length": "0", location: "/end"}, body: ""})
+| Ok({status: 305, headers: {"content-length": "0", location: "/end"}, body: ""})
+| Ok({status: 306, headers: {"content-length": "0", location: "/end"}, body: ""})
+| Ok({status: 309, headers: {"content-length": "0", location: "/end"}, body: ""})
+| Ok({status: 302, headers: {"content-length": "5"}, body: "found"})
+| Ok({status: 301, headers: {"content-length": "2", location: "", x: "y"}, body: "no"})
+| Ok({status: 302, headers: {"content-length": "5"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /300 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /304 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.2 (escaped)
+| GET /305 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| GET /306 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.4 (escaped)
+| GET /309 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| GET /none HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.6 (escaped)
+| GET /empty HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.7 (escaped)
+| HEAD /none HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 06
+-- program
+| print(http.get(URL + "/a/b/s0?k=v"))
+| print(http.get(URL + "/a/b/s1?k=v"))
+| print(http.get(URL + "/a/b/s2?k=v"))
+| print(http.get(URL + "/a/b/s3?k=v"))
+| print(http.get(URL + "/a/b/s4?k=v"))
+| print(http.get(URL + "/a/b/s5?k=v"))
+| print(http.get(URL + "/a/b/s6?k=v"))
+| print(http.get(URL + "/a/b/s7?k=v"))
+| print(http.get(URL + "/a/b/s8?k=v"))
+| print(http.get(URL + "/a/b/s9?k=v"))
+| print(http.get(URL + "/a/b/s10?k=v"))
+| print(http.get(URL + "/a/b/s11?k=v"))
+| print(http.get(URL + "/a/b/s12?k=v"))
+| print(http.get(URL + "/a/b/s13?k=v"))
+| print(http.get(URL + "/a/b/s14?k=v"))
+| print(http.get(URL + "/a/b/s15?k=v"))
+| print(http.get(URL + "/a/b/s16?k=v"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/a/b/s16?k=v`: Get \"#frag\": stopped after 10 redirects"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /a/b/s0?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /a/b/end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s0?k=v\r
+| \r
+-- request 0.2 (escaped)
+| GET /a/b/s1?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| GET /a/x HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s1?k=v\r
+| \r
+-- request 0.4 (escaped)
+| GET /a/b/s2?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| GET /y HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s2?k=v\r
+| \r
+-- request 0.6 (escaped)
+| GET /a/b/s3?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.7 (escaped)
+| GET /a/b/z?q=1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s3?k=v\r
+| \r
+-- request 0.8 (escaped)
+| GET /a/b/s4?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.9 (escaped)
+| GET /a/b/s4?only=query HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s4?k=v\r
+| \r
+-- request 0.10 (escaped)
+| GET /a/b/s5?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.11 (escaped)
+| GET /abs/q HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s5?k=v\r
+| \r
+-- request 0.12 (escaped)
+| GET /a/b/s6?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.13 (escaped)
+| GET /net HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s6?k=v\r
+| \r
+-- request 0.14 (escaped)
+| GET /a/b/s7?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.15 (escaped)
+| GET /full?a=b HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s7?k=v\r
+| \r
+-- request 0.16 (escaped)
+| GET /a/b/s8?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.17 (escaped)
+| GET /upper HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s8?k=v\r
+| \r
+-- request 0.18 (escaped)
+| GET /a/b/s9?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.19 (escaped)
+| GET /a%20b/%EA%B2%80%EC%83%89?q=한 글 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s9?k=v\r
+| \r
+-- request 0.20 (escaped)
+| GET /a/b/s10?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.21 (escaped)
+| GET /a/b/ HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s10?k=v\r
+| \r
+-- request 0.22 (escaped)
+| GET /a/b/s11?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.23 (escaped)
+| GET /a/ HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s11?k=v\r
+| \r
+-- request 0.24 (escaped)
+| GET /a/b/s12?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.25 (escaped)
+| GET /x/ HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s12?k=v\r
+| \r
+-- request 0.26 (escaped)
+| GET /a/b/s13?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.27 (escaped)
+| GET /a/b/ HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s13?k=v\r
+| \r
+-- request 0.28 (escaped)
+| GET /a/b/s14?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.29 (escaped)
+| GET /%41%2F/ HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s14?k=v\r
+| \r
+-- request 0.30 (escaped)
+| GET /a/b/s15?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.31 (escaped)
+| GET /userinfo HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpwIHc=\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s15?k=v\r
+| \r
+-- request 0.32 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.33 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v\r
+| \r
+-- request 0.34 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.35 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.36 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.37 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.38 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.39 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.40 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+-- request 0.41 (escaped)
+| GET /a/b/s16?k=v HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
+| \r
+==== case 07
+-- program
+| print(http.get(URL + "/bad1"))
+| print(http.get("http://u:secret@127.0.0.1:PORT0/bad2"))
+| print(http.post(URL + "/bad3", "x"))
+| print(http.get(URL + "/bad4"))
+| print(http.get(URL + "/bad5"))
+\ no newline
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad1`: Get \"http://127.0.0.1:$PORT0/bad1\": failed to parse Location header \"http://[::1\": parse \"http://[::1\": missing ']' in host"})
+| Err({kind: 'network, message: "cannot request `http://u:secret@127.0.0.1:$PORT0/bad2`: Get \"http://u:***@127.0.0.1:$PORT0/bad2\": failed to parse Location header \"/%zz\": parse \"/%zz\": invalid URL escape \"%zz\""})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad3`: Post \"ftp://x/y\": unsupported protocol scheme \"ftp\""})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad4`: Get \"http:opaque\": http: no Host in request URL"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad5`: Get \"http://127.0.0.1:$REFUSED/gone\": dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /bad1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /bad2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpzZWNyZXQ=\r
+| \r
+-- request 0.2 (escaped)
+| POST /bad3 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| x
+\ no newline
+-- request 0.3 (escaped)
+| GET /bad4 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.4 (escaped)
+| GET /bad5 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 08
+-- program
+| print(http.get(URL + "/endless"))
+| print(http.get(URL + "/short"))
+| print(http.get(URL + "/chunks"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /endless HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/endless\r
+| \r
+-- request 0.2 (escaped)
+| GET /short HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/short\r
+| \r
+-- request 0.4 (escaped)
+| GET /chunks HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/chunks\r
+| \r
+==== case 09
+-- program
+| print(http.get(URL + "/hold", timeout: 2s))
+| print(http.get(URL + "/holdnolen", timeout: 2s))
+| print(http.get(URL + "/holdchunks", timeout: 2s))
+| print(http.get(URL + "/holdlong", timeout: 2s))
+| print(http.get(URL + "/badhold", timeout: 2s))
+| print(http.request("HEAD", URL + "/headchunks", timeout: 2s))
+\ no newline
+-- stdout
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT0/hold` timed out"})
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT0/holdnolen` timed out"})
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT0/holdchunks` timed out"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/badhold`: Get \"http://127.0.0.1:$PORT0/badhold\": failed to parse Location header \"http://[::1\": parse \"http://[::1\": missing ']' in host"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /hold HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /holdnolen HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.2 (escaped)
+| GET /holdchunks HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| GET /holdlong HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.4 (escaped)
+| GET /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/holdlong\r
+| \r
+-- request 0.5 (escaped)
+| GET /badhold HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.6 (escaped)
+| HEAD /headchunks HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.7 (escaped)
+| HEAD /end HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/headchunks\r
+| \r
+==== case 10
+-- program: print(http.get(URL + "/r/0"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /r/0 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /r/1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/0\r
+| \r
+-- request 0.2 (escaped)
+| GET /r/2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/1\r
+| \r
+-- request 0.3 (escaped)
+| GET /r/3 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/2\r
+| \r
+-- request 0.4 (escaped)
+| GET /r/4 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/3\r
+| \r
+-- request 0.5 (escaped)
+| GET /r/5 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/4\r
+| \r
+-- request 0.6 (escaped)
+| GET /r/6 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/5\r
+| \r
+-- request 0.7 (escaped)
+| GET /r/7 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/6\r
+| \r
+-- request 0.8 (escaped)
+| GET /r/8 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/7\r
+| \r
+-- request 0.9 (escaped)
+| GET /r/9 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/8\r
+| \r
+==== case 11
+-- program: print(http.request("HEAD", URL + "/r/0"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/r/0`: Head \"/r/10\": stopped after 10 redirects"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| HEAD /r/0 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| HEAD /r/1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/0\r
+| \r
+-- request 0.2 (escaped)
+| HEAD /r/2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/1\r
+| \r
+-- request 0.3 (escaped)
+| HEAD /r/3 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/2\r
+| \r
+-- request 0.4 (escaped)
+| HEAD /r/4 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/3\r
+| \r
+-- request 0.5 (escaped)
+| HEAD /r/5 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/4\r
+| \r
+-- request 0.6 (escaped)
+| HEAD /r/6 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/5\r
+| \r
+-- request 0.7 (escaped)
+| HEAD /r/7 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/6\r
+| \r
+-- request 0.8 (escaped)
+| HEAD /r/8 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/7\r
+| \r
+-- request 0.9 (escaped)
+| HEAD /r/9 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/r/8\r
+| \r
+==== case 12
+-- program: print(http.post(URL + "/loop", "x"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/loop`: Post \"/loop\": stopped after 10 redirects"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| x
+\ no newline
+-- request 0.1 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.2 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.3 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.4 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.5 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.6 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.7 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.8 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+-- request 0.9 (escaped)
+| POST /loop HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Referer: http://127.0.0.1:$PORT0/loop\r
+| \r
+| x
+\ no newline
+==== case 13
+-- program
+| print(http.get("http://u:p@127.0.0.1:PORT0/start?q=1#frag"))
+| print(http.get(URL + "/start?q=1", headers: {"referer": "mine"}))
+| print(http.get(URL + "/start?q=1", headers: {"Referer": ""}))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /start?q=1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpw\r
+| \r
+-- request 0.1 (escaped)
+| GET /next HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpw\r
+| Referer: http://127.0.0.1:$PORT0/start?q=1#frag\r
+| \r
+-- request 0.2 (escaped)
+| GET /last HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpw\r
+| Referer: http://127.0.0.1:$PORT0/next\r
+| \r
+-- request 0.3 (escaped)
+| GET /start?q=1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: mine\r
+| \r
+-- request 0.4 (escaped)
+| GET /next HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: mine\r
+| \r
+-- request 0.5 (escaped)
+| GET /last HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: mine\r
+| \r
+-- request 0.6 (escaped)
+| GET /start?q=1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: \r
+| \r
+-- request 0.7 (escaped)
+| GET /next HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/start?q=1\r
+| \r
+-- request 0.8 (escaped)
+| GET /last HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/next\r
+| \r
+==== case 14
+-- program
+| print(http.get(URL + "/slow1", timeout: 1500ms))
+| print(http.get(URL + "/slow1", timeout: 5s))
+\ no newline
+-- stdout
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT0/slow1` timed out"})
+| Ok({status: 200, headers: {"content-length": "4"}, body: "late"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /slow1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET /slow2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/slow1\r
+| \r
+-- request 0.2 (escaped)
+| GET /slow1 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| GET /slow2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/slow1\r
+| \r
+==== case 15
+-- program
+| h = {"authorization": "Bearer t", "cookie": "c=1", "cookie2": "x", "www-authenticate": "w", "proxy-authorization": "p", "proxy-authenticate": "pa", "x-other": "o"}
+| print(http.get(URL + "/port", headers: h))
+| print(http.get(URL + "/host", headers: h))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "5"}, body: "other"})
+| Ok({status: 200, headers: {"content-length": "4"}, body: "back"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /port HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Cookie: c=1\r
+| Cookie2: x\r
+| Proxy-Authenticate: pa\r
+| Proxy-Authorization: p\r
+| Www-Authenticate: w\r
+| X-Other: o\r
+| \r
+-- request 0.1 (escaped)
+| GET /host HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Cookie: c=1\r
+| Cookie2: x\r
+| Proxy-Authenticate: pa\r
+| Proxy-Authorization: p\r
+| Www-Authenticate: w\r
+| X-Other: o\r
+| \r
+-- request 0.2 (escaped)
+| GET /back HTTP/1.1\r
+| Host: 127.0.0.1:$PORT0\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://localhost:$PORT1/h\r
+| X-Other: o\r
+| \r
+-- request 1.0 (escaped)
+| GET /p HTTP/1.1\r
+| Host: 127.0.0.1:$PORT1\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Cookie: c=1\r
+| Cookie2: x\r
+| Proxy-Authenticate: pa\r
+| Proxy-Authorization: p\r
+| Referer: http://127.0.0.1:$PORT0/port\r
+| Www-Authenticate: w\r
+| X-Other: o\r
+| \r
+-- request 1.1 (escaped)
+| GET /h HTTP/1.1\r
+| Host: localhost:$PORT1\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://127.0.0.1:$PORT0/host\r
+| X-Other: o\r
+| \r
+==== case 16
+-- program
+| h = {"authorization": "Bearer t", "cookie": "c=1", "content-type": "text/plain", "x-other": "o"}
+| print(http.post("http://example.test/start", "body", headers: h))
+| print(http.get("http://EXAMPLE.test/s2", headers: h))
+| print(http.get("http://example.test/s3", headers: h))
+| print(http.get("http://u:p@example.test/s4", headers: h))
+| print(http.get("http://192.0.2.1/s5", headers: h))
+| print(http.request("PUT", "http://example.test/s6", "b", headers: h))
+\ no newline
+-- env: HTTP_PROXY=http://127.0.0.1:PORT0
+-- stdout
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| POST http://example.test/start HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 4\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| X-Other: o\r
+| \r
+| body
+\ no newline
+-- request 0.1 (escaped)
+| POST http://sub.example.test/a HTTP/1.1\r
+| Host: sub.example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 4\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| Referer: http://example.test/start\r
+| X-Other: o\r
+| \r
+| body
+\ no newline
+-- request 0.2 (escaped)
+| POST http://example.test:8080/b HTTP/1.1\r
+| Host: example.test:8080\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 4\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| Referer: http://sub.example.test/a\r
+| X-Other: o\r
+| \r
+| body
+\ no newline
+-- request 0.3 (escaped)
+| POST http://other.test/c HTTP/1.1\r
+| Host: other.test\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 4\r
+| Content-Type: text/plain\r
+| Referer: http://example.test:8080/b\r
+| X-Other: o\r
+| \r
+| body
+\ no newline
+-- request 0.4 (escaped)
+| POST http://example.test/d HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 4\r
+| Content-Type: text/plain\r
+| Referer: http://other.test/c\r
+| X-Other: o\r
+| \r
+| body
+\ no newline
+-- request 0.5 (escaped)
+| GET http://EXAMPLE.test/s2 HTTP/1.1\r
+| Host: EXAMPLE.test\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| X-Other: o\r
+| \r
+-- request 0.6 (escaped)
+| GET http://example.TEST/x HTTP/1.1\r
+| Host: example.TEST\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Cookie: c=1\r
+| Referer: http://EXAMPLE.test/s2\r
+| X-Other: o\r
+| \r
+-- request 0.7 (escaped)
+| GET http://example.test/s3 HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| X-Other: o\r
+| \r
+-- request 0.8 (escaped)
+| GET http://notexample.test/x HTTP/1.1\r
+| Host: notexample.test\r
+| User-Agent: Go-http-client/1.1\r
+| Referer: http://example.test/s3\r
+| X-Other: o\r
+| \r
+-- request 0.9 (escaped)
+| GET http://example.test/s4 HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| X-Other: o\r
+| \r
+-- request 0.10 (escaped)
+| GET http://other.test/x HTTP/1.1\r
+| Host: other.test\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTI6cDI=\r
+| Referer: http://example.test/s4\r
+| X-Other: o\r
+| \r
+-- request 0.11 (escaped)
+| GET http://192.0.2.1/s5 HTTP/1.1\r
+| Host: 192.0.2.1\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| X-Other: o\r
+| \r
+-- request 0.12 (escaped)
+| GET http://192.0.2.1:8080/x HTTP/1.1\r
+| Host: 192.0.2.1:8080\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| Cookie: c=1\r
+| Referer: http://192.0.2.1/s5\r
+| X-Other: o\r
+| \r
+-- request 0.13 (escaped)
+| PUT http://example.test/s6 HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Authorization: Bearer t\r
+| Content-Type: text/plain\r
+| Cookie: c=1\r
+| X-Other: o\r
+| \r
+| b
+\ no newline
+-- request 0.14 (escaped)
+| PUT http://xexample.test/x HTTP/1.1\r
+| Host: xexample.test\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| Content-Type: text/plain\r
+| Referer: http://example.test/s6\r
+| X-Other: o\r
+| \r
+| b
+\ no newline

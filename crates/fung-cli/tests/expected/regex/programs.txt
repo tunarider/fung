@@ -1,0 +1,514 @@
+# `regex` programs (crates/fung-cli/tests/regex_expected.rs), each run with `fung -e`.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test regex_expected
+==== "import regex\ns = \"가나다 나다\"\nm = regex.find(s, \"나(다)\")\nprint(m.text, m.start, m.end, s[m.start..m.end], m.groups)"
+-- stdout
+| 나다 1 3 나다 ["다"]
+-- stderr
+-- exit: 0
+==== "import regex\nfor m in regex.find_all(\"é가 a b\", `\\b`):\n  print(m)\n;;"
+-- stdout
+| {text: "", start: 3, end: 3, groups: [], named: {}}
+| {text: "", start: 4, end: 4, groups: [], named: {}}
+| {text: "", start: 5, end: 5, groups: [], named: {}}
+| {text: "", start: 6, end: 6, groups: [], named: {}}
+-- stderr
+-- exit: 0
+==== "import regex\nprint(regex.find_all(\"aaa\", \"a*\"), regex.find_all(\"baaac\", \"a*\"))"
+-- stdout
+| [{text: "aaa", start: 0, end: 3, groups: [], named: {}}] [{text: "", start: 0, end: 0, groups: [], named: {}}, {text: "aaa", start: 1, end: 4, groups: [], named: {}}, {text: "", start: 5, end: 5, groups: [], named: {}}]
+-- stderr
+-- exit: 0
+==== "import regex\nprint(regex.find(s: \"k=v\", pat: `(\\w)=(\\w… (129 bytes, 70406b324471589d)
+-- stdout
+| {text: "k=v", start: 0, end: 3, groups: ["k", "v"], named: {}} v=k
+-- stderr
+-- exit: 0
+==== "import regex\nimport _native.regex as n\nprint(n.split(\"a,b\", \",\"), n.is_match(\"x\", \"x\"))"
+-- stdout
+-- stderr
+| error[E0310]: `_native.regex` is internal; import `regex` instead
+|   --> -e:2:1
+|   |
+| 2 | import _native.regex as n
+|   | ^
+|   |
+-- exit: 2
+==== "import regex\nprint(regex.is_match(1, \"x\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:2:21
+|   |
+| 2 | print(regex.is_match(1, "x"))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `pat` must be str, got nil
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", nil))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find_all([\"x\"], \"x\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got list
+|   --> -e:2:21
+|   |
+| 2 | print(regex.find_all(["x"], "x"))
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.split(\"x\", 1.5))"
+-- stdout
+-- stderr
+| error[E0403]: argument `pat` must be str, got float
+|   --> -e:2:18
+|   |
+| 2 | print(regex.split("x", 1.5))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.replace(1, \"(\", 2))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:2:20
+|   |
+| 2 | print(regex.replace(1, "(", 2))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.replace(\"x\", \"(\", 2))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(`
+|   --> -e:2:20
+|   |
+| 2 | print(regex.replace("x", "(", 2))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.replace(\"x\", \"x\", 2))"
+-- stdout
+-- stderr
+| error[E0403]: argument `repl` must be str, got int
+|   --> -e:2:20
+|   |
+| 2 | print(regex.replace("x", "x", 2))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.replace(\"x\", \"x\", 'sym))"
+-- stdout
+-- stderr
+| error[E0403]: argument `repl` must be str, got sym
+|   --> -e:2:20
+|   |
+| 2 | print(regex.replace("x", "x", 'sym))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\"))"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `pat`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.split(\"x\", \"y\", \"z\"))"
+-- stdout
+-- stderr
+| error[E0402]: split takes 2 argument(s), got 3
+|   --> -e:2:18
+|   |
+| 2 | print(regex.split("x", "y", "z"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(s: \"x\", pattern: \"x\"))"
+-- stdout
+-- stderr
+| error[E0406]: find has no argument named `pattern`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find(s: "x", pattern: "x"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nfn f(p) = regex.find(\"x\", p)\nprint(f(\"a)\"))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: unexpected ): `a)`
+|   --> -e:2:21
+|   |
+| 2 | fn f(p) = regex.find("x", p)
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:2       f
+|    -e:3       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `)`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: unexpected ): `)`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `)`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `a)`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: unexpected ): `a)`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `a)`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `[a`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing closing ]: `[a`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `[a`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `[z-a]`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid character class range: `z-a`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `[z-a]`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `a**`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid nested repetition operator: `**`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `a**`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `a{1001}`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid repeat count: `{1001}`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `a{1001}`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `a{2}{1001}`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid repeat count: `{1001}`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `a{2}{1001}`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `*a`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing argument to repetition operator: `*`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `*a`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `+`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing argument to repetition operator: `+`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `+`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `?`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing argument to repetition operator: `?`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `?`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(?x)a`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?x`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(?x)a`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `\\Z`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid escape sequence: `\Z`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `\Z`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `\\8`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid escape sequence: `\8`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `\8`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `\\Q`))"
+-- stdout
+| {text: "", start: 0, end: 0, groups: [], named: {}}
+-- stderr
+-- exit: 0
+==== "import regex\nprint(regex.find(\"x\", `\\pN{`))"
+-- stdout
+| nil
+-- stderr
+-- exit: 0
+==== "import regex\nprint(regex.find(\"x\", `\\p{Nope}`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid character class range: `\p{Nope}`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `\p{Nope}`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(?P<>a)`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid named capture: `(?P<>`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(?P<>a)`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(?P<a`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid named capture: `(?P<a`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(?P<a`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(?P<a>x)(?P<a`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid named capture: `(?P<a`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(?P<a>x)(?P<a`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(?i`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?i`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(?i`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(?z)`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?z`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(?z)`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `x{1,2}{3,4}{5}`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid nested repetition operator: `{1,2}{3,4}`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `x{1,2}{3,4}{5}`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `[[:nope:]]`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid character class range: `[:nope:]`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `[[:nope:]]`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `[]a`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing closing ]: `[]a`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `[]a`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `\\`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: trailing backslash at end of expression: ``
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `\`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `a(?`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `a(?`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `가(`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `가(`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `가(`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import regex\nprint(regex.find(\"x\", `(가나]`))"
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(가나]`
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `(가나]`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1

@@ -1,53 +1,53 @@
-# 06. Go 연동 · 표준 라이브러리
+# 06. 네이티브 연동 · 표준 라이브러리
 
 ## 내장 함수 연결 방식
 
-- 내장 함수는 **손으로 감싼다.** fung 값 검사 → Go 호출 → fung 값으로 변환.
+- 내장 함수는 **손으로 감싼다.** fung 값 검사 → Rust 호출 → fung 값으로 변환.
 - 인자 검사 등 반복 작업은 도우미 함수로 줄인다.
-- 리플렉션 자동 연결은 쓰지 않는다 (Go의 이름·타입·에러 방식이 새어 나오므로).
+- 리플렉션 자동 연결은 쓰지 않는다 (구현 언어의 이름·타입·에러 방식이 새어 나오므로).
 - **내장 함수도 fung 함수와 같은 호출 규약을 따른다.** 매개변수 목록(이름, 기본값, `...rest`)을 선언하고,
   위치·이름 인자·기본값·개수 검사는 VM이 한 곳에서 한다. `exec(cmd, cwd: d)`가 되는 이유이며,
   "내장 함수는 이름 인자가 안 된다" 같은 예외 조항을 두지 않는다 (배경 원칙 7).
-  값에 따라 달라지는 기본값(예: 현재 디렉터리)은 `nil`로 받아 Go 쪽에서 채운다.
-- `exit(n)`은 Go의 `os.Exit`를 직접 부르지 않는다. VM 안에서 **종료 신호**로 올라가고(에러와 같은 경로, 호출 경로·메시지 없음),
+  값에 따라 달라지는 기본값(예: 현재 디렉터리)은 `nil`로 받아 Rust 쪽에서 채운다.
+- `exit(n)`은 프로세스 종료(`std::process::exit`)를 직접 부르지 않는다. VM 안에서 **종료 신호**로 올라가고(에러와 같은 경로, 호출 경로·메시지 없음),
   `fung` 명령이 받아 `at_exit`를 돌린 뒤 그 코드로 끝낸다. 같은 프로세스 안의 테스트·REPL이 깨지지 않기 위해서다.
 
 ## 네 층: core · native · extras
 
 | 층 | 뜻 | 언어 | 예 |
 |------|------|------|------|
-| **core** | 언어의 의미와 런타임. 없으면 다른 언어가 된다. "언어가 보장하는 값 연산"을 포함한다 | Go | 렉서~VM, 값·에러, 태스크·채널·atom, `exit`·`at_exit`, `print`, `map`·`filter`·`fold`·`sort`, `split`·`join`, `int`·`str` |
-| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Go | `_native.fs`, `_native.path`, `_native.process`, `_native.conc`, `_native.json`, `_native.regex`, `_native.time`, `_native.http` |
-| **extras (내장)** | core·native 위에 **fung으로** 쓴 것. 없어도 언어는 같지만 불편하다 | fung | `fs`·`path`·`cli` 모듈, `with_open`, `take`·`drop`·`lines`, `until`·`retry`·`pmap` |
+| **core** | 언어의 의미와 런타임. 없으면 다른 언어가 된다. "언어가 보장하는 값 연산"을 포함한다 | Rust | 렉서~VM, 값·에러, 태스크·채널, `exit`·`at_exit`, `print`, `map`·`filter`·`fold`·`sort`, `split`·`join`, `int`·`str` |
+| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.conc`, `_native.json`, `_native.regex`, `_native.time`, `_native.net` |
+| **extras (내장)** | core·native 위에 **fung으로** 쓴 것. 없어도 언어는 같지만 불편하다 | fung | `fs`·`path`·`cli`·`conc`·`http` 모듈, `with_open`, `take`·`drop`·`lines`, `until`, `agent` |
 | **extras (프로젝트)** | 사용자 패키지. 같은 메커니즘(맨 경로 import), 의존성 관리는 추후 | fung | — |
 
 - 기준: core는 "최소한 언어가 이 정도는 보장한다"; extras는 "core만으로 만들 수 있고(성능도 충분) 없으면 너무 불편해서 넣어 둔
-  것"이며 **가급적 Go를 쓰지 않는다**. native는 그 둘 사이에서 Go가 꼭 필요한 좁은 다리다.
-- **Go native를 쓰는 때** (2026-10-14 확정): 가급적 쓰지 않되, **성능이 이유면 extras에서도** `_native.*`에 원시를 두고 fung은 얇게
-  감쌀 수 있다. 글자 단위로 도는 파서(`json`)는 `split`·`join`을 core에 둔 것과 같은 이유로 Go에 둔다. 경계는 측정으로 옮긴다.
+  것"이며 **가급적 Rust를 쓰지 않는다**. native는 그 둘 사이에서 Rust가 꼭 필요한 좁은 다리다.
+- **Rust native를 쓰는 때** (2026-10-14 확정): 가급적 쓰지 않되, **성능이 이유면 extras에서도** `_native.*`에 원시를 두고 fung은 얇게
+  감쌀 수 있다. 글자 단위로 도는 파서(`json`)는 `split`·`join`을 core에 둔 것과 같은 이유로 Rust에 둔다. 경계는 측정으로 옮긴다.
 - 우선순위(이름 해석): core > 내장 extras > 프로젝트 extras.
-- 의존 방향: **core는 extras를 import하지 않는다.** fung으로 쓴 extras는 core의 prelude와 `_native.*` 다리만 쓴다. Go 쪽 `extras`
-  패키지는 "라이브러리의 모양"인 `frontend.Registry`(모듈 이름 → fung 소스, `_native.*` 모듈 표)에 내장 파일과 다리를 담아 돌려줄
-  뿐이다. Go 패키지 경계로 강제한다(`internal/`은 `extras/`를 모른다; 조립은 `cmd/fung`만 한다; `tests/layers_test.go`가 `go list -deps`로
-  확인한다).
-- 원소를 도는 함수(`map` `filter` `fold` `each` `sort` `find`…)와 문자열·변환 원시는 안쪽 루프라 core(Go)에 둔다. 그 위의 조합
+- 의존 방향: **core는 extras를 import하지 않는다.** fung으로 쓴 extras는 core의 prelude와 `_native.*` 다리만 쓴다. 내장 파일은
+  `crates/fung-front/src/extras.rs`가 이름 → fung 소스로 담고(prelude 파일 목록 `PRELUDE_FILES`), `_native.*` 다리 표는
+  `fung_vm::boot::NATIVE_MODULES` 하나다. 크레이트 의존은 `fung-cli` → `fung-vm` → `fung-front` 한 방향이고 앞단은 외부 크레이트가 0개다
+  (`crates/fung-cli/tests/deps.rs`가 확인한다).
+- 원소를 도는 함수(`map` `filter` `fold` `each` `sort` `find`…)와 문자열·변환 원시는 안쪽 루프라 core(Rust)에 둔다. 그 위의 조합
   (`take` `drop` `first` `sum` `min` `lines` `pad_*` `is_ok`…)은 fung extras다. 경계는 측정해서 옮길 수 있고 의미는 바뀌지 않는다(골든).
   측정으로 돌아온 예: `flatten`은 fung에서 리스트를 누적하면(`acc + x`) 제곱 시간이라 core에 남았다(M7.5 노트).
-- fung extras의 인자 검사는 `fail`(E0803)로 한다. E0403 같은 호출 규약 에러는 Go 원시만 낸다.
+- fung extras의 인자 검사는 `fail`(E0803)로 한다. E0403 같은 호출 규약 에러는 Rust 원시만 낸다.
 - 내장 extras 안에서 난 런타임 에러의 위치는 **사용자 코드의 가장 가까운 프레임**이다(사용자는 내장 파일을 열 수 없다). 호출 경로에는
   내장 프레임이 그대로 보인다. 로더가 내장 파일의 `Proto`에 `Builtin`을 표시하고 VM이 그것을 본다.
-- fung으로 쓴 extras는 실행 파일에 내장한다 (Go `embed`, `extras/*.fung`). 배포는 여전히 `fung` 하나.
-- Go 함수가 사용자 람다를 다시 호출할 수 있어야 한다 (태스크별 VM 상태 분리로 가능).
+- fung으로 쓴 extras는 실행 파일에 내장한다 (`include_str!`, `extras/*.fung`). 배포는 여전히 `fung` 하나.
+- Rust 내장 함수가 사용자 람다를 다시 호출할 수 있어야 한다 (태스크별 VM 상태 분리로 가능).
 - fung으로 쓴 모듈은 **import될 때** 컴파일한다 (prelude만 시작 시). 스크립트 시작 시간을 지키기 위해서다.
 
-## 사용자 Go 확장
+## 사용자 네이티브 확장
 
-- 지금은 열지 않는다. 필요한 Go 기능은 fung 본체에 추가한다.
-- `_native.*`도 사용자 코드(프로젝트 extras)에 열지 않는다 (2026-10-14 확정). 공개 모듈이 원시를 **같은 Go 함수 값으로** 재내보내므로
+- 지금은 열지 않는다. 필요한 네이티브 기능은 fung 본체에 추가한다.
+- `_native.*`도 사용자 코드(프로젝트 extras)에 열지 않는다 (2026-10-14 확정). 공개 모듈이 원시를 **같은 네이티브 함수 값으로** 재내보내므로
   (`read = _n.read`) 사용자 라이브러리가 `import fs`로 쓰는 것과 비용이 같다. 숨겨진 것은 정리를 강제하려고 감싼 `temp_dir`과 내부용
   `spawn_awaited`뿐이다. 열면 원시의 이름·인자가 공개 API로 굳는다.
 - 외부 기능은 `exec` / `sh`로 다른 프로그램을 호출한다.
-- Go 플러그인(.so)은 쓰지 않는다 (Go 버전 일치 필요, Windows 미지원 등 불안정).
+- 네이티브 플러그인(.so)은 쓰지 않는다 (Rust에는 안정된 ABI가 없어 같은 컴파일러 버전이 필요하고, 플랫폼마다 불안정).
 
 ## 에러 규칙
 
@@ -57,7 +57,7 @@
   사용자 입력처럼 믿을 수 없는 문자열은 `parse_int(s)`·`parse_float(s)`가 `Ok`/`Err`로 돌려준다.
   "이 문자열은 숫자여야 한다"(단언)와 "숫자인지 확인한다"(검사)를 이름으로 구분한다.
 - 사용자 코드가 "여기 오면 버그다"를 말할 때는 `fail(msg)`: 메시지와 함께 런타임 에러를 일으킨다.
-  `x ?? fail("config.port is required")`처럼 `??`와 짝이 맞는다. (Go 용어 `panic`은 쓰지 않는다.)
+  `x ?? fail("config.port is required")`처럼 `??`와 짝이 맞는다. (`panic`이라는 이름은 쓰지 않는다.)
 - 표준 라이브러리 `Err`의 내용은 맵으로 통일한다: `kind`(심볼), `message`(사람이 읽는 문장), 그 외 상황별 필드.
 - `kind` 어휘 (처음 목록, 알파에서 추가):
   `'not_found` `'exists` `'permission` `'io` `'parse` `'invalid` `'timeout` `'closed` `'cancelled` `'error` `'exit` `'network`
@@ -85,9 +85,9 @@ match fs.read(p):
   - `lines(s)`: 텍스트를 줄 리스트로 — `read_lines`와 같은 규칙(`\n` 구분, 줄 끝 `\r` 제거, 끝의 줄바꿈은 빈 줄을 만들지 않음).
     `split(s, "\n")`은 끝에 빈 조각을 남기므로 줄 나누기에는 `lines`를 쓴다.
 - 결과값: `is_ok`, `is_err`
-- 반복 패턴 (fung 코드, 00의 "상태가 있는 반복은 재귀" 보완): `retry(f, times = 3, delay = 0ms)`, `until(x, f, pred)`, `iterate(x, f, n)`
+- 반복 패턴 (fung 코드, 00의 "상태가 있는 반복은 재귀" 보완): `until(x, f, pred)`, `iterate(x, f, n)` (`retry`는 `conc` 모듈)
 - 에러·정리: `fail`, `at_exit`
-- 동시성: `spawn`, `await`, `cancel`, `channel`, `send`, `recv`, `close`, `atom`, `swap`, `deref`, `sleep`, `fan_in`, `pmap` (05)
+- 동시성: `spawn`, `await`, `cancel`, `channel`, `send`, `recv`, `close`, `agent`, `swap`, `deref`, `sleep` (05). `fan_in`·`pmap`·`retry`는 `conc` 모듈
 - 프로세스: `exec`, `sh`, `env`, `args`, `exit`
   - `args`: 진입 스크립트 뒤의 인자만 담은 **문자열 리스트** (prelude 값).
   - `env(name)`: 문자열 또는 `nil`. `env()`: 전체 맵.
@@ -103,7 +103,8 @@ match fs.read(p):
 | `path` | join, base, dir, ext, stem, abs |
 | `cli` | `parse(argv, bools = [])` → `{flags, rest}`. `--name value`·`--name=value`·`--name`(true, `bools`에 있으면 값을 먹지 않음), `--` 뒤는 전부 rest, 이름의 `-`는 `_`로. 검사·변환은 보통 코드로 (fung으로 작성) |
 | `json` | `parse(s)` → `Ok(값)` / `Err({kind: 'parse, line, col, message})`, `stringify(v, indent = nil)`. 아래 "JSON" 참고 (`_native.json`, M8) |
-| `http` | `get(url, headers = {}, timeout = 30s)`, `post(url, body, headers = {}, timeout = 30s)`, `request(method, url, body = nil, headers = {}, timeout = 30s)`, `serve(addr, handler, ready = nil)`. 아래 "HTTP" 참고 (Go는 `_native.http`, M8; Rust는 `_native.net` 위의 fung, 4d) |
+| `http` | `get(url, headers = {}, timeout = 30s)`, `post(url, body, headers = {}, timeout = 30s)`, `request(method, url, body = nil, headers = {}, timeout = 30s)`, `serve(addr, handler, ready = nil)`. 아래 "HTTP" 참고 (`_native.net` 위의 fung, `extras/http.fung`) |
+| `conc` | `fan_in(chs)`, `pmap(xs, f, limit = 0)`, `retry(f, times = 3, delay = 0ms)` (05, fung으로 작성) |
 | `time` | `now()`, `parse(s, format = nil)` → `Ok`/`Err 'parse`, `format(t, format = nil)`, `utc(t)`, `local(t)`, `unix(t)`, `from_unix(n)`, `parts(t)`. `now()`는 `time` 타입 값 (02·07): `==`, `<`, `+ dur`, `time - time → dur`. 아래 "시간 형식" 참고 (`_native.time`, M8) |
 | `regex` | `is_match(s, pat)` → bool, `find(s, pat)` → 매치 맵 또는 `nil`, `find_all(s, pat)`, `replace(s, pat, repl)`, `split(s, pat)`. 아래 "정규식" 참고 (`_native.regex`, M8) |
 | `math`, `random` | (M8 이후) |
@@ -119,17 +120,16 @@ match fs.read(p):
 
 ## 정규식
 
-- Go RE2: 역참조·전후방 탐색 없음, 대신 항상 선형 시간.
+- RE2 문법(Go `regexp/syntax`를 옮긴 해석기가 문법을 정한다, open-questions "정규식 문법"): 역참조·전후방 탐색 없음, 대신 항상 선형 시간.
 - 매치 맵 `{text, start, end, groups, named}`. `start`·`end`는 **글자(룬) 인덱스**(02의 문자열 규칙; `s[start..end]`가 맞는다).
   `groups`는 캡처 그룹 리스트(전체 매치 제외, 안 잡힌 그룹은 `nil`), `named`는 이름 있는 그룹 맵.
 - `replace`의 `repl`은 `$1`·`${name}` 치환(Go 규칙). `split`은 `split(s, sep)`처럼 빈 조각을 남긴다.
-- 잘못된 패턴은 런타임 에러 E0515(코드 오류). 컴파일한 패턴은 Go 쪽에서 캐시한다. 별도 "컴파일된 regex 값" 타입은 없다.
+- 잘못된 패턴은 런타임 에러 E0515(코드 오류). 컴파일한 패턴은 Rust 쪽에서 캐시한다. 별도 "컴파일된 regex 값" 타입은 없다.
 
 ## HTTP
 
-**fung HTTP 약속** (2026-10-16, Rust 이식 4d). 두 구현이 지키는 동작이다. Go 구현(0.1)은 이것을 Go `net/http`로, Rust 구현은
-`_native.net`(소켓·TLS 원시 기능) 위의 fung 코드(`extras/rust/http.fung`)로 지킨다. 약속 안에서는 두 구현이 같고, 약속 밖의 차이는
-open-questions "Rust 이전"의 "0.2.0에서 바뀌는 것"과 "4d단계(http)에서 알고 남긴 차이"에 있다. 학습 노트 `docs/notes/R4d-net-http.md`.
+**fung HTTP 약속** (2026-10-16). `_native.net`(소켓·TLS 원시 기능) 위의 fung 코드(`extras/http.fung`)가 지키는 동작이다.
+약속 밖의 세부는 open-questions "Rust 이전"의 "4d단계(http)에서 알고 남긴 차이"에 있다. 학습 노트 `docs/notes/R4d-net-http.md`.
 
 **클라이언트** (`get` `post` `request`)
 - 응답을 받으면 상태 코드와 무관하게 `Ok({status, headers, body})` (404도 `Ok` — "서버가 답했다"와 "요청이 실패했다"는 다른 일).
@@ -145,11 +145,11 @@ open-questions "Rust 이전"의 "0.2.0에서 바뀌는 것"과 "4d단계(http)�
   `localhost`·루프백 주소는 거치지 않는다. http는 절대 URL 요청, https는 `CONNECT` 터널 뒤 TLS.
 - **https**: 운영체제 루트 인증서(`SSL_CERT_FILE`·`SSL_CERT_DIR`이 있으면 그것), SNI. 인증서 오류는 `Err 'network`.
 - **`timeout`**: 기간, 리다이렉트를 포함한 요청 전체(Go `Client.Timeout`). `0s`면 제한 없음.
-- **에러 문구**: `cannot request `<url>`: <이유>`. 흔한 이유(연결 거부, 호스트 없음, 인증서 오류, 리다이렉트 초과, 잘못된 URL)는 두 구현이 같다.
-- 압축 요청을 드러내지 않는다: 본문은 언제나 풀린 것이다(Go는 `gzip`을 요청하고 스스로 풀며, Rust는 요청하지 않는다).
+- **에러 문구**: `cannot request `<url>`: <이유>`. 흔한 이유: 연결 거부, 호스트 없음, 인증서 오류, 리다이렉트 초과, 잘못된 URL.
+- 압축을 요청하지 않는다: 본문은 언제나 서버가 보낸 그대로다.
 - 취소되면 E0701.
-- **Rust만**: 응답 본문 상한 **64 MiB**(넘으면 `Err 'network`; 2026-10-16 사용자 결정, 더 큰 응답은 나중에 요청별 옵션으로). Go 구현에는 상한이 없다.
-  SOCKS 프록시와 https 프록시 너머의 https는 Rust에서 지원하지 않는다(`Err 'network`, Go는 지원).
+- 응답 본문 상한 **64 MiB**(넘으면 `Err 'network`; 2026-10-16 사용자 결정, 더 큰 응답은 나중에 요청별 옵션으로).
+  SOCKS 프록시와 https 프록시 너머의 https는 지원하지 않는다(`Err 'network`).
 
 **서버** `serve(addr, handler, ready = nil)`
 - 바인드 실패 `Err 'network`, 되면 **막힌 채로** 요청을 받는다. 끝나는 길은 그 태스크의 취소(`cancel(t)`) 또는 `exit`.
@@ -160,17 +160,14 @@ open-questions "Rust 이전"의 "0.2.0에서 바뀌는 것"과 "4d단계(http)�
 - 핸들러가 런타임 에러를 내거나 다른 타입을 돌려주면 500을 답하고 stderr에 한 줄(`http: handler failed: …`)을 찍고 서버는 계속 돈다(종료 코드 무관).
   핸들러 안의 `exit`·취소는 503이며 보고하지 않는다. 응답 본문 문구는 Go `net/http`와 같다.
 - 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `agent`). 라우팅은 없고 `match req.path:`로 쓴다.
-  Go 구현(0.1)에서는 공유 상태를 `atom`에 두었다. Rust 구현(0.2.0)에는 `atom`이 없다(open-questions "Rust 이전"의 `atom` 항목).
-  예제 `examples/api.fung`·`serve.fung`은 6a단계(2026-10-17)에 `agent`로 고쳤다.
+  예: `examples/api.fung`·`serve.fung`.
 - 한도 (2026-10-14, 고정값): 헤더를 10초 안에 보내지 않는 연결은 끊고, 요청 본문은 16MB까지(넘으면 413, 핸들러는 불리지 않음), 형식 오류는 400.
   조각 전송 요청 본문도 받는다.
 - 취소되면 리스너를 닫고 처리 중인 요청을 최대 2초 기다린 뒤 E0701(Go `Shutdown`).
-- 런타임 연동: Go는 `value.Context`의 `Done()`(취소 신호)과 `RunTask(fn, args)`(새 태스크에서 실행)로 vm을 모르는 `internal/native`에 둔다.
-  Rust는 `_native.net`의 `hold`·`close_on_cancel`과 `_native.conc`의 `set_asker`·`describe`로 fung 코드가 서버 루프를 쓴다.
-- **Rust만**: 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙는다(Go는 닫을 때만). 2 KB 넘는 본문도 `Content-Length`로 보낸다(Go는 조각 전송).
+- 런타임 연동: `_native.net`의 `hold`·`close_on_cancel`과 `_native.conc`의 `set_asker`·`describe`로 fung 코드가 서버 루프를 쓴다.
+- 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙는다. 응답 본문은 언제나 `Content-Length`로 보낸다.
 
-**약속 밖**(알려진 차이, 0.2.0에서 바뀌는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축, 바이너리 본문(UTF-8이 아니면 U+FFFD),
-Go가 덧붙이는 그 밖의 헤더, 흔하지 않은 에러 문구.
+**약속 밖**(지원하지 않는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축, 바이너리 본문(UTF-8이 아니면 U+FFFD).
 
 ## 파일 핸들
 
@@ -180,7 +177,7 @@ Go가 덧붙이는 그 밖의 헤더, 흔하지 않은 에러 문구.
 - `read_line(f)` `read_lines(f)`(prelude), `fs.write_line(f, s)` → `Ok(nil)` / `Err`.
 - 닫힌 핸들에 읽고 쓰면 `Err({kind: 'closed})`. 핸들을 `with_open` 밖으로 돌려줘도 막지 않는다 — 쓰는 순간 `'closed`다.
 - 핸들은 태스크 사이에 공유할 수 있다 (2026-10-14): 연산(`read_line`·`read_lines`·`write_line`·`close`) 하나하나가 핸들의 뮤텍스로
-  직렬화되어 줄이 찢어지거나 섞이지 않는다. 어느 태스크가 어느 줄을 받는지는 정해지지 않는다(`atom`처럼 "값은 공유, 연산은 원자적").
+  직렬화되어 줄이 찢어지거나 섞이지 않는다. 어느 태스크가 어느 줄을 받는지는 정해지지 않는다("값은 공유, 연산은 원자적").
 
 ## 시간 형식
 

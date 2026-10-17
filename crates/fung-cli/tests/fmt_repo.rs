@@ -1,6 +1,5 @@
 //! The repository's `.fung` files are in the `fung fmt` style (08), by
-//! the Rust formatter: the Rust side of Go's `tests/fmt_test.go`. The
-//! golden tests that are syntax errors on purpose (`err_*.fung` that do
+//! the formatter. The golden tests that are syntax errors on purpose (`err_*.fung` that do
 //! not parse) are skipped: the formatter refuses them by design.
 
 mod common;

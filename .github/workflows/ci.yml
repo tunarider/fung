@@ -1,12 +1,9 @@
 # Runs the same gates as a local commit (CLAUDE.md).
-# - test (Go): gofmt, vet, tests, plus the race detector on Linux.
-#   tests/fmt_test.go also runs `fung fmt --check` over the repository's
-#   .fung files, and tests/install_test.go runs install.sh against a fake
-#   release.
 # - rust: cargo-deny (deny.toml crate allowlist, licenses, sources) and
 #   cargo-audit (RustSec advisories) on Linux, then on both systems
-#   `cargo fmt --check`, clippy with -D warnings, and the tests in debug
-#   and release with FUNG_REQUIRE_PARITY=1 (the Go comparison must run).
+#   `cargo fmt --check`, then clippy with -D warnings and the tests, each
+#   in debug and release (they include `fung fmt --check` over the repository's
+#   .fung files and install.sh against a fake release).
 #   Every cargo build uses --locked: Cargo.lock is what deny and audit
 #   checked.
 #   A second test run builds with FUNG_BUILD_VERSION set and checks that
@@ -17,38 +14,13 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-      - name: gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "not gofmt-ed:"; echo "$unformatted"; exit 1
-          fi
-      - name: vet
-        run: go vet ./...
-      - name: test
-        run: go test ./...
-      - name: race
-        if: matrix.os == 'ubuntu-latest'
-        run: go test -race ./internal/... ./cmd/...
-
   rust:
     strategy:
       fail-fast: false
@@ -60,9 +32,6 @@ jobs:
       CARGO_AUDIT_VERSION: 0.22.2
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
       - name: toolchain
         run: rustup show active-toolchain
       # Crate allowlist (deny.toml). One OS is enough: the lock file and
@@ -93,18 +62,16 @@ jobs:
         run: cargo fmt --check
       - name: clippy
         run: cargo clippy --all-targets --locked -- -D warnings
+      - name: clippy (release)
+        run: cargo clippy --all-targets --locked --release -- -D warnings
       # --no-fail-fast: a failing test binary must not hide the ones after
       # it, and the release run goes on after a debug failure for the same
       # reason (a slow runner can fail one test in one profile only).
       - name: test
         id: test
-        env:
-          FUNG_REQUIRE_PARITY: "1"
         run: cargo test --locked --no-fail-fast
       - name: test (release)
         if: success() || steps.test.outcome == 'failure'
-        env:
-          FUNG_REQUIRE_PARITY: "1"
         run: cargo test --locked --release --no-fail-fast
       - name: build version
         env:

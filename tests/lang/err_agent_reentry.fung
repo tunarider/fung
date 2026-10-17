@@ -1,4 +1,3 @@
-# only: rust
 a = agent(0)
 swap(a, x => swap(a, y => y))
 # expect-error: E0704

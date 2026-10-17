@@ -1,5 +1,5 @@
 //! `_native.net` (stage 4d, Rust only): the TCP primitives the Rust
-//! `http` module (`extras/rust/http.fung`) is written over. User code
+//! `http` module (`extras/http.fung`) is written over. User code
 //! cannot import it (E0310); only embedded extras files can.
 //!
 //! **Values.** A connection (`Value::Conn`, printed `<conn>`, `type_of`

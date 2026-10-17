@@ -1,14 +1,17 @@
-//! What the parity tests share: building the Go implementation, running a
-//! binary, and comparing two runs byte for byte.
+//! What the CLI tests share: running a binary, and the expected-output
+//! files (`expected`).
 
 // Each test binary uses its own subset of these helpers.
 #![allow(dead_code)]
 
+pub mod expected;
+
 use std::{
     ffi::OsString,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Output, Stdio},
+    time::{Duration, Instant},
 };
 
 pub fn repo() -> PathBuf {
@@ -16,38 +19,6 @@ pub fn repo() -> PathBuf {
         .join("../..")
         .canonicalize()
         .unwrap()
-}
-
-/// Builds the Go implementation. `None` only when `go` cannot be run at all
-/// and parity is not required (`FUNG_REQUIRE_PARITY=1` makes that a
-/// failure); a failing `go build` always panics. `tag` keeps the binaries
-/// of concurrently running test programs apart.
-pub fn go_fung(tag: &str) -> Option<PathBuf> {
-    go_fung_with(tag, &[])
-}
-
-/// [`go_fung`] with extra `go build` flags (e.g. `-ldflags=...`).
-pub fn go_fung_with(tag: &str, flags: &[&str]) -> Option<PathBuf> {
-    let out = std::env::temp_dir().join(format!("fung-go-{tag}-{}", std::process::id()));
-    let built = Command::new("go")
-        .arg("build")
-        .args(flags)
-        .arg("-o")
-        .arg(&out)
-        .arg("./cmd/fung")
-        .current_dir(repo())
-        .output();
-    match built {
-        Err(e) => {
-            assert!(
-                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
-                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
-            );
-            None
-        }
-        Ok(o) if o.status.success() => Some(out),
-        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
-    }
 }
 
 /// The Rust `fung` binary under test.
@@ -58,6 +29,11 @@ pub fn rust_fung() -> PathBuf {
 /// Standard output, standard error (bytes, compared exactly) and the exit
 /// status, compared as its debug text so two different signal deaths differ.
 pub type Run = (Vec<u8>, Vec<u8>, String);
+
+/// The local zone every fung child of a comparison or expected-output
+/// suite runs in, so what it prints does not depend on the host's zone
+/// (`time_expected` sets its own). `UTC` needs no zoneinfo files.
+pub const TZ: &str = "UTC";
 
 /// How long one run may take before it is killed.
 pub const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
@@ -80,18 +56,22 @@ pub fn run_status(
     args: &[OsString],
     stdin: Option<&[u8]>,
 ) -> (Vec<u8>, Vec<u8>, std::process::ExitStatus) {
-    let mut child = Command::new(bin)
-        .args(args)
-        .current_dir(repo())
-        .stdin(if stdin.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+    // killed and waited for if anything below panics
+    let mut child = Reaped::new(
+        Command::new(bin)
+            .args(args)
+            .env("TZ", TZ)
+            .current_dir(repo())
+            .stdin(if stdin.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
     let writer = stdin.map(|data| {
         let mut pipe = child.stdin.take().unwrap();
         let data = data.to_vec();
@@ -103,85 +83,139 @@ pub fn run_status(
     });
     // A run that hangs is killed (and then differs) rather than hanging
     // the test.
-    let pid = child.id();
-    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let watch = {
-        let done = done.clone();
-        std::thread::spawn(move || {
-            let until = std::time::Instant::now() + RUN_LIMIT;
-            while std::time::Instant::now() < until {
-                if done.load(std::sync::atomic::Ordering::Acquire) {
-                    return;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
-            let _ = Command::new("kill")
-                .args(["-KILL", &pid.to_string()])
-                .status();
-        })
-    };
-    let o = child.wait_with_output().unwrap();
-    done.store(true, std::sync::atomic::Ordering::Release);
-    let _ = watch.join();
+    let (o, _) = child.output_within(RUN_LIMIT).unwrap();
     if let Some(w) = writer {
         w.join().unwrap();
     }
     (o.stdout, o.stderr, o.status)
 }
 
-/// Where two runs first differ, or `None` when they are the same.
-pub fn diff(go: &Run, rust: &Run) -> Option<String> {
-    if go == rust {
-        return None;
+/// `f` over `xs` on a few worker threads, results in order. Each worker
+/// takes the next item when it is free, so a slow item holds up only its
+/// own worker.
+pub fn par_map<T: Sync, R: Send>(xs: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let n = std::thread::available_parallelism().map_or(4, |n| n.get().min(8));
+    let next = AtomicUsize::new(0);
+    let mut out: Vec<(usize, R)> = std::thread::scope(|s| {
+        let handles: Vec<_> = (0..n)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut done = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(x) = xs.get(i) else { break };
+                        done.push((i, f(x)));
+                    }
+                    done
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect()
+    });
+    out.sort_by_key(|(i, _)| *i);
+    out.into_iter().map(|(_, r)| r).collect()
+}
+
+/// A child process that is killed and waited for when dropped, so a test
+/// that panics (a failed assertion included) leaves no process behind,
+/// and no zombie either. Every child a test starts and does not finish
+/// with `Command::output`/`status` on the same thread goes in one.
+/// Killing a child that has already been waited for does nothing (the
+/// standard library remembers its status and sends no signal, so a
+/// reused process id is never hit).
+///
+/// Only the child itself is killed: a grandchild that outlives it is
+/// not. The programs the tests start leave none behind (`sh` wrappers
+/// `exec` fung; fung waits for the processes it starts). Starting each
+/// child in its own process group would let the guard kill the whole
+/// group, but it would also keep Ctrl-C at the terminal from reaching
+/// the children, which is how an interrupted `cargo test` ends them now.
+pub struct Reaped(Option<Child>);
+
+impl Reaped {
+    pub fn new(child: Child) -> Reaped {
+        Reaped(Some(child))
     }
-    Some(if go.0 != rust.0 {
-        // A run that failed on one side prints less: say how it ended.
-        let mut s = format!("stdout {}", first_diff(&go.0, &rust.0));
-        if go.1 != rust.1 {
-            s += &format!("\n  stderr {}", first_diff(&go.1, &rust.1));
+
+    /// The child itself, no longer killed on drop.
+    pub fn into_inner(mut self) -> Child {
+        self.0.take().unwrap()
+    }
+
+    /// `Child::wait_with_output` that keeps the guard: the piped streams
+    /// are read on threads while the child runs.
+    pub fn output(self) -> std::io::Result<Output> {
+        self.output_within(Duration::MAX).map(|(o, _)| o)
+    }
+
+    /// Like [`Reaped::output`], killing the child after `limit`: the
+    /// output, and whether it was killed. A killed child is waited for
+    /// too. The standard streams are read to their end, so a grandchild
+    /// still holding them would keep this waiting (no test starts one).
+    pub fn output_within(mut self, limit: Duration) -> std::io::Result<(Output, bool)> {
+        let out = drain(self.stdout.take());
+        let err = drain(self.stderr.take());
+        let start = Instant::now();
+        // Short runs end in a few milliseconds, long ones need no fine
+        // polling: the pause doubles up to 20ms.
+        let mut pause = Duration::from_millis(1);
+        let mut killed = false;
+        let status = loop {
+            if let Some(st) = self.try_wait()? {
+                break st;
+            }
+            if start.elapsed() > limit {
+                let _ = self.kill();
+                killed = true;
+                break self.wait()?;
+            }
+            std::thread::sleep(pause);
+            pause = (pause * 2).min(Duration::from_millis(20));
+        };
+        let output = Output {
+            status,
+            stdout: out.join().unwrap()?,
+            stderr: err.join().unwrap()?,
+        };
+        Ok((output, killed))
+    }
+}
+
+/// Reads `pipe` (if any) to its end on a thread.
+fn drain<R: Read + Send + 'static>(
+    pipe: Option<R>,
+) -> std::thread::JoinHandle<std::io::Result<Vec<u8>>> {
+    std::thread::spawn(move || {
+        let mut b = Vec::new();
+        if let Some(mut p) = pipe {
+            p.read_to_end(&mut b)?;
         }
-        if go.2 != rust.2 {
-            s += &format!("\n  exit {} vs {}", go.2, rust.2);
-        }
-        s
-    } else if go.1 != rust.1 {
-        format!("stderr {}", first_diff(&go.1, &rust.1))
-    } else {
-        format!("exit {} vs {}", go.2, rust.2)
+        Ok(b)
     })
 }
 
-/// The first differing line of two outputs.
-pub fn first_diff(a: &[u8], b: &[u8]) -> String {
-    let (a, b) = (String::from_utf8_lossy(a), String::from_utf8_lossy(b));
-    if a == b {
-        return "same text, different bytes (invalid UTF-8)".into();
+impl std::ops::Deref for Reaped {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        self.0.as_ref().unwrap()
     }
-    for (i, (x, y)) in a.lines().zip(b.lines()).enumerate() {
-        if x != y {
-            return format!("line {}:\n  go:   {x}\n  rust: {y}", i + 1);
-        }
-    }
-    format!(
-        "lengths differ: go {} lines, rust {} lines",
-        a.lines().count(),
-        b.lines().count()
-    )
 }
 
-/// The examples only the Rust implementation runs (stage 6a): they use
-/// agents (`api.fung`, `serve.fung`) or the module `conc`
-/// (`checkurls.fung`), which Go does not have. The parity tests compare
-/// only their syntax (`dump ast`, `fmt`) with Go and check, test and run
-/// them with Rust alone; `parity.rs` checks that the list is complete.
-pub const RUST_ONLY_EXAMPLES: &[&str] = &[
-    "examples/api.fung",
-    "examples/checkurls.fung",
-    "examples/serve.fung",
-];
+impl std::ops::DerefMut for Reaped {
+    fn deref_mut(&mut self) -> &mut Child {
+        self.0.as_mut().unwrap()
+    }
+}
 
-/// Whether an example's source uses what only Rust has: an agent or the
-/// module `conc`.
-pub fn uses_rust_only(src: &str) -> bool {
-    src.contains("agent(") || src.lines().any(|l| l.trim() == "import conc")
+impl Drop for Reaped {
+    fn drop(&mut self) {
+        if let Some(c) = &mut self.0 {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+    }
 }

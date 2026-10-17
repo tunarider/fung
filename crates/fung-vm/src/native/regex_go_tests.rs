@@ -1,9 +1,8 @@
 //! `compile_go` against Go. Every expected value is Go's own result
 //! (`regexp.Compile(pat)`'s `err.Error()` or `SubexpNames()`, and
-//! `FindAllStringSubmatchIndex(s, -1)`), written to `regex_go_fixtures.rs`
-//! by `go test ./tests -run TestRegexFixtures -update`
-//! (`tests/regex_fixtures_test.go`, which also holds the hand-picked
-//! cases, the fuzz seed and alphabet); nothing here was written by hand.
+//! `FindAllStringSubmatchIndex(s, -1)`), kept in `regex_go_fixtures.rs`
+//! as fixed data (how it was made and how to remake it:
+//! docs/design/open-questions.md); nothing here was written by hand.
 
 use super::*;
 

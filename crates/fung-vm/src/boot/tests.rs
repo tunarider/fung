@@ -34,7 +34,7 @@ fn render_params(ps: &[NativeParam]) -> String {
 fn concurrency_builtin_errors_have_a_position() {
     // A native's error points at the call's `(` like every other native
     // error in Go (`spawn(1)` → E0403 at 2:6); so does the error of the
-    // fung `deref` (stage 3b, `extras/rust/agent.fung`).
+    // fung `deref` (stage 3b, `extras/agent.fung`).
     for (src, want) in [
         (
             "print(1)\nspawn(1)",
@@ -60,7 +60,7 @@ fn fung_prelude_and_process_functions() {
 
 #[test]
 fn agents_run() {
-    // Stage 3b: agents (`extras/rust/agent.fung`) replace atoms; no
+    // Stage 3b: agents (`extras/agent.fung`) replace atoms; no
     // concurrency builtin gives E0805.
     let (out, err, code) = run_booted("a = agent(1)\nprint(swap(a, x => x + 1), deref(a), a)");
     assert_eq!((out.as_str(), err.as_str(), code), ("2 2 <agent>\n", "", 0));
@@ -85,7 +85,7 @@ fn agents_run() {
 /// call (the extras frames are builtin, Go `attach`), with the extras
 /// frames in the call path. (`pmap` and `fan_in` run since stage 3a: see
 /// `pmap_runs_its_tasks` and `fan_in_merges_its_channels`; since stage 6a
-/// they live in the module `conc`, `extras/rust/conc.fung`.)
+/// they live in the module `conc`, `extras/conc.fung`.)
 #[test]
 fn fung_helpers_over_concurrency_fail_at_the_user_call() {
     let cases = [
@@ -101,7 +101,7 @@ fn fung_helpers_over_concurrency_fail_at_the_user_call() {
             "{src}"
         );
         assert!(
-            e.path.iter().any(|c| c.file == "extras/rust/conc.fung"),
+            e.path.iter().any(|c| c.file == "extras/conc.fung"),
             "{src}: {:?}",
             e.path
         );
@@ -120,8 +120,8 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
         );
         rt.boot(vec!["a".into(), "b c".into()]).expect("boot");
         rt.with_prelude(|p| {
-            // The spec's names with the Rust differences applied
-            // (`fung_front::builtins`: no atom natives, the agent names).
+            // The spec's names (no atom natives; the agent names are
+            // written in fung).
             let spec = builtins();
             let names = spec.prelude_names();
             let want: BTreeSet<&str> = names.iter().map(String::as_str).collect();
@@ -150,17 +150,21 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
 fn native_modules_match_the_spec() {
     on_big_stack(|| {
         let spec = builtins();
-        for (key, m) in [
-            ("_native.conc", super::super::conc::module()),
-            ("_native.process", crate::native::process::module()),
-            ("_native.fs", crate::native::fs::module()),
-            ("_native.path", crate::native::path::module()),
-            ("_native.time", crate::native::time::module()),
-            ("_native.json", crate::native::json::module()),
-            ("_native.regex", crate::native::regex::module()),
-            ("_native.net", crate::native::net::module()),
-        ] {
+        let keys: Vec<&str> = super::NATIVE_MODULES.iter().map(|(k, _)| *k).collect();
+        let spec_keys: Vec<&str> = spec
+            .modules
+            .keys()
+            .map(String::as_str)
+            .filter(|k| k.starts_with("_native."))
+            .collect();
+        assert_eq!(keys, spec_keys);
+        for (key, module) in super::NATIVE_MODULES {
+            let (key, m) = (*key, module());
             assert_eq!(m.key, key);
+            assert_eq!(
+                super::native_module(key).map(|m| m.key.clone()),
+                Some(m.key.clone())
+            );
             let names: Vec<&str> = m.names();
             let want: Vec<&str> = spec.modules[key].iter().map(String::as_str).collect();
             let mut sorted = names.clone();
@@ -181,7 +185,7 @@ fn native_modules_match_the_spec() {
 }
 
 /// Stage 6a: `fan_in`, `pmap` and `retry` are the module `conc`
-/// (`extras/rust/conc.fung`), with the parameter tables of
+/// (`extras/conc.fung`), with the parameter tables of
 /// `fung_front::builtins`; the prelude no longer has them, so a program
 /// that calls one without the module gets the error any unknown name
 /// gets (text as Go prints it for an unknown `qmap`, the name swapped).
@@ -237,9 +241,9 @@ fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
     }
 }
 
-/// The Rust `http` (stage 4d, `extras/rust/http.fung`) is a fung module
-/// where Go has the natives of `_native.http`: its public functions are
-/// the spec's, with the spec's parameter tables.
+/// The `http` module (stage 4d, `extras/http.fung`) is written in
+/// fung: its public functions are the spec's, with the spec's parameter
+/// tables.
 #[test]
 fn http_module_matches_the_spec() {
     on_big_stack(|| {
@@ -249,10 +253,7 @@ fn http_module_matches_the_spec() {
         let m = s.rt.import_module("http").expect("http");
         let mut names: Vec<&str> = m.names();
         names.sort();
-        let want: Vec<&str> = spec.modules["_native.http"]
-            .iter()
-            .map(String::as_str)
-            .collect();
+        let want: Vec<&str> = spec.modules["http"].iter().map(String::as_str).collect();
         assert_eq!(names, want);
         for name in names {
             let Some(Value::Closure(c)) = m.get(name) else {
@@ -275,7 +276,7 @@ fn http_module_matches_the_spec() {
                 .join(", ");
             assert_eq!(
                 got,
-                spec.module_signature("_native.http", name).expect(name),
+                spec.module_signature("http", name).expect(name),
                 "http.{name}"
             );
         }

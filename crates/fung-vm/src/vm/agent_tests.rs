@@ -451,7 +451,7 @@ fn a_failure_of_a_background_tasks_subtask_is_reported() {
     assert_eq!(o.exit, 1);
 }
 
-// --- agents: `agent`, `swap` and `deref` (`extras/rust/agent.fung`, Task 4) ---
+// --- agents: `agent`, `swap` and `deref` (`extras/agent.fung`, Task 4) ---
 
 /// Runs user code (not internal) with the probes and `until`, on a
 /// thread bounded by `LIMIT`.
@@ -484,7 +484,7 @@ fn an_error_in_f_is_raised_at_the_users_swap() {
     assert_eq!(
         path,
         [
-            ("extras/rust/agent.fung", "swap"),
+            ("extras/agent.fung", "swap"),
             ("-e", "<lambda>"),
             ("-e", "<main>")
         ]

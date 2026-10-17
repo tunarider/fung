@@ -1,8 +1,8 @@
-# only: go
+# A server that counts its requests with an agent.
 import http
 import json
 
-hits = atom(0)
+hits = agent(0)
 handle = fn(req):
   swap(hits, n => n + 1)
   match req.path:

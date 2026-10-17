@@ -1,11 +1,10 @@
-//! Writing to a closed pipe, compared with Go. On standard output or
-//! error (file descriptor 1 or 2) Go dies by SIGPIPE at once, from any
+//! Writing to a closed pipe. On standard output or error (file
+//! descriptor 1 or 2) fung dies by SIGPIPE (signal 13) at once, from any
 //! task and from an exit handler, without running the exit handlers or
-//! reporting anything (`os.(*File).Write` → `epipecheck` → `sigpipe`).
-//! Every other descriptor (a file handle on a fifo, a child's standard
-//! input) gives an error value. Go dies even when it was started with
-//! SIGPIPE ignored, and a child process starts with the default SIGPIPE
-//! action under both.
+//! reporting anything. Every other descriptor (a file handle on a fifo, a
+//! child's standard input) gives an error value. fung dies even when it
+//! was started with SIGPIPE ignored, and a child process starts with the
+//! default SIGPIPE action.
 
 #![cfg(unix)]
 
@@ -15,9 +14,9 @@ use std::io::{BufRead, BufReader};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
-use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use common::{go_fung, rust_fung};
+use common::rust_fung;
 
 /// Serialises every test here that creates a pipe or spawns a child.
 ///
@@ -29,30 +28,13 @@ use common::{go_fung, rust_fung};
 /// a copy of the read end open for as long as it runs: the pipe is not
 /// closed after all and the write does not fail. Holding this lock from
 /// creating the pipe until the child has been waited for (and around
-/// every other spawn in the file, the Go build included) leaves no
+/// every other spawn in the file) leaves no
 /// sibling spawn to inherit the read end.
 fn serial() -> MutexGuard<'static, ()> {
     static LOCK: Mutex<()> = Mutex::new(());
     // A failed assertion in another test poisons the lock; the `()` it
     // guards cannot be left inconsistent, so go on.
     LOCK.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// The Go binary, built once (under [`serial`]); `None` when `go` cannot
-/// run and parity is not required.
-fn go() -> Option<&'static Path> {
-    static GO: OnceLock<Option<PathBuf>> = OnceLock::new();
-    GO.get_or_init(|| go_fung("sigpipe")).as_deref()
-}
-
-/// Both binaries: Go first, then Rust. Without Go, only Rust.
-fn bins() -> Vec<(&'static str, PathBuf)> {
-    let mut out = Vec::new();
-    if let Some(g) = go() {
-        out.push(("go", g.to_path_buf()));
-    }
-    out.push(("rust", rust_fung()));
-    out
 }
 
 /// Runs `fung -e code` with standard output (or error, `on_stderr`)
@@ -86,28 +68,27 @@ fn into_closed_pipe(
     } else {
         cmd.stdout(Stdio::from(w)).stderr(Stdio::piped());
     }
-    let mut child = cmd.spawn().unwrap();
+    // killed and waited for if anything below panics
+    let mut child = common::Reaped::new(cmd.spawn().unwrap());
     let stdin = child.stdin.take();
-    let o = child.wait_with_output().unwrap();
+    let o = child.output().unwrap();
     drop(stdin);
     let other = if on_stderr { o.stdout } else { o.stderr };
     (o.status, String::from_utf8_lossy(&other).into_owned())
 }
 
-/// Both binaries die by signal 13 and write `other` to the other stream.
+/// fung dies by signal 13 and writes `other` to the other stream.
 fn dies_by_sigpipe(code: &str, on_stderr: bool, other: &str) {
     let _serial = serial();
-    for (name, bin) in bins() {
-        for ignored in [false, true] {
-            let (status, got) = into_closed_pipe(&bin, code, on_stderr, ignored);
-            let how = if ignored {
-                " (started ignoring SIGPIPE)"
-            } else {
-                ""
-            };
-            assert_eq!(status.signal(), Some(13), "{name}{how}: {status:?}");
-            assert_eq!(got, other, "{name}{how}");
-        }
+    for ignored in [false, true] {
+        let (status, got) = into_closed_pipe(&rust_fung(), code, on_stderr, ignored);
+        let how = if ignored {
+            " (started ignoring SIGPIPE)"
+        } else {
+            ""
+        };
+        assert_eq!(status.signal(), Some(13), "{how}: {status:?}");
+        assert_eq!(got, other, "{how}");
     }
 }
 
@@ -183,14 +164,17 @@ fn fifo(name: &str) -> (PathBuf, PathBuf) {
 /// standard output and error (the fifo's directory replaced by `D`) and
 /// the status.
 fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, String, ExitStatus) {
-    let mut child = Command::new(bin)
-        .args(["-e", code])
-        .arg(f)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+    // killed and waited for if anything below panics
+    let mut child = common::Reaped::new(
+        Command::new(bin)
+            .args(["-e", code])
+            .arg(f)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
     let stdin = child.stdin.take();
     let reader = {
         let f = f.to_path_buf();
@@ -216,7 +200,7 @@ fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, St
     drop(stdin);
     let mut rest = String::new();
     std::io::Read::read_to_string(&mut stdout, &mut rest).unwrap();
-    let o = child.wait_with_output().unwrap();
+    let o = child.output().unwrap();
     let d = dir.to_str().unwrap();
     (
         (first + &rest).replace(d, "D"),
@@ -225,15 +209,13 @@ fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, St
     )
 }
 
-/// Both binaries give `want` on standard output and exit 0.
+/// fung gives `want` on standard output and exits 0.
 fn fifo_case(name: &str, code: &str, want: &str) {
     let _serial = serial();
     let (dir, f) = fifo(name);
-    for (who, bin) in bins() {
-        let (out, err, status) = into_closed_fifo(&bin, &f, &dir, code);
-        assert_eq!((out.as_str(), err.as_str()), (want, ""), "{who}");
-        assert_eq!(status.code(), Some(0), "{who}: {status:?}");
-    }
+    let (out, err, status) = into_closed_fifo(&rust_fung(), &f, &dir, code);
+    assert_eq!((out.as_str(), err.as_str()), (want, ""));
+    assert_eq!(status.code(), Some(0), "{status:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -264,27 +246,25 @@ fn a_buffered_write_to_a_closed_fifo_fails_at_close() {
     );
 }
 
-/// Both binaries run `code` with no standard input and give `want` on
-/// standard output and status 0.
-fn runs_alike(code: &str, want: &str) {
+/// fung runs `code` with no standard input and gives `want` on standard
+/// output and status 0.
+fn runs_with(code: &str, want: &str) {
     let _serial = serial();
-    for (name, bin) in bins() {
-        let o = Command::new(&bin)
-            .args(["-e", code])
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
-        assert_eq!(String::from_utf8_lossy(&o.stdout), want, "{name}");
-        assert_eq!(String::from_utf8_lossy(&o.stderr), "", "{name}");
-        assert_eq!(o.status.code(), Some(0), "{name}: {:?}", o.status);
-    }
+    let o = Command::new(rust_fung())
+        .args(["-e", code])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&o.stdout), want);
+    assert_eq!(String::from_utf8_lossy(&o.stderr), "");
+    assert_eq!(o.status.code(), Some(0), "{:?}", o.status);
 }
 
 #[test]
 fn a_closed_child_stdin_is_still_an_error_value() {
     // `true` exits without reading, so the write to its stdin fails;
-    // Go ignores that error, and neither dies.
-    runs_alike(
+    // the error is ignored, and fung does not die.
+    runs_with(
         "r = exec([\"true\"], stdin: join(map(0..200000, (i) => \"abcdefghij\"), \"\"))\nprint(r)",
         "Ok({out: \"\", err: \"\", code: 0})\n",
     );
@@ -294,7 +274,7 @@ fn a_closed_child_stdin_is_still_an_error_value() {
 fn a_child_starts_with_the_default_sigpipe_action() {
     // `yes` dies by SIGPIPE (status 141 in the shell) once `head` has
     // gone; with SIGPIPE ignored it would print an error and exit 1.
-    runs_alike(
+    runs_with(
         "print(exec([\"sh\", \"-c\", \"(yes; echo yes-exit $? >&2) | head -1\"]))",
         "Ok({out: \"y\\n\", err: \"yes-exit 141\\n\", code: 0})\n",
     );

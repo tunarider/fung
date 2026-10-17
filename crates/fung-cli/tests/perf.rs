@@ -1,6 +1,6 @@
 //! The accumulation and tail-recursion shapes that would go quadratic with
-//! full copies must finish 20,000 elements in well under 0.3 s, as in the
-//! Go suite (tests/perf_test.go). Release builds only: a debug build is
+//! full copies must finish 20,000 elements in well under 0.3 s. Release
+//! builds only: a debug build is
 //! too slow to say anything about the data structures.
 #![cfg(not(debug_assertions))]
 

@@ -1,4 +1,3 @@
-# only: rust
 import conc
 
 # deref and swap keep the handle alive until the agent answers, even

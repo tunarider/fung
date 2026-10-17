@@ -1,9 +1,9 @@
 //! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
 //! prelude만 시작 시): the core natives, the concurrency natives,
 //! the `_native.conc` and `_native.process` bridges, and the public names
-//! of `extras/prelude.fung` (Rust only, stage 6a: but `fan_in`, `pmap` and
-//! `retry`, the module `conc`) and (Rust only, stage 3b)
-//! `extras/rust/agent.fung`, compiled and run on the runtime at startup.
+//! of the prelude files written in fung (`extras::PRELUDE_FILES`:
+//! `extras/prelude.fung`, then `extras/agent.fung`), compiled and run on
+//! the runtime at startup.
 //!
 //! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
 //! the program and the prelude are compiled separately, so both start at
@@ -18,8 +18,8 @@ use std::rc::Rc;
 
 use fung_front::bytecode::Proto;
 use fung_front::diag::{Arg, Diag, error};
+use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
-use fung_front::{builtins, extras};
 
 use crate::native::{fs, json, nat, net, path, process, regex, time};
 use crate::value::{Module, Value};
@@ -27,15 +27,37 @@ use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
 
 #[cfg(test)]
+mod spec_file;
+#[cfg(test)]
 mod tests;
 
-/// The name prelude.fung positions show (Go `bootPrelude`).
-const PRELUDE_FILE: &str = "extras/prelude.fung";
+/// The module key a prelude file runs as: `prelude` for prelude.fung (Go
+/// `bootPrelude`), `<name>` for the others (a key no `import` can name:
+/// the loader does not know those files).
+fn prelude_key(name: &str) -> String {
+    if name == "prelude" {
+        name.to_string()
+    } else {
+        format!("<{name}>")
+    }
+}
 
-/// The name agent.fung positions show, and the module key it runs as (a
-/// key no `import` can name: the loader does not know the file).
-const AGENT_FILE: &str = "extras/rust/agent.fung";
-const AGENT_KEY: &str = "<agent>";
+/// The prelude's native values: the core natives, the concurrency natives
+/// and `args` (the script's arguments).
+pub(crate) fn native_prelude(args: &[String]) -> Prelude {
+    let mut p = Prelude::default();
+    for (name, v) in prelude::core() {
+        p.0.insert(name.to_string(), v);
+    }
+    p.0.insert(
+        "args".to_string(),
+        nat::list(args.iter().map(|a| Value::str(a)).collect()),
+    );
+    for (name, v) in conc::natives() {
+        p.0.insert(name.to_string(), v);
+    }
+    p
+}
 
 /// Builds the prelude on the task's runtime and returns it; the program is
 /// linked against it (`Runtime::boot` keeps it in the world). `args`
@@ -47,48 +69,23 @@ const AGENT_KEY: &str = "<agent>";
 /// not fail in practice; a runtime whose boot failed should not be reused
 /// (a module whose body failed stays "loading", like Go).
 pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
-    let mut p = Prelude::default();
-    for (name, v) in prelude::core() {
-        p.0.insert(name.to_string(), v);
-    }
-    p.0.insert(
-        "args".to_string(),
-        nat::list(args.iter().map(|a| Value::str(a)).collect()),
-    );
+    let mut p = native_prelude(&args);
     t.world().args = args;
-    for (name, v) in conc::natives() {
-        p.0.insert(name.to_string(), v);
+    for (name, src) in extras::PRELUDE_FILES {
+        boot_file(t, &mut p, &extras::path(name), &prelude_key(name), src)?;
     }
-    let Some(src) = extras::source("prelude") else {
-        return Ok(p);
-    };
-    // Stage 6a, Rust only: the file is Go's too, so it still defines
-    // `fan_in`, `pmap` and `retry`; they stay out of the prelude table
-    // (the module `conc` has them).
-    boot_file(
-        t,
-        &mut p,
-        PRELUDE_FILE,
-        "prelude",
-        src,
-        builtins::RUST_PRELUDE_FUNG_MOVED,
-    )?;
-    // Stage 3b, Rust only: `agent`, `swap` and `deref`, written in fung
-    // over the prelude (`fung_front::builtins` lists the difference).
-    boot_file(t, &mut p, AGENT_FILE, AGENT_KEY, extras::AGENT, &[])?;
     Ok(p)
 }
 
 /// Compiles an embedded prelude file (`internal`, so it may import
 /// `_native.*`), runs it as the module `key` and adds its public names
-/// but `hidden` to `p`; its code links against the names `p` has so far.
+/// to `p`; its code links against the names `p` has so far.
 fn boot_file(
     t: &mut Task<'_>,
     p: &mut Prelude,
     file: &str,
     key: &str,
     src: &str,
-    hidden: &[&str],
 ) -> Result<(), Vec<Diag>> {
     let loader = Loader {
         internal: true,
@@ -134,9 +131,6 @@ fn boot_file(
         }
     };
     for name in m.names() {
-        if hidden.contains(&name) {
-            continue;
-        }
         if let Some(v) = m.get(name) {
             p.0.insert(name.to_string(), v.clone());
         }
@@ -144,22 +138,29 @@ fn boot_file(
     Ok(())
 }
 
-/// The Rust-built `_native.*` modules (Go `vm.NativeModules()` and
-/// `native.Bridges()`, the part stage 2 has). The command registers the
-/// ones a program imports with it, as Go `register` does.
+/// Builds a `_native.*` bridge.
+pub type NativeModule = fn() -> Rc<Module>;
+
+/// The `_native.*` bridges by key, sorted: the one list of them. The
+/// command registers the ones a program imports (Go `register`), and
+/// `spec/builtins.txt` lists their members (generated from this table).
+pub const NATIVE_MODULES: &[(&str, NativeModule)] = &[
+    ("_native.conc", conc::module),
+    ("_native.fs", fs::module),
+    ("_native.json", json::module),
+    ("_native.net", net::module),
+    ("_native.path", path::module),
+    ("_native.process", process::module),
+    ("_native.regex", regex::module),
+    ("_native.time", time::module),
+];
+
+/// The `_native.*` bridge `key`, if there is one ([`NATIVE_MODULES`]).
 pub fn native_module(key: &str) -> Option<Rc<Module>> {
-    match key {
-        "_native.conc" => Some(conc::module()),
-        "_native.fs" => Some(fs::module()),
-        "_native.path" => Some(path::module()),
-        "_native.process" => Some(process::module()),
-        "_native.time" => Some(time::module()),
-        "_native.json" => Some(json::module()),
-        "_native.regex" => Some(regex::module()),
-        // stage 4d, Rust only (`fung_front::builtins` lists its members)
-        "_native.net" => Some(net::module()),
-        _ => None,
-    }
+    NATIVE_MODULES
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, module)| module())
 }
 
 /// Makes a program's modules importable (Go `register`): compiled modules

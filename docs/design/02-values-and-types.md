@@ -118,7 +118,7 @@ Red            # 인자 없으면 심볼 'Red
 | map | 키 집합이 같고 각 값이 `==`. 삽입 순서 무시 | 에러 |
 | 태그 값 | 이름 같고 인자가 차례로 `==` | 에러 |
 | range | 시작·끝·포함 여부 같음 | 에러 |
-| fn, module, file, task, channel, atom | **동일성** (같은 객체인가). `f == f` 참, `(x => x) == (x => x)` 거짓 | 에러 |
+| fn, module, file, task, channel, agent | **동일성** (같은 객체인가). `f == f` 참, `(x => x) == (x => x)` 거짓 | 에러 |
 | 타입이 다를 때 | `false` (숫자끼리 제외) | 에러 |
 
 `sort`, `unique`, `contains`, `in`은 모두 이 표를 따른다.

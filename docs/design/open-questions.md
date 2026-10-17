@@ -89,7 +89,8 @@ Python과 같으며 시작 시간(6ms)은 Python(22ms)보다 빠르다. fung 쪽
 
 ## Rust 이전 (검토 중, 2026-10-14)
 
-장기 목표로 fung을 Rust로 다시 구현한다. 지금 Go 구현에는 집착하지 않는다. 문법과 사용자에게 보이는 동작이 핵심이고, 내부는 바뀌어도 된다.
+**6b(2026-10-17)에 Go 구현을 지웠고 Rust가 유일한 구현이다.** 아래는 이식의 결정과 기록, 그리고 남은 일(6c 할 일, R7 스케줄러)이다.
+처음 결정(2026-10-14): 장기 목표로 fung을 Rust로 다시 구현한다. 그때의 Go 구현에는 집착하지 않는다. 문법과 사용자에게 보이는 동작이 핵심이고, 내부는 바뀌어도 된다.
 C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.serve`처럼 외부 입력을 파싱하는 코드에서 메모리 안전을 잃는다.
 그대로 이어지는 것: 설계 문서, 에러 번호, 매뉴얼, `extras/`의 fung 코드, 골든 테스트(구현 독립 적합성 테스트), `bench/`, 릴리스 흐름.
 
@@ -204,7 +205,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     계획 `docs/plans/2026-10-15-rust-agent-3b.md`, 노트 `docs/notes/R3b-agent.md`. 예제·매뉴얼·CHANGELOG는 6단계(아래 "Rust 첫 릴리스(0.2.0)에서 바뀌는 것").
   - 4a단계(`fs`·`path`) 완료 (2026-10-16): `_native.fs` 17개·`_native.path` 6개, 운영체제 에러의 Go 문구, 파일 핸들(`Value::File`, 핸들 잠금, 실행권 밖 입출력,
     마지막 사본에서 닫힘), `fs_and_path`를 Go 대조와 Rust 골든 실행기에 넣음, 3b 취소 노드 누수 수정. 실행 비교 `tests/lang` 131개(네이티브 모듈 8개·`# only: go` 3개 제외),
-    Rust 골든 131개, 경로 입력 38개·에러 11개, errno 표 161개(살아 있는 `go run`과 대조), 무작위 `Match` 30만 쌍, 핸들 프로그램 14개가 Go와 같음.
+    Rust 골든 131개, 경로 입력 38개·에러 11개, errno 표 161개(그때 Go 프로그램을 실행해 대조), 무작위 `Match` 30만 쌍, 핸들 프로그램 14개가 Go와 같음.
     스펙 `docs/superpowers/specs/2026-10-15-rust-fs-4a-design.md`, 계획 `docs/plans/2026-10-15-rust-fs-4a.md`, 노트 `docs/notes/R4a-fs.md`.
   - 4b단계(`time`·`json`) 완료 (2026-10-16): `_native.time` 8개·`_native.json` 2개, `Value::Time`(Go `time.Time`의 벽시계 표현), TZif 시간대(`native/tz.rs`, Go `initLocal` 순서),
     순서를 지키고 정수·실수를 구분하는 반복 JSON 해석기(Go 1.27 `jsontext` 경로), `time_module`·`time_values`·`json`·`err_json_stringify`·`keyword_names`를 Go 대조와 Rust 골든 실행기에 넣음.
@@ -218,7 +219,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     스펙 `docs/superpowers/specs/2026-10-16-rust-regex-crates-4c-design.md`, 계획 `docs/plans/2026-10-16-rust-regex-crates-4c.md`, 노트 `docs/notes/R4c-regex-crates.md`.
   - 4d단계(소켓·TLS·fung으로 쓴 HTTP) 완료 (2026-10-16, 커밋 `6bdcab6..4660516`): `_native.net` 20개(최종 수정의 `read_raw_line` 포함; `native/net.rs`·`sock.rs`, 비차단 소켓 + `poll` + 취소 노드의 깨우개 파이프 `vm/watch.rs`,
     `Value::Conn`·`Value::Listener`), rustls TLS 클라이언트(`native/tls.rs`, 위 허용 목록 표), `_native.conc`의 `set_asker`·`describe`, HTTP/1.1 클라이언트·리다이렉트·프록시·`CONNECT` 터널·서버를
-    fung으로 쓴 `extras/rust/http.fung`. 06에 "fung HTTP 약속"을 적고 그 안에서 Go와 같다. 지원 안 함(E0805) 장치와 `run_parity_skip.txt`를 지웠다: 이제 구현마다 갈라지는 파일은 `# only:` 표시뿐이다.
+    fung으로 쓴 `extras/rust/http.fung`. 06에 "fung HTTP 약속"을 적고 그 안에서 Go와 같다. 지원 안 함(E0805) 장치와 `run_parity_skip.txt`를 지웠다: 그때부터 6b까지 구현마다 갈라지는 파일은 `# only:` 표시뿐이었다.
     실행 비교 189건(`tests/lang` 143개 중 표시 없는 133개, 빼는 파일 없음), Rust 골든 139개(`http_serve_rust` 포함), `http_parity.rs` 14개(디버그 13개; 클라이언트 프로그램 61개·연결 없는 경우 30개·인자 에러 13개,
     리다이렉트·프록시, `NO_PROXY` 표 23줄, 서버 원시 요청 88개를 Go·Rust 서버에 보내 바이트 비교, 헤더 10초 한도, 바인드 실패, 예제), `tls.rs`(Go TLS 서버로 인증서 문구 비교, macOS·Linux).
     스펙 `docs/superpowers/specs/2026-10-16-rust-net-http-4d-design.md`, 계획 `docs/plans/2026-10-16-rust-net-http-4d.md`, 노트 `docs/notes/R4d-net-http.md`.
@@ -231,6 +232,11 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     예제·매뉴얼을 Rust(0.2.0) 기준으로(매뉴얼 함수 참조를 Rust의 매개변수 표와 비교하는 `crates/fung-cli/tests/manual.rs`, 매뉴얼 예제는 Rust 혼자 `check`·`fmt --check`·실행),
     Rust 릴리스 파이프라인(Linux musl 정적, 플랫폼별 러너, 게시 없는 시험 실행, 태그 푸시에서만 빌드 증명, 아키텍처 검사), CHANGELOG `[Unreleased]`, Go·Rust 벤치마크(`bench/README.md`).
     결정과 6b 할 일은 아래 "6a단계" 항목. 스펙 `docs/superpowers/specs/2026-10-17-rust-release-prep-6a-design.md`, 계획 `docs/plans/2026-10-17-rust-release-prep-6a.md`, 노트 `docs/notes/R6a-release-prep.md`.
+  - 6b단계(Go 삭제) 완료 (2026-10-17, 커밋 `fb3d326..`와 문서): Go 구현(`cmd/`·`internal/`·`go.mod`·Go 테스트·CI의 Go 작업)을 지웠고 Rust가 유일한 구현이다.
+    Go와 대조하던 테스트는 **기대 출력 파일**(`crates/fung-cli/tests/expected/`, `crates/fung-vm/tests/expected/`, 사례 3,570개)로 얼렸고, 명세 파일은 Rust 표에서 생성한다.
+    `# only:` 표시·`extras/rust/`·Rust 전용 내장 함수 차이 목록·`FUNG_REQUIRE_PARITY`가 없어졌다. 결정과 남은 것은 아래 "6b단계" 항목.
+    스펙 `docs/superpowers/specs/2026-10-17-rust-go-removal-6b-design.md`, 계획 `docs/plans/2026-10-17-rust-go-removal-6b.md`, 노트 `docs/notes/R6b-go-removal.md`.
+    다음은 **6c**(아래 "6c 할 일": Go 흉내 동작과 이름을 걷어내고 기대 출력을 갱신), 그 뒤 0.2.0 릴리스.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - ~~스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉~~ 해결 (6a 마무리, 2026-10-17): 진입 스레드 4 GiB → 1 GiB → 256 MiB → 64 MiB, 태스크 1 GiB → 256 MiB → 64 MiB로 줄여 다시 시도한다(`fung_vm::stack`). 모두 거부되면 진입은 `error: cannot start the fung command thread: …` 한 줄과 종료 코드 1, 태스크는 E0801. 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -321,7 +327,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 핸들이 모두 사라진 에이전트는 실행 중에 끝난다. 에이전트는 프로그램이 끝나기를 막지 않고 `at_exit` 핸들러에서 쓸 수 있다.
   - 고칠 것: `examples/api.fung`(요청 카운터)·`examples/serve.fung`, `docs/builtins.html`(`atom`·`swap`·`deref` 항목과 서명), `tests/lang`의 `# only: go` 파일(`atoms`·`err_atom_reentry`·`conc_atoms`·`http_serve`)과
     dump 대조의 `ATOM_EXAMPLES`(`crates/fung-cli/tests/parity.rs`). 6단계에서 Go를 지우면 `# only:` 표시도 정리한다.
-    → 6a에서 예제·매뉴얼·CHANGELOG를 고쳤고 `ATOM_EXAMPLES`는 `RUST_ONLY_EXAMPLES`(`crates/fung-cli/tests/common/mod.rs`)로 바뀌었다. `# only:` 정리는 6b.
+    → 6a에서 예제·매뉴얼·CHANGELOG를 고쳤고 `ATOM_EXAMPLES`는 `RUST_ONLY_EXAMPLES`(`crates/fung-cli/tests/common/mod.rs`)로 바뀌었다. `# only:` 정리는 6b에서 했다(표시와 장치를 지움).
   - `fan_in`·`pmap`·`retry`는 prelude가 아니라 `conc` 모듈(6a, 아래 "6a단계" 항목). 이름 그대로 부르면 E0204.
   - `http` (4d, 06 "fung HTTP 약속"; 약속 밖의 차이):
     - 응답 본문 상한 **64 MiB**(사용자 결정, 2026-10-16). 넘으면 `Err 'network`. Go에는 상한이 없다. 더 큰 응답은 나중에 요청별 `max_body` 같은 옵션으로.
@@ -336,10 +342,14 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - `fung test`: 교착이 보고되거나 띄운 태스크가 `exit(n)`을 부르면 그 파일의 나머지 블록을 건너뛴다(직접 `exit(n)`과 같음). Go는 남은 블록을 돌린다.
     - REPL: 한 입력 안의 교착은 그 입력만 실패시키고 세션은 계속된다(종료 코드 0으로 끝날 수 있음). 띄운 태스크의 `exit(n)`은 세션을 n으로 끝낸다.
       다음 입력을 기다리는 태스크는 사람이 천천히 쳐도 교착이 아니다. 에이전트는 세션 끝에 끝난다.
-- [ ] Go 동등을 위한 과도기 잔가지 → **이식 중에는 Go와 맞추고, Go를 지운 뒤 따로 걷어낸다** (2026-10-15). 5단계(도구)의 잔가지는 아래 "5단계" 항목에 모았다.
-  Go 구현은 빠르게 해 본 첫 시도로 본다. 아래는 언어 설계가 아니라 Go 구현의 우연을 바이트 단위로 따라 하려고 붙인 것들이다.
-  걷어낼 때 각 항목의 바른 동작을 설계 문서와 `tests/lang`에 정한 뒤 지운다. 이식 중 새로 붙이는 것도 여기에 더한다.
-  - 유니코드 판정 표: Go가 생성하는 `spec/unicode.txt`(`tests/spec_test.go`의 `unicodeSpec`)와 `crates/fung-front/src/unicode.rs`. 식별자 규칙은 그때 정한다(Rust 표준 판정 또는 UAX #31).
+- [ ] **6c 할 일: 이식 잔가지 걷어내기** (Go 동등을 위한 과도기 잔가지; 2026-10-15 "이식 중에는 Go와 맞추고, Go를 지운 뒤 따로 걷어낸다", 6b 스펙에서 6c로 정함).
+  Go 구현은 빠르게 해 본 첫 시도로 본다. 아래는 언어 설계가 아니라 Go 구현의 우연을 바이트 단위로 따라 하려고 붙인 것들이다. 5단계(도구)의 잔가지는 아래 "5단계" 항목에 있다.
+  걷어낼 때 각 항목의 바른 동작을 설계 문서와 `tests/lang`에 정하고 코드를 바꾼 뒤, 바뀐 기대 출력을 `FUNG_EXPECTED=bless cargo test -p <크레이트> --test <이름>`으로
+  다시 쓰고 diff를 검토한다(6b 스펙: 사용자가 없으므로 호환성은 고려하지 않는다). **완료 기준: 코드와 현재 문서에서 "Go"가 검색되지 않는다.**
+  6b에서 남긴 이름·주석은 맨 아래 "6c: 이름과 주석" 항목.
+  - 유니코드 판정 표: 고정 데이터 `spec/unicode.txt`(Go `unicode.Is*` 판정의 구간, Unicode 17.0.0)와 `crates/fung-front/src/unicode.rs`. 식별자 규칙은 그때 정한다(Rust 표준 판정 또는 UAX #31).
+    6b부터 `unicode.txt`·`regex_unicode.txt`는 **고정 데이터**다(머리 주석이 여기를 가리킨다). 다시 만드는 법: Go 구현을 지우기 전 커밋(`f761d65`의 부모)의 `tests/spec_test.go`에서
+    `unicodeSpec`·`regexUnicodeSpec`을 꺼내 Go 툴체인(`unicode.Version` 17.0.0)으로 돌리고, 첫 줄 머리 주석은 지금 파일의 것을 유지한다. 표를 Rust에서 얻게 되면 이 방법은 버린다.
   - Go 런타임 메시지 흉내: 2^44개 넘는 범위의 `E0801 ... makeslice: cap out of range`(`crates/fung-vm/src/native/nat.rs`의 `MAX_SLICE`, `prelude.rs`의 `map`), `repeat` 넘침의 `strings: Repeat output length overflow`(`prelude/strings.rs`).
   - `channel(n)`의 Go 할당 한도 흉내: `n`이 2^44 − 6 이상이면 `E0801 ... makechan: size out of range`(`crates/fung-vm/src/conc.rs`의 `MAX_CHANNEL_BUFFER`). Rust는 버퍼를 미리 잡지 않는다.
   - 표준 입력 읽기 단위 4 KiB(`crates/fung-vm/src/vm/stdin.rs`의 `BUFFER`, 명령의 `raw_stdin` 버퍼): Go `bufio`의 기본 크기라서, `read_line` 한 번 뒤 파일 위치가 Go와 같다
@@ -349,6 +359,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `spec/builtins.txt`는 Go가 만들어 atom을 담으므로, Rust는 차이(네이티브 `atom`·`swap`·`deref` 빠짐, `extras/rust/agent.fung`의 공개 이름 더함, 타입 이름 `atom` → `agent`,
     `_native.conc`의 Rust 전용 멤버)를 이 한 곳에 두고 앞단·부팅·명세 테스트가 함께 읽는다. 6a에서 `RUST_PRELUDE_FUNG_MOVED`(prelude에서 `conc`로 옮긴 `fan_in`·`pmap`·`retry`)와
     `RUST_FUNG_MODULE_MEMBERS`(`conc` 모듈의 서명)를 더했다. 6단계에서 명세에 합치고 목록을 지운다. `extras/rust/`를 따로 둔 것(Go의 `embed`가 하위 디렉터리를 넣지 않음)도 그때 정리한다.
+    → **해결 (6b)**: `spec/builtins.txt`를 Rust 표에서 생성하면서(`crates/fung-vm/src/boot/spec_file.rs`, `FUNG_UPDATE_SPEC=1 cargo test spec_file`) 차이 목록을 모두 지웠고(Task 3·6),
+    `extras/rust/*.fung`는 `extras/`로 옮겼다. 옮긴 이름의 안내는 `resolve::MOVED_TO_MODULE`. `spec/errors.txt`도 Rust 표(`diag/catalog.rs`)에서 생성한다.
   - Go 방식 그대로: 16진 실수 파싱(`prelude/convert.rs`의 `parse_hex_float`), 대소문자 변환의 Go 단순 매핑(`prelude/strings.rs`의 `upper_rune`·`lower_rune`), 실행 파일 형식 사전 검사로 만드는 `exec format error`(`native/process.rs`).
   - 운영체제 에러를 Go 문구로(4a): errno → Go `syscall.Errno.Error()` 표(`crates/fung-vm/src/native/oserr.rs`, macOS·Linux 따로, arm64 한 줄씩 더함)와
     Go `os`의 여러 시스템 호출 함수를 단계 그대로 옮긴 것(`native/fs.rs`의 `mkdir_all`·`remove`·`remove_all`·`rename`·`make_temp_dir`, NUL 바이트 경로의 EINVAL).
@@ -377,20 +389,20 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     깊이 한도 10,000, 에러 위치까지의 바이트를 글자 수로 세는 열(BOM·`é`), 공백 뒤 구분자 에러가 앞의 `,` 위치에 나는 것을 옮겼다.
     **읽기 버퍼가 커지는 과정까지 흉내 낸다**(64바이트에서 4096까지 두 배, 3/4 규칙, `invalidatePreviousRead`). 에러 문구가 그 순간 버퍼에 든 바이트로 만들어지므로
     읽기 경계에 걸친 글자가 `'\xc3'`처럼 잘려 보이는 것까지 같게 하려는 것이다. 이 모두가 Go 1.27의 기본 경로에 묶여 있어서, Go를 올리거나 `GOEXPERIMENT=nojsonv2`로 빌드하면
-    Go의 출력이 바뀔 수 있고 parity 테스트(`crates/fung-cli/tests/json_parity.rs`)가 그것을 알려 준다. 언어 규칙으로는 "입력 전체를 보고 에러를 말한다"가 자연스럽다.
+    Go의 출력이 바뀔 수 있었다(6b부터는 Go 1.27의 출력을 얼린 `crates/fung-cli/tests/expected/json/`이 지금 동작을 지킨다). 언어 규칙으로는 "입력 전체를 보고 에러를 말한다"가 자연스럽다.
   - Go json 이스케이프와 출력(4b, `native/json.rs`): `jsontext.AppendQuote`(HTML 이스케이프 끔, JS 이스케이프 켬: `<>&`는 그대로, U+2028·U+2029는 `\u2028`·`\u2029`,
     `\b \f \n \r \t`, 그 밖의 제어 문자는 `\u00XX`, DEL은 그대로),
     (`NaN`·무한대 실수는 지금 만들 수 없다: 넘침은 E0504, `0.0/0.0`은 E0502, `float("nan")`은 거부. 만들어지면 fung 서식 그대로 써서 틀린 JSON이 된다.)
     아주 큰 들여쓰기의 Go `strings.Repeat`·`makeslice` 패닉 문구(2^48 넘으면 `E0801 runtime error: makeslice: len out of range`).
-  - Go 정규식의 유니코드 표(4c): Go가 생성하는 `spec/regex_unicode.txt`(`tests/spec_test.go`의 `regexUnicodeSpec`; `unicode.Categories`·`Scripts`·`FoldCategory`·`FoldScript`·`CategoryAliases`와
+  - Go 정규식의 유니코드 표(4c): 고정 데이터 `spec/regex_unicode.txt`(Go가 만들던 표, 6b부터 고정; `unicode.Categories`·`Scripts`·`FoldCategory`·`FoldScript`·`CategoryAliases`와
     모든 `SimpleFold` 궤도, Unicode 17)를 `native/regex_go.rs`가 읽는다(`\pL`·`\p{Greek}`, `(?i)`, `$name`의 이름 글자 판정 `go_letter_or_digit`). 크레이트의 표(`regex-syntax` 0.8.11은 Unicode 16)와
     받아들이는 속성 이름이 다르다. Go를 지우면 유니코드 판정 표(맨 위 항목)와 함께 어디서 표를 얻을지 정한다. 옮긴 파서 자체는 잔가지가 아니다(위 "정규식 문법").
   - Go 정규식 에러 문구(4c, `native/regex_go.rs`): Go `syntax.ErrorCode` 문구와 Go가 고르는 문제 부분(`Expr`), 여러 에러 중 Go가 먼저 내는 것, 노드 재사용으로 낡는 한도 캐시까지.
     엔진의 "너무 큼"은 Go의 `expression too large`로, 그 밖의 엔진 거부는 Go의 `regexp/syntax: internal error`로 바꾼다. fung의 에러 문구는 그때 정한다.
   - Go `regexp`의 반복 규칙(4c, `native/regex.rs`): `Expand`·`extract`(`$1a`는 이름, 앞자리 0이면 이름, 1억 이상 자름, 잘못된 참조는 `$`를 남김), `allMatches`의 빈 매치 규칙(`go_all`),
     `replaceAll`의 다른 빈 매치·전진 규칙, `Split`의 우연(빈 주어에 빈 패턴이면 `[]`, 꼬리 규칙 `end != len(s)`), 패턴 캐시 256개를 통째로 비우기. 빈 매치와 바꿈 문자열 규칙은 그때 언어 규칙으로 정한다.
-  - 정규식 기대값 생성기(4c): `tests/regex_fixtures_test.go`(`go test ./tests -run TestRegexFixtures -update`)가 Go로 `crates/fung-vm/src/native/regex_go_fixtures.rs`를 만든다
-    (손으로 고른 컴파일 334개·매치 173쌍, PCG(2026, 1016) 무작위 2,000개 + 겹친 반복 600개). Go를 지우면 생성기는 함께 지우고 만들어진 파일은 고정된 회귀 데이터로 남긴다.
+  - 정규식 기대값(4c): `crates/fung-vm/src/native/regex_go_fixtures.rs`(손으로 고른 컴파일 334개·매치 173쌍, PCG(2026, 1016) 무작위 2,000개 + 겹친 반복 600개).
+    Go 테스트 `TestRegexFixtures`가 만들던 것이고, 6b에서 생성기를 Go와 함께 지워 **고정된 회귀 데이터**다. 정규식 문법을 다시 판단할 때(위 "정규식 문법") 이름과 함께 정리한다.
   - SIGPIPE의 Go 런타임 세부(4c, `crates/fung-vm/src/sigpipe.rs`): 부모가 SIGPIPE를 무시로 둔 채 띄워도 기본 동작으로 되돌려 신호 13으로 죽는 것(C 프로그램이라면 EPIPE),
     신호로도 안 죽으면 `exit(141)`하는 대비책(Go `dieFromSignal`의 `exit(128+sig)`). 닫힌 표준 출력·에러에서 신호로 죽는 것 자체는 유닉스의 보통 동작이라 남긴다.
   - Go `net` 문구와 주소 규칙(4d, `native/net.rs`·`sock.rs`): `OpError` 형식(`dial tcp …: connect: …`, `read tcp L->R: read: …`, `i/o timeout`,
@@ -400,7 +412,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - Go TLS 문구와 순서(4d, `native/tls.rs`): `x509: …`·`tls: …` 문구, Go `alert.String()` 표 34개(`remote error: …`), `local error: tls: bad record MAC`,
     `GoOrder`의 검사 순서(날짜, 이름, 사슬)와 이름 에러 문구(IP 호스트는 IP SAN), Go 형식의 RFC 3339 시각, `Records`의 Go 끝 규칙(레코드 사이 EOF는 끝, 안쪽은 `unexpected EOF`)과
     첫 레코드 검사, 핸드셰이크 시간 초과의 `context deadline exceeded`, 세션 재개 없음, close_notify는 `close`에서만.
-  - Go HTTP 클라이언트 흉내(4d, `extras/rust/http.fung`): `User-Agent: Go-http-client/1.1`(사용자 값이 덮고, 빈 값이면 보내지 않음), `POST`·`PUT`·`PATCH`는 빈 본문에도 `Content-Length`,
+  - Go HTTP 클라이언트 흉내(4d, `extras/http.fung`): `User-Agent: Go-http-client/1.1`(사용자 값이 덮고, 빈 값이면 보내지 않음), `POST`·`PUT`·`PATCH`는 빈 본문에도 `Content-Length`,
     사용자 헤더의 `CanonicalMIMEHeaderKey`·정렬, `url.Error` 형식(`Op "URL": `, 비밀번호 `***`), "transport connection broken" 접두사, TCP 연결 30초 상한,
     **TLS 핸드셰이크 10초 상한과 그 문구 `net/http: TLS handshake timeout`**(`'network`), Go `ReadResponse`·`textproto.ReadMIMEHeader`·`parseTransferEncoding`·`fixLength`·`fixTrailer`·
     `shouldClose`·`fixPragmaCacheControl` 규칙과 문구, 101 밖의 1xx 건너뛰기, 헤더 예산 10 MiB와 문구, Go `chunkedReader`(4096바이트 줄, 16진 규칙, 16 KiB "excess" 검사, 트레일러 규칙),
@@ -416,6 +428,18 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     `url.ParseQuery`(1만 쌍 한도, `;`·잘못된 이스케이프 건너뜀), `Expect: 100-continue`·417, `OPTIONS *`를 서버가 답하기, 413·431 뒤 500 ms 읽고 버리기, `accept` 재시도 5 ms → 1 s,
     핸들러 실패 줄 `http: handler failed: …`와 내부 에러 줄 `http: internal error: …`.
   - 바로 위 "2단계에서 알고 남긴 차이"(U+FFFD·환경 순서; 닫힌 파이프 141은 4c에서 해결)와 "3a단계에서 알고 남긴 차이"는 반대 방향(Rust가 Go를 못 따라가거나 일부러 따르지 않은 것)이라 걷어낼 대상은 아니고, 그때 어느 쪽을 언어 규칙으로 삼을지 정한다.
+  - **6c: 이름과 주석** (6b에서 일부러 남긴 것, 동작과 무관). 6b는 Go 삭제와 대조 장치의 이름표 떼기까지만 했다.
+    - 코드 주석과 이름: `crates/` 아래 `.rs` 파일 약 126개에 "Go …"를 가리키는 주석(예: "Go `register`", "Go's …", "(Go `internal/vm/...`)"), 파일·타입·함수 이름
+      (`native/regex_go.rs`·`regex_go_fixtures.rs`·`regex_go_tests.rs`, `GoWriter`, `GoOrder`, `decode_go`·`compile_go`·`go_all`·`go_error`·`go_letter_or_digit`·`go_rune_width`,
+      `*_like_go`·`*_matches_go`·`*_go_cases` 같은 테스트 이름). 대부분은 위 흉내 항목을 걷어낼 때 함께 바뀐다.
+    - 그 밖의 파일: `deny.toml`(주석 2줄), `scripts/build-release.sh`(주석 2줄), `extras/*.fung`의 주석(`http.fung` 약 150줄, `prelude`·`json`·`regex`), `bench/README.md`(v0.1.0·Go HEAD 측정 열, 기록이라 남길지 정함),
+      `scripts/logo/render.html`(1줄).
+    - 테스트 전용 코드가 라이브러리에 들어 있음: `crates/fung-vm/src/tls_test_server.rs`(`#[doc(hidden)] pub mod`, http·tls 기대 출력 테스트의 rustls 서버). `deps.rs`가 기능을 켠 경로 의존성을 막아서 이렇게 뒀다. 테스트 지원 크레이트로 옮길지 6c에서 정한다.
+    - 기대 출력에 든 Go의 흔적: `User-Agent: Go-http-client/1.1`이 든 `crates/fung-cli/tests/expected/http/{client,proxies,redirects,tunnel}.txt` 등. 동작을 바꾸면 bless로 갱신된다.
+    - 현재 문서에 남긴 Go 흉내 서술: 06 "정규식"(`$1` 치환의 Go 규칙)·"HTTP"(`User-Agent: Go-http-client/1.1`, Go `Client`·`ProxyFromEnvironment`·`Client.Timeout`·`url.ParseQuery`·`Date` 형식·`net/http` 문구·`Shutdown`),
+      매뉴얼 `docs/builtins.html`의 `User-Agent` 줄과 `docs/internals.html`의 0.1 측정 출처(영속 컬렉션 절). 설계 문서 06의 파일 이름 `06-go-interop-and-stdlib.md`(제목은 6b에서 "네이티브 연동"으로 바꿈; 링크가 많아 이름은 6c).
+    - 언어 설계로 남는 비교(걷어낼 대상 아님): 문법의 기준으로서의 Go("겉은 Go, 속은 Lisp", 00·background·매뉴얼), 05의 용어 비교(`select`·`context`), 01의 리터럴 비교, 이름의 유래(**g**o).
+      완료 기준의 "검색되지 않는다"에서 이것들을 뺄지, 표현을 바꿀지는 6c에서 사용자와 정한다.
 - [ ] 4a단계(fs)에서 알고 남긴 차이 (진행 기록 `.superpowers/sdd/2026-10-15-rust-fs-4a/progress.md`).
   - 닫지 않은 핸들: Rust는 마지막 사본이 사라지는 순간 파일을 닫는다(참조 계수). Go는 GC가 거둘 때까지 열려 있을 수 있다. 그래서 핸들 수천 개를 버려도 디스크립터가 새지 않는다.
     두 구현 모두 버리는 핸들의 버퍼는 **비우지 않는다**(Go 동등; `close`만 비운다). 닫지 않고 버린 핸들에 쓴 마지막 4 KiB 미만은 사라진다. 버릴 때 비울지는 그때 언어 규칙으로 정한다.
@@ -509,11 +533,11 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - 헤더 폭탄의 비용(서버): 요청 머리(1 MB + 4 KB, 값 500개)를 fung으로 해석하므로 꽉 찬 머리 하나에 요청마다 약 0.1~0.25초(Go는 거의 0).
     - 연결 태스크를 띄우지 못하면(스레드 천장, `E0801 cannot start a task`) 그 연결을 답 없이 닫고 표준 에러에 `http: cannot start a connection task: …`를 쓴 뒤
       받기 재시도처럼 물러났다가 계속 받는다(4d 최종 수정; 그 전에는 서버 전체가 멈췄다). Go에는 이런 경우가 없다(고루틴은 늘 뜬다).
-  - 테스트: `http_parity`는 프로필마다 약 45초 걸린다. 헤더 10초 한도 시험(`a_slow_client_is_cut_off_after_ten_seconds`)은 시간을 주입하지 않고 실제로 10초를 기다린다.
+  - 테스트: `http_parity`(6b부터 `http.rs`)는 프로필마다 약 45초 걸렸다. 헤더 10초 한도 시험(`a_slow_client_is_cut_off_after_ten_seconds`)은 시간을 주입하지 않고 실제로 10초를 기다린다.
   - 4d 보류 (시험 부채; 최종 리뷰에서 머지 전 수정 불필요로 분류):
     - `read_all` 쪽 취소 시험은 실패(RED)를 먼저 확인하지 않았다(`read_line` 쪽만 확인).
     - 교착 없음 시험의 `free_port`: 닫은 포트를 다른 프로세스가 그 사이에 잡을 수 있다(드묾).
-    - `crates/fung-cli/tests/tls.rs`: 실패하는 길에서 Go TLS 서버 프로세스와 임시 디렉터리를 거두는 정리 장치(`Drop` guard)가 없다(성공하는 길에서만 치움).
+    - ~~`crates/fung-cli/tests/tls.rs`: 실패하는 길에서 Go TLS 서버 프로세스와 임시 디렉터리를 거두는 정리 장치(`Drop` guard)가 없다(성공하는 길에서만 치움).~~ 해결 (6b): TLS 서버는 테스트 프로세스 안의 스레드(`fung_vm::tls_test_server`)이고, 자식 프로세스는 모두 `common::Reaped`가 거둔다.
     - 시험 없음: `SSL_CERT_FILE`의 깨진 PEM, `SSL_CERT_DIR`만 있는 경우, TLS 읽기 도중의 취소.
 - [ ] 5단계(도구)에서 알고 남긴 차이와 잔가지 (진행 기록 `.superpowers/sdd/2026-10-17-rust-tools-5/progress.md`, 노트 `docs/notes/R5-tools.md`).
   - 일부러 Go와 갈라진 것 (사용자 결정, 2026-10-17; 08에 규칙):
@@ -555,7 +579,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
       `#[link(name = "util")]`를 `target_env = "gnu"`에서만 건다(노트 `docs/notes/R6a-release-prep.md` 3절). musl 링크 자체는 CI `musl` 작업과 릴리스 빌드가 확인한다.
     - 포매터(두 구현 같음, 5단계 이전부터): 함수 머리가 여러 줄이면(`fn f(h:` 다음 줄 `int):`) 몸통을 4칸, `;;`를 2칸에 둔다(최종 리뷰에서 발견).
       이식이 끝난 뒤에 본다(Go와 맞추는 동안은 그대로).
-    - `#[allow(dead_code)]`: `fung-cli`의 `mod paths`에 붙였던 것은 `fmt`가 `fung_files`를 쓰게 되어 지웠다. `tools_parity.rs`가 `#[path]`로 `paths.rs`를 끌어오는 곳에만 남는다(테스트가 일부 함수만 씀).
+    - `#[allow(dead_code)]`: `fung-cli`의 `mod paths`에 붙였던 것은 `fmt`가 `fung_files`를 쓰게 되어 지웠다. `tools_expected.rs`(옛 `tools_parity.rs`)가 `#[path]`로 `paths.rs`를 끌어오는 곳에만 남는다(테스트가 일부 함수만 씀).
 - [x] Go 포매터 결함 (M9, 4d Task 5에서 발견): 매개변수에 `fn` 타입 표기가 있는 함수의 블록 몸통을 Go `fung fmt`가 내어쓴다(`fn` 타입을 람다로 읽음). 최소 재현:
   `fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;`의 몸통이 들여쓰기를 잃는다. 4d에서는 `extras/rust/http.fung`를 `serve = _serve(...)` 한 줄 감싸개로 피했다.
   → 5단계 Task 0에서 해결 (2026-10-17, 사용자 승인으로 Go 수정): 들여쓰기 상태 기계(`internal/format/layout.go`)가 타입 이름 `fn`도 `:`를 기다리는 블록 키워드로
@@ -570,12 +594,12 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     반복의 대체라 핵심, `exec`·`sh`는 셸을 대신하는 언어의 핵심이라 prelude에 남긴다. `remove`·`close`와 `fs.remove`·`fs.close`의 이름 겹침은 유지하고 매뉴얼에 한 줄.
   - [x] Linux 바이너리 → **musl 정적 빌드** (2026-10-17 사용자 결정). Go의 "아무 서버에서나 돈다"를 지킨다. glibc 정적 링크를 쓰지 않는 이유: `getaddrinfo`가 NSS로 공유 라이브러리를 실행 중에 읽어 같은 버전의 glibc가 있어야 한다.
     `libutil` 링크는 gnu에서만(위 5단계 항목). musl 할당기 속도는 아직 재지 못했다(아래).
-  - Rust 부팅이 숨기는 prelude 사본: `extras/prelude.fung`는 Go와 함께 쓰므로 `fan_in`·`pmap`·`retry`의 Go용 사본이 남아 있고, Rust는 앞단(`RUST_PRELUDE_FUNG_MOVED`)과
+  - ~~Rust 부팅이 숨기는 prelude 사본~~ 해결 (6b Task 6: `prelude.fung`에서 지우고 숨기는 장치와 목록을 없앰). 지난 기록: `extras/prelude.fung`는 Go와 함께 쓰므로 `fan_in`·`pmap`·`retry`의 Go용 사본이 남아 있고, Rust는 앞단(`RUST_PRELUDE_FUNG_MOVED`)과
     부팅(`boot_file(..., hidden)`)에서 숨긴 채 **여전히 컴파일하고 부팅 때 돌린다**. 6b에서 Go를 지우면 `prelude.fung`에서 지우고 숨기는 장치와 목록을 없앤다.
   - 옮긴 이름의 안내 (Rust 전용 차이): `import conc` 없이 `pmap` 등을 쓰면 E0204는 그대로이고 도움말이 "비슷한 이름"보다 먼저
-    `help: moved to module conc: import conc, then conc.pmap`을 보여 준다(`resolve.rs`, 목록은 `RUST_PRELUDE_FUNG_MOVED`). Go에서는 이 이름이 prelude에 있어 정의되지 않은 이름이 되는 일이 없다.
+    `help: moved to module conc: import conc, then conc.pmap`을 보여 준다(`resolve.rs`, 6b부터 목록은 `resolve::MOVED_TO_MODULE`).
     0.3 이후 업그레이드 안내가 필요 없어지면 지울지 정한다.
-  - [ ] 6b 할 일 (스펙 결정):
+  - [x] 6b 할 일 (스펙 결정) → **완료** (2026-10-17, 아래 "6b단계" 항목). 지난 기록:
     - Go 구현 삭제(`cmd/`·`internal/`·`extras/`의 Go embed·`go.mod`·Go 테스트·CI의 Go 작업·`release.yml`의 Go 테스트), `# only: go` 파일 정리와 `# only:` 표시 정리, `extras/rust/`를 `extras/`로.
     - Go 대조 테스트(`parity`·`run_parity`·`tools_parity`·`http_parity`·`repl_tty`·`sigpipe`·`tls` 등)는 Go 출력을 한 번 기록해 **기대값 파일로 얼리고** 계속 돌린다. 시간에 기대는 것은 Rust 전용 테스트로.
     - `spec/builtins.txt`·`errors.txt`는 Rust 코드에서 생성하고 동기 테스트로 지킨다(Rust 내장 함수 차이 목록은 그때 명세에 합쳐 지운다). `spec/unicode.txt`·`regex_unicode.txt`·
@@ -593,16 +617,38 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - ~~4 GiB 실행 스레드를 만들지 못하면 아무 메시지 없이 종료 코드 101~~ 해결 (6a 마무리): 예약이 거부되면 더 작은 스택으로 다시 시도한다(진입 4 GiB → 1 GiB → 256 MiB → 64 MiB,
       태스크 1 GiB → 256 MiB → 64 MiB, `crates/fung-vm/src/stack.rs`). 모두 거부되면 진입은 한 줄 에러와 종료 코드 1, 태스크는 E0801. 그런 호스트에서는 아주 깊은 네이티브 재귀
       (fung을 부르는 `map`·`fold`의 깊은 중첩, 깊은 값 출력)의 한도가 낮다. CHANGELOG "알려진 차이".
-    - `crates/fung-cli/tests/run_parity.rs`의 `CONCURRENCY` 목록이 맨 이름 `pmap`·`fan_in`·`retry`를 아직 담음(무해: 대조하는 파일에 이제 없고 `conc.pmap(`은 걸리지 않음).
-      `testutil.rs`·`run_parity.rs` 주석의 맨 `pmap` 표기.
-    - `tools_parity.rs`의 `run_limited`는 기다리는 동안 파이프를 비우지 않는다(64 KB 넘게 찍는 매뉴얼 예제는 시간 한도까지 막힌 뒤 죽음; 지금은 없음).
+    - `crates/fung-cli/tests/run_expected.rs`(옛 `run_parity.rs`)의 `CONCURRENCY` 목록이 맨 이름 `pmap`·`fan_in`·`retry`를 아직 담음(무해: 실행하는 파일에 이제 없고 `conc.pmap(`은 걸리지 않음).
+      `testutil.rs`·`run_expected.rs` 주석의 맨 `pmap` 표기.
+    - `tools_expected.rs`(옛 `tools_parity.rs`)의 `run_limited`는 기다리는 동안 파이프를 비우지 않는다(64 KB 넘게 찍는 매뉴얼 예제는 시간 한도까지 막힌 뒤 죽음; 지금은 없음).
     - `manual.rs`: 모듈 목록 `MODULES`를 손으로 적음, fung 서명을 파서가 아니라 최상위 `fn NAME(`·`NAME = _x.member` 줄을 훑어 읽음(구조 분해 같은 다른 최상위 값은 건너뜀),
-      `uses_rust_only`의 `agent(`가 단어 경계를 보지 않음(`my_agent(`도 걸림), Rust 전용 예제 수 단언이 약함.
+      ~~`uses_rust_only`의 `agent(`가 단어 경계를 보지 않음, Rust 전용 예제 수 단언이 약함~~(6b에서 장치째 지움).
     - `builtins.html`의 U+FFFD 글자를 문자 그대로 씀(엔티티가 아님).
     - `check-release.sh`의 ELF 패턴은 GNU `file`의 문구를 가정한다. darwin/amd64는 러너에 Rosetta가 있을 때만 실제로 돌려 본다.
     - 정적 바이너리도 실행 중에 시스템 CA 파일을 읽는다(`rustls-native-certs`). CA 인증서가 없는 `scratch` 컨테이너에서는 https가 실패한다(0.1 Go도 같음).
     - Rust `conc` 모듈(키 `conc`)과 `_native.conc`의 `Module` 이름이 둘 다 "conc"다(키가 달라 충돌은 없음).
-    - `docs/design/background.md` 원칙 4("Go는 내부에서 쓰되 겉으로 드러나지 않게")를 매뉴얼처럼 "구현 언어는…"으로 맞추지 않았다(6b에서 Go를 지울 때).
+    - ~~`docs/design/background.md` 원칙 4("Go는 내부에서 쓰되 겉으로 드러나지 않게")를 매뉴얼처럼 "구현 언어는…"으로 맞추지 않았다~~ 해결 (6b): "구현 언어(Rust)는 내부에서 쓰되 겉으로 드러나지 않게".
+- [ ] 6b단계(Go 삭제)에서 정한 것과 남은 것 (진행 기록 `.superpowers/sdd/2026-10-17-rust-go-removal-6b/progress.md`, 노트 `docs/notes/R6b-go-removal.md`).
+  - [x] Go 대조 → **기대 출력 파일** (2026-10-17 스펙 결정). 입력마다 출력이 정해지는 대조(`dump`·실행·`check`·`test`·`fmt`·REPL·`json`·`time`·`regex`, `fung-vm`의 prelude·`fs` 프로그램)는
+    Go가 있을 때 Go 출력과 Rust 출력이 사례마다 같은지 확인하며 **Go 출력을 기록**했고, 이후는 Rust만 그 파일과 비교한다. Go 서버·클라이언트를 맞붙이던 것(`http`·`tls`·`sigpipe`)은
+    요청 원문·응답·신호 13·에러 문구를 같은 형식으로 고정해 Rust 혼자 검사한다(TLS 서버는 `fung_vm::tls_test_server`).
+    - 파일: `crates/fung-cli/tests/expected/<주제>/*.txt`, `crates/fung-vm/tests/expected/{prelude,fs}/runs.txt`. 형식은 `crates/fung-cli/tests/common/expected.rs` 머리 주석
+      (`==== 이름표`, `-- 칸` 뒤 `| 줄`, 제어 문자는 `(escaped)`, 큰 값은 길이와 FNV-1a 해시, 임시 경로·포트·저장소는 `$TMP`·`$PORT`·`$REPO` 따위로 치환).
+    - 갱신: 일부러 동작을 바꾼 뒤 `FUNG_EXPECTED=bless cargo test -p <크레이트> --test <이름>`(`fung-vm`은 테스트 이름으로 거름; 각 파일 머리 주석에 명령이 있다), diff 검토 후 커밋.
+      테스트마다 사례 수를 상수로 단언하므로 사례를 더하거나 빼면 상수도 고친다. 기록 모드(`FUNG_EXPECTED=record`)와 Go 실행 도구(`common::go_fung`, `FUNG_REQUIRE_PARITY`)는 Go와 함께 지웠다.
+    - 호스트 의존(노트 3절): 기록은 macOS에서만 했고 Linux CI 실행으로 확인했다. 그 과정에서 고친 것: 모든 기대 출력 실행에 `TZ=UTC`(`common::TZ`; 처음에는 기록한 기계의 시간대가
+      들어갔다), Linux에서만 만들 수 있는 비UTF-8 파일 이름은 얼린 사례에서 빼고 UTF-8 이름과 같은지 비교하는 유도 테스트로, 권한 없는 디렉터리 사례는 root면 건너뜀,
+      디렉터리 크기는 `$SIZE`, macOS `/private/tmp`는 `/tmp`로.
+  - [x] 명세 파일의 원본 → **Rust 코드** (Task 3·6). `spec/builtins.txt`는 `fung_vm::boot`의 표(`NATIVE_MODULES`, prelude 네이티브, `extras::PRELUDE_FILES`, `conc`·`http` 모듈)에서,
+    `spec/errors.txt`는 `fung_front::diag::catalog`의 표에서 만들고, 테스트가 파일과 코드가 같은지 지킨다. 갱신은 `FUNG_UPDATE_SPEC=1 cargo test spec_file`.
+    생성기는 파일을 읽지 않고 표에서 시작하므로 새 `_native.*` 모듈을 더해도 손으로 파일을 먼저 고칠 필요가 없다. `unicode.txt`·`regex_unicode.txt`는 고정 데이터(위 6c 할 일의 첫 항목).
+  - [x] Go 테스트가 지키던 것: `install.sh`(가짜 릴리스) → `crates/fung-cli/tests/install_script.rs`, CHANGELOG ↔ 매뉴얼 사이드바 버전 → `changelog.rs`. errno 표를 살아 있는 Go와
+    대조하던 테스트는 Rust 단독 확인(대표 문구, 모든 칸이 한 줄)으로 바꿨다(`native/oserr.rs`의 표 자체가 기록).
+  - [x] Go가 다시 들어오지 않게: `crates/fung-cli/tests/repo_rust_only.rs`가 `.go`·`go.mod`가 없는지, 워크플로·스크립트·크레이트·`CLAUDE.md`·`README.md`·`docs/design`에
+    Go 도구 호출이 없는지 본다(학습 노트·계획·스펙·CHANGELOG는 기록이라 뺌).
+  - [x] 자식 프로세스 정리 (2026-10-17 사용자 요청): 테스트가 띄우는 서버·클라이언트는 모두 `common::Reaped`가 쥐어, 테스트가 패닉해도 `Drop`에서 죽이고 거둔다
+    (`a_panicking_test_leaves_no_server_behind`가 확인). 손자 프로세스는 거두지 않는다(테스트 프로그램이 남기지 않음).
+  - 사례 수(6b 끝): dump 644, 실행 196(`tests/lang` 139, 동시성 33은 릴리스에서 50번씩), 골든 `tests/lang` 139개 파일, `check` 저장소 167, `test` 저장소 168, `fmt` 입력 4,404, 파이프 REPL 34,
+    http 클라이언트 96·서버 89, regex 쌍 800, json 입력 143, time 168, prelude 357. `# only:` 파일을 합치며 늘었고, 줄어든 것은 지운 Go 전용 파일(Go의 얇은 `extras/http.fung` 래퍼, `# only: go` 다섯 개)뿐이다.
 - [ ] **R7 스케줄러** (6단계 Go 삭제 뒤의 별도 단계, 4d 스펙 결정 2026-10-16). 언어 의미를 바꾸지 않는 내부 교체다. 막히는 곳은 `vm/block.rs`의 `block()`과
   소켓의 `vm/watch.rs`(`Watch`)로 모여 있어 그 자리를 갈아끼운다. 그때 함께 판단할 것:
   - 그린 스레드: 태스크를 운영체제 스레드가 아니라 VM이 주차·재개하는 단위로. 이벤트 루프 크레이트 `mio`를 들일지(4d에서는 들이지 않음).
@@ -631,7 +677,7 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     - 클로저·내장 함수·모듈은 포인터로 비교한다(`value/compare.rs`). 워커 사이에 복사한 뒤에도 `print == print` 같은 동일성이 유지되도록 다시 짝지어 준다.
 - [x] 배포 → **플랫폼별 CI 러너**(TLS 암호 부분의 C 코드 때문에 대상용 C 컴파일러가 필요; Linux x86_64·ARM64, macOS ARM64·x86_64 러너 각자 빌드),
   Linux는 musl 정적 바이너리, CI 컴파일 캐시. 릴리스 파일 이름·`SHA256SUMS`·빌드 증명·설치 스크립트·CHANGELOG 릴리스 노트는 그대로.
-  `go install` 경로는 사라지고 `cargo install --locked --git https://github.com/tunarider/fung --tag v0.2.0 fung-cli`가 생긴다(`include_str!` 경로가 모두 저장소 안이라 git에서 빌드된다;
+  Go 시절의 설치 경로 대신 `cargo install --locked --git https://github.com/tunarider/fung --tag v0.2.0 fung-cli`가 생긴다(`include_str!` 경로가 모두 저장소 안이라 git에서 빌드된다;
   2026-10-17 `cargo install --locked --path crates/fung-cli`와 로컬 `file://` 저장소의 `--git`으로 확인. 이 길은 `FUNG_BUILD_VERSION`이 없어 `fung version`이 `0.0.0-dev`). README·매뉴얼 설치 절에 적었다.
   - 6a(2026-10-17)에 그대로 만들었다: `x86_64-unknown-linux-musl`·`aarch64-unknown-linux-musl`(C 컴파일러 `musl-gcc`), macOS 두 대상은 Apple 실리콘 러너 하나에서.
     설치 문서의 빌드 길은 `cargo build --release --locked`(저장소에서). CI 컴파일 캐시는 아직 넣지 않았다.

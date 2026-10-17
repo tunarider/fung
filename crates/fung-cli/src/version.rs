@@ -1,11 +1,8 @@
-//! The toolchain version `fung version` prints (Go `cmd/fung/version.go`).
+//! The toolchain version `fung version` prints.
 //!
-//! Go takes the link-time version (`-X main.linkedVersion=...`), then the
-//! module version `go install` records, then `0.0.0-dev`. Rust has no
-//! module version that means anything: the crates are all `0.0.0`, so
-//! `CARGO_PKG_VERSION` would print `0.0.0` for every build. A release
-//! build sets `FUNG_BUILD_VERSION` when it compiles (the counterpart of
-//! Go's link-time value); anything else is `0.0.0-dev`.
+//! The crates are all `0.0.0`, so `CARGO_PKG_VERSION` would print `0.0.0`
+//! for every build. A release build sets `FUNG_BUILD_VERSION` when it
+//! compiles; anything else is `0.0.0-dev`.
 
 /// The version of this binary.
 pub fn version() -> String {

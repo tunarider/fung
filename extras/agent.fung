@@ -1,0 +1,79 @@
+# Agents (stage 3b). An agent is a background task that holds a state
+# and serves requests from a channel, one at a time: `swap(a, f)`
+# replaces the state with f(state), `deref(a)` reads it.
+#
+# The boot runs this file after `extras/prelude.fung` and adds its
+# public names to the prelude (`agent`, `swap`, `deref`); it is not a
+# module a program can import.
+#
+# The agent's loop holds only its request channel, never a handle: the
+# handle closes the channel when its last copy drops, which ends the
+# loop, so a loop holding a handle would never end. Nor does the loop's
+# first function hold the first state (the task keeps that function for
+# its whole life): the state comes through a channel, taken once.
+import _native.conc as _c
+
+fn agent(v):
+  ch = channel()
+  first = channel(1)
+  _c.send_unchecked(first, v)
+  _c.spawn_background(() => _start(ch, first))
+  _c.agent_handle(ch)
+;;
+
+fn _start(ch, first) = _serve(ch, recv(first)!)
+
+# Requests are ('swap, f, reply) and ('deref, reply); reply is a fresh
+# channel with room for the answer. A closed channel (no handle is left)
+# ends the loop.
+fn _serve(ch, state) = match recv(ch):
+  Ok(('swap, f, reply)) => _serve(ch, _apply(ch, state, f, reply))
+  Ok(('deref, reply))   => _serve(ch, _answer(reply, state))
+  Err(_)                => nil
+;;
+
+# Runs f on the state, marked as serving (for E0704 and for deref inside
+# f and the tasks it spawns), and answers Ok(new) or the caught
+# Err(error). Returns the state to keep: a failing f changes nothing.
+# try_call runs f following the task that asked (reply carries its
+# cancellation): if that task is cancelled, so is f, and the update is
+# not applied; a request whose asker is already cancelled is skipped.
+fn _apply(ch, state, f, reply):
+  _c.agent_busy(ch, true, state)
+  r = _c.try_call(f, state, reply)
+  _c.agent_busy(ch, false)
+  _c.send_unchecked(reply, r)
+  match r:
+    Ok(n)  => n
+    Err(_) => state
+  ;;
+;;
+
+fn _answer(reply, state):
+  _c.send_unchecked(reply, state)
+  state
+;;
+
+# check_swap gives E0403 for bad arguments and E0704 inside the agent's
+# own f. agent_ask sends the request and waits for the answer, holding
+# the handle meanwhile (it may be the last one). An error in f is raised
+# again here, so it points at the caller's swap.
+fn swap(a, f):
+  _c.check_swap(a, f)
+  reply = channel(1)
+  match _c.agent_ask(a, ('swap, f, reply), reply):
+    Ok(n)  => n
+    Err(e) => _c.raise(e)
+  ;;
+;;
+
+# Inside the agent's own f (or a task it spawned), the state before the
+# update, without waiting (the agent is busy running f). Checking and
+# reading are one call, agent_peek: the turn can pass between two calls,
+# and f may end in between.
+fn deref(a) = match _c.agent_peek(a):
+  Ok(state) => state
+  Err(_)    => _deref(a, channel(1))
+;;
+
+fn _deref(a, reply) = _c.agent_ask(a, ('deref, reply), reply)

@@ -10,10 +10,11 @@
 이름은 한국어 "펑"(빠르게 만들고 치고 빠진다)과 **fun**ction + **g**o에서 왔다.
 
 - 파일 확장자: `.fung`, 실행 명령: `fung`
-- 구현: Rust, 바이트코드 VM (0.1은 Go. Go 구현은 Rust 전환이 끝날 때까지 비교 기준으로 저장소에 남아 있다)
+- 구현: Rust, 바이트코드 VM (`crates/`: 앞단 `fung-front`, 값·VM·런타임 `fung-vm`, 명령 `fung-cli`)
 - 용도: 간단한 스크립트(파일 일괄 처리 등), 간단한 웹서버, 추후 GUI 앱
 
 설계 문서는 [docs/design](docs/design/README.md)에 있다. 마일스톤별 설명은 [docs/notes](docs/notes/)에.
+개발: `cargo test --locked`가 언어 골든 테스트(`tests/lang`)와 기대 출력 파일(`crates/*/tests/expected`)까지 모두 돌린다.
 매뉴얼은 <https://blog.tunarider.net/fung/> (원본 [docs/index.html](docs/index.html)).
 
 ## 설치

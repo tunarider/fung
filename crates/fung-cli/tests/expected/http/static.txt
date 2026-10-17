@@ -1,0 +1,120 @@
+# `examples/static.fung` serving a small tree (crates/fung-cli/tests/http.rs,
+# `the_http_examples_run`): its answers, `<date>` a `Date` value, and its log
+# of those requests. `$DIR` is the tree.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== request 0
+-- request (escaped)
+| GET / HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 200 OK\r
+| Content-Type: text/html; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 11\r
+| Connection: close\r
+| \r
+| <h1>hi</h1>
+\ no newline
+==== request 1
+-- request (escaped)
+| GET /docs/a.txt HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 200 OK\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 15\r
+| Connection: close\r
+| \r
+| 안녕, 한글
+==== request 2
+-- request (escaped)
+| GET /data.json HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 200 OK\r
+| Content-Type: application/json\r
+| Date: <date>\r
+| Content-Length: 13\r
+| Connection: close\r
+| \r
+| {"b":1,"a":2}
+\ no newline
+==== request 3
+-- request (escaped)
+| GET /nope.html HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 404 Not Found\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 21\r
+| Connection: close\r
+| \r
+| not found: /nope.html
+\ no newline
+==== request 4
+-- request (escaped)
+| GET /../etc/passwd HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 403 Forbidden\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 9\r
+| Connection: close\r
+| \r
+| forbidden
+\ no newline
+==== request 5
+-- request (escaped)
+| POST / HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| Content-Length: 1\r
+| \r
+| x
+\ no newline
+-- answer (escaped)
+| HTTP/1.1 405 Method Not Allowed\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 18\r
+| Connection: close\r
+| \r
+| method not allowed
+\ no newline
+==== request 6
+-- request (escaped)
+| HEAD /docs/a.txt HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 200 OK\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 15\r
+| Connection: close\r
+| \r
+==== log
+-- stdout
+| GET / 200
+| GET /docs/a.txt 200
+| GET /data.json 200
+| GET /nope.html 404
+| GET /../etc/passwd 403
+| POST / 405
+| HEAD /docs/a.txt 200
+\ no newline
+-- stderr

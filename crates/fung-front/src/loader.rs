@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
-use crate::builtins::builtins;
+use crate::builtins::{Builtins, builtins};
 use crate::bytecode::Proto;
 use crate::compiler;
 use crate::desugar::desugar;
@@ -74,6 +74,11 @@ pub struct Loader {
     /// REPL: the entry file may define fns and imports again (Go
     /// `Loader.Resolve.Redefine`).
     pub redefine: bool,
+    /// The built-in names to compile against; `None` (the default) is
+    /// `spec/builtins.txt`. The generator of that file sets its own, built
+    /// from the runtime's tables, so a new `_native.*` bridge or prelude
+    /// native needs no hand edit of the file first.
+    pub spec: Option<&'static Builtins>,
 }
 
 impl Default for Loader {
@@ -85,6 +90,7 @@ impl Default for Loader {
             extra_prelude: Vec::new(),
             globals: Vec::new(),
             redefine: false,
+            spec: None,
         }
     }
 }
@@ -106,6 +112,11 @@ struct State<'a> {
 type Errs = Vec<Diag>;
 
 impl Loader {
+    /// The built-in names this loader compiles against ([`Loader::spec`]).
+    pub fn builtins(&self) -> &'static Builtins {
+        self.spec.unwrap_or_else(builtins)
+    }
+
     /// Runs the front end on one entry file ("-e" for inline code) up to
     /// a stage. Syntax errors stop at the first; name errors are all
     /// collected (08).
@@ -124,7 +135,7 @@ impl Loader {
         src: &str,
         up_to: Stage,
     ) -> (Build, Vec<Diag>) {
-        let mut prelude: Vec<String> = builtins().prelude_names();
+        let mut prelude: Vec<String> = self.builtins().prelude_names();
         prelude.extend(self.extra_prelude.iter().cloned());
         prelude.sort();
         prelude.dedup();
@@ -264,7 +275,7 @@ impl State<'_> {
             if !from_stdlib {
                 return Err(e("E0310", vec![s(spec), s(public)]));
             }
-            let Some(names) = builtins().modules.get(spec) else {
+            let Some(names) = self.l.builtins().modules.get(spec) else {
                 return Err(e("E0301", vec![s(spec)]));
             };
             if !self.done.contains_key(spec) {
@@ -838,26 +849,27 @@ mod tests {
         );
     }
 
+    /// The prelude names written in fung are the public names of the
+    /// prelude files (`extras/prelude.fung`, `extras/agent.fung`).
     #[test]
     fn prelude_fung_exports_match_the_spec() {
-        let src = crate::extras::source("prelude").unwrap();
         let loader = Loader {
             internal: true,
             ..Loader::default()
         };
-        let (b, errs) = loader.compile("extras/prelude.fung", src, Stage::All);
-        assert!(errs.is_empty(), "{errs:?}");
-        let mut exports = b.proto.unwrap().exports;
+        let mut exports = Vec::new();
+        for (name, src) in crate::extras::PRELUDE_FILES {
+            let file = crate::extras::path(name);
+            let (b, errs) = loader.compile(&file, src, Stage::All);
+            assert!(errs.is_empty(), "{file}: {errs:?}");
+            exports.extend(b.proto.unwrap().exports);
+        }
         exports.sort();
-        // The Rust boot leaves out the names stage 6a moved to `conc`.
-        exports.retain(|n| !crate::builtins::RUST_PRELUDE_FUNG_MOVED.contains(&n.as_str()));
-        let mut spec = crate::builtins::builtins().prelude_fung.clone();
-        spec.sort();
-        assert_eq!(exports, spec);
+        assert_eq!(exports, crate::builtins::builtins().prelude_fung);
     }
 
-    /// `extras/rust/conc.fung` (stage 6a, Rust only) is the module `conc`:
-    /// it exports exactly the names of the Rust difference list.
+    /// `extras/conc.fung` (stage 6a) is the module `conc`: it exports
+    /// exactly the names the spec lists for it.
     #[test]
     fn conc_module_exports_match_the_list() {
         let (b, errs) = Loader::default().compile("-e", "import conc", Stage::All);
@@ -868,22 +880,6 @@ mod tests {
         assert_eq!(exports, crate::builtins::builtins().modules["conc"]);
         let (_, errs) = Loader::default().compile("-e", "print(pmap)", Stage::All);
         assert_eq!(codes(&errs), ["E0204"], "pmap is not a prelude name");
-    }
-
-    /// `extras/rust/agent.fung` (read only by the Rust boot) compiles as an
-    /// embedded file and exports exactly the agent names of the Rust
-    /// difference list (`builtins.rs`).
-    #[test]
-    fn agent_fung_exports_match_the_list() {
-        let loader = Loader {
-            internal: true,
-            ..Loader::default()
-        };
-        let (b, errs) = loader.compile("extras/rust/agent.fung", crate::extras::AGENT, Stage::All);
-        assert!(errs.is_empty(), "{errs:?}");
-        let mut exports = b.proto.unwrap().exports;
-        exports.sort();
-        assert_eq!(exports, crate::builtins::builtins().prelude_agent);
     }
 
     #[test]

@@ -1,0 +1,507 @@
+# Formatter inputs for `fmt_matches_the_expected_output_on_standard_input`
+# (crates/fung-cli/tests/tools_expected.rs): each is formatted through
+# `fung fmt -`, and its output is in `expected/fmt/stdin.txt` under
+# `format case ...`. Same layout as the expected-output files
+# (`tests/common/expected.rs`). Add a case here, then bless.
+==== case 1
+-- src: a+b*c
+==== case 2
+-- src: x=1
+==== case 3
+-- src: f( a,b )
+==== case 4
+-- src: xs [ 0 ]
+==== case 5
+-- src: m [ "k" ]
+==== case 6
+-- src: f(x)(y)
+==== case 7
+-- src: { a : 1 , b:2 }
+==== case 8
+-- src: {a, b}
+==== case 9
+-- src: [ 1,2 ]
+==== case 10
+-- src: ( 1, )
+==== case 11
+-- src: ()
+==== case 12
+-- src: m . a . b
+==== case 13
+-- src: 0 .. n
+==== case 14
+-- src: 0..=10
+==== case 15
+-- src: [ a, ... rest ] = xs
+==== case 16
+-- src: x=>x+1
+==== case 17
+-- src: (a,b)=>a
+==== case 18
+-- src: ()=>work()
+==== case 19
+-- src: fs.read(p) !
+==== case 20
+-- src: parse(s) ?
+==== case 21
+-- src: x ?? y
+==== case 22
+-- src: xs|>map(f)|>sum
+==== case 23
+-- src: - x
+==== case 24
+-- src: a - b
+==== case 25
+-- src: a - -b
+==== case 26
+-- src: f(-1, - 2)
+==== case 27
+-- src: x = - 5s
+==== case 28
+-- src: return - 1
+==== case 29
+-- src: not  x
+==== case 30
+-- src: if(a==b): 1 ;;
+==== case 31
+-- src: fn add(a,b)=a+b
+==== case 32
+-- src: fn f(x:int)->bool=true
+==== case 33
+-- src: fn ( x ) : x ;;
+==== case 34
+-- src: each(xs, fn(x): x ;;)
+==== case 35
+-- src: exec(cmd, cwd : d)
+==== case 36
+-- src: match x: 0=>1;_=>2;;
+==== case 37
+-- src: match v: 1|2 => 'a ;;
+==== case 38
+-- src: Ok( x )
+==== case 39
+-- src: c then a else b
+==== case 40
+-- src: x in [1, 2]
+==== case 41
+-- src: "a ${ x+1 } b"
+==== case 42
+-- src: `raw  text`
+==== case 43
+-- src: 1_000 + 0xff + 2 ** 10
+==== case 44
+-- src: a;b
+==== case 45
+-- src: fn f(): a ;;
+==== case 46
+-- src
+| x   
+==== case 47
+-- src
+==== case 48
+-- src
+| fn f(x):
+| x + 1
+| ;;
+==== case 49
+-- src
+| fn f(x):
+|     if x:
+|   1
+|   ;;
+| ;;
+==== case 50
+-- src
+| if c:
+| a
+| else:
+| b
+| ;;
+==== case 51
+-- src
+| if c:
+| a
+| else if d:
+| b
+| else:
+| c
+| ;;
+==== case 52
+-- src
+| test "t":
+| assert true
+| ;;
+==== case 53
+-- src
+| for x in xs:
+| print(x)
+| ;;
+==== case 54
+-- src
+| x = c then a
+| else b
+==== case 55
+-- src
+| if c:
+|   x = d then 1
+|   else 2
+| else:
+|   3
+| ;;
+==== case 56
+-- src
+| match v:
+| Ok(x) =>
+| x
+| Err(e) => 0
+| ;;
+==== case 57
+-- src
+| match v:
+|   Ok(x) => f(y => y)
+| ;;
+==== case 58
+-- src
+| f(a,
+| b,
+| c)
+==== case 59
+-- src
+| xs = [
+| 1,
+| 2,
+| ]
+==== case 60
+-- src
+| m = {
+| a: 1,
+| }
+==== case 61
+-- src
+| each(xs, fn(x):
+| print(x)
+| ;;)
+==== case 62
+-- src
+| fn g():
+| each(xs, fn(x):
+| print(x)
+| ;;)
+| ;;
+==== case 63
+-- src
+| xs
+| |> map(f)
+| |> sum
+==== case 64
+-- src
+| a = b
+| .c
+| .d
+==== case 65
+-- src
+| x = a
+| and b
+| or c
+==== case 66
+-- src
+| v = f(x) ?? 1
+==== case 67
+-- src
+| fn f():
+|   xs
+|   |> sum
+| ;;
+==== case 68
+-- src
+| m = {a: 1}
+| x = 2
+==== case 69
+-- src
+| fn f(x: int) -> int = x
+| y = 1
+==== case 70
+-- src
+| fn f(a) = if a: 1 else: 2 ;;
+| match x:
+| 0 => 1
+| ;;
+==== case 71
+-- src
+| s = `a
+|   b`
+| x = 1
+==== case 72
+-- src
+| match x: 0 => 1; _ => 2 ;;
+==== case 73
+-- src
+| if c: a else: b ;;
+==== case 74
+-- src
+|
+|
+| x = 1
+|
+|
+|
+| y = 2
+|
+==== case 75
+-- src
+| fn f():
+|
+|   x
+|
+| ;;
+==== case 76
+-- src
+| #!/usr/bin/env fung
+| # about
+| x = 1
+==== case 77
+-- src
+| x = 1 # one
+==== case 78
+-- src
+| x = 1    # one
+| long_name = 2 # two
+==== case 79
+-- src
+| x = 1 # one
+| y = 2
+| long = 3 # three
+==== case 80
+-- src
+| fn f():
+| # inside
+| x
+| # before end
+| ;;
+| # after
+==== case 81
+-- src
+| match v:
+| Ok(x) => 1
+| Err(e) => 2
+| ;;
+==== case 82
+-- src
+| match v:
+| Ok(text) =>
+| len(text)
+| Err(e)   => 0
+| ;;
+==== case 83
+-- src
+| match v:
+|   0 => a
+|
+|   _ => other
+| ;;
+==== case 84
+-- src: # only a comment
+==== case 85
+-- src
+| print(1)
+| # expect: 1
+| print(2)
+| # expect: 2
+==== case 86
+-- src
+| f(a, # first
+|   b) # second
+==== case 87
+-- src
+| import "./x" (a, b)
+==== case 88
+-- src
+| import fs (read)
+==== case 89
+-- src
+| import fs(read)
+==== case 90
+-- src
+| fn f(x) =
+| x + 1
+==== case 91
+-- src
+| fn f(x) =
+|   x + 1
+| y = 2
+==== case 92
+-- src
+| total = a +
+| b
+==== case 93
+-- src
+| xs |> map(x =>
+| x + 1)
+==== case 94
+-- src
+| fn g():
+|   v = f(x) ??
+|   d
+|   v
+| ;;
+==== case 95
+-- src
+| match v:
+|   Ok(t) =>
+|     t
+| ;;
+==== case 96
+-- src
+| x = f(`a
+| b`)
+==== case 97
+-- src
+| x = `a
+| b` + "c"
+==== case 98
+-- src
+| x = `a
+| b` # note
+==== case 99
+-- src
+| xs = [`a
+| b`,
+|   `c`]
+==== case 100
+-- src
+| match a:
+|   Some(v) =>
+|     y = 2
+|     g = x => x + v
+|     g(y)
+|   _ => 0
+| ;;
+==== case 101
+-- src
+| match a:
+|   Some(v) =>
+|     return x => x
+|   _ => 0
+| ;;
+==== case 102
+-- src
+| match a:
+|   Some(x) =>
+|     match x:
+|       1 => 2
+|       100 => 3
+|     ;;
+|   _ => 0
+| ;;
+==== case 103
+-- src
+| match a:
+|   Some(x) => each(xs, fn(y):
+|     y
+|   ;;)
+|   _ => 0
+| ;;
+==== case 104
+-- src
+| x = m.type - 1
+==== case 105
+-- src
+| x = {type: - 1}
+==== case 106
+-- src
+| x = 1 # c   
+==== case 107
+-- src
+| # top   
+==== case 108
+-- src
+| fn f(h: fn, x = 1):
+|   y = x
+|   h(y)
+| ;;
+==== case 109
+-- src
+| fn f(h: fn):
+| h()
+| ;;
+==== case 110
+-- src
+| fn f(a: fn, b: fn, c: str):
+| a(b(c))
+| ;;
+==== case 111
+-- src
+| fn f(h: fn = print):
+| h(1)
+| ;;
+==== case 112
+-- src
+| fn f(h: fn, xs):
+| for x in xs:
+| h(x)
+| ;;
+| ;;
+==== case 113
+-- src
+| fn f(h: fn):
+| if h:
+| 1
+| else:
+| 2
+| ;;
+| ;;
+| x=1
+==== case 114
+-- src
+| fn g(h: fn):
+| each(xs, fn(x):
+| h(x)
+| ;;)
+| ;;
+==== case 115
+-- src
+| fn f(h: fn, x: int) = h(x)
+| y = 1
+==== case 116
+-- src
+| fn f() -> fn:
+| print
+| ;;
+==== case 117
+-- src
+| fn f(h: fn | nil, g: list[fn]):
+| h
+| ;;
+==== case 118
+-- src
+| apply(fn(x): x ;;, fn(y):
+| y
+| ;;)
+| z = 1
+==== case 119
+-- src
+| fn g():
+| h = fn(x: fn):
+| x()
+| ;;
+| h
+| ;;
+==== case 120
+-- src
+| ﻿x=1
+==== case 121
+-- src
+| ﻿fn f():
+| x
+| ;;
+==== case 122
+-- src
+| ﻿# only a comment
+==== case 123
+-- src: ﻿
+==== case 124
+-- src
+| ﻿
+|
+| x = 1 # c   
+|

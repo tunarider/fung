@@ -1,8 +1,7 @@
-//! Golden files checked against their own expectations, with no Go
-//! involved: every `tests/lang/**/*.fung` (directories starting with `_`
-//! are module fixtures) that is not `# only: go` runs with `fung run`,
-//! and is judged by the rules of Go's
-//! `internal/golden` (`Parse`, `Check`).
+//! Golden files checked against their own expectations: every
+//! `tests/lang/**/*.fung` (directories starting with `_` are module
+//! fixtures) runs with `fung run` and is judged by its `# expect...`
+//! lines (`parse`, `check`).
 //!
 //! `FUNG_GOLDEN_BIN` names another `fung` binary to run instead of the
 //! one cargo built: CI runs the suite against the static musl release
@@ -23,7 +22,7 @@ fn fung_under_test() -> PathBuf {
     }
 }
 
-/// What a golden file expects (Go: `golden.Case`).
+/// What a golden file expects.
 #[derive(Debug, Default, PartialEq)]
 struct Case {
     stdout: String,
@@ -31,17 +30,16 @@ struct Case {
     args: Vec<String>,
     stdin: String,
     exit_code: i32,
-    only: String,
 }
 
-/// What a run did (Go: `golden.Result`).
+/// What a run did.
 struct Outcome {
     stdout: String,
     stderr: String,
     exit_code: i32,
 }
 
-/// Go: `golden.Parse`.
+/// Reads a golden file's directives.
 fn parse(path: &str, src: &str) -> Result<Case, String> {
     let mut c = Case::default();
     for (i, line) in src.lines().enumerate() {
@@ -67,17 +65,6 @@ fn parse(path: &str, src: &str) -> Result<Case, String> {
                 .trim()
                 .parse()
                 .map_err(|_| format!("{path}:{n}: malformed exit code in {line:?}"))?;
-        } else if let Some(rest) = line.strip_prefix("# only:") {
-            let v = rest.trim();
-            if v != "go" && v != "rust" {
-                return Err(format!(
-                    "{path}:{n}: malformed only line {v:?} (want go or rust)"
-                ));
-            }
-            if !c.only.is_empty() {
-                return Err(format!("{path}:{n}: second only line (already {})", c.only));
-            }
-            c.only = v.to_string();
         } else if let Some(rest) = line.strip_prefix("# args:") {
             c.args.extend(rest.split_whitespace().map(String::from));
         } else if let Some(rest) = line.strip_prefix("# stdin:") {
@@ -86,6 +73,8 @@ fn parse(path: &str, src: &str) -> Result<Case, String> {
         } else if let Some(rest) = line.strip_prefix("# expect:") {
             c.stdout.push_str(rest.strip_prefix(' ').unwrap_or(rest));
             c.stdout.push('\n');
+        } else if let Some(word) = directive(line) {
+            return Err(format!("{path}:{n}: unknown directive {word:?}"));
         }
     }
     if !c.error_code.is_empty() && c.exit_code != 0 {
@@ -94,6 +83,15 @@ fn parse(path: &str, src: &str) -> Result<Case, String> {
         ));
     }
     Ok(c)
+}
+
+/// The word of a line shaped like a directive, `# word:` with a word of
+/// lower-case letters and dashes (`# expect-exit:`), so a misspelt or
+/// retired directive is an error rather than a comment.
+fn directive(line: &str) -> Option<&str> {
+    let rest = line.strip_prefix("# ")?;
+    let end = rest.find(|c: char| !(c.is_ascii_lowercase() || c == '-'))?;
+    (end > 0 && rest[end..].starts_with(':')).then(|| &rest[..end])
 }
 
 /// The first line where two texts differ.
@@ -113,7 +111,8 @@ fn first_diff(want: &str, got: &str) -> String {
     )
 }
 
-/// Go: `golden.Check`. The usage exit code is 3.
+/// Whether a run meets a golden file's expectations. The usage exit
+/// code is 3.
 fn check(c: &Case, r: &Outcome) -> Result<(), String> {
     const EXIT_USAGE: i32 = 3;
     if r.exit_code == EXIT_USAGE && c.exit_code != EXIT_USAGE {
@@ -172,23 +171,23 @@ fn outcome(stdout: &str, stderr: &str, exit_code: i32) -> Outcome {
 #[test]
 fn parse_reads_every_directive() {
     let c = case(
-        "# expect: 1\n# expect:\n  # expect: 2\n# args: a  b\n# stdin: x\n# stdin:\n# expect-exit: 4\n# only: rust\n",
+        "# expect: 1\n# expect:\n  # expect: 2\n# args: a  b\n# stdin: x\n# stdin:\n# expect-exit: 4\n# a comment: not a directive\n",
     );
     assert_eq!(c.stdout, "1\n\n2\n");
     assert_eq!(c.args, ["a", "b"]);
     assert_eq!(c.stdin, "x\n\n");
     assert_eq!(c.exit_code, 4);
-    assert_eq!(c.only, "rust");
 }
 
 #[test]
-fn parse_rejects_what_go_rejects() {
+fn parse_rejects_malformed_directives() {
     for bad in [
         "# expect-error: E12\n",
         "# expect-error: E0001\n# expect-error: E0002\n",
         "# expect-exit: x\n",
-        "# only: both\n",
-        "# only: go\n# only: rust\n",
+        "# only: rust\n",
+        "  # expect-stderr: x\n",
+        "# expects: 1\n",
         "# expect-error: E0001\n# expect-exit: 1\n",
     ] {
         assert!(parse("t.fung", bad).is_err(), "{bad:?}");
@@ -256,7 +255,7 @@ fn golden_files_meet_their_expectations() {
     let mut files = Vec::new();
     walk(&root.join("tests/lang"), &mut files);
     files.sort();
-    let (mut checked, mut only) = (0, 0);
+    let mut checked = 0;
     let mut failures = Vec::new();
     for f in &files {
         let rel = f
@@ -272,10 +271,6 @@ fn golden_files_meet_their_expectations() {
                 continue;
             }
         };
-        if c.only == "go" {
-            only += 1;
-            continue;
-        }
         let mut args: Vec<OsString> = vec!["run".into(), rel.clone().into()];
         args.extend(c.args.iter().map(OsString::from));
         let (out, err, status) =
@@ -290,7 +285,7 @@ fn golden_files_meet_their_expectations() {
             failures.push(format!("{rel}: {e}"));
         }
     }
-    eprintln!("golden: {checked} checked, {only} only-go");
+    eprintln!("golden: {checked} checked");
     assert!(
         failures.is_empty(),
         "{} of {checked} golden files fail:\n{}",
@@ -298,7 +293,7 @@ fn golden_files_meet_their_expectations() {
         failures.join("\n")
     );
     // The check cannot pass by checking nothing: one below the 139 files
-    // checked after stage 4d's `http_serve_rust`; raise it as files are
+    // checked after stage 4d's `http_serve.fung`; raise it as files are
     // added.
     assert!(checked >= 138, "only {checked} golden files were checked");
 }

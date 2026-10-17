@@ -85,13 +85,13 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 
 ## 6. CI와 릴리스를 나눈 이유
 
-- `ci.yml`: main 푸시와 PR마다 커밋 전 검사와 같은 것을 돈다.
-  - `test`(Linux·macOS): Go의 gofmt·vet·테스트, Linux에서 `-race`. Go 구현은 6b단계까지 정답지라 그대로 돈다.
-  - `rust`(Linux·macOS): Linux에서 `cargo-deny`·`cargo-audit`, 두 운영체제에서 `cargo fmt --check`, clippy, 디버그·릴리스 테스트(`FUNG_REQUIRE_PARITY=1`).
+- `ci.yml`: main·작업 브랜치(`claude/**`) 푸시와 PR마다 커밋 전 검사와 같은 것을 돈다.
+  - `rust`(Linux·macOS): Linux에서 `cargo-deny`·`cargo-audit`, 두 운영체제에서 `cargo fmt --check`, clippy, 디버그·릴리스 테스트.
+    (6b 전에는 Go 구현을 검사하는 `test` 작업도 있었다.)
   - `musl`(Linux): 릴리스와 같은 스크립트로 linux/amd64 musl 바이너리를 만들고 `check-release.sh`로 검사한다. C 의존성이 새로 생기거나 glibc에만
     링크되는 것이 끼면 릴리스 날이 아니라 그 PR에서 깨진다.
 - `release.yml`: 네 작업이 차례로 돈다.
-  1. `test`: 태그 모양(`vX.Y.Z`) 확인, 릴리스 노트 뽑기(절이 없으면 여기서 멈춤), Go 테스트, Rust 테스트(디버그·릴리스).
+  1. `test`: 태그 모양(`vX.Y.Z`) 확인, 릴리스 노트 뽑기(절이 없으면 여기서 멈춤), 테스트(디버그·릴리스).
   2. `build`: 위 표의 러너 셋에서 묶음을 만들고 그 자리에서 `check-release.sh`로 검사한다. Linux 작업은 `file`·`ldd`·`readelf` 출력도 기록에 남긴다.
   3. `release`: 묶음 넷을 모아 `SHA256SUMS`를 쓰고 넷을 함께 다시 검사한 뒤 `release` 아티팩트로 남긴다. 읽기 권한만 있다.
   4. `publish`: **태그를 푸시했을 때만** 돈다. 쓰기 권한(`contents`·`id-token`·`attestations`)은 이 작업에만 있다. 받은 파일을 한 번 더 검사하고,

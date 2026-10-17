@@ -1,0 +1,124 @@
+# https through a proxy: the `http` client against fake servers (crates/fung-cli/tests/http.rs,
+# `https_through_a_proxy_matches_the_expected_output`).
+# `URL` in a program is "http://127.0.0.1:PORT0"; `PORTn` and `$PORTn` are server
+# n's port, `REFUSED` one nothing listens on. `request <s>.<n>`: the raw requests
+# server s got.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== case 00
+-- program
+| fn show(r) = match r:
+|   Ok(v)  => "${v.status} ${v.body}"
+|   Err(e) => e.message
+| ;;
+| print(show(http.get("https://wrong.example:TLSPORT/a?b=1", headers: {"x-h": "1", "cookie": "c"})))
+| print(show(http.post("https://u:p@wrong.example/p", "한글")))
+| print(show(http.get("https://wrong.example/r?to=/final")))
+| print(show(http.get("https://wrong.example/r?to=http://127.0.0.1:PORT1/x")))
+| print(show(http.get("https://wrong.example/r?to=https://wrong.example:8443/y", headers: {"authorization": "a"})))
+\ no newline
+-- env: HTTPS_PROXY=http://pu:pp@127.0.0.1:PORT0
+-- stdout
+| 200 GET /a?b=1 HTTP/1.1 host=wrong.example:$TLSPORT
+| Cookie: c
+| User-Agent: Go-http-client/1.1
+| X-H: 1
+|
+| 200 POST /p HTTP/1.1 host=wrong.example
+| Authorization: Basic dTpw
+| Content-Length: 6
+| User-Agent: Go-http-client/1.1
+| 한글
+| 200 GET /final HTTP/1.1 host=wrong.example
+| Referer: https://wrong.example/r?to=/final
+| User-Agent: Go-http-client/1.1
+|
+| 200 plain
+| 200 GET /y HTTP/1.1 host=wrong.example:8443
+| Authorization: a
+| Referer: https://wrong.example/r?to=https://wrong.example:8443/y
+| User-Agent: Go-http-client/1.1
+|
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT wrong.example:$TLSPORT HTTP/1.1\r
+| Host: wrong.example:$TLSPORT\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.1 (escaped)
+| CONNECT wrong.example:443 HTTP/1.1\r
+| Host: wrong.example:443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.2 (escaped)
+| CONNECT wrong.example:443 HTTP/1.1\r
+| Host: wrong.example:443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.3 (escaped)
+| CONNECT wrong.example:443 HTTP/1.1\r
+| Host: wrong.example:443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.4 (escaped)
+| CONNECT wrong.example:443 HTTP/1.1\r
+| Host: wrong.example:443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.5 (escaped)
+| CONNECT wrong.example:443 HTTP/1.1\r
+| Host: wrong.example:443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.6 (escaped)
+| CONNECT wrong.example:8443 HTTP/1.1\r
+| Host: wrong.example:8443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 1.0 (escaped)
+| GET /x HTTP/1.1\r
+| Host: 127.0.0.1:$PORT1\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 01
+-- program
+| fn show(r) = match r:
+|   Ok(v)  => "${v.status} ${v.body}"
+|   Err(e) => e.message
+| ;;
+| print(show(http.get("https://other.example/")))
+\ no newline
+-- env: HTTPS_PROXY=127.0.0.1:PORT0
+-- stdout
+| cannot request `https://other.example/`: Get "https://other.example/": tls: failed to verify certificate: x509: certificate is valid for wrong.example, not other.example
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT other.example:443 HTTP/1.1\r
+| Host: other.example:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 02
+-- program
+| fn show(r) = match r:
+|   Ok(v)  => "${v.status} ${v.body}"
+|   Err(e) => e.message
+| ;;
+| print(show(http.get("http://example.test/a?b", headers: {"x-h": "1"})))
+\ no newline
+-- env: HTTP_PROXY=https://pu:pp@localhost:LOCALTLS
+-- stdout
+| 200 GET http://example.test/a?b HTTP/1.1 host=example.test
+| Proxy-Authorization: Basic cHU6cHA=
+| User-Agent: Go-http-client/1.1
+| X-H: 1
+|
+-- stderr
+-- exit: 0

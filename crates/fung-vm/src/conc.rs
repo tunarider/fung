@@ -5,9 +5,9 @@
 //! `_native.conc` agents are built from (`crate::vm::agent`, stage 3b).
 //! Go's `atom`, `swap` and `deref` are not here: stage 3b replaced atoms
 //! with agents, whose `agent`, `swap` and `deref` are fung
-//! (`extras/rust/agent.fung`). The parameter tables are Go's
-//! (`spec/builtins.txt`), so arity and named-argument errors, which the
-//! VM reports before the native runs, are the same as Go's.
+//! (`extras/agent.fung`). The parameter tables here are
+//! the source of `spec/builtins.txt`; the VM checks arity and named
+//! arguments against them before the native runs.
 
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -41,7 +41,7 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("close", vec![param("ch")]),
                 ("spawn_awaited", vec![param("f")]),
                 // Rust only (stage 3b, `crate::vm::agent`): the members
-                // of `_native.conc` that `extras/rust/agent.fung` uses.
+                // of `_native.conc` that `extras/agent.fung` uses.
                 ("spawn_background", vec![param("f")]),
                 ("agent_handle", vec![param("ch")]),
                 ("check_swap", vec![param("a"), param("f")]),
@@ -60,7 +60,7 @@ fn all() -> Vec<(&'static str, Value)> {
                     vec![param("ch"), param("on"), opt("state", Lit::Nil)],
                 ),
                 ("agent_peek", vec![param("a")]),
-                // Rust only (stage 4d Task 5): what `extras/rust/http.fung`
+                // Rust only (stage 4d Task 5): what `extras/http.fung`
                 // runs its handlers with.
                 ("set_asker", vec![param("ch")]),
                 ("describe", vec![param("e")]),
@@ -100,12 +100,10 @@ fn all() -> Vec<(&'static str, Value)> {
         .collect()
 }
 
-/// The members of `_native.conc`: Go's `spawn_awaited`, then the Rust
-/// only ones. The front end learns the Rust-only ones from
-/// `RUST_MODULE_MEMBERS` in `crates/fung-front/src/builtins.rs` (the
-/// differences from `spec/builtins.txt`); the boot test
-/// `native_modules_match_the_spec` keeps the two lists, and the
-/// parameter tables, in sync.
+/// The members of `_native.conc`. The front end learns them from
+/// `spec/builtins.txt`, which the `spec_file` test generates from this
+/// module; the boot test `native_modules_match_the_spec` checks the two
+/// agree, parameter tables included.
 const MODULE_ONLY: &[&str] = &[
     "spawn_awaited",
     "spawn_background",
@@ -131,9 +129,8 @@ pub fn natives() -> Vec<(&'static str, Value)> {
 }
 
 /// `_native.conc` (Go `vm.NativeModules()`): `spawn_awaited`, which
-/// `extras/rust/conc.fung` uses for `fan_in` and `pmap` (Go: its
-/// `extras/prelude.fung`), and the helpers
-/// `extras/rust/agent.fung` is built from (stage 3b, `crate::vm::agent`).
+/// `extras/conc.fung` uses for `fan_in` and `pmap`, and the helpers
+/// `extras/agent.fung` is built from (stage 3b, `crate::vm::agent`).
 pub fn module() -> Rc<Module> {
     let mut m = Module::new("conc", "_native.conc");
     for (name, v) in all() {

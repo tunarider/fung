@@ -1,0 +1,1011 @@
+# `fung check` on the repository's .fung files (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== check examples/api.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/bigfiles.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/checkurls.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/dotenv.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/envcheck.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/kebab.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/loglines.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/logsum.fung
+-- stdout
+-- stderr
+| warning[W0103]: `lines` shadows a prelude function
+|   --> examples/logsum.fung:9:11
+|   |
+| 9 | fn report(lines, top):
+|   |           ^^^^^
+|   |
+-- exit: 0
+==== check examples/rename.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/serve.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/static.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/staticfiles.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/tidy.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check examples/urlcheck.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check extras/agent.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.conc` is internal; import `conc` instead
+|   --> extras/agent.fung:14:1
+|    |
+| 14 | import _native.conc as _c
+|    | ^
+|    |
+-- exit: 2
+==== check extras/cli.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check extras/conc.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.conc` is internal; import `conc` instead
+|   --> extras/conc.fung:8:1
+|   |
+| 8 | import _native.conc as _c
+|   | ^
+|   |
+-- exit: 2
+==== check extras/fs.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.fs` is internal; import `fs` instead
+|   --> extras/fs.fung:3:1
+|   |
+| 3 | import _native.fs as _n
+|   | ^
+|   |
+-- exit: 2
+==== check extras/http.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.conc` is internal; import `conc` instead
+|   --> extras/http.fung:22:1
+|    |
+| 22 | import _native.conc as _c
+|    | ^
+|    |
+-- exit: 2
+==== check extras/json.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.json` is internal; import `json` instead
+|   --> extras/json.fung:3:1
+|   |
+| 3 | import _native.json as _n
+|   | ^
+|   |
+-- exit: 2
+==== check extras/path.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.path` is internal; import `path` instead
+|   --> extras/path.fung:2:1
+|   |
+| 2 | import _native.path as _n
+|   | ^
+|   |
+-- exit: 2
+==== check extras/prelude.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.process` is internal; import `process` instead
+|   --> extras/prelude.fung:6:1
+|   |
+| 6 | import _native.process as _p
+|   | ^
+|   |
+-- exit: 2
+==== check extras/regex.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.regex` is internal; import `regex` instead
+|   --> extras/regex.fung:2:1
+|   |
+| 2 | import _native.regex as _n
+|   | ^
+|   |
+-- exit: 2
+==== check extras/time.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.time` is internal; import `time` instead
+|   --> extras/time.fung:3:1
+|   |
+| 3 | import _native.time as _n
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/_lib/cyc_a.fung
+-- stdout
+-- stderr
+| error[E0307]: cannot import the entry file
+|   --> tests/lang/_lib/cyc_b.fung:1:1
+|   |
+| 1 | import "./cyc_a"
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/_lib/cyc_b.fung
+-- stdout
+-- stderr
+| error[E0307]: cannot import the entry file
+|   --> tests/lang/_lib/cyc_a.fung:1:1
+|   |
+| 1 | import "./cyc_b"
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/_lib/greet.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/_lib/noisy.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/agent_errors.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/agent_handles.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/agents.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/args.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/args_and_exit.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/arith.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/assert_pass.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/assign.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/at_exit.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/cancel.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/channels.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/closures.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/collections.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/compare_exact.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/compare_logic.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/conc_helpers.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/continuation.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/convert.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/destructure.fung
+-- stdout
+-- stderr
+| warning[W0103]: `first` shadows a prelude function
+|   --> tests/lang/destructure.fung:1:2
+|   |
+| 1 | [first, ...rest] = [1, 2, 3]
+|   |  ^^^^^
+|   |
+-- exit: 0
+==== check tests/lang/durations.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_agent_reentry.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_alias_cycle.fung
+-- stdout
+-- stderr
+| error[E0218]: type `a` refers to itself
+|   --> tests/lang/err_alias_cycle.fung:1:1
+|   |
+| 1 | type a = a
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_alias_dup.fung
+-- stdout
+-- stderr
+| error[E0217]: type `a` is defined twice
+|   --> tests/lang/err_alias_dup.fung:2:1
+|   |
+| 2 | type a = str
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_alias_in_fn.fung
+-- stdout
+-- stderr
+| error[E0219]: type aliases must be at the top level
+|   --> tests/lang/err_alias_in_fn.fung:1:9
+|   |
+| 1 | fn f(): type a = int ;;
+|   |         ^
+|   |
+-- exit: 2
+==== check tests/lang/err_alt_names.fung
+-- stdout
+-- stderr
+| error[E0216]: alternatives of a pattern must bind the same names
+|   --> tests/lang/err_alt_names.fung:1:18
+|   |
+| 1 | match 1: Ok(x) | Err(y) => 1 ;;
+|   |                  ^
+|   |
+-- exit: 2
+==== check tests/lang/err_arg_twice.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_arg_type.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_arg_type_tag.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_assert.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_bang_nil.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_bang_value.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_block_leak.fung
+-- stdout
+-- stderr
+| error[E0206]: `y` is not visible here: it was defined inside a block
+|   --> tests/lang/err_block_leak.fung:2:7
+|   |
+| 2 | print(y)
+|   |       ^
+|   |
+|  help: assign the block's value instead: `y = if … ;;`
+-- exit: 2
+==== check tests/lang/err_bool.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_chain.fung
+-- stdout
+-- stderr
+| error[E0111]: comparison operators cannot be chained
+|   --> tests/lang/err_chain.fung:1:13
+|   |
+| 1 | print(1 < 2 < 3)
+|   |             ^
+|   |
+|  help: split it with `and`: a < b and b < c
+-- exit: 2
+==== check tests/lang/err_channel_self.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_cond_not_bool.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_convert.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_deadlock.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_destructure.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_div_zero.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_dup_fn.fung
+-- stdout
+-- stderr
+| error[E0210]: function `f` is defined twice
+|   --> tests/lang/err_dup_fn.fung:2:1
+|   |
+| 2 | fn f() = 2
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_dup_key.fung
+-- stdout
+-- stderr
+| error[E0113]: duplicate key `a` in map literal
+|   --> tests/lang/err_dup_key.fung:1:12
+|   |
+| 1 | x = {a: 1, a: 2}
+|   |            ^
+|   |
+-- exit: 2
+==== check tests/lang/err_dup_pattern_name.fung
+-- stdout
+-- stderr
+| error[E0221]: name `a` is bound twice in one pattern
+|   --> tests/lang/err_dup_pattern_name.fung:1:5
+|   |
+| 1 | [a, a] = [1, 2]
+|   |     ^
+|   |
+|  help: use a guard to compare the two positions: `[a, b] when a == b`
+-- exit: 2
+==== check tests/lang/err_escape.fung
+-- stdout
+-- stderr
+| error[E0103]: unknown escape \p in string
+|   --> tests/lang/err_escape.fung:1:10
+|   |
+| 1 | print("C:\path")
+|   |          ^
+|   |
+-- exit: 2
+==== check tests/lang/err_expected_colon.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `:` after the if condition, found integer `1`
+|   --> tests/lang/err_expected_colon.fung:1:9
+|   |
+| 1 | if true 1 ;;
+|   |         ^
+|   |
+-- exit: 2
+==== check tests/lang/err_fail.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_global_before_assign.fung
+-- stdout
+-- stderr
+| error[E0204]: undefined name `x`
+|   --> tests/lang/err_global_before_assign.fung:1:10
+|   |
+| 1 | fn f() = x
+|   |          ^ not found in this scope
+|   |
+|  help: `x` is a file-level variable (assigned on line 3) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument
+-- exit: 2
+==== check tests/lang/err_global_from_fn.fung
+-- stdout
+-- stderr
+| error[E0205]: cannot reassign `x` here: it was defined outside this block
+|   --> tests/lang/err_global_from_fn.fung:2:11
+|   |
+| 2 | f = fn(): x = 2 ;;
+|   |           ^
+|   |
+|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+-- exit: 2
+==== check tests/lang/err_group_key.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_hole.fung
+-- stdout
+-- stderr
+| error[E0215]: `_` can only be a call argument or a pattern
+|   --> tests/lang/err_hole.fung:1:5
+|   |
+| 1 | x = _ + 1
+|   |     ^
+|   |
+-- exit: 2
+==== check tests/lang/err_import_cycle.fung
+-- stdout
+-- stderr
+| error[E0302]: circular import: tests/lang/_lib/cyc_a.fung → tests/lang/_lib/cyc_b.fung → tests/lang/_lib/cyc_a.fung
+|   --> tests/lang/_lib/cyc_b.fung:1:1
+|   |
+| 1 | import "./cyc_a"
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_import_in_fn.fung
+-- stdout
+-- stderr
+| error[E0311]: import must be at the top level
+|   --> tests/lang/err_import_in_fn.fung:1:9
+|   |
+| 1 | fn f(): import fs ;;
+|   |         ^
+|   |
+-- exit: 2
+==== check tests/lang/err_import_missing.fung
+-- stdout
+-- stderr
+| error[E0301]: cannot find module `$REPO/tests/lang/_lib/nothing.fung`
+|   --> tests/lang/err_import_missing.fung:1:1
+|   |
+| 1 | import "./_lib/nothing"
+|   | ^
+|   |
+|  help: standard library modules are imported by name (`import fs`); your own files by path (`import "./lib/x"`)
+-- exit: 2
+==== check tests/lang/err_import_private.fung
+-- stdout
+-- stderr
+| error[E0304]: `_secret` is private to module `greet`
+|   --> tests/lang/err_import_private.fung:2:12
+|   |
+| 2 | print(greet._secret())
+|   |            ^^^^^^^
+|   |
+|  help: names starting with `_` are not exported
+-- exit: 2
+==== check tests/lang/err_import_top.fung
+-- stdout
+-- stderr
+| error[E0306]: only import, fn, type, and assignment are allowed at the top level of an imported module
+|   --> tests/lang/_lib/noisy.fung:1:6
+|   |
+| 1 | print("side effect")
+|   |      ^
+|   |
+|  help: move the statement into a function, or into the entry file
+-- exit: 2
+==== check tests/lang/err_import_twice.fung
+-- stdout
+-- stderr
+| error[E0309]: name `fs` is already bound to a module
+|   --> tests/lang/err_import_twice.fung:2:1
+|   |
+| 2 | import fs
+|   | ^^
+|   |
+-- exit: 2
+==== check tests/lang/err_in.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_index_range.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_index_tuple.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_interp.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected end of file
+|   --> tests/lang/err_interp.fung:1:13
+|   |
+| 1 | print("${1 +}")
+|   |             ^
+|   |
+-- exit: 2
+==== check tests/lang/err_json_stringify.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_key.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_local_fn_later.fung
+-- stdout
+-- stderr
+| error[E0208]: local function `b` is defined later in this block
+|   --> tests/lang/err_local_fn_later.fung:2:12
+|   |
+| 2 |   fn a() = b()
+|   |            ^
+|   |
+|  help: local functions can only call themselves; move both functions to the top level
+-- exit: 2
+==== check tests/lang/err_missing_arg.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_missing_end.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> tests/lang/err_missing_end.fung:3:1
+|   |
+| 3 | 
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_native_import.fung
+-- stdout
+-- stderr
+| error[E0310]: `_native.fs` is internal; import `fs` instead
+|   --> tests/lang/err_native_import.fung:1:1
+|   |
+| 1 | import _native.fs
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_nil_arith.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_no_match.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_nonfinite.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_number.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "30abc"
+|   --> tests/lang/err_number.fung:1:7
+|   |
+| 1 | print(30abc)
+|   |       ^
+|   |
+-- exit: 2
+==== check tests/lang/err_overflow.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_question_in_for.fung
+-- stdout
+-- stderr
+| error[E0220]: `?` inside a for body
+|   --> tests/lang/err_question_in_for.fung:1:26
+|   |
+| 1 | fn f(xs) = for x in xs: x? ;;
+|   |                          ^
+|   |
+|  help: `for` builds a list and cannot return early; handle the Err with `match`, or use `all`/`any`/`fold`
+-- exit: 2
+==== check tests/lang/err_question_top.fung
+-- stdout
+-- stderr
+| error[E0214]: `?` outside a function
+|   --> tests/lang/err_question_top.fung:1:6
+|   |
+| 1 | Ok(1)?
+|   |      ^
+|   |
+|  help: use `!` to stop the script on Err
+-- exit: 2
+==== check tests/lang/err_reassign_fn.fung
+-- stdout
+-- stderr
+| error[E0209]: cannot reassign `f`: it is a function or an imported name
+|   --> tests/lang/err_reassign_fn.fung:2:1
+|   |
+| 2 | f = 2
+|   | ^
+|   |
+-- exit: 2
+==== check tests/lang/err_reassign_outer.fung
+-- stdout
+-- stderr
+| error[E0205]: cannot reassign `total` here: it was defined outside this block
+|   --> tests/lang/err_reassign_outer.fung:2:10
+|   |
+| 2 | if true: total = total + 1 ;;
+|   |          ^^^^^
+|   |
+|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+-- exit: 2
+==== check tests/lang/err_regex.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_return_in_for.fung
+-- stdout
+-- stderr
+| error[E0213]: return inside a for body
+|   --> tests/lang/err_return_in_for.fung:1:15
+|   |
+| 1 | for x in [1]: return x ;;
+|   |               ^
+|   |
+|  help: `for` builds a list; use `find`, `all`/`any`, or `fold` instead
+-- exit: 2
+==== check tests/lang/err_return_type.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_shadow_module.fung
+-- stdout
+-- stderr
+| error[E0308]: cannot shadow module `fs`
+|   --> tests/lang/err_shadow_module.fung:2:1
+|   |
+| 2 | fs = 1
+|   | ^^
+|   |
+|  help: import it under another name: `import fs as m`
+-- exit: 2
+==== check tests/lang/err_slice_tuple.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_stack_overflow.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_str_int.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_sym_name.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_tag_named.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|   --> tests/lang/err_tag_named.fung:1:10
+|   |
+| 1 | print(Ok(a: 1))
+|   |          ^
+|   |
+-- exit: 2
+==== check tests/lang/err_task_failed.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_test_nested.fung
+-- stdout
+-- stderr
+| error[E0114]: test must be at the top level
+|   --> tests/lang/err_test_nested.fung:2:3
+|   |
+| 2 |   test "nested": assert true ;;
+|   |   ^
+|   |
+-- exit: 2
+==== check tests/lang/err_too_many_args.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_top_return.fung
+-- stdout
+-- stderr
+| error[E0211]: return outside a function
+|   --> tests/lang/err_top_return.fung:1:1
+|   |
+| 1 | return 1
+|   | ^
+|   |
+|  help: use `exit()` to stop a script early
+-- exit: 2
+==== check tests/lang/err_type.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_undefined.fung
+-- stdout
+-- stderr
+| error[E0204]: undefined name `fiels`
+|   --> tests/lang/err_undefined.fung:1:7
+|   |
+| 1 | print(fiels)
+|   |       ^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== check tests/lang/err_unexpected.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected integer `2`
+|   --> tests/lang/err_unexpected.fung:1:9
+|   |
+| 1 | print(1 2)
+|   |         ^
+|   |
+-- exit: 2
+==== check tests/lang/err_unhandled.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_unknown_named.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_unknown_type.fung
+-- stdout
+-- stderr
+| error[E0212]: unknown type `integer`
+|   --> tests/lang/err_unknown_type.fung:1:6
+|   |
+| 1 | fn f(a: integer) = a
+|   |      ^^^^^^^
+|   |
+-- exit: 2
+==== check tests/lang/err_use_before_assign.fung
+-- stdout
+-- stderr
+| error[E0204]: undefined name `x`
+|   --> tests/lang/err_use_before_assign.fung:1:7
+|   |
+| 1 | print(x)
+|   |       ^ not found in this scope
+|   |
+-- exit: 2
+==== check tests/lang/exit_from_task.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/fn_basics.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/fs_and_path.fung
+-- stdout
+-- stderr
+| warning[W0103]: `lines` shadows a prelude function
+|   --> tests/lang/fs_and_path.fung:7:3
+|   |
+| 7 |   lines = fs.with_open(p, h => read_lines(h)!)
+|   |   ^^^^^
+|   |
+-- exit: 0
+==== check tests/lang/http_serve.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/if_blocks.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/import_basic.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/import_names.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/json.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/keyword_names.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/lines.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/lists.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/literals.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/map_shorthand.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/map_upper_keys.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/maps.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/match.fung
+-- stdout
+-- stderr
+| warning[W0103]: `first` shadows a prelude function
+|   --> tests/lang/match.fung:9:4
+|   |
+| 9 |   [first, ...] => "list from ${first}"
+|   |    ^^^^^
+|   |
+-- exit: 0
+==== check tests/lang/minint.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/nil.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/param_patterns.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/pipes_partial.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/process.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/ranges.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/regex.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/rest_and_alias.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/results.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/results_fns.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/return.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/slices_inclusive.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/stdin.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/stdlib_fns.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/strict_conversions.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/string_fns.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/strings.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/symbols.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/tasks.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/tco.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/test_blocks_ignored.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/then_else.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/time_module.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/time_values.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/tuples_tags.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/types.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/underscore_assign.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/unused_var_silent_in_run.fung
+-- stdout
+-- stderr
+| warning[W0102]: unused variable `unused`
+|   --> tests/lang/unused_var_silent_in_run.fung:2:3
+|   |
+| 2 |   unused = 1
+|   |   ^^^^^^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0

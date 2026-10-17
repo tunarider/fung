@@ -1,8 +1,8 @@
 # The part of the prelude written in fung (06: 네 층, built-in extras):
 # the combinators the core's fold/map/for/slices can build, the process
-# functions bridged from Go, and the concurrency helpers (05). The core
-# keeps the functions that walk elements in Go (map, filter, fold, …).
-import _native.conc as _c
+# functions bridged from Go, and two iteration helpers. The core keeps
+# the functions that walk elements in Go (map, filter, fold, …). The
+# concurrency helpers (fan_in, pmap, retry) are the module `conc`.
 import _native.process as _p
 
 # Process functions (06), bridged from Go.
@@ -114,47 +114,10 @@ fn lines(s) = match s:
 fn is_ok(x) = type_of(x) == 'Ok
 fn is_err(x) = type_of(x) == 'Err
 
-# ---- Iteration and concurrency --------------------------------------
+# ---- Iteration ------------------------------------------------------
 
 # Applies f until pred holds.
 fn until(x, f, pred) = pred(x) then x else until(f(x), f, pred)
 
 # Applies f n times.
 fn iterate(x, f, n) = n <= 0 then x else iterate(f(x), f, n - 1)
-
-# Merges channels into one (05): a forwarding task per input; the output
-# closes when every input has closed.
-fn fan_in(chs):
-  out = channel(len(chs))
-  tasks = for ch in chs: _c.spawn_awaited(() => each(ch, v => send(out, v))) ;;
-  spawn(fn():
-    each(tasks, await)
-    close(out)
-  ;;)
-  out
-;;
-
-# Parallel map: at most `limit` tasks at once (0 = no limit), results in
-# input order. A failing f shows up as its Err, like await would.
-fn pmap(xs, f, limit = 0):
-  items = xs |> map(x => x)
-  limit <= 0 or limit >= len(items)
-    then items |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)
-    else _pmap_chunks(items, f, limit, [])
-;;
-
-fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
-  else _pmap_chunks(drop(items, limit), f, limit,
-    acc + (take(items, limit) |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)))
-
-# Calls f until it returns a non-Err value, at most `times` tries,
-# sleeping `delay` between tries; the last Err is returned (06).
-fn retry(f, times = 3, delay = 0ms):
-  r = f()
-  times <= 1 or not is_err(r) then r else _retry_after(f, times - 1, delay)
-;;
-
-fn _retry_after(f, times, delay):
-  sleep(delay)
-  retry(f, times: times, delay: delay)
-;;

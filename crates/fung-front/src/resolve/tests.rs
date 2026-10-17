@@ -270,12 +270,24 @@ fn undefined_name_suggests_similar_name() {
     assert_eq!(errs[0].help, None);
 }
 
-/// A name the Rust prelude moved to the module `conc` (stage 6a) is
-/// still undefined, but the help says where it went, ahead of any
-/// similar name. Rust only: Go's prelude keeps these names.
+/// A name the prelude moved to the module `conc` (stage 6a) is still
+/// undefined, but the help says where it went, ahead of any similar
+/// name. The module does have each moved name.
 #[test]
 fn a_name_moved_to_conc_points_at_the_module() {
-    for name in crate::builtins::RUST_PRELUDE_FUNG_MOVED {
+    let moved: Vec<&str> = super::MOVED_TO_MODULE.iter().map(|(n, _)| *n).collect();
+    assert_eq!(moved, ["fan_in", "pmap", "retry"]);
+    for (name, module) in super::MOVED_TO_MODULE {
+        assert!(
+            builtins().modules[*module].iter().any(|n| n == name),
+            "{module}.{name}"
+        );
+        assert!(
+            !builtins().prelude_names().iter().any(|n| n == name),
+            "{name}"
+        );
+    }
+    for name in moved {
         let (_, errs) = resolve_with(
             &format!("{name}(1)"),
             &["print", "map"],

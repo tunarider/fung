@@ -1,7 +1,7 @@
 //! Prelude tests: ports of Go `internal/prelude/*_test.go` and
 //! `internal/vm/prelude_test.go` `TestCollectionFunctions`, the parameter
-//! tables against `spec/builtins.txt`, and whole runs compared byte for
-//! byte with the Go binary (`go_cases.rs`).
+//! tables against `spec/builtins.txt`, and whole runs against their
+//! expected output (`run_cases.rs`).
 
 use std::collections::BTreeSet;
 use std::io::Cursor;
@@ -69,40 +69,61 @@ fn fold_over_a_range_and_strings() {
     assert_eq!(out, "10 1-2 1.0\n");
 }
 
-/// Every program in `go_cases.rs`, and the huge-range programs, give the
-/// live Go binary's stdout, stderr and exit status.
+/// How many whole-run cases there are (a case must not go missing
+/// unnoticed).
+const RUN_CASE_COUNT: usize = 357;
+
+/// Every program in `run_cases.rs`, and the huge-range programs, give
+/// the standard output, standard error and exit code of
+/// `tests/expected/prelude/runs.txt`.
 #[test]
-fn runs_match_the_go_binary() {
-    let Some(bin) = testutil::go_fung("prelude") else {
-        return;
-    };
-    let mut cases: Vec<(String, &'static str)> = super::go_cases::GO_CASES
+fn runs_match_the_expected_output() {
+    use testutil::expected;
+    let mut cases: Vec<(String, &'static str)> = super::run_cases::RUN_CASES
         .iter()
         .map(|(src, stdin)| (src.to_string(), *stdin))
         .collect();
     cases.extend(huge_range_cases().into_iter().map(|(src, _)| (src, "")));
-    let mut bad = Vec::new();
-    for (src, stdin) in &cases {
-        let go = testutil::run_go(&bin, &testutil::go_source(src), stdin);
-        let o = exec(
-            src,
-            Opts {
-                stdin,
-                ..Opts::default()
-            },
-        );
-        let rust = (o.out, o.err, o.exit);
-        if rust != go {
-            bad.push(format!("{src}\n  rust {rust:?}\n  go   {go:?}"));
-        }
+    assert_eq!(cases.len(), RUN_CASE_COUNT, "cases");
+    // The working directory (the crate's), and the real path of `/tmp`
+    // where it is a link (macOS `/private/tmp`), as on systems where it
+    // is not.
+    let cwd = std::env::current_dir()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let tmp = std::fs::canonicalize("/tmp")
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let mut subs = vec![(cwd.as_str(), "$CRATE")];
+    if tmp != "/tmp" {
+        subs.push((tmp.as_str(), "/tmp"));
     }
-    let _ = std::fs::remove_file(&bin);
-    eprintln!("compared {} programs with the Go binary", cases.len());
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
+    let got: Vec<expected::Entry> = cases
+        .iter()
+        .map(|(src, stdin)| {
+            let o = exec(
+                src,
+                Opts {
+                    stdin,
+                    ..Opts::default()
+                },
+            );
+            let label = if stdin.is_empty() {
+                format!("{src:?}")
+            } else {
+                format!("{src:?} stdin {stdin:?}")
+            };
+            testutil::outcome_entry(&expected::short_label(&label), &o, &subs)
+        })
+        .collect();
+    expected::verify(
+        "prelude/runs.txt",
+        "Whole runs of the prelude programs (crates/fung-vm/src/prelude/run_cases.rs and\n\
+         `huge_range_cases`). $CRATE stands for crates/fung-vm, /tmp for its real path. Update: FUNG_EXPECTED=bless cargo test -p fung-vm runs_match_the_expected_output",
+        64 * 1024,
+        &got,
     );
 }
 

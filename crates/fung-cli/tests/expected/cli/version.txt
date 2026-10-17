@@ -1,0 +1,13 @@
+# `fung version` ($VERSION: the build's version) (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== version
+-- stdout
+| fung $VERSION
+-- stderr
+-- exit: 0
+==== version extra
+-- stdout
+| fung $VERSION
+-- stderr
+-- exit: 0

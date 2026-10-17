@@ -8,14 +8,13 @@
 //! Where the tables come from: natives from `fung_vm` (the core prelude,
 //! the concurrency natives and the `_native.*` modules, with their
 //! default values), fung functions from the embedded sources the Rust
-//! boot and loader read (`fung_front::extras`), with the names the Rust
-//! boot hides from the prelude (`RUST_PRELUDE_FUNG_MOVED`).
+//! boot and loader read (`fung_front::extras`).
 
 mod common;
 
 use std::collections::BTreeMap;
 
-use fung_front::{builtins, extras};
+use fung_front::extras;
 use fung_vm::value::{Native, Value, format};
 
 /// The standard modules the manual documents, in its order.
@@ -214,14 +213,8 @@ fn expected() -> BTreeMap<String, Entry> {
     let dbg = out.get_mut("dbg").unwrap();
     assert_eq!(dbg.sig, "dbg(x, text = nil, where = nil)");
     dbg.sig = "dbg(x)".to_string();
-    let moved = builtins::RUST_PRELUDE_FUNG_MOVED;
-    for (name, e) in fung_entries(extras::source("prelude").unwrap())
-        .into_iter()
-        .chain(fung_entries(extras::AGENT))
-    {
-        if !moved.contains(&name.as_str()) {
-            out.insert(name, e);
-        }
+    for (_, src) in extras::PRELUDE_FILES {
+        out.extend(fung_entries(src));
     }
     for m in MODULES {
         for (name, mut e) in fung_entries(extras::source(m).unwrap()) {

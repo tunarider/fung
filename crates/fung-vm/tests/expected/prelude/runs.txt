@@ -1,0 +1,3425 @@
+# Whole runs of the prelude programs (crates/fung-vm/src/prelude/run_cases.rs and
+# `huge_range_cases`). $CRATE stands for crates/fung-vm, /tmp for its real path. Update: FUNG_EXPECTED=bless cargo test -p fung-vm runs_match_the_expected_output
+==== "print(map([1, 2, 3], x => x * 2), map(0..3, str), map([], x => x))"
+-- stdout
+| [2, 4, 6] ["0", "1", "2"] []
+-- stderr
+-- exit: 0
+==== "print(map(1, x => x))"
+-- stdout
+-- stderr
+| error[E0506]: cannot map over int
+|   --> -e:1:10
+|   |
+| 1 | print(map(1, x => x))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map([1], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:10
+|   |
+| 1 | print(map([1], 1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map(1, 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot map over int
+|   --> -e:1:10
+|   |
+| 1 | print(map(1, 1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map([1, 2], x => x / 0))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:26
+|   |
+| 1 | print(map([1, 2], x => x / 0))
+|   |                          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    -e:1       <entry>
+-- exit: 1
+==== "fn f(x) = x / 0\nprint(map([1], f))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:13
+|   |
+| 1 | fn f(x) = x / 0
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       f
+|    -e:2       <entry>
+-- exit: 1
+==== "print(map([1, 2], (a, b) => a))"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `b`
+|   --> -e:1:10
+|   |
+| 1 | print(map([1, 2], (a, b) => a))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..1, 0, (a, x) => a + 1))"
+-- stdout
+| 10 7 0
+-- stderr
+-- exit: 0
+==== "print(fold(1, 0, 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot fold int
+|   --> -e:1:11
+|   |
+| 1 | print(fold(1, 0, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(fold([1], 0, 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:11
+|   |
+| 1 | print(fold([1], 0, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "fn g(acc, x) = x == 3 then fail(\"three\") else acc + x\nprint(fold([1, 2, 3], 0, g))"
+-- stdout
+-- stderr
+| error[E0803]: three
+|   --> -e:1:32
+|   |
+| 1 | fn g(acc, x) = x == 3 then fail("three") else acc + x
+|   |                                ^
+|   |
+|  call path (innermost first):
+|    -e:1       g
+|    -e:2       <entry>
+-- exit: 1
+==== "print(fold([1, 2], 0, (a, x) => fold([x], a, (b, y) => b + y / 0)))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:62
+|   |
+| 1 | print(fold([1, 2], 0, (a, x) => fold([x], a, (b, y) => b + y / 0)))
+|   |                                                              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    -e:1       <lambda>
+|    -e:1       <entry>
+-- exit: 1
+==== "print(filter([1, 2, 3, 4], x => x > 2), filter(0..10, x => x % 3 == 0), filter([], x => 1))"
+-- stdout
+| [3, 4] [0, 3, 6, 9] []
+-- stderr
+-- exit: 0
+==== "print(filter([1], x => 1))"
+-- stdout
+-- stderr
+| error[E0505]: expected bool, got int
+|   --> -e:1:13
+|   |
+| 1 | print(filter([1], x => 1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(filter(\"ab\", x => true))"
+-- stdout
+-- stderr
+| error[E0506]: cannot filter str
+|   --> -e:1:13
+|   |
+| 1 | print(filter("ab", x => true))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(filter(\"ab\", 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot filter str
+|   --> -e:1:13
+|   |
+| 1 | print(filter("ab", 1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(filter([1], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:13
+|   |
+| 1 | print(filter([1], 1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(each([1, 2], x => print(x)), each(0..0, x => fail(\"no\")))"
+-- stdout
+| 1
+| 2
+| nil nil
+-- stderr
+-- exit: 0
+==== "print(each({a: 1}, x => x))"
+-- stdout
+-- stderr
+| error[E0506]: cannot iterate over map
+|   --> -e:1:11
+|   |
+| 1 | print(each({a: 1}, x => x))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(each([1], nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got nil
+|   --> -e:1:11
+|   |
+| 1 | print(each([1], nil))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort([3, 1, 2]), sort([\"b\", \"a\", \"c\"]), sort([]), sort(3..0), sort([2.5, 1, 3]), sort([[2], [1, 2], [1]]))"
+-- stdout
+| [1, 2, 3] ["a", "b", "c"] [] [] [1, 2.5, 3] [[1], [1, 2], [2]]
+-- stderr
+-- exit: 0
+==== "print(sort([1, \"a\"]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare str and int
+|   --> -e:1:11
+|   |
+| 1 | print(sort([1, "a"]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort([1, \"a\", nil, 2]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare str and int
+|   --> -e:1:11
+|   |
+| 1 | print(sort([1, "a", nil, 2]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort([\"x\", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, nil]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare int and str
+|   --> -e:1:11
+|   |
+| 1 | print(sort(["x", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, nil]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot sort int
+|   --> -e:1:11
+|   |
+| 1 | print(sort(1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([\"ccc\", \"a\", \"bb\"], len), sort_by([3, 1… (134 bytes, 76eb61a34121a322)
+-- stdout
+| ["a", "bb", "ccc"] [3, 2, 1] [[0, "c"], [1, "b"], [1, "a"]]
+-- stderr
+-- exit: 0
+==== "print(sort_by(1, 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot sort int
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by(1, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([1], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by([1], 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([1, 2], x => x == 1 then \"a\" else 1))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare int and str
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by([1, 2], x => x == 1 then "a" else 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([1, 2], x => x / 0))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:30
+|   |
+| 1 | print(sort_by([1, 2], x => x / 0))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find([1, 2, 3], x => x > 1), find([], x => true), find(0..10, x => x * x > 10))"
+-- stdout
+| 2 nil 4
+-- stderr
+-- exit: 0
+==== "print(find([1], x => 1))"
+-- stdout
+-- stderr
+| error[E0505]: expected bool, got int
+|   --> -e:1:11
+|   |
+| 1 | print(find([1], x => 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find(1, 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot search int
+|   --> -e:1:11
+|   |
+| 1 | print(find(1, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find([1], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:11
+|   |
+| 1 | print(find([1], 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(any([1, 2], x => x > 1), any([], x => true), all([], … (123 bytes, 4fb88a89657d06a4)
+-- stdout
+| true false true true false
+-- stderr
+-- exit: 0
+==== "print(any(1, x => x))"
+-- stdout
+-- stderr
+| error[E0506]: cannot test int
+|   --> -e:1:10
+|   |
+| 1 | print(any(1, x => x))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(all([1], x => nil))"
+-- stdout
+-- stderr
+| error[E0505]: expected bool, got nil
+|   --> -e:1:10
+|   |
+| 1 | print(all([1], x => nil))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(any([1], \"f\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got str
+|   --> -e:1:10
+|   |
+| 1 | print(any([1], "f"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(flatten([[1], 2, [], [[3]]]), flatten(0..3), flatten([]))"
+-- stdout
+| [1, 2, [3]] [0, 1, 2] []
+-- stderr
+-- exit: 0
+==== "print(flatten(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot flatten int
+|   --> -e:1:14
+|   |
+| 1 | print(flatten(1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(group_by([\"ab\", \"c\", \"ad\", \"ce\"], s => s[..1]))"
+-- stdout
+| {a: ["ab", "ad"], c: ["c", "ce"]}
+-- stderr
+-- exit: 0
+==== "print(group_by([1], x => x))"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type int as a map key
+|   --> -e:1:15
+|   |
+| 1 | print(group_by([1], x => x))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(group_by([1], x => nil))"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type nil as a map key
+|   --> -e:1:15
+|   |
+| 1 | print(group_by([1], x => nil))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(group_by(1, 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot group int
+|   --> -e:1:15
+|   |
+| 1 | print(group_by(1, 1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(group_by([1], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:15
+|   |
+| 1 | print(group_by([1], 1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(pairs({b: 1, a: 2}), pairs({}))"
+-- stdout
+| [("b", 1), ("a", 2)] []
+-- stderr
+-- exit: 0
+==== "print(pairs([1]))"
+-- stdout
+-- stderr
+| error[E0506]: cannot list the pairs of list
+|   --> -e:1:12
+|   |
+| 1 | print(pairs([1]))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "m = {a: 1}\nprint(put(m, \"b\", 2), put(m, \"a\", 3), m)"
+-- stdout
+| {a: 1, b: 2} {a: 3} {a: 1}
+-- stderr
+-- exit: 0
+==== "print(put(1, \"a\", 2))"
+-- stdout
+-- stderr
+| error[E0506]: cannot put into int
+|   --> -e:1:10
+|   |
+| 1 | print(put(1, "a", 2))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(put({}, 1, 2))"
+-- stdout
+-- stderr
+| error[E0501]: cannot index map and int
+|   --> -e:1:10
+|   |
+| 1 | print(put({}, 1, 2))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(put({}, nil, 2))"
+-- stdout
+-- stderr
+| error[E0501]: cannot index map and nil
+|   --> -e:1:10
+|   |
+| 1 | print(put({}, nil, 2))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(merge({a: 1, b: 1}, {b: 2, c: 3}), merge({}, {}))"
+-- stdout
+| {a: 1, b: 2, c: 3} {}
+-- stderr
+-- exit: 0
+==== "print(merge({}, 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot merge int
+|   --> -e:1:12
+|   |
+| 1 | print(merge({}, 1))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(merge(1, {}))"
+-- stdout
+-- stderr
+| error[E0506]: cannot merge int
+|   --> -e:1:12
+|   |
+| 1 | print(merge(1, {}))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(remove({a: 1, b: 2}, \"a\"), remove({}, \"x\"))"
+-- stdout
+| {b: 2} {}
+-- stderr
+-- exit: 0
+==== "print(remove({}, 1))"
+-- stdout
+-- stderr
+| error[E0501]: cannot index map and int
+|   --> -e:1:13
+|   |
+| 1 | print(remove({}, 1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(remove([], \"a\"))"
+-- stdout
+-- stderr
+| error[E0506]: cannot remove from list
+|   --> -e:1:13
+|   |
+| 1 | print(remove([], "a"))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(chars(\"참치\"), chars(\"\"), chars(\"a\u{301}b\"))"
+-- stdout
+| ["참", "치"] [] ["a", "́", "b"]
+-- stderr
+-- exit: 0
+==== "print(chars(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot list the characters of int
+|   --> -e:1:12
+|   |
+| 1 | print(chars(1))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(split(\"a,b,,c\", \",\"), split(\"참치\", \"\"), split(\"\", \",\"), split(\"\", \"\"), split(\"abc\", \"abc\"))"
+-- stdout
+| ["a", "b", "", "c"] ["참", "치"] [""] [] ["", ""]
+-- stderr
+-- exit: 0
+==== "print(split(1, \",\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:12
+|   |
+| 1 | print(split(1, ","))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(split(\"a\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `sep` must be str, got int
+|   --> -e:1:12
+|   |
+| 1 | print(split("a", 1))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join([\"a\", 1, 2.0, nil, 'x, [1, \"b\"]], \"-\"), join([]), join(0..3), join([\"a\", \"b\"]))"
+-- stdout
+| a-1-2.0-nil-'x-[1, "b"]  012 ab
+-- stderr
+-- exit: 0
+==== "print(join(1, 2))"
+-- stdout
+-- stderr
+| error[E0506]: cannot join int
+|   --> -e:1:11
+|   |
+| 1 | print(join(1, 2))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join([\"a\"], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `sep` must be str, got int
+|   --> -e:1:11
+|   |
+| 1 | print(join(["a"], 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join([\"a\"], sep: \"+\"))"
+-- stdout
+| a
+-- stderr
+-- exit: 0
+==== "print(trim(\"  a \\t\"), trim(\"xxaxx\", \"x\"), trim(\"abc… (122 bytes, edf232f0317f6413)
+-- stdout
+| a a c a aa
+-- stderr
+-- exit: 0
+==== "print(trim(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:11
+|   |
+| 1 | print(trim(1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(trim(\"a\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cut` must be str, got int
+|   --> -e:1:11
+|   |
+| 1 | print(trim("a", 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(upper(\"aéß ﬃ ǅ\"), lower(\"AÉ İ Σ ǅ\"), upper(\"ᾳ ᾀ\"), lower(\"ẞ\"))"
+-- stdout
+| AÉß ﬃ Ǆ aé i σ ǆ ᾼ ᾈ ß
+-- stderr
+-- exit: 0
+==== "print(upper(1), lower(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:12
+|   |
+| 1 | print(upper(1), lower(1))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(lower(nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got nil
+|   --> -e:1:12
+|   |
+| 1 | print(lower(nil))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(replace(\"a-b-c\", \"-\", \"+\"), replace(\"ab\", \"\… (132 bytes, 8acf764ba7f3ddda)
+-- stdout
+| a+b+c -a-b- x ba
+-- stderr
+-- exit: 0
+==== "print(replace(\"a\", \"b\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `new` must be str, got int
+|   --> -e:1:14
+|   |
+| 1 | print(replace("a", "b", 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(replace(1, 2, 3))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:14
+|   |
+| 1 | print(replace(1, 2, 3))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(starts_with(\"abc\", \"ab\"), starts_with(\"참치\", \"참… (149 bytes, 873c194f4372d017)
+-- stdout
+| true true true true false
+-- stderr
+-- exit: 0
+==== "print(starts_with(1, \"a\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:18
+|   |
+| 1 | print(starts_with(1, "a"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(ends_with(\"a\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `suffix` must be str, got int
+|   --> -e:1:16
+|   |
+| 1 | print(ends_with("a", 1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(repeat(\"ab\", 3), repeat(\"참\", 2), repeat(\"x\", 0), repeat(\"x\", -5), repeat(\"\", 1000000000000))"
+-- stdout
+| ababab 참참   
+-- stderr
+-- exit: 0
+==== "print(repeat(\"ab\", 50000001))"
+-- stdout
+-- stderr
+| error[E0806]: too many characters (limit 100000000)
+|   --> -e:1:13
+|   |
+| 1 | print(repeat("ab", 50000001))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(repeat(\"a\", 100000000) == \"\")"
+-- stdout
+| false
+-- stderr
+-- exit: 0
+==== "print(repeat(1, 2))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:13
+|   |
+| 1 | print(repeat(1, 2))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(repeat(\"a\", \"2\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be int, got str
+|   --> -e:1:13
+|   |
+| 1 | print(repeat("a", "2"))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(repeat(\"a\", 2.0))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be int, got float
+|   --> -e:1:13
+|   |
+| 1 | print(repeat("a", 2.0))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(3), int(3.9), int(-3.9), int(\"42\"), int(\"-1_000\"), int(\"+7\"))"
+-- stdout
+| 3 3 -3 42 -1000 7
+-- stderr
+-- exit: 0
+==== "print(int(\"x\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "x" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int("x"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(\" 1\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert " 1" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int(" 1"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(true))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert true to int
+|   --> -e:1:10
+|   |
+| 1 | print(int(true))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(9.3e18))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert 9300000000000000000.0 to int
+|   --> -e:1:10
+|   |
+| 1 | print(int(9.3e18))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(-9.223372036854775808e18))"
+-- stdout
+| -9223372036854775808
+-- stderr
+-- exit: 0
+==== "print(int(\"9223372036854775808\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "9223372036854775808" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int("9223372036854775808"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int([1]))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert [1] to int
+|   --> -e:1:10
+|   |
+| 1 | print(int([1]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(\"1__0\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "1__0" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int("1__0"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(float(2), float(\"2.5\"), float(\"1e3\"), float(1.5), float(\"1_0.5\"), float(\"-.5\"))"
+-- stdout
+| 2.0 2.5 1000.0 1.5 10.5 -0.5
+-- stderr
+-- exit: 0
+==== "print(float(\"abc\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "abc" to float
+|   --> -e:1:12
+|   |
+| 1 | print(float("abc"))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(float(\"inf\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "inf" to float
+|   --> -e:1:12
+|   |
+| 1 | print(float("inf"))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(float(nil))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert nil to float
+|   --> -e:1:12
+|   |
+| 1 | print(float(nil))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(str(\"a\"), str(1), str(1.0), str('ok), str([1, \"a\"… (133 bytes, ea1dad75f3f1af5c)
+-- stdout
+| a 1 1.0 'ok [1, "a"] {a: "b"} nil 1s (1, "x") Ok("x")
+-- stderr
+-- exit: 0
+==== "print(sym(\"ok\"), sym('x), sym(\"참치\"), sym(\"_x\"), sym(\"a1\"))"
+-- stdout
+| 'ok 'x '참치 '_x 'a1
+-- stderr
+-- exit: 0
+==== "print(sym(\"Ab\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "Ab" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym("Ab"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(\"a b\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "a b" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym("a b"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(\"\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym(""))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(1))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert 1 to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym(1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(parse_int(\"12\"), parse_int(\"x\"), parse_int(\" 1\"… (122 bytes, 696896cff831da33)
+-- stdout
+| Ok(12) Err({kind: 'parse, message: "not an integer: x"}) Err({kind: 'parse, message: "not an integer:  1"}) Ok(1000) Err({kind: 'parse, message: "not an integer: 99999999999999999999"})
+-- stderr
+-- exit: 0
+==== "print(parse_int(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:16
+|   |
+| 1 | print(parse_int(1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(parse_float(\"1.5\"), parse_float(\"x\"), parse_float(\"1e400\"), parse_float(\"nan\"))"
+-- stdout
+| Ok(1.5) Err({kind: 'parse, message: "not a number: x"}) Err({kind: 'parse, message: "not a number: 1e400"}) Err({kind: 'parse, message: "not a number: nan"})
+-- stderr
+-- exit: 0
+==== "print(parse_float(nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got nil
+|   --> -e:1:18
+|   |
+| 1 | print(parse_float(nil))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(parse_dur(\"1h30m\"), parse_dur(\" 500ms \"), parse_d… (194 bytes, f890c6d8ca52bd73)
+-- stdout
+| Ok(1h30m) Ok(500ms) Ok(-5s) Err({kind: 'parse, message: "not a duration: 30"}) Err({kind: 'parse, message: "not a duration: 1h x"}) Err({kind: 'parse, message: "not a duration: 30m1h"}) Err({kind: 'parse, message: "not a duration: "}) Ok(1s500ms) Ok(-5s)
+-- stderr
+-- exit: 0
+==== "print(parse_dur(5))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:16
+|   |
+| 1 | print(parse_dur(5))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(len(\"참치\"), len([1, 2]), len({a: 1}), len((1, 2)), len(0..10), len(5..1), len(\"\"))"
+-- stdout
+| 2 2 1 2 10 0 0
+-- stderr
+-- exit: 0
+==== "print(len(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the length of int
+|   --> -e:1:10
+|   |
+| 1 | print(len(1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(len(nil))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the length of nil
+|   --> -e:1:10
+|   |
+| 1 | print(len(nil))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(type_of(1), type_of(\"a\"), type_of(nil), type_of(Ok(… (209 bytes, e91e012969de3e10)
+-- stdout
+| 'int 'str 'nil 'Ok 'fn 'fn 'dur 'range 'tuple 'sym 'map 'list 'float 'bool
+-- stderr
+-- exit: 0
+==== "print()"
+-- stdout
+|
+-- stderr
+-- exit: 0
+==== "print(1, \"a\", [1, \"a\"], nil)"
+-- stdout
+| 1 a [1, "a"] nil
+-- stderr
+-- exit: 0
+==== "eprint(\"err\", 1)\nprint(\"out\")"
+-- stdout
+| out
+-- stderr
+| err 1
+-- exit: 0
+==== "fail(\"port\", 1)"
+-- stdout
+-- stderr
+| error[E0803]: port 1
+|   --> -e:1:5
+|   |
+| 1 | fail("port", 1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "fail()"
+-- stdout
+-- stderr
+| error[E0803]: fail
+|   --> -e:1:5
+|   |
+| 1 | fail()
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "fail([1, \"a\"], 'x)"
+-- stdout
+-- stderr
+| error[E0803]: [1, "a"] 'x
+|   --> -e:1:5
+|   |
+| 1 | fail([1, "a"], 'x)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(at_exit(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:14
+|   |
+| 1 | print(at_exit(1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "at_exit(() => print(\"bye\"))\nprint(\"hi\")"
+-- stdout
+| hi
+| bye
+-- stderr
+-- exit: 0
+==== "exit(3)"
+-- stdout
+-- stderr
+-- exit: 3
+==== "exit()"
+-- stdout
+-- stderr
+-- exit: 0
+==== "exit(\"a\")"
+-- stdout
+-- stderr
+| error[E0403]: argument `code` must be int, got str
+|   --> -e:1:5
+|   |
+| 1 | exit("a")
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "exit(code: 4)"
+-- stdout
+-- stderr
+-- exit: 4
+==== "print(read_line(), read_lines())" stdin "line1\r\nline2\nlast"
+-- stdout
+| Ok("line1") Ok(["line2", "last"])
+-- stderr
+-- exit: 0
+==== "print(read_line(1))" stdin "line1\r\nline2\nlast"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be file | nil, got int
+|   --> -e:1:16
+|   |
+| 1 | print(read_line(1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(read_lines(\"x\"))" stdin "line1\r\nline2\nlast"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be file | nil, got str
+|   --> -e:1:17
+|   |
+| 1 | print(read_lines("x"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(dbg(1 + 2))"
+-- stdout
+| 3
+-- stderr
+| [-e:1] 1 + 2 = 3
+-- exit: 0
+==== "x = 5\ndbg(x * 2)"
+-- stdout
+-- stderr
+| [-e:2] x * 2 = 10
+-- exit: 0
+==== "print(dbg(1, \"t\"), dbg(2, \"t\", \"w\"), dbg(3, where: \"w\"))"
+-- stdout
+| 1 2 3
+-- stderr
+| t = 1
+| [w] t = 2
+| dbg = 3
+-- exit: 0
+==== "print(args)"
+-- stdout
+| []
+-- stderr
+-- exit: 0
+==== "print(len(1, 2))"
+-- stdout
+-- stderr
+| error[E0402]: len takes 1 argument(s), got 2
+|   --> -e:1:10
+|   |
+| 1 | print(len(1, 2))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map(xs: [1], f: x => x + 1))"
+-- stdout
+| [2]
+-- stderr
+-- exit: 0
+==== "print(map([1], g: 1))"
+-- stdout
+-- stderr
+| error[E0406]: map has no argument named `g`
+|   --> -e:1:10
+|   |
+| 1 | print(map([1], g: 1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(fold([1, 2], 0))"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `f`
+|   --> -e:1:11
+|   |
+| 1 | print(fold([1, 2], 0))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join([\"a\"], \"-\", \"x\"))"
+-- stdout
+-- stderr
+| error[E0402]: join takes 2 argument(s), got 3
+|   --> -e:1:11
+|   |
+| 1 | print(join(["a"], "-", "x"))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map, fold, print)"
+-- stdout
+| <fn map> <fn fold> <fn print>
+-- stderr
+-- exit: 0
+==== "fn h(x) = x + 1\nprint(map([1, 2], h), filter([1, 2], (x) => x > 1), sort_by([2, 1], h))"
+-- stdout
+| [2, 3] [2] [1, 2]
+-- stderr
+-- exit: 0
+==== "fn inner(x) = x / 0\nfn outer(xs) = map(xs, inner)\nprint(outer([1]))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:17
+|   |
+| 1 | fn inner(x) = x / 0
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:1       inner
+|    -e:2       outer
+|    -e:3       <entry>
+-- exit: 1
+==== "fn k(x) = x / 0\nfn m2(xs) = fold(xs, 0, (a, x) => a + k(x))\nprint(m2([1]))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:13
+|   |
+| 1 | fn k(x) = x / 0
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       k
+|    -e:2       <lambda>
+|    -e:2       m2
+|    -e:3       <entry>
+-- exit: 1
+==== "fn bad(x) = sort_by(x, y => y / 0)\nprint(bad([1, 2]))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:31
+|   |
+| 1 | fn bad(x) = sort_by(x, y => y / 0)
+|   |                               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    -e:1       bad
+|    -e:2       <entry>
+-- exit: 1
+==== "print(map([1, 2], x => exit(x + 5)))"
+-- stdout
+-- stderr
+-- exit: 6
+==== "print(map([[1, 2], [3, 4]], ([a, b]) => a + b))"
+-- stdout
+| [3, 7]
+-- stderr
+-- exit: 0
+==== "print(fold([[1, 2], [3, 4]], 0, (acc, [a, b]) => acc + a * b))"
+-- stdout
+| 14
+-- stderr
+-- exit: 0
+==== "print(each([1], print), map([\"a\"], upper), filter([\"\", \"a\"], x => len(x) > 0))"
+-- stdout
+| 1
+| nil ["A"] ["a"]
+-- stderr
+-- exit: 0
+==== "print(sort_by([3, 1], str), find([1], x => x > 0), any(0..3, x => x == 2))"
+-- stdout
+| [1, 3] 1 true
+-- stderr
+-- exit: 0
+==== "print(map(0..=2, x => x), filter(0..=2, x => true), fold(-2..=2, 0, (a, x) => a + x))"
+-- stdout
+| [0, 1, 2] [0, 1, 2] 0
+-- stderr
+-- exit: 0
+==== "print(sort([1, 1.0, 0.5]), sort([true, false]), sort(['b, 'a]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare bool and bool
+|   --> -e:1:32
+|   |
+| 1 | print(sort([1, 1.0, 0.5]), sort([true, false]), sort(['b, 'a]))
+|   |                                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort([nil, nil]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare nil and nil
+|   --> -e:1:11
+|   |
+| 1 | print(sort([nil, nil]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort([(1, 2), (1, 1)]))"
+-- stdout
+| [(1, 1), (1, 2)]
+-- stderr
+-- exit: 0
+==== "print(sort([{a: 1}, {a: 0}]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare map and map
+|   --> -e:1:11
+|   |
+| 1 | print(sort([{a: 1}, {a: 0}]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(1s))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert 1s to int
+|   --> -e:1:10
+|   |
+| 1 | print(int(1s))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(str(-0.0), str(1e21), str(1.5e-7), str(100000000000000000000.0))"
+-- stdout
+| -0.0 1e21 1.5e-07 100000000000000000000.0
+-- stderr
+-- exit: 0
+==== "print(put({a: 1}, \"a\", 2) == {a: 2}, merge({a: 1}, {a: 1}) == {a: 1})"
+-- stdout
+| true true
+-- stderr
+-- exit: 0
+==== "print(trim(\"  \"), trim(\"\"), split(\"a b\", \" \"), upper(\"\"), join([], \"x\"))"
+-- stdout
+|   ["a", "b"]  
+-- stderr
+-- exit: 0
+==== "print(trim(\"aXbXa\", \"aX\"))"
+-- stdout
+| b
+-- stderr
+-- exit: 0
+==== "print(sort([3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9,… (160 bytes, 33b43107439c5226)
+-- stdout
+-- stderr
+| error[E0501]: cannot compare str and int
+|   --> -e:1:11
+|   |
+| 1 | print(sort([3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16, -17, -18, -19, -20, -21, -22, -23, -24, -25, "x", 0.5, nil]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([5, 3, 9, 1, 7, 2, 8, 4, 6, 0, 15, 13, 19, 11… (148 bytes, 72b70e9a2a8a74a9)
+-- stdout
+| [7, 0, 14, 21, 28, 1, 8, 15, 29, 22, 9, 2, 16, 23, 30, 3, 17, 10, 24, 31, 4, 11, 18, 25, 5, 19, 12, 26, 6, 13, 27, 20]
+-- stderr
+-- exit: 0
+==== "print(sort_by(0..50, x => x % 3 == 0 then -x else x))"
+-- stdout
+| [48, 45, 42, 39, 36, 33, 30, 27, 24, 21, 18, 15, 12, 9, 6, 3, 0, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 25, 26, 28, 29, 31, 32, 34, 35, 37, 38, 40, 41, 43, 44, 46, 47, 49]
+-- stderr
+-- exit: 0
+==== "print(map([1, 2, 3], x => [x, x * 2]) |> flatten |> sort)"
+-- stdout
+| [1, 2, 2, 3, 4, 6]
+-- stderr
+-- exit: 0
+==== "print(fold(0..100000, 0, (a, x) => a + x), len(map(0..100000, x => x)), len(filter(0..100000, x => x % 2 == 0)))"
+-- stdout
+| 4999950000 100000 50000
+-- stderr
+-- exit: 0
+==== "print(trim(\"\u{a0}a\u{3000}\"), trim(\"\\t a \\r \"))"
+-- stdout
+| a a
+-- stderr
+-- exit: 0
+==== "print(upper(\"ŉ ǰ ﬀ ı ſ\"), lower(\"ΣΑΣ Ǆ K Å\"))"
+-- stdout
+| ŉ ǰ ﬀ I S σασ ǆ k å
+-- stderr
+-- exit: 0
+==== "print(int(9223372036854775807.0))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert 9223372036854776000.0 to int
+|   --> -e:1:10
+|   |
+| 1 | print(int(9223372036854775807.0))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(-9223372036854775809.0))"
+-- stdout
+| -9223372036854775808
+-- stderr
+-- exit: 0
+==== "print(float(\"0x1p4\"), float(\"0x1.8p1\"), float(\"4.9e-324\"), float(\"1E5\"), float(\"00.5\"), float(\"5.\"))"
+-- stdout
+| 16.0 3.0 5e-324 100000.0 0.5 5.0
+-- stderr
+-- exit: 0
+==== "print(float(\"0x10\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "0x10" to float
+|   --> -e:1:12
+|   |
+| 1 | print(float("0x10"))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(int(\"٣\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "٣" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int("٣"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(\"Ⅰx\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "Ⅰx" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym("Ⅰx"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(\"a٣\"))"
+-- stdout
+| 'a٣
+-- stderr
+-- exit: 0
+==== "print(read_lines(), read_line())" stdin "line1\r\nline2\nlast"
+-- stdout
+| Ok(["line1", "line2", "last"]) Ok(nil)
+-- stderr
+-- exit: 0
+==== "at_exit(print)\nprint(\"x\")"
+-- stdout
+| x
+|
+-- stderr
+-- exit: 0
+==== "print(map([1, 2], print))"
+-- stdout
+| 1
+| 2
+| [nil, nil]
+-- stderr
+-- exit: 0
+==== "print(fold([\"a\"], \"\", join))"
+-- stdout
+-- stderr
+| error[E0506]: cannot join str
+|   --> -e:1:11
+|   |
+| 1 | print(fold(["a"], "", join))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([1], fail))"
+-- stdout
+-- stderr
+| error[E0803]: 1
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by([1], fail))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map([3], exit))"
+-- stdout
+-- stderr
+-- exit: 3
+==== "print(filter([1], type_of))"
+-- stdout
+-- stderr
+| error[E0505]: expected bool, got sym
+|   --> -e:1:13
+|   |
+| 1 | print(filter([1], type_of))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(each(0..3, x => x == 1 then exit(9) else print(x)))"
+-- stdout
+| 0
+-- stderr
+-- exit: 9
+==== "fn a(xs) = map(xs, x => fold([x], 0, (s, y) => s + y / 0))\nfn b() = a([1])\nprint(b())"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:54
+|   |
+| 1 | fn a(xs) = map(xs, x => fold([x], 0, (s, y) => s + y / 0))
+|   |                                                      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    -e:1       <lambda>
+|    -e:1       a (1 tail calls elided)
+|    -e:3       <entry>
+-- exit: 1
+==== "fn g(x) = x / 0\nprint(map([1], x => g(x)))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:13
+|   |
+| 1 | fn g(x) = x / 0
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       g (1 tail calls elided)
+|    -e:2       <entry>
+-- exit: 1
+==== "print(len(map(0..200000, x => x)))"
+-- stdout
+| 200000
+-- stderr
+-- exit: 0
+==== "fn d(n) = n == 0 then 0 else 1 + d(n - 1)\nprint(map([200000], d))"
+-- stdout
+-- stderr
+| error[E0804]: stack overflow: call depth exceeded 100000
+|   --> -e:1:35
+|   |
+| 1 | fn d(n) = n == 0 then 0 else 1 + d(n - 1)
+|   |                                   ^
+|   |
+|  call path (innermost first):
+|    -e:1       d
+|    -e:1       d
+|    -e:1       d
+|    -e:1       d
+|    -e:1       d
+|    -e:1       d
+|    -e:1       d
+|    -e:1       d
+|    … 99990 more
+|    -e:1       d
+|    -e:2       <entry>
+|  help: make the recursion a tail call or use `fold`
+-- exit: 1
+==== "fn r(n) = n == 0 then 0 else fold([n], 0, (a, x) => r(x - 1))\nprint(r(60000))"
+-- stdout
+| 0
+-- stderr
+-- exit: 0
+==== "fn r(n) = n == 0 then 0 else fold([n], 0, (a, x) => r(x - 1))\nprint(r(30000))"
+-- stdout
+| 0
+-- stderr
+-- exit: 0
+==== "print(group_by(0..6, x => x % 2 == 0 then \"even\" else \"odd\"), pairs(group_by([], x => \"a\")))"
+-- stdout
+| {even: [0, 2, 4], odd: [1, 3, 5]} []
+-- stderr
+-- exit: 0
+==== "print(sort_by([\"b\", \"B\", \"a\"], lower), sort([\"b\", \"B\", \"a\", \"é\", \"e\"]))"
+-- stdout
+| ["a", "b", "B"] ["B", "a", "b", "e", "é"]
+-- stderr
+-- exit: 0
+==== "print(chars(\"👍🏽x\"), len(\"👍🏽x\"), upper(\"straße\"), split(\"a👍b\", \"👍\"))"
+-- stdout
+| ["👍", "🏽", "x"] 3 STRAßE ["a", "b"]
+-- stderr
+-- exit: 0
+==== "print(take([1, 2, 3], 2), drop(0..5, 3), sum([1, 2.5]), min([3, 1]), reverse(\"ab\" |> chars))"
+-- stdout
+| [1, 2] [3, 4] 3.5 1 ["b", "a"]
+-- stderr
+-- exit: 0
+==== "print(1)\ntake([1], \"x\")"
+-- stdout
+| 1
+-- stderr
+| error[E0803]: take expects an int count, got 'str
+|   --> -e:2:5
+|   |
+| 2 | take([1], "x")
+|   |     ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:62 _clamp
+|    extras/prelude.fung:68 take
+|    -e:2       <entry>
+-- exit: 1
+==== "fn f(x) = take(x, \"a\")\nf([1])"
+-- stdout
+-- stderr
+| error[E0803]: take expects an int count, got 'str
+|   --> -e:2:2
+|   |
+| 2 | f([1])
+|   |  ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:62 _clamp
+|    extras/prelude.fung:68 take (1 tail calls elided)
+|    -e:2       <entry>
+-- exit: 1
+==== "sum([1, \"a\"])"
+-- stdout
+-- stderr
+| error[E0501]: cannot add int and str
+|   --> -e:1:4
+|   |
+| 1 | sum([1, "a"])
+|   |    ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:17 <lambda>
+|    extras/prelude.fung:17 sum
+|    -e:1       <entry>
+-- exit: 1
+==== "map([[1, \"a\"]], sum)"
+-- stdout
+-- stderr
+| error[E0501]: cannot add int and str
+|   --> -e:1:4
+|   |
+| 1 | map([[1, "a"]], sum)
+|   |    ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:17 <lambda>
+|    extras/prelude.fung:17 sum
+|    -e:1       <entry>
+-- exit: 1
+==== "pad_left(\"a\", 3, \"\")"
+-- stdout
+-- stderr
+| error[E0803]: pad must be a non-empty string
+|   --> -e:1:9
+|   |
+| 1 | pad_left("a", 3, "")
+|   |         ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:95 _padding
+|    extras/prelude.fung:100 pad_left
+|    -e:1       <entry>
+-- exit: 1
+==== "pad_left(\"a\", 200000000, \" \")"
+-- stdout
+-- stderr
+| error[E0806]: too many characters (limit 100000000)
+|   --> -e:1:9
+|   |
+| 1 | pad_left("a", 200000000, " ")
+|   |         ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:97 _padding
+|    extras/prelude.fung:100 pad_left
+|    -e:1       <entry>
+-- exit: 1
+==== "until(1, x => x + \"a\", x => false)"
+-- stdout
+-- stderr
+| error[E0501]: cannot add int and str
+|   --> -e:1:17
+|   |
+| 1 | until(1, x => x + "a", x => false)
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    extras/prelude.fung:120 until
+|    -e:1       <entry>
+-- exit: 1
+==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:1:29
+|   |
+| 1 | fn r(n) = iterate(n, x => x / 0, 1)
+|   |                             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <lambda>
+|    extras/prelude.fung:123 iterate (1 tail calls elided)
+|    -e:2       <entry>
+-- exit: 1
+==== "print(get([1], 0))"
+-- stdout
+-- stderr
+| error[E0803]: get expects a map, got 'list
+|   --> -e:1:10
+|   |
+| 1 | print(get([1], 0))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:87 get
+|    -e:1       <entry>
+-- exit: 1
+==== "print(lines(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be str, got int
+|   --> -e:1:12
+|   |
+| 1 | print(lines(1))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:103 _chomp
+|    extras/prelude.fung:109 lines
+|    -e:1       <entry>
+-- exit: 1
+==== "print(keys([]))"
+-- stdout
+-- stderr
+| error[E0506]: cannot list the pairs of list
+|   --> -e:1:11
+|   |
+| 1 | print(keys([]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:80 keys
+|    -e:1       <entry>
+-- exit: 1
+==== "print(take([1]))"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `n`
+|   --> -e:1:11
+|   |
+| 1 | print(take([1]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "import conc\nprint(conc.retry(() => Ok(1)), conc.retry(() =… (138 bytes, 1195aad07448a66d)
+-- stdout
+| Ok(1) 2 64 4
+-- stderr
+-- exit: 0
+==== "print(is_ok(Ok(1)), is_err(Err(1)), first([]), last(0..3), zip([1], [2, 3]), unique([1, 1]), contains(\"abc\", \"b\"))"
+-- stdout
+| true true nil 2 [(1, 2)] [1] true
+-- stderr
+-- exit: 0
+==== "spawn()"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `f`
+|   --> -e:1:6
+|   |
+| 1 | spawn()
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "spawn(1, 2)"
+-- stdout
+-- stderr
+| error[E0402]: spawn takes 1 argument(s), got 2
+|   --> -e:1:6
+|   |
+| 1 | spawn(1, 2)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "channel(1, 2)"
+-- stdout
+-- stderr
+| error[E0402]: channel takes 1 argument(s), got 2
+|   --> -e:1:8
+|   |
+| 1 | channel(1, 2)
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "await(t: 1, x: 2)"
+-- stdout
+-- stderr
+| error[E0406]: await has no argument named `x`
+|   --> -e:1:6
+|   |
+| 1 | await(t: 1, x: 2)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "recv()"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `ch`
+|   --> -e:1:5
+|   |
+| 1 | recv()
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "swap(1)"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `f`
+|   --> -e:1:5
+|   |
+| 1 | swap(1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "sleep(d: 1ms, d: 2ms)"
+-- stdout
+-- stderr
+| error[E0405]: argument `d` given twice
+|   --> -e:1:6
+|   |
+| 1 | sleep(d: 1ms, d: 2ms)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sleep(1ms), sleep(0s), sleep(-1s))"
+-- stdout
+| nil nil nil
+-- stderr
+-- exit: 0
+==== "spawn(1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:6
+|   |
+| 1 | spawn(1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "await(1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `t` must be task, got int
+|   --> -e:1:6
+|   |
+| 1 | await(1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "cancel(1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `t` must be task, got int
+|   --> -e:1:7
+|   |
+| 1 | cancel(1)
+|   |       ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "await(spawn(() => 1), timeout: 1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `timeout` must be dur | nil, got int
+|   --> -e:1:6
+|   |
+| 1 | await(spawn(() => 1), timeout: 1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "t = spawn(() => 1)\nprint(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"
+-- stdout
+| <task> [<task>] true 'task 1 1 nil
+-- stderr
+-- exit: 0
+==== "print(spawn(() => 1) == spawn(() => 1))"
+-- stdout
+| false
+-- stderr
+-- exit: 0
+==== "print(await(spawn(() => 1 / 0)), await(spawn(() => [1][5])))"
+-- stdout
+| Err({kind: 'error, message: "error[E0502]: division by zero"}) Err({kind: 'error, message: "error[E0507]: index 5 is out of range (length 1)"})
+-- stderr
+-- exit: 0
+==== "t = spawn(() => sleep(10s))\ncancel(t)\nprint(await(t))"
+-- stdout
+| Err({kind: 'cancelled})
+-- stderr
+-- exit: 0
+==== "t = spawn(() => 1)\nt < t"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare task and task
+|   --> -e:2:3
+|   |
+| 2 | t < t
+|   |   ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import conc\nprint(conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))"
+-- stdout
+| [1, 4, 9] []
+-- stderr
+-- exit: 0
+==== "sleep(1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `d` must be dur, got int
+|   --> -e:1:6
+|   |
+| 1 | sleep(1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "sleep(\"1s\")"
+-- stdout
+-- stderr
+| error[E0403]: argument `d` must be dur, got str
+|   --> -e:1:6
+|   |
+| 1 | sleep("1s")
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))"
+-- stdout
+| Err(1)
+-- stderr
+-- exit: 0
+==== "import conc\nprint(conc.retry(() => Err(\"x\"), times: 3, delay: 0s))"
+-- stdout
+| Err("x")
+-- stderr
+-- exit: 0
+==== "print(spawn, type_of(await), channel == channel)"
+-- stdout
+| <fn spawn> 'fn true
+-- stderr
+-- exit: 0
+==== "c = channel()\nprint(c, [c], type_of(c), c == c, c == channel(), c != 1)"
+-- stdout
+| <channel> [<channel>] 'channel true false true
+-- stderr
+-- exit: 0
+==== "channel() < channel()"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare channel and channel
+|   --> -e:1:11
+|   |
+| 1 | channel() < channel()
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "len(channel())"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the length of channel
+|   --> -e:1:4
+|   |
+| 1 | len(channel())
+|   |    ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "1 in channel()"
+-- stdout
+-- stderr
+| error[E0512]: cannot test membership in a value of type channel
+|   --> -e:1:3
+|   |
+| 1 | 1 in channel()
+|   |   ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "channel(1)[0]"
+-- stdout
+-- stderr
+| error[E0509]: cannot index a value of type channel
+|   --> -e:1:11
+|   |
+| 1 | channel(1)[0]
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "channel(-1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -1
+|   --> -e:1:8
+|   |
+| 1 | channel(-1)
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "channel(1.5)"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got 1.5
+|   --> -e:1:8
+|   |
+| 1 | channel(1.5)
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "channel(\"a\")"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got "a"
+|   --> -e:1:8
+|   |
+| 1 | channel("a")
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "channel(17592186044410)"
+-- stdout
+-- stderr
+| error[E0801]: internal error: makechan: size out of range
+|   --> -e:1:8
+|   |
+| 1 | channel(17592186044410)
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "send(1, 2)"
+-- stdout
+-- stderr
+| error[E0403]: argument `ch` must be channel, got int
+|   --> -e:1:5
+|   |
+| 1 | send(1, 2)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "recv(1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `ch` must be channel, got int
+|   --> -e:1:5
+|   |
+| 1 | recv(1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "close(1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `ch` must be channel, got int
+|   --> -e:1:6
+|   |
+| 1 | close(1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "recv(channel(), timeout: 1)"
+-- stdout
+-- stderr
+| error[E0403]: argument `timeout` must be dur | nil, got int
+|   --> -e:1:5
+|   |
+| 1 | recv(channel(), timeout: 1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(… (169 bytes, f97cfcad7e5683da)
+-- stdout
+| Ok("a") Err({kind: 'closed}) Err({kind: 'closed}) Ok(nil) Err({kind: 'timeout}) Err({kind: 'timeout})
+-- stderr
+-- exit: 0
+==== "ch = channel()\nt = spawn(() => send(ch, 1))\nprint(await(t, timeout: 10ms), recv(ch), await(t))"
+-- stdout
+| Err({kind: 'timeout}) Ok(1) Ok(nil)
+-- stderr
+-- exit: 0
+==== "ch = channel()\nt = spawn(() => recv(ch))\ns = send(ch, 1)\ncancel(t)\nprint(s, await(t))"
+-- stdout
+| Ok(nil) Ok(1)
+-- stderr
+-- exit: 0
+==== "ch = channel(1)\nspawn(fn(): each(0..50, i => send(ch, i)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))"
+-- stdout
+| 1225
+-- stderr
+-- exit: 0
+==== "c = channel()\nclose(c)\nprint(any(c, x => true), all(c, x … (261 bytes, 07cfd562d95d5616)
+-- stdout
+| false true {} [] [] 1 nil nil nil []  [] nil []
+-- stderr
+-- exit: 0
+==== "c = channel(1)\nsend(c, 1)\nclose(c)\nmap(c, 3)"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:4:4
+|   |
+| 4 | map(c, 3)
+|   |    ^
+|   |
+|  call path (innermost first):
+|    -e:4       <entry>
+-- exit: 1
+==== "print(exec([\"echo\", \"hi there\"]))"
+-- stdout
+| Ok({out: "hi there\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(sh(\"echo a; echo b >&2; exit 3\"))"
+-- stdout
+| Err({kind: 'exit, code: 3, out: "a\n", err: "b\n", message: "`/bin/sh` exited with code 3"})
+-- stderr
+-- exit: 0
+==== "print(sh(\"exit 300\"))"
+-- stdout
+| Err({kind: 'exit, code: 44, out: "", err: "", message: "`/bin/sh` exited with code 44"})
+-- stderr
+-- exit: 0
+==== "print(sh(\"kill -9 $$\"))"
+-- stdout
+| Err({kind: 'exit, code: -1, out: "", err: "", message: "`/bin/sh` exited with code -1"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"cat\"], stdin: \"x\"))"
+-- stdout
+| Ok({out: "x", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(exec([\"sh\", \"-c\", \"cat; echo e >&2\"], stdin: \"in\"))"
+-- stdout
+| Ok({out: "in", err: "e\n", code: 0})
+-- stderr
+-- exit: 0
+==== "print(sh(\"cat\"), sh(\"true\", stdin: \"abc\"))"
+-- stdout
+| Ok({out: "", err: "", code: 0}) Ok({out: "", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(exec([\"sh\", \"-c\", \"echo $A$B\"], env: {\"B\": \"2\", \"A\": \"1\"}))"
+-- stdout
+| Ok({out: "12\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(exec([\"sh\", \"-c\", \"echo \\\"$fung_x\\\"\"], env: {\"fung_x\": \"lo\"}))"
+-- stdout
+| Ok({out: "lo\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(exec([\"pwd\"], cwd: \"/\")!.out, sh(\"pwd\", cwd: \"/usr/../\")!.out)"
+-- stdout
+| /
+|  /
+|
+-- stderr
+-- exit: 0
+==== "print(sh(\"echo $PWD\", cwd: \"/tmp\"), sh(\"echo $PWD\", cwd: \"/usr/../tmp/\"))"
+-- stdout
+| Ok({out: "/tmp\n", err: "", code: 0}) Ok({out: "/tmp\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(sh(\"echo $PWD\", cwd: \"/tmp\", env: {\"X\": \"1\"}))"
+-- stdout
+| Ok({out: "/tmp\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(sh(\"echo $PWD\", cwd: \"\"))"
+-- stdout
+| Ok({out: "$CRATE\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(sh(\"echo \\\"$X\\\"\", env: {\"X\": \"a b=c\"}))"
+-- stdout
+| Ok({out: "a b=c\n", err: "", code: 0})
+-- stderr
+-- exit: 0
+==== "print(exec([\"definitely-not-a-command-xyz\"]))"
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `definitely-not-a-command-xyz`: executable file not found in $PATH"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"/nonexistent/x\"]), exec([\"/etc\"]), exec([\"\"]))"
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `/nonexistent/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `/etc`: permission denied"}) Err({kind: 'not_found, message: "cannot run ``: exec: no command"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"ls\"], cwd: \"/nonexistent\"), exec([\"ls\"], cwd: \"/etc/hosts\"))"
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `ls`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `ls`: not a directory"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]), exec([\"/bin/ls\\u{0}\"]), exec([\"x\\u{0}y\"]))"
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `sh`: invalid argument"}) Err({kind: 'not_found, message: "cannot run `/bin/ls\u{0}`: invalid argument"}) Err({kind: 'not_found, message: "cannot run `x\u{0}y`: executable file not found in $PATH"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"sh\"], env: {\"A\\u{0}\": \"x\"}), exec([\"sh… (127 bytes, 8f8fd505d1ab49ac)
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `sh`: exec: environment variable contains NUL"}) Err({kind: 'not_found, message: "cannot run `sh`: exec: environment variable contains NUL"}) Err({kind: 'not_found, message: "cannot run `ls`: exec: environment variable contains NUL"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"ls\"], cwd: \"/\\u{0}\", env: {}))"
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `ls`: invalid argument"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"./definitely-not-here\"]), exec([\"sh/\"]))"
+-- stdout
+| Err({kind: 'not_found, message: "cannot run `./definitely-not-here`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `sh/`: no such file or directory"})
+-- stderr
+-- exit: 0
+==== "print(exec([\"sh\", \"-c\", \"echo $FOO\"], env: {\"FOO\": 1}))"
+-- stdout
+-- stderr
+| error[E0403]: argument `env` must be a map of strings, got a map holding int
+|   --> -e:1:11
+|   |
+| 1 | print(exec(["sh", "-c", "echo $FOO"], env: {"FOO": 1}))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([\"sh\"], env: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `env` must be map | nil, got int
+|   --> -e:1:11
+|   |
+| 1 | print(exec(["sh"], env: 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([\"cat\"], stdin: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `stdin` must be str | nil, got int
+|   --> -e:1:11
+|   |
+| 1 | print(exec(["cat"], stdin: 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([\"cat\"], cwd: 1, env: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cwd` must be str | nil, got int
+|   --> -e:1:11
+|   |
+| 1 | print(exec(["cat"], cwd: 1, env: 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([1], cwd: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cmd` must be a list of strings, got a list holding int
+|   --> -e:1:11
+|   |
+| 1 | print(exec([1], cwd: 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sh(1), 2)"
+-- stdout
+-- stderr
+| error[E0403]: argument `cmd` must be str, got int
+|   --> -e:1:9
+|   |
+| 1 | print(sh(1), 2)
+|   |         ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec(\"ls\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cmd` must be a list of strings, got str
+|   --> -e:1:11
+|   |
+| 1 | print(exec("ls"))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([1]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cmd` must be a list of strings, got a list holding int
+|   --> -e:1:11
+|   |
+| 1 | print(exec([1]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `cmd` must be a non-empty list of strings, got an empty list
+|   --> -e:1:11
+|   |
+| 1 | print(exec([]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `cmd`
+|   --> -e:1:11
+|   |
+| 1 | print(exec())
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(exec([\"true\"], shell: 1))"
+-- stdout
+-- stderr
+| error[E0406]: exec has no argument named `shell`
+|   --> -e:1:11
+|   |
+| 1 | print(exec(["true"], shell: 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(env(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `name` must be str | nil, got int
+|   --> -e:1:10
+|   |
+| 1 | print(env(1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(env(\"FUNG_TEST_UNSET_VAR\"), env(\"\"), env(\"A=B\"), type_of(env()), env(\"HOME\") == env()[\"HOME\"])"
+-- stdout
+| nil nil nil 'map true
+-- stderr
+-- exit: 0
+==== "print(sh(\"printf 'a\\\\nb\\\\n'\")!.out |> lines, sh(\"printf ok\")!.out |> len)"
+-- stdout
+| ["a", "b"] 2
+-- stderr
+-- exit: 0
+==== "x = sh(\"echo 참치\")!\nprint(x.out, len(x.out), x.code)"
+-- stdout
+| 참치
+|  3 0
+-- stderr
+-- exit: 0
+==== "fn run(c) = sh(c)\nprint(run(\"exit 2\")?)"
+-- stdout
+-- stderr
+| error[E0214]: `?` outside a function
+|   --> -e:2:20
+|   |
+| 2 | print(run("exit 2")?)
+|   |                    ^
+|   |
+|  help: use `!` to stop the script on Err
+-- exit: 2
+==== "print(sh(\"exit 2\")!)"
+-- stdout
+-- stderr
+| error[E0603]: unhandled Err: `/bin/sh` exited with code 2
+|   --> -e:1:19
+|   |
+| 1 | print(sh("exit 2")!)
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print({\"x²\": 1, \"Ⅻ\": 2, \"हि\u{902}दी\": 3, \"ß\": 4, \"Σ1\": 5, \"한글\": 6, \"x٣\": 7, \"Ⓐ\": 8})"
+-- stdout
+| {"x²": 1, "Ⅻ": 2, "हिंदी": 3, ß: 4, Σ1: 5, 한글: 6, x٣: 7, "Ⓐ": 8}
+-- stderr
+-- exit: 0
+==== "print(sym(\"ß1\"), sym(\"x٣\"), sym(\"한글\"), sym(\"ǅx\"))"
+-- stdout
+| 'ß1 'x٣ '한글 'ǅx
+-- stderr
+-- exit: 0
+==== "print(sym(\"x²\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "x²" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym("x²"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(\"ⓐ\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "ⓐ" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym("ⓐ"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sym(\"हि\u{902}दी\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "हिंदी" to sym
+|   --> -e:1:10
+|   |
+| 1 | print(sym("हिंदी"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print([\"a\\u{378}b\", \"\\u{E000}\", \"\\u{A0}\"], {\"\\u{378}\": 1})"
+-- stdout
+| ["a\u{378}b", "\u{E000}", "\u{A0}"] {"\u{378}": 1}
+-- stderr
+-- exit: 0
+==== "import path\nprint(path.join(\"a//b\", \"../c/\"), path.joi… (155 bytes, 7cc748998743cf03)
+-- stdout
+| a/c   /x ../../a
+-- stderr
+-- exit: 0
+==== "import path\nprint([\"\", \"/\", \"//\", \"a/\", \"a//b/\",… (201 bytes, d92c2adfd005f4ec)
+-- stdout
+| [[".", ".", "", ""], ["/", "/", "", "/"], ["/", "/", "", "/"], ["a", "a", "", "a"], ["b", "a/b", "", "b"], [".hidden", ".", ".hidden", ""], ["a.b.c", ".", ".c", "a.b"], ["..", ".", ".", "."], ["..", "/", ".", "."], ["c", "a/b.d", "", "c"], ["글.txt", "한", ".txt", "글"]]
+-- stderr
+-- exit: 0
+==== "import path\nprint(path.abs(\"a/../b/./c\"), path.abs(\"/x/../y/\"), path.abs(\"\"))"
+-- stdout
+| $CRATE/b/c /y $CRATE
+-- stderr
+-- exit: 0
+==== "import path\nprint(path.join(\"a\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `parts` must be a list of strings, got a list holding int
+|   --> -e:2:16
+|   |
+| 2 | print(path.join("a", 1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import path\nprint(path.base(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `p` must be str, got int
+|   --> -e:2:16
+|   |
+| 2 | print(path.base(1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import path\nprint(path.stem(nil), path.dir([]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `p` must be str, got nil
+|   --> -e:2:16
+|   |
+| 2 | print(path.stem(nil), path.dir([]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import path\nprint(path.abs(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `p` must be str, got int
+|   --> -e:2:15
+|   |
+| 2 | print(path.abs(1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import path\nprint(path.ext(nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `p` must be str, got nil
+|   --> -e:2:15
+|   |
+| 2 | print(path.ext(nil))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs, fs.open, fs.with_open, fs.read_lines(\"Cargo.toml\")! |> take(1))"
+-- stdout
+| <module fs> <fn open> <fn with_open> ["[package]"]
+-- stderr
+-- exit: 0
+==== "import fs\nh = fs.open(\"/dev/null\")!\nprint(h, type_of(h)… (213 bytes, 12c2feb432f970db)
+-- stdout
+| <file "/dev/null"> 'file true false {a: <file "/dev/null">}
+| Ok(nil) Ok([]) Err({kind: 'invalid, message: "file `/dev/null` is not open for writing"}) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"}) Err({kind: 'closed, message: "file `/dev/null` is closed"})
+-- stderr
+-- exit: 0
+==== "import fs\nw = fs.open(path: \"/dev/null\", mode: 'append)!… (146 bytes, ce1a666f2a4d224d)
+-- stdout
+| Ok(nil) Err({kind: 'invalid, message: "file `/dev/null` is not open for reading"}) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"})
+-- stderr
+-- exit: 0
+==== "import fs\nprint(fs.open(\"/nonexistent-fung-test/x\"), fs.… (277 bytes, df1bcce60304e0f1)
+-- stdout
+| Err({kind: 'not_found, message: "cannot open `/nonexistent-fung-test/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot open `/nonexistent-fung-test/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot read `/nonexistent-fung-test/x`: no such file or directory"})
+| Ok("[package]") Ok(nil)
+-- stderr
+-- exit: 0
+==== "import fs\nprint(fs.read(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `path` must be str, got int
+|   --> -e:2:14
+|   |
+| 2 | print(fs.read(1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.write(\"x\", nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `text` must be str, got nil
+|   --> -e:2:15
+|   |
+| 2 | print(fs.write("x", nil))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.copy(nil, 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `from` must be str, got nil
+|   --> -e:2:14
+|   |
+| 2 | print(fs.copy(nil, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.stat())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `path`
+|   --> -e:2:14
+|   |
+| 2 | print(fs.stat())
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.exists(\"x\", \"y\"))"
+-- stdout
+-- stderr
+| error[E0402]: exists takes 1 argument(s), got 2
+|   --> -e:2:16
+|   |
+| 2 | print(fs.exists("x", "y"))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.mkdir(path: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `path` must be str, got int
+|   --> -e:2:15
+|   |
+| 2 | print(fs.mkdir(path: 1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.list(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `dir` must be str, got int
+|   --> -e:2:14
+|   |
+| 2 | print(fs.list(1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.glob(nil))"
+-- stdout
+-- stderr
+| error[E0403]: argument `pattern` must be str, got nil
+|   --> -e:2:14
+|   |
+| 2 | print(fs.glob(nil))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.walk())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `dir`
+|   --> -e:2:14
+|   |
+| 2 | print(fs.walk())
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.walk(dir: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `dir` must be str, got int
+|   --> -e:2:14
+|   |
+| 2 | print(fs.walk(dir: 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.open(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `path` must be str, got int
+|   --> -e:2:14
+|   |
+| 2 | print(fs.open(1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.open(\"/dev/null\", \"read\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `mode` must be 'read | 'write | 'append, got str
+|   --> -e:2:14
+|   |
+| 2 | print(fs.open("/dev/null", "read"))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.open(\"/dev/null\", mode: 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `mode` must be 'read | 'write | 'append, got int
+|   --> -e:2:14
+|   |
+| 2 | print(fs.open("/dev/null", mode: 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.open(\"/dev/null\", 'rw))"
+-- stdout
+-- stderr
+| error[E0403]: argument `mode` must be 'read | 'write | 'append, got 'rw
+|   --> -e:2:14
+|   |
+| 2 | print(fs.open("/dev/null", 'rw))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.open(\"/dev/null\", 'read, 1))"
+-- stdout
+-- stderr
+| error[E0402]: open takes 2 argument(s), got 3
+|   --> -e:2:14
+|   |
+| 2 | print(fs.open("/dev/null", 'read, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.close(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be file, got int
+|   --> -e:2:15
+|   |
+| 2 | print(fs.close(1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.close())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `f`
+|   --> -e:2:15
+|   |
+| 2 | print(fs.close())
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.write_line(\"x\", \"y\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be file, got str
+|   --> -e:2:20
+|   |
+| 2 | print(fs.write_line("x", "y"))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.write_line(fs.open(\"/dev/null\", 'write)!, 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `line` must be str, got int
+|   --> -e:2:20
+|   |
+| 2 | print(fs.write_line(fs.open("/dev/null", 'write)!, 1))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.write_line(fs.open(\"/dev/null\")!, 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `line` must be str, got int
+|   --> -e:2:20
+|   |
+| 2 | print(fs.write_line(fs.open("/dev/null")!, 1))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "print(read_line(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be file | nil, got int
+|   --> -e:1:16
+|   |
+| 1 | print(read_line(1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(read_lines(\"x\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be file | nil, got str
+|   --> -e:1:17
+|   |
+| 1 | print(read_lines("x"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.with_open(\"/dev/null\", 1))"
+-- stdout
+-- stderr
+| error[E0401]: cannot call a value of type int
+|   --> -e:2:19
+|   |
+| 2 | print(fs.with_open("/dev/null", 1))
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    extras/fs.fung:30 with_open
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nfn g(h: str) = h\nprint(fs.with_open(\"/dev/null\", g))"
+-- stdout
+-- stderr
+| error[E0403]: argument `h` must be str, got file
+|   --> -e:2:6
+|   |
+| 2 | fn g(h: str) = h
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:2       g
+|    extras/fs.fung:30 with_open
+|    -e:3       <entry>
+-- exit: 1
+==== "print(sort(0..100000000000000000))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(sort(0..100000000000000000))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by(0..100000000000000000, x => x))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by(0..100000000000000000, x => x))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by(0..100000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by(0..100000000000000000, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join(0..100000000000000000, \"\"))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(join(0..100000000000000000, ""))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join(0..100000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(join(0..100000000000000000, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(flatten(0..100000000000000000))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:14
+|   |
+| 1 | print(flatten(0..100000000000000000))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find(0..100000000000000000, x => true))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(find(0..100000000000000000, x => true))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find(0..100000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(find(0..100000000000000000, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(any(0..100000000000000000, x => true))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(any(0..100000000000000000, x => true))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(all(0..100000000000000000, x => false))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(all(0..100000000000000000, x => false))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(group_by(0..100000000000000000, x => 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:15
+|   |
+| 1 | print(group_by(0..100000000000000000, x => 1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map(0..100000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(map(0..100000000000000000, 1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map(0..100000000000000000, x => x))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(map(0..100000000000000000, x => x))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(filter(0..100000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:13
+|   |
+| 1 | print(filter(0..100000000000000000, 1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(fold(0..100000000000000000, 0, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(fold(0..100000000000000000, 0, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(each(0..100000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(each(0..100000000000000000, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort(0..1000000000000000000))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(sort(0..1000000000000000000))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by(0..1000000000000000000, x => x))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by(0..1000000000000000000, x => x))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by(0..1000000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by(0..1000000000000000000, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join(0..1000000000000000000, \"\"))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(join(0..1000000000000000000, ""))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(join(0..1000000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(join(0..1000000000000000000, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(flatten(0..1000000000000000000))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:14
+|   |
+| 1 | print(flatten(0..1000000000000000000))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find(0..1000000000000000000, x => true))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(find(0..1000000000000000000, x => true))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(find(0..1000000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(find(0..1000000000000000000, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(any(0..1000000000000000000, x => true))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(any(0..1000000000000000000, x => true))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(all(0..1000000000000000000, x => false))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(all(0..1000000000000000000, x => false))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(group_by(0..1000000000000000000, x => 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:15
+|   |
+| 1 | print(group_by(0..1000000000000000000, x => 1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map(0..1000000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(map(0..1000000000000000000, 1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(map(0..1000000000000000000, x => x))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:10
+|   |
+| 1 | print(map(0..1000000000000000000, x => x))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(filter(0..1000000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:13
+|   |
+| 1 | print(filter(0..1000000000000000000, 1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(fold(0..1000000000000000000, 0, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(fold(0..1000000000000000000, 0, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(each(0..1000000000000000000, 1))"
+-- stdout
+-- stderr
+| error[E0801]: internal error: runtime error: makeslice: cap out of range
+|   --> -e:1:11
+|   |
+| 1 | print(each(0..1000000000000000000, 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1

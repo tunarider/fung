@@ -1,5 +1,5 @@
 //! What agents are built from (stage 3b, Rust only): the members of
-//! `_native.conc` that only `extras/rust/agent.fung` uses. An agent is a
+//! `_native.conc` that only `extras/agent.fung` uses. An agent is a
 //! background task (`task.rs`) that holds a state and serves requests
 //! from a channel; its handle is a value that closes that channel when
 //! its last copy drops, so an agent nobody can reach ends.

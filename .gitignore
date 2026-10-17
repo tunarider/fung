@@ -1,6 +1,2 @@
-# build output of `go build ./cmd/fung`
-/fung
-/fung.exe
-
 # Rust build output
 /target

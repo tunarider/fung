@@ -6,7 +6,7 @@ mod common;
 
 use std::process::Command;
 
-use common::{go_fung, rust_fung};
+use common::rust_fung;
 
 fn run_in(bin: &std::path::Path, dir: &std::path::Path, pwd: &std::path::Path) -> String {
     let o = Command::new(bin)
@@ -29,10 +29,6 @@ fn abs_keeps_the_symlinked_working_directory() {
     let want = format!("{}\n", link.join("a").display());
 
     let rust = run_in(&rust_fung(), &link, &link);
-    let go = go_fung("path-abs").map(|g| run_in(&g, &link, &link));
     let _ = std::fs::remove_dir_all(&base);
-    if let Some(go) = go {
-        assert_eq!(go, want, "Go reference");
-    }
     assert_eq!(rust, want);
 }

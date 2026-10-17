@@ -980,7 +980,7 @@ fn utf8_string_decodes_bytes() {
 
 // ---- `http.serve` (Task 5): its tasks, its end, what it leaves --------
 //
-// The server is fung (`extras/rust/http.fung`); these runs check what
+// The server is fung (`extras/http.fung`); these runs check what
 // the Go comparison cannot see: the order of concurrent requests (by
 // state: a handler waiting on a channel), the end of the server task,
 // and that no socket, wake pipe or task is left (`run` checks).

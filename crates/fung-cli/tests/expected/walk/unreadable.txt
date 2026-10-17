@@ -1,0 +1,9 @@
+# The walkers on a tree with a directory they cannot read (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== test $DIR/t
+-- error
+| open $DIR/t/locked: permission denied
+==== fmt --check $DIR/t
+-- error
+| open $DIR/t/locked: permission denied

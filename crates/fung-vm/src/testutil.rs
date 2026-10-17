@@ -531,76 +531,23 @@ pub fn exec_waiting(src: &str) -> Outcome {
     )
 }
 
-/// Builds the Go implementation once per test (one binary per `tag`) (like
-/// `crates/fung-cli/tests/parity.rs`). `None` when `go` cannot be run and
-/// `FUNG_REQUIRE_PARITY=1` is not set; a failing `go build` panics.
-pub fn go_fung(tag: &str) -> Option<std::path::PathBuf> {
-    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let out = std::env::temp_dir().join(format!("fung-go-{tag}-{}", std::process::id()));
-    let built = std::process::Command::new("go")
-        .args(["build", "-o"])
-        .arg(&out)
-        .arg("./cmd/fung")
-        .current_dir(&repo)
-        .output();
-    match built {
-        Err(e) => {
-            assert!(
-                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
-                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
-            );
-            eprintln!("skipping the Go comparison: `go` cannot be run: {e}");
-            None
-        }
-        Ok(o) if o.status.success() => Some(out),
-        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
-    }
-}
+/// The expected-output file format of the CLI tests, shared: files under
+/// `crates/fung-vm/tests/expected/`, `FUNG_EXPECTED=bless` rewrites them.
+#[allow(dead_code)]
+#[path = "../../fung-cli/tests/common/expected.rs"]
+pub mod expected;
 
-/// The Go form of a program compared with the Go binary: one that starts
-/// with `import conc` (the Rust-only module of stage 6a) calls Go's
-/// prelude names instead. The import line stays as an empty line, so the
-/// lines keep their numbers.
-pub fn go_source(src: &str) -> String {
-    match src.strip_prefix("import conc\n") {
-        Some(rest) => format!("\n{}", rest.replace("conc.", "")),
-        None => src.to_string(),
-    }
-}
+/// Standard output, standard error and exit status, as `expected` takes
+/// them.
+#[allow(dead_code)]
+pub type Run = (Vec<u8>, Vec<u8>, String);
 
-#[test]
-fn go_source_drops_the_conc_module() {
-    assert_eq!(
-        go_source("import conc\nprint(conc.pmap([1], f))"),
-        "\nprint(pmap([1], f))"
-    );
-    assert_eq!(go_source("print(conc)"), "print(conc)");
-}
-
-/// `go-fung -e src` with `stdin`: stdout, stderr, exit status (-1 for a
-/// signal death).
-pub fn run_go(bin: &std::path::Path, src: &str, stdin: &str) -> (String, String, i32) {
-    use std::io::Write as _;
-    use std::process::{Command, Stdio};
-    let mut child = Command::new(bin)
-        .args(["-e", src])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("run the Go binary");
-    let mut input = child.stdin.take().expect("stdin");
-    // A program that does not read its input may exit before the write
-    // ends; the pipe is then closed, which is no failure of the run.
-    match input.write_all(stdin.as_bytes()) {
-        Err(e) if e.kind() != std::io::ErrorKind::BrokenPipe => panic!("write stdin: {e}"),
-        _ => {}
-    }
-    drop(input);
-    let o = child.wait_with_output().expect("wait for the Go binary");
-    (
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
-        o.status.code().unwrap_or(-1),
-    )
+/// An outcome as an expected-output entry: standard output, standard
+/// error and the exit code, with each `(from, to)` replacement applied to
+/// the two outputs.
+pub fn outcome_entry(label: &str, o: &Outcome, subs: &[(&str, &str)]) -> expected::Entry {
+    expected::Entry::new(label)
+        .field("stdout", expected::replace(o.out.as_bytes(), subs))
+        .field("stderr", expected::replace(o.err.as_bytes(), subs))
+        .field("exit", o.exit.to_string())
 }

@@ -1,24 +1,19 @@
-//! TLS error texts against Go (stage 4d, Task 2), and since Task 3 the
-//! Rust `http` client against the same Go TLS server.
+//! `http.get` over TLS: a server presenting the test certificates
+//! (`tests/data/tls`, `scripts/gen-test-certs.sh`), with `SSL_CERT_FILE`
+//! naming the roots the client trusts. The answers and the verification
+//! errors are kept in `expected/tls/gets.txt`.
 //!
-//! The Rust texts are checked in `fung-vm` (`native/tls_tests.rs`, a
-//! rustls server in the test process), since `_native.net` is not
-//! reachable from a user program and this crate may not depend on rustls
-//! (`deps.rs`). Here Go's `http.get` meets a Go TLS server presenting the
-//! test certificates (`tests/data/tls`, `scripts/gen-test-certs.sh`) with
-//! `SSL_CERT_FILE` naming the roots, and its reason must be the text the
-//! Rust tests expect: the two agree through these constants.
-//!
-//! With `SSL_CERT_FILE` (or `SSL_CERT_DIR`) set, Go verifies with its own
-//! code on Linux and, since Go 1.27, on macOS too (where it otherwise asks
-//! the platform verifier, which words its errors differently; Task 2
-//! report), so the comparison runs on both.
+//! The texts are also checked in `fung-vm` (`native/tls_tests.rs`, a
+//! rustls server in the test process) through `_native.net`, which a
+//! user program cannot reach; the constants below are the same texts.
 
 mod common;
 
-use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
+use std::sync::Arc;
+
+use common::expected::{self, Entry};
 
 /// The same texts as `fung-vm`'s `native/tls_tests.rs`.
 const UNKNOWN_AUTHORITY: &str =
@@ -28,149 +23,102 @@ const NO_IP_SANS: &str = "tls: failed to verify certificate: x509: cannot valida
 const EXPIRED_PREFIX: &str = "tls: failed to verify certificate: x509: certificate has expired or is not yet valid: current time ";
 const EXPIRED_SUFFIX: &str = " is after 2001-01-01T00:00:00Z";
 
-/// A TLS server answering every request with `hi`: `<cert> <key>` as
-/// arguments, its port as the first line of output.
-const SERVER: &str = r#"package main
+/// (certificate, roots, host, what the client must say)
+const CASES: &[(&str, &str, &str, &str)] = &[
+    ("localhost", "ca.pem", "localhost", "200 hi"),
+    ("localhost", "ca.pem", "127.0.0.1", "200 hi"),
+    ("localhost", "other-ca.pem", "localhost", UNKNOWN_AUTHORITY),
+    ("wrongname", "ca.pem", "localhost", WRONG_NAME),
+    ("wrongname", "other-ca.pem", "localhost", WRONG_NAME),
+    ("wrongname", "ca.pem", "127.0.0.1", NO_IP_SANS),
+    ("expired", "ca.pem", "localhost", "expired"),
+    ("expired", "other-ca.pem", "localhost", "expired"),
+];
 
-import (
-	"crypto/tls"
-	"fmt"
-	"io"
-	"log"
-	"net"
-	"net/http"
-	"os"
-)
-
-func main() {
-	cert, err := tls.LoadX509KeyPair(os.Args[1], os.Args[2])
-	if err != nil {
-		panic(err)
-	}
-	l, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{cert}})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(l.Addr().(*net.TCPAddr).Port)
-	srv := &http.Server{
-		Handler:  http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "hi") }),
-		ErrorLog: log.New(io.Discard, "", 0),
-	}
-	srv.Serve(l)
-}
-"#;
+const HEADER: &str =
+    "`http.get` over TLS with the test certificates (crates/fung-cli/tests/tls.rs).
+Labels: certificate, trusted roots, host. `$PORT` is the server's port; the
+current time of an expiry error is left out.
+After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test tls";
 
 #[test]
-fn go_gives_the_tls_texts_the_rust_tests_expect() {
-    let Some(go_fung) = common::go_fung("tls") else {
-        return;
-    };
+fn tls_gets_match_the_expected_output() {
+    assert_eq!(CASES.len(), 8, "the number of cases");
     let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
     let tmp = std::env::temp_dir().join(format!("fung-tls-{}", std::process::id()));
     std::fs::create_dir_all(tmp.join("certs")).unwrap();
-    std::fs::write(tmp.join("server.go"), SERVER).unwrap();
-    let built = Command::new("go")
-        .args(["build", "-o", "server", "server.go"])
-        .current_dir(&tmp)
-        .output()
-        .unwrap();
-    assert!(
-        built.status.success(),
-        "{}",
-        String::from_utf8_lossy(&built.stderr)
-    );
     std::fs::write(
         tmp.join("get.fung"),
         "import http\nfn show(r) = match r:\n  Ok(v) => \"${v.status} ${v.body}\"\n  Err(e) => e.message\n;;\nprint(show(http.get(args[0])))\n",
     )
     .unwrap();
-    // (certificate, roots, host, what Go must say)
-    let cases = [
-        ("localhost", "ca.pem", "localhost", "200 hi"),
-        ("localhost", "ca.pem", "127.0.0.1", "200 hi"),
-        ("localhost", "other-ca.pem", "localhost", UNKNOWN_AUTHORITY),
-        ("wrongname", "ca.pem", "localhost", WRONG_NAME),
-        ("wrongname", "other-ca.pem", "localhost", WRONG_NAME),
-        ("wrongname", "ca.pem", "127.0.0.1", NO_IP_SANS),
-        ("expired", "ca.pem", "localhost", "expired"),
-        ("expired", "other-ca.pem", "localhost", "expired"),
-    ];
-    for (cert, roots, host, want) in cases {
-        let mut server = Command::new(tmp.join("server"))
-            .arg(data.join(format!("{cert}.pem")))
-            .arg(data.join(format!("{cert}.key")))
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut port = String::new();
-        BufReader::new(server.stdout.take().unwrap())
-            .read_line(&mut port)
-            .unwrap();
-        let url = format!("https://{host}:{}/", port.trim());
-        let o = Command::new(&go_fung)
-            .arg("run")
-            .arg(tmp.join("get.fung"))
-            .arg(&url)
-            .env("SSL_CERT_FILE", data.join(roots))
-            // an empty directory: only SSL_CERT_FILE's roots
-            .env("SSL_CERT_DIR", tmp.join("certs"))
-            .output()
-            .unwrap();
-        // Stage 4d Task 3: the Rust `http` meets the same server, and its
-        // output must be Go's (the expiry check's "current time" aside).
-        let r = Command::new(common::rust_fung())
-            .arg("run")
-            .arg(tmp.join("get.fung"))
-            .arg(&url)
-            .env("SSL_CERT_FILE", data.join(roots))
-            .env("SSL_CERT_DIR", tmp.join("certs"))
-            .output()
-            .unwrap();
-        let _ = server.kill();
-        let _ = server.wait();
-        assert_eq!(
-            (
-                without_now(&String::from_utf8_lossy(&r.stdout)),
-                String::from_utf8_lossy(&r.stderr),
-                r.status.code()
-            ),
-            (
-                without_now(&String::from_utf8_lossy(&o.stdout)),
-                String::from_utf8_lossy(&o.stderr),
-                o.status.code()
-            ),
-            "{cert} {roots} {host}: rust and go differ"
+    let hi: fung_vm::tls_test_server::Handler = Arc::new(|_: &[u8]| {
+        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nhi".to_vec()
+    });
+    let mut got = Vec::new();
+    for (cert, roots, host, text) in CASES {
+        let port = fung_vm::tls_test_server::start(
+            &data.join(format!("{cert}.pem")),
+            &data.join(format!("{cert}.key")),
+            hi.clone(),
         );
-        let got = String::from_utf8_lossy(&o.stdout);
-        let got = got.trim_end();
-        let case = format!("{cert} {roots} {host}: {got:?} {:?}", o.stderr);
-        if want.starts_with("200") {
-            assert_eq!(got, want, "{case}");
-            continue;
-        }
-        // cannot request `<url>`: Get "<url>": <reason>
-        let prefix = format!("cannot request `{url}`: Get \"{url}\": ");
-        let reason = got
-            .strip_prefix(&prefix)
-            .unwrap_or_else(|| panic!("{case}"));
-        if want == "expired" {
-            assert!(
-                reason.starts_with(EXPIRED_PREFIX) && reason.ends_with(EXPIRED_SUFFIX),
-                "{case}"
-            );
+        let url = format!("https://{host}:{port}/");
+        let get = |bin: &Path| {
+            let o = Command::new(bin)
+                .env("TZ", common::TZ)
+                .arg("run")
+                .arg(tmp.join("get.fung"))
+                .arg(&url)
+                .env("SSL_CERT_FILE", data.join(roots))
+                // an empty directory: only SSL_CERT_FILE's roots
+                .env("SSL_CERT_DIR", tmp.join("certs"))
+                .output()
+                .unwrap();
+            let ports = [(port, "$PORT")];
+            Entry::new(format!("{cert} {roots} {host}"))
+                .field(
+                    "stdout",
+                    without_now(&expected::replace_ports(&o.stdout, &ports)),
+                )
+                .field("stderr", expected::replace_ports(&o.stderr, &ports))
+                .field("exit", expected::exit_text(&format!("{:?}", o.status)))
+        };
+        let r = get(&common::rust_fung());
+        // What the expected output says, checked here too.
+        let out = String::from_utf8_lossy(r.get("stdout").unwrap()).into_owned();
+        let out = out.trim_end();
+        let case = format!("{cert} {roots} {host}: {out:?}");
+        if text.starts_with("200") {
+            assert_eq!(out, *text, "{case}");
         } else {
-            assert_eq!(reason, want, "{case}");
+            // cannot request `<url>`: Get "<url>": <reason>
+            let shown = "https://".to_string() + host + ":$PORT/";
+            let prefix = format!("cannot request `{shown}`: Get \"{shown}\": ");
+            let reason = out
+                .strip_prefix(&prefix)
+                .unwrap_or_else(|| panic!("{case}"));
+            if *text == "expired" {
+                assert_eq!(
+                    reason,
+                    format!("{EXPIRED_PREFIX}{EXPIRED_SUFFIX}"),
+                    "{case}"
+                );
+            } else {
+                assert_eq!(reason, *text, "{case}");
+            }
         }
+        got.push(r);
     }
     let _ = std::fs::remove_dir_all(&tmp);
-    let _ = std::fs::remove_file(go_fung);
+    expected::verify("tls/gets.txt", HEADER, 64 * 1024, &got);
 }
 
 /// The text with the time of an expiry error ("current time <t> is
-/// after") left out: the two runs happen at different seconds.
-fn without_now(s: &str) -> String {
+/// after") left out: it is the time of the run.
+fn without_now(s: &[u8]) -> Vec<u8> {
+    let s = String::from_utf8_lossy(s);
     match (s.find("current time "), s.find(" is after")) {
-        (Some(a), Some(b)) if a < b => format!("{}{}", &s[..a + 13], &s[b..]),
-        _ => s.to_string(),
+        (Some(a), Some(b)) if a < b => format!("{}{}", &s[..a + 13], &s[b..]).into_bytes(),
+        _ => s.into_owned().into_bytes(),
     }
 }

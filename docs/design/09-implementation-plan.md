@@ -5,39 +5,45 @@
 - 구현은 Claude가 한다. 테스트를 먼저 쓰고 실패를 확인한 뒤 구현한다 (TDD).
 - 사용자는 이론과 설계 판단(언어를 만들 때 무엇을 고려하는지)에 집중한다.
   마일스톤마다 `docs/notes/M<n>-<주제>.md`에 무엇을 만들었고 어떤 원리로 동작하는지 한국어로 남긴다.
-- 커밋은 Conventional Commits, 영어. 커밋 전 `gofmt -l .`, `go vet ./...`, `go test ./...` 통과.
+- 커밋은 Conventional Commits, 영어. 커밋 전 검사는 `CLAUDE.md`의 목록(`cargo fmt --check`, `cargo clippy`, `cargo test`, 디버그·릴리스).
 
 ## 기본 정보
 
-- Go 모듈: `github.com/tunarider/fung`
-- 대상 Go 버전: 1.27 (사용자 환경)
-- 의존성: **Go 표준 라이브러리만.** REPL 줄 편집 등도 가능한 한 직접 구현한다.
+- Rust, 루트 Cargo 작업 공간(`Cargo.toml`, edition 2024, 최소 Rust 1.94). 크레이트 셋은 `publish = false`.
+- 의존성: 기본은 **Rust 표준 라이브러리.** 크레이트는 허용 목록(`deny.toml`)만, 앞단(`fung-front`)은 0개. 이유와 목록은
+  open-questions "Rust 이전"의 의존성 정책. REPL 줄 편집 등도 직접 구현한다.
 
 ## 구조
 
 ```
 fung/
-  cmd/fung/          실행 파일 진입점 (하위 명령 분기, 종료 코드). core·native·extras를 조립하는 유일한 곳
-  extras/            fung으로 쓴 내장 extras (embed): fs.fung, path.fung, cli.fung, prelude.fung (06)
-  internal/
-    lexer/           소스 → 토큰 (위치 정보, 주석은 trivia 목록으로 보존)
-    parser/          토큰 → 균일 트리 (문장 경계에서 재동기화 가능하게)
-    tree/            균일 트리 노드
-    desugar/         겉 문법 트리 → 코어 언어 트리
-    resolve/         이름 해석, 스코프 검사, 의미 에러 수집
-    compiler/        코어 트리 → 바이트코드
-    bytecode/        명령 정의, 소스 위치 표, 역어셈블러
-    value/           fung 값의 Go 표현
-    vm/              실행기 (태스크별 상태, 전역 상태 없음)
-    prelude/         core의 Go 값 연산 (print, map, filter, split, int …)
-    native/          Go로 만든 숨은 원시 모듈 `_native.*` (fs, path, process); conc는 vm이 제공
-    nat/             prelude·native가 함께 쓰는 선언 도우미 (매개변수 선언, Ok/Err 만들기)
-    diag/            에러 번호, 메시지 카탈로그, 출력 형식, 종료 코드
-    golden/          골든 테스트 파일 파싱·비교 (M0)
-    repl/
-  tests/             언어 기능 골든 테스트 (.fung) 와 실행기
+  Cargo.toml         작업 공간
+  crates/
+    fung-front/      앞단 (외부 크레이트 0개)
+      src/lexer/     소스 → 토큰 (위치 정보, 주석은 trivia 목록으로 보존)
+      src/parser/    토큰 → 균일 트리 (문장 경계에서 재동기화 가능하게)
+      src/tree/      균일 트리 노드
+      src/desugar.rs 겉 문법 트리 → 코어 언어 트리
+      src/resolve/   이름 해석, 스코프 검사, 의미 에러 수집, 경고
+      src/compiler/  코어 트리 → 바이트코드
+      src/bytecode/  명령 정의, 소스 위치 표, 역어셈블러
+      src/loader.rs  import 그래프 적재, builtins.rs 내장 이름 표(spec/builtins.txt), extras.rs 내장 fung 소스
+      src/diag/      에러 번호, 메시지 카탈로그(spec/errors.txt를 만드는 표), 출력 형식, 종료 코드
+      src/format/    포맷터
+    fung-vm/         값과 실행
+      src/value/     fung 값의 Rust 표현, 영속 벡터·HAMT
+      src/vm/        실행기, 태스크, 실행권, block, 취소 트리, 채널, 교착 감지
+      src/prelude/   core의 값 연산 (print, map, filter, split, int …)
+      src/native/    숨은 원시 모듈 `_native.*` (fs, path, process, json, time, regex, net, TLS)
+      src/conc.rs    동시성 원시 연산 (`_native.conc`)
+      src/boot.rs    prelude 부팅, `_native.*` 다리 표(`NATIVE_MODULES`), spec/builtins.txt 생성(테스트)
+    fung-cli/        실행 파일 `fung`: 하위 명령(run, check, test, fmt, dump, version, help), REPL, 경로 순회
+      tests/         통합 테스트, 골든 실행기, 기대 출력 파일(tests/expected/)
+  extras/            fung으로 쓴 내장 extras (include_str!): prelude.fung, agent.fung, fs, path, cli, conc, http … (06)
+  spec/              내장 이름 표·에러 카탈로그(Rust에서 생성), 유니코드 표(고정 데이터)
+  tests/lang/        언어 기능 골든 테스트 (.fung)
   docs/design/       설계 문서
-  docs/notes/        마일스톤별 학습 노트
+  docs/notes/        마일스톤·이식 단계별 학습 노트
 ```
 
 - `desugar`와 `resolve`는 M1부터 배관으로 둔다 (M1에서는 거의 통과).
@@ -54,8 +60,8 @@ fung/
 ### 균일 트리
 
 - 노드 하나의 형태는 `{머리, 위치, 자식들, 리터럴 값}` 뿐이다. `f(a, b)`는 `(call f a b)`, `if c: a else: b ;;`는 `(if c (do a) (do b))`.
-- Go 구조체를 노드 종류마다 따로 만들지 않는다. "속은 Lisp"의 실체이며 `dump ast`·desugar·추후 매크로가 모두 이 형태 위에서 동작한다.
-- 대가: Go 컴파일러가 "이 노드에 자식이 셋이어야 한다"를 검사해 주지 않는다. 그 검사는 desugar가 맡는다.
+- 노드 종류마다 Rust 구조체·`enum` 변형을 따로 만들지 않는다(`Node{head, pos, lit, kids}` 하나). "속은 Lisp"의 실체이며 `dump ast`·desugar·추후 매크로가 모두 이 형태 위에서 동작한다.
+- 대가: Rust 컴파일러가 "이 노드에 자식이 셋이어야 한다"를 검사해 주지 않는다. 그 검사는 desugar가 맡는다.
 
 ### 코어 언어
 
@@ -93,17 +99,18 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 
 ## 뒷단 설계
 
-### 값의 Go 표현
+### 값의 Rust 표현
 
-- `Value` 인터페이스 하나와 종류별 구체 타입: `Int(int64)`, `Float`, `Str`, `Bool`, `Nil`, `Sym(int32, 전역 인턴 표)`, `Dur`, `Time`,
-  `*List`(작으면 평평한 배열, 크면 영속 벡터 위의 보기), `*Map`(작으면 키 순서 슬라이스 + Go 맵, 크면 항목 벡터 + HAMT), `*Tuple`, `*Tag{이름, 인자들}`, `Range`,
-  `*Closure{Proto, Captured []Value}`, `*Native`, `*Module`, `*Task`, `*Channel`, `*Atom`.
+- `enum Value`(종류 태그 + 값 칸, 16바이트): `Int(i64)`, `Float(f64)`, `Bool`, `Nil`, `Str(Rc<String>)`, `Sym`(전역 인턴 표), `Dur(i64)`, `Time`,
+  `List`(작으면 평평한 배열, 크면 영속 벡터 위의 보기), `Map`(작으면 넣은 순서의 쌍 배열, 크면 항목 벡터 + HAMT), `Tuple`, `Tag{이름, 인자들}`, `Range`,
+  `Closure{원형, 붙잡은 값}`, `Native`, `Module`, `Task`, `Channel`, `Agent`, `File`, `Conn`, `Listener`. 상자가 필요한 것은 `Rc`로 공유하고 참조 계수로 회수한다
+  (긴 구조의 연쇄 해제는 재귀가 아니라 반복).
 - 모든 연산이 새 값을 돌려준다. M9까지는 단순 복사, M10부터 리스트·맵은 영속 자료구조.
   - M10(2026-10-14 결정): 측정상 누적과 꼬리 재귀가 n²라 영속 자료구조로 바꾼다. 리스트는 32개 이하면 평평한 배열, 넘으면
     영속 벡터(32갈래 트리 + tail) 위의 보기 `{벡터, 시작, 끝}`(자르기·`...rest`는 상수 시간). 맵은 16개 이하면 지금 표현(측정으로 32에서 낮춤), 넘으면
     넣은 순서의 항목 벡터 + HAMT 색인. 값 층 밖은 `Len`/`At`/`All`/`Slice`/`Append`와 빌더만 쓴다.
     스펙 `docs/superpowers/specs/2026-10-14-persistent-collections-design.md`.
-- Go의 `nil` 인터페이스는 "슬롯이 아직 비어 있음", fung의 `nil`은 별도 값 `Nil{}`. 이 구분이 기본값 처리(비어 있으면 채운다)를 공짜로 만든다.
+- 스택 슬롯은 `Option<Value>`: `None`은 "슬롯이 아직 비어 있음", fung의 `nil`은 별도 값 `Value::Nil`. 이 구분이 기본값 처리(비어 있으면 채운다)를 공짜로 만든다.
 
 ### 함수 원형 (Proto)
 
@@ -131,7 +138,7 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 - 모듈마다 `globals []Value`, 이름→번호는 컴파일 시점에.
 - 최상위 `fn` 칸은 초기화 전에 채우고(끌어올리기), 변수 칸은 초기화가 진행되며 채운다.
   함수는 전역 변수를 조회하지 않는다: 만들어질 때 값을 복사한다 (`CaptureGlobal`). 다른 최상위 `fn`은 상수라 직접 참조한다 (03).
-- 다른 태스크가 읽을 수 있으므로 칸은 원자적 읽기/쓰기로.
+- 다른 태스크도 읽지만 fung 값은 실행권을 쥔 스레드만 만지므로 칸에 따로 잠금이 없다.
 
 ### 호출 규약
 
@@ -140,7 +147,7 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 - **기본값은 함수 서두(prologue)에 컴파일**된다: "슬롯 i가 비었으면 기본값 식을 실행해 채운다".
 - 타입 표기는 서두의 `CHECK_TYPE`, 반환 타입은 `RETURN` 직전 `CHECK_RETURN` (그래서 TCO 제외).
 - `TAIL_CALL`은 인자를 임시로 받아 현재 프레임 슬롯에 다시 묶고 `ip`를 0으로.
-- Go 함수(`*Native`)는 현재 태스크 핸들을 받아 `task.Call(closure, args)`로 람다를 재진입 호출한다.
+- Rust 내장 함수(`Native`)는 현재 태스크를 받아 `t.call(closure, args)`로 람다를 재진입 호출한다.
 
 ### 결과값 축약
 
@@ -150,34 +157,34 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 ### 패턴 매칭
 
 - 패턴을 상수 풀의 **"패턴 트리"**로 두고 `MATCH n` 한 명령이 실행 중에 해석해 슬롯에 묶는다.
-- 패턴 의미가 Go 함수 하나에 모여 이해하고 고치기 쉽다. 성능이 문제 되면 같은 `MATCH` 인터페이스 뒤에서 명령열 컴파일로 바꾼다.
+- 패턴 의미가 Rust 함수 하나(`vm/matcher.rs`)에 모여 이해하고 고치기 쉽다. 성능이 문제 되면 같은 `MATCH` 인터페이스 뒤에서 명령열 컴파일로 바꾼다.
 
 ### 에러
 
-- VM 에러는 Go 구조체 `{번호, 인자, 위치, 호출 경로}`.
-- Go 함수의 패닉은 태스크 경계에서 recover해 E08xx 내부 에러로 바꾼다. Go 스택 추적은 절대 사용자에게 가지 않는다.
+- VM 에러는 구조체 `{번호, 인자, 위치, 호출 경로}`.
+- 내장 함수의 패닉은 태스크 경계에서 `catch_unwind`로 잡아 E08xx 내부 에러로 바꾼다. Rust 스택 추적은 절대 사용자에게 가지 않는다.
 - 런타임 에러는 태스크 전체를 되감는다 (잡는 구문 없음).
 
 ### 태스크
 
-- `Task{스택, 프레임들, context, 결과}`. `spawn`은 새 고루틴 + 새 `Task`.
-- 공유하는 것은 `Runtime{모듈 표(경로 → 모듈 값과 전역 표), 심볼 인턴 표(뮤텍스), 출력 writer}`. 전역은 모듈마다 따로 있고
+- `Task{스택, 프레임들, 취소 노드, 결과}`. `spawn`은 새 운영체제 스레드 + 새 `Task`. fung 코드는 실행권 잠금을 쥔 스레드만 돌린다(05).
+- 공유하는 것은 `World{모듈 표(경로 → 모듈 값과 전역 표), 출력 writer, 종료 핸들러·종료 코드, 교착 집계}`(실행권 아래). 전역은 모듈마다 따로 있고
   함수 값이 자기 모듈의 전역 표를 들고 다닌다 (04).
-- 취소 확인은 `CALL`·`TAIL_CALL`과 막히는 Go 함수 안에서 (원자적 플래그 하나를 읽는다).
-- 교착은 런타임이 센다 (05): 살아 있는 태스크 수 / 막힌 태스크 수 / 깨어날 것(타이머)의 수, 50ms 감시자.
-- 동시성 단위 테스트는 `go test -race`로도 돌린다.
-- 진입 코드도 별도 고루틴에서 돌고 메인 스레드는 기다린다 (05). 끝날 때: 태스크 대기 → `at_exit` → 종료 코드 규칙 (05).
+- 취소 확인은 `CALL`·`TAIL_CALL`과 막히는 곳(`vm/block.rs`의 `block`) 안에서.
+- 교착은 런타임이 센다 (05): 살아 있는 태스크 수 / 막힌 태스크 수 / 깨어날 것(타이머)의 수, 실행권 아래에서 정확히 세어 바로 판정.
+- `unsafe impl Send`는 `// SAFETY:` 근거와 디버그 단언으로 지키고, 동시성 테스트는 `sleep` 대신 상태로 순서를 정한다(`testutil`의 탐침).
+- 진입 코드도 별도 스레드에서 돌고 메인 스레드는 기다린다 (05). 끝날 때: 태스크 대기 → `at_exit` → 종료 코드 규칙 (05).
 
 ### 표준 라이브러리 내장
 
-- `.fung` 파일은 `embed.FS`로 실행 파일에 넣고 import 시 컴파일 (06).
-- Go 원시 모듈은 이름→`*Native` 표로 등록하고 `_native.*` 이름은 사용자 import 불가.
+- `.fung` 파일은 `include_str!`로 실행 파일에 넣고 import 시 컴파일 (06).
+- Rust 원시 모듈은 `boot::NATIVE_MODULES` 표로 등록하고 `_native.*` 이름은 사용자 import 불가.
 
 ## 마일스톤
 
 | 단계 | 내용 | 확인 방법 |
 |------|------|------|
-| M0 준비 | Go 모듈, `fung` 명령 뼈대, 종료 코드, 골든 테스트 실행기 | 완료 |
+| M0 준비 | 프로젝트, `fung` 명령 뼈대, 종료 코드, 골든 테스트 실행기 | 완료 |
 | M1 계산기 | 렉서(01의 글자 수준 규칙 **전부**), Pratt 식 파서, 균일 트리, desugar·resolve 통과, 컴파일러, 스택 VM, int·float·bool, 산술·비교·`not`·`and`·`or`, 오버플로·0 나누기·Inf/NaN 에러, `print`, `fung -e`, `fung run`, `fung dump ast/core/bytecode` | `fung -e 'print(1 + 2 * 3)'` → `7`. 골든 테스트 시작 — 완료 |
 | M2 변수와 흐름 | 대입, 줄 이어짐, 블록과 블록 스코프, `if`/`then`/`else`, 문자열·보간·이스케이프, 심볼, 기간, resolve 본격(스코프 규칙 전부), 에러 형식·카탈로그·번호, `fail` | 스코프 함정들이 올바른 에러 번호와 힌트를 낸다 — 완료 |
 | M3 함수 | `fn`, 호출 규약, 프레임, 클로저(값 복사), `LOAD_SELF`, `return`, 재귀, TCO, 기본값·이름 인자, 타입 표기 검사, `at_exit`, 스택 한도, 런타임 에러의 호출 경로 출력 | `count(1000000, 0)`이 돈다 — 완료 |
@@ -186,10 +193,11 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 | M6 개발 도구 | `test`/`assert`, `fung test`, `fung check`, 경고, REPL(줄 편집 직접 구현), `dbg` | `fung test examples/`가 돈다 — 완료 |
 | **알파** | M0~M6 + 실제 스크립트 2~3개 | M0~M6 완료 (2026-10-13); 실제 스크립트는 진행 중 |
 | M7 동시성 | 태스크, `spawn` `await` `cancel`(전파), 채널(`recv` 타임아웃, 닫힘 Ok/Err), `atom`, `sleep`, `fan_in`·`pmap`(fung), 종료 코드 규칙, 교착 감지 변환 | `-race` 통과, 골든 9개 — 완료 |
-| M7.5 구조 | core / native / extras 네 층(06): `internal/prelude`·`internal/native`·`extras/`, 조립은 `cmd/fung`만, 조합 함수를 fung으로 | `internal/`이 `extras/`를 import하지 않는다는 테스트 — 완료 |
-| M8 웹 | `json`, `time`(core 타입 포함), `regex`, `http` — 전부 extras(`_native.*` 다리 + 얇은 fung; `json`도 성능 때문에 Go 다리, 06). `value.Context`에 `Done`·`RunTask` 추가. 스펙 `docs/superpowers/specs/2026-10-14-m8-web-design.md` | 간단한 웹서버 (`examples/serve.fung`) — 완료 (2026-10-14, 골든 8개) |
-| M9 포맷터 | `fung fmt`: 토큰 재배치(공백·들여쓰기·빈 줄·정렬, 줄바꿈 유지), `--check`, stdin, 토큰 열 보존 안전장치. 스펙 `docs/superpowers/specs/2026-10-14-formatter-design.md` | 저장소의 모든 `.fung`이 `--check`를 통과(`tests/fmt_test.go`) — 완료 (2026-10-14) |
-| M10 영속 컬렉션 | 리스트: 영속 벡터 + 보기, 맵: 순서 벡터 + HAMT, 리스트 32개·맵 16개 이하는 평평한 표현, `List.Items` → 메서드·빌더. 의미 불변 | 맵 누적·리스트 누적·`rest`/슬라이스 재귀가 2만 개에 0.3초 이하(`tests/perf_test.go`, 실측 13~61ms), 작은 컬렉션 ±3% — 완료 (2026-10-14) |
+| M7.5 구조 | core / native / extras 네 층(06), 조합 함수를 fung으로 | 층 사이 의존 방향 테스트 — 완료 |
+| M8 웹 | `json`, `time`(core 타입 포함), `regex`, `http` — 전부 extras(`_native.*` 다리 + 얇은 fung; `json`도 성능 때문에 네이티브 다리, 06). 스펙 `docs/superpowers/specs/2026-10-14-m8-web-design.md` | 간단한 웹서버 (`examples/serve.fung`) — 완료 (2026-10-14, 골든 8개) |
+| M9 포맷터 | `fung fmt`: 토큰 재배치(공백·들여쓰기·빈 줄·정렬, 줄바꿈 유지), `--check`, stdin, 토큰 열 보존 안전장치. 스펙 `docs/superpowers/specs/2026-10-14-formatter-design.md` | 저장소의 모든 `.fung`이 `--check`를 통과(`crates/fung-cli/tests/fmt_repo.rs`) — 완료 (2026-10-14) |
+| M10 영속 컬렉션 | 리스트: 영속 벡터 + 보기, 맵: 순서 벡터 + HAMT, 리스트 32개·맵 16개 이하는 평평한 표현, 값 층 밖은 메서드·빌더만. 의미 불변 | 맵 누적·리스트 누적·`rest`/슬라이스 재귀가 2만 개에 0.3초 이하(`crates/fung-cli/tests/perf.rs`, 릴리스), 작은 컬렉션 ±3% — 완료 (2026-10-14) |
+| Rust 이식 | M0~M10을 Go로 먼저 만든 뒤 Rust로 옮겼다: 1 앞단, 2 값·VM, 3a·3b 런타임·에이전트, 4a~4d 네이티브 원시 기능, 5 도구, 6a 릴리스 준비, 6b Go 삭제. 노트 `docs/notes/R*.md` | 6b 완료 (2026-10-17). 다음은 6c(이식 잔가지 정리), 0.2.0 릴리스, R7 스케줄러 |
 | 이후 | tree-sitter, LSP(파서 복구), 패키지 관리 — 별도 세션에서 필요한 시점에 | |
 
 M1 렉서를 전부 만드는 이유: 글자 수준 규칙이 닫혀 있고, 렉서는 표 기반 단위 테스트로 한 번에 검증하기 가장 쉬운 부품이다.
@@ -204,7 +212,7 @@ M2·M4에서 렉서를 다시 열지 않는다. 파서·VM은 M1에서 숫자·�
 
 ## 테스트
 
-- 렉서·파서: Go 표 기반 단위 테스트.
+- 렉서·파서: 표 기반 단위 테스트(크레이트 안 `#[cfg(test)]`).
 - 언어 기능: `tests/lang/` 아래 골든 테스트. 기대 출력·에러를 주석으로 적는다.
 - VM 명령: `fung dump bytecode` 결과를 비교하는 골든 테스트.
 - 표준 라이브러리: M6 이후 fung `test` 블록.
@@ -220,11 +228,16 @@ print(fiels)
 # expect-error: E0204
 ```
 
-- 골든 테스트 실행기(`tests/golden_test.go`)는 `fung` 실행 파일을 한 번 빌드해 각 파일을 **서브프로세스로** 실행하고,
-  표준 출력·표준 에러·종료 코드를 비교한다. 사용자가 실제로 겪는 동작 그대로를 검사하기 위해서다.
+- 골든 테스트 실행기(`crates/fung-cli/tests/golden.rs`)는 cargo가 빌드한 `fung` 실행 파일로 각 파일을 **서브프로세스로** 실행하고,
+  표준 출력·표준 에러·종료 코드를 비교한다. 사용자가 실제로 겪는 동작 그대로를 검사하기 위해서다(`FUNG_GOLDEN_BIN`으로 다른 바이너리, CI는 musl 릴리스 바이너리).
   - `# expect: 줄`은 순서대로 기대 표준 출력 한 줄. `# expect:`만 있으면 빈 줄.
   - `# expect-error: E0204`는 파일에 하나만. 종료 코드가 1 또는 2이고 표준 에러에 `error[E0204]`가 있어야 한다.
   - 에러를 기대하지 않으면 종료 코드 0, 표준 에러는 비어 있어야 한다.
+- **기대 출력 파일** (`crates/*/tests/expected/<주제>/*.txt`): 골든 주석으로 적기 어려운 것(`dump` 세 단계, 실행 전체, `check`·`test`·`fmt`·REPL,
+  `json`·`time`·`regex`·`http`·`tls`의 사례 수백 개)은 사례마다 표준 출력·에러·종료 코드를 한 파일에 줄 단위로 적고 테스트가 비교한다.
+  각 테스트는 사례 수도 단언한다. 일부러 동작을 바꾼 뒤에는 `FUNG_EXPECTED=bless cargo test -p fung-cli --test <이름>`(fung-vm의 기대 출력은 라이브러리 단위 테스트라 이름으로 거른다: `FUNG_EXPECTED=bless cargo test -p fung-vm runs_match_the_expected_output`)으로 다시 쓰고 diff를 검토한다.
+  형식은 `crates/fung-cli/tests/common/expected.rs` 머리 주석.
+- 명세 파일 `spec/builtins.txt`·`spec/errors.txt`는 Rust 표에서 생성하고 테스트가 코드와 같은지 지킨다(`FUNG_UPDATE_SPEC=1 cargo test spec_file`로 갱신).
 
 ## 참고 자료
 

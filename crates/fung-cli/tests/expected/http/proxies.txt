@@ -1,0 +1,406 @@
+# Proxies: the `http` client against fake servers (crates/fung-cli/tests/http.rs,
+# `proxy_cases`).
+# `URL` in a program is "http://127.0.0.1:PORT0"; `PORTn` and `$PORTn` are server
+# n's port, `REFUSED` one nothing listens on. `request <s>.<n>`: the raw requests
+# server s got.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== case 00
+-- program
+| print(http.get("http://u:p@example.test/a?b#c", headers: {"cookie": "x", "x-z": "z"}))
+| print(http.post("http://example.test:8080/p", "한"))
+| print(http.get("http://[2001:db8::1]:81/"))
+| print(http.get("http://[fe80::1%25en0]:81/z"))
+| print(http.get("http://example.test/검색?q=a b"))
+\ no newline
+-- env: HTTP_PROXY=http://127.0.0.1:PORT0
+-- stdout
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://example.test/a?b HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpw\r
+| Cookie: x\r
+| X-Z: z\r
+| \r
+-- request 0.1 (escaped)
+| POST http://example.test:8080/p HTTP/1.1\r
+| Host: example.test:8080\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 3\r
+| \r
+| 한
+\ no newline
+-- request 0.2 (escaped)
+| GET http://[2001:db8::1]:81/ HTTP/1.1\r
+| Host: [2001:db8::1]:81\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| GET http://[fe80::1]:81/z HTTP/1.1\r
+| Host: [fe80::1]:81\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.4 (escaped)
+| GET http://example.test/%EA%B2%80%EC%83%89?q=a b HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 01
+-- program
+| print(http.get("http://u:p@example.test/a?b#c", headers: {"cookie": "x", "x-z": "z"}))
+| print(http.post("http://example.test:8080/p", "한"))
+| print(http.get("http://[2001:db8::1]:81/"))
+| print(http.get("http://[fe80::1%25en0]:81/z"))
+| print(http.get("http://example.test/검색?q=a b"))
+\ no newline
+-- env: HTTP_PROXY=http://pu:p%20w@127.0.0.1:PORT0
+-- stdout
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://example.test/a?b HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpw\r
+| Cookie: x\r
+| X-Z: z\r
+| Proxy-Authorization: Basic cHU6cCB3\r
+| \r
+-- request 0.1 (escaped)
+| POST http://example.test:8080/p HTTP/1.1\r
+| Host: example.test:8080\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 3\r
+| Proxy-Authorization: Basic cHU6cCB3\r
+| \r
+| 한
+\ no newline
+-- request 0.2 (escaped)
+| GET http://[2001:db8::1]:81/ HTTP/1.1\r
+| Host: [2001:db8::1]:81\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cCB3\r
+| \r
+-- request 0.3 (escaped)
+| GET http://[fe80::1]:81/z HTTP/1.1\r
+| Host: [fe80::1]:81\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cCB3\r
+| \r
+-- request 0.4 (escaped)
+| GET http://example.test/%EA%B2%80%EC%83%89?q=a b HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cCB3\r
+| \r
+==== case 02
+-- program: print(http.get("http://example.test/a"))
+-- env: http_proxy=127.0.0.1:PORT0
+-- stdout
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://example.test/a HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 03
+-- program: print(http.get("http://example.test/a"))
+-- env: HTTP_PROXY=http://127.0.0.1:PORT0/ignored?x=1
+-- stdout
+| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://example.test/a HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 04
+-- program: print(http.get("http://example.test/a"))
+-- env: HTTP_PROXY=http://127.0.0.1:REFUSED
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://example.test/a`: Get \"http://example.test/a\": proxyconnect tcp: dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== case 05
+-- program: print(http.get("http://example.test/a"))
+-- env: HTTP_PROXY=http://127.0.0.1:99999
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://example.test/a`: Get \"http://example.test/a\": proxyconnect tcp: dial tcp: address 99999: invalid port"})
+-- stderr
+-- exit: 0
+==== case 06
+-- program
+| print(http.get("http://example.test/a"))
+| print(http.get(URL + "/loopback"))
+| print(http.get("https://example.test/a"))
+\ no newline
+-- env
+| HTTP_PROXY=http://127.0.0.1:PORT1
+| HTTPS_PROXY=http://127.0.0.1:PORT1
+| REQUEST_METHOD=GET
+\ no newline
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://example.test/a`: Get \"http://example.test/a\": refusing to use HTTP_PROXY value in CGI environment; see golang.org/s/cgihttpproxy"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/loopback`: Get \"http://127.0.0.1:$PORT0/loopback\": refusing to use HTTP_PROXY value in CGI environment; see golang.org/s/cgihttpproxy"})
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": Forbidden"})
+-- stderr
+-- exit: 0
+-- request 1.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 07
+-- program
+| print(http.get("http://127.0.0.1:PORT1/a"))
+| print(http.get("http://localhost:PORT1/b"))
+| print(http.get("http://[::1]:REFUSED/c"))
+| print(http.get("http://LOCALHOST:PORT1/d"))
+\ no newline
+-- env
+| HTTP_PROXY=http://127.0.0.1:PORT0
+| NO_PROXY=
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "6"}, body: "direct"})
+| Ok({status: 200, headers: {"content-length": "6"}, body: "direct"})
+| Err({kind: 'network, message: "cannot request `http://[::1]:$REFUSED/c`: Get \"http://[::1]:$REFUSED/c\": dial tcp [::1]:$REFUSED: connect: connection refused"})
+| Ok({status: 403, headers: {"content-length": "5"}, body: "proxy"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://LOCALHOST:$PORT1/d HTTP/1.1\r
+| Host: LOCALHOST:$PORT1\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 1.0 (escaped)
+| GET /a HTTP/1.1\r
+| Host: 127.0.0.1:$PORT1\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 1.1 (escaped)
+| GET /b HTTP/1.1\r
+| Host: localhost:$PORT1\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 08
+-- program: print(http.get("http://example.test/"), http.get("https://example.test/"))
+-- env
+| HTTP_PROXY=http://127.0.0.1:PORT0
+| http_proxy=http://127.0.0.1:PORT1
+| HTTPS_PROXY=http://127.0.0.1:PORT1
+| https_proxy=http://127.0.0.1:PORT0
+\ no newline
+-- stdout
+| Ok({status: 403, headers: {"content-length": "1"}, body: "A"}) Err({kind: 'network, message: "cannot request `https://example.test/`: Get \"https://example.test/\": B"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://example.test/ HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 1.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 09
+-- program: print(http.get("http://example.test/"), http.get("https://example.test/"))
+-- env
+| HTTP_PROXY=
+| http_proxy=http://127.0.0.1:PORT1
+| https_proxy=http://127.0.0.1:PORT0
+\ no newline
+-- stdout
+| Ok({status: 403, headers: {"content-length": "1"}, body: "B"}) Err({kind: 'network, message: "cannot request `https://example.test/`: Get \"https://example.test/\": A"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 1.0 (escaped)
+| GET http://example.test/ HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 10
+-- program: print(http.get("http://example.test/"), http.get("http://other.test/"))
+-- env
+| HTTP_PROXY=http://127.0.0.1:PORT0
+| NO_PROXY=other.test:1
+| no_proxy=example.test
+\ no newline
+-- stdout
+| Ok({status: 403, headers: {"content-length": "1"}, body: "A"}) Ok({status: 403, headers: {"content-length": "1"}, body: "A"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET http://example.test/ HTTP/1.1\r
+| Host: example.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET http://other.test/ HTTP/1.1\r
+| Host: other.test\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 11
+-- program
+| print(http.get("https://example.test/a"))
+| print(http.get("https://[2001:db8::1]:8443/b"))
+| print(http.get("https://u:p@example.test:444/c"))
+\ no newline
+-- env: HTTPS_PROXY=http://pu:pp@127.0.0.1:PORT0
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": Forbidden"})
+| Err({kind: 'network, message: "cannot request `https://[2001:db8::1]:8443/b`: Get \"https://[2001:db8::1]:8443/b\": Forbidden"})
+| Err({kind: 'network, message: "cannot request `https://u:p@example.test:444/c`: Get \"https://u:***@example.test:444/c\": Forbidden"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.1 (escaped)
+| CONNECT [2001:db8::1]:8443 HTTP/1.1\r
+| Host: [2001:db8::1]:8443\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+-- request 0.2 (escaped)
+| CONNECT example.test:444 HTTP/1.1\r
+| Host: example.test:444\r
+| User-Agent: Go-http-client/1.1\r
+| Proxy-Authorization: Basic cHU6cHA=\r
+| \r
+==== case 12
+-- program
+| print(http.get("https://example.test/a"))
+| print(http.get("https://example.test/b"))
+| print(http.get("https://example.test/c"))
+| print(http.get("https://example.test/d"))
+| print(http.get("https://example.test/e"))
+| print(http.get("https://example.test/f"))
+| print(http.get("https://example.test/g", timeout: 300ms))
+\ no newline
+-- env: HTTPS_PROXY=127.0.0.1:PORT0
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": unknown status code"})
+| Err({kind: 'network, message: "cannot request `https://example.test/b`: Get \"https://example.test/b\": unknown status code"})
+| Err({kind: 'network, message: "cannot request `https://example.test/c`: Get \"https://example.test/c\": unknown status code"})
+| Err({kind: 'network, message: "cannot request `https://example.test/d`: Get \"https://example.test/d\": unknown status code"})
+| Err({kind: 'network, message: "cannot request `https://example.test/e`: Get \"https://example.test/e\": unknown status code"})
+| Err({kind: 'network, message: "cannot request `https://example.test/f`: Get \"https://example.test/f\": unknown status code"})
+| Err({kind: 'network, message: "cannot request `https://example.test/g`: Get \"https://example.test/g\": unknown status code"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.2 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.3 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.4 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.5 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.6 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 13
+-- program: print(http.get("https://example.test/a"))
+-- env: HTTPS_PROXY=127.0.0.1:PORT0
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": malformed HTTP response \"garbage\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 14
+-- program: print(http.get("https://example.test/a"))
+-- env: HTTPS_PROXY=127.0.0.1:PORT0
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": malformed MIME header: missing colon: \"Bad header\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 15
+-- program: print(http.get("https://example.test/a"))
+-- env: HTTPS_PROXY=127.0.0.1:PORT0
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": Bad Gateway"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 16
+-- program: print(http.get("https://example.test/a", timeout: 300ms))
+-- env: HTTPS_PROXY=127.0.0.1:PORT0
+-- stdout
+| Err({kind: 'timeout, message: "request to `https://example.test/a` timed out"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| CONNECT example.test:443 HTTP/1.1\r
+| Host: example.test:443\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== case 17
+-- program: print(http.get("https://example.test/a"))
+-- env: HTTPS_PROXY=http://127.0.0.1:REFUSED
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://example.test/a`: Get \"https://example.test/a\": proxyconnect tcp: dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0

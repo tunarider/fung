@@ -1,0 +1,4268 @@
+# `fung fmt -` and `fung fmt --check -`; a `format case` keeps its input as `stdin` (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== format case "a+b*c"
+-- stdin: a+b*c
+-- stdout
+| a + b * c
+-- stderr
+-- exit: 0
+==== format case "x=1"
+-- stdin: x=1
+-- stdout
+| x = 1
+-- stderr
+-- exit: 0
+==== format case "f( a,b )"
+-- stdin: f( a,b )
+-- stdout
+| f(a, b)
+-- stderr
+-- exit: 0
+==== format case "xs [ 0 ]"
+-- stdin: xs [ 0 ]
+-- stdout
+| xs[0]
+-- stderr
+-- exit: 0
+==== format case "m [ \"k\" ]"
+-- stdin: m [ "k" ]
+-- stdout
+| m["k"]
+-- stderr
+-- exit: 0
+==== format case "f(x)(y)"
+-- stdin: f(x)(y)
+-- stdout
+| f(x)(y)
+-- stderr
+-- exit: 0
+==== format case "{ a : 1 , b:2 }"
+-- stdin: { a : 1 , b:2 }
+-- stdout
+| {a: 1, b: 2}
+-- stderr
+-- exit: 0
+==== format case "{a, b}"
+-- stdin: {a, b}
+-- stdout
+| {a, b}
+-- stderr
+-- exit: 0
+==== format case "[ 1,2 ]"
+-- stdin: [ 1,2 ]
+-- stdout
+| [1, 2]
+-- stderr
+-- exit: 0
+==== format case "( 1, )"
+-- stdin: ( 1, )
+-- stdout
+| (1,)
+-- stderr
+-- exit: 0
+==== format case "()"
+-- stdin: ()
+-- stdout
+| ()
+-- stderr
+-- exit: 0
+==== format case "m . a . b"
+-- stdin: m . a . b
+-- stdout
+| m.a.b
+-- stderr
+-- exit: 0
+==== format case "0 .. n"
+-- stdin: 0 .. n
+-- stdout
+| 0..n
+-- stderr
+-- exit: 0
+==== format case "0..=10"
+-- stdin: 0..=10
+-- stdout
+| 0..=10
+-- stderr
+-- exit: 0
+==== format case "[ a, ... rest ] = xs"
+-- stdin: [ a, ... rest ] = xs
+-- stdout
+| [a, ...rest] = xs
+-- stderr
+-- exit: 0
+==== format case "x=>x+1"
+-- stdin: x=>x+1
+-- stdout
+| x => x + 1
+-- stderr
+-- exit: 0
+==== format case "(a,b)=>a"
+-- stdin: (a,b)=>a
+-- stdout
+| (a, b) => a
+-- stderr
+-- exit: 0
+==== format case "()=>work()"
+-- stdin: ()=>work()
+-- stdout
+| () => work()
+-- stderr
+-- exit: 0
+==== format case "fs.read(p) !"
+-- stdin: fs.read(p) !
+-- stdout
+| fs.read(p)!
+-- stderr
+-- exit: 0
+==== format case "parse(s) ?"
+-- stdin: parse(s) ?
+-- stdout
+| parse(s)?
+-- stderr
+-- exit: 0
+==== format case "x ?? y"
+-- stdin: x ?? y
+-- stdout
+| x ?? y
+-- stderr
+-- exit: 0
+==== format case "xs|>map(f)|>sum"
+-- stdin: xs|>map(f)|>sum
+-- stdout
+| xs |> map(f) |> sum
+-- stderr
+-- exit: 0
+==== format case "- x"
+-- stdin: - x
+-- stdout
+| -x
+-- stderr
+-- exit: 0
+==== format case "a - b"
+-- stdin: a - b
+-- stdout
+| a - b
+-- stderr
+-- exit: 0
+==== format case "a - -b"
+-- stdin: a - -b
+-- stdout
+| a - -b
+-- stderr
+-- exit: 0
+==== format case "f(-1, - 2)"
+-- stdin: f(-1, - 2)
+-- stdout
+| f(-1, -2)
+-- stderr
+-- exit: 0
+==== format case "x = - 5s"
+-- stdin: x = - 5s
+-- stdout
+| x = -5s
+-- stderr
+-- exit: 0
+==== format case "return - 1"
+-- stdin: return - 1
+-- stdout
+| return -1
+-- stderr
+-- exit: 0
+==== format case "not  x"
+-- stdin: not  x
+-- stdout
+| not x
+-- stderr
+-- exit: 0
+==== format case "if(a==b): 1 ;;"
+-- stdin: if(a==b): 1 ;;
+-- stdout
+| if (a == b): 1 ;;
+-- stderr
+-- exit: 0
+==== format case "fn add(a,b)=a+b"
+-- stdin: fn add(a,b)=a+b
+-- stdout
+| fn add(a, b) = a + b
+-- stderr
+-- exit: 0
+==== format case "fn f(x:int)->bool=true"
+-- stdin: fn f(x:int)->bool=true
+-- stdout
+| fn f(x: int) -> bool = true
+-- stderr
+-- exit: 0
+==== format case "fn ( x ) : x ;;"
+-- stdin: fn ( x ) : x ;;
+-- stdout
+| fn(x): x ;;
+-- stderr
+-- exit: 0
+==== format case "each(xs, fn(x): x ;;)"
+-- stdin: each(xs, fn(x): x ;;)
+-- stdout
+| each(xs, fn(x): x ;;)
+-- stderr
+-- exit: 0
+==== format case "exec(cmd, cwd : d)"
+-- stdin: exec(cmd, cwd : d)
+-- stdout
+| exec(cmd, cwd: d)
+-- stderr
+-- exit: 0
+==== format case "match x: 0=>1;_=>2;;"
+-- stdin: match x: 0=>1;_=>2;;
+-- stdout
+| match x: 0 => 1; _ => 2 ;;
+-- stderr
+-- exit: 0
+==== format case "match v: 1|2 => 'a ;;"
+-- stdin: match v: 1|2 => 'a ;;
+-- stdout
+| match v: 1 | 2 => 'a ;;
+-- stderr
+-- exit: 0
+==== format case "Ok( x )"
+-- stdin: Ok( x )
+-- stdout
+| Ok(x)
+-- stderr
+-- exit: 0
+==== format case "c then a else b"
+-- stdin: c then a else b
+-- stdout
+| c then a else b
+-- stderr
+-- exit: 0
+==== format case "x in [1, 2]"
+-- stdin: x in [1, 2]
+-- stdout
+| x in [1, 2]
+-- stderr
+-- exit: 0
+==== format case "\"a ${ x+1 } b\""
+-- stdin: "a ${ x+1 } b"
+-- stdout
+| "a ${ x+1 } b"
+-- stderr
+-- exit: 0
+==== format case "`raw  text`"
+-- stdin: `raw  text`
+-- stdout
+| `raw  text`
+-- stderr
+-- exit: 0
+==== format case "1_000 + 0xff + 2 ** 10"
+-- stdin: 1_000 + 0xff + 2 ** 10
+-- stdout
+| 1_000 + 0xff + 2 ** 10
+-- stderr
+-- exit: 0
+==== format case "a;b"
+-- stdin: a;b
+-- stdout
+| a; b
+-- stderr
+-- exit: 0
+==== format case "fn f(): a ;;"
+-- stdin: fn f(): a ;;
+-- stdout
+| fn f(): a ;;
+-- stderr
+-- exit: 0
+==== format case "x   \n"
+-- stdin
+| x   
+-- stdout
+| x
+-- stderr
+-- exit: 0
+==== format case ""
+-- stdin
+-- stdout
+-- stderr
+-- exit: 0
+==== format case "fn f(x):\nx + 1\n;;\n"
+-- stdin
+| fn f(x):
+| x + 1
+| ;;
+-- stdout
+| fn f(x):
+|   x + 1
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(x):\n    if x:\n  1\n  ;;\n;;\n"
+-- stdin
+| fn f(x):
+|     if x:
+|   1
+|   ;;
+| ;;
+-- stdout
+| fn f(x):
+|   if x:
+|     1
+|   ;;
+| ;;
+-- stderr
+-- exit: 0
+==== format case "if c:\na\nelse:\nb\n;;\n"
+-- stdin
+| if c:
+| a
+| else:
+| b
+| ;;
+-- stdout
+| if c:
+|   a
+| else:
+|   b
+| ;;
+-- stderr
+-- exit: 0
+==== format case "if c:\na\nelse if d:\nb\nelse:\nc\n;;\n"
+-- stdin
+| if c:
+| a
+| else if d:
+| b
+| else:
+| c
+| ;;
+-- stdout
+| if c:
+|   a
+| else if d:
+|   b
+| else:
+|   c
+| ;;
+-- stderr
+-- exit: 0
+==== format case "test \"t\":\nassert true\n;;\n"
+-- stdin
+| test "t":
+| assert true
+| ;;
+-- stdout
+| test "t":
+|   assert true
+| ;;
+-- stderr
+-- exit: 0
+==== format case "for x in xs:\nprint(x)\n;;\n"
+-- stdin
+| for x in xs:
+| print(x)
+| ;;
+-- stdout
+| for x in xs:
+|   print(x)
+| ;;
+-- stderr
+-- exit: 0
+==== format case "x = c then a\nelse b\n"
+-- stdin
+| x = c then a
+| else b
+-- stdout
+| x = c then a
+|   else b
+-- stderr
+-- exit: 0
+==== format case "if c:\n  x = d then 1\n  else 2\nelse:\n  3\n;;\n"
+-- stdin
+| if c:
+|   x = d then 1
+|   else 2
+| else:
+|   3
+| ;;
+-- stdout
+| if c:
+|   x = d then 1
+|     else 2
+| else:
+|   3
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match v:\nOk(x) =>\nx\nErr(e) => 0\n;;\n"
+-- stdin
+| match v:
+| Ok(x) =>
+| x
+| Err(e) => 0
+| ;;
+-- stdout
+| match v:
+|   Ok(x)  =>
+|     x
+|   Err(e) => 0
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match v:\n  Ok(x) => f(y => y)\n;;\n"
+-- stdin
+| match v:
+|   Ok(x) => f(y => y)
+| ;;
+-- stdout
+| match v:
+|   Ok(x) => f(y => y)
+| ;;
+-- stderr
+-- exit: 0
+==== format case "f(a,\nb,\nc)\n"
+-- stdin
+| f(a,
+| b,
+| c)
+-- stdout
+| f(a,
+|   b,
+|   c)
+-- stderr
+-- exit: 0
+==== format case "xs = [\n1,\n2,\n]\n"
+-- stdin
+| xs = [
+| 1,
+| 2,
+| ]
+-- stdout
+| xs = [
+|   1,
+|   2,
+| ]
+-- stderr
+-- exit: 0
+==== format case "m = {\na: 1,\n}\n"
+-- stdin
+| m = {
+| a: 1,
+| }
+-- stdout
+| m = {
+|   a: 1,
+| }
+-- stderr
+-- exit: 0
+==== format case "each(xs, fn(x):\nprint(x)\n;;)\n"
+-- stdin
+| each(xs, fn(x):
+| print(x)
+| ;;)
+-- stdout
+| each(xs, fn(x):
+|   print(x)
+| ;;)
+-- stderr
+-- exit: 0
+==== format case "fn g():\neach(xs, fn(x):\nprint(x)\n;;)\n;;\n"
+-- stdin
+| fn g():
+| each(xs, fn(x):
+| print(x)
+| ;;)
+| ;;
+-- stdout
+| fn g():
+|   each(xs, fn(x):
+|     print(x)
+|   ;;)
+| ;;
+-- stderr
+-- exit: 0
+==== format case "xs\n|> map(f)\n|> sum\n"
+-- stdin
+| xs
+| |> map(f)
+| |> sum
+-- stdout
+| xs
+|   |> map(f)
+|   |> sum
+-- stderr
+-- exit: 0
+==== format case "a = b\n.c\n.d\n"
+-- stdin
+| a = b
+| .c
+| .d
+-- stdout
+| a = b
+|   .c
+|   .d
+-- stderr
+-- exit: 0
+==== format case "x = a\nand b\nor c\n"
+-- stdin
+| x = a
+| and b
+| or c
+-- stdout
+| x = a
+|   and b
+|   or c
+-- stderr
+-- exit: 0
+==== format case "v = f(x) ?? 1\n"
+-- stdin
+| v = f(x) ?? 1
+-- stdout
+| v = f(x) ?? 1
+-- stderr
+-- exit: 0
+==== format case "fn f():\n  xs\n  |> sum\n;;\n"
+-- stdin
+| fn f():
+|   xs
+|   |> sum
+| ;;
+-- stdout
+| fn f():
+|   xs
+|     |> sum
+| ;;
+-- stderr
+-- exit: 0
+==== format case "m = {a: 1}\nx = 2\n"
+-- stdin
+| m = {a: 1}
+| x = 2
+-- stdout
+| m = {a: 1}
+| x = 2
+-- stderr
+-- exit: 0
+==== format case "fn f(x: int) -> int = x\ny = 1\n"
+-- stdin
+| fn f(x: int) -> int = x
+| y = 1
+-- stdout
+| fn f(x: int) -> int = x
+| y = 1
+-- stderr
+-- exit: 0
+==== format case "fn f(a) = if a: 1 else: 2 ;;\nmatch x:\n0 => 1\n;;\n"
+-- stdin
+| fn f(a) = if a: 1 else: 2 ;;
+| match x:
+| 0 => 1
+| ;;
+-- stdout
+| fn f(a) = if a: 1 else: 2 ;;
+| match x:
+|   0 => 1
+| ;;
+-- stderr
+-- exit: 0
+==== format case "s = `a\n  b`\nx = 1\n"
+-- stdin
+| s = `a
+|   b`
+| x = 1
+-- stdout
+| s = `a
+|   b`
+| x = 1
+-- stderr
+-- exit: 0
+==== format case "match x: 0 => 1; _ => 2 ;;\n"
+-- stdin
+| match x: 0 => 1; _ => 2 ;;
+-- stdout
+| match x: 0 => 1; _ => 2 ;;
+-- stderr
+-- exit: 0
+==== format case "if c: a else: b ;;\n"
+-- stdin
+| if c: a else: b ;;
+-- stdout
+| if c: a else: b ;;
+-- stderr
+-- exit: 0
+==== format case "\n\nx = 1\n\n\n\ny = 2\n\n"
+-- stdin
+|
+|
+| x = 1
+|
+|
+|
+| y = 2
+|
+-- stdout
+| x = 1
+|
+| y = 2
+-- stderr
+-- exit: 0
+==== format case "fn f():\n\n  x\n\n;;\n"
+-- stdin
+| fn f():
+|
+|   x
+|
+| ;;
+-- stdout
+| fn f():
+|   x
+| ;;
+-- stderr
+-- exit: 0
+==== format case "#!/usr/bin/env fung\n# about\nx = 1\n"
+-- stdin
+| #!/usr/bin/env fung
+| # about
+| x = 1
+-- stdout
+| #!/usr/bin/env fung
+| # about
+| x = 1
+-- stderr
+-- exit: 0
+==== format case "x = 1 # one\n"
+-- stdin
+| x = 1 # one
+-- stdout
+| x = 1  # one
+-- stderr
+-- exit: 0
+==== format case "x = 1    # one\nlong_name = 2 # two\n"
+-- stdin
+| x = 1    # one
+| long_name = 2 # two
+-- stdout
+| x = 1          # one
+| long_name = 2  # two
+-- stderr
+-- exit: 0
+==== format case "x = 1 # one\ny = 2\nlong = 3 # three\n"
+-- stdin
+| x = 1 # one
+| y = 2
+| long = 3 # three
+-- stdout
+| x = 1  # one
+| y = 2
+| long = 3  # three
+-- stderr
+-- exit: 0
+==== format case "fn f():\n# inside\nx\n# before end\n;;\n# after\n"
+-- stdin
+| fn f():
+| # inside
+| x
+| # before end
+| ;;
+| # after
+-- stdout
+| fn f():
+|   # inside
+|   x
+|   # before end
+| ;;
+| # after
+-- stderr
+-- exit: 0
+==== format case "match v:\nOk(x) => 1\nErr(e) => 2\n;;\n"
+-- stdin
+| match v:
+| Ok(x) => 1
+| Err(e) => 2
+| ;;
+-- stdout
+| match v:
+|   Ok(x)  => 1
+|   Err(e) => 2
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match v:\nOk(text) =>\nlen(text)\nErr(e)   => 0\n;;\n"
+-- stdin
+| match v:
+| Ok(text) =>
+| len(text)
+| Err(e)   => 0
+| ;;
+-- stdout
+| match v:
+|   Ok(text) =>
+|     len(text)
+|   Err(e)   => 0
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match v:\n  0 => a\n\n  _ => other\n;;\n"
+-- stdin
+| match v:
+|   0 => a
+|
+|   _ => other
+| ;;
+-- stdout
+| match v:
+|   0 => a
+|
+|   _ => other
+| ;;
+-- stderr
+-- exit: 0
+==== format case "# only a comment"
+-- stdin: # only a comment
+-- stdout
+| # only a comment
+-- stderr
+-- exit: 0
+==== format case "print(1)\n# expect: 1\nprint(2)\n# expect: 2\n"
+-- stdin
+| print(1)
+| # expect: 1
+| print(2)
+| # expect: 2
+-- stdout
+| print(1)
+| # expect: 1
+| print(2)
+| # expect: 2
+-- stderr
+-- exit: 0
+==== format case "f(a, # first\n  b) # second\n"
+-- stdin
+| f(a, # first
+|   b) # second
+-- stdout
+| f(a,  # first
+|   b)  # second
+-- stderr
+-- exit: 0
+==== format case "import \"./x\" (a, b)\n"
+-- stdin
+| import "./x" (a, b)
+-- stdout
+| import "./x" (a, b)
+-- stderr
+-- exit: 0
+==== format case "import fs (read)\n"
+-- stdin
+| import fs (read)
+-- stdout
+| import fs (read)
+-- stderr
+-- exit: 0
+==== format case "import fs(read)\n"
+-- stdin
+| import fs(read)
+-- stdout
+| import fs (read)
+-- stderr
+-- exit: 0
+==== format case "fn f(x) =\nx + 1\n"
+-- stdin
+| fn f(x) =
+| x + 1
+-- stdout
+| fn f(x) =
+|   x + 1
+-- stderr
+-- exit: 0
+==== format case "fn f(x) =\n  x + 1\ny = 2\n"
+-- stdin
+| fn f(x) =
+|   x + 1
+| y = 2
+-- stdout
+| fn f(x) =
+|   x + 1
+| y = 2
+-- stderr
+-- exit: 0
+==== format case "total = a +\nb\n"
+-- stdin
+| total = a +
+| b
+-- stdout
+| total = a +
+|   b
+-- stderr
+-- exit: 0
+==== format case "xs |> map(x =>\nx + 1)\n"
+-- stdin
+| xs |> map(x =>
+| x + 1)
+-- stdout
+| xs |> map(x =>
+|   x + 1)
+-- stderr
+-- exit: 0
+==== format case "fn g():\n  v = f(x) ??\n  d\n  v\n;;\n"
+-- stdin
+| fn g():
+|   v = f(x) ??
+|   d
+|   v
+| ;;
+-- stdout
+| fn g():
+|   v = f(x) ??
+|     d
+|   v
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match v:\n  Ok(t) =>\n    t\n;;\n"
+-- stdin
+| match v:
+|   Ok(t) =>
+|     t
+| ;;
+-- stdout
+| match v:
+|   Ok(t) =>
+|     t
+| ;;
+-- stderr
+-- exit: 0
+==== format case "x = f(`a\nb`)\n"
+-- stdin
+| x = f(`a
+| b`)
+-- stdout
+| x = f(`a
+| b`)
+-- stderr
+-- exit: 0
+==== format case "x = `a\nb` + \"c\"\n"
+-- stdin
+| x = `a
+| b` + "c"
+-- stdout
+| x = `a
+| b` + "c"
+-- stderr
+-- exit: 0
+==== format case "x = `a\nb` # note\n"
+-- stdin
+| x = `a
+| b` # note
+-- stdout
+| x = `a
+| b`  # note
+-- stderr
+-- exit: 0
+==== format case "xs = [`a\nb`,\n  `c`]\n"
+-- stdin
+| xs = [`a
+| b`,
+|   `c`]
+-- stdout
+| xs = [`a
+| b`,
+|   `c`]
+-- stderr
+-- exit: 0
+==== format case "match a:\n  Some(v) =>\n    y = 2\n    g = x => x + v\n    g(y)\n  _ => 0\n;;\n"
+-- stdin
+| match a:
+|   Some(v) =>
+|     y = 2
+|     g = x => x + v
+|     g(y)
+|   _ => 0
+| ;;
+-- stdout
+| match a:
+|   Some(v) =>
+|     y = 2
+|     g = x => x + v
+|     g(y)
+|   _       => 0
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match a:\n  Some(v) =>\n    return x => x\n  _ => 0\n;;\n"
+-- stdin
+| match a:
+|   Some(v) =>
+|     return x => x
+|   _ => 0
+| ;;
+-- stdout
+| match a:
+|   Some(v) =>
+|     return x => x
+|   _       => 0
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match a:\n  Some(x) =>\n    match x:\n      1 => 2\n      100 => 3\n    ;;\n  _ => 0\n;;\n"
+-- stdin
+| match a:
+|   Some(x) =>
+|     match x:
+|       1 => 2
+|       100 => 3
+|     ;;
+|   _ => 0
+| ;;
+-- stdout
+| match a:
+|   Some(x) =>
+|     match x:
+|       1   => 2
+|       100 => 3
+|     ;;
+|   _       => 0
+| ;;
+-- stderr
+-- exit: 0
+==== format case "match a:\n  Some(x) => each(xs, fn(y):\n    y\n  ;;)\n  _ => 0\n;;\n"
+-- stdin
+| match a:
+|   Some(x) => each(xs, fn(y):
+|     y
+|   ;;)
+|   _ => 0
+| ;;
+-- stdout
+| match a:
+|   Some(x) => each(xs, fn(y):
+|     y
+|   ;;)
+|   _       => 0
+| ;;
+-- stderr
+-- exit: 0
+==== format case "x = m.type - 1\n"
+-- stdin
+| x = m.type - 1
+-- stdout
+| x = m.type - 1
+-- stderr
+-- exit: 0
+==== format case "x = {type: - 1}\n"
+-- stdin
+| x = {type: - 1}
+-- stdout
+| x = {type: -1}
+-- stderr
+-- exit: 0
+==== format case "x = 1 # c   \n"
+-- stdin
+| x = 1 # c   
+-- stdout
+| x = 1  # c
+-- stderr
+-- exit: 0
+==== format case "# top   \n"
+-- stdin
+| # top   
+-- stdout
+| # top
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;\n"
+-- stdin
+| fn f(h: fn, x = 1):
+|   y = x
+|   h(y)
+| ;;
+-- stdout
+| fn f(h: fn, x = 1):
+|   y = x
+|   h(y)
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn):\nh()\n;;\n"
+-- stdin
+| fn f(h: fn):
+| h()
+| ;;
+-- stdout
+| fn f(h: fn):
+|   h()
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(a: fn, b: fn, c: str):\na(b(c))\n;;\n"
+-- stdin
+| fn f(a: fn, b: fn, c: str):
+| a(b(c))
+| ;;
+-- stdout
+| fn f(a: fn, b: fn, c: str):
+|   a(b(c))
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn = print):\nh(1)\n;;\n"
+-- stdin
+| fn f(h: fn = print):
+| h(1)
+| ;;
+-- stdout
+| fn f(h: fn = print):
+|   h(1)
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn, xs):\nfor x in xs:\nh(x)\n;;\n;;\n"
+-- stdin
+| fn f(h: fn, xs):
+| for x in xs:
+| h(x)
+| ;;
+| ;;
+-- stdout
+| fn f(h: fn, xs):
+|   for x in xs:
+|     h(x)
+|   ;;
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn):\nif h:\n1\nelse:\n2\n;;\n;;\nx=1\n"
+-- stdin
+| fn f(h: fn):
+| if h:
+| 1
+| else:
+| 2
+| ;;
+| ;;
+| x=1
+-- stdout
+| fn f(h: fn):
+|   if h:
+|     1
+|   else:
+|     2
+|   ;;
+| ;;
+| x = 1
+-- stderr
+-- exit: 0
+==== format case "fn g(h: fn):\neach(xs, fn(x):\nh(x)\n;;)\n;;\n"
+-- stdin
+| fn g(h: fn):
+| each(xs, fn(x):
+| h(x)
+| ;;)
+| ;;
+-- stdout
+| fn g(h: fn):
+|   each(xs, fn(x):
+|     h(x)
+|   ;;)
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn, x: int) = h(x)\ny = 1\n"
+-- stdin
+| fn f(h: fn, x: int) = h(x)
+| y = 1
+-- stdout
+| fn f(h: fn, x: int) = h(x)
+| y = 1
+-- stderr
+-- exit: 0
+==== format case "fn f() -> fn:\nprint\n;;\n"
+-- stdin
+| fn f() -> fn:
+| print
+| ;;
+-- stdout
+| fn f() -> fn:
+|   print
+| ;;
+-- stderr
+-- exit: 0
+==== format case "fn f(h: fn | nil, g: list[fn]):\nh\n;;\n"
+-- stdin
+| fn f(h: fn | nil, g: list[fn]):
+| h
+| ;;
+-- stdout
+| fn f(h: fn | nil, g: list[fn]):
+|   h
+| ;;
+-- stderr
+-- exit: 0
+==== format case "apply(fn(x): x ;;, fn(y):\ny\n;;)\nz = 1\n"
+-- stdin
+| apply(fn(x): x ;;, fn(y):
+| y
+| ;;)
+| z = 1
+-- stdout
+| apply(fn(x): x ;;, fn(y):
+|   y
+| ;;)
+| z = 1
+-- stderr
+-- exit: 0
+==== format case "fn g():\nh = fn(x: fn):\nx()\n;;\nh\n;;\n"
+-- stdin
+| fn g():
+| h = fn(x: fn):
+| x()
+| ;;
+| h
+| ;;
+-- stdout
+| fn g():
+|   h = fn(x: fn):
+|     x()
+|   ;;
+|   h
+| ;;
+-- stderr
+-- exit: 0
+==== format case "\u{feff}x=1\n"
+-- stdin
+| ﻿x=1
+-- stdout
+| x = 1
+-- stderr
+-- exit: 0
+==== format case "\u{feff}fn f():\nx\n;;\n"
+-- stdin
+| ﻿fn f():
+| x
+| ;;
+-- stdout
+| fn f():
+|   x
+| ;;
+-- stderr
+-- exit: 0
+==== format case "\u{feff}# only a comment\n"
+-- stdin
+| ﻿# only a comment
+-- stdout
+| # only a comment
+-- stderr
+-- exit: 0
+==== format case "\u{feff}"
+-- stdin: ﻿
+-- stdout
+-- stderr
+-- exit: 0
+==== format case "\u{feff}\n\nx = 1 # c   \n\n"
+-- stdin
+| ﻿
+|
+| x = 1 # c   
+|
+-- stdout
+| x = 1  # c
+-- stderr
+-- exit: 0
+==== "f(\n"
+-- stdout
+-- stderr
+| error[E0110]: unexpected end of file
+|   --> <stdin>:2:1
+|   |
+| 2 | 
+|   | ^
+|   |
+-- exit: 2
+==== "\"open"
+-- stdout
+-- stderr
+| error[E0104]: unterminated string
+|   --> <stdin>:1:1
+|   |
+| 1 | "open
+|   | ^
+|   |
+-- exit: 2
+==== ""
+-- stdout
+-- stderr
+-- exit: 0
+==== "\n\n\n"
+-- stdout
+-- stderr
+-- exit: 0
+==== "x = \"a�b\" # c�\nlong = 1 # d\n"
+-- stdout (escaped)
+| x = "a\xffb"  # c\xfe
+| long = 1   # d
+-- stderr
+-- exit: 0
+==== "match v:\n\"�\" => 1\n\"ab\" => 2\n;;\n"
+-- stdout (escaped)
+| match v:
+|   "\xff"  => 1
+|   "ab" => 2
+| ;;
+-- stderr
+-- exit: 0
+==== "�"
+-- stdout
+-- stderr
+| error[E0101]: unexpected character "�"
+|   --> <stdin>:1:1
+|   |
+| 1 | �
+|   | ^
+|   |
+-- exit: 2
+==== "x = 1 # �\n"
+-- stdout (escaped)
+| x = 1  # \xe2\x82
+-- stderr
+-- exit: 0
+==== "\u{feff}x = 1\n"
+-- stdout
+| x = 1
+-- stderr
+-- exit: 0
+==== "\u{feff}# only a comment\n"
+-- stdout
+| # only a comment
+-- stderr
+-- exit: 0
+==== "\u{feff}"
+-- stdout
+-- stderr
+-- exit: 0
+==== "\u{feff}\u{feff}x\n"
+-- stdout
+-- stderr
+| error[E0101]: unexpected character "\ufeff"
+|   --> <stdin>:1:1
+|   |
+| 1 | ﻿﻿x
+|   | ^
+|   |
+-- exit: 2
+==== "\u{feff}x = )\n"
+-- stdout
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> <stdin>:1:5
+|   |
+| 1 | ﻿x = )
+|   |     ^
+|   |
+-- exit: 2
+==== "x = 1\r\ny = 2\r\n"
+-- stdout
+| x = 1
+| y = 2
+-- stderr
+-- exit: 0
+==== "x = 1\ry = 2\n"
+-- stdout
+-- stderr (escaped)
+| error[E0110]: unexpected name `y`
+|   --> <stdin>:1:7
+|   |
+| 1 | x = 1\ry = 2
+|   |       ^
+|   |
+-- exit: 2
+==== "s = `a\r\nb`\n"
+-- stdout (escaped)
+| s = `a\r
+| b`
+-- stderr
+-- exit: 0
+==== "x = 1   \t\n\t\ty = 2\n"
+-- stdout
+| x = 1
+| y = 2
+-- stderr
+-- exit: 0
+==== "fn f():\n  x\n"
+-- stdout
+-- stderr
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> <stdin>:3:1
+|   |
+| 3 | 
+|   | ^
+|   |
+-- exit: 2
+==== ";;\n"
+-- stdout
+-- stderr
+| error[E0110]: unexpected `;;`
+|   --> <stdin>:1:1
+|   |
+| 1 | ;;
+|   | ^
+|   |
+-- exit: 2
+==== "x = [1,\n"
+-- stdout
+-- stderr
+| error[E0110]: unexpected end of file
+|   --> <stdin>:2:1
+|   |
+| 2 | 
+|   | ^
+|   |
+-- exit: 2
+==== "\tmatch v:\n\t\t1 => 2\n\t;;\n"
+-- stdout
+| match v:
+|   1 => 2
+| ;;
+-- stderr
+-- exit: 0
+==== manual builtins:1
+-- stdout
+| print("total:", 3, [1, 2], 'ok)
+-- stderr
+-- exit: 0
+==== manual builtins:2
+-- stdout
+| print(type_of(1.5), type_of(Ok(1)), type_of('x))
+-- stderr
+-- exit: 0
+==== manual builtins:3
+-- stdout
+| print(int("42") + 1, int(-3.9))
+-- stderr
+-- exit: 0
+==== manual builtins:4
+-- stdout
+| print(parse_int("1_000"), parse_int("x"))
+-- stderr
+-- exit: 0
+==== manual builtins:5
+-- stdout
+| print(parse_dur("90s")!, parse_dur("soon"))
+-- stderr
+-- exit: 0
+==== manual builtins:6
+-- stdout
+| print(len("참치"), len([1, 2]), len(0..10))
+-- stderr
+-- exit: 0
+==== manual builtins:7
+-- stdout
+| print([1, 2, 3] |> map(x => x * 10))
+-- stderr
+-- exit: 0
+==== manual builtins:8
+-- stdout
+| print(fold([1, 2, 3], 0, (acc, x) => acc + x))
+-- stderr
+-- exit: 0
+==== manual builtins:9
+-- stdout
+| print(["bb", "a", "ccc"] |> sort_by(len))
+-- stderr
+-- exit: 0
+==== manual builtins:10
+-- stdout
+| print(group_by(["ab", "c", "de"], s => str(len(s))))
+-- stderr
+-- exit: 0
+==== manual builtins:11
+-- stdout
+| print(get({a: 1}, "b", 0))
+-- stderr
+-- exit: 0
+==== manual builtins:12
+-- stdout
+| print(split("a,,b", ","))
+-- stderr
+-- exit: 0
+==== manual builtins:13
+-- stdout
+| print(lines("a\nb\n"))
+-- stderr
+-- exit: 0
+==== manual builtins:14
+-- stdout
+| print(trim("  x "), trim("--x--", "-"))
+-- stderr
+-- exit: 0
+==== manual builtins:15
+-- stdout
+| print(pad_left("7", 3, "0"), "[" + pad_right("ab", 4) + "]")
+-- stderr
+-- exit: 0
+==== manual builtins:16
+-- stdout
+| print(until(1, x => x * 2, x => x > 100))
+-- stderr
+-- exit: 0
+==== manual builtins:17
+-- stdout
+| r = exec(["echo", "hi"])!
+| print(trim(r.out))
+-- stderr
+-- exit: 0
+==== manual builtins:18
+-- stdout
+| port = env("PORT") ?? "8080"
+| print(port)
+-- stderr
+-- exit: 0
+==== manual builtins:19
+-- stdout
+| t = spawn(() => 6 * 7)
+| print(await(t))
+-- stderr
+-- exit: 0
+==== manual builtins:20
+-- stdout
+| ch = channel(1)
+| send(ch, "hi")
+| print(recv(ch)!)
+-- stderr
+-- exit: 0
+==== manual builtins:21
+-- stdout
+| hits = agent(0)
+| each(1..=3, _ => swap(hits, n => n + 1))
+| print(deref(hits))
+-- stderr
+-- exit: 0
+==== manual builtins:22
+-- stdout
+| import cli
+| opts = cli.parse(["--dry-run", "--n", "3", "a.txt"], bools: ["dry-run"])
+| print(opts.flags.dry_run, int(opts.flags.n), opts.rest)
+-- stderr
+-- exit: 0
+==== manual builtins:23
+-- stdout
+| import json
+| data = json.parse(`{"name": "fung", "tags": ["a"], "n": 3}`)!
+| print(data.name, data.tags, data.n + 1)
+-- stderr
+-- exit: 0
+==== manual builtins:24
+-- stdout
+| import json
+| print(json.stringify({ok: true, ids: (1, 2), at: 'now}))
+-- stderr
+-- exit: 0
+==== manual builtins:25
+-- stdout
+| import time
+| t = time.parse("2026-10-04 09:05", "YYYY-MM-DD HH:mm")!
+| print(time.format(t + 90m, "HH:mm"))
+-- stderr
+-- exit: 0
+==== manual builtins:26
+-- stdout
+| import regex
+| m = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
+| print(m.named.key, int(m.named.val) + 1)
+-- stderr
+-- exit: 0
+==== manual builtins:27
+-- stdout
+| import regex
+| print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"))
+-- stderr
+-- exit: 0
+==== manual builtins:28
+-- stdout
+| import conc
+| print(conc.pmap([1, 2, 3], x => x * x, limit: 2))
+-- stderr
+-- exit: 0
+==== manual builtins:29
+-- stdout
+| import conc
+| print(conc.retry(() => Err("down"), times: 2))
+-- stderr
+-- exit: 0
+==== manual index:1
+-- stdout
+| import fs
+|
+| fn is_log(name) = ends_with(name, ".log")
+|
+| logs = fs.list("/var/log")! |> filter(is_log)
+| match logs:
+|   []          => print("no logs")
+|   [name, ...] => print(len(logs), "logs, first:", name)
+| ;;
+-- stderr
+-- exit: 0
+==== manual index:2
+-- stdout
+| #!/usr/bin/env fung
+| # usage: fung biggest.fung <dir> [n]
+| import fs
+| import path
+|
+| dir = first(args) ?? fail("usage: biggest.fung <dir> [n]")
+| n = int(get_arg(1, "5"))
+|
+| fn get_arg(i, default) = i < len(args) then args[i] else default
+|
+| sizes = fs.list(dir)!
+|   |> map(f => (f, fs.stat(path.join(dir, f))!.size))
+|   |> sort_by(((_, size)) => -size)
+|   |> take(n)
+|
+| for (name, size) in sizes:
+|   print(pad_left(str(size), 10), name)
+| ;;
+-- stderr
+-- exit: 0
+==== manual index:3
+-- stdout
+| fn slug(s) = lower(s) |> split(" ") |> filter(w => w != "") |> join("-")
+|
+| test "slug joins words with dashes":
+|   assert slug("Hello  World") == "hello-world"
+|   assert slug("") == ""
+| ;;
+-- stderr
+-- exit: 0
+==== manual internals:1
+-- stdout
+| fn sq(x) = x * x
+| xs = [1, 2, 3] |> map(sq)
+| print(sum(xs))
+-- stderr
+-- exit: 0
+==== manual syntax:1
+-- stdout
+| # 한눈에 보는 fung
+| import fs
+|
+| fn total_size(dir):
+|   fs.list(dir)!
+|     |> map(f => fs.stat("${dir}/${f}")!.size)
+|     |> fold(0, (acc, n) => acc + n)
+| ;;
+|
+| size = total_size(".")
+| label = size > 1_000_000 then "big" else "small"
+| print("${size} bytes (${label})")
+-- stderr
+-- exit: 0
+==== manual syntax:2
+-- stdout
+| event = {type: "deploy", match: "api-*"}
+| print(event.type, event.match)
+-- stderr
+-- exit: 0
+==== manual syntax:3
+-- stdout
+| name = "fung"
+| print("hello, ${name}! ${1 + 2}")
+| pattern = `^\d{4}-\d{2}$`
+-- stderr
+-- exit: 0
+==== manual syntax:4
+-- stdout
+| fn classify(n):
+|   if n < 0:
+|     "negative"
+|   else if n == 0:
+|     "zero"
+|   else:
+|     "positive"
+|   ;;
+| ;;
+|
+| fn classify_short(n) = if n < 0: "negative" else if n == 0: "zero" else: "positive" ;;
+-- stderr
+-- exit: 0
+==== manual syntax:5
+-- stdout
+| names = ["b.log", "a.txt", "c.log"]
+| logs = names
+|   |> filter(n => ends_with(n, ".log"))
+|   |> sort
+| ok = len(logs) > 0
+|   and all(logs, n => n != "")
+| print(logs, ok)
+-- stderr
+-- exit: 0
+==== manual syntax:6
+-- stdout
+| line = " ERROR,disk full "
+| fields = line |> trim |> lower |> split(",")
+| cfg = {host: "localhost"} |> put("port", 8080) |> merge({debug: false})
+| print(fields, cfg |> keys)
+-- stderr
+-- exit: 0
+==== manual syntax:7
+-- stdout
+| xs = [10, 20, 30, 40]
+| print(xs[-1], xs[1..3], xs[..2], "참치김밥"[1..3])
+-- stderr
+-- exit: 0
+==== manual syntax:8
+-- stdout
+| # 식 하나짜리
+| fn add(a, b) = a + b
+|
+| # 블록 본문: 마지막 식이 반환값
+| fn report(dir):
+|   n = len(dir)
+|   "${dir}: ${n}"
+| ;;
+|
+| # 람다: 본문은 식 하나
+| double = x => x * 2
+| both = (a, b) => a + b
+| later = () => print("run")
+|
+| # 익명 함수: 여러 문장이 필요할 때
+| shout = fn(s):
+|   t = upper(s)
+|   t + "!"
+| ;;
+|
+| print(add(1, 2), report("logs"), double(4), both(1, 2), shout("hi"))
+| later()
+-- stderr
+-- exit: 0
+==== manual syntax:9
+-- stdout
+| fn greet(name, greeting = "hello", ...extra) = "${greeting}, ${name}${join(extra)}"
+| print(greet("fung"), greet("fung", greeting: "hi"), greet("fung", "yo", "!", "?"))
+-- stderr
+-- exit: 0
+==== manual syntax:10
+-- stdout
+| import path
+| files = ["a.txt", "b.txt"]
+| print(files |> map(path.join("/tmp", _)))
+-- stderr
+-- exit: 0
+==== manual syntax:11
+-- stdout
+| fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+| print(count(1_000_000, 0))
+-- stderr
+-- exit: 0
+==== manual syntax:12
+-- stdout
+| fn sign(n):
+|   if n > 0:
+|     "+"
+|   else if n < 0:
+|     "-"
+|   else:
+|     "0"
+|   ;;
+| ;;
+| print(sign(5), 3 > 2 then "yes" else "no")
+-- stderr
+-- exit: 0
+==== manual syntax:13
+-- stdout
+| (q, r) = (7 // 2, 7 % 2)
+| [top, ...rest] = ["a", "b", "c"]
+| {name, port: p} = {name: "api", port: 8080}
+| print(q, r, top, rest, name, p)
+-- stderr
+-- exit: 0
+==== manual syntax:14
+-- stdout
+| squares = for x in 1..=3: x * x ;;
+| for (k, v) in pairs({a: 1, b: 2}):
+|   print("${k} = ${v}")
+| ;;
+| print(squares)
+-- stderr
+-- exit: 0
+==== manual syntax:15
+-- stdout
+| fn half(n) = n // 2
+|
+| test "half rounds down":
+|   assert half(5) == 2
+|   assert half(-5) == -3
+| ;;
+|
+| # [파일:줄] half(10) = 5 를 표준 에러로 찍고 값을 돌려준다
+| x = dbg(half(10)) + 1
+| print(x)
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/_lib/warns.fung
+-- stdout
+| # An imported module's warnings are shown too, before the importer's.
+| import fs
+|
+| fn helper():
+|   dead = 1
+|   2
+| ;;
+|
+| value = helper()
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/block_value.fung
+-- stdout
+| # W0104: a block used as a value whose last statement is an assignment.
+| fn a():
+|   x = if true: _y = 1 ;;
+|   x
+| ;;
+|
+| fn b():
+|   x = if true: 1 else if false: _z = 2 else: 3 ;;
+|   x
+| ;;
+|
+| fn c(v):
+|   return match v:
+|     1 => _w = 1
+|     _ => 2
+|   ;;
+| ;;
+|
+| print(if true: _q = 1 ;;)
+| print(if true: (_m, _n) = (1, 2) ;;)
+|
+| fn d():
+|   x = if true:
+|     _inner = if false: _deep = 1 ;;
+|   ;;
+|   x
+| ;;
+|
+| fn fine() = if true: _not_checked = 2 ;;
+|
+| fn also_fine():
+|   x = if true:
+|     y = 1
+|     y
+|   ;;
+|   x
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/clean.fung
+-- stdout
+| fn f(x) = x + 1
+|
+| print(f(1))
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/errors_hide_warnings.fung
+-- stdout
+| # A file with errors shows only its errors.
+| import fs
+|
+| fn f():
+|   unused = 1
+|   nope
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/imports_lib.fung
+-- stdout
+| import "./_lib/warns"
+| import path
+|
+| fn f():
+|   unused = 1
+|   warns.value
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/no_false_positives.fung
+-- stdout
+| # Nothing here may warn (Review Focus 3).
+| import fs
+| import json as j
+| import path (ext)
+|
+| fn closure():
+|   x = 1
+|   fetch = () => x
+|   fetch()
+| ;;
+|
+| fn nested():
+|   x = 1
+|   fn g() = x
+|   g()
+| ;;
+|
+| fn deeper():
+|   x = 1
+|   fn g():
+|     fn h() = x
+|     h()
+|   ;;
+|   g()
+| ;;
+|
+| fn reassigned():
+|   x = 1
+|   x = x + 1
+|   x
+| ;;
+|
+| fn patterns(v):
+|   (a, b) = v
+|   match a:
+|     [h, ...t] when len(t) > 0 => h + b
+|     {k: kv}                   => kv
+|     Ok(n) | Err(n)            => n
+|     _                         => 0
+|   ;;
+| ;;
+|
+| fn underscored():
+|   _ignored = 1
+|   (_p, _q) = (1, 2)
+|   0
+| ;;
+|
+| fn params(unused_param, other = unused_param) = 1
+|
+| fn loops(xs) = for (k, v) in xs: k + v ;;
+|
+| fn defaults(a, b = a + 1) = b
+|
+| total = 0
+| top_level_unused = 1
+|
+| test "uses imports and globals":
+|   assert fs.exists(".")
+|   assert j.stringify(1) == "1"
+|   assert ext("a.b") == ".b"
+|   assert total == 0
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/shadow.fung
+-- stdout
+| # W0103: new names that hide a prelude function.
+| fn map(xs) = xs
+| len = 1
+| fn uses(filter, keys = 1) = filter
+|
+| fn local():
+|   sort = 1
+|   sort
+| ;;
+|
+| fn arms(v) = match v:
+|   first => first
+| ;;
+|
+| result = for (sum, x) in [(1, 2)]: sum + x ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/unused_imports.fung
+-- stdout
+| # W0101: imports never read in the file.
+| import fs
+| import path as p
+| import json (parse, stringify)
+| import regex (is_match)
+| import time
+|
+| print(stringify([1]))
+| fn now_text() = time.now()
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/check/unused_vars.fung
+-- stdout
+| # W0102: block-local names never read.
+| fn plain():
+|   never = 1
+|   _quiet = 2
+|   3
+| ;;
+|
+| fn pattern(v):
+|   (a, b) = v
+|   [h, ...t] = [1, 2, 3]
+|   {x, y} = {x: 1, y: 2}
+|   a + h + x
+| ;;
+|
+| fn arms(v) = match v:
+|   Ok(n) | Err(n)                    => 1
+|   (first_one, _) when first_one > 0 => 2
+|   [_, ...rest]                      => 3
+|   _                                 => 0
+| ;;
+|
+| fn looped(xs):
+|   for (k, unused_v) in xs:
+|     tmp = k
+|     k
+|   ;;
+| ;;
+|
+| fn only_self():
+|   fn spin(n) = if n > 0: spin(n - 1) else: 0 ;;
+|   1
+| ;;
+|
+| fn later_shadow():
+|   outer = 1
+|   if true:
+|     inner = outer
+|   ;;
+|   2
+| ;;
+|
+| fn 한글():
+|   이름 = 1
+|   2
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/_lib/broken.fung
+-- stdout
+| fn f() = missing + 1
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/_lib/good.fung
+-- stdout
+| fn f() = 1
+| test "only when it is the entry": assert f() == 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/asserts.fung
+-- stdout
+| fn slug(s) = lower(s)
+|
+| test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
+| test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
+| test "plain false": assert false ;;
+| test "not a bool": assert 3 ;;
+| test "an error":
+|   _x = 1
+|   fail("bad")
+| ;;
+| test "return and ?":
+|   v = Ok(3)?
+|   assert v == 3
+|   return nil
+| ;;
+| test "unused warning":
+|   y = 1
+|   assert true
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/blocked_top.fung
+-- stdout
+| ch = channel()
+| spawn(fn():
+|   recv(ch)
+| ;;)
+|
+| test "leaves a blocked top-level task": assert true ;;
+| test "again": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/deadlock.fung
+-- stdout
+| test "before the deadlock": assert 1 + 1 == 2 ;;
+| test "deadlocks":
+|   ch = channel()
+|   recv(ch)
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/exit_in_task.fung
+-- stdout
+| test "before the task exit": assert 1 + 1 == 2 ;;
+| test "a task exits":
+|   t = spawn(() => exit(3))
+|   await(t)
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/exit_in_test.fung
+-- stdout
+| at_exit(() => print("handler ran"))
+| test "before": assert 1 == 1 ;;
+| test "exits":
+|   exit(4)
+| ;;
+| test "never runs": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/handler_exit.fung
+-- stdout
+| at_exit(() => exit(9))
+| test "handler exits": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/handlers.fung
+-- stdout
+| at_exit(() => print("second handler"))
+| at_exit(fn():
+|   print("first handler")
+|   fail("handler broke")
+| ;;)
+| test "registers handlers": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/no_tests.fung
+-- stdout
+| print("a plain script must not run")
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/own_error.fung
+-- stdout
+| test "t": assert nope == 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/top_error.fung
+-- stdout
+| print("before")
+| x = [1, 2][5]
+| test "skipped": assert x == 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/top_exit.fung
+-- stdout
+| exit(2)
+| test "skipped": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/top_task.fung
+-- stdout
+| ch = channel()
+| worker = spawn(fn():
+|   v = recv(ch)!
+|   v * 2
+| ;;)
+|
+| test "talks to a top-level task":
+|   send(ch, 21)
+|   assert await(worker) == 42
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/unretrieved.fung
+-- stdout
+| ch = channel()
+| test "spawns a failure":
+|   spawn(fn():
+|     send(ch, 1)
+|     [1][5]
+|   ;;)
+|   recv(ch)
+| ;;
+| test "fine": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/uses_good.fung
+-- stdout
+| import "./_lib/good"
+| test "library tests do not run here": assert good.f() == 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/uses_lib.fung
+-- stdout
+| import "./_lib/broken"
+| test "t": assert broken.f() == 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/uses_lib_too.fung
+-- stdout
+| import "./_lib/broken"
+| test "t": assert broken.f() == 2 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test/z_clean.fung
+-- stdout
+| print("top level runs first")
+| test "nothing leaked from earlier files": assert 2 > 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test_ends/after_cancel.fung
+-- stdout
+| test "before": assert true ;;
+| test "deadlocks":
+|   ch = channel()
+|   recv(ch)
+| ;;
+| test "skipped, no calls": assert 1 + 1 == 2 ;;
+| test "skipped, calls": assert len([1]) == 1 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test_ends/agents.fung
+-- stdout
+| counter = agent(0)
+| at_exit(() => print(deref(counter)))
+|
+| test "swap":
+|   swap(counter, n => n + 1)
+|   assert deref(counter) == 1
+| ;;
+| test "an agent that holds its own handle":
+|   a = agent(0)
+|   swap(a, _ => a)
+|   assert true
+| ;;
+| test "a background loop":
+|   b = agent(0)
+|   swap(b, fn(_):
+|     spawn(fn():
+|       sleep(1h)
+|     ;;)
+|     1
+|   ;;)
+|   assert deref(b) == 1
+| ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test_ends/rest_skipped.fung
+-- stdout
+| # A block passes, then a task it woke asks for exit(3): the rest of the
+| # file is skipped, and the skip counts as a failure (08: a test run
+| # never ends silently).
+| #
+| # Ordered by state, not by timing: `go` has room, so the block never
+| # waits on it and holds the run token until it waits in `recv(c)`; the
+| # task can only send on `c` after taking `go`'s value, so it finds the
+| # block waiting, hands the value over without waiting and asks for the
+| # exit on the same turn of the token. The block then wakes with its
+| # value and returns: it passes.
+| go = channel(1)
+| c = channel()
+| _t = spawn(fn():
+|   recv(go)
+|   send(c, 1)
+|   exit(3)
+| ;;)
+|
+| test "receives":
+|   send(go, 1)
+|   recv(c)
+| ;;
+| test "two": assert true ;;
+| test "three": assert true ;;
+| test "four": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test_ends/task_exit.fung
+-- stdout
+| at_exit(() => print("handler still runs"))
+| test "a task exits":
+|   t = spawn(() => exit(3))
+|   await(t)
+| ;;
+| test "skipped, no calls": assert 1 + 1 == 2 ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test_ends/top_pending.fung
+-- stdout
+| # The top level ends normally with a task's exit(3) already asked for:
+| # no block runs, and the top level fails. Ordered by state, as in
+| # rest_skipped.fung.
+| go = channel(1)
+| c = channel()
+| _t = spawn(fn():
+|   recv(go)
+|   send(c, 1)
+|   exit(3)
+| ;;)
+| send(go, 1)
+| recv(c)
+|
+| test "one": assert true ;;
+| test "two": assert true ;;
+-- stderr
+-- exit: 0
+==== crates/fung-cli/tests/data/test_ends/z_next.fung
+-- stdout
+| test "a fresh file": assert deref(agent(5)) == 5 ;;
+-- stderr
+-- exit: 0
+==== examples/api.fung
+-- stdout
+| # api: the handlers behind serve.fung — GET /health, POST /echo (echoes
+| # the JSON body back with a timestamp), anything else 404.
+| import http
+| import json
+| import time
+|
+| fn json_response(status, data) =
+|   {status, headers: {"content-type": "application/json"}, body: json.stringify(data)}
+|
+| fn health(started, requests) =
+|   json_response(200, {ok: true, uptime: str(time.now() - started), requests: deref(requests)})
+|
+| fn echo(req):
+|   match json.parse(req.body):
+|     Ok(data) => json_response(200, {received: data, at: time.format(time.now())})
+|     Err(e)   => {status: 400, body: "bad json: ${e.message}"}
+|   ;;
+| ;;
+|
+| # Builds the handler: the request count lives in an agent the closure
+| # holds (05: shared state belongs to one task, here the agent's), so the
+| # handler's tasks update it one request at a time.
+| fn handler(started, requests):
+|   fn(req):
+|     swap(requests, n => n + 1)
+|     match (req.method, req.path):
+|       ("GET", "/health") => health(started, requests)
+|       ("POST", "/echo")  => echo(req)
+|       _                  => {status: 404, body: "not found: ${req.path}"}
+|     ;;
+|   ;;
+| ;;
+|
+| test "health, echo and 404":
+|   port = channel(1)
+|   h = handler(time.now(), agent(0))
+|   s = spawn(() => http.serve("127.0.0.1:0", h, ready: a => send(port, a)))
+|   base = "http://" + recv(port)!
+|   r = http.get("${base}/health")!
+|   assert r.status == 200
+|   assert json.parse(r.body)!.ok == true
+|   e = http.post("${base}/echo", json.stringify({x: 1}))!
+|   assert json.parse(e.body)!.received.x == 1
+|   assert http.post("${base}/echo", "{")!.status == 400
+|   assert http.get("${base}/nope")!.status == 404
+|   assert json.parse(http.get("${base}/health")!.body)!.requests == 5
+|   cancel(s)
+| ;;
+-- stderr
+-- exit: 0
+==== examples/bigfiles.fung
+-- stdout
+| # bigfiles: find the largest files under a directory.
+| import fs
+| import path
+|
+| # Files below dir as (path, size), largest first, keeping at most n.
+| fn largest(dir, n):
+|   files = fs.walk(dir)!
+|   sized = files |> map(p => (p, get(fs.stat(p) ?? {}, "size", 0)))
+|   sized |> sort_by(e => match e: (_, s) => -s ;;) |> take(n)
+| ;;
+|
+| # Bytes as a short human string: 1536 → "1.5K".
+| fn human(n):
+|   n < 1024 then "${n}B"
+|     else n < 1024 * 1024 then "${n * 10 // 1024 / 10.0}K"
+|     else "${n * 10 // (1024 * 1024) / 10.0}M"
+| ;;
+|
+| test "human sizes":
+|   assert human(10) == "10B"
+|   assert human(1536) == "1.5K"
+|   assert human(3 * 1024 * 1024) == "3.0M"
+| ;;
+|
+| test "largest keeps order and count":
+|   fs.with_temp_dir(fn(d):
+|     fs.write(path.join(d, "a"), repeat("x", 10))!
+|     fs.write(path.join(d, "b"), repeat("x", 30))!
+|     fs.write(path.join(d, "c"), repeat("x", 20))!
+|     got = largest(d, 2) |> map(e => match e: (p, s) => (path.base(p), s) ;;)
+|     assert got == [("b", 30), ("c", 20)]
+|   ;;)
+| ;;
+-- stderr
+-- exit: 0
+==== examples/checkurls.fung
+-- stdout
+| #!/usr/bin/env fung
+| # Fetches every URL in parallel and prints status, time taken, and — for
+| # JSON answers — the top-level keys. Exit code 1 if any URL failed.
+| # usage: fung examples/checkurls.fung URL...
+| import conc
+| import "./urlcheck" (check, report)
+|
+| if is_empty(args): fail("usage: checkurls.fung URL...") ;;
+| results = conc.pmap(args, u => check(u), limit: 8)
+| if not report(results): exit(1) ;;
+-- stderr
+-- exit: 0
+==== examples/dotenv.fung
+-- stdout
+| # dotenv: read KEY=VALUE files and check them against requirements.
+|
+| # Text → map of KEY → VALUE. Blank lines and # comments are skipped;
+| # a `export ` prefix and surrounding quotes are removed.
+| fn parse(text):
+|   rows = lines(text) |> map(trim) |> filter(l => l != "" and not starts_with(l, "#"))
+|   fold(rows, {}, fn(acc, line):
+|     (k, v) = match split(line, "="):
+|       [k, ...rest] => (trim(replace(k, "export ", "")), trim(join(rest, "=")))
+|     ;;
+|     put(acc, k, trim(trim(v, "\""), "'"))
+|   ;;)
+| ;;
+|
+| # Problems with a config: missing or empty required keys, bad ports.
+| fn problems(cfg, required, ports):
+|   missing = filter(required, k => get(cfg, k, "") == "") |> map(k => "missing: ${k}")
+|   bad_ports = filter(ports, k => contains(cfg, k) and not valid_port(get(cfg, k)))
+|     |> map(k => "not a port: ${k}=${get(cfg, k)}")
+|   missing + bad_ports
+| ;;
+|
+| fn valid_port(s) = match parse_int(s):
+|   Ok(n) => n > 0 and n < 65536
+|   _     => false
+| ;;
+|
+| test "parse handles comments, export and quotes":
+|   cfg = parse("# db\nexport DB_HOST=\"localhost\"\nDB_PORT=5432\n\nTOKEN='a=b=c'\n")
+|   assert cfg == {"DB_HOST": "localhost", "DB_PORT": "5432", "TOKEN": "a=b=c"}
+| ;;
+|
+| test "problems reports missing keys and bad ports":
+|   cfg = parse("DB_HOST=x\nDB_PORT=99999\nEMPTY=\n")
+|   assert problems(cfg, ["DB_HOST", "EMPTY", "SECRET"], ["DB_PORT"]) == ["missing: EMPTY", "missing: SECRET", "not a port: DB_PORT=99999"]
+|   assert problems(parse("DB_PORT=80"), [], ["DB_PORT"]) == []
+| ;;
+-- stderr
+-- exit: 0
+==== examples/envcheck.fung
+-- stdout
+| #!/usr/bin/env fung
+| # Checks a .env file: required keys present and non-empty, ports valid.
+| # usage: fung examples/envcheck.fung <file> KEY... [--ports A,B]
+| import fs
+| import cli
+| import "./dotenv" (parse, problems)
+|
+| opts = cli.parse(args)
+| file = first(opts.rest) ?? fail("usage: envcheck.fung <file> KEY... [--ports A,B]")
+| required = drop(opts.rest, 1)
+| ports = split(get(opts.flags, "ports", ""), ",") |> filter(p => p != "")
+|
+| found = problems(parse(fs.read(file)!), required, ports)
+| each(found, p => eprint(p))
+| if not is_empty(found): exit(1) ;;
+| print("ok:", file)
+-- stderr
+-- exit: 0
+==== examples/kebab.fung
+-- stdout
+| # kebab: file-name normalisation used by rename.fung.
+| import path
+|
+| # Lowercase, keep letters and digits, turn everything else into "-",
+| # squeeze repeats, trim the ends.
+| fn kebab(name):
+|   kept = for c in chars(lower(name)): c in "abcdefghijklmnopqrstuvwxyz0123456789" then c else "-" ;;
+|   join(kept) |> split("-") |> filter(p => p != "") |> join("-")
+| ;;
+|
+| # The new name for one entry; names that would vanish (no ASCII letters at
+| # all) are kept as they are.
+| fn target(file):
+|   stem = kebab(path.stem(file))
+|   stem == "" then file else stem + lower(path.ext(file))
+| ;;
+|
+| test "kebab squeezes and trims":
+|   assert kebab("My Report (final)") == "my-report-final"
+|   assert kebab("--a--b--") == "a-b"
+|   assert kebab("참치") == ""
+| ;;
+|
+| test "target keeps names without ascii letters":
+|   assert target("My File (1).TXT") == "my-file-1.txt"
+|   assert target("참치.md") == "참치.md"
+|   assert target("already-ok.txt") == "already-ok.txt"
+| ;;
+-- stderr
+-- exit: 0
+==== examples/loglines.fung
+-- stdout
+| # loglines: parse "2026-10-13 12:00:01 LEVEL message" lines and summarise them.
+| # Used by logsum.fung; the tests document the format.
+|
+| # One line → {level, message} or nil for lines that do not fit.
+| fn parse(line):
+|   parts = split(trim(line), " ")
+|   match parts:
+|     [_, _, level, ...rest] when level in ["INFO", "WARN", "ERROR"] => {level: level, message: join(rest, " ")}
+|     _                                                              => nil
+|   ;;
+| ;;
+|
+| # Lines → parsed entries, skipping what does not parse.
+| fn entries(xs) = xs |> map(parse) |> filter(e => e != nil)
+|
+| # Count of entries per level, every level present (zero when absent).
+| fn by_level(es):
+|   counts = group_by(es, e => e.level)
+|   for level in ["INFO", "WARN", "ERROR"]: (level, len(get(counts, level, []))) ;;
+| ;;
+|
+| # The n most frequent messages of one level, as (message, count), most first.
+| fn top_messages(es, level, n):
+|   same = filter(es, e => e.level == level)
+|   groups = group_by(same, e => e.message)
+|   pairs(groups) |> map(p => match p: (m, xs) => (m, len(xs)) ;;) |> sort_by(p => match p: (_, c) => -c ;;) |> take(n)
+| ;;
+|
+| test "parse keeps the message words together":
+|   assert parse("2026-10-13 12:00:01 ERROR disk full on /var") == {level: "ERROR", message: "disk full on /var"}
+|   assert parse("garbage") == nil
+|   assert parse("2026-10-13 12:00:01 DEBUG x") == nil
+| ;;
+|
+| test "counts and top messages":
+|   es = entries(["t d ERROR a", "t d ERROR b", "t d ERROR a", "t d WARN w", "noise"])
+|   assert by_level(es) == [("INFO", 0), ("WARN", 1), ("ERROR", 3)]
+|   assert top_messages(es, "ERROR", 1) == [("a", 2)]
+| ;;
+-- stderr
+-- exit: 0
+==== examples/logsum.fung
+-- stdout
+| #!/usr/bin/env fung
+| # Summarises a log file: lines per level and the most frequent errors.
+| # usage: fung examples/logsum.fung <file> [top]      (or: cat log | fung examples/logsum.fung -)
+| import fs
+| import "./loglines" (entries, by_level, top_messages)
+|
+| fn read_input(source) = source == "-" then read_lines()! else fs.read_lines(source)!
+|
+| fn report(lines, top):
+|   es = entries(lines)
+|   print("lines:", len(lines), " parsed:", len(es))
+|   each(by_level(es), fn(pair):
+|     (level, count) = pair
+|     print(pad_right(level, 6), count)
+|   ;;)
+|   errors = top_messages(es, "ERROR", top)
+|   if not is_empty(errors):
+|     print("top errors:")
+|     each(errors, fn(pair):
+|       (message, count) = pair
+|       print(" ", pad_left(str(count), 4), message)
+|     ;;)
+|   ;;
+|   nil
+| ;;
+|
+| source = first(args) ?? fail("usage: logsum.fung <file|-> [top]")
+| top = len(args) > 1 then int(args[1]) else 3
+| report(read_input(source), top)
+-- stderr
+-- exit: 0
+==== examples/rename.fung
+-- stdout
+| #!/usr/bin/env fung
+| # Renames every file in a directory to kebab-case:
+| #   "My Report (final).TXT" -> "my-report-final.txt"
+| # usage: fung examples/rename.fung <dir> [--dry-run]
+| import fs
+| import path
+| import cli
+| import "./kebab" (target)
+|
+| fn rename_all(dir, dry):
+|   files = fs.list(dir)!
+|   each(files, fn(file):
+|     to = target(file)
+|     if to != file:
+|       print(file, "->", to)
+|       if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
+|     ;;
+|   ;;)
+| ;;
+|
+| opts = cli.parse(args, bools: ["dry-run"])
+| dir = first(opts.rest) ?? fail("usage: rename.fung <dir> [--dry-run]")
+| rename_all(dir, get(opts.flags, "dry_run", false))
+-- stderr
+-- exit: 0
+==== examples/serve.fung
+-- stdout
+| #!/usr/bin/env fung
+| # A small JSON API server.
+| # usage: fung examples/serve.fung [--addr 127.0.0.1:8080]
+| import http
+| import time
+| import cli
+| import "./api" (handler)
+|
+| opts = cli.parse(args)
+| addr = get(opts.flags, "addr", "127.0.0.1:8080")
+| http.serve(addr, handler(time.now(), agent(0)), ready: a => print("listening on", a))!
+-- stderr
+-- exit: 0
+==== examples/static.fung
+-- stdout
+| #!/usr/bin/env fung
+| # Serves the files under a directory over HTTP (GET only), logging each request.
+| # usage: fung examples/static.fung [dir] [--addr 127.0.0.1:8000]
+| import http
+| import cli
+| import "./staticfiles" (handler)
+|
+| opts = cli.parse(args)
+| root = first(opts.rest) ?? "."
+| addr = get(opts.flags, "addr", "127.0.0.1:8000")
+| serve = handler(root)
+| logged = fn(req):
+|   res = serve(req)
+|   print(req.method, req.path, res.status)
+|   res
+| ;;
+| http.serve(addr, logged, ready: a => print("serving ${root} on http://${a}/"))!
+-- stderr
+-- exit: 0
+==== examples/staticfiles.fung
+-- stdout (2768 bytes, fnv1a64 9ca9a1e39f27e006)
+-- stderr
+-- exit: 0
+==== examples/tidy.fung
+-- stdout
+| #!/usr/bin/env fung
+| # Lists the largest files under a directory; with --trash <dir> moves them there.
+| # usage: fung examples/tidy.fung <dir> [n] [--trash <trash-dir>]
+| import fs
+| import path
+| import cli
+| import "./bigfiles" (largest, human)
+|
+| opts = cli.parse(args)
+| dir = first(opts.rest) ?? fail("usage: tidy.fung <dir> [n] [--trash <trash-dir>]")
+| n = len(opts.rest) > 1 then int(opts.rest[1]) else 5
+| trash = get(opts.flags, "trash")
+|
+| each(largest(dir, n), fn((p, size)):
+|   print(pad_left(human(size), 8), p)
+|   if trash != nil:
+|     fs.mkdir(trash)!
+|     fs.move(p, path.join(trash, path.base(p)))!
+|   ;;
+| ;;)
+-- stderr
+-- exit: 0
+==== examples/urlcheck.fung
+-- stdout
+| # urlcheck: fetches one URL and summarises the answer — used by
+| # checkurls.fung in parallel.
+| import http
+| import json
+| import regex
+| import time
+|
+| # The top-level keys of a JSON body, [] for anything else.
+| fn json_keys(resp):
+|   ct = get(resp.headers, "content-type", "")
+|   if not regex.is_match(ct, "^application/json"): return [] ;;
+|   match json.parse(resp.body):
+|     Ok(m) when type_of(m) == 'map => keys(m)
+|     _                             => []
+|   ;;
+| ;;
+|
+| fn check(url, timeout = 5s):
+|   t0 = time.now()
+|   r = http.get(url, timeout: timeout)
+|   took = time.now() - t0
+|   match r:
+|     Ok(resp) => {url, ok: resp.status < 400, status: resp.status, took, keys: json_keys(resp)}
+|     Err(e)   => {url, ok: false, status: e.kind, took, keys: []}
+|   ;;
+| ;;
+|
+| # Prints one line per result and reports whether all were ok.
+| fn report(results):
+|   each(results, r => print(r.ok then "ok  " else "FAIL", r.status, r.took, r.url, join(r.keys, ",")))
+|   all(results, r => r.ok)
+| ;;
+|
+| test "check reports status and json keys":
+|   port = channel(1)
+|   handler = fn(req):
+|     req.path == "/j" then {headers: {"content-type": "application/json"}, body: `{"a":1,"b":2}`} else {status: 500, body: "x"}
+|   ;;
+|   s = spawn(() => http.serve("127.0.0.1:0", handler, ready: a => send(port, a)))
+|   base = "http://" + recv(port)!
+|   good = check("${base}/j", 2s)
+|   assert good.ok
+|   assert good.keys == ["a", "b"]
+|   bad = check("${base}/x", 2s)
+|   assert not bad.ok
+|   assert bad.status == 500
+|   down = check("http://127.0.0.1:1/", 2s)
+|   assert down.status == 'network
+|   cancel(s)
+| ;;
+-- stderr
+-- exit: 0
+==== extras/agent.fung
+-- stdout (2838 bytes, fnv1a64 2dd73ad83a42b607)
+-- stderr
+-- exit: 0
+==== extras/cli.fung
+-- stdout
+| # cli: command-line argument parsing (06). Small on purpose: flags and the
+| # rest; checking and converting values is ordinary code.
+| #
+| #   cli.parse(["in", "--out", "x", "--", "-v"])
+| #   → {flags: {out: "x"}, rest: ["in", "-v"]}
+| #
+| # `--name value` and `--name=value` set a flag; `--name` alone, or a name
+| # listed in `bools`, is true. Flag names turn `-` into `_` (`dry_run`).
+| # Arguments not starting with `--` go to rest in order; everything after
+| # a bare `--` goes to rest. A lone `-` is an ordinary argument.
+| fn parse(argv, bools = []) = _parse(argv, bools, {flags: {}, rest: []})
+|
+| fn _parse(argv, bools, acc) = match argv:
+|   []                                     => acc
+|   ["--", ...rest]                        => put(acc, "rest", acc.rest + rest)
+|   [a, ...rest] when starts_with(a, "--") =>
+|     (k, v, left) = _flag(a[2..], rest, bools)
+|     _parse(left, bools, put(acc, "flags", put(acc.flags, k, v)))
+|   [a, ...rest]                           => _parse(rest, bools, put(acc, "rest", acc.rest + [a]))
+| ;;
+|
+| # One flag body (after `--`) with the remaining arguments → (key, value, rest).
+| fn _flag(body, rest, bools) = match split(body, "="):
+|   [name, ...vals] when not is_empty(vals) => (_key(name), join(vals, "="), rest)
+|   _                                       => body in bools then (_key(body), true, rest)
+|     else match rest:
+|       [v, ...more] when not starts_with(v, "--") => (_key(body), v, more)
+|       _                                          => (_key(body), true, rest)
+|     ;;
+| ;;
+|
+| fn _key(name) = replace(name, "-", "_")
+|
+| test "flags, values, and rest":
+|   assert parse(["a", "--trash", "dir", "b"]) == {flags: {trash: "dir"}, rest: ["a", "b"]}
+|   assert parse(["--dry-run", "x"], bools: ["dry-run"]) == {flags: {dry_run: true}, rest: ["x"]}
+|   assert parse(["--n=3", "--", "--not-a-flag", "-"]) == {flags: {n: "3"}, rest: ["--not-a-flag", "-"]}
+|   assert parse(["--v"]) == {flags: {v: true}, rest: []}
+|   assert parse(["--a", "--b", "1"]) == {flags: {a: true, b: "1"}, rest: []}
+|   assert parse([]) == {flags: {}, rest: []}
+| ;;
+-- stderr
+-- exit: 0
+==== extras/conc.fung
+-- stdout
+| # conc (stage 6a): the concurrency helpers written in fung over the
+| # concurrency builtins (05).
+| #
+| # They are a module, not prelude names: the prelude keeps only what
+| # every script needs. A program imports the module: `import conc`, then
+| # `conc.pmap(...)`. Calling one of them without the module is E0204,
+| # with a help line that names the module.
+| import _native.conc as _c
+|
+| # Merges channels into one (05): a forwarding task per input; the output
+| # closes when every input has closed.
+| fn fan_in(chs):
+|   out = channel(len(chs))
+|   tasks = for ch in chs: _c.spawn_awaited(() => each(ch, v => send(out, v))) ;;
+|   spawn(fn():
+|     each(tasks, await)
+|     close(out)
+|   ;;)
+|   out
+| ;;
+|
+| # Parallel map: at most `limit` tasks at once (0 = no limit), results in
+| # input order. A failing f shows up as its Err, like await would.
+| fn pmap(xs, f, limit = 0):
+|   items = xs |> map(x => x)
+|   limit <= 0 or limit >= len(items)
+|     then items |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)
+|     else _pmap_chunks(items, f, limit, [])
+| ;;
+|
+| fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
+|   else _pmap_chunks(drop(items, limit), f, limit,
+|     acc + (take(items, limit) |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)))
+|
+| # Calls f until it returns a non-Err value, at most `times` tries,
+| # sleeping `delay` between tries; the last Err is returned (06).
+| fn retry(f, times = 3, delay = 0ms):
+|   r = f()
+|   times <= 1 or not is_err(r) then r else _retry_after(f, times - 1, delay)
+| ;;
+|
+| fn _retry_after(f, times, delay):
+|   sleep(delay)
+|   retry(f, times: times, delay: delay)
+| ;;
+-- stderr
+-- exit: 0
+==== extras/fs.fung
+-- stdout
+| # fs: files and directories (06). The primitives live in _native.fs; this
+| # file decides the public names and adds the fung-level wrappers.
+| import _native.fs as _n
+|
+| read = _n.read
+| write = _n.write
+| append = _n.append
+| list = _n.list
+| glob = _n.glob
+| walk = _n.walk
+| exists = _n.exists
+| stat = _n.stat
+| mkdir = _n.mkdir
+| remove = _n.remove
+| remove_all = _n.remove_all
+| move = _n.move
+| copy = _n.copy
+| open = _n.open
+| close = _n.close
+| write_line = _n.write_line
+|
+| # Reads a whole file as a list of lines (the same rule as read_lines).
+| fn read_lines(path) = Ok(lines(_n.read(path)?))
+|
+| # Opens path, calls f with the handle, and always closes it (03: defer 대신
+| # 감싸는 함수). f's result — a value or the Err that `?` returned — is
+| # passed through.
+| fn with_open(path, f, mode = 'read):
+|   h = _n.open(path, mode)?
+|   result = f(h)
+|   _n.close(h)!
+|   result
+| ;;
+|
+| # Creates a temporary directory, calls f with its path, and removes it.
+| fn with_temp_dir(f):
+|   dir = _n.temp_dir()?
+|   result = f(dir)
+|   _n.remove_all(dir)!
+|   result
+| ;;
+-- stderr
+-- exit: 0
+==== extras/http.fung
+-- stdout (74823 bytes, fnv1a64 e34512ab9d7b6cf6)
+-- stderr
+-- exit: 0
+==== extras/json.fung
+-- stdout
+| # json: parse and stringify (06). The decoder keeps object key order and
+| # keeps integers exact; the work is in Go because it walks every character.
+| import _native.json as _n
+|
+| parse = _n.parse
+| stringify = _n.stringify
+-- stderr
+-- exit: 0
+==== extras/path.fung
+-- stdout
+| # path: path arithmetic without I/O (06).
+| import _native.path as _n
+|
+| join = _n.join
+| base = _n.base
+| dir = _n.dir
+| ext = _n.ext
+| stem = _n.stem
+| abs = _n.abs
+-- stderr
+-- exit: 0
+==== extras/prelude.fung
+-- stdout (3761 bytes, fnv1a64 a0bd7116c595c903)
+-- stderr
+-- exit: 0
+==== extras/regex.fung
+-- stdout
+| # regex: Go RE2 over fung strings (06). Positions are rune indexes.
+| import _native.regex as _n
+|
+| is_match = _n.is_match
+| find = _n.find
+| find_all = _n.find_all
+| replace = _n.replace
+| split = _n.split
+-- stderr
+-- exit: 0
+==== extras/time.fung
+-- stdout
+| # time: instants and the token formats (06). The type itself is core
+| # (02); this module only makes and renders values.
+| import _native.time as _n
+|
+| now = _n.now
+| parse = _n.parse
+| format = _n.format
+| utc = _n.utc
+| local = _n.local
+| unix = _n.unix
+| from_unix = _n.from_unix
+| parts = _n.parts
+-- stderr
+-- exit: 0
+==== tests/lang/_lib/cyc_a.fung
+-- stdout
+| import "./cyc_b"
+-- stderr
+-- exit: 0
+==== tests/lang/_lib/cyc_b.fung
+-- stdout
+| import "./cyc_a"
+-- stderr
+-- exit: 0
+==== tests/lang/_lib/greet.fung
+-- stdout
+| fn _prefix() = "hi"
+| fn greet(name) = "${_prefix()}, ${name}"
+| fn _secret() = 1
+| version = 2
+-- stderr
+-- exit: 0
+==== tests/lang/_lib/noisy.fung
+-- stdout
+| print("side effect")
+-- stderr
+-- exit: 0
+==== tests/lang/agent_errors.fung
+-- stdout
+| a = agent(1)
+| swap(a, x => x / 0)
+| # expect-error: E0502
+-- stderr
+-- exit: 0
+==== tests/lang/agent_handles.fung
+-- stdout
+| import conc
+|
+| # deref and swap keep the handle alive until the agent answers, even
+| # when their argument is its last copy.
+| print(deref(agent(5)), swap(agent(5), x => x + 1))
+| # expect: 5 6
+|
+| fn count(xs):
+|   a = agent(0)
+|   each(xs, x => swap(a, n => n + x))
+|   deref(a)
+| ;;
+| print(count([1, 2, 3]))
+| # expect: 6
+|
+| fn mk() = agent(7)
+| print(deref(mk()), swap(mk(), x => x + 1))
+| # expect: 7 8
+|
+| fn bump(a) = swap(a, x => x + 1)
+| print(bump(agent(1)))
+| # expect: 2
+|
+| # Tasks spawned inside f are inside the agent: deref does not wait.
+| a = agent(1)
+| print(swap(a, x => sum(conc.pmap([1, 2], y => deref(a)))), deref(a))
+| # expect: 2 2
+|
+| fn peek(b: agent) = deref(b)
+| print(peek(a))
+| # expect: 2
+-- stderr
+-- exit: 0
+==== tests/lang/agents.fung
+-- stdout
+| counter = agent(0)
+| each(for _ in 0..8: spawn(() => each(0..50, _ => swap(counter, n => n + 1))) ;;, await)
+| print(deref(counter))
+| # expect: 400
+| a = agent(1)
+| print(swap(a, x => x + deref(a)), type_of(a), a, a == a, a == agent(1))
+| # expect: 2 'agent <agent> true false
+| t = spawn(() => swap(a, x => x / 0))
+| print(await(t) |> is_err, deref(a))
+| # expect: true 2
+| print(swap(a, x => x + len([a])))
+| # expect: 3
+| at_exit(() => print("at exit", deref(counter)))
+| # expect: at exit 400
+-- stderr
+-- exit: 0
+==== tests/lang/args.fung
+-- stdout
+| fn f(a, b = a * 2) = a + b
+| print(f(1), f(1, 5), f(b: 1, a: 1))
+| # expect: 3 6 2
+| fn greet(greeting = "hi", name = "you") = greeting + ", " + name
+| print(greet(), greet(name: "fung"), greet("yo"))
+| # expect: hi, you hi, fung yo, you
+| fn log(a = print("default evaluated")) = a
+| log(1)
+| log()
+| # expect: default evaluated
+-- stderr
+-- exit: 0
+==== tests/lang/args_and_exit.fung
+-- stdout
+| # args: one two
+| print(args, len(args))
+| # expect: ["one", "two"] 2
+| at_exit(() => print("bye"))
+| exit(4)
+| print("unreachable")
+| # expect: bye
+| # expect-exit: 4
+-- stderr
+-- exit: 0
+==== tests/lang/arith.fung
+-- stdout
+| print(1 + 2 * 3)
+| # expect: 7
+| print((1 + 2) * 3, 1 - 2 - 3)
+| # expect: 9 -4
+| print(7 // 2, 7 % 2, -7 // 2, -7 % 2, 7.5 // 2, -7.5 % 2)
+| # expect: 3 1 -4 1 3.0 0.5
+| print(10 / 4, 10 / 2, 1 + 2.5)
+| # expect: 2.5 5.0 3.5
+| print(2 ** 10, 2 ** -1, 2.0 ** 2, -2 ** 2, 2 ** 3 ** 2)
+| # expect: 1024 0.5 4.0 -4 512
+| print(0.1 + 0.2)
+| # expect: 0.30000000000000004
+-- stderr
+-- exit: 0
+==== tests/lang/assert_pass.fung
+-- stdout
+| fn double(x) = x * 2
+| assert double(2) == 4
+| assert double(1) != 3
+| assert true
+| print("passed")
+| # expect: passed
+-- stderr
+-- exit: 0
+==== tests/lang/assign.fung
+-- stdout
+| x = 1
+| y = x + 1
+| x = x * 10
+| print(x, y)
+| # expect: 10 2
+| if true: z = 5; print(z) ;;
+| # expect: 5
+| w = if x > 5: "big" else: "small" ;;
+| print(w)
+| # expect: big
+| print(if false: 1 ;;)
+| # expect: nil
+-- stderr
+-- exit: 0
+==== tests/lang/at_exit.fung
+-- stdout
+| at_exit(() => print("first"))
+| at_exit(() => print("second"))
+| print("body")
+| # expect: body
+| # expect: second
+| # expect: first
+-- stderr
+-- exit: 0
+==== tests/lang/cancel.fung
+-- stdout
+| t = spawn(() => sleep(10s))
+| cancel(t)
+| print(await(t), await(spawn(() => sleep(10s)), timeout: 10ms), recv(channel(), timeout: 5ms))
+| # expect: Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})
+-- stderr
+-- exit: 0
+==== tests/lang/channels.fung
+-- stdout
+| ch = channel()
+| spawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)
+| print(fold(ch, 0, (a, x) => a + x))
+| # expect: 15
+| buf = channel(2)
+| send(buf, "a")
+| close(buf)
+| print(recv(buf), recv(buf), send(buf, "b"))
+| # expect: Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+-- stderr
+-- exit: 0
+==== tests/lang/closures.fung
+-- stdout
+| fn mk():
+|   x = 1
+|   f = () => x
+|   x = 2
+|   f()
+| ;;
+| print(mk())
+| # expect: 1
+| fn adder(n) = x => x + n
+| add5 = adder(5)
+| print(add5(1), adder(10)(1))
+| # expect: 6 11
+| fn outer(a) = b => c => a + b + c
+| print(outer(1)(2)(3))
+| # expect: 6
+| fn sum_to(n):
+|   fn loop(i, acc) = i == 0 then acc else loop(i - 1, acc + i)
+|   loop(n, 0)
+| ;;
+| print(sum_to(100))
+| # expect: 5050
+| g = 1
+| read_g = () => g
+| g = 2
+| print(read_g())
+| # expect: 1
+-- stderr
+-- exit: 0
+==== tests/lang/collections.fung
+-- stdout
+| print([3, 1, 2] |> sort, [1, 2, 3] |> filter(x => x > 1) |> map(x => x * 10), fold(1..=4, 0, (a, x) => a + x))
+| # expect: [1, 2, 3] [20, 30] 10
+| print(take([1, 2, 3], 2), drop([1, 2, 3], 2), first([]), zip([1], ["a"]), unique([1, 1]), flatten([[1], [2]]))
+| # expect: [1, 2] [3] nil [(1, "a")] [1] [1, 2]
+| print(group_by(["aa", "b", "cc"], s => str(len(s))), pairs({a: 1}), get({}, "x", 0), put({}, "k", 1))
+| # expect: {"2": ["aa", "cc"], "1": ["b"]} [("a", 1)] 0 {k: 1}
+| each([1, 2], x => print(x))
+| # expect: 1
+| # expect: 2
+-- stderr
+-- exit: 0
+==== tests/lang/compare_exact.fung
+-- stdout
+| print(9007199254740993 == 9007199254740992.0, 9007199254740993 > 9007199254740992.0)
+| # expect: false true
+-- stderr
+-- exit: 0
+==== tests/lang/compare_logic.fung
+-- stdout
+| print(1 == 1.0, 1 != true, 2 >= 3, 1 < 2, 2.5 > 2)
+| # expect: true true false true true
+| print(not true, true and false, false or true, not (1 < 2))
+| # expect: false false true false
+| print(false and (1 / 0 == 1), true or (1 / 0 == 1))
+| # expect: false true
+-- stderr
+-- exit: 0
+==== tests/lang/conc_helpers.fung
+-- stdout
+| # fan_in, pmap and retry live in the module `conc`.
+| import conc
+|
+| a = channel(2)
+| b = channel(2)
+| each([1, 2], x => send(a, x))
+| close(a)
+| send(b, 3)
+| close(b)
+| print(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))
+| # expect: [1, 2, 3] [1, 4, 9] []
+| print(conc.retry(() => Err("never"), times: 2))
+| # expect: Err("never")
+-- stderr
+-- exit: 0
+==== tests/lang/continuation.fung
+-- stdout
+| print(1 +
+|
+|   2)
+| # expect: 3
+| print(true
+|   and false)
+| # expect: false
+| print(
+|   1,
+|   2,
+| )
+| # expect: 1 2
+| print(1); print(2)
+| # expect: 1
+| # expect: 2
+-- stderr
+-- exit: 0
+==== tests/lang/convert.fung
+-- stdout
+| print(int("42") + 1, int(3.9), float(2), str(1.5), sym("ok"), parse_int("x"), parse_int("7")!)
+| # expect: 43 3 2.0 1.5 'ok Err({kind: 'parse, message: "not an integer: x"}) 7
+| print(parse_dur("90s")!, parse_dur("1.5h")!, parse_dur("soon"))
+| # expect: 1m30s 1h30m Err({kind: 'parse, message: "not a duration: soon"})
+| print(is_ok(Ok(1)), is_err(Ok(1)), is_err(Err(1)))
+| # expect: true false true
+-- stderr
+-- exit: 0
+==== tests/lang/destructure.fung
+-- stdout
+| [first, ...rest] = [1, 2, 3]
+| {name: n} = {name: "a", x: 1}
+| Ok(text) = Ok("hi")
+| print(first, rest, n, text)
+| # expect: 1 [2, 3] a hi
+-- stderr
+-- exit: 0
+==== tests/lang/durations.fung
+-- stdout
+| print(1h30m, 500ms + 1.5s, 2 * 30s, 1m / 4, 30s < 1m, 1.5ms, -5s)
+| # expect: 1h30m 2s 1m 15s true 1.5ms -5s
+| print(1h - 1h, 0.5 * 1m)
+| # expect: 0s 30s
+-- stderr
+-- exit: 0
+==== tests/lang/err_agent_reentry.fung
+-- stdout
+| a = agent(0)
+| swap(a, x => swap(a, y => y))
+| # expect-error: E0704
+-- stderr
+-- exit: 0
+==== tests/lang/err_alias_cycle.fung
+-- stdout
+| type a = a
+| fn f(x: a) = x
+| # expect-error: E0218
+-- stderr
+-- exit: 0
+==== tests/lang/err_alias_dup.fung
+-- stdout
+| type a = int
+| type a = str
+| # expect-error: E0217
+-- stderr
+-- exit: 0
+==== tests/lang/err_alias_in_fn.fung
+-- stdout
+| fn f(): type a = int ;;
+| # expect-error: E0219
+-- stderr
+-- exit: 0
+==== tests/lang/err_alt_names.fung
+-- stdout
+| match 1: Ok(x) | Err(y) => 1 ;;
+| # expect-error: E0216
+-- stderr
+-- exit: 0
+==== tests/lang/err_arg_twice.fung
+-- stdout
+| fn f(a) = a
+| f(1, a: 2)
+| # expect-error: E0405
+-- stderr
+-- exit: 0
+==== tests/lang/err_arg_type.fung
+-- stdout
+| fn f(n: int) = n
+| f("a")
+| # expect-error: E0403
+-- stderr
+-- exit: 0
+==== tests/lang/err_arg_type_tag.fung
+-- stdout
+| fn f(s: Circle) = s
+| f(1)
+| # expect-error: E0403
+-- stderr
+-- exit: 0
+==== tests/lang/err_assert.fung
+-- stdout
+| fn double(x) = x * 2
+| assert double(2) == 5
+| # expect-error: E0807
+-- stderr
+-- exit: 0
+==== tests/lang/err_bang_nil.fung
+-- stdout
+| nil!
+| # expect-error: E0604
+-- stderr
+-- exit: 0
+==== tests/lang/err_bang_value.fung
+-- stdout
+| 5!
+| # expect-error: E0605
+-- stderr
+-- exit: 0
+==== tests/lang/err_block_leak.fung
+-- stdout
+| if true: y = 1 ;;
+| print(y)
+| # expect-error: E0206
+-- stderr
+-- exit: 0
+==== tests/lang/err_bool.fung
+-- stdout
+| print(1 and true)
+| # expect-error: E0505
+-- stderr
+-- exit: 0
+==== tests/lang/err_chain.fung
+-- stdout
+-- stderr
+| error[E0111]: comparison operators cannot be chained
+|   --> <stdin>:1:13
+|   |
+| 1 | print(1 < 2 < 3)
+|   |             ^
+|   |
+|  help: split it with `and`: a < b and b < c
+-- exit: 2
+==== tests/lang/err_channel_self.fung
+-- stdout
+| ch = channel(1)
+| send(ch, [ch])
+| # expect-error: E0705
+-- stderr
+-- exit: 0
+==== tests/lang/err_cond_not_bool.fung
+-- stdout
+| if 1: 2 ;;
+| # expect-error: E0505
+-- stderr
+-- exit: 0
+==== tests/lang/err_convert.fung
+-- stdout
+| print(int("x"))
+| # expect-error: E0513
+-- stderr
+-- exit: 0
+==== tests/lang/err_deadlock.fung
+-- stdout
+| ch = channel()
+| recv(ch)
+| # expect-error: E0702
+-- stderr
+-- exit: 0
+==== tests/lang/err_destructure.fung
+-- stdout
+| (a, b) = (1, 2, 3)
+| # expect-error: E0602
+-- stderr
+-- exit: 0
+==== tests/lang/err_div_zero.fung
+-- stdout
+| print(1)
+| # expect: 1
+| print(1 / 0)
+| # expect-error: E0502
+-- stderr
+-- exit: 0
+==== tests/lang/err_dup_fn.fung
+-- stdout
+| fn f() = 1
+| fn f() = 2
+| # expect-error: E0210
+-- stderr
+-- exit: 0
+==== tests/lang/err_dup_key.fung
+-- stdout
+-- stderr
+| error[E0113]: duplicate key `a` in map literal
+|   --> <stdin>:1:12
+|   |
+| 1 | x = {a: 1, a: 2}
+|   |            ^
+|   |
+-- exit: 2
+==== tests/lang/err_dup_pattern_name.fung
+-- stdout
+| [a, a] = [1, 2]
+| # expect-error: E0221
+-- stderr
+-- exit: 0
+==== tests/lang/err_escape.fung
+-- stdout
+-- stderr
+| error[E0103]: unknown escape \p in string
+|   --> <stdin>:1:10
+|   |
+| 1 | print("C:\path")
+|   |          ^
+|   |
+-- exit: 2
+==== tests/lang/err_expected_colon.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `:` after the if condition, found integer `1`
+|   --> <stdin>:1:9
+|   |
+| 1 | if true 1 ;;
+|   |         ^
+|   |
+-- exit: 2
+==== tests/lang/err_fail.fung
+-- stdout
+| print(1)
+| # expect: 1
+| fail("boom")
+| # expect-error: E0803
+-- stderr
+-- exit: 0
+==== tests/lang/err_global_before_assign.fung
+-- stdout
+| fn f() = x
+| f()
+| x = 1
+| # expect-error: E0204
+-- stderr
+-- exit: 0
+==== tests/lang/err_global_from_fn.fung
+-- stdout
+| x = 1
+| f = fn(): x = 2 ;;
+| # expect-error: E0205
+-- stderr
+-- exit: 0
+==== tests/lang/err_group_key.fung
+-- stdout
+| print(group_by([1], x => x))
+| # expect-error: E0514
+-- stderr
+-- exit: 0
+==== tests/lang/err_hole.fung
+-- stdout
+| x = _ + 1
+| # expect-error: E0215
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_cycle.fung
+-- stdout
+| import "./_lib/cyc_a"
+| # expect-error: E0302
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_in_fn.fung
+-- stdout
+| fn f(): import fs ;;
+| # expect-error: E0311
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_missing.fung
+-- stdout
+| import "./_lib/nothing"
+| # expect-error: E0301
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_private.fung
+-- stdout
+| import "./_lib/greet"
+| print(greet._secret())
+| # expect-error: E0304
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_top.fung
+-- stdout
+| import "./_lib/noisy"
+| # expect-error: E0306
+-- stderr
+-- exit: 0
+==== tests/lang/err_import_twice.fung
+-- stdout
+| import fs
+| import fs
+| # expect-error: E0309
+-- stderr
+-- exit: 0
+==== tests/lang/err_in.fung
+-- stdout
+| print(1 in 1)
+| # expect-error: E0512
+-- stderr
+-- exit: 0
+==== tests/lang/err_index_range.fung
+-- stdout
+| print([1][1])
+| # expect-error: E0507
+-- stderr
+-- exit: 0
+==== tests/lang/err_index_tuple.fung
+-- stdout
+| print((1, 2)[0])
+| # expect-error: E0509
+-- stderr
+-- exit: 0
+==== tests/lang/err_interp.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected end of file
+|   --> <stdin>:1:13
+|   |
+| 1 | print("${1 +}")
+|   |             ^
+|   |
+-- exit: 2
+==== tests/lang/err_json_stringify.fung
+-- stdout
+| import json
+| print(json.stringify({d: 5s}))
+| # expect-error: E0513
+-- stderr
+-- exit: 0
+==== tests/lang/err_key.fung
+-- stdout
+| print({a: 1}.b)
+| # expect-error: E0508
+-- stderr
+-- exit: 0
+==== tests/lang/err_local_fn_later.fung
+-- stdout
+| fn outer():
+|   fn a() = b()
+|   fn b() = 1
+|   a()
+| ;;
+| # expect-error: E0208
+-- stderr
+-- exit: 0
+==== tests/lang/err_missing_arg.fung
+-- stdout
+| fn f(a, b) = a
+| f(1)
+| # expect-error: E0407
+-- stderr
+-- exit: 0
+==== tests/lang/err_missing_end.fung
+-- stdout
+-- stderr
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> <stdin>:3:1
+|   |
+| 3 | 
+|   | ^
+|   |
+-- exit: 2
+==== tests/lang/err_native_import.fung
+-- stdout
+| import _native.fs
+| # expect-error: E0310
+-- stderr
+-- exit: 0
+==== tests/lang/err_nil_arith.fung
+-- stdout
+| print(nil + 1)
+| # expect-error: E0501
+-- stderr
+-- exit: 0
+==== tests/lang/err_no_match.fung
+-- stdout
+| match 1: 0 => 1 ;;
+| # expect-error: E0601
+-- stderr
+-- exit: 0
+==== tests/lang/err_nonfinite.fung
+-- stdout
+| print(1e308 * 10)
+| # expect-error: E0504
+-- stderr
+-- exit: 0
+==== tests/lang/err_number.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "30abc"
+|   --> <stdin>:1:7
+|   |
+| 1 | print(30abc)
+|   |       ^
+|   |
+-- exit: 2
+==== tests/lang/err_overflow.fung
+-- stdout
+| print(9223372036854775807 + 1)
+| # expect-error: E0503
+-- stderr
+-- exit: 0
+==== tests/lang/err_question_in_for.fung
+-- stdout
+| fn f(xs) = for x in xs: x? ;;
+| # expect-error: E0220
+-- stderr
+-- exit: 0
+==== tests/lang/err_question_top.fung
+-- stdout
+| Ok(1)?
+| # expect-error: E0214
+-- stderr
+-- exit: 0
+==== tests/lang/err_reassign_fn.fung
+-- stdout
+| fn f() = 1
+| f = 2
+| # expect-error: E0209
+-- stderr
+-- exit: 0
+==== tests/lang/err_reassign_outer.fung
+-- stdout
+| total = 0
+| if true: total = total + 1 ;;
+| # expect-error: E0205
+-- stderr
+-- exit: 0
+==== tests/lang/err_regex.fung
+-- stdout
+| import regex
+| print(regex.is_match("x", "("))
+| # expect-error: E0515
+-- stderr
+-- exit: 0
+==== tests/lang/err_return_in_for.fung
+-- stdout
+| for x in [1]: return x ;;
+| # expect-error: E0213
+-- stderr
+-- exit: 0
+==== tests/lang/err_return_type.fung
+-- stdout
+| fn f() -> str = 1
+| f()
+| # expect-error: E0404
+-- stderr
+-- exit: 0
+==== tests/lang/err_shadow_module.fung
+-- stdout
+| import fs
+| fs = 1
+| # expect-error: E0308
+-- stderr
+-- exit: 0
+==== tests/lang/err_slice_tuple.fung
+-- stdout
+| print((1,)[0..1])
+| # expect-error: E0511
+-- stderr
+-- exit: 0
+==== tests/lang/err_stack_overflow.fung
+-- stdout
+| fn f(n) = n == 0 then 0 else 1 + f(n - 1)
+| print(f(200000))
+| # expect-error: E0804
+-- stderr
+-- exit: 0
+==== tests/lang/err_str_int.fung
+-- stdout
+| print("a" + 1)
+| # expect-error: E0501
+-- stderr
+-- exit: 0
+==== tests/lang/err_sym_name.fung
+-- stdout
+| print(sym("a b"))
+| # expect-error: E0513
+-- stderr
+-- exit: 0
+==== tests/lang/err_tag_named.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|   --> <stdin>:1:10
+|   |
+| 1 | print(Ok(a: 1))
+|   |          ^
+|   |
+-- exit: 2
+==== tests/lang/err_task_failed.fung
+-- stdout
+| spawn(() => fail("x"))
+| sleep(20ms)
+| print("entry done")
+| # expect: entry done
+| # expect-error: E0803
+-- stderr
+-- exit: 0
+==== tests/lang/err_test_nested.fung
+-- stdout
+-- stderr
+| error[E0114]: test must be at the top level
+|   --> <stdin>:2:3
+|   |
+| 2 |   test "nested": assert true ;;
+|   |   ^
+|   |
+-- exit: 2
+==== tests/lang/err_too_many_args.fung
+-- stdout
+| fn f(a) = a
+| f(1, 2)
+| # expect-error: E0402
+-- stderr
+-- exit: 0
+==== tests/lang/err_top_return.fung
+-- stdout
+| return 1
+| # expect-error: E0211
+-- stderr
+-- exit: 0
+==== tests/lang/err_type.fung
+-- stdout
+| print(1 + true)
+| # expect-error: E0501
+-- stderr
+-- exit: 0
+==== tests/lang/err_undefined.fung
+-- stdout
+| print(fiels)
+| # expect-error: E0204
+-- stderr
+-- exit: 0
+==== tests/lang/err_unexpected.fung
+-- stdout
+-- stderr
+| error[E0110]: unexpected integer `2`
+|   --> <stdin>:1:9
+|   |
+| 1 | print(1 2)
+|   |         ^
+|   |
+-- exit: 2
+==== tests/lang/err_unhandled.fung
+-- stdout
+| print(1)
+| # expect: 1
+| Err("boom")!
+| # expect-error: E0603
+-- stderr
+-- exit: 0
+==== tests/lang/err_unknown_named.fung
+-- stdout
+| fn f(a) = a
+| f(b: 1)
+| # expect-error: E0406
+-- stderr
+-- exit: 0
+==== tests/lang/err_unknown_type.fung
+-- stdout
+| fn f(a: integer) = a
+| # expect-error: E0212
+-- stderr
+-- exit: 0
+==== tests/lang/err_use_before_assign.fung
+-- stdout
+| print(x)
+| x = 1
+| # expect-error: E0204
+-- stderr
+-- exit: 0
+==== tests/lang/exit_from_task.fung
+-- stdout
+| at_exit(() => print("bye"))
+| spawn(fn(): sleep(10ms); exit(5) ;;)
+| sleep(10s)
+| print("never")
+| # expect: bye
+| # expect-exit: 5
+-- stderr
+-- exit: 0
+==== tests/lang/fn_basics.fung
+-- stdout
+| fn add(a, b) = a + b
+| fn fib(n) = n < 2 then n else fib(n - 1) + fib(n - 2)
+| print(add(1, 2), fib(20))
+| # expect: 3 6765
+| print(even(10), odd(7))
+| # expect: true true
+| fn even(n) = n == 0 then true else odd(n - 1)
+| fn odd(n) = n == 0 then false else even(n - 1)
+| fn stats(xs_len):
+|   avg = xs_len / 2
+|   fn half(v) = v / 2
+|   half(avg)
+| ;;
+| print(stats(8))
+| # expect: 2.0
+| print((fn(a):
+|   a + 1
+| ;;)(1), (x => x * 2)(21))
+| # expect: 2 42
+| print(add, x => x)
+| # expect: <fn add> <fn>
+-- stderr
+-- exit: 0
+==== tests/lang/fs_and_path.fung
+-- stdout
+| import fs
+| import path
+| fs.with_temp_dir(fn(d):
+|   p = path.join(d, "notes.txt")
+|   fs.write(p, "one\ntwo\n")!
+|   print(fs.read(p)!, fs.exists(p), path.base(p), path.ext(p), path.stem(p))
+|   lines = fs.with_open(p, h => read_lines(h)!)
+|   print(lines, fs.list(d)!)
+|   print(fs.read(path.join(d, "missing")) |> is_err)
+|   nil
+| ;;)
+| # expect: one
+| # expect: two
+| # expect:  true notes.txt .txt notes
+| # expect: ["one", "two"] ["notes.txt"]
+| # expect: true
+-- stderr
+-- exit: 0
+==== tests/lang/http_serve.fung
+-- stdout
+| # A server that counts its requests with an agent.
+| import http
+| import json
+|
+| hits = agent(0)
+| handle = fn(req):
+|   swap(hits, n => n + 1)
+|   match req.path:
+|     "/health" => {status: 200, headers: {"content-type": "application/json"}, body: json.stringify({ok: true, n: deref(hits)})}
+|     "/echo"   => "${req.method} ${req.body} ${get(req.query, "x", "-")}"
+|     _         => {status: 404, body: "no such page"}
+|   ;;
+| ;;
+|
+| port = channel(1)
+| server = spawn(() => http.serve("127.0.0.1:0", handle, ready: addr => send(port, addr)))
+| base = "http://" + recv(port)!
+|
+| r = http.get("${base}/health")!
+| print(r.status, r.headers["content-type"], json.parse(r.body)!.ok)
+| # expect: 200 application/json true
+| r = http.post("${base}/echo?x=1", "hello")!
+| print(r.status, r.body, r.headers["content-type"])
+| # expect: 200 POST hello 1 text/plain; charset=utf-8
+| r = http.get("${base}/nowhere")!
+| print(r.status, r.body)
+| # expect: 404 no such page
+| print(deref(hits))
+| # expect: 3
+| cancel(server)
+| print(await(server))
+| # expect: Err({kind: 'cancelled})
+-- stderr
+-- exit: 0
+==== tests/lang/if_blocks.fung
+-- stdout
+| n = 0
+| label = if n > 0:
+|   "pos"
+| else if n < 0:
+|   "neg"
+| else:
+|   "zero"
+| ;;
+| print(label)
+| # expect: zero
+| print(if true: if false: 1 else: 2 ;; ;;)
+| # expect: 2
+| print(
+|   if 1 < 2:
+|     "yes"
+|   ;;
+| )
+| # expect: yes
+-- stderr
+-- exit: 0
+==== tests/lang/import_basic.fung
+-- stdout
+| import "./_lib/greet"
+| import "./_lib/greet" as g
+| print(greet.greet("a"), g.version, type_of(greet), greet == g)
+| # expect: hi, a 2 'module true
+-- stderr
+-- exit: 0
+==== tests/lang/import_names.fung
+-- stdout
+| import "./_lib/greet" (greet, version)
+| print(greet("b"), version)
+| # expect: hi, b 2
+-- stderr
+-- exit: 0
+==== tests/lang/json.fung
+-- stdout
+| import json
+| text = `{"name": "fung", "tags": ["a", "b"], "n": 3, "pi": 3.5, "ok": true, "none": null}`
+| data = json.parse(text)!
+| print(data.name, data.tags, data.n + 1, data.pi, data.ok, data.none)
+| # expect: fung ["a", "b"] 4 3.5 true nil
+| print(json.stringify(data))
+| # expect: {"name":"fung","tags":["a","b"],"n":3,"pi":3.5,"ok":true,"none":null}
+| print(json.stringify({a: [1, {b: 'sym}], t: (1, 2)}, indent: 2))
+| # expect: {
+| # expect:   "a": [
+| # expect:     1,
+| # expect:     {
+| # expect:       "b": "sym"
+| # expect:     }
+| # expect:   ],
+| # expect:   "t": [
+| # expect:     1,
+| # expect:     2
+| # expect:   ]
+| # expect: }
+| match json.parse("{bad}"):
+|   Err({kind: 'parse, line: l, col: c}) => print("parse error at", l, c)
+| ;;
+| # expect: parse error at 1 2
+| print(json.parse("12345678901234567890"))
+| # expect: Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 12345678901234567890 is out of range"})
+-- stderr
+-- exit: 0
+==== tests/lang/keyword_names.fung
+-- stdout
+| import json
+| data = json.parse(`{"type": "disk", "match": {"if": 1}, "for": [1]}`)!
+| print(data.type, data.match.if, data.for)
+| # expect: disk 1 [1]
+| m = {type: "x", test: 2, nil: 3}
+| print(m.type, m["test"], m.nil)
+| # expect: x 2 3
+| match m:
+|   {type: t, test: n} => print(t, n)
+| ;;
+| # expect: x 2
+-- stderr
+-- exit: 0
+==== tests/lang/lines.fung
+-- stdout
+| print(lines("a\nb\n"), lines(""), len(lines("x\n\ny")))
+| # expect: ["a", "b"] [] 3
+-- stderr
+-- exit: 0
+==== tests/lang/lists.fung
+-- stdout
+| xs = [10, 20, 30]
+| print(xs, xs[0], xs[-1], xs[1..3], xs[..1], xs[-2..], len(xs))
+| # expect: [10, 20, 30] 10 30 [20, 30] [10] [20, 30] 3
+| print([1] + [2, 3], [] == [], [1, 2] < [1, 3], 2 in xs, 20 in xs)
+| # expect: [1, 2, 3] true true false true
+| print(xs |> map(x => x // 10), for x in xs: x + 1 ;;)
+| # expect: [1, 2, 3] [11, 21, 31]
+-- stderr
+-- exit: 0
+==== tests/lang/literals.fung
+-- stdout
+| print(1_000 + 0xff + 0b11 + 0o7)
+| # expect: 1265
+| print(1e3, 2.5e-3, 1e21, 123456789.0)
+| # expect: 1000.0 0.0025 1e21 123456789.0
+| print(9223372036854775807, -9223372036854775807 - 1)
+| # expect: 9223372036854775807 -9223372036854775808
+| print()
+| # expect:
+-- stderr
+-- exit: 0
+==== tests/lang/map_shorthand.fung
+-- stdout
+| name = "fung"
+| port = 8080
+| cfg = {name, port, debug: false}
+| print(cfg)
+| # expect: {name: "fung", port: 8080, debug: false}
+| {name: n, port} = cfg
+| print(n, port)
+| # expect: fung 8080
+| match {kind: 'parse, line: 3}:
+|   {kind, line} => print(kind, line)
+| ;;
+| # expect: 'parse 3
+-- stderr
+-- exit: 0
+==== tests/lang/map_upper_keys.fung
+-- stdout
+| m = {DB_HOST: "localhost", Port: 80}
+| print(m, m.DB_HOST, m["Port"])
+| # expect: {DB_HOST: "localhost", Port: 80} localhost 80
+| {DB_HOST: h} = m
+| print(h)
+| # expect: localhost
+-- stderr
+-- exit: 0
+==== tests/lang/maps.fung
+-- stdout
+| m = {name: "fung", port: 8080, "a b": 1}
+| print(m, m.name, m["port"], len(m), "name" in m, "x" in m)
+| # expect: {name: "fung", port: 8080, "a b": 1} fung 8080 3 true false
+| print({a: 1, b: 2} == {b: 2, a: 1})
+| # expect: true
+-- stderr
+-- exit: 0
+==== tests/lang/match.fung
+-- stdout
+| fn describe(v) = match v:
+|   0            => "zero"
+|   1 | 2        => "small"
+|   "s"          => "string"
+|   'ok          => "ok symbol"
+|   Ok(x)        => "ok ${x}"
+|   (x, 0)       => "x-axis ${x}"
+|   []           => "empty"
+|   [first, ...] => "list from ${first}"
+|   {name: n}    => "named ${n}"
+|   n when n < 0 => "negative"
+|   _            => "other"
+| ;;
+| print(describe(0), describe(-5), describe(2), describe("s"), describe('ok))
+| # expect: zero negative small string ok symbol
+| print(describe(Ok(9)), describe((4, 0)), describe([]), describe([7, 8]), describe({name: "z"}), describe(3.5))
+| # expect: ok 9 x-axis 4 empty list from 7 named z other
+| fn len2(xs) = match xs:
+|   []           => 0
+|   [_, ...rest] => 1 + len2(rest)
+| ;;
+| print(len2([1, 2, 3]))
+| # expect: 3
+-- stderr
+-- exit: 0
+==== tests/lang/minint.fung
+-- stdout
+| print(-9223372036854775808, -9223372036854775807 - 1 == -9223372036854775808)
+| # expect: -9223372036854775808 true
+-- stderr
+-- exit: 0
+==== tests/lang/nil.fung
+-- stdout
+| print(nil, nil == nil, nil == 0, nil == false)
+| # expect: nil true false false
+-- stderr
+-- exit: 0
+==== tests/lang/param_patterns.fung
+-- stdout
+| print(map([(1, "a"), (2, "b")], ((n, s)) => "${n}${s}"))
+| # expect: ["1a", "2b"]
+| fn area((w, h)) = w * h
+| print(area((2, 3)), map([{x: 1}, {x: 2}], ({x: v}) => v))
+| # expect: 6 [1, 2]
+-- stderr
+-- exit: 0
+==== tests/lang/pipes_partial.fung
+-- stdout
+| import_free = [3, 1, 2]
+| fn double(x) = x * 2
+| print(import_free |> map(double) |> len, 5 |> double)
+| # expect: 3 10
+| fn join3(a, b, c) = a + b + c
+| wrap = join3("<", _, ">")
+| print(wrap("x"), map(["a", "b"], join3("[", _, "]")))
+| # expect: <x> ["[a]", "[b]"]
+-- stderr
+-- exit: 0
+==== tests/lang/process.fung
+-- stdout
+| print(exec(["echo", "hi"])!.out, sh("exit 2") |> is_err, env("FUNG_SURELY_UNSET_VAR_1"))
+| # expect: hi
+| # expect:  true nil
+-- stderr
+-- exit: 0
+==== tests/lang/ranges.fung
+-- stdout
+| print(0..3, 0..=3, len(0..10), 5 in 0..10, 10 in 0..10, 10 in 0..=10)
+| # expect: 0..3 0..=3 10 true false true
+| print(for i in 1..=3: i * i ;;, map(0..2, x => x))
+| # expect: [1, 4, 9] [0, 1]
+-- stderr
+-- exit: 0
+==== tests/lang/regex.fung
+-- stdout
+| import regex
+| s = "가나다 나다"
+| m = regex.find(s, "나(다)")
+| print(m.text, m.start, m.end, s[m.start..m.end], m.groups)
+| # expect: 나다 1 3 나다 ["다"]
+| print(regex.is_match("app.log", `\.log$`), regex.find("abc", "z"))
+| # expect: true nil
+| print(regex.find_all("a1 b22", `\d+`) |> map(m => m.text))
+| # expect: ["1", "22"]
+| print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"), regex.split("a, b,c", `\s*,\s*`))
+| # expect: 04/10/2026 ["a", "b", "c"]
+| kv = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
+| print(kv.named.key, int(kv.named.val) + 1)
+| # expect: port 8081
+-- stderr
+-- exit: 0
+==== tests/lang/rest_and_alias.fung
+-- stdout
+| fn count(...xs) = len(xs)
+| fn head(x, ...rest) = (x, rest)
+| print(count(), count(1, 2), head(1), head(1, 2, 3))
+| # expect: 0 2 (1, []) (1, [2, 3])
+| type shape = Circle | Rect
+| fn area(s: shape) = match s: Circle(r) => r * r * 3; Rect(w, h) => w * h ;;
+| print(area(Circle(2)), area(Rect(2, 5)))
+| # expect: 12 10
+-- stderr
+-- exit: 0
+==== tests/lang/results.fung
+-- stdout
+| fn parse(s) = s == "1" then Ok(1) else Err({kind: 'parse, message: "not a number: ${s}"})
+| fn twice(s) = Ok(parse(s)? * 2)
+| print(parse("1")!, parse("x") ?? 0, twice("1"), twice("x"), nil ?? "default")
+| # expect: 1 0 Ok(2) Err({kind: 'parse, message: "not a number: x"}) default
+-- stderr
+-- exit: 0
+==== tests/lang/results_fns.fung
+-- stdout
+| fn parse_port(s):
+|   n = parse_int(s)?
+|   n > 0 and n < 65536 then Ok(n) else Err({kind: 'invalid, message: "port out of range: ${n}"})
+| ;;
+| print(parse_port("80"), parse_port("x") |> is_err, parse_port("70000"))
+| # expect: Ok(80) true Err({kind: 'invalid, message: "port out of range: 70000"})
+-- stderr
+-- exit: 0
+==== tests/lang/return.fung
+-- stdout
+| fn classify(n):
+|   if n > 0: return "pos" ;;
+|   if n < 0: return "neg" ;;
+|   "zero"
+| ;;
+| print(classify(1), classify(-1), classify(0))
+| # expect: pos neg zero
+| fn nothing() = return
+| print(nothing())
+| # expect: nil
+-- stderr
+-- exit: 0
+==== tests/lang/slices_inclusive.fung
+-- stdout
+| xs = [1, 2, 3]
+| i = nil
+| print(xs[1..=2], xs[0..=-1], xs[i ?? 0], xs[true then 1 else 2])
+| # expect: [2, 3] [1, 2, 3] 1 2
+-- stderr
+-- exit: 0
+==== tests/lang/stdin.fung
+-- stdout
+| # stdin: first
+| # stdin: second
+| print(read_line(), read_lines(), read_line())
+| # expect: Ok("first") Ok(["second"]) Ok(nil)
+-- stderr
+-- exit: 0
+==== tests/lang/stdlib_fns.fung
+-- stdout
+| print(until(1, x => x * 3, x => x > 20), iterate("a", s => s + "b", 2))
+| # expect: 27 abb
+-- stderr
+-- exit: 0
+==== tests/lang/strict_conversions.fung
+-- stdout
+| print(int("1_000"), parse_int("1_") |> is_err, sym("ok"))
+| # expect: 1000 true 'ok
+-- stderr
+-- exit: 0
+==== tests/lang/string_fns.fung
+-- stdout
+| print(split("a,b", ","), join([1, "x"], "-"), trim("  a "), upper("ab"), replace("aXa", "X", "-"))
+| # expect: ["a", "b"] 1-x a AB a-a
+| print(pad_left("7", 3, "0"), repeat("ab", 2), starts_with("abc", "a"), chars("참치") |> reverse |> join)
+| # expect: 007 abab true 치참
+-- stderr
+-- exit: 0
+==== tests/lang/strings.fung
+-- stdout
+| name = "fung"
+| print("hello, ${name}!")
+| # expect: hello, fung!
+| print("quote\"d", "\$notvar ${1 + 1}", "${"nested ${name}"}")
+| # expect: quote"d $notvar 2 nested fung
+| print(`raw \n ${x}`)
+| # expect: raw \n ${x}
+| print("a" + "b" == "ab", "abc" < "abd", "가" < "나")
+| # expect: true true true
+| print("${'sym} ${1.5} ${nil} ${true}")
+| # expect: 'sym 1.5 nil true
+-- stderr
+-- exit: 0
+==== tests/lang/symbols.fung
+-- stdout
+| s = 'ok
+| print(s, s == 'ok, s == "ok", 'a == 'b)
+| # expect: 'ok true false false
+-- stderr
+-- exit: 0
+==== tests/lang/tasks.fung
+-- stdout
+| ts = for i in 1..=3: spawn(() => i * 2) ;;
+| print(ts |> map(await), await(spawn(() => Err('e))), await(spawn(() => 1 / 0)) |> is_err)
+| # expect: [2, 4, 6] Err('e) true
+-- stderr
+-- exit: 0
+==== tests/lang/tco.fung
+-- stdout
+| fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+| print(count(1000000, 0))
+| # expect: 1000000
+| fn even(n) = n == 0 then true else odd(n - 1)
+| fn odd(n) = n == 0 then false else even(n - 1)
+| print(even(300000))
+| # expect: true
+-- stderr
+-- exit: 0
+==== tests/lang/test_blocks_ignored.fung
+-- stdout
+| x = 1
+| test "ignored by run": assert x == 2 ;;
+| print(x)
+| # expect: 1
+-- stderr
+-- exit: 0
+==== tests/lang/then_else.fung
+-- stdout
+| n = 5
+| print(n > 0 then "pos" else "neg")
+| # expect: pos
+| print(n > 10 then "big" else n > 3 then "mid" else "small")
+| # expect: mid
+| label = n == 5 then "five"
+|   else "other"
+| print(label)
+| # expect: five
+-- stderr
+-- exit: 0
+==== tests/lang/time_module.fung
+-- stdout
+| import time
+| t = time.parse("2026-10-04T09:05:07+09:00")!
+| print(t, type_of(t))
+| # expect: 2026-10-04T09:05:07+09:00 'time
+| print(time.format(t, "YYYY/MM/DD HH:mm:ss"), time.format(time.utc(t), "HH:mm Z"))
+| # expect: 2026/10/04 09:05:07 00:05 +00:00
+| print(time.unix(t), time.parts(t).weekday, time.parts(t).month)
+| # expect: 1791072307 'sun 10
+| print(time.parse("2026/10/04", "YYYY/MM/DD") |> is_ok, time.parse("2026-13-04", "YYYY-MM-DD"))
+| # expect: true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: field out of range"})
+| print(time.utc(t) == t, time.from_unix(1791072307) == t)
+| # expect: true true
+-- stderr
+-- exit: 0
+==== tests/lang/time_values.fung
+-- stdout
+| import time
+| a = time.parse("2026-10-04T09:00:00+09:00")!
+| b = a + 90m
+| print(b, b - a, a - 1h, b > a, a == b - 90m)
+| # expect: 2026-10-04T10:30:00+09:00 1h30m 2026-10-04T08:00:00+09:00 true true
+| print(sort([b, a]) == [a, b], str(a), "${a}")
+| # expect: true 2026-10-04T09:00:00+09:00 2026-10-04T09:00:00+09:00
+| print(a + a)
+| # expect-error: E0501
+-- stderr
+-- exit: 0
+==== tests/lang/tuples_tags.fung
+-- stdout
+| fn divmod(a, b) = (a // b, a % b)
+| (q, r) = divmod(7, 2)
+| print(q, r, (1,), (), (1, 2) == (1, 2))
+| # expect: 3 1 (1,) () true
+| print(Circle(3), Rect(2, 5), Red, Ok(1) == Ok(1), type_of(Circle(3)), type_of(Red))
+| # expect: Circle(3) Rect(2, 5) 'Red true 'Circle 'sym
+-- stderr
+-- exit: 0
+==== tests/lang/types.fung
+-- stdout
+| fn f(n: int, s: str = "x") -> str = s
+| fn g(n: num) = n
+| fn h(v: str | nil) = v
+| fn k(v: any) = v
+| print(f(1), f(2, "y"), g(1), g(1.5), h(nil), h("a"), k('s))
+| # expect: x y 1 1.5 nil a 's
+-- stderr
+-- exit: 0
+==== tests/lang/underscore_assign.fung
+-- stdout
+| _ = print("side")
+| print(1)
+| # expect: side
+| # expect: 1
+-- stderr
+-- exit: 0
+==== tests/lang/unused_var_silent_in_run.fung
+-- stdout
+| fn f():
+|   unused = 1
+|   2
+| ;;
+| print(f())
+| # expect: 2
+-- stderr
+-- exit: 0
+==== fmt --check - "x=1\n"
+-- stdout
+| <stdin>
+-- stderr
+-- exit: 1
+==== fmt --check - "x = 1\n"
+-- stdout
+-- stderr
+-- exit: 0
+==== fmt --check - ""
+-- stdout
+-- stderr
+-- exit: 0
+==== fmt --check - "x = )\n"
+-- stdout
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> <stdin>:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+-- exit: 2
+==== fmt --check - "\u{feff}x = 1\n"
+-- stdout
+| <stdin>
+-- stderr
+-- exit: 1
+==== fmt --check - "\u{feff}\u{feff}x\n"
+-- stdout
+-- stderr
+| error[E0101]: unexpected character "\ufeff"
+|   --> <stdin>:1:1
+|   |
+| 1 | ﻿﻿x
+|   | ^
+|   |
+-- exit: 2
+==== fmt --check - "x = \"a�b\"\n"
+-- stdout
+-- stderr
+-- exit: 0
+==== fmt - --check "x=1\n"
+-- stdout
+| <stdin>
+-- stderr
+-- exit: 1
+==== fmt - --check "x = 1\n"
+-- stdout
+-- stderr
+-- exit: 0
+==== fmt - --check ""
+-- stdout
+-- stderr
+-- exit: 0
+==== fmt - --check "x = )\n"
+-- stdout
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> <stdin>:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+-- exit: 2
+==== fmt - --check "\u{feff}x = 1\n"
+-- stdout
+| <stdin>
+-- stderr
+-- exit: 1
+==== fmt - --check "\u{feff}\u{feff}x\n"
+-- stdout
+-- stderr
+| error[E0101]: unexpected character "\ufeff"
+|   --> <stdin>:1:1
+|   |
+| 1 | ﻿﻿x
+|   | ^
+|   |
+-- exit: 2
+==== fmt - --check "x = \"a�b\"\n"
+-- stdout
+-- stderr
+-- exit: 0

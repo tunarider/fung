@@ -56,7 +56,7 @@
 <main>
 <div class="col">
 <h1>내부 구조</h1>
-<p class="lede">Rust로 쓴 바이트코드 VM이다(0.1은 Go로 썼고, 0.2에서 같은 동작을 Rust로 옮겼다). 트리를 직접 도는 인터프리터가 더 단순하다는 것을 알고 고른 선택으로, 컴파일러와 VM의 원리를 배우는 것이 목적이었고 꼬리 호출 최적화도 VM 쪽이 자연스럽다.</p>
+<p class="lede">Rust로 쓴 바이트코드 VM이다. 트리를 직접 도는 인터프리터가 더 단순하다는 것을 알고 고른 선택으로, 컴파일러와 VM의 원리를 배우는 것이 목적이었고 꼬리 호출 최적화도 VM 쪽이 자연스럽다.</p>
 
 <h2 id="pipeline">한 프로그램의 여정</h2>
 <ol class="stages">
@@ -366,7 +366,7 @@ print(sum(xs))</code></pre>
   <li><strong>실행은 처음 쓸 때 한 번.</strong> <code>IMPORT</code> 명령이 모듈 본문을 처음 만났을 때 그 태스크에서 실행하고 모듈 값(공개 이름들의 불변 레코드)을 캐시한다. 뒤의 import는 캐시된 값을 받는다.</li>
   <li><strong>모듈마다 전역 표.</strong> 함수 값은 자기 모듈의 전역 표를 들고 다니므로, 다른 모듈에서 불려도 자기 전역을 본다.</li>
 </ol>
-<p>내장 모듈(<code>fs</code>, <code>json</code>, <code>http</code>, <code>conc</code> …)의 fung 소스는 <code>include_str!</code>로 실행 파일 안에 들어 있고(<code>crates/fung-front/src/extras.rs</code>), import될 때 컴파일된다. prelude(<code>extras/prelude.fung</code>와 에이전트를 쓴 <code>extras/rust/agent.fung</code>)만 시작할 때 컴파일된다. 스크립트 시작 시간을 지키기 위해서다.</p>
+<p>내장 모듈(<code>fs</code>, <code>json</code>, <code>http</code>, <code>conc</code> …)의 fung 소스는 <code>include_str!</code>로 실행 파일 안에 들어 있고(<code>crates/fung-front/src/extras.rs</code>), import될 때 컴파일된다. prelude(<code>extras/prelude.fung</code>와 에이전트를 쓴 <code>extras/agent.fung</code>)만 시작할 때 컴파일된다. 스크립트 시작 시간을 지키기 위해서다.</p>
 
 <h2 id="layers">라이브러리의 네 층</h2>
 <table>
@@ -378,7 +378,7 @@ print(sum(xs))</code></pre>
     <tr><td>extras(프로젝트)</td><td>사용자 라이브러리. 의존성 관리는 아직 없다.</td><td>fung</td><td>상대 경로 import</td></tr>
   </tbody>
 </table>
-<p>예를 들어 <code>import fs</code>의 <code>fs.read</code>는 <code>extras/fs.fung</code>가 <code>import _native.fs as _n</code> 뒤 <code>read = _n.read</code>로 다시 내보낸 Rust 함수이고, <code>fs.with_open</code>은 그 파일 안에 fung으로 쓴 함수다. <code>http</code>는 통째로 fung이다: <code>extras/rust/http.fung</code>가 <code>_native.net</code>의 소켓 위에서 HTTP/1.1 요청·응답·리다이렉트·프록시·서버를 쓴다. 사용자 코드는 <code>_native.*</code>를 직접 import할 수 없다(E0310).</p>
+<p>예를 들어 <code>import fs</code>의 <code>fs.read</code>는 <code>extras/fs.fung</code>가 <code>import _native.fs as _n</code> 뒤 <code>read = _n.read</code>로 다시 내보낸 Rust 함수이고, <code>fs.with_open</code>은 그 파일 안에 fung으로 쓴 함수다. <code>http</code>는 통째로 fung이다: <code>extras/http.fung</code>가 <code>_native.net</code>의 소켓 위에서 HTTP/1.1 요청·응답·리다이렉트·프록시·서버를 쓴다. 사용자 코드는 <code>_native.*</code>를 직접 import할 수 없다(E0310).</p>
 <p>구현은 크레이트 셋이다: 앞단 <code>fung-front</code>(렉서~컴파일러, 포맷터, 로더), 값과 런타임 <code>fung-vm</code>, 명령 <code>fung-cli</code>. 크레이트 의존성은 허용 목록으로 막는다(<code>deny.toml</code>, <code>crates/fung-cli/tests/deps.rs</code>): 앞단은 0개, VM은 운영체제 접근(<code>libc</code>)·정규식 엔진(<code>regex</code>)·TLS(<code>rustls</code>)처럼 직접 짜면 위험한 것만 쓴다. 내장 fung 코드 안에서 난 런타임 에러는 사용자 코드의 가장 가까운 줄을 가리킨다(사용자는 내장 파일을 열 수 없으므로).</p>
 
 <h2 id="concurrency">동시성 런타임</h2>
@@ -388,7 +388,7 @@ print(sum(xs))</code></pre>
   <li><strong>취소는 트리.</strong> 태스크마다 취소 노드가 있고 부모가 자식을 강하게 든다. 취소되면 원자적 표시가 서고, VM은 <code>CALL</code>·<code>TAILCALL</code>마다 이 표시를 읽는다. 노드에 등록된 잠든 태스크는 곧바로 깬다(소켓을 기다리는 태스크는 깨우개 파이프로).</li>
   <li><strong>교착은 바로 판정한다.</strong> 살아 있는 태스크, 막힌 태스크, 타이머가 깨울 태스크를 센다. 깨우는 쪽이 실행권을 쥔 채로 깨운 태스크를 "막힘"에서 빼므로 수가 언제나 정확하고, "모두 막혔고 깨울 것이 없다"가 되는 순간 E0702를 보고하고 종료 코드 1로 끝낸다. 에이전트 같은 배경 태스크는 따로 세어, 배경 태스크가 하나라도 돌 수 있으면 판정하지 않는다. 운영체제를 기다리는 태스크는 막힌 것으로 세지 않는다(거짓 양성을 피하는 쪽).</li>
   <li><strong>채널</strong>은 기다리는 쪽의 줄을 직접 둔 구조다. 닫힌 채널에 보내면 <code>Err('closed)</code>(채널을 닫는 것은 다른 태스크, 곧 외부 요인). 채널에 그 채널 자신을 보내면 E0705다. 자기를 가리키는 고리는 참조 계수로 해제할 수 없으므로 <code>send</code>가 보내는 값을 훑어 막는다.</li>
-  <li><strong>에이전트</strong>는 fung으로 쓴 배경 태스크다(<code>extras/rust/agent.fung</code>, Erlang·Elixir의 Agent와 같은 모양). 상태를 꼬리 재귀 함수의 인자로 들고, 요청 채널에서 <code>('swap, f, reply)</code>·<code>('deref, reply)</code>를 하나씩 꺼내 처리한다. 상태를 바꾸는 쪽이 하나뿐이라 자물쇠가 필요 없다. 핸들은 닫개라서 마지막 사본이 사라지면 요청 채널이 닫히고 루프가 끝난다. 배경 태스크는 프로그램이 끝나기를 막지 않는다. 바뀌는 칸(atom)을 언어에서 없앤 이유는 둘이다: 태스크 사이에 상태를 나누는 방법을 채널 하나로 줄이고, 참조 계수가 회수하지 못하는 순환이 생길 자리를 없애려는 것이다.</li>
+  <li><strong>에이전트</strong>는 fung으로 쓴 배경 태스크다(<code>extras/agent.fung</code>, Erlang·Elixir의 Agent와 같은 모양). 상태를 꼬리 재귀 함수의 인자로 들고, 요청 채널에서 <code>('swap, f, reply)</code>·<code>('deref, reply)</code>를 하나씩 꺼내 처리한다. 상태를 바꾸는 쪽이 하나뿐이라 자물쇠가 필요 없다. 핸들은 닫개라서 마지막 사본이 사라지면 요청 채널이 닫히고 루프가 끝난다. 배경 태스크는 프로그램이 끝나기를 막지 않는다. 바뀌는 칸(atom)을 언어에서 없앤 이유는 둘이다: 태스크 사이에 상태를 나누는 방법을 채널 하나로 줄이고, 참조 계수가 회수하지 못하는 순환이 생길 자리를 없애려는 것이다.</li>
   <li><strong>아무도 확인하지 않은 실패</strong>: 실패한 태스크의 결과를 <code>await</code>로 꺼내기 전에는 보고하지 않는다. 실패하는 순간 보고문을 만들어 두고, 태스크 핸들의 마지막 사본이 사라지는 순간(<code>Drop</code>) <code>task failed:</code>를 찍는다. 핸들이 이미 없으면 바로 찍는다. 프로그램이 끝나면 남은 것을 실패한 순서대로 찍는다. 하나라도 찍히면 종료 코드가 1이다. 그래서 <code>spawn</code> 바로 뒤의 <code>await</code>는 실행 순서와 무관하게 언제나 조용하다.</li>
   <li><strong>끝내기</strong>: 진입 파일 → 남은 보통 태스크 기다리기(에러나 <code>exit</code>면 취소하고 기다림) → <code>at_exit</code> 핸들러(역순) → 배경 태스크 끝내기 → 꺼내지 않은 실패 보고. <code>exit(n)</code>은 어느 태스크에서든 루트를 취소한다. 출력은 잠금으로 감싸 한 번의 <code>print</code>가 한 번의 쓰기가 된다.</li>
   <li><strong>내장 함수가 VM에 되묻는 길</strong>: 내장 함수는 <code>&amp;mut Task</code>를 받아 출력, 입력, 람다 재호출(<code>call</code>), <code>block</code>·<code>outside</code>를 쓴다. 람다를 부르면 Rust 스택이 한 단 깊어진다. 그래서 태스크가 스레드째 잠드는 지금 모델이 단순하다.</li>
@@ -419,9 +419,10 @@ print(sum(xs))</code></pre>
     <tr><td><code>crates/fung-vm/src/value</code></td><td>fung 값의 Rust 표현과 원시 연산(산술, 비교, 출력 형식), 영속 벡터·HAMT, 깊은 해제</td></tr>
     <tr><td><code>…/vm</code></td><td>실행기, 태스크, 실행권, <code>block</code>, 취소 트리, 채널, 교착 감지, 에이전트 도우미</td></tr>
     <tr><td><code>…/prelude</code> <code>…/native</code> <code>…/conc.rs</code> <code>…/boot.rs</code></td><td>core 값 연산, <code>_native.*</code> 다리(파일·프로세스·시간·JSON·정규식·소켓·TLS), 동시성 원시 연산, prelude 부팅</td></tr>
-    <tr><td><code>extras/</code> <code>extras/rust/</code></td><td>fung으로 쓴 내장 모듈(<code>prelude.fung</code> <code>fs.fung</code> <code>cli.fung</code> …, Rust 전용 <code>agent.fung</code> <code>conc.fung</code> <code>http.fung</code>)</td></tr>
+    <tr><td><code>extras/</code></td><td>fung으로 쓴 내장 모듈(<code>prelude.fung</code> <code>agent.fung</code> <code>fs.fung</code> <code>cli.fung</code> <code>conc.fung</code> <code>http.fung</code> …)</td></tr>
     <tr><td><code>tests/lang</code></td><td>언어 골든 테스트(<code>.fung</code> 파일 안의 <code># expect:</code> 주석과 실제 출력 비교). 실행기는 <code>crates/fung-cli/tests/golden.rs</code></td></tr>
-    <tr><td><code>cmd/</code> <code>internal/</code></td><td>Go 구현(0.1). Rust 구현이 같은 출력을 내는지 대조하는 정답지로 남아 있다.</td></tr>
+    <tr><td><code>crates/*/tests/expected</code></td><td>기대 출력 파일. <code>dump</code>, 실행, <code>check</code>·<code>test</code>·<code>fmt</code>·REPL, <code>json</code>·<code>time</code>·<code>regex</code>·<code>http</code>의 사례마다 표준 출력·에러·종료 코드를 적어 두고 테스트가 비교한다</td></tr>
+    <tr><td><code>spec/</code></td><td>내장 이름 표와 에러 카탈로그(Rust 표에서 생성), 유니코드 표</td></tr>
   </tbody>
 </table>
 <p>설계의 결정과 그 이유는 <a href="https://github.com/tunarider/fung/blob/main/docs/design/README.md">docs/design</a>에, 마일스톤마다 무엇을 만들었는지는 <code>docs/notes</code>에 있다.</p>

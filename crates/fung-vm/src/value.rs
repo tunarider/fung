@@ -72,7 +72,7 @@ pub enum Value {
     /// An instant with its zone (02, `time`).
     Time(Rc<Time>),
     /// An error `_native.conc.try_call` caught, for `raise` (stage 3b,
-    /// Rust only; only `extras/rust/agent.fung` handles one).
+    /// Rust only; only `extras/agent.fung` handles one).
     Caught(Rc<Caught>),
 }
 

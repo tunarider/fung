@@ -1,0 +1,1025 @@
+# The `http` client against a fake server (crates/fung-cli/tests/http.rs,
+# `cases`, then `NO_SERVER` and `PLAIN`). `URL` in a program is
+# "http://127.0.0.1:PORT"; `$PORT` is the server's port, `$REFUSED` one nothing
+# listens on. `request 0.<n>`: the raw requests the server got.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== server 00
+-- program: print(http.get(URL + "/a/b?x=1&y=2#frag"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "5", "content-type": "text/plain", "x-lower": "x", "x-multi": "a, b", "x-sp": "v w"}, body: "hello"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /a/b?x=1&y=2 HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 01
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 404, headers: {"content-length": "9"}, body: "not found"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 02
+-- program: print(http.get(URL + "/"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "0"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 03
+-- program: print(http.get(URL + "/"))
+-- stdout
+| Ok({status: 599, headers: {"content-length": "1"}, body: "x"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 04
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {}, body: "hello, world"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 05
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {}, body: "0123456789"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 06
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: malformed chunked encoding"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 07
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {x: "1"}, body: "한글 body until close"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 08
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {}, body: "old"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 09
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 10
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {connection: "keep-alive", "content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 11
+-- program: print(http.request("HEAD", URL))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "100"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| HEAD / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 12
+-- program: print(http.request("head", URL))
+-- stdout
+| Ok({status: 200, headers: {}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| HEAD / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 13
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 204, headers: {x: "y"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 14
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 304, headers: {"content-length": "10"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 15
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 16
+-- program
+| print(http.post(URL + "/up", "한글 본문", headers: {"content-type": "text/plain; charset=utf-8", "user-agent": "fung-test", "x-b": "2", "X-A": " 1 ", "host": "evil.example", "content-length": "1", "x-yz_w": "u"}))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| POST /up HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: fung-test\r
+| Content-Length: 13\r
+| Content-Type: text/plain; charset=utf-8\r
+| X-A: 1\r
+| X-B: 2\r
+| X-Yz_w: u\r
+| \r
+| 한글 본문
+\ no newline
+==== server 17
+-- program: print(http.post(URL, nil), http.post(URL, ""))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"}) Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| POST / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.1 (escaped)
+| POST / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+==== server 18
+-- program
+| print(http.request("put", URL + "/x", "body"))
+| print(http.request("DELETE", URL))
+| print(http.request("patch", URL))
+| print(http.request("PURGE", URL, "", headers: {"User-Agent": ""}))
+| print(http.request("", URL, headers: {"accept-encoding": "identity"}))
+| print(http.request("GET", URL, "x"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| PUT /x HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 4\r
+| \r
+| body
+\ no newline
+-- request 0.1 (escaped)
+| DELETE / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.2 (escaped)
+| PATCH / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 0\r
+| \r
+-- request 0.3 (escaped)
+| PURGE / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| \r
+-- request 0.4 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Accept-Encoding: identity\r
+| \r
+-- request 0.5 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Content-Length: 1\r
+| \r
+| x
+\ no newline
+==== server 19
+-- program: print(http.get(URL + "/검색/a b?q=한글&r=a b"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /%EA%B2%80%EC%83%89/a%20b?q=한글&r=a b HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 20
+-- program: print(http.get(URL + "/a%20b/%41%zz"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT/a%20b/%41%zz`: parse \"http://127.0.0.1:$PORT/a%20b/%41%zz\": invalid URL escape \"%zz\""})
+-- stderr
+-- exit: 0
+==== server 21
+-- program: print(http.get(URL + "/a%2Fb/c(d)!*'~"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /a%2Fb/c(d)!*'~ HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 22
+-- program: print(http.get("HTTP://127.0.0.1:PORT?"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /? HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 23
+-- program
+| print(http.get("http://user:pass@127.0.0.1:PORT/a"))
+| print(http.get("http://us%20er@127.0.0.1:PORT/b"))
+| print(http.get("http://only@127.0.0.1:PORT/c"))
+| print(http.get("http://u:@127.0.0.1:PORT/d"))
+| print(http.get("http://u:p%3Aw@127.0.0.1:PORT/e", headers: {"authorization": "Bearer t"}))
+| print(http.get("http://u:p@127.0.0.1:PORT/f", headers: {"Authorization": ""}))
+| print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))
+\ no newline
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /a HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dXNlcjpwYXNz\r
+| \r
+-- request 0.1 (escaped)
+| GET /b HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dXMgZXI6\r
+| \r
+-- request 0.2 (escaped)
+| GET /c HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic b25seTo=\r
+| \r
+-- request 0.3 (escaped)
+| GET /d HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTo=\r
+| \r
+-- request 0.4 (escaped)
+| GET /e HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Bearer t\r
+| \r
+-- request 0.5 (escaped)
+| GET /f HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic dTpw\r
+| \r
+-- request 0.6 (escaped)
+| GET /g HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| Authorization: Basic 7ZWcOuq4gA==\r
+| \r
+==== server 24
+-- program: print(http.get("http://127.0.0.1:/x"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:/x`: Get \"http://127.0.0.1/x\": dial tcp 127.0.0.1:80: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== server 25
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {}, body: "ab"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 26
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: http chunk length too large"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 27
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: malformed MIME header: missing colon: \"bad trailer\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 28
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: malformed MIME header initial line: \" folded: x\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 29
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: http: suspiciously long trailer after chunked body"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 30
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "0", "x-fold": "a b c"}, body: ""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 31
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: malformed HTTP response \"garbage\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 32
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: malformed HTTP status code \"abc\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 33
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: malformed HTTP status code \"20\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 34
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: malformed HTTP version \"HTP/1.1\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 35
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 36
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: unexpected EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 37
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: malformed MIME header: missing colon: \"Bad header\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 38
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: malformed MIME header initial line: \" Folded: x\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 39
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: http: message cannot contain multiple Content-Length headers; got [\"1\" \"2\"]"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 40
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: bad Content-Length \"abc\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 41
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: bad Content-Length \"+2\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 42
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: unsupported transfer encoding: \"gzip\""})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 43
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid byte in chunk length"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 44
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: empty hex number for chunk length"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 45
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: http chunk length too large"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 46
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: malformed chunked encoding"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 47
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunked line ends with bare LF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 48
+-- program: print(http.get(URL))
+-- stdout
+| Ok({status: 200, headers: {}, body: "ab"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 49
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: header line too long"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 50
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unexpected EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 51
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unexpected EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 52
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unexpected EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 53
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: http: unexpected EOF reading trailer"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 54
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unexpected EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 55
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unexpected EOF"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 56
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: HTTP/1.x transport connection broken: net/http: server response headers exceeded 10485760 bytes; aborted"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 57
+-- program: print(http.get(URL))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: header line too long"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 58
+-- program: print(http.get(URL, timeout: 300ms))
+-- stdout
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT` timed out"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 59
+-- program: print(http.get(URL, timeout: 300ms))
+-- stdout
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT` timed out"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 60
+-- program: print(http.get(URL, timeout: 300ms))
+-- stdout
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT` timed out"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 61
+-- program: print(http.get(URL, timeout: 0s))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 62
+-- program
+| t = spawn(() => http.get(URL))
+| print(await(t, timeout: 200ms))
+| cancel(t)
+| print(await(t))
+| t2 = spawn(() => http.get(URL, timeout: 0s))
+| print(await(t2, timeout: 100ms))
+| exit(3)
+\ no newline
+-- stdout
+| Err({kind: 'timeout})
+| Err({kind: 'cancelled})
+| Err({kind: 'timeout})
+-- stderr
+-- exit: 3
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+-- request 0.1 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| \r
+==== server 63
+-- program
+| print(http.request("GE T", URL))
+| print(http.get(URL, headers: {"a b": "x"}))
+| print(http.get(URL, headers: {"x": "a\r\nb"}))
+| print(http.get(URL, headers: {"x": "tab\tok"}))
+\ no newline
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: net/http: invalid method \"GE T\""})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: invalid header field name \"a b\""})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: Get \"http://127.0.0.1:$PORT\": net/http: invalid header field value for \"X\""})
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: Go-http-client/1.1\r
+| X: tab\tok\r
+| \r
+==== no server 00
+-- program: print(http.get("http://127.0.0.1:REFUSED/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$REFUSED/`: Get \"http://127.0.0.1:$REFUSED/\": dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== no server 01
+-- program: print(http.post("http://127.0.0.1:REFUSED/x", "b", timeout: 5s))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$REFUSED/x`: Post \"http://127.0.0.1:$REFUSED/x\": dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== no server 02
+-- program: print(http.request("delete", "http://127.0.0.1:REFUSED/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$REFUSED/`: Delete \"http://127.0.0.1:$REFUSED/\": dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== no server 03
+-- program: print(http.get("ftp://x/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `ftp://x/`: Get \"ftp://x/\": unsupported protocol scheme \"ftp\""})
+-- stderr
+-- exit: 0
+==== no server 04
+-- program: print(http.get("::bad"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `::bad`: parse \"::bad\": missing protocol scheme"})
+-- stderr
+-- exit: 0
+==== no server 05
+-- program: print(http.get("http://[::1"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://[::1`: parse \"http://[::1\": missing ']' in host"})
+-- stderr
+-- exit: 0
+==== no server 06
+-- program: print(http.get("x"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `x`: Get \"x\": unsupported protocol scheme \"\""})
+-- stderr
+-- exit: 0
+==== no server 07
+-- program: print(http.get(""))
+-- stdout
+| Err({kind: 'network, message: "cannot request ``: Get \"\": unsupported protocol scheme \"\""})
+-- stderr
+-- exit: 0
+==== no server 08
+-- program: print(http.get("http://a b/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://a b/`: parse \"http://a b/\": invalid character \" \" in host name"})
+-- stderr
+-- exit: 0
+==== no server 09
+-- program: print(http.get("http:///path"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http:///path`: Get \"http:///path\": http: no Host in request URL"})
+-- stderr
+-- exit: 0
+==== no server 10
+-- program: print(http.get("http:foo"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http:foo`: Get \"http:foo\": http: no Host in request URL"})
+-- stderr
+-- exit: 0
+==== no server 11
+-- program: print(http.get("http://x:y/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://x:y/`: parse \"http://x:y/\": invalid port \":y\" after host"})
+-- stderr
+-- exit: 0
+==== no server 12
+-- program: print(http.get("http://127.0.0.1:99999/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:99999/`: Get \"http://127.0.0.1:99999/\": dial tcp: address 99999: invalid port"})
+-- stderr
+-- exit: 0
+==== no server 13
+-- program: print(http.get("http://127.0.0.1:99999999999999999999999/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:99999999999999999999999/`: Get \"http://127.0.0.1:99999999999999999999999/\": dial tcp: address 99999999999999999999999: invalid port"})
+-- stderr
+-- exit: 0
+==== no server 14
+-- program: print(http.get("http://%zz/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://%zz/`: parse \"http://%zz/\": invalid URL escape \"%zz\""})
+-- stderr
+-- exit: 0
+==== no server 15
+-- program: print(http.get("http://x/%zz"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://x/%zz`: parse \"http://x/%zz\": invalid URL escape \"%zz\""})
+-- stderr
+-- exit: 0
+==== no server 16
+-- program: print(http.get("http://x/#%zz"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://x/#%zz`: parse \"http://x/#%zz\": invalid URL escape \"%zz\""})
+-- stderr
+-- exit: 0
+==== no server 17
+-- program: print(http.get("http://x/\u{1}"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://x/\u{1}`: parse \"http://x/\\x01\": net/url: invalid control character in URL"})
+-- stderr
+-- exit: 0
+==== no server 18
+-- program: print(http.get("a:b/c"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `a:b/c`: Get \"a:b/c\": unsupported protocol scheme \"a\""})
+-- stderr
+-- exit: 0
+==== no server 19
+-- program: print(http.get("1http://x/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `1http://x/`: parse \"1http://x/\": first path segment in URL cannot contain colon"})
+-- stderr
+-- exit: 0
+==== no server 20
+-- program: print(http.get("/relative"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `/relative`: Get \"/relative\": unsupported protocol scheme \"\""})
+-- stderr
+-- exit: 0
+==== no server 21
+-- program: print(http.get("http://[::1]x/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://[::1]x/`: parse \"http://[::1]x/\": invalid port \"x\" after host"})
+-- stderr
+-- exit: 0
+==== no server 22
+-- program: print(http.get("http://a[::1]/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://a[::1]/`: parse \"http://a[::1]/\": invalid IP-literal"})
+-- stderr
+-- exit: 0
+==== no server 23
+-- program: print(http.get("http://[nope]/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://[nope]/`: parse \"http://[nope]/\": invalid host: ParseAddr(\"nope\"): unable to parse IP"})
+-- stderr
+-- exit: 0
+==== no server 24
+-- program: print(http.get("http://[127.0.0.1]/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://[127.0.0.1]/`: parse \"http://[127.0.0.1]/\": invalid IP-literal"})
+-- stderr
+-- exit: 0
+==== no server 25
+-- program: print(http.get("http://u@[::1]:REFUSED/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://u@[::1]:$REFUSED/`: Get \"http://u@[::1]:$REFUSED/\": dial tcp [::1]:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== no server 26
+-- program: print(http.get("http://u:secret@127.0.0.1:REFUSED/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://u:secret@127.0.0.1:$REFUSED/`: Get \"http://u:***@127.0.0.1:$REFUSED/\": dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== no server 27
+-- program: print(http.get("http://us%20er:secret@127.0.0.1:REFUSED/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://us%20er:secret@127.0.0.1:$REFUSED/`: Get \"http://us er:***@127.0.0.1:$REFUSED/\": dial tcp 127.0.0.1:$REFUSED: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== no server 28
+-- program: print(http.get("http://[fe80::1%25en0]:99999/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `http://[fe80::1%25en0]:99999/`: Get \"http://[fe80::1%25en0]:99999/\": dial tcp: address 99999: invalid port"})
+-- stderr
+-- exit: 0
+==== no server 29
+-- program: print(http.get("https://127.0.0.1:/"))
+-- stdout
+| Err({kind: 'network, message: "cannot request `https://127.0.0.1:/`: Get \"https://127.0.0.1/\": dial tcp 127.0.0.1:443: connect: connection refused"})
+-- stderr
+-- exit: 0
+==== plain 0
+-- program: http.get("::bad", headers: {a: 1})
+-- stdout
+-- stderr
+-- exit: 0
+==== plain 1
+-- program: print(http, http.get, http.post, http.request, type_of(http.get))
+-- stdout
+| <module http> <fn get> <fn post> <fn request> 'fn
+-- stderr
+-- exit: 0

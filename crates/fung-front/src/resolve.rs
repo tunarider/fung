@@ -25,6 +25,11 @@ use crate::tree::{Capture, CaptureKind, FnInfo, Head, Lit, Node};
 
 use scope::{Binding, FnScope, Scope};
 
+/// Former prelude names and the module that has them now (stage 6a): an
+/// undefined use of one gets a help line that names the module.
+pub const MOVED_TO_MODULE: &[(&str, &str)] =
+    &[("fan_in", "conc"), ("pmap", "conc"), ("retry", "conc")];
+
 /// What resolve knows about an imported module: enough to check member
 /// names at compile time (04).
 #[derive(Clone, Debug, Default)]
@@ -562,10 +567,9 @@ impl Resolver<'_> {
                 "`{name}` is a file-level variable (assigned on line {}) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument",
                 p.line
             ));
-        } else if crate::builtins::RUST_PRELUDE_FUNG_MOVED.contains(&name) {
-            // Rust only (stage 6a): Go's prelude still has these names.
+        } else if let Some((_, module)) = MOVED_TO_MODULE.iter().find(|(n, _)| *n == name) {
             e = e.with_help(&format!(
-                "moved to module conc: import conc, then conc.{name}"
+                "moved to module {module}: import {module}, then {module}.{name}"
             ));
         } else if let Some(s) = similar::similar(name, &self.visible()) {
             e = e.with_help(&format!("a similar name exists: `{s}`"));

@@ -9,7 +9,7 @@ mod io;
 mod strings;
 
 #[cfg(test)]
-mod go_cases;
+mod run_cases;
 #[cfg(test)]
 mod tests;
 

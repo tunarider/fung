@@ -42,9 +42,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
       - name: check the version
         run: |
           if [ "$GITHUB_EVENT_NAME" = push ]; then
@@ -68,18 +65,11 @@ jobs:
         with:
           name: notes
           path: notes.md
-      # The Go implementation stays the reference until stage 6b.
-      - name: test (Go)
-        run: go test ./...
       - name: toolchain
         run: rustup show active-toolchain
-      - name: test (Rust)
-        env:
-          FUNG_REQUIRE_PARITY: "1"
+      - name: test
         run: cargo test --locked
-      - name: test (Rust, release)
-        env:
-          FUNG_REQUIRE_PARITY: "1"
+      - name: test (release)
         run: cargo test --locked --release
 
   build:

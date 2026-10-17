@@ -1,0 +1,33 @@
+# `http.serve` failing to bind (crates/fung-cli/tests/http.rs,
+# `serve_bind_failures_match_the_expected_output`); `$PORT` is a port in use.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== bind 0
+-- program: print(http.serve("127.0.0.1:PORT", r => r, ready: a => print("ready", a)))
+-- stdout
+| Err({kind: 'network, message: "cannot listen on `127.0.0.1:$PORT`: listen tcp 127.0.0.1:$PORT: bind: address already in use"})
+-- stderr
+-- exit: 0
+==== bind 1
+-- program: print(http.serve("127.0.0.1:99999", r => r, ready: a => print("ready", a)))
+-- stdout
+| Err({kind: 'network, message: "cannot listen on `127.0.0.1:99999`: listen tcp: address 99999: invalid port"})
+-- stderr
+-- exit: 0
+==== bind 2
+-- program: print(http.serve("nope", r => r, ready: a => print("ready", a)))
+-- stdout
+| Err({kind: 'network, message: "cannot listen on `nope`: listen tcp: address nope: missing port in address"})
+-- stderr
+-- exit: 0
+==== bind 3
+-- program: print(http.serve("127.0.0.1:x", r => r, ready: a => print("ready", a)))
+-- stdout
+| Err({kind: 'network, message: "cannot listen on `127.0.0.1:x`: listen tcp: lookup tcp/x: unknown port"})
+-- stderr
+-- exit: 0
+==== bind 4
+-- program: print(http.serve("a:b:c", r => r, ready: a => print("ready", a)))
+-- stdout
+| Err({kind: 'network, message: "cannot listen on `a:b:c`: listen tcp: address a:b:c: too many colons in address"})
+-- stderr
+-- exit: 0

@@ -1,0 +1,62 @@
+# The `http` server's answers to requests without `Connection: close`
+# (crates/fung-cli/tests/http.rs, `keep_alive_answers_say_connection_close`); the
+# server answers one request per connection and says so. `<date>` is a `Date`
+# value. The last entry is the server's output after its address and its exit.
+# After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http
+==== request 0
+-- request (escaped)
+| GET /text HTTP/1.1\r
+| Host: x\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 200 OK\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 5\r
+| Connection: close\r
+| \r
+| hello
+\ no newline
+==== request 1
+-- request (escaped)
+| GET /empty HTTP/1.1\r
+| Host: x\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 404 Not Found\r
+| Date: <date>\r
+| Content-Length: 0\r
+| Connection: close\r
+| \r
+==== request 2
+-- request (escaped)
+| GET /fail HTTP/1.1\r
+| Host: x\r
+| \r
+-- answer (escaped)
+| HTTP/1.1 500 Internal Server Error\r
+| Content-Type: text/plain; charset=utf-8\r
+| X-Content-Type-Options: nosniff\r
+| Date: <date>\r
+| Content-Length: 15\r
+| Connection: close\r
+| \r
+| handler failed
+==== request 3
+-- request (escaped)
+| GET /text HTTP/1.0\r
+| Connection: keep-alive\r
+| \r
+-- answer (escaped)
+| HTTP/1.0 200 OK\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 5\r
+| \r
+| hello
+\ no newline
+==== the end
+-- stdout
+-- stderr
+| http: handler failed: error[E0803]: bug GET
+-- exit: 3

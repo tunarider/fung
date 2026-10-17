@@ -1,0 +1,189 @@
+# Whole runs of `PROGRAMS` (crates/fung-vm/src/native/fs_tests.rs) in a fresh fixture
+# directory; $D stands for it, $SIZE for a directory size. Update: FUNG_EXPECTED=bless cargo test -p fung-vm native::fs::tests::runs_match
+==== program 0
+-- stdout
+| Err({kind: 'not_found, message: "cannot read `/nonexistent-fung-test/x`: no such file or directory"})
+| Err({kind: 'io, message: "cannot read `$D`: is a directory"})
+| Ok("a�b�")
+| Err({kind: 'permission, message: "cannot read `$D/locked`: permission denied"})
+| Err({kind: 'permission, message: "cannot write `$D/locked`: permission denied"})
+| Err({kind: 'permission, message: "cannot write `$D/ro/x`: permission denied"})
+| Err({kind: 'not_found, message: "cannot write `$D/nope/x`: no such file or directory"})
+| Err({kind: 'io, message: "cannot write `$D`: is a directory"})
+| Err({kind: 'permission, message: "cannot append to `$D/locked`: permission denied"})
+| Err({kind: 'io, message: "cannot append to `$D`: is a directory"})
+| Ok(nil)
+| Err({kind: 'io, message: "cannot create directory `$D/a.txt`: not a directory"})
+| Err({kind: 'io, message: "cannot create directory `$D/a.txt/b`: not a directory"})
+| Err({kind: 'permission, message: "cannot create directory `$D/ro/x/y`: permission denied"})
+| Err({kind: 'exists, message: "cannot remove `$D/sub`: directory not empty"})
+| Err({kind: 'not_found, message: "cannot remove `$D/none`: no such file or directory"})
+| Err({kind: 'io, message: "cannot remove `$D/a.txt/x`: not a directory"})
+| Ok(nil)
+| Err({kind: 'io, message: "cannot remove `$D/.`: invalid argument"})
+| Ok(nil)
+| Err({kind: 'io, message: "cannot remove `$D/a.txt/x`: not a directory"})
+| Err({kind: 'not_found, message: "cannot copy `$D/none`: no such file or directory"})
+| Err({kind: 'not_found, message: "cannot copy to `$D/nope/c`: no such file or directory"})
+| Err({kind: 'io, message: "cannot copy `$D`: is a directory"})
+| Err({kind: 'permission, message: "cannot copy `$D/locked`: permission denied"})
+| Err({kind: 'io, message: "cannot copy to `$D`: is a directory"})
+| Err({kind: 'not_found, message: "cannot move `$D/none`: no such file or directory"})
+| Err({kind: 'not_found, message: "cannot move `$D/a.txt`: no such file or directory"})
+| Err({kind: 'exists, message: "cannot move `$D/a.txt`: file exists"})
+| Err({kind: 'not_found, message: "cannot move `$D/none`: no such file or directory"})
+| Err({kind: 'io, message: "cannot move `$D/sub`: not a directory"})
+| Err({kind: 'exists, message: "cannot move `$D/sub`: file exists"})
+| Err({kind: 'io, message: "cannot move `$D/sub`: invalid argument"})
+| Ok({name: "a.txt", size: 3, is_dir: false})
+| Ok({name: "deep", size: $SIZE, is_dir: true})
+| Err({kind: 'not_found, message: "cannot stat `$D/none`: no such file or directory"})
+| Err({kind: 'not_found, message: "cannot stat ``: no such file or directory"})
+| Err({kind: 'io, message: "cannot stat `$D/a.txt/x`: not a directory"})
+| true false false true
+| Err({kind: 'io, message: "cannot read `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot write `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot create directory `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot remove `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot stat `a\u{0}b`: invalid argument"}) false
+| Err({kind: 'io, message: "cannot move `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot copy to `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot remove `a\u{0}b`: invalid argument"})
+-- stderr
+-- exit: 0
+==== program 1
+-- stdout
+| Ok(nil) Ok(nil) Ok(nil)
+| Ok("hi\nthere\n") Ok("x")
+| Ok(nil) Ok("short")
+| Ok(nil) Ok(nil) Ok(nil) true Ok(nil)
+| Ok(nil) Ok({name: "c.txt", size: 5, is_dir: false})
+| Ok(nil) Ok(nil)
+| Ok(nil) false Ok("short")
+| Ok(nil) Err({kind: 'exists, message: "cannot move `$D/m/n`: file exists"})
+| Ok(nil) true
+| Ok(nil) Ok(nil) Ok(nil) false
+| Ok(nil) false
+| Ok(nil) false
+| Err({kind: 'io, message: "cannot stat `$D/new.txt/`: not a directory"}) Ok({name: "new.txt", size: 1, is_dir: false})
+| Ok(nil) Ok("한글 ok") Ok({name: "u.txt", size: 9, is_dir: false})
+| Ok({name: "u.txt", size: 9, is_dir: false}) Ok({name: "..", size: $SIZE, is_dir: true})
+-- stderr
+-- exit: 0
+==== program 2
+-- stdout
+| <file "$D/h.txt"> 'file true false true
+| Ok(nil) Ok(nil) Ok("")
+| Ok(nil) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Ok("one\ntwo\n")
+| Err({kind: 'invalid, message: "file `$D/h.txt` is not open for writing"}) Ok("one") Ok(["two"]) Ok(nil) Ok([])
+| Ok(nil) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"})
+| Ok(nil) Err({kind: 'invalid, message: "file `$D/h.txt` is not open for reading"}) Err({kind: 'invalid, message: "file `$D/h.txt` is not open for reading"}) Ok(nil) Ok("one\ntwo\nthree\n")
+| Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'not_found, message: "cannot open `$D/nope/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot open `$D/nope/x`: no such file or directory"})
+| Err({kind: 'permission, message: "cannot open `$D/locked`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/locked`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/locked`: permission denied"})
+| Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) true
+| Err({kind: 'permission, message: "cannot open `$D/ro/x`: permission denied"}) Err({kind: 'io, message: "cannot open `$D`: is a directory"}) Err({kind: 'io, message: "cannot open `$D`: is a directory"}) Err({kind: 'io, message: "cannot open `$D/a.txt/x`: not a directory"})
+| Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"})
+| Ok([]) Ok(["a�b�"]) [Ok("hi"), Ok(nil)]
+| Ok(["x"]) Ok(nil) Ok("w\n")
+| Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'invalid, message: "file `$D/w.txt` is not open for reading"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
+| Ok(nil) Ok(["a", "b", "", "", "c"]) Ok(["a", "b", "", "", "c"])
+| Ok(nil) Ok("")
+| <file "$D/a.txt"> Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"})
+-- stderr
+-- exit: 0
+==== program 3
+-- stdout
+| Ok(nil) 0
+| Ok(nil) 4096
+| Ok(nil) 8192
+| Ok(nil) 18099
+| Ok(nil) 28100
+| Ok(nil) Ok(nil) 28100
+| Ok(nil) 28104
+|  4094 1 5000 9000 10000 0 2 Ok(nil) Ok(nil)
+| Ok(nil) 33105 Ok(nil) 33105
+-- stderr
+-- exit: 0
+==== program 4
+-- stdout
+| Ok([".hdir", ".hidden", "10.txt", "9.txt", "B.md", "Z", "_u", "a b.txt", "a.md", "dangling", "emptyd", "ln_dir", "ln_file", "locked_d", "sub", "é.txt"])
+| Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub", "$D/t/é.txt"])
+| Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub", "$D/t/é.txt"])
+| Ok(["$D/t/sub/.g", "$D/t/sub/A", "$D/t/sub/b.md", "$D/t/sub/deep"])
+| Ok([]) Ok([])
+| Ok([".g", "A", "b.md", "deep"]) Ok(["$D/t/ln_dir/.g", "$D/t/ln_dir/A", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep"])
+| Err({kind: 'io, message: "cannot list `$D/t/a.md`: not a directory"})
+| Err({kind: 'io, message: "cannot list `$D/t/ln_file`: not a directory"})
+| Err({kind: 'not_found, message: "cannot list `$D/t/dangling`: no such file or directory"})
+| Err({kind: 'not_found, message: "cannot list `$D/t/none`: no such file or directory"})
+| Err({kind: 'permission, message: "cannot list `$D/t/locked_d`: permission denied"})
+| Err({kind: 'not_found, message: "cannot list ``: no such file or directory"}) Err({kind: 'io, message: "cannot list `a\u{0}b`: invalid argument"})
+| true
+-- stderr
+-- exit: 0
+==== program 5
+-- stdout
+| Err({kind: 'permission, message: "cannot walk `$D/t`: permission denied"})
+| Ok(["$D/t/sub/.g", "$D/t/sub/A/c.md", "$D/t/sub/b.md", "$D/t/sub/deep/f"])
+| Ok(["$D/t/sub/.g", "$D/t/sub/A/c.md", "$D/t/sub/b.md", "$D/t/sub/deep/f"])
+| Ok(["$D/t/sub/.g", "$D/t/sub/A/c.md", "$D/t/sub/b.md", "$D/t/sub/deep/f"])
+| Ok(["$D/t/ln_dir"])
+| Ok(["$D/t/ln_dir/.g", "$D/t/ln_dir/A/c.md", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep/f"])
+| Ok(["$D/t/a.md"]) Ok(["$D/t/ln_file"]) Ok(["$D/t/dangling"])
+| Ok([]) Ok(["$D/t/Z/z.md"]) Ok(["$D/t/.hdir/x"])
+| Err({kind: 'not_found, message: "cannot walk `$D/t/none`: no such file or directory"})
+| Err({kind: 'io, message: "cannot walk `$D/t/a.md/`: not a directory"})
+| Err({kind: 'permission, message: "cannot walk `$D/t/locked_d`: permission denied"})
+| Err({kind: 'not_found, message: "cannot walk ``: no such file or directory"}) Err({kind: 'io, message: "cannot walk `a\u{0}b`: invalid argument"})
+| true
+-- stderr
+-- exit: 0
+==== program 6
+-- stdout
+| Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub", "$D/t/é.txt"])
+| Ok(["$D/t/.hdir", "$D/t/.hidden"])
+| Ok(["$D/t/.hdir/x", "$D/t/Z/z.md", "$D/t/ln_dir/.g", "$D/t/ln_dir/A", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep", "$D/t/sub/.g", "$D/t/sub/A", "$D/t/sub/b.md", "$D/t/sub/deep"])
+| Ok(["$D/t/B.md", "$D/t/a.md"])
+| Ok(["$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub"])
+| Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/é.txt"])
+| Ok(["$D/t/a b.txt", "$D/t/a.md"])
+| Ok(["$D/t/sub/A/c.md", "$D/t/sub/deep/f"])
+| Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub", "$D/t/é.txt"])
+| Ok(["$D/t/B.md", "$D/t/a.md"]) Ok(["$D/t/9.txt", "$D/t/é.txt"]) Ok(["$D/t/10.txt"])
+| Ok(["$D/t/B.md", "$D/t/a.md"])
+| Ok([])
+| Ok(["$D/t/ln_dir/deep", "$D/t/sub/deep"])
+| Ok(["$D/t/a.md"]) Ok([]) Ok(["$D/t/dangling"]) Ok([])
+| Ok(["$D/t/a.md"]) Ok(["$D/t/a b.txt"]) Ok([])
+| Ok([]) Ok(["$D/t/locked_d"])
+| Ok(["$D/t/ln_dir/.g", "$D/t/ln_dir/A", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep"])
+| Ok(["$D/t/ln_dir/A/c.md", "$D/t/sub/A/c.md"])
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/[`: syntax error in pattern"})
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/*/[`: syntax error in pattern"})
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/*[`: syntax error in pattern"})
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/[/*`: syntax error in pattern"})
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/a[/*`: syntax error in pattern"})
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/none/[`: syntax error in pattern"})
+| Err({kind: 'invalid, message: "bad glob pattern `$D/t/\\`: syntax error in pattern"})
+| Ok([]) Ok(["Cargo.toml"]) Ok(["src/native/glob.rs"]) Ok(["Cargo.toml"])
+| Ok([]) Ok([])
+-- stderr
+-- exit: 0
+==== program 7
+-- stdout
+-- stderr
+| error[E0403]: argument `full` must be bool, got int
+|   --> -e:3:14
+|   |
+| 3 | print(fs.list(d, full: 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <entry>
+-- exit: 1
+==== program 8
+-- stdout
+-- stderr
+| error[E0402]: list takes 2 argument(s), got 3
+|   --> -e:3:14
+|   |
+| 3 | print(fs.list(d, true, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <entry>
+-- exit: 1

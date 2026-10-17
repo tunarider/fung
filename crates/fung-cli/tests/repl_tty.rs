@@ -3,8 +3,8 @@
 //! restored after every line, at the end of input and on `exit(n)`.
 //! A pipe gets the plain reader and leaves the terminal alone.
 //!
-//! The same keys typed into Go's editor give the same screen output and
-//! the same history file.
+//! A scripted session's screen output, exit code and history file are
+//! kept in `expected/repl/tty.txt`.
 //!
 //! The steps are ordered by state, not by sleeping: the test waits until
 //! the terminal is in raw mode (the editor is reading) or until the
@@ -12,7 +12,7 @@
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, OwnedFd};
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -23,7 +23,9 @@ mod common;
 const LIMIT: Duration = Duration::from_secs(20);
 
 struct Tty {
-    child: Child,
+    /// Killed and waited for when the `Tty` is dropped, as a panicking
+    /// test does.
+    child: common::Reaped,
     controller: std::fs::File,
     terminal: OwnedFd,
     out: Arc<Mutex<Vec<u8>>>,
@@ -58,14 +60,18 @@ fn start_bin(bin: &std::path::Path, tag: &str, stdin_pipe: bool, history: Option
     } else {
         Stdio::from(terminal.try_clone().unwrap())
     };
-    let child = Command::new(bin)
-        .env("HOME", &home)
-        .current_dir(&home)
-        .stdin(stdin)
-        .stdout(Stdio::from(terminal.try_clone().unwrap()))
-        .stderr(Stdio::from(terminal.try_clone().unwrap()))
-        .spawn()
-        .unwrap();
+    // killed and waited for if anything below panics (and when the
+    // `Tty` is dropped)
+    let child = common::Reaped::new(
+        Command::new(bin)
+            .env("HOME", &home)
+            .current_dir(&home)
+            .stdin(stdin)
+            .stdout(Stdio::from(terminal.try_clone().unwrap()))
+            .stderr(Stdio::from(terminal.try_clone().unwrap()))
+            .spawn()
+            .unwrap(),
+    );
     let controller = std::fs::File::from(controller);
     let out = Arc::new(Mutex::new(Vec::new()));
     {
@@ -163,6 +169,7 @@ fn line_ends(out: &[u8]) -> usize {
 
 impl Drop for Tty {
     fn drop(&mut self) {
+        // Ended before its home goes; `Reaped` would kill it only after.
         let _ = self.child.kill();
         let _ = self.child.wait();
         let _ = std::fs::remove_dir_all(&self.home);
@@ -262,14 +269,19 @@ fn session(bin: &std::path::Path, tag: &str) -> (String, Option<i32>, String) {
 }
 
 #[test]
-fn the_editor_matches_go() {
-    let Some(go) = common::go_fung("tty") else {
-        return;
-    };
-    let want = session(&go, "go");
-    let got = session(&common::rust_fung(), "rust");
-    assert_eq!(got.0, want.0, "screen output");
-    assert_eq!(got.1, want.1, "exit code");
-    assert_eq!(got.2, want.2, "history file");
-    assert!(want.2.starts_with("3\n"), "trimmed to the latest lines");
+fn the_editor_matches_the_expected_output() {
+    let (screen, code, history) = session(&common::rust_fung(), "session");
+    assert!(history.starts_with("3\n"), "trimmed to the latest lines");
+    let got = [common::expected::Entry::new("session")
+        .field("screen", screen)
+        .field("exit", code.map_or("none".to_string(), |c| c.to_string()))
+        .field("history", history)];
+    common::expected::verify(
+        "repl/tty.txt",
+        "The REPL's line editor on a pseudo-terminal: the screen output, exit code and\n\
+         history file of the scripted session in crates/fung-cli/tests/repl_tty.rs (`session`).\n\
+         Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test repl_tty",
+        64 * 1024,
+        &got,
+    );
 }

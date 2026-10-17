@@ -777,45 +777,28 @@ fn kinds_follow_gos_error_classes() {
     assert_eq!(oserr::kind(&Error::other("x")), "io");
 }
 
-/// Every errno from 0 to 160 reads as `syscall.Errno(n).Error()` of the
-/// Go toolchain on this machine.
+/// The errno texts (`oserr::ERRORS`, recorded per system): the common
+/// errors' words, one line of text for every errno from 0 to 160, and
+/// `errno n` where the table has none.
 #[test]
-fn errno_table_matches_go() {
-    let Some(text) = go_errno_texts() else { return };
-    let go: Vec<&str> = text.lines().collect();
-    assert_eq!(go.len(), 161, "{text}");
-    for (n, want) in go.iter().enumerate() {
-        assert_eq!(oserr::errno_text(n as i32), *want, "errno {n}");
-    }
-}
-
-/// `go run` of a program printing `syscall.Errno(n).Error()` for n in
-/// 0..=160, in a scratch directory outside the repository.
-fn go_errno_texts() -> Option<String> {
-    let dir = std::env::temp_dir().join(format!("fung-errno-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("main.go"),
-        "package main\n\nimport (\n\t\"fmt\"\n\t\"syscall\"\n)\n\nfunc main() {\n\tfor n := 0; n <= 160; n++ {\n\t\tfmt.Println(syscall.Errno(n).Error())\n\t}\n}\n",
-    )
-    .unwrap();
-    let out = std::process::Command::new("go")
-        .args(["run", "main.go"])
-        .current_dir(&dir)
-        .env("GO111MODULE", "off")
-        .output();
-    let _ = std::fs::remove_dir_all(&dir);
-    match out {
-        Err(e) => {
-            assert!(
-                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
-                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
-            );
-            eprintln!("skipping the errno comparison: `go` cannot be run: {e}");
-            None
-        }
-        Ok(o) if o.status.success() => Some(String::from_utf8(o.stdout).unwrap()),
-        Ok(o) => panic!("go run failed:\n{}", String::from_utf8_lossy(&o.stderr)),
+fn errno_table_reads_as_recorded() {
+    let t = oserr::errno_text;
+    assert_eq!(t(0), "errno 0");
+    assert_eq!(t(1), "operation not permitted");
+    assert_eq!(t(oserr::ENOENT), "no such file or directory");
+    assert_eq!(t(oserr::EACCES), "permission denied");
+    assert_eq!(t(oserr::EEXIST), "file exists");
+    assert_eq!(t(oserr::ENOTDIR), "not a directory");
+    assert_eq!(t(21), "is a directory");
+    assert_eq!(t(oserr::ENOTEMPTY), "directory not empty");
+    assert_eq!(t(-1), "errno -1");
+    assert_eq!(t(100_000), "errno 100000");
+    for n in 0..=160 {
+        let text = t(n);
+        assert!(
+            !text.is_empty() && !text.contains('\n'),
+            "errno {n}: {text:?}"
+        );
     }
 }
 
@@ -1014,11 +997,10 @@ fn file_io_runs_without_the_run_token() {
     );
 }
 
-// --- whole runs against the Go binary ---
+// --- whole runs against their expected output ---
 
-/// Programs run by both implementations in a fresh `fixture` directory
-/// bound to `d` (the programs that need no fixture are in
-/// `prelude/go_cases.rs`).
+/// Programs run in a fresh `fixture` directory bound to `d` (the programs
+/// that need no fixture are in `prelude/run_cases.rs`).
 const PROGRAMS: &[&str] = &[
     r#"print(fs.read("/nonexistent-fung-test/x"))
 print(fs.read(d))
@@ -1172,33 +1154,67 @@ print(fs.glob("a\u{0}*"), fs.glob("a\u{0}b"))"#,
     "print(fs.list(d, true, 1))",
 ];
 
-#[test]
-fn runs_match_the_go_binary() {
-    let Some(bin) = testutil::go_fung("fs") else {
-        return;
-    };
-    let d = Scratch::new("go");
-    let mut bad = Vec::new();
-    for body in PROGRAMS {
-        let decl = format!("d = \"{}\"\n", d.text());
-        let _ = restore_and_remove(&d.0);
-        std::fs::create_dir_all(&d.0).unwrap();
-        fixture(&d.0);
-        let go = testutil::run_go(&bin, &format!("import fs\n{decl}{body}"), "");
-        let _ = restore_and_remove(&d.0);
-        std::fs::create_dir_all(&d.0).unwrap();
-        fixture(&d.0);
-        let o = exec(&format!("import fs\n{decl}{body}"), Opts::default());
-        let rust = (o.out, o.err, o.exit);
-        if rust != go {
-            bad.push(format!("{body}\n  rust {rust:?}\n  go   {go:?}"));
+/// `text` with each directory's size (`size: N, is_dir: true`) as
+/// `size: $SIZE`: it depends on the file system.
+fn without_dir_sizes(text: &str) -> String {
+    const TAIL: &str = ", is_dir: true";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("size: ") {
+        let after = &rest[i + 6..];
+        let digits = after.bytes().take_while(u8::is_ascii_digit).count();
+        out.push_str(&rest[..i + 6]);
+        if digits > 0 && after[digits..].starts_with(TAIL) {
+            out.push_str("$SIZE");
+        } else {
+            out.push_str(&after[..digits]);
         }
+        rest = &after[digits..];
     }
-    let _ = std::fs::remove_file(&bin);
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
+    out.push_str(rest);
+    out
+}
+
+#[test]
+fn directory_sizes_are_masked() {
+    assert_eq!(
+        without_dir_sizes("{size: 96, is_dir: true} {size: 9, is_dir: false} size: x"),
+        "{size: $SIZE, is_dir: true} {size: 9, is_dir: false} size: x"
+    );
+}
+
+#[test]
+fn runs_match_the_expected_output() {
+    use testutil::expected;
+    let d = Scratch::new("runs");
+    let dir = d.text();
+    let mut got = Vec::new();
+    let mut as_root = false;
+    for (i, body) in PROGRAMS.iter().enumerate() {
+        let decl = format!("d = \"{dir}\"\n");
+        let _ = restore_and_remove(&d.0);
+        std::fs::create_dir_all(&d.0).unwrap();
+        fixture(&d.0);
+        // Root reads the locked file anyway: the expected output is a
+        // normal user's.
+        as_root |= std::fs::read(d.at("locked")).is_ok();
+        let mut o = exec(&format!("import fs\n{decl}{body}"), Opts::default());
+        o.out = without_dir_sizes(&o.out);
+        got.push(testutil::outcome_entry(
+            &format!("program {i}"),
+            &o,
+            &[(dir, "$D")],
+        ));
+    }
+    assert_eq!(got.len(), 9, "cases");
+    if as_root {
+        return;
+    }
+    expected::verify(
+        "fs/runs.txt",
+        "Whole runs of `PROGRAMS` (crates/fung-vm/src/native/fs_tests.rs) in a fresh fixture\n\
+         directory; $D stands for it, $SIZE for a directory size. Update: FUNG_EXPECTED=bless cargo test -p fung-vm native::fs::tests::runs_match",
+        64 * 1024,
+        &got,
     );
 }
