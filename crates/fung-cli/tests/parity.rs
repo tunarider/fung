@@ -33,12 +33,17 @@ fn corpus() -> Vec<String> {
 /// has (stage 3b); stage 6 rewrites them to agents.
 const ATOM_EXAMPLES: &[&str] = &["examples/api.fung", "examples/serve.fung"];
 
+/// The examples that still call `pmap`, `fan_in` or `retry` as prelude
+/// names, which only Go has since stage 6a (Rust: the module `conc`);
+/// Task 2 of stage 6a rewrites them.
+const CONC_EXAMPLES: &[&str] = &["examples/checkurls.fung"];
+
 /// Whether a corpus file's names resolve the same in both
 /// implementations. Since stage 3b they differ for a `# only:` golden
 /// file (atoms are Go only, agents Rust only) and for `ATOM_EXAMPLES`:
 /// their syntax is shared, so only `dump ast` is compared for them.
 fn resolves_alike(path: &str) -> bool {
-    if ATOM_EXAMPLES.contains(&path) {
+    if ATOM_EXAMPLES.contains(&path) || CONC_EXAMPLES.contains(&path) {
         return false;
     }
     let src = std::fs::read_to_string(repo().join(path)).unwrap();
@@ -50,6 +55,10 @@ fn the_atom_examples_still_use_atoms() {
     for path in ATOM_EXAMPLES {
         let src = std::fs::read_to_string(repo().join(path)).unwrap();
         assert!(src.contains("atom("), "{path} no longer uses atoms");
+    }
+    for path in CONC_EXAMPLES {
+        let src = std::fs::read_to_string(repo().join(path)).unwrap();
+        assert!(!src.contains("import conc"), "{path} uses the module conc");
     }
     assert!(resolves_alike("tests/lang/arith.fung"));
     assert!(!resolves_alike("tests/lang/agents.fung"));

@@ -1,8 +1,9 @@
 //! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
 //! prelude만 시작 시): the core natives, the concurrency natives,
 //! the `_native.conc` and `_native.process` bridges, and the public names
-//! of `extras/prelude.fung` and (Rust only, stage 3b) `extras/rust/agent.fung`,
-//! compiled and run on the runtime at startup.
+//! of `extras/prelude.fung` (Rust only, stage 6a: but `fan_in`, `pmap` and
+//! `retry`, the module `conc`) and (Rust only, stage 3b)
+//! `extras/rust/agent.fung`, compiled and run on the runtime at startup.
 //!
 //! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
 //! the program and the prelude are compiled separately, so both start at
@@ -17,8 +18,8 @@ use std::rc::Rc;
 
 use fung_front::bytecode::Proto;
 use fung_front::diag::{Arg, Diag, error};
-use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
+use fung_front::{builtins, extras};
 
 use crate::native::{fs, json, nat, net, path, process, regex, time};
 use crate::value::{Module, Value};
@@ -61,22 +62,33 @@ pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<D
     let Some(src) = extras::source("prelude") else {
         return Ok(p);
     };
-    boot_file(t, &mut p, PRELUDE_FILE, "prelude", src)?;
+    // Stage 6a, Rust only: the file is Go's too, so it still defines
+    // `fan_in`, `pmap` and `retry`; they stay out of the prelude table
+    // (the module `conc` has them).
+    boot_file(
+        t,
+        &mut p,
+        PRELUDE_FILE,
+        "prelude",
+        src,
+        builtins::RUST_PRELUDE_FUNG_MOVED,
+    )?;
     // Stage 3b, Rust only: `agent`, `swap` and `deref`, written in fung
     // over the prelude (`fung_front::builtins` lists the difference).
-    boot_file(t, &mut p, AGENT_FILE, AGENT_KEY, extras::AGENT)?;
+    boot_file(t, &mut p, AGENT_FILE, AGENT_KEY, extras::AGENT, &[])?;
     Ok(p)
 }
 
 /// Compiles an embedded prelude file (`internal`, so it may import
 /// `_native.*`), runs it as the module `key` and adds its public names
-/// to `p`; its code links against the names `p` has so far.
+/// but `hidden` to `p`; its code links against the names `p` has so far.
 fn boot_file(
     t: &mut Task<'_>,
     p: &mut Prelude,
     file: &str,
     key: &str,
     src: &str,
+    hidden: &[&str],
 ) -> Result<(), Vec<Diag>> {
     let loader = Loader {
         internal: true,
@@ -122,6 +134,9 @@ fn boot_file(
         }
     };
     for name in m.names() {
+        if hidden.contains(&name) {
+            continue;
+        }
         if let Some(v) = m.get(name) {
             p.0.insert(name.to_string(), v.clone());
         }

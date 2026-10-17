@@ -83,7 +83,7 @@ fn runs_match_the_go_binary() {
     cases.extend(huge_range_cases().into_iter().map(|(src, _)| (src, "")));
     let mut bad = Vec::new();
     for (src, stdin) in &cases {
-        let go = testutil::run_go(&bin, src, stdin);
+        let go = testutil::run_go(&bin, &testutil::go_source(src), stdin);
         let o = exec(
             src,
             Opts {

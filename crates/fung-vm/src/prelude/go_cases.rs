@@ -1,5 +1,7 @@
 //! Programs run through both the Go binary and the Rust VM by
-//! `runs_match_the_go_binary`: (source, standard input).
+//! `runs_match_the_go_binary`: (source, standard input). A program that
+//! starts with `import conc` uses the Rust module of stage 6a; Go runs it
+//! with the prelude names instead (`testutil::go_source`).
 
 /// Standard input for the programs that read it.
 const INPUT: &str = "line1\r\nline2\nlast";
@@ -434,7 +436,8 @@ r(1)"#,
     (r#"print(keys([]))"#, ""),
     (r#"print(take([1]))"#, ""),
     (
-        r#"print(retry(() => Ok(1)), retry(() => 2, times: 1), until(1, x => x * 2, x => x > 50), iterate(1, x => x + 1, 3))"#,
+        r#"import conc
+print(conc.retry(() => Ok(1)), conc.retry(() => 2, times: 1), until(1, x => x * 2, x => x > 50), iterate(1, x => x + 1, 3))"#,
         "",
     ),
     (
@@ -478,13 +481,22 @@ t < t"#,
         "",
     ),
     (
-        r#"print(pmap([1, 2, 3], x => x * x, limit: 2), pmap([], x => x))"#,
+        r#"import conc
+print(conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))"#,
         "",
     ),
     (r#"sleep(1)"#, ""),
     (r#"sleep("1s")"#, ""),
-    (r#"print(retry(() => Err(1), times: 2, delay: 1ms))"#, ""),
-    (r#"print(retry(() => Err("x"), times: 3, delay: 0s))"#, ""),
+    (
+        r#"import conc
+print(conc.retry(() => Err(1), times: 2, delay: 1ms))"#,
+        "",
+    ),
+    (
+        r#"import conc
+print(conc.retry(() => Err("x"), times: 3, delay: 0s))"#,
+        "",
+    ),
     (r#"print(spawn, type_of(await), channel == channel)"#, ""),
     (
         r#"c = channel()

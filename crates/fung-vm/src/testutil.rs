@@ -557,6 +557,26 @@ pub fn go_fung(tag: &str) -> Option<std::path::PathBuf> {
     }
 }
 
+/// The Go form of a program compared with the Go binary: one that starts
+/// with `import conc` (the Rust-only module of stage 6a) calls Go's
+/// prelude names instead. The import line stays as an empty line, so the
+/// lines keep their numbers.
+pub fn go_source(src: &str) -> String {
+    match src.strip_prefix("import conc\n") {
+        Some(rest) => format!("\n{}", rest.replace("conc.", "")),
+        None => src.to_string(),
+    }
+}
+
+#[test]
+fn go_source_drops_the_conc_module() {
+    assert_eq!(
+        go_source("import conc\nprint(conc.pmap([1], f))"),
+        "\nprint(pmap([1], f))"
+    );
+    assert_eq!(go_source("print(conc)"), "print(conc)");
+}
+
 /// `go-fung -e src` with `stdin`: stdout, stderr, exit status (-1 for a
 /// signal death).
 pub fn run_go(bin: &std::path::Path, src: &str, stdin: &str) -> (String, String, i32) {

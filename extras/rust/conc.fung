@@ -1,0 +1,45 @@
+# conc (stage 6a, the Rust implementation only): the concurrency helpers
+# written in fung over the concurrency builtins (05). The Go
+# implementation keeps them in its prelude (`extras/prelude.fung`, from
+# which they are copied unchanged) and never reads this file (its
+# directory keeps it out of Go's embed); the Rust boot hides those
+# prelude copies (`fung_front::builtins`, `RUST_PRELUDE_FUNG_MOVED`), so
+# a Rust program imports this module: `import conc`, `conc.pmap(...)`.
+import _native.conc as _c
+
+# Merges channels into one (05): a forwarding task per input; the output
+# closes when every input has closed.
+fn fan_in(chs):
+  out = channel(len(chs))
+  tasks = for ch in chs: _c.spawn_awaited(() => each(ch, v => send(out, v))) ;;
+  spawn(fn():
+    each(tasks, await)
+    close(out)
+  ;;)
+  out
+;;
+
+# Parallel map: at most `limit` tasks at once (0 = no limit), results in
+# input order. A failing f shows up as its Err, like await would.
+fn pmap(xs, f, limit = 0):
+  items = xs |> map(x => x)
+  limit <= 0 or limit >= len(items)
+    then items |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)
+    else _pmap_chunks(items, f, limit, [])
+;;
+
+fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
+  else _pmap_chunks(drop(items, limit), f, limit,
+    acc + (take(items, limit) |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)))
+
+# Calls f until it returns a non-Err value, at most `times` tries,
+# sleeping `delay` between tries; the last Err is returned (06).
+fn retry(f, times = 3, delay = 0ms):
+  r = f()
+  times <= 1 or not is_err(r) then r else _retry_after(f, times - 1, delay)
+;;
+
+fn _retry_after(f, times, delay):
+  sleep(delay)
+  retry(f, times: times, delay: delay)
+;;

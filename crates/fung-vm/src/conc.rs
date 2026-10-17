@@ -131,7 +131,8 @@ pub fn natives() -> Vec<(&'static str, Value)> {
 }
 
 /// `_native.conc` (Go `vm.NativeModules()`): `spawn_awaited`, which
-/// `extras/prelude.fung` uses for `fan_in` and `pmap`, and the helpers
+/// `extras/rust/conc.fung` uses for `fan_in` and `pmap` (Go: its
+/// `extras/prelude.fung`), and the helpers
 /// `extras/rust/agent.fung` is built from (stage 3b, `crate::vm::agent`).
 pub fn module() -> Rc<Module> {
     let mut m = Module::new("conc", "_native.conc");

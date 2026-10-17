@@ -849,9 +849,25 @@ mod tests {
         assert!(errs.is_empty(), "{errs:?}");
         let mut exports = b.proto.unwrap().exports;
         exports.sort();
+        // The Rust boot leaves out the names stage 6a moved to `conc`.
+        exports.retain(|n| !crate::builtins::RUST_PRELUDE_FUNG_MOVED.contains(&n.as_str()));
         let mut spec = crate::builtins::builtins().prelude_fung.clone();
         spec.sort();
         assert_eq!(exports, spec);
+    }
+
+    /// `extras/rust/conc.fung` (stage 6a, Rust only) is the module `conc`:
+    /// it exports exactly the names of the Rust difference list.
+    #[test]
+    fn conc_module_exports_match_the_list() {
+        let (b, errs) = Loader::default().compile("-e", "import conc", Stage::All);
+        assert!(errs.is_empty(), "{errs:?}");
+        let conc = b.modules.iter().find(|m| m.key == "conc").expect("conc");
+        let mut exports = conc.proto.as_ref().unwrap().exports.clone();
+        exports.sort();
+        assert_eq!(exports, crate::builtins::builtins().modules["conc"]);
+        let (_, errs) = Loader::default().compile("-e", "print(pmap)", Stage::All);
+        assert_eq!(codes(&errs), ["E0204"], "pmap is not a prelude name");
     }
 
     /// `extras/rust/agent.fung` (read only by the Rust boot) compiles as an
@@ -872,7 +888,7 @@ mod tests {
 
     #[test]
     fn every_embedded_module_compiles() {
-        for name in ["fs", "path", "cli", "time", "json", "regex", "http"] {
+        for name in ["fs", "path", "cli", "time", "json", "regex", "http", "conc"] {
             let (_, errs) = Loader::default().compile("-e", &format!("import {name}"), Stage::All);
             assert!(errs.is_empty(), "{name}: {errs:?}");
         }

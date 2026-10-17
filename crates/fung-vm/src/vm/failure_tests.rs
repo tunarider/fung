@@ -52,7 +52,7 @@ fn a_dropped_failed_task_is_reported_once_and_fails_the_run() {
 #[test]
 fn awaited_and_helper_failures_are_not_reported() {
     let (out, err, code) = run(
-        "t = spawn(() => fail(\"x\"))\nr = pmap([1], x => 1 / 0)\nprint(await(t) |> is_err, type_of(r))",
+        "import conc\nt = spawn(() => fail(\"x\"))\nr = conc.pmap([1], x => 1 / 0)\nprint(await(t) |> is_err, type_of(r))",
     );
     assert_eq!((out.as_str(), err.as_str(), code), ("true 'list\n", "", 0));
 }
@@ -210,8 +210,9 @@ fn a_timed_out_await_does_not_retrieve() {
 #[test]
 fn helpers_that_await_never_report() {
     for _ in 0..20 {
-        let (out, err, code) =
-            run("r = pmap([1, 2, 3], x => fail(\"boom\"))\nprint(r |> map(is_err))");
+        let (out, err, code) = run(
+            "import conc\nr = conc.pmap([1, 2, 3], x => fail(\"boom\"))\nprint(r |> map(is_err))",
+        );
         assert_eq!(
             (out.as_str(), err.as_str(), code),
             ("[true, true, true]\n", "", 0)

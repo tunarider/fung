@@ -135,11 +135,16 @@ pub fn only(src: &str) -> Option<String> {
 /// `parity.rs`); stage 6 rewrites them to agents.
 pub const ATOM_EXAMPLES: &[&str] = &["examples/api.fung", "examples/serve.fung"];
 
+/// The examples that still call `pmap`, `fan_in` or `retry` as prelude
+/// names, which only Go has since stage 6a (as in `parity.rs`); Task 2
+/// of stage 6a rewrites them.
+pub const CONC_EXAMPLES: &[&str] = &["examples/checkurls.fung"];
+
 /// Whether both implementations are meant to treat a repository file
 /// alike: not a `# only:` file, not an atom example.
 pub fn shared(path: &str) -> bool {
     let src = std::fs::read_to_string(repo().join(path)).unwrap();
-    !ATOM_EXAMPLES.contains(&path) && only(&src).is_none()
+    !ATOM_EXAMPLES.contains(&path) && !CONC_EXAMPLES.contains(&path) && only(&src).is_none()
 }
 
 /// The manual's runnable examples: every `<pre>` of `docs/*.html` that is
@@ -293,6 +298,12 @@ fn check_matches_go_on_manual_examples() {
         if src.contains("atom(") {
             continue; // atoms are Go only (stage 6 rewrites the manual)
         }
+        if ["pmap(", "fan_in(", "retry("]
+            .iter()
+            .any(|n| src.contains(n))
+        {
+            continue; // prelude names in Go only since stage 6a (Task 2 rewrites the manual)
+        }
         let path = dir.join(format!("{}.fung", label.replace(':', "_")));
         std::fs::write(&path, src).unwrap();
         cases.push((
@@ -300,7 +311,7 @@ fn check_matches_go_on_manual_examples() {
             vec!["check".into(), path.into_os_string()],
         ));
     }
-    assert!(cases.len() + 2 >= examples.len());
+    assert!(cases.len() + 3 >= examples.len());
     assert_same(&b, &cases);
 }
 
@@ -764,7 +775,7 @@ fn test_matches_go_on_the_repository() {
         .collect();
     assert!(cases.len() > 140, "{} files", cases.len());
     assert_same(&b, &cases);
-    // The examples directory in one run, without the atom examples.
+    // The examples directory in one run, without the atom and conc examples.
     let dir = scratch("tools-test-examples").join("examples");
     let mut stack = vec![repo().join("examples")];
     while let Some(d) = stack.pop() {
@@ -775,7 +786,9 @@ fn test_matches_go_on_the_repository() {
             if p.is_dir() {
                 std::fs::create_dir_all(&to).unwrap();
                 stack.push(p);
-            } else if !ATOM_EXAMPLES.contains(&rel.to_string_lossy().as_ref()) {
+            } else if !ATOM_EXAMPLES.contains(&rel.to_string_lossy().as_ref())
+                && !CONC_EXAMPLES.contains(&rel.to_string_lossy().as_ref())
+            {
                 std::fs::create_dir_all(to.parent().unwrap()).unwrap();
                 std::fs::copy(&p, &to).unwrap();
             }

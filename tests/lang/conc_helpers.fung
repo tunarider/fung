@@ -1,3 +1,4 @@
+# only: go
 a = channel(2)
 b = channel(2)
 each([1, 2], x => send(a, x))

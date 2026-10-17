@@ -2603,10 +2603,23 @@ fn the_http_examples_run() {
     // checkurls (pmap over http.get) against the Rust server
     let base = format!("http://{}", r_server.addr);
     let urls = [format!("{base}/data.json"), format!("{base}/nope")];
+    // Since stage 6a `pmap` is in the Rust module `conc`; until Task 2 of
+    // stage 6a rewrites the example, it runs with `conc.pmap` from `-e`
+    // (in `examples/`, where its `./urlcheck` import resolves).
+    let src = std::fs::read_to_string(common::repo().join("examples/checkurls.fung")).unwrap();
+    assert!(
+        src.contains("results = pmap("),
+        "the example changed: run it directly"
+    );
+    let src = format!(
+        "import conc\n{}",
+        src.replace("results = pmap(", "results = conc.pmap(")
+    );
     let mut cmd = std::process::Command::new(&rust);
-    cmd.args(["run", "examples/checkurls.fung"])
+    cmd.arg("-e")
+        .arg(&src)
         .args(&urls)
-        .current_dir(common::repo());
+        .current_dir(common::repo().join("examples"));
     let o = cmd.output().unwrap();
     let out = String::from_utf8_lossy(&o.stdout).into_owned();
     let lines: Vec<&str> = out.lines().collect();

@@ -46,13 +46,15 @@ const MORE: &[&str] = &[
 
 /// Concurrent programs (stage 3a), compared once in the run comparison
 /// and `REPEAT` times in the release build (`concurrent_runs_are_stable`).
-/// Each one's output must not depend on how the tasks are scheduled.
+/// Each one's output must not depend on how the tasks are scheduled. One
+/// that starts with `import conc` runs in Go with the prelude names
+/// (`go_source`).
 const CONCURRENT: &[&str] = &[
     // Tasks.
-    "print(await(spawn(() => 1 + 1)), await(spawn(() => 1 / 0)), pmap([1, 2, 3], x => x * x, limit: 2))",
+    "import conc\nprint(await(spawn(() => 1 + 1)), await(spawn(() => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2))",
     "t = spawn(() => sleep(10s))\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 1ms))\ncancel(u)",
     "t = spawn(fn(): spawn(() => sleep(10s)) ;;)\nprint(await(await(t)))",
-    "print(retry(() => Err(1), times: 2, delay: 1ms))",
+    "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))",
     // Channels.
     "ch = channel()\nspawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))",
     "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
@@ -67,7 +69,9 @@ const CONCURRENT: &[&str] = &[
     "at_exit(() => print(\"bye\"))\nch = channel()\nspawn(() => recv(ch))\nspawn(fn(): sleep(10ms); exit(3) ;;)\nrecv(channel())",
     "t = spawn(() => each(1..=3, x => sleep(10s)))\nspawn(fn(): sleep(10ms); cancel(t) ;;)\nprint(await(t))",
     "t = spawn(() => sleep(10s))\nfail(\"entry\")",
-    "print(retry(() => Err(1), times: 2, delay: 1ms), pmap([1, 2, 3], x => x * x, limit: 2), fan_in([]) |> map(x => x))",
+    "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.fan_in([]) |> map(x => x))",
+    // `tests/lang/conc_helpers.fung` (Go) and `conc_helpers_rust.fung`.
+    "import conc\na = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))",
     "ts = for i in 0..200: spawn(() => i) ;;\nprint(fold(ts, 0, (a, t) => a + await(t)))",
     "spawn(fn(): sleep(10ms); exit(4) ;;)\nsleep(10s)\nprint(\"main\")",
     "at_exit(() => print(\"h\"))\nspawn(() => each(1..=3, x => x == 2 then exit(6) else print(x)))\nsleep(10s)",
@@ -134,7 +138,37 @@ struct Case {
     kind: Kind,
     label: String,
     args: Vec<OsString>,
+    /// Go's arguments where they differ (`go_source`).
+    go_args: Option<Vec<OsString>>,
     stdin: Option<Vec<u8>>,
+}
+
+impl Case {
+    /// The arguments for Go (`go`) or for Rust.
+    fn args_for(&self, go: bool) -> &[OsString] {
+        match &self.go_args {
+            Some(a) if go => a,
+            _ => &self.args,
+        }
+    }
+}
+
+/// The Go form of a `-e` program: one that starts with `import conc`
+/// (the Rust-only module of stage 6a) calls Go's prelude names instead.
+/// The import line stays as an empty line, so the lines keep their
+/// numbers.
+fn go_source(src: &str) -> Option<String> {
+    let rest = src.strip_prefix("import conc\n")?;
+    Some(format!("\n{}", rest.replace("conc.", "")))
+}
+
+#[test]
+fn go_source_drops_the_conc_module() {
+    assert_eq!(
+        go_source("import conc\nprint(conc.pmap([1], f))").as_deref(),
+        Some("\nprint(pmap([1], f))")
+    );
+    assert_eq!(go_source("print(1)"), None);
 }
 
 fn cases() -> Vec<Case> {
@@ -151,6 +185,7 @@ fn cases() -> Vec<Case> {
             kind: Kind::Lang,
             label: f,
             args: a,
+            go_args: None,
             stdin: Some(stdin.into_bytes()),
         });
     }
@@ -159,14 +194,19 @@ fn cases() -> Vec<Case> {
             kind: Kind::Bench,
             label: f.clone(),
             args: vec!["run".into(), f.into()],
+            go_args: None,
             stdin: None,
         });
     }
     for code in CASES.iter().chain(MORE).chain(CONCURRENT) {
+        let e = |code: String| -> Vec<OsString> {
+            vec!["-e".into(), code.into(), "x".into(), "y z".into()]
+        };
         out.push(Case {
             kind: Kind::Other,
             label: format!("-e {code:?}"),
-            args: vec!["-e".into(), (*code).into(), "x".into(), "y z".into()],
+            args: e(code.to_string()),
+            go_args: go_source(code).map(e),
             stdin: Some(b"one\ntwo".to_vec()),
         });
     }
@@ -184,6 +224,7 @@ fn cases() -> Vec<Case> {
             kind: Kind::Other,
             label: args.join(" "),
             args: args.into_iter().map(OsString::from).collect(),
+            go_args: None,
             stdin: None,
         });
     }
@@ -214,8 +255,8 @@ fn enough_cases_are_compared() {
 /// both).
 fn run_both(go: &Path, rust: &Path, c: &Case) -> (Run, Run) {
     std::thread::scope(|s| {
-        let g = s.spawn(|| run_with_stdin(go, &c.args, c.stdin.as_deref()));
-        let r = run_with_stdin(rust, &c.args, c.stdin.as_deref());
+        let g = s.spawn(|| run_with_stdin(go, c.args_for(true), c.stdin.as_deref()));
+        let r = run_with_stdin(rust, c.args_for(false), c.stdin.as_deref());
         (g.join().unwrap(), r)
     })
 }
@@ -367,7 +408,7 @@ fn concurrent_runs_are_stable() {
                     let Ok((c, want, bin, who)) = job else {
                         break;
                     };
-                    let got = run_with_stdin(bin, &c.args, c.stdin.as_deref());
+                    let got = run_with_stdin(bin, c.args_for(who == "go"), c.stdin.as_deref());
                     compare(c, &want, &got, who);
                 }
             });
@@ -379,7 +420,7 @@ fn concurrent_runs_are_stable() {
                 let (tx, first) = channel();
                 std::thread::scope(|s| {
                     s.spawn(move || {
-                        let _ = tx.send(run_with_stdin(go, &c.args, c.stdin.as_deref()));
+                        let _ = tx.send(run_with_stdin(go, c.args_for(true), c.stdin.as_deref()));
                     });
                     match first.recv_timeout(Duration::from_secs(1)) {
                         Ok(want) => {
@@ -392,7 +433,14 @@ fn concurrent_runs_are_stable() {
                             let runs: Vec<_> = others()
                                 .map(|(bin, who)| {
                                     s.spawn(move || {
-                                        (run_with_stdin(bin, &c.args, c.stdin.as_deref()), who)
+                                        (
+                                            run_with_stdin(
+                                                bin,
+                                                c.args_for(who == "go"),
+                                                c.stdin.as_deref(),
+                                            ),
+                                            who,
+                                        )
                                     })
                                 })
                                 .collect();

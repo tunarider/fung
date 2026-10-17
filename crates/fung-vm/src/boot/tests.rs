@@ -84,10 +84,14 @@ fn agents_run() {
 /// The fung helpers built on the concurrency natives fail at the user's
 /// call (the extras frames are builtin, Go `attach`), with the extras
 /// frames in the call path. (`pmap` and `fan_in` run since stage 3a: see
-/// `pmap_runs_its_tasks` and `fan_in_merges_its_channels`.)
+/// `pmap_runs_its_tasks` and `fan_in_merges_its_channels`; since stage 6a
+/// they live in the module `conc`, `extras/rust/conc.fung`.)
 #[test]
 fn fung_helpers_over_concurrency_fail_at_the_user_call() {
-    let cases = [("fan_in(1)", 1, 7), ("print(1)\nfan_in(1)", 2, 7)];
+    let cases = [
+        ("import conc\nconc.fan_in(1)", 2, 12),
+        ("import conc\nprint(1)\nconc.fan_in(1)", 3, 12),
+    ];
     for (src, line, col) in cases {
         let o = exec(src, Opts::default());
         let e = o.error.unwrap_or_else(|| panic!("{src}: no error"));
@@ -97,7 +101,7 @@ fn fung_helpers_over_concurrency_fail_at_the_user_call() {
             "{src}"
         );
         assert!(
-            e.path.iter().any(|c| c.file == "extras/prelude.fung"),
+            e.path.iter().any(|c| c.file == "extras/rust/conc.fung"),
             "{src}: {:?}",
             e.path
         );
@@ -174,6 +178,63 @@ fn native_modules_match_the_spec() {
             }
         }
     });
+}
+
+/// Stage 6a: `fan_in`, `pmap` and `retry` are the module `conc`
+/// (`extras/rust/conc.fung`), with the parameter tables of
+/// `fung_front::builtins`; the prelude no longer has them, so a program
+/// that calls one without the module gets the error any unknown name
+/// gets (text as Go prints it for an unknown `qmap`, the name swapped).
+#[test]
+fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
+    on_big_stack(|| {
+        let spec = builtins();
+        let s = crate::testutil::setup("import conc\nprint(1)", Opts::default())
+            .unwrap_or_else(|(e, _)| panic!("{e}"));
+        let m = s.rt.import_module("conc").expect("conc");
+        let mut names: Vec<&str> = m.names();
+        names.sort();
+        assert_eq!(names, ["fan_in", "pmap", "retry"]);
+        for name in names {
+            let Some(Value::Closure(c)) = m.get(name) else {
+                panic!("conc.{name} is not a fung function")
+            };
+            let got = c
+                .proto
+                .params
+                .iter()
+                .map(|p| {
+                    if p.has_default {
+                        format!("{}=?", p.name)
+                    } else {
+                        p.name.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            assert_eq!(
+                got,
+                spec.module_signature("conc", name).expect(name),
+                "conc.{name}"
+            );
+        }
+    });
+    let (out, err, code) = run_booted("print(1)\npmap([1], x => x)");
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
+            "",
+            "error[E0204]: undefined name `pmap`\n  --> -e:2:1\n  |\n2 | pmap([1], x => x)\n  | ^^^^ not found in this scope\n  |\n help: a similar name exists: `map`\n",
+            2
+        )
+    );
+    for name in ["fan_in", "retry"] {
+        let (_, err, _) = run_booted(&format!("{name}(1)"));
+        assert!(
+            err.starts_with(&format!("error[E0204]: undefined name `{name}`")),
+            "{err}"
+        );
+    }
 }
 
 /// The Rust `http` (stage 4d, `extras/rust/http.fung`) is a fung module
@@ -509,7 +570,7 @@ fn files_that_are_not_programs_give_exec_format_error() {
 #[test]
 fn fan_in_merges_its_channels() {
     let (out, err, code) = crate::testutil::run(
-        "a = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(fan_in([a, b]) |> map(x => x) |> sort, fan_in([]) |> map(x => x))",
+        "import conc\na = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.fan_in([]) |> map(x => x))",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
@@ -521,8 +582,9 @@ fn fan_in_merges_its_channels() {
 /// them (expected output from the Go binary).
 #[test]
 fn pmap_runs_its_tasks() {
-    let (out, err, code) =
-        crate::testutil::run("print(pmap([1, 2, 3], x => x * x, limit: 2), pmap([1], x => 1 / 0))");
+    let (out, err, code) = crate::testutil::run(
+        "import conc\nprint(conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([1], x => 1 / 0))",
+    );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         (
@@ -538,7 +600,7 @@ fn pmap_runs_its_tasks() {
 fn sleep_waits_and_retry_uses_it() {
     let start = std::time::Instant::now();
     let (out, err, code) = crate::testutil::run(
-        "print(sleep(30ms))\nprint(retry(() => Err(1), times: 3, delay: 10ms))",
+        "import conc\nprint(sleep(30ms))\nprint(conc.retry(() => Err(1), times: 3, delay: 10ms))",
     );
     assert_eq!((out.as_str(), err.as_str(), code), ("nil\nErr(1)\n", "", 0));
     assert!(start.elapsed() >= std::time::Duration::from_millis(50));

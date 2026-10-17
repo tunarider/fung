@@ -15,16 +15,19 @@ pub fn source(name: &str) -> Option<&'static str> {
         // Stage 4d: the Rust `http` is written in fung over `_native.net`
         // (Go's `extras/http.fung` bridges Go's net/http instead).
         "http" => include_str!("../../../extras/rust/http.fung"),
+        // Stage 6a, Rust only: `fan_in`, `pmap` and `retry`, which Go
+        // keeps in its prelude.
+        "conc" => include_str!("../../../extras/rust/conc.fung"),
         _ => return None,
     })
 }
 
 /// Where a built-in module's source lives, as call paths show it:
-/// `extras/<name>.fung`, but `extras/rust/http.fung` for the Rust-only
-/// `http` (stage 4d).
+/// `extras/<name>.fung`, but `extras/rust/<name>.fung` for the Rust-only
+/// `http` (stage 4d) and `conc` (stage 6a).
 pub fn path(name: &str) -> String {
     match name {
-        "http" => "extras/rust/http.fung".to_string(),
+        "http" | "conc" => format!("extras/rust/{name}.fung"),
         _ => format!("extras/{name}.fung"),
     }
 }
@@ -51,6 +54,9 @@ mod tests {
         assert_eq!(path("json"), "extras/json.fung");
         assert_eq!(path("http"), "extras/rust/http.fung");
         assert!(source("agent").is_none());
+        // Stage 6a, Rust only: `fan_in`, `pmap` and `retry`.
+        assert!(source("conc").unwrap().contains("fn pmap("));
+        assert_eq!(path("conc"), "extras/rust/conc.fung");
         assert!(
             source("prelude")
                 .unwrap()

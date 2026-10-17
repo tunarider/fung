@@ -619,8 +619,9 @@ fn a_module_level_agent_ends_cleanly_and_serves_exit_handlers() {
 /// background subtasks.
 #[test]
 fn f_may_spawn_tasks() {
-    let o =
-        bounded_user("a = agent([1, 2, 3])\nprint(swap(a, xs => pmap(xs, x => x * 10)), deref(a))");
+    let o = bounded_user(
+        "import conc\na = agent([1, 2, 3])\nprint(swap(a, xs => conc.pmap(xs, x => x * 10)), deref(a))",
+    );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
         ("[10, 20, 30] [10, 20, 30]\n", "", 0)
