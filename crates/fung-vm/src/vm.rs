@@ -293,7 +293,7 @@ impl<'rt> Task<'rt> {
     /// it still run (`Runtime::run_exit_handlers`).
     pub(super) fn request_exit(&mut self, code: i64) {
         self.world.request_exit(code);
-        self.shared.root.cancel();
+        self.shared.root().cancel();
         if let Some(node) = self.world.handler.clone() {
             node.cancel();
         }

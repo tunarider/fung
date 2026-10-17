@@ -95,7 +95,7 @@ fn exit_from_anywhere_requests_exit() {
     let r = s.rt.run();
     assert!(matches!(r, Err(Stop::Exit(4))), "{r:?}");
     assert_eq!(s.rt.exit_code(), Some(4));
-    assert!(s.rt.shared().root.is_cancelled(), "exit cancels the root");
+    assert!(s.rt.shared().root().is_cancelled(), "exit cancels the root");
 }
 
 /// An exit from a spawned task ends the entry wherever it waits, and

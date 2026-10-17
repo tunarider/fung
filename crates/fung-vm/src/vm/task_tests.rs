@@ -467,7 +467,7 @@ fn nested_swaps_do_not_leak_cancellation_nodes() {
         s.rt.run().unwrap();
         s.rt.wait();
         assert_eq!(s.err.text(), "");
-        s.rt.shared().root.descendant_count()
+        s.rt.shared().root().descendant_count()
     });
     assert!(left < 50, "{left} cancellation nodes left");
 }

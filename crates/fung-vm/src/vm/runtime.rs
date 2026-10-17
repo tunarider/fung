@@ -81,13 +81,13 @@ impl Runtime {
     /// tree (the entry's place, Go `rootTask`), holding the run token
     /// until it drops.
     pub(crate) fn task(&self) -> Task<'_> {
-        Task::driven(&self.shared, self.shared.root.clone())
+        Task::driven(&self.shared, self.shared.root())
     }
 
     /// A fresh task below the root (Go `newTask(rt.root())`): a test
     /// block. Cancelling it at the end ends what it spawned and left.
     pub(super) fn child_task(&self) -> Task<'_> {
-        Task::driven(&self.shared, self.shared.root.child())
+        Task::driven(&self.shared, self.shared.root().child())
     }
 
     /// Holds the runtime open for more code the command will run one
@@ -235,7 +235,7 @@ impl Runtime {
             // after it). Cancelled here, while the entry still holds the
             // token: its end is judged for a deadlock when it drops, and
             // the tasks it leaves must not count as stuck by then.
-            self.shared.root.cancel();
+            self.shared.root().cancel();
         }
         let v = r?;
         Ok(f(&v))
@@ -262,6 +262,26 @@ impl Runtime {
         for i in from..sources.len() {
             w.sources.add(sources.name(FileId(i as u32)), "");
         }
+    }
+
+    /// Recovers a REPL session from a deadlock an input ran into
+    /// (decided 2026-10-17; Go leaves the session cancelled). The report
+    /// cancelled the run root: wait until every task of the program has
+    /// unwound (those earlier inputs left blocked too), then clear the
+    /// deadlock and the exit(1) it requested and start a fresh run root,
+    /// so later inputs run as usual. Globals and agents stay (agents hang
+    /// from the background root, which the report does not cancel).
+    /// Returns false, changing nothing, when no deadlock was reported.
+    pub fn recover_deadlock(&self) -> bool {
+        if !self.lock().deadlocked {
+            return false;
+        }
+        self.wait();
+        let mut w = self.lock();
+        w.deadlocked = false;
+        w.exit = None;
+        self.shared.replace_root();
+        true
     }
 
     /// Runs the loaded entry as a REPL input (`prepare_repl` first) and
@@ -398,7 +418,7 @@ impl Drop for Runtime {
     fn drop(&mut self) {
         {
             let _t = self.lock();
-            self.shared.root.cancel();
+            self.shared.root().cancel();
             self.shared.handlers.cancel();
             self.shared.background.cancel();
         }

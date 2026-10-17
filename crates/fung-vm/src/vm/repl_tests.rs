@@ -215,3 +215,52 @@ fn agents_live_while_referenced() {
         assert_eq!(s.background(), 0);
     });
 }
+
+/// After a deadlock inside an input (decided 2026-10-17, a deliberate
+/// divergence from Go): `recover_deadlock` cancels and waits for the
+/// program's tasks, including those earlier inputs left blocked, clears
+/// the deadlock and its exit request, and gives the program a fresh run
+/// root. Globals and agents (which hang from the background root) stay.
+#[test]
+fn a_deadlock_is_recovered() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        assert_eq!(s.input("a = agent(1)\nk = 7"), value("nil"));
+        assert_eq!(
+            s.input("c = channel()\nt = spawn(() => recv(c))"),
+            value("nil")
+        );
+        assert!(!s.rt.recover_deadlock(), "nothing to recover");
+        let file = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("recv(channel())"),
+            Outcome::Error("E0702".into(), file)
+        );
+        assert_eq!(s.rt.exit_code(), Some(1));
+        assert!(s.rt.recover_deadlock());
+        assert!(!s.rt.deadlocked());
+        assert_eq!(
+            s.rt.exit_code(),
+            None,
+            "the deadlock's exit request is cleared"
+        );
+        assert_eq!(s.input("await(t)"), value("Err({kind: 'cancelled})"));
+        assert_eq!(s.input("print(\"after\")\nk"), value("7"));
+        assert_eq!(s.input("u = spawn(() => k + 1)\nawait(u)"), value("8"));
+        assert_eq!(s.input("swap(a, (n) => n + 1)"), value("2"));
+        assert_eq!(s.out.text(), "after\n");
+        // A second deadlock is reported and recovered too.
+        let file = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("recv(channel())"),
+            Outcome::Error("E0702".into(), file)
+        );
+        assert!(s.rt.recover_deadlock());
+        assert_eq!(s.input("1 + 1"), value("2"));
+        assert_eq!(
+            s.err.text(),
+            "error[E0702]: deadlock: all tasks are waiting\n".repeat(2)
+        );
+        s.rt.release();
+    });
+}

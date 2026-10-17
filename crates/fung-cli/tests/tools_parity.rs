@@ -1546,11 +1546,13 @@ fn repl_dir(tag: &str) -> PathBuf {
 /// definitions, redefinition, continued lines, errors and going on,
 /// commands, `exit`, empty input, the end of input, `dbg`, tasks and
 /// handlers. Compared byte for byte (both streams and the status).
-/// Left out on purpose: inputs after a deadlock or after a spawned
-/// task's `exit`, which cancel the program. Go sets a new task's
-/// cancellation flag from a `context.AfterFunc` goroutine, so a short
-/// input after it usually still runs to the end; Rust fails every later
-/// fung call with E0701. How the REPL should behave then is still open.
+/// Left out on purpose: a deadlock and a spawned task's `exit`, which
+/// cancel the program. Go's session stays cancelled (Go sets a new
+/// task's cancellation flag from a `context.AfterFunc` goroutine, so a
+/// short input after it usually still runs to the end) and ends with
+/// code 1 after a deadlock. Rust deliberately recovers from a deadlock
+/// and ends the session on a spawned exit (decided 2026-10-17); see
+/// `repl_recovers_after_a_deadlock` and `repl_ends_on_a_spawned_exit`.
 #[test]
 fn repl_matches_go_on_piped_sessions() {
     let Some(b) = both("repl") else { return };
@@ -1616,7 +1618,6 @@ fn repl_matches_go_on_piped_sessions() {
             "a task waits for a later input",
             "c = channel()\nt = spawn(() => recv(c))\nsend(c, 5)\nawait(t)\n",
         ),
-        ("a deadlock inside an input", "recv(channel())\n"),
         // Ordered by state: the input waits for the value the task sends
         // into a buffered channel, and the task fails right after that
         // without another call (which could see the cancellation that
@@ -1691,4 +1692,68 @@ fn repl_agents_end_with_the_session() {
         "> > 2\n> 2\n> 5\n> 20\n> nil\n> \n20\n"
     );
     assert_eq!(status, "ExitStatus(unix_wait_status(0))");
+}
+
+/// Runs a Rust-only REPL session: (stdout, stderr, exit code).
+fn rust_repl(tag: &str, input: &str) -> (String, String, Option<i32>) {
+    let dir = repl_dir(tag);
+    let mut child = std::process::Command::new(rust_fung())
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut pipe = child.stdin.take().unwrap();
+    let data = input.as_bytes().to_vec();
+    let writer = std::thread::spawn(move || {
+        use std::io::Write;
+        let _ = pipe.write_all(&data);
+    });
+    let o = child.wait_with_output().unwrap();
+    writer.join().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    (
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+        o.status.code(),
+    )
+}
+
+/// Rust only (decided 2026-10-17, a deliberate divergence from Go): a
+/// deadlock fails only the input it happened in, with Go's report; the
+/// session goes on on a fresh run root, the tasks earlier inputs left
+/// blocked are cancelled, globals and agents stay, and the recovered
+/// deadlock does not set the exit code.
+#[test]
+fn repl_recovers_after_a_deadlock() {
+    let (out, err, code) = rust_repl(
+        "deadlock",
+        "a = agent(1)\nc = channel()\nt = spawn(() => recv(c))\nrecv(channel())\nprint(\"after\")\nawait(t)\nu = spawn(() => 40 + 2)\nawait(u)\nswap(a, (n) => n + 1)\n",
+    );
+    assert_eq!(
+        out,
+        "> > > > > after\nnil\n> Err({kind: 'cancelled})\n> > 42\n> 2\n> \n"
+    );
+    assert_eq!(
+        err,
+        "error[E0702]: deadlock: all tasks are waiting\nerror[E0702]: deadlock: all tasks are waiting\n  --> <repl>:1:5\n  |\n1 | recv(channel())\n  |     ^\n  |\n call path (innermost first):\n   <repl>:1   <entry>\n"
+    );
+    assert_eq!(code, Some(0));
+}
+
+/// Rust only (decided 2026-10-17): a spawned task's `exit(n)` ends the
+/// session like `exit(n)` typed at the prompt: the input it cut short
+/// reports nothing, later lines are not run, the handlers run, and the
+/// code is n.
+#[test]
+fn repl_ends_on_a_spawned_exit() {
+    let (out, err, code) = rust_repl(
+        "spawned-exit",
+        "at_exit(() => print(\"bye\"))\nc = channel()\nt = spawn(fn():\n  recv(c)\n  exit(3)\n;;)\n[send(c, 1), await(t)]\nprint(\"never\")\n",
+    );
+    assert_eq!(out, "> nil\n> > . . . > bye\n");
+    assert_eq!(err, "");
+    assert_eq!(code, Some(3));
 }

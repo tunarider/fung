@@ -148,7 +148,7 @@ fn a_held_runtime_lends_its_count_to_one_driven_task() {
         let shared = rt.shared();
         let live = shared.lock().live;
         {
-            let t = crate::vm::Task::driven(&shared, shared.root.clone());
+            let t = crate::vm::Task::driven(&shared, shared.root());
             assert!(t.world.hold_taken, "the task took the command's count");
             assert_eq!(t.world.live, live, "taken over, not added");
         }

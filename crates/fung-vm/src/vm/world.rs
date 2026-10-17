@@ -289,8 +289,11 @@ pub(crate) struct Shared {
     wakeups: AtomicUsize,
     gate: Gate,
     /// Every task descends from this node (Go `rt.root()`): the entry
-    /// runs on it, `cancel_all` cancels it.
-    pub(super) root: Arc<CancelNode>,
+    /// runs on it, `cancel_all` cancels it. Replaced only by the REPL's
+    /// recovery from a deadlock (`Runtime::recover_deadlock`), with the
+    /// run token held and no task of the program left; read it through
+    /// `root()`.
+    root: Mutex<Arc<CancelNode>>,
     /// Exit handlers run under this node, not the root: the root is
     /// cancelled by then (Go `handlerContext`).
     pub(super) handlers: Arc<CancelNode>,
@@ -311,7 +314,7 @@ impl Shared {
             #[cfg(test)]
             wakeups: AtomicUsize::new(0),
             gate: Gate::default(),
-            root: CancelNode::root(),
+            root: Mutex::new(CancelNode::root()),
             handlers: CancelNode::root(),
             background: CancelNode::root(),
         }
@@ -340,7 +343,19 @@ impl Shared {
     /// it, and wakes the blocked ones. Takes the token.
     pub(crate) fn cancel_all(&self) {
         let _t = self.lock();
-        self.root.cancel();
+        self.root().cancel();
+    }
+
+    /// The run root (see the field).
+    pub(super) fn root(&self) -> Arc<CancelNode> {
+        self.root.lock().unwrap_or_else(recover).clone()
+    }
+
+    /// Gives the program a fresh run root. The caller holds the run
+    /// token, and every task of the program has ended.
+    pub(super) fn replace_root(&self) {
+        token::assert_holds_token();
+        *self.root.lock().unwrap_or_else(recover) = CancelNode::root();
     }
 }
 

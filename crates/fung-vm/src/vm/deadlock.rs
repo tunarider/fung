@@ -101,7 +101,7 @@ impl Task<'_> {
         w.request_exit(1);
         match handler {
             Some(node) => node.cancel(),
-            None => self.shared.root.cancel(),
+            None => self.shared.root().cancel(),
         }
         true
     }

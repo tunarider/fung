@@ -19,6 +19,14 @@
 //! as Go's REPL runtime has none (a task failure report shows no
 //! excerpt).
 //!
+//! After an input poisons the program (decided 2026-10-17, deliberate
+//! divergences from Go, whose session stays cancelled): a deadlock fails
+//! only the input it happened in, with Go's report, and the session goes
+//! on on a fresh run root (`Runtime::recover_deadlock`: the tasks earlier
+//! inputs left blocked are cancelled; globals and agents stay; the exit
+//! code stays 0). A spawned task's `exit(n)` ends the session as `exit(n)`
+//! typed at the prompt does.
+//!
 //! Tasks: the session holds the runtime open (`Runtime::hold`), so a task
 //! an input leaves waiting for a later input is not a deadlock between
 //! inputs (Go's 50 ms grace covers that only while the next line comes
@@ -140,6 +148,11 @@ impl Session {
     /// returns the exit code: 0, or n for exit(n).
     fn run(mut self) -> i64 {
         loop {
+            // A task an earlier input spawned called exit(n): the session
+            // ends as for exit(n) typed at the prompt (decided 2026-10-17).
+            if let Some(n) = self.rt.exit_code() {
+                return self.finish(n);
+            }
             let Some(line) = self.input.read_line("> ") else {
                 let _ = self.out.write_all(b"\n");
                 return self.finish(0);
@@ -160,6 +173,9 @@ impl Session {
                 };
                 src.push('\n');
                 src.push_str(&more);
+            }
+            if let Some(n) = self.rt.exit_code() {
+                return self.finish(n); // it came while the line was read
             }
             if let Some(code) = self.eval("<repl>", &src) {
                 return self.finish(code);
@@ -242,20 +258,33 @@ impl Session {
         let entry = b.proto.expect("a compiled entry");
         self.rt.load(&entry, &b.modules);
         self.globals.clone_from(&entry.global_names);
-        match self.rt.run_repl() {
+        let r = self.rt.run_repl();
+        // A spawned task's exit(n) ends the session like a direct one:
+        // what it cut the input short with (E0701) is not reported, and
+        // no value is printed. A deadlock's report asks for exit(1) too,
+        // but only fails this input (below).
+        let deadlocked = self.rt.deadlocked();
+        let exited = !deadlocked && self.rt.exit_code().is_some();
+        match r {
             Ok(v) => {
                 let last = b.surface.as_ref().and_then(|s| s.kids.last());
-                if last.is_some_and(|k| !is_statement(k.head)) {
+                if !exited && last.is_some_and(|k| !is_statement(k.head)) {
                     let _ = writeln!(self.out, "{v}");
                 }
-                None
             }
-            Err(Stop::Exit(n)) => Some(n),
+            Err(Stop::Exit(n)) => return Some(n),
             Err(Stop::Error(d)) => {
-                self.report(std::slice::from_ref(&*d), from);
-                None
+                if !exited {
+                    self.report(std::slice::from_ref(&*d), from);
+                }
             }
         }
+        if deadlocked {
+            // The input failed with Go's report; the session goes on on a
+            // fresh run root (decided 2026-10-17; Go stays cancelled).
+            self.rt.recover_deadlock();
+        }
+        self.rt.exit_code()
     }
 
     /// Prints errors the way Go's REPL does: a position is excerpted from
