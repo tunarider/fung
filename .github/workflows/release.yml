@@ -6,9 +6,11 @@
 #   git tag v0.2.0 && git push origin v0.2.0
 #
 # Dry run without a tag: Actions -> release -> "Run workflow" (or
-# `gh workflow run release.yml -f version=0.0.0-dryrun`). It does everything
-# but publish; the archives, SHA256SUMS and the notes (the [Unreleased]
-# section) are kept as the run's "release" artifact.
+# `gh workflow run release.yml -f version=0.0.0-dryrun`). It tests, builds
+# and checks, and keeps the archives, SHA256SUMS and the notes (the
+# [Unreleased] section) as the run's "release" artifact. The publish job
+# (attestation and release, the only job with write permissions) runs only
+# for a tag push.
 #
 # Verify a downloaded archive came from this workflow:
 #   gh attestation verify fung_0.2.0_linux_amd64.tar.gz --repo tunarider/fung
@@ -130,13 +132,11 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # Merges and checks the archives with read-only permissions; a dry run
+  # ends here, with the result kept as the "release" artifact.
   release:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write     # create the release
-      id-token: write     # sign the provenance
-      attestations: write # store the provenance
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
@@ -149,26 +149,49 @@ jobs:
           name: notes
       - name: checksums
         run: scripts/sha256sums.sh dist
-      # All four archives together: names, contents, checksums, both Linux
-      # binaries static (readelf reads any CPU's ELF), and linux/amd64 runs.
+      # All four archives together: names, CPU of each binary, contents,
+      # checksums, both Linux binaries static (readelf reads any CPU's ELF),
+      # and linux/amd64 runs.
       - name: check
         run: scripts/check-release.sh "$VERSION" dist
-      - uses: actions/attest-build-provenance@v3
-        with:
-          subject-path: dist/*.tar.gz
-      - name: keep the dry run
-        if: github.event_name != 'push'
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: release
           path: |
             dist/*.tar.gz
             dist/SHA256SUMS
             notes.md
+          if-no-files-found: error
+
+  # Only a tag push gets write permissions: it re-checks the exact files it
+  # publishes, records their provenance, then creates the release. A dry
+  # run never writes a public attestation or a release.
+  publish:
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # create the release
+      id-token: write     # sign the provenance
+      attestations: write # store the provenance
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - name: check
+        run: scripts/check-release.sh "$VERSION" release/dist
+      # The job is already push-only; repeated here so moving the step can
+      # never make a dry run write a permanent public attestation.
+      - uses: actions/attest-build-provenance@v3
+        if: github.event_name == 'push'
+        with:
+          subject-path: release/dist/*.tar.gz
       - name: publish
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS \
-            --title "fung ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
+          gh release create "$GITHUB_REF_NAME" release/dist/*.tar.gz release/dist/SHA256SUMS \
+            --title "fung ${GITHUB_REF_NAME#v}" --notes-file release/notes.md --verify-tag

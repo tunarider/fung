@@ -59,7 +59,19 @@ for t in $targets; do
 	fi
 done
 
-rm -rf "$out"
+# outdir is emptied first; refuse when it holds anything this script did
+# not write, so a mistyped path cannot wipe unrelated files.
+if [ -e "$out" ]; then
+	[ -d "$out" ] || fail "$out exists and is not a directory"
+	for f in "$out"/* "$out"/.[!.]* "$out"/..?*; do
+		[ -e "$f" ] || [ -L "$f" ] || continue
+		case ${f##*/} in
+		fung_* | SHA256SUMS) ;;
+		*) fail "$out holds $f, which is not a release file; pick an empty or new outdir" ;;
+		esac
+	done
+	rm -rf "$out"
+fi
 mkdir -p "$out"
 
 # The version `fung version` prints (crates/fung-cli/src/version.rs reads
@@ -68,10 +80,23 @@ export FUNG_VERSION="$version"
 # No debug symbols (Go's -s -w).
 export CARGO_PROFILE_RELEASE_STRIP=symbols
 # No local paths in the binary (Go's -trimpath): the checkout and the
-# crate sources under CARGO_HOME. With --target, RUSTFLAGS reaches only
-# the target's code, not build scripts.
+# crate sources under CARGO_HOME. With --target, the flags reach only the
+# target's code, not build scripts. CARGO_ENCODED_RUSTFLAGS separates
+# flags with 0x1f, so a path with spaces stays one flag; cargo then
+# ignores RUSTFLAGS, so flags already set there are carried over.
 cargo_home=${CARGO_HOME:-$HOME/.cargo}
-export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$root=/fung --remap-path-prefix=$cargo_home=/cargo"
+sep=$(printf '\037')
+flags=${CARGO_ENCODED_RUSTFLAGS:-}
+if [ -z "$flags" ] && [ -n "${RUSTFLAGS:-}" ]; then
+	set -f # split on spaces, but do not expand globs
+	for f in $RUSTFLAGS; do
+		flags="${flags:+$flags$sep}$f"
+	done
+	set +f
+fi
+flags="${flags:+$flags$sep}--remap-path-prefix=$root=/fung$sep--remap-path-prefix=$cargo_home=/cargo"
+export CARGO_ENCODED_RUSTFLAGS="$flags"
+unset RUSTFLAGS
 # macOS tar would otherwise add AppleDouble (._*) files and xattrs.
 export COPYFILE_DISABLE=1
 

@@ -5,6 +5,7 @@
 #
 # For every target in TARGETS (default: all four), dir (default: dist)
 # must hold fung_<version>_<os>_<arch>.tar.gz and nothing else, and:
+#   - fung is a binary for that OS and CPU (`file`);
 #   - the archive holds exactly fung, LICENSE and README.md in one folder;
 #   - SHA256SUMS lists each archive once, with the right hash;
 #   - a Linux fung is statically linked (no PT_INTERP, no NEEDED entries);
@@ -57,9 +58,23 @@ runner() {
 	return 1
 }
 
+# What `file -b` must start with (Mach-O) or match (ELF) for each target.
+check_arch() {
+	desc=$(file -b "$1")
+	case $3 in
+	darwin/amd64) case $desc in "Mach-O 64-bit executable x86_64"*) return 0 ;; esac ;;
+	darwin/arm64) case $desc in "Mach-O 64-bit executable arm64"*) return 0 ;; esac ;;
+	linux/amd64) case $desc in "ELF 64-bit"*", x86-64,"*) return 0 ;; esac ;;
+	linux/arm64) case $desc in "ELF 64-bit"*", ARM aarch64,"*) return 0 ;; esac ;;
+	esac
+	fail "$2: fung is not a $3 binary: $desc"
+}
+
 # No PT_INTERP (no dynamic loader) and no NEEDED (no shared libraries).
 check_static() {
 	if command -v readelf >/dev/null 2>&1; then
+		# readelf prints nothing to grep for a file it cannot read as ELF.
+		readelf -h "$1" >/dev/null 2>&1 || fail "$2: fung is not an ELF file"
 		if readelf -lW "$1" | grep -q 'INTERP'; then
 			fail "$2: has a dynamic loader (PT_INTERP)"
 		fi
@@ -78,6 +93,7 @@ check_static() {
 	echo "  static: yes"
 }
 
+command -v file >/dev/null 2>&1 || fail "need file to check each binary's CPU"
 [ -d "$dir" ] || fail "no directory $dir"
 [ -f "$dir/SHA256SUMS" ] || fail "no $dir/SHA256SUMS"
 
@@ -94,6 +110,14 @@ for t in $targets; do
 	echo "$name.tar.gz"
 	[ -f "$archive" ] || fail "missing $archive"
 
+	# First the CPU and OS: a binary for the wrong platform fails here.
+	mkdir "$tmp/$name"
+	tar -xzf "$archive" -C "$tmp/$name"
+	bin="$tmp/$name/$name/fung"
+	[ -f "$bin" ] || fail "$name.tar.gz has no $name/fung"
+	check_arch "$bin" "$name" "$t"
+	echo "  binary: $(file -b "$bin" | cut -d, -f1-2)"
+
 	# Contents: one folder named like the archive with three files.
 	got=$(tar -tzf "$archive" | sed 's|/$||' | grep -vx "$name" | sort | tr '\n' ' ')
 	expect="$name/LICENSE $name/README.md $name/fung "
@@ -106,9 +130,6 @@ for t in $targets; do
 	[ "$listed" = "$(sha256 "$archive")" ] || fail "SHA256SUMS hash for $name.tar.gz does not match"
 	echo "  sha256: ok"
 
-	mkdir "$tmp/$name"
-	tar -xzf "$archive" -C "$tmp/$name"
-	bin="$tmp/$name/$name/fung"
 	[ -x "$bin" ] || fail "$name: fung is not executable"
 
 	if [ "$os" = linux ]; then
