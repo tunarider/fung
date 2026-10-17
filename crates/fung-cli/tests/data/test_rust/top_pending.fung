@@ -1,0 +1,15 @@
+# The top level ends normally with a task's exit(3) already asked for:
+# no block runs, and the top level fails. Ordered by state, as in
+# rest_skipped.fung.
+go = channel(1)
+c = channel()
+_t = spawn(fn():
+  recv(go)
+  send(c, 1)
+  exit(3)
+;;)
+send(go, 1)
+recv(c)
+
+test "one": assert true ;;
+test "two": assert true ;;

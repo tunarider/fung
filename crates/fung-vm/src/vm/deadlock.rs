@@ -98,7 +98,7 @@ impl Task<'_> {
         let line = headline(&error("E0702", no_pos(), Vec::new())) + "\n";
         let _ = w.stderr().write_all(line.as_bytes());
         let _ = w.stderr().flush();
-        w.request_exit(1);
+        w.request_deadlock_exit();
         match handler {
             Some(node) => node.cancel(),
             None => self.shared.root().cancel(),

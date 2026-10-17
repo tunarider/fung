@@ -34,8 +34,10 @@ pub(super) fn align(rs: &mut [Rendered]) {
         |r, width| {
             let arrow = r.arrow.unwrap_or(0);
             let at = byte_at(&r.code, arrow);
-            r.code
-                .splice(at..at, std::iter::repeat_n(b' ', width - arrow));
+            r.code.splice(
+                at..at,
+                std::iter::repeat_n(b' ', width.saturating_sub(arrow)),
+            );
             r.arrow = Some(width);
         },
     );
@@ -45,7 +47,7 @@ pub(super) fn align(rs: &mut [Rendered]) {
         |r| !r.code.is_empty() && !r.comment.is_empty(),
         |r| rune_count(&r.code),
         |r, width| {
-            let n = width - rune_count(&r.code);
+            let n = width.saturating_sub(rune_count(&r.code));
             r.code.resize(r.code.len() + n, b' ');
         },
     );

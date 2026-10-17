@@ -271,6 +271,10 @@ impl Runtime {
     /// deadlock and the exit(1) it requested and start a fresh run root,
     /// so later inputs run as usual. Globals and agents stay (agents hang
     /// from the background root, which the report does not cancel).
+    ///
+    /// Only the report's own exit(1) is cleared: an exit(n) a task asked
+    /// for after it stays (`exit_code` gives n), and the root is not
+    /// replaced, so the session ends with n.
     /// Returns false, changing nothing, when no deadlock was reported.
     pub fn recover_deadlock(&self) -> bool {
         if !self.lock().deadlocked {
@@ -279,8 +283,10 @@ impl Runtime {
         self.wait();
         let mut w = self.lock();
         w.deadlocked = false;
-        w.exit = None;
-        self.shared.replace_root();
+        w.clear_deadlock_exit();
+        if w.exit.is_none() {
+            self.shared.replace_root();
+        }
         true
     }
 
@@ -340,6 +346,12 @@ impl Runtime {
     /// The code of the first exit(n) requested, if any.
     pub fn exit_code(&self) -> Option<i64> {
         self.lock().exit
+    }
+
+    /// The code of the first exit(n) a task requested, leaving out a
+    /// deadlock report's exit(1) (the REPL recovers from that one).
+    pub fn exit_requested(&self) -> Option<i64> {
+        self.lock().task_exit()
     }
 
     /// Runs the at_exit handlers in reverse registration order, each on a

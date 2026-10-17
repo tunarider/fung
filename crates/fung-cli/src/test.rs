@@ -13,7 +13,9 @@
 //! Exit codes: 2 if any file failed to compile, else 1 if any test
 //! failed, else 0. An `exit(n)` inside a test file is a failure and skips
 //! the rest of that file; its code is not the command's. So does an exit
-//! a spawned task asks for, or a deadlock (Rust only; Go runs on).
+//! a spawned task asks for, or a deadlock (Rust only; Go runs on); when
+//! that skip follows a block that passed, it is a failure of its own
+//! (`<rest of file>`), as one before the first block fails the top level.
 
 use std::collections::HashSet;
 use std::io::Write;
@@ -198,12 +200,13 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
                 t.failed += 1;
             } else {
                 for (i, test) in tests.iter().enumerate() {
-                    match rt.call_test(i) {
+                    let passed = match rt.call_test(i) {
                         Ok(()) => {
                             let _ = stdout.write_all(
                                 &[b"ok   ", path, b": ", test.as_bytes(), b"\n"].concat(),
                             );
                             t.passed += 1;
+                            true
                         }
                         Err(stop) => {
                             let _ = stdout.write_all(&failure(test, &stop));
@@ -211,13 +214,21 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
                             if matches!(stop, Stop::Exit(_)) {
                                 break;
                             }
+                            false
                         }
-                    }
+                    };
                     // Only when blocks remain: a file whose last block
-                    // ends this way prints what Go prints.
+                    // ends this way prints what Go prints. After a block
+                    // that passed, the skip is a failure of its own, as
+                    // at the top level: a run never ends silently (08).
                     if i + 1 < tests.len()
                         && let Some(note) = skipped(&rt)
                     {
+                        if passed {
+                            let _ =
+                                stdout.write_all(&[b"FAIL ", path, b": <rest of file>\n"].concat());
+                            t.failed += 1;
+                        }
                         let _ = stdout.write_all(note.as_bytes());
                         break;
                     }

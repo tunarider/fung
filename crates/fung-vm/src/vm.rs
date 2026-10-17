@@ -284,6 +284,12 @@ impl<'rt> Task<'rt> {
         self.world.stdin.waiting()
     }
 
+    /// The ticks left before this task's next turn handoff (a test probe).
+    #[cfg(test)]
+    pub(crate) fn budget_left(&self) -> u32 {
+        self.budget
+    }
+
     /// exit(n) from any task (05 "종료"; Go `requestExit`): records the
     /// first code requested and cancels every task of the program, so
     /// the requesting task unwinds on its exit and the others on E0701,

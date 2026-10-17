@@ -110,13 +110,25 @@ pub fn corpus(dirs: &[&str]) -> Vec<String> {
     files
 }
 
-/// The value of a file's `# only:` line (`go` or `rust`), if it has one.
+/// The value of a file's `# only:` line (`go` or `rust`), if it has one,
+/// by the golden runner's rules (`golden.rs` `parse`): the line starts
+/// with it (after blanks), and any other value or a second such line is
+/// a broken fixture (a panic).
 pub fn only(src: &str) -> Option<String> {
-    src.lines().find_map(|l| {
-        l.trim()
-            .strip_prefix("# only:")
-            .map(|v| v.trim().to_string())
-    })
+    let mut found = None;
+    for line in src.lines() {
+        let Some(rest) = line.trim().strip_prefix("# only:") else {
+            continue;
+        };
+        let v = rest.trim();
+        assert!(
+            v == "go" || v == "rust",
+            "malformed only line {v:?} (want go or rust)"
+        );
+        assert!(found.is_none(), "second only line (already {found:?})");
+        found = Some(v.to_string());
+    }
+    found
 }
 
 /// The examples that still use atoms, which only Go has (as in
@@ -155,7 +167,7 @@ pub fn manual_examples() -> Vec<(String, String)> {
             let end = body.find("</pre>").unwrap();
             let block = &body[..end];
             rest = &body[end..];
-            if attrs.contains("class=") {
+            if excluded(attrs) {
                 continue;
             }
             let code = block
@@ -167,6 +179,25 @@ pub fn manual_examples() -> Vec<(String, String)> {
         }
     }
     out
+}
+
+/// Whether a `<pre>` with these attributes is left out of the runnable
+/// examples: `class="frag"`, `"plain"` or `"core"`. Any other class is
+/// unknown here and panics, so a new kind of block is decided on, not
+/// silently skipped.
+fn excluded(attrs: &str) -> bool {
+    let Some(i) = attrs.find("class=") else {
+        return false;
+    };
+    let class = attrs[i + "class=".len()..]
+        .strip_prefix('"')
+        .and_then(|v| v.split('"').next())
+        .unwrap_or_else(|| panic!("an unquoted class in <pre{attrs}>"));
+    assert!(
+        matches!(class, "frag" | "plain" | "core"),
+        "unknown <pre> class {class:?}: add it to `excluded` or drop it"
+    );
+    true
 }
 
 /// The HTML entities the manual's code uses.
@@ -491,14 +522,10 @@ fn walker_matches_go() {
     let Some(go) = go_fung("tools-walk") else {
         return;
     };
-    // Go runs from the repository root, so the walker does too, for the
-    // relative roots. Every other test here names files by absolute
-    // paths, so moving this process does not disturb them.
-    std::env::set_current_dir(repo()).unwrap();
     let dir = scratch("tools-walk");
     walker_tree(&dir);
     let abs = |p: &str| dir.join(p).to_string_lossy().into_owned();
-    let mut roots = vec![
+    let roots = vec![
         abs("tree"),
         abs("tree/"),
         abs("tree//sub/../"),
@@ -511,16 +538,32 @@ fn walker_matches_go() {
         abs("nope"),
         abs("lone.fung/x"),
     ];
-    if let Some(rel) = relative(&dir) {
-        roots.push(format!("{rel}/tree"));
-        roots.push(format!("./{rel}/tree/sub"));
-    }
     let mut bad = Vec::new();
     for root in &roots {
         let want = go_listed(&go, &["test", root]);
         let got = ours(paths::test_files(root.as_bytes()));
         if want != got {
             bad.push(format!("test {root}:\n  go:   {want:?}\n  rust: {got:?}"));
+        }
+    }
+    // Relative roots resolve against the working directory, so they are
+    // compared through the commands, which both run from the repository
+    // root (`run_status`): this process does not move (other tests run
+    // in parallel with it).
+    if let Some(rel) = relative(&dir) {
+        for root in [format!("{rel}/tree"), format!("./{rel}/tree/sub")] {
+            for cmd in [&["test"][..], &["fmt", "--check"]] {
+                let args = [cmd, &[root.as_str()]].concat();
+                let want = go_listed(&go, &args);
+                let got = go_listed(&rust_fung(), &args);
+                assert!(
+                    want.as_ref().is_ok_and(|f| !f.is_empty()),
+                    "{args:?}: {want:?}"
+                );
+                if want != got {
+                    bad.push(format!("{args:?}:\n  go:   {want:?}\n  rust: {got:?}"));
+                }
+            }
         }
     }
     let mut groups: Vec<Vec<String>> = roots.iter().map(|r| vec![r.clone()]).collect();
@@ -601,6 +644,21 @@ fn manual_examples_are_extracted() {
     );
     assert_eq!(only("x\n  # only: rust\n").as_deref(), Some("rust"));
     assert_eq!(only("# onlyx\n"), None);
+    assert_eq!(
+        only("x = 1 # only: go\n"),
+        None,
+        "not at the start of a line"
+    );
+    for bad in ["# only: java\n", "# only:\n", "# only: go\n# only: rust\n"] {
+        assert!(
+            std::panic::catch_unwind(|| only(bad)).is_err(),
+            "{bad:?} is accepted"
+        );
+    }
+    assert!(excluded(r#" class="frag""#) && excluded(r#" class="plain""#));
+    assert!(excluded(r#" class="core""#));
+    assert!(!excluded("") && !excluded(r#" data-args=". 3""#));
+    assert!(std::panic::catch_unwind(|| excluded(r#" class="code""#)).is_err());
 }
 
 // ---- `fung test` (stage 5 task 2) ----
@@ -748,6 +806,7 @@ fn test_ends_each_files_agents() {
     let p = |f: &str| format!("{TEST_RUST}/{f}");
     let after = p("after_cancel.fung");
     let exit = p("task_exit.fung");
+    let rest = p("rest_skipped.fung");
     let want = [
         format!("ok   {after}: before"),
         format!("FAIL {after}: deadlocks"),
@@ -767,6 +826,9 @@ fn test_ends_each_files_agents() {
         ),
         format!("ok   {}: a background loop", p("agents.fung")),
         "1".to_string(),
+        format!("ok   {rest}: receives"),
+        format!("FAIL {rest}: <rest of file>"),
+        "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
         format!("FAIL {exit}: a task exits"),
         "  error[E0701]: task cancelled".to_string(),
         format!("    --> {exit}:4:8"),
@@ -778,8 +840,10 @@ fn test_ends_each_files_agents() {
         format!("     {exit}:4 test: a task exits"),
         "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
         "handler still runs".to_string(),
+        format!("FAIL {}: <top level>", p("top_pending.fung")),
+        "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
         format!("ok   {}: a fresh file", p("z_next.fung")),
-        "5 passed, 2 failed".to_string(),
+        "6 passed, 4 failed".to_string(),
     ]
     .map(|l| l + "\n")
     .concat();
@@ -789,6 +853,39 @@ fn test_ends_each_files_agents() {
         "error[E0702]: deadlock: all tasks are waiting\n"
     );
     assert_eq!(status.code(), Some(1));
+}
+
+/// Rust only. When the rest of a file is skipped after a block that
+/// passed (a task it woke asked for an exit), the skip is a failure of
+/// its own (08: a test run never ends silently); when the top level ends
+/// with an exit pending, the top level fails. Both fixtures order the
+/// exit by state (the task sends and exits on one turn of the run
+/// token), so the output is fixed; the loop shows it.
+#[test]
+fn a_skipped_rest_is_a_failure() {
+    let rest = format!("{TEST_RUST}/rest_skipped.fung");
+    let top = format!("{TEST_RUST}/top_pending.fung");
+    let note = "  exit(3) called inside a test file; the rest of the file was skipped\n";
+    let cases = [
+        (
+            &rest,
+            format!(
+                "ok   {rest}: receives\nFAIL {rest}: <rest of file>\n{note}1 passed, 1 failed\n"
+            ),
+        ),
+        (
+            &top,
+            format!("FAIL {top}: <top level>\n{note}0 passed, 1 failed\n"),
+        ),
+    ];
+    for _ in 0..20 {
+        for (file, want) in &cases {
+            let (out, err, status) = run_status(&rust_fung(), &os_args(&["test", file]), None);
+            assert_eq!(String::from_utf8_lossy(&out), *want);
+            assert_eq!(String::from_utf8_lossy(&err), "");
+            assert_eq!(status.code(), Some(1));
+        }
+    }
 }
 
 // ---- `fung fmt` (stage 5 task 3) ----
@@ -1756,4 +1853,48 @@ fn repl_ends_on_a_spawned_exit() {
     assert_eq!(out, "> nil\n> > . . . > bye\n");
     assert_eq!(err, "");
     assert_eq!(code, Some(3));
+}
+
+/// Rust only: a spawned task's `exit(n)` that comes while a line is read
+/// ends the session before that line runs, a `:` command included (one
+/// that runs no fung code, which the exit would have cut short). The
+/// task prints `going` and asks for the exit on one turn of the run token,
+/// so once `going` is out, the REPL's check after the read waits for that
+/// turn and sees the exit. (The task's sleep only makes the exit come
+/// after the check before the read, so the check after it is the one
+/// exercised; if it came earlier, the result would be the same.)
+#[test]
+fn repl_checks_a_spawned_exit_before_a_command() {
+    use std::io::{Read, Write};
+    let dir = repl_dir("exit-before-command");
+    let mut child = std::process::Command::new(rust_fung())
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    stdin
+        .write_all(b"t = spawn(fn():\n  sleep(100ms)\n  print(\"going\")\n  exit(3)\n;;)\n")
+        .unwrap();
+    let mut out = Vec::new();
+    let mut buf = [0u8; 256];
+    while !String::from_utf8_lossy(&out).contains("going\n") {
+        let n = stdout.read(&mut buf).unwrap();
+        assert!(n > 0, "{}", String::from_utf8_lossy(&out));
+        out.extend_from_slice(&buf[..n]);
+    }
+    // A command that does something before any fung code runs: the
+    // help text, and a file that fails to compile.
+    stdin.write_all(b":help\n:load bad.fung\n").unwrap();
+    drop(stdin);
+    stdout.read_to_end(&mut out).unwrap();
+    let o = child.wait_with_output().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(String::from_utf8_lossy(&out), "> . . . . > going\n");
+    assert_eq!(String::from_utf8_lossy(&o.stderr), "");
+    assert_eq!(o.status.code(), Some(3));
 }

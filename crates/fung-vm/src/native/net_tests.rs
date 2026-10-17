@@ -26,10 +26,11 @@ pub(super) fn serial() -> MutexGuard<'static, ()> {
 
 /// The probes plus the net ones: `net_waiting()` (tasks inside a socket
 /// wait now), `read_waits()` / `write_waits()` (waits for reading or
-/// writing so far), `sockets()` (live sockets).
+/// writing so far), `sockets()` (live sockets), `budget()` (the calling
+/// task's ticks left before its next turn handoff).
 pub(super) fn net_probes() -> Vec<Value> {
     type F = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
-    let natives: [(&'static str, F); 4] = [
+    let natives: [(&'static str, F); 5] = [
         ("net_waiting", |_, _| {
             Ok(Value::Int(probe::waiting() as i64))
         }),
@@ -40,6 +41,7 @@ pub(super) fn net_probes() -> Vec<Value> {
             Ok(Value::Int(probe::write_waits() as i64))
         }),
         ("sockets", |_, _| Ok(Value::Int(probe::sockets() as i64))),
+        ("budget", |t, _| Ok(Value::Int(t.budget_left() as i64))),
     ];
     let mut v = probes();
     for (name, f) in natives {
@@ -1056,17 +1058,24 @@ fn hold_returns_when_the_listener_is_closed_elsewhere() {
 
 /// The server task cancelled at any tick between starting its accept task
 /// and waiting in `hold`: the listener still closes (the accept task runs
-/// below the server's task). `burn(k)` in `ready` moves where the server
-/// task yields its turn; with `k` such that the yield falls right after
-/// the accept task starts, the listener used to stay open (the accept
-/// task kept it and answered 503). The window is one tick wide; this
-/// range holds it for the current `serve` (the release build sweeps a
-/// whole yield period: `cancel_at_every_tick_closes_the_listener`).
+/// below the server's task). Burning ticks in `ready` moves where the
+/// server task yields its turn; with the yield right after the accept
+/// task starts, the listener used to stay open (the accept task kept it
+/// and answered 503). The window is one tick wide. The debug sweep
+/// places the yield at each of the first `SETTLE` ticks after `ready`,
+/// reading the task's budget (`budget()`), so a change in how many
+/// ticks `serve` spends before `ready` cannot move the window out of it;
+/// it checks that every one of those offsets was reached, so the sweep
+/// does cross the yield point. `serve` makes a handful of calls between
+/// `ready` and `hold`, well under `SETTLE`. (The release build also
+/// sweeps a whole yield period: `cancel_at_every_tick_closes_the_listener`.)
 #[test]
 fn a_cancel_before_hold_closes_the_listener() {
+    const SETTLE: i64 = 40;
     let _g = serial();
-    let o = run(&cancel_sweep(9900, 10001));
-    assert_eq!(out(&o), ("done\n", "", 0));
+    let o = run(&settled_cancel_sweep(SETTLE));
+    let want: String = (1..=SETTLE).map(|r| format!("{r} ")).collect();
+    assert_eq!(out(&o), (format!("{want}\ndone\n").as_str(), "", 0));
 }
 
 #[cfg(not(debug_assertions))]
@@ -1123,6 +1132,36 @@ fn cancel_sweep(from: i64, to: i64) -> String {
     format!(
         "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(c) => fn():\n    net.set_deadline(c, 2s)\n    net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(c, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  port = channel(1)\n  s = spawn(() => http.serve(\"127.0.0.1:0\", r => \"x\", ready: fn(a): send(port, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  ;;\n;;\neach({from}..{to}, attempt)\nprint(\"done\")"
     )
+}
+
+/// `cancel_sweep` with the yield placed by the budget: for each `r` in
+/// `1..=width` (a budget is never seen at 0: the tick that empties it
+/// refills it), `ready` burns the server task's budget down so that `r`
+/// ticks are left at a fixed point (it wraps the budget once first, so
+/// there are always enough to burn; nobody waits for the token yet, so
+/// that wrap hands nothing over), records what is left there, and only
+/// then hands the address over: the waiting main task then queues for
+/// the token and gets it (and cancels the server) at the server's next
+/// yield, `r` ticks after that point. Prints the budgets recorded,
+/// sorted (each `r` once if the sweep is exact), then what
+/// `cancel_sweep` prints.
+fn settled_cancel_sweep(width: i64) -> String {
+    let sweep = cancel_sweep(1, width + 1)
+        .replace(
+            "fn attempt(k):\n",
+            "fn settle(k) = burn(budget() - k - 2)\nfn drain(left, acc) = match recv(left, timeout: 0s):\n  Ok(v) => drain(left, acc + [v])\n  _ => acc\n;;\nfn attempt(k, left):\n",
+        )
+        .replace(
+            "ready: fn(a): send(port, a); burn(k) ;;",
+            "ready: fn(a):\n    burn(budget())\n    settle(k)\n    send(left, budget())\n    send(port, a)\n  ;;",
+        )
+        .replace(
+            ", attempt)\nprint(\"done\")",
+            ", (k) => attempt(k, left))\nprint(join(map(sort(drain(left, [])), (v) => \"${v} \"), \"\"))\nprint(\"done\")",
+        )
+        .replace("each(1..", "left = channel(1000)\neach(1..");
+    assert!(sweep.contains("settle(k)") && sweep.contains("drain(left, [])"));
+    sweep
 }
 
 /// `_native.net` with `member` replaced by a native that fails with

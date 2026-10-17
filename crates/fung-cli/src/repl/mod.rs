@@ -157,6 +157,11 @@ impl Session {
                 let _ = self.out.write_all(b"\n");
                 return self.finish(0);
             };
+            // Or it came while the line was read: the line does not run,
+            // a command neither.
+            if let Some(n) = self.rt.exit_code() {
+                return self.finish(n);
+            }
             if line.trim().starts_with(':') {
                 if let Some(code) = self.command(line.trim()) {
                     return self.finish(code);
@@ -175,7 +180,7 @@ impl Session {
                 src.push_str(&more);
             }
             if let Some(n) = self.rt.exit_code() {
-                return self.finish(n); // it came while the line was read
+                return self.finish(n); // it came while the rest was read
             }
             if let Some(code) = self.eval("<repl>", &src) {
                 return self.finish(code);
@@ -262,9 +267,10 @@ impl Session {
         // A spawned task's exit(n) ends the session like a direct one:
         // what it cut the input short with (E0701) is not reported, and
         // no value is printed. A deadlock's report asks for exit(1) too,
-        // but only fails this input (below).
+        // but only fails this input (below); a task's exit(n) after it
+        // still ends the session (`recover_deadlock` keeps it).
         let deadlocked = self.rt.deadlocked();
-        let exited = !deadlocked && self.rt.exit_code().is_some();
+        let exited = self.rt.exit_requested().is_some();
         match r {
             Ok(v) => {
                 let last = b.surface.as_ref().and_then(|s| s.kids.last());
@@ -281,7 +287,8 @@ impl Session {
         }
         if deadlocked {
             // The input failed with Go's report; the session goes on on a
-            // fresh run root (decided 2026-10-17; Go stays cancelled).
+            // fresh run root (decided 2026-10-17; Go stays cancelled),
+            // unless a task asked for an exit meanwhile (returned below).
             self.rt.recover_deadlock();
         }
         self.rt.exit_code()

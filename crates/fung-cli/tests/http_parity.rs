@@ -1120,20 +1120,28 @@ print(http.get(URL + "/306"))
 print(http.get(URL + "/309"))
 print(http.get(URL + "/none"))
 print(http.get(URL + "/empty"))
-print(http.request("HEAD", URL + "/none"))"#,
+print(http.request("HEAD", URL + "/none"))
+sleep(200ms)"#,
         vec![routes(vec![
             ("/300", redirect(300, "/end")),
             ("/304", redirect(304, "/end")),
             ("/305", redirect(305, "/end")),
             ("/306", redirect(306, "/end")),
             ("/309", redirect(309, "/end")),
+            // `Connection: close`: the HEAD request leaves `found` unread
+            // on the connection, and Go, finding it on an idle kept-alive
+            // connection, logs "Unsolicited response received on idle
+            // HTTP channel" on stderr if the program is still running
+            // (a flake in the comparison; the `sleep` makes it certain)
             (
                 "/none",
-                ok("HTTP/1.1 302 Found\r\nContent-Length: 5\r\n\r\nfound"),
+                ok("HTTP/1.1 302 Found\r\nConnection: close\r\nContent-Length: 5\r\n\r\nfound"),
             ),
             (
                 "/empty",
-                ok("HTTP/1.1 301 Moved\r\nLocation: \r\nX: y\r\nContent-Length: 2\r\n\r\nno"),
+                ok(
+                    "HTTP/1.1 301 Moved\r\nLocation: \r\nX: y\r\nConnection: close\r\nContent-Length: 2\r\n\r\nno",
+                ),
             ),
             ("*", named("end")),
         ])],

@@ -264,3 +264,58 @@ fn a_deadlock_is_recovered() {
         s.rt.release();
     });
 }
+
+/// An exit a task asks for after a deadlock was reported is not lost by
+/// the recovery: only the deadlock's own exit(1) is cleared, the run root
+/// stays cancelled, and the session ends with the task's code.
+///
+/// The request is made from Rust, as a task's `exit` call makes it: no
+/// fung code can make it in that window today. Every task of the program
+/// is cancelled by the report, and cancellation is checked at every
+/// call; background tasks either run fixed code (an agent's loop) or
+/// follow the task that asked (`f` and what it spawns), which is
+/// cancelled too. The rule guards against a later way in (a background
+/// task that follows nobody).
+#[test]
+fn a_recovery_keeps_a_later_exit() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        let file = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("recv(channel())"),
+            Outcome::Error("E0702".into(), file)
+        );
+        let shared = s.rt.shared();
+        Task::unlisted(&shared, CancelNode::root()).request_exit(5);
+        assert_eq!(s.rt.exit_code(), Some(1), "the first request stays");
+        assert_eq!(s.rt.exit_requested(), Some(5));
+        assert!(s.rt.recover_deadlock());
+        assert!(!s.rt.deadlocked());
+        assert_eq!(s.rt.exit_code(), Some(5), "the later exit is kept");
+        assert!(
+            shared.root().is_cancelled(),
+            "no fresh root while an exit is pending"
+        );
+        s.rt.release();
+    });
+}
+
+/// Without a later exit, the deadlock's own request is not a task's, and
+/// the recovery clears it.
+#[test]
+fn a_deadlocks_exit_is_not_a_tasks() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        let file = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("recv(channel())"),
+            Outcome::Error("E0702".into(), file)
+        );
+        assert_eq!(s.rt.exit_code(), Some(1));
+        assert_eq!(s.rt.exit_requested(), None);
+        assert!(s.rt.recover_deadlock());
+        assert_eq!(s.rt.exit_code(), None);
+        assert!(!s.rt.shared().root().is_cancelled());
+        s.rt.release();
+    });
+}

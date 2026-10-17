@@ -40,7 +40,7 @@ Go의 `fung check`·`test`·`fmt`·REPL·`version`·`help`를 Rust로 옮겨 Rus
 - Go 대조(`crates/fung-cli/tests/tools_parity.rs` 등): `check`·`test`·`fmt --check`·`fmt` 출력을 `tests/lang`·`examples`·`extras`(`extras/rust` 포함)·매뉴얼 예제에 대해 두 구현으로 돌려 바이트 비교. 일부러 망가뜨린 입력(잘린 파일, 섞인 들여쓰기 등)도.
   `fmt`의 멱등성(두 번 포맷해도 같음).
 - 경고: Go `m6_test.go` 등 경고 테스트를 옮기고 Go 대조.
-- REPL: 파이프 입력 시나리오(정의·재정의·에러·여러 줄 입력·`exit`·에이전트가 입력 사이에 남지 않음)를 Go와 대조. 편집기·기록 파일은 Go 단위 테스트를 옮긴다.
+- REPL: 파이프 입력 시나리오(정의·재정의·에러·여러 줄 입력·`exit`)를 Go와 대조. 에이전트가 입력 사이에 남아 세션 끝까지 일하고 세션 끝에 끝나는 것은 Rust만으로 확인한다(§1·§2, 에이전트는 Rust 전용). 편집기·기록 파일은 Go 단위 테스트를 옮긴다.
 - 저장소 `.fung` 포맷 검사를 Rust 쪽에도 둔다(Go `tests/fmt_test.go`가 하던 것).
 - 커밋 전 검사에 Rust `fung fmt --check extras examples tests/lang`를 더할지는 계획에서 정한다(Go 검사는 그대로 유지).
 

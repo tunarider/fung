@@ -55,6 +55,11 @@ pub(crate) struct World {
     pub(super) exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
     pub(super) exit: Option<i64>,
+    /// `exit` was set by a deadlock report, not by a task's `exit(n)`.
+    pub(super) exit_by_deadlock: bool,
+    /// The first exit(n) a task requested after a deadlock report set
+    /// `exit`: `Runtime::recover_deadlock` keeps it.
+    exit_after_deadlock: Option<i64>,
     /// The script arguments (the prelude's `args`).
     pub(crate) args: Vec<String>,
     /// Every global table the runtime made. A closure stored in a global
@@ -155,6 +160,8 @@ impl World {
             background: 0,
             deadlocked: false,
             handler: None,
+            exit_by_deadlock: false,
+            exit_after_deadlock: None,
         }
     }
 
@@ -215,8 +222,43 @@ impl World {
         }
     }
 
+    /// A task's exit(n): the first request wins (05). One that comes
+    /// after a deadlock report's own is remembered apart, so a recovered
+    /// session does not lose it (`Runtime::recover_deadlock`).
     pub(super) fn request_exit(&mut self, code: i64) {
-        self.exit.get_or_insert(code);
+        match self.exit {
+            None => self.exit = Some(code),
+            Some(_) if self.exit_by_deadlock => {
+                self.exit_after_deadlock.get_or_insert(code);
+            }
+            Some(_) => {}
+        }
+    }
+
+    /// A deadlock report's exit(1): the code if none was requested yet.
+    pub(super) fn request_deadlock_exit(&mut self) {
+        if self.exit.is_none() {
+            self.exit = Some(1);
+            self.exit_by_deadlock = true;
+        }
+    }
+
+    /// The exit a task requested (not a deadlock report's), if any.
+    pub(super) fn task_exit(&self) -> Option<i64> {
+        if self.exit_by_deadlock {
+            self.exit_after_deadlock
+        } else {
+            self.exit
+        }
+    }
+
+    /// Forgets a deadlock report's exit(1); a task's later request, if
+    /// any, takes its place.
+    pub(super) fn clear_deadlock_exit(&mut self) {
+        if self.exit_by_deadlock {
+            self.exit_by_deadlock = false;
+            self.exit = self.exit_after_deadlock.take();
+        }
     }
 
     pub(super) fn at_exit(&mut self, f: Value) {
