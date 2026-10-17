@@ -1,4 +1,4 @@
-//! `regex` programs run by the Go and the Rust binaries: Hangul and other
+//! `regex` programs against `expected/regex/`: Hangul and other
 //! multibyte text under `\w` `\b` `\d` `\s` with rune positions, patterns
 //! that match the empty string in `find_all`, `split` and `replace`, every
 //! form of `$` in a replacement, argument errors, and the whole E0515
@@ -8,7 +8,8 @@ mod common;
 
 use std::process::{Command, Stdio};
 
-use common::{go_fung, repo, rust_fung};
+use common::expected::{self, Entry};
+use common::{repo, rust_fung};
 
 /// Subjects, each tried with every pattern in [`PATTERNS`].
 const SUBJECTS: &[&str] = &[
@@ -147,48 +148,70 @@ fn run(bin: &std::path::Path, src: &str, args: &[&str]) -> (String, String, Opti
     )
 }
 
-/// Every subject with every pattern: one line per pair with `is_match`,
-/// `find`, `find_all`, `split` and `replace` with each replacement. The
-/// pairs and the replacements travel in files, so no fung escaping gets
-/// in the way.
-#[test]
-fn regex_pairs_match_go() {
-    let Some(go) = go_fung("regex") else {
-        return;
-    };
-    let dir = std::env::temp_dir().join(format!("fung-regex-parity-{}", std::process::id()));
+/// How many subject and pattern pairs and programs there are.
+const PAIR_CASES: usize = 800;
+const PROGRAM_CASES: usize = 46;
+
+/// A run as an entry: standard output, standard error, exit code.
+fn entry(label: String, (out, err, code): (String, String, Option<i32>)) -> Entry {
+    Entry::new(label)
+        .field("stdout", out)
+        .field("stderr", err)
+        .field("exit", code.map_or("signal".into(), |c| c.to_string()))
+}
+
+/// Every pair in one run: one entry per pair with its printed line, then
+/// one with the run's standard error and exit code. The pairs and the
+/// replacements travel in files, so no fung escaping gets in the way.
+fn pair_entries(bin: &std::path::Path, pairs: &[String]) -> Vec<Entry> {
+    let dir = std::env::temp_dir().join(format!("fung-regex-pairs-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let pairs_file = dir.join("pairs.txt");
     let repl_file = dir.join("repls.txt");
+    std::fs::write(&pairs_file, pairs.join("\u{1e}")).unwrap();
+    std::fs::write(&repl_file, REPLACEMENTS.join("\u{1e}")).unwrap();
+    let src = "import regex\nimport fs\nrepls = split(fs.read(args[1])!, \"\\u{1e}\")\nfor rec in split(fs.read(args[0])!, \"\\u{1e}\"):\n  [s, p] = split(rec, \"\\u{1f}\")\n  print([regex.is_match(s, p), regex.find(s, p), regex.find_all(s, p), regex.split(s, p), map(repls, r => regex.replace(s, p, r))])\n;;\n";
+    let args = [pairs_file.to_str().unwrap(), repl_file.to_str().unwrap()];
+    let (out, err, code) = run(bin, src, &args);
+    let _ = std::fs::remove_dir_all(&dir);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), pairs.len(), "{err}");
+    let mut entries: Vec<Entry> = pairs
+        .iter()
+        .zip(lines)
+        .map(|(p, l)| Entry::new(format!("{p:?}")).field("out", format!("{l}\n")))
+        .collect();
+    entries.push(entry("(the run)".into(), (String::new(), err, code)));
+    entries
+}
+
+/// Every subject with every pattern: one line per pair with `is_match`,
+/// `find`, `find_all`, `split` and `replace` with each replacement.
+#[test]
+fn regex_pairs_match_the_expected_output() {
     let mut pairs = Vec::new();
     for s in SUBJECTS {
         for p in PATTERNS {
             pairs.push(format!("{s}\u{1f}{p}"));
         }
     }
-    std::fs::write(&pairs_file, pairs.join("\u{1e}")).unwrap();
-    std::fs::write(&repl_file, REPLACEMENTS.join("\u{1e}")).unwrap();
-    let src = "import regex\nimport fs\nrepls = split(fs.read(args[1])!, \"\\u{1e}\")\nfor rec in split(fs.read(args[0])!, \"\\u{1e}\"):\n  [s, p] = split(rec, \"\\u{1f}\")\n  print([regex.is_match(s, p), regex.find(s, p), regex.find_all(s, p), regex.split(s, p), map(repls, r => regex.replace(s, p, r))])\n;;\n";
-    let args = [pairs_file.to_str().unwrap(), repl_file.to_str().unwrap()];
-    let g = run(&go, src, &args);
-    let r = run(&rust_fung(), src, &args);
-    let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_file(&go);
-    assert_eq!(g.0.lines().count(), pairs.len(), "go: {g:?}");
-    let (gl, rl): (Vec<&str>, Vec<&str>) = (g.0.lines().collect(), r.0.lines().collect());
-    let bad: Vec<String> = pairs
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| gl.get(*i) != rl.get(*i))
-        .map(|(i, s)| format!("{s:?}\n  rust {:?}\n  go   {:?}", rl.get(i), gl.get(i)))
-        .collect();
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
+    assert_eq!(pairs.len(), PAIR_CASES, "pairs");
+    let got = pair_entries(&rust_fung(), &pairs);
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("regex");
+        let r = pair_entries(&bin, &pairs);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    expected::verify(
+        "regex/pairs.txt",
+        "`regex` on each subject and pattern (subject\\u{1f}pattern), one printed line each\n\
+         (crates/fung-cli/tests/regex_expected.rs). Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test regex_expected",
+        64 * 1024,
+        &got,
+        reference.as_deref(),
     );
-    assert_eq!(r, g);
 }
 
 /// Programs whose output or error report is compared whole.
@@ -256,12 +279,7 @@ const BAD_PATTERNS: &[&str] = &[
     "(가나]",
 ];
 
-#[test]
-fn regex_programs_match_go() {
-    let Some(go) = go_fung("regex-programs") else {
-        return;
-    };
-    let rust = rust_fung();
+fn program_entries(bin: &std::path::Path) -> Vec<Entry> {
     let mut sources: Vec<String> = PROGRAMS
         .iter()
         .map(|p| format!("import regex\n{p}"))
@@ -271,20 +289,32 @@ fn regex_programs_match_go() {
             .iter()
             .map(|p| format!("import regex\nprint(regex.find(\"x\", `{p}`))")),
     );
-    let mut bad = Vec::new();
-    for src in &sources {
-        let g = run(&go, src, &[]);
-        let r = run(&rust, src, &[]);
-        if g != r {
-            bad.push(format!("{src}\n  rust {r:?}\n  go   {g:?}"));
-        }
-    }
-    let _ = std::fs::remove_file(&go);
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
+    assert_eq!(sources.len(), PROGRAM_CASES, "programs");
+    common::par_map(&sources, |src| {
+        entry(
+            expected::short_label(&format!("{src:?}")),
+            run(bin, src, &[]),
+        )
+    })
+}
+
+#[test]
+fn regex_programs_match_the_expected_output() {
+    let got = program_entries(&rust_fung());
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("regex-programs");
+        let r = program_entries(&bin);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    expected::verify(
+        "regex/programs.txt",
+        "`regex` programs (crates/fung-cli/tests/regex_expected.rs), each run with `fung -e`.\n\
+         Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test regex_expected",
+        64 * 1024,
+        &got,
+        reference.as_deref(),
     );
 }
 

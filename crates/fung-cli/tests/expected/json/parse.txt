@@ -1,0 +1,435 @@
+# `json.parse` of each input, one printed line each (crates/fung-cli/tests/json_expected.rs).
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test json_expected
+==== "1"
+-- out
+| Ok(1)
+==== "1.0"
+-- out
+| Ok(1.0)
+==== "1e2"
+-- out
+| Ok(100.0)
+==== "1E2"
+-- out
+| Ok(100.0)
+==== "-0"
+-- out
+| Ok(0)
+==== "-0.0"
+-- out
+| Ok(-0.0)
+==== "0.5"
+-- out
+| Ok(0.5)
+==== "9223372036854775807"
+-- out
+| Ok(9223372036854775807)
+==== "-9223372036854775808"
+-- out
+| Ok(-9223372036854775808)
+==== "9223372036854775808"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 9223372036854775808 is out of range"})
+==== "-9223372036854775809"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer -9223372036854775809 is out of range"})
+==== "123456789012345678901234567890"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 123456789012345678901234567890 is out of range"})
+==== "1e400"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: number 1e400 is out of range"})
+==== "-1e400"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: number -1e400 is out of range"})
+==== "1e-400"
+-- out
+| Ok(0.0)
+==== "1.5e-7"
+-- out
+| Ok(1.5e-07)
+==== "4.9e-324"
+-- out
+| Ok(5e-324)
+==== "2.2250738585072014e-308"
+-- out
+| Ok(2.2250738585072014e-308)
+==== "1.7976931348623157e308"
+-- out
+| Ok(1.7976931348623157e308)
+==== "1.7976931348623159e308"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: number 1.7976931348623159e308 is out of range"})
+==== "0.1"
+-- out
+| Ok(0.1)
+==== "100000000000000000000000"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 100000000000000000000000 is out of range"})
+==== "[1e21, 1e20, 123456789.0, 1e-5, 0.0001]"
+-- out
+| Ok([1e21, 100000000000000000000.0, 123456789.0, 1e-05, 0.0001])
+==== "{\"z\": 1, \"y\": 2, \"x\": {\"b\": 1, \"a\": 2}}"
+-- out
+| Ok({z: 1, y: 2, x: {b: 1, a: 2}})
+==== "{\"a\": 1, \"a\": 2}"
+-- out
+| Ok({a: 2})
+==== "{\"a\": 1, \"b\": 2, \"a\": 3}"
+-- out
+| Ok({a: 3, b: 2})
+==== "{\"A\": 1, \"a\": 2}"
+-- out
+| Ok({A: 1, a: 2})
+==== "{\"\": 1, \" \": 2}"
+-- out
+| Ok({"": 1, " ": 2})
+==== "{\"k1\":1,\"k2\":2,\"k3\":3,\"k4\":4,\"k5\":5,\"k6\":6,\"k7… (181 bytes, c708c86789211be4)
+-- out
+| Ok({k1: 0, k2: 2, k3: 3, k4: 4, k5: 5, k6: 6, k7: 7, k8: 8, k9: 9, k10: 10, k11: 11, k12: 12, k13: 13, k14: 14, k15: 15, k16: 16, k17: 17})
+==== "\"\\u003c\\u003e\\u0026 \\u2028\\u2029\""
+-- out
+| Ok("<>& \u{2028}\u{2029}")
+==== "\"\\ud83d\\ude00 \\u00e9 \\/ \\b\\f\\n\\r\\t \\\" \\\\\""
+-- out
+| Ok("😀 é / \u{8}\u{C}\n\r\t \" \\")
+==== "\"\\ud800\""
+-- out
+| Ok("�")
+==== "\"\\ud800x\""
+-- out
+| Ok("�x")
+==== "\"\\ud800\\ud800\""
+-- out
+| Ok("��")
+==== "\"\\udc00\""
+-- out
+| Ok("�")
+==== "\"\\u0000\""
+-- out
+| Ok("\u{0}")
+==== "\"é한😀\""
+-- out
+| Ok("é한😀")
+==== "\"\u{7f}\""
+-- out
+| Ok("\u{7F}")
+==== ""
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected end of input"})
+==== " "
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected end of input"})
+==== " \t\r\n 1 \n"
+-- out
+| Ok(1)
+==== "\u{feff}1"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character '\\ufeff' looking for beginning of value"})
+==== "\u{a0}1"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character '\\u00a0' looking for beginning of value"})
+==== "{bad}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character 'b' looking for beginning of value"})
+==== "{\"a\": 1,}"
+-- out
+| Err({kind: 'parse, line: 1, col: 8, message: "invalid JSON at line 1, column 8: invalid character ',' looking for beginning of value"})
+==== "[1, 2"
+-- out
+| Err({kind: 'parse, line: 1, col: 6, message: "invalid JSON at line 1, column 6: unexpected end of JSON input"})
+==== "[1,"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: unexpected end of JSON input"})
+==== "[1"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: unexpected end of JSON input"})
+==== "["
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected end of JSON input"})
+==== "{"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected end of JSON input"})
+==== "{\"a\""
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: unexpected end of input"})
+==== "{\"a\":"
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: unexpected end of input"})
+==== "{\"a\":1"
+-- out
+| Err({kind: 'parse, line: 1, col: 7, message: "invalid JSON at line 1, column 7: unexpected end of JSON input"})
+==== "{\"a\":1,"
+-- out
+| Err({kind: 'parse, line: 1, col: 8, message: "invalid JSON at line 1, column 8: unexpected end of JSON input"})
+==== "{\n  \"a\": tru\n}"
+-- out
+| Err({kind: 'parse, line: 2, col: 11, message: "invalid JSON at line 2, column 11: invalid character '\\n' in literal true (expecting 'e')"})
+==== "tru"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== "trux"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character 'x' in literal true (expecting 'e')"})
+==== "nul"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== "nullx"
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: invalid character 'x' looking for beginning of value"})
+==== "null1"
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: unexpected text after the value"})
+==== "[nul]"
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: invalid character ']' in literal null (expecting 'l')"})
+==== "{\"a\":nul}"
+-- out
+| Err({kind: 'parse, line: 1, col: 9, message: "invalid JSON at line 1, column 9: invalid character '}' in literal null (expecting 'l')"})
+==== "\"abc"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== "[\"a"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected EOF"})
+==== "{\"a"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected EOF"})
+==== "{\"a\":\""
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: unexpected EOF"})
+==== "1 2"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: unexpected text after the value"})
+==== "1 ]"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character ']' looking for beginning of value"})
+==== "1,"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character ',' looking for beginning of value"})
+==== "[1]x"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character 'x' looking for beginning of value"})
+==== "[1]]"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character ']' looking for beginning of value"})
+==== "{\"a\":1}}"
+-- out
+| Err({kind: 'parse, line: 1, col: 8, message: "invalid JSON at line 1, column 8: invalid character '}' looking for beginning of value"})
+==== "\"a\"x"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character 'x' looking for beginning of value"})
+==== "[1 2]"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character '2' after array element"})
+==== "{1:2}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: object member name must be a string"})
+==== "{true:1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: object member name must be a string"})
+==== "{[]:1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: object member name must be a string"})
+==== "{{}:1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: object member name must be a string"})
+==== "]"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character ']' looking for beginning of value"})
+==== "}"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character '}' looking for beginning of value"})
+==== "[}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character '}' looking for beginning of value"})
+==== "{]"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character ']' looking for beginning of value"})
+==== "{\"a\" 1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 6, message: "invalid JSON at line 1, column 6: invalid character '1' after object key"})
+==== "{\"a\":1 \"b\":2}"
+-- out
+| Err({kind: 'parse, line: 1, col: 8, message: "invalid JSON at line 1, column 8: invalid character '\"' after object key:value pair"})
+==== "{\"a\": [1, {\"b\": }]}"
+-- out
+| Err({kind: 'parse, line: 1, col: 17, message: "invalid JSON at line 1, column 17: missing value after object key"})
+==== "{\"a\":\n  1\n  \"b\": 2}"
+-- out
+| Err({kind: 'parse, line: 3, col: 3, message: "invalid JSON at line 3, column 3: invalid character '\"' after object key:value pair"})
+==== "[,1]"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character ',' looking for beginning of value"})
+==== "[1,,2]"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character ',' looking for beginning of value"})
+==== "[1,2,3,]"
+-- out
+| Err({kind: 'parse, line: 1, col: 7, message: "invalid JSON at line 1, column 7: invalid character ',' looking for beginning of value"})
+==== "{,\"a\":1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character ',' looking for beginning of value"})
+==== "{\"a\":1,,}"
+-- out
+| Err({kind: 'parse, line: 1, col: 8, message: "invalid JSON at line 1, column 8: invalid character ',' looking for beginning of value"})
+==== "{\"a\"::1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 6, message: "invalid JSON at line 1, column 6: invalid character ':' looking for beginning of value"})
+==== "{\"a\",1}"
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: invalid character ',' after object key"})
+==== ":"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character ':' looking for beginning of value"})
+==== ","
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character ',' looking for beginning of value"})
+==== "01"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected text after the value"})
+==== "[01]"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character '1' after array element"})
+==== "-"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== "[-]"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character ']' in numeric literal"})
+==== "1."
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== "1.x"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character 'x' in numeric literal"})
+==== "1e"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== "[1e]"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character ']' in numeric literal"})
+==== "1e+"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: unexpected EOF"})
+==== ".5"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character '.' looking for beginning of value"})
+==== "+1"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character '+' looking for beginning of value"})
+==== "-x"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character 'x' in numeric literal"})
+==== "[1.5e"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: unexpected EOF"})
+==== "{\"a\":-"
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: unexpected EOF"})
+==== "\"\\x\""
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid escape sequence `\\x` in string"})
+==== "\"\\u12\""
+-- out
+| Err({kind: 'parse, line: 1, col: 6, message: "invalid JSON at line 1, column 6: invalid escape sequence `\\u12\"` in string"})
+==== "\"\\u12x\"zz"
+-- out
+| Err({kind: 'parse, line: 1, col: 7, message: "invalid JSON at line 1, column 7: invalid escape sequence `\\u12x\"` in string"})
+==== "\"\\ud800\\u12\""
+-- out
+| Err({kind: 'parse, line: 1, col: 12, message: "invalid JSON at line 1, column 12: invalid escape sequence `\\u12\"` in string"})
+==== "\"\\ud800\\uzzzz\""
+-- out
+| Err({kind: 'parse, line: 1, col: 13, message: "invalid JSON at line 1, column 13: invalid escape sequence `\\uzzzz` in string"})
+==== "\"\\ue\""
+-- out
+| Err({kind: 'parse, line: 1, col: 5, message: "invalid JSON at line 1, column 5: invalid escape sequence `\\ue\"` in string"})
+==== "[1,{\"a\":[2,\"\\q\"]}]"
+-- out
+| Err({kind: 'parse, line: 1, col: 14, message: "invalid JSON at line 1, column 14: invalid escape sequence `\\q` in string"})
+==== "\"a\tb\""
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character '\\t' in string"})
+==== "\"\u{1}\""
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character '\\x01' in string"})
+==== "é"
+-- out
+| Err({kind: 'parse, line: 1, col: 2, message: "invalid JSON at line 1, column 2: invalid character 'é' looking for beginning of value"})
+==== "[é]"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character 'é' looking for beginning of value"})
+==== "{\"é\":1,é}"
+-- out
+| Err({kind: 'parse, line: 1, col: 9, message: "invalid JSON at line 1, column 9: invalid character 'é' looking for beginning of value"})
+==== "\n\n  [1,\n   é]"
+-- out
+| Err({kind: 'parse, line: 4, col: 5, message: "invalid JSON at line 4, column 5: invalid character 'é' looking for beginning of value"})
+==== "가나다 "
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character '가' looking for beginning of value"})
+==== "😀"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: invalid character '😀' looking for beginning of value"})
+==== "\u{2028}"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid character '\\u2028' looking for beginning of value"})
+==== "[\n1\n,\n2\nx"
+-- out
+| Err({kind: 'parse, line: 5, col: 1, message: "invalid JSON at line 5, column 1: invalid character 'x' after array element"})
+==== "NaN"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character 'N' looking for beginning of value"})
+==== "Infinity"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character 'I' looking for beginning of value"})
+==== "'a'"
+-- out
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: invalid character '\\'' looking for beginning of value"})
+==== "[1]\n\n  x"
+-- out
+| Err({kind: 'parse, line: 3, col: 3, message: "invalid JSON at line 3, column 3: invalid character 'x' looking for beginning of value"})
+==== "[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,é]"
+-- out
+| Err({kind: 'parse, line: 1, col: 64, message: "invalid JSON at line 1, column 64: invalid character '\\xc3' looking for beginning of value"})
+==== "[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 é]"
+-- out
+| Err({kind: 'parse, line: 1, col: 64, message: "invalid JSON at line 1, column 64: invalid character '\\xc3' after array element"})
+==== "[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1é]"
+-- out
+| Err({kind: 'parse, line: 1, col: 66, message: "invalid JSON at line 1, column 66: invalid character 'é' after array element"})
+==== "                                                               é"
+-- out
+| Err({kind: 'parse, line: 1, col: 64, message: "invalid JSON at line 1, column 64: invalid character '\\xc3' looking for beginning of value"})
+==== "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\u\n00\""
+-- out
+| Err({kind: 'parse, line: 2, col: 3, message: "invalid JSON at line 2, column 3: invalid escape sequence \"\\\\u\\n00\\\"\" in string"})
+==== "{\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\":tré}"
+-- out
+| Err({kind: 'parse, line: 1, col: 68, message: "invalid JSON at line 1, column 68: invalid character 'é' in literal true (expecting 'u')"})
+==== "[\"é\",\"é\",\"é\",\"é\",\"é\",\"é\",\"é\",\"é\",\"é\",\"é\… (286 bytes, da0d041868324249)
+-- out
+| Err({kind: 'parse, line: 1, col: 163, message: "invalid JSON at line 1, column 163: invalid character 'é' looking for beginning of value"})
+==== "[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 , 99999999999999999999]"
+-- out
+| Err({kind: 'parse, line: 1, col: 66, message: "invalid JSON at line 1, column 66: integer 99999999999999999999 is out of range"})
+==== "[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,\"\\u12\n\"]"
+-- out
+| Err({kind: 'parse, line: 2, col: 1, message: "invalid JSON at line 2, column 1: invalid escape sequence \"\\\\u12\\n\\\"\" in string"})
+==== "[1 , 99999999999999999999]"
+-- out
+| Err({kind: 'parse, line: 1, col: 4, message: "invalid JSON at line 1, column 4: integer 99999999999999999999 is out of range"})
+==== "[1,  99999999999999999999]"
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: integer 99999999999999999999 is out of range"})
+==== "\"\\é\""
+-- out
+| Err({kind: 'parse, line: 1, col: 3, message: "invalid JSON at line 1, column 3: invalid escape sequence \"\\\\\\xc3\" in string"})
+==== "{\"a\" : 1e999}"
+-- out
+| Err({kind: 'parse, line: 1, col: 6, message: "invalid JSON at line 1, column 6: number 1e999 is out of range"})
+==== (the run)
+-- stdout
+-- stderr
+-- exit: 0

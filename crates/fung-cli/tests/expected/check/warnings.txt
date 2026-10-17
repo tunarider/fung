@@ -1,0 +1,276 @@
+# `fung check` on the warning fixtures (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== check crates/fung-cli/tests/data/check/_lib/warns.fung
+-- stdout
+-- stderr
+| warning[W0101]: unused import `fs`
+|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:2:1
+|   |
+| 2 | import fs
+|   | ^^
+|   |
+| warning[W0102]: unused variable `dead`
+|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:5:3
+|   |
+| 5 |   dead = 1
+|   |   ^^^^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/block_value.fung
+-- stdout
+-- stderr
+| warning[W0104]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:3:16
+|   |
+| 3 |   x = if true: _y = 1 ;;
+|   |                ^^
+|   |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+| warning[W0104]: `_z` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:8:33
+|   |
+| 8 |   x = if true: 1 else if false: _z = 2 else: 3 ;;
+|   |                                 ^^
+|   |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+| warning[W0104]: `_w` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:14:10
+|    |
+| 14 |     1 => _w = 1
+|    |          ^^
+|    |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+| warning[W0104]: `_q` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:19:16
+|    |
+| 19 | print(if true: _q = 1 ;;)
+|    |                ^^
+|    |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+| warning[W0104]: `this pattern` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:20:16
+|    |
+| 20 | print(if true: (_m, _n) = (1, 2) ;;)
+|    |                ^^^^^^^^^^^^
+|    |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+| warning[W0104]: `_inner` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:24:5
+|    |
+| 24 |     _inner = if false: _deep = 1 ;;
+|    |     ^^^^^^
+|    |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+| warning[W0104]: `_deep` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> crates/fung-cli/tests/data/check/block_value.fung:24:24
+|    |
+| 24 |     _inner = if false: _deep = 1 ;;
+|    |                        ^^^^^
+|    |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/clean.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/errors_hide_warnings.fung
+-- stdout
+-- stderr
+| error[E0204]: undefined name `nope`
+|   --> crates/fung-cli/tests/data/check/errors_hide_warnings.fung:6:3
+|   |
+| 6 |   nope
+|   |   ^^^^ not found in this scope
+|   |
+-- exit: 2
+==== check crates/fung-cli/tests/data/check/imports_lib.fung
+-- stdout
+-- stderr
+| warning[W0101]: unused import `fs`
+|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:2:1
+|   |
+| 2 | import fs
+|   | ^^
+|   |
+| warning[W0102]: unused variable `dead`
+|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:5:3
+|   |
+| 5 |   dead = 1
+|   |   ^^^^
+|   |
+|  help: prefix it with `_` if it is intentional
+| warning[W0101]: unused import `path`
+|   --> crates/fung-cli/tests/data/check/imports_lib.fung:2:1
+|   |
+| 2 | import path
+|   | ^^^^
+|   |
+| warning[W0102]: unused variable `unused`
+|   --> crates/fung-cli/tests/data/check/imports_lib.fung:5:3
+|   |
+| 5 |   unused = 1
+|   |   ^^^^^^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/no_false_positives.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/shadow.fung
+-- stdout
+-- stderr
+| warning[W0103]: `map` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:2:1
+|   |
+| 2 | fn map(xs) = xs
+|   | ^^^
+|   |
+| warning[W0103]: `len` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:3:1
+|   |
+| 3 | len = 1
+|   | ^^^
+|   |
+| warning[W0103]: `filter` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:4:9
+|   |
+| 4 | fn uses(filter, keys = 1) = filter
+|   |         ^^^^^^
+|   |
+| warning[W0103]: `keys` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:4:17
+|   |
+| 4 | fn uses(filter, keys = 1) = filter
+|   |                 ^^^^
+|   |
+| warning[W0103]: `sort` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:7:3
+|   |
+| 7 |   sort = 1
+|   |   ^^^^
+|   |
+| warning[W0103]: `first` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:12:3
+|    |
+| 12 |   first => first
+|    |   ^^^^^
+|    |
+| warning[W0103]: `sum` shadows a prelude function
+|   --> crates/fung-cli/tests/data/check/shadow.fung:15:15
+|    |
+| 15 | result = for (sum, x) in [(1, 2)]: sum + x ;;
+|    |               ^^^
+|    |
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/unused_imports.fung
+-- stdout
+-- stderr
+| warning[W0101]: unused import `fs`
+|   --> crates/fung-cli/tests/data/check/unused_imports.fung:2:1
+|   |
+| 2 | import fs
+|   | ^^
+|   |
+| warning[W0101]: unused import `p`
+|   --> crates/fung-cli/tests/data/check/unused_imports.fung:3:1
+|   |
+| 3 | import path as p
+|   | ^
+|   |
+| warning[W0101]: unused import `parse`
+|   --> crates/fung-cli/tests/data/check/unused_imports.fung:4:14
+|   |
+| 4 | import json (parse, stringify)
+|   |              ^^^^^
+|   |
+| warning[W0101]: unused import `is_match`
+|   --> crates/fung-cli/tests/data/check/unused_imports.fung:5:15
+|   |
+| 5 | import regex (is_match)
+|   |               ^^^^^^^^
+|   |
+-- exit: 0
+==== check crates/fung-cli/tests/data/check/unused_vars.fung
+-- stdout
+-- stderr
+| warning[W0102]: unused variable `never`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:3:3
+|   |
+| 3 |   never = 1
+|   |   ^^^^^
+|   |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `b`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:9:7
+|   |
+| 9 |   (a, b) = v
+|   |       ^
+|   |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `t`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:10:3
+|    |
+| 10 |   [h, ...t] = [1, 2, 3]
+|    |   ^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `y`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:11:7
+|    |
+| 11 |   {x, y} = {x: 1, y: 2}
+|    |       ^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `n`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:16:6
+|    |
+| 16 |   Ok(n) | Err(n)                    => 1
+|    |      ^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `rest`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:18:3
+|    |
+| 18 |   [_, ...rest]                      => 3
+|    |   ^^^^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `unused_v`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:23:11
+|    |
+| 23 |   for (k, unused_v) in xs:
+|    |           ^^^^^^^^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `tmp`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:24:5
+|    |
+| 24 |     tmp = k
+|    |     ^^^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `spin`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:30:3
+|    |
+| 30 |   fn spin(n) = if n > 0: spin(n - 1) else: 0 ;;
+|    |   ^^^^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `inner`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:37:5
+|    |
+| 37 |     inner = outer
+|    |     ^^^^^
+|    |
+|  help: prefix it with `_` if it is intentional
+| warning[W0102]: unused variable `이름`
+|   --> crates/fung-cli/tests/data/check/unused_vars.fung:43:3
+|    |
+| 43 |   이름 = 1
+|    |   ^^
+|    |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0

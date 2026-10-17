@@ -1,8 +1,8 @@
-//! Runs compared with the Go implementation: every `tests/lang` golden file
-//! (with its `# args:` and `# stdin:` lines) but those only one
-//! implementation runs (`# only:`), the benchmarks, and handwritten `-e`
-//! programs. Nothing else is left out: the list of files the Rust port
-//! could not run yet emptied at stage 4d and is gone.
+//! `fung run` and `fung -e` against `expected/run/runs.txt`: every
+//! `tests/lang` golden file (with its `# args:` and `# stdin:` lines) but
+//! those marked `# only:`, the benchmarks, handwritten `-e` programs, and
+//! the other ways to start a script. The concurrent ones also run
+//! `REPEAT` times in the release build (`concurrent_runs_are_stable`).
 
 mod common;
 
@@ -10,7 +10,8 @@ use std::ffi::OsString;
 
 use std::path::Path;
 
-use common::{Run, diff, go_fung, repo, run_with_stdin, rust_fung};
+use common::expected::{self, Entry};
+use common::{Run, par_map, repo, run_with_stdin, rust_fung};
 
 const CASES: &[&str] = &[
     "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))",
@@ -125,8 +126,8 @@ fn fung_files(dir: &str) -> Vec<String> {
 /// Where a case comes from.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
-    /// A `tests/lang` golden file: Go always prints something for it
-    /// (each has a `# expect` header).
+    /// A `tests/lang` golden file: it always prints something (each has
+    /// a `# expect` header).
     Lang,
     Bench,
     Other,
@@ -138,7 +139,8 @@ struct Case {
     kind: Kind,
     label: String,
     args: Vec<OsString>,
-    /// Go's arguments where they differ (`go_source`).
+    /// The reference implementation's arguments where they differ
+    /// (`go_source`; recording only, task 5 removes it).
     go_args: Option<Vec<OsString>>,
     stdin: Option<Vec<u8>>,
 }
@@ -153,6 +155,7 @@ impl Case {
     }
 }
 
+/// Recording only (stage 6b task 1; task 5 removes it).
 /// The Go form of a `-e` program: one that starts with `import conc`
 /// (the Rust-only module of stage 6a) calls Go's prelude names instead.
 /// The import line stays as an empty line, so the lines keep their
@@ -231,63 +234,70 @@ fn cases() -> Vec<Case> {
     out
 }
 
-/// The comparison cannot pass by comparing nothing: a broken file walk or
-/// a file left out by mistake fails here. The minimums sit just below the
-/// counts when they were set (133 `tests/lang` files, 6 benchmarks, 189
-/// cases in all, after stage 4c added the `regex` files); raise them as
-/// cases are added.
+/// How many cases there are, by kind (a case must not go missing
+/// unnoticed; change these together with the cases).
+const LANG_CASES: usize = 132;
+const BENCH_CASES: usize = 6;
+const ALL_CASES: usize = 189;
+
 #[test]
-fn enough_cases_are_compared() {
+fn every_case_is_counted() {
     let cases = cases();
     let count = |k: Kind| cases.iter().filter(|c| c.kind == k).count();
-    let (lang, bench) = (count(Kind::Lang), count(Kind::Bench));
-    assert!(lang >= 132, "only {lang} tests/lang files are compared");
-    assert!(bench >= 5, "only {bench} benchmarks are compared");
-    assert!(
-        cases.len() >= 188,
-        "only {} cases are compared",
-        cases.len()
-    );
+    assert_eq!(count(Kind::Lang), LANG_CASES, "tests/lang files");
+    assert_eq!(count(Kind::Bench), BENCH_CASES, "benchmarks");
+    assert_eq!(cases.len(), ALL_CASES, "cases");
 }
 
-/// Runs `go` and `rust` on the same case at the same time (a case that
-/// leaves a task sleeping, like `tests/lang/cancel.fung`, takes 10 s in
-/// both).
-fn run_both(go: &Path, rust: &Path, c: &Case) -> (Run, Run) {
-    std::thread::scope(|s| {
-        let g = s.spawn(|| run_with_stdin(go, c.args_for(true), c.stdin.as_deref()));
-        let r = run_with_stdin(rust, c.args_for(false), c.stdin.as_deref());
-        (g.join().unwrap(), r)
-    })
+const RUNS: &str = "run/runs.txt";
+
+/// A case's output as the expected-output file keeps it.
+fn entry(c: &Case, r: &Run) -> Entry {
+    let root = repo().to_string_lossy().into_owned();
+    Entry::run(&c.label, r, &[(root.as_str(), "$REPO")])
 }
 
 #[test]
-fn runs_match_the_go_implementation() {
-    let Some(go) = go_fung("run") else {
-        eprintln!("skipping run parity: `go` is not available");
-        return;
-    };
+fn runs_match_the_expected_output() {
     let rust = rust_fung();
     let cases = cases();
-    let mut failures = Vec::new();
-    for c in &cases {
-        let (g, r) = run_both(&go, &rust, c);
-        // Two silent runs would compare equal for the wrong reason.
-        if c.kind == Kind::Lang && g.0.is_empty() && g.1.is_empty() {
-            failures.push(format!("{}: Go printed nothing", c.label));
-            continue;
-        }
-        if let Some(what) = diff(&g, &r) {
-            failures.push(format!("{}: {what}", c.label));
+    assert_eq!(cases.len(), ALL_CASES, "cases");
+    // On a few workers: a case that leaves a task sleeping, like
+    // `tests/lang/cancel.fung`, takes 10 s.
+    let runs = |bin: &Path, reference: bool| -> Vec<Entry> {
+        par_map(&cases, |c| {
+            entry(
+                c,
+                &run_with_stdin(bin, c.args_for(reference), c.stdin.as_deref()),
+            )
+        })
+    };
+    let got = runs(&rust, false);
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("run");
+        let r = runs(&bin, true);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    // Two silent runs would compare equal for the wrong reason: every
+    // golden file prints something.
+    for (c, e) in cases.iter().zip(reference.as_deref().unwrap_or(&got)) {
+        if c.kind == Kind::Lang {
+            assert!(
+                e.get("stdout") != Some(b"") || e.get("stderr") != Some(b""),
+                "{}: printed nothing",
+                c.label
+            );
         }
     }
-    let _ = std::fs::remove_file(&go);
-    assert!(
-        failures.is_empty(),
-        "{} of {} cases differ:\n{}",
-        failures.len(),
-        cases.len(),
-        failures.join("\n")
+    expected::verify(
+        RUNS,
+        "`fung run` and `fung -e` (crates/fung-cli/tests/run_expected.rs).\n\
+         $REPO stands for the repository. Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test run_expected",
+        64 * 1024,
+        &got,
+        reference.as_deref(),
     );
 }
 
@@ -325,10 +335,13 @@ fn calls_finds_calls_only() {
     assert!(calls("x = agent(0)\n", "agent"));
 }
 
-/// How many times `concurrent_runs_are_stable` runs each case with each
-/// implementation.
+/// How many times `concurrent_runs_are_stable` runs each case.
 #[cfg(not(debug_assertions))]
 const REPEAT: usize = 50;
+
+/// How many concurrent cases there are.
+#[cfg(not(debug_assertions))]
+const CONCURRENT_CASES: usize = 26;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.
@@ -351,117 +364,91 @@ fn concurrent_cases() -> Vec<Case> {
 
 /// Scheduling must not change what a concurrent program prints (release
 /// build only, where tasks run fastest and interleave most): every
-/// concurrent case runs `REPEAT` times with Go and `REPEAT` times with
-/// Rust, and every run must equal Go's first. A Go run that differs from
-/// Go's first means the case itself depends on scheduling.
+/// concurrent case runs `REPEAT` times, and every run must print its
+/// expected output (`expected/run/runs.txt`).
 ///
-/// Every case starts with Go's first run, all cases at once. A case whose
+/// Every case starts its first run, all cases at once. A case whose
 /// first run ends within a second hands its other runs to `POOL` workers.
 /// A case still running after a second only sleeps
 /// (`tests/lang/cancel.fung` leaves a 10 s task), so all its other runs
-/// start right then, in parallel, and are compared when Go's first ends;
-/// the whole test then takes little more than that case.
+/// start right then, in parallel; the whole test then takes little more
+/// than that case.
 #[cfg(not(debug_assertions))]
 #[test]
 fn concurrent_runs_are_stable() {
+    use std::sync::Mutex;
     use std::sync::mpsc::{RecvTimeoutError, channel};
-    use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
     const POOL: usize = 16;
-    let Some(go) = go_fung("repeat") else {
-        eprintln!("skipping the repeat check: `go` is not available");
-        return;
-    };
     let rust = rust_fung();
-    let (go, rust) = (go.as_path(), rust.as_path());
+    let rust = rust.as_path();
     let start = Instant::now();
     let cases = concurrent_cases();
-    // One below the 26 cases there were after stage 3b left the atom
-    // cases to Go.
-    assert!(cases.len() >= 25, "only {} concurrent cases", cases.len());
+    assert_eq!(cases.len(), CONCURRENT_CASES, "concurrent cases");
+    let suite = expected::load(RUNS);
+    let want = |c: &Case| {
+        expected::find(&suite, &c.label)
+            .unwrap_or_else(|| panic!("{}: no expected output in {RUNS}", c.label))
+    };
     let failures = Mutex::new(Vec::new());
-    let compare = |c: &Case, want: &Run, got: &Run, who: &str| {
-        if let Some(what) = diff(want, got) {
+    let compare = |c: &Case, got: &Run| {
+        if let Some(what) = expected::mismatch(want(c), &entry(c, got)) {
             failures
                 .lock()
                 .unwrap()
-                .push(format!("{} ({who}): {what}", c.label));
+                .push(format!("{}: {what}", c.label));
         }
     };
-    // The other runs of a case: `REPEAT` with Rust, `REPEAT - 1` more with Go.
-    let others = || {
-        (0..2 * REPEAT - 1).map(|i| {
-            if i < REPEAT {
-                (rust, "rust")
-            } else {
-                (go, "go")
-            }
-        })
-    };
-    let (jobs, queue) = channel::<(&Case, Arc<Run>, &Path, &str)>();
+    let one = |c: &Case| run_with_stdin(rust, &c.args, c.stdin.as_deref());
+    let (jobs, queue) = channel::<&Case>();
     let queue = Mutex::new(queue);
     std::thread::scope(|s| {
         for _ in 0..POOL {
             s.spawn(|| {
                 loop {
                     let job = queue.lock().unwrap().recv();
-                    let Ok((c, want, bin, who)) = job else {
+                    let Ok(c) = job else {
                         break;
                     };
-                    let got = run_with_stdin(bin, c.args_for(who == "go"), c.stdin.as_deref());
-                    compare(c, &want, &got, who);
+                    compare(c, &one(c));
                 }
             });
         }
         for c in &cases {
             let jobs = jobs.clone();
-            let (compare, others) = (&compare, &others);
+            let (compare, one) = (&compare, &one);
             s.spawn(move || {
                 let (tx, first) = channel();
                 std::thread::scope(|s| {
                     s.spawn(move || {
-                        let _ = tx.send(run_with_stdin(go, c.args_for(true), c.stdin.as_deref()));
+                        let _ = tx.send(one(c));
                     });
                     match first.recv_timeout(Duration::from_secs(1)) {
-                        Ok(want) => {
-                            let want = Arc::new(want);
-                            for (bin, who) in others() {
-                                jobs.send((c, want.clone(), bin, who)).unwrap();
+                        Ok(got) => {
+                            compare(c, &got);
+                            for _ in 1..REPEAT {
+                                jobs.send(c).unwrap();
                             }
                         }
                         Err(RecvTimeoutError::Timeout) => {
-                            let runs: Vec<_> = others()
-                                .map(|(bin, who)| {
-                                    s.spawn(move || {
-                                        (
-                                            run_with_stdin(
-                                                bin,
-                                                c.args_for(who == "go"),
-                                                c.stdin.as_deref(),
-                                            ),
-                                            who,
-                                        )
-                                    })
-                                })
-                                .collect();
-                            let want = first.recv().unwrap();
+                            let runs: Vec<_> =
+                                (1..REPEAT).map(|_| s.spawn(move || one(c))).collect();
+                            compare(c, &first.recv().unwrap());
                             for h in runs {
-                                let (got, who) = h.join().unwrap();
-                                compare(c, &want, &got, who);
+                                compare(c, &h.join().unwrap());
                             }
                         }
-                        Err(RecvTimeoutError::Disconnected) => panic!("Go's first run failed"),
+                        Err(RecvTimeoutError::Disconnected) => panic!("the first run failed"),
                     }
                 });
             });
         }
         drop(jobs);
     });
-    let _ = std::fs::remove_file(go);
     let failures = failures.into_inner().unwrap();
     assert!(
         failures.is_empty(),
-        "{} runs differ from Go's first:\n{}",
+        "{} runs differ from the expected output:\n{}",
         failures.len(),
         failures.join("\n")
     );

@@ -1,9 +1,13 @@
-// crates/fung-cli/tests/parity.rs
+//! `fung dump ast|core|bytecode` of every `.fung` file of the repository
+//! and of inputs the corpus does not have (odd bytes, deep and long
+//! shapes, argument errors), against `expected/dump/dumps.txt`.
+
 mod common;
 
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-use common::{RUST_ONLY_EXAMPLES, diff, go_fung, repo, run, rust_fung, uses_rust_only};
+use common::expected::{self, Entry};
+use common::{RUST_ONLY_EXAMPLES, par_map, repo, run, rust_fung, uses_rust_only};
 
 fn corpus() -> Vec<String> {
     let mut files = Vec::new();
@@ -148,14 +152,16 @@ fn long_chains() -> Vec<String> {
     ]
 }
 
+/// How many dump cases there are (Review: a case must not go missing
+/// unnoticed; change it together with the cases).
+const DUMP_CASES: usize = 632;
+
+/// A dump longer than this is kept as a hash (the deep and long shapes).
+const LIMIT: usize = 64 * 1024;
+
 #[test]
-fn dumps_match_the_go_implementation() {
-    let Some(go) = go_fung("dump") else {
-        eprintln!("skipping parity: `go` is not available");
-        return;
-    };
+fn dumps_match_the_expected_output() {
     let rust = rust_fung();
-    let mut failures = Vec::new();
     let mut cases: Vec<Vec<OsString>> = Vec::new();
     for f in corpus() {
         let stages: &[&str] = if resolves_alike(&f) {
@@ -179,7 +185,7 @@ fn dumps_match_the_go_implementation() {
     }
     let deep = format!("x = {}1{}", "(".repeat(20_000), ")".repeat(20_000));
     cases.push(vec!["dump".into(), "ast".into(), "-e".into(), deep.into()]);
-    let dir = std::env::temp_dir().join(format!("fung-parity-files-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("fung-dump-files-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     // Arguments that are not UTF-8: Go decodes each bad byte to U+FFFD.
     cases.push(vec![
@@ -245,25 +251,75 @@ fn dumps_match_the_go_implementation() {
             cases.push(args);
         }
     }
-    for a in &cases {
-        if let Some(what) = diff(&run(&go, a), &run(&rust, a)) {
-            failures.push(format!(
-                "{}: {what}",
-                a.iter()
-                    .take(3)
-                    .map(|x| x.to_string_lossy())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ));
-        }
-    }
-    let _ = std::fs::remove_file(&go);
+    assert_eq!(cases.len(), DUMP_CASES, "dump cases");
+    let tmp = dir.to_string_lossy().into_owned();
+    let root = repo().to_string_lossy().into_owned();
+    let subs = [(tmp.as_str(), "$TMP"), (root.as_str(), "$REPO")];
+    let label = |a: &[OsString]| {
+        let text = a
+            .iter()
+            .map(|x| x.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        expected::short_label(&String::from_utf8_lossy(&expected::replace(
+            text.as_bytes(),
+            &subs,
+        )))
+    };
+    let entries = |bin: &std::path::Path| -> Vec<Entry> {
+        par_map(&cases, |a| Entry::run(label(a), &run(bin, a), &subs))
+    };
+    let got = entries(&rust);
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("dump");
+        let r = entries(&bin);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
     let _ = std::fs::remove_dir_all(&dir);
-    assert!(
-        failures.is_empty(),
-        "{} of {} cases differ:\n{}",
-        failures.len(),
-        cases.len(),
-        failures.join("\n")
+    expected::verify(
+        "dump/dumps.txt",
+        "`fung dump` of the repository's .fung files and more (crates/fung-cli/tests/dump_expected.rs).\n\
+         $TMP stands for the test's scratch directory, $REPO for the repository. Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test dump_expected",
+        LIMIT,
+        &got,
+        reference.as_deref(),
+    );
+}
+
+/// The expected-output file format reads back what it writes.
+#[test]
+fn expected_files_read_back() {
+    let entries = vec![
+        Entry::new("plain")
+            .field("stdout", "a\n\nb\n")
+            .field("stderr", "")
+            .field("exit", "0"),
+        Entry::new("no newline\nin label")
+            .field("stdout", "x  ")
+            .field("one", "short value")
+            .field("odd", b"a\xff\tb\r\n\\x\x00\n\nend".to_vec())
+            .field("big", vec![b'x'; 300]),
+        Entry::new("empty lines")
+            .field("v", "\n\n")
+            .field("w", "| -- ==== x"),
+    ];
+    let text = expected::render("", &entries, 200);
+    assert!(text.contains("-- big (300 bytes, fnv1a64 "), "{text}");
+    assert!(text.contains("-- odd (escaped)\n"), "{text}");
+    let back = expected::parse(&text);
+    assert_eq!(back.len(), entries.len());
+    for ((label, fields), e) in back.iter().zip(&entries) {
+        assert_eq!(label, &e.label);
+        assert_eq!(expected::mismatch(fields, e), None, "{label}\n{text}");
+    }
+    assert_eq!(
+        expected::exit_text("ExitStatus(unix_wait_status(768))"),
+        "3"
+    );
+    assert_eq!(
+        expected::exit_text("ExitStatus(unix_wait_status(9))"),
+        "signal 9"
     );
 }

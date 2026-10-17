@@ -1,25 +1,27 @@
-//! `time` programs run by the Go and the Rust binaries under the same
-//! pinned `TZ` (set on each child, not on the test process): every format
+//! `time` programs under pinned `TZ` values (set on each child, not on
+//! the test process) against `expected/time/programs.txt`: every format
 //! token, the zone tokens, normalisation blocking, and `parse`, `local`
-//! and `parts` around the 2026 daylight-saving changes in New York and Berlin.
+//! and `parts` around the 2026 daylight-saving changes in New York and
+//! Berlin. With `TZ` unset, the programs print what they print with
+//! `TZ=/etc/localtime` (the machine's zone, so not a fixed expectation).
 
 mod common;
 
 use std::process::{Command, Stdio};
 
-use common::{go_fung, repo, rust_fung};
+use common::expected::{self, Entry};
+use common::{repo, rust_fung};
 
-/// The `TZ` values compared: `None` leaves it unset (`/etc/localtime`).
-const ZONES: &[Option<&str>] = &[
-    Some("America/New_York"),
-    Some(":America/New_York"),
-    Some("/usr/share/zoneinfo/Europe/Berlin"),
-    Some("Europe/Berlin"),
-    Some("Asia/Seoul"),
-    Some("UTC"),
-    Some(""),
-    Some("No/Such_Zone"),
-    None,
+/// The `TZ` values with a fixed expected output.
+const ZONES: &[&str] = &[
+    "America/New_York",
+    ":America/New_York",
+    "/usr/share/zoneinfo/Europe/Berlin",
+    "Europe/Berlin",
+    "Asia/Seoul",
+    "UTC",
+    "",
+    "No/Such_Zone",
 ];
 
 /// The 2026 New York changes: 2026-03-08 07:00 UTC (02:00 EST becomes
@@ -105,29 +107,67 @@ fn run(bin: &std::path::Path, src: &str, tz: Option<&str>) -> (String, String, O
     )
 }
 
-#[test]
-fn time_runs_match_go_under_each_tz() {
-    let Some(go) = go_fung("time") else {
-        return;
-    };
-    let rust = rust_fung();
-    let mut bad = Vec::new();
+/// How many zone and program pairs have a fixed expected output, and
+/// how many programs run with `TZ` unset.
+const ZONE_CASES: usize = 168;
+const UNSET_CASES: usize = 21;
+
+fn entries(bin: &std::path::Path) -> Vec<Entry> {
+    let mut pairs = Vec::new();
     for tz in ZONES {
         for src in PROGRAMS {
-            let g = run(&go, src, *tz);
-            let r = run(&rust, src, *tz);
-            if g != r {
-                bad.push(format!("TZ={tz:?}\n{src}\n  rust {r:?}\n  go   {g:?}"));
-            }
+            pairs.push((*tz, *src));
         }
     }
-    let _ = std::fs::remove_file(&go);
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
+    common::par_map(&pairs, |(tz, src)| {
+        let (out, err, code) = run(bin, src, Some(tz));
+        Entry::new(format!(
+            "TZ={tz:?} {}",
+            expected::short_label(&format!("{src:?}"))
+        ))
+        .field("stdout", out)
+        .field("stderr", err)
+        .field("exit", code.map_or("signal".into(), |c| c.to_string()))
+    })
+}
+
+#[test]
+fn time_runs_match_the_expected_output_under_each_tz() {
+    assert_eq!(ZONES.len() * PROGRAMS.len(), ZONE_CASES, "cases");
+    let got = entries(&rust_fung());
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("time");
+        let r = entries(&bin);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    expected::verify(
+        "time/programs.txt",
+        "`time` programs under each TZ (crates/fung-cli/tests/time_expected.rs), each run with `fung -e`.\n\
+         Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test time_expected",
+        64 * 1024,
+        &got,
+        reference.as_deref(),
     );
+}
+
+/// With `TZ` unset the local zone is `/etc/localtime`.
+#[test]
+fn an_unset_tz_reads_etc_localtime() {
+    assert_eq!(PROGRAMS.len(), UNSET_CASES, "programs");
+    let rust = rust_fung();
+    let bad: Vec<String> = common::par_map(PROGRAMS, |src| {
+        let (unset, file) = (
+            run(&rust, src, None),
+            run(&rust, src, Some("/etc/localtime")),
+        );
+        (unset != file).then(|| format!("{src}\n  unset {unset:?}\n  file  {file:?}"))
+    })
+    .into_iter()
+    .flatten()
+    .collect();
+    assert!(bad.is_empty(), "{} differ:\n{}", bad.len(), bad.join("\n"));
 }
 
 /// East of UTC the repeated wall time takes the second occurrence (Go

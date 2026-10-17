@@ -1,0 +1,268 @@
+# `fung fmt` arguments and file errors, run in turn in one tree; then the files and a mode (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== fmt
+-- stdout
+-- stderr
+| error: fmt needs a path, or - for standard input
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== fmt --check
+-- stdout
+-- stderr
+| error: fmt needs a path, or - for standard input
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== fmt --check -x
+-- stdout
+-- stderr
+| error: unknown option -x
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== fmt -x lone.fung
+-- stdout
+-- stderr
+| error: unknown option -x
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== fmt --chek lone.fung
+-- stdout
+-- stderr
+| error: unknown option --chek
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== fmt - lone.fung
+-- stdout
+-- stderr
+| error: stat -: no such file or directory
+-- exit: 3
+==== fmt nope.fung
+-- stdout
+-- stderr
+| error: stat nope.fung: no such file or directory
+-- exit: 3
+==== fmt lone.fung nope t
+-- stdout
+-- stderr
+| error: stat nope: no such file or directory
+-- exit: 3
+==== fmt 
+-- stdout
+-- stderr
+| error: stat : no such file or directory
+-- exit: 3
+==== fmt --check t
+-- stdout
+| t/a.fung
+| t/sub/b.fung
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> t/bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
+-- exit: 2
+==== fmt --check tlink
+-- stdout
+| tlink/a.fung
+| tlink/sub/b.fung
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> tlink/bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| error: cannot read tlink/dirlink.fung: read tlink/dirlink.fung: is a directory
+-- exit: 2
+==== fmt --check tlink/
+-- stdout
+| tlink/a.fung
+| tlink/sub/b.fung
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> tlink/bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| error: cannot read tlink/dirlink.fung: read tlink/dirlink.fung: is a directory
+-- exit: 2
+==== fmt --check t/sub lone.fung t/a.fung lone.fung
+-- stdout
+| lone.fung
+| lone.fung
+| t/a.fung
+| t/sub/b.fung
+-- stderr
+-- exit: 1
+==== fmt --check t/sub/_fix/c.fung t/.hid
+-- stdout
+| t/.hid/d.fung
+| t/sub/_fix/c.fung
+-- stderr
+-- exit: 1
+==== fmt --check t/ok.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== fmt --check t/notes.txt
+-- stdout
+| t/notes.txt
+-- stderr
+-- exit: 1
+==== fmt --check locked.fung ro.fung
+-- stdout
+| ro.fung
+-- stderr
+| error: cannot read locked.fung: open locked.fung: permission denied
+-- exit: 1
+==== fmt --check 넓은.fung lone.fung --check
+-- stdout
+| lone.fung
+| 넓은.fung
+-- stderr
+-- exit: 1
+==== fmt --check .
+-- stdout
+| lone.fung
+| ro.fung
+| t/a.fung
+| t/sub/b.fung
+| 넓은.fung
+-- stderr
+| error: cannot read locked.fung: open locked.fung: permission denied
+| error[E0110]: unexpected `)`
+|   --> t/bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
+-- exit: 2
+==== fmt --check ./t/../lone.fung
+-- stdout
+| ./t/../lone.fung
+-- stderr
+-- exit: 1
+==== fmt ro.fung locked.fung lone.fung
+-- stdout
+| lone.fung
+| ro.fung
+-- stderr
+| error: cannot read locked.fung: open locked.fung: permission denied
+| error: cannot write ro.fung: open ro.fung: permission denied
+-- exit: 1
+==== fmt t 넓은.fung
+-- stdout
+| t/a.fung
+| t/sub/b.fung
+| 넓은.fung
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> t/bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
+-- exit: 2
+==== fmt .
+-- stdout
+| ro.fung
+-- stderr
+| error: cannot read locked.fung: open locked.fung: permission denied
+| error: cannot write ro.fung: open ro.fung: permission denied
+| error[E0110]: unexpected `)`
+|   --> t/bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
+-- exit: 2
+==== fmt (non-UTF-8 name)
+-- stdout
+-- stderr (escaped)
+| error: stat q\xfe.fung: no such file or directory
+-- exit: 3
+==== file t/a.fung
+-- text
+| x = 1
+==== file t/sub/b.fung
+-- text
+| fn f():
+|   x
+| ;;
+==== file t/sub/_fix/c.fung
+-- text
+| y=2
+==== file t/.hid/d.fung
+-- text
+| y=2
+==== file lone.fung
+-- text
+| z = 3
+==== file 넓은.fung
+-- text
+| w = 4
+==== file ro.fung
+-- text
+| r=1
+==== file locked.fung
+-- text
+| l=1
+==== mode ro.fung
+-- mode: 100444

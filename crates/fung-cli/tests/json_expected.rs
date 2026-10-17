@@ -1,5 +1,5 @@
-//! `json` programs run by the Go and the Rust binaries: number kinds and
-//! their limits, key order, duplicate keys, escapes, malformed input (the
+//! `json` programs against `expected/json/`: number kinds and their
+//! limits, key order, duplicate keys, escapes, malformed input (the
 //! message and its line and column), deep nesting, and what `stringify`
 //! writes or rejects.
 
@@ -7,7 +7,8 @@ mod common;
 
 use std::process::{Command, Stdio};
 
-use common::{go_fung, repo, rust_fung};
+use common::expected::{self, Entry};
+use common::{repo, rust_fung};
 
 /// Inputs to `json.parse`, each printed with its result. Raw strings so
 /// the JSON escapes reach the parser as written.
@@ -227,7 +228,7 @@ const PROGRAMS: &[&str] = &[
     r#"print(json.parse(s: "[1]"), json.stringify(v: [1], indent: 1))"#,
     // fs.open handles cannot be converted either
     r#"import fs
-fs.with_open("go.mod", (f) => print(json.stringify(f)))"#,
+fs.with_open("Cargo.toml", (f) => print(json.stringify(f)))"#,
     // round trips keep order, kinds and text
     r#"s = `{"z":1,"y":{"b":2,"a":3},"x":[{"k":"v"}],"f":1.0,"i":-0,"n":null,"t":true,"u":"\u00e9\n"}`
 v = json.parse(s)!
@@ -248,58 +249,93 @@ print(len(s), take(chars(s), 12))"#,
 print(json.stringify(v, indent: 1))"#,
 ];
 
-#[test]
-fn json_parse_matches_go() {
-    let Some(go) = go_fung("json") else {
-        return;
-    };
-    let dir = std::env::temp_dir().join(format!("fung-json-parity-{}", std::process::id()));
+/// How many parse inputs and programs there are.
+const PARSE_CASES: usize = 143;
+const PROGRAM_CASES: usize = 37;
+
+/// A run as an entry: standard output, standard error, exit code.
+fn entry(label: String, (out, err, code): (String, String, Option<i32>)) -> Entry {
+    Entry::new(label)
+        .field("stdout", out)
+        .field("stderr", err)
+        .field("exit", code.map_or("signal".into(), |c| c.to_string()))
+}
+
+/// Every input parsed in one run: one entry per input with its printed
+/// line, then one with the run's standard error and exit code.
+fn parse_entries(bin: &std::path::Path, inputs: &[String]) -> Vec<Entry> {
+    let dir = std::env::temp_dir().join(format!("fung-json-inputs-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("inputs.txt");
-    let mut inputs: Vec<String> = INPUTS.iter().map(|s| s.to_string()).collect();
-    inputs.extend(buffer_inputs());
     std::fs::write(&file, inputs.join("\u{1e}")).unwrap();
-    let g = parse_all(&go, &file);
-    let r = parse_all(&rust_fung(), &file);
+    let (out, err, code) = parse_all(bin, &file);
     let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_file(&go);
-    assert_eq!(g.0.lines().count(), inputs.len(), "go: {g:?}");
-    let (gl, rl): (Vec<&str>, Vec<&str>) = (g.0.lines().collect(), r.0.lines().collect());
-    let bad: Vec<String> = inputs
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), inputs.len(), "{out}\n{err}");
+    let mut entries: Vec<Entry> = inputs
         .iter()
-        .enumerate()
-        .filter(|(i, _)| gl.get(*i) != rl.get(*i))
-        .map(|(i, s)| format!("{s:?}\n  rust {:?}\n  go   {:?}", rl.get(i), gl.get(i)))
+        .zip(lines)
+        .map(|(i, l)| {
+            Entry::new(expected::short_label(&format!("{i:?}"))).field("out", format!("{l}\n"))
+        })
         .collect();
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
-    );
-    assert_eq!(r, g);
+    entries.push(entry("(the run)".into(), (String::new(), err, code)));
+    entries
 }
 
 #[test]
-fn json_programs_match_go() {
-    let Some(go) = go_fung("json-programs") else {
-        return;
-    };
-    let rust = rust_fung();
-    let mut bad = Vec::new();
-    for src in PROGRAMS {
-        let src = format!("import json\nimport time\n{src}");
-        let g = run(&go, &src, &[]);
-        let r = run(&rust, &src, &[]);
-        if g != r {
-            bad.push(format!("{src}\n  rust {r:?}\n  go   {g:?}"));
-        }
-    }
-    let _ = std::fs::remove_file(&go);
-    assert!(
-        bad.is_empty(),
-        "{} mismatches:\n{}",
-        bad.len(),
-        bad.join("\n")
+fn json_parse_matches_the_expected_output() {
+    let mut inputs: Vec<String> = INPUTS.iter().map(|s| s.to_string()).collect();
+    inputs.extend(buffer_inputs());
+    assert_eq!(inputs.len(), PARSE_CASES, "parse inputs");
+    let got = parse_entries(&rust_fung(), &inputs);
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("json");
+        let r = parse_entries(&bin, &inputs);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    expected::verify(
+        "json/parse.txt",
+        "`json.parse` of each input, one printed line each (crates/fung-cli/tests/json_expected.rs).\n\
+         Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test json_expected",
+        64 * 1024,
+        &got,
+        reference.as_deref(),
+    );
+}
+
+fn program_entries(bin: &std::path::Path) -> Vec<Entry> {
+    PROGRAMS
+        .iter()
+        .map(|src| {
+            let src = format!("import json\nimport time\n{src}");
+            entry(
+                expected::short_label(&format!("{src:?}")),
+                run(bin, &src, &[]),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn json_programs_match_the_expected_output() {
+    assert_eq!(PROGRAMS.len(), PROGRAM_CASES, "programs");
+    let got = program_entries(&rust_fung());
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("json-programs");
+        let r = program_entries(&bin);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    expected::verify(
+        "json/programs.txt",
+        "`json` programs (crates/fung-cli/tests/json_expected.rs), each run with `fung -e`.\n\
+         Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test json_expected",
+        64 * 1024,
+        &got,
+        reference.as_deref(),
     );
 }

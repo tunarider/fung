@@ -1,26 +1,27 @@
-//! The tool commands compared with the Go implementation (stage 5):
+//! The tool commands against `expected/{check,cli,walk,test,fmt,repl}/`:
 //! `fung check`, `version`, `help` and unknown commands, byte for byte
-//! (standard output, standard error, exit status), plus the path walker
-//! `fung test` and `fung fmt` share (`src/paths.rs`), compared with the
-//! files Go's commands visit, `fung test` on its fixtures and the
-//! repository, and `fung fmt` (output, `--check`, in place, standard
-//! input, arguments) on the repository and thousands of messed-up
-//! variants of it, and the REPL on piped sessions (the terminal editor
-//! is compared in `repl_tty.rs`).
+//! (standard output, standard error, exit status), the files the path
+//! walker `fung test` and `fung fmt` share (`src/paths.rs`) visits,
+//! `fung test` on its fixtures and the repository, `fung fmt` (output,
+//! `--check`, in place, standard input, arguments) on the repository and
+//! thousands of messed-up variants of it, and the REPL on piped sessions
+//! (the terminal editor is tested in `repl_tty.rs`).
 //!
-//! What is compared, and what is not:
+//! What is covered, and how:
 //! - `check` on every `.fung` file of `tests/lang` (with `_lib`),
 //!   `examples` and `extras` (with `extras/rust`), the warning fixtures in
 //!   `tests/data/check`, `-e` programs, and argument errors.
-//! - Not compared: a `# only: go` file (atoms are Go only since stage 3b;
-//!   Rust reports `atom` as undefined by design). A `# only: rust` file
-//!   and a Rust-only example (`common::RUST_ONLY_EXAMPLES`: agents and
-//!   the module `conc`, stage 6a) are checked by Rust alone and must have
-//!   no errors.
-//! - The manual (stage 6a describes the Rust implementation): its
-//!   runnable examples pass Rust's `check`, `fmt --check` and a run, with
-//!   no Go comparison (`manual_examples_check_format_and_run`); only
-//!   their formatting is compared with Go, as for any source.
+//! - A `# only:` file and a Rust-only example
+//!   (`common::RUST_ONLY_EXAMPLES`: agents and the module `conc`) have no
+//!   fixed `check` or `test` output here: a `# only: rust` file and such
+//!   an example must check with no errors (a `# only: go` file is left
+//!   out).
+//! - The manual: its runnable examples pass `check`, `fmt --check` and a
+//!   run (`manual_examples_check_format_and_run`); their formatting has a
+//!   fixed output like any source.
+//! - File names that are not UTF-8 are tested where the file system
+//!   allows them, by comparison with the same file under a UTF-8 name
+//!   (`*_non_utf8_*`), so the fixed outputs are the same on every system.
 
 mod common;
 #[allow(dead_code)]
@@ -31,65 +32,91 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-use common::{RUST_ONLY_EXAMPLES, diff, go_fung, repo, run, run_status, rust_fung};
+use common::expected::{self, Entry};
+use common::{RUST_ONLY_EXAMPLES, repo, run, run_status, rust_fung};
 
-/// Both implementations: Go built for this test program, Rust under test.
-pub struct Both {
-    pub go: PathBuf,
-    pub rust: PathBuf,
-}
-
-/// Both binaries, or `None` when Go is unavailable and parity is not
-/// required (see `common::go_fung`).
-pub fn both(tag: &str) -> Option<Both> {
-    Some(Both {
-        go: go_fung(tag)?,
-        rust: rust_fung(),
-    })
-}
+pub use common::par_map;
 
 pub fn os_args(args: &[&str]) -> Vec<OsString> {
     args.iter().map(OsString::from).collect()
 }
 
-/// Runs every case with both implementations (in parallel, from the
-/// repository root) and returns `label: where they differ` for each case
-/// that differs.
-pub fn differences(b: &Both, cases: &[(String, Vec<OsString>)]) -> Vec<String> {
-    let results = par_map(cases, |(_, args)| (run(&b.go, args), run(&b.rust, args)));
-    cases
+/// The largest output kept as text (larger ones are kept as a hash).
+const LIMIT: usize = 64 * 1024;
+
+/// `(from, to)` replacements for paths that change from run to run.
+type Subs = Vec<(String, String)>;
+
+/// The repository's path as `$REPO`, then `extra`.
+fn subs(extra: &[(&Path, &str)]) -> Subs {
+    let mut out: Subs = extra
         .iter()
-        .zip(results)
-        .filter_map(|((label, _), (go, rust))| diff(&go, &rust).map(|d| format!("{label}: {d}")))
-        .collect()
+        .map(|(p, to)| (p.to_string_lossy().into_owned(), to.to_string()))
+        .collect();
+    // Longer paths first: a scratch directory lies below the repository.
+    out.push((repo().to_string_lossy().into_owned(), "$REPO".into()));
+    out
 }
 
-/// Panics listing every differing case.
-pub fn assert_same(b: &Both, cases: &[(String, Vec<OsString>)]) {
-    let bad = differences(b, cases);
-    assert!(
-        bad.is_empty(),
-        "{} of {} cases differ:\n{}",
-        bad.len(),
-        cases.len(),
-        bad.join("\n")
-    );
+fn sub_refs(subs: &Subs) -> Vec<(&str, &str)> {
+    subs.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect()
 }
 
-/// `f` over `xs` on a few threads, results in order.
-pub fn par_map<T: Sync, R: Send>(xs: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
-    let n = std::thread::available_parallelism().map_or(4, |n| n.get().min(8));
-    let chunk = xs.len().div_ceil(n).max(1);
-    std::thread::scope(|s| {
-        let handles: Vec<_> = xs
-            .chunks(chunk)
-            .map(|c| s.spawn(|| c.iter().map(&f).collect::<Vec<R>>()))
-            .collect();
-        handles
-            .into_iter()
-            .flat_map(|h| h.join().unwrap())
-            .collect()
+/// A label with the replacements applied.
+fn label_with(label: &str, subs: &Subs) -> String {
+    String::from_utf8_lossy(&expected::replace(label.as_bytes(), &sub_refs(subs))).into_owned()
+}
+
+/// Runs every case with `bin` (in parallel, from the repository root).
+pub fn entries(bin: &Path, cases: &[(String, Vec<OsString>)], subs: &Subs) -> Vec<Entry> {
+    par_map(cases, |(label, args)| {
+        Entry::run(label_with(label, subs), &run(bin, args), &sub_refs(subs))
     })
+}
+
+/// Checks `cases` against the file `name` (see `expected::verify`). A
+/// recording (stage 6b task 1 only; task 5 removes it) runs them with the
+/// reference implementation built as `tag` too.
+fn verify_cases(
+    name: &str,
+    header: &str,
+    tag: &str,
+    cases: &[(String, Vec<OsString>)],
+    subs: &Subs,
+) {
+    let got = entries(&rust_fung(), cases, subs);
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung(tag);
+        let r = entries(&bin, cases, subs);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    verify_entries(name, header, &got, reference.as_deref());
+}
+
+/// `expected::verify` with this file's limit and the update command.
+fn verify_entries(name: &str, header: &str, got: &[Entry], reference: Option<&[Entry]>) {
+    verify_entries_with(name, header, LIMIT, got, reference);
+}
+
+fn verify_entries_with(
+    name: &str,
+    header: &str,
+    limit: usize,
+    got: &[Entry],
+    reference: Option<&[Entry]>,
+) {
+    expected::verify(
+        name,
+        &format!(
+            "{header} (crates/fung-cli/tests/tools_expected.rs).\n\
+             $REPO stands for the repository, $DIR for the test's scratch directory.\n\
+             Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected"
+        ),
+        limit,
+        got,
+        reference,
+    );
 }
 
 /// Every `.fung` file below the given directories (relative to the
@@ -241,25 +268,47 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
     (format!("check {arg}"), os_args(&["check", arg]))
 }
 
+/// How many cases each test has (a case must not go missing unnoticed;
+/// change these together with the cases).
+const CHECK_REPOSITORY_CASES: usize = 158;
+const CHECK_WARNING_CASES: usize = 9;
+const CHECK_ARGUMENT_CASES: usize = 25;
+const HELP_CASES: usize = 8;
+const VERSION_CASES: usize = 2;
+const WALK_CASES: usize = 29;
+const WALK_UNREADABLE_CASES: usize = 2;
+const TEST_FIXTURE_CASES: usize = 29;
+const TEST_REPOSITORY_CASES: usize = 159;
+const FMT_INPUTS: usize = 4536;
+const FMT_STDIN_CASES: usize = 414;
+const FMT_FORMAT_CASES: usize = 124;
+const FMT_ARGUMENT_CASES: usize = 33;
+const REPL_CASES: usize = 34;
+
 #[test]
-fn check_matches_go_on_the_repository() {
-    let Some(b) = both("tools-check") else { return };
+fn check_matches_the_expected_output_on_the_repository() {
     let files = corpus(&["tests/lang", "examples", "extras"]);
     assert!(files.len() > 150, "corpus: {} files", files.len());
     assert!(files.iter().any(|f| f.starts_with("extras/rust/")));
     assert!(files.iter().any(|f| f.starts_with("tests/lang/_lib/")));
     let (same, own): (Vec<&String>, Vec<&String>) = files.iter().partition(|f| shared(f));
     let cases: Vec<_> = same.iter().map(|f| check(f)).collect();
-    assert_same(&b, &cases);
-    // A `# only: rust` file compiles in Rust (its run is golden-tested),
-    // and so does a Rust-only example (its tests run in
-    // `test_runs_the_examples`).
+    assert_eq!(cases.len(), CHECK_REPOSITORY_CASES, "cases");
+    verify_cases(
+        "check/repository.txt",
+        "`fung check` on the repository's .fung files",
+        "tools-check",
+        &cases,
+        &subs(&[]),
+    );
+    // A `# only: rust` file compiles (its run is golden-tested), and so
+    // does a Rust-only example (its tests run in `test_runs_the_examples`).
     let mut rust_only = 0;
     for f in own {
         let src = std::fs::read_to_string(repo().join(f)).unwrap();
         if only(&src).as_deref() == Some("rust") || RUST_ONLY_EXAMPLES.contains(&f.as_str()) {
             rust_only += 1;
-            let (_, err, status) = run_status(&b.rust, &os_args(&["check", f]), None);
+            let (_, err, status) = run_status(&rust_fung(), &os_args(&["check", f]), None);
             assert!(
                 status.success() && !String::from_utf8_lossy(&err).contains("error["),
                 "{f}: {status}\n{}",
@@ -274,15 +323,20 @@ fn check_matches_go_on_the_repository() {
 }
 
 #[test]
-fn check_matches_go_on_warning_fixtures() {
-    let Some(b) = both("tools-warn") else { return };
+fn check_matches_the_expected_output_on_warning_fixtures() {
     let files = corpus(&["crates/fung-cli/tests/data/check"]);
-    assert!(files.len() >= 9, "{files:?}");
     let cases: Vec<_> = files.iter().map(|f| check(f)).collect();
-    assert_same(&b, &cases);
-    // The fixtures do warn: comparing two silent runs would prove nothing.
+    assert_eq!(cases.len(), CHECK_WARNING_CASES, "{files:?}");
+    verify_cases(
+        "check/warnings.txt",
+        "`fung check` on the warning fixtures",
+        "tools-warn",
+        &cases,
+        &subs(&[]),
+    );
+    // The fixtures do warn: two silent runs would prove nothing.
     let (_, err, _) = run(
-        &b.go,
+        &rust_fung(),
         &os_args(&["check", "crates/fung-cli/tests/data/check/unused_vars.fung"]),
     );
     assert!(String::from_utf8_lossy(&err).contains("warning[W0102]"));
@@ -410,8 +464,7 @@ const CHECK_E: &[&str] = &[
 ];
 
 #[test]
-fn check_matches_go_on_inline_code_and_arguments() {
-    let Some(b) = both("tools-args") else { return };
+fn check_matches_the_expected_output_on_inline_code_and_arguments() {
     let mut cases: Vec<(String, Vec<OsString>)> = CHECK_E
         .iter()
         .map(|src| (format!("check -e {src:?}"), os_args(&["check", "-e", src])))
@@ -439,14 +492,6 @@ fn check_matches_go_on_inline_code_and_arguments() {
         vec!["check".into(), OsString::from_vec(b"q\xfe.fung".to_vec())],
     ));
     let dir = scratch("tools-args");
-    let odd = dir.join(OsString::from_vec(b"w\xfe.fung".to_vec()));
-    // macOS file systems refuse names that are not UTF-8 (EILSEQ).
-    if std::fs::write(&odd, "fn f():\n  x = 1\n  2\n;;\n").is_ok() {
-        cases.push((
-            "check non-UTF-8 file".into(),
-            vec!["check".into(), odd.into_os_string()],
-        ));
-    }
     // A file name with a character the excerpt must keep as is.
     let wide = dir.join("넓은.fung");
     std::fs::write(&wide, "fn f():\n  x = 1\n  2\n;;\n").unwrap();
@@ -454,12 +499,64 @@ fn check_matches_go_on_inline_code_and_arguments() {
         "check wide name".into(),
         vec!["check".into(), wide.into_os_string()],
     ));
-    assert_same(&b, &cases);
+    assert_eq!(cases.len(), CHECK_ARGUMENT_CASES, "cases");
+    verify_cases(
+        "check/arguments.txt",
+        "`fung check` on -e programs and argument errors",
+        "tools-args",
+        &cases,
+        &subs(&[(&dir, "$DIR")]),
+    );
+}
+
+/// A file whose name is not UTF-8 is reported under its name as it is:
+/// the output is the one for the same file under a UTF-8 name, with the
+/// name's bytes swapped. (Only where the file system allows such names:
+/// macOS refuses them, EILSEQ.)
+#[test]
+fn check_reports_a_non_utf8_file_name_as_it_is() {
+    let dir = scratch("tools-non-utf8-check");
+    let src = "fn f():\n  x = 1\n  2\n;;\n";
+    let odd = dir.join(OsString::from_vec(b"w\xfe.fung".to_vec()));
+    if std::fs::write(&odd, src).is_err() {
+        return;
+    }
+    let plain = dir.join("w_.fung");
+    std::fs::write(&plain, src).unwrap();
+    let got = run(
+        &rust_fung(),
+        &[OsString::from("check"), odd.into_os_string()],
+    );
+    let want = run(
+        &rust_fung(),
+        &[OsString::from("check"), plain.into_os_string()],
+    );
+    let swap = |b: &[u8]| {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < b.len() {
+            if b[i..].starts_with(b"w_.fung") {
+                out.extend_from_slice(b"w\xfe.fung");
+                i += "w_.fung".len();
+            } else {
+                out.push(b[i]);
+                i += 1;
+            }
+        }
+        out
+    };
+    assert!(
+        String::from_utf8_lossy(&want.1).contains("w_.fung"),
+        "{want:?}"
+    );
+    assert_eq!(
+        (got.0, got.1, got.2),
+        (swap(&want.0), swap(&want.1), want.2)
+    );
 }
 
 #[test]
-fn help_and_unknown_commands_match_go() {
-    let Some(b) = both("tools-help") else { return };
+fn help_and_unknown_commands_match_the_expected_output() {
     let arg_cases: &[&[&str]] = &[
         &["help"],
         &["-h"],
@@ -474,7 +571,14 @@ fn help_and_unknown_commands_match_go() {
         .iter()
         .map(|a| (a.join(" "), os_args(a)))
         .collect();
-    assert_same(&b, &cases);
+    assert_eq!(cases.len(), HELP_CASES, "cases");
+    verify_cases(
+        "cli/help.txt",
+        "`fung help` and unknown commands",
+        "tools-help",
+        &cases,
+        &subs(&[]),
+    );
 }
 
 /// The Rust binary's version, as `fung version` prints it.
@@ -488,37 +592,45 @@ fn rust_version() -> String {
 }
 
 #[test]
-fn version_matches_go_built_with_the_same_version() {
-    // Go's development builds report a VCS pseudo-version, so the two are
-    // compared with Go linked to the version the Rust binary reports (the
-    // release scripts link both the same way).
+fn version_matches_the_expected_output() {
     let v = rust_version();
     let want = option_env!("FUNG_BUILD_VERSION")
         .map(|s| s.strip_prefix('v').unwrap_or(s))
         .filter(|s| !s.is_empty() && *s != "(devel)")
         .unwrap_or("0.0.0-dev");
     assert_eq!(v, want);
-    let Some(go) = common::go_fung_with(
-        "tools-version",
-        &[&format!("-ldflags=-X main.linkedVersion={v}")],
-    ) else {
-        return;
-    };
-    let b = Both {
-        go,
-        rust: rust_fung(),
-    };
     let cases = vec![
         ("version".to_string(), os_args(&["version"])),
         ("version extra".to_string(), os_args(&["version", "extra"])),
     ];
-    assert_same(&b, &cases);
+    assert_eq!(cases.len(), VERSION_CASES, "cases");
+    // The version itself is `$VERSION`: it depends on the build.
+    let mut s = subs(&[]);
+    s.insert(0, (v.clone(), "$VERSION".into()));
+    let got = entries(&rust_fung(), &cases, &s);
+    // Recording (stage 6b task 1 only; task 5 removes it): the reference
+    // implementation linked to the same version.
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung_with(
+            "tools-version",
+            &[&format!("-ldflags=-X main.linkedVersion={v}")],
+        );
+        let r = entries(&bin, &cases, &s);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    verify_entries(
+        "cli/version.txt",
+        "`fung version` ($VERSION: the build's version)",
+        &got,
+        reference.as_deref(),
+    );
 }
 
-// ---- the path walker (`src/paths.rs`) against Go's commands ----
+// ---- the path walker (`src/paths.rs`) ----
 
-/// A tree with every case Go's walkers treat specially. Every `.fung`
-/// file has one passing test and is not formatted (`x=1`), so Go's
+/// A tree with every case the walkers treat specially. Every `.fung`
+/// file has one passing test and is not formatted (`x=1`), so
 /// `fung test` and `fung fmt --check` each name every file they visit.
 fn walker_tree(dir: &Path) {
     use std::os::unix::fs::symlink;
@@ -563,15 +675,15 @@ fn lossy(paths: &[Vec<u8>]) -> Vec<String> {
         .collect()
 }
 
-/// The files Go's command visited, read from what it printed, or its
-/// path error (`error: ...` with the usage exit code 3). Every fixture file is named:
-/// `fung test` prints `ok   PATH: t` (or `FAIL PATH: <load>`), `fmt
-/// --check` prints the path; either says `error: cannot read PATH: ...`
-/// when the file is a directory and shows `--> PATH:` for a file that is
-/// not fung. Go handles the files in sorted order, so the names are
-/// sorted back together from both streams.
-fn go_listed(go: &Path, args: &[&str]) -> Result<Vec<String>, String> {
-    let (out, err, status) = run_status(go, &os_args(args), None);
+/// The files a `fung test` or `fung fmt --check` run visited, read from
+/// what it printed, or its path error (`error: ...` with the usage exit
+/// code 3). Every fixture file is named: `fung test` prints `ok   PATH: t`
+/// (or `FAIL PATH: <load>`), `fmt --check` prints the path; either says
+/// `error: cannot read PATH: ...` when the file is a directory and shows
+/// `--> PATH:` for a file that is not fung. The files are handled in
+/// sorted order, so the names are sorted back together from both streams.
+fn listed(bin: &Path, args: &[&str]) -> Result<Vec<String>, String> {
+    let (out, err, status) = run_status(bin, &os_args(args), None);
     let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
     if status.code() == Some(3) {
         let e = err
@@ -607,14 +719,43 @@ fn ours(r: Result<Vec<Vec<u8>>, Vec<u8>>) -> Result<Vec<String>, String> {
         .map_err(|e| String::from_utf8_lossy(&e).into_owned())
 }
 
+/// A listing as an entry: the files, one per line, or the error.
+fn listing(label: &str, r: &Result<Vec<String>, String>, subs: &Subs) -> Entry {
+    let s = sub_refs(subs);
+    let e = Entry::new(label_with(label, subs));
+    match r {
+        Ok(files) => e.field(
+            "files",
+            expected::replace(
+                files
+                    .iter()
+                    .map(|f| format!("{f}\n"))
+                    .collect::<String>()
+                    .as_bytes(),
+                &s,
+            ),
+        ),
+        Err(err) => e.field(
+            "error",
+            expected::replace(format!("{err}\n").as_bytes(), &s),
+        ),
+    }
+}
+
+/// What the walker visits from each root, as the commands list it: the
+/// walker functions against the expected listings, and from relative
+/// roots the commands themselves (relative roots resolve against the
+/// working directory, and this process does not move: other tests run in
+/// parallel with it).
 #[test]
-fn walker_matches_go() {
-    let Some(go) = go_fung("tools-walk") else {
-        return;
-    };
+fn walker_matches_the_expected_listings() {
     let dir = scratch("tools-walk");
     walker_tree(&dir);
     let abs = |p: &str| dir.join(p).to_string_lossy().into_owned();
+    let rel = relative(&dir).expect("the scratch directory lies below the repository");
+    // The absolute scratch path first: it contains the relative one.
+    let s = subs(&[(&dir, "$DIR"), (Path::new(&rel), "$REL")]);
+    let rust = rust_fung();
     let roots = vec![
         abs("tree"),
         abs("tree/"),
@@ -628,34 +769,6 @@ fn walker_matches_go() {
         abs("nope"),
         abs("lone.fung/x"),
     ];
-    let mut bad = Vec::new();
-    for root in &roots {
-        let want = go_listed(&go, &["test", root]);
-        let got = ours(paths::test_files(root.as_bytes()));
-        if want != got {
-            bad.push(format!("test {root}:\n  go:   {want:?}\n  rust: {got:?}"));
-        }
-    }
-    // Relative roots resolve against the working directory, so they are
-    // compared through the commands, which both run from the repository
-    // root (`run_status`): this process does not move (other tests run
-    // in parallel with it).
-    if let Some(rel) = relative(&dir) {
-        for root in [format!("{rel}/tree"), format!("./{rel}/tree/sub")] {
-            for cmd in [&["test"][..], &["fmt", "--check"]] {
-                let args = [cmd, &[root.as_str()]].concat();
-                let want = go_listed(&go, &args);
-                let got = go_listed(&rust_fung(), &args);
-                assert!(
-                    want.as_ref().is_ok_and(|f| !f.is_empty()),
-                    "{args:?}: {want:?}"
-                );
-                if want != got {
-                    bad.push(format!("{args:?}:\n  go:   {want:?}\n  rust: {got:?}"));
-                }
-            }
-        }
-    }
     let mut groups: Vec<Vec<String>> = roots.iter().map(|r| vec![r.clone()]).collect();
     groups.push(vec![
         abs("tree/sub"),
@@ -665,17 +778,62 @@ fn walker_matches_go() {
     ]);
     groups.push(vec![abs("lone.fung"), abs("lone.fung")]);
     groups.push(vec![abs("tree/sub"), abs("nope"), abs("lone.fung")]);
-    for g in &groups {
-        let mut args = vec!["fmt", "--check"];
-        args.extend(g.iter().map(String::as_str));
-        let want = go_listed(&go, &args);
-        let raw: Vec<Vec<u8>> = g.iter().map(|p| p.as_bytes().to_vec()).collect();
-        let got = ours(paths::fung_files(&raw));
-        if want != got {
-            bad.push(format!("fmt {g:?}:\n  go:   {want:?}\n  rust: {got:?}"));
+    let mut commands: Vec<Vec<String>> = Vec::new();
+    for root in [format!("{rel}/tree"), format!("./{rel}/tree/sub")] {
+        for cmd in [&["test"][..], &["fmt", "--check"]] {
+            let mut args: Vec<String> = cmd.iter().map(|c| c.to_string()).collect();
+            args.push(root.clone());
+            commands.push(args);
         }
     }
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    // Each case: its label and how a binary lists it (`None`: the walker
+    // functions of this build).
+    let collect = |bin: Option<&Path>| -> Vec<Entry> {
+        let mut out = Vec::new();
+        for root in &roots {
+            let r = match bin {
+                Some(b) => listed(b, &["test", root]),
+                None => ours(paths::test_files(root.as_bytes())),
+            };
+            out.push(listing(&format!("test {root}"), &r, &s));
+        }
+        for args in &commands {
+            let a: Vec<&str> = args.iter().map(String::as_str).collect();
+            let r = listed(bin.unwrap_or(&rust), &a);
+            assert!(r.as_ref().is_ok_and(|f| !f.is_empty()), "{args:?}: {r:?}");
+            out.push(listing(&args.join(" "), &r, &s));
+        }
+        for g in &groups {
+            let r = match bin {
+                Some(b) => {
+                    let mut args = vec!["fmt", "--check"];
+                    args.extend(g.iter().map(String::as_str));
+                    listed(b, &args)
+                }
+                None => {
+                    let raw: Vec<Vec<u8>> = g.iter().map(|p| p.as_bytes().to_vec()).collect();
+                    ours(paths::fung_files(&raw))
+                }
+            };
+            out.push(listing(&format!("fmt --check {}", g.join(" ")), &r, &s));
+        }
+        out
+    };
+    let got = collect(None);
+    assert_eq!(got.len(), WALK_CASES, "cases");
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("tools-walk");
+        let r = collect(Some(&bin));
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    verify_entries(
+        "walk/listings.txt",
+        "The files `fung test` and `fung fmt --check` visit from each root ($REL: $DIR relative to $REPO)",
+        &got,
+        reference.as_deref(),
+    );
     // The tree does exercise the rules.
     let all = ours(paths::fung_files(&[abs("tree").into_bytes()])).unwrap();
     assert!(all.iter().any(|f| f.ends_with("/.h.fung")));
@@ -690,10 +848,7 @@ fn walker_matches_go() {
 }
 
 #[test]
-fn walker_reports_unreadable_directories_like_go() {
-    let Some(go) = go_fung("tools-walk-perm") else {
-        return;
-    };
+fn walker_reports_unreadable_directories() {
     let dir = scratch("tools-walk-perm");
     std::fs::create_dir_all(dir.join("t/locked")).unwrap();
     std::fs::write(
@@ -705,15 +860,45 @@ fn walker_reports_unreadable_directories_like_go() {
     std::fs::set_permissions(dir.join("t/locked"), std::fs::Permissions::from_mode(0o000)).unwrap();
     let root = dir.join("t").to_string_lossy().into_owned();
     let readable = std::fs::read_dir(dir.join("t/locked")).is_ok(); // running as root
-    let want = go_listed(&go, &["test", &root]);
-    let got = ours(paths::test_files(root.as_bytes()));
-    let want2 = go_listed(&go, &["fmt", "--check", &root]);
-    let got2 = ours(paths::fung_files(&[root.clone().into_bytes()]));
+    let s = subs(&[(&dir, "$DIR")]);
+    let got = vec![
+        listing(
+            &format!("test {root}"),
+            &ours(paths::test_files(root.as_bytes())),
+            &s,
+        ),
+        listing(
+            &format!("fmt --check {root}"),
+            &ours(paths::fung_files(&[root.clone().into_bytes()])),
+            &s,
+        ),
+    ];
+    assert_eq!(got.len(), WALK_UNREADABLE_CASES, "cases");
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("tools-walk-perm");
+        let r = vec![
+            listing(&format!("test {root}"), &listed(&bin, &["test", &root]), &s),
+            listing(
+                &format!("fmt --check {root}"),
+                &listed(&bin, &["fmt", "--check", &root]),
+                &s,
+            ),
+        ];
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
     std::fs::set_permissions(dir.join("t/locked"), std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert_eq!(want, got);
-    assert_eq!(want2, got2);
+    // Root reads the locked directory anyway: the expected listings are
+    // a normal user's.
     if !readable {
-        assert!(got.is_err(), "{got:?}");
+        verify_entries(
+            "walk/unreadable.txt",
+            "The walkers on a tree with a directory they cannot read",
+            &got,
+            reference.as_deref(),
+        );
+        assert!(got[0].get("error").is_some(), "{got:?}");
     }
 }
 
@@ -765,10 +950,8 @@ fn test_case(arg: &str) -> (String, Vec<OsString>) {
 }
 
 #[test]
-fn test_matches_go_on_fixtures() {
-    let Some(b) = both("tools-test") else { return };
+fn test_matches_the_expected_output_on_fixtures() {
     let files = corpus(&[TEST_DATA]);
-    assert!(files.len() >= 19, "{files:?}");
     let mut cases: Vec<_> = files.iter().map(|f| test_case(f)).collect();
     // Every file in one run: what one file leaves must not reach the
     // next (z_clean.fung runs last), a broken library is reported once,
@@ -793,9 +976,16 @@ fn test_matches_go_on_fixtures() {
     for a in arg_cases {
         cases.push((a.join(" "), os_args(a)));
     }
-    assert_same(&b, &cases);
-    // The fixtures do fail in every way the comparison is about.
-    let (out, err, _) = run(&b.go, &os_args(&["test", &root]));
+    assert_eq!(cases.len(), TEST_FIXTURE_CASES, "{files:?}");
+    verify_cases(
+        "test/fixtures.txt",
+        "`fung test` on its fixtures",
+        "tools-test",
+        &cases,
+        &subs(&[]),
+    );
+    // The fixtures do fail in every way the outputs are about.
+    let (out, err, _) = run(&rust_fung(), &os_args(&["test", &root]));
     let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
     for want in [
         "  exit(4) called inside a test file",
@@ -819,43 +1009,47 @@ fn test_matches_go_on_fixtures() {
 /// `fung test` with no path walks the working directory.
 #[test]
 fn test_without_a_path_walks_the_working_directory() {
-    let Some(b) = both("tools-test-cwd") else {
-        return;
-    };
     let dir = repo().join(TEST_DATA).join("_lib");
-    let go = std::process::Command::new(&b.go)
-        .arg("test")
-        .current_dir(&dir)
-        .output()
-        .unwrap();
-    let rust = std::process::Command::new(&b.rust)
-        .arg("test")
-        .current_dir(&dir)
-        .output()
-        .unwrap();
-    assert_eq!(
-        (String::from_utf8_lossy(&rust.stdout), rust.status.code()),
-        (String::from_utf8_lossy(&go.stdout), go.status.code())
+    let entry = |bin: &Path| {
+        let o = std::process::Command::new(bin)
+            .arg("test")
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        Entry::run(
+            format!("test (in {TEST_DATA}/_lib)"),
+            &(o.stdout, o.stderr, format!("{:?}", o.status)),
+            &sub_refs(&subs(&[])),
+        )
+    };
+    let got = vec![entry(&rust_fung())];
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("tools-test-cwd");
+        let r = vec![entry(&bin)];
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    verify_entries(
+        "test/working_directory.txt",
+        "`fung test` with no path",
+        &got,
+        reference.as_deref(),
     );
-    assert_eq!(rust.stderr, go.stderr);
-    assert!(String::from_utf8_lossy(&go.stdout).contains("ok   good.fung"));
+    assert!(String::from_utf8_lossy(got[0].get("stdout").unwrap()).contains("ok   good.fung"));
 }
 
 #[test]
-fn test_matches_go_on_the_repository() {
-    let Some(b) = both("tools-test-repo") else {
-        return;
-    };
+fn test_matches_the_expected_output_on_the_repository() {
     let files = corpus(&["tests/lang", "examples", "extras"]);
-    let cases: Vec<_> = files
+    let mut cases: Vec<_> = files
         .iter()
         .filter(|f| shared(f))
         .map(|f| test_case(f))
         .collect();
-    assert!(cases.len() > 140, "{} files", cases.len());
-    assert_same(&b, &cases);
     // The examples directory in one run, without the Rust-only examples.
-    let dir = scratch("tools-test-examples").join("examples");
+    let base = scratch("tools-test-examples");
+    let dir = base.join("examples");
     let mut stack = vec![repo().join("examples")];
     while let Some(d) = stack.pop() {
         for e in std::fs::read_dir(&d).unwrap() {
@@ -872,13 +1066,21 @@ fn test_matches_go_on_the_repository() {
         }
     }
     let d = dir.to_string_lossy().into_owned();
-    let (out, _, _) = run(&b.go, &os_args(&["test", &d]));
+    cases.push(test_case(&d));
+    assert_eq!(cases.len(), TEST_REPOSITORY_CASES, "cases");
+    verify_cases(
+        "test/repository.txt",
+        "`fung test` on the repository's .fung files and the examples directory",
+        "tools-test-repo",
+        &cases,
+        &subs(&[(&base, "$DIR")]),
+    );
+    let (out, _, _) = run(&rust_fung(), &os_args(&["test", &d]));
     let out = String::from_utf8_lossy(&out);
     assert!(
         out.contains("ok   ") && out.ends_with(" passed, 0 failed\n"),
         "{out}"
     );
-    assert_same(&b, &[test_case(&d)]);
 }
 
 /// Rust only (stage 6a). The examples directory as it is, the Rust-only
@@ -1036,7 +1238,9 @@ fn run_in(bin: &Path, dir: &Path, args: &[OsString], stdin: Option<&[u8]>) -> co
     (o.stdout, o.stderr, format!("{:?}", o.status))
 }
 
-/// Go `strconv.Unquote` for the escapes `format_test.go` uses.
+/// Recording only (stage 6b task 1; task 5 removes it with the reference
+/// implementation's sources): `strconv.Unquote` for the escapes of its
+/// `format_test.go`.
 fn go_unquote(s: &str) -> (String, &str) {
     let mut out = String::new();
     let mut cs = s.strip_prefix('"').expect("a Go string").char_indices();
@@ -1061,8 +1265,8 @@ fn go_unquote(s: &str) -> (String, &str) {
     panic!("unterminated Go string {s}")
 }
 
-/// The `"input": "want"` cases of Go's `internal/format/format_test.go`,
-/// read from the file so the comparison follows the Go tests.
+/// Recording only (stage 6b task 1; task 5 removes it): the
+/// `"input": "want"` cases of `internal/format/format_test.go`.
 fn go_format_cases() -> Vec<(String, String)> {
     let text = std::fs::read_to_string(repo().join("internal/format/format_test.go")).unwrap();
     let mut out = Vec::new();
@@ -1377,7 +1581,7 @@ fn fmt_inputs(dir: &Path) -> usize {
 }
 
 /// The files of a directory, by name.
-fn tree(dir: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+fn tree(dir: &Path) -> Tree {
     std::fs::read_dir(dir)
         .unwrap()
         .map(|e| {
@@ -1390,58 +1594,97 @@ fn tree(dir: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
         .collect()
 }
 
+/// The formatted tree as one entry: per file, `unchanged` or its length
+/// and hash (the formatted texts themselves would repeat the corpus).
+fn tree_entry(label: &str, before: &Tree, after: &Tree) -> Entry {
+    let mut text = String::new();
+    assert_eq!(
+        before.keys().collect::<Vec<_>>(),
+        after.keys().collect::<Vec<_>>(),
+        "fmt added or removed files"
+    );
+    for (name, a) in after {
+        if before[name] == *a {
+            text.push_str(&format!("{name} unchanged\n"));
+        } else {
+            text.push_str(&format!(
+                "{name} {} {:016x}\n",
+                a.len(),
+                expected::fnv1a64(a)
+            ));
+        }
+    }
+    Entry::new(label).field("files", text)
+}
+
+type Tree = std::collections::BTreeMap<String, Vec<u8>>;
+
 /// `fmt --check` and `fmt` in place over the repository's files and
-/// thousands of messed-up variants of them, in one directory: the same
-/// listing, errors and exit code, and the same rewritten files. Then the
-/// Rust output is stable (a second `--check` lists nothing) and keeps
-/// every token and comment.
+/// thousands of messed-up variants of them, in one directory: the
+/// listing, errors and exit code, and the rewritten files. Then the
+/// output is stable (a second `--check` lists nothing) and keeps every
+/// token and comment.
 #[test]
-fn fmt_matches_go_on_files_and_variants() {
-    let Some(b) = both("tools-fmt") else { return };
+fn fmt_matches_the_expected_output_on_files_and_variants() {
     let base = scratch("tools-fmt");
-    let (gdir, rdir) = (base.join("go"), base.join("rust"));
-    let n = fmt_inputs(&gdir);
-    fmt_inputs(&rdir);
-    assert!(n > 3000, "{n} inputs");
-    let check = os_args(&["fmt", "--check", "in"]);
-    let go = run_in(&b.go, &gdir, &check, None);
-    let rust = run_in(&b.rust, &rdir, &check, None);
-    assert_eq!(diff(&go, &rust), None, "fmt --check in");
+    // `bin` formats a fresh copy of the inputs in `dir`: the entries, and
+    // the inputs and the formatted files.
+    let format = |bin: &Path, dir: &Path| -> (Vec<Entry>, Tree, Tree) {
+        let n = fmt_inputs(dir);
+        assert_eq!(n, FMT_INPUTS, "inputs");
+        let before = tree(&dir.join("in"));
+        let check = run_in(bin, dir, &os_args(&["fmt", "--check", "in"]), None);
+        let write = run_in(bin, dir, &os_args(&["fmt", "in"]), None);
+        let after = tree(&dir.join("in"));
+        let owned = subs(&[(dir, "$DIR")]);
+        let s = sub_refs(&owned);
+        let entries = vec![
+            Entry::run("fmt --check in", &check, &s),
+            Entry::run("fmt in", &write, &s),
+            tree_entry("the formatted files", &before, &after),
+        ];
+        (entries, before, after)
+    };
+    let rdir = base.join("rust");
+    let (got, before, after) = format(&rust_fung(), &rdir);
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("tools-fmt");
+        let (r, _, _) = format(&bin, &base.join("reference"));
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    // Kept as text: the listings and the tree are one line per file.
+    verify_entries_with(
+        "fmt/variants.txt",
+        "`fung fmt --check` and `fung fmt` on the repository's files and messed-up variants of them;\n\
+         the formatted files: per file `unchanged`, or its length and FNV-1a hash",
+        1024 * 1024,
+        &got,
+        reference.as_deref(),
+    );
     // The variants do exercise the formatter: many need formatting, many
     // are refused as syntax errors, and most still parse.
-    let listed = String::from_utf8_lossy(&go.0).lines().count();
-    let refused = String::from_utf8_lossy(&go.1)
-        .matches("\n  --> in/")
-        .count();
+    let n = FMT_INPUTS;
+    let out = String::from_utf8_lossy(got[0].get("stdout").unwrap()).into_owned();
+    let err = String::from_utf8_lossy(got[0].get("stderr").unwrap()).into_owned();
+    let listed = out.lines().count();
+    let refused = err.matches("\n  --> in/").count();
     assert!(
         listed > n / 3 && refused > 300 && refused < n / 2,
         "{listed} listed, {refused} refused of {n}"
     );
     // A byte order mark is dropped, never refused: every `@bom` variant
     // that parses is listed, and the safeguard refuses nothing.
-    let err = String::from_utf8_lossy(&go.1);
     assert!(!err.contains("formatter changed the code"), "{err}");
-    let out = String::from_utf8_lossy(&go.0);
     let boms = out.lines().filter(|l| l.ends_with("@bom.fung")).count();
     assert!(boms > 100, "{boms} @bom variants listed");
-    let before = tree(&rdir.join("in"));
-    let write = os_args(&["fmt", "in"]);
-    let go = run_in(&b.go, &gdir, &write, None);
-    let rust = run_in(&b.rust, &rdir, &write, None);
-    assert_eq!(diff(&go, &rust), None, "fmt in");
-    let (gt, rt) = (tree(&gdir.join("in")), tree(&rdir.join("in")));
-    let bad: Vec<&String> = gt.keys().filter(|k| gt[*k] != rt[*k]).collect();
-    assert!(
-        bad.is_empty(),
-        "{} files formatted differently: {:?}",
-        bad.len(),
-        &bad[..bad.len().min(20)]
-    );
     // Idempotent: the formatted files need nothing more.
-    let (out, _, _) = run_in(&b.rust, &rdir, &check, None);
+    let check = os_args(&["fmt", "--check", "in"]);
+    let (out, _, _) = run_in(&rust_fung(), &rdir, &check, None);
     assert_eq!(String::from_utf8_lossy(&out), "", "second fmt --check");
     // The code survived: same tokens (newlines aside) and comments.
-    for (name, after) in &rt {
+    for (name, after) in &after {
         let src = &before[name];
         if src != after {
             assert_eq!(code_of(after), code_of(src), "{name}: tokens changed");
@@ -1467,19 +1710,50 @@ fn code_of(src: &[u8]) -> (Vec<String>, Vec<String>) {
     )
 }
 
-/// Standard input (`-`): the inputs of Go's formatter tests, inputs only
-/// Go's byte-level handling explains (not UTF-8, a byte order mark, CRLF,
+/// Formatter cases with an input and its formatted text: in a recording
+/// (stage 6b task 1 only; task 5 removes it) the reference
+/// implementation's own formatter tests, otherwise the `stdin` fields of
+/// `fmt/stdin.txt`, whose `stdout` fields are those formatted texts.
+fn format_cases() -> Vec<String> {
+    if expected::recording() {
+        return go_format_cases().into_iter().map(|(src, _)| src).collect();
+    }
+    expected::load(FMT_STDIN)
+        .into_iter()
+        .filter(|(label, _)| label.starts_with("format case "))
+        .map(|(label, fields)| {
+            let (_, v) = fields
+                .iter()
+                .find(|(n, _)| n == "stdin")
+                .unwrap_or_else(|| panic!("{label}: no stdin"));
+            match v {
+                expected::Stored::Bytes(b) => String::from_utf8(b.clone()).unwrap(),
+                expected::Stored::Hash { .. } => panic!("{label}: a hashed input"),
+            }
+        })
+        .collect()
+}
+
+const FMT_STDIN: &str = "fmt/stdin.txt";
+
+/// Standard input (`-`): the formatter cases (`format_cases`), inputs
+/// only byte-level handling explains (not UTF-8, a byte order mark, CRLF,
 /// a lone `\r`), broken inputs, the manual's examples and every corpus
 /// file. `--check -` only checks standard input.
 #[test]
-fn fmt_matches_go_on_standard_input() {
-    let Some(b) = both("tools-fmt-stdin") else {
-        return;
-    };
-    let go_cases = go_format_cases();
-    let mut inputs: Vec<(String, Vec<u8>)> = go_cases
+fn fmt_matches_the_expected_output_on_standard_input() {
+    let cases = format_cases();
+    assert_eq!(cases.len(), FMT_FORMAT_CASES, "formatter cases");
+    // (label, input, whether the entry keeps the input)
+    let mut inputs: Vec<(String, Vec<u8>, bool)> = cases
         .iter()
-        .map(|(src, _)| (format!("go case {src:?}"), src.clone().into_bytes()))
+        .map(|src| {
+            (
+                expected::short_label(&format!("format case {src:?}")),
+                src.clone().into_bytes(),
+                true,
+            )
+        })
         .collect();
     for raw in [
         &b"f(\n"[..],
@@ -1504,42 +1778,19 @@ fn fmt_matches_go_on_standard_input() {
         b"x = [1,\n",
         b"\tmatch v:\n\t\t1 => 2\n\t;;\n",
     ] {
-        inputs.push((format!("{:?}", String::from_utf8_lossy(raw)), raw.to_vec()));
+        inputs.push((
+            format!("{:?}", String::from_utf8_lossy(raw)),
+            raw.to_vec(),
+            false,
+        ));
     }
     for (label, src) in manual_examples() {
-        inputs.push((format!("manual {label}"), src.into_bytes()));
+        inputs.push((format!("manual {label}"), src.into_bytes(), false));
     }
     for f in fmt_corpus() {
         let src = std::fs::read(repo().join(&f)).unwrap();
-        inputs.push((f, src));
+        inputs.push((f, src, false));
     }
-    let dir = scratch("tools-fmt-stdin");
-    let runs = par_map(&inputs, |(_, src)| {
-        let a = os_args(&["fmt", "-"]);
-        (
-            run_in(&b.go, &dir, &a, Some(src)),
-            run_in(&b.rust, &dir, &a, Some(src)),
-        )
-    });
-    let bad: Vec<String> = inputs
-        .iter()
-        .zip(&runs)
-        .filter_map(|((label, _), (go, rust))| diff(go, rust).map(|d| format!("{label}: {d}")))
-        .collect();
-    assert!(
-        bad.is_empty(),
-        "{} of {} differ:\n{}",
-        bad.len(),
-        inputs.len(),
-        bad.join("\n")
-    );
-    // Go's own expectations hold for Rust too.
-    for ((src, want), (_, rust)) in go_cases.iter().zip(&runs) {
-        assert_eq!(String::from_utf8_lossy(&rust.0), *want, "{src:?}");
-    }
-    // `--check -` (either order) names `<stdin>` and exits 1 when the
-    // input needs formatting, prints nothing and exits 0 when it does
-    // not; errors are as without `--check`.
     let srcs: [&[u8]; 7] = [
         b"x=1\n",
         b"x = 1\n",
@@ -1549,20 +1800,70 @@ fn fmt_matches_go_on_standard_input() {
         b"\xef\xbb\xbf\xef\xbb\xbfx\n",
         b"x = \"a\xffb\"\n",
     ];
+    // `--check -` (either order) names `<stdin>` and exits 1 when the
+    // input needs formatting, prints nothing and exits 0 when it does
+    // not; errors are as without `--check`.
+    let mut runs: Vec<(String, Vec<OsString>, Vec<u8>, bool)> = inputs
+        .into_iter()
+        .map(|(label, src, keep)| (label, os_args(&["fmt", "-"]), src, keep))
+        .collect();
     for order in [["fmt", "--check", "-"], ["fmt", "-", "--check"]] {
-        let a = os_args(&order);
         for src in srcs {
-            let (go, rust) = (
-                run_in(&b.go, &dir, &a, Some(src)),
-                run_in(&b.rust, &dir, &a, Some(src)),
-            );
-            assert_eq!(diff(&go, &rust), None, "{order:?} {src:?}");
+            runs.push((
+                format!("{} {:?}", order.join(" "), String::from_utf8_lossy(src)),
+                os_args(&order),
+                src.to_vec(),
+                false,
+            ));
         }
     }
+    assert_eq!(runs.len(), FMT_STDIN_CASES, "cases");
+    let dir = scratch("tools-fmt-stdin");
+    let owned = subs(&[(&dir, "$DIR")]);
+    let s = sub_refs(&owned);
+    let entries = |bin: &Path| -> Vec<Entry> {
+        par_map(&runs, |(label, args, src, keep)| {
+            let e = Entry::new(label.clone());
+            let e = if *keep {
+                e.field("stdin", src.clone())
+            } else {
+                e
+            };
+            let r = Entry::run("", &run_in(bin, &dir, args, Some(src)), &s);
+            Entry {
+                fields: e.fields.into_iter().chain(r.fields).collect(),
+                ..e
+            }
+        })
+    };
+    let got = entries(&rust_fung());
+    // Recording (stage 6b task 1 only; task 5 removes it): the reference
+    // implementation, whose formatter tests' own expectations must hold.
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("tools-fmt-stdin");
+        let r = entries(&bin);
+        let _ = std::fs::remove_file(&bin);
+        for ((src, want), e) in go_format_cases().iter().zip(&r) {
+            assert_eq!(
+                String::from_utf8_lossy(e.get("stdout").unwrap()),
+                *want,
+                "{src:?}"
+            );
+        }
+        r
+    });
+    // Outputs over 2 KiB (the corpus files, formatted) are kept as hashes.
+    verify_entries_with(
+        FMT_STDIN,
+        "`fung fmt -` and `fung fmt --check -`; a `format case` keeps its input as `stdin`",
+        2048,
+        &got,
+        reference.as_deref(),
+    );
     let a = os_args(&["fmt", "--check", "-"]);
-    let (out, _, status) = run_status(&b.rust, &a, Some(b"x=1\n"));
+    let (out, _, status) = run_status(&rust_fung(), &a, Some(b"x=1\n"));
     assert_eq!((&out[..], status.code()), (&b"<stdin>\n"[..], Some(1)));
-    let (out, _, status) = run_status(&b.rust, &a, Some(b"x = 1\n"));
+    let (out, _, status) = run_status(&rust_fung(), &a, Some(b"x = 1\n"));
     assert_eq!((&out[..], status.code()), (&b""[..], Some(0)));
 }
 
@@ -1570,13 +1871,11 @@ fn fmt_matches_go_on_standard_input() {
 /// together, a file named twice, `-` among paths, a missing path, an
 /// unknown option, a link to a directory named `x.fung` (read error), an
 /// unreadable and a read-only file needing formatting (read and write
-/// errors), a name that is not UTF-8, a file with a syntax error next to
-/// good ones (exit 2 wins over 1).
+/// errors), a missing name that is not UTF-8, a file with a syntax error
+/// next to good ones (exit 2 wins over 1). (An existing file whose name
+/// is not UTF-8: `fmt_handles_a_non_utf8_file_name`.)
 #[test]
-fn fmt_arguments_match_go() {
-    let Some(b) = both("tools-fmt-args") else {
-        return;
-    };
+fn fmt_arguments_match_the_expected_output() {
     use std::os::unix::fs::{PermissionsExt, symlink};
     let base = scratch("tools-fmt-args");
     let setup = |d: &Path| {
@@ -1606,12 +1905,7 @@ fn fmt_arguments_match_go() {
             std::fs::Permissions::from_mode(0o000),
         )
         .unwrap();
-        // macOS file systems refuse names that are not UTF-8.
-        let _ = std::fs::write(d.join(OsString::from_vec(b"q\xfe.fung".to_vec())), "q=1\n");
     };
-    let (gdir, rdir) = (base.join("go"), base.join("rust"));
-    setup(&gdir);
-    setup(&rdir);
     let cases: &[&[&str]] = &[
         &["fmt"],
         &["fmt", "--check"],
@@ -1645,36 +1939,7 @@ fn fmt_arguments_match_go() {
         &["fmt", "t", "넓은.fung"],
         &["fmt", "."],
     ];
-    let mut bad = Vec::new();
-    for a in cases {
-        let args = os_args(a);
-        let (go, rust) = (
-            run_in(&b.go, &gdir, &args, None),
-            run_in(&b.rust, &rdir, &args, None),
-        );
-        if let Some(d) = diff(&go, &rust) {
-            bad.push(format!("{}: {d}", a.join(" ")));
-        }
-    }
-    let non_utf8 = vec!["fmt".into(), OsString::from_vec(b"q\xfe.fung".to_vec())];
-    let (go, rust) = (
-        run_in(&b.go, &gdir, &non_utf8, None),
-        run_in(&b.rust, &rdir, &non_utf8, None),
-    );
-    if let Some(d) = diff(&go, &rust) {
-        bad.push(format!("non-UTF-8 name: {d}"));
-    }
-    std::fs::set_permissions(
-        gdir.join("locked.fung"),
-        std::fs::Permissions::from_mode(0o644),
-    )
-    .unwrap();
-    std::fs::set_permissions(
-        rdir.join("locked.fung"),
-        std::fs::Permissions::from_mode(0o644),
-    )
-    .unwrap();
-    for f in [
+    let files = [
         "t/a.fung",
         "t/sub/b.fung",
         "t/sub/_fix/c.fung",
@@ -1683,28 +1948,113 @@ fn fmt_arguments_match_go() {
         "넓은.fung",
         "ro.fung",
         "locked.fung",
-    ] {
-        let (g, r) = (
-            std::fs::read(gdir.join(f)).unwrap(),
-            std::fs::read(rdir.join(f)).unwrap(),
-        );
-        if g != r {
-            bad.push(format!(
-                "{f}: {:?} vs {:?}",
-                String::from_utf8_lossy(&g),
-                String::from_utf8_lossy(&r)
+    ];
+    // Every case in turn with `bin` in a fresh tree `d`, then the files
+    // and the read-only file's mode (kept).
+    let entries = |bin: &Path, d: &Path| -> Vec<Entry> {
+        setup(d);
+        let owned = subs(&[(d, "$DIR")]);
+        let s = sub_refs(&owned);
+        let mut out = Vec::new();
+        for a in cases {
+            out.push(Entry::run(
+                a.join(" "),
+                &run_in(bin, d, &os_args(a), None),
+                &s,
             ));
         }
-    }
-    // The file modes are kept.
-    let mode = |d: &Path| {
-        std::fs::metadata(d.join("ro.fung"))
+        let non_utf8 = vec!["fmt".into(), OsString::from_vec(b"q\xfe.fung".to_vec())];
+        out.push(Entry::run(
+            "fmt (non-UTF-8 name)",
+            &run_in(bin, d, &non_utf8, None),
+            &s,
+        ));
+        std::fs::set_permissions(
+            d.join("locked.fung"),
+            std::fs::Permissions::from_mode(0o644),
+        )
+        .unwrap();
+        for f in files {
+            out.push(
+                Entry::new(format!("file {f}")).field("text", std::fs::read(d.join(f)).unwrap()),
+            );
+        }
+        let mode = std::fs::metadata(d.join("ro.fung"))
             .unwrap()
             .permissions()
-            .mode()
+            .mode();
+        out.push(Entry::new("mode ro.fung").field("mode", format!("{mode:o}")));
+        out
     };
-    assert_eq!(mode(&gdir), mode(&rdir));
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    let got = entries(&rust_fung(), &base.join("rust"));
+    assert_eq!(got.len(), FMT_ARGUMENT_CASES, "cases");
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("tools-fmt-args");
+        let r = entries(&bin, &base.join("reference"));
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
+    verify_entries(
+        "fmt/arguments.txt",
+        "`fung fmt` arguments and file errors, run in turn in one tree; then the files and a mode",
+        &got,
+        reference.as_deref(),
+    );
+}
+
+/// A file whose name is not UTF-8 is listed and formatted under its name
+/// as it is: the output is the one for the same file under a UTF-8 name,
+/// with the name's bytes swapped. (Only where the file system allows such
+/// names: macOS refuses them, EILSEQ.)
+#[test]
+fn fmt_handles_a_non_utf8_file_name() {
+    let base = scratch("tools-non-utf8-fmt");
+    let (odd, plain) = (base.join("odd"), base.join("plain"));
+    std::fs::create_dir_all(&odd).unwrap();
+    std::fs::create_dir_all(&plain).unwrap();
+    if std::fs::write(
+        odd.join(OsString::from_vec(b"q\xfe.fung".to_vec())),
+        "q=1\n",
+    )
+    .is_err()
+    {
+        return;
+    }
+    std::fs::write(plain.join("q_.fung"), "q=1\n").unwrap();
+    let swap = |b: Vec<u8>| expected::replace(&b, &[("q_.fung", "q\u{fffd}.fung")]);
+    let lossy = |b: Vec<u8>| String::from_utf8_lossy(&b).as_bytes().to_vec();
+    let rust = rust_fung();
+    for (args_odd, args_plain) in [
+        (
+            vec![OsString::from("fmt"), "--check".into(), ".".into()],
+            vec![OsString::from("fmt"), "--check".into(), ".".into()],
+        ),
+        (
+            vec![
+                OsString::from("fmt"),
+                OsString::from_vec(b"q\xfe.fung".to_vec()),
+            ],
+            vec![OsString::from("fmt"), "q_.fung".into()],
+        ),
+    ] {
+        let got = run_in(&rust, &odd, &args_odd, None);
+        let want = run_in(&rust, &plain, &args_plain, None);
+        // The name's own bytes come back as they are.
+        assert!(
+            got.0.windows(9).any(|w| w == b"q\xfe.fung") || got.0.is_empty(),
+            "{got:?}"
+        );
+        assert_eq!(
+            (lossy(got.0), lossy(got.1), got.2),
+            (swap(want.0), swap(want.1), want.2),
+            "{args_odd:?}"
+        );
+    }
+    assert_eq!(
+        std::fs::read(odd.join(OsString::from_vec(b"q\xfe.fung".to_vec()))).unwrap(),
+        b"q = 1\n"
+    );
 }
 
 // ---- the REPL (stage 5 task 4) ----
@@ -1743,22 +2093,16 @@ fn repl_dir(tag: &str) -> PathBuf {
     dir
 }
 
-/// Go `repl_test.go` and more, as whole sessions over a pipe: values,
-/// definitions, redefinition, continued lines, errors and going on,
-/// commands, `exit`, empty input, the end of input, `dbg`, tasks and
-/// handlers. Compared byte for byte (both streams and the status).
-/// Left out on purpose: a deadlock and a spawned task's `exit`, which
-/// cancel the program. Go's session stays cancelled (Go sets a new
-/// task's cancellation flag from a `context.AfterFunc` goroutine, so a
-/// short input after it usually still runs to the end) and ends with
-/// code 1 after a deadlock. Rust deliberately recovers from a deadlock
-/// and ends the session on a spawned exit (decided 2026-10-17); see
-/// `repl_recovers_after_a_deadlock` and `repl_ends_on_a_spawned_exit`.
+/// Whole sessions over a pipe: values, definitions, redefinition,
+/// continued lines, errors and going on, commands, `exit`, empty input,
+/// the end of input, `dbg`, tasks and handlers, byte for byte (both
+/// streams and the status). A deadlock and a spawned task's `exit` have
+/// tests of their own (`repl_recovers_after_a_deadlock`,
+/// `repl_ends_on_a_spawned_exit`).
 #[test]
-fn repl_matches_go_on_piped_sessions() {
-    let Some(b) = both("repl") else { return };
+fn repl_matches_the_expected_output_on_piped_sessions() {
     let cases: &[(&str, &str)] = &[
-        // repl_test.go
+        // the basics
         (
             "values",
             "x = 1\nx + 1\nfn f(n) = n * x\nf(5)\n[1, \"a\"]\nnil\n",
@@ -1804,7 +2148,7 @@ fn repl_matches_go_on_piped_sessions() {
             "x = match 2:\n  1 => \"one\"\n  _ => \"many\"\n;;\nx\nif x == \"many\":\n  \"yes\"\nelse:\n  \"no\"\n;;\n[\n  1,\n  2,\n]\n\"a\" +\n  \"b\"\n",
         ),
         (
-            "excerpts come from the current input (Go)",
+            "excerpts come from the current input",
             "fn f(x):\n  x / 0\n;;\nif true:\n  f(1)\n;;\nf(2)\nprint(\"a\" + 1)\n",
         ),
         (
@@ -1847,27 +2191,39 @@ fn repl_matches_go_on_piped_sessions() {
             "print(1)\nlen([1, 2])\n(1, 2)\n'sym\n1.5\n\"s\"\n",
         ),
     ];
-    let dir = repl_dir("go");
-    let mut bad = Vec::new();
-    for (label, input) in cases {
-        let go = repl_in(&b.go, &dir, input.as_bytes());
-        let rust = repl_in(&b.rust, &dir, input.as_bytes());
-        if let Some(d) = diff(&go, &rust) {
-            bad.push(format!("{label}: {d}"));
-        }
-    }
+    let dir = repl_dir("piped");
+    let owned = subs(&[(&dir, "$DIR")]);
+    let s = sub_refs(&owned);
+    let mut sessions: Vec<(String, Vec<u8>)> = cases
+        .iter()
+        .map(|(label, input)| (label.to_string(), input.as_bytes().to_vec()))
+        .collect();
     // Raw bytes that are not UTF-8.
-    let go = repl_in(&b.go, &dir, b"print(\"\xff\xfe\")\n\"\xe2\x82\"\n");
-    let rust = repl_in(&b.rust, &dir, b"print(\"\xff\xfe\")\n\"\xe2\x82\"\n");
-    if let Some(d) = diff(&go, &rust) {
-        bad.push(format!("invalid bytes: {d}"));
-    }
+    sessions.push((
+        "invalid bytes".into(),
+        b"print(\"\xff\xfe\")\n\"\xe2\x82\"\n".to_vec(),
+    ));
+    assert_eq!(sessions.len(), REPL_CASES, "cases");
+    let entries = |bin: &Path| -> Vec<Entry> {
+        sessions
+            .iter()
+            .map(|(label, input)| Entry::run(label.clone(), &repl_in(bin, &dir, input), &s))
+            .collect()
+    };
+    let got = entries(&rust_fung());
+    // Recording (stage 6b task 1 only; task 5 removes it).
+    let reference = expected::recording().then(|| {
+        let bin = expected::reference_fung("repl");
+        let r = entries(&bin);
+        let _ = std::fs::remove_file(&bin);
+        r
+    });
     let _ = std::fs::remove_dir_all(&dir);
-    assert!(
-        bad.is_empty(),
-        "{} cases differ:\n{}",
-        bad.len(),
-        bad.join("\n")
+    verify_entries(
+        "repl/sessions.txt",
+        "REPL sessions over a pipe (`fung` with no arguments)",
+        &got,
+        reference.as_deref(),
     );
 }
 

@@ -1,8 +1,10 @@
-//! What the parity tests share: building the Go implementation, running a
-//! binary, and comparing two runs byte for byte.
+//! What the CLI tests share: running a binary, comparing two runs byte
+//! for byte, and the expected-output files (`expected`).
 
 // Each test binary uses its own subset of these helpers.
 #![allow(dead_code)]
+
+pub mod expected;
 
 use std::{
     ffi::OsString,
@@ -184,4 +186,34 @@ pub const RUST_ONLY_EXAMPLES: &[&str] = &[
 /// module `conc`.
 pub fn uses_rust_only(src: &str) -> bool {
     src.contains("agent(") || src.lines().any(|l| l.trim() == "import conc")
+}
+
+/// `f` over `xs` on a few worker threads, results in order. Each worker
+/// takes the next item when it is free, so a slow item holds up only its
+/// own worker.
+pub fn par_map<T: Sync, R: Send>(xs: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let n = std::thread::available_parallelism().map_or(4, |n| n.get().min(8));
+    let next = AtomicUsize::new(0);
+    let mut out: Vec<(usize, R)> = std::thread::scope(|s| {
+        let handles: Vec<_> = (0..n)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut done = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(x) = xs.get(i) else { break };
+                        done.push((i, f(x)));
+                    }
+                    done
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect()
+    });
+    out.sort_by_key(|(i, _)| *i);
+    out.into_iter().map(|(_, r)| r).collect()
 }

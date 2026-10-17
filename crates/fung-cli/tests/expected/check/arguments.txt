@@ -1,0 +1,245 @@
+# `fung check` on -e programs and argument errors (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== check -e "import fs"
+-- stdout
+-- stderr
+| warning[W0101]: unused import `fs`
+|   --> -e:1:1
+|   |
+| 1 | import fs
+|   | ^^
+|   |
+-- exit: 0
+==== check -e "import fs as f\nprint(f.read)"
+-- stdout
+-- stderr
+-- exit: 0
+==== check -e "fn f():\n  x = 1\n  2\n;;"
+-- stdout
+-- stderr
+| warning[W0102]: unused variable `x`
+|   --> -e:2:3
+|   |
+| 2 |   x = 1
+|   |   ^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check -e "fn map(xs) = xs\nlen = 1"
+-- stdout
+-- stderr
+| warning[W0103]: `map` shadows a prelude function
+|   --> -e:1:1
+|   |
+| 1 | fn map(xs) = xs
+|   | ^^^
+|   |
+| warning[W0103]: `len` shadows a prelude function
+|   --> -e:2:1
+|   |
+| 2 | len = 1
+|   | ^^^
+|   |
+-- exit: 0
+==== check -e "print(if true: _y = 1 ;;)"
+-- stdout
+-- stderr
+| warning[W0104]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> -e:1:16
+|   |
+| 1 | print(if true: _y = 1 ;;)
+|   |                ^^
+|   |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+-- exit: 0
+==== check -e "fn f():\n  x = 1\n  len = 2\n  x\n;;"
+-- stdout
+-- stderr
+| warning[W0103]: `len` shadows a prelude function
+|   --> -e:3:3
+|   |
+| 3 |   len = 2
+|   |   ^^^
+|   |
+| warning[W0102]: unused variable `len`
+|   --> -e:3:3
+|   |
+| 3 |   len = 2
+|   |   ^^^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check -e "fn f():\n  이름 = 1\n  2\n;;"
+-- stdout
+-- stderr
+| warning[W0102]: unused variable `이름`
+|   --> -e:2:3
+|   |
+| 2 |   이름 = 1
+|   |   ^^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check -e "x = )"
+-- stdout
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> -e:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+-- exit: 2
+==== check -e "print(nope)"
+-- stdout
+-- stderr
+| error[E0204]: undefined name `nope`
+|   --> -e:1:7
+|   |
+| 1 | print(nope)
+|   |       ^^^^ not found in this scope
+|   |
+-- exit: 2
+==== check -e "test \"t\":\n  assert 1 == 1\n;;"
+-- stdout
+-- stderr
+-- exit: 0
+==== check -e "fn f():\n  test \"t\":\n    assert true\n  ;;\n;;"
+-- stdout
+-- stderr
+| error[E0114]: test must be at the top level
+|   --> -e:2:3
+|   |
+| 2 |   test "t":
+|   |   ^
+|   |
+-- exit: 2
+==== check -e ""
+-- stdout
+-- stderr
+-- exit: 0
+==== check
+-- stdout
+-- stderr
+| error: check needs a script path or -e code
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== check -e
+-- stdout
+-- stderr
+| error: check needs a script path or -e code
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== check -e print(1) ignored too
+-- stdout
+-- stderr
+-- exit: 0
+==== check a.fung b.fung
+-- stdout
+-- stderr
+| error: check needs a script path or -e code
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== check tests/lang tests/lang/arith.fung
+-- stdout
+-- stderr
+| error: check needs a script path or -e code
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== check tests/lang
+-- stdout
+-- stderr
+| error: cannot read tests/lang: read tests/lang: is a directory
+-- exit: 3
+==== check nope.fung
+-- stdout
+-- stderr
+| error: cannot read nope.fung: open nope.fung: no such file or directory
+-- exit: 3
+==== check nope/
+-- stdout
+-- stderr
+| error: cannot read nope/: open nope/: no such file or directory
+-- exit: 3
+==== check tests/lang/arith.fung -e
+-- stdout
+-- stderr
+| error: check needs a script path or -e code
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== check ./tests/lang/../lang/arith.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check --help
+-- stdout
+-- stderr
+| error: cannot read --help: open --help: no such file or directory
+-- exit: 3
+==== check non-UTF-8 name
+-- stdout
+-- stderr (escaped)
+| error: cannot read q\xfe.fung: open q\xfe.fung: no such file or directory
+-- exit: 3
+==== check wide name
+-- stdout
+-- stderr
+| warning[W0102]: unused variable `x`
+|   --> $DIR/넓은.fung:2:3
+|   |
+| 2 |   x = 1
+|   |   ^
+|   |
+|  help: prefix it with `_` if it is intentional
+-- exit: 0

@@ -1,0 +1,16 @@
+# `fung test` with no path (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== test (in crates/fung-cli/tests/data/test/_lib)
+-- stdout
+| FAIL broken.fung: <load>
+| ok   good.fung: only when it is the entry
+| 1 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `missing`
+|   --> broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2

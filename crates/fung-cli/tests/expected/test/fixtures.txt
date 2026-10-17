@@ -1,0 +1,746 @@
+# `fung test` on its fixtures (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== test crates/fung-cli/tests/data/test/_lib/broken.fung
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/_lib/broken.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test crates/fung-cli/tests/data/test/_lib/good.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/_lib/good.fung: only when it is the entry
+| 1 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/asserts.fung
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: compare shows both sides
+|   error[E0807]: assertion failed: slug("Hello World") == "hello-world"
+|     --> crates/fung-cli/tests/data/test/asserts.fung:3:34
+|     |
+|   3 | test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
+|     |                                  ^
+|     |
+|     slug("Hello World") = "hello world"
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:3 test: compare shows both sides
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: pipeline on the left
+|   error[E0807]: assertion failed: [1, 2] |> len() > 5
+|     --> crates/fung-cli/tests/data/test/asserts.fung:4:30
+|     |
+|   4 | test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
+|     |                              ^
+|     |
+|     [1, 2] |> len() = 2
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:4 test: pipeline on the left
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: plain false
+|   error[E0807]: assertion failed: false
+|     --> crates/fung-cli/tests/data/test/asserts.fung:5:21
+|     |
+|   5 | test "plain false": assert false ;;
+|     |                     ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:5 test: plain false
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: not a bool
+|   error[E0505]: expected bool, got int
+|     --> crates/fung-cli/tests/data/test/asserts.fung:6:20
+|     |
+|   6 | test "not a bool": assert 3 ;;
+|     |                    ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:6 test: not a bool
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: an error
+|   error[E0803]: bad
+|     --> crates/fung-cli/tests/data/test/asserts.fung:9:7
+|     |
+|   9 |   fail("bad")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:9 test: an error
+| ok   crates/fung-cli/tests/data/test/asserts.fung: return and ?
+| ok   crates/fung-cli/tests/data/test/asserts.fung: unused warning
+| 2 passed, 5 failed
+-- stderr
+| warning[W0102]: unused variable `y`
+|   --> crates/fung-cli/tests/data/test/asserts.fung:17:3
+|    |
+| 17 |   y = 1
+|    |   ^
+|    |
+|  help: prefix it with `_` if it is intentional
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/blocked_top.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/blocked_top.fung: leaves a blocked top-level task
+| ok   crates/fung-cli/tests/data/test/blocked_top.fung: again
+| 2 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/deadlock.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/deadlock.fung: before the deadlock
+| FAIL crates/fung-cli/tests/data/test/deadlock.fung: deadlocks
+|   error[E0702]: deadlock: all tasks are waiting
+|     --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|     |
+|   4 |   recv(ch)
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+| 1 passed, 1 failed
+-- stderr
+| error[E0702]: deadlock: all tasks are waiting
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/exit_in_task.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/exit_in_task.fung: before the task exit
+| FAIL crates/fung-cli/tests/data/test/exit_in_task.fung: a task exits
+|   error[E0701]: task cancelled
+|     --> crates/fung-cli/tests/data/test/exit_in_task.fung:4:8
+|     |
+|   4 |   await(t)
+|     |        ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/exit_in_task.fung:4 test: a task exits
+| 1 passed, 1 failed
+-- stderr
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/exit_in_test.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/exit_in_test.fung: before
+| FAIL crates/fung-cli/tests/data/test/exit_in_test.fung: exits
+|   exit(4) called inside a test file; the rest of the file was skipped
+| handler ran
+| 1 passed, 1 failed
+-- stderr
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/handler_exit.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/handler_exit.fung: handler exits
+| 1 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/handlers.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/handlers.fung: registers handlers
+| first handler
+| second handler
+| 1 passed, 0 failed
+-- stderr
+| error[E0803]: handler broke
+|   --> crates/fung-cli/tests/data/test/handlers.fung:4:7
+|   |
+| 4 |   fail("handler broke")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/no_tests.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/own_error.fung
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `nope`
+|   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
+|   |
+| 1 | test "t": assert nope == 1 ;;
+|   |                  ^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test crates/fung-cli/tests/data/test/top_error.fung
+-- stdout
+| before
+| FAIL crates/fung-cli/tests/data/test/top_error.fung: <top level>
+|   error[E0507]: index 5 is out of range (length 2)
+|     --> crates/fung-cli/tests/data/test/top_error.fung:2:11
+|     |
+|   2 | x = [1, 2][5]
+|     |           ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/top_error.fung:2 <entry>
+| 0 passed, 1 failed
+-- stderr
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/top_exit.fung
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/top_exit.fung: <top level>
+|   exit(2) called inside a test file; the rest of the file was skipped
+| 0 passed, 1 failed
+-- stderr
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/top_task.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/top_task.fung: talks to a top-level task
+| 1 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/unretrieved.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/unretrieved.fung: spawns a failure
+| ok   crates/fung-cli/tests/data/test/unretrieved.fung: fine
+| FAIL crates/fung-cli/tests/data/test/unretrieved.fung: <tasks>
+|   a task failed and nothing awaited it (see standard error)
+| 2 passed, 1 failed
+-- stderr
+| task failed: error[E0507]: index 5 is out of range (length 1)
+|   --> crates/fung-cli/tests/data/test/unretrieved.fung:5:8
+|   |
+| 5 |     [1][5]
+|   |        ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/unretrieved.fung:5 <lambda>
+-- exit: 1
+==== test crates/fung-cli/tests/data/test/uses_good.fung
+-- stdout
+| ok   crates/fung-cli/tests/data/test/uses_good.fung: library tests do not run here
+| 1 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test/uses_lib.fung
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/uses_lib.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test crates/fung-cli/tests/data/test/uses_lib_too.fung
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test crates/fung-cli/tests/data/test/z_clean.fung
+-- stdout
+| top level runs first
+| ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
+| 1 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test crates/fung-cli/tests/data/test
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: compare shows both sides
+|   error[E0807]: assertion failed: slug("Hello World") == "hello-world"
+|     --> crates/fung-cli/tests/data/test/asserts.fung:3:34
+|     |
+|   3 | test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
+|     |                                  ^
+|     |
+|     slug("Hello World") = "hello world"
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:3 test: compare shows both sides
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: pipeline on the left
+|   error[E0807]: assertion failed: [1, 2] |> len() > 5
+|     --> crates/fung-cli/tests/data/test/asserts.fung:4:30
+|     |
+|   4 | test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
+|     |                              ^
+|     |
+|     [1, 2] |> len() = 2
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:4 test: pipeline on the left
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: plain false
+|   error[E0807]: assertion failed: false
+|     --> crates/fung-cli/tests/data/test/asserts.fung:5:21
+|     |
+|   5 | test "plain false": assert false ;;
+|     |                     ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:5 test: plain false
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: not a bool
+|   error[E0505]: expected bool, got int
+|     --> crates/fung-cli/tests/data/test/asserts.fung:6:20
+|     |
+|   6 | test "not a bool": assert 3 ;;
+|     |                    ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:6 test: not a bool
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: an error
+|   error[E0803]: bad
+|     --> crates/fung-cli/tests/data/test/asserts.fung:9:7
+|     |
+|   9 |   fail("bad")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:9 test: an error
+| ok   crates/fung-cli/tests/data/test/asserts.fung: return and ?
+| ok   crates/fung-cli/tests/data/test/asserts.fung: unused warning
+| ok   crates/fung-cli/tests/data/test/blocked_top.fung: leaves a blocked top-level task
+| ok   crates/fung-cli/tests/data/test/blocked_top.fung: again
+| ok   crates/fung-cli/tests/data/test/deadlock.fung: before the deadlock
+| FAIL crates/fung-cli/tests/data/test/deadlock.fung: deadlocks
+|   error[E0702]: deadlock: all tasks are waiting
+|     --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|     |
+|   4 |   recv(ch)
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+| ok   crates/fung-cli/tests/data/test/exit_in_task.fung: before the task exit
+| FAIL crates/fung-cli/tests/data/test/exit_in_task.fung: a task exits
+|   error[E0701]: task cancelled
+|     --> crates/fung-cli/tests/data/test/exit_in_task.fung:4:8
+|     |
+|   4 |   await(t)
+|     |        ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/exit_in_task.fung:4 test: a task exits
+| ok   crates/fung-cli/tests/data/test/exit_in_test.fung: before
+| FAIL crates/fung-cli/tests/data/test/exit_in_test.fung: exits
+|   exit(4) called inside a test file; the rest of the file was skipped
+| handler ran
+| ok   crates/fung-cli/tests/data/test/handler_exit.fung: handler exits
+| ok   crates/fung-cli/tests/data/test/handlers.fung: registers handlers
+| first handler
+| second handler
+| FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
+| before
+| FAIL crates/fung-cli/tests/data/test/top_error.fung: <top level>
+|   error[E0507]: index 5 is out of range (length 2)
+|     --> crates/fung-cli/tests/data/test/top_error.fung:2:11
+|     |
+|   2 | x = [1, 2][5]
+|     |           ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/top_error.fung:2 <entry>
+| FAIL crates/fung-cli/tests/data/test/top_exit.fung: <top level>
+|   exit(2) called inside a test file; the rest of the file was skipped
+| ok   crates/fung-cli/tests/data/test/top_task.fung: talks to a top-level task
+| ok   crates/fung-cli/tests/data/test/unretrieved.fung: spawns a failure
+| ok   crates/fung-cli/tests/data/test/unretrieved.fung: fine
+| FAIL crates/fung-cli/tests/data/test/unretrieved.fung: <tasks>
+|   a task failed and nothing awaited it (see standard error)
+| ok   crates/fung-cli/tests/data/test/uses_good.fung: library tests do not run here
+| FAIL crates/fung-cli/tests/data/test/uses_lib.fung: <load>
+| FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
+| top level runs first
+| ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
+| 14 passed, 14 failed
+-- stderr
+| warning[W0102]: unused variable `y`
+|   --> crates/fung-cli/tests/data/test/asserts.fung:17:3
+|    |
+| 17 |   y = 1
+|    |   ^
+|    |
+|  help: prefix it with `_` if it is intentional
+| error[E0702]: deadlock: all tasks are waiting
+| error[E0803]: handler broke
+|   --> crates/fung-cli/tests/data/test/handlers.fung:4:7
+|   |
+| 4 |   fail("handler broke")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
+| error[E0204]: undefined name `nope`
+|   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
+|   |
+| 1 | test "t": assert nope == 1 ;;
+|   |                  ^^^^ not found in this scope
+|   |
+| task failed: error[E0507]: index 5 is out of range (length 1)
+|   --> crates/fung-cli/tests/data/test/unretrieved.fung:5:8
+|   |
+| 5 |     [1][5]
+|   |        ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/unretrieved.fung:5 <lambda>
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test crates/fung-cli/tests/data/test/
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: compare shows both sides
+|   error[E0807]: assertion failed: slug("Hello World") == "hello-world"
+|     --> crates/fung-cli/tests/data/test/asserts.fung:3:34
+|     |
+|   3 | test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
+|     |                                  ^
+|     |
+|     slug("Hello World") = "hello world"
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:3 test: compare shows both sides
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: pipeline on the left
+|   error[E0807]: assertion failed: [1, 2] |> len() > 5
+|     --> crates/fung-cli/tests/data/test/asserts.fung:4:30
+|     |
+|   4 | test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
+|     |                              ^
+|     |
+|     [1, 2] |> len() = 2
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:4 test: pipeline on the left
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: plain false
+|   error[E0807]: assertion failed: false
+|     --> crates/fung-cli/tests/data/test/asserts.fung:5:21
+|     |
+|   5 | test "plain false": assert false ;;
+|     |                     ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:5 test: plain false
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: not a bool
+|   error[E0505]: expected bool, got int
+|     --> crates/fung-cli/tests/data/test/asserts.fung:6:20
+|     |
+|   6 | test "not a bool": assert 3 ;;
+|     |                    ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:6 test: not a bool
+| FAIL crates/fung-cli/tests/data/test/asserts.fung: an error
+|   error[E0803]: bad
+|     --> crates/fung-cli/tests/data/test/asserts.fung:9:7
+|     |
+|   9 |   fail("bad")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/asserts.fung:9 test: an error
+| ok   crates/fung-cli/tests/data/test/asserts.fung: return and ?
+| ok   crates/fung-cli/tests/data/test/asserts.fung: unused warning
+| ok   crates/fung-cli/tests/data/test/blocked_top.fung: leaves a blocked top-level task
+| ok   crates/fung-cli/tests/data/test/blocked_top.fung: again
+| ok   crates/fung-cli/tests/data/test/deadlock.fung: before the deadlock
+| FAIL crates/fung-cli/tests/data/test/deadlock.fung: deadlocks
+|   error[E0702]: deadlock: all tasks are waiting
+|     --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|     |
+|   4 |   recv(ch)
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+| ok   crates/fung-cli/tests/data/test/exit_in_task.fung: before the task exit
+| FAIL crates/fung-cli/tests/data/test/exit_in_task.fung: a task exits
+|   error[E0701]: task cancelled
+|     --> crates/fung-cli/tests/data/test/exit_in_task.fung:4:8
+|     |
+|   4 |   await(t)
+|     |        ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/exit_in_task.fung:4 test: a task exits
+| ok   crates/fung-cli/tests/data/test/exit_in_test.fung: before
+| FAIL crates/fung-cli/tests/data/test/exit_in_test.fung: exits
+|   exit(4) called inside a test file; the rest of the file was skipped
+| handler ran
+| ok   crates/fung-cli/tests/data/test/handler_exit.fung: handler exits
+| ok   crates/fung-cli/tests/data/test/handlers.fung: registers handlers
+| first handler
+| second handler
+| FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
+| before
+| FAIL crates/fung-cli/tests/data/test/top_error.fung: <top level>
+|   error[E0507]: index 5 is out of range (length 2)
+|     --> crates/fung-cli/tests/data/test/top_error.fung:2:11
+|     |
+|   2 | x = [1, 2][5]
+|     |           ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/top_error.fung:2 <entry>
+| FAIL crates/fung-cli/tests/data/test/top_exit.fung: <top level>
+|   exit(2) called inside a test file; the rest of the file was skipped
+| ok   crates/fung-cli/tests/data/test/top_task.fung: talks to a top-level task
+| ok   crates/fung-cli/tests/data/test/unretrieved.fung: spawns a failure
+| ok   crates/fung-cli/tests/data/test/unretrieved.fung: fine
+| FAIL crates/fung-cli/tests/data/test/unretrieved.fung: <tasks>
+|   a task failed and nothing awaited it (see standard error)
+| ok   crates/fung-cli/tests/data/test/uses_good.fung: library tests do not run here
+| FAIL crates/fung-cli/tests/data/test/uses_lib.fung: <load>
+| FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
+| top level runs first
+| ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
+| 14 passed, 14 failed
+-- stderr
+| warning[W0102]: unused variable `y`
+|   --> crates/fung-cli/tests/data/test/asserts.fung:17:3
+|    |
+| 17 |   y = 1
+|    |   ^
+|    |
+|  help: prefix it with `_` if it is intentional
+| error[E0702]: deadlock: all tasks are waiting
+| error[E0803]: handler broke
+|   --> crates/fung-cli/tests/data/test/handlers.fung:4:7
+|   |
+| 4 |   fail("handler broke")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
+| error[E0204]: undefined name `nope`
+|   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
+|   |
+| 1 | test "t": assert nope == 1 ;;
+|   |                  ^^^^ not found in this scope
+|   |
+| task failed: error[E0507]: index 5 is out of range (length 1)
+|   --> crates/fung-cli/tests/data/test/unretrieved.fung:5:8
+|   |
+| 5 |     [1][5]
+|   |        ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/unretrieved.fung:5 <lambda>
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test crates/fung-cli/tests/data/test/_lib
+-- stdout
+| FAIL crates/fung-cli/tests/data/test/_lib/broken.fung: <load>
+| ok   crates/fung-cli/tests/data/test/_lib/good.fung: only when it is the entry
+| 1 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test ./crates/fung-cli/tests/data/test/../test/z_clean.fung
+-- stdout
+| top level runs first
+| ok   ./crates/fung-cli/tests/data/test/../test/z_clean.fung: nothing leaked from earlier files
+| 1 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test $REPO/crates/fung-cli/tests/data/test
+-- stdout
+| FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: compare shows both sides
+|   error[E0807]: assertion failed: slug("Hello World") == "hello-world"
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:3:34
+|     |
+|   3 | test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
+|     |                                  ^
+|     |
+|     slug("Hello World") = "hello world"
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/asserts.fung:3 test: compare shows both sides
+| FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: pipeline on the left
+|   error[E0807]: assertion failed: [1, 2] |> len() > 5
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:4:30
+|     |
+|   4 | test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
+|     |                              ^
+|     |
+|     [1, 2] |> len() = 2
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/asserts.fung:4 test: pipeline on the left
+| FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: plain false
+|   error[E0807]: assertion failed: false
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:5:21
+|     |
+|   5 | test "plain false": assert false ;;
+|     |                     ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/asserts.fung:5 test: plain false
+| FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: not a bool
+|   error[E0505]: expected bool, got int
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:6:20
+|     |
+|   6 | test "not a bool": assert 3 ;;
+|     |                    ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/asserts.fung:6 test: not a bool
+| FAIL $REPO/crates/fung-cli/tests/data/test/asserts.fung: an error
+|   error[E0803]: bad
+|     --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:9:7
+|     |
+|   9 |   fail("bad")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/asserts.fung:9 test: an error
+| ok   $REPO/crates/fung-cli/tests/data/test/asserts.fung: return and ?
+| ok   $REPO/crates/fung-cli/tests/data/test/asserts.fung: unused warning
+| ok   $REPO/crates/fung-cli/tests/data/test/blocked_top.fung: leaves a blocked top-level task
+| ok   $REPO/crates/fung-cli/tests/data/test/blocked_top.fung: again
+| ok   $REPO/crates/fung-cli/tests/data/test/deadlock.fung: before the deadlock
+| FAIL $REPO/crates/fung-cli/tests/data/test/deadlock.fung: deadlocks
+|   error[E0702]: deadlock: all tasks are waiting
+|     --> $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|     |
+|   4 |   recv(ch)
+|     |       ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+| ok   $REPO/crates/fung-cli/tests/data/test/exit_in_task.fung: before the task exit
+| FAIL $REPO/crates/fung-cli/tests/data/test/exit_in_task.fung: a task exits
+|   error[E0701]: task cancelled
+|     --> $REPO/crates/fung-cli/tests/data/test/exit_in_task.fung:4:8
+|     |
+|   4 |   await(t)
+|     |        ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/exit_in_task.fung:4 test: a task exits
+| ok   $REPO/crates/fung-cli/tests/data/test/exit_in_test.fung: before
+| FAIL $REPO/crates/fung-cli/tests/data/test/exit_in_test.fung: exits
+|   exit(4) called inside a test file; the rest of the file was skipped
+| handler ran
+| ok   $REPO/crates/fung-cli/tests/data/test/handler_exit.fung: handler exits
+| ok   $REPO/crates/fung-cli/tests/data/test/handlers.fung: registers handlers
+| first handler
+| second handler
+| FAIL $REPO/crates/fung-cli/tests/data/test/own_error.fung: <load>
+| before
+| FAIL $REPO/crates/fung-cli/tests/data/test/top_error.fung: <top level>
+|   error[E0507]: index 5 is out of range (length 2)
+|     --> $REPO/crates/fung-cli/tests/data/test/top_error.fung:2:11
+|     |
+|   2 | x = [1, 2][5]
+|     |           ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/top_error.fung:2 <entry>
+| FAIL $REPO/crates/fung-cli/tests/data/test/top_exit.fung: <top level>
+|   exit(2) called inside a test file; the rest of the file was skipped
+| ok   $REPO/crates/fung-cli/tests/data/test/top_task.fung: talks to a top-level task
+| ok   $REPO/crates/fung-cli/tests/data/test/unretrieved.fung: spawns a failure
+| ok   $REPO/crates/fung-cli/tests/data/test/unretrieved.fung: fine
+| FAIL $REPO/crates/fung-cli/tests/data/test/unretrieved.fung: <tasks>
+|   a task failed and nothing awaited it (see standard error)
+| ok   $REPO/crates/fung-cli/tests/data/test/uses_good.fung: library tests do not run here
+| FAIL $REPO/crates/fung-cli/tests/data/test/uses_lib.fung: <load>
+| FAIL $REPO/crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
+| top level runs first
+| ok   $REPO/crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
+| 14 passed, 14 failed
+-- stderr
+| warning[W0102]: unused variable `y`
+|   --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:17:3
+|    |
+| 17 |   y = 1
+|    |   ^
+|    |
+|  help: prefix it with `_` if it is intentional
+| error[E0702]: deadlock: all tasks are waiting
+| error[E0803]: handler broke
+|   --> $REPO/crates/fung-cli/tests/data/test/handlers.fung:4:7
+|   |
+| 4 |   fail("handler broke")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    $REPO/crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
+| error[E0204]: undefined name `nope`
+|   --> $REPO/crates/fung-cli/tests/data/test/own_error.fung:1:18
+|   |
+| 1 | test "t": assert nope == 1 ;;
+|   |                  ^^^^ not found in this scope
+|   |
+| task failed: error[E0507]: index 5 is out of range (length 1)
+|   --> $REPO/crates/fung-cli/tests/data/test/unretrieved.fung:5:8
+|   |
+| 5 |     [1][5]
+|   |        ^
+|   |
+|  call path (innermost first):
+|    $REPO/crates/fung-cli/tests/data/test/unretrieved.fung:5 <lambda>
+| error[E0204]: undefined name `missing`
+|   --> crates/fung-cli/tests/data/test/_lib/broken.fung:1:10
+|   |
+| 1 | fn f() = missing + 1
+|   |          ^^^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== test a.fung b.fung
+-- stdout
+-- stderr
+| error: test takes at most one path
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== test nope
+-- stdout
+-- stderr
+| error: stat nope: no such file or directory
+-- exit: 3
+==== test nope.fung
+-- stdout
+-- stderr
+| error: stat nope.fung: no such file or directory
+-- exit: 3
+==== test tests/lang/test_blocks_ignored.fung -e
+-- stdout
+-- stderr
+| error: test takes at most one path
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== test --help
+-- stdout
+-- stderr
+| error: stat --help: no such file or directory
+-- exit: 3

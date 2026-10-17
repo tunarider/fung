@@ -1,0 +1,331 @@
+# REPL sessions over a pipe (`fung` with no arguments) (crates/fung-cli/tests/tools_expected.rs).
+# $REPO stands for the repository, $DIR for the test's scratch directory.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
+==== values
+-- stdout
+| > > 2
+| > > 5
+| > [1, "a"]
+| > nil
+| > 
+-- stderr
+-- exit: 0
+==== redefinition and continued lines
+-- stdout
+| > > > > 1
+| > . . > 2
+| > . 3
+| > > > true
+| > 
+-- stderr
+-- exit: 0
+==== errors go on
+-- stdout
+| > > > 2
+| > 
+-- stderr
+| error[E0204]: undefined name `y`
+|   --> <repl>:1:7
+|   |
+| 1 | print(y)
+|   |       ^ not found in this scope
+|   |
+| error[E0502]: division by zero
+|   --> <repl>:1:3
+|   |
+| 1 | 1 / 0
+|   |   ^
+|   |
+|  call path (innermost first):
+|    <repl>:1   <entry>
+-- exit: 0
+==== syntax error not at the end
+-- stdout
+| > > 
+-- stderr
+| error[E0110]: unexpected `)`
+|   --> <repl>:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+-- exit: 0
+==== failed assignment
+-- stdout
+| > > > 
+-- stderr
+| error[E0502]: division by zero
+|   --> <repl>:1:7
+|   |
+| 1 | y = 1 / 0
+|   |       ^
+|   |
+|  call path (innermost first):
+|    <repl>:1   <entry>
+| error[E0808]: `y` has no value: the statement that assigned it failed
+|   --> <repl>:1:1
+|   |
+| 1 | y
+|   | ^
+|   |
+|  call path (innermost first):
+|    <repl>:1   <entry>
+-- exit: 0
+==== unfinished block at the end
+-- stdout
+| > . 
+-- stderr
+-- exit: 0
+==== commands
+-- stdout
+| > commands:
+|   :help            show this text
+|   :quit            leave (Ctrl-D does the same)
+|   :load file.fung  run a file in this session; its definitions stay
+| > > 
+\ no newline
+-- stderr
+| unknown command :bogus
+-- exit: 0
+==== at_exit and exit
+-- stdout
+| > nil
+| > bye
+-- stderr
+-- exit: 4
+==== load
+-- stdout
+| > > 20
+| > 
+-- stderr
+-- exit: 0
+==== load errors
+-- stdout
+| > > > > > > 10
+| > 
+-- stderr
+| :load needs a file path
+| cannot read nope.fung: open nope.fung: no such file or directory
+| error[E0110]: unexpected `)`
+|   --> bad.fung:1:5
+|   |
+| 1 | x = )
+|   |     ^
+|   |
+| cannot read .: read .: is a directory
+-- exit: 0
+==== quit with code
+-- stdout
+| > > 
+\ no newline
+-- stderr
+-- exit: 0
+==== exit codes
+-- stdout
+| > 
+\ no newline
+-- stderr
+-- exit: 44
+==== exit inside a block
+-- stdout
+| > . . > 
+\ no newline
+-- stderr
+-- exit: 2
+==== empty lines
+-- stdout
+| > > > > 1
+| > > 
+-- stderr
+-- exit: 0
+==== no input
+-- stdout
+| > 
+-- stderr
+-- exit: 0
+==== no final newline
+-- stdout
+| > 3
+| > 
+-- stderr
+-- exit: 0
+==== unfinished at the end without newline
+-- stdout
+| > . . 
+-- stderr
+-- exit: 0
+==== crlf
+-- stdout
+| > 2
+| > . [1, 2]
+| > 
+-- stderr
+-- exit: 0
+==== invalid utf-8
+-- stdout
+| > ÿ
+| nil
+| > 
+-- stderr
+-- exit: 0
+==== dbg
+-- stdout
+| > > 6
+| > > 1
+| > 
+-- stderr
+| [<repl>:1] x * 3 = 6
+| dbg = 1
+-- exit: 0
+==== statements print nothing
+-- stdout
+| > > . . > > > > > > 3
+| > 
+-- stderr
+| error[E0807]: assertion failed: z == 4
+|   --> <repl>:1:1
+|   |
+| 1 | assert z == 4
+|   | ^
+|   |
+|   z = 3
+|  call path (innermost first):
+|    <repl>:1   <entry>
+-- exit: 0
+==== multi-line forms
+-- stdout
+| > . . . > "many"
+| > . . . . "yes"
+| > . . . [1, 2]
+| > . "ab"
+| > 
+-- stderr
+-- exit: 0
+==== excerpts come from the current input
+-- stdout
+| > . . > . . > > > 
+-- stderr
+| error[E0502]: division by zero
+|   --> <repl>:2:5
+|   |
+| 2 |   f(1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    <repl>:2   f
+|    <repl>:2   <entry>
+| error[E0502]: division by zero
+|   --> <repl>:2:5
+|  call path (innermost first):
+|    <repl>:2   f
+|    <repl>:1   <entry>
+| error[E0501]: cannot add str and int
+|   --> <repl>:1:11
+|   |
+| 1 | print("a" + 1)
+|   |           ^
+|   |
+|  call path (innermost first):
+|    <repl>:1   <entry>
+-- exit: 0
+==== an imported module's error
+-- stdout
+| > > > 1
+| > > 
+-- stderr
+| error[E0502]: division by zero
+|   --> m.fung:1:16
+|  call path (innermost first):
+|    m.fung:1   boom
+|    <repl>:1   <entry>
+| error[E0502]: division by zero
+|   --> m.fung:1:16
+|  call path (innermost first):
+|    m.fung:1   boom
+|    <repl>:1   <entry>
+-- exit: 0
+==== redefining modules and names
+-- stdout
+| > > > 1
+| > > true
+| > > 2
+| > 
+-- stderr
+-- exit: 0
+==== a task waits for a later input
+-- stdout
+| > > > Ok(nil)
+| > Ok(5)
+| > 
+-- stderr
+-- exit: 0
+==== a failure nobody awaited
+-- stdout
+| > > . . . > Ok(1)
+| > 2
+| > 
+-- stderr
+| task failed: error[E0507]: index 5 is out of range (length 1)
+|   --> <repl>:3:6
+|  call path (innermost first):
+|    <repl>:3   <lambda>
+-- exit: 0
+==== handler errors and order
+-- stdout
+| > nil
+| > nil
+| > nil
+| > 
+| bye
+-- stderr
+| error[E0502]: division by zero
+|   --> <repl>:1:17
+|  call path (innermost first):
+|    <repl>:1   <lambda>
+-- exit: 7
+==== quit cancels a sleeping task
+-- stdout
+| > > 
+\ no newline
+-- stderr
+-- exit: 0
+==== the end of input cancels a sleeping task
+-- stdout
+| > > 
+-- stderr
+-- exit: 0
+==== help text
+-- stdout
+| > commands:
+|   :help            show this text
+|   :quit            leave (Ctrl-D does the same)
+|   :load file.fung  run a file in this session; its definitions stay
+| > 
+-- stderr
+-- exit: 0
+==== colon inside code
+-- stdout
+| > > 1
+| > 
+-- stderr
+-- exit: 0
+==== a value of a call
+-- stdout
+| > 1
+| nil
+| > 2
+| > (1, 2)
+| > 'sym
+| > 1.5
+| > "s"
+| > 
+-- stderr
+-- exit: 0
+==== invalid bytes
+-- stdout
+| > ��
+| nil
+| > "��"
+| > 
+-- stderr
+-- exit: 0
