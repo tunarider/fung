@@ -1,6 +1,6 @@
-//! Ports of Go `internal/vm/m6_test.go` (except the REPL's
-//! TestReplGlobalsSurviveGrowth): assert, test blocks, dbg and parameter
-//! patterns.
+//! Ports of Go `internal/vm/m6_test.go`: assert, test blocks, dbg and
+//! parameter patterns (the REPL's TestReplGlobalsSurviveGrowth is in
+//! `repl_tests.rs`).
 
 use super::m4_tests::{check_code, check_out};
 use crate::testutil::{Opts, Setup, exec, on_big_stack, run, setup};

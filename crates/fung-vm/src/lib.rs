@@ -10,6 +10,8 @@ pub mod conc;
 pub mod native;
 pub mod prelude;
 pub mod sigpipe;
+#[cfg(unix)]
+pub mod term;
 pub mod value;
 pub mod vm;
 

@@ -73,6 +73,18 @@ impl Resolver<'_> {
             return None;
         }
         if let Some(b) = self.root_scope().names.get(name).copied() {
+            if self.opts.redefine && (b.module || !b.constant) {
+                // REPL: the import takes the name's storage over (08).
+                let b = Binding {
+                    constant: true,
+                    module: true,
+                    ..b
+                };
+                self.root_scope().names.insert(name.to_string(), b);
+                self.module_names.insert(name.to_string(), info.clone());
+                self.import_bound.insert(name.to_string());
+                return Some(b);
+            }
             let e = if b.module {
                 name_error("E0309", pos, name)
             } else {

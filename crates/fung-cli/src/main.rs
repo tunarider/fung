@@ -1,10 +1,11 @@
 //! The `fung` command of the Rust port: `fung dump`, `run`,
-//! `<script.fung>`, `-e`, `check`, `test`, `fmt`, `version` and `help` so
-//! far. It mirrors `cmd/fung` of the Go implementation byte for byte.
+//! `<script.fung>`, `-e`, `check`, `test`, `fmt`, `version`, `help` and
+//! the REPL. It mirrors `cmd/fung` of the Go implementation byte for byte.
 
 mod check;
 mod fmt;
 mod paths;
+mod repl;
 mod run;
 mod test;
 mod version;
@@ -111,11 +112,7 @@ fn run(raw: &[Vec<u8>]) -> Out {
             code: EXIT_USAGE,
             ..Out::default()
         },
-        None => Out {
-            stderr: b"not implemented yet in the Rust port: the REPL\n".to_vec(),
-            code: EXIT_USAGE,
-            ..Out::default()
-        },
+        None => repl::start(),
     }
 }
 

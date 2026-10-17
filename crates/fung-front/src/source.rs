@@ -5,7 +5,7 @@
 pub struct FileId(pub u32);
 
 /// Owns the names and texts of every source file seen by a run.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct SourceMap {
     files: Vec<(String, String)>,
 }

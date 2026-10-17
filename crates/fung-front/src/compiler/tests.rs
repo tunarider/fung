@@ -421,7 +421,7 @@ fn compile_with_imports(src: &str) -> String {
     );
     let ropts = ROpts {
         imports,
-        library: false,
+        ..ROpts::default()
     };
     let r = resolved(src, &["print"], &ropts);
     ops(&compile(&r, &set(&["print"]), &opts("", false)).unwrap())

@@ -5,7 +5,8 @@
 //! files Go's commands visit, `fung test` on its fixtures and the
 //! repository, and `fung fmt` (output, `--check`, in place, standard
 //! input, arguments) on the repository and thousands of messed-up
-//! variants of it.
+//! variants of it, and the REPL on piped sessions (the terminal editor
+//! is compared in `repl_tty.rs`).
 //!
 //! What is compared, and what is not:
 //! - `check` on every `.fung` file of `tests/lang` (with `_lib`),
@@ -1475,4 +1476,180 @@ fn fmt_arguments_match_go() {
     };
     assert_eq!(mode(&gdir), mode(&rdir));
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+// ---- the REPL (stage 5 task 4) ----
+
+/// Runs the REPL (`fung` without arguments) in `dir` with `stdin` piped
+/// in and `HOME` pointing at `dir`, so no real history file is touched.
+fn repl_in(bin: &Path, dir: &Path, stdin: &[u8]) -> common::Run {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(bin)
+        .current_dir(dir)
+        .env("HOME", dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut pipe = child.stdin.take().unwrap();
+    let data = stdin.to_vec();
+    let writer = std::thread::spawn(move || {
+        let _ = pipe.write_all(&data);
+    });
+    let o = child.wait_with_output().unwrap();
+    writer.join().unwrap();
+    (o.stdout, o.stderr, format!("{:?}", o.status))
+}
+
+/// A scratch directory for REPL runs, with a library to `:load`.
+fn repl_dir(tag: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("fung-repl-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("lib.fung"), "fn twice(x) = x * 2\nk = 10\n").unwrap();
+    std::fs::write(dir.join("bad.fung"), "x = )\n").unwrap();
+    std::fs::write(dir.join("m.fung"), "fn boom(x) = x / 0\n").unwrap();
+    dir
+}
+
+/// Go `repl_test.go` and more, as whole sessions over a pipe: values,
+/// definitions, redefinition, continued lines, errors and going on,
+/// commands, `exit`, empty input, the end of input, `dbg`, tasks and
+/// handlers. Compared byte for byte (both streams and the status).
+/// Left out because Go's result depends on timing: a statement after a
+/// deadlock or after a spawned task's `exit` (Go's cancellation flag is
+/// set by a goroutine, so the next call may or may not see it).
+#[test]
+fn repl_matches_go_on_piped_sessions() {
+    let Some(b) = both("repl") else { return };
+    let cases: &[(&str, &str)] = &[
+        // repl_test.go
+        (
+            "values",
+            "x = 1\nx + 1\nfn f(n) = n * x\nf(5)\n[1, \"a\"]\nnil\n",
+        ),
+        (
+            "redefinition and continued lines",
+            "fn g() = 1\nfn f() = g()\nfn g() = 2\nf()\nfn h(a):\n  a + 1\n;;\nh(1)\n1 +\n2\nimport fs\nimport fs\nfs.exists(\"/\")\n",
+        ),
+        ("errors go on", "print(y)\n1 / 0\n1 + 1\n"),
+        ("syntax error not at the end", "x = )\n"),
+        ("failed assignment", "y = 1 / 0\ny\n"),
+        ("unfinished block at the end", "fn f():\n"),
+        ("commands", ":help\n:bogus\n:quit\nprint(1)\n"),
+        (
+            "at_exit and exit",
+            "at_exit(() => print(\"bye\"))\nexit(4)\n",
+        ),
+        ("load", ":load lib.fung\ntwice(k)\n"),
+        // more
+        (
+            "load errors",
+            ":load\n:load nope.fung\n:load bad.fung\n:load .\n  :load   lib.fung  \nk\n",
+        ),
+        ("quit with code", "x = 1\n:quit now\nx\n"),
+        ("exit codes", "exit(300)\n"),
+        (
+            "exit inside a block",
+            "fn f():\n  exit(2)\n;;\nf()\nprint(1)\n",
+        ),
+        ("empty lines", "\n\n   \n1\n\n"),
+        ("no input", ""),
+        ("no final newline", "1 + 2"),
+        ("unfinished at the end without newline", "if true:\n  1"),
+        ("crlf", "1 + 1\r\n[1,\r\n2]\r\n"),
+        ("invalid utf-8", "print(\"\u{ff}\")\n"),
+        ("dbg", "x = 2\ndbg(x * 3)\nd = dbg\nd(1)\n"),
+        (
+            "statements print nothing",
+            "type t = int\ntest \"t\":\n  1\n;;\nassert 1 == 1\nimport fs as f\nfn q() = 1\nz = 3\nassert z == 4\nz\n",
+        ),
+        (
+            "multi-line forms",
+            "x = match 2:\n  1 => \"one\"\n  _ => \"many\"\n;;\nx\nif x == \"many\":\n  \"yes\"\nelse:\n  \"no\"\n;;\n[\n  1,\n  2,\n]\n\"a\" +\n  \"b\"\n",
+        ),
+        (
+            "excerpts come from the current input (Go)",
+            "fn f(x):\n  x / 0\n;;\nif true:\n  f(1)\n;;\nf(2)\nprint(\"a\" + 1)\n",
+        ),
+        (
+            "an imported module's error",
+            "import \"./m\"\nm.boom(1)\n1\nm.boom(2)\n",
+        ),
+        (
+            "redefining modules and names",
+            "import fs\nfs = 1\nfs\nimport fs\nfs.exists(\"/\")\nfn fs() = 2\nfs()\n",
+        ),
+        (
+            "a task waits for a later input",
+            "c = channel()\nt = spawn(() => recv(c))\nsend(c, 5)\nawait(t)\n",
+        ),
+        ("a deadlock inside an input", "recv(channel())\n"),
+        ("a failure nobody awaited", "t = spawn(() => 1 / 0)\n2\n"),
+        (
+            "handler errors and order",
+            "at_exit(() => 1 / 0)\nat_exit(() => print(\"bye\"))\nat_exit(() => exit(7))\n",
+        ),
+        (
+            "quit cancels a sleeping task",
+            "t = spawn(() => sleep(10s))\n:quit\n",
+        ),
+        (
+            "the end of input cancels a sleeping task",
+            "t = spawn(() => sleep(10s))\n",
+        ),
+        ("help text", ":help extra\n"),
+        ("colon inside code", "x = {a: 1}\nx.a\n"),
+        (
+            "a value of a call",
+            "print(1)\nlen([1, 2])\n(1, 2)\n'sym\n1.5\n\"s\"\n",
+        ),
+    ];
+    let dir = repl_dir("go");
+    let mut bad = Vec::new();
+    for (label, input) in cases {
+        let go = repl_in(&b.go, &dir, input.as_bytes());
+        let rust = repl_in(&b.rust, &dir, input.as_bytes());
+        if let Some(d) = diff(&go, &rust) {
+            bad.push(format!("{label}: {d}"));
+        }
+    }
+    // Raw bytes that are not UTF-8.
+    let go = repl_in(&b.go, &dir, b"print(\"\xff\xfe\")\n\"\xe2\x82\"\n");
+    let rust = repl_in(&b.rust, &dir, b"print(\"\xff\xfe\")\n\"\xe2\x82\"\n");
+    if let Some(d) = diff(&go, &rust) {
+        bad.push(format!("invalid bytes: {d}"));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        bad.is_empty(),
+        "{} cases differ:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// Rust only (agents are Rust's, stage 3b): an agent an input stores
+/// stays usable in later inputs, a temporary one does not outlive its
+/// input's values, and every background task ends with the session, so
+/// the REPL exits at once.
+#[test]
+fn repl_agents_end_with_the_session() {
+    let dir = repl_dir("agents");
+    let start = std::time::Instant::now();
+    let (out, err, status) = repl_in(
+        &rust_fung(),
+        &dir,
+        b"a = agent(1)\nswap(a, (n) => n + 1)\nderef(a)\nderef(agent(5))\nswap(a, (n) => n * 10)\nat_exit(() => print(deref(a)))\n",
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+    assert_eq!(String::from_utf8_lossy(&err), "");
+    assert_eq!(
+        String::from_utf8_lossy(&out),
+        "> > 2\n> 2\n> 5\n> 20\n> nil\n> \n20\n"
+    );
+    assert_eq!(status, "ExitStatus(unix_wait_status(0))");
 }

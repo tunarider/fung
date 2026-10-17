@@ -49,9 +49,9 @@ pub(crate) struct World {
     /// Read by a thread of its own (`stdin.rs`).
     pub(super) stdin: Stdin,
     pub(super) sources: SourceMap,
-    /// The first file `add_sources` added: the boot's embedded extras
-    /// files are this one and every one after it.
-    embedded_from: Option<u32>,
+    /// The files `add_sources` added (the boot's embedded extras files),
+    /// as a range of ids: the REPL adds its inputs' files after them.
+    embedded: Option<std::ops::Range<u32>>,
     pub(super) exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
     pub(super) exit: Option<i64>,
@@ -92,6 +92,10 @@ pub(crate) struct World {
     /// A driven task has taken the held count over and has not dropped
     /// yet. There is at most one: `Task::driven` asserts it.
     pub(super) hold_taken: bool,
+    /// The REPL's entry globals (`Runtime::prepare_repl`): one table every
+    /// input runs on, so the values and the closures of earlier inputs
+    /// see later definitions (08).
+    pub(super) repl: Option<Globals>,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
     /// The cancellation node of the exit handler running now: a deadlock
@@ -133,7 +137,8 @@ impl World {
             stderr: Stream::new(stderr),
             stdin: Stdin::new(stdin),
             sources,
-            embedded_from: None,
+            embedded: None,
+            repl: None,
             exit_handlers: Vec::new(),
             exit: None,
             args: Vec::new(),
@@ -159,18 +164,20 @@ impl World {
     /// (`is_embedded`).
     pub(crate) fn add_sources(&mut self, other: &SourceMap) -> u32 {
         let base = self.sources.len() as u32;
-        self.embedded_from.get_or_insert(base);
         for i in 0..other.len() as u32 {
             let id = FileId(i);
             self.sources.add(other.name(id), other.text(id));
         }
+        let end = self.sources.len() as u32;
+        let r = self.embedded.get_or_insert(base..end);
+        r.end = end;
         base
     }
 
     /// Whether a file is one of the embedded extras files the boot added
     /// (`agent.rs`: a position there is never shown for E0704).
     pub(super) fn is_embedded(&self, id: FileId) -> bool {
-        self.embedded_from.is_some_and(|from| id.0 >= from)
+        self.embedded.as_ref().is_some_and(|r| r.contains(&id.0))
     }
 
     /// A file's name for call paths ("" for a file this runtime does not

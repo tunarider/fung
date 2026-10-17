@@ -1,5 +1,5 @@
-//! Ports of internal/resolve/{resolve,fn,m4,m5,m6}_test.go (REPL options
-//! excluded) plus checks against real Go output.
+//! Ports of internal/resolve/{resolve,fn,m4,m5,m6}_test.go plus checks
+//! against real Go output.
 
 use std::collections::BTreeMap;
 
@@ -550,7 +550,11 @@ fn m5_opts(library: bool) -> Options {
             exports: names(&["a", "b"]),
         },
     );
-    Options { imports, library }
+    Options {
+        imports,
+        library,
+        ..Options::default()
+    }
 }
 
 fn resolve_m5(src: &str, lib: bool) -> (Option<Resolved>, Vec<String>) {
@@ -684,7 +688,7 @@ fn warnings() {
     );
     let opts = Options {
         imports,
-        library: false,
+        ..Options::default()
     };
     let cases: &[(&str, &[&str])] = &[
         ("import fs", &["W0101:fs"]),
@@ -767,4 +771,88 @@ fn warnings_carry_positions_and_spans() {
     assert_eq!((w[0].pos.line, w[0].pos.col, w[0].len), (2, 3, 3));
     assert_eq!(w[0].code, "W0103");
     assert_eq!(w[1].code, "W0102");
+}
+
+fn repl(globals: &[&str], redefine: bool) -> Options {
+    Options {
+        globals: names(globals),
+        redefine,
+        ..Options::default()
+    }
+}
+
+/// Go `TestReplOptions` (m6_test.go): the REPL's earlier globals keep
+/// their indexes, and with `redefine` a known fn may be defined again.
+#[test]
+fn repl_options() {
+    let (r, errs) = resolve_with(
+        "fn g() = 2\nprint(x, g())",
+        &["print"],
+        &repl(&["x", "g"], true),
+    );
+    assert!(errs.is_empty(), "{errs:?}");
+    let r = r.unwrap();
+    assert_eq!(
+        r.globals,
+        names(&["x", "g"]),
+        "existing names keep their indexes"
+    );
+    assert_eq!(
+        r.core.to_string(),
+        "(do (let (global 1) (fn g() (do 2))) (call (prelude print) (global 0) (call (global 1))))"
+    );
+    let (_, errs) = resolve_with("fn g() = 2", &["print"], &repl(&["g"], false));
+    assert_eq!(
+        codes(&errs),
+        ["E0210"],
+        "without redefine a known fn is a duplicate"
+    );
+    let (r, errs) = resolve_with("y = 1", &["print"], &repl(&["x"], false));
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(r.unwrap().globals, names(&["x", "y"]), "new globals append");
+    let (r, errs) = resolve_with("x = 5", &["print"], &repl(&["x"], true));
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(r.unwrap().globals.len(), 1, "reassigning a known global");
+}
+
+/// Redefinition inside one input (Go `bindNew`, `bindModule` and the fn
+/// path of `rootBlock` with `Redefine`): a plain assignment replaces a fn
+/// or a module, an import replaces a module, a fn replaces a fn. Without
+/// `redefine` each is an error.
+#[test]
+fn repl_redefinition_in_one_input() {
+    let info = ModuleInfo {
+        key: "fs".into(),
+        name: "fs".into(),
+        exports: names(&["exists"]),
+    };
+    let mut imports = BTreeMap::new();
+    imports.insert("fs".to_string(), info);
+    let with = |redefine| Options {
+        imports: imports.clone(),
+        redefine,
+        ..Options::default()
+    };
+    for (src, plain) in [
+        ("fn f() = 1\nf = 2\nf", "E0209"),
+        ("import fs\nfs = 1\nfs", "E0308"),
+        ("import fs\nimport fs\nfs.exists", "E0309"),
+        ("fn f() = 1\nfn f() = 2\nf()", "E0210"),
+    ] {
+        let (_, errs) = resolve_with(src, &["print"], &with(true));
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+        let (_, errs) = resolve_with(src, &["print"], &with(false));
+        assert_eq!(first_code(&errs), plain, "{src:?}");
+    }
+    // A name a plain assignment took back from a module is a plain name.
+    let (_, errs) = resolve_with("import fs\nfs = 1\ny = fs", &["print"], &with(true));
+    assert!(errs.is_empty(), "{errs:?}");
+    // Earlier globals are plain names: an import may take one over.
+    let opts = Options {
+        globals: names(&["fs"]),
+        ..with(true)
+    };
+    let (r, errs) = resolve_with("import fs\nfs.exists", &["print"], &opts);
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(r.unwrap().globals, names(&["fs"]));
 }

@@ -68,6 +68,12 @@ pub struct Loader {
     /// Names added to the prelude, like a Go test passing its own prelude
     /// table (VM tests use it for natives that exist only in tests).
     pub extra_prelude: Vec<String>,
+    /// REPL (08): the globals earlier inputs defined, for the entry file
+    /// only (Go `Loader.Resolve.Globals`).
+    pub globals: Vec<String>,
+    /// REPL: the entry file may define fns and imports again (Go
+    /// `Loader.Resolve.Redefine`).
+    pub redefine: bool,
 }
 
 impl Default for Loader {
@@ -77,6 +83,8 @@ impl Default for Loader {
             tests: false,
             internal: false,
             extra_prelude: Vec::new(),
+            globals: Vec::new(),
+            redefine: false,
         }
     }
 }
@@ -102,6 +110,20 @@ impl Loader {
     /// a stage. Syntax errors stop at the first; name errors are all
     /// collected (08).
     pub fn compile(&self, file: &str, src: &str, up_to: Stage) -> (Build, Vec<Diag>) {
+        self.compile_after(SourceMap::new(), file, src, up_to)
+    }
+
+    /// `compile` with the files of `prior` first: the new files' ids come
+    /// after them, and `Build::sources` holds both. The REPL compiles each
+    /// input this way, so the positions of every input and module name
+    /// one file of the session's runtime (08).
+    pub fn compile_after(
+        &self,
+        prior: SourceMap,
+        file: &str,
+        src: &str,
+        up_to: Stage,
+    ) -> (Build, Vec<Diag>) {
         let mut prelude: Vec<String> = builtins().prelude_names();
         prelude.extend(self.extra_prelude.iter().cloned());
         prelude.sort();
@@ -118,7 +140,7 @@ impl Loader {
             loading: HashSet::new(),
             stack: vec![(key.clone(), file.to_string())],
             modules: Vec::new(),
-            sources: SourceMap::new(),
+            sources: prior,
             prelude_set: prelude.iter().cloned().collect(),
             prelude,
             warnings: Vec::new(),
@@ -177,7 +199,15 @@ impl State<'_> {
             Ok(c) => c,
             Err(e) => return (b, vec![e]),
         };
-        let ropts = resolve::Options { imports, library };
+        let mut ropts = resolve::Options {
+            imports,
+            library,
+            ..resolve::Options::default()
+        };
+        if key == self.entry_key {
+            ropts.globals.clone_from(&self.l.globals);
+            ropts.redefine = self.l.redefine;
+        }
         let mut res = match resolve::resolve(&core, &self.prelude, &ropts) {
             Ok(r) => r,
             Err(errs) => return (b, errs),
@@ -539,6 +569,44 @@ mod tests {
         assert!((0..8).map(FileId).any(|id| {
             std::panic::catch_unwind(|| b.sources.text(id) == text).unwrap_or(false)
         }));
+    }
+
+    /// The REPL (08) compiles each input after the files the runtime
+    /// already has, so every position names one file of the session; the
+    /// REPL options reach the entry file only (Go `load.go`).
+    #[test]
+    fn compile_after_continues_the_file_ids_and_repl_options_reach_the_entry_only() {
+        let mut prior = SourceMap::new();
+        prior.add("a", "x");
+        prior.add("b", "y");
+        set_files(&[("/p/lib.fung", "fn g() = 1\nk = g()")]);
+        let l = Loader {
+            globals: vec!["g".into()],
+            redefine: true,
+            ..mem_loader()
+        };
+        let (b, errs) = l.compile_after(
+            prior,
+            "/p/main.fung",
+            "import \"./lib\"\nfn g() = 2",
+            Stage::All,
+        );
+        assert!(errs.is_empty(), "{errs:?}");
+        assert_eq!(b.sources.len(), 4);
+        assert_eq!(
+            (b.sources.name(FileId(0)), b.sources.text(FileId(1))),
+            ("a", "y")
+        );
+        assert_eq!(b.sources.name(FileId(2)), "/p/main.fung");
+        assert_eq!(b.sources.name(FileId(3)), "/p/lib.fung");
+        let p = b.proto.unwrap();
+        assert_eq!(p.global_names, ["g", "lib"]);
+        assert!(p.pos.iter().all(|pos| pos.file == FileId(2)));
+        // The library defines its own `g`: not the entry's globals.
+        let lib = b.modules[0].proto.as_ref().unwrap();
+        assert_eq!(lib.global_names, ["g", "k"]);
+        let (_, errs) = l.compile_after(SourceMap::new(), "/p/main.fung", "x = )", Stage::All);
+        assert_eq!(errs[0].pos.file, FileId(0));
     }
 
     // frontend_test.go

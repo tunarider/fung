@@ -36,6 +36,8 @@ mod matcher;
 mod module;
 #[cfg(test)]
 mod module_tests;
+#[cfg(test)]
+mod repl_tests;
 mod runtime;
 mod stdin;
 mod task;
@@ -633,9 +635,15 @@ impl<'rt> Task<'rt> {
                     match v {
                         Some(v) => self.push(v),
                         None => {
+                            let name = &self.frames[fi].proto.global_names[arg];
+                            if self.world.repl.is_some() {
+                                // A REPL input declared the name, then
+                                // failed before storing it (08).
+                                let d = error("E0808", pos, vec![Arg::Str(name.clone())]);
+                                return Err(Stop::Error(Box::new(d.span(name.chars().count()))));
+                            }
                             // Unreachable since model C: resolve binds
                             // top-down and functions copy variables.
-                            let name = &self.frames[fi].proto.global_names[arg];
                             return Err(err(
                                 "E0801",
                                 pos,

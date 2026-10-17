@@ -41,6 +41,11 @@ pub struct Options {
     pub imports: BTreeMap<String, ModuleInfo>,
     /// An imported file: top-level restrictions (04).
     pub library: bool,
+    /// REPL: the globals earlier inputs defined, in index order. They
+    /// keep their indexes and count as read (Go `Options.Globals`).
+    pub globals: Vec<String>,
+    /// REPL: fns and imports may be defined again (Go `Options.Redefine`).
+    pub redefine: bool,
 }
 
 /// The resolved tree plus what the compiler needs to lay out storage.
@@ -206,6 +211,18 @@ impl Resolver<'_> {
     /// those statements may only be assignments (04, E0306).
     fn root_block(&mut self, n: &Node) -> Node {
         self.push_block(n, true);
+        // REPL: the globals of earlier inputs keep their indexes (08).
+        for (i, g) in self.opts.globals.iter().enumerate() {
+            let b = Binding {
+                global: true,
+                index: i,
+                ..Binding::default()
+            };
+            let sc = self.root_scope();
+            sc.names.insert(g.clone(), b);
+            sc.used.insert(g.clone());
+            self.globals.push(g.clone());
+        }
         self.declare_aliases(n);
         let mut kids = Vec::new();
         let mut fns: Vec<&Node> = Vec::new();
@@ -224,6 +241,16 @@ impl Resolver<'_> {
                 continue;
             };
             if let Some(b) = self.root_scope().names.get(name).copied() {
+                if self.opts.redefine && !b.module {
+                    // REPL: the fn takes the name's storage over (08).
+                    let b = Binding {
+                        constant: true,
+                        ..b
+                    };
+                    self.root_scope().names.insert(name.to_string(), b);
+                    fns.push(k);
+                    continue;
+                }
                 let e = if b.module {
                     module::shadow_error(name, k.pos)
                 } else {
@@ -409,13 +436,24 @@ impl Resolver<'_> {
     /// assignment is an error.
     fn bind_new(&mut self, name: &str, pos: Pos) -> Option<Binding> {
         if let Some(b) = self.cur_block().names.get(name).copied() {
-            if b.module {
+            if b.module && !self.opts.redefine {
                 self.errs.push(module::shadow_error(name, pos));
                 return None;
             }
-            if b.constant {
+            if b.constant && !self.opts.redefine {
                 self.errs.push(name_error("E0209", pos, name));
                 return None;
+            }
+            if b.constant || b.module {
+                // REPL: a plain variable replaces the fn or module (08).
+                let b = Binding {
+                    global: b.global,
+                    index: b.index,
+                    ..Binding::default()
+                };
+                self.cur_block().names.insert(name.to_string(), b);
+                self.module_names.remove(name);
+                return Some(b);
             }
             return Some(b);
         }

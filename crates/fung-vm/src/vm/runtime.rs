@@ -24,7 +24,7 @@ use std::sync::Arc;
 use fung_front::bytecode::Proto;
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::loader::Loaded;
-use fung_front::source::SourceMap;
+use fung_front::source::{FileId, SourceMap};
 
 use super::task::CancelNode;
 use super::world::{Shared, Token, World};
@@ -33,6 +33,10 @@ use crate::value::Value;
 
 /// Bounds a handler that keeps registering handlers.
 const MAX_EXIT_HANDLERS: usize = 10_000;
+
+/// Bounds the entry globals of a REPL session (Go `maxReplGlobals`: Go
+/// allocates its table once at this capacity).
+const MAX_REPL_GLOBALS: usize = 65_536;
 
 pub struct Runtime {
     shared: Arc<Shared>,
@@ -235,6 +239,61 @@ impl Runtime {
         }
         let v = r?;
         Ok(f(&v))
+    }
+
+    /// Makes the runtime a REPL session's (08, Go `PrepareREPL`): every
+    /// entry it runs (`run_repl`) uses one global table, so what an input
+    /// defines stays for the next, and reading a global whose assignment
+    /// failed is E0808 instead of an internal error.
+    pub fn prepare_repl(&self) {
+        let mut w = self.lock();
+        let g = w.new_globals(0);
+        w.repl = Some(g);
+    }
+
+    /// Appends the names of `sources`' files from `from` on, without
+    /// their texts: the REPL compiles each input after the files the
+    /// runtime has (`Loader::compile_after`), so the ids agree. Go's REPL
+    /// runtime keeps no sources, so a task failure report shows no
+    /// excerpt; the REPL excerpts an input's own errors itself.
+    pub fn add_names(&self, sources: &SourceMap, from: usize) {
+        let mut w = self.lock();
+        debug_assert_eq!(w.sources.len(), from, "the ids would not agree");
+        for i in from..sources.len() {
+            w.sources.add(sources.name(FileId(i as u32)), "");
+        }
+    }
+
+    /// Runs the loaded entry as a REPL input (`prepare_repl` first) and
+    /// returns its value as the REPL prints it. An error does not cancel
+    /// the program: the session goes on.
+    pub fn run_repl(&self) -> Result<String, Stop> {
+        let mut t = self.task();
+        let Some(main) = t.world.main.clone() else {
+            return Err(internal(vec![Arg::Str("run before load".into())]));
+        };
+        let Some(globals) = t.world.repl.clone() else {
+            return Err(internal(vec![Arg::Str(
+                "run_repl before prepare_repl".into(),
+            )]));
+        };
+        let n = main.global_names.len();
+        if n > globals.borrow().len() {
+            if n > MAX_REPL_GLOBALS {
+                // Go's table has a fixed capacity (Go-parity scaffolding).
+                return Err(Stop::Error(Box::new(error(
+                    "E0806",
+                    no_pos(),
+                    vec![
+                        Arg::Str("globals".into()),
+                        Arg::Int(MAX_REPL_GLOBALS as i64),
+                    ],
+                ))));
+            }
+            globals.borrow_mut().resize(n, None);
+        }
+        let r = t.run_main(main, globals);
+        r.map(|v| crate::value::format(&v))
     }
 
     /// Reports every task failure nobody retrieved, in the order the

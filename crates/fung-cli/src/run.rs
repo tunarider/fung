@@ -148,7 +148,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
 /// would read 8 KiB at a time): the runtime reads it one `STDIN_BUFFER`
 /// at a time, as Go's `bufio.Reader` over `os.Stdin` does, so what fung
 /// leaves unread stays for the next reader of the same input.
-fn raw_stdin() -> Box<dyn std::io::Read + Send> {
+pub(crate) fn raw_stdin() -> Box<dyn std::io::Read + Send> {
     use std::os::fd::AsFd;
     match std::io::stdin().as_fd().try_clone_to_owned() {
         Ok(fd) => Box::new(std::fs::File::from(fd)),

@@ -215,6 +215,7 @@ fn setup_with(
         tests: opts.tests,
         read_file: opts.read,
         internal: opts.internal,
+        ..Loader::default()
     };
     let (b, errs) = loader.compile(opts.file, src, Stage::All);
     if !errs.is_empty() {
