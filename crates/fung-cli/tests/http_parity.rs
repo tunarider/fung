@@ -233,7 +233,11 @@ fn hangul_chunks() -> Vec<u8> {
 }
 
 fn cases() -> Vec<Case> {
-    let simple = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+    // `Connection: close` (dropped from the headers both print): a
+    // `Bytes` reply ends the connection after answering, and Go, making
+    // several requests, could send the next one on that connection while
+    // it is closing and get EOF (a POST is not retried)
+    let simple = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nok";
     vec![
         // status, headers (lower case, sorted, repeated names joined), body
         case(
@@ -932,7 +936,8 @@ fn many_folded_lines_stay_linear() {
 // ---- Task 4: redirects and proxies ------------------------------------
 
 /// A redirect (`Connection: close`: one request per connection, so Go
-/// never reuses one the fake server is closing).
+/// never reuses one the fake server is closing; every framed `Bytes`
+/// reply a program asks for more than once says it too).
 fn redirect(code: u16, loc: &str) -> Reply {
     ok(&format!(
         "HTTP/1.1 {code} Moved\r\nLocation: {loc}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
@@ -1393,10 +1398,11 @@ fn redirects_match_go() {
 
 /// A proxy that names itself in its answer: a 403 whose reason and body
 /// are `name` (a request through it is `Ok` with that body, a CONNECT
-/// through it fails with that reason).
+/// through it fails with that reason). `Connection: close`, as for
+/// `redirect`: Go makes several requests through one proxy.
 fn proxy_named(name: &str) -> Reply {
     ok(&format!(
-        "HTTP/1.1 403 {name}\r\nContent-Length: {}\r\n\r\n{name}",
+        "HTTP/1.1 403 {name}\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{name}",
         name.len()
     ))
 }
