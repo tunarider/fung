@@ -225,6 +225,10 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
     먼저 Go 포매터를 고쳤다(아래 "Go 포매터 결함" 두 항목). Go 대조 `crates/fung-cli/tests/tools_parity.rs` 20개(저장소 `.fung` 전부 × 흐트러뜨린 변형 21가지의 `fmt`, `check`·`test` 고정 파일과 저장소,
     파이프 REPL 세션 33개 + 잘못된 바이트 하나, 경로 순회), 가짜 터미널 `repl_tty.rs` 4개(편집기 화면 바이트·기록 파일을 Go와 비교), Rust `fung fmt --check`로 저장소를 검사하는 `fmt_repo.rs`.
     일부러 갈라진 것과 남은 차이는 아래 "5단계" 항목. 스펙 `docs/superpowers/specs/2026-10-17-rust-tools-5-design.md`, 계획 `docs/plans/2026-10-17-rust-tools-5.md`, 노트 `docs/notes/R5-tools.md`.
+  - 6a단계(릴리스 전환 준비, Go는 정답지로 남김) 완료 (2026-10-17, 커밋 `8088d72..`와 문서): `fan_in`·`pmap`·`retry`를 Rust에서 `conc` 모듈로,
+    예제·매뉴얼을 Rust(0.2.0) 기준으로(매뉴얼 함수 참조를 Rust의 매개변수 표와 비교하는 `crates/fung-cli/tests/manual.rs`, 매뉴얼 예제는 Rust 혼자 `check`·`fmt --check`·실행),
+    Rust 릴리스 파이프라인(Linux musl 정적, 플랫폼별 러너, 게시 없는 시험 실행, 태그 푸시에서만 빌드 증명, 아키텍처 검사), CHANGELOG `[Unreleased]`, Go·Rust 벤치마크(`bench/README.md`).
+    결정과 6b 할 일은 아래 "6a단계" 항목. 스펙 `docs/superpowers/specs/2026-10-17-rust-release-prep-6a-design.md`, 계획 `docs/plans/2026-10-17-rust-release-prep-6a.md`, 노트 `docs/notes/R6a-release-prep.md`.
 - [ ] 1단계(앞단) 후속, 보류한 사소한 항목 (최종 리뷰에서 머지 전 수정 불필요로 분류):
   - 스택 4 GiB 예약이 거부되는 환경(엄격한 `ulimit -v` 등)에서는 시작 시 패닉(GitHub Actions의 Linux·macOS 러너에서는 정상 동작 확인, 2026-10-15). 디버그 빌드는 약 80만 단계 체인에서 여전히 넘침(릴리스는 200만까지).
   - ~~유니코드 근사~~ 해결 (2026-10-15, 2단계 Task 12): `is_print`와 식별자 판정도 아래 `spec/unicode.txt` 표를 쓴다.
@@ -315,6 +319,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 핸들이 모두 사라진 에이전트는 실행 중에 끝난다. 에이전트는 프로그램이 끝나기를 막지 않고 `at_exit` 핸들러에서 쓸 수 있다.
   - 고칠 것: `examples/api.fung`(요청 카운터)·`examples/serve.fung`, `docs/builtins.html`(`atom`·`swap`·`deref` 항목과 서명), `tests/lang`의 `# only: go` 파일(`atoms`·`err_atom_reentry`·`conc_atoms`·`http_serve`)과
     dump 대조의 `ATOM_EXAMPLES`(`crates/fung-cli/tests/parity.rs`). 6단계에서 Go를 지우면 `# only:` 표시도 정리한다.
+    → 6a에서 예제·매뉴얼·CHANGELOG를 고쳤고 `ATOM_EXAMPLES`는 `RUST_ONLY_EXAMPLES`(`crates/fung-cli/tests/common/mod.rs`)로 바뀌었다. `# only:` 정리는 6b.
+  - `fan_in`·`pmap`·`retry`는 prelude가 아니라 `conc` 모듈(6a, 아래 "6a단계" 항목). 이름 그대로 부르면 E0204.
   - `http` (4d, 06 "fung HTTP 약속"; 약속 밖의 차이):
     - 응답 본문 상한 **64 MiB**(사용자 결정, 2026-10-16). 넘으면 `Err 'network`. Go에는 상한이 없다. 더 큰 응답은 나중에 요청별 `max_body` 같은 옵션으로.
     - 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축 없음. 서버는 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙고,
@@ -339,7 +345,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - 채널 순회는 Go `nat.Items`처럼 **닫힐 때까지 다 받은 뒤** 함수를 부른다(`native/nat.rs`의 `check_items`·`each_until`·`items`). `each(ch, f)`가 값이 올 때마다 `f`를 부르는 편이 자연스럽고, `map(ch, 3)`처럼 함수가 틀려도 먼저 채널을 비우는 것도 Go의 우연이다.
   - Rust의 내장 함수 차이 목록(`crates/fung-front/src/builtins.rs`의 `RUST_PRELUDE_NATIVES_REMOVED`·`RUST_PRELUDE_AGENT`·`RUST_TYPE_RENAMES`·`RUST_MODULE_MEMBERS`, 3b):
     `spec/builtins.txt`는 Go가 만들어 atom을 담으므로, Rust는 차이(네이티브 `atom`·`swap`·`deref` 빠짐, `extras/rust/agent.fung`의 공개 이름 더함, 타입 이름 `atom` → `agent`,
-    `_native.conc`의 Rust 전용 멤버)를 이 한 곳에 두고 앞단·부팅·명세 테스트가 함께 읽는다. 6단계에서 명세에 합치고 목록을 지운다. `extras/rust/`를 따로 둔 것(Go의 `embed`가 하위 디렉터리를 넣지 않음)도 그때 정리한다.
+    `_native.conc`의 Rust 전용 멤버)를 이 한 곳에 두고 앞단·부팅·명세 테스트가 함께 읽는다. 6a에서 `RUST_PRELUDE_FUNG_MOVED`(prelude에서 `conc`로 옮긴 `fan_in`·`pmap`·`retry`)와
+    `RUST_FUNG_MODULE_MEMBERS`(`conc` 모듈의 서명)를 더했다. 6단계에서 명세에 합치고 목록을 지운다. `extras/rust/`를 따로 둔 것(Go의 `embed`가 하위 디렉터리를 넣지 않음)도 그때 정리한다.
   - Go 방식 그대로: 16진 실수 파싱(`prelude/convert.rs`의 `parse_hex_float`), 대소문자 변환의 Go 단순 매핑(`prelude/strings.rs`의 `upper_rune`·`lower_rune`), 실행 파일 형식 사전 검사로 만드는 `exec format error`(`native/process.rs`).
   - 운영체제 에러를 Go 문구로(4a): errno → Go `syscall.Errno.Error()` 표(`crates/fung-vm/src/native/oserr.rs`, macOS·Linux 따로, arm64 한 줄씩 더함)와
     Go `os`의 여러 시스템 호출 함수를 단계 그대로 옮긴 것(`native/fs.rs`의 `mkdir_all`·`remove`·`remove_all`·`rename`·`make_temp_dir`, NUL 바이트 경로의 EINVAL).
@@ -542,7 +549,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
       프롬프트에서 밖으로부터 SIGTERM·SIGHUP을 받거나 출력이 EPIPE로 죽으면 터미널이 raw로 남는다(신호 처리기 없음; 고친다면 `tcsetattr`로 되돌리는 처리기 약 40줄).
     - 가짜 터미널 도우미(`fung_vm::term::pty`, `#[doc(hidden)]`)가 라이브러리에 들어 있다. 테스트 전용 feature로 감추려 했으나 `crates/fung-cli/tests/deps.rs`가
       `fung-cli`의 의존성에 `path` 말고는 허락하지 않아(`{ path, features }`도 위반) 울타리를 바꾸지 않았다. Linux에서는 `openpty` 때문에 libutil을 링크한다. 명령은 `pty`를 부르지 않는다.
-      6단계 릴리스 대상(musl·정적 링크)에서 libutil 링크가 되는지 확인한다(최종 리뷰).
+      6단계 릴리스 대상(musl·정적 링크)에서 libutil 링크가 되는지 확인한다(최종 리뷰). → 6a Task 3에서 해결: musl에는 `libutil`이 없고 `openpty`가 `libc.a`에 있으므로
+      `#[link(name = "util")]`를 `target_env = "gnu"`에서만 건다(노트 `docs/notes/R6a-release-prep.md` 3절). musl 링크 자체는 CI `musl` 작업과 릴리스 빌드가 확인한다.
     - 포매터(두 구현 같음, 5단계 이전부터): 함수 머리가 여러 줄이면(`fn f(h:` 다음 줄 `int):`) 몸통을 4칸, `;;`를 2칸에 둔다(최종 리뷰에서 발견).
       이식이 끝난 뒤에 본다(Go와 맞추는 동안은 그대로).
     - `#[allow(dead_code)]`: `fung-cli`의 `mod paths`에 붙였던 것은 `fmt`가 `fung_files`를 쓰게 되어 지웠다. `tools_parity.rs`가 `#[path]`로 `paths.rs`를 끌어오는 곳에만 남는다(테스트가 일부 함수만 씀).
@@ -554,6 +562,39 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
   - BOM: 렉서는 맨 앞 BOM 하나를 건너뛰는데 `format.Format`은 그 오프셋으로 BOM이 남은 소스를 잘라, BOM + 코드 파일을 E0801로 거절하고
     주석만 있는 파일에서는 BOM을 말없이 지웠다. 이제 BOM을 떼고 포맷하며 출력에 BOM은 없다. 두 겹 BOM은 렉서처럼 E0101(두 번째는 코드).
   - `fmt --check -`가 `--check`를 무시하고 포맷 결과를 찍었다. 이제 바뀔 게 있으면 파일처럼 `<stdin>`을 찍고 종료 코드 1, 없으면 아무것도 안 찍고 0.
+- [ ] 6a단계(릴리스 전환 준비)에서 정한 것과 6b 할 일 (진행 기록 `.superpowers/sdd/2026-10-17-rust-release-prep-6a/progress.md`, 노트 `docs/notes/R6a-release-prep.md`).
+  - [x] 내장 함수 배치 → **"prelude에는 확실한 것만"** (2026-10-17 사용자 결정). Rust에서 `fan_in`·`pmap`·`retry`를 prelude → `conc` 모듈
+    (`extras/rust/conc.fung`, `import conc`). 셋 다 정책(동시 실행 수, 재시도 횟수·간격)을 품은 조합이라 확실하지 않다. `until`·`iterate`는 `while`이 없는 언어에서
+    반복의 대체라 핵심, `exec`·`sh`는 셸을 대신하는 언어의 핵심이라 prelude에 남긴다. `remove`·`close`와 `fs.remove`·`fs.close`의 이름 겹침은 유지하고 매뉴얼에 한 줄.
+  - [x] Linux 바이너리 → **musl 정적 빌드** (2026-10-17 사용자 결정). Go의 "아무 서버에서나 돈다"를 지킨다. glibc 정적 링크를 쓰지 않는 이유: `getaddrinfo`가 NSS로 공유 라이브러리를 실행 중에 읽어 같은 버전의 glibc가 있어야 한다.
+    `libutil` 링크는 gnu에서만(위 5단계 항목). musl 할당기 속도는 아직 재지 못했다(아래).
+  - Rust 부팅이 숨기는 prelude 사본: `extras/prelude.fung`는 Go와 함께 쓰므로 `fan_in`·`pmap`·`retry`의 Go용 사본이 남아 있고, Rust는 앞단(`RUST_PRELUDE_FUNG_MOVED`)과
+    부팅(`boot_file(..., hidden)`)에서 숨긴 채 **여전히 컴파일하고 부팅 때 돌린다**. 6b에서 Go를 지우면 `prelude.fung`에서 지우고 숨기는 장치와 목록을 없앤다.
+  - [ ] 6b 할 일 (스펙 결정):
+    - Go 구현 삭제(`cmd/`·`internal/`·`extras/`의 Go embed·`go.mod`·Go 테스트·CI의 Go 작업·`release.yml`의 Go 테스트), `# only: go` 파일 정리와 `# only:` 표시 정리, `extras/rust/`를 `extras/`로.
+    - Go 대조 테스트(`parity`·`run_parity`·`tools_parity`·`http_parity`·`repl_tty`·`sigpipe`·`tls` 등)는 Go 출력을 한 번 기록해 **기대값 파일로 얼리고** 계속 돌린다. 시간에 기대는 것은 Rust 전용 테스트로.
+    - `spec/builtins.txt`·`errors.txt`는 Rust 코드에서 생성하고 동기 테스트로 지킨다(Rust 내장 함수 차이 목록은 그때 명세에 합쳐 지운다). `spec/unicode.txt`·`regex_unicode.txt`·
+      정규식 대조 데이터(`regex_go_fixtures.rs`)는 얼린 데이터로 남긴다.
+    - 테스트 도우미의 Go 전용 장치 정리: `go_source`(Go에 넘길 때 `import conc`를 빈 줄로), `RUST_ONLY_EXAMPLES`·`uses_rust_only`, `FUNG_REQUIRE_PARITY`.
+    - 위 "과도기 잔가지"를 걷어내는 일은 6단계 뒤(스펙 범위 밖).
+  - [ ] **태그 전에 릴리스 워크플로 시험 실행**: `gh workflow run release.yml -f version=0.0.0-dryrun`(사용자가 실행). Linux musl 빌드, `readelf` 정적 검사, ELF `file` 문구 패턴,
+    darwin/amd64 교차 빌드, 작업 사이 아티팩트 배치는 CI에서만 돈다(로컬은 macOS arm64뿐). `publish`(증명·게시)는 태그 푸시에서만 돌므로 첫 실제 태그에서야 처음 돈다.
+    0.2.0 태그는 6b 뒤 스쿼시 머지 다음이고, 머지·태그 푸시는 그때 사용자 확인.
+  - [ ] musl 빌드 벤치마크: `bench/README.md`의 musl 열이 비어 있다(이 기계에서 만들 수 없음). Linux에서 릴리스 스크립트로 만든 바이너리로 같은 방법으로 잰다.
+    musl 할당기가 느리면(`map`·`str`) 할당기 교체를 크레이트 허용 목록 결정과 함께 검토한다.
+  - [ ] 고치지 않고 남긴 사소한 것 (태스크 리뷰에서 머지 전 수정 불필요로 분류):
+    - 4 GiB 실행 스레드를 만들지 못하면(엄격한 `ulimit -v`) `main`의 `expect`가 패닉하는데 패닉 훅이 메시지를 꺼 **아무 메시지 없이 종료 코드 101**. CHANGELOG "알려진 차이"에 적었다.
+      고친다면 `spawn` 실패를 받아 한 줄 에러(E0801 꼴)를 찍고 종료 코드 1.
+    - `crates/fung-cli/tests/run_parity.rs`의 `CONCURRENCY` 목록이 맨 이름 `pmap`·`fan_in`·`retry`를 아직 담음(무해: 대조하는 파일에 이제 없고 `conc.pmap(`은 걸리지 않음).
+      `testutil.rs`·`run_parity.rs` 주석의 맨 `pmap` 표기.
+    - `tools_parity.rs`의 `run_limited`는 기다리는 동안 파이프를 비우지 않는다(64 KB 넘게 찍는 매뉴얼 예제는 시간 한도까지 막힌 뒤 죽음; 지금은 없음).
+    - `manual.rs`: 모듈 목록 `MODULES`를 손으로 적음, fung 서명을 파서가 아니라 최상위 `fn NAME(`·`NAME = _x.member` 줄을 훑어 읽음(구조 분해 같은 다른 최상위 값은 건너뜀),
+      `uses_rust_only`의 `agent(`가 단어 경계를 보지 않음(`my_agent(`도 걸림), Rust 전용 예제 수 단언이 약함.
+    - `builtins.html`의 U+FFFD 글자를 문자 그대로 씀(엔티티가 아님).
+    - `check-release.sh`의 ELF 패턴은 GNU `file`의 문구를 가정한다. darwin/amd64는 러너에 Rosetta가 있을 때만 실제로 돌려 본다.
+    - 정적 바이너리도 실행 중에 시스템 CA 파일을 읽는다(`rustls-native-certs`). CA 인증서가 없는 `scratch` 컨테이너에서는 https가 실패한다(0.1 Go도 같음).
+    - Rust `conc` 모듈(키 `conc`)과 `_native.conc`의 `Module` 이름이 둘 다 "conc"다(키가 달라 충돌은 없음).
+    - `docs/design/background.md` 원칙 4("Go는 내부에서 쓰되 겉으로 드러나지 않게")를 매뉴얼처럼 "구현 언어는…"으로 맞추지 않았다(6b에서 Go를 지울 때).
 - [ ] **R7 스케줄러** (6단계 Go 삭제 뒤의 별도 단계, 4d 스펙 결정 2026-10-16). 언어 의미를 바꾸지 않는 내부 교체다. 막히는 곳은 `vm/block.rs`의 `block()`과
   소켓의 `vm/watch.rs`(`Watch`)로 모여 있어 그 자리를 갈아끼운다. 그때 함께 판단할 것:
   - 그린 스레드: 태스크를 운영체제 스레드가 아니라 VM이 주차·재개하는 단위로. 이벤트 루프 크레이트 `mio`를 들일지(4d에서는 들이지 않음).
@@ -582,6 +623,8 @@ C 재구현은 기각: GC·동시성·TLS를 직접 만들어야 하고, `http.s
 - [x] 배포 → **플랫폼별 CI 러너**(TLS 암호 부분의 C 코드 때문에 대상용 C 컴파일러가 필요; Linux x86_64·ARM64, macOS ARM64·x86_64 러너 각자 빌드),
   Linux는 musl 정적 바이너리, CI 컴파일 캐시. 릴리스 파일 이름·`SHA256SUMS`·빌드 증명·설치 스크립트·CHANGELOG 릴리스 노트는 그대로.
   `go install` 경로는 사라지고 `cargo install`이 생긴다.
+  - 6a(2026-10-17)에 그대로 만들었다: `x86_64-unknown-linux-musl`·`aarch64-unknown-linux-musl`(C 컴파일러 `musl-gcc`), macOS 두 대상은 Apple 실리콘 러너 하나에서.
+    설치 문서의 빌드 길은 `cargo build --release --locked`(저장소에서). CI 컴파일 캐시는 아직 넣지 않았다.
 - [x] 버전 → Rust 첫 릴리스는 `0.2.0`(`atom` 제거가 호환성 깨짐). 1.0은 이식 뒤에 정한다.
 - [ ] 일정: 정하지 않음. 지금은 공부를 겸한 검토 단계.
 

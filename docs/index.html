@@ -193,7 +193,7 @@ test "slug joins words with dashes":
   <tbody>
     <tr><td><code>fung script.fung [args…]</code></td><td>스크립트 실행. <code>fung run script.fung</code>과 같다. 뒤의 인자는 <code>args</code>(문자열 리스트)로 들어간다.</td></tr>
     <tr><td><code>fung -e 'code'</code></td><td>코드 한 줄 실행.</td></tr>
-    <tr><td><code>fung</code></td><td>REPL. 줄 편집, 기록(<code>~/.fung_history</code>), 정의 유지, <code>:help</code> <code>:load</code> <code>:quit</code>. 한 입력 안의 교착은 그 입력만 실패시키고 세션은 계속된다. 띄운 태스크가 <code>exit(n)</code>을 부르면 세션이 코드 n으로 끝난다. 다음 입력을 기다리는 태스크는 교착이 아니고, 에이전트는 세션이 끝날 때 끝난다.</td></tr>
+    <tr><td><code>fung</code></td><td>REPL. 줄 편집, 기록(<code>~/.fung_history</code>), 정의 유지, <code>:help</code> <code>:load</code> <code>:quit</code>. 한 입력 안의 교착은 그 입력만 실패시키고 세션은 계속된다. 띄운 태스크가 <code>exit(n)</code>을 부르면 세션이 코드 n으로 끝난다. 다음 입력을 기다리는 태스크는 교착이 아니다. 전역에 담은 에이전트는 다음 입력에서도 쓸 수 있고 세션이 끝날 때 끝나며, 아무도 붙잡지 않은 에이전트는 핸들이 사라질 때(대개 그 입력 끝에) 더 일찍 끝난다.</td></tr>
     <tr><td><code>fung check script.fung</code></td><td>실행하지 않고 문법·이름·import를 검사하고 경고를 보여 준다.</td></tr>
     <tr><td><code>fung test [path]</code></td><td><code>test</code> 블록 실행. 경로가 디렉터리면 그 아래 <code>.fung</code> 전부(<code>_</code>로 시작하는 디렉터리 제외). 테스트가 없는 파일은 건너뛴다. 파일 안에서 <code>exit(n)</code>이 불리거나(띄운 태스크에서도) 교착이 보고되면 그 파일의 나머지 블록을 건너뛰고 실패 하나로 센다.</td></tr>
     <tr><td><code>fung fmt [--check] path…</code></td><td>공백·들여쓰기·정렬을 단일 스타일로 고친다. 줄바꿈은 그대로 둔다. <code>--check</code>는 고칠 파일만 알려 주고, <code>-</code>는 표준 입력을 받는다. <code>--check -</code>는 고칠 게 있으면 <code>&lt;stdin&gt;</code>을 찍고 종료 코드 1, 없으면 아무것도 찍지 않고 0.</td></tr>

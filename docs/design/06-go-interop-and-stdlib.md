@@ -159,8 +159,9 @@ open-questions "Rust 이전"의 "0.2.0에서 바뀌는 것"과 "4d단계(http)�
   `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`.
 - 핸들러가 런타임 에러를 내거나 다른 타입을 돌려주면 500을 답하고 stderr에 한 줄(`http: handler failed: …`)을 찍고 서버는 계속 돈다(종료 코드 무관).
   핸들러 안의 `exit`·취소는 503이며 보고하지 않는다. 응답 본문 문구는 Go `net/http`와 같다.
-- 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `atom`). 라우팅은 없고 `match req.path:`로 쓴다.
-  Rust 구현에는 `atom`이 없고 `agent`를 쓴다(open-questions "Rust 이전"의 `atom` 항목; 예제는 6단계에서 고친다).
+- 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `agent`). 라우팅은 없고 `match req.path:`로 쓴다.
+  Go 구현(0.1)에서는 공유 상태를 `atom`에 두었다. Rust 구현(0.2.0)에는 `atom`이 없다(open-questions "Rust 이전"의 `atom` 항목).
+  예제 `examples/api.fung`·`serve.fung`은 6a단계(2026-10-17)에 `agent`로 고쳤다.
 - 한도 (2026-10-14, 고정값): 헤더를 10초 안에 보내지 않는 연결은 끊고, 요청 본문은 16MB까지(넘으면 413, 핸들러는 불리지 않음), 형식 오류는 400.
   조각 전송 요청 본문도 받는다.
 - 취소되면 리스너를 닫고 처리 중인 요청을 최대 2초 기다린 뒤 E0701(Go `Shutdown`).
