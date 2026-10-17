@@ -1,5 +1,5 @@
 //! A spawned task gets as much stack as a Go goroutine may grow to
-//! (1 GiB, `TASK_STACK`): a program that nests Rust frames deeply (a
+//! (1 GiB, the first of `fung_vm::stack::TASK_STACKS`): a program that nests Rust frames deeply (a
 //! native calling back into fung) gives the same result in a task as on
 //! the entry thread instead of aborting the process. Formatting a value
 //! nested 1,000,000 deep also needs more than 256 MiB, but `str` on it

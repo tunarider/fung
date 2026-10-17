@@ -39,8 +39,10 @@ pub(crate) const USAGE: &str = "usage:
 /// recurse on the Rust stack, and formatting, comparing and dropping
 /// deeply nested values recurse too. 4 GiB is only reserved address space
 /// (pages are committed when touched) and leaves a margin over Go's 1 GB
-/// goroutine stack limit.
-const STACK: usize = 4 << 30;
+/// goroutine stack limit. A host that refuses the reservation (little
+/// memory and swap, strict overcommit, `ulimit -v`) gets the next smaller
+/// size (`fung_vm::stack::ENTRY_STACKS`, docs/notes/R3a-runtime.md 2절).
+const STACKS: &[usize] = fung_vm::stack::ENTRY_STACKS;
 
 /// What a command produced: standard output, standard error, exit code.
 /// The streams are bytes because Go echoes arguments that are not UTF-8
@@ -62,19 +64,31 @@ fn main() {
         .skip(1)
         .map(OsString::into_vec)
         .collect();
-    let out = std::thread::Builder::new()
-        .stack_size(STACK)
-        .spawn(move || run(&raw))
-        .expect("spawn the command thread")
-        .join()
-        .unwrap_or_else(|_| Out {
-            stderr: b"error: internal error in the fung command\n".to_vec(),
-            code: diag::EXIT_RUNTIME,
-            ..Out::default()
-        });
+    let out = start(STACKS, raw);
     let _ = run::ProcessOut::stdout().write_all(&out.stdout);
     let _ = run::ProcessOut::stderr().write_all(&out.stderr);
     std::process::exit(out.code);
+}
+
+/// Runs the command on a thread with the first stack size in `sizes`
+/// the system accepts. If it accepts none, the result is one line on
+/// standard error and exit code 1, not a panic (which the empty hook
+/// above would make silent).
+fn start(sizes: &[usize], raw: Vec<Vec<u8>>) -> Out {
+    let started =
+        fung_vm::stack::spawn_sized(std::thread::Builder::new, sizes, raw, |raw| run(&raw));
+    match started {
+        Ok(h) => h.join().unwrap_or_else(|_| Out {
+            stderr: b"error: internal error in the fung command\n".to_vec(),
+            code: diag::EXIT_RUNTIME,
+            ..Out::default()
+        }),
+        Err((e, _)) => Out {
+            stderr: format!("error: cannot start the fung command thread: {e}\n").into_bytes(),
+            code: diag::EXIT_RUNTIME,
+            ..Out::default()
+        },
+    }
 }
 
 /// `raw` are the arguments as the OS gave them. They are decoded like Go
@@ -305,6 +319,34 @@ mod tests {
         assert_eq!(
             out.stdout,
             "(do (call (prelude print) \"\u{fffd}\"))\n".as_bytes()
+        );
+    }
+
+    /// More than any 64-bit host maps: every system refuses it.
+    const REFUSED: usize = 1 << 47;
+
+    /// A host that refuses the big stacks runs the command on a smaller
+    /// one (6a review: it used to exit 101 without a word).
+    #[test]
+    fn the_command_falls_back_to_a_smaller_stack() {
+        let out = start(&[REFUSED, REFUSED, 64 << 20], vec![b"version".to_vec()]);
+        assert_eq!(out.code, EXIT_OK);
+        assert!(out.stdout.starts_with(b"fung "));
+    }
+
+    #[test]
+    fn no_stack_size_fits_is_one_line_and_exit_1() {
+        let out = start(&[REFUSED, REFUSED], vec![b"version".to_vec()]);
+        assert_eq!(out.code, diag::EXIT_RUNTIME);
+        assert!(out.stdout.is_empty());
+        let err = String::from_utf8(out.stderr).unwrap();
+        assert!(
+            err.starts_with("error: cannot start the fung command thread: "),
+            "{err}"
+        );
+        assert!(
+            err.ends_with('\n') && err.matches('\n').count() == 1,
+            "{err}"
         );
     }
 }

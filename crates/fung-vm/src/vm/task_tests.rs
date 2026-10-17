@@ -530,3 +530,35 @@ fn exit_handlers_leave_no_cancellation_nodes() {
         assert_eq!(left, 0, "{src}");
     }
 }
+
+/// A task whose first stack sizes the system refuses starts with a
+/// smaller one (6a review): a host that cannot reserve 1 GiB still runs
+/// tasks.
+#[test]
+fn a_task_falls_back_to_a_smaller_stack() {
+    let out = on_big_stack(|| {
+        let s = setup("print(await(spawn(() => 6 * 7)))", Opts::default())
+            .unwrap_or_else(|e| panic!("{e:?}"));
+        s.rt.shared().set_task_stacks(&[1 << 47, 1 << 47, 64 << 20]);
+        s.rt.run().unwrap();
+        s.out.text()
+    });
+    assert_eq!(out, "42\n");
+}
+
+/// When every size is refused, `spawn` reports E0801 as before.
+#[test]
+fn a_task_no_stack_size_fits_is_e0801() {
+    let err = on_big_stack(|| {
+        let s = setup("spawn(() => 1)", Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
+        s.rt.shared().set_task_stacks(&[1 << 47, 1 << 47]);
+        match s.rt.run() {
+            Err(Stop::Error(d)) => fung_front::diag::headline(&d),
+            other => panic!("{:?}", other.is_ok()),
+        }
+    });
+    assert!(
+        err.starts_with("error[E0801]: internal error: cannot start a task: "),
+        "{err}"
+    );
+}

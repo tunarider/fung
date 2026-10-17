@@ -48,18 +48,6 @@ use super::{Stop, Task, internal, token};
 use crate::native::nat;
 use crate::value::{MapBuilder, Value, drop_children, intern, keep};
 
-/// The stack each spawned task's thread reserves: 1 GiB, the most a Go
-/// goroutine may grow to, so a program that fits in a goroutine fits in
-/// a task. fung calls do not use it (frames live on the VM's heap); only
-/// natives that call back into fung (`map`, `fold`, …) nest Rust frames,
-/// and formatting or comparing deeply nested values recurses. It is
-/// address space, not memory: the pages are touched only when used (with
-/// 256 MiB, `map` calling back 99,000 deep overflowed and aborted the
-/// process where Go and the entry thread succeed). If the system refuses
-/// the reservation, `spawn` fails with an error rather than aborting.
-/// The entry keeps its 4 GiB stack.
-pub(crate) const TASK_STACK: usize = 1 << 30;
-
 /// A node of the cancellation tree. Only the flag is read on the hot path
 /// (one relaxed load per call); the rest is touched when a task is
 /// spawned, blocks, finishes or is cancelled.
@@ -429,6 +417,10 @@ struct Handoff(Option<(Value, Rc<TaskState>)>);
 // whoever holds the token, as always. If the thread never starts, the
 // closure holding the `Handoff` is dropped by `Builder::spawn` on the
 // parent's thread, which still holds the token; `Drop` asserts that.
+// Between attempts at stack sizes (`stack::spawn_sized`) the `Handoff`
+// waits in a mutex slot the parent made; a started thread only moves it
+// out (the mutex orders that move after the parent's), and when no
+// attempt starts the parent takes it back and drops it, token held.
 unsafe impl Send for Handoff {}
 
 impl Handoff {
@@ -548,13 +540,28 @@ impl<'rt> Task<'rt> {
         // Counted from now (Go `addLive` before the goroutine starts): a
         // task whose thread has not taken the token yet will still run.
         self.world.count(kind, true);
-        let started = std::thread::Builder::new()
-            .name("fung-task".into())
-            .stack_size(TASK_STACK)
-            .spawn(move || run_spawned(shared, node, cargo, kind, serving));
-        if let Err(e) = started {
-            // The closure, and the values in it, were dropped here, on
-            // this thread, with the token held.
+        // The stack each spawned task's thread reserves: 1 GiB first, the
+        // most a Go goroutine may grow to, so a program that fits in a
+        // goroutine fits in a task. fung calls do not use it (frames live
+        // on the VM's heap); only natives that call back into fung (`map`,
+        // `fold`, …) nest Rust frames, and formatting or comparing deeply
+        // nested values recurses. It is address space, not memory: the
+        // pages are touched only when used (with 256 MiB, `map` calling
+        // back 99,000 deep overflowed and aborted the process where Go and
+        // the entry thread succeed). A host that refuses the reservation
+        // gets a smaller stack (`stack::TASK_STACKS`, R3a 2절); only when
+        // every size is refused does `spawn` fail, with an error rather
+        // than an abort.
+        let started = crate::stack::spawn_sized(
+            || std::thread::Builder::new().name("fung-task".into()),
+            shared.task_stacks(),
+            (shared, node, cargo, kind, serving),
+            |(shared, node, cargo, kind, serving)| run_spawned(shared, node, cargo, kind, serving),
+        );
+        if let Err((e, payload)) = started {
+            // The values are dropped here, on this thread, with the token
+            // held.
+            drop(payload);
             self.world.count(kind, false);
             return Err(internal(vec![Arg::Str(format!(
                 "cannot start a task: {e}"

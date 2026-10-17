@@ -329,6 +329,10 @@ pub(crate) struct Shared {
     /// How many times a sleeping task woke up (tests count wakeups).
     #[cfg(test)]
     wakeups: AtomicUsize,
+    /// The stack sizes spawned tasks try, when a test replaces
+    /// `stack::TASK_STACKS` (`set_task_stacks`).
+    #[cfg(test)]
+    task_stacks: std::sync::OnceLock<&'static [usize]>,
     gate: Gate,
     /// Every task descends from this node (Go `rt.root()`): the entry
     /// runs on it, `cancel_all` cancels it. Replaced only by the REPL's
@@ -355,6 +359,8 @@ impl Shared {
             failures,
             #[cfg(test)]
             wakeups: AtomicUsize::new(0),
+            #[cfg(test)]
+            task_stacks: std::sync::OnceLock::new(),
             gate: Gate::default(),
             root: Mutex::new(CancelNode::root()),
             handlers: CancelNode::root(),
@@ -379,6 +385,23 @@ impl Shared {
     #[cfg(test)]
     pub(crate) fn wakeups(&self) -> usize {
         self.wakeups.load(Ordering::Relaxed)
+    }
+
+    /// The stack sizes a spawned task's thread tries, in order
+    /// (`crate::stack::TASK_STACKS`, or a test's own).
+    pub(super) fn task_stacks(&self) -> &'static [usize] {
+        #[cfg(test)]
+        if let Some(s) = self.task_stacks.get() {
+            return s;
+        }
+        crate::stack::TASK_STACKS
+    }
+
+    /// Replaces the stack sizes spawned tasks try (once per runtime), so
+    /// a test can make the first ones fail.
+    #[cfg(test)]
+    pub(crate) fn set_task_stacks(&self, sizes: &'static [usize]) {
+        self.task_stacks.set(sizes).expect("task stacks set twice");
     }
 
     /// Cancels every task (Go `CancelAll`): the root and everything below
