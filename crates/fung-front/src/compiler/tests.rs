@@ -76,6 +76,7 @@ fn bare(core: Node) -> Resolved {
         globals: vec![],
         imports: vec![],
         exports: vec![],
+        warnings: vec![],
     }
 }
 
@@ -420,7 +421,7 @@ fn compile_with_imports(src: &str) -> String {
     );
     let ropts = ROpts {
         imports,
-        library: false,
+        ..ROpts::default()
     };
     let r = resolved(src, &["print"], &ropts);
     ops(&compile(&r, &set(&["print"]), &opts("", false)).unwrap())
@@ -528,14 +529,7 @@ fn bytecode(src: &str) -> String {
     let mut sm = SourceMap::new();
     let f = sm.add("-e", src);
     let (toks, _) = lex(f, src).unwrap();
-    let b = builtins();
-    let mut names: Vec<String> = b
-        .prelude_native
-        .iter()
-        .chain(&b.prelude_fung)
-        .cloned()
-        .collect();
-    names.sort();
+    let names = builtins().prelude_names();
     let r = resolve(
         &desugar(&parse(&toks).unwrap()).unwrap(),
         &names,

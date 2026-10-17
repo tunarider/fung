@@ -1,0 +1,15 @@
+# W0103: new names that hide a prelude function.
+fn map(xs) = xs
+len = 1
+fn uses(filter, keys = 1) = filter
+
+fn local():
+  sort = 1
+  sort
+;;
+
+fn arms(v) = match v:
+  first => first
+;;
+
+result = for (sum, x) in [(1, 2)]: sum + x ;;

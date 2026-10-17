@@ -1,0 +1,6 @@
+at_exit(() => print("handler ran"))
+test "before": assert 1 == 1 ;;
+test "exits":
+  exit(4)
+;;
+test "never runs": assert true ;;

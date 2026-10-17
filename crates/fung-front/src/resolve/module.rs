@@ -73,6 +73,18 @@ impl Resolver<'_> {
             return None;
         }
         if let Some(b) = self.root_scope().names.get(name).copied() {
+            if self.opts.redefine && (b.module || !b.constant) {
+                // REPL: the import takes the name's storage over (08).
+                let b = Binding {
+                    constant: true,
+                    module: true,
+                    ..b
+                };
+                self.root_scope().names.insert(name.to_string(), b);
+                self.module_names.insert(name.to_string(), info.clone());
+                self.import_bound.insert(name.to_string());
+                return Some(b);
+            }
             let e = if b.module {
                 name_error("E0309", pos, name)
             } else {
@@ -81,13 +93,14 @@ impl Resolver<'_> {
             self.errs.push(e);
             return None;
         }
+        self.warn_shadow(name, pos);
         let b = Binding {
             global: true,
             index: self.globals.len(),
             constant: true,
             module: true,
         };
-        self.bind_import(name, b);
+        self.bind_import(name, pos, b);
         self.module_names.insert(name.to_string(), info.clone());
         Some(b)
     }
@@ -104,19 +117,21 @@ impl Resolver<'_> {
             self.errs.push(e);
             return None;
         }
+        self.warn_shadow(name, pos);
         let b = Binding {
             global: true,
             index: self.globals.len(),
             constant: true,
             module: false,
         };
-        self.bind_import(name, b);
+        self.bind_import(name, pos, b);
         Some(b)
     }
 
-    fn bind_import(&mut self, name: &str, b: Binding) {
+    fn bind_import(&mut self, name: &str, pos: Pos, b: Binding) {
         self.globals.push(name.to_string());
         self.root_scope().names.insert(name.to_string(), b);
+        self.root_scope().pos.insert(name.to_string(), pos);
         self.import_bound.insert(name.to_string());
     }
 

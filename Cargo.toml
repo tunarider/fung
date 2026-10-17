@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/fung-front", "crates/fung-cli"]
+members = ["crates/fung-front", "crates/fung-vm", "crates/fung-cli"]
 
 [workspace.package]
 edition = "2024"

@@ -1,0 +1,4 @@
+# only: rust
+a = agent(1)
+swap(a, x => x / 0)
+# expect-error: E0502

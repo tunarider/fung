@@ -81,6 +81,18 @@ func blockKeyword(k lexer.Kind) bool {
 	return false
 }
 
+// fnHead reports whether the `fn` at toks[i] starts a function, which is
+// followed by its name or `(` (01). Otherwise it is the type name `fn`
+// (07: `h: fn`, `-> fn`), which waits for no `:` — a `:` of a later
+// annotation or the function's own block colon must not be taken for it.
+func fnHead(toks []lexer.Token, i int) bool {
+	if i+1 >= len(toks) {
+		return false
+	}
+	k := toks[i+1].Kind
+	return k == lexer.Name || k == lexer.LParen
+}
+
 func isClosing(k lexer.Kind) bool { return k == lexer.DoubleSemi || isCloser(k) }
 
 // patternStart reports a token a match pattern can begin with (01).
@@ -232,7 +244,7 @@ func (l *layouter) consume(ln *line) {
 				l.stack = l.stack[:len(l.stack)-1]
 			}
 			l.pend = append(l.pend, pending{kind: lexer.KwIf, depth: d})
-		case blockKeyword(t.Kind):
+		case blockKeyword(t.Kind) && !(t.Kind == lexer.KwFn && !fnHead(ln.toks, i)):
 			l.pend = append(l.pend, pending{kind: t.Kind, depth: d})
 		case t.Kind == lexer.Colon:
 			n := len(l.pend)

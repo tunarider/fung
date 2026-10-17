@@ -1,3 +1,4 @@
+# only: go
 import http
 import json
 

@@ -1,0 +1,9 @@
+ch = channel()
+test "spawns a failure":
+  spawn(fn():
+    send(ch, 1)
+    [1][5]
+  ;;)
+  recv(ch)
+;;
+test "fine": assert true ;;

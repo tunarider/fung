@@ -1,0 +1,2 @@
+import "./_lib/good"
+test "library tests do not run here": assert good.f() == 1 ;;

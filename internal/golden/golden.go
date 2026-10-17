@@ -32,6 +32,7 @@ type Case struct {
 	Args      []string // `# args: a b`: script arguments
 	Stdin     string   // `# stdin: line` lines, each newline-terminated
 	ExitCode  int      // `# expect-exit: n` for a successful run (default 0)
+	Only      string   // `# only: go|rust`: the one implementation that runs this file ("" = both)
 }
 
 // Result is what actually happened when the script ran.
@@ -47,6 +48,7 @@ const (
 	expectExitPrefix  = "# expect-exit:"
 	argsPrefix        = "# args:"
 	stdinPrefix       = "# stdin:"
+	onlyPrefix        = "# only:"
 )
 
 var errorCodeRE = regexp.MustCompile(`^E\d{4}$`)
@@ -76,6 +78,15 @@ func Parse(path string, src []byte) (Case, error) {
 				return c, fmt.Errorf("%s:%d: malformed exit code in %q", path, lineNo, line)
 			}
 			c.ExitCode = n
+		case strings.HasPrefix(line, onlyPrefix):
+			v := strings.TrimSpace(strings.TrimPrefix(line, onlyPrefix))
+			if v != "go" && v != "rust" {
+				return c, fmt.Errorf("%s:%d: malformed only line %q (want go or rust)", path, lineNo, v)
+			}
+			if c.Only != "" {
+				return c, fmt.Errorf("%s:%d: second only line (already %s)", path, lineNo, c.Only)
+			}
+			c.Only = v
 		case strings.HasPrefix(line, argsPrefix):
 			c.Args = append(c.Args, strings.Fields(strings.TrimPrefix(line, argsPrefix))...)
 		case strings.HasPrefix(line, stdinPrefix):

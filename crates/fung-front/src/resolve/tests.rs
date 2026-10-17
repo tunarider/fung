@@ -1,5 +1,5 @@
-//! Ports of internal/resolve/{resolve,fn,m4,m5,m6}_test.go (warnings and
-//! REPL options excluded) plus checks against real Go output.
+//! Ports of internal/resolve/{resolve,fn,m4,m5,m6}_test.go plus checks
+//! against real Go output.
 
 use std::collections::BTreeMap;
 
@@ -71,15 +71,7 @@ fn fn_info<'a>(core: &'a Node, path: &[usize]) -> &'a FnInfo {
 }
 
 fn prelude() -> Vec<String> {
-    let b = builtins();
-    let mut names: Vec<String> = b
-        .prelude_native
-        .iter()
-        .chain(&b.prelude_fung)
-        .cloned()
-        .collect();
-    names.sort();
-    names
+    builtins().prelude_names()
 }
 
 fn core(src: &str) -> Result<String, Vec<String>> {
@@ -276,6 +268,27 @@ fn undefined_name_suggests_similar_name() {
     let (_, errs) = res("print(zzzzzz)");
     assert_eq!(errs.len(), 1);
     assert_eq!(errs[0].help, None);
+}
+
+/// A name the Rust prelude moved to the module `conc` (stage 6a) is
+/// still undefined, but the help says where it went, ahead of any
+/// similar name. Rust only: Go's prelude keeps these names.
+#[test]
+fn a_name_moved_to_conc_points_at_the_module() {
+    for name in crate::builtins::RUST_PRELUDE_FUNG_MOVED {
+        let (_, errs) = resolve_with(
+            &format!("{name}(1)"),
+            &["print", "map"],
+            &Options::default(),
+        );
+        assert_eq!(codes(&errs), vec!["E0204"]);
+        assert_eq!(
+            help(&errs[0]),
+            format!("moved to module conc: import conc, then conc.{name}")
+        );
+    }
+    // A local of that name is not undefined at all.
+    ok("pmap = 1\nprint(pmap)");
 }
 
 #[test]
@@ -558,7 +571,11 @@ fn m5_opts(library: bool) -> Options {
             exports: names(&["a", "b"]),
         },
     );
-    Options { imports, library }
+    Options {
+        imports,
+        library,
+        ..Options::default()
+    }
 }
 
 fn resolve_m5(src: &str, lib: bool) -> (Option<Resolved>, Vec<String>) {
@@ -665,4 +682,198 @@ fn duplicate_pattern_names() {
             "{src:?}: {errs:?}"
         );
     }
+}
+
+/// Port of internal/resolve/m6_test.go `warningsOf`: each warning as
+/// `CODE:name`, in the order reported.
+fn warnings_of(src: &str, opts: &Options) -> Vec<String> {
+    let (r, errs) = resolve_with(src, &["print", "map", "len"], opts);
+    assert!(errs.is_empty(), "{src:?}: {errs:?}");
+    r.unwrap()
+        .warnings
+        .iter()
+        .map(|w| format!("{}:{}", w.code, arg0(w)))
+        .collect()
+}
+
+#[test]
+fn warnings() {
+    let mut imports = BTreeMap::new();
+    imports.insert(
+        "fs".to_string(),
+        ModuleInfo {
+            key: "fs".into(),
+            name: "fs".into(),
+            exports: names(&["read"]),
+        },
+    );
+    let opts = Options {
+        imports,
+        ..Options::default()
+    };
+    let cases: &[(&str, &[&str])] = &[
+        ("import fs", &["W0101:fs"]),
+        ("import fs as f\nprint(f.read)", &[]),
+        ("import fs (read)", &["W0101:read"]),
+        ("import fs (read)\nprint(read)", &[]),
+        ("fn f():\n  x = 1\n  2\n;;", &["W0102:x"]),
+        ("fn f():\n  _x = 1\n  2\n;;", &[]),
+        ("fn f(a) = 1", &[]), // parameters never warn
+        ("x = 1", &[]),       // file globals never warn (they are the module's API)
+        ("fn f():\n  (a, b) = (1, 2)\n  a\n;;", &["W0102:b"]),
+        ("fn f(v) = match v: (a, _) => 1 ;;", &["W0102:a"]),
+        ("fn f(v) = match v: x when x > 0 => 1; _ => 0 ;;", &[]),
+        ("fn map(xs) = xs", &["W0103:map"]),
+        ("len = 1", &["W0103:len"]),
+        ("fn f(len) = len", &["W0103:len"]),
+        ("fn f(v) = match v: map => map ;;", &["W0103:map"]),
+        ("fn f():\n  x = 1\n  fn g() = x\n  g()\n;;", &[]), // read by a nested fn counts
+        ("fn f():\n  x = 1\n  x = 2\n  x\n;;", &[]),        // reassigned then read
+        // A block used as a value ends with an assignment.
+        ("fn f():\n  x = if true: _y = 1 ;;\n  x\n;;", &["W0104:_y"]),
+        ("fn f():\n  x = if true: 1 ;;\n  x\n;;", &[]),
+        ("print(if true: _y = 1 ;;)", &["W0104:_y"]),
+        // Any branch.
+        (
+            "fn f():\n  x = if true: 1 else: _z = 2 ;;\n  x\n;;",
+            &["W0104:_z"],
+        ),
+        ("fn f() = if true: _z = 2 ;;", &[]), // fn bodies are not checked
+        (
+            "fn f():\n  return match 1: 1 => _y = 1 ;;\n;;",
+            &["W0104:_y"],
+        ),
+        // Beyond the Go cases (Review Focus 3), checked against Go `check`.
+        ("fn f():\n  x = 1\n  h = () => x\n  h()\n;;", &[]), // a lambda's read counts
+        ("x = 1\ntest \"t\":\n  assert x == 1\n;;", &[]),
+        ("fn f(xs) = for (a, b) in xs: a ;;", &["W0102:b"]),
+        ("fn f(v):\n  {a, b} = v\n  a\n;;", &["W0102:b"]),
+        ("fn f(v) = match v: Ok(x) | Err(x) => 1 ;;", &["W0102:x"]),
+        ("fn f(v) = match v: Ok(x) | Err(x) => x ;;", &[]),
+        // Only its own body calls it: unused.
+        (
+            "fn f():\n  fn g(n) = if n > 0: g(n - 1) else: 0 ;;\n  1\n;;",
+            &["W0102:g"],
+        ),
+        ("import fs\nfn f() = fs.read", &[]), // read by a top-level fn
+        // Same position: the shadow warning comes first.
+        (
+            "fn f():\n  x = 1\n  len = 2\n  x\n;;",
+            &["W0103:len", "W0102:len"],
+        ),
+        (
+            "fn f():\n  b = 1\n  a = 2\n  0\n;;",
+            &["W0102:b", "W0102:a"],
+        ), // sorted by position
+        (
+            "fn f():\n  x = if true: (a, b) = (1, 2) ;;\n  x\n;;",
+            &["W0104:this pattern", "W0102:a", "W0102:b"],
+        ),
+    ];
+    let lib = Options {
+        library: true,
+        ..Options::default()
+    };
+    assert_eq!(
+        warnings_of("fn map(xs) = xs\nlen = 1", &lib),
+        ["W0103:map", "W0103:len"],
+        "the rule does not depend on how a file is loaded (08)"
+    );
+    for (src, want) in cases {
+        assert_eq!(warnings_of(src, &opts), *want, "{src:?}");
+    }
+}
+
+#[test]
+fn warnings_carry_positions_and_spans() {
+    let src = "fn f():\n  len = 2\n  0\n;;";
+    let (r, _) = resolve_with(src, &["len"], &Options::default());
+    let w = &r.unwrap().warnings;
+    assert_eq!((w[0].pos.line, w[0].pos.col, w[0].len), (2, 3, 3));
+    assert_eq!(w[0].code, "W0103");
+    assert_eq!(w[1].code, "W0102");
+}
+
+fn repl(globals: &[&str], redefine: bool) -> Options {
+    Options {
+        globals: names(globals),
+        redefine,
+        ..Options::default()
+    }
+}
+
+/// Go `TestReplOptions` (m6_test.go): the REPL's earlier globals keep
+/// their indexes, and with `redefine` a known fn may be defined again.
+#[test]
+fn repl_options() {
+    let (r, errs) = resolve_with(
+        "fn g() = 2\nprint(x, g())",
+        &["print"],
+        &repl(&["x", "g"], true),
+    );
+    assert!(errs.is_empty(), "{errs:?}");
+    let r = r.unwrap();
+    assert_eq!(
+        r.globals,
+        names(&["x", "g"]),
+        "existing names keep their indexes"
+    );
+    assert_eq!(
+        r.core.to_string(),
+        "(do (let (global 1) (fn g() (do 2))) (call (prelude print) (global 0) (call (global 1))))"
+    );
+    let (_, errs) = resolve_with("fn g() = 2", &["print"], &repl(&["g"], false));
+    assert_eq!(
+        codes(&errs),
+        ["E0210"],
+        "without redefine a known fn is a duplicate"
+    );
+    let (r, errs) = resolve_with("y = 1", &["print"], &repl(&["x"], false));
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(r.unwrap().globals, names(&["x", "y"]), "new globals append");
+    let (r, errs) = resolve_with("x = 5", &["print"], &repl(&["x"], true));
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(r.unwrap().globals.len(), 1, "reassigning a known global");
+}
+
+/// Redefinition inside one input (Go `bindNew`, `bindModule` and the fn
+/// path of `rootBlock` with `Redefine`): a plain assignment replaces a fn
+/// or a module, an import replaces a module, a fn replaces a fn. Without
+/// `redefine` each is an error.
+#[test]
+fn repl_redefinition_in_one_input() {
+    let info = ModuleInfo {
+        key: "fs".into(),
+        name: "fs".into(),
+        exports: names(&["exists"]),
+    };
+    let mut imports = BTreeMap::new();
+    imports.insert("fs".to_string(), info);
+    let with = |redefine| Options {
+        imports: imports.clone(),
+        redefine,
+        ..Options::default()
+    };
+    for (src, plain) in [
+        ("fn f() = 1\nf = 2\nf", "E0209"),
+        ("import fs\nfs = 1\nfs", "E0308"),
+        ("import fs\nimport fs\nfs.exists", "E0309"),
+        ("fn f() = 1\nfn f() = 2\nf()", "E0210"),
+    ] {
+        let (_, errs) = resolve_with(src, &["print"], &with(true));
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+        let (_, errs) = resolve_with(src, &["print"], &with(false));
+        assert_eq!(first_code(&errs), plain, "{src:?}");
+    }
+    // A name a plain assignment took back from a module is a plain name.
+    let (_, errs) = resolve_with("import fs\nfs = 1\ny = fs", &["print"], &with(true));
+    assert!(errs.is_empty(), "{errs:?}");
+    // Earlier globals are plain names: an import may take one over.
+    let opts = Options {
+        globals: names(&["fs"]),
+        ..with(true)
+    };
+    let (r, errs) = resolve_with("import fs\nfs.exists", &["print"], &opts);
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(r.unwrap().globals, names(&["fs"]));
 }

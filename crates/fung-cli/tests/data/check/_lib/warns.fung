@@ -1,0 +1,9 @@
+# An imported module's warnings are shown too, before the importer's.
+import fs
+
+fn helper():
+  dead = 1
+  2
+;;
+
+value = helper()

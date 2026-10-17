@@ -1,0 +1,45 @@
+# W0102: block-local names never read.
+fn plain():
+  never = 1
+  _quiet = 2
+  3
+;;
+
+fn pattern(v):
+  (a, b) = v
+  [h, ...t] = [1, 2, 3]
+  {x, y} = {x: 1, y: 2}
+  a + h + x
+;;
+
+fn arms(v) = match v:
+  Ok(n) | Err(n)                    => 1
+  (first_one, _) when first_one > 0 => 2
+  [_, ...rest]                      => 3
+  _                                 => 0
+;;
+
+fn looped(xs):
+  for (k, unused_v) in xs:
+    tmp = k
+    k
+  ;;
+;;
+
+fn only_self():
+  fn spin(n) = if n > 0: spin(n - 1) else: 0 ;;
+  1
+;;
+
+fn later_shadow():
+  outer = 1
+  if true:
+    inner = outer
+  ;;
+  2
+;;
+
+fn 한글():
+  이름 = 1
+  2
+;;

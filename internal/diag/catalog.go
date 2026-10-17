@@ -88,6 +88,8 @@ var catalog = map[string]string{
 	"E0701": "task cancelled",
 	"E0702": "deadlock: all tasks are waiting",
 	"E0703": "atom swapped inside its own swap",
+	"E0704": "agent called from inside its own swap",
+	"E0705": "channel sent into itself",
 	// E08xx limits and environment
 	"E0801": "internal error: %v",
 	"E0802": "expression nesting too deep (limit %d)",

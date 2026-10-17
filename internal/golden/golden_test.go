@@ -171,3 +171,19 @@ func TestParseDirectives(t *testing.T) {
 		t.Fatal("expect-exit and expect-error together")
 	}
 }
+
+func TestOnlyDirective(t *testing.T) {
+	c, err := Parse("x.fung", []byte("# only: rust\nprint(1)\n# expect: 1\n"))
+	if err != nil || c.Only != "rust" {
+		t.Fatalf("got %q, %v", c.Only, err)
+	}
+	c, err = Parse("x.fung", []byte("print(1)\n# expect: 1\n"))
+	if err != nil || c.Only != "" {
+		t.Fatalf("got %q, %v", c.Only, err)
+	}
+	for _, bad := range []string{"# only: java\n", "# only: go\n# only: go\n"} {
+		if _, err := Parse("x.fung", []byte(bad)); err == nil {
+			t.Fatalf("%q: want an error", bad)
+		}
+	}
+}

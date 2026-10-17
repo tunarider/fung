@@ -1,0 +1,7 @@
+import "./_lib/warns"
+import path
+
+fn f():
+  unused = 1
+  warns.value
+;;

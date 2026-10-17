@@ -5,7 +5,7 @@
 pub struct FileId(pub u32);
 
 /// Owns the names and texts of every source file seen by a run.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct SourceMap {
     files: Vec<(String, String)>,
 }
@@ -26,6 +26,15 @@ impl SourceMap {
 
     pub fn text(&self, id: FileId) -> &str {
         &self.files[id.0 as usize].1
+    }
+
+    /// The number of files registered.
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
     }
 }
 

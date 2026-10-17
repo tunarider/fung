@@ -103,7 +103,7 @@ match fs.read(p):
 | `path` | join, base, dir, ext, stem, abs |
 | `cli` | `parse(argv, bools = [])` → `{flags, rest}`. `--name value`·`--name=value`·`--name`(true, `bools`에 있으면 값을 먹지 않음), `--` 뒤는 전부 rest, 이름의 `-`는 `_`로. 검사·변환은 보통 코드로 (fung으로 작성) |
 | `json` | `parse(s)` → `Ok(값)` / `Err({kind: 'parse, line, col, message})`, `stringify(v, indent = nil)`. 아래 "JSON" 참고 (`_native.json`, M8) |
-| `http` | `get(url, headers = {}, timeout = 30s)`, `post(url, body, headers = {}, timeout = 30s)`, `request(method, url, body = nil, headers = {}, timeout = 30s)`, `serve(addr, handler, ready = nil)`. 아래 "HTTP" 참고 (`_native.http`, M8) |
+| `http` | `get(url, headers = {}, timeout = 30s)`, `post(url, body, headers = {}, timeout = 30s)`, `request(method, url, body = nil, headers = {}, timeout = 30s)`, `serve(addr, handler, ready = nil)`. 아래 "HTTP" 참고 (Go는 `_native.http`, M8; Rust는 `_native.net` 위의 fung, 4d) |
 | `time` | `now()`, `parse(s, format = nil)` → `Ok`/`Err 'parse`, `format(t, format = nil)`, `utc(t)`, `local(t)`, `unix(t)`, `from_unix(n)`, `parts(t)`. `now()`는 `time` 타입 값 (02·07): `==`, `<`, `+ dur`, `time - time → dur`. 아래 "시간 형식" 참고 (`_native.time`, M8) |
 | `regex` | `is_match(s, pat)` → bool, `find(s, pat)` → 매치 맵 또는 `nil`, `find_all(s, pat)`, `replace(s, pat, repl)`, `split(s, pat)`. 아래 "정규식" 참고 (`_native.regex`, M8) |
 | `math`, `random` | (M8 이후) |
@@ -127,17 +127,50 @@ match fs.read(p):
 
 ## HTTP
 
-- 클라이언트: 응답을 받으면 상태 코드와 무관하게 `Ok({status, headers, body})` (404도 `Ok` — "서버가 답했다"와 "요청이 실패했다"는 다른 일).
-  전송 실패 `Err({kind: 'network, message})`, 시간 초과 `Err({kind: 'timeout, message})`. `timeout`은 기간, `0s`면 제한 없음.
-  `body`는 문자열. 응답 `headers`의 키는 **소문자**, 같은 이름이 여럿이면 `", "`로 잇는다. 리다이렉트·https는 Go 기본.
-- 서버 `serve(addr, handler, ready = nil)`: 바인드 실패 `Err 'network`, 되면 **막힌 채로** 요청을 받는다. 끝나는 길은 그 태스크의
-  취소(`cancel(t)`) 또는 `exit`. `ready`가 함수면 리스닝 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다(`":0"`의 포트를 아는 길).
-  - 핸들러 `req => resp`. `req = {method, path, query, headers, body}`(`query`는 첫 값만, `headers`는 소문자 키).
-    `resp`는 맵 `{status = 200, headers = {}, body = ""}` 또는 문자열(200, `text/plain; charset=utf-8`).
-  - 핸들러가 런타임 에러를 내거나 다른 타입을 돌려주면 500을 답하고 stderr에 한 줄(`http: handler failed: …`)을 찍고 서버는 계속 돈다(종료 코드 무관). 핸들러 안의 `exit`·취소는 503이며 보고하지 않는다.
-  - 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `atom`). 라우팅은 없고 `match req.path:`로 쓴다.
-  - 한도 (2026-10-14, 고정값): 헤더를 10초 안에 보내지 않는 연결은 끊고, 요청 본문은 16MB까지(넘으면 413, 핸들러는 불리지 않음).
-  - 런타임 연동: `value.Context`의 `Done()`(취소 신호)과 `RunTask(fn, args)`(새 태스크에서 실행)로 vm을 모르는 `internal/native`에 둔다.
+**fung HTTP 약속** (2026-10-16, Rust 이식 4d). 두 구현이 지키는 동작이다. Go 구현(0.1)은 이것을 Go `net/http`로, Rust 구현은
+`_native.net`(소켓·TLS 원시 기능) 위의 fung 코드(`extras/rust/http.fung`)로 지킨다. 약속 안에서는 두 구현이 같고, 약속 밖의 차이는
+open-questions "Rust 이전"의 "0.2.0에서 바뀌는 것"과 "4d단계(http)에서 알고 남긴 차이"에 있다. 학습 노트 `docs/notes/R4d-net-http.md`.
+
+**클라이언트** (`get` `post` `request`)
+- 응답을 받으면 상태 코드와 무관하게 `Ok({status, headers, body})` (404도 `Ok` — "서버가 답했다"와 "요청이 실패했다"는 다른 일).
+  전송 실패 `Err({kind: 'network, message})`, 시간 초과 `Err({kind: 'timeout, message: "request to `<url>` timed out"})`.
+  `body`는 문자열. 응답 `headers`의 키는 **소문자**, 같은 이름이 여럿이면 `", "`로 잇는다.
+- HTTP/1.1. 요청에 `Host`, `User-Agent: Go-http-client/1.1`(Go 기본값, 과도기 잔가지), 본문이 있으면 `Content-Length`.
+  사용자 헤더가 같은 이름이면 사용자 것. URL에 사용자 정보(`user:pass@`)가 있고 `Authorization`이 없으면 `Authorization: Basic …`.
+- 응답 본문은 `Content-Length`, `Transfer-Encoding: chunked`, 연결 닫힘까지 중 하나로 읽는다. `HEAD` 응답과 1xx·204·304는 본문 없음.
+- **리다이렉트**(Go `Client` 규칙): 301·302·303 → `GET`(원래 `HEAD`면 `HEAD`), 본문 버림. 307·308 → 메서드·본문 유지.
+  요청 10번째의 답이 또 리다이렉트면 `Err 'network`(`stopped after 10 redirects`). 다른 호스트(첫 요청의 호스트나 그 하위 도메인이 아닌 곳)로
+  넘어가면 `Authorization`·`Cookie` 같은 민감한 헤더를 버린다. `Location`이 상대 경로면 현재 URL 기준으로 푼다.
+- **프록시**(Go `ProxyFromEnvironment`): `HTTP_PROXY`/`http_proxy`(http용), `HTTPS_PROXY`/`https_proxy`(https용), `NO_PROXY`/`no_proxy`.
+  `localhost`·루프백 주소는 거치지 않는다. http는 절대 URL 요청, https는 `CONNECT` 터널 뒤 TLS.
+- **https**: 운영체제 루트 인증서(`SSL_CERT_FILE`·`SSL_CERT_DIR`이 있으면 그것), SNI. 인증서 오류는 `Err 'network`.
+- **`timeout`**: 기간, 리다이렉트를 포함한 요청 전체(Go `Client.Timeout`). `0s`면 제한 없음.
+- **에러 문구**: `cannot request `<url>`: <이유>`. 흔한 이유(연결 거부, 호스트 없음, 인증서 오류, 리다이렉트 초과, 잘못된 URL)는 두 구현이 같다.
+- 압축 요청을 드러내지 않는다: 본문은 언제나 풀린 것이다(Go는 `gzip`을 요청하고 스스로 풀며, Rust는 요청하지 않는다).
+- 취소되면 E0701.
+- **Rust만**: 응답 본문 상한 **64 MiB**(넘으면 `Err 'network`; 2026-10-16 사용자 결정, 더 큰 응답은 나중에 요청별 옵션으로). Go 구현에는 상한이 없다.
+  SOCKS 프록시와 https 프록시 너머의 https는 Rust에서 지원하지 않는다(`Err 'network`, Go는 지원).
+
+**서버** `serve(addr, handler, ready = nil)`
+- 바인드 실패 `Err 'network`, 되면 **막힌 채로** 요청을 받는다. 끝나는 길은 그 태스크의 취소(`cancel(t)`) 또는 `exit`.
+  `ready`가 함수면 리스닝 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다(`":0"`의 포트를 아는 길).
+- 핸들러 `req => resp`. `req = {method, path, query, headers, body}`(`query`는 첫 값만, 퍼센트 디코딩은 Go `url.ParseQuery`와 같음, `headers`는 소문자 키).
+  `resp`는 맵 `{status = 200, headers = {}, body = ""}` 또는 문자열(200, `text/plain; charset=utf-8`). 응답 헤더에 `Date`(Go 형식)와
+  `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`.
+- 핸들러가 런타임 에러를 내거나 다른 타입을 돌려주면 500을 답하고 stderr에 한 줄(`http: handler failed: …`)을 찍고 서버는 계속 돈다(종료 코드 무관).
+  핸들러 안의 `exit`·취소는 503이며 보고하지 않는다. 응답 본문 문구는 Go `net/http`와 같다.
+- 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `agent`). 라우팅은 없고 `match req.path:`로 쓴다.
+  Go 구현(0.1)에서는 공유 상태를 `atom`에 두었다. Rust 구현(0.2.0)에는 `atom`이 없다(open-questions "Rust 이전"의 `atom` 항목).
+  예제 `examples/api.fung`·`serve.fung`은 6a단계(2026-10-17)에 `agent`로 고쳤다.
+- 한도 (2026-10-14, 고정값): 헤더를 10초 안에 보내지 않는 연결은 끊고, 요청 본문은 16MB까지(넘으면 413, 핸들러는 불리지 않음), 형식 오류는 400.
+  조각 전송 요청 본문도 받는다.
+- 취소되면 리스너를 닫고 처리 중인 요청을 최대 2초 기다린 뒤 E0701(Go `Shutdown`).
+- 런타임 연동: Go는 `value.Context`의 `Done()`(취소 신호)과 `RunTask(fn, args)`(새 태스크에서 실행)로 vm을 모르는 `internal/native`에 둔다.
+  Rust는 `_native.net`의 `hold`·`close_on_cancel`과 `_native.conc`의 `set_asker`·`describe`로 fung 코드가 서버 루프를 쓴다.
+- **Rust만**: 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙는다(Go는 닫을 때만). 2 KB 넘는 본문도 `Content-Length`로 보낸다(Go는 조각 전송).
+
+**약속 밖**(알려진 차이, 0.2.0에서 바뀌는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축, 바이너리 본문(UTF-8이 아니면 U+FFFD),
+Go가 덧붙이는 그 밖의 헤더, 흔하지 않은 에러 문구.
 
 ## 파일 핸들
 

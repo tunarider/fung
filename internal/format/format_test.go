@@ -216,3 +216,46 @@ func TestReviewFindings(t *testing.T) {
 		check(t, src, want)
 	}
 }
+
+// A `fn` type annotation inside a parameter list is not a block keyword
+// waiting for a `:` after the list closes: the body stays indented.
+func TestFnTypedParameters(t *testing.T) {
+	cases := map[string]string{
+		"fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;\n":      "fn f(h: fn, x = 1):\n  y = x\n  h(y)\n;;\n",
+		"fn f(h: fn):\nh()\n;;\n":                         "fn f(h: fn):\n  h()\n;;\n",
+		"fn f(a: fn, b: fn, c: str):\na(b(c))\n;;\n":      "fn f(a: fn, b: fn, c: str):\n  a(b(c))\n;;\n",
+		"fn f(h: fn = print):\nh(1)\n;;\n":                "fn f(h: fn = print):\n  h(1)\n;;\n",
+		"fn f(h: fn, xs):\nfor x in xs:\nh(x)\n;;\n;;\n":  "fn f(h: fn, xs):\n  for x in xs:\n    h(x)\n  ;;\n;;\n",
+		"fn f(h: fn):\nif h:\n1\nelse:\n2\n;;\n;;\nx=1\n": "fn f(h: fn):\n  if h:\n    1\n  else:\n    2\n  ;;\n;;\nx = 1\n",
+		"fn g(h: fn):\neach(xs, fn(x):\nh(x)\n;;)\n;;\n":  "fn g(h: fn):\n  each(xs, fn(x):\n    h(x)\n  ;;)\n;;\n",
+		"fn f(h: fn, x: int) = h(x)\ny = 1\n":             "fn f(h: fn, x: int) = h(x)\ny = 1\n",
+		"fn f() -> fn:\nprint\n;;\n":                      "fn f() -> fn:\n  print\n;;\n",
+		"fn f(h: fn | nil, g: list[fn]):\nh\n;;\n":        "fn f(h: fn | nil, g: list[fn]):\n  h\n;;\n",
+		"apply(fn(x): x ;;, fn(y):\ny\n;;)\nz = 1\n":      "apply(fn(x): x ;;, fn(y):\n  y\n;;)\nz = 1\n",
+		"fn g():\nh = fn(x: fn):\nx()\n;;\nh\n;;\n":       "fn g():\n  h = fn(x: fn):\n    x()\n  ;;\n  h\n;;\n",
+	}
+	for src, want := range cases {
+		check(t, src, want)
+	}
+}
+
+// A leading byte order mark is skipped like the lexer skips it and never
+// written back; a second mark is code the lexer refuses (E0101).
+func TestByteOrderMark(t *testing.T) {
+	cases := map[string]string{
+		"\ufeffx=1\n":                "x = 1\n",
+		"\ufefffn f():\nx\n;;\n":     "fn f():\n  x\n;;\n",
+		"\ufeff# only a comment\n":   "# only a comment\n",
+		"\ufeff":                     "",
+		"\ufeff\n\nx = 1 # c   \n\n": "x = 1  # c\n",
+	}
+	for src, want := range cases {
+		got, err := Format("t.fung", src)
+		if err != nil || got != want {
+			t.Errorf("format %q\n got %q (%v)\nwant %q", src, got, err, want)
+		}
+	}
+	if _, err := Format("t.fung", "\ufeff\ufeffx = 1\n"); err == nil || err.Code != "E0101" {
+		t.Errorf("a doubled mark must be refused like the lexer refuses it: %v", err)
+	}
+}

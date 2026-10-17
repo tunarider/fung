@@ -17,8 +17,9 @@ fn echo(req):
   ;;
 ;;
 
-# Builds the handler: the server's state lives in the closure (05: 공유
-# 상태는 atom).
+# Builds the handler: the request count lives in an agent the closure
+# holds (05: shared state belongs to one task, here the agent's), so the
+# handler's tasks update it one request at a time.
 fn handler(started, requests):
   fn(req):
     swap(requests, n => n + 1)
@@ -32,7 +33,7 @@ fn handler(started, requests):
 
 test "health, echo and 404":
   port = channel(1)
-  h = handler(time.now(), atom(0))
+  h = handler(time.now(), agent(0))
   s = spawn(() => http.serve("127.0.0.1:0", h, ready: a => send(port, a)))
   base = "http://" + recv(port)!
   r = http.get("${base}/health")!

@@ -15,6 +15,7 @@ use crate::parser::parse;
 use crate::resolve::{self, ModuleInfo};
 use crate::source::{FileId, Pos, SourceMap, decode_go};
 use crate::tree::{Head, Import, Lit, Node};
+use crate::unicode;
 
 /// How far `compile` should go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,6 +49,11 @@ pub struct Build {
     /// The imported modules in dependency order (a module comes after
     /// what it imports).
     pub modules: Vec<Loaded>,
+    /// W01xx warnings of every module that resolved, in dependency order
+    /// (a module's come after those of what it imports), without the
+    /// embedded stdlib's: users cannot act on them. Only `check` and
+    /// `test` show them (08).
+    pub warnings: Vec<Diag>,
 }
 
 /// Compiles an entry file and everything it imports.
@@ -59,6 +65,15 @@ pub struct Loader {
     pub tests: bool,
     /// The entry is an embedded extras file: it may import `_native.*`.
     pub internal: bool,
+    /// Names added to the prelude, like a Go test passing its own prelude
+    /// table (VM tests use it for natives that exist only in tests).
+    pub extra_prelude: Vec<String>,
+    /// REPL (08): the globals earlier inputs defined, for the entry file
+    /// only (Go `Loader.Resolve.Globals`).
+    pub globals: Vec<String>,
+    /// REPL: the entry file may define fns and imports again (Go
+    /// `Loader.Resolve.Redefine`).
+    pub redefine: bool,
 }
 
 impl Default for Loader {
@@ -67,6 +82,9 @@ impl Default for Loader {
             read_file: |p| std::fs::read(p).map(|b| decode_go(&b)),
             tests: false,
             internal: false,
+            extra_prelude: Vec::new(),
+            globals: Vec::new(),
+            redefine: false,
         }
     }
 }
@@ -82,6 +100,7 @@ struct State<'a> {
     sources: SourceMap,
     prelude: Vec<String>,
     prelude_set: BTreeSet<String>,
+    warnings: Vec<Diag>,
 }
 
 type Errs = Vec<Diag>;
@@ -91,12 +110,22 @@ impl Loader {
     /// a stage. Syntax errors stop at the first; name errors are all
     /// collected (08).
     pub fn compile(&self, file: &str, src: &str, up_to: Stage) -> (Build, Vec<Diag>) {
-        let mut prelude: Vec<String> = builtins()
-            .prelude_native
-            .iter()
-            .chain(builtins().prelude_fung.iter())
-            .cloned()
-            .collect();
+        self.compile_after(SourceMap::new(), file, src, up_to)
+    }
+
+    /// `compile` with the files of `prior` first: the new files' ids come
+    /// after them, and `Build::sources` holds both. The REPL compiles each
+    /// input this way, so the positions of every input and module name
+    /// one file of the session's runtime (08).
+    pub fn compile_after(
+        &self,
+        prior: SourceMap,
+        file: &str,
+        src: &str,
+        up_to: Stage,
+    ) -> (Build, Vec<Diag>) {
+        let mut prelude: Vec<String> = builtins().prelude_names();
+        prelude.extend(self.extra_prelude.iter().cloned());
         prelude.sort();
         prelude.dedup();
         let key = if file == "-e" {
@@ -111,15 +140,17 @@ impl Loader {
             loading: HashSet::new(),
             stack: vec![(key.clone(), file.to_string())],
             modules: Vec::new(),
-            sources: SourceMap::new(),
+            sources: prior,
             prelude_set: prelude.iter().cloned().collect(),
             prelude,
+            warnings: Vec::new(),
         };
         st.loading.insert(key.clone());
         let id = st.sources.add(file, src);
         let (mut b, errs) = st.compile_file(&key, file, id, src, false, self.internal, up_to);
         b.sources = st.sources;
         b.modules = st.modules;
+        b.warnings = st.warnings;
         (b, errs)
     }
 }
@@ -168,12 +199,23 @@ impl State<'_> {
             Ok(c) => c,
             Err(e) => return (b, vec![e]),
         };
-        let ropts = resolve::Options { imports, library };
-        let res = match resolve::resolve(&core, &self.prelude, &ropts) {
+        let mut ropts = resolve::Options {
+            imports,
+            library,
+            ..resolve::Options::default()
+        };
+        if key == self.entry_key {
+            ropts.globals.clone_from(&self.l.globals);
+            ropts.redefine = self.l.redefine;
+        }
+        let mut res = match resolve::resolve(&core, &self.prelude, &ropts) {
             Ok(r) => r,
             Err(errs) => return (b, errs),
         };
         b.core = Some(res.core.clone());
+        if !is_stdlib {
+            self.warnings.append(&mut res.warnings);
+        }
         if up_to == Stage::Core {
             return (b, Vec::new());
         }
@@ -244,7 +286,7 @@ impl State<'_> {
             Some(src) if spec != "prelude" => src,
             _ => return Err(e("E0301", vec![s(spec)])),
         };
-        let file = format!("extras/{spec}.fung");
+        let file = crate::extras::path(spec);
         self.load_module(spec, spec, &file, pos, true, &mut || Ok(src.to_string()))
     }
 
@@ -354,10 +396,10 @@ fn mark_builtin(p: &mut Proto) {
 fn is_name(s: &str) -> bool {
     let mut cs = s.chars();
     match cs.next() {
-        Some(c) if c == '_' || (c.is_alphabetic() && !c.is_uppercase()) => {}
+        Some(c) if c == '_' || (unicode::is_letter(c) && !unicode::is_upper(c)) => {}
         _ => return false,
     }
-    cs.all(|c| c == '_' || c.is_alphabetic() || c.is_numeric())
+    cs.all(|c| c == '_' || unicode::is_letter(c) || unicode::is_digit(c))
 }
 
 /// Lexical path cleaning, like Go `filepath.Clean` on Unix.
@@ -406,6 +448,12 @@ fn cwd() -> Option<String> {
         return Some(pwd);
     }
     Some(real.to_string_lossy().into_owned())
+}
+
+/// Go `filepath.Abs`: an absolute, clean path, relative paths taken from
+/// the working directory (`$PWD` when it names the same directory).
+pub fn abs_path(path: &str) -> String {
+    abs_key(path)
 }
 
 fn abs_key(path: &str) -> String {
@@ -521,6 +569,44 @@ mod tests {
         assert!((0..8).map(FileId).any(|id| {
             std::panic::catch_unwind(|| b.sources.text(id) == text).unwrap_or(false)
         }));
+    }
+
+    /// The REPL (08) compiles each input after the files the runtime
+    /// already has, so every position names one file of the session; the
+    /// REPL options reach the entry file only (Go `load.go`).
+    #[test]
+    fn compile_after_continues_the_file_ids_and_repl_options_reach_the_entry_only() {
+        let mut prior = SourceMap::new();
+        prior.add("a", "x");
+        prior.add("b", "y");
+        set_files(&[("/p/lib.fung", "fn g() = 1\nk = g()")]);
+        let l = Loader {
+            globals: vec!["g".into()],
+            redefine: true,
+            ..mem_loader()
+        };
+        let (b, errs) = l.compile_after(
+            prior,
+            "/p/main.fung",
+            "import \"./lib\"\nfn g() = 2",
+            Stage::All,
+        );
+        assert!(errs.is_empty(), "{errs:?}");
+        assert_eq!(b.sources.len(), 4);
+        assert_eq!(
+            (b.sources.name(FileId(0)), b.sources.text(FileId(1))),
+            ("a", "y")
+        );
+        assert_eq!(b.sources.name(FileId(2)), "/p/main.fung");
+        assert_eq!(b.sources.name(FileId(3)), "/p/lib.fung");
+        let p = b.proto.unwrap();
+        assert_eq!(p.global_names, ["g", "lib"]);
+        assert!(p.pos.iter().all(|pos| pos.file == FileId(2)));
+        // The library defines its own `g`: not the entry's globals.
+        let lib = b.modules[0].proto.as_ref().unwrap();
+        assert_eq!(lib.global_names, ["g", "k"]);
+        let (_, errs) = l.compile_after(SourceMap::new(), "/p/main.fung", "x = )", Stage::All);
+        assert_eq!(errs[0].pos.file, FileId(0));
     }
 
     // frontend_test.go
@@ -763,14 +849,46 @@ mod tests {
         assert!(errs.is_empty(), "{errs:?}");
         let mut exports = b.proto.unwrap().exports;
         exports.sort();
+        // The Rust boot leaves out the names stage 6a moved to `conc`.
+        exports.retain(|n| !crate::builtins::RUST_PRELUDE_FUNG_MOVED.contains(&n.as_str()));
         let mut spec = crate::builtins::builtins().prelude_fung.clone();
         spec.sort();
         assert_eq!(exports, spec);
     }
 
+    /// `extras/rust/conc.fung` (stage 6a, Rust only) is the module `conc`:
+    /// it exports exactly the names of the Rust difference list.
+    #[test]
+    fn conc_module_exports_match_the_list() {
+        let (b, errs) = Loader::default().compile("-e", "import conc", Stage::All);
+        assert!(errs.is_empty(), "{errs:?}");
+        let conc = b.modules.iter().find(|m| m.key == "conc").expect("conc");
+        let mut exports = conc.proto.as_ref().unwrap().exports.clone();
+        exports.sort();
+        assert_eq!(exports, crate::builtins::builtins().modules["conc"]);
+        let (_, errs) = Loader::default().compile("-e", "print(pmap)", Stage::All);
+        assert_eq!(codes(&errs), ["E0204"], "pmap is not a prelude name");
+    }
+
+    /// `extras/rust/agent.fung` (read only by the Rust boot) compiles as an
+    /// embedded file and exports exactly the agent names of the Rust
+    /// difference list (`builtins.rs`).
+    #[test]
+    fn agent_fung_exports_match_the_list() {
+        let loader = Loader {
+            internal: true,
+            ..Loader::default()
+        };
+        let (b, errs) = loader.compile("extras/rust/agent.fung", crate::extras::AGENT, Stage::All);
+        assert!(errs.is_empty(), "{errs:?}");
+        let mut exports = b.proto.unwrap().exports;
+        exports.sort();
+        assert_eq!(exports, crate::builtins::builtins().prelude_agent);
+    }
+
     #[test]
     fn every_embedded_module_compiles() {
-        for name in ["fs", "path", "cli", "time", "json", "regex", "http"] {
+        for name in ["fs", "path", "cli", "time", "json", "regex", "http", "conc"] {
             let (_, errs) = Loader::default().compile("-e", &format!("import {name}"), Stage::All);
             assert!(errs.is_empty(), "{name}: {errs:?}");
         }
@@ -785,5 +903,34 @@ mod tests {
         assert_eq!(rel("/a/b", "/a/x.fung"), "../x.fung");
         assert_eq!(module_stem("/p/q/x.fung"), "x");
         assert!(is_name("x_1") && !is_name("bad-name") && !is_name("Up") && !is_name(""));
+        // Go `unicode` classes: So and No are not letters, Ll and Nd are.
+        assert!(!is_name("mⓐ") && !is_name("x²") && is_name("ß1") && is_name("x٣"));
+    }
+
+    #[test]
+    fn warnings_come_from_every_user_module_in_dependency_order() {
+        // Go `Program.Warnings`: each module's warnings once it resolves,
+        // so an import's come before its importer's; the embedded stdlib's
+        // are hidden (users cannot act on them).
+        let main = "import \"./lib\"\nimport fs\nfn f():\n  unused = 1\n  lib.v\n;;";
+        set_files(&[("/p/lib.fung", "fn g():\n  dead = 1\n  2\n;;\nv = 1")]);
+        let (b, errs) = mem_loader().compile("/p/main.fung", main, Stage::All);
+        assert!(errs.is_empty(), "{errs:?}");
+        let got: Vec<String> = b
+            .warnings
+            .iter()
+            .map(|w| format!("{} {}:{}", w.code, b.sources.name(w.pos.file), w.pos.line))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "W0102 /p/lib.fung:2",
+                "W0101 /p/main.fung:2",
+                "W0102 /p/main.fung:4"
+            ]
+        );
+        let (b, errs) = mem_loader().compile("-e", "fn f():\n  x = 1\n  y\n;;", Stage::All);
+        assert_eq!(codes(&errs), ["E0204"]);
+        assert!(b.warnings.is_empty(), "a file with errors has no warnings");
     }
 }

@@ -1,0 +1,15 @@
+# only: rust
+# Stage 6a: the Rust implementation keeps fan_in, pmap and retry in the
+# module `conc` (Go: conc_helpers.fung, prelude names).
+import conc
+
+a = channel(2)
+b = channel(2)
+each([1, 2], x => send(a, x))
+close(a)
+send(b, 3)
+close(b)
+print(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))
+# expect: [1, 2, 3] [1, 4, 9] []
+print(conc.retry(() => Err("never"), times: 2))
+# expect: Err("never")

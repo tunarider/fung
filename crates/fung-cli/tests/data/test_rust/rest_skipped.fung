@@ -1,0 +1,25 @@
+# A block passes, then a task it woke asks for exit(3): the rest of the
+# file is skipped, and the skip counts as a failure (08: a test run
+# never ends silently).
+#
+# Ordered by state, not by timing: `go` has room, so the block never
+# waits on it and holds the run token until it waits in `recv(c)`; the
+# task can only send on `c` after taking `go`'s value, so it finds the
+# block waiting, hands the value over without waiting and asks for the
+# exit on the same turn of the token. The block then wakes with its
+# value and returns: it passes.
+go = channel(1)
+c = channel()
+_t = spawn(fn():
+  recv(go)
+  send(c, 1)
+  exit(3)
+;;)
+
+test "receives":
+  send(go, 1)
+  recv(c)
+;;
+test "two": assert true ;;
+test "three": assert true ;;
+test "four": assert true ;;

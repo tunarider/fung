@@ -16,7 +16,8 @@ import (
 
 // runFmt formats files in place (08): `fung fmt <path>...` rewrites and
 // names the changed files, `--check` only names them (exit 1 if any),
-// `-` formats standard input to standard output. A file with a syntax
+// `-` formats standard input to standard output (with `--check`, names
+// `<stdin>` if it needs formatting and exits 1). A file with a syntax
 // error is reported and left alone (exit 2).
 func runFmt(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	check := false
@@ -51,8 +52,15 @@ func runFmt(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			io.WriteString(stderr, diag.Format(ferr, string(src)))
 			return exitCompileError
 		}
-		io.WriteString(stdout, out)
-		return exitOK
+		if !check {
+			io.WriteString(stdout, out)
+			return exitOK
+		}
+		if out == string(src) {
+			return exitOK
+		}
+		fmt.Fprintln(stdout, "<stdin>")
+		return exitRuntimeError
 	}
 	files, err := fungFiles(paths)
 	if err != nil {

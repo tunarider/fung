@@ -1,0 +1,6 @@
+at_exit(() => print("handler still runs"))
+test "a task exits":
+  t = spawn(() => exit(3))
+  await(t)
+;;
+test "skipped, no calls": assert 1 + 1 == 2 ;;

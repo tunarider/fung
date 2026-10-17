@@ -15,6 +15,7 @@ mod scope;
 mod similar;
 #[cfg(test)]
 mod tests;
+mod warn;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -40,6 +41,11 @@ pub struct Options {
     pub imports: BTreeMap<String, ModuleInfo>,
     /// An imported file: top-level restrictions (04).
     pub library: bool,
+    /// REPL: the globals earlier inputs defined, in index order. They
+    /// keep their indexes and count as read (Go `Options.Globals`).
+    pub globals: Vec<String>,
+    /// REPL: fns and imports may be defined again (Go `Options.Redefine`).
+    pub redefine: bool,
 }
 
 /// The resolved tree plus what the compiler needs to lay out storage.
@@ -54,6 +60,8 @@ pub struct Resolved {
     pub imports: Vec<String>,
     /// Public globals: not private, not hidden, not bound by import (04).
     pub exports: Vec<String>,
+    /// W01xx warnings, sorted by position (08).
+    pub warnings: Vec<Diag>,
 }
 
 /// Resolves a core tree against the prelude names (sorted) and the modules
@@ -74,8 +82,10 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         module_names: HashMap::new(),
         import_bound: HashSet::new(),
         errs: Vec::new(),
+        warnings: Vec::new(),
     };
     let out = r.root_block(core);
+    warn::sort_warnings(&mut r.warnings);
     if !r.errs.is_empty() {
         return Err(r.errs);
     }
@@ -91,6 +101,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         globals: r.globals,
         imports: r.imports,
         exports,
+        warnings: r.warnings,
     })
 }
 
@@ -118,6 +129,7 @@ struct Resolver<'a> {
     /// Every name an import bound: never re-exported (04).
     import_bound: HashSet<String>,
     errs: Vec<Diag>,
+    warnings: Vec<Diag>,
 }
 
 /// Where a captured name was found.
@@ -199,6 +211,18 @@ impl Resolver<'_> {
     /// those statements may only be assignments (04, E0306).
     fn root_block(&mut self, n: &Node) -> Node {
         self.push_block(n, true);
+        // REPL: the globals of earlier inputs keep their indexes (08).
+        for (i, g) in self.opts.globals.iter().enumerate() {
+            let b = Binding {
+                global: true,
+                index: i,
+                ..Binding::default()
+            };
+            let sc = self.root_scope();
+            sc.names.insert(g.clone(), b);
+            sc.used.insert(g.clone());
+            self.globals.push(g.clone());
+        }
         self.declare_aliases(n);
         let mut kids = Vec::new();
         let mut fns: Vec<&Node> = Vec::new();
@@ -217,6 +241,16 @@ impl Resolver<'_> {
                 continue;
             };
             if let Some(b) = self.root_scope().names.get(name).copied() {
+                if self.opts.redefine && !b.module {
+                    // REPL: the fn takes the name's storage over (08).
+                    let b = Binding {
+                        constant: true,
+                        ..b
+                    };
+                    self.root_scope().names.insert(name.to_string(), b);
+                    fns.push(k);
+                    continue;
+                }
                 let e = if b.module {
                     module::shadow_error(name, k.pos)
                 } else {
@@ -225,6 +259,7 @@ impl Resolver<'_> {
                 self.errs.push(e);
                 continue;
             }
+            self.warn_shadow(name, k.pos);
             let b = Binding {
                 global: true,
                 index: self.globals.len(),
@@ -232,6 +267,7 @@ impl Resolver<'_> {
                 module: false,
             };
             self.root_scope().names.insert(name.to_string(), b);
+            self.root_scope().pos.insert(name.to_string(), k.pos);
             self.globals.push(name.to_string());
             fns.push(k);
         }
@@ -255,6 +291,7 @@ impl Resolver<'_> {
             let w = self.walk(k);
             kids.push(w);
         }
+        self.warn_unused_imports();
         self.pop_block(true);
         Node::new(Head::Do, n.pos, kids)
     }
@@ -284,8 +321,9 @@ impl Resolver<'_> {
         let sc = f.blocks.pop().expect("block stack");
         f.later.pop();
         if !file {
-            f.closed.extend(sc.names.into_keys());
             f.next_slot = sc.base;
+            self.warn_unused(&sc);
+            self.cur_mut().closed.extend(sc.names.into_keys());
         }
     }
 
@@ -303,7 +341,10 @@ impl Resolver<'_> {
     fn walk_node(&mut self, n: &Node) -> Node {
         match n.head {
             Head::Do => return self.block(n),
-            Head::Let => return self.let_(n),
+            Head::Let => {
+                self.warn_block_value(&n.kids[1]);
+                return self.let_(n);
+            }
             Head::Name => return self.name(n),
             Head::Fn => return self.fn_node(n),
             Head::Match => return self.match_expr(n),
@@ -326,7 +367,15 @@ impl Resolver<'_> {
                 self.errs.push(error("E0311", n.pos, vec![]));
                 return Node::new(Head::Nil, n.pos, vec![]);
             }
+            Head::Call => {
+                for k in &n.kids[1..] {
+                    self.warn_block_value(k);
+                }
+            }
             Head::Return => {
+                if let Some(k) = n.kids.first() {
+                    self.warn_block_value(k);
+                }
                 if !self.in_function() {
                     self.errs.push(error("E0211", n.pos, vec![]));
                 } else if self.cur().for_body {
@@ -387,29 +436,41 @@ impl Resolver<'_> {
     /// assignment is an error.
     fn bind_new(&mut self, name: &str, pos: Pos) -> Option<Binding> {
         if let Some(b) = self.cur_block().names.get(name).copied() {
-            if b.module {
+            if b.module && !self.opts.redefine {
                 self.errs.push(module::shadow_error(name, pos));
                 return None;
             }
-            if b.constant {
+            if b.constant && !self.opts.redefine {
                 self.errs.push(name_error("E0209", pos, name));
                 return None;
+            }
+            if b.constant || b.module {
+                // REPL: a plain variable replaces the fn or module (08).
+                let b = Binding {
+                    global: b.global,
+                    index: b.index,
+                    ..Binding::default()
+                };
+                self.cur_block().names.insert(name.to_string(), b);
+                self.module_names.remove(name);
+                return Some(b);
             }
             return Some(b);
         }
         if !self.check_shadow(name, pos) {
             return None;
         }
+        self.warn_shadow(name, pos);
         if self.defined_outside(name) {
             self.errs.push(name_error("E0205", pos, name));
             return None;
         }
-        Some(self.bind_here(name))
+        Some(self.bind_here(name, pos))
     }
 
     /// Binds name as a new global (file scope) or slot (block) in the
-    /// current block.
-    fn bind_here(&mut self, name: &str) -> Binding {
+    /// current block, bound at `pos` (for warnings).
+    fn bind_here(&mut self, name: &str, pos: Pos) -> Binding {
         let b = if self.cur_block().file {
             let b = Binding {
                 global: true,
@@ -424,7 +485,9 @@ impl Resolver<'_> {
                 ..Binding::default()
             }
         };
-        self.cur_block().names.insert(name.to_string(), b);
+        let sc = self.cur_block();
+        sc.names.insert(name.to_string(), b);
+        sc.pos.insert(name.to_string(), pos);
         b
     }
 
@@ -499,6 +562,11 @@ impl Resolver<'_> {
                 "`{name}` is a file-level variable (assigned on line {}) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument",
                 p.line
             ));
+        } else if crate::builtins::RUST_PRELUDE_FUNG_MOVED.contains(&name) {
+            // Rust only (stage 6a): Go's prelude still has these names.
+            e = e.with_help(&format!(
+                "moved to module conc: import conc, then conc.{name}"
+            ));
         } else if let Some(s) = similar::similar(name, &self.visible()) {
             e = e.with_help(&format!("a similar name exists: `{s}`"));
         }
@@ -511,9 +579,15 @@ impl Resolver<'_> {
     /// between). A top-level fn (a constant) is referenced directly; a file
     /// variable is copied like any other captured value (03).
     fn lookup(&mut self, name: &str, pos: Pos) -> Option<Node> {
-        let f = self.cur();
-        if let Some(b) = f.blocks.iter().rev().find_map(|b| b.names.get(name)) {
-            return Some(ref_node(pos, *b));
+        let f = self.cur_mut();
+        if let Some(sc) = f
+            .blocks
+            .iter_mut()
+            .rev()
+            .find(|b| b.names.contains_key(name))
+        {
+            sc.used.insert(name.to_string());
+            return Some(ref_node(pos, sc.names[name]));
         }
         if f.self_name == name {
             return Some(Node::new(Head::SelfFn, pos, vec![]));
@@ -535,9 +609,14 @@ impl Resolver<'_> {
             return Some(Found::Captured(idx));
         }
         let pi = fi - 1;
-        let p = &self.fns[pi];
+        let p = &mut self.fns[pi];
         let mut src = None;
-        if let Some(b) = p.blocks.iter().rev().find_map(|b| b.names.get(name)) {
+        let found = p.blocks.iter_mut().rev().find_map(|sc| {
+            let b = *sc.names.get(name)?;
+            sc.used.insert(name.to_string());
+            Some(b)
+        });
+        if let Some(b) = found {
             if b.global && b.constant {
                 // Another top-level fn: it never changes, so a direct
                 // reference is indistinguishable from a copy.

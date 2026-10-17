@@ -1,0 +1,9 @@
+# cargo-audit settings. Each ignored advisory is explained in deny.toml
+# ([advisories] ignore), which lists the same ids for cargo-deny.
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0346",
+    "RUSTSEC-2026-0347",
+    "RUSTSEC-2026-0348",
+    "RUSTSEC-2026-0349",
+]

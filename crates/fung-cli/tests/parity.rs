@@ -1,40 +1,9 @@
 // crates/fung-cli/tests/parity.rs
-use std::{
-    ffi::OsString,
-    os::unix::ffi::OsStringExt,
-    path::{Path, PathBuf},
-    process::Command,
-};
+mod common;
 
-fn repo() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .unwrap()
-}
+use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
-/// Builds the Go implementation. `None` only when `go` cannot be run at all
-/// and parity is not required; a failing `go build` always panics.
-fn go_fung() -> Option<PathBuf> {
-    let out = std::env::temp_dir().join(format!("fung-go-parity-{}", std::process::id()));
-    let built = Command::new("go")
-        .args(["build", "-o"])
-        .arg(&out)
-        .arg("./cmd/fung")
-        .current_dir(repo())
-        .output();
-    match built {
-        Err(e) => {
-            assert!(
-                std::env::var("FUNG_REQUIRE_PARITY").as_deref() != Ok("1"),
-                "FUNG_REQUIRE_PARITY=1 but `go` cannot be run: {e}"
-            );
-            None
-        }
-        Ok(o) if o.status.success() => Some(out),
-        Ok(o) => panic!("go build failed:\n{}", String::from_utf8_lossy(&o.stderr)),
-    }
-}
+use common::{RUST_ONLY_EXAMPLES, diff, go_fung, repo, run, rust_fung, uses_rust_only};
 
 fn corpus() -> Vec<String> {
     let mut files = Vec::new();
@@ -60,32 +29,39 @@ fn corpus() -> Vec<String> {
     files
 }
 
-/// Standard output, standard error (bytes, compared exactly) and the exit
-/// status, compared as its debug text so two different signal deaths differ.
-fn run(bin: &Path, args: &[OsString]) -> (Vec<u8>, Vec<u8>, String) {
-    let o = Command::new(bin)
-        .args(args)
-        .current_dir(repo())
-        .output()
-        .unwrap();
-    (o.stdout, o.stderr, format!("{:?}", o.status))
+/// Whether a corpus file's names resolve the same in both
+/// implementations. Since stage 3b they differ for a `# only:` golden
+/// file (atoms are Go only, agents Rust only) and since stage 6a for the
+/// Rust-only examples (`common::RUST_ONLY_EXAMPLES`): their syntax is
+/// shared, so only `dump ast` is compared for them.
+fn resolves_alike(path: &str) -> bool {
+    if RUST_ONLY_EXAMPLES.contains(&path) {
+        return false;
+    }
+    let src = std::fs::read_to_string(repo().join(path)).unwrap();
+    !src.lines().any(|l| l.trim().starts_with("# only:"))
 }
 
-fn first_diff(a: &[u8], b: &[u8]) -> String {
-    let (a, b) = (String::from_utf8_lossy(a), String::from_utf8_lossy(b));
-    if a == b {
-        return "same text, different bytes (invalid UTF-8)".into();
+#[test]
+fn the_rust_only_examples_are_listed() {
+    let examples: Vec<String> = corpus()
+        .into_iter()
+        .filter(|f| f.starts_with("examples/"))
+        .collect();
+    for path in &examples {
+        let src = std::fs::read_to_string(repo().join(path)).unwrap();
+        assert_eq!(
+            uses_rust_only(&src),
+            RUST_ONLY_EXAMPLES.contains(&path.as_str()),
+            "{path}: RUST_ONLY_EXAMPLES is out of date"
+        );
     }
-    for (i, (x, y)) in a.lines().zip(b.lines()).enumerate() {
-        if x != y {
-            return format!("line {}:\n  go:   {x}\n  rust: {y}", i + 1);
-        }
+    for path in RUST_ONLY_EXAMPLES {
+        assert!(examples.iter().any(|f| f == path), "{path} is gone");
     }
-    format!(
-        "lengths differ: go {} lines, rust {} lines",
-        a.lines().count(),
-        b.lines().count()
-    )
+    assert!(resolves_alike("tests/lang/arith.fung"));
+    assert!(!resolves_alike("tests/lang/agents.fung"));
+    assert!(!resolves_alike("tests/lang/atoms.fung"));
 }
 
 /// Files the corpus does not have: BOM, CRLF, tabs, invalid UTF-8.
@@ -102,6 +78,17 @@ fn odd_files() -> Vec<(&'static str, &'static [u8])> {
         (
             "uses_badmod.fung",
             b"import \"./badmod\"\nprint(badmod.x)\n",
+        ),
+        // A module stem Go's `unicode.IsLetter` rejects (So, Nl).
+        ("mⓐ.fung", b"v = 1\n"),
+        (
+            "uses_odd_stem.fung",
+            "import \"./mⓐ\"\nprint(1)\n".as_bytes(),
+        ),
+        ("mⅻ.fung", b"v = 1\n"),
+        (
+            "uses_numeral_stem.fung",
+            "import \"./mⅻ\"\nprint(1)\n".as_bytes(),
         ),
         // Format (Cf) characters print as escapes, U+13440 does not.
         (
@@ -163,16 +150,21 @@ fn long_chains() -> Vec<String> {
 
 #[test]
 fn dumps_match_the_go_implementation() {
-    let Some(go) = go_fung() else {
+    let Some(go) = go_fung("dump") else {
         eprintln!("skipping parity: `go` is not available");
         return;
     };
-    let rust = PathBuf::from(env!("CARGO_BIN_EXE_fung"));
+    let rust = rust_fung();
     let mut failures = Vec::new();
     let mut cases: Vec<Vec<OsString>> = Vec::new();
     for f in corpus() {
-        for stage in ["ast", "core", "bytecode"] {
-            cases.push(vec!["dump".into(), stage.into(), f.clone().into()]);
+        let stages: &[&str] = if resolves_alike(&f) {
+            &["ast", "core", "bytecode"]
+        } else {
+            &["ast"]
+        };
+        for stage in stages {
+            cases.push(vec!["dump".into(), (*stage).into(), f.clone().into()]);
         }
     }
     for extra in [
@@ -220,6 +212,21 @@ fn dumps_match_the_go_implementation() {
         vec!["dump", "ast", "-e", "x = 1", "extra"],
         vec!["dump", "core", "-e", "print(없는)"],
         vec!["dump", "core", "-e", "\tprint(nope)"],
+        // Go's Unicode classes (spec/unicode.txt): identifiers stop at
+        // characters `unicode.IsLetter`/`IsDigit` reject, and quoting
+        // escapes what `unicode.IsPrint` rejects.
+        vec!["dump", "ast", "-e", "x² = 1"],
+        vec!["dump", "core", "-e", "aⅫ = 1"],
+        vec!["dump", "ast", "-e", "Ⓐ = 1"],
+        vec!["dump", "ast", "-e", "हिंदी = 1"],
+        vec!["dump", "core", "-e", "ß1 = 2\nprint(ß1)"],
+        vec!["dump", "ast", "-e", "Σ1 = 1\nǅx = 2"],
+        vec!["dump", "core", "-e", "x٣ = 1\nprint(x٣)"],
+        vec!["dump", "ast", "-e", "x = ٣"],
+        vec!["dump", "ast", "-e", "x = \u{378}"],
+        vec!["dump", "ast", "-e", "x = \"a\u{378}b\u{E000}\""],
+        vec!["dump", "bytecode", "-e", "x = \"a\u{378}b\""],
+        vec!["dump", "core", "-e", "fn f(x: Ⓐ) = x"],
     ] {
         cases.push(extra.into_iter().map(OsString::from).collect());
     }
@@ -239,15 +246,7 @@ fn dumps_match_the_go_implementation() {
         }
     }
     for a in &cases {
-        let (g, r) = (run(&go, a), run(&rust, a));
-        if g != r {
-            let what = if g.0 != r.0 {
-                first_diff(&g.0, &r.0)
-            } else if g.1 != r.1 {
-                first_diff(&g.1, &r.1)
-            } else {
-                format!("exit {} vs {}", g.2, r.2)
-            };
+        if let Some(what) = diff(&run(&go, a), &run(&rust, a)) {
             failures.push(format!(
                 "{}: {what}",
                 a.iter()

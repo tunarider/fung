@@ -1,3 +1,4 @@
+# only: go
 counter = atom(0)
 each(for _ in 0..8: spawn(() => each(0..50, _ => swap(counter, n => n + 1))) ;;, await)
 print(deref(counter))

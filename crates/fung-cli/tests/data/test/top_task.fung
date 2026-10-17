@@ -1,0 +1,10 @@
+ch = channel()
+worker = spawn(fn():
+  v = recv(ch)!
+  v * 2
+;;)
+
+test "talks to a top-level task":
+  send(ch, 21)
+  assert await(worker) == 42
+;;

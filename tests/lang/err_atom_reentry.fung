@@ -1,3 +1,4 @@
+# only: go
 a = atom(0)
 swap(a, x => swap(a, y => y))
 # expect-error: E0703

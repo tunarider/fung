@@ -1,0 +1,5 @@
+test "before the task exit": assert 1 + 1 == 2 ;;
+test "a task exits":
+  t = spawn(() => exit(3))
+  await(t)
+;;

@@ -1,5 +1,14 @@
-//! The `fung` command of the Rust port. Only `fung dump` exists so far;
-//! it mirrors `cmd/fung` of the Go implementation byte for byte.
+//! The `fung` command of the Rust port: `fung dump`, `run`,
+//! `<script.fung>`, `-e`, `check`, `test`, `fmt`, `version`, `help` and
+//! the REPL. It mirrors `cmd/fung` of the Go implementation byte for byte.
+
+mod check;
+mod fmt;
+mod paths;
+mod repl;
+mod run;
+mod test;
+mod version;
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
@@ -11,7 +20,7 @@ use fung_front::loader::{Loader, Stage};
 use fung_front::source::decode_go;
 
 /// Copied verbatim from `cmd/fung/main.go`.
-const USAGE: &str = "usage:
+pub(crate) const USAGE: &str = "usage:
   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
   fung                                    start the REPL
   fung -e '<code>'                        run one line of code
@@ -23,42 +32,63 @@ const USAGE: &str = "usage:
   fung help                               print this text
 ";
 
-/// The front end recurses on the shape of the tree, so it runs on a
-/// thread with a large stack: deeply nested input and long flat chains
-/// (`1 + 1 + ...`, `x.b.b...`) recurse once per level in the later
-/// passes. 4 GiB is only reserved address space (pages are committed
-/// when touched) and leaves a margin over Go's 1 GB goroutine stack limit.
-const STACK: usize = 4 << 30;
+/// The command runs on a thread with a large stack. The front end
+/// recurses on the shape of the tree: deeply nested input and long flat
+/// chains (`1 + 1 + ...`, `x.b.b...`) recurse once per level in the later
+/// passes. At run time, natives that call fung functions (`fold`, `map`)
+/// recurse on the Rust stack, and formatting, comparing and dropping
+/// deeply nested values recurse too. 4 GiB is only reserved address space
+/// (pages are committed when touched) and leaves a margin over Go's 1 GB
+/// goroutine stack limit. A host that refuses the reservation (little
+/// memory and swap, strict overcommit, `ulimit -v`) gets the next smaller
+/// size (`fung_vm::stack::ENTRY_STACKS`, docs/notes/R3a-runtime.md 2절).
+const STACKS: &[usize] = fung_vm::stack::ENTRY_STACKS;
 
 /// What a command produced: standard output, standard error, exit code.
 /// The streams are bytes because Go echoes arguments that are not UTF-8
-/// unchanged.
+/// unchanged. A run writes to the process streams as it goes and leaves
+/// both empty.
 #[derive(Default)]
-struct Out {
+pub(crate) struct Out {
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     code: i32,
 }
 
 fn main() {
+    // A Rust panic inside fung code becomes an E0801 report (the VM's
+    // panic fence); the default hook would also print the panic message,
+    // which Go does not.
+    std::panic::set_hook(Box::new(|_| {}));
     let raw: Vec<Vec<u8>> = std::env::args_os()
         .skip(1)
         .map(OsString::into_vec)
         .collect();
-    let out = std::thread::Builder::new()
-        .stack_size(STACK)
-        .spawn(move || run(&raw))
-        .expect("spawn the front-end thread")
-        .join()
-        .unwrap_or_else(|_| Out {
-            stderr: b"error: internal error in the front end\n".to_vec(),
+    let out = start(STACKS, raw);
+    let _ = run::ProcessOut::stdout().write_all(&out.stdout);
+    let _ = run::ProcessOut::stderr().write_all(&out.stderr);
+    std::process::exit(out.code);
+}
+
+/// Runs the command on a thread with the first stack size in `sizes`
+/// the system accepts. If it accepts none, the result is one line on
+/// standard error and exit code 1, not a panic (which the empty hook
+/// above would make silent).
+fn start(sizes: &[usize], raw: Vec<Vec<u8>>) -> Out {
+    let started =
+        fung_vm::stack::spawn_sized(std::thread::Builder::new, sizes, raw, |raw| run(&raw));
+    match started {
+        Ok(h) => h.join().unwrap_or_else(|_| Out {
+            stderr: b"error: internal error in the fung command\n".to_vec(),
             code: diag::EXIT_RUNTIME,
             ..Out::default()
-        });
-    let _ = std::io::stdout().write_all(&out.stdout);
-    let _ = std::io::stdout().flush();
-    let _ = std::io::stderr().write_all(&out.stderr);
-    std::process::exit(out.code);
+        }),
+        Err((e, _)) => Out {
+            stderr: format!("error: cannot start the fung command thread: {e}\n").into_bytes(),
+            code: diag::EXIT_RUNTIME,
+            ..Out::default()
+        },
+    }
 }
 
 /// `raw` are the arguments as the OS gave them. They are decoded like Go
@@ -68,27 +98,79 @@ fn run(raw: &[Vec<u8>]) -> Out {
     let args: Vec<String> = raw.iter().map(|a| decode_go(a)).collect();
     match args.first().map(String::as_str) {
         Some("dump") => run_dump(&args[1..], &raw[1..]),
+        Some("run") => run_file(&args[1..], &raw[1..]),
+        Some("-e") => match args.get(1) {
+            Some(code) => executed(run::execute("-e", code, args[2..].to_vec())),
+            None => usage_error(b"-e needs code"),
+        },
+        Some("version") => Out {
+            stdout: format!("fung {}\n", version::version()).into_bytes(),
+            ..Out::default()
+        },
+        Some("help" | "-h" | "--help") => Out {
+            stdout: USAGE.as_bytes().to_vec(),
+            ..Out::default()
+        },
+        Some("check") => check::run_check(&args[1..], &raw[1..]),
+        Some("test") => test::run_test(&raw[1..]),
+        Some("fmt") => fmt::run_fmt(&args[1..], &raw[1..]),
+        Some(a) if is_script_path(a) => run_file(&args, raw),
         Some(_) => Out {
             stderr: [
-                b"not implemented yet in the Rust port: ",
+                b"error: unknown command `",
                 &raw[0][..],
-                b"\n",
+                b"`\n\n",
+                USAGE.as_bytes(),
             ]
             .concat(),
             code: EXIT_USAGE,
             ..Out::default()
         },
-        None => Out {
-            stderr: b"not implemented yet in the Rust port: the REPL\n".to_vec(),
-            code: EXIT_USAGE,
-            ..Out::default()
-        },
+        None => repl::start(),
     }
 }
 
-fn usage_error(msg: &[u8]) -> Out {
+pub(crate) fn usage_error(msg: &[u8]) -> Out {
     Out {
         stderr: [b"error: ", msg, b"\n\n", USAGE.as_bytes()].concat(),
+        code: EXIT_USAGE,
+        ..Out::default()
+    }
+}
+
+/// Whether a first argument is a script to run rather than a command
+/// name (Go `isScriptPath`): a script carries the .fung extension or is
+/// written as a path.
+fn is_script_path(arg: &str) -> bool {
+    !arg.is_empty()
+        && !arg.starts_with('-')
+        && (arg.ends_with(".fung") || arg.contains(['/', '\\']))
+}
+
+/// The outcome of a run: its output is already written.
+fn executed(code: i64) -> Out {
+    Out {
+        code: run::status(code),
+        ..Out::default()
+    }
+}
+
+/// `fung run FILE ARGS...` and `fung FILE ARGS...` (Go `runFile`):
+/// `args[0]` is the path, the rest are the script's arguments.
+fn run_file(args: &[String], raw: &[Vec<u8>]) -> Out {
+    let Some(path) = raw.first() else {
+        return usage_error(b"run needs a script path");
+    };
+    match read_file(path) {
+        Ok(src) => executed(run::execute(&args[0], &src, args[1..].to_vec())),
+        Err(msg) => read_error(path, &msg),
+    }
+}
+
+/// Go's `error: cannot read PATH: ...` for a script that cannot be read.
+pub(crate) fn read_error(path: &[u8], msg: &[u8]) -> Out {
+    Out {
+        stderr: [b"error: cannot read ", path, b": ", msg, b"\n"].concat(),
         code: EXIT_USAGE,
         ..Out::default()
     }
@@ -124,11 +206,7 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
             let path = &raw[1];
             match read_file(path) {
                 Ok(src) => dump(up_to, path, &src),
-                Err(msg) => Out {
-                    stderr: [b"error: cannot read ", &path[..], b": ", &msg[..], b"\n"].concat(),
-                    code: EXIT_USAGE,
-                    ..Out::default()
-                },
+                Err(msg) => read_error(path, &msg),
             }
         }
         _ => usage_error(b"dump needs a script path or -e code"),
@@ -137,9 +215,14 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
 
 /// Reads a script and decodes it like Go. A failure is described the way
 /// Go's `os.ReadFile` does, with the path bytes unchanged.
-fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
+pub(crate) fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
+    read_bytes(path).map(|b| decode_go(&b))
+}
+
+/// Reads a file's bytes; a failure reads like [`read_file`]'s.
+pub(crate) fn read_bytes(path: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
     use std::io::ErrorKind;
-    let bytes = std::fs::read(OsStr::from_bytes(path)).map_err(|e| {
+    std::fs::read(OsStr::from_bytes(path)).map_err(|e| {
         let (op, text) = match e.kind() {
             ErrorKind::NotFound => ("open ", "no such file or directory".to_string()),
             ErrorKind::PermissionDenied => ("open ", "permission denied".to_string()),
@@ -151,8 +234,7 @@ fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
             }
         };
         [op.as_bytes(), path, b": ", text.as_bytes()].concat()
-    })?;
-    Ok(decode_go(&bytes))
+    })
 }
 
 /// Prints one stage of a source text (Go `dump`). `file` is the name as
@@ -182,7 +264,7 @@ fn dump(up_to: Stage, file: &[u8], src: &str) -> Out {
 }
 
 /// Puts the undecoded entry file name back into the `  --> NAME:` lines.
-fn restore_name(text: &str, name: &str, raw: &[u8]) -> Vec<u8> {
+pub(crate) fn restore_name(text: &str, name: &str, raw: &[u8]) -> Vec<u8> {
     if name.as_bytes() == raw {
         return text.as_bytes().to_vec();
     }
@@ -237,6 +319,34 @@ mod tests {
         assert_eq!(
             out.stdout,
             "(do (call (prelude print) \"\u{fffd}\"))\n".as_bytes()
+        );
+    }
+
+    /// More than any 64-bit host maps: every system refuses it.
+    const REFUSED: usize = 1 << 47;
+
+    /// A host that refuses the big stacks runs the command on a smaller
+    /// one (6a review: it used to exit 101 without a word).
+    #[test]
+    fn the_command_falls_back_to_a_smaller_stack() {
+        let out = start(&[REFUSED, REFUSED, 64 << 20], vec![b"version".to_vec()]);
+        assert_eq!(out.code, EXIT_OK);
+        assert!(out.stdout.starts_with(b"fung "));
+    }
+
+    #[test]
+    fn no_stack_size_fits_is_one_line_and_exit_1() {
+        let out = start(&[REFUSED, REFUSED], vec![b"version".to_vec()]);
+        assert_eq!(out.code, diag::EXIT_RUNTIME);
+        assert!(out.stdout.is_empty());
+        let err = String::from_utf8(out.stderr).unwrap();
+        assert!(
+            err.starts_with("error: cannot start the fung command thread: "),
+            "{err}"
+        );
+        assert!(
+            err.ends_with('\n') && err.matches('\n').count() == 1,
+            "{err}"
         );
     }
 }

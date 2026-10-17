@@ -1,0 +1,6 @@
+at_exit(() => print("second handler"))
+at_exit(fn():
+  print("first handler")
+  fail("handler broke")
+;;)
+test "registers handlers": assert true ;;

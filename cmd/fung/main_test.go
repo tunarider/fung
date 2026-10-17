@@ -368,9 +368,34 @@ func TestTestCommand(t *testing.T) {
 	}
 }
 
+// rustOnlyExamples use agents or the module conc, which only the Rust
+// implementation has (Rust port stage 6a); the Rust tests run them.
+var rustOnlyExamples = map[string]bool{"api.fung": true, "checkurls.fung": true, "serve.fung": true}
+
 func TestExamplesPassTheirTests(t *testing.T) {
-	out, errOut, code := invoke(t, "test", filepath.Join("..", "..", "examples"))
-	if code != 0 || !strings.HasSuffix(out, "12 passed, 0 failed\n") || errOut != "" {
+	dir := filepath.Join(t.TempDir(), "examples")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join("..", "..", "examples")
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || rustOnlyExamples[e.Name()] {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(src, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, e.Name()), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, errOut, code := invoke(t, "test", dir)
+	if code != 0 || !strings.HasSuffix(out, "11 passed, 0 failed\n") || errOut != "" {
 		t.Fatalf("code=%d out=%q err=%q", code, out, errOut)
 	}
 }
@@ -514,6 +539,27 @@ func TestFmtCommand(t *testing.T) {
 	code = run([]string{"fmt", "-"}, strings.NewReader("a=1\n"), &outBuf, &errBuf)
 	if code != exitOK || outBuf.String() != "a = 1\n" {
 		t.Errorf("stdin: code=%d out=%q err=%q", code, outBuf.String(), errBuf.String())
+	}
+	// --check on standard input names <stdin> and writes no code.
+	for _, args := range [][]string{{"fmt", "--check", "-"}, {"fmt", "-", "--check"}} {
+		outBuf.Reset()
+		errBuf.Reset()
+		code = run(args, strings.NewReader("a=1\n"), &outBuf, &errBuf)
+		if code != exitRuntimeError || outBuf.String() != "<stdin>\n" || errBuf.String() != "" {
+			t.Errorf("%v messy: code=%d out=%q err=%q", args, code, outBuf.String(), errBuf.String())
+		}
+		outBuf.Reset()
+		errBuf.Reset()
+		code = run(args, strings.NewReader("a = 1\n"), &outBuf, &errBuf)
+		if code != exitOK || outBuf.String() != "" || errBuf.String() != "" {
+			t.Errorf("%v clean: code=%d out=%q err=%q", args, code, outBuf.String(), errBuf.String())
+		}
+		outBuf.Reset()
+		errBuf.Reset()
+		code = run(args, strings.NewReader("f(\n"), &outBuf, &errBuf)
+		if code != exitCompileError || outBuf.String() != "" || !strings.Contains(errBuf.String(), "error[E0110]") {
+			t.Errorf("%v broken: code=%d out=%q err=%q", args, code, outBuf.String(), errBuf.String())
+		}
 	}
 	_, errOut, code = invoke(t, "fmt")
 	if code != exitUsage || !strings.Contains(errOut, "fmt needs") {

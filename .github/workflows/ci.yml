@@ -1,7 +1,18 @@
-# Runs the same gate as a local commit (CLAUDE.md): gofmt, vet, tests,
-# plus the race detector. tests/fmt_test.go also runs `fung fmt --check`
-# over the repository's .fung files, and tests/install_test.go runs
-# install.sh against a fake release.
+# Runs the same gates as a local commit (CLAUDE.md).
+# - test (Go): gofmt, vet, tests, plus the race detector on Linux.
+#   tests/fmt_test.go also runs `fung fmt --check` over the repository's
+#   .fung files, and tests/install_test.go runs install.sh against a fake
+#   release.
+# - rust: cargo-deny (deny.toml crate allowlist, licenses, sources) and
+#   cargo-audit (RustSec advisories) on Linux, then on both systems
+#   `cargo fmt --check`, clippy with -D warnings, and the tests in debug
+#   and release with FUNG_REQUIRE_PARITY=1 (the Go comparison must run).
+#   Every cargo build uses --locked: Cargo.lock is what deny and audit
+#   checked.
+#   A second test run builds with FUNG_BUILD_VERSION set and checks that
+#   `fung version` reports it.
+# - musl: the static Linux release build, its archive check, and the
+#   Rust golden suite (tests/lang) run against that static binary.
 name: ci
 
 on:
@@ -44,6 +55,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_DENY_VERSION: 0.20.2
+      CARGO_AUDIT_VERSION: 0.22.2
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -51,11 +65,71 @@ jobs:
           go-version-file: go.mod
       - name: toolchain
         run: rustup show active-toolchain
+      # Crate allowlist (deny.toml). One OS is enough: the lock file and
+      # advisory database do not depend on the platform.
+      - name: cache cargo-deny and cargo-audit
+        if: matrix.os == 'ubuntu-latest'
+        id: audit-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo-audit-tools
+          key: audit-tools-deny-${{ env.CARGO_DENY_VERSION }}-audit-${{ env.CARGO_AUDIT_VERSION }}-${{ runner.os }}
+      - name: install cargo-deny and cargo-audit
+        if: matrix.os == 'ubuntu-latest' && steps.audit-tools.outputs.cache-hit != 'true'
+        run: cargo install --locked --root ~/.cargo-audit-tools cargo-deny@${CARGO_DENY_VERSION} cargo-audit@${CARGO_AUDIT_VERSION}
+      - name: check tool versions
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export PATH="$HOME/.cargo-audit-tools/bin:$PATH"
+          cargo deny --version | grep -E "^cargo-deny ${CARGO_DENY_VERSION}$"
+          cargo audit --version | grep -E " ${CARGO_AUDIT_VERSION}$"
+      - name: cargo deny
+        if: matrix.os == 'ubuntu-latest'
+        run: ~/.cargo-audit-tools/bin/cargo-deny check
+      - name: cargo audit
+        if: matrix.os == 'ubuntu-latest'
+        run: ~/.cargo-audit-tools/bin/cargo-audit audit
       - name: fmt
         run: cargo fmt --check
       - name: clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
       - name: test
         env:
           FUNG_REQUIRE_PARITY: "1"
-        run: cargo test
+        run: cargo test --locked
+      - name: test (release)
+        env:
+          FUNG_REQUIRE_PARITY: "1"
+        run: cargo test --locked --release
+      - name: build version
+        env:
+          FUNG_BUILD_VERSION: v9.9.9-ci
+        run: cargo test --locked -p fung-cli --test build_version
+
+  # The static Linux release build (scripts/build-release.sh), so a change
+  # that breaks it (a C dependency, a glibc-only library) shows up before
+  # a release: build for musl, check the archive is static and runs.
+  musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: toolchain
+        run: rustup show active-toolchain && rustup target add x86_64-unknown-linux-musl
+      - name: musl-tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: build
+        env:
+          TARGETS: linux/amd64
+        run: scripts/build-release.sh 0.0.0-ci dist
+      - name: check
+        env:
+          TARGETS: linux/amd64
+        run: scripts/check-release.sh 0.0.0-ci dist
+      # The golden files against the static binary (the test runner
+      # itself is an ordinary host build; FUNG_GOLDEN_BIN picks the binary).
+      - name: golden (musl binary)
+        run: |
+          mkdir -p "$RUNNER_TEMP/musl"
+          tar -xzf dist/fung_0.0.0-ci_linux_amd64.tar.gz -C "$RUNNER_TEMP/musl"
+          FUNG_GOLDEN_BIN="$RUNNER_TEMP/musl/fung_0.0.0-ci_linux_amd64/fung" \
+            cargo test --locked -p fung-cli --test golden
