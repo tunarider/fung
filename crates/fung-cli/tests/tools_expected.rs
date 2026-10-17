@@ -511,13 +511,21 @@ fn check_matches_the_expected_output_on_inline_code_and_arguments() {
 
 /// A file whose name is not UTF-8 is reported under its name as it is:
 /// the output is the one for the same file under a UTF-8 name, with the
-/// name's bytes swapped. (Only where the file system allows such names:
-/// macOS refuses them, EILSEQ.)
+/// name's bytes swapped. Only where the file system allows such names
+/// (macOS refuses them, EILSEQ); the same check with a UTF-8 stand-in
+/// name runs everywhere, so the test itself is exercised on every system.
 #[test]
 fn check_reports_a_non_utf8_file_name_as_it_is() {
-    let dir = scratch("tools-non-utf8-check");
+    check_reports_a_file_name_as_it_is("tools-non-utf8-check", b"w\xfe.fung");
+    check_reports_a_file_name_as_it_is("tools-stand-in-check", "wé.fung".as_bytes());
+}
+
+/// See `check_reports_a_non_utf8_file_name_as_it_is`; returns early when
+/// the file system refuses `name`.
+fn check_reports_a_file_name_as_it_is(tag: &str, name: &[u8]) {
+    let dir = scratch(tag);
     let src = "fn f():\n  x = 1\n  2\n;;\n";
-    let odd = dir.join(OsString::from_vec(b"w\xfe.fung".to_vec()));
+    let odd = dir.join(OsString::from_vec(name.to_vec()));
     if std::fs::write(&odd, src).is_err() {
         return;
     }
@@ -532,12 +540,13 @@ fn check_reports_a_non_utf8_file_name_as_it_is() {
         &[OsString::from("check"), plain.into_os_string()],
     );
     let swap = |b: &[u8]| {
+        let needle = b"w_.fung";
         let mut out = Vec::new();
         let mut i = 0;
         while i < b.len() {
-            if b[i..].starts_with(b"w_.fung") {
-                out.extend_from_slice(b"w\xfe.fung");
-                i += "w_.fung".len();
+            if b[i..].starts_with(needle) {
+                out.extend_from_slice(name);
+                i += needle.len();
             } else {
                 out.push(b[i]);
                 i += 1;
@@ -549,12 +558,17 @@ fn check_reports_a_non_utf8_file_name_as_it_is() {
         String::from_utf8_lossy(&want.1).contains("w_.fung"),
         "{want:?}"
     );
+    assert!(contains(&got.1, name), "{got:?}");
     assert_eq!(
         (got.0, got.1, got.2),
         (swap(&want.0), swap(&want.1), want.2)
     );
 }
 
+/// Whether `needle` occurs in `hay`.
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
 #[test]
 fn help_and_unknown_commands_match_the_expected_output() {
     let arg_cases: &[&[&str]] = &[
@@ -1988,6 +2002,15 @@ fn fmt_arguments_match_the_expected_output() {
     };
     let got = entries(&rust_fung(), &base.join("rust"));
     assert_eq!(got.len(), FMT_ARGUMENT_CASES, "cases");
+    // Root reads and writes `locked.fung` and `ro.fung` anyway: the
+    // expected output is a normal user's.
+    let probe = base.join("probe");
+    std::fs::write(&probe, "").unwrap();
+    std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let readable = std::fs::read(&probe).is_ok();
+    if readable {
+        return;
+    }
     // Recording (stage 6b task 1 only; task 5 removes it).
     let reference = expected::recording().then(|| {
         let bin = expected::reference_fung("tools-fmt-args");
@@ -2005,56 +2028,53 @@ fn fmt_arguments_match_the_expected_output() {
 
 /// A file whose name is not UTF-8 is listed and formatted under its name
 /// as it is: the output is the one for the same file under a UTF-8 name,
-/// with the name's bytes swapped. (Only where the file system allows such
-/// names: macOS refuses them, EILSEQ.)
+/// with the name swapped (compared as lossy text; the output must also
+/// hold the raw name).
+/// Only where the file system allows such names (macOS refuses them,
+/// EILSEQ); the same check with a UTF-8 stand-in name runs everywhere.
 #[test]
 fn fmt_handles_a_non_utf8_file_name() {
-    let base = scratch("tools-non-utf8-fmt");
+    fmt_handles_a_file_name("tools-non-utf8-fmt", b"q\xfe.fung");
+    fmt_handles_a_file_name("tools-stand-in-fmt", "qé.fung".as_bytes());
+}
+
+/// See `fmt_handles_a_non_utf8_file_name`; returns early when the file
+/// system refuses `name`.
+fn fmt_handles_a_file_name(tag: &str, name: &[u8]) {
+    let base = scratch(tag);
     let (odd, plain) = (base.join("odd"), base.join("plain"));
     std::fs::create_dir_all(&odd).unwrap();
     std::fs::create_dir_all(&plain).unwrap();
-    if std::fs::write(
-        odd.join(OsString::from_vec(b"q\xfe.fung".to_vec())),
-        "q=1\n",
-    )
-    .is_err()
-    {
+    let file = odd.join(OsString::from_vec(name.to_vec()));
+    if std::fs::write(&file, "q=1\n").is_err() {
         return;
     }
     std::fs::write(plain.join("q_.fung"), "q=1\n").unwrap();
-    let swap = |b: Vec<u8>| expected::replace(&b, &[("q_.fung", "q\u{fffd}.fung")]);
+    let shown = String::from_utf8_lossy(name).into_owned();
+    let swap = |b: Vec<u8>| expected::replace(&b, &[("q_.fung", shown.as_str())]);
     let lossy = |b: Vec<u8>| String::from_utf8_lossy(&b).as_bytes().to_vec();
     let rust = rust_fung();
-    for (args_odd, args_plain) in [
+    let check = vec![OsString::from("fmt"), "--check".into(), ".".into()];
+    // `--check` lists the file, formatting in place names it.
+    let cases = [
+        (check.clone(), check),
         (
-            vec![OsString::from("fmt"), "--check".into(), ".".into()],
-            vec![OsString::from("fmt"), "--check".into(), ".".into()],
-        ),
-        (
-            vec![
-                OsString::from("fmt"),
-                OsString::from_vec(b"q\xfe.fung".to_vec()),
-            ],
+            vec![OsString::from("fmt"), OsString::from_vec(name.to_vec())],
             vec![OsString::from("fmt"), "q_.fung".into()],
         ),
-    ] {
+    ];
+    for (args_odd, args_plain) in cases {
         let got = run_in(&rust, &odd, &args_odd, None);
         let want = run_in(&rust, &plain, &args_plain, None);
-        // The name's own bytes come back as they are.
-        assert!(
-            got.0.windows(9).any(|w| w == b"q\xfe.fung") || got.0.is_empty(),
-            "{got:?}"
-        );
+        // The output holds the name's own bytes.
+        assert!(contains(&got.0, name), "{got:?}");
         assert_eq!(
             (lossy(got.0), lossy(got.1), got.2),
             (swap(want.0), swap(want.1), want.2),
             "{args_odd:?}"
         );
     }
-    assert_eq!(
-        std::fs::read(odd.join(OsString::from_vec(b"q\xfe.fung".to_vec()))).unwrap(),
-        b"q = 1\n"
-    );
+    assert_eq!(std::fs::read(&file).unwrap(), b"q = 1\n");
 }
 
 // ---- the REPL (stage 5 task 4) ----

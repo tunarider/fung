@@ -171,11 +171,11 @@ pub fn first_diff(a: &[u8], b: &[u8]) -> String {
     )
 }
 
-/// The examples only the Rust implementation runs (stage 6a): they use
-/// agents (`api.fung`, `serve.fung`) or the module `conc`
-/// (`checkurls.fung`), which Go does not have. The parity tests compare
-/// only their syntax (`dump ast`, `fmt`) with Go and check, test and run
-/// them with Rust alone; `parity.rs` checks that the list is complete.
+/// The examples that use agents (`api.fung`, `serve.fung`) or the module
+/// `conc` (`checkurls.fung`). Their `dump ast` and formatting have fixed
+/// expected outputs; they are checked, tested and run by the tests
+/// directly rather than through `dump core`, `check` or `test` expected
+/// outputs. `dump_expected.rs` checks that the list is complete.
 pub const RUST_ONLY_EXAMPLES: &[&str] = &[
     "examples/api.fung",
     "examples/checkurls.fung",
