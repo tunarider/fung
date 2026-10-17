@@ -96,8 +96,11 @@ pub mod pty {
     use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 
     // glibc before 2.34 has `openpty` in libutil, not libc; later glibc
-    // keeps an empty libutil for programs that still link it.
-    #[cfg(target_os = "linux")]
+    // keeps an empty libutil for programs that still link it. musl has
+    // `openpty` in libc and Rust's self-contained musl ships no libutil,
+    // so the static release build must not ask for it. The extern block
+    // is linked into every binary that uses fung-vm, the command too.
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
     #[link(name = "util")]
     unsafe extern "C" {}
 

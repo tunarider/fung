@@ -1,46 +1,172 @@
-# Pushing a tag like v0.1.0 builds the release archives, records build
-# provenance for them, and publishes a GitHub release with SHA256SUMS.
-# The release notes are that version's section of CHANGELOG.md.
+# Pushing a tag like v0.2.0 tests, builds the release archives on one
+# runner per platform, records build provenance for them, and publishes a
+# GitHub release with SHA256SUMS. The release notes are that version's
+# section of CHANGELOG.md.
 #
-#   git tag v0.1.0 && git push origin v0.1.0
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# Dry run without a tag: Actions -> release -> "Run workflow" (or
+# `gh workflow run release.yml -f version=0.0.0-dryrun`). It does everything
+# but publish; the archives, SHA256SUMS and the notes (the [Unreleased]
+# section) are kept as the run's "release" artifact.
 #
 # Verify a downloaded archive came from this workflow:
-#   gh attestation verify fung_0.1.0_linux_amd64.tar.gz --repo tunarider/fung
+#   gh attestation verify fung_0.2.0_linux_amd64.tar.gz --repo tunarider/fung
+#
+# Linux binaries are static musl builds (no glibc version to match), built
+# natively on x86_64 and arm64 runners. Both macOS binaries are built on
+# one Apple silicon runner: Xcode's toolchain targets x86_64 too.
 name: release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "version for the dry-run archives (nothing is published)"
+        required: true
+        default: "0.0.0-dryrun"
 
 permissions:
-  contents: write     # create the release
-  id-token: write     # sign the provenance
-  attestations: write # store the provenance
+  contents: read
+
+env:
+  # A tag push releases the tag; a dry run uses the version it was given.
+  VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
 
 jobs:
-  release:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: check the tag
+      - name: check the version
         run: |
-          case "$GITHUB_REF_NAME" in
-            v[0-9]*.[0-9]*.[0-9]*) ;;
-            *) echo "tag $GITHUB_REF_NAME is not v<major>.<minor>.<patch>"; exit 1 ;;
-          esac
-      - name: test
-        run: go test ./...
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            case "$GITHUB_REF_NAME" in
+              v[0-9]*.[0-9]*.[0-9]*) ;;
+              *) echo "tag $GITHUB_REF_NAME is not v<major>.<minor>.<patch>"; exit 1 ;;
+            esac
+          fi
+          # It names files: no slashes, spaces or shell characters.
+          echo "$VERSION" | grep -Eqx 'v?[0-9][0-9A-Za-z.+-]*' ||
+            { echo "version $VERSION is not like 1.2.3 or 0.0.0-dryrun"; exit 1; }
+      # Before anything is built: a release without notes must not go out.
       - name: release notes
-        run: scripts/changelog-section.sh "$GITHUB_REF_NAME" CHANGELOG.md > notes.md
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            scripts/changelog-section.sh "$GITHUB_REF_NAME" CHANGELOG.md > notes.md
+          else
+            scripts/changelog-section.sh Unreleased CHANGELOG.md > notes.md
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: notes.md
+      # The Go implementation stays the reference until stage 6b.
+      - name: test (Go)
+        run: go test ./...
+      - name: toolchain
+        run: rustup show active-toolchain
+      - name: test (Rust)
+        env:
+          FUNG_REQUIRE_PARITY: "1"
+        run: cargo test --locked
+      - name: test (Rust, release)
+        env:
+          FUNG_REQUIRE_PARITY: "1"
+        run: cargo test --locked --release
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: linux-amd64
+            runner: ubuntu-24.04
+            targets: linux/amd64
+            rust: x86_64-unknown-linux-musl
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            targets: linux/arm64
+            rust: aarch64-unknown-linux-musl
+          - name: darwin
+            runner: macos-latest
+            targets: darwin/arm64 darwin/amd64
+            rust: aarch64-apple-darwin x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      # rust-toolchain.toml pins the toolchain; this adds the targets to it.
+      - name: toolchain
+        run: rustup show active-toolchain && rustup target add ${{ matrix.rust }}
+      # ring compiles C and assembly; musl-gcc is the C compiler for musl.
+      - name: musl-tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - name: build
-        run: scripts/build-release.sh "$GITHUB_REF_NAME" dist
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: scripts/build-release.sh "$VERSION" dist
+      - name: show linking
+        if: runner.os == 'Linux'
+        run: |
+          tar -xzf dist/*.tar.gz -C "$RUNNER_TEMP"
+          bin=$(echo "$RUNNER_TEMP"/fung_*/fung)
+          file "$bin"
+          ldd "$bin" || true
+          readelf -dW "$bin" | grep -E 'NEEDED|INTERP' || echo "no NEEDED entries"
+      - name: check
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: scripts/check-release.sh "$VERSION" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archives-${{ matrix.name }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # create the release
+      id-token: write     # sign the provenance
+      attestations: write # store the provenance
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archives-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+      - name: checksums
+        run: scripts/sha256sums.sh dist
+      # All four archives together: names, contents, checksums, both Linux
+      # binaries static (readelf reads any CPU's ELF), and linux/amd64 runs.
+      - name: check
+        run: scripts/check-release.sh "$VERSION" dist
       - uses: actions/attest-build-provenance@v3
         with:
           subject-path: dist/*.tar.gz
+      - name: keep the dry run
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            notes.md
       - name: publish
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

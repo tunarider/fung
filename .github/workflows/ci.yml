@@ -9,6 +9,7 @@
 #   and release with FUNG_REQUIRE_PARITY=1 (the Go comparison must run).
 #   Every cargo build uses --locked: Cargo.lock is what deny and audit
 #   checked.
+# - musl: the static Linux release build and its archive check.
 name: ci
 
 on:
@@ -97,3 +98,23 @@ jobs:
         env:
           FUNG_REQUIRE_PARITY: "1"
         run: cargo test --locked --release
+
+  # The static Linux release build (scripts/build-release.sh), so a change
+  # that breaks it (a C dependency, a glibc-only library) shows up before
+  # a release: build for musl, check the archive is static and runs.
+  musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: toolchain
+        run: rustup show active-toolchain && rustup target add x86_64-unknown-linux-musl
+      - name: musl-tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: build
+        env:
+          TARGETS: linux/amd64
+        run: scripts/build-release.sh 0.0.0-ci dist
+      - name: check
+        env:
+          TARGETS: linux/amd64
+        run: scripts/check-release.sh 0.0.0-ci dist
