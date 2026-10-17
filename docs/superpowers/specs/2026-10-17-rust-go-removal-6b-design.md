@@ -5,7 +5,11 @@
 ## 목표
 
 저장소에서 Go 구현과 Go에 기대는 장치를 모두 걷어내고, Rust 하나로 모든 검사(테스트·명세 파일·릴리스 검사)가 돈다. 지금까지 Go와 대조해 쌓은
-사례는 기대값 파일로 얼려 회귀 검사로 남긴다. 동작은 바꾸지 않는다(얼린 기대값이 그대로 맞아야 한다). 이 단계 뒤에 0.2.0 릴리스.
+사례는 **fung의 기대 출력**으로 얼려 회귀 검사로 남긴다(Go·대조라는 이름표 없이). 동작은 바꾸지 않는다(얼린 기대값이 그대로 맞아야 한다).
+
+**최종 목표(2026-10-17 사용자):** 처음부터 Rust로 짠 것 같은 저장소. 사용자가 없으므로 호환성은 고려하지 않는다. Go 구현은 이제 "제약"일 뿐이고,
+Go 때문에 그렇게 했던 동작·구현은 모두 Rust답게 바꾸거나 최적화한다. 6b는 그 첫 단계(삭제와 이름표 떼기), **6c**가 과도기 잔가지 정리(동작 변경,
+기대값 갱신)이고, **0.2.0 릴리스는 6c 뒤**다. 6c를 마친 뒤 코드와 현재 문서에서 "Go"가 검색되지 않는 것이 완료 기준이다.
 
 ## 결정 사항 (2026-10-17)
 
@@ -16,13 +20,15 @@
 | `extras/` | `extras/rust/*.fung`(agent·conc·http)를 `extras/`로, Go 전용 파일(`extras/http.fung` 얇은 래퍼, `extras.go`, `extras_test.go`) 삭제, `prelude.fung`에서 `fan_in`·`pmap`·`retry` 제거 → `RUST_PRELUDE_FUNG_MOVED`·Rust 전용 차이 목록(`builtins.rs`)을 없애 명세를 하나로 |
 | `spec/` | `builtins.txt`·`errors.txt`는 Rust 코드에서 생성(+ 코드와 파일이 같은지 테스트, 갱신 명령). `unicode.txt`·`regex_unicode.txt`·`regex_go_fixtures.rs`는 지금 내용으로 얼린 데이터(다시 만드는 법은 과도기 잔가지로 기록) |
 | Go 테스트가 지키던 것 | `tests/install_test.go`(가짜 릴리스로 `install.sh`)·`tests/changelog_test.go`(CHANGELOG ↔ 매뉴얼 사이드바 버전 짝)를 Rust 통합 테스트로 옮김. `fmt_test`·`perf_test`·`golden_test`·`layers_test`는 Rust 쪽 대응(`fmt_repo`·`perf`·`golden`)이 있거나 의미가 없어짐(층 구조는 Rust 크레이트 의존으로) |
-| 과도기 잔가지 | 6b에서는 건드리지 않는다(동작 불변). 다음 단계에서 하나씩 |
+| 과도기 잔가지 | 6b에서는 건드리지 않는다(동작 불변). 6c에서 하나씩(Go 흉내 동작·`regex_go.rs`·`GoWriter`·"Go's …" 주석 포함) |
+| 기대값의 이름 | 얼린 출력은 Go·parity라는 이름 없이 "기대 출력"(예: `tests/expected/`, 테스트 이름 `*_expected`·`*_snapshot`)으로. 처음부터 Rust로 짰을 때의 골든 테스트와 구별되지 않게 |
+| 문서 | 현재 상태를 말하는 문서(설계 00~09, `background.md`, open-questions, `CLAUDE.md`, README, 매뉴얼)는 Rust 기준으로 고친다(6b는 Go 삭제에 직접 걸린 부분, 나머지는 6c). 학습 노트(M·R)와 지난 계획·스펙(`docs/plans`, `docs/superpowers`)은 역사 기록으로 둔다. CHANGELOG의 0.1.0 항목은 공개된 기록이라 둔다 |
 
 ## 1. 작업
 
 | 작업 | 내용 |
 |---|---|
-| 1. 기대값 얼리기 | Go가 있는 지금, 각 대조 테스트에 "기록" 모드(예: `FUNG_RECORD=1`)를 더해 Go 출력을 `crates/fung-cli/tests/expected/<테스트>/…`에 쓰고, 기본 모드는 그 파일과 Rust를 비교. 기록 직후 Rust 비교가 그대로 통과하는지 확인. 정규화가 필요한 값(임시 경로, 포트)은 지금 대조에서 이미 하는 치환을 그대로 쓴다 |
+| 1. 기대값 얼리기 | Go가 있는 지금, 각 대조 테스트에 일회용 기록 단계를 더해 Go 출력을 `crates/fung-cli/tests/expected/<주제>/…`에 쓰고, 테스트는 그 파일과 Rust를 비교(기록 단계는 작업 6에서 함께 지움; 이후 갱신은 Rust 출력으로 `--bless`류). 기록 직후 Rust 비교가 그대로 통과하는지 확인. 정규화가 필요한 값(임시 경로, 포트)은 지금 대조에서 이미 하는 치환을 그대로 쓴다 |
 | 2. 네트워크·신호 대조를 Rust 단독으로 | `http_parity`·`tls`·`sigpipe`에서 Go 프로그램을 띄우는 부분을 떼고, 이미 고정한 기대값(요청 원문, 응답, 신호 13, 에러 문구)으로 Rust만 검사. 사례 수가 줄지 않게 |
 | 3. 명세 파일을 Rust에서 | `spec/builtins.txt`·`errors.txt`를 Rust(`fung-front` 테스트의 `-- --update` 또는 작은 도구)에서 생성, 코드와 파일 일치 테스트. 다른 `spec`·고정 데이터는 그대로 두고 생성하던 Go 테스트를 지움 |
 | 4. Go 테스트가 지키던 것 옮기기 | `install_test`·`changelog_test`를 Rust 통합 테스트로 |
@@ -41,4 +47,4 @@
 
 ## 3. 범위 밖
 
-과도기 잔가지 정리, R7 스케줄러, 0.2.0 릴리스(태그·시험 실행 — 6b 뒤 사용자 확인), 학습 노트·계획·스펙의 과거 기록(역사로 남김).
+과도기 잔가지 정리(6c), R7 스케줄러, 0.2.0 릴리스(6c 뒤, 태그·시험 실행은 사용자 확인), 학습 노트·계획·스펙의 과거 기록(역사로 남김).
