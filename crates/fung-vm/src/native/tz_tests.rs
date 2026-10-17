@@ -613,7 +613,11 @@ fn tz_local_resolution_matches_go() {
     check(Some("Nope/Nowhere"), "UTC", utc);
     check(Some("/nonexistent"), "UTC", utc);
     check(Some("../etc/localtime"), "UTC", utc);
-    check(Some("localtime"), "UTC", utc);
+    // Debian and Ubuntu ship /usr/share/zoneinfo/localtime (a link to
+    // /etc/localtime), so there the name loads like any other zone, in Go too.
+    if !have("localtime") {
+        check(Some("localtime"), "UTC", utc);
+    }
     check(Some("/usr/share/zoneinfo/"), "UTC", utc);
     if have("Asia/Seoul") {
         let kst = [("KST", 32400); 4];
