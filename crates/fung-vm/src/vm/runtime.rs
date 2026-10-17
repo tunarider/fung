@@ -253,6 +253,11 @@ impl Runtime {
         self.shared.failures.failed()
     }
 
+    /// Whether a deadlock was reported (it also requested exit(1)).
+    pub fn deadlocked(&self) -> bool {
+        self.lock().deadlocked
+    }
+
     /// The code of the first exit(n) requested, if any.
     pub fn exit_code(&self) -> Option<i64> {
         self.lock().exit

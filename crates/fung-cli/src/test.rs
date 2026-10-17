@@ -12,7 +12,8 @@
 //!
 //! Exit codes: 2 if any file failed to compile, else 1 if any test
 //! failed, else 0. An `exit(n)` inside a test file is a failure and skips
-//! the rest of that file; its code is not the command's.
+//! the rest of that file; its code is not the command's. So does an exit
+//! a spawned task asks for, or a deadlock (Rust only; Go runs on).
 
 use std::collections::HashSet;
 use std::io::Write;
@@ -170,25 +171,55 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
         }
         line
     };
+    // An exit asked for by a task the block did not wait out, or a
+    // deadlock (which asks for exit(1)), cancels the file's program like
+    // a direct exit(n): the rest of the file is skipped (08). Go goes on
+    // with the next block on the cancelled program, where a block that
+    // makes no fung call passes and one that does fails with E0701.
+    let skipped = |rt: &Runtime| {
+        let note = if rt.deadlocked() {
+            "  a deadlock was reported; the rest of the file was skipped\n".to_string()
+        } else {
+            let n = rt.exit_code()?;
+            format!("  exit({n}) called inside a test file; the rest of the file was skipped\n")
+        };
+        Some(note)
+    };
     match rt.run() {
         Err(stop) => {
             let _ = stdout.write_all(&failure("<top level>", &stop));
             t.failed += 1;
         }
         Ok(()) => {
-            for (i, test) in rt.tests().iter().enumerate() {
-                match rt.call_test(i) {
-                    Ok(()) => {
-                        let _ = stdout
-                            .write_all(&[b"ok   ", path, b": ", test.as_bytes(), b"\n"].concat());
-                        t.passed += 1;
-                    }
-                    Err(stop) => {
-                        let _ = stdout.write_all(&failure(test, &stop));
-                        t.failed += 1;
-                        if matches!(stop, Stop::Exit(_)) {
-                            break;
+            let tests = rt.tests();
+            if let (false, Some(note)) = (tests.is_empty(), skipped(&rt)) {
+                let _ = stdout
+                    .write_all(&[b"FAIL ", path, b": <top level>\n", note.as_bytes()].concat());
+                t.failed += 1;
+            } else {
+                for (i, test) in tests.iter().enumerate() {
+                    match rt.call_test(i) {
+                        Ok(()) => {
+                            let _ = stdout.write_all(
+                                &[b"ok   ", path, b": ", test.as_bytes(), b"\n"].concat(),
+                            );
+                            t.passed += 1;
                         }
+                        Err(stop) => {
+                            let _ = stdout.write_all(&failure(test, &stop));
+                            t.failed += 1;
+                            if matches!(stop, Stop::Exit(_)) {
+                                break;
+                            }
+                        }
+                    }
+                    // Only when blocks remain: a file whose last block
+                    // ends this way prints what Go prints.
+                    if i + 1 < tests.len()
+                        && let Some(note) = skipped(&rt)
+                    {
+                        let _ = stdout.write_all(note.as_bytes());
+                        break;
                     }
                 }
             }

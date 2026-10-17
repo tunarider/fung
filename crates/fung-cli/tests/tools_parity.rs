@@ -729,11 +729,13 @@ fn test_matches_go_on_the_repository() {
     assert_same(&b, &[test_case(&d)]);
 }
 
-/// Rust only: agents (stage 3b) end with their file, after its exit
+/// Rust only. Agents (stage 3b) end with their file, after its exit
 /// handlers, which may still use them: one that holds its own handle and
-/// one whose `f` left a task sleeping too. And a test block after a
-/// deadlock is cancelled (Go runs a short one to the end; open-questions).
-/// The next file starts clean.
+/// one whose `f` left a task sleeping too. A deadlock or an exit asked
+/// for by a spawned task skips the rest of the file, like a direct
+/// `exit(n)` (08; Go runs a remaining block that makes no fung call to
+/// the end and fails one that does with E0701). The next file starts
+/// clean.
 #[test]
 fn test_ends_each_files_agents() {
     let start = std::time::Instant::now();
@@ -741,18 +743,19 @@ fn test_ends_each_files_agents() {
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
     let p = |f: &str| format!("{TEST_RUST}/{f}");
     let after = p("after_cancel.fung");
+    let exit = p("task_exit.fung");
     let want = [
+        format!("ok   {after}: before"),
         format!("FAIL {after}: deadlocks"),
         "  error[E0702]: deadlock: all tasks are waiting".to_string(),
-        format!("    --> {after}:3:7"),
+        format!("    --> {after}:4:7"),
         "    |".to_string(),
-        "  3 |   recv(ch)".to_string(),
+        "  4 |   recv(ch)".to_string(),
         "    |       ^".to_string(),
         "    |".to_string(),
         "   call path (innermost first):".to_string(),
-        format!("     {after}:3 test: deadlocks"),
-        format!("FAIL {after}: after the deadlock"),
-        "  error[E0701]: task cancelled".to_string(),
+        format!("     {after}:4 test: deadlocks"),
+        "  a deadlock was reported; the rest of the file was skipped".to_string(),
         format!("ok   {}: swap", p("agents.fung")),
         format!(
             "ok   {}: an agent that holds its own handle",
@@ -760,8 +763,19 @@ fn test_ends_each_files_agents() {
         ),
         format!("ok   {}: a background loop", p("agents.fung")),
         "1".to_string(),
-        format!("ok   {}: a fresh file", p("next.fung")),
-        "4 passed, 2 failed".to_string(),
+        format!("FAIL {exit}: a task exits"),
+        "  error[E0701]: task cancelled".to_string(),
+        format!("    --> {exit}:4:8"),
+        "    |".to_string(),
+        "  4 |   await(t)".to_string(),
+        "    |        ^".to_string(),
+        "    |".to_string(),
+        "   call path (innermost first):".to_string(),
+        format!("     {exit}:4 test: a task exits"),
+        "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
+        "handler still runs".to_string(),
+        format!("ok   {}: a fresh file", p("z_next.fung")),
+        "5 passed, 2 failed".to_string(),
     ]
     .map(|l| l + "\n")
     .concat();
