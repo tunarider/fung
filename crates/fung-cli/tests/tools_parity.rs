@@ -1546,9 +1546,11 @@ fn repl_dir(tag: &str) -> PathBuf {
 /// definitions, redefinition, continued lines, errors and going on,
 /// commands, `exit`, empty input, the end of input, `dbg`, tasks and
 /// handlers. Compared byte for byte (both streams and the status).
-/// Left out because Go's result depends on timing: a statement after a
-/// deadlock or after a spawned task's `exit` (Go's cancellation flag is
-/// set by a goroutine, so the next call may or may not see it).
+/// Left out on purpose: inputs after a deadlock or after a spawned
+/// task's `exit`, which cancel the program. Go sets a new task's
+/// cancellation flag from a `context.AfterFunc` goroutine, so a short
+/// input after it usually still runs to the end; Rust fails every later
+/// fung call with E0701. How the REPL should behave then is still open.
 #[test]
 fn repl_matches_go_on_piped_sessions() {
     let Some(b) = both("repl") else { return };
@@ -1615,7 +1617,15 @@ fn repl_matches_go_on_piped_sessions() {
             "c = channel()\nt = spawn(() => recv(c))\nsend(c, 5)\nawait(t)\n",
         ),
         ("a deadlock inside an input", "recv(channel())\n"),
-        ("a failure nobody awaited", "t = spawn(() => 1 / 0)\n2\n"),
+        // Ordered by state: the input waits for the value the task sends
+        // into a buffered channel, and the task fails right after that
+        // without another call (which could see the cancellation that
+        // ends the session and turn the failure into E0701). With the
+        // failure first, both Go and Rust sometimes lost the report.
+        (
+            "a failure nobody awaited",
+            "c = channel(1)\nt = spawn(fn():\n  send(c, 1)\n  [1][5]\n;;)\nrecv(c)\n2\n",
+        ),
         (
             "handler errors and order",
             "at_exit(() => 1 / 0)\nat_exit(() => print(\"bye\"))\nat_exit(() => exit(7))\n",
@@ -1660,9 +1670,10 @@ fn repl_matches_go_on_piped_sessions() {
 }
 
 /// Rust only (agents are Rust's, stage 3b): an agent an input stores
-/// stays usable in later inputs, a temporary one does not outlive its
-/// input's values, and every background task ends with the session, so
-/// the REPL exits at once.
+/// stays usable in later inputs, and every background task ends with the
+/// session, so the REPL exits at once. (That a temporary agent's loop
+/// ends with its input is checked by counting background tasks in
+/// `fung-vm`'s `repl_tests.rs`.)
 #[test]
 fn repl_agents_end_with_the_session() {
     let dir = repl_dir("agents");

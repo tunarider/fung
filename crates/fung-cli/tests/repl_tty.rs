@@ -30,6 +30,12 @@ struct Tty {
     home: std::path::PathBuf,
     /// How much output there was when keys were last sent.
     sent_at: usize,
+    /// How many line ends (`\r\n`) the output must hold before the
+    /// editor can be on the line after the last batch: one more for every
+    /// Enter and every Ctrl-C (`^C\n`) in it. Without this, an empty
+    /// prompt drawn in the middle of a batch (Home on an empty line, the
+    /// line after Ctrl-C) would look like the fresh line after it.
+    lines_due: usize,
 }
 
 /// Starts `fung` with standard input, output and error on a new
@@ -83,6 +89,7 @@ fn start_bin(bin: &std::path::Path, tag: &str, stdin_pipe: bool, history: Option
         out,
         home,
         sent_at: 0,
+        lines_due: 0,
     }
 }
 
@@ -108,12 +115,14 @@ impl Tty {
         String::from_utf8_lossy(&self.out.lock().unwrap()).into_owned()
     }
 
-    /// Whether the editor waits on a fresh line: raw mode is on, and the
-    /// output, which grew since the last keys were sent, ends with an
-    /// empty line drawn after a prompt.
+    /// Whether the editor waits on the fresh line after the last batch:
+    /// every line end the batch causes is out, the output grew since the
+    /// keys were sent and ends with an empty line drawn after a prompt,
+    /// and raw mode is on.
     fn ready(&self) -> bool {
         let out = self.out.lock().unwrap();
-        out.len() > self.sent_at
+        line_ends(&out) >= self.lines_due
+            && out.len() > self.sent_at
             && (out.ends_with(b"\r> \x1b[K") || out.ends_with(b"\r. \x1b[K"))
             && self.raw()
     }
@@ -122,7 +131,11 @@ impl Tty {
     /// reaches the terminal while it is not in raw mode.
     fn send(&mut self, keys: &[u8]) {
         self.until("the editor", Tty::ready);
-        self.sent_at = self.out.lock().unwrap().len();
+        let out = self.out.lock().unwrap();
+        self.sent_at = out.len();
+        let breaks = keys.iter().filter(|&&k| k == b'\r' || k == 0x03).count();
+        self.lines_due = line_ends(&out) + breaks;
+        drop(out);
         self.controller.write_all(keys).unwrap();
     }
 
@@ -141,6 +154,11 @@ impl Tty {
             std::thread::yield_now();
         }
     }
+}
+
+/// How many `\r\n` the output holds.
+fn line_ends(out: &[u8]) -> usize {
+    out.windows(2).filter(|w| w == b"\r\n").count()
 }
 
 impl Drop for Tty {

@@ -85,10 +85,21 @@ impl Drop for RawMode {
 
 /// Pseudo-terminals for tests (the REPL's raw mode is tested on one,
 /// including from `fung-cli`'s tests, which cannot use `libc`).
+///
+/// Not behind a cargo feature: fung-cli's tests would have to enable it
+/// through a dev-dependency with `features = [...]`, and `tests/deps.rs`
+/// allows fung-cli's dependencies to be nothing but `path = "../…"`. The
+/// command never calls it, so the linker drops it from the binary.
 #[doc(hidden)]
 pub mod pty {
     use std::io;
     use std::os::fd::{FromRawFd, OwnedFd, RawFd};
+
+    // glibc before 2.34 has `openpty` in libutil, not libc; later glibc
+    // keeps an empty libutil for programs that still link it.
+    #[cfg(target_os = "linux")]
+    #[link(name = "util")]
+    unsafe extern "C" {}
 
     /// A new pseudo-terminal: (controller, terminal).
     pub fn open() -> io::Result<(OwnedFd, OwnedFd)> {

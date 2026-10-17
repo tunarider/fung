@@ -9,7 +9,8 @@ use fung_front::loader::{Loader, Stage};
 use fung_front::source::{FileId, SourceMap};
 
 use crate::testutil::{Buf, on_big_stack};
-use crate::vm::{Runtime, Stop};
+use crate::vm::task::CancelNode;
+use crate::vm::{Runtime, Stop, Task};
 
 /// A REPL session as the command drives it, minus the line reading.
 struct Session {
@@ -69,6 +70,29 @@ impl Session {
             Ok(v) => Outcome::Value(v),
             Err(Stop::Error(d)) => Outcome::Error(d.code.clone(), d.pos.file),
             Err(Stop::Exit(n)) => Outcome::Exit(n),
+        }
+    }
+}
+
+impl Session {
+    /// How many background tasks (agents' loops) are running, read
+    /// through a task that is not live (no effect on deadlock judging).
+    fn background(&self) -> usize {
+        let shared = self.rt.shared();
+        Task::unlisted(&shared, CancelNode::root()).background_tasks()
+    }
+
+    /// Waits until `background()` is `n` (an agent's loop ends on its own
+    /// thread once its last handle drops).
+    fn background_until(&self, n: usize) {
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while self.background() != n {
+            assert!(
+                std::time::Instant::now() < end,
+                "background stays {}",
+                self.background()
+            );
+            std::thread::yield_now();
         }
     }
 }
@@ -164,5 +188,30 @@ fn too_many_globals() {
         // every later input hits the limit too.
         assert_eq!(s.input("1 + 1"), Outcome::Error("E0806".into(), FileId(0)));
         s.rt.release();
+    });
+}
+
+/// Agents in the REPL (Rust only, stage 3b): one a global holds keeps
+/// its loop across inputs; a temporary one ends once its input's values
+/// drop (its handle closes the request channel); every one ends when the
+/// session ends (`end_background`, as the command's `finish` does).
+#[test]
+fn agents_live_while_referenced() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        assert_eq!(s.input("a = agent(1)"), value("nil"));
+        assert_eq!(s.background(), 1);
+        assert_eq!(s.input("deref(agent(5))"), value("5"));
+        s.background_until(1);
+        assert_eq!(s.input("swap(a, (n) => n + 1)"), value("2"));
+        assert_eq!(s.background(), 1, "the stored agent still serves");
+        assert_eq!(s.input("a = nil"), value("nil"));
+        s.background_until(0);
+        assert_eq!(s.input("b = agent(0)"), value("nil"));
+        s.rt.cancel_all();
+        s.rt.wait();
+        s.rt.release();
+        s.rt.end_background();
+        assert_eq!(s.background(), 0);
     });
 }
