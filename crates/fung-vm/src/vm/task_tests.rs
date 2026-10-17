@@ -456,20 +456,26 @@ fn a_linked_parent_ends_when_its_last_linked_child_leaves() {
 }
 
 /// Nested `swap`s whose inner `f` spawns a task that outlives it leave
-/// no cancellation nodes behind: the count stays small however many
-/// rounds ran.
+/// no cancellation nodes behind once those tasks have ended.
+///
+/// A task an agent's `f` spawns is a background task, which `wait` does
+/// not wait for, so the entry keeps the handles in `b` and awaits them
+/// all: a task ends its node (and the request nodes that end with it)
+/// before it gives the run token up, so once the last `await` returns
+/// nothing is left. Counting right after `wait` instead counted the
+/// tasks a slow host had not yet run.
 #[test]
 fn nested_swaps_do_not_leak_cancellation_nodes() {
-    let src = "a = agent(0)\nb = agent(0)\n\
-        each(0..2000, _ => swap(a, x => x + swap(b, fn(y): spawn(() => 1); y + 1 ;;)))";
+    let src = "a = agent(0)\nb = agent([])\n\
+        each(0..2000, _ => swap(a, x => x + len(swap(b, ts => ts + [spawn(() => 1)]))))\n\
+        each(deref(b), t => await(t))";
     let left = on_big_stack(move || {
         let s = setup(src, Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
         s.rt.run().unwrap();
-        s.rt.wait();
         assert_eq!(s.err.text(), "");
         s.rt.shared().root().descendant_count()
     });
-    assert!(left < 50, "{left} cancellation nodes left");
+    assert_eq!(left, 0, "{left} cancellation nodes left");
 }
 
 /// A task event wakes only the tasks waiting on it: 200 tasks sleeping
