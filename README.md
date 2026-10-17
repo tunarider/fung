@@ -35,6 +35,12 @@ cargo build --release --locked
 cp target/release/fung ~/.local/bin/
 ```
 
+`cargo install`로 바로 설치할 수도 있다(`~/.cargo/bin`에 들어간다). 태그를 붙이지 않고 빌드한 바이너리는 `fung version`이 `0.0.0-dev`다.
+
+```
+cargo install --locked --git https://github.com/tunarider/fung --tag v0.2.0 fung-cli
+```
+
 ## 사용
 
 ```
@@ -50,10 +56,10 @@ fung -e 'import conc; print(conc.pmap([1, 2, 3], x => x * x))'   # 태스크·�
 
 `v<major>.<minor>.<patch>` 태그를 푸시하면 `.github/workflows/release.yml`이 테스트, 플랫폼별 러너에서 빌드
 (`scripts/build-release.sh`, Linux는 musl 정적), 묶음 검사(`scripts/check-release.sh`), 빌드 증명, GitHub 릴리스 게시를 한다.
-Actions에서 수동 실행하면 게시만 빼고 같은 과정을 돌려 결과를 아티팩트로 남긴다. 릴리스 노트는 [CHANGELOG.md](CHANGELOG.md)의 해당 버전 절이다. 절차는 [docs/notes/release.md](docs/notes/release.md) 7절.
+Actions에서 수동 실행하면 게시와 빌드 증명을 빼고 같은 과정을 돌려 결과를 아티팩트로 남긴다. 릴리스 노트는 [CHANGELOG.md](CHANGELOG.md)의 해당 버전 절이다. 절차는 [docs/notes/release.md](docs/notes/release.md) 7절.
 
 ```
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 ## 라이선스

@@ -154,6 +154,8 @@ fung version</code></pre>
 <pre class="plain"><code>git clone https://github.com/tunarider/fung &amp;&amp; cd fung
 cargo build --release --locked
 cp target/release/fung ~/.local/bin/</code></pre>
+<p><code>cargo install</code>로 바로 설치할 수도 있다(<code>~/.cargo/bin</code>에 들어간다). 이렇게 빌드한 바이너리는 <code>fung version</code>이 <code>0.0.0-dev</code>다.</p>
+<pre class="plain"><code>cargo install --locked --git https://github.com/tunarider/fung --tag v0.2.0 fung-cli</code></pre>
 <p class="note">받은 파일이 이 저장소의 GitHub Actions에서 빌드된 것인지는 <code>gh attestation verify &lt;파일&gt; --repo tunarider/fung</code>로 확인할 수 있다.</p>
 
 <h3>첫 스크립트</h3>

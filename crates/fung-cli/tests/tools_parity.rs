@@ -493,7 +493,7 @@ fn version_matches_go_built_with_the_same_version() {
     // compared with Go linked to the version the Rust binary reports (the
     // release scripts link both the same way).
     let v = rust_version();
-    let want = option_env!("FUNG_VERSION")
+    let want = option_env!("FUNG_BUILD_VERSION")
         .map(|s| s.strip_prefix('v').unwrap_or(s))
         .filter(|s| !s.is_empty() && *s != "(devel)")
         .unwrap_or("0.0.0-dev");

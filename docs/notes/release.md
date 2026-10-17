@@ -44,7 +44,7 @@ macOS 두 개는 한 러너에서 만든다. Xcode의 clang·링커가 x86_64도
 |---|---|---|
 | 바이너리에 내 컴퓨터 경로를 남기지 않기 | `--remap-path-prefix=<저장소>=/fung`, `$CARGO_HOME` → `/cargo` | `-trimpath` |
 | 디버그 심볼 빼기 | `CARGO_PROFILE_RELEASE_STRIP=symbols` | `-ldflags "-s -w"` |
-| 버전 박기 | 컴파일할 때 `FUNG_VERSION` 환경 변수(3절) | `-ldflags "-X main.linkedVersion=…"` |
+| 버전 박기 | 컴파일할 때 `FUNG_BUILD_VERSION` 환경 변수(3절) | `-ldflags "-X main.linkedVersion=…"` |
 
 경로가 공백을 품어도 깨지지 않게 플래그는 `RUSTFLAGS`가 아니라 `CARGO_ENCODED_RUSTFLAGS`(0x1f로 구분)로 넘긴다.
 macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않게 `COPYFILE_DISABLE=1`과 `tar --no-xattrs`를 쓴다.
@@ -53,8 +53,9 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 ## 3. 버전은 어디서 오나
 
 `crates/fung-cli/src/version.rs`가 고른다.
-1. 릴리스 빌드가 컴파일할 때 넣은 `FUNG_VERSION`(`option_env!`로 읽는다; 앞의 `v` 하나는 뗀다). cargo는 이 변수를 빌드 입력으로 추적하므로
-   값이 바뀌면 다시 컴파일한다.
+1. 릴리스 빌드가 컴파일할 때 넣은 `FUNG_BUILD_VERSION`(`option_env!`로 읽는다; 앞의 `v` 하나는 뗀다). cargo는 이 변수를 빌드 입력으로 추적하므로
+   값이 바뀌면 다시 컴파일한다. 이름이 `FUNG_VERSION`이 아닌 것은 `install.sh`의 `FUNG_VERSION`(설치할 버전 고르기)과 겹치지 않게 하려는 것이다(6a 마무리).
+   `crates/fung-cli/tests/build_version.rs`가 지키고, CI는 이 변수를 넣고 한 번 더 돌린다.
 2. 없으면 `0.0.0-dev`. 크레이트 버전(`CARGO_PKG_VERSION`)은 쓰지 않는다. 작업 공간 크레이트는 모두 `0.0.0`이라 뜻이 없다.
 
 0.1(Go)은 `-X`로 넣은 값 → `go install …@v0.1.0`이 기록한 모듈 버전 → `0.0.0-dev` 순이었다. `go install` 길은 0.2.0에서 사라졌다.

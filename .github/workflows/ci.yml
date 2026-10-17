@@ -9,7 +9,10 @@
 #   and release with FUNG_REQUIRE_PARITY=1 (the Go comparison must run).
 #   Every cargo build uses --locked: Cargo.lock is what deny and audit
 #   checked.
-# - musl: the static Linux release build and its archive check.
+#   A second test run builds with FUNG_BUILD_VERSION set and checks that
+#   `fung version` reports it.
+# - musl: the static Linux release build, its archive check, and the
+#   Rust golden suite (tests/lang) run against that static binary.
 name: ci
 
 on:
@@ -98,6 +101,10 @@ jobs:
         env:
           FUNG_REQUIRE_PARITY: "1"
         run: cargo test --locked --release
+      - name: build version
+        env:
+          FUNG_BUILD_VERSION: v9.9.9-ci
+        run: cargo test --locked -p fung-cli --test build_version
 
   # The static Linux release build (scripts/build-release.sh), so a change
   # that breaks it (a C dependency, a glibc-only library) shows up before
@@ -118,3 +125,11 @@ jobs:
         env:
           TARGETS: linux/amd64
         run: scripts/check-release.sh 0.0.0-ci dist
+      # The golden files against the static binary (the test runner
+      # itself is an ordinary host build; FUNG_GOLDEN_BIN picks the binary).
+      - name: golden (musl binary)
+        run: |
+          mkdir -p "$RUNNER_TEMP/musl"
+          tar -xzf dist/fung_0.0.0-ci_linux_amd64.tar.gz -C "$RUNNER_TEMP/musl"
+          FUNG_GOLDEN_BIN="$RUNNER_TEMP/musl/fung_0.0.0-ci_linux_amd64/fung" \
+            cargo test --locked -p fung-cli --test golden

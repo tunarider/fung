@@ -76,7 +76,7 @@ mkdir -p "$out"
 
 # The version `fung version` prints (crates/fung-cli/src/version.rs reads
 # it with option_env!; cargo rebuilds when it changes).
-export FUNG_VERSION="$version"
+export FUNG_BUILD_VERSION="$version"
 # No debug symbols (Go's -s -w).
 export CARGO_PROFILE_RELEASE_STRIP=symbols
 # No local paths in the binary (Go's -trimpath): the checkout and the

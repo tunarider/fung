@@ -80,7 +80,7 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   항목 벡터 + HAMT 색인(`omap.go`·`hamt.go`). 값 층 밖은 `Len`/`At`/`All`/`Slice`/`Append`/`Put`과 `ListBuilder`·`MapBuilder`만 쓴다.
   누적·꼬리 재귀가 선형(`tests/perf_test.go`가 0.3초로 지킴). 스펙 `docs/superpowers/specs/2026-10-14-persistent-collections-design.md`,
   계획 `docs/plans/2026-10-14-m10-persistent-collections.md`, 설명 `docs/notes/M10-persistent-collections.md`, 매뉴얼 `internals.html#collections`.
-- 배포 준비 (2026-10-14, 6a에서 Rust로 개정): MIT `LICENSE`, 버전은 빌드 때의 `FUNG_VERSION`(`crates/fung-cli/src/version.rs`) → `0.0.0-dev`,
+- 배포 준비 (2026-10-14, 6a에서 Rust로 개정): MIT `LICENSE`, 버전은 빌드 때의 `FUNG_BUILD_VERSION`(`crates/fung-cli/src/version.rs`) → `0.0.0-dev`,
   `scripts/build-release.sh <ver> [outdir]`(`cargo build --release --locked --target`, `TARGETS`로 고름; Linux는 musl 정적 `x86_64`·`aarch64-unknown-linux-musl`, macOS arm64·amd64;
   tar.gz + `scripts/sha256sums.sh`의 `SHA256SUMS`), `scripts/check-release.sh`(이름·내용·CPU 종류·해시·정적 링크·실행), `install.sh`(체크섬 검증, `~/.local/bin`,
   `tests/install_test.go`가 가짜 릴리스로 검사), `.github/workflows/ci.yml`(Go·Rust 검사 + `musl` 작업)·`release.yml`(플랫폼별 러너 `test` → `build` → `release`,
@@ -104,14 +104,14 @@ fung은 Go로 구현하는 개인용 실용적 함수형 스크립트 언어다 
   06에 "fung HTTP 약속"(응답 본문 64 MiB 상한은 사용자 결정, Rust만). E0805 장치와 `run_parity_skip.txt` 삭제. 실행 비교 189건(빼는 파일 없음), Rust 골든 139개, `http_parity` 14개(Go 서버·클라이언트와 원문 비교), `tls.rs`.
   rustls 공지 4건은 닿지 않아 무시, **2026-10-28 이후 0.23.46으로 올리고 무시 항목 삭제**. 그린 스레드는 6단계 뒤 "R7 스케줄러"로 미룸. 남은 차이·과도기 잔가지·R7 항목은 open-questions "Rust 이전".
   스펙 `docs/superpowers/specs/2026-10-16-rust-net-http-4d-design.md`, 계획 `docs/plans/2026-10-16-rust-net-http-4d.md`, 노트 `docs/notes/R4d-net-http.md`.
-- Rust 이식 5단계(도구) 완료 (2026-10-17): Go 포매터 결함 셋을 Go·Rust 함께 고친 뒤(타입 표기 `fn`, BOM, `fmt --check -`; 사용자 승인) 경고 W0101~W0104·`check`·`version`(`FUNG_VERSION` → `0.0.0-dev`)·`help`,
+- Rust 이식 5단계(도구) 완료 (2026-10-17): Go 포매터 결함 셋을 Go·Rust 함께 고친 뒤(타입 표기 `fn`, BOM, `fmt --check -`; 사용자 승인) 경고 W0101~W0104·`check`·`version`(`FUNG_BUILD_VERSION` → `0.0.0-dev`)·`help`,
   `fung test`(파일마다 런타임, `Runtime::hold`·`release`로 블록 사이의 틈은 교착 아님, 핸들러 → `end_background` → 실패 보고), `fung fmt`(Go를 줄 단위로, 바이트 보존), REPL(세션 전역 표, `resolve::Options`의 `globals`·`redefine`,
   raw 모드는 `fung_vm::term`). 사용자 결정으로 Go와 일부러 다른 것: 교착·태스크 `exit` 뒤 테스트 파일의 나머지 건너뛰기, REPL의 교착 회복(그 입력만 실패)과 태스크 `exit`로 세션 끝, REPL `end_background`는 세션 끝.
   Go 대조 `tools_parity` 20개, 가짜 터미널 `repl_tty` 4개, `fmt_repo`. 남은 차이·잔가지는 open-questions "Rust 이전"의 5단계 항목.
   스펙 `docs/superpowers/specs/2026-10-17-rust-tools-5-design.md`, 계획 `docs/plans/2026-10-17-rust-tools-5.md`, 노트 `docs/notes/R5-tools.md`. 다음은 6단계(동등 도달, 릴리스 전환, Go 삭제).
 - Rust 이식 6a단계(릴리스 전환 준비, Go는 정답지로 남김) 완료 (2026-10-17): "prelude에는 확실한 것만"에 따라 Rust에서 `fan_in`·`pmap`·`retry`를 `conc` 모듈로(`extras/rust/conc.fung`; Go와 같이 쓰는 `prelude.fung`의 사본은 `RUST_PRELUDE_FUNG_MOVED`로 숨김),
   예제(`agent`·`conc`, Rust 전용은 `RUST_ONLY_EXAMPLES`)·매뉴얼을 0.2.0 기준으로(`crates/fung-cli/tests/manual.rs`가 `builtins.html`을 Rust 매개변수 표와 비교, 매뉴얼 예제는 Rust로 check·fmt·실행),
-  Rust 릴리스 파이프라인(Linux musl 정적, libutil은 gnu에서만), CHANGELOG `[Unreleased]`(0.2.0), Go·Rust 벤치마크(`bench/README.md`). 6b 할 일·시험 실행·남긴 사소한 것은 open-questions "6a단계" 항목.
+  Rust 릴리스 파이프라인(Linux musl 정적, libutil은 gnu에서만), CHANGELOG `[Unreleased]`(0.2.0), v0.1.0·Go HEAD·Rust 벤치마크(`bench/README.md`). 최종 리뷰 수정: 스택 예약이 거부되면 작은 스택으로 다시 시도(`fung_vm::stack`), 옮긴 이름의 `help: moved to module conc`, 빌드 버전 변수 `FUNG_BUILD_VERSION`, CI가 musl 바이너리로 골든 실행(`FUNG_GOLDEN_BIN`). 6b 할 일·시험 실행·남긴 사소한 것은 open-questions "6a단계" 항목.
   스펙 `docs/superpowers/specs/2026-10-17-rust-release-prep-6a-design.md`, 계획 `docs/plans/2026-10-17-rust-release-prep-6a.md`, 노트 `docs/notes/R6a-release-prep.md`. 다음은 6b(Go 삭제, 대조를 얼린 기대값으로, `spec` 생성을 Rust로).
 - 다음 작업: tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에(기존 결정 유지). 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 에러 번호는 `internal/diag/catalog.go`에서 할당하며 한 번 붙이면 바꾸지 않는다.

@@ -3,13 +3,25 @@
 //! are module fixtures) that is not `# only: go` runs with `fung run`,
 //! and is judged by the rules of Go's
 //! `internal/golden` (`Parse`, `Check`).
+//!
+//! `FUNG_GOLDEN_BIN` names another `fung` binary to run instead of the
+//! one cargo built: CI runs the suite against the static musl release
+//! binary (`ci.yml`, job `musl`).
 
 mod common;
 
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use common::{repo, rust_fung};
+
+/// The binary under test: `FUNG_GOLDEN_BIN` when set, else cargo's.
+fn fung_under_test() -> PathBuf {
+    match std::env::var_os("FUNG_GOLDEN_BIN") {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => rust_fung(),
+    }
+}
 
 /// What a golden file expects (Go: `golden.Case`).
 #[derive(Debug, Default, PartialEq)]
@@ -266,7 +278,8 @@ fn golden_files_meet_their_expectations() {
         }
         let mut args: Vec<OsString> = vec!["run".into(), rel.clone().into()];
         args.extend(c.args.iter().map(OsString::from));
-        let (out, err, status) = common::run_status(&rust_fung(), &args, Some(c.stdin.as_bytes()));
+        let (out, err, status) =
+            common::run_status(&fung_under_test(), &args, Some(c.stdin.as_bytes()));
         let r = Outcome {
             stdout: String::from_utf8_lossy(&out).into_owned(),
             stderr: String::from_utf8_lossy(&err).into_owned(),

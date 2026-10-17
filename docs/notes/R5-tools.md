@@ -29,8 +29,8 @@
 앞단의 `test` 블록 컴파일과 VM의 `TEST`·`ASSERT`(E0807)는 이미 있었다. `fung test`는 명령 쪽만 새로 짰다.
 
 `fung check`는 Go와 똑같이 **파일 하나** 또는 `-e`만 받는다. 디렉터리를 주면 읽기 에러, 경로 둘이면 사용법 에러다.
-`version`은 빌드할 때 넣은 `FUNG_VERSION`(`option_env!`)을 쓰고, 없으면 `0.0.0-dev`다. `CARGO_PKG_VERSION`은 일부러 쓰지 않았다.
-크레이트가 모두 `0.0.0`이라 개발 빌드가 `0.0.0-dev` 표시를 잃기 때문이다. 6단계 릴리스 스크립트는 `FUNG_VERSION=$version cargo build --release`로 넣는다.
+`version`은 빌드할 때 넣은 `FUNG_BUILD_VERSION`(`option_env!`)을 쓰고, 없으면 `0.0.0-dev`다. `CARGO_PKG_VERSION`은 일부러 쓰지 않았다.
+크레이트가 모두 `0.0.0`이라 개발 빌드가 `0.0.0-dev` 표시를 잃기 때문이다. 6단계 릴리스 스크립트는 `FUNG_BUILD_VERSION=$version cargo build --release`로 넣는다.
 
 비교로 확인한 것은 테스트 파일에 있다.
 - `crates/fung-cli/tests/tools_parity.rs`(테스트 20개): `check`·`test`·`fmt`·REPL·경로 순회를 Go와 바이트 단위로 비교한다.
@@ -292,7 +292,7 @@ Go `net/http`가 표준 에러에 "Unsolicited response received on idle HTTP ch
 
 ## 7. 다음
 
-- 6단계: 동등 도달, 릴리스 전환(`FUNG_VERSION`을 넣는 릴리스 스크립트), Go 삭제. 예제와 매뉴얼의 `atom` → `agent`, CHANGELOG, 과도기 잔가지 걷어내기.
+- 6단계: 동등 도달, 릴리스 전환(`FUNG_BUILD_VERSION`을 넣는 릴리스 스크립트), Go 삭제. 예제와 매뉴얼의 `atom` → `agent`, CHANGELOG, 과도기 잔가지 걷어내기.
 - R7: 스케줄러(그린 스레드).
 
 이 단계를 한 줄로 줄이면, **도구는 프로그램과 프로그램 사이의 경계를 정하는 일이다.**

@@ -60,9 +60,10 @@ Go 버전의 fung 태스크는 고루틴이다. 그래서 태스크를 수만 �
 
 스택 크기:
 - 진입 파일은 2단계처럼 4 GiB 스택 스레드에서 돈다.
-- `spawn`한 태스크의 스레드는 1 GiB(`TASK_STACK`). Go 고루틴이 자랄 수 있는 최대 크기와 같다. 그래서 고루틴에서 되는 프로그램은 태스크에서도 된다. 처음에는 256 MiB였는데, `map`이 fung 함수를 99,000단계 겹쳐 부르는 프로그램이 태스크 안에서만 스택을 넘쳐 프로세스가 중단됐다(종료 코드 134, `at_exit`도 돌지 않음). Go와 진입 스레드는 같은 프로그램을 끝까지 돌린다. 릴리스 전용 테스트 `crates/fung-cli/tests/task_stack.rs`가 지킨다.
+- `spawn`한 태스크의 스레드는 1 GiB(`TASK_STACK`, 6a 마무리부터 `stack::TASK_STACKS`의 첫 값). Go 고루틴이 자랄 수 있는 최대 크기와 같다. 그래서 고루틴에서 되는 프로그램은 태스크에서도 된다. 처음에는 256 MiB였는데, `map`이 fung 함수를 99,000단계 겹쳐 부르는 프로그램이 태스크 안에서만 스택을 넘쳐 프로세스가 중단됐다(종료 코드 134, `at_exit`도 돌지 않음). Go와 진입 스레드는 같은 프로그램을 끝까지 돌린다. 릴리스 전용 테스트 `crates/fung-cli/tests/task_stack.rs`가 지킨다.
 - 이것은 **가상 주소 예약**일 뿐이다. 운영체제는 실제로 쓴 페이지만 메모리를 준다. 그래서 태스크 2,000개(주소 2 TB)가 문제없이 돈다(`two_thousand_tasks_run`). 256 MiB 때와 시간이 같다(9절).
 - 운영체제가 예약을 거부하면(스레드 수 한도, 엄격한 overcommit, `ulimit -v`) `spawn`은 프로세스를 죽이지 않고 `E0801 internal error: cannot start a task: ...` 에러를 낸다. `at_exit`도 돈다. macOS의 프로세스당 스레드 한도(8,192)를 넘겨 확인했다.
+- 6a 마무리(2026-10-17)부터는 거부되면 먼저 더 작은 스택으로 다시 시도한다: 태스크 1 GiB → 256 MiB → 64 MiB, 진입 4 GiB → 1 GiB → 256 MiB → 64 MiB(`crates/fung-vm/src/stack.rs`의 `TASK_STACKS`·`ENTRY_STACKS`). 모두 거부될 때만 위의 E0801(진입은 한 줄 에러와 종료 코드 1)이다. 메모리가 작은 호스트에서는 그래서 아주 깊은 네이티브 재귀의 한도가 낮다. 스레드 수 한도처럼 크기와 상관없는 거부는 작은 크기로도 실패하므로 E0801이 그대로 난다.
 - Linux: Rust 표준 라이브러리는 `pthread_attr_setstacksize`만 부르고, glibc가 스택을 `MAP_NORESERVE` 없이 `PROT_NONE`으로 `mmap`한 뒤 가드 페이지를 뺀 부분을 `mprotect`로 쓰기 가능하게 바꾼다. 이때 1 GiB가 커밋 양(Committed_AS)에 잡힌다. 하지만 기본값인 휴리스틱 overcommit(`vm.overcommit_memory=0`)은 요청 **하나**가 램+스왑보다 큰지만 보고 합계는 보지 않으므로 2,000개도 통과한다. 엄격 모드(`=2`)에서는 합계가 한도를 넘는 순간 위의 에러가 난다.
 
 ## 3. 실행권 잠금과 `unsafe`의 근거

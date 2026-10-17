@@ -4,12 +4,12 @@
 //! module version `go install` records, then `0.0.0-dev`. Rust has no
 //! module version that means anything: the crates are all `0.0.0`, so
 //! `CARGO_PKG_VERSION` would print `0.0.0` for every build. A release
-//! build sets `FUNG_VERSION` when it compiles (the counterpart of
+//! build sets `FUNG_BUILD_VERSION` when it compiles (the counterpart of
 //! Go's link-time value); anything else is `0.0.0-dev`.
 
 /// The version of this binary.
 pub fn version() -> String {
-    resolve(option_env!("FUNG_VERSION"))
+    resolve(option_env!("FUNG_BUILD_VERSION"))
 }
 
 /// Go `resolveVersion` with one source: the build-time version unless it

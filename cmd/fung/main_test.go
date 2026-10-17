@@ -374,7 +374,9 @@ var rustOnlyExamples = map[string]bool{"api.fung": true, "checkurls.fung": true,
 
 func TestExamplesPassTheirTests(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "examples")
-	os.Mkdir(dir, 0o755)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	src := filepath.Join("..", "..", "examples")
 	entries, err := os.ReadDir(src)
 	if err != nil {
@@ -388,7 +390,9 @@ func TestExamplesPassTheirTests(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.WriteFile(filepath.Join(dir, e.Name()), data, 0o644)
+		if err := os.WriteFile(filepath.Join(dir, e.Name()), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	out, errOut, code := invoke(t, "test", dir)
 	if code != 0 || !strings.HasSuffix(out, "11 passed, 0 failed\n") || errOut != "" {
