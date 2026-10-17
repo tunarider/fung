@@ -1,6 +1,7 @@
 //! `fung fmt [--check] <path>...|-` (Go `cmd/fung/fmt.go`, 08): formats
 //! files in place and names the changed ones; `--check` only names them
-//! (exit 1 if any); `-` formats standard input to standard output. A file
+//! (exit 1 if any); `-` formats standard input to standard output
+//! (`--check -` names `<stdin>` instead, exit 1, if it needs formatting). A file
 //! with a syntax error is reported and left alone (exit 2).
 
 use std::ffi::OsStr;
@@ -31,7 +32,7 @@ pub fn run_fmt(args: &[String], raw: &[Vec<u8>]) -> Out {
         return usage(b"fmt needs a path, or - for standard input");
     }
     if paths.len() == 1 && paths[0] == b"-" {
-        return stdin();
+        return stdin(check);
     }
     let files = match paths::fung_files(&paths) {
         Ok(f) => f,
@@ -94,7 +95,9 @@ fn usage(msg: &[u8]) -> Out {
 }
 
 /// `fung fmt -`: standard input to standard output, named `<stdin>`.
-fn stdin() -> Out {
+/// With `--check` nothing is formatted out: `<stdin>` is named (exit 1)
+/// if the input needs formatting, like a file.
+fn stdin(check: bool) -> Out {
     let mut src = Vec::new();
     if let Err(e) = std::io::stdin().lock().read_to_end(&mut src) {
         return Out {
@@ -109,8 +112,14 @@ fn stdin() -> Out {
         };
     }
     match format_bytes("<stdin>", &src) {
-        Ok(f) => Out {
+        Ok(f) if !check => Out {
             stdout: f,
+            ..Out::default()
+        },
+        Ok(f) if f == src => Out::default(),
+        Ok(_) => Out {
+            stdout: b"<stdin>\n".to_vec(),
+            code: EXIT_RUNTIME,
             ..Out::default()
         },
         Err(e) => {

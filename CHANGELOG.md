@@ -8,6 +8,11 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+### 고침
+
+- `fung fmt`가 BOM(U+FEFF)으로 시작하는 파일을 "formatter changed the code"로 거절하던 문제. 이제 BOM을 떼고 포맷한다.
+- `fung fmt --check -`가 `--check`를 무시하고 포맷 결과를 찍던 문제. 이제 바뀔 게 있으면 `<stdin>`을 찍고 종료 코드 1이다.
+
 ### 성능
 
 - 함수 호출과 반복이 약 2.5배 빨라졌다. fung 함수 호출은 힙 할당 없이 인자를 프레임에 바로 놓고, `fold`·`map`·`each`·`filter`는

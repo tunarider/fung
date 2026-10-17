@@ -848,6 +848,10 @@ fn go_unquote(s: &str) -> (String, &str) {
                 'r' => '\r',
                 '"' => '"',
                 '\\' => '\\',
+                'u' => {
+                    let hex: String = (0..4).map(|_| cs.next().unwrap().1).collect();
+                    char::from_u32(u32::from_str_radix(&hex, 16).unwrap()).unwrap()
+                }
                 e => panic!("escape \\{e} in format_test.go"),
             }),
             c => out.push(c),
@@ -901,7 +905,7 @@ fn is_bracket_or_sep(k: fung_front::lexer::Kind) -> bool {
 /// Text edits: indentation stripped, re-indented with tabs, 3 or 4
 /// spaces per level; blank lines removed or tripled; CRLF; trailing
 /// blanks; no final newline; truncated at a line and at half its bytes; a byte
-/// order mark. Token edits (from the lexer's spans): one space between
+/// order mark (dropped). Token edits (from the lexer's spans): one space between
 /// all tokens on a line, no space where a bracket, separator or a
 /// word/operator pair allows it; lines joined after an opener or a
 /// comma, split after them, after line-ending operators and before
@@ -1212,6 +1216,13 @@ fn fmt_matches_go_on_files_and_variants() {
         listed > n / 3 && refused > 300 && refused < n / 2,
         "{listed} listed, {refused} refused of {n}"
     );
+    // A byte order mark is dropped, never refused: every `@bom` variant
+    // that parses is listed, and the safeguard refuses nothing.
+    let err = String::from_utf8_lossy(&go.1);
+    assert!(!err.contains("formatter changed the code"), "{err}");
+    let out = String::from_utf8_lossy(&go.0);
+    let boms = out.lines().filter(|l| l.ends_with("@bom.fung")).count();
+    assert!(boms > 100, "{boms} @bom variants listed");
     let before = tree(&rdir.join("in"));
     let write = os_args(&["fmt", "in"]);
     let go = run_in(&b.go, &gdir, &write, None);
@@ -1258,8 +1269,7 @@ fn code_of(src: &[u8]) -> (Vec<String>, Vec<String>) {
 /// Standard input (`-`): the inputs of Go's formatter tests, inputs only
 /// Go's byte-level handling explains (not UTF-8, a byte order mark, CRLF,
 /// a lone `\r`), broken inputs, the manual's examples and every corpus
-/// file. `--check -` formats standard input too (Go ignores `--check`
-/// there).
+/// file. `--check -` only checks standard input.
 #[test]
 fn fmt_matches_go_on_standard_input() {
     let Some(b) = both("tools-fmt-stdin") else {
@@ -1326,15 +1336,33 @@ fn fmt_matches_go_on_standard_input() {
     for ((src, want), (_, rust)) in go_cases.iter().zip(&runs) {
         assert_eq!(String::from_utf8_lossy(&rust.0), *want, "{src:?}");
     }
+    // `--check -` (either order) names `<stdin>` and exits 1 when the
+    // input needs formatting, prints nothing and exits 0 when it does
+    // not; errors are as without `--check`.
+    let srcs: [&[u8]; 7] = [
+        b"x=1\n",
+        b"x = 1\n",
+        b"",
+        b"x = )\n",
+        b"\xef\xbb\xbfx = 1\n",
+        b"\xef\xbb\xbf\xef\xbb\xbfx\n",
+        b"x = \"a\xffb\"\n",
+    ];
+    for order in [["fmt", "--check", "-"], ["fmt", "-", "--check"]] {
+        let a = os_args(&order);
+        for src in srcs {
+            let (go, rust) = (
+                run_in(&b.go, &dir, &a, Some(src)),
+                run_in(&b.rust, &dir, &a, Some(src)),
+            );
+            assert_eq!(diff(&go, &rust), None, "{order:?} {src:?}");
+        }
+    }
     let a = os_args(&["fmt", "--check", "-"]);
-    let src = b"x=1\n";
-    assert_eq!(
-        diff(
-            &run_in(&b.go, &dir, &a, Some(src)),
-            &run_in(&b.rust, &dir, &a, Some(src))
-        ),
-        None
-    );
+    let (out, _, status) = run_status(&b.rust, &a, Some(b"x=1\n"));
+    assert_eq!((&out[..], status.code()), (&b"<stdin>\n"[..], Some(1)));
+    let (out, _, status) = run_status(&b.rust, &a, Some(b"x = 1\n"));
+    assert_eq!((&out[..], status.code()), (&b""[..], Some(0)));
 }
 
 /// Arguments, mixed paths and file errors: a file and a directory

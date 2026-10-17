@@ -515,6 +515,27 @@ func TestFmtCommand(t *testing.T) {
 	if code != exitOK || outBuf.String() != "a = 1\n" {
 		t.Errorf("stdin: code=%d out=%q err=%q", code, outBuf.String(), errBuf.String())
 	}
+	// --check on standard input names <stdin> and writes no code.
+	for _, args := range [][]string{{"fmt", "--check", "-"}, {"fmt", "-", "--check"}} {
+		outBuf.Reset()
+		errBuf.Reset()
+		code = run(args, strings.NewReader("a=1\n"), &outBuf, &errBuf)
+		if code != exitRuntimeError || outBuf.String() != "<stdin>\n" || errBuf.String() != "" {
+			t.Errorf("%v messy: code=%d out=%q err=%q", args, code, outBuf.String(), errBuf.String())
+		}
+		outBuf.Reset()
+		errBuf.Reset()
+		code = run(args, strings.NewReader("a = 1\n"), &outBuf, &errBuf)
+		if code != exitOK || outBuf.String() != "" || errBuf.String() != "" {
+			t.Errorf("%v clean: code=%d out=%q err=%q", args, code, outBuf.String(), errBuf.String())
+		}
+		outBuf.Reset()
+		errBuf.Reset()
+		code = run(args, strings.NewReader("f(\n"), &outBuf, &errBuf)
+		if code != exitCompileError || outBuf.String() != "" || !strings.Contains(errBuf.String(), "error[E0110]") {
+			t.Errorf("%v broken: code=%d out=%q err=%q", args, code, outBuf.String(), errBuf.String())
+		}
+	}
 	_, errOut, code = invoke(t, "fmt")
 	if code != exitUsage || !strings.Contains(errOut, "fmt needs") {
 		t.Errorf("no args: code=%d err=%q", code, errOut)

@@ -11,7 +11,8 @@ import (
 
 // Format rewrites src in the single fung style (08). A syntax error comes
 // back as is and nothing is formatted; an output whose tokens differ from
-// the input is an internal error, never returned as text.
+// the input is an internal error, never returned as text. A leading byte
+// order mark is dropped.
 func Format(file, src string) (string, *diag.Error) {
 	toks, comments, err := lexer.Lex(file, src)
 	if err != nil {
@@ -20,6 +21,10 @@ func Format(file, src string) (string, *diag.Error) {
 	if _, perr := parser.Parse(toks); perr != nil {
 		return "", perr
 	}
+	// The lexer skipped one leading byte order mark, so its offsets point
+	// into the source without it; the output never carries the mark. A
+	// second mark is not skipped: the lexer has refused it above.
+	src = strings.TrimPrefix(src, "\ufeff")
 	lines := splitLines(src, toks, comments)
 	layout(lines)
 	lines = tidyBlank(lines)

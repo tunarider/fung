@@ -406,20 +406,27 @@ fn keeps_bytes_that_are_not_utf8() {
     );
 }
 
-/// Go's lexer skips a byte order mark but the formatter slices the
-/// untrimmed source with the trimmed offsets, so a file with a BOM and
-/// code is refused by the safeguard (E0801); one with only comments loses
-/// the mark.
+/// A leading byte order mark is skipped like the lexer skips it and never
+/// written back (Go's formatter does the same since 5단계); a second mark
+/// is code the lexer refuses (E0101).
 #[test]
-fn byte_order_mark_like_go() {
-    let e = format("t.fung", "\u{feff}x = 1\n").unwrap_err();
-    assert_eq!(e.code, "E0801");
+fn byte_order_mark() {
+    for (src, want) in [
+        ("\u{feff}x=1\n", "x = 1\n"),
+        ("\u{feff}fn f():\nx\n;;\n", "fn f():\n  x\n;;\n"),
+        ("\u{feff}# only a comment\n", "# only a comment\n"),
+        ("\u{feff}", ""),
+        ("\u{feff}\n\nx = 1 # c   \n\n", "x = 1  # c\n"),
+    ] {
+        let got = format("t.fung", src).unwrap_or_else(|e| panic!("{src:?}: {e:?}"));
+        assert_eq!(got, want, "format {src:?}");
+    }
     assert_eq!(
-        crate::diag::message(&e.code, &e.args),
-        "internal error: formatter changed the code of t.fung"
+        format_bytes("t.fung", b"\xef\xbb\xbfx = \"a\xffb\"\n").unwrap(),
+        b"x = \"a\xffb\"\n".to_vec()
     );
-    assert_eq!(format("t.fung", "\u{feff}# c\n").unwrap(), "# c\n");
-    assert_eq!(format("t.fung", "\u{feff}").unwrap(), "");
+    let e = format("t.fung", "\u{feff}\u{feff}x = 1\n").unwrap_err();
+    assert_eq!(e.code, "E0101");
 }
 
 /// Windows line endings become `\n`; a `\r` inside a raw string stays.

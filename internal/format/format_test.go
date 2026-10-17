@@ -238,3 +238,24 @@ func TestFnTypedParameters(t *testing.T) {
 		check(t, src, want)
 	}
 }
+
+// A leading byte order mark is skipped like the lexer skips it and never
+// written back; a second mark is code the lexer refuses (E0101).
+func TestByteOrderMark(t *testing.T) {
+	cases := map[string]string{
+		"\ufeffx=1\n":                "x = 1\n",
+		"\ufefffn f():\nx\n;;\n":     "fn f():\n  x\n;;\n",
+		"\ufeff# only a comment\n":   "# only a comment\n",
+		"\ufeff":                     "",
+		"\ufeff\n\nx = 1 # c   \n\n": "x = 1  # c\n",
+	}
+	for src, want := range cases {
+		got, err := Format("t.fung", src)
+		if err != nil || got != want {
+			t.Errorf("format %q\n got %q (%v)\nwant %q", src, got, err, want)
+		}
+	}
+	if _, err := Format("t.fung", "\ufeff\ufeffx = 1\n"); err == nil || err.Code != "E0101" {
+		t.Errorf("a doubled mark must be refused like the lexer refuses it: %v", err)
+	}
+}

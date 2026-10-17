@@ -62,18 +62,19 @@ const BOM: &[u8] = "\u{feff}".as_bytes();
 /// [`FILE`].
 pub fn format(name: &str, src: &str) -> Result<String, Diag> {
     let out = format_bytes(name, src.as_bytes())?;
-    // Only a source with a byte order mark could give bytes that are not
-    // UTF-8, and the safeguard refuses those (see `format_bytes`).
+    // The output is cut from `src` at token and comment boundaries, so it
+    // stays UTF-8.
     Ok(String::from_utf8(out).unwrap_or_else(|e| crate::source::decode_go(e.as_bytes())))
 }
 
-/// [`format`] on bytes, as the command reads files. Go's lexer trims a
-/// leading byte order mark but its formatter slices the untrimmed
-/// source with the lexer's offsets; this keeps that (a file with a mark
-/// and code fails the safeguard, one with only comments loses the mark).
+/// [`format`] on bytes, as the command reads files. A leading byte order
+/// mark is skipped like the lexer skips it and never written back; a
+/// second one is code the lexer refuses (E0101).
 pub fn format_bytes(name: &str, src: &[u8]) -> Result<Vec<u8>, Diag> {
     let lexed = lex_bytes(FILE, src)?;
     parser::parse(&lexed.tokens)?;
+    // The lexer's offsets point into the source without the mark.
+    let src = src.strip_prefix(BOM).unwrap_or(src);
     let mut lines = split_lines(src, &lexed.toks, &lexed.comments);
     layout(&mut lines);
     let lines = tidy_blank(lines);
