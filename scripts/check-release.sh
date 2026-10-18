@@ -118,8 +118,9 @@ for t in $targets; do
 	check_arch "$bin" "$name" "$t"
 	echo "  binary: $(file -b "$bin" | cut -d, -f1-2)"
 
-	# Contents: one folder named like the archive with three files.
-	got=$(tar -tzf "$archive" | sed 's|/$||' | grep -vx "$name" | sort | tr '\n' ' ')
+	# Contents: one folder named like the archive with three files. Sorted
+	# bytewise: a UTF-8 locale (the macOS runner) would put fung first.
+	got=$(tar -tzf "$archive" | sed 's|/$||' | grep -vx "$name" | LC_ALL=C sort | tr '\n' ' ')
 	expect="$name/LICENSE $name/README.md $name/fung "
 	[ "$got" = "$expect" ] || fail "$name.tar.gz holds [$got], want [$expect]"
 
