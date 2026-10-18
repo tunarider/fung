@@ -25,7 +25,7 @@ fung은 처음부터 두 결정 덕에 이 짐이 없다.
 
 Go는 `GOOS`·`GOARCH`만 바꾸면 한 기계에서 네 대상을 다 만들었다. Rust 구현은 그렇게 못 한다. TLS의 암호 부분(`ring` 크레이트)이
 C와 어셈블리 코드를 품고 있어서, 빌드할 때 **대상용 C 컴파일러**가 필요하기 때문이다. 교차 C 도구를 갖추는 대신 대상마다 그 CPU·OS의
-GitHub Actions 러너에서 빌드한다(open-questions "Rust 이전"의 배포 결정).
+GitHub Actions 러너에서 빌드한다(open-questions "Rust 구현: 정한 것과 남은 일"의 배포 결정).
 
 | 묶음 | 러너 | Rust 대상 |
 |---|---|---|
@@ -52,7 +52,7 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 
 ## 3. 버전은 어디서 오나
 
-`crates/fung-cli/src/version.rs`가 고른다.
+`crates/fung-vm/src/version.rs`가 고른다(6c-5부터; `fung version`과 `http`의 `User-Agent`가 같이 쓴다).
 1. 릴리스 빌드가 컴파일할 때 넣은 `FUNG_BUILD_VERSION`(`option_env!`로 읽는다; 앞의 `v` 하나는 뗀다). cargo는 이 변수를 빌드 입력으로 추적하므로
    값이 바뀌면 다시 컴파일한다. 이름이 `FUNG_VERSION`이 아닌 것은 `install.sh`의 `FUNG_VERSION`(설치할 버전 고르기)과 겹치지 않게 하려는 것이다(6a 마무리).
    `crates/fung-cli/tests/build_version.rs`가 지키고, CI는 이 변수를 넣고 한 번 더 돌린다.
@@ -67,7 +67,7 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 
 `curl … | sh`는 편하지만 "인터넷에서 받은 것을 그대로 실행"이다. 위험은 두 층이다.
 - **전송 중 변조·깨진 다운로드**: 릴리스에 `SHA256SUMS`를 같이 올리고, `install.sh`가 받은 tar.gz의 해시를 대조한다.
-  다르면 아무것도 설치하지 않는다. `tests/install_test.go`가 일부러 틀린 해시로 이 거부를 확인한다.
+  다르면 아무것도 설치하지 않는다. `crates/fung-cli/tests/install_script.rs`가 일부러 틀린 해시로 이 거부를 확인한다.
 - **릴리스 자체가 가짜**: 해시 파일도 같은 곳에서 오므로 해시만으로는 못 막는다. 그래서 Actions가 **빌드 증명**(build provenance,
   SLSA)을 남긴다(`actions/attest-build-provenance`). "이 파일은 tunarider/fung 저장소의 이 커밋에서 이 워크플로가 만들었다"는
   서명된 기록이고, `gh attestation verify <파일> --repo tunarider/fung`로 누구나 확인한다. 서명 키를 직접 관리하지 않아도 된다
@@ -112,7 +112,7 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 
 1. `CHANGELOG.md`의 `[Unreleased]` 절을 `## [x.y.z] - 날짜`로 바꾸고 빈 `[Unreleased]`를 새로 둔다. 맨 아래 비교 링크도 고친다.
    이 절이 GitHub 릴리스 노트가 된다(`scripts/changelog-section.sh`). 절이 없으면 릴리스가 실패한다.
-2. 매뉴얼 사이드바의 버전 표기(`fung 0.1.0` 꼴, `docs/*.html`)를 새 버전으로 고친다. `tests/changelog_test.go`가 이 버전의
+2. 매뉴얼 사이드바의 버전 표기(`fung 0.1.0` 꼴, `docs/*.html`)를 새 버전으로 고친다. `crates/fung-cli/tests/changelog.rs`가 이 버전의
    CHANGELOG 절이 있는지 확인하므로, 둘 중 하나만 고치면 테스트가 실패한다.
 3. (처음이거나 워크플로를 바꿨다면) 태그 전에 위 6절의 수동 실행으로 시험한다.
 4. `git tag vX.Y.Z && git push origin vX.Y.Z`.

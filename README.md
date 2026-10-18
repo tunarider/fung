@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 fung version
 ```
 
-`FUNG_VERSION=0.1.0`, `FUNG_INSTALL_DIR=/usr/local/bin`으로 버전과 위치를 고른다.
+`FUNG_VERSION=0.2.0`, `FUNG_INSTALL_DIR=/usr/local/bin`으로 버전과 위치를 고른다.
 Rust 1.94 이상이 있다면 저장소에서 직접 빌드할 수도 있다. 실행 파일은 `target/release/fung`이다.
 
 ```

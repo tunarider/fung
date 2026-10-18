@@ -8,6 +8,8 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
 fung 실행 파일이 Go 구현에서 Rust 구현으로 바뀌었다. 언어와 표준 모듈은 아래에 적은 것 말고는 그대로다.
 `atom` 제거 때문에 호환이 깨지는 릴리스다.
 
@@ -189,5 +191,6 @@ fung 실행 파일이 Go 구현에서 Rust 구현으로 바뀌었다. 언어와 
 - 설치 스크립트 `install.sh`, `go install github.com/tunarider/fung/cmd/fung@latest`.
 - HTML 매뉴얼(`docs/`, GitHub Pages).
 
-[Unreleased]: https://github.com/tunarider/fung/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/tunarider/fung/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/tunarider/fung/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tunarider/fung/releases/tag/v0.1.0

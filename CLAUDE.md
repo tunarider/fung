@@ -1,7 +1,7 @@
 # fung — 작업 안내 (Claude용)
 
 fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (바이트코드 VM).
-설계, 알파(M0~M10), Rust 이식(1~6c단계)까지 끝났고 다음은 0.2.0 릴리스다.
+설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 다음은 R7 스케줄러다.
 
 ## 먼저 읽을 것
 
@@ -73,7 +73,7 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
 - Rust 이식 1~6c단계 완료 (2026-10-15~18): 1 앞단, 2 값·VM, 3a 동시성(스레드 + 실행권), 3b `atom` → `agent`, 4a `fs`·`path`, 4b `time`·`json`, 4c `regex`·크레이트·SIGPIPE,
   4d 소켓·TLS·fung으로 쓴 HTTP, 5 도구, 6a 릴리스 준비(`conc` 모듈, musl 정적 릴리스, CHANGELOG), 6b 첫 구현 삭제(대조를 기대 출력으로 얼림, 명세를 Rust에서 생성), 6c 이식 잔가지 정리(흉내 동작을 fung 규칙으로, 2026-10-17~18).
   설명 `docs/notes/R<n>-*.md`(이식 전체의 기록 `R-port-record.md`, 6c 정리 `R6c-cleanup.md`), 스펙 `docs/superpowers/specs/`, 결정·남은 일·알려진 한계는 open-questions "Rust 구현: 정한 것과 남은 일".
-- **다음: 0.2.0 릴리스**(태그와 시험 실행은 사용자 확인 뒤), 그 뒤 R7 스케줄러.
+- 0.2.0 릴리스 (2026-10-18, 첫 Rust 구현). **다음: R7 스케줄러**, rustls 0.23.46 업그레이드(2026-10-28 이후). 릴리스 태그와 시험 실행은 사용자 확인 뒤.
   tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에. 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
 - 매뉴얼: `docs/index.html`·`syntax.html`·`builtins.html`·`internals.html`, GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 매뉴얼도 같이 고친다.**
