@@ -1,5 +1,5 @@
-//! Constant values and fung literal formatting. Port of the scalar parts of
-//! Go `internal/value/format.go` and `dur.go`; output must match byte for byte.
+//! Constant values and fung literal formatting (08 "출력 형식"): the
+//! scalar parts the VM's value printing shares.
 
 /// A compile-time constant (the scalar kinds the front end can produce).
 #[derive(Clone, Debug)]
@@ -18,7 +18,7 @@ pub enum Const {
     List(Vec<Const>),
 }
 
-/// Constant-pool equality, following Go `Proto.Const`: same type and equal
+/// Constant-pool equality: same type and equal
 /// value. So `Int(1)` and `Float(1.0)` differ, `Float` compares with `==`
 /// (NaN never equals, `0.0 == -0.0`), and builtins compare by name.
 impl PartialEq for Const {
@@ -66,9 +66,10 @@ pub fn format_for_print(c: &Const) -> String {
 }
 
 /// Plain notation for decimal exponents in [-4, 21), exponent notation
-/// outside (`1e21`, `1e-07`), always showing a `.` or exponent.
+/// outside (`1e21`, `1e-7`: the exponent as a literal writes it, without
+/// padding or `+`), always showing a `.` or exponent.
 pub fn format_float(f: f64) -> String {
-    // Go parses the exponent out of its 'e' form; NaN/Inf have none, so they
+    // the exponent is read from the 'e' form; NaN/Inf have none, so they
     // fall through to plain notation plus ".0" ("NaN.0", "+Inf.0").
     if f.is_nan() {
         return "NaN.0".into();
@@ -80,8 +81,7 @@ pub fn format_float(f: f64) -> String {
     let (mantissa, exp) = e.split_once('e').expect("exponent form has an e");
     let exp: i32 = exp.parse().expect("valid exponent");
     if !(-4..21).contains(&exp) {
-        let sign = if exp < 0 { "-" } else { "" };
-        return format!("{mantissa}e{sign}{:02}", exp.abs());
+        return format!("{mantissa}e{exp}");
     }
     let mut s = format!("{f}");
     if !s.contains('.') {
@@ -153,11 +153,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn floats_print_like_go() {
+    fn floats_print() {
         assert_eq!(format_float(15000000000.0), "15000000000.0");
         assert_eq!(format_float(0.1), "0.1");
         assert_eq!(format_float(1e21), "1e21");
-        assert_eq!(format_float(1e-7), "1e-07");
+        // the exponent as written in a literal: no padding, no `+`
+        assert_eq!(format_float(1e-7), "1e-7");
+        assert_eq!(format_float(0.00001), "1e-5");
+        assert_eq!(format_float(1.5e-300), "1.5e-300");
+        assert_eq!(format_float(2e100), "2e100");
         assert_eq!(format_float(5.0), "5.0");
         assert_eq!(format_float(0.30000000000000004), "0.30000000000000004");
     }
@@ -182,7 +186,7 @@ mod tests {
             (Const::Float(2.5), "2.5"),
             (Const::Float(-0.25), "-0.25"),
             (Const::Float(1e21), "1e21"),
-            (Const::Float(1e-7), "1e-07"),
+            (Const::Float(1e-7), "1e-7"),
             (Const::Float(123456789.0), "123456789.0"),
             (Const::Float(1e6), "1000000.0"),
             (Const::Bool(true), "true"),
@@ -205,7 +209,7 @@ mod tests {
     fn float_edges() {
         assert_eq!(format_float(1e20), "100000000000000000000.0");
         assert_eq!(format_float(0.0001), "0.0001");
-        assert_eq!(format_float(0.00001), "1e-05");
+        assert_eq!(format_float(0.00001), "1e-5");
         assert_eq!(format_float(1.5e300), "1.5e300");
         assert_eq!(format_float(-1.5e-10), "-1.5e-10");
         assert_eq!(format_float(-0.0), "-0.0");

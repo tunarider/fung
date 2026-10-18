@@ -1,5 +1,5 @@
 //! Pattern trees stored as constants and interpreted by the VM's MATCH
-//! instruction (09: 패턴 의미가 Go 함수 하나에 모인다).
+//! instruction (09: 패턴 의미가 한 함수에 모인다).
 
 use std::fmt;
 

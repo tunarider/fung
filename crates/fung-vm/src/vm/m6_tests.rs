@@ -1,6 +1,5 @@
-//! Ports of Go `internal/vm/m6_test.go`: assert, test blocks, dbg and
-//! parameter patterns (the REPL's TestReplGlobalsSurviveGrowth is in
-//! `repl_tests.rs`).
+//! The M6 instructions: assert, test blocks, dbg and parameter patterns
+//! (the REPL's globals are tested in `repl_tests.rs`).
 
 use super::m4_tests::{check_code, check_out};
 use crate::testutil::{Opts, Setup, exec, on_big_stack, run, setup};
@@ -40,9 +39,9 @@ fn assert_reports() {
     check_code(&[("assert 1 != 1.0", "E0807")]);
 }
 
-/// The whole report, as the Go binary prints it.
+/// The whole report, as `fung` prints it.
 #[test]
-fn assert_report_matches_go() {
+fn assert_report() {
     let (_, err, code) = run("a = 1\nb = 2\nassert a > b");
     assert_eq!(
         err,

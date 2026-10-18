@@ -1,6 +1,6 @@
-//! `_native.net` (stage 4d, Rust only): the TCP primitives the Rust
-//! `http` module (`extras/http.fung`) is written over. User code
-//! cannot import it (E0310); only embedded extras files can.
+//! `_native.net` (stage 4d): the TCP primitives the `http` module
+//! (`extras/http.fung`) is written over. User code cannot import it
+//! (E0310); only embedded extras files can.
 //!
 //! **Values.** A connection (`Value::Conn`, printed `<conn>`, `type_of`
 //! `'conn`) and a listener (`Value::Listener`, `<listener>`,
@@ -18,8 +18,8 @@
 //! while it waits there (HTTP needs one of each). The socket itself sits
 //! in a slot of its own, locked only to take a reference: `close` never
 //! waits for a read or a write. It empties the slot and shuts the socket
-//! down, which wakes a read or write blocked on it (Go's `Close` does the
-//! same); the descriptor closes when the operation that held it lets go.
+//! down, which wakes a read or write blocked on it; the descriptor closes
+//! when the operation that held it lets go.
 //! A listener's `close` wakes a blocked `accept` through a pipe of the
 //! listener's own (`shutdown` does not wake `accept` on macOS).
 //!
@@ -33,11 +33,11 @@
 //!
 //! **Errors** are `Err({kind, message})`: `'timeout` when a deadline
 //! passed, `'limit` when a read went past its limit, `'network` for the
-//! rest. Messages are Go's `net` texts (`dial tcp 127.0.0.1:1: connect:
-//! connection refused`), errno wording from `oserr`; the `http` module
-//! wraps them (`cannot request ...: <message>`). Copying Go's texts is a
-//! transitional parity measure (open-questions "Go 동등을 위한 과도기
-//! 잔가지").
+//! rest. Messages are short reasons (`connection refused`, `no such
+//! host`, `timed out`, `connection is closed`, `connection closed after 3
+//! of 10 bytes`), errno wording from `oserr`; `_native.net` is internal,
+//! and the `http` module says what was being done (`cannot request
+//! `url`: <reason>`).
 //!
 //! **Strings.** What is read is decoded as UTF-8, a byte that is not
 //! UTF-8 becoming U+FFFD (as for files); `byte_len` gives the UTF-8 size
@@ -47,8 +47,8 @@
 //! accepted from it that are still open (closed, or their last copy
 //! gone). `hold(l, grace)` waits until its task is cancelled, then closes
 //! `l` and waits, at most `grace`, until that count is zero, and ends
-//! with E0701: Go's `Server.Shutdown`, which `http.serve` runs when its
-//! task is cancelled. Its task waits outside the token the whole time,
+//! with E0701: the graceful stop `http.serve` makes when its task is
+//! cancelled. Its task waits outside the token the whole time,
 //! so the tasks answering those connections run meanwhile.
 
 use std::io::{self, Read, Write};
@@ -61,13 +61,30 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 
 use super::nat::{self, native, opt, param};
 use super::oserr;
 use super::sock;
 use crate::value::{Lit, Module, Native, Value};
 use crate::vm::{Interest, Stop, Task, Waited, Watch, outside_watched};
+
+/// What a closed connection or listener answers.
+const CLOSED: &str = "connection is closed";
+const LISTENER_CLOSED: &str = "listener is closed";
+/// What a deadline that passed answers.
+const TIMED_OUT: &str = "timed out";
+/// A line read that met the end of the stream.
+const CLOSED_BY_PEER: &str = "connection closed";
+
+/// The stream ended after `got` of the `want` bytes asked for.
+fn short_read(got: usize, want: usize) -> String {
+    if got == 0 {
+        CLOSED_BY_PEER.to_string()
+    } else {
+        format!("connection closed after {got} of {want} bytes")
+    }
+}
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -176,6 +193,7 @@ pub fn module() -> Rc<Module> {
                 "utf8_string",
                 native("utf8_string", utf8_string_fn, vec![param("bs")]),
             ),
+            ("user_agent", native("user_agent", user_agent_fn, vec![])),
         ]
     });
     let mut m = Module::new("net", "_native.net");
@@ -298,7 +316,7 @@ pub struct Conn {
     /// The rustls state of a TLS connection (`tls.rs`), locked only for
     /// steps that do not wait.
     tls: Option<Mutex<tls::Session>>,
-    /// `local->peer` as Go's messages show it.
+    /// `local->peer`, as the connection's printed form shows it.
     name: String,
     /// The local address.
     local: String,
@@ -332,15 +350,12 @@ impl Conn {
         }
     }
 
-    fn closed(&self, op: &str) -> Fail {
-        Fail::Network(format!(
-            "{op} tcp {}: use of closed network connection",
-            self.name
-        ))
+    fn closed(&self) -> Fail {
+        Fail::Network(CLOSED.into())
     }
 
-    fn timed_out(&self, op: &str) -> Fail {
-        Fail::Timeout(format!("{op} tcp {}: i/o timeout", self.name))
+    fn timed_out(&self) -> Fail {
+        Fail::Timeout(TIMED_OUT.into())
     }
 
     fn is_closed(&self) -> bool {
@@ -348,8 +363,8 @@ impl Conn {
     }
 
     /// The socket for one operation, or the closed error.
-    fn sock(&self, op: &str) -> Result<Arc<Counted<TcpStream>>, Fail> {
-        lock(&self.sock).clone().ok_or_else(|| self.closed(op))
+    fn sock(&self) -> Result<Arc<Counted<TcpStream>>, Fail> {
+        lock(&self.sock).clone().ok_or_else(|| self.closed())
     }
 
     fn deadline(&self) -> Option<Instant> {
@@ -369,16 +384,16 @@ impl Conn {
                 return Err(Fail::Cancelled);
             }
             if self.is_closed() {
-                return Err(self.closed("read"));
+                return Err(self.closed());
             }
             let deadline = self.deadline();
             if deadline.is_some_and(|d| Instant::now() >= d) {
-                return Err(self.timed_out("read"));
+                return Err(self.timed_out());
             }
             match (&*s).read(&mut chunk) {
                 // a close from another task shuts the socket down: that
                 // end of stream is the close
-                Ok(0) if self.is_closed() => return Err(self.closed("read")),
+                Ok(0) if self.is_closed() => return Err(self.closed()),
                 Ok(n) => {
                     buf.extend_from_slice(&chunk[..n]);
                     return Ok(n);
@@ -386,16 +401,12 @@ impl Conn {
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if wait_io(w, &[(s.as_raw_fd(), Interest::Read)], deadline)? == Waited::TimedOut
                     {
-                        return Err(self.timed_out("read"));
+                        return Err(self.timed_out());
                     }
                 }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
                 Err(e) => {
-                    return Err(Fail::Network(format!(
-                        "read tcp {}: read: {}",
-                        self.name,
-                        oserr::reason(&e)
-                    )));
+                    return Err(Fail::Network(oserr::reason(&e)));
                 }
             }
         }
@@ -410,7 +421,7 @@ impl Conn {
     fn read_line(&self, w: &mut Watch, limit: usize) -> Result<Option<Vec<u8>>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
-        let s = self.sock("read")?;
+        let s = self.sock()?;
         let too_long = || Fail::Limit(format!("line longer than {limit} bytes"));
         let mut scanned = 0;
         loop {
@@ -443,14 +454,14 @@ impl Conn {
         }
     }
 
-    /// The next line with its `\n` (Go `bufio.Reader.ReadSlice('\n')`
-    /// over a `limit`-byte buffer, as Go's chunked reader reads a size
-    /// line): no `\n` within `limit` bytes is a `'limit` error, the end of
-    /// the stream first `EOF`. The caller sees which line end came.
+    /// The next line with its `\n` (for a chunk size line, whose CRLF the
+    /// `http` module checks): no `\n` within `limit` bytes is a `'limit`
+    /// error, the end of the stream first an error. The caller sees which
+    /// line end came.
     fn read_raw_line(&self, w: &mut Watch, limit: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
-        let s = self.sock("read")?;
+        let s = self.sock()?;
         let mut scanned = 0;
         loop {
             let end = buf.len().min(limit);
@@ -462,22 +473,20 @@ impl Conn {
             }
             scanned = buf.len();
             if self.fill(w, &s.0, buf)? == 0 {
-                return Err(Fail::Network("EOF".into()));
+                return Err(Fail::Network(CLOSED_BY_PEER.into()));
             }
         }
     }
 
-    /// Exactly `n` bytes; Go's `io.ReadFull` errors when the stream ends
-    /// first (`EOF` with nothing read, `unexpected EOF` after a part).
+    /// Exactly `n` bytes; it is an error when the stream ends first.
     fn read_bytes(&self, w: &mut Watch, n: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
-        let s = self.sock("read")?;
+        let s = self.sock()?;
         while buf.len() < n {
             let before = buf.len();
             if self.fill(w, &s.0, buf)? == 0 {
-                let msg = if before == 0 { "EOF" } else { "unexpected EOF" };
-                return Err(Fail::Network(msg.into()));
+                return Err(Fail::Network(short_read(before, n)));
             }
         }
         Ok(buf.drain(..n).collect())
@@ -488,7 +497,7 @@ impl Conn {
     fn read_all(&self, w: &mut Watch, limit: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
-        let s = self.sock("read")?;
+        let s = self.sock()?;
         loop {
             if buf.len() > limit {
                 return Err(Fail::Limit(format!("more than {limit} bytes")));
@@ -511,13 +520,12 @@ impl Conn {
         if st.body.len().saturating_add(n) > cap {
             return Err(Fail::Limit(format!("body longer than {cap} bytes")));
         }
-        let s = self.sock("read")?;
+        let s = self.sock()?;
         let st = &mut *st;
         while st.buf.len() < n {
             let before = st.buf.len();
             if self.fill(w, &s.0, &mut st.buf)? == 0 {
-                let msg = if before == 0 { "EOF" } else { "unexpected EOF" };
-                return Err(Fail::Network(msg.into()));
+                return Err(Fail::Network(short_read(before, n)));
             }
         }
         st.body.extend(st.buf.drain(..n));
@@ -532,7 +540,7 @@ impl Conn {
     /// Writes all of `b`, waiting while the socket's buffer is full.
     fn write(&self, w: &mut Watch, b: &[u8]) -> Result<(), Fail> {
         let _g = lock(&self.wr);
-        let s = self.sock("write")?;
+        let s = self.sock()?;
         if let Some(t) = &self.tls {
             return tls::write(self, t, w, &s.0, b);
         }
@@ -542,11 +550,11 @@ impl Conn {
                 return Err(Fail::Cancelled);
             }
             if self.is_closed() {
-                return Err(self.closed("write"));
+                return Err(self.closed());
             }
             let deadline = self.deadline();
             if deadline.is_some_and(|d| Instant::now() >= d) {
-                return Err(self.timed_out("write"));
+                return Err(self.timed_out());
             }
             match (&s.0).write(&b[off..]) {
                 Ok(n) => off += n,
@@ -554,17 +562,13 @@ impl Conn {
                     if wait_io(w, &[(s.0.as_raw_fd(), Interest::Write)], deadline)?
                         == Waited::TimedOut
                     {
-                        return Err(self.timed_out("write"));
+                        return Err(self.timed_out());
                     }
                 }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
-                Err(_) if self.is_closed() => return Err(self.closed("write")),
+                Err(_) if self.is_closed() => return Err(self.closed()),
                 Err(e) => {
-                    return Err(Fail::Network(format!(
-                        "write tcp {}: write: {}",
-                        self.name,
-                        oserr::reason(&e)
-                    )));
+                    return Err(Fail::Network(oserr::reason(&e)));
                 }
             }
         }
@@ -574,22 +578,22 @@ impl Conn {
     /// A new connection over this one's socket, which this one gives up
     /// (it reads as closed, and dropping it ends nothing). The caller
     /// must own the connection alone: while another task reads or writes
-    /// it, this fails at once (`tls: the connection is in use`). What was
+    /// it, this fails at once (`connection is in use`). What was
     /// read ahead is dropped on purpose: `start_tls` uses this once a
     /// proxy has answered a CONNECT, a TLS server says nothing until
-    /// spoken to, and Go discards its bufio reader there the same way. A
-    /// TLS connection cannot carry another.
+    /// spoken to, so nothing that matters can be read ahead. A TLS
+    /// connection cannot carry another.
     fn take_over(&self) -> Result<Conn, Fail> {
         if self.tls.is_some() {
             return Err(Fail::Network(
-                "tls: a TLS connection cannot carry another".into(),
+                "a TLS connection cannot carry another".into(),
             ));
         }
-        let in_use = || Fail::Network("tls: the connection is in use".into());
+        let in_use = || Fail::Network("connection is in use".into());
         let (Some(_rd), Some(_wr)) = (try_lock(&self.rd), try_lock(&self.wr)) else {
             return Err(in_use());
         };
-        let s = lock(&self.sock).take().ok_or_else(|| self.closed("read"))?;
+        let s = lock(&self.sock).take().ok_or_else(|| self.closed())?;
         Ok(Conn {
             sock: Mutex::new(Some(s)),
             rd: Mutex::new(ReadState::default()),
@@ -602,13 +606,11 @@ impl Conn {
         })
     }
 
-    /// Go `Close`: shuts the socket down (waking a blocked read or write
+    /// Shuts the socket down (waking a blocked read or write
     /// of another task, which then reports the close) and lets it go; a
     /// second close is an error.
     fn close(&self) -> Result<(), Fail> {
-        let s = lock(&self.sock)
-            .take()
-            .ok_or_else(|| self.closed("close"))?;
+        let s = lock(&self.sock).take().ok_or_else(|| self.closed())?;
         if let Some(t) = &self.tls {
             tls::close_notify(t, &s.0);
         }
@@ -617,15 +619,11 @@ impl Conn {
         Ok(())
     }
 
-    /// Go `SetDeadline(now + d)`: reads and writes after `d` time out; 0
+    /// A deadline `d` from now: reads and writes after it time out; 0
     /// removes the deadline, a negative `d` is already past.
     fn set_deadline(&self, d: i64) -> Result<(), Fail> {
         if self.is_closed() {
-            // Go names only the local address here
-            return Err(Fail::Network(format!(
-                "set tcp {}: use of closed network connection",
-                self.local
-            )));
+            return Err(Fail::Network(CLOSED.into()));
         }
         let now = Instant::now();
         *lock(&self.deadline) = match d {
@@ -646,7 +644,8 @@ pub struct Listener {
     sock: Arc<Mutex<Option<Arc<Counted<TcpListener>>>>>,
     /// `close` writes a byte into the pipe, waking a blocked `accept`.
     closer: (io::PipeReader, Arc<io::PipeWriter>),
-    /// The address, as Go's `Addr().String()`.
+    /// The address it listens on (`host:port`, the port the system chose
+    /// for 0).
     addr: String,
     /// The connections accepted from it that are still open (`hold`).
     open: Arc<Tracker>,
@@ -703,11 +702,8 @@ impl std::fmt::Debug for Listener {
 }
 
 impl Listener {
-    fn closed(&self, op: &str) -> Fail {
-        Fail::Network(format!(
-            "{op} tcp {}: use of closed network connection",
-            self.addr
-        ))
+    fn closed(&self) -> Fail {
+        Fail::Network(LISTENER_CLOSED.into())
     }
 
     fn is_closed(&self) -> bool {
@@ -717,22 +713,16 @@ impl Listener {
     /// The next connection; waits until one comes, the listener is
     /// closed or the task cancelled.
     fn accept(&self, w: &mut Watch) -> Result<Conn, Fail> {
-        let l = lock(&self.sock)
-            .clone()
-            .ok_or_else(|| self.closed("accept"))?;
+        let l = lock(&self.sock).clone().ok_or_else(|| self.closed())?;
         loop {
             if self.is_closed() {
-                return Err(self.closed("accept"));
+                return Err(self.closed());
             }
             match l.0.accept() {
                 Ok((s, peer)) => {
                     let setup = s.set_nonblocking(true).and_then(|_| sock::no_sigpipe(&s));
                     if let Err(e) = setup {
-                        return Err(Fail::Network(format!(
-                            "accept tcp {}: {}",
-                            self.addr,
-                            oserr::reason(&e)
-                        )));
+                        return Err(Fail::Network(oserr::reason(&e)));
                     }
                     let c = Conn::new(s, peer);
                     *lock(&c.track) = Some(Track::new(&self.open));
@@ -745,29 +735,18 @@ impl Listener {
                     ];
                     wait_io(w, &fds, None)?;
                 }
-                // Go retries these too: the client gave up, or a signal.
+                // Retried: the client gave up, or a signal.
                 Err(e)
                     if e.kind() == io::ErrorKind::Interrupted
                         || e.raw_os_error() == Some(libc::ECONNABORTED) => {}
-                Err(e) => {
-                    let call = if cfg!(target_os = "linux") {
-                        "accept4"
-                    } else {
-                        "accept"
-                    };
-                    return Err(Fail::Network(format!(
-                        "accept tcp {}: {call}: {}",
-                        self.addr,
-                        oserr::reason(&e)
-                    )));
-                }
+                Err(e) => return Err(Fail::Network(oserr::reason(&e))),
             }
         }
     }
 
     fn close(&self) -> Result<(), Fail> {
         if !close_listener(&self.sock, &self.closer.1) {
-            return Err(self.closed("close"));
+            return Err(self.closed());
         }
         Ok(())
     }
@@ -789,18 +768,19 @@ fn close_listener(
     true
 }
 
-/// Go `net.SplitHostPort`, with its messages (`address <addr>: <why>`).
+/// `host:port` (or `[host]:port`) split in two, or ``invalid address
+/// `x` (why)``.
 fn split_host_port(hostport: &str) -> Result<(&str, &str), String> {
-    let err = |why: &str| Err(format!("address {hostport}: {why}"));
-    let missing_port = "missing port in address";
-    let too_many_colons = "too many colons in address";
+    let err = |why: &str| Err(format!("invalid address `{hostport}` ({why})"));
+    let missing_port = "missing port";
+    let too_many_colons = "too many colons";
     let Some(i) = hostport.rfind(':') else {
         return err(missing_port);
     };
     let (host, j, k);
     if hostport.starts_with('[') {
         let Some(end) = hostport.find(']') else {
-            return err("missing ']' in address");
+            return err("missing `]`");
         };
         if end + 1 == hostport.len() {
             return err(missing_port);
@@ -820,18 +800,16 @@ fn split_host_port(hostport: &str) -> Result<(&str, &str), String> {
         (j, k) = (0, 0);
     }
     if hostport[j..].contains('[') {
-        return err("unexpected '[' in address");
+        return err("unexpected `[`");
     }
     if hostport[k..].contains(']') {
-        return err("unexpected ']' in address");
+        return err("unexpected `]`");
     }
     Ok((host, &hostport[i + 1..]))
 }
 
-/// Go `parsePort` and its range check: a decimal port (a sign allowed),
-/// `address <port>: invalid port` out of range. Go looks names such as
-/// `http` up in the services database; here every name is unknown
-/// (`lookup tcp/<name>: unknown port`), a known difference.
+/// A decimal port (a sign allowed) in 0..=65535, or ``invalid port `x` ``.
+/// Service names (`http`) are not looked up.
 fn parse_port(service: &str) -> Result<u16, String> {
     if service.is_empty() {
         return Ok(0);
@@ -842,31 +820,26 @@ fn parse_port(service: &str) -> Result<u16, String> {
         _ => (false, service),
     };
     if !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(format!("lookup tcp/{service}: unknown port"));
+        return Err(format!("invalid port `{service}`"));
     }
     // more digits than any port: out of range whatever they are
     let n: u64 = digits.parse().unwrap_or(u64::MAX);
     if neg && n != 0 || n > 0xFFFF {
-        return Err(format!("address {service}: invalid port"));
+        return Err(format!("invalid port `{service}`"));
     }
     Ok(n as u16)
 }
 
-/// An address to dial or listen on: an IP, its IPv6 scope (0 for none)
-/// and its zone as Go names it ("" for none).
+/// An address to dial or listen on: an IP and its IPv6 scope (0 for
+/// none).
 struct Target {
     ip: IpAddr,
     scope: u32,
-    zone: String,
 }
 
 impl Target {
     fn plain(ip: IpAddr) -> Target {
-        Target {
-            ip,
-            scope: 0,
-            zone: String::new(),
-        }
+        Target { ip, scope: 0 }
     }
 
     fn socket(&self, port: u16) -> SocketAddr {
@@ -875,27 +848,12 @@ impl Target {
             ip => SocketAddr::new(ip, port),
         }
     }
-
-    /// Go's `TCPAddr.String`: the zone as written (`[::1%lo0]:80`).
-    fn label(&self, port: u16) -> String {
-        if self.zone.is_empty() {
-            SocketAddr::new(self.ip, port).to_string()
-        } else {
-            format!("[{}%{}]:{port}", self.ip, self.zone)
-        }
-    }
 }
 
 /// The addresses `host` names: an IP literal itself (an IPv6 one with
-/// its zone, Go `parseIPZone`), else a lookup on a thread of its own
-/// that the task waits for in `w` (cancellable, cut by `deadline`). `op`
-/// is Go's `dial` or `listen`.
-fn resolve(
-    w: &mut Watch,
-    op: &str,
-    host: &str,
-    deadline: Option<Instant>,
-) -> Result<Vec<Target>, Fail> {
+/// its zone), else a lookup on a thread of its own that the task waits
+/// for in `w` (cancellable, cut by `deadline`).
+fn resolve(w: &mut Watch, host: &str, deadline: Option<Instant>) -> Result<Vec<Target>, Fail> {
     if let Ok(ip) = host.parse::<IpAddr>() {
         return Ok(vec![Target::plain(ip)]);
     }
@@ -906,12 +864,11 @@ fn resolve(
         return Ok(vec![Target {
             ip: IpAddr::V6(ip),
             scope: sock::zone_index(zone),
-            zone: zone.to_string(),
         }]);
     }
     let slot = Arc::new(LookupSlot {
         result: Mutex::new(None),
-        pipe: io::pipe().map_err(|e| Fail::Network(format!("{op} tcp: {}", oserr::reason(&e))))?,
+        pipe: io::pipe().map_err(|e| Fail::Network(oserr::reason(&e)))?,
     });
     LOOKUPS.fetch_add(1, Ordering::SeqCst);
     let (theirs, name) = (slot.clone(), host.to_string());
@@ -927,10 +884,7 @@ fn resolve(
         });
     if let Err(e) = spawned {
         LOOKUPS.fetch_sub(1, Ordering::SeqCst);
-        return Err(Fail::Network(format!(
-            "{op} tcp: lookup {host}: {}",
-            oserr::reason(&e)
-        )));
+        return Err(Fail::Network(oserr::reason(&e)));
     }
     let r = loop {
         if let Some(r) = lock(&slot.result).take() {
@@ -938,19 +892,13 @@ fn resolve(
         }
         let fds = [(slot.pipe.0.as_raw_fd(), Interest::Read)];
         if wait_io(w, &fds, deadline)? == Waited::TimedOut {
-            return Err(Fail::Timeout(format!(
-                "{op} tcp: lookup {host}: i/o timeout"
-            )));
+            return Err(Fail::Timeout(TIMED_OUT.into()));
         }
     };
-    let ips = r.map_err(|why| Fail::Network(format!("{op} tcp: lookup {host}: {why}")))?;
+    let ips = r.map_err(Fail::Network)?;
     Ok(ips
         .into_iter()
-        .map(|(ip, scope)| Target {
-            ip,
-            scope,
-            zone: sock::zone_name(scope),
-        })
+        .map(|(ip, scope)| Target { ip, scope })
         .collect())
 }
 
@@ -978,26 +926,19 @@ fn lookup(host: &str) -> Result<Vec<Found>, String> {
     sock::lookup(host)
 }
 
-/// Go's `Dialer.Dial` over the addresses in order: the first that
-/// connects, else the first error (Go's dual-stack racing of the second
-/// family after 300 ms is not done: the addresses are tried one by one,
-/// all within the one deadline).
+/// The addresses in order: the first that connects, else the first error
+/// (no racing of the second family, "Happy Eyeballs": the addresses are
+/// tried one by one, all within the one deadline).
 fn dial(w: &mut Watch, host: &str, port: u16, deadline: Option<Instant>) -> Result<Conn, Fail> {
     let ips = if host.is_empty() {
-        // Go dials the local system for an empty host
+        // an empty host is the local system
         vec![Target::plain(IpAddr::V4(Ipv4Addr::LOCALHOST))]
     } else {
-        resolve(w, "dial", host, deadline)?
+        resolve(w, host, deadline)?
     };
     let mut first = None;
     for ip in ips {
-        let addr = ip.socket(port);
-        let label = if host.is_empty() {
-            format!(":{port}")
-        } else {
-            ip.label(port)
-        };
-        match dial_one(w, addr, &label, deadline) {
+        match dial_one(w, ip.socket(port), deadline) {
             Ok(c) => return Ok(c),
             Err(f @ (Fail::Cancelled | Fail::Timeout(_))) => return Err(f),
             Err(f) => {
@@ -1005,63 +946,47 @@ fn dial(w: &mut Watch, host: &str, port: u16, deadline: Option<Instant>) -> Resu
             }
         }
     }
-    Err(first.unwrap_or_else(|| Fail::Network(format!("dial tcp: lookup {host}: no such host"))))
+    Err(first.unwrap_or_else(|| Fail::Network("no such host".into())))
 }
 
-fn dial_one(
-    w: &mut Watch,
-    addr: SocketAddr,
-    label: &str,
-    deadline: Option<Instant>,
-) -> Result<Conn, Fail> {
-    let fail = |call: &str, e: &io::Error| {
-        Fail::Network(format!("dial tcp {label}: {call}: {}", oserr::reason(e)))
-    };
-    let (s, connected) = sock::start_connect(&addr).map_err(|(call, e)| fail(call, &e))?;
+fn dial_one(w: &mut Watch, addr: SocketAddr, deadline: Option<Instant>) -> Result<Conn, Fail> {
+    let fail = |e: &io::Error| Fail::Network(oserr::reason(e));
+    let (s, connected) = sock::start_connect(&addr).map_err(|e| fail(&e))?;
     if !connected {
         // writable once the attempt ended, either way
         if wait_io(w, &[(s.as_raw_fd(), Interest::Write)], deadline)? == Waited::TimedOut {
-            return Err(Fail::Timeout(format!("dial tcp {label}: i/o timeout")));
+            return Err(Fail::Timeout(TIMED_OUT.into()));
         }
-        sock::finish_connect(&s).map_err(|e| fail("connect", &e))?;
+        sock::finish_connect(&s).map_err(|e| fail(&e))?;
     }
     Ok(Conn::new(s, addr))
 }
 
-/// Go `net.Listen("tcp", addr)`: an empty host listens on every address
+/// A listener on `addr`: an empty host listens on every address
 /// (`[::]`, both families; `0.0.0.0` where IPv6 is missing), a name on
 /// its first IPv4 address (else its first).
 fn listen(w: &mut Watch, addr: &str) -> Result<Listener, Fail> {
     let (host, port) = split_host_port(addr)
         .and_then(|(h, p)| Ok((h, parse_port(p)?)))
-        .map_err(|e| Fail::Network(format!("listen tcp: {e}")))?;
+        .map_err(Fail::Network)?;
     let bound = if host.is_empty() {
         let any6 = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), port);
         match sock::listen(&any6) {
-            Err((_, e)) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
-                let any4 = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
-                sock::listen(&any4).map_err(|f| (f, format!(":{port}")))
+            Err(e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
+                sock::listen(&SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port))
             }
-            r => r.map_err(|f| (f, format!(":{port}"))),
+            r => r,
         }
     } else {
-        let ips = resolve(w, "listen", host, None)?;
+        let ips = resolve(w, host, None)?;
         let ip = ips.iter().find(|t| t.ip.is_ipv4()).unwrap_or(&ips[0]);
-        sock::listen(&ip.socket(port)).map_err(|f| (f, ip.label(port)))
+        sock::listen(&ip.socket(port))
     };
-    let l = bound.map_err(|((call, e), label)| {
-        Fail::Network(format!("listen tcp {label}: {call}: {}", oserr::reason(&e)))
-    })?;
+    let l = bound.map_err(|e| Fail::Network(oserr::reason(&e)))?;
     let local = l
         .local_addr()
-        .map_err(|e| Fail::Network(format!("listen tcp {addr}: {}", oserr::reason(&e))))?;
-    let closer = io::pipe().map_err(|e| {
-        Fail::Network(format!(
-            "listen tcp {}: {}",
-            sock::addr_text(&local),
-            oserr::reason(&e)
-        ))
-    })?;
+        .map_err(|e| Fail::Network(oserr::reason(&e)))?;
+    let closer = io::pipe().map_err(|e| Fail::Network(oserr::reason(&e)))?;
     Ok(Listener {
         sock: Arc::new(Mutex::new(Some(Arc::new(Counted::new(l))))),
         closer: (closer.0, Arc::new(closer.1)),
@@ -1091,7 +1016,7 @@ fn need_count(name: &str, v: &Value) -> Result<usize, Stop> {
 }
 
 fn text(b: &[u8]) -> Value {
-    Value::str(&decode_go(b))
+    Value::str(&decode_lossy(b))
 }
 
 /// `connect(host, port, tls = false, timeout = 0s)`: `Ok(<conn>)`. A
@@ -1107,9 +1032,7 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         return Err(nat::wrong_arg("timeout", "dur", &a[3]));
     };
     let Ok(port) = u16::try_from(port) else {
-        return Ok(fail_value(Fail::Network(format!(
-            "dial tcp: address {port}: invalid port"
-        ))));
+        return Ok(fail_value(Fail::Network(format!("invalid port `{port}`"))));
     };
     let deadline = if timeout > 0 {
         Instant::now().checked_add(Duration::from_nanos(timeout as u64))
@@ -1242,7 +1165,7 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `close(x)`: closes a connection or a listener; `Ok(nil)`, an error
-/// the second time (Go).
+/// the second time (it was closed already: a likely bug of the caller).
 fn close_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let r = match &a[0] {
         Value::Conn(c) => c.close(),
@@ -1270,7 +1193,7 @@ fn byte_len_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `utf8_bytes(s)`: the bytes `write` would send for `s`, as ints. fung
 /// sees strings as characters only; the `http` module needs the bytes to
-/// percent-encode a URL path (Go `url.URL.EscapedPath`).
+/// percent-encode a URL path.
 fn utf8_bytes_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let s = nat::need_str("s", &a[0])?;
     Ok(nat::list(
@@ -1279,8 +1202,9 @@ fn utf8_bytes_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `need_str_map(name, m)`: `nil`, or E0403 when `m` is not a map or a
-/// value of it is not a str (the first one, in the map's order): Go
-/// `http`'s check of a header map, which fung code cannot raise itself.
+/// value of it is not a str (the first one, in the map's order): the
+/// `http` module's check of a header map, which fung code cannot raise
+/// itself.
 fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let name = nat::need_str("name", &a[0])?;
     let Value::Map(m) = &a[1] else {
@@ -1302,8 +1226,8 @@ fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// `hold(l, grace)`: waits until this task is cancelled or another task
 /// closes `l`; then closes `l`, waits until every connection accepted
 /// from it is closed, at most `grace`, and ends with E0701 when
-/// cancelled, else returns nil (Go `Server.Shutdown` with a deadline,
-/// which `http.serve` runs when its task is cancelled; the server's
+/// cancelled, else returns nil (the graceful stop `http.serve` makes
+/// when its task is cancelled; the server's
 /// accept task closes `l` when it fails). A connection still open after
 /// the grace is left to whoever holds it.
 fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
@@ -1345,8 +1269,7 @@ fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// `close_on_cancel(l)`: closes `l` the moment this task is cancelled
 /// (by whoever cancels it, before `cancel` returns) or ends. The `http`
 /// server registers its listener so: cancelled at any tick, even before
-/// it waits in `hold`, it leaves no listener open behind it (Go's
-/// `Shutdown` closes the listener before the server's call returns).
+/// it waits in `hold`, it leaves no listener open behind it.
 ///
 /// The hook is not removed when `serve` returns, because `serve` never
 /// returns while its task goes on: it ends cancelled (the hook has run)
@@ -1368,8 +1291,7 @@ fn close_on_cancel_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// `utf8_string(bs)`: the text of a list of bytes (ints from 0 to 255),
 /// decoded as everything read is (U+FFFD for what is not UTF-8): what
 /// `utf8_bytes` gives, backwards. The `http` server decodes the
-/// percent-escapes of a request's path and query with it (Go
-/// `url.PathUnescape`, `QueryUnescape`).
+/// percent-escapes of a request's path and query with it.
 fn utf8_string_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let Value::List(items) = &a[0] else {
         return Err(nat::wrong_arg("bs", "list", &a[0]));
@@ -1388,6 +1310,14 @@ fn utf8_string_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         }
     }
     Ok(text(&bytes))
+}
+
+/// `user_agent()`: what the `http` client sends as `User-Agent` unless
+/// the request sets one, `fung/<version>`.
+fn user_agent_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+    Ok(text(
+        format!("fung/{}", crate::version::version()).as_bytes(),
+    ))
 }
 
 /// Test probes: the counters, and a gate that holds lookups of

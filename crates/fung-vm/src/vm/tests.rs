@@ -1,6 +1,5 @@
-//! VM tests: ports of Go `internal/vm` `vm_test.go`, `fn_test.go`,
-//! `native_test.go` and (as behaviour) `alloc_test.go`, plus the call-path
-//! and exit-handler cases the Rust port must match byte for byte.
+//! VM tests: the run loop, functions, natives and call-heavy loops, plus
+//! the call paths and exit-handler reports, checked byte for byte.
 
 use std::rc::Rc;
 
@@ -45,9 +44,9 @@ fn tail_calls_do_not_grow_and_deep_recursion_is_e0804() {
     assert_eq!(code, 1);
 }
 
-/// The whole E0804 report, as the Go binary prints it.
+/// The whole E0804 report, as `fung` prints it.
 #[test]
-fn deep_recursion_report_matches_go() {
+fn deep_recursion_report() {
     let (out, err, code) = run_src("fn d(n) = n == 0 then 0 else 1 + d(n - 1)\nprint(d(200000))");
     assert_eq!(out, "");
     let mut want = String::from(
@@ -61,7 +60,7 @@ fn deep_recursion_report_matches_go() {
     assert_eq!(code, 1);
 }
 
-// --- vm_test.go -----------------------------------------------------------
+// --- the run loop ---------------------------------------------------------
 
 #[test]
 fn evaluates_expressions() {
@@ -221,7 +220,7 @@ fn runtime_errors_for_new_types() {
     }
 }
 
-// --- fn_test.go -----------------------------------------------------------
+// --- functions ------------------------------------------------------------
 
 fn outputs(cases: &[(&str, &str)]) {
     for (src, want) in cases {
@@ -375,10 +374,9 @@ fn type_annotations_are_checked() {
     ]);
 }
 
-/// The messages of the calling-convention errors, checked against the Go
-/// binary.
+/// The messages of the calling-convention errors.
 #[test]
-fn calling_convention_messages_match_go() {
+fn calling_convention_messages() {
     let cases = [
         (
             "fn f(n: int) = n\nf(\"a\")",
@@ -437,9 +435,9 @@ fn runtime_errors_carry_the_call_path() {
 
 /// A runtime error inside a lambda that a native calls reports the call
 /// path from the failing frame out, through the native's caller (Review
-/// Focus 3). Expected texts are the Go binary's output.
+/// Focus 3).
 #[test]
-fn errors_inside_lambdas_called_by_natives_carry_go_call_paths() {
+fn errors_inside_lambdas_called_by_natives_carry_call_paths() {
     let (_, err, code) =
         run_src("print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))");
     assert_eq!(
@@ -522,9 +520,9 @@ fn at_exit_registered_during_exit_still_runs() {
 }
 
 /// Exit handlers, `exit` and errors in the order and with the exit codes
-/// the Go binary shows (Review Focus 4).
+/// `fung` shows (Review Focus 4).
 #[test]
-fn exit_handlers_exit_codes_and_order_match_go() {
+fn exit_handlers_exit_codes_and_order() {
     let cases: &[(&str, &str, &str, i32)] = &[
         (
             "at_exit(() => fail(\"in handler\"))\nat_exit(() => exit(7))\nprint(\"main\")",
@@ -573,7 +571,7 @@ fn exit_handlers_exit_codes_and_order_match_go() {
     }
 }
 
-// --- native_test.go ---------------------------------------------------------
+// --- natives ----------------------------------------------------------------
 
 #[test]
 fn natives_share_the_calling_convention() {
@@ -655,9 +653,9 @@ fn stdin_and_stderr() {
     assert_eq!(o.out, "Ok([\"x\", \"y\"])\n");
 }
 
-// --- alloc_test.go (behaviour only) ----------------------------------------
+// --- call-heavy loops ------------------------------------------------------
 
-/// Go counts heap allocations per step; Rust checks the programs behave.
+/// Loops that make many calls give the right result.
 #[test]
 fn call_heavy_loops_run() {
     for n in [100, 200] {
@@ -674,7 +672,7 @@ fn call_heavy_loops_run() {
     }
 }
 
-// --- Rust-specific ----------------------------------------------------------
+// --- more cases -------------------------------------------------------------
 
 #[test]
 fn natives_call_closures_through_the_task() {
@@ -700,8 +698,7 @@ fn natives_call_closures_through_the_task() {
 }
 
 /// An error inside a function from an embedded extras file points at the
-/// nearest user frame, and the extras frame stays in the call path (Go
-/// `attach`).
+/// nearest user frame, and the extras frame stays in the call path.
 #[test]
 fn errors_in_builtin_code_point_at_the_user_call() {
     let o = exec(
@@ -718,7 +715,7 @@ fn errors_in_builtin_code_point_at_the_user_call() {
 }
 
 #[test]
-fn closures_print_like_go() {
+fn closures_print_and_compare() {
     let (out, _, _) =
         run_src("fn add(a) = a\nf = add\nprint(f, x => x, f == add, add == (x => x))");
     assert_eq!(out, "<fn add> <fn> true false\n");
@@ -784,8 +781,8 @@ fn stack_slots_are_16_bytes() {
     assert_eq!(std::mem::size_of::<Option<Value>>(), 16);
 }
 
-/// Go counts elided tail calls in an `int`; past u32::MAX the count keeps
-/// growing instead of overflowing.
+/// The count of elided tail calls keeps growing past u32::MAX instead of
+/// overflowing.
 #[test]
 fn elided_tail_calls_count_past_u32() {
     use fung_front::diag;

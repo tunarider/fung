@@ -84,22 +84,22 @@
 ==== fmt - lone.fung
 -- stdout
 -- stderr
-| error: stat -: no such file or directory
+| error: cannot read `-`: no such file or directory
 -- exit: 3
 ==== fmt nope.fung
 -- stdout
 -- stderr
-| error: stat nope.fung: no such file or directory
+| error: cannot read `nope.fung`: no such file or directory
 -- exit: 3
 ==== fmt lone.fung nope t
 -- stdout
 -- stderr
-| error: stat nope: no such file or directory
+| error: cannot read `nope`: no such file or directory
 -- exit: 3
 ==== fmt 
 -- stdout
 -- stderr
-| error: stat : no such file or directory
+| error: cannot read ``: no such file or directory
 -- exit: 3
 ==== fmt --check t
 -- stdout
@@ -112,7 +112,6 @@
 | 1 | x = )
 |   |     ^
 |   |
-| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
 -- exit: 2
 ==== fmt --check tlink
 -- stdout
@@ -125,7 +124,6 @@
 | 1 | x = )
 |   |     ^
 |   |
-| error: cannot read tlink/dirlink.fung: read tlink/dirlink.fung: is a directory
 -- exit: 2
 ==== fmt --check tlink/
 -- stdout
@@ -138,7 +136,6 @@
 | 1 | x = )
 |   |     ^
 |   |
-| error: cannot read tlink/dirlink.fung: read tlink/dirlink.fung: is a directory
 -- exit: 2
 ==== fmt --check t/sub lone.fung t/a.fung lone.fung
 -- stdout
@@ -167,7 +164,7 @@
 -- stdout
 | ro.fung
 -- stderr
-| error: cannot read locked.fung: open locked.fung: permission denied
+| error: cannot read `locked.fung`: permission denied
 -- exit: 1
 ==== fmt --check 넓은.fung lone.fung --check
 -- stdout
@@ -183,14 +180,13 @@
 | t/sub/b.fung
 | 넓은.fung
 -- stderr
-| error: cannot read locked.fung: open locked.fung: permission denied
+| error: cannot read `locked.fung`: permission denied
 | error[E0110]: unexpected `)`
 |   --> t/bad.fung:1:5
 |   |
 | 1 | x = )
 |   |     ^
 |   |
-| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
 -- exit: 2
 ==== fmt --check ./t/../lone.fung
 -- stdout
@@ -202,8 +198,8 @@
 | lone.fung
 | ro.fung
 -- stderr
-| error: cannot read locked.fung: open locked.fung: permission denied
-| error: cannot write ro.fung: open ro.fung: permission denied
+| error: cannot read `locked.fung`: permission denied
+| error: cannot write `ro.fung`: permission denied
 -- exit: 1
 ==== fmt t 넓은.fung
 -- stdout
@@ -217,26 +213,24 @@
 | 1 | x = )
 |   |     ^
 |   |
-| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
 -- exit: 2
 ==== fmt .
 -- stdout
 | ro.fung
 -- stderr
-| error: cannot read locked.fung: open locked.fung: permission denied
-| error: cannot write ro.fung: open ro.fung: permission denied
+| error: cannot read `locked.fung`: permission denied
+| error: cannot write `ro.fung`: permission denied
 | error[E0110]: unexpected `)`
 |   --> t/bad.fung:1:5
 |   |
 | 1 | x = )
 |   |     ^
 |   |
-| error: cannot read t/dirlink.fung: read t/dirlink.fung: is a directory
 -- exit: 2
 ==== fmt (non-UTF-8 name)
 -- stdout
 -- stderr (escaped)
-| error: stat q\xfe.fung: no such file or directory
+| error: cannot read `q\xfe.fung`: no such file or directory
 -- exit: 3
 ==== file t/a.fung
 -- text

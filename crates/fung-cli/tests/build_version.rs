@@ -10,7 +10,7 @@ use std::process::Command;
 #[test]
 fn fung_version_reports_the_build_version() {
     let want = match std::env::var("FUNG_BUILD_VERSION") {
-        Ok(v) if !v.is_empty() && v != "(devel)" => v.strip_prefix('v').unwrap_or(&v).to_string(),
+        Ok(v) if !v.is_empty() => v.strip_prefix('v').unwrap_or(&v).to_string(),
         _ => "0.0.0-dev".to_string(),
     };
     let out = Command::new(env!("CARGO_BIN_EXE_fung"))

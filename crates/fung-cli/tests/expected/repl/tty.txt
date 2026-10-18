@@ -5,7 +5,7 @@
 -- screen (escaped)
 | \r> \x1b[K\r> x = 41\x1b[K\r
 | \r> \x1b[K\r> 참\x1b[K\r> 참치\x1b[K\r> 참치 \x1b[K\r> 참치 =\x1b[K\r> 참치 = \x1b[K\r> 참치 = x\x1b[K\r> 참치 = x \x1b[K\r> 참치 = x +\x1b[K\r> 참치 = x + \x1b[K\r> 참치 = x + 1\x1b[K\r
-| \r> \x1b[K\r> 참\x1b[K\r> 참치\x1b[K\r> 참치\x1b[K\x1b[1D\r> 참치\x1b[K\x1b[2D\r> 치\x1b[K\x1b[1D\r> 치\x1b[K\r
+| \r> \x1b[K\r> 참\x1b[K\r> 참치\x1b[K\r> 참치\x1b[K\x1b[2D\r> 참치\x1b[K\x1b[4D\r> 치\x1b[K\x1b[2D\r> 치\x1b[K\r
 | error[E0204]: undefined name `치`\r
 |   --> <repl>:1:1\r
 |   |\r

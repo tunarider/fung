@@ -1,11 +1,11 @@
-//! Conversions (Go `prelude/convert.go`). `int`, `float`, `str` and `sym`
+//! Conversions. `int`, `float`, `str` and `sym`
 //! assert ("this must be a number": a runtime error when it is not);
 //! `parse_int`, `parse_float` and `parse_dur` check and return Ok/Err.
 
 use fung_front::diag::Arg;
 use fung_front::lexer::{Kind, lex};
 use fung_front::source::FileId;
-use fung_front::unicode::{is_digit, is_letter, is_upper};
+use fung_front::unicode::{is_name_continue, is_name_start, is_upper, nfc};
 
 use crate::native::nat::{self, def, fail, param};
 use crate::value::{Value, format, intern};
@@ -46,8 +46,7 @@ fn well_placed_underscores(s: &str) -> bool {
     })
 }
 
-/// An optional sign, digits and `_` separators (01), like Go's
-/// `strconv.ParseInt(s, 10, 64)` after the separators are removed.
+/// An optional sign, then decimal digits with `_` separators (01).
 fn parse_int(s: &str) -> Option<i64> {
     if !is_space_free(s) || !well_placed_underscores(s) {
         return None;
@@ -55,81 +54,49 @@ fn parse_int(s: &str) -> Option<i64> {
     s.replace('_', "").parse().ok()
 }
 
-/// Go's `strconv.ParseFloat(s, 64)` for finite results: decimal forms and
-/// hexadecimal ones with a `p` exponent; infinities, NaN and overflow are
-/// rejected.
+/// The float literal syntax (01) with an optional sign: digits with `_`
+/// only between digits, an optional fraction with digits on both sides of
+/// the point, an optional exponent. An integer (`"42"`) is accepted; hex
+/// floats, `.5`, `1.`, `inf` and `nan` are not, and the result must be
+/// finite.
 fn parse_float(s: &str) -> Option<f64> {
-    if !is_space_free(s) || !well_placed_underscores(s) {
-        return None;
-    }
-    let s = s.replace('_', "");
-    let f = parse_hex_float(&s).or_else(|| {
-        // Rust also reads "inf", "infinity" and "nan"; they are not finite.
-        let body = s.trim_start_matches(['+', '-']);
-        if body.starts_with(|c: char| c.is_ascii_digit() || c == '.') {
-            s.parse::<f64>().ok()
-        } else {
-            None
+    let b = s.as_bytes();
+    let mut i = usize::from(matches!(b.first(), Some(b'+' | b'-')));
+    // Digits with single `_` separators; false when there is none.
+    let digits = |i: &mut usize| {
+        let start = *i;
+        while *i < b.len() {
+            match b[*i] {
+                b'0'..=b'9' => *i += 1,
+                b'_' if *i > start && b.get(*i + 1).is_some_and(u8::is_ascii_digit) => *i += 1,
+                _ => break,
+            }
         }
-    })?;
-    f.is_finite().then_some(f)
-}
-
-/// `[+-]0x<hex>[.<hex>]p[+-]<dec>` (Go's hexadecimal floats; the exponent
-/// is required). Mantissas beyond 64 bits keep their leading bits.
-fn parse_hex_float(s: &str) -> Option<f64> {
-    let (neg, body) = match s.as_bytes().first() {
-        Some(b'-') => (true, &s[1..]),
-        Some(b'+') => (false, &s[1..]),
-        _ => (false, s),
+        *i > start
     };
-    let body = body
-        .strip_prefix("0x")
-        .or_else(|| body.strip_prefix("0X"))?;
-    let (mant, exp) = body.split_once(['p', 'P'])?;
-    let (int_part, frac_part) = mant.split_once('.').unwrap_or((mant, ""));
-    if int_part.is_empty() && frac_part.is_empty() {
+    if !digits(&mut i) {
         return None;
     }
-    let mut m: u64 = 0;
-    let mut shift: i64 = 0; // binary exponent adjustment
-    let mut sticky = false;
-    for (i, c) in int_part.chars().chain(frac_part.chars()).enumerate() {
-        let d = c.to_digit(16)? as u64;
-        if m >> 60 == 0 {
-            m = m << 4 | d;
-            if i >= int_part.len() {
-                shift -= 4;
-            }
-        } else {
-            sticky |= d != 0;
-            if i < int_part.len() {
-                shift += 4;
-            }
+    if b.get(i) == Some(&b'.') {
+        i += 1;
+        if !digits(&mut i) {
+            return None;
         }
     }
-    let exp_digits = exp.trim_start_matches(['+', '-']);
-    if exp_digits.is_empty() || !exp_digits.bytes().all(|b| b.is_ascii_digit()) {
+    if matches!(b.get(i), Some(b'e' | b'E')) {
+        i += 1;
+        if matches!(b.get(i), Some(b'+' | b'-')) {
+            i += 1;
+        }
+        if !digits(&mut i) {
+            return None;
+        }
+    }
+    if i != b.len() {
         return None;
     }
-    let e: i64 = exp_digits.parse().unwrap_or(i64::MAX / 4).min(100_000);
-    let e = if exp.starts_with('-') { -e } else { e };
-    if sticky {
-        m |= 1; // keeps rounding correct past the kept bits
-    }
-    let mut f = m as f64;
-    let mut k = e + shift;
-    while k > 0 {
-        let step = k.min(1000);
-        f *= 2f64.powi(step as i32);
-        k -= step;
-    }
-    while k < 0 {
-        let step = (-k).min(1000);
-        f /= 2f64.powi(step as i32);
-        k += step;
-    }
-    Some(if neg { -f } else { f })
+    let f: f64 = s.replace('_', "").parse().ok()?;
+    f.is_finite().then_some(f)
 }
 
 fn int_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
@@ -175,20 +142,19 @@ fn str_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     }
 }
 
-/// Go `value.IsName`: a lowercase letter or `_`, then letters, digits and
-/// `_`, by Go's `unicode` classes.
+/// A name (01): `_` or a name-start character that is not uppercase,
+/// then name-continue characters (UAX #31).
 fn is_name(s: &str) -> bool {
     let mut cs = s.chars();
     let Some(first) = cs.next() else {
         return false;
     };
-    (first == '_' || (is_letter(first) && !is_upper(first)))
-        && cs.all(|c| c == '_' || is_letter(c) || is_digit(c))
+    (first == '_' || (is_name_start(first) && !is_upper(first))) && cs.all(is_name_continue)
 }
 
 fn sym_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     match &a[0] {
-        Value::Str(s) if is_name(s) => Ok(Value::Sym(intern(s))),
+        Value::Str(s) if is_name(&nfc(s)) => Ok(Value::Sym(intern(&nfc(s)))),
         Value::Sym(x) => Ok(Value::Sym(*x)),
         v => Err(cannot_convert(v, "sym")),
     }
@@ -240,4 +206,29 @@ fn parse_dur(s: &str) -> Option<i64> {
     } else {
         first.dur
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_float;
+
+    #[test]
+    fn float_literal_syntax() {
+        for (s, f) in [
+            ("3.25", 3.25),
+            ("-2.5e-3", -2.5e-3),
+            ("+1e9", 1e9),
+            ("42", 42.0),
+            ("1_000.5", 1000.5),
+            ("1E+2", 100.0),
+        ] {
+            assert_eq!(parse_float(s), Some(f), "{s:?}");
+        }
+        for s in [
+            "0x1p4", ".5", "1.", "1e", "1__0", "_1", "1_", "inf", "nan", "+-1", " 1", "1e400", "",
+            "-", "1._5", "1e_5", "١",
+        ] {
+            assert_eq!(parse_float(s), None, "{s:?}");
+        }
+    }
 }

@@ -1,6 +1,6 @@
-//! `_native.fs` tests: Go `TestFsReadWriteListStat` and `TestFsListFull`,
-//! the directory listings on a tree, the exact failure messages, the errno table, and whole runs
-//! compared with the Go binary in a scratch directory.
+//! `_native.fs` tests: reading, writing, listing and stat, the directory
+//! listings on a tree, the exact failure messages, the errno table, and
+//! whole runs in a scratch directory.
 
 use std::io::Cursor;
 use std::os::unix::fs::PermissionsExt;
@@ -14,8 +14,7 @@ use crate::testutil::{self, Buf, Opts, exec};
 use crate::value::{NativeParam, Value, format};
 use crate::vm::{Runtime, Stop};
 
-/// Calls `_native.fs.<name>` with bound arguments, as Go's tests call
-/// `n.Fn(ctx, args)`.
+/// Calls `_native.fs.<name>` with bound arguments.
 fn call(name: &str, args: Vec<Value>) -> Result<Value, Stop> {
     let m = module();
     let Some(Value::Native(n)) = m.get(name) else {
@@ -32,7 +31,7 @@ fn call(name: &str, args: Vec<Value>) -> Result<Value, Stop> {
     r
 }
 
-/// The result as Go's `value.Format` shows it, or the error's code.
+/// The result as `format` shows it, or the error's code.
 fn show(r: Result<Value, Stop>) -> String {
     match r {
         Ok(v) => format(&v),
@@ -201,7 +200,7 @@ fn params_match_the_spec() {
     }
 }
 
-/// Go `TestFsReadWriteListStat`, without `list`, `walk` and `glob`.
+/// Reading, writing, stat, copy, move and remove.
 #[test]
 fn read_write_stat_copy_move_remove() {
     let d = Scratch::new("rw");
@@ -256,8 +255,7 @@ fn read_write_stat_copy_move_remove() {
     assert_eq!(show(call("read", vec![Value::Int(1)])), "E0403");
 }
 
-/// Go `TestFsReadWriteListStat`'s `list`, `walk` and `glob`, and
-/// `TestFsListFull`.
+/// `list` (also with `full`), `walk` and `glob`.
 #[test]
 fn list_walk_glob() {
     let d = Scratch::new("lwg");
@@ -410,7 +408,9 @@ fn listings_keep_gos_order() {
     }
     assert_eq!(
         show(call("walk", vec![p(&t)])),
-        format!("Err({{kind: 'permission, message: \"cannot walk `{tt}`: permission denied\"}})")
+        format!(
+            "Err({{kind: 'permission, message: \"cannot walk `{tt}/locked_d`: permission denied\"}})"
+        )
     );
     assert_eq!(
         show(call(
@@ -428,7 +428,7 @@ fn listings_keep_gos_order() {
 }
 
 #[test]
-fn failures_read_like_go() {
+fn failures_give_exact_messages() {
     let d = Scratch::new("fail");
     fixture(&d.0);
     let at = |rel: &str| d.at(rel).to_str().unwrap().to_string();
@@ -478,8 +478,8 @@ fn failures_read_like_go() {
             "mkdir",
             vec![s(&at("a.txt"))],
             err(
-                "io",
-                format!("cannot create directory `{}`: not a directory", at("a.txt")),
+                "exists",
+                format!("cannot create directory `{}`: file exists", at("a.txt")),
             ),
         ),
         (
@@ -617,7 +617,7 @@ fn failures_read_like_go() {
 }
 
 #[test]
-fn permission_failures_read_like_go() {
+fn permission_failures_give_exact_messages() {
     let d = Scratch::new("perm");
     fixture(&d.0);
     if running_as_root(&d.at("locked")) {
@@ -669,8 +669,8 @@ fn copy_keeps_the_permission_bits() {
     assert_eq!(mode & 0o777, 0o700);
 }
 
-/// Go `os.MkdirTemp("", "fung-")`: `$TMPDIR` (or `/tmp`) joined with
-/// `fung-` and a decimal number, made with mode 0700.
+/// `temp_dir`: `$TMPDIR` (or `/tmp`) joined with `fung-` and a decimal
+/// number, made with mode 0700.
 #[test]
 fn temp_dir_is_made_under_tmpdir() {
     let base = match std::env::var("TMPDIR") {
@@ -726,10 +726,10 @@ fn wrong_argument_types_are_e0403() {
     }
 }
 
-// --- the errno table ---
+// --- the reason texts ---
 
 #[test]
-fn reasons_are_gos_errno_texts() {
+fn reasons_are_funs_texts() {
     use std::io::Error;
     let e = |n| oserr::reason(&Error::from_raw_os_error(n));
     assert_eq!(e(oserr::ENOENT), "no such file or directory");
@@ -740,31 +740,13 @@ fn reasons_are_gos_errno_texts() {
     assert_eq!(e(21), "is a directory");
     assert_eq!(e(oserr::EINVAL), "invalid argument");
     assert_eq!(e(oserr::ENOTEMPTY), "directory not empty");
-    assert_eq!(e(0), "errno 0");
-    assert_eq!(e(-1), "errno -1");
-    assert_eq!(e(9999), "errno 9999");
-    #[cfg(target_os = "macos")]
-    {
-        assert_eq!(e(16), "resource busy");
-        assert_eq!(e(18), "cross-device link");
-        assert_eq!(e(63), "file name too long");
-        assert_eq!(e(62), "too many levels of symbolic links");
-    }
-    #[cfg(target_os = "linux")]
-    {
-        assert_eq!(e(16), "device or resource busy");
-        assert_eq!(e(18), "invalid cross-device link");
-        assert_eq!(e(36), "file name too long");
-        assert_eq!(e(40), "too many levels of symbolic links");
-        assert_eq!(e(41), "errno 41");
-    }
     // An error the standard library makes itself has no errno.
     let own = Error::other("Something odd");
     assert_eq!(oserr::reason(&own), "something odd");
 }
 
 #[test]
-fn kinds_follow_gos_error_classes() {
+fn kinds_follow_the_error_classes() {
     use std::io::Error;
     let k = |n| oserr::kind(&Error::from_raw_os_error(n));
     assert_eq!(k(oserr::ENOENT), "not_found");
@@ -777,26 +759,14 @@ fn kinds_follow_gos_error_classes() {
     assert_eq!(oserr::kind(&Error::other("x")), "io");
 }
 
-/// The errno texts (`oserr::ERRORS`, recorded per system): the common
-/// errors' words, one line of text for every errno from 0 to 160, and
-/// `errno n` where the table has none.
+/// Every errno reads as one line of lower-case text without Rust's
+/// "(os error N)".
 #[test]
-fn errno_table_reads_as_recorded() {
-    let t = oserr::errno_text;
-    assert_eq!(t(0), "errno 0");
-    assert_eq!(t(1), "operation not permitted");
-    assert_eq!(t(oserr::ENOENT), "no such file or directory");
-    assert_eq!(t(oserr::EACCES), "permission denied");
-    assert_eq!(t(oserr::EEXIST), "file exists");
-    assert_eq!(t(oserr::ENOTDIR), "not a directory");
-    assert_eq!(t(21), "is a directory");
-    assert_eq!(t(oserr::ENOTEMPTY), "directory not empty");
-    assert_eq!(t(-1), "errno -1");
-    assert_eq!(t(100_000), "errno 100000");
-    for n in 0..=160 {
-        let text = t(n);
+fn every_errno_reads_as_one_line() {
+    for n in 1..=160 {
+        let text = oserr::errno_text(n);
         assert!(
-            !text.is_empty() && !text.contains('\n'),
+            !text.is_empty() && !text.contains('\n') && !text.contains("os error"),
             "errno {n}: {text:?}"
         );
     }
@@ -812,11 +782,11 @@ fn run_in(d: &Scratch, body: &str) -> testutil::Outcome {
     )
 }
 
-/// Go `TestFsHandles` and `TestReadLineOnWriteHandle`: write, close,
-/// closed and wrong-direction handles, `read_line` and `read_lines` on a
-/// handle, append mode, the handle's text, type and equality.
+/// Handles: write, close, closed and wrong-direction handles,
+/// `read_line` and `read_lines` on a handle, append mode, the handle's
+/// text, type and equality.
 #[test]
-fn handles_like_go() {
+fn handles_write_read_and_close() {
     let d = Scratch::new("handles");
     let o = run_in(
         &d,
@@ -861,10 +831,10 @@ Ok([\"one\", \"two\", \"three\"]) true
     );
 }
 
-/// A handle shows its path the way Go's `strconv.Quote` does (`\x01`,
-/// not fung's `\u{1}`), and other values holding it show it the same way.
+/// A handle shows its path as a fung string literal, and other values
+/// holding it show it the same way.
 #[test]
-fn handle_text_quotes_like_go() {
+fn handle_text_quotes_as_a_fung_literal() {
     let d = Scratch::new("quote");
     let o = run_in(
         &d,
@@ -872,7 +842,7 @@ fn handle_text_quotes_like_go() {
 print([h], h)"#,
     );
     let q = format!(
-        "{}/\\x01é\\t\\\"\\\\${{\\x7f\\u00a0\\ue000\\U000e0001",
+        "{}/\\u{{1}}é\\t\\\"\\\\\\${{\\u{{7F}}\\u{{A0}}\\u{{E000}}\\u{{E0001}}",
         d.text()
     );
     assert_eq!(
@@ -886,8 +856,7 @@ print([h], h)"#,
 /// Review Focus 2: eight tasks write 200 lines each into one handle at
 /// the same time; every line arrives whole (the handle's lock covers a
 /// whole `write_line`, which runs without the run token). The lines are
-/// longer than the 4096-byte buffer is divided by, so flushes fall inside
-/// lines.
+/// not a divisor of the 64 KiB buffer, so flushes fall inside lines.
 #[test]
 fn concurrent_write_lines_stay_whole() {
     let d = Scratch::new("concurrent");
@@ -967,9 +936,8 @@ print(fs.open(p) |> is_ok, fs.with_open(p, read_lines))"#,
 /// in whichever order they run; then one writes and the other reads.
 /// Holding the token while blocked would never end (the bound turns that
 /// into a failure; no sleep orders the tasks). The writer uses 'append
-/// (write only): 'write opens read-write like Go's `os.Create`, which
-/// does not wait for a reader, so its data could be gone before the
-/// reader opens (in Go too).
+/// (write only): 'write opens read-write, which does not wait for a
+/// reader, so its data could be gone before the reader opens.
 #[test]
 fn file_io_runs_without_the_run_token() {
     let d = Scratch::new("fifo");
@@ -1216,5 +1184,122 @@ fn runs_match_the_expected_output() {
          directory; $D stands for it, $SIZE for a directory size. Update: FUNG_EXPECTED=bless cargo test -p fung-vm native::fs::tests::runs_match",
         64 * 1024,
         &got,
+    );
+}
+
+// --- fung's own rules for the multi-step operations ---
+
+#[test]
+fn mkdir_over_a_file_is_exists() {
+    let d = Scratch::new("mkdir-file");
+    std::fs::write(d.at("f"), "x").unwrap();
+    let got = show(call("mkdir", vec![p(&d.at("f")), Value::Bool(true)]));
+    assert!(got.starts_with("Err({kind: 'exists,"), "{got}");
+    let got = show(call("mkdir", vec![p(&d.at("f/sub")), Value::Bool(true)]));
+    assert!(got.contains("not a directory"), "{got}");
+    assert_eq!(
+        show(call("mkdir", vec![p(&d.at("a/b/c")), Value::Bool(true)])),
+        "Ok(nil)"
+    );
+    assert_eq!(
+        show(call("mkdir", vec![p(&d.at("a/b")), Value::Bool(true)])),
+        "Ok(nil)"
+    );
+}
+
+#[test]
+fn remove_all_refuses_dot_paths() {
+    let d = Scratch::new("remove-all-dots");
+    std::fs::create_dir_all(d.at("x/y")).unwrap();
+    for bad in ["x/.", "x/..", "..", "."] {
+        let got = show(call("remove_all", vec![s(&d.at(bad).to_string_lossy())]));
+        assert!(got.contains("invalid argument"), "{bad}: {got}");
+    }
+    assert!(d.at("x/y").exists());
+    assert_eq!(show(call("remove_all", vec![s("")])), "Ok(nil)");
+    assert_eq!(show(call("remove_all", vec![p(&d.at("none"))])), "Ok(nil)");
+    assert_eq!(show(call("remove_all", vec![p(&d.at("x"))])), "Ok(nil)");
+    assert!(!d.at("x").exists());
+}
+
+/// A directory `walk` cannot read is named in the error, not the root.
+#[test]
+fn walk_names_the_directory_it_cannot_read() {
+    use std::os::unix::fs::PermissionsExt;
+    let d = Scratch::new("walk-unreadable");
+    std::fs::create_dir_all(d.at("a/locked")).unwrap();
+    std::fs::write(d.at("a/f"), "x").unwrap();
+    std::fs::set_permissions(d.at("a/locked"), std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(d.at("a/locked")).is_ok() {
+        return; // running as root: permissions do not apply
+    }
+    let got = show(call("walk", vec![p(&d.at("a"))]));
+    assert!(
+        got.contains(&format!("cannot walk `{}`", d.at("a/locked").display())),
+        "{got}"
+    );
+}
+
+/// A handle dropped without `close` still writes what it was given, and a
+/// line longer than the buffer goes in whole.
+#[test]
+fn dropped_handle_keeps_what_was_written() {
+    let d = Scratch::new("dropped-handle");
+    let o = run_in(
+        &d,
+        r#"fn w(p):
+  h = fs.open(p, 'write)!
+  fs.write_line(h, "one")!
+  fs.write_line(h, "two")!
+;;
+w("${d}/x.txt")
+print(fs.read("${d}/x.txt"))
+h = fs.open("${d}/long.txt", 'write)!
+fs.write_line(h, repeat("a", 70000))!
+fs.close(h)!
+print(fs.stat("${d}/long.txt")!.size)"#,
+    );
+    assert_eq!(o.out, "Ok(\"one\\ntwo\\n\")\n70001\n", "{}", o.err);
+}
+
+/// `remove_all` removes only what it names: a link given with a trailing
+/// slash is the link, not its target, and a root is refused.
+#[test]
+fn remove_all_never_reaches_past_what_it_names() {
+    let d = Scratch::new("remove-all-link");
+    std::fs::create_dir_all(d.at("tgt/inner")).unwrap();
+    std::os::unix::fs::symlink(d.at("tgt"), d.at("lnk")).unwrap();
+    let got = show(call(
+        "remove_all",
+        vec![s(&format!("{}/", d.at("lnk").display()))],
+    ));
+    assert_eq!(got, "Ok(nil)");
+    assert!(d.at("tgt/inner").exists(), "the target must stay");
+    assert!(
+        std::fs::symlink_metadata(d.at("lnk")).is_err(),
+        "the link goes"
+    );
+    for root in ["/", "///"] {
+        let got = show(call("remove_all", vec![s(root)]));
+        assert!(got.contains("invalid argument"), "{root}: {got}");
+    }
+}
+
+#[test]
+fn mkdir_of_nothing_is_not_found() {
+    let got = show(call("mkdir", vec![s("")]));
+    assert!(got.starts_with("Err({kind: 'not_found,"), "{got}");
+}
+
+/// A temporary directory that cannot be made names where it was tried.
+#[test]
+fn temp_dir_error_names_the_base() {
+    let got = format(&super::temp_dir_failure(
+        super::make_temp_dir_in(b"/nonexistent-fung-base/").unwrap_err(),
+        b"/nonexistent-fung-base/",
+    ));
+    assert_eq!(
+        got,
+        "Err({kind: 'not_found, message: \"cannot create temporary directory in `/nonexistent-fung-base/`: no such file or directory\"})"
     );
 }

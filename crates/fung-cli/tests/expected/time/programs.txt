@@ -14,8 +14,8 @@
 | 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 01 30 00 000 -05:00 -0500 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 13 43 58 000 -04:56 -0456 1874-12-07T13:43:58-04:56 {year: 1874, month: 12, day: 7, hour: 13, minute: 43, second: 58, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T13:43:58-04:56 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 13 43 58 000 -04:56:02 -045602 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 13, minute: 43, second: 58, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1899 99 12 Dec 31 Sun 19 00 00 000 -05:00 -0500 1899-12-31T19:00:00-05:00 {year: 1899, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'sun} -2208988800
 | 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1899-12-31T19:00:00-05:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1969 69 12 Dec 31 Wed 19 00 00 000 -05:00 -0500 1969-12-31T19:00:00-05:00 {year: 1969, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'wed} 0
@@ -28,16 +28,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="America/New_York" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -49,7 +54,7 @@
 ==== TZ="America/New_York" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -73,8 +78,8 @@
 ==== TZ="America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00-05:00 1772953140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -05:00 2026-03-08T06:59:00Z
-| 2026-03-08 02:00 2026-03-08T01:00:00-05:00 1772949600 {year: 2026, month: 3, day: 8, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 -05:00 2026-03-08T06:00:00Z
-| 2026-03-08 02:30 2026-03-08T01:30:00-05:00 1772951400 {year: 2026, month: 3, day: 8, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 -05:00 2026-03-08T06:30:00Z
+| 2026-03-08 02:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
+| 2026-03-08 02:30 2026-03-08T03:30:00-04:00 1772955000 {year: 2026, month: 3, day: 8, hour: 3, minute: 30, second: 0, weekday: 'sun} 03:30 -04:00 2026-03-08T07:30:00Z
 | 2026-03-08 03:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
 | 2026-11-01 00:59 2026-11-01T00:59:00-04:00 1793509140 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 -04:00 2026-11-01T04:59:00Z
 | 2026-11-01 01:00 2026-11-01T01:00:00-04:00 1793509200 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 -04:00 2026-11-01T05:00:00Z
@@ -95,30 +100,30 @@
 -- exit: 2
 ==== TZ="America/New_York" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
-| 2026-07-01T12:00:00-04:00 2026-12-15T03:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 3, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00-04:00 1782921600
+| 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00-04:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T13:00:00-04:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-06-30T23:00:00-04:00 1782874800
 | 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T08:00:00-04:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T03:30:00-04:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-04:00 1793511000
-| 2026-11-01T01:30:00-05:00 2027-04-16T18:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-05:00 1793514600
+| 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-05:00 1793514600
 -- stderr
 -- exit: 0
 ==== TZ="America/New_York" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="America/New_York" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -136,30 +141,30 @@
 -- exit: 0
 ==== TZ="America/New_York" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
-| Ok(0000-01-01T00:00:00-04:56)
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
+| Ok(0000-01-01T00:00:00-04:56:02)
 -- stderr
 -- exit: 0
 ==== TZ="America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
@@ -283,8 +288,8 @@
 | 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T01:00:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 01 30 00 000 -05:00 -0500 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T01:30:00-05:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 13 43 58 000 -04:56 -0456 1874-12-07T13:43:58-04:56 {year: 1874, month: 12, day: 7, hour: 13, minute: 43, second: 58, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T13:43:58-04:56 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 13 43 58 000 -04:56:02 -045602 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 13, minute: 43, second: 58, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T13:43:58-04:56:02 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1899 99 12 Dec 31 Sun 19 00 00 000 -05:00 -0500 1899-12-31T19:00:00-05:00 {year: 1899, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'sun} -2208988800
 | 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1899-12-31T19:00:00-05:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1969 69 12 Dec 31 Wed 19 00 00 000 -05:00 -0500 1969-12-31T19:00:00-05:00 {year: 1969, month: 12, day: 31, hour: 19, minute: 0, second: 0, weekday: 'wed} 0
@@ -297,16 +302,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ=":America/New_York" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -318,7 +328,7 @@
 ==== TZ=":America/New_York" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -342,8 +352,8 @@
 ==== TZ=":America/New_York" "for s in [\"2026-03-08 01:59\", \"2026-03-08 02:00\", \"202… (344 bytes, b5eb625434687c34)
 -- stdout
 | 2026-03-08 01:59 2026-03-08T01:59:00-05:00 1772953140 {year: 2026, month: 3, day: 8, hour: 1, minute: 59, second: 0, weekday: 'sun} 01:59 -05:00 2026-03-08T06:59:00Z
-| 2026-03-08 02:00 2026-03-08T01:00:00-05:00 1772949600 {year: 2026, month: 3, day: 8, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 -05:00 2026-03-08T06:00:00Z
-| 2026-03-08 02:30 2026-03-08T01:30:00-05:00 1772951400 {year: 2026, month: 3, day: 8, hour: 1, minute: 30, second: 0, weekday: 'sun} 01:30 -05:00 2026-03-08T06:30:00Z
+| 2026-03-08 02:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
+| 2026-03-08 02:30 2026-03-08T03:30:00-04:00 1772955000 {year: 2026, month: 3, day: 8, hour: 3, minute: 30, second: 0, weekday: 'sun} 03:30 -04:00 2026-03-08T07:30:00Z
 | 2026-03-08 03:00 2026-03-08T03:00:00-04:00 1772953200 {year: 2026, month: 3, day: 8, hour: 3, minute: 0, second: 0, weekday: 'sun} 03:00 -04:00 2026-03-08T07:00:00Z
 | 2026-11-01 00:59 2026-11-01T00:59:00-04:00 1793509140 {year: 2026, month: 11, day: 1, hour: 0, minute: 59, second: 0, weekday: 'sun} 00:59 -04:00 2026-11-01T04:59:00Z
 | 2026-11-01 01:00 2026-11-01T01:00:00-04:00 1793509200 {year: 2026, month: 11, day: 1, hour: 1, minute: 0, second: 0, weekday: 'sun} 01:00 -04:00 2026-11-01T05:00:00Z
@@ -364,30 +374,30 @@
 -- exit: 2
 ==== TZ=":America/New_York" "for s in [\"2026-07-01T12:00:00-04:00\", \"2026-07-01T12:00… (365 bytes, 91c87e371fe13396)
 -- stdout
-| 2026-07-01T12:00:00-04:00 2026-12-15T03:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 3, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00-04:00 1782921600
+| 2026-07-01T12:00:00-04:00 2026-12-15T04:00:00-04:00 -04:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T12:00:00-04:00 1782921600
 | 2026-07-01T12:00:00-05:00 2026-12-15T04:00:00-05:00 -05:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T13:00:00-04:00 1782925200
 | 2026-07-01T12:00:00+09:00 2026-12-15T04:00:00+09:00 +09:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-06-30T23:00:00-04:00 1782874800
 | 2026-07-01T12:00:00Z 2026-12-15T04:00:00Z +00:00 {year: 2026, month: 12, day: 15, hour: 4, minute: 0, second: 0, weekday: 'tue} 2026-07-01T08:00:00-04:00 1782907200
 | 2026-03-08T02:30:00-05:00 2026-08-21T18:30:00-05:00 -05:00 {year: 2026, month: 8, day: 21, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-03-08T03:30:00-04:00 1772955000
 | 2026-11-01T01:30:00-04:00 2027-04-16T17:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-04:00 1793511000
-| 2026-11-01T01:30:00-05:00 2027-04-16T18:30:00-04:00 -04:00 {year: 2027, month: 4, day: 16, hour: 18, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-05:00 1793514600
+| 2026-11-01T01:30:00-05:00 2027-04-16T17:30:00-05:00 -05:00 {year: 2027, month: 4, day: 16, hour: 17, minute: 30, second: 0, weekday: 'fri} 2026-11-01T01:30:00-05:00 1793514600
 -- stderr
 -- exit: 0
 ==== TZ=":America/New_York" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ=":America/New_York" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -405,30 +415,30 @@
 -- exit: 0
 ==== TZ=":America/New_York" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
-| Ok(0000-01-01T00:00:00-04:56)
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
+| Ok(0000-01-01T00:00:00-04:56:02)
 -- stderr
 -- exit: 0
 ==== TZ=":America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
@@ -552,8 +562,8 @@
 | 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 07 30 00 000 +01:00 +0100 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 7, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 19 33 28 000 +00:53 +0053 1874-12-07T19:33:28+00:53 {year: 1874, month: 12, day: 7, hour: 19, minute: 33, second: 28, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T19:33:28+00:53 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 19 33 28 000 +00:53:28 +005328 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 19, minute: 33, second: 28, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1900 00 01 Jan 01 Mon 01 00 00 000 +01:00 +0100 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1970 70 01 Jan 01 Thu 01 00 00 000 +01:00 +0100 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'thu} 0
@@ -566,16 +576,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -587,7 +602,7 @@
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -644,19 +659,19 @@
 -- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -674,30 +689,30 @@
 -- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
-| Ok(0000-01-01T00:00:00+00:53)
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: time out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
@@ -821,8 +836,8 @@
 | 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T07:00:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 07 30 00 000 +01:00 +0100 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 7, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T07:30:00+01:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 07 Mon 19 33 28 000 +00:53 +0053 1874-12-07T19:33:28+00:53 {year: 1874, month: 12, day: 7, hour: 19, minute: 33, second: 28, weekday: 'mon} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T19:33:28+00:53 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 19 33 28 000 +00:53:28 +005328 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 19, minute: 33, second: 28, weekday: 'mon} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-07T19:33:28+00:53:28 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
 | 1900 00 01 Jan 01 Mon 01 00 00 000 +01:00 +0100 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T01:00:00+01:00 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1970 70 01 Jan 01 Thu 01 00 00 000 +01:00 +0100 1970-01-01T01:00:00+01:00 {year: 1970, month: 1, day: 1, hour: 1, minute: 0, second: 0, weekday: 'thu} 0
@@ -835,16 +850,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="Europe/Berlin" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -856,7 +876,7 @@
 ==== TZ="Europe/Berlin" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -913,19 +933,19 @@
 -- exit: 0
 ==== TZ="Europe/Berlin" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="Europe/Berlin" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -943,30 +963,30 @@
 -- exit: 0
 ==== TZ="Europe/Berlin" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
-| Ok(0000-01-01T00:00:00+00:53)
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: time out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
@@ -1090,10 +1110,10 @@
 | 2026 26 11 Nov 01 Sun 06 00 00 000 +00:00 +0000 2026-11-01T15:00:00+09:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 0, second: 0, weekday: 'sun} 1793512800
 | 2026 26 11 Nov 01 Sun 15 30 00 000 +09:00 +0900 2026-11-01T15:30:00+09:00 {year: 2026, month: 11, day: 1, hour: 15, minute: 30, second: 0, weekday: 'sun} 1793514600
 | 2026 26 11 Nov 01 Sun 06 30 00 000 +00:00 +0000 2026-11-01T15:30:00+09:00 {year: 2026, month: 11, day: 1, hour: 6, minute: 30, second: 0, weekday: 'sun} 1793514600
-| 1874 74 12 Dec 08 Tue 03 07 52 000 +08:27 +0827 1874-12-08T03:07:52+08:27 {year: 1874, month: 12, day: 8, hour: 3, minute: 7, second: 52, weekday: 'tue} -3000000000
-| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-08T03:07:52+08:27 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
-| 1900 00 01 Jan 01 Mon 08 27 52 000 +08:27 +0827 1900-01-01T08:27:52+08:27 {year: 1900, month: 1, day: 1, hour: 8, minute: 27, second: 52, weekday: 'mon} -2208988800
-| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T08:27:52+08:27 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
+| 1874 74 12 Dec 08 Tue 03 07 52 000 +08:27:52 +082752 1874-12-08T03:07:52+08:27:52 {year: 1874, month: 12, day: 8, hour: 3, minute: 7, second: 52, weekday: 'tue} -3000000000
+| 1874 74 12 Dec 07 Mon 18 40 00 000 +00:00 +0000 1874-12-08T03:07:52+08:27:52 {year: 1874, month: 12, day: 7, hour: 18, minute: 40, second: 0, weekday: 'mon} -3000000000
+| 1900 00 01 Jan 01 Mon 08 27 52 000 +08:27:52 +082752 1900-01-01T08:27:52+08:27:52 {year: 1900, month: 1, day: 1, hour: 8, minute: 27, second: 52, weekday: 'mon} -2208988800
+| 1900 00 01 Jan 01 Mon 00 00 00 000 +00:00 +0000 1900-01-01T08:27:52+08:27:52 {year: 1900, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -2208988800
 | 1970 70 01 Jan 01 Thu 09 00 00 000 +09:00 +0900 1970-01-01T09:00:00+09:00 {year: 1970, month: 1, day: 1, hour: 9, minute: 0, second: 0, weekday: 'thu} 0
 | 1970 70 01 Jan 01 Thu 00 00 00 000 +00:00 +0000 1970-01-01T09:00:00+09:00 {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu} 0
 | 2026 26 10 Oct 04 Sun 09 05 07 000 +09:00 +0900 2026-10-04T09:05:07+09:00 {year: 2026, month: 10, day: 4, hour: 9, minute: 5, second: 7, weekday: 'sun} 1791072307
@@ -1104,16 +1124,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="Asia/Seoul" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1125,7 +1150,7 @@
 ==== TZ="Asia/Seoul" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1182,19 +1207,19 @@
 -- exit: 0
 ==== TZ="Asia/Seoul" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="Asia/Seoul" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -1207,35 +1232,35 @@
 | Ok(2026-12-04T23:59:59+09:00) {year: 2026, month: 12, day: 4, hour: 23, minute: 59, second: 59, weekday: 'fri}
 | Ok(2026-10-04T00:00:00+09:00) {year: 2026, month: 10, day: 4, hour: 0, minute: 0, second: 0, weekday: 'sun}
 | Ok(2024-02-29T00:00:00+09:00) {year: 2024, month: 2, day: 29, hour: 0, minute: 0, second: 0, weekday: 'thu}
-| Ok(1900-03-01T00:00:00+08:27) {year: 1900, month: 3, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu}
+| Ok(1900-03-01T00:00:00+08:27:52) {year: 1900, month: 3, day: 1, hour: 0, minute: 0, second: 0, weekday: 'thu}
 -- stderr
 -- exit: 0
 ==== TZ="Asia/Seoul" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
-| Ok(0000-01-01T00:00:00+08:27)
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: time out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="Asia/Seoul" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
@@ -1373,16 +1398,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="UTC" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1394,7 +1424,7 @@
 ==== TZ="UTC" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1451,19 +1481,19 @@
 -- exit: 0
 ==== TZ="UTC" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="UTC" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -1481,29 +1511,29 @@
 -- exit: 0
 ==== TZ="UTC" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
 | Ok(0000-01-01T00:00:00Z)
 -- stderr
 -- exit: 0
@@ -1642,16 +1672,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1663,7 +1698,7 @@
 ==== TZ="" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1720,19 +1755,19 @@
 -- exit: 0
 ==== TZ="" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -1750,29 +1785,29 @@
 -- exit: 0
 ==== TZ="" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
 | Ok(0000-01-01T00:00:00Z)
 -- stderr
 -- exit: 0
@@ -1911,16 +1946,21 @@
 -- stdout
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
-| -0001-12-31T23:59:59Z 00-1 -1 12 31 23 59 59 Fri Dec {year: -1, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'fri} -62167219201
-| -1199-02-15T14:13:20Z -1199 -99 02 15 14 13 20 Thu Feb {year: -1199, month: 2, day: 15, hour: 14, minute: 13, second: 20, weekday: 'thu} -100000000000
-| 146138514283-06-19T07:45:03Z 146138514283 83 06 19 07 45 03 Tue Jun {year: 146138514283, month: 6, day: 19, hour: 7, minute: 45, second: 3, weekday: 'tue} 4611686018427387903
-| -146138510344-07-14T16:14:57Z -146138510344 -44 07 14 16 14 57 Fri Jul {year: -146138510344, month: 7, day: 14, hour: 16, minute: 14, second: 57, weekday: 'fri} -4611686018427387903
 -- stderr
--- exit: 0
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+|   --> -e:3:30
+|   |
+| 3 |   t = time.utc(time.from_unix(n))
+|   |                              ^
+|   |
+|  call path (innermost first):
+|    -e:3       <lambda>
+|    -e:2       <entry>
+-- exit: 1
 ==== TZ="No/Such_Zone" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1932,7 +1972,7 @@
 ==== TZ="No/Such_Zone" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time within ±2^62 seconds, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1989,19 +2029,19 @@
 -- exit: 0
 ==== TZ="No/Such_Zone" "for s in [\"2026-10-04T9:05:07Z\", \"2026-10-04T09:05:07,5+… (358 bytes, eb38f7d57a8dfdd7)
 -- stdout
-| Ok(2026-10-04T09:05:07Z)
-| Ok(2026-10-04T09:05:07.5+01:00)
-| Ok(2026-10-04T09:05:07+24:00)
-| Ok(2026-10-04T09:05:07.123456789Z)
-| Err({kind: 'parse, message: "cannot parse `nope` as a time: parsing time \"nope\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"nope\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `` as a time: parsing time \"\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: parsing time \"2026-02-30T00:00:00Z\": day out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: parsing time \"2026-10-04T23:59:59Zx\": extra text: \"x\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: parsing time \"2026-10-04T23:59:59+25:0\\xc3\\xa9\": time zone offset hour out of range"})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: parsing time \"\\xc3\\xa9\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\xc3\\xa9\" as \"2006\""})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: parsing time \"2026-10-04T23:59:59\\x09Z\" as \"2006-01-02T15:04:05.999999999Z07:00\": cannot parse \"\\x09Z\" as \"Z07:00\""})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: parsing time \"2026-13-01T00:00:00Z\": month out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: parsing time \"2026-10-04T24:00:00Z\": hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T9:05:07Z` as a time: expected 2 digits for the hour"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07,5+01:00` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+24:00` as a time: offset out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07.123456789012Z` as a time: expected 1 to 9 digits after the decimal point"})
+| Err({kind: 'parse, message: "cannot parse `nope` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59Zx` as a time: unexpected text after the time"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59+25:0é` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected 4 digits for the year"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T23:59:59\tZ` as a time: expected Z or an offset like +09:00"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T24:00:00Z` as a time: hour out of range"})
 -- stderr
 -- exit: 0
 ==== TZ="No/Such_Zone" "for p in [[\"2026-10-04T09:05:07+09:00\", \"YYYY-MM-DDTHH:m… (528 bytes, 2e270b89cc902af0)
@@ -2019,29 +2059,29 @@
 -- exit: 0
 ==== TZ="No/Such_Zone" "for p in [[\"2026-02-30\", \"YYYY-MM-DD\"], [\"2026-13-01\"… (847 bytes, 4b506bcad274d942)
 -- stdout
-| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day 30 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day 0 is out of range for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day 31 is out of range for the month"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-13-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-00-01` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-00` as a time: day out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-04-31` as a time: day out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-1-5` as a time: expected 2 digits for the month"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04x` as a time: unexpected text after the time"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `09:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `24:00` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: field out of range"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the zone hours"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the time zone offset"})
+| Err({kind: 'parse, message: "cannot parse `09:60` as a time: minute out of range"})
+| Err({kind: 'parse, message: "cannot parse `24:00` as a time: hour out of range"})
+| Err({kind: 'parse, message: "cannot parse `00:00:60` as a time: second out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+9:00` as a time: expected 2 digits for the offset hours"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09-00` as a time: expected `:` in the offset"})
 | Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07 0900` as a time: expected a time zone offset"})
-| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the zone minutes"})
-| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: unknown month name \"Foo\""})
-| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: unknown weekday name \"Xyz\""})
-| Err({kind: 'parse, message: "cannot parse `abé` as a time: unknown month name \"ab\\xc3\""})
-| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name"})
-| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name"})
+| Err({kind: 'parse, message: "cannot parse `2026-10-04T09:05:07+09` as a time: expected 2 digits for the offset minutes"})
+| Err({kind: 'parse, message: "cannot parse `Foo 04` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Xyz, 04` as a time: expected a weekday name like Sun"})
+| Err({kind: 'parse, message: "cannot parse `abé` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `é` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `ab` as a time: expected a weekday name like Sun"})
 | Err({kind: 'parse, message: "cannot parse `2026년10월` as a time: expected \"일\""})
 | Err({kind: 'parse, message: "cannot parse `2026\t10` as a time: expected \" \""})
-| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text \"x\" after the date"})
+| Err({kind: 'parse, message: "cannot parse `x` as a time: unexpected text after the time"})
 | Ok(0000-01-01T00:00:00Z)
 -- stderr
 -- exit: 0

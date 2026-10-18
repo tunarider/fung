@@ -1,13 +1,11 @@
-//! `_native.fs` (Go `internal/native/fs.go`): the file and directory
+//! `_native.fs`: the file and directory
 //! primitives `extras/fs.fung` wraps (06). Every operation that can fail
 //! for outside reasons returns `Ok`/`Err({kind, message})`; wrong argument
 //! types are E0403.
 //!
 //! The operating system is called without the run token (`outside`), with
 //! owned paths and bytes only; values are made after the token is back.
-//! Go's `os` functions that do more than one system call (`MkdirAll`,
-//! `Remove`, `RemoveAll`, `Rename`, `MkdirTemp`) are ported step by step,
-//! so their failures carry the same errno (`oserr` gives Go's text).
+//! The reasons in the errors are `oserr`'s texts.
 
 use std::fs::{DirBuilder, OpenOptions};
 use std::io::{self, Write};
@@ -16,14 +14,14 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsE
 use std::rc::Rc;
 use std::sync::OnceLock;
 
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 
 use fung_front::diag::Arg;
 
-use super::file::{self, Fault, File, Mode};
+use super::file::{self, Fault, File, Mode, NEW_FILE_MODE};
 use super::glob;
 use super::nat::{self, native, opt, param};
-use super::oserr::{self, EEXIST, EINVAL, ENOENT, ENOTDIR, errno};
+use super::oserr::{self, EEXIST, EINVAL, errno};
 use super::path;
 use crate::value::{Lit, MapBuilder, Module, Native, Value};
 use crate::vm::{Stop, Task, outside};
@@ -93,7 +91,7 @@ pub fn module() -> Rc<Module> {
     Rc::new(m)
 }
 
-/// Go `fsErr`: `Err({kind, message})` with ``cannot <verb> `<path>`: <reason>``.
+/// `Err({kind, message})` with ``cannot <verb> `<path>`: <reason>``.
 pub(super) fn fs_err(verb: &str, path: &str, e: &io::Error) -> Value {
     nat::err_value(
         oserr::kind(e),
@@ -110,8 +108,8 @@ fn done(verb: &str, path: &str, r: io::Result<()>) -> Value {
     }
 }
 
-/// Go refuses a path holding a NUL byte with EINVAL before any system
-/// call (`syscall.ByteSliceFromString`); Rust's own error has no errno.
+/// A path holding a NUL byte is refused with EINVAL before any system
+/// call (the standard library's own error for it has no errno).
 fn checked(p: &str) -> io::Result<&str> {
     if p.contains('\0') {
         Err(errno(EINVAL))
@@ -120,7 +118,7 @@ fn checked(p: &str) -> io::Result<&str> {
     }
 }
 
-/// Go `os.WriteFile`: create or truncate with `perm`, then write.
+/// Creates or truncates with `perm`, then writes.
 fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
     let mut f = OpenOptions::new()
         .write(true)
@@ -138,7 +136,7 @@ fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         outside(t, move || std::fs::read(checked(&p)?))
     };
     Ok(match r {
-        Ok(bytes) => nat::ok(Value::str(&decode_go(&bytes))),
+        Ok(bytes) => nat::ok(Value::str(&decode_lossy(&bytes))),
         Err(e) => fs_err("read", &p, &e),
     })
 }
@@ -148,7 +146,7 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
     let r = {
         let p = p.clone();
-        outside(t, move || write_file(&p, &text, 0o644))
+        outside(t, move || write_file(&p, &text, NEW_FILE_MODE))
     };
     Ok(done("write", &p, r))
 }
@@ -162,7 +160,7 @@ fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
             OpenOptions::new()
                 .append(true)
                 .create(true)
-                .mode(0o644)
+                .mode(NEW_FILE_MODE)
                 .open(checked(&p)?)?
                 .write_all(&text)
         })
@@ -171,16 +169,16 @@ fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// A fung list of the strings `paths` holds (file names need not be
-/// UTF-8; Go prints a bad byte as U+FFFD).
+/// UTF-8; a bad byte reads as U+FFFD).
 fn str_list(paths: &[Vec<u8>]) -> Value {
-    nat::list(paths.iter().map(|p| Value::str(&decode_go(p))).collect())
+    nat::list(paths.iter().map(|p| Value::str(&decode_lossy(p))).collect())
 }
 
 fn os_path(p: &[u8]) -> &std::ffi::OsStr {
     std::ffi::OsStr::from_bytes(p)
 }
 
-/// Go `os.ReadDir`: the directory's entries in byte order of their
+/// The directory's entries in byte order of their
 /// names, each with whether it is a directory itself (a link is not).
 fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
     let mut out = Vec::new();
@@ -188,7 +186,7 @@ fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
         let e = e?;
         let is_dir = match e.file_type() {
             Ok(t) => t.is_dir(),
-            // Go drops an entry gone before its type could be read.
+            // An entry gone before its type could be read is dropped.
             Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
             Err(err) => return Err(err),
         };
@@ -230,7 +228,7 @@ fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     };
     Ok(match r {
         Ok(mut found) => {
-            // Go sorts the whole result once more (`sort.Strings`).
+            // The whole result in byte order, across directories too.
             found.sort_unstable();
             nat::ok(str_list(&found))
         }
@@ -246,31 +244,34 @@ fn walk_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let dir = nat::need_str("dir", &a[0])?.to_string();
     let r = {
         let dir = dir.clone();
-        outside(t, move || walk(checked(&dir)?.as_bytes()))
+        outside(t, move || match checked(&dir) {
+            Ok(d) => walk(d.as_bytes()),
+            Err(e) => Err((dir.into_bytes(), e)),
+        })
     };
     Ok(match r {
         Ok(files) => nat::ok(str_list(&files)),
-        Err(e) => fs_err("walk", &dir, &e),
+        Err((at, e)) => fs_err("walk", &String::from_utf8_lossy(&at), &e),
     })
 }
 
-/// Go `fsWalkFn` over `filepath.WalkDir`: every file below `root` (not
-/// the directories), depth first in byte order, as paths joined onto
-/// `root`. Links are not followed (a link is listed like a file), except
-/// a root the system resolves itself (`link/`). The root is `lstat`ed;
-/// a directory that cannot be read ends the walk with its error.
-fn walk(root: &[u8]) -> io::Result<Vec<Vec<u8>>> {
+/// Every file below `root` (not the directories), depth first in byte
+/// order, as paths joined onto `root`. Links are not followed (a link is
+/// listed like a file), except a root the system resolves itself
+/// (`link/`). A directory that cannot be read ends the walk with its
+/// error and its path.
+fn walk(root: &[u8]) -> Result<Vec<Vec<u8>>, (Vec<u8>, io::Error)> {
     let mut files = Vec::new();
-    if std::fs::symlink_metadata(os_path(root))?.is_dir() {
-        walk_dir(root, &mut files)?;
-    } else {
-        files.push(root.to_vec());
+    match std::fs::symlink_metadata(os_path(root)) {
+        Ok(m) if m.is_dir() => walk_dir(root, &mut files)?,
+        Ok(_) => files.push(root.to_vec()),
+        Err(e) => return Err((root.to_vec(), e)),
     }
     Ok(files)
 }
 
-fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> io::Result<()> {
-    for (name, is_dir) in read_dir(dir)? {
+fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> Result<(), (Vec<u8>, io::Error)> {
+    for (name, is_dir) in read_dir(dir).map_err(|e| (dir.to_vec(), e))? {
         let p = path::join_bytes(dir, &name);
         if is_dir {
             walk_dir(&p, files)?;
@@ -299,7 +300,7 @@ fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         Ok(info) => info,
         Err(e) => return Ok(fs_err("stat", &p, &e)),
     };
-    // Go's `FileInfo.Name` is `filepath.Base` of the path asked for.
+    // The name is the last element of the path asked for.
     let mut m = MapBuilder::default();
     m.set(Rc::new("name".into()), Value::str(&path::base(&p)));
     m.set(Rc::new("size".into()), Value::Int(size as i64));
@@ -316,38 +317,14 @@ fn mkdir_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(done("create directory", &p, r))
 }
 
-/// Go `os.MkdirAll`: a directory already there is success, anything else
-/// there is ENOTDIR; otherwise the parent first, then the directory.
+/// A directory and the missing ones above it; one already there is
+/// success, a file there is "file exists", and a file above it is "not a
+/// directory". The empty path names nothing.
 fn mkdir_all(p: &str, perm: u32) -> io::Result<()> {
-    if let Ok(m) = std::fs::metadata(p) {
-        return if m.is_dir() {
-            Ok(())
-        } else {
-            Err(errno(ENOTDIR))
-        };
+    if p.is_empty() {
+        return Err(io::Error::from(io::ErrorKind::NotFound));
     }
-    let b = p.as_bytes();
-    let mut i = b.len();
-    while i > 0 && b[i - 1] == b'/' {
-        i -= 1;
-    }
-    while i > 0 && b[i - 1] != b'/' {
-        i -= 1;
-    }
-    // `i` is now just past the parent's last separator; Go's parent is
-    // the path up to that separator.
-    let parent = &p[..i.saturating_sub(1)];
-    if !parent.is_empty() {
-        mkdir_all(parent, perm)?;
-    }
-    match DirBuilder::new().mode(perm).create(p) {
-        Ok(()) => Ok(()),
-        // "foo/." and the like: the directory may be there after all.
-        Err(e) => match std::fs::symlink_metadata(p) {
-            Ok(m) if m.is_dir() => Ok(()),
-            _ => Err(e),
-        },
-    }
+    DirBuilder::new().recursive(true).mode(perm).create(p)
 }
 
 fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
@@ -359,16 +336,12 @@ fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(done("remove", &p, r))
 }
 
-/// Go `os.Remove`: unlink, then rmdir; when both fail, rmdir's error
-/// unless it is ENOTDIR (the path is a file, so unlink's error is real).
+/// A file, a link or an empty directory.
 fn remove(p: &str) -> io::Result<()> {
-    let Err(e) = std::fs::remove_file(p) else {
-        return Ok(());
-    };
-    match std::fs::remove_dir(p) {
-        Ok(()) => Ok(()),
-        Err(e1) if e1.raw_os_error() != Some(ENOTDIR) => Err(e1),
-        Err(_) => Err(e),
+    if std::fs::symlink_metadata(p)?.is_dir() {
+        std::fs::remove_dir(p)
+    } else {
+        std::fs::remove_file(p)
     }
 }
 
@@ -381,27 +354,27 @@ fn remove_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(done("remove", &p, r))
 }
 
-/// Go `os.RemoveAll`: nothing for `""` or a missing path, EINVAL for a
-/// path ending in `.`, `Remove` when that works, and otherwise the
-/// directory's contents first.
+/// A path and everything below it. Nothing to do for `""` or a missing
+/// path; a root, or a path whose last part is `.` or `..`, is refused (it
+/// would name more than the path says). A link is removed itself, also
+/// when given with a trailing `/`.
 fn remove_all(p: &str) -> io::Result<()> {
     if p.is_empty() {
         return Ok(());
     }
-    if p == "." || p.ends_with("/.") {
+    let p = p.trim_end_matches('/');
+    let last = p.rsplit('/').next().unwrap_or("");
+    if p.is_empty() || last == "." || last == ".." {
         return Err(errno(EINVAL));
     }
-    let e = match remove(p) {
-        Ok(()) => return Ok(()),
-        Err(e) if e.raw_os_error() == Some(ENOENT) => return Ok(()),
-        Err(e) => e,
-    };
     match std::fs::symlink_metadata(p) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
         Ok(m) if m.is_dir() => match std::fs::remove_dir_all(p) {
-            Err(e) if e.raw_os_error() == Some(ENOENT) => Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             r => r,
         },
-        _ => Err(e),
+        Ok(_) => std::fs::remove_file(p),
     }
 }
 
@@ -415,9 +388,9 @@ fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(done("move", &from, r))
 }
 
-/// Go `os.Rename` (Unix): onto an existing directory only the same file
-/// may go (a case-only rename); anything else is EEXIST, after the old
-/// name's own error.
+/// `move` never replaces an existing directory: onto one, only the same
+/// directory may go (a case-only rename); anything else is "file exists",
+/// after the source's own error.
 fn rename(from: &str, to: &str) -> io::Result<()> {
     if let Ok(target) = std::fs::symlink_metadata(to)
         && target.is_dir()
@@ -445,7 +418,7 @@ fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     })
 }
 
-/// Go `fsCopyFn`: the source's permission bits, its bytes, then a write.
+/// The source's permission bits, its bytes, then a write.
 /// The error says which side failed (`true` for the source).
 fn copy(from: &str, to: &str) -> Result<(), (bool, io::Error)> {
     let src = |e| (true, e);
@@ -457,7 +430,7 @@ fn copy(from: &str, to: &str) -> Result<(), (bool, io::Error)> {
 
 const MODES: &str = "'read | 'write | 'append";
 
-/// Go `fsOpenFn`: `Ok(<file>)` or the open failure.
+/// `Ok(<file>)` or the open failure.
 fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
     let Value::Sym(mode) = a[1] else {
@@ -484,7 +457,7 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     })
 }
 
-/// Go `needFile`.
+/// The file handle argument `name`, or E0403.
 pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a File, Stop> {
     match v {
         Value::File(f) => Ok(f),
@@ -492,8 +465,8 @@ pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a File, Stop> 
     }
 }
 
-/// A failed handle operation as Go reports it (`closedErr`, the
-/// `'invalid` direction errors, `fsErr` with `verb`).
+/// The `Err` of a failed handle operation: closed, the `'invalid`
+/// direction errors, or the OS error with `verb`.
 pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
     let p = &f.path;
     match e {
@@ -512,7 +485,7 @@ pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
     }
 }
 
-/// Go `fsCloseFn`. The flush and the close run without the token.
+/// `fs.close`. The flush and the close run without the token.
 fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let f = need_file("f", &a[0])?;
     Ok(match outside(t, || f.close()) {
@@ -521,7 +494,7 @@ fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     })
 }
 
-/// Go `fsWriteLineFn`: the line and its `\n` go in under the handle's
+/// `fs.write_line`: the line and its `\n` go in under the handle's
 /// lock, without the token.
 fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let f = need_file("f", &a[0])?;
@@ -536,33 +509,54 @@ fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
-    Ok(match outside(t, make_temp_dir) {
-        Ok(dir) => nat::ok(Value::str(&decode_go(&dir))),
-        Err(TempDirError::Os(e)) => fs_err("create temporary directory", "", &e),
-        // Go's `fs.ErrExist` after 10,000 names already taken.
-        Err(TempDirError::Taken) => nat::err_value(
-            "exists",
-            "cannot create temporary directory ``: file already exists",
-            Vec::new(),
-        ),
+    let base = temp_base();
+    let made = {
+        let base = base.clone();
+        outside(t, move || make_temp_dir_in(&base))
+    };
+    Ok(match made {
+        Ok(dir) => nat::ok(Value::str(&decode_lossy(&dir))),
+        Err(e) => temp_dir_failure(e, &base),
     })
 }
 
-enum TempDirError {
+#[derive(Debug)]
+pub(super) enum TempDirError {
     Os(io::Error),
     Taken,
 }
 
-/// Go `os.MkdirTemp("", "fung-")`: `$TMPDIR` (`/tmp` when unset or
-/// empty) joined with `fung-` and a random 32-bit number in decimal, made
-/// with mode 0700; a name already taken is tried again, 10,000 times.
-fn make_temp_dir() -> Result<Vec<u8>, TempDirError> {
-    let mut prefix = std::env::var_os("TMPDIR")
+/// The `Err` for a temporary directory not made in `base`.
+pub(super) fn temp_dir_failure(e: TempDirError, base: &[u8]) -> Value {
+    let verb = "create temporary directory in";
+    let base = String::from_utf8_lossy(base);
+    match e {
+        TempDirError::Os(e) => fs_err(verb, &base, &e),
+        TempDirError::Taken => nat::err_value(
+            "exists",
+            &format!("cannot {verb} `{base}`: every name tried exists"),
+            Vec::new(),
+        ),
+    }
+}
+
+/// Where temporary directories go: `$TMPDIR` (`/tmp` when unset or
+/// empty), ending in `/`.
+fn temp_base() -> Vec<u8> {
+    let mut base = std::env::var_os("TMPDIR")
         .filter(|d| !d.is_empty())
         .map_or_else(|| b"/tmp".to_vec(), |d| d.as_bytes().to_vec());
-    if prefix.last() != Some(&b'/') {
-        prefix.push(b'/');
+    if base.last() != Some(&b'/') {
+        base.push(b'/');
     }
+    base
+}
+
+/// A new directory in `base`: `fung-` and a random 32-bit number in
+/// decimal, made with mode 0700; a name already taken is tried again,
+/// 10,000 times.
+pub(super) fn make_temp_dir_in(base: &[u8]) -> Result<Vec<u8>, TempDirError> {
+    let mut prefix = base.to_vec();
     prefix.extend_from_slice(b"fung-");
     for _ in 0..10_000 {
         let mut name = prefix.clone();
@@ -570,7 +564,7 @@ fn make_temp_dir() -> Result<Vec<u8>, TempDirError> {
         let os = std::ffi::OsStr::from_bytes(&name);
         match DirBuilder::new().mode(0o700).create(os) {
             Ok(()) => return Ok(name),
-            Err(e) if e.raw_os_error() == Some(EEXIST) => continue,
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(e) => return Err(TempDirError::Os(e)),
         }
     }

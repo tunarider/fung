@@ -536,10 +536,10 @@ fn swap_and_deref_reject_what_is_not_an_agent() {
 }
 
 /// `swap` on the same agent inside its own `f` is E0704, at the inner
-/// `swap(` (where Go's atom reported E0703), with the caller's call path.
-/// An inner `swap` in tail position has replaced `f`'s frame, so its
-/// position is gone, and the error lands on the outer `swap(` like any
-/// error of `f` (the tail-call rule of every fung prelude function).
+/// `swap(`, with the caller's call path. An inner `swap` in tail position
+/// has replaced `f`'s frame, so its position is gone, and the error lands
+/// on the outer `swap(` like any error of `f` (the tail-call rule of every
+/// fung prelude function).
 #[test]
 fn swap_inside_its_own_f_is_e0704() {
     for (src, col) in [
@@ -706,7 +706,7 @@ fn an_agent_made_inside_f_is_its_own() {
     assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("2 2\n", "", 0));
 }
 
-/// `agent` is a type name (where Go has `atom`).
+/// `agent` is a type name.
 #[test]
 fn agent_is_a_type_name() {
     let o = bounded_user("fn f(a: agent) = deref(a)\nprint(f(agent(3)))");
@@ -745,8 +745,7 @@ fn deref_from_a_subtask_while_f_ends() {
 // An agent runs `f` on its own task, but under a cancellation node that
 // is also below the requester's: cancelling the requester (an `exit`, a
 // deadlock report, `cancel(t)`) cancels its `f`, the state stays, and the
-// agent serves the next request. Go's atom ran `f` on the caller's task;
-// the expected outputs come from Go with `atom` for `agent`.
+// agent serves the next request, as if `f` ran on the caller's task.
 
 /// `bounded_user`, also giving how long the program took.
 fn timed_user(src: &str) -> (Outcome, std::time::Duration) {
@@ -837,8 +836,8 @@ fn a_deadlock_inside_a_handlers_f_leaves_the_next_handler_served() {
     );
 }
 
-/// The tasks `f` spawned end with the task that asked, as when Go's
-/// atom ran `f` on that task: they do not outlive it.
+/// The tasks `f` spawned end with the task that asked, as if `f` ran on
+/// that task: they do not outlive it.
 #[test]
 fn tasks_spawned_inside_f_end_with_the_requester() {
     let (o, took) = timed_user(
@@ -881,7 +880,7 @@ fn set_asker_lets_every_try_call_follow_the_marking_task() {
 }
 
 /// `describe(e)`: what a caught stop was, for the `http` server's report:
-/// `{code, text}` with the error's code and headline, or `exit` and Go's
+/// `{code, text}` with the error's code and headline, or `exit` and
 /// `exit(n)`.
 #[test]
 fn describe_tells_what_stopped_a_call() {

@@ -74,12 +74,13 @@ if [ -e "$out" ]; then
 fi
 mkdir -p "$out"
 
-# The version `fung version` prints (crates/fung-cli/src/version.rs reads
-# it with option_env!; cargo rebuilds when it changes).
+# The version `fung version` prints and the http client's User-Agent
+# names (crates/fung-vm/src/version.rs reads it with option_env!; cargo
+# rebuilds when it changes).
 export FUNG_BUILD_VERSION="$version"
-# No debug symbols (Go's -s -w).
+# No debug symbols: a smaller binary.
 export CARGO_PROFILE_RELEASE_STRIP=symbols
-# No local paths in the binary (Go's -trimpath): the checkout and the
+# No local paths in the binary: the checkout and the
 # crate sources under CARGO_HOME. With --target, the flags reach only the
 # target's code, not build scripts. CARGO_ENCODED_RUSTFLAGS separates
 # flags with 0x1f, so a path with spaces stays one flag; cargo then

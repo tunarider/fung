@@ -13,3 +13,8 @@ path = "src/main.rs"
 [dependencies]
 fung-front = { path = "../fung-front" }
 fung-vm = { path = "../fung-vm" }
+
+[dev-dependencies]
+# The test TLS server (tests/common/tls_server.rs): fung-vm's rustls, the
+# same requirement and features, so the lock gains no package (deps.rs).
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12"] }

@@ -167,7 +167,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "",
     ],
-    ["E0515", "invalid pattern: %s", "", ""],
+    ["E0515", "invalid pattern %s", "", ""],
     ["E0601", "no pattern matched %s", "", ""],
     ["E0602", "value %s does not match the pattern", "", ""],
     ["E0603", "unhandled Err: %s", "", ""],
@@ -180,7 +180,13 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     ["E0701", "task cancelled", "", ""],
     ["E0702", "deadlock: all tasks are waiting", "", ""],
-    ["E0703", "atom swapped inside its own swap", "", ""],
+    // not raised since atoms became agents (E0704); the number stays taken
+    [
+        "E0703",
+        "atom swapped inside its own swap",
+        "",
+        "not used: atoms became agents, see E0704",
+    ],
     ["E0704", "agent called from inside its own swap", "", ""],
     ["E0705", "channel sent into itself", "", ""],
     ["E0801", "internal error: %v", "", ""],

@@ -1,5 +1,4 @@
-//! `fung run`, `fung <script.fung>` and `fung -e` (Go `cmd/fung/main.go`
-//! `runFile` and `cmd/fung/pipeline.go` `execute`): compile the entry
+//! `fung run`, `fung <script.fung>` and `fung -e`: compile the entry
 //! with its import graph, boot the prelude, run, then the exit handlers,
 //! then the background tasks' end (stage 3b), then the exit code.
 
@@ -11,8 +10,8 @@ use fung_front::source::SourceMap;
 use fung_vm::vm::{Runtime, STDIN_BUFFER, Stop};
 
 /// Ends the command when a write found the reading end of a pipe closed
-/// (`fung run x | head -1`): the process dies by SIGPIPE, as Go's does on
-/// file descriptor 1 or 2, with no report and no exit handlers. Only the
+/// (`fung run x | head -1`): the process dies by SIGPIPE (06 "에러
+/// 규칙"), with no report and no exit handlers. Only the
 /// standard streams come here; every other write keeps EPIPE as an error.
 fn exit_on_broken_pipe<T>(r: std::io::Result<T>) -> std::io::Result<T> {
     if let Err(e) = &r
@@ -24,7 +23,7 @@ fn exit_on_broken_pipe<T>(r: std::io::Result<T>) -> std::io::Result<T> {
 }
 
 /// A process stream (standard output or error) as the command writes it:
-/// every write goes through at once, as Go's `os.Stdout` does (a prompt
+/// every write goes through at once (a prompt
 /// without a newline shows before the program reads its answer), and a
 /// closed pipe kills the command (`exit_on_broken_pipe`).
 pub struct ProcessOut<W: Write>(pub W);
@@ -54,12 +53,12 @@ impl<W: Write> Write for ProcessOut<W> {
 }
 
 /// The status the operating system keeps of a fung exit code: its low 8
-/// bits, as for Go's `os.Exit` (exit(300) is 44, exit(-1) is 255).
+/// bits, as the system keeps it (exit(300) is 44, exit(-1) is 255).
 pub fn status(code: i64) -> i32 {
     (code & 0xff) as i32
 }
 
-/// Compiles and runs one entry file (Go `execute`) and returns the fung
+/// Compiles and runs one entry file and returns the fung
 /// exit code: 0, 1 for a runtime error, 2 for a compile error, or the
 /// code of exit(n). Every value the run made is dropped before it
 /// returns, so it runs on the big stack together with its caller.
@@ -76,15 +75,14 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     }
     let entry = b.proto.expect("a compiled entry");
     // The runtime holds the program's files first and boot appends the
-    // prelude's after them (see `fung_vm::boot`). Go boots before it
-    // compiles; boot cannot fail, so the output is the same.
+    // prelude's after them (see `fung_vm::boot`).
     let rt = Runtime::new(stdout, Box::new(ProcessOut::stderr()), stdin, b.sources);
     if let Err(errs) = rt.boot(args) {
         rt.with_sources(|s| report(stderr, &errs, s));
         return EXIT_COMPILE.into();
     }
-    // Links the entry against the booted prelude and registers the modules
-    // (Go `register`). No fung value comes back out of the runtime.
+    // Links the entry against the booted prelude and registers the
+    // modules. No fung value comes back out of the runtime.
     rt.load(&entry, &b.modules);
     let mut code = i64::from(EXIT_OK);
     let result = rt.run();
@@ -112,7 +110,7 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     let handler_errs = rt.run_exit_handlers();
     // An exit(n) inside a handler is not among the errors (the runtime
     // records it instead); a handler cut short by the deadlock report
-    // (E0702) or a cancellation (E0701) was already told (Go `execute`);
+    // (E0702) or a cancellation (E0701) was already told;
     // every other handler error is reported.
     for d in &handler_errs {
         if d.code == "E0701" || d.code == "E0702" {
@@ -146,8 +144,8 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
 
 /// Standard input without the standard library's own buffer (which
 /// would read 8 KiB at a time): the runtime reads it one `STDIN_BUFFER`
-/// at a time, as Go's `bufio.Reader` over `os.Stdin` does, so what fung
-/// leaves unread stays for the next reader of the same input.
+/// at a time, so what fung leaves unread stays for the next reader of the
+/// same input.
 pub(crate) fn raw_stdin() -> Box<dyn std::io::Read + Send> {
     use std::os::fd::AsFd;
     match std::io::stdin().as_fd().try_clone_to_owned() {
@@ -157,7 +155,7 @@ pub(crate) fn raw_stdin() -> Box<dyn std::io::Read + Send> {
     }
 }
 
-/// Prints errors with source excerpts (Go `reportErrors`).
+/// Prints errors with source excerpts.
 fn report(w: &mut dyn Write, errs: &[Diag], sources: &SourceMap) {
     for e in errs {
         let _ = w.write_all(diag::format(e, sources).as_bytes());
@@ -170,8 +168,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn status_keeps_the_low_eight_bits_like_go() {
-        // Measured with the Go binary: `fung -e 'exit(n)'; echo $?`.
+    fn status_keeps_the_low_eight_bits() {
+        // what `fung -e 'exit(n)'; echo $?` shows
         for (n, want) in [
             (0, 0),
             (4, 4),

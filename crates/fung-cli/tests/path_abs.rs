@@ -1,12 +1,12 @@
 //! `path.abs` resolves a relative path against `$PWD` when that names the
-//! working directory (Go `os.Getwd`), so a symlinked directory prints as
+//! working directory, so a symlinked directory prints as
 //! the user reached it, not as `getcwd` reports it.
 
 mod common;
 
 use std::process::Command;
 
-use common::rust_fung;
+use common::fung_bin;
 
 fn run_in(bin: &std::path::Path, dir: &std::path::Path, pwd: &std::path::Path) -> String {
     let o = Command::new(bin)
@@ -28,7 +28,7 @@ fn abs_keeps_the_symlinked_working_directory() {
     std::os::unix::fs::symlink(&real, &link).unwrap();
     let want = format!("{}\n", link.join("a").display());
 
-    let rust = run_in(&rust_fung(), &link, &link);
+    let bin = run_in(&fung_bin(), &link, &link);
     let _ = std::fs::remove_dir_all(&base);
-    assert_eq!(rust, want);
+    assert_eq!(bin, want);
 }

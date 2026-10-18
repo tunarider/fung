@@ -1,6 +1,6 @@
-//! Go `internal/native/regex_test.go`: the `_native.regex` natives called
-//! directly, plus Go `regexp`'s empty-match, `Split` and `Expand` rules.
-//! Expected texts come from the Go 1.27 implementation.
+//! The `_native.regex` natives called directly: matches with character
+//! positions, empty matches, `split`, `$` references, errors and the
+//! pattern cache.
 
 use std::io::Cursor;
 
@@ -60,19 +60,15 @@ fn find_uses_rune_indexes() {
         ok("find", &["k=v", r"(?P<key>\w+)=(?P<val>\w+)(x)?"]),
         r#"{text: "k=v", start: 0, end: 3, groups: ["k", "v", nil], named: {key: "k", val: "v"}}"#
     );
-    // \w is ASCII (Go): the Hangul and é are not word characters.
+    // \w is Unicode: Hangul is a word character.
     assert_eq!(
         ok("find", &["가a1 é٣_", r"\w+"]),
-        r#"{text: "a1", start: 1, end: 3, groups: [], named: {}}"#
+        r#"{text: "가a1", start: 0, end: 3, groups: [], named: {}}"#
     );
-    // a later group of the same name wins, also when it did not match
+    // a group that did not take part is nil, by number and by name
     assert_eq!(
-        ok("find", &["aa", "(?P<x>a)(?P<x>b)?"]),
-        r#"{text: "a", start: 0, end: 1, groups: ["a", nil], named: {x: nil}}"#
-    );
-    assert_eq!(
-        ok("find", &["ab", "(?P<x>a)(?P<x>b)?"]),
-        r#"{text: "ab", start: 0, end: 2, groups: ["a", "b"], named: {x: "b"}}"#
+        ok("find", &["a", "(?P<x>a)(?P<y>b)?"]),
+        r#"{text: "a", start: 0, end: 1, groups: ["a", nil], named: {x: "a", y: nil}}"#
     );
 }
 
@@ -98,13 +94,13 @@ fn the_other_functions() {
 #[test]
 fn bad_patterns_and_arguments() {
     assert_eq!(shown(call("is_match", &["x", "("])), "E0515");
-    let Err(Stop::Error(d)) = call("find", &["x", "a{1001}"]) else {
-        panic!("a{{1001}} must fail");
+    let Err(Stop::Error(d)) = call("find", &["x", "a{2,1}"]) else {
+        panic!("a{{2,1}} must fail");
     };
     assert_eq!(
         d.args,
         vec![Arg::Str(
-            "error parsing regexp: invalid repeat count: `{1001}`".into()
+            "`a{2,1}`: invalid repetition count range, the start must be <= the end".into()
         )]
     );
     assert_eq!(
@@ -135,45 +131,45 @@ fn bad_patterns_and_arguments() {
     );
 }
 
-/// Go `allMatches`, `Split` and `replaceAll` around empty matches.
+/// Empty matches (06: 정규식): `find_all` and `replace` skip an empty
+/// match right after the previous match; `split` does not cut at an empty
+/// match at the very start or end of the subject.
 #[test]
-fn empty_matches_follow_go() {
-    let starts_ends = |s: &str, pat: &str| {
-        let re = compile_go(pat).unwrap();
-        let mut out = Vec::new();
-        go_all(&re, s, |l| out.push(l.get(0).unwrap()));
-        out
+fn empty_matches() {
+    let spans = |s: &str, pat: &str| {
+        let r = shown(call("find_all", &[s, pat]));
+        r.matches("start: ").count()
     };
-    assert_eq!(starts_ends("baaa", "a*"), vec![(0, 0), (1, 4)]);
-    // byte offsets: é takes 2 bytes, 가 3
-    assert_eq!(starts_ends("é가 a", r"\b"), vec![(6, 6), (7, 7)]);
-    assert_eq!(starts_ends("", "x*"), vec![(0, 0)]);
-    assert_eq!(ok("split", &["baaa", "a*"]), r#"["b", ""]"#);
+    assert_eq!(spans("baaa", "a*"), 2);
+    assert_eq!(spans("abc", "x*"), 4);
     assert_eq!(ok("split", &["abc", ""]), r#"["a", "b", "c"]"#);
+    assert_eq!(ok("split", &["", "x*"]), r#"[""]"#);
     assert_eq!(ok("split", &["", ""]), "[]");
-    assert_eq!(ok("split", &["", "x"]), r#"[""]"#);
+    assert_eq!(ok("split", &["a,b,", ","]), r#"["a", "b", ""]"#);
+    assert_eq!(ok("split", &["a,,b", ","]), r#"["a", "", "b"]"#);
+    assert_eq!(ok("split", &["baaa", "a*"]), r#"["b", ""]"#);
     assert_eq!(ok("split", &["ab", "$"]), r#"["ab"]"#);
-    assert_eq!(ok("split", &["가나 다", r"\b"]), r#"["가나 다"]"#);
+    assert_eq!(ok("split", &["가나 다", r"\b"]), r#"["가나", " ", "다"]"#);
     assert_eq!(ok("replace", &["baaa", "a*", "<$0>"]), r#""<>b<aaa>""#);
     assert_eq!(ok("replace", &["가나", "x*", "-"]), r#""-가-나-""#);
     assert_eq!(ok("replace", &["abc", r"\b", "|"]), r#""|abc|""#);
 }
 
-/// Go `Regexp.Expand`: `$$`, numbers, names, braces, `$1a` as the name
-/// "1a", a malformed reference kept as text, leading zeros and huge
-/// numbers as names.
+/// `$` in a replacement (06): `$$`, numbers, names, braces; `$1a` is the
+/// name "1a" (write `${1}a`), a reference that is not one stays text, and
+/// a group that is not there gives nothing.
 #[test]
-fn replacement_templates_follow_go() {
+fn replacement_templates() {
     assert_eq!(
         ok(
             "replace",
             &[
                 "k=v",
                 r"(?P<key>\w+)=(?P<val>\w+)",
-                "$$|$1|${1}|$key|${val}|$9|$1a|${1}a|$|${1|$0|$01|$_|$한|$10000000000",
+                "$$|$1|${1}|$key|${val}|$9|$1a|${1}a|$|${1|$0|$01|$_|$한",
             ]
         ),
-        r#""$|k|k|k|v|||ka|$|\${1|k=v||||""#
+        r#""$|k|k|k|v|||ka|$|\${1|k=v|k||$한""#
     );
 }
 
@@ -196,8 +192,7 @@ fn the_same_pattern_comes_from_the_cache() {
     );
 }
 
-/// Go empties the whole cache when it is full, instead of evicting one
-/// entry. Checked on a map of the test's own: the process-wide cache is
+/// A full cache is emptied whole, instead of evicting one entry. Checked on a map of the test's own: the process-wide cache is
 /// shared with every other test running at the same time.
 #[test]
 fn a_full_cache_is_emptied() {
@@ -219,7 +214,11 @@ fn a_full_cache_is_emptied() {
         "a known pattern replaces itself"
     );
     remember(&mut m, "one more", one());
-    assert_eq!(m.len(), 1, "Go clears the cache, then adds the new pattern");
+    assert_eq!(
+        m.len(),
+        1,
+        "the cache is cleared, then the new pattern added"
+    );
     assert!(m.contains_key("one more"));
 }
 
@@ -302,8 +301,7 @@ fn gate_natives() -> Vec<Value> {
     v
 }
 
-/// Go compiles under the cache's mutex, so a slow pattern stalls only
-/// other regex callers. Here the compile runs without the run token: while
+/// The compile runs without the run token: while
 /// one task is still compiling, another runs fung code (it sees the
 /// compile in progress and opens the gate that ends it).
 #[test]
@@ -324,4 +322,56 @@ fn other_tasks_run_while_a_pattern_compiles() {
         !g.2,
         "the compile held the run token: no task could open the gate"
     );
+}
+
+// --- the regex crate's syntax (06: 정규식) ---
+
+fn err_msg(name: &str, args: &[&str]) -> String {
+    match call(name, args) {
+        Err(Stop::Error(d)) => fung_front::diag::message(&d.code, &d.args),
+        r => panic!("{name}{args:?}: {}", shown(r)),
+    }
+}
+
+#[test]
+fn unicode_classes() {
+    assert_eq!(ok("is_match", &["٣", r"\d"]), "true");
+    assert_eq!(ok("is_match", &["é", r"\w"]), "true");
+    assert_eq!(ok("is_match", &["가", r"^\w$"]), "true");
+    assert_eq!(ok("is_match", &["٣", r"(?-u:\d)"]), "false");
+    assert!(ok("find", &["가a1 x", r"\w+"]).contains("start: 0, end: 3"));
+}
+
+#[test]
+fn crate_syntax() {
+    assert_eq!(ok("is_match", &["ab", "(?x) a b"]), "true");
+    assert_eq!(ok("is_match", &["a", "^[a&&[a-c]]$"]), "true");
+}
+
+#[test]
+fn pattern_errors() {
+    assert_eq!(
+        err_msg("is_match", &["a", "a("]),
+        "invalid pattern `a(`: unclosed group"
+    );
+    assert!(
+        err_msg("is_match", &["a", "(?P<n>a)(?P<n>b)"]).contains("duplicate capture group name")
+    );
+    assert!(err_msg("is_match", &["a", r"\pL{1000}{1000}"]).ends_with("pattern too large"));
+}
+
+/// Patterns of an ordinary size compile: Unicode classes repeated a few
+/// hundred times fit the compile limit.
+#[test]
+fn ordinary_large_patterns_compile() {
+    assert_eq!(ok("is_match", &["x", r"\w{400}"]), "false");
+    assert_eq!(ok("is_match", &["x", r"\pL{300}"]), "false");
+}
+
+/// `split` of the empty string by the empty pattern is `[]`, like the
+/// string `split("", "")`.
+#[test]
+fn split_of_nothing_by_nothing() {
+    assert_eq!(ok("split", &["", ""]), "[]");
+    assert_eq!(ok("split", &["", "x*"]), r#"[""]"#);
 }

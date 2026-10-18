@@ -1,5 +1,4 @@
-//! Deadlock detection (05 "교착"; Go `armWatchdog`, `watchdog` and
-//! `deadlock` in `internal/vm/runtime_conc.go`).
+//! Deadlock detection (05 "교착").
 //!
 //! The program is deadlocked when every live task is blocked in `block`
 //! and no timer will wake any of them: nothing can ever run again. The
@@ -15,27 +14,26 @@
 //!   woken but has not run yet is not blocked, and no task is counted
 //!   blocked while something is on its way to it.
 //!
-//! So Go's 50 ms grace (which absorbed tasks counted blocked although
-//! their wait was already satisfiable) is not needed: the check runs
-//! whenever the condition can become true — a live task counting itself
-//! blocked, and a live task ending — and reports at once (spec 2절).
-//! What nothing in fung can wake is out of the count: `Runtime::wait`'s
-//! task is not live (the command waiting for the program is not a task).
+//! So no grace period (to absorb tasks counted blocked although their wait
+//! was already satisfiable) is needed: the check runs whenever the
+//! condition can become true — a live task counting itself blocked, and a
+//! live task ending — and reports at once (spec 2절). What nothing in fung
+//! can wake is out of the count: `Runtime::wait`'s task is not live (the
+//! command waiting for the program is not a task).
 //!
-//! After the report (Go `deadlock`): E0702 on standard error, exit code 1
-//! (the first exit request), and every task of the program cancelled
-//! (the root). Each blocked task wakes and unwinds with E0702 (its handle
-//! turns that into `Err({kind: 'cancelled})`); the command does not
-//! report the entry's E0702 again (an exit was requested) and skips it
-//! among the handlers' errors, and the exit handlers still run.
+//! After the report: E0702 on standard error, exit code 1 (the first exit
+//! request), and every task of the program cancelled (the root). Each
+//! blocked task wakes and unwinds with E0702 (its handle turns that into
+//! `Err({kind: 'cancelled})`); the command does not report the entry's
+//! E0702 again (an exit was requested) and skips it among the handlers'
+//! errors, and the exit handlers still run.
 //!
 //! While an exit handler runs, the check is the handler's own: a deadlock
 //! is reported even after an earlier exit or deadlock, and it cancels
 //! only that handler's node, so the handler is cut short and the next one
-//! runs; the exit code stays as it was (1 if nothing set one). Go's
-//! detector is off once an exit was requested, and Go's runtime then
-//! kills the process ("all goroutines are asleep", exit 2); hanging would
-//! be worse than both (open-questions).
+//! runs; the exit code stays as it was (1 if nothing set one). Without the
+//! check a handler that deadlocks would hang the process, which is worse
+//! than cutting it short (05 "종료").
 //!
 //! The entry's end is judged too, so an entry error cancels the program
 //! before the entry task drops (`Runtime::run_with`): the tasks it leaves
@@ -107,7 +105,7 @@ impl Task<'_> {
     }
 
     /// The error a cancelled blocked task unwinds with: E0702 once a
-    /// deadlock was reported (Go `block`), E0701 otherwise.
+    /// deadlock was reported, E0701 otherwise.
     pub(super) fn unwound(&self) -> Stop {
         if self.world.deadlocked {
             Stop::Error(Box::new(error("E0702", no_pos(), Vec::new())))

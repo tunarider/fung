@@ -4,67 +4,69 @@
 ==== test $DIR/tree
 -- files
 | $DIR/tree/.h.fung
-| $DIR/tree/.hidden/y.fung
 | $DIR/tree/B.fung
 | $DIR/tree/_f.fung
 | $DIR/tree/a.fung
 | $DIR/tree/link.fung
 | $DIR/tree/sub-x.fung
 | $DIR/tree/sub.fung
-| $DIR/tree/sub/.git/v.fung
 | $DIR/tree/sub/deep/er/u.fung
 | $DIR/tree/sub/z.fung
 | $DIR/tree/다/가.fung
 ==== test $DIR/tree/
 -- files
 | $DIR/tree/.h.fung
-| $DIR/tree/.hidden/y.fung
 | $DIR/tree/B.fung
 | $DIR/tree/_f.fung
 | $DIR/tree/a.fung
 | $DIR/tree/link.fung
 | $DIR/tree/sub-x.fung
 | $DIR/tree/sub.fung
-| $DIR/tree/sub/.git/v.fung
 | $DIR/tree/sub/deep/er/u.fung
 | $DIR/tree/sub/z.fung
 | $DIR/tree/다/가.fung
 ==== test $DIR/tree//sub/../
 -- files
 | $DIR/tree/.h.fung
-| $DIR/tree/.hidden/y.fung
 | $DIR/tree/B.fung
 | $DIR/tree/_f.fung
 | $DIR/tree/a.fung
 | $DIR/tree/link.fung
 | $DIR/tree/sub-x.fung
 | $DIR/tree/sub.fung
-| $DIR/tree/sub/.git/v.fung
 | $DIR/tree/sub/deep/er/u.fung
 | $DIR/tree/sub/z.fung
 | $DIR/tree/다/가.fung
 ==== test $DIR/rootlink
 -- files
-==== test $DIR/rootlink/
--- files
 | $DIR/rootlink/.h.fung
-| $DIR/rootlink/.hidden/y.fung
 | $DIR/rootlink/B.fung
 | $DIR/rootlink/_f.fung
 | $DIR/rootlink/a.fung
 | $DIR/rootlink/link.fung
 | $DIR/rootlink/sub-x.fung
 | $DIR/rootlink/sub.fung
-| $DIR/rootlink/sub/.git/v.fung
+| $DIR/rootlink/sub/deep/er/u.fung
+| $DIR/rootlink/sub/z.fung
+| $DIR/rootlink/다/가.fung
+==== test $DIR/rootlink/
+-- files
+| $DIR/rootlink/.h.fung
+| $DIR/rootlink/B.fung
+| $DIR/rootlink/_f.fung
+| $DIR/rootlink/a.fung
+| $DIR/rootlink/link.fung
+| $DIR/rootlink/sub-x.fung
+| $DIR/rootlink/sub.fung
 | $DIR/rootlink/sub/deep/er/u.fung
 | $DIR/rootlink/sub/z.fung
 | $DIR/rootlink/다/가.fung
 ==== test $DIR/sublink.fung
 -- files
-| $DIR/sublink.fung
+| $DIR/sublink.fung/deep/er/u.fung
+| $DIR/sublink.fung/z.fung
 ==== test $DIR/_under
 -- files
-| $DIR/_under/.dot/r.fung
 | $DIR/_under/q.fung
 ==== test $DIR/lone.fung
 -- files
@@ -74,21 +76,19 @@
 | $DIR/tree/notes.txt
 ==== test $DIR/nope
 -- error
-| stat $DIR/nope: no such file or directory
+| cannot read `$DIR/nope`: no such file or directory
 ==== test $DIR/lone.fung/x
 -- error
-| stat $DIR/lone.fung/x: not a directory
+| cannot read `$DIR/lone.fung/x`: not a directory
 ==== test $REL/tree
 -- files
 | $REL/tree/.h.fung
-| $REL/tree/.hidden/y.fung
 | $REL/tree/B.fung
 | $REL/tree/_f.fung
 | $REL/tree/a.fung
 | $REL/tree/link.fung
 | $REL/tree/sub-x.fung
 | $REL/tree/sub.fung
-| $REL/tree/sub/.git/v.fung
 | $REL/tree/sub/deep/er/u.fung
 | $REL/tree/sub/z.fung
 | $REL/tree/다/가.fung
@@ -106,7 +106,6 @@
 | $REL/tree/다/가.fung
 ==== test ./$REL/tree/sub
 -- files
-| $REL/tree/sub/.git/v.fung
 | $REL/tree/sub/deep/er/u.fung
 | $REL/tree/sub/z.fung
 ==== fmt --check ./$REL/tree/sub
@@ -188,10 +187,10 @@
 | $DIR/tree/notes.txt
 ==== fmt --check $DIR/nope
 -- error
-| stat $DIR/nope: no such file or directory
+| cannot read `$DIR/nope`: no such file or directory
 ==== fmt --check $DIR/lone.fung/x
 -- error
-| stat $DIR/lone.fung/x: not a directory
+| cannot read `$DIR/lone.fung/x`: not a directory
 ==== fmt --check $DIR/tree/sub $DIR/lone.fung $DIR/tree/a.fung $DIR/_under
 -- files
 | $DIR/_under/q.fung
@@ -205,4 +204,4 @@
 | $DIR/lone.fung
 ==== fmt --check $DIR/tree/sub $DIR/nope $DIR/lone.fung
 -- error
-| stat $DIR/nope: no such file or directory
+| cannot read `$DIR/nope`: no such file or directory

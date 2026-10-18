@@ -294,7 +294,7 @@ mod tests {
     }
 
     fn bin(op: &str, a: Node, b: Node) -> Node {
-        // Go keeps the operator in the literal, not in a kid.
+        // the operator is the node's literal, not a kid
         Node::with_lit(Head::Binary, p(), Lit::Str(op.into()), vec![a, b])
     }
 
@@ -470,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn import_path_is_quoted_like_go() {
+    fn import_path_is_quoted_as_a_fung_literal() {
         let im = Import {
             spec: "a\u{7}\u{A0}b".into(),
             is_path: true,
@@ -478,7 +478,7 @@ mod tests {
             names: None,
             name_pos: vec![],
         };
-        assert_eq!(im.to_string(), "\"a\\a\\u00a0b\"");
+        assert_eq!(im.to_string(), "\"a\\u{7}\\u{A0}b\"");
     }
 
     #[test]

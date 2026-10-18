@@ -1,0 +1,5 @@
+# upper and lower use the full Unicode case mapping: the length may change.
+print(upper("straße"), upper("ŉ"), lower("ΟΔΟΣ"), len(upper("ß")))
+# expect: STRASSE ʼN οδος 2
+print(len(lower("İ")))
+# expect: 2

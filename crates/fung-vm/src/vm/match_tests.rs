@@ -1,11 +1,11 @@
-//! Ports of Go `internal/vm/match_test.go`: `match`, guards, failed arms,
-//! and destructuring assignment.
+//! Pattern matching: `match`, guards, failed arms, and destructuring
+//! assignment.
 
 use super::m4_tests::check_out;
 use crate::testutil::run;
 
 #[test]
-fn match_and_destructuring_run_like_go() {
+fn match_and_destructuring_run() {
     let (out, err, code) =
         run("match [1, 2, 3]: [a, ...rest] => print(a, rest) ;;\n(x, y) = (1, 2)\nprint(x + y)");
     assert_eq!((out.as_str(), err.as_str(), code), ("1 [2, 3]\n3\n", "", 0));
@@ -113,7 +113,7 @@ fn rest_of_a_big_list_matches() {
 }
 
 #[test]
-fn no_match_report_matches_go() {
+fn no_match_report() {
     let (_, err, code) = run("fn f(x) = match x: 1 => 2 ;;\nf(5)");
     assert_eq!(
         err,

@@ -10,7 +10,7 @@ use crate::unicode;
 mod number;
 mod string;
 
-/// Classifies a token. The order mirrors the Go `token.go`.
+/// Classifies a token.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Kind {
     Eof,
@@ -229,7 +229,7 @@ pub struct Comment {
     pub pos: Pos,
     pub text: String,
     /// Byte offset of the `#` in the source (the formatter maps it back
-    /// to the bytes Go would slice).
+    /// to the source bytes).
     pub off: usize,
 }
 
@@ -294,11 +294,11 @@ fn is_digit(c: Option<char>) -> bool {
 }
 
 fn is_ident_start(c: Option<char>) -> bool {
-    c.is_some_and(|c| c == '_' || unicode::is_letter(c))
+    c.is_some_and(|c| c == '_' || unicode::is_name_start(c))
 }
 
 fn is_ident_part(c: Option<char>) -> bool {
-    c.is_some_and(|c| c == '_' || unicode::is_letter(c) || unicode::is_digit(c))
+    c.is_some_and(unicode::is_name_continue)
 }
 
 fn is_hex_digit(c: Option<char>) -> bool {
@@ -328,8 +328,8 @@ impl<'a> Lexer<'a> {
         self.src[self.off..].chars().nth(n)
     }
 
-    /// Consumes one char. At end of input it returns U+FFFD (as Go's
-    /// `DecodeRuneInString` does) and still bumps the column.
+    /// Consumes one char. At end of input it returns U+FFFD (no char) and
+    /// still bumps the column.
     fn advance(&mut self) -> char {
         let Some(c) = self.src[self.off..].chars().next() else {
             self.col += 1;
@@ -421,15 +421,16 @@ impl<'a> Lexer<'a> {
         while is_ident_part(self.peek()) {
             self.advance();
         }
-        let text = &self.src[start..self.off];
+        // A name's text is its NFC form (01); the source keeps its bytes.
+        let text = unicode::nfc(&self.src[start..self.off]).into_owned();
         let kind = if let Some((_, k)) = KEYWORDS.iter().find(|(w, _)| *w == text) {
             *k
-        } else if unicode::is_upper(first) {
+        } else if unicode::is_upper(text.chars().next().unwrap_or(first)) {
             Kind::Tag
         } else {
             Kind::Name
         };
-        self.emit(kind, text, p);
+        self.emit(kind, &text, p);
     }
 
     /// Tries the longest operator first so that `..=` wins over `..` and `;;`

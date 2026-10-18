@@ -1,14 +1,13 @@
-//! Standard input, shared by every task (05; Go `Task.ReadLine`).
+//! Standard input, shared by every task (05).
 //!
 //! One reader thread owns the input and makes the reads; `read_line`
 //! takes the next line from a queue. So two tasks reading at once each
-//! get whole lines, every line once (Go guards its `bufio.Reader` with a
-//! mutex for the same reason).
+//! get whole lines, every line once.
 //!
-//! Reads happen only on demand, like Go's `bufio.Reader`: the reader
-//! thread reads only while a task waits for a line and none is queued,
-//! one buffer (`BUFFER`, Go's 4 KiB default; `fung` gives the input that
-//! buffer) at a time, and queues every whole line in it. What the
+//! Reads happen only on demand: the reader thread reads only while a task
+//! waits for a line and none is queued, one buffer (`BUFFER`, 64 KiB;
+//! `fung` gives the input that buffer) at a time, and queues every whole
+//! line in it. What the
 //! program never asked for stays in the input: a command after fung in
 //! a shell reads it, and keys typed ahead on a terminal are not taken.
 //!
@@ -18,9 +17,7 @@
 //! deadlock check. Unlike a read the task made itself, that wait can end
 //! early: a cancelled task stops waiting and unwinds with E0701, so an
 //! `exit(n)` from another task ends the program while a task (or the
-//! entry) still waits for a line nobody types. Go's read cannot be cut
-//! short, so Go's program waits for the line first (open-questions).
-//! A read already made goes on; the lines it brings stay queued for the
+//! entry) still waits for a line nobody types. A read already made goes on; the lines it brings stay queued for the
 //! next reader.
 //!
 //! The reader thread starts at the first read (most programs never read
@@ -36,9 +33,10 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use super::block::Waiter;
 use super::task::CancelNode;
 
-/// The buffer the command reads standard input with (Go `bufio`'s
-/// default size): one read takes at most this much.
-pub const BUFFER: usize = 4096;
+/// The buffer the command reads standard input with: one read takes at
+/// most this much. 64 KiB is the pipe buffer size on Linux, so one read
+/// empties a full pipe.
+pub const BUFFER: usize = 64 * 1024;
 
 /// The world's handle on standard input. Dropping it (with the world)
 /// tells the reader thread to stop.
@@ -176,7 +174,7 @@ impl Pump {
             let mut lines = Vec::new();
             let end = match source.fill_buf() {
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                // The end, or an error (Go: `io.EOF` once nothing is left).
+                // The end, or an error.
                 Err(_) => true,
                 Ok([]) => true,
                 Ok(chunk) => {

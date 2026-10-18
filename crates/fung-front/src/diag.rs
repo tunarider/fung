@@ -94,7 +94,8 @@ impl Diag {
     }
 }
 
-/// Renders the catalog template for a code with Go `fmt` verb semantics.
+/// Renders the catalog template for a code: `%s`, `%d`, `%q` (a fung
+/// string literal) and `%v` verbs.
 pub fn message(code: &str, args: &[Arg]) -> String {
     let Some(entry) = catalog::entry(code) else {
         let list: Vec<String> = args.iter().map(Arg::plain).collect();
@@ -258,31 +259,11 @@ pub fn is_compile_error(code: &str) -> bool {
     code.starts_with("E01") || code.starts_with("E02") || code.starts_with("E03")
 }
 
-/// Go's `strconv.Quote`.
+/// `s` as a fung string literal (01), for messages and value text:
+/// `\n` `\t` `\r` `\\` `\"`, `\$` before `{`, and `\u{X}` for what is
+/// not printable.
 pub fn quote(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\u{7}' => out.push_str("\\a"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{b}' => out.push_str("\\v"),
-            c if crate::unicode::is_print(c) => out.push(c),
-            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
-                out.push_str(&format!("\\x{:02x}", c as u32));
-            }
-            c if (c as u32) < 0x10000 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push_str(&format!("\\U{:08x}", c as u32)),
-        }
-    }
-    out.push('"');
-    out
+    crate::consts::quote_str(s)
 }
 
 #[cfg(test)]
@@ -295,7 +276,7 @@ mod tests {
         for u in [0xA0u32, 0x2003, 0x200B, 0x8E2, 0xFDD0, 0xE0001] {
             assert!(!is_print(char::from_u32(u).unwrap()), "U+{u:X}");
         }
-        // Every format (Cf) character of Go's tables, by range ends.
+        // Every format (Cf) character, by range ends.
         for u in [
             0x890u32, 0x891, 0x110BD, 0x110CD, 0x13430, 0x1343F, 0x1BCA0, 0x1BCA3, 0x1D173, 0x1D17A,
         ] {
@@ -376,9 +357,12 @@ mod tests {
     }
 
     #[test]
-    fn quote_matches_go() {
+    fn quote_uses_fung_literals() {
         assert_eq!(quote("a\tb\"c "), "\"a\\tb\\\"c \"");
-        assert_eq!(quote("\u{0}"), "\"\\x00\"");
+        assert_eq!(quote("\u{0}"), "\"\\u{0}\"");
+        assert_eq!(quote("\u{A0}"), "\"\\u{A0}\"");
+        assert_eq!(quote("\u{7}"), "\"\\u{7}\"");
+        assert_eq!(quote("${x}"), "\"\\${x}\"");
         assert_eq!(quote("한"), "\"한\"");
     }
 
@@ -393,8 +377,6 @@ mod tests {
         );
         assert!(!is_compile_error("E0502"));
     }
-
-    // Ported from Go internal/diag/error_test.go.
 
     #[test]
     fn error_uses_catalog_message() {
@@ -577,7 +559,7 @@ mod tests {
         );
     }
 
-    // Call paths; ported from Go internal/diag/error_test.go.
+    // Call paths.
 
     fn site(file: &str, line: u32, func: &str, elided: u64) -> CallSite {
         CallSite {

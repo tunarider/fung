@@ -1,5 +1,4 @@
-//! Ports of internal/resolve/{resolve,fn,m4,m5,m6}_test.go plus checks
-//! against real Go output.
+//! Resolver tests by milestone, plus whole outputs of larger programs.
 
 use std::collections::BTreeMap;
 
@@ -84,10 +83,10 @@ fn core(src: &str) -> Result<String, Vec<String>> {
         .map_err(|es| es.iter().map(|e| e.code.clone()).collect())
 }
 
-// ---- brief cases (real Go output) ----
+// ---- whole outputs ----
 
 #[test]
-fn real_go_outputs() {
+fn whole_outputs() {
     assert_eq!(
         core("x = 1 + 2 * 3").unwrap(),
         "(do (let (global 0) (op + 1 (op * 2 3))))"
@@ -168,7 +167,7 @@ fn deep_trees_do_not_overflow() {
         .unwrap();
 }
 
-// ---- resolve_test.go ----
+// ---- names and scopes ----
 
 #[test]
 fn resolve_marks_prelude_names() {
@@ -324,7 +323,7 @@ fn similar_name_threshold_scales_with_length() {
     }
 }
 
-// ---- fn_test.go ----
+// ---- functions ----
 
 #[test]
 fn top_level_fns_are_hoisted_globals() {
@@ -459,7 +458,7 @@ fn per_function_closed_sets() {
     assert_eq!(codes(&errs), vec!["E0204"]);
 }
 
-// ---- m4_test.go ----
+// ---- collections and patterns (M4) ----
 
 const M4_PRELUDE: &[&str] = &["print", "f", "g", "xs"];
 
@@ -563,7 +562,7 @@ fn rest_param_is_allowed_now() {
     assert!(fn_info(&r.core, &[0, 1]).params[1].rest);
 }
 
-// ---- m5_test.go ----
+// ---- modules (M5) ----
 
 fn m5_opts(library: bool) -> Options {
     let mut imports = BTreeMap::new();
@@ -696,7 +695,7 @@ fn duplicate_pattern_names() {
     }
 }
 
-/// Port of internal/resolve/m6_test.go `warningsOf`: each warning as
+/// Each warning as
 /// `CODE:name`, in the order reported.
 fn warnings_of(src: &str, opts: &Options) -> Vec<String> {
     let (r, errs) = resolve_with(src, &["print", "map", "len"], opts);
@@ -755,7 +754,7 @@ fn warnings() {
             "fn f():\n  return match 1: 1 => _y = 1 ;;\n;;",
             &["W0104:_y"],
         ),
-        // Beyond the Go cases (Review Focus 3), checked against Go `check`.
+        // more warning cases (Review Focus 3)
         ("fn f():\n  x = 1\n  h = () => x\n  h()\n;;", &[]), // a lambda's read counts
         ("x = 1\ntest \"t\":\n  assert x == 1\n;;", &[]),
         ("fn f(xs) = for (a, b) in xs: a ;;", &["W0102:b"]),
@@ -814,7 +813,7 @@ fn repl(globals: &[&str], redefine: bool) -> Options {
     }
 }
 
-/// Go `TestReplOptions` (m6_test.go): the REPL's earlier globals keep
+/// The REPL's earlier globals keep
 /// their indexes, and with `redefine` a known fn may be defined again.
 #[test]
 fn repl_options() {
@@ -848,8 +847,7 @@ fn repl_options() {
     assert_eq!(r.unwrap().globals.len(), 1, "reassigning a known global");
 }
 
-/// Redefinition inside one input (Go `bindNew`, `bindModule` and the fn
-/// path of `rootBlock` with `Redefine`): a plain assignment replaces a fn
+/// Redefinition inside one input (`redefine`): a plain assignment replaces a fn
 /// or a module, an import replaces a module, a fn replaces a fn. Without
 /// `redefine` each is an error.
 #[test]

@@ -19,7 +19,7 @@
 //! request line the proxy reads. Proxy variables are set on the child
 //! processes alone (`run_env`, which also removes any the test process
 //! has). https through a proxy goes through a fake proxy's tunnel to a
-//! TLS server (`fung_vm::tls_test_server`).
+//! TLS server (`common::tls_server`).
 //!
 //! The server's answers to raw requests are kept the same way, with the
 //! value of `Date` masked.
@@ -36,7 +36,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common::expected::{self, Entry};
-use common::rust_fung;
+use common::fung_bin;
 
 /// What the fake server does once it has read a request.
 #[derive(Clone)]
@@ -239,10 +239,8 @@ fn hangul_chunks() -> Vec<u8> {
 }
 
 fn cases() -> Vec<Case> {
-    // `Connection: close` (dropped from the headers both print): a
-    // `Bytes` reply ends the connection after answering, and Go, making
-    // several requests, could send the next one on that connection while
-    // it is closing and get EOF (a POST is not retried)
+    // `Connection: close` (dropped from the headers the client prints): a
+    // `Bytes` reply ends the connection after answering
     let simple = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nok";
     vec![
         // status, headers (lower case, sorted, repeated names joined), body
@@ -313,8 +311,9 @@ fn cases() -> Vec<Case> {
                 "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
             ),
         ),
-        // what the client writes: Host, User-Agent, Content-Length (bytes),
-        // the user's headers in canonical form, sorted, overriding defaults
+        // what the client writes: the user's Host and User-Agent over its
+        // own, its own Content-Length (bytes), the user's other headers in
+        // canonical form, in the map's order
         case(
             r#"print(http.post(URL + "/up", "한글 본문", headers: {"content-type": "text/plain; charset=utf-8", "user-agent": "fung-test", "x-b": "2", "X-A": " 1 ", "host": "evil.example", "content-length": "1", "x-yz_w": "u"}))"#,
             ok(simple),
@@ -350,10 +349,10 @@ print(http.get("http://u:p@127.0.0.1:PORT/f", headers: {"Authorization": ""}))
 print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
             ok(simple),
         ),
-        // an empty port is dropped (Go `removeEmptyPort`)
+        // an empty port is no port (RFC 3986 3.2.3)
         case(r#"print(http.get("http://127.0.0.1:/x"))"#, ok(simple)),
-        // a chunk size's leading zeros count as digits in Go: 16 digits
-        // are fine, 17 are too many
+        // a chunk size's leading zeros count as digits: 16 digits are
+        // fine, 17 are too many
         case(
             r#"print(http.get(URL))"#,
             ok(
@@ -390,7 +389,7 @@ print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
             r#"print(http.get(URL))"#,
             ok("HTTP/1.1 200 OK\r\nX-Fold: a\r\n  b\r\n\tc  \r\nContent-Length: 0\r\n\r\n"),
         ),
-        // malformed responses: an Err like Go's, never a hang or a panic
+        // malformed responses: an Err, never a hang or a panic
         case(r#"print(http.get(URL))"#, ok("garbage\r\n\r\n")),
         case(r#"print(http.get(URL))"#, ok("HTTP/1.1 abc OK\r\n\r\n")),
         case(r#"print(http.get(URL))"#, ok("HTTP/1.1 20 OK\r\n\r\n")),
@@ -443,8 +442,8 @@ print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
             r#"print(http.get(URL))"#,
             ok("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\nab\r\n0\r\n\r\n"),
         ),
-        // a chunk-size line fits Go's 4096-byte buffer with its LF, or
-        // is too long; a stream that ends inside one
+        // a chunk-size line fits 4096 bytes with its LF, or is too long;
+        // a stream that ends inside one
         case(
             r#"print(http.get(URL))"#,
             ok(&format!(
@@ -684,8 +683,8 @@ fn run(bin: &Path, src: &str) -> Out {
 /// The standard error of a run killed at `CHILD_LIMIT`.
 const RAN_OVER: &str = "<killed: ran over the limit>";
 
-/// The variables the client reads to choose a proxy (Go
-/// `httpproxy.FromEnvironment`): a run sees only those it is given.
+/// The variables the client reads to choose a proxy: a run sees only
+/// those it is given.
 const PROXY_VARS: &[&str] = &[
     "HTTP_PROXY",
     "http_proxy",
@@ -756,6 +755,37 @@ const NO_SERVER_CASES: usize = 30;
 const ARG_ERROR_CASES: usize = 13;
 const PLAIN_CASES: usize = 2;
 
+/// The version of the binary under test (`fung version`), which the
+/// client names in `User-Agent`; the expected outputs show it as
+/// `$VERSION`, so a build with `FUNG_BUILD_VERSION` set matches them too.
+fn fung_version() -> &'static str {
+    static V: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    V.get_or_init(|| {
+        let o = std::process::Command::new(fung_bin())
+            .arg("version")
+            .output()
+            .unwrap();
+        let text = String::from_utf8(o.stdout).unwrap();
+        text.trim().strip_prefix("fung ").unwrap().to_string()
+    })
+}
+
+/// `b` with every `from` replaced by `to`, byte for byte.
+fn replace_bytes(b: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i..].starts_with(from) {
+            out.extend_from_slice(to);
+            i += from.len();
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
 /// A run's entry: the program as written (before ports are filled in),
 /// the variables it was given, its output, and each request every server
 /// got (`request <server>.<n>`), with the ports replaced by their names.
@@ -768,7 +798,11 @@ fn entry(
     ports: &[(u16, String)],
 ) -> Entry {
     let ports: Vec<(u16, &str)> = ports.iter().map(|(p, n)| (*p, n.as_str())).collect();
-    let p = |b: &[u8]| expected::replace_ports(b, &ports);
+    let agent = format!("User-Agent: fung/{}", fung_version()).into_bytes();
+    let p = |b: &[u8]| {
+        let b = expected::replace_ports(b, &ports);
+        replace_bytes(&b, &agent, b"User-Agent: fung/$VERSION")
+    };
     let mut e = Entry::new(label).field("program", program);
     if !env.is_empty() {
         let vars: Vec<String> = env.iter().map(|(k, v)| format!("{k}={v}")).collect();
@@ -795,7 +829,7 @@ After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test htt
 
 #[test]
 fn http_client_matches_the_expected_output() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let cases = cases();
     assert_eq!(cases.len(), CLIENT_CASES, "the number of cases");
     assert_eq!(NO_SERVER.len(), NO_SERVER_CASES, "the number of cases");
@@ -812,7 +846,7 @@ fn http_client_matches_the_expected_output() {
         );
         let ports = [(fake.port, "$PORT".to_string())];
         let label = format!("server {i:02}");
-        let out = run(&rust, &src);
+        let out = run(&bin, &src);
         got.push(entry(label, c.prog, &[], &out, &[fake.take()], &ports));
     }
     let refused = refused_port();
@@ -823,19 +857,19 @@ fn http_client_matches_the_expected_output() {
         );
         let ports = [(refused, "$REFUSED".to_string())];
         let label = format!("no server {i:02}");
-        got.push(entry(label, prog, &[], &run(&rust, &src), &[], &ports));
+        got.push(entry(label, prog, &[], &run(&bin, &src), &[], &ports));
     }
     for (i, prog) in PLAIN.iter().enumerate() {
         let src = format!("import http\n{prog}");
         let label = format!("plain {i}");
-        got.push(entry(label, prog, &[], &run(&rust, &src), &[], &[]));
+        got.push(entry(label, prog, &[], &run(&bin, &src), &[], &[]));
     }
     expected::verify("http/client.txt", CLIENT_HEADER, 64 * 1024, &got);
 }
 
 #[test]
 fn argument_errors_point_at_the_call() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let mut failures = Vec::new();
     for (prog, head, frames) in ARG_ERRORS {
         let src = format!("import http\n{prog}");
@@ -850,7 +884,7 @@ fn argument_errors_point_at_the_call() {
             format!("{head}{path}{}", call_path(frames)),
             Some(1),
         );
-        let r = run(&rust, &src);
+        let r = run(&bin, &src);
         if r != want {
             failures.push(format!("{src}\n  got:  {r:?}\n  want: {want:?}"));
         }
@@ -865,7 +899,7 @@ fn argument_errors_point_at_the_call() {
             "   extras/http.fung:@fn get(@ get (1 tail calls elided)\n   -e:3       h\n   -e:4       <entry>\n"
         )
     );
-    let r = run(&rust, src);
+    let r = run(&bin, src);
     if r != (String::new(), want.clone(), Some(1)) {
         failures.push(format!("tail call: {r:?}\n  want: {want:?}"));
     }
@@ -878,23 +912,145 @@ fn argument_errors_point_at_the_call() {
 #[test]
 fn no_such_host_is_an_error() {
     let src = "import http\nprint(http.get(\"http://nosuchhost.invalid/x\"))";
-    let r = run(&rust_fung(), src);
-    if !r.0.contains("lookup nosuchhost.invalid: no such host\"") {
+    let r = run(&fung_bin(), src);
+    if !r.0.contains(": no such host\"") {
         eprintln!("no_such_host_is_an_error: the resolver said {r:?}");
-        assert!(r.0.contains("lookup nosuchhost.invalid: "), "{r:?}");
+        assert!(
+            r.0.contains("cannot request `http://nosuchhost.invalid/x`: "),
+            "{r:?}"
+        );
         return;
     }
-    let want = "Err({kind: 'network, message: \"cannot request `http://nosuchhost.invalid/x`: Get \\\"http://nosuchhost.invalid/x\\\": dial tcp: lookup nosuchhost.invalid: no such host\"})\n";
+    let want = "Err({kind: 'network, message: \"cannot request `http://nosuchhost.invalid/x`: no such host\"})\n";
     assert_eq!(r, (want.to_string(), String::new(), Some(0)));
 }
 
-/// A body may hold at most 64 MB (06; Go's client has no
-/// limit, so it would read an endless body forever). The limit holds for
+/// The request names fung in `User-Agent` (`fung/<version>`) and sends
+/// the user's headers in the map's order, their names made canonical.
+#[test]
+fn requests_name_fung_and_keep_the_header_order() {
+    let bin = fung_bin();
+    let version = fung_version();
+    let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
+    let src = format!(
+        "import http\nprint(http.get(\"http://127.0.0.1:{}/\", headers: {{\"x-b\": \"1\", \"X-A\": \"2\"}})!.status)",
+        fake.port
+    );
+    assert_eq!(run(&bin, &src), ("200\n".into(), String::new(), Some(0)));
+    let req = String::from_utf8(fake.take().remove(0)).unwrap();
+    assert!(
+        req.contains(&format!("\r\nUser-Agent: fung/{version}\r\n")),
+        "{req}"
+    );
+    let (b, a) = (req.find("\r\nX-B: 1\r\n"), req.find("\r\nX-A: 2\r\n"));
+    assert!(b.is_some() && a.is_some() && b < a, "{req}");
+}
+
+/// A user's non-empty `Host` replaces the one the client writes, also
+/// after a redirect to the same `host:port`; a redirect to another one
+/// drops it.
+#[test]
+fn a_users_host_header_replaces_the_written_one() {
+    let other = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    let fake = Fake::start(Reply::Routes(Arc::new(vec![
+        ("/same".to_string(), redirect(302, "/end")),
+        (
+            "/away".to_string(),
+            redirect(302, &format!("http://127.0.0.1:{}/x", other.port)),
+        ),
+        ("*".to_string(), named("end")),
+    ])));
+    let src = format!(
+        "import http\nh = {{Host: \"example.test\"}}\nprint(http.get(\"http://127.0.0.1:{p}/same\", headers: h)!.status)\nprint(http.get(\"http://127.0.0.1:{p}/away\", headers: h)!.status)",
+        p = fake.port
+    );
+    assert_eq!(
+        run(&fung_bin(), &src),
+        ("200\n200\n".into(), String::new(), Some(0))
+    );
+    let hosts = |reqs: Vec<Vec<u8>>| -> Vec<Vec<String>> {
+        reqs.iter()
+            .map(|r| {
+                String::from_utf8_lossy(r)
+                    .lines()
+                    .filter_map(|l| l.strip_prefix("Host: ").map(str::to_string))
+                    .collect()
+            })
+            .collect()
+    };
+    let want = vec![vec!["example.test".to_string()]; 3];
+    assert_eq!(hosts(fake.take()), want);
+    assert_eq!(
+        hosts(other.take()),
+        vec![vec![format!("127.0.0.1:{}", other.port)]]
+    );
+}
+
+/// A refused connection is its reason alone after the URL.
+#[test]
+fn a_refused_connection_gives_its_reason() {
+    let port = refused_port();
+    let src = format!("import http\nprint(http.get(\"http://127.0.0.1:{port}/x\"))");
+    let want = format!(
+        "Err({{kind: 'network, message: \"cannot request `http://127.0.0.1:{port}/x`: connection refused\"}})\n"
+    );
+    assert_eq!(run(&fung_bin(), &src), (want, String::new(), Some(0)));
+}
+
+/// The request's `timeout` covers the TLS handshake as it covers the
+/// rest: a server that never answers the hello is a timeout when the
+/// request's time is up, with no shorter limit of the handshake's own.
+#[test]
+fn the_request_timeout_covers_a_slow_handshake() {
+    // the kernel accepts for it; nothing ever answers
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let src = format!("import http\nprint(http.get(\"https://127.0.0.1:{port}/\", timeout: 11s))");
+    let start = std::time::Instant::now();
+    let r = run(&fung_bin(), &src);
+    let took = start.elapsed();
+    drop(l);
+    let want = format!(
+        "Err({{kind: 'timeout, message: \"request to `https://127.0.0.1:{port}/` timed out\"}})\n"
+    );
+    assert_eq!(r, (want, String::new(), Some(0)));
+    assert!(took >= Duration::from_secs(11), "{took:?}");
+}
+
+/// A redirect's body is not read: the client closes the connection and
+/// goes to the next URL at once, even when the body stalls.
+#[test]
+fn a_stalled_redirect_body_is_not_waited_for() {
+    let fake = Fake::start(Reply::Routes(Arc::new(vec![
+        (
+            "/start".to_string(),
+            Reply::Hold(bytes(
+                "HTTP/1.1 302 Found\r\nLocation: /end\r\nContent-Length: 100\r\n\r\nabc",
+            )),
+        ),
+        (
+            "/end".to_string(),
+            ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"),
+        ),
+    ])));
+    let src = format!(
+        "import http\nr = http.get(\"http://127.0.0.1:{}/start\", timeout: 5s)!\nprint(r.status, r.body)",
+        fake.port
+    );
+    let start = std::time::Instant::now();
+    let r = run(&fung_bin(), &src);
+    let took = start.elapsed();
+    assert_eq!(r, ("200 ok\n".into(), String::new(), Some(0)));
+    assert!(took < Duration::from_secs(4), "{took:?}");
+}
+
+/// A body may hold at most 64 MiB (06: no unbounded memory, so an
+/// endless body is an error, not a hang). The limit holds for
 /// a body read to the end of the connection, a declared length and a
 /// chunk size, without reading what is past it.
 #[test]
 fn bodies_past_the_limit_are_errors() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let cases = [
         Reply::Endless(bytes("HTTP/1.1 200 OK\r\n\r\n")),
         Reply::Hold(bytes("HTTP/1.1 200 OK\r\nContent-Length: 67108865\r\n\r\n")),
@@ -905,9 +1061,9 @@ fn bodies_past_the_limit_are_errors() {
     for reply in cases {
         let fake = Fake::start(reply);
         let url = format!("http://127.0.0.1:{}/", fake.port);
-        let got = run(&rust, &format!("import http\nprint(http.get(\"{url}\"))"));
+        let got = run(&bin, &format!("import http\nprint(http.get(\"{url}\"))"));
         let want = format!(
-            "Err({{kind: 'network, message: \"cannot request `{url}`: http: response body longer than 67108864 bytes\"}})\n"
+            "Err({{kind: 'network, message: \"cannot request `{url}`: response body longer than 67108864 bytes\"}})\n"
         );
         assert_eq!(got, (want, String::new(), Some(0)));
     }
@@ -930,7 +1086,7 @@ fn bodies_past_the_limit_are_errors() {
 #[cfg(not(debug_assertions))]
 #[test]
 fn many_folded_lines_stay_linear() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let time = |lines: usize| {
         let mut reply = bytes("HTTP/1.1 200 OK\r\nX-Fold: a\r\n");
         reply.extend(b" b\r\n".repeat(lines));
@@ -944,7 +1100,7 @@ fn many_folded_lines_stay_linear() {
         (0..3)
             .map(|_| {
                 let start = std::time::Instant::now();
-                let got = run(&rust, &src);
+                let got = run(&bin, &src);
                 let took = start.elapsed();
                 assert_eq!(got, want, "{lines} lines");
                 took
@@ -964,9 +1120,9 @@ fn many_folded_lines_stay_linear() {
 
 // ---- Task 4: redirects and proxies ------------------------------------
 
-/// A redirect (`Connection: close`: one request per connection, so Go
-/// never reuses one the fake server is closing; every framed `Bytes`
-/// reply a program asks for more than once says it too).
+/// A redirect (`Connection: close`, as every framed `Bytes` reply a
+/// program asks for more than once says: the fake server ends each
+/// connection after its answer).
 fn redirect(code: u16, loc: &str) -> Reply {
     ok(&format!(
         "HTTP/1.1 {code} Moved\r\nLocation: {loc}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
@@ -1030,7 +1186,7 @@ fn refused_port() -> u16 {
 /// are ports (`REFUSED`, `TLSPORT`, ...) appear in the entries as `$WORD`,
 /// server n's port as `$PORTn`.
 fn run_cases(cases: Vec<Multi>, words: &[(&str, String)]) -> Vec<Entry> {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let mut words = words.to_vec();
     words.push(("REFUSED", refused_port().to_string()));
     let mut got = Vec::new();
@@ -1067,7 +1223,7 @@ fn run_cases(cases: Vec<Multi>, words: &[(&str, String)]) -> Vec<Entry> {
             )
             .collect();
         let label = format!("case {i:02}");
-        let out = run_env(&rust, &src, &env);
+        let out = run_env(&bin, &src, &env);
         assert!(out.1 != RAN_OVER, "ran over {CHILD_LIMIT:?} on:\n{src}");
         let reqs: Vec<Vec<Vec<u8>>> = fakes.iter().map(|f| f.take()).collect();
         got.push(entry(label, &c.prog, &c.env, &out, &reqs, &names));
@@ -1104,8 +1260,7 @@ fn chain(last: usize) -> Reply {
     Reply::Routes(Arc::new(rs))
 }
 
-/// Locations resolved against `/a/b/s<i>?k=v` (Go `URL.Parse` and
-/// `ResolveReference`).
+/// Locations resolved against `/a/b/s<i>?k=v` (RFC 3986 5.2).
 const LOCATIONS: &[&str] = &[
     "end",
     "../x",
@@ -1138,7 +1293,7 @@ fn redirect_cases() -> Vec<Multi> {
             &[],
         ));
     }
-    // codes Go does not follow, and 3xx answers without a Location
+    // codes that are not followed, and 3xx answers without a Location
     v.push(multi(
         r#"print(http.get(URL + "/300"))
 print(http.get(URL + "/304"))
@@ -1147,8 +1302,7 @@ print(http.get(URL + "/306"))
 print(http.get(URL + "/309"))
 print(http.get(URL + "/none"))
 print(http.get(URL + "/empty"))
-print(http.request("HEAD", URL + "/none"))
-sleep(200ms)"#,
+print(http.request("HEAD", URL + "/none"))"#,
         vec![routes(vec![
             ("/300", redirect(300, "/end")),
             ("/304", redirect(304, "/end")),
@@ -1156,10 +1310,7 @@ sleep(200ms)"#,
             ("/306", redirect(306, "/end")),
             ("/309", redirect(309, "/end")),
             // `Connection: close`: the HEAD request leaves `found` unread
-            // on the connection, and Go, finding it on an idle kept-alive
-            // connection, logs "Unsolicited response received on idle
-            // HTTP channel" on stderr if the program is still running
-            // (a flake in the comparison; the `sleep` makes it certain)
+            // on the connection, which the client closes
             (
                 "/none",
                 ok("HTTP/1.1 302 Found\r\nConnection: close\r\nContent-Length: 5\r\n\r\nfound"),
@@ -1189,22 +1340,27 @@ sleep(200ms)"#,
         servers: vec![Reply::Routes(Arc::new(rs))],
         env: Vec::new(),
     });
-    // Locations that fail: they do not parse, or the next request cannot
-    // be made
+    // Locations that fail: they do not parse, or the next request gets
+    // no answer
     v.push(multi(
         r#"print(http.get(URL + "/bad1"))
 print(http.get("http://u:secret@127.0.0.1:PORT0/bad2"))
 print(http.post(URL + "/bad3", "x"))
 print(http.get(URL + "/bad4"))
 print(http.get(URL + "/bad5"))"#,
-        vec![routes(vec![
-            ("/bad1", redirect(302, "http://[::1")),
-            ("/bad2", redirect(302, "/%zz")),
-            ("/bad3", redirect(307, "ftp://x/y")),
-            ("/bad4", redirect(302, "http:opaque")),
-            ("/bad5", redirect(302, "http://127.0.0.1:REFUSED/gone")),
-            ("*", named("end")),
-        ])],
+        vec![
+            routes(vec![
+                ("/bad1", redirect(302, "http://[::1")),
+                ("/bad2", redirect(302, "/%zz")),
+                ("/bad3", redirect(307, "ftp://x/y")),
+                ("/bad4", redirect(302, "http:opaque")),
+                ("/bad5", redirect(302, "http://127.0.0.1:PORT1/gone")),
+                ("*", named("end")),
+            ]),
+            // reads the request and ends the connection without answering
+            // (a server the test holds: a refused port could be taken)
+            Reply::Bytes(Vec::new()),
+        ],
         &[],
     ));
     // the body of a redirect is never read: an endless one, one cut short
@@ -1231,9 +1387,9 @@ print(http.get(URL + "/chunks"))"#,
         ])],
         &[],
     ));
-    // Go drains up to 2 KB of a redirect's body (when its length is
-    // unknown or at most that) before following it, waiting for it: a
-    // stalled body runs into the timeout; a longer one is not read
+    // a redirect's body is not read: a stalled one, one without a
+    // length, a chunked one and a long one all go on to the target at
+    // once
     v.push(multi(
         r#"print(http.get(URL + "/hold", timeout: 2s))
 print(http.get(URL + "/holdnolen", timeout: 2s))
@@ -1264,16 +1420,15 @@ print(http.request("HEAD", URL + "/headchunks", timeout: 2s))"#,
                     "HTTP/1.1 302 Found\r\nLocation: /end\r\nContent-Length: 5000\r\n\r\nabc",
                 )),
             ),
-            // Go parses the Location before it drains: a bad one fails at
-            // once, whatever the body does
+            // a bad Location fails at once, whatever the body does
             (
                 "/badhold",
                 Reply::Hold(bytes(
                     "HTTP/1.1 302 Found\r\nLocation: http://[::1\r\nContent-Length: 10\r\n\r\nabc",
                 )),
             ),
-            // a HEAD answer has no body to drain (`Connection: close`
-            // keeps Go from finding the chunk on an idle connection)
+            // a HEAD answer has no body (`Connection: close`: the fake
+            // server ends the connection)
             (
                 "/headchunks",
                 Reply::Hold(bytes(
@@ -1284,15 +1439,15 @@ print(http.request("HEAD", URL + "/headchunks", timeout: 2s))"#,
         ])],
         &[],
     ));
-    // ten requests at most: nine redirects pass, the tenth fails; a loop
+    // ten redirects are followed, the eleventh is an error; a loop
     v.push(multi(
         r#"print(http.get(URL + "/r/0"))"#,
-        vec![chain(9)],
+        vec![chain(10)],
         &[],
     ));
     v.push(multi(
         r#"print(http.request("HEAD", URL + "/r/0"))"#,
-        vec![chain(10)],
+        vec![chain(11)],
         &[],
     ));
     v.push(multi(
@@ -1438,7 +1593,7 @@ After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test htt
 /// A proxy that names itself in its answer: a 403 whose reason and body
 /// are `name` (a request through it is `Ok` with that body, a CONNECT
 /// through it fails with that reason). `Connection: close`, as for
-/// `redirect`: Go makes several requests through one proxy.
+/// `redirect`: several requests go through one proxy.
 fn proxy_named(name: &str) -> Reply {
     ok(&format!(
         "HTTP/1.1 403 {name}\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{name}",
@@ -1500,7 +1655,7 @@ print(http.get("https://example.test/a"))"#,
             ],
         ),
         // loopback hosts and localhost never use the proxy; LOCALHOST does
-        // (Go compares the name as written)
+        // (the name is compared as written)
         multi(
             r#"print(http.get("http://127.0.0.1:PORT1/a"))
 print(http.get("http://localhost:PORT1/b"))
@@ -1801,7 +1956,7 @@ const NO_PROXY_ROWS: usize = 23;
 #[test]
 fn no_proxy_patterns_choose_the_proxy() {
     assert_eq!(NO_PROXY_TABLE.len(), NO_PROXY_ROWS, "the number of rows");
-    let rust = rust_fung();
+    let bin = fung_bin();
     let refused = refused_port().to_string();
     let mut failures = Vec::new();
     for (vars, urls) in NO_PROXY_TABLE {
@@ -1822,7 +1977,7 @@ fn no_proxy_patterns_choose_the_proxy() {
         env.extend(vars.iter().map(|(k, v)| (k.to_string(), v.to_string())));
         let want: Vec<&str> = urls.iter().map(|(_, w)| *w).collect();
         let want = (format!("{}\n", want.join(" ")), String::new(), Some(0));
-        let r = run_env(&rust, &src, &env);
+        let r = run_env(&bin, &src, &env);
         if r != want {
             failures.push(format!(
                 "{vars:?} {urls:?}\n  got:  {r:?}\n  want: {want:?}"
@@ -1913,7 +2068,7 @@ fn canonical(name: &str) -> String {
 /// its port.
 fn tls_server(cert: &str) -> u16 {
     let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
-    fung_vm::tls_test_server::start(
+    common::tls_server::start(
         &data.join(format!("{cert}.pem")),
         &data.join(format!("{cert}.key")),
         Arc::new(tls_echo),
@@ -1993,7 +2148,7 @@ print(show(http.get("https://wrong.example/r?to=https://wrong.example:8443/y", h
 /// not supported.
 #[test]
 fn unsupported_proxies_are_errors() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let cases = [
         (
             "HTTP_PROXY",
@@ -2010,9 +2165,10 @@ fn unsupported_proxies_are_errors() {
     ];
     for (var, proxy, url, why) in cases {
         let src = format!("import http\nprint(http.get(\"{url}\"))");
-        let got = run_env(&rust, &src, &[(var.to_string(), proxy.to_string())]);
+        let got = run_env(&bin, &src, &[(var.to_string(), proxy.to_string())]);
+        let at = proxy.split("://").nth(1).unwrap();
         let want = format!(
-            "Err({{kind: 'network, message: \"cannot request `{url}`: Get \\\"{url}\\\": proxyconnect tcp: {why}\"}})\n"
+            "Err({{kind: 'network, message: \"cannot request `{url}`: proxy `{at}`: {why}\"}})\n"
         );
         assert_eq!(got, (want, String::new(), Some(0)));
     }
@@ -2242,7 +2398,7 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         b.extend_from_slice(b"0\r\n\r\n");
         b
     };
-    // 9999 `&`: 10000 pairs (Go's limit), then 10001
+    // 9999 `&`: 10000 pairs (the server's limit), then 10001
     let many = "a=1&".repeat(9999);
     let raw = |s: &str| (s.as_bytes().to_vec(), false);
     let mut v: Vec<(Vec<u8>, bool)> = vec![
@@ -2322,7 +2478,8 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         (get("/badbody"), false),
         (get("/badheader"), false),
         raw("HEAD /fail HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
-        // malformed requests: Go's own answers, the handler not called
+        // malformed requests: the server's own answers, the handler not
+        // called
         raw("GARBAGE\r\n\r\n"),
         raw("\r\nGET /count HTTP/1.1\r\nHost: x\r\n\r\n"),
         raw("GE T /count HTTP/1.1\r\nHost: x\r\n\r\n"),
@@ -2425,7 +2582,7 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
             ),
             false,
         ),
-        // header lines past Go's limits: 431
+        // header lines past the limits: 431
         (
             raw(&format!(
                 "GET /count HTTP/1.1\r\nHost: x\r\nX: {}\r\n\r\n",
@@ -2465,6 +2622,43 @@ const SERVER_HEADER: &str =
 value. The last entry is the server's output after its address and its exit.
 After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test http";
 
+/// The answers the server makes itself: a status without a standard
+/// reason phrase has an empty one, a request it cannot read gets
+/// `<code> <reason>` as its body, and a request head may hold 1 MiB (its
+/// lines with their CRLFs and the blank line).
+#[test]
+fn the_servers_own_answers() {
+    let src = "import http\nfn handle(req) = match req.path:\n  \"/odd\"    => {status: 599, body: \"x\"}\n  \"/teapot\" => {status: 418, body: \"x\"}\n  _         => \"ok\"\n;;\nprint(http.serve(\"127.0.0.1:0\", handle, ready: a => print(a)))";
+    let srv = serve(&fung_bin(), src);
+    let odd = String::from_utf8(exchange(&srv.addr, get("/odd"), false)).unwrap();
+    assert!(odd.starts_with("HTTP/1.1 599 \r\n"), "{odd}");
+    // 418 is "(Unused)" in the IANA registry: no reason phrase
+    let teapot = String::from_utf8(exchange(&srv.addr, get("/teapot"), false)).unwrap();
+    assert!(teapot.starts_with("HTTP/1.1 418 \r\n"), "{teapot}");
+    let bad = String::from_utf8(exchange(&srv.addr, b"GARBAGE\r\n\r\n".to_vec(), false)).unwrap();
+    assert!(bad.starts_with("HTTP/1.1 400 Bad Request\r\n"), "{bad}");
+    assert!(bad.ends_with("\r\n\r\n400 Bad Request\n"), "{bad}");
+    // a head of `total` bytes in all
+    let head = |total: usize| {
+        let start = "GET /x HTTP/1.1\r\nHost: x\r\nConnection: close\r\nX: ";
+        let pad = total - start.len() - "\r\n\r\n".len();
+        format!("{start}{}\r\n\r\n", "a".repeat(pad)).into_bytes()
+    };
+    let fits = String::from_utf8(exchange(&srv.addr, head(1 << 20), true)).unwrap();
+    assert!(
+        fits.starts_with("HTTP/1.1 200 OK\r\n"),
+        "{}",
+        &fits[..fits.len().min(200)]
+    );
+    let over = String::from_utf8(exchange(&srv.addr, head((1 << 20) + 1), true)).unwrap();
+    assert!(
+        over.starts_with("HTTP/1.1 431 Request Header Fields Too Large\r\n")
+            && over.ends_with("\r\n\r\n431 Request Header Fields Too Large\n"),
+        "{over}"
+    );
+    srv.kill();
+}
+
 /// A server's answers to `reqs` and how it ended, as entries.
 fn server_entries(bin: &Path, reqs: &[(Vec<u8>, bool)]) -> Vec<Entry> {
     let s = serve(bin, SERVER);
@@ -2493,7 +2687,7 @@ fn server_entries(bin: &Path, reqs: &[(Vec<u8>, bool)]) -> Vec<Entry> {
 fn http_server_matches_the_expected_output() {
     let reqs = server_requests();
     assert_eq!(reqs.len(), SERVER_REQUESTS, "the number of requests");
-    let got = server_entries(&rust_fung(), &reqs);
+    let got = server_entries(&fung_bin(), &reqs);
     let first = got[0].get("answer").unwrap();
     assert!(
         first.starts_with(b"HTTP/1.1 200 OK\r\n"),
@@ -2567,7 +2761,7 @@ fn keep_alive_answers_say_connection_close() {
         );
         out
     };
-    let got = entries(&rust_fung());
+    let got = entries(&fung_bin());
     assert_eq!(got.len(), 5, "the number of cases");
     expected::verify("http/keep-alive.txt", KEEP_ALIVE_HEADER, 64 * 1024, &got);
 }
@@ -2577,7 +2771,7 @@ fn keep_alive_answers_say_connection_close() {
 /// without an answer. The limit is not made shorter for tests.
 #[test]
 fn a_slow_client_is_cut_off_after_ten_seconds() {
-    let s = serve(&rust_fung(), SERVER);
+    let s = serve(&fung_bin(), SERVER);
     let start = std::time::Instant::now();
     let got = exchange(
         &s.addr,
@@ -2612,7 +2806,7 @@ After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test htt
 /// `test_matches_the_expected_output_on_the_repository`).
 #[test]
 fn the_http_examples_run() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let tmp = std::env::temp_dir().join(format!("fung-static-{}", std::process::id()));
     std::fs::create_dir_all(tmp.join("docs")).unwrap();
     std::fs::write(tmp.join("index.html"), "<h1>hi</h1>").unwrap();
@@ -2660,13 +2854,13 @@ fn the_http_examples_run() {
             )
             .field("stderr", expected::replace(log.1.as_bytes(), &subs))
     };
-    let (mut got, r_server) = answers(&rust);
+    let (mut got, r_server) = answers(&bin);
     let answer = String::from_utf8_lossy(got[1].get("answer").unwrap()).into_owned();
     assert!(answer.contains("안녕, 한글"), "{answer}");
     // checkurls (conc.pmap over http.get) against the server
     let base = format!("http://{}", r_server.addr);
     let urls = [format!("{base}/data.json"), format!("{base}/nope")];
-    let mut cmd = std::process::Command::new(&rust);
+    let mut cmd = std::process::Command::new(&bin);
     cmd.args(["run", "examples/checkurls.fung"])
         .args(&urls)
         .current_dir(common::repo());
@@ -2700,7 +2894,7 @@ After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test htt
 /// port name. `ready` is not called then.
 #[test]
 fn serve_bind_failures_match_the_expected_output() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let held = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = held.local_addr().unwrap().port();
     let addrs = [
@@ -2717,7 +2911,7 @@ fn serve_bind_failures_match_the_expected_output() {
         let src = format!("import http\n{}", prog.replace("PORT", &port.to_string()));
         let ports = [(port, "$PORT".to_string())];
         let label = format!("bind {i}");
-        got.push(entry(label, &prog, &[], &run(&rust, &src), &[], &ports));
+        got.push(entry(label, &prog, &[], &run(&bin, &src), &[], &ports));
     }
     drop(held);
     assert_eq!(got.len(), 5, "the number of cases");
@@ -2731,7 +2925,7 @@ fn serve_bind_failures_match_the_expected_output() {
 fn a_panicking_test_leaves_no_server_behind() {
     let (tx, rx) = std::sync::mpsc::channel();
     let panicked = std::thread::spawn(move || {
-        let s = serve(&rust_fung(), SERVER);
+        let s = serve(&fung_bin(), SERVER);
         tx.send(s.child.id()).unwrap();
         panic!("on purpose, with the server running");
     })

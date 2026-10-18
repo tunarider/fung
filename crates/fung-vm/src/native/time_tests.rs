@@ -1,4 +1,4 @@
-//! Go `TestTimeModule`: the `_native.time` natives called directly.
+//! `_native.time` tests: the natives called directly.
 
 use std::io::Cursor;
 use std::rc::Rc;
@@ -113,18 +113,18 @@ fn time_module() {
         "E0403"
     );
     assert_eq!(code(call("parse", vec![iso, Value::Int(1)])), "E0403");
-    assert_eq!(code(call("from_unix", vec![Value::Int(1 << 62)])), "E0403");
-    assert_eq!(
-        code(call("from_unix", vec![Value::Int(-(1 << 62))])),
-        "E0403"
-    );
-    ok("from_unix", vec![Value::Int((1 << 62) - 1)]);
+    // Years 0000 to 9999.
+    let (min, max) = (crate::value::MIN_UNIX, crate::value::MAX_UNIX);
+    assert_eq!(code(call("from_unix", vec![Value::Int(max + 1)])), "E0403");
+    assert_eq!(code(call("from_unix", vec![Value::Int(min - 1)])), "E0403");
+    ok("from_unix", vec![Value::Int(max)]);
+    ok("from_unix", vec![Value::Int(min)]);
 }
 
 /// `format(t)` without a layout is the ISO form; a time made in UTC keeps it.
 #[test]
 fn format_default_is_iso() {
-    let t = Value::Time(Rc::new(Time::from_unix(0, 5, Loc::Utc)));
+    let t = Value::Time(Rc::new(Time::from_unix(0, 5, Loc::Utc).unwrap()));
     assert_eq!(
         format(&ok("format", vec![t, Value::Nil])),
         "\"1970-01-01T00:00:00.000000005Z\""

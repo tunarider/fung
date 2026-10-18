@@ -158,6 +158,7 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
         "",
     ),
     (r#"print(repeat("ab", 50000001))"#, ""),
+    (r#"print(repeat("ab", 9223372036854775807))"#, ""),
     (r#"print(repeat("a", 100000000) == "")"#, ""),
     (r#"print(repeat(1, 2))"#, ""),
     (r#"print(repeat("a", "2"))"#, ""),
@@ -444,7 +445,7 @@ print(conc.retry(() => Ok(1)), conc.retry(() => 2, times: 1), until(1, x => x * 
         "",
     ),
     // --- concurrency: argument binding happens before the native runs,
-    // so both give the same errors (the parameter tables are Go's) ---
+    // so wrong arguments fail by the parameter tables ---
     (r#"spawn()"#, ""),
     (r#"spawn(1, 2)"#, ""),
     (r#"channel(1, 2)"#, ""),
@@ -509,7 +510,10 @@ print(c, [c], type_of(c), c == c, c == channel(), c != 1)"#,
     (r#"channel(-1)"#, ""),
     (r#"channel(1.5)"#, ""),
     (r#"channel("a")"#, ""),
-    (r#"channel(17592186044410)"#, ""),
+    (
+        "ch = channel(17592186044410)\nprint(send(ch, 1), recv(ch))",
+        "",
+    ),
     (r#"send(1, 2)"#, ""),
     (r#"recv(1)"#, ""),
     (r#"close(1)"#, ""),
@@ -554,9 +558,9 @@ close(c)
 map(c, 3)"#,
         "",
     ),
-    // No atoms: stage 3b replaced them with agents in Rust only, so
-    // they cannot be compared (`vm/agent_tests.rs`, `tests/lang/agents.fung`;
-    // Go's own golden files keep testing its atoms).
+    // No atoms: stage 3b replaced them with agents, tested in
+    // `vm/agent_tests.rs` and `tests/lang/agents.fung`.
+
     // --- process functions ---
     (r#"print(exec(["echo", "hi there"]))"#, ""),
     (r#"print(sh("echo a; echo b >&2; exit 3"))"#, ""),
@@ -646,7 +650,7 @@ print(run("exit 2")?)"#,
         "",
     ),
     (r#"print(sh("exit 2")!)"#, ""),
-    // Go's Unicode classes (spec/unicode.txt): map keys, sym, quoting.
+    // fung's character classes (spec/unicode.txt): map keys, sym, quoting.
     (
         r#"print({"x²": 1, "Ⅻ": 2, "हिंदी": 3, "ß": 4, "Σ1": 5, "한글": 6, "x٣": 7, "Ⓐ": 8})"#,
         "",

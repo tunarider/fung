@@ -1,11 +1,11 @@
-//! `fung test [path]` (Go `cmd/fung/test.go`, 08): every `.fung` file
+//! `fung test [path]` (08): every `.fung` file
 //! below the path (default `.`) is compiled with its test blocks and, if
 //! it has any, runs as an entry file on a runtime of its own: the top
 //! level first, then each test block in order. A file without tests is
 //! neither run nor listed.
 //!
 //! The end of each file, in order: the program's tasks are cancelled and
-//! waited for (Go), then the exit handlers run, then the background tasks
+//! waited for, then the exit handlers run, then the background tasks
 //! end (stage 3b: an agent serves the handlers too), then the task
 //! failures nobody retrieved are reported, and the runtime is dropped.
 //! So nothing a file starts reaches the next one.
@@ -13,7 +13,7 @@
 //! Exit codes: 2 if any file failed to compile, else 1 if any test
 //! failed, else 0. An `exit(n)` inside a test file is a failure and skips
 //! the rest of that file; its code is not the command's. So does an exit
-//! a spawned task asks for, or a deadlock (Rust only; Go runs on); when
+//! a spawned task asks for, or a deadlock; when
 //! that skip follows a block that passed, it is a failure of its own
 //! (`<rest of file>`), as one before the first block fails the top level.
 
@@ -23,7 +23,7 @@ use std::io::Write;
 use fung_front::bytecode::{Op, Proto};
 use fung_front::diag::{self, Diag, EXIT_COMPILE, EXIT_OK, EXIT_RUNTIME, EXIT_USAGE};
 use fung_front::loader::{Loader, Stage};
-use fung_front::source::{SourceMap, decode_go};
+use fung_front::source::{SourceMap, decode_lossy};
 use fung_vm::vm::{Runtime, Stop};
 
 use crate::run::ProcessOut;
@@ -90,7 +90,7 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
     }
 }
 
-/// Compiles one file with its tests and runs it (Go `runTestFile`).
+/// Compiles one file with its tests and runs it.
 fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
     let mut t = Tally::default();
     let stdout = &mut ProcessOut::stdout();
@@ -98,13 +98,16 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
     let src = match read_file(path) {
         Ok(s) => s,
         Err(msg) => {
-            let _ =
-                stderr.write_all(&[b"error: cannot read ", path, b": ", &msg[..], b"\n"].concat());
+            // a file that cannot be read fails like one that cannot load
+            let _ = stdout.write_all(&[b"FAIL ", path, b": <load>\n"].concat());
+            let _ = stderr
+                .write_all(&[b"error: ", &crate::cannot_read(path, &msg)[..], b"\n"].concat());
             t.compile_failed = true;
+            t.failed += 1;
             return t;
         }
     };
-    let name = decode_go(path);
+    let name = decode_lossy(path);
     let loader = Loader {
         tests: true,
         ..Loader::default()
@@ -117,8 +120,7 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
     if !errs.is_empty() {
         // A file that cannot load is a failure in the summary; an error
         // shared with other files (a broken import) is printed once. The
-        // key names the file by its name, as Go's does: ids are local to
-        // each compile.
+        // key names the file by its name: ids are local to each compile.
         let _ = stdout.write_all(&[b"FAIL ", path, b": <load>\n"].concat());
         let fresh: Vec<Diag> = errs
             .into_iter()
@@ -148,8 +150,10 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
         b.sources,
     );
     if let Err(errs) = rt.boot(Vec::new()) {
+        let _ = stdout.write_all(&[b"FAIL ", path, b": <load>\n"].concat());
         let _ = stderr.write_all(&rt.with_sources(|s| shown(&errs, s)));
         t.compile_failed = true;
+        t.failed += 1;
         return t;
     }
     rt.load(&entry, &b.modules);
@@ -175,9 +179,8 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
     };
     // An exit asked for by a task the block did not wait out, or a
     // deadlock (which asks for exit(1)), cancels the file's program like
-    // a direct exit(n): the rest of the file is skipped (08). Go goes on
-    // with the next block on the cancelled program, where a block that
-    // makes no fung call passes and one that does fails with E0701.
+    // a direct exit(n): the rest of the file is skipped (08), since the
+    // blocks after it would run on a cancelled program.
     let skipped = |rt: &Runtime| {
         let note = if rt.deadlocked() {
             "  a deadlock was reported; the rest of the file was skipped\n".to_string()
@@ -217,10 +220,10 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
                             false
                         }
                     };
-                    // Only when blocks remain: a file whose last block
-                    // ends this way prints what Go prints. After a block
-                    // that passed, the skip is a failure of its own, as
-                    // at the top level: a run never ends silently (08).
+                    // Only when blocks remain: after the last block there
+                    // is nothing to skip. After a block that passed, the
+                    // skip is a failure of its own, as at the top level:
+                    // a run never ends silently (08).
                     if i + 1 < tests.len()
                         && let Some(note) = skipped(&rt)
                     {
@@ -236,9 +239,10 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
             }
         }
     }
-    // The file is done (Go): cancel what its code left running and wait
-    // for it, then the exit handlers. A handler's exit(n), deadlock
-    // report (E0702) or cancellation (E0701) is not reported.
+    // The file is done: cancel what its code left running and wait for
+    // it, then the exit handlers. A handler's exit(n), deadlock report
+    // (E0702) or cancellation (E0701) is not reported; any other failure
+    // of a handler fails the file (a run never ends silently, 08).
     rt.cancel_all();
     rt.wait();
     rt.release();
@@ -246,7 +250,8 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
         if d.code == "E0701" || d.code == "E0702" {
             continue;
         }
-        let _ = stderr.write_all(&rt.with_sources(|s| shown(std::slice::from_ref(&d), s)));
+        let _ = stdout.write_all(&failure("<exit handler>", &Stop::Error(Box::new(d))));
+        t.failed += 1;
     }
     // The handlers are done: end the background tasks (stage 3b), then a
     // task failure nobody retrieved fails the file (05).
@@ -267,13 +272,13 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
     t
 }
 
-/// Whether the entry body registers any test (Go `hasTests`: tests are
+/// Whether the entry body registers any test (tests are
 /// top-level only, so the entry's own code is enough).
 fn has_tests(p: &Proto) -> bool {
     p.code.iter().any(|i| i.op() == Op::Test)
 }
 
-/// Prefixes every line with two spaces (Go `indent`).
+/// Prefixes every line with two spaces.
 fn indent(s: &[u8]) -> Vec<u8> {
     let s = s.strip_suffix(b"\n").unwrap_or(s);
     let mut out = Vec::with_capacity(s.len() + 16);
@@ -290,7 +295,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn indent_matches_go() {
+    fn indent_prefixes_every_line() {
         assert_eq!(indent(b"a\nb\n"), b"  a\n  b\n");
         assert_eq!(indent(b"a\n\nb"), b"  a\n  \n  b\n");
         assert_eq!(indent(b""), b"  \n");
@@ -308,7 +313,7 @@ mod tests {
         assert_eq!(out.code, EXIT_USAGE);
         assert_eq!(
             out.stderr,
-            b"error: stat /nonexistent/fung-test-path: no such file or directory\n"
+            b"error: cannot read `/nonexistent/fung-test-path`: no such file or directory\n"
         );
     }
 }

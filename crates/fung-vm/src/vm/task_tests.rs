@@ -1,9 +1,5 @@
 //! Tasks (stage 3a, Task 3): `spawn`, `await`, `cancel`, `sleep`, the
-//! blocking point and turn handoff. Ports of Go `internal/vm/conc_test.go`
-//! `TestSleepWaitsAndIsCancellable`, `TestSpawnAwaitAndResults`, the
-//! output half of `TestAwaitTimeoutDoesNotHideALaterFailure`, and
-//! `context_test.go` `TestRunTaskRunsOnAFreshTask`. Expected outputs come
-//! from the Go binary.
+//! blocking point and turn handoff, and `run_task` for natives.
 
 use std::time::{Duration, Instant};
 
@@ -13,7 +9,7 @@ use crate::value::{Native, Value};
 use crate::vm::{Stop, Task};
 
 #[test]
-fn spawn_and_await_like_go() {
+fn spawn_and_await_basics() {
     let (out, err, code) = run(
         "ts = for i in 1..=3: spawn(() => i * 2) ;;\nprint(ts |> map(await), await(spawn(() => Err('e))), await(spawn(() => 1 / 0)) |> is_err)",
     );
@@ -26,8 +22,8 @@ fn spawn_and_await_like_go() {
 #[test]
 fn cancel_reaches_a_sleeping_task_and_its_children() {
     let start = Instant::now();
-    // The run waits for the tasks the entry leaves (Go `execute`), so the
-    // sleeper the timed-out await leaves is cancelled at the end.
+    // The run waits for the tasks the entry leaves, so the sleeper the
+    // timed-out await leaves is cancelled at the end.
     let (out, _, code) = run(
         "t = spawn(fn(): spawn(() => sleep(10s)); sleep(10s) ;;)\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 10ms))\ncancel(u)",
     );
@@ -70,7 +66,7 @@ fn two_thousand_tasks_run() {
     assert_eq!((out.as_str(), code), ("1999000\n", 0));
 }
 
-// --- Go TestSpawnAwaitAndResults ---
+// --- spawn, await and results ---
 
 #[test]
 fn spawn_await_and_results() {
@@ -125,7 +121,7 @@ fn spawn_await_and_results() {
 }
 
 #[test]
-fn a_task_handle_prints_compares_and_types_like_go() {
+fn a_task_handle_prints_compares_and_types() {
     let (out, err, code) = run(
         "t = spawn(() => 1)\nprint(t, [t], {a: t}, t == t, t != t, type_of(t), str(t), \"${t}\")\nprint(t < t)",
     );
@@ -140,8 +136,7 @@ fn a_task_handle_prints_compares_and_types_like_go() {
     assert_eq!(code, 1);
 }
 
-/// A finished task cancels what it spawned and left running (Go `defer
-/// child.cancel()`).
+/// A finished task cancels what it spawned and left running.
 #[test]
 fn a_finished_task_cancels_its_children() {
     let start = Instant::now();
@@ -152,8 +147,8 @@ fn a_finished_task_cancels_its_children() {
 }
 
 /// A task that cancels itself stops at its next call (05: the flag is
-/// checked at every call). Go differs: `context.AfterFunc` sets its flag
-/// later, so the task usually runs on and returns 1 (open-questions, 3a).
+/// checked at every call), so it never runs on to return 1 (R3a
+/// note).
 #[test]
 fn a_task_that_cancels_itself_stops_at_its_next_call() {
     let (out, _, code) = run(
@@ -163,8 +158,7 @@ fn a_task_that_cancels_itself_stops_at_its_next_call() {
 }
 
 /// The failure of a task stays retrievable after a timed-out `await`
-/// (the output half of Go `TestAwaitTimeoutDoesNotHideALaterFailure`;
-/// the report of a never-retrieved failure is Task 6).
+/// (the report of a never-retrieved failure is Task 6).
 #[test]
 fn an_await_timeout_does_not_hide_a_later_failure() {
     let (out, _, code) = run(
@@ -179,7 +173,7 @@ fn an_await_timeout_does_not_hide_a_later_failure() {
     );
 }
 
-// --- Go TestSleepWaitsAndIsCancellable ---
+// --- sleep ---
 
 #[test]
 fn sleep_waits_and_is_cancellable() {
@@ -188,8 +182,7 @@ fn sleep_waits_and_is_cancellable() {
     assert_eq!((out.as_str(), code), ("1\n", 0));
     assert!(start.elapsed() >= Duration::from_millis(15));
 
-    // Cancelled from another thread while it sleeps (Go: a goroutine
-    // calls rt.CancelAll()).
+    // Cancelled from another thread while it sleeps (`cancel_all`).
     let start = Instant::now();
     let code = on_big_stack(|| {
         let s = setup("sleep(10s)\nprint(1)", Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
@@ -213,7 +206,7 @@ fn sleep_waits_and_is_cancellable() {
     assert_eq!(exec("sleep(-1s)", Opts::default()).code, "");
 }
 
-// --- Go TestRunTaskRunsOnAFreshTask ---
+// --- run_task ---
 
 /// `run_twice(f)`: f(1) + f(2), each on a fresh child task, as a list
 /// `[sum, cancelled]` so the test sees what the native saw; `run_once(f)`:
@@ -343,8 +336,8 @@ fn run_within(src: &str, secs: u64) -> (String, String, i32) {
 }
 
 /// Each exit handler runs on its own child of the handlers' root, which is
-/// cancelled when it returns (Go `RunExitHandlers`): what the handler
-/// spawned and left running ends with it. Expected output from Go.
+/// cancelled when it returns: what the handler spawned and left running
+/// ends with it.
 #[test]
 fn an_exit_handlers_tasks_end_with_it() {
     let (out, _, code) = run_within(
@@ -357,8 +350,8 @@ fn an_exit_handlers_tasks_end_with_it() {
         5,
     );
     assert_eq!((out.as_str(), code), ("1\nh\n", 0));
-    // Go's order: wait for the tasks after the handlers. The handler's
-    // tasks are already cancelled then, so the wait ends at once.
+    // The order: wait for the tasks after the handlers. The handler's tasks
+    // are already cancelled then, so the wait ends at once.
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let out = on_big_stack(|| {
@@ -516,9 +509,8 @@ fn exit_handlers_run_after_cancel_all() {
     assert_eq!(o, "1\nh\n");
 }
 
-/// Each exit handler's node is made after its pop (Go makes the context
-/// there): the final empty pop and the E0806 stop leave no node under
-/// the handlers' root.
+/// Each exit handler's node is made after its pop: the final empty pop and
+/// the E0806 stop leave no node under the handlers' root.
 #[test]
 fn exit_handlers_leave_no_cancellation_nodes() {
     for (src, errors) in [

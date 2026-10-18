@@ -78,10 +78,10 @@ pub(crate) struct World {
     pub(super) running: usize,
     /// Woken when `running` drops to 0.
     pub(super) idle: WaitList,
-    /// Tasks running fung code (Go `concState.live`): the entry, spawned
-    /// tasks from the moment they are spawned, test blocks, exit handlers
-    /// and the prelude's boot; not `Runtime::wait`'s observer. The
-    /// deadlock check (`deadlock.rs`) compares it with `Census::blocked`.
+    /// Tasks running fung code: the entry, spawned tasks from the moment
+    /// they are spawned, test blocks, exit handlers and the prelude's boot;
+    /// not `Runtime::wait`'s observer. The deadlock check (`deadlock.rs`)
+    /// compares it with `Census::blocked`.
     pub(super) live: usize,
     /// Background tasks that have not finished (stage 3b): spawned by
     /// `spawn_background` or by another background task, counted from
@@ -334,14 +334,13 @@ pub(crate) struct Shared {
     #[cfg(test)]
     task_stacks: std::sync::OnceLock<&'static [usize]>,
     gate: Gate,
-    /// Every task descends from this node (Go `rt.root()`): the entry
-    /// runs on it, `cancel_all` cancels it. Replaced only by the REPL's
-    /// recovery from a deadlock (`Runtime::recover_deadlock`), with the
-    /// run token held and no task of the program left; read it through
-    /// `root()`.
+    /// Every task descends from this node: the entry runs on it,
+    /// `cancel_all` cancels it. Replaced only by the REPL's recovery from a
+    /// deadlock (`Runtime::recover_deadlock`), with the run token held and
+    /// no task of the program left; read it through `root()`.
     root: Mutex<Arc<CancelNode>>,
     /// Exit handlers run under this node, not the root: the root is
-    /// cancelled by then (Go `handlerContext`).
+    /// cancelled by then.
     pub(super) handlers: Arc<CancelNode>,
     /// Background tasks (stage 3b) hang from this node, apart from the
     /// program's root: an exit or an entry error cancels the program,
@@ -404,8 +403,8 @@ impl Shared {
         self.task_stacks.set(sizes).expect("task stacks set twice");
     }
 
-    /// Cancels every task (Go `CancelAll`): the root and everything below
-    /// it, and wakes the blocked ones. Takes the token.
+    /// Cancels every task: the root and everything below it, and wakes the
+    /// blocked ones. Takes the token.
     pub(crate) fn cancel_all(&self) {
         let _t = self.lock();
         self.root().cancel();

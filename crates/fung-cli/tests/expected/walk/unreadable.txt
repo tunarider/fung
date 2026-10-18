@@ -3,7 +3,7 @@
 # Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
 ==== test $DIR/t
 -- error
-| open $DIR/t/locked: permission denied
+| cannot read `$DIR/t/locked`: permission denied
 ==== fmt --check $DIR/t
 -- error
-| open $DIR/t/locked: permission denied
+| cannot read `$DIR/t/locked`: permission denied

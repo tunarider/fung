@@ -5,8 +5,7 @@
 //! The tests share process-wide counters (live sockets, wake pipes,
 //! lookup threads, waits), so they run one at a time under `NET`.
 //! Concurrent orderings use state (the waits counted in `probe`), never
-//! sleeps. Expected error texts come from the Go 1.27 `net` package
-//! (small Go programs; the texts are copied in).
+//! sleeps.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -265,7 +264,7 @@ fn read_bytes_needs_all_of_them_and_read_all_reads_to_the_end() {
     assert_eq!(
         out(&o),
         (
-            "Ok(\"\") Ok(\"abc\") Err({kind: 'network, message: \"unexpected EOF\"})\n",
+            "Ok(\"\") Ok(\"abc\") Err({kind: 'network, message: \"connection closed after 5 of 9 bytes\"})\n",
             "",
             0
         )
@@ -297,11 +296,7 @@ fn bytes_that_are_not_utf8_read_as_replacement_characters() {
     h.join().unwrap();
     assert_eq!(
         out(&o),
-        (
-            "Ok(\"a\u{fffd}b\u{fffd}\u{fffd}\") Ok(\"z\u{fffd}\")\n",
-            "",
-            0
-        )
+        ("Ok(\"a\u{fffd}b\u{fffd}\") Ok(\"z\u{fffd}\")\n", "", 0)
     );
 }
 
@@ -322,7 +317,7 @@ fn utf8_bytes_lists_the_bytes() {
     assert_eq!(out(&o), ("[237, 149, 156, 97] [] [0, 126]\n", "", 0));
 }
 
-/// `need_str_map(name, m)` is Go's check of a header map: nil when every
+/// `need_str_map(name, m)` is the check of a header map: nil when every
 /// value is a str, else E0403 naming the first value that is not (in the
 /// map's order), at the user's call.
 #[test]
@@ -349,13 +344,11 @@ fn need_str_map_checks_every_value() {
     );
 }
 
-/// The Go 1.27 texts (darwin; Linux has the same apart from the errno
-/// wording, which `oserr` covers): `dial tcp 127.0.0.1:1: connect:
-/// connection refused`, `dial tcp: lookup nosuchhost.invalid: no such
-/// host`, `listen tcp 127.0.0.1:55925: bind: address already in use`,
-/// `listen tcp: address a:b:c: too many colons in address`, ...
+/// The short reasons (the errno wording is `oserr`'s): `connection
+/// refused`, `address already in use`, ``invalid port `x` ``,
+/// ``invalid address `a:b:c` (too many colons)``, ...
 #[test]
-fn errors_read_like_go() {
+fn errors_give_short_reasons() {
     let _g = serial();
     let closed = free_port();
     let busy = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -363,53 +356,44 @@ fn errors_read_like_go() {
     let cases: Vec<(String, String)> = vec![
         (
             format!("net.connect(\"127.0.0.1\", {closed})"),
-            format!(
-                "Err({{kind: 'network, message: \"dial tcp 127.0.0.1:{closed}: connect: connection refused\"}})"
-            ),
+            "Err({kind: 'network, message: \"connection refused\"})".to_string(),
         ),
         (
             "net.connect(\"127.0.0.1\", 65536)".into(),
-            "Err({kind: 'network, message: \"dial tcp: address 65536: invalid port\"})".into(),
+            "Err({kind: 'network, message: \"invalid port `65536`\"})".into(),
         ),
-        // with TLS, the TCP error comes first (Go's dial error)
+        // with TLS, the TCP error comes first
         (
             format!("net.connect(\"127.0.0.1\", {closed}, tls: true)"),
-            format!(
-                "Err({{kind: 'network, message: \"dial tcp 127.0.0.1:{closed}: connect: connection refused\"}})"
-            ),
+            "Err({kind: 'network, message: \"connection refused\"})".to_string(),
         ),
         (
             format!("net.listen(\"127.0.0.1:{busy_port}\")"),
-            format!(
-                "Err({{kind: 'network, message: \"listen tcp 127.0.0.1:{busy_port}: bind: address already in use\"}})"
-            ),
+            "Err({kind: 'network, message: \"address already in use\"})".to_string(),
         ),
         (
             "net.listen(\"a:b:c\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: address a:b:c: too many colons in address\"})"
-                .into(),
+            "Err({kind: 'network, message: \"invalid address `a:b:c` (too many colons)\"})".into(),
         ),
         (
             "net.listen(\"::1:0\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: address ::1:0: too many colons in address\"})"
-                .into(),
+            "Err({kind: 'network, message: \"invalid address `::1:0` (too many colons)\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: address 127.0.0.1: missing port in address\"})"
-                .into(),
+            "Err({kind: 'network, message: \"invalid address `127.0.0.1` (missing port)\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1:99999\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: address 99999: invalid port\"})".into(),
+            "Err({kind: 'network, message: \"invalid port `99999`\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1:-1\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: address -1: invalid port\"})".into(),
+            "Err({kind: 'network, message: \"invalid port `-1`\"})".into(),
         ),
         (
             "net.listen(\"127.0.0.1:abc\")".into(),
-            "Err({kind: 'network, message: \"listen tcp: lookup tcp/abc: unknown port\"})".into(),
+            "Err({kind: 'network, message: \"invalid port `abc`\"})".into(),
         ),
     ];
     let src: String = cases.iter().map(|(e, _)| format!("print({e})\n")).collect();
@@ -419,17 +403,17 @@ fn errors_read_like_go() {
     assert_eq!(out(&o), (want.as_str(), "", 0));
 }
 
-/// Go's lookup failure text (`lookup <host>: no such host`) for a
+/// `no such host` for a
 /// resolver answer of `EAI_NONAME`, given deterministically by the test
 /// hook (`gate.invalid`, not held: it answers at once).
 #[test]
-fn a_name_that_does_not_exist_reads_like_go() {
+fn a_name_that_does_not_exist_is_no_such_host() {
     let _g = serial();
     let o = run("print(net.connect(\"gate.invalid\", 80))\nprint(net.listen(\"gate.invalid:0\"))");
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'network, message: \"dial tcp: lookup gate.invalid: no such host\"})\nErr({kind: 'network, message: \"listen tcp: lookup gate.invalid: no such host\"})\n",
+            "Err({kind: 'network, message: \"no such host\"})\nErr({kind: 'network, message: \"no such host\"})\n",
             "",
             0
         )
@@ -440,7 +424,7 @@ fn a_name_that_does_not_exist_reads_like_go() {
 /// without DNS answers otherwise (`Temporary failure in name resolution`),
 /// and the test is skipped there.
 #[test]
-fn a_real_lookup_failure_reads_like_go() {
+fn a_real_lookup_failure_is_no_such_host() {
     let _g = serial();
     if super::sock::lookup("nosuchhost.invalid") != Err("no such host".to_string()) {
         eprintln!(
@@ -454,17 +438,17 @@ fn a_real_lookup_failure_reads_like_go() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'network, message: \"dial tcp: lookup nosuchhost.invalid: no such host\"})\nErr({kind: 'network, message: \"listen tcp: lookup nosuchhost.invalid: no such host\"})\n",
+            "Err({kind: 'network, message: \"no such host\"})\nErr({kind: 'network, message: \"no such host\"})\n",
             "",
             0
         )
     );
 }
 
-/// Go: `[127.0.0.1]:0` and `localhost:0` listen on 127.0.0.1, and a
-/// missing port is port 0.
+/// `[127.0.0.1]:0` and `localhost:0` listen on 127.0.0.1, and a missing
+/// port is port 0.
 #[test]
-fn listen_addresses_read_like_go() {
+fn listen_addresses() {
     let _g = serial();
     let o = run(
         "each([\"[127.0.0.1]:0\", \"localhost:0\", \"127.0.0.1:\"], fn(a):\n  l = net.listen(a)!\n  addr = net.local_addr(l)\n  print(host(addr), parse_int(last(split(addr, \":\")))! > 0)\n;;)",
@@ -475,10 +459,10 @@ fn listen_addresses_read_like_go() {
     );
 }
 
-/// Go: `:0` listens on `[::]` (both families), `[::1]:0` on `[::1]`.
+/// `:0` listens on `[::]` (both families), `[::1]:0` on `[::1]`.
 /// Skipped where IPv6 is missing.
 #[test]
-fn ipv6_listen_addresses_read_like_go() {
+fn ipv6_listen_addresses() {
     let _g = serial();
     if TcpListener::bind("[::1]:0").is_err() {
         eprintln!("skipping: no IPv6 loopback");
@@ -496,9 +480,8 @@ const LOOPBACK: &str = "lo";
 #[cfg(not(target_os = "linux"))]
 const LOOPBACK: &str = "lo0";
 
-/// An IPv6 literal with a zone keeps it: Go names the address with the
-/// zone as written (`dial tcp [::1%lo0]:P: connect: connection refused`,
-/// also for a numeric or unknown zone, which mean no scope), and a
+/// An IPv6 literal with a zone keeps it: the address shows the zone as
+/// written (also a numeric or unknown zone, which mean no scope), and a
 /// link-local address dials through its zone's interface. Skipped where
 /// IPv6 is missing.
 #[test]
@@ -516,10 +499,7 @@ fn an_ipv6_zone_is_kept() {
     assert_eq!(
         out(&o),
         (
-            format!(
-                "dial tcp [::1%{LOOPBACK}]:{closed}: connect: connection refused\ndial tcp [::1%1]:{closed}: connect: connection refused\ndial tcp [::1%nosuch]:{closed}: connect: connection refused\n[::1] [::1]\n"
-            )
-            .as_str(),
+            "connection refused\nconnection refused\nconnection refused\n[::1] [::1]\n",
             "",
             0
         )
@@ -527,8 +507,8 @@ fn an_ipv6_zone_is_kept() {
 }
 
 /// macOS gives `lo0` the link-local `fe80::1`, which only its scope
-/// reaches (without it: `connect: no route to host`). Go 1.27 prints the
-/// zone in every address (`[fe80::1%lo0]:P`).
+/// reaches (without it: `no route to host`). Every address shows the zone
+/// (`[fe80::1%lo0]:P`).
 #[cfg(target_os = "macos")]
 #[test]
 fn a_link_local_address_dials_through_its_zone() {
@@ -546,17 +526,16 @@ fn a_link_local_address_dials_through_its_zone() {
         return;
     }
     let o = run(
-        "l = net.listen(\"[fe80::1%lo0]:0\")!\na = net.local_addr(l)\np = parse_int(last(split(a, \":\")))!\nc = net.connect(\"fe80::1%lo0\", p)!\nprint(host(a), host(net.local_addr(c)))\nprint(msg(net.listen(a)) == \"listen tcp ${a}: bind: address already in use\")\nnet.close(c)\nnet.close(l)",
+        "l = net.listen(\"[fe80::1%lo0]:0\")!\na = net.local_addr(l)\np = parse_int(last(split(a, \":\")))!\nc = net.connect(\"fe80::1%lo0\", p)!\nprint(host(a), host(net.local_addr(c)))\nprint(msg(net.listen(a)) == \"address already in use\")\nnet.close(c)\nnet.close(l)",
     );
     assert_eq!(out(&o), ("[fe80::1%lo0] [fe80::1%lo0]\ntrue\n", "", 0));
 }
 
-/// Go: `read tcp 127.0.0.1:55927->127.0.0.1:55925: read: connection
-/// reset by peer`, then `write tcp …: write: broken pipe`; after
-/// `Close`, `… use of closed network connection` for read, write and a
-/// second close.
+/// A reset is `connection reset by peer`, then a write `broken pipe`;
+/// after `close`, `connection is closed` for read, write and a second
+/// close.
 #[test]
-fn reset_and_closed_connections_read_like_go() {
+fn reset_and_closed_connections() {
     let _g = serial();
     let (port, h) = peer(|s| {
         // SO_LINGER 0: close sends a reset
@@ -585,14 +564,14 @@ fn reset_and_closed_connections_read_like_go() {
     assert_eq!(
         out(&o),
         (
-            "read tcp A->B: read: connection reset by peer\nwrite tcp A->B: write: broken pipe\nOk(nil)\nread tcp A->B: use of closed network connection\nwrite tcp A->B: use of closed network connection\nclose tcp A->B: use of closed network connection\nset tcp A: use of closed network connection\n",
+            "connection reset by peer\nbroken pipe\nOk(nil)\nconnection is closed\nconnection is closed\nconnection is closed\nconnection is closed\n",
             "",
             0
         )
     );
 }
 
-/// Go: `read tcp 127.0.0.1:55927->127.0.0.1:55925: i/o timeout`.
+/// A deadline ends a read with `timed out`.
 #[test]
 fn a_deadline_ends_reads_with_a_timeout() {
     let _g = serial();
@@ -602,7 +581,7 @@ fn a_deadline_ends_reads_with_a_timeout() {
     assert_eq!(
         out(&o),
         (
-            "Ok(nil)\n'timeout read tcp A->B: i/o timeout\nOk(\"late\")\n'timeout\n",
+            "Ok(nil)\n'timeout timed out\nOk(\"late\")\n'timeout\n",
             "",
             0
         )
@@ -630,8 +609,8 @@ fn the_last_copy_closes_the_connection() {
     assert_eq!(out(&o), ("Ok(\"\")\n", "", 0));
 }
 
-/// Go: a `Close` wakes a `Read` or `Accept` blocked on the same
-/// connection or listener with `use of closed network connection`.
+/// A `close` wakes a `read` or `accept` blocked on the same connection
+/// or listener, which then says it is closed.
 #[test]
 fn close_wakes_a_task_blocked_on_the_same_handle() {
     let _g = serial();
@@ -641,7 +620,7 @@ fn close_wakes_a_task_blocked_on_the_same_handle() {
     assert_eq!(
         out(&o),
         (
-            "read tcp A->B: use of closed network connection\naccept tcp A: use of closed network connection\nclose tcp A: use of closed network connection\n",
+            "connection is closed\nlistener is closed\nlistener is closed\n",
             "",
             0
         )
@@ -696,8 +675,8 @@ fn cancel_ends_a_blocked_connect() {
     assert_eq!(out(&o), ("Err({kind: 'cancelled})\n", "", 0));
 }
 
-/// A lookup that outlives the timeout: `dial tcp: lookup <host>: i/o
-/// timeout` (Go's text for a lookup cut by the dial deadline).
+/// A lookup that outlives the timeout is a timeout: the deadline covers
+/// the lookup.
 #[test]
 fn a_connect_timeout_covers_the_lookup() {
     let _g = serial();
@@ -708,11 +687,7 @@ fn a_connect_timeout_covers_the_lookup() {
     );
     assert_eq!(
         out(&o),
-        (
-            "Err({kind: 'timeout, message: \"dial tcp: lookup gate.invalid: i/o timeout\"})\n",
-            "",
-            0
-        )
+        ("Err({kind: 'timeout, message: \"timed out\"})\n", "", 0)
     );
 }
 
@@ -789,7 +764,7 @@ fn raw_reads_gather_a_body_decoded_once() {
     assert_eq!(
         out(&o),
         (
-            "Ok(nil) Ok(nil)\n[\"a한b한\", \"\"]\nErr({kind: 'limit, message: \"body longer than 0 bytes\"})\nOk(nil) Err({kind: 'network, message: \"EOF\"})\n",
+            "Ok(nil) Ok(nil)\n[\"a한b한\", \"\"]\nErr({kind: 'limit, message: \"body longer than 0 bytes\"})\nOk(nil) Err({kind: 'network, message: \"connection closed\"})\n",
             "",
             0
         )
@@ -807,7 +782,7 @@ fn a_raw_read_past_the_cap_reads_nothing() {
     assert_eq!(
         out(&o),
         (
-            "Ok(nil) Err({kind: 'limit, message: \"body longer than 5 bytes\"})\n[\"abcd\"] Ok(\"ef\")\nErr({kind: 'network, message: \"EOF\"})\n",
+            "Ok(nil) Err({kind: 'limit, message: \"body longer than 5 bytes\"})\n[\"abcd\"] Ok(\"ef\")\nErr({kind: 'network, message: \"connection closed\"})\n",
             "",
             0
         )
@@ -898,7 +873,7 @@ fn reads_and_writes_stop_on_cancel_without_waiting() {
     assert_eq!(live_wakes(), 0);
 }
 
-/// `hold(l, grace)` (Task 5, the server's end, Go `Server.Shutdown`):
+/// `hold(l, grace)` (Task 5, the server's graceful end):
 /// waits until its task is cancelled, then closes `l` and waits until
 /// every connection accepted from `l` is closed, at most `grace`, and
 /// ends with E0701. Here the open connection closes long before the
@@ -980,8 +955,8 @@ fn utf8_string_decodes_bytes() {
 
 // ---- `http.serve` (Task 5): its tasks, its end, what it leaves --------
 //
-// The server is fung (`extras/http.fung`); these runs check what
-// the Go comparison cannot see: the order of concurrent requests (by
+// The server is fung (`extras/http.fung`); these runs check what the
+// expected outputs cannot see: the order of concurrent requests (by
 // state: a handler waiting on a channel), the end of the server task,
 // and that no socket, wake pipe or task is left (`run` checks).
 
@@ -1009,7 +984,7 @@ fn a_slow_handler_does_not_hold_up_the_others() {
 
 /// Cancelling the server cancels a handler that is running: its request
 /// gets 503 (not reported), and the server task ends once that answer
-/// is out, well before the 2 s grace (Go `Shutdown`; Review Focus 1).
+/// is out, well before the 2 s grace (Review Focus 1).
 #[test]
 fn cancelling_the_server_answers_running_requests_503() {
     let _g = serial();
@@ -1020,7 +995,7 @@ fn cancelling_the_server_answers_running_requests_503() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'cancelled})\n503 server shutting down\n\n'network\n",
+            "Err({kind: 'cancelled})\n503 503 Service Unavailable\n\n'network\n",
             "",
             0
         )
@@ -1088,9 +1063,9 @@ fn cancel_at_every_tick_closes_the_listener() {
 
 /// A chunk-size line is read in one native call, not a byte at a time:
 /// 2,000 chunks of 1,000 bytes whose size lines carry a 1,000-byte
-/// extension (Go ignores it) read in well under half a second. A byte
-/// per call took about 1.8 s in release on an Apple M-series machine;
-/// one call per line, about 0.06 s.
+/// extension (ignored, RFC 9112 7.1.1) read in well under half a
+/// second. A byte per call took about 1.8 s in release on an Apple
+/// M-series machine; one call per line, about 0.06 s.
 #[cfg(not(debug_assertions))]
 #[test]
 fn a_chunk_size_line_is_read_whole() {
@@ -1188,7 +1163,7 @@ fn failing_net(rt: &crate::vm::Runtime, member: &'static str, params: Vec<crate:
 
 /// A failure in the code answering a connection (here `set_deadline`,
 /// its first call) is reported on stderr, the connection is closed, and
-/// the server goes on (Go logs `http: panic serving …` the same way).
+/// the server goes on.
 #[test]
 fn a_failure_answering_a_connection_is_reported() {
     let _g = serial();

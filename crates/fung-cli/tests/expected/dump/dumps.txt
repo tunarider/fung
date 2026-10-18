@@ -2387,16 +2387,16 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (83681 bytes, fnv1a64 17d026f204adbee5)
+-- stdout (79504 bytes, fnv1a64 c8ff070914a6804c)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
 -- stdout
 -- stderr
 | error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/http.fung:22:1
+|   --> extras/http.fung:19:1
 |    |
-| 22 | import _native.conc as _c
+| 19 | import _native.conc as _c
 |    | ^
 |    |
 -- exit: 2
@@ -2404,9 +2404,9 @@
 -- stdout
 -- stderr
 | error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/http.fung:22:1
+|   --> extras/http.fung:19:1
 |    |
-| 22 | import _native.conc as _c
+| 19 | import _native.conc as _c
 |    | ^
 |    |
 -- exit: 2
@@ -2419,9 +2419,9 @@
 -- stdout
 -- stderr
 | error[E0310]: `_native.json` is internal; import `json` instead
-|   --> extras/json.fung:3:1
+|   --> extras/json.fung:4:1
 |   |
-| 3 | import _native.json as _n
+| 4 | import _native.json as _n
 |   | ^
 |   |
 -- exit: 2
@@ -2429,9 +2429,9 @@
 -- stdout
 -- stderr
 | error[E0310]: `_native.json` is internal; import `json` instead
-|   --> extras/json.fung:3:1
+|   --> extras/json.fung:4:1
 |   |
-| 3 | import _native.json as _n
+| 4 | import _native.json as _n
 |   | ^
 |   |
 -- exit: 2
@@ -2462,7 +2462,7 @@
 -- exit: 2
 ==== dump ast extras/prelude.fung
 -- stdout
-| (program (import _native.process as _p) (assign exec (field exec _p)) (assign sh (field sh _p)) (assign env (field env _p)) (fn is_empty(x) (block (binary == (call len x) 0))) (fn sum(xs) (block (call fold xs 0 (fn (acc, x) (block (binary + acc x)))))) (fn _list(xs) (block (then (binary == (call type_of xs) 'list) xs (call map xs (fn (x) (block x)))))) (fn min(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary < x best) x best))))))) (fn max(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary > x best) x best))))))) (fn reverse(xs) (block (assign ys (call _list xs)) (assign n (call len ys)) (for (pbind i) (range .. 0 n) (block (index ys (binary - (binary - n 1) i)))))) (fn range(a, b=?) (nil) (block (then (binary == b (nil)) (range .. 0 a) (range .. a b)))) (fn zip(xs, ys) (block (assign left (call _list xs)) (assign right (call _list ys)) (assign n (call min (list (call len left) (call len right)))) (for (pbind i) (range .. 0 n) (block (tuple (index left i) (index right i)))))) (fn first(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (index ys 0)))) (fn last(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (index ys (unary - 1))))) (fn _clamp(verb, n, size) (block (if (binary != (call type_of n) 'int) (block (call fail (interp verb " expects an int count, got " (call type_of n)))) (nil)) (then (binary < n 0) 0 (then (binary > n size) size n)))) (fn take(xs, n) (block (assign ys (call _list xs)) (slice ys (nil) (call _clamp "take" n (call len ys))))) (fn drop(xs, n) (block (assign ys (call _list xs)) (slice ys (call _clamp "drop" n (call len ys)) (nil)))) (fn contains(c, x) (block (binary in x c))) (fn unique(xs) (block (call fold xs (list) (fn (acc, x) (block (then (binary in x acc) acc (binary + acc (list x)))))))) (fn keys(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pbind k) (pwild))) (block k)))))) (fn values(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pwild) (pbind v))) (block v)))))) (fn get(m, k, default=?) (nil) (block (match (call type_of m) (arm (psym map) (nil) (block (then (binary in k m) (index m k) default))) (arm (pbind t) (nil) (block (call fail (interp "get expects a map, got " t))))))) (fn _padding(s, n, pad) (block (match (tuple pad (binary - n (call len s))) (arm (ptuple (plit "") (pwild)) (nil) (block (call fail "pad must be a non-empty string"))) (arm (ptuple (pwild) (pbind missing)) (binary <= missing 0) (block "")) (arm (ptuple (pwild) (pbind missing)) (nil) (block (slice (call repeat pad (binary + (call int (binary / missing (call len pad))) 1)) (nil) missing)))))) (fn pad_left(s, n, pad=?) " " (block (binary + (call _padding s n pad) s))) (fn pad_right(s, n, pad=?) " " (block (binary + s (call _padding s n pad)))) (fn _chomp(s, suffix) (block (then (call ends_with s suffix) (slice s (nil) (binary - (call len s) (call len suffix))) s))) (fn lines(s) (block (match s (arm (plit "") (nil) (block (list))) (arm (pwild) (nil) (block (pipe (call split (call _chomp s "\n") "\n") (call map (fn (l) (block (call _chomp l "\r")))))))))) (fn is_ok(x) (block (binary == (call type_of x) 'Ok))) (fn is_err(x) (block (binary == (call type_of x) 'Err))) (fn until(x, f, pred) (block (then (call pred x) x (call until (call f x) f pred)))) (fn iterate(x, f, n) (block (then (binary <= n 0) x (call iterate (call f x) f (binary - n 1))))))
+| (program (import _native.process as _p) (assign exec (field exec _p)) (assign sh (field sh _p)) (assign env (field env _p)) (fn is_empty(x) (block (binary == (call len x) 0))) (fn sum(xs) (block (call fold xs 0 (fn (acc, x) (block (binary + acc x)))))) (fn _list(xs) (block (then (binary == (call type_of xs) 'list) xs (call map xs (fn (x) (block x)))))) (fn _start(r) (block (call find r (fn (x) (block true))))) (fn _span(r, i, j) (block (then (binary >= i j) (list) (call map (range ..= (binary + (call _start r) i) (binary + (call _start r) (binary - j 1))) (fn (x) (block x)))))) (fn _receive(ch, n, acc) (block (then (binary <= n 0) acc (match (call recv ch) (arm (ptag Ok (pbind x)) (nil) (block (call _receive ch (binary - n 1) (binary + acc (list x))))) (arm (ptag Err (pwild)) (nil) (block acc)))))) (fn min(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary < x best) x best))))))) (fn max(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary > x best) x best))))))) (fn reverse(xs) (block (assign ys (call _list xs)) (assign n (call len ys)) (for (pbind i) (range .. 0 n) (block (index ys (binary - (binary - n 1) i)))))) (fn range(a, b=?) (nil) (block (then (binary == b (nil)) (range .. 0 a) (range .. a b)))) (fn zip(xs, ys) (block (assign left (call _list xs)) (assign right (call _list ys)) (assign n (call min (list (call len left) (call len right)))) (for (pbind i) (range .. 0 n) (block (tuple (index left i) (index right i)))))) (fn first(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call _start xs))) (nil)) (assign ys (then (binary == (call type_of xs) 'channel) (call _receive xs 1 (list)) (call _list xs))) (then (call is_empty ys) (nil) (index ys 0)))) (fn last(xs) (block (if (binary == (call type_of xs) 'range) (block (return (then (call is_empty xs) (nil) (binary + (call _start xs) (binary - (call len xs) 1))))) (nil)) (assign ys (call _list xs)) (then (call is_empty ys) (nil) (index ys (unary - 1))))) (fn _clamp(verb, n, size) (block (if (binary != (call type_of n) 'int) (block (call fail (interp verb " expects an int count, got " (call type_of n)))) (nil)) (then (binary < n 0) 0 (then (binary > n size) size n)))) (fn take(xs, n) (block (if (binary == (call type_of xs) 'channel) (block (return (call _receive xs (call _clamp "take" n n) (list)))) (nil)) (if (binary == (call type_of xs) 'range) (block (return (call _span xs 0 (call _clamp "take" n (call len xs))))) (nil)) (assign ys (call _list xs)) (slice ys (nil) (call _clamp "take" n (call len ys))))) (fn drop(xs, n) (block (if (binary == (call type_of xs) 'range) (block (return (call _span xs (call _clamp "drop" n (call len xs)) (call len xs)))) (nil)) (assign ys (call _list xs)) (slice ys (call _clamp "drop" n (call len ys)) (nil)))) (fn contains(c, x) (block (binary in x c))) (fn unique(xs) (block (call fold xs (list) (fn (acc, x) (block (then (binary in x acc) acc (binary + acc (list x)))))))) (fn keys(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pbind k) (pwild))) (block k)))))) (fn values(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pwild) (pbind v))) (block v)))))) (fn get(m, k, default=?) (nil) (block (match (call type_of m) (arm (psym map) (nil) (block (then (binary in k m) (index m k) default))) (arm (pbind t) (nil) (block (call fail (interp "get expects a map, got " t))))))) (fn _padding(s, n, pad) (block (match (tuple pad (binary - n (call len s))) (arm (ptuple (plit "") (pwild)) (nil) (block (call fail "pad must be a non-empty string"))) (arm (ptuple (pwild) (pbind missing)) (binary <= missing 0) (block "")) (arm (ptuple (pwild) (pbind missing)) (nil) (block (slice (call repeat pad (binary + (call int (binary / missing (call len pad))) 1)) (nil) missing)))))) (fn pad_left(s, n, pad=?) " " (block (binary + (call _padding s n pad) s))) (fn pad_right(s, n, pad=?) " " (block (binary + s (call _padding s n pad)))) (fn _chomp(s, suffix) (block (then (call ends_with s suffix) (slice s (nil) (binary - (call len s) (call len suffix))) s))) (fn lines(s) (block (match s (arm (plit "") (nil) (block (list))) (arm (pwild) (nil) (block (pipe (call split (call _chomp s "\n") "\n") (call map (fn (l) (block (call _chomp l "\r")))))))))) (fn is_ok(x) (block (binary == (call type_of x) 'Ok))) (fn is_err(x) (block (binary == (call type_of x) 'Err))) (fn until(x, f, pred) (block (then (call pred x) x (call until (call f x) f pred)))) (fn iterate(x, f, n) (block (then (binary <= n 0) x (call iterate (call f x) f (binary - n 1))))))
 -- stderr
 -- exit: 0
 ==== dump core extras/prelude.fung
@@ -3426,6 +3426,209 @@
 | 0001  3:41  CONST        1    ; 10s
 | 0002  3:40  TAILCALL     1    ; 1 positional, 0 named
 | 0003  3:32  RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/channel_stream.fung
+-- stdout
+| (program (assign ch (call channel)) (assign ack (call channel)) (fn produce(ch, ack) (block (for (pbind x) (range ..= 1 3) (block (call send ch x) (call recv ack))) (call close ch))) (call spawn (fn () (block (call produce ch ack)))) (for (pbind x) ch (block (call print (interp "got " x)) (call send ack (nil)))) (call print "done") (assign b (call channel 3)) (call send b 1) (call send b 2) (call send b 3) (call close b) (call print (call find b (fn (x) (block (binary == x 2)))) (call recv b)) (assign c (call channel 4)) (call send c 1) (call send c 2) (call send c 3) (call send c 4) (call close c) (call print (call take c 2) (call first c) (call recv c) (call first c)) (assign d (call channel 2)) (call send d 1) (call send d 2) (call close d) (assign t (call spawn (fn () (block (call map d 3))))) (call print (call type_of (call await t)) (call recv d)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/channel_stream.fung
+-- stdout
+| (do (let (global 0) (fn produce(ch, ack) (do (call (prelude map) (range ..= 1 3) (fn (x) (do (call (prelude send) (captured 0) (local 0)) (call (prelude recv) (captured 1))))) (call (prelude close) (local 0))))) (let (global 1) (call (prelude channel))) (let (global 2) (call (prelude channel))) (call (prelude spawn) (fn () (do (call (global 0) (captured 0) (captured 1))))) (call (prelude map) (global 1) (fn (x) (do (call (prelude print) (concat "got " (local 0))) (call (prelude send) (captured 0) (nil))))) (call (prelude print) "done") (let (global 3) (call (prelude channel) 3)) (call (prelude send) (global 3) 1) (call (prelude send) (global 3) 2) (call (prelude send) (global 3) 3) (call (prelude close) (global 3)) (call (prelude print) (call (prelude find) (global 3) (fn (x) (do (op == (local 0) 2)))) (call (prelude recv) (global 3))) (let (global 4) (call (prelude channel) 4)) (call (prelude send) (global 4) 1) (call (prelude send) (global 4) 2) (call (prelude send) (global 4) 3) (call (prelude send) (global 4) 4) (call (prelude close) (global 4)) (call (prelude print) (call (prelude take) (global 4) 2) (call (prelude first) (global 4)) (call (prelude recv) (global 4)) (call (prelude first) (global 4))) (let (global 5) (call (prelude channel) 2)) (call (prelude send) (global 5) 1) (call (prelude send) (global 5) 2) (call (prelude close) (global 5)) (let (global 6) (call (prelude spawn) (fn () (do (call (prelude map) (captured 0) 3))))) (call (prelude print) (call (prelude type_of) (call (prelude await) (global 6))) (call (prelude recv) (global 5))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/channel_stream.fung
+-- stdout
+| == <main> ==
+| 0000  4:1   CLOSURE      0    ; produce
+| 0001  4:1   STOREGLOBAL  0    ; produce
+| 0002  2:6   CONST        0    ; <fn channel>
+| 0003  2:13  CALL         0    ; 0 positional, 0 named
+| 0004  2:1   STOREGLOBAL  1    ; ch
+| 0005  3:7   CONST        0    ; <fn channel>
+| 0006  3:14  CALL         0    ; 0 positional, 0 named
+| 0007  3:1   STOREGLOBAL  2    ; ack
+| 0008  11:1  CONST        1    ; <fn spawn>
+| 0009  11:7  CLOSURE      1    ; <lambda>
+| 0010  11:6  CALL         1    ; 1 positional, 0 named
+| 0011  11:6  POP
+| 0012  12:1  CONST        2    ; <fn map>
+| 0013  12:10 LOADGLOBAL   1    ; ch
+| 0014  12:1  CLOSURE      2    ; <lambda>
+| 0015  12:1  CALL         2    ; 2 positional, 0 named
+| 0016  12:1  POP
+| 0017  16:1  CONST        3    ; <fn print>
+| 0018  16:7  CONST        4    ; "done"
+| 0019  16:6  CALL         1    ; 1 positional, 0 named
+| 0020  16:6  POP
+| 0021  23:5  CONST        0    ; <fn channel>
+| 0022  23:13 CONST        5    ; 3
+| 0023  23:12 CALL         1    ; 1 positional, 0 named
+| 0024  23:1  STOREGLOBAL  3    ; b
+| 0025  24:1  CONST        6    ; <fn send>
+| 0026  24:6  LOADGLOBAL   3    ; b
+| 0027  24:9  CONST        7    ; 1
+| 0028  24:5  CALL         2    ; 2 positional, 0 named
+| 0029  24:5  POP
+| 0030  24:13 CONST        6    ; <fn send>
+| 0031  24:18 LOADGLOBAL   3    ; b
+| 0032  24:21 CONST        8    ; 2
+| 0033  24:17 CALL         2    ; 2 positional, 0 named
+| 0034  24:17 POP
+| 0035  24:25 CONST        6    ; <fn send>
+| 0036  24:30 LOADGLOBAL   3    ; b
+| 0037  24:33 CONST        5    ; 3
+| 0038  24:29 CALL         2    ; 2 positional, 0 named
+| 0039  24:29 POP
+| 0040  24:37 CONST        9    ; <fn close>
+| 0041  24:43 LOADGLOBAL   3    ; b
+| 0042  24:42 CALL         1    ; 1 positional, 0 named
+| 0043  24:42 POP
+| 0044  25:1  CONST        3    ; <fn print>
+| 0045  25:7  CONST        10    ; <fn find>
+| 0046  25:12 LOADGLOBAL   3    ; b
+| 0047  25:15 CLOSURE      3    ; <lambda>
+| 0048  25:11 CALL         2    ; 2 positional, 0 named
+| 0049  25:29 CONST        11    ; <fn recv>
+| 0050  25:34 LOADGLOBAL   3    ; b
+| 0051  25:33 CALL         1    ; 1 positional, 0 named
+| 0052  25:6  CALL         2    ; 2 positional, 0 named
+| 0053  25:6  POP
+| 0054  27:5  CONST        0    ; <fn channel>
+| 0055  27:13 CONST        12    ; 4
+| 0056  27:12 CALL         1    ; 1 positional, 0 named
+| 0057  27:1  STOREGLOBAL  4    ; c
+| 0058  28:1  CONST        6    ; <fn send>
+| 0059  28:6  LOADGLOBAL   4    ; c
+| 0060  28:9  CONST        7    ; 1
+| 0061  28:5  CALL         2    ; 2 positional, 0 named
+| 0062  28:5  POP
+| 0063  28:13 CONST        6    ; <fn send>
+| 0064  28:18 LOADGLOBAL   4    ; c
+| 0065  28:21 CONST        8    ; 2
+| 0066  28:17 CALL         2    ; 2 positional, 0 named
+| 0067  28:17 POP
+| 0068  28:25 CONST        6    ; <fn send>
+| 0069  28:30 LOADGLOBAL   4    ; c
+| 0070  28:33 CONST        5    ; 3
+| 0071  28:29 CALL         2    ; 2 positional, 0 named
+| 0072  28:29 POP
+| 0073  28:37 CONST        6    ; <fn send>
+| 0074  28:42 LOADGLOBAL   4    ; c
+| 0075  28:45 CONST        12    ; 4
+| 0076  28:41 CALL         2    ; 2 positional, 0 named
+| 0077  28:41 POP
+| 0078  28:49 CONST        9    ; <fn close>
+| 0079  28:55 LOADGLOBAL   4    ; c
+| 0080  28:54 CALL         1    ; 1 positional, 0 named
+| 0081  28:54 POP
+| 0082  29:1  CONST        3    ; <fn print>
+| 0083  29:7  CONST        13    ; <fn take>
+| 0084  29:12 LOADGLOBAL   4    ; c
+| 0085  29:15 CONST        8    ; 2
+| 0086  29:11 CALL         2    ; 2 positional, 0 named
+| 0087  29:19 CONST        14    ; <fn first>
+| 0088  29:25 LOADGLOBAL   4    ; c
+| 0089  29:24 CALL         1    ; 1 positional, 0 named
+| 0090  29:29 CONST        11    ; <fn recv>
+| 0091  29:34 LOADGLOBAL   4    ; c
+| 0092  29:33 CALL         1    ; 1 positional, 0 named
+| 0093  29:38 CONST        14    ; <fn first>
+| 0094  29:44 LOADGLOBAL   4    ; c
+| 0095  29:43 CALL         1    ; 1 positional, 0 named
+| 0096  29:6  CALL         4    ; 4 positional, 0 named
+| 0097  29:6  POP
+| 0098  33:5  CONST        0    ; <fn channel>
+| 0099  33:13 CONST        8    ; 2
+| 0100  33:12 CALL         1    ; 1 positional, 0 named
+| 0101  33:1  STOREGLOBAL  5    ; d
+| 0102  34:1  CONST        6    ; <fn send>
+| 0103  34:6  LOADGLOBAL   5    ; d
+| 0104  34:9  CONST        7    ; 1
+| 0105  34:5  CALL         2    ; 2 positional, 0 named
+| 0106  34:5  POP
+| 0107  34:13 CONST        6    ; <fn send>
+| 0108  34:18 LOADGLOBAL   5    ; d
+| 0109  34:21 CONST        8    ; 2
+| 0110  34:17 CALL         2    ; 2 positional, 0 named
+| 0111  34:17 POP
+| 0112  34:25 CONST        9    ; <fn close>
+| 0113  34:31 LOADGLOBAL   5    ; d
+| 0114  34:30 CALL         1    ; 1 positional, 0 named
+| 0115  34:30 POP
+| 0116  35:5  CONST        1    ; <fn spawn>
+| 0117  35:11 CLOSURE      4    ; <lambda>
+| 0118  35:10 CALL         1    ; 1 positional, 0 named
+| 0119  35:1  STOREGLOBAL  6    ; t
+| 0120  36:1  CONST        3    ; <fn print>
+| 0121  36:7  CONST        15    ; <fn type_of>
+| 0122  36:15 CONST        16    ; <fn await>
+| 0123  36:21 LOADGLOBAL   6    ; t
+| 0124  36:20 CALL         1    ; 1 positional, 0 named
+| 0125  36:14 CALL         1    ; 1 positional, 0 named
+| 0126  36:26 CONST        11    ; <fn recv>
+| 0127  36:31 LOADGLOBAL   5    ; d
+| 0128  36:30 CALL         1    ; 1 positional, 0 named
+| 0129  36:6  CALL         2    ; 2 positional, 0 named
+| 0130  1:64  RETURN
+|
+| == produce ==
+| 0000  5:3   CONST        0    ; <fn map>
+| 0001  5:12  CONST        1    ; 1
+| 0002  5:16  CONST        2    ; 3
+| 0003  5:13  RANGE        1    ; inclusive
+| 0004  5:3   CLOSURE      0    ; <lambda>
+| 0005  5:3   CALL         2    ; 2 positional, 0 named
+| 0006  5:3   POP
+| 0007  9:3   CONST        3    ; <fn close>
+| 0008  9:9   LOADLOCAL    0
+| 0009  9:8   TAILCALL     1    ; 1 positional, 0 named
+| 0010  4:1   RETURN
+|
+| == <lambda> ==
+| 0000  6:5   CONST        0    ; <fn send>
+| 0001  6:10  LOADCAPTURED 0
+| 0002  6:14  LOADLOCAL    0
+| 0003  6:9   CALL         2    ; 2 positional, 0 named
+| 0004  6:9   POP
+| 0005  7:5   CONST        1    ; <fn recv>
+| 0006  7:10  LOADCAPTURED 1
+| 0007  7:9   TAILCALL     1    ; 1 positional, 0 named
+| 0008  5:3   RETURN
+|
+| == <lambda> ==
+| 0000  11:13 LOADGLOBAL   0
+| 0001  11:21 LOADCAPTURED 0
+| 0002  11:25 LOADCAPTURED 1
+| 0003  11:20 TAILCALL     2    ; 2 positional, 0 named
+| 0004  11:7  RETURN
+|
+| == <lambda> ==
+| 0000  13:3  CONST        0    ; <fn print>
+| 0001  13:9  CONST        1    ; "got "
+| 0002  13:16 LOADLOCAL    0
+| 0003  13:9  CONCAT       2
+| 0004  13:8  CALL         1    ; 1 positional, 0 named
+| 0005  13:8  POP
+| 0006  14:3  CONST        2    ; <fn send>
+| 0007  14:8  LOADCAPTURED 0
+| 0008  14:13 CONST        3    ; nil
+| 0009  14:7  TAILCALL     2    ; 2 positional, 0 named
+| 0010  12:1  RETURN
+|
+| == <lambda> ==
+| 0000  25:20 LOADLOCAL    0
+| 0001  25:25 CONST        0    ; 2
+| 0002  25:22 EQ
+| 0003  25:17 RETURN
+|
+| == <lambda> ==
+| 0000  35:17 CONST        0    ; <fn map>
+| 0001  35:21 LOADCAPTURED 0
+| 0002  35:24 CONST        1    ; 3
+| 0003  35:20 TAILCALL     2    ; 2 positional, 0 named
+| 0004  35:11 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/channels.fung
@@ -6632,6 +6835,66 @@
 | 0004  16:68 RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/ident_unicode.fung
+-- stdout
+| (program (assign नमस्ते 1) (assign café 2) (call print (binary + नमस्ते café)) (call print 'Été (call type_of 'Été)) (assign café 5) (call print café) (assign café 6) (call print café (binary == (call sym "café") 'café)) (call print (binary == 'café 'café) (binary == 'café (call sym "café"))))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/ident_unicode.fung
+-- stdout
+| (do (let (global 0) 1) (let (global 1) 2) (call (prelude print) (op + (global 0) (global 1))) (call (prelude print) 'Été (call (prelude type_of) 'Été)) (let (global 1) 5) (call (prelude print) (global 1)) (let (global 1) 6) (call (prelude print) (global 1) (op == (call (prelude sym) "café") 'café)) (call (prelude print) (op == 'café 'café) (op == 'café (call (prelude sym) "café"))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/ident_unicode.fung
+-- stdout
+| == <main> ==
+| 0000  2:10  CONST        0    ; 1
+| 0001  2:1   STOREGLOBAL  0    ; नमस्ते
+| 0002  3:8   CONST        1    ; 2
+| 0003  3:1   STOREGLOBAL  1    ; café
+| 0004  4:1   CONST        2    ; <fn print>
+| 0005  4:7   LOADGLOBAL   0    ; नमस्ते
+| 0006  4:16  LOADGLOBAL   1    ; café
+| 0007  4:14  ADD
+| 0008  4:6   CALL         1    ; 1 positional, 0 named
+| 0009  4:6   POP
+| 0010  6:1   CONST        2    ; <fn print>
+| 0011  6:7   CONST        3    ; 'Été
+| 0012  6:12  CONST        4    ; <fn type_of>
+| 0013  6:20  CONST        3    ; 'Été
+| 0014  6:19  CALL         1    ; 1 positional, 0 named
+| 0015  6:6   CALL         2    ; 2 positional, 0 named
+| 0016  6:6   POP
+| 0017  8:9   CONST        5    ; 5
+| 0018  8:1   STOREGLOBAL  1    ; café
+| 0019  9:1   CONST        2    ; <fn print>
+| 0020  9:7   LOADGLOBAL   1    ; café
+| 0021  9:6   CALL         1    ; 1 positional, 0 named
+| 0022  9:6   POP
+| 0023  12:8  CONST        6    ; 6
+| 0024  12:1  STOREGLOBAL  1    ; café
+| 0025  13:1  CONST        2    ; <fn print>
+| 0026  13:7  LOADGLOBAL   1    ; café
+| 0027  13:14 CONST        7    ; <fn sym>
+| 0028  13:18 CONST        8    ; "café"
+| 0029  13:17 CALL         1    ; 1 positional, 0 named
+| 0030  13:30 CONST        9    ; 'café
+| 0031  13:27 EQ
+| 0032  13:6  CALL         2    ; 2 positional, 0 named
+| 0033  13:6  POP
+| 0034  15:1  CONST        2    ; <fn print>
+| 0035  15:7  CONST        9    ; 'café
+| 0036  15:17 CONST        9    ; 'café
+| 0037  15:14 EQ
+| 0038  15:24 CONST        9    ; 'café
+| 0039  15:34 CONST        7    ; <fn sym>
+| 0040  15:38 CONST        10    ; "café"
+| 0041  15:37 CALL         1    ; 1 positional, 0 named
+| 0042  15:31 EQ
+| 0043  15:6  CALL         2    ; 2 positional, 0 named
+| 0044  1:61  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/if_blocks.fung
 -- stdout
 | (program (assign n 0) (assign label (if (binary > n 0) (block "pos") (if (binary < n 0) (block "neg") (block "zero")))) (call print label) (call print (if true (block (if false (block 1) (block 2))) (nil))) (call print (if (binary < 1 2) (block "yes") (nil))))
@@ -7512,6 +7775,65 @@
 | 0003  4:52  RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/path_rules.fung
+-- stdout
+| (program (import path) (call print (binary == (call (field ext path) ".hidden") "") (call (field stem path) ".hidden") (call (field ext path) "a.tar.gz") (call (field stem path) "a.tar.gz") (call (field ext path) ".a.b")) (call print (call (field join path) "a" "/c") (call (field join path) "a/./b/" "..") (call (field base path) "")))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/path_rules.fung
+-- stdout
+| (do (import "path" (global 0)) (call (prelude print) (op == (call (field ext (global 0)) ".hidden") "") (call (field stem (global 0)) ".hidden") (call (field ext (global 0)) "a.tar.gz") (call (field stem (global 0)) "a.tar.gz") (call (field ext (global 0)) ".a.b")) (call (prelude print) (call (field join (global 0)) "a" "/c") (call (field join (global 0)) "a/./b/" "..") (call (field base (global 0)) "")))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/path_rules.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   IMPORT       0    ; path
+| 0001  2:1   STOREGLOBAL  0    ; path
+| 0002  3:1   CONST        1    ; <fn print>
+| 0003  3:7   LOADGLOBAL   0    ; path
+| 0004  3:11  FIELD        2    ; ext
+| 0005  3:16  CONST        3    ; ".hidden"
+| 0006  3:15  CALL         1    ; 1 positional, 0 named
+| 0007  3:30  CONST        4    ; ""
+| 0008  3:27  EQ
+| 0009  3:34  LOADGLOBAL   0    ; path
+| 0010  3:38  FIELD        5    ; stem
+| 0011  3:44  CONST        3    ; ".hidden"
+| 0012  3:43  CALL         1    ; 1 positional, 0 named
+| 0013  3:56  LOADGLOBAL   0    ; path
+| 0014  3:60  FIELD        2    ; ext
+| 0015  3:65  CONST        6    ; "a.tar.gz"
+| 0016  3:64  CALL         1    ; 1 positional, 0 named
+| 0017  3:78  LOADGLOBAL   0    ; path
+| 0018  3:82  FIELD        5    ; stem
+| 0019  3:88  CONST        6    ; "a.tar.gz"
+| 0020  3:87  CALL         1    ; 1 positional, 0 named
+| 0021  3:101 LOADGLOBAL   0    ; path
+| 0022  3:105 FIELD        2    ; ext
+| 0023  3:110 CONST        7    ; ".a.b"
+| 0024  3:109 CALL         1    ; 1 positional, 0 named
+| 0025  3:6   CALL         5    ; 5 positional, 0 named
+| 0026  3:6   POP
+| 0027  5:1   CONST        1    ; <fn print>
+| 0028  5:7   LOADGLOBAL   0    ; path
+| 0029  5:11  FIELD        8    ; join
+| 0030  5:17  CONST        9    ; "a"
+| 0031  5:22  CONST        10    ; "/c"
+| 0032  5:16  CALL         2    ; 2 positional, 0 named
+| 0033  5:29  LOADGLOBAL   0    ; path
+| 0034  5:33  FIELD        8    ; join
+| 0035  5:39  CONST        11    ; "a/./b/"
+| 0036  5:49  CONST        12    ; ".."
+| 0037  5:38  CALL         2    ; 2 positional, 0 named
+| 0038  5:56  LOADGLOBAL   0    ; path
+| 0039  5:60  FIELD        13    ; base
+| 0040  5:66  CONST        4    ; ""
+| 0041  5:65  CALL         1    ; 1 positional, 0 named
+| 0042  5:6   CALL         3    ; 3 positional, 0 named
+| 0043  1:56  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/pipes_partial.fung
 -- stdout
 | (program (assign import_free (list 3 1 2)) (fn double(x) (block (binary * x 2))) (call print (pipe (pipe import_free (call map double)) len) (pipe 5 double)) (fn join3(a, b, c) (block (binary + (binary + a b) c))) (assign wrap (call join3 "<" (hole) ">")) (call print (call wrap "x") (call map (list "a" "b") (call join3 "[" (hole) "]"))))
@@ -8376,6 +8698,46 @@
 | 0050  1:1   RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/strings_case.fung
+-- stdout
+| (program (call print (call upper "straße") (call upper "ŉ") (call lower "ΟΔΟΣ") (call len (call upper "ß"))) (call print (call len (call lower "İ"))))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/strings_case.fung
+-- stdout
+| (do (call (prelude print) (call (prelude upper) "straße") (call (prelude upper) "ŉ") (call (prelude lower) "ΟΔΟΣ") (call (prelude len) (call (prelude upper) "ß"))) (call (prelude print) (call (prelude len) (call (prelude lower) "İ"))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/strings_case.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   CONST        0    ; <fn print>
+| 0001  2:7   CONST        1    ; <fn upper>
+| 0002  2:13  CONST        2    ; "straße"
+| 0003  2:12  CALL         1    ; 1 positional, 0 named
+| 0004  2:24  CONST        1    ; <fn upper>
+| 0005  2:30  CONST        3    ; "ŉ"
+| 0006  2:29  CALL         1    ; 1 positional, 0 named
+| 0007  2:36  CONST        4    ; <fn lower>
+| 0008  2:42  CONST        5    ; "ΟΔΟΣ"
+| 0009  2:41  CALL         1    ; 1 positional, 0 named
+| 0010  2:51  CONST        6    ; <fn len>
+| 0011  2:55  CONST        1    ; <fn upper>
+| 0012  2:61  CONST        7    ; "ß"
+| 0013  2:60  CALL         1    ; 1 positional, 0 named
+| 0014  2:54  CALL         1    ; 1 positional, 0 named
+| 0015  2:6   CALL         4    ; 4 positional, 0 named
+| 0016  2:6   POP
+| 0017  4:1   CONST        0    ; <fn print>
+| 0018  4:7   CONST        6    ; <fn len>
+| 0019  4:11  CONST        4    ; <fn lower>
+| 0020  4:17  CONST        8    ; "İ"
+| 0021  4:16  CALL         1    ; 1 positional, 0 named
+| 0022  4:10  CALL         1    ; 1 positional, 0 named
+| 0023  4:6   CALL         1    ; 1 positional, 0 named
+| 0024  1:76  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/symbols.fung
 -- stdout
 | (program (assign s 'ok) (call print s (binary == s 'ok) (binary == s "ok") (binary == 'a 'b)))
@@ -8719,6 +9081,95 @@
 | 0077  1:1   RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/time_rules.fung
+-- stdout
+| (program (import time) (call print (call (field parse time) "2026-10-17T10:02:03Z") (call (field parse time) "2026-10-17t10:02:03.5z") (call (field parse time) "2026-10-17T10:02:03+08:27:52")) (assign lax (list "2026-10-17T1:02:03Z" "2026-10-17T10:02:03,5Z" "2026-10-17T10:02:03+24:00" "2026-10-17T10:02:03.1234567891Z" "2026-10-17 10:02:03Z")) (call print (pipe lax (call map (fn (s) (block (call is_err (call (field parse time) s))))))) (call print (call (field parse time) "2026-13-01T00:00:00Z")) (call print (call (field parse time) "2026-02-30T00:00:00Z")) (call print (call (field format time) (unwrap ! (call (field parse time) "2026-10-17T10:02:03+09:00")) "Z")) (call print (call (field parse time) "Foo 1" "MMM D")))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/time_rules.fung
+-- stdout
+| (do (import "time" (global 0)) (call (prelude print) (call (field parse (global 0)) "2026-10-17T10:02:03Z") (call (field parse (global 0)) "2026-10-17t10:02:03.5z") (call (field parse (global 0)) "2026-10-17T10:02:03+08:27:52")) (let (global 1) (list "2026-10-17T1:02:03Z" "2026-10-17T10:02:03,5Z" "2026-10-17T10:02:03+24:00" "2026-10-17T10:02:03.1234567891Z" "2026-10-17 10:02:03Z")) (call (prelude print) (call (prelude map) (global 1) (fn (s) (do (call (prelude is_err) (call (field parse (global 0)) (local 0))))))) (call (prelude print) (call (field parse (global 0)) "2026-13-01T00:00:00Z")) (call (prelude print) (call (field parse (global 0)) "2026-02-30T00:00:00Z")) (call (prelude print) (call (field format (global 0)) (unwrap ! (call (field parse (global 0)) "2026-10-17T10:02:03+09:00")) "Z")) (call (prelude print) (call (field parse (global 0)) "Foo 1" "MMM D")))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/time_rules.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   IMPORT       0    ; time
+| 0001  2:1   STOREGLOBAL  0    ; time
+| 0002  3:1   CONST        1    ; <fn print>
+| 0003  3:7   LOADGLOBAL   0    ; time
+| 0004  3:11  FIELD        2    ; parse
+| 0005  3:18  CONST        3    ; "2026-10-17T10:02:03Z"
+| 0006  3:17  CALL         1    ; 1 positional, 0 named
+| 0007  3:43  LOADGLOBAL   0    ; time
+| 0008  3:47  FIELD        2    ; parse
+| 0009  3:54  CONST        4    ; "2026-10-17t10:02:03.5z"
+| 0010  3:53  CALL         1    ; 1 positional, 0 named
+| 0011  3:81  LOADGLOBAL   0    ; time
+| 0012  3:85  FIELD        2    ; parse
+| 0013  3:92  CONST        5    ; "2026-10-17T10:02:03+08:27:52"
+| 0014  3:91  CALL         1    ; 1 positional, 0 named
+| 0015  3:6   CALL         3    ; 3 positional, 0 named
+| 0016  3:6   POP
+| 0017  5:8   CONST        6    ; "2026-10-17T1:02:03Z"
+| 0018  5:31  CONST        7    ; "2026-10-17T10:02:03,5Z"
+| 0019  5:57  CONST        8    ; "2026-10-17T10:02:03+24:00"
+| 0020  5:86  CONST        9    ; "2026-10-17T10:02:03.1234567891Z"
+| 0021  5:121 CONST        10    ; "2026-10-17 10:02:03Z"
+| 0022  5:7   LIST         5
+| 0023  5:1   STOREGLOBAL  1    ; lax
+| 0024  6:1   CONST        1    ; <fn print>
+| 0025  6:14  CONST        11    ; <fn map>
+| 0026  6:7   LOADGLOBAL   1    ; lax
+| 0027  6:18  CLOSURE      0    ; <lambda>
+| 0028  6:17  CALL         2    ; 2 positional, 0 named
+| 0029  6:6   CALL         1    ; 1 positional, 0 named
+| 0030  6:6   POP
+| 0031  8:1   CONST        1    ; <fn print>
+| 0032  8:7   LOADGLOBAL   0    ; time
+| 0033  8:11  FIELD        2    ; parse
+| 0034  8:18  CONST        12    ; "2026-13-01T00:00:00Z"
+| 0035  8:17  CALL         1    ; 1 positional, 0 named
+| 0036  8:6   CALL         1    ; 1 positional, 0 named
+| 0037  8:6   POP
+| 0038  10:1  CONST        1    ; <fn print>
+| 0039  10:7  LOADGLOBAL   0    ; time
+| 0040  10:11 FIELD        2    ; parse
+| 0041  10:18 CONST        13    ; "2026-02-30T00:00:00Z"
+| 0042  10:17 CALL         1    ; 1 positional, 0 named
+| 0043  10:6  CALL         1    ; 1 positional, 0 named
+| 0044  10:6  POP
+| 0045  12:1  CONST        1    ; <fn print>
+| 0046  12:7  LOADGLOBAL   0    ; time
+| 0047  12:11 FIELD        14    ; format
+| 0048  12:19 LOADGLOBAL   0    ; time
+| 0049  12:23 FIELD        2    ; parse
+| 0050  12:30 CONST        15    ; "2026-10-17T10:02:03+09:00"
+| 0051  12:29 CALL         1    ; 1 positional, 0 named
+| 0052  12:58 UNWRAPABORT
+| 0053  12:61 CONST        16    ; "Z"
+| 0054  12:18 CALL         2    ; 2 positional, 0 named
+| 0055  12:6  CALL         1    ; 1 positional, 0 named
+| 0056  12:6  POP
+| 0057  14:1  CONST        1    ; <fn print>
+| 0058  14:7  LOADGLOBAL   0    ; time
+| 0059  14:11 FIELD        2    ; parse
+| 0060  14:18 CONST        17    ; "Foo 1"
+| 0061  14:27 CONST        18    ; "MMM D"
+| 0062  14:17 CALL         2    ; 2 positional, 0 named
+| 0063  14:6  CALL         1    ; 1 positional, 0 named
+| 0064  1:90  RETURN
+|
+| == <lambda> ==
+| 0000  6:23  CONST        0    ; <fn is_err>
+| 0001  6:30  LOADGLOBAL   0
+| 0002  6:34  FIELD        1    ; parse
+| 0003  6:41  LOADLOCAL    0
+| 0004  6:40  CALL         1    ; 1 positional, 0 named
+| 0005  6:29  TAILCALL     1    ; 1 positional, 0 named
+| 0006  6:20  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/time_values.fung
 -- stdout
 | (program (import time) (assign a (unwrap ! (call (field parse time) "2026-10-04T09:00:00+09:00"))) (assign b (binary + a 1h30m)) (call print b (binary - b a) (binary - a 1h) (binary > b a) (binary == a (binary - b 1h30m))) (call print (binary == (call sort (list b a)) (list a b)) (call str a) (interp a)) (call print (binary + a a)))
@@ -9052,7 +9503,7 @@
 ==== dump core no/such/file.fung
 -- stdout
 -- stderr
-| error: cannot read no/such/file.fung: open no/such/file.fung: no such file or directory
+| error: cannot read `no/such/file.fung`: no such file or directory
 -- exit: 3
 ==== dump bytecode -e x = )
 -- stdout
@@ -9082,7 +9533,7 @@
 ==== dump core $TMP/�.fung
 -- stdout
 -- stderr (escaped)
-| error: cannot read $TMP/\xff.fung: open $TMP/\xff.fung: no such file or directory
+| error: cannot read `$TMP/\xff.fung`: no such file or directory
 -- exit: 3
 ==== dump ast $TMP/bom_crlf.fung
 -- stdout
@@ -9213,43 +9664,43 @@
 -- exit: 2
 ==== dump ast $TMP/bad_utf8_run.fung
 -- stdout
-| (program (assign x (binary + "��" nope)))
+| (program (assign x (binary + "�" nope)))
 -- stderr
 -- exit: 0
 ==== dump core $TMP/bad_utf8_run.fung
 -- stdout
 -- stderr
 | error[E0204]: undefined name `nope`
-|   --> $TMP/bad_utf8_run.fung:1:12
+|   --> $TMP/bad_utf8_run.fung:1:11
 |   |
-| 1 | x = "��" + nope
-|   |            ^^^^ not found in this scope
+| 1 | x = "�" + nope
+|   |           ^^^^ not found in this scope
 |   |
 -- exit: 2
 ==== dump bytecode $TMP/bad_utf8_run.fung
 -- stdout
 -- stderr
 | error[E0204]: undefined name `nope`
-|   --> $TMP/bad_utf8_run.fung:1:12
+|   --> $TMP/bad_utf8_run.fung:1:11
 |   |
-| 1 | x = "��" + nope
-|   |            ^^^^ not found in this scope
+| 1 | x = "�" + nope
+|   |           ^^^^ not found in this scope
 |   |
 -- exit: 2
 ==== dump ast $TMP/bad_utf8_ok.fung
 -- stdout
-| (program (assign x "��") (call print x))
+| (program (assign x "�") (call print x))
 -- stderr
 -- exit: 0
 ==== dump core $TMP/bad_utf8_ok.fung
 -- stdout
-| (do (let (global 0) "��") (call (prelude print) (global 0)))
+| (do (let (global 0) "�") (call (prelude print) (global 0)))
 -- stderr
 -- exit: 0
 ==== dump bytecode $TMP/bad_utf8_ok.fung
 -- stdout
 | == <main> ==
-| 0000  1:5   CONST        0    ; "��"
+| 0000  1:5   CONST        0    ; "�"
 | 0001  1:1   STOREGLOBAL  0    ; x
 | 0002  2:1   CONST        1    ; <fn print>
 | 0003  2:7   LOADGLOBAL   0    ; x
@@ -9368,24 +9819,20 @@
 -- exit: 0
 ==== dump core $TMP/uses_numeral_stem.fung
 -- stdout
+| (do (import "$TMP/mⅻ.fung" (global 0)) (call (prelude print) 1))
 -- stderr
-| error[E0305]: `mⅻ` is not a valid module name; use `as`
-|   --> $TMP/uses_numeral_stem.fung:1:1
-|   |
-| 1 | import "./mⅻ"
-|   | ^
-|   |
--- exit: 2
+-- exit: 0
 ==== dump bytecode $TMP/uses_numeral_stem.fung
 -- stdout
+| == <main> ==
+| 0000  1:1   IMPORT       0    ; $TMP/mⅻ.fung
+| 0001  1:1   STOREGLOBAL  0    ; mⅻ
+| 0002  2:1   CONST        1    ; <fn print>
+| 0003  2:7   CONST        2    ; 1
+| 0004  2:6   CALL         1    ; 1 positional, 0 named
+| 0005  1:1   RETURN
 -- stderr
-| error[E0305]: `mⅻ` is not a valid module name; use `as`
-|   --> $TMP/uses_numeral_stem.fung:1:1
-|   |
-| 1 | import "./mⅻ"
-|   | ^
-|   |
--- exit: 2
+-- exit: 0
 ==== dump ast $TMP/format_chars.fung
 -- stdout
 | (program (assign x "\u{890}\u{110BD}\u{110CD}\u{1343F}𓑀\u{1BCA3}\u{1D17A}") (call print x))
@@ -9410,7 +9857,7 @@
 ==== dump core .
 -- stdout
 -- stderr
-| error: cannot read .: read .: is a directory
+| error: cannot read `.`: is a directory
 -- exit: 3
 ==== dump core a b
 -- stdout
@@ -9465,14 +9912,9 @@
 -- exit: 2
 ==== dump core -e aⅫ = 1
 -- stdout
+| (do (let (global 0) 1))
 -- stderr
-| error[E0101]: unexpected character "Ⅻ"
-|   --> -e:1:2
-|   |
-| 1 | aⅫ = 1
-|   |  ^
-|   |
--- exit: 2
+-- exit: 0
 ==== dump ast -e Ⓐ = 1
 -- stdout
 -- stderr
@@ -9485,14 +9927,9 @@
 -- exit: 2
 ==== dump ast -e हिंदी = 1
 -- stdout
+| (program (assign हिंदी 1))
 -- stderr
-| error[E0101]: unexpected character "ि"
-|   --> -e:1:2
-|   |
-| 1 | हिंदी = 1
-|   |  ^
-|   |
--- exit: 2
+-- exit: 0
 ==== dump core -e ß1 = 2\nprint(ß1)
 -- stdout
 | (do (let (global 0) 2) (call (prelude print) (global 0)))
@@ -9521,7 +9958,7 @@
 ==== dump ast -e x = ͸
 -- stdout
 -- stderr
-| error[E0101]: unexpected character "\u0378"
+| error[E0101]: unexpected character "\u{378}"
 |   --> -e:1:5
 |   |
 | 1 | x = ͸

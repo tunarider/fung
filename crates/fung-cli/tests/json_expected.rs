@@ -8,7 +8,7 @@ mod common;
 use std::process::{Command, Stdio};
 
 use common::expected::{self, Entry};
-use common::{repo, rust_fung};
+use common::{fung_bin, repo};
 
 /// Inputs to `json.parse`, each printed with its result. Raw strings so
 /// the JSON escapes reach the parser as written.
@@ -150,9 +150,8 @@ const INPUTS: &[&str] = &[
     "[1]\n\n  x",
 ];
 
-/// Inputs whose error falls where Go's first 64-byte read ends (a
-/// character cut there shows as its first byte), and positions Go takes
-/// from before a separator.
+/// Inputs whose error falls at a 64-byte boundary (a character cut there
+/// must still show whole), and errors right after a separator.
 fn buffer_inputs() -> Vec<String> {
     let ones = |n: usize| "1,".repeat(n);
     vec![
@@ -234,7 +233,7 @@ fs.with_open("Cargo.toml", (f) => print(json.stringify(f)))"#,
     r#"s = `{"z":1,"y":{"b":2,"a":3},"x":[{"k":"v"}],"f":1.0,"i":-0,"n":null,"t":true,"u":"\u00e9\n"}`
 v = json.parse(s)!
 print(v, json.stringify(v), json.stringify(json.parse(json.stringify(v))!) == json.stringify(v))"#,
-    // nesting: Go's decoder stops past 10,000 levels
+    // nesting: 10,000 levels are read
     r#"n = 10000
 r = json.parse(fold(0..n, "", (acc, _) => acc + "[") + fold(0..n, "", (acc, _) => acc + "]"))
 print(type_of(r))"#,
@@ -289,7 +288,7 @@ fn json_parse_matches_the_expected_output() {
     let mut inputs: Vec<String> = INPUTS.iter().map(|s| s.to_string()).collect();
     inputs.extend(buffer_inputs());
     assert_eq!(inputs.len(), PARSE_CASES, "parse inputs");
-    let got = parse_entries(&rust_fung(), &inputs);
+    let got = parse_entries(&fung_bin(), &inputs);
     expected::verify(
         "json/parse.txt",
         "`json.parse` of each input, one printed line each (crates/fung-cli/tests/json_expected.rs).\n\
@@ -315,7 +314,7 @@ fn program_entries(bin: &std::path::Path) -> Vec<Entry> {
 #[test]
 fn json_programs_match_the_expected_output() {
     assert_eq!(PROGRAMS.len(), PROGRAM_CASES, "programs");
-    let got = program_entries(&rust_fung());
+    let got = program_entries(&fung_bin());
     expected::verify(
         "json/programs.txt",
         "`json` programs (crates/fung-cli/tests/json_expected.rs), each run with `fung -e`.\n\

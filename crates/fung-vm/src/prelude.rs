@@ -1,5 +1,5 @@
 //! The core prelude (06): functions implemented in Rust that every fung
-//! program can call without importing anything (Go `internal/prelude`).
+//! program can call without importing anything.
 //! The combinators built from these live in `extras/prelude.fung`; the
 //! concurrency natives and the process bridges are added by the runtime.
 
@@ -23,6 +23,7 @@ use crate::value::{ListBuilder, Lit, Native, Value, intern, type_name};
 use crate::vm::{Stop, Task};
 
 pub use io::dbg;
+pub(crate) use strings::{MAX_CHARS, too_many_chars};
 
 /// The natives are made once per process: they are leaked (`Native::leak`).
 static CORE: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -117,16 +118,11 @@ fn type_of_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `map(xs, f)` applies `f` to every element of a list or range and
 /// collects the results (06). `for` lowers to this (03).
-fn map_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    if !nat::is_fn(&a[1]) {
-        nat::check_items(t, &mut a[0], "map over")?;
-        return Err(nat::wrong_arg("f", "fn", &a[1]));
-    }
-    // Go makes the result with the collection's size as capacity.
+fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], "map over")?;
+    nat::need_fn("f", &a[1])?;
+    nat::limit_elements(&a[0])?;
     let hint = nat::size_hint(&a[0]);
-    if hint > nat::MAX_SLICE {
-        return Err(nat::too_long());
-    }
     // Room for a modest hint only: memory comes as results arrive.
     let mut out = ListBuilder::with_capacity(hint.min(1 << 16));
     let mut buf = Vec::with_capacity(1);

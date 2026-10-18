@@ -6,7 +6,7 @@
 
 **Architecture:** `internal/nat`(선언 도우미: `Def` `Param` `Opt` `Rest` `Ok` `ErrValue` `NeedStr` …)를 prelude와 native가 공유한다. `internal/prelude.Core(args)`가 core 값 연산 표를, `internal/native.Bridges()`가 `_native.fs/path/process`를 준다. `extras.Source(name)`이 embed된 fung 파일을, `extras.Default()`가 `{Stdlib, Natives(Go 다리)}` 레지스트리를 준다(vm의 `_native.conc`는 cmd가 합친다 — extras는 vm을 모른다). `frontend.Compile`은 기본 stdlib 없이 동작한다(핵심 패키지는 extras를 모른다); stdlib이 필요한 호출자(cmd, vm 테스트)가 `Loader`에 레지스트리를 넣는다. `exec`·`sh`·`env`는 `_native.process`로 내려가고 `prelude.fung`이 다시 내보낸다.
 
-**Spec:** `06-go-interop-and-stdlib.md` (네 층, 경계), `09-implementation-plan.md` (디렉터리), `04-modules.md` (우선순위).
+**Spec:** `06-native-and-stdlib.md` (네 층, 경계), `09-implementation-plan.md` (디렉터리), `04-modules.md` (우선순위).
 
 ## Global Constraints
 

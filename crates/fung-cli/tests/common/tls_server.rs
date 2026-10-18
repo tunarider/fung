@@ -1,6 +1,5 @@
-//! A TLS server for the command-line tests (`crates/fung-cli/tests`),
-//! which may not depend on rustls themselves (`deps.rs`). Not used by
-//! the runtime.
+//! A TLS server for the command-line tests (`http.rs`, `tls.rs`), with
+//! rustls (a dev-dependency of fung-cli, `deps.rs`).
 //!
 //! It serves HTTP/1.1 over TLS on 127.0.0.1: one request per connection
 //! (head, then a `Content-Length` body), whose raw bytes go to the test's

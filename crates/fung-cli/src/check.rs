@@ -1,21 +1,22 @@
-//! `fung check <file>` and `fung check -e CODE` (Go `cmd/fung/check.go`,
-//! 08): compile the whole import graph with the entry's tests, run
-//! nothing. Errors exit 2; warnings are printed and exit 0; a clean file
-//! prints nothing. Everything goes to standard error.
+//! `fung check <file>` and `fung check -e CODE` (08): compile the whole
+//! import graph with the entry's tests, run nothing. Errors exit 2;
+//! warnings are printed and exit 0; a clean file prints nothing.
+//! Everything goes to standard error.
 
 use fung_front::diag::{self, EXIT_COMPILE, EXIT_OK};
 use fung_front::loader::{Loader, Stage};
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 
 use crate::{Out, read_error, read_file, restore_name, usage_error};
 
 /// `args` are the arguments after `check`, decoded; `raw` their bytes.
-/// Like Go, `-e` takes the next argument and ignores the rest, and a path
-/// must be the only argument (one file: `check` does not walk
-/// directories).
+/// `-e` takes the code and nothing after it (nothing runs, so there is
+/// no use for arguments), and a path must be the only argument (one
+/// file: `check` does not walk directories).
 pub fn run_check(args: &[String], raw: &[Vec<u8>]) -> Out {
     match args {
-        [e, code, ..] if e == "-e" => check(b"-e", code),
+        [e, code] if e == "-e" => check(b"-e", code),
+        [e, _, _, ..] if e == "-e" => usage_error(b"check -e takes the code and nothing after it"),
         [p] if p != "-e" => match read_file(&raw[0]) {
             Ok(src) => check(&raw[0], &src),
             Err(msg) => read_error(&raw[0], &msg),
@@ -27,7 +28,7 @@ pub fn run_check(args: &[String], raw: &[Vec<u8>]) -> Out {
 /// Compiles `src` as the entry file `file` (bytes as given; positions
 /// use its decoded form) and reports errors or warnings.
 fn check(file: &[u8], src: &str) -> Out {
-    let name = decode_go(file);
+    let name = decode_lossy(file);
     let loader = Loader {
         tests: true,
         ..Loader::default()
@@ -91,6 +92,18 @@ mod tests {
         assert_eq!(
             run_check(&two, &[b"a".to_vec(), b"b".to_vec()]).code,
             EXIT_USAGE
+        );
+        // nothing runs, so arguments after the code have no use: an error,
+        // not silently dropped
+        let extra = ["-e".to_string(), "1".to_string(), "x".to_string()];
+        let raw: Vec<Vec<u8>> = extra.iter().map(|a| a.as_bytes().to_vec()).collect();
+        let out = run_check(&extra, &raw);
+        assert_eq!(out.code, EXIT_USAGE);
+        assert!(
+            out.stderr
+                .starts_with(b"error: check -e takes the code and nothing after it\n\nusage:"),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
         );
     }
 }

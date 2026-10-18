@@ -28,7 +28,7 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
 use common::expected::{self, Entry};
-use common::{repo, run, run_status, rust_fung};
+use common::{fung_bin, repo, run, run_status};
 
 pub use common::par_map;
 
@@ -71,7 +71,7 @@ pub fn entries(bin: &Path, cases: &[(String, Vec<OsString>)], subs: &Subs) -> Ve
 
 /// Checks `cases` against the file `name` (see `expected::verify`).
 fn verify_cases(name: &str, header: &str, cases: &[(String, Vec<OsString>)], subs: &Subs) {
-    let got = entries(&rust_fung(), cases, subs);
+    let got = entries(&fung_bin(), cases, subs);
     verify_entries(name, header, &got);
 }
 
@@ -216,7 +216,7 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 167;
+const CHECK_REPOSITORY_CASES: usize = 172;
 const CHECK_WARNING_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 25;
 const HELP_CASES: usize = 8;
@@ -224,9 +224,9 @@ const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 29;
-const TEST_REPOSITORY_CASES: usize = 168;
-const FMT_INPUTS: usize = 4404;
-const FMT_STDIN_CASES: usize = 408;
+const TEST_REPOSITORY_CASES: usize = 173;
+const FMT_INPUTS: usize = 4514;
+const FMT_STDIN_CASES: usize = 413;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
 const REPL_CASES: usize = 34;
@@ -260,7 +260,7 @@ fn check_matches_the_expected_output_on_warning_fixtures() {
     );
     // The fixtures do warn: two silent runs would prove nothing.
     let (_, err, _) = run(
-        &rust_fung(),
+        &fung_bin(),
         &os_args(&["check", "crates/fung-cli/tests/data/check/unused_vars.fung"]),
     );
     assert!(String::from_utf8_lossy(&err).contains("warning[W0102]"));
@@ -328,14 +328,13 @@ fn manual_example_args(label: &str) -> Vec<String> {
     panic!("no example {label}")
 }
 
-/// Rust only (stage 6a: the manual describes the Rust implementation).
 /// Every runnable manual example passes `fung check` with no errors, is
 /// formatted (`fmt --check`), and runs to the end with exit code 0, in a
 /// scratch directory, with its `data-args` as arguments, and within a few
 /// seconds.
 #[test]
 fn manual_examples_check_format_and_run() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let dir = scratch("tools-manual");
     let examples = manual_examples();
     assert!(examples.len() > 40, "{} examples", examples.len());
@@ -345,18 +344,18 @@ fn manual_examples_check_format_and_run() {
         std::fs::write(dir.join(&name), format!("{src}\n")).unwrap();
         let limit = std::time::Duration::from_secs(20);
         let mut bad = Vec::new();
-        let (_, err, code) = run_limited(&rust, &dir, &os_args(&["check", &name]), limit);
+        let (_, err, code) = run_limited(&bin, &dir, &os_args(&["check", &name]), limit);
         if code != Some(0) || err.contains("error[") {
             bad.push(format!("{label}: check: {code:?}\n{err}"));
         }
-        let (_, err, code) = run_limited(&rust, &dir, &os_args(&["fmt", "--check", &name]), limit);
+        let (_, err, code) = run_limited(&bin, &dir, &os_args(&["fmt", "--check", &name]), limit);
         if code != Some(0) {
             bad.push(format!("{label}: fmt --check: {code:?}\n{err}"));
         }
         let mut args = vec!["run".to_string(), name.clone()];
         args.extend(manual_example_args(label));
         let a: Vec<OsString> = args.iter().map(OsString::from).collect();
-        let (_, err, code) = run_limited(&rust, &dir, &a, limit);
+        let (_, err, code) = run_limited(&bin, &dir, &a, limit);
         if code != Some(0) {
             bad.push(format!("{label}: run: {code:?}\n{err}"));
         }
@@ -449,11 +448,11 @@ fn check_reports_a_file_name_as_it_is(tag: &str, name: &[u8]) {
     let plain = dir.join("w_.fung");
     std::fs::write(&plain, src).unwrap();
     let got = run(
-        &rust_fung(),
+        &fung_bin(),
         &[OsString::from("check"), odd.into_os_string()],
     );
     let want = run(
-        &rust_fung(),
+        &fung_bin(),
         &[OsString::from("check"), plain.into_os_string()],
     );
     let swap = |b: &[u8]| {
@@ -512,8 +511,8 @@ fn help_and_unknown_commands_match_the_expected_output() {
 }
 
 /// The Rust binary's version, as `fung version` prints it.
-fn rust_version() -> String {
-    let (out, _, _) = run(&rust_fung(), &os_args(&["version"]));
+fn built_version() -> String {
+    let (out, _, _) = run(&fung_bin(), &os_args(&["version"]));
     let text = String::from_utf8(out).unwrap();
     text.strip_prefix("fung ")
         .and_then(|v| v.strip_suffix('\n'))
@@ -523,10 +522,10 @@ fn rust_version() -> String {
 
 #[test]
 fn version_matches_the_expected_output() {
-    let v = rust_version();
+    let v = built_version();
     let want = option_env!("FUNG_BUILD_VERSION")
         .map(|s| s.strip_prefix('v').unwrap_or(s))
-        .filter(|s| !s.is_empty() && *s != "(devel)")
+        .filter(|s| !s.is_empty())
         .unwrap_or("0.0.0-dev");
     assert_eq!(v, want);
     let cases = vec![
@@ -537,7 +536,7 @@ fn version_matches_the_expected_output() {
     // The version itself is `$VERSION`: it depends on the build.
     let mut s = subs(&[]);
     s.insert(0, (v.clone(), "$VERSION".into()));
-    let got = entries(&rust_fung(), &cases, &s);
+    let got = entries(&fung_bin(), &cases, &s);
     verify_entries(
         "cli/version.txt",
         "`fung version` ($VERSION: the build's version)",
@@ -673,7 +672,7 @@ fn walker_matches_the_expected_listings() {
     let rel = relative(&dir).expect("the scratch directory lies below the repository");
     // The absolute scratch path first: it contains the relative one.
     let s = subs(&[(&dir, "$DIR"), (Path::new(&rel), "$REL")]);
-    let rust = rust_fung();
+    let bin = fung_bin();
     let roots = vec![
         abs("tree"),
         abs("tree/"),
@@ -713,7 +712,7 @@ fn walker_matches_the_expected_listings() {
     }
     for args in &commands {
         let a: Vec<&str> = args.iter().map(String::as_str).collect();
-        let r = listed(&rust, &a);
+        let r = listed(&bin, &a);
         assert!(r.as_ref().is_ok_and(|f| !f.is_empty()), "{args:?}: {r:?}");
         got.push(listing(&args.join(" "), &r, &s));
     }
@@ -736,9 +735,32 @@ fn walker_matches_the_expected_listings() {
         !all.iter()
             .any(|f| f.contains("/_skip/") || f.contains("/.hidden/"))
     );
+    // `test` and `fmt` choose the same files: `.` and `_` directories
+    // skipped, a link named as the root followed, links below it not
+    for root in ["tree", "rootlink", "tree/sub"] {
+        let tests = ours(paths::test_files(abs(root).as_bytes()));
+        let fmts = ours(paths::fung_files(&[abs(root).into_bytes()]));
+        assert_eq!(tests, fmts, "{root}");
+    }
     let tests = ours(paths::test_files(abs("tree").as_bytes())).unwrap();
-    assert!(tests.iter().any(|f| f.contains("/.hidden/")));
-    assert!(!tests.iter().any(|f| f.contains("/_skip/")));
+    assert!(
+        !tests
+            .iter()
+            .any(|f| f.contains("/.hidden/") || f.contains("/_skip/"))
+    );
+    assert!(!tests.iter().any(|f| f.contains("/linkdir/")));
+    // a link met in the walk that names a directory is not a file
+    let all = ours(paths::fung_files(&[abs(".").into_bytes()])).unwrap();
+    assert!(!all.iter().any(|f| f.ends_with("/sublink.fung")), "{all:?}");
+    let linked = ours(paths::test_files(abs("rootlink").as_bytes())).unwrap();
+    assert!(linked.iter().any(|f| f.ends_with("/a.fung")), "{linked:?}");
+    assert_eq!(
+        ours(paths::test_files(abs("nope").as_bytes())),
+        Err(format!(
+            "cannot read `{}`: no such file or directory",
+            abs("nope")
+        ))
+    );
 }
 
 #[test]
@@ -851,7 +873,7 @@ fn test_matches_the_expected_output_on_fixtures() {
         &subs(&[]),
     );
     // The fixtures do fail in every way the outputs are about.
-    let (out, err, _) = run(&rust_fung(), &os_args(&["test", &root]));
+    let (out, err, _) = run(&fung_bin(), &os_args(&["test", &root]));
     let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
     for want in [
         "  exit(4) called inside a test file",
@@ -864,12 +886,64 @@ fn test_matches_the_expected_output_on_fixtures() {
         "ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked",
         "FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>",
         "FAIL crates/fung-cli/tests/data/test/top_exit.fung: <top level>",
+        // an exit handler's failure fails its file (no silent run)
+        "FAIL crates/fung-cli/tests/data/test/handlers.fung: <exit handler>",
     ] {
         assert!(out.contains(want), "{want}\n{out}");
     }
     assert!(!out.contains("must not run") && !out.contains("only when it is the entry"));
-    assert!(err.contains("error[E0702]") && err.contains("handler broke"));
+    assert!(err.contains("error[E0702]") && out.contains("handler broke"));
     assert_eq!(err.matches("undefined name `missing`").count(), 1);
+}
+
+/// A file `fmt` cannot write back is named as the `fs` module names it.
+#[test]
+fn fmt_names_a_file_it_cannot_write() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = scratch("fmt-unwritable");
+    let p = dir.join("ro.fung");
+    std::fs::write(&p, "x=1\n").unwrap();
+    std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o444)).unwrap();
+    if std::fs::OpenOptions::new().write(true).open(&p).is_ok() {
+        eprintln!("skipping: the file is writable anyway (running as root?)");
+        return;
+    }
+    let arg = p.to_string_lossy().into_owned();
+    let (_, err, _) = run(&fung_bin(), &os_args(&["fmt", &arg]));
+    assert_eq!(
+        String::from_utf8_lossy(&err),
+        format!("error: cannot write `{arg}`: permission denied\n")
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A test file that cannot be read fails like one that cannot load: its
+/// `FAIL <load>` line, a failure in the summary, exit code 2.
+#[test]
+fn test_counts_an_unreadable_file() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = scratch("test-unreadable");
+    let p = dir.join("locked.fung");
+    std::fs::write(&p, "test \"t\": assert true ;;\n").unwrap();
+    std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read(&p).is_ok() {
+        eprintln!("skipping: the file is readable anyway (running as root?)");
+        return;
+    }
+    let arg = p.to_string_lossy().into_owned();
+    let (out, err, status) = run(&fung_bin(), &os_args(&["test", &arg]));
+    let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
+    assert_eq!(
+        out,
+        format!("FAIL {arg}: <load>\n0 passed, 1 failed\n"),
+        "{err}"
+    );
+    assert_eq!(
+        err,
+        format!("error: cannot read `{arg}`: permission denied\n")
+    );
+    assert_eq!(status, "ExitStatus(unix_wait_status(512))");
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// `fung test` with no path walks the working directory.
@@ -889,7 +963,7 @@ fn test_without_a_path_walks_the_working_directory() {
             &sub_refs(&subs(&[])),
         )
     };
-    let got = vec![entry(&rust_fung())];
+    let got = vec![entry(&fung_bin())];
     verify_entries(
         "test/working_directory.txt",
         "`fung test` with no path",
@@ -929,7 +1003,7 @@ fn test_matches_the_expected_output_on_the_repository() {
         &cases,
         &subs(&[(&base, "$DIR")]),
     );
-    let (out, _, _) = run(&rust_fung(), &os_args(&["test", &d]));
+    let (out, _, _) = run(&fung_bin(), &os_args(&["test", &d]));
     let out = String::from_utf8_lossy(&out);
     assert!(
         out.contains("ok   ") && out.ends_with(" passed, 0 failed\n"),
@@ -941,7 +1015,7 @@ fn test_matches_the_expected_output_on_the_repository() {
 /// on standard error.
 #[test]
 fn test_runs_the_examples() {
-    let (out, err, status) = run_status(&rust_fung(), &os_args(&["test", "examples"]), None);
+    let (out, err, status) = run_status(&fung_bin(), &os_args(&["test", "examples"]), None);
     let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
     assert!(
         status.success() && out.ends_with("12 passed, 0 failed\n") && err.is_empty(),
@@ -954,13 +1028,11 @@ fn test_runs_the_examples() {
 /// handlers, which may still use them: one that holds its own handle and
 /// one whose `f` left a task sleeping too. A deadlock or an exit asked
 /// for by a spawned task skips the rest of the file, like a direct
-/// `exit(n)` (08; Go runs a remaining block that makes no fung call to
-/// the end and fails one that does with E0701). The next file starts
-/// clean.
+/// `exit(n)` (08). The next file starts clean.
 #[test]
 fn test_ends_each_files_agents() {
     let start = std::time::Instant::now();
-    let (out, err, status) = run_status(&rust_fung(), &os_args(&["test", TEST_ENDS]), None);
+    let (out, err, status) = run_status(&fung_bin(), &os_args(&["test", TEST_ENDS]), None);
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
     let p = |f: &str| format!("{TEST_ENDS}/{f}");
     let after = p("after_cancel.fung");
@@ -1039,7 +1111,7 @@ fn a_skipped_rest_is_a_failure() {
     ];
     for _ in 0..20 {
         for (file, want) in &cases {
-            let (out, err, status) = run_status(&rust_fung(), &os_args(&["test", file]), None);
+            let (out, err, status) = run_status(&fung_bin(), &os_args(&["test", file]), None);
             assert_eq!(String::from_utf8_lossy(&out), *want);
             assert_eq!(String::from_utf8_lossy(&err), "");
             assert_eq!(status.code(), Some(1));
@@ -1454,7 +1526,7 @@ fn fmt_matches_the_expected_output_on_files_and_variants() {
         (entries, before, after)
     };
     let rdir = base.join("rust");
-    let (got, before, after) = format(&rust_fung(), &rdir);
+    let (got, before, after) = format(&fung_bin(), &rdir);
     // Kept as text: the listings and the tree are one line per file.
     verify_entries_with(
         "fmt/variants.txt",
@@ -1481,7 +1553,7 @@ fn fmt_matches_the_expected_output_on_files_and_variants() {
     assert!(boms > 100, "{boms} @bom variants listed");
     // Idempotent: the formatted files need nothing more.
     let check = os_args(&["fmt", "--check", "in"]);
-    let (out, _, _) = run_in(&rust_fung(), &rdir, &check, None);
+    let (out, _, _) = run_in(&fung_bin(), &rdir, &check, None);
     assert_eq!(String::from_utf8_lossy(&out), "", "second fmt --check");
     // The code survived: same tokens (newlines aside) and comments.
     for (name, after) in &after {
@@ -1627,7 +1699,7 @@ fn fmt_matches_the_expected_output_on_standard_input() {
             }
         })
     };
-    let got = entries(&rust_fung());
+    let got = entries(&fung_bin());
     // Outputs over 2 KiB (the corpus files, formatted) are kept as hashes.
     verify_entries_with(
         FMT_STDIN,
@@ -1636,9 +1708,9 @@ fn fmt_matches_the_expected_output_on_standard_input() {
         &got,
     );
     let a = os_args(&["fmt", "--check", "-"]);
-    let (out, _, status) = run_status(&rust_fung(), &a, Some(b"x=1\n"));
+    let (out, _, status) = run_status(&fung_bin(), &a, Some(b"x=1\n"));
     assert_eq!((&out[..], status.code()), (&b"<stdin>\n"[..], Some(1)));
-    let (out, _, status) = run_status(&rust_fung(), &a, Some(b"x = 1\n"));
+    let (out, _, status) = run_status(&fung_bin(), &a, Some(b"x = 1\n"));
     assert_eq!((&out[..], status.code()), (&b""[..], Some(0)));
 }
 
@@ -1761,7 +1833,7 @@ fn fmt_arguments_match_the_expected_output() {
         out.push(Entry::new("mode ro.fung").field("mode", format!("{mode:o}")));
         out
     };
-    let got = entries(&rust_fung(), &base.join("rust"));
+    let got = entries(&fung_bin(), &base.join("rust"));
     assert_eq!(got.len(), FMT_ARGUMENT_CASES, "cases");
     // Root reads and writes `locked.fung` and `ro.fung` anyway: the
     // expected output is a normal user's.
@@ -1806,7 +1878,7 @@ fn fmt_handles_a_file_name(tag: &str, name: &[u8]) {
     let shown = String::from_utf8_lossy(name).into_owned();
     let swap = |b: Vec<u8>| expected::replace(&b, &[("q_.fung", shown.as_str())]);
     let lossy = |b: Vec<u8>| String::from_utf8_lossy(&b).as_bytes().to_vec();
-    let rust = rust_fung();
+    let bin = fung_bin();
     let check = vec![OsString::from("fmt"), "--check".into(), ".".into()];
     // `--check` lists the file, formatting in place names it.
     let cases = [
@@ -1817,8 +1889,8 @@ fn fmt_handles_a_file_name(tag: &str, name: &[u8]) {
         ),
     ];
     for (args_odd, args_plain) in cases {
-        let got = run_in(&rust, &odd, &args_odd, None);
-        let want = run_in(&rust, &plain, &args_plain, None);
+        let got = run_in(&bin, &odd, &args_odd, None);
+        let want = run_in(&bin, &plain, &args_plain, None);
         // The output holds the name's own bytes.
         assert!(contains(&got.0, name), "{got:?}");
         assert_eq!(
@@ -1925,7 +1997,7 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             "x = match 2:\n  1 => \"one\"\n  _ => \"many\"\n;;\nx\nif x == \"many\":\n  \"yes\"\nelse:\n  \"no\"\n;;\n[\n  1,\n  2,\n]\n\"a\" +\n  \"b\"\n",
         ),
         (
-            "excerpts come from the current input",
+            "excerpts come from the input that defined the code",
             "fn f(x):\n  x / 0\n;;\nif true:\n  f(1)\n;;\nf(2)\nprint(\"a\" + 1)\n",
         ),
         (
@@ -1944,7 +2016,7 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
         // into a buffered channel, and the task fails right after that
         // without another call (which could see the cancellation that
         // ends the session and turn the failure into E0701). With the
-        // failure first, both Go and Rust sometimes lost the report.
+        // failure first, the report was sometimes lost.
         (
             "a failure nobody awaited",
             "c = channel(1)\nt = spawn(fn():\n  send(c, 1)\n  [1][5]\n;;)\nrecv(c)\n2\n",
@@ -1987,7 +2059,7 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             .map(|(label, input)| Entry::run(label.clone(), &repl_in(bin, &dir, input), &s))
             .collect()
     };
-    let got = entries(&rust_fung());
+    let got = entries(&fung_bin());
     let _ = std::fs::remove_dir_all(&dir);
     verify_entries(
         "repl/sessions.txt",
@@ -1996,7 +2068,7 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
     );
 }
 
-/// Rust only (agents are Rust's, stage 3b): an agent an input stores
+/// Agents (stage 3b): an agent an input stores
 /// stays usable in later inputs, and every background task ends with the
 /// session, so the REPL exits at once. (That a temporary agent's loop
 /// ends with its input is checked by counting background tasks in
@@ -2006,7 +2078,7 @@ fn repl_agents_end_with_the_session() {
     let dir = repl_dir("agents");
     let start = std::time::Instant::now();
     let (out, err, status) = repl_in(
-        &rust_fung(),
+        &fung_bin(),
         &dir,
         b"a = agent(1)\nswap(a, (n) => n + 1)\nderef(a)\nderef(agent(5))\nswap(a, (n) => n * 10)\nat_exit(() => print(deref(a)))\n",
     );
@@ -2020,12 +2092,12 @@ fn repl_agents_end_with_the_session() {
     assert_eq!(status, "ExitStatus(unix_wait_status(0))");
 }
 
-/// Runs a Rust-only REPL session: (stdout, stderr, exit code).
-fn rust_repl(tag: &str, input: &str) -> (String, String, Option<i32>) {
+/// Runs a REPL session: (stdout, stderr, exit code).
+fn repl_session(tag: &str, input: &str) -> (String, String, Option<i32>) {
     let dir = repl_dir(tag);
     // killed and waited for if anything below panics
     let mut child = common::Reaped::new(
-        std::process::Command::new(rust_fung())
+        std::process::Command::new(fung_bin())
             .env("TZ", common::TZ)
             .current_dir(&dir)
             .env("HOME", &dir)
@@ -2051,14 +2123,71 @@ fn rust_repl(tag: &str, input: &str) -> (String, String, Option<i32>) {
     )
 }
 
-/// Rust only (decided 2026-10-17, a deliberate divergence from Go): a
-/// deadlock fails only the input it happened in, with Go's report; the
+/// Standard input from `/dev/null` (a character device, not a terminal)
+/// is read as plain lines: no line editor, so no history file.
+#[test]
+fn repl_reads_a_device_that_is_no_terminal_plainly() {
+    let dir = repl_dir("devnull");
+    let o = std::process::Command::new(fung_bin())
+        .env("TZ", common::TZ)
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .stdin(std::fs::File::open("/dev/null").unwrap())
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "> \n");
+    assert!(o.status.success());
+    assert!(
+        !dir.join(".fung_history").exists(),
+        "a history file was made"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An error in code an earlier input defined is excerpted from that
+/// input, and so is a task failure the session reports at its end.
+#[test]
+fn repl_excerpts_the_input_that_defined_the_code() {
+    let (_, err, code) = repl_session(
+        "excerpts",
+        // the task fails right after the input has its value (ordered by
+        // state, as in the piped "a failure nobody awaited")
+        "fn f(x):\n  x / 0\n;;\n1\nf(1)\nc = channel(1)\nt = spawn(fn():\n  send(c, 1)\n  [1][5]\n;;)\nrecv(c)\n",
+    );
+    assert!(
+        err.contains("  --> <repl>:2:5\n  |\n2 |   x / 0\n"),
+        "the defining input's line: {err}"
+    );
+    assert!(
+        err.contains("3 |   [1][5]\n"),
+        "the task failure's line: {err}"
+    );
+    assert_eq!(code, Some(0));
+}
+
+/// The session's globals have no fixed limit: an input defining 65,537
+/// of them runs, and later inputs see them.
+#[test]
+fn repl_globals_have_no_fixed_limit() {
+    let many: String = (0..65_537).map(|i| format!("g{i} = {i}\n")).collect();
+    let input = format!(
+        "a = 1\n{}\ng65536 + a\n",
+        many.replace('\n', "; ").trim_end_matches("; ")
+    );
+    let (out, err, code) = repl_session("globals", &input);
+    assert_eq!(err, "");
+    assert!(out.ends_with("> 65537\n> \n"), "{out}");
+    assert_eq!(code, Some(0));
+}
+
+/// Decided 2026-10-17 (08 REPL): a deadlock fails only the input it
+/// happened in, with the deadlock report; the
 /// session goes on on a fresh run root, the tasks earlier inputs left
 /// blocked are cancelled, globals and agents stay, and the recovered
 /// deadlock does not set the exit code.
 #[test]
 fn repl_recovers_after_a_deadlock() {
-    let (out, err, code) = rust_repl(
+    let (out, err, code) = repl_session(
         "deadlock",
         "a = agent(1)\nc = channel()\nt = spawn(() => recv(c))\nrecv(channel())\nprint(\"after\")\nawait(t)\nu = spawn(() => 40 + 2)\nawait(u)\nswap(a, (n) => n + 1)\n",
     );
@@ -2073,13 +2202,13 @@ fn repl_recovers_after_a_deadlock() {
     assert_eq!(code, Some(0));
 }
 
-/// Rust only (decided 2026-10-17): a spawned task's `exit(n)` ends the
+/// Decided 2026-10-17: a spawned task's `exit(n)` ends the
 /// session like `exit(n)` typed at the prompt: the input it cut short
 /// reports nothing, later lines are not run, the handlers run, and the
 /// code is n.
 #[test]
 fn repl_ends_on_a_spawned_exit() {
-    let (out, err, code) = rust_repl(
+    let (out, err, code) = repl_session(
         "spawned-exit",
         "at_exit(() => print(\"bye\"))\nc = channel()\nt = spawn(fn():\n  recv(c)\n  exit(3)\n;;)\n[send(c, 1), await(t)]\nprint(\"never\")\n",
     );
@@ -2088,7 +2217,7 @@ fn repl_ends_on_a_spawned_exit() {
     assert_eq!(code, Some(3));
 }
 
-/// Rust only: a spawned task's `exit(n)` that comes while a line is read
+/// A spawned task's `exit(n)` that comes while a line is read
 /// ends the session before that line runs, a `:` command included (one
 /// that runs no fung code, which the exit would have cut short). The
 /// task prints `going` and asks for the exit on one turn of the run token,
@@ -2102,7 +2231,7 @@ fn repl_checks_a_spawned_exit_before_a_command() {
     let dir = repl_dir("exit-before-command");
     // killed and waited for if anything below panics
     let mut child = common::Reaped::new(
-        std::process::Command::new(rust_fung())
+        std::process::Command::new(fung_bin())
             .env("TZ", common::TZ)
             .current_dir(&dir)
             .env("HOME", &dir)

@@ -1,7 +1,7 @@
-//! Pattern matching (Go `match.go`): one place holds what every pattern
-//! means (09). The front end's pattern tree is linked into `RtPattern`,
-//! whose literals are values and whose tag names are symbols, so MATCH
-//! compares without converting anything.
+//! Pattern matching: one place holds what every pattern means (09). The
+//! front end's pattern tree is linked into `RtPattern`, whose literals are
+//! values and whose tag names are symbols, so MATCH compares without
+//! converting anything.
 
 use std::rc::Rc;
 

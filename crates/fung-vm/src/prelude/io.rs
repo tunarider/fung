@@ -1,8 +1,8 @@
-//! Input and output natives (Go `prelude/io.go`): `exit`, `dbg`,
-//! `eprint`, `read_line`, `read_lines`. `f` is nil (standard input) or a
-//! file handle from `fs.open`, read without the run token.
+//! Input and output natives: `exit`, `dbg`, `eprint`, `read_line`,
+//! `read_lines`. `f` is nil (standard input) or a file handle from
+//! `fs.open`, read without the run token.
 
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 
 use crate::native::fs::fault_value;
 use crate::native::nat::{self, opt, param};
@@ -53,14 +53,14 @@ pub(super) fn eprint_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> 
 
 /// One line from standard input (`f` is nil) or a file handle, without
 /// its line ending; `None` at the end. A handle that cannot be read gives
-/// its `Err` value (Go `nextLine`).
+/// its `Err` value.
 fn next_line(t: &mut Task<'_>, f: &Value) -> Result<Result<Option<String>, Value>, Stop> {
     match f {
         Value::Nil => Ok(Ok(t.read_line()?.map(|l| trim_line(&l).to_string()))),
         Value::File(h) => {
             let h: &File = h;
             Ok(match outside(t, || h.read_line()) {
-                Ok(l) => Ok(l.map(|l| trim_line(&decode_go(&l)).to_string())),
+                Ok(l) => Ok(l.map(|l| trim_line(&decode_lossy(&l)).to_string())),
                 Err(e) => Err(fault_value(h, "read", e)),
             })
         }
@@ -69,7 +69,7 @@ fn next_line(t: &mut Task<'_>, f: &Value) -> Result<Result<Option<String>, Value
 }
 
 /// Every remaining line of a handle, read without the token in one go
-/// (the handle is locked for each line, as Go's `nextLine` locks it).
+/// (the handle is locked for each line, as `next_line` locks it).
 fn handle_lines(t: &mut Task<'_>, h: &File) -> Result<Vec<Value>, Value> {
     let r = outside(t, || {
         let mut lines = Vec::new();
@@ -81,7 +81,7 @@ fn handle_lines(t: &mut Task<'_>, h: &File) -> Result<Vec<Value>, Value> {
     match r {
         Ok(lines) => Ok(lines
             .iter()
-            .map(|l| Value::str(trim_line(&decode_go(l))))
+            .map(|l| Value::str(trim_line(&decode_lossy(l))))
             .collect()),
         Err(e) => Err(fault_value(h, "read", e)),
     }

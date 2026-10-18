@@ -1,4 +1,4 @@
-//! The REPL on a pseudo-terminal (Rust only; stage 5 task 4): the line
+//! The REPL on a pseudo-terminal (stage 5 task 4): the line
 //! editor gets raw keys while it reads a line, and the terminal is
 //! restored after every line, at the end of input and on `exit(n)`.
 //! A pipe gets the plain reader and leaves the terminal alone.
@@ -43,7 +43,7 @@ struct Tty {
 /// Starts `fung` with standard input, output and error on a new
 /// pseudo-terminal, `HOME` in a scratch directory.
 fn start(tag: &str, stdin_pipe: bool) -> Tty {
-    start_bin(&common::rust_fung(), tag, stdin_pipe, None)
+    start_bin(&common::fung_bin(), tag, stdin_pipe, None)
 }
 
 /// `start` for any binary, with a history file to begin with.
@@ -270,7 +270,7 @@ fn session(bin: &std::path::Path, tag: &str) -> (String, Option<i32>, String) {
 
 #[test]
 fn the_editor_matches_the_expected_output() {
-    let (screen, code, history) = session(&common::rust_fung(), "session");
+    let (screen, code, history) = session(&common::fung_bin(), "session");
     assert!(history.starts_with("3\n"), "trimmed to the latest lines");
     let got = [common::expected::Entry::new("session")
         .field("screen", screen)

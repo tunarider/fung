@@ -1,15 +1,10 @@
 //! Unretrieved task failures and deadlock detection (stage 3a, Task 6).
-//! Ports Go `internal/vm/unretrieved_test.go` (all of it) and
-//! `conc_test.go` `TestUnawaitedFailureIsReportedOnce`,
-//! `TestAwaitOnSelfIsADeadlock`, `TestDeadlockIsDetected`,
-//! `TestDeadlockAfterTheLastRunnerFinishes` and
-//! `TestAwaitTimeoutDoesNotHideALaterFailure`. Expected texts come from
-//! the Go binary (`fung -e`, so the file is `-e`).
+//! Expected texts are what `fung -e` prints (so the file is `-e`).
 //!
-//! Go reports a dropped handle's failure when the garbage collector finds
-//! the handle; Rust reports it when the last handle drops (or, if the task
-//! is still running then, when it fails). Tests that need a task in a
-//! given state wait for that state (`testutil` probes), not for a time.
+//! A dropped handle's failure is reported when the last handle drops (or,
+//! if the task is still running then, when it fails). Tests that need a
+//! task in a given state wait for that state (`testutil` probes), not for
+//! a time.
 
 use std::time::{Duration, Instant};
 
@@ -42,7 +37,7 @@ fn a_dropped_failed_task_is_reported_once_and_fails_the_run() {
     assert_eq!(out, "entry done\n");
     assert_eq!(err.matches("error[E0803]").count(), 1, "{err}");
     assert_eq!(code, 1);
-    // The whole text, as the Go binary prints it.
+    // The whole text, as `fung -e` prints it.
     assert_eq!(
         err,
         "task failed: error[E0803]: x\n  --> -e:1:17\n  |\n1 | spawn(() => fail(\"x\"))\n  |                 ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n"
@@ -67,13 +62,12 @@ fn a_channel_nobody_sends_on_is_a_deadlock() {
     );
     assert_eq!(code, 1);
     assert!(start.elapsed() < std::time::Duration::from_millis(500));
-    // Go: the report, then the handler runs; nothing else.
+    // The report, then the handler runs; nothing else.
     assert_eq!((out.as_str(), err.as_str()), ("bye\n", DEADLOCK));
 }
 
-// --- Go unretrieved_test.go ---
+// --- unretrieved failures ---
 
-/// Go `TestAwaitAfterTheTaskDiedIsQuiet`.
 #[test]
 fn an_await_after_the_task_died_is_quiet() {
     let (out, err, code) =
@@ -81,9 +75,8 @@ fn an_await_after_the_task_died_is_quiet() {
     assert_eq!((out.as_str(), err.as_str(), code), ("true\n", "", 0));
 }
 
-/// Go `TestHeldFailureIsReportedAtTheEnd`: a handle still held can be
-/// awaited later, so its failure waits for the end of the program, and
-/// the sweep reports it once however often it runs.
+/// A handle still held can be awaited later, so its failure waits for the
+/// end of the program, and the sweep reports it once however often it runs.
 #[test]
 fn a_held_failure_is_reported_at_the_end() {
     on_big_stack(|| {
@@ -119,12 +112,11 @@ fn reported() -> Vec<Value> {
     v
 }
 
-/// Go `TestDroppedHandleIsReportedByTheGC`, with its intent in Rust: a
-/// dropped handle can never be awaited, so its failure is reported while
-/// the program still runs: here when the handle's last reference (a
-/// local of `kick`, deeper than the entry's later calls reach) goes,
-/// or when the task fails if that comes later. The entry waits for the
-/// report and then goes on.
+/// A dropped handle can never be awaited, so its failure is reported while
+/// the program still runs: here when the handle's last reference (a local
+/// of `kick`, deeper than the entry's later calls reach) goes, or when the
+/// task fails if that comes later. The entry waits for the report and then
+/// goes on.
 #[test]
 fn a_dropped_handle_is_reported_when_it_drops() {
     let o = within(10, || {
@@ -186,9 +178,8 @@ fn a_handle_dropped_after_the_failure_is_reported_then() {
     assert_eq!(o.exit, 1);
 }
 
-/// Go `TestTimedOutAwaitDoesNotRetrieve` (and the rest of
-/// `TestAwaitTimeoutDoesNotHideALaterFailure`): a timed-out await does not
-/// retrieve the result, so the later failure is reported.
+/// A timed-out await does not retrieve the result, so the later failure is
+/// reported.
 #[test]
 fn a_timed_out_await_does_not_retrieve() {
     let o = within(10, || {
@@ -206,7 +197,6 @@ fn a_timed_out_await_does_not_retrieve() {
     assert_eq!(o.exit, 1);
 }
 
-/// Go `TestHelpersThatAwaitNeverReport`.
 #[test]
 fn helpers_that_await_never_report() {
     for _ in 0..20 {
@@ -220,9 +210,8 @@ fn helpers_that_await_never_report() {
     }
 }
 
-// --- Go conc_test.go ---
+// --- failures and deadlocks ---
 
-/// Go `TestUnawaitedFailureIsReportedOnce`.
 #[test]
 fn an_unawaited_failure_is_reported_once() {
     let (out, err, code) = run("spawn(() => fail(\"boom\"))\nsleep(20ms)\nprint(\"after\")");
@@ -242,8 +231,8 @@ fn an_unawaited_failure_is_reported_once() {
     assert_eq!((err.as_str(), code), ("", 0));
 }
 
-/// Go `TestAwaitOnSelfIsADeadlock`: a sleeper keeps the others alive, so
-/// there is no deadlock until the program is cancelled from outside.
+/// A sleeper keeps the others alive, so there is no deadlock until the
+/// program is cancelled from outside.
 #[test]
 fn a_sleeper_keeps_a_waiting_chain_alive() {
     let (err, code) = on_big_stack(|| {
@@ -276,7 +265,6 @@ fn a_sleeper_keeps_a_waiting_chain_alive() {
     assert!(code.is_empty() || code == "E0701", "{code}");
 }
 
-/// Go `TestDeadlockIsDetected`.
 #[test]
 fn a_deadlock_is_detected() {
     let o = within(10, || exec("ch = channel()\nrecv(ch)", Opts::default()));
@@ -307,7 +295,6 @@ fn a_deadlock_is_detected() {
     assert_eq!((out.as_str(), err.as_str(), code), ("Ok(1)\n", "", 0));
 }
 
-/// Go `TestDeadlockAfterTheLastRunnerFinishes`.
 #[test]
 fn a_deadlock_after_the_last_runner_finishes() {
     // The sender finishes without sending: the receiver is left alone.
@@ -358,7 +345,7 @@ fn a_deadlock_after_the_last_runner_finishes() {
     assert_eq!(ok, (true, String::new()));
 }
 
-// --- more cases, checked against the Go binary ---
+// --- more cases ---
 
 /// An exit handler counts as live, and a deadlock inside one is reported
 /// and ends it (its E0702 is not reported again).
@@ -456,8 +443,7 @@ fn a_long_chain_of_task_results_drops_without_recursion() {
 
 /// An entry error while another task is blocked is the entry's error, not
 /// a deadlock: the entry's end must not be judged before the program is
-/// cancelled (Go `execute` cancels right after an entry error). Expected
-/// text from the Go binary.
+/// cancelled (an entry error cancels the program at once).
 #[test]
 fn an_entry_error_beside_a_blocked_task_is_not_a_deadlock() {
     let (out, err, code) =
@@ -493,8 +479,7 @@ fn an_entry_error_beside_a_task_about_to_block_is_not_a_deadlock() {
 
 /// A deadlock inside an exit handler is judged on its own, even after an
 /// exit or a deadlock before the handlers: it is reported, the handler is
-/// cut short, and the exit code stays what it was. (Go's own runtime
-/// detector kills the process with exit 2 here; see open-questions.)
+/// cut short, and the exit code stays what it was (05 "종료").
 #[test]
 fn a_deadlock_in_a_handler_after_an_exit_or_a_deadlock() {
     let (out, err, code) =

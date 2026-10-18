@@ -1,5 +1,5 @@
 //! Helpers shared by the core prelude (`crate::prelude`) and the native
-//! bridges (Go `internal/nat`): parameter declarations, Ok/Err values,
+//! bridges: parameter declarations, Ok/Err values,
 //! argument checks, and walking what a collection function iterates.
 
 use std::rc::Rc;
@@ -60,8 +60,7 @@ pub fn s(x: &str) -> Arg {
     Arg::Str(x.to_string())
 }
 
-/// A failed write to an output stream: Go returns the writer's error from
-/// the native, which the VM reports as E0801 at the call.
+/// A failed write to an output stream, reported as E0801 at the call.
 pub fn write_err(e: std::io::Error) -> Stop {
     fail("E0801", vec![Arg::Str(e.to_string())])
 }
@@ -117,35 +116,31 @@ fn not_iterable(verb: &str, v: &Value) -> Stop {
     fail("E0506", vec![s(verb), Arg::Str(type_name(v))])
 }
 
-/// The most elements Go can put in one slice: `make` refuses more than
-/// 2^48 bytes, and a value is 16 bytes.
-pub const MAX_SLICE: usize = 1 << 44;
+/// The most elements a function builds a result of from one range (02):
+/// a hundred million values are 1.6 GB.
+pub const MAX_ELEMENTS: u64 = 100_000_000;
 
-/// Go's panic when `make` cannot make a slice that long, which its VM
-/// reports as E0801 at the call.
-pub fn too_long() -> Stop {
-    fail(
-        "E0801",
-        vec![s("runtime error: makeslice: cap out of range")],
-    )
+/// E0806 for a result past [`MAX_ELEMENTS`].
+pub fn too_many_elements() -> Stop {
+    fail("E0806", vec![s("elements"), Arg::Int(MAX_ELEMENTS as i64)])
 }
 
-/// Does what Go's `nat.Items` does first, without listing a list or a
-/// range: `v` is a list, a range short enough for Go to list
-/// (`MAX_SLICE`), or a channel, which is drained until it is closed (05)
-/// and replaced by a list of what it held. Every native that lists its
-/// collection in Go calls this first, so huge ranges fail like Go's and a
-/// channel is drained before any other argument is checked.
-pub fn check_items(t: &mut Task<'_>, v: &mut Value, verb: &str) -> Result<(), Stop> {
+/// For a function whose result holds every element (`map`, `sort`,
+/// `flatten`, `group_by`): a range longer than [`MAX_ELEMENTS`] is
+/// refused before any work, after the arguments are checked.
+pub fn limit_elements(v: &Value) -> Result<(), Stop> {
     match v {
-        Value::List(_) => Ok(()),
-        Value::Range(r) if r.len() as u64 > MAX_SLICE as u64 => Err(too_long()),
-        Value::Range(_) => Ok(()),
-        Value::Channel(ch) => {
-            let ch = ch.clone();
-            *v = list(channel::drain(t, &ch)?);
-            Ok(())
-        }
+        Value::Range(r) if r.len() > i128::from(MAX_ELEMENTS) => Err(too_many_elements()),
+        _ => Ok(()),
+    }
+}
+
+/// Whether `v` can be iterated (02): a list, a range or a channel, or
+/// E0506 with `verb`. Collection natives check this first, in argument
+/// order, before they receive or build anything.
+pub fn check_items(v: &Value, verb: &str) -> Result<(), Stop> {
+    match v {
+        Value::List(_) | Value::Range(_) | Value::Channel(_) => Ok(()),
         _ => Err(not_iterable(verb, v)),
     }
 }
@@ -164,8 +159,9 @@ pub fn each(
 }
 
 /// `each` that also stops when `f` returns true; the result says whether
-/// it did (`find`, `any`, `all`). A channel is drained until it is closed
-/// before `f` sees its first element, as Go's `nat.Each` does.
+/// it did (`find`, `any`, `all`). A channel is walked as its values
+/// arrive (05): `f` sees each one when it is received, and what is left
+/// after a stop or an error stays in the channel.
 pub fn each_until(
     t: &mut Task<'_>,
     v: &Value,
@@ -183,20 +179,23 @@ pub fn each_until(
         }
         Value::Range(r) => {
             for i in 0..r.len() {
-                if f(t, Value::Int(r.start.wrapping_add(i)))? {
+                // The number itself fits an int; only the offset may not.
+                if f(t, Value::Int(r.start.wrapping_add(i as i64)))? {
                     return Ok(true);
                 }
             }
             Ok(false)
         }
-        Value::Channel(ch) => {
-            for x in channel::drain(t, ch)? {
-                if f(t, x)? {
-                    return Ok(true);
+        Value::Channel(ch) => loop {
+            match channel::recv(t, ch, None)? {
+                channel::Received::Value(x) => {
+                    if f(t, x)? {
+                        return Ok(true);
+                    }
                 }
+                channel::Received::Closed | channel::Received::Timeout => return Ok(false),
             }
-            Ok(false)
-        }
+        },
         _ => Err(not_iterable(verb, v)),
     }
 }
@@ -205,21 +204,22 @@ pub fn each_until(
 pub fn size_hint(v: &Value) -> usize {
     match v {
         Value::List(l) => l.len(),
-        Value::Range(r) => r.len() as usize,
+        Value::Range(r) => usize::try_from(r.len()).unwrap_or(usize::MAX),
         _ => 0,
     }
 }
 
-/// What a collection function iterates (02), as a vector: lists, ranges
-/// and channels (drained until closed). Prefer `each` where the elements
-/// are only walked.
+/// What a collection function iterates (02), as a vector, for the
+/// functions that need every element at once (`sort`): lists, ranges and
+/// channels (received until closed). Prefer `each` where the elements are
+/// only walked.
 pub fn items(t: &mut Task<'_>, v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
     match v {
         Value::List(l) => Ok(l.to_vec()),
-        Value::Range(r) if r.len() as u64 > MAX_SLICE as u64 => Err(too_long()),
+        Value::Range(r) if r.len() > i128::from(MAX_ELEMENTS) => Err(too_many_elements()),
         Value::Channel(ch) => channel::drain(t, ch),
         Value::Range(r) => Ok((0..r.len())
-            .map(|i| Value::Int(r.start.wrapping_add(i)))
+            .map(|i| Value::Int(r.start.wrapping_add(i as i64)))
             .collect()),
         _ => Err(not_iterable(verb, v)),
     }
@@ -329,4 +329,25 @@ pub fn str_list(name: &str, v: &Value) -> Result<Vec<String>, Stop> {
             )),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::value::Range;
+
+    fn range(n: i64) -> Value {
+        Value::Range(Rc::new(Range {
+            start: 0,
+            end: n,
+            inclusive: false,
+        }))
+    }
+
+    #[test]
+    fn element_limit_boundary() {
+        assert!(limit_elements(&range(MAX_ELEMENTS as i64)).is_ok());
+        assert!(limit_elements(&range(MAX_ELEMENTS as i64 + 1)).is_err());
+        assert!(limit_elements(&list(vec![Value::Int(1)])).is_ok());
+    }
 }

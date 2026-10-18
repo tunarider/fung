@@ -34,10 +34,6 @@ use crate::value::Value;
 /// Bounds a handler that keeps registering handlers.
 const MAX_EXIT_HANDLERS: usize = 10_000;
 
-/// Bounds the entry globals of a REPL session (Go `maxReplGlobals`: Go
-/// allocates its table once at this capacity).
-const MAX_REPL_GLOBALS: usize = 65_536;
-
 pub struct Runtime {
     shared: Arc<Shared>,
     /// Makes `Runtime` `!Sync` (`Cell` is `Send` but not `Sync`) while it
@@ -78,14 +74,13 @@ impl Runtime {
     }
 
     /// A fresh task on this thread under the root of the cancellation
-    /// tree (the entry's place, Go `rootTask`), holding the run token
-    /// until it drops.
+    /// tree (the entry's place), holding the run token until it drops.
     pub(crate) fn task(&self) -> Task<'_> {
         Task::driven(&self.shared, self.shared.root())
     }
 
-    /// A fresh task below the root (Go `newTask(rt.root())`): a test
-    /// block. Cancelling it at the end ends what it spawned and left.
+    /// A fresh task below the root: a test block. Cancelling it at the end
+    /// ends what it spawned and left.
     pub(super) fn child_task(&self) -> Task<'_> {
         Task::driven(&self.shared, self.shared.root().child())
     }
@@ -96,10 +91,9 @@ impl Runtime {
     /// so a task the entry left waiting for a later test block is not a
     /// deadlock when the entry ends; while a block runs, it stands in for
     /// the command (`Task::driven`), so a deadlock inside it is judged as
-    /// usual. Go has no such count: its 50 ms grace absorbs the gap.
-    /// Call `release` once the program's tasks are cancelled and waited
-    /// for, before the exit handlers (a deadlock inside one must still
-    /// be judged).
+    /// usual. Call `release` once the program's tasks are cancelled and
+    /// waited for, before the exit handlers (a deadlock inside one must
+    /// still be judged).
     pub fn hold(&self) {
         let mut w = self.lock();
         if !w.held {
@@ -109,7 +103,7 @@ impl Runtime {
     }
 
     /// Ends `hold`. Nothing is judged: the command cancels and waits for
-    /// the program's tasks first, as Go's `fung test` does.
+    /// the program's tasks first.
     pub fn release(&self) {
         let mut w = self.lock();
         debug_assert!(!w.hold_taken, "release while a driven task runs");
@@ -119,9 +113,9 @@ impl Runtime {
         }
     }
 
-    /// Waits until every spawned task has finished (Go `Wait`). The
-    /// background tasks (stage 3b) are not waited for: they do not keep
-    /// the program alive (`end_background`).
+    /// Waits until every spawned task has finished. The background tasks
+    /// (stage 3b) are not waited for: they do not keep the program alive
+    /// (`end_background`).
     pub fn wait(&self) {
         self.wait_until(|w| w.running == 0);
     }
@@ -161,8 +155,8 @@ impl Runtime {
         debug_assert!(matches!(r, Ok(Some(()))));
     }
 
-    /// Cancels every task below the root (Go `CancelAll`): an exit, an
-    /// entry error, the end of a test run. Blocked tasks wake and unwind.
+    /// Cancels every task below the root: an exit, an entry error, the end
+    /// of a test run. Blocked tasks wake and unwind.
     pub fn cancel_all(&self) {
         self.shared.cancel_all();
     }
@@ -206,7 +200,7 @@ impl Runtime {
     }
 
     /// Links a compiled entry against the booted prelude and makes the
-    /// program's modules importable (Go `register`); `run` runs the entry.
+    /// program's modules importable; `run` runs the entry.
     pub fn load(&self, entry: &Proto, modules: &[Loaded]) {
         let mut w = self.lock();
         let p = std::mem::take(&mut w.prelude);
@@ -231,46 +225,46 @@ impl Runtime {
         let globals = t.world.new_globals(main.global_names.len());
         let r = t.run_main(main, globals);
         if let Err(Stop::Error(_)) = &r {
-            // An entry error ends the program (Go `execute` cancels right
-            // after it). Cancelled here, while the entry still holds the
-            // token: its end is judged for a deadlock when it drops, and
-            // the tasks it leaves must not count as stuck by then.
+            // An entry error ends the program. Cancelled here, while the
+            // entry still holds the token: its end is judged for a deadlock
+            // when it drops, and the tasks it leaves must not count as
+            // stuck by then.
             self.shared.root().cancel();
         }
         let v = r?;
         Ok(f(&v))
     }
 
-    /// Makes the runtime a REPL session's (08, Go `PrepareREPL`): every
-    /// entry it runs (`run_repl`) uses one global table, so what an input
-    /// defines stays for the next, and reading a global whose assignment
-    /// failed is E0808 instead of an internal error.
+    /// Makes the runtime a REPL session's (08): every entry it runs
+    /// (`run_repl`) uses one global table, so what an input defines stays
+    /// for the next, and reading a global whose assignment failed is E0808
+    /// instead of an internal error.
     pub fn prepare_repl(&self) {
         let mut w = self.lock();
         let g = w.new_globals(0);
         w.repl = Some(g);
     }
 
-    /// Appends the names of `sources`' files from `from` on, without
-    /// their texts: the REPL compiles each input after the files the
-    /// runtime has (`Loader::compile_after`), so the ids agree. Go's REPL
-    /// runtime keeps no sources, so a task failure report shows no
-    /// excerpt; the REPL excerpts an input's own errors itself.
-    pub fn add_names(&self, sources: &SourceMap, from: usize) {
+    /// Appends `sources`' files from `from` on, with their texts: the
+    /// REPL compiles each input after the files the runtime has
+    /// (`Loader::compile_after`), so the ids agree, and a task failure
+    /// report excerpts the input its code came from.
+    pub fn add_session_files(&self, sources: &SourceMap, from: usize) {
         let mut w = self.lock();
         debug_assert_eq!(w.sources.len(), from, "the ids would not agree");
         for i in from..sources.len() {
-            w.sources.add(sources.name(FileId(i as u32)), "");
+            let id = FileId(i as u32);
+            w.sources.add(sources.name(id), sources.text(id));
         }
     }
 
     /// Recovers a REPL session from a deadlock an input ran into
-    /// (decided 2026-10-17; Go leaves the session cancelled). The report
-    /// cancelled the run root: wait until every task of the program has
-    /// unwound (those earlier inputs left blocked too), then clear the
-    /// deadlock and the exit(1) it requested and start a fresh run root,
-    /// so later inputs run as usual. Globals and agents stay (agents hang
-    /// from the background root, which the report does not cancel).
+    /// (decided 2026-10-17). The report cancelled the run root: wait until
+    /// every task of the program has unwound (those earlier inputs left
+    /// blocked too), then clear the deadlock and the exit(1) it requested
+    /// and start a fresh run root, so later inputs run as usual. Globals
+    /// and agents stay (agents hang from the background root, which the
+    /// report does not cancel).
     ///
     /// Only the report's own exit(1) is cleared: an exit(n) a task asked
     /// for after it stays (`exit_code` gives n), and the root is not
@@ -305,17 +299,6 @@ impl Runtime {
         };
         let n = main.global_names.len();
         if n > globals.borrow().len() {
-            if n > MAX_REPL_GLOBALS {
-                // Go's table has a fixed capacity (Go-parity scaffolding).
-                return Err(Stop::Error(Box::new(error(
-                    "E0806",
-                    no_pos(),
-                    vec![
-                        Arg::Str("globals".into()),
-                        Arg::Int(MAX_REPL_GLOBALS as i64),
-                    ],
-                ))));
-            }
             globals.borrow_mut().resize(n, None);
         }
         let r = t.run_main(main, globals);
@@ -323,9 +306,9 @@ impl Runtime {
     }
 
     /// Reports every task failure nobody retrieved, in the order the
-    /// tasks failed (Go `ReportUnretrieved`). Call it once the program is
-    /// over (the entry, every task and the exit handlers are done), so
-    /// nothing can await them any more.
+    /// tasks failed. Call it once the program is over (the entry, every
+    /// task and the exit handlers are done), so nothing can await them any
+    /// more.
     pub fn report_unretrieved(&self) {
         let _t = self.lock();
         self.shared.failures.report_all();
@@ -361,9 +344,9 @@ impl Runtime {
     ///
     /// An exit(n) inside a handler ends that handler and records n if no
     /// exit was requested before; it is not an error, so it is not
-    /// returned. The handlers after it still run: Go cancels them through
-    /// a context whose flag a goroutine sets, so in practice a short
-    /// handler runs to the end; Rust makes that the rule.
+    /// returned. The handlers after it still run: each has a cancellation
+    /// node of its own, so the exit cuts short only the handler it came
+    /// from.
     pub fn run_exit_handlers(&self) -> Vec<Diag> {
         let mut errs = Vec::new();
         let mut ran = 0;
@@ -371,10 +354,10 @@ impl Runtime {
             // The handler is popped by a task holding the token, so the
             // value never lives outside it. The task starts on the
             // handlers' root and moves to its own node below it once
-            // there is a handler to run (Go makes the context after the
-            // pop), so the last pop and the E0806 stop leave no node
-            // behind. Handlers run below their own root: the program's is
-            // cancelled by now.
+            // there is a handler to run (the node is made after the pop),
+            // so the last pop and the E0806 stop leave no node behind.
+            // Handlers run below their own root: the program's is cancelled
+            // by now.
             let mut t = Task::new(&self.shared, self.shared.handlers.clone());
             let Some(h) = t.world.exit_handlers.pop() else {
                 break;
@@ -396,7 +379,7 @@ impl Runtime {
             t.world.handler = Some(node.clone());
             let r = t.call(&h, Vec::new());
             t.world.handler = None;
-            // Go cancels each handler's context when it returns: what the
+            // Each handler's node is cancelled when it returns: what the
             // handler spawned and left running ends with it.
             node.cancel();
             if let Err(Stop::Error(d)) = r {

@@ -154,7 +154,19 @@
 ==== check -e print(1) ignored too
 -- stdout
 -- stderr
--- exit: 0
+| error: check -e takes the code and nothing after it
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
 ==== check a.fung b.fung
 -- stdout
 -- stderr
@@ -190,17 +202,17 @@
 ==== check tests/lang
 -- stdout
 -- stderr
-| error: cannot read tests/lang: read tests/lang: is a directory
+| error: cannot read `tests/lang`: is a directory
 -- exit: 3
 ==== check nope.fung
 -- stdout
 -- stderr
-| error: cannot read nope.fung: open nope.fung: no such file or directory
+| error: cannot read `nope.fung`: no such file or directory
 -- exit: 3
 ==== check nope/
 -- stdout
 -- stderr
-| error: cannot read nope/: open nope/: no such file or directory
+| error: cannot read `nope/`: no such file or directory
 -- exit: 3
 ==== check tests/lang/arith.fung -e
 -- stdout
@@ -225,12 +237,12 @@
 ==== check --help
 -- stdout
 -- stderr
-| error: cannot read --help: open --help: no such file or directory
+| error: cannot read `--help`: no such file or directory
 -- exit: 3
 ==== check non-UTF-8 name
 -- stdout
 -- stderr (escaped)
-| error: cannot read q\xfe.fung: open q\xfe.fung: no such file or directory
+| error: cannot read `q\xfe.fung`: no such file or directory
 -- exit: 3
 ==== check wide name
 -- stdout

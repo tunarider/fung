@@ -1,0 +1,16 @@
+# Names follow UAX #31: combining marks may continue a name.
+नमस्ते = 1
+café = 2
+print(नमस्ते + café)
+# expect: 3
+print(Été, type_of(Été))
+# expect: 'Été 'sym
+café = 5
+print(café)
+# expect: 5
+# Names are normalized (NFC): the composed and decomposed spellings are one name.
+café = 6
+print(café, sym("café") == 'café)
+# expect: 6 true
+print('café == 'café, 'café == sym("café"))
+# expect: true true

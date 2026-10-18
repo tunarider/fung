@@ -12,12 +12,12 @@
 -- exit: 2
 ==== "import json\nimport time\nprint(json.stringify(\"\\u{2028}<… (140 bytes, 0ec3d9277416a620)
 -- stdout (escaped)
-| "\\u2028<>&\x7f\\u0001\\b\\f\\n\\r\\t\\"\\\\�\\u2029é\\u001f😀"
+| " <>&\x7f\\u0001\\b\\f\\n\\r\\t\\"\\\\� é\\u001f😀"
 -- stderr
 -- exit: 0
 ==== "import json\nimport time\nprint(json.stringify([1e21, 1e20,… (167 bytes, a80d6b184a54a963)
 -- stdout
-| [1e21,100000000000000000000.0,1e-07,0.0001,0.1,-0.0,1.0,123456789.0,1.5e300,-2.5e-300,9223372036854775807,-9223372036854775808]
+| [1e21,100000000000000000000.0,1e-7,0.0001,0.1,-0.0,1.0,123456789.0,1.5e300,-2.5e-300,9223372036854775807,-9223372036854775808]
 -- stderr
 -- exit: 0
 ==== "import json\nimport time\nprint(json.stringify({\"A\": 1, \"a\": 2, \"a b\": 3, \"é\": 4, \"\\\"\": 5}))"
@@ -72,7 +72,7 @@
 ==== "import json\nimport time\nprint(json.stringify([1], indent: 4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: len out of range
+| error[E0806]: too many characters (limit 100000000)
 |   --> -e:3:21
 |   |
 | 3 | print(json.stringify([1], indent: 4611686018427387904))
@@ -84,7 +84,7 @@
 ==== "import json\nimport time\nprint(json.stringify([1], indent: 1000000000000000000))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: len out of range
+| error[E0806]: too many characters (limit 100000000)
 |   --> -e:3:21
 |   |
 | 3 | print(json.stringify([1], indent: 1000000000000000000))
@@ -330,17 +330,17 @@
 -- exit: 0
 ==== "import json\nimport time\nn = 10001\nprint(json.parse(fold(… (143 bytes, 98f1bb57ec5b755e)
 -- stdout
-| Err({kind: 'parse, line: 1, col: 10001, message: "invalid JSON at line 1, column 10001: exceeded max depth"})
+| Err({kind: 'parse, line: 1, col: 10001, message: "invalid JSON at line 1, column 10001: nesting too deep (limit 10000)"})
 -- stderr
 -- exit: 0
 ==== "import json\nimport time\nprint(json.parse(fold(0..200000, \"\", (acc, _) => acc + \"{\\\"a\\\":\")))"
 -- stdout
-| Err({kind: 'parse, line: 1, col: 50001, message: "invalid JSON at line 1, column 50001: exceeded max depth"})
+| Err({kind: 'parse, line: 1, col: 50001, message: "invalid JSON at line 1, column 50001: nesting too deep (limit 10000)"})
 -- stderr
 -- exit: 0
 ==== "import json\nimport time\nprint(json.parse(fold(0..20000, \"\", (acc, _) => acc + \" [\\n\")))"
 -- stdout
-| Err({kind: 'parse, line: 10001, col: 2, message: "invalid JSON at line 10001, column 2: exceeded max depth"})
+| Err({kind: 'parse, line: 10001, col: 2, message: "invalid JSON at line 10001, column 2: nesting too deep (limit 10000)"})
 -- stderr
 -- exit: 0
 ==== "import json\nimport time\nv = fold(0..100000, [], (acc, i) … (158 bytes, 1a1c47c07618afc6)

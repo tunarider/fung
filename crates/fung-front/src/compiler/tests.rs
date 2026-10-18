@@ -1,5 +1,5 @@
-//! Ports of internal/compiler/{compiler,fn,m4,m5,m6}_test.go plus checks
-//! against real Go `fung dump bytecode` output.
+//! Compiler tests by milestone (core forms, functions, collections,
+//! modules, tests and asserts) and whole `fung dump bytecode` outputs.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -36,7 +36,7 @@ fn opts(src: &str, tests: bool) -> Options {
     }
 }
 
-/// Go `compileErr`: prelude `print`, `Options{}` (no source text).
+/// Compiles with the prelude's `print` and no source text: the error.
 fn compile_err(src: &str) -> Result<Proto, Diag> {
     let r = resolved(src, &["print"], &ROpts::default());
     compile(&r, &set(&["print"]), &opts("", false))
@@ -80,7 +80,7 @@ fn bare(core: Node) -> Resolved {
     }
 }
 
-// ---- compiler_test.go ----
+// ---- core forms ----
 
 #[test]
 fn compile_arithmetic() {
@@ -216,7 +216,7 @@ fn jump_if_false_carries_condition_position() {
     assert_eq!(p.pos[1].col, 1);
 }
 
-// ---- fn_test.go ----
+// ---- functions ----
 
 #[test]
 fn compile_function_proto_and_closure() {
@@ -326,7 +326,7 @@ fn check_type_carries_the_parameter_position() {
     assert_eq!((f.pos[i].line, f.pos[i].col), (2, 3));
 }
 
-// ---- m4_test.go ----
+// ---- collections and patterns (M4) ----
 
 #[test]
 fn compile_collections_and_ops() {
@@ -407,7 +407,7 @@ fn compile_rest_param() {
     assert!(p.protos[0].params[1].rest, "Rest flag not copied");
 }
 
-// ---- m5_test.go ----
+// ---- modules (M5) ----
 
 fn compile_with_imports(src: &str) -> String {
     let mut imports = BTreeMap::new();
@@ -444,7 +444,7 @@ fn compile_import() {
     );
 }
 
-// ---- m6_test.go ----
+// ---- tests and asserts (M6) ----
 
 const M6_PRELUDE: [&str; 5] = ["print", "dbg", "f", "ok", "map"];
 
@@ -523,7 +523,7 @@ fn compile_dbg_appends_text_and_place() {
     );
 }
 
-// ---- real Go output (`fung dump bytecode -e`) ----
+// ---- whole outputs (`fung dump bytecode -e`) ----
 
 fn bytecode(src: &str) -> String {
     let mut sm = SourceMap::new();
@@ -546,7 +546,7 @@ fn bytecode(src: &str) -> String {
 }
 
 #[test]
-fn real_go_output() {
+fn dump_outputs() {
     assert_eq!(
         bytecode("x = 1 + 2 * 3"),
         "== <main> ==\n\
@@ -562,7 +562,7 @@ fn real_go_output() {
 }
 
 #[test]
-fn real_go_output_functions_and_operators() {
+fn dump_outputs_functions_and_operators() {
     let src = "fn outer(y):
   fn loop(n) = n == 0 then y else loop(n - 1)
   g = x => x + y
@@ -580,7 +580,7 @@ not (1 < 2) and -1 > 0 or false
 }
 
 #[test]
-fn real_go_output_data_and_patterns() {
+fn dump_outputs_data_and_patterns() {
     let src = "fn f(a: int, b = 2) -> int = a + b
 xs = [1, 2]
 match xs:
@@ -597,7 +597,7 @@ dbg(1)";
 }
 
 /// `args` is the prelude's one plain value: the program's argument list,
-/// empty when compiling for a dump. Go prints it as `[]`.
+/// empty when compiling for a dump: it prints as `[]`.
 #[test]
 fn prelude_args_is_an_empty_list() {
     assert_eq!(

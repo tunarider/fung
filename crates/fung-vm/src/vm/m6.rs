@@ -1,5 +1,5 @@
-//! The M6 instructions (Go `m6.go`): ASSERT and TEST and the test block
-//! registry. The `dbg` native lives in the prelude (`prelude::dbg`).
+//! The M6 instructions: ASSERT and TEST and the test block registry. The
+//! `dbg` native lives in the prelude (`prelude::dbg`).
 
 use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, Diag, error};
@@ -32,8 +32,8 @@ impl Runtime {
             return Err(internal(vec![Arg::Str(format!("no test block {i}"))]));
         };
         let r = t.call(&f, Vec::new()).map(|_| ());
-        // Go runs the block on a fresh child context, cancelled when it
-        // returns.
+        // The block runs on a fresh node below the root, cancelled when it
+        // returns: what it spawned and left running ends with it.
         t.cancel.cancel();
         r
     }

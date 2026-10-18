@@ -664,7 +664,6 @@
 | in/extras~http@cpushed.fung
 | in/extras~http@crlf.fung
 | in/extras~http@dedent.fung
-| in/extras~http@halfbytes.fung
 | in/extras~http@moreblank.fung
 | in/extras~http@nofinal.fung
 | in/extras~http@odd3.fung
@@ -865,6 +864,21 @@
 | in/tests~lang~cancel@spaced.fung
 | in/tests~lang~cancel@tight.fung
 | in/tests~lang~cancel@trailing.fung
+| in/tests~lang~channel_stream@bom.fung
+| in/tests~lang~channel_stream@cglued.fung
+| in/tests~lang~channel_stream@cpushed.fung
+| in/tests~lang~channel_stream@crlf.fung
+| in/tests~lang~channel_stream@dedent.fung
+| in/tests~lang~channel_stream@moreblank.fung
+| in/tests~lang~channel_stream@nofinal.fung
+| in/tests~lang~channel_stream@odd3.fung
+| in/tests~lang~channel_stream@opsplit.fung
+| in/tests~lang~channel_stream@spaced.fung
+| in/tests~lang~channel_stream@split.fung
+| in/tests~lang~channel_stream@tabs.fung
+| in/tests~lang~channel_stream@tight.fung
+| in/tests~lang~channel_stream@trailing.fung
+| in/tests~lang~channel_stream@wide4.fung
 | in/tests~lang~channels@bom.fung
 | in/tests~lang~channels@cglued.fung
 | in/tests~lang~channels@cpushed.fung
@@ -1664,6 +1678,18 @@
 | in/tests~lang~http_serve@tight.fung
 | in/tests~lang~http_serve@trailing.fung
 | in/tests~lang~http_serve@wide4.fung
+| in/tests~lang~ident_unicode@bom.fung
+| in/tests~lang~ident_unicode@cglued.fung
+| in/tests~lang~ident_unicode@cpushed.fung
+| in/tests~lang~ident_unicode@crlf.fung
+| in/tests~lang~ident_unicode@halfbytes.fung
+| in/tests~lang~ident_unicode@moreblank.fung
+| in/tests~lang~ident_unicode@nofinal.fung
+| in/tests~lang~ident_unicode@opsplit.fung
+| in/tests~lang~ident_unicode@spaced.fung
+| in/tests~lang~ident_unicode@split.fung
+| in/tests~lang~ident_unicode@tight.fung
+| in/tests~lang~ident_unicode@trailing.fung
 | in/tests~lang~if_blocks@bom.fung
 | in/tests~lang~if_blocks@cglued.fung
 | in/tests~lang~if_blocks@cpushed.fung
@@ -1847,6 +1873,18 @@
 | in/tests~lang~param_patterns@spaced.fung
 | in/tests~lang~param_patterns@tight.fung
 | in/tests~lang~param_patterns@trailing.fung
+| in/tests~lang~path_rules@bom.fung
+| in/tests~lang~path_rules@cglued.fung
+| in/tests~lang~path_rules@contsplit.fung
+| in/tests~lang~path_rules@cpushed.fung
+| in/tests~lang~path_rules@crlf.fung
+| in/tests~lang~path_rules@moreblank.fung
+| in/tests~lang~path_rules@nofinal.fung
+| in/tests~lang~path_rules@opsplit.fung
+| in/tests~lang~path_rules@spaced.fung
+| in/tests~lang~path_rules@split.fung
+| in/tests~lang~path_rules@tight.fung
+| in/tests~lang~path_rules@trailing.fung
 | in/tests~lang~pipes_partial@bom.fung
 | in/tests~lang~pipes_partial@cglued.fung
 | in/tests~lang~pipes_partial@contsplit.fung
@@ -2011,6 +2049,16 @@
 | in/tests~lang~strings@split.fung
 | in/tests~lang~strings@tight.fung
 | in/tests~lang~strings@trailing.fung
+| in/tests~lang~strings_case@bom.fung
+| in/tests~lang~strings_case@cglued.fung
+| in/tests~lang~strings_case@cpushed.fung
+| in/tests~lang~strings_case@crlf.fung
+| in/tests~lang~strings_case@moreblank.fung
+| in/tests~lang~strings_case@nofinal.fung
+| in/tests~lang~strings_case@spaced.fung
+| in/tests~lang~strings_case@split.fung
+| in/tests~lang~strings_case@tight.fung
+| in/tests~lang~strings_case@trailing.fung
 | in/tests~lang~symbols@bom.fung
 | in/tests~lang~symbols@cpushed.fung
 | in/tests~lang~symbols@crlf.fung
@@ -2081,6 +2129,19 @@
 | in/tests~lang~time_module@split.fung
 | in/tests~lang~time_module@tight.fung
 | in/tests~lang~time_module@trailing.fung
+| in/tests~lang~time_rules@bom.fung
+| in/tests~lang~time_rules@cglued.fung
+| in/tests~lang~time_rules@contsplit.fung
+| in/tests~lang~time_rules@cpushed.fung
+| in/tests~lang~time_rules@crlf.fung
+| in/tests~lang~time_rules@halfbytes.fung
+| in/tests~lang~time_rules@moreblank.fung
+| in/tests~lang~time_rules@nofinal.fung
+| in/tests~lang~time_rules@opsplit.fung
+| in/tests~lang~time_rules@spaced.fung
+| in/tests~lang~time_rules@split.fung
+| in/tests~lang~time_rules@tight.fung
+| in/tests~lang~time_rules@trailing.fung
 | in/tests~lang~time_values@bom.fung
 | in/tests~lang~time_values@cglued.fung
 | in/tests~lang~time_values@contsplit.fung
@@ -2681,33 +2742,39 @@
 |   | ^
 |   |
 | error[E0110]: unexpected `.`
-|   --> in/extras~http@contsplit.fung:23:1
+|   --> in/extras~http@contsplit.fung:20:1
 |    |
-| 23 | .conc as _c
+| 20 | .conc as _c
 |    | ^
 |    |
-| error[E0112]: expected `;;` to close the if, found end of file
-|   --> in/extras~http@halflines.fung:1027:1
-|      |
-| 1027 | 
-|      | ^
-|      |
-| error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:197:5
+| error[E0112]: expected `:` after the if condition, found end of file
+|   --> in/extras~http@halfbytes.fung:966:24
 |     |
-| 197 | else
+| 966 |   if type_of(n) == 'Err
+|     |                        ^
+|     |
+| error[E0110]: unexpected end of file
+|   --> in/extras~http@halflines.fung:985:1
+|     |
+| 985 | 
+|     | ^
+|     |
+| error[E0112]: expected `:` or `if` after else, found newline
+|   --> in/extras~http@opsplit.fung:198:5
+|     |
+| 198 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected tag `Ok`
-|   --> in/extras~http@split.fung:80:5
+|   --> in/extras~http@split.fung:77:5
 |    |
-| 80 |     Ok(
+| 77 |     Ok(
 |    |     ^
 |    |
 | error[E0110]: unexpected `.`
-|   --> in/extras~json@contsplit.fung:4:1
+|   --> in/extras~json@contsplit.fung:5:1
 |   |
-| 4 | .json as _n
+| 5 | .json as _n
 |   | ^
 |   |
 | error[E0110]: unexpected `.`
@@ -2729,15 +2796,9 @@
 |   | ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halfbytes.fung:67:12
+|   --> in/extras~prelude@halflines.fung:72:1
 |    |
-| 67 |   ys = _lis
-|    |            ^
-|    |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halflines.fung:62:1
-|    |
-| 62 | 
+| 72 | 
 |    | ^
 |    |
 | error[E0110]: unexpected `=>`
@@ -2854,6 +2915,12 @@
 | 3 | ) => sleep(
 |   |   ^
 |   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~channel_stream@halfbytes.fung:24:7
+|    |
+| 24 | send(b
+|    |       ^
+|    |
 | error[E0110]: unexpected `=>`
 |   --> in/tests~lang~channels@split.fung:17:5
 |    |
@@ -4490,6 +4557,12 @@
 | 13 |  s)) => "${n}${s}"))
 |    |      ^
 |    |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~path_rules@halfbytes.fung:3:88
+|   |
+| 3 | print(path.ext(".hidden") == "", path.stem(".hidden"), path.ext("a.tar.gz"), path.stem(
+|   |                                                                                        ^
+|   |
 | error[E0112]: expected a parameter name, found end of file
 |   --> in/tests~lang~pipes_partial@halfbytes.fung:5:13
 |   |
@@ -4579,6 +4652,12 @@
 |   |
 | 6 | print(`raw \n
 |   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~strings_case@halfbytes.fung:2:30
+|   |
+| 2 | print(upper("straße"), upper("ŉ
+|   |                              ^
 |   |
 | error[E0101]: unexpected character "'"
 |   --> in/tests~lang~symbols@halfbytes.fung:2:31
@@ -5315,7 +5394,6 @@
 | in/extras~http@cpushed.fung
 | in/extras~http@crlf.fung
 | in/extras~http@dedent.fung
-| in/extras~http@halfbytes.fung
 | in/extras~http@moreblank.fung
 | in/extras~http@nofinal.fung
 | in/extras~http@odd3.fung
@@ -5516,6 +5594,21 @@
 | in/tests~lang~cancel@spaced.fung
 | in/tests~lang~cancel@tight.fung
 | in/tests~lang~cancel@trailing.fung
+| in/tests~lang~channel_stream@bom.fung
+| in/tests~lang~channel_stream@cglued.fung
+| in/tests~lang~channel_stream@cpushed.fung
+| in/tests~lang~channel_stream@crlf.fung
+| in/tests~lang~channel_stream@dedent.fung
+| in/tests~lang~channel_stream@moreblank.fung
+| in/tests~lang~channel_stream@nofinal.fung
+| in/tests~lang~channel_stream@odd3.fung
+| in/tests~lang~channel_stream@opsplit.fung
+| in/tests~lang~channel_stream@spaced.fung
+| in/tests~lang~channel_stream@split.fung
+| in/tests~lang~channel_stream@tabs.fung
+| in/tests~lang~channel_stream@tight.fung
+| in/tests~lang~channel_stream@trailing.fung
+| in/tests~lang~channel_stream@wide4.fung
 | in/tests~lang~channels@bom.fung
 | in/tests~lang~channels@cglued.fung
 | in/tests~lang~channels@cpushed.fung
@@ -6315,6 +6408,18 @@
 | in/tests~lang~http_serve@tight.fung
 | in/tests~lang~http_serve@trailing.fung
 | in/tests~lang~http_serve@wide4.fung
+| in/tests~lang~ident_unicode@bom.fung
+| in/tests~lang~ident_unicode@cglued.fung
+| in/tests~lang~ident_unicode@cpushed.fung
+| in/tests~lang~ident_unicode@crlf.fung
+| in/tests~lang~ident_unicode@halfbytes.fung
+| in/tests~lang~ident_unicode@moreblank.fung
+| in/tests~lang~ident_unicode@nofinal.fung
+| in/tests~lang~ident_unicode@opsplit.fung
+| in/tests~lang~ident_unicode@spaced.fung
+| in/tests~lang~ident_unicode@split.fung
+| in/tests~lang~ident_unicode@tight.fung
+| in/tests~lang~ident_unicode@trailing.fung
 | in/tests~lang~if_blocks@bom.fung
 | in/tests~lang~if_blocks@cglued.fung
 | in/tests~lang~if_blocks@cpushed.fung
@@ -6498,6 +6603,18 @@
 | in/tests~lang~param_patterns@spaced.fung
 | in/tests~lang~param_patterns@tight.fung
 | in/tests~lang~param_patterns@trailing.fung
+| in/tests~lang~path_rules@bom.fung
+| in/tests~lang~path_rules@cglued.fung
+| in/tests~lang~path_rules@contsplit.fung
+| in/tests~lang~path_rules@cpushed.fung
+| in/tests~lang~path_rules@crlf.fung
+| in/tests~lang~path_rules@moreblank.fung
+| in/tests~lang~path_rules@nofinal.fung
+| in/tests~lang~path_rules@opsplit.fung
+| in/tests~lang~path_rules@spaced.fung
+| in/tests~lang~path_rules@split.fung
+| in/tests~lang~path_rules@tight.fung
+| in/tests~lang~path_rules@trailing.fung
 | in/tests~lang~pipes_partial@bom.fung
 | in/tests~lang~pipes_partial@cglued.fung
 | in/tests~lang~pipes_partial@contsplit.fung
@@ -6662,6 +6779,16 @@
 | in/tests~lang~strings@split.fung
 | in/tests~lang~strings@tight.fung
 | in/tests~lang~strings@trailing.fung
+| in/tests~lang~strings_case@bom.fung
+| in/tests~lang~strings_case@cglued.fung
+| in/tests~lang~strings_case@cpushed.fung
+| in/tests~lang~strings_case@crlf.fung
+| in/tests~lang~strings_case@moreblank.fung
+| in/tests~lang~strings_case@nofinal.fung
+| in/tests~lang~strings_case@spaced.fung
+| in/tests~lang~strings_case@split.fung
+| in/tests~lang~strings_case@tight.fung
+| in/tests~lang~strings_case@trailing.fung
 | in/tests~lang~symbols@bom.fung
 | in/tests~lang~symbols@cpushed.fung
 | in/tests~lang~symbols@crlf.fung
@@ -6732,6 +6859,19 @@
 | in/tests~lang~time_module@split.fung
 | in/tests~lang~time_module@tight.fung
 | in/tests~lang~time_module@trailing.fung
+| in/tests~lang~time_rules@bom.fung
+| in/tests~lang~time_rules@cglued.fung
+| in/tests~lang~time_rules@contsplit.fung
+| in/tests~lang~time_rules@cpushed.fung
+| in/tests~lang~time_rules@crlf.fung
+| in/tests~lang~time_rules@halfbytes.fung
+| in/tests~lang~time_rules@moreblank.fung
+| in/tests~lang~time_rules@nofinal.fung
+| in/tests~lang~time_rules@opsplit.fung
+| in/tests~lang~time_rules@spaced.fung
+| in/tests~lang~time_rules@split.fung
+| in/tests~lang~time_rules@tight.fung
+| in/tests~lang~time_rules@trailing.fung
 | in/tests~lang~time_values@bom.fung
 | in/tests~lang~time_values@cglued.fung
 | in/tests~lang~time_values@contsplit.fung
@@ -7332,33 +7472,39 @@
 |   | ^
 |   |
 | error[E0110]: unexpected `.`
-|   --> in/extras~http@contsplit.fung:23:1
+|   --> in/extras~http@contsplit.fung:20:1
 |    |
-| 23 | .conc as _c
+| 20 | .conc as _c
 |    | ^
 |    |
-| error[E0112]: expected `;;` to close the if, found end of file
-|   --> in/extras~http@halflines.fung:1027:1
-|      |
-| 1027 | 
-|      | ^
-|      |
-| error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:197:5
+| error[E0112]: expected `:` after the if condition, found end of file
+|   --> in/extras~http@halfbytes.fung:966:24
 |     |
-| 197 | else
+| 966 |   if type_of(n) == 'Err
+|     |                        ^
+|     |
+| error[E0110]: unexpected end of file
+|   --> in/extras~http@halflines.fung:985:1
+|     |
+| 985 | 
+|     | ^
+|     |
+| error[E0112]: expected `:` or `if` after else, found newline
+|   --> in/extras~http@opsplit.fung:198:5
+|     |
+| 198 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected tag `Ok`
-|   --> in/extras~http@split.fung:80:5
+|   --> in/extras~http@split.fung:77:5
 |    |
-| 80 |     Ok(
+| 77 |     Ok(
 |    |     ^
 |    |
 | error[E0110]: unexpected `.`
-|   --> in/extras~json@contsplit.fung:4:1
+|   --> in/extras~json@contsplit.fung:5:1
 |   |
-| 4 | .json as _n
+| 5 | .json as _n
 |   | ^
 |   |
 | error[E0110]: unexpected `.`
@@ -7380,15 +7526,9 @@
 |   | ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halfbytes.fung:67:12
+|   --> in/extras~prelude@halflines.fung:72:1
 |    |
-| 67 |   ys = _lis
-|    |            ^
-|    |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halflines.fung:62:1
-|    |
-| 62 | 
+| 72 | 
 |    | ^
 |    |
 | error[E0110]: unexpected `=>`
@@ -7505,6 +7645,12 @@
 | 3 | ) => sleep(
 |   |   ^
 |   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~channel_stream@halfbytes.fung:24:7
+|    |
+| 24 | send(b
+|    |       ^
+|    |
 | error[E0110]: unexpected `=>`
 |   --> in/tests~lang~channels@split.fung:17:5
 |    |
@@ -9141,6 +9287,12 @@
 | 13 |  s)) => "${n}${s}"))
 |    |      ^
 |    |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~path_rules@halfbytes.fung:3:88
+|   |
+| 3 | print(path.ext(".hidden") == "", path.stem(".hidden"), path.ext("a.tar.gz"), path.stem(
+|   |                                                                                        ^
+|   |
 | error[E0112]: expected a parameter name, found end of file
 |   --> in/tests~lang~pipes_partial@halfbytes.fung:5:13
 |   |
@@ -9230,6 +9382,12 @@
 |   |
 | 6 | print(`raw \n
 |   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~strings_case@halfbytes.fung:2:30
+|   |
+| 2 | print(upper("straße"), upper("ŉ
+|   |                              ^
 |   |
 | error[E0101]: unexpected character "'"
 |   --> in/tests~lang~symbols@halfbytes.fung:2:31
@@ -10451,48 +10609,48 @@
 | extras~fs@trailing.fung 1020 5dfd695d3c2ff8de
 | extras~fs@wide4.fung 1020 5dfd695d3c2ff8de
 | extras~http.fung unchanged
-| extras~http@bom.fung 74823 e34512ab9d7b6cf6
-| extras~http@cglued.fung 74823 e34512ab9d7b6cf6
+| extras~http@bom.fung 70203 024a101afb08b12c
+| extras~http@cglued.fung 70203 024a101afb08b12c
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 74823 e34512ab9d7b6cf6
-| extras~http@crlf.fung 74823 e34512ab9d7b6cf6
-| extras~http@dedent.fung 74823 e34512ab9d7b6cf6
-| extras~http@halfbytes.fung 37412 e4579a525d2f3d2b
+| extras~http@cpushed.fung 70203 024a101afb08b12c
+| extras~http@crlf.fung 70203 024a101afb08b12c
+| extras~http@dedent.fung 70203 024a101afb08b12c
+| extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 75244 674af23930dbccda
+| extras~http@moreblank.fung 70594 03df0499eb0447c2
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 74823 e34512ab9d7b6cf6
-| extras~http@odd3.fung 74823 e34512ab9d7b6cf6
+| extras~http@nofinal.fung 70203 024a101afb08b12c
+| extras~http@odd3.fung 70203 024a101afb08b12c
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 74823 e34512ab9d7b6cf6
+| extras~http@spaced.fung 70203 024a101afb08b12c
 | extras~http@split.fung unchanged
-| extras~http@tabs.fung 74823 e34512ab9d7b6cf6
-| extras~http@tight.fung 74823 e34512ab9d7b6cf6
-| extras~http@trailing.fung 74823 e34512ab9d7b6cf6
-| extras~http@wide4.fung 74823 e34512ab9d7b6cf6
+| extras~http@tabs.fung 70203 024a101afb08b12c
+| extras~http@tight.fung 70203 024a101afb08b12c
+| extras~http@trailing.fung 70203 024a101afb08b12c
+| extras~http@wide4.fung 70203 024a101afb08b12c
 | extras~json.fung unchanged
-| extras~json@bom.fung 218 172694c713ae182c
-| extras~json@cglued.fung 218 172694c713ae182c
+| extras~json@bom.fung 221 493d4e8aa5d1f5e1
+| extras~json@cglued.fung 221 493d4e8aa5d1f5e1
 | extras~json@cnospace.fung unchanged
 | extras~json@contsplit.fung unchanged
-| extras~json@cpushed.fung 218 172694c713ae182c
-| extras~json@crlf.fung 218 172694c713ae182c
+| extras~json@cpushed.fung 221 493d4e8aa5d1f5e1
+| extras~json@crlf.fung 221 493d4e8aa5d1f5e1
 | extras~json@dedent.fung unchanged
-| extras~json@halfbytes.fung 109 f5001a4d5641e8bc
+| extras~json@halfbytes.fung 111 f2e06263e2789462
 | extras~json@halflines.fung unchanged
 | extras~json@joined.fung unchanged
-| extras~json@moreblank.fung 221 f9d7e44f3cbd6b96
+| extras~json@moreblank.fung 225 52699080654c95bb
 | extras~json@noblank.fung unchanged
-| extras~json@nofinal.fung 218 172694c713ae182c
+| extras~json@nofinal.fung 221 493d4e8aa5d1f5e1
 | extras~json@odd3.fung unchanged
-| extras~json@opsplit.fung 222 c1d834364b0bea24
-| extras~json@spaced.fung 218 172694c713ae182c
+| extras~json@opsplit.fung 225 260b57351c02c515
+| extras~json@spaced.fung 221 493d4e8aa5d1f5e1
 | extras~json@split.fung unchanged
 | extras~json@tabs.fung unchanged
-| extras~json@tight.fung 218 172694c713ae182c
-| extras~json@trailing.fung 218 172694c713ae182c
+| extras~json@tight.fung 221 493d4e8aa5d1f5e1
+| extras~json@trailing.fung 221 493d4e8aa5d1f5e1
 | extras~json@wide4.fung unchanged
 | extras~path.fung unchanged
 | extras~path@bom.fung 153 585962f5f75e35cf
@@ -10517,48 +10675,48 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 3761 a0bd7116c595c903
-| extras~prelude@cglued.fung 3761 a0bd7116c595c903
+| extras~prelude@bom.fung 4773 8d662a7bf4a248ad
+| extras~prelude@cglued.fung 4773 8d662a7bf4a248ad
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 3761 a0bd7116c595c903
-| extras~prelude@crlf.fung 3761 a0bd7116c595c903
-| extras~prelude@dedent.fung 3761 a0bd7116c595c903
+| extras~prelude@cpushed.fung 4773 8d662a7bf4a248ad
+| extras~prelude@crlf.fung 4773 8d662a7bf4a248ad
+| extras~prelude@dedent.fung 4773 8d662a7bf4a248ad
 | extras~prelude@halfbytes.fung unchanged
 | extras~prelude@halflines.fung unchanged
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 3756 e254ae827fb3ad4b
+| extras~prelude@moreblank.fung 4778 465dac9d21f4b007
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 3761 a0bd7116c595c903
-| extras~prelude@odd3.fung 3761 a0bd7116c595c903
-| extras~prelude@opsplit.fung 4176 b6afc46cc8aa0477
-| extras~prelude@spaced.fung 3761 a0bd7116c595c903
+| extras~prelude@nofinal.fung 4773 8d662a7bf4a248ad
+| extras~prelude@odd3.fung 4773 8d662a7bf4a248ad
+| extras~prelude@opsplit.fung 5324 3da4cb7fae2a4555
+| extras~prelude@spaced.fung 4773 8d662a7bf4a248ad
 | extras~prelude@split.fung unchanged
-| extras~prelude@tabs.fung 3761 a0bd7116c595c903
-| extras~prelude@tight.fung 3761 a0bd7116c595c903
-| extras~prelude@trailing.fung 3761 a0bd7116c595c903
-| extras~prelude@wide4.fung 3761 a0bd7116c595c903
+| extras~prelude@tabs.fung 4773 8d662a7bf4a248ad
+| extras~prelude@tight.fung 4773 8d662a7bf4a248ad
+| extras~prelude@trailing.fung 4773 8d662a7bf4a248ad
+| extras~prelude@wide4.fung 4773 8d662a7bf4a248ad
 | extras~regex.fung unchanged
-| extras~regex@bom.fung 195 5713434e004e6cf8
+| extras~regex@bom.fung 213 b042b42db3e3ed81
 | extras~regex@cglued.fung unchanged
 | extras~regex@cnospace.fung unchanged
 | extras~regex@contsplit.fung unchanged
-| extras~regex@cpushed.fung 195 5713434e004e6cf8
-| extras~regex@crlf.fung 195 5713434e004e6cf8
+| extras~regex@cpushed.fung 213 b042b42db3e3ed81
+| extras~regex@crlf.fung 213 b042b42db3e3ed81
 | extras~regex@dedent.fung unchanged
-| extras~regex@halfbytes.fung 98 a18bbd3308a69623
+| extras~regex@halfbytes.fung 107 a4c104127c0dc388
 | extras~regex@halflines.fung unchanged
 | extras~regex@joined.fung unchanged
-| extras~regex@moreblank.fung 200 d2f414c3207ce5f0
+| extras~regex@moreblank.fung 218 71930607f27f631f
 | extras~regex@noblank.fung unchanged
-| extras~regex@nofinal.fung 195 5713434e004e6cf8
+| extras~regex@nofinal.fung 213 b042b42db3e3ed81
 | extras~regex@odd3.fung unchanged
-| extras~regex@opsplit.fung 205 cc3c26c07ab57092
-| extras~regex@spaced.fung 195 5713434e004e6cf8
+| extras~regex@opsplit.fung 223 31266bd259db5027
+| extras~regex@spaced.fung 213 b042b42db3e3ed81
 | extras~regex@split.fung unchanged
 | extras~regex@tabs.fung unchanged
-| extras~regex@tight.fung 195 5713434e004e6cf8
-| extras~regex@trailing.fung 195 5713434e004e6cf8
+| extras~regex@tight.fung 213 b042b42db3e3ed81
+| extras~regex@trailing.fung 213 b042b42db3e3ed81
 | extras~regex@wide4.fung unchanged
 | extras~time.fung unchanged
 | extras~time@bom.fung 283 a057e5eab8ccbc97
@@ -10890,6 +11048,28 @@
 | tests~lang~cancel@tight.fung 210 e3222a03dc6267ce
 | tests~lang~cancel@trailing.fung 210 e3222a03dc6267ce
 | tests~lang~cancel@wide4.fung unchanged
+| tests~lang~channel_stream.fung unchanged
+| tests~lang~channel_stream@bom.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@cglued.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@cnospace.fung unchanged
+| tests~lang~channel_stream@contsplit.fung unchanged
+| tests~lang~channel_stream@cpushed.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@crlf.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@dedent.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@halfbytes.fung unchanged
+| tests~lang~channel_stream@halflines.fung unchanged
+| tests~lang~channel_stream@joined.fung unchanged
+| tests~lang~channel_stream@moreblank.fung 883 f446476732ff71b2
+| tests~lang~channel_stream@noblank.fung unchanged
+| tests~lang~channel_stream@nofinal.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@odd3.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@opsplit.fung 873 6b2665b9826795fa
+| tests~lang~channel_stream@spaced.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@split.fung 1155 c0409529bbf29048
+| tests~lang~channel_stream@tabs.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@tight.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@trailing.fung 857 27db28ccb2dd9992
+| tests~lang~channel_stream@wide4.fung 857 27db28ccb2dd9992
 | tests~lang~channels.fung unchanged
 | tests~lang~channels@bom.fung 268 e6a6c7c900f7b5de
 | tests~lang~channels@cglued.fung 268 e6a6c7c900f7b5de
@@ -12830,6 +13010,28 @@
 | tests~lang~http_serve@tight.fung 1023 af5294b55df159d1
 | tests~lang~http_serve@trailing.fung 1023 af5294b55df159d1
 | tests~lang~http_serve@wide4.fung 1023 af5294b55df159d1
+| tests~lang~ident_unicode.fung unchanged
+| tests~lang~ident_unicode@bom.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@cglued.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@cnospace.fung unchanged
+| tests~lang~ident_unicode@contsplit.fung unchanged
+| tests~lang~ident_unicode@cpushed.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@crlf.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@dedent.fung unchanged
+| tests~lang~ident_unicode@halfbytes.fung 224 e7ee68cf2c7deca9
+| tests~lang~ident_unicode@halflines.fung unchanged
+| tests~lang~ident_unicode@joined.fung unchanged
+| tests~lang~ident_unicode@moreblank.fung 461 4a71c1a50b051fb8
+| tests~lang~ident_unicode@noblank.fung unchanged
+| tests~lang~ident_unicode@nofinal.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@odd3.fung unchanged
+| tests~lang~ident_unicode@opsplit.fung 464 edb5122758bb533e
+| tests~lang~ident_unicode@spaced.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@split.fung 486 2de5ccf13f325d4a
+| tests~lang~ident_unicode@tabs.fung unchanged
+| tests~lang~ident_unicode@tight.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@trailing.fung 446 e3fb517dbd7d5fc6
+| tests~lang~ident_unicode@wide4.fung unchanged
 | tests~lang~if_blocks.fung unchanged
 | tests~lang~if_blocks@bom.fung 205 df882f18168627b2
 | tests~lang~if_blocks@cglued.fung 205 df882f18168627b2
@@ -12897,27 +13099,27 @@
 | tests~lang~import_names@trailing.fung 84 4a999be6639523a2
 | tests~lang~import_names@wide4.fung unchanged
 | tests~lang~json.fung unchanged
-| tests~lang~json@bom.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@cglued.fung 922 8f5b04b655ccb9e9
+| tests~lang~json@bom.fung 897 4c0fee0c0235d366
+| tests~lang~json@cglued.fung 897 4c0fee0c0235d366
 | tests~lang~json@cnospace.fung unchanged
-| tests~lang~json@contsplit.fung 961 101c67c7719e910b
-| tests~lang~json@cpushed.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@crlf.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@dedent.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@halfbytes.fung 461 ead175cb3f79155f
+| tests~lang~json@contsplit.fung 936 29e7506d0e682578
+| tests~lang~json@cpushed.fung 897 4c0fee0c0235d366
+| tests~lang~json@crlf.fung 897 4c0fee0c0235d366
+| tests~lang~json@dedent.fung 897 4c0fee0c0235d366
+| tests~lang~json@halfbytes.fung 449 bae0d9d808e5c1a6
 | tests~lang~json@halflines.fung unchanged
 | tests~lang~json@joined.fung unchanged
-| tests~lang~json@moreblank.fung 945 50e75e8dacf3eb3f
+| tests~lang~json@moreblank.fung 920 f42b8843417b3fcc
 | tests~lang~json@noblank.fung unchanged
-| tests~lang~json@nofinal.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@odd3.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@opsplit.fung 932 f06d062cd497a805
-| tests~lang~json@spaced.fung 922 8f5b04b655ccb9e9
+| tests~lang~json@nofinal.fung 897 4c0fee0c0235d366
+| tests~lang~json@odd3.fung 897 4c0fee0c0235d366
+| tests~lang~json@opsplit.fung 907 0028ca69160385d2
+| tests~lang~json@spaced.fung 897 4c0fee0c0235d366
 | tests~lang~json@split.fung unchanged
-| tests~lang~json@tabs.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@tight.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@trailing.fung 922 8f5b04b655ccb9e9
-| tests~lang~json@wide4.fung 922 8f5b04b655ccb9e9
+| tests~lang~json@tabs.fung 897 4c0fee0c0235d366
+| tests~lang~json@tight.fung 897 4c0fee0c0235d366
+| tests~lang~json@trailing.fung 897 4c0fee0c0235d366
+| tests~lang~json@wide4.fung 897 4c0fee0c0235d366
 | tests~lang~keyword_names.fung unchanged
 | tests~lang~keyword_names@bom.fung 289 9df1d9ef11283c1c
 | tests~lang~keyword_names@cglued.fung 289 9df1d9ef11283c1c
@@ -13160,6 +13362,28 @@
 | tests~lang~param_patterns@tight.fung 181 4511d5040bcb7d60
 | tests~lang~param_patterns@trailing.fung 181 4511d5040bcb7d60
 | tests~lang~param_patterns@wide4.fung unchanged
+| tests~lang~path_rules.fung unchanged
+| tests~lang~path_rules@bom.fung 310 b41433f147fb0170
+| tests~lang~path_rules@cglued.fung 310 b41433f147fb0170
+| tests~lang~path_rules@cnospace.fung unchanged
+| tests~lang~path_rules@contsplit.fung 336 1fa68b4d6041eab8
+| tests~lang~path_rules@cpushed.fung 310 b41433f147fb0170
+| tests~lang~path_rules@crlf.fung 310 b41433f147fb0170
+| tests~lang~path_rules@dedent.fung unchanged
+| tests~lang~path_rules@halfbytes.fung unchanged
+| tests~lang~path_rules@halflines.fung unchanged
+| tests~lang~path_rules@joined.fung unchanged
+| tests~lang~path_rules@moreblank.fung 315 e8993b342044a568
+| tests~lang~path_rules@noblank.fung unchanged
+| tests~lang~path_rules@nofinal.fung 310 b41433f147fb0170
+| tests~lang~path_rules@odd3.fung unchanged
+| tests~lang~path_rules@opsplit.fung 312 a011fee7b0071992
+| tests~lang~path_rules@spaced.fung 310 b41433f147fb0170
+| tests~lang~path_rules@split.fung 380 e2be21a9eef31782
+| tests~lang~path_rules@tabs.fung unchanged
+| tests~lang~path_rules@tight.fung 310 b41433f147fb0170
+| tests~lang~path_rules@trailing.fung 310 b41433f147fb0170
+| tests~lang~path_rules@wide4.fung unchanged
 | tests~lang~pipes_partial.fung unchanged
 | tests~lang~pipes_partial@bom.fung 253 ab60778fd2e13f70
 | tests~lang~pipes_partial@cglued.fung 253 ab60778fd2e13f70
@@ -13468,6 +13692,28 @@
 | tests~lang~strings@tight.fung 354 d852f266804d81b9
 | tests~lang~strings@trailing.fung 354 d852f266804d81b9
 | tests~lang~strings@wide4.fung unchanged
+| tests~lang~strings_case.fung unchanged
+| tests~lang~strings_case@bom.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@cglued.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@cnospace.fung unchanged
+| tests~lang~strings_case@contsplit.fung unchanged
+| tests~lang~strings_case@cpushed.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@crlf.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@dedent.fung unchanged
+| tests~lang~strings_case@halfbytes.fung unchanged
+| tests~lang~strings_case@halflines.fung unchanged
+| tests~lang~strings_case@joined.fung unchanged
+| tests~lang~strings_case@moreblank.fung 223 da0fa1193c94602f
+| tests~lang~strings_case@noblank.fung unchanged
+| tests~lang~strings_case@nofinal.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@odd3.fung unchanged
+| tests~lang~strings_case@opsplit.fung unchanged
+| tests~lang~strings_case@spaced.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@split.fung 276 56305500dc1fcc57
+| tests~lang~strings_case@tabs.fung unchanged
+| tests~lang~strings_case@tight.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@trailing.fung 219 0daf69f7694684e9
+| tests~lang~strings_case@wide4.fung unchanged
 | tests~lang~symbols.fung unchanged
 | tests~lang~symbols@bom.fung 79 c487df4b70cfeb52
 | tests~lang~symbols@cglued.fung unchanged
@@ -13579,27 +13825,49 @@
 | tests~lang~then_else@trailing.fung 199 dfc0f58144ad7a68
 | tests~lang~then_else@wide4.fung 199 dfc0f58144ad7a68
 | tests~lang~time_module.fung unchanged
-| tests~lang~time_module@bom.fung 613 4c6e33af19941acd
-| tests~lang~time_module@cglued.fung 613 4c6e33af19941acd
+| tests~lang~time_module@bom.fung 613 825806b8cf3cb46f
+| tests~lang~time_module@cglued.fung 613 825806b8cf3cb46f
 | tests~lang~time_module@cnospace.fung unchanged
-| tests~lang~time_module@contsplit.fung 658 d6f70375e44cf5b1
-| tests~lang~time_module@cpushed.fung 613 4c6e33af19941acd
-| tests~lang~time_module@crlf.fung 613 4c6e33af19941acd
+| tests~lang~time_module@contsplit.fung 658 712d55f78791ffcb
+| tests~lang~time_module@cpushed.fung 613 825806b8cf3cb46f
+| tests~lang~time_module@crlf.fung 613 825806b8cf3cb46f
 | tests~lang~time_module@dedent.fung unchanged
 | tests~lang~time_module@halfbytes.fung unchanged
 | tests~lang~time_module@halflines.fung unchanged
 | tests~lang~time_module@joined.fung unchanged
-| tests~lang~time_module@moreblank.fung 624 58f9735cb5802d77
+| tests~lang~time_module@moreblank.fung 624 a41f655d09ce99bd
 | tests~lang~time_module@noblank.fung unchanged
-| tests~lang~time_module@nofinal.fung 613 4c6e33af19941acd
+| tests~lang~time_module@nofinal.fung 613 825806b8cf3cb46f
 | tests~lang~time_module@odd3.fung unchanged
-| tests~lang~time_module@opsplit.fung 623 c84fe6b542166831
-| tests~lang~time_module@spaced.fung 613 4c6e33af19941acd
-| tests~lang~time_module@split.fung 720 e0d64d8ef0d8ce9d
+| tests~lang~time_module@opsplit.fung 623 d6264cd23d08dbdb
+| tests~lang~time_module@spaced.fung 613 825806b8cf3cb46f
+| tests~lang~time_module@split.fung 720 61938c4198ab149f
 | tests~lang~time_module@tabs.fung unchanged
-| tests~lang~time_module@tight.fung 613 4c6e33af19941acd
-| tests~lang~time_module@trailing.fung 613 4c6e33af19941acd
+| tests~lang~time_module@tight.fung 613 825806b8cf3cb46f
+| tests~lang~time_module@trailing.fung 613 825806b8cf3cb46f
 | tests~lang~time_module@wide4.fung unchanged
+| tests~lang~time_rules.fung unchanged
+| tests~lang~time_rules@bom.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@cglued.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@cnospace.fung unchanged
+| tests~lang~time_rules@contsplit.fung 1109 7ac050075c3365b5
+| tests~lang~time_rules@cpushed.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@crlf.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@dedent.fung unchanged
+| tests~lang~time_rules@halfbytes.fung 538 4cd108b12f52efbb
+| tests~lang~time_rules@halflines.fung unchanged
+| tests~lang~time_rules@joined.fung unchanged
+| tests~lang~time_rules@moreblank.fung 1088 43c7309d34fa05a9
+| tests~lang~time_rules@noblank.fung unchanged
+| tests~lang~time_rules@nofinal.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@odd3.fung unchanged
+| tests~lang~time_rules@opsplit.fung 1082 fe49a59cc160b1f3
+| tests~lang~time_rules@spaced.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@split.fung 1182 0e3be923ee6c664d
+| tests~lang~time_rules@tabs.fung unchanged
+| tests~lang~time_rules@tight.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@trailing.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@wide4.fung unchanged
 | tests~lang~time_values.fung unchanged
 | tests~lang~time_values@bom.fung 340 a69fff52d8e7624b
 | tests~lang~time_values@cglued.fung 340 a69fff52d8e7624b

@@ -1,6 +1,8 @@
-//! `_native.path` (Go `internal/native/path.go`): pure path arithmetic over
-//! Go's `path/filepath` with Unix rules. `clean` is `filepath.Clean`,
-//! ported byte for byte (Rust's `Path::components` normalises differently).
+//! `_native.path`: pure path arithmetic with Unix rules (06). `clean`
+//! gives the shortest equivalent path by lexical processing (`a/../b` is
+//! `b`; Rust's `Path::components` keeps `..`), `join` appends and cleans
+//! (a later absolute part does not discard the earlier ones), and a name
+//! that starts with a dot has no extension.
 
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -59,13 +61,13 @@ fn abs_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::str(&abs(nat::need_str("p", &a[0])?)))
 }
 
-/// Go `filepath.Abs`: a relative path is joined onto the working
-/// directory (`$PWD` when it names the same directory, like `os.Getwd`).
+/// A relative path joined onto the working directory (`$PWD` when it
+/// names the same directory).
 pub(crate) fn abs(p: &str) -> String {
     fung_front::loader::abs_path(p)
 }
 
-/// Go `filepath.Join`: empty elements are dropped, the rest joined with
+/// `join`: empty elements are dropped, the rest joined with
 /// `/` and cleaned; no non-empty element gives `""`.
 pub(crate) fn join(parts: &[String]) -> String {
     match parts.iter().position(|e| !e.is_empty()) {
@@ -74,7 +76,7 @@ pub(crate) fn join(parts: &[String]) -> String {
     }
 }
 
-/// Go `filepath.Base`.
+/// The last element (`.` for `""`, `/` for a root).
 pub(crate) fn base(p: &str) -> String {
     if p.is_empty() {
         return ".".into();
@@ -87,33 +89,31 @@ pub(crate) fn base(p: &str) -> String {
     if p.is_empty() { "/".into() } else { p.into() }
 }
 
-/// Go `filepath.Dir`.
+/// Everything but the last element, cleaned.
 pub(crate) fn dir(p: &str) -> String {
     let i = p.rfind('/').map_or(0, |i| i + 1);
     clean(&p[..i])
 }
 
-/// Go `filepath.Ext`: from the last `.` after the last `/`, or `""`.
+/// From the last `.` of the last element, or `""`; dots that start the
+/// element are not an extension.
 pub(crate) fn ext(p: &str) -> &str {
-    for (i, c) in p.bytes().enumerate().rev() {
-        if c == b'/' {
-            break;
-        }
-        if c == b'.' {
-            return &p[i..];
-        }
+    let name_at = p.rfind('/').map_or(0, |i| i + 1);
+    // Dots that start the name are part of it (`.hidden`, `..`).
+    let body_at = name_at + p[name_at..].len() - p[name_at..].trim_start_matches('.').len();
+    match p[body_at..].rfind('.') {
+        Some(i) => &p[body_at + i..],
+        None => "",
     }
-    ""
 }
 
-/// Go `filepath.Clean` (Unix): the shortest equivalent path by lexical
-/// processing alone.
+/// The shortest equivalent path by lexical processing alone.
 pub(crate) fn clean(path: &str) -> String {
     // Only ASCII bytes are dropped or added around whole characters.
     String::from_utf8(clean_bytes(path.as_bytes())).expect("clean keeps UTF-8")
 }
 
-/// Go `filepath.Join(dir, name)` over bytes (file names need not be
+/// `join` of two parts over bytes (file names need not be
 /// UTF-8): `name` alone when `dir` is empty, else the two cleaned.
 pub fn join_bytes(dir: &[u8], name: &[u8]) -> Vec<u8> {
     if dir.is_empty() {
@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn clean_matches_go() {
+    fn clean_resolves_dots_and_slashes() {
         let cases = [
             ("", "."),
             ("/", "/"),
@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn join_base_dir_ext_stem_match_go() {
+    fn join_base_dir_ext_stem() {
         assert_eq!(join(&[]), "");
         assert_eq!(join(&["".into(), "".into()]), "");
         assert_eq!(join(&["a//b".into(), "../c/".into()]), "a/c");
@@ -235,7 +235,9 @@ mod tests {
         assert_eq!(dir("a/b/"), "a/b");
         assert_eq!(dir("a//b/../c/d"), "a/c");
         assert_eq!(dir(".."), ".");
-        assert_eq!(ext(".hidden"), ".hidden");
+        assert_eq!(ext(".hidden"), "");
+        assert_eq!(ext(".a.b"), ".b");
+        assert_eq!(ext(".."), "");
         assert_eq!(ext("a.b.c"), ".c");
         assert_eq!(ext("a.b/c"), "");
         assert_eq!(ext("a."), ".");

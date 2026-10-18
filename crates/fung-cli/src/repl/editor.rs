@@ -1,4 +1,4 @@
-//! The line editor's state (Go `internal/repl/editor.go`): one input
+//! The line editor's state: one input
 //! line plus the session history, apart from the terminal so that key
 //! sequences can test it.
 
@@ -124,7 +124,6 @@ impl Editor {
     }
 }
 
-/// Ports of Go `editor_test.go` and `TestEditorSeededHistory`.
 #[cfg(test)]
 mod tests {
     use super::*;

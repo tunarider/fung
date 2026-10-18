@@ -4,7 +4,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::{FileId, Pos};
 
 use super::dur::{add_dur, div_dur, scale_dur, sub_dur};
-use super::time::{add_time_dur, sub_times};
+use super::time::{add_time_dur, sub_time_dur, sub_times};
 use super::{Value, type_name};
 
 /// A position-less location; the VM fills the real one in with `with_pos`.
@@ -78,7 +78,7 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             return add_time_dur(t, *d);
         }
         (Value::List(x), Value::List(y)) => {
-            // An empty side returns the other operand itself, as Go does.
+            // An empty side returns the other operand itself.
             if y.is_empty() {
                 return Ok(a.clone());
             }
@@ -101,9 +101,7 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
 pub fn sub(a: &Value, b: &Value) -> Result<Value, Diag> {
     if let Value::Time(x) = a {
         return match b {
-            // Go negates `b` first, so the minimum overflows.
-            Value::Dur(i64::MIN) => Err(overflow()),
-            Value::Dur(y) => add_time_dur(x, -y),
+            Value::Dur(y) => sub_time_dur(x, *y),
             Value::Time(y) => sub_times(x, y),
             _ => Err(type_error("subtract", &type_name(a), &type_name(b))),
         };

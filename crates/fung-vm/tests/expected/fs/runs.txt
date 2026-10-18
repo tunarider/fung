@@ -13,7 +13,7 @@
 | Err({kind: 'permission, message: "cannot append to `$D/locked`: permission denied"})
 | Err({kind: 'io, message: "cannot append to `$D`: is a directory"})
 | Ok(nil)
-| Err({kind: 'io, message: "cannot create directory `$D/a.txt`: not a directory"})
+| Err({kind: 'exists, message: "cannot create directory `$D/a.txt`: file exists"})
 | Err({kind: 'io, message: "cannot create directory `$D/a.txt/b`: not a directory"})
 | Err({kind: 'permission, message: "cannot create directory `$D/ro/x/y`: permission denied"})
 | Err({kind: 'exists, message: "cannot remove `$D/sub`: directory not empty"})
@@ -81,21 +81,21 @@
 | Ok(["x"]) Ok(nil) Ok("w\n")
 | Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'invalid, message: "file `$D/w.txt` is not open for reading"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
 | Ok(nil) Ok(["a", "b", "", "", "c"]) Ok(["a", "b", "", "", "c"])
-| Ok(nil) Ok("")
+| Ok(nil) Ok("lost\n")
 | <file "$D/a.txt"> Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"})
 -- stderr
 -- exit: 0
 ==== program 3
 -- stdout
 | Ok(nil) 0
-| Ok(nil) 4096
-| Ok(nil) 8192
-| Ok(nil) 18099
-| Ok(nil) 28100
-| Ok(nil) Ok(nil) 28100
+| Ok(nil) 0
+| Ok(nil) 0
+| Ok(nil) 0
+| Ok(nil) 0
+| Ok(nil) Ok(nil) 0
 | Ok(nil) 28104
 |  4094 1 5000 9000 10000 0 2 Ok(nil) Ok(nil)
-| Ok(nil) 33105 Ok(nil) 33105
+| Ok(nil) 28104 Ok(nil) 33105
 -- stderr
 -- exit: 0
 ==== program 4
@@ -117,7 +117,7 @@
 -- exit: 0
 ==== program 5
 -- stdout
-| Err({kind: 'permission, message: "cannot walk `$D/t`: permission denied"})
+| Err({kind: 'permission, message: "cannot walk `$D/t/locked_d`: permission denied"})
 | Ok(["$D/t/sub/.g", "$D/t/sub/A/c.md", "$D/t/sub/b.md", "$D/t/sub/deep/f"])
 | Ok(["$D/t/sub/.g", "$D/t/sub/A/c.md", "$D/t/sub/b.md", "$D/t/sub/deep/f"])
 | Ok(["$D/t/sub/.g", "$D/t/sub/A/c.md", "$D/t/sub/b.md", "$D/t/sub/deep/f"])

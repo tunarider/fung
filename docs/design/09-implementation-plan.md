@@ -11,7 +11,7 @@
 
 - Rust, 루트 Cargo 작업 공간(`Cargo.toml`, edition 2024, 최소 Rust 1.94). 크레이트 셋은 `publish = false`.
 - 의존성: 기본은 **Rust 표준 라이브러리.** 크레이트는 허용 목록(`deny.toml`)만, 앞단(`fung-front`)은 0개. 이유와 목록은
-  open-questions "Rust 이전"의 의존성 정책. REPL 줄 편집 등도 직접 구현한다.
+  open-questions "Rust 구현: 정한 것과 남은 일"의 의존성 정책. REPL 줄 편집 등도 직접 구현한다.
 
 ## 구조
 
@@ -197,7 +197,7 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 | M8 웹 | `json`, `time`(core 타입 포함), `regex`, `http` — 전부 extras(`_native.*` 다리 + 얇은 fung; `json`도 성능 때문에 네이티브 다리, 06). 스펙 `docs/superpowers/specs/2026-10-14-m8-web-design.md` | 간단한 웹서버 (`examples/serve.fung`) — 완료 (2026-10-14, 골든 8개) |
 | M9 포맷터 | `fung fmt`: 토큰 재배치(공백·들여쓰기·빈 줄·정렬, 줄바꿈 유지), `--check`, stdin, 토큰 열 보존 안전장치. 스펙 `docs/superpowers/specs/2026-10-14-formatter-design.md` | 저장소의 모든 `.fung`이 `--check`를 통과(`crates/fung-cli/tests/fmt_repo.rs`) — 완료 (2026-10-14) |
 | M10 영속 컬렉션 | 리스트: 영속 벡터 + 보기, 맵: 순서 벡터 + HAMT, 리스트 32개·맵 16개 이하는 평평한 표현, 값 층 밖은 메서드·빌더만. 의미 불변 | 맵 누적·리스트 누적·`rest`/슬라이스 재귀가 2만 개에 0.3초 이하(`crates/fung-cli/tests/perf.rs`, 릴리스), 작은 컬렉션 ±3% — 완료 (2026-10-14) |
-| Rust 이식 | M0~M10을 Go로 먼저 만든 뒤 Rust로 옮겼다: 1 앞단, 2 값·VM, 3a·3b 런타임·에이전트, 4a~4d 네이티브 원시 기능, 5 도구, 6a 릴리스 준비, 6b Go 삭제. 노트 `docs/notes/R*.md` | 6b 완료 (2026-10-17). 다음은 6c(이식 잔가지 정리), 0.2.0 릴리스, R7 스케줄러 |
+| Rust 이식 | M0~M10의 첫 구현을 Rust로 옮겼다: 1 앞단, 2 값·VM, 3a·3b 런타임·에이전트, 4a~4d 네이티브 원시 기능, 5 도구, 6a 릴리스 준비, 6b 첫 구현 삭제, 6c 이식 잔가지 정리. 노트 `docs/notes/R*.md`(기록 `R-port-record.md`) | 6c 완료 (2026-10-18). 다음은 0.2.0 릴리스, R7 스케줄러 |
 | 이후 | tree-sitter, LSP(파서 복구), 패키지 관리 — 별도 세션에서 필요한 시점에 | |
 
 M1 렉서를 전부 만드는 이유: 글자 수준 규칙이 닫혀 있고, 렉서는 표 기반 단위 테스트로 한 번에 검증하기 가장 쉬운 부품이다.

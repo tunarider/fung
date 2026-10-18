@@ -6,12 +6,12 @@ mod common;
 
 use std::ffi::OsString;
 
-use common::{repo, run_status, rust_fung};
+use common::{fung_bin, repo, run_status};
 
 fn fmt_check(args: &[&str]) -> (String, String, Option<i32>) {
     let mut a: Vec<OsString> = vec!["fmt".into(), "--check".into()];
     a.extend(args.iter().map(OsString::from));
-    let (out, err, status) = run_status(&rust_fung(), &a, None);
+    let (out, err, status) = run_status(&fung_bin(), &a, None);
     (
         String::from_utf8_lossy(&out).into_owned(),
         String::from_utf8_lossy(&err).into_owned(),

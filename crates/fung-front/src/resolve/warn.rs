@@ -1,5 +1,5 @@
 //! Warnings (08, W01xx), collected alongside errors and shown only by
-//! `fung check` and `fung test` (Go `internal/resolve/warn.go`).
+//! `fung check` and `fung test`.
 
 use super::scope::Scope;
 use super::{Resolver, lit_str, name_error};
@@ -19,9 +19,8 @@ impl Resolver<'_> {
 
     /// Reports the block-local names that were never read (W0102): not
     /// parameters, not `_`-prefixed, not hidden desugar names. Every way
-    /// of binding a name records its position. Go walks a
-    /// map here; the warnings are sorted by position afterwards, so only
-    /// names bound at the same position could come out in another order.
+    /// of binding a name records its position. The warnings are sorted
+    /// by position and then by name (08).
     pub(super) fn warn_unused(&mut self, sc: &Scope) {
         let mut unused: Vec<(&String, Pos)> = sc
             .names

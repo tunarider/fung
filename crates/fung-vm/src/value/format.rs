@@ -1,6 +1,6 @@
 use fung_front::consts::{format_dur, format_float, quote_str};
 use fung_front::diag::quote;
-use fung_front::unicode::{is_digit, is_letter};
+use fung_front::unicode::{is_name_continue, is_name_start};
 
 use super::Value;
 
@@ -49,7 +49,6 @@ pub fn format(v: &Value) -> String {
         }
         Value::Closure(c) if c.proto.name.is_empty() => "<fn>".into(),
         Value::Closure(c) => format!("<fn {}>", c.proto.name),
-        // Placeholder until modules are ported.
         Value::Module(m) => format!("<module {}>", m.name),
         Value::Task(_) => "<task>".into(),
         Value::Channel(_) => "<channel>".into(),
@@ -65,14 +64,14 @@ fn format_items(items: &[Value]) -> String {
     items.iter().map(format).collect::<Vec<_>>().join(", ")
 }
 
-/// Whether a map key can be written without quotes: a letter or `_`, then
-/// letters, digits and `_`, by Go's `unicode.IsLetter` and `IsDigit`.
+/// Whether a map key can be written without quotes: it reads as a name
+/// or a tag (01).
 fn is_plain_key(k: &str) -> bool {
     let mut cs = k.chars();
     let Some(first) = cs.next() else {
         return false;
     };
-    (first == '_' || is_letter(first)) && cs.all(|c| c == '_' || is_letter(c) || is_digit(c))
+    (first == '_' || is_name_start(first)) && cs.all(is_name_continue)
 }
 
 /// What `print` and `${}` use: strings bare, the rest in literal form.

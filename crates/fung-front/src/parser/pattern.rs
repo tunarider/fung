@@ -57,7 +57,8 @@ impl Parser<'_> {
                 match n.kind {
                     Kind::Int => {
                         self.next();
-                        // Go negates with wraparound: -MinInt64 stays MinInt64.
+                        // the literal of the least int is read as its
+                        // magnitude, so negating wraps back to it
                         leaf(Head::Plit, Lit::Int(n.int.wrapping_neg()))
                     }
                     Kind::Float => {

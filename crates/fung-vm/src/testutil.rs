@@ -1,15 +1,14 @@
 //! Test helpers: compile a program with the front end, boot the prelude
-//! and run it the way the fung command will (Go `cmd/fung/pipeline.go`
-//! `execute`): the entry, waiting for the tasks it left (or cancelling
-//! them after an error), the exit handlers, the end of the background
-//! tasks (stage 3b), the report of task failures nobody retrieved, then
-//! the exit code.
+//! and run it the way the fung command will: the entry, waiting for the
+//! tasks it left (or cancelling them after an error), the exit handlers,
+//! the end of the background tasks (stage 3b), the report of task
+//! failures nobody retrieved, then the exit code.
 //! Everything runs on a 4 GiB thread, because value formatting and
-//! comparison recurse on deep nesting like Go.
+//! comparison recurse on deep nesting.
 //!
 //! The prelude is the booted one (`crate::boot::boot`: the core natives,
-//! the concurrency natives and `extras/prelude.fung`), like Go's VM
-//! tests (`bootTestPrelude`), plus test-only natives passed in `Opts`.
+//! the concurrency natives and `extras/prelude.fung`), plus test-only
+//! natives passed in `Opts`.
 
 use std::cell::RefCell;
 use std::io::{BufRead, Cursor, Write};
@@ -82,7 +81,7 @@ pub struct Opts {
     pub extra: fn() -> Vec<Value>,
     /// Changes the compiled entry before it is linked.
     pub patch: fn(&mut Proto),
-    /// The entry's file name (Go tests compile `t.fung`).
+    /// The entry's file name (`-e` by default, as for `fung -e`).
     pub file: &'static str,
     /// Keep test blocks (`fung test`).
     pub tests: bool,
@@ -255,7 +254,7 @@ fn setup_with(
             }
         }
     });
-    // Links the entry and registers the modules (Go `register`), as the
+    // Links the entry and registers the modules, as the
     // command does. A caller may register other natives over them.
     rt.load(&entry, &b.modules);
     Ok(Setup { rt, out, err })
@@ -285,7 +284,7 @@ fn mem_read(path: &str) -> std::io::Result<String> {
 }
 
 /// Runs the in-memory file `entry` with its imports read from `files`
-/// (absolute paths), like Go `module_test.go` `runProgram`.
+/// (absolute paths).
 pub fn run_files(files: &[(&str, &str)], entry: &str) -> Outcome {
     let files: Vec<(String, String)> = files
         .iter()
@@ -349,15 +348,15 @@ pub fn temp_dir() -> TempDir {
 
 /// Runs a file from disk as `fung run <path>` would: (stdout, stderr,
 /// exit code). The path is passed to the loader as given, so it is the
-/// entry's display name, like Go's `fung run` with that argument; tests
-/// pass the absolute temp path, which is also what Go prints for it when
-/// run from the repository root (imports outside the working directory
-/// show as absolute paths).
+/// entry's display name, as `fung run` shows that argument; tests pass
+/// the absolute temp path, which is also what `fung run` prints for it
+/// when run from the repository root (imports outside the working
+/// directory show as absolute paths).
 pub fn run_file(path: &std::path::Path) -> (String, String, i32) {
     let path = path.to_string_lossy().into_owned();
     let o = on_big_stack(move || {
         let src = std::fs::read(&path)
-            .map(|b| fung_front::source::decode_go(&b))
+            .map(|b| fung_front::source::decode_lossy(&b))
             .expect("read the entry file");
         let opts = Opts {
             file: leak(path),
@@ -369,7 +368,7 @@ pub fn run_file(path: &std::path::Path) -> (String, String, i32) {
 }
 
 /// The process exit status a shell sees for exit(n): the operating system
-/// keeps the low 8 bits (Go `os.Exit(300)` gives 44).
+/// keeps the low 8 bits (`exit(300)` gives 44).
 pub fn status(n: i64) -> i32 {
     (n & 0xff) as i32
 }
@@ -378,7 +377,7 @@ fn exec_on(src: &str, given: Option<Prelude>, opts: Opts) -> Outcome {
     finish(setup_with(src, given, opts, None))
 }
 
-/// Runs a set-up program the way the command does (Go `execute`).
+/// Runs a set-up program the way the command does.
 fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
     let mut o = Outcome::default();
     let Setup { rt, out, err } = match setup {
@@ -391,7 +390,7 @@ fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
         }
     };
     let r = rt.run_with(format);
-    // Go `execute`: the entry is done, the tasks it left keep the program
+    // The entry is done, the tasks it left keep the program
     // alive; an entry error (or an exit) cancels them first.
     if r.is_ok() {
         rt.wait();
@@ -419,7 +418,7 @@ fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
     for d in rt.run_exit_handlers() {
         if d.code == "E0701" || d.code == "E0702" {
             // A handler cut short by the deadlock report (or an exit),
-            // already told (Go `execute`).
+            // already told.
             continue;
         }
         let text = rt.with_sources(|s| diag::format(&d, s));
@@ -445,7 +444,7 @@ fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
     o
 }
 
-/// Go `native_test.go` `padNative`: a default and a rest parameter.
+/// A test native `pad`: a default and a rest parameter.
 pub fn pad() -> Vec<Value> {
     vec![Value::Native(Native::leak(
         "pad",

@@ -1,11 +1,9 @@
-//! The concurrency natives (05; Go `vm.Concurrency()`), all real since
-//! stage 3a: `spawn`, `await`, `cancel`, `sleep`,
+//! The concurrency natives (05): `spawn`, `await`, `cancel`, `sleep`,
 //! `_native.conc.spawn_awaited`, `channel`, `send`, `recv` and `close`, on
-//! `crate::vm`'s tasks and blocking point, and the Rust-only members of
-//! `_native.conc` agents are built from (`crate::vm::agent`, stage 3b).
-//! Go's `atom`, `swap` and `deref` are not here: stage 3b replaced atoms
-//! with agents, whose `agent`, `swap` and `deref` are fung
-//! (`extras/agent.fung`). The parameter tables here are
+//! `crate::vm`'s tasks and blocking point, and the members of
+//! `_native.conc` agents are built from (`crate::vm::agent`). `agent`,
+//! `swap` and `deref` themselves are fung (`extras/agent.fung`). The
+//! parameter tables here are
 //! the source of `spec/builtins.txt`; the VM checks arity and named
 //! arguments against them before the native runs.
 
@@ -24,7 +22,7 @@ use crate::vm::{Stop, Task, block, err_kind};
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
-/// The prelude's concurrency natives (Go `vm.Concurrency()`): `spawn`
+/// The prelude's concurrency natives: `spawn`
 /// `await` `cancel` `channel` `send` `recv` `close` `sleep`, then the
 /// members only `_native.conc` holds.
 fn all() -> Vec<(&'static str, Value)> {
@@ -40,8 +38,8 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("recv", vec![param("ch"), opt("timeout", Lit::Nil)]),
                 ("close", vec![param("ch")]),
                 ("spawn_awaited", vec![param("f")]),
-                // Rust only (stage 3b, `crate::vm::agent`): the members
-                // of `_native.conc` that `extras/agent.fung` uses.
+                // Stage 3b (`crate::vm::agent`): the members of
+                // `_native.conc` that `extras/agent.fung` uses.
                 ("spawn_background", vec![param("f")]),
                 ("agent_handle", vec![param("ch")]),
                 ("check_swap", vec![param("a"), param("f")]),
@@ -60,8 +58,8 @@ fn all() -> Vec<(&'static str, Value)> {
                     vec![param("ch"), param("on"), opt("state", Lit::Nil)],
                 ),
                 ("agent_peek", vec![param("a")]),
-                // Rust only (stage 4d Task 5): what `extras/http.fung`
-                // runs its handlers with.
+                // Stage 4d Task 5: what `extras/http.fung` runs its
+                // handlers with.
                 ("set_asker", vec![param("ch")]),
                 ("describe", vec![param("e")]),
             ];
@@ -128,9 +126,9 @@ pub fn natives() -> Vec<(&'static str, Value)> {
         .collect()
 }
 
-/// `_native.conc` (Go `vm.NativeModules()`): `spawn_awaited`, which
-/// `extras/conc.fung` uses for `fan_in` and `pmap`, and the helpers
-/// `extras/agent.fung` is built from (stage 3b, `crate::vm::agent`).
+/// `_native.conc`: `spawn_awaited`, which `extras/conc.fung` uses for
+/// `fan_in` and `pmap`, and the helpers `extras/agent.fung` is built from
+/// (`crate::vm::agent`).
 pub fn module() -> Rc<Module> {
     let mut m = Module::new("conc", "_native.conc");
     for (name, v) in all() {
@@ -146,7 +144,7 @@ fn wait_of(d: i64) -> Duration {
     Duration::from_nanos(d.max(0) as u64)
 }
 
-/// `sleep(d)` (Go `sleepFn`): waits for `d`; zero and negative durations
+/// `sleep(d)`: waits for `d`; zero and negative durations
 /// return at once. A cancelled task wakes and unwinds with E0701.
 fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let d = match &args[0] {
@@ -159,7 +157,7 @@ fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Nil)
 }
 
-/// `spawn(f)` (Go `spawnFn`): runs `f` on a new task below this one.
+/// `spawn(f)`: runs `f` on a new task below this one.
 fn spawn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     spawn_with(t, args, false)
 }
@@ -176,7 +174,7 @@ fn spawn_with(t: &mut Task<'_>, args: Vec<Value>, awaited: bool) -> Result<Value
     t.spawn(f, awaited)
 }
 
-/// `await(t, timeout: nil)` (Go `awaitFn`): the task's result, kept for
+/// `await(t, timeout: nil)`: the task's result, kept for
 /// later calls; `Err({kind: 'timeout})` when the timeout passes first (the
 /// task keeps running).
 fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
@@ -199,7 +197,7 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     }
 }
 
-/// `cancel(t)` (Go `cancelFn`): cancels the task and every task below it;
+/// `cancel(t)`: cancels the task and every task below it;
 /// a finished task is left as it is.
 fn cancel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let Value::Task(h) = &args[0] else {
@@ -209,7 +207,7 @@ fn cancel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Nil)
 }
 
-/// A `timeout: dur | nil` argument (Go `timeoutArg`).
+/// A `timeout: dur | nil` argument.
 fn timeout_arg(v: &Value) -> Result<Option<Duration>, Stop> {
     match v {
         Value::Nil => Ok(None),
@@ -218,20 +216,10 @@ fn timeout_arg(v: &Value) -> Result<Option<Duration>, Stop> {
     }
 }
 
-/// The largest buffer Go's `make(chan Value, n)` accepts: past it Go
-/// panics with `makechan: size out of range` (16-byte elements against
-/// its 2^48-byte allocation limit), which its VM reports as E0801. Below
-/// it Rust allocates nothing up front.
-const MAX_CHANNEL_BUFFER: i64 = 17_592_186_044_409;
-
-/// `channel(n = 0)` (Go `channelFn`): a rendezvous channel, or one that
-/// buffers `n` values.
+/// `channel(n = 0)`: a rendezvous channel, or one that buffers `n`
+/// values. Nothing is allocated up front, so `n` has no upper limit.
 fn channel_fn(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     match &args[0] {
-        Value::Int(n) if *n > MAX_CHANNEL_BUFFER => Err(nat::fail(
-            "E0801",
-            vec![nat::s("makechan: size out of range")],
-        )),
         Value::Int(n) if *n >= 0 => Ok(Value::Channel(Rc::new(Channel::new(*n as usize)))),
         v => Err(nat::fail(
             "E0403",
@@ -251,8 +239,8 @@ fn need_channel(v: &Value) -> Result<&Rc<Channel>, Stop> {
     }
 }
 
-/// `send(ch, v)` (Go `sendFn`): `Ok(nil)` once delivered,
-/// `Err({kind: 'closed})` on a closed channel. Rust only: E0705 when `v`
+/// `send(ch, v)`: `Ok(nil)` once delivered,
+/// `Err({kind: 'closed})` on a closed channel. E0705 when `v`
 /// contains `ch` (`channel::contains`), checked before anything else
 /// happens, so the error is the same whether or not the channel is
 /// closed or full.
@@ -263,7 +251,7 @@ fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     deliver(t, args)
 }
 
-/// `_native.conc.send_unchecked(ch, v)` (stage 3b, Rust only): `send`
+/// `_native.conc.send_unchecked(ch, v)` (stage 3b): `send`
 /// without that check, for an agent's own requests, which are taken out
 /// of the channel at once and so leave no cycle behind.
 fn send_unchecked(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
@@ -281,7 +269,7 @@ fn deliver(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     }
 }
 
-/// `recv(ch, timeout: nil)` (Go `recvFn`): `Ok(v)`, or
+/// `recv(ch, timeout: nil)`: `Ok(v)`, or
 /// `Err({kind: 'closed})` once the channel is closed and empty, or
 /// `Err({kind: 'timeout})`.
 fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
@@ -294,7 +282,7 @@ fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     })
 }
 
-/// `close(ch)` (Go `closeFn`): `Ok(nil)`, also on a closed channel.
+/// `close(ch)`: `Ok(nil)`, also on a closed channel.
 fn close(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     need_channel(&args[0])?.close();
     Ok(nat::ok(Value::Nil))

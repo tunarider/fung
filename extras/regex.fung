@@ -1,4 +1,4 @@
-# regex: Go RE2 over fung strings (06). Positions are rune indexes.
+# regex: regular expressions over fung strings (06). Positions are character indexes.
 import _native.regex as _n
 
 is_match = _n.is_match

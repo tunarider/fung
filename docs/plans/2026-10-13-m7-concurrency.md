@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go 1.27, 표준 라이브러리만 (`context`, `sync`, `sync/atomic`, `time`).
 
-**Spec:** `05-concurrency.md` 전체, `02-values-and-types.md` (비교 표의 동일성, 순회 대상에 채널), `06-go-interop-and-stdlib.md` (동시성 prelude, `retry`), `03-functions-and-patterns.md` (`at_exit`, 태스크 안 런타임 에러의 한계), `08-tooling-and-errors.md` (E07xx, 종료 코드), `09-implementation-plan.md` (태스크·취소·교착 메모).
+**Spec:** `05-concurrency.md` 전체, `02-values-and-types.md` (비교 표의 동일성, 순회 대상에 채널), `06-native-and-stdlib.md` (동시성 prelude, `retry`), `03-functions-and-patterns.md` (`at_exit`, 태스크 안 런타임 에러의 한계), `08-tooling-and-errors.md` (E07xx, 종료 코드), `09-implementation-plan.md` (태스크·취소·교착 메모).
 
 ## Global Constraints
 

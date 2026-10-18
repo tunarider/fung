@@ -1,6 +1,6 @@
-//! Port of internal/format/format_test.go, plus the byte-level cases the
-//! Rust port adds (bytes that are not UTF-8, a byte order mark) and the
-//! token-preservation safeguard.
+//! Formatter tests: spacing, indentation, blank lines and comments,
+//! alignment, the byte-level cases (bytes that are not UTF-8, a byte
+//! order mark) and the token-preservation safeguard.
 
 use super::*;
 use crate::lexer::lex;
@@ -335,7 +335,7 @@ fn fn_typed_parameters() {
     ]);
 }
 
-// ---- Rust port additions ----
+// ---- bytes, BOM and the safeguard ----
 
 /// Review Focus 1: what must survive formatting, token for token —
 /// comments (own line and trailing, `#!`), blank lines between
@@ -389,11 +389,25 @@ fn safeguard_refuses_a_changed_token_stream() {
     ));
 }
 
-/// Go formats bytes: a byte that is not UTF-8 inside a string or a
-/// comment is written back unchanged (not as U+FFFD), and counts as one
-/// character when comments are aligned.
+/// The formatter works on bytes: an invalid UTF-8 sequence inside a
+/// string or a comment is written back unchanged (not as U+FFFD), and
+/// counts as one column when comments are aligned.
 #[test]
 fn keeps_bytes_that_are_not_utf8() {
+    // display width: a wide character takes two columns, so the comments
+    // line up on screen
+    check(
+        "x = \"한글\" # c\nyyyyyy = 1 # d\n",
+        "x = \"한글\"  # c\nyyyyyy = 1  # d\n",
+    );
+    check(
+        "match v:\n\"한\" => 1\n\"abc\" => 2\n;;\n",
+        "match v:\n  \"한\"  => 1\n  \"abc\" => 2\n;;\n",
+    );
+    // an invalid sequence is one U+FFFD, one column: `x = "?"` is 7
+    // columns (byte by byte it would be 8), padded to the 9 of the next
+    let got = format_bytes("t.fung", b"x=\"\xe2\x82\" # c\nxxxxx = 1 # d\n").unwrap();
+    assert_eq!(got, b"x = \"\xe2\x82\"    # c\nxxxxx = 1  # d\n".to_vec());
     let got = format_bytes("t.fung", b"x=\"a\xffb\" # c\xfe\nlong_name = 1 # d\n").unwrap();
     assert_eq!(
         got,
@@ -407,7 +421,7 @@ fn keeps_bytes_that_are_not_utf8() {
 }
 
 /// A leading byte order mark is skipped like the lexer skips it and never
-/// written back (Go's formatter does the same since 5단계); a second mark
+/// written back; a second mark
 /// is code the lexer refuses (E0101).
 #[test]
 fn byte_order_mark() {

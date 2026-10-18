@@ -1,5 +1,5 @@
-//! Ports of the Go parser tests (`internal/parser/*_test.go`), case tables
-//! included, plus the parity cases checked against the Go binary.
+//! Parser tests: case tables by construct, plus whole trees of larger
+//! programs.
 
 use super::*;
 use crate::lexer::lex;
@@ -23,7 +23,7 @@ fn ast(src: &str) -> String {
         .unwrap_or_else(|d| format!("{} {}:{}", d.code, d.pos.line, d.pos.col))
 }
 
-/// Go `parse`: the tree, failing the test on an error.
+/// The tree, failing the test on an error.
 #[track_caller]
 fn p(src: &str) -> String {
     match parse(&toks_of(src)) {
@@ -32,7 +32,7 @@ fn p(src: &str) -> String {
     }
 }
 
-/// Go `parseErr`: the error code, failing the test when parsing succeeds.
+/// The error code, failing the test when parsing succeeds.
 #[track_caller]
 fn perr(src: &str) -> String {
     match parse(&toks_of(src)) {
@@ -41,7 +41,7 @@ fn perr(src: &str) -> String {
     }
 }
 
-/// Go `parseErrQuiet`: the error code or "" without echoing the input.
+/// The error code or "" without echoing the input.
 fn perr_quiet(src: &str) -> String {
     match parse(&toks_of(src)) {
         Ok(_) => String::new(),
@@ -83,10 +83,10 @@ fn big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
         .unwrap()
 }
 
-// --- Parity cases from the brief (outputs of the Go binary) ---
+// --- Whole trees ---
 
 #[test]
-fn real_go_outputs() {
+fn whole_trees() {
     assert_eq!(
         ast("x = 1 + 2 * 3"),
         "(program (assign x (binary + 1 (binary * 2 3))))"
@@ -128,7 +128,7 @@ fn deep_nesting_is_an_error_not_a_crash() {
     assert_eq!(handle.join().unwrap(), "E0802 1:10005");
 }
 
-// --- parser_test.go ---
+// --- expressions and statements ---
 
 #[test]
 fn precedence_and_associativity() {
@@ -348,7 +348,7 @@ fn min_int_literal() {
     );
 }
 
-// --- fn_test.go ---
+// --- functions ---
 
 #[test]
 fn fn_definitions() {
@@ -453,7 +453,7 @@ fn lambda_params_require_commas() {
     assert_eq!(perr("(a b) => a + b"), "E0110");
 }
 
-// --- m4_test.go ---
+// --- collections and patterns (M4) ---
 
 #[test]
 fn collection_literals() {
@@ -657,7 +657,7 @@ fn deep_pattern_is_bounded() {
     });
 }
 
-// --- m5_test.go ---
+// --- modules (M5) ---
 
 #[test]
 fn import_statement() {
@@ -715,7 +715,7 @@ fn underscore_assignment_discards() {
     assert_eq!(p("_ = f()"), "(program (assign (pwild) (call f)))");
 }
 
-// --- m6_test.go ---
+// --- tests and asserts (M6) ---
 
 #[test]
 fn test_and_assert_statements() {
@@ -816,7 +816,7 @@ fn parameter_patterns() {
     ]);
 }
 
-// --- keyword_names_test.go ---
+// --- keywords as names ---
 
 #[test]
 fn keywords_as_field_and_key_names() {
@@ -841,7 +841,7 @@ fn keywords_as_field_and_key_names() {
     }
 }
 
-// --- map_shorthand_test.go ---
+// --- map shorthand ---
 
 #[test]
 fn map_shorthand() {

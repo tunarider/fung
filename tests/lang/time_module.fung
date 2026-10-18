@@ -7,6 +7,6 @@ print(time.format(t, "YYYY/MM/DD HH:mm:ss"), time.format(time.utc(t), "HH:mm Z")
 print(time.unix(t), time.parts(t).weekday, time.parts(t).month)
 # expect: 1791072307 'sun 10
 print(time.parse("2026/10/04", "YYYY/MM/DD") |> is_ok, time.parse("2026-13-04", "YYYY-MM-DD"))
-# expect: true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: field out of range"})
+# expect: true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: month out of range"})
 print(time.utc(t) == t, time.from_unix(1791072307) == t)
 # expect: true true

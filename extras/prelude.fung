@@ -1,11 +1,11 @@
 # The part of the prelude written in fung (06: 네 층, built-in extras):
 # the combinators the core's fold/map/for/slices can build, the process
-# functions bridged from Go, and two iteration helpers. The core keeps
-# the functions that walk elements in Go (map, filter, fold, …). The
-# concurrency helpers (fan_in, pmap, retry) are the module `conc`.
+# functions of the native bridge, and two iteration helpers. The core
+# keeps the functions that walk elements natively (map, filter, fold, …).
+# The concurrency helpers (fan_in, pmap, retry) are the module `conc`.
 import _native.process as _p
 
-# Process functions (06), bridged from Go.
+# Process functions (06), from the native bridge.
 exec = _p.exec
 sh = _p.sh
 env = _p.env
@@ -16,8 +16,22 @@ fn is_empty(x) = len(x) == 0
 
 fn sum(xs) = fold(xs, 0, (acc, x) => acc + x)
 
-# Positional access needs a list: ranges (and channels) become one.
+# Positional access needs a list: ranges (and channels, received until
+# closed) become one.
 fn _list(xs) = type_of(xs) == 'list then xs else map(xs, x => x)
+
+# A range's first number; ranges step by one, so the others follow from
+# it and len (first/last/take/drop build only what they return).
+fn _start(r) = find(r, x => true)
+
+# The numbers of r from position i (0-based) up to, not including, j.
+fn _span(r, i, j) = i >= j then [] else map(_start(r) + i..=_start(r) + (j - 1), x => x)
+
+# Up to n values from a channel, stopping early: the rest stays in it (05).
+fn _receive(ch, n, acc) = n <= 0 then acc else match recv(ch):
+  Ok(x)  => _receive(ch, n - 1, acc + [x])
+  Err(_) => acc
+;;
 
 # min/max: nil for an empty collection; the first element seeds the fold
 # so a nil element fails as `<` does instead of being skipped.
@@ -47,11 +61,13 @@ fn zip(xs, ys):
 ;;
 
 fn first(xs):
-  ys = _list(xs)
+  if type_of(xs) == 'range: return _start(xs) ;;
+  ys = type_of(xs) == 'channel then _receive(xs, 1, []) else _list(xs)
   is_empty(ys) then nil else ys[0]
 ;;
 
 fn last(xs):
+  if type_of(xs) == 'range: return is_empty(xs) then nil else _start(xs) + (len(xs) - 1) ;;
   ys = _list(xs)
   is_empty(ys) then nil else ys[-1]
 ;;
@@ -64,11 +80,14 @@ fn _clamp(verb, n, size):
 ;;
 
 fn take(xs, n):
+  if type_of(xs) == 'channel: return _receive(xs, _clamp("take", n, n), []) ;;
+  if type_of(xs) == 'range: return _span(xs, 0, _clamp("take", n, len(xs))) ;;
   ys = _list(xs)
   ys[.._clamp("take", n, len(ys))]
 ;;
 
 fn drop(xs, n):
+  if type_of(xs) == 'range: return _span(xs, _clamp("drop", n, len(xs)), len(xs)) ;;
   ys = _list(xs)
   ys[_clamp("drop", n, len(ys))..]
 ;;

@@ -1,5 +1,4 @@
-//! `fung dump bytecode` output, byte for byte the same as Go
-//! `bytecode.Disassemble`:
+//! `fung dump bytecode` output:
 //!
 //! ```text
 //! 0000  1:7   CONST        0    ; 1

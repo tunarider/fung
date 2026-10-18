@@ -1,6 +1,6 @@
-//! Channels (stage 3a, Task 4). Ports Go `internal/vm/conc_test.go`
-//! `TestChannels`, plus the rendezvous, close and cancellation cases Go's
-//! `select` decides. Expected outputs come from the Go binary.
+//! Channels (stage 3a, Task 4): sending, receiving and closing, plus the
+//! rendezvous, close and cancellation cases a blocked send or recv must
+//! decide.
 
 use std::time::{Duration, Instant};
 
@@ -15,7 +15,7 @@ fn a_native_blocked_inside_a_lambda_still_works() {
 }
 
 #[test]
-fn closed_and_buffered_channels_like_go() {
+fn closed_and_buffered_channels() {
     let (out, _, code) = run(
         "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
     );
@@ -36,9 +36,8 @@ fn cancelling_a_task_blocked_in_send_inside_each_ends_it() {
     assert_eq!((out.as_str(), code), ("Err({kind: 'cancelled})\n", 0));
 }
 
-/// Go `TestChannels`.
 #[test]
-fn channels_like_go() {
+fn channels_send_receive_and_close() {
     let cases = [
         (
             "ch = channel()\nspawn(() => send(ch, 1))\nprint(recv(ch))",
@@ -96,7 +95,7 @@ fn channels_like_go() {
 }
 
 #[test]
-fn the_argument_errors_read_like_go() {
+fn the_argument_errors_name_the_argument() {
     let cases = [
         (
             "channel(-1)",
@@ -123,7 +122,7 @@ fn the_argument_errors_read_like_go() {
 }
 
 #[test]
-fn a_channel_prints_compares_and_types_like_go() {
+fn a_channel_prints_compares_and_types() {
     let (out, _, code) =
         run("c = channel()\nprint(c, [c], type_of(c), c == c, c == channel(), c != 1)");
     assert_eq!(
@@ -193,10 +192,9 @@ fn close_wakes_waiting_senders_and_receivers() {
     }
 }
 
-/// Go's `select` in a blocked send or recv: once the other side has
-/// taken (or delivered) the value, the operation succeeded, even if the
-/// task is cancelled before it wakes; a cancelled wait that got nothing
-/// unwinds with E0701.
+/// A blocked send or recv: once the other side has taken (or delivered) the
+/// value, the operation succeeded, even if the task is cancelled before it
+/// wakes; a cancelled wait that got nothing unwinds with E0701.
 #[test]
 fn a_delivered_value_wins_over_a_later_cancel() {
     let cases = [
@@ -221,7 +219,7 @@ fn a_delivered_value_wins_over_a_later_cancel() {
     // value, and wakes to a cancelled flag. (These waited with a fixed 5 ms
     // sleep, and the buffered one hung under load: a sender that had not
     // started was cancelled before it sent, so the last `recv` waited
-    // for a value that never came; Go reports E0702 there.)
+    // for a value that never came, a deadlock: E0702.)
     let blocked_first = [
         (
             "ch = channel()\nt = spawn(() => send(ch, 1))\nblocked(ch, 1)\nr = recv(ch)\ncancel(t)\nprint(r, await(t))",
@@ -263,10 +261,10 @@ fn a_cancelled_sender_takes_its_value_back() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
-/// Every iterating native drains a channel until it is closed (Go
-/// `nat.Items`), and checks the collection before the function.
+/// Every iterating native walks a channel as its values arrive (05),
+/// stops where it stops, and checks the collection before the function.
 #[test]
-fn iterating_natives_drain_a_channel() {
+fn iterating_natives_walk_a_channel() {
     let cases = [
         (
             "c = channel()\nclose(c)\nprint(any(c, x => true), all(c, x => false), group_by(c, x => \"a\"), sort_by(c, x => x), filter(c, x => true), fold(c, 1, (a, b) => a), each(c, x => x))",
@@ -282,18 +280,18 @@ fn iterating_natives_drain_a_channel() {
         ),
         (
             "c = channel(3)\neach([1, 2, 3], x => send(c, x))\nclose(c)\nprint(find(c, x => x > 1), recv(c))",
-            "2 Err({kind: 'closed})\n",
+            "2 Ok(3)\n",
         ),
         (
             "c = channel(3)\neach([1, 2, 3], x => send(c, x))\nclose(c)\nprint(any(c, x => x == 1), recv(c))",
-            "true Err({kind: 'closed})\n",
+            "true Ok(2)\n",
         ),
     ];
     for (src, want) in cases {
         let o = exec(src, Opts::default());
         assert_eq!((o.code.as_str(), o.out.as_str()), ("", want), "{src}");
     }
-    // `map(c, 3)` drains `c` before it reports the bad function, as Go does.
+    // `map(c, 3)` reports the bad function before it receives anything.
     let o = exec(
         "c = channel(1)\nsend(c, 1)\nclose(c)\nmap(c, 3)",
         Opts::default(),
@@ -321,10 +319,10 @@ fn values_in_a_buffer_drop_with_the_runtime() {
     );
 }
 
-/// A cancelled waiter is never paired: cancellation claims it at once (Go
-/// `select`), even though its slot stays queued until its task next holds
-/// the token. Here the token holder cancels and pairs without giving the
-/// token up in between.
+/// A cancelled waiter is never paired: cancellation claims it at once, even
+/// though its slot stays queued until its task next holds the token. Here
+/// the token holder cancels and pairs without giving the token up in
+/// between.
 #[test]
 fn a_cancelled_waiter_is_never_paired() {
     let cases = [
@@ -381,7 +379,7 @@ fn a_timed_out_receiver_is_never_paired() {
 /// under load, made deterministic: the entry keeps the run token from the
 /// spawn to the cancel, so the sender is cancelled before it ever runs
 /// and sends nothing. A last `recv` without a timeout would wait forever
-/// (Go reports E0702 there); with one it times out.
+/// (a deadlock, E0702); with one it times out.
 #[test]
 fn a_sender_cancelled_before_it_runs_sends_nothing() {
     let (out, _, code) = run(

@@ -72,7 +72,8 @@ fn collections_stay_linear() {
 
 /// `regex.find_all` over 1,000,000 characters of multibyte text with
 /// 100,000 matches: rune positions must not be recounted from the start of
-/// the subject for every match (Go `runeCursor`), and the whole program
+/// the subject for every match (a cursor keeps the count), and the whole
+/// program
 /// must finish within a second. Measured on an Apple M-series release
 /// build: about 0.06 s with the cursor, about 8 s when it recounts from
 /// the start for every match.

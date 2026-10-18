@@ -1,7 +1,6 @@
-//! Time value tests (Go `internal/value/time_test.go` plus edges). Every
-//! expected value came from Go 1.27 (`time.Unix(s, n).In(loc)`,
-//! `Format(time.RFC3339Nano)`, `Add`, `Sub`, `Zone`, `Date`, `Clock`,
-//! `Weekday`) or from the Go `fung` binary (error codes and messages).
+//! Time value tests: the ISO text, date, clock and weekday at an instant
+//! in UTC, fixed offsets and loaded zones, comparison, arithmetic and its
+//! range, with the error codes and messages.
 
 use std::cmp::Ordering;
 use std::rc::Rc;
@@ -16,19 +15,17 @@ const MS: i64 = 1_000_000;
 const SEC: i64 = 1_000_000_000;
 const MIN: i64 = 60 * SEC;
 const HOUR: i64 = 60 * MIN;
-/// Go's `unixToInternal`.
-const U2I: i64 = 62135596800;
 
 fn utc(sec: i64, nsec: i64) -> Time {
-    Time::from_unix(sec, nsec, Loc::Utc)
+    Time::from_unix(sec, nsec, Loc::Utc).unwrap()
 }
 
 fn tv(t: Time) -> Value {
     Value::Time(Rc::new(t))
 }
 
-/// Go's `mustTime`: `time.Parse(time.RFC3339Nano, s)` for the subset the
-/// tests use (`Z` or a `±hh:mm` offset).
+/// Parses an RFC 3339 time for the subset the tests use (`Z` or a
+/// `±hh:mm` offset).
 fn must_time(s: &str) -> Time {
     let num = |a: usize, b: usize| s[a..b].parse::<i64>().unwrap();
     let (y, mo, d, h, mi, sec) = (
@@ -46,14 +43,13 @@ fn must_time(s: &str) -> Time {
         nsec = format!("{:0<9}", &frac[..n]).parse().unwrap();
         rest = &frac[n..];
     }
-    let (unix, nsec) = Zone::utc().date(y, mo, d, h, mi, sec, nsec);
     if rest == "Z" {
-        return Time::from_unix(unix, i64::from(nsec), Loc::Utc);
+        return Time::from_wall(y, mo, d, h, mi, sec, nsec, Loc::Utc).unwrap();
     }
     let sign = if rest.starts_with('-') { -1 } else { 1 };
     let off = sign
         * (rest[1..3].parse::<i32>().unwrap() * 3600 + rest[4..6].parse::<i32>().unwrap() * 60);
-    Time::from_unix(unix - i64::from(off), i64::from(nsec), Loc::Fixed(off))
+    Time::from_wall(y, mo, d, h, mi, sec, nsec, Loc::Fixed(off)).unwrap()
 }
 
 fn fails(r: Result<Value, Diag>, code: &str, msg: &str) {
@@ -75,7 +71,7 @@ fn iso_of(r: Result<Value, Diag>) -> String {
 }
 
 #[test]
-fn time_format_iso_go_cases() {
+fn time_format_iso() {
     for (s, want) in [
         ("2026-10-14T09:00:00+09:00", "2026-10-14T09:00:00+09:00"),
         (
@@ -124,14 +120,6 @@ const UTC_CASES: &[(i64, i64, &str, Ymd, Hms, u32)] = &[
         3,
     ),
     (
-        253402300800,
-        0,
-        "10000-01-01T00:00:00Z",
-        (10000, 1, 1),
-        (0, 0, 0),
-        6,
-    ),
-    (
         253402300799,
         0,
         "9999-12-31T23:59:59Z",
@@ -147,60 +135,10 @@ const UTC_CASES: &[(i64, i64, &str, Ymd, Hms, u32)] = &[
         (0, 0, 0),
         6,
     ),
-    (
-        -62167219201,
-        0,
-        "-0001-12-31T23:59:59Z",
-        (-1, 12, 31),
-        (23, 59, 59),
-        5,
-    ),
-    (
-        (1 << 62) - 1,
-        0,
-        "146138514283-06-19T07:45:03Z",
-        (146138514283, 6, 19),
-        (7, 45, 3),
-        2,
-    ),
-    (
-        -(1 << 62) + 1,
-        0,
-        "-146138510344-07-14T16:14:57Z",
-        (-146138510344, 7, 14),
-        (16, 14, 57),
-        5,
-    ),
-    // The largest instant Go holds (internal seconds = i64::MAX).
-    (
-        i64::MAX - U2I,
-        999999999,
-        "292277024627-12-06T15:30:07.999999999Z",
-        (292277024627, 12, 6),
-        (15, 30, 7),
-        4,
-    ),
-    (
-        i64::MIN + U2I,
-        0,
-        "-292277020688-01-27T08:29:52Z",
-        (-292277020688, 1, 27),
-        (8, 29, 52),
-        3,
-    ),
-    // Internal seconds wrap to i64::MIN; Go's unix seconds wrap back.
-    (
-        i64::MAX - U2I + 1,
-        0,
-        "292277024627-12-06T15:30:08Z",
-        (292277024627, 12, 6),
-        (15, 30, 8),
-        4,
-    ),
 ];
 
 #[test]
-fn time_utc_parts_like_go() {
+fn time_utc_parts() {
     for &(sec, nsec, iso, date, clock, wd) in UTC_CASES {
         let t = utc(sec, nsec);
         assert_eq!(t.iso(), iso, "{sec}");
@@ -214,19 +152,19 @@ fn time_utc_parts_like_go() {
 }
 
 #[test]
-fn time_unix_normalizes_nanoseconds_like_go() {
-    // Go `time.Unix(0, -1)`, `time.Unix(1, 2_500_000_000)`.
+fn time_unix_normalizes_nanoseconds() {
+    // Nanoseconds below 0 or past a second move into the seconds.
     assert_eq!(utc(0, -1).iso(), "1969-12-31T23:59:59.999999999Z");
     assert_eq!(utc(1, 2_500_000_000).iso(), "1970-01-01T00:00:03.5Z");
 }
 
 #[test]
-fn time_fixed_offsets_like_go() {
-    // `(unix sec, offset, ISO, (hour, min, sec))`; the ISO offset drops
-    // seconds and an offset under a minute shows as `+00:00`.
+fn time_fixed_offsets() {
+    // `(unix sec, offset, ISO, (hour, min, sec))`; an offset with seconds
+    // shows them.
     for &(sec, off, iso, clock) in &[
-        (0, -30, "1969-12-31T23:59:30+00:00", (23, 59, 30)),
-        (0, 30, "1970-01-01T00:00:30+00:00", (0, 0, 30)),
+        (0, -30, "1969-12-31T23:59:30-00:00:30", (23, 59, 30)),
+        (0, 30, "1970-01-01T00:00:30+00:00:30", (0, 0, 30)),
         (
             1760400000,
             14 * 3600 + 45 * 60,
@@ -236,11 +174,11 @@ fn time_fixed_offsets_like_go() {
         (
             -5000000000,
             -17762,
-            "1811-07-23T10:10:38-04:56",
+            "1811-07-23T10:10:38-04:56:02",
             (10, 10, 38),
         ),
     ] {
-        let t = Time::from_unix(sec, 0, Loc::Fixed(off));
+        let t = Time::from_unix(sec, 0, Loc::Fixed(off)).unwrap();
         assert_eq!(t.iso(), iso, "{sec} {off}");
         assert_eq!(t.zone(), ("", off));
         assert_eq!(t.clock(), clock);
@@ -248,7 +186,7 @@ fn time_fixed_offsets_like_go() {
 }
 
 #[test]
-fn time_in_a_loaded_zone_like_go() {
+fn time_in_a_loaded_zone() {
     if !std::path::Path::new("/usr/share/zoneinfo/America/New_York").exists() {
         eprintln!("skipping: no America/New_York");
         return;
@@ -257,7 +195,7 @@ fn time_in_a_loaded_zone_like_go() {
     for &(sec, iso, zone, date, wd) in &[
         (
             -5364662400,
-            "1799-12-31T19:03:58-04:56",
+            "1799-12-31T19:03:58-04:56:02",
             ("LMT", -17762),
             (1799, 12, 31),
             2,
@@ -277,7 +215,7 @@ fn time_in_a_loaded_zone_like_go() {
             3,
         ),
     ] {
-        let t = Time::from_unix(sec, 0, Loc::Zone(ny));
+        let t = Time::from_unix(sec, 0, Loc::Zone(ny)).unwrap();
         assert_eq!(t.iso(), iso);
         assert_eq!(t.zone(), zone);
         assert_eq!(t.date(), date);
@@ -297,7 +235,7 @@ fn time_local_uses_the_process_zone() {
 }
 
 #[test]
-fn time_equal_and_compare_go_cases() {
+fn time_equal_and_compare() {
     let a = tv(must_time("2026-10-14T09:00:00+09:00"));
     let b = tv(must_time("2026-10-14T00:00:00Z")); // same instant, other zone
     let c = tv(must_time("2026-10-14T00:00:01Z"));
@@ -318,7 +256,7 @@ fn time_equal_and_compare_go_cases() {
 }
 
 #[test]
-fn time_arithmetic_go_cases() {
+fn time_arithmetic() {
     let a = tv(must_time("2026-10-14T09:00:00+09:00"));
     let later = add(&a, &Value::Dur(90 * MIN)).unwrap();
     assert_eq!(format(&later), "2026-10-14T10:30:00+09:00");
@@ -351,13 +289,13 @@ fn time_arithmetic_go_cases() {
         "cannot subtract time and int",
     );
     fails(add(&a, &Value::Int(1)), "E0501", "cannot add time and int");
-    // Go: time.Unix(0, 0).AddDate(400, 0, 0) - time.Unix(0, 0).
+    // 400 years after the epoch minus the epoch: past the dur range.
     let far = tv(utc(12622780800, 0));
     fails(sub(&far, &tv(utc(0, 0))), "E0503", "integer overflow");
 }
 
 #[test]
-fn time_add_like_go() {
+fn time_add_any_dur() {
     let t0 = tv(utc(0, 0));
     assert_eq!(
         iso_of(add(&t0, &Value::Dur(-1500 * MS))),
@@ -372,7 +310,7 @@ fn time_add_like_go() {
         "2262-04-11T23:47:16.854775807Z"
     );
     // The zone is kept.
-    let k = tv(Time::from_unix(0, 0, Loc::Fixed(9 * 3600)));
+    let k = tv(Time::from_unix(0, 0, Loc::Fixed(9 * 3600)).unwrap());
     assert_eq!(
         iso_of(add(&k, &Value::Dur(NS))),
         "1970-01-01T09:00:00.000000001+09:00"
@@ -380,72 +318,94 @@ fn time_add_like_go() {
 }
 
 #[test]
-fn time_add_overflow_like_go() {
-    // At the largest instant Go's Add saturates, so the sum is not later.
-    let max = tv(utc(i64::MAX - U2I, 999999999));
-    fails(add(&max, &Value::Dur(NS)), "E0503", "integer overflow");
-    fails(add(&max, &Value::Dur(HOUR)), "E0503", "integer overflow");
-    // Saturating short of the end still moves forward: Go keeps it.
-    let near = tv(utc(i64::MAX - U2I - 10, 0));
+fn time_arithmetic_stops_at_the_range() {
+    let last = tv(utc(MAX_UNIX, 999_999_999));
+    let first = tv(utc(MIN_UNIX, 0));
+    fails(add(&last, &Value::Dur(NS)), "E0503", "integer overflow");
+    fails(sub(&first, &Value::Dur(NS)), "E0503", "integer overflow");
+    fails(add(&first, &Value::Dur(-HOUR)), "E0503", "integer overflow");
+    // Subtracting the smallest dur moves forward 292 years: in range.
     assert_eq!(
-        iso_of(add(&near, &Value::Dur(HOUR))),
-        "292277024627-12-06T15:30:07Z"
+        iso_of(sub(&tv(utc(0, 0)), &Value::Dur(i64::MIN))),
+        "2262-04-11T23:47:16.854775808Z"
     );
-    // Internal seconds at i64::MIN: going back saturates to MIN + 1, later.
-    let min = tv(utc(i64::MAX - U2I + 1, 0));
-    fails(sub(&min, &Value::Dur(NS)), "E0503", "integer overflow");
-    fails(add(&min, &Value::Dur(-HOUR)), "E0503", "integer overflow");
-    assert_eq!(
-        iso_of(add(&min, &Value::Dur(HOUR))),
-        "292277024627-12-06T16:30:08Z"
-    );
-    let low = tv(utc(i64::MIN + U2I, 0));
-    assert_eq!(
-        iso_of(sub(&low, &Value::Dur(NS))),
-        "-292277020688-01-27T08:29:51.999999999Z"
-    );
-    assert_eq!(
-        iso_of(sub(&low, &Value::Dur(HOUR))),
-        "-292277020688-01-27T07:29:52Z"
-    );
-    // Go negates the duration first.
-    fails(
-        sub(&tv(utc(0, 0)), &Value::Dur(i64::MIN)),
-        "E0503",
-        "integer overflow",
-    );
-}
-
-#[test]
-fn time_sub_like_go() {
-    let t0 = utc(0, 0);
+    // A difference past the dur range is an overflow.
+    fails(sub(&last, &first), "E0503", "integer overflow");
+    let t0 = tv(utc(0, 0));
+    let big = tv(utc(20000000000, 0));
+    fails(sub(&big, &t0), "E0503", "integer overflow");
+    fails(sub(&t0, &big), "E0503", "integer overflow");
     let dur = |r: Result<Value, Diag>| match r {
         Ok(Value::Dur(d)) => d,
         other => panic!("want a dur, got {other:?}"),
     };
-    let at = |d: i64| tv(t0.add(d));
-    // Go's Sub saturates at the dur range; fung calls the bounds overflow.
-    assert_eq!(dur(sub(&at(i64::MAX - 1), &tv(t0.clone()))), i64::MAX - 1);
-    assert_eq!(dur(sub(&at(i64::MIN + 1), &tv(t0.clone()))), i64::MIN + 1);
-    fails(
-        sub(&at(i64::MAX), &tv(t0.clone())),
-        "E0503",
-        "integer overflow",
-    );
-    fails(
-        sub(&at(i64::MIN), &tv(t0.clone())),
-        "E0503",
-        "integer overflow",
-    );
-    let big = tv(utc(20000000000, 0));
-    fails(sub(&big, &tv(t0.clone())), "E0503", "integer overflow");
-    fails(sub(&tv(t0.clone()), &big), "E0503", "integer overflow");
-    // Go: max.Sub(min) and min.Sub(max) at the internal extremes saturate.
-    let max = utc(i64::MAX - U2I, 999999999);
-    let min = utc(i64::MAX - U2I + 1, 0);
-    assert_eq!(max.sub(&min), i64::MAX);
-    assert_eq!(min.sub(&max), i64::MIN);
+    let at = |d: i64| tv(utc(0, 0).add(i128::from(d)).unwrap());
+    assert_eq!(dur(sub(&at(i64::MAX), &t0)), i64::MAX);
+    assert_eq!(dur(sub(&at(i64::MIN), &t0)), i64::MIN);
     // Across zones only the instant counts.
-    let k = tv(Time::from_unix(3600, 5, Loc::Fixed(-5 * 3600)));
-    assert_eq!(dur(sub(&k, &tv(t0))), HOUR + 5);
+    let k = tv(Time::from_unix(3600, 5, Loc::Fixed(-5 * 3600)).unwrap());
+    assert_eq!(dur(sub(&k, &t0)), HOUR + 5);
+}
+
+// --- the range: years 0000 to 9999 (02) ---
+
+#[test]
+fn range_edges() {
+    assert_eq!(
+        Time::from_unix(MIN_UNIX, 0, Loc::Utc).unwrap().iso(),
+        "0000-01-01T00:00:00Z"
+    );
+    assert_eq!(
+        Time::from_unix(MAX_UNIX, 999_999_999, Loc::Utc)
+            .unwrap()
+            .iso(),
+        "9999-12-31T23:59:59.999999999Z"
+    );
+    assert!(Time::from_unix(MIN_UNIX - 1, 999_999_999, Loc::Utc).is_none());
+    assert!(Time::from_unix(MAX_UNIX + 1, 0, Loc::Utc).is_none());
+    assert!(Time::from_unix(MAX_UNIX, 1_000_000_000, Loc::Utc).is_none());
+}
+
+#[test]
+fn add_and_sub_stay_in_range() {
+    let last = Time::from_unix(MAX_UNIX, 999_999_999, Loc::Utc).unwrap();
+    let first = Time::from_unix(MIN_UNIX, 0, Loc::Utc).unwrap();
+    assert!(last.add(1).is_none());
+    assert!(first.add(-1).is_none());
+    assert_eq!(last.add(-1).unwrap().nanosecond(), 999_999_998);
+    // Ten thousand years are more nanoseconds than a dur holds.
+    assert!(last.sub(&first).is_none());
+    let a = Time::from_unix(10, 5, Loc::Utc).unwrap();
+    let b = Time::from_unix(7, 9, Loc::Utc).unwrap();
+    assert_eq!(a.sub(&b), Some(2_999_999_996));
+    assert_eq!(b.sub(&a), Some(-2_999_999_996));
+}
+
+#[test]
+fn edges_show_in_any_offset() {
+    let first = Time::from_unix(MIN_UNIX, 0, Loc::Fixed(-18000)).unwrap();
+    assert_eq!(first.iso(), "-0001-12-31T19:00:00-05:00");
+    let last = Time::from_unix(MAX_UNIX, 0, Loc::Fixed(3600)).unwrap();
+    assert_eq!(last.iso(), "10000-01-01T00:59:59+01:00");
+}
+
+#[test]
+fn offset_seconds_show() {
+    let t = Time::from_unix(0, 0, Loc::Fixed(8 * 3600 + 27 * 60 + 52)).unwrap();
+    assert_eq!(t.iso(), "1970-01-01T08:27:52+08:27:52");
+    let t = Time::from_unix(0, 0, Loc::Fixed(-30)).unwrap();
+    assert_eq!(t.iso(), "1969-12-31T23:59:30-00:00:30");
+}
+
+#[test]
+fn dates_match_known_days() {
+    for (sec, date, wd) in [
+        (0, (1970, 1, 1), 4),
+        (951_782_400, (2000, 2, 29), 2),
+        (1_735_603_200, (2024, 12, 31), 2),
+        (MIN_UNIX + 60 * 86_400, (0, 3, 1), 3),
+    ] {
+        let t = Time::from_unix(sec, 0, Loc::Utc).unwrap();
+        assert_eq!((t.date(), t.weekday()), (date, wd), "{sec}");
+    }
 }

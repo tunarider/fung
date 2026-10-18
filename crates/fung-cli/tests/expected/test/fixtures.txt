@@ -138,17 +138,18 @@
 | ok   crates/fung-cli/tests/data/test/handlers.fung: registers handlers
 | first handler
 | second handler
-| 1 passed, 0 failed
+| FAIL crates/fung-cli/tests/data/test/handlers.fung: <exit handler>
+|   error[E0803]: handler broke
+|     --> crates/fung-cli/tests/data/test/handlers.fung:4:7
+|     |
+|   4 |   fail("handler broke")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
+| 1 passed, 1 failed
 -- stderr
-| error[E0803]: handler broke
-|   --> crates/fung-cli/tests/data/test/handlers.fung:4:7
-|   |
-| 4 |   fail("handler broke")
-|   |       ^
-|   |
-|  call path (innermost first):
-|    crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
--- exit: 0
+-- exit: 1
 ==== test crates/fung-cli/tests/data/test/no_tests.fung
 -- stdout
 | 0 passed, 0 failed
@@ -329,6 +330,15 @@
 | ok   crates/fung-cli/tests/data/test/handlers.fung: registers handlers
 | first handler
 | second handler
+| FAIL crates/fung-cli/tests/data/test/handlers.fung: <exit handler>
+|   error[E0803]: handler broke
+|     --> crates/fung-cli/tests/data/test/handlers.fung:4:7
+|     |
+|   4 |   fail("handler broke")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
 | FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
 | before
 | FAIL crates/fung-cli/tests/data/test/top_error.fung: <top level>
@@ -352,7 +362,7 @@
 | FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | top level runs first
 | ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
-| 14 passed, 14 failed
+| 14 passed, 15 failed
 -- stderr
 | warning[W0102]: unused variable `y`
 |   --> crates/fung-cli/tests/data/test/asserts.fung:17:3
@@ -362,14 +372,6 @@
 |    |
 |  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
-| error[E0803]: handler broke
-|   --> crates/fung-cli/tests/data/test/handlers.fung:4:7
-|   |
-| 4 |   fail("handler broke")
-|   |       ^
-|   |
-|  call path (innermost first):
-|    crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
 | error[E0204]: undefined name `nope`
 |   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -472,6 +474,15 @@
 | ok   crates/fung-cli/tests/data/test/handlers.fung: registers handlers
 | first handler
 | second handler
+| FAIL crates/fung-cli/tests/data/test/handlers.fung: <exit handler>
+|   error[E0803]: handler broke
+|     --> crates/fung-cli/tests/data/test/handlers.fung:4:7
+|     |
+|   4 |   fail("handler broke")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
 | FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
 | before
 | FAIL crates/fung-cli/tests/data/test/top_error.fung: <top level>
@@ -495,7 +506,7 @@
 | FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | top level runs first
 | ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
-| 14 passed, 14 failed
+| 14 passed, 15 failed
 -- stderr
 | warning[W0102]: unused variable `y`
 |   --> crates/fung-cli/tests/data/test/asserts.fung:17:3
@@ -505,14 +516,6 @@
 |    |
 |  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
-| error[E0803]: handler broke
-|   --> crates/fung-cli/tests/data/test/handlers.fung:4:7
-|   |
-| 4 |   fail("handler broke")
-|   |       ^
-|   |
-|  call path (innermost first):
-|    crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
 | error[E0204]: undefined name `nope`
 |   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -635,6 +638,15 @@
 | ok   $REPO/crates/fung-cli/tests/data/test/handlers.fung: registers handlers
 | first handler
 | second handler
+| FAIL $REPO/crates/fung-cli/tests/data/test/handlers.fung: <exit handler>
+|   error[E0803]: handler broke
+|     --> $REPO/crates/fung-cli/tests/data/test/handlers.fung:4:7
+|     |
+|   4 |   fail("handler broke")
+|     |       ^
+|     |
+|    call path (innermost first):
+|      $REPO/crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
 | FAIL $REPO/crates/fung-cli/tests/data/test/own_error.fung: <load>
 | before
 | FAIL $REPO/crates/fung-cli/tests/data/test/top_error.fung: <top level>
@@ -658,7 +670,7 @@
 | FAIL $REPO/crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>
 | top level runs first
 | ok   $REPO/crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked from earlier files
-| 14 passed, 14 failed
+| 14 passed, 15 failed
 -- stderr
 | warning[W0102]: unused variable `y`
 |   --> $REPO/crates/fung-cli/tests/data/test/asserts.fung:17:3
@@ -668,14 +680,6 @@
 |    |
 |  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
-| error[E0803]: handler broke
-|   --> $REPO/crates/fung-cli/tests/data/test/handlers.fung:4:7
-|   |
-| 4 |   fail("handler broke")
-|   |       ^
-|   |
-|  call path (innermost first):
-|    $REPO/crates/fung-cli/tests/data/test/handlers.fung:4 <lambda>
 | error[E0204]: undefined name `nope`
 |   --> $REPO/crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -716,12 +720,12 @@
 ==== test nope
 -- stdout
 -- stderr
-| error: stat nope: no such file or directory
+| error: cannot read `nope`: no such file or directory
 -- exit: 3
 ==== test nope.fung
 -- stdout
 -- stderr
-| error: stat nope.fung: no such file or directory
+| error: cannot read `nope.fung`: no such file or directory
 -- exit: 3
 ==== test tests/lang/test_blocks_ignored.fung -e
 -- stdout
@@ -742,5 +746,5 @@
 ==== test --help
 -- stdout
 -- stderr
-| error: stat --help: no such file or directory
+| error: cannot read `--help`: no such file or directory
 -- exit: 3

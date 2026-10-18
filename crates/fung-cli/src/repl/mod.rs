@@ -1,39 +1,34 @@
-//! The read-eval-print loop (08, Go `internal/repl/repl.go` and
-//! `cmd/fung/repl.go`): `fung` without arguments. Each input is compiled
-//! against the names defined so far and runs on one shared runtime, so
-//! definitions persist and functions may be defined again.
+//! The read-eval-print loop (08): `fung` without arguments. Each input is
+//! compiled against the names defined so far and runs on one shared
+//! runtime, so definitions persist and functions may be defined again.
 //!
 //! How values persist: the runtime keeps one global table for the session
 //! (`Runtime::prepare_repl`). Each input is compiled with the names of
 //! the earlier inputs' globals pre-bound to the same indexes
-//! (`Loader::globals`, Go `Options.Globals`) and runs on that table, so
+//! (`Loader::globals`) and runs on that table, so
 //! the values stay, and a closure from an earlier input (which holds the
 //! table) sees a later redefinition.
 //!
 //! Positions: the inputs are compiled after the files the runtime
 //! already has (`Loader::compile_after`), so every position names one
-//! file of the session. Go names files by name, and every input is
-//! `<repl>`, so Go excerpts an error with the text of the input being
-//! run, even when the code that failed came from an earlier one; the
-//! port does the same (`excerpts`), and keeps no texts in the runtime,
-//! as Go's REPL runtime has none (a task failure report shows no
-//! excerpt).
+//! file of the session, and that file keeps its text, here and in the
+//! runtime (`Runtime::add_session_files`): an error is excerpted from the input
+//! its code came from, also in a task failure report.
 //!
-//! After an input poisons the program (decided 2026-10-17, deliberate
-//! divergences from Go, whose session stays cancelled): a deadlock fails
-//! only the input it happened in, with Go's report, and the session goes
-//! on on a fresh run root (`Runtime::recover_deadlock`: the tasks earlier
-//! inputs left blocked are cancelled; globals and agents stay; the exit
-//! code stays 0). A spawned task's `exit(n)` ends the session as `exit(n)`
-//! typed at the prompt does.
+//! After an input poisons the program (decided 2026-10-17): a deadlock
+//! fails only the input it happened in, with the deadlock report, and the
+//! session goes on on a fresh run root (`Runtime::recover_deadlock`: the
+//! tasks earlier inputs left blocked are cancelled; globals and agents
+//! stay; the exit code stays 0). A spawned task's `exit(n)` ends the
+//! session as `exit(n)` typed at the prompt does.
 //!
 //! Tasks: the session holds the runtime open (`Runtime::hold`), so a task
 //! an input leaves waiting for a later input is not a deadlock between
-//! inputs (Go's 50 ms grace covers that only while the next line comes
-//! quickly, as from a pipe). At the end (`:quit`, the end of input or
-//! `exit(n)`) the tasks are cancelled and waited for, then the exit
-//! handlers run, then the background tasks (agents) end, then task
-//! failures nobody retrieved are reported (stage 3b order).
+//! inputs, however slowly the next line is typed. At the end (`:quit`,
+//! the end of input or `exit(n)`) the tasks are cancelled and waited
+//! for, then the exit handlers run, then the background tasks (agents)
+//! end, then task failures nobody retrieved are reported (stage 3b
+//! order).
 
 mod editor;
 mod history;
@@ -54,14 +49,14 @@ use crate::Out;
 use crate::run::{ProcessOut, raw_stdin, status};
 use line::{LineReader, PlainReader, TermReader};
 
-/// The `:help` text (Go `helpText`).
+/// The `:help` text.
 const HELP: &str = "commands:
   :help            show this text
   :quit            leave (Ctrl-D does the same)
   :load file.fung  run a file in this session; its definitions stay
 ";
 
-/// `fung` without arguments (Go `startRepl`): a terminal gets the line
+/// `fung` without arguments: a terminal gets the line
 /// editor, anything else plain line reading.
 pub fn start() -> Out {
     let rt = Runtime::new(
@@ -115,7 +110,7 @@ struct Session {
     err: ProcessOut<std::io::Stderr>,
     rt: Runtime,
     /// Every file compiled so far, with its text; the runtime holds the
-    /// same ids with names only (`Runtime::add_names`).
+    /// same (`Runtime::add_session_files`).
     known: SourceMap,
     /// The entry globals defined so far, in index order.
     globals: Vec<String>,
@@ -188,7 +183,7 @@ impl Session {
         }
     }
 
-    /// Ends the session (Go `finish`): the tasks still running do not
+    /// Ends the session: the tasks still running do not
     /// keep it open (05), then the exit handlers, the background tasks'
     /// end and the failures nobody retrieved.
     fn finish(self, code: i64) -> i64 {
@@ -199,9 +194,7 @@ impl Session {
             if d.code == "E0701" || d.code == "E0702" {
                 continue;
             }
-            // Go formats these without a source text.
-            let none = excerpts(&self.known, self.known.len());
-            let _ = ProcessOut::stderr().write_all(diag::format(&d, &none).as_bytes());
+            let _ = ProcessOut::stderr().write_all(diag::format(&d, &self.known).as_bytes());
         }
         self.rt.end_background();
         self.rt.wait();
@@ -228,7 +221,7 @@ impl Session {
                     Ok(src) => return self.eval(arg, &src),
                     Err(msg) => {
                         let _ = self.err.write_all(
-                            &[b"cannot read ", arg.as_bytes(), b": ", &msg[..], b"\n"].concat(),
+                            &[&crate::cannot_read(arg.as_bytes(), &msg)[..], b"\n"].concat(),
                         );
                     }
                 }
@@ -253,11 +246,11 @@ impl Session {
         let prior = std::mem::take(&mut self.known);
         let (b, errs) = loader.compile_after(prior, name, src, Stage::All);
         self.known = b.sources;
-        // The runtime learns every file's name, even of a failed compile,
-        // so the ids keep agreeing.
-        self.rt.add_names(&self.known, from);
+        // The runtime learns every file, even of a failed compile, so the
+        // ids keep agreeing.
+        self.rt.add_session_files(&self.known, from);
         if !errs.is_empty() {
-            self.report(&errs, from);
+            self.report(&errs);
             return None;
         }
         let entry = b.proto.expect("a compiled entry");
@@ -281,56 +274,30 @@ impl Session {
             Err(Stop::Exit(n)) => return Some(n),
             Err(Stop::Error(d)) => {
                 if !exited {
-                    self.report(std::slice::from_ref(&*d), from);
+                    self.report(std::slice::from_ref(&*d));
                 }
             }
         }
         if deadlocked {
-            // The input failed with Go's report; the session goes on on a
-            // fresh run root (decided 2026-10-17; Go stays cancelled),
-            // unless a task asked for an exit meanwhile (returned below).
+            // The input failed with the deadlock report; the session goes
+            // on on a fresh run root (decided 2026-10-17), unless a task
+            // asked for an exit meanwhile (returned below).
             self.rt.recover_deadlock();
         }
         self.rt.exit_code()
     }
 
-    /// Prints errors the way Go's REPL does: a position is excerpted from
-    /// the file of the same name in the input just compiled (files from
-    /// `from` on), whichever input the failing code came from.
-    fn report(&self, errs: &[Diag], from: usize) {
-        let view = excerpts(&self.known, from);
+    /// Prints errors, each excerpted from the input its position names.
+    fn report(&self, errs: &[Diag]) {
         let mut err = ProcessOut::stderr();
         for e in errs {
-            let _ = err.write_all(diag::format(e, &view).as_bytes());
+            let _ = err.write_all(diag::format(e, &self.known).as_bytes());
         }
     }
 }
 
-/// The session's files with the texts Go would excerpt (Go formats with
-/// `Sources[pos.File]`, a map by name of the current compile): every
-/// file gets the text of the first file named like it among those from
-/// `from` on, or none.
-fn excerpts(known: &SourceMap, from: usize) -> SourceMap {
-    let current: Vec<(&str, &str)> = (from..known.len())
-        .map(|i| {
-            let id = FileId(i as u32);
-            (known.name(id), known.text(id))
-        })
-        .collect();
-    let mut view = SourceMap::new();
-    for i in 0..known.len() {
-        let name = known.name(FileId(i as u32));
-        let text = current
-            .iter()
-            .find(|(n, _)| *n == name)
-            .map_or("", |(_, t)| t);
-        view.add(name, text);
-    }
-    view
-}
-
 /// Whether the text so far ends before its syntax is complete: the
-/// parser failed exactly at the end of the input (Go `needsMore`).
+/// parser failed exactly at the end of the input.
 fn needs_more(src: &str) -> bool {
     if src.trim().is_empty() {
         return false;
@@ -356,18 +323,5 @@ mod tests {
         for src in ["", "  ", "1", "x = )", "fn f() = 1", "\"open", "1 +\n2"] {
             assert!(!needs_more(src), "{src:?}");
         }
-    }
-
-    #[test]
-    fn excerpts_follow_the_current_input_by_name() {
-        let mut m = SourceMap::new();
-        m.add("prelude", "p");
-        m.add("<repl>", "old");
-        m.add("lib", "lib text");
-        m.add("<repl>", "new");
-        let v = excerpts(&m, 3);
-        let texts: Vec<_> = (0..4).map(|i| v.text(FileId(i))).collect();
-        assert_eq!(texts, ["", "new", "", "new"]);
-        assert_eq!(v.name(FileId(2)), "lib");
     }
 }

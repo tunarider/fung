@@ -1,8 +1,7 @@
-//! Modules at run time (04, Go `internal/vm/module.go`): the runtime's
-//! table of importable modules and IMPORT. A module's body runs the first
-//! time it is imported, as a nested frame on the importing task with its
-//! own globals; afterwards its public globals become the immutable module
-//! value every later import gets.
+//! Modules at run time (04): the runtime's table of importable modules and
+//! IMPORT. A module's body runs the first time it is imported, as a nested
+//! frame on the importing task with its own globals; afterwards its public
+//! globals become the immutable module value every later import gets.
 
 use std::rc::Rc;
 
@@ -77,7 +76,7 @@ impl Runtime {
 
 impl Task<'_> {
     /// A module's value, running its body first if needed, behind the
-    /// panic fence (boot uses it for prelude.fung, Go `ImportModule`).
+    /// panic fence (boot uses it for prelude.fung).
     pub(crate) fn import_module(&mut self, key: &str) -> Result<Rc<Module>, Stop> {
         let mut out = None;
         self.guarded(|t| {

@@ -12,13 +12,13 @@ mod common;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use common::{repo, rust_fung};
+use common::{fung_bin, repo};
 
 /// The binary under test: `FUNG_GOLDEN_BIN` when set, else cargo's.
 fn fung_under_test() -> PathBuf {
     match std::env::var_os("FUNG_GOLDEN_BIN") {
         Some(p) if !p.is_empty() => PathBuf::from(p),
-        _ => rust_fung(),
+        _ => fung_bin(),
     }
 }
 
@@ -185,7 +185,7 @@ fn parse_rejects_malformed_directives() {
         "# expect-error: E12\n",
         "# expect-error: E0001\n# expect-error: E0002\n",
         "# expect-exit: x\n",
-        "# only: rust\n",
+        "# only: x\n",
         "  # expect-stderr: x\n",
         "# expects: 1\n",
         "# expect-error: E0001\n# expect-exit: 1\n",

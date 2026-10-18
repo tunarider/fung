@@ -1,8 +1,8 @@
 //! Opcodes and the 32-bit instruction word (09. 명령 인코딩): 8 bits of
-//! opcode and 24 bits of operand. Same order and names as Go
-//! `internal/bytecode/op.go`.
+//! opcode and 24 bits of operand.
 
-/// One VM operation. The numbering follows Go's `iota` order.
+/// One VM operation. The numbers are fixed: `fung dump bytecode` and its
+/// expected outputs show them.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Op {

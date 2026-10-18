@@ -1,9 +1,9 @@
-//! Ports of Go `internal/vm/m4_test.go`: collections, indexing, slices,
-//! `in`, `!` `?` `??`, partial application, and their runtime errors.
+//! The M4 instructions: collections, indexing, slices, `in`, `!` `?` `??`,
+//! partial application, and their runtime errors.
 
 use crate::testutil::{Opts, exec, run};
 
-/// Runs every case and reports all mismatches at once (Go's case maps).
+/// Runs every case and reports all mismatches at once.
 pub(super) fn check_out(cases: &[(&str, &str)]) {
     let mut bad = Vec::new();
     for (src, want) in cases {
@@ -158,7 +158,7 @@ fn result_operators() {
         ),
         ("print(nil ?? Err(1) ?? 2)", "2\n"),
         ("fn f(r) = r?\nprint(f(nil))", "nil\n"),
-        // Ok with zero or several payloads unwraps to a tuple (Go binary).
+        // Ok with zero or several payloads unwraps to a tuple.
         ("print(Ok() ?? 1, Ok(1, 2)!)", "() (1, 2)\n"),
     ]);
     check_code(&[
@@ -195,9 +195,9 @@ fn runtime_errors_m4() {
     ]);
 }
 
-/// Whole reports and headlines, as the Go binary prints them.
+/// Whole reports and headlines, as `fung` prints them.
 #[test]
-fn m4_errors_match_go_text() {
+fn m4_error_reports() {
     let cases = [
         ("1 in \"a\"", "error[E0501]: cannot search str and int"),
         (
@@ -219,7 +219,7 @@ fn m4_errors_match_go_text() {
         ),
         (
             "[1, 2, 3][1..=3]",
-            "error[E0507]: index 4 is out of range (length 3)",
+            "error[E0507]: index 3 is out of range (length 3)",
         ),
         (
             "1 in (1, 2)",

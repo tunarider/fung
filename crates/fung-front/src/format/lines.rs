@@ -1,4 +1,4 @@
-//! Grouping tokens into source lines (Go `lines.go`).
+//! Grouping tokens into source lines.
 
 use std::collections::{HashMap, HashSet};
 

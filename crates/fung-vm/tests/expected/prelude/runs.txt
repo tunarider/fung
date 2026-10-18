@@ -705,7 +705,7 @@
 -- exit: 1
 ==== "print(upper(\"aéß ﬃ ǅ\"), lower(\"AÉ İ Σ ǅ\"), upper(\"ᾳ ᾀ\"), lower(\"ẞ\"))"
 -- stdout
-| AÉß ﬃ Ǆ aé i σ ǆ ᾼ ᾈ ß
+| AÉSS FFI Ǆ aé i̇ σ ǆ ΑΙ ἈΙ ß
 -- stderr
 -- exit: 0
 ==== "print(upper(1), lower(1))"
@@ -802,6 +802,18 @@
 |   --> -e:1:13
 |   |
 | 1 | print(repeat("ab", 50000001))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(repeat(\"ab\", 9223372036854775807))"
+-- stdout
+-- stderr
+| error[E0806]: too many characters (limit 100000000)
+|   --> -e:1:13
+|   |
+| 1 | print(repeat("ab", 9223372036854775807))
 |   |             ^
 |   |
 |  call path (innermost first):
@@ -944,9 +956,16 @@
 -- exit: 1
 ==== "print(float(2), float(\"2.5\"), float(\"1e3\"), float(1.5), float(\"1_0.5\"), float(\"-.5\"))"
 -- stdout
-| 2.0 2.5 1000.0 1.5 10.5 -0.5
 -- stderr
--- exit: 0
+| error[E0513]: cannot convert "-.5" to float
+|   --> -e:1:78
+|   |
+| 1 | print(float(2), float("2.5"), float("1e3"), float(1.5), float("1_0.5"), float("-.5"))
+|   |                                                                              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(float(\"abc\"))"
 -- stdout
 -- stderr
@@ -1464,7 +1483,7 @@
 -- exit: 1
 ==== "print(str(-0.0), str(1e21), str(1.5e-7), str(100000000000000000000.0))"
 -- stdout
-| -0.0 1e21 1.5e-07 100000000000000000000.0
+| -0.0 1e21 1.5e-7 100000000000000000000.0
 -- stderr
 -- exit: 0
 ==== "print(put({a: 1}, \"a\", 2) == {a: 2}, merge({a: 1}, {a: 1}) == {a: 1})"
@@ -1521,7 +1540,7 @@
 -- exit: 0
 ==== "print(upper(\"ŉ ǰ ﬀ ı ſ\"), lower(\"ΣΑΣ Ǆ K Å\"))"
 -- stdout
-| ŉ ǰ ﬀ I S σασ ǆ k å
+| ʼN J̌ FF I S σας ǆ k å
 -- stderr
 -- exit: 0
 ==== "print(int(9223372036854775807.0))"
@@ -1543,9 +1562,16 @@
 -- exit: 0
 ==== "print(float(\"0x1p4\"), float(\"0x1.8p1\"), float(\"4.9e-324\"), float(\"1E5\"), float(\"00.5\"), float(\"5.\"))"
 -- stdout
-| 16.0 3.0 5e-324 100000.0 0.5 5.0
 -- stderr
--- exit: 0
+| error[E0513]: cannot convert "0x1p4" to float
+|   --> -e:1:12
+|   |
+| 1 | print(float("0x1p4"), float("0x1.8p1"), float("4.9e-324"), float("1E5"), float("00.5"), float("5."))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(float(\"0x10\"))"
 -- stdout
 -- stderr
@@ -1572,16 +1598,9 @@
 -- exit: 1
 ==== "print(sym(\"Ⅰx\"))"
 -- stdout
+| 'Ⅰx
 -- stderr
-| error[E0513]: cannot convert "Ⅰx" to sym
-|   --> -e:1:10
-|   |
-| 1 | print(sym("Ⅰx"))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(sym(\"a٣\"))"
 -- stdout
 | 'a٣
@@ -1728,7 +1747,7 @@
 -- exit: 0
 ==== "print(chars(\"👍🏽x\"), len(\"👍🏽x\"), upper(\"straße\"), split(\"a👍b\", \"👍\"))"
 -- stdout
-| ["👍", "🏽", "x"] 3 STRAßE ["a", "b"]
+| ["👍", "🏽", "x"] 3 STRASSE ["a", "b"]
 -- stderr
 -- exit: 0
 ==== "print(take([1, 2, 3], 2), drop(0..5, 3), sum([1, 2.5]), min([3, 1]), reverse(\"ab\" |> chars))"
@@ -1747,8 +1766,8 @@
 |   |     ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:62 _clamp
-|    extras/prelude.fung:68 take
+|    extras/prelude.fung:78 _clamp
+|    extras/prelude.fung:86 take
 |    -e:2       <entry>
 -- exit: 1
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
@@ -1761,8 +1780,8 @@
 |   |  ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:62 _clamp
-|    extras/prelude.fung:68 take (1 tail calls elided)
+|    extras/prelude.fung:78 _clamp
+|    extras/prelude.fung:86 take (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "sum([1, \"a\"])"
@@ -1803,8 +1822,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:95 _padding
-|    extras/prelude.fung:100 pad_left
+|    extras/prelude.fung:114 _padding
+|    extras/prelude.fung:119 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1817,8 +1836,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:97 _padding
-|    extras/prelude.fung:100 pad_left
+|    extras/prelude.fung:116 _padding
+|    extras/prelude.fung:119 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1832,7 +1851,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:120 until
+|    extras/prelude.fung:139 until
 |    -e:1       <entry>
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
@@ -1846,7 +1865,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:123 iterate (1 tail calls elided)
+|    extras/prelude.fung:142 iterate (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
@@ -1859,7 +1878,7 @@
 |   |          ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:87 get
+|    extras/prelude.fung:106 get
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(lines(1))"
@@ -1872,8 +1891,8 @@
 |   |            ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:103 _chomp
-|    extras/prelude.fung:109 lines
+|    extras/prelude.fung:122 _chomp
+|    extras/prelude.fung:128 lines
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(keys([]))"
@@ -1886,7 +1905,7 @@
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:80 keys
+|    extras/prelude.fung:99 keys
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1]))"
@@ -2213,18 +2232,11 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "channel(17592186044410)"
+==== "ch = channel(17592186044410)\nprint(send(ch, 1), recv(ch))"
 -- stdout
+| Ok(nil) Ok(1)
 -- stderr
-| error[E0801]: internal error: makechan: size out of range
-|   --> -e:1:8
-|   |
-| 1 | channel(17592186044410)
-|   |        ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "send(1, 2)"
 -- stdout
 -- stderr
@@ -2384,12 +2396,12 @@
 -- exit: 0
 ==== "print(exec([\"definitely-not-a-command-xyz\"]))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `definitely-not-a-command-xyz`: executable file not found in $PATH"})
+| Err({kind: 'not_found, message: "cannot run `definitely-not-a-command-xyz`: command not found in PATH"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"/nonexistent/x\"]), exec([\"/etc\"]), exec([\"\"]))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `/nonexistent/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `/etc`: permission denied"}) Err({kind: 'not_found, message: "cannot run ``: exec: no command"})
+| Err({kind: 'not_found, message: "cannot run `/nonexistent/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `/etc`: permission denied"}) Err({kind: 'not_found, message: "cannot run ``: empty command name"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"ls\"], cwd: \"/nonexistent\"), exec([\"ls\"], cwd: \"/etc/hosts\"))"
@@ -2399,17 +2411,17 @@
 -- exit: 0
 ==== "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]), exec([\"/bin/ls\\u{0}\"]), exec([\"x\\u{0}y\"]))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `sh`: invalid argument"}) Err({kind: 'not_found, message: "cannot run `/bin/ls\u{0}`: invalid argument"}) Err({kind: 'not_found, message: "cannot run `x\u{0}y`: executable file not found in $PATH"})
+| Err({kind: 'not_found, message: "cannot run `sh`: argument contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `/bin/ls\u{0}`: argument contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `x\u{0}y`: argument contains a NUL byte"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"sh\"], env: {\"A\\u{0}\": \"x\"}), exec([\"sh… (127 bytes, 8f8fd505d1ab49ac)
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `sh`: exec: environment variable contains NUL"}) Err({kind: 'not_found, message: "cannot run `sh`: exec: environment variable contains NUL"}) Err({kind: 'not_found, message: "cannot run `ls`: exec: environment variable contains NUL"})
+| Err({kind: 'not_found, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `sh`: environment variable contains a NUL byte"}) Err({kind: 'not_found, message: "cannot run `ls`: working directory contains a NUL byte"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"ls\"], cwd: \"/\\u{0}\", env: {}))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `ls`: invalid argument"})
+| Err({kind: 'not_found, message: "cannot run `ls`: working directory contains a NUL byte"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"./definitely-not-here\"]), exec([\"sh/\"]))"
@@ -2602,7 +2614,7 @@
 -- exit: 1
 ==== "print({\"x²\": 1, \"Ⅻ\": 2, \"हि\u{902}दी\": 3, \"ß\": 4, \"Σ1\": 5, \"한글\": 6, \"x٣\": 7, \"Ⓐ\": 8})"
 -- stdout
-| {"x²": 1, "Ⅻ": 2, "हिंदी": 3, ß: 4, Σ1: 5, 한글: 6, x٣: 7, "Ⓐ": 8}
+| {"x²": 1, Ⅻ: 2, हिंदी: 3, ß: 4, Σ1: 5, 한글: 6, x٣: 7, "Ⓐ": 8}
 -- stderr
 -- exit: 0
 ==== "print(sym(\"ß1\"), sym(\"x٣\"), sym(\"한글\"), sym(\"ǅx\"))"
@@ -2636,16 +2648,9 @@
 -- exit: 1
 ==== "print(sym(\"हि\u{902}दी\"))"
 -- stdout
+| 'हिंदी
 -- stderr
-| error[E0513]: cannot convert "हिंदी" to sym
-|   --> -e:1:10
-|   |
-| 1 | print(sym("हिंदी"))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print([\"a\\u{378}b\", \"\\u{E000}\", \"\\u{A0}\"], {\"\\u{378}\": 1})"
 -- stdout
 | ["a\u{378}b", "\u{E000}", "\u{A0}"] {"\u{378}": 1}
@@ -2658,7 +2663,7 @@
 -- exit: 0
 ==== "import path\nprint([\"\", \"/\", \"//\", \"a/\", \"a//b/\",… (201 bytes, d92c2adfd005f4ec)
 -- stdout
-| [[".", ".", "", ""], ["/", "/", "", "/"], ["/", "/", "", "/"], ["a", "a", "", "a"], ["b", "a/b", "", "b"], [".hidden", ".", ".hidden", ""], ["a.b.c", ".", ".c", "a.b"], ["..", ".", ".", "."], ["..", "/", ".", "."], ["c", "a/b.d", "", "c"], ["글.txt", "한", ".txt", "글"]]
+| [[".", ".", "", "."], ["/", "/", "", "/"], ["/", "/", "", "/"], ["a", "a", "", "a"], ["b", "a/b", "", "b"], [".hidden", ".", "", ".hidden"], ["a.b.c", ".", ".c", "a.b"], ["..", ".", "", ".."], ["..", "/", "", ".."], ["c", "a/b.d", "", "c"], ["글.txt", "한", ".txt", "글"]]
 -- stderr
 -- exit: 0
 ==== "import path\nprint(path.abs(\"a/../b/./c\"), path.abs(\"/x/../y/\"), path.abs(\"\"))"
@@ -3042,7 +3047,7 @@
 ==== "print(sort(0..100000000000000000))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:11
 |   |
 | 1 | print(sort(0..100000000000000000))
@@ -3054,7 +3059,7 @@
 ==== "print(sort_by(0..100000000000000000, x => x))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:14
 |   |
 | 1 | print(sort_by(0..100000000000000000, x => x))
@@ -3066,7 +3071,7 @@
 ==== "print(sort_by(0..100000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:14
 |   |
 | 1 | print(sort_by(0..100000000000000000, 1))
@@ -3078,7 +3083,7 @@
 ==== "print(join(0..100000000000000000, \"\"))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many characters (limit 100000000)
 |   --> -e:1:11
 |   |
 | 1 | print(join(0..100000000000000000, ""))
@@ -3090,7 +3095,7 @@
 ==== "print(join(0..100000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `sep` must be str, got int
 |   --> -e:1:11
 |   |
 | 1 | print(join(0..100000000000000000, 1))
@@ -3102,7 +3107,7 @@
 ==== "print(flatten(0..100000000000000000))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:14
 |   |
 | 1 | print(flatten(0..100000000000000000))
@@ -3113,20 +3118,13 @@
 -- exit: 1
 ==== "print(find(0..100000000000000000, x => true))"
 -- stdout
+| 0
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
-|   --> -e:1:11
-|   |
-| 1 | print(find(0..100000000000000000, x => true))
-|   |           ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(find(0..100000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:11
 |   |
 | 1 | print(find(0..100000000000000000, 1))
@@ -3137,32 +3135,18 @@
 -- exit: 1
 ==== "print(any(0..100000000000000000, x => true))"
 -- stdout
+| true
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
-|   --> -e:1:10
-|   |
-| 1 | print(any(0..100000000000000000, x => true))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(all(0..100000000000000000, x => false))"
 -- stdout
+| false
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
-|   --> -e:1:10
-|   |
-| 1 | print(all(0..100000000000000000, x => false))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(group_by(0..100000000000000000, x => 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:15
 |   |
 | 1 | print(group_by(0..100000000000000000, x => 1))
@@ -3174,7 +3158,7 @@
 ==== "print(map(0..100000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:10
 |   |
 | 1 | print(map(0..100000000000000000, 1))
@@ -3186,7 +3170,7 @@
 ==== "print(map(0..100000000000000000, x => x))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:10
 |   |
 | 1 | print(map(0..100000000000000000, x => x))
@@ -3198,7 +3182,7 @@
 ==== "print(filter(0..100000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:13
 |   |
 | 1 | print(filter(0..100000000000000000, 1))
@@ -3210,7 +3194,7 @@
 ==== "print(fold(0..100000000000000000, 0, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:11
 |   |
 | 1 | print(fold(0..100000000000000000, 0, 1))
@@ -3222,7 +3206,7 @@
 ==== "print(each(0..100000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:11
 |   |
 | 1 | print(each(0..100000000000000000, 1))
@@ -3234,7 +3218,7 @@
 ==== "print(sort(0..1000000000000000000))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:11
 |   |
 | 1 | print(sort(0..1000000000000000000))
@@ -3246,7 +3230,7 @@
 ==== "print(sort_by(0..1000000000000000000, x => x))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:14
 |   |
 | 1 | print(sort_by(0..1000000000000000000, x => x))
@@ -3258,7 +3242,7 @@
 ==== "print(sort_by(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:14
 |   |
 | 1 | print(sort_by(0..1000000000000000000, 1))
@@ -3270,7 +3254,7 @@
 ==== "print(join(0..1000000000000000000, \"\"))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many characters (limit 100000000)
 |   --> -e:1:11
 |   |
 | 1 | print(join(0..1000000000000000000, ""))
@@ -3282,7 +3266,7 @@
 ==== "print(join(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `sep` must be str, got int
 |   --> -e:1:11
 |   |
 | 1 | print(join(0..1000000000000000000, 1))
@@ -3294,7 +3278,7 @@
 ==== "print(flatten(0..1000000000000000000))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:14
 |   |
 | 1 | print(flatten(0..1000000000000000000))
@@ -3305,20 +3289,13 @@
 -- exit: 1
 ==== "print(find(0..1000000000000000000, x => true))"
 -- stdout
+| 0
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
-|   --> -e:1:11
-|   |
-| 1 | print(find(0..1000000000000000000, x => true))
-|   |           ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(find(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:11
 |   |
 | 1 | print(find(0..1000000000000000000, 1))
@@ -3329,32 +3306,18 @@
 -- exit: 1
 ==== "print(any(0..1000000000000000000, x => true))"
 -- stdout
+| true
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
-|   --> -e:1:10
-|   |
-| 1 | print(any(0..1000000000000000000, x => true))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(all(0..1000000000000000000, x => false))"
 -- stdout
+| false
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
-|   --> -e:1:10
-|   |
-| 1 | print(all(0..1000000000000000000, x => false))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(group_by(0..1000000000000000000, x => 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:15
 |   |
 | 1 | print(group_by(0..1000000000000000000, x => 1))
@@ -3366,7 +3329,7 @@
 ==== "print(map(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:10
 |   |
 | 1 | print(map(0..1000000000000000000, 1))
@@ -3378,7 +3341,7 @@
 ==== "print(map(0..1000000000000000000, x => x))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0806]: too many elements (limit 100000000)
 |   --> -e:1:10
 |   |
 | 1 | print(map(0..1000000000000000000, x => x))
@@ -3390,7 +3353,7 @@
 ==== "print(filter(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:13
 |   |
 | 1 | print(filter(0..1000000000000000000, 1))
@@ -3402,7 +3365,7 @@
 ==== "print(fold(0..1000000000000000000, 0, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:11
 |   |
 | 1 | print(fold(0..1000000000000000000, 0, 1))
@@ -3414,7 +3377,7 @@
 ==== "print(each(0..1000000000000000000, 1))"
 -- stdout
 -- stderr
-| error[E0801]: internal error: runtime error: makeslice: cap out of range
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:1:11
 |   |
 | 1 | print(each(0..1000000000000000000, 1))

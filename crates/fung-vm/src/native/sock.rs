@@ -1,9 +1,8 @@
-//! Raw TCP sockets for `_native.net` (stage 4d): sockets made the way Go's
-//! `net` package makes them (non-blocking, close-on-exec, no `SIGPIPE`),
-//! a `connect` that can be waited for (`poll` through a `Watch`), a
-//! listening socket whose failing system call is known (Go names it in
-//! its message: `bind: address already in use`), and name lookup with
-//! `getaddrinfo` (Go's cgo resolver), keeping its error code.
+//! Raw TCP sockets for `_native.net` (stage 4d): sockets that are
+//! non-blocking, close-on-exec and never raise `SIGPIPE`, a `connect`
+//! that can be waited for (`poll` through a `Watch`), a listening socket,
+//! and name lookup with the system's
+//! resolver (`getaddrinfo`), keeping its error code.
 //!
 //! `std::net` has no non-blocking `connect` and does not say which call
 //! of `bind` failed, so these few calls go through `libc`. Unix only,
@@ -39,9 +38,10 @@ fn socket(addr: &SocketAddr) -> io::Result<OwnedFd> {
     #[cfg(not(target_os = "linux"))]
     {
         // Between `socket` and `FD_CLOEXEC`, a child spawned by another
-        // thread (`process.rs`) can inherit the descriptor: Go closes the
-        // window with its fork lock; this runtime has no such lock (the
-        // standard library leaves the same window on macOS).
+        // thread (`process.rs`) can inherit the descriptor; closing that
+        // window would take a lock around every fork, which this runtime
+        // does not have (the standard library leaves the same window on
+        // macOS).
         //
         // SAFETY: `fd` is an open descriptor; fcntl takes no pointers here.
         unsafe {
@@ -137,12 +137,9 @@ fn raw(addr: &SocketAddr) -> (libc::sockaddr_storage, libc::socklen_t) {
 
 /// Starts connecting to `addr`: the socket, and whether it is connected
 /// already (otherwise it becomes writable when the attempt ends; then
-/// `finish_connect` tells how). The error names the failing call
-/// (`socket` or `connect`), as Go's message does.
-pub(crate) fn start_connect(
-    addr: &SocketAddr,
-) -> Result<(TcpStream, bool), (&'static str, io::Error)> {
-    let fd = socket(addr).map_err(|e| ("socket", e))?;
+/// `finish_connect` tells how).
+pub(crate) fn start_connect(addr: &SocketAddr) -> io::Result<(TcpStream, bool)> {
+    let fd = socket(addr)?;
     let (st, len) = raw(addr);
     // SAFETY: `fd` is open and `st`/`len` describe a valid address.
     let rc = unsafe {
@@ -161,7 +158,7 @@ pub(crate) fn start_connect(
         // A non-blocking connect goes on in the background (also after
         // an interrupted call).
         Some(libc::EINPROGRESS | libc::EINTR) => Ok((s, false)),
-        _ => Err(("connect", e)),
+        _ => Err(e),
     }
 }
 
@@ -173,13 +170,13 @@ pub(crate) fn finish_connect(s: &TcpStream) -> io::Result<()> {
     }
 }
 
-/// A listening socket on `addr` with `SO_REUSEADDR` (as Go and the
-/// standard library set it), the system's largest backlog (Go reads the
-/// system limit; the kernel lowers a larger value to it). The error names
-/// the failing call.
-pub(crate) fn listen(addr: &SocketAddr) -> Result<TcpListener, (&'static str, io::Error)> {
-    let fd = socket(addr).map_err(|e| ("socket", e))?;
-    set_int(&fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, 1).map_err(|e| ("setsockopt", e))?;
+/// A listening socket on `addr` with `SO_REUSEADDR` (as the standard
+/// library sets it: a restarted server can bind its port again at once)
+/// and the system's largest backlog (the kernel lowers a larger value to
+/// its limit).
+pub(crate) fn listen(addr: &SocketAddr) -> io::Result<TcpListener> {
+    let fd = socket(addr)?;
+    set_int(&fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, 1)?;
     let (st, len) = raw(addr);
     // SAFETY: `fd` is open and `st`/`len` describe a valid address.
     let rc = unsafe {
@@ -190,19 +187,18 @@ pub(crate) fn listen(addr: &SocketAddr) -> Result<TcpListener, (&'static str, io
         )
     };
     if rc < 0 {
-        return Err(("bind", io::Error::last_os_error()));
+        return Err(io::Error::last_os_error());
     }
     // SAFETY: `fd` is an open, bound socket.
     if unsafe { libc::listen(fd.as_raw_fd(), libc::c_int::MAX) } < 0 {
-        return Err(("listen", io::Error::last_os_error()));
+        return Err(io::Error::last_os_error());
     }
     Ok(TcpListener::from(fd))
 }
 
 /// The addresses `host` names, each with its IPv6 scope (0 for none), in
-/// the resolver's order (Go's cgo resolver, `getaddrinfo` without flags
-/// for any family), or Go's reason for the failure: `no such host`, an
-/// errno's text, or the resolver's own text. It blocks: callers run it on
+/// the resolver's order (`getaddrinfo` without flags, for any family), or
+/// the reason for the failure (`lookup_reason`). It blocks: callers run it on
 /// a thread of its own.
 pub(crate) fn lookup(host: &str) -> Result<Vec<(IpAddr, u32)>, String> {
     let no_such_host = || "no such host".to_string();
@@ -256,9 +252,8 @@ pub(crate) fn lookup(host: &str) -> Result<Vec<(IpAddr, u32)>, String> {
     Ok(ips)
 }
 
-/// Go `zoneCache.index`: the scope of an IPv6 zone, an interface's name
-/// or else a decimal number (its leading digits, as Go's `dtoi` reads
-/// them; 0, no scope, without any).
+/// The scope of an IPv6 zone (RFC 4007 11): an interface's name or else
+/// a decimal number (its leading digits; 0, no scope, without any).
 pub(crate) fn zone_index(zone: &str) -> u32 {
     if let Ok(name) = CString::new(zone) {
         // SAFETY: a NUL-terminated name; the call only reads it.
@@ -277,8 +272,8 @@ pub(crate) fn zone_index(zone: &str) -> u32 {
     n
 }
 
-/// Go `zoneCache.name`: the zone of an IPv6 scope, its interface's name
-/// or else the number; "" for no scope.
+/// The zone of an IPv6 scope: its interface's name or else the number;
+/// "" for no scope.
 pub(crate) fn zone_name(scope: u32) -> String {
     if scope == 0 {
         return String::new();
@@ -296,7 +291,7 @@ pub(crate) fn zone_name(scope: u32) -> String {
         .into_owned()
 }
 
-/// An address as Go prints it: an IPv6 scope as its zone's name
+/// An address as fung shows it: an IPv6 scope as its zone's name
 /// (`[fe80::1%lo0]:80`, where `SocketAddr` would print `%1`).
 pub(crate) fn addr_text(a: &SocketAddr) -> String {
     match a {
@@ -307,9 +302,9 @@ pub(crate) fn addr_text(a: &SocketAddr) -> String {
     }
 }
 
-/// Go's text for a `getaddrinfo` failure (`cgoLookupIPCNAME`): a name
-/// that does not exist is `no such host`, a system error its errno's
-/// text, anything else the resolver's own message (`gai_strerror`).
+/// The text for a `getaddrinfo` failure: a name that does not exist is
+/// `no such host`, a system error its errno's text, anything else the
+/// resolver's own message (`gai_strerror`).
 pub(crate) fn lookup_reason(rc: libc::c_int, errno: io::Error) -> String {
     #[cfg(target_os = "linux")]
     const NODATA: libc::c_int = -5;

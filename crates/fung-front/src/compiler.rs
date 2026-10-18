@@ -1,5 +1,4 @@
-//! Turns a resolved core tree into bytecode. Port of Go
-//! `internal/compiler`. It is a single recursive walk: each core form knows
+//! Turns a resolved core tree into bytecode. It is a single recursive walk: each core form knows
 //! how to emit itself, every emitted instruction carries the position of
 //! the node it came from, and a `tail` flag follows the walk so calls in
 //! tail position become TAILCALL (03. 꼬리 위치).
@@ -29,7 +28,7 @@ pub struct Options {
     /// The file's text, for assert and dbg source spans (08).
     pub source: String,
     /// The file's name as positions print it (`-e`, `t.fung`): the place
-    /// `dbg` reports. Go reads it from the position itself.
+    /// `dbg` reports.
     pub file: String,
     /// Register test blocks (`fung test` / `check`); false drops them.
     pub tests: bool,
@@ -83,8 +82,8 @@ fn lit_index(n: &Node) -> usize {
     }
 }
 
-/// The constant a prelude name compiles to. Go puts the prelude's values
-/// in the pool: functions print as `<fn name>`, and `args` is the program's
+/// The constant a prelude name compiles to, as `fung dump` shows it:
+/// functions print as `<fn name>`, and `args` is the program's
 /// argument list, which is empty when compiling (`fung dump` passes none).
 fn prelude_const(name: &str) -> Const {
     if name == "args" {

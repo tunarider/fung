@@ -9,7 +9,7 @@ mod common;
 use std::process::{Command, Stdio};
 
 use common::expected::{self, Entry};
-use common::{repo, rust_fung};
+use common::{fung_bin, repo};
 
 /// Subjects, each tried with every pattern in [`PATTERNS`].
 const SUBJECTS: &[&str] = &[
@@ -74,7 +74,7 @@ const PATTERNS: &[&str] = &[
     r"\s*,\s*",
     r"(\d+)-(\d+)-(\d+)",
     r"(?P<y>\d{4})-(?P<m>\d\d)-(?P<d>\d\d)",
-    r"(?P<x>a)(?P<x>b)?",
+    r"(?P<x>a)(?P<y>b)?",
     r"(?U)a+",
     r"\b\w",
     r"\w\b",
@@ -86,7 +86,7 @@ const PATTERNS: &[&str] = &[
 ];
 
 /// Replacement strings: every form of `$` reference and the malformed ones
-/// Go keeps as text.
+/// kept as text.
 const REPLACEMENTS: &[&str] = &[
     "-",
     "",
@@ -123,10 +123,8 @@ const REPLACEMENTS: &[&str] = &[
     "$$1",
     "$$$1",
     "$é",
-    // Not letters or digits to Go (`unicode.IsLetter`/`IsDigit`), but
-    // alphanumeric to Rust's `char::is_alphanumeric`: superscript two (No),
-    // Roman numeral four (Nl), vulgar fraction one half (No). They end the
-    // name, so these read group 1 (`go_letter_or_digit`).
+    // A group name is ASCII letters, digits and `_`: superscript two,
+    // Roman numeral four and one half end it, so these read group 1.
     "$1²",
     "$1Ⅳ",
     "$1½",
@@ -197,7 +195,7 @@ fn regex_pairs_match_the_expected_output() {
         }
     }
     assert_eq!(pairs.len(), PAIR_CASES, "pairs");
-    let got = pair_entries(&rust_fung(), &pairs);
+    let got = pair_entries(&fung_bin(), &pairs);
     expected::verify(
         "regex/pairs.txt",
         "`regex` on each subject and pattern (subject\\u{1f}pattern), one printed line each\n\
@@ -239,7 +237,7 @@ print(n.split("a,b", ","), n.is_match("x", "x"))"#,
 print(f("a)"))"#,
 ];
 
-/// Patterns Go rejects: the whole E0515 report.
+/// Bad patterns and ones at the edge of the syntax: the whole report.
 const BAD_PATTERNS: &[&str] = &[
     "(",
     ")",
@@ -293,7 +291,7 @@ fn program_entries(bin: &std::path::Path) -> Vec<Entry> {
 
 #[test]
 fn regex_programs_match_the_expected_output() {
-    let got = program_entries(&rust_fung());
+    let got = program_entries(&fung_bin());
     expected::verify(
         "regex/programs.txt",
         "`regex` programs (crates/fung-cli/tests/regex_expected.rs), each run with `fung -e`.\n\
@@ -303,19 +301,19 @@ fn regex_programs_match_the_expected_output() {
     );
 }
 
-/// The comparison is not vacuous: a bad pattern is E0515 with Go's text.
+/// The comparison is not vacuous: a bad pattern is E0515 with its reason.
 #[test]
 fn bad_pattern_report() {
     let (out, err, code) = run(
-        &rust_fung(),
-        "import regex\nprint(regex.find(\"x\", \"a{1001}\"))",
+        &fung_bin(),
+        "import regex\nprint(regex.find(\"x\", \"a(\"))",
         &[],
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         (
             "",
-            "error[E0515]: invalid pattern: error parsing regexp: invalid repeat count: `{1001}`\n  --> -e:2:17\n  |\n2 | print(regex.find(\"x\", \"a{1001}\"))\n  |                 ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n",
+            "error[E0515]: invalid pattern `a(`: unclosed group\n  --> -e:2:17\n  |\n2 | print(regex.find(\"x\", \"a(\"))\n  |                 ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n",
             Some(1)
         )
     );

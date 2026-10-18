@@ -15,7 +15,7 @@
 | 03 | [함수와 패턴 매칭](03-functions-and-patterns.md) | 확정 |
 | 04 | [모듈 체계](04-modules.md) | 확정 |
 | 05 | [동시성 모델](05-concurrency.md) | 확정 |
-| 06 | [네이티브 연동 · 표준 라이브러리](06-go-interop-and-stdlib.md) | 확정 (목록은 알파에서 조정) |
+| 06 | [네이티브 연동 · 표준 라이브러리](06-native-and-stdlib.md) | 확정 (목록은 알파에서 조정) |
 | 07 | [연산자와 타입 표기](07-operators-and-types.md) | 확정 |
 | 08 | [도구와 에러 표시](08-tooling-and-errors.md) | 확정 |
 | 09 | [구현 계획](09-implementation-plan.md) | 확정 (앞단·뒷단 구조 포함) |

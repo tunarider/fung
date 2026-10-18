@@ -1,4 +1,5 @@
-//! Ports of internal/bytecode/{bytecode,m4,m5,m6}_test.go.
+//! Bytecode tests: the instruction word and the opcodes, then by
+//! milestone (collections, modules, tests).
 
 use super::*;
 use crate::consts::Const;
@@ -111,9 +112,8 @@ fn call_encoding() {
     }
 }
 
-/// Go `TestClosureIsAFnValue` checks a runtime value (`Closure` formats as
-/// `<fn add>`, `<fn>` when anonymous). The front end has no closures; what
-/// it shows of a function's name is the CLOSURE comment and the child
+/// A closure is a runtime value (`<fn add>`, `<fn>` when anonymous); the
+/// front end has no closures. What it shows of a function's name is the CLOSURE comment and the child
 /// header, `<lambda>` when anonymous.
 #[test]
 fn closure_names_in_disassembly() {
@@ -195,7 +195,7 @@ fn disassemble_functions() {
     assert_eq!(disassemble(&p), want);
 }
 
-// ---- m4_test.go ----
+// ---- collections and patterns (M4) ----
 
 fn pat(kind: PatKind) -> Pattern {
     Pattern {
@@ -298,7 +298,7 @@ fn m4_ops_disassemble() {
     );
 }
 
-// ---- m5_test.go ----
+// ---- modules (M5) ----
 
 #[test]
 fn import_opcode() {
@@ -308,7 +308,7 @@ fn import_opcode() {
     assert_eq!((i.op(), i.arg()), (Op::Import, 7));
 }
 
-// ---- m6_test.go ----
+// ---- tests and asserts (M6) ----
 
 #[test]
 fn assert_and_test_opcodes() {
@@ -331,10 +331,10 @@ fn assert_and_test_opcodes() {
     assert!(s.contains("TEST         0    ; \"name\""), "{s}");
 }
 
-// ---- beyond the Go tests ----
+// ---- the opcode table ----
 
 #[test]
-fn every_opcode_has_its_go_name_and_number() {
+fn every_opcode_has_its_name_and_number() {
     let names = [
         "CONST",
         "POP",

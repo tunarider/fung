@@ -23,4 +23,4 @@ match json.parse("{bad}"):
 ;;
 # expect: parse error at 1 2
 print(json.parse("12345678901234567890"))
-# expect: Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 12345678901234567890 is out of range"})
+# expect: Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: number out of range"})

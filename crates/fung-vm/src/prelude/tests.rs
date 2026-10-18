@@ -1,7 +1,6 @@
-//! Prelude tests: ports of Go `internal/prelude/*_test.go` and
-//! `internal/vm/prelude_test.go` `TestCollectionFunctions`, the parameter
-//! tables against `spec/builtins.txt`, and whole runs against their
-//! expected output (`run_cases.rs`).
+//! Prelude tests: the core natives called directly, the collection
+//! functions, the parameter tables against `spec/builtins.txt`, and whole
+//! runs against their expected output (`run_cases.rs`).
 
 use std::collections::BTreeSet;
 use std::io::Cursor;
@@ -71,7 +70,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 357;
+const RUN_CASE_COUNT: usize = 358;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -127,10 +126,9 @@ fn runs_match_the_expected_output() {
     );
 }
 
-// --- direct calls (Go tests call `n.Fn(ctx, args)` with a fake context) ---
+// --- direct calls (a native called with a test runtime) ---
 
-/// Calls a core native with already bound arguments, as Go's prelude tests
-/// do: (result, stdout).
+/// Calls a core native with already bound arguments: (result, stdout).
 fn call_out(name: &str, args: Vec<Value>) -> (Result<Value, Stop>, String) {
     let Some((_, Value::Native(n))) = core().into_iter().find(|(k, _)| *k == name) else {
         panic!("no native {name}");
@@ -174,7 +172,6 @@ fn st(s: &str) -> Value {
     Value::str(s)
 }
 
-/// Go `TestMapFunctionsCopy`.
 #[test]
 fn map_functions_copy() {
     let mut b = MapBuilder::default();
@@ -189,7 +186,6 @@ fn map_functions_copy() {
     assert_eq!(format(&m), "{a: 1}", "the input map changed");
 }
 
-/// Go `TestFlattenSplicesOneLevel`.
 #[test]
 fn flatten_splices_one_level() {
     let f = call(
@@ -205,7 +201,6 @@ fn flatten_splices_one_level() {
     assert_eq!(format(&f), "[1, 2, [3]]");
 }
 
-/// Go `TestConversions`.
 #[test]
 fn conversions() {
     let sym = |s: &str| Value::Sym(intern(s));
@@ -283,7 +278,6 @@ fn conversions() {
     assert_eq!(code(&call("parse_int", vec![Value::Int(1)])), "E0403");
 }
 
-/// Go `TestNumericSeparatorsAreStrict`.
 #[test]
 fn numeric_separators_are_strict() {
     for bad in ["1_", "_1", "1__2", "1_.5", "1._5"] {
@@ -302,17 +296,19 @@ fn numeric_separators_are_strict() {
     assert!(matches!(call("float", vec![st("1_0.5")]), Ok(Value::Float(f)) if f == 10.5));
 }
 
-/// Go `TestSymRequiresAName`.
+/// `sym` takes a name (01, UAX #31): letter numerals and combining marks
+/// may be part of one; superscripts and circled letters may not.
 #[test]
 fn sym_requires_a_name() {
-    // Not Go letters or digits: superscript two, roman numeral, circled
-    // letter, a Devanagari vowel sign (Go answers checked with the binary).
-    for bad in ["", "a b", "Ab", "1a", "a-b", "x²", "Ⅻ", "ⓐ", "हिंदी", "ⅻ"] {
+    for bad in ["", "a b", "Ab", "1a", "a-b", "x²", "ⓐ"] {
         assert_eq!(code(&call("sym", vec![st(bad)])), "E0513", "sym({bad:?})");
     }
     for good in [
         "ok",
         "snake_case",
+        "Ⅻ",
+        "ⅻ",
+        "हिंदी",
         "참치",
         "_x",
         "a1",
@@ -325,7 +321,6 @@ fn sym_requires_a_name() {
     }
 }
 
-/// Go `TestPrintJoinsArgsWithSpaces`.
 #[test]
 fn print_joins_args_with_spaces() {
     let (r, out) = call_out(
@@ -342,7 +337,6 @@ fn print_joins_args_with_spaces() {
     assert_eq!(out, "\n");
 }
 
-/// Go `TestFailReturnsE0803`.
 #[test]
 fn fail_returns_e0803() {
     let r = call("fail", vec![list(vec![st("port"), Value::Int(1)])]);
@@ -352,7 +346,6 @@ fn fail_returns_e0803() {
     assert_eq!(first_arg(&r), "error[E0803]: fail");
 }
 
-/// Go `TestAtExitRegistersFunctionsOnly`.
 #[test]
 fn at_exit_registers_functions_only() {
     assert_eq!(code(&call("at_exit", vec![Value::Int(1)])), "E0403");
@@ -360,7 +353,6 @@ fn at_exit_registers_functions_only() {
     assert!(matches!(call("at_exit", vec![print]), Ok(Value::Nil)));
 }
 
-/// Go `TestStringFunctions`.
 #[test]
 fn string_functions() {
     let cases: Vec<(&str, Vec<Value>, &str)> = vec![
@@ -396,7 +388,6 @@ fn string_functions() {
     assert_eq!(code(&call("join", vec![Value::Int(1), st("")])), "E0506");
 }
 
-/// Go `TestStringSizeLimits`.
 #[test]
 fn string_size_limits() {
     assert_eq!(
@@ -406,7 +397,7 @@ fn string_size_limits() {
     assert!(call("repeat", vec![st("ab"), Value::Int(3)]).is_ok());
 }
 
-/// Go `TestCollectionFunctions`, the cases that need only the core
+/// The collection functions, the cases that need only the core
 /// natives. The rest use functions of `extras/prelude.fung`
 /// (`collection_functions_with_the_fung_prelude`).
 #[test]
@@ -470,7 +461,7 @@ fn collection_functions() {
     }
 }
 
-/// The rest of Go `TestCollectionFunctions`: these cases call functions of
+/// The rest of the collection functions: these cases call functions of
 /// `extras/prelude.fung` (`is_empty`, `sum`, `min`, `reverse`, `zip`, …),
 /// which Task 9 compiles and boots.
 #[test]
@@ -533,9 +524,9 @@ fn collection_functions_with_the_fung_prelude() {
     }
 }
 
-// --- behaviour beyond the Go tests ---
+// --- more behaviour ---
 
-/// exit keeps fung's int like Go; the process status is its low 8 bits.
+/// exit keeps fung's whole int; the process status is its low 8 bits.
 #[test]
 fn exit_keeps_the_whole_code() {
     for (n, status) in [
@@ -557,7 +548,7 @@ fn exit_keeps_the_whole_code() {
 }
 
 /// A write error on stdout or stderr is E0801 at the call, with the
-/// writer's message (Go returns the writer's error from the native).
+/// writer's message (the native returns the writer's error).
 #[test]
 fn write_errors_are_internal_errors_at_the_call() {
     struct Broken;
@@ -600,10 +591,8 @@ fn write_errors_are_internal_errors_at_the_call() {
 }
 
 /// Natives called with a range never build its list: a huge range is
-/// walked in constant memory, and `map` refuses a result Go cannot
-/// allocate either. (Between about 10^9 and 2^44 elements Go's `make`
-/// succeeds but the process dies of memory exhaustion where a native lists
-/// the range; that zone is left alone.)
+/// walked in constant memory, and `map` refuses a result past the element
+/// limit (02).
 #[test]
 fn ranges_are_walked_in_place() {
     let (out, _, _) = run(
@@ -612,18 +601,14 @@ fn ranges_are_walked_in_place() {
     assert_eq!(out, "3000000 6 true\n");
     let (_, err, code) = run("print(map(0..4611686018427387904, x => x))");
     assert!(
-        err.starts_with(
-            "error[E0801]: internal error: runtime error: makeslice: cap out of range\n  --> -e:1:10\n"
-        ),
+        err.starts_with("error[E0806]: too many elements (limit 100000000)\n  --> -e:1:10\n"),
         "{err}"
     );
     assert_eq!(code, 1);
 }
 
-/// The programs `huge_range_cases` builds: every native that, in Go, lists
-/// a range's elements (`nat.Items`) on a range of 10^17 and 10^18 elements,
-/// with the column of the call. Go cannot make the slice (more than 2^44
-/// elements) and reports E0801 there.
+/// The programs `huge_range_cases` builds: the collection natives on a
+/// range of 10^17 and 10^18 elements, with the column of the call.
 pub(super) fn huge_range_cases() -> Vec<(String, u32)> {
     let calls: &[(&str, u32)] = &[
         ("sort(R)", 11),
@@ -655,40 +640,66 @@ pub(super) fn huge_range_cases() -> Vec<(String, u32)> {
     out
 }
 
-/// Go's `make` panics for a slice of more than 2^44 elements (2^48 bytes);
-/// the natives that list a range give the same E0801 at the call.
+/// What each collection function gives for a range far past the element
+/// limit: argument errors first, then E0806 where the result would hold
+/// every element; the functions that may stop early stop.
 #[test]
-fn huge_ranges_fail_like_go() {
-    for (src, col) in huge_range_cases() {
-        let o = exec(&src, Opts::default());
-        let e = o
-            .error
-            .as_ref()
-            .unwrap_or_else(|| panic!("{src}: no error"));
-        assert_eq!(
-            (e.headline.as_str(), e.line, e.col, o.exit),
-            (
-                "error[E0801]: internal error: runtime error: makeslice: cap out of range",
-                1,
-                col,
-                1
-            ),
-            "{src}"
-        );
+fn huge_ranges_hit_the_limits_after_argument_checks() {
+    const ELEMENTS: &str = "error[E0806]: too many elements (limit 100000000)";
+    const CHARS: &str = "error[E0806]: too many characters (limit 100000000)";
+    const ARG: &str = "error[E0403]";
+    let want: &[(&str, &str)] = &[
+        ("sort(R)", ELEMENTS),
+        ("sort_by(R, x => x)", ELEMENTS),
+        ("sort_by(R, 1)", ARG),
+        ("join(R, \"\")", CHARS),
+        ("join(R, 1)", ARG),
+        ("flatten(R)", ELEMENTS),
+        ("find(R, x => true)", "0"),
+        ("find(R, 1)", ARG),
+        ("any(R, x => true)", "true"),
+        ("all(R, x => false)", "false"),
+        ("group_by(R, x => 1)", ELEMENTS),
+        ("map(R, 1)", ARG),
+        ("map(R, x => x)", ELEMENTS),
+        ("filter(R, 1)", ARG),
+        ("fold(R, 0, 1)", ARG),
+        ("each(R, 1)", ARG),
+    ];
+    let cases = huge_range_cases();
+    assert_eq!(cases.len(), 2 * want.len());
+    for ((src, _), (_, w)) in cases.iter().zip(want.iter().chain(want.iter())) {
+        let (out, err, _) = run(src);
+        let got = if err.is_empty() {
+            out.trim_end()
+        } else {
+            err.lines().next().unwrap()
+        };
+        assert!(got.starts_with(w), "{src}: {got}");
     }
-    // Natives that walk a range in place (Go `nat.Each`) start walking.
+    // Walking a range in place starts walking.
     let (_, err, _) = run("print(fold(0..100000000000000000, 0, (a, x) => x / 0))");
     assert!(err.starts_with("error[E0502]"), "{err}");
 }
 
-/// Sorting is stable and follows Go's `sort.SliceStable` comparison order,
-/// so the first comparison error names the same pair of types.
+/// Sorting is stable at every size the merge sort splits at, and a
+/// comparison error ends it.
 #[test]
-fn sort_matches_go_order_on_big_inputs() {
-    let (out, _, _) = run(
-        "xs = map(0..1000, x => (x * 7919) % 1000)\nprint(sort(xs) == map(0..1000, x => x), sort_by(0..100, x => x % 2)[..3])",
+fn sort_is_stable_and_stops_at_first_error() {
+    let (out, err, _) = run(
+        "print(sort_by([(2, \"a\"), (1, \"b\"), (2, \"c\"), (1, \"d\")], ((k, _)) => k))\n\
+         print(sort([]), sort([1]), sort([2, 1]))\n\
+         for n in [21, 1000]: print(sort(map(0..n, x => n - x)) == map(0..n, x => x + 1)) ;;\n\
+         xs = map(0..1000, x => (x * 7919) % 1000)\n\
+         print(sort(xs) == map(0..1000, x => x), sort_by(0..100, x => x % 2)[..3])",
     );
-    assert_eq!(out, "true [0, 2, 4]\n");
+    assert_eq!(
+        out,
+        "[(1, \"b\"), (1, \"d\"), (2, \"a\"), (2, \"c\")]\n[] [1] [1, 2]\ntrue\ntrue\ntrue [0, 2, 4]\n",
+        "{err}"
+    );
+    let (_, err, _) = run("print(sort([1, \"a\"]))");
+    assert!(err.starts_with("error[E0"), "{err}");
 }
 
 #[test]
@@ -709,4 +720,57 @@ fn natives_are_the_same_on_every_thread() {
 fn natives_can_cross_threads() {
     fn assert_sync<T: Send + Sync>() {}
     assert_sync::<crate::value::Native>();
+}
+
+/// A failing function stops a channel walk where it fails: the values not
+/// yet received stay in the channel.
+#[test]
+fn each_failure_leaves_rest() {
+    let (out, err, _) = run(
+        "c = channel(3)\nsend(c, 1)\nsend(c, 2)\nsend(c, 3)\nclose(c)\n\
+         t = spawn(fn(): each(c, x => x == 2 then fail(\"x\") else nil) ;;)\n\
+         print(type_of(await(t)), recv(c))",
+    );
+    assert_eq!(out, "'Err Ok(3)\n", "{err}");
+}
+
+/// The function may send into the channel it walks: each value is seen
+/// as it arrives, so the walk goes on until the function closes it.
+#[test]
+fn resend_into_iterated_channel() {
+    let (out, err, _) = run(
+        "fn step(c, x):\n  print(x)\n  x < 3 then send(c, x + 1) else close(c)\n;;\n\
+         c = channel(1)\nsend(c, 1)\neach(c, x => step(c, x))\nprint(\"end\")",
+    );
+    assert_eq!(out, "1\n2\n3\nend\n", "{err}");
+}
+
+/// `first`, `last`, `take` and `drop` on a range build only what they
+/// return, so a huge range is no problem for a small result.
+#[test]
+fn positional_functions_on_huge_ranges() {
+    let (out, err, _) = run("r = 5..1000000000005\n\
+         print(first(r), last(r), take(r, 3), take(r, -1), first(0..0), last(0..0), take(0..0, 2))\n\
+         print(drop(5..=9, 3), drop(5..9, 10), take(5..=9, 99), last(1..=9223372036854775807), drop(9223372036854775805..=9223372036854775807, 1))");
+    assert_eq!(
+        out,
+        "5 1000000000004 [5, 6, 7] [] nil nil []\n[8, 9] [] [5, 6, 7, 8, 9] 9223372036854775807 [9223372036854775806, 9223372036854775807]\n",
+        "{err}"
+    );
+}
+
+/// A range wider than the int range is not empty: its length is counted
+/// exactly, walking it works, and `len` reports what an int cannot hold.
+#[test]
+fn wide_ranges_count_every_number() {
+    let (out, err, _) = run("r = -9000000000000000000..9000000000000000000\n\
+         print(find(r, x => x > -8999999999999999999), any(r, x => x < 0), 5 in r, first(r))\n\
+         print(len(-9223372036854775808..=9223372036854775806))");
+    assert_eq!(
+        out, "-8999999999999999998 true true -9000000000000000000\n",
+        "{err}"
+    );
+    assert!(err.starts_with("error[E0503]: integer overflow"), "{err}");
+    let (_, err, _) = run("print(map(-9000000000000000000..9000000000000000000, x => x))");
+    assert!(err.starts_with("error[E0806]: too many elements"), "{err}");
 }

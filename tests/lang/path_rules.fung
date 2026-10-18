@@ -1,0 +1,6 @@
+# A dot file has no extension; join appends and cleans.
+import path
+print(path.ext(".hidden") == "", path.stem(".hidden"), path.ext("a.tar.gz"), path.stem("a.tar.gz"), path.ext(".a.b"))
+# expect: true .hidden .gz a.tar .b
+print(path.join("a", "/c"), path.join("a/./b/", ".."), path.base(""))
+# expect: a/c a .

@@ -1,8 +1,8 @@
-//! `fung fmt [--check] <path>...|-` (Go `cmd/fung/fmt.go`, 08): formats
+//! `fung fmt [--check] <path>...|-` (08): formats
 //! files in place and names the changed ones; `--check` only names them
 //! (exit 1 if any); `-` formats standard input to standard output
-//! (`--check -` names `<stdin>` instead, exit 1, if it needs formatting). A file
-//! with a syntax error is reported and left alone (exit 2).
+//! (`--check -` names `<stdin>` instead, exit 1, if it needs formatting).
+//! A file with a syntax error is reported and left alone (exit 2).
 
 use std::ffi::OsStr;
 use std::io::{Read, Write};
@@ -11,7 +11,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 use fung_front::diag::{self, Diag, EXIT_COMPILE, EXIT_RUNTIME, EXIT_USAGE};
 use fung_front::format::format_bytes;
-use fung_front::source::{SourceMap, decode_go};
+use fung_front::source::{SourceMap, decode_lossy};
 
 use crate::{Out, USAGE, paths, read_bytes, restore_name};
 
@@ -51,13 +51,13 @@ pub fn run_fmt(args: &[String], raw: &[Vec<u8>]) -> Out {
             Ok(s) => s,
             Err(msg) => {
                 out.stderr.extend_from_slice(
-                    &[b"error: cannot read ", &path[..], b": ", &msg, b"\n"].concat(),
+                    &[b"error: ", &crate::cannot_read(path, &msg)[..], b"\n"].concat(),
                 );
                 worse(&mut out, EXIT_RUNTIME);
                 continue;
             }
         };
-        let name = decode_go(path);
+        let name = decode_lossy(path);
         let formatted = match format_bytes(&name, &src) {
             Ok(f) => f,
             Err(e) => {
@@ -78,7 +78,7 @@ pub fn run_fmt(args: &[String], raw: &[Vec<u8>]) -> Out {
         }
         if let Err(e) = write(path, &formatted) {
             out.stderr.extend_from_slice(
-                &[b"error: cannot write ", &path[..], b": ", &e, b"\n"].concat(),
+                &[b"error: cannot write `", &path[..], b"`: ", &e, b"\n"].concat(),
             );
             worse(&mut out, EXIT_RUNTIME);
         }
@@ -101,9 +101,8 @@ fn stdin(check: bool) -> Out {
     let mut src = Vec::new();
     if let Err(e) = std::io::stdin().lock().read_to_end(&mut src) {
         return Out {
-            // Go names standard input `/dev/stdin`.
             stderr: format!(
-                "error: read /dev/stdin: {}\n",
+                "error: cannot read <stdin>: {}\n",
                 fung_vm::native::os_error_text(&e)
             )
             .into_bytes(),
@@ -147,32 +146,23 @@ fn refused(e: &Diag, name: &str, raw: &[u8], src: &[u8]) -> (Vec<u8>, i32) {
         return (text, EXIT_RUNTIME);
     }
     let mut sources = SourceMap::new();
-    sources.add(name, &decode_go(src));
+    sources.add(name, &decode_lossy(src));
     let text = diag::format(e, &sources);
     (restore_name(&text, name, raw), EXIT_COMPILE)
 }
 
-/// Rewrites a file the way Go's `os.WriteFile` does (truncate, or create
-/// with the old mode); a failure reads like Go's `*PathError`.
+/// Rewrites a file in place (truncated, or created with the old mode);
+/// a failure is the reason alone, as the `fs` module words it.
 fn write(path: &[u8], data: &[u8]) -> Result<(), Vec<u8>> {
     let p = OsStr::from_bytes(path);
     let mode = std::fs::metadata(p).map_or(0o644, |m| m.permissions().mode() & 0o777);
-    let err = |op: &str, e: std::io::Error| {
-        [
-            op.as_bytes(),
-            b" ",
-            path,
-            b": ",
-            fung_vm::native::os_error_text(&e).as_bytes(),
-        ]
-        .concat()
-    };
+    let err = |e: std::io::Error| fung_vm::native::os_error_text(&e).into_bytes();
     let mut f = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .mode(mode)
         .open(p)
-        .map_err(|e| err("open", e))?;
-    f.write_all(data).map_err(|e| err("write", e))
+        .map_err(err)?;
+    f.write_all(data).map_err(err)
 }

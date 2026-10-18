@@ -9,7 +9,7 @@ mod common;
 use std::ffi::OsString;
 
 use common::expected::{self, Entry};
-use common::{Run, par_map, repo, run_with_stdin, rust_fung};
+use common::{Run, fung_bin, par_map, repo, run_with_stdin};
 
 const CASES: &[&str] = &[
     "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))",
@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 139;
+const LANG_CASES: usize = 144;
 const BENCH_CASES: usize = 6;
-const ALL_CASES: usize = 196;
+const ALL_CASES: usize = 201;
 
 #[test]
 fn every_case_is_counted() {
@@ -197,13 +197,13 @@ fn entry(c: &Case, r: &Run) -> Entry {
 
 #[test]
 fn runs_match_the_expected_output() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let cases = cases();
     assert_eq!(cases.len(), ALL_CASES, "cases");
     // On a few workers: a case that leaves a task sleeping, like
     // `tests/lang/cancel.fung`, takes 10 s.
     let got: Vec<Entry> = par_map(&cases, |c| {
-        entry(c, &run_with_stdin(&rust, &c.args, c.stdin.as_deref()))
+        entry(c, &run_with_stdin(&bin, &c.args, c.stdin.as_deref()))
     });
     // A silent run would match an empty expected output for the wrong
     // reason: every golden file prints something.
@@ -265,7 +265,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 33;
+const CONCURRENT_CASES: usize = 34;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.
@@ -304,8 +304,8 @@ fn concurrent_runs_are_stable() {
     use std::sync::mpsc::{RecvTimeoutError, channel};
     use std::time::{Duration, Instant};
     const POOL: usize = 16;
-    let rust = rust_fung();
-    let rust = rust.as_path();
+    let bin = fung_bin();
+    let bin = bin.as_path();
     let start = Instant::now();
     let cases = concurrent_cases();
     assert_eq!(cases.len(), CONCURRENT_CASES, "concurrent cases");
@@ -323,7 +323,7 @@ fn concurrent_runs_are_stable() {
                 .push(format!("{}: {what}", c.label));
         }
     };
-    let one = |c: &Case| run_with_stdin(rust, &c.args, c.stdin.as_deref());
+    let one = |c: &Case| run_with_stdin(bin, &c.args, c.stdin.as_deref());
     let (jobs, queue) = channel::<&Case>();
     let queue = Mutex::new(queue);
     std::thread::scope(|s| {

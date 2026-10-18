@@ -1,9 +1,8 @@
-//! Booting the prelude (Go `cmd/fung/pipeline.go` `bootPrelude`, 06:
-//! prelude만 시작 시): the core natives, the concurrency natives,
-//! the `_native.conc` and `_native.process` bridges, and the public names
-//! of the prelude files written in fung (`extras::PRELUDE_FILES`:
-//! `extras/prelude.fung`, then `extras/agent.fung`), compiled and run on
-//! the runtime at startup.
+//! Booting the prelude (06: prelude만 시작 시): the core natives, the
+//! concurrency natives, the `_native.conc` and `_native.process` bridges,
+//! and the public names of the prelude files written in fung
+//! (`extras::PRELUDE_FILES`: `extras/prelude.fung`, then
+//! `extras/agent.fung`), compiled and run on the runtime at startup.
 //!
 //! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
 //! the program and the prelude are compiled separately, so both start at
@@ -11,8 +10,7 @@
 //! moves every position of the prelude's protos (and of its compile
 //! errors) past the files already there. Create the runtime with the
 //! program's sources first, then boot: every proto's `FileId` then names
-//! its own file in call paths and excerpts. (Go positions carry the file
-//! name, so it has no such step.)
+//! its own file in call paths and excerpts.
 
 use std::rc::Rc;
 
@@ -31,9 +29,9 @@ mod spec_file;
 #[cfg(test)]
 mod tests;
 
-/// The module key a prelude file runs as: `prelude` for prelude.fung (Go
-/// `bootPrelude`), `<name>` for the others (a key no `import` can name:
-/// the loader does not know those files).
+/// The module key a prelude file runs as: `prelude` for prelude.fung,
+/// `<name>` for the others (a key no `import` can name: the loader does
+/// not know those files).
 fn prelude_key(name: &str) -> String {
     if name == "prelude" {
         name.to_string()
@@ -67,7 +65,7 @@ pub(crate) fn native_prelude(args: &[String]) -> Prelude {
 /// The errors are the files' compile errors or the error of a body,
 /// with positions in the runtime's sources. Booting the embedded file does
 /// not fail in practice; a runtime whose boot failed should not be reused
-/// (a module whose body failed stays "loading", like Go).
+/// (a module whose body failed stays "loading").
 pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
     let mut p = native_prelude(&args);
     t.world().args = args;
@@ -102,7 +100,7 @@ fn boot_file(
             })
             .collect());
     }
-    // Go `register`: the bridges the file imports, then its modules.
+    // Registers the bridges the file imports, then its modules.
     for m in b.modules {
         match m.proto {
             Some(mut proto) => {
@@ -142,7 +140,7 @@ fn boot_file(
 pub type NativeModule = fn() -> Rc<Module>;
 
 /// The `_native.*` bridges by key, sorted: the one list of them. The
-/// command registers the ones a program imports (Go `register`), and
+/// command registers the ones a program imports (`register`), and
 /// `spec/builtins.txt` lists their members (generated from this table).
 pub const NATIVE_MODULES: &[(&str, NativeModule)] = &[
     ("_native.conc", conc::module),
@@ -163,11 +161,11 @@ pub fn native_module(key: &str) -> Option<Rc<Module>> {
         .map(|(_, module)| module())
 }
 
-/// Makes a program's modules importable (Go `register`): compiled modules
-/// linked against `p`, and the `_native.*` bridges. Every standard module
-/// runs since stage 4d (the E0805 placeholders for those that did not are
-/// gone); a bridge the Rust port does not have stays unregistered, so a
-/// lookup of it is an internal error.
+/// Makes a program's modules importable: compiled modules linked against
+/// `p`, and the `_native.*` bridges. Every standard module runs since
+/// stage 4d (the E0805 placeholders for those that did not are gone); a
+/// bridge that does not exist stays unregistered, so a lookup of it is an
+/// internal error.
 pub(crate) fn register(w: &mut World, modules: &[Loaded], p: &Prelude) {
     for m in modules {
         match &m.proto {

@@ -1,6 +1,4 @@
-//! Task failures nobody retrieved (05 "아무도 확인하지 않은 태스크의 실패";
-//! Go `trackFailure`, `reportFailure` and `ReportUnretrieved` in
-//! `internal/vm/runtime_conc.go`).
+//! Task failures nobody retrieved (05 "아무도 확인하지 않은 태스크의 실패").
 //!
 //! A task that fails (any error but cancellation, E0701/E0702, or `exit`)
 //! and was not spawned by a helper that awaits it (`spawn_awaited`) leaves
@@ -9,9 +7,8 @@
 //! retrieve any more is reported on standard error as `task failed: `
 //! plus the error with its excerpt and call path, and the program's exit
 //! code becomes 1. Nobody can retrieve it any more:
-//! - when the task's last handle drops (Go: when the garbage collector
-//!   finds the handle) — at once if the task has failed by then, or at
-//!   the moment it fails if it is still running;
+//! - when the task's last handle drops — at once if the task has failed
+//!   by then, or at the moment it fails if it is still running;
 //! - at the end of the program (`Runtime::report_unretrieved`), for the
 //!   handles still held, in the order the tasks failed.
 //!
@@ -32,7 +29,7 @@ use super::token;
 use super::world::Stream;
 
 /// The failures not yet retrieved or reported, and whether one was
-/// reported (Go `concState.unretrieved`, `failSeq` and `failed`).
+/// reported.
 pub(crate) struct Failures {
     inner: Mutex<Inner>,
     /// The world's standard error (the same stream).

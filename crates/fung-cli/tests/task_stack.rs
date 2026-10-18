@@ -1,9 +1,9 @@
-//! A spawned task gets as much stack as a Go goroutine may grow to
-//! (1 GiB, the first of `fung_vm::stack::TASK_STACKS`): a program that nests Rust frames deeply (a
-//! native calling back into fung) gives the same result in a task as on
-//! the entry thread instead of aborting the process. Formatting a value
-//! nested 1,000,000 deep also needs more than 256 MiB, but `str` on it
-//! takes over a minute (in Go as well), so it is not tested here.
+//! A spawned task gets a large stack (1 GiB, the first of
+//! `fung_vm::stack::TASK_STACKS`): a program that nests Rust frames
+//! deeply (a native calling back into fung) gives the same result in a
+//! task as on the entry thread instead of aborting the process.
+//! Formatting a value nested 1,000,000 deep also needs more than 256
+//! MiB, but `str` on it takes over a minute, so it is not tested here.
 //! Release builds only: a debug build uses far more stack per frame and
 //! overflows much earlier, on the entry thread too.
 #![cfg(not(debug_assertions))]
@@ -12,12 +12,12 @@ mod common;
 
 use std::ffi::OsString;
 
-use common::{run, rust_fung};
+use common::{fung_bin, run};
 
 /// Runs `code` with `fung -e` and returns its standard output, failing
 /// on any other exit than 0.
 fn eval(code: &str) -> String {
-    let (out, err, status) = run(&rust_fung(), &[OsString::from("-e"), OsString::from(code)]);
+    let (out, err, status) = run(&fung_bin(), &[OsString::from("-e"), OsString::from(code)]);
     assert!(
         status.contains("unix_wait_status(0)") || status.contains("exit status: 0"),
         "status {status}\nstderr: {}",

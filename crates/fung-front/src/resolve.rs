@@ -47,9 +47,9 @@ pub struct Options {
     /// An imported file: top-level restrictions (04).
     pub library: bool,
     /// REPL: the globals earlier inputs defined, in index order. They
-    /// keep their indexes and count as read (Go `Options.Globals`).
+    /// keep their indexes and count as read.
     pub globals: Vec<String>,
-    /// REPL: fns and imports may be defined again (Go `Options.Redefine`).
+    /// REPL: fns and imports may be defined again.
     pub redefine: bool,
 }
 

@@ -13,7 +13,7 @@ use crate::diag::{Arg, Diag, error};
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{self, ModuleInfo};
-use crate::source::{FileId, Pos, SourceMap, decode_go};
+use crate::source::{FileId, Pos, SourceMap, decode_lossy};
 use crate::tree::{Head, Import, Lit, Node};
 use crate::unicode;
 
@@ -59,20 +59,18 @@ pub struct Build {
 /// Compiles an entry file and everything it imports.
 pub struct Loader {
     /// Reads an imported file. By default it reads the bytes and decodes
-    /// them like Go (one U+FFFD per invalid byte, see `decode_go`).
+    /// them (one U+FFFD per invalid sequence, see `decode_lossy`).
     pub read_file: fn(&str) -> std::io::Result<String>,
     /// Keep test blocks of the entry (`fung test` / `check`), see 08.
     pub tests: bool,
     /// The entry is an embedded extras file: it may import `_native.*`.
     pub internal: bool,
-    /// Names added to the prelude, like a Go test passing its own prelude
-    /// table (VM tests use it for natives that exist only in tests).
+    /// Names added to the prelude (VM tests use it for natives that exist only in tests).
     pub extra_prelude: Vec<String>,
     /// REPL (08): the globals earlier inputs defined, for the entry file
-    /// only (Go `Loader.Resolve.Globals`).
+    /// only.
     pub globals: Vec<String>,
-    /// REPL: the entry file may define fns and imports again (Go
-    /// `Loader.Resolve.Redefine`).
+    /// REPL: the entry file may define fns and imports again.
     pub redefine: bool,
     /// The built-in names to compile against; `None` (the default) is
     /// `spec/builtins.txt`. The generator of that file sets its own, built
@@ -84,7 +82,7 @@ pub struct Loader {
 impl Default for Loader {
     fn default() -> Loader {
         Loader {
-            read_file: |p| std::fs::read(p).map(|b| decode_go(&b)),
+            read_file: |p| std::fs::read(p).map(|b| decode_lossy(&b)),
             tests: false,
             internal: false,
             extra_prelude: Vec::new(),
@@ -321,7 +319,8 @@ impl State<'_> {
         if key == self.entry_key && from_key != key {
             return Err(vec![error("E0307", pos, vec![])]);
         }
-        let name = module_stem(&key);
+        // The binding is a name, so it is NFC like the names that use it.
+        let name = crate::unicode::nfc(&module_stem(&key)).into_owned();
         if !is_name(&name) && im.alias.is_empty() {
             return Err(vec![error("E0305", pos, vec![Arg::Str(name)])]);
         }
@@ -402,18 +401,19 @@ fn mark_builtin(p: &mut Proto) {
     }
 }
 
-/// Go `value.IsName` (01): a lowercase letter or `_` followed by letters,
-/// digits and `_`.
+/// A name (01): `_` or a name-start character that is not uppercase,
+/// then name-continue characters (UAX #31).
 fn is_name(s: &str) -> bool {
     let mut cs = s.chars();
     match cs.next() {
-        Some(c) if c == '_' || (unicode::is_letter(c) && !unicode::is_upper(c)) => {}
+        Some(c) if c == '_' || (unicode::is_name_start(c) && !unicode::is_upper(c)) => {}
         _ => return false,
     }
-    cs.all(|c| c == '_' || unicode::is_letter(c) || unicode::is_digit(c))
+    cs.all(unicode::is_name_continue)
 }
 
-/// Lexical path cleaning, like Go `filepath.Clean` on Unix.
+/// Lexical path cleaning (Unix): `.` and empty elements dropped, `..`
+/// taken back where it can be.
 fn clean(path: &str) -> String {
     if path.is_empty() {
         return ".".into();
@@ -448,7 +448,7 @@ fn dir_of(path: &str) -> String {
     }
 }
 
-/// Like Go `os.Getwd`: `$PWD` when it names the current directory (so
+/// The working directory: `$PWD` when it names the current directory (so
 /// symlinked paths print as the user typed them), else `getcwd`.
 fn cwd() -> Option<String> {
     let real = std::env::current_dir().ok()?;
@@ -461,7 +461,7 @@ fn cwd() -> Option<String> {
     Some(real.to_string_lossy().into_owned())
 }
 
-/// Go `filepath.Abs`: an absolute, clean path, relative paths taken from
+/// An absolute, clean path, relative paths taken from
 /// the working directory (`$PWD` when it names the same directory).
 pub fn abs_path(path: &str) -> String {
     abs_key(path)
@@ -489,7 +489,7 @@ fn display_path(key: &str) -> String {
     key.to_string()
 }
 
-/// Go `filepath.Rel` for clean absolute paths.
+/// `target` relative to `base`, both clean absolute paths.
 fn rel(base: &str, target: &str) -> String {
     let b: Vec<&str> = base.split('/').filter(|s| !s.is_empty()).collect();
     let t: Vec<&str> = target.split('/').filter(|s| !s.is_empty()).collect();
@@ -566,8 +566,22 @@ mod tests {
         })
     }
 
+    /// A module's name from its file is a name like any other: NFC, so
+    /// a decomposed path spelling binds the composed name.
     #[test]
-    fn default_reader_decodes_invalid_utf8_like_go() {
+    fn module_names_from_paths_are_nfc() {
+        set_files(&[("/p/mcafe\u{301}.fung", "x = 1")]);
+        let (b, errs) = mem_loader().compile(
+            "/p/main.fung",
+            "import \"./mcafe\u{301}\"\nprint(mcaf\u{e9}.x)",
+            Stage::All,
+        );
+        assert!(errs.is_empty(), "{:?}", codes(&errs));
+        assert!(b.modules.iter().any(|m| m.name == "mcaf\u{e9}"));
+    }
+
+    #[test]
+    fn default_reader_decodes_invalid_utf8() {
         let dir = std::env::temp_dir().join(format!("fung-loader-utf8-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("m.fung"), b"x = \"\xeb\x8b\"\n").unwrap();
@@ -576,7 +590,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert!(errs.is_empty(), "{errs:?}");
         assert!(b.modules.iter().any(|m| m.name == "m"));
-        let text = "x = \"\u{fffd}\u{fffd}\"\n";
+        let text = "x = \"\u{fffd}\"\n";
         assert!((0..8).map(FileId).any(|id| {
             std::panic::catch_unwind(|| b.sources.text(id) == text).unwrap_or(false)
         }));
@@ -584,7 +598,7 @@ mod tests {
 
     /// The REPL (08) compiles each input after the files the runtime
     /// already has, so every position names one file of the session; the
-    /// REPL options reach the entry file only (Go `load.go`).
+    /// REPL options reach the entry file only.
     #[test]
     fn compile_after_continues_the_file_ids_and_repl_options_reach_the_entry_only() {
         let mut prior = SourceMap::new();
@@ -620,7 +634,7 @@ mod tests {
         assert_eq!(errs[0].pos.file, FileId(0));
     }
 
-    // frontend_test.go
+    // the whole front end
 
     #[test]
     fn compile_stops_at_requested_stage() {
@@ -644,7 +658,7 @@ mod tests {
         assert_eq!(codes(&errs), ["E0204", "E0204"]);
     }
 
-    // load_test.go
+    // loading imports
 
     #[test]
     fn load_graph_in_dependency_order() {
@@ -899,13 +913,13 @@ mod tests {
         assert_eq!(rel("/a/b", "/a/x.fung"), "../x.fung");
         assert_eq!(module_stem("/p/q/x.fung"), "x");
         assert!(is_name("x_1") && !is_name("bad-name") && !is_name("Up") && !is_name(""));
-        // Go `unicode` classes: So and No are not letters, Ll and Nd are.
+        // UAX #31: So and No are not name characters, Ll and Nd are.
         assert!(!is_name("mⓐ") && !is_name("x²") && is_name("ß1") && is_name("x٣"));
     }
 
     #[test]
     fn warnings_come_from_every_user_module_in_dependency_order() {
-        // Go `Program.Warnings`: each module's warnings once it resolves,
+        // each module's warnings once it resolves,
         // so an import's come before its importer's; the embedded stdlib's
         // are hidden (users cannot act on them).
         let main = "import \"./lib\"\nimport fs\nfn f():\n  unused = 1\n  lib.v\n;;";

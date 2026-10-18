@@ -101,9 +101,9 @@
 -- stdout
 -- stderr
 | error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/http.fung:22:1
+|   --> extras/http.fung:19:1
 |    |
-| 22 | import _native.conc as _c
+| 19 | import _native.conc as _c
 |    | ^
 |    |
 -- exit: 2
@@ -111,9 +111,9 @@
 -- stdout
 -- stderr
 | error[E0310]: `_native.json` is internal; import `json` instead
-|   --> extras/json.fung:3:1
+|   --> extras/json.fung:4:1
 |   |
-| 3 | import _native.json as _n
+| 4 | import _native.json as _n
 |   | ^
 |   |
 -- exit: 2
@@ -222,6 +222,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/cancel.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/channel_stream.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -836,6 +840,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/ident_unicode.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/if_blocks.fung
 -- stdout
 -- stderr
@@ -902,6 +910,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/path_rules.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/pipes_partial.fung
 -- stdout
 -- stderr
@@ -958,6 +970,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/strings_case.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/symbols.fung
 -- stdout
 -- stderr
@@ -979,6 +995,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/time_module.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/time_rules.fung
 -- stdout
 -- stderr
 -- exit: 0

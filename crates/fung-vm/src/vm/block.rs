@@ -52,8 +52,8 @@ pub(crate) fn cancelled(pos: Pos) -> Stop {
 }
 
 /// How many live tasks are blocked in `block`, and how many of those a
-/// timer will wake (Go `concState.blocked` and `waking`): what the
-/// deadlock check (`deadlock.rs`) compares with `World::live`.
+/// timer will wake: what the deadlock check (`deadlock.rs`) compares with
+/// `World::live`.
 ///
 /// A blocked task is counted from the moment it decides to sleep until
 /// it is woken: the waker uncounts it (`Waiter::wake`), with the token
@@ -233,8 +233,8 @@ impl WaitList {
 /// sets the flag the sleep below looks at before it parks.
 ///
 /// A condition already true returns at once, even in a cancelled task
-/// (Go's fast path); after a wait, cancellation wins over a condition that
-/// came true at the same time (Go checks it first).
+/// (nothing to wait for); after a wait, cancellation wins over a condition
+/// that came true at the same time (it is checked first).
 ///
 /// Deadlock (05, `deadlock.rs`): a live or background task counts itself
 /// blocked just before it sleeps, after its condition was found false, and the check

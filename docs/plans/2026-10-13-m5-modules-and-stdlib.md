@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go 1.27, 표준 라이브러리만 (`embed`, `os/exec`, `bufio`, `path/filepath`).
 
-**Spec:** `04-modules.md` (import 형태, 공개/비공개, 모듈은 값, 최상위 제한, 순환, 적재 시점과 전역, 가리기), `06-go-interop-and-stdlib.md` (2층 구조, 호출 규약, `exit` 신호, 에러 규칙과 `kind` 어휘, prelude 목록, `fs`·`path`, 파일 핸들, 명령 실행), `02-values-and-types.md` (파일 값, 맵 중복 키, 비교 표), `03-functions-and-patterns.md` (`with_open`, 패턴 중복 이름, `_ = 식`), `08-tooling-and-errors.md` (명령, 종료 코드), `09-implementation-plan.md` (Runtime, embed).
+**Spec:** `04-modules.md` (import 형태, 공개/비공개, 모듈은 값, 최상위 제한, 순환, 적재 시점과 전역, 가리기), `06-native-and-stdlib.md` (2층 구조, 호출 규약, `exit` 신호, 에러 규칙과 `kind` 어휘, prelude 목록, `fs`·`path`, 파일 핸들, 명령 실행), `02-values-and-types.md` (파일 값, 맵 중복 키, 비교 표), `03-functions-and-patterns.md` (`with_open`, 패턴 중복 이름, `_ = 식`), `08-tooling-and-errors.md` (명령, 종료 코드), `09-implementation-plan.md` (Runtime, embed).
 
 ## Global Constraints
 

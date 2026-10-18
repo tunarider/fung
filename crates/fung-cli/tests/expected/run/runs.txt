@@ -80,6 +80,17 @@
 | Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})
 -- stderr
 -- exit: 0
+==== tests/lang/channel_stream.fung
+-- stdout
+| got 1
+| got 2
+| got 3
+| done
+| 2 Ok(3)
+| [1, 2] 3 Ok(4) nil
+| 'Err Ok(1)
+-- stderr
+-- exit: 0
 ==== tests/lang/channels.fung
 -- stdout
 | 15
@@ -766,7 +777,7 @@
 ==== tests/lang/err_regex.fung
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(`
+| error[E0515]: invalid pattern `(`: unclosed group
 |   --> tests/lang/err_regex.fung:2:21
 |   |
 | 2 | print(regex.is_match("x", "("))
@@ -1034,6 +1045,15 @@
 | Err({kind: 'cancelled})
 -- stderr
 -- exit: 0
+==== tests/lang/ident_unicode.fung
+-- stdout
+| 3
+| 'Été 'sym
+| 5
+| 6 true
+| true true
+-- stderr
+-- exit: 0
 ==== tests/lang/if_blocks.fung
 -- stdout
 | zero
@@ -1068,7 +1088,7 @@
 |   ]
 | }
 | parse error at 1 2
-| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: integer 12345678901234567890 is out of range"})
+| Err({kind: 'parse, line: 1, col: 1, message: "invalid JSON at line 1, column 1: number out of range"})
 -- stderr
 -- exit: 0
 ==== tests/lang/keyword_names.fung
@@ -1138,6 +1158,12 @@
 -- stdout
 | ["1a", "2b"]
 | 6 [1, 2]
+-- stderr
+-- exit: 0
+==== tests/lang/path_rules.fung
+-- stdout
+| true .hidden .gz a.tar .b
+| a/c a .
 -- stderr
 -- exit: 0
 ==== tests/lang/pipes_partial.fung
@@ -1224,6 +1250,12 @@
 | 'sym 1.5 nil true
 -- stderr
 -- exit: 0
+==== tests/lang/strings_case.fung
+-- stdout
+| STRASSE ʼN οδος 2
+| 2
+-- stderr
+-- exit: 0
 ==== tests/lang/symbols.fung
 -- stdout
 | 'ok true false false
@@ -1257,8 +1289,18 @@
 | 2026-10-04T09:05:07+09:00 'time
 | 2026/10/04 09:05:07 00:05 +00:00
 | 1791072307 'sun 10
-| true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: field out of range"})
+| true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: month out of range"})
 | true true
+-- stderr
+-- exit: 0
+==== tests/lang/time_rules.fung
+-- stdout
+| Ok(2026-10-17T10:02:03Z) Ok(2026-10-17T10:02:03.5Z) Ok(2026-10-17T10:02:03+08:27:52)
+| [true, true, true, true, true]
+| Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
+| Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
+| +09:00
+| Err({kind: 'parse, message: "cannot parse `Foo 1` as a time: expected a month name like Oct"})
 -- stderr
 -- exit: 0
 ==== tests/lang/time_values.fung
@@ -1711,12 +1753,12 @@
 ==== run no/such/file.fung
 -- stdout
 -- stderr
-| error: cannot read no/such/file.fung: open no/such/file.fung: no such file or directory
+| error: cannot read `no/such/file.fung`: no such file or directory
 -- exit: 3
 ==== run tests
 -- stdout
 -- stderr
-| error: cannot read tests: read tests: is a directory
+| error: cannot read `tests`: is a directory
 -- exit: 3
 ==== frobnicate
 -- stdout

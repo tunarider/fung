@@ -53,53 +53,42 @@ impl Pos {
     }
 }
 
-/// Decodes bytes the way Go reads a string rune by rune: every byte that
-/// is not part of a valid UTF-8 sequence becomes one U+FFFD (Rust's
-/// `from_utf8_lossy` would merge a whole invalid run into one).
-pub fn decode_go(mut bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len());
-    loop {
-        match std::str::from_utf8(bytes) {
-            Ok(s) => {
-                out.push_str(s);
-                return out;
-            }
-            Err(e) => {
-                let (ok, rest) = bytes.split_at(e.valid_up_to());
-                // `valid_up_to` marks a valid UTF-8 prefix.
-                out.push_str(std::str::from_utf8(ok).unwrap_or_default());
-                let bad = e.error_len().unwrap_or(rest.len());
-                out.extend(std::iter::repeat_n('\u{fffd}', bad));
-                bytes = &rest[bad..];
-            }
-        }
-    }
+/// Bytes as text: each maximal invalid UTF-8 subsequence becomes one
+/// U+FFFD, as Unicode recommends (02).
+pub fn decode_lossy(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::decode_go;
+    use super::decode_lossy;
+
+    /// Each maximal invalid subsequence becomes one U+FFFD (the Unicode
+    /// recommendation): a cut-off character is one, two stray bytes two.
+    #[test]
+    fn invalid_utf8_reads_as_one_replacement_per_bad_part() {
+        assert_eq!(decode_lossy(b"a\xE2\x82b"), "a\u{FFFD}b");
+        assert_eq!(decode_lossy(b"\xFF\xFF"), "\u{FFFD}\u{FFFD}");
+        assert_eq!(decode_lossy("파일".as_bytes()), "파일");
+    }
 
     #[test]
-    fn decode_go_replaces_each_bad_byte() {
+    fn decode_lossy_cases() {
         let cases: &[(&[u8], &str)] = &[
             (b"abc", "abc"),
             (b"", ""),
-            (b"\xeb\x8b", "\u{fffd}\u{fffd}"),
-            (
-                b"x = \"\xeb\x8b\" + nope",
-                "x = \"\u{fffd}\u{fffd}\" + nope",
-            ),
+            (b"\xeb\x8b", "\u{fffd}"),
+            (b"x = \"\xeb\x8b\" + nope", "x = \"\u{fffd}\" + nope"),
             (b"a\xffb", "a\u{fffd}b"),
             (b"\xff\xfe", "\u{fffd}\u{fffd}"),
             (b"\xed\xa0\x80", "\u{fffd}\u{fffd}\u{fffd}"),
-            (b"\xf0\x9f\x98", "\u{fffd}\u{fffd}\u{fffd}"),
+            (b"\xf0\x9f\x98", "\u{fffd}"),
             (b"\xed\x95\x9c\xc3", "\u{d55c}\u{fffd}"),
-            (b"\xf0\x9f\x98a", "\u{fffd}\u{fffd}\u{fffd}a"),
+            (b"\xf0\x9f\x98a", "\u{fffd}a"),
             ("한글".as_bytes(), "한글"),
         ];
         for (input, want) in cases {
-            assert_eq!(decode_go(input), *want, "{input:?}");
+            assert_eq!(decode_lossy(input), *want, "{input:?}");
         }
     }
 }

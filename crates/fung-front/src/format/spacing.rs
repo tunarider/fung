@@ -1,4 +1,4 @@
-//! The spacing table (Go `spacing.go`).
+//! The spacing table.
 
 use crate::lexer::Kind;
 

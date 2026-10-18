@@ -1,5 +1,5 @@
-//! The prelude's string functions (Go `prelude/strings.go`). Strings are
-//! sequences of runes (02); case mapping is rune by rune like Go's.
+//! The prelude's string functions. Strings are sequences of characters
+//! (02); `upper` and `lower` use the full Unicode case mapping.
 
 use std::rc::Rc;
 
@@ -41,7 +41,7 @@ fn string(s: String) -> Value {
     Value::Str(Rc::new(s))
 }
 
-/// Go `strings.Split`: an empty separator splits into runes, and splitting
+/// `split(s, sep)`: an empty separator splits into characters, and splitting
 /// the empty string by it gives no parts.
 fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let [s, sep] = nat::str_args(&a, ["s", "sep"])?;
@@ -58,12 +58,20 @@ fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `join(xs, sep = "")` renders elements as print would (06): strings
 /// bare, the rest in literal form.
-fn join_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(t, &mut a[0], "join")?;
+fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], "join")?;
     let sep = nat::need_str("sep", &a[1])?;
+    // Every element shows as one character at least.
+    if let Value::Range(r) = &a[0]
+        && r.len() > i128::from(MAX_CHARS)
+    {
+        return Err(too_many_chars());
+    }
     let mut out = String::new();
+    let mut chars = 0;
     let mut first = true;
     nat::each(t, &a[0], "join", |_, x| {
+        let before = out.len();
         if !first {
             out.push_str(sep);
         }
@@ -72,13 +80,16 @@ fn join_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
             Value::Str(s) => out.push_str(s),
             _ => out.push_str(&format_for_print(&x)),
         }
+        chars += out[before..].chars().count() as i64;
+        if chars > MAX_CHARS {
+            return Err(too_many_chars());
+        }
         Ok(())
     })?;
     Ok(string(out))
 }
 
-/// Go `unicode.IsSpace`: the Unicode White_Space property, which Rust's
-/// `char::is_whitespace` follows too.
+/// Whitespace for `trim`: the Unicode White_Space property.
 fn is_space(c: char) -> bool {
     c.is_whitespace()
 }
@@ -93,49 +104,20 @@ fn trim_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::str(s.trim_matches(|c| cut.contains(c))))
 }
 
-/// Go `unicode.ToUpper` of one rune: the simple (one-rune) mapping. Rust
-/// gives the full mapping; where that has several runes the simple one is
-/// the rune itself, except for the Greek letters with ypogegrammeni,
-/// whose simple uppercase is the titlecase form.
-fn upper_rune(c: char) -> char {
-    let mut up = c.to_uppercase();
-    match (up.next(), up.next()) {
-        (Some(u), None) => u,
-        _ => match c as u32 {
-            0x1F80..=0x1F87 | 0x1F90..=0x1F97 | 0x1FA0..=0x1FA7 => {
-                char::from_u32(c as u32 + 8).unwrap_or(c)
-            }
-            0x1FB3 => '\u{1FBC}',
-            0x1FC3 => '\u{1FCC}',
-            0x1FF3 => '\u{1FFC}',
-            _ => c,
-        },
-    }
-}
-
-/// Go `unicode.ToLower` of one rune. Only U+0130 has a multi-rune full
-/// lowercase; its simple mapping is `i`.
-fn lower_rune(c: char) -> char {
-    let mut low = c.to_lowercase();
-    match (low.next(), low.next()) {
-        (Some(l), None) => l,
-        _ if c == '\u{130}' => 'i',
-        _ => c,
-    }
-}
-
+/// `upper(s)` and `lower(s)`: the full Unicode case mapping (06), so the
+/// length may change (`ß` → `SS`) and a final sigma lowercases to `ς`.
 fn upper_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let s = nat::need_str("s", &a[0])?;
-    Ok(string(s.chars().map(upper_rune).collect()))
+    Ok(string(s.to_uppercase()))
 }
 
 fn lower_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let s = nat::need_str("s", &a[0])?;
-    Ok(string(s.chars().map(lower_rune).collect()))
+    Ok(string(s.to_lowercase()))
 }
 
-/// Go `strings.ReplaceAll`; an empty `old` matches before every rune and
-/// at the end, as in Rust.
+/// `replace(s, old, new)`: every occurrence; an empty `old` matches before
+/// every character and at the end.
 fn replace_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let [s, old, new] = nat::str_args(&a, ["s", "old", "new"])?;
     Ok(string(s.replace(old, new)))
@@ -154,23 +136,21 @@ fn ends_with_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// Bounds the strings `repeat` (and fung's `pad_*`) may build (E0806).
 pub(crate) const MAX_CHARS: i64 = 100_000_000;
 
-/// `repeat(s, n)`; a negative `n` is 0. Like Go, the rune count times `n`
-/// wraps on overflow, and a byte length past the int range is the
-/// internal error Go's `strings.Repeat` panics with.
+/// E0806 for a string past [`MAX_CHARS`].
+pub(crate) fn too_many_chars() -> Stop {
+    fail("E0806", vec![nat::s("characters"), Arg::Int(MAX_CHARS)])
+}
+
+/// `repeat(s, n)`; a negative `n` is 0. A result past `MAX_CHARS`
+/// characters is E0806 (02).
 fn repeat_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let s = nat::need_str("s", &a[0])?;
     let n = nat::need_int("n", &a[1])?.max(0);
-    if n > 0 && (s.chars().count() as i64).wrapping_mul(n) > MAX_CHARS {
-        return Err(fail(
-            "E0806",
-            vec![nat::s("characters"), Arg::Int(MAX_CHARS)],
-        ));
-    }
-    if (s.len() as i64).checked_mul(n).is_none() {
-        return Err(fail(
-            "E0801",
-            vec![nat::s("strings: Repeat output length overflow")],
-        ));
+    if (s.chars().count() as i64)
+        .checked_mul(n)
+        .is_none_or(|c| c > MAX_CHARS)
+    {
+        return Err(too_many_chars());
     }
     Ok(string(s.repeat(n as usize)))
 }

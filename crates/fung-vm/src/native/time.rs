@@ -1,4 +1,4 @@
-//! `_native.time` (Go `internal/native/time.go`, 06): instants and the
+//! `_native.time` (06): instants and the
 //! token formats. The `time` type itself is core (`crate::value::Time`);
 //! this module only makes and renders values. Times are pure values, so
 //! everything here runs under the execution right like any computation.
@@ -62,8 +62,8 @@ fn time(t: Time) -> Value {
     Value::Time(Rc::new(t))
 }
 
-/// Go `time.Now()` in the local zone. Go's monotonic reading is not kept
-/// (see `crate::value::Time`).
+/// The system clock now, in the local zone (no monotonic reading; see
+/// `crate::value::Time`).
 fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
     let (sec, nsec) = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => (d.as_secs() as i64, i64::from(d.subsec_nanos())),
@@ -72,7 +72,13 @@ fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
             (-(d.as_secs() as i64), -i64::from(d.subsec_nanos()))
         }
     };
-    Ok(time(Time::from_unix(sec, nsec, Loc::Zone(tz::local()))))
+    match Time::from_unix(sec, nsec, Loc::Zone(tz::local())) {
+        Some(t) => Ok(time(t)),
+        None => Err(nat::fail(
+            "E0801",
+            vec![nat::s("the system clock is outside years 0000 to 9999")],
+        )),
+    }
 }
 
 fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
@@ -80,7 +86,7 @@ fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let layout = nat::opt_str("format", &a[1])?;
     let r = match layout {
         Some(layout) => parse_time(s, layout, tz::local()),
-        None => parse_rfc3339(s, tz::local()),
+        None => parse_rfc3339(s),
     };
     Ok(match r {
         Ok(t) => nat::ok(time(t)),
@@ -114,18 +120,17 @@ fn unix_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 fn from_unix_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let n = nat::need_int("n", &a[0])?;
-    if n >= 1 << 62 || n <= -(1 << 62) {
-        // Go's time.Unix wraps silently past the representable years.
-        return Err(nat::fail(
+    match Time::from_unix(n, 0, Loc::Zone(tz::local())) {
+        Some(t) => Ok(time(t)),
+        None => Err(nat::fail(
             "E0403",
             vec![
                 nat::s("n"),
-                nat::s("a unix time within ±2^62 seconds"),
+                nat::s("a unix time from year 0000 to 9999"),
                 Arg::Str(format(&a[0])),
             ],
-        ));
+        )),
     }
-    Ok(time(Time::from_unix(n, 0, Loc::Zone(tz::local()))))
 }
 
 const WEEKDAYS: [&str; 7] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];

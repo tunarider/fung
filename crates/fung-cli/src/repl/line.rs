@@ -1,17 +1,17 @@
-//! Reading input lines (Go `internal/repl/line_plain.go` and
-//! `line_unix.go`): plain line reading for pipes and files, and the
-//! raw-mode line editor for a terminal.
+//! Reading input lines: plain line reading for pipes, files and devices,
+//! and the raw-mode line editor for a terminal. Both take a line without
+//! its end: one LF and one CR before it (a CR elsewhere is the line's).
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
 
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 use fung_vm::term::RawMode;
 
 use super::editor::{Editor, Key};
 use super::history::History;
 
-/// Go `bufio.Reader`'s default size, which both readers use.
+/// The read buffer of both readers.
 const BUFFER: usize = 4096;
 
 /// Supplies one line per call; `None` ends the session.
@@ -39,33 +39,32 @@ impl<R: Read, W: Write> LineReader for PlainReader<R, W> {
     fn read_line(&mut self, prompt: &str) -> Option<String> {
         let _ = self.out.write_all(prompt.as_bytes());
         let mut line = Vec::new();
-        // A read error ends the input like its end (Go: the error with
-        // an empty line).
+        // a read error ends the input like its end
         let _ = self.input.read_until(b'\n', &mut line);
         if line.is_empty() {
             return None;
         }
-        let line = line.strip_suffix(b"\n").unwrap_or(&line);
-        let line = line.strip_suffix(b"\r").unwrap_or(line);
-        Some(decode_go(line))
+        Some(decode_lossy(without_line_end(&line)))
     }
 }
 
-/// Decodes key presses from the bytes a raw-mode terminal sends (Go
-/// `readKey`): control characters, escape sequences for the arrows,
+/// A line read up to its LF, without the LF and one CR before it.
+fn without_line_end(line: &[u8]) -> &[u8] {
+    let line = line.strip_suffix(b"\n").unwrap_or(line);
+    line.strip_suffix(b"\r").unwrap_or(line)
+}
+
+/// Decodes key presses from the bytes a raw-mode terminal sends: control
+/// characters, escape sequences for the arrows,
 /// Home, End and Delete, or a UTF-8 rune.
 pub struct Keys<R: Read> {
     input: BufReader<R>,
-    /// Continuation bytes of a broken sequence already taken: each is
-    /// one U+FFFD still to come (Go takes them one at a time).
-    pending: usize,
 }
 
 impl<R: Read> Keys<R> {
     pub fn new(input: R) -> Self {
         Keys {
             input: BufReader::with_capacity(BUFFER, input),
-            pending: 0,
         }
     }
 
@@ -79,13 +78,10 @@ impl<R: Read> Keys<R> {
         Some(b)
     }
 
-    /// One rune the way Go's `bufio.Reader.ReadRune` decodes it: a byte
-    /// that does not start a valid UTF-8 sequence is one U+FFFD.
+    /// One character: an invalid UTF-8 sequence (the longest start of a
+    /// valid one, or a byte that starts none) is one U+FFFD, as fung
+    /// decodes text everywhere.
     fn rune(&mut self) -> Option<char> {
-        if self.pending > 0 {
-            self.pending -= 1;
-            return Some(char::REPLACEMENT_CHARACTER);
-        }
         let b = self.byte()?;
         let n = match b {
             0x00..=0x7f => return Some(b as char),
@@ -108,13 +104,24 @@ impl<R: Read> Keys<R> {
             seq = next;
         }
         if seq.len() < n {
-            // Go consumes only the first byte of a broken sequence; the
-            // continuation bytes already taken become U+FFFD each.
-            self.pending = seq.len() - 1;
+            // the bytes taken are one invalid sequence
             return Some(char::REPLACEMENT_CHARACTER);
         }
         std::str::from_utf8(&seq).ok()?.chars().next()
     }
+}
+
+/// What repaints a line: back to column 0, the prompt and the text, the
+/// rest of the screen line cleared, and the cursor moved back over what
+/// follows character `cur`, by display columns (a wide character takes
+/// two, a combining one none).
+fn redraw(prompt: &str, text: &str, cur: usize) -> String {
+    let back: usize = text.chars().skip(cur).map(fung_front::unicode::width).sum();
+    let mut s = format!("\r{prompt}{text}\x1b[K");
+    if back > 0 {
+        s.push_str(&format!("\x1b[{back}D"));
+    }
+    s
 }
 
 /// Whether `b` (a lead byte and continuation bytes) can begin a valid
@@ -149,8 +156,8 @@ impl<R: Read> Keys<R> {
         }
     }
 
-    /// What follows ESC (Go `readEscape`): `Some(None)` when it is no key
-    /// the editor knows, which is skipped like Go does.
+    /// What follows ESC: `Some(None)` when it is no key the editor knows,
+    /// which is skipped.
     fn escape(&mut self) -> Option<Option<Key>> {
         let b = self.byte()?;
         if b != b'[' && b != b'O' {
@@ -189,17 +196,14 @@ impl<R: Read> Keys<R> {
     }
 
     /// One line without editing, for a terminal raw mode cannot be set
-    /// on (Go's fallback: all trailing CR and LF are cut).
+    /// on, ended as [`PlainReader`] ends one.
     fn plain_line(&mut self) -> Option<String> {
         let mut line = Vec::new();
         let _ = self.input.read_until(b'\n', &mut line);
         if line.is_empty() {
             return None;
         }
-        while line.last().is_some_and(|&c| c == b'\n' || c == b'\r') {
-            line.pop();
-        }
-        Some(decode_go(&line))
+        Some(decode_lossy(without_line_end(&line)))
     }
 }
 
@@ -215,12 +219,11 @@ pub struct TermReader<R: Read + AsRawFd, W: Write> {
 }
 
 impl<R: Read + AsRawFd, W: Write> TermReader<R, W> {
-    /// A line editor when `input` is a terminal (Go `TermReader`: a
-    /// character device; raw mode is set per line, and a device it
-    /// cannot be set on reads plain lines).
+    /// A line editor when `input` is a terminal (raw mode is set per
+    /// line; should it fail, the line is read plainly).
     pub fn new(input: R, out: W) -> Option<Self> {
         let fd = input.as_raw_fd();
-        if !fung_vm::term::is_char_device(fd) {
+        if !fung_vm::term::is_terminal(fd) {
             return None;
         }
         Some(TermReader {
@@ -245,16 +248,10 @@ impl<R: Read + AsRawFd, W: Write> TermReader<R, W> {
         let _ = self.out.write_all(s.as_bytes());
     }
 
-    /// Repaints the prompt and the line, then places the cursor. Every
-    /// rune is taken as one column wide (Go: wide characters are an
-    /// open question).
+    /// Repaints the prompt and the line, then places the cursor.
     fn draw(&mut self, prompt: &str) {
         let (text, cur) = self.editor.render();
-        let back = text.chars().count() - cur;
-        let mut s = format!("\r{prompt}{text}\x1b[K");
-        if back > 0 {
-            s.push_str(&format!("\x1b[{back}D"));
-        }
+        let s = redraw(prompt, &text, cur);
         self.write(&s);
     }
 }
@@ -322,7 +319,15 @@ mod tests {
     }
 
     #[test]
-    fn keys_decode_like_go() {
+    fn the_plain_fallback_trims_one_line_ending_too() {
+        let mut k = Keys::new(&b"a\r\r\nb\n"[..]);
+        assert_eq!(k.plain_line().as_deref(), Some("a\r"));
+        assert_eq!(k.plain_line().as_deref(), Some("b"));
+        assert_eq!(k.plain_line(), None);
+    }
+
+    #[test]
+    fn keys_decode() {
         use Key::*;
         assert_eq!(
             keys(b"a\r\n\x7f\x08\x01\x05\x03\x04\x0c\x02z"),
@@ -359,23 +364,33 @@ mod tests {
             [Rune('참'), Rune('\u{1F600}')]
         );
         let f = Rune('\u{fffd}');
+        // one U+FFFD for each invalid sequence, as everywhere in fung
         assert_eq!(
             keys(b"\xff\xe2\x82a"),
-            [f, f, f, Rune('a')],
-            "Go: one U+FFFD per byte"
+            [f, f, Rune('a')],
+            "a stray byte, then a cut sequence"
         );
         assert_eq!(keys(b"\xe0\x80a"), [f, f, Rune('a')], "an overlong form");
-        assert_eq!(keys(b"\xe2\x82"), [f, f], "cut at the end");
+        assert_eq!(keys(b"\xe2\x82"), [f], "cut at the end");
         assert_eq!(keys(b"\x1b["), [], "cut inside an escape");
+    }
+
+    #[test]
+    fn the_cursor_moves_back_by_display_columns() {
+        // the cursor after `한`: `a` and `글` are 3 columns to its right
+        assert_eq!(redraw("> ", "한a글", 1), "\r> 한a글\x1b[K\x1b[3D");
+        assert_eq!(redraw("> ", "ab", 2), "\r> ab\x1b[K");
+        // a combining mark takes no column
+        assert_eq!(redraw("> ", "e\u{301}x", 0), "\r> e\u{301}x\x1b[K\x1b[2D");
     }
 
     #[test]
     fn a_device_that_is_not_a_terminal_reads_plain_lines() {
         let null = std::fs::File::open("/dev/null").unwrap();
-        let mut out = Vec::new();
-        let mut r = TermReader::new(null, &mut out).expect("a character device");
-        assert_eq!(r.read_line("> "), None);
-        assert_eq!(out, b"> ");
+        assert!(
+            TermReader::new(null, Vec::new()).is_none(),
+            "a character device that is no terminal gets the plain reader"
+        );
         let (rd, _w) = std::io::pipe().unwrap();
         assert!(
             TermReader::new(rd, Vec::new()).is_none(),

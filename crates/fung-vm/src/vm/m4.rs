@@ -1,6 +1,5 @@
-//! The M4 instructions (Go `m4.go`): building collections, indexing,
-//! slicing, `in`, the result operators `!` `?` `??`, and the pattern
-//! instructions.
+//! The M4 instructions: building collections, indexing, slicing, `in`, the
+//! result operators `!` `?` `??`, and the pattern instructions.
 
 use std::rc::Rc;
 
@@ -134,7 +133,7 @@ impl Task<'_> {
             Op::Field => {
                 let v = self.pop();
                 // `index` answers for a module too: its member, E0303
-                // for no such member, E0304 for a private one (Go m4.go).
+                // for no such member, E0304 for a private one.
                 let name = &self.frames[fi].proto.consts[arg];
                 let r = index::index(&v, name).map_err(|d| at(d, pos))?;
                 self.push(r);

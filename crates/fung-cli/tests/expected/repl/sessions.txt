@@ -105,14 +105,14 @@
 | > 
 -- stderr
 | :load needs a file path
-| cannot read nope.fung: open nope.fung: no such file or directory
+| cannot read `nope.fung`: no such file or directory
 | error[E0110]: unexpected `)`
 |   --> bad.fung:1:5
 |   |
 | 1 | x = )
 |   |     ^
 |   |
-| cannot read .: read .: is a directory
+| cannot read `.`: is a directory
 -- exit: 0
 ==== quit with code
 -- stdout
@@ -201,14 +201,14 @@
 | > 
 -- stderr
 -- exit: 0
-==== excerpts come from the current input
+==== excerpts come from the input that defined the code
 -- stdout
 | > . . > . . > > > 
 -- stderr
 | error[E0502]: division by zero
 |   --> <repl>:2:5
 |   |
-| 2 |   f(1)
+| 2 |   x / 0
 |   |     ^
 |   |
 |  call path (innermost first):
@@ -216,6 +216,10 @@
 |    <repl>:2   <entry>
 | error[E0502]: division by zero
 |   --> <repl>:2:5
+|   |
+| 2 |   x / 0
+|   |     ^
+|   |
 |  call path (innermost first):
 |    <repl>:2   f
 |    <repl>:1   <entry>
@@ -235,11 +239,19 @@
 -- stderr
 | error[E0502]: division by zero
 |   --> m.fung:1:16
+|   |
+| 1 | fn boom(x) = x / 0
+|   |                ^
+|   |
 |  call path (innermost first):
 |    m.fung:1   boom
 |    <repl>:1   <entry>
 | error[E0502]: division by zero
 |   --> m.fung:1:16
+|   |
+| 1 | fn boom(x) = x / 0
+|   |                ^
+|   |
 |  call path (innermost first):
 |    m.fung:1   boom
 |    <repl>:1   <entry>
@@ -267,6 +279,10 @@
 -- stderr
 | task failed: error[E0507]: index 5 is out of range (length 1)
 |   --> <repl>:3:6
+|   |
+| 3 |   [1][5]
+|   |      ^
+|   |
 |  call path (innermost first):
 |    <repl>:3   <lambda>
 -- exit: 0
@@ -280,6 +296,10 @@
 -- stderr
 | error[E0502]: division by zero
 |   --> <repl>:1:17
+|   |
+| 1 | at_exit(() => 1 / 0)
+|   |                 ^
+|   |
 |  call path (innermost first):
 |    <repl>:1   <lambda>
 -- exit: 7
@@ -325,7 +345,7 @@
 -- stdout
 | > ��
 | nil
-| > "��"
+| > "�"
 | > 
 -- stderr
 -- exit: 0

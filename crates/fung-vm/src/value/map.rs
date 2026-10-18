@@ -11,7 +11,7 @@ use super::Value;
 use super::omap::{self, Omap};
 use super::release::{drop_children, keep};
 
-/// The largest map kept as a plain vector (Go `smallMapMax`).
+/// The largest map kept as a plain vector.
 pub const SMALL_MAP_MAX: usize = 16;
 
 #[derive(Clone)]

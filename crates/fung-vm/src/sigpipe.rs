@@ -1,18 +1,17 @@
-//! Death by SIGPIPE on a closed standard output or error, as Go dies.
+//! Death by SIGPIPE on a closed standard output or error.
 //!
-//! Go's `os.(*File).Write` checks every EPIPE (`epipecheck`): on file
-//! descriptor 1 or 2 it raises SIGPIPE with the default action
-//! (`runtime.sigpipe`), so `fung run x | head -1` ends at once, from
-//! whichever task wrote, with no report and no exit handlers, and the
-//! parent sees signal 13. On any other descriptor the write fails with
-//! EPIPE and fung gets an error value.
+//! fung's rule (06): a write to standard output or error whose reader has
+//! gone ends the process by SIGPIPE, so `fung run x | head -1` stops at
+//! once, from whichever task wrote, with no report and no exit handlers,
+//! and the parent sees signal 13, as for any Unix filter. A write to any
+//! other descriptor that finds the reader gone (a child's closed standard
+//! input, a fifo whose reader left, a socket) is an error value.
 //!
-//! The Rust runtime sets SIGPIPE to ignored at startup and the port keeps
-//! it so: a write to a child's closed standard input or to a fifo whose
-//! reader left must stay an error value. Only the standard streams call
-//! [`die`], which restores the default action just before raising.
-//! (`std::process::Command` already resets SIGPIPE to the default in a
-//! child, as Go's `os/exec` leaves it.)
+//! The Rust runtime sets SIGPIPE to ignored at startup and fung keeps it
+//! so, which makes those other writes fail with EPIPE. Only the standard
+//! streams call [`die`], which restores the default action just before
+//! raising. (`std::process::Command` already resets SIGPIPE to the
+//! default in a child.)
 
 /// The status a shell shows for a process killed by SIGPIPE (128 + 13):
 /// the exit code when the signal cannot kill the process.
@@ -23,15 +22,12 @@ pub const EXIT_BROKEN_PIPE: i32 = 141;
 /// whatever locks or run token other threads hold: no fung value is
 /// touched and nothing is unwound or flushed.
 ///
-/// Like Go's `dieFromSignal`, it unblocks SIGPIPE in the calling thread
-/// first. If the signal still does not kill the process, it exits with
-/// [`EXIT_BROKEN_PIPE`], what a shell would show, as Go does there.
-///
-/// Two parts of this are Go runtime behaviour, not a language rule, and
-/// are listed for removal after the port in open-questions "Go 동등을 위한
-/// 과도기 잔가지": dying even when the process was started with SIGPIPE
-/// ignored (a C program would see EPIPE instead), and the 141 fallback
-/// (Go `dieFromSignal`'s `exit(128 + sig)`).
+/// It sets the default action even when the process was started with
+/// SIGPIPE ignored: the rule is the same however fung was started, and a
+/// script in a pipeline must stop when the pipeline does. It unblocks
+/// SIGPIPE in the calling thread first. If the signal still does not
+/// kill the process, it exits with [`EXIT_BROKEN_PIPE`], what a shell
+/// would show for the signal.
 pub fn die() -> ! {
     #[cfg(unix)]
     // SAFETY: `signal`, `sigemptyset`, `sigaddset`, `pthread_sigmask` and

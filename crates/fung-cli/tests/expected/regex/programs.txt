@@ -7,6 +7,8 @@
 -- exit: 0
 ==== "import regex\nfor m in regex.find_all(\"é가 a b\", `\\b`):\n  print(m)\n;;"
 -- stdout
+| {text: "", start: 0, end: 0, groups: [], named: {}}
+| {text: "", start: 2, end: 2, groups: [], named: {}}
 | {text: "", start: 3, end: 3, groups: [], named: {}}
 | {text: "", start: 4, end: 4, groups: [], named: {}}
 | {text: "", start: 5, end: 5, groups: [], named: {}}
@@ -96,7 +98,7 @@
 ==== "import regex\nprint(regex.replace(\"x\", \"(\", 2))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(`
+| error[E0515]: invalid pattern `(`: unclosed group
 |   --> -e:2:20
 |   |
 | 2 | print(regex.replace("x", "(", 2))
@@ -168,7 +170,7 @@
 ==== "import regex\nfn f(p) = regex.find(\"x\", p)\nprint(f(\"a)\"))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: unexpected ): `a)`
+| error[E0515]: invalid pattern `a)`: unopened group
 |   --> -e:2:21
 |   |
 | 2 | fn f(p) = regex.find("x", p)
@@ -181,7 +183,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(`
+| error[E0515]: invalid pattern `(`: unclosed group
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(`))
@@ -193,7 +195,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `)`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: unexpected ): `)`
+| error[E0515]: invalid pattern `)`: unopened group
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `)`))
@@ -205,7 +207,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `a)`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: unexpected ): `a)`
+| error[E0515]: invalid pattern `a)`: unopened group
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `a)`))
@@ -217,7 +219,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `[a`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ]: `[a`
+| error[E0515]: invalid pattern `[a`: unclosed character class
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `[a`))
@@ -229,7 +231,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `[z-a]`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid character class range: `z-a`
+| error[E0515]: invalid pattern `[z-a]`: invalid character class range, the start must be <= the end
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `[z-a]`))
@@ -240,44 +242,23 @@
 -- exit: 1
 ==== "import regex\nprint(regex.find(\"x\", `a**`))"
 -- stdout
+| {text: "", start: 0, end: 0, groups: [], named: {}}
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid nested repetition operator: `**`
-|   --> -e:2:17
-|   |
-| 2 | print(regex.find("x", `a**`))
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 0
 ==== "import regex\nprint(regex.find(\"x\", `a{1001}`))"
 -- stdout
+| nil
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid repeat count: `{1001}`
-|   --> -e:2:17
-|   |
-| 2 | print(regex.find("x", `a{1001}`))
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 0
 ==== "import regex\nprint(regex.find(\"x\", `a{2}{1001}`))"
 -- stdout
+| nil
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid repeat count: `{1001}`
-|   --> -e:2:17
-|   |
-| 2 | print(regex.find("x", `a{2}{1001}`))
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 0
 ==== "import regex\nprint(regex.find(\"x\", `*a`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing argument to repetition operator: `*`
+| error[E0515]: invalid pattern `*a`: repetition operator missing expression
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `*a`))
@@ -289,7 +270,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `+`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing argument to repetition operator: `+`
+| error[E0515]: invalid pattern `+`: repetition operator missing expression
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `+`))
@@ -301,7 +282,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `?`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing argument to repetition operator: `?`
+| error[E0515]: invalid pattern `?`: repetition operator missing expression
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `?`))
@@ -312,20 +293,13 @@
 -- exit: 1
 ==== "import regex\nprint(regex.find(\"x\", `(?x)a`))"
 -- stdout
+| nil
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?x`
-|   --> -e:2:17
-|   |
-| 2 | print(regex.find("x", `(?x)a`))
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 0
 ==== "import regex\nprint(regex.find(\"x\", `\\Z`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid escape sequence: `\Z`
+| error[E0515]: invalid pattern `\Z`: unrecognized escape sequence
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `\Z`))
@@ -337,7 +311,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `\\8`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid escape sequence: `\8`
+| error[E0515]: invalid pattern `\8`: backreferences are not supported
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `\8`))
@@ -348,18 +322,32 @@
 -- exit: 1
 ==== "import regex\nprint(regex.find(\"x\", `\\Q`))"
 -- stdout
-| {text: "", start: 0, end: 0, groups: [], named: {}}
 -- stderr
--- exit: 0
+| error[E0515]: invalid pattern `\Q`: unrecognized escape sequence
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `\Q`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
 ==== "import regex\nprint(regex.find(\"x\", `\\pN{`))"
 -- stdout
-| nil
 -- stderr
--- exit: 0
+| error[E0515]: invalid pattern `\pN{`: unclosed counted repetition
+|   --> -e:2:17
+|   |
+| 2 | print(regex.find("x", `\pN{`))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
 ==== "import regex\nprint(regex.find(\"x\", `\\p{Nope}`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid character class range: `\p{Nope}`
+| error[E0515]: invalid pattern `\p{Nope}`: Unicode property not found
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `\p{Nope}`))
@@ -371,7 +359,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(?P<>a)`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid named capture: `(?P<>`
+| error[E0515]: invalid pattern `(?P<>a)`: empty capture group name
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(?P<>a)`))
@@ -383,7 +371,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(?P<a`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid named capture: `(?P<a`
+| error[E0515]: invalid pattern `(?P<a`: unclosed capture group name
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(?P<a`))
@@ -395,7 +383,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(?P<a>x)(?P<a`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid named capture: `(?P<a`
+| error[E0515]: invalid pattern `(?P<a>x)(?P<a`: unclosed capture group name
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(?P<a>x)(?P<a`))
@@ -407,7 +395,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(?i`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?i`
+| error[E0515]: invalid pattern `(?i`: expected flag but got end of regex
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(?i`))
@@ -419,7 +407,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(?z)`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?z`
+| error[E0515]: invalid pattern `(?z)`: unrecognized flag
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(?z)`))
@@ -430,32 +418,18 @@
 -- exit: 1
 ==== "import regex\nprint(regex.find(\"x\", `x{1,2}{3,4}{5}`))"
 -- stdout
+| nil
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid nested repetition operator: `{1,2}{3,4}`
-|   --> -e:2:17
-|   |
-| 2 | print(regex.find("x", `x{1,2}{3,4}{5}`))
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 0
 ==== "import regex\nprint(regex.find(\"x\", `[[:nope:]]`))"
 -- stdout
+| nil
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid character class range: `[:nope:]`
-|   --> -e:2:17
-|   |
-| 2 | print(regex.find("x", `[[:nope:]]`))
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    -e:2       <entry>
--- exit: 1
+-- exit: 0
 ==== "import regex\nprint(regex.find(\"x\", `[]a`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ]: `[]a`
+| error[E0515]: invalid pattern `[]a`: unclosed character class
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `[]a`))
@@ -467,7 +441,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `\\`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: trailing backslash at end of expression: ``
+| error[E0515]: invalid pattern `\`: incomplete escape sequence, reached end of pattern prematurely
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `\`))
@@ -479,7 +453,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `a(?`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: invalid or unsupported Perl syntax: `(?`
+| error[E0515]: invalid pattern `a(?`: unclosed group
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `a(?`))
@@ -491,7 +465,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `가(`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `가(`
+| error[E0515]: invalid pattern `가(`: unclosed group
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `가(`))
@@ -503,7 +477,7 @@
 ==== "import regex\nprint(regex.find(\"x\", `(가나]`))"
 -- stdout
 -- stderr
-| error[E0515]: invalid pattern: error parsing regexp: missing closing ): `(가나]`
+| error[E0515]: invalid pattern `(가나]`: unclosed group
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", `(가나]`))

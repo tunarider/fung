@@ -61,6 +61,7 @@ version = "0.0.0"
 dependencies = [
  "fung-front",
  "fung-vm",
+ "rustls",
 ]
 
 [[package]]

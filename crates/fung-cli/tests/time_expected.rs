@@ -10,7 +10,7 @@ mod common;
 use std::process::{Command, Stdio};
 
 use common::expected::{self, Entry};
-use common::{repo, rust_fung};
+use common::{fung_bin, repo};
 
 /// The `TZ` values with a fixed expected output.
 const ZONES: &[&str] = &[
@@ -134,7 +134,7 @@ fn entries(bin: &std::path::Path) -> Vec<Entry> {
 #[test]
 fn time_runs_match_the_expected_output_under_each_tz() {
     assert_eq!(ZONES.len() * PROGRAMS.len(), ZONE_CASES, "cases");
-    let got = entries(&rust_fung());
+    let got = entries(&fung_bin());
     expected::verify(
         "time/programs.txt",
         "`time` programs under each TZ (crates/fung-cli/tests/time_expected.rs), each run with `fung -e`.\n\
@@ -148,12 +148,9 @@ fn time_runs_match_the_expected_output_under_each_tz() {
 #[test]
 fn an_unset_tz_reads_etc_localtime() {
     assert_eq!(PROGRAMS.len(), UNSET_CASES, "programs");
-    let rust = rust_fung();
+    let bin = fung_bin();
     let bad: Vec<String> = common::par_map(PROGRAMS, |src| {
-        let (unset, file) = (
-            run(&rust, src, None),
-            run(&rust, src, Some("/etc/localtime")),
-        );
+        let (unset, file) = (run(&bin, src, None), run(&bin, src, Some("/etc/localtime")));
         (unset != file).then(|| format!("{src}\n  unset {unset:?}\n  file  {file:?}"))
     })
     .into_iter()
@@ -162,33 +159,32 @@ fn an_unset_tz_reads_etc_localtime() {
     assert!(bad.is_empty(), "{} differ:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// East of UTC the repeated wall time takes the second occurrence (Go
-/// `time.Date` tries the offset at the wall time read as UTC first).
+/// East of UTC too, a skipped wall time moves forward by the gap and a
+/// repeated one is its earlier instant (06: 시간 형식).
 #[test]
-fn berlin_changes_follow_go_date() {
+fn berlin_changes_follow_the_wall_time_rule() {
     let src = r#"print(time.parse("2026-03-29 02:30", "YYYY-MM-DD HH:mm")!, time.parse("2026-10-25 02:30", "YYYY-MM-DD HH:mm")!)"#;
-    let (out, err, code) = run(&rust_fung(), src, Some("Europe/Berlin"));
+    let (out, err, code) = run(&fung_bin(), src, Some("Europe/Berlin"));
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         (
-            "2026-03-29T03:30:00+02:00 2026-10-25T02:30:00+01:00\n",
+            "2026-03-29T03:30:00+02:00 2026-10-25T02:30:00+02:00\n",
             "",
             Some(0)
         )
     );
 }
 
-/// The comparison is not vacuous: in New York the skipped 02:30 reads one
-/// hour later than with the new offset, and the repeated 01:30 takes the
-/// first (daylight) occurrence (Go `time.Date`).
+/// In New York the skipped 02:30 moves forward by the gap (03:30 daylight
+/// time), and the repeated 01:30 is its earlier (daylight) instant.
 #[test]
-fn new_york_changes_follow_go_date() {
+fn new_york_changes_follow_the_wall_time_rule() {
     let src = r#"print(time.parse("2026-03-08 02:30", "YYYY-MM-DD HH:mm")!, time.parse("2026-11-01 01:30", "YYYY-MM-DD HH:mm")!)"#;
-    let (out, err, code) = run(&rust_fung(), src, Some("America/New_York"));
+    let (out, err, code) = run(&fung_bin(), src, Some("America/New_York"));
     assert_eq!(
         (out.as_str(), err.as_str(), code),
         (
-            "2026-03-08T01:30:00-05:00 2026-11-01T01:30:00-04:00\n",
+            "2026-03-08T03:30:00-04:00 2026-11-01T01:30:00-04:00\n",
             "",
             Some(0)
         )

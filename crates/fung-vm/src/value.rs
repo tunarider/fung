@@ -31,8 +31,8 @@ pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
 pub(crate) use release::{drop_children, keep};
 pub use sym::{Sym, intern};
-pub(crate) use time::Loc;
 pub use time::Time;
+pub(crate) use time::{Loc, MAX_UNIX, MIN_UNIX, civil_from_days, days_from_civil, offset_text};
 pub use types::matches_type;
 
 /// A fung value. Every pointer is a thin `Rc`, so a value is 16 bytes.
@@ -58,21 +58,21 @@ pub enum Value {
     Task(Rc<TaskHandle>),
     /// A channel (05, `channel`).
     Channel(Rc<Channel>),
-    /// An agent's handle (stage 3b, Rust only): it closes the agent's
+    /// An agent's handle (stage 3b): it closes the agent's
     /// request channel when its last copy drops (`vm/agent.rs`).
     Agent(Rc<Agent>),
     /// An open file handle (`fs.open`); it closes the file when its last
     /// copy drops (`native/file.rs`).
     File(Rc<File>),
-    /// A TCP connection (stage 4d, Rust only; only `_native.net` makes
-    /// one): it closes when its last copy drops (`native/net.rs`).
+    /// A TCP connection (stage 4d; only `_native.net` makes one): it
+    /// closes when its last copy drops (`native/net.rs`).
     Conn(Rc<Conn>),
     /// A listening TCP socket (stage 4d, like `Conn`).
     Listener(Rc<Listener>),
     /// An instant with its zone (02, `time`).
     Time(Rc<Time>),
-    /// An error `_native.conc.try_call` caught, for `raise` (stage 3b,
-    /// Rust only; only `extras/agent.fung` handles one).
+    /// An error `_native.conc.try_call` caught, for `raise` (stage 3b;
+    /// only `extras/agent.fung` handles one).
     Caught(Rc<Caught>),
 }
 
@@ -238,13 +238,11 @@ pub struct Range {
 }
 
 impl Range {
-    /// The number of integers in the range, 0 if it is empty. Wraps like
-    /// Go's int64, so a range wider than i64 counts as empty.
-    pub fn len(&self) -> i64 {
-        let mut n = self.end.wrapping_sub(self.start);
-        if self.inclusive {
-            n = n.wrapping_add(1);
-        }
+    /// The number of integers in the range, 0 if it is empty. Counted
+    /// exactly: a range wider than the int range (up to 2^64 numbers) is
+    /// not empty.
+    pub fn len(&self) -> i128 {
+        let n = i128::from(self.end) - i128::from(self.start) + i128::from(self.inclusive);
         n.max(0)
     }
 

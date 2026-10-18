@@ -1,9 +1,7 @@
-//! Boot tests: ports of Go `internal/vm/prelude_test.go`
-//! `TestProcessFunctions`, `TestFungPreludeFunctions` and
-//! `TestTakeDropCheckTheirCount`, the concurrency natives, the
-//! parameter tables against `spec/builtins.txt`, and the positions of
-//! errors raised inside `extras/prelude.fung` (expected text from the Go
-//! binary).
+//! Boot tests: the process functions, the prelude functions written in
+//! fung, the count checks of `take` and `drop`, the concurrency natives,
+//! the parameter tables against `spec/builtins.txt`, and the positions of
+//! errors raised inside `extras/prelude.fung` (the whole expected text).
 
 use std::collections::BTreeSet;
 use std::io::Cursor;
@@ -33,7 +31,7 @@ fn render_params(ps: &[NativeParam]) -> String {
 #[test]
 fn concurrency_builtin_errors_have_a_position() {
     // A native's error points at the call's `(` like every other native
-    // error in Go (`spawn(1)` → E0403 at 2:6); so does the error of the
+    // error (`spawn(1)` → E0403 at 2:6); so does the error of the
     // fung `deref` (stage 3b, `extras/agent.fung`).
     for (src, want) in [
         (
@@ -82,7 +80,7 @@ fn agents_run() {
 }
 
 /// The fung helpers built on the concurrency natives fail at the user's
-/// call (the extras frames are builtin, Go `attach`), with the extras
+/// call (the extras frames are builtin), with the extras
 /// frames in the call path. (`pmap` and `fan_in` run since stage 3a: see
 /// `pmap_runs_its_tasks` and `fan_in_merges_its_channels`; since stage 6a
 /// they live in the module `conc`, `extras/conc.fung`.)
@@ -188,7 +186,7 @@ fn native_modules_match_the_spec() {
 /// (`extras/conc.fung`), with the parameter tables of
 /// `fung_front::builtins`; the prelude no longer has them, so a program
 /// that calls one without the module gets the error any unknown name
-/// gets (text as Go prints it for an unknown `qmap`, the name swapped).
+/// gets (the text for an unknown `qmap`, the name swapped).
 #[test]
 fn conc_module_matches_the_spec_and_the_prelude_lacks_it() {
     on_big_stack(|| {
@@ -295,7 +293,7 @@ fn script_args_reach_the_program() {
     assert_eq!(o.out, "[\"x\", \"y\"] 2\n");
 }
 
-// --- Go TestProcessFunctions ---
+// --- process functions ---
 
 #[test]
 fn process_functions() {
@@ -338,13 +336,13 @@ fn process_functions() {
     }
 }
 
-/// Failures to start a command, as the Go binary reports them.
+/// Failures to start a command and their reasons (06: 명령 실행).
 #[test]
-fn commands_that_cannot_run_are_not_found_like_go() {
+fn commands_that_cannot_run_are_not_found() {
     let cases: &[(&str, &str)] = &[
         (
             "print(exec([\"definitely-not-a-command-xyz\"]))",
-            "Err({kind: 'not_found, message: \"cannot run `definitely-not-a-command-xyz`: executable file not found in $PATH\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run `definitely-not-a-command-xyz`: command not found in PATH\"})\n",
         ),
         (
             "print(exec([\"/nonexistent/x\"]))",
@@ -356,7 +354,7 @@ fn commands_that_cannot_run_are_not_found_like_go() {
         ),
         (
             "print(exec([\"\"]))",
-            "Err({kind: 'not_found, message: \"cannot run ``: exec: no command\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run ``: empty command name\"})\n",
         ),
         (
             "print(exec([\"ls\"], cwd: \"/nonexistent\"))",
@@ -372,15 +370,19 @@ fn commands_that_cannot_run_are_not_found_like_go() {
         ),
         (
             "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]))",
-            "Err({kind: 'not_found, message: \"cannot run `sh`: invalid argument\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run `sh`: argument contains a NUL byte\"})\n",
         ),
         (
             "print(exec([\"sh\"], env: {\"A\": \"x\\u{0}\"}))",
-            "Err({kind: 'not_found, message: \"cannot run `sh`: exec: environment variable contains NUL\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run `sh`: environment variable contains a NUL byte\"})\n",
         ),
         (
             "print(exec([\"ls\"], cwd: \"/\\u{0}\"))",
-            "Err({kind: 'not_found, message: \"cannot run `ls`: exec: environment variable contains NUL\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run `ls`: working directory contains a NUL byte\"})\n",
+        ),
+        (
+            "print(exec([\"ls\"], cwd: \"no\\u{0}\", env: {\"A\": \"\\u{0}\"}))",
+            "Err({kind: 'not_found, message: \"cannot run `ls`: working directory contains a NUL byte\"})\n",
         ),
     ];
     for (src, want) in cases {
@@ -389,7 +391,7 @@ fn commands_that_cannot_run_are_not_found_like_go() {
     }
 }
 
-// --- Go TestFungPreludeFunctions ---
+// --- prelude functions written in fung ---
 
 #[test]
 fn fung_prelude_functions() {
@@ -451,7 +453,7 @@ fn fung_prelude_functions() {
     }
 }
 
-// --- Go TestTakeDropCheckTheirCount ---
+// --- take and drop check their count ---
 
 #[test]
 fn take_drop_check_their_count() {
@@ -467,7 +469,7 @@ fn take_drop_check_their_count() {
     }
 }
 
-// --- errors inside extras/prelude.fung (full text from the Go binary) ---
+// --- errors inside extras/prelude.fung (the whole text) ---
 
 #[test]
 fn errors_inside_the_fung_prelude_name_its_file() {
@@ -482,8 +484,8 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |     ^
   |
  call path (innermost first):
-   extras/prelude.fung:62 _clamp
-   extras/prelude.fung:68 take
+   extras/prelude.fung:78 _clamp
+   extras/prelude.fung:86 take
    -e:2       <entry>
 "
     );
@@ -500,7 +502,7 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:120 until
+   extras/prelude.fung:139 until
    -e:1       <entry>
 "
     );
@@ -531,8 +533,8 @@ fn prelude_frames_and_imported_files_keep_their_names() {
   |                  ^
   |
  call path (innermost first):
-   extras/prelude.fung:62 _clamp
-   extras/prelude.fung:68 take
+   extras/prelude.fung:78 _clamp
+   extras/prelude.fung:86 take
    {d}/lib.fung:1 cut
    {d}/main.fung:3 <entry>
 "
@@ -541,10 +543,10 @@ fn prelude_frames_and_imported_files_keep_their_names() {
     assert_eq!(code, 1);
 }
 
-/// A file with the execute bit that is not a program: Go's `execve`
-/// fails with ENOEXEC (no `/bin/sh` fallback, unlike `execvp`).
+/// A file with the execute bit that is not a program: `execve` fails
+/// with ENOEXEC (no `/bin/sh` fallback, unlike `execvp`).
 #[test]
-fn files_that_are_not_programs_give_exec_format_error() {
+fn files_that_are_not_programs_are_refused() {
     use std::os::unix::fs::PermissionsExt;
     let dir = temp_dir();
     for (name, body) in [
@@ -559,7 +561,7 @@ fn files_that_are_not_programs_give_exec_format_error() {
         assert_eq!(
             out,
             format!(
-                "Err({{kind: 'not_found, message: \"cannot run `{}`: exec format error\"}})\n",
+                "Err({{kind: 'not_found, message: \"cannot run `{}`: not an executable file (run scripts with sh)\"}})\n",
                 p.display()
             )
         );
@@ -567,7 +569,7 @@ fn files_that_are_not_programs_give_exec_format_error() {
 }
 
 /// `fan_in` drains each channel on its own task into one channel, closed
-/// when all are drained (expected output from the Go binary).
+/// when all are drained.
 #[test]
 fn fan_in_merges_its_channels() {
     let (out, err, code) = crate::testutil::run(
@@ -580,7 +582,7 @@ fn fan_in_merges_its_channels() {
 }
 
 /// `pmap` spawns its tasks with `_native.conc.spawn_awaited` and awaits
-/// them (expected output from the Go binary).
+/// them.
 #[test]
 fn pmap_runs_its_tasks() {
     let (out, err, code) = crate::testutil::run(
@@ -596,7 +598,7 @@ fn pmap_runs_its_tasks() {
     );
 }
 
-/// `sleep` waits for real, so `retry` with a delay works as in Go.
+/// `sleep` waits for real, so `retry` with a delay really waits.
 #[test]
 fn sleep_waits_and_retry_uses_it() {
     let start = std::time::Instant::now();

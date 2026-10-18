@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use common::rust_fung;
+use common::fung_bin;
 
 /// Serialises every test here that creates a pipe or spawns a child.
 ///
@@ -81,7 +81,7 @@ fn into_closed_pipe(
 fn dies_by_sigpipe(code: &str, on_stderr: bool, other: &str) {
     let _serial = serial();
     for ignored in [false, true] {
-        let (status, got) = into_closed_pipe(&rust_fung(), code, on_stderr, ignored);
+        let (status, got) = into_closed_pipe(&fung_bin(), code, on_stderr, ignored);
         let how = if ignored {
             " (started ignoring SIGPIPE)"
         } else {
@@ -213,7 +213,7 @@ fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, St
 fn fifo_case(name: &str, code: &str, want: &str) {
     let _serial = serial();
     let (dir, f) = fifo(name);
-    let (out, err, status) = into_closed_fifo(&rust_fung(), &f, &dir, code);
+    let (out, err, status) = into_closed_fifo(&fung_bin(), &f, &dir, code);
     assert_eq!((out.as_str(), err.as_str()), (want, ""));
     assert_eq!(status.code(), Some(0), "{status:?}");
     let _ = std::fs::remove_dir_all(&dir);
@@ -233,7 +233,9 @@ fn a_file_handle_on_a_closed_fifo_gives_error_values() {
     fifo_case(
         "handle",
         "import fs\nbig = join(map(0..100000, (i) => \"abcdefghij\"), \"\")\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, big))\nprint(fs.write_line(h, big))\nprint(fs.close(h))\nprint(\"alive\")",
-        "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nErr({kind: 'io, message: \"cannot close `D/f`: broken pipe\"})\nalive\n",
+        // Each failed write reports its error; close has nothing left to
+        // flush.
+        "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nOk(nil)\nalive\n",
     );
 }
 
@@ -250,7 +252,7 @@ fn a_buffered_write_to_a_closed_fifo_fails_at_close() {
 /// output and status 0.
 fn runs_with(code: &str, want: &str) {
     let _serial = serial();
-    let o = Command::new(rust_fung())
+    let o = Command::new(fung_bin())
         .args(["-e", code])
         .stdin(Stdio::null())
         .output()

@@ -1,6 +1,5 @@
-//! Ports of Go `internal/vm/module_test.go` and the module parts of the
-//! fung command: IMPORT, per-module globals, a module body running once,
-//! the module value and member access.
+//! Modules at run time, as the fung command uses them: IMPORT, per-module
+//! globals, a module body running once, the module value and member access.
 
 use std::rc::Rc;
 
@@ -8,7 +7,7 @@ use crate::testutil::{Opts, on_big_stack, run_file, run_files, setup, temp_dir};
 use crate::value::{Module, Value, format};
 use crate::vm::Stop;
 
-/// (stdout, error code) of an in-memory program, like Go `runProgram`.
+/// (stdout, error code) of an in-memory program.
 fn run_program(files: &[(&str, &str)], entry: &str) -> (String, String) {
     let o = run_files(files, entry);
     (o.out, o.code)
@@ -16,8 +15,8 @@ fn run_program(files: &[(&str, &str)], entry: &str) -> (String, String) {
 
 #[test]
 fn a_module_body_runs_once_and_keeps_its_globals() {
-    // Go rejects a bare `print(...)` at a module's top level (E0306), so
-    // the body prints through an assignment.
+    // A bare `print(...)` at a module's top level is E0306, so the body
+    // prints through an assignment.
     let dir = temp_dir();
     std::fs::write(
         dir.join("lib.fung"),
@@ -115,9 +114,9 @@ fn member_import_and_closure_globals() {
     assert_eq!((out.as_str(), code.as_str()), ("15 [11, 12] 1\n", ""));
 }
 
-// Full reports, expected text from the Go binary (`fung run <abs path>`
-// from the repository root; the temp dir lies outside it, so every file
-// shows as its absolute path).
+// Full reports, as `fung run <abs path>` prints them from the repository
+// root (the temp dir lies outside it, so every file shows as its absolute
+// path).
 
 #[test]
 fn an_error_inside_an_imported_module_shows_its_file_in_the_call_path() {
@@ -181,7 +180,7 @@ fn an_error_in_a_module_body_shows_the_module_frame() {
 }
 
 #[test]
-fn member_errors_match_go() {
+fn member_error_reports() {
     let dir = temp_dir();
     std::fs::write(dir.join("init.fung"), "x = 1\nfn _h() = 1\n").unwrap();
     let d = dir.display();
@@ -301,7 +300,7 @@ fn import_module_runs_the_body_once_and_register_does_not_reset_it() {
         assert_eq!(m.key, "/p/lib.fung");
         assert_eq!(m.names(), ["x", "y"]);
         assert_eq!(format(&Value::Module(m.clone())), "<module lib>");
-        // A module that already ran keeps its value (Go `Register`).
+        // A module that already ran keeps its value.
         let again = s.rt.import_module("/p/lib.fung").unwrap();
         assert!(Rc::ptr_eq(&m, &again));
         s.rt.register_main_as("/p/lib.fung");
@@ -342,8 +341,7 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
     });
 }
 
-/// Every standard module runs since stage 4d wrote `http` in fung (the
-/// E0805 placeholders for the modules the port did not run are gone).
+/// Every standard module runs (since stage 4d wrote `http` in fung).
 #[test]
 fn standard_modules_run() {
     // `http` runs since stage 4d (its client: the arguments are checked).

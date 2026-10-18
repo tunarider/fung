@@ -8,10 +8,6 @@ pub(super) fn add_dur(a: i64, b: i64) -> Result<Value, Diag> {
 }
 
 pub(super) fn sub_dur(a: i64, b: i64) -> Result<Value, Diag> {
-    // Go negates `b` first, so the minimum overflows even if `a - b` fits.
-    if b == i64::MIN {
-        return Err(overflow());
-    }
     a.checked_sub(b).map(Value::Dur).ok_or_else(overflow)
 }
 

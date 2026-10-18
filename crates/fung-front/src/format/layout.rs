@@ -1,4 +1,4 @@
-//! The indentation state machine (Go `layout.go`).
+//! The indentation state machine.
 
 use super::Tok;
 use super::lines::Line;

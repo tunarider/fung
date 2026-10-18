@@ -231,7 +231,7 @@
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 299 status code 299\r
+| HTTP/1.1 299 \r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
 | Content-Length: 3\r
@@ -429,7 +429,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 28
 -- request
 | GET /echo HTTP/1.1
@@ -663,10 +662,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| handler failed
+| 500 Internal Server Error
 ==== request 41
 -- request (escaped)
 | GET /badtype HTTP/1.1\r
@@ -679,10 +678,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| handler failed
+| 500 Internal Server Error
 ==== request 42
 -- request (escaped)
 | GET /badstatus HTTP/1.1\r
@@ -695,10 +694,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| handler failed
+| 500 Internal Server Error
 ==== request 43
 -- request (escaped)
 | GET /range HTTP/1.1\r
@@ -711,10 +710,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| handler failed
+| 500 Internal Server Error
 ==== request 44
 -- request (escaped)
 | GET /badbody HTTP/1.1\r
@@ -727,10 +726,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| handler failed
+| 500 Internal Server Error
 ==== request 45
 -- request (escaped)
 | GET /badheader HTTP/1.1\r
@@ -743,10 +742,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| handler failed
+| 500 Internal Server Error
 ==== request 46
 -- request (escaped)
 | HEAD /fail HTTP/1.1\r
@@ -759,7 +758,7 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 15\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
 ==== request 47
@@ -773,7 +772,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 48
 -- request (escaped)
 | \r
@@ -787,7 +785,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 49
 -- request (escaped)
 | GE T /count HTTP/1.1\r
@@ -800,7 +797,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 50
 -- request (escaped)
 | G(T /count HTTP/1.1\r
@@ -813,7 +809,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 51
 -- request (escaped)
 | GET /count HTTP/1.x\r
@@ -826,7 +821,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 52
 -- request (escaped)
 | GET /count HTTP/2.0\r
@@ -834,12 +828,11 @@
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 505 HTTP Version Not Supported: unsupported protocol version\r
+| HTTP/1.1 505 HTTP Version Not Supported\r
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| 505 HTTP Version Not Supported: unsupported protocol version
-\ no newline
+| 505 HTTP Version Not Supported
 ==== request 53
 -- request (escaped)
 | GET /count HTTP/0.9\r
@@ -847,12 +840,11 @@
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 505 HTTP Version Not Supported: unsupported protocol version\r
+| HTTP/1.1 505 HTTP Version Not Supported\r
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| 505 HTTP Version Not Supported: unsupported protocol version
-\ no newline
+| 505 HTTP Version Not Supported
 ==== request 54
 -- request (escaped)
 | GET count HTTP/1.1\r
@@ -865,7 +857,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 55
 -- request (escaped)
 | GET /count%zz HTTP/1.1\r
@@ -878,7 +869,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 56
 -- request (escaped)
 | GET /count\x01 HTTP/1.1\r
@@ -891,7 +881,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 57
 -- request (escaped)
 | GET  HTTP/1.1\r
@@ -904,19 +893,17 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 58
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 400 Bad Request: missing required Host header\r
+| HTTP/1.1 400 Bad Request\r
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| 400 Bad Request: missing required Host header
-\ no newline
+| 400 Bad Request
 ==== request 59
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -924,12 +911,11 @@
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 400 Bad Request: malformed Host header\r
+| HTTP/1.1 400 Bad Request\r
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| 400 Bad Request: malformed Host header
-\ no newline
+| 400 Bad Request
 ==== request 60
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -943,7 +929,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 61
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -952,12 +937,11 @@
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 400 Bad Request: invalid header name\r
+| HTTP/1.1 400 Bad Request\r
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| 400 Bad Request: invalid header name
-\ no newline
+| 400 Bad Request
 ==== request 62
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -971,7 +955,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 63
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -984,7 +967,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 64
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -998,7 +980,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 65
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1012,7 +993,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 66
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1027,7 +1007,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 67
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1040,8 +1019,7 @@
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| Unsupported transfer encoding
-\ no newline
+| 501 Not Implemented
 ==== request 68
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1055,8 +1033,7 @@
 | Content-Type: text/plain; charset=utf-8\r
 | Connection: close\r
 | \r
-| Unsupported transfer encoding
-\ no newline
+| 501 Not Implemented
 ==== request 69
 -- request (escaped)
 | POST /count HTTP/1.1\r
@@ -1073,7 +1050,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 70
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1085,7 +1061,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 71
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1099,7 +1074,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 72
 -- request: GET /count HTT
 -- half close: yes
@@ -1109,7 +1083,6 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-\ no newline
 ==== request 73
 -- request
 -- half close: yes
@@ -1129,10 +1102,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 29\r
+| Content-Length: 16\r
 | Connection: close\r
 | \r
-| cannot read the request body
+| 400 Bad Request
 ==== request 75
 -- request (escaped)
 | POST /count HTTP/1.1\r
@@ -1150,10 +1123,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 29\r
+| Content-Length: 16\r
 | Connection: close\r
 | \r
-| cannot read the request body
+| 400 Bad Request
 ==== request 76
 -- request (escaped)
 | POST /count HTTP/1.1\r
@@ -1171,10 +1144,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 29\r
+| Content-Length: 16\r
 | Connection: close\r
 | \r
-| cannot read the request body
+| 400 Bad Request
 ==== request 77
 -- request (escaped)
 | POST /count HTTP/1.1\r
@@ -1192,10 +1165,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 29\r
+| Content-Length: 16\r
 | Connection: close\r
 | \r
-| cannot read the request body
+| 400 Bad Request
 ==== request 78
 -- request (escaped)
 | POST /count HTTP/1.1\r
@@ -1212,46 +1185,46 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 29\r
+| Content-Length: 16\r
 | Connection: close\r
 | \r
-| cannot read the request body
+| 400 Bad Request
 ==== request 79
 -- request (16777295 bytes, fnv1a64 0fbd43182e6ff409)
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 413 Request Entity Too Large\r
+| HTTP/1.1 413 Content Too Large\r
 | Connection: close\r
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 23\r
+| Content-Length: 22\r
 | \r
-| request body too large
+| 413 Content Too Large
 ==== request 80
 -- request (17826047 bytes, fnv1a64 3be340864a12f855)
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 413 Request Entity Too Large\r
+| HTTP/1.1 413 Content Too Large\r
 | Connection: close\r
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 23\r
+| Content-Length: 22\r
 | \r
-| request body too large
+| 413 Content Too Large
 ==== request 81
 -- request (16777467 bytes, fnv1a64 4167a7500a38fb8b)
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 413 Request Entity Too Large\r
+| HTTP/1.1 413 Content Too Large\r
 | Connection: close\r
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 23\r
+| Content-Length: 22\r
 | \r
-| request body too large
+| 413 Content Too Large
 ==== request 82
 -- request (16777461 bytes, fnv1a64 67c476c25377e5e6)
 -- half close: no
@@ -1285,7 +1258,6 @@
 | Connection: close\r
 | \r
 | 431 Request Header Fields Too Large
-\ no newline
 ==== request 85
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -1798,7 +1770,6 @@
 | Connection: close\r
 | \r
 | 431 Request Header Fields Too Large
-\ no newline
 ==== request 86
 -- request (escaped)
 | GET /count HTTP/1.1\r
@@ -2325,10 +2296,10 @@
 | Content-Type: text/plain; charset=utf-8\r
 | X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 21\r
+| Content-Length: 24\r
 | Connection: close\r
 | \r
-| server shutting down
+| 503 Service Unavailable
 ==== the end
 -- stdout
 | called GET
@@ -2337,10 +2308,10 @@
 | called GET
 -- stderr
 | http: handler failed: error[E0803]: bug GET
-| http: handler response: handler returned int, expected a str or a map
-| http: handler response: `status` must be int, got str
-| http: handler response: `status` must be between 100 and 599, got 600
-| http: handler response: `body` must be str, got int
-| http: handler response: header `x-a` must be str, got int
+| http: bad handler response: handler returned int, expected a str or a map
+| http: bad handler response: `status` must be int, got str
+| http: bad handler response: `status` must be between 100 and 599, got 600
+| http: bad handler response: `body` must be str, got int
+| http: bad handler response: header `x-a` must be str, got int
 | http: handler failed: error[E0803]: bug HEAD
 -- exit: 3

@@ -1,7 +1,7 @@
 //! Linking: a compiled proto from the front end becomes a runtime proto
-//! whose constant pool holds values. Go puts values in the pool while
-//! compiling; the Rust front end knows nothing of values, so it leaves
-//! `Const::Builtin(name)` for prelude names and the VM fills them in here.
+//! whose constant pool holds values. The front end knows nothing of values,
+//! so it leaves `Const::Builtin(name)` for prelude names and the VM fills
+//! them in here.
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -93,8 +93,8 @@ pub(super) fn constant(c: &Const, prelude: &Prelude) -> Value {
     }
 }
 
-/// A prelude name the runtime has no value for (a native not ported yet):
-/// calling it is an internal error rather than a crash.
+/// A prelude name the runtime has no value for (a declared native with no
+/// implementation): calling it is an internal error rather than a crash.
 fn missing(name: &str) -> Value {
     let name: &'static str = Box::leak(name.to_string().into_boxed_str());
     let any = NativeParam {

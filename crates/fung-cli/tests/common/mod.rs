@@ -1,10 +1,11 @@
-//! What the CLI tests share: running a binary, and the expected-output
-//! files (`expected`).
+//! What the CLI tests share: running a binary, the expected-output files
+//! (`expected`) and a TLS server (`tls_server`).
 
 // Each test binary uses its own subset of these helpers.
 #![allow(dead_code)]
 
 pub mod expected;
+pub mod tls_server;
 
 use std::{
     ffi::OsString,
@@ -21,8 +22,8 @@ pub fn repo() -> PathBuf {
         .unwrap()
 }
 
-/// The Rust `fung` binary under test.
-pub fn rust_fung() -> PathBuf {
+/// The `fung` binary under test.
+pub fn fung_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_fung"))
 }
 

@@ -1,4 +1,4 @@
-//! Channels (05, stage 3a; Go `internal/vm/channel.go`): a queue between
+//! Channels (05): a queue between
 //! tasks. `channel()` is unbuffered, so `send` waits until a receiver
 //! takes the value (맞교환); `channel(n)` holds up to `n` values. `close`
 //! is a flag, not an end of the queue: values buffered before it can
@@ -6,8 +6,8 @@
 //! does any `send` after it.
 //!
 //! The state is fung values behind the run token, so it lives in a
-//! `RefCell` touched only by the token's holder. The waiting is Go's
-//! runtime channel, written out: a sender that cannot hand its value over
+//! `RefCell` touched only by the token's holder. A sender that cannot
+//! hand its value over
 //! queues a `Slot` holding the value; a receiver that finds nothing
 //! queues an empty one. The other side completes a slot (moves the value
 //! across, marks it done, wakes its task) while holding the token, so the
@@ -24,23 +24,21 @@
 //! A blocked task waits through `block`; its slot holds its `Waiter`, so
 //! completing or closing wakes exactly that task.
 //!
-//! Cancellation and timeouts claim a waiter at once, as Go's `select`
-//! does, even though the slot stays queued until its task next holds the
+//! Cancellation and timeouts claim a waiter at once, even though the slot stays queued until its task next holds the
 //! token: the slot carries the task's cancellation node and its deadline,
 //! and pairing skips (and drops from the queue) any slot whose node is
 //! cancelled or whose deadline has passed. Pairing happens with the token
 //! held and the flag and the clock only move one way, so that check is
 //! the moment the slot is decided: a skipped slot's task finds it not
 //! done and returns E0701 or `timeout`; a completed slot's task finds it
-//! done and succeeds even if it was cancelled just after (the `select`
-//! case that moved the value wins, as in Go). A wait that ends without
+//! done and succeeds even if it was cancelled just after (the value that
+//! moved wins). A wait that ends without
 //! completion takes its slot out of the queue (`leave`, a no-op if
 //! pairing already dropped it).
 //!
 //! A channel can hold values that hold the channel itself (`send(c, c)`):
-//! an `Rc` cycle that is never freed, where Go's collector would free it.
-//! So `send` refuses a value that contains the channel (E0705, stage 3b,
-//! Rust only; `contains`). Two channels holding each other are not
+//! an `Rc` cycle that is never freed. So `send` refuses a value that
+//! contains the channel (E0705; `contains`). Two channels holding each other are not
 //! caught, and an agent's own requests skip the check (`send_unchecked`).
 
 use std::cell::{Cell, RefCell};
@@ -432,16 +430,15 @@ pub(crate) fn recv(
     match r {
         Ok(Some(true)) => Ok(took(&slot)),
         // Closed while waiting. A waiting receiver means the buffer was
-        // empty and nothing can be sent after the close, but look again,
-        // as Go does.
+        // empty and nothing can be sent after the close, but look again.
         Ok(Some(false)) => {
             ch.leave(&slot);
             Ok(ch.try_recv().map_or(Received::Closed, Received::Value))
         }
         // Pairing skips a slot past its deadline, and `block_until` checks
         // the same deadline only right after a check that found the slot
-        // not done, so a timed-out slot is never done; Go's order (a value
-        // first) is kept anyway.
+        // not done, so a timed-out slot is never done; a value is still
+        // checked first.
         Ok(None) | Err(_) if slot.done.get() => Ok(took(&slot)),
         Ok(None) => {
             ch.leave(&slot);
@@ -454,8 +451,8 @@ pub(crate) fn recv(
     }
 }
 
-/// Receives until the channel is closed (Go `Channel.Drain`): what the
-/// iterating natives walk for a channel.
+/// Receives until the channel is closed: what the natives that need the
+/// whole collection at once (`sort`, `sort_by`) get for a channel.
 pub(crate) fn drain(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Vec<Value>, Stop> {
     let mut out = Vec::new();
     loop {

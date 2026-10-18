@@ -5,7 +5,9 @@
 //! registry or git; workspace crates have none) must be named there.
 //! `fung-front` must stay free of dependencies, and `fung-cli` may depend
 //! only on workspace crates (`path = "../…"`, in every dependency table
-//! kind): crates from outside enter through `fung-vm` alone.
+//! kind): crates from outside enter through `fung-vm` alone. The one
+//! exception is a test-only one: `rustls` in `[dev-dependencies]`, written
+//! exactly as fung-vm's (the test TLS server, `common/tls_server.rs`).
 //!
 //! Allowlist entry forms understood by this test (and by cargo-deny):
 //!   "name"                          any version
@@ -368,10 +370,71 @@ fn fung_front_has_no_dependencies() {
     );
 }
 
+/// External crates fung-cli's tests may use: in `[dev-dependencies]`
+/// only, each written exactly as in fung-vm's `[dependencies]`.
+const CLI_TEST_CRATES: &[&str] = &["rustls"];
+
+/// The lines of a manifest's `[<name>]` table.
+fn table_lines<'a>(manifest: &'a str, name: &str) -> Vec<&'a str> {
+    let header = format!("[{name}]");
+    manifest
+        .lines()
+        .skip_while(|l| l.trim() != header)
+        .skip(1)
+        .take_while(|l| !l.trim_start().starts_with('['))
+        .map(str::trim)
+        .collect()
+}
+
+/// fung-cli's dependencies outside the workspace, less the test crates
+/// that `[dev-dependencies]` names as fung-vm does.
+fn cli_outside_deps(cli: &str, vm: &str) -> Vec<String> {
+    let mut bad = not_workspace_paths(cli);
+    let dev = table_lines(cli, "dev-dependencies");
+    let vm_deps = table_lines(vm, "dependencies");
+    for name in CLI_TEST_CRATES {
+        let prefix = format!("{name} = ");
+        let line = dev.iter().find(|l| l.starts_with(&prefix));
+        let same = line.is_some_and(|l| vm_deps.contains(l));
+        if same && bad.iter().filter(|b| b == name).count() == 1 {
+            bad.retain(|b| b != name);
+        }
+    }
+    bad
+}
+
+#[test]
+fn fung_cli_test_crates_must_match_fung_vm() {
+    let vm = "[dependencies]\nrustls = { version = \"1\" }\nother = \"2\"\n";
+    let dev = "[dependencies]\nfung-vm = { path = \"../fung-vm\" }\n\n[dev-dependencies]\n";
+    let ok = format!("{dev}rustls = {{ version = \"1\" }}\n");
+    assert_eq!(cli_outside_deps(&ok, vm), Vec::<String>::new());
+    for (cli, want) in [
+        // another requirement than fung-vm's
+        (format!("{dev}rustls = \"1\"\n"), vec!["rustls"]),
+        // not a test crate
+        (format!("{dev}other = \"2\"\n"), vec!["other"]),
+        // in the runtime's dependencies
+        (
+            "[dependencies]\nrustls = { version = \"1\" }\n".to_string(),
+            vec!["rustls"],
+        ),
+        // twice
+        (
+            "[dependencies]\nrustls = { version = \"1\" }\n\n[dev-dependencies]\nrustls = { version = \"1\" }\n"
+                .to_string(),
+            vec!["rustls", "rustls"],
+        ),
+    ] {
+        assert_eq!(cli_outside_deps(&cli, vm), want, "{cli}");
+    }
+}
+
 #[test]
 fn fung_cli_depends_only_on_workspace_crates() {
     let manifest = fs::read_to_string(root().join("crates/fung-cli/Cargo.toml")).unwrap();
-    let bad = not_workspace_paths(&manifest);
+    let vm = fs::read_to_string(root().join("crates/fung-vm/Cargo.toml")).unwrap();
+    let bad = cli_outside_deps(&manifest, &vm);
     assert!(
         bad.is_empty(),
         "fung-cli may only depend on workspace crates (path = \"../…\"): {bad:?}"

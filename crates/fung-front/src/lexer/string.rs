@@ -196,7 +196,8 @@ impl Lexer<'_> {
         while is_ident_part(self.peek()) {
             self.advance();
         }
-        let text = self.src[start..self.off].to_string();
+        // A symbol is a name: its text is the NFC form (01).
+        let text = crate::unicode::nfc(&self.src[start..self.off]).into_owned();
         self.emit(Kind::Symbol, &text, p);
         Ok(())
     }

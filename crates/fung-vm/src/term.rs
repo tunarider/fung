@@ -1,10 +1,10 @@
-//! The terminal for the REPL's line editor (08, Go `internal/repl`
-//! `line_unix.go`): whether standard input is a terminal, and raw mode.
+//! The terminal for the REPL's line editor (08): whether standard input
+//! is a terminal, and raw mode.
 //!
 //! A terminal normally hands a program a whole line at a time and echoes
 //! what is typed (canonical mode). The line editor needs every key as it
 //! is pressed, so while it reads a line it turns off ECHO, ICANON, ISIG
-//! and IEXTEN (and ICRNL and IXON on input), as Go's `rawMode` does.
+//! and IEXTEN (and ICRNL and IXON on input).
 //! Output processing stays on, so "\n" still moves to column 0. Raw mode
 //! lasts only while one line is read: [`RawMode`] restores the saved
 //! settings when it drops, which also happens when the reading code
@@ -17,17 +17,10 @@
 use std::io;
 use std::os::fd::RawFd;
 
-/// Whether `fd` is a character device (Go `ModeCharDevice`, the test
-/// `TermReader` makes). A terminal is one; so is `/dev/null`, where
-/// [`RawMode::enable`] then fails and the editor reads plain lines.
-pub fn is_char_device(fd: RawFd) -> bool {
-    // SAFETY: `fstat` writes only into `st`, a local `stat` it fully
-    // initialises on success (zeroed first, so it is a valid value either
-    // way); an invalid `fd` makes it fail with EBADF, which is a `false`.
-    unsafe {
-        let mut st: libc::stat = std::mem::zeroed();
-        libc::fstat(fd, &mut st) == 0 && (st.st_mode & libc::S_IFMT) == libc::S_IFCHR
-    }
+/// Whether `fd` is a terminal: it has terminal settings (`tcgetattr`
+/// succeeds). `/dev/null` and other devices are not.
+pub fn is_terminal(fd: RawFd) -> bool {
+    get(fd).is_ok()
 }
 
 /// The terminal settings of `fd` (`tcgetattr`).
@@ -43,8 +36,7 @@ fn get(fd: RawFd) -> io::Result<libc::termios> {
     }
 }
 
-/// Sets the terminal settings of `fd` at once (`TCSANOW`, Go's
-/// `TIOCSETA`/`TCSETS`).
+/// Sets the terminal settings of `fd` at once (`TCSANOW`).
 fn set(fd: RawFd, t: &libc::termios) -> io::Result<()> {
     // SAFETY: `tcsetattr` only reads `*t`, a valid `termios` borrowed for
     // the call; an `fd` that is not a terminal makes it fail (ENOTTY).
@@ -62,7 +54,7 @@ pub struct RawMode {
 }
 
 impl RawMode {
-    /// Switches `fd` to raw input (Go `rawMode`). Fails when `fd` is not a
+    /// Switches `fd` to raw input. Fails when `fd` is not a
     /// terminal; nothing is changed then.
     pub fn enable(fd: RawFd) -> io::Result<RawMode> {
         let saved = get(fd)?;
@@ -78,7 +70,7 @@ impl RawMode {
 
 impl Drop for RawMode {
     fn drop(&mut self) {
-        // Go ignores the result too: there is nothing left to do about it.
+        // a failure here has nothing left to do about it
         let _ = set(self.fd, &self.saved);
     }
 }
@@ -180,15 +172,13 @@ mod tests {
     #[test]
     fn not_a_terminal() {
         let (r, _w) = std::io::pipe().unwrap();
-        assert!(!is_char_device(r.as_raw_fd()));
+        assert!(!is_terminal(r.as_raw_fd()));
         assert!(RawMode::enable(r.as_raw_fd()).is_err());
+        // a character device, but no terminal
         let null = std::fs::File::open("/dev/null").unwrap();
-        assert!(
-            is_char_device(null.as_raw_fd()),
-            "Go's test lets /dev/null through"
-        );
+        assert!(!is_terminal(null.as_raw_fd()));
         assert!(RawMode::enable(null.as_raw_fd()).is_err());
         let (_master, slave) = pty::open().unwrap();
-        assert!(is_char_device(slave.as_raw_fd()));
+        assert!(is_terminal(slave.as_raw_fd()));
     }
 }

@@ -1,11 +1,12 @@
-//! The fung formatter (08), a port of Go `internal/format`: it rewrites a
-//! file's whitespace, indentation, blank lines and alignment from the
-//! lexer's tokens and comments, keeping the user's line breaks.
+//! The fung formatter (08): it rewrites a file's whitespace, indentation,
+//! blank lines and alignment from the lexer's tokens and comments,
+//! keeping the user's line breaks.
 //!
-//! It works on bytes, as Go does on its strings: the lexer reads the
-//! source decoded like Go (one U+FFFD per byte that is not UTF-8), and
-//! every token and comment is written back as the bytes it came from, so
-//! such bytes survive unchanged.
+//! It works on bytes: the lexer reads the source decoded (one U+FFFD for
+//! each invalid UTF-8 sequence, as everywhere in fung), and every token
+//! and comment is written back as the bytes it came from, so such bytes
+//! survive unchanged. Alignment counts display columns (UAX #11: a wide
+//! character takes two, a combining one none; an invalid sequence one).
 
 use crate::diag::{Arg, Diag, error};
 use crate::lexer::{self, Kind, Token};
@@ -29,8 +30,8 @@ use spacing::{gap, prefix_context};
 pub const FILE: FileId = FileId(0);
 
 /// A token as the formatter sees it: `off..end` are byte offsets into
-/// the source with any byte order mark trimmed (Go's lexer trims it), and
-/// they are used on the untrimmed source, as Go does.
+/// the source with a leading byte order mark trimmed (the lexer skips
+/// it).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Tok {
     kind: Kind,
@@ -64,7 +65,7 @@ pub fn format(name: &str, src: &str) -> Result<String, Diag> {
     let out = format_bytes(name, src.as_bytes())?;
     // The output is cut from `src` at token and comment boundaries, so it
     // stays UTF-8.
-    Ok(String::from_utf8(out).unwrap_or_else(|e| crate::source::decode_go(e.as_bytes())))
+    Ok(String::from_utf8(out).unwrap_or_else(|e| crate::source::decode_lossy(e.as_bytes())))
 }
 
 /// [`format`] on bytes, as the command reads files. A leading byte order
@@ -93,9 +94,9 @@ pub fn format_bytes(name: &str, src: &[u8]) -> Result<Vec<u8>, Diag> {
     Ok(out)
 }
 
-/// Lexes bytes like Go's lexer reads a string: a leading byte order mark
-/// is trimmed, and a byte that is not UTF-8 reads as one U+FFFD. Offsets
-/// and comment texts are mapped back to the trimmed bytes.
+/// Lexes bytes: a leading byte order mark is trimmed, and an invalid
+/// UTF-8 sequence reads as one U+FFFD. Offsets and comment texts are
+/// mapped back to the trimmed bytes.
 fn lex_bytes(file: FileId, src: &[u8]) -> Result<Lexed, Diag> {
     let body = src.strip_prefix(BOM).unwrap_or(src);
     let (text, map) = decode(body);
@@ -129,9 +130,9 @@ fn lex_bytes(file: FileId, src: &[u8]) -> Result<Lexed, Diag> {
     })
 }
 
-/// Decodes bytes like Go (one U+FFFD per invalid byte). For bytes that
-/// are not UTF-8 it also gives, for each offset in the text, the offset
-/// of the byte it came from.
+/// Decodes bytes (one U+FFFD for each invalid UTF-8 sequence). For bytes
+/// that are not UTF-8 it also gives, for each offset in the text, the
+/// offset of the byte it came from.
 fn decode(body: &[u8]) -> (String, Option<Vec<usize>>) {
     if let Ok(s) = std::str::from_utf8(body) {
         return (s.to_string(), None);
@@ -139,52 +140,43 @@ fn decode(body: &[u8]) -> (String, Option<Vec<usize>>) {
     let mut text = String::with_capacity(body.len() + 16);
     let mut map = Vec::with_capacity(body.len() + 16);
     let mut i = 0;
-    while i < body.len() {
-        let w = go_rune_width(&body[i..]);
-        let c = std::str::from_utf8(&body[i..i + w])
-            .ok()
-            .and_then(|s| s.chars().next())
-            .unwrap_or('\u{fffd}');
-        for _ in 0..c.len_utf8() {
-            map.push(i);
+    for chunk in body.utf8_chunks() {
+        for (k, _) in chunk.valid().char_indices() {
+            let len = chunk.valid()[k..].chars().next().map_or(0, char::len_utf8);
+            map.extend(std::iter::repeat_n(i + k, len));
         }
-        text.push(c);
-        i += w;
+        text.push_str(chunk.valid());
+        i += chunk.valid().len();
+        if !chunk.invalid().is_empty() {
+            text.push('\u{fffd}');
+            map.extend(std::iter::repeat_n(i, '\u{fffd}'.len_utf8()));
+            i += chunk.invalid().len();
+        }
     }
     map.push(body.len());
     (text, Some(map))
 }
 
-/// The width of the first rune of `s` the way Go decodes it: a valid
-/// UTF-8 sequence, or 1 for a byte that does not start one.
-pub(crate) fn go_rune_width(s: &[u8]) -> usize {
-    let w = match s.first() {
-        None => return 0,
-        Some(b) if *b < 0x80 => return 1,
-        Some(b) if b >> 5 == 0b110 => 2,
-        Some(b) if b >> 4 == 0b1110 => 3,
-        Some(b) if b >> 3 == 0b11110 => 4,
-        Some(_) => return 1,
-    };
-    if s.len() >= w && std::str::from_utf8(&s[..w]).is_ok() {
-        w
-    } else {
-        1
-    }
+/// Each character of `s` as (its byte length, its display width); an
+/// invalid UTF-8 sequence is one U+FFFD, one column wide.
+fn units(s: &[u8]) -> impl Iterator<Item = (usize, usize)> + '_ {
+    s.utf8_chunks().flat_map(|chunk| {
+        let valid = chunk
+            .valid()
+            .chars()
+            .map(|c| (c.len_utf8(), crate::unicode::width(c)));
+        let bad = (!chunk.invalid().is_empty()).then(|| (chunk.invalid().len(), 1));
+        valid.chain(bad)
+    })
 }
 
-/// Go `utf8.RuneCount`: each invalid byte counts as one rune.
-pub(crate) fn rune_count(mut s: &[u8]) -> usize {
-    let mut n = 0;
-    while !s.is_empty() {
-        s = &s[go_rune_width(s)..];
-        n += 1;
-    }
-    n
+/// The columns `s` takes on screen.
+pub(crate) fn display_width(s: &[u8]) -> usize {
+    units(s).map(|(_, w)| w).sum()
 }
 
-/// Renders a line's tokens with the spacing table, and the rune offset of
-/// the line's alignable `=>` in the result.
+/// Renders a line's tokens with the spacing table, and the byte offset
+/// of the line's alignable `=>` in the result.
 fn render(src: &[u8], ln: &Line) -> (Vec<u8>, Option<usize>) {
     let mut b = Vec::new();
     let mut arrow = None;
@@ -196,7 +188,7 @@ fn render(src: &[u8], ln: &Line) -> (Vec<u8>, Option<usize>) {
             b.resize(b.len() + n, b' ');
         }
         if ln.arrow == Some(i) {
-            arrow = Some(rune_count(&b));
+            arrow = Some(b.len());
         }
         b.extend_from_slice(&src[t.off..t.end]);
         sign = t.kind == Kind::Minus && (i == 0 || prefix_context(ln.toks[i - 1].kind));

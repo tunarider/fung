@@ -1,6 +1,6 @@
-//! The core collection functions (Go `prelude/collections.go`): the ones
-//! that walk elements in Rust. They iterate lists and ranges (02: 순회
-//! 대상); strings and maps become lists with `chars` and `pairs` first.
+//! The core collection functions: the ones that walk elements natively.
+//! They iterate lists, ranges and channels (02: 순회 대상); strings and
+//! maps become lists with `chars` and `pairs` first.
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -33,19 +33,14 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("chars", chars_fn, vec![param("s")]));
 }
 
-/// `a[f_at]` must be a function; when it is not, a collection error comes
-/// first (Go checks the collection again in that case, draining a
-/// channel).
-fn need_fn_after(t: &mut Task<'_>, a: &mut [Value], f_at: usize, verb: &str) -> Result<(), Stop> {
-    if !nat::is_fn(&a[f_at]) {
-        nat::check_items(t, &mut a[0], verb)?;
-        return Err(nat::wrong_arg("f", "fn", &a[f_at]));
-    }
-    Ok(())
+/// The collection `a[0]`, then the function `a[f_at]`, in argument order.
+fn need_fn_after(a: &[Value], f_at: usize, verb: &str) -> Result<(), Stop> {
+    nat::check_items(&a[0], verb)?;
+    nat::need_fn("f", &a[f_at])
 }
 
-fn filter_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    need_fn_after(t, &mut a, 1, "filter")?;
+fn filter_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    need_fn_after(&a, 1, "filter")?;
     let mut out = ListBuilder::default();
     let mut buf = Vec::with_capacity(1);
     let f = &a[1];
@@ -59,7 +54,7 @@ fn filter_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 fn fold_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    need_fn_after(t, &mut a, 2, "fold")?;
+    need_fn_after(&a, 2, "fold")?;
     let f = a.pop().expect("f");
     let mut acc = Some(a.pop().expect("init"));
     // One argument buffer for every call: the accumulator moves in and the
@@ -74,8 +69,8 @@ fn fold_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     Ok(acc.expect("the accumulator"))
 }
 
-fn each_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    need_fn_after(t, &mut a, 1, "iterate over")?;
+fn each_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    need_fn_after(&a, 1, "iterate over")?;
     let mut buf = Vec::with_capacity(1);
     let f = &a[1];
     nat::each(t, &a[0], "iterate over", |t, x| {
@@ -86,166 +81,41 @@ fn each_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Nil)
 }
 
-/// Go's `sort.SliceStable` (insertion sort on blocks of 20, then
-/// `symMerge`), ported so the comparisons happen in the same order: the
-/// first comparison error, which is what the user sees, names the same
-/// pair. `less` is consulted through indices into `keys`.
-struct Stable<'a> {
-    keys: &'a [Value],
-    idx: Vec<usize>,
-    err: Option<Diag>,
-}
-
-impl Stable<'_> {
-    /// After the first comparison error every comparison is false, like
-    /// Go's `less`, and the error is reported once the sort ends.
-    fn less(&mut self, i: usize, j: usize) -> bool {
-        if self.err.is_some() {
-            return false;
-        }
-        match compare(&self.keys[self.idx[i]], &self.keys[self.idx[j]]) {
-            Ok(o) => o.is_lt(),
-            Err(d) => {
-                self.err = Some(d);
-                false
-            }
-        }
-    }
-
-    fn swap(&mut self, i: usize, j: usize) {
-        self.idx.swap(i, j);
-    }
-
-    fn sort(&mut self) {
-        let n = self.idx.len();
-        let mut block = 20;
-        let (mut a, mut b) = (0, block);
-        while b <= n {
-            self.insertion_sort(a, b);
-            a = b;
-            b += block;
-        }
-        self.insertion_sort(a, n);
-        while block < n {
-            a = 0;
-            b = 2 * block;
-            while b <= n {
-                self.sym_merge(a, a + block, b);
-                a = b;
-                b += 2 * block;
-            }
-            let m = a + block;
-            if m < n {
-                self.sym_merge(a, m, n);
-            }
-            block *= 2;
-        }
-    }
-
-    fn insertion_sort(&mut self, a: usize, b: usize) {
-        for i in a + 1..b {
-            let mut j = i;
-            while j > a && self.less(j, j - 1) {
-                self.swap(j, j - 1);
-                j -= 1;
-            }
-        }
-    }
-
-    fn sym_merge(&mut self, a: usize, m: usize, b: usize) {
-        if m - a == 1 {
-            let (mut i, mut j) = (m, b);
-            while i < j {
-                let h = (i + j) / 2;
-                if self.less(h, a) {
-                    i = h + 1;
-                } else {
-                    j = h;
-                }
-            }
-            for k in a..i.saturating_sub(1) {
-                self.swap(k, k + 1);
-            }
-            return;
-        }
-        if b - m == 1 {
-            let (mut i, mut j) = (a, m);
-            while i < j {
-                let h = (i + j) / 2;
-                if !self.less(m, h) {
-                    i = h + 1;
-                } else {
-                    j = h;
-                }
-            }
-            let mut k = m;
-            while k > i {
-                self.swap(k, k - 1);
-                k -= 1;
-            }
-            return;
-        }
-        let mid = (a + b) / 2;
-        let n = mid + m;
-        let (mut start, mut r) = if m > mid { (n - b, mid) } else { (a, m) };
-        let p = n - 1;
-        while start < r {
-            let c = (start + r) / 2;
-            if !self.less(p - c, c) {
-                start = c + 1;
-            } else {
-                r = c;
-            }
-        }
-        let end = n - start;
-        if start < m && m < end {
-            self.rotate(start, m, end);
-        }
-        if a < start && start < mid {
-            self.sym_merge(a, start, mid);
-        }
-        if mid < end && end < b {
-            self.sym_merge(mid, end, b);
-        }
-    }
-
-    fn rotate(&mut self, a: usize, m: usize, b: usize) {
-        let mut i = m - a;
-        let mut j = b - m;
-        while i != j {
-            if i > j {
-                self.swap_range(m - i, m, j);
-                i -= j;
-            } else {
-                self.swap_range(m - i, m + j - i, i);
-                j -= i;
-            }
-        }
-        self.swap_range(m - i, m, i);
-    }
-
-    fn swap_range(&mut self, a: usize, b: usize, n: usize) {
-        for i in 0..n {
-            self.swap(a + i, b + i);
-        }
-    }
-}
-
-/// `xs` sorted by `keys` (parallel to `xs`), stable; the first comparison
-/// error wins.
+/// `xs` ordered by `keys` (02: stable, by `<`). A top-down merge sort on
+/// indices: comparisons can fail (`1 < "a"`), and the first failure ends
+/// the sort with its error. (The standard library's sort is not used: it
+/// may panic when the order it is given is not total.)
 fn sorted_by(xs: Vec<Value>, keys: &[Value]) -> Result<Value, Stop> {
-    let mut s = Stable {
-        keys,
-        idx: (0..xs.len()).collect(),
-        err: None,
-    };
-    s.sort();
-    if let Some(d) = s.err {
-        return Err(d.into());
+    fn merge_sort(idx: &mut [usize], tmp: &mut [usize], keys: &[Value]) -> Result<(), Diag> {
+        let n = idx.len();
+        if n < 2 {
+            return Ok(());
+        }
+        let mid = n / 2;
+        merge_sort(&mut idx[..mid], &mut tmp[..mid], keys)?;
+        merge_sort(&mut idx[mid..], &mut tmp[mid..], keys)?;
+        tmp[..n].copy_from_slice(idx);
+        let (mut i, mut j) = (0, mid);
+        for slot in idx.iter_mut() {
+            // The right element goes first only when it is smaller: equal
+            // keys keep their order.
+            let right = j < n && (i == mid || compare(&keys[tmp[j]], &keys[tmp[i]])?.is_lt());
+            if right {
+                *slot = tmp[j];
+                j += 1;
+            } else {
+                *slot = tmp[i];
+                i += 1;
+            }
+        }
+        Ok(())
     }
+    let mut idx: Vec<usize> = (0..xs.len()).collect();
+    let mut tmp = vec![0; xs.len()];
+    merge_sort(&mut idx, &mut tmp, keys)?;
     let mut slots: Vec<Option<Value>> = xs.into_iter().map(Some).collect();
     let mut out = ListBuilder::with_capacity(slots.len());
-    for i in s.idx {
+    for i in idx {
         out.push(slots[i].take().expect("each index once"));
     }
     Ok(Value::List(Rc::new(out.finish())))
@@ -258,8 +128,9 @@ fn sort_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 fn sort_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let xs = nat::items(t, &a[0], "sort")?;
+    nat::check_items(&a[0], "sort")?;
     nat::need_fn("f", &a[1])?;
+    let xs = nat::items(t, &a[0], "sort")?;
     let mut keys = Vec::with_capacity(xs.len());
     let mut buf = Vec::with_capacity(1);
     for x in &xs {
@@ -269,8 +140,8 @@ fn sort_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     sorted_by(xs, &keys)
 }
 
-fn find_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(t, &mut a[0], "search")?;
+fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], "search")?;
     nat::need_fn("f", &a[1])?;
     let mut buf = Vec::with_capacity(1);
     let mut hit = Value::Nil;
@@ -288,7 +159,7 @@ fn find_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
 /// `any` (stop = true) and `all` (stop = false): stops at the first
 /// element whose predicate result equals `stop`.
 fn quantify(t: &mut Task<'_>, a: &mut [Value], stop: bool) -> Result<Value, Stop> {
-    nat::check_items(t, &mut a[0], "test")?;
+    nat::check_items(&a[0], "test")?;
     nat::need_fn("f", &a[1])?;
     let mut buf = Vec::with_capacity(1);
     let f = &a[1];
@@ -308,8 +179,9 @@ fn all_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `flatten(xs)` splices nested lists one level deep. It stays in Rust:
 /// a fung fold with `acc + x` would copy the accumulator per element.
-fn flatten_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(t, &mut a[0], "flatten")?;
+fn flatten_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], "flatten")?;
+    nat::limit_elements(&a[0])?;
     let mut out = ListBuilder::default();
     nat::each(t, &a[0], "flatten", |_, x| {
         match &x {
@@ -321,9 +193,10 @@ fn flatten_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::List(Rc::new(out.finish())))
 }
 
-fn group_by_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    nat::check_items(t, &mut a[0], "group")?;
+fn group_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], "group")?;
     nat::need_fn("f", &a[1])?;
+    nat::limit_elements(&a[0])?;
     // Keys in first-seen order, each group in input order. The hash map
     // only finds a key's group; the order comes from `groups`.
     let mut groups: Vec<(Rc<String>, ListBuilder)> = Vec::new();

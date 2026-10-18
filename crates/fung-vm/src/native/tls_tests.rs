@@ -6,10 +6,7 @@
 //! Trust is given in process through `probe::trust` (a root store the
 //! connections use instead of the process-wide one), so no test changes
 //! the environment; `ssl_cert_file_gives_the_roots` checks the real loader
-//! in a child process with `SSL_CERT_FILE` set. Expected error texts are
-//! Go 1.27's pure-Go verifier's (Linux, and macOS with `SSL_CERT_FILE`
-//! set; small Go programs, texts copied in). `crates/fung-cli/tests/tls.rs`
-//! checks that Go prints the same texts.
+//! in a child process with `SSL_CERT_FILE` set.
 
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -26,10 +23,10 @@ use super::tests::{HELPERS, net_probes, out, run, serial, wait_for};
 use super::{probe, tls};
 use crate::testutil::{Opts, UNTIL, exec};
 
-const UNKNOWN_AUTHORITY: &str =
-    "tls: failed to verify certificate: x509: certificate signed by unknown authority";
-const WRONG_NAME: &str = "tls: failed to verify certificate: x509: certificate is valid for wrong.example, not localhost";
-const NO_IP_SANS: &str = "tls: failed to verify certificate: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs";
+const UNKNOWN_AUTHORITY: &str = "unknown certificate authority";
+const WRONG_NAME: &str = "certificate is not valid for `localhost`";
+const NO_IP_SANS: &str = "certificate is not valid for `127.0.0.1`";
+const EXPIRED: &str = "certificate has expired (valid until 2001-01-01T00:00:00Z)";
 
 fn data(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -172,7 +169,7 @@ fn the_server_name_is_sent_for_a_name_only() {
 }
 
 #[test]
-fn an_unknown_authority_reads_like_go() {
+fn an_unknown_authority() {
     let _g = serial();
     let _t = trust_other();
     let (port, h) = tls_peer("localhost", reject);
@@ -190,14 +187,20 @@ fn an_unknown_authority_reads_like_go() {
     );
 }
 
-/// Go checks the name before looking for the issuer: a certificate for
-/// another name says so whether or not its issuer is trusted.
+/// rustls checks the chain before the name: a certificate for another
+/// name is a name error when its issuer is trusted, and an unknown
+/// authority when it is not.
 #[test]
-fn a_name_mismatch_reads_like_go() {
+fn a_name_mismatch_names_the_host() {
     let _g = serial();
     for trusted in [true, false] {
         let _t = if trusted { trust_ca() } else { trust_other() };
-        for (host, want) in [("localhost", WRONG_NAME), ("127.0.0.1", NO_IP_SANS)] {
+        for (host, name_error) in [("localhost", WRONG_NAME), ("127.0.0.1", NO_IP_SANS)] {
+            let want = if trusted {
+                name_error
+            } else {
+                UNKNOWN_AUTHORITY
+            };
             let (port, h) = tls_peer("wrongname", reject);
             let o = run(&format!(
                 "print(msg(net.connect(\"{host}\", {port}, tls: true)))"
@@ -208,10 +211,9 @@ fn a_name_mismatch_reads_like_go() {
     }
 }
 
-/// `current time <local, RFC 3339> is after <not after, UTC>`; Go checks
-/// the leaf's dates first of all.
+/// The leaf's end of validity, in UTC; its dates come first of all.
 #[test]
-fn an_expired_certificate_reads_like_go() {
+fn an_expired_certificate_says_until_when() {
     let _g = serial();
     for trusted in [true, false] {
         let _t = if trusted { trust_ca() } else { trust_other() };
@@ -220,24 +222,13 @@ fn an_expired_certificate_reads_like_go() {
             "print(msg(net.connect(\"localhost\", {port}, tls: true)))"
         ));
         let _ = h.join().unwrap();
-        let text = o.out.trim_end();
-        let prefix = "tls: failed to verify certificate: x509: certificate has expired or is not yet valid: current time ";
-        let suffix = " is after 2001-01-01T00:00:00Z";
-        assert!(text.starts_with(prefix) && text.ends_with(suffix), "{o:?}");
-        let now = &text[prefix.len()..text.len() - suffix.len()];
-        // 2026-10-16T17:51:08+09:00 or 2026-10-16T08:51:08Z
-        let b = now.as_bytes();
-        assert!(
-            b.len() >= 20 && b[4] == b'-' && b[10] == b'T' && b[13] == b':',
-            "{now}"
-        );
-        assert!(now.ends_with('Z') || b[b.len() - 3] == b':', "{now}");
+        assert_eq!(out(&o), (format!("{EXPIRED}\n").as_str(), "", 0));
     }
 }
 
-/// Something that is not a TLS server answering: Go's text, at once.
+/// Something that is not a TLS server answering: said at once.
 #[test]
-fn a_server_that_does_not_speak_tls_reads_like_go() {
+fn a_server_that_does_not_speak_tls() {
     let _g = serial();
     let _t = trust_ca();
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -254,19 +245,12 @@ fn a_server_that_does_not_speak_tls_reads_like_go() {
         "print(msg(net.connect(\"127.0.0.1\", {port}, tls: true)))"
     ));
     h.join().unwrap();
-    assert_eq!(
-        out(&o),
-        (
-            "tls: first record does not look like a TLS handshake\n",
-            "",
-            0
-        )
-    );
+    assert_eq!(out(&o), ("the server did not answer with TLS\n", "", 0));
 }
 
-/// A fatal alert from the server: Go's `remote error: tls: <alert>`.
+/// A fatal alert from the server: its IANA name.
 #[test]
-fn an_alert_from_the_server_reads_like_go() {
+fn an_alert_from_the_server_is_named() {
     let _g = serial();
     let _t = trust_ca();
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -283,32 +267,24 @@ fn an_alert_from_the_server_reads_like_go() {
         "print(msg(net.connect(\"127.0.0.1\", {port}, tls: true)))"
     ));
     h.join().unwrap();
-    assert_eq!(out(&o), ("remote error: tls: handshake failure\n", "", 0));
+    assert_eq!(out(&o), ("TLS alert: handshake failure\n", "", 0));
 }
 
-/// No name to verify (the local system, `""`): Go's `tls.Dialer` text,
-/// once connected.
+/// No name to verify (the local system, `""`): an error once connected.
 #[test]
-fn no_host_name_reads_like_go() {
+fn tls_needs_a_host_name() {
     let _g = serial();
     let _t = trust_ca();
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();
     let o = run(&format!("print(msg(net.connect(\"\", {port}, tls: true)))"));
     drop(l);
-    assert_eq!(
-        out(&o),
-        (
-            "tls: either ServerName or InsecureSkipVerify must be specified in the tls.Config\n",
-            "",
-            0
-        )
-    );
+    assert_eq!(out(&o), ("TLS needs a host name\n", "", 0));
 }
 
-/// The server reads the hello and hangs up: Go's `EOF`.
+/// The server reads the hello and hangs up.
 #[test]
-fn a_server_that_hangs_up_in_the_handshake_reads_like_go() {
+fn a_server_that_hangs_up_in_the_handshake() {
     let _g = serial();
     let _t = trust_ca();
     let base = probe::read_waits();
@@ -329,7 +305,11 @@ fn a_server_that_hangs_up_in_the_handshake_reads_like_go() {
     h.join().unwrap();
     assert_eq!(
         out(&o),
-        ("Err({kind: 'network, message: \"EOF\"})\n", "", 0)
+        (
+            "Err({kind: 'network, message: \"connection closed in the TLS handshake\"})\n",
+            "",
+            0
+        )
     );
 }
 
@@ -354,7 +334,7 @@ fn cancel_ends_a_handshake() {
     assert!(start.elapsed() < Duration::from_secs(5));
 }
 
-/// The connect timeout covers the handshake: Go's `tls.Dialer` text.
+/// The connect timeout covers the handshake.
 #[test]
 fn a_timeout_ends_a_handshake() {
     let _g = serial();
@@ -368,7 +348,7 @@ fn a_timeout_ends_a_handshake() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'timeout, message: \"context deadline exceeded\"})\n",
+            "Err({kind: 'timeout, message: \"TLS handshake timed out\"})\n",
             "",
             0
         )
@@ -376,10 +356,10 @@ fn a_timeout_ends_a_handshake() {
 }
 
 /// Reading until the server closes: close_notify ends the stream, and so
-/// does a TCP end between records (Go accepts it, as popular sites do
-/// that); a TCP end inside a record is `unexpected EOF` (Go).
+/// does a TCP end between records (popular sites close that way); a TCP
+/// end inside a record is an error.
 #[test]
-fn reading_until_close_reads_like_go() {
+fn reading_until_close() {
     let _g = serial();
     let _t = trust_ca();
     let program = |port| {
@@ -420,7 +400,7 @@ fn reading_until_close_reads_like_go() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'network, message: \"unexpected EOF\"})\nErr({kind: 'network, message: \"unexpected EOF\"})\n",
+            "Err({kind: 'network, message: \"connection closed inside a TLS record\"})\nErr({kind: 'network, message: \"connection closed inside a TLS record\"})\n",
             "",
             0
         )
@@ -429,7 +409,7 @@ fn reading_until_close_reads_like_go() {
 
 /// The other primitives work the same over TLS: exact reads, raw body
 /// reads decoded once, deadlines, and `close` (which sends close_notify,
-/// so the server sees a clean end; a second close is Go's error).
+/// so the server sees a clean end; a second close is an error).
 #[test]
 fn the_primitives_work_over_tls() {
     let _g = serial();
@@ -446,7 +426,7 @@ fn the_primitives_work_over_tls() {
         (l, r)
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nprint(net.read_bytes(c, 3))\nprint(net.read_bytes_into(c, 3, 10), net.read_bytes_into(c, 3, 10), [net.take_body(c)])\nnet.set_deadline(c, 20ms)!\nprint(kind(net.read_line(c, 10)))\nnet.set_deadline(c, 0s)!\nprint(net.write(c, \"bye\\n\"), net.close(c))\nprint(msg(net.close(c)) == \"close tcp ${{net.local_addr(c)}}->127.0.0.1:{port}: use of closed network connection\")"
+        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nprint(net.read_bytes(c, 3))\nprint(net.read_bytes_into(c, 3, 10), net.read_bytes_into(c, 3, 10), [net.take_body(c)])\nnet.set_deadline(c, 20ms)!\nprint(kind(net.read_line(c, 10)))\nnet.set_deadline(c, 0s)!\nprint(net.write(c, \"bye\\n\"), net.close(c))\nprint(msg(net.close(c)) == \"connection is closed\")"
     ));
     let (l, r) = h.join().unwrap();
     assert_eq!(
@@ -483,8 +463,8 @@ fn a_reader_and_a_writer_run_at_once_over_tls() {
     assert_eq!(got, "한ab".repeat(600_000).into_bytes());
 }
 
-/// The last copy of a TLS connection closes it (no close_notify, as Go:
-/// nothing is sent when a connection is collected).
+/// The last copy of a TLS connection closes it (no close_notify: nothing
+/// is sent when a connection is collected).
 #[test]
 fn the_last_copy_closes_a_tls_connection() {
     let _g = serial();
@@ -602,7 +582,7 @@ fn start_tls_upgrades_a_plain_connection() {
     let _t = trust_ca();
     let (port, h) = tunnel_peer("localhost", echo);
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hello\\n\")!\nprint(net.read_line(c, 100))\nt = net.start_tls(c, \"localhost\", timeout: 5s)!\nprint(msg(net.write(c, \"x\")) == \"write tcp ${{net.local_addr(c)}}->127.0.0.1:{port}: use of closed network connection\")\nprint(net.write(t, \"secret\\n\"))\nprint(net.read_line(t, 100))\nprint(net.read_line(t, 100))\nprint(net.close(t))\nprint(msg(net.start_tls(c, \"localhost\")) == \"read tcp ${{net.local_addr(c)}}->127.0.0.1:{port}: use of closed network connection\")"
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hello\\n\")!\nprint(net.read_line(c, 100))\nt = net.start_tls(c, \"localhost\", timeout: 5s)!\nprint(msg(net.write(c, \"x\")) == \"connection is closed\")\nprint(net.write(t, \"secret\\n\"))\nprint(net.read_line(t, 100))\nprint(net.read_line(t, 100))\nprint(net.close(t))\nprint(msg(net.start_tls(c, \"localhost\")) == \"connection is closed\")"
     ));
     assert_eq!(h.join().unwrap(), "hello");
     assert_eq!(
@@ -649,7 +629,7 @@ fn start_tls_refuses_a_connection_in_use() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'network, message: \"tls: the connection is in use\"})\nErr({kind: 'cancelled})\nOk(nil)\n",
+            "Err({kind: 'network, message: \"connection is in use\"})\nErr({kind: 'cancelled})\nOk(nil)\n",
             "",
             0
         )

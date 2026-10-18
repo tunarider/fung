@@ -1,23 +1,16 @@
-//! `_native.regex` (Go `internal/native/regex.go`, 06): regular
-//! expressions over fung strings. Patterns follow Go's syntax and meaning
-//! (`regex_go::compile_go`); match positions are rune indexes (02: 문자열은
-//! 글자 단위), not byte offsets.
-//!
-//! Go's `regexp` decides more than the engine does: which matches
-//! `FindAll` reports around empty matches (`allMatches`), where `Split`
-//! cuts, which matches `ReplaceAllString` replaces, and how `Expand` reads
-//! `$` references. Those loops are ported here step by step (open-questions
-//! "Go 동등을 위한 과도기 잔가지").
+//! `_native.regex` (06): regular expressions over fung strings. fung's
+//! pattern syntax is the `regex` crate's, with Unicode classes; match
+//! positions are character indexes (02: 문자열은 글자 단위), not byte
+//! offsets.
 
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock};
 
 use fung_front::diag::Arg;
-use regex::{CaptureLocations, Regex};
+use regex::{Captures, Regex, RegexBuilder};
 
 use super::nat::{self, native, param};
-use super::regex_go::{compile_go, go_capture_names, go_letter_or_digit};
 use crate::value::{MapBuilder, Module, Native, Value};
 use crate::vm::{Stop, Task, outside};
 
@@ -61,19 +54,23 @@ pub fn module() -> Rc<Module> {
     Rc::new(m)
 }
 
-/// A compiled pattern with Go's `SubexpNames()`.
+/// A compiled pattern and its group names (`""` for an unnamed group).
 struct Compiled {
     re: Regex,
     names: Vec<String>,
 }
 
+/// The most memory one compiled pattern may take (the crate's own default
+/// is 10 MiB, too small for a Unicode class repeated a few hundred times:
+/// `\w{400}`). Past it a pattern is E0515 "pattern too large".
+const COMPILE_LIMIT: usize = 128 << 20;
+
 /// Bounds the compiled-pattern cache; past it the cache is emptied rather
-/// than evicted one by one (patterns are few and small), as in Go.
+/// than evicted one by one (patterns are few and small).
 const MAX_CACHED_PATTERNS: usize = 256;
 
 /// The process-wide cache of compiled patterns. It holds plain Rust
-/// values only (no fung value, so any thread may drop it), like Go's
-/// `patternCache` behind its mutex.
+/// values only (no fung value, so any thread may drop it), behind a mutex.
 static CACHE: LazyLock<Mutex<HashMap<String, Arc<Compiled>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -87,9 +84,8 @@ fn cache() -> MutexGuard<'static, HashMap<String, Arc<Compiled>>> {
 ///
 /// A cache miss compiles without the run token (`outside`), as a file read
 /// does: a pattern that takes seconds to compile must not stall every
-/// task. Go compiles under its cache mutex, so there only other regex
-/// callers wait; here nobody does, and two tasks that miss on the same
-/// pattern at once both compile it (`remember` keeps the first).
+/// task. Two tasks that miss on the same pattern at once both compile it
+/// (`remember` keeps the first).
 ///
 /// Locks and the token, so that no two threads wait on each other:
 /// - the cache mutex is held only inside `cache().get(..)` and `remember`,
@@ -112,21 +108,35 @@ fn compile_pattern(t: &mut Task<'_>, pat: &str) -> Result<Arc<Compiled>, Stop> {
     Ok(remember(&mut cache(), pat, Arc::new(compiled)))
 }
 
-/// Compiles `pat` with Go's syntax and meaning. Runs without the run
-/// token: plain Rust values in and out.
+/// Compiles `pat`, or says what is wrong with it: `` `pat`: reason ``
+/// (E0515's argument). Runs without the run token: plain Rust values in
+/// and out.
 fn compile(pat: String) -> Result<Compiled, String> {
-    let re = compile_go(&pat)?;
+    if let Err(e) = regex_syntax::Parser::new().parse(&pat) {
+        let reason = match &e {
+            regex_syntax::Error::Parse(e) => e.kind().to_string(),
+            regex_syntax::Error::Translate(e) => e.kind().to_string(),
+            _ => "invalid pattern".to_string(),
+        };
+        return Err(format!("`{pat}`: {reason}"));
+    }
+    let re = match RegexBuilder::new(&pat).size_limit(COMPILE_LIMIT).build() {
+        Ok(re) => re,
+        Err(regex::Error::CompiledTooBig(_)) => return Err(format!("`{pat}`: pattern too large")),
+        Err(_) => return Err(format!("`{pat}`: invalid pattern")),
+    };
     #[cfg(test)]
     tests::compile_hook(&pat);
-    Ok(Compiled {
-        names: go_capture_names(&re),
-        re,
-    })
+    let names = re
+        .capture_names()
+        .map(|n| n.unwrap_or_default().to_string())
+        .collect();
+    Ok(Compiled { names, re })
 }
 
 /// Adds `c` to `cache` as `pat` and returns what the cache holds for
 /// `pat`: the entry already there if another task compiled it first.
-/// A full cache is emptied first rather than evicted one by one (Go).
+/// A full cache is emptied first rather than evicted one by one.
 fn remember(
     cache: &mut HashMap<String, Arc<Compiled>>,
     pat: &str,
@@ -154,44 +164,7 @@ fn subject_and_pattern<'a>(
     Ok((s, pat, compile_pattern(t, pat)?))
 }
 
-/// The length of the character at `pos`, 0 at the end (Go's
-/// `inputString.step` width).
-fn width_at(s: &str, pos: usize) -> usize {
-    s[pos..].chars().next().map_or(0, char::len_utf8)
-}
-
-/// Go `Regexp.FindAllStringSubmatchIndex(s, -1)` (`allMatches`): each
-/// search starts where the last match ended, an empty match is followed by
-/// a one-character step, and an empty match right where the previous match
-/// ended is not reported. `each` gets every reported match's groups.
-pub(crate) fn go_all(re: &Regex, s: &str, mut each: impl FnMut(&CaptureLocations)) {
-    let mut locs = re.capture_locations();
-    let mut pos = 0;
-    let mut prev_end = None;
-    while pos <= s.len() {
-        let Some(m) = re.captures_read_at(&mut locs, s, pos) else {
-            break;
-        };
-        let mut accept = true;
-        if m.end() == pos {
-            if Some(m.start()) == prev_end {
-                accept = false;
-            }
-            match width_at(s, pos) {
-                0 => pos = s.len() + 1,
-                w => pos += w,
-            }
-        } else {
-            pos = m.end();
-        }
-        prev_end = Some(m.end());
-        if accept {
-            each(&locs);
-        }
-    }
-}
-
-/// Converts byte offsets of `s` to rune indexes (Go `runeCursor`). Offsets
+/// Converts byte offsets of `s` to character indexes. Offsets
 /// that arrive in non-decreasing order (match after match) cost only the
 /// text between them, so `find_all` stays linear in the subject.
 struct RuneCursor<'a> {
@@ -222,20 +195,17 @@ fn key(k: &str) -> Rc<String> {
 }
 
 /// `{text, start, end, groups, named}` for one match: a group that did
-/// not take part is nil, and of two groups with one name the later wins.
-fn match_value(s: &str, c: &Compiled, locs: &CaptureLocations, cur: &mut RuneCursor) -> Value {
-    let (start, end) = locs.get(0).unwrap_or((0, 0));
+/// not take part is nil.
+fn match_value(c: &Compiled, caps: &Captures, cur: &mut RuneCursor) -> Value {
+    let whole = caps.get(0).expect("the whole match");
     let mut m = MapBuilder::default();
-    m.set(key("text"), Value::str(&s[start..end]));
-    m.set(key("start"), Value::Int(cur.index(start)));
-    m.set(key("end"), Value::Int(cur.index(end)));
-    let mut groups = Vec::with_capacity(locs.len().saturating_sub(1));
+    m.set(key("text"), Value::str(whole.as_str()));
+    m.set(key("start"), Value::Int(cur.index(whole.start())));
+    m.set(key("end"), Value::Int(cur.index(whole.end())));
+    let mut groups = Vec::with_capacity(caps.len().saturating_sub(1));
     let mut named = MapBuilder::default();
-    for i in 1..locs.len() {
-        let g = match locs.get(i) {
-            Some((a, b)) => Value::str(&s[a..b]),
-            None => Value::Nil,
-        };
+    for i in 1..caps.len() {
+        let g = caps.get(i).map_or(Value::Nil, |g| Value::str(g.as_str()));
         if !c.names[i].is_empty() {
             named.set(key(&c.names[i]), g.clone());
         }
@@ -253,152 +223,51 @@ fn is_match_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let (s, _, c) = subject_and_pattern(t, &a)?;
-    let mut locs = c.re.capture_locations();
-    Ok(match c.re.captures_read(&mut locs, s) {
-        Some(_) => match_value(s, &c, &locs, &mut RuneCursor::new(s)),
+    Ok(match c.re.captures(s) {
+        Some(caps) => match_value(&c, &caps, &mut RuneCursor::new(s)),
         None => Value::Nil,
     })
 }
 
+/// Every match left to right; an empty match right after the previous
+/// match is not one (06: 정규식).
 fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let (s, _, c) = subject_and_pattern(t, &a)?;
-    let mut out = Vec::new();
     let mut cur = RuneCursor::new(s);
-    go_all(&c.re, s, |locs| {
-        out.push(match_value(s, &c, locs, &mut cur))
-    });
+    let out =
+        c.re.captures_iter(s)
+            .map(|caps| match_value(&c, &caps, &mut cur))
+            .collect();
     Ok(nat::list(out))
 }
 
-/// Go `Regexp.ReplaceAllString` (`replaceAll`): its own loop, where an
-/// empty match right after the previous match is not replaced and the
-/// search always moves on at least one character.
+/// Every match replaced by `repl`, where `$1`, `${name}` and `$$` refer to
+/// groups (`$1a` is the group named "1a"; a missing group is empty).
 fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let (s, _, c) = subject_and_pattern(t, &a)?;
     let repl = nat::need_str("repl", &a[2])?;
-    let mut out = String::with_capacity(s.len());
-    let mut locs = c.re.capture_locations();
-    let (mut last_end, mut search) = (0, 0);
-    while search <= s.len() {
-        let Some(m) = c.re.captures_read_at(&mut locs, s, search) else {
-            break;
-        };
-        let (start, end) = (m.start(), m.end());
-        out.push_str(&s[last_end..start]);
-        if end > last_end || start == 0 {
-            expand(&mut out, repl, &c.names, s, &locs);
-        }
-        last_end = end;
-        let width = width_at(s, search);
-        if search + width > end {
-            search += width;
-        } else if search + 1 > end {
-            search += 1;
-        } else {
-            search = end;
-        }
-    }
-    out.push_str(&s[last_end..]);
-    Ok(Value::str(&out))
+    Ok(Value::str(&c.re.replace_all(s, repl)))
 }
 
-/// Go `Regexp.Expand` for `ReplaceAllString`: `$$` is `$`, `$name` and
-/// `${name}` refer to a group by number or name, and a malformed
-/// reference keeps its `$` as text. An unknown or unmatched group gives
-/// nothing.
-fn expand(
-    out: &mut String,
-    mut template: &str,
-    names: &[String],
-    s: &str,
-    locs: &CaptureLocations,
-) {
-    while let Some((before, after)) = template.split_once('$') {
-        out.push_str(before);
-        template = after;
-        if let Some(rest) = template.strip_prefix('$') {
-            out.push('$');
-            template = rest;
-            continue;
-        }
-        let Some((name, num, rest)) = extract(template) else {
-            out.push('$');
-            continue;
-        };
-        template = rest;
-        let group = match num {
-            Some(n) => locs.get(n),
-            None => (0..names.len())
-                .filter(|&i| names[i] == name)
-                .find_map(|i| locs.get(i)),
-        };
-        if let Some((a, b)) = group {
-            out.push_str(&s[a..b]);
-        }
-    }
-    out.push_str(template);
-}
-
-/// Go `extract`: the name of a leading `name` or `{name}` (letters,
-/// digits and `_`), the group number when the name is one (no leading
-/// zero, below Go's 1e8 cut-off), and the rest of the template.
-fn extract(t: &str) -> Option<(&str, Option<usize>, &str)> {
-    let (brace, body) = match t.strip_prefix('{') {
-        Some(b) => (true, b),
-        None => (false, t),
-    };
-    let len = body
-        .char_indices()
-        .find(|&(_, c)| !go_letter_or_digit(c) && c != '_')
-        .map_or(body.len(), |(i, _)| i);
-    if len == 0 {
-        return None;
-    }
-    let name = &body[..len];
-    let rest = if brace {
-        body[len..].strip_prefix('}')?
-    } else {
-        &body[len..]
-    };
-    let mut num: Option<usize> = Some(0);
-    for d in name.bytes() {
-        num = match num {
-            Some(n) if d.is_ascii_digit() && n < 100_000_000 => {
-                Some(n * 10 + usize::from(d - b'0'))
-            }
-            _ => None,
-        };
-        if num.is_none() {
-            break;
-        }
-    }
-    if name.starts_with('0') && name.len() > 1 {
-        num = None;
-    }
-    Some((name, num, rest))
-}
-
-/// Go `Regexp.Split(s, -1)`: an empty pattern on an empty subject gives
-/// no pieces, an empty match at the start cuts nothing, and the text after
-/// the last match is kept unless that match started at the very end.
+/// The pieces between matches, empty ones kept, like `split(s, sep)`
+/// (06): an empty match at the very start or end of `s` cuts nothing, and
+/// the empty pattern on the empty string gives no pieces.
 fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let (s, pat, c) = subject_and_pattern(t, &a)?;
-    if !pat.is_empty() && s.is_empty() {
-        return Ok(nat::list(vec![Value::str("")]));
+    // Nothing split by nothing is no pieces, as `split("", "")`.
+    if s.is_empty() && pat.is_empty() {
+        return Ok(nat::list(Vec::new()));
     }
     let mut out = Vec::new();
-    let (mut beg, mut end) = (0, 0);
-    go_all(&c.re, s, |locs| {
-        let (start, stop) = locs.get(0).unwrap_or((0, 0));
-        end = start;
-        if stop != 0 {
-            out.push(Value::str(&s[beg..end]));
+    let mut beg = 0;
+    for m in c.re.find_iter(s) {
+        if m.is_empty() && (m.start() == 0 || m.start() == s.len()) {
+            continue;
         }
-        beg = stop;
-    });
-    if end != s.len() {
-        out.push(Value::str(&s[beg..]));
+        out.push(Value::str(&s[beg..m.start()]));
+        beg = m.end();
     }
+    out.push(Value::str(&s[beg..]));
     Ok(nat::list(out))
 }
 

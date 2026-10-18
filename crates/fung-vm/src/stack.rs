@@ -10,12 +10,15 @@ use std::io;
 use std::sync::{Arc, Mutex};
 use std::thread::{Builder, JoinHandle};
 
-/// The stack sizes the `fung` command thread tries, in order. 4 GiB
-/// leaves a margin over Go's 1 GB goroutine limit (R3a 2절).
+/// The stack sizes the `fung` command thread tries, in order. 4 GiB is
+/// only reserved address space, and leaves the entry file a margin over
+/// a task's 1 GiB for very deep recursion (R3a 2절).
 pub const ENTRY_STACKS: &[usize] = &[4 << 30, 1 << 30, 256 << 20, 64 << 20];
 
-/// The stack sizes a spawned task's thread tries, in order. 1 GiB is the
-/// most a Go goroutine may grow to (R3a 2절, `TASK_STACK` before 6a).
+/// The stack sizes a spawned task's thread tries, in order. 1 GiB keeps
+/// deep programs running in a task: at 256 MiB, `map` nesting fung calls
+/// 99,000 deep overflowed in a task only (R3a 2절, `TASK_STACK` before
+/// 6a).
 pub const TASK_STACKS: &[usize] = &[1 << 30, 256 << 20, 64 << 20];
 
 /// Starts `body(payload)` on a thread made by `builder` with the first

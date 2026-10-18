@@ -8,11 +8,11 @@ publish = false
 
 [dependencies]
 fung-front = { path = "../fung-front" }
-# Go-semantics regular expressions (native/regex_go.rs). The patterns
-# handed to the engine spell every class out as code point ranges and use
-# no \p, \w or (?i), so the crates' Unicode tables are not needed.
-regex = { version = "1", default-features = false, features = ["std", "perf"] }
-regex-syntax = { version = "0.8", default-features = false, features = ["std"] }
+# Regular expressions (`_native.regex`, 06): fung's pattern syntax is the
+# regex crate's, with its Unicode classes; regex-syntax parses a pattern
+# first to name what is wrong with it.
+regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
+regex-syntax = { version = "0.8", default-features = false, features = ["std", "unicode"] }
 # TLS client connections (`_native.net` `connect(tls: true)`, 4d spec,
 # section 1): ring for the cryptography, no logging. The operating
 # system's roots (or SSL_CERT_FILE / SSL_CERT_DIR) through

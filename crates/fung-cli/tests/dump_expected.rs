@@ -7,7 +7,7 @@ mod common;
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
 use common::expected::{self, Entry};
-use common::{par_map, repo, run, rust_fung};
+use common::{fung_bin, par_map, repo, run};
 
 fn corpus() -> Vec<String> {
     let mut files = Vec::new();
@@ -48,7 +48,7 @@ fn odd_files() -> Vec<(&'static str, &'static [u8])> {
             "uses_badmod.fung",
             b"import \"./badmod\"\nprint(badmod.x)\n",
         ),
-        // A module stem Go's `unicode.IsLetter` rejects (So, Nl).
+        // A module stem that is no name (So, Nl: UAX #31).
         ("mⓐ.fung", b"v = 1\n"),
         (
             "uses_odd_stem.fung",
@@ -101,7 +101,7 @@ fn deep_shapes() -> Vec<String> {
 }
 
 /// Long flat chains: the parser loops, but later passes recurse once per
-/// link, so they need a stack as deep as Go's (see `STACK` in main.rs).
+/// link, so they need a deep stack (see `STACKS` in main.rs).
 fn long_chains() -> Vec<String> {
     let n = 200_000;
     vec![
@@ -111,7 +111,7 @@ fn long_chains() -> Vec<String> {
         format!("fn f() = f\ny = f{}", "()".repeat(n)),
         format!("y = nope{}", "()".repeat(n)),
         format!("fn f(x) = x\ny = 1{}", " |> f".repeat(n)),
-        // One error at the end: n undefined names would make Go's output
+        // One error at the end: n undefined names would make the output
         // (an excerpt of the whole line per error) quadratic.
         format!("fn f(x) = x\ny = 1{} |> nope", " |> f".repeat(n)),
     ]
@@ -119,14 +119,14 @@ fn long_chains() -> Vec<String> {
 
 /// How many dump cases there are (Review: a case must not go missing
 /// unnoticed; change it together with the cases).
-const DUMP_CASES: usize = 644;
+const DUMP_CASES: usize = 659;
 
 /// A dump longer than this is kept as a hash (the deep and long shapes).
 const LIMIT: usize = 64 * 1024;
 
 #[test]
 fn dumps_match_the_expected_output() {
-    let rust = rust_fung();
+    let bin = fung_bin();
     let mut cases: Vec<Vec<OsString>> = Vec::new();
     for f in corpus() {
         for stage in ["ast", "core", "bytecode"] {
@@ -147,7 +147,7 @@ fn dumps_match_the_expected_output() {
     cases.push(vec!["dump".into(), "ast".into(), "-e".into(), deep.into()]);
     let dir = std::env::temp_dir().join(format!("fung-dump-files-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    // Arguments that are not UTF-8: Go decodes each bad byte to U+FFFD.
+    // Arguments that are not UTF-8: each invalid sequence is a U+FFFD.
     cases.push(vec![
         "dump".into(),
         "core".into(),
@@ -178,9 +178,9 @@ fn dumps_match_the_expected_output() {
         vec!["dump", "ast", "-e", "x = 1", "extra"],
         vec!["dump", "core", "-e", "print(없는)"],
         vec!["dump", "core", "-e", "\tprint(nope)"],
-        // Go's Unicode classes (spec/unicode.txt): identifiers stop at
-        // characters `unicode.IsLetter`/`IsDigit` reject, and quoting
-        // escapes what `unicode.IsPrint` rejects.
+        // The Unicode classes (spec/unicode.txt): identifiers stop at
+        // characters that are no name characters (UAX #31), and quoting
+        // escapes what is not printable.
         vec!["dump", "ast", "-e", "x² = 1"],
         vec!["dump", "core", "-e", "aⅫ = 1"],
         vec!["dump", "ast", "-e", "Ⓐ = 1"],
@@ -226,7 +226,7 @@ fn dumps_match_the_expected_output() {
             &subs,
         )))
     };
-    let got: Vec<Entry> = par_map(&cases, |a| Entry::run(label(a), &run(&rust, a), &subs));
+    let got: Vec<Entry> = par_map(&cases, |a| Entry::run(label(a), &run(&bin, a), &subs));
     let _ = std::fs::remove_dir_all(&dir);
     expected::verify(
         "dump/dumps.txt",

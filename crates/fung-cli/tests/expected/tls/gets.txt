@@ -1,6 +1,5 @@
 # `http.get` over TLS with the test certificates (crates/fung-cli/tests/tls.rs).
-# Labels: certificate, trusted roots, host. `$PORT` is the server's port; the
-# current time of an expiry error is left out.
+# Labels: certificate, trusted roots, host. `$PORT` is the server's port.
 # After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test tls
 ==== localhost ca.pem localhost
 -- stdout
@@ -14,31 +13,31 @@
 -- exit: 0
 ==== localhost other-ca.pem localhost
 -- stdout
-| cannot request `https://localhost:$PORT/`: Get "https://localhost:$PORT/": tls: failed to verify certificate: x509: certificate signed by unknown authority
+| cannot request `https://localhost:$PORT/`: unknown certificate authority
 -- stderr
 -- exit: 0
 ==== wrongname ca.pem localhost
 -- stdout
-| cannot request `https://localhost:$PORT/`: Get "https://localhost:$PORT/": tls: failed to verify certificate: x509: certificate is valid for wrong.example, not localhost
+| cannot request `https://localhost:$PORT/`: certificate is not valid for `localhost`
 -- stderr
 -- exit: 0
 ==== wrongname other-ca.pem localhost
 -- stdout
-| cannot request `https://localhost:$PORT/`: Get "https://localhost:$PORT/": tls: failed to verify certificate: x509: certificate is valid for wrong.example, not localhost
+| cannot request `https://localhost:$PORT/`: unknown certificate authority
 -- stderr
 -- exit: 0
 ==== wrongname ca.pem 127.0.0.1
 -- stdout
-| cannot request `https://127.0.0.1:$PORT/`: Get "https://127.0.0.1:$PORT/": tls: failed to verify certificate: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
+| cannot request `https://127.0.0.1:$PORT/`: certificate is not valid for `127.0.0.1`
 -- stderr
 -- exit: 0
 ==== expired ca.pem localhost
 -- stdout
-| cannot request `https://localhost:$PORT/`: Get "https://localhost:$PORT/": tls: failed to verify certificate: x509: certificate has expired or is not yet valid: current time  is after 2001-01-01T00:00:00Z
+| cannot request `https://localhost:$PORT/`: certificate has expired (valid until 2001-01-01T00:00:00Z)
 -- stderr
 -- exit: 0
 ==== expired other-ca.pem localhost
 -- stdout
-| cannot request `https://localhost:$PORT/`: Get "https://localhost:$PORT/": tls: failed to verify certificate: x509: certificate has expired or is not yet valid: current time  is after 2001-01-01T00:00:00Z
+| cannot request `https://localhost:$PORT/`: certificate has expired (valid until 2001-01-01T00:00:00Z)
 -- stderr
 -- exit: 0

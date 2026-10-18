@@ -13,9 +13,8 @@ pub mod sigpipe;
 pub mod stack;
 #[cfg(unix)]
 pub mod term;
-#[doc(hidden)]
-pub mod tls_test_server;
 pub mod value;
+pub mod version;
 pub mod vm;
 
 #[cfg(test)]

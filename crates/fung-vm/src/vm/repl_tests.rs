@@ -1,5 +1,4 @@
-//! The runtime side of the REPL (08, Go `PrepareREPL` and
-//! `TestReplGlobalsSurviveGrowth`): every input is compiled on its own
+//! The runtime side of the REPL (08): every input is compiled on its own
 //! against the names defined so far and runs on one runtime, whose entry
 //! globals outlive each run.
 
@@ -62,7 +61,7 @@ impl Session {
         let (b, errs) = loader.compile_after(prior, "<repl>", src, Stage::All);
         self.known = b.sources;
         assert!(errs.is_empty(), "{src:?}: {errs:?}");
-        self.rt.add_names(&self.known, from);
+        self.rt.add_session_files(&self.known, from);
         let entry = b.proto.expect("an entry");
         self.globals = entry.global_names.clone();
         self.rt.load(&entry, &b.modules);
@@ -101,9 +100,8 @@ fn value(s: &str) -> Outcome {
     Outcome::Value(s.to_string())
 }
 
-/// Go `TestReplGlobalsSurviveGrowth`: a closure from an earlier input
-/// sees a later redefinition (Go keeps one table of fixed capacity; the
-/// Rust table is shared, so growing it keeps the closures' view).
+/// A closure from an earlier input sees a later redefinition (the table is
+/// shared, so growing it keeps the closures' view).
 #[test]
 fn globals_survive_and_closures_see_redefinitions() {
     on_big_stack(|| {
@@ -119,7 +117,7 @@ fn globals_survive_and_closures_see_redefinitions() {
     });
 }
 
-/// A global whose assignment failed reads as E0808 (Go `replMode`), not
+/// A global whose assignment failed reads as E0808, not
 /// as an internal error; positions name the input that holds the code.
 #[test]
 fn failed_assignment_is_e0808_and_positions_name_their_input() {
@@ -133,9 +131,12 @@ fn failed_assignment_is_e0808_and_positions_name_their_input() {
         assert_eq!(s.input("fn f(x) = x / 0"), value("nil"));
         assert_eq!(s.input("f(1)"), Outcome::Error("E0502".into(), third));
         assert_eq!(s.rt.with_sources(|m| m.name(third).to_string()), "<repl>");
-        // The runtime keeps the names only (Go's REPL runtime has no
-        // sources: a task failure report shows no excerpt).
-        assert_eq!(s.rt.with_sources(|m| m.text(third).to_string()), "");
+        // The runtime keeps each input's text, so a task failure report
+        // excerpts the input its code came from.
+        assert_eq!(
+            s.rt.with_sources(|m| m.text(third).to_string()),
+            "fn f(x) = x / 0"
+        );
         // An error does not end the session.
         assert_eq!(s.input("print(\"on\")"), value("nil"));
         assert_eq!(s.out.text(), "on\n");
@@ -143,8 +144,8 @@ fn failed_assignment_is_e0808_and_positions_name_their_input() {
 }
 
 /// A task an input leaves waiting for a later input is not a deadlock
-/// while the REPL holds the runtime (Go's 50 ms grace covers a pipe); a
-/// deadlock inside one input is still reported.
+/// while the REPL holds the runtime; a deadlock inside one input is still
+/// reported.
 #[test]
 fn a_task_may_wait_for_a_later_input() {
     on_big_stack(|| {
@@ -176,25 +177,22 @@ fn exit_comes_back() {
     });
 }
 
-/// Go's table has a fixed capacity: more entry globals than that is
-/// E0806 (Go-parity scaffolding: the Rust table could grow).
+/// The session's globals have no fixed limit: the table grows.
 #[test]
-fn too_many_globals() {
+fn many_globals() {
     on_big_stack(|| {
         let mut s = Session::new();
-        let src: String = (0..=65_536).map(|i| format!("v{i} = 0\n")).collect();
-        assert_eq!(s.input(&src), Outcome::Error("E0806".into(), FileId(0)));
-        // The names stay declared (Go records them before it runs), so
-        // every later input hits the limit too.
-        assert_eq!(s.input("1 + 1"), Outcome::Error("E0806".into(), FileId(0)));
+        let src: String = (0..=65_536).map(|i| format!("v{i} = {i}\n")).collect();
+        assert_eq!(s.input(&src), value("nil"));
+        assert_eq!(s.input("v65536 + 1"), value("65537"));
         s.rt.release();
     });
 }
 
-/// Agents in the REPL (Rust only, stage 3b): one a global holds keeps
-/// its loop across inputs; a temporary one ends once its input's values
-/// drop (its handle closes the request channel); every one ends when the
-/// session ends (`end_background`, as the command's `finish` does).
+/// Agents in the REPL (stage 3b): one a global holds keeps its loop across
+/// inputs; a temporary one ends once its input's values drop (its handle
+/// closes the request channel); every one ends when the session ends
+/// (`end_background`, as the command's `finish` does).
 #[test]
 fn agents_live_while_referenced() {
     on_big_stack(|| {
@@ -216,11 +214,11 @@ fn agents_live_while_referenced() {
     });
 }
 
-/// After a deadlock inside an input (decided 2026-10-17, a deliberate
-/// divergence from Go): `recover_deadlock` cancels and waits for the
-/// program's tasks, including those earlier inputs left blocked, clears
-/// the deadlock and its exit request, and gives the program a fresh run
-/// root. Globals and agents (which hang from the background root) stay.
+/// After a deadlock inside an input (decided 2026-10-17):
+/// `recover_deadlock` cancels and waits for the program's tasks, including
+/// those earlier inputs left blocked, clears the deadlock and its exit
+/// request, and gives the program a fresh run root. Globals and agents
+/// (which hang from the background root) stay.
 #[test]
 fn a_deadlock_is_recovered() {
     on_big_stack(|| {

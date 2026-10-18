@@ -1,13 +1,10 @@
-//! `_native.process` (Go `internal/native/process.go`): `exec`, `sh` and
-//! `env` (06: 명령 실행). `extras/prelude.fung` re-exports them under
-//! their plain names.
+//! `_native.process`: `exec`, `sh` and `env` (06: 명령 실행).
+//! `extras/prelude.fung` re-exports them under their plain names.
 //!
 //! A command runs with its standard output and error captured and its
-//! standard input empty unless `stdin` is given (Go `exec.Cmd` with nil
-//! `Stdin` reads `/dev/null`). The checks Go's `exec.Cmd.Start` makes
-//! before starting a process (the `$PATH` lookup, `exec: no command`, NUL
-//! bytes, the working directory) are made here in the same order, so the
-//! `not_found` messages read the same.
+//! standard input `/dev/null` unless `stdin` is given. Before it starts,
+//! `prepare` checks what would keep it from starting and gives the reason
+//! of the `not_found` error.
 
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -19,7 +16,7 @@ use std::sync::OnceLock;
 
 use fung_front::diag::Arg;
 use fung_front::loader::abs_path;
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 
 use super::nat::{self, native, opt, param};
 use super::oserr::reason;
@@ -79,33 +76,33 @@ fn sh_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// map in the environment's order.
 fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     if let Some(name) = nat::opt_str("name", &a[0])? {
-        // Go's LookupEnv finds nothing for a name no entry can have.
+        // No entry can have such a name.
         if name.is_empty() || name.contains(['=', '\0']) {
             return Ok(Value::Nil);
         }
         return Ok(match std::env::var_os(name) {
-            Some(v) => Value::str(&decode_go(v.as_bytes())),
+            Some(v) => Value::str(&decode_lossy(v.as_bytes())),
             None => Value::Nil,
         });
     }
     let mut m = MapBuilder::default();
     for (k, v) in std::env::vars_os() {
         m.set(
-            Rc::new(decode_go(k.as_bytes())),
-            Value::str(&decode_go(v.as_bytes())),
+            Rc::new(decode_lossy(k.as_bytes())),
+            Value::str(&decode_lossy(v.as_bytes())),
         );
     }
     Ok(Value::Map(Rc::new(m.finish())))
 }
 
-/// Go `runCommand`: checks `cwd`, `env` and `stdin` (in that order), runs
+/// Checks `cwd`, `env` and `stdin` (in that order), runs
 /// the command, and returns `Ok({out, err, code})`, `Err({kind: 'exit,
 /// code, out, err, message})` for a non-zero exit (code -1 when a signal
 /// ended it), or `Err({kind: 'not_found, message})` when it cannot start.
 ///
 /// The command runs outside the run token (stage 3a): other tasks run
-/// while it does. Like Go's, it is not cut short by a cancellation or an
-/// exit; the program waits for it to end.
+/// while it does. It is not cut short by a cancellation or an exit; the
+/// program waits for it to end.
 fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Value, Stop> {
     let cwd = nat::opt_str("cwd", &a[1])?
         .filter(|d| !d.is_empty())
@@ -145,8 +142,8 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Value
         Ok(o) => o,
         Err(reason) => return not_found(&reason),
     };
-    let out = Value::str(&decode_go(&output.stdout));
-    let err = Value::str(&decode_go(&output.stderr));
+    let out = Value::str(&decode_lossy(&output.stdout));
+    let err = Value::str(&decode_lossy(&output.stderr));
     if output.status.success() {
         let mut m = MapBuilder::default();
         m.set(Rc::new("out".into()), out);
@@ -179,8 +176,8 @@ fn run_process(
         Stdio::null()
     });
     let mut child = cmd.spawn().map_err(|e| reason(&e))?;
-    // Go copies stdin from a goroutine and ignores a reader that stops
-    // early (EPIPE); a thread does the same here.
+    // A thread feeds stdin, and a command that stops reading early
+    // (EPIPE) is not an error.
     let feeder = match (stdin, child.stdin.take()) {
         (Some(text), Some(mut pipe)) => Some(std::thread::spawn(move || {
             let _ = pipe.write_all(&text);
@@ -194,55 +191,57 @@ fn run_process(
     output.map_err(|e| reason(&e))
 }
 
-/// The command Go's `exec.Command` + `Start` would run, or the reason it
-/// would give for not starting it, checked in Go's order: the `$PATH`
-/// lookup, an empty name, the environment (with `PWD` set to the absolute
-/// `cwd` when no `env` is given), the working directory, NUL bytes.
+/// The command to run, or the reason it cannot start, checked in
+/// argument order (`exec(cmd, cwd, env, stdin)`): the command (an empty
+/// name, a NUL in any argument, the `$PATH` lookup), the working
+/// directory, the environment (with `PWD` set to the absolute `cwd` when
+/// no `env` is given), and last whether the kernel can execute the file.
 fn prepare(
     argv: &[String],
     cwd: Option<&str>,
     env: Option<Vec<(String, String)>>,
 ) -> Result<Command, String> {
     let name = &argv[0];
-    let path = if !name.is_empty() && !name.contains('/') {
-        look_path(name)?
-    } else {
+    if name.is_empty() {
+        return Err("empty command name".into());
+    }
+    if argv.iter().any(|x| x.contains('\0')) {
+        return Err("argument contains a NUL byte".into());
+    }
+    let path = if name.contains('/') {
         name.clone()
+    } else {
+        look_path(name)?
     };
-    if path.is_empty() {
-        return Err("exec: no command".into());
+    if let Some(dir) = cwd {
+        if dir.contains('\0') {
+            return Err("working directory contains a NUL byte".into());
+        }
+        if let Err(e) = std::fs::metadata(dir) {
+            return Err(reason(&e));
+        }
+    }
+    if let Some(vars) = &env
+        && vars
+            .iter()
+            .any(|(k, v)| k.contains('\0') || v.contains('\0'))
+    {
+        return Err("environment variable contains a NUL byte".into());
     }
     let vars = match (env, cwd) {
         (Some(vars), _) => vars,
         (None, Some(dir)) => vec![("PWD".to_string(), abs_path(dir))],
         (None, None) => Vec::new(),
     };
-    if vars
-        .iter()
-        .any(|(k, v)| k.contains('\0') || v.contains('\0'))
-    {
-        return Err("exec: environment variable contains NUL".into());
-    }
-    if let Some(dir) = cwd {
-        if dir.contains('\0') {
-            return Err("invalid argument".into());
-        }
-        if let Err(e) = std::fs::metadata(dir) {
-            return Err(reason(&e));
-        }
-    }
-    if path.contains('\0') || argv.iter().any(|x| x.contains('\0')) {
-        return Err("invalid argument".into());
-    }
-    // The standard library starts programs through `execvp`, which runs a
-    // file the kernel refuses (ENOEXEC) with `/bin/sh`; Go's `execve`
-    // reports it instead.
+    // A file the kernel cannot execute (ENOEXEC) is refused rather than
+    // handed to `/bin/sh`, which the standard library's `execvp` would do:
+    // shell scripts go through `sh()`.
     let target = match cwd {
         Some(dir) if !path.starts_with('/') => format!("{dir}/{path}"),
         _ => path.clone(),
     };
     if !kernel_can_run(&target) {
-        return Err("exec format error".into());
+        return Err("not an executable file (run scripts with sh)".into());
     }
     let mut cmd = Command::new(&path);
     cmd.arg0(name).args(&argv[1..]);
@@ -253,27 +252,28 @@ fn prepare(
     Ok(cmd)
 }
 
-/// Go `exec.LookPath` for a name without a slash: the first `$PATH` entry
-/// (an empty one is the working directory) holding an executable file of
-/// that name. A relative result is refused like Go's `ErrDot`.
+/// The first `$PATH` entry (an empty one is the working directory)
+/// holding an executable file named `name`. A command found only through
+/// a relative entry is refused: which program runs would then depend on
+/// the working directory.
 fn look_path(name: &str) -> Result<String, String> {
     let path = std::env::var_os("PATH").unwrap_or_default();
     if !path.is_empty() {
         for dir in path.as_bytes().split(|b| *b == b':') {
-            let dir = match decode_go(dir) {
+            let dir = match decode_lossy(dir) {
                 d if d.is_empty() => ".".to_string(),
                 d => d,
             };
             let candidate = format!("{dir}/{name}");
             if is_executable(&candidate) {
                 if !candidate.starts_with('/') {
-                    return Err("cannot run executable found relative to current directory".into());
+                    return Err("command found only in a relative PATH entry".into());
                 }
                 return Ok(candidate);
             }
         }
     }
-    Err("executable file not found in $PATH".into())
+    Err("command not found in PATH".into())
 }
 
 /// Whether `execve` would accept an executable file rather than fail with

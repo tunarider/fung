@@ -73,7 +73,7 @@ impl Lexer<'_> {
         let text: String = raw.chars().filter(|&c| c != '_').collect();
         if is_float {
             return match text.parse::<f64>() {
-                // Rust parses an overflow as infinity; Go reports a range error.
+                // an overflow parses as infinity, which is E0102 below
                 Ok(f) if f.is_finite() => {
                     let raw = raw.to_string();
                     self.emit(Kind::Float, &raw, p).float = f;

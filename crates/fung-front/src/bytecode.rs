@@ -1,5 +1,4 @@
 //! The instruction set of the fung VM and the compiled-function model.
-//! Port of Go `internal/bytecode` minus the runtime-only `Closure` value.
 //! Every instruction has a source position in the parallel `Proto::pos`
 //! (08: 모든 명령은 소스 위치를 가진다).
 

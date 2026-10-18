@@ -1,22 +1,17 @@
-//! Time zones read from TZif files, as Go's `time` package reads them
-//! (`zoneinfo_read.go`, `zoneinfo.go`, `zoneinfo_unix.go`).
+//! Time zones read from TZif files (RFC 8536) and POSIX zone strings.
 //!
-//! fung only ever uses the local zone (`time.Local` in Go), resolved once
-//! per process from `TZ` the way Go's `initLocal` does. A [`Zone`] holds
-//! plain Rust data (no `Rc`), so any thread may read the shared one.
-//!
-//! The arithmetic follows Go's 64-bit `int` and `uint64` code with wrapping
-//! operations, so even absurd instants give the answer Go gives.
-//!
-//! Go's zone search order and its quirks are transitional (open-questions
-//! "Go 동등을 위한 과도기 잔가지").
+//! fung only ever uses the local zone, resolved once per process from `TZ`
+//! and `TZDIR` the way the C library does (`resolve_local`). A [`Zone`]
+//! holds plain Rust data (no `Rc`), so any thread may read the shared one.
 
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::sync::OnceLock;
 
-/// One zone type of a TZif file (Go `zone`): `"CET"`, seconds east of UTC.
+use crate::value::{civil_from_days, days_from_civil};
+
+/// One zone type of a TZif file: `"CET"`, seconds east of UTC.
 #[derive(Clone, Debug)]
 struct ZoneType {
     name: String,
@@ -24,53 +19,32 @@ struct ZoneType {
     is_dst: bool,
 }
 
-/// A transition (Go `zoneTrans`): from `when` on, zone type `index` applies.
+/// A transition: from `when` on, zone type `index` applies.
 #[derive(Clone, Copy, Debug)]
 struct Trans {
     when: i64,
     index: u8,
 }
 
-/// A time zone (Go `Location`).
+/// A time zone.
 #[derive(Clone, Debug)]
 pub(crate) struct Zone {
-    /// Go's `Location.String()`: `"Local"`, `"UTC"`, `"Asia/Seoul"` or a path.
+    /// `"Local"`, `"UTC"`, `"Asia/Seoul"`, a path or a POSIX string.
     pub(crate) name: String,
     zones: Vec<ZoneType>,
     tx: Vec<Trans>,
     /// The POSIX TZ rule after the TZif data, for instants past the last
     /// transition (`EST5EDT,M3.2.0,M11.1.0`), parsed; `None` when the file
-    /// has none or Go's `tzset` would not accept it.
+    /// has none or it is not a valid POSIX rule.
     extend: Option<Footer>,
 }
 
-/// Go's `alpha` and `omega`: the beginning and end of time for transitions.
-const ALPHA: i64 = i64::MIN;
-const OMEGA: i64 = i64::MAX;
-
 const SECONDS_PER_MINUTE: i64 = 60;
 const SECONDS_PER_HOUR: i64 = 60 * SECONDS_PER_MINUTE;
-pub(crate) const SECONDS_PER_DAY: i64 = 24 * SECONDS_PER_HOUR;
-
-/// Days from March 1 through the end of the year.
-const MARCH_THRU_DECEMBER: i64 = 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31;
-/// Go's `absoluteYears`: the absolute epoch is March 1 of this many years before year 0.
-const ABSOLUTE_YEARS: u64 = 292277022400;
-/// Go's `absoluteToInternal` (`-(absoluteYears*365.2425 + marchThruDecember) * secondsPerDay`).
-const ABSOLUTE_TO_INTERNAL: i64 =
-    -((ABSOLUTE_YEARS as i64 / 400 * 146097 + MARCH_THRU_DECEMBER) * SECONDS_PER_DAY);
-const INTERNAL_TO_ABSOLUTE: i64 = -ABSOLUTE_TO_INTERNAL;
-/// Go's `unixToInternal`: seconds from January 1, year 1 to the Unix epoch.
-pub(crate) const UNIX_TO_INTERNAL: i64 =
-    (1969 * 365 + 1969 / 4 - 1969 / 100 + 1969 / 400) * SECONDS_PER_DAY;
-pub(crate) const INTERNAL_TO_UNIX: i64 = -UNIX_TO_INTERNAL;
-/// Go's `absoluteToUnix`.
-const ABSOLUTE_TO_UNIX: i64 = ABSOLUTE_TO_INTERNAL + INTERNAL_TO_UNIX;
-/// Go's `unixToAbsolute`.
-pub(crate) const UNIX_TO_ABSOLUTE: i64 = UNIX_TO_INTERNAL + INTERNAL_TO_ABSOLUTE;
+const SECONDS_PER_DAY: i64 = 24 * SECONDS_PER_HOUR;
 
 impl Zone {
-    /// Go's `UTC` location (no zone types: every lookup is `UTC`, offset 0).
+    /// UTC (no zone types: every lookup is `UTC`, offset 0).
     pub(crate) fn utc() -> Zone {
         Zone {
             name: "UTC".to_string(),
@@ -80,69 +54,70 @@ impl Zone {
         }
     }
 
+    /// A zone made of a POSIX zone string alone, named by it.
+    fn posix(tz: &[u8]) -> Option<Zone> {
+        let f = parse_footer(tz)?;
+        Some(Zone {
+            name: String::from_utf8_lossy(tz).into_owned(),
+            zones: vec![ZoneType {
+                name: f.std_name.clone(),
+                offset: f.std_offset as i32,
+                is_dst: false,
+            }],
+            tx: vec![Trans {
+                when: i64::MIN,
+                index: 0,
+            }],
+            extend: Some(f),
+        })
+    }
+
     /// The zone abbreviation and offset (seconds east of UTC) in effect at
-    /// `unix_sec` (Go `Location.lookup`, name and offset only).
+    /// `unix_sec`.
     pub(crate) fn lookup(&self, unix_sec: i64) -> (&str, i32) {
         let l = self.lookup_full(unix_sec);
         (l.name, l.offset)
     }
 
-    /// Go `Location.lookup`: the zone at `sec` and the instants `[start, end)`
-    /// bracketing it. The bracket is exact near a transition, but under the
-    /// POSIX rule it may otherwise be only the start and end of the year
-    /// (which is all `date` needs).
+    /// The zone at `sec`: the last transition at or before it, the POSIX
+    /// rule past the last transition, the first zone (tzcode's rules)
+    /// before the first.
     fn lookup_full(&self, sec: i64) -> Lookup<'_> {
+        // Times run from year 0000 to 9999; a week either side covers any
+        // wall-clock arithmetic near the ends.
+        const WEEK: i64 = 7 * SECONDS_PER_DAY;
+        let sec = sec.clamp(crate::value::MIN_UNIX - WEEK, crate::value::MAX_UNIX + WEEK);
         if self.zones.is_empty() {
             return Lookup {
                 name: "UTC",
                 offset: 0,
-                start: ALPHA,
-                end: OMEGA,
             };
         }
         if self.tx.is_empty() || sec < self.tx[0].when {
             let z = &self.zones[self.lookup_first_zone()];
-            let end = self.tx.first().map_or(OMEGA, |t| t.when);
             return Lookup {
                 name: &z.name,
                 offset: z.offset,
-                start: ALPHA,
-                end,
             };
         }
         // Binary search for the entry with the largest time <= sec.
         let tx = &self.tx;
-        let mut end = OMEGA;
-        let mut lo = 0;
-        let mut hi = tx.len();
-        while hi - lo > 1 {
-            let m = (lo + hi) / 2;
-            let lim = tx[m].when;
-            if sec < lim {
-                end = lim;
-                hi = m;
-            } else {
-                lo = m;
-            }
-        }
+        let lo = tx.partition_point(|t| t.when <= sec) - 1;
         let z = &self.zones[tx[lo].index as usize];
-        let start = tx[lo].when;
         // At the end of the known transitions, try the POSIX rule.
         if lo == tx.len() - 1
             && let Some(f) = &self.extend
         {
-            return tzset(f, start, sec);
+            return tzset(f, sec);
         }
         Lookup {
             name: &z.name,
             offset: z.offset,
-            start,
-            end,
         }
     }
 
-    /// Go `Location.lookupFirstZone`: the zone type for instants before the
-    /// first transition (the tzcode `localtime.c` rules).
+    /// The zone type for instants before the first transition (the tzcode
+    /// `localtime.c` rules).
     fn lookup_first_zone(&self) -> usize {
         // Case 1: the first zone is unused by the transitions.
         if !self.tx.iter().any(|t| t.index == 0) {
@@ -162,152 +137,43 @@ impl Zone {
         self.zones.iter().position(|z| !z.is_dst).unwrap_or(0)
     }
 
-    /// The instant Go's `time.Date(year, month, day, hour, min, sec, nsec, loc)`
-    /// chooses in this zone, as `(unix seconds, nanoseconds)`.
-    ///
-    /// Out-of-range fields are normalized (month 13 is January of the next
-    /// year, second -1 is the last second of the previous minute). A wall
-    /// time that the zone skips or repeats at a DST change gets Go's choice:
-    /// the offset in effect at the wall time read as if it were UTC is tried
-    /// first, and kept unless the resulting instant falls outside that
-    /// offset's span, in which case the other offset is used. In New York
-    /// (west of UTC) a skipped 02:30 on a spring-forward day lands an hour
-    /// earlier than the new offset would put it and a repeated 01:30 on a
-    /// fall-back day takes the first (DST) occurrence; east of UTC, e.g.
-    /// `2024-10-27 02:30` in Europe/Berlin, the second occurrence (`+01:00`).
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn date(
-        &self,
-        year: i64,
-        month: i64,
-        day: i64,
-        hour: i64,
-        min: i64,
-        sec: i64,
-        nsec: i64,
-    ) -> (i64, i32) {
-        // Normalize month, overflowing into year.
-        let (year, m) = norm(year, month.wrapping_sub(1), 12);
-        let month = m + 1;
-        // Normalize nsec, sec, min, hour, overflowing into day.
-        let (sec, nsec) = norm(sec, nsec, 1_000_000_000);
-        let (min, sec) = norm(min, sec, 60);
-        let (hour, min) = norm(hour, min, 60);
-        let (day, hour) = norm(day, hour, 24);
-
-        let mut unix = (date_to_abs_days(year, month, day) as i64)
-            .wrapping_mul(SECONDS_PER_DAY)
-            .wrapping_add(
-                hour.wrapping_mul(SECONDS_PER_HOUR)
-                    .wrapping_add(min.wrapping_mul(SECONDS_PER_MINUTE))
-                    .wrapping_add(sec),
-            )
-            .wrapping_add(ABSOLUTE_TO_UNIX);
-
-        // Look up the offset for the wall time read as UTC, then check that
-        // the resulting instant is still in that offset's span.
-        let l = self.lookup_full(unix);
-        let mut offset = l.offset;
-        if offset != 0 {
-            let utc = unix.wrapping_sub(i64::from(offset));
-            if utc < l.start || utc >= l.end {
-                offset = self.lookup_full(utc).offset;
-            }
-            unix = unix.wrapping_sub(i64::from(offset));
-        }
-        (unix, nsec as i32)
+    /// The instant (unix seconds) whose wall clock in this zone reads
+    /// `wall` (seconds since 1970 on the wall clock). A wall time the zone
+    /// repeats (clocks set back) is its earlier instant; one the zone skips
+    /// (clocks set forward) moves forward by the gap, read with the offset
+    /// in effect before it (06: 시간 형식).
+    pub(crate) fn date(&self, wall: i64) -> i64 {
+        // The offsets a day before and after: those around any change near
+        // `wall` (changes are further apart than that).
+        let before = self.lookup(wall.saturating_sub(86_400)).1;
+        let after = self.lookup(wall.saturating_add(86_400)).1;
+        let fits = |o: i32| self.lookup(wall - i64::from(o)).1 == o;
+        let offset = match (fits(before), fits(after)) {
+            (true, true) => before.max(after),
+            (true, false) => before,
+            (false, true) => after,
+            (false, false) => before,
+        };
+        wall - i64::from(offset)
     }
 }
 
-/// What Go's `lookup` returns, minus `isDST` (fung never shows it).
+/// The zone in effect at an instant: abbreviation and offset.
 struct Lookup<'a> {
     name: &'a str,
     offset: i32,
-    start: i64,
-    end: i64,
 }
 
-/// Go `norm`: `(nhi, nlo)` with `hi*base + lo == nhi*base + nlo`, `0 <= nlo < base`.
-fn norm(mut hi: i64, mut lo: i64, base: i64) -> (i64, i64) {
-    if lo < 0 {
-        let n = lo.wrapping_neg().wrapping_sub(1) / base + 1;
-        hi = hi.wrapping_sub(n);
-        lo = lo.wrapping_add(n.wrapping_mul(base));
-    }
-    if lo >= base {
-        let n = lo / base;
-        hi = hi.wrapping_add(n);
-        lo = lo.wrapping_sub(n.wrapping_mul(base));
-    }
-    (hi, lo)
-}
-
-/// Go `dateToAbsDays`: days from the absolute epoch to `year-month-day`
-/// (`month` in 1..=12; `day` may be out of range, even negative).
-pub(crate) fn date_to_abs_days(year: i64, month: i64, day: i64) -> u64 {
-    let mut amonth = month as u32;
-    let jan_feb = u32::from(amonth < 3);
-    amonth += 12 * jan_feb;
-    let y = (year as u64)
-        .wrapping_sub(u64::from(jan_feb))
-        .wrapping_add(ABSOLUTE_YEARS);
-    let ayday = (979 * amonth - 2919) >> 5;
-    let century = y / 100;
-    let cyear = (y % 100) as u32;
-    let cday = 1461 * cyear / 4;
-    let centurydays = 146097u64.wrapping_mul(century) / 4;
-    centurydays.wrapping_add((i64::from(cday + ayday).wrapping_add(day).wrapping_sub(1)) as u64)
-}
-
-/// Go `absDays.split`: century, year in the century, day in the March-based year.
-fn split_days(days: u64) -> (u64, u32, u32) {
-    let d = days.wrapping_mul(4).wrapping_add(3);
-    let century = d / 146097;
-    let cd = (d % 146097) as u32 | 3;
-    let prod = 2939745u64 * u64::from(cd);
-    let cyear = (prod >> 32) as u32;
-    let ayday = (prod as u32) / 2939745 / 4;
-    (century, cyear, ayday)
-}
-
-/// Go `absDays.yearYday`: the standard year and 1-based day of the year.
-pub(crate) fn year_yday(days: u64) -> (i64, i64) {
-    let (century, cyear, ayday) = split_days(days);
-    let jan_feb = i64::from(i64::from(ayday) >= MARCH_THRU_DECEMBER);
-    let year = (century.wrapping_mul(100).wrapping_sub(ABSOLUTE_YEARS) as i64)
-        .wrapping_add(i64::from(cyear))
-        .wrapping_add(jan_feb);
-    let leap = i64::from(cyear % 4 == 0 && (cyear != 0 || century % 4 == 0));
-    let yday = i64::from(ayday) + (1 + 31 + 28) + (leap & !jan_feb) - 365 * jan_feb;
-    (year, yday)
-}
-
-/// Go `absDays.date`: the standard year, month (1-based) and day.
-pub(crate) fn abs_date(days: u64) -> (i64, i64, i64) {
-    let (century, cyear, ayday) = split_days(days);
-    // Go `absYday.split`.
-    let d = 2141 * ayday + 197913;
-    let (amonth, mday) = (i64::from(d >> 16), 1 + i64::from((d & 0xFFFF) / 2141));
-    let jan_feb = i64::from(i64::from(ayday) >= MARCH_THRU_DECEMBER);
-    let year = (century.wrapping_mul(100).wrapping_sub(ABSOLUTE_YEARS) as i64)
-        .wrapping_add(i64::from(cyear))
-        .wrapping_add(jan_feb);
-    (year, amonth - 12 * jan_feb, mday)
-}
-
-/// Go `isLeap`.
 fn is_leap(year: i64) -> bool {
-    let mask = if year % 25 != 0 { 3 } else { 0xf };
-    year & mask == 0
+    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
 
-/// Go `daysBefore`: days in a non-leap year before month `m` (1-based).
+/// Days in a non-leap year before month `m` (1-based).
 fn days_before(m: i64) -> i64 {
     let adj = if m >= 3 { -2 } else { 0 };
     (214 * m - 211) / 7 + adj
 }
 
-/// Go `daysIn`.
 fn days_in(m: i64, year: i64) -> i64 {
     if m == 2 {
         return if is_leap(year) { 29 } else { 28 };
@@ -315,9 +181,9 @@ fn days_in(m: i64, year: i64) -> i64 {
     30 + ((m + (m >> 3)) & 1)
 }
 
-// --- POSIX TZ rules (Go `tzset` and helpers) ---
+// --- POSIX TZ rules ---
 
-/// A rule from a POSIX TZ string (Go `rule`).
+/// A rule from a POSIX TZ string.
 #[derive(Clone, Copy, Debug)]
 enum RuleKind {
     /// `Jn`: day 1..=365, February 29 never counted.
@@ -338,9 +204,8 @@ struct Rule {
     time: i64,
 }
 
-/// A parsed POSIX TZ footer. Go reparses the string on every lookup; the
-/// result is the same each time, so it is parsed once here. Names are
-/// decoded lossily only after parsing, which works on bytes as Go's does.
+/// A parsed POSIX TZ string (a TZif footer or `TZ` itself), parsed once.
+/// Names are decoded lossily only after parsing, which works on bytes.
 #[derive(Clone, Debug)]
 struct Footer {
     std_name: String,
@@ -357,8 +222,8 @@ struct DstRule {
     end: Rule,
 }
 
-/// The parsing half of Go `tzset`. `None` where Go's `tzset` returns
-/// `ok == false` (the footer is then ignored).
+/// A POSIX TZ string, or `None` when it is not one (a footer is then
+/// ignored).
 fn parse_footer(s: &[u8]) -> Option<Footer> {
     let (std_name, s) = tzset_name(s)?;
     let (std_offset, s) = tzset_offset(s)?;
@@ -411,65 +276,47 @@ fn parse_footer(s: &[u8]) -> Option<Footer> {
     })
 }
 
-/// The evaluating half of Go `tzset`: the zone at `sec` under footer `f`,
-/// given the last transition `last_tx_sec`.
-fn tzset(f: &Footer, last_tx_sec: i64, sec: i64) -> Lookup<'_> {
+/// The zone at `sec` under the POSIX rule `f`.
+fn tzset(f: &Footer, sec: i64) -> Lookup<'_> {
     let Some(dst) = &f.dst else {
         return Lookup {
             name: &f.std_name,
             offset: f.std_offset as i32,
-            start: last_tx_sec,
-            end: OMEGA,
         };
     };
     let (mut std_name, mut std_offset) = (f.std_name.as_str(), f.std_offset);
     let (mut dst_name, mut dst_offset) = (dst.name.as_str(), dst.offset);
 
-    // The start of the year containing sec, and seconds since then.
-    let abs = sec.wrapping_add(UNIX_TO_ABSOLUTE) as u64;
-    let (year, yday) = year_yday(abs / SECONDS_PER_DAY as u64);
-    let ysec = (yday - 1)
-        .wrapping_mul(SECONDS_PER_DAY)
-        .wrapping_add(sec % SECONDS_PER_DAY);
-    let ystart = sec.wrapping_sub(ysec);
+    // The UTC year containing sec, and seconds since its start.
+    let days = sec.div_euclid(SECONDS_PER_DAY);
+    let (year, _, _) = civil_from_days(days);
+    let ysec = sec - days_from_civil(year, 1, 1) * SECONDS_PER_DAY;
 
     let mut start_sec = tzrule_time(year, dst.start, std_offset);
     let mut end_sec = tzrule_time(year, dst.end, dst_offset);
     // Southern hemisphere: the rule's "DST" spans the year boundary, so
-    // swap the halves while keeping Go's labels.
+    // swap the halves.
     if end_sec < start_sec {
         std::mem::swap(&mut start_sec, &mut end_sec);
         std::mem::swap(&mut std_name, &mut dst_name);
         std::mem::swap(&mut std_offset, &mut dst_offset);
     }
 
-    if ysec < start_sec {
+    if ysec < start_sec || ysec >= end_sec {
         Lookup {
             name: std_name,
             offset: std_offset as i32,
-            start: ystart,
-            end: start_sec.wrapping_add(ystart),
-        }
-    } else if ysec >= end_sec {
-        Lookup {
-            name: std_name,
-            offset: std_offset as i32,
-            start: end_sec.wrapping_add(ystart),
-            end: ystart.wrapping_add(365 * SECONDS_PER_DAY),
         }
     } else {
         Lookup {
             name: dst_name,
             offset: dst_offset as i32,
-            start: start_sec.wrapping_add(ystart),
-            end: end_sec.wrapping_add(ystart),
         }
     }
 }
 
-/// Go `tzsetName`: a zone name (`EST`, or `<+0330>` without the brackets).
-/// Go ranges over runes, but every byte it tests for is ASCII, so scanning
-/// bytes finds the same positions.
+/// A zone name (`EST`, or `<+0330>` without the brackets); every byte it
+/// tests for is ASCII, so it scans bytes.
 fn tzset_name(s: &[u8]) -> Option<(&[u8], &[u8])> {
     if s.is_empty() {
         return None;
@@ -493,7 +340,7 @@ fn tzset_name(s: &[u8]) -> Option<(&[u8], &[u8])> {
     }
 }
 
-/// Go `tzsetOffset`: `[+-]hh[:mm[:ss]]` in seconds.
+/// `[+-]hh[:mm[:ss]]` in seconds.
 fn tzset_offset(s: &[u8]) -> Option<(i64, &[u8])> {
     if s.is_empty() {
         return None;
@@ -520,7 +367,7 @@ fn tzset_offset(s: &[u8]) -> Option<(i64, &[u8])> {
     Some((sign(off), s))
 }
 
-/// Go `tzsetRule`: `Jn`, `n` or `Mm.w.d`, then an optional `/time`.
+/// `Jn`, `n` or `Mm.w.d`, then an optional `/time`.
 fn tzset_rule(s: &[u8]) -> Option<(Rule, &[u8])> {
     if s.is_empty() {
         return None;
@@ -563,7 +410,7 @@ fn tzset_rule(s: &[u8]) -> Option<(Rule, &[u8])> {
     Some((r, s))
 }
 
-/// Go `tzsetNum`: a decimal number in `min..=max`.
+/// A decimal number in `min..=max`.
 fn tzset_num(s: &[u8], min: i64, max: i64) -> Option<(i64, &[u8])> {
     if s.is_empty() {
         return None;
@@ -587,7 +434,7 @@ fn tzset_num(s: &[u8], min: i64, max: i64) -> Option<(i64, &[u8])> {
     Some((num, b""))
 }
 
-/// Go `tzruleTime`: seconds since the start of `year` at which rule `r`
+/// Seconds since the start of `year` at which rule `r`
 /// takes effect, for a zone at offset `off`.
 fn tzrule_time(year: i64, r: Rule, off: i64) -> i64 {
     let s = match r.kind {
@@ -637,9 +484,9 @@ fn tzrule_time(year: i64, r: Rule, off: i64) -> i64 {
     s + r.time - off
 }
 
-// --- TZif files (Go `LoadLocationFromTZData`) ---
+// --- TZif files ---
 
-/// Go `dataIO`: a cursor that remembers running out of data.
+/// A cursor that remembers running out of data.
 struct DataIo<'a> {
     p: &'a [u8],
     error: bool,
@@ -688,15 +535,15 @@ impl<'a> DataIo<'a> {
     }
 }
 
-/// Go `byteString`: the bytes up to the first NUL.
+/// The bytes up to the first NUL.
 fn byte_string(p: &[u8]) -> String {
     let end = p.iter().position(|&b| b == 0).unwrap_or(p.len());
     String::from_utf8_lossy(&p[..end]).into_owned()
 }
 
-/// Go `LoadLocationFromTZData`: a zone named `name` from TZif v1, v2 or v3
+/// A zone named `name` from TZif v1, v2 or v3
 /// data (the 64-bit body of v2+ files, then the POSIX rule footer).
-/// `None` where Go reports malformed data.
+/// `None` for malformed data.
 pub(crate) fn from_tzdata(name: &str, data: &[u8]) -> Option<Zone> {
     let mut d = DataIo {
         p: data,
@@ -806,7 +653,7 @@ pub(crate) fn from_tzdata(name: &str, data: &[u8]) -> Option<Zone> {
     if tx.is_empty() {
         // A fake transition covering all time (fixed zones like "Etc/GMT0").
         tx.push(Trans {
-            when: ALPHA,
+            when: i64::MIN,
             index: 0,
         });
     }
@@ -819,20 +666,15 @@ pub(crate) fn from_tzdata(name: &str, data: &[u8]) -> Option<Zone> {
     })
 }
 
-// --- Finding zone files (Go `zoneinfo_unix.go`, `loadLocation`) ---
+// --- Finding zone files ---
 
-/// Go `platformZoneSources`: directories searched for a zone name.
-const PLATFORM_ZONE_SOURCES: &[&str] = &[
-    "/usr/share/zoneinfo/",
-    "/usr/share/lib/zoneinfo/",
-    "/usr/lib/locale/TZ/",
-    "/etc/zoneinfo",
-];
+/// Where relative zone names are read from when `TZDIR` is not set.
+const ZONE_DIR: &str = "/usr/share/zoneinfo";
 
-/// Go `maxFileSize`: zone files larger than this are refused.
+/// Zone files larger than this are refused.
 const MAX_FILE_SIZE: usize = 10 << 20;
 
-/// Go `loadTzinfoFromDirOrZip` for a directory source, and `readFile`.
+/// The zone file `name` in `dir`.
 fn read_zone_file(dir: &[u8], name: &[u8]) -> Option<Vec<u8>> {
     let mut path = Vec::with_capacity(dir.len() + 1 + name.len());
     if !dir.is_empty() {
@@ -841,7 +683,7 @@ fn read_zone_file(dir: &[u8], name: &[u8]) -> Option<Vec<u8>> {
     }
     path.extend_from_slice(name);
     // Read at most one byte past the limit, so an endless file
-    // (`TZ=/dev/zero`) is refused as Go refuses it, not read forever.
+    // (`TZ=/dev/zero`) is refused, not read forever.
     let file = std::fs::File::open(OsString::from_vec(path)).ok()?;
     let mut data = Vec::new();
     file.take(MAX_FILE_SIZE as u64 + 1)
@@ -853,9 +695,7 @@ fn read_zone_file(dir: &[u8], name: &[u8]) -> Option<Vec<u8>> {
     Some(data)
 }
 
-/// Go `loadLocation`: the first source holding a valid zone file `name`.
-/// (Go then tries an embedded `time/tzdata` and `$GOROOT/lib/time/zoneinfo.zip`;
-/// fung's release binaries have neither, so neither do we.)
+/// The first source holding a valid zone file `name`.
 fn load_from(name: &[u8], sources: &[&str]) -> Option<Zone> {
     let display = String::from_utf8_lossy(name);
     sources.iter().find_map(|source| {
@@ -863,57 +703,67 @@ fn load_from(name: &[u8], sources: &[&str]) -> Option<Zone> {
     })
 }
 
-/// The zone `name` (`"Asia/Seoul"`) from the system zone directories, as
-/// Go's `initLocal` loads a relative `TZ`. fung itself only uses the local
-/// zone, so only tests load one by name.
+/// The zone `name` (`"Asia/Seoul"`) from the system zone directory, as a
+/// relative `TZ` loads. fung itself only uses the local zone, so only tests
+/// load one by name.
 #[cfg(test)]
 pub(crate) fn load(name: &str) -> Option<Zone> {
-    load_from(name.as_bytes(), PLATFORM_ZONE_SOURCES)
+    load_from(name.as_bytes(), &[ZONE_DIR])
 }
 
-/// Go `initLocal`: the local zone for the value of `TZ` (`None` when unset).
+/// The local zone for the value of `TZ` (`None` when unset), with
+/// relative names read from `tzdir` (`TZDIR`) or `/usr/share/zoneinfo`:
 ///
 /// - unset: `/etc/localtime`, named `"Local"`;
 /// - `""` or `"UTC"`: UTC;
 /// - a leading `:` is dropped; an absolute path is read directly (named by
 ///   the path, or `"Local"` for `/etc/localtime`); any other name is looked
-///   up in the zone directories (named by itself);
-/// - anything that fails to load: UTC.
-pub(crate) fn resolve_local(tz: Option<&OsStr>) -> Zone {
-    match tz.map(OsStr::as_bytes) {
-        None => {
-            if let Some(mut z) = load_from(b"localtime", &["/etc"]) {
+///   up in the zone directory (named by itself);
+/// - a value that names no zone file may be a POSIX zone string
+///   (`KST-9`, `EST5EDT,M3.2.0,M11.1.0`), named by itself;
+/// - anything else: UTC.
+pub(crate) fn resolve_local(tz: Option<&OsStr>, tzdir: Option<&OsStr>) -> Zone {
+    let Some(tz) = tz.map(OsStr::as_bytes) else {
+        return match load_from(b"localtime", &["/etc"]) {
+            Some(mut z) => {
                 z.name = "Local".to_string();
-                return z;
+                z
             }
-        }
-        Some(tz) if !tz.is_empty() => {
-            let tz = tz.strip_prefix(b":").unwrap_or(tz);
-            if tz.first() == Some(&b'/') {
-                if let Some(mut z) = load_from(tz, &[""]) {
-                    z.name = if tz == b"/etc/localtime" {
-                        "Local".to_string()
-                    } else {
-                        String::from_utf8_lossy(tz).into_owned()
-                    };
-                    return z;
-                }
-            } else if !tz.is_empty()
-                && tz != b"UTC"
-                && let Some(z) = load_from(tz, PLATFORM_ZONE_SOURCES)
-            {
-                return z;
-            }
-        }
-        Some(_) => {}
+            None => Zone::utc(),
+        };
+    };
+    let tz = tz.strip_prefix(b":").unwrap_or(tz);
+    if tz.is_empty() || tz == b"UTC" {
+        return Zone::utc();
     }
-    Zone::utc()
+    let file = if tz.first() == Some(&b'/') {
+        load_from(tz, &[""]).map(|mut z| {
+            z.name = if tz == b"/etc/localtime" {
+                "Local".to_string()
+            } else {
+                String::from_utf8_lossy(tz).into_owned()
+            };
+            z
+        })
+    } else {
+        let dir = tzdir.filter(|d| !d.is_empty()).map_or_else(
+            || ZONE_DIR.to_string(),
+            |d| d.to_string_lossy().into_owned(),
+        );
+        load_from(tz, &[dir.as_str()])
+    };
+    file.or_else(|| Zone::posix(tz)).unwrap_or_else(Zone::utc)
 }
 
-/// The process's local zone, resolved from `TZ` on first use.
+/// The process's local zone, resolved from `TZ` and `TZDIR` on first use.
 pub(crate) fn local() -> &'static Zone {
     static LOCAL: OnceLock<Zone> = OnceLock::new();
-    LOCAL.get_or_init(|| resolve_local(std::env::var_os("TZ").as_deref()))
+    LOCAL.get_or_init(|| {
+        resolve_local(
+            std::env::var_os("TZ").as_deref(),
+            std::env::var_os("TZDIR").as_deref(),
+        )
+    })
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
-//! The `fung` command of the Rust port: `fung dump`, `run`,
+//! The `fung` command: `fung dump`, `run`,
 //! `<script.fung>`, `-e`, `check`, `test`, `fmt`, `version`, `help` and
-//! the REPL. It mirrors `cmd/fung` of the Go implementation byte for byte.
+//! the REPL (08).
 
 mod check;
 mod fmt;
@@ -8,7 +8,6 @@ mod paths;
 mod repl;
 mod run;
 mod test;
-mod version;
 
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
@@ -17,9 +16,9 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use fung_front::bytecode::disassemble;
 use fung_front::diag::{self, EXIT_COMPILE, EXIT_OK, EXIT_USAGE};
 use fung_front::loader::{Loader, Stage};
-use fung_front::source::decode_go;
+use fung_front::source::decode_lossy;
 
-/// Copied verbatim from `cmd/fung/main.go`.
+/// The usage text (`fung help`, and after a usage error).
 pub(crate) const USAGE: &str = "usage:
   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
   fung                                    start the REPL
@@ -38,15 +37,16 @@ pub(crate) const USAGE: &str = "usage:
 /// passes. At run time, natives that call fung functions (`fold`, `map`)
 /// recurse on the Rust stack, and formatting, comparing and dropping
 /// deeply nested values recurse too. 4 GiB is only reserved address space
-/// (pages are committed when touched) and leaves a margin over Go's 1 GB
-/// goroutine stack limit. A host that refuses the reservation (little
-/// memory and swap, strict overcommit, `ulimit -v`) gets the next smaller
-/// size (`fung_vm::stack::ENTRY_STACKS`, docs/notes/R3a-runtime.md 2절).
+/// (pages are committed when touched): deep recursion runs out of memory
+/// long before it runs out of stack. A host that refuses the reservation
+/// (little memory and swap, strict overcommit, `ulimit -v`) gets the next
+/// smaller size (`fung_vm::stack::ENTRY_STACKS`,
+/// docs/notes/R3a-runtime.md 2절).
 const STACKS: &[usize] = fung_vm::stack::ENTRY_STACKS;
 
 /// What a command produced: standard output, standard error, exit code.
-/// The streams are bytes because Go echoes arguments that are not UTF-8
-/// unchanged. A run writes to the process streams as it goes and leaves
+/// The streams are bytes because arguments that are not UTF-8 are
+/// echoed unchanged. A run writes to the process streams as it goes and leaves
 /// both empty.
 #[derive(Default)]
 pub(crate) struct Out {
@@ -57,8 +57,8 @@ pub(crate) struct Out {
 
 fn main() {
     // A Rust panic inside fung code becomes an E0801 report (the VM's
-    // panic fence); the default hook would also print the panic message,
-    // which Go does not.
+    // panic fence); the default hook would print the panic message on
+    // top of that report.
     std::panic::set_hook(Box::new(|_| {}));
     let raw: Vec<Vec<u8>> = std::env::args_os()
         .skip(1)
@@ -91,11 +91,11 @@ fn start(sizes: &[usize], raw: Vec<Vec<u8>>) -> Out {
     }
 }
 
-/// `raw` are the arguments as the OS gave them. They are decoded like Go
-/// decodes a string (one U+FFFD per invalid byte) for matching and as
-/// source code, and echoed unchanged in messages, as Go does.
+/// `raw` are the arguments as the OS gave them. They are decoded (one
+/// U+FFFD for each invalid UTF-8 sequence) for matching and as source
+/// code, and echoed unchanged in messages.
 fn run(raw: &[Vec<u8>]) -> Out {
-    let args: Vec<String> = raw.iter().map(|a| decode_go(a)).collect();
+    let args: Vec<String> = raw.iter().map(|a| decode_lossy(a)).collect();
     match args.first().map(String::as_str) {
         Some("dump") => run_dump(&args[1..], &raw[1..]),
         Some("run") => run_file(&args[1..], &raw[1..]),
@@ -104,7 +104,7 @@ fn run(raw: &[Vec<u8>]) -> Out {
             None => usage_error(b"-e needs code"),
         },
         Some("version") => Out {
-            stdout: format!("fung {}\n", version::version()).into_bytes(),
+            stdout: format!("fung {}\n", fung_vm::version::version()).into_bytes(),
             ..Out::default()
         },
         Some("help" | "-h" | "--help") => Out {
@@ -139,7 +139,7 @@ pub(crate) fn usage_error(msg: &[u8]) -> Out {
 }
 
 /// Whether a first argument is a script to run rather than a command
-/// name (Go `isScriptPath`): a script carries the .fung extension or is
+/// name: a script carries the .fung extension or is
 /// written as a path.
 fn is_script_path(arg: &str) -> bool {
     !arg.is_empty()
@@ -155,7 +155,7 @@ fn executed(code: i64) -> Out {
     }
 }
 
-/// `fung run FILE ARGS...` and `fung FILE ARGS...` (Go `runFile`):
+/// `fung run FILE ARGS...` and `fung FILE ARGS...`:
 /// `args[0]` is the path, the rest are the script's arguments.
 fn run_file(args: &[String], raw: &[Vec<u8>]) -> Out {
     let Some(path) = raw.first() else {
@@ -167,16 +167,16 @@ fn run_file(args: &[String], raw: &[Vec<u8>]) -> Out {
     }
 }
 
-/// Go's `error: cannot read PATH: ...` for a script that cannot be read.
+/// `error: cannot read `PATH`: ...` for a script that cannot be read.
 pub(crate) fn read_error(path: &[u8], msg: &[u8]) -> Out {
     Out {
-        stderr: [b"error: cannot read ", path, b": ", msg, b"\n"].concat(),
+        stderr: [b"error: ", &cannot_read(path, msg)[..], b"\n"].concat(),
         code: EXIT_USAGE,
         ..Out::default()
     }
 }
 
-/// `fung dump STAGE FILE` and `fung dump STAGE -e CODE` (Go `runDump`).
+/// `fung dump STAGE FILE` and `fung dump STAGE -e CODE`.
 /// `raw` holds the undecoded form of each of `args`.
 fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
     let Some(stage) = args.first() else {
@@ -213,35 +213,30 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
     }
 }
 
-/// Reads a script and decodes it like Go. A failure is described the way
-/// Go's `os.ReadFile` does, with the path bytes unchanged.
+/// Reads a script and decodes it (U+FFFD for what is not UTF-8). A
+/// failure is the reason alone (`no such file or directory`), as the `fs`
+/// module words it; [`cannot_read`] makes the message.
 pub(crate) fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
-    read_bytes(path).map(|b| decode_go(&b))
+    read_bytes(path).map(|b| decode_lossy(&b))
 }
 
-/// Reads a file's bytes; a failure reads like [`read_file`]'s.
+/// Reads a file's bytes; a failure is [`read_file`]'s reason.
 pub(crate) fn read_bytes(path: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
-    use std::io::ErrorKind;
-    std::fs::read(OsStr::from_bytes(path)).map_err(|e| {
-        let (op, text) = match e.kind() {
-            ErrorKind::NotFound => ("open ", "no such file or directory".to_string()),
-            ErrorKind::PermissionDenied => ("open ", "permission denied".to_string()),
-            ErrorKind::IsADirectory => ("read ", "is a directory".to_string()),
-            _ => {
-                let text = e.to_string();
-                let text = text.split(" (os error").next().unwrap_or(&text);
-                ("open ", text.to_lowercase())
-            }
-        };
-        [op.as_bytes(), path, b": ", text.as_bytes()].concat()
-    })
+    std::fs::read(OsStr::from_bytes(path))
+        .map_err(|e| fung_vm::native::os_error_text(&e).into_bytes())
 }
 
-/// Prints one stage of a source text (Go `dump`). `file` is the name as
+/// ``cannot read `path`: reason``, the path's bytes as given (the `fs`
+/// module's form).
+pub(crate) fn cannot_read(path: &[u8], reason: &[u8]) -> Vec<u8> {
+    [b"cannot read `", path, b"`: ", reason].concat()
+}
+
+/// Prints one stage of a source text. `file` is the name as
 /// given; diagnostics compile under its decoded form, and the location
 /// lines of the entry file get the original bytes back.
 fn dump(up_to: Stage, file: &[u8], src: &str) -> Out {
-    let name = decode_go(file);
+    let name = decode_lossy(file);
     let (b, errs) = Loader::default().compile(&name, src, up_to);
     if !errs.is_empty() {
         let text: String = errs.iter().map(|e| diag::format(e, &b.sources)).collect();

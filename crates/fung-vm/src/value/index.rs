@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use fung_front::diag::{Arg, Diag, error};
 
-use super::arith::no_pos;
+use super::arith::{no_pos, overflow};
 use super::{List, Value, type_name};
 
 fn err(code: &str, args: Vec<Arg>) -> Diag {
@@ -40,7 +40,7 @@ pub fn len(x: &Value) -> Result<i64, Diag> {
         Value::List(l) => l.len() as i64,
         Value::Tuple(t) => t.len() as i64,
         Value::Map(m) => m.len() as i64,
-        Value::Range(r) => r.len(),
+        Value::Range(r) => i64::try_from(r.len()).map_err(|_| overflow())?,
         _ => {
             return Err(err(
                 "E0506",
@@ -132,35 +132,33 @@ fn bound(v: Option<&Value>) -> Result<Option<i64>, Diag> {
 }
 
 /// Resolves the ends against length `n`. Both ends may equal `n`; start
-/// may not exceed end. An inclusive end is normalized first, then extended
-/// by one. The arithmetic wraps like Go's `int`.
+/// may not exceed end. A negative end counts from the end, and an
+/// inclusive end takes one more. An end out of range is reported as the
+/// program wrote it (counted in i128, so nothing wraps).
 fn slice_bounds(
     start: Option<&Value>,
     end: Option<&Value>,
     n: usize,
     inclusive: bool,
 ) -> Result<(usize, usize), Diag> {
-    let n64 = n as i64;
-    let lo = match bound(start)? {
-        Some(s) if s < 0 => s.wrapping_add(n64),
-        Some(s) => s,
-        None => 0,
+    let len = n as i128;
+    let resolve = |i: i64| -> i128 {
+        let i = i128::from(i);
+        if i < 0 { i + len } else { i }
     };
-    let hi = match bound(end)? {
-        Some(e) => {
-            let e = if e < 0 { e.wrapping_add(n64) } else { e };
-            if inclusive { e.wrapping_add(1) } else { e }
-        }
-        None => n64,
-    };
-    if lo < 0 || lo > n64 {
-        return Err(out_of_range(lo, n));
+    let start = bound(start)?;
+    let end = bound(end)?;
+    let lo = start.map_or(0, resolve);
+    let hi = end.map_or(len, |e| resolve(e) + i128::from(inclusive));
+    let written = |b: Option<i64>, dflt: i128| b.unwrap_or(dflt as i64);
+    if !(0..=len).contains(&lo) {
+        return Err(out_of_range(written(start, 0), n));
     }
-    if hi < 0 || hi > n64 {
-        return Err(out_of_range(hi, n));
+    if !(0..=len).contains(&hi) {
+        return Err(out_of_range(written(end, len), n));
     }
     if lo > hi {
-        return Err(out_of_range(lo, n));
+        return Err(out_of_range(written(start, 0), n));
     }
     Ok((lo as usize, hi as usize))
 }

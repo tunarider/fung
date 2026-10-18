@@ -1,8 +1,7 @@
-//! Time zone tests. Every expected value came from Go 1.27
-//! (`time.LoadLocation(...)`, `time.Unix(s, 0).In(loc).Zone()`,
-//! `time.Date(..., loc)`, `time.LoadLocationFromTZData`, and `time.Local`
-//! under each `TZ`). System zone files are read from `/usr/share/zoneinfo`;
-//! a test skips a zone the system does not have.
+//! Time zone tests: loading zones by name, the abbreviation and offset at
+//! an instant, wall times in a zone, hand-built TZif files, and the local
+//! zone under each `TZ`. System zone files are read from
+//! `/usr/share/zoneinfo`; a test skips a zone the system does not have.
 
 use std::ffi::OsStr;
 
@@ -26,7 +25,7 @@ fn unhex(s: &str) -> Vec<u8> {
         .collect()
 }
 
-/// `(zone, unix seconds, abbreviation, offset)` from Go.
+/// `(zone, unix seconds, abbreviation, offset)`.
 const LOOKUPS: &[(&str, i64, &str, i32)] = &[
     ("Asia/Seoul", -2208988800, "LMT", 30472),
     ("Asia/Seoul", -1830414600, "JST", 32400),
@@ -146,9 +145,13 @@ const LOOKUPS: &[(&str, i64, &str, i32)] = &[
 ];
 
 #[test]
-fn tz_lookup_matches_go() {
+fn tz_lookup_in_real_zones() {
     let mut zone: Option<(String, Option<Zone>)> = None;
     for &(name, sec, abbrev, offset) in LOOKUPS {
+        // fung's times run from year 0000 to 9999.
+        if !(crate::value::MIN_UNIX..=crate::value::MAX_UNIX).contains(&sec) {
+            continue;
+        }
         if zone.as_ref().is_none_or(|(n, _)| n != name) {
             zone = Some((name.to_string(), system(name)));
         }
@@ -157,12 +160,14 @@ fn tz_lookup_matches_go() {
     }
 }
 
-/// `(zone, (year, month, day, hour, min, sec, nsec), unix, nsec)` from Go's
-/// `time.Date`: nonexistent and repeated wall times at the DST edges, the
-/// POSIX footer years, and out-of-range fields that `Date` normalizes.
+/// `(zone, (year, month, day, hour, min, sec, nsec), unix, nsec)`: wall
+/// times at the DST edges (a skipped one moves forward by the gap, a
+/// repeated one is its earlier instant), the POSIX footer years, and
+/// out-of-range fields (skipped by the test: `Zone::date` takes valid
+/// wall times).
 type DateCase = (&'static str, (i64, i64, i64, i64, i64, i64, i64), i64, i32);
 const DATES: &[DateCase] = &[
-    ("America/New_York", (2026, 3, 8, 2, 30, 0, 0), 1772951400, 0),
+    ("America/New_York", (2026, 3, 8, 2, 30, 0, 0), 1772955000, 0),
     (
         "America/New_York",
         (2026, 3, 8, 1, 59, 59, 0),
@@ -193,7 +198,7 @@ const DATES: &[DateCase] = &[
     (
         "America/New_York",
         (2100, 3, 14, 2, 30, 0, 0),
-        4108689000,
+        4108692600,
         0,
     ),
     (
@@ -236,7 +241,7 @@ const DATES: &[DateCase] = &[
         0,
     ),
     ("Australia/Sydney", (2026, 11, 1, 2, 0, 0, 0), 1793458800, 0),
-    ("Australia/Sydney", (2026, 4, 5, 2, 30, 0, 0), 1775320200, 0),
+    ("Australia/Sydney", (2026, 4, 5, 2, 30, 0, 0), 1775316600, 0),
     (
         "Australia/Sydney",
         (2026, 10, 4, 2, 30, 0, 0),
@@ -270,18 +275,35 @@ const DATES: &[DateCase] = &[
     ("Australia/Sydney", (1900, 1, 1, 0, 0, 0, 0), -2209024800, 0),
 ];
 
+/// Seconds since 1970 on a wall clock reading the fields.
+fn wall(y: i64, mo: i64, d: i64, h: i64, mi: i64, s: i64) -> i64 {
+    crate::value::days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + s
+}
+
+/// Wall times to instants in real zones (cases whose fields are in range;
+/// the nanoseconds are not the zone's business).
 #[test]
-fn tz_date_matches_go() {
+fn tz_date_finds_the_instant() {
     let mut zone: Option<(String, Option<Zone>)> = None;
     for &(name, (y, mo, d, h, mi, s, ns), unix, nsec) in DATES {
+        let in_range = (1..=12).contains(&mo)
+            && (1..=28).contains(&d)
+            && (0..24).contains(&h)
+            && (0..60).contains(&mi)
+            && (0..60).contains(&s)
+            && (0..1_000_000_000).contains(&ns);
+        if !in_range {
+            continue;
+        }
         if zone.as_ref().is_none_or(|(n, _)| n != name) {
             zone = Some((name.to_string(), system(name)));
         }
         let Some((_, Some(z))) = &zone else { continue };
+        let _ = nsec;
         assert_eq!(
-            z.date(y, mo, d, h, mi, s, ns),
-            (unix, nsec),
-            "{name} {y}-{mo}-{d} {h}:{mi}:{s}.{ns}"
+            z.date(wall(y, mo, d, h, mi, s)),
+            unix,
+            "{name} {y}-{mo}-{d} {h}:{mi}:{s}"
         );
     }
 }
@@ -289,18 +311,14 @@ fn tz_date_matches_go() {
 #[test]
 fn tz_date_in_utc_and_fixed_zones() {
     let utc = Zone::utc();
-    assert_eq!(utc.date(2026, 10, 16, 12, 0, 0, 0), (1792152000, 0));
-    assert_eq!(
-        utc.date(1969, 12, 31, 23, 59, 59, 999_999_999),
-        (-1, 999_999_999)
-    );
-    assert_eq!(utc.date(2000, 2, 30, 0, 0, 0, 0), (951868800, 0));
+    assert_eq!(utc.date(wall(2026, 10, 16, 12, 0, 0)), 1792152000);
+    assert_eq!(utc.date(wall(1969, 12, 31, 23, 59, 59)), -1);
     assert_eq!(utc.lookup(0), ("UTC", 0));
     assert_eq!(utc.lookup(i64::MIN), ("UTC", 0));
 }
 
 /// `(case, TZif bytes as hex, [(unix seconds, abbreviation, offset)])`:
-/// hand-built files run through Go's `LoadLocationFromTZData` — a v1 file,
+/// hand-built files run through `from_tzdata` — a v1 file,
 /// v2/v3 files whose POSIX footer covers all time (northern and southern
 /// DST, `<...>` names with minutes, `J`/day-of-year rules with times, no
 /// DST, a malformed footer, and the default `M3.2.0,M11.1.0` rules).
@@ -547,7 +565,7 @@ const SYNTHETIC: &[SynCase] = &[
 ];
 
 #[test]
-fn tz_tzif_parser_matches_go() {
+fn tz_tzif_parser_reads_hand_built_files() {
     for &(name, hex, want) in SYNTHETIC {
         let z = from_tzdata(name, &unhex(hex)).unwrap_or_else(|| panic!("{name}: rejected"));
         assert_eq!(z.name, name);
@@ -593,14 +611,14 @@ fn tz_tzif_parser_rejects_what_go_rejects() {
     assert!(from_tzdata("v2short", &good(b'2')).is_none());
 }
 
-/// Go's `initLocal` under each `TZ`: the zone name Go gives `time.Local`
-/// and the zone at four instants.
+/// The local zone under each `TZ` (06: 시간 형식): its name and the zone
+/// at four instants.
 #[test]
-fn tz_local_resolution_matches_go() {
+fn tz_local_resolution() {
     let secs = [0, 1772953200, 1793516400, 4102444800];
     let have = |n: &str| std::path::Path::new("/usr/share/zoneinfo").join(n).exists();
     let check = |tz: Option<&str>, name: &str, want: [(&str, i32); 4]| {
-        let z = resolve_local(tz.map(OsStr::new));
+        let z = resolve_local(tz.map(OsStr::new), None);
         assert_eq!(z.name, name, "TZ={tz:?}");
         for (sec, w) in secs.iter().zip(want) {
             assert_eq!(z.lookup(*sec), w, "TZ={tz:?} at {sec}");
@@ -614,7 +632,7 @@ fn tz_local_resolution_matches_go() {
     check(Some("/nonexistent"), "UTC", utc);
     check(Some("../etc/localtime"), "UTC", utc);
     // Debian and Ubuntu ship /usr/share/zoneinfo/localtime (a link to
-    // /etc/localtime), so there the name loads like any other zone, in Go too.
+    // /etc/localtime), so there the name loads like any other zone.
     if !have("localtime") {
         check(Some("localtime"), "UTC", utc);
     }
@@ -648,7 +666,7 @@ fn tz_local_resolution_matches_go() {
         .ok()
         .and_then(|d| from_tzdata("localtime", &d));
     for tz in [None, Some("/etc/localtime"), Some(":/etc/localtime")] {
-        let z = resolve_local(tz.map(OsStr::new));
+        let z = resolve_local(tz.map(OsStr::new), None);
         match &sys {
             Some(s) => {
                 assert_eq!(z.name, "Local", "TZ={tz:?}");
@@ -666,18 +684,18 @@ fn tz_local_is_made_once() {
     assert!(std::ptr::eq(super::local(), super::local()));
 }
 
-/// Go's `readFile` gives up past 10 MB, so an endless file is refused and
-/// the local zone falls back to UTC instead of reading forever.
+/// Reading a zone file gives up past 10 MB, so an endless file is refused
+/// and the local zone falls back to UTC instead of reading forever.
 #[test]
 fn tz_endless_zone_file_is_refused() {
     for tz in ["/dev/zero", ":/dev/zero"] {
-        let z = resolve_local(Some(OsStr::new(tz)));
+        let z = resolve_local(Some(OsStr::new(tz)), None);
         assert_eq!(z.name, "UTC", "TZ={tz}");
         assert_eq!(z.lookup(0), ("UTC", 0));
     }
 }
 
-/// The POSIX footer is parsed as bytes, as Go does: `\xff\xff5` is a
+/// The POSIX footer is parsed as bytes: `\xff\xff5` is a
 /// two-byte name (too short, so the footer is ignored), not a six-byte
 /// U+FFFD pair. Names with invalid UTF-8 are shown lossily.
 #[test]
@@ -730,8 +748,9 @@ fn tz_damaged_tzif_never_panics() {
                 for sec in [i64::MIN, -1, 0, 1772953200, i64::MAX] {
                     let _ = z.lookup(sec);
                 }
-                let _ = z.date(2026, 3, 8, 2, 30, 0, 0);
-                let _ = z.date(i64::MAX, 13, 32, 25, 61, 61, i64::MIN);
+                let _ = z.date(wall(2026, 3, 8, 2, 30, 0));
+                let _ = z.date(crate::value::MAX_UNIX);
+                let _ = z.date(crate::value::MIN_UNIX);
             }
         };
         for n in 0..=good.len() {
@@ -745,4 +764,49 @@ fn tz_damaged_tzif_never_panics() {
             }
         }
     }
+}
+
+/// A `TZ` that names no zone file may be a POSIX zone string.
+#[test]
+fn posix_tz_string() {
+    let kst = resolve_local(Some(OsStr::new("KST-9")), None);
+    assert_eq!(kst.name, "KST-9");
+    assert_eq!(kst.lookup(0), ("KST", 32400));
+    let ny = resolve_local(Some(OsStr::new("EST5EDT,M3.2.0,M11.1.0")), None);
+    // 2026-07-01T00:00:00Z and 2026-01-01T00:00:00Z
+    assert_eq!(ny.lookup(1_782_864_000), ("EDT", -14400));
+    assert_eq!(ny.lookup(1_767_225_600), ("EST", -18000));
+    let bad = resolve_local(Some(OsStr::new("Nope/Nowhere")), None);
+    assert_eq!((bad.name.as_str(), bad.lookup(0)), ("UTC", ("UTC", 0)));
+}
+
+/// `TZDIR` names the directory relative zone names are read from.
+#[test]
+fn tzdir_is_used() {
+    let Ok(data) = std::fs::read("/usr/share/zoneinfo/Asia/Seoul") else {
+        eprintln!("skipping: no Asia/Seoul");
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("fung-tzdir-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("Test")).unwrap();
+    std::fs::write(dir.join("Test/Zone"), data).unwrap();
+    let z = resolve_local(Some(OsStr::new("Test/Zone")), Some(dir.as_os_str()));
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(z.name, "Test/Zone");
+    assert_eq!(z.lookup(0), ("KST", 32400));
+}
+
+/// A POSIX rule counts leap years: the 2028 change (second Sunday of
+/// March, 02:00 EST) is at 2028-03-12T07:00:00Z.
+#[test]
+fn posix_rule_in_leap_years() {
+    let ny = resolve_local(Some(OsStr::new("EST5EDT,M3.2.0,M11.1.0")), None);
+    let change = 1_836_457_200;
+    assert_eq!(ny.lookup(change - 1), ("EST", -18000));
+    assert_eq!(ny.lookup(change), ("EDT", -14400));
+    // A Julian day after February counts the leap day too: J60 is March 1.
+    let j = resolve_local(Some(OsStr::new("AAA0BBB-1,J60/0,J300/0")), None);
+    // 2028-03-01T00:00:00Z
+    assert_eq!(j.lookup(1_835_481_600), ("BBB", 3600));
+    assert_eq!(j.lookup(1_835_481_600 - 1), ("AAA", 0));
 }

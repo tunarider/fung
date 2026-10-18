@@ -1,10 +1,10 @@
-# Crate policy for the Rust port. [bans] allow is the single source of the
+# Crate policy. [bans] allow is the single source of the
 # allowlist: crates/fung-cli/tests/deps.rs reads it and checks Cargo.lock
 # against it, and CI runs `cargo deny check` and `cargo audit`.
 #
 # Adding a crate: add it (and everything it pulls in) to `allow` below, with
 # its license under [licenses] if new, and record why in docs/design/
-# open-questions.md ("Rust 이전"). fung-front must stay at zero dependencies.
+# open-questions.md ("Rust 구현: 정한 것과 남은 일"). fung-front must stay at zero dependencies.
 #
 # Entry forms: "name", "name@1.2.3", or { crate = "name", reason = "..." }.
 # The workspace crates are listed so the list is never empty: cargo-deny
@@ -52,13 +52,12 @@ allow = [
     "fung-front",
     "fung-vm",
     "fung-cli",
-    # fung-vm, unix only: raise SIGPIPE to die like Go on a closed
-    # standard output or error (4c spec, section 3)
+    # fung-vm, unix only: raise SIGPIPE to end on a closed standard
+    # output or error (06 "에러 규칙")
     "libc",
     # fung-vm: regular expressions (`_native.regex`, 4c spec, section 2);
-    # regex-syntax is also a direct dependency: the Go semantics layer
-    # (native/regex_go.rs) builds its HIR, prints it and uses its class
-    # types
+    # regex-syntax is also a direct dependency: a bad pattern is parsed
+    # with it to name the error
     "regex",
     "regex-automata",
     "regex-syntax",

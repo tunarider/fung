@@ -1,12 +1,11 @@
 //! The bytecode VM (09): a value stack and call frames per task, the run
-//! loop, calls and runtime errors with call paths. Port of the
-//! non-concurrent parts of Go `internal/vm` (`vm.go`, `call.go`, `task.go`,
-//! the exit and `at_exit` parts of `runtime_conc.go`).
+//! loop, calls and runtime errors with call paths, `exit` and the
+//! `at_exit` handlers. Tasks, channels and agents live in the submodules.
 //!
-//! Unassigned slots and globals are `None`: Go's Go-nil, distinct from the
-//! fung `nil` value. Only JUMPIFSET (default arguments) looks at them; any
-//! other read of an empty slot is a VM bug and panics, which the panic
-//! fence turns into E0801 like Go's recovered nil dereference.
+//! Unassigned slots and globals are `None`, distinct from the fung `nil`
+//! value. Only JUMPIFSET (default arguments) looks at them; any other
+//! read of an empty slot is a VM bug and panics, which the panic fence
+//! turns into E0801 (an internal error, not a crash of the process).
 
 pub(crate) mod agent;
 #[cfg(test)]
@@ -56,7 +55,7 @@ use std::sync::Arc;
 
 use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, CallSite, Diag, error};
-use fung_front::source::{FileId, Pos, decode_go};
+use fung_front::source::{FileId, Pos, decode_lossy};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
@@ -86,9 +85,9 @@ use world::{Shared, Token};
 
 /// Why fung code stopped early: a runtime error (with its position and
 /// call path) or `exit(n)`, which unwinds like an error but is not one.
-/// The exit code is fung's int, as Go keeps it: `fung test` prints it in
-/// full, and only the process exit status is cut to its low 8 bits (by
-/// the operating system).
+/// The exit code is a whole fung int: `fung test` prints it in full,
+/// and only the process exit status is cut to its low 8 bits (by the
+/// operating system).
 #[derive(Debug)]
 pub enum Stop {
     Error(Box<Diag>),
@@ -183,8 +182,8 @@ impl<'rt> Task<'rt> {
     /// (`Runtime::hold`). Then it takes over the command's count, so the
     /// counts are as for `new` while it runs, and when it ends the count
     /// goes back to the command, which is about to run more: its end is
-    /// not judged for a deadlock (Go's 50 ms grace covers the gap between
-    /// two test blocks; `deadlock.rs`).
+    /// not judged for a deadlock (the gap between two test blocks is not
+    /// one; `deadlock.rs`).
     pub(crate) fn driven(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
         let mut t = Task::unlisted(shared, cancel);
         if t.world.held {
@@ -269,7 +268,7 @@ impl<'rt> Task<'rt> {
                 }
             }
         };
-        Ok(line.map(|b| decode_go(&b)))
+        Ok(line.map(|b| decode_lossy(&b)))
     }
 
     /// How many background tasks have not finished (a test probe).
@@ -290,7 +289,7 @@ impl<'rt> Task<'rt> {
         self.budget
     }
 
-    /// exit(n) from any task (05 "종료"; Go `requestExit`): records the
+    /// exit(n) from any task (05 "종료"): records the
     /// first code requested and cancels every task of the program, so
     /// the requesting task unwinds on its exit and the others on E0701,
     /// wherever they wait. An exit while an exit handler runs (from the
@@ -695,8 +694,8 @@ impl<'rt> Task<'rt> {
                     if let Some(v) = self.ret(stop) {
                         return Ok(v);
                     }
-                } // Every opcode is handled: the match is exhaustive, so Go's
-                  // "unknown opcode" default cannot arise.
+                } // Every opcode is handled: the match is exhaustive, so an
+                  // "unknown opcode" case cannot arise.
             }
         }
     }

@@ -1,6 +1,5 @@
 //! The manual's function reference (`docs/builtins.html`) against the
-//! Rust implementation's own parameter tables (stage 6a: the manual
-//! describes the Rust implementation). Every public prelude name and
+//! runtime's own parameter tables. Every public prelude name and
 //! every public member of the standard modules has exactly one entry,
 //! the entry's signature is the real one (names, defaults, rest), and the
 //! "fung으로 작성" mark is on exactly the functions written in fung.

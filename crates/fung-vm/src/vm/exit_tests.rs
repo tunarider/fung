@@ -1,8 +1,7 @@
-//! Exit rules and standard input shared by tasks (stage 3a, Task 7).
-//! Ports Go `internal/vm/conc_test.go` `TestExitFromAnywhereRequestsExit`,
-//! `TestLockedWritersKeepLinesWhole`, `TestAtExitAndTestsAreThreadSafe`
-//! and `TestStdinIsSharedSafely`. Expected texts come from the Go binary
-//! (`fung -e`). Tests that need a task in a given state wait for that
+//! Exit rules and standard input shared by tasks (stage 3a, Task 7): `exit`
+//! from any task, whole printed lines, handlers registered from many tasks
+//! and standard input read by several tasks. Expected texts are what
+//! `fung -e` prints. Tests that need a task in a given state wait for that
 //! state (`testutil` probes), not for a time.
 
 use std::io::{BufReader, Read};
@@ -87,8 +86,8 @@ fn exec_on_silent_stdin(src: &'static str) -> Outcome {
 
 // --- exit from any task ---
 
-/// Go `TestExitFromAnywhereRequestsExit`: the code is recorded, the entry
-/// ends with the exit, and the root of the program is cancelled.
+/// An exit from any task: the code is recorded, the entry ends with the
+/// exit, and the root of the program is cancelled.
 #[test]
 fn exit_from_anywhere_requests_exit() {
     let s = setup("fn f() = exit(4)\nf()", Opts::default()).unwrap();
@@ -113,10 +112,10 @@ fn an_exit_from_a_task_cancels_every_task() {
 }
 
 /// Stage 3b replaced atoms with agents. An exit while an agent runs the
-/// `f` of a task the exit cancels: that `f` is cancelled with the task
-/// (as Go's atom ran it on the task), so the update is not applied, and
-/// the agent (a background task, alive until after the handlers) serves
-/// the handler with the old state.
+/// `f` of a task the exit cancels: that `f` is cancelled with the task (`f`
+/// follows the task that asked), so the update is not applied, and the
+/// agent (a background task, alive until after the handlers) serves the
+/// handler with the old state.
 #[test]
 fn an_exit_while_an_agent_runs_f_cancels_the_update() {
     let (out, err, code) = within(10, || {
@@ -128,9 +127,8 @@ fn an_exit_while_an_agent_runs_f_cancels_the_update() {
 }
 
 /// An exit inside an agent's own `f` is handed back to the caller's
-/// `swap`, which unwinds with it (Go's atom `swap` did the same); the
-/// agent keeps serving with its state unchanged, so a handler can still
-/// ask it.
+/// `swap`, which unwinds with it; the agent keeps serving with its state
+/// unchanged, so a handler can still ask it.
 #[test]
 fn an_exit_inside_an_agents_f_leaves_the_agent_serving() {
     let (out, err, code) = within(10, || {
@@ -165,8 +163,8 @@ fn an_exit_inside_a_handler_ends_that_handler_only() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
-/// Go `TestLockedWritersKeepLinesWhole`: lines printed by many tasks at
-/// once stay whole (each print is one write with the token held).
+/// Lines printed by many tasks at once stay whole (each print is one write
+/// with the token held).
 #[test]
 fn printed_lines_stay_whole() {
     let (out, err, code) = run(
@@ -178,8 +176,7 @@ fn printed_lines_stay_whole() {
     assert!(lines.iter().all(|l| *l == "x".repeat(100)), "{out}");
 }
 
-/// Go `TestAtExitAndTestsAreThreadSafe`: handlers registered from 200
-/// tasks all run.
+/// Handlers registered from 200 tasks all run.
 #[test]
 fn handlers_registered_from_many_tasks_all_run() {
     let (out, err, code) =
@@ -190,8 +187,7 @@ fn handlers_registered_from_many_tasks_all_run() {
 
 // --- standard input ---
 
-/// Go `TestStdinIsSharedSafely`: two tasks reading at once each get a
-/// whole line.
+/// Two tasks reading at once each get a whole line.
 #[test]
 fn stdin_is_shared_safely() {
     let o = crate::testutil::exec(
@@ -333,9 +329,9 @@ impl Read for Counted {
 }
 
 /// Standard input is read only when a task asks for a line and none is
-/// queued (Go `bufio.Reader`): reading one line makes one read, and what
-/// the program never asked for stays in the input for whoever reads it
-/// next (a command after fung in a shell pipeline).
+/// queued: reading one line makes one read, and what the program never
+/// asked for stays in the input for whoever reads it next (a command after
+/// fung in a shell pipeline).
 #[test]
 fn stdin_is_read_only_on_demand() {
     let reads = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));

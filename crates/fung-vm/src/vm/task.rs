@@ -1,6 +1,6 @@
-//! Tasks (05, stage 3a; Go `internal/vm/task.go`): `spawn` runs a
-//! function on a new operating-system thread and hands back a handle;
-//! the handle keeps the task's result for `await` and cancels it.
+//! Tasks (05, stage 3a): `spawn` runs a function on a new operating-system
+//! thread and hands back a handle; the handle keeps the task's result for
+//! `await` and cancels it.
 //!
 //! **Threads and the run token.** Every task has its own thread, and fung
 //! code runs only on the thread that holds the run token (`world.rs`).
@@ -13,24 +13,22 @@
 //!    count itself finished, all with the token still held;
 //! 5. give the token up; the thread ends.
 //!
-//! **Cancellation** is a tree like Go's `context`: each task has a
-//! `CancelNode`, a child of the node of the task that spawned it.
-//! Cancelling a node cancels everything below it. A task's node is also
-//! cancelled when the task finishes (Go `defer child.cancel()`), so the
-//! tasks it spawned and left running end with it. The VM checks the flag
-//! at every call and backward jump (`Task::tick`) and `block` checks it
-//! while waiting; a cancelled task unwinds with E0701, which its handle
-//! turns into `Err({kind: 'cancelled})`.
+//! **Cancellation** is a tree: each task has a `CancelNode`, a child of the
+//! node of the task that spawned it. Cancelling a node cancels everything
+//! below it. A task's node is also cancelled when the task finishes, so the
+//! tasks it spawned and left running end with it. The VM checks the flag at
+//! every call and backward jump (`Task::tick`) and `block` checks it while
+//! waiting; a cancelled task unwinds with E0701, which its handle turns
+//! into `Err({kind: 'cancelled})`.
 //!
-//! **Background tasks** (stage 3b, `spawn_background`, Rust only) run the
-//! same way, on a thread of their own under the run token, but hang from
-//! the background root (`Shared::background`) instead of their spawner's
-//! node, are counted in `World::background` instead of `running` and
-//! `live`, and are cancelled after the exit handlers
-//! (`Runtime::end_background`). A task a background task spawns is a
-//! background task too; only the one `spawn_background` starts never
-//! reports a failure. The deadlock check counts them
-//! apart (`deadlock.rs`).
+//! **Background tasks** (stage 3b, `spawn_background`) run the same way, on
+//! a thread of their own under the run token, but hang from the background
+//! root (`Shared::background`) instead of their spawner's node, are counted
+//! in `World::background` instead of `running` and `live`, and are
+//! cancelled after the exit handlers (`Runtime::end_background`). A task a
+//! background task spawns is a background task too; only the one
+//! `spawn_background` starts never reports a failure. The deadlock check
+//! counts them apart (`deadlock.rs`).
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -53,15 +51,14 @@ use crate::value::{MapBuilder, Value, drop_children, intern, keep};
 /// spawned, blocks, finishes or is cancelled.
 ///
 /// A parent holds its children strongly and a child leaves its parent's
-/// list when it is cancelled, as in Go's `context`. The other way to keep
-/// the tree whole, cancelling a node's children when the node drops,
-/// would end a task just because the task or handle above it went away;
-/// with strong links nothing below a live node can become unreachable
-/// from the roots, whichever tasks, handles or intermediate nodes are
-/// gone, so cancelling a root reaches every task under it. Nodes do not
-/// pile up: every spawned task's node is cancelled when the task ends,
-/// and the nodes made for test blocks, exit handlers and `run_task` are
-/// cancelled when they return.
+/// list when it is cancelled. The other way to keep the tree whole,
+/// cancelling a node's children when the node drops, would end a task just
+/// because the task or handle above it went away; with strong links nothing
+/// below a live node can become unreachable from the roots, whichever
+/// tasks, handles or intermediate nodes are gone, so cancelling a root
+/// reaches every task under it. Nodes do not pile up: every spawned task's
+/// node is cancelled when the task ends, and the nodes made for test
+/// blocks, exit handlers and `run_task` are cancelled when they return.
 ///
 /// One kind of node has two parents (stage 3b, `agent.rs`): the node an
 /// agent's `f` runs under is below the agent's task and also below the
@@ -301,9 +298,9 @@ impl CancelNode {
     }
 }
 
-/// The value `spawn` returns (Go `TaskHandle`): the task's result once
-/// it has finished, and its cancellation node. Two handles are equal
-/// only when they are the same handle; it prints as `<task>`.
+/// The value `spawn` returns: the task's result once it has finished, and
+/// its cancellation node. Two handles are equal only when they are the same
+/// handle; it prints as `<task>`.
 pub struct TaskHandle {
     pub(crate) state: Rc<TaskState>,
     pub(crate) cancel: Arc<CancelNode>,
@@ -350,7 +347,7 @@ impl TaskHandle {
     }
 
     /// The task's result, if it has finished, as `await` gets it: a
-    /// failure in it is now the caller's to handle (Go `retrieve`).
+    /// failure in it is now the caller's to handle.
     pub(crate) fn retrieve(&self) -> Option<Value> {
         let r = self.state.result();
         if r.is_some()
@@ -463,9 +460,9 @@ pub(crate) struct Kind {
     pub(crate) reported: bool,
 }
 
-/// What a task's run becomes as its result (Go `finish`): the value, or
-/// `Err({kind: 'cancelled})` for a cancelled task (E0701), one woken by
-/// the deadlock report (E0702) or one that called `exit`, or
+/// What a task's run becomes as its result: the value, or
+/// `Err({kind: 'cancelled})` for a cancelled task (E0701), one woken by the
+/// deadlock report (E0702) or one that called `exit`, or
 /// `Err({kind: 'error, message: "error[E…]: …"})` for a failure.
 fn outcome(r: &Result<Value, Stop>) -> Value {
     match r {
@@ -482,9 +479,8 @@ pub(super) fn is_cancel(d: &Diag) -> bool {
 }
 
 impl<'rt> Task<'rt> {
-    /// Starts `f` on a new task below this one and returns its handle
-    /// (Go `spawn`). `awaited` marks a task a helper promises to await
-    /// (`spawn_awaited`).
+    /// Starts `f` on a new task below this one and returns its handle.
+    /// `awaited` marks a task a helper promises to await (`spawn_awaited`).
     ///
     /// A task spawned by a background task is a background task too (it
     /// hangs below it in the cancellation tree, under the background
@@ -537,18 +533,17 @@ impl<'rt> Task<'rt> {
         });
         let cargo = Handoff(Some((f, state)));
         let shared = Arc::clone(self.shared);
-        // Counted from now (Go `addLive` before the goroutine starts): a
-        // task whose thread has not taken the token yet will still run.
+        // Counted from now, before the thread starts: a task whose thread
+        // has not taken the token yet will still run.
         self.world.count(kind, true);
-        // The stack each spawned task's thread reserves: 1 GiB first, the
-        // most a Go goroutine may grow to, so a program that fits in a
-        // goroutine fits in a task. fung calls do not use it (frames live
-        // on the VM's heap); only natives that call back into fung (`map`,
-        // `fold`, …) nest Rust frames, and formatting or comparing deeply
-        // nested values recurses. It is address space, not memory: the
-        // pages are touched only when used (with 256 MiB, `map` calling
-        // back 99,000 deep overflowed and aborted the process where Go and
-        // the entry thread succeed). A host that refuses the reservation
+        // The stack each spawned task's thread reserves: 1 GiB first, so
+        // deep programs keep running in a task. fung calls do not use it
+        // (frames live on the VM's heap); only natives that call back into
+        // fung (`map`, `fold`, …) nest Rust frames, and formatting or
+        // comparing deeply nested values recurses. It is address space, not
+        // memory: the pages are touched only when used (with 256 MiB, `map`
+        // calling back 99,000 deep overflowed and aborted the process where
+        // the entry thread succeeds). A host that refuses the reservation
         // gets a smaller stack (`stack::TASK_STACKS`, R3a 2절); only when
         // every size is refused does `spawn` fail, with an error rather
         // than an abort.
@@ -571,9 +566,9 @@ impl<'rt> Task<'rt> {
     }
 
     /// Runs `f` on a fresh child task on this thread and returns its
-    /// result (Go `RunTask`, for natives that run fung code per event,
-    /// such as an HTTP handler): the call sees this task's cancellation
-    /// and its own, which ends when it returns.
+    /// result (for natives that run fung code per event, such as an HTTP
+    /// handler): the call sees this task's cancellation and its own, which
+    /// ends when it returns.
     pub fn run_task(&mut self, f: &Value, args: Vec<Value>) -> Result<Value, Stop> {
         let child = self.cancel.child();
         let outer = std::mem::replace(&mut self.cancel, child.clone());
@@ -583,8 +578,7 @@ impl<'rt> Task<'rt> {
         r
     }
 
-    /// Whether this task was cancelled (Go `Done()` being ready), for
-    /// natives that wait outside fung.
+    /// Whether this task was cancelled, for natives that wait outside fung.
     pub fn cancelled(&self) -> bool {
         self.cancel.is_cancelled()
     }
@@ -614,7 +608,7 @@ fn run_spawned(
             && !is_cancel(d)
             && !state.awaited
         {
-            // Go `finish`: a failure someone must see (`failure.rs`).
+            // A failure someone must see (`failure.rs`).
             let text = format!("task failed: {}", diag::format(d, &t.world.sources));
             if state.orphan.get() {
                 shared.failures.report_now(&text);
@@ -625,8 +619,7 @@ fn run_spawned(
         drop(r);
         state.waiters.borrow_mut().wake_all();
         drop(state);
-        // Go `defer child.cancel()`: what this task spawned and left
-        // running ends with it.
+        // What this task spawned and left running ends with it.
         node.cancel();
         if !background {
             t.world.running -= 1;

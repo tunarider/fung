@@ -1,8 +1,8 @@
-//! What agents are built from (stage 3b, Rust only): the members of
-//! `_native.conc` that only `extras/agent.fung` uses. An agent is a
-//! background task (`task.rs`) that holds a state and serves requests
-//! from a channel; its handle is a value that closes that channel when
-//! its last copy drops, so an agent nobody can reach ends.
+//! What agents are built from (stage 3b): the members of `_native.conc`
+//! that only `extras/agent.fung` uses. An agent is a background task
+//! (`task.rs`) that holds a state and serves requests from a channel; its
+//! handle is a value that closes that channel when its last copy drops, so
+//! an agent nobody can reach ends.
 //!
 //! - `spawn_background(f)`: `f` on a background task. It does not keep
 //!   the program alive, is left out of the deadlock count while it
@@ -54,20 +54,19 @@
 //! agent nobody can reach would never end. Everything the loop needs
 //! (`agent_busy`, `send_unchecked`, `recv`) therefore takes the channel.
 //!
-//! **`f` follows the task that asked.** Go's atom ran `f` on the
-//! caller's task, so cancelling the caller (an `exit`, a deadlock report,
-//! `cancel(t)`) stopped `f`. An agent runs `f` on its own task, so
-//! `try_call` runs it under a node of its own that is below both the
-//! agent's node and the asking task's node (`CancelNode::also_under`):
-//! cancelling the asker cancels `f` (and what `f` spawned), while the
-//! agent's task itself is not cancelled. `try_call` then answers
-//! `Err(<error>)` with the cancellation, nobody reads it, the state stays
-//! and the loop serves the next request. A request whose asker was
-//! cancelled before the agent took it up is skipped (`f` is not
-//! called). After `f` the node lives as long as the tasks `f` spawned
-//! (`end_when_empty`), still below the asker: they end when the asker
-//! does, as under Go's atom. Cancelling the agent's own node (after the
-//! exit handlers) still unwinds the agent.
+//! **`f` follows the task that asked.** Cancelling the caller (an `exit`, a
+//! deadlock report, `cancel(t)`) stops `f`, as if `f` ran on the caller's
+//! task. An agent runs `f` on its own task, so `try_call` runs it under a
+//! node of its own that is below both the agent's node and the asking
+//! task's node (`CancelNode::also_under`): cancelling the asker cancels `f`
+//! (and what `f` spawned), while the agent's task itself is not cancelled.
+//! `try_call` then answers `Err(<error>)` with the cancellation, nobody
+//! reads it, the state stays and the loop serves the next request. A
+//! request whose asker was cancelled before the agent took it up is skipped
+//! (`f` is not called). After `f` the node lives as long as the tasks `f`
+//! spawned (`end_when_empty`), still below the asker: they end when the
+//! asker does. Cancelling the agent's own node (after the exit handlers)
+//! still unwinds the agent.
 //!
 //! A task the agent's `f` spawns is a background task too (`task.rs`):
 //! it does not keep the program alive, and it ends with the asker or
@@ -196,19 +195,17 @@ pub(crate) fn agent_handle(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, 
 }
 
 /// `check_swap(a, f)`: E0403 when `a` is not an agent or `f` not a
-/// function (the order of Go's atom `swap`); E0704 when the current task
-/// is inside `a` (its own `f`, or a task that `f` spawned): it would
-/// wait for itself.
+/// function (checked in that order); E0704 when the current task is inside
+/// `a` (its own `f`, or a task that `f` spawned): it would wait for itself.
 pub(crate) fn check_swap(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let a = need_agent(&args[0])?;
     nat::need_fn("f", &args[1])?;
     if serving_state(t, a).is_some() {
-        // At the user's inner `swap(`, which `try_call` keeps (Go's atom
-        // reported its E0703 there). An inner `swap` in tail position
-        // replaced the user's frame, so no frame of user code is left on
-        // this task: the error then gets the position of this call, in
-        // the embedded file, which `try_call` drops, and it lands on the
-        // caller's `swap(` like any error of `f`.
+        // At the user's inner `swap(`, which `try_call` keeps. An inner
+        // `swap` in tail position replaced the user's frame, so no frame of
+        // user code is left on this task: the error then gets the position
+        // of this call, in the embedded file, which `try_call` drops, and
+        // it lands on the caller's `swap(` like any error of `f`.
         let pos = t.user_pos().unwrap_or_else(no_pos);
         return Err(Stop::Error(Box::new(fung_front::diag::error(
             "E0704",
@@ -316,18 +313,17 @@ pub(crate) fn try_call(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, 
 /// task's cancellation node on `ch` as `agent_ask` does on a reply
 /// channel. The record stays (`try_call` copies it), so every `try_call`
 /// with `ch` runs its `f` below this task: the server's task marks one
-/// channel and each request's handler follows it, as Go runs handlers
-/// under the server's context.
+/// channel and each request's handler follows it: cancelling the server
+/// cancels the handlers.
 pub(crate) fn set_asker(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     need_channel_named("ch", &args[0])?.set_asker(t.cancel.clone());
     Ok(Value::Nil)
 }
 
-/// `describe(e)` (stage 4d Task 5): what a value `try_call` caught was,
-/// as `{code, text}`: an error's code and headline (Go's `Error()`), or
-/// `{code: "exit", text: "exit(<n>)"}`. The `http` server reports a
-/// failing handler with it and tells a shutdown (an exit, E0701, E0702)
-/// from a bug.
+/// `describe(e)` (stage 4d Task 5): what a value `try_call` caught was, as
+/// `{code, text}`: an error's code and headline, or
+/// `{code: "exit", text: "exit(<n>)"}`. The `http` server reports a failing
+/// handler with it and tells a shutdown (an exit, E0701, E0702) from a bug.
 pub(crate) fn describe(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let Value::Caught(c) = &args[0] else {
         return Err(nat::wrong_arg("e", "error", &args[0]));

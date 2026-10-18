@@ -49,7 +49,7 @@ fn value_is_16_bytes() {
 }
 
 #[test]
-fn print_forms_like_go() {
+fn print_forms_of_each_kind() {
     let vals = [
         Value::tuple(vec![Value::Int(1), s("x")]),
         Value::Float(1.5),
@@ -231,7 +231,7 @@ fn format_literals() {
         (Value::Float(2.5), "2.5"),
         (Value::Float(-0.25), "-0.25"),
         (Value::Float(1e21), "1e21"),
-        (Value::Float(1e-7), "1e-07"),
+        (Value::Float(1e-7), "1e-7"),
         (Value::Float(123456789.0), "123456789.0"),
         (Value::Float(1e6), "1000000.0"),
         (Value::Bool(true), "true"),
@@ -245,10 +245,10 @@ fn format_literals() {
     }
 }
 
-/// Map keys print bare only when Go's `unicode.IsLetter`/`IsDigit` would
-/// accept them (expected output from the Go binary).
+/// Map keys print bare only when they read as a name or a tag (01, UAX
+/// #31).
 #[test]
-fn format_map_keys_use_go_classes() {
+fn format_map_keys_follow_the_name_rule() {
     let mut m = Map::new();
     for (i, k) in ["x²", "Ⅻ", "हिंदी", "ß", "Σ1", "한글", "x٣", "Ⓐ"]
         .into_iter()
@@ -258,7 +258,7 @@ fn format_map_keys_use_go_classes() {
     }
     assert_eq!(
         format(&Value::Map(Rc::new(m))),
-        r#"{"x²": 1, "Ⅻ": 2, "हिंदी": 3, ß: 4, Σ1: 5, 한글: 6, x٣: 7, "Ⓐ": 8}"#
+        r#"{"x²": 1, Ⅻ: 2, हिंदी: 3, ß: 4, Σ1: 5, 한글: 6, x٣: 7, "Ⓐ": 8}"#
     );
     assert_eq!(format(&s("a\u{378}b")), r#""a\u{378}b""#);
 }
@@ -455,11 +455,16 @@ fn symbols_intern_and_format() {
 }
 
 #[test]
-fn dur_sub_of_min_is_overflow_like_go() {
-    // Go negates the right side first, so MIN overflows even when the
-    // subtraction itself would fit.
-    fails(sub, Value::Dur(-1), Value::Dur(i64::MIN), "E0503");
-    // Int subtraction does not negate first.
+fn dur_sub_is_exact() {
+    // the result fits, so it is the value, whatever the right side is
+    ok(
+        sub,
+        Value::Dur(-1),
+        Value::Dur(i64::MIN),
+        Value::Dur(i64::MAX),
+    );
+    fails(sub, Value::Dur(0), Value::Dur(i64::MIN), "E0503");
+    // the same holds for ints
     ok(
         sub,
         Value::Int(-1),
@@ -468,8 +473,7 @@ fn dur_sub_of_min_is_overflow_like_go() {
     );
 }
 
-// ---- persistent vectors and lists (Go pvec_test.go, list_test.go,
-// list_api_test.go, collections_test.go) ----
+// ---- persistent vectors, lists, the list API and collections ----
 
 use super::pvec::Pvec;
 
@@ -898,7 +902,7 @@ fn list_concat() {
     same_list("left operand", l, &a);
 }
 
-// module_test.go
+// modules
 
 #[test]
 fn module_value() {
@@ -972,4 +976,28 @@ fn deep_module_chain_drops_without_recursion() {
         })
         .unwrap();
     t.join().unwrap();
+}
+
+/// A slice out of range names the index as written: a negative one is
+/// not shown counted from the end, an inclusive end not plus one, and
+/// nothing wraps.
+#[test]
+fn slice_errors_name_the_index_as_written() {
+    use fung_front::diag::Arg;
+    let l = Value::List(Rc::new(List::new(vec![
+        Value::Int(1),
+        Value::Int(2),
+        Value::Int(3),
+    ])));
+    let shown = |a: Option<i64>, b: Option<i64>, inclusive: bool| {
+        let (a, b) = (a.map(Value::Int), b.map(Value::Int));
+        let e = super::index::slice(&l, a.as_ref(), b.as_ref(), inclusive).unwrap_err();
+        assert_eq!(e.code, "E0507");
+        e.args[0].clone()
+    };
+    assert_eq!(shown(Some(-5), None, false), Arg::Int(-5));
+    assert_eq!(shown(Some(0), Some(5), true), Arg::Int(5));
+    assert_eq!(shown(Some(0), Some(i64::MAX), true), Arg::Int(i64::MAX));
+    assert_eq!(shown(Some(i64::MIN), None, false), Arg::Int(i64::MIN));
+    assert_eq!(shown(Some(2), Some(1), false), Arg::Int(2));
 }

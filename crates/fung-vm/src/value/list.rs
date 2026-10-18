@@ -9,7 +9,7 @@ use super::Value;
 use super::pvec::{MASK, Pvec};
 use super::release::{drop_children, keep};
 
-/// The largest list kept as a plain vector (Go `smallMax`); 32 is one
+/// The largest list kept as a plain vector; 32 is one
 /// trie node.
 pub const SMALL_MAX: usize = 32;
 
