@@ -61,9 +61,10 @@ runner() {
 # What `file -b` must start with (Mach-O) or match (ELF) for each target.
 check_arch() {
 	desc=$(file -b "$1")
+	# macOS file says "executable x86_64", Linux file "x86_64 executable".
 	case $3 in
-	darwin/amd64) case $desc in "Mach-O 64-bit executable x86_64"*) return 0 ;; esac ;;
-	darwin/arm64) case $desc in "Mach-O 64-bit executable arm64"*) return 0 ;; esac ;;
+	darwin/amd64) case $desc in "Mach-O 64-bit executable x86_64"* | "Mach-O 64-bit x86_64 executable"*) return 0 ;; esac ;;
+	darwin/arm64) case $desc in "Mach-O 64-bit executable arm64"* | "Mach-O 64-bit arm64 executable"*) return 0 ;; esac ;;
 	linux/amd64) case $desc in "ELF 64-bit"*", x86-64,"*) return 0 ;; esac ;;
 	linux/arm64) case $desc in "ELF 64-bit"*", ARM aarch64,"*) return 0 ;; esac ;;
 	esac
