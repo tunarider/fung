@@ -25,19 +25,11 @@ pub fn path(name: &str) -> String {
     format!("extras/{name}.fung")
 }
 
-/// `extras/agent.fung`: `agent`, `swap` and `deref` (stage 3b). The
-/// boot reads it after the prelude file and adds its public names to the
-/// prelude; it is not a module a program can import (`source` does not
-/// know it).
-pub const AGENT: &str = include_str!("../../../extras/agent.fung");
-
 /// The prelude files written in fung, by name, in the order the boot
 /// runs them (each sees the public names of the ones before it). Their
 /// public names are prelude names.
-pub const PRELUDE_FILES: &[(&str, &str)] = &[
-    ("prelude", include_str!("../../../extras/prelude.fung")),
-    ("agent", AGENT),
-];
+pub const PRELUDE_FILES: &[(&str, &str)] =
+    &[("prelude", include_str!("../../../extras/prelude.fung"))];
 
 #[cfg(test)]
 mod tests {

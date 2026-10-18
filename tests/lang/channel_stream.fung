@@ -1,18 +1,20 @@
 # Iterating a channel calls the function as each value arrives.
-ch = channel()
-ack = channel()
-fn produce(ch, ack):
+(tx, rx) = channel()
+(ack_tx, ack) = channel()
+fn produce(tx, ack):
   for x in 1..=3:
-    send(ch, x)
+    send(tx, x)
     recv(ack)
   ;;
-  close(ch)
+  close(tx)
 ;;
-spawn(fn(): produce(ch, ack) ;;)
-for x in ch:
-  print("got ${x}")
-  send(ack, nil)
-;;
+scope(fn(s):
+  spawn(s, () => produce(tx, ack))
+  for x in rx:
+    print("got ${x}")
+    send(ack_tx, nil)
+  ;;
+;;)
 print("done")
 # expect: got 1
 # expect: got 2
@@ -20,18 +22,18 @@ print("done")
 # expect: done
 
 # Functions that stop early leave the rest in the channel.
-b = channel(3)
-send(b, 1); send(b, 2); send(b, 3); close(b)
+(b_tx, b) = channel(3)
+send(b_tx, 1); send(b_tx, 2); send(b_tx, 3); close(b_tx)
 print(find(b, x => x == 2), recv(b))
 # expect: 2 Ok(3)
-c = channel(4)
-send(c, 1); send(c, 2); send(c, 3); send(c, 4); close(c)
+(c_tx, c) = channel(4)
+send(c_tx, 1); send(c_tx, 2); send(c_tx, 3); send(c_tx, 4); close(c_tx)
 print(take(c, 2), first(c), recv(c), first(c))
 # expect: [1, 2] 3 Ok(4) nil
 
 # Argument errors come before any value is received.
-d = channel(2)
-send(d, 1); send(d, 2); close(d)
-t = spawn(fn(): map(d, 3) ;;)
+(d_tx, d) = channel(2)
+send(d_tx, 1); send(d_tx, 2); close(d_tx)
+t = supervise(s => spawn(s, () => map(d, 3)), _ => nil)
 print(type_of(await(t)), recv(d))
 # expect: 'Err Ok(1)

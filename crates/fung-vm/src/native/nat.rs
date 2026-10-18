@@ -135,12 +135,12 @@ pub fn limit_elements(v: &Value) -> Result<(), Stop> {
     }
 }
 
-/// Whether `v` can be iterated (02): a list, a range or a channel, or
+/// Whether `v` can be iterated (02): a list, a range or a receiving end, or
 /// E0506 with `verb`. Collection natives check this first, in argument
 /// order, before they receive or build anything.
 pub fn check_items(v: &Value, verb: &str) -> Result<(), Stop> {
     match v {
-        Value::List(_) | Value::Range(_) | Value::Channel(_) => Ok(()),
+        Value::List(_) | Value::Range(_) | Value::Receiver(_) => Ok(()),
         _ => Err(not_iterable(verb, v)),
     }
 }
@@ -186,14 +186,14 @@ pub fn each_until(
             }
             Ok(false)
         }
-        Value::Channel(ch) => loop {
-            match channel::recv(t, ch, None)? {
+        Value::Receiver(rx) => loop {
+            match channel::recv(t, &rx.0)? {
                 channel::Received::Value(x) => {
                     if f(t, x)? {
                         return Ok(true);
                     }
                 }
-                channel::Received::Closed | channel::Received::Timeout => return Ok(false),
+                channel::Received::Closed => return Ok(false),
             }
         },
         _ => Err(not_iterable(verb, v)),
@@ -217,7 +217,7 @@ pub fn items(t: &mut Task<'_>, v: &Value, verb: &str) -> Result<Vec<Value>, Stop
     match v {
         Value::List(l) => Ok(l.to_vec()),
         Value::Range(r) if r.len() > i128::from(MAX_ELEMENTS) => Err(too_many_elements()),
-        Value::Channel(ch) => channel::drain(t, ch),
+        Value::Receiver(rx) => channel::drain(t, &rx.0),
         Value::Range(r) => Ok((0..r.len())
             .map(|i| Value::Int(r.start.wrapping_add(i as i64)))
             .collect()),

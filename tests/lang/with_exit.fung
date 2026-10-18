@@ -1,0 +1,12 @@
+# Every release runs after exit(n), innermost first.
+with(() => "outer", fn(_):
+  with(() => "inner", fn(_):
+    print("body")
+    exit(3)
+    print("unreachable")
+  ;;, r => print("released", r))
+;;, r => print("released", r))
+# expect: body
+# expect: released inner
+# expect: released outer
+# expect-exit: 3

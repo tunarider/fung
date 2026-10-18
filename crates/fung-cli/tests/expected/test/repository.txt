@@ -83,18 +83,6 @@
 | 1 passed, 0 failed
 -- stderr
 -- exit: 0
-==== test extras/agent.fung
--- stdout
-| FAIL extras/agent.fung: <load>
-| 0 passed, 1 failed
--- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/agent.fung:14:1
-|    |
-| 14 | import _native.conc as _c
-|    | ^
-|    |
--- exit: 2
 ==== test extras/cli.fung
 -- stdout
 | ok   extras/cli.fung: flags, values, and rest
@@ -103,16 +91,9 @@
 -- exit: 0
 ==== test extras/conc.fung
 -- stdout
-| FAIL extras/conc.fung: <load>
-| 0 passed, 1 failed
+| 0 passed, 0 failed
 -- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/conc.fung:8:1
-|   |
-| 8 | import _native.conc as _c
-|   | ^
-|   |
--- exit: 2
+-- exit: 0
 ==== test extras/fs.fung
 -- stdout
 | FAIL extras/fs.fung: <load>
@@ -231,21 +212,6 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
-==== test tests/lang/agent_errors.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
--- exit: 0
-==== test tests/lang/agent_handles.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
--- exit: 0
-==== test tests/lang/agents.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
--- exit: 0
 ==== test tests/lang/args.fung
 -- stdout
 | 0 passed, 0 failed
@@ -271,7 +237,12 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
-==== test tests/lang/at_exit.fung
+==== test tests/lang/atom_errors.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/atoms.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -332,11 +303,6 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/durations.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
--- exit: 0
-==== test tests/lang/err_agent_reentry.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -405,6 +371,21 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/err_assert.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_atom_effect.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_atom_holds.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_atom_reentry.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -775,6 +756,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_pmap_failed.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_question_in_for.fung
 -- stdout
 | FAIL tests/lang/err_question_in_for.fung: <load>
@@ -849,6 +835,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_scope_failed.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_shadow_module.fung
 -- stdout
 | FAIL tests/lang/err_shadow_module.fung: <load>
@@ -863,6 +854,16 @@
 |  help: import it under another name: `import fs as m`
 -- exit: 2
 ==== test tests/lang/err_slice_tuple.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_spawn_closed_scope.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_spawn_without_scope.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1137,6 +1138,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/scopes.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/slices_inclusive.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1168,6 +1174,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/strings_case.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/supervise.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1223,6 +1234,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/timeouts.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/tuples_tags.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1239,6 +1255,16 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/unused_var_silent_in_run.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/with.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/with_exit.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

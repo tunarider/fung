@@ -8,7 +8,7 @@ use crate::tree::{FnInfo, Head, Lit, Node};
 /// The type names of 07; tag names (uppercase) are also accepted.
 const BUILTIN_TYPES: &[&str] = &[
     "int", "float", "num", "str", "bool", "nil", "sym", "dur", "time", "list", "map", "tuple",
-    "range", "fn", "module", "task", "channel", "agent", "any",
+    "range", "fn", "module", "task", "scope", "atom", "sender", "receiver", "any",
 ];
 
 pub(super) fn is_builtin_type(name: &str) -> bool {

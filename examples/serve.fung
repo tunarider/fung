@@ -8,4 +8,4 @@ import "./api" (handler)
 
 opts = cli.parse(args)
 addr = get(opts.flags, "addr", "127.0.0.1:8080")
-http.serve(addr, handler(time.now(), agent(0)), ready: a => print("listening on", a))!
+http.serve(addr, handler(time.now(), atom(0)), ready: a => print("listening on", a))!

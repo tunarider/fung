@@ -1,0 +1,16 @@
+# Scopes: the body's value, waiting for the children, await inside.
+print(scope(s => 1 + 1))
+r = scope(fn(s):
+  a = spawn(s, () => 2)
+  b = spawn(s, () => Err('e))
+  [await(a), await(b)]
+;;)
+print(r)
+(tx, rx) = channel(1)
+scope(s => spawn(s, () => send(tx, 'done)))
+print(recv(rx))
+scope(fn(s): print(s, type_of(s), s == s) ;;)
+# expect: 2
+# expect: [2, Err('e)]
+# expect: Ok('done)
+# expect: <scope> 'scope true

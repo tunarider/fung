@@ -63,16 +63,6 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check extras/agent.fung
--- stdout
--- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/agent.fung:14:1
-|    |
-| 14 | import _native.conc as _c
-|    | ^
-|    |
--- exit: 2
 ==== check extras/cli.fung
 -- stdout
 -- stderr
@@ -80,13 +70,7 @@
 ==== check extras/conc.fung
 -- stdout
 -- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
-|   --> extras/conc.fung:8:1
-|   |
-| 8 | import _native.conc as _c
-|   | ^
-|   |
--- exit: 2
+-- exit: 0
 ==== check extras/fs.fung
 -- stdout
 -- stderr
@@ -185,18 +169,6 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/agent_errors.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/agent_handles.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/agents.fung
--- stdout
--- stderr
--- exit: 0
 ==== check tests/lang/args.fung
 -- stdout
 -- stderr
@@ -217,7 +189,11 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/at_exit.fung
+==== check tests/lang/atom_errors.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/atoms.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -275,10 +251,6 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== check tests/lang/err_agent_reentry.fung
--- stdout
--- stderr
--- exit: 0
 ==== check tests/lang/err_alias_cycle.fung
 -- stdout
 -- stderr
@@ -332,6 +304,18 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/err_assert.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_atom_effect.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_atom_holds.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_atom_reentry.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -638,6 +622,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_pmap_failed.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_question_in_for.fung
 -- stdout
 -- stderr
@@ -700,6 +688,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_scope_failed.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_shadow_module.fung
 -- stdout
 -- stderr
@@ -712,6 +704,14 @@
 |  help: import it under another name: `import fs as m`
 -- exit: 2
 ==== check tests/lang/err_slice_tuple.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_spawn_closed_scope.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_spawn_without_scope.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -946,6 +946,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/scopes.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/slices_inclusive.fung
 -- stdout
 -- stderr
@@ -971,6 +975,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/strings_case.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/supervise.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1006,6 +1014,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/timeouts.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/tuples_tags.fung
 -- stdout
 -- stderr
@@ -1028,4 +1040,12 @@
 |   |   ^^^^^^
 |   |
 |  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check tests/lang/with.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/with_exit.fung
+-- stdout
+-- stderr
 -- exit: 0

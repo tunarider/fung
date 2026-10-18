@@ -864,8 +864,10 @@ fn concurrent_write_lines_stay_whole() {
         &d,
         r#"h = fs.open("${d}/out.txt", 'write)!
 pad = repeat("x", 300)
-ts = for i in 0..8: spawn(() => each(0..200, j => fs.write_line(h, "task ${i} line ${j} ${pad}")!)) ;;
-each(ts, t => await(t))
+scope(fn(s):
+  ts = for i in 0..8: spawn(s, () => each(0..200, j => fs.write_line(h, "task ${i} line ${j} ${pad}")!)) ;;
+  each(ts, t => await(t))
+;;)
 print(fs.close(h))"#,
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(nil)\n", ""));
@@ -948,7 +950,7 @@ fn file_io_runs_without_the_run_token() {
         .unwrap();
     assert!(made.success());
     let src = format!(
-        "import fs\np = \"{}\"\nr = spawn(() => fs.with_open(p, read_lines))\nw = spawn(fn(): h = fs.open(p, 'append)!; each(0..3, i => fs.write_line(h, \"l${{i}}\")!); fs.close(h) ;;)\nprint(await(w), await(r))",
+        "import fs\np = \"{}\"\nscope(fn(s):\n  r = spawn(s, () => fs.with_open(p, read_lines))\n  w = spawn(s, fn(): h = fs.open(p, 'append)!; each(0..3, i => fs.write_line(h, \"l${{i}}\")!); fs.close(h) ;;)\n  print(await(w), await(r))\n;;)",
         fifo.display()
     );
     let (tx, rx) = std::sync::mpsc::channel();
@@ -1302,4 +1304,57 @@ fn temp_dir_error_names_the_base() {
         got,
         "Err({kind: 'not_found, message: \"cannot create temporary directory in `/nonexistent-fung-base/`: no such file or directory\"})"
     );
+}
+
+/// `with_open` closes the handle even when its function dies of a
+/// runtime error (concurrency v2, L3: it is a `with`).
+#[test]
+fn with_open_closes_after_a_runtime_error() {
+    let d = Scratch::new("with-open-error");
+    let src = format!(
+        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_open(\"{}/f.txt\", fn(h): send(out_tx, h); 1 / 0 ;;, mode: 'write)), e => nil)\nprint(is_err(fs.write_line(recv(out)!, \"x\")))",
+        d.text()
+    );
+    let o = exec(&src, Opts::default());
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("true\n", ""));
+}
+
+#[test]
+fn with_temp_dir_removes_after_a_runtime_error() {
+    let o = exec(
+        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); 1 / 0 ;;)), e => nil)\nprint(fs.exists(recv(out)!))",
+        Opts::default(),
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""));
+}
+
+#[test]
+fn with_temp_dir_removes_after_a_cancel() {
+    let o = testutil::exec_waiting(
+        "import fs\n(out_tx, out) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  t = spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); recv(never) ;;))\n  dir = recv(out)!\n  cancel(t)\n  await(t)\n  print(fs.exists(dir))\n;;)",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""));
+}
+
+/// A temporary directory that cannot be removed is a failure of
+/// `with_temp_dir`, not a quiet success.
+#[test]
+fn with_temp_dir_reports_a_failed_removal() {
+    let o = exec(
+        "import fs\n(out_tx, out) = channel(1)\nr = supervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); fs.mkdir(\"${d}/x\")!; fs.write(\"${d}/x/f\", \"1\")!; sh(\"chmod 555 ${d}/x\"); 1 ;;)), e => print(\"failed\"))\nd = recv(out)!\nsh(\"chmod 755 ${d}/x\")\nfs.remove_all(d)",
+        Opts::default(),
+    );
+    assert_eq!(o.out, "failed\n", "{}", o.err);
+}
+
+/// A handle `f` closed itself is not a failure of `with_open`.
+#[test]
+fn with_open_tolerates_a_handle_f_closed() {
+    let d = Scratch::new("with-open-closed");
+    let src = format!(
+        "import fs\nprint(fs.with_open(\"{}/f.txt\", h => fs.close(h), mode: 'write))",
+        d.text()
+    );
+    let o = exec(&src, Opts::default());
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(nil)\n", ""));
 }

@@ -1,7 +1,7 @@
 //! What every task shares (09, stage 3a), behind the run token.
 //!
 //! The runtime is split in two. `World` is the shared part: the streams,
-//! the source texts for error reports, the exit handlers and exit code,
+//! the source texts for error reports, the exit code,
 //! the script arguments, the global tables, the test blocks and the
 //! modules. A `Task` (`vm.rs`) is the per-task part: its value stack, its
 //! frames and the native it is calling.
@@ -26,7 +26,7 @@ use std::io::{BufRead, Write};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::thread::Thread;
 use std::time::Instant;
 
@@ -36,9 +36,8 @@ use super::block::{Census, WaitList, Waiter};
 use super::failure::Failures;
 use super::module::ModuleState;
 use super::stdin::Stdin;
-use super::task::{CancelNode, Kind};
+use super::task::CancelNode;
 use super::{Globals, Prelude, RtProto, TestCase, token};
-use crate::value::Value;
 
 /// The shared part of the runtime. Reachable only through `Shared`'s
 /// mutex, that is, only by the thread holding the run token.
@@ -52,7 +51,6 @@ pub(crate) struct World {
     /// The files `add_sources` added (the boot's embedded extras files),
     /// as a range of ids: the REPL adds its inputs' files after them.
     embedded: Option<std::ops::Range<u32>>,
-    pub(super) exit_handlers: Vec<Value>,
     /// The first exit(n) requested anywhere.
     pub(super) exit: Option<i64>,
     /// `exit` was set by a deadlock report, not by a task's `exit(n)`.
@@ -79,16 +77,10 @@ pub(crate) struct World {
     /// Woken when `running` drops to 0.
     pub(super) idle: WaitList,
     /// Tasks running fung code: the entry, spawned tasks from the moment
-    /// they are spawned, test blocks, exit handlers and the prelude's boot;
+    /// they are spawned, test blocks and the prelude's boot;
     /// not `Runtime::wait`'s observer. The deadlock check (`deadlock.rs`)
     /// compares it with `Census::blocked`.
     pub(super) live: usize,
-    /// Background tasks that have not finished (stage 3b): spawned by
-    /// `spawn_background` or by another background task, counted from
-    /// the spawn until their `Task` drops. Not in `running` or `live`;
-    /// the deadlock check counts them apart (`deadlock.rs`), and `idle`
-    /// is woken when this drops to 0 too (`Runtime::end_background`).
-    pub(super) background: usize,
     /// The command holds one count of `live` between the tasks it runs
     /// one after another (`Runtime::hold`, `fung test`): it is about to
     /// run more fung code, so it is live and not blocked. The task it
@@ -103,9 +95,13 @@ pub(crate) struct World {
     pub(super) repl: Option<Globals>,
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
-    /// The cancellation node of the exit handler running now: a deadlock
-    /// while it runs cuts that handler short (`deadlock.rs`).
-    pub(super) handler: Option<Arc<CancelNode>>,
+    /// The shield nodes of the `with` releases running now
+    /// (`cleanup.rs`): a deadlock while one runs cuts it short.
+    pub(super) shields: Vec<Weak<CancelNode>>,
+    /// The stop request and its channel (`stop.rs`).
+    pub(super) stop: super::stop::StopState,
+    /// The REPL's evaluation was interrupted (`StopHandle::interrupt`).
+    pub(super) interrupted: bool,
 }
 
 // SAFETY: `World` holds fung values (`Rc`s with non-atomic counts). The
@@ -144,7 +140,6 @@ impl World {
             sources,
             embedded: None,
             repl: None,
-            exit_handlers: Vec::new(),
             exit: None,
             args: Vec::new(),
             globals: Vec::new(),
@@ -157,11 +152,12 @@ impl World {
             live: 0,
             held: false,
             hold_taken: false,
-            background: 0,
             deadlocked: false,
-            handler: None,
+            shields: Vec::new(),
             exit_by_deadlock: false,
             exit_after_deadlock: None,
+            stop: Default::default(),
+            interrupted: false,
         }
     }
 
@@ -181,12 +177,6 @@ impl World {
         base
     }
 
-    /// Whether a file is one of the embedded extras files the boot added
-    /// (`agent.rs`: a position there is never shown for E0704).
-    pub(super) fn is_embedded(&self, id: FileId) -> bool {
-        self.embedded.as_ref().is_some_and(|r| r.contains(&id.0))
-    }
-
     /// A file's name for call paths ("" for a file this runtime does not
     /// know, rather than a panic while reporting an error).
     pub(super) fn file_name(&self, id: FileId) -> &str {
@@ -204,21 +194,15 @@ impl World {
         g
     }
 
-    /// Counts a task being spawned (`up`) or one whose spawn failed: a
-    /// normal task is running and live, a background task is counted
-    /// apart.
-    pub(super) fn count(&mut self, kind: Kind, up: bool) {
-        match (kind.background, up) {
-            (false, true) => {
-                self.running += 1;
-                self.live += 1;
-            }
-            (false, false) => {
-                self.running -= 1;
-                self.live -= 1;
-            }
-            (true, true) => self.background += 1,
-            (true, false) => self.background -= 1,
+    /// Counts a task being spawned (`up`) or one whose spawn failed: it
+    /// is running and live.
+    pub(super) fn count(&mut self, up: bool) {
+        if up {
+            self.running += 1;
+            self.live += 1;
+        } else {
+            self.running -= 1;
+            self.live -= 1;
         }
     }
 
@@ -261,8 +245,10 @@ impl World {
         }
     }
 
-    pub(super) fn at_exit(&mut self, f: Value) {
-        self.exit_handlers.push(f);
+    /// The shield nodes of the releases running now; forgets the ended.
+    pub(super) fn live_shields(&mut self) -> Vec<Arc<CancelNode>> {
+        self.shields.retain(|w| w.strong_count() > 0);
+        self.shields.iter().filter_map(Weak::upgrade).collect()
     }
 
     pub(super) fn stdout(&mut self) -> &mut dyn Write {
@@ -284,11 +270,11 @@ impl World {
             drop(old);
         }
         drop(globals);
-        drop(std::mem::take(&mut self.exit_handlers));
         drop(std::mem::take(&mut self.tests));
         drop(std::mem::take(&mut self.modules));
         drop(std::mem::take(&mut self.prelude));
         drop(self.main.take());
+        super::stop::release(self);
     }
 }
 
@@ -324,7 +310,7 @@ pub(crate) struct Shared {
     world: Mutex<World>,
     /// How many tasks are blocked, for the deadlock check (`block.rs`).
     pub(super) census: Arc<Census>,
-    /// Failures nobody retrieved yet (`failure.rs`).
+    /// Failures nobody handled (`failure.rs`).
     pub(super) failures: Arc<Failures>,
     /// How many times a sleeping task woke up (tests count wakeups).
     #[cfg(test)]
@@ -339,14 +325,6 @@ pub(crate) struct Shared {
     /// deadlock (`Runtime::recover_deadlock`), with the run token held and
     /// no task of the program left; read it through `root()`.
     root: Mutex<Arc<CancelNode>>,
-    /// Exit handlers run under this node, not the root: the root is
-    /// cancelled by then.
-    pub(super) handlers: Arc<CancelNode>,
-    /// Background tasks (stage 3b) hang from this node, apart from the
-    /// program's root: an exit or an entry error cancels the program,
-    /// and the background tasks are cancelled only after the exit
-    /// handlers (`Runtime::end_background`).
-    pub(super) background: Arc<CancelNode>,
 }
 
 impl Shared {
@@ -362,8 +340,6 @@ impl Shared {
             task_stacks: std::sync::OnceLock::new(),
             gate: Gate::default(),
             root: Mutex::new(CancelNode::root()),
-            handlers: CancelNode::root(),
-            background: CancelNode::root(),
         }
     }
 
@@ -427,8 +403,8 @@ impl Shared {
 /// VM's panic fence already turned that panic into E0801 (or the panic is
 /// a test's), and the world's own fields are plain containers that no
 /// method leaves half-changed across a call that can panic, so refusing
-/// the lock would only wedge the runtime: every later task, the exit
-/// handlers and the runtime's drop would fail on a lock nobody can clear.
+/// the lock would only wedge the runtime: every later task and the
+/// runtime's drop would fail on a lock nobody can clear.
 /// Take the guard as it is. (The gate's state is changed only in short
 /// sections that do not panic; the same reasoning applies.)
 fn recover<T>(e: PoisonError<T>) -> T {

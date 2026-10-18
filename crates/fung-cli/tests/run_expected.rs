@@ -13,29 +13,29 @@ use common::{Run, fung_bin, par_map, repo, run_with_stdin};
 
 const CASES: &[&str] = &[
     "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))",
-    "at_exit(() => print(\"bye\"))\nprint([1, 2] + [3], {a: 1}, (1, \"x\"), Ok(2), 1..3, 1.5, 90m, 's, nil)\nexit(4)",
+    "with(() => nil, fn(_): print([1, 2] + [3], {a: 1}, (1, \"x\"), Ok(2), 1..3, 1.5, 90m, 's, nil); exit(4) ;;, _ => print(\"bye\"))",
     "fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)\nprint(count(1000000, 0))",
     "fn d(n) = n == 0 then 0 else 1 + d(n - 1)\nprint(d(200000))",
     "print(fold(0..3, 0, (a, x) => a + fold(0..3, 0, (b, y) => b + 1 / (y - 2))))",
-    "at_exit(() => fail(\"in handler\"))\nat_exit(() => exit(7))\nprint(\"main\")",
-    "spawn(() => 1)",
+    "with(() => nil, _ => print(\"main\"), _ => fail(\"in release\"))",
+    "scope(s => spawn(s, () => 1))",
 ];
 
-/// More `-e` programs: exit codes the OS cuts to 8 bits, the exit handler
-/// order, errors and exits inside handlers, standard input and arguments.
+/// More `-e` programs: exit codes the OS cuts to 8 bits, the order of
+/// nested `with` releases, errors and exits inside releases, standard
+/// input and arguments.
 const MORE: &[&str] = &[
     "exit(300)",
     "exit(-1)",
     "exit(1099511627777)",
     "exit(9223372036854775807)",
     "exit(0)",
-    "at_exit(() => print(1))\nat_exit(() => print(2))\nprint(0)",
-    "at_exit(() => print(\"h\"))\n1 / 0",
-    "at_exit(() => exit(3))\nexit(5)",
-    "at_exit(() => exit(3))\n1 / 0",
-    "at_exit(() => 1 / 0)\nexit(5)",
-    "at_exit(() => at_exit(() => print(\"nested\")))\nprint(\"main\")",
-    "at_exit(() => fail(\"a\"))\nat_exit(() => fail(\"b\"))",
+    "with(() => 1, _ => with(() => 2, _ => print(0), print), print)",
+    "with(() => nil, _ => 1 / 0, _ => print(\"h\"))",
+    "with(() => nil, _ => exit(5), _ => exit(3))",
+    "with(() => nil, _ => 1 / 0, _ => exit(3))",
+    "with(() => nil, _ => exit(5), _ => 1 / 0)",
+    "with(() => nil, _ => fail(\"a\"), _ => fail(\"b\"))",
     "print(args)",
     "print(read_line(), read_line())",
     "fn f(x) = map([1, 2], (y) => y / x)\nprint(f(0))",
@@ -48,32 +48,32 @@ const MORE: &[&str] = &[
 /// Each one's output must not depend on how the tasks are scheduled.
 const CONCURRENT: &[&str] = &[
     // Tasks.
-    "import conc\nprint(await(spawn(() => 1 + 1)), await(spawn(() => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2))",
-    "t = spawn(() => sleep(10s))\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 1ms))\ncancel(u)",
-    "t = spawn(fn(): spawn(() => sleep(10s)) ;;)\nprint(await(await(t)))",
+    "import conc\nsupervise(s => print(await(spawn(s, () => 1 + 1)), await(spawn(s, () => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2)), _ => nil)",
+    "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(1ms, () => await(u)))\n  cancel(u)\n;;)",
+    "(tx, rx) = channel(1)\nprint(scope(fn(s):\n  send(tx, spawn(s, () => sleep(10s)))\n  cancel(s)\n;;), await(recv(rx)!))",
     "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))",
     // Channels.
-    "ch = channel()\nspawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))",
-    "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))",
-    "ch = channel()\nt = spawn(() => each(1..=5, x => send(ch, x)))\ncancel(t)\nprint(await(t))",
+    "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): each(1..=5, x => send(tx, x)); close(tx) ;;)\n  print(fold(rx, 0, (a, x) => a + x))\n;;)",
+    "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(5ms, () => recv(never)))",
+    "(tx, _rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(1..=5, x => send(tx, x)))\n  cancel(t)\n  print(await(t))\n;;)",
     "print(channel(-1))",
-    // Agents: `tests/lang/agents.fung` and `vm/agent_tests.rs`.
+    // Atoms: `tests/lang/atoms.fung`.
     // Exit rules: an exit from any task cancels every other
-    // task, wherever it waits; the handlers run once.
-    "at_exit(() => print(\"bye\"))\nspawn(fn(): sleep(10ms); exit(5) ;;)\nsleep(10s)\nprint(\"never\")",
-    "at_exit(() => print(\"bye\"))\nch = channel()\nspawn(() => recv(ch))\nspawn(fn(): sleep(10ms); exit(3) ;;)\nrecv(channel())",
-    "t = spawn(() => each(1..=3, x => sleep(10s)))\nspawn(fn(): sleep(10ms); cancel(t) ;;)\nprint(await(t))",
-    "t = spawn(() => sleep(10s))\nfail(\"entry\")",
-    "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.fan_in([]) |> map(x => x))",
+    // task, wherever it waits; each `with` is released once.
+    "with(() => nil, _ => scope(fn(s):\n  spawn(s, fn(): sleep(10ms); exit(5) ;;)\n  sleep(10s)\n  print(\"never\")\n;;), _ => print(\"bye\"))",
+    "(_tx, rx) = channel()\nwith(() => nil, _ => scope(fn(s):\n  spawn(s, () => recv(rx))\n  spawn(s, fn(): sleep(10ms); exit(3) ;;)\n  recv(rx)\n;;), _ => print(\"bye\"))",
+    "scope(fn(s):\n  t = spawn(s, () => each(1..=3, x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)",
+    "scope(fn(s):\n  spawn(s, () => sleep(10s))\n  fail(\"entry\")\n;;)",
+    "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), scope(s => conc.fan_in(s, []) |> map(x => x)))",
     // `tests/lang/conc_helpers.fung`.
-    "import conc\na = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))",
-    "ts = for i in 0..200: spawn(() => i) ;;\nprint(fold(ts, 0, (a, t) => a + await(t)))",
-    "spawn(fn(): sleep(10ms); exit(4) ;;)\nsleep(10s)\nprint(\"main\")",
-    "at_exit(() => print(\"h\"))\nspawn(() => each(1..=3, x => x == 2 then exit(6) else print(x)))\nsleep(10s)",
-    "ch = channel()\nspawn(fn(): recv(ch); exit(2) ;;)\nat_exit(() => print(\"once\"))\neach(1..=3, x => send(ch, x))",
+    "import conc\n(a_tx, a) = channel(2)\n(b_tx, b) = channel(2)\neach([1, 2], x => send(a_tx, x))\nclose(a_tx)\nsend(b_tx, 3)\nclose(b_tx)\nprint(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))",
+    "print(scope(fn(s):\n  ts = for i in 0..200: spawn(s, () => i) ;;\n  fold(ts, 0, (a, t) => a + await(t))\n;;))",
+    "scope(fn(s):\n  spawn(s, fn(): sleep(10ms); exit(4) ;;)\n  sleep(10s)\n  print(\"main\")\n;;)",
+    "with(() => nil, _ => scope(fn(s):\n  spawn(s, () => each(1..=3, x => x == 2 then exit(6) else print(x)))\n  sleep(10s)\n;;), _ => print(\"h\"))",
+    "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): recv(rx); exit(2) ;;)\n  with(() => nil, _ => each(1..=3, x => send(tx, x)), _ => print(\"once\"))\n;;)",
     // Standard input and processes from tasks.
-    "ts = for _ in 0..2: spawn(() => read_line()) ;;\nprint(sort(for t in ts: await(t)! ;;))",
-    "print(await(spawn(() => sh(\"echo hi; sleep 0.05; echo there\"))))",
+    "print(scope(fn(s):\n  ts = for _ in 0..2: spawn(s, () => read_line()) ;;\n  sort(for t in ts: await(t)! ;;)\n;;))",
+    "print(scope(s => await(spawn(s, () => sh(\"echo hi; sleep 0.05; echo there\")))))",
 ];
 
 /// `# args:` and `# stdin:` lines, as the golden runner reads them.
@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 144;
+const LANG_CASES: usize = 153;
 const BENCH_CASES: usize = 6;
-const ALL_CASES: usize = 201;
+const ALL_CASES: usize = 209;
 
 #[test]
 fn every_case_is_counted() {
@@ -200,8 +200,7 @@ fn runs_match_the_expected_output() {
     let bin = fung_bin();
     let cases = cases();
     assert_eq!(cases.len(), ALL_CASES, "cases");
-    // On a few workers: a case that leaves a task sleeping, like
-    // `tests/lang/cancel.fung`, takes 10 s.
+    // On a few workers: some cases wait on sleeps and timeouts.
     let got: Vec<Entry> = par_map(&cases, |c| {
         entry(c, &run_with_stdin(&bin, &c.args, c.stdin.as_deref()))
     });
@@ -229,8 +228,25 @@ fn runs_match_the_expected_output() {
 /// concurrent case.
 #[cfg(not(debug_assertions))]
 const CONCURRENCY: &[&str] = &[
-    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep", "agent", "swap",
-    "deref", "pmap", "fan_in", "retry",
+    "scope",
+    "supervise",
+    "timeout",
+    "with",
+    "spawn",
+    "await",
+    "cancel",
+    "channel",
+    "send",
+    "recv",
+    "close",
+    "sleep",
+    "atom",
+    "swap",
+    "deref",
+    "reset",
+    "pmap",
+    "fan_in",
+    "retry",
 ];
 
 /// Whether `src` calls `name`: `name(` not preceded by a name character
@@ -250,13 +266,13 @@ fn calls(src: &str, name: &str) -> bool {
 #[cfg(not(debug_assertions))]
 #[test]
 fn calls_finds_calls_only() {
-    assert!(calls("x = spawn(f)", "spawn"));
-    assert!(calls("spawn(f)", "spawn"));
+    assert!(calls("x = spawn(s, f)", "spawn"));
+    assert!(calls("spawn(s, f)", "spawn"));
     assert!(!calls("closure(1)", "close"));
     assert!(!calls("resend(1)", "send"));
     assert!(!calls("m.close(1)", "close"));
     assert!(!calls("# close the file", "close"));
-    assert!(calls("x = agent(0)\n", "agent"));
+    assert!(calls("x = atom(0)\n", "atom"));
 }
 
 /// How many times `concurrent_runs_are_stable` runs each case.
@@ -265,7 +281,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 34;
+const CONCURRENT_CASES: usize = 44;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.
@@ -293,10 +309,9 @@ fn concurrent_cases() -> Vec<Case> {
 ///
 /// Every case starts its first run, all cases at once. A case whose
 /// first run ends within a second hands its other runs to `POOL` workers.
-/// A case still running after a second only sleeps
-/// (`tests/lang/cancel.fung` leaves a 10 s task), so all its other runs
-/// start right then, in parallel; the whole test then takes little more
-/// than that case.
+/// A case still running after a second only sleeps, so all its other
+/// runs start right then, in parallel; the whole test then takes little
+/// more than that case.
 #[cfg(not(debug_assertions))]
 #[test]
 fn concurrent_runs_are_stable() {

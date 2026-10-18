@@ -76,7 +76,7 @@
 <div class="filter">
   <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
   <input id="fn-search" type="search" placeholder="예: split, 정렬, Err" autocomplete="off">
-  <p id="fn-count">128개 함수</p>
+  <p id="fn-count">134개 함수</p>
 </div>
 
 <h2 id="prelude">prelude: 늘 쓸 수 있는 함수</h2>
@@ -105,7 +105,7 @@
 <h3>타입과 변환</h3>
 <p><code>int</code>·<code>float</code>·<code>str</code>·<code>sym</code>은 잘못된 입력에 런타임 에러를 낸다(코드가 틀린 것으로 본다). 믿을 수 없는 입력은 <code>parse_*</code>로 검사한다.</p>
 <div class="fn" id="fn-type_of"><code>type_of(x)</code>
-  <p>값의 타입 이름을 심볼로: <code>'int</code> <code>'str</code> <code>'list</code> <code>'map</code> <code>'fn</code> <code>'agent</code> …, 태그 값이면 태그 이름(<code>'Ok</code>, <code>'Circle</code>).</p>
+  <p>값의 타입 이름을 심볼로: <code>'int</code> <code>'str</code> <code>'list</code> <code>'map</code> <code>'fn</code> <code>'atom</code> …, 태그 값이면 태그 이름(<code>'Ok</code>, <code>'Circle</code>).</p>
   <pre><code>print(type_of(1.5), type_of(Ok(1)), type_of(&#x27;x))</code></pre>
 </div>
 <div class="fn" id="fn-int"><code>int(x)</code>
@@ -316,11 +316,12 @@
 <div class="fn" id="fn-fail"><code>fail(...args)</code>
   <p>인자를 <code>print</code>처럼 이은 메시지로 런타임 에러(E0803)를 낸다. "여기 오면 버그"를 말할 때 쓴다: <code>x ?? fail("x is required")</code>.</p>
 </div>
-<div class="fn" id="fn-at_exit"><code>at_exit(f)</code>
-  <p>프로그램이 끝날 때(정상, <code>exit</code>, 에러 모두) <code>f()</code>를 부른다. 등록의 역순으로 실행된다.</p>
+<div class="fn" id="fn-with"><code>with(acquire, use, release)</code>
+  <p><code>acquire()</code>로 얻은 것을 <code>use</code>에 넘기고, <code>use</code>가 어떻게 끝나든(값, <code>Err</code>, 런타임 에러, 취소, <code>exit</code>) <code>release</code>를 부른다. 결과는 <code>use</code>의 값이다. <code>release</code>는 그것을 부른 취소나 기한에 끊기지 않는다. <code>release</code>의 실패는 버리지 않는다: <code>use</code>도 실패했으면 <code>use</code>의 에러에 <code>note: also failed in release</code>로 붙고, 아니면 <code>release</code>의 에러가 난다. 프로그램 끝의 정리도 이것으로 한다(<code>at_exit</code>는 없다).</p>
+  <pre><code>print(with(() =&gt; &quot;conn&quot;, c =&gt; c + &quot; used&quot;, c =&gt; print(&quot;closed&quot;, c)))</code></pre>
 </div>
 <div class="fn" id="fn-exit"><code>exit(code = 0)</code>
-  <p>어느 태스크에서 불러도 프로그램을 끝낸다. 남은 태스크는 취소되고 <code>at_exit</code> 핸들러가 돈 뒤 그 코드로 끝난다.</p>
+  <p>어느 태스크에서 불러도 프로그램을 끝낸다. 남은 태스크는 취소되고, 되감기가 지나는 모든 <a href="#fn-with"><code>with</code></a>의 <code>release</code>가 돈 뒤 그 코드로 끝난다.</p>
 </div>
 <div class="fn" id="fn-args"><code>args</code>
   <p>스크립트 경로 뒤의 명령행 인자(문자열 리스트). 함수가 아니라 값이다.</p>
@@ -330,7 +331,7 @@
 <h3>프로세스와 환경</h3>
 <p>명령은 쉘을 거치지 않는 <code>exec</code>가 기본이다. 종료 코드 0이 아니면 <code>Err</code>이므로 <code>exec(…)!</code>가 쉘의 <code>set -e</code>와 같다.</p>
 <div class="fn" id="fn-exec"><code>exec(cmd, cwd = nil, env = nil, stdin = nil)</code>
-  <p><code>cmd</code>는 문자열 리스트(<code>["git", "status"]</code>). 성공하면 <code>Ok({out, err, code})</code>, 0이 아닌 종료는 <code>Err({kind: 'exit, code, out, err, message})</code>, 실행 파일이 없거나 시작할 수 없으면 <code>Err('not_found)</code>(이유는 <code>command not found in PATH</code>, <code>not an executable file (run scripts with sh)</code> 등). <code>env</code>는 현재 환경에 덧붙일 맵.</p>
+  <p><code>cmd</code>는 문자열 리스트(<code>["git", "status"]</code>). 성공하면 <code>Ok({out, err, code})</code>, 0이 아닌 종료는 <code>Err({kind: 'exit, code, out, err, message})</code>, 실행 파일이 없거나 시작할 수 없으면 <code>Err('not_found)</code>(이유는 <code>command not found in PATH</code>, <code>not an executable file (run scripts with sh)</code> 등). <code>env</code>는 현재 환경에 덧붙일 맵. 부른 태스크가 취소되면(<code>timeout</code>, <code>exit</code>, 범위의 취소) 명령에 SIGTERM, 2초 뒤에도 남아 있으면 SIGKILL을 보내고 취소로 되감긴다. 터미널 앞(fung이 터미널의 전경 그룹)에서는 명령도 fung과 같은 그룹이라 비밀번호 프롬프트처럼 터미널을 쓸 수 있고 Ctrl-C도 셸처럼 명령에 간다. 이때 취소는 명령 하나에만 간다. 터미널이 없으면(서비스·컨테이너·CI·cron) 명령은 자기 프로세스 그룹으로 돌고, 취소는 그룹 전체에 가서 셸이 띄운 손자까지 끝난다.</p>
   <pre><code>r = exec([&quot;echo&quot;, &quot;hi&quot;])!
 print(trim(r.out))</code></pre>
 </div>
@@ -345,46 +346,90 @@ print(port)</code></pre>
 </section>
 <section class="group" id="concurrency">
 <h3>동시성</h3>
-<p>태스크마다 운영체제 스레드가 하나 붙고, fung 코드는 실행권을 쥔 스레드 하나만 돌린다(<a href="internals.html#concurrency">런타임</a>). 값은 불변이라 태스크 사이에 그냥 넘긴다. 태스크 사이의 상태는 채널이나 <code>agent</code>로 나눈다. 병렬 <code>map</code> 같은 도우미는 <a href="#conc"><code>conc</code> 모듈</a>에 있다.</p>
-<div class="fn" id="fn-spawn"><code>spawn(f)</code>
-  <p><code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 취소는 자식 태스크에 전파된다. 태스크가 실패했는데 그 결과를 끝내 아무도 <code>await</code>하지 않으면 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다. 보고 시점은 핸들의 마지막 사본이 사라질 때(이미 실패했으면 그 순간, 아니면 실패하는 순간)나 프로그램이 끝날 때다. 핸들을 들고 있는 한 나중에 <code>await</code>해도 된다.</p>
+<p>태스크는 범위(<code>scope</code>·<code>supervise</code>) 안에서만 띄운다. 범위는 본문과 그 안의 태스크가 모두 끝나야 돌아오므로, 태스크의 실패는 언제나 범위를 연 코드로 간다. 태스크마다 운영체제 스레드가 하나 붙고, fung 코드는 실행권을 쥔 스레드 하나만 돌린다(<a href="internals.html#concurrency">런타임</a>). 값은 불변이라 태스크 사이에 그냥 넘긴다. 태스크 사이의 상태는 채널이나 <code>atom</code>으로 나눈다. 병렬 <code>map</code> 같은 도우미는 <a href="#conc"><code>conc</code> 모듈</a>에 있다.</p>
+<div class="fn" id="fn-scope"><code>scope(f)</code>
+  <p>범위를 열고 <code>f(s)</code>를 부른다(<code>s</code>는 범위 핸들). 본문과 <code>spawn(s, g)</code>로 띄운 태스크가 모두 끝나야 돌아오고, 결과는 본문의 반환값이다. 태스크 하나가 런타임 에러로 죽으면 나머지와 본문을 취소하고 기다린 뒤 그 에러를 여기서 다시 낸다(<code>note: scope opened at …</code>가 붙는다). 함수가 <code>Err</code> 값을 돌려준 것은 실패가 아니다. <code>cancel(s)</code>로 취소된 범위는 <code>Err('cancelled)</code>를 돌려준다.</p>
+  <pre><code>r = scope(fn(s):
+  a = spawn(s, () =&gt; 6 * 7)
+  b = spawn(s, () =&gt; 1 + 1)
+  [await(a), await(b)]
+;;)
+print(r)</code></pre>
 </div>
-<div class="fn" id="fn-await"><code>await(t, timeout = nil)</code>
-  <p>태스크의 결과. 정상 종료면 반환값, 런타임 에러로 죽었으면 <code>Err({kind: 'error, message})</code>, 취소됐으면 <code>Err('cancelled)</code>, 시간이 지나면 <code>Err('timeout)</code>. 여러 번 불러도 같은 결과.</p>
-  <pre><code>t = spawn(() =&gt; 6 * 7)
-print(await(t))</code></pre>
+<div class="fn" id="fn-supervise"><code>supervise(f, on_fail)</code>
+  <p><code>scope</code>와 같지만 태스크의 런타임 에러가 다른 태스크나 본문에 번지지 않고 <code>on_fail(e)</code>로 간다(<code>e = {kind: 'error, message}</code>). <code>await</code>도 그 <code>Err</code>를 준다. <code>on_fail</code>은 실패 순서대로 하나씩 돈다. <code>on_fail</code>이 런타임 에러를 내면 범위가 실패한다. 범위가 취소되어 처리하지 못한 실패는 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다.</p>
+  <pre><code>supervise(fn(s):
+  spawn(s, () =&gt; fail(&quot;boom&quot;))
+  spawn(s, () =&gt; print(&quot;still runs&quot;))
+;;, e =&gt; eprint(&quot;handled: ${e.message}&quot;))</code></pre>
+</div>
+<div class="fn" id="fn-spawn"><code>spawn(s, f)</code>
+  <p>범위 <code>s</code> 안에서 <code>f()</code>를 새 태스크로 실행하고 태스크 핸들을 돌려준다. 범위가 기다리는 동안에는 태스크도 같은 범위에 <code>spawn</code>할 수 있다. <code>scope(</code>가 돌아온 뒤의 범위에 <code>spawn</code>하면 E0706이다.</p>
+</div>
+<div class="fn" id="fn-await"><code>await(t)</code>
+  <p>태스크의 결과. 정상 종료면 반환값, 런타임 에러로 죽었으면 <code>Err({kind: 'error, message})</code>, 취소됐으면 <code>Err('cancelled)</code>. 여러 번 불러도 같은 결과. 기다리는 시간을 정하려면 <a href="#fn-timeout"><code>timeout</code></a>으로 감싼다(태스크는 계속 돈다).</p>
+  <pre><code>print(scope(s =&gt; await(spawn(s, () =&gt; 6 * 7))))</code></pre>
+</div>
+<div class="fn" id="fn-timeout"><code>timeout(d, f)</code>
+  <p><code>f()</code>의 값. <code>d</code>가 지나면 <code>f</code> 안의 모든 것(그 안에서 연 범위의 태스크 포함)을 취소하고 <code>Err({kind: 'timeout})</code>을 준다. 겹치면 이른 기한이 이긴다: 바깥 기한이 먼저 지나면 바깥 <code>timeout</code>이 답한다. <code>d</code>가 0 이하면 언제나 <code>Err({kind: 'timeout})</code>이다. 외부 명령(<code>exec</code>·<code>sh</code>)은 끝낸다. 파일·정규식 컴파일처럼 운영체제를 기다리는 일 일부는 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다(<a href="internals.html#concurrency">런타임</a>).</p>
+  <pre><code>print(timeout(1s, () =&gt; 1 + 1))
+(_tx, rx) = channel()
+print(timeout(10ms, () =&gt; recv(rx)))</code></pre>
 </div>
 <div class="fn" id="fn-cancel"><code>cancel(t)</code>
-  <p>태스크를 취소한다. 취소는 실패가 아니라 종료 코드에 영향이 없다.</p>
+  <p>태스크나 범위를 취소한다. 그 아래의 태스크에도 전파된다. 취소는 실패가 아니라 종료 코드에 영향이 없다.</p>
 </div>
 <div class="fn" id="fn-channel"><code>channel(n = 0)</code>
-  <p>채널. <code>n</code>은 버퍼 크기이고, 0이면 받는 쪽이 있을 때까지 <code>send</code>가 막힌다. <code>for</code>와 <code>map</code> 등으로 순회할 수 있다. 값이 올 때마다 처리하고 닫히면 끝난다.</p>
+  <p>채널의 두 끝 <code>(tx, rx)</code>: 보내는 끝과 받는 끝. <code>n</code>은 버퍼 크기이고, 0이면 받는 쪽이 있을 때까지 <code>send</code>가 막힌다. 출력은 <code>&lt;sender&gt;</code>·<code>&lt;receiver&gt;</code>, <code>type_of</code>는 <code>'sender</code>·<code>'receiver</code>, 타입 표기도 <code>sender</code>·<code>receiver</code>. 끝은 복사할 수 있다(생산자 여럿, 일꾼 여럿). 받는 끝은 <code>for</code>와 <code>map</code> 등으로 순회할 수 있다. 값이 올 때마다 처리하고 닫히면 끝난다.</p>
+  <p><b>자동 닫힘</b>: 보내는 끝의 마지막 사본이 사라지면 채널이 닫힌다(받는 쪽은 남은 값을 받은 뒤 <code>Err({kind: 'closed})</code>). 받는 끝의 마지막 사본이 사라지면 닫히고 버퍼를 버리며, 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>다. 지역 변수는 함수가 돌아올 때, 태스크가 붙잡은 값은 태스크가 끝날 때, 최상위 변수는 프로그램이 끝날 때 사라진다. 그래서 받는 끝만 돌려주는 생산 함수는 생산이 끝나면 저절로 닫힌다.</p>
+  <pre><code>fn numbers(s, n):
+  (tx, rx) = channel()
+  spawn(s, () =&gt; each(0..n, i =&gt; send(tx, i)))
+  rx
+;;
+
+scope(fn(s):
+  for x in numbers(s, 3):
+    print(x)
+  ;;
+;;)</code></pre>
 </div>
-<div class="fn" id="fn-send"><code>send(ch, v)</code>
-  <p><code>Ok(nil)</code>, 닫혔으면 <code>Err('closed)</code>. 채널에 그 채널 자신을 보내면(<code>v</code> 안 어디에 들어 있어도) 런타임 에러 E0705다. 메모리를 참조 계수로 회수하므로 자기 자신을 담은 채널은 해제되지 않기 때문이다. 그래서 <code>send</code>는 보내는 값을 훑고, 비용은 값의 크기에 비례한다.</p>
+<div class="fn" id="fn-send"><code>send(tx, v)</code>
+  <p><code>Ok(nil)</code>, 닫혔거나 받는 끝이 모두 사라졌으면 <code>Err({kind: 'closed})</code>. <code>tx</code>는 보내는 끝이어야 한다(받는 끝이면 E0403). 채널에 그 채널의 끝을 보내면(어느 끝이든, <code>v</code> 안 어디에 들어 있어도) 런타임 에러 E0705다. 메모리를 참조 계수로 회수하므로 자기 끝을 담은 채널은 닫히지도 해제되지도 않기 때문이다. 다른 채널의 끝(응답 채널)은 보낼 수 있다. 채널 끝 같은 바뀌는 것을 품지 않은 값은 훑지 않는다.</p>
 </div>
-<div class="fn" id="fn-recv"><code>recv(ch, timeout = nil)</code>
-  <p><code>Ok(v)</code>, 닫혔으면 <code>Err('closed)</code>, 시간이 지나면 <code>Err('timeout)</code>.</p>
-  <pre><code>ch = channel(1)
-send(ch, &quot;hi&quot;)
-print(recv(ch)!)</code></pre>
+<div class="fn" id="fn-recv"><code>recv(rx)</code>
+  <p><code>Ok(v)</code>, 닫혔고 남은 값이 없으면 <code>Err({kind: 'closed})</code>. <code>rx</code>는 받는 끝이어야 한다. 기다리는 시간은 <a href="#fn-timeout"><code>timeout</code></a>으로 정한다: <code>timeout(1s, () =&gt; recv(rx))</code>.</p>
+  <pre><code>(tx, rx) = channel(1)
+send(tx, &quot;hi&quot;)
+print(recv(rx)!)</code></pre>
 </div>
-<div class="fn" id="fn-close"><code>close(ch)</code>
-  <p>채널을 닫는다. 파일 핸들은 <code>fs.close</code>로 닫는다(이름이 같지만 다른 함수다).</p>
+<div class="fn" id="fn-close"><code>close(tx)</code>
+  <p>채널을 닫는다. 그 끝의 다른 사본이 살아 있어도 지금 닫는다(최상위에서 만든 채널처럼 사본이 오래 살 때 쓴다). 받는 끝은 닫지 않는다(E0403). 파일 핸들은 <code>fs.close</code>로 닫는다(이름이 같지만 다른 함수다).</p>
 </div>
-<div class="fn" id="fn-agent"><code>agent(v)</code><span class="by">fung으로 작성</span>
-  <p>상태 <code>v</code>를 쥔 <b>에이전트</b>를 만든다. 에이전트는 상태를 지역 변수로 들고 채널로 요청을 받는 배경 태스크이고, 돌려주는 값은 그 핸들이다. 요청은 받은 순서대로 하나씩 처리하므로 자물쇠가 필요 없다. 핸들의 마지막 사본이 사라지면 에이전트도 끝난다. 에이전트는 프로그램이 끝나기를 막지 않고, <code>at_exit</code> 핸들러에서도 쓸 수 있다. 출력은 <code>&lt;agent&gt;</code>, <code>type_of</code>는 <code>'agent</code>, 타입 표기는 <code>a: agent</code>, <code>==</code>는 같은 에이전트인지.</p>
-  <p class="note">에이전트마다 운영체제 스레드가 하나라서, 살아 있는 에이전트 수천 개는 스레드 한도에 걸려 <code>E0801 cannot start a task</code>로 끝난다. 값마다 칸을 두지 말고 에이전트 하나에 맵으로 모은다.</p>
-  <p class="note">서로의 핸들을 품은 두 에이전트(<code>b = agent(a)</code> 뒤 <code>swap(a, _ =&gt; b)</code>)는 핸들이 모두 사라져도 끝나지 않고 프로그램 끝까지 남는다. 프로그램이 끝나는 것을 막지는 않는다.</p>
+<div class="fn" id="fn-stop_signal"><code>stop_signal()</code>
+  <p>정지 요청을 받는 끝(<code>receiver</code>). 정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, <code>kill</code>, 컨테이너 종료)이나 <a href="#fn-request_stop"><code>request_stop</code></a>이 보낸다. 오면 이 끝이 닫히므로 <code>recv</code>는 <code>Err({kind: 'closed})</code>, 이 끝을 도는 <code>for</code>는 끝난다. 취소("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.</p>
+  <p>이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(<code>with</code>의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.</p>
+  <pre><code>stop = stop_signal()
+request_stop()
+print(recv(stop))</code></pre>
 </div>
-<div class="fn" id="fn-swap"><code>swap(a, f)</code><span class="by">fung으로 작성</span>
-  <p>에이전트의 태스크에서 <code>f(현재 값)</code>을 돌려 상태를 바꾸고 새 값을 돌려준다. <code>f</code>가 실패하면 상태는 그대로이고 같은 에러가 <code>swap(</code>을 부른 자리에서 난다. <code>f</code> 안의 <code>exit(n)</code>은 부른 쪽의 <code>exit(n)</code>이 된다. 부른 태스크가 취소되면 <code>f</code>도 취소되고 바꾸지 않는다. <code>f</code> 안(과 <code>f</code>가 띄운 태스크)에서 같은 에이전트에 <code>swap</code>하면 E0704, <code>deref</code>는 기다리지 않고 바꾸기 전 값이다. 다른 에이전트를 겹쳐 쓰다 서로 기다리게 되면 교착(E0702)이다.</p>
-  <pre><code>hits = agent(0)
+<div class="fn" id="fn-request_stop"><code>request_stop()</code>
+  <p>코드에서 정지 요청을 보낸다. 첫 신호와 똑같이 동작한다: 보는 쪽이 있으면 <a href="#fn-stop_signal"><code>stop_signal</code></a>의 끝들을 닫고 <code>nil</code>, 없으면 <code>exit(0)</code>처럼 프로그램을 끝낸다. 관리용 요청이나 헬스체크 실패로 스스로 내려가는 서비스, 정상 종료를 시험하는 <code>fung test</code>에 쓴다. <code>fung test</code>는 테스트 블록마다 정지 상태를 새로 둔다.</p>
+</div>
+<div class="fn" id="fn-atom"><code>atom(v)</code>
+  <p>값 <code>v</code>를 가리키는 칸. 태스크 사이에 나누는 바뀌는 상태는 이것으로 둔다. 출력은 <code>&lt;atom&gt;</code>, <code>type_of</code>는 <code>'atom</code>, 타입 표기는 <code>a: atom</code>, <code>==</code>는 같은 칸인지. 안에는 바뀌는 것(atom, 채널 끝, 태스크·범위 핸들, 파일, 소켓, 그리고 그것들을 품은 리스트·맵·튜플·태그·클로저)을 넣지 못한다(E0708). 검사는 값이 커도 빠르다.</p>
+</div>
+<div class="fn" id="fn-swap"><code>swap(a, f)</code>
+  <p>비교 후 교체: <code>f(지금 값)</code>을 계산해 그사이 아무도 바꾸지 않았으면 바꾸고, 바꿨으면 새 값으로 <code>f</code>를 다시 돌린다. 새 값을 돌려준다. 그래서 여러 태스크가 동시에 바꿔도 갱신이 사라지지 않는다. <code>f</code>는 여러 번 돌 수 있으므로 <b>순수 계산만</b> 한다: 출력, 표준 입력, <code>exit</code>, 태스크·채널 연산, <code>sleep</code>, 다른 atom의 <code>swap</code>·<code>reset</code>, 파일·네트워크·외부 프로세스를 부르면 E0707이다. 읽기(<code>deref</code>, 시간, 환경 변수)는 된다. <code>f</code>가 실패하면 상태는 그대로다.</p>
+  <pre><code>hits = atom(0)
 each(1..=3, _ =&gt; swap(hits, n =&gt; n + 1))
 print(deref(hits))</code></pre>
 </div>
-<div class="fn" id="fn-deref"><code>deref(a)</code><span class="by">fung으로 작성</span>
-  <p>현재 상태. 에이전트에 물어 답을 기다린다.</p>
+<div class="fn" id="fn-reset"><code>reset(a, v)</code>
+  <p>지금 값을 <code>v</code>로 바꾸고 <code>v</code>를 돌려준다. 입출력이 필요한 갱신은 갱신 태스크 하나가 <code>reset</code>하고 나머지는 <code>deref</code>하는 모양으로 쓴다.</p>
+</div>
+<div class="fn" id="fn-deref"><code>deref(a)</code>
+  <p>지금 값. 기다리지 않는다.</p>
 </div>
 <div class="fn" id="fn-sleep"><code>sleep(d)</code>
   <p>기간만큼 기다린다. 취소되면 깨어난다.</p>
@@ -499,7 +544,7 @@ data = json.parse(`{&quot;name&quot;: &quot;fung&quot;, &quot;tags&quot;: [&quot
 print(data.name, data.tags, data.n + 1)</code></pre>
 </div>
 <div class="fn" id="fn-json-stringify"><code>json.stringify(v, indent = nil)</code>
-  <p>JSON 문자열. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. 기간·함수·태그·채널·에이전트 등은 런타임 에러(E0513). <code>indent</code>는 들여쓰기 칸 수(음수는 E0403). 문자열은 <code>"</code>·<code>\</code>·U+0020 미만만 이스케이프한다. 결과가 1억 글자를 넘으면 E0806.</p>
+  <p>JSON 문자열. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. 기간·함수·태그·채널·atom 등은 런타임 에러(E0513). <code>indent</code>는 들여쓰기 칸 수(음수는 E0403). 문자열은 <code>"</code>·<code>\</code>·U+0020 미만만 이스케이프한다. 결과가 1억 글자를 넘으면 E0806.</p>
   <pre><code>import json
 print(json.stringify({ok: true, ids: (1, 2), at: &#x27;now}))</code></pre>
 </div>
@@ -563,7 +608,7 @@ print(regex.replace(&quot;2026-10-04&quot;, `(\d+)-(\d+)-(\d+)`, &quot;$3/$2/$1&
 <h3>http — HTTP</h3>
 <p><code>import http</code>. 소켓·TLS 원시 기능 위에 HTTP/1.1을 fung으로 썼다. 응답을 받았으면 상태 코드와 무관하게 <code>Ok</code>다(404도 <code>Ok</code>). 전송 실패는 <code>Err('network)</code>, 시간 초과는 <code>Err('timeout)</code>. 에러 문구는 <code>cannot request `URL`: 이유</code>. 응답 헤더 키는 소문자이고, 같은 이름이 여럿이면 <code>", "</code>로 잇는다. 취소되면 E0701.</p>
 <div class="fn" id="fn-http-get"><code>http.get(url, headers = {}, timeout = 30s)</code><span class="by">fung으로 작성</span>
-  <p><code>Ok({status, headers, body})</code>. <code>timeout</code>은 연결·TLS 핸드셰이크·리다이렉트까지 포함한 요청 전체의 한도 하나이고, <code>0s</code>면 제한 없음.</p>
+  <p><code>Ok({status, headers, body})</code>. <code>timeout</code>은 연결·TLS 핸드셰이크·리다이렉트까지 포함한 요청 전체의 한도 하나이고, <code>0s</code>면 제한 없음. 바깥에 더 짧은 <a href="#fn-timeout"><code>timeout</code></a>이 있으면 그쪽이 이긴다.</p>
   <pre class="frag"><code>import http
 r = http.get(&quot;https://example.com&quot;)!
 print(r.status, r.headers[&quot;content-type&quot;])</code></pre>
@@ -574,8 +619,8 @@ print(r.status, r.headers[&quot;content-type&quot;])</code></pre>
 <div class="fn" id="fn-http-request"><code>http.request(method, url, body = nil, headers = {}, timeout = 30s)</code><span class="by">fung으로 작성</span>
   <p>임의의 메서드.</p>
 </div>
-<div class="fn" id="fn-http-serve"><code>http.serve(addr, handler, ready = nil)</code><span class="by">fung으로 작성</span>
-  <p><code>addr</code>(<code>":8080"</code>)에서 요청을 받으며 막힌다. 요청마다 새 태스크에서 <code>handler(req)</code>를 부른다(동시에 돌 수 있으니 공유 상태는 <code>agent</code>에). <code>req</code>는 <code>{method, path, query, headers, body}</code>(<code>query</code>는 이름마다 첫 값, <code>headers</code>는 소문자 키), 응답은 문자열(200, <code>text/plain; charset=utf-8</code>) 또는 <code>{status = 200, headers = {}, body = ""}</code>. 응답에 <code>Date</code>와 <code>Content-Length</code>가 붙는다. 핸들러가 에러를 내면 500으로 답하고 표준 에러에 <code>http: handler failed: …</code>(다른 타입을 돌려주면 <code>http: bad handler response: …</code>) 한 줄을 쓴 뒤 서버는 계속 돈다. 핸들러 안의 <code>exit</code>·취소는 503. 끝내려면 서버 태스크를 <code>cancel</code>한다(리스너를 닫고 처리 중인 요청을 최대 2초 기다린 뒤 E0701). <code>ready</code>는 리스닝 직후 실제 주소로 한 번 불린다(<code>":0"</code>의 포트를 아는 방법). 헤더는 10초 안에 와야 하고 요청 머리는 1 MiB까지(넘으면 431), 본문은 16 MiB까지(넘으면 413), 형식 오류는 400. 서버가 스스로 내는 답의 본문은 <code>&lt;코드&gt; &lt;이유 문구&gt;</code>이고, 표준 이유 문구가 없는 코드는 빈 이유 문구로 보낸다.</p>
+<div class="fn" id="fn-http-serve"><code>http.serve(addr, handler, ready = nil, drain = 10s, reuse_port = false)</code><span class="by">fung으로 작성</span>
+  <p><code>addr</code>(<code>":8080"</code>)에서 요청을 받으며 막힌다. 요청마다 새 태스크에서 <code>handler(req)</code>를 부른다(동시에 돌 수 있으니 공유 상태는 <code>atom</code>에). <code>req</code>는 <code>{method, path, query, headers, body}</code>(<code>query</code>는 이름마다 첫 값, <code>headers</code>는 소문자 키), 응답은 문자열(200, <code>text/plain; charset=utf-8</code>) 또는 <code>{status = 200, headers = {}, body = ""}</code>. 응답에 <code>Date</code>와 <code>Content-Length</code>가 붙는다. 핸들러가 에러를 내면 500으로 답하고 표준 에러에 <code>http: handler failed: …</code>(다른 타입을 돌려주면 <code>http: bad handler response: …</code>) 한 줄을 쓴 뒤 서버는 계속 돈다. <b>정상 종료</b>: 정지 요청(<a href="#fn-stop_signal"><code>stop_signal</code></a>: 첫 SIGINT·SIGTERM이나 <code>request_stop()</code>)이 오면 새 연결을 그만 받고(리스너를 닫음), 처리 중인 요청을 최대 <code>drain</code>까지 마친 뒤, 남은 것은 취소하고(503으로 답함) <code>nil</code>을 돌려준다. 서버가 취소되면(바깥 범위, <code>timeout</code>, <code>exit</code>) 기다리지 않고 곧바로 멈춘다. 처리기 안의 <code>exit</code>도 503. <code>reuse_port</code>는 <code>SO_REUSEPORT</code>를 켜서 프로세스 여럿이 한 포트를 받게 한다(Linux는 연결을 나눠 주고, macOS는 받게만 한다). <code>ready</code>는 리스닝 직후 실제 주소로 한 번 불린다(<code>":0"</code>의 포트를 아는 방법). 헤더는 10초 안에 와야 하고 요청 머리는 1 MiB까지(넘으면 431), 본문은 16 MiB까지(넘으면 413), 형식 오류는 400. 서버가 스스로 내는 답의 본문은 <code>&lt;코드&gt; &lt;이유 문구&gt;</code>이고, 표준 이유 문구가 없는 코드는 빈 이유 문구로 보낸다.</p>
   <pre class="frag"><code>import http
 http.serve(&quot;:8080&quot;, req =&gt; match req.path:
   &quot;/health&quot; =&gt; &quot;ok&quot;
@@ -597,12 +642,12 @@ http.serve(&quot;:8080&quot;, req =&gt; match req.path:
 <h3>conc — 동시성 도우미</h3>
 <p><code>import conc</code>. prelude의 동시성 함수 위에 fung으로 쓴 조합이다. prelude에는 확실한 것만 두므로 모듈로 뺐다.</p>
 <div class="fn" id="fn-conc-pmap"><code>conc.pmap(xs, f, limit = 0)</code><span class="by">fung으로 작성</span>
-  <p>병렬 <code>map</code>. <code>limit</code>은 동시에 도는 태스크 수(0은 제한 없음). 결과 순서는 입력 순서. <code>f</code>가 실패한 원소는 <code>await</code>처럼 그 <code>Err</code>가 된다.</p>
+  <p>병렬 <code>map</code>. 자기 범위 안에서 돈다. <code>limit</code>은 동시에 도는 태스크 수(0은 제한 없음). 결과 순서는 입력 순서. <code>f</code>의 런타임 에러는 <code>pmap</code>의 실패가 되고, <code>f</code>가 돌려준 <code>Err</code>는 결과에 그대로 들어간다.</p>
   <pre><code>import conc
 print(conc.pmap([1, 2, 3], x =&gt; x * x, limit: 2))</code></pre>
 </div>
-<div class="fn" id="fn-conc-fan_in"><code>conc.fan_in(chs)</code><span class="by">fung으로 작성</span>
-  <p>여러 채널을 하나로 모은 채널. 모두 닫히면 닫힌다.</p>
+<div class="fn" id="fn-conc-fan_in"><code>conc.fan_in(s, rxs)</code><span class="by">fung으로 작성</span>
+  <p>여러 받는 끝을 하나로 모은 받는 끝. 전달 태스크는 범위 <code>s</code> 안에서 돈다. 모두 닫히면 닫힌다.</p>
 </div>
 <div class="fn" id="fn-conc-retry"><code>conc.retry(f, times = 3, delay = 0ms)</code><span class="by">fung으로 작성</span>
   <p><code>f()</code>가 <code>Err</code>가 아닌 값을 돌려줄 때까지 최대 <code>times</code>번, 사이에 <code>delay</code>만큼 쉬며 부른다. 모두 실패하면 마지막 <code>Err</code>.</p>

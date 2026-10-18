@@ -1,37 +1,5 @@
 # `fung run` and `fung -e` (crates/fung-cli/tests/run_expected.rs).
 # $REPO stands for the repository. Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test run_expected
-==== tests/lang/agent_errors.fung
--- stdout
--- stderr
-| error[E0502]: division by zero
-|   --> tests/lang/agent_errors.fung:2:5
-|   |
-| 2 | swap(a, x => x / 0)
-|   |     ^
-|   |
-|  call path (innermost first):
-|    extras/agent.fung:66 swap
-|    tests/lang/agent_errors.fung:2 <entry>
--- exit: 1
-==== tests/lang/agent_handles.fung
--- stdout
-| 5 6
-| 6
-| 7 8
-| 2
-| 2 2
-| 2
--- stderr
--- exit: 0
-==== tests/lang/agents.fung
--- stdout
-| 400
-| 2 'agent <agent> true false
-| true 2
-| 3
-| at exit 400
--- stderr
--- exit: 0
 ==== tests/lang/args.fung
 -- stdout
 | 3 6 2
@@ -68,11 +36,28 @@
 | nil
 -- stderr
 -- exit: 0
-==== tests/lang/at_exit.fung
+==== tests/lang/atom_errors.fung
 -- stdout
-| body
-| second
-| first
+-- stderr
+| error[E0502]: division by zero
+|   --> tests/lang/atom_errors.fung:2:16
+|   |
+| 2 | swap(a, x => x / 0)
+|   |                ^
+|   |
+|  call path (innermost first):
+|    tests/lang/atom_errors.fung:2 <lambda>
+|    tests/lang/atom_errors.fung:2 <entry>
+-- exit: 1
+==== tests/lang/atoms.fung
+-- stdout
+| 2 2 10 10 <atom> 'atom
+| 400
+| 2 true false 3
+| true 3
+| 5 6
+| 6 7 8 2 3
+| released 400
 -- stderr
 -- exit: 0
 ==== tests/lang/cancel.fung
@@ -95,6 +80,11 @@
 -- stdout
 | 15
 | Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+| <sender> <receiver>
+| 0
+| 1
+| 2
+| after the producer
 -- stderr
 -- exit: 0
 ==== tests/lang/closures.fung
@@ -130,7 +120,9 @@
 ==== tests/lang/conc_helpers.fung
 -- stdout
 | [1, 2, 3] [1, 4, 9] []
+| [Err('no), 2]
 | Err("never")
+| [0, 1, 10, 11]
 -- stderr
 -- exit: 0
 ==== tests/lang/continuation.fung
@@ -160,19 +152,6 @@
 | 0s 30s
 -- stderr
 -- exit: 0
-==== tests/lang/err_agent_reentry.fung
--- stdout
--- stderr
-| error[E0704]: agent called from inside its own swap
-|   --> tests/lang/err_agent_reentry.fung:2:5
-|   |
-| 2 | swap(a, x => swap(a, y => y))
-|   |     ^
-|   |
-|  call path (innermost first):
-|    extras/agent.fung:66 swap
-|    tests/lang/err_agent_reentry.fung:2 <entry>
--- exit: 1
 ==== tests/lang/err_alias_cycle.fung
 -- stdout
 -- stderr
@@ -264,6 +243,44 @@
 |  call path (innermost first):
 |    tests/lang/err_assert.fung:2 <entry>
 -- exit: 1
+==== tests/lang/err_atom_effect.fung
+-- stdout
+-- stderr
+| error[E0707]: `print` has an effect, which a swap's function must not have
+|   --> tests/lang/err_atom_effect.fung:1:27
+|   |
+| 1 | swap(atom(1), fn(x): print(x); x ;;)
+|   |                           ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_atom_effect.fung:1 <lambda>
+|    tests/lang/err_atom_effect.fung:1 <entry>
+-- exit: 1
+==== tests/lang/err_atom_holds.fung
+-- stdout
+-- stderr
+| error[E0708]: an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket
+|   --> tests/lang/err_atom_holds.fung:3:5
+|   |
+| 3 | atom(rx)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_atom_holds.fung:3 <entry>
+-- exit: 1
+==== tests/lang/err_atom_reentry.fung
+-- stdout
+-- stderr
+| error[E0707]: `swap` has an effect, which a swap's function must not have
+|   --> tests/lang/err_atom_reentry.fung:2:18
+|   |
+| 2 | swap(a, x => swap(a, y => y))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_atom_reentry.fung:2 <lambda>
+|    tests/lang/err_atom_reentry.fung:2 <entry>
+-- exit: 1
 ==== tests/lang/err_bang_nil.fung
 -- stdout
 -- stderr
@@ -328,7 +345,7 @@
 | error[E0705]: channel sent into itself
 |   --> tests/lang/err_channel_self.fung:2:5
 |   |
-| 2 | send(ch, [ch])
+| 2 | send(tx, [rx])
 |   |     ^
 |   |
 |  call path (innermost first):
@@ -731,6 +748,19 @@
 |  call path (innermost first):
 |    tests/lang/err_overflow.fung:1 <entry>
 -- exit: 1
+==== tests/lang/err_pmap_failed.fung
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> tests/lang/err_pmap_failed.fung:3:29
+|   |
+| 3 | conc.pmap([1, 2, 3], x => 6 / (x - 2))
+|   |                             ^
+|   |
+|   note: scope opened at tests/lang/err_pmap_failed.fung:3
+|  call path (innermost first):
+|    tests/lang/err_pmap_failed.fung:3 <lambda> (1 tail calls elided)
+-- exit: 1
 ==== tests/lang/err_question_in_for.fung
 -- stdout
 -- stderr
@@ -810,6 +840,19 @@
 |    tests/lang/err_return_type.fung:1 f
 |    tests/lang/err_return_type.fung:2 <entry>
 -- exit: 1
+==== tests/lang/err_scope_failed.fung
+-- stdout
+-- stderr
+| error[E0803]: x
+|   --> tests/lang/err_scope_failed.fung:1:31
+|   |
+| 1 | scope(s => spawn(s, () => fail("x")))
+|   |                               ^
+|   |
+|   note: scope opened at tests/lang/err_scope_failed.fung:1
+|  call path (innermost first):
+|    tests/lang/err_scope_failed.fung:1 <lambda>
+-- exit: 1
 ==== tests/lang/err_shadow_module.fung
 -- stdout
 -- stderr
@@ -832,6 +875,30 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_slice_tuple.fung:1 <entry>
+-- exit: 1
+==== tests/lang/err_spawn_closed_scope.fung
+-- stdout
+-- stderr
+| error[E0706]: spawn into a closed scope
+|   --> tests/lang/err_spawn_closed_scope.fung:2:6
+|   |
+| 2 | spawn(s2, () => 1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_spawn_closed_scope.fung:2 <entry>
+-- exit: 1
+==== tests/lang/err_spawn_without_scope.fung
+-- stdout
+-- stderr
+| error[E0407]: missing argument `f`
+|   --> tests/lang/err_spawn_without_scope.fung:1:6
+|   |
+| 1 | spawn(() => 1)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_spawn_without_scope.fung:1 <entry>
 -- exit: 1
 ==== tests/lang/err_stack_overflow.fung
 -- stdout
@@ -892,16 +959,16 @@
 -- exit: 2
 ==== tests/lang/err_task_failed.fung
 -- stdout
-| entry done
 -- stderr
-| task failed: error[E0803]: x
-|   --> tests/lang/err_task_failed.fung:1:17
+| error[E0803]: x
+|   --> tests/lang/err_task_failed.fung:3:22
 |   |
-| 1 | spawn(() => fail("x"))
-|   |                 ^
+| 3 |   spawn(s, () => fail("x"))
+|   |                      ^
 |   |
+|   note: scope opened at tests/lang/err_task_failed.fung:2
 |  call path (innermost first):
-|    tests/lang/err_task_failed.fung:1 <lambda>
+|    tests/lang/err_task_failed.fung:3 <lambda>
 -- exit: 1
 ==== tests/lang/err_test_nested.fung
 -- stdout
@@ -1215,6 +1282,14 @@
 | nil
 -- stderr
 -- exit: 0
+==== tests/lang/scopes.fung
+-- stdout
+| 2
+| [2, Err('e)]
+| Ok('done)
+| <scope> 'scope true
+-- stderr
+-- exit: 0
 ==== tests/lang/slices_inclusive.fung
 -- stdout
 | [2, 3] [1, 2, 3] 1 2
@@ -1254,6 +1329,12 @@
 -- stdout
 | STRASSE ʼN οδος 2
 | 2
+-- stderr
+-- exit: 0
+==== tests/lang/supervise.fung
+-- stdout
+| handled: error[E0803]: b
+| [1, 3, true]
 -- stderr
 -- exit: 0
 ==== tests/lang/symbols.fung
@@ -1317,6 +1398,13 @@
 |  call path (innermost first):
 |    tests/lang/time_values.fung:8 <entry>
 -- exit: 1
+==== tests/lang/timeouts.fung
+-- stdout
+| 2
+| Err({kind: 'timeout})
+| Err({kind: 'timeout})
+-- stderr
+-- exit: 0
 ==== tests/lang/tuples_tags.fung
 -- stdout
 | 3 1 (1,) () true
@@ -1339,6 +1427,21 @@
 | 2
 -- stderr
 -- exit: 0
+==== tests/lang/with.fung
+-- stdout
+| released r
+| r!
+| released
+| Err('x)
+-- stderr
+-- exit: 0
+==== tests/lang/with_exit.fung
+-- stdout
+| body
+| released inner
+| released outer
+-- stderr
+-- exit: 3
 ==== bench/chan.fung
 -- stdout
 | 4999950000
@@ -1383,7 +1486,7 @@
 |    -e:2       g
 |    -e:3       <entry>
 -- exit: 1
-==== -e "at_exit(() => print(\"bye\"))\nprint([1, 2] + [3], {a: 1}, (1, \"x\"), Ok(2), 1..3, 1.5, 90m, 's, nil)\nexit(4)"
+==== -e "with(() => nil, fn(_): print([1, 2] + [3], {a: 1}, (1, \"x\"), Ok(2), 1..3, 1.5, 90m, 's, nil); exit(4) ;;, _ => print(\"bye\"))"
 -- stdout
 | [1, 2, 3] {a: 1} (1, "x") Ok(2) 1..3 1.5 1h30m 's nil
 | bye
@@ -1431,20 +1534,21 @@
 |    -e:1       <lambda>
 |    -e:1       <entry>
 -- exit: 1
-==== -e "at_exit(() => fail(\"in handler\"))\nat_exit(() => exit(7))\nprint(\"main\")"
+==== -e "with(() => nil, _ => print(\"main\"), _ => fail(\"in release\"))"
 -- stdout
 | main
 -- stderr
-| error[E0803]: in handler
-|   --> -e:1:19
+| error[E0803]: in release
+|   --> -e:1:46
 |   |
-| 1 | at_exit(() => fail("in handler"))
-|   |                   ^
+| 1 | with(() => nil, _ => print("main"), _ => fail("in release"))
+|   |                                              ^
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
--- exit: 7
-==== -e "spawn(() => 1)"
+|    -e:1       <entry>
+-- exit: 1
+==== -e "scope(s => spawn(s, () => 1))"
 -- stdout
 -- stderr
 -- exit: 0
@@ -1468,79 +1572,70 @@
 -- stdout
 -- stderr
 -- exit: 0
-==== -e "at_exit(() => print(1))\nat_exit(() => print(2))\nprint(0)"
+==== -e "with(() => 1, _ => with(() => 2, _ => print(0), print), print)"
 -- stdout
 | 0
 | 2
 | 1
 -- stderr
 -- exit: 0
-==== -e "at_exit(() => print(\"h\"))\n1 / 0"
+==== -e "with(() => nil, _ => 1 / 0, _ => print(\"h\"))"
 -- stdout
 | h
 -- stderr
 | error[E0502]: division by zero
-|   --> -e:2:3
+|   --> -e:1:24
 |   |
-| 2 | 1 / 0
-|   |   ^
+| 1 | with(() => nil, _ => 1 / 0, _ => print("h"))
+|   |                        ^
 |   |
 |  call path (innermost first):
-|    -e:2       <entry>
+|    -e:1       <lambda>
+|    -e:1       <entry>
 -- exit: 1
-==== -e "at_exit(() => exit(3))\nexit(5)"
+==== -e "with(() => nil, _ => exit(5), _ => exit(3))"
 -- stdout
 -- stderr
 -- exit: 5
-==== -e "at_exit(() => exit(3))\n1 / 0"
+==== -e "with(() => nil, _ => 1 / 0, _ => exit(3))"
 -- stdout
 -- stderr
 | error[E0502]: division by zero
-|   --> -e:2:3
+|   --> -e:1:24
 |   |
-| 2 | 1 / 0
-|   |   ^
+| 1 | with(() => nil, _ => 1 / 0, _ => exit(3))
+|   |                        ^
 |   |
 |  call path (innermost first):
-|    -e:2       <entry>
+|    -e:1       <lambda>
+|    -e:1       <entry>
 -- exit: 3
-==== -e "at_exit(() => 1 / 0)\nexit(5)"
+==== -e "with(() => nil, _ => exit(5), _ => 1 / 0)"
 -- stdout
 -- stderr
 | error[E0502]: division by zero
-|   --> -e:1:17
+|   --> -e:1:38
 |   |
-| 1 | at_exit(() => 1 / 0)
-|   |                 ^
+| 1 | with(() => nil, _ => exit(5), _ => 1 / 0)
+|   |                                      ^
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
+|    -e:1       <entry>
 -- exit: 5
-==== -e "at_exit(() => at_exit(() => print(\"nested\")))\nprint(\"main\")"
--- stdout
-| main
-| nested
--- stderr
--- exit: 0
-==== -e "at_exit(() => fail(\"a\"))\nat_exit(() => fail(\"b\"))"
+==== -e "with(() => nil, _ => fail(\"a\"), _ => fail(\"b\"))"
 -- stdout
 -- stderr
-| error[E0803]: b
-|   --> -e:2:19
-|   |
-| 2 | at_exit(() => fail("b"))
-|   |                   ^
-|   |
-|  call path (innermost first):
-|    -e:2       <lambda>
 | error[E0803]: a
-|   --> -e:1:19
+|   --> -e:1:26
 |   |
-| 1 | at_exit(() => fail("a"))
-|   |                   ^
+| 1 | with(() => nil, _ => fail("a"), _ => fail("b"))
+|   |                          ^
 |   |
+|   note: also failed in release: error[E0803]: b
 |  call path (innermost first):
 |    -e:1       <lambda>
+|    -e:1       <entry>
 -- exit: 1
 ==== -e "print(args)"
 -- stdout
@@ -1586,19 +1681,19 @@
 |   |       ^^^^ not found in this scope
 |   |
 -- exit: 2
-==== -e "import conc\nprint(await(spawn(() => 1 + 1)), await(spawn(() => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2))"
+==== -e "import conc\nsupervise(s => print(await(spawn(s, () => 1 + 1)), await(spawn(s, () => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2)), _ => nil)"
 -- stdout
 | 2 Err({kind: 'error, message: "error[E0502]: division by zero"}) [1, 4, 9]
 -- stderr
 -- exit: 0
-==== -e "t = spawn(() => sleep(10s))\ncancel(t)\nu = spawn(() => sleep(10s))\nprint(await(t), await(u, timeout: 1ms))\ncancel(u)"
+==== -e "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(1ms, () => await(u)))\n  cancel(u)\n;;)"
 -- stdout
 | Err({kind: 'cancelled}) Err({kind: 'timeout})
 -- stderr
 -- exit: 0
-==== -e "t = spawn(fn(): spawn(() => sleep(10s)) ;;)\nprint(await(await(t)))"
+==== -e "(tx, rx) = channel(1)\nprint(scope(fn(s):\n  send(tx, spawn(s, () => sleep(10s)))\n  cancel(s)\n;;), await(recv(rx)!))"
 -- stdout
-| Err({kind: 'cancelled})
+| Err({kind: 'cancelled}) Err({kind: 'cancelled})
 -- stderr
 -- exit: 0
 ==== -e "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))"
@@ -1606,17 +1701,17 @@
 | Err(1)
 -- stderr
 -- exit: 0
-==== -e "ch = channel()\nspawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))"
+==== -e "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): each(1..=5, x => send(tx, x)); close(tx) ;;)\n  print(fold(rx, 0, (a, x) => a + x))\n;;)"
 -- stdout
 | 15
 -- stderr
 -- exit: 0
-==== -e "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(buf), recv(buf), send(buf, \"b\"), recv(channel(), timeout: 5ms))"
+==== -e "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(5ms, () => recv(never)))"
 -- stdout
 | Ok("a") Err({kind: 'closed}) Err({kind: 'closed}) Err({kind: 'timeout})
 -- stderr
 -- exit: 0
-==== -e "ch = channel()\nt = spawn(() => each(1..=5, x => send(ch, x)))\ncancel(t)\nprint(await(t))"
+==== -e "(tx, _rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(1..=5, x => send(tx, x)))\n  cancel(t)\n  print(await(t))\n;;)"
 -- stdout
 | Err({kind: 'cancelled})
 -- stderr
@@ -1633,70 +1728,71 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== -e "at_exit(() => print(\"bye\"))\nspawn(fn(): sleep(10ms); exit(5) ;;)\nsleep(10s)\nprint(\"never\")"
+==== -e "with(() => nil, _ => scope(fn(s):\n  spawn(s, fn(): sleep(10ms); exit(5) ;;)\n  sleep(10s)\n  print(\"never\")\n;;), _ => print(\"bye\"))"
 -- stdout
 | bye
 -- stderr
 -- exit: 5
-==== -e "at_exit(() => print(\"bye\"))\nch = channel()\nspawn(() => recv(ch))\nspawn(fn(): sleep(10ms); exit(3) ;;)\nrecv(channel())"
+==== -e "(_tx, rx) = channel()\nwith(() => nil, _ => scope(fn(s):\n  spawn(s, () => recv(rx))\n  spawn(s, fn(): sleep(10ms); exit(3) ;;)\n  recv(rx)\n;;), _ => print(\"bye\"))"
 -- stdout
 | bye
 -- stderr
 -- exit: 3
-==== -e "t = spawn(() => each(1..=3, x => sleep(10s)))\nspawn(fn(): sleep(10ms); cancel(t) ;;)\nprint(await(t))"
+==== -e "scope(fn(s):\n  t = spawn(s, () => each(1..=3, x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)"
 -- stdout
 | Err({kind: 'cancelled})
 -- stderr
 -- exit: 0
-==== -e "t = spawn(() => sleep(10s))\nfail(\"entry\")"
+==== -e "scope(fn(s):\n  spawn(s, () => sleep(10s))\n  fail(\"entry\")\n;;)"
 -- stdout
 -- stderr
 | error[E0803]: entry
-|   --> -e:2:5
+|   --> -e:3:7
 |   |
-| 2 | fail("entry")
-|   |     ^
+| 3 |   fail("entry")
+|   |       ^
 |   |
 |  call path (innermost first):
-|    -e:2       <entry>
+|    -e:3       <lambda>
+|    -e:1       <entry>
 -- exit: 1
-==== -e "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.fan_in([]) |> map(x => x))"
+==== -e "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms), conc.pmap([1, 2, 3], x => x * x, limit: 2), scope(s => conc.fan_in(s, []) |> map(x => x)))"
 -- stdout
 | Err(1) [1, 4, 9] []
 -- stderr
 -- exit: 0
-==== -e "import conc\na = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))"
+==== -e "import conc\n(a_tx, a) = channel(2)\n(b_tx, b) = channel(2)\neach([1, 2], x => send(a_tx, x))\nclose(a_tx)\nsend(b_tx, 3)\nclose(b_tx)\nprint(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))\nprint(conc.retry(() => Err(\"never\"), times: 2))"
 -- stdout
 | [1, 2, 3] [1, 4, 9] []
 | Err("never")
 -- stderr
 -- exit: 0
-==== -e "ts = for i in 0..200: spawn(() => i) ;;\nprint(fold(ts, 0, (a, t) => a + await(t)))"
+==== -e "print(scope(fn(s):\n  ts = for i in 0..200: spawn(s, () => i) ;;\n  fold(ts, 0, (a, t) => a + await(t))\n;;))"
 -- stdout
 | 19900
 -- stderr
 -- exit: 0
-==== -e "spawn(fn(): sleep(10ms); exit(4) ;;)\nsleep(10s)\nprint(\"main\")"
+==== -e "scope(fn(s):\n  spawn(s, fn(): sleep(10ms); exit(4) ;;)\n  sleep(10s)\n  print(\"main\")\n;;)"
 -- stdout
 -- stderr
 -- exit: 4
-==== -e "at_exit(() => print(\"h\"))\nspawn(() => each(1..=3, x => x == 2 then exit(6) else print(x)))\nsleep(10s)"
+==== -e "with(() => nil, _ => scope(fn(s):\n  spawn(s, () => each(1..=3, x => x == 2 then exit(6) else print(x)))\n  sleep(10s)\n;;), _ => print(\"h\"))"
 -- stdout
 | 1
 | h
 -- stderr
 -- exit: 6
-==== -e "ch = channel()\nspawn(fn(): recv(ch); exit(2) ;;)\nat_exit(() => print(\"once\"))\neach(1..=3, x => send(ch, x))"
+==== -e "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): recv(rx); exit(2) ;;)\n  with(() => nil, _ => each(1..=3, x => send(tx, x)), _ => print(\"once\"))\n;;)"
 -- stdout
 | once
 -- stderr
 -- exit: 2
-==== -e "ts = for _ in 0..2: spawn(() => read_line()) ;;\nprint(sort(for t in ts: await(t)! ;;))"
+==== -e "print(scope(fn(s):\n  ts = for _ in 0..2: spawn(s, () => read_line()) ;;\n  sort(for t in ts: await(t)! ;;)\n;;))"
 -- stdout
 | ["one", "two"]
 -- stderr
 -- exit: 0
-==== -e "print(await(spawn(() => sh(\"echo hi; sleep 0.05; echo there\"))))"
+==== -e "print(scope(s => await(spawn(s, () => sh(\"echo hi; sleep 0.05; echo there\")))))"
 -- stdout
 | Ok({out: "hi\nthere\n", err: "", code: 0})
 -- stderr

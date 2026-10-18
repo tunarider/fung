@@ -56,6 +56,9 @@ pub(crate) struct Out {
 }
 
 fn main() {
+    // Before any other thread: every thread inherits the block, and the
+    // signal thread receives SIGINT and SIGTERM (`fung_vm::signals`).
+    fung_vm::signals::init();
     // A Rust panic inside fung code becomes an E0801 report (the VM's
     // panic fence); the default hook would print the panic message on
     // top of that report.

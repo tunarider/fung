@@ -38,12 +38,13 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Native(x), Value::Native(y)) => std::ptr::eq(*x, *y),
         (Value::Module(x), Value::Module(y)) => Rc::ptr_eq(x, y),
         (Value::Task(x), Value::Task(y)) => Rc::ptr_eq(x, y),
-        (Value::Channel(x), Value::Channel(y)) => Rc::ptr_eq(x, y),
-        (Value::Agent(x), Value::Agent(y)) => Rc::ptr_eq(x, y),
+        (Value::Scope(x), Value::Scope(y)) => Rc::ptr_eq(x, y),
+        (Value::Atom(x), Value::Atom(y)) => Rc::ptr_eq(x, y),
+        (Value::Sender(x), Value::Sender(y)) => Rc::ptr_eq(x, y),
+        (Value::Receiver(x), Value::Receiver(y)) => Rc::ptr_eq(x, y),
         (Value::File(x), Value::File(y)) => Rc::ptr_eq(x, y),
         (Value::Conn(x), Value::Conn(y)) => Rc::ptr_eq(x, y),
         (Value::Listener(x), Value::Listener(y)) => Rc::ptr_eq(x, y),
-        (Value::Caught(x), Value::Caught(y)) => Rc::ptr_eq(x, y),
         _ => false,
     }
 }

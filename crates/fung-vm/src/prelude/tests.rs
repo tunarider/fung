@@ -15,7 +15,24 @@ use crate::vm::{Runtime, Stop};
 
 /// The concurrency natives (`crate::conc`, not in `core()`).
 const CONCURRENCY: &[&str] = &[
-    "spawn", "await", "cancel", "channel", "send", "recv", "close", "sleep",
+    "spawn",
+    "await",
+    "cancel",
+    "channel",
+    "send",
+    "recv",
+    "close",
+    "stop_signal",
+    "request_stop",
+    "sleep",
+    "scope",
+    "supervise",
+    "timeout",
+    "with",
+    "atom",
+    "deref",
+    "swap",
+    "reset",
 ];
 
 fn render_params(ps: &[NativeParam]) -> String {
@@ -70,7 +87,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 358;
+const RUN_CASE_COUNT: usize = 356;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -344,13 +361,6 @@ fn fail_returns_e0803() {
     assert_eq!(first_arg(&r), "error[E0803]: port 1");
     let r = call("fail", vec![list(vec![])]);
     assert_eq!(first_arg(&r), "error[E0803]: fail");
-}
-
-#[test]
-fn at_exit_registers_functions_only() {
-    assert_eq!(code(&call("at_exit", vec![Value::Int(1)])), "E0403");
-    let print = core().into_iter().find(|(k, _)| *k == "print").unwrap().1;
-    assert!(matches!(call("at_exit", vec![print]), Ok(Value::Nil)));
 }
 
 #[test]
@@ -727,9 +737,9 @@ fn natives_can_cross_threads() {
 #[test]
 fn each_failure_leaves_rest() {
     let (out, err, _) = run(
-        "c = channel(3)\nsend(c, 1)\nsend(c, 2)\nsend(c, 3)\nclose(c)\n\
-         t = spawn(fn(): each(c, x => x == 2 then fail(\"x\") else nil) ;;)\n\
-         print(type_of(await(t)), recv(c))",
+        "(c_tx, c) = channel(3)\nsend(c_tx, 1)\nsend(c_tx, 2)\nsend(c_tx, 3)\nclose(c_tx)\n\
+         supervise(fn(s):\n  t = spawn(s, fn(): each(c, x => x == 2 then fail(\"x\") else nil) ;;)\n  \
+         print(type_of(await(t)), recv(c))\n;;, e => nil)",
     );
     assert_eq!(out, "'Err Ok(3)\n", "{err}");
 }
@@ -739,8 +749,8 @@ fn each_failure_leaves_rest() {
 #[test]
 fn resend_into_iterated_channel() {
     let (out, err, _) = run(
-        "fn step(c, x):\n  print(x)\n  x < 3 then send(c, x + 1) else close(c)\n;;\n\
-         c = channel(1)\nsend(c, 1)\neach(c, x => step(c, x))\nprint(\"end\")",
+        "fn step(tx, x):\n  print(x)\n  x < 3 then send(tx, x + 1) else close(tx)\n;;\n\
+         (tx, c) = channel(1)\nsend(tx, 1)\neach(c, x => step(tx, x))\nprint(\"end\")",
     );
     assert_eq!(out, "1\n2\n3\nend\n", "{err}");
 }

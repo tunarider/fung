@@ -1,2 +1,0 @@
-at_exit(() => exit(9))
-test "handler exits": assert true ;;

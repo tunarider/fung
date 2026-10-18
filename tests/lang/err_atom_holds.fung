@@ -1,0 +1,4 @@
+# an atom cannot hold a channel end
+(_tx, rx) = channel()
+atom(rx)
+# expect-error: E0708

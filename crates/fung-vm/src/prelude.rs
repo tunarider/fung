@@ -52,7 +52,6 @@ fn build() -> Vec<(&'static str, &'static Native)> {
     add(def("print", print_fn, vec![rest("args")]));
     add(def("eprint", io::eprint_fn, vec![rest("args")]));
     add(def("fail", fail_fn, vec![rest("args")]));
-    add(def("at_exit", at_exit_fn, vec![param("f")]));
     add(def("len", len_fn, vec![param("x")]));
     add(def("map", map_fn, vec![param("xs"), param("f")]));
     add(def("type_of", type_of_fn, vec![param("x")]));
@@ -76,13 +75,6 @@ fn rest_items(v: &Value) -> &crate::value::List {
         Value::List(l) => l,
         _ => unreachable!("a rest parameter is a list"),
     }
-}
-
-/// `at_exit(f)` registers a function to run when the program ends (03).
-fn at_exit_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    nat::need_fn("f", &a[0])?;
-    t.at_exit(a.swap_remove(0));
-    Ok(Value::Nil)
 }
 
 /// `fail(...)` raises E0803 with the joined arguments as the message

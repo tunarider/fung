@@ -1,13 +1,26 @@
 # fan_in, pmap and retry live in the module `conc`.
 import conc
 
-a = channel(2)
-b = channel(2)
-each([1, 2], x => send(a, x))
-close(a)
-send(b, 3)
-close(b)
-print(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))
+(a_tx, a) = channel(2)
+(b_tx, b) = channel(2)
+each([1, 2], x => send(a_tx, x))
+close(a_tx)
+send(b_tx, 3)
+close(b_tx)
+print(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))
 # expect: [1, 2, 3] [1, 4, 9] []
+print(conc.pmap([1, 2], x => x == 1 then Err('no) else x))
+# expect: [Err('no), 2]
 print(conc.retry(() => Err("never"), times: 2))
 # expect: Err("never")
+
+# fan_in over two producers ends on its own: each producer's channel
+# closes when its task ends, and then the merged one closes.
+fn numbers(s, from, n):
+  (tx, rx) = channel()
+  spawn(s, () => each(from..from + n, i => send(tx, i)))
+  rx
+;;
+
+print(scope(s => conc.fan_in(s, [numbers(s, 0, 2), numbers(s, 10, 2)]) |> map(x => x) |> sort))
+# expect: [0, 1, 10, 11]

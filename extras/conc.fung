@@ -5,32 +5,35 @@
 # every script needs. A program imports the module: `import conc`, then
 # `conc.pmap(...)`. Calling one of them without the module is E0204,
 # with a help line that names the module.
-import _native.conc as _c
 
-# Merges channels into one (05): a forwarding task per input; the output
-# closes when every input has closed.
-fn fan_in(chs):
-  out = channel(len(chs))
-  tasks = for ch in chs: _c.spawn_awaited(() => each(ch, v => send(out, v))) ;;
-  spawn(fn():
-    each(tasks, await)
-    close(out)
+# Merges receiving ends into one (05): a forwarding task per input, in
+# scope `s`, sends to the output's sending end; the returned receiving
+# end closes when every input has closed.
+fn fan_in(s, rxs):
+  (tx, rx) = channel(len(rxs))
+  spawn(s, fn():
+    scope(fn(inner):
+      each(rxs, r => spawn(inner, () => each(r, v => send(tx, v))))
+    ;;)
+    close(tx)
   ;;)
-  out
+  rx
 ;;
 
 # Parallel map: at most `limit` tasks at once (0 = no limit), results in
-# input order. A failing f shows up as its Err, like await would.
+# input order, in a scope of its own: a runtime error in f fails pmap
+# (05), an Err that f returns is a result like any other.
 fn pmap(xs, f, limit = 0):
   items = xs |> map(x => x)
   limit <= 0 or limit >= len(items)
-    then items |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)
+    then _pmap_all(items, f)
     else _pmap_chunks(items, f, limit, [])
 ;;
 
+fn _pmap_all(items, f) = scope(s => items |> map(x => spawn(s, () => f(x))) |> map(await))
+
 fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
-  else _pmap_chunks(drop(items, limit), f, limit,
-    acc + (take(items, limit) |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)))
+  else _pmap_chunks(drop(items, limit), f, limit, acc + _pmap_all(take(items, limit), f))
 
 # Calls f until it returns a non-Err value, at most `times` tries,
 # sleeping `delay` between tries; the last Err is returned (06).

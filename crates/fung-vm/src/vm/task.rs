@@ -1,6 +1,6 @@
-//! Tasks (05, stage 3a): `spawn` runs a function on a new operating-system
-//! thread and hands back a handle; the handle keeps the task's result for
-//! `await` and cancels it.
+//! Tasks (05, stage 3a): `spawn(s, f)` runs a function on a new
+//! operating-system thread inside scope `s` (`scope.rs`) and hands back a
+//! handle; the handle keeps the task's result for `await` and cancels it.
 //!
 //! **Threads and the run token.** Every task has its own thread, and fung
 //! code runs only on the thread that holds the run token (`world.rs`).
@@ -13,34 +13,31 @@
 //!    count itself finished, all with the token still held;
 //! 5. give the token up; the thread ends.
 //!
-//! **Cancellation** is a tree: each task has a `CancelNode`, a child of the
-//! node of the task that spawned it. Cancelling a node cancels everything
+//! **Cancellation** is a tree: each task has a `CancelNode`, a child of its
+//! scope's node, which is a child of the node of the task that opened it. Cancelling a node cancels everything
 //! below it. A task's node is also cancelled when the task finishes, so the
 //! tasks it spawned and left running end with it. The VM checks the flag at
 //! every call and backward jump (`Task::tick`) and `block` checks it while
 //! waiting; a cancelled task unwinds with E0701, which its handle turns
 //! into `Err({kind: 'cancelled})`.
 //!
-//! **Background tasks** (stage 3b, `spawn_background`) run the same way, on
-//! a thread of their own under the run token, but hang from the background
-//! root (`Shared::background`) instead of their spawner's node, are counted
-//! in `World::background` instead of `running` and `live`, and are
-//! cancelled after the exit handlers (`Runtime::end_background`). A task a
-//! background task spawns is a background task too; only the one
-//! `spawn_background` starts never reports a failure. The deadlock check
-//! counts them apart (`deadlock.rs`).
+//! Every task belongs to the program: it hangs, through its scopes, from
+//! the program's root (`Shared::root`), is counted in `World::running`
+//! and `World::live`, and ends before the program does, since a scope
+//! does not return until its children have ended.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
+use std::time::Instant;
 
-use fung_front::diag::{self, Arg, Diag, headline};
+use fung_front::diag::{Arg, Diag, headline};
 
-use super::agent::Mark;
 use super::block::{WaitList, Waiter};
-use super::failure::Failures;
+use super::deadline::Deadline;
+use super::scope::ScopeState;
 use super::world::Shared;
 use super::{Stop, Task, internal, token};
 use crate::native::nat;
@@ -58,22 +55,17 @@ use crate::value::{MapBuilder, Value, drop_children, intern, keep};
 /// tasks, handles or intermediate nodes are gone, so cancelling a root
 /// reaches every task under it. Nodes do not pile up: every spawned task's
 /// node is cancelled when the task ends, and the nodes made for test
-/// blocks, exit handlers and `run_task` are cancelled when they return.
-///
-/// One kind of node has two parents (stage 3b, `agent.rs`): the node an
-/// agent's `f` runs under is below the agent's task and also below the
-/// task that asked (`also_under`), so cancelling either reaches it. It
-/// ends once `f` has returned and the tasks `f` spawned have ended
-/// (`end_when_empty`), leaving both lists.
+/// blocks and `run_task` are cancelled when they return.
 pub(crate) struct CancelNode {
     cancelled: AtomicBool,
     parent: Weak<CancelNode>,
     inner: Mutex<NodeInner>,
+    /// The earliest deadline over this node (`deadline.rs`): its own (a
+    /// `timeout`'s node) or the one it inherited from its parent.
+    deadline: Option<Deadline>,
+    /// Cancelled because its own deadline passed (`expire`).
+    expired: AtomicBool,
 }
-
-/// What `take` takes from a node being cancelled: its children and the
-/// nodes it is linked under.
-type Taken = (Vec<Arc<CancelNode>>, Vec<Weak<CancelNode>>);
 
 #[derive(Default)]
 struct NodeInner {
@@ -81,11 +73,6 @@ struct NodeInner {
     children: HashMap<usize, Arc<CancelNode>>,
     /// The tasks blocked under this node, woken when it is cancelled.
     watchers: WaitList,
-    /// Other nodes this one is also a child of (`also_under`): it is in
-    /// their `children` too, and leaves them when it is cancelled.
-    links: Vec<Weak<CancelNode>>,
-    /// Cancel this node once its last child leaves (`end_when_empty`).
-    end_when_empty: bool,
     /// Run once when this node is cancelled (`on_cancel`, stage 4d): what
     /// wakes a task that waits on the operating system (`watch.rs`).
     hooks: Vec<(u64, Hook)>,
@@ -97,14 +84,16 @@ pub(crate) type Hook = Box<dyn FnOnce() + Send>;
 
 impl CancelNode {
     pub(crate) fn root() -> Arc<CancelNode> {
-        CancelNode::under(Weak::new())
+        CancelNode::under(Weak::new(), None)
     }
 
-    fn under(parent: Weak<CancelNode>) -> Arc<CancelNode> {
+    fn under(parent: Weak<CancelNode>, deadline: Option<Deadline>) -> Arc<CancelNode> {
         Arc::new(CancelNode {
             cancelled: AtomicBool::new(false),
             parent,
             inner: Mutex::new(NodeInner::default()),
+            deadline,
+            expired: AtomicBool::new(false),
         })
     }
 
@@ -120,7 +109,64 @@ impl CancelNode {
 
     /// A new node below this one; already cancelled if this one is.
     pub(crate) fn child(self: &Arc<Self>) -> Arc<CancelNode> {
-        let c = CancelNode::under(Arc::downgrade(self));
+        let c = CancelNode::under(Arc::downgrade(self), self.deadline.clone());
+        self.adopt(c)
+    }
+
+    /// A child of this node with a deadline of its own at `at` (a
+    /// `timeout`): its deadline is the earlier of `at` and this node's,
+    /// and it is the owner of `at`. Already expired if `at` has passed.
+    pub(crate) fn with_deadline(self: &Arc<Self>, at: Option<Instant>) -> Arc<CancelNode> {
+        let inherited = self.deadline.clone();
+        let c = Arc::new_cyclic(|me| CancelNode {
+            cancelled: AtomicBool::new(false),
+            parent: Arc::downgrade(self),
+            inner: Mutex::new(NodeInner::default()),
+            deadline: match (inherited, at) {
+                (Some(d), Some(a)) if d.at <= a => Some(d),
+                (_, Some(a)) => Some(Deadline::new(a, me.clone())),
+                (d, None) => d,
+            },
+            expired: AtomicBool::new(false),
+        });
+        let c = self.adopt(c);
+        // Already past: expire the owner of the deadline in force, which
+        // is an outer one if that passed first.
+        if at.is_some_and(|a| Instant::now() >= a) {
+            c.expire_due(Instant::now());
+        }
+        c
+    }
+
+    /// When this node's deadline passes, if it has one.
+    #[inline]
+    pub(crate) fn deadline_at(&self) -> Option<Instant> {
+        self.deadline.as_ref().map(|d| d.at)
+    }
+
+    /// If this node's deadline has passed by `now`, expires the node that
+    /// owns it (and so everything below it) and says so.
+    pub(crate) fn expire_due(&self, now: Instant) -> bool {
+        match &self.deadline {
+            Some(d) if now >= d.at => d.expire(),
+            _ => false,
+        }
+    }
+
+    /// Cancels this node because its own deadline passed.
+    pub(crate) fn expire(&self) {
+        self.expired.store(true, Ordering::SeqCst);
+        self.cancel();
+    }
+
+    /// Whether this node was cancelled by its own deadline.
+    pub(crate) fn expired(&self) -> bool {
+        self.expired.load(Ordering::SeqCst)
+    }
+
+    /// Puts a new child `c` in this node's list (or cancels it at once if
+    /// this node is cancelled).
+    fn adopt(self: &Arc<Self>, c: Arc<CancelNode>) -> Arc<CancelNode> {
         let mut inner = self.inner();
         // Checked under the lock: `cancel` sets the flag before it takes
         // the children, so a child is either among them or sees the flag.
@@ -194,59 +240,27 @@ impl CancelNode {
 
     /// Cancels this node and every node below it (without recursion: a
     /// chain of nested spawns can be long), wakes the tasks blocked under
-    /// them, and takes each cancelled node out of its parent's list and
-    /// out of the lists of the nodes it is linked under (`also_under`; a
-    /// node reached through a link has a parent that is not being
-    /// cancelled). A parent waiting to end once empty (`end_when_empty`)
-    /// ends when its last child leaves this way.
+    /// them, and takes this node out of its parent's list (the nodes below
+    /// it go with it).
     pub(crate) fn cancel(&self) {
-        let Some((mut todo, links)) = self.take() else {
+        let Some(mut todo) = self.take() else {
             return;
         };
-        self.leave(&links);
+        if let Some(p) = self.parent.upgrade() {
+            p.inner()
+                .children
+                .remove(&(self as *const CancelNode as usize));
+        }
         while let Some(n) = todo.pop() {
-            if let Some((more, links)) = n.take() {
-                n.leave(&links);
+            if let Some(more) = n.take() {
                 todo.extend(more);
             }
         }
     }
 
-    /// Takes this (cancelled) node out of its parent's list and the lists
-    /// of the nodes it was linked under.
-    fn leave(&self, links: &[Weak<CancelNode>]) {
-        let me = self as *const CancelNode as usize;
-        for l in links {
-            if let Some(o) = l.upgrade() {
-                // A linked parent waiting to end once empty ends when its
-                // last child leaves, as for the primary parent.
-                let end = {
-                    let mut inner = o.inner();
-                    inner.children.remove(&me).is_some()
-                        && inner.end_when_empty
-                        && inner.children.is_empty()
-                };
-                if end {
-                    o.cancel();
-                }
-            }
-        }
-        if let Some(p) = self.parent.upgrade() {
-            let end = {
-                let mut inner = p.inner();
-                inner.children.remove(&me).is_some()
-                    && inner.end_when_empty
-                    && inner.children.is_empty()
-            };
-            if end {
-                p.cancel();
-            }
-        }
-    }
-
-    /// Sets the flag, wakes this node's watchers and takes its children
-    /// and links; `None` if it was already cancelled.
-    fn take(&self) -> Option<Taken> {
+    /// Sets the flag, wakes this node's watchers, runs its hooks and takes
+    /// its children; `None` if it was already cancelled.
+    fn take(&self) -> Option<Vec<Arc<CancelNode>>> {
         if self.cancelled.swap(true, Ordering::SeqCst) {
             return None;
         }
@@ -255,46 +269,7 @@ impl CancelNode {
         for (_, hook) in inner.hooks.drain(..) {
             hook();
         }
-        let children = std::mem::take(&mut inner.children).into_values().collect();
-        Some((children, std::mem::take(&mut inner.links)))
-    }
-
-    /// Makes this node a child of `other` as well as of its parent
-    /// (stage 3b: an agent's `f` runs under a node below the agent's
-    /// task and below the task that asked for it): cancelling either
-    /// cancels it. If `other` is already cancelled, so is this node.
-    pub(crate) fn also_under(self: &Arc<Self>, other: &Arc<CancelNode>) {
-        // The link first: a `cancel` of this node from now on takes it
-        // and leaves `other`'s list.
-        self.inner().links.push(Arc::downgrade(other));
-        let me = Arc::as_ptr(self) as usize;
-        let joined = {
-            let mut o = other.inner();
-            // Under `other`'s lock, as in `child`: `cancel` sets the flag
-            // before it takes the children.
-            !other.is_cancelled() && o.children.insert(me, self.clone()).is_none()
-        };
-        if !joined {
-            self.cancel();
-        } else if self.is_cancelled() {
-            // Cancelled between the link and the insert: its `leave` may
-            // have run before the insert.
-            other.inner().children.remove(&me);
-        }
-    }
-
-    /// Cancels this node now if it has no children, or else once its
-    /// last child leaves: what was spawned under it may run on, but the
-    /// node does not outlive it.
-    pub(crate) fn end_when_empty(&self) {
-        let empty = {
-            let mut inner = self.inner();
-            inner.end_when_empty = true;
-            inner.children.is_empty()
-        };
-        if empty {
-            self.cancel();
-        }
+        Some(std::mem::take(&mut inner.children).into_values().collect())
     }
 }
 
@@ -304,8 +279,6 @@ impl CancelNode {
 pub struct TaskHandle {
     pub(crate) state: Rc<TaskState>,
     pub(crate) cancel: Arc<CancelNode>,
-    /// Where a failure is reported when this handle drops (`failure.rs`).
-    failures: Arc<Failures>,
 }
 
 impl std::fmt::Debug for TaskHandle {
@@ -314,48 +287,18 @@ impl std::fmt::Debug for TaskHandle {
     }
 }
 
-/// A handle is a value: it drops only on the token's holder. With it goes
-/// the last way to retrieve the task's result (every copy of the value
-/// shares this one handle), so a failure nobody retrieved is reported
-/// now, or when the task fails if it is still running (`failure.rs`).
-impl Drop for TaskHandle {
-    fn drop(&mut self) {
-        token::assert_holds_token();
-        self.state.orphan.set(true);
-        if let Some(n) = self.state.failure.take() {
-            self.failures.report(n);
-        }
-    }
-}
-
 impl TaskHandle {
     /// A handle of a finished task with result `v`, without a thread
     /// (tests of value lifetimes).
     #[cfg(test)]
-    pub(crate) fn finished(v: Value, cancel: Arc<CancelNode>, failures: Arc<Failures>) -> Value {
+    pub(crate) fn finished(v: Value, cancel: Arc<CancelNode>) -> Value {
         Value::Task(Rc::new(TaskHandle {
             state: Rc::new(TaskState {
                 result: RefCell::new(Some(v)),
                 waiters: RefCell::new(WaitList::default()),
-                awaited: false,
-                failure: Cell::new(None),
-                orphan: Cell::new(false),
             }),
             cancel,
-            failures,
         }))
-    }
-
-    /// The task's result, if it has finished, as `await` gets it: a
-    /// failure in it is now the caller's to handle.
-    pub(crate) fn retrieve(&self) -> Option<Value> {
-        let r = self.state.result();
-        if r.is_some()
-            && let Some(n) = self.state.failure.take()
-        {
-            self.failures.untrack(n);
-        }
-        r
     }
 }
 
@@ -366,15 +309,6 @@ pub(crate) struct TaskState {
     result: RefCell<Option<Value>>,
     /// The tasks waiting for the result (`await`), woken when it is set.
     pub(crate) waiters: RefCell<WaitList>,
-    /// Its failure counts as retrieved from the start: spawned by a helper
-    /// that awaits it (`_native.conc.spawn_awaited`), or the task
-    /// `spawn_background` starts (an agent's loop, internal code).
-    awaited: bool,
-    /// The number of the task's failure in `Failures` while it is neither
-    /// retrieved nor reported.
-    failure: Cell<Option<u64>>,
-    /// The handle is gone: a failure is reported as it happens.
-    orphan: Cell<bool>,
 }
 
 impl TaskState {
@@ -402,7 +336,10 @@ impl Drop for TaskState {
 /// The function and the result cell a parent hands to the thread of the
 /// task it spawns. They are fung values (`Rc`s), so they are not `Send`;
 /// this wrapper is the one place they cross to another thread.
-struct Handoff(Option<(Value, Rc<TaskState>)>);
+struct Handoff(Option<Cargo>);
+
+/// The function, the result cell and the scope the task belongs to.
+type Cargo = (Value, Rc<TaskState>, Option<Rc<ScopeState>>);
 
 // SAFETY: the run-token rule (constraints: 실행권 규칙) is what makes moving
 // these `Rc`s sound. The parent builds the `Handoff` while it holds the
@@ -423,7 +360,7 @@ unsafe impl Send for Handoff {}
 impl Handoff {
     /// The contents, for the spawned task's thread once it holds the
     /// token (`_t` is the proof: a `Task` holds it).
-    fn open(mut self, _t: &Task<'_>) -> (Value, Rc<TaskState>) {
+    fn open(mut self, _t: &Task<'_>) -> Cargo {
         token::assert_holds_token();
         self.0.take().expect("a handoff opened twice")
     }
@@ -442,22 +379,6 @@ pub(crate) fn err_kind(kind: &str) -> Value {
     let mut m = MapBuilder::default();
     m.set(Rc::new("kind".to_string()), Value::Sym(intern(kind)));
     nat::tag("Err", vec![Value::Map(Rc::new(m.finish()))])
-}
-
-/// What kind of task `spawn` starts.
-#[derive(Clone, Copy)]
-pub(crate) struct Kind {
-    /// A background task (stage 3b): the task `spawn_background` starts
-    /// and every task spawned below it, directly or not. It does not keep
-    /// the program alive, the deadlock check counts it apart
-    /// (`deadlock.rs`), and it ends with the background root
-    /// (`Runtime::end_background`), not with the program's.
-    pub(crate) background: bool,
-    /// Its failure is tracked and reported if nobody retrieves it: not
-    /// for `spawn_awaited` (its helper awaits it) nor for the task
-    /// `spawn_background` starts (internal code). A task spawned below a
-    /// background task runs user code (an agent's `f`), so it is.
-    pub(crate) reported: bool,
 }
 
 /// What a task's run becomes as its result: the value, or
@@ -479,63 +400,41 @@ pub(super) fn is_cancel(d: &Diag) -> bool {
 }
 
 impl<'rt> Task<'rt> {
-    /// Starts `f` on a new task below this one and returns its handle.
-    /// `awaited` marks a task a helper promises to await (`spawn_awaited`).
-    ///
-    /// A task spawned by a background task is a background task too (it
-    /// hangs below it in the cancellation tree, under the background
-    /// root): the program's end, an exit, an entry error or a deadlock
-    /// report cancel only the program's root, so counting it as the
-    /// program's would leave the command waiting for it.
-    pub(crate) fn spawn(&mut self, f: Value, awaited: bool) -> Result<Value, Stop> {
-        let node = self.cancel.child();
-        let kind = Kind {
-            background: self.background,
-            reported: !awaited,
-        };
-        // Inside the agents this task is inside (`agent.rs`).
-        let serving = self.serving.clone();
-        self.start(f, node, kind, serving)
-    }
-
-    /// Starts `f` on a background task (stage 3b, `agent.rs`) and returns
-    /// its handle. It hangs from the background root, not from this task:
-    /// it outlives the task that started it and the program's own end,
-    /// and is cancelled after the exit handlers (`Runtime::end_background`).
-    pub(crate) fn spawn_background(&mut self, f: Value) -> Result<Value, Stop> {
-        let node = self.shared.background.child();
-        let kind = Kind {
-            background: true,
-            reported: false,
-        };
-        self.start(f, node, kind, Vec::new())
+    /// Starts `f` on a new task in scope `s` (`spawn(s, g)`) and returns
+    /// its handle; E0706 once the scope has closed. The task hangs below
+    /// the scope's node, and the scope waits for it.
+    pub(crate) fn spawn_in(&mut self, s: &Rc<ScopeState>, f: Value) -> Result<Value, Stop> {
+        if !s.is_open() {
+            return Err(nat::fail("E0706", Vec::new()));
+        }
+        let node = s.node.child();
+        self.start(f, node, Some(s.clone()))
     }
 
     fn start(
         &mut self,
         f: Value,
         node: Arc<CancelNode>,
-        kind: Kind,
-        serving: Vec<Arc<Mark>>,
+        scope: Option<Rc<ScopeState>>,
     ) -> Result<Value, Stop> {
         token::assert_holds_token();
         let state = Rc::new(TaskState {
             result: RefCell::new(None),
             waiters: RefCell::new(WaitList::default()),
-            awaited: !kind.reported,
-            failure: Cell::new(None),
-            orphan: Cell::new(false),
         });
         let handle = Rc::new(TaskHandle {
             state: state.clone(),
             cancel: node.clone(),
-            failures: self.shared.failures.clone(),
         });
-        let cargo = Handoff(Some((f, state)));
+        if let Some(s) = &scope {
+            s.child_started();
+        }
+        let in_scope = scope.clone();
+        let cargo = Handoff(Some((f, state, scope)));
         let shared = Arc::clone(self.shared);
         // Counted from now, before the thread starts: a task whose thread
         // has not taken the token yet will still run.
-        self.world.count(kind, true);
+        self.world.count(true);
         // The stack each spawned task's thread reserves: 1 GiB first, so
         // deep programs keep running in a task. fung calls do not use it
         // (frames live on the VM's heap); only natives that call back into
@@ -550,14 +449,17 @@ impl<'rt> Task<'rt> {
         let started = crate::stack::spawn_sized(
             || std::thread::Builder::new().name("fung-task".into()),
             shared.task_stacks(),
-            (shared, node, cargo, kind, serving),
-            |(shared, node, cargo, kind, serving)| run_spawned(shared, node, cargo, kind, serving),
+            (shared, node, cargo),
+            |(shared, node, cargo)| run_spawned(shared, node, cargo),
         );
         if let Err((e, payload)) = started {
             // The values are dropped here, on this thread, with the token
             // held.
             drop(payload);
-            self.world.count(kind, false);
+            self.world.count(false);
+            if let Some(s) = in_scope {
+                s.child_done(&Ok(Value::Nil));
+            }
             return Err(internal(vec![Arg::Str(format!(
                 "cannot start a task: {e}"
             ))]));
@@ -588,48 +490,30 @@ impl<'rt> Task<'rt> {
 /// order). A panic that escapes the panic fence here is a bug in this
 /// file; the values would then be dropped in an unknown state, so the
 /// process stops instead.
-fn run_spawned(
-    shared: Arc<Shared>,
-    node: Arc<CancelNode>,
-    cargo: Handoff,
-    kind: Kind,
-    serving: Vec<Arc<Mark>>,
-) {
-    let background = kind.background;
+fn run_spawned(shared: Arc<Shared>, node: Arc<CancelNode>, cargo: Handoff) {
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut t = Task::spawned(&shared, node.clone(), background);
-        t.serving = serving;
+        let mut t = Task::spawned(&shared, node.clone());
         token::assert_holds_token();
-        let (f, state) = cargo.open(&t);
+        let (f, state, scope) = cargo.open(&t);
         let r = t.call(&f, Vec::new());
         drop(f);
         *state.result.borrow_mut() = Some(outcome(&r));
-        if let Err(Stop::Error(d)) = &r
-            && !is_cancel(d)
-            && !state.awaited
-        {
-            // A failure someone must see (`failure.rs`).
-            let text = format!("task failed: {}", diag::format(d, &t.world.sources));
-            if state.orphan.get() {
-                shared.failures.report_now(&text);
-            } else {
-                state.failure.set(Some(shared.failures.track(text)));
-            }
+        state.waiters.borrow_mut().wake_all();
+        // The scope learns of the end once the result is stored.
+        if let Some(s) = scope {
+            t.end_in_scope(&s, &r);
         }
         drop(r);
-        state.waiters.borrow_mut().wake_all();
         drop(state);
         // What this task spawned and left running ends with it.
         node.cancel();
-        if !background {
-            t.world.running -= 1;
-            if t.world.running == 0 {
-                t.world.idle.wake_all();
-            }
+        t.world.running -= 1;
+        if t.world.running == 0 {
+            t.world.idle.wake_all();
         }
         token::assert_holds_token();
-        // Dropping the task empties its stack and frames, uncounts a
-        // background task, then gives the token up.
+        // Dropping the task empties its stack and frames, then gives the
+        // token up.
         drop(t);
     }));
     if r.is_err() {

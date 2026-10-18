@@ -87,9 +87,8 @@
 -- stderr
 | unknown command :bogus
 -- exit: 0
-==== at_exit and exit
+==== with and exit
 -- stdout
-| > nil
 | > bye
 -- stderr
 -- exit: 4
@@ -264,56 +263,12 @@
 | > 
 -- stderr
 -- exit: 0
-==== a task waits for a later input
+==== releases in order after exit
 -- stdout
-| > > > Ok(nil)
-| > Ok(5)
-| > 
+| > release 2
+| release 1
 -- stderr
--- exit: 0
-==== a failure nobody awaited
--- stdout
-| > > . . . > Ok(1)
-| > 2
-| > 
--- stderr
-| task failed: error[E0507]: index 5 is out of range (length 1)
-|   --> <repl>:3:6
-|   |
-| 3 |   [1][5]
-|   |      ^
-|   |
-|  call path (innermost first):
-|    <repl>:3   <lambda>
--- exit: 0
-==== handler errors and order
--- stdout
-| > nil
-| > nil
-| > nil
-| > 
-| bye
--- stderr
-| error[E0502]: division by zero
-|   --> <repl>:1:17
-|   |
-| 1 | at_exit(() => 1 / 0)
-|   |                 ^
-|   |
-|  call path (innermost first):
-|    <repl>:1   <lambda>
 -- exit: 7
-==== quit cancels a sleeping task
--- stdout
-| > > 
-\ no newline
--- stderr
--- exit: 0
-==== the end of input cancels a sleeping task
--- stdout
-| > > 
--- stderr
--- exit: 0
 ==== help text
 -- stdout
 | > commands:

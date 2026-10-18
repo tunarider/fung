@@ -43,6 +43,25 @@ impl List {
         }
     }
 
+    /// Whether an item holds a mutable value: a slice of a big list
+    /// looks at its own items only.
+    /// The items of a small list (`Value::holds_mutable` walks them);
+    /// `None` for a big one, which answers from its memo.
+    pub(crate) fn flat(&self) -> Option<&[Value]> {
+        match &self.repr {
+            Repr::Flat(v) => Some(v),
+            Repr::Big { .. } => None,
+        }
+    }
+
+    pub(crate) fn holds_mutable(&self) -> bool {
+        match &self.repr {
+            Repr::Flat(v) => v.iter().any(Value::holds_mutable),
+            Repr::Big { vec, lo, hi } if *lo == 0 && *hi == vec.len() => vec.holds_mutable(),
+            Repr::Big { vec, lo, hi } => vec.holds_mutable_in(*lo, *hi),
+        }
+    }
+
     pub fn len(&self) -> usize {
         match &self.repr {
             Repr::Flat(items) => items.len(),
@@ -87,6 +106,12 @@ impl List {
     /// Items `[lo, hi)`; callers check the bounds. A big result is a view
     /// on the same vector; a small one, or one much smaller than the
     /// vector it would keep alive, is copied out.
+    /// Whether this list is a view into a shared vector (tests).
+    #[cfg(test)]
+    pub(crate) fn is_view(&self) -> bool {
+        matches!(&self.repr, Repr::Big { lo, hi, vec } if *lo != 0 || *hi != vec.len())
+    }
+
     pub fn slice(&self, lo: usize, hi: usize) -> List {
         assert!(lo <= hi && hi <= self.len(), "list slice out of range");
         let n = hi - lo;

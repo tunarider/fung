@@ -21,6 +21,10 @@ import _native.net as _net
 import _native.process as _proc
 import _native.time as _time
 
+# The prelude's `timeout`: the public functions' parameter of that name
+# hides it inside them.
+fn _within(d, f) = timeout(d, f)
+
 # ---- The public functions (06) -----------------------------------------
 
 fn get(url: str, headers: map = {}, timeout: dur = 30s) = _request("GET", url, nil, headers, timeout)
@@ -29,34 +33,22 @@ fn post(url: str, body: str | nil, headers: map = {}, timeout: dur = 30s) = _req
 
 fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur = 30s) = _request(upper(method), url, body, headers, timeout)
 
-# Binds `addr`, tells `ready` the address, and serves until the task is
-# cancelled (or the program exits): then it stops accepting, waits up to
-# 2 s for the requests in flight and ends with E0701. A bind failure is
-# `Err 'network`.
-fn serve(addr: str, handler: fn, ready = nil):
+# Binds `addr`, tells `ready` the address, and serves until a stop
+# request (05 "정지 요청": the first SIGINT or SIGTERM, or
+# `request_stop()`): then it stops accepting, lets the requests in flight
+# finish for at most `drain`, cancels what is left (answered 503) and
+# returns nil. Cancelled itself (an outer scope, `timeout`, an exit) it
+# stops at once. With `reuse_port`, several processes may listen on one
+# port (SO_REUSEPORT). A bind failure is `Err 'network`.
+fn serve(addr: str, handler: fn, ready = nil, drain: dur = 10s, reuse_port: bool = false):
   if ready != nil:
     _ready_check(ready)
   ;;
-  l = match _net.listen(addr):
+  l = match _net.listen(addr, reuse_port):
     Ok(l)  => l
     Err(e) => return Err({kind: 'network, message: "cannot listen on `${addr}`: ${e.message}"})
   ;;
-  # closed the moment this task is cancelled, wherever it is, so no
-  # connection is accepted once the server is told to stop
-  _net.close_on_cancel(l)
-  if ready != nil:
-    ready(_net.local_addr(l))
-  ;;
-  scope = channel()
-  _c.set_asker(scope)
-  failed = channel(1)
-  _c.spawn_background(() => _acceptor(l, handler, scope, failed))
-  _net.hold(l, 2s)
-  # `hold` came back without a cancellation: the accept task failed
-  match recv(failed, timeout: 0s):
-    Ok(e) => _c.raise(e)
-    _     => nil
-  ;;
+  with(() => l, l => _serve_on(l, handler, ready, drain), l => _net.close(l))
 ;;
 
 # The check of `ready` (E0403 `must be fn`; the parameter may be nil).
@@ -65,32 +57,33 @@ fn _ready_check(ready: fn) = nil
 # ---- One request ----------------------------------------------------------
 
 # Internal errors are maps {kind, message}: message is the reason that
-# follows "cannot request `<url>`: ", kind is 'timeout when a deadline
-# passed. `_failed` gives the public Err.
-fn _request(method, url, body, headers, timeout):
-  start = _time.now()
-  match _attempt(method, url, body, headers, timeout, start):
+# follows "cannot request `<url>`: ". `_failed` gives the public Err.
+#
+# The request's `limit` is one deadline over the whole request (a
+# `timeout` scope, 05): the lookup, the connection, the handshake, a
+# proxy's CONNECT, the redirects and the bodies. A shorter deadline
+# around the call wins; `0s` is no limit of the request's own.
+fn _request(method, url, body, headers, limit):
+  r = limit > 0s
+    then _within(limit, () => _attempt(method, url, body, headers))
+    else _attempt(method, url, body, headers)
+  match r:
     Ok(res) => Ok(res)
-    Err(e)  => _failed(url, e, timeout, start)
+    Err(e)  => _failed(url, e)
   ;;
 ;;
 
-# Past the deadline every failure is a timeout: whatever ended the
-# request, its time was up.
-fn _failed(url, e, timeout, start) = _timed_out(timeout, start) or e.kind == 'timeout
+# The scope's own `Err({kind: 'timeout})` (no message) is the request's
+# time running out.
+fn _failed(url, e) = e.kind == 'timeout
   then Err({kind: 'timeout, message: "request to `${url}` timed out"})
   else Err({kind: 'network, message: "cannot request `${url}`: ${e.message}"})
-
-fn _timed_out(timeout, start) = timeout > 0s and _time.now() - start >= timeout
-
-# The time left before the request's deadline, nil without one.
-fn _left(timeout, start) = timeout > 0s then timeout - (_time.now() - start) else nil
 
 fn _err(message) = {kind: 'network, message}
 
 # The method, the URL, fung's check of the header values (E0403), then
 # the request and one for each redirect (`_hop`).
-fn _attempt(method0, url, body, headers, timeout, start):
+fn _attempt(method0, url, body, headers):
   method = method0 == "" then "GET" else method0
   if not _is_token(method):
     return Err(_err("invalid method `${method}`"))
@@ -102,7 +95,7 @@ fn _attempt(method0, url, body, headers, timeout, start):
   u = put(u0, "host", _remove_empty_port(u0.host))
   _net.need_str_map("headers", headers)
   hs = fold(pairs(headers), {}, (m, (k, v)) => put(m, _canonical(k), v))
-  r = {first: u, headers: hs, body, timeout, start, proxies: _proxies()}
+  r = {first: u, headers: hs, body, proxies: _proxies()}
   _hop(r, u, method, true, false, nil, 1)
 ;;
 
@@ -152,7 +145,7 @@ fn _base64(bs, i, out):
 # ---- Redirects -------------------------------------------------------
 #
 # `r` is what the requests share: the first URL, the user's headers, the
-# body, the timeout (one for them all) and the proxies. `n` counts the
+# body and the proxies. `n` counts the
 # requests, this one included; `prev` is the URL of the one before (nil
 # for the first). A failure after a redirect says where it was going.
 fn _hop(r, u, method, with_body, strip, prev, n):
@@ -281,9 +274,9 @@ fn _send(method, u, body, hs, r, ctx):
     Ok(p)    => p
     Err(why) => return Err(_err(ctx + why))
   ;;
-  c = _open(u, proxy, r.timeout, r.start, ctx)?
+  c = _open(u, proxy, ctx)?
   via = proxy != nil and u.scheme == "http" then proxy else nil
-  res = match _exchange(c, method, u, body, hs, via, r.timeout, r.start, ctx):
+  res = match _exchange(c, method, u, body, hs, via, ctx):
     Ok((x, nil)) => Ok((x, nil))
     Ok((x, loc)) => _redirect(u, x, loc, ctx)
     Err(e)       => Err(e)
@@ -331,20 +324,16 @@ fn _bad_header(hs) = match find(pairs(hs), ((k, v)) => not _is_token(k) or not _
     else "invalid header name `${k}`"
 ;;
 
-# Connects to `hostport` (TLS when `tls`) within the time the request
-# has left: the connection and the handshake share the request's
-# timeout, with no limit of their own.
-fn _dial(hostport, tls, timeout, start, ctx):
+# Connects to `hostport` (TLS when `tls`). The connection and the
+# handshake have no limit of their own: the request's deadline is over
+# them.
+fn _dial(hostport, tls, ctx):
   (host, port_text) = _host_port(hostport)
   port = _port(port_text, tls)
   if port == nil:
     return Err(_err("${ctx}invalid port `${port_text}`"))
   ;;
-  left = _left(timeout, start)
-  if left != nil and left <= 0s:
-    return Err({kind: 'timeout, message: ""})
-  ;;
-  match _net.connect(host, port, tls: tls, timeout: left ?? 0s):
+  match _net.connect(host, port, tls: tls):
     Ok(c)  => Ok(c)
     Err(e) => Err({kind: e.kind, message: ctx + e.message})
   ;;
@@ -361,17 +350,10 @@ fn _port(text, tls):
   ;;
 ;;
 
-# Writes the request and reads the answer, all before the deadline:
-# Ok((response, nil)), or for a redirect Ok((response, Location)) with
-# its body unread. `via` is the proxy an http request goes through.
-fn _exchange(c, method, u, body, hs, via, timeout, start, ctx):
-  left = _left(timeout, start)
-  if left != nil and left <= 0s:
-    return Err({kind: 'timeout, message: ""})
-  ;;
-  if left != nil:
-    _net.set_deadline(c, left)
-  ;;
+# Writes the request and reads the answer: Ok((response, nil)), or for
+# a redirect Ok((response, Location)) with its body unread. `via` is the
+# proxy an http request goes through.
+fn _exchange(c, method, u, body, hs, via, ctx):
   match _net.write(c, _request_text(method, u, body, hs, via)):
     Err(e) => Err({kind: e.kind, message: ctx + e.message})
     Ok(_)  => _read_response(c, method, ctx)
@@ -599,10 +581,10 @@ fn _mask_byte(b, k) = k >= 8 then b else (k <= 0 then 0 else b - b % [1, 2, 4, 8
 # To the server, or to the proxy (its failures then name it); https
 # through a proxy is a CONNECT tunnel (RFC 9110 9.3.6). Not supported:
 # SOCKS proxies, and https through an https proxy (TLS inside TLS).
-fn _open(u, proxy, timeout, start, ctx):
+fn _open(u, proxy, ctx):
   tls = u.scheme == "https"
   if proxy == nil:
-    return _dial(u.host, tls, timeout, start, ctx)
+    return _dial(u.host, tls, ctx)
   ;;
   at = "${ctx}proxy `${proxy.host}`: "
   if proxy.scheme == "socks5" or proxy.scheme == "socks5h":
@@ -611,11 +593,11 @@ fn _open(u, proxy, timeout, start, ctx):
   if tls and proxy.scheme == "https":
     return Err(_err("${at}https through an https proxy is not supported"))
   ;;
-  c = _dial(proxy.host, proxy.scheme == "https", timeout, start, at)?
+  c = _dial(proxy.host, proxy.scheme == "https", at)?
   if not tls:
     return Ok(c)
   ;;
-  r = _tunnel(c, u, proxy, timeout, start, ctx, at)
+  r = _tunnel(c, u, proxy, ctx, at)
   if type_of(r) == 'Err:
     _net.close(c)
   ;;
@@ -623,28 +605,21 @@ fn _open(u, proxy, timeout, start, ctx):
 ;;
 
 # `CONNECT host:port` with Host, User-Agent and the proxy's
-# Proxy-Authorization, within the time the request has left; an answer
+# Proxy-Authorization; an answer
 # but 200 fails with its status; then TLS to the server through the
 # tunnel, its name the server's.
-fn _tunnel(c, u, proxy, timeout, start, ctx, at):
+fn _tunnel(c, u, proxy, ctx, at):
   (host, port_text) = _host_port(u.host)
   addr = (":" in host then "[${host}]" else host) + ":" + (port_text == "" then "443" else port_text)
   auth = _proxy_auth(proxy)
   lines = ["CONNECT ${addr} HTTP/1.1", "Host: ${_host_header(addr)}", "User-Agent: ${_net.user_agent()}"] + (auth == nil then [] else ["Proxy-Authorization: ${auth}"])
-  left = _left(timeout, start)
-  if left != nil and left <= 0s:
-    return Err({kind: 'timeout, message: ""})
-  ;;
-  if left != nil:
-    _net.set_deadline(c, left)
-  ;;
   answer = match _net.write(c, join(lines, "\r\n") + "\r\n\r\n"):
     Err(e) => Err(e)
     Ok(_)  => _connect_answer(c)
   ;;
   match answer:
     Err(e)          => Err({kind: e.kind, message: at + e.message})
-    Ok((200, _))    => _start_tls(c, host, timeout, start, ctx)
+    Ok((200, _))    => _start_tls(c, host, ctx)
     Ok((code, why)) => Err(_err("${at}CONNECT answered ${code}" + (why == nil or why == "" then "" else " ${why}")))
   ;;
 ;;
@@ -679,12 +654,8 @@ fn _reason(line):
   text
 ;;
 
-fn _start_tls(c, host, timeout, start, ctx):
-  left = _left(timeout, start)
-  if left != nil and left <= 0s:
-    return Err({kind: 'timeout, message: ""})
-  ;;
-  match _net.start_tls(c, host, timeout: left ?? 0s):
+fn _start_tls(c, host, ctx):
+  match _net.start_tls(c, host):
     Ok(t)  => Ok(t)
     Err(e) => Err({kind: e.kind, message: ctx + e.message})
   ;;
@@ -1448,16 +1419,11 @@ fn _trim_right_ows(s) = trim("\u{1}" + s, " \t")[1..]
 
 # ---- The server -------------------------------------------------------
 #
-# `serve` waits in `_net.hold` while a background task accepts
-# (`_accept`) and each connection is a background task of its own
-# (`_conn`): the server's cancellation does not reach them, so a request
-# in flight is still answered (503) while `hold` waits for its
-# connection to close (a graceful stop). The handler itself runs below
-# the server's task (`try_call` with the channel `serve` marked):
-# cancelling the server, or an exit anywhere, cancels it, so no handler
-# outlives the server that called it. Background tasks are not
-# the program's, so a request never keeps the program alive (the server's
-# task does).
+# `serve` runs in a scope of its own: a task that waits for the stop
+# request (`_stopper`), and the accept loop as the body of a `supervise`
+# whose tasks are the connections (`_guarded`), each calling the handler
+# on a task of its own (`_call`). So cancelling the server cancels them
+# all, and nothing outlives `serve`.
 #
 # One request per connection, answered with `Connection: close` (06 "fung
 # HTTP 약속"), as RFC 9112 writes it; what the server answers itself
@@ -1475,60 +1441,73 @@ fn _max_head() = 1048576
 
 fn _max_values() = 500
 
-# The accept task. Its loop runs below the server's task (`try_call`
-# with `scope`), so cancelling the server ends it at any moment, even
-# before `serve` reaches `hold`: the task then closes the listener
-# itself. A failure of the loop (a bug of this file, which no request can
-# cause) closes the listener too, which ends `hold`; `serve` then fails
-# with that error instead of waiting
-# deaf until cancelled.
-fn _acceptor(l, handler, scope, failed):
-  match _c.try_call(_ => _accept(l, handler, scope, 0s), nil, scope):
-    Err(e) when not _stopping(e) => send(failed, e)
-    _                            => nil
+# Watched from here on: a stop request is this server's to finish. The
+# scope `top` ends when the connections have (after the stop request
+# closed the listener), or when `_stopper` cancels it after `drain`.
+fn _serve_on(l, handler, ready, drain):
+  stop = stop_signal()
+  if ready != nil:
+    ready(_net.local_addr(l))
   ;;
-  _net.close(l)
+  scope(fn(top):
+    w = spawn(top, () => _stopper(l, stop, drain, top))
+    supervise(conns => _accept(l, handler, conns, 0s), e => eprint("http: internal error: ${e.message}"))
+    cancel(w)
+  ;;)
+  nil
 ;;
 
-# What stopped a call was the program or the server ending (an exit, a
-# cancellation, a deadlock report), not a bug.
-fn _stopping(e) = _c.describe(e).code in ["exit", "E0701", "E0702"]
+# The stop request: no new connection (closing the listener ends
+# `_accept`), `drain` for the requests in flight, then the rest is
+# cancelled (their releases answer 503).
+fn _stopper(l, stop, drain, top):
+  recv(stop)
+  _net.close(l)
+  sleep(drain)
+  cancel(top)
+;;
 
-# Accepts until the listener is closed (by `hold`). An accept that failed
-# (for want of file descriptors, say) is tried again after 5 ms, doubling
-# up to 1 s, so a short shortage does not end the server.
-fn _accept(l, handler, scope, delay) = match _net.accept(l):
-  Ok(c)  => _accept(l, handler, scope, _spawn_conn(c, handler, scope, delay))
+# Accepts until the listener is closed. An accept that failed (for want
+# of file descriptors, say) is tried again after 5 ms, doubling up to
+# 1 s, so a short shortage does not end the server.
+fn _accept(l, handler, conns, delay) = match _net.accept(l):
+  Ok(c)  => _accept(l, handler, conns, _spawn_conn(c, handler, conns, delay))
   Err(e) => e.message == "listener is closed"
-    then nil else _accept(l, handler, scope, _backoff(delay))
+    then nil else _accept(l, handler, conns, _backoff(delay))
 ;;
 
 # A connection's task that cannot start (E0801 `cannot start a task`: no
 # thread can be made) is reported, the connection closed unanswered and
 # the loop backs off as for a failed accept; the server goes on. No 503
-# is written: the
-# request is still unread, so closing would reset the connection and the
-# client could lose the answer anyway, and lingering here would stall
-# the accept loop.
-fn _spawn_conn(c, handler, scope, delay) = match _c.try_call(_ => _c.spawn_background(() => _guarded(c, handler, scope)), nil):
+# is written: the request is still unread, so closing would reset the
+# connection and the client could lose the answer anyway, and lingering
+# here would stall the accept loop.
+fn _spawn_conn(c, handler, conns, delay) = match _c.try_spawn(conns, () => _guarded(c, handler)):
   Ok(_)  => 0s
   Err(e) => _unstarted(c, e, delay)
 ;;
 
 fn _unstarted(c, e, delay):
-  eprint("http: cannot start a connection task: ${_c.describe(e).text}")
+  eprint("http: cannot start a connection task: ${e.message}")
   _net.close(c)
   _backoff(delay)
 ;;
 
-# A failure answering a connection (a bug of this file: the handler's
-# own failures are answered 500) is reported on stderr and the
-# connection closed, and the server goes on: one bad connection does not
-# end it (the cancellations of the end of the program unwind on).
-fn _guarded(c, handler, scope):
-  match _c.try_call(_ => _conn(c, handler, scope), nil):
-    Err(e) when not _stopping(e) => eprint("http: internal error: ${_c.describe(e).text}")
-    _                            => nil
+# One connection, on its task. A failure answering it (a bug of this
+# file: the handler's own failures are answered 500) goes to the
+# server's `supervise`, which reports it. The release closes the
+# connection, and answers 503 first when the handler was cut short (a
+# drain that ran out, an exit): `state` is `('handling, rq)` while it
+# runs.
+fn _guarded(c, handler):
+  state = atom(nil)
+  with(() => c, c => _conn(c, handler, state), c => _end_conn(c, state))
+;;
+
+fn _end_conn(c, state):
+  match deref(state):
+    ('handling, rq) => _http_error(c, rq, 503)
+    _               => nil
   ;;
   _net.close(c)
 ;;
@@ -1540,14 +1519,13 @@ fn _backoff(delay):
 ;;
 
 # One connection: its request, the answer, the end.
-fn _conn(c, handler, scope):
+fn _conn(c, handler, state):
   _net.set_deadline(c, _header_timeout())
   match _read_request(c):
-    Ok(rq)   => _respond(c, rq, handler, scope)
+    Ok(rq)   => _respond(c, rq, handler, state)
     Err(nil) => nil
     Err(no)  => _refuse(c, no)
   ;;
-  _net.close(c)
 ;;
 
 # The answer to a request the server could not read. After 431 it stops
@@ -1749,7 +1727,7 @@ fn _unsupported_te() = _own_answer(501, false)
 
 # ---- Answering -----------------------------------------------------------
 
-fn _respond(c, rq, handler, scope):
+fn _respond(c, rq, handler, state):
   _net.set_deadline(c, 0s)
   expect = "Expect" in rq.h then rq.h["Expect"][0] else ""
   continues = _has_token(expect, "100-continue")
@@ -1765,7 +1743,7 @@ fn _respond(c, rq, handler, scope):
     return _write_reply(c, rq, 200, {"Content-Length": "0"}, "")
   ;;
   match _request_body(c, rq):
-    Ok(body)            => _call(c, rq, handler, scope, body)
+    Ok(body)            => _call(c, rq, handler, state, body)
     Err({kind: 'limit}) => _linger(_http_error(c, rq, 413))
     Err(_)              => _http_error(c, rq, 400)
   ;;
@@ -1783,23 +1761,19 @@ else:
   Ok("")
 ;;
 
-# The handler on its task; an exit or a cancellation
-# there is the program ending (503, no report), any other failure a bug
-# (500 and a line on stderr).
-fn _call(c, rq, handler, scope, body):
+# The handler, on a task of its own in a `supervise`: a runtime error
+# there is answered 500 and reported on stderr; its value is the
+# answer. While it runs, the connection's release answers 503 if it is
+# cut short.
+fn _call(c, rq, handler, state, body):
   req = {method: rq.method, path: rq.path, query: rq.query, headers: rq.headers, body}
-  match _c.try_call(handler, req, scope):
-    Ok(res) => _answer(c, rq, res)
-    Err(e)  => _failed_handler(c, rq, e)
-  ;;
-;;
-
-fn _failed_handler(c, rq, e):
-  if _stopping(e):
-    _http_error(c, rq, 503)
-  else:
-    eprint("http: handler failed: ${_c.describe(e).text}")
-    _http_error(c, rq, 500)
+  reset(state, ('handling, rq))
+  r = supervise(s => await(spawn(s, () => Ok(handler(req)))), e => eprint("http: handler failed: ${e.message}"))
+  reset(state, 'done)
+  match r:
+    Ok(res)             => _answer(c, rq, res)
+    Err({kind: 'error}) => _http_error(c, rq, 500)
+    Err(_)              => nil
   ;;
 ;;
 

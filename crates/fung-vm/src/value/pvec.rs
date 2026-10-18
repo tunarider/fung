@@ -4,7 +4,10 @@
 //! (`Rc::make_mut`), so every other version stays valid and a uniquely
 //! owned vector is updated in place.
 
+use std::cell::Cell;
 use std::rc::Rc;
+
+use super::HoldsMutable;
 
 const BITS: u32 = 5;
 const WIDTH: usize = 1 << BITS;
@@ -13,36 +16,59 @@ pub(crate) const MASK: usize = WIDTH - 1;
 /// A trie node. A leaf always holds `WIDTH` items, except the tail.
 #[derive(Clone)]
 enum Node<T> {
-    Branch(Vec<Rc<Node<T>>>),
-    Leaf(Vec<T>),
+    Branch(Vec<Rc<Node<T>>>, Memo),
+    Leaf(Vec<T>, Memo),
+}
+
+/// Whether a node's subtree holds a mutable value (`holds_mutable`),
+/// found on the first look and kept: `UNKNOWN` until then. A node changes
+/// only through `kids_mut`/`vals_mut` (on a node this vector owns alone,
+/// `Rc::make_mut`), which forget it.
+type Memo = Cell<u8>;
+const UNKNOWN: u8 = 0;
+const NO: u8 = 1;
+const YES: u8 = 2;
+
+fn leaf<T>(items: Vec<T>) -> Rc<Node<T>> {
+    Rc::new(Node::Leaf(items, Cell::new(UNKNOWN)))
+}
+
+fn branch<T>(kids: Vec<Rc<Node<T>>>) -> Rc<Node<T>> {
+    Rc::new(Node::Branch(kids, Cell::new(UNKNOWN)))
 }
 
 impl<T> Node<T> {
     fn kids(&self) -> &[Rc<Node<T>>] {
         match self {
-            Node::Branch(k) => k,
-            Node::Leaf(_) => unreachable!("pvec: leaf where a branch belongs"),
+            Node::Branch(k, _) => k,
+            Node::Leaf(..) => unreachable!("pvec: leaf where a branch belongs"),
         }
     }
 
     fn kids_mut(&mut self) -> &mut Vec<Rc<Node<T>>> {
         match self {
-            Node::Branch(k) => k,
-            Node::Leaf(_) => unreachable!("pvec: leaf where a branch belongs"),
+            Node::Branch(k, m) => {
+                m.set(UNKNOWN);
+                k
+            }
+            Node::Leaf(..) => unreachable!("pvec: leaf where a branch belongs"),
         }
     }
 
     fn vals(&self) -> &[T] {
         match self {
-            Node::Leaf(v) => v,
-            Node::Branch(_) => unreachable!("pvec: branch where a leaf belongs"),
+            Node::Leaf(v, _) => v,
+            Node::Branch(..) => unreachable!("pvec: branch where a leaf belongs"),
         }
     }
 
     fn vals_mut(&mut self) -> &mut Vec<T> {
         match self {
-            Node::Leaf(v) => v,
-            Node::Branch(_) => unreachable!("pvec: branch where a leaf belongs"),
+            Node::Leaf(v, m) => {
+                m.set(UNKNOWN);
+                v
+            }
+            Node::Branch(..) => unreachable!("pvec: branch where a leaf belongs"),
         }
     }
 }
@@ -52,14 +78,14 @@ impl<T> Node<T> {
 /// stack before it is dropped, so no drop ever goes deeper than one node.
 impl<T> Drop for Node<T> {
     fn drop(&mut self) {
-        let Node::Branch(kids) = self else { return };
+        let Node::Branch(kids, _) = self else { return };
         if kids.is_empty() {
             return;
         }
         let mut stack = std::mem::take(kids);
         while let Some(rc) = stack.pop() {
             if let Ok(mut node) = Rc::try_unwrap(rc)
-                && let Node::Branch(k) = &mut node
+                && let Node::Branch(k, _) = &mut node
             {
                 stack.append(k);
             }
@@ -80,14 +106,14 @@ pub(crate) struct Pvec<T> {
 fn leaf_with<T>(x: T) -> Rc<Node<T>> {
     let mut vals = Vec::with_capacity(WIDTH);
     vals.push(x);
-    Rc::new(Node::Leaf(vals))
+    leaf(vals)
 }
 
 fn new_path<T>(level: u32, node: Rc<Node<T>>) -> Rc<Node<T>> {
     let mut n = node;
     let mut l = level;
     while l > 0 {
-        n = Rc::new(Node::Branch(vec![n]));
+        n = branch(vec![n]);
         l -= BITS;
     }
     n
@@ -102,8 +128,8 @@ impl<T: Clone> Pvec<T> {
             return Pvec {
                 cnt: 0,
                 shift: BITS,
-                root: Rc::new(Node::Branch(Vec::new())),
-                tail: Rc::new(Node::Leaf(Vec::with_capacity(WIDTH))),
+                root: branch(Vec::new()),
+                tail: leaf(Vec::with_capacity(WIDTH)),
             };
         }
         let tail_len = if n.is_multiple_of(WIDTH) {
@@ -116,7 +142,7 @@ impl<T: Clone> Pvec<T> {
         tail.extend(items.drain(off..));
         let mut it = items.into_iter();
         let mut nodes: Vec<Rc<Node<T>>> = (0..off / WIDTH)
-            .map(|_| Rc::new(Node::Leaf(it.by_ref().take(WIDTH).collect())))
+            .map(|_| leaf(it.by_ref().take(WIDTH).collect()))
             .collect();
         let mut shift = BITS;
         while nodes.len() > WIDTH {
@@ -127,7 +153,7 @@ impl<T: Clone> Pvec<T> {
                 if chunk.is_empty() {
                     break;
                 }
-                up.push(Rc::new(Node::Branch(chunk)));
+                up.push(branch(chunk));
             }
             nodes = up;
             shift += BITS;
@@ -135,8 +161,8 @@ impl<T: Clone> Pvec<T> {
         Pvec {
             cnt: n,
             shift,
-            root: Rc::new(Node::Branch(nodes)),
-            tail: Rc::new(Node::Leaf(tail)),
+            root: branch(nodes),
+            tail: leaf(tail),
         }
     }
 
@@ -176,7 +202,7 @@ impl<T: Clone> Pvec<T> {
                     let mut vals = Vec::with_capacity(WIDTH);
                     vals.extend_from_slice(self.tail.vals());
                     vals.push(x);
-                    self.tail = Rc::new(Node::Leaf(vals));
+                    self.tail = leaf(vals);
                 }
             }
             self.cnt += 1;
@@ -188,7 +214,7 @@ impl<T: Clone> Pvec<T> {
         if (self.cnt >> BITS) > (1 << self.shift) {
             // the root is full: grow a level
             let path = new_path(self.shift, leaf);
-            self.root = Rc::new(Node::Branch(vec![self.root.clone(), path]));
+            self.root = branch(vec![self.root.clone(), path]);
             self.shift += BITS;
         } else {
             self.push_tail(leaf);
@@ -246,9 +272,85 @@ impl<T: Clone> Pvec<T> {
                 continue;
             };
             match &mut node {
-                Node::Branch(k) => stack.append(k),
-                Node::Leaf(v) => v.drain(..).for_each(&mut f),
+                Node::Branch(k, _) => stack.append(k),
+                Node::Leaf(v, _) => v.drain(..).for_each(&mut f),
             }
         }
     }
+}
+
+impl<T: HoldsMutable> Pvec<T> {
+    /// Whether an item holds a mutable value (`Value::holds_mutable`):
+    /// the trie's nodes remember the answer, so after a change only the
+    /// copied path is looked at again; the tail (at most 32) is scanned.
+    pub(crate) fn holds_mutable(&self) -> bool {
+        node_holds(&self.root) || self.tail.vals().iter().any(HoldsMutable::holds_mutable)
+    }
+}
+
+impl<T: HoldsMutable + Clone> Pvec<T> {
+    /// `holds_mutable` for the items `lo..hi` only (a list's slice): the
+    /// subtrees inside the range answer from their memo, and only the
+    /// leaves the range cuts are scanned, so a slice costs about what the
+    /// whole vector does.
+    pub(crate) fn holds_mutable_in(&self, lo: usize, hi: usize) -> bool {
+        let off = self.tail_off();
+        if hi > off {
+            let from = lo.max(off) - off;
+            if self.tail.vals()[from..hi - off]
+                .iter()
+                .any(HoldsMutable::holds_mutable)
+            {
+                return true;
+            }
+        }
+        lo < off && range_holds(&self.root, self.shift, 0, lo, hi.min(off))
+    }
+}
+
+/// Whether an item `lo..hi` of the subtree `n` (at `level`, whose first
+/// item is `start`) holds a mutable value.
+fn range_holds<T: HoldsMutable>(
+    n: &Node<T>,
+    level: u32,
+    start: usize,
+    lo: usize,
+    hi: usize,
+) -> bool {
+    match n {
+        Node::Leaf(v, _) => v[lo - start..hi - start]
+            .iter()
+            .any(HoldsMutable::holds_mutable),
+        Node::Branch(k, _) => {
+            let width = 1usize << level;
+            k.iter().enumerate().any(|(j, kid)| {
+                let ks = start + j * width;
+                let ke = ks + width;
+                if ke <= lo || ks >= hi {
+                    false
+                } else if lo <= ks && ke <= hi {
+                    node_holds(kid)
+                } else {
+                    range_holds(kid, level - BITS, ks, lo.max(ks), hi.min(ke))
+                }
+            })
+        }
+    }
+}
+
+fn node_holds<T: HoldsMutable>(n: &Node<T>) -> bool {
+    let memo = match n {
+        Node::Branch(_, m) | Node::Leaf(_, m) => m,
+    };
+    match memo.get() {
+        YES => return true,
+        NO => return false,
+        _ => {}
+    }
+    let held = match n {
+        Node::Branch(k, _) => k.iter().any(|c| node_holds(c)),
+        Node::Leaf(v, _) => v.iter().any(HoldsMutable::holds_mutable),
+    };
+    memo.set(if held { YES } else { NO });
+    held
 }

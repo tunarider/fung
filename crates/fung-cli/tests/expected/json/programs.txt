@@ -165,25 +165,25 @@
 |  call path (innermost first):
 |    -e:3       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(channel()))"
+==== "import json\nimport time\n(_tx, rx) = channel(); print(json.stringify(rx))"
 -- stdout
 -- stderr
-| error[E0513]: cannot convert channel to JSON
-|   --> -e:3:21
+| error[E0513]: cannot convert receiver to JSON
+|   --> -e:3:44
 |   |
-| 3 | print(json.stringify(channel()))
-|   |                     ^
+| 3 | (_tx, rx) = channel(); print(json.stringify(rx))
+|   |                                            ^
 |   |
 |  call path (innermost first):
 |    -e:3       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.stringify(spawn(() => 1)))"
+==== "import json\nimport time\nprint(json.stringify(scope(s => spawn(s, () => 1))))"
 -- stdout
 -- stderr
 | error[E0513]: cannot convert task to JSON
 |   --> -e:3:21
 |   |
-| 3 | print(json.stringify(spawn(() => 1)))
+| 3 | print(json.stringify(scope(s => spawn(s, () => 1))))
 |   |                     ^
 |   |
 |  call path (innermost first):
@@ -314,8 +314,8 @@
 |   |                                                       ^
 |   |
 |  call path (innermost first):
-|    -e:4       <lambda>
-|    extras/fs.fung:30 with_open
+|    -e:4       <lambda> (2 tail calls elided)
+|    extras/fs.fung:33 with_open
 |    -e:4       <entry>
 -- exit: 1
 ==== "import json\nimport time\ns = `{\"z\":1,\"y\":{\"b\":2,\"a\… (269 bytes, d2c3f1e21bc07d15)

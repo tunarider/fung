@@ -1,0 +1,9 @@
+# A timeout scope gives the body's value, or Err timeout at the deadline.
+print(timeout(1s, () => 1 + 1))
+# `_tx` keeps the channel open, so the receive waits
+(_tx, rx) = channel()
+print(timeout(20ms, () => recv(rx)))
+print(timeout(0s, () => 1))
+# expect: 2
+# expect: Err({kind: 'timeout})
+# expect: Err({kind: 'timeout})

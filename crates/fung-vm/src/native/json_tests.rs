@@ -367,41 +367,31 @@ fn errors_name_whole_characters() {
     assert!(parse(&whole).contains("column 65: expected `,` or `]`"));
 }
 
-/// An agent is rejected like a channel or a task: E0513 with its type
+/// An atom is rejected like a channel or a task: E0513 with its type
 /// name, wherever it sits.
 #[test]
-fn stringify_rejects_agents() {
+fn stringify_rejects_atoms() {
     let o = crate::testutil::exec(
-        "import json\na = agent(1)\nprint(json.stringify([1, {x: a}]))",
+        "import json\na = atom(1)\nprint(json.stringify([1, {x: a}]))",
         crate::testutil::Opts::default(),
     );
     assert_eq!((o.out.as_str(), o.code.as_str()), ("", "E0513"));
     assert!(
         o.err
-            .starts_with("error[E0513]: cannot convert agent to JSON\n"),
+            .starts_with("error[E0513]: cannot convert atom to JSON\n"),
         "{}",
         o.err
     );
     let o = crate::testutil::exec(
-        "import json\nprint(json.stringify(agent(1)))",
+        "import json\nprint(json.stringify(atom(1)))",
         crate::testutil::Opts::default(),
     );
     assert!(
         o.err
-            .starts_with("error[E0513]: cannot convert agent to JSON\n"),
+            .starts_with("error[E0513]: cannot convert atom to JSON\n"),
         "{}",
         o.err
     );
-    let caught = Value::Caught(Rc::new(crate::vm::Caught::Exit(1)));
-    for v in [caught.clone(), list(vec![map(vec![("e", caught)])])] {
-        match call("stringify", vec![v, Value::Nil]) {
-            Err(Stop::Error(d)) => assert_eq!(
-                fung_front::diag::message(&d.code, &d.args),
-                "cannot convert error to JSON"
-            ),
-            _ => panic!("not an error"),
-        }
-    }
 }
 
 /// The string limit counts the whole output as it grows: a line break

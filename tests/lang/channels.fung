@@ -1,9 +1,32 @@
-ch = channel()
-spawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)
-print(fold(ch, 0, (a, x) => a + x))
+(tx, rx) = channel()
+scope(fn(s):
+  spawn(s, fn(): each(1..=5, x => send(tx, x)); close(tx) ;;)
+  print(fold(rx, 0, (a, x) => a + x))
+;;)
 # expect: 15
-buf = channel(2)
-send(buf, "a")
-close(buf)
-print(recv(buf), recv(buf), send(buf, "b"))
+(buf_tx, buf) = channel(2)
+send(buf_tx, "a")
+close(buf_tx)
+print(recv(buf), recv(buf), send(buf_tx, "b"))
 # expect: Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+print(tx, rx)
+# expect: <sender> <receiver>
+
+# A producer: only the task holds the sending end, so the channel
+# closes when the task ends and the loop below ends with it.
+fn numbers(s, n):
+  (tx, rx) = channel()
+  spawn(s, () => each(0..n, i => send(tx, i)))
+  rx
+;;
+
+scope(fn(s):
+  for x in numbers(s, 3):
+    print(x)
+  ;;
+;;)
+# expect: 0
+# expect: 1
+# expect: 2
+print("after the producer")
+# expect: after the producer

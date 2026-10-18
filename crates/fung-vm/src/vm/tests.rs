@@ -462,106 +462,24 @@ fn errors_inside_lambdas_called_by_natives_carry_call_paths() {
     assert_eq!((out.as_str(), err.as_str(), code), ("", "", 3));
 }
 
+/// `exit` and errors with `with`'s cleanup: the exit codes and the order
+/// `fung` shows (Review Focus 4; `at_exit` gave way to `with`).
 #[test]
-fn at_exit_runs_handlers_in_reverse_after_the_program() {
-    let o = exec(
-        "at_exit(() => print(\"first registered\"))\nat_exit(() => print(\"second registered\"))\nprint(\"body\")",
-        Opts::default(),
-    );
-    assert!(o.handler_errors.is_empty(), "{:?}", o.handler_errors);
-    assert_eq!(o.out, "body\nsecond registered\nfirst registered\n");
-}
-
-#[test]
-fn at_exit_handler_errors_are_collected_and_others_still_run() {
-    let o = exec(
-        "at_exit(() => print(\"ok\"))\nat_exit(() => fail(\"boom\"))",
-        Opts::default(),
-    );
-    let codes: Vec<&str> = o.handler_errors.iter().map(|e| e.code.as_str()).collect();
-    assert_eq!((codes, o.out.as_str()), (vec!["E0803"], "ok\n"));
-    assert_eq!(code_of("at_exit(1)"), "E0403");
-}
-
-#[test]
-fn rust_panic_in_exit_handler_becomes_internal_error() {
-    let o = exec(
-        "at_exit(boom)",
-        Opts {
-            extra: testutil::boom,
-            ..Opts::default()
-        },
-    );
-    assert_eq!(o.code, "");
-    let codes: Vec<&str> = o.handler_errors.iter().map(|e| e.code.as_str()).collect();
-    assert_eq!(codes, ["E0801"]);
-    assert_eq!(o.exit, 1);
-}
-
-#[test]
-fn at_exit_registered_during_exit_still_runs() {
-    let o = exec(
-        "at_exit(() => at_exit(() => print(\"nested\")))\nat_exit(() => print(\"outer\"))",
-        Opts::default(),
-    );
-    assert!(o.handler_errors.is_empty(), "{:?}", o.handler_errors);
-    assert_eq!(o.out, "outer\nnested\n");
-    // A handler that keeps re-registering itself is stopped with a limit error.
-    let o = exec(
-        "fn again() = at_exit(again)\nat_exit(again)",
-        Opts::default(),
-    );
-    let codes: Vec<&str> = o.handler_errors.iter().map(|e| e.code.as_str()).collect();
-    assert_eq!(codes, ["E0806"]);
-    assert_eq!(
-        o.err,
-        "error[E0806]: too many at_exit handlers (limit 10000)\n"
-    );
-}
-
-/// Exit handlers, `exit` and errors in the order and with the exit codes
-/// `fung` shows (Review Focus 4).
-#[test]
-fn exit_handlers_exit_codes_and_order() {
+fn exit_codes_and_order_with_cleanup() {
     let cases: &[(&str, &str, &str, i32)] = &[
+        // A runtime error in `use`, then the release.
         (
-            "at_exit(() => fail(\"in handler\"))\nat_exit(() => exit(7))\nprint(\"main\")",
-            "main\n",
-            "error[E0803]: in handler\n  --> -e:1:19\n  |\n1 | at_exit(() => fail(\"in handler\"))\n  |                   ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n",
-            7,
-        ),
-        // The first exit wins; handlers after an exit inside a handler still run.
-        (
-            "at_exit(() => print(\"a\"))\nat_exit(() => exit(7))\nat_exit(() => print(\"c\"))\nexit(4)",
-            "c\na\n",
-            "",
-            4,
-        ),
-        (
-            "at_exit(() => print(\"a\"))\nat_exit(() => exit(7))\nat_exit(() => print(\"c\"))",
-            "c\na\n",
-            "",
-            7,
-        ),
-        // A runtime error in the entry, then the handlers.
-        (
-            "at_exit(() => print(\"bye\"))\nprint(1 / 0)",
+            "with(() => nil, _ => print(1 / 0), _ => print(\"bye\"))",
             "bye\n",
-            "error[E0502]: division by zero\n  --> -e:2:9\n  |\n2 | print(1 / 0)\n  |         ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n",
+            "error[E0502]: division by zero\n  --> -e:1:30\n  |\n1 | with(() => nil, _ => print(1 / 0), _ => print(\"bye\"))\n  |                              ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
             1,
         ),
-        // A failing handler makes a clean run exit 1.
+        // exit inside a release after a runtime error sets the code, and
+        // `use`'s error still goes up and is reported (cleanup.rs).
         (
-            "at_exit(() => 1 / 0)\nprint(\"ok\")",
-            "ok\n",
-            "error[E0502]: division by zero\n  --> -e:1:17\n  |\n1 | at_exit(() => 1 / 0)\n  |                 ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n",
-            1,
-        ),
-        // exit inside a handler after a runtime error sets the code.
-        (
-            "at_exit(() => exit(5))\n1 / 0",
+            "with(() => nil, _ => 1 / 0, _ => exit(5))",
             "",
-            "error[E0502]: division by zero\n  --> -e:2:3\n  |\n2 | 1 / 0\n  |   ^\n  |\n call path (innermost first):\n   -e:2       <entry>\n",
+            "error[E0502]: division by zero\n  --> -e:1:24\n  |\n1 | with(() => nil, _ => 1 / 0, _ => exit(5))\n  |                        ^\n  |\n call path (innermost first):\n   -e:1       <lambda>\n   -e:1       <entry>\n",
             5,
         ),
     ];
@@ -833,7 +751,7 @@ fn touching_the_world_without_the_token_is_caught() {
     crate::vm::token::assert_holds_token();
 }
 
-/// The public flow the command uses: boot, load, run, exit handlers. No
+/// The public flow the command uses: boot, load, run. No
 /// step hands a fung value back; everything that comes out is plain data.
 #[test]
 fn the_public_api_runs_a_program_without_handing_out_values() {
@@ -841,7 +759,7 @@ fn the_public_api_runs_a_program_without_handing_out_values() {
         use fung_front::loader::{Loader, Stage};
         let (b, errs) = Loader::default().compile(
             "-e",
-            "at_exit(() => print(\"bye\"))\nprint(args)\n1 / 0",
+            "with(() => nil, fn(_): print(args); 1 / 0 ;;, _ => print(\"bye\"))",
             Stage::All,
         );
         assert!(errs.is_empty());
@@ -859,8 +777,7 @@ fn the_public_api_runs_a_program_without_handing_out_values() {
             panic!("{r:?}")
         };
         let text = rt.with_sources(|s| fung_front::diag::format(&d, s));
-        assert!(text.contains("-e:3"), "{text}");
-        assert!(rt.run_exit_handlers().is_empty());
+        assert!(text.contains("-e:1"), "{text}");
         assert_eq!(rt.exit_code(), None);
         assert_eq!(rt.args(), ["a"]);
         assert_eq!(out.text(), "[\"a\"]\nbye\n");

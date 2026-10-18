@@ -22,17 +22,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use fung_front::bytecode::Proto;
-use fung_front::diag::{Arg, Diag, error};
+use fung_front::diag::{Arg, Diag};
 use fung_front::loader::Loaded;
 use fung_front::source::{FileId, SourceMap};
 
 use super::task::CancelNode;
 use super::world::{Shared, Token, World};
-use super::{Stop, Task, block, internal, link, no_pos, token};
+use super::{Stop, Task, block, internal, link, token};
 use crate::value::Value;
-
-/// Bounds a handler that keeps registering handlers.
-const MAX_EXIT_HANDLERS: usize = 10_000;
 
 pub struct Runtime {
     shared: Arc<Shared>,
@@ -92,8 +89,7 @@ impl Runtime {
     /// deadlock when the entry ends; while a block runs, it stands in for
     /// the command (`Task::driven`), so a deadlock inside it is judged as
     /// usual. Call `release` once the program's tasks are cancelled and
-    /// waited for, before the exit handlers (a deadlock inside one must
-    /// still be judged).
+    /// waited for.
     pub fn hold(&self) {
         let mut w = self.lock();
         if !w.held {
@@ -113,30 +109,13 @@ impl Runtime {
         }
     }
 
-    /// Waits until every spawned task has finished. The background tasks
-    /// (stage 3b) are not waited for: they do not keep the program alive
-    /// (`end_background`).
+    /// Waits until every spawned task has finished.
     pub fn wait(&self) {
         self.wait_until(|w| w.running == 0);
     }
 
-    /// Cancels the background tasks (stage 3b, `spawn_background`) and
-    /// waits until they have ended. The command calls it after the exit
-    /// handlers, which may still use an agent, and before it reports the
-    /// failures nobody retrieved (only the failure of a task
-    /// `spawn_background` itself started is never among them; a task it
-    /// spawns reports like any other). Background tasks spawned later
-    /// start cancelled.
-    pub fn end_background(&self) {
-        {
-            let _t = self.lock();
-            self.shared.background.cancel();
-        }
-        self.wait_until(|w| w.background == 0);
-    }
-
     /// Waits until `done` holds; `idle` is woken whenever the spawned
-    /// tasks or the background tasks drop to none.
+    /// tasks drop to none.
     fn wait_until(&self, done: fn(&World) -> bool) {
         // On a node of its own: `cancel_all` must not cut this wait short.
         // Not live: the command waiting is not a task (`deadlock.rs`).
@@ -159,6 +138,33 @@ impl Runtime {
     /// of a test run. Blocked tasks wake and unwind.
     pub fn cancel_all(&self) {
         self.shared.cancel_all();
+    }
+
+    /// Delivers stop requests from another thread (the command's signal
+    /// thread, `stop.rs`).
+    pub fn stop_handle(&self) -> super::StopHandle {
+        super::StopHandle(self.shared.clone())
+    }
+
+    /// After a Ctrl-C (`StopHandle::interrupt`): waits for the input's
+    /// tasks to unwind and gives the session a fresh run root; true if
+    /// there was one. An exit a task asked for meanwhile stays.
+    pub fn recover_interrupt(&self) -> bool {
+        if !self.lock().interrupted {
+            return false;
+        }
+        self.wait();
+        let mut w = self.lock();
+        w.interrupted = false;
+        if w.exit.is_none() {
+            self.shared.replace_root();
+        }
+        true
+    }
+
+    /// Forgets a stop request (`fung test`, before each test block).
+    pub fn reset_stop(&self) {
+        super::stop::reset(&mut self.lock());
     }
 
     /// The shared part, for tests that cancel from another thread.
@@ -263,8 +269,7 @@ impl Runtime {
     /// every task of the program has unwound (those earlier inputs left
     /// blocked too), then clear the deadlock and the exit(1) it requested
     /// and start a fresh run root, so later inputs run as usual. Globals
-    /// and agents stay (agents hang from the background root, which the
-    /// report does not cancel).
+    /// (atoms among them) stay.
     ///
     /// Only the report's own exit(1) is cleared: an exit(n) a task asked
     /// for after it stays (`exit_code` gives n), and the root is not
@@ -305,17 +310,9 @@ impl Runtime {
         r.map(|v| crate::value::format(&v))
     }
 
-    /// Reports every task failure nobody retrieved, in the order the
-    /// tasks failed. Call it once the program is over (the entry, every
-    /// task and the exit handlers are done), so nothing can await them any
-    /// more.
-    pub fn report_unretrieved(&self) {
-        let _t = self.lock();
-        self.shared.failures.report_all();
-    }
-
-    /// Whether a task failure nobody retrieved was reported (05: the
-    /// exit code becomes 1).
+    /// Whether a task failure nobody handled was reported (a `supervise`
+    /// scope cancelled before its handler took it; 05: the exit code
+    /// becomes 1).
     pub fn failed(&self) -> bool {
         let _t = self.lock();
         self.shared.failures.failed()
@@ -335,58 +332,6 @@ impl Runtime {
     /// deadlock report's exit(1) (the REPL recovers from that one).
     pub fn exit_requested(&self) -> Option<i64> {
         self.lock().task_exit()
-    }
-
-    /// Runs the at_exit handlers in reverse registration order, each on a
-    /// fresh task, and returns the errors they raised; one failing handler
-    /// does not stop the others. Handlers registered while exiting run too
-    /// (like C's atexit), up to a limit (E0806).
-    ///
-    /// An exit(n) inside a handler ends that handler and records n if no
-    /// exit was requested before; it is not an error, so it is not
-    /// returned. The handlers after it still run: each has a cancellation
-    /// node of its own, so the exit cuts short only the handler it came
-    /// from.
-    pub fn run_exit_handlers(&self) -> Vec<Diag> {
-        let mut errs = Vec::new();
-        let mut ran = 0;
-        loop {
-            // The handler is popped by a task holding the token, so the
-            // value never lives outside it. The task starts on the
-            // handlers' root and moves to its own node below it once
-            // there is a handler to run (the node is made after the pop),
-            // so the last pop and the E0806 stop leave no node behind.
-            // Handlers run below their own root: the program's is cancelled
-            // by now.
-            let mut t = Task::new(&self.shared, self.shared.handlers.clone());
-            let Some(h) = t.world.exit_handlers.pop() else {
-                break;
-            };
-            if ran >= MAX_EXIT_HANDLERS {
-                errs.push(error(
-                    "E0806",
-                    no_pos(),
-                    vec![
-                        Arg::Str("at_exit handlers".into()),
-                        Arg::Int(MAX_EXIT_HANDLERS as i64),
-                    ],
-                ));
-                break;
-            }
-            ran += 1;
-            let node = self.shared.handlers.child();
-            t.cancel = node.clone();
-            t.world.handler = Some(node.clone());
-            let r = t.call(&h, Vec::new());
-            t.world.handler = None;
-            // Each handler's node is cancelled when it returns: what the
-            // handler spawned and left running ends with it.
-            node.cancel();
-            if let Err(Stop::Error(d)) = r {
-                errs.push(*d);
-            }
-        }
-        errs
     }
 }
 
@@ -414,10 +359,8 @@ impl Drop for Runtime {
         {
             let _t = self.lock();
             self.shared.root().cancel();
-            self.shared.handlers.cancel();
-            self.shared.background.cancel();
         }
-        self.wait_until(|w| w.running == 0 && w.background == 0);
+        self.wait_until(|w| w.running == 0);
         let mut w = self.lock();
         token::assert_holds_token();
         w.release_values();

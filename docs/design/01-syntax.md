@@ -127,7 +127,7 @@ fn add(a, b) = a + b                   # 식 하나짜리 짧은 함수
 fn is_log(name: str) -> bool = ...      # 인자 타입 `:`, 반환 타입 `->`
 
 files |> map(f => fs.size(f))          # 람다
-spawn(() => work())                    # 인자 없는 람다
+spawn(s, () => work())                 # 인자 없는 람다
 fold(xs, 0, (acc, x) => acc + x)       # 인자 여러 개 람다
 
 files |> map(fn(f):                    # 여러 줄 익명 함수
@@ -230,7 +230,7 @@ for (k, v) in pairs(config):
   맵 패턴 키(`{type: t}`). 그 자리에는 문법상 예약어가 올 일이 없어 모호함이 없고, JSON의 `type` 같은 흔한 키를 막지 않기 위해서다.
   변수·함수·매개변수 이름으로는 여전히 쓸 수 없다(`type = 1`은 에러).
 - `with`는 예약어가 아니다 (맵 사본은 함수로, 02).
-- `defer`는 없다. 자원 정리는 감싸는 함수와 `at_exit`로 (03).
+- `defer`는 없다. 자원 정리는 `with(acquire, use, release)` 하나로 (03).
 
 ## 형식 문법 (EBNF)
 

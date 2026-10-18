@@ -1,0 +1,2 @@
+spawn(() => 1)
+# expect-error: E0407

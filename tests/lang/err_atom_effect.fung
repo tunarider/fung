@@ -1,0 +1,2 @@
+swap(atom(1), fn(x): print(x); x ;;)
+# expect-error: E0707

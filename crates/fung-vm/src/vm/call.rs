@@ -217,6 +217,10 @@ impl Task<'_> {
                     named,
                 )
                 .map_err(|d| at(d, pos))?;
+                self.check_effect(n).map_err(|e| match e {
+                    Stop::Error(d) => at(*d, pos),
+                    other => other,
+                })?;
                 let args = slots
                     .into_iter()
                     .map(|s| s.expect("bound native argument"))
@@ -328,7 +332,7 @@ impl Task<'_> {
     }
 
     /// Calls a fung function or native from Rust (natives such as `fold`
-    /// and `map`, exit handlers) and returns when that call returns. On an
+    /// and `map`, `with`) and returns when that call returns. On an
     /// error the task is put back as it was, with the call path recorded.
     pub fn call(&mut self, f: &Value, args: Vec<Value>) -> Result<Value, Stop> {
         self.tick(no_pos())?;
@@ -367,6 +371,10 @@ impl Task<'_> {
         {
             // Every parameter given by position: nothing to bind. A panic
             // inside reaches the fence of the run that called the native.
+            if let Err(e) = self.check_effect(n) {
+                args.clear();
+                return Err(e);
+            }
             let outer = self.native.replace(n);
             let r = (n.func)(self, args.drain(..).collect());
             self.native = outer;

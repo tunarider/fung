@@ -2,7 +2,7 @@
 //!
 //! fung's rule (06): a write to standard output or error whose reader has
 //! gone ends the process by SIGPIPE, so `fung run x | head -1` stops at
-//! once, from whichever task wrote, with no report and no exit handlers,
+//! once, from whichever task wrote, with no report and no further cleanup,
 //! and the parent sees signal 13, as for any Unix filter. A write to any
 //! other descriptor that finds the reader gone (a child's closed standard
 //! input, a fifo whose reader left, a socket) is an error value.

@@ -1,0 +1,38 @@
+# An atom holds one value; swap is compare-and-set with a pure function.
+a = atom(1)
+print(swap(a, x => x + 1), deref(a), reset(a, 10), deref(a), a, type_of(a))
+# expect: 2 2 10 10 <atom> 'atom
+
+# Many tasks swap one atom: every update lands once.
+counter = atom(0)
+scope(s => each(for _ in 0..8: spawn(s, () => each(0..50, _ => swap(counter, n => n + 1))) ;;, await))
+print(deref(counter))
+# expect: 400
+
+# f may read (here the atom itself); an atom equals only itself.
+b = atom(1)
+print(swap(b, x => x + deref(b)), b == b, b == atom(1), swap(b, x => x + len([b])))
+# expect: 2 true false 3
+
+# A failing f leaves the value as it was.
+t = supervise(s => spawn(s, () => swap(b, x => x / 0)), _ => nil)
+print(await(t) |> is_err, deref(b))
+# expect: true 3
+
+# Temporaries and handles passed around.
+print(deref(atom(5)), swap(atom(5), x => x + 1))
+# expect: 5 6
+
+fn count(xs):
+  c = atom(0)
+  each(xs, x => swap(c, n => n + x))
+  deref(c)
+;;
+fn mk() = atom(7)
+fn bump(c) = swap(c, x => x + 1)
+fn peek(c: atom) = deref(c)
+print(count([1, 2, 3]), deref(mk()), swap(mk(), x => x + 1), bump(atom(1)), peek(b))
+# expect: 6 7 8 2 3
+
+with(() => nil, _ => nil, _ => print("released", deref(counter)))
+# expect: released 400

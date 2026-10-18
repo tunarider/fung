@@ -5,9 +5,9 @@
 
 use std::rc::Rc;
 
-use super::Value;
 use super::hamt::{Hamt, hash_key};
 use super::pvec::{MASK, Pvec};
+use super::{HoldsMutable, Value};
 
 #[derive(Clone)]
 pub(super) struct Entry {
@@ -24,7 +24,18 @@ pub(super) struct Omap {
     dead: usize,
 }
 
+impl HoldsMutable for Option<Entry> {
+    fn holds_mutable(&self) -> bool {
+        self.as_ref().is_some_and(|e| e.val.holds_mutable())
+    }
+}
+
 impl Omap {
+    /// Whether a live entry's value holds a mutable one.
+    pub(super) fn holds_mutable(&self) -> bool {
+        self.ents.holds_mutable()
+    }
+
     /// A map of distinct keys in the given order.
     pub(super) fn of(entries: Vec<(Rc<String>, Value)>) -> Omap {
         let mut idx = Hamt::default();

@@ -1,20 +1,26 @@
 //! The bytecode VM (09): a value stack and call frames per task, the run
-//! loop, calls and runtime errors with call paths, `exit` and the
-//! `at_exit` handlers. Tasks, channels and agents live in the submodules.
+//! loop, calls and runtime errors with call paths, and `exit`. Tasks,
+//! scopes, channels and atoms live in the submodules.
 //!
 //! Unassigned slots and globals are `None`, distinct from the fung `nil`
 //! value. Only JUMPIFSET (default arguments) looks at them; any other
 //! read of an empty slot is a VM bug and panics, which the panic fence
 //! turns into E0801 (an internal error, not a crash of the process).
 
-pub(crate) mod agent;
+mod atom;
 #[cfg(test)]
-mod agent_tests;
+mod atom_tests;
 mod block;
 mod call;
 pub(crate) mod channel;
 #[cfg(test)]
 mod channel_tests;
+mod cleanup;
+#[cfg(test)]
+mod cleanup_tests;
+mod deadline;
+#[cfg(test)]
+mod deadline_tests;
 mod deadlock;
 #[cfg(test)]
 mod exit_tests;
@@ -36,9 +42,17 @@ mod module;
 #[cfg(test)]
 mod module_tests;
 #[cfg(test)]
+mod mutable_tests;
+#[cfg(test)]
 mod repl_tests;
 mod runtime;
+mod scope;
+#[cfg(test)]
+mod scope_tests;
 mod stdin;
+pub(crate) mod stop;
+#[cfg(test)]
+mod stop_tests;
 mod task;
 #[cfg(test)]
 mod task_tests;
@@ -59,21 +73,31 @@ use fung_front::source::{FileId, Pos, decode_lossy};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
-pub use agent::{Agent, Caught};
+pub use atom::Atom;
+#[cfg(test)]
+pub(crate) use atom::effect_names;
+pub(crate) use atom::{
+    make as atom_make, read as atom_read, reset as atom_reset, run_swap as atom_swap,
+};
 pub(crate) use block::{YIELD_EVERY, block, outside};
 pub use call::MAX_FRAMES;
-pub use channel::Channel;
+pub use channel::{Channel, Receiver, Sender};
+pub(crate) use cleanup::run_with;
+pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub use runtime::Runtime;
+pub use scope::ScopeHandle;
+pub(crate) use scope::run_scope;
 pub use stdin::BUFFER as STDIN_BUFFER;
+pub use stop::StopHandle;
 #[cfg(test)]
 pub(crate) use task::CancelNode as CancelNodeForTests;
 pub use task::TaskHandle;
 pub(crate) use task::err_kind;
-pub(crate) use watch::{Interest, Waited, Watch, outside_watched, when_cancelled};
+pub(crate) use watch::{Interest, Waited, Watch, outside_watched};
 #[cfg(test)]
 pub(crate) use watch::{live_wakes, serial as watch_serial};
 
@@ -126,7 +150,7 @@ pub(crate) fn internal(args: Vec<Arg>) -> Stop {
 /// One thread of fung execution: an operand stack (whose first slots are
 /// the entry frame's) and the call frames, the per-task part of the
 /// runtime. Natives get the task so they can write output, read input,
-/// register exit handlers and call fung functions back; those reach the
+/// call fung functions back; those reach the
 /// shared part (`World`) through the run token the task holds.
 ///
 /// A task takes the token when it is made and holds it until it drops,
@@ -146,21 +170,17 @@ pub struct Task<'rt> {
     cancel: Arc<CancelNode>,
     /// Ticks left before the next turn-handoff check (`block.rs`).
     budget: u32,
+    /// How deep this task is in swaps' functions (`atom.rs`): while it is
+    /// above zero, calling an effect is E0707.
+    pub(crate) pure: u32,
     /// What wakes this task when it blocks (`block.rs`).
     waiter: Arc<block::Waiter>,
-    /// Counted in `World::live` (every task but `Runtime::wait`'s and the
-    /// background tasks).
+    /// Counted in `World::live` (every task but `Runtime::wait`'s).
     live: bool,
     /// A task the command runs while it holds the runtime open
     /// (`Runtime::hold`): it took the command's count of `World::live`
     /// over instead of adding one, and gives it back when it drops.
     holds: bool,
-    /// A background task (stage 3b): counted in `World::background`
-    /// instead, and blocked apart in the census (`deadlock.rs`).
-    background: bool,
-    /// The agent requests this task is inside (stage 3b, `agent.rs`):
-    /// the one it serves, and those of the task that spawned it.
-    pub(crate) serving: Vec<Arc<agent::Mark>>,
     /// The shared part's owner, for spawning tasks on other threads.
     shared: &'rt Arc<Shared>,
     /// The run token, and through it the shared part. Keep it last.
@@ -168,19 +188,10 @@ pub struct Task<'rt> {
 }
 
 impl<'rt> Task<'rt> {
-    /// A task on this thread under the cancellation node `cancel`; waits
-    /// for the run token.
-    pub(crate) fn new(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
-        let mut t = Task::unlisted(shared, cancel);
-        t.world.live += 1;
-        t.live = true;
-        t
-    }
-
     /// A task the command runs on this thread (the entry, a test block):
-    /// live like `new`, except while the command holds the runtime open
-    /// (`Runtime::hold`). Then it takes over the command's count, so the
-    /// counts are as for `new` while it runs, and when it ends the count
+    /// counted in `World::live`, except while the command holds the
+    /// runtime open (`Runtime::hold`). Then it takes over the command's
+    /// count, so the counts are the same while it runs, and when it ends the count
     /// goes back to the command, which is about to run more: its end is
     /// not judged for a deadlock (the gap between two test blocks is not
     /// one; `deadlock.rs`).
@@ -200,20 +211,11 @@ impl<'rt> Task<'rt> {
         t
     }
 
-    /// A spawned task on its own thread: its parent counted it live (or
-    /// background) when it spawned it (`task.rs`).
-    pub(crate) fn spawned(
-        shared: &'rt Arc<Shared>,
-        cancel: Arc<CancelNode>,
-        background: bool,
-    ) -> Task<'rt> {
+    /// A spawned task on its own thread: its parent counted it live when
+    /// it spawned it (`task.rs`).
+    pub(crate) fn spawned(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
         let mut t = Task::unlisted(shared, cancel);
-        if background {
-            t.background = true;
-            t.waiter = block::Waiter::background(shared.census.clone());
-        } else {
-            t.live = true;
-        }
+        t.live = true;
         t
     }
 
@@ -229,11 +231,10 @@ impl<'rt> Task<'rt> {
             native: None,
             cancel,
             budget: YIELD_EVERY,
+            pure: 0,
             waiter: block::Waiter::new(shared.census.clone()),
             live: false,
             holds: false,
-            background: false,
-            serving: Vec::new(),
             shared,
             world,
         }
@@ -271,12 +272,6 @@ impl<'rt> Task<'rt> {
         Ok(line.map(|b| decode_lossy(&b)))
     }
 
-    /// How many background tasks have not finished (a test probe).
-    #[cfg(test)]
-    pub(crate) fn background_tasks(&self) -> usize {
-        self.world.background
-    }
-
     /// How many tasks wait for a line of standard input (a test probe).
     #[cfg(test)]
     pub(crate) fn stdin_waiting(&self) -> usize {
@@ -292,21 +287,12 @@ impl<'rt> Task<'rt> {
     /// exit(n) from any task (05 "종료"): records the
     /// first code requested and cancels every task of the program, so
     /// the requesting task unwinds on its exit and the others on E0701,
-    /// wherever they wait. An exit while an exit handler runs (from the
-    /// handler or a task it spawned) cancels that handler's node instead,
-    /// since the program's root is cancelled by then; the handlers after
-    /// it still run (`Runtime::run_exit_handlers`).
+    /// wherever they wait, unwinding through every `with`'s release
+    /// (`cleanup.rs`; the releases run under shield nodes the exit does
+    /// not reach).
     pub(super) fn request_exit(&mut self, code: i64) {
         self.world.request_exit(code);
         self.shared.root().cancel();
-        if let Some(node) = self.world.handler.clone() {
-            node.cancel();
-        }
-    }
-
-    /// Registers an exit handler (03).
-    pub fn at_exit(&mut self, f: Value) {
-        self.world.at_exit(f);
     }
 
     /// The script arguments.
@@ -399,8 +385,7 @@ impl<'rt> Task<'rt> {
     }
 
     /// Where the innermost frame of user code is (its current call), for
-    /// an error raised inside an embedded extras file (`attach`, and
-    /// `agent.rs` for E0704, which must keep it through `try_call`).
+    /// an error raised inside an embedded extras file (`attach`).
     pub(crate) fn user_pos(&self) -> Option<Pos> {
         self.frames
             .iter()
@@ -750,15 +735,6 @@ impl Drop for Task<'_> {
         }
         if self.live && !self.holds {
             self.world.live -= 1;
-            self.judge();
-        }
-        // A background task ending can leave the program's tasks blocked
-        // with nothing left to wake them (`deadlock.rs`).
-        if self.background {
-            self.world.background -= 1;
-            if self.world.background == 0 {
-                self.world.idle.wake_all();
-            }
             self.judge();
         }
     }

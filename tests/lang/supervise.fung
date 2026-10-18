@@ -1,0 +1,10 @@
+# In supervise a failing child goes to on_fail and the others run on.
+r = supervise(fn(s):
+  a = spawn(s, () => 1)
+  b = spawn(s, () => fail("b"))
+  c = spawn(s, () => 3)
+  [await(a), await(c), await(b) |> is_err]
+;;, e => print("handled: ${e.message}"))
+print(r)
+# expect: handled: error[E0803]: b
+# expect: [1, 3, true]

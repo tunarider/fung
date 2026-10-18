@@ -1,7 +1,0 @@
-ch = channel()
-spawn(fn():
-  recv(ch)
-;;)
-
-test "leaves a blocked top-level task": assert true ;;
-test "again": assert true ;;

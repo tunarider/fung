@@ -73,29 +73,6 @@ impl Session {
     }
 }
 
-impl Session {
-    /// How many background tasks (agents' loops) are running, read
-    /// through a task that is not live (no effect on deadlock judging).
-    fn background(&self) -> usize {
-        let shared = self.rt.shared();
-        Task::unlisted(&shared, CancelNode::root()).background_tasks()
-    }
-
-    /// Waits until `background()` is `n` (an agent's loop ends on its own
-    /// thread once its last handle drops).
-    fn background_until(&self, n: usize) {
-        let end = std::time::Instant::now() + std::time::Duration::from_secs(20);
-        while self.background() != n {
-            assert!(
-                std::time::Instant::now() < end,
-                "background stays {}",
-                self.background()
-            );
-            std::thread::yield_now();
-        }
-    }
-}
-
 fn value(s: &str) -> Outcome {
     Outcome::Value(s.to_string())
 }
@@ -143,22 +120,24 @@ fn failed_assignment_is_e0808_and_positions_name_their_input() {
     });
 }
 
-/// A task an input leaves waiting for a later input is not a deadlock
-/// while the REPL holds the runtime; a deadlock inside one input is still
-/// reported.
+/// Tasks inside an input's scope run while the REPL holds the runtime,
+/// over a channel an earlier input made; a deadlock inside one input is
+/// still reported.
 #[test]
-fn a_task_may_wait_for_a_later_input() {
+fn tasks_run_inside_an_input_and_a_deadlock_is_reported() {
     on_big_stack(|| {
         let mut s = Session::new();
+        assert_eq!(s.input("(c_tx, c) = channel()"), value("nil"));
         assert_eq!(
-            s.input("c = channel()\nt = spawn(() => recv(c))"),
-            value("nil")
+            s.input(
+                "scope(fn(s):\n  t = spawn(s, () => recv(c))\n  send(c_tx, 5)\n  await(t)\n;;)"
+            ),
+            value("Ok(5)")
         );
-        assert_eq!(s.input("send(c, 5)\nawait(t)"), value("Ok(5)"));
         assert_eq!(s.err.text(), "");
         assert!(!s.rt.deadlocked());
         assert_eq!(
-            s.input("recv(channel())"),
+            s.input("(_tx, never) = channel()\nrecv(never)"),
             Outcome::Error("E0702".into(), FileId(s.known.len() as u32 - 1))
         );
         assert!(s.rt.deadlocked());
@@ -189,49 +168,35 @@ fn many_globals() {
     });
 }
 
-/// Agents in the REPL (stage 3b): one a global holds keeps its loop across
-/// inputs; a temporary one ends once its input's values drop (its handle
-/// closes the request channel); every one ends when the session ends
-/// (`end_background`, as the command's `finish` does).
+/// Atoms in the REPL: one a global holds keeps its value across inputs.
 #[test]
-fn agents_live_while_referenced() {
+fn atoms_keep_their_value_across_inputs() {
     on_big_stack(|| {
         let mut s = Session::new();
-        assert_eq!(s.input("a = agent(1)"), value("nil"));
-        assert_eq!(s.background(), 1);
-        assert_eq!(s.input("deref(agent(5))"), value("5"));
-        s.background_until(1);
+        assert_eq!(s.input("a = atom(1)"), value("nil"));
+        assert_eq!(s.input("deref(atom(5))"), value("5"));
         assert_eq!(s.input("swap(a, (n) => n + 1)"), value("2"));
-        assert_eq!(s.background(), 1, "the stored agent still serves");
-        assert_eq!(s.input("a = nil"), value("nil"));
-        s.background_until(0);
-        assert_eq!(s.input("b = agent(0)"), value("nil"));
-        s.rt.cancel_all();
-        s.rt.wait();
+        assert_eq!(s.input("deref(a)"), value("2"));
         s.rt.release();
-        s.rt.end_background();
-        assert_eq!(s.background(), 0);
     });
 }
 
 /// After a deadlock inside an input (decided 2026-10-17):
-/// `recover_deadlock` cancels and waits for the program's tasks, including
-/// those earlier inputs left blocked, clears the deadlock and its exit
-/// request, and gives the program a fresh run root. Globals and agents
-/// (which hang from the background root) stay.
+/// `recover_deadlock` cancels and waits for the program's tasks (here the
+/// stuck child of the input's scope), clears the deadlock and its exit
+/// request, and gives the program a fresh run root. Globals (an atom
+/// among them) stay.
 #[test]
 fn a_deadlock_is_recovered() {
     on_big_stack(|| {
         let mut s = Session::new();
-        assert_eq!(s.input("a = agent(1)\nk = 7"), value("nil"));
-        assert_eq!(
-            s.input("c = channel()\nt = spawn(() => recv(c))"),
-            value("nil")
-        );
+        assert_eq!(s.input("a = atom(1)\nk = 7"), value("nil"));
         assert!(!s.rt.recover_deadlock(), "nothing to recover");
         let file = FileId(s.known.len() as u32);
         assert_eq!(
-            s.input("recv(channel())"),
+            s.input(
+                "(_c_tx, c) = channel()\n(_tx, never) = channel()\nscope(fn(s):\n  spawn(s, () => recv(c))\n  recv(never)\n;;)"
+            ),
             Outcome::Error("E0702".into(), file)
         );
         assert_eq!(s.rt.exit_code(), Some(1));
@@ -242,15 +207,18 @@ fn a_deadlock_is_recovered() {
             None,
             "the deadlock's exit request is cleared"
         );
-        assert_eq!(s.input("await(t)"), value("Err({kind: 'cancelled})"));
         assert_eq!(s.input("print(\"after\")\nk"), value("7"));
-        assert_eq!(s.input("u = spawn(() => k + 1)\nawait(u)"), value("8"));
+        assert_eq!(
+            s.input("scope(s => await(spawn(s, () => k + 1)))"),
+            value("8")
+        );
+
         assert_eq!(s.input("swap(a, (n) => n + 1)"), value("2"));
         assert_eq!(s.out.text(), "after\n");
         // A second deadlock is reported and recovered too.
         let file = FileId(s.known.len() as u32);
         assert_eq!(
-            s.input("recv(channel())"),
+            s.input("(_tx, never) = channel()\nrecv(never)"),
             Outcome::Error("E0702".into(), file)
         );
         assert!(s.rt.recover_deadlock());
@@ -270,17 +238,15 @@ fn a_deadlock_is_recovered() {
 /// The request is made from Rust, as a task's `exit` call makes it: no
 /// fung code can make it in that window today. Every task of the program
 /// is cancelled by the report, and cancellation is checked at every
-/// call; background tasks either run fixed code (an agent's loop) or
-/// follow the task that asked (`f` and what it spawns), which is
-/// cancelled too. The rule guards against a later way in (a background
-/// task that follows nobody).
+/// call. The rule guards against a later way in (a task that nothing
+/// cancels).
 #[test]
 fn a_recovery_keeps_a_later_exit() {
     on_big_stack(|| {
         let mut s = Session::new();
         let file = FileId(s.known.len() as u32);
         assert_eq!(
-            s.input("recv(channel())"),
+            s.input("(_tx, never) = channel()\nrecv(never)"),
             Outcome::Error("E0702".into(), file)
         );
         let shared = s.rt.shared();
@@ -306,7 +272,7 @@ fn a_deadlocks_exit_is_not_a_tasks() {
         let mut s = Session::new();
         let file = FileId(s.known.len() as u32);
         assert_eq!(
-            s.input("recv(channel())"),
+            s.input("(_tx, never) = channel()\nrecv(never)"),
             Outcome::Error("E0702".into(), file)
         );
         assert_eq!(s.rt.exit_code(), Some(1));

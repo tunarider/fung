@@ -327,7 +327,7 @@ fn cancel_ends_a_handshake() {
     let start = Instant::now();
     let base = probe::read_waits();
     let o = run(&format!(
-        "t = spawn(() => net.connect(\"127.0.0.1\", {port}, tls: true))\nuntil(() => read_waits() > {base} and net_waiting() == 1)\ncancel(t)\nprint(await(t))\nprint(net_waiting())"
+        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"127.0.0.1\", {port}, tls: true))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)"
     ));
     drop(l);
     assert_eq!(out(&o), ("Err({kind: 'cancelled})\n0\n", "", 0));
@@ -342,17 +342,10 @@ fn a_timeout_ends_a_handshake() {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();
     let o = run(&format!(
-        "print(net.connect(\"127.0.0.1\", {port}, tls: true, timeout: 50ms))"
+        "print(timeout(50ms, () => net.connect(\"127.0.0.1\", {port}, tls: true)))"
     ));
     drop(l);
-    assert_eq!(
-        out(&o),
-        (
-            "Err({kind: 'timeout, message: \"TLS handshake timed out\"})\n",
-            "",
-            0
-        )
-    );
+    assert_eq!(out(&o), ("Err({kind: 'timeout})\n", "", 0));
 }
 
 /// Reading until the server closes: close_notify ends the stream, and so
@@ -456,7 +449,7 @@ fn a_reader_and_a_writer_run_at_once_over_tls() {
         got
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nr = spawn(() => net.read_line(c, 10))\nuntil(() => read_waits() > {base} and net_waiting() == 1)\nprint(net.write(c, repeat(\"한ab\", 600000)))\nprint(await(r))"
+        "scope(fn(s):\n  c = net.connect(\"127.0.0.1\", {port}, tls: true)!\n  r = spawn(s, () => net.read_line(c, 10))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  print(net.write(c, repeat(\"한ab\", 600000)))\n  print(await(r))\n;;)"
     ));
     let got = h.join().unwrap();
     assert_eq!(out(&o), ("Ok(nil)\nOk(\"done\")\n", "", 0));
@@ -582,7 +575,7 @@ fn start_tls_upgrades_a_plain_connection() {
     let _t = trust_ca();
     let (port, h) = tunnel_peer("localhost", echo);
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hello\\n\")!\nprint(net.read_line(c, 100))\nt = net.start_tls(c, \"localhost\", timeout: 5s)!\nprint(msg(net.write(c, \"x\")) == \"connection is closed\")\nprint(net.write(t, \"secret\\n\"))\nprint(net.read_line(t, 100))\nprint(net.read_line(t, 100))\nprint(net.close(t))\nprint(msg(net.start_tls(c, \"localhost\")) == \"connection is closed\")"
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"hello\\n\")!\nprint(net.read_line(c, 100))\nt = net.start_tls(c, \"localhost\")!\nprint(msg(net.write(c, \"x\")) == \"connection is closed\")\nprint(net.write(t, \"secret\\n\"))\nprint(net.read_line(t, 100))\nprint(net.read_line(t, 100))\nprint(net.close(t))\nprint(msg(net.start_tls(c, \"localhost\")) == \"connection is closed\")"
     ));
     assert_eq!(h.join().unwrap(), "hello");
     assert_eq!(
@@ -604,7 +597,7 @@ fn start_tls_upgrades_a_plain_connection() {
     assert!(
         out(&o)
             .1
-            .contains("argument `timeout` must be dur, got int")
+            .contains("start_tls has no argument named `timeout`")
     );
 }
 
@@ -623,7 +616,7 @@ fn start_tls_refuses_a_connection_in_use() {
     });
     let base = probe::read_waits();
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nt = spawn(() => net.read_line(c, 10))\nuntil(() => read_waits() > {base} and net_waiting() == 1)\nprint(net.start_tls(c, \"localhost\", timeout: 2s))\ncancel(t)\nprint(await(t))\nprint(net.close(c))"
+        "scope(fn(s):\n  c = net.connect(\"127.0.0.1\", {port})!\n  t = spawn(s, () => net.read_line(c, 10))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  print(net.start_tls(c, \"localhost\"))\n  cancel(t)\n  print(await(t))\n  print(net.close(c))\n;;)"
     ));
     h.join().unwrap();
     assert_eq!(

@@ -1,8 +1,8 @@
-# A server that counts its requests with an agent.
+# A server that counts its requests with an atom.
 import http
 import json
 
-hits = agent(0)
+hits = atom(0)
 handle = fn(req):
   swap(hits, n => n + 1)
   match req.path:
@@ -12,21 +12,25 @@ handle = fn(req):
   ;;
 ;;
 
-port = channel(1)
-server = spawn(() => http.serve("127.0.0.1:0", handle, ready: addr => send(port, addr)))
-base = "http://" + recv(port)!
+# The server runs in a child of the scope; cancelling it lets the scope end.
+server = scope(fn(s):
+  (port_tx, port) = channel(1)
+  server = spawn(s, () => http.serve("127.0.0.1:0", handle, ready: addr => send(port_tx, addr)))
+  base = "http://" + recv(port)!
 
-r = http.get("${base}/health")!
-print(r.status, r.headers["content-type"], json.parse(r.body)!.ok)
+  r = http.get("${base}/health")!
+  print(r.status, r.headers["content-type"], json.parse(r.body)!.ok)
+  r = http.post("${base}/echo?x=1", "hello")!
+  print(r.status, r.body, r.headers["content-type"])
+  r = http.get("${base}/nowhere")!
+  print(r.status, r.body)
+  print(deref(hits))
+  cancel(server)
+  server
+;;)
 # expect: 200 application/json true
-r = http.post("${base}/echo?x=1", "hello")!
-print(r.status, r.body, r.headers["content-type"])
 # expect: 200 POST hello 1 text/plain; charset=utf-8
-r = http.get("${base}/nowhere")!
-print(r.status, r.body)
 # expect: 404 no such page
-print(deref(hits))
 # expect: 3
-cancel(server)
 print(await(server))
 # expect: Err({kind: 'cancelled})

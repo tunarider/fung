@@ -38,6 +38,23 @@ impl Map {
         }
     }
 
+    /// Whether a value in the map holds a mutable one.
+    /// The entries of a small map (`Value::holds_mutable` walks them);
+    /// `None` for a big one, which answers from its memo.
+    pub(crate) fn flat(&self) -> Option<&[(Rc<String>, Value)]> {
+        match &self.repr {
+            Repr::Flat(v) => Some(v),
+            Repr::Big(_) => None,
+        }
+    }
+
+    pub(crate) fn holds_mutable(&self) -> bool {
+        match &self.repr {
+            Repr::Flat(v) => v.iter().any(|(_, x)| x.holds_mutable()),
+            Repr::Big(o) => o.holds_mutable(),
+        }
+    }
+
     pub fn len(&self) -> usize {
         match &self.repr {
             Repr::Flat(es) => es.len(),

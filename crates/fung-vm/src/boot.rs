@@ -1,8 +1,8 @@
 //! Booting the prelude (06: prelude만 시작 시): the core natives, the
 //! concurrency natives, the `_native.conc` and `_native.process` bridges,
 //! and the public names of the prelude files written in fung
-//! (`extras::PRELUDE_FILES`: `extras/prelude.fung`, then
-//! `extras/agent.fung`), compiled and run on the runtime at startup.
+//! (`extras::PRELUDE_FILES`: `extras/prelude.fung`), compiled and run
+//! on the runtime at startup.
 //!
 //! File ids: a `FileId` indexes the `SourceMap` of one loader compile, and
 //! the program and the prelude are compiled separately, so both start at

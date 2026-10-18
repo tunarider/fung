@@ -1,3 +1,4 @@
-ch = channel()
-recv(ch)
+# `_tx` keeps the channel open: nothing will ever send
+(_tx, rx) = channel()
+recv(rx)
 # expect-error: E0702

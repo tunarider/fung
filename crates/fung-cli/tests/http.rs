@@ -510,13 +510,15 @@ print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
         case(r#"print(http.get(URL, timeout: 0s))"#, ok(simple)),
         // a task blocked in a request is cancelled; exit ends a blocked one
         case(
-            r#"t = spawn(() => http.get(URL))
-print(await(t, timeout: 200ms))
-cancel(t)
-print(await(t))
-t2 = spawn(() => http.get(URL, timeout: 0s))
-print(await(t2, timeout: 100ms))
-exit(3)"#,
+            r#"scope(fn(s):
+  t = spawn(s, () => http.get(URL))
+  print(timeout(200ms, () => await(t)))
+  cancel(t)
+  print(await(t))
+  t2 = spawn(s, () => http.get(URL, timeout: 0s))
+  print(timeout(100ms, () => await(t2)))
+  exit(3)
+;;)"#,
             Reply::Hold(Vec::new()),
         ),
         // the request is checked before anything is sent
@@ -585,7 +587,7 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
     (
         "http.get(\"http://x\", headers: {a: 1})",
         "error[E0403]: argument `headers` must be a map of strings, got a map holding int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: {a: 1})\n  |         ^\n  |\n",
-        "   extras/http.fung:@need_str_map(\"headers\"@ _attempt\n   extras/http.fung:@match _attempt(@ _request (1 tail calls elided)\n   -e:2       <entry>\n",
+        "   extras/http.fung:@need_str_map(\"headers\"@ _attempt (1 tail calls elided)\n   extras/http.fung:@fn _within(@ _within\n   extras/http.fung:@then _within(@ _request (1 tail calls elided)\n   -e:2       <entry>\n",
     ),
     (
         "http.get(\"http://x\", headers: 1)",
@@ -1015,6 +1017,27 @@ fn the_request_timeout_covers_a_slow_handshake() {
     );
     assert_eq!(r, (want, String::new(), Some(0)));
     assert!(took >= Duration::from_secs(11), "{took:?}");
+}
+
+/// A shorter deadline around a request wins over the request's own
+/// `timeout` (concurrency v2, L2): the outer `timeout` answers.
+#[test]
+fn an_outer_timeout_is_shorter_than_the_requests() {
+    // the kernel accepts for it; nothing ever answers
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let src = format!(
+        "import http\nprint(timeout(100ms, () => http.get(\"http://127.0.0.1:{port}/\", timeout: 10s)))"
+    );
+    let start = std::time::Instant::now();
+    let r = run(&fung_bin(), &src);
+    let took = start.elapsed();
+    drop(l);
+    assert_eq!(
+        r,
+        ("Err({kind: 'timeout})\n".into(), String::new(), Some(0))
+    );
+    assert!(took < Duration::from_secs(2), "{took:?}");
 }
 
 /// A redirect's body is not read: the client closes the connection and
@@ -1966,7 +1989,7 @@ fn no_proxy_patterns_choose_the_proxy() {
             .map(|(u, _)| format!("{:?}", u.replace("REFUSED", &refused)))
             .collect();
         let src = format!(
-            "import http\nfn probe(u) = match http.get(u, timeout: 3s):\n  Ok(r)  => r.body == \"via-proxy\" then \"proxy\" else \"direct\"\n  Err(e) => \"via-proxy\" in e.message then \"proxy\" else \"direct\"\n;;\nts = map([{}], u => spawn(() => probe(u)))\nprint(join(map(ts, t => await(t)), \" \"))",
+            "import http\nfn probe(u) = match http.get(u, timeout: 3s):\n  Ok(r)  => r.body == \"via-proxy\" then \"proxy\" else \"direct\"\n  Err(e) => \"via-proxy\" in e.message then \"proxy\" else \"direct\"\n;;\nprint(scope(fn(s):\n  ts = map([{}], u => spawn(s, () => probe(u)))\n  join(map(ts, t => await(t)), \" \")\n;;))",
             list.join(", ")
         );
         let addr = format!("http://127.0.0.1:{}", proxy.port);
@@ -2801,7 +2824,7 @@ After a deliberate change: FUNG_EXPECTED=bless cargo test -p fung-cli --test htt
 
 /// The examples that serve and fetch. `static.fung` answers requests,
 /// logging a line for each (kept in `expected/http/static.txt`);
-/// `checkurls.fung` (`conc.pmap`) reads from it. `api.fung` (agents) is
+/// `checkurls.fung` (`conc.pmap`) reads from it. `api.fung` (an atom) is
 /// run by its `test` block (`tools_expected.rs`,
 /// `test_matches_the_expected_output_on_the_repository`).
 #[test]

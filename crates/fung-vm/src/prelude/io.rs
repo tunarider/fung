@@ -9,8 +9,8 @@ use crate::native::nat::{self, opt, param};
 use crate::value::{File, Lit, Native, Value, format};
 use crate::vm::{Stop, Task, outside};
 
-/// `exit(code = 0)` raises the exit signal (06): the VM unwinds, the
-/// command runs the at_exit handlers, then the process ends with the code.
+/// `exit(code = 0)` raises the exit signal (06): the VM unwinds through
+/// every `with`'s release, then the process ends with the code.
 pub(super) fn exit_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Err(Stop::Exit(nat::need_int("code", &a[0])?))
 }

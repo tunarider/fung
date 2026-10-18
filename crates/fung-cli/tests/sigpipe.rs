@@ -1,6 +1,6 @@
 //! Writing to a closed pipe. On standard output or error (file
 //! descriptor 1 or 2) fung dies by SIGPIPE (signal 13) at once, from any
-//! task and from an exit handler, without running the exit handlers or
+//! task and from a `with` release, without running the releases or
 //! reporting anything. Every other descriptor (a file handle on a fifo, a
 //! child's standard input) gives an error value. fung dies even when it
 //! was started with SIGPIPE ignored, and a child process starts with the
@@ -95,7 +95,7 @@ fn dies_by_sigpipe(code: &str, on_stderr: bool, other: &str) {
 #[test]
 fn print_to_a_closed_stdout_dies_by_sigpipe() {
     dies_by_sigpipe(
-        "at_exit(() => eprint(\"handler ran\"))\neach(0..1000000, (i) => print(i))",
+        "with(() => nil, _ => each(0..1000000, (i) => print(i)), _ => eprint(\"release ran\"))",
         false,
         "",
     );
@@ -104,7 +104,7 @@ fn print_to_a_closed_stdout_dies_by_sigpipe() {
 #[test]
 fn print_from_an_awaited_task_dies_by_sigpipe() {
     dies_by_sigpipe(
-        "at_exit(() => eprint(\"handler ran\"))\nt = spawn(() => each(0..1000000, (i) => print(i)))\nawait(t)\neprint(\"after\")",
+        "with(() => nil, _ => scope(fn(s):\n  t = spawn(s, () => each(0..1000000, (i) => print(i)))\n  await(t)\n;;), _ => eprint(\"release ran\"))\neprint(\"after\")",
         false,
         "",
     );
@@ -115,7 +115,7 @@ fn print_from_a_task_while_the_entry_waits_for_input_dies_by_sigpipe() {
     // The entry task blocks in `read_line` (standard input stays open),
     // so only the spawned task's write can end the process.
     dies_by_sigpipe(
-        "at_exit(() => eprint(\"handler ran\"))\nt = spawn(() => each(0..1000000, (i) => print(i)))\nread_line()\neprint(\"after\")",
+        "with(() => nil, _ => scope(fn(s):\n  spawn(s, () => each(0..1000000, (i) => print(i)))\n  read_line()\n;;), _ => eprint(\"release ran\"))\neprint(\"after\")",
         false,
         "",
     );
@@ -124,7 +124,7 @@ fn print_from_a_task_while_the_entry_waits_for_input_dies_by_sigpipe() {
 #[test]
 fn eprint_to_a_closed_stderr_dies_by_sigpipe() {
     dies_by_sigpipe(
-        "at_exit(() => print(\"handler ran\"))\neach(0..1000000, (i) => eprint(i))",
+        "with(() => nil, _ => each(0..1000000, (i) => eprint(i)), _ => print(\"release ran\"))",
         true,
         "",
     );
@@ -132,15 +132,20 @@ fn eprint_to_a_closed_stderr_dies_by_sigpipe() {
 
 #[test]
 fn a_report_to_a_closed_stderr_dies_by_sigpipe() {
-    // The report is written first; the handler would print after it.
-    dies_by_sigpipe("at_exit(() => print(\"handler ran\"))\n1 / 0", true, "");
+    // The release runs first and prints; the report written after it dies.
+    dies_by_sigpipe(
+        "with(() => nil, _ => 1 / 0, _ => print(\"release ran\"))",
+        true,
+        "release ran\n",
+    );
 }
 
 #[test]
-fn print_from_an_exit_handler_dies_by_sigpipe() {
-    // Handlers run last first: the second one dies, the first never runs.
+fn print_from_a_release_dies_by_sigpipe() {
+    // Releases run innermost first: the inner one dies, the outer one
+    // never runs.
     dies_by_sigpipe(
-        "at_exit(() => eprint(\"first handler ran\"))\nat_exit(() => print(\"second handler\"))\neprint(\"main\")",
+        "with(() => nil, _ => with(() => nil, _ => eprint(\"main\"), _ => print(\"inner release\")), _ => eprint(\"outer release ran\"))",
         false,
         "main\n",
     );

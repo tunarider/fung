@@ -230,6 +230,10 @@ const COMPARISONS: &[(&str, &str)] = &[
         "({L} `context` 트리와 같음)",
     ),
     (
+        "docs/design/05-concurrency.md",
+        "({L} `Server.Shutdown`, Trio의 관례)",
+    ),
+    (
         "docs/design/08-tooling-and-errors.md",
         "{L}의 포매터처럼 옵션 없는 단일 스타일",
     ),

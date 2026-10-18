@@ -92,23 +92,19 @@ fn test_blocks_register_only_when_requested() {
     });
 }
 
-/// `Runtime::hold` (`fung test`): a task the entry leaves waiting for a
-/// later test block is not a deadlock when the entry ends, a deadlock
-/// inside a block is still reported, and after `release` the exit
-/// handlers are judged as usual.
+/// `Runtime::hold` (`fung test`): a block's tasks (in a scope inside the
+/// block) talk to it over a channel the entry made, a deadlock inside a
+/// block is still reported.
 #[test]
 fn hold_keeps_the_gap_between_test_blocks_open() {
     on_big_stack(|| {
-        let src = "ch = channel()\nw = spawn(() => recv(ch)! * 2)\n\
-                   test \"talks\":\n  send(ch, 21)\n  assert await(w) == 42\n;;\n\
-                   test \"stuck\": recv(channel()) ;;";
+        let src = "(ch_tx, ch) = channel()\n\
+                   test \"talks\":\n  r = scope(fn(s):\n    w = spawn(s, () => recv(ch)! * 2)\n    send(ch_tx, 21)\n    await(w)\n  ;;)\n  assert r == 42\n;;\n\
+                   test \"stuck\": recv(ch) ;;";
         let Setup { rt, err, .. } = with_tests(src);
         rt.hold();
         rt.run().expect("the body runs");
-        assert!(
-            rt.call_test(0).is_ok(),
-            "the entry's task waited for the block"
-        );
+        assert!(rt.call_test(0).is_ok(), "the block's task answered");
         assert_eq!(err.text(), "");
         match rt.call_test(1) {
             Err(Stop::Error(d)) => assert_eq!(d.code, "E0702"),
@@ -121,18 +117,6 @@ fn hold_keeps_the_gap_between_test_blocks_open() {
         rt.cancel_all();
         rt.wait();
         rt.release();
-
-        // Without the hold, the entry's end leaves only a blocked task.
-        let Setup { rt, err, .. } =
-            with_tests("ch = channel()\nspawn(() => recv(ch))\ntest \"t\": assert true ;;");
-        rt.run().expect("the body runs");
-        // The report cancels the task (whether it blocked before or after
-        // the entry ended), so this wait ends.
-        rt.wait();
-        assert_eq!(
-            err.text(),
-            "error[E0702]: deadlock: all tasks are waiting\n"
-        );
     });
 }
 

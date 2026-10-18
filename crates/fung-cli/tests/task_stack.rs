@@ -1,4 +1,4 @@
-//! A spawned task gets a large stack (1 GiB, the first of
+//! A spawned task (here in a scope) gets a large stack (1 GiB, the first of
 //! `fung_vm::stack::TASK_STACKS`): a program that nests Rust frames
 //! deeply (a native calling back into fung) gives the same result in a
 //! task as on the entry thread instead of aborting the process.
@@ -34,7 +34,7 @@ fn deep_callbacks_in_a_task_match_the_entry() {
     let entry = eval(&format!("{DEEP_CALLBACK}print(f(99000) |> type_of)"));
     assert_eq!(entry, "'int\n");
     let task = eval(&format!(
-        "{DEEP_CALLBACK}print(await(spawn(() => f(99000))) |> type_of)"
+        "{DEEP_CALLBACK}print(scope(s => await(spawn(s, () => f(99000)))) |> type_of)"
     ));
     assert_eq!(task, entry);
 }

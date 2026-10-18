@@ -17,9 +17,9 @@ fn echo(req):
   ;;
 ;;
 
-# Builds the handler: the request count lives in an agent the closure
-# holds (05: shared state belongs to one task, here the agent's), so the
-# handler's tasks update it one request at a time.
+# Builds the handler: the request count lives in an atom the closure
+# holds (05: shared state is an atom, updated by a pure function), so
+# the handler's tasks each add their request with one swap.
 fn handler(started, requests):
   fn(req):
     swap(requests, n => n + 1)
@@ -32,17 +32,19 @@ fn handler(started, requests):
 ;;
 
 test "health, echo and 404":
-  port = channel(1)
-  h = handler(time.now(), agent(0))
-  s = spawn(() => http.serve("127.0.0.1:0", h, ready: a => send(port, a)))
-  base = "http://" + recv(port)!
-  r = http.get("${base}/health")!
-  assert r.status == 200
-  assert json.parse(r.body)!.ok == true
-  e = http.post("${base}/echo", json.stringify({x: 1}))!
-  assert json.parse(e.body)!.received.x == 1
-  assert http.post("${base}/echo", "{")!.status == 400
-  assert http.get("${base}/nope")!.status == 404
-  assert json.parse(http.get("${base}/health")!.body)!.requests == 5
-  cancel(s)
+  scope(fn(app):
+    (port_tx, port) = channel(1)
+    h = handler(time.now(), atom(0))
+    s = spawn(app, () => http.serve("127.0.0.1:0", h, ready: a => send(port_tx, a)))
+    base = "http://" + recv(port)!
+    r = http.get("${base}/health")!
+    assert r.status == 200
+    assert json.parse(r.body)!.ok == true
+    e = http.post("${base}/echo", json.stringify({x: 1}))!
+    assert json.parse(e.body)!.received.x == 1
+    assert http.post("${base}/echo", "{")!.status == 400
+    assert http.get("${base}/nope")!.status == 404
+    assert json.parse(http.get("${base}/health")!.body)!.requests == 5
+    cancel(s)
+  ;;)
 ;;

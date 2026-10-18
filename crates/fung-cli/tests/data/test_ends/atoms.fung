@@ -1,0 +1,6 @@
+counter = atom(0)
+
+test "swap":
+  swap(counter, n => n + 1)
+  assert deref(counter) == 1
+;;

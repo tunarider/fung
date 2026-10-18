@@ -1,5 +1,5 @@
 test "before the deadlock": assert 1 + 1 == 2 ;;
 test "deadlocks":
-  ch = channel()
-  recv(ch)
+  (_tx, rx) = channel()
+  recv(rx)
 ;;

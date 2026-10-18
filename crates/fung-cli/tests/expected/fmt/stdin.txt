@@ -1403,83 +1403,134 @@
 -- exit: 0
 ==== manual builtins:17
 -- stdout
+| print(with(() => "conn", c => c + " used", c => print("closed", c)))
+-- stderr
+-- exit: 0
+==== manual builtins:18
+-- stdout
 | r = exec(["echo", "hi"])!
 | print(trim(r.out))
 -- stderr
 -- exit: 0
-==== manual builtins:18
+==== manual builtins:19
 -- stdout
 | port = env("PORT") ?? "8080"
 | print(port)
 -- stderr
 -- exit: 0
-==== manual builtins:19
--- stdout
-| t = spawn(() => 6 * 7)
-| print(await(t))
--- stderr
--- exit: 0
 ==== manual builtins:20
 -- stdout
-| ch = channel(1)
-| send(ch, "hi")
-| print(recv(ch)!)
+| r = scope(fn(s):
+|   a = spawn(s, () => 6 * 7)
+|   b = spawn(s, () => 1 + 1)
+|   [await(a), await(b)]
+| ;;)
+| print(r)
 -- stderr
 -- exit: 0
 ==== manual builtins:21
 -- stdout
-| hits = agent(0)
+| supervise(fn(s):
+|   spawn(s, () => fail("boom"))
+|   spawn(s, () => print("still runs"))
+| ;;, e => eprint("handled: ${e.message}"))
+-- stderr
+-- exit: 0
+==== manual builtins:22
+-- stdout
+| print(scope(s => await(spawn(s, () => 6 * 7))))
+-- stderr
+-- exit: 0
+==== manual builtins:23
+-- stdout
+| print(timeout(1s, () => 1 + 1))
+| (_tx, rx) = channel()
+| print(timeout(10ms, () => recv(rx)))
+-- stderr
+-- exit: 0
+==== manual builtins:24
+-- stdout
+| fn numbers(s, n):
+|   (tx, rx) = channel()
+|   spawn(s, () => each(0..n, i => send(tx, i)))
+|   rx
+| ;;
+|
+| scope(fn(s):
+|   for x in numbers(s, 3):
+|     print(x)
+|   ;;
+| ;;)
+-- stderr
+-- exit: 0
+==== manual builtins:25
+-- stdout
+| (tx, rx) = channel(1)
+| send(tx, "hi")
+| print(recv(rx)!)
+-- stderr
+-- exit: 0
+==== manual builtins:26
+-- stdout
+| stop = stop_signal()
+| request_stop()
+| print(recv(stop))
+-- stderr
+-- exit: 0
+==== manual builtins:27
+-- stdout
+| hits = atom(0)
 | each(1..=3, _ => swap(hits, n => n + 1))
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual builtins:22
+==== manual builtins:28
 -- stdout
 | import cli
 | opts = cli.parse(["--dry-run", "--n", "3", "a.txt"], bools: ["dry-run"])
 | print(opts.flags.dry_run, int(opts.flags.n), opts.rest)
 -- stderr
 -- exit: 0
-==== manual builtins:23
+==== manual builtins:29
 -- stdout
 | import json
 | data = json.parse(`{"name": "fung", "tags": ["a"], "n": 3}`)!
 | print(data.name, data.tags, data.n + 1)
 -- stderr
 -- exit: 0
-==== manual builtins:24
+==== manual builtins:30
 -- stdout
 | import json
 | print(json.stringify({ok: true, ids: (1, 2), at: 'now}))
 -- stderr
 -- exit: 0
-==== manual builtins:25
+==== manual builtins:31
 -- stdout
 | import time
 | t = time.parse("2026-10-04 09:05", "YYYY-MM-DD HH:mm")!
 | print(time.format(t + 90m, "HH:mm"))
 -- stderr
 -- exit: 0
-==== manual builtins:26
+==== manual builtins:32
 -- stdout
 | import regex
 | m = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
 | print(m.named.key, int(m.named.val) + 1)
 -- stderr
 -- exit: 0
-==== manual builtins:27
+==== manual builtins:33
 -- stdout
 | import regex
 | print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"))
 -- stderr
 -- exit: 0
-==== manual builtins:28
+==== manual builtins:34
 -- stdout
 | import conc
 | print(conc.pmap([1, 2, 3], x => x * x, limit: 2))
 -- stderr
 -- exit: 0
-==== manual builtins:29
+==== manual builtins:35
 -- stdout
 | import conc
 | print(conc.retry(() => Err("down"), times: 2))
@@ -1961,23 +2012,12 @@
 | ;;
 -- stderr
 -- exit: 0
-==== crates/fung-cli/tests/data/test/blocked_top.fung
--- stdout
-| ch = channel()
-| spawn(fn():
-|   recv(ch)
-| ;;)
-|
-| test "leaves a blocked top-level task": assert true ;;
-| test "again": assert true ;;
--- stderr
--- exit: 0
 ==== crates/fung-cli/tests/data/test/deadlock.fung
 -- stdout
 | test "before the deadlock": assert 1 + 1 == 2 ;;
 | test "deadlocks":
-|   ch = channel()
-|   recv(ch)
+|   (_tx, rx) = channel()
+|   recv(rx)
 | ;;
 -- stderr
 -- exit: 0
@@ -1985,35 +2025,20 @@
 -- stdout
 | test "before the task exit": assert 1 + 1 == 2 ;;
 | test "a task exits":
-|   t = spawn(() => exit(3))
-|   await(t)
+|   scope(fn(s):
+|     t = spawn(s, () => exit(3))
+|     await(t)
+|   ;;)
 | ;;
 -- stderr
 -- exit: 0
 ==== crates/fung-cli/tests/data/test/exit_in_test.fung
 -- stdout
-| at_exit(() => print("handler ran"))
 | test "before": assert 1 == 1 ;;
 | test "exits":
-|   exit(4)
+|   with(() => nil, _ => exit(4), _ => print("released"))
 | ;;
 | test "never runs": assert true ;;
--- stderr
--- exit: 0
-==== crates/fung-cli/tests/data/test/handler_exit.fung
--- stdout
-| at_exit(() => exit(9))
-| test "handler exits": assert true ;;
--- stderr
--- exit: 0
-==== crates/fung-cli/tests/data/test/handlers.fung
--- stdout
-| at_exit(() => print("second handler"))
-| at_exit(fn():
-|   print("first handler")
-|   fail("handler broke")
-| ;;)
-| test "registers handlers": assert true ;;
 -- stderr
 -- exit: 0
 ==== crates/fung-cli/tests/data/test/no_tests.fung
@@ -2037,33 +2062,6 @@
 -- stdout
 | exit(2)
 | test "skipped": assert true ;;
--- stderr
--- exit: 0
-==== crates/fung-cli/tests/data/test/top_task.fung
--- stdout
-| ch = channel()
-| worker = spawn(fn():
-|   v = recv(ch)!
-|   v * 2
-| ;;)
-|
-| test "talks to a top-level task":
-|   send(ch, 21)
-|   assert await(worker) == 42
-| ;;
--- stderr
--- exit: 0
-==== crates/fung-cli/tests/data/test/unretrieved.fung
--- stdout
-| ch = channel()
-| test "spawns a failure":
-|   spawn(fn():
-|     send(ch, 1)
-|     [1][5]
-|   ;;)
-|   recv(ch)
-| ;;
-| test "fine": assert true ;;
 -- stderr
 -- exit: 0
 ==== crates/fung-cli/tests/data/test/uses_good.fung
@@ -2094,92 +2092,51 @@
 -- stdout
 | test "before": assert true ;;
 | test "deadlocks":
-|   ch = channel()
-|   recv(ch)
+|   (_tx, rx) = channel()
+|   recv(rx)
 | ;;
 | test "skipped, no calls": assert 1 + 1 == 2 ;;
 | test "skipped, calls": assert len([1]) == 1 ;;
 -- stderr
 -- exit: 0
-==== crates/fung-cli/tests/data/test_ends/agents.fung
+==== crates/fung-cli/tests/data/test_ends/atoms.fung
 -- stdout
-| counter = agent(0)
-| at_exit(() => print(deref(counter)))
+| counter = atom(0)
 |
 | test "swap":
 |   swap(counter, n => n + 1)
 |   assert deref(counter) == 1
 | ;;
-| test "an agent that holds its own handle":
-|   a = agent(0)
-|   swap(a, _ => a)
-|   assert true
-| ;;
-| test "a background loop":
-|   b = agent(0)
-|   swap(b, fn(_):
-|     spawn(fn():
-|       sleep(1h)
-|     ;;)
-|     1
-|   ;;)
-|   assert deref(b) == 1
-| ;;
--- stderr
--- exit: 0
-==== crates/fung-cli/tests/data/test_ends/rest_skipped.fung
--- stdout
-| # A block passes, then a task it woke asks for exit(3): the rest of the
-| # file is skipped, and the skip counts as a failure (08: a test run
-| # never ends silently).
-| #
-| # Ordered by state, not by timing: `go` has room, so the block never
-| # waits on it and holds the run token until it waits in `recv(c)`; the
-| # task can only send on `c` after taking `go`'s value, so it finds the
-| # block waiting, hands the value over without waiting and asks for the
-| # exit on the same turn of the token. The block then wakes with its
-| # value and returns: it passes.
-| go = channel(1)
-| c = channel()
-| _t = spawn(fn():
-|   recv(go)
-|   send(c, 1)
-|   exit(3)
-| ;;)
-|
-| test "receives":
-|   send(go, 1)
-|   recv(c)
-| ;;
-| test "two": assert true ;;
-| test "three": assert true ;;
-| test "four": assert true ;;
 -- stderr
 -- exit: 0
 ==== crates/fung-cli/tests/data/test_ends/task_exit.fung
 -- stdout
-| at_exit(() => print("handler still runs"))
 | test "a task exits":
-|   t = spawn(() => exit(3))
-|   await(t)
+|   with(() => nil, _ => scope(fn(s):
+|     t = spawn(s, () => exit(3))
+|     await(t)
+|   ;;), _ => print("released"))
 | ;;
 | test "skipped, no calls": assert 1 + 1 == 2 ;;
 -- stderr
 -- exit: 0
-==== crates/fung-cli/tests/data/test_ends/top_pending.fung
+==== crates/fung-cli/tests/data/test_ends/top_task_exit.fung
 -- stdout
-| # The top level ends normally with a task's exit(3) already asked for:
-| # no block runs, and the top level fails. Ordered by state, as in
-| # rest_skipped.fung.
-| go = channel(1)
-| c = channel()
-| _t = spawn(fn():
-|   recv(go)
-|   send(c, 1)
-|   exit(3)
+| # A task in a top-level scope asks for exit(3): no block runs, and the
+| # top level fails. Ordered by state: the task can only send on `c_tx`
+| # after taking `go`'s value, and it asks for the exit on the same turn
+| # of the run token.
+| (go_tx, go) = channel(1)
+| (c_tx, c) = channel()
+| scope(fn(s):
+|   spawn(s, fn():
+|     recv(go)
+|     send(c_tx, 1)
+|     exit(3)
+|   ;;)
+|   send(go_tx, 1)
+|   recv(c)
 | ;;)
-| send(go, 1)
-| recv(c)
 |
 | test "one": assert true ;;
 | test "two": assert true ;;
@@ -2187,7 +2144,7 @@
 -- exit: 0
 ==== crates/fung-cli/tests/data/test_ends/z_next.fung
 -- stdout
-| test "a fresh file": assert deref(agent(5)) == 5 ;;
+| test "a fresh file": assert deref(atom(5)) == 5 ;;
 -- stderr
 -- exit: 0
 ==== examples/api.fung
@@ -2211,9 +2168,9 @@
 |   ;;
 | ;;
 |
-| # Builds the handler: the request count lives in an agent the closure
-| # holds (05: shared state belongs to one task, here the agent's), so the
-| # handler's tasks update it one request at a time.
+| # Builds the handler: the request count lives in an atom the closure
+| # holds (05: shared state is an atom, updated by a pure function), so
+| # the handler's tasks each add their request with one swap.
 | fn handler(started, requests):
 |   fn(req):
 |     swap(requests, n => n + 1)
@@ -2226,19 +2183,21 @@
 | ;;
 |
 | test "health, echo and 404":
-|   port = channel(1)
-|   h = handler(time.now(), agent(0))
-|   s = spawn(() => http.serve("127.0.0.1:0", h, ready: a => send(port, a)))
-|   base = "http://" + recv(port)!
-|   r = http.get("${base}/health")!
-|   assert r.status == 200
-|   assert json.parse(r.body)!.ok == true
-|   e = http.post("${base}/echo", json.stringify({x: 1}))!
-|   assert json.parse(e.body)!.received.x == 1
-|   assert http.post("${base}/echo", "{")!.status == 400
-|   assert http.get("${base}/nope")!.status == 404
-|   assert json.parse(http.get("${base}/health")!.body)!.requests == 5
-|   cancel(s)
+|   scope(fn(app):
+|     (port_tx, port) = channel(1)
+|     h = handler(time.now(), atom(0))
+|     s = spawn(app, () => http.serve("127.0.0.1:0", h, ready: a => send(port_tx, a)))
+|     base = "http://" + recv(port)!
+|     r = http.get("${base}/health")!
+|     assert r.status == 200
+|     assert json.parse(r.body)!.ok == true
+|     e = http.post("${base}/echo", json.stringify({x: 1}))!
+|     assert json.parse(e.body)!.received.x == 1
+|     assert http.post("${base}/echo", "{")!.status == 400
+|     assert http.get("${base}/nope")!.status == 404
+|     assert json.parse(http.get("${base}/health")!.body)!.requests == 5
+|     cancel(s)
+|   ;;)
 | ;;
 -- stderr
 -- exit: 0
@@ -2501,7 +2460,7 @@
 |
 | opts = cli.parse(args)
 | addr = get(opts.flags, "addr", "127.0.0.1:8080")
-| http.serve(addr, handler(time.now(), agent(0)), ready: a => print("listening on", a))!
+| http.serve(addr, handler(time.now(), atom(0)), ready: a => print("listening on", a))!
 -- stderr
 -- exit: 0
 ==== examples/static.fung
@@ -2572,9 +2531,9 @@
 |   ;;
 | ;;
 |
-| fn check(url, timeout = 5s):
+| fn check(url, limit = 5s):
 |   t0 = time.now()
-|   r = http.get(url, timeout: timeout)
+|   r = http.get(url, timeout: limit)
 |   took = time.now() - t0
 |   match r:
 |     Ok(resp) => {url, ok: resp.status < 400, status: resp.status, took, keys: json_keys(resp)}
@@ -2589,26 +2548,24 @@
 | ;;
 |
 | test "check reports status and json keys":
-|   port = channel(1)
-|   handler = fn(req):
-|     req.path == "/j" then {headers: {"content-type": "application/json"}, body: `{"a":1,"b":2}`} else {status: 500, body: "x"}
-|   ;;
-|   s = spawn(() => http.serve("127.0.0.1:0", handler, ready: a => send(port, a)))
-|   base = "http://" + recv(port)!
-|   good = check("${base}/j", 2s)
-|   assert good.ok
-|   assert good.keys == ["a", "b"]
-|   bad = check("${base}/x", 2s)
-|   assert not bad.ok
-|   assert bad.status == 500
-|   down = check("http://127.0.0.1:1/", 2s)
-|   assert down.status == 'network
-|   cancel(s)
+|   scope(fn(app):
+|     (port_tx, port) = channel(1)
+|     handler = fn(req):
+|       req.path == "/j" then {headers: {"content-type": "application/json"}, body: `{"a":1,"b":2}`} else {status: 500, body: "x"}
+|     ;;
+|     s = spawn(app, () => http.serve("127.0.0.1:0", handler, ready: a => send(port_tx, a)))
+|     base = "http://" + recv(port)!
+|     good = check("${base}/j", 2s)
+|     assert good.ok
+|     assert good.keys == ["a", "b"]
+|     bad = check("${base}/x", 2s)
+|     assert not bad.ok
+|     assert bad.status == 500
+|     down = check("http://127.0.0.1:1/", 2s)
+|     assert down.status == 'network
+|     cancel(s)
+|   ;;)
 | ;;
--- stderr
--- exit: 0
-==== extras/agent.fung
--- stdout (2838 bytes, fnv1a64 2dd73ad83a42b607)
 -- stderr
 -- exit: 0
 ==== extras/cli.fung
@@ -2665,32 +2622,35 @@
 | # every script needs. A program imports the module: `import conc`, then
 | # `conc.pmap(...)`. Calling one of them without the module is E0204,
 | # with a help line that names the module.
-| import _native.conc as _c
 |
-| # Merges channels into one (05): a forwarding task per input; the output
-| # closes when every input has closed.
-| fn fan_in(chs):
-|   out = channel(len(chs))
-|   tasks = for ch in chs: _c.spawn_awaited(() => each(ch, v => send(out, v))) ;;
-|   spawn(fn():
-|     each(tasks, await)
-|     close(out)
+| # Merges receiving ends into one (05): a forwarding task per input, in
+| # scope `s`, sends to the output's sending end; the returned receiving
+| # end closes when every input has closed.
+| fn fan_in(s, rxs):
+|   (tx, rx) = channel(len(rxs))
+|   spawn(s, fn():
+|     scope(fn(inner):
+|       each(rxs, r => spawn(inner, () => each(r, v => send(tx, v))))
+|     ;;)
+|     close(tx)
 |   ;;)
-|   out
+|   rx
 | ;;
 |
 | # Parallel map: at most `limit` tasks at once (0 = no limit), results in
-| # input order. A failing f shows up as its Err, like await would.
+| # input order, in a scope of its own: a runtime error in f fails pmap
+| # (05), an Err that f returns is a result like any other.
 | fn pmap(xs, f, limit = 0):
 |   items = xs |> map(x => x)
 |   limit <= 0 or limit >= len(items)
-|     then items |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)
+|     then _pmap_all(items, f)
 |     else _pmap_chunks(items, f, limit, [])
 | ;;
 |
+| fn _pmap_all(items, f) = scope(s => items |> map(x => spawn(s, () => f(x))) |> map(await))
+|
 | fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
-|   else _pmap_chunks(drop(items, limit), f, limit,
-|     acc + (take(items, limit) |> map(x => _c.spawn_awaited(() => f(x))) |> map(await)))
+|   else _pmap_chunks(drop(items, limit), f, limit, acc + _pmap_all(take(items, limit), f))
 |
 | # Calls f until it returns a non-Err value, at most `times` tries,
 | # sleeping `delay` between tries; the last Err is returned (06).
@@ -2731,27 +2691,43 @@
 | # Reads a whole file as a list of lines (the same rule as read_lines).
 | fn read_lines(path) = Ok(lines(_n.read(path)?))
 |
-| # Opens path, calls f with the handle, and always closes it (03: defer 대신
-| # 감싸는 함수). f's result — a value or the Err that `?` returned — is
-| # passed through.
-| fn with_open(path, f, mode = 'read):
-|   h = _n.open(path, mode)?
-|   result = f(h)
-|   _n.close(h)!
-|   result
+| # Opens path, calls f with the handle, and always closes it (03: a
+| # `with`). f's result — a value or the Err that `?` returned — is passed
+| # through.
+| #
+| # The handle is opened inside the `with` (05), so nothing can come between
+| # opening and the promise to close it. A close that fails (a write that
+| # could not be flushed) is a runtime error; a handle f closed itself is
+| # not a failure.
+| fn with_open(path, f, mode = 'read) = with(() => _n.open(path, mode), r => _with_ok(r, f), r => _close_opened(r))
+|
+| # Creates a temporary directory, calls f with its path, and removes it,
+| # whatever f does (a `with`, made inside it as `with_open` opens). A
+| # removal that fails is a runtime error.
+| fn with_temp_dir(f) = with(() => _n.temp_dir(), r => _with_ok(r, f), r => _remove_made(r))
+|
+| # f of what was acquired, or the Err acquiring gave.
+| fn _with_ok(r, f) = match r:
+|   Ok(x) => f(x)
+|   e     => e
 | ;;
 |
-| # Creates a temporary directory, calls f with its path, and removes it.
-| fn with_temp_dir(f):
-|   dir = _n.temp_dir()?
-|   result = f(dir)
-|   _n.remove_all(dir)!
-|   result
+| fn _close_opened(r) = match r:
+|   Ok(h) => match _n.close(h):
+|     Err(e) when e.kind == 'closed => nil
+|     c                             => c!
+|   ;;
+|   _     => nil
+| ;;
+|
+| fn _remove_made(r) = match r:
+|   Ok(d) => _n.remove_all(d)!
+|   _     => nil
 | ;;
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (70203 bytes, fnv1a64 024a101afb08b12c)
+-- stdout (69009 bytes, fnv1a64 1a74b4ac27c57ed0)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -2779,7 +2755,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4773 bytes, fnv1a64 8d662a7bf4a248ad)
+-- stdout (4798 bytes, fnv1a64 eff5271d3466c292)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -2833,66 +2809,6 @@
 | print("side effect")
 -- stderr
 -- exit: 0
-==== tests/lang/agent_errors.fung
--- stdout
-| a = agent(1)
-| swap(a, x => x / 0)
-| # expect-error: E0502
--- stderr
--- exit: 0
-==== tests/lang/agent_handles.fung
--- stdout
-| import conc
-|
-| # deref and swap keep the handle alive until the agent answers, even
-| # when their argument is its last copy.
-| print(deref(agent(5)), swap(agent(5), x => x + 1))
-| # expect: 5 6
-|
-| fn count(xs):
-|   a = agent(0)
-|   each(xs, x => swap(a, n => n + x))
-|   deref(a)
-| ;;
-| print(count([1, 2, 3]))
-| # expect: 6
-|
-| fn mk() = agent(7)
-| print(deref(mk()), swap(mk(), x => x + 1))
-| # expect: 7 8
-|
-| fn bump(a) = swap(a, x => x + 1)
-| print(bump(agent(1)))
-| # expect: 2
-|
-| # Tasks spawned inside f are inside the agent: deref does not wait.
-| a = agent(1)
-| print(swap(a, x => sum(conc.pmap([1, 2], y => deref(a)))), deref(a))
-| # expect: 2 2
-|
-| fn peek(b: agent) = deref(b)
-| print(peek(a))
-| # expect: 2
--- stderr
--- exit: 0
-==== tests/lang/agents.fung
--- stdout
-| counter = agent(0)
-| each(for _ in 0..8: spawn(() => each(0..50, _ => swap(counter, n => n + 1))) ;;, await)
-| print(deref(counter))
-| # expect: 400
-| a = agent(1)
-| print(swap(a, x => x + deref(a)), type_of(a), a, a == a, a == agent(1))
-| # expect: 2 'agent <agent> true false
-| t = spawn(() => swap(a, x => x / 0))
-| print(await(t) |> is_err, deref(a))
-| # expect: true 2
-| print(swap(a, x => x + len([a])))
-| # expect: 3
-| at_exit(() => print("at exit", deref(counter)))
-| # expect: at exit 400
--- stderr
--- exit: 0
 ==== tests/lang/args.fung
 -- stdout
 | fn f(a, b = a * 2) = a + b
@@ -2912,9 +2828,10 @@
 | # args: one two
 | print(args, len(args))
 | # expect: ["one", "two"] 2
-| at_exit(() => print("bye"))
-| exit(4)
-| print("unreachable")
+| with(() => nil, fn(_):
+|   exit(4)
+|   print("unreachable")
+| ;;, _ => print("bye"))
 | # expect: bye
 | # expect-exit: 4
 -- stderr
@@ -2961,41 +2878,88 @@
 | # expect: nil
 -- stderr
 -- exit: 0
-==== tests/lang/at_exit.fung
+==== tests/lang/atom_errors.fung
 -- stdout
-| at_exit(() => print("first"))
-| at_exit(() => print("second"))
-| print("body")
-| # expect: body
-| # expect: second
-| # expect: first
+| a = atom(1)
+| swap(a, x => x / 0)
+| # expect-error: E0502
+-- stderr
+-- exit: 0
+==== tests/lang/atoms.fung
+-- stdout
+| # An atom holds one value; swap is compare-and-set with a pure function.
+| a = atom(1)
+| print(swap(a, x => x + 1), deref(a), reset(a, 10), deref(a), a, type_of(a))
+| # expect: 2 2 10 10 <atom> 'atom
+|
+| # Many tasks swap one atom: every update lands once.
+| counter = atom(0)
+| scope(s => each(for _ in 0..8: spawn(s, () => each(0..50, _ => swap(counter, n => n + 1))) ;;, await))
+| print(deref(counter))
+| # expect: 400
+|
+| # f may read (here the atom itself); an atom equals only itself.
+| b = atom(1)
+| print(swap(b, x => x + deref(b)), b == b, b == atom(1), swap(b, x => x + len([b])))
+| # expect: 2 true false 3
+|
+| # A failing f leaves the value as it was.
+| t = supervise(s => spawn(s, () => swap(b, x => x / 0)), _ => nil)
+| print(await(t) |> is_err, deref(b))
+| # expect: true 3
+|
+| # Temporaries and handles passed around.
+| print(deref(atom(5)), swap(atom(5), x => x + 1))
+| # expect: 5 6
+|
+| fn count(xs):
+|   c = atom(0)
+|   each(xs, x => swap(c, n => n + x))
+|   deref(c)
+| ;;
+| fn mk() = atom(7)
+| fn bump(c) = swap(c, x => x + 1)
+| fn peek(c: atom) = deref(c)
+| print(count([1, 2, 3]), deref(mk()), swap(mk(), x => x + 1), bump(atom(1)), peek(b))
+| # expect: 6 7 8 2 3
+|
+| with(() => nil, _ => nil, _ => print("released", deref(counter)))
+| # expect: released 400
 -- stderr
 -- exit: 0
 ==== tests/lang/cancel.fung
 -- stdout
-| t = spawn(() => sleep(10s))
-| cancel(t)
-| print(await(t), await(spawn(() => sleep(10s)), timeout: 10ms), recv(channel(), timeout: 5ms))
+| scope(fn(s):
+|   t = spawn(s, () => sleep(10s))
+|   cancel(t)
+|   u = spawn(s, () => sleep(10s))
+|   # `_tx` keeps the channel open, so the receive waits
+|   (_tx, rx) = channel()
+|   print(await(t), timeout(10ms, () => await(u)), timeout(5ms, () => recv(rx)))
+|   cancel(u)
+| ;;)
 | # expect: Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})
 -- stderr
 -- exit: 0
 ==== tests/lang/channel_stream.fung
 -- stdout
 | # Iterating a channel calls the function as each value arrives.
-| ch = channel()
-| ack = channel()
-| fn produce(ch, ack):
+| (tx, rx) = channel()
+| (ack_tx, ack) = channel()
+| fn produce(tx, ack):
 |   for x in 1..=3:
-|     send(ch, x)
+|     send(tx, x)
 |     recv(ack)
 |   ;;
-|   close(ch)
+|   close(tx)
 | ;;
-| spawn(fn(): produce(ch, ack) ;;)
-| for x in ch:
-|   print("got ${x}")
-|   send(ack, nil)
-| ;;
+| scope(fn(s):
+|   spawn(s, () => produce(tx, ack))
+|   for x in rx:
+|     print("got ${x}")
+|     send(ack_tx, nil)
+|   ;;
+| ;;)
 | print("done")
 | # expect: got 1
 | # expect: got 2
@@ -3003,34 +2967,57 @@
 | # expect: done
 |
 | # Functions that stop early leave the rest in the channel.
-| b = channel(3)
-| send(b, 1); send(b, 2); send(b, 3); close(b)
+| (b_tx, b) = channel(3)
+| send(b_tx, 1); send(b_tx, 2); send(b_tx, 3); close(b_tx)
 | print(find(b, x => x == 2), recv(b))
 | # expect: 2 Ok(3)
-| c = channel(4)
-| send(c, 1); send(c, 2); send(c, 3); send(c, 4); close(c)
+| (c_tx, c) = channel(4)
+| send(c_tx, 1); send(c_tx, 2); send(c_tx, 3); send(c_tx, 4); close(c_tx)
 | print(take(c, 2), first(c), recv(c), first(c))
 | # expect: [1, 2] 3 Ok(4) nil
 |
 | # Argument errors come before any value is received.
-| d = channel(2)
-| send(d, 1); send(d, 2); close(d)
-| t = spawn(fn(): map(d, 3) ;;)
+| (d_tx, d) = channel(2)
+| send(d_tx, 1); send(d_tx, 2); close(d_tx)
+| t = supervise(s => spawn(s, () => map(d, 3)), _ => nil)
 | print(type_of(await(t)), recv(d))
 | # expect: 'Err Ok(1)
 -- stderr
 -- exit: 0
 ==== tests/lang/channels.fung
 -- stdout
-| ch = channel()
-| spawn(fn(): each(1..=5, x => send(ch, x)); close(ch) ;;)
-| print(fold(ch, 0, (a, x) => a + x))
+| (tx, rx) = channel()
+| scope(fn(s):
+|   spawn(s, fn(): each(1..=5, x => send(tx, x)); close(tx) ;;)
+|   print(fold(rx, 0, (a, x) => a + x))
+| ;;)
 | # expect: 15
-| buf = channel(2)
-| send(buf, "a")
-| close(buf)
-| print(recv(buf), recv(buf), send(buf, "b"))
+| (buf_tx, buf) = channel(2)
+| send(buf_tx, "a")
+| close(buf_tx)
+| print(recv(buf), recv(buf), send(buf_tx, "b"))
 | # expect: Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+| print(tx, rx)
+| # expect: <sender> <receiver>
+|
+| # A producer: only the task holds the sending end, so the channel
+| # closes when the task ends and the loop below ends with it.
+| fn numbers(s, n):
+|   (tx, rx) = channel()
+|   spawn(s, () => each(0..n, i => send(tx, i)))
+|   rx
+| ;;
+|
+| scope(fn(s):
+|   for x in numbers(s, 3):
+|     print(x)
+|   ;;
+| ;;)
+| # expect: 0
+| # expect: 1
+| # expect: 2
+| print("after the producer")
+| # expect: after the producer
 -- stderr
 -- exit: 0
 ==== tests/lang/closures.fung
@@ -3097,16 +3084,29 @@
 | # fan_in, pmap and retry live in the module `conc`.
 | import conc
 |
-| a = channel(2)
-| b = channel(2)
-| each([1, 2], x => send(a, x))
-| close(a)
-| send(b, 3)
-| close(b)
-| print(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))
+| (a_tx, a) = channel(2)
+| (b_tx, b) = channel(2)
+| each([1, 2], x => send(a_tx, x))
+| close(a_tx)
+| send(b_tx, 3)
+| close(b_tx)
+| print(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([], x => x))
 | # expect: [1, 2, 3] [1, 4, 9] []
+| print(conc.pmap([1, 2], x => x == 1 then Err('no) else x))
+| # expect: [Err('no), 2]
 | print(conc.retry(() => Err("never"), times: 2))
 | # expect: Err("never")
+|
+| # fan_in over two producers ends on its own: each producer's channel
+| # closes when its task ends, and then the merged one closes.
+| fn numbers(s, from, n):
+|   (tx, rx) = channel()
+|   spawn(s, () => each(from..from + n, i => send(tx, i)))
+|   rx
+| ;;
+|
+| print(scope(s => conc.fan_in(s, [numbers(s, 0, 2), numbers(s, 10, 2)]) |> map(x => x) |> sort))
+| # expect: [0, 1, 10, 11]
 -- stderr
 -- exit: 0
 ==== tests/lang/continuation.fung
@@ -3153,13 +3153,6 @@
 | # expect: 1h30m 2s 1m 15s true 1.5ms -5s
 | print(1h - 1h, 0.5 * 1m)
 | # expect: 0s 30s
--- stderr
--- exit: 0
-==== tests/lang/err_agent_reentry.fung
--- stdout
-| a = agent(0)
-| swap(a, x => swap(a, y => y))
-| # expect-error: E0704
 -- stderr
 -- exit: 0
 ==== tests/lang/err_alias_cycle.fung
@@ -3216,6 +3209,27 @@
 | # expect-error: E0807
 -- stderr
 -- exit: 0
+==== tests/lang/err_atom_effect.fung
+-- stdout
+| swap(atom(1), fn(x): print(x); x ;;)
+| # expect-error: E0707
+-- stderr
+-- exit: 0
+==== tests/lang/err_atom_holds.fung
+-- stdout
+| # an atom cannot hold a channel end
+| (_tx, rx) = channel()
+| atom(rx)
+| # expect-error: E0708
+-- stderr
+-- exit: 0
+==== tests/lang/err_atom_reentry.fung
+-- stdout
+| a = atom(0)
+| swap(a, x => swap(a, y => y))
+| # expect-error: E0707
+-- stderr
+-- exit: 0
 ==== tests/lang/err_bang_nil.fung
 -- stdout
 | nil!
@@ -3254,8 +3268,8 @@
 -- exit: 2
 ==== tests/lang/err_channel_self.fung
 -- stdout
-| ch = channel(1)
-| send(ch, [ch])
+| (tx, rx) = channel(1)
+| send(tx, [rx])
 | # expect-error: E0705
 -- stderr
 -- exit: 0
@@ -3273,8 +3287,9 @@
 -- exit: 0
 ==== tests/lang/err_deadlock.fung
 -- stdout
-| ch = channel()
-| recv(ch)
+| # `_tx` keeps the channel open: nothing will ever send
+| (_tx, rx) = channel()
+| recv(rx)
 | # expect-error: E0702
 -- stderr
 -- exit: 0
@@ -3516,6 +3531,15 @@
 | # expect-error: E0503
 -- stderr
 -- exit: 0
+==== tests/lang/err_pmap_failed.fung
+-- stdout
+| import conc
+|
+| conc.pmap([1, 2, 3], x => 6 / (x - 2))
+| print("not here")
+| # expect-error: E0502
+-- stderr
+-- exit: 0
 ==== tests/lang/err_question_in_for.fung
 -- stdout
 | fn f(xs) = for x in xs: x? ;;
@@ -3562,6 +3586,13 @@
 | # expect-error: E0404
 -- stderr
 -- exit: 0
+==== tests/lang/err_scope_failed.fung
+-- stdout
+| scope(s => spawn(s, () => fail("x")))
+| print("not here")
+| # expect-error: E0803
+-- stderr
+-- exit: 0
 ==== tests/lang/err_shadow_module.fung
 -- stdout
 | import fs
@@ -3573,6 +3604,19 @@
 -- stdout
 | print((1,)[0..1])
 | # expect-error: E0511
+-- stderr
+-- exit: 0
+==== tests/lang/err_spawn_closed_scope.fung
+-- stdout
+| s2 = scope(s => s)
+| spawn(s2, () => 1)
+| # expect-error: E0706
+-- stderr
+-- exit: 0
+==== tests/lang/err_spawn_without_scope.fung
+-- stdout
+| spawn(() => 1)
+| # expect-error: E0407
 -- stderr
 -- exit: 0
 ==== tests/lang/err_stack_overflow.fung
@@ -3606,10 +3650,13 @@
 -- exit: 2
 ==== tests/lang/err_task_failed.fung
 -- stdout
-| spawn(() => fail("x"))
-| sleep(20ms)
-| print("entry done")
-| # expect: entry done
+| # A failing child cancels the scope's body, even while it sleeps.
+| scope(fn(s):
+|   spawn(s, () => fail("x"))
+|   sleep(10s)
+|   print("not here")
+| ;;)
+| print("not here either")
 | # expect-error: E0803
 -- stderr
 -- exit: 0
@@ -3688,10 +3735,11 @@
 -- exit: 0
 ==== tests/lang/exit_from_task.fung
 -- stdout
-| at_exit(() => print("bye"))
-| spawn(fn(): sleep(10ms); exit(5) ;;)
-| sleep(10s)
-| print("never")
+| with(() => nil, _ => scope(fn(s):
+|   spawn(s, fn(): sleep(10ms); exit(5) ;;)
+|   sleep(10s)
+|   print("never")
+| ;;), _ => print("bye"))
 | # expect: bye
 | # expect-exit: 5
 -- stderr
@@ -3743,11 +3791,11 @@
 -- exit: 0
 ==== tests/lang/http_serve.fung
 -- stdout
-| # A server that counts its requests with an agent.
+| # A server that counts its requests with an atom.
 | import http
 | import json
 |
-| hits = agent(0)
+| hits = atom(0)
 | handle = fn(req):
 |   swap(hits, n => n + 1)
 |   match req.path:
@@ -3757,22 +3805,26 @@
 |   ;;
 | ;;
 |
-| port = channel(1)
-| server = spawn(() => http.serve("127.0.0.1:0", handle, ready: addr => send(port, addr)))
-| base = "http://" + recv(port)!
+| # The server runs in a child of the scope; cancelling it lets the scope end.
+| server = scope(fn(s):
+|   (port_tx, port) = channel(1)
+|   server = spawn(s, () => http.serve("127.0.0.1:0", handle, ready: addr => send(port_tx, addr)))
+|   base = "http://" + recv(port)!
 |
-| r = http.get("${base}/health")!
-| print(r.status, r.headers["content-type"], json.parse(r.body)!.ok)
+|   r = http.get("${base}/health")!
+|   print(r.status, r.headers["content-type"], json.parse(r.body)!.ok)
+|   r = http.post("${base}/echo?x=1", "hello")!
+|   print(r.status, r.body, r.headers["content-type"])
+|   r = http.get("${base}/nowhere")!
+|   print(r.status, r.body)
+|   print(deref(hits))
+|   cancel(server)
+|   server
+| ;;)
 | # expect: 200 application/json true
-| r = http.post("${base}/echo?x=1", "hello")!
-| print(r.status, r.body, r.headers["content-type"])
 | # expect: 200 POST hello 1 text/plain; charset=utf-8
-| r = http.get("${base}/nowhere")!
-| print(r.status, r.body)
 | # expect: 404 no such page
-| print(deref(hits))
 | # expect: 3
-| cancel(server)
 | print(await(server))
 | # expect: Err({kind: 'cancelled})
 -- stderr
@@ -4090,6 +4142,26 @@
 | # expect: nil
 -- stderr
 -- exit: 0
+==== tests/lang/scopes.fung
+-- stdout
+| # Scopes: the body's value, waiting for the children, await inside.
+| print(scope(s => 1 + 1))
+| r = scope(fn(s):
+|   a = spawn(s, () => 2)
+|   b = spawn(s, () => Err('e))
+|   [await(a), await(b)]
+| ;;)
+| print(r)
+| (tx, rx) = channel(1)
+| scope(s => spawn(s, () => send(tx, 'done)))
+| print(recv(rx))
+| scope(fn(s): print(s, type_of(s), s == s) ;;)
+| # expect: 2
+| # expect: [2, Err('e)]
+| # expect: Ok('done)
+| # expect: <scope> 'scope true
+-- stderr
+-- exit: 0
 ==== tests/lang/slices_inclusive.fung
 -- stdout
 | xs = [1, 2, 3]
@@ -4150,6 +4222,20 @@
 | # expect: 2
 -- stderr
 -- exit: 0
+==== tests/lang/supervise.fung
+-- stdout
+| # In supervise a failing child goes to on_fail and the others run on.
+| r = supervise(fn(s):
+|   a = spawn(s, () => 1)
+|   b = spawn(s, () => fail("b"))
+|   c = spawn(s, () => 3)
+|   [await(a), await(c), await(b) |> is_err]
+| ;;, e => print("handled: ${e.message}"))
+| print(r)
+| # expect: handled: error[E0803]: b
+| # expect: [1, 3, true]
+-- stderr
+-- exit: 0
 ==== tests/lang/symbols.fung
 -- stdout
 | s = 'ok
@@ -4159,8 +4245,10 @@
 -- exit: 0
 ==== tests/lang/tasks.fung
 -- stdout
-| ts = for i in 1..=3: spawn(() => i * 2) ;;
-| print(ts |> map(await), await(spawn(() => Err('e))), await(spawn(() => 1 / 0)) |> is_err)
+| supervise(fn(s):
+|   ts = for i in 1..=3: spawn(s, () => i * 2) ;;
+|   print(ts |> map(await), await(spawn(s, () => Err('e))), await(spawn(s, () => 1 / 0)) |> is_err)
+| ;;, _ => nil)
 | # expect: [2, 4, 6] Err('e) true
 -- stderr
 -- exit: 0
@@ -4244,6 +4332,19 @@
 | # expect-error: E0501
 -- stderr
 -- exit: 0
+==== tests/lang/timeouts.fung
+-- stdout
+| # A timeout scope gives the body's value, or Err timeout at the deadline.
+| print(timeout(1s, () => 1 + 1))
+| # `_tx` keeps the channel open, so the receive waits
+| (_tx, rx) = channel()
+| print(timeout(20ms, () => recv(rx)))
+| print(timeout(0s, () => 1))
+| # expect: 2
+| # expect: Err({kind: 'timeout})
+| # expect: Err({kind: 'timeout})
+-- stderr
+-- exit: 0
 ==== tests/lang/tuples_tags.fung
 -- stdout
 | fn divmod(a, b) = (a // b, a % b)
@@ -4280,6 +4381,33 @@
 | ;;
 | print(f())
 | # expect: 2
+-- stderr
+-- exit: 0
+==== tests/lang/with.fung
+-- stdout
+| # The release of a with runs whatever the use did.
+| print(with(() => "r", r => r + "!", r => print("released", r)))
+| print(with(() => 1, r => Err('x), r => print("released")))
+| # expect: released r
+| # expect: r!
+| # expect: released
+| # expect: Err('x)
+-- stderr
+-- exit: 0
+==== tests/lang/with_exit.fung
+-- stdout
+| # Every release runs after exit(n), innermost first.
+| with(() => "outer", fn(_):
+|   with(() => "inner", fn(_):
+|     print("body")
+|     exit(3)
+|     print("unreachable")
+|   ;;, r => print("released", r))
+| ;;, r => print("released", r))
+| # expect: body
+| # expect: released inner
+| # expect: released outer
+| # expect-exit: 3
 -- stderr
 -- exit: 0
 ==== fmt --check - "x=1\n"

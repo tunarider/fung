@@ -1,8 +1,9 @@
 # args: one two
 print(args, len(args))
 # expect: ["one", "two"] 2
-at_exit(() => print("bye"))
-exit(4)
-print("unreachable")
+with(() => nil, fn(_):
+  exit(4)
+  print("unreachable")
+;;, _ => print("bye"))
 # expect: bye
 # expect-exit: 4

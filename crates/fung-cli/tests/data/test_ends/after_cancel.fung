@@ -1,7 +1,7 @@
 test "before": assert true ;;
 test "deadlocks":
-  ch = channel()
-  recv(ch)
+  (_tx, rx) = channel()
+  recv(rx)
 ;;
 test "skipped, no calls": assert 1 + 1 == 2 ;;
 test "skipped, calls": assert len([1]) == 1 ;;

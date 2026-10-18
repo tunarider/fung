@@ -1,4 +1,6 @@
 # 100,000 values through an unbuffered channel: one hand-over per value
-ch = channel()
-spawn(fn(): each(0..100000, i => send(ch, i)); close(ch) ;;)
-print(fold(ch, 0, (s, x) => s + x))
+(tx, rx) = channel()
+print(scope(fn(sc):
+  spawn(sc, fn(): each(0..100000, i => send(tx, i)); close(tx) ;;)
+  fold(rx, 0, (s, x) => s + x)
+;;))

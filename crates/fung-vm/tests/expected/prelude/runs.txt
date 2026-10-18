@@ -1197,19 +1197,19 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(at_exit(1))"
+==== "print(with(() => 1, 2, r => r))"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:14
+| error[E0403]: argument `use` must be fn, got int
+|   --> -e:1:11
 |   |
-| 1 | print(at_exit(1))
-|   |              ^
+| 1 | print(with(() => 1, 2, r => r))
+|   |           ^
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "at_exit(() => print(\"bye\"))\nprint(\"hi\")"
+==== "with(() => nil, _ => print(\"hi\"), _ => print(\"bye\"))"
 -- stdout
 | hi
 | bye
@@ -1611,10 +1611,10 @@
 | Ok(["line1", "line2", "last"]) Ok(nil)
 -- stderr
 -- exit: 0
-==== "at_exit(print)\nprint(\"x\")"
+==== "with(() => nil, _ => print(\"x\"), print)"
 -- stdout
 | x
-|
+| nil
 -- stderr
 -- exit: 0
 ==== "print(map([1, 2], print))"
@@ -1766,8 +1766,8 @@
 |   |     ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:78 _clamp
-|    extras/prelude.fung:86 take
+|    extras/prelude.fung:79 _clamp
+|    extras/prelude.fung:87 take
 |    -e:2       <entry>
 -- exit: 1
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
@@ -1780,8 +1780,8 @@
 |   |  ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:78 _clamp
-|    extras/prelude.fung:86 take (1 tail calls elided)
+|    extras/prelude.fung:79 _clamp
+|    extras/prelude.fung:87 take (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "sum([1, \"a\"])"
@@ -1822,8 +1822,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:114 _padding
-|    extras/prelude.fung:119 pad_left
+|    extras/prelude.fung:115 _padding
+|    extras/prelude.fung:120 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1836,8 +1836,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:116 _padding
-|    extras/prelude.fung:119 pad_left
+|    extras/prelude.fung:117 _padding
+|    extras/prelude.fung:120 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1851,7 +1851,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:139 until
+|    extras/prelude.fung:140 until
 |    -e:1       <entry>
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
@@ -1865,7 +1865,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:142 iterate (1 tail calls elided)
+|    extras/prelude.fung:143 iterate (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
@@ -1878,7 +1878,7 @@
 |   |          ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:106 get
+|    extras/prelude.fung:107 get
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(lines(1))"
@@ -1891,8 +1891,8 @@
 |   |            ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:122 _chomp
-|    extras/prelude.fung:128 lines
+|    extras/prelude.fung:123 _chomp
+|    extras/prelude.fung:129 lines
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(keys([]))"
@@ -1905,7 +1905,7 @@
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:99 keys
+|    extras/prelude.fung:100 keys
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1]))"
@@ -1933,7 +1933,7 @@
 ==== "spawn()"
 -- stdout
 -- stderr
-| error[E0407]: missing argument `f`
+| error[E0407]: missing argument `s`
 |   --> -e:1:6
 |   |
 | 1 | spawn()
@@ -1945,7 +1945,7 @@
 ==== "spawn(1, 2)"
 -- stdout
 -- stderr
-| error[E0402]: spawn takes 1 argument(s), got 2
+| error[E0403]: argument `s` must be scope, got int
 |   --> -e:1:6
 |   |
 | 1 | spawn(1, 2)
@@ -1981,7 +1981,7 @@
 ==== "recv()"
 -- stdout
 -- stderr
-| error[E0407]: missing argument `ch`
+| error[E0407]: missing argument `rx`
 |   --> -e:1:5
 |   |
 | 1 | recv()
@@ -2019,16 +2019,17 @@
 | nil nil nil
 -- stderr
 -- exit: 0
-==== "spawn(1)"
+==== "scope(s => spawn(s, 1))"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
-|   --> -e:1:6
+|   --> -e:1:17
 |   |
-| 1 | spawn(1)
-|   |      ^
+| 1 | scope(s => spawn(s, 1))
+|   |                 ^
 |   |
 |  call path (innermost first):
+|    -e:1       <lambda>
 |    -e:1       <entry>
 -- exit: 1
 ==== "await(1)"
@@ -2046,7 +2047,7 @@
 ==== "cancel(1)"
 -- stdout
 -- stderr
-| error[E0403]: argument `t` must be task, got int
+| error[E0403]: argument `t` must be task | scope, got int
 |   --> -e:1:7
 |   |
 | 1 | cancel(1)
@@ -2055,39 +2056,27 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "await(spawn(() => 1), timeout: 1)"
--- stdout
--- stderr
-| error[E0403]: argument `timeout` must be dur | nil, got int
-|   --> -e:1:6
-|   |
-| 1 | await(spawn(() => 1), timeout: 1)
-|   |      ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
-==== "t = spawn(() => 1)\nprint(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"
+==== "t = scope(s => spawn(s, () => 1))\nprint(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"
 -- stdout
 | <task> [<task>] true 'task 1 1 nil
 -- stderr
 -- exit: 0
-==== "print(spawn(() => 1) == spawn(() => 1))"
+==== "scope(s => print(spawn(s, () => 1) == spawn(s, () => 1)))"
 -- stdout
 | false
 -- stderr
 -- exit: 0
-==== "print(await(spawn(() => 1 / 0)), await(spawn(() => [1][5])))"
+==== "supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), e => nil)"
 -- stdout
 | Err({kind: 'error, message: "error[E0502]: division by zero"}) Err({kind: 'error, message: "error[E0507]: index 5 is out of range (length 1)"})
 -- stderr
 -- exit: 0
-==== "t = spawn(() => sleep(10s))\ncancel(t)\nprint(await(t))"
+==== "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  print(await(t))\n;;)"
 -- stdout
 | Err({kind: 'cancelled})
 -- stderr
 -- exit: 0
-==== "t = spawn(() => 1)\nt < t"
+==== "t = scope(s => spawn(s, () => 1))\nt < t"
 -- stdout
 -- stderr
 | error[E0501]: cannot compare task and task
@@ -2143,58 +2132,58 @@
 | <fn spawn> 'fn true
 -- stderr
 -- exit: 0
-==== "c = channel()\nprint(c, [c], type_of(c), c == c, c == channel(), c != 1)"
+==== "(t, c) = channel()\n(_t2, c2) = channel()\nprint(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)"
 -- stdout
-| <channel> [<channel>] 'channel true false true
+| <sender> <receiver> [<receiver>] 'sender 'receiver true false true
 -- stderr
 -- exit: 0
-==== "channel() < channel()"
+==== "(_a, ra) = channel()\n(_b, rb) = channel()\nra < rb"
 -- stdout
 -- stderr
-| error[E0501]: cannot compare channel and channel
-|   --> -e:1:11
+| error[E0501]: cannot compare receiver and receiver
+|   --> -e:3:4
 |   |
-| 1 | channel() < channel()
-|   |           ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
-==== "len(channel())"
--- stdout
--- stderr
-| error[E0506]: cannot take the length of channel
-|   --> -e:1:4
-|   |
-| 1 | len(channel())
+| 3 | ra < rb
 |   |    ^
 |   |
 |  call path (innermost first):
-|    -e:1       <entry>
+|    -e:3       <entry>
 -- exit: 1
-==== "1 in channel()"
+==== "(_tx, rx) = channel()\nlen(rx)"
 -- stdout
 -- stderr
-| error[E0512]: cannot test membership in a value of type channel
-|   --> -e:1:3
+| error[E0506]: cannot take the length of receiver
+|   --> -e:2:4
 |   |
-| 1 | 1 in channel()
+| 2 | len(rx)
+|   |    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "(_tx, rx) = channel()\n1 in rx"
+-- stdout
+-- stderr
+| error[E0512]: cannot test membership in a value of type receiver
+|   --> -e:2:3
+|   |
+| 2 | 1 in rx
 |   |   ^
 |   |
 |  call path (innermost first):
-|    -e:1       <entry>
+|    -e:2       <entry>
 -- exit: 1
-==== "channel(1)[0]"
+==== "(_tx, rx) = channel(1)\nrx[0]"
 -- stdout
 -- stderr
-| error[E0509]: cannot index a value of type channel
-|   --> -e:1:11
+| error[E0509]: cannot index a value of type receiver
+|   --> -e:2:3
 |   |
-| 1 | channel(1)[0]
-|   |           ^
+| 2 | rx[0]
+|   |   ^
 |   |
 |  call path (innermost first):
-|    -e:1       <entry>
+|    -e:2       <entry>
 -- exit: 1
 ==== "channel(-1)"
 -- stdout
@@ -2232,7 +2221,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "ch = channel(17592186044410)\nprint(send(ch, 1), recv(ch))"
+==== "(tx, rx) = channel(17592186044410)\nprint(send(tx, 1), recv(rx))"
 -- stdout
 | Ok(nil) Ok(1)
 -- stderr
@@ -2240,7 +2229,7 @@
 ==== "send(1, 2)"
 -- stdout
 -- stderr
-| error[E0403]: argument `ch` must be channel, got int
+| error[E0403]: argument `tx` must be sender, got int
 |   --> -e:1:5
 |   |
 | 1 | send(1, 2)
@@ -2252,7 +2241,7 @@
 ==== "recv(1)"
 -- stdout
 -- stderr
-| error[E0403]: argument `ch` must be channel, got int
+| error[E0403]: argument `rx` must be receiver, got int
 |   --> -e:1:5
 |   |
 | 1 | recv(1)
@@ -2264,7 +2253,7 @@
 ==== "close(1)"
 -- stdout
 -- stderr
-| error[E0403]: argument `ch` must be channel, got int
+| error[E0403]: argument `tx` must be sender, got int
 |   --> -e:1:6
 |   |
 | 1 | close(1)
@@ -2273,44 +2262,32 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "recv(channel(), timeout: 1)"
--- stdout
--- stderr
-| error[E0403]: argument `timeout` must be dur | nil, got int
-|   --> -e:1:5
-|   |
-| 1 | recv(channel(), timeout: 1)
-|   |     ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
-==== "buf = channel(2)\nsend(buf, \"a\")\nclose(buf)\nprint(recv(… (169 bytes, f97cfcad7e5683da)
+==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (227 bytes, f4e7d618d9e17ea9)
 -- stdout
 | Ok("a") Err({kind: 'closed}) Err({kind: 'closed}) Ok(nil) Err({kind: 'timeout}) Err({kind: 'timeout})
 -- stderr
 -- exit: 0
-==== "ch = channel()\nt = spawn(() => send(ch, 1))\nprint(await(t, timeout: 10ms), recv(ch), await(t))"
+==== "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => se… (136 bytes, 8a9047378ebca5e6)
 -- stdout
 | Err({kind: 'timeout}) Ok(1) Ok(nil)
 -- stderr
 -- exit: 0
-==== "ch = channel()\nt = spawn(() => recv(ch))\ns = send(ch, 1)\ncancel(t)\nprint(s, await(t))"
+==== "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => … (129 bytes, 225068134b6e5134)
 -- stdout
 | Ok(nil) Ok(1)
 -- stderr
 -- exit: 0
-==== "ch = channel(1)\nspawn(fn(): each(0..50, i => send(ch, i)); close(ch) ;;)\nprint(fold(ch, 0, (a, x) => a + x))"
+==== "(tx, rx) = channel(1)\nscope(fn(s):\n  spawn(s, fn(): each(… (144 bytes, f65c04262e6033a7)
 -- stdout
 | 1225
 -- stderr
 -- exit: 0
-==== "c = channel()\nclose(c)\nprint(any(c, x => true), all(c, x … (261 bytes, 07cfd562d95d5616)
+==== "(t, c) = channel()\nclose(t)\nprint(any(c, x => true), all(… (266 bytes, 7407e1c1bd5ecaa2)
 -- stdout
 | false true {} [] [] 1 nil nil nil []  [] nil []
 -- stderr
 -- exit: 0
-==== "c = channel(1)\nsend(c, 1)\nclose(c)\nmap(c, 3)"
+==== "(t, c) = channel(1)\nsend(t, 1)\nclose(t)\nmap(c, 3)"
 -- stdout
 -- stderr
 | error[E0403]: argument `f` must be fn, got int
@@ -3027,7 +3004,8 @@
 |   |                   ^
 |   |
 |  call path (innermost first):
-|    extras/fs.fung:30 with_open
+|    extras/fs.fung:42 _with_ok (1 tail calls elided)
+|    extras/fs.fung:33 with_open
 |    -e:2       <entry>
 -- exit: 1
 ==== "import fs\nfn g(h: str) = h\nprint(fs.with_open(\"/dev/null\", g))"
@@ -3040,8 +3018,8 @@
 |   |      ^
 |   |
 |  call path (innermost first):
-|    -e:2       g
-|    extras/fs.fung:30 with_open
+|    -e:2       g (2 tail calls elided)
+|    extras/fs.fung:33 with_open
 |    -e:3       <entry>
 -- exit: 1
 ==== "print(sort(0..100000000000000000))"

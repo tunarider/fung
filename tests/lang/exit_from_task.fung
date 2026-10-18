@@ -1,6 +1,7 @@
-at_exit(() => print("bye"))
-spawn(fn(): sleep(10ms); exit(5) ;;)
-sleep(10s)
-print("never")
+with(() => nil, _ => scope(fn(s):
+  spawn(s, fn(): sleep(10ms); exit(5) ;;)
+  sleep(10s)
+  print("never")
+;;), _ => print("bye"))
 # expect: bye
 # expect-exit: 5

@@ -42,14 +42,6 @@
 //! **Strings.** What is read is decoded as UTF-8, a byte that is not
 //! UTF-8 becoming U+FFFD (as for files); `byte_len` gives the UTF-8 size
 //! a string is sent with.
-//!
-//! **A server's end** (Task 5, `hold`): a listener counts the connections
-//! accepted from it that are still open (closed, or their last copy
-//! gone). `hold(l, grace)` waits until its task is cancelled, then closes
-//! `l` and waits, at most `grace`, until that count is zero, and ends
-//! with E0701: the graceful stop `http.serve` makes when its task is
-//! cancelled. Its task waits outside the token the whole time,
-//! so the tasks answering those connections run meanwhile.
 
 use std::io::{self, Read, Write};
 use std::net::{
@@ -58,7 +50,7 @@ use std::net::{
 use std::os::fd::{AsRawFd, RawFd};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use fung_front::source::decode_lossy;
@@ -98,15 +90,17 @@ pub fn module() -> Rc<Module> {
                 native(
                     "connect",
                     connect_fn,
-                    vec![
-                        param("host"),
-                        param("port"),
-                        opt("tls", Lit::Bool(false)),
-                        opt("timeout", Lit::Dur(0)),
-                    ],
+                    vec![param("host"), param("port"), opt("tls", Lit::Bool(false))],
                 ),
             ),
-            ("listen", native("listen", listen_fn, vec![param("addr")])),
+            (
+                "listen",
+                native(
+                    "listen",
+                    listen_fn,
+                    vec![param("addr"), opt("reuse_port", Lit::Bool(false))],
+                ),
+            ),
             (
                 "local_addr",
                 native("local_addr", local_addr_fn, vec![param("x")]),
@@ -167,11 +161,7 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "start_tls",
-                native(
-                    "start_tls",
-                    start_tls_fn,
-                    vec![param("c"), param("host"), opt("timeout", Lit::Dur(0))],
-                ),
+                native("start_tls", start_tls_fn, vec![param("c"), param("host")]),
             ),
             (
                 "need_str_map",
@@ -180,14 +170,6 @@ pub fn module() -> Rc<Module> {
                     need_str_map_fn,
                     vec![param("name"), param("m")],
                 ),
-            ),
-            (
-                "hold",
-                native("hold", hold_fn, vec![param("l"), param("grace")]),
-            ),
-            (
-                "close_on_cancel",
-                native("close_on_cancel", close_on_cancel_fn, vec![param("l")]),
             ),
             (
                 "utf8_string",
@@ -320,10 +302,6 @@ pub struct Conn {
     name: String,
     /// The local address.
     local: String,
-    /// For a connection a listener accepted: its place in the
-    /// listener's count of open connections, given up when the
-    /// connection closes or goes (`hold`).
-    track: Mutex<Option<Track>>,
 }
 
 impl std::fmt::Debug for Conn {
@@ -346,7 +324,6 @@ impl Conn {
             wr: Mutex::new(()),
             deadline: Mutex::new(None),
             tls: None,
-            track: Mutex::new(None),
         }
     }
 
@@ -602,7 +579,6 @@ impl Conn {
             tls: None,
             name: self.name.clone(),
             local: self.local.clone(),
-            track: Mutex::new(lock(&self.track).take()),
         })
     }
 
@@ -615,7 +591,6 @@ impl Conn {
             tls::close_notify(t, &s.0);
         }
         let _ = s.0.shutdown(Shutdown::Both);
-        drop(lock(&self.track).take());
         Ok(())
     }
 
@@ -639,60 +614,13 @@ impl Conn {
 /// A listening socket.
 pub struct Listener {
     /// `None` once closed. Locked only to take or drop a reference (a
-    /// leaf lock: nothing else is locked while it is held, so a
-    /// cancellation hook may take it, `close_on_cancel`).
-    sock: Arc<Mutex<Option<Arc<Counted<TcpListener>>>>>,
+    /// leaf lock: nothing else is locked while it is held).
+    sock: Mutex<Option<Arc<Counted<TcpListener>>>>,
     /// `close` writes a byte into the pipe, waking a blocked `accept`.
-    closer: (io::PipeReader, Arc<io::PipeWriter>),
+    closer: (io::PipeReader, io::PipeWriter),
     /// The address it listens on (`host:port`, the port the system chose
     /// for 0).
     addr: String,
-    /// The connections accepted from it that are still open (`hold`).
-    open: Arc<Tracker>,
-}
-
-/// A listener's count of open connections, and the signal `hold` waits
-/// on for it to reach zero.
-#[derive(Default)]
-struct Tracker {
-    open: Mutex<usize>,
-    closed: Condvar,
-}
-
-impl Tracker {
-    /// Waits until no connection is open, at most until `until`.
-    fn wait_idle(&self, until: Instant) {
-        let mut n = lock(&self.open);
-        while *n > 0 {
-            let now = Instant::now();
-            if now >= until {
-                return;
-            }
-            n = self
-                .closed
-                .wait_timeout(n, until - now)
-                .unwrap_or_else(PoisonError::into_inner)
-                .0;
-        }
-    }
-}
-
-/// One open connection in a listener's count; dropping it counts the
-/// connection closed.
-struct Track(Arc<Tracker>);
-
-impl Track {
-    fn new(t: &Arc<Tracker>) -> Track {
-        *lock(&t.open) += 1;
-        Track(t.clone())
-    }
-}
-
-impl Drop for Track {
-    fn drop(&mut self) {
-        *lock(&self.0.open) -= 1;
-        self.0.closed.notify_all();
-    }
 }
 
 impl std::fmt::Debug for Listener {
@@ -724,9 +652,7 @@ impl Listener {
                     if let Err(e) = setup {
                         return Err(Fail::Network(oserr::reason(&e)));
                     }
-                    let c = Conn::new(s, peer);
-                    *lock(&c.track) = Some(Track::new(&self.open));
-                    return Ok(c);
+                    return Ok(Conn::new(s, peer));
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     let fds = [
@@ -752,10 +678,9 @@ impl Listener {
     }
 }
 
-/// Closes a listener's socket and wakes its `accept` (and `hold`); false
-/// if it was closed already. It takes only the socket slot's lock, a
-/// leaf lock, and one byte into an empty pipe never blocks: short and
-/// safe enough for a cancellation hook (`close_on_cancel`).
+/// Closes a listener's socket and wakes its `accept`; false if it was
+/// closed already. It takes only the socket slot's lock, a leaf lock, and
+/// one byte into an empty pipe never blocks.
 fn close_listener(
     sock: &Mutex<Option<Arc<Counted<TcpListener>>>>,
     closer: &io::PipeWriter,
@@ -965,22 +890,23 @@ fn dial_one(w: &mut Watch, addr: SocketAddr, deadline: Option<Instant>) -> Resul
 /// A listener on `addr`: an empty host listens on every address
 /// (`[::]`, both families; `0.0.0.0` where IPv6 is missing), a name on
 /// its first IPv4 address (else its first).
-fn listen(w: &mut Watch, addr: &str) -> Result<Listener, Fail> {
+fn listen(w: &mut Watch, addr: &str, reuse_port: bool) -> Result<Listener, Fail> {
     let (host, port) = split_host_port(addr)
         .and_then(|(h, p)| Ok((h, parse_port(p)?)))
         .map_err(Fail::Network)?;
     let bound = if host.is_empty() {
         let any6 = SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), port);
-        match sock::listen(&any6) {
-            Err(e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => {
-                sock::listen(&SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port))
-            }
+        match sock::listen(&any6, reuse_port) {
+            Err(e) if e.raw_os_error() == Some(libc::EAFNOSUPPORT) => sock::listen(
+                &SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port),
+                reuse_port,
+            ),
             r => r,
         }
     } else {
         let ips = resolve(w, host, None)?;
         let ip = ips.iter().find(|t| t.ip.is_ipv4()).unwrap_or(&ips[0]);
-        sock::listen(&ip.socket(port))
+        sock::listen(&ip.socket(port), reuse_port)
     };
     let l = bound.map_err(|e| Fail::Network(oserr::reason(&e)))?;
     let local = l
@@ -988,10 +914,9 @@ fn listen(w: &mut Watch, addr: &str) -> Result<Listener, Fail> {
         .map_err(|e| Fail::Network(oserr::reason(&e)))?;
     let closer = io::pipe().map_err(|e| Fail::Network(oserr::reason(&e)))?;
     Ok(Listener {
-        sock: Arc::new(Mutex::new(Some(Arc::new(Counted::new(l))))),
-        closer: (closer.0, Arc::new(closer.1)),
+        sock: Mutex::new(Some(Arc::new(Counted::new(l)))),
+        closer,
         addr: sock::addr_text(&local),
-        open: Arc::default(),
     })
 }
 
@@ -1019,37 +944,30 @@ fn text(b: &[u8]) -> Value {
     Value::str(&decode_lossy(b))
 }
 
-/// `connect(host, port, tls = false, timeout = 0s)`: `Ok(<conn>)`. A
-/// timeout covers the lookup, the connection and the TLS handshake; 0 is
-/// none. With `tls`, the connection is a TLS client of `host` (`tls.rs`).
+/// `connect(host, port, tls = false)`: `Ok(<conn>)`. With `tls`, the
+/// connection is a TLS client of `host` (`tls.rs`).
 fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let host = nat::need_str("host", &a[0])?.to_string();
     let port = nat::need_int("port", &a[1])?;
     let Value::Bool(tls) = a[2] else {
         return Err(nat::wrong_arg("tls", "bool", &a[2]));
     };
-    let Value::Dur(timeout) = a[3] else {
-        return Err(nat::wrong_arg("timeout", "dur", &a[3]));
-    };
     let Ok(port) = u16::try_from(port) else {
         return Ok(fail_value(Fail::Network(format!("invalid port `{port}`"))));
     };
-    let deadline = if timeout > 0 {
-        Instant::now().checked_add(Duration::from_nanos(timeout as u64))
-    } else {
-        None
-    };
+    // No deadline of its own: a `timeout` around the call cuts the name
+    // lookup, the connection and the handshake (`vm/deadline.rs`).
     let r = outside_watched(t, move |w| {
-        let mut c = dial(w, &host, port, deadline)?;
+        let mut c = dial(w, &host, port, None)?;
         if tls {
-            c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, deadline)?));
+            c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, None)?));
         }
         Ok(c)
     })?;
     Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
 }
 
-/// `start_tls(c, host, timeout = 0s)`: `Ok(<conn>)`, a TLS client of
+/// `start_tls(c, host)`: `Ok(<conn>)`, a TLS client of
 /// `host` over `c`'s socket, as `connect(tls: true)` makes one (stage 4d
 /// Task 4: https through an HTTP proxy's CONNECT tunnel, which fung
 /// cannot do over the other primitives). `c` reads as closed afterwards;
@@ -1057,21 +975,13 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let c = need_conn("c", &a[0])?;
     let host = nat::need_str("host", &a[1])?.to_string();
-    let Value::Dur(timeout) = a[2] else {
-        return Err(nat::wrong_arg("timeout", "dur", &a[2]));
-    };
-    let deadline = if timeout > 0 {
-        Instant::now().checked_add(Duration::from_nanos(timeout as u64))
-    } else {
-        None
-    };
     let plain = match c.take_over() {
         Ok(p) => p,
         Err(f) => return Ok(fail_value(f)),
     };
     let r = outside_watched(t, move |w| {
         let mut c = plain;
-        c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, deadline)?));
+        c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, None)?));
         Ok(c)
     })?;
     Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
@@ -1080,7 +990,10 @@ fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// `listen(addr)`: `Ok(<listener>)`.
 fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let addr = nat::need_str("addr", &a[0])?.to_string();
-    let r = outside_watched(t, move |w| listen(w, &addr))?;
+    let Value::Bool(reuse_port) = a[1] else {
+        return Err(nat::wrong_arg("reuse_port", "bool", &a[1]));
+    };
+    let r = outside_watched(t, move |w| listen(w, &addr, reuse_port))?;
     Ok(result(r.map(|l| Value::Listener(Rc::new(l)))))
 }
 
@@ -1220,71 +1133,6 @@ fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
             ],
         ));
     }
-    Ok(Value::Nil)
-}
-
-/// `hold(l, grace)`: waits until this task is cancelled or another task
-/// closes `l`; then closes `l`, waits until every connection accepted
-/// from it is closed, at most `grace`, and ends with E0701 when
-/// cancelled, else returns nil (the graceful stop `http.serve` makes
-/// when its task is cancelled; the server's
-/// accept task closes `l` when it fails). A connection still open after
-/// the grace is left to whoever holds it.
-fn hold_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let Value::Listener(l) = &a[0] else {
-        return Err(nat::wrong_arg("l", "listener", &a[0]));
-    };
-    let Value::Dur(grace) = a[1] else {
-        return Err(nat::wrong_arg("grace", "dur", &a[1]));
-    };
-    let l: &Listener = l;
-    let grace = Duration::from_nanos(grace.max(0) as u64);
-    outside_watched(t, |w| {
-        WAITING.fetch_add(1, Ordering::SeqCst);
-        // A cancellation, or `close` writing to the listener's pipe (the
-        // byte stays: a blocked `accept` sees it too). Should `poll`
-        // itself fail, both are looked at now and then instead.
-        let closer = [(l.closer.0.as_raw_fd(), Interest::Read)];
-        while !l.is_closed() {
-            match w.wait(&closer, None) {
-                Ok(Waited::Cancelled) => break,
-                Ok(_) => {}
-                Err(_) => {
-                    if w.cancelled() {
-                        break;
-                    }
-                    std::thread::sleep(Duration::from_millis(50));
-                }
-            }
-        }
-        let _ = l.close();
-        l.open.wait_idle(Instant::now() + grace);
-        WAITING.fetch_sub(1, Ordering::SeqCst);
-    })?;
-    // Not cancelled (then `outside_watched` unwinds with E0701): the
-    // listener was closed by another task.
-    Ok(Value::Nil)
-}
-
-/// `close_on_cancel(l)`: closes `l` the moment this task is cancelled
-/// (by whoever cancels it, before `cancel` returns) or ends. The `http`
-/// server registers its listener so: cancelled at any tick, even before
-/// it waits in `hold`, it leaves no listener open behind it.
-///
-/// The hook is not removed when `serve` returns, because `serve` never
-/// returns while its task goes on: it ends cancelled (the hook has run)
-/// or raises the accept loop's failure, which no fung code catches, so
-/// the task ends and its node drops the hook. Until then the hook holds
-/// only the closed listener's empty slot and its wake pipe's write end,
-/// and running it again is a no-op (`close_listener` on a closed slot).
-fn close_on_cancel_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let Value::Listener(l) = &a[0] else {
-        return Err(nat::wrong_arg("l", "listener", &a[0]));
-    };
-    let (sock, closer) = (l.sock.clone(), l.closer.1.clone());
-    crate::vm::when_cancelled(t, move || {
-        close_listener(&sock, &closer);
-    });
     Ok(Value::Nil)
 }
 

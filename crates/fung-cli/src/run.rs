@@ -1,6 +1,6 @@
 //! `fung run`, `fung <script.fung>` and `fung -e`: compile the entry
-//! with its import graph, boot the prelude, run, then the exit handlers,
-//! then the background tasks' end (stage 3b), then the exit code.
+//! with its import graph, boot the prelude, run (unwinding through every
+//! `with`'s release), then the exit code.
 
 use std::io::Write;
 
@@ -11,7 +11,7 @@ use fung_vm::vm::{Runtime, STDIN_BUFFER, Stop};
 
 /// Ends the command when a write found the reading end of a pipe closed
 /// (`fung run x | head -1`): the process dies by SIGPIPE (06 "에러
-/// 규칙"), with no report and no exit handlers. Only the
+/// 규칙"), with no report and no further cleanup. Only the
 /// standard streams come here; every other write keeps EPIPE as an error.
 fn exit_on_broken_pipe<T>(r: std::io::Result<T>) -> std::io::Result<T> {
     if let Err(e) = &r
@@ -84,6 +84,12 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
     // Links the entry against the booted prelude and registers the
     // modules. No fung value comes back out of the runtime.
     rt.load(&entry, &b.modules);
+    // The first SIGINT or SIGTERM is a stop request (`vm/stop.rs`).
+    let first = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
+    fung_vm::signals::set(Some(fung_vm::signals::stop_requests(
+        rt.stop_handle(),
+        first,
+    )));
     let mut code = i64::from(EXIT_OK);
     let result = rt.run();
     match &result {
@@ -96,48 +102,39 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
             rt.wait();
         }
     }
+    // An entry error is reported even after an exit: a release that
+    // failed while the program unwound for `exit(n)` reaches the entry
+    // (03 "자원 정리"). A cancellation (an exit's, or the deadlock
+    // report's E0702, already told) is not an error to report.
+    let mut reported = false;
     if let Err(Stop::Error(d)) = &result
-        && rt.exit_code().is_none()
+        && d.code != "E0701"
+        && d.code != "E0702"
     {
         rt.with_sources(|s| report(stderr, std::slice::from_ref(&**d), s));
         code = EXIT_RUNTIME.into();
+        reported = true;
     }
     drop(result);
     let before = rt.exit_code();
     if let Some(n) = before {
         code = n;
     }
-    let handler_errs = rt.run_exit_handlers();
-    // An exit(n) inside a handler is not among the errors (the runtime
-    // records it instead); a handler cut short by the deadlock report
-    // (E0702) or a cancellation (E0701) was already told;
-    // every other handler error is reported.
-    for d in &handler_errs {
-        if d.code == "E0701" || d.code == "E0702" {
-            continue;
-        }
-        rt.with_sources(|s| report(stderr, std::slice::from_ref(d), s));
-        if code == i64::from(EXIT_OK) {
-            code = EXIT_RUNTIME.into();
-        }
+    // exit(0) does not hide a reported error: the run fails.
+    if reported && code == i64::from(EXIT_OK) {
+        code = EXIT_RUNTIME.into();
     }
-    // The handlers are done: cancel the background tasks (stage 3b; an
-    // agent serves the handlers too) and wait for them. Then the program
-    // is over: report every task failure nobody retrieved, handlers
-    // included, since a handler may still await a task (05). Only the
-    // task `spawn_background` itself starts is exempt: a task it spawns
-    // is user code, and its failure is reported.
-    rt.end_background();
-    rt.wait();
-    rt.report_unretrieved();
+    // The program has unwound (through its `with` releases). A failure a
+    // cancelled `supervise` could not hand to its handler was reported
+    // as it closed, and makes the exit code 1 (05).
     match (before, rt.exit_code()) {
-        (None, Some(n)) => code = n, // an exit requested inside a handler
+        (None, Some(n)) => code = n, // an exit requested while unwinding
         (None, None) if code == i64::from(EXIT_OK) && rt.failed() => {
-            code = EXIT_RUNTIME.into(); // a task failure nobody retrieved (05)
+            code = EXIT_RUNTIME.into(); // a task failure nobody handled (05)
         }
         _ => {}
     }
-    drop(handler_errs);
+    fung_vm::signals::set(None);
     drop(rt);
     code
 }

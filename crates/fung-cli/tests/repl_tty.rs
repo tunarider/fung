@@ -210,11 +210,10 @@ fn the_editor_reads_keys_and_restores_the_terminal() {
 fn exit_restores_the_terminal() {
     let mut t = start("exit", false);
     let cooked = pty::lflag(t.terminal.as_raw_fd()).unwrap();
-    t.send(b"at_exit(() => print(\"bye\"))\r");
-    t.send(b"exit(3)\r");
+    t.send(b"with(() => nil, _ => exit(3), _ => print(\"bye\"))\r");
     assert_eq!(t.wait(), Some(3));
     assert!(!t.raw());
-    assert!(t.text().contains("bye"), "{:?}", t.text());
+    assert!(t.text().contains("bye\r\n"), "{:?}", t.text());
     assert_eq!(pty::lflag(t.terminal.as_raw_fd()).unwrap(), cooked);
 }
 

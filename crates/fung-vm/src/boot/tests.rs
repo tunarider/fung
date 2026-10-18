@@ -31,16 +31,15 @@ fn render_params(ps: &[NativeParam]) -> String {
 #[test]
 fn concurrency_builtin_errors_have_a_position() {
     // A native's error points at the call's `(` like every other native
-    // error (`spawn(1)` → E0403 at 2:6); so does the error of the
-    // fung `deref` (stage 3b, `extras/agent.fung`).
+    // error (`spawn(1, …)` → E0403 at 2:6), `deref` among them.
     for (src, want) in [
         (
-            "print(1)\nspawn(1)",
-            "error[E0403]: argument `f` must be fn, got int\n  --> -e:2:6\n",
+            "print(1)\nspawn(1, () => 2)",
+            "error[E0403]: argument `s` must be scope, got int\n  --> -e:2:6\n",
         ),
         (
             "print(1)\nderef(1)",
-            "error[E0403]: argument `a` must be agent, got int\n  --> -e:2:6\n",
+            "error[E0403]: argument `a` must be atom, got int\n  --> -e:2:6\n",
         ),
     ] {
         let (out, err, code) = run_booted(src);
@@ -57,17 +56,11 @@ fn fung_prelude_and_process_functions() {
 }
 
 #[test]
-fn agents_run() {
-    // Stage 3b: agents (`extras/agent.fung`) replace atoms; no
+fn atoms_run() {
+    // Concurrency v2 L5: atoms (prelude natives) replace the agents; no
     // concurrency builtin gives E0805.
-    let (out, err, code) = run_booted("a = agent(1)\nprint(swap(a, x => x + 1), deref(a), a)");
-    assert_eq!((out.as_str(), err.as_str(), code), ("2 2 <agent>\n", "", 0));
-    let (_, err, code) = run_booted("atom(1)");
-    assert!(
-        err.starts_with("error[E0204]: undefined name `atom`"),
-        "{err}"
-    );
-    assert_eq!(code, 2);
+    let (out, err, code) = run_booted("a = atom(1)\nprint(swap(a, x => x + 1), deref(a), a)");
+    assert_eq!((out.as_str(), err.as_str(), code), ("2 2 <atom>\n", "", 0));
     for (name, _) in crate::conc::natives() {
         let src = match name {
             "channel" => "channel(-1)".to_string(),
@@ -87,8 +80,10 @@ fn agents_run() {
 #[test]
 fn fung_helpers_over_concurrency_fail_at_the_user_call() {
     let cases = [
-        ("import conc\nconc.fan_in(1)", 2, 12),
-        ("import conc\nprint(1)\nconc.fan_in(1)", 3, 12),
+        // the lambda's call is a tail call: the nearest user frame is
+        // the entry's, at `scope(`
+        ("import conc\nscope(s => conc.fan_in(s, 1))", 2, 6),
+        ("import conc\nprint(1)\nscope(s => conc.fan_in(s, 1))", 3, 6),
     ];
     for (src, line, col) in cases {
         let o = exec(src, Opts::default());
@@ -118,8 +113,7 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
         );
         rt.boot(vec!["a".into(), "b c".into()]).expect("boot");
         rt.with_prelude(|p| {
-            // The spec's names (no atom natives; the agent names are
-            // written in fung).
+            // The spec's names.
             let spec = builtins();
             let names = spec.prelude_names();
             let want: BTreeSet<&str> = names.iter().map(String::as_str).collect();
@@ -136,9 +130,6 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
             }
             assert_eq!(format(&p.0["args"]), "[\"a\", \"b c\"]");
             assert_eq!(format(&p.0["take"]), "<fn take>");
-            for name in ["agent", "swap", "deref"] {
-                assert_eq!(format(&p.0[name]), format!("<fn {name}>"));
-            }
         });
         assert_eq!(rt.args(), ["a", "b c"]);
     });
@@ -397,11 +388,11 @@ fn commands_that_cannot_run_are_not_found() {
 fn fung_prelude_functions() {
     let cases: &[(&str, &str)] = &[
         (
-            "ch = channel(3)\nsend(ch, 1)\nsend(ch, 2)\nclose(ch)\nprint(first(ch))",
+            "(tx, ch) = channel(3)\nsend(tx, 1)\nsend(tx, 2)\nclose(tx)\nprint(first(ch))",
             "1\n",
         ),
         (
-            "ch = channel(3)\nsend(ch, 1)\nsend(ch, 2)\nclose(ch)\nprint(last(ch))",
+            "(tx, ch) = channel(3)\nsend(tx, 1)\nsend(tx, 2)\nclose(tx)\nprint(last(ch))",
             "2\n",
         ),
         (
@@ -484,8 +475,8 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |     ^
   |
  call path (innermost first):
-   extras/prelude.fung:78 _clamp
-   extras/prelude.fung:86 take
+   extras/prelude.fung:79 _clamp
+   extras/prelude.fung:87 take
    -e:2       <entry>
 "
     );
@@ -502,7 +493,7 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:139 until
+   extras/prelude.fung:140 until
    -e:1       <entry>
 "
     );
@@ -533,8 +524,8 @@ fn prelude_frames_and_imported_files_keep_their_names() {
   |                  ^
   |
  call path (innermost first):
-   extras/prelude.fung:78 _clamp
-   extras/prelude.fung:86 take
+   extras/prelude.fung:79 _clamp
+   extras/prelude.fung:87 take
    {d}/lib.fung:1 cut
    {d}/main.fung:3 <entry>
 "
@@ -573,7 +564,7 @@ fn files_that_are_not_programs_are_refused() {
 #[test]
 fn fan_in_merges_its_channels() {
     let (out, err, code) = crate::testutil::run(
-        "import conc\na = channel(2)\nb = channel(2)\neach([1, 2], x => send(a, x))\nclose(a)\nsend(b, 3)\nclose(b)\nprint(conc.fan_in([a, b]) |> map(x => x) |> sort, conc.fan_in([]) |> map(x => x))",
+        "import conc\n(a_tx, a) = channel(2)\n(b_tx, b) = channel(2)\neach([1, 2], x => send(a_tx, x))\nclose(a_tx)\nsend(b_tx, 3)\nclose(b_tx)\nprint(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), scope(s => conc.fan_in(s, []) |> map(x => x)))",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
@@ -581,21 +572,16 @@ fn fan_in_merges_its_channels() {
     );
 }
 
-/// `pmap` spawns its tasks with `_native.conc.spawn_awaited` and awaits
-/// them.
+/// `pmap` runs its tasks in a scope of its own: a runtime error in `f`
+/// fails `pmap`.
 #[test]
 fn pmap_runs_its_tasks() {
     let (out, err, code) = crate::testutil::run(
-        "import conc\nprint(conc.pmap([1, 2, 3], x => x * x, limit: 2), conc.pmap([1], x => 1 / 0))",
+        "import conc\nprint(conc.pmap([1, 2, 3], x => x * x, limit: 2))\nconc.pmap([1], x => 1 / 0)",
     );
-    assert_eq!(
-        (out.as_str(), err.as_str(), code),
-        (
-            "[1, 4, 9] [Err({kind: 'error, message: \"error[E0502]: division by zero\"})]\n",
-            "",
-            0
-        )
-    );
+    assert_eq!(out, "[1, 4, 9]\n");
+    assert!(err.contains("error[E0502]: division by zero"), "{err}");
+    assert_eq!(code, 1);
 }
 
 /// `sleep` waits for real, so `retry` with a delay really waits.

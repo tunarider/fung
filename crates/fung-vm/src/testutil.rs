@@ -1,8 +1,7 @@
 //! Test helpers: compile a program with the front end, boot the prelude
 //! and run it the way the fung command will: the entry, waiting for the
-//! tasks it left (or cancelling them after an error), the exit handlers,
-//! the end of the background tasks (stage 3b), the report of task
-//! failures nobody retrieved, then the exit code.
+//! tasks it left (or cancelling them after an error, unwinding through the releases),
+//! then the exit code.
 //! Everything runs on a 4 GiB thread, because value formatting and
 //! comparison recurse on deep nesting.
 //!
@@ -69,8 +68,6 @@ pub struct Outcome {
     pub exit: i32,
     /// The entry's runtime error.
     pub error: Option<ErrInfo>,
-    /// Errors the exit handlers reported.
-    pub handler_errors: Vec<ErrInfo>,
 }
 
 /// How to run: standard input and extra natives (made on the run thread,
@@ -404,37 +401,24 @@ fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
         Err(Stop::Error(d)) => {
             o.code = d.code.clone();
             o.error = Some(ErrInfo::of(&d));
-            if rt.exit_code().is_none() {
+            // reported even after an exit, as the command does
+            if d.code != "E0701" && d.code != "E0702" {
                 let text = rt.with_sources(|s| diag::format(&d, s));
                 err.clone().write_all(text.as_bytes()).unwrap();
                 o.exit = diag::EXIT_RUNTIME;
             }
         }
     }
+    let reported = o.exit == diag::EXIT_RUNTIME;
     let before = rt.exit_code();
     if let Some(n) = before {
         o.exit = status(n);
     }
-    for d in rt.run_exit_handlers() {
-        if d.code == "E0701" || d.code == "E0702" {
-            // A handler cut short by the deadlock report (or an exit),
-            // already told.
-            continue;
-        }
-        let text = rt.with_sources(|s| diag::format(&d, s));
-        err.clone().write_all(text.as_bytes()).unwrap();
-        if o.exit == diag::EXIT_OK {
-            o.exit = diag::EXIT_RUNTIME;
-        }
-        o.handler_errors.push(ErrInfo::of(&d));
+    if reported && o.exit == diag::EXIT_OK {
+        o.exit = diag::EXIT_RUNTIME;
     }
-    // The handlers are done: end the background tasks (stage 3b), then
-    // the program is over: report every task failure nobody retrieved.
-    rt.end_background();
-    rt.wait();
-    rt.report_unretrieved();
     match (before, rt.exit_code()) {
-        (None, Some(n)) => o.exit = status(n), // an exit requested inside a handler
+        (None, Some(n)) => o.exit = status(n), // an exit requested while unwinding
         (None, None) if o.exit == diag::EXIT_OK && rt.failed() => o.exit = diag::EXIT_RUNTIME,
         _ => {}
     }
@@ -481,7 +465,8 @@ pub fn boom() -> Vec<Value> {
 /// - `queued(ch)`: how many blocked sends and receives wait in `ch`;
 /// - `hold(ms)`: sleeps the thread without giving the run token up, so no
 ///   other task runs meanwhile;
-/// - `background()`: how many background tasks have not finished.
+/// - `buffered(ch)`: how many values wait in `ch`'s buffer;
+/// - `finished(t)`: whether task `t` has finished.
 pub fn probes() -> Vec<Value> {
     fn int_arg(a: &[Value]) -> i64 {
         let Value::Int(n) = a[0] else {
@@ -494,15 +479,28 @@ pub fn probes() -> Vec<Value> {
             "queued",
             vec![nat::param("ch")],
             |_: &mut Task, a| {
-                let Value::Channel(c) = &a[0] else {
-                    panic!("a channel argument")
-                };
+                let c = a[0].channel_end().expect("a channel end");
                 Ok(Value::Int(c.queued() as i64))
             },
         )),
-        Value::Native(Native::leak("background", vec![], |t: &mut Task, _| {
-            Ok(Value::Int(t.background_tasks() as i64))
-        })),
+        Value::Native(Native::leak(
+            "buffered",
+            vec![nat::param("ch")],
+            |_: &mut Task, a| {
+                let c = a[0].channel_end().expect("a channel end");
+                Ok(Value::Int(c.buffered() as i64))
+            },
+        )),
+        Value::Native(Native::leak(
+            "finished",
+            vec![nat::param("t")],
+            |_: &mut Task, a| {
+                let Value::Task(h) = &a[0] else {
+                    panic!("a task argument")
+                };
+                Ok(Value::Bool(h.state.result().is_some()))
+            },
+        )),
         Value::Native(Native::leak(
             "hold",
             vec![nat::param("ms")],

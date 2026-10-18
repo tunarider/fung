@@ -1,5 +1,8 @@
-spawn(() => fail("x"))
-sleep(20ms)
-print("entry done")
-# expect: entry done
+# A failing child cancels the scope's body, even while it sleeps.
+scope(fn(s):
+  spawn(s, () => fail("x"))
+  sleep(10s)
+  print("not here")
+;;)
+print("not here either")
 # expect-error: E0803

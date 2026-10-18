@@ -17,7 +17,7 @@ pub struct Builtins {
     /// Native values of the prelude (functions and plain values such as `args`).
     pub prelude_native: Vec<String>,
     /// Public prelude names of the prelude files written in fung
-    /// (`extras/prelude.fung`, `extras/agent.fung`).
+    /// (`extras/prelude.fung`).
     pub prelude_fung: Vec<String>,
     /// `_native.x` → its member names; also the standard modules written
     /// in fung that the spec lists (`conc`, `http`) → their public names.
@@ -133,24 +133,18 @@ mod tests {
         assert_eq!(b.native_signature("take"), None);
     }
 
-    /// Stage 3b: there are no atom natives; the agent functions of
-    /// `extras/agent.fung` are prelude names.
+    /// Concurrency v2 L5: the atom functions are prelude natives, and
+    /// `agent` is gone.
     #[test]
-    fn agents_are_prelude_names_written_in_fung() {
+    fn atoms_are_prelude_natives_and_agent_is_gone() {
         let b = builtins();
-        for name in ["atom", "swap", "deref"] {
-            assert!(!b.prelude_native.iter().any(|n| n == name), "{name}");
-            assert_eq!(b.native_signature(name), None, "{name}");
+        for name in ["atom", "deref", "swap", "reset"] {
+            assert!(b.prelude_native.iter().any(|n| n == name), "{name}");
         }
-        for name in ["agent", "deref", "swap"] {
-            assert!(b.prelude_fung.iter().any(|n| n == name), "{name}");
-        }
+        assert_eq!(b.native_signature("swap"), Some("a, f"));
         let names = b.prelude_names();
         assert!(names.windows(2).all(|w| w[0] < w[1]));
-        for name in ["agent", "swap", "deref", "print", "take"] {
-            assert!(names.iter().any(|n| n == name), "{name}");
-        }
-        assert!(!names.iter().any(|n| n == "atom"));
+        assert!(!names.iter().any(|n| n == "agent"));
     }
 
     /// Stage 6a: `fan_in`, `pmap` and `retry` are the fung module `conc`
@@ -164,7 +158,7 @@ mod tests {
             assert!(!b.prelude_fung.iter().any(|n| n == name), "{name}");
         }
         assert_eq!(b.modules["conc"], ["fan_in", "pmap", "retry"]);
-        assert_eq!(b.module_signature("conc", "fan_in"), Some("chs"));
+        assert_eq!(b.module_signature("conc", "fan_in"), Some("s, rxs"));
         assert_eq!(b.module_signature("conc", "pmap"), Some("xs, f, limit=?"));
         assert_eq!(
             b.module_signature("conc", "retry"),
@@ -180,21 +174,17 @@ mod tests {
             Some("cmd, cwd=?, env=?, stdin=?")
         );
         assert_eq!(b.module_signature("_native.process", "env"), Some("name=?"));
-        assert_eq!(
-            b.module_signature("_native.conc", "spawn_awaited"),
-            Some("f")
-        );
         assert_eq!(b.module_signature("_native.fs", "temp_dir"), Some(""));
+        assert_eq!(b.modules["_native.conc"], ["try_spawn"]);
         assert_eq!(
-            b.module_signature("_native.conc", "agent_busy"),
-            Some("ch, on, state=?")
+            b.module_signature("_native.conc", "try_spawn"),
+            Some("s, f")
         );
-        assert!(b.modules["_native.conc"].contains(&"try_call".to_string()));
         assert_eq!(b.module_signature("_native.process", "nope"), None);
         assert_eq!(b.module_signature("_native.nope", "exec"), None);
         assert_eq!(
             b.module_signature("http", "serve"),
-            Some("addr, handler, ready=?")
+            Some("addr, handler, ready=?, drain=?, reuse_port=?")
         );
         assert!(!b.modules.contains_key("_native.http"));
     }

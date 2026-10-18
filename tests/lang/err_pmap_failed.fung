@@ -1,0 +1,5 @@
+import conc
+
+conc.pmap([1, 2, 3], x => 6 / (x - 2))
+print("not here")
+# expect-error: E0502

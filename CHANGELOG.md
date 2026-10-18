@@ -8,6 +8,66 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+### 바뀜(호환 깨짐)
+
+- **태스크는 범위 안에서만 띄운다(구조적 동시성).** `spawn(f)`가 없어지고 `spawn(s, f)`가 된다. 범위는 `scope(f)`로 연다.
+  옮겨 쓰기는 `t = spawn(f); …` → `scope(fn(s): t = spawn(s, f); … ;;)`다.
+  - `scope(f)`는 본문과 그 안의 태스크가 **모두 끝나야** 돌아온다. 태스크 하나가 런타임 에러로 죽으면 나머지와 본문을 취소하고,
+    그 에러를 `scope(` 자리에서 다시 낸다(종료 코드 1). 함수가 `Err` 값을 돌려준 것은 실패가 아니다.
+  - 태스크의 실패를 값으로 받아 처리하려면 `supervise(f, on_fail)`를 쓴다. 실패는 `on_fail(e)`로 가고 `await`도 `Err`를 준다.
+  - 진입 파일이 끝나도 남은 태스크를 기다리던 규칙, 아무도 `await`하지 않은 실패를 핸들이 사라질 때 `task failed:`로 보고하던 규칙이
+    없어졌다. 범위 밖에 사는 태스크가 없어서 필요 없어졌다. `task failed:` 보고는 `supervise` 범위가 취소되어 `on_fail`에 넘기지 못한
+    실패에만 남는다(종료 코드 1).
+- **기한은 `timeout(d, f)` 범위 하나로 준다.** `await(t, timeout: d)`·`recv(ch, timeout: d)`의 `timeout:`이 없어졌다.
+  옮겨 쓰기는 `timeout(d, () => recv(ch))`, `timeout(d, () => await(t))`이고 결과(`Err({kind: 'timeout})`)는 같다.
+  `timeout: 0s`로 "기다리지 않고 한 번 보던" 코드는 `timeout(0s, …)`가 언제나 시간 초과라 그대로 옮겨지지 않는다.
+  값이 이미 있음이 확실하면 `recv(ch)`로 쓴다.
+- `http.get`·`post`·`request`의 `timeout`은 그대로지만, 바깥에 더 짧은 `timeout`이 있으면 그쪽이 이긴다.
+- **`at_exit`가 없어졌다.** 정리 장치는 `with(acquire, use, release)` 하나다. `exit`·교착·진입 파일 에러는 루트를 취소하고
+  되감기가 모든 `with`의 `release`를 지난다. 옮겨 쓰기는 `at_exit(() => cleanup())` 뒤의 코드를
+  `with(() => nil, _ => …, _ => cleanup())`로 감싸는 것이다. `fung test`의 `<exit handler>` 실패 줄도 없다.
+- **`agent`가 없어지고 `atom`으로 돌아왔다.** 옮겨 쓰기는 `agent(` → `atom(`이고 `swap`·`deref`는 이름 그대로다. 타입 표기는 `atom`, `type_of`는 `'atom`.
+  - `swap(a, f)`는 비교 후 교체다. 그사이 다른 태스크가 바꿨으면 `f`를 다시 돌린다. 그래서 `f`는 **순수 계산만** 해야 한다.
+    출력·입력·`exit`·태스크와 채널 연산·`sleep`·다른 atom의 `swap`/`reset`·파일·네트워크·외부 프로세스를 부르면 E0707이다.
+    `f` 안에서 하던 효과는 `swap` 밖으로 옮긴다.
+  - atom에는 바뀌는 것(atom, 채널, 태스크·범위 핸들, 파일, 소켓, 그것들을 품은 값)을 넣지 못한다(E0708).
+  - `deref`는 기다리지 않는다. 에이전트처럼 태스크가 아니라서, 수천 개를 만들어도 스레드 한도에 걸리지 않는다.
+- **채널은 두 끝으로 다룬다.** `channel(n)`이 `(tx, rx)` 튜플을 준다. `send(tx, v)`, `close(tx)`는 보내는 끝, `recv(rx)`와 `for`·`map` 같은 순회는 받는 끝을 받는다.
+  끝을 잘못 주면 E0403이다. `type_of`는 `'sender`·`'receiver`, 출력은 `<sender>`·`<receiver>`, 타입 표기는 `sender`·`receiver`이고 타입 이름 `channel`은 없어졌다.
+  - 옮겨 쓰기는 `ch = channel(n)` → `(tx, rx) = channel(n)`이고, `send`·`close`에는 `tx`, 받는 곳에는 `rx`를 준다.
+  - **자동 닫힘**: 보내는 끝의 마지막 사본이 사라지면 채널이 닫히고, 받는 끝의 마지막 사본이 사라지면 그 뒤의 `send`가 `Err({kind: 'closed})`다.
+    받는 끝만 돌려주는 생산 함수는 생산 태스크가 끝나면 저절로 닫힌다. 최상위 변수의 끝은 프로그램 끝까지 살므로 거기서는 `close(tx)`를 쓴다.
+  - 보내는 끝을 버리면(`(_, rx) = channel()`) `recv(rx)`는 기다리지 않고 곧바로 `Err({kind: 'closed})`다. 영원히 기다리게 하려면 `(_tx, rx)`처럼 이름을 붙여 살려 둔다.
+  - 같은 채널의 끝을 그 채널로 보내면 어느 끝이든 E0705다. 다른 채널의 끝(응답 채널)은 된다.
+- `conc.fan_in(chs)` → `conc.fan_in(s, rxs)`: 전달 태스크를 띄울 범위와 받는 끝들을 받고, 받는 끝을 돌려준다.
+- `conc.pmap`에서 `f`의 런타임 에러는 이제 `pmap`의 실패다(전에는 그 원소가 `Err` 값이 됐다).
+- **첫 SIGINT·SIGTERM은 정지 요청이다** (전에는 운영체제의 기본 동작으로 곧바로 죽었다). 정지 요청을 보는 코드(`stop_signal()`)가 없으면 프로그램을 취소하므로
+  Ctrl-C는 여전히 곧바로 멈추지만, 이제 `with`의 `release`가 돈다. 종료 코드는 130(SIGINT)·143(SIGTERM). 두 번째 신호는 정리를 기다리지 않고 곧바로 끝낸다.
+  REPL에서는 평가 중의 Ctrl-C가 그 평가만 취소하고 세션이 이어진다.
+- **`http.serve`는 정지 요청에 정상 종료한다.** 새 연결을 그만 받고, 처리 중인 요청을 `drain`(기본 10초)까지 마친 뒤 남은 것을 503으로 끊고 `nil`을 돌려준다.
+  서버 태스크를 `cancel`하면 이제 기다리지 않고 곧바로 멈춘다(전에는 처리 중인 요청을 2초까지 기다렸다). 정상 종료는 정지 요청으로 한다.
+- 취소된 태스크가 기다리던 `exec`·`sh`의 명령은 끝낸다(SIGTERM, 2초 뒤 SIGKILL). 전에는 끝날 때까지 기다렸다. 터미널이 없으면 명령은 자기 프로세스 그룹으로 돌아
+  셸이 띄운 손자까지 끝난다. 터미널 앞에서는 전처럼 fung과 같은 그룹이라 비밀번호 프롬프트가 된다.
+  기한이 지난 뒤에 끝난 명령의 결과도 이제 `timeout`을 지나 나오지 않는다(`Err({kind: 'timeout})`).
+
+### 더함
+
+- `scope(f)`, `supervise(f, on_fail)`, `spawn(s, f)`. 범위를 `cancel(s)`하면 `scope(`는 `Err({kind: 'cancelled})`를 돌려준다.
+  타입 표기 `scope`, `type_of`는 `'scope`.
+- `timeout(d, f)`: `f()`의 값, 또는 `d`가 지나면 `f` 안의 모든 것을 취소하고 `Err({kind: 'timeout})`. 겹치면 이른 기한이 이긴다.
+  파일·정규식 컴파일을 기다리는 동안은 끊기지 않고, 끝나는 즉시 끊긴다(알려진 한계). 외부 명령은 끝낸다.
+- `with(acquire, use, release)`: `release`는 값·`Err`·런타임 에러·취소·`exit` 어느 경우에나 돌고, 그것을 부른 취소나 기한에 끊기지 않는다.
+  `release`의 실패는 버리지 않는다.
+- `fs.with_open`·`fs.with_temp_dir`가 함수의 런타임 에러나 취소에도 닫고 지운다(전에는 정상으로 끝날 때만).
+  닫기·지우기의 실패(쓴 내용을 내보내지 못함 등)는 런타임 에러다. 함수가 스스로 닫은 핸들은 실패가 아니다.
+- `exit(n)` 뒤의 되감기에서 난 에러(정리의 실패)도 보고한다. 종료 코드는 `n`이고, `exit(0)`이었으면 1이다.
+- `reset(a, v)`: atom의 값을 그냥 바꾼다.
+- 에러 E0707(atom의 `f` 안에서 효과), E0708(atom에 담지 못하는 값). E0704는 더 나지 않는다.
+- 에러 E0706 `spawn into a closed scope`: `scope(`가 돌아온 뒤의 범위에 `spawn`.
+- `stop_signal()`: 정지 요청을 받는 끝. 정지 요청(첫 SIGINT·SIGTERM, `request_stop()`)이 오면 닫힌다. 보는 쪽이 일을 마치고 끝나면 종료 코드 0.
+- `request_stop()`: 코드에서 보내는 정지 요청. 첫 신호와 같다.
+- `http.serve`의 `drain`(기본 10초)과 `reuse_port`(기본 false, `SO_REUSEPORT`: 프로세스 여럿이 한 포트를 받음).
+
 ## [0.2.0] - 2026-10-18
 
 fung 실행 파일이 Go 구현에서 Rust 구현으로 바뀌었다. 언어와 표준 모듈은 아래에 적은 것 말고는 그대로다.

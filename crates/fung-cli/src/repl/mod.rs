@@ -18,17 +18,14 @@
 //! After an input poisons the program (decided 2026-10-17): a deadlock
 //! fails only the input it happened in, with the deadlock report, and the
 //! session goes on on a fresh run root (`Runtime::recover_deadlock`: the
-//! tasks earlier inputs left blocked are cancelled; globals and agents
-//! stay; the exit code stays 0). A spawned task's `exit(n)` ends the
-//! session as `exit(n)` typed at the prompt does.
+//! input's tasks are cancelled; globals, atoms among them, stay; the exit
+//! code stays 0). A spawned task's `exit(n)` ends the session as
+//! `exit(n)` typed at the prompt does.
 //!
-//! Tasks: the session holds the runtime open (`Runtime::hold`), so a task
-//! an input leaves waiting for a later input is not a deadlock between
-//! inputs, however slowly the next line is typed. At the end (`:quit`,
-//! the end of input or `exit(n)`) the tasks are cancelled and waited
-//! for, then the exit handlers run, then the background tasks (agents)
-//! end, then task failures nobody retrieved are reported (stage 3b
-//! order).
+//! Tasks: an input's tasks run in its scopes and end with it; the session
+//! holds the runtime open (`Runtime::hold`) between inputs. At the end
+//! (`:quit`, the end of input or `exit(n)`) the tasks are cancelled and
+//! waited for (unwinding through their `with` releases).
 
 mod editor;
 mod history;
@@ -85,7 +82,10 @@ pub fn start() -> Out {
         }
         None => Box::new(PlainReader::new(raw_stdin(), ProcessOut::stdout())),
     };
+    // Ctrl-C during an evaluation cancels it (`Session::eval`).
+    fung_vm::signals::set(Some(fung_vm::signals::repl(rt.stop_handle())));
     let code = Session::new(reader, rt).run();
+    fung_vm::signals::set(None);
     Out {
         code: status(code),
         ..Out::default()
@@ -183,22 +183,12 @@ impl Session {
         }
     }
 
-    /// Ends the session: the tasks still running do not
-    /// keep it open (05), then the exit handlers, the background tasks'
-    /// end and the failures nobody retrieved.
+    /// Ends the session: the tasks still running do not keep it open
+    /// (05).
     fn finish(self, code: i64) -> i64 {
         self.rt.cancel_all();
         self.rt.wait();
         self.rt.release();
-        for d in self.rt.run_exit_handlers() {
-            if d.code == "E0701" || d.code == "E0702" {
-                continue;
-            }
-            let _ = ProcessOut::stderr().write_all(diag::format(&d, &self.known).as_bytes());
-        }
-        self.rt.end_background();
-        self.rt.wait();
-        self.rt.report_unretrieved();
         self.rt.exit_code().unwrap_or(code)
     }
 
@@ -256,7 +246,14 @@ impl Session {
         let entry = b.proto.expect("a compiled entry");
         self.rt.load(&entry, &b.modules);
         self.globals.clone_from(&entry.global_names);
+        // A Ctrl-C that came while no input ran cancels nothing.
+        self.rt.recover_interrupt();
         let r = self.rt.run_repl();
+        // A Ctrl-C cut the input short: nothing is reported or printed,
+        // and the session goes on on a fresh root.
+        if self.rt.recover_interrupt() {
+            return self.rt.exit_code();
+        }
         // A spawned task's exit(n) ends the session like a direct one:
         // what it cut the input short with (E0701) is not reported, and
         // no value is printed. A deadlock's report asks for exit(1) too,

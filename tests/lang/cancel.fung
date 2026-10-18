@@ -1,4 +1,10 @@
-t = spawn(() => sleep(10s))
-cancel(t)
-print(await(t), await(spawn(() => sleep(10s)), timeout: 10ms), recv(channel(), timeout: 5ms))
+scope(fn(s):
+  t = spawn(s, () => sleep(10s))
+  cancel(t)
+  u = spawn(s, () => sleep(10s))
+  # `_tx` keeps the channel open, so the receive waits
+  (_tx, rx) = channel()
+  print(await(t), timeout(10ms, () => await(u)), timeout(5ms, () => recv(rx)))
+  cancel(u)
+;;)
 # expect: Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})

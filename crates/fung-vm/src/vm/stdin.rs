@@ -118,7 +118,9 @@ pub(crate) struct Reader(Arc<Pump>);
 
 impl Reader {
     /// Waits for the next line without the run token (the caller runs it
-    /// in `outside`): the line, or `None` once `cancel` is cancelled.
+    /// in `outside`): the line, or `None` once `cancel` is cancelled or
+    /// its deadline (`deadline.rs`) passes (`outside` then expires the
+    /// owner, with the token held).
     /// `me` must be registered on `cancel` and its woken flag cleared
     /// before the call, so no wake is lost.
     pub(crate) fn wait(&self, me: &Arc<Waiter>, cancel: &CancelNode) -> Option<Option<Vec<u8>>> {
@@ -138,8 +140,23 @@ impl Reader {
                     self.0.demand.notify_one();
                 }
             }
+            let mut due = false;
             while !me.take_woken() {
-                std::thread::park();
+                match cancel.deadline_at() {
+                    None => std::thread::park(),
+                    Some(at) => {
+                        let now = std::time::Instant::now();
+                        if now >= at {
+                            due = true;
+                            break;
+                        }
+                        std::thread::park_timeout(at - now);
+                    }
+                }
+            }
+            if due {
+                lock(&self.0.state).waiting.retain(|w| !Arc::ptr_eq(w, me));
+                return None;
             }
         }
     }

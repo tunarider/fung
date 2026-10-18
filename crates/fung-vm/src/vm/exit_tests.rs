@@ -1,6 +1,6 @@
 //! Exit rules and standard input shared by tasks (stage 3a, Task 7): `exit`
-//! from any task, whole printed lines, handlers registered from many tasks
-//! and standard input read by several tasks. Expected texts are what
+//! from any task, whole printed lines and standard input read by several
+//! tasks; cleanup at the end is `with`'s release. Expected texts are what
 //! `fung -e` prints. Tests that need a task in a given state wait for that
 //! state (`testutil` probes), not for a time.
 
@@ -98,45 +98,35 @@ fn exit_from_anywhere_requests_exit() {
 }
 
 /// An exit from a spawned task ends the entry wherever it waits, and
-/// every other task; the handlers run once.
+/// every other task; the release runs once.
 #[test]
 fn an_exit_from_a_task_cancels_every_task() {
     let start = Instant::now();
     let (out, err, code) = within(10, || {
         run(
-            "at_exit(() => print(\"bye\"))\nch = channel()\nspawn(() => recv(ch))\nspawn(() => sleep(10s))\nspawn(fn(): sleep(10ms); exit(3) ;;)\nrecv(channel())\nprint(\"never\")",
+            "(_tx, ch) = channel()\nwith(() => nil, _ => scope(fn(s):\n  spawn(s, () => recv(ch))\n  spawn(s, () => sleep(10s))\n  spawn(s, fn(): sleep(10ms); exit(3) ;;)\n  recv(ch)\n  print(\"never\")\n;;), _ => print(\"bye\"))",
         )
     });
     assert_eq!((out.as_str(), err.as_str(), code), ("bye\n", "", 3));
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
-/// Stage 3b replaced atoms with agents. An exit while an agent runs the
-/// `f` of a task the exit cancels: that `f` is cancelled with the task (`f`
-/// follows the task that asked), so the update is not applied, and the
-/// agent (a background task, alive until after the handlers) serves the
-/// handler with the old state.
+/// An `exit` inside a swap's `f` is an effect (E0707): the program
+/// ends with the error, the atom keeps its state, and a release still
+/// reads and swaps it.
 #[test]
-fn an_exit_while_an_agent_runs_f_cancels_the_update() {
+fn an_exit_inside_a_swaps_f_is_e0707_and_leaves_the_state() {
     let (out, err, code) = within(10, || {
         run(
-            "a = agent(1)\nch = channel()\nat_exit(() => print(\"ae\", deref(a)))\nspawn(() => swap(a, fn(x): send(ch, 1); sleep(30ms); x + 1 ;;))\nrecv(ch)\nexit(4)",
+            "a = atom(1)\nwith(() => nil, fn(_): swap(a, x => exit(4)); print(\"never\") ;;, _ => print(\"ae\", deref(a), swap(a, x => x + 1)))",
         )
     });
-    assert_eq!((out.as_str(), err.as_str(), code), ("ae 1\n", "", 4));
-}
-
-/// An exit inside an agent's own `f` is handed back to the caller's
-/// `swap`, which unwinds with it; the agent keeps serving with its state
-/// unchanged, so a handler can still ask it.
-#[test]
-fn an_exit_inside_an_agents_f_leaves_the_agent_serving() {
-    let (out, err, code) = within(10, || {
-        run(
-            "a = agent(1)\nat_exit(() => print(\"ae\", deref(a), swap(a, x => x + 1)))\nswap(a, x => exit(4))\nprint(\"never\")",
-        )
-    });
-    assert_eq!((out.as_str(), err.as_str(), code), ("ae 1 2\n", "", 4));
+    assert_eq!(out, "ae 1 2\n");
+    assert!(
+        err.starts_with("error[E0707]: `exit` has an effect"),
+        "{err}"
+    );
+    assert_eq!(code, 1);
 }
 
 /// An exit inside a lambda a native calls (`each`) unwinds through the
@@ -145,22 +135,10 @@ fn an_exit_inside_an_agents_f_leaves_the_agent_serving() {
 fn an_exit_inside_a_native_callback_ends_the_program() {
     let (out, err, code) = within(10, || {
         run(
-            "at_exit(() => print(\"h\"))\nspawn(() => each(1..=3, x => x == 2 then exit(6) else print(x)))\nsleep(10s)",
+            "with(() => nil, _ => scope(fn(s):\n  spawn(s, () => each(1..=3, x => x == 2 then exit(6) else print(x)))\n  sleep(10s)\n;;), _ => print(\"h\"))",
         )
     });
     assert_eq!((out.as_str(), err.as_str(), code), ("1\nh\n", "", 6));
-}
-
-/// An exit from inside an exit handler cancels what that handler
-/// spawned; the handlers after it still run.
-#[test]
-fn an_exit_inside_a_handler_ends_that_handler_only() {
-    let start = Instant::now();
-    let (out, err, code) = within(10, || {
-        run("at_exit(() => print(\"second\"))\nat_exit(fn(): spawn(() => sleep(10s)); exit(2) ;;)")
-    });
-    assert_eq!((out.as_str(), err.as_str(), code), ("second\n", "", 2));
-    assert!(start.elapsed() < Duration::from_secs(2));
 }
 
 /// Lines printed by many tasks at once stay whole (each print is one write
@@ -168,21 +146,12 @@ fn an_exit_inside_a_handler_ends_that_handler_only() {
 #[test]
 fn printed_lines_stay_whole() {
     let (out, err, code) = run(
-        "ts = for _ in 0..50: spawn(() => print(join(for _ in 0..100: \"x\" ;;, \"\"))) ;;\neach(ts, await)",
+        "scope(fn(s):\n  ts = for _ in 0..50: spawn(s, () => print(join(for _ in 0..100: \"x\" ;;, \"\"))) ;;\n  each(ts, await)\n;;)",
     );
     assert_eq!((err.as_str(), code), ("", 0));
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 50);
     assert!(lines.iter().all(|l| *l == "x".repeat(100)), "{out}");
-}
-
-/// Handlers registered from 200 tasks all run.
-#[test]
-fn handlers_registered_from_many_tasks_all_run() {
-    let (out, err, code) =
-        run("ts = for i in 0..200: spawn(() => at_exit(() => print(\"h\"))) ;;\neach(ts, await)");
-    assert_eq!((err.as_str(), code), ("", 0));
-    assert_eq!(out.matches("h\n").count(), 200);
 }
 
 // --- standard input ---
@@ -191,7 +160,7 @@ fn handlers_registered_from_many_tasks_all_run() {
 #[test]
 fn stdin_is_shared_safely() {
     let o = crate::testutil::exec(
-        "t = spawn(() => read_line())\nprint(read_line(), await(t))",
+        "scope(fn(s):\n  t = spawn(s, () => read_line())\n  print(read_line(), await(t))\n;;)",
         Opts {
             stdin: "a\nb\n",
             ..Opts::default()
@@ -212,7 +181,7 @@ fn concurrent_readers_get_every_line_once() {
     let input: String = (0..2000).map(|i| format!("line-{i}\n")).collect();
     let input: &'static str = Box::leak(input.into_boxed_str());
     let o = crate::testutil::exec(
-        "ts = for _ in 0..4: spawn(() => read_lines()!) ;;\neach(ts, t => each(await(t), print))",
+        "scope(fn(s):\n  ts = for _ in 0..4: spawn(s, () => read_lines()!) ;;\n  each(ts, t => each(await(t), print))\n;;)",
         Opts {
             stdin: input,
             ..Opts::default()
@@ -233,7 +202,7 @@ fn concurrent_readers_get_every_line_once() {
 fn a_task_waiting_for_stdin_lets_others_print_and_exit() {
     let start = Instant::now();
     let o = exec_on_silent_stdin(
-        "at_exit(() => print(\"bye\"))\nt = spawn(() => read_line())\nuntil(() => reading() == 1)\nprint(\"out\")\nexit(3)",
+        "with(() => nil, _ => scope(fn(s):\n  t = spawn(s, () => read_line())\n  until(() => reading() == 1)\n  print(\"out\")\n  exit(3)\n;;), _ => print(\"bye\"))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -247,7 +216,7 @@ fn a_task_waiting_for_stdin_lets_others_print_and_exit() {
 fn the_entry_waiting_for_stdin_ends_on_an_exit() {
     let start = Instant::now();
     let o = exec_on_silent_stdin(
-        "at_exit(() => print(\"bye\"))\nspawn(fn(): until(() => reading() == 1); print(\"out\"); exit(3) ;;)\nprint(read_line())",
+        "with(() => nil, _ => scope(fn(s):\n  spawn(s, fn(): until(() => reading() == 1); print(\"out\"); exit(3) ;;)\n  print(read_line())\n;;), _ => print(\"bye\"))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -261,7 +230,7 @@ fn the_entry_waiting_for_stdin_ends_on_an_exit() {
 #[test]
 fn a_task_waiting_for_stdin_is_not_a_deadlock_and_can_be_cancelled() {
     let o = exec_on_silent_stdin(
-        "t = spawn(() => read_line())\nuntil(() => reading() == 1)\ncancel(t)\nprint(await(t))",
+        "scope(fn(s):\n  t = spawn(s, () => read_line())\n  until(() => reading() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -303,7 +272,7 @@ fn a_task_waiting_for_a_process_lets_others_run() {
     let dir = crate::testutil::temp_dir();
     let flag = dir.join("flag").to_string_lossy().into_owned();
     let src = format!(
-        "ch = channel()\nt = spawn(fn(): send(ch, 1); sh(\"while [ ! -e {flag} ]; do sleep 0.01; done; echo done\") ;;)\nrecv(ch)\nprint(is_ok(sh(\"touch {flag}\")))\nprint(await(t))"
+        "(tx, ch) = channel()\nscope(fn(s):\n  t = spawn(s, fn(): send(tx, 1); sh(\"while [ ! -e {flag} ]; do sleep 0.01; done; echo done\") ;;)\n  recv(ch)\n  print(is_ok(sh(\"touch {flag}\")))\n  print(await(t))\n;;)"
     );
     let o = within(10, move || crate::testutil::exec(&src, Opts::default()));
     assert_eq!(o.err, "");
@@ -354,4 +323,21 @@ fn stdin_is_read_only_on_demand() {
         ("Ok(\"a\")\nend\n", "", 0)
     );
     assert_eq!(reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+/// A wait for a line that never comes ends at the deadline of the
+/// `timeout` around it (concurrency v2, L2), and nobody waits any more.
+#[test]
+fn a_stdin_read_is_cut_at_the_deadline() {
+    let start = Instant::now();
+    let o = exec_on_silent_stdin("print(timeout(50ms, () => read_line()))\nprint(reading())");
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err({kind: 'timeout})\n0\n", "", 0)
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(2),
+        "{:?}",
+        start.elapsed()
+    );
 }

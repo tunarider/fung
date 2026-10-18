@@ -22,7 +22,7 @@ use std::rc::Rc;
 
 pub use crate::native::file::File;
 pub use crate::native::net::{Conn, Listener};
-use crate::vm::{Agent, Caught, Channel, RtProto, Stop, Task, TaskHandle};
+use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
@@ -34,6 +34,20 @@ pub use sym::{Sym, intern};
 pub use time::Time;
 pub(crate) use time::{Loc, MAX_UNIX, MIN_UNIX, civil_from_days, days_from_civil, offset_text};
 pub use types::matches_type;
+
+/// Whether a value holds a mutable one (concurrency v2: what an atom
+/// may not hold, 05/스펙 7.2). Persistent collections remember the
+/// answer per node (`pvec.rs`), so a look after a change costs the
+/// changed path only.
+pub(crate) trait HoldsMutable {
+    fn holds_mutable(&self) -> bool;
+}
+
+impl HoldsMutable for Value {
+    fn holds_mutable(&self) -> bool {
+        Value::holds_mutable(self)
+    }
+}
 
 /// A fung value. Every pointer is a thin `Rc`, so a value is 16 bytes.
 #[derive(Clone, Debug)]
@@ -56,11 +70,13 @@ pub enum Value {
     Module(Rc<Module>),
     /// A task handle (05, `spawn`).
     Task(Rc<TaskHandle>),
+    /// An atom (concurrency v2, `atom`; `vm/atom.rs`).
+    Atom(Rc<Atom>),
+    /// A scope (concurrency v2, `scope`; `vm/scope.rs`).
+    Scope(Rc<ScopeHandle>),
     /// A channel (05, `channel`).
-    Channel(Rc<Channel>),
-    /// An agent's handle (stage 3b): it closes the agent's
-    /// request channel when its last copy drops (`vm/agent.rs`).
-    Agent(Rc<Agent>),
+    Sender(Rc<Sender>),
+    Receiver(Rc<Receiver>),
     /// An open file handle (`fs.open`); it closes the file when its last
     /// copy drops (`native/file.rs`).
     File(Rc<File>),
@@ -71,12 +87,96 @@ pub enum Value {
     Listener(Rc<Listener>),
     /// An instant with its zone (02, `time`).
     Time(Rc<Time>),
-    /// An error `_native.conc.try_call` caught, for `raise` (stage 3b;
-    /// only `extras/agent.fung` handles one).
-    Caught(Rc<Caught>),
 }
 
 impl Value {
+    /// The channel behind either end (the test probes); `None` for
+    /// anything else.
+    #[cfg(test)]
+    pub(crate) fn channel_end(&self) -> Option<&Rc<crate::vm::Channel>> {
+        match self {
+            Value::Sender(e) => Some(&e.0),
+            Value::Receiver(e) => Some(&e.0),
+            _ => None,
+        }
+    }
+
+    /// Whether this value is, or holds, one that changes: a channel end, a
+    /// task or scope handle, a file or a socket, or a list, map, tuple,
+    /// tag or closure (its copied values) that holds one. A module does
+    /// not count (it lives for the whole program, 스펙 7.2).
+    ///
+    /// The big lists and maps answer in O(1) from their nodes' memo
+    /// (`pvec.rs`); the small containers are walked with an explicit
+    /// stack (a million nested tuples must not overflow), and a part
+    /// reached through a shared `Rc` is walked once (`[x, x]` nested
+    /// forty deep costs its 41 nodes, not its 2^40 paths).
+    pub(crate) fn holds_mutable(&self) -> bool {
+        if !self.is_container() {
+            return self.is_mutable();
+        }
+        let mut stack: Vec<&Value> = vec![self];
+        let mut seen: std::collections::HashSet<*const ()> = std::collections::HashSet::new();
+        while let Some(v) = stack.pop() {
+            let (ptr, shared): (*const (), bool) = match v {
+                Value::List(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+                Value::Map(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+                Value::Tuple(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+                Value::Tag(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+                Value::Closure(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+                other => {
+                    if other.is_mutable() {
+                        return true;
+                    }
+                    continue;
+                }
+            };
+            if shared && !seen.insert(ptr) {
+                continue;
+            }
+            match v {
+                Value::List(l) => match l.flat() {
+                    Some(items) => stack.extend(items),
+                    None if l.holds_mutable() => return true,
+                    None => {}
+                },
+                Value::Map(m) => match m.flat() {
+                    Some(entries) => stack.extend(entries.iter().map(|(_, x)| x)),
+                    None if m.holds_mutable() => return true,
+                    None => {}
+                },
+                Value::Tuple(t) => stack.extend(t.iter()),
+                Value::Tag(t) => stack.extend(t.args.iter()),
+                Value::Closure(c) => stack.extend(c.captured.iter()),
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// The containers `holds_mutable` looks inside.
+    fn is_container(&self) -> bool {
+        matches!(
+            self,
+            Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_) | Value::Closure(_)
+        )
+    }
+
+    /// The values that change themselves.
+    fn is_mutable(&self) -> bool {
+        matches!(
+            self,
+            Value::Atom(_)
+                | Value::Sender(_)
+                | Value::Receiver(_)
+                | Value::Task(_)
+                | Value::Scope(_)
+                | Value::File(_)
+                | Value::Conn(_)
+                | Value::Listener(_)
+        )
+    }
+
     /// A string value.
     pub fn str(s: &str) -> Value {
         Value::Str(Rc::new(s.to_string()))

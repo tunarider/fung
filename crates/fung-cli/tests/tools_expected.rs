@@ -216,20 +216,20 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 172;
+const CHECK_REPOSITORY_CASES: usize = 180;
 const CHECK_WARNING_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 25;
 const HELP_CASES: usize = 8;
 const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
-const TEST_FIXTURE_CASES: usize = 29;
-const TEST_REPOSITORY_CASES: usize = 173;
-const FMT_INPUTS: usize = 4514;
-const FMT_STDIN_CASES: usize = 413;
+const TEST_FIXTURE_CASES: usize = 24;
+const TEST_REPOSITORY_CASES: usize = 181;
+const FMT_INPUTS: usize = 4558;
+const FMT_STDIN_CASES: usize = 421;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
-const REPL_CASES: usize = 34;
+const REPL_CASES: usize = 30;
 
 #[test]
 fn check_matches_the_expected_output_on_the_repository() {
@@ -828,9 +828,9 @@ fn manual_examples_are_extracted() {
 
 /// The `fung test` fixtures: deliberate failures, `assert` displays,
 /// load errors shared through `_lib`, and one file per way a file could
-/// leak into the next (exit, at_exit, a deadlock, an unretrieved
-/// failure, tasks left running). `test_ends` holds the ones about how a
-/// file's run ends (agents, skipped rests), run on their own.
+/// leak into the next (exit, a `with` released by an exit, a deadlock,
+/// an exit inside a task). `test_ends` holds the ones about how a
+/// file's run ends (atoms, skipped rests), run on their own.
 const TEST_DATA: &str = "crates/fung-cli/tests/data/test";
 const TEST_ENDS: &str = "crates/fung-cli/tests/data/test_ends";
 
@@ -877,22 +877,19 @@ fn test_matches_the_expected_output_on_fixtures() {
     let (out, err) = (String::from_utf8_lossy(&out), String::from_utf8_lossy(&err));
     for want in [
         "  exit(4) called inside a test file",
-        "FAIL crates/fung-cli/tests/data/test/unretrieved.fung: <tasks>",
         "    slug(\"Hello World\") = \"hello world\"",
         "FAIL crates/fung-cli/tests/data/test/deadlock.fung: deadlocks",
         "FAIL crates/fung-cli/tests/data/test/exit_in_task.fung: a task exits",
-        "ok   crates/fung-cli/tests/data/test/blocked_top.fung: again",
-        "ok   crates/fung-cli/tests/data/test/top_task.fung: talks to a top-level task",
         "ok   crates/fung-cli/tests/data/test/z_clean.fung: nothing leaked",
         "FAIL crates/fung-cli/tests/data/test/uses_lib_too.fung: <load>",
         "FAIL crates/fung-cli/tests/data/test/top_exit.fung: <top level>",
-        // an exit handler's failure fails its file (no silent run)
-        "FAIL crates/fung-cli/tests/data/test/handlers.fung: <exit handler>",
+        // the exit inside a test still runs its `with`'s release
+        "released\nFAIL crates/fung-cli/tests/data/test/exit_in_test.fung: exits",
     ] {
         assert!(out.contains(want), "{want}\n{out}");
     }
     assert!(!out.contains("must not run") && !out.contains("only when it is the entry"));
-    assert!(err.contains("error[E0702]") && out.contains("handler broke"));
+    assert!(err.contains("error[E0702]"));
     assert_eq!(err.matches("undefined name `missing`").count(), 1);
 }
 
@@ -1024,57 +1021,56 @@ fn test_runs_the_examples() {
     assert!(out.contains("ok   examples/api.fung: "), "{out}");
 }
 
-/// Agents (stage 3b) end with their file, after its exit
-/// handlers, which may still use them: one that holds its own handle and
-/// one whose `f` left a task sleeping too. A deadlock or an exit asked
-/// for by a spawned task skips the rest of the file, like a direct
-/// `exit(n)` (08). The next file starts clean.
+/// A file's globals (here an atom) end with it. A deadlock or an exit asked for by a
+/// spawned task skips the rest of the file, like a direct `exit(n)`
+/// (08), after the `with` around the task's scope is released. The next
+/// file starts clean.
 #[test]
-fn test_ends_each_files_agents() {
+fn test_ends_each_files_run() {
     let start = std::time::Instant::now();
     let (out, err, status) = run_status(&fung_bin(), &os_args(&["test", TEST_ENDS]), None);
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
     let p = |f: &str| format!("{TEST_ENDS}/{f}");
     let after = p("after_cancel.fung");
     let exit = p("task_exit.fung");
-    let rest = p("rest_skipped.fung");
+    let top = p("top_task_exit.fung");
     let want = [
         format!("ok   {after}: before"),
         format!("FAIL {after}: deadlocks"),
         "  error[E0702]: deadlock: all tasks are waiting".to_string(),
         format!("    --> {after}:4:7"),
         "    |".to_string(),
-        "  4 |   recv(ch)".to_string(),
+        "  4 |   recv(rx)".to_string(),
         "    |       ^".to_string(),
         "    |".to_string(),
         "   call path (innermost first):".to_string(),
         format!("     {after}:4 test: deadlocks"),
         "  a deadlock was reported; the rest of the file was skipped".to_string(),
-        format!("ok   {}: swap", p("agents.fung")),
-        format!(
-            "ok   {}: an agent that holds its own handle",
-            p("agents.fung")
-        ),
-        format!("ok   {}: a background loop", p("agents.fung")),
-        "1".to_string(),
-        format!("ok   {rest}: receives"),
-        format!("FAIL {rest}: <rest of file>"),
-        "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
+        format!("ok   {}: swap", p("atoms.fung")),
+        "released".to_string(),
         format!("FAIL {exit}: a task exits"),
         "  error[E0701]: task cancelled".to_string(),
-        format!("    --> {exit}:4:8"),
+        format!("    --> {exit}:4:10"),
         "    |".to_string(),
-        "  4 |   await(t)".to_string(),
-        "    |        ^".to_string(),
+        "  4 |     await(t)".to_string(),
+        "    |          ^".to_string(),
         "    |".to_string(),
         "   call path (innermost first):".to_string(),
-        format!("     {exit}:4 test: a task exits"),
+        format!("     {exit}:4 <lambda>"),
+        format!("     {exit}:2 <lambda>"),
+        format!("     {exit}:2 test: a task exits"),
         "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
-        "handler still runs".to_string(),
-        format!("FAIL {}: <top level>", p("top_pending.fung")),
-        "  exit(3) called inside a test file; the rest of the file was skipped".to_string(),
+        format!("FAIL {top}: <top level>"),
+        "  error[E0701]: task cancelled".to_string(),
+        format!("    --> {top}:7:6"),
+        "    |".to_string(),
+        "  7 | scope(fn(s):".to_string(),
+        "    |      ^".to_string(),
+        "    |".to_string(),
+        "   call path (innermost first):".to_string(),
+        format!("     {top}:7 <entry>"),
         format!("ok   {}: a fresh file", p("z_next.fung")),
-        "6 passed, 4 failed".to_string(),
+        "3 passed, 3 failed".to_string(),
     ]
     .map(|l| l + "\n")
     .concat();
@@ -1086,36 +1082,21 @@ fn test_ends_each_files_agents() {
     assert_eq!(status.code(), Some(1));
 }
 
-/// When the rest of a file is skipped after a block that
-/// passed (a task it woke asked for an exit), the skip is a failure of
-/// its own (08: a test run never ends silently); when the top level ends
-/// with an exit pending, the top level fails. Both fixtures order the
-/// exit by state (the task sends and exits on one turn of the run
-/// token), so the output is fixed; the loop shows it.
+/// When a task in a top-level scope asks for an exit, the top level
+/// fails and no block runs. The fixture orders the exit by state (the
+/// task sends and exits on one turn of the run token), so the output is
+/// fixed; the loop shows it.
 #[test]
-fn a_skipped_rest_is_a_failure() {
-    let rest = format!("{TEST_ENDS}/rest_skipped.fung");
-    let top = format!("{TEST_ENDS}/top_pending.fung");
-    let note = "  exit(3) called inside a test file; the rest of the file was skipped\n";
-    let cases = [
-        (
-            &rest,
-            format!(
-                "ok   {rest}: receives\nFAIL {rest}: <rest of file>\n{note}1 passed, 1 failed\n"
-            ),
-        ),
-        (
-            &top,
-            format!("FAIL {top}: <top level>\n{note}0 passed, 1 failed\n"),
-        ),
-    ];
+fn a_task_exit_fails_the_top_level() {
+    let top = format!("{TEST_ENDS}/top_task_exit.fung");
+    let want = format!(
+        "FAIL {top}: <top level>\n  error[E0701]: task cancelled\n    --> {top}:7:6\n    |\n  7 | scope(fn(s):\n    |      ^\n    |\n   call path (innermost first):\n     {top}:7 <entry>\n0 passed, 1 failed\n"
+    );
     for _ in 0..20 {
-        for (file, want) in &cases {
-            let (out, err, status) = run_status(&fung_bin(), &os_args(&["test", file]), None);
-            assert_eq!(String::from_utf8_lossy(&out), *want);
-            assert_eq!(String::from_utf8_lossy(&err), "");
-            assert_eq!(status.code(), Some(1));
-        }
+        let (out, err, status) = run_status(&fung_bin(), &os_args(&["test", &top]), None);
+        assert_eq!(String::from_utf8_lossy(&out), want);
+        assert_eq!(String::from_utf8_lossy(&err), "");
+        assert_eq!(status.code(), Some(1));
     }
 }
 
@@ -1944,7 +1925,7 @@ fn repl_dir(tag: &str) -> PathBuf {
 
 /// Whole sessions over a pipe: values, definitions, redefinition,
 /// continued lines, errors and going on, commands, `exit`, empty input,
-/// the end of input, `dbg`, tasks and handlers, byte for byte (both
+/// the end of input, `dbg`, `with` releases, byte for byte (both
 /// streams and the status). A deadlock and a spawned task's `exit` have
 /// tests of their own (`repl_recovers_after_a_deadlock`,
 /// `repl_ends_on_a_spawned_exit`).
@@ -1966,8 +1947,8 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
         ("unfinished block at the end", "fn f():\n"),
         ("commands", ":help\n:bogus\n:quit\nprint(1)\n"),
         (
-            "at_exit and exit",
-            "at_exit(() => print(\"bye\"))\nexit(4)\n",
+            "with and exit",
+            "with(() => nil, _ => exit(4), _ => print(\"bye\"))\n",
         ),
         ("load", ":load lib.fung\ntwice(k)\n"),
         // more
@@ -2009,29 +1990,8 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             "import fs\nfs = 1\nfs\nimport fs\nfs.exists(\"/\")\nfn fs() = 2\nfs()\n",
         ),
         (
-            "a task waits for a later input",
-            "c = channel()\nt = spawn(() => recv(c))\nsend(c, 5)\nawait(t)\n",
-        ),
-        // Ordered by state: the input waits for the value the task sends
-        // into a buffered channel, and the task fails right after that
-        // without another call (which could see the cancellation that
-        // ends the session and turn the failure into E0701). With the
-        // failure first, the report was sometimes lost.
-        (
-            "a failure nobody awaited",
-            "c = channel(1)\nt = spawn(fn():\n  send(c, 1)\n  [1][5]\n;;)\nrecv(c)\n2\n",
-        ),
-        (
-            "handler errors and order",
-            "at_exit(() => 1 / 0)\nat_exit(() => print(\"bye\"))\nat_exit(() => exit(7))\n",
-        ),
-        (
-            "quit cancels a sleeping task",
-            "t = spawn(() => sleep(10s))\n:quit\n",
-        ),
-        (
-            "the end of input cancels a sleeping task",
-            "t = spawn(() => sleep(10s))\n",
+            "releases in order after exit",
+            "with(() => 1, _ => with(() => 2, _ => exit(7), r => print(\"release\", r)), r => print(\"release\", r))\nprint(\"never\")\n",
         ),
         ("help text", ":help extra\n"),
         ("colon inside code", "x = {a: 1}\nx.a\n"),
@@ -2068,26 +2028,23 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
     );
 }
 
-/// Agents (stage 3b): an agent an input stores
-/// stays usable in later inputs, and every background task ends with the
-/// session, so the REPL exits at once. (That a temporary agent's loop
-/// ends with its input is checked by counting background tasks in
-/// `fung-vm`'s `repl_tests.rs`.)
+/// An atom an input stores stays usable in later inputs, and the REPL
+/// exits at once when its input ends.
 #[test]
-fn repl_agents_end_with_the_session() {
-    let dir = repl_dir("agents");
+fn repl_atoms_stay_across_inputs() {
+    let dir = repl_dir("atoms");
     let start = std::time::Instant::now();
     let (out, err, status) = repl_in(
         &fung_bin(),
         &dir,
-        b"a = agent(1)\nswap(a, (n) => n + 1)\nderef(a)\nderef(agent(5))\nswap(a, (n) => n * 10)\nat_exit(() => print(deref(a)))\n",
+        b"a = atom(1)\nswap(a, (n) => n + 1)\nderef(a)\nderef(atom(5))\nswap(a, (n) => n * 10)\nwith(() => nil, _ => nil, _ => print(deref(a)))\n",
     );
     let _ = std::fs::remove_dir_all(&dir);
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
     assert_eq!(String::from_utf8_lossy(&err), "");
     assert_eq!(
         String::from_utf8_lossy(&out),
-        "> > 2\n> 2\n> 5\n> 20\n> nil\n> \n20\n"
+        "> > 2\n> 2\n> 5\n> 20\n> 20\nnil\n> \n"
     );
     assert_eq!(status, "ExitStatus(unix_wait_status(0))");
 }
@@ -2145,22 +2102,20 @@ fn repl_reads_a_device_that_is_no_terminal_plainly() {
 }
 
 /// An error in code an earlier input defined is excerpted from that
-/// input, and so is a task failure the session reports at its end.
+/// input, and so is a failing child that a scope re-raises.
 #[test]
 fn repl_excerpts_the_input_that_defined_the_code() {
     let (_, err, code) = repl_session(
         "excerpts",
-        // the task fails right after the input has its value (ordered by
-        // state, as in the piped "a failure nobody awaited")
-        "fn f(x):\n  x / 0\n;;\n1\nf(1)\nc = channel(1)\nt = spawn(fn():\n  send(c, 1)\n  [1][5]\n;;)\nrecv(c)\n",
+        "fn f(x):\n  x / 0\n;;\n1\nf(1)\nscope(fn(s):\n  spawn(s, () => [1][5])\n;;)\n",
     );
     assert!(
         err.contains("  --> <repl>:2:5\n  |\n2 |   x / 0\n"),
         "the defining input's line: {err}"
     );
     assert!(
-        err.contains("3 |   [1][5]\n"),
-        "the task failure's line: {err}"
+        err.contains("2 |   spawn(s, () => [1][5])\n"),
+        "the child failure's line: {err}"
     );
     assert_eq!(code, Some(0));
 }
@@ -2181,86 +2136,35 @@ fn repl_globals_have_no_fixed_limit() {
 }
 
 /// Decided 2026-10-17 (08 REPL): a deadlock fails only the input it
-/// happened in, with the deadlock report; the
-/// session goes on on a fresh run root, the tasks earlier inputs left
-/// blocked are cancelled, globals and agents stay, and the recovered
-/// deadlock does not set the exit code.
+/// happened in, with the deadlock report (here a scope's body and its
+/// blocked child); the session goes on on a fresh run root, globals and
+/// atoms stay, later inputs can spawn again, and the recovered deadlock
+/// does not set the exit code.
 #[test]
 fn repl_recovers_after_a_deadlock() {
     let (out, err, code) = repl_session(
         "deadlock",
-        "a = agent(1)\nc = channel()\nt = spawn(() => recv(c))\nrecv(channel())\nprint(\"after\")\nawait(t)\nu = spawn(() => 40 + 2)\nawait(u)\nswap(a, (n) => n + 1)\n",
+        "a = atom(1)\n(_tx, c) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(c))\n  recv(c)\n;;)\nprint(\"after\")\nscope(s => await(spawn(s, () => 40 + 2)))\nswap(a, (n) => n + 1)\n",
     );
-    assert_eq!(
-        out,
-        "> > > > > after\nnil\n> Err({kind: 'cancelled})\n> > 42\n> 2\n> \n"
-    );
+    assert_eq!(out, "> > > . . . > after\nnil\n> 42\n> 2\n> \n");
     assert_eq!(
         err,
-        "error[E0702]: deadlock: all tasks are waiting\nerror[E0702]: deadlock: all tasks are waiting\n  --> <repl>:1:5\n  |\n1 | recv(channel())\n  |     ^\n  |\n call path (innermost first):\n   <repl>:1   <entry>\n"
+        "error[E0702]: deadlock: all tasks are waiting\nerror[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n"
     );
     assert_eq!(code, Some(0));
 }
 
 /// Decided 2026-10-17: a spawned task's `exit(n)` ends the
 /// session like `exit(n)` typed at the prompt: the input it cut short
-/// reports nothing, later lines are not run, the handlers run, and the
-/// code is n.
+/// reports nothing, later lines are not run, the `with` around it is
+/// released, and the code is n.
 #[test]
 fn repl_ends_on_a_spawned_exit() {
     let (out, err, code) = repl_session(
         "spawned-exit",
-        "at_exit(() => print(\"bye\"))\nc = channel()\nt = spawn(fn():\n  recv(c)\n  exit(3)\n;;)\n[send(c, 1), await(t)]\nprint(\"never\")\n",
+        "(tx, c) = channel()\nwith(() => nil, _ => scope(fn(s):\n  t = spawn(s, fn():\n    recv(c)\n    exit(3)\n  ;;)\n  [send(tx, 1), await(t)]\n;;), _ => print(\"bye\"))\nprint(\"never\")\n",
     );
-    assert_eq!(out, "> nil\n> > . . . > bye\n");
+    assert_eq!(out, "> > . . . . . . bye\n");
     assert_eq!(err, "");
     assert_eq!(code, Some(3));
-}
-
-/// A spawned task's `exit(n)` that comes while a line is read
-/// ends the session before that line runs, a `:` command included (one
-/// that runs no fung code, which the exit would have cut short). The
-/// task prints `going` and asks for the exit on one turn of the run token,
-/// so once `going` is out, the REPL's check after the read waits for that
-/// turn and sees the exit. (The task's sleep only makes the exit come
-/// after the check before the read, so the check after it is the one
-/// exercised; if it came earlier, the result would be the same.)
-#[test]
-fn repl_checks_a_spawned_exit_before_a_command() {
-    use std::io::{Read, Write};
-    let dir = repl_dir("exit-before-command");
-    // killed and waited for if anything below panics
-    let mut child = common::Reaped::new(
-        std::process::Command::new(fung_bin())
-            .env("TZ", common::TZ)
-            .current_dir(&dir)
-            .env("HOME", &dir)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap(),
-    );
-    let mut stdin = child.stdin.take().unwrap();
-    let mut stdout = child.stdout.take().unwrap();
-    stdin
-        .write_all(b"t = spawn(fn():\n  sleep(100ms)\n  print(\"going\")\n  exit(3)\n;;)\n")
-        .unwrap();
-    let mut out = Vec::new();
-    let mut buf = [0u8; 256];
-    while !String::from_utf8_lossy(&out).contains("going\n") {
-        let n = stdout.read(&mut buf).unwrap();
-        assert!(n > 0, "{}", String::from_utf8_lossy(&out));
-        out.extend_from_slice(&buf[..n]);
-    }
-    // A command that does something before any fung code runs: the
-    // help text, and a file that fails to compile.
-    stdin.write_all(b":help\n:load bad.fung\n").unwrap();
-    drop(stdin);
-    stdout.read_to_end(&mut out).unwrap();
-    let (o, _) = child.output_within(common::RUN_LIMIT).unwrap();
-    let _ = std::fs::remove_dir_all(&dir);
-    assert_eq!(String::from_utf8_lossy(&out), "> . . . . > going\n");
-    assert_eq!(String::from_utf8_lossy(&o.stderr), "");
-    assert_eq!(o.status.code(), Some(3));
 }

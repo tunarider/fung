@@ -229,10 +229,9 @@ print("out")"#,
     (r#"fail("port", 1)"#, ""),
     (r#"fail()"#, ""),
     (r#"fail([1, "a"], 'x)"#, ""),
-    (r#"print(at_exit(1))"#, ""),
+    (r#"print(with(() => 1, 2, r => r))"#, ""),
     (
-        r#"at_exit(() => print("bye"))
-print("hi")"#,
+        r#"with(() => nil, _ => print("hi"), _ => print("bye"))"#,
         "",
     ),
     (r#"exit(3)"#, ""),
@@ -353,11 +352,7 @@ print(bad([1, 2]))"#,
     (r#"print(sym("Ⅰx"))"#, ""),
     (r#"print(sym("a٣"))"#, ""),
     (r#"print(read_lines(), read_line())"#, INPUT),
-    (
-        r#"at_exit(print)
-print("x")"#,
-        "",
-    ),
+    (r#"with(() => nil, _ => print("x"), print)"#, ""),
     (r#"print(map([1, 2], print))"#, ""),
     (r#"print(fold(["a"], "", join))"#, ""),
     (r#"print(sort_by([1], fail))"#, ""),
@@ -455,28 +450,32 @@ print(conc.retry(() => Ok(1)), conc.retry(() => 2, times: 1), until(1, x => x * 
     (r#"sleep(d: 1ms, d: 2ms)"#, ""),
     // Tasks, `sleep` and channels run for real (stage 3a).
     (r#"print(sleep(1ms), sleep(0s), sleep(-1s))"#, ""),
-    (r#"spawn(1)"#, ""),
+    (r#"scope(s => spawn(s, 1))"#, ""),
     (r#"await(1)"#, ""),
     (r#"cancel(1)"#, ""),
-    (r#"await(spawn(() => 1), timeout: 1)"#, ""),
     (
-        r#"t = spawn(() => 1)
+        r#"t = scope(s => spawn(s, () => 1))
 print(t, [t], t == t, type_of(t), await(t), await(t), cancel(t))"#,
         "",
     ),
-    (r#"print(spawn(() => 1) == spawn(() => 1))"#, ""),
     (
-        r#"print(await(spawn(() => 1 / 0)), await(spawn(() => [1][5])))"#,
+        r#"scope(s => print(spawn(s, () => 1) == spawn(s, () => 1)))"#,
         "",
     ),
     (
-        r#"t = spawn(() => sleep(10s))
-cancel(t)
-print(await(t))"#,
+        r#"supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), e => nil)"#,
         "",
     ),
     (
-        r#"t = spawn(() => 1)
+        r#"scope(fn(s):
+  t = spawn(s, () => sleep(10s))
+  cancel(t)
+  print(await(t))
+;;)"#,
+        "",
+    ),
+    (
+        r#"t = scope(s => spawn(s, () => 1))
 t < t"#,
         "",
     ),
@@ -499,67 +498,73 @@ print(conc.retry(() => Err("x"), times: 3, delay: 0s))"#,
     ),
     (r#"print(spawn, type_of(await), channel == channel)"#, ""),
     (
-        r#"c = channel()
-print(c, [c], type_of(c), c == c, c == channel(), c != 1)"#,
+        r#"(t, c) = channel()
+(_t2, c2) = channel()
+print(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)"#,
         "",
     ),
-    (r#"channel() < channel()"#, ""),
-    (r#"len(channel())"#, ""),
-    (r#"1 in channel()"#, ""),
-    (r#"channel(1)[0]"#, ""),
+    ("(_a, ra) = channel()\n(_b, rb) = channel()\nra < rb", ""),
+    ("(_tx, rx) = channel()\nlen(rx)", ""),
+    ("(_tx, rx) = channel()\n1 in rx", ""),
+    ("(_tx, rx) = channel(1)\nrx[0]", ""),
     (r#"channel(-1)"#, ""),
     (r#"channel(1.5)"#, ""),
     (r#"channel("a")"#, ""),
     (
-        "ch = channel(17592186044410)\nprint(send(ch, 1), recv(ch))",
+        "(tx, rx) = channel(17592186044410)\nprint(send(tx, 1), recv(rx))",
         "",
     ),
     (r#"send(1, 2)"#, ""),
     (r#"recv(1)"#, ""),
     (r#"close(1)"#, ""),
-    (r#"recv(channel(), timeout: 1)"#, ""),
     (
-        r#"buf = channel(2)
-send(buf, "a")
-close(buf)
-print(recv(buf), recv(buf), send(buf, "b"), close(buf), recv(channel(), timeout: 1ms), recv(channel(), timeout: -1s))"#,
+        r#"(buf_tx, buf) = channel(2)
+send(buf_tx, "a")
+close(buf_tx)
+(_never_tx, never) = channel()
+print(recv(buf), recv(buf), send(buf_tx, "b"), close(buf_tx), timeout(1ms, () => recv(never)), timeout(-1s, () => recv(never)))"#,
         "",
     ),
     (
-        r#"ch = channel()
-t = spawn(() => send(ch, 1))
-print(await(t, timeout: 10ms), recv(ch), await(t))"#,
+        r#"(tx, rx) = channel()
+scope(fn(s):
+  t = spawn(s, () => send(tx, 1))
+  print(timeout(10ms, () => await(t)), recv(rx), await(t))
+;;)"#,
         "",
     ),
     (
-        r#"ch = channel()
-t = spawn(() => recv(ch))
-s = send(ch, 1)
-cancel(t)
-print(s, await(t))"#,
+        r#"(tx, rx) = channel()
+scope(fn(sc):
+  t = spawn(sc, () => recv(rx))
+  s = send(tx, 1)
+  cancel(t)
+  print(s, await(t))
+;;)"#,
         "",
     ),
     (
-        r#"ch = channel(1)
-spawn(fn(): each(0..50, i => send(ch, i)); close(ch) ;;)
-print(fold(ch, 0, (a, x) => a + x))"#,
+        r#"(tx, rx) = channel(1)
+scope(fn(s):
+  spawn(s, fn(): each(0..50, i => send(tx, i)); close(tx) ;;)
+  print(fold(rx, 0, (a, x) => a + x))
+;;)"#,
         "",
     ),
     (
-        r#"c = channel()
-close(c)
+        r#"(t, c) = channel()
+close(t)
 print(any(c, x => true), all(c, x => false), group_by(c, x => "a"), sort_by(c, x => x), filter(c, x => true), fold(c, 1, (a, b) => a), each(c, x => x), first(c), last(c), take(c, 1), join(c), flatten(c), find(c, x => true), sort(c))"#,
         "",
     ),
     (
-        r#"c = channel(1)
-send(c, 1)
-close(c)
+        r#"(t, c) = channel(1)
+send(t, 1)
+close(t)
 map(c, 3)"#,
         "",
     ),
-    // No atoms: stage 3b replaced them with agents, tested in
-    // `vm/agent_tests.rs` and `tests/lang/agents.fung`.
+    // Atoms are tested in `vm/atom_tests.rs`.
 
     // --- process functions ---
     (r#"print(exec(["echo", "hi there"]))"#, ""),

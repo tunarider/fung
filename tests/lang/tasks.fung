@@ -1,3 +1,5 @@
-ts = for i in 1..=3: spawn(() => i * 2) ;;
-print(ts |> map(await), await(spawn(() => Err('e))), await(spawn(() => 1 / 0)) |> is_err)
+supervise(fn(s):
+  ts = for i in 1..=3: spawn(s, () => i * 2) ;;
+  print(ts |> map(await), await(spawn(s, () => Err('e))), await(spawn(s, () => 1 / 0)) |> is_err)
+;;, _ => nil)
 # expect: [2, 4, 6] Err('e) true

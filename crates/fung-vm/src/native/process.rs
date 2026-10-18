@@ -6,13 +6,14 @@
 //! `prepare` checks what would keep it from starting and gives the reason
 //! of the `not_found` error.
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use fung_front::diag::Arg;
 use fung_front::loader::abs_path;
@@ -101,8 +102,10 @@ fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// ended it), or `Err({kind: 'not_found, message})` when it cannot start.
 ///
 /// The command runs outside the run token (stage 3a): other tasks run
-/// while it does. It is not cut short by a cancellation or an exit; the
-/// program waits for it to end.
+/// while it does. It runs in a process group of its own; when the task is
+/// cancelled (or its deadline passes, or the program exits) the group
+/// gets SIGTERM, and SIGKILL if it is still there 2 s later (L6), and the
+/// call unwinds with the cancellation instead of giving the output.
 fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Value, Stop> {
     let cwd = nat::opt_str("cwd", &a[1])?
         .filter(|d| !d.is_empty())
@@ -137,8 +140,16 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Value
             Vec::new(),
         ))
     };
-    let output = match crate::vm::outside(t, move || run_process(&argv, cwd.as_deref(), env, stdin))
-    {
+    let node = t.cancel_node();
+    let stopped =
+        move || node.is_cancelled() || node.deadline_at().is_some_and(|at| Instant::now() >= at);
+    let output = crate::vm::outside(t, move || {
+        run_process(&argv, cwd.as_deref(), env, stdin, stopped)
+    });
+    // A cancellation (or a deadline) that came meanwhile wins over the
+    // output, whether or not it cut the command short.
+    t.check_cancelled()?;
+    let output = match output {
         Ok(o) => o,
         Err(reason) => return not_found(&reason),
     };
@@ -159,16 +170,68 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Value
     ))
 }
 
+/// How long a command has to end after SIGTERM before SIGKILL.
+const TERM_GRACE: Duration = Duration::from_secs(2);
+
+/// Set by tests: every command gets a group of its own, whether or not
+/// `cargo test` runs in the foreground of a terminal.
+#[cfg(test)]
+static OWN_GROUP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+fn force_own_group() {
+    OWN_GROUP.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Whether a command gets a process group of its own (L6, user decision
+/// 2026-10-18). Not when fung runs in the foreground of its terminal: a
+/// command in another group would be stopped (SIGTTIN, SIGTTOU) the
+/// moment it reads or sets up the terminal (a `sudo` or `ssh` password,
+/// a credential prompt), and the terminal's Ctrl-C reaches it as in a
+/// shell. Without a terminal (a service, a container, CI, cron) it does,
+/// so a cancel ends what it started too.
+fn own_group() -> bool {
+    #[cfg(test)]
+    if OWN_GROUP.load(std::sync::atomic::Ordering::SeqCst) {
+        return true;
+    }
+    !in_terminal_foreground()
+}
+
+/// Whether this process has a controlling terminal and is in its
+/// foreground process group.
+fn in_terminal_foreground() -> bool {
+    // SAFETY: `open` reads the NUL-terminated path; the descriptor it
+    // returns is ours and closed below; `tcgetpgrp` and `getpgrp` only
+    // read process state. O_NOCTTY keeps a terminal from becoming ours.
+    unsafe {
+        let fd = libc::open(
+            c"/dev/tty".as_ptr(),
+            libc::O_RDONLY | libc::O_NOCTTY | libc::O_CLOEXEC,
+        );
+        if fd < 0 {
+            return false;
+        }
+        let fg = libc::tcgetpgrp(fd);
+        libc::close(fd);
+        fg >= 0 && fg == libc::getpgrp()
+    }
+}
+
 /// Starts the command and waits for it, with its output captured, or
 /// gives the reason it cannot start. Handles no fung value: it runs
-/// without the run token.
+/// without the run token. While it waits it asks `stopped` (the task's
+/// cancellation) every 10 ms at most, and terminates the command's group
+/// once it says so (`terminate`).
 fn run_process(
     argv: &[String],
     cwd: Option<&str>,
     env: Option<Vec<(String, String)>>,
     stdin: Option<Vec<u8>>,
+    stopped: impl Fn() -> bool,
 ) -> Result<std::process::Output, String> {
-    let mut cmd = prepare(argv, cwd, env)?;
+    let own = own_group();
+    let mut cmd = prepare(argv, cwd, env, own)?;
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     cmd.stdin(if stdin.is_some() {
         Stdio::piped()
@@ -184,11 +247,120 @@ fn run_process(
         })),
         _ => None,
     };
-    let output = child.wait_with_output();
+    let out = read_all(child.stdout.take());
+    let err = read_all(child.stderr.take());
+    let group = child.id() as libc::pid_t;
+    let mut pause = Duration::from_millis(1);
+    let mut stop = || {
+        let s = stopped();
+        if !s {
+            std::thread::sleep(pause);
+            pause = (pause * 2).min(Duration::from_millis(10));
+        }
+        s
+    };
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break Ok(st),
+            Ok(None) if stop() => break terminate(&mut child, own),
+            Ok(None) => {}
+            Err(e) => break Err(e),
+        }
+    };
+    // The command has ended, but what it left in the background may
+    // still hold its output open (`sleep 30 &`): wait for the pipes to
+    // close, and on a cancel end the group too and leave the readers.
+    let mut cut = false;
+    while !(out.is_finished() && err.is_finished()) {
+        if stop() {
+            if own {
+                end_group(group, || out.is_finished() && err.is_finished());
+            }
+            cut = true;
+            break;
+        }
+    }
     if let Some(f) = feeder {
         let _ = f.join();
     }
+    let output = status.map(|status| std::process::Output {
+        status,
+        stdout: if cut {
+            Vec::new()
+        } else {
+            out.join().unwrap_or_default()
+        },
+        stderr: if cut {
+            Vec::new()
+        } else {
+            err.join().unwrap_or_default()
+        },
+    });
     output.map_err(|e| reason(&e))
+}
+
+/// SIGTERM to a group whose leader is gone, then SIGKILL after
+/// `TERM_GRACE` unless `done` says its members have let go.
+fn end_group(group: libc::pid_t, done: impl Fn() -> bool) {
+    // SAFETY: `killpg` only sends a signal. The group id outlives its
+    // leader while members remain; with none left it is ESRCH.
+    unsafe {
+        libc::killpg(group, libc::SIGTERM);
+    }
+    let start = Instant::now();
+    while start.elapsed() < TERM_GRACE {
+        if done() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // SAFETY: as above.
+    unsafe {
+        libc::killpg(group, libc::SIGKILL);
+    }
+}
+
+/// Reads a child's pipe to its end on a thread of its own.
+fn read_all(pipe: Option<impl Read + Send + 'static>) -> std::thread::JoinHandle<Vec<u8>> {
+    std::thread::spawn(move || {
+        let mut b = Vec::new();
+        if let Some(mut p) = pipe {
+            let _ = p.read_to_end(&mut b);
+        }
+        b
+    })
+}
+
+/// SIGTERM to the child's process group (`own`) or to the child alone,
+/// then SIGKILL if the child is still there after `TERM_GRACE`; its
+/// status.
+fn terminate(
+    child: &mut std::process::Child,
+    own: bool,
+) -> std::io::Result<std::process::ExitStatus> {
+    let id = child.id() as libc::pid_t;
+    let send = |sig| {
+        // SAFETY: `killpg`/`kill` only send a signal; the child (and the
+        // group it leads, when `own`) is not reaped yet, so the id names
+        // no other process or group.
+        unsafe {
+            if own {
+                libc::killpg(id, sig);
+            } else {
+                libc::kill(id, sig);
+            }
+        }
+    };
+    send(libc::SIGTERM);
+    let start = Instant::now();
+    while start.elapsed() < TERM_GRACE {
+        if let Some(st) = child.try_wait()? {
+            return Ok(st);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    send(libc::SIGKILL);
+    child.wait()
 }
 
 /// The command to run, or the reason it cannot start, checked in
@@ -200,6 +372,7 @@ fn prepare(
     argv: &[String],
     cwd: Option<&str>,
     env: Option<Vec<(String, String)>>,
+    own: bool,
 ) -> Result<Command, String> {
     let name = &argv[0];
     if name.is_empty() {
@@ -249,6 +422,19 @@ fn prepare(
         cmd.current_dir(dir);
     }
     cmd.envs(vars);
+    // A group of its own (`own_group`): a cancellation terminates what
+    // the command started too (`terminate`).
+    if own {
+        cmd.process_group(0);
+    }
+    // fung blocks SIGINT and SIGTERM in all its threads (`signals.rs`);
+    // the command starts with none blocked.
+    // SAFETY: the hook runs in the forked child before `exec` and only
+    // makes async-signal-safe calls (`clear_mask_in_child`); it touches
+    // no memory of the parent's other threads.
+    unsafe {
+        cmd.pre_exec(crate::signals::clear_mask_in_child);
+    }
     Ok(cmd)
 }
 
@@ -310,3 +496,7 @@ fn kernel_can_run(path: &str) -> bool {
 fn is_executable(path: &str) -> bool {
     std::fs::metadata(path).is_ok_and(|m| !m.is_dir() && m.permissions().mode() & 0o111 != 0)
 }
+
+#[cfg(test)]
+#[path = "process_tests.rs"]
+mod tests;

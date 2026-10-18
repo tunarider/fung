@@ -1,0 +1,3 @@
+scope(s => spawn(s, () => fail("x")))
+print("not here")
+# expect-error: E0803

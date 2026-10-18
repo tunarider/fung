@@ -31,7 +31,7 @@ use std::time::{Duration, Instant};
 use fung_front::diag::error;
 use fung_front::source::Pos;
 
-use super::{Stop, Task, World, token};
+use super::{CancelNode, Stop, Task, World, token};
 
 /// How many calls and backward jumps a task makes between checks whether
 /// another task waits for the token. With no other task waiting, the
@@ -61,15 +61,10 @@ pub(crate) fn cancelled(pos: Pos) -> Stop {
 /// the number of live tasks that cannot run until another task wakes
 /// them. The fields are atomics only so that a waiter can change them
 /// without reaching the world; every change happens with the token held.
-///
-/// Background tasks (stage 3b) are counted apart, by the same rules, in
-/// `bg_blocked` and `bg_waking`, against `World::background`.
 #[derive(Default)]
 pub(crate) struct Census {
     blocked: AtomicUsize,
     waking: AtomicUsize,
-    bg_blocked: AtomicUsize,
-    bg_waking: AtomicUsize,
 }
 
 impl Census {
@@ -79,25 +74,6 @@ impl Census {
 
     pub(crate) fn waking(&self) -> usize {
         self.waking.load(Ordering::Relaxed)
-    }
-
-    /// Blocked background tasks.
-    pub(crate) fn bg_blocked(&self) -> usize {
-        self.bg_blocked.load(Ordering::Relaxed)
-    }
-
-    /// Blocked background tasks a timer will wake.
-    pub(crate) fn bg_waking(&self) -> usize {
-        self.bg_waking.load(Ordering::Relaxed)
-    }
-
-    /// The (blocked, waking) counters of a normal or a background task.
-    fn counters(&self, background: bool) -> (&AtomicUsize, &AtomicUsize) {
-        if background {
-            (&self.bg_blocked, &self.bg_waking)
-        } else {
-            (&self.blocked, &self.waking)
-        }
     }
 }
 
@@ -119,30 +95,16 @@ pub(crate) struct Waiter {
     /// blocked in `census`.
     counted: AtomicU8,
     census: Arc<Census>,
-    /// A background task's waiter counts in the census's background
-    /// counters.
-    background: bool,
 }
 
 impl Waiter {
     /// A waiter for the current thread, counted in `census` when blocked.
     pub(crate) fn new(census: Arc<Census>) -> Arc<Waiter> {
-        Waiter::make(census, false)
-    }
-
-    /// A waiter for the current thread, a background task's: counted in
-    /// the census's background counters (stage 3b).
-    pub(crate) fn background(census: Arc<Census>) -> Arc<Waiter> {
-        Waiter::make(census, true)
-    }
-
-    fn make(census: Arc<Census>, background: bool) -> Arc<Waiter> {
         Arc::new(Waiter {
             thread: std::thread::current(),
             woken: AtomicBool::new(false),
             counted: AtomicU8::new(FREE),
             census,
-            background,
         })
     }
 
@@ -161,10 +123,9 @@ impl Waiter {
         if self.counted.swap(state, Ordering::Relaxed) != FREE {
             return false;
         }
-        let (blocked, waking) = self.census.counters(self.background);
-        blocked.fetch_add(1, Ordering::Relaxed);
+        self.census.blocked.fetch_add(1, Ordering::Relaxed);
         if timed {
-            waking.fetch_add(1, Ordering::Relaxed);
+            self.census.waking.fetch_add(1, Ordering::Relaxed);
         }
         true
     }
@@ -174,10 +135,9 @@ impl Waiter {
         match self.counted.swap(FREE, Ordering::Relaxed) {
             FREE => {}
             state => {
-                let (blocked, waking) = self.census.counters(self.background);
-                blocked.fetch_sub(1, Ordering::Relaxed);
+                self.census.blocked.fetch_sub(1, Ordering::Relaxed);
                 if state == TIMED {
-                    waking.fetch_sub(1, Ordering::Relaxed);
+                    self.census.waking.fetch_sub(1, Ordering::Relaxed);
                 }
             }
         }
@@ -236,8 +196,8 @@ impl WaitList {
 /// (nothing to wait for); after a wait, cancellation wins over a condition
 /// that came true at the same time (it is checked first).
 ///
-/// Deadlock (05, `deadlock.rs`): a live or background task counts itself
-/// blocked just before it sleeps, after its condition was found false, and the check
+/// Deadlock (05, `deadlock.rs`): a live task counts itself blocked just
+/// before it sleeps, after its condition was found false, and the check
 /// runs right then. A wake uncounts it; if its condition is still false
 /// it counts itself again and the check runs again.
 pub(crate) fn block<T>(
@@ -266,6 +226,14 @@ pub(crate) fn block_until<T>(
     timed: bool,
 ) -> Result<Option<T>, Stop> {
     token::assert_holds_token();
+    // A deadline over the task's node (`deadline.rs`) ends the wait too,
+    // as a cancellation, and makes it one a timer ends.
+    let over = t.cancel.deadline_at();
+    let until = match (deadline, over) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    };
+    let timed = timed || over.is_some();
     let me = t.waiter.clone();
     me.take_woken();
     if let Some(v) = ready(&mut t.world, &me) {
@@ -276,15 +244,19 @@ pub(crate) fn block_until<T>(
         if t.cancel.is_cancelled() {
             break Err(t.unwound());
         }
-        if deadline.is_some_and(|at| Instant::now() >= at) {
+        let now = Instant::now();
+        if over.is_some_and(|at| now >= at) && t.cancel.expire_due(now) {
+            break Err(t.unwound());
+        }
+        if deadline.is_some_and(|at| now >= at) {
             break Ok(None);
         }
-        if (t.live || t.background) && me.count(timed) && t.judge() {
+        if t.live && me.count(timed) && t.judge() {
             // A deadlock was reported, which cancelled this task (unless
             // it runs under a node nothing cancels): check again.
             continue;
         }
-        t.world.sleep(&me, deadline);
+        t.world.sleep(&me, until);
         token::assert_holds_token();
         if t.cancel.is_cancelled() {
             break Err(t.unwound());
@@ -318,6 +290,15 @@ pub(crate) fn outside<T: Send>(t: &mut Task<'_>, f: impl FnOnce() -> T + Send) -
     let r = catch_unwind(AssertUnwindSafe(f));
     t.world.reacquire();
     token::assert_holds_token();
+    // A deadline that passed meanwhile is enforced now, with the token
+    // held (`deadline.rs`): the next tick unwinds. Waits that end early on
+    // the deadline (`Watch`, standard input) leave the expiry to this.
+    if let Some(at) = t.cancel.deadline_at() {
+        let now = Instant::now();
+        if now >= at {
+            t.cancel.expire_due(now);
+        }
+    }
     match r {
         Ok(v) => v,
         Err(p) => resume_unwind(p),
@@ -325,6 +306,21 @@ pub(crate) fn outside<T: Send>(t: &mut Task<'_>, f: impl FnOnce() -> T + Send) -
 }
 
 impl Task<'_> {
+    /// This task's cancellation node, for a native that waits outside
+    /// the run token and must see its cancellation there (`process.rs`).
+    pub(crate) fn cancel_node(&self) -> Arc<CancelNode> {
+        self.cancel.clone()
+    }
+
+    /// Unwinds a cancelled task (its deadline included, once `outside`
+    /// expired it): for a native whose wait the cancellation cut short.
+    pub(crate) fn check_cancelled(&self) -> Result<(), Stop> {
+        if self.cancel.is_cancelled() {
+            return Err(self.unwound());
+        }
+        Ok(())
+    }
+
     /// The check at every call and backward jump: unwinds a cancelled
     /// task (E0701 at `pos`) and, every `YIELD_EVERY` ticks, lets the
     /// tasks waiting for the token run.
@@ -344,6 +340,14 @@ impl Task<'_> {
     #[inline(never)]
     fn turn(&mut self) {
         self.budget = YIELD_EVERY;
+        // A computing task sees its deadline here (`deadline.rs`); the
+        // next tick unwinds.
+        if let Some(at) = self.cancel.deadline_at() {
+            let now = Instant::now();
+            if now >= at {
+                self.cancel.expire_due(now);
+            }
+        }
         token::assert_holds_token();
         self.world.yield_turn();
         token::assert_holds_token();

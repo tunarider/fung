@@ -174,9 +174,15 @@ pub(crate) fn finish_connect(s: &TcpStream) -> io::Result<()> {
 /// library sets it: a restarted server can bind its port again at once)
 /// and the system's largest backlog (the kernel lowers a larger value to
 /// its limit).
-pub(crate) fn listen(addr: &SocketAddr) -> io::Result<TcpListener> {
+pub(crate) fn listen(addr: &SocketAddr, reuse_port: bool) -> io::Result<TcpListener> {
     let fd = socket(addr)?;
     set_int(&fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, 1)?;
+    // Several processes on one port (`http.serve(reuse_port: true)`):
+    // the kernel shares the connections out (Linux; macOS lets them
+    // bind but does not balance).
+    if reuse_port {
+        set_int(&fd, libc::SOL_SOCKET, libc::SO_REUSEPORT, 1)?;
+    }
     let (st, len) = raw(addr);
     // SAFETY: `fd` is open and `st`/`len` describe a valid address.
     let rc = unsafe {

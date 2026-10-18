@@ -187,8 +187,27 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "not used: atoms became agents, see E0704",
     ],
-    ["E0704", "agent called from inside its own swap", "", ""],
+    // not raised since agents became atoms again (E0707 covers it)
+    [
+        "E0704",
+        "agent called from inside its own swap",
+        "",
+        "not used: agents became atoms, see E0707",
+    ],
     ["E0705", "channel sent into itself", "", ""],
+    ["E0706", "spawn into a closed scope", "", ""],
+    [
+        "E0707",
+        "`%s` has an effect, which a swap's function must not have",
+        "",
+        "",
+    ],
+    [
+        "E0708",
+        "an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket",
+        "",
+        "",
+    ],
     ["E0801", "internal error: %v", "", ""],
     ["E0802", "expression nesting too deep (limit %d)", "", ""],
     ["E0803", "%s", "", ""],

@@ -113,6 +113,9 @@ impl Watch {
 
     /// Waits until one of `fds` is ready for its interest (or reports an
     /// error or hang-up), `deadline` passes, or the task is cancelled.
+    /// The deadline over the task's node (`deadline.rs`) ends the wait
+    /// too, as a cancellation; the owner is expired by `outside` once the
+    /// task holds the token again.
     /// Cancellation wins over a descriptor that became ready at the same
     /// time. The error is only a failed `pipe` or `poll`.
     pub(crate) fn wait(
@@ -162,11 +165,20 @@ impl Watch {
             events: libc::POLLIN,
             revents: 0,
         });
+        let over = self.node.deadline_at();
+        let until = match (deadline, over) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         loop {
-            let timeout = match deadline {
+            let timeout = match until {
                 None => -1,
                 Some(at) => {
                     let now = Instant::now();
+                    if over.is_some_and(|o| now >= o) {
+                        self.stopped = true;
+                        return Ok(Waited::Cancelled);
+                    }
                     if now >= at {
                         return Ok(Waited::TimedOut);
                     }
@@ -210,20 +222,6 @@ impl Drop for Watch {
             drop(r);
             LIVE_WAKES.fetch_sub(1, Ordering::SeqCst);
         }
-    }
-}
-
-/// Runs `hook` once when `t`'s cancellation node is cancelled (which
-/// happens too when the task ends), on the cancelling thread under the
-/// node's lock: it must be short and take only leaf locks. If the node
-/// is cancelled already, the hook runs now. (`_native.net`'s
-/// `close_on_cancel`.)
-pub(crate) fn when_cancelled(t: &Task<'_>, hook: impl Fn() + Send + Sync + 'static) {
-    let hook = std::sync::Arc::new(hook);
-    let id = NEXT_HOOK.fetch_add(1, Ordering::Relaxed);
-    let h = hook.clone();
-    if !t.cancel.on_cancel(id, Box::new(move || h())) {
-        hook();
     }
 }
 

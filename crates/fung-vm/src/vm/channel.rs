@@ -1,5 +1,7 @@
 //! Channels (05): a queue between
-//! tasks. `channel()` is unbuffered, so `send` waits until a receiver
+//! tasks, reached through two ends. `channel()` gives `(tx, rx)`: a
+//! sending end and a receiving end, each a value of its own that can be
+//! copied. `channel()` is unbuffered, so `send` waits until a receiver
 //! takes the value (맞교환); `channel(n)` holds up to `n` values. `close`
 //! is a flag, not an end of the queue: values buffered before it can
 //! still be received, then `recv` gives `Err({kind: 'closed})`, and so
@@ -25,37 +27,53 @@
 //! completing or closing wakes exactly that task.
 //!
 //! Cancellation and timeouts claim a waiter at once, even though the slot stays queued until its task next holds the
-//! token: the slot carries the task's cancellation node and its deadline,
-//! and pairing skips (and drops from the queue) any slot whose node is
-//! cancelled or whose deadline has passed. Pairing happens with the token
+//! token: the slot carries the task's cancellation node, and pairing skips
+//! (and drops from the queue) any slot whose node is cancelled or whose
+//! node's deadline (`deadline.rs`) has passed. Pairing happens with the token
 //! held and the flag and the clock only move one way, so that check is
 //! the moment the slot is decided: a skipped slot's task finds it not
-//! done and returns E0701 or `timeout`; a completed slot's task finds it
+//! done and returns E0701; a completed slot's task finds it
 //! done and succeeds even if it was cancelled just after (the value that
 //! moved wins). A wait that ends without
 //! completion takes its slot out of the queue (`leave`, a no-op if
 //! pairing already dropped it).
 //!
-//! A channel can hold values that hold the channel itself (`send(c, c)`):
-//! an `Rc` cycle that is never freed. So `send` refuses a value that
-//! contains the channel (E0705; `contains`). Two channels holding each other are not
-//! caught, and an agent's own requests skip the check (`send_unchecked`).
+//! **The ends close the channel by going away** (concurrency v2, L4).
+//! Each end is one `Rc` (`Sender`, `Receiver`) made by `channel()`; a
+//! fung copy of an end is a copy of that `Rc`, wherever it is kept (a
+//! variable, a closure, a list, another channel's buffer). So the moment
+//! the count reaches 0, the `Drop` below, is the moment the last copy
+//! went:
+//!
+//! - the last sending end: the channel closes, as by `close(tx)`; the
+//!   receivers still get what is buffered, then `closed`;
+//! - the last receiving end: the channel closes and drops its buffer
+//!   (`abandon`); nobody can receive any more, so a send fails at once.
+//!
+//! One `closed` flag serves both: with no receiving end left, a close
+//! that keeps the buffer and one that drops it look the same.
+//!
+//! A channel whose buffer holds one of its own ends would keep itself
+//! open forever: an `Rc` cycle that is never freed. So `send` refuses a
+//! value that contains an end of the same channel (E0705; `contains`).
+//! Two channels holding each other's ends are not caught.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use super::agent::{Mark, Serving};
-use super::block::{Waiter, block_until, deadline_after};
+use super::block::{Waiter, block_until};
 use super::{CancelNode, Stop, Task, token};
 use crate::value::{Value, drop_children, keep};
 
-/// The value `channel()` returns. Two channels are equal only when they
-/// are the same channel; it prints as `<channel>`.
+/// The queue both ends of a channel share.
 pub struct Channel {
     inner: RefCell<Inner>,
+    /// Woken from outside the program (the stop channel, `stop.rs`): a
+    /// task waiting on it is not counted stuck by the deadlock check.
+    external: bool,
 }
 
 struct Inner {
@@ -67,42 +85,38 @@ struct Inner {
     /// Blocked receivers, oldest first; each slot is empty.
     receivers: VecDeque<Rc<Slot>>,
     closed: bool,
-    /// For an agent's request channel (stage 3b, `agent.rs`): the task
-    /// serving a request right now and its state.
-    serving: Option<Serving>,
-    /// For an agent's reply channel (`agent_ask`): the cancellation node
-    /// of the task that asked, which the agent's `f` runs below.
-    asker: Option<Arc<CancelNode>>,
 }
 
 /// One blocked `send` or `recv`: the value in transit, whether the other
 /// side completed it, the task to wake, and what claims the slot before
-/// any pairing: the task's cancellation and the receive's deadline. Only
+/// any pairing: the task's cancellation and its deadline. Only
 /// the token's holder touches it (it holds a fung value).
 struct Slot {
     value: RefCell<Option<Value>>,
     done: Cell<bool>,
     waiter: Arc<Waiter>,
     cancel: Arc<CancelNode>,
-    deadline: Option<Instant>,
 }
 
 impl Slot {
-    fn new(t: &Task<'_>, value: Option<Value>, deadline: Option<Instant>) -> Rc<Slot> {
+    fn new(t: &Task<'_>, value: Option<Value>) -> Rc<Slot> {
         Rc::new(Slot {
             value: RefCell::new(value),
             done: Cell::new(false),
             waiter: t.waiter.clone(),
             cancel: t.cancel.clone(),
-            deadline,
         })
     }
 
     /// Whether the slot can no longer be paired: its task was cancelled or
-    /// its deadline passed. `block_until` uses the same deadline and the
-    /// same comparison, so a slot skipped for its deadline times out.
+    /// its node's deadline passed. `block_until` uses the same deadline
+    /// and the same comparison, so a slot skipped for its deadline unwinds.
     fn claimed(&self) -> bool {
-        self.cancel.is_cancelled() || self.deadline.is_some_and(|at| Instant::now() >= at)
+        self.cancel.is_cancelled()
+            || self
+                .cancel
+                .deadline_at()
+                .is_some_and(|at| Instant::now() >= at)
     }
 
     /// The other side moved the value: mark it and wake the task.
@@ -116,20 +130,18 @@ impl Slot {
 pub(crate) enum Received {
     Value(Value),
     Closed,
-    Timeout,
 }
 
 impl Channel {
     pub(crate) fn new(cap: usize) -> Channel {
         Channel {
+            external: false,
             inner: RefCell::new(Inner {
                 cap,
                 buf: VecDeque::new(),
                 senders: VecDeque::new(),
                 receivers: VecDeque::new(),
                 closed: false,
-                serving: None,
-                asker: None,
             }),
         }
     }
@@ -195,34 +207,14 @@ impl Channel {
         }
     }
 
-    /// Records the cancellation node of the task asking through this
-    /// reply channel (`agent_ask`).
-    pub(crate) fn set_asker(&self, node: Arc<CancelNode>) {
-        self.inner.borrow_mut().asker = Some(node);
-    }
-
-    /// The node `set_asker` recorded (`try_call`). It stays recorded: a
-    /// channel the `http` server marks once serves every request.
-    pub(crate) fn asker(&self) -> Option<Arc<CancelNode>> {
-        self.inner.borrow().asker.clone()
-    }
-
-    /// Records the task serving a request on this agent channel (or none)
-    /// and returns the previous record, for the caller to drop once the
-    /// borrow has ended.
-    pub(crate) fn set_serving(&self, s: Option<Serving>) -> Option<Serving> {
-        std::mem::replace(&mut self.inner.borrow_mut().serving, s)
-    }
-
-    /// The state the request on this channel is served with, if one of
-    /// `marks` (a task's, `Task::serving`) is that request's mark.
-    pub(crate) fn serving_state(&self, marks: &[Arc<Mark>]) -> Option<Value> {
-        let c = self.inner.borrow();
-        let s = c.serving.as_ref()?;
-        marks
-            .iter()
-            .any(|m| Arc::ptr_eq(m, &s.mark))
-            .then(|| s.state.clone())
+    /// The last receiving end went: closes, and moves the buffered values
+    /// out to be dropped (`Receiver`'s `Drop`, `release`). Idempotent.
+    pub(crate) fn abandon(&self, stack: &mut Vec<Value>) {
+        self.close();
+        let buf = std::mem::take(&mut self.inner.borrow_mut().buf);
+        for v in buf {
+            keep(stack, v);
+        }
     }
 
     /// How many blocked sends and receives wait in the queues (tests:
@@ -234,14 +226,25 @@ impl Channel {
         c.senders.len() + c.receivers.len()
     }
 
+    /// How many values wait in the buffer (tests: a check that does not
+    /// block, now that a receive has no timeout of its own).
+    #[cfg(test)]
+    pub(crate) fn buffered(&self) -> usize {
+        self.inner.borrow().buf.len()
+    }
+
+    /// Puts `v` in the buffer whatever its size (tests: chains of
+    /// channels built without a task).
+    #[cfg(test)]
+    pub(crate) fn put(&self, v: Value) {
+        self.inner.borrow_mut().buf.push_back(v);
+    }
+
     /// Moves every value out for `release` (`value/release.rs`).
     pub(crate) fn spill(&mut self, stack: &mut Vec<Value>) {
         let c = self.inner.get_mut();
         for v in std::mem::take(&mut c.buf) {
             keep(stack, v);
-        }
-        if let Some(s) = c.serving.take() {
-            keep(stack, s.state);
         }
         for s in std::mem::take(&mut c.senders)
             .into_iter()
@@ -271,6 +274,57 @@ impl std::fmt::Debug for Channel {
     }
 }
 
+/// The sending end `channel()` returns; it prints as `<sender>`. When
+/// the last copy goes, the channel closes.
+pub struct Sender(pub(crate) Rc<Channel>);
+
+/// The receiving end `channel()` returns; it prints as `<receiver>`.
+/// When the last copy goes, the channel closes and drops its buffer.
+pub struct Receiver(pub(crate) Rc<Channel>);
+
+/// `channel(n)`: the two ends of a new channel.
+pub(crate) fn pair(cap: usize) -> (Sender, Receiver) {
+    let ch = Rc::new(Channel::new(cap));
+    (Sender(ch.clone()), Receiver(ch))
+}
+
+/// The ends of a channel woken from outside the program (the stop
+/// channel): waiting on it is not a deadlock.
+pub(crate) fn pair_external() -> (Sender, Receiver) {
+    let mut ch = Channel::new(0);
+    ch.external = true;
+    let ch = Rc::new(ch);
+    (Sender(ch.clone()), Receiver(ch))
+}
+
+impl std::fmt::Debug for Sender {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<sender>")
+    }
+}
+
+impl std::fmt::Debug for Receiver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("<receiver>")
+    }
+}
+
+impl Drop for Sender {
+    fn drop(&mut self) {
+        token::assert_holds_token();
+        self.0.close();
+    }
+}
+
+/// The buffer goes through `release`: it may hold the receiving end of
+/// another channel, which may hold another, and so on.
+impl Drop for Receiver {
+    fn drop(&mut self) {
+        token::assert_holds_token();
+        drop_children(|stack| self.0.abandon(stack));
+    }
+}
+
 /// A channel is a value: it drops only on the token's holder, and frees
 /// its buffer without recursion (`release`).
 impl Drop for Channel {
@@ -280,14 +334,14 @@ impl Drop for Channel {
     }
 }
 
-/// Whether `v` contains `ch` (E0705, `send` only): `v` is `ch`, or holds
-/// it somewhere inside. Cost is linear in the size of `v`, in constant
+/// Whether `v` contains an end of `ch` (E0705, `send` only): `v` is one,
+/// or holds one somewhere inside. A value that holds nothing mutable
+/// (`Value::holds_mutable`, O(1) for the big collections) is not walked. Cost is linear in the size of `v`, in constant
 /// Rust stack.
 ///
 /// - Scanned: lists (their items, so views of a persistent vector are
 ///   walked through the view), map values (keys are strings), tuples,
-///   tag arguments, the values a closure captured, and an agent handle's
-///   request channel (compared, not scanned).
+///   tag arguments and the values a closure captured.
 /// - Not scanned:
 ///   - other channels' buffers: a cycle through two channels is not
 ///     caught (spec, documented);
@@ -299,7 +353,7 @@ impl Drop for Channel {
 ///     whole program's state on every send;
 ///   - task handles: a running task's result does not exist yet, so
 ///     looking at it would make the error depend on timing;
-///   - caught errors (they hold no values), strings, numbers, symbols,
+///   - strings, numbers, symbols,
 ///     durations, ranges, natives and nil.
 ///
 /// Explicit stack, no recursion: a million nested lists must not
@@ -308,6 +362,9 @@ impl Drop for Channel {
 /// to the same part (`[x, x]` nested) costs its node count, not its
 /// path count; an unshared one has one path, so it is not recorded.
 pub(crate) fn contains(ch: &Rc<Channel>, v: &Value) -> bool {
+    if !v.holds_mutable() {
+        return false;
+    }
     let mut stack: Vec<&Value> = Vec::new();
     let mut seen: HashSet<*const ()> = HashSet::new();
     if visit(ch, v, &mut stack) {
@@ -340,12 +397,11 @@ pub(crate) fn contains(ch: &Rc<Channel>, v: &Value) -> bool {
     false
 }
 
-/// One value met by `contains`: `true` if it is `ch` (or an agent over
-/// it); a container is pushed to be walked, anything else is skipped.
+/// One value met by `contains`: `true` if it is `ch`; a container is pushed to be walked, anything else is skipped.
 fn visit<'a>(ch: &Rc<Channel>, v: &'a Value, stack: &mut Vec<&'a Value>) -> bool {
     match v {
-        Value::Channel(c) => Rc::ptr_eq(c, ch),
-        Value::Agent(a) => Rc::ptr_eq(a.channel(), ch),
+        Value::Sender(e) => Rc::ptr_eq(&e.0, ch),
+        Value::Receiver(e) => Rc::ptr_eq(&e.0, ch),
         Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_) | Value::Closure(_) => {
             stack.push(v);
             false
@@ -354,7 +410,7 @@ fn visit<'a>(ch: &Rc<Channel>, v: &'a Value, stack: &mut Vec<&'a Value>) -> bool
     }
 }
 
-/// `send(ch, v)`: `true` once delivered (to a receiver or the buffer),
+/// `send(tx, v)` on the channel `ch`: `true` once delivered (to a receiver or the buffer),
 /// `false` when the channel is or becomes closed first. A cancelled wait
 /// unwinds with E0701 unless a receiver already took the value.
 pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool, Stop> {
@@ -365,7 +421,7 @@ pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool,
         Ok(()) => return Ok(true),
         Err(v) => v,
     };
-    let slot = Slot::new(t, Some(v), None);
+    let slot = Slot::new(t, Some(v));
     ch.inner.borrow_mut().senders.push_back(slot.clone());
     let r = block_until(
         t,
@@ -395,22 +451,26 @@ pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool,
     }
 }
 
-/// `recv(ch, timeout:)`: buffered values come out even after close; then
-/// `Closed`. `Timeout` when `timeout` passes first. A cancelled wait
-/// unwinds with E0701 unless a sender already delivered a value.
-pub(crate) fn recv(
-    t: &mut Task<'_>,
-    ch: &Rc<Channel>,
-    timeout: Option<Duration>,
-) -> Result<Received, Stop> {
+/// `recv(rx)` on the channel `ch`: buffered values come out even after close; then
+/// `Closed`. A cancelled wait (or one past its deadline) unwinds with
+/// E0701 unless a sender already delivered a value.
+pub(crate) fn recv(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Received, Stop> {
+    // Receiving takes a value out (and may wait): an effect inside a
+    // swap's function however it is reached — `recv`, a `for` over the
+    // channel, `map` or `fold` of it (`atom.rs`).
+    if t.pure > 0 {
+        return Err(crate::native::nat::fail(
+            "E0707",
+            vec![fung_front::diag::Arg::Str("recv".into())],
+        ));
+    }
     if let Some(v) = ch.try_recv() {
         return Ok(Received::Value(v));
     }
     if ch.closed() {
         return Ok(Received::Closed);
     }
-    let deadline = deadline_after(timeout);
-    let slot = Slot::new(t, None, deadline);
+    let slot = Slot::new(t, None);
     ch.inner.borrow_mut().receivers.push_back(slot.clone());
     let r = block_until(
         t,
@@ -423,8 +483,8 @@ pub(crate) fn recv(
                 None
             }
         },
-        deadline,
-        timeout.is_some(),
+        None,
+        ch.external,
     );
     let took = |slot: &Slot| Received::Value(slot.value.borrow_mut().take().expect("a value"));
     match r {
@@ -435,15 +495,9 @@ pub(crate) fn recv(
             ch.leave(&slot);
             Ok(ch.try_recv().map_or(Received::Closed, Received::Value))
         }
-        // Pairing skips a slot past its deadline, and `block_until` checks
-        // the same deadline only right after a check that found the slot
-        // not done, so a timed-out slot is never done; a value is still
-        // checked first.
-        Ok(None) | Err(_) if slot.done.get() => Ok(took(&slot)),
-        Ok(None) => {
-            ch.leave(&slot);
-            Ok(Received::Timeout)
-        }
+        // A value delivered before the cancellation is still taken.
+        Err(_) if slot.done.get() => Ok(took(&slot)),
+        Ok(None) => unreachable!("a receive has no timeout of its own"),
         Err(e) => {
             ch.leave(&slot);
             Err(e)
@@ -456,9 +510,9 @@ pub(crate) fn recv(
 pub(crate) fn drain(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Vec<Value>, Stop> {
     let mut out = Vec::new();
     loop {
-        match recv(t, ch, None)? {
+        match recv(t, ch)? {
             Received::Value(v) => out.push(v),
-            Received::Closed | Received::Timeout => return Ok(out),
+            Received::Closed => return Ok(out),
         }
     }
 }

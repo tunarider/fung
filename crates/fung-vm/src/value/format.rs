@@ -51,12 +51,13 @@ pub fn format(v: &Value) -> String {
         Value::Closure(c) => format!("<fn {}>", c.proto.name),
         Value::Module(m) => format!("<module {}>", m.name),
         Value::Task(_) => "<task>".into(),
-        Value::Channel(_) => "<channel>".into(),
-        Value::Agent(_) => "<agent>".into(),
+        Value::Scope(_) => "<scope>".into(),
+        Value::Atom(_) => "<atom>".into(),
+        Value::Sender(_) => "<sender>".into(),
+        Value::Receiver(_) => "<receiver>".into(),
         Value::File(f) => format!("<file {}>", quote(&f.path)),
         Value::Conn(_) => "<conn>".into(),
         Value::Listener(_) => "<listener>".into(),
-        Value::Caught(_) => "<error>".into(),
     }
 }
 
@@ -101,11 +102,12 @@ pub fn type_name(v: &Value) -> String {
         Value::Closure(_) | Value::Native(_) => "fn".into(),
         Value::Module(_) => "module".into(),
         Value::Task(_) => "task".into(),
-        Value::Channel(_) => "channel".into(),
-        Value::Agent(_) => "agent".into(),
+        Value::Scope(_) => "scope".into(),
+        Value::Atom(_) => "atom".into(),
+        Value::Sender(_) => "sender".into(),
+        Value::Receiver(_) => "receiver".into(),
         Value::File(_) => "file".into(),
         Value::Conn(_) => "conn".into(),
         Value::Listener(_) => "listener".into(),
-        Value::Caught(_) => "error".into(),
     }
 }

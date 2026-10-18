@@ -788,13 +788,15 @@
 | \r
 ==== server 62
 -- program
-| t = spawn(() => http.get(URL))
-| print(await(t, timeout: 200ms))
-| cancel(t)
-| print(await(t))
-| t2 = spawn(() => http.get(URL, timeout: 0s))
-| print(await(t2, timeout: 100ms))
-| exit(3)
+| scope(fn(s):
+|   t = spawn(s, () => http.get(URL))
+|   print(timeout(200ms, () => await(t)))
+|   cancel(t)
+|   print(await(t))
+|   t2 = spawn(s, () => http.get(URL, timeout: 0s))
+|   print(timeout(100ms, () => await(t2)))
+|   exit(3)
+| ;;)
 \ no newline
 -- stdout
 | Err({kind: 'timeout})

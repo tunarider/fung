@@ -1,0 +1,7 @@
+# The release of a with runs whatever the use did.
+print(with(() => "r", r => r + "!", r => print("released", r)))
+print(with(() => 1, r => Err('x), r => print("released")))
+# expect: released r
+# expect: r!
+# expect: released
+# expect: Err('x)

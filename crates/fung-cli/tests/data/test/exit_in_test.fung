@@ -1,6 +1,5 @@
-at_exit(() => print("handler ran"))
 test "before": assert 1 == 1 ;;
 test "exits":
-  exit(4)
+  with(() => nil, _ => exit(4), _ => print("released"))
 ;;
 test "never runs": assert true ;;

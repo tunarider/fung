@@ -5,9 +5,8 @@
 //! neither run nor listed.
 //!
 //! The end of each file, in order: the program's tasks are cancelled and
-//! waited for, then the exit handlers run, then the background tasks
-//! end (stage 3b: an agent serves the handlers too), then the task
-//! failures nobody retrieved are reported, and the runtime is dropped.
+//! waited for (unwinding through their `with` releases), and the runtime
+//! is dropped.
 //! So nothing a file starts reaches the next one.
 //!
 //! Exit codes: 2 if any file failed to compile, else 1 if any test
@@ -65,19 +64,29 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
     let mut total = Tally::default();
     // Errors already printed: a broken library is reported once.
     let mut seen = HashSet::new();
+    // The first SIGINT or SIGTERM is a stop request to the file running
+    // then; no file runs after it, and the run ends with 128 + n.
+    let first = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
     for path in &files {
-        let t = test_file(path, &mut seen);
+        let t = test_file(path, &mut seen, &first);
         total.passed += t.passed;
         total.failed += t.failed;
         total.compile_failed |= t.compile_failed;
+        if first.load(std::sync::atomic::Ordering::SeqCst) != 0 {
+            break;
+        }
     }
+    fung_vm::signals::set(None);
+    let sig = first.load(std::sync::atomic::Ordering::SeqCst);
     let _ = writeln!(
         ProcessOut::stdout(),
         "{} passed, {} failed",
         total.passed,
         total.failed
     );
-    let code = if total.compile_failed {
+    let code = if sig != 0 {
+        128 + sig
+    } else if total.compile_failed {
         EXIT_COMPILE
     } else if total.failed > 0 {
         EXIT_RUNTIME
@@ -91,7 +100,11 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
 }
 
 /// Compiles one file with its tests and runs it.
-fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
+fn test_file(
+    path: &[u8],
+    seen: &mut HashSet<String>,
+    first: &std::sync::Arc<std::sync::atomic::AtomicI32>,
+) -> Tally {
     let mut t = Tally::default();
     let stdout = &mut ProcessOut::stdout();
     let stderr = &mut ProcessOut::stderr();
@@ -157,12 +170,29 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
         return t;
     }
     rt.load(&entry, &b.modules);
+    fung_vm::signals::set(Some(fung_vm::signals::stop_requests(
+        rt.stop_handle(),
+        first.clone(),
+    )));
     // The entry and the test blocks run one after another: a task the
     // entry leaves waiting for a later block is not stuck in between.
     rt.hold();
+    // A signal that cut the file short is named as one, not as the
+    // exit(128 + n) or the cancellation it made.
+    let signalled = || match first.load(std::sync::atomic::Ordering::SeqCst) {
+        0 => None,
+        sig => Some(format!(
+            "  {} stopped the run; the rest of the file was skipped\n",
+            signal_name(sig)
+        )),
+    };
     // The FAIL lines of a test block (or the top level) that stopped.
     let failure = |test: &str, stop: &Stop| {
         let mut line = [b"FAIL ", path, b": ", test.as_bytes(), b"\n"].concat();
+        if let Some(note) = signalled() {
+            line.extend_from_slice(note.as_bytes());
+            return line;
+        }
         match stop {
             Stop::Exit(n) => line.extend_from_slice(
                 format!(
@@ -182,7 +212,10 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
     // a direct exit(n): the rest of the file is skipped (08), since the
     // blocks after it would run on a cancelled program.
     let skipped = |rt: &Runtime| {
-        let note = if rt.deadlocked() {
+        let note = if let Some(note) = signalled() {
+            rt.exit_code()?;
+            note
+        } else if rt.deadlocked() {
             "  a deadlock was reported; the rest of the file was skipped\n".to_string()
         } else {
             let n = rt.exit_code()?;
@@ -203,6 +236,8 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
                 t.failed += 1;
             } else {
                 for (i, test) in tests.iter().enumerate() {
+                    // A stop request in one block does not reach the next.
+                    rt.reset_stop();
                     let passed = match rt.call_test(i) {
                         Ok(()) => {
                             let _ = stdout.write_all(
@@ -240,36 +275,33 @@ fn test_file(path: &[u8], seen: &mut HashSet<String>) -> Tally {
         }
     }
     // The file is done: cancel what its code left running and wait for
-    // it, then the exit handlers. A handler's exit(n), deadlock report
-    // (E0702) or cancellation (E0701) is not reported; any other failure
-    // of a handler fails the file (a run never ends silently, 08).
+    // it (unwinding through its releases), then give the command's hold
+    // back. A task failure nobody handled (a cancelled `supervise`'s
+    // queue) fails the file (05).
     rt.cancel_all();
     rt.wait();
     rt.release();
-    for d in rt.run_exit_handlers() {
-        if d.code == "E0701" || d.code == "E0702" {
-            continue;
-        }
-        let _ = stdout.write_all(&failure("<exit handler>", &Stop::Error(Box::new(d))));
-        t.failed += 1;
-    }
-    // The handlers are done: end the background tasks (stage 3b), then a
-    // task failure nobody retrieved fails the file (05).
-    rt.end_background();
-    rt.wait();
-    rt.report_unretrieved();
     if rt.failed() {
         let _ = stdout.write_all(
             &[
                 b"FAIL ",
                 path,
-                b": <tasks>\n  a task failed and nothing awaited it (see standard error)\n",
+                b": <tasks>\n  a task failure was not handled (see standard error)\n",
             ]
             .concat(),
         );
         t.failed += 1;
     }
     t
+}
+
+/// A stop signal's name.
+fn signal_name(sig: i32) -> String {
+    match sig {
+        2 => "SIGINT".into(),
+        15 => "SIGTERM".into(),
+        n => format!("signal {n}"),
+    }
 }
 
 /// Whether the entry body registers any test (tests are

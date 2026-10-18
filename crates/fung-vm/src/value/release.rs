@@ -2,7 +2,7 @@
 //! its fields, so the last reference to a list of lists of lists ... would
 //! free it with one stack frame per level and overflow on deep nesting.
 //! Every container that holds values (list, map, tuple, tag, closure,
-//! module, channel, task handle, agent handle) therefore moves its
+//! module, channel end, task handle, atom) therefore moves its
 //! children out in its `Drop` and hands the ones that could go deep to
 //! `release`, which frees them with an explicit stack. A shell whose
 //! children were moved out drops in constant stack.
@@ -26,9 +26,10 @@ fn nests(v: &Value) -> bool {
         Value::Tag(rc) => Rc::strong_count(rc) == 1,
         Value::Closure(rc) => Rc::strong_count(rc) == 1,
         Value::Module(rc) => Rc::strong_count(rc) == 1,
-        Value::Channel(rc) => Rc::strong_count(rc) == 1,
-        Value::Agent(rc) => Rc::strong_count(rc) == 1,
+        Value::Sender(rc) => Rc::strong_count(rc) == 1,
+        Value::Receiver(rc) => Rc::strong_count(rc) == 1,
         Value::Task(rc) => Rc::strong_count(rc) == 1,
+        Value::Atom(rc) => Rc::strong_count(rc) == 1,
         _ => false,
     }
 }
@@ -78,17 +79,32 @@ pub(super) fn release(mut stack: Vec<Value>) {
                     m.spill(&mut stack);
                 }
             }
-            Value::Channel(rc) => {
-                if let Ok(mut c) = Rc::try_unwrap(rc) {
-                    c.spill(&mut stack);
+            // The last copy of an end: it does its own work (a sender
+            // closes; a receiver closes and its buffer comes onto the
+            // stack), then the channel spills if that end was its last
+            // owner.
+            Value::Sender(rc) => {
+                if let Ok(e) = Rc::try_unwrap(rc) {
+                    let ch = e.0.clone();
+                    drop(e);
+                    spill_channel(ch, &mut stack);
                 }
             }
-            Value::Agent(rc) => {
-                // Closes the request channel (the handle's whole job) and
-                // moves the channel out, so a channel whose buffer holds
-                // another agent's last handle frees without recursion.
-                if let Ok(mut a) = Rc::try_unwrap(rc) {
-                    a.spill(&mut stack);
+            Value::Receiver(rc) => {
+                if let Ok(e) = Rc::try_unwrap(rc) {
+                    // The buffer onto this stack; the end's own drop then
+                    // abandons again, which finds it empty (idempotent).
+                    e.0.abandon(&mut stack);
+                    let ch = e.0.clone();
+                    drop(e);
+                    spill_channel(ch, &mut stack);
+                }
+            }
+            Value::Atom(rc) => {
+                // The held value goes on the stack: an atom holding a
+                // long chain of values frees without recursion.
+                if let Ok(a) = Rc::try_unwrap(rc) {
+                    keep(&mut stack, a.into_value());
                 }
             }
             Value::Task(rc) => {
@@ -107,6 +123,13 @@ pub(super) fn release(mut stack: Vec<Value>) {
             }
             _ => {}
         }
+    }
+}
+
+/// Moves a channel's values onto the stack if `ch` was its last owner.
+fn spill_channel(ch: Rc<crate::vm::Channel>, stack: &mut Vec<Value>) {
+    if let Ok(mut c) = Rc::try_unwrap(ch) {
+        c.spill(stack);
     }
 }
 

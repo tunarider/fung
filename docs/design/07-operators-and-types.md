@@ -104,7 +104,7 @@ fs.read(p) ?? "{}" |> json.parse          # (fs.read(p) ?? "{}") |> json.parse
 
 ### 타입 이름
 
-`int`, `float`, `num`(int 또는 float), `str`, `bool`, `nil`, `sym`, `dur`, `time`, `list`, `map`, `tuple`, `range`, `fn`, `module`, `task`, `channel`, `agent`, `any`
+`int`, `float`, `num`(int 또는 float), `str`, `bool`, `nil`, `sym`, `dur`, `time`, `list`, `map`, `tuple`, `range`, `fn`, `module`, `task`, `scope`, `atom`, `sender`, `receiver`, `any`
 
 - 태그 이름도 타입으로 쓴다: `s: Circle`은 `Circle` 태그가 붙은 값.
 - **타입 이름은 값 이름과 다른 이름 공간**이다. `list = [1]`이라는 변수가 있어도 `fn f(x: list)`의 `list`는 타입이다.

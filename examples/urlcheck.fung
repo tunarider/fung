@@ -15,9 +15,9 @@ fn json_keys(resp):
   ;;
 ;;
 
-fn check(url, timeout = 5s):
+fn check(url, limit = 5s):
   t0 = time.now()
-  r = http.get(url, timeout: timeout)
+  r = http.get(url, timeout: limit)
   took = time.now() - t0
   match r:
     Ok(resp) => {url, ok: resp.status < 400, status: resp.status, took, keys: json_keys(resp)}
@@ -32,19 +32,21 @@ fn report(results):
 ;;
 
 test "check reports status and json keys":
-  port = channel(1)
-  handler = fn(req):
-    req.path == "/j" then {headers: {"content-type": "application/json"}, body: `{"a":1,"b":2}`} else {status: 500, body: "x"}
-  ;;
-  s = spawn(() => http.serve("127.0.0.1:0", handler, ready: a => send(port, a)))
-  base = "http://" + recv(port)!
-  good = check("${base}/j", 2s)
-  assert good.ok
-  assert good.keys == ["a", "b"]
-  bad = check("${base}/x", 2s)
-  assert not bad.ok
-  assert bad.status == 500
-  down = check("http://127.0.0.1:1/", 2s)
-  assert down.status == 'network
-  cancel(s)
+  scope(fn(app):
+    (port_tx, port) = channel(1)
+    handler = fn(req):
+      req.path == "/j" then {headers: {"content-type": "application/json"}, body: `{"a":1,"b":2}`} else {status: 500, body: "x"}
+    ;;
+    s = spawn(app, () => http.serve("127.0.0.1:0", handler, ready: a => send(port_tx, a)))
+    base = "http://" + recv(port)!
+    good = check("${base}/j", 2s)
+    assert good.ok
+    assert good.keys == ["a", "b"]
+    bad = check("${base}/x", 2s)
+    assert not bad.ok
+    assert bad.status == 500
+    down = check("http://127.0.0.1:1/", 2s)
+    assert down.status == 'network
+    cancel(s)
+  ;;)
 ;;

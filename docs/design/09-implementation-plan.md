@@ -39,7 +39,7 @@ fung/
       src/boot.rs    prelude 부팅, `_native.*` 다리 표(`NATIVE_MODULES`), spec/builtins.txt 생성(테스트)
     fung-cli/        실행 파일 `fung`: 하위 명령(run, check, test, fmt, dump, version, help), REPL, 경로 순회
       tests/         통합 테스트, 골든 실행기, 기대 출력 파일(tests/expected/)
-  extras/            fung으로 쓴 내장 extras (include_str!): prelude.fung, agent.fung, fs, path, cli, conc, http … (06)
+  extras/            fung으로 쓴 내장 extras (include_str!): prelude.fung, fs, path, cli, conc, http … (06)
   spec/              내장 이름 표·에러 카탈로그(Rust에서 생성), 유니코드 표(고정 데이터)
   tests/lang/        언어 기능 골든 테스트 (.fung)
   docs/design/       설계 문서
@@ -173,7 +173,7 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 - 취소 확인은 `CALL`·`TAIL_CALL`과 막히는 곳(`vm/block.rs`의 `block`) 안에서.
 - 교착은 런타임이 센다 (05): 살아 있는 태스크 수 / 막힌 태스크 수 / 깨어날 것(타이머)의 수, 실행권 아래에서 정확히 세어 바로 판정.
 - `unsafe impl Send`는 `// SAFETY:` 근거와 디버그 단언으로 지키고, 동시성 테스트는 `sleep` 대신 상태로 순서를 정한다(`testutil`의 탐침).
-- 진입 코드도 별도 스레드에서 돌고 메인 스레드는 기다린다 (05). 끝날 때: 태스크 대기 → `at_exit` → 종료 코드 규칙 (05).
+- 진입 코드도 별도 스레드에서 돌고 메인 스레드는 기다린다 (05). 끝날 때: 범위가 태스크를 기다리고 되감기가 `with`의 `release`를 지난 뒤 종료 코드 규칙 (05).
 
 ### 표준 라이브러리 내장
 
