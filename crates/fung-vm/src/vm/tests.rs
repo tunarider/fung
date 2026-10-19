@@ -595,11 +595,28 @@ fn call_heavy_loops_run() {
 #[test]
 fn natives_call_closures_through_the_task() {
     testutil::on_big_stack(|| {
-        fn twice(t: &mut Task, args: Vec<Value>) -> Result<Value, Stop> {
-            let once = t.call(&args[0], vec![Value::Int(1)])?;
-            t.call(&args[0], vec![once])
+        /// `f(f(1))`, continuing in the task's run loop (`cont.rs`).
+        struct Twice(Value, bool);
+        impl crate::vm::Cont for Twice {
+            fn resume(&mut self, t: &mut Task, v: Value) -> Result<crate::vm::Next, Stop> {
+                if self.1 {
+                    return Ok(crate::vm::Next::Done(v));
+                }
+                self.1 = true;
+                t.push_arg(v);
+                Ok(crate::vm::Next::Call(self.0.clone(), 1))
+            }
         }
-        let n = Native::leak(
+        fn twice(t: &mut Task, args: Vec<Value>) -> Result<crate::vm::Flow, Stop> {
+            t.push_arg(Value::Int(1));
+            let f = args[0].clone();
+            Ok(crate::vm::Flow::Call(
+                Box::new(Twice(f.clone(), false)),
+                f,
+                1,
+            ))
+        }
+        let n = Native::leak_step(
             "twice",
             vec![NativeParam {
                 name: "f",
@@ -723,10 +740,11 @@ fn elided_tail_calls_count_past_u32() {
         closure: None,
         globals,
         tail_calls: u32::MAX as u64,
+        entry: None,
     });
     t.frames[0].tail_calls += 1;
     let path = t.call_path();
-    drop(t); // gives the run token back for `rt.sources()`
+    drop(t); // releases the world borrow for `rt.sources()`
     assert_eq!(path[0].elided, 4_294_967_296);
     let d = fung_front::diag::error("E0502", crate::vm::no_pos(), vec![]).with_call_path(path);
     let text = rt.with_sources(|s| diag::format(&d, s));
@@ -736,19 +754,45 @@ fn elided_tail_calls_count_past_u32() {
     );
 }
 
-// --- the run token (stage 3a) ---
+// --- one thread (R5) ---
 
+/// fung values live on the thread that runs them: the runtime cannot
+/// move to another thread (`!Send`), while what other threads hold of it
+/// (`Shared`, the stop handle) can be shared. Compile-time checks: if
+/// the runtime were `Send`, both impls would apply and the item path
+/// would be ambiguous, which does not compile.
 #[test]
-fn the_runtime_can_move_to_another_thread() {
-    fn assert_send<T: Send>() {}
-    assert_send::<crate::vm::Runtime>();
+fn the_runtime_stays_on_its_thread() {
+    trait AmbiguousIfSend<A> {
+        fn some_item() {}
+    }
+    impl<T: ?Sized> AmbiguousIfSend<()> for T {}
+    impl<T: ?Sized + Send> AmbiguousIfSend<u8> for T {}
+    let _ = <crate::vm::Runtime as AmbiguousIfSend<_>>::some_item;
+    fn shared<T: Send + Sync>() {}
+    shared::<crate::vm::world::Shared>();
+    shared::<crate::vm::StopHandle>();
 }
 
-#[cfg(debug_assertions)]
+/// Test blocks are reached by index; their functions stay in the runtime.
 #[test]
-#[should_panic(expected = "without the run token")]
-fn touching_the_world_without_the_token_is_caught() {
-    crate::vm::token::assert_holds_token();
+fn test_blocks_are_named_and_called_by_index() {
+    testutil::on_big_stack(|| {
+        let s = testutil::setup(
+            "test \"ok\": assert 1 == 1 ;;\ntest \"bad\": assert 1 == 2 ;;",
+            Opts {
+                tests: true,
+                ..Opts::default()
+            },
+        )
+        .unwrap_or_else(|(e, _)| panic!("{e}"));
+        s.rt.run().expect("the body runs");
+        let names: Vec<String> = s.rt.tests();
+        assert_eq!(names, ["ok", "bad"]);
+        assert!(s.rt.call_test(0).is_ok());
+        assert!(matches!(s.rt.call_test(1), Err(Stop::Error(d)) if d.code == "E0807"));
+        assert!(matches!(s.rt.call_test(2), Err(Stop::Error(d)) if d.code == "E0801"));
+    });
 }
 
 /// The public flow the command uses: boot, load, run. No
@@ -781,26 +825,5 @@ fn the_public_api_runs_a_program_without_handing_out_values() {
         assert_eq!(rt.exit_code(), None);
         assert_eq!(rt.args(), ["a"]);
         assert_eq!(out.text(), "[\"a\"]\nbye\n");
-    });
-}
-
-/// Test blocks are reached by index; their functions stay in the runtime.
-#[test]
-fn test_blocks_are_named_and_called_by_index() {
-    testutil::on_big_stack(|| {
-        let s = testutil::setup(
-            "test \"ok\": assert 1 == 1 ;;\ntest \"bad\": assert 1 == 2 ;;",
-            Opts {
-                tests: true,
-                ..Opts::default()
-            },
-        )
-        .unwrap_or_else(|(e, _)| panic!("{e}"));
-        s.rt.run().expect("the body runs");
-        let names: Vec<String> = s.rt.tests();
-        assert_eq!(names, ["ok", "bad"]);
-        assert!(s.rt.call_test(0).is_ok());
-        assert!(matches!(s.rt.call_test(1), Err(Stop::Error(d)) if d.code == "E0807"));
-        assert!(matches!(s.rt.call_test(2), Err(Stop::Error(d)) if d.code == "E0801"));
     });
 }

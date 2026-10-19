@@ -129,6 +129,28 @@ fn int_without_a_watcher_ends_130() {
     );
 }
 
+/// An entry that only computes gets the signal at its next turn (R1b: the
+/// signal is posted to the run thread, which never waits for it), runs its
+/// release and ends 130.
+#[test]
+fn a_signal_during_a_busy_entry_stops_it() {
+    let mut l = run_e(
+        "fn spin(n) = spin(n + 1)\nwith(() => nil, fn(_):\n  print(\"ready\")\n  spin(0)\n;;, _ => print(\"released\"))",
+    );
+    l.wait_for("ready");
+    let start = Instant::now();
+    l.signal("INT");
+    assert_eq!(
+        l.finish(),
+        ("ready\nreleased\n".into(), "".into(), Some(130))
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
 #[test]
 fn a_watcher_finishes_and_ends_0() {
     let mut l = run_e(
@@ -280,8 +302,8 @@ fn a_command_can_read_the_terminal() {
     assert!(out.contains("got"), "{out}");
 }
 
-/// A long native holds the run token; the second signal still ends the
-/// process at once (the first waits for the token).
+/// A long native holds the run thread; the second signal still ends the
+/// process at once (the first waits for the run thread's next turn).
 #[test]
 fn a_second_signal_does_not_wait_for_the_run_token() {
     let mut l = run_e(
@@ -348,4 +370,189 @@ fn fung_test_keeps_a_top_level_stop_and_names_a_signal() {
     assert!(out.contains("SIGTERM stopped the run"), "{out}");
     assert!(!out.contains("exit(143)"), "{out}");
     assert_eq!(code, Some(143));
+}
+
+/// What the REPL says when a second Ctrl-C drops an input stuck in its
+/// cleanup.
+const ABANDONED: &str =
+    "interrupted again: the cleanup did not finish; the input's tasks were dropped";
+
+/// A REPL input whose `release` hangs: the first Ctrl-C cancels the body
+/// and the release runs (a cancel does not cut it); a second Ctrl-C drops
+/// the input's tasks and the session goes on.
+#[test]
+fn a_second_ctrl_c_abandons_a_stuck_release() {
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(b"with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sleep(60s) ;;)\n")
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("ready");
+    l.signal("INT");
+    l.wait_for("releasing");
+    l.signal("INT");
+    input.write_all(b"print(\"after\", 1 + 1)\n").unwrap();
+    drop(input);
+    let (out, err, code) = l.finish();
+    assert!(out.contains("after 2\n"), "{out}");
+    assert!(err.contains(ABANDONED), "{err}");
+    assert_eq!(code, Some(0));
+}
+
+/// The channel an abandoned input waited on is usable afterwards: its
+/// dropped wait left the channel's line.
+#[test]
+fn an_abandoned_evaluation_leaves_its_channel_usable() {
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(b"(tx, rx) = channel()\nwith(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); timeout(60s, () => recv(rx)) ;;)\n")
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("ready");
+    l.signal("INT");
+    l.wait_for("releasing");
+    l.signal("INT");
+    input
+        .write_all(b"scope(fn(s): spawn(s, () => send(tx, 7)); print(\"got\", recv(rx)) ;;)\n")
+        .unwrap();
+    drop(input);
+    let (out, err, code) = l.finish();
+    assert!(out.contains("got Ok(7)\n"), "{out}\n{err}");
+    assert_eq!(code, Some(0));
+}
+
+/// A task of an abandoned input whose handle was kept elsewhere (a
+/// channel from an earlier input) awaits as cancelled: it never ends,
+/// and its waiters must not wait for it.
+#[test]
+fn an_abandoned_tasks_handle_in_a_later_input_is_cancelled() {
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(b"(htx, hrx) = channel(1)\nwith(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): scope(fn(s):\n  send(htx, spawn(s, () => sleep(60s)))\n  print(\"releasing\")\n  sleep(60s)\n;;) ;;)\n")
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("ready");
+    l.signal("INT");
+    l.wait_for("releasing");
+    l.signal("INT");
+    input
+        .write_all(b"print(\"got\", timeout(5s, () => await(recv(hrx)!)))\n")
+        .unwrap();
+    drop(input);
+    let (out, err, code) = l.finish();
+    assert!(
+        out.contains("got Err({kind: 'cancelled})\n"),
+        "{out}\n{err}"
+    );
+    assert_eq!(code, Some(0));
+}
+
+/// A command an abandoned input waited on is killed and reaped.
+#[test]
+fn an_abandoned_command_is_killed_and_reaped() {
+    let dir = std::env::temp_dir().join(format!("fung-abandon-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("pid");
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(
+            format!(
+                "with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sh(\"echo $$ > {}; exec sleep 60\") ;;)\n",
+                f.display()
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("ready");
+    l.signal("INT");
+    l.wait_for("releasing");
+    let start = Instant::now();
+    while !f.exists() && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let pid = std::fs::read_to_string(&f).unwrap().trim().to_string();
+    l.signal("INT");
+    input.write_all(b"print(\"after\")\n").unwrap();
+    l.wait_for("after");
+    // `kill -0` fails once the process is gone and reaped (a zombie
+    // still answers it)
+    let start = Instant::now();
+    let gone = loop {
+        let alive = Command::new("kill")
+            .args(["-0", &pid])
+            .stderr(Stdio::null())
+            .status()
+            .unwrap()
+            .success();
+        if !alive {
+            break true;
+        }
+        if start.elapsed() > Duration::from_secs(5) {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    drop(input);
+    let _ = l.finish();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(gone, "the command {pid} is still there");
+}
+
+/// A command whose leader ended while what it left still holds its
+/// output: abandoning the wait kills that group too (spec 15).
+#[test]
+fn an_abandoned_command_group_is_killed_after_its_leader_exited() {
+    let dir = std::env::temp_dir().join(format!("fung-abandon-group-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("pid");
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(
+            format!(
+                "with(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); sh(\"sleep 7 & echo $! > {}\") ;;)\n",
+                f.display()
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("ready");
+    l.signal("INT");
+    l.wait_for("releasing");
+    let start = Instant::now();
+    while !f.exists() && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let pid = std::fs::read_to_string(&f).unwrap().trim().to_string();
+    l.signal("INT");
+    input.write_all(b"print(\"after\")\n").unwrap();
+    l.wait_for("after");
+    let start = Instant::now();
+    let gone = loop {
+        let alive = Command::new("kill")
+            .args(["-0", &pid])
+            .stderr(Stdio::null())
+            .status()
+            .unwrap()
+            .success();
+        if !alive {
+            break true;
+        }
+        if start.elapsed() > Duration::from_secs(5) {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    drop(input);
+    let _ = l.finish();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(gone, "what the command left ({pid}) is still there");
 }

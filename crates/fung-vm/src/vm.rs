@@ -18,6 +18,9 @@ mod channel_tests;
 mod cleanup;
 #[cfg(test)]
 mod cleanup_tests;
+mod cont;
+#[cfg(test)]
+mod cont_tests;
 mod deadline;
 #[cfg(test)]
 mod deadline_tests;
@@ -43,9 +46,21 @@ mod module;
 mod module_tests;
 #[cfg(test)]
 mod mutable_tests;
+mod offload;
+#[cfg(test)]
+mod park_tests;
+pub(crate) mod poller;
+#[cfg(test)]
+mod poller_tests;
+mod pool;
+#[cfg(test)]
+mod pool_tests;
 #[cfg(test)]
 mod repl_tests;
 mod runtime;
+mod sched;
+#[cfg(test)]
+mod sched_tests;
 mod scope;
 #[cfg(test)]
 mod scope_tests;
@@ -58,8 +73,6 @@ mod task;
 mod task_tests;
 #[cfg(test)]
 mod tests;
-pub(crate) mod token;
-mod watch;
 mod world;
 
 use std::cmp::Ordering;
@@ -72,22 +85,31 @@ use fung_front::diag::{Arg, CallSite, Diag, error};
 use fung_front::source::{FileId, Pos, decode_lossy};
 use fung_front::tree::CaptureKind;
 
-pub use crate::value::{Closure, Globals, Native, NativeFn, NativeParam};
+pub use crate::value::{Closure, Globals, Native, NativeBody, NativeFn, NativeParam, StepFn};
 pub use atom::Atom;
 #[cfg(test)]
 pub(crate) use atom::effect_names;
+#[cfg(test)]
+pub(crate) use atom::{EFFECTS, PURE, is_listed};
 pub(crate) use atom::{
     make as atom_make, read as atom_read, reset as atom_reset, run_swap as atom_swap,
 };
-pub(crate) use block::{YIELD_EVERY, block, outside};
+pub(crate) use block::{
+    IoRegs, IoStep, WaitList, Waiter, YIELD_EVERY, drop_io_waits, park_io, park_until,
+    park_until_then,
+};
 pub use call::MAX_FRAMES;
 pub use channel::{Channel, Receiver, Sender};
 pub(crate) use cleanup::run_with;
+pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
+pub(crate) use offload::{Kind, offload_kind};
+pub(crate) use poller::Interest;
+pub(crate) use pool::{Pool, Ticket};
 pub use runtime::Runtime;
 pub use scope::ScopeHandle;
 pub(crate) use scope::run_scope;
@@ -97,15 +119,14 @@ pub use stop::StopHandle;
 pub(crate) use task::CancelNode as CancelNodeForTests;
 pub use task::TaskHandle;
 pub(crate) use task::err_kind;
-pub(crate) use watch::{Interest, Waited, Watch, outside_watched};
-#[cfg(test)]
-pub(crate) use watch::{live_wakes, serial as watch_serial};
 
 use crate::value::{self, Value};
+use call::{Entered, Ran};
+use cont::ContFrame;
 use frame::Frame;
-use task::CancelNode;
+pub(crate) use task::CancelNode;
+use world::Shared;
 pub(crate) use world::World;
-use world::{Shared, Token};
 
 /// Why fung code stopped early: a runtime error (with its position and
 /// call path) or `exit(n)`, which unwinds like an error but is not one.
@@ -147,23 +168,130 @@ pub(crate) fn internal(args: Vec<Arg>) -> Stop {
     err("E0801", no_pos(), args)
 }
 
+fn stdin_line(line: Option<Vec<u8>>) -> Option<String> {
+    line.map(|b| decode_lossy(&b))
+}
+
+/// A task between its turns (`sched.rs`): what `Task` holds of it while
+/// it runs. Fields as in `Task`.
+pub(crate) struct Fiber {
+    stack: Vec<Option<Value>>,
+    frames: Vec<Frame>,
+    conts: Vec<ContFrame>,
+    stop: usize,
+    floor: usize,
+    #[cfg(test)]
+    loops: u32,
+    #[cfg(test)]
+    parks: u32,
+    #[cfg(test)]
+    offloads: u32,
+    #[cfg(test)]
+    yields: u32,
+    turn_due: bool,
+    native: Option<&'static Native>,
+    cancel: Arc<CancelNode>,
+    budget: u32,
+    pure: u32,
+    waiter: Arc<block::Waiter>,
+    todo: Option<Todo>,
+}
+
+impl Fiber {
+    /// A task that has not run yet, under `cancel`, with a number of its
+    /// own.
+    pub(super) fn new(shared: &Shared, cancel: Arc<CancelNode>) -> Fiber {
+        Fiber {
+            stack: Vec::new(),
+            frames: Vec::new(),
+            conts: Vec::new(),
+            stop: 0,
+            floor: 0,
+            #[cfg(test)]
+            loops: 0,
+            #[cfg(test)]
+            parks: 0,
+            #[cfg(test)]
+            offloads: 0,
+            #[cfg(test)]
+            yields: 0,
+            turn_due: false,
+            native: None,
+            cancel,
+            budget: YIELD_EVERY,
+            pure: 0,
+            waiter: block::Waiter::new(shared.next_fiber(), shared.ready.clone()),
+            todo: None,
+        }
+    }
+
+    /// A placeholder for the run thread's own state while the root runs.
+    pub(super) fn empty(shared: &Shared) -> Fiber {
+        Fiber::new(shared, CancelNode::root())
+    }
+
+    pub(super) fn id(&self) -> sched::FiberId {
+        self.waiter.id()
+    }
+}
+
+/// Where the run loop goes on at a task's next turn.
+pub(crate) enum Todo {
+    /// Call `f` with the `n` arguments on top of the stack.
+    Start(Value, usize),
+    /// Run the current frame.
+    Loop,
+    /// The parked continuation looks again.
+    Resume,
+    /// Unwind with this stop.
+    Unwind(Stop),
+}
+
+/// How a turn ended (`sched.rs`).
+pub(super) enum Turn {
+    Done(Result<Value, Stop>),
+    Parked(Wake),
+    Yielded,
+}
+
 /// One thread of fung execution: an operand stack (whose first slots are
 /// the entry frame's) and the call frames, the per-task part of the
-/// runtime. Natives get the task so they can write output, read input,
-/// call fung functions back; those reach the
-/// shared part (`World`) through the run token the task holds.
+/// runtime. Natives get the task so they can write output, read input
+/// and ask for calls back into fung (`cont.rs`); those reach the
+/// shared part (`World`) through the borrow the task holds.
 ///
-/// A task takes the token when it is made and holds it until it drops,
-/// except while it waits (`block`), yields its turn (`tick`) or calls the
-/// operating system (`outside`); the run loop never locks per
-/// instruction. Drop order matters: the stack and frames hold fung values, and
-/// dropping a value changes `Rc` counts, which only the token's holder may
-/// do. So `world` is the last field (fields drop in declaration order)
-/// and `Drop` empties the stack and frames explicitly before it, after
-/// taking the token back if a blocking point had given it up.
+/// A task borrows the world when it is made and keeps it until it drops;
+/// the tasks of a run take turns on the run thread (`sched.rs`), so the
+/// run loop never locks per instruction. Drop order matters: the stack
+/// and frames hold fung values, and dropping a value changes `Rc` counts,
+/// which only the run thread may do. So `world` is the last field (fields
+/// drop in declaration order) and `Drop` empties the stack and frames
+/// explicitly before it.
 pub struct Task<'rt> {
     stack: Vec<Option<Value>>,
     frames: Vec<Frame>,
+    /// Step natives waiting for a call they asked for (`cont.rs`).
+    conts: Vec<ContFrame>,
+    /// The frame count at which the innermost run loop returns.
+    stop: usize,
+    /// The continuations the innermost run loop serves: those from this
+    /// index on (`cont.rs`).
+    floor: usize,
+    /// How many run loops are running on this task (a test probe).
+    #[cfg(test)]
+    pub(crate) loops: u32,
+    /// How many times this task parked (a test probe).
+    #[cfg(test)]
+    pub(crate) parks: u32,
+    /// How many waits on the operating system it handed off (a test probe).
+    #[cfg(test)]
+    pub(crate) offloads: u32,
+    /// How many times it gave its turn at a yield point (a test probe).
+    #[cfg(test)]
+    pub(crate) yields: u32,
+    /// The turn is over (`Task::tick`): the next yield point leaves the
+    /// run loop so the others get theirs.
+    turn_due: bool,
     /// The native being called, for natives that need their own name.
     native: Option<&'static Native>,
     /// This task's node in the cancellation tree (`task.rs`).
@@ -173,71 +301,77 @@ pub struct Task<'rt> {
     /// How deep this task is in swaps' functions (`atom.rs`): while it is
     /// above zero, calling an effect is E0707.
     pub(crate) pure: u32,
-    /// What wakes this task when it blocks (`block.rs`).
+    /// What wakes this task when it parks (`block.rs`): it carries the
+    /// task's number in the scheduler (`sched.rs`).
     waiter: Arc<block::Waiter>,
-    /// Counted in `World::live` (every task but `Runtime::wait`'s).
-    live: bool,
-    /// A task the command runs while it holds the runtime open
-    /// (`Runtime::hold`): it took the command's count of `World::live`
-    /// over instead of adding one, and gives it back when it drops.
-    holds: bool,
-    /// The shared part's owner, for spawning tasks on other threads.
+    /// Where the run loop goes on at the task's next turn.
+    todo: Option<Todo>,
+    /// The shared part's owner.
     shared: &'rt Arc<Shared>,
-    /// The run token, and through it the shared part. Keep it last.
-    world: Token<'rt>,
+    /// The borrow of the shared part. Keep it last.
+    world: std::cell::RefMut<'rt, World>,
 }
 
 impl<'rt> Task<'rt> {
-    /// A task the command runs on this thread (the entry, a test block):
-    /// counted in `World::live`, except while the command holds the
-    /// runtime open (`Runtime::hold`). Then it takes over the command's
-    /// count, so the counts are the same while it runs, and when it ends the count
-    /// goes back to the command, which is about to run more: its end is
-    /// not judged for a deadlock (the gap between two test blocks is not
-    /// one; `deadlock.rs`).
-    pub(crate) fn driven(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
-        let mut t = Task::unlisted(shared, cancel);
-        if t.world.held {
-            // One count to lend: a second driven task alive at the same
-            // time (a future caller that overlaps them) would make the
-            // counts wrong and hide or invent deadlocks.
-            debug_assert!(!t.world.hold_taken, "two driven tasks share the held count");
-            t.world.hold_taken = true;
-            t.holds = true;
-        } else {
-            t.world.live += 1;
-        }
-        t.live = true;
-        t
-    }
-
-    /// A spawned task on its own thread: its parent counted it live when
-    /// it spawned it (`task.rs`).
-    pub(crate) fn spawned(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
-        let mut t = Task::unlisted(shared, cancel);
-        t.live = true;
-        t
-    }
-
-    /// A task that is not live: it runs no fung code and nothing in fung
-    /// waits for it (`Runtime::wait`, the command waiting for the
-    /// program), so the deadlock check leaves it out.
-    pub(crate) fn unlisted(shared: &'rt Arc<Shared>, cancel: Arc<CancelNode>) -> Task<'rt> {
-        let world = shared.lock();
-        token::assert_holds_token();
+    /// The task the command runs on this thread (the entry, a test block,
+    /// a module body): it borrows the world and keeps it while it lives.
+    /// Its runs (`run_root`) give every task of the program its turns.
+    pub(crate) fn new(
+        world: &'rt std::cell::RefCell<World>,
+        shared: &'rt Arc<Shared>,
+        cancel: Arc<CancelNode>,
+    ) -> Task<'rt> {
+        let world = world.borrow_mut();
+        let waiter = block::Waiter::new(shared.next_fiber(), shared.ready.clone());
         Task {
             stack: Vec::new(),
             frames: Vec::new(),
+            conts: Vec::new(),
+            stop: 0,
+            floor: 0,
+            #[cfg(test)]
+            loops: 0,
+            #[cfg(test)]
+            parks: 0,
+            #[cfg(test)]
+            offloads: 0,
+            #[cfg(test)]
+            yields: 0,
+            turn_due: false,
             native: None,
             cancel,
             budget: YIELD_EVERY,
             pure: 0,
-            waiter: block::Waiter::new(shared.census.clone()),
-            live: false,
-            holds: false,
+            waiter,
+            todo: None,
             shared,
             world,
         }
+    }
+
+    /// Swaps this task's state with `f`'s: the scheduler gives a task its
+    /// turn by swapping its fiber in, and takes it out again after.
+    pub(super) fn exchange(&mut self, f: &mut Fiber) {
+        use std::mem::swap;
+        swap(&mut self.stack, &mut f.stack);
+        swap(&mut self.frames, &mut f.frames);
+        swap(&mut self.conts, &mut f.conts);
+        swap(&mut self.stop, &mut f.stop);
+        swap(&mut self.floor, &mut f.floor);
+        #[cfg(test)]
+        {
+            swap(&mut self.loops, &mut f.loops);
+            swap(&mut self.parks, &mut f.parks);
+            swap(&mut self.offloads, &mut f.offloads);
+            swap(&mut self.yields, &mut f.yields);
+        }
+        swap(&mut self.turn_due, &mut f.turn_due);
+        swap(&mut self.native, &mut f.native);
+        swap(&mut self.cancel, &mut f.cancel);
+        swap(&mut self.budget, &mut f.budget);
+        swap(&mut self.pure, &mut f.pure);
+        swap(&mut self.waiter, &mut f.waiter);
+        swap(&mut self.todo, &mut f.todo);
     }
 
     /// Standard output (print).
@@ -250,26 +384,20 @@ impl<'rt> Task<'rt> {
         self.world.stderr()
     }
 
-    /// One line of standard input with its line ending, `None` at the
-    /// end. Bytes that are not UTF-8 become U+FFFD one by one, like source
-    /// text. With no line read yet, the task waits outside the run token
-    /// (`stdin.rs`); a cancellation ends that wait with E0701.
-    pub fn read_line(&mut self) -> Result<Option<String>, Stop> {
-        let line = match self.world.stdin.try_take() {
-            Some(line) => line,
-            None => {
-                let me = self.waiter.clone();
-                me.take_woken();
-                self.cancel.watch(&me);
-                let cancel = self.cancel.clone();
-                let stdin = self.world.stdin.handle();
-                match block::outside(self, move || stdin.wait(&me, &cancel)) {
-                    Some(line) => line,
-                    None => return Err(block::cancelled(no_pos())),
-                }
-            }
-        };
-        Ok(line.map(|b| decode_lossy(&b)))
+    /// One line of standard input with its line ending if one is queued
+    /// (`Some(None)` at the end of the input); otherwise this task is put
+    /// on the reader's waiting list and `None`: park until woken
+    /// (`stdin.rs`). Bytes that are not UTF-8 become U+FFFD one by one,
+    /// like source text.
+    pub(crate) fn stdin_poll(&mut self) -> Option<Option<String>> {
+        let me = self.waiter.clone();
+        self.world.stdin.poll(&me).map(stdin_line)
+    }
+
+    /// A wait for a line that ended without one leaves the waiting list.
+    pub(crate) fn stdin_leave(&mut self) {
+        let me = self.waiter.clone();
+        self.world.stdin.leave(&me);
     }
 
     /// How many tasks wait for a line of standard input (a test probe).
@@ -310,7 +438,7 @@ impl<'rt> Task<'rt> {
         self.native.map(|n| n.name)
     }
 
-    /// Runs `main` (a file body) as the entry frame.
+    /// Runs `main` (a file body) as the entry frame, the root of a run.
     fn run_main(&mut self, main: Rc<RtProto>, globals: Globals) -> Result<Value, Stop> {
         self.stack = vec![None; main.num_locals];
         self.frames.push(Frame {
@@ -320,50 +448,163 @@ impl<'rt> Task<'rt> {
             closure: None,
             globals,
             tail_calls: 0,
+            entry: None,
         });
-        self.guarded(|t| t.run(0))
+        self.run_root(Todo::Loop)
     }
 
-    /// Runs `f` behind the panic fence: a Rust panic (a bug in a native or
-    /// the VM) must never reach the user as a Rust backtrace (00, 09). It
-    /// wraps every entry from Rust into fung code: `run_main` and `call`.
-    fn guarded(&mut self, f: impl FnOnce(&mut Self) -> Result<Value, Stop>) -> Result<Value, Stop> {
-        match catch_unwind(AssertUnwindSafe(|| f(self))) {
-            Ok(r) => r,
-            Err(payload) => {
-                // A panic never leaves the token given up: a blocking
-                // point that panicked mid-wait would; take it back.
-                self.world.reacquire();
-                let msg = if let Some(s) = payload.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = payload.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "panic".to_string()
-                };
-                let pos = self
-                    .frames
-                    .last()
-                    .and_then(Frame::current_pos)
-                    .unwrap_or_else(no_pos);
-                let d = error("E0801", pos, vec![Arg::Str(msg)]).with_call_path(self.call_path());
-                Err(Stop::Error(Box::new(d)))
-            }
+    /// A caught panic as E0801 at the innermost frame, with the call path.
+    #[cold]
+    fn panicked(&mut self, payload: Box<dyn std::any::Any + Send>) -> Stop {
+        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = payload.downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "panic".to_string()
+        };
+        let pos = self
+            .frames
+            .last()
+            .and_then(Frame::current_pos)
+            .unwrap_or_else(no_pos);
+        let d = error("E0801", pos, vec![Arg::Str(msg)]).with_call_path(self.call_path());
+        Stop::Error(Box::new(d))
+    }
+
+    /// One turn of this task (`sched.rs`): after a park, the wait's end
+    /// is checked first (a cancellation or a deadline unwinds the parked
+    /// continuation; otherwise it looks again), then the run loop goes
+    /// until the task is done, parks or gives its turn.
+    pub(super) fn turn(&mut self) -> Turn {
+        if matches!(self.todo, Some(Todo::Resume)) {
+            self.todo = Some(match self.after_park() {
+                Ok(()) => Todo::Resume,
+                Err(e) => Todo::Unwind(self.mark(e)),
+            });
+        }
+        #[cfg(test)]
+        {
+            self.loops += 1;
+        }
+        let turn = self.drive();
+        #[cfg(test)]
+        {
+            self.loops -= 1;
+        }
+        turn
+    }
+
+    /// The runtime's shared part (test probes).
+    #[cfg(test)]
+    pub(crate) fn shared_for_tests(&self) -> &Arc<Shared> {
+        self.shared
+    }
+
+    /// The task's waiter (tests that try a socket operation by hand).
+    #[cfg(test)]
+    pub(crate) fn waiter_for_tests(&self) -> Arc<block::Waiter> {
+        self.waiter.clone()
+    }
+
+    /// How many waits on descriptors are registered (test probes).
+    #[cfg(test)]
+    pub(crate) fn io_waiting_for_tests(&self) -> usize {
+        self.world.io.len()
+    }
+
+    /// A parked task resumed: its woken flag is taken first, so a wake
+    /// that comes after this queues the task again whatever the
+    /// continuation does next (a stop's unwind may park again: a job that
+    /// is waited for, a scope draining its children). Then a cancelled
+    /// task (or one past its node's deadline, which expires the node)
+    /// unwinds; otherwise its waiter watches its node again, before the
+    /// continuation looks.
+    fn after_park(&mut self) -> Result<(), Stop> {
+        self.waiter.take_woken();
+        if self.cancel.is_cancelled() {
+            return Err(self.unwound());
+        }
+        let now = std::time::Instant::now();
+        if self.cancel.deadline_at().is_some_and(|at| now >= at) && self.cancel.expire_due(now) {
+            return Err(self.unwound());
+        }
+        self.cancel.watch(&self.waiter);
+        Ok(())
+    }
+
+    /// The run loop with its unwinding: an error, a cancellation or an
+    /// exit goes to the innermost continuation (which may call `release`,
+    /// or turn it into a value), and leaves the loop only when none is
+    /// left. A panic is caught here and unwinds as E0801 (00, 09: a Rust
+    /// panic never reaches the user as a backtrace). A park request or the
+    /// end of the turn (`cont.rs`, `Task::tick`) returns to the scheduler;
+    /// where to go on is kept in `todo`.
+    fn drive(&mut self) -> Turn {
+        let mut todo = self.todo.take().unwrap_or(Todo::Loop);
+        loop {
+            let r = catch_unwind(AssertUnwindSafe(|| match todo {
+                Todo::Start(f, n) => self.issue(f, n),
+                Todo::Loop => self.step_loop(),
+                Todo::Resume => self.finish(Value::Nil),
+                Todo::Unwind(e) => self.unwind(e),
+            }));
+            todo = match r {
+                Ok(Ok(Ran::Done(v))) => return Turn::Done(Ok(v)),
+                Ok(Ok(Ran::Going)) => Todo::Loop,
+                Ok(Ok(Ran::Yielded(call))) => {
+                    #[cfg(test)]
+                    {
+                        self.yields += 1;
+                    }
+                    self.turn_due = false;
+                    self.todo = Some(match call {
+                        Some((f, n)) => Todo::Start(f, n),
+                        None => Todo::Loop,
+                    });
+                    return Turn::Yielded;
+                }
+                Ok(Ok(Ran::Parked(w))) => {
+                    #[cfg(test)]
+                    {
+                        self.parks += 1;
+                    }
+                    self.todo = Some(Todo::Resume);
+                    return Turn::Parked(w);
+                }
+                Ok(Err(e)) => {
+                    let e = self.mark(e);
+                    if self.conts.len() <= self.floor {
+                        return Turn::Done(Err(e));
+                    }
+                    Todo::Unwind(e)
+                }
+                Err(payload) => {
+                    let e = self.panicked(payload);
+                    if self.conts.len() <= self.floor {
+                        return Turn::Done(Err(e));
+                    }
+                    Todo::Unwind(e)
+                }
+            };
         }
     }
 
-    /// Runs until the frame count drops to `stop` and attaches the call
-    /// path to any error (innermost run loop first; outer loops keep it).
-    ///
-    /// Always inlined: natives call fung functions through `call_buf` once
-    /// per element, and an out-of-line `run` there cost `bench/loop.fung`
-    /// about 6% (stage 3a measurement; the compiler stopped inlining it on
-    /// its own after an unrelated change).
-    #[inline(always)]
-    fn run(&mut self, stop: usize) -> Result<Value, Stop> {
-        match self.exec(stop) {
-            Err(Stop::Error(d)) => Err(Stop::Error(self.attach(d))),
-            r => r,
+    /// An error as it leaves the place it arose: positioned at the call
+    /// of the innermost waiting native when it has no place of its own (a
+    /// native called back), with the call path of the frames as they are.
+    fn mark(&self, e: Stop) -> Stop {
+        match e {
+            Stop::Error(mut d) => {
+                if let Some(c) = self.conts.last()
+                    && self.conts.len() > self.floor
+                    && d.pos.is_zero()
+                {
+                    d.pos = c.pos;
+                }
+                Stop::Error(self.attach(d))
+            }
+            other => other,
         }
     }
 
@@ -392,6 +633,29 @@ impl<'rt> Task<'rt> {
             .rev()
             .filter(|f| !f.proto.builtin)
             .find_map(|f| f.current_pos())
+    }
+
+    /// The function of a built-in module that user code called, which is
+    /// running now (`fs.with_open`, a prelude one as `take`): what an
+    /// error raised deep inside it is about (E0707). The frames remember
+    /// it across the helpers it calls and tail-calls (`Frame::entry`).
+    /// `None` when user code called the native itself.
+    pub(crate) fn user_callee(&self) -> Option<String> {
+        let i = self.frames.iter().rposition(|f| !f.proto.builtin)?;
+        let p = self.frames.get(i + 1)?.entry.clone()?;
+        let file = p
+            .pos
+            .first()
+            .map(|at| self.world.file_name(at.file).to_string())?;
+        let module = std::path::Path::new(&file)
+            .file_stem()?
+            .to_str()?
+            .to_string();
+        Some(if module == "prelude" {
+            p.name.clone()
+        } else {
+            format!("{module}.{}", p.name)
+        })
     }
 
     /// The frames innermost first, for error reports (08).
@@ -480,9 +744,10 @@ impl<'rt> Task<'rt> {
         Ok(())
     }
 
-    /// The run loop. Each iteration re-reads the current frame: calls and
-    /// returns change it.
-    fn exec(&mut self, stop: usize) -> Result<Value, Stop> {
+    /// The run loop proper. Each iteration re-reads the current frame:
+    /// calls and returns change it. It returns when the frame count drops
+    /// to `self.stop`.
+    fn step_loop(&mut self) -> Result<Ran, Stop> {
         loop {
             let fi = self.frames.len() - 1;
             let f = &mut self.frames[fi];
@@ -529,9 +794,14 @@ impl<'rt> Task<'rt> {
                 Op::Jump => {
                     // The compiler emits forward jumps only today; a
                     // backward one would be a loop, which must stay
-                    // cancellable and share the token like a call.
+                    // cancellable and give its turn like a call.
                     if arg <= ip {
                         self.tick(pos)?;
+                        if self.turn_due {
+                            // Back at this jump after the others' turns.
+                            self.frames[fi].ip = ip;
+                            return Ok(Ran::Yielded(None));
+                        }
                     }
                     self.frames[fi].ip = arg;
                 }
@@ -545,13 +815,25 @@ impl<'rt> Task<'rt> {
                 },
                 Op::Call | Op::TailCall => {
                     self.tick(pos)?;
+                    if self.turn_due {
+                        // Back at this call after the others' turns.
+                        self.frames[fi].ip = ip;
+                        return Ok(Ran::Yielded(None));
+                    }
                     let tail = instr.op() == Op::TailCall;
-                    if let Some(r) = self.call_op(arg, pos, tail)? {
+                    match self.call_op(arg, pos, tail)? {
+                        Entered::Frame => {}
                         // A native ran to completion.
-                        self.push(r);
-                        if tail && let Some(v) = self.ret(stop) {
-                            return Ok(v);
-                        }
+                        Entered::Value(r) if tail => match self.ret_with(r)? {
+                            Ran::Going => {}
+                            ran => return Ok(ran),
+                        },
+                        Entered::Value(r) => self.push(r),
+                        Entered::Call(f, n) => match self.issue(f, n)? {
+                            Ran::Going => {}
+                            ran => return Ok(ran),
+                        },
+                        Entered::Park(w) => return Ok(Ran::Parked(w)),
                     }
                 }
                 Op::Closure => {
@@ -676,8 +958,10 @@ impl<'rt> Task<'rt> {
                 Op::Import => self.exec_import(fi, arg, pos)?,
                 Op::Assert | Op::Test => self.exec_m6(fi, instr.op(), arg, pos)?,
                 Op::Return => {
-                    if let Some(v) = self.ret(stop) {
-                        return Ok(v);
+                    let v = self.pop();
+                    match self.ret_with(v)? {
+                        Ran::Going => {}
+                        ran => return Ok(ran),
                     }
                 } // Every opcode is handled: the match is exhaustive, so an
                   // "unknown opcode" case cannot arise.
@@ -720,22 +1004,12 @@ impl<'rt> Task<'rt> {
 }
 
 impl Drop for Task<'_> {
-    /// The end of a task is a value boundary (token.rs): the stack and
-    /// frames drop here, with the token held, before `world` releases it.
+    /// The end of a task is a value boundary (`Runtime` is `!Send`): the stack
+    /// and frames drop here, on the run thread, before `world` releases it.
     fn drop(&mut self) {
-        self.world.reacquire();
-        token::assert_holds_token();
         self.native = None;
+        self.conts.clear();
         self.frames.clear();
         self.stack.clear();
-        // The last running task ending can leave only blocked ones
-        // (`deadlock.rs`).
-        if self.holds {
-            self.world.hold_taken = false;
-        }
-        if self.live && !self.holds {
-            self.world.live -= 1;
-            self.judge();
-        }
     }
 }

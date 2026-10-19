@@ -21,7 +21,7 @@ impl Runtime {
     /// (`fung test`). The functions stay in the runtime: `call_test`
     /// runs one by its index here.
     pub fn tests(&self) -> Vec<String> {
-        self.lock().tests.iter().map(|t| t.name.clone()).collect()
+        self.world().tests.iter().map(|t| t.name.clone()).collect()
     }
 
     /// Runs test block `i` on a fresh task. An `exit(n)` inside it comes
@@ -31,7 +31,7 @@ impl Runtime {
         let Some(f) = t.world.tests.get(i).map(|c| c.func.clone()) else {
             return Err(internal(vec![Arg::Str(format!("no test block {i}"))]));
         };
-        let r = t.call(&f, Vec::new()).map(|_| ());
+        let r = t.call_root(&f, Vec::new()).map(|_| ());
         // The block runs on a fresh node below the root, cancelled when it
         // returns: what it spawned and left running ends with it.
         t.cancel.cancel();

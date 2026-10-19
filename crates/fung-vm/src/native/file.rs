@@ -2,14 +2,14 @@
 //! `read_line` and `read_lines` use it.
 //!
 //! A handle is shared by every task that holds a copy, and its input and
-//! output run without the run token (`outside`), so the token does not
-//! protect it: each handle has its own lock, held for one whole operation
+//! output run on a pool thread (`nat::offload`), so the run thread's
+//! exclusive access does not protect it: each handle has its own lock, held for one whole operation
 //! (one `write_line`, one line read). Lines written by different tasks
 //! therefore never mix.
 //!
 //! The handle holds no fung value (only its path and the open file), so
-//! it may be used and dropped without the token: a closure passed to
-//! `outside` borrows `&File`, never the `Rc` around it. When the last
+//! it may be used and dropped on any thread: an
+//! offloaded job owns a clone of the handle's `Arc`. When the last
 //! copy of the handle goes, the buffer is flushed and the file closed
 //! (reference counting makes that exact); only `close` reports an error
 //! from that flush.
@@ -35,8 +35,8 @@ pub(crate) enum Io {
     Write(BufWriter<std::fs::File>),
 }
 
-/// Why a handle operation failed: the `Err` value is made with the token
-/// back (`fs::fault_value`).
+/// Why a handle operation failed: the `Err` value is made on the run thread
+/// (`fs::fault_value`).
 #[derive(Debug)]
 pub(crate) enum Fault {
     Closed,

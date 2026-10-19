@@ -63,6 +63,44 @@
 | 0003  5:22  RETURN
 -- stderr
 -- exit: 0
+==== dump ast bench/exec.fung
+-- stdout
+| (program (call print (call fold (range .. 0 500) 0 (fn (a, (pwild)) (block (binary + a (field code (unwrap ! (call exec (list "true"))))))))))
+-- stderr
+-- exit: 0
+==== dump core bench/exec.fung
+-- stdout
+| (do (call (prelude print) (call (prelude fold) (range .. 0 500) 0 (fn (a, $a0) (do (let (pwild) (local 1)) (op + (local 0) (field code (unwrap ! (call (prelude exec) (list "true"))))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/exec.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   CONST        0    ; <fn print>
+| 0001  3:7   CONST        1    ; <fn fold>
+| 0002  3:12  CONST        2    ; 0
+| 0003  3:15  CONST        3    ; 500
+| 0004  3:13  RANGE        0
+| 0005  3:20  CONST        2    ; 0
+| 0006  3:23  CLOSURE      0    ; <lambda>
+| 0007  3:11  CALL         3    ; 3 positional, 0 named
+| 0008  3:6   CALL         1    ; 1 positional, 0 named
+| 0009  1:73  RETURN
+|
+| == <lambda> ==
+| 0000  3:27  LOADLOCAL    1
+| 0001  3:27  MATCHORFAIL  0    ; _
+| 0002  3:33  LOADLOCAL    0
+| 0003  3:37  CONST        0    ; <fn exec>
+| 0004  3:43  CONST        1    ; "true"
+| 0005  3:42  LIST         1
+| 0006  3:41  CALL         1    ; 1 positional, 0 named
+| 0007  3:51  UNWRAPABORT
+| 0008  3:52  FIELD        2    ; code
+| 0009  3:35  ADD
+| 0010  3:30  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast bench/fib.fung
 -- stdout
 | (program (fn fib(n) (block (then (binary < n 2) n (binary + (call fib (binary - n 1)) (call fib (binary - n 2)))))) (call print (call fib 30)))
@@ -104,6 +142,173 @@
 | 0015  1:47  CALL         1    ; 1 positional, 0 named
 | 0016  1:42  ADD
 | 0017  1:11  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/fs.fung
+-- stdout
+| (program (import fs) (fn probe(a, (pwild)) (block (binary + a (call len (call filter (list (call (field exists fs) "/") (call (field stat fs) "/")) (fn (r) (block (binary != r (nil))))))))) (call print (call fold (range .. 0 25000) 0 probe)))
+-- stderr
+-- exit: 0
+==== dump core bench/fs.fung
+-- stdout
+| (do (import "fs" (global 0)) (let (global 1) (fn probe(a, $a0) (do (let (pwild) (local 1)) (op + (local 0) (call (prelude len) (call (prelude filter) (list (call (field exists (global 0)) "/") (call (field stat (global 0)) "/")) (fn (r) (do (op != (local 0) (nil)))))))))) (call (prelude print) (call (prelude fold) (range .. 0 25000) 0 (global 1))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/fs.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   IMPORT       0    ; fs
+| 0001  3:1   STOREGLOBAL  0    ; fs
+| 0002  4:1   CLOSURE      0    ; probe
+| 0003  4:1   STOREGLOBAL  1    ; probe
+| 0004  5:1   CONST        1    ; <fn print>
+| 0005  5:7   CONST        2    ; <fn fold>
+| 0006  5:12  CONST        3    ; 0
+| 0007  5:15  CONST        4    ; 25000
+| 0008  5:13  RANGE        0
+| 0009  5:22  CONST        3    ; 0
+| 0010  5:25  LOADGLOBAL   1    ; probe
+| 0011  5:11  CALL         3    ; 3 positional, 0 named
+| 0012  5:6   CALL         1    ; 1 positional, 0 named
+| 0013  1:68  RETURN
+|
+| == probe ==
+| 0000  4:13  LOADLOCAL    1
+| 0001  4:13  MATCHORFAIL  0    ; _
+| 0002  4:18  LOADLOCAL    0
+| 0003  4:22  CONST        0    ; <fn len>
+| 0004  4:26  CONST        1    ; <fn filter>
+| 0005  4:34  LOADGLOBAL   0
+| 0006  4:36  FIELD        2    ; exists
+| 0007  4:44  CONST        3    ; "/"
+| 0008  4:43  CALL         1    ; 1 positional, 0 named
+| 0009  4:50  LOADGLOBAL   0
+| 0010  4:52  FIELD        4    ; stat
+| 0011  4:58  CONST        3    ; "/"
+| 0012  4:57  CALL         1    ; 1 positional, 0 named
+| 0013  4:33  LIST         2
+| 0014  4:65  CLOSURE      0    ; <lambda>
+| 0015  4:32  CALL         2    ; 2 positional, 0 named
+| 0016  4:25  CALL         1    ; 1 positional, 0 named
+| 0017  4:20  ADD
+| 0018  4:16  RETURN
+|
+| == <lambda> ==
+| 0000  4:70  LOADLOCAL    0
+| 0001  4:75  CONST        0    ; nil
+| 0002  4:72  NE
+| 0003  4:67  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/list.fung
+-- stdout
+| (program (assign xs (call map (range .. 0 500000) (fn (i) (block (binary % (binary * i 7) 1000))))) (assign ys (call filter (call map xs (fn (x) (block (binary + x 1)))) (fn (x) (block (binary == (binary % x 2) 0))))) (assign total (call atom 0)) (call each ys (fn (y) (block (call swap total (fn (t) (block (binary + t y))))))) (assign hit (call find xs (fn (x) (block (binary == x 999))))) (assign zs (call sort_by xs (fn (x) (block (unary - x))))) (call print (binary + (binary + (binary + (call deref total) hit) (index zs 0)) (call len ys))))
+-- stderr
+-- exit: 0
+==== dump core bench/list.fung
+-- stdout
+| (do (let (global 0) (call (prelude map) (range .. 0 500000) (fn (i) (do (op % (op * (local 0) 7) 1000))))) (let (global 1) (call (prelude filter) (call (prelude map) (global 0) (fn (x) (do (op + (local 0) 1)))) (fn (x) (do (op == (op % (local 0) 2) 0))))) (let (global 2) (call (prelude atom) 0)) (call (prelude each) (global 1) (fn (y) (do (call (prelude swap) (captured 0) (fn (t) (do (op + (local 0) (captured 0)))))))) (let (global 3) (call (prelude find) (global 0) (fn (x) (do (op == (local 0) 999))))) (let (global 4) (call (prelude sort_by) (global 0) (fn (x) (do (op - (local 0)))))) (call (prelude print) (op + (op + (op + (call (prelude deref) (global 2)) (global 3)) (index (global 4) 0)) (call (prelude len) (global 1)))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/list.fung
+-- stdout
+| == <main> ==
+| 0000  2:6   CONST        0    ; <fn map>
+| 0001  2:10  CONST        1    ; 0
+| 0002  2:13  CONST        2    ; 500000
+| 0003  2:11  RANGE        0
+| 0004  2:21  CLOSURE      0    ; <lambda>
+| 0005  2:9   CALL         2    ; 2 positional, 0 named
+| 0006  2:1   STOREGLOBAL  0    ; xs
+| 0007  3:6   CONST        3    ; <fn filter>
+| 0008  3:13  CONST        0    ; <fn map>
+| 0009  3:17  LOADGLOBAL   0    ; xs
+| 0010  3:21  CLOSURE      1    ; <lambda>
+| 0011  3:16  CALL         2    ; 2 positional, 0 named
+| 0012  3:34  CLOSURE      2    ; <lambda>
+| 0013  3:12  CALL         2    ; 2 positional, 0 named
+| 0014  3:1   STOREGLOBAL  1    ; ys
+| 0015  4:9   CONST        4    ; <fn atom>
+| 0016  4:14  CONST        1    ; 0
+| 0017  4:13  CALL         1    ; 1 positional, 0 named
+| 0018  4:1   STOREGLOBAL  2    ; total
+| 0019  5:1   CONST        5    ; <fn each>
+| 0020  5:6   LOADGLOBAL   1    ; ys
+| 0021  5:10  CLOSURE      3    ; <lambda>
+| 0022  5:5   CALL         2    ; 2 positional, 0 named
+| 0023  5:5   POP
+| 0024  6:7   CONST        6    ; <fn find>
+| 0025  6:12  LOADGLOBAL   0    ; xs
+| 0026  6:16  CLOSURE      4    ; <lambda>
+| 0027  6:11  CALL         2    ; 2 positional, 0 named
+| 0028  6:1   STOREGLOBAL  3    ; hit
+| 0029  7:6   CONST        7    ; <fn sort_by>
+| 0030  7:14  LOADGLOBAL   0    ; xs
+| 0031  7:18  CLOSURE      5    ; <lambda>
+| 0032  7:13  CALL         2    ; 2 positional, 0 named
+| 0033  7:1   STOREGLOBAL  4    ; zs
+| 0034  8:1   CONST        8    ; <fn print>
+| 0035  8:7   CONST        9    ; <fn deref>
+| 0036  8:13  LOADGLOBAL   2    ; total
+| 0037  8:12  CALL         1    ; 1 positional, 0 named
+| 0038  8:22  LOADGLOBAL   3    ; hit
+| 0039  8:20  ADD
+| 0040  8:28  LOADGLOBAL   4    ; zs
+| 0041  8:31  CONST        1    ; 0
+| 0042  8:30  INDEX
+| 0043  8:26  ADD
+| 0044  8:36  CONST        10    ; <fn len>
+| 0045  8:40  LOADGLOBAL   1    ; ys
+| 0046  8:39  CALL         1    ; 1 positional, 0 named
+| 0047  8:34  ADD
+| 0048  8:6   CALL         1    ; 1 positional, 0 named
+| 0049  1:66  RETURN
+|
+| == <lambda> ==
+| 0000  2:26  LOADLOCAL    0
+| 0001  2:30  CONST        0    ; 7
+| 0002  2:28  MUL
+| 0003  2:34  CONST        1    ; 1000
+| 0004  2:32  MOD
+| 0005  2:23  RETURN
+|
+| == <lambda> ==
+| 0000  3:26  LOADLOCAL    0
+| 0001  3:30  CONST        0    ; 1
+| 0002  3:28  ADD
+| 0003  3:23  RETURN
+|
+| == <lambda> ==
+| 0000  3:39  LOADLOCAL    0
+| 0001  3:43  CONST        0    ; 2
+| 0002  3:41  MOD
+| 0003  3:48  CONST        1    ; 0
+| 0004  3:45  EQ
+| 0005  3:36  RETURN
+|
+| == <lambda> ==
+| 0000  5:15  CONST        0    ; <fn swap>
+| 0001  5:20  LOADCAPTURED 0
+| 0002  5:27  CLOSURE      0    ; <lambda>
+| 0003  5:19  TAILCALL     2    ; 2 positional, 0 named
+| 0004  5:12  RETURN
+|
+| == <lambda> ==
+| 0000  5:32  LOADLOCAL    0
+| 0001  5:36  LOADCAPTURED 0
+| 0002  5:34  ADD
+| 0003  5:29  RETURN
+|
+| == <lambda> ==
+| 0000  6:21  LOADLOCAL    0
+| 0001  6:26  CONST        0    ; 999
+| 0002  6:23  EQ
+| 0003  6:18  RETURN
+|
+| == <lambda> ==
+| 0000  7:24  LOADLOCAL    0
+| 0001  7:23  NEG
+| 0002  7:20  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast bench/loop.fung
@@ -282,6 +487,97 @@
 | 0011  1:10  CALL         1    ; 1 positional, 0 named
 | 0012  1:6   CALL         1    ; 1 positional, 0 named
 | 0013  1:1   RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/wait.fung
+-- stdout
+| (program (fn worker(s) (block (assign (ptuple (pbind tx) (pbind rx)) (call channel)) (assign t (call spawn s (fn () (block (unwrap ! (call recv rx)))))) (list tx t))) (call print (call scope (fn (s) (block (assign ws (call map (range .. 0 20000) (fn ((pwild)) (block (call worker s))))) (call each ws (fn (w) (block (call send (index w 0) 1)))) (call fold ws 0 (fn (a, w) (block (binary + a (call await (index w 1)))))))))))
+-- stderr
+-- exit: 0
+==== dump core bench/wait.fung
+-- stdout
+| (do (let (global 0) (fn worker(s) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel))) (let (local 3) (call (prelude spawn) (local 0) (fn () (do (unwrap ! (call (prelude recv) (captured 0))))))) (list (local 1) (local 3))))) (call (prelude print) (call (prelude scope) (fn (s) (do (let (local 1) (call (prelude map) (range .. 0 20000) (fn ($a0) (do (let (pwild) (local 0)) (call (global 0) (captured 0)))))) (call (prelude each) (local 1) (fn (w) (do (call (prelude send) (index (local 0) 0) 1)))) (call (prelude fold) (local 1) 0 (fn (a, w) (do (op + (local 0) (call (prelude await) (index (local 1) 1)))))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/wait.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   CLOSURE      0    ; worker
+| 0001  2:1   STOREGLOBAL  0    ; worker
+| 0002  7:1   CONST        0    ; <fn print>
+| 0003  7:7   CONST        1    ; <fn scope>
+| 0004  7:13  CLOSURE      1    ; <lambda>
+| 0005  7:12  CALL         1    ; 1 positional, 0 named
+| 0006  7:6   CALL         1    ; 1 positional, 0 named
+| 0007  1:72  RETURN
+|
+| == worker ==
+| 0000  3:14  CONST        0    ; <fn channel>
+| 0001  3:21  CALL         0    ; 0 positional, 0 named
+| 0002  3:3   MATCHORFAIL  0    ; ($1, $2)
+| 0003  4:7   CONST        1    ; <fn spawn>
+| 0004  4:13  LOADLOCAL    0
+| 0005  4:16  CLOSURE      0    ; <lambda>
+| 0006  4:12  CALL         2    ; 2 positional, 0 named
+| 0007  4:3   STORELOCAL   3
+| 0008  5:4   LOADLOCAL    1
+| 0009  5:8   LOADLOCAL    3
+| 0010  5:3   LIST         2
+| 0011  2:1   RETURN
+|
+| == <lambda> ==
+| 0000  4:22  CONST        0    ; <fn recv>
+| 0001  4:27  LOADCAPTURED 0
+| 0002  4:26  CALL         1    ; 1 positional, 0 named
+| 0003  4:30  UNWRAPABORT
+| 0004  4:19  RETURN
+|
+| == <lambda> ==
+| 0000  8:8   CONST        0    ; <fn map>
+| 0001  8:12  CONST        1    ; 0
+| 0002  8:15  CONST        2    ; 20000
+| 0003  8:13  RANGE        0
+| 0004  8:22  CLOSURE      0    ; <lambda>
+| 0005  8:11  CALL         2    ; 2 positional, 0 named
+| 0006  8:3   STORELOCAL   1
+| 0007  9:3   CONST        3    ; <fn each>
+| 0008  9:8   LOADLOCAL    1
+| 0009  9:12  CLOSURE      1    ; <lambda>
+| 0010  9:7   CALL         2    ; 2 positional, 0 named
+| 0011  9:7   POP
+| 0012  10:3  CONST        4    ; <fn fold>
+| 0013  10:8  LOADLOCAL    1
+| 0014  10:12 CONST        1    ; 0
+| 0015  10:15 CLOSURE      2    ; <lambda>
+| 0016  10:7  TAILCALL     3    ; 3 positional, 0 named
+| 0017  7:13  RETURN
+|
+| == <lambda> ==
+| 0000  8:22  LOADLOCAL    0
+| 0001  8:22  MATCHORFAIL  0    ; _
+| 0002  8:27  LOADGLOBAL   0
+| 0003  8:34  LOADCAPTURED 0
+| 0004  8:33  TAILCALL     1    ; 1 positional, 0 named
+| 0005  8:24  RETURN
+|
+| == <lambda> ==
+| 0000  9:17  CONST        0    ; <fn send>
+| 0001  9:22  LOADLOCAL    0
+| 0002  9:24  CONST        1    ; 0
+| 0003  9:23  INDEX
+| 0004  9:28  CONST        2    ; 1
+| 0005  9:21  TAILCALL     2    ; 2 positional, 0 named
+| 0006  9:14  RETURN
+|
+| == <lambda> ==
+| 0000  10:25 LOADLOCAL    0
+| 0001  10:29 CONST        0    ; <fn await>
+| 0002  10:35 LOADLOCAL    1
+| 0003  10:37 CONST        1    ; 1
+| 0004  10:36 INDEX
+| 0005  10:34 CALL         1    ; 1 positional, 0 named
+| 0006  10:27 ADD
+| 0007  10:22 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast examples/api.fung
@@ -2577,26 +2873,26 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (77893 bytes, fnv1a64 2075d299b5535ce4)
+-- stdout (77553 bytes, fnv1a64 8a265389fbdbe6bc)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
 -- stdout
 -- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
+| error[E0310]: `_native.net` is internal; import `net` instead
 |   --> extras/http.fung:19:1
 |    |
-| 19 | import _native.conc as _c
+| 19 | import _native.net as _net
 |    | ^
 |    |
 -- exit: 2
 ==== dump bytecode extras/http.fung
 -- stdout
 -- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
+| error[E0310]: `_native.net` is internal; import `net` instead
 |   --> extras/http.fung:19:1
 |    |
-| 19 | import _native.conc as _c
+| 19 | import _native.net as _net
 |    | ^
 |    |
 -- exit: 2

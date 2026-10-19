@@ -33,40 +33,117 @@ use std::sync::Arc;
 
 use fung_front::diag::headline;
 
+use super::cont::{Cont, Flow, Next};
 use super::task::{CancelNode, is_cancel};
 use super::{Stop, Task};
 use crate::value::Value;
 
-/// `with(acquire, use, release)`: see the module doc.
-pub(crate) fn run_with(
-    t: &mut Task<'_>,
-    acquire: Value,
+/// `with(acquire, use, release)`: see the module doc. The three calls are
+/// made by the run loop (`cont.rs`); this is where `with` is between them.
+pub(crate) fn run_with(acquire: Value, use_: Value, release: Value) -> Flow {
+    let k = With {
+        use_,
+        release,
+        phase: Phase::Acquire,
+    };
+    Flow::Call(Box::new(k), acquire, 0)
+}
+
+struct With {
     use_: Value,
     release: Value,
-) -> Result<Value, Stop> {
-    let res = t.call(&acquire, Vec::new())?;
-    let r_use = t.call(&use_, vec![res.clone()]);
-    let shield = CancelNode::root();
-    t.world.shields.push(Arc::downgrade(&shield));
-    let outer = std::mem::replace(&mut t.cancel, shield.clone());
-    let r_rel = t.call(&release, vec![res]);
-    t.cancel = outer;
-    t.world
-        .shields
-        .retain(|w| !std::ptr::eq(w.as_ptr(), Arc::as_ptr(&shield)));
-    let failed = |r: &Result<Value, Stop>| matches!(r, Err(Stop::Error(d)) if !is_cancel(d));
-    match (r_use, r_rel) {
-        (Err(Stop::Error(mut u)), r_rel) if !is_cancel(&u) => {
-            if let Err(Stop::Error(rel)) = &r_rel
-                && !is_cancel(rel)
-            {
-                u.notes
-                    .push(format!("note: also failed in release: {}", headline(rel)));
+    phase: Phase,
+}
+
+enum Phase {
+    Acquire,
+    /// `use` runs with what `acquire` gave.
+    Use(Value),
+    /// `release` runs under `shield`, with what `use` came to; the task's
+    /// own node waits in `outer`.
+    Release {
+        r_use: Result<Value, Stop>,
+        shield: Arc<CancelNode>,
+        outer: Arc<CancelNode>,
+    },
+    Ended,
+}
+
+impl With {
+    /// `use` came to `r_use`: `release` is due, under a shield node.
+    fn release(&mut self, t: &mut Task<'_>, res: Value, r_use: Result<Value, Stop>) -> Next {
+        let shield = CancelNode::root();
+        t.world.shields.push(Arc::downgrade(&shield));
+        let outer = std::mem::replace(&mut t.cancel, shield.clone());
+        self.phase = Phase::Release {
+            r_use,
+            shield,
+            outer,
+        };
+        t.push_arg(res);
+        Next::Call(self.release.clone(), 1)
+    }
+
+    /// `release` came to `r_rel`: back under the task's node, and what goes
+    /// up (the module doc's order).
+    fn released(&mut self, t: &mut Task<'_>, r_rel: Result<Value, Stop>) -> Result<Next, Stop> {
+        let Phase::Release {
+            r_use,
+            shield,
+            outer,
+        } = std::mem::replace(&mut self.phase, Phase::Ended)
+        else {
+            unreachable!("released outside the release phase")
+        };
+        t.cancel = outer;
+        t.world
+            .shields
+            .retain(|w| !std::ptr::eq(w.as_ptr(), Arc::as_ptr(&shield)));
+        let failed = |r: &Result<Value, Stop>| matches!(r, Err(Stop::Error(d)) if !is_cancel(d));
+        match (r_use, r_rel) {
+            (Err(Stop::Error(mut u)), r_rel) if !is_cancel(&u) => {
+                if let Err(Stop::Error(rel)) = &r_rel
+                    && !is_cancel(rel)
+                {
+                    u.notes
+                        .push(format!("note: also failed in release: {}", headline(rel)));
+                }
+                Err(Stop::Error(u))
             }
-            Err(Stop::Error(u))
+            (_, r_rel) if failed(&r_rel) => r_rel.map(Next::Done),
+            (_, Err(stop)) => Err(stop),
+            (r_use, Ok(_)) => r_use.map(Next::Done),
         }
-        (_, r_rel) if failed(&r_rel) => r_rel,
-        (_, Err(stop)) => Err(stop),
-        (r_use, Ok(_)) => r_use,
+    }
+}
+
+impl Cont for With {
+    fn resume(&mut self, t: &mut Task<'_>, v: Value) -> Result<Next, Stop> {
+        match std::mem::replace(&mut self.phase, Phase::Ended) {
+            Phase::Acquire => {
+                self.phase = Phase::Use(v.clone());
+                t.push_arg(v);
+                Ok(Next::Call(self.use_.clone(), 1))
+            }
+            Phase::Use(res) => Ok(self.release(t, res, Ok(v))),
+            phase @ Phase::Release { .. } => {
+                self.phase = phase;
+                self.released(t, Ok(v))
+            }
+            Phase::Ended => unreachable!("a with resumed after it ended"),
+        }
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        match std::mem::replace(&mut self.phase, Phase::Ended) {
+            // Nothing was acquired: nothing to release.
+            Phase::Acquire => Err(stop),
+            Phase::Use(res) => Ok(self.release(t, res, Err(stop))),
+            phase @ Phase::Release { .. } => {
+                self.phase = phase;
+                self.released(t, Err(stop))
+            }
+            Phase::Ended => Err(stop),
+        }
     }
 }

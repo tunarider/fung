@@ -1,6 +1,6 @@
 //! Raw TCP sockets for `_native.net` (stage 4d): sockets that are
 //! non-blocking, close-on-exec and never raise `SIGPIPE`, a `connect`
-//! that can be waited for (`poll` through a `Watch`), a listening socket,
+//! that can be waited for (on the event loop, `net.rs`), a listening socket,
 //! and name lookup with the system's
 //! resolver (`getaddrinfo`), keeping its error code.
 //!

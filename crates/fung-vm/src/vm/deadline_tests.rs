@@ -147,7 +147,7 @@ fn the_timeout_parameters_are_gone() {
 
 // --- final review fixes ---
 
-/// A deadline that passes while the task waits outside the run token on
+/// A deadline that passes while the task waits for the event loop on
 /// something the deadline cannot cut (a child process) is enforced as
 /// soon as the wait returns: nothing after it runs.
 #[test]
@@ -160,7 +160,7 @@ fn a_deadline_passing_during_a_plain_wait_is_enforced_after_it() {
     done();
 }
 
-/// The outer deadline passed unnoticed (`hold` keeps the token without
+/// The outer deadline passed unnoticed (`hold` keeps the run thread without
 /// looking at the clock); a zero timeout opened after it answers at the
 /// outer level, whose deadline is the one in force.
 #[test]

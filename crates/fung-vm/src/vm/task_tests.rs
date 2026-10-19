@@ -43,8 +43,8 @@ fn a_busy_task_does_not_starve_the_others() {
 }
 
 /// The brief's test above never lets the spinner run (the entry keeps
-/// the token until it cancels it). Here the entry gives the token up
-/// (`sleep`), the spinner takes it, and the entry gets it back only if
+/// its turn until it cancels it). Here the entry parks
+/// (`sleep`), the spinner runs, and the entry gets its turn back only if
 /// the spinner hands its turn over.
 #[test]
 fn a_busy_task_hands_the_token_back() {
@@ -201,71 +201,28 @@ fn sleep_waits_and_is_cancellable() {
     assert_eq!(exec("sleep(-1s)", Opts::default()).code, "");
 }
 
-// --- run_task ---
-
-/// `run_twice(f)`: f(1) + f(2), each on a fresh child task, as a list
-/// `[sum, cancelled]` so the test sees what the native saw; `run_once(f)`:
-/// f(1) on a fresh child task.
-fn run_natives() -> Vec<Value> {
-    vec![
-        Value::Native(Native::leak(
-            "run_twice",
-            vec![nat::param("f")],
-            |t: &mut Task, a| {
-                let seen = t.cancelled();
-                let x = t.run_task(&a[0], vec![Value::Int(1)])?;
-                let y = t.run_task(&a[0], vec![Value::Int(2)])?;
-                let sum = crate::value::add(&x, &y).map_err(Stop::from)?;
-                Ok(nat::list(vec![sum, Value::Bool(seen)]))
-            },
-        )),
-        Value::Native(Native::leak(
-            "run_once",
-            vec![nat::param("f")],
-            |t: &mut Task, a| t.run_task(&a[0], vec![Value::Int(1)]),
-        )),
-    ]
-}
-
-#[test]
-fn run_task_runs_on_a_fresh_task() {
-    let opts = Opts {
-        extra: run_natives,
-        ..Opts::default()
-    };
-    let o = exec("print(run_twice(x => x * 10))", opts);
-    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "[30, false]\n"));
-    let o = exec("run_twice(x => fail(\"boom\"))", opts);
-    assert_eq!(o.code, "E0803");
-    let o = exec(
-        "print(run_once(x => scope(s => await(spawn(s, () => x + 1)))))",
-        opts,
-    );
-    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "2\n"));
-}
-
 /// Set by `mark()` in `outside_lets_other_tasks_run`.
 static MARKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// `outside` gives the token up for a wait on the operating system, so
-/// another task runs meanwhile: `os_wait` waits outside the token until
-/// the spawned task has called `mark()`, which it can only do if it got
-/// the token (no timing: without `outside` this never ends, and the
-/// test's own bound reports it).
+/// A wait on the operating system is handed off (`nat::offload`), so
+/// another task runs meanwhile: `os_wait`'s job waits until the spawned
+/// task has called `mark()`, which it can only do if it got a turn (no
+/// timing: without the handoff this never ends, and the test's own bound
+/// reports it).
 #[test]
-fn outside_lets_other_tasks_run() {
+fn an_offload_lets_other_tasks_run() {
     use std::sync::atomic::Ordering;
     fn natives() -> Vec<Value> {
         vec![
-            Value::Native(Native::leak("os_wait", vec![], |t: &mut Task, _| {
-                let seen = super::block::outside(t, || {
+            Value::Native(Native::leak_step("os_wait", vec![], |t: &mut Task, _| {
+                let wait = || {
                     let until = Instant::now() + Duration::from_secs(10);
                     while !MARKED.load(Ordering::SeqCst) && Instant::now() < until {
                         std::thread::sleep(Duration::from_millis(1));
                     }
                     MARKED.load(Ordering::SeqCst)
-                });
-                Ok(Value::Bool(seen))
+                };
+                crate::native::nat::offload(t, wait, |_, seen| Ok(Value::Bool(seen)))
             })),
             Value::Native(Native::leak("mark", vec![], |_: &mut Task, _| {
                 MARKED.store(true, Ordering::SeqCst);
@@ -288,19 +245,19 @@ fn outside_lets_other_tasks_run() {
     );
 }
 
-/// A panic inside `outside`'s closure takes the token back before it
-/// unwinds through the native's frames (which hold values; here a task
-/// handle, whose drop asserts the token): the panic fence reports E0801.
+/// A panic in an offload job is resumed on the run thread and unwinds
+/// through the native's frames (which hold values; here a task handle):
+/// the panic fence reports E0801.
 #[test]
-fn a_panic_outside_the_token_is_e0801() {
+fn a_panic_in_an_offload_job_is_e0801() {
     fn natives() -> Vec<Value> {
-        vec![Value::Native(Native::leak(
+        fn os_panic(t: &mut Task<'_>, _: Vec<Value>) -> Result<crate::vm::Flow, Stop> {
+            nat::offload(t, || panic!("outside"), |_, ()| Ok(Value::Nil))
+        }
+        vec![Value::Native(Native::leak_step(
             "os_panic",
             vec![nat::param("x")],
-            |t: &mut Task, _| {
-                super::block::outside(t, || panic!("outside"));
-                Ok(Value::Nil)
-            },
+            os_panic,
         ))]
     }
     let opts = Opts {
@@ -347,41 +304,4 @@ fn an_event_wakes_only_its_waiters() {
     });
     assert_eq!(out, "200\n");
     assert!(wakeups < 1_000, "{wakeups} wakeups");
-}
-
-/// A task whose first stack sizes the system refuses starts with a
-/// smaller one (6a review): a host that cannot reserve 1 GiB still runs
-/// tasks.
-#[test]
-fn a_task_falls_back_to_a_smaller_stack() {
-    let out = on_big_stack(|| {
-        let s = setup(
-            "print(scope(s => await(spawn(s, () => 6 * 7))))",
-            Opts::default(),
-        )
-        .unwrap_or_else(|e| panic!("{e:?}"));
-        s.rt.shared().set_task_stacks(&[1 << 47, 1 << 47, 64 << 20]);
-        s.rt.run().unwrap();
-        s.out.text()
-    });
-    assert_eq!(out, "42\n");
-}
-
-/// When every size is refused, `spawn` reports E0801 as before.
-#[test]
-fn a_task_no_stack_size_fits_is_e0801() {
-    let err = on_big_stack(|| {
-        let s = setup("scope(s => spawn(s, () => 1))", Opts::default())
-            .unwrap_or_else(|e| panic!("{e:?}"));
-
-        s.rt.shared().set_task_stacks(&[1 << 47, 1 << 47]);
-        match s.rt.run() {
-            Err(Stop::Error(d)) => fung_front::diag::headline(&d),
-            other => panic!("{:?}", other.is_ok()),
-        }
-    });
-    assert!(
-        err.starts_with("error[E0801]: internal error: cannot start a task: "),
-        "{err}"
-    );
 }

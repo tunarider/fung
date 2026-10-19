@@ -1,28 +1,26 @@
 //! The concurrency natives (05): `spawn(s, f)`, `await`, `cancel`, `sleep`,
 //! `scope`, `supervise`, `channel`, `send`, `recv` and `close`, on
 //! `crate::vm`'s tasks and blocking point, `atom`, `deref`, `swap` and
-//! `reset` (`crate::vm::atom`), and `_native.conc.try_spawn`, which the
-//! `http` server spawns its connections with. The parameter tables here
+//! `reset` (`crate::vm::atom`). The parameter tables here
 //! are the source of `spec/builtins.txt`; the VM checks arity and named
 //! arguments against them before the native runs.
 
 use std::rc::Rc;
 use std::sync::OnceLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use fung_front::diag::Arg;
 
-use crate::native::nat::{self, native, opt, param};
-use crate::value::{Lit, Module, Native, NativeFn, Value, format};
-use crate::vm::channel::{self, Channel, Received};
-use crate::vm::{Stop, Task, block, err_kind};
+use crate::native::nat::{self, native, native_step, opt, param};
+use crate::value::{Lit, Native, NativeFn, StepFn, Value, format};
+use crate::vm::channel::{self, Channel, Received, RecvWait, SendWait, Try};
+use crate::vm::{Cont, Flow, Next, Stop, Task, Wake, err_kind, park_until};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
 /// The prelude's concurrency natives: `spawn`
-/// `await` `cancel` `channel` `send` `recv` `close` `sleep` and the rest,
-/// then the member only `_native.conc` holds.
+/// `await` `cancel` `channel` `send` `recv` `close` `sleep` and the rest.
 fn all() -> Vec<(&'static str, Value)> {
     NATIVES
         .get_or_init(|| {
@@ -48,32 +46,35 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("close", vec![param("tx")]),
                 ("stop_signal", vec![]),
                 ("request_stop", vec![]),
-                // Only in `_native.conc` (`extras/http.fung`).
-                ("try_spawn", vec![param("s"), param("f")]),
             ];
             tables
                 .into_iter()
                 .map(|(name, params)| {
+                    let step: Option<StepFn> = match name {
+                        "sleep" => Some(sleep),
+                        "send" => Some(send),
+                        "recv" => Some(recv),
+                        "await" => Some(await_fn),
+                        "scope" => Some(scope),
+                        "supervise" => Some(supervise),
+                        "timeout" => Some(timeout),
+                        "swap" => Some(swap),
+                        "with" => Some(with),
+                        _ => None,
+                    };
+                    if let Some(step) = step {
+                        return (name, native_step(name, step, params));
+                    }
                     let f: NativeFn = match name {
-                        "sleep" => sleep,
-                        "scope" => scope,
-                        "timeout" => timeout,
                         "atom" => atom,
                         "deref" => deref,
-                        "swap" => swap,
                         "reset" => reset,
-                        "with" => with,
-                        "supervise" => supervise,
                         "spawn" => spawn,
-                        "await" => await_fn,
                         "cancel" => cancel,
                         "channel" => channel_fn,
-                        "send" => send,
-                        "recv" => recv,
                         "close" => close,
                         "stop_signal" => crate::vm::stop::stop_signal,
                         "request_stop" => crate::vm::stop::request_stop,
-                        "try_spawn" => try_spawn,
                         _ => unreachable!("no native {name}"),
                     };
                     (name, native(name, f, params))
@@ -85,31 +86,9 @@ fn all() -> Vec<(&'static str, Value)> {
         .collect()
 }
 
-/// The members of `_native.conc`. The front end learns them from
-/// `spec/builtins.txt`, which the `spec_file` test generates from this
-/// module; the boot test `native_modules_match_the_spec` checks the two
-/// agree, parameter tables included.
-const MODULE_ONLY: &[&str] = &["try_spawn"];
-
-/// The prelude's concurrency natives, without the members only
-/// `_native.conc` holds.
+/// The prelude's concurrency natives.
 pub fn natives() -> Vec<(&'static str, Value)> {
     all()
-        .into_iter()
-        .filter(|(n, _)| !MODULE_ONLY.contains(n))
-        .collect()
-}
-
-/// `_native.conc`: `try_spawn`, which `extras/http.fung` spawns its
-/// connections with.
-pub fn module() -> Rc<Module> {
-    let mut m = Module::new("conc", "_native.conc");
-    for (name, v) in all() {
-        if MODULE_ONLY.contains(&name) {
-            m.set(name, v);
-        }
-    }
-    Rc::new(m)
 }
 
 /// A duration argument as a wait: zero for zero and negative ones.
@@ -119,34 +98,41 @@ fn wait_of(d: i64) -> Duration {
 
 /// `sleep(d)`: waits for `d`; zero and negative durations
 /// return at once. A cancelled task wakes and unwinds with E0701.
-fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
     let d = match &args[0] {
         Value::Dur(d) => *d,
         v => return Err(nat::wrong_arg("d", "dur", v)),
     };
-    if d > 0 {
-        block(t, |_, _| None::<()>, Some(wait_of(d)))?;
+    if d <= 0 {
+        return Ok(Flow::Done(Value::Nil));
     }
-    Ok(Value::Nil)
+    // A deadline past what `Instant` can hold is no deadline, but the
+    // wait still counts as one a timer ends.
+    let until = Instant::now().checked_add(wait_of(d));
+    let done = move |_: &mut Task<'_>, _: &_| match until {
+        Some(at) if Instant::now() >= at => Some(Ok(Value::Nil)),
+        _ => None,
+    };
+    park_until(t, done, Wake { until, timed: true })
 }
 
 /// `scope(f)`: opens a scope and runs `f(s)` in it (`vm/scope.rs`).
-fn scope(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn scope(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
-    crate::vm::run_scope(t, f, None)
+    Ok(crate::vm::run_scope(t, f, None))
 }
 
 /// `timeout(d, f)`: runs `f()` with a deadline `d` from now
 /// (`vm/deadline.rs`).
-fn timeout(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn timeout(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     let f = args.pop().expect("f");
     let d = match args.pop().expect("d") {
         Value::Dur(d) => d,
         v => return Err(nat::wrong_arg("d", "dur", &v)),
     };
     nat::need_fn("f", &f)?;
-    crate::vm::run_timeout(t, d, f)
+    Ok(crate::vm::run_timeout(t, d, f))
 }
 
 /// `atom(v)`: a new atom holding `v` (`vm/atom.rs`).
@@ -167,11 +153,11 @@ fn deref(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `swap(a, f)`: compare-and-set with `f` of the value; the new value.
-fn swap(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn swap(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     let f = args.pop().expect("f");
     let a = need_atom(&args[0])?.clone();
     nat::need_fn("f", &f)?;
-    crate::vm::atom_swap(t, &a, f)
+    Ok(crate::vm::atom_swap(t, a, f))
 }
 
 /// `reset(a, v)`: sets the value; the new value.
@@ -182,24 +168,24 @@ fn reset(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
 
 /// `with(acquire, use, release)`: `use(acquire())`, then `release` of
 /// what `acquire` gave, whatever `use` did (`vm/cleanup.rs`).
-fn with(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn with(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     let release = args.pop().expect("release");
     let use_ = args.pop().expect("use");
     let acquire = args.pop().expect("acquire");
     nat::need_fn("acquire", &acquire)?;
     nat::need_fn("use", &use_)?;
     nat::need_fn("release", &release)?;
-    crate::vm::run_with(t, acquire, use_, release)
+    Ok(crate::vm::run_with(acquire, use_, release))
 }
 
 /// `supervise(f, on_fail)`: a scope whose children's failures go to
 /// `on_fail` instead of failing it (`vm/scope.rs`).
-fn supervise(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn supervise(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     let on_fail = args.pop().expect("on_fail");
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
     nat::need_fn("on_fail", &on_fail)?;
-    crate::vm::run_scope(t, f, Some(on_fail))
+    Ok(crate::vm::run_scope(t, f, Some(on_fail)))
 }
 
 /// `spawn(s, f)`: runs `f` on a new task in scope `s`.
@@ -213,37 +199,21 @@ fn spawn(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     t.spawn_in(&h.state, f)
 }
 
-/// `try_spawn(s, f)` (`_native.conc`, the `http` server): `Ok(<task>)`,
-/// or `Err({kind: 'error, message})` when the task cannot start (no
-/// thread left: E0801), so one connection that cannot get a task does not
-/// end the server. Goes when spawning cannot fail (R7).
-fn try_spawn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
-    match spawn(t, args) {
-        Ok(h) => Ok(nat::ok(h)),
-        Err(Stop::Error(d)) if d.code == "E0801" => Ok(nat::err_value(
-            "error",
-            &fung_front::diag::headline(&d),
-            Vec::new(),
-        )),
-        Err(e) => Err(e),
-    }
-}
-
 /// `await(t)`: the task's result, kept for later calls. A deadline
 /// around the wait (`timeout`) ends the wait, not the task.
-fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
     let Value::Task(h) = &args[0] else {
         return Err(nat::wrong_arg("t", "task", &args[0]));
     };
     let h = h.clone();
-    let ready = |_: &mut _, me: &_| {
+    let ready = move |_: &mut Task<'_>, me: &_| {
         let r = h.state.result();
         if r.is_none() {
             h.state.waiters.borrow_mut().add(me);
         }
-        r
+        r.map(Ok)
     };
-    Ok(block(t, ready, None)?.expect("a wait without a timeout ends with a value"))
+    park_until(t, ready, Wake::default())
 }
 
 /// `cancel(t)`: cancels the task and every task below it, or the scope
@@ -288,21 +258,13 @@ fn need_sender(v: &Value) -> Result<&Rc<Channel>, Stop> {
     }
 }
 
-/// The channel behind a receiving end, or E0403 for `rx`.
-fn need_receiver(v: &Value) -> Result<&Rc<Channel>, Stop> {
-    match v {
-        Value::Receiver(e) => Ok(&e.0),
-        _ => Err(nat::wrong_arg("rx", "receiver", v)),
-    }
-}
-
 /// `send(tx, v)`: `Ok(nil)` once delivered,
 /// `Err({kind: 'closed})` on a closed channel (closed, or no receiving
 /// end left). E0705 when `v` contains an end of the same channel
 /// (`channel::contains`), checked before anything else
 /// happens, so the error is the same whether or not the channel is
 /// closed or full.
-fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
     if channel::contains(need_sender(&args[0])?, &args[1]) {
         return Err(nat::fail("E0705", vec![]));
     }
@@ -310,24 +272,84 @@ fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// The delivery itself.
-fn deliver(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn deliver(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     let v = args.pop().expect("v");
-    let ch = need_sender(&args[0])?;
-    if channel::send(t, ch, v)? {
-        Ok(nat::ok(Value::Nil))
+    let Value::Sender(end) = &args[0] else {
+        return Err(nat::wrong_arg("tx", "sender", &args[0]));
+    };
+    Ok(match channel::begin_send(t, end, v) {
+        Try::Ready(sent) => Flow::Done(sent_value(sent)),
+        Try::Wait(w) => {
+            let wake = w.wake();
+            Flow::Park(Box::new(SendK(Some(w))), wake)
+        }
+    })
+}
+
+fn sent_value(sent: bool) -> Value {
+    if sent {
+        nat::ok(Value::Nil)
     } else {
-        Ok(err_kind("closed"))
+        err_kind("closed")
+    }
+}
+
+/// A `send` parked until a receiver takes the value or the channel closes.
+struct SendK(Option<SendWait>);
+
+impl Cont for SendK {
+    fn resume(&mut self, _: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
+        let w = self.0.as_ref().expect("a waiting send");
+        Ok(match w.poll() {
+            Some(sent) => Next::Done(sent_value(sent)),
+            None => Next::Park(w.wake()),
+        })
+    }
+
+    fn unwind(&mut self, _: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        let w = self.0.take().expect("a waiting send");
+        w.cancel(stop).map(|sent| Next::Done(sent_value(sent)))
     }
 }
 
 /// `recv(rx)`: `Ok(v)`, or `Err({kind: 'closed})` once the channel is
 /// closed and empty.
-fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
-    let ch = need_receiver(&args[0])?;
-    Ok(match channel::recv(t, ch)? {
+fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+    let Value::Receiver(end) = &args[0] else {
+        return Err(nat::wrong_arg("rx", "receiver", &args[0]));
+    };
+    Ok(match channel::begin_recv(t, end)? {
+        Try::Ready(r) => Flow::Done(received_value(r)),
+        Try::Wait(w) => {
+            let wake = w.wake();
+            Flow::Park(Box::new(RecvK(Some(w))), wake)
+        }
+    })
+}
+
+fn received_value(r: Received) -> Value {
+    match r {
         Received::Value(v) => nat::ok(v),
         Received::Closed => err_kind("closed"),
-    })
+    }
+}
+
+/// A `recv` parked until a value comes or the channel closes.
+struct RecvK(Option<RecvWait>);
+
+impl Cont for RecvK {
+    fn resume(&mut self, _: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
+        let w = self.0.as_ref().expect("a waiting recv");
+        Ok(match w.poll() {
+            Some(r) => Next::Done(received_value(r)),
+            None => Next::Park(w.wake()),
+        })
+    }
+
+    fn unwind(&mut self, _: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        let w = self.0.take().expect("a waiting recv");
+        w.cancel(stop).map(|v| Next::Done(nat::ok(v)))
+    }
 }
 
 /// `close(tx)`: `Ok(nil)`, also on a closed channel. It closes for every

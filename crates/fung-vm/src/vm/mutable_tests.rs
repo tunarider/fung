@@ -3,20 +3,12 @@
 
 use std::rc::Rc;
 
-use crate::testutil::{Opts, on_big_stack, setup};
+use crate::testutil::on_big_stack;
 use crate::value::{List, Map, Tag, Tuple, Value, intern};
 
-/// Runs `f` holding the run token of a fresh runtime: channels may only
-/// be made and dropped by the token's holder.
+/// Runs `f` on a big stack.
 fn with_token(f: fn()) {
-    on_big_stack(move || {
-        let rt = setup("nil", Opts::default())
-            .unwrap_or_else(|e| panic!("{e:?}"))
-            .rt;
-        let t = rt.lock();
-        f();
-        drop(t);
-    });
+    on_big_stack(f);
 }
 
 /// A channel's sending end (its receiving end is dropped at once).
@@ -128,13 +120,12 @@ fn a_slice_of_a_big_list_sees_exactly_its_range() {
 
 // --- L4 final review: no recursion, shared parts once ---
 
-/// Runs `f` on a 1 MB thread marked as holding the run token (nothing
-/// else runs): a recursive walk or drop of a deep value overflows it.
+/// Runs `f` on a 1 MB thread: a recursive walk or drop of a deep value
+/// overflows it.
 fn on_small_stack(f: fn()) {
     std::thread::Builder::new()
         .stack_size(1 << 20)
         .spawn(move || {
-            super::token::mark_taken();
             f();
         })
         .unwrap()

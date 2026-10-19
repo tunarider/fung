@@ -1084,7 +1084,7 @@ fn test_ends_each_files_run() {
 
 /// When a task in a top-level scope asks for an exit, the top level
 /// fails and no block runs. The fixture orders the exit by state (the
-/// task sends and exits on one turn of the run token), so the output is
+/// task sends and exits in one turn on the run thread), so the output is
 /// fixed; the loop shows it.
 #[test]
 fn a_task_exit_fails_the_top_level() {

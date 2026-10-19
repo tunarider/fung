@@ -6,30 +6,30 @@
 //! `'conn`) and a listener (`Value::Listener`, `<listener>`,
 //! `'listener`) work like file handles (`native/file.rs`): shared by
 //! every task holding a copy, compared by identity, holding no fung
-//! value, used without the run token, and closed when the last copy
-//! goes (the peer then sees the end of the stream).
+//! value (their waits park on the event loop), and closed when the last
+//! copy goes (the peer then sees the end of the stream).
 //!
-//! **Locks.** A connection has a read lock (the read-ahead buffer, held
-//! for one whole `read_line`, `read_bytes` or `read_all`) and a write
-//! lock (held for one whole `write`), so one read and one write can run
-//! at once, and lines from two readers never mix. **One reader and one
-//! writer at a time per connection**: a second concurrent reader (or
-//! writer) waits for the first on the lock, and cannot be cancelled
-//! while it waits there (HTTP needs one of each). The socket itself sits
-//! in a slot of its own, locked only to take a reference: `close` never
-//! waits for a read or a write. It empties the slot and shuts the socket
-//! down, which wakes a read or write blocked on it; the descriptor closes
-//! when the operation that held it lets go.
-//! A listener's `close` wakes a blocked `accept` through a pipe of the
-//! listener's own (`shutdown` does not wake `accept` on macOS).
+//! **Turns.** A connection has a read side and a write side, each held
+//! by one operation for its whole run (`Turnstile`): one read and one
+//! write can run at once, and lines from two readers never mix. A second
+//! reader (or writer) parks in line until the first ends; a cancellation
+//! or a deadline ends that wait too. The socket itself sits in a slot of
+//! its own, locked only to take a reference: `close` never waits for a
+//! read or a write. It wakes the tasks waiting on the socket
+//! (`vm::drop_io_waits`), empties the slot and shuts the socket down; the
+//! woken read or write then reports the close.
 //!
-//! **Waiting.** Sockets are non-blocking. A call that would block waits
-//! outside the token in a `Watch` (`vm/watch.rs`), which a cancellation
-//! of the task interrupts: `accept`, the reads, `write` and `connect`
-//! (its name lookup included) then end with E0701. A name lookup runs
-//! on a thread of its own, since `getaddrinfo` cannot be interrupted: a
-//! cancelled `connect` returns at once and the thread ends when the
-//! resolver answers (it holds no fung value and no socket).
+//! **Waiting.** Sockets are non-blocking, and every wait is a park on the
+//! event loop (R4a): an operation is tried (`Attempt`), and where it
+//! would block it says on which descriptor; the task parks there
+//! (`vm::park_io`) and the operation is tried again from the top when the
+//! descriptor is ready (`run_io`). What it did so far lives in the
+//! connection (the read-ahead buffer, the TLS state) or in the native
+//! (bytes written, the connect's stage). No thread waits for a socket. A
+//! name lookup runs as a pool job a stop abandons, since `getaddrinfo`
+//! cannot be interrupted: a cancelled `connect` returns at once and the
+//! job ends when the resolver answers (it holds no fung value and no
+//! socket).
 //!
 //! **Errors** are `Err({kind, message})`: `'timeout` when a deadline
 //! passed, `'limit` when a read went past its limit, `'network` for the
@@ -43,6 +43,7 @@
 //! UTF-8 becoming U+FFFD (as for files); `byte_len` gives the UTF-8 size
 //! a string is sent with.
 
+use std::cell::Cell;
 use std::io::{self, Read, Write};
 use std::net::{
     IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, SocketAddrV6, TcpListener, TcpStream,
@@ -55,11 +56,12 @@ use std::time::{Duration, Instant};
 
 use fung_front::source::decode_lossy;
 
-use super::nat::{self, native, opt, param};
+use super::nat::{self, native, native_step, opt, param};
 use super::oserr;
 use super::sock;
 use crate::value::{Lit, Module, Native, Value};
-use crate::vm::{Interest, Stop, Task, Waited, Watch, outside_watched};
+use crate::vm::poller::Interest;
+use crate::vm::{CancelNode, Flow, IoStep, Kind, Stop, Task, WaitList, Waiter};
 
 /// What a closed connection or listener answers.
 const CLOSED: &str = "connection is closed";
@@ -87,7 +89,7 @@ pub fn module() -> Rc<Module> {
         vec![
             (
                 "connect",
-                native(
+                native_step(
                     "connect",
                     connect_fn,
                     vec![param("host"), param("port"), opt("tls", Lit::Bool(false))],
@@ -95,7 +97,7 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "listen",
-                native(
+                native_step(
                     "listen",
                     listen_fn,
                     vec![param("addr"), opt("reuse_port", Lit::Bool(false))],
@@ -105,14 +107,14 @@ pub fn module() -> Rc<Module> {
                 "local_addr",
                 native("local_addr", local_addr_fn, vec![param("x")]),
             ),
-            ("accept", native("accept", accept_fn, vec![param("l")])),
+            ("accept", native_step("accept", accept_fn, vec![param("l")])),
             (
                 "read_line",
-                native("read_line", read_line_fn, vec![param("c"), param("limit")]),
+                native_step("read_line", read_line_fn, vec![param("c"), param("limit")]),
             ),
             (
                 "read_raw_line",
-                native(
+                native_step(
                     "read_raw_line",
                     read_raw_line_fn,
                     vec![param("c"), param("limit")],
@@ -120,15 +122,15 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "read_bytes",
-                native("read_bytes", read_bytes_fn, vec![param("c"), param("n")]),
+                native_step("read_bytes", read_bytes_fn, vec![param("c"), param("n")]),
             ),
             (
                 "read_all",
-                native("read_all", read_all_fn, vec![param("c"), param("limit")]),
+                native_step("read_all", read_all_fn, vec![param("c"), param("limit")]),
             ),
             (
                 "write",
-                native("write", write_fn, vec![param("c"), param("s")]),
+                native_step("write", write_fn, vec![param("c"), param("s")]),
             ),
             ("close", native("close", close_fn, vec![param("x")])),
             (
@@ -145,7 +147,7 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "read_bytes_into",
-                native(
+                native_step(
                     "read_bytes_into",
                     read_bytes_into_fn,
                     vec![param("c"), param("n"), param("cap")],
@@ -153,7 +155,7 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "take_body",
-                native("take_body", take_body_fn, vec![param("c")]),
+                native_step("take_body", take_body_fn, vec![param("c")]),
             ),
             (
                 "utf8_bytes",
@@ -161,7 +163,7 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "start_tls",
-                native("start_tls", start_tls_fn, vec![param("c"), param("host")]),
+                native_step("start_tls", start_tls_fn, vec![param("c"), param("host")]),
             ),
             (
                 "need_str_map",
@@ -195,15 +197,16 @@ static WAITING: AtomicUsize = AtomicUsize::new(0);
 static READ_WAITS: AtomicUsize = AtomicUsize::new(0);
 static WRITE_WAITS: AtomicUsize = AtomicUsize::new(0);
 
-/// Why an operation failed, made into an `Err` value with the token
-/// back (`fail_value`).
+/// Why an operation failed, made into an `Err` value (`fail_value`).
 #[derive(Debug)]
 enum Fail {
     Network(String),
     Timeout(String),
     Limit(String),
-    /// A wait ended as cancelled: `outside_watched` unwinds instead.
+    /// The task was cancelled between two tries: it unwinds instead.
     Cancelled,
+    /// The try would wait (`Attempt`): the native parks and tries again.
+    Block,
 }
 
 fn fail_value(f: Fail) -> Value {
@@ -211,8 +214,8 @@ fn fail_value(f: Fail) -> Value {
         Fail::Network(m) => ("network", m),
         Fail::Timeout(m) => ("timeout", m),
         Fail::Limit(m) => ("limit", m),
-        // Never seen: a cancelled wait makes `outside_watched` unwind.
-        Fail::Cancelled => ("network", "operation was canceled".to_string()),
+        // Never seen: `run_io` unwinds, or parks and tries again.
+        Fail::Cancelled | Fail::Block => ("network", "operation was canceled".to_string()),
     };
     nat::err_value(kind, &msg, Vec::new())
 }
@@ -225,25 +228,175 @@ fn result(r: Result<Value, Fail>) -> Value {
     }
 }
 
-/// Waits in `w` for `fds` (the first one decides which count a test
-/// sees), until `deadline`.
-fn wait_io(
-    w: &mut Watch,
-    fds: &[(RawFd, Interest)],
-    deadline: Option<Instant>,
-) -> Result<Waited, Fail> {
-    match fds[0].1 {
-        Interest::Read => READ_WAITS.fetch_add(1, Ordering::SeqCst),
-        Interest::Write => WRITE_WAITS.fetch_add(1, Ordering::SeqCst),
-    };
-    WAITING.fetch_add(1, Ordering::SeqCst);
-    let r = w.wait(fds, deadline);
-    WAITING.fetch_sub(1, Ordering::SeqCst);
-    match r {
-        Ok(Waited::Cancelled) => Err(Fail::Cancelled),
-        Ok(waited) => Ok(waited),
-        Err(e) => Err(Fail::Network(format!("poll: {}", oserr::reason(&e)))),
+/// One try of a socket operation (R4a): it never waits. Where it would
+/// wait it says what for (`wait_io`, `wait_turn`) and fails with
+/// `Fail::Block`; the native parks there and tries again from the top
+/// (`run_io`). So every operation can be tried again: what it did so far
+/// lives in the connection (the read-ahead buffer, the TLS state) or in
+/// the native's state (bytes written, the connect's stage).
+pub(super) struct Attempt {
+    node: Arc<CancelNode>,
+    me: Arc<Waiter>,
+    blocked: Option<IoStep>,
+}
+
+impl Attempt {
+    /// A try outside a native (tests): `node` decides whether it is
+    /// cancelled.
+    #[cfg(test)]
+    fn for_tests(node: Arc<CancelNode>, rt: &crate::vm::Runtime) -> Attempt {
+        Attempt {
+            node,
+            me: rt.task().waiter_for_tests(),
+            blocked: None,
+        }
     }
+
+    /// The task was cancelled: checked also between tries that do not
+    /// wait (a fast peer), so that a cancelled read ends.
+    fn cancelled(&mut self) -> bool {
+        self.node.is_cancelled()
+    }
+}
+
+/// The try would wait for `fd` to be ready for `interest`, or `deadline`.
+fn wait_io(a: &mut Attempt, fd: RawFd, interest: Interest, deadline: Option<Instant>) -> Fail {
+    a.blocked = Some(IoStep::Wait(fd, interest, deadline));
+    Fail::Block
+}
+
+/// One task at a time on a connection's read side or write side, for a
+/// whole operation and the waits in it. The others park in line; a
+/// cancellation or deadline ends that wait too.
+#[derive(Default)]
+struct Turnstile {
+    busy: Mutex<bool>,
+    waiting: Mutex<WaitList>,
+}
+
+impl Turnstile {
+    fn is_busy(&self) -> bool {
+        *lock(&self.busy)
+    }
+
+    /// Takes the turn, or lines the task up and says it waits.
+    fn take(&self, a: &mut Attempt) -> Result<(), Fail> {
+        let mut busy = lock(&self.busy);
+        if *busy {
+            lock(&self.waiting).add(&a.me);
+            a.blocked = Some(IoStep::Park);
+            return Err(Fail::Block);
+        }
+        *busy = true;
+        Ok(())
+    }
+
+    fn release(&self) {
+        *lock(&self.busy) = false;
+        lock(&self.waiting).wake_all();
+    }
+}
+
+/// Which turn of a connection an operation holds for its whole run.
+#[derive(Clone, Copy)]
+enum Side {
+    Read,
+    Write,
+}
+
+/// What a socket operation holds between tries: whether its task is
+/// counted as waiting, and whether it holds its connection's turn. It
+/// gives both back once, when the operation ends (`end`) or when its
+/// wait is dropped any other way (a look that failed, a task abandoned):
+/// `Drop`.
+struct IoState {
+    waiting: Cell<bool>,
+    held: Cell<bool>,
+    turn: Option<(Arc<Conn>, Side)>,
+}
+
+impl IoState {
+    fn set_waiting(&self, w: bool) {
+        if self.waiting.replace(w) != w {
+            if w {
+                WAITING.fetch_add(1, Ordering::SeqCst);
+            } else {
+                WAITING.fetch_sub(1, Ordering::SeqCst);
+            }
+        }
+    }
+
+    fn end(&self) {
+        self.set_waiting(false);
+        if self.held.replace(false)
+            && let Some((c, side)) = &self.turn
+        {
+            c.turnstile(*side).release();
+        }
+    }
+}
+
+impl Drop for IoState {
+    fn drop(&mut self) {
+        self.end();
+    }
+}
+
+/// Runs `step` until it ends, parking where it would wait
+/// (`vm::park_io`), then makes its value with `done`. A cancellation the
+/// step saw unwinds the task. The connection turn `side` of `turn` is
+/// held from the first try to the end (a stop included).
+fn run_io<T: 'static>(
+    t: &mut Task<'_>,
+    turn: Option<(Arc<Conn>, Side)>,
+    mut step: impl FnMut(&mut Attempt) -> Result<T, Fail> + 'static,
+    done: impl Fn(Result<T, Fail>) -> Value + 'static,
+) -> Result<Flow, Stop> {
+    let state = Rc::new(IoState {
+        waiting: Cell::new(false),
+        held: Cell::new(false),
+        turn,
+    });
+    let st = state.clone();
+    let poll = move |t: &mut Task<'_>, me: &Arc<Waiter>| {
+        st.set_waiting(false);
+        let mut a = Attempt {
+            node: t.cancel_node(),
+            me: me.clone(),
+            blocked: None,
+        };
+        let r = (|| {
+            if let Some((c, side)) = &st.turn
+                && !st.held.get()
+            {
+                c.turnstile(*side).take(&mut a)?;
+                st.held.set(true);
+            }
+            step(&mut a)
+        })();
+        match r {
+            Err(Fail::Block) => {
+                let wait = a.blocked.take().expect("a blocked try says what for");
+                if let IoStep::Wait(_, interest, _) = &wait {
+                    match interest {
+                        Interest::Read => READ_WAITS.fetch_add(1, Ordering::SeqCst),
+                        Interest::Write => WRITE_WAITS.fetch_add(1, Ordering::SeqCst),
+                    };
+                    st.set_waiting(true);
+                }
+                wait
+            }
+            Err(Fail::Cancelled) => {
+                st.end();
+                IoStep::Done(t.check_cancelled().map(|()| fail_value(Fail::Cancelled)))
+            }
+            r => {
+                st.end();
+                IoStep::Done(Ok(done(r)))
+            }
+        }
+    };
+    crate::vm::park_io(t, poll, move |_| state.end())
 }
 
 /// A socket, counted while it is open.
@@ -262,21 +415,12 @@ impl<T> Drop for Counted<T> {
     }
 }
 
-/// The lock if no one holds it (`None` if someone does).
-fn try_lock<T>(m: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
-    match m.try_lock() {
-        Ok(g) => Some(g),
-        Err(std::sync::TryLockError::Poisoned(p)) => Some(p.into_inner()),
-        Err(std::sync::TryLockError::WouldBlock) => None,
-    }
-}
-
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     // The state is plain data that no panic leaves half-changed.
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// What a connection's read lock guards.
+/// What a connection's read side keeps between reads.
 #[derive(Default)]
 struct ReadState {
     /// Bytes read from the socket and not taken yet.
@@ -289,14 +433,15 @@ struct ReadState {
 pub struct Conn {
     /// `None` once closed. Locked only to take or drop a reference.
     sock: Mutex<Option<Arc<Counted<TcpStream>>>>,
-    /// The read-ahead and body buffers, locked for a whole read.
+    /// The read-ahead and body buffers, locked within one try.
     rd: Mutex<ReadState>,
-    /// Locked for a whole write.
-    wr: Mutex<()>,
+    /// The read side and the write side, each held by one operation.
+    rd_turn: Turnstile,
+    wr_turn: Turnstile,
     /// When reads and writes time out (`set_deadline`).
     deadline: Mutex<Option<Instant>>,
-    /// The rustls state of a TLS connection (`tls.rs`), locked only for
-    /// steps that do not wait.
+    /// The rustls state of a TLS connection (`tls.rs`), locked within one
+    /// try.
     tls: Option<Mutex<tls::Session>>,
     /// `local->peer`, as the connection's printed form shows it.
     name: String,
@@ -321,9 +466,17 @@ impl Conn {
             local,
             sock: Mutex::new(Some(Arc::new(Counted::new(s)))),
             rd: Mutex::new(ReadState::default()),
-            wr: Mutex::new(()),
+            rd_turn: Turnstile::default(),
+            wr_turn: Turnstile::default(),
             deadline: Mutex::new(None),
             tls: None,
+        }
+    }
+
+    fn turnstile(&self, side: Side) -> &Turnstile {
+        match side {
+            Side::Read => &self.rd_turn,
+            Side::Write => &self.wr_turn,
         }
     }
 
@@ -339,7 +492,12 @@ impl Conn {
         lock(&self.sock).is_none()
     }
 
-    /// The socket for one operation, or the closed error.
+    /// The socket's descriptor while it is open.
+    fn fd(&self) -> Option<RawFd> {
+        lock(&self.sock).as_ref().map(|s| s.0.as_raw_fd())
+    }
+
+    /// The socket for one try, or the closed error.
     fn sock(&self) -> Result<Arc<Counted<TcpStream>>, Fail> {
         lock(&self.sock).clone().ok_or_else(|| self.closed())
     }
@@ -348,16 +506,16 @@ impl Conn {
         *lock(&self.deadline)
     }
 
-    /// Reads what the socket has into `buf` (waiting for something):
-    /// the count, 0 at the end of the stream.
-    fn fill(&self, w: &mut Watch, s: &TcpStream, buf: &mut Vec<u8>) -> Result<usize, Fail> {
+    /// Reads what the socket has into `buf`: the count, 0 at the end of
+    /// the stream.
+    fn fill(&self, a: &mut Attempt, s: &TcpStream, buf: &mut Vec<u8>) -> Result<usize, Fail> {
         if let Some(t) = &self.tls {
-            return tls::fill(self, t, w, s, buf);
+            return tls::fill(self, t, a, s, buf);
         }
         let mut chunk = [0u8; CHUNK];
         loop {
             // also between reads that never wait (a fast peer)
-            if w.cancelled() {
+            if a.cancelled() {
                 return Err(Fail::Cancelled);
             }
             if self.is_closed() {
@@ -376,10 +534,7 @@ impl Conn {
                     return Ok(n);
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if wait_io(w, &[(s.as_raw_fd(), Interest::Read)], deadline)? == Waited::TimedOut
-                    {
-                        return Err(self.timed_out());
-                    }
+                    return Err(wait_io(a, s.as_raw_fd(), Interest::Read, deadline));
                 }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
                 Err(e) => {
@@ -395,7 +550,7 @@ impl Conn {
     /// `'limit` error, found without buffering more than `limit` + 2
     /// bytes of it (past `limit` + 1 bytes, or `limit` + 1 bytes not
     /// ending in `\r`, no line end can make it fit).
-    fn read_line(&self, w: &mut Watch, limit: usize) -> Result<Option<Vec<u8>>, Fail> {
+    fn read_line(&self, a: &mut Attempt, limit: usize) -> Result<Option<Vec<u8>>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
         let s = self.sock()?;
@@ -417,7 +572,7 @@ impl Conn {
             if buf.len() > limit + 1 || (buf.len() == limit + 1 && buf[limit] != b'\r') {
                 return Err(too_long());
             }
-            if self.fill(w, &s.0, buf)? == 0 {
+            if self.fill(a, &s.0, buf)? == 0 {
                 if buf.is_empty() {
                     return Ok(None);
                 }
@@ -435,7 +590,7 @@ impl Conn {
     /// `http` module checks): no `\n` within `limit` bytes is a `'limit`
     /// error, the end of the stream first an error. The caller sees which
     /// line end came.
-    fn read_raw_line(&self, w: &mut Watch, limit: usize) -> Result<Vec<u8>, Fail> {
+    fn read_raw_line(&self, a: &mut Attempt, limit: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
         let s = self.sock()?;
@@ -449,20 +604,20 @@ impl Conn {
                 return Err(Fail::Limit(format!("line longer than {limit} bytes")));
             }
             scanned = buf.len();
-            if self.fill(w, &s.0, buf)? == 0 {
+            if self.fill(a, &s.0, buf)? == 0 {
                 return Err(Fail::Network(CLOSED_BY_PEER.into()));
             }
         }
     }
 
     /// Exactly `n` bytes; it is an error when the stream ends first.
-    fn read_bytes(&self, w: &mut Watch, n: usize) -> Result<Vec<u8>, Fail> {
+    fn read_bytes(&self, a: &mut Attempt, n: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
         let s = self.sock()?;
         while buf.len() < n {
             let before = buf.len();
-            if self.fill(w, &s.0, buf)? == 0 {
+            if self.fill(a, &s.0, buf)? == 0 {
                 return Err(Fail::Network(short_read(before, n)));
             }
         }
@@ -471,7 +626,7 @@ impl Conn {
 
     /// Everything up to the end of the stream; more than `limit` bytes
     /// is a `'limit` error (what was read stays unread).
-    fn read_all(&self, w: &mut Watch, limit: usize) -> Result<Vec<u8>, Fail> {
+    fn read_all(&self, a: &mut Attempt, limit: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
         let s = self.sock()?;
@@ -479,7 +634,7 @@ impl Conn {
             if buf.len() > limit {
                 return Err(Fail::Limit(format!("more than {limit} bytes")));
             }
-            if self.fill(w, &s.0, buf)? == 0 {
+            if self.fill(a, &s.0, buf)? == 0 {
                 return Ok(std::mem::take(buf));
             }
         }
@@ -492,7 +647,7 @@ impl Conn {
     /// bytes")`. After any error the body buffer keeps what earlier calls
     /// gathered; `take_body` empties it (the `http` code does so on every
     /// error path, `_drop`).
-    fn read_bytes_into(&self, w: &mut Watch, n: usize, cap: usize) -> Result<(), Fail> {
+    fn read_bytes_into(&self, a: &mut Attempt, n: usize, cap: usize) -> Result<(), Fail> {
         let mut st = lock(&self.rd);
         if st.body.len().saturating_add(n) > cap {
             return Err(Fail::Limit(format!("body longer than {cap} bytes")));
@@ -501,7 +656,7 @@ impl Conn {
         let st = &mut *st;
         while st.buf.len() < n {
             let before = st.buf.len();
-            if self.fill(w, &s.0, &mut st.buf)? == 0 {
+            if self.fill(a, &s.0, &mut st.buf)? == 0 {
                 return Err(Fail::Network(short_read(before, n)));
             }
         }
@@ -514,16 +669,14 @@ impl Conn {
         std::mem::take(&mut lock(&self.rd).body)
     }
 
-    /// Writes all of `b`, waiting while the socket's buffer is full.
-    fn write(&self, w: &mut Watch, b: &[u8]) -> Result<(), Fail> {
-        let _g = lock(&self.wr);
+    /// Writes all of `b`, `off` bytes of it written by earlier tries.
+    fn write(&self, a: &mut Attempt, b: &[u8], off: &mut usize) -> Result<(), Fail> {
         let s = self.sock()?;
         if let Some(t) = &self.tls {
-            return tls::write(self, t, w, &s.0, b);
+            return tls::write(self, t, a, &s.0, b, off);
         }
-        let mut off = 0;
-        while off < b.len() {
-            if w.cancelled() {
+        while *off < b.len() {
+            if a.cancelled() {
                 return Err(Fail::Cancelled);
             }
             if self.is_closed() {
@@ -533,14 +686,10 @@ impl Conn {
             if deadline.is_some_and(|d| Instant::now() >= d) {
                 return Err(self.timed_out());
             }
-            match (&s.0).write(&b[off..]) {
-                Ok(n) => off += n,
+            match (&s.0).write(&b[*off..]) {
+                Ok(n) => *off += n,
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if wait_io(w, &[(s.0.as_raw_fd(), Interest::Write)], deadline)?
-                        == Waited::TimedOut
-                    {
-                        return Err(self.timed_out());
-                    }
+                    return Err(wait_io(a, s.0.as_raw_fd(), Interest::Write, deadline));
                 }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
                 Err(_) if self.is_closed() => return Err(self.closed()),
@@ -566,15 +715,15 @@ impl Conn {
                 "a TLS connection cannot carry another".into(),
             ));
         }
-        let in_use = || Fail::Network("connection is in use".into());
-        let (Some(_rd), Some(_wr)) = (try_lock(&self.rd), try_lock(&self.wr)) else {
-            return Err(in_use());
-        };
+        if self.rd_turn.is_busy() || self.wr_turn.is_busy() {
+            return Err(Fail::Network("connection is in use".into()));
+        }
         let s = lock(&self.sock).take().ok_or_else(|| self.closed())?;
         Ok(Conn {
             sock: Mutex::new(Some(s)),
             rd: Mutex::new(ReadState::default()),
-            wr: Mutex::new(()),
+            rd_turn: Turnstile::default(),
+            wr_turn: Turnstile::default(),
             deadline: Mutex::new(None),
             tls: None,
             name: self.name.clone(),
@@ -582,9 +731,9 @@ impl Conn {
         })
     }
 
-    /// Shuts the socket down (waking a blocked read or write
-    /// of another task, which then reports the close) and lets it go; a
-    /// second close is an error.
+    /// Shuts the socket down and lets it go; a second close is an error.
+    /// The tasks waiting on it were woken before (`drop_io_waits`) and
+    /// see the close.
     fn close(&self) -> Result<(), Fail> {
         let s = lock(&self.sock).take().ok_or_else(|| self.closed())?;
         if let Some(t) = &self.tls {
@@ -613,11 +762,8 @@ impl Conn {
 
 /// A listening socket.
 pub struct Listener {
-    /// `None` once closed. Locked only to take or drop a reference (a
-    /// leaf lock: nothing else is locked while it is held).
+    /// `None` once closed. Locked only to take or drop a reference.
     sock: Mutex<Option<Arc<Counted<TcpListener>>>>,
-    /// `close` writes a byte into the pipe, waking a blocked `accept`.
-    closer: (io::PipeReader, io::PipeWriter),
     /// The address it listens on (`host:port`, the port the system chose
     /// for 0).
     addr: String,
@@ -634,17 +780,16 @@ impl Listener {
         Fail::Network(LISTENER_CLOSED.into())
     }
 
-    fn is_closed(&self) -> bool {
-        lock(&self.sock).is_none()
+    fn fd(&self) -> Option<RawFd> {
+        lock(&self.sock).as_ref().map(|s| s.0.as_raw_fd())
     }
 
-    /// The next connection; waits until one comes, the listener is
-    /// closed or the task cancelled.
-    fn accept(&self, w: &mut Watch) -> Result<Conn, Fail> {
+    /// The next connection, if one is there.
+    fn accept(&self, a: &mut Attempt) -> Result<Conn, Fail> {
         let l = lock(&self.sock).clone().ok_or_else(|| self.closed())?;
         loop {
-            if self.is_closed() {
-                return Err(self.closed());
+            if a.cancelled() {
+                return Err(Fail::Cancelled);
             }
             match l.0.accept() {
                 Ok((s, peer)) => {
@@ -655,11 +800,7 @@ impl Listener {
                     return Ok(Conn::new(s, peer));
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    let fds = [
-                        (l.0.as_raw_fd(), Interest::Read),
-                        (self.closer.0.as_raw_fd(), Interest::Read),
-                    ];
-                    wait_io(w, &fds, None)?;
+                    return Err(wait_io(a, l.0.as_raw_fd(), Interest::Read, None));
                 }
                 // Retried: the client gave up, or a signal.
                 Err(e)
@@ -670,27 +811,14 @@ impl Listener {
         }
     }
 
+    /// Lets the socket go (the tasks waiting in `accept` were woken
+    /// before, `drop_io_waits`); false if it was closed already.
     fn close(&self) -> Result<(), Fail> {
-        if !close_listener(&self.sock, &self.closer.1) {
+        if lock(&self.sock).take().is_none() {
             return Err(self.closed());
         }
         Ok(())
     }
-}
-
-/// Closes a listener's socket and wakes its `accept`; false if it was
-/// closed already. It takes only the socket slot's lock, a leaf lock, and
-/// one byte into an empty pipe never blocks.
-fn close_listener(
-    sock: &Mutex<Option<Arc<Counted<TcpListener>>>>,
-    closer: &io::PipeWriter,
-) -> bool {
-    let Some(l) = lock(sock).take() else {
-        return false;
-    };
-    let _ = (&*closer).write(&[1]);
-    drop(l);
-    true
 }
 
 /// `host:port` (or `[host]:port`) split in two, or ``invalid address
@@ -775,51 +903,34 @@ impl Target {
     }
 }
 
-/// The addresses `host` names: an IP literal itself (an IPv6 one with
-/// its zone), else a lookup on a thread of its own that the task waits
-/// for in `w` (cancellable, cut by `deadline`).
-fn resolve(w: &mut Watch, host: &str, deadline: Option<Instant>) -> Result<Vec<Target>, Fail> {
+/// The addresses `host` names without a lookup: an IP literal itself
+/// (an IPv6 one with its zone), the local system for an empty host;
+/// `None` for a name.
+fn literal(host: &str) -> Option<Vec<Target>> {
+    if host.is_empty() {
+        return Some(vec![Target::plain(IpAddr::V4(Ipv4Addr::LOCALHOST))]);
+    }
     if let Ok(ip) = host.parse::<IpAddr>() {
-        return Ok(vec![Target::plain(ip)]);
+        return Some(vec![Target::plain(ip)]);
     }
     if let Some((ip, zone)) = host.split_once('%')
         && let Ok(ip) = ip.parse::<Ipv6Addr>()
         && !zone.is_empty()
     {
-        return Ok(vec![Target {
+        return Some(vec![Target {
             ip: IpAddr::V6(ip),
             scope: sock::zone_index(zone),
         }]);
     }
-    let slot = Arc::new(LookupSlot {
-        result: Mutex::new(None),
-        pipe: io::pipe().map_err(|e| Fail::Network(oserr::reason(&e)))?,
-    });
+    None
+}
+
+/// The addresses a name has, looked up here (`getaddrinfo` blocks: this
+/// runs as a pool job a stop abandons, `connect_fn`, `listen_fn`).
+fn lookup_targets(host: &str) -> Result<Vec<Target>, Fail> {
     LOOKUPS.fetch_add(1, Ordering::SeqCst);
-    let (theirs, name) = (slot.clone(), host.to_string());
-    let spawned = std::thread::Builder::new()
-        .name("fung-lookup".into())
-        .spawn(move || {
-            let r = lookup(&name);
-            *lock(&theirs.result) = Some(r);
-            // the read end lives as long as `theirs` does
-            let _ = (&theirs.pipe.1).write(&[1]);
-            drop(theirs);
-            LOOKUPS.fetch_sub(1, Ordering::SeqCst);
-        });
-    if let Err(e) = spawned {
-        LOOKUPS.fetch_sub(1, Ordering::SeqCst);
-        return Err(Fail::Network(oserr::reason(&e)));
-    }
-    let r = loop {
-        if let Some(r) = lock(&slot.result).take() {
-            break r;
-        }
-        let fds = [(slot.pipe.0.as_raw_fd(), Interest::Read)];
-        if wait_io(w, &fds, deadline)? == Waited::TimedOut {
-            return Err(Fail::Timeout(TIMED_OUT.into()));
-        }
-    };
+    let r = lookup(host);
+    LOOKUPS.fetch_sub(1, Ordering::SeqCst);
     let ips = r.map_err(Fail::Network)?;
     Ok(ips
         .into_iter()
@@ -827,18 +938,8 @@ fn resolve(w: &mut Watch, host: &str, deadline: Option<Instant>) -> Result<Vec<T
         .collect())
 }
 
-/// An address a lookup found, with its IPv6 scope (0 for none).
-type Found = (IpAddr, u32);
-
-/// Where a lookup thread leaves its answer, and the pipe it wakes the
-/// waiting task with.
-struct LookupSlot {
-    result: Mutex<Option<Result<Vec<Found>, String>>>,
-    pipe: (io::PipeReader, io::PipeWriter),
-}
-
 /// `sock::lookup`, held by the test gate for the name `gate.invalid`.
-fn lookup(host: &str) -> Result<Vec<Found>, String> {
+fn lookup(host: &str) -> Result<Vec<(IpAddr, u32)>, String> {
     #[cfg(test)]
     if host == "gate.invalid" {
         probe::gate();
@@ -851,46 +952,129 @@ fn lookup(host: &str) -> Result<Vec<Found>, String> {
     sock::lookup(host)
 }
 
-/// The addresses in order: the first that connects, else the first error
-/// (no racing of the second family, "Happy Eyeballs": the addresses are
-/// tried one by one, all within the one deadline).
-fn dial(w: &mut Watch, host: &str, port: u16, deadline: Option<Instant>) -> Result<Conn, Fail> {
-    let ips = if host.is_empty() {
-        // an empty host is the local system
-        vec![Target::plain(IpAddr::V4(Ipv4Addr::LOCALHOST))]
-    } else {
-        resolve(w, host, deadline)?
+/// Whether `s` can be written now (a connect in progress has ended).
+fn writable_now(s: &TcpStream) -> bool {
+    let mut p = libc::pollfd {
+        fd: s.as_raw_fd(),
+        events: libc::POLLOUT,
+        revents: 0,
     };
-    let mut first = None;
-    for ip in ips {
-        match dial_one(w, ip.socket(port), deadline) {
-            Ok(c) => return Ok(c),
-            Err(f @ (Fail::Cancelled | Fail::Timeout(_))) => return Err(f),
-            Err(f) => {
-                first.get_or_insert(f);
+    // SAFETY: `p` is one valid `pollfd`; a zero timeout never blocks.
+    let n = unsafe { libc::poll(&mut p, 1, 0) };
+    n > 0
+}
+
+/// A connect between tries: the addresses in order, the first that
+/// connects, else the first error (no racing of the second family,
+/// "Happy Eyeballs": the addresses are tried one by one), then the TLS
+/// handshake if asked for.
+struct Dial {
+    targets: Vec<Target>,
+    port: u16,
+    next: usize,
+    /// A connect in progress to this address.
+    pending: Option<(TcpStream, SocketAddr)>,
+    first: Option<Fail>,
+    /// The connection made, and its handshake in progress (TLS).
+    conn: Option<Conn>,
+    tls: Option<(String, Option<tls::Session>)>,
+}
+
+impl Dial {
+    fn new(targets: Vec<Target>, port: u16, tls: Option<String>) -> Dial {
+        Dial {
+            targets,
+            port,
+            next: 0,
+            pending: None,
+            first: None,
+            conn: None,
+            tls: tls.map(|h| (h, None)),
+        }
+    }
+
+    /// A TLS handshake over a connection there already (`start_tls`).
+    fn over(c: Conn, host: String) -> Dial {
+        Dial {
+            conn: Some(c),
+            ..Dial::new(Vec::new(), 0, Some(host))
+        }
+    }
+
+    fn step(&mut self, a: &mut Attempt) -> Result<Conn, Fail> {
+        loop {
+            if a.cancelled() {
+                return Err(Fail::Cancelled);
+            }
+            if let Some(c) = &mut self.conn {
+                if let Some((host, session)) = &mut self.tls {
+                    let st = match session {
+                        Some(st) => st,
+                        None => session.insert(tls::start(host)?),
+                    };
+                    tls::handshake(a, c, st)?;
+                    c.tls = session.take().map(Mutex::new);
+                }
+                return Ok(self.conn.take().expect("the connection"));
+            }
+            if let Some((s, addr)) = self.pending.take() {
+                if !writable_now(&s) {
+                    let fd = s.as_raw_fd();
+                    self.pending = Some((s, addr));
+                    return Err(wait_io(a, fd, Interest::Write, None));
+                }
+                match sock::finish_connect(&s) {
+                    Ok(()) => self.conn = Some(Conn::new(s, addr)),
+                    Err(e) => {
+                        self.first.get_or_insert(Fail::Network(oserr::reason(&e)));
+                    }
+                }
+                continue;
+            }
+            let Some(ip) = self.targets.get(self.next) else {
+                return Err(self
+                    .first
+                    .take()
+                    .unwrap_or_else(|| Fail::Network("no such host".into())));
+            };
+            self.next += 1;
+            let addr = ip.socket(self.port);
+            match sock::start_connect(&addr) {
+                Ok((s, true)) => self.conn = Some(Conn::new(s, addr)),
+                Ok((s, false)) => self.pending = Some((s, addr)),
+                Err(e) => {
+                    self.first.get_or_insert(Fail::Network(oserr::reason(&e)));
+                }
             }
         }
     }
-    Err(first.unwrap_or_else(|| Fail::Network("no such host".into())))
 }
 
-fn dial_one(w: &mut Watch, addr: SocketAddr, deadline: Option<Instant>) -> Result<Conn, Fail> {
-    let fail = |e: &io::Error| Fail::Network(oserr::reason(e));
-    let (s, connected) = sock::start_connect(&addr).map_err(|e| fail(&e))?;
-    if !connected {
-        // writable once the attempt ended, either way
-        if wait_io(w, &[(s.as_raw_fd(), Interest::Write)], deadline)? == Waited::TimedOut {
-            return Err(Fail::Timeout(TIMED_OUT.into()));
-        }
-        sock::finish_connect(&s).map_err(|e| fail(&e))?;
-    }
-    Ok(Conn::new(s, addr))
+/// Connects to `targets` (and makes a TLS client of `tls`'s host) on the
+/// event loop: `Ok(<conn>)`.
+fn dial(
+    t: &mut Task<'_>,
+    targets: Vec<Target>,
+    port: u16,
+    tls: Option<String>,
+) -> Result<Flow, Stop> {
+    run_dial(t, Dial::new(targets, port, tls))
+}
+
+fn run_dial(t: &mut Task<'_>, mut d: Dial) -> Result<Flow, Stop> {
+    run_io(
+        t,
+        None,
+        move |a| d.step(a),
+        |r| result(r.map(|c| Value::Conn(Arc::new(c)))),
+    )
 }
 
 /// A listener on `addr`: an empty host listens on every address
 /// (`[::]`, both families; `0.0.0.0` where IPv6 is missing), a name on
-/// its first IPv4 address (else its first).
-fn listen(w: &mut Watch, addr: &str, reuse_port: bool) -> Result<Listener, Fail> {
+/// its first IPv4 address (else its first). `found` are the addresses
+/// of a name, looked up before.
+fn listen(addr: &str, reuse_port: bool, found: Option<Vec<Target>>) -> Result<Listener, Fail> {
     let (host, port) = split_host_port(addr)
         .and_then(|(h, p)| Ok((h, parse_port(p)?)))
         .map_err(Fail::Network)?;
@@ -904,29 +1088,31 @@ fn listen(w: &mut Watch, addr: &str, reuse_port: bool) -> Result<Listener, Fail>
             r => r,
         }
     } else {
-        let ips = resolve(w, host, None)?;
-        let ip = ips.iter().find(|t| t.ip.is_ipv4()).unwrap_or(&ips[0]);
+        let ips = match found {
+            Some(ips) => ips,
+            None => literal(host).expect("a name is looked up first"),
+        };
+        let Some(ip) = ips.iter().find(|t| t.ip.is_ipv4()).or(ips.first()) else {
+            return Err(Fail::Network("no such host".into()));
+        };
         sock::listen(&ip.socket(port), reuse_port)
     };
     let l = bound.map_err(|e| Fail::Network(oserr::reason(&e)))?;
     let local = l
         .local_addr()
         .map_err(|e| Fail::Network(oserr::reason(&e)))?;
-    let closer = io::pipe().map_err(|e| Fail::Network(oserr::reason(&e)))?;
     Ok(Listener {
         sock: Mutex::new(Some(Arc::new(Counted::new(l)))),
-        closer,
         addr: sock::addr_text(&local),
     })
 }
 
 // ---- the natives ----
 
-/// The connection argument, borrowed as itself (an `Rc` cannot go
-/// outside the token; the `Conn` it holds can).
-fn need_conn<'a>(name: &str, v: &'a Value) -> Result<&'a Conn, Stop> {
+/// The connection argument.
+fn need_conn<'a>(name: &str, v: &'a Value) -> Result<&'a Arc<Conn>, Stop> {
     match v {
-        Value::Conn(c) => Ok(&**c),
+        Value::Conn(c) => Ok(c),
         _ => Err(nat::wrong_arg(name, "conn", v)),
     }
 }
@@ -945,26 +1131,34 @@ fn text(b: &[u8]) -> Value {
 }
 
 /// `connect(host, port, tls = false)`: `Ok(<conn>)`. With `tls`, the
-/// connection is a TLS client of `host` (`tls.rs`).
-fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// connection is a TLS client of `host` (`tls.rs`). A name is looked up
+/// on the pool first (a stop abandons the lookup).
+fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let host = nat::need_str("host", &a[0])?.to_string();
     let port = nat::need_int("port", &a[1])?;
     let Value::Bool(tls) = a[2] else {
         return Err(nat::wrong_arg("tls", "bool", &a[2]));
     };
     let Ok(port) = u16::try_from(port) else {
-        return Ok(fail_value(Fail::Network(format!("invalid port `{port}`"))));
+        return Ok(Flow::Done(fail_value(Fail::Network(format!(
+            "invalid port `{port}`"
+        )))));
     };
     // No deadline of its own: a `timeout` around the call cuts the name
     // lookup, the connection and the handshake (`vm/deadline.rs`).
-    let r = outside_watched(t, move |w| {
-        let mut c = dial(w, &host, port, None)?;
-        if tls {
-            c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, None)?));
-        }
-        Ok(c)
-    })?;
-    Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
+    let tls = tls.then(|| host.clone());
+    if let Some(targets) = literal(&host) {
+        return dial(t, targets, port, tls);
+    }
+    crate::vm::offload_kind(
+        t,
+        Kind::Abandon,
+        move || lookup_targets(&host),
+        move |t, r| match r {
+            Ok(targets) => dial(t, targets, port, tls),
+            Err(f) => Ok(Flow::Done(fail_value(f))),
+        },
+    )
 }
 
 /// `start_tls(c, host)`: `Ok(<conn>)`, a TLS client of
@@ -972,29 +1166,33 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// Task 4: https through an HTTP proxy's CONNECT tunnel, which fung
 /// cannot do over the other primitives). `c` reads as closed afterwards;
 /// the timeout covers the handshake.
-fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?;
     let host = nat::need_str("host", &a[1])?.to_string();
     let plain = match c.take_over() {
         Ok(p) => p,
-        Err(f) => return Ok(fail_value(f)),
+        Err(f) => return Ok(Flow::Done(fail_value(f))),
     };
-    let r = outside_watched(t, move |w| {
-        let mut c = plain;
-        c.tls = Some(Mutex::new(tls::handshake(w, &c, &host, None)?));
-        Ok(c)
-    })?;
-    Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
+    run_dial(t, Dial::over(plain, host))
 }
 
-/// `listen(addr)`: `Ok(<listener>)`.
-fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// `listen(addr)`: `Ok(<listener>)`. A name is looked up on the pool
+/// first.
+fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let addr = nat::need_str("addr", &a[0])?.to_string();
     let Value::Bool(reuse_port) = a[1] else {
         return Err(nat::wrong_arg("reuse_port", "bool", &a[1]));
     };
-    let r = outside_watched(t, move |w| listen(w, &addr, reuse_port))?;
-    Ok(result(r.map(|l| Value::Listener(Rc::new(l)))))
+    let wrap = |r: Result<Listener, Fail>| result(r.map(|l| Value::Listener(Arc::new(l))));
+    let host = split_host_port(&addr).map(|(h, _)| h.to_string());
+    match host {
+        Ok(h) if !h.is_empty() && literal(&h).is_none() => nat::offload_abandoning(
+            t,
+            move || lookup_targets(&h).and_then(|ips| listen(&addr, reuse_port, Some(ips))),
+            move |_, r| Ok(wrap(r)),
+        ),
+        _ => Ok(Flow::Done(wrap(listen(&addr, reuse_port, None)))),
+    }
 }
 
 /// `local_addr(x)`: a connection's or listener's own address.
@@ -1007,82 +1205,138 @@ fn local_addr_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `accept(l)`: `Ok(<conn>)`, the next connection.
-fn accept_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn accept_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let Value::Listener(l) = &a[0] else {
         return Err(nat::wrong_arg("l", "listener", &a[0]));
     };
-    let l: &Listener = l;
-    let r = outside_watched(t, |w| l.accept(w))?;
-    Ok(result(r.map(|c| Value::Conn(Rc::new(c)))))
+    let l = l.clone();
+    run_io(
+        t,
+        None,
+        move |a| l.accept(a),
+        |r| result(r.map(|c| Value::Conn(Arc::new(c)))),
+    )
+}
+
+/// A read of `c` that holds its read side to the end.
+fn read_op<T: 'static>(
+    t: &mut Task<'_>,
+    c: Arc<Conn>,
+    mut step: impl FnMut(&Conn, &mut Attempt) -> Result<T, Fail> + 'static,
+    done: impl Fn(Result<T, Fail>) -> Value + 'static,
+) -> Result<Flow, Stop> {
+    let c2 = c.clone();
+    run_io(t, Some((c, Side::Read)), move |a| step(&c2, a), done)
 }
 
 /// `read_line(c, limit)`: `Ok(line)` without its end, `Ok(nil)` at the
 /// end of the stream.
-fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
+fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
     let limit = need_count("limit", &a[1])?;
-    let r = outside_watched(t, |w| c.read_line(w, limit))?;
-    Ok(result(r.map(|l| l.map_or(Value::Nil, |l| text(&l)))))
+    read_op(
+        t,
+        c,
+        move |c, a| c.read_line(a, limit),
+        |r| result(r.map(|l| l.map_or(Value::Nil, |l| text(&l)))),
+    )
 }
 
 /// `read_raw_line(c, limit)`: `Ok(line)` with its `\n`.
-fn read_raw_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
+fn read_raw_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
     let limit = need_count("limit", &a[1])?;
-    let r = outside_watched(t, |w| c.read_raw_line(w, limit))?;
-    Ok(result(r.map(|l| text(&l))))
+    read_op(
+        t,
+        c,
+        move |c, a| c.read_raw_line(a, limit),
+        |r| result(r.map(|l| text(&l))),
+    )
 }
 
 /// `read_bytes(c, n)`: `Ok(text)` of exactly `n` bytes.
-fn read_bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
+fn read_bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
     let n = need_count("n", &a[1])?;
-    let r = outside_watched(t, |w| c.read_bytes(w, n))?;
-    Ok(result(r.map(|b| text(&b))))
+    read_op(
+        t,
+        c,
+        move |c, a| c.read_bytes(a, n),
+        |r| result(r.map(|b| text(&b))),
+    )
 }
 
 /// `read_all(c, limit)`: `Ok(text)` up to the end of the stream.
-fn read_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
+fn read_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
     let limit = need_count("limit", &a[1])?;
-    let r = outside_watched(t, |w| c.read_all(w, limit))?;
-    Ok(result(r.map(|b| text(&b))))
+    read_op(
+        t,
+        c,
+        move |c, a| c.read_all(a, limit),
+        |r| result(r.map(|b| text(&b))),
+    )
 }
 
 /// `read_bytes_into(c, n, cap)`: `Ok(nil)` once `n` more raw bytes are
 /// in `c`'s body buffer; `Err('limit)` (nothing read) if it would hold
 /// more than `cap` bytes.
-fn read_bytes_into_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
+fn read_bytes_into_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
     let n = need_count("n", &a[1])?;
     let cap = need_count("cap", &a[2])?;
-    let r = outside_watched(t, |w| c.read_bytes_into(w, n, cap))?;
-    Ok(result(r.map(|()| Value::Nil)))
+    read_op(
+        t,
+        c,
+        move |c, a| c.read_bytes_into(a, n, cap),
+        |r| result(r.map(|()| Value::Nil)),
+    )
 }
 
 /// `take_body(c)`: the body buffer decoded once (U+FFFD for bytes that
-/// are not UTF-8), emptied. Waits for a read in progress on `c`.
-fn take_body_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
-    let body = crate::vm::outside(t, || c.take_body());
-    Ok(text(&body))
+/// are not UTF-8), emptied. Waits for a read in progress on `c` (in its
+/// read side's line).
+fn take_body_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
+    read_op(
+        t,
+        c,
+        |c, _| Ok(c.take_body()),
+        |r| text(&r.unwrap_or_default()),
+    )
 }
 
 /// `write(c, s)`: `Ok(nil)` once all of `s` is written.
-fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let c = need_conn("c", &a[0])?;
-    // a copy: only Rust values go outside the token
+fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
     let bytes = nat::need_str("s", &a[1])?.as_bytes().to_vec();
-    let r = outside_watched(t, |w| c.write(w, &bytes))?;
-    Ok(result(r.map(|()| Value::Nil)))
+    let mut off = 0;
+    let c2 = c.clone();
+    run_io(
+        t,
+        Some((c, Side::Write)),
+        move |a| c2.write(a, &bytes, &mut off),
+        |r| result(r.map(|()| Value::Nil)),
+    )
 }
 
 /// `close(x)`: closes a connection or a listener; `Ok(nil)`, an error
 /// the second time (it was closed already: a likely bug of the caller).
-fn close_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// The tasks waiting on it are woken first and see it closed.
+fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let r = match &a[0] {
-        Value::Conn(c) => c.close(),
-        Value::Listener(l) => l.close(),
+        Value::Conn(c) => {
+            if let Some(fd) = c.fd() {
+                crate::vm::drop_io_waits(t, fd);
+            }
+            c.close()
+        }
+        Value::Listener(l) => {
+            if let Some(fd) = l.fd() {
+                crate::vm::drop_io_waits(t, fd);
+            }
+            l.close()
+        }
         v => return Err(nat::wrong_arg("x", "conn | listener", v)),
     };
     Ok(result(r.map(|()| Value::Nil)))

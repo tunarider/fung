@@ -84,10 +84,10 @@
 ==== check extras/http.fung
 -- stdout
 -- stderr
-| error[E0310]: `_native.conc` is internal; import `conc` instead
+| error[E0310]: `_native.net` is internal; import `net` instead
 |   --> extras/http.fung:19:1
 |    |
-| 19 | import _native.conc as _c
+| 19 | import _native.net as _net
 |    | ^
 |    |
 -- exit: 2

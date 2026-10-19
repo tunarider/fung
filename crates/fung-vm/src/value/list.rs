@@ -80,6 +80,25 @@ impl List {
         }
     }
 
+    /// The items from `i` on that sit together in memory: the rest of a
+    /// small list, or of the leaf holding item `i` (up to the list's end).
+    /// Empty from the end on.
+    pub(crate) fn run_from(&self, i: usize) -> &[Value] {
+        match &self.repr {
+            Repr::Flat(items) => items.get(i..).unwrap_or(&[]),
+            Repr::Big { vec, lo, hi } => {
+                let at = lo + i;
+                if at >= *hi {
+                    return &[];
+                }
+                let leaf = vec.leaf_for(at);
+                let start = at & MASK;
+                let end = leaf.len().min(start + (hi - at));
+                &leaf[start..end]
+            }
+        }
+    }
+
     /// The items in order, a leaf at a time for big lists.
     pub fn iter(&self) -> Iter<'_> {
         self.range(0, self.len())

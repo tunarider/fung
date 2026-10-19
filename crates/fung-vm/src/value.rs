@@ -78,13 +78,15 @@ pub enum Value {
     Sender(Rc<Sender>),
     Receiver(Rc<Receiver>),
     /// An open file handle (`fs.open`); it closes the file when its last
-    /// copy drops (`native/file.rs`).
-    File(Rc<File>),
+    /// copy drops (`native/file.rs`). An `Arc`: a wait on the operating
+    /// system takes a copy of the handle with it (`nat::offload`).
+    File(std::sync::Arc<File>),
     /// A TCP connection (stage 4d; only `_native.net` makes one): it
-    /// closes when its last copy drops (`native/net.rs`).
-    Conn(Rc<Conn>),
+    /// closes when its last copy drops (`native/net.rs`). An `Arc`, as
+    /// for `File`: a socket wait takes a copy with it (`nat::offload`).
+    Conn(std::sync::Arc<Conn>),
     /// A listening TCP socket (stage 4d, like `Conn`).
-    Listener(Rc<Listener>),
+    Listener(std::sync::Arc<Listener>),
     /// An instant with its zone (02, `time`).
     Time(Rc<Time>),
 }
@@ -401,19 +403,59 @@ impl Lit {
 /// calling convention as fung functions (06).
 pub type NativeFn = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
 
+/// A native that calls back into fung (`map`, `with`, …): instead of
+/// calling the function itself it says what to call and how to go on
+/// (`vm/cont.rs`), so the task's one run loop makes the call.
+pub type StepFn = fn(&mut Task<'_>, Vec<Value>) -> Result<crate::vm::Flow, Stop>;
+
+/// How a native runs.
+#[derive(Clone, Copy, Debug)]
+pub enum NativeBody {
+    /// Runs to its result.
+    Plain(NativeFn),
+    /// May call fung functions back through continuations.
+    Step(StepFn),
+}
+
 /// A function implemented in Rust.
 #[derive(Debug)]
 pub struct Native {
     pub name: &'static str,
     pub params: Vec<NativeParam>,
-    pub func: NativeFn,
+    pub body: NativeBody,
 }
 
 impl Native {
     /// Leaks the native so values can hold a plain `&'static` reference.
     /// Natives live for the whole process, so nothing is lost.
     pub fn leak(name: &'static str, params: Vec<NativeParam>, func: NativeFn) -> &'static Native {
-        Box::leak(Box::new(Native { name, params, func }))
+        Box::leak(Box::new(Native {
+            name,
+            params,
+            body: NativeBody::Plain(func),
+        }))
+    }
+
+    /// [`Native::leak`] for a step native.
+    pub fn leak_step(
+        name: &'static str,
+        params: Vec<NativeParam>,
+        step: StepFn,
+    ) -> &'static Native {
+        Box::leak(Box::new(Native {
+            name,
+            params,
+            body: NativeBody::Step(step),
+        }))
+    }
+
+    /// The Rust function of a plain native, for tests that call one
+    /// directly. A step native has none: it needs the run loop.
+    pub fn plain(&self) -> NativeFn {
+        match self.body {
+            NativeBody::Plain(f) => f,
+            NativeBody::Step(_) => panic!("`{}` is a step native", self.name),
+        }
     }
 }
 

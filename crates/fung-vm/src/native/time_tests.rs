@@ -21,7 +21,7 @@ fn call(name: &str, args: Vec<Value>) -> Result<Value, Stop> {
         Box::new(Cursor::new(Vec::new())),
         SourceMap::default(),
     );
-    let r = (n.func)(&mut rt.task(), args);
+    let r = (n.plain())(&mut rt.task(), args);
     drop(rt);
     r
 }

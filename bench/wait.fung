@@ -1,0 +1,11 @@
+# 20,000 tasks waiting at once, each on a rendezvous channel of its own
+fn worker(s):
+  (tx, rx) = channel()
+  t = spawn(s, () => recv(rx)!)
+  [tx, t]
+;;
+print(scope(fn(s):
+  ws = map(0..20000, _ => worker(s))
+  each(ws, w => send(w[0], 1))
+  fold(ws, 0, (a, w) => a + await(w[1]))
+;;))

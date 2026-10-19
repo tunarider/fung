@@ -15,9 +15,8 @@ fn atoms_hold_swap_and_reset() {
     );
 }
 
-/// Two tasks each add 1 ten thousand times; `f` is long enough that the
-/// run token changes hands in the middle of some calls, so some swaps
-/// see their atom changed and run `f` again. No update is lost.
+/// Two tasks each add 1 ten thousand times, their turns interleaved
+/// between swaps. No update is lost.
 #[test]
 fn concurrent_swaps_lose_no_update() {
     assert_eq!(
@@ -152,32 +151,10 @@ fn atom_checks_its_arguments() {
 fn the_effect_table() {
     let mut got = crate::vm::effect_names();
     got.sort();
-    let mut want: Vec<String> = [
-        "prelude.print",
-        "prelude.eprint",
-        "prelude.dbg",
-        "prelude.read_line",
-        "prelude.read_lines",
-        "prelude.exit",
-        "prelude.spawn",
-        "prelude.await",
-        "prelude.cancel",
-        "prelude.send",
-        "prelude.recv",
-        "prelude.close",
-        "prelude.sleep",
-        "prelude.swap",
-        "prelude.reset",
-        "prelude.request_stop",
-        "_native.process.exec",
-        "_native.process.sh",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect();
-    for m in ["_native.fs", "_native.net", "_native.conc"] {
-        want.push(format!("{m}.*"));
-    }
+    let mut want: Vec<String> = crate::vm::EFFECTS
+        .iter()
+        .flat_map(|(m, names)| names.iter().map(move |n| format!("{m}.{n}")))
+        .collect();
     want.sort();
     assert_eq!(got, want);
 }
@@ -275,4 +252,178 @@ fn iterating_a_channel_in_f_is_an_effect() {
         assert!(out.ends_with("Ok(5) 0\n"), "{body}: {out}");
         assert_eq!(code, 0, "{body}");
     }
+}
+
+/// Every builtin is an effect or pure, in exactly one of the two tables
+/// (`atom.rs`): a new builtin without its classification fails here.
+#[test]
+fn every_builtin_is_classified() {
+    let mut missing = Vec::new();
+    let mut both = Vec::new();
+    let mut check = |module: &str, name: &str| {
+        let e = crate::vm::is_listed(crate::vm::EFFECTS, module, name);
+        let p = crate::vm::is_listed(crate::vm::PURE, module, name);
+        match (e, p) {
+            (false, false) => missing.push(format!("{module}.{name}")),
+            (true, true) => both.push(format!("{module}.{name}")),
+            _ => {}
+        }
+    };
+    for (name, v) in crate::prelude::core()
+        .into_iter()
+        .chain(crate::conc::natives())
+    {
+        if matches!(v, crate::value::Value::Native(_)) {
+            check("prelude", name);
+        }
+    }
+    for (key, make) in crate::boot::NATIVE_MODULES {
+        let m = make();
+        for name in m.names() {
+            if matches!(m.get(name), Some(crate::value::Value::Native(_))) {
+                check(key, name);
+            }
+        }
+    }
+    assert!(
+        missing.is_empty() && both.is_empty(),
+        "unclassified {missing:?}, both {both:?}"
+    );
+}
+
+/// A pure helper of a native module runs inside a swap's function.
+#[test]
+fn pure_helpers_run_inside_a_swap() {
+    let o = exec(
+        "import _native.net as net\na = atom(0)\nprint(swap(a, x => x + net.byte_len(\"é\")))",
+        crate::testutil::Opts {
+            internal: true,
+            ..crate::testutil::Opts::default()
+        },
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("2\n", ""));
+}
+
+/// E0707 names what the user called (a function of a built-in module),
+/// not the primitive it reached inside.
+#[test]
+fn e0707_names_what_the_user_called() {
+    let (_, err, _) = run("import fs\na = atom(0)\nswap(a, x => fs.with_open(\"/tmp/x\", _ => x))");
+    assert!(err.contains("`fs.with_open` has an effect"), "{err}");
+}
+
+/// E0707 names the function the user called even when it tail-calls a
+/// helper of its module, and a prelude function by its plain name.
+#[test]
+fn e0707_names_the_called_function_through_tail_calls() {
+    for (src, name) in [
+        (
+            "import http\na = atom(0)\nswap(a, x => http.get(\"http://127.0.0.1:1/\"))",
+            "`http.get`",
+        ),
+        (
+            "import conc\na = atom(0)\nswap(a, x => conc.pmap([1], y => y))",
+            "`conc.pmap`",
+        ),
+        (
+            "(tx, rx) = channel(1)\na = atom(0)\nswap(a, x => take(rx, 1))",
+            "`take`",
+        ),
+        (
+            "(tx, rx) = channel(1)\na = atom(0)\nswap(a, x => first(rx))",
+            "`first`",
+        ),
+    ] {
+        let (_, err, _) = run(src);
+        assert!(
+            err.contains(&format!("{name} has an effect")),
+            "{src}\n{err}"
+        );
+    }
+}
+
+/// A regex compiled inside a swap's function runs in place: the function
+/// never parks (another task cannot change the atom under it).
+#[test]
+fn a_regex_inside_a_swap_compiles_in_place() {
+    let o = exec(
+        "import regex\na = atom(0)\nn = offloads()\nprint(swap(a, x => if regex.is_match(\"q12\", \"q[0-9]+z?\"): 1 else: 2 ;;), offloads() - n)",
+        crate::testutil::Opts {
+            extra: crate::testutil::probes,
+            ..crate::testutil::Opts::default()
+        },
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("1 0\n", ""));
+}
+
+/// A module member that is a primitive itself (`fs.read` is
+/// `_native.fs.read`) is named with its module too.
+#[test]
+fn e0707_names_a_direct_native_with_its_module() {
+    let (_, err, _) = run("import fs\na = atom(0)\nswap(a, x => fs.read(\"/nope\"))");
+    assert!(err.contains("`fs.read` has an effect"), "{err}");
+}
+
+/// Every name the effect and pure tables list is a built-in that exists:
+/// a function removed or renamed leaves no stale entry behind.
+#[test]
+fn every_listed_name_exists() {
+    let mut have = std::collections::HashSet::new();
+    for (name, v) in crate::prelude::core()
+        .into_iter()
+        .chain(crate::conc::natives())
+    {
+        if matches!(v, crate::value::Value::Native(_)) {
+            have.insert(format!("prelude.{name}"));
+        }
+    }
+    for (key, make) in crate::boot::NATIVE_MODULES {
+        let m = make();
+        for name in m.names() {
+            if matches!(m.get(name), Some(crate::value::Value::Native(_))) {
+                have.insert(format!("{key}.{name}"));
+            }
+        }
+    }
+    let mut stale = Vec::new();
+    for table in [crate::vm::EFFECTS, crate::vm::PURE] {
+        for (module, names) in table {
+            for name in *names {
+                let full = format!("{module}.{name}");
+                if !have.contains(&full) {
+                    stale.push(full);
+                }
+            }
+        }
+    }
+    assert!(stale.is_empty(), "listed but not built in: {stale:?}");
+}
+
+/// The help for iterating a sending end does not name a verb: it reads
+/// the same under `for`, `map` or `fold`.
+#[test]
+fn e0506_help_does_not_name_a_verb() {
+    let (_, err, _) = run("(tx, rx) = channel()\nfold(tx, 0, (a, x) => a)");
+    assert!(
+        err.contains("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)"),
+        "{err}"
+    );
+}
+
+/// A user module that binds a primitive under a name of its own does
+/// not lend that name (or its path) to E0707: the standard module's name
+/// is given.
+#[test]
+fn e0707_names_a_direct_native_by_its_standard_module() {
+    let o = crate::testutil::run_files(
+        &[
+            ("/p/util.fung", "import fs\nr = fs.read\n"),
+            (
+                "/p/main.fung",
+                "import \"./util\"\nimport fs\na = atom(0)\nswap(a, x => fs.read(\"/nope\"))",
+            ),
+        ],
+        "/p/main.fung",
+    );
+    assert!(o.err.contains("`fs.read` has an effect"), "{}", o.err);
 }

@@ -29,7 +29,8 @@ fn call_values(name: &str, args: Vec<Value>) -> Result<Value, Stop> {
         Box::new(Cursor::new(Vec::new())),
         SourceMap::default(),
     );
-    let r = (n.func)(&mut rt.task(), args);
+    // Step natives need the run loop (`vm/cont.rs`).
+    let r = rt.task().call_root(&Value::Native(n), args);
     drop(rt);
     r
 }
@@ -175,17 +176,8 @@ fn replacement_templates() {
 
 #[test]
 fn the_same_pattern_comes_from_the_cache() {
-    let rt = Runtime::new(
-        Box::new(Buf::default()),
-        Box::new(Buf::default()),
-        Box::new(Cursor::new(Vec::new())),
-        SourceMap::default(),
-    );
-    let mut t = rt.task();
-    let a = compile_pattern(&mut t, r"\d+").unwrap_or_else(|_| panic!("compile"));
-    let b = compile_pattern(&mut t, r"\d+").unwrap_or_else(|_| panic!("compile"));
-    drop(t);
-    drop(rt);
+    let a = compile_pattern(r"\d+");
+    let b = compile_pattern(r"\d+");
     assert!(
         Arc::ptr_eq(&a, &b),
         "the same pattern must come from the cache"
@@ -249,7 +241,7 @@ fn find_all_is_linear() {
     );
 }
 
-// --- compiling outside the run token ---
+// --- compiling on a pool thread ---
 
 /// The pattern whose compilation `compile_hook` holds at a gate.
 const GATED: &str = "gated-compile-probe";
@@ -265,7 +257,7 @@ fn gate() -> MutexGuard<'static, (bool, bool, bool)> {
 /// Called by `compile` for every pattern it compiles. The `GATED`
 /// pattern waits there until a fung task opens the gate, standing in for
 /// a pattern that takes seconds to compile. The wait gives up after 10 s
-/// (and says so) so a compile that holds the run token, where no task can
+/// (and says so) so a compile that holds the run thread, where no task can
 /// open the gate, fails the test instead of hanging it.
 pub(super) fn compile_hook(pat: &str) {
     if pat != GATED {
@@ -301,7 +293,7 @@ fn gate_natives() -> Vec<Value> {
     v
 }
 
-/// The compile runs without the run token: while
+/// The compile runs on a pool thread: while
 /// one task is still compiling, another runs fung code (it sees the
 /// compile in progress and opens the gate that ends it).
 #[test]
@@ -320,7 +312,7 @@ fn other_tasks_run_while_a_pattern_compiles() {
     assert!(g.0 && g.1, "the gate was not used: {:?}", *g);
     assert!(
         !g.2,
-        "the compile held the run token: no task could open the gate"
+        "the compile held the run thread: no task could open the gate"
     );
 }
 

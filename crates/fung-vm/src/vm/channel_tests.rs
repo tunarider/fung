@@ -302,7 +302,7 @@ fn iterating_natives_walk_a_channel() {
     assert_eq!(o.code, "E0403");
 }
 
-/// A buffer of values: the values drop with the token held, and
+/// A buffer of values: the values drop on the run thread, and
 /// dropping the runtime does not hang or panic. (A value holding an end
 /// of the channel itself cannot be buffered: `send` refuses it, E0705.)
 #[test]
@@ -325,8 +325,8 @@ fn values_in_a_buffer_drop_with_the_runtime() {
 }
 
 /// A cancelled waiter is never paired: cancellation claims it at once, even
-/// though its slot stays queued until its task next holds the token. Here
-/// the token holder cancels and pairs without giving the token up in
+/// though its slot stays queued until its task next runs. Here
+/// one task cancels and pairs without giving its turn up in
 /// between.
 #[test]
 fn a_cancelled_waiter_is_never_paired() {
@@ -365,8 +365,8 @@ fn a_cancelled_waiter_is_never_paired() {
 }
 
 /// A receiver whose deadline has passed is never paired, even before its
-/// task wakes to see the timeout: `hold(ms)` keeps the token past the
-/// deadline, then the send must go to the second receiver.
+/// task wakes to see the timeout: `hold(ms)` keeps the run thread past
+/// the deadline, then the send must go to the second receiver.
 #[test]
 fn a_timed_out_receiver_is_never_paired() {
     // r is blocked (or already timed out, under heavy load) before r2
@@ -381,7 +381,7 @@ fn a_timed_out_receiver_is_never_paired() {
 }
 
 /// The interleaving that hung `a_delivered_value_wins_over_a_later_cancel`
-/// under load, made deterministic: the entry keeps the run token from the
+/// under load, made deterministic: the entry keeps the run thread from the
 /// spawn to the cancel, so the sender is cancelled before it ever runs
 /// and sends nothing. A last `recv` without a timeout would wait forever
 /// (a deadlock, E0702); with one it times out.
@@ -638,4 +638,16 @@ fn shared_values_without_ends_are_sent_and_held_at_once() {
         assert!(out == "Ok(nil)\n" || out == "'atom\n", "{src}: {out}{err}");
         assert_eq!(code, 0, "{src}");
     }
+}
+
+/// Iterating a sending end (a `for` over `tx`) is E0506 with a help line
+/// pointing at the receiving end (`for` is `map` underneath).
+#[test]
+fn iterating_a_sender_says_to_use_the_receiving_end() {
+    let (_, err, _) = crate::testutil::run("(tx, rx) = channel()\nfor x in tx: print(x) ;;");
+    assert!(err.contains("error[E0506]"), "{err}");
+    assert!(
+        err.contains("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)"),
+        "{err}"
+    );
 }

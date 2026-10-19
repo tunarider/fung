@@ -7,12 +7,12 @@
 //! still be received, then `recv` gives `Err({kind: 'closed})`, and so
 //! does any `send` after it.
 //!
-//! The state is fung values behind the run token, so it lives in a
-//! `RefCell` touched only by the token's holder. A sender that cannot
+//! The state is fung values, so it lives in a `RefCell` touched only by
+//! the run thread. A sender that cannot
 //! hand its value over
 //! queues a `Slot` holding the value; a receiver that finds nothing
 //! queues an empty one. The other side completes a slot (moves the value
-//! across, marks it done, wakes its task) while holding the token, so the
+//! across, marks it done, wakes its task) in one turn of the run thread, so the
 //! hand-over happens exactly once, on one side, at one moment:
 //!
 //! - `send` gives the value to the first waiting receiver, or puts it in
@@ -26,11 +26,10 @@
 //! A blocked task waits through `block`; its slot holds its `Waiter`, so
 //! completing or closing wakes exactly that task.
 //!
-//! Cancellation and timeouts claim a waiter at once, even though the slot stays queued until its task next holds the
-//! token: the slot carries the task's cancellation node, and pairing skips
+//! Cancellation and timeouts claim a waiter at once, even though the slot stays queued until its task next runs: the slot carries the task's cancellation node, and pairing skips
 //! (and drops from the queue) any slot whose node is cancelled or whose
-//! node's deadline (`deadline.rs`) has passed. Pairing happens with the token
-//! held and the flag and the clock only move one way, so that check is
+//! node's deadline (`deadline.rs`) has passed. Pairing happens on the run
+//! thread and the flag and the clock only move one way, so that check is
 //! the moment the slot is decided: a skipped slot's task finds it not
 //! done and returns E0701; a completed slot's task finds it
 //! done and succeeds even if it was cancelled just after (the value that
@@ -64,8 +63,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::block::{Waiter, block_until};
-use super::{CancelNode, Stop, Task, token};
+use super::block::Waiter;
+use super::{CancelNode, Stop, Task, Wake};
 use crate::value::{Value, drop_children, keep};
 
 /// The queue both ends of a channel share.
@@ -90,10 +89,14 @@ struct Inner {
 /// One blocked `send` or `recv`: the value in transit, whether the other
 /// side completed it, the task to wake, and what claims the slot before
 /// any pairing: the task's cancellation and its deadline. Only
-/// the token's holder touches it (it holds a fung value).
+/// the run thread touches it (it holds a fung value).
 struct Slot {
     value: RefCell<Option<Value>>,
     done: Cell<bool>,
+    /// In one of the channel's queues: a dropped wait must leave it
+    /// (`Drop` of `RecvWait`, `SendWait`), one that was taken out need not
+    /// scan for it.
+    queued: Cell<bool>,
     waiter: Arc<Waiter>,
     cancel: Arc<CancelNode>,
 }
@@ -103,13 +106,14 @@ impl Slot {
         Rc::new(Slot {
             value: RefCell::new(value),
             done: Cell::new(false),
+            queued: Cell::new(false),
             waiter: t.waiter.clone(),
             cancel: t.cancel.clone(),
         })
     }
 
     /// Whether the slot can no longer be paired: its task was cancelled or
-    /// its node's deadline passed. `block_until` uses the same deadline
+    /// its node's deadline passed. `wait_parked` uses the same deadline
     /// and the same comparison, so a slot skipped for its deadline unwinds.
     fn claimed(&self) -> bool {
         self.cancel.is_cancelled()
@@ -186,6 +190,9 @@ impl Channel {
 
     /// Takes a slot whose wait ended without completion out of its queue.
     fn leave(&self, slot: &Rc<Slot>) {
+        if !slot.queued.replace(false) {
+            return;
+        }
         let mut c = self.inner.borrow_mut();
         c.senders.retain(|s| !Rc::ptr_eq(s, slot));
         c.receivers.retain(|s| !Rc::ptr_eq(s, slot));
@@ -203,6 +210,7 @@ impl Channel {
             )
         };
         for s in senders.iter().chain(receivers.iter()) {
+            s.queued.set(false);
             s.waiter.wake();
         }
     }
@@ -250,6 +258,7 @@ impl Channel {
             .into_iter()
             .chain(std::mem::take(&mut c.receivers))
         {
+            s.queued.set(false);
             if let Some(v) = s.value.borrow_mut().take() {
                 keep(stack, v);
             }
@@ -261,6 +270,7 @@ impl Channel {
 /// ones before it from the queue (their tasks leave on their own).
 fn first_live(q: &mut VecDeque<Rc<Slot>>) -> Option<Rc<Slot>> {
     while let Some(s) = q.pop_front() {
+        s.queued.set(false);
         if !s.claimed() {
             return Some(s);
         }
@@ -311,7 +321,6 @@ impl std::fmt::Debug for Receiver {
 
 impl Drop for Sender {
     fn drop(&mut self) {
-        token::assert_holds_token();
         self.0.close();
     }
 }
@@ -320,16 +329,14 @@ impl Drop for Sender {
 /// another channel, which may hold another, and so on.
 impl Drop for Receiver {
     fn drop(&mut self) {
-        token::assert_holds_token();
         drop_children(|stack| self.0.abandon(stack));
     }
 }
 
-/// A channel is a value: it drops only on the token's holder, and frees
+/// A channel is a value: it drops only on the run thread, and frees
 /// its buffer without recursion (`release`).
 impl Drop for Channel {
     fn drop(&mut self) {
-        token::assert_holds_token();
         drop_children(|stack| self.spill(stack));
     }
 }
@@ -410,51 +417,92 @@ fn visit<'a>(ch: &Rc<Channel>, v: &'a Value, stack: &mut Vec<&'a Value>) -> bool
     }
 }
 
-/// `send(tx, v)` on the channel `ch`: `true` once delivered (to a receiver or the buffer),
-/// `false` when the channel is or becomes closed first. A cancelled wait
-/// unwinds with E0701 unless a receiver already took the value.
-pub(crate) fn send(t: &mut Task<'_>, ch: &Rc<Channel>, v: Value) -> Result<bool, Stop> {
+/// What starting a `send` or `recv` gave: the result now, or a wait to
+/// park on (`cont.rs`).
+pub(crate) enum Try<T, W> {
+    Ready(T),
+    Wait(W),
+}
+
+/// A `recv` whose slot waits in the channel's queue. It holds the
+/// receiving end it was called with, as the waiting native's arguments
+/// did: a waiting receiver keeps its end alive (`recv(stop_signal())`
+/// is a watcher while it waits, `stop.rs`).
+pub(crate) struct RecvWait {
+    end: Rc<Receiver>,
+    slot: Rc<Slot>,
+}
+
+/// A `send` whose slot (holding its value) waits in the channel's queue,
+/// holding its sending end alive the same way.
+pub(crate) struct SendWait {
+    end: Rc<Sender>,
+    slot: Rc<Slot>,
+}
+
+/// `send(tx, v)` on the channel `ch`: `true` once delivered (to a
+/// receiver or the buffer), `false` when the channel is closed. Otherwise
+/// the sender queues a slot with the value and waits (`SendWait`).
+pub(crate) fn begin_send(t: &mut Task<'_>, end: &Rc<Sender>, v: Value) -> Try<bool, SendWait> {
+    let ch = &end.0;
     if ch.closed() {
-        return Ok(false);
+        return Try::Ready(false);
     }
     let v = match ch.try_send(v) {
-        Ok(()) => return Ok(true),
+        Ok(()) => return Try::Ready(true),
         Err(v) => v,
     };
+    // The woken flag is taken before the slot is queued: a wake that
+    // comes after it is seen (`block.rs`).
+    t.waiter.take_woken();
     let slot = Slot::new(t, Some(v));
+    slot.queued.set(true);
     ch.inner.borrow_mut().senders.push_back(slot.clone());
-    let r = block_until(
-        t,
-        |_, _| {
-            if slot.done.get() {
-                Some(true)
-            } else if ch.closed() {
-                Some(false)
-            } else {
-                None
-            }
-        },
-        None,
-        false,
-    );
-    match r {
-        Ok(Some(true)) => Ok(true),
-        Ok(_) => {
-            ch.leave(&slot);
-            Ok(false)
+    Try::Wait(SendWait {
+        end: end.clone(),
+        slot,
+    })
+}
+
+impl SendWait {
+    /// After a wake: `Some(true)` once a receiver took the value,
+    /// `Some(false)` if the channel closed first (the slot leaves the
+    /// queue), `None` to wait again.
+    pub(crate) fn poll(&self) -> Option<bool> {
+        if self.slot.done.get() {
+            Some(true)
+        } else if self.end.0.closed() {
+            self.end.0.leave(&self.slot);
+            Some(false)
+        } else {
+            None
         }
-        Err(_) if slot.done.get() => Ok(true),
-        Err(e) => {
-            ch.leave(&slot);
-            Err(e)
+    }
+
+    /// The wait was cancelled (or reached a deadline): a value a receiver
+    /// already took stays sent; otherwise the slot leaves the queue and
+    /// `e` goes on.
+    pub(crate) fn cancel(self, e: Stop) -> Result<bool, Stop> {
+        if self.slot.done.get() {
+            return Ok(true);
         }
+        self.end.0.leave(&self.slot);
+        Err(e)
+    }
+
+    pub(crate) fn wake(&self) -> Wake {
+        Wake::default()
     }
 }
 
-/// `recv(rx)` on the channel `ch`: buffered values come out even after close; then
-/// `Closed`. A cancelled wait (or one past its deadline) unwinds with
-/// E0701 unless a sender already delivered a value.
-pub(crate) fn recv(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Received, Stop> {
+/// `recv(rx)` on the channel `ch`: buffered values come out even after
+/// close; then `Closed`. Otherwise the receiver queues an empty slot and
+/// waits (`RecvWait`).
+pub(crate) fn begin_recv(
+    t: &mut Task<'_>,
+    end: &Rc<Receiver>,
+) -> Result<Try<Received, RecvWait>, Stop> {
+    let ch = &end.0;
     // Receiving takes a value out (and may wait): an effect inside a
     // swap's function however it is reached — `recv`, a `for` over the
     // channel, `map` or `fold` of it (`atom.rs`).
@@ -465,54 +513,77 @@ pub(crate) fn recv(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Received, Stop>
         ));
     }
     if let Some(v) = ch.try_recv() {
-        return Ok(Received::Value(v));
+        return Ok(Try::Ready(Received::Value(v)));
     }
     if ch.closed() {
-        return Ok(Received::Closed);
+        return Ok(Try::Ready(Received::Closed));
     }
+    t.waiter.take_woken();
     let slot = Slot::new(t, None);
+    slot.queued.set(true);
     ch.inner.borrow_mut().receivers.push_back(slot.clone());
-    let r = block_until(
-        t,
-        |_, _| {
-            if slot.done.get() {
-                Some(true)
-            } else if ch.closed() {
-                Some(false)
-            } else {
-                None
-            }
-        },
-        None,
-        ch.external,
-    );
-    let took = |slot: &Slot| Received::Value(slot.value.borrow_mut().take().expect("a value"));
-    match r {
-        Ok(Some(true)) => Ok(took(&slot)),
-        // Closed while waiting. A waiting receiver means the buffer was
-        // empty and nothing can be sent after the close, but look again.
-        Ok(Some(false)) => {
-            ch.leave(&slot);
-            Ok(ch.try_recv().map_or(Received::Closed, Received::Value))
-        }
-        // A value delivered before the cancellation is still taken.
-        Err(_) if slot.done.get() => Ok(took(&slot)),
-        Ok(None) => unreachable!("a receive has no timeout of its own"),
-        Err(e) => {
-            ch.leave(&slot);
-            Err(e)
-        }
+    Ok(Try::Wait(RecvWait {
+        end: end.clone(),
+        slot,
+    }))
+}
+
+/// A dropped wait (its task abandoned, REPL's second Ctrl-C) leaves the
+/// channel's queue: no later `send` hands a value to it.
+impl Drop for RecvWait {
+    fn drop(&mut self) {
+        // a scan only for a slot still queued (`Slot::queued`)
+        self.end.0.leave(&self.slot);
     }
 }
 
-/// Receives until the channel is closed: what the natives that need the
-/// whole collection at once (`sort`, `sort_by`) get for a channel.
-pub(crate) fn drain(t: &mut Task<'_>, ch: &Rc<Channel>) -> Result<Vec<Value>, Stop> {
-    let mut out = Vec::new();
-    loop {
-        match recv(t, ch)? {
-            Received::Value(v) => out.push(v),
-            Received::Closed => return Ok(out),
+impl Drop for SendWait {
+    fn drop(&mut self) {
+        self.end.0.leave(&self.slot);
+    }
+}
+
+impl RecvWait {
+    /// After a wake: the value a sender delivered, or, once the channel
+    /// closed (the slot leaves the queue), what the buffer still holds or
+    /// `Closed`; `None` to wait again.
+    pub(crate) fn poll(&self) -> Option<Received> {
+        if self.slot.done.get() {
+            return Some(self.took());
+        }
+        let ch = &self.end.0;
+        if ch.closed() {
+            // A waiting receiver means the buffer was empty and nothing
+            // can be sent after the close, but look again.
+            ch.leave(&self.slot);
+            return Some(ch.try_recv().map_or(Received::Closed, Received::Value));
+        }
+        None
+    }
+
+    /// The wait was cancelled (or reached a deadline): a value a sender
+    /// already delivered is still taken; otherwise the slot leaves the
+    /// queue and `e` goes on.
+    pub(crate) fn cancel(self, e: Stop) -> Result<Value, Stop> {
+        if self.slot.done.get() {
+            let Received::Value(v) = self.took() else {
+                unreachable!("a delivered slot holds a value")
+            };
+            return Ok(v);
+        }
+        self.end.0.leave(&self.slot);
+        Err(e)
+    }
+
+    fn took(&self) -> Received {
+        Received::Value(self.slot.value.borrow_mut().take().expect("a value"))
+    }
+
+    /// The stop channel is woken from outside: not a deadlock.
+    pub(crate) fn wake(&self) -> Wake {
+        Wake {
+            until: None,
+            timed: self.end.0.external,
         }
     }
 }

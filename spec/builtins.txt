@@ -2,7 +2,6 @@
 # prelude native <name>(<params>)   native function (or plain value) of the prelude
 # prelude fung <name>               public name of a prelude file written in fung
 # module <module> <name>(<params>)  member of a _native.x bridge, or public function of conc or http
-module _native.conc try_spawn(s, f)
 module _native.fs append(path, text)
 module _native.fs close(f)
 module _native.fs copy(from, to)

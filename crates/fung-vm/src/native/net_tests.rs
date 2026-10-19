@@ -2,8 +2,8 @@
 //! programs that import the bridge as an embedded file would
 //! (`Opts::internal`), against fung or Rust peers on 127.0.0.1.
 //!
-//! The tests share process-wide counters (live sockets, wake pipes,
-//! lookup threads, waits), so they run one at a time under `NET`.
+//! The tests share process-wide counters (live sockets, lookups,
+//! waits), so they run one at a time (`serial`).
 //! Concurrent orderings use state (the waits counted in `probe`), never
 //! sleeps.
 
@@ -15,21 +15,34 @@ use std::time::{Duration, Instant};
 use super::probe;
 use crate::testutil::{Opts, Outcome, UNTIL, exec, exec_prepared, probes};
 use crate::value::{Native, Value};
-use crate::vm::{CancelNodeForTests as CancelNode, Stop, Task, Watch, live_wakes, watch_serial};
+use crate::vm::{CancelNodeForTests as CancelNode, Stop, Task};
 
-/// One net test at a time: the counters are process-wide (the lock is
-/// shared with the wake-pipe tests of `vm/watch.rs`).
+/// One net test at a time: the counters are process-wide.
 pub(super) fn serial() -> MutexGuard<'static, ()> {
-    watch_serial()
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// The probes plus the net ones: `net_waiting()` (tasks inside a socket
+/// The probes plus the net ones: `io_table()` (registrations in the
+/// table and in its fd index), `net_waiting()` (tasks inside a socket
 /// wait now), `read_waits()` / `write_waits()` (waits for reading or
-/// writing so far), `sockets()` (live sockets), `budget()` (the calling
+/// writing so far), `sockets()` (live sockets), `lookups()` (name
+/// lookups running on the pool), `budget()` (the calling
 /// task's ticks left before its next turn handoff).
 pub(super) fn net_probes() -> Vec<Value> {
     type F = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
-    let natives: [(&'static str, F); 5] = [
+    let natives: [(&'static str, F); 8] = [
+        ("io_table", |t, _| {
+            let (table, index) = t.io_table();
+            Ok(Value::str(&format!("{table} {index}")))
+        }),
+        ("lookups", |_, _| Ok(Value::Int(probe::lookups() as i64))),
+        ("fail_next_register", |t, _| {
+            t.shared_for_tests().poller.fail_next_register();
+            Ok(Value::Nil)
+        }),
         ("net_waiting", |_, _| {
             Ok(Value::Int(probe::waiting() as i64))
         }),
@@ -54,8 +67,8 @@ pub(super) fn net_probes() -> Vec<Value> {
 pub(super) const HELPERS: &str = "fn msg(r) = match r:\n  Err(e) => e.message\n  v => v\n;;\nfn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nfn host(a) = join(reverse(drop(reverse(split(a, \":\")), 1)), \":\")\n";
 
 /// Runs `src` with `_native.net` imported as `net`, the probes and
-/// `until`; then checks that nothing is left open: no socket, no wake
-/// pipe, no lookup thread (one may still be finishing: it is waited for
+/// `until`; then checks that nothing is left open: no socket, no
+/// lookup (one may still be finishing: it is waited for
 /// by state, with a generous bound).
 pub(super) fn run(src: &str) -> Outcome {
     let o = exec(
@@ -67,7 +80,6 @@ pub(super) fn run(src: &str) -> Outcome {
         },
     );
     assert_eq!(probe::sockets(), 0, "sockets left open\n{o:?}");
-    assert_eq!(live_wakes(), 0, "wake pipes left open\n{o:?}");
     let until = Instant::now() + Duration::from_secs(10);
     while probe::lookups() != 0 && Instant::now() < until {
         std::thread::yield_now();
@@ -134,6 +146,30 @@ fn a_line_goes_there_and_back() {
         out(&o),
         ("Ok(nil)\nOk(\"got héllo\")\nOk(nil)\nnil\n", "", 0)
     );
+}
+
+/// Socket natives park on the event loop: none hands a wait off to a
+/// thread (`offloads()` stays), in one task: the client's connect
+/// completes in the listener's backlog. Only a name lookup is a job (the
+/// pool runs `getaddrinfo`).
+#[test]
+fn net_natives_park_on_the_loop() {
+    let _g = serial();
+    let o = run(
+        "n0 = offloads()\nl = net.listen(\"127.0.0.1:0\")!\nn1 = offloads()\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nc = net.connect(\"127.0.0.1\", port)!\nn2 = offloads()\ns = net.accept(l)!\nn3 = offloads()\nnet.write(c, \"x\\n\")!\nn4 = offloads()\nprint(net.read_line(s, 100))\nprint(n1 - n0, n2 - n1, n3 - n2, n4 - n3, offloads() - n4)\nn5 = offloads()\nd = net.connect(\"localhost\", port)\nprint(offloads() - n5)\nmatch d:\n  Ok(x) => net.close(x)!\n  _ => nil\n;;\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!",
+    );
+    assert_eq!(out(&o), ("Ok(\"x\")\n0 0 0 0 0\n1\n", "", 0));
+}
+
+/// A second reader waits for the first in the connection's turn line,
+/// and that wait ends at a deadline (it is a park, not a lock).
+#[test]
+fn a_second_reader_can_be_cancelled_while_it_waits() {
+    let _g = serial();
+    let o = run(&format!(
+        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  print(timeout(20ms, () => net.read_line(s, 10)))\n  net.write(c, \"a\\n\")!\n  print(await(r1))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+    ));
+    assert_eq!(out(&o), ("Err({kind: 'timeout})\nOk(\"a\")\n", "", 0));
 }
 
 #[test]
@@ -660,16 +696,15 @@ fn cancel_ends_a_blocked_write() {
 }
 
 /// `connect` cancelled while its name lookup runs. The lookup is held
-/// by the test gate (`probe::LOOKUP_GATE`), so the wait is certain; the
-/// connection phase waits through the same `Watch` (`cancel_wakes_a_
-/// socket_wait` in `vm/watch.rs` covers the wait itself). An address
-/// that never answers would depend on the network the tests run in.
+/// by the test gate (`probe::LOOKUP_GATE`), so the wait is certain; it is
+/// a pool job the cancel abandons. An address that never answers would
+/// depend on the network the tests run in.
 #[test]
 fn cancel_ends_a_blocked_connect() {
     let _g = serial();
     let gate = probe::hold_lookups();
     let o = run_then(
-        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"gate.invalid\", 80))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
+        "scope(fn(s):\n  t = spawn(s, () => net.connect(\"gate.invalid\", 80))\n  until(() => lookups() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
         move || drop(gate),
     );
     assert_eq!(out(&o), ("Err({kind: 'cancelled})\n", "", 0));
@@ -701,7 +736,6 @@ pub(super) fn run_then(src: &str, release: impl FnOnce()) -> Outcome {
     );
     release();
     assert_eq!(probe::sockets(), 0, "sockets left open\n{o:?}");
-    assert_eq!(live_wakes(), 0, "wake pipes left open\n{o:?}");
     wait_for(|| probe::lookups() == 0);
     o
 }
@@ -853,17 +887,20 @@ fn reads_and_writes_stop_on_cancel_without_waiting() {
     let c = super::Conn::new(s, peer_addr);
     let node = CancelNode::root();
     node.cancel();
-    let mut w = Watch::new(node);
+    let s = crate::testutil::setup("1", Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
+    let mut a = super::Attempt::for_tests(node, &s.rt);
     assert!(matches!(
-        c.read_all(&mut w, 100),
+        c.read_all(&mut a, 100),
         Err(super::Fail::Cancelled)
     ));
-    assert!(matches!(c.write(&mut w, b"x"), Err(super::Fail::Cancelled)));
+    assert!(matches!(
+        c.write(&mut a, b"x", &mut 0),
+        Err(super::Fail::Cancelled)
+    ));
     drop(c);
-    drop(w);
+    drop(a);
     h.join().unwrap();
     assert_eq!(probe::sockets(), 0);
-    assert_eq!(live_wakes(), 0);
 }
 
 /// Wrong arguments of `utf8_string` and `listen` are E0403.
@@ -910,7 +947,7 @@ fn utf8_string_decodes_bytes() {
 // The server is fung (`extras/http.fung`); these runs check what the
 // expected outputs cannot see: the order of concurrent requests (by
 // state: a handler waiting on a channel), the end of the server task,
-// and that no socket, wake pipe or task is left (`run` checks).
+// and that no socket or task is left (`run` checks).
 
 /// The start of a program with a server on `h` (a fung function defined
 /// before): `s` is its task, `base` its URL. It opens a `supervise` scope
@@ -1087,10 +1124,10 @@ each({from}..{to}, attempt)\nprint(\"done\")"
 /// `1..=width` (a budget is never seen at 0: the tick that empties it
 /// refills it), `ready` burns the server task's budget down so that `r`
 /// ticks are left at a fixed point (it wraps the budget once first, so
-/// there are always enough to burn; nobody waits for the token yet, so
+/// there are always enough to burn; no other task waits to run yet, so
 /// that wrap hands nothing over), records what is left there, and only
 /// then hands the address over: the waiting main task then queues for
-/// the token and gets it (and cancels the server) at the server's next
+/// the run thread and gets it (and cancels the server) at the server's next
 /// yield, `r` ticks after that point. Prints the budgets recorded,
 /// sorted (each `r` once if the sweep is exact), then what
 /// `cancel_sweep` prints.
@@ -1137,13 +1174,14 @@ fn failing_net(rt: &crate::vm::Runtime, member: &'static str, params: Vec<crate:
 
 /// A failure in the code answering a connection (here `set_deadline`,
 /// its first call) is reported on stderr, the connection is closed, and
-/// the server goes on.
+/// the server goes on. The client sends nothing: a request the server
+/// never read would make the close a reset, depending on timing.
 #[test]
 fn a_failure_answering_a_connection_is_reported() {
     let _g = serial();
     let o = exec_prepared(
         &format!(
-            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}p = parse_int(split(addr, \":\")[1])!\nask = fn():\n  c = net.connect(\"127.0.0.1\", p)!\n  net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")!\n  net.read_line(c, 100)\n;;\nprint(ask(), ask())\ncancel(s)\nprint(await(s)){SERVE_END}"
+            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}p = parse_int(split(addr, \":\")[1])!\nask = fn():\n  c = net.connect(\"127.0.0.1\", p)!\n  net.read_line(c, 100)\n;;\nprint(ask(), ask())\ncancel(s)\nprint(await(s)){SERVE_END}"
         ),
         Opts {
             internal: true,
@@ -1200,77 +1238,8 @@ fn a_failure_accepting_ends_the_server() {
     assert_eq!(probe::sockets(), 0);
 }
 
-/// Calls of `try_spawn` so far, for `failing_spawn`.
-static SPAWNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// `_native.conc` with a `try_spawn` whose first call (the server's first
-/// connection) fails as when no thread can be made (E0801 `cannot start
-/// a task`).
-fn failing_spawn(rt: &crate::vm::Runtime) {
-    use std::sync::atomic::Ordering;
-    SPAWNS.store(0, Ordering::SeqCst);
-    let real = crate::conc::module();
-    let mut m = crate::value::Module::new("conc", "_native.conc");
-    for name in real.names() {
-        let v = if name == "try_spawn" {
-            Value::Native(Native::leak(
-                "try_spawn",
-                vec![
-                    crate::native::nat::param("s"),
-                    crate::native::nat::param("f"),
-                ],
-                |t, args| {
-                    if SPAWNS.fetch_add(1, Ordering::SeqCst) == 0 {
-                        return Ok(crate::native::nat::err_value(
-                            "error",
-                            "error[E0801]: internal error: cannot start a task: injected",
-                            Vec::new(),
-                        ));
-                    }
-                    let Some(Value::Native(n)) = crate::conc::module().get("try_spawn").cloned()
-                    else {
-                        unreachable!("try_spawn is a native")
-                    };
-                    (n.func)(t, args)
-                },
-            ))
-        } else {
-            real.get(name).unwrap().clone()
-        };
-        m.set(name, v);
-    }
-    rt.register_native("_native.conc", std::rc::Rc::new(m));
-}
-
-/// A connection whose task cannot start (no thread left) is closed and
-/// reported, and the server keeps accepting (it used to stop serving).
-#[test]
-fn a_connection_task_that_cannot_start_is_dropped() {
-    let _g = serial();
-    let o = exec_prepared(
-        &format!(
-            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}p = parse_int(split(addr, \":\")[1])!\nc = net.connect(\"127.0.0.1\", p)!\nnet.set_deadline(c, 5s)\nprint(net.read_line(c, 100))\nnet.close(c)\nprint(http.get(base)!.body)\ncancel(s)\nprint(await(s)){SERVE_END}"
-        ),
-        Opts {
-            internal: true,
-            extra: net_probes,
-            ..Opts::default()
-        },
-        failing_spawn,
-    );
-    assert_eq!(
-        out(&o),
-        (
-            "Ok(nil)\nx\nErr({kind: 'cancelled})\n",
-            "http: cannot start a connection task: error[E0801]: internal error: cannot start a task: injected\n",
-            0
-        )
-    );
-    assert_eq!(probe::sockets(), 0);
-}
-
 /// A read nobody answers ends at the deadline of the `timeout` around
-/// it (concurrency v2, L2), leaving no wake pipe behind.
+/// it (concurrency v2, L2), leaving no registration behind.
 #[test]
 fn a_read_is_cut_at_the_deadline() {
     let _g = serial();
@@ -1293,4 +1262,82 @@ fn connect_has_no_timeout_parameter() {
     let _g = serial();
     let o = run("net.connect(\"127.0.0.1\", 1, timeout: 1s)");
     assert!(o.err.contains("no argument named `timeout`"), "{}", o.err);
+}
+
+/// A wait whose registration in the event loop fails (`ENOSPC`, say)
+/// ends the call with E0801 and still gives the connection's read side
+/// back: the next read gets its line.
+#[test]
+fn a_failed_registration_releases_the_turn() {
+    let _g = serial();
+    let o = run(&format!(
+        "{PAIR}supervise(fn(sc):\n  fail_next_register()\n  t = spawn(sc, () => net.read_line(s, 10))\n  print(kind(await(t)))\n;;, e => nil)\nnet.write(c, \"a\\n\")!\nprint(timeout(5s, () => net.read_line(s, 10)))\nprint(net_waiting())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+    ));
+    assert_eq!(out(&o), ("'error\nOk(\"a\")\n0\n", "", 0));
+}
+
+/// A socket wait dropped as it is (its task abandoned) gives the turn
+/// and the wait count back.
+#[test]
+fn a_dropped_io_wait_releases_its_state() {
+    let _g = serial();
+    let (port, h) = peer(|mut s| {
+        let mut b = [0u8; 1];
+        let _ = s.read(&mut b);
+    });
+    let s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    s.set_nonblocking(true).unwrap();
+    let peer_addr = s.peer_addr().unwrap();
+    let c = std::sync::Arc::new(super::Conn::new(s, peer_addr));
+    let base = probe::waiting();
+    let setup = crate::testutil::setup("1", Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
+    {
+        let mut t = setup.rt.task();
+        let flow =
+            super::read_line_fn(&mut t, vec![Value::Conn(c.clone()), Value::Int(10)]).unwrap();
+        assert!(matches!(flow, crate::vm::Flow::Park(..)));
+        assert!(c.rd_turn.is_busy());
+        assert_eq!(probe::waiting(), base + 1);
+        drop(flow);
+        assert!(!c.rd_turn.is_busy());
+        assert_eq!(probe::waiting(), base);
+    }
+    drop(c);
+    h.join().unwrap();
+}
+
+/// Each way a socket wait leaves the event loop's table (its event, a
+/// close, a deadline) takes it out of the fd index too.
+#[test]
+fn the_fd_index_empties_with_the_table() {
+    let _g = serial();
+    let o = run(&format!(
+        "{PAIR}l2 = net.listen(\"127.0.0.1:0\")!\nscope(fn(sc):\n  a = spawn(sc, () => net.read_line(s, 10))\n  b = spawn(sc, () => net.accept(l2))\n  until(() => net_waiting() == 2)\n  print(io_table())\n  net.write(c, \"x\\n\")!\n  print(await(a))\n  net.close(l2)!\n  print(kind(await(b)))\n  print(timeout(10ms, () => net.read_line(s, 10)))\n;;)\nprint(io_table())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+    ));
+    assert_eq!(
+        out(&o),
+        (
+            "2 2\nOk(\"x\")\n'network\nErr({kind: 'timeout})\n0 0\n",
+            "",
+            0
+        )
+    );
+}
+
+/// Two waits on one descriptor and interest would replace each other in
+/// the loop (the first task never wakes): no caller does that, and a
+/// debug build says so at once (E0801 through the panic fence).
+#[cfg(debug_assertions)]
+#[test]
+fn two_accepts_on_one_listener_trip_the_assert() {
+    let _g = serial();
+    let o = run(
+        "l = net.listen(\"127.0.0.1:0\")!\nscope(fn(sc):\n  spawn(sc, () => net.accept(l))\n  spawn(sc, () => net.accept(l))\n;;)",
+    );
+    assert!(o.err.contains("E0801"), "{}", o.err);
+    assert!(
+        o.err.contains("two waits on one fd and interest"),
+        "{}",
+        o.err
+    );
 }

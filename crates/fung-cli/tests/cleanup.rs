@@ -87,3 +87,33 @@ fn a_deadlock_in_a_release_fails_the_test_block() {
     assert!(out.contains("FAIL"), "{out}");
     assert_eq!(code, Some(1), "{out}\n{err}");
 }
+
+/// The program ends while an abandoned read is still blocked on a pool
+/// thread: the command exits at once, with the right output and code.
+#[test]
+fn exit_does_not_wait_for_an_abandoned_job() {
+    let tmp = Scratch::new("abandoned");
+    let f = tmp.0.join("pipe");
+    let made = Command::new("mkfifo").arg(&f).status().unwrap();
+    assert!(made.success());
+    let start = std::time::Instant::now();
+    let (out, err, code) = fung(
+        &[
+            "-e",
+            &format!(
+                "import fs\nprint(timeout(50ms, () => fs.read(\"{}\")))",
+                f.display()
+            ),
+        ],
+        &tmp.0,
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        ("Err({kind: 'timeout})\n", "", Some(0))
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}

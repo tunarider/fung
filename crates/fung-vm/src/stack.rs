@@ -11,15 +11,11 @@ use std::sync::{Arc, Mutex};
 use std::thread::{Builder, JoinHandle};
 
 /// The stack sizes the `fung` command thread tries, in order. 4 GiB is
-/// only reserved address space, and leaves the entry file a margin over
-/// a task's 1 GiB for very deep recursion (R3a 2절).
+/// only reserved address space for very deep recursion in Rust
+/// (formatting or comparing deeply nested values, R3a 2절). Since R1b
+/// every task runs on this thread (`vm/sched.rs`), and fung calls use no
+/// Rust stack (frames and continuations live on the heap).
 pub const ENTRY_STACKS: &[usize] = &[4 << 30, 1 << 30, 256 << 20, 64 << 20];
-
-/// The stack sizes a spawned task's thread tries, in order. 1 GiB keeps
-/// deep programs running in a task: at 256 MiB, `map` nesting fung calls
-/// 99,000 deep overflowed in a task only (R3a 2절, `TASK_STACK` before
-/// 6a).
-pub const TASK_STACKS: &[usize] = &[1 << 30, 256 << 20, 64 << 20];
 
 /// Starts `body(payload)` on a thread made by `builder` with the first
 /// stack size in `sizes` the operating system accepts. `Builder::spawn`
@@ -91,10 +87,9 @@ mod tests {
 
     #[test]
     fn the_sizes_shrink() {
-        for w in ENTRY_STACKS.windows(2).chain(TASK_STACKS.windows(2)) {
+        for w in ENTRY_STACKS.windows(2) {
             assert!(w[0] > w[1]);
         }
         assert_eq!(*ENTRY_STACKS.last().unwrap(), 64 << 20);
-        assert_eq!(*TASK_STACKS.last().unwrap(), 64 << 20);
     }
 }

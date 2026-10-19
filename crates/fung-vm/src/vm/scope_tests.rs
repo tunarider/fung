@@ -11,7 +11,7 @@ fn scope_returns_the_body_value() {
     );
 }
 
-/// The child holds the run token while it sleeps (`hold`), so the body
+/// The child holds the run thread while it sleeps (`hold`), so the body
 /// has long returned when it sends: the scope must still wait for it.
 #[test]
 fn scope_waits_for_its_children() {
@@ -235,6 +235,23 @@ fn await_sees_the_failure_too() {
     );
     assert!(out.contains("handled\n") && out.contains("true\n"), "{out}");
     assert_eq!((err.as_str(), code), ("", 0));
+}
+
+/// `on_fail` waits on a channel the body feeds: one handler at a time,
+/// every failure handled once, and the scope ends after all three.
+#[test]
+fn an_on_fail_that_waits_still_handles_in_order() {
+    let (out, _, code) = run(
+        "(tx, rx) = channel(3)\nsupervise(fn(s):\n  each([\"a\", \"b\", \"c\"], m => spawn(s, () => fail(m)))\n  each(0..3, i => send(tx, i))\n;;, fn(e): print(\"start\"); recv(rx); print(\"end ${e.message}\") ;;)\nprint(\"done\")",
+    );
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 7, "{out}");
+    for pair in lines[..6].chunks(2) {
+        assert_eq!(pair[0], "start", "{out}");
+        assert!(pair[1].starts_with("end error[E0803]: "), "{out}");
+    }
+    assert_eq!(lines[6], "done", "{out}");
+    assert_eq!(code, 0);
 }
 
 /// `on_fail` blocks (`sleep`) between its two prints: if a second

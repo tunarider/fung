@@ -19,7 +19,7 @@ pub const EXIT_BROKEN_PIPE: i32 = 141;
 
 /// Ends the process by SIGPIPE, for a write to standard output or error
 /// that found the reading end closed (EPIPE). Callable from any thread,
-/// whatever locks or run token other threads hold: no fung value is
+/// whatever locks other threads hold or the run thread is doing: no fung value is
 /// touched and nothing is unwound or flushed.
 ///
 /// It sets the default action even when the process was started with

@@ -15,6 +15,7 @@ pub(crate) mod sock;
 pub mod time;
 pub(crate) mod timefmt;
 pub(crate) mod tz;
+pub(crate) mod walk;
 
 /// fung's text for an operating-system error (the short lower-case reason
 /// of `oserr`), for the command's own messages (`fung check`/`test`/`fmt`

@@ -16,7 +16,6 @@
 # `_native.net`, reusing the client's head and body readers
 # (`_field_step`, `_group`, `_header_map`, `_transfer_encoding`,
 # `_length`, `_chunked`).
-import _native.conc as _c
 import _native.net as _net
 import _native.process as _proc
 import _native.time as _time
@@ -1471,26 +1470,16 @@ fn _stopper(l, stop, drain, top):
 # of file descriptors, say) is tried again after 5 ms, doubling up to
 # 1 s, so a short shortage does not end the server.
 fn _accept(l, handler, conns, delay) = match _net.accept(l):
-  Ok(c)  => _accept(l, handler, conns, _spawn_conn(c, handler, conns, delay))
+  Ok(c)  => _accept(l, handler, conns, _spawn_conn(c, handler, conns))
   Err(e) => e.message == "listener is closed"
     then nil else _accept(l, handler, conns, _backoff(delay))
 ;;
 
-# A connection's task that cannot start (E0801 `cannot start a task`: no
-# thread can be made) is reported, the connection closed unanswered and
-# the loop backs off as for a failed accept; the server goes on. No 503
-# is written: the request is still unread, so closing would reset the
-# connection and the client could lose the answer anyway, and lingering
-# here would stall the accept loop.
-fn _spawn_conn(c, handler, conns, delay) = match _c.try_spawn(conns, () => _guarded(c, handler)):
-  Ok(_)  => 0s
-  Err(e) => _unstarted(c, e, delay)
-;;
-
-fn _unstarted(c, e, delay):
-  eprint("http: cannot start a connection task: ${e.message}")
-  _net.close(c)
-  _backoff(delay)
+# A connection's task. Starting one cannot fail (a task is no thread,
+# R7), so the accept loop goes on at once.
+fn _spawn_conn(c, handler, conns):
+  spawn(conns, () => _guarded(c, handler))
+  0s
 ;;
 
 # One connection, on its task. A failure answering it (a bug of this

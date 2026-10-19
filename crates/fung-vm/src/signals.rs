@@ -4,8 +4,8 @@
 //! thread exists ([`init`]), so every thread inherits the block, and one
 //! thread of its own receives them with `sigwait`. So no signal handler
 //! runs at an arbitrary point of an arbitrary thread: what a signal does
-//! is ordinary code on that thread, which may take locks and wait for the
-//! run token (a handler could only set a flag).
+//! is ordinary code on that thread, which may take locks and post an event
+//! to the run thread (a handler could only set a flag).
 //!
 //! What a signal does is the command's [`Policy`]: none set, the process
 //! ends at once with 128 + the signal's number, as the default action
@@ -113,17 +113,16 @@ pub fn exit_now(sig: i32) -> ! {
 /// files after it, and a later runtime's policy shares it, so a signal
 /// after the first still ends the process.
 ///
-/// The request waits for the run token, so it is made on a thread of its
-/// own: the signal thread goes back to `sigwait` at once, and a second
-/// signal ends the process even while a long native holds the token.
+/// The request only posts an event for the run thread (`StopHandle`), so
+/// the signal thread goes back to `sigwait` at once, and a second signal
+/// ends the process even while a long native runs.
 pub fn stop_requests(h: StopHandle, first: Arc<AtomicI32>) -> Policy {
     Arc::new(move |sig| {
         if first
             .compare_exchange(0, sig, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
         {
-            let h = h.clone();
-            std::thread::spawn(move || h.deliver(sig));
+            h.deliver(sig);
         } else {
             exit_now(sig);
         }
@@ -135,8 +134,7 @@ pub fn stop_requests(h: StopHandle, first: Arc<AtomicI32>) -> Policy {
 pub fn repl(h: StopHandle) -> Policy {
     Arc::new(move |sig| {
         if sig == libc::SIGINT {
-            let h = h.clone();
-            std::thread::spawn(move || h.interrupt());
+            h.interrupt();
         } else {
             exit_now(sig);
         }

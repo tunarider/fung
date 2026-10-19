@@ -2125,7 +2125,7 @@
 | # A task in a top-level scope asks for exit(3): no block runs, and the
 | # top level fails. Ordered by state: the task can only send on `c_tx`
 | # after taking `go`'s value, and it asks for the exit on the same turn
-| # of the run token.
+| # of the run thread.
 | (go_tx, go) = channel(1)
 | (c_tx, c) = channel()
 | scope(fn(s):
@@ -2727,7 +2727,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (69009 bytes, fnv1a64 1a74b4ac27c57ed0)
+-- stdout (68499 bytes, fnv1a64 16b10ab6f6c646b3)
 -- stderr
 -- exit: 0
 ==== extras/json.fung

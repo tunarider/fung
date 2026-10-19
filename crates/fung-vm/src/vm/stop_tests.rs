@@ -9,7 +9,7 @@ use crate::vm::{StopHandle, Task};
 /// `probes` plus two natives that deliver a signal from another thread,
 /// as the command's signal thread does: `deliver_when_watched(sig)` once
 /// a task waits on the stop signal, `deliver_soon(sig)` at the next
-/// moment the run token is free.
+/// moment the run thread is free.
 fn signal_probes() -> Vec<Value> {
     let mut v = probes();
     v.push(Value::Native(Native::leak(

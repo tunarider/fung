@@ -9,6 +9,7 @@ pub mod boot;
 pub mod conc;
 pub mod native;
 pub mod prelude;
+pub mod rlimit;
 pub mod signals;
 pub mod sigpipe;
 pub mod stack;

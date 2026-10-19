@@ -96,13 +96,12 @@ fn test_blocks_register_only_when_requested() {
 /// block) talk to it over a channel the entry made, a deadlock inside a
 /// block is still reported.
 #[test]
-fn hold_keeps_the_gap_between_test_blocks_open() {
+fn test_blocks_run_one_after_another() {
     on_big_stack(|| {
         let src = "(ch_tx, ch) = channel()\n\
                    test \"talks\":\n  r = scope(fn(s):\n    w = spawn(s, () => recv(ch)! * 2)\n    send(ch_tx, 21)\n    await(w)\n  ;;)\n  assert r == 42\n;;\n\
                    test \"stuck\": recv(ch) ;;";
         let Setup { rt, err, .. } = with_tests(src);
-        rt.hold();
         rt.run().expect("the body runs");
         assert!(rt.call_test(0).is_ok(), "the block's task answered");
         assert_eq!(err.text(), "");
@@ -116,30 +115,6 @@ fn hold_keeps_the_gap_between_test_blocks_open() {
         );
         rt.cancel_all();
         rt.wait();
-        rt.release();
-    });
-}
-
-/// While the runtime is held, at most one driven task stands in for the
-/// command at a time: `World::hold_taken` marks it, and `Task::driven`
-/// asserts it (debug builds) so a second one cannot slip in.
-#[test]
-fn a_held_runtime_lends_its_count_to_one_driven_task() {
-    on_big_stack(|| {
-        let Setup { rt, .. } = with_tests("test \"t\": assert true ;;");
-        rt.hold();
-        let shared = rt.shared();
-        let live = shared.lock().live;
-        {
-            let t = crate::vm::Task::driven(&shared, shared.root());
-            assert!(t.world.hold_taken, "the task took the command's count");
-            assert_eq!(t.world.live, live, "taken over, not added");
-        }
-        let w = shared.lock();
-        assert!(!w.hold_taken && w.live == live, "the count went back");
-        drop(w);
-        rt.release();
-        assert_eq!(shared.lock().live, live - 1);
     });
 }
 

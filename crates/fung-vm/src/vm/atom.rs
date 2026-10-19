@@ -6,9 +6,13 @@
 //! waiting. `swap` is compare-and-set: it reads the value and the
 //! version, runs `f` on the value, and stores the result if the version
 //! is still the one it read; otherwise another task changed the atom in
-//! between (the run token can change hands inside `f`), and it runs `f`
-//! again on the new value. So no update is lost, and the meaning holds on
-//! several cores as well.
+//! between, and it runs `f` again on the new value. So no update is lost,
+//! and the meaning would hold on several cores as well. On one run thread
+//! a retry is rare: `f` never parks (effects are E0707, and a regex
+//! compiles in place while `pure` is set), and its turn does not end while
+//! it runs (`Task::end_turn` waits while `pure` is set), so it gives its
+//! turn at most once, at its first call when the turn was due as it
+//! started.
 //!
 //! **`f` is pure.** It may run more than once, so it must not do
 //! anything that shows outside but the time it takes: while it runs
@@ -27,7 +31,7 @@ use std::sync::OnceLock;
 
 use crate::native::nat;
 use crate::value::{Native, Value};
-use crate::vm::{Stop, Task};
+use crate::vm::{Cont, Flow, Next, Stop, Task};
 
 /// The value `atom` makes; it prints as `<atom>`.
 pub struct Atom {
@@ -83,54 +87,223 @@ pub(crate) fn reset(a: &Atom, v: Value) -> Result<Value, Stop> {
 }
 
 /// `swap(a, f)`: compare-and-set, again until no other task changed the
-/// atom while `f` ran; the new value. A failing `f` changes nothing.
-pub(crate) fn run_swap(t: &mut Task<'_>, a: &Rc<Atom>, f: Value) -> Result<Value, Stop> {
-    loop {
-        let version = a.version.get();
-        let old = read(a);
-        t.pure += 1;
-        let r = t.call(&f, vec![old]);
+/// atom while `f` ran; the new value. A failing `f` changes nothing. The
+/// run loop calls `f` (`cont.rs`).
+pub(crate) fn run_swap(t: &mut Task<'_>, a: Rc<Atom>, f: Value) -> Flow {
+    let version = a.version.get();
+    t.pure += 1;
+    t.push_arg(read(&a));
+    Flow::Call(
+        Box::new(Swap {
+            a,
+            f: f.clone(),
+            version,
+        }),
+        f,
+        1,
+    )
+}
+
+/// A `swap` waiting for its function, with the version it read.
+struct Swap {
+    a: Rc<Atom>,
+    f: Value,
+    version: u64,
+}
+
+impl Cont for Swap {
+    fn resume(&mut self, t: &mut Task<'_>, new: Value) -> Result<Next, Stop> {
         t.pure -= 1;
-        let new = r?;
         need_holdable(&new)?;
-        if a.version.get() == version {
-            a.set(new.clone());
-            return Ok(new);
+        if self.a.version.get() == self.version {
+            self.a.set(new.clone());
+            return Ok(Next::Done(new));
         }
+        self.version = self.a.version.get();
+        t.pure += 1;
+        t.push_arg(read(&self.a));
+        Ok(Next::Call(self.f.clone(), 1))
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        t.pure -= 1;
+        Err(stop)
     }
 }
 
-/// The prelude natives that are effects: what a swap's function may not
-/// call. Everything of the modules in [`EFFECT_MODULES`] is one too, and
-/// so are the listed members of [`EFFECT_MEMBERS`].
-const EFFECT_PRELUDE: &[&str] = &[
-    "print",
-    "eprint",
-    "dbg",
-    "read_line",
-    "read_lines",
-    "exit",
-    "spawn",
-    "await",
-    "cancel",
-    "send",
-    "recv",
-    "close",
-    "sleep",
-    "swap",
-    "reset",
-    "request_stop",
+/// The builtins that are effects, by where they live (`prelude` for the
+/// core and `conc` natives, else the `_native.*` module): what a swap's
+/// function may not call. Every builtin is here or in [`PURE`], and in
+/// one only (`every_builtin_is_classified`).
+pub(crate) const EFFECTS: &[(&str, &[&str])] = &[
+    (
+        "prelude",
+        &[
+            "print",
+            "eprint",
+            "dbg",
+            "read_line",
+            "read_lines",
+            "exit",
+            "spawn",
+            "await",
+            "cancel",
+            "send",
+            "recv",
+            "close",
+            "sleep",
+            "swap",
+            "reset",
+            "request_stop",
+        ],
+    ),
+    (
+        "_native.fs",
+        &[
+            "read",
+            "write",
+            "append",
+            "list",
+            "glob",
+            "walk",
+            "exists",
+            "stat",
+            "mkdir",
+            "remove",
+            "remove_all",
+            "move",
+            "copy",
+            "open",
+            "close",
+            "write_line",
+            "temp_dir",
+        ],
+    ),
+    (
+        "_native.net",
+        &[
+            "connect",
+            "listen",
+            "accept",
+            "read_line",
+            "read_raw_line",
+            "read_bytes",
+            "read_all",
+            "write",
+            "close",
+            "set_deadline",
+            "read_bytes_into",
+            "take_body",
+            "start_tls",
+        ],
+    ),
+    ("_native.process", &["exec", "sh"]),
 ];
-const EFFECT_MODULES: &[&str] = &["_native.fs", "_native.net", "_native.conc"];
-const EFFECT_MEMBERS: &[(&str, &[&str])] = &[("_native.process", &["exec", "sh"])];
+
+/// The builtins that are pure: computations on their arguments (a clock
+/// read and an environment read count as such: they change nothing).
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const PURE: &[(&str, &[&str])] = &[
+    (
+        "prelude",
+        &[
+            "fail",
+            "len",
+            "map",
+            "type_of",
+            "filter",
+            "fold",
+            "each",
+            "sort",
+            "sort_by",
+            "find",
+            "any",
+            "all",
+            "flatten",
+            "group_by",
+            "pairs",
+            "put",
+            "merge",
+            "remove",
+            "chars",
+            "split",
+            "join",
+            "trim",
+            "upper",
+            "lower",
+            "replace",
+            "starts_with",
+            "ends_with",
+            "repeat",
+            "int",
+            "float",
+            "str",
+            "sym",
+            "parse_int",
+            "parse_float",
+            "parse_dur",
+            "scope",
+            "timeout",
+            "atom",
+            "deref",
+            "with",
+            "supervise",
+            "channel",
+            "stop_signal",
+        ],
+    ),
+    (
+        "_native.net",
+        &[
+            "local_addr",
+            "byte_len",
+            "utf8_bytes",
+            "utf8_string",
+            "need_str_map",
+            "user_agent",
+        ],
+    ),
+    ("_native.json", &["parse", "stringify"]),
+    (
+        "_native.path",
+        &["join", "base", "dir", "ext", "stem", "abs"],
+    ),
+    ("_native.process", &["env"]),
+    (
+        "_native.regex",
+        &["is_match", "find", "find_all", "replace", "split"],
+    ),
+    (
+        "_native.time",
+        &[
+            "now",
+            "parse",
+            "format",
+            "utc",
+            "local",
+            "unix",
+            "from_unix",
+            "parts",
+        ],
+    ),
+];
+
+/// Whether `table` lists `name` under `module`.
+pub(crate) fn is_listed(table: &[(&str, &[&str])], module: &str, name: &str) -> bool {
+    table
+        .iter()
+        .any(|(m, names)| *m == module && names.contains(&name))
+}
 
 /// The natives marked as effects, by address; made on first use.
 fn effects() -> &'static HashSet<usize> {
     static SET: OnceLock<HashSet<usize>> = OnceLock::new();
     SET.get_or_init(|| {
         let mut set = HashSet::new();
-        let mut add = |v: &Value| {
-            if let Value::Native(n) = v {
+        let mut add = |module: &str, name: &str, v: &Value| {
+            if let Value::Native(n) = v
+                && is_listed(EFFECTS, module, name)
+            {
                 set.insert(*n as *const Native as usize);
             }
         };
@@ -138,20 +311,12 @@ fn effects() -> &'static HashSet<usize> {
             .into_iter()
             .chain(crate::conc::natives())
         {
-            if EFFECT_PRELUDE.contains(&name) {
-                add(&v);
-            }
+            add("prelude", name, &v);
         }
         for (key, make) in crate::boot::NATIVE_MODULES {
             let m = make();
-            let members: Option<&[&str]> = EFFECT_MEMBERS
-                .iter()
-                .find(|(k, _)| k == key)
-                .map(|(_, ms)| *ms);
             for name in m.names() {
-                if EFFECT_MODULES.contains(key) || members.is_some_and(|ms| ms.contains(&name)) {
-                    add(m.get(name).expect("a member"));
-                }
+                add(key, name, m.get(name).expect("a member"));
             }
         }
         set
@@ -163,8 +328,7 @@ pub(crate) fn is_effect(n: &'static Native) -> bool {
     effects().contains(&(n as *const Native as usize))
 }
 
-/// The effects as `where.name`, a whole module as `where.*` (the table
-/// test).
+/// The effects as `where.name` (the table test).
 #[cfg(test)]
 pub(crate) fn effect_names() -> Vec<String> {
     let mut out = Vec::new();
@@ -180,16 +344,10 @@ pub(crate) fn effect_names() -> Vec<String> {
     }
     for (key, make) in crate::boot::NATIVE_MODULES {
         let m = make();
-        let names = m.names();
-        let marked: Vec<&str> = names
-            .iter()
-            .copied()
-            .filter(|n| matches!(m.get(n), Some(Value::Native(x)) if is_effect(x)))
-            .collect();
-        if !marked.is_empty() && marked.len() == names.len() {
-            out.push(format!("{key}.*"));
-        } else {
-            out.extend(marked.iter().map(|n| format!("{key}.{n}")));
+        for n in m.names() {
+            if matches!(m.get(n), Some(Value::Native(x)) if is_effect(x)) {
+                out.push(format!("{key}.{n}"));
+            }
         }
     }
     out
@@ -200,10 +358,11 @@ impl Task<'_> {
     #[inline]
     pub(crate) fn check_effect(&self, n: &'static Native) -> Result<(), Stop> {
         if self.pure > 0 && is_effect(n) {
-            return Err(nat::fail(
-                "E0707",
-                vec![fung_front::diag::Arg::Str(n.name.to_string())],
-            ));
+            let name = self
+                .user_callee()
+                .or_else(|| self.world.public_name(n))
+                .unwrap_or_else(|| n.name.to_string());
+            return Err(nat::fail("E0707", vec![fung_front::diag::Arg::Str(name)]));
         }
         Ok(())
     }

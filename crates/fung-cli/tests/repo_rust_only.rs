@@ -367,3 +367,111 @@ fn every_comparison_is_still_in_its_file() {
         .collect();
     assert!(stale.is_empty(), "stale: {stale:?}");
 }
+
+/// No type is declared `Send` or `Sync` by hand (R5): what crosses
+/// threads is plain data, and the compiler checks it.
+#[test]
+fn no_unsafe_send_or_sync() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let needles = [
+        concat!("unsafe impl", " Send"),
+        concat!("unsafe impl", " Sync"),
+    ];
+    let mut found = Vec::new();
+    for f in files(&root, &root.join("crates")) {
+        if f.extension().is_none_or(|e| e != "rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&f).unwrap_or_default();
+        for (i, line) in text.lines().enumerate() {
+            if needles.iter().any(|n| line.contains(n)) {
+                found.push(format!("{}:{}", f.display(), i + 1));
+            }
+        }
+    }
+    assert!(found.is_empty(), "{found:?}");
+}
+
+/// Code and current documents do not describe the run token or the
+/// waits of the runtime before R1b as if they were there (R5): the
+/// stage notes, plans, specs and the decision log keep the history.
+#[test]
+fn no_current_text_describes_the_run_token() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let needles = [
+        "run token",
+        "실행권",
+        concat!("outside", "("),
+        concat!("block_until", "("),
+        "Census",
+        "교착 집계",
+        "token held",
+        "holds the token",
+        "holds the\ntoken",
+        "takes the token",
+        "keeps the token",
+        "gives the token",
+        "asserts the token",
+        "without the token",
+        "the token's holder",
+        "share the token",
+    ];
+    let mut paths: Vec<PathBuf> = files(&root, &root.join("crates"))
+        .into_iter()
+        .filter(|f| f.extension().is_some_and(|e| e == "rs" || e == "fung"))
+        .collect();
+    for doc in [
+        "docs/index.html",
+        "docs/syntax.html",
+        "docs/builtins.html",
+        "docs/internals.html",
+        "docs/design/00-concept.md",
+        "docs/design/05-concurrency.md",
+        "docs/design/06-native-and-stdlib.md",
+        "docs/design/08-tooling-and-errors.md",
+        "docs/design/09-implementation-plan.md",
+    ] {
+        paths.push(root.join(doc));
+    }
+    let me = Path::new(file!()).file_name().unwrap().to_owned();
+    let mut found = Vec::new();
+    for f in paths {
+        if f.file_name() == Some(&me) {
+            continue;
+        }
+        // the guard against the old waits names them on purpose
+        if f.ends_with("crates/fung-vm/src/vm/park_tests.rs") {
+            continue;
+        }
+        // a phrase may wrap: each line is read with the next one's start
+        let text = std::fs::read_to_string(&f).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        for (i, raw) in lines.iter().enumerate() {
+            let next = lines.get(i + 1).map_or("", |l| {
+                l.trim_start().trim_start_matches(['/', '!', '#', '*', ' '])
+            });
+            let first_word = next.split_whitespace().next().unwrap_or("");
+            let joined = format!("{raw} {first_word}");
+            let line = joined.as_str();
+            let hit = needles.iter().any(|n| {
+                line.match_indices(n).any(|(at, _)| {
+                    // a whole word: not the tail of a longer name
+                    !line[..at].ends_with(|c: char| c.is_alphanumeric() || c == '_')
+                })
+            });
+            if hit {
+                found.push(format!(
+                    "{}:{}",
+                    f.strip_prefix(&root).unwrap_or(&f).display(),
+                    i + 1
+                ));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "{} lines:\n{}",
+        found.len(),
+        found.join("\n")
+    );
+}

@@ -174,9 +174,6 @@ fn test_file(
         rt.stop_handle(),
         first.clone(),
     )));
-    // The entry and the test blocks run one after another: a task the
-    // entry leaves waiting for a later block is not stuck in between.
-    rt.hold();
     // A signal that cut the file short is named as one, not as the
     // exit(128 + n) or the cancellation it made.
     let signalled = || match first.load(std::sync::atomic::Ordering::SeqCst) {
@@ -275,12 +272,10 @@ fn test_file(
         }
     }
     // The file is done: cancel what its code left running and wait for
-    // it (unwinding through its releases), then give the command's hold
-    // back. A task failure nobody handled (a cancelled `supervise`'s
-    // queue) fails the file (05).
+    // it (unwinding through its releases). A task failure nobody handled
+    // (a cancelled `supervise`'s queue) fails the file (05).
     rt.cancel_all();
     rt.wait();
-    rt.release();
     if rt.failed() {
         let _ = stdout.write_all(
             &[

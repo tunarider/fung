@@ -1447,9 +1447,24 @@
 | 4999950000
 -- stderr
 -- exit: 0
+==== bench/exec.fung
+-- stdout
+| 0
+-- stderr
+-- exit: 0
 ==== bench/fib.fung
 -- stdout
 | 832040
+-- stderr
+-- exit: 0
+==== bench/fs.fung
+-- stdout
+| 50000
+-- stderr
+-- exit: 0
+==== bench/list.fung
+-- stdout
+| 125501998
 -- stderr
 -- exit: 0
 ==== bench/loop.fung
@@ -1470,6 +1485,11 @@
 ==== bench/str.fung
 -- stdout
 | 3388889
+-- stderr
+-- exit: 0
+==== bench/wait.fung
+-- stdout
+| 20000
 -- stderr
 -- exit: 0
 ==== -e "fn f(n) = n == 0 then 1 / 0 else f(n - 1)\nfn g(x) = f(x) + 1\nprint(g(3))"

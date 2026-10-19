@@ -84,6 +84,18 @@ fn exec_on_silent_stdin(src: &'static str) -> Outcome {
     o
 }
 
+/// A task waiting for a line is cancelled: it leaves the waiting list.
+#[test]
+fn a_cancelled_stdin_wait_leaves_the_queue() {
+    let o = exec_on_silent_stdin(
+        "scope(fn(s):\n  a = spawn(s, () => read_line())\n  until(() => reading() == 1)\n  cancel(a)\n  print(await(a), reading())\n;;)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("Err({kind: 'cancelled}) 0\n", "")
+    );
+}
+
 // --- exit from any task ---
 
 /// An exit from any task: the code is recorded, the entry ends with the
@@ -142,7 +154,7 @@ fn an_exit_inside_a_native_callback_ends_the_program() {
 }
 
 /// Lines printed by many tasks at once stay whole (each print is one write
-/// with the token held).
+/// on the run thread).
 #[test]
 fn printed_lines_stay_whole() {
     let (out, err, code) = run(
@@ -266,7 +278,7 @@ fn a_line_that_comes_later_wakes_the_reader() {
 
 /// A task waiting for a child process lets the others run: the process
 /// waits for a file that a process the entry starts creates, which
-/// could not happen if the first wait held the run token.
+/// could not happen if the first wait held the run thread.
 #[test]
 fn a_task_waiting_for_a_process_lets_others_run() {
     let dir = crate::testutil::temp_dir();

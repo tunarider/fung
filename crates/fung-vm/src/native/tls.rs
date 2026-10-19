@@ -11,18 +11,21 @@
 //!
 //! **Driving rustls without blocking.** The socket stays non-blocking. The
 //! handshake, reads and writes move bytes between rustls and the socket
-//! with `read_tls` / `write_tls` and, when the socket would block, wait in
-//! the task's `Watch` (`wait_io`) like the TCP calls: a cancellation of
-//! the task ends a wait in the handshake, a read or a write with E0701,
-//! and the connect deadline (`timeout`) covers the handshake.
+//! with `read_tls` / `write_tls` and, when the socket would block, say so
+//! (`wait_io`) like the TCP calls: the task parks on the event loop in
+//! the direction rustls needs and tries again (net.rs, `Attempt`). Every
+//! step can be tried again: rustls keeps what was read and what is still
+//! to send, and a write keeps how much of its text rustls took. A
+//! cancellation of the task ends a wait in the handshake, a read or a
+//! write with E0701, and the connect deadline (`timeout`) covers the
+//! handshake.
 //!
 //! **Locks.** A TLS connection has one more lock, around the rustls state
 //! (`Session`), since reading and writing both change it. It is held only
-//! for non-blocking steps (moving bytes, decrypting), never across a wait,
-//! so the one reader and the one writer a connection allows (net.rs) still
-//! run at once: a writer waiting for room in the socket does not keep a
-//! reader from decrypting what arrived, and the other way round. Each one
-//! keeps its own lock (`rd`, `wr`) for its whole call as for TCP.
+//! within one try, never across a wait, so the one reader and the one
+//! writer a connection allows (net.rs) still run at once: a writer
+//! waiting for room in the socket does not keep a reader from decrypting
+//! what arrived, and the other way round.
 //!
 //! **The end of the stream.** close_notify ends it; a TCP end without
 //! close_notify is an end too when it falls between records (popular
@@ -37,8 +40,8 @@
 //! `certificate has expired (valid until <ISO time>)`, `certificate is not
 //! valid yet`, `unknown certificate authority`, ``certificate is not valid
 //! for `host` ``, `TLS alert: <IANA name>` for an alert from the server,
-//! `the server did not answer with TLS`, `TLS handshake timed out`; any
-//! other rustls error is `TLS error: <rustls's text>`.
+//! `the server did not answer with TLS`; any other rustls error is `TLS
+//! error: <rustls's text>`.
 
 use std::io::{self, Read};
 use std::net::{IpAddr, TcpStream};
@@ -50,10 +53,10 @@ use rustls::client::Resumption;
 use rustls::pki_types::{ServerName, UnixTime};
 use rustls::{CertificateError, ClientConfig, ClientConnection, Error as TlsError, RootCertStore};
 
-use super::{CHUNK, Conn, Fail, lock, wait_io};
+use super::{Attempt, CHUNK, Conn, Fail, lock, wait_io};
 use crate::native::oserr;
 use crate::value::{Loc, Time};
-use crate::vm::{Interest, Waited, Watch};
+use crate::vm::Interest;
 
 /// The rustls state of one connection and the framing of what was read.
 pub(super) struct Session {
@@ -154,14 +157,8 @@ impl Records {
 /// A TCP end inside a record.
 const INSIDE_A_RECORD: &str = "connection closed inside a TLS record";
 
-/// Makes `c` (just connected, not shared yet) a TLS client of `host`:
-/// the session once the handshake is done. `deadline` is the connect's.
-pub(super) fn handshake(
-    w: &mut Watch,
-    c: &Conn,
-    host: &str,
-    deadline: Option<Instant>,
-) -> Result<Session, Fail> {
+/// A TLS client session for `host`, its handshake not begun.
+pub(super) fn start(host: &str) -> Result<Session, Fail> {
     if host.is_empty() {
         // there is no name to verify the certificate against
         return Err(Fail::Network("TLS needs a host name".into()));
@@ -169,29 +166,26 @@ pub(super) fn handshake(
     let name = ServerName::try_from(host.to_string())
         .map_err(|_| Fail::Network(format!("invalid TLS server name `{host}`")))?;
     let conn = ClientConnection::new(config(), name).map_err(|e| Fail::Network(reason(&e)))?;
-    let mut st = Session {
+    Ok(Session {
         conn,
         rec: Records::default(),
-    };
+    })
+}
+
+/// Goes on with `st`'s handshake over `c` (just connected, not shared
+/// yet) until it is done.
+pub(super) fn handshake(a: &mut Attempt, c: &Conn, st: &mut Session) -> Result<(), Fail> {
     let s = c.sock()?;
     let s = &s.0;
-    let timeout = || Fail::Timeout("TLS handshake timed out".into());
     loop {
-        if w.cancelled() {
+        if a.cancelled() {
             return Err(Fail::Cancelled);
-        }
-        if deadline.is_some_and(|d| Instant::now() >= d) {
-            return Err(timeout());
         }
         if st.conn.wants_write() {
             match st.conn.write_tls(&mut &*s) {
                 Ok(_) => {}
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if wait_io(w, &[(s.as_raw_fd(), Interest::Write)], deadline)?
-                        == Waited::TimedOut
-                    {
-                        return Err(timeout());
-                    }
+                    return Err(wait_io(a, s.as_raw_fd(), Interest::Write, None));
                 }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
                 Err(e) => return Err(Fail::Network(oserr::reason(&e))),
@@ -199,7 +193,7 @@ pub(super) fn handshake(
             continue;
         }
         if !st.conn.is_handshaking() {
-            return Ok(st);
+            return Ok(());
         }
         match st.read_tls(s) {
             Ok(0) => {
@@ -216,9 +210,7 @@ pub(super) fn handshake(
                 }
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                if wait_io(w, &[(s.as_raw_fd(), Interest::Read)], deadline)? == Waited::TimedOut {
-                    return Err(timeout());
-                }
+                return Err(wait_io(a, s.as_raw_fd(), Interest::Read, None));
             }
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(e) => return Err(Fail::Network(oserr::reason(&e))),
@@ -231,13 +223,13 @@ pub(super) fn handshake(
 pub(super) fn fill(
     c: &Conn,
     t: &Mutex<Session>,
-    w: &mut Watch,
+    a: &mut Attempt,
     s: &TcpStream,
     buf: &mut Vec<u8>,
 ) -> Result<usize, Fail> {
     let mut chunk = [0u8; CHUNK];
     loop {
-        if w.cancelled() {
+        if a.cancelled() {
             return Err(Fail::Cancelled);
         }
         if c.is_closed() {
@@ -279,10 +271,7 @@ pub(super) fn fill(
                 st.flush_quietly(s);
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                drop(st);
-                if wait_io(w, &[(s.as_raw_fd(), Interest::Read)], deadline)? == Waited::TimedOut {
-                    return Err(c.timed_out());
-                }
+                return Err(wait_io(a, s.as_raw_fd(), Interest::Read, deadline));
             }
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(_) if c.is_closed() => return Err(c.closed()),
@@ -291,17 +280,18 @@ pub(super) fn fill(
     }
 }
 
-/// `Conn::write` over TLS: all of `b`, encrypted and sent.
+/// `Conn::write` over TLS: all of `b`, encrypted and sent; `off` bytes
+/// of it rustls took in earlier tries.
 pub(super) fn write(
     c: &Conn,
     t: &Mutex<Session>,
-    w: &mut Watch,
+    a: &mut Attempt,
     s: &TcpStream,
     b: &[u8],
+    off: &mut usize,
 ) -> Result<(), Fail> {
-    let mut off = 0;
     loop {
-        if w.cancelled() {
+        if a.cancelled() {
             return Err(Fail::Cancelled);
         }
         if c.is_closed() {
@@ -312,13 +302,13 @@ pub(super) fn write(
             return Err(c.timed_out());
         }
         let mut st = lock(t);
-        if off < b.len() {
+        if *off < b.len() {
             // takes what fits in rustls's send buffer
-            off += io::Write::write(&mut st.conn.writer(), &b[off..])
+            *off += io::Write::write(&mut st.conn.writer(), &b[*off..])
                 .map_err(|e| Fail::Network(format!("TLS error: {e}")))?;
         }
         if !st.conn.wants_write() {
-            if off >= b.len() {
+            if *off >= b.len() {
                 return Ok(());
             }
             continue;
@@ -326,10 +316,7 @@ pub(super) fn write(
         match st.conn.write_tls(&mut &*s) {
             Ok(_) => {}
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                drop(st);
-                if wait_io(w, &[(s.as_raw_fd(), Interest::Write)], deadline)? == Waited::TimedOut {
-                    return Err(c.timed_out());
-                }
+                return Err(wait_io(a, s.as_raw_fd(), Interest::Write, deadline));
             }
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
             Err(_) if c.is_closed() => return Err(c.closed()),

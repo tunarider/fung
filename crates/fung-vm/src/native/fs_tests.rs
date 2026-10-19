@@ -26,7 +26,8 @@ fn call(name: &str, args: Vec<Value>) -> Result<Value, Stop> {
         Box::new(Cursor::new(Vec::new())),
         SourceMap::default(),
     );
-    let r = (n.func)(&mut rt.task(), args);
+    // Step natives need the run loop (`vm/cont.rs`).
+    let r = rt.task().call_root(&Value::Native(n), args);
     drop(rt);
     r
 }
@@ -855,7 +856,7 @@ print([h], h)"#,
 
 /// Review Focus 2: eight tasks write 200 lines each into one handle at
 /// the same time; every line arrives whole (the handle's lock covers a
-/// whole `write_line`, which runs without the run token). The lines are
+/// whole `write_line`, which runs on a pool thread). The lines are
 /// not a divisor of the 64 KiB buffer, so flushes fall inside lines.
 #[test]
 fn concurrent_write_lines_stay_whole() {
@@ -933,10 +934,10 @@ print(fs.open(p) |> is_ok, fs.with_open(p, read_lines))"#,
     );
 }
 
-/// File input and output run without the run token: two tasks open the
+/// File input and output run on a pool thread: two tasks open the
 /// two ends of a FIFO, and each open blocks until the other end is open,
 /// in whichever order they run; then one writes and the other reads.
-/// Holding the token while blocked would never end (the bound turns that
+/// Blocking the run thread on one open would never end (the bound turns that
 /// into a failure; no sleep orders the tasks). The writer uses 'append
 /// (write only): 'write opens read-write, which does not wait for a
 /// reader, so its data could be gone before the reader opens.
@@ -960,11 +961,121 @@ fn file_io_runs_without_the_run_token() {
     });
     let (out, err) = rx
         .recv_timeout(std::time::Duration::from_secs(60))
-        .expect("blocked file input held the run token");
+        .expect("blocked file input held the run thread");
     assert_eq!(
         (out.as_str(), err.as_str()),
         ("Ok(nil) Ok([\"l0\", \"l1\", \"l2\"])\n", "")
     );
+}
+
+/// A FIFO in a fresh scratch directory: a read of it blocks in `open`
+/// until a writer comes.
+fn fifo(tag: &str) -> (Scratch, PathBuf) {
+    let d = Scratch::new(tag);
+    let f = d.at("pipe");
+    let made = std::process::Command::new("mkfifo")
+        .arg(&f)
+        .status()
+        .unwrap();
+    assert!(made.success());
+    (d, f)
+}
+
+/// Opens `f` for writing and closes it on a thread of its own: an
+/// abandoned read blocked in `open` then ends (the test leaves no pool
+/// thread stuck behind it).
+fn release_fifo(f: &Path) {
+    let f = f.to_path_buf();
+    std::thread::spawn(move || drop(std::fs::OpenOptions::new().write(true).open(f)));
+}
+
+/// Runs `src` (with the job natives) on a thread of its own, bounded:
+/// (stdout, stderr, how long it took).
+fn bounded(src: String) -> (String, String, std::time::Duration) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let start = std::time::Instant::now();
+        let o = exec(
+            &src,
+            Opts {
+                extra: testutil::jobs::job_natives,
+                ..Opts::default()
+            },
+        );
+        let _ = tx.send((o.out, o.err, start.elapsed()));
+    });
+    rx.recv_timeout(std::time::Duration::from_secs(20))
+        .expect("the run did not end")
+}
+
+/// A read of a path only reads, so a deadline lets it go at once (spec
+/// 15): the job stays blocked on its pool thread and its result is
+/// dropped. The L2 limit (file waits not cut by a deadline) is closed.
+#[test]
+fn a_deadline_ends_a_read_of_a_fifo() {
+    let (_d, f) = fifo("deadline-read");
+    let (out, err, took) = bounded(format!(
+        "import fs\nprint(timeout(50ms, () => fs.read(\"{}\")))",
+        f.display()
+    ));
+    release_fifo(&f);
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        ("Err({kind: 'timeout})\n", "")
+    );
+    assert!(took < std::time::Duration::from_secs(2), "{took:?}");
+}
+
+/// A cancellation lets a read go as a deadline does.
+#[test]
+fn a_cancel_ends_a_read_of_a_fifo() {
+    let (_d, f) = fifo("cancel-read");
+    let (out, err, took) = bounded(format!(
+        "{}import fs\nprint(scope(fn(s):\n  spawn(s, () => fs.read(\"{}\"))\n  until(() => pool_state()[0] - pool_state()[1] == 1)\n  cancel(s)\n;;))",
+        testutil::UNTIL,
+        f.display()
+    ));
+    release_fifo(&f);
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        ("Err({kind: 'cancelled})\n", "")
+    );
+    assert!(took < std::time::Duration::from_secs(2), "{took:?}");
+}
+
+/// A write changes something, so once it runs it is waited for past the
+/// deadline: the write lands before the call gives up, never after. The
+/// write to a FIFO blocks in `open` until a reader comes; the reader
+/// comes only once the job runs (pool state) and the deadline has passed
+/// meanwhile.
+#[test]
+fn a_running_write_is_waited_for() {
+    let (_d, f) = fifo("running-write");
+    let s = testutil::setup(
+        &format!(
+            "import fs\nprint(timeout(100ms, () => fs.write(\"{}\", \"x\")))",
+            f.display()
+        ),
+        Opts::default(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let sh = s.rt.shared();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let running = testutil::jobs::until(|| {
+            sh.pool.threads() == 1 && sh.pool.idle() == 0 && sh.pool.queued() == 0
+        });
+        // Not an order: only time for the deadline to pass.
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let _ = tx.send((running, std::fs::read_to_string(f).unwrap()));
+    });
+    s.rt.run().unwrap();
+    let (running, data) = rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("the reader never got the write");
+    assert!(running, "the write job never ran");
+    assert_eq!(data, "x");
+    assert_eq!(s.out.text(), "Ok(nil)\n");
 }
 
 // --- whole runs against their expected output ---
@@ -1195,18 +1306,12 @@ fn runs_match_the_expected_output() {
 fn mkdir_over_a_file_is_exists() {
     let d = Scratch::new("mkdir-file");
     std::fs::write(d.at("f"), "x").unwrap();
-    let got = show(call("mkdir", vec![p(&d.at("f")), Value::Bool(true)]));
+    let got = show(call("mkdir", vec![p(&d.at("f"))]));
     assert!(got.starts_with("Err({kind: 'exists,"), "{got}");
-    let got = show(call("mkdir", vec![p(&d.at("f/sub")), Value::Bool(true)]));
+    let got = show(call("mkdir", vec![p(&d.at("f/sub"))]));
     assert!(got.contains("not a directory"), "{got}");
-    assert_eq!(
-        show(call("mkdir", vec![p(&d.at("a/b/c")), Value::Bool(true)])),
-        "Ok(nil)"
-    );
-    assert_eq!(
-        show(call("mkdir", vec![p(&d.at("a/b")), Value::Bool(true)])),
-        "Ok(nil)"
-    );
+    assert_eq!(show(call("mkdir", vec![p(&d.at("a/b/c"))])), "Ok(nil)");
+    assert_eq!(show(call("mkdir", vec![p(&d.at("a/b"))])), "Ok(nil)");
 }
 
 #[test]
@@ -1357,4 +1462,29 @@ fn with_open_tolerates_a_handle_f_closed() {
     );
     let o = exec(&src, Opts::default());
     assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(nil)\n", ""));
+}
+
+/// Each fs native hands its system calls off in one job (R1a); a
+/// `with_temp_dir` makes the directory and removes it, two jobs.
+#[test]
+fn fs_natives_offload() {
+    let d = Scratch::new("offload");
+    let src = format!(
+        "import fs\n\
+         fn count(f):\n  n = offloads()\n  f()\n  offloads() - n\n;;\n\
+         print(count(() => fs.write(\"{0}/a.txt\", \"x\")!))\n\
+         print(count(() => fs.read(\"{0}/a.txt\")!))\n\
+         print(count(() => fs.glob(\"{0}/*.txt\")!))\n\
+         print(count(fn():\n  h = fs.open(\"{0}/b.txt\", 'write)!\n  fs.write_line(h, \"y\")!\n  fs.close(h)!\n;;))\n\
+         print(count(() => fs.with_temp_dir(d => d)))",
+        d.text()
+    );
+    let o = exec(
+        &src,
+        Opts {
+            extra: testutil::probes,
+            ..Opts::default()
+        },
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("1\n1\n1\n3\n2\n", ""));
 }

@@ -16,6 +16,10 @@ pub(super) struct Frame {
     pub globals: Globals,
     /// How many tail calls reused this frame (shown in call paths).
     pub tail_calls: u64,
+    /// The function of a built-in module that user code called and that
+    /// this frame runs inside of (itself, or a helper it went on to,
+    /// through calls and tail calls): what E0707 names (`user_callee`).
+    pub entry: Option<Rc<RtProto>>,
 }
 
 impl Frame {

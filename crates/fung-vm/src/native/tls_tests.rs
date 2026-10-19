@@ -628,3 +628,22 @@ fn start_tls_refuses_a_connection_in_use() {
         )
     );
 }
+
+/// TLS runs over the event loop as TCP does: its handshake, writes and
+/// reads hand nothing off to a thread (`offloads()` stays).
+#[test]
+fn tls_natives_park_on_the_loop() {
+    let _g = serial();
+    let _t = trust_ca();
+    let (port, h) = tls_peer("localhost", |mut s| {
+        let mut b = [0u8; 2];
+        s.read_exact(&mut b).unwrap();
+        s.write_all(b"ok\n").unwrap();
+        close_notify(&mut s);
+    });
+    let o = run(&format!(
+        "n0 = offloads()\nc = net.connect(\"127.0.0.1\", {port}, tls: true)!\nnet.write(c, \"x\\n\")!\nprint(net.read_line(c, 10))\nprint(offloads() - n0)\nnet.close(c)!"
+    ));
+    h.join().unwrap();
+    assert_eq!(out(&o), ("Ok(\"ok\")\n0\n", "", 0));
+}

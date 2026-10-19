@@ -2717,25 +2717,31 @@
 | error[E0110]: unexpected `.`
 |   --> in/extras~http@contsplit.fung:20:1
 |    |
-| 20 | .conc as _c
+| 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `:` after the match subject, found end of file
-|   --> in/extras~http@halfbytes.fung:953:20
+| error[E0104]: unterminated string
+|   --> in/extras~http@halfbytes.fung:941:20
 |     |
-| 953 |     match parse_int
+| 941 |     Ok((remove(h1, "C
 |     |                    ^
 |     |
-| error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:186:5
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/extras~http@halflines.fung:966:1
 |     |
-| 186 | else
+| 966 | 
+|     | ^
+|     |
+| error[E0112]: expected `:` or `if` after else, found newline
+|   --> in/extras~http@opsplit.fung:185:5
+|     |
+| 185 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected tag `Ok`
-|   --> in/extras~http@split.fung:91:5
+|   --> in/extras~http@split.fung:90:5
 |    |
-| 91 |     Ok(
+| 90 |     Ok(
 |    |     ^
 |    |
 | error[E0110]: unexpected `.`
@@ -7564,25 +7570,31 @@
 | error[E0110]: unexpected `.`
 |   --> in/extras~http@contsplit.fung:20:1
 |    |
-| 20 | .conc as _c
+| 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `:` after the match subject, found end of file
-|   --> in/extras~http@halfbytes.fung:953:20
+| error[E0104]: unterminated string
+|   --> in/extras~http@halfbytes.fung:941:20
 |     |
-| 953 |     match parse_int
+| 941 |     Ok((remove(h1, "C
 |     |                    ^
 |     |
-| error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:186:5
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/extras~http@halflines.fung:966:1
 |     |
-| 186 | else
+| 966 | 
+|     | ^
+|     |
+| error[E0112]: expected `:` or `if` after else, found newline
+|   --> in/extras~http@opsplit.fung:185:5
+|     |
+| 185 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected tag `Ok`
-|   --> in/extras~http@split.fung:91:5
+|   --> in/extras~http@split.fung:90:5
 |    |
-| 91 |     Ok(
+| 90 |     Ok(
 |    |     ^
 |    |
 | error[E0110]: unexpected `.`
@@ -9963,27 +9975,27 @@
 | crates~fung-cli~tests~data~test_ends~task_exit@trailing.fung 183 55e0c2b1ed9e6a28
 | crates~fung-cli~tests~data~test_ends~task_exit@wide4.fung 183 55e0c2b1ed9e6a28
 | crates~fung-cli~tests~data~test_ends~top_task_exit.fung unchanged
-| crates~fung-cli~tests~data~test_ends~top_task_exit@bom.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@cglued.fung 444 90e2c47514f8c90c
+| crates~fung-cli~tests~data~test_ends~top_task_exit@bom.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@cglued.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~top_task_exit@cnospace.fung unchanged
 | crates~fung-cli~tests~data~test_ends~top_task_exit@contsplit.fung unchanged
-| crates~fung-cli~tests~data~test_ends~top_task_exit@cpushed.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@crlf.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@dedent.fung 444 90e2c47514f8c90c
+| crates~fung-cli~tests~data~test_ends~top_task_exit@cpushed.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@crlf.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@dedent.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~top_task_exit@halfbytes.fung 223 921c48780d27dc8e
 | crates~fung-cli~tests~data~test_ends~top_task_exit@halflines.fung unchanged
 | crates~fung-cli~tests~data~test_ends~top_task_exit@joined.fung unchanged
-| crates~fung-cli~tests~data~test_ends~top_task_exit@moreblank.fung 455 19363ce18fea9186
+| crates~fung-cli~tests~data~test_ends~top_task_exit@moreblank.fung 456 2fc30d888f9e51cd
 | crates~fung-cli~tests~data~test_ends~top_task_exit@noblank.fung unchanged
-| crates~fung-cli~tests~data~test_ends~top_task_exit@nofinal.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@odd3.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@opsplit.fung 448 56d60bc60f12ad68
-| crates~fung-cli~tests~data~test_ends~top_task_exit@spaced.fung 444 90e2c47514f8c90c
+| crates~fung-cli~tests~data~test_ends~top_task_exit@nofinal.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@odd3.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@opsplit.fung 449 93ccc55f70aae04f
+| crates~fung-cli~tests~data~test_ends~top_task_exit@spaced.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~top_task_exit@split.fung unchanged
-| crates~fung-cli~tests~data~test_ends~top_task_exit@tabs.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@tight.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@trailing.fung 444 90e2c47514f8c90c
-| crates~fung-cli~tests~data~test_ends~top_task_exit@wide4.fung 444 90e2c47514f8c90c
+| crates~fung-cli~tests~data~test_ends~top_task_exit@tabs.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@tight.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@trailing.fung 445 076bafc6befa2cf7
+| crates~fung-cli~tests~data~test_ends~top_task_exit@wide4.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~z_next.fung unchanged
 | crates~fung-cli~tests~data~test_ends~z_next@bom.fung 51 bb1db02e4fe1ae07
 | crates~fung-cli~tests~data~test_ends~z_next@cglued.fung unchanged
@@ -10689,27 +10701,27 @@
 | extras~fs@trailing.fung 1708 98fbff77076fa532
 | extras~fs@wide4.fung 1708 98fbff77076fa532
 | extras~http.fung unchanged
-| extras~http@bom.fung 69009 1a74b4ac27c57ed0
-| extras~http@cglued.fung 69009 1a74b4ac27c57ed0
+| extras~http@bom.fung 68499 16b10ab6f6c646b3
+| extras~http@cglued.fung 68499 16b10ab6f6c646b3
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 69009 1a74b4ac27c57ed0
-| extras~http@crlf.fung 69009 1a74b4ac27c57ed0
-| extras~http@dedent.fung 69009 1a74b4ac27c57ed0
+| extras~http@cpushed.fung 68499 16b10ab6f6c646b3
+| extras~http@crlf.fung 68499 16b10ab6f6c646b3
+| extras~http@dedent.fung 68499 16b10ab6f6c646b3
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 69411 e5cddaf5cb450320
+| extras~http@moreblank.fung 68895 5ef067fef6abccbd
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 69009 1a74b4ac27c57ed0
-| extras~http@odd3.fung 69009 1a74b4ac27c57ed0
+| extras~http@nofinal.fung 68499 16b10ab6f6c646b3
+| extras~http@odd3.fung 68499 16b10ab6f6c646b3
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 69009 1a74b4ac27c57ed0
+| extras~http@spaced.fung 68499 16b10ab6f6c646b3
 | extras~http@split.fung unchanged
-| extras~http@tabs.fung 69009 1a74b4ac27c57ed0
-| extras~http@tight.fung 69009 1a74b4ac27c57ed0
-| extras~http@trailing.fung 69009 1a74b4ac27c57ed0
-| extras~http@wide4.fung 69009 1a74b4ac27c57ed0
+| extras~http@tabs.fung 68499 16b10ab6f6c646b3
+| extras~http@tight.fung 68499 16b10ab6f6c646b3
+| extras~http@trailing.fung 68499 16b10ab6f6c646b3
+| extras~http@wide4.fung 68499 16b10ab6f6c646b3
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1

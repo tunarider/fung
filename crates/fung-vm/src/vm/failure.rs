@@ -8,16 +8,15 @@
 //! plus the error with its excerpt and call path, and the program's exit
 //! code becomes 1.
 //!
-//! Every report is written with the run token held. The report text is
+//! Every report is written on the run thread. The report text is
 //! made when the task fails, with the task holding the world's sources,
 //! so writing it needs only standard error, which this reaches without
 //! the world (`Failures` is shared through an `Arc`; its mutex is never
-//! contended, since only the token's holder takes it).
+//! contended, since only the run thread takes it).
 
 use std::io::Write;
 use std::sync::{Mutex, PoisonError};
 
-use super::token;
 use super::world::Stream;
 
 /// Whether a failure was reported, and where reports go.
@@ -37,7 +36,6 @@ impl Failures {
 
     /// Reports a failure nobody will handle.
     pub(crate) fn report_now(&self, text: &str) {
-        token::assert_holds_token();
         *self.failed.lock().unwrap_or_else(PoisonError::into_inner) = true;
         let mut w = self.stderr.clone();
         let _ = w.write_all(text.as_bytes());

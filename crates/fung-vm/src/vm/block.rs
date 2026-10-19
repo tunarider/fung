@@ -1,48 +1,40 @@
-//! The one place a task waits (stage 3a: 막히는 지점).
+//! Where a task waits (stage 3a: 막히는 지점; since R1b on the scheduler).
 //!
-//! Every operation that waits for another task goes through `block`:
-//! `await`, `sleep`, `send`, `recv` and `swap`. It registers the
-//! task's `Waiter` on what it waits for, gives the run token up while it
-//! sleeps until woken (`Token::sleep`), so other tasks run, and takes it
-//! back to check its condition. An event wakes only the waiters
-//! registered on what changed. A timeout ends the wait with
-//! `None`; cancellation ends it with E0701. Waits for the operating system
-//! (standard input, a child process) go through `outside` instead: the
-//! token is given up for the call, and the wait is not a blocked task for
-//! the deadlock check.
+//! A native that waits for another task does not sleep itself: it
+//! registers the task's `Waiter` on what it waits for and returns a park
+//! request (`Next::Park`, `cont.rs`; `park_until` is the common form). The
+//! run loop returns to the scheduler (`sched.rs`), which keeps the task
+//! aside until a wake, its deadline or a cancellation; then the parked
+//! continuation looks again. An event wakes only the waiters registered
+//! on what changed. Waits for the operating system are handed off
+//! (`nat::offload`, `offload.rs`).
 //!
 //! Turn handoff (차례 넘기기) lives here too: a task that computes without
-//! blocking gives the token to the tasks waiting for it every
-//! `YIELD_EVERY` calls (`Task::tick`).
-//!
-//! When tasks become green threads, `block` parks the task and returns to
-//! a scheduler, but the seam is wider than this file. What changes is
-//! every place a task's thread sleeps or starts: `Token::sleep`,
-//! `Token::yield_turn` and `Gate` (`world.rs`), `Waiter`'s park and
-//! unpark (here), `Task::spawn` (`task.rs`) and `Reader::wait`
-//! (`stdin.rs`).
+//! waiting gives its turn every `YIELD_EVERY` calls (`Task::tick`).
 
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
-use std::thread::Thread;
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use fung_front::diag::error;
 use fung_front::source::Pos;
 
-use super::{CancelNode, Stop, Task, World, token};
+use super::sched::{FiberId, Ready};
+use super::{CancelNode, Stop, Task};
+use crate::value::Value;
 
-/// How many calls and backward jumps a task makes between checks whether
-/// another task waits for the token. With no other task waiting, the
-/// check is one atomic load, so the value only matters under contention:
-/// it is the length of a computing task's turn. Measured (release, two
-/// spinning tasks against one doing the same work alone; and a task
-/// doing 200 `sleep(1ms)` next to a spinner): a handoff costs about 3.5
-/// µs, so 2,000 cost 8% of the throughput of two spinners and 10,000 1%,
-/// while a woken task waits about half a millisecond for its turn at
-/// 10,000 (0.7 ms over its sleep at 20,000, 8.6 ms at 200,000).
-pub(crate) const YIELD_EVERY: u32 = 10_000;
+/// How many calls and backward jumps a task makes before it gives its
+/// turn (`Task::tick`): the length of a computing task's turn. Giving the
+/// turn returns to the scheduler (`sched.rs`), which is cheap, so the
+/// value trades how soon a woken task runs next to a computing one against
+/// how often the scheduler is entered. Measured (R1b, release, Apple M2
+/// Max, 11-run medians): a task doing 200 `sleep(1ms)` next to a spinner
+/// took 0.308 s at 10,000, 0.226 s at 2,000, 0.216 s at 1,000, 0.212 s at
+/// 500 and 0.210 s at 200 (0.2 s is no delay); `fib`, `loop`, `list` and
+/// two `fib(27)` tasks were the same within noise (±2%) at every value.
+/// Below 1,000 a woken task gains under 0.03 ms while the scheduler is
+/// entered five times as often, so 1,000.
+pub(crate) const YIELD_EVERY: u32 = 1_000;
 
 /// E0701 `task cancelled`, the internal error a cancelled task unwinds
 /// with (never printed: its handle turns it into `Err({kind: 'cancelled})`).
@@ -51,108 +43,51 @@ pub(crate) fn cancelled(pos: Pos) -> Stop {
     Stop::Error(Box::new(error("E0701", pos, Vec::new())))
 }
 
-/// How many live tasks are blocked in `block`, and how many of those a
-/// timer will wake: what the deadlock check (`deadlock.rs`) compares with
-/// `World::live`.
-///
-/// A blocked task is counted from the moment it decides to sleep until
-/// it is woken: the waker uncounts it (`Waiter::wake`), with the token
-/// held, before the woken task has run again. So `blocked` is exactly
-/// the number of live tasks that cannot run until another task wakes
-/// them. The fields are atomics only so that a waiter can change them
-/// without reaching the world; every change happens with the token held.
-#[derive(Default)]
-pub(crate) struct Census {
-    blocked: AtomicUsize,
-    waking: AtomicUsize,
-}
-
-impl Census {
-    pub(crate) fn blocked(&self) -> usize {
-        self.blocked.load(Ordering::Relaxed)
-    }
-
-    pub(crate) fn waking(&self) -> usize {
-        self.waking.load(Ordering::Relaxed)
-    }
-}
-
-/// `Waiter::counted`: not counted, blocked, blocked with a timer.
-const FREE: u8 = 0;
-const BLOCKED: u8 = 1;
-const TIMED: u8 = 2;
-
-/// A blocked task's wake-up call: the thread to unpark and a flag that
-/// says it was woken (park can return spuriously; the flag is the truth).
-/// Each `Task` has one for its life; `block` registers it on what the
-/// task waits for, and whoever changes that thing wakes the waiters
-/// registered on it, and only those. It also carries the task's place in
-/// the `Census` while it is blocked.
+/// A task's wake-up call: its number and the ready queue (`sched.rs`),
+/// and a flag that says it was woken since it last looked. Each task has
+/// one for its life; a wait registers it on what the task waits for, and
+/// whoever changes that thing wakes the waiters registered on it, and
+/// only those. Any thread may wake it (an offload's job, the standard
+/// input reader).
 pub(crate) struct Waiter {
-    thread: Thread,
+    id: FiberId,
     woken: AtomicBool,
-    /// `FREE`, `BLOCKED` or `TIMED`: whether this waiter is counted as
-    /// blocked in `census`.
-    counted: AtomicU8,
-    census: Arc<Census>,
+    ready: Arc<Ready>,
 }
 
 impl Waiter {
-    /// A waiter for the current thread, counted in `census` when blocked.
-    pub(crate) fn new(census: Arc<Census>) -> Arc<Waiter> {
+    /// The waiter of task `id`, which `ready` runs.
+    pub(crate) fn new(id: FiberId, ready: Arc<Ready>) -> Arc<Waiter> {
         Arc::new(Waiter {
-            thread: std::thread::current(),
+            id,
             woken: AtomicBool::new(false),
-            counted: AtomicU8::new(FREE),
-            census,
+            ready,
         })
     }
 
-    /// Wakes the task: it is no longer blocked from this moment (it is
-    /// uncounted here, under the waker's token, not when it runs).
+    pub(crate) fn id(&self) -> FiberId {
+        self.id
+    }
+
+    /// Wakes the task: it goes on the ready queue, once until it looks
+    /// again (`take_woken`).
     pub(crate) fn wake(&self) {
-        self.uncount();
-        self.woken.store(true, Ordering::Release);
-        self.thread.unpark();
-    }
-
-    /// Counts the task as blocked (with a timer if `timed`); false if it
-    /// already was.
-    fn count(&self, timed: bool) -> bool {
-        let state = if timed { TIMED } else { BLOCKED };
-        if self.counted.swap(state, Ordering::Relaxed) != FREE {
-            return false;
-        }
-        self.census.blocked.fetch_add(1, Ordering::Relaxed);
-        if timed {
-            self.census.waking.fetch_add(1, Ordering::Relaxed);
-        }
-        true
-    }
-
-    /// Takes the task out of the count, if it is in it.
-    fn uncount(&self) {
-        match self.counted.swap(FREE, Ordering::Relaxed) {
-            FREE => {}
-            state => {
-                self.census.blocked.fetch_sub(1, Ordering::Relaxed);
-                if state == TIMED {
-                    self.census.waking.fetch_sub(1, Ordering::Relaxed);
-                }
-            }
+        if !self.woken.swap(true, Ordering::AcqRel) {
+            self.ready.push(self.id);
         }
     }
 
-    /// Takes the woken flag (true once per wake).
-    pub(super) fn take_woken(&self) -> bool {
-        self.woken.swap(false, Ordering::Acquire)
+    /// Takes the woken flag (true once per wake). A wait takes it before
+    /// it registers the waiter, so a wake after that queues the task.
+    pub(crate) fn take_woken(&self) -> bool {
+        self.woken.swap(false, Ordering::AcqRel)
     }
 }
 
 /// The waiters registered on one thing a task can wait for (a task's
 /// result, a cancellation node, the runtime's last running task; a
 /// channel keeps one waiter per queued slot instead, `channel.rs`).
-/// Changed only with the token held
+/// Changed only on the run thread
 /// (or under the node's own lock for cancellation nodes).
 ///
 /// `wake_all` empties it, so a waiter is woken at most once per
@@ -177,143 +112,359 @@ impl WaitList {
     }
 }
 
-/// Waits until `ready` gives a value (`Some`), the timeout passes (`None`)
-/// or the task is cancelled (E0701, or E0702 once a deadlock was
-/// reported).
-///
-/// `ready(world, me)` runs with the token held, at the start and after
-/// every wakeup. When it returns `None` it must register `me` on what it
-/// waits for (`WaitList::add`); whoever changes that thing, holding the
-/// token, calls `wake_all` on the list. `block` itself registers `me` on
-/// the task's cancellation node.
-///
-/// No wakeup is lost: the woken flag is cleared and `me` registered
-/// before the check, all with the token held; a change needs the token,
-/// so it comes after the check and finds `me` registered, and its wake
-/// sets the flag the sleep below looks at before it parks.
-///
-/// A condition already true returns at once, even in a cancelled task
-/// (nothing to wait for); after a wait, cancellation wins over a condition
-/// that came true at the same time (it is checked first).
-///
-/// Deadlock (05, `deadlock.rs`): a live task counts itself blocked just
-/// before it sleeps, after its condition was found false, and the check
-/// runs right then. A wake uncounts it; if its condition is still false
-/// it counts itself again and the check runs again.
-pub(crate) fn block<T>(
-    t: &mut Task<'_>,
-    ready: impl FnMut(&mut World, &Arc<Waiter>) -> Option<T>,
-    timeout: Option<Duration>,
-) -> Result<Option<T>, Stop> {
-    block_until(t, ready, deadline_after(timeout), timeout.is_some())
-}
+/// The poll of a [`park_until`] wait.
+type Poll = Box<dyn FnMut(&mut Task<'_>, &Arc<Waiter>) -> Option<Result<Value, Stop>>>;
 
-/// The deadline `timeout` from now; a deadline past what `Instant` can
-/// hold is no deadline.
-pub(crate) fn deadline_after(timeout: Option<Duration>) -> Option<Instant> {
-    timeout.and_then(|d| Instant::now().checked_add(d))
-}
-
-/// `block` with the deadline already computed, for a waiter whose
-/// deadline others must see too (a channel receiver's slot): the wait
-/// times out exactly when `Instant::now() >= deadline`. `timed` says a
-/// timeout was given (it counts for the deadlock check even when the
-/// deadline is too far to hold).
-pub(crate) fn block_until<T>(
+/// Waits for `poll` to give a result, parking the task between looks:
+/// the common wait whose condition one closure checks (`block`'s
+/// `ready`). `poll` runs on the run thread, first at once and then
+/// after every wake; when it returns `None` it must have registered the
+/// waiter on what it waits for.
+pub(crate) fn park_until(
     t: &mut Task<'_>,
-    mut ready: impl FnMut(&mut World, &Arc<Waiter>) -> Option<T>,
-    deadline: Option<Instant>,
-    timed: bool,
-) -> Result<Option<T>, Stop> {
-    token::assert_holds_token();
-    // A deadline over the task's node (`deadline.rs`) ends the wait too,
-    // as a cancellation, and makes it one a timer ends.
-    let over = t.cancel.deadline_at();
-    let until = match (deadline, over) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    };
-    let timed = timed || over.is_some();
+    mut poll: impl FnMut(&mut Task<'_>, &Arc<Waiter>) -> Option<Result<Value, Stop>> + 'static,
+    wake: super::Wake,
+) -> Result<super::Flow, Stop> {
     let me = t.waiter.clone();
     me.take_woken();
-    if let Some(v) = ready(&mut t.world, &me) {
-        return Ok(Some(v));
+    if let Some(r) = poll(t, &me) {
+        return r.map(super::Flow::Done);
     }
-    t.cancel.watch(&me);
-    let r = loop {
-        if t.cancel.is_cancelled() {
-            break Err(t.unwound());
-        }
-        let now = Instant::now();
-        if over.is_some_and(|at| now >= at) && t.cancel.expire_due(now) {
-            break Err(t.unwound());
-        }
-        if deadline.is_some_and(|at| now >= at) {
-            break Ok(None);
-        }
-        if t.live && me.count(timed) && t.judge() {
-            // A deadlock was reported, which cancelled this task (unless
-            // it runs under a node nothing cancels): check again.
-            continue;
-        }
-        t.world.sleep(&me, until);
-        token::assert_holds_token();
-        if t.cancel.is_cancelled() {
-            break Err(t.unwound());
-        }
-        me.take_woken();
-        t.cancel.watch(&me);
-        if let Some(v) = ready(&mut t.world, &me) {
-            break Ok(Some(v));
-        }
-    };
-    // A woken task was uncounted by its waker; one that leaves without a
-    // wake (its timeout passed, or its own deadlock check cancelled it)
-    // uncounts itself.
-    me.uncount();
-    token::assert_holds_token();
-    r
+    Ok(super::Flow::Park(
+        Box::new(Parked {
+            poll: Box::new(poll),
+            wake,
+            on_stop: None,
+        }),
+        wake,
+    ))
 }
 
-/// Runs `f` without the run token: for a wait on the operating system
-/// (reading standard input, waiting for a child process) during which
-/// other tasks should run. `f` and its result are `Send`, so they can
-/// hold no fung value (`Value` is not `Send`, nor is a reference to one):
-/// nothing can touch values while the token is away.
+/// [`park_until`] with `on_stop` run when a stop (a cancellation, a
+/// deadline) ends the wait: to take the waiter off what it waited on.
+pub(crate) fn park_until_then(
+    t: &mut Task<'_>,
+    mut poll: impl FnMut(&mut Task<'_>, &Arc<Waiter>) -> Option<Result<Value, Stop>> + 'static,
+    wake: super::Wake,
+    on_stop: impl FnMut(&mut Task<'_>) + 'static,
+) -> Result<super::Flow, Stop> {
+    let me = t.waiter.clone();
+    me.take_woken();
+    if let Some(r) = poll(t, &me) {
+        return r.map(super::Flow::Done);
+    }
+    Ok(super::Flow::Park(
+        Box::new(Parked {
+            poll: Box::new(poll),
+            wake,
+            on_stop: Some(Box::new(on_stop)),
+        }),
+        wake,
+    ))
+}
+
+/// What a look of a [`park_io`] wait found.
+pub(crate) enum IoStep {
+    /// The wait is over.
+    Done(Result<Value, Stop>),
+    /// Wait until the descriptor is ready for the interest (or the
+    /// deadline passes).
+    Wait(std::os::fd::RawFd, super::poller::Interest, Option<Instant>),
+    /// Wait for a wake only: the waiter is registered elsewhere (a
+    /// connection's turn, `net.rs`).
+    Park,
+}
+
+/// The look of a wait on a descriptor.
+type IoPoll = Box<dyn FnMut(&mut Task<'_>, &Arc<Waiter>) -> IoStep>;
+
+/// Parks until a descriptor is ready (R4a): `poll` tries the system
+/// call and, when it would block, says on which descriptor and for what
+/// (`IoStep::Wait`); the task registers that in the event loop under a
+/// fresh token and parks, then looks again when the loop says it is
+/// ready, a deadline passes, or something else wakes it. Each look may
+/// wait on another descriptor (a TLS handshake reads and writes). Such a
+/// park is one the world outside ends (not a deadlock). `on_stop` runs
+/// when a stop unwinds the wait.
 ///
-/// A panic in `f` is caught, the token taken back, and the panic resumed:
-/// unwinding then drops the values of the native frames above with the
-/// token held, and the panic fence reports it as E0801.
-pub(crate) fn outside<T: Send>(t: &mut Task<'_>, f: impl FnOnce() -> T + Send) -> T {
-    token::assert_holds_token();
-    t.world.release();
-    let r = catch_unwind(AssertUnwindSafe(f));
-    t.world.reacquire();
-    token::assert_holds_token();
-    // A deadline that passed meanwhile is enforced now, with the token
-    // held (`deadline.rs`): the next tick unwinds. Waits that end early on
-    // the deadline (`Watch`, standard input) leave the expiry to this.
-    if let Some(at) = t.cancel.deadline_at() {
-        let now = Instant::now();
-        if now >= at {
-            t.cancel.expire_due(now);
+/// The token names this one registration: when the wait ends (its event
+/// came, or a timer, a stop, a wake for something else) it leaves the
+/// table, so a later event under it wakes nobody (`Sched::poll_io`).
+pub(crate) fn park_io(
+    t: &mut Task<'_>,
+    poll: impl FnMut(&mut Task<'_>, &Arc<Waiter>) -> IoStep + 'static,
+    on_stop: impl FnMut(&mut Task<'_>) + 'static,
+) -> Result<super::Flow, Stop> {
+    let me = t.waiter.clone();
+    me.take_woken();
+    let mut w = IoWait {
+        regs: IoRegs::default(),
+        poll: Box::new(poll),
+        on_stop: Box::new(on_stop),
+    };
+    let step = (w.poll)(t, &me);
+    Ok(match w.after_or_stop(t, step)? {
+        Look::Done(v) => super::Flow::Done(v),
+        Look::Park(wake) => super::Flow::Park(Box::new(w), wake),
+    })
+}
+
+/// Drops the registrations on `fd` (it is being closed) and wakes their
+/// tasks, which then see it closed. Done before the descriptor closes, so
+/// that no registration outlives it under a number a new descriptor may
+/// take.
+pub(crate) fn drop_io_waits(t: &mut Task<'_>, fd: std::os::fd::RawFd) {
+    let tokens = t.world.io_fds.remove(&fd).unwrap_or_default();
+    for k in tokens {
+        if let Some((w, _)) = t.world.io.remove(&k) {
+            w.wake();
         }
     }
-    match r {
-        Ok(v) => v,
-        Err(p) => resume_unwind(p),
+    t.shared
+        .poller
+        .deregister(fd, super::poller::Interest::Read);
+    t.shared
+        .poller
+        .deregister(fd, super::poller::Interest::Write);
+}
+
+impl Task<'_> {
+    /// The registrations in the event loop's table and in its fd index
+    /// (tests).
+    #[cfg(test)]
+    pub(crate) fn io_table(&self) -> (usize, usize) {
+        let w = &self.world;
+        (w.io.len(), w.io_fds.values().map(Vec::len).sum())
+    }
+}
+
+enum Look {
+    Done(Value),
+    Park(super::Wake),
+}
+
+/// What a registration in the event loop waits on.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum IoKey {
+    Fd(std::os::fd::RawFd, super::poller::Interest),
+    /// A child's end through kqueue's `EVFILT_PROC` (a pidfd is an `Fd`).
+    Exit(libc::pid_t),
+}
+
+/// Registrations one continuation holds at once (a command waits for
+/// its end and its three pipes), each under a fresh token; they leave
+/// together (`leave_all`). A token that is no longer in the table had
+/// its event (or its descriptor closed): it is not deregistered again.
+#[derive(Default)]
+pub(crate) struct IoRegs(Vec<(u64, IoKey)>);
+
+impl IoRegs {
+    fn add(&mut self, t: &mut Task<'_>, key: IoKey) -> Result<bool, Stop> {
+        let token = t.shared.next_token.fetch_add(1, Ordering::Relaxed);
+        let r = match key {
+            IoKey::Fd(fd, interest) => t.shared.poller.register(fd, interest, token).map(|()| true),
+            IoKey::Exit(pid) => t
+                .shared
+                .poller
+                .register_exit(&super::poller::ExitWatch::Pid(pid), token),
+        };
+        match r {
+            Ok(true) => {
+                let w = t.waiter.clone();
+                t.world.add_io(token, w, key);
+                self.0.push((token, key));
+                Ok(true)
+            }
+            Ok(false) => Ok(false),
+            Err(e) => Err(crate::native::nat::fail(
+                "E0801",
+                vec![fung_front::diag::Arg::Str(format!(
+                    "cannot wait for a descriptor: {e}"
+                ))],
+            )),
+        }
+    }
+
+    /// Waits for `fd` to be ready for `interest`.
+    pub(crate) fn fd(
+        &mut self,
+        t: &mut Task<'_>,
+        fd: std::os::fd::RawFd,
+        interest: super::poller::Interest,
+    ) -> Result<(), Stop> {
+        self.add(t, IoKey::Fd(fd, interest)).map(drop)
+    }
+
+    /// Waits for the end of `w`'s child; false if it has ended already.
+    pub(crate) fn exit(
+        &mut self,
+        t: &mut Task<'_>,
+        w: &super::poller::ExitWatch,
+    ) -> Result<bool, Stop> {
+        use std::os::fd::AsRawFd;
+        match w {
+            super::poller::ExitWatch::Pid(pid) => self.add(t, IoKey::Exit(*pid)),
+            super::poller::ExitWatch::Fd(fd) => {
+                self.add(t, IoKey::Fd(fd.as_raw_fd(), super::poller::Interest::Read))
+            }
+            super::poller::ExitWatch::Unsupported => Ok(true),
+        }
+    }
+
+    pub(crate) fn leave_all(&mut self, t: &mut Task<'_>) {
+        for (token, key) in self.0.drain(..) {
+            if t.world.take_io(token).is_some() {
+                match key {
+                    IoKey::Fd(fd, interest) => t.shared.poller.deregister(fd, interest),
+                    IoKey::Exit(pid) => t
+                        .shared
+                        .poller
+                        .deregister_exit(&super::poller::ExitWatch::Pid(pid)),
+                }
+            }
+        }
+    }
+}
+
+/// A `park_io` wait between looks.
+struct IoWait {
+    /// The registration in the loop, while there is one.
+    regs: IoRegs,
+    poll: IoPoll,
+    on_stop: OnStop,
+}
+
+impl IoWait {
+    /// `after`, and when that fails (the loop refused a registration)
+    /// the wait ends as a stopped one: it leaves the loop and `on_stop`
+    /// runs, before the error unwinds past it.
+    fn after_or_stop(&mut self, t: &mut Task<'_>, step: IoStep) -> Result<Look, Stop> {
+        let r = self.after(t, step);
+        if r.is_err() {
+            self.leave(t);
+            (self.on_stop)(t);
+        }
+        r
+    }
+
+    fn after(&mut self, t: &mut Task<'_>, step: IoStep) -> Result<Look, Stop> {
+        match step {
+            IoStep::Done(r) => r.map(Look::Done),
+            IoStep::Park => Ok(Look::Park(super::Wake {
+                until: None,
+                timed: false,
+            })),
+            IoStep::Wait(fd, interest, until) => {
+                self.register(t, fd, interest)?;
+                Ok(Look::Park(super::Wake { until, timed: true }))
+            }
+        }
+    }
+
+    fn register(
+        &mut self,
+        t: &mut Task<'_>,
+        fd: std::os::fd::RawFd,
+        interest: super::poller::Interest,
+    ) -> Result<(), Stop> {
+        self.regs.fd(t, fd, interest)
+    }
+
+    /// Ends the registration: its event came (the loop took the token
+    /// out of the table), its descriptor closed (`drop_io_waits`), or it
+    /// is dropped here.
+    fn leave(&mut self, t: &mut Task<'_>) {
+        self.regs.leave_all(t);
+    }
+}
+
+impl super::Cont for IoWait {
+    fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<super::Next, Stop> {
+        self.leave(t);
+        let me = t.waiter.clone();
+        let step = (self.poll)(t, &me);
+        Ok(match self.after_or_stop(t, step)? {
+            Look::Done(v) => super::Next::Done(v),
+            Look::Park(wake) => super::Next::Park(wake),
+        })
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<super::Next, Stop> {
+        self.leave(t);
+        (self.on_stop)(t);
+        Err(stop)
+    }
+}
+
+/// What a stopped `park_until` wait runs before it unwinds.
+type OnStop = Box<dyn FnMut(&mut Task<'_>)>;
+
+/// A `park_until` wait between looks.
+struct Parked {
+    poll: Poll,
+    wake: super::Wake,
+    on_stop: Option<OnStop>,
+}
+
+impl super::Cont for Parked {
+    fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<super::Next, Stop> {
+        let me = t.waiter.clone();
+        match (self.poll)(t, &me) {
+            Some(r) => r.map(super::Next::Done),
+            None => Ok(super::Next::Park(self.wake)),
+        }
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<super::Next, Stop> {
+        if let Some(f) = &mut self.on_stop {
+            f(t);
+        }
+        Err(stop)
     }
 }
 
 impl Task<'_> {
-    /// This task's cancellation node, for a native that waits outside
-    /// the run token and must see its cancellation there (`process.rs`).
+    /// The event loop (a native that waits on more than descriptors).
+    pub(crate) fn shared_poller(&self) -> &super::poller::Poller {
+        &self.shared.poller
+    }
+
+    /// This task's waiter (a native that wakes it from a job).
+    pub(crate) fn waiter_handle(&self) -> Arc<Waiter> {
+        self.waiter.clone()
+    }
+
+    /// Puts `fresh` root in place of this task's node and gives the node
+    /// back (a wait that a stop must not cut, `process.rs`).
+    pub(crate) fn swap_in_fresh_root(&mut self) -> Arc<CancelNode> {
+        std::mem::replace(&mut self.cancel, CancelNode::root())
+    }
+
+    /// Gives this task its node back after `swap_in_fresh_root`; a
+    /// deadline that passed meanwhile is enforced.
+    pub(crate) fn restore_cancel_node(&mut self, node: Arc<CancelNode>) {
+        self.cancel = node;
+        if let Some(at) = self.cancel.deadline_at() {
+            let now = Instant::now();
+            if now >= at {
+                self.cancel.expire_due(now);
+            }
+        }
+    }
+
+    /// The runtime's thread pool (a native's `Drop` that hands work off).
+    pub(crate) fn pool(&self) -> super::pool::Pool {
+        self.shared.pool.clone()
+    }
+
+    /// This task's cancellation node, for a native that waits off the
+    /// run thread and must see its cancellation there (`process.rs`).
     pub(crate) fn cancel_node(&self) -> Arc<CancelNode> {
         self.cancel.clone()
     }
 
-    /// Unwinds a cancelled task (its deadline included, once `outside`
-    /// expired it): for a native whose wait the cancellation cut short.
+    /// Unwinds a cancelled task (its deadline included, once it was
+    /// expired): for a native whose wait the cancellation cut short.
     pub(crate) fn check_cancelled(&self) -> Result<(), Stop> {
         if self.cancel.is_cancelled() {
             return Err(self.unwound());
@@ -322,8 +473,8 @@ impl Task<'_> {
     }
 
     /// The check at every call and backward jump: unwinds a cancelled
-    /// task (E0701 at `pos`) and, every `YIELD_EVERY` ticks, lets the
-    /// tasks waiting for the token run.
+    /// task (E0701 at `pos`) and, every `YIELD_EVERY` ticks, ends its turn
+    /// so the other ready tasks run.
     #[inline(always)]
     pub(super) fn tick(&mut self, pos: Pos) -> Result<(), Stop> {
         if self.cancel.is_cancelled() {
@@ -331,25 +482,30 @@ impl Task<'_> {
         }
         self.budget -= 1;
         if self.budget == 0 {
-            self.turn();
+            self.end_turn();
         }
         Ok(())
     }
 
+    /// The end of a turn: a computing task sees its deadline here
+    /// (`deadline.rs`; the next tick unwinds), and the next yield point
+    /// leaves the run loop (`Ran::Yielded`) so the other ready tasks run
+    /// first (`sched.rs`).
     #[cold]
     #[inline(never)]
-    fn turn(&mut self) {
+    fn end_turn(&mut self) {
         self.budget = YIELD_EVERY;
-        // A computing task sees its deadline here (`deadline.rs`); the
-        // next tick unwinds.
         if let Some(at) = self.cancel.deadline_at() {
             let now = Instant::now();
             if now >= at {
                 self.cancel.expire_due(now);
             }
         }
-        token::assert_holds_token();
-        self.world.yield_turn();
-        token::assert_holds_token();
+        // A swap's function runs to its end in one turn: a task that swaps
+        // the same atom on every turn would otherwise make it retry forever
+        // (it cannot park: effects are E0707).
+        if self.pure == 0 {
+            self.turn_due = true;
+        }
     }
 }

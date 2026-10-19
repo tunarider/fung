@@ -7,10 +7,10 @@ use std::rc::Rc;
 use fung_front::diag::{Arg, error};
 
 use crate::value::{
-    ListBuilder, Lit, MapBuilder, Native, NativeFn, NativeParam, Tag, Value, format_for_print,
-    intern, type_name,
+    ListBuilder, Lit, MapBuilder, Native, NativeFn, NativeParam, StepFn, Tag, Value,
+    format_for_print, intern, type_name,
 };
-use crate::vm::{Stop, Task, channel, no_pos};
+use crate::vm::{Flow, Kind, Stop, Task, no_pos};
 
 /// A required parameter.
 pub fn param(name: &'static str) -> NativeParam {
@@ -48,6 +48,45 @@ pub fn def(name: &'static str, func: NativeFn, params: Vec<NativeParam>) -> Valu
 /// Like [`def`], but the bare native, for the process-wide tables.
 pub fn native(name: &'static str, func: NativeFn, params: Vec<NativeParam>) -> &'static Native {
     Native::leak(name, params, func)
+}
+
+/// [`def`] for a step native (`vm/cont.rs`).
+pub fn def_step(name: &'static str, step: StepFn, params: Vec<NativeParam>) -> Value {
+    Value::Native(Native::leak_step(name, params, step))
+}
+
+/// [`native`] for a step native.
+pub fn native_step(name: &'static str, step: StepFn, params: Vec<NativeParam>) -> &'static Native {
+    Native::leak_step(name, params, step)
+}
+
+/// Hands a wait on the operating system off: `job` gets plain data (no
+/// fung value, so it is `Send`) and does the system calls on a pool
+/// thread while the task parks; `finish` turns its result into the
+/// native's value, back on the run thread (`vm/offload.rs`). An error
+/// `finish` gives without a position gets the native's call site, as any
+/// native error does. `job` must own what it uses (`'static`): copy
+/// strings out of fung values and clone the `Arc` of a handle.
+///
+/// A job that has started is waited for, even past a cancellation or a
+/// deadline: use this for jobs that change something.
+pub(crate) fn offload<R: Send + 'static>(
+    t: &mut Task<'_>,
+    job: impl FnOnce() -> R + Send + 'static,
+    finish: impl FnOnce(&mut Task<'_>, R) -> Result<Value, Stop> + 'static,
+) -> Result<Flow, Stop> {
+    crate::vm::offload_kind(t, Kind::Wait, job, |t, r| finish(t, r).map(Flow::Done))
+}
+
+/// [`offload`] for a job that only reads: a cancellation or a deadline
+/// unwinds the task at once, and the job's result is dropped when it
+/// ends.
+pub(crate) fn offload_abandoning<R: Send + 'static>(
+    t: &mut Task<'_>,
+    job: impl FnOnce() -> R + Send + 'static,
+    finish: impl FnOnce(&mut Task<'_>, R) -> Result<Value, Stop> + 'static,
+) -> Result<Flow, Stop> {
+    crate::vm::offload_kind(t, Kind::Abandon, job, |t, r| finish(t, r).map(Flow::Done))
 }
 
 /// An error without a position: the VM gives it the call's.
@@ -112,8 +151,18 @@ pub fn join_for_print<'a>(items: impl Iterator<Item = &'a Value>) -> String {
 }
 
 /// The E0506 a collection function reports for what it cannot iterate.
+/// A sending end gets a help line, the same whatever the verb (a `for`
+/// over `tx` reads as "cannot map over sender": `for` is `map`
+/// underneath): the fix is the other end.
 fn not_iterable(verb: &str, v: &Value) -> Stop {
-    fail("E0506", vec![s(verb), Arg::Str(type_name(v))])
+    let d = error("E0506", no_pos(), vec![s(verb), Arg::Str(type_name(v))]);
+    let d = match v {
+        Value::Sender(_) => {
+            d.with_help("a sending end (`tx`) cannot be read; go over the receiving end (`rx`)")
+        }
+        _ => d,
+    };
+    Stop::Error(Box::new(d))
 }
 
 /// The most elements a function builds a result of from one range (02):
@@ -145,61 +194,6 @@ pub fn check_items(v: &Value, verb: &str) -> Result<(), Stop> {
     }
 }
 
-/// Walks what `items` lists, one element at a time, stopping at the first
-/// error `f` returns. Lists and ranges are walked in place: a range yields
-/// its numbers without ever building a list of them.
-pub fn each(
-    t: &mut Task<'_>,
-    v: &Value,
-    verb: &str,
-    mut f: impl FnMut(&mut Task<'_>, Value) -> Result<(), Stop>,
-) -> Result<(), Stop> {
-    each_until(t, v, verb, |t, x| f(t, x).map(|()| false))?;
-    Ok(())
-}
-
-/// `each` that also stops when `f` returns true; the result says whether
-/// it did (`find`, `any`, `all`). A channel is walked as its values
-/// arrive (05): `f` sees each one when it is received, and what is left
-/// after a stop or an error stays in the channel.
-pub fn each_until(
-    t: &mut Task<'_>,
-    v: &Value,
-    verb: &str,
-    mut f: impl FnMut(&mut Task<'_>, Value) -> Result<bool, Stop>,
-) -> Result<bool, Stop> {
-    match v {
-        Value::List(l) => {
-            for x in l.iter() {
-                if f(t, x.clone())? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        Value::Range(r) => {
-            for i in 0..r.len() {
-                // The number itself fits an int; only the offset may not.
-                if f(t, Value::Int(r.start.wrapping_add(i as i64)))? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        Value::Receiver(rx) => loop {
-            match channel::recv(t, &rx.0)? {
-                channel::Received::Value(x) => {
-                    if f(t, x)? {
-                        return Ok(true);
-                    }
-                }
-                channel::Received::Closed => return Ok(false),
-            }
-        },
-        _ => Err(not_iterable(verb, v)),
-    }
-}
-
 /// The element count of a list or range, 0 for anything else.
 pub fn size_hint(v: &Value) -> usize {
     match v {
@@ -209,15 +203,14 @@ pub fn size_hint(v: &Value) -> usize {
     }
 }
 
-/// What a collection function iterates (02), as a vector, for the
-/// functions that need every element at once (`sort`): lists, ranges and
-/// channels (received until closed). Prefer `each` where the elements are
-/// only walked.
-pub fn items(t: &mut Task<'_>, v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
+/// A list's or range's elements as a vector, for the functions that need
+/// every element at once (`sort`). A receiving end is walked by
+/// `native/walk.rs` instead, which parks while the channel is empty.
+pub fn items(v: &Value, verb: &str) -> Result<Vec<Value>, Stop> {
     match v {
         Value::List(l) => Ok(l.to_vec()),
         Value::Range(r) if r.len() > i128::from(MAX_ELEMENTS) => Err(too_many_elements()),
-        Value::Receiver(rx) => channel::drain(t, &rx.0),
+        Value::Receiver(_) => unreachable!("a receiving end is walked by native/walk.rs"),
         Value::Range(r) => Ok((0..r.len())
             .map(|i| Value::Int(r.start.wrapping_add(i as i64)))
             .collect()),
@@ -225,16 +218,9 @@ pub fn items(t: &mut Task<'_>, v: &Value, verb: &str) -> Result<Vec<Value>, Stop
     }
 }
 
-/// Runs a predicate with the argument buffer `buf` and insists on a bool
-/// result (E0505).
-pub fn call_bool(
-    t: &mut Task<'_>,
-    f: &Value,
-    x: Value,
-    buf: &mut Vec<Value>,
-) -> Result<bool, Stop> {
-    buf.push(x);
-    match t.call_buf(f, buf)? {
+/// A predicate's result, which must be a bool (E0505).
+pub fn want_bool(r: Value) -> Result<bool, Stop> {
+    match r {
         Value::Bool(b) => Ok(b),
         r => Err(fail("E0505", vec![Arg::Str(type_name(&r))])),
     }

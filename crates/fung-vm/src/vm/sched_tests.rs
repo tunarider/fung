@@ -1,0 +1,510 @@
+//! The M:1 scheduler (concurrency v2 R1b, `sched.rs`).
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use crate::native::nat;
+use crate::testutil::{Opts, exec, probes, setup};
+use crate::value::{Native, Value};
+use crate::vm::{Cont, Flow, Next, Stop, Task, Wake};
+
+const DEADLOCK: &str = "error[E0702]: deadlock: all tasks are waiting\n";
+
+fn id() -> String {
+    format!("{:?}", std::thread::current().id())
+}
+
+/// `this_thread()`; `wake_early()`: parks, after a thread of its own woke
+/// the task (and was joined) before the park was decided; `slow_job()`: an
+/// offload that sleeps 50 ms.
+fn natives() -> Vec<Value> {
+    struct Flag(Arc<AtomicBool>);
+    impl Cont for Flag {
+        fn resume(&mut self, _: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
+            Ok(match self.0.load(Ordering::SeqCst) {
+                true => Next::Done(Value::str("woken")),
+                false => Next::Park(Wake::default()),
+            })
+        }
+    }
+    fn wake_early(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+        let me = t.waiter.clone();
+        me.take_woken();
+        let flag = Arc::new(AtomicBool::new(false));
+        let f = flag.clone();
+        std::thread::spawn(move || {
+            f.store(true, Ordering::SeqCst);
+            me.wake();
+        })
+        .join()
+        .unwrap();
+        Ok(Flow::Park(Box::new(Flag(flag)), Wake::default()))
+    }
+    fn slow_job(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+        nat::offload(
+            t,
+            || std::thread::sleep(Duration::from_millis(50)),
+            |_, ()| Ok(Value::Nil),
+        )
+    }
+    let mut v = probes();
+    v.push(Value::Native(Native::leak(
+        "this_thread",
+        vec![],
+        |_: &mut Task, _| Ok(Value::str(&id())),
+    )));
+    v.push(Value::Native(Native::leak_step(
+        "wake_early",
+        vec![],
+        wake_early,
+    )));
+    v.push(Value::Native(Native::leak_step(
+        "slow_job",
+        vec![],
+        slow_job,
+    )));
+    v
+}
+
+fn run(src: &str) -> crate::testutil::Outcome {
+    exec(
+        src,
+        Opts {
+            extra: natives,
+            ..Opts::default()
+        },
+    )
+}
+
+/// A thousand tasks all run on the thread that runs the entry.
+#[test]
+fn tasks_run_on_one_thread() {
+    let o = run(
+        "me = this_thread()\nprint(scope(fn(s):\n  ts = map(0..1000, _ => spawn(s, fn(): sleep(1ms); this_thread() ;;))\n  all(map(ts, await), x => x == me)\n;;))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("true\n", ""));
+}
+
+/// A wake that came before the task decided to park is not lost.
+#[test]
+fn a_wake_from_another_thread_before_the_park_is_kept() {
+    let start = Instant::now();
+    let o = run("print(wake_early())");
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("woken\n", ""));
+    assert!(start.elapsed() < Duration::from_secs(5));
+}
+
+/// The scheduler judges a deadlock exactly when every task is parked and
+/// none is one a timer or the world outside ends.
+#[test]
+fn deadlock_is_judged_by_the_scheduler() {
+    let o = run("(_tx, rx) = channel()\nrecv(rx)");
+    assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
+    for src in [
+        // A sleeper: a timer ends it.
+        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  timeout(40ms, () => recv(rx))\n;;)\nprint(\"ok\")",
+        // An offload's job: the world outside ends it.
+        "scope(fn(s):\n  t = spawn(s, () => slow_job())\n  await(t)\n;;)\nprint(\"ok\")",
+    ] {
+        let o = run(src);
+        assert_eq!((o.out.as_str(), o.err.as_str()), ("ok\n", ""), "{src}");
+    }
+}
+
+/// A stop request made while nothing runs waits for the next run: the
+/// entry is cancelled at its first call and the exit code is 130.
+#[test]
+fn a_stop_while_idle_is_kept_for_the_next_run() {
+    let s = setup("print(\"started\")\nfn f() = f()\nf()", Opts::default())
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    s.rt.stop_handle().deliver(2);
+    let r = s.rt.run();
+    assert!(
+        matches!(&r, Err(Stop::Error(d)) if d.code == "E0701"),
+        "{r:?}"
+    );
+    assert_eq!(s.rt.exit_code(), Some(130));
+    assert_eq!(s.out.text(), "");
+}
+
+/// A deadline of a wait that ended early does not hold back the deadlock
+/// report until it passes.
+#[test]
+fn a_stale_deadline_does_not_delay_a_deadlock() {
+    let start = Instant::now();
+    let o = run(
+        "(tx, rx) = channel()\nr = scope(fn(s):\n  spawn(s, () => send(tx, 1))\n  timeout(1h, () => recv(rx))\n;;)\nprint(r)\n(_tx2, rx2) = channel()\nrecv(rx2)",
+    );
+    assert_eq!(o.out, "Ok(1)\n");
+    assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
+    assert!(start.elapsed() < Duration::from_secs(5));
+}
+
+/// The deadlines of waits that ended early do not pile up.
+#[test]
+fn stale_deadlines_do_not_pile_up() {
+    let s = setup(
+        "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn():\n    for i in 0..5000: send(tx, i) ;;\n  ;;)\n  for i in 0..5000: timeout(1h, () => recv(rx)) ;;\n;;)\n(_tx2, rx2) = channel()\nrecv(rx2)",
+        Opts::default(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let _ = s.rt.run();
+    let n = s.rt.shared().timers_probe.load(Ordering::SeqCst);
+    assert!(n < 200, "{n} deadlines kept");
+}
+
+/// A swap whose function runs long is not starved by a task that swaps
+/// the same atom on every turn: the function runs to its end in one turn.
+#[test]
+fn a_long_swap_is_not_starved() {
+    let o = run(
+        "a = atom(0)\ndone = atom(false)\nfn slow(n, k):\n  if k == 0: n else: slow(n, k - 1) ;;\n;;\nr = timeout(5s, () => scope(fn(s):\n  spawn(s, fn():\n    fn loop(i):\n      swap(a, n => n + 1)\n      if deref(done): i else: loop(i + 1) ;;\n    ;;\n    loop(0)\n  ;;)\n  swap(a, n => slow(n, 5000))\n  reset(done, true)\n  \"slow done\"\n;;))\nprint(r)",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("slow done\n", ""));
+}
+
+fn job_opts() -> Opts {
+    Opts {
+        extra: crate::testutil::jobs::job_natives,
+        ..Opts::default()
+    }
+}
+
+/// A task whose job waits in the pool's queue is not deadlocked.
+#[test]
+fn a_task_waiting_in_the_pool_queue_is_not_deadlocked() {
+    use crate::testutil::jobs;
+    let o = crate::testutil::exec_prepared(
+        "print(scope(fn(s):\n  a = spawn(s, () => block_job(\"q1\"))\n  b = spawn(s, () => block_job(\"q1\"))\n  [await(a), await(b)]\n;;))",
+        job_opts(),
+        |rt| {
+            let sh = rt.shared();
+            sh.pool.set_limits(1, Duration::from_secs(10));
+            std::thread::spawn(move || {
+                if jobs::until(|| sh.pool.queued() == 1 && sh.pool.idle() == 0) {
+                    jobs::mark("q1-seen");
+                }
+                jobs::open("q1");
+            });
+        },
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("[\"done\", \"done\"]\n", "")
+    );
+    assert_eq!(crate::testutil::jobs::count("q1-seen"), 1);
+}
+
+/// A job that is waited for is still dropped while it waits in the
+/// queue: the deadline ends the call at once and the job never runs.
+#[test]
+fn a_queued_wait_job_is_dropped_on_cancel() {
+    let s = setup(
+        &format!(
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"q2\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(20ms, () => count_job(\"q2c\"))\n  open_latch(\"q2\")\n  r\n;;))",
+            crate::testutil::UNTIL
+        ),
+        job_opts(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let pool = &s.rt.shared().pool;
+    pool.set_limits(1, Duration::from_secs(10));
+    s.rt.run().unwrap();
+    assert_eq!(s.out.text(), "Err({kind: 'timeout})\n");
+    assert!(crate::testutil::jobs::until(
+        || pool.queued() == 0 && pool.idle() == 1
+    ));
+    assert_eq!(crate::testutil::jobs::count("q2c"), 0);
+}
+
+/// A run cannot start inside a run (it would drop the outer run's queued
+/// wakes and take its running task's state), in release builds too: the
+/// panic fence reports it as E0801, and once the outer run has ended a
+/// new one may start.
+#[test]
+fn a_nested_run_root_is_refused() {
+    fn natives() -> Vec<Value> {
+        vec![Value::Native(Native::leak(
+            "nested",
+            vec![],
+            |t: &mut Task, _| t.run_root(crate::vm::Todo::Start(Value::Nil, 0)),
+        ))]
+    }
+    let s = setup(
+        "nested()",
+        Opts {
+            extra: natives,
+            ..Opts::default()
+        },
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let r = s.rt.run();
+    match &r {
+        Err(Stop::Error(d)) if d.code == "E0801" => {
+            let text = format!("{d:?}");
+            assert!(text.contains("run_root during a run"), "{text}");
+        }
+        r => panic!("{r:?}"),
+    }
+    // The outer run ended: another may start.
+    assert!(!s.rt.world().in_run);
+}
+
+/// Runs `src` with the job natives; once `settle_mark(name)` ran and
+/// `parked` tasks are parked after it, a test thread opens latch `name`.
+/// Bounded: (stdout, stderr, the run's result).
+fn open_when_parked(
+    src: &str,
+    name: &'static str,
+    parked: usize,
+) -> (String, String, Result<Value, Stop>) {
+    use crate::testutil::jobs;
+    let src = src.to_string();
+    let (shared_tx, shared_rx) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::channel();
+    // The runtime stays on the thread that makes it (`!Send`).
+    std::thread::spawn(move || {
+        let s = setup(&src, job_opts()).unwrap_or_else(|e| panic!("{e:?}"));
+        let _ = shared_tx.send(s.rt.shared());
+        let r = s.rt.run();
+        let _ = tx.send((s.out.text(), s.err.text(), format!("{r:?}")));
+    });
+    let sh = shared_rx.recv().unwrap();
+    std::thread::spawn(move || {
+        let seen = jobs::until(|| {
+            jobs::count(name) == 1 && sh.parked_probe.load(Ordering::SeqCst) == parked
+        });
+        assert!(seen, "{name}: the state never came");
+        jobs::open(name);
+    });
+    let (out, err, r) = rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the run hung");
+    (
+        out,
+        err,
+        if r.starts_with("Ok") {
+            Ok(Value::Nil)
+        } else {
+            Err(Stop::Exit(0))
+        },
+    )
+}
+
+/// A cancel while a job that is waited for runs: the task waits for the
+/// job, then unwinds; the job's wake after the cancel's is not lost.
+#[test]
+fn a_cancel_while_a_waited_job_runs_unwinds_after_it() {
+    let (out, err, _) = open_when_parked(
+        &format!(
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"cw\"))\n  until(() => pool_state() == [1, 0, 0])\n  settle_mark(\"cw\")\n  cancel(s)\n;;))",
+            crate::testutil::UNTIL
+        ),
+        "cw",
+        2,
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        ("Err({kind: 'cancelled})\n", "")
+    );
+}
+
+/// The same for `exit`: the program ends with its code.
+#[test]
+fn an_exit_while_a_waited_job_runs_ends_after_it() {
+    let (out, err, r) = open_when_parked(
+        &format!(
+            "{}scope(fn(s):\n  spawn(s, () => block_job(\"ew\"))\n  until(() => pool_state() == [1, 0, 0])\n  settle_mark(\"ew\")\n  exit(3)\n;;)",
+            crate::testutil::UNTIL
+        ),
+        "ew",
+        2,
+    );
+    assert_eq!((out.as_str(), err.as_str()), ("", ""));
+    assert!(r.is_err());
+}
+
+fn run_jobs(src: &str) -> crate::testutil::Outcome {
+    exec(&format!("{}{src}", crate::testutil::UNTIL), job_opts())
+}
+
+/// A task parked on a descriptor wakes when it is ready; no thread waits
+/// for it (no offload).
+#[test]
+fn a_task_parked_on_io_wakes_when_ready() {
+    let o = run_jobs(
+        "fd = pipe_pair(\"pr\")\nprint(scope(fn(s):\n  t = spawn(s, fn(): r = pipe_read(fd); [r, parks() > 0, offloads()] ;;)\n  until(() => waiting_io() == 1)\n  pipe_put(\"pr\", \"x\")\n  await(t)\n;;))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("[\"x\", true, 0]\n", ""));
+}
+
+/// A wake from another thread while the run thread sleeps in the event
+/// loop ends the sleep at once.
+#[test]
+fn a_push_while_the_scheduler_sleeps_wakes_it() {
+    use crate::testutil::jobs;
+    let s = setup("print(block_job(\"ps\"))", job_opts()).unwrap_or_else(|e| panic!("{e:?}"));
+    let sh = s.rt.shared();
+    std::thread::spawn(move || {
+        jobs::until(|| sh.parked_probe.load(Ordering::SeqCst) == 1);
+        jobs::open("ps");
+    });
+    let start = Instant::now();
+    s.rt.run().unwrap();
+    assert_eq!(s.out.text(), "done\n");
+    assert!(start.elapsed() < Duration::from_secs(5));
+}
+
+/// A wait that ended (here at its deadline) leaves no registration: data
+/// that comes later wakes nobody, and the next reader gets it.
+#[test]
+fn a_stale_token_is_ignored() {
+    let o = run_jobs(
+        "fd = pipe_pair(\"st\")\nprint(timeout(10ms, () => pipe_read(fd)))\nprint(waiting_io())\npipe_put(\"st\", \"y\")\nprint(pipe_read(fd))",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("Err({kind: 'timeout})\n0\ny\n", "")
+    );
+}
+
+/// The loop is seen between the turns of a computing task: a reader wakes
+/// while the computation goes on.
+#[test]
+fn io_is_seen_between_turns_of_a_computing_task() {
+    use crate::testutil::jobs;
+    let s = setup(
+        &format!(
+            "{}fd = pipe_pair(\"cp\")\nfn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(pipe_read(fd)) ;;)\n  spawn(s, fn():\n    until(() => waiting_io() == 1)\n    settle_mark(\"cp\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
+            crate::testutil::UNTIL
+        ),
+        job_opts(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    std::thread::spawn(|| {
+        jobs::until(|| jobs::count("cp") == 1);
+        jobs::pipe_write("cp", "z");
+    });
+    s.rt.run().unwrap();
+    assert_eq!(s.out.text(), "z\nfib done\n");
+}
+
+/// A task parked on a descriptor alone is not a deadlock: the world
+/// outside may make it ready.
+#[test]
+fn a_task_parked_on_io_is_not_deadlocked() {
+    use crate::testutil::jobs;
+    let s = setup(
+        "fd = pipe_pair(\"nd\")\nsettle_mark(\"nd\")\nprint(pipe_read(fd))",
+        job_opts(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let sh = s.rt.shared();
+    std::thread::spawn(move || {
+        jobs::until(|| jobs::count("nd") == 1 && sh.parked_probe.load(Ordering::SeqCst) == 1);
+        jobs::pipe_write("nd", "w");
+    });
+    s.rt.run().unwrap();
+    assert_eq!(
+        (s.out.text(), s.err.text()),
+        ("w\n".to_string(), String::new())
+    );
+}
+
+/// A task another thread woke (its pool job ended) runs beside a task
+/// that keeps computing, not after it.
+#[test]
+fn a_task_woken_from_another_thread_runs_beside_a_computing_task() {
+    use crate::testutil::jobs;
+    let s = setup(
+        &format!(
+            "{}fn fib(n) = if n < 2: n else: fib(n - 1) + fib(n - 2) ;;\nscope(fn(s):\n  spawn(s, fn(): print(block_job(\"wb\")) ;;)\n  spawn(s, fn():\n    until(() => pool_state()[0] - pool_state()[1] == 1)\n    settle_mark(\"wb\")\n    fib(30)\n    print(\"fib done\")\n  ;;)\n;;)",
+            crate::testutil::UNTIL
+        ),
+        job_opts(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    std::thread::spawn(|| {
+        jobs::until(|| jobs::count("wb") == 1);
+        jobs::open("wb");
+    });
+    s.rt.run().unwrap();
+    assert_eq!(s.out.text(), "done\nfib done\n");
+}
+
+/// Channel traffic next to a task parked on a descriptor does not look
+/// at the event loop every round (spec 15: when a turn is given, and
+/// now and then): two tasks pass 10,000 values while a third waits on a
+/// pipe.
+#[test]
+fn channel_traffic_beside_io_does_not_poll_every_round() {
+    let s = setup(
+        "fd = pipe_pair(\"cp2\")\nscope(fn(s):\n  r = spawn(s, () => pipe_read(fd))\n  (tx, rx) = channel()\n  spawn(s, fn(): each(0..10000, i => send(tx, i)); close(tx) ;;)\n  print(fold(rx, 0, (a, x) => a + x))\n  pipe_put(\"cp2\", \"x\")\n  await(r)\n;;)",
+        job_opts(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    s.rt.run().unwrap();
+    assert_eq!(s.out.text(), "49995000\n");
+    let polls = s.rt.shared().io_polls.load(Ordering::SeqCst);
+    assert!(polls < 1000, "{polls} loop looks");
+}
+
+/// Two Ctrl-Cs while nothing runs (the REPL between inputs) abandon
+/// nothing: the next input runs.
+#[test]
+fn interrupts_while_idle_do_not_abandon_the_next_run() {
+    let s = setup("print(\"hi\")", Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
+    let h = s.rt.stop_handle();
+    h.interrupt();
+    h.interrupt();
+    s.rt.recover_interrupt();
+    s.rt.take_abandoned();
+    assert!(s.rt.run().is_ok());
+    assert_eq!(s.out.text(), "hi\n");
+}
+
+/// A runtime that goes ends its pool's idle threads (`fung test` makes
+/// one runtime per file).
+#[test]
+fn a_dropped_runtime_ends_its_pool_threads() {
+    let s = setup("import fs\nprint(fs.exists(\"/\"))", Opts::default())
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    s.rt.run().unwrap();
+    let pool = s.rt.shared().pool.clone();
+    assert!(crate::testutil::jobs::until(|| pool.idle() == 1));
+    drop(s);
+    assert!(crate::testutil::jobs::until(|| pool.threads() == 0));
+}
+
+/// A job queued from a `release` that a second Ctrl-C abandons never
+/// runs: the abandoned input's jobs that have not started go with it
+/// (one that is running finishes).
+#[test]
+fn an_abandoned_inputs_queued_pool_jobs_do_not_run() {
+    use crate::testutil::jobs;
+    let s = setup(
+        &format!(
+            "{}scope(fn(s):\n  spawn(s, () => block_job(\"q3\"))\n  until(() => pool_state() == [1, 0, 0])\n  with(() => nil, fn(_): settle_mark(\"q3-body\"); sleep(60s) ;;, fn(_): count_job(\"q3c\") ;;)\n;;)",
+            crate::testutil::UNTIL
+        ),
+        job_opts(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let sh = s.rt.shared().clone();
+    sh.pool.set_limits(1, Duration::from_secs(10));
+    let h = s.rt.stop_handle();
+    let t = std::thread::spawn(move || {
+        assert!(jobs::until(|| jobs::count("q3-body") == 1));
+        h.interrupt();
+        assert!(jobs::until(|| sh.pool.queued() == 1));
+        h.interrupt();
+    });
+    let _ = s.rt.run();
+    t.join().unwrap();
+    assert!(s.rt.take_abandoned());
+    jobs::open("q3");
+    let pool = s.rt.shared().pool.clone();
+    assert!(jobs::until(|| pool.queued() == 0 && pool.idle() == 1));
+    assert_eq!(jobs::count("q3c"), 0);
+}

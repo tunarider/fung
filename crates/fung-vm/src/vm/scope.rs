@@ -6,8 +6,8 @@
 //!
 //! **The cancellation node.** A scope has a node of its own, below the
 //! node of the task that opened it, and its children's nodes hang below
-//! it. The body runs under it too (the task's node is swapped for the
-//! call, as in `run_task`), so cancelling the scope reaches the body and
+//! it. The body runs under it too (the task's node is swapped while the
+//! body runs, as `timeout` does), so cancelling the scope reaches the body and
 //! every child, and a cancellation from outside reaches the scope.
 //!
 //! **The wait for the children** cannot be cut short: once the body is
@@ -29,8 +29,9 @@ use std::sync::Arc;
 use fung_front::diag::{self, Diag, headline};
 
 use super::block::WaitList;
+use super::cont::{Cont, Flow, Next};
 use super::task::{CancelNode, err_kind, is_cancel};
-use super::{Stop, Task, block};
+use super::{Stop, Task, Wake};
 use crate::value::{MapBuilder, Value, intern};
 
 /// The value `scope` hands its body: two handles are equal only when they
@@ -46,7 +47,7 @@ impl std::fmt::Debug for ScopeHandle {
 }
 
 /// What a scope's handle, its opener and its children share. Only the
-/// run token's holder touches it.
+/// run thread touches it.
 pub(crate) struct ScopeState {
     /// The node the body and the children run below.
     pub(crate) node: Arc<CancelNode>,
@@ -167,8 +168,8 @@ impl ScopeState {
         self.live.set(self.live.get() + 1);
     }
 
-    /// A child ended, or failed to start. Called with the run token held,
-    /// by the child's thread once its result is stored.
+    /// A child ended, or failed to start. Called on the run thread, by the
+    /// child's task once its result is stored.
     ///
     /// A child that died of a runtime error (not a cancellation, a
     /// deadlock report or an exit) fails the scope: the first failure is
@@ -189,58 +190,168 @@ impl ScopeState {
     }
 }
 
-impl Task<'_> {
-    /// A child of `s` ended with `r`, on its own thread with the run token
-    /// held. In a `supervise` scope a failure is queued, and if nobody is
-    /// handling, this task handles the queue before it counts as ended.
-    pub(crate) fn end_in_scope(&mut self, s: &ScopeState, r: &Result<Value, Stop>) {
+/// A spawned task's end, waiting below its function (`call_root_with`):
+/// what the task does once its function has returned or unwound, in this
+/// order:
+/// 1. the result is stored and the tasks awaiting it are woken;
+/// 2. in a `supervise` scope a real failure is queued, and if nobody is
+///    handling, this task becomes the handler: it runs `on_fail` for each
+///    queued failure, one at a time and in order, until the queue is
+///    empty, the scope is cancelled, or `on_fail` fails (which fails the
+///    scope). The handler runs under a node of its own below the scope's,
+///    not under the failed task's: that task has finished, and cancelling
+///    a finished task's handle must not stop the handler. A failure whose
+///    `on_fail` was cancelled goes back to the queue, so the scope reports
+///    it when it closes;
+/// 3. the scope learns of the end and the task's node is cancelled (what
+///    it spawned and left running ends with it).
+///
+/// The handler's calls are this box's calls, so a handler that waits
+/// parks like any other wait.
+pub(super) struct TaskEnd {
+    state: Rc<super::task::TaskState>,
+    scope: Option<Rc<ScopeState>>,
+    node: Arc<CancelNode>,
+    /// While handling: the body's result, the task's own node (swapped
+    /// for the handler's) and the failure being handled.
+    handling: Option<Handling>,
+}
+
+struct Handling {
+    r: Result<Value, Stop>,
+    own: Arc<CancelNode>,
+    handler: Arc<CancelNode>,
+    current: Option<(Value, String)>,
+}
+
+impl TaskEnd {
+    pub(super) fn new(
+        state: Rc<super::task::TaskState>,
+        scope: Option<Rc<ScopeState>>,
+        node: Arc<CancelNode>,
+    ) -> TaskEnd {
+        TaskEnd {
+            state,
+            scope,
+            node,
+            handling: None,
+        }
+    }
+
+    /// The function came to `r`.
+    fn body_ended(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
+        *self.state.result.borrow_mut() = Some(super::task::outcome(&r));
+        self.state.waiters.borrow_mut().wake_all();
+        let Some(s) = self.scope.clone() else {
+            return Ok(self.ended(t, r));
+        };
         if let Policy::Supervise(sv) = &s.policy
-            && let Err(Stop::Error(d)) = r
+            && let Err(Stop::Error(d)) = &r
             && !is_cancel(d)
         {
-            let text = format!("task failed: {}", diag::format(d, &self.world.sources));
+            let text = format!("task failed: {}", diag::format(d, &t.world.sources));
             sv.queue.borrow_mut().push_back((failure_value(d), text));
             if !sv.handling.get() {
                 sv.handling.set(true);
-                self.handle(s, sv);
-                sv.handling.set(false);
+                let handler = s.node.child();
+                let own = std::mem::replace(&mut t.cancel, handler.clone());
+                self.handling = Some(Handling {
+                    r,
+                    own,
+                    handler,
+                    current: None,
+                });
+                return Ok(self.next_failure(t, sv));
             }
         }
-        s.child_done(r);
+        Ok(self.ended(t, r))
     }
 
-    /// Runs `on_fail` for each queued failure until the queue is empty,
-    /// the scope is cancelled, or `on_fail` fails (which fails the scope).
-    ///
-    /// The handler runs under a node of its own below the scope's, not
-    /// under the failed task's: that task has finished, and cancelling a
-    /// finished task's handle must not stop the handler. A failure whose
-    /// `on_fail` was cancelled goes back to the queue, so the scope
-    /// reports it when it closes.
-    fn handle(&mut self, s: &ScopeState, sv: &Supervisor) {
-        let node = s.node.child();
-        let own = std::mem::replace(&mut self.cancel, node.clone());
-        while !self.cancel.is_cancelled() {
-            let Some((e, text)) = sv.queue.borrow_mut().pop_front() else {
-                break;
-            };
-            let Some(f) = sv.on_fail.borrow().clone() else {
-                break;
-            };
-            match self.call(&f, vec![e.clone()]) {
-                Err(Stop::Error(d)) if !is_cancel(&d) => {
-                    s.fail(&d);
-                    break;
-                }
-                Err(_) => {
-                    sv.queue.borrow_mut().push_front((e, text));
-                    break;
-                }
-                Ok(_) => {}
+    /// Calls `on_fail` for the next queued failure, or stops handling.
+    fn next_failure(&mut self, t: &mut Task<'_>, sv: &Supervisor) -> Next {
+        let h = self.handling.as_mut().expect("handling");
+        if !t.cancel.is_cancelled()
+            && let Some((e, text)) = sv.queue.borrow_mut().pop_front()
+            && let Some(f) = sv.on_fail.borrow().clone()
+        {
+            h.current = Some((e.clone(), text));
+            t.push_arg(e);
+            return Next::Call(f, 1);
+        }
+        self.stop_handling(t, sv)
+    }
+
+    /// Done handling: back under the task's own node, then the end.
+    fn stop_handling(&mut self, t: &mut Task<'_>, sv: &Supervisor) -> Next {
+        let h = self.handling.take().expect("handling");
+        t.cancel = h.own;
+        h.handler.cancel();
+        sv.handling.set(false);
+        self.ended(t, h.r)
+    }
+
+    /// `on_fail` came to `r` for the failure being handled.
+    fn handled(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Next {
+        let s = self.scope.clone().expect("a supervised task");
+        let Policy::Supervise(sv) = &s.policy else {
+            unreachable!("handling outside a supervise scope")
+        };
+        let current = self
+            .handling
+            .as_mut()
+            .and_then(|h| h.current.take())
+            .expect("a failure being handled");
+        match r {
+            Ok(_) => self.next_failure(t, sv),
+            Err(Stop::Error(d)) if !is_cancel(&d) => {
+                s.fail(&d);
+                self.stop_handling(t, sv)
+            }
+            Err(_) => {
+                sv.queue.borrow_mut().push_front(current);
+                self.stop_handling(t, sv)
             }
         }
-        self.cancel = own;
-        node.cancel();
+    }
+
+    /// The scope learns of the end; the task's node is cancelled.
+    fn ended(&mut self, _: &mut Task<'_>, r: Result<Value, Stop>) -> Next {
+        if let Some(s) = self.scope.take() {
+            s.child_done(&r);
+        }
+        drop(r);
+        self.node.cancel();
+        Next::Done(Value::Nil)
+    }
+}
+
+/// A task dropped before its end (the REPL abandoned it,
+/// `Sched::abandon`) ends as cancelled: a handle kept elsewhere awaits a
+/// result, not a task that will never end.
+impl Drop for TaskEnd {
+    fn drop(&mut self) {
+        if self.state.result.borrow().is_some() {
+            return;
+        }
+        let r = Err(super::block::cancelled(super::no_pos()));
+        *self.state.result.borrow_mut() = Some(super::task::outcome(&r));
+        self.state.waiters.borrow_mut().wake_all();
+    }
+}
+
+impl Cont for TaskEnd {
+    fn resume(&mut self, t: &mut Task<'_>, v: Value) -> Result<Next, Stop> {
+        if self.handling.is_some() {
+            return Ok(self.handled(t, Ok(v)));
+        }
+        self.body_ended(t, Ok(v))
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        if self.handling.is_some() {
+            return Ok(self.handled(t, Err(stop)));
+        }
+        self.body_ended(t, Err(stop))
     }
 }
 
@@ -261,7 +372,10 @@ fn failure_value(d: &Diag) -> Value {
 ///   after a deadlock report), even if the body had returned;
 /// - `cancel(s)`: `Err({kind: 'cancelled})`;
 /// - the body's value.
-pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> Result<Value, Stop> {
+///
+/// The run loop calls the body (`cont.rs`); the rest happens when it
+/// returns or unwinds (`Scope::close`).
+pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> Flow {
     // The innermost line of user code: a scope a stdlib function opens
     // (`conc.pmap`) is named by the user's call of it.
     let opened_at = t
@@ -277,25 +391,112 @@ pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> R
         state: state.clone(),
     }));
     let outer = std::mem::replace(&mut t.cancel, node.clone());
-    let r = t.call(&f, vec![handle]);
-    t.cancel = outer;
-    if r.is_err() {
-        node.cancel();
-    }
-    drain(t, &state);
-    state.open.set(false);
-    if let Policy::Supervise(sv) = &state.policy {
-        sv.on_fail.borrow_mut().take();
-        // Failures the scope was cancelled before handling: reported as
-        // a failure nobody saw (the exit code becomes 1).
-        for (_, text) in sv.queue.borrow_mut().drain(..) {
-            t.shared.failures.report_now(&text);
+    t.push_arg(handle);
+    Flow::Call(
+        Box::new(Scope {
+            node,
+            state,
+            outer: Some(outer),
+            opened_at,
+            draining: None,
+        }),
+        f,
+        1,
+    )
+}
+
+/// A scope whose body runs; the opener's node waits in `outer`.
+struct Scope {
+    node: Arc<CancelNode>,
+    state: Rc<ScopeState>,
+    outer: Option<Arc<CancelNode>>,
+    opened_at: String,
+    /// The body has ended and the scope waits for its children.
+    draining: Option<Draining>,
+}
+
+/// A scope waiting for its children: the body's result, and the task's
+/// own node, swapped for a fresh root while it waits.
+struct Draining {
+    r: Result<Value, Stop>,
+    own: Arc<CancelNode>,
+}
+
+impl Scope {
+    /// The body came to `r`: back under the opener's node, and the
+    /// children are waited for.
+    fn body_ended(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
+        t.cancel = self.outer.take().expect("the opener's node");
+        if r.is_err() {
+            self.node.cancel();
         }
+        self.wait(t, r)
     }
-    // Out of the opener's node's list: nothing runs below it any more.
-    node.cancel();
-    let outer = t.cancel.is_cancelled().then(|| t.unwound());
-    settle(&state, r, &opened_at, outer)
+
+    /// Waits, without being cancellable, until the scope has no live
+    /// child: the task waits under a fresh root, which nothing cancels
+    /// (not even a deadlock report: it is no shield). A cancellation
+    /// from outside still reaches the children, which hang below the
+    /// scope's node; when they have unwound, the scope goes on with it.
+    fn wait(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
+        if self.state.live.get() == 0 {
+            return self.closed(t, r);
+        }
+        let own = std::mem::replace(&mut t.cancel, CancelNode::root());
+        self.watch(t);
+        self.draining = Some(Draining { r, own });
+        Ok(Next::Park(Wake::default()))
+    }
+
+    /// Registers the task to be woken when a child ends.
+    fn watch(&self, t: &mut Task<'_>) {
+        let me = t.waiter.clone();
+        me.take_woken();
+        self.state.waiters.borrow_mut().add(&me);
+    }
+
+    /// Every child has ended: the scope closes and settles.
+    fn closed(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
+        let (node, state) = (&self.node, &self.state);
+        state.open.set(false);
+        if let Policy::Supervise(sv) = &state.policy {
+            sv.on_fail.borrow_mut().take();
+            // Failures the scope was cancelled before handling: reported as
+            // a failure nobody saw (the exit code becomes 1).
+            for (_, text) in sv.queue.borrow_mut().drain(..) {
+                t.shared.failures.report_now(&text);
+            }
+        }
+        // Out of the opener's node's list: nothing runs below it any more.
+        node.cancel();
+        let outer = t.cancel.is_cancelled().then(|| t.unwound());
+        settle(state, r, &self.opened_at, outer).map(Next::Done)
+    }
+}
+
+impl Cont for Scope {
+    fn resume(&mut self, t: &mut Task<'_>, v: Value) -> Result<Next, Stop> {
+        let Some(d) = self.draining.take() else {
+            return self.body_ended(t, Ok(v));
+        };
+        // Woken while waiting for the children.
+        if self.state.live.get() > 0 {
+            self.watch(t);
+            self.draining = Some(d);
+            return Ok(Next::Park(Wake::default()));
+        }
+        t.cancel = d.own;
+        self.closed(t, d.r)
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        let Some(d) = self.draining.take() else {
+            return self.body_ended(t, Err(stop));
+        };
+        debug_assert!(false, "a scope's wait ended early");
+        t.cancel = d.own;
+        Err(stop)
+    }
 }
 
 /// What `scope(` gives once the scope has closed, from the body's result
@@ -326,22 +527,4 @@ pub(crate) fn settle(
         _ if state.self_cancelled.get() => Ok(err_kind("cancelled")),
         _ => r,
     }
-}
-
-/// Waits, without being cancellable, until the scope has no live child.
-fn drain(t: &mut Task<'_>, state: &Rc<ScopeState>) {
-    let outer = std::mem::replace(&mut t.cancel, CancelNode::root());
-    let r = block(
-        t,
-        |_, me| {
-            if state.live.get() == 0 {
-                return Some(());
-            }
-            state.waiters.borrow_mut().add(me);
-            None
-        },
-        None,
-    );
-    t.cancel = outer;
-    debug_assert!(matches!(r, Ok(Some(()))), "a scope's wait ended early");
 }

@@ -10,11 +10,18 @@ fung 인터프리터 속도를 재는 스크립트. 테스트가 아니라 측�
 | `map.fung` | 키 20만 개 맵 만들고 다시 조회 |
 | `chan.fung` | 버퍼 없는 채널로 값 10만 개 주고받기: 태스크 전환 |
 | `spawn.fung` | 태스크 2,000개 띄우고 모두 기다리기: 태스크 생성 |
+| `list.fung` | 리스트 50만 개에 `map`·`filter`·`each`·`find`·`sort_by`: 콜백을 부르는 내장 함수의 리스트 순회 |
+| `wait.fung` | 태스크 2만 개가 저마다의 채널에서 함께 기다리기: 기다리는 태스크의 비용 |
+| `fs.fung` | `fs.exists`·`fs.stat` 5만 번을 차례로: 스레드 풀에 맡기는 일의 비용 |
+| `exec.fung` | `exec(["true"])` 500번을 차례로: 외부 명령을 띄우고 끝과 파이프를 기다리는 비용 |
 
 ```
 cargo build --release --locked -p fung-cli
 time target/release/fung bench/fib.fung
 ```
+
+`scripts/bench.sh <바이너리>...`는 아래 기록의 방법(파일마다 바이너리마다 준비 1회 + 9회 중앙값)으로 모든 파일을 재서 표로 찍는다.
+두 바이너리를 주면 같은 기계에서 나란히 비교한다(예: `scripts/bench.sh /tmp/fung-base target/release/fung`).
 
 ## 기록: 0.1.0과 0.2.0 (2026-10-17)
 

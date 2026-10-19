@@ -5,13 +5,14 @@ use std::rc::Rc;
 
 use fung_front::diag::Arg;
 
-use crate::native::nat::{self, def, fail, opt, param};
+use crate::native::nat::{self, def, def_step, fail, opt, param};
+use crate::native::walk::{Collect, Cursor, drain_with};
 use crate::value::{Lit, Value, format_for_print};
-use crate::vm::{Stop, Task};
+use crate::vm::{Flow, Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("split", split_fn, vec![param("s"), param("sep")]));
-    add(def(
+    add(def_step(
         "join",
         join_fn,
         vec![param("xs"), opt("sep", Lit::Str(""))],
@@ -58,35 +59,49 @@ fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `join(xs, sep = "")` renders elements as print would (06): strings
 /// bare, the rest in literal form.
-fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "join")?;
-    let sep = nat::need_str("sep", &a[1])?;
+    let sep = nat::need_str("sep", &a[1])?.to_string();
     // Every element shows as one character at least.
     if let Value::Range(r) = &a[0]
         && r.len() > i128::from(MAX_CHARS)
     {
         return Err(too_many_chars());
     }
-    let mut out = String::new();
-    let mut chars = 0;
-    let mut first = true;
-    nat::each(t, &a[0], "join", |_, x| {
-        let before = out.len();
-        if !first {
-            out.push_str(sep);
+    struct Join {
+        sep: String,
+        out: String,
+        chars: i64,
+        first: bool,
+    }
+    impl Collect for Join {
+        fn item(&mut self, x: Value) -> Result<bool, Stop> {
+            let before = self.out.len();
+            if !self.first {
+                self.out.push_str(&self.sep);
+            }
+            self.first = false;
+            match &x {
+                Value::Str(s) => self.out.push_str(s),
+                _ => self.out.push_str(&format_for_print(&x)),
+            }
+            self.chars += self.out[before..].chars().count() as i64;
+            if self.chars > MAX_CHARS {
+                return Err(too_many_chars());
+            }
+            Ok(false)
         }
-        first = false;
-        match &x {
-            Value::Str(s) => out.push_str(s),
-            _ => out.push_str(&format_for_print(&x)),
+        fn result(&mut self, _: &mut Task<'_>) -> Result<Flow, Stop> {
+            Ok(Flow::Done(string(std::mem::take(&mut self.out))))
         }
-        chars += out[before..].chars().count() as i64;
-        if chars > MAX_CHARS {
-            return Err(too_many_chars());
-        }
-        Ok(())
-    })?;
-    Ok(string(out))
+    }
+    let p = Join {
+        sep,
+        out: String::new(),
+        chars: 0,
+        first: true,
+    };
+    drain_with(t, Cursor::new(&a[0]), p)
 }
 
 /// Whitespace for `trim`: the Unicode White_Space property.

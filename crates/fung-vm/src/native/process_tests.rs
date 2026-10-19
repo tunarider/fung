@@ -141,3 +141,146 @@ fn a_cancel_after_the_command_itself_ended_ends_what_it_left() {
         std::thread::sleep(Duration::from_millis(10));
     }
 }
+
+/// `exec` and `sh` hand the wait for the command off (R1a).
+#[test]
+fn exec_parks_on_the_loop() {
+    for call in ["exec([\"true\"])", "sh(\"true\")"] {
+        let o = crate::testutil::exec_waiting(&format!(
+            "n = offloads()\nprint({call})\nprint(offloads() - n)"
+        ));
+        assert_eq!(
+            (o.out.as_str(), o.err.as_str()),
+            ("Ok({out: \"\", err: \"\", code: 0})\n0\n", ""),
+            "{call}"
+        );
+    }
+}
+
+/// A command that writes much to both its output and its error while it
+/// reads much input does not stop: the three pipes are watched at once.
+#[test]
+fn a_command_with_much_input_and_output_on_both_streams() {
+    let start = Instant::now();
+    assert_eq!(
+        run(
+            "s = repeat(\"x\", 1000000)\nr = sh(\"tee /dev/stderr\", stdin: s)!\nprint(len(r.out), len(r.err), r.out == s)"
+        ),
+        ("1000000 1000000 true\n".into(), "".into(), 0)
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// What a command left in the background keeps its output open: it is
+/// read until that closes too.
+#[test]
+fn a_grandchild_holding_the_output_is_waited_for() {
+    assert_eq!(
+        run("print(sh(\"(sleep 0.2; echo late) & echo now\")!.out)"),
+        ("now\nlate\n\n".into(), "".into(), 0)
+    );
+}
+
+/// Without pidfd (an old Linux kernel), a pool job waits for the
+/// command's end: the same result.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_pool_wait_ends_a_command_without_pidfd() {
+    let o = crate::testutil::exec_prepared(
+        "print(exec([\"sh\", \"-c\", \"exit 3\"]))",
+        crate::testutil::Opts::default(),
+        |rt| rt.shared().poller.disable_pidfd(),
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            "Err({kind: 'exit, code: 3, out: \"\", err: \"\", message: \"`sh` exited with code 3\"})\n",
+            ""
+        )
+    );
+}
+
+/// Without pidfd, a pool that cannot take the wait (no thread could be
+/// made) does not leave the command unseen: the task looks again on a
+/// short timer until the command has ended (here it closes its output
+/// first, so no pipe wakes the task when it ends).
+#[cfg(target_os = "linux")]
+#[test]
+fn without_pidfd_a_full_pool_still_sees_the_end() {
+    let o = crate::testutil::exec_prepared(
+        "print(timeout(5s, () => sh(\"exec >/dev/null 2>&1; sleep 0.1\")!.code))",
+        crate::testutil::Opts::default(),
+        |rt| {
+            rt.shared().poller.disable_pidfd();
+            rt.shared().pool.fail_spawns(true);
+        },
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("0\n", ""));
+}
+
+/// Without pidfd, a child already reaped when the pool job waits for it
+/// (`waitid` gives ECHILD) still wakes the task: the call ends with
+/// what `try_wait` says, not at the deadline.
+#[cfg(target_os = "linux")]
+#[test]
+fn without_pidfd_an_already_reaped_child_wakes_the_task() {
+    let o = crate::testutil::exec_prepared(
+        "r = timeout(5s, () => sh(\"exec >/dev/null 2>&1; sleep 0.1\"))\nprint(match r:\n  Err({kind: 'timeout}) => \"timeout\"\n  _ => \"ended\"\n;;)",
+        crate::testutil::Opts::default(),
+        |rt| {
+            rt.shared().poller.disable_pidfd();
+            rt.shared().poller.reap_before_waitid();
+        },
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("ended\n", ""));
+}
+
+/// A cancel while what the command left ignores SIGTERM and holds its
+/// output: the group gets SIGKILL after the grace time, and the call
+/// ends then (it does not wait for the grandchild, nor spin meanwhile).
+#[test]
+fn a_cancel_is_bounded_when_a_grandchild_ignores_term() {
+    own_group();
+    let start = Instant::now();
+    assert_eq!(
+        run("print(timeout(300ms, () => sh(\"(trap '' TERM; exec sleep 8) & exec sleep 60\")))"),
+        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// A command whose output comes fast does not hold the run thread: a
+/// ticking task keeps ticking while the command's output is read.
+#[test]
+fn a_fast_command_does_not_starve_other_tasks() {
+    assert_eq!(
+        run(
+            "n = atom(0)\ndone = atom(false)\nscope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): sleep(2ms); swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  r = sh(\"head -c 100000000 /dev/zero\")\n  reset(done, true)\n;;)\nprint(deref(n) > 10)"
+        ),
+        ("true\n".into(), "".into(), 0)
+    );
+}
+
+/// A registration that fails while a cancelled command is being ended
+/// (the loop refuses its output pipe after taking its end) ends the call
+/// with E0801 and leaves nothing registered.
+#[test]
+fn a_failed_registration_after_a_cancel_leaves_nothing_registered() {
+    own_group();
+    let o = crate::testutil::exec(
+        "fn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nsupervise(fn(sc):\n  t = spawn(sc, fn():\n    fail_register_at(5)\n    timeout(100ms, () => sh(\"trap '' TERM; sleep 5\"))\n  ;;)\n  print(kind(await(t)))\n;;, e => nil)\nprint(waiting_io())",
+        crate::testutil::Opts {
+            extra: crate::testutil::jobs::job_natives,
+            ..crate::testutil::Opts::default()
+        },
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("'error\n0\n", ""));
+}

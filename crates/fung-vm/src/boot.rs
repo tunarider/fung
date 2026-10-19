@@ -1,5 +1,5 @@
 //! Booting the prelude (06: prelude만 시작 시): the core natives, the
-//! concurrency natives, the `_native.conc` and `_native.process` bridges,
+//! concurrency natives, the `_native.process` bridge,
 //! and the public names of the prelude files written in fung
 //! (`extras::PRELUDE_FILES`: `extras/prelude.fung`), compiled and run
 //! on the runtime at startup.
@@ -60,7 +60,7 @@ pub(crate) fn native_prelude(args: &[String]) -> Prelude {
 /// Builds the prelude on the task's runtime and returns it; the program is
 /// linked against it (`Runtime::boot` keeps it in the world). `args`
 /// become the prelude's `args` and the runtime's. Everything here runs
-/// with the task's run token held.
+/// on the run thread.
 ///
 /// The errors are the files' compile errors or the error of a body,
 /// with positions in the runtime's sources. Booting the embedded file does
@@ -143,7 +143,6 @@ pub type NativeModule = fn() -> Rc<Module>;
 /// command registers the ones a program imports (`register`), and
 /// `spec/builtins.txt` lists their members (generated from this table).
 pub const NATIVE_MODULES: &[(&str, NativeModule)] = &[
-    ("_native.conc", conc::module),
     ("_native.fs", fs::module),
     ("_native.json", json::module),
     ("_native.net", net::module),

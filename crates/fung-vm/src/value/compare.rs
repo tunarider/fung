@@ -42,9 +42,9 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         (Value::Atom(x), Value::Atom(y)) => Rc::ptr_eq(x, y),
         (Value::Sender(x), Value::Sender(y)) => Rc::ptr_eq(x, y),
         (Value::Receiver(x), Value::Receiver(y)) => Rc::ptr_eq(x, y),
-        (Value::File(x), Value::File(y)) => Rc::ptr_eq(x, y),
-        (Value::Conn(x), Value::Conn(y)) => Rc::ptr_eq(x, y),
-        (Value::Listener(x), Value::Listener(y)) => Rc::ptr_eq(x, y),
+        (Value::File(x), Value::File(y)) => std::sync::Arc::ptr_eq(x, y),
+        (Value::Conn(x), Value::Conn(y)) => std::sync::Arc::ptr_eq(x, y),
+        (Value::Listener(x), Value::Listener(y)) => std::sync::Arc::ptr_eq(x, y),
         _ => false,
     }
 }

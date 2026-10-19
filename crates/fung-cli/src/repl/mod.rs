@@ -43,6 +43,11 @@ use fung_front::tree::Head;
 use fung_vm::vm::{Runtime, STDIN_BUFFER, Stop};
 
 use crate::Out;
+
+/// What the REPL says when a second Ctrl-C dropped an input stuck in
+/// its cleanup (`Runtime::take_abandoned`).
+const ABANDONED: &str =
+    "interrupted again: the cleanup did not finish; the input's tasks were dropped";
 use crate::run::{ProcessOut, raw_stdin, status};
 use line::{LineReader, PlainReader, TermReader};
 
@@ -127,7 +132,6 @@ fn is_statement(h: Head) -> bool {
 impl Session {
     fn new(input: Box<dyn LineReader>, rt: Runtime) -> Session {
         rt.prepare_repl();
-        rt.hold();
         let known = rt.with_sources(SourceMap::clone);
         Session {
             input,
@@ -188,7 +192,6 @@ impl Session {
     fn finish(self, code: i64) -> i64 {
         self.rt.cancel_all();
         self.rt.wait();
-        self.rt.release();
         self.rt.exit_code().unwrap_or(code)
     }
 
@@ -250,8 +253,13 @@ impl Session {
         self.rt.recover_interrupt();
         let r = self.rt.run_repl();
         // A Ctrl-C cut the input short: nothing is reported or printed,
-        // and the session goes on on a fresh root.
+        // and the session goes on on a fresh root. A second one dropped
+        // its tasks while their cleanup still ran: one line says so.
+        let abandoned = self.rt.take_abandoned();
         if self.rt.recover_interrupt() {
+            if abandoned {
+                let _ = writeln!(self.err, "{ABANDONED}");
+            }
             return self.rt.exit_code();
         }
         // A spawned task's exit(n) ends the session like a direct one:

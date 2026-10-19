@@ -11,9 +11,10 @@
 //! program never asked for stays in the input: a command after fung in
 //! a shell reads it, and keys typed ahead on a terminal are not taken.
 //!
-//! A task takes a queued line with the run token held, without waiting.
-//! When the queue is empty it waits outside the token (`outside`), so the
-//! other tasks run meanwhile and the wait is not a blocked task for the
+//! A task takes a queued line on the run thread, without waiting.
+//! When the queue is empty it puts its waiter on the waiting list and
+//! parks (`Stdin::poll`); the reader thread wakes it when lines come. The
+//! park is one the world outside ends, so it is not a stuck task for the
 //! deadlock check. Unlike a read the task made itself, that wait can end
 //! early: a cancelled task stops waiting and unwinds with E0701, so an
 //! `exit(n)` from another task ends the program while a task (or the
@@ -24,14 +25,13 @@
 //! standard input) and stops once the runtime is gone, unless it is
 //! inside a read the operating system never ends; then it stays there
 //! until the process exits. It handles bytes only: decoding into fung
-//! strings happens with the token held.
+//! strings happens on the run thread.
 
 use std::collections::VecDeque;
 use std::io::BufRead;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use super::block::Waiter;
-use super::task::CancelNode;
 
 /// The buffer the command reads standard input with: one read takes at
 /// most this much. 64 KiB is the pipe buffer size on Linux, so one read
@@ -87,14 +87,11 @@ impl Stdin {
     }
 
     /// The next line if one is queued (`Some(None)` at the end of the
-    /// input), `None` if the caller has to wait (`Reader::wait`).
-    pub(crate) fn try_take(&self) -> Option<Option<Vec<u8>>> {
-        lock(&self.0.state).lines.pop_front()
-    }
-
-    /// A handle for waiting outside the run token. Starts the reader
-    /// thread the first time.
-    pub(crate) fn handle(&self) -> Reader {
+    /// input), taken off for `me`; otherwise `me` is put on the waiting
+    /// list, the reader thread is asked for a read, and `None`: the task
+    /// parks until the reader thread wakes it (`read_on_demand`). Starts
+    /// the reader thread the first time.
+    pub(crate) fn poll(&self, me: &Arc<Waiter>) -> Option<Option<Vec<u8>>> {
         let mut s = lock(&self.0.state);
         if let Some(source) = s.source.take() {
             let pump = self.0.clone();
@@ -103,62 +100,27 @@ impl Stdin {
                 .spawn(move || pump.read_on_demand(source))
                 .expect("start the standard input reader");
         }
-        Reader(self.0.clone())
+        if let Some(line) = s.lines.pop_front() {
+            s.waiting.retain(|w| !Arc::ptr_eq(w, me));
+            return Some(line);
+        }
+        if !s.waiting.iter().any(|w| Arc::ptr_eq(w, me)) {
+            s.waiting.push(me.clone());
+            self.0.demand.notify_one();
+        }
+        None
+    }
+
+    /// A wait that ended without a line (cancelled, or past its
+    /// deadline): `me` leaves the waiting list.
+    pub(crate) fn leave(&self, me: &Arc<Waiter>) {
+        lock(&self.0.state).waiting.retain(|w| !Arc::ptr_eq(w, me));
     }
 
     /// How many tasks wait for a line (a test probe).
     #[cfg(test)]
     pub(crate) fn waiting(&self) -> usize {
         lock(&self.0.state).waiting.len()
-    }
-}
-
-/// Waits for standard input without the run token (`Stdin::handle`).
-pub(crate) struct Reader(Arc<Pump>);
-
-impl Reader {
-    /// Waits for the next line without the run token (the caller runs it
-    /// in `outside`): the line, or `None` once `cancel` is cancelled or
-    /// its deadline (`deadline.rs`) passes (`outside` then expires the
-    /// owner, with the token held).
-    /// `me` must be registered on `cancel` and its woken flag cleared
-    /// before the call, so no wake is lost.
-    pub(crate) fn wait(&self, me: &Arc<Waiter>, cancel: &CancelNode) -> Option<Option<Vec<u8>>> {
-        loop {
-            {
-                let mut s = lock(&self.0.state);
-                if let Some(line) = s.lines.pop_front() {
-                    s.waiting.retain(|w| !Arc::ptr_eq(w, me));
-                    return Some(line);
-                }
-                if cancel.is_cancelled() {
-                    s.waiting.retain(|w| !Arc::ptr_eq(w, me));
-                    return None;
-                }
-                if !s.waiting.iter().any(|w| Arc::ptr_eq(w, me)) {
-                    s.waiting.push(me.clone());
-                    self.0.demand.notify_one();
-                }
-            }
-            let mut due = false;
-            while !me.take_woken() {
-                match cancel.deadline_at() {
-                    None => std::thread::park(),
-                    Some(at) => {
-                        let now = std::time::Instant::now();
-                        if now >= at {
-                            due = true;
-                            break;
-                        }
-                        std::thread::park_timeout(at - now);
-                    }
-                }
-            }
-            if due {
-                lock(&self.0.state).waiting.retain(|w| !Arc::ptr_eq(w, me));
-                return None;
-            }
-        }
     }
 }
 

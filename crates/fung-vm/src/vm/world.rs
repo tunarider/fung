@@ -1,46 +1,42 @@
-//! What every task shares (09, stage 3a), behind the run token.
+//! What the runtime keeps between tasks (09).
 //!
-//! The runtime is split in two. `World` is the shared part: the streams,
-//! the source texts for error reports, the exit code,
-//! the script arguments, the global tables, the test blocks and the
-//! modules. A `Task` (`vm.rs`) is the per-task part: its value stack, its
-//! frames and the native it is calling.
+//! The runtime is split in two. `World` is the part every task uses: the
+//! streams, the source texts for error reports, the exit code, the
+//! script arguments, the global tables, the test blocks and the modules.
+//! A `Task` (`vm.rs`) is the per-task part: its value stack, its frames
+//! and the native it is calling.
 //!
-//! `World` sits in one `Mutex`, shared through an `Arc` (stage 3a:
-//! 실행권 잠금), with a fair queue in front of it (`Gate`). A blocked task
-//! sleeps on its own `Waiter` (`block.rs`) without the token, and only
-//! what it waits for wakes it. Owning the gate and holding that
-//! mutex is holding the run token: only the holder runs fung code, so
-//! only the holder touches fung values, whose `Rc` counts are not atomic.
-//! A task takes the token when it starts and holds it while it runs,
-//! giving it up only to wait (`block`), to let waiting tasks have a turn
-//! (`yield_turn`) or to call the operating system (`outside`); the run
-//! loop never locks per instruction. `Token` is the guard: it keeps the
-//! debug mark of `token.rs` in step with the mutex, and it can give the
-//! mutex up and take it back without ever being a guard whose mark is
-//! wrong.
+//! One thread runs every task (`sched.rs`, R1b), so the world is no
+//! longer behind a lock (R5): the `Runtime` owns it in a `RefCell`, and a
+//! run's `Task` borrows it for the whole run. It holds fung values, whose
+//! `Rc` counts are not atomic, so it is `!Send`, and so is the runtime:
+//! the compiler keeps every value on its thread. What other threads use
+//! (the signal thread, the pool's jobs, the standard input reader) is
+//! `Shared`, which holds only what is safe to share: the ready queue,
+//! the event loop, the pool, the stop flag and the cancellation root.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
-use std::thread::Thread;
-use std::time::Instant;
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use fung_front::source::{FileId, SourceMap};
 
-use super::block::{Census, WaitList, Waiter};
 use super::failure::Failures;
 use super::module::ModuleState;
+use super::poller::Poller;
+use super::pool::{POOL_IDLE, POOL_MAX, Pool};
+use super::sched::{FiberId, Ready};
 use super::stdin::Stdin;
 use super::task::CancelNode;
-use super::{Globals, Prelude, RtProto, TestCase, token};
+use super::{Globals, Prelude, RtProto, TestCase};
 
-/// The shared part of the runtime. Reachable only through `Shared`'s
-/// mutex, that is, only by the thread holding the run token.
+/// The shared part of the runtime. Reachable only through the
+/// runtime's `RefCell`, that is, only by the run thread.
 pub(crate) struct World {
     stdout: Box<dyn Write + Send>,
     /// Shared with `Failures`, which reports on it when a handle drops.
@@ -72,23 +68,17 @@ pub(crate) struct World {
     pub(crate) prelude: Prelude,
     /// The linked entry (`Runtime::load`), run by `Runtime::run`.
     pub(super) main: Option<Rc<RtProto>>,
-    /// Spawned tasks that have not finished (`Runtime::wait`).
-    pub(super) running: usize,
-    /// Woken when `running` drops to 0.
-    pub(super) idle: WaitList,
-    /// Tasks running fung code: the entry, spawned tasks from the moment
-    /// they are spawned, test blocks and the prelude's boot;
-    /// not `Runtime::wait`'s observer. The deadlock check (`deadlock.rs`)
-    /// compares it with `Census::blocked`.
-    pub(super) live: usize,
-    /// The command holds one count of `live` between the tasks it runs
-    /// one after another (`Runtime::hold`, `fung test`): it is about to
-    /// run more fung code, so it is live and not blocked. The task it
-    /// runs takes that count over while it runs (`Task::driven`).
-    pub(super) held: bool,
-    /// A driven task has taken the held count over and has not dropped
-    /// yet. There is at most one: `Task::driven` asserts it.
-    pub(super) hold_taken: bool,
+    /// Tasks spawned during the current turn, which the scheduler takes
+    /// in after it (`sched.rs`).
+    pub(super) new_fibers: Vec<super::Fiber>,
+    /// A run is going (`Task::run_root`), which allows no other inside it.
+    pub(super) in_run: bool,
+    /// The tasks parked on a descriptor, by the token of their
+    /// registration in the event loop (`park_io`).
+    pub(super) io: std::collections::HashMap<u64, (Arc<super::block::Waiter>, super::block::IoKey)>,
+    /// The tokens in `io` by descriptor, so that a close looks only at
+    /// its own (`drop_io_waits`). Kept by `add_io` and `take_io`.
+    pub(super) io_fds: std::collections::HashMap<std::os::fd::RawFd, Vec<u64>>,
     /// The REPL's entry globals (`Runtime::prepare_repl`): one table every
     /// input runs on, so the values and the closures of earlier inputs
     /// see later definitions (08).
@@ -102,31 +92,61 @@ pub(crate) struct World {
     pub(super) stop: super::stop::StopState,
     /// The REPL's evaluation was interrupted (`StopHandle::interrupt`).
     pub(super) interrupted: bool,
+    /// Interrupted again while still running: drop its tasks
+    /// (`Sched::abandon`). Reset by `Runtime::take_abandoned`.
+    pub(super) abandon: bool,
+    /// The last run's tasks were dropped that way.
+    pub(super) abandoned: bool,
 }
 
-// SAFETY: `World` holds fung values (`Rc`s with non-atomic counts). The
-// invariant that makes sending it sound: every fung value that shares an
-// `Rc` with a value reachable from the world is created, cloned and
-// dropped only by the thread that holds `Shared::world`'s mutex (the run
-// token). It holds because
-// - `World` is reachable only through that mutex (`Shared` owns it, and
-//   only `Token`, which marks the holder, derefs to it);
-// - values leave the world only onto a `Task`'s stack and frames or into
-//   locals of a function that holds a `Token` or `Task`, and the `Task` /
-//   `Token` drops them before it releases the mutex (`Task`'s `Drop`
-//   empties the stack and frames first; `Runtime`'s `Drop` empties the
-//   world under the token);
-// - the public API of `Runtime` (see `runtime.rs`) takes no fung value in
-//   and gives none out: only `Send` data without an `Rc` crosses it, and
-//   `Value` is itself `!Send`, so no value can be carried to another
-//   thread around the API either.
-// Tasks on other threads (stage 3a) keep to the same rule: a spawned
-// task's thread touches values only between taking the token and
-// giving it up (`task.rs`).
-// The streams are `Send` themselves.
-unsafe impl Send for World {}
-
 impl World {
+    /// Puts a registration in the table (and a descriptor's in the fd
+    /// index). One wait at a time per descriptor and interest: a second
+    /// registration would replace the first in the loop, and the first
+    /// task would never wake.
+    pub(super) fn add_io(
+        &mut self,
+        token: u64,
+        waiter: Arc<super::block::Waiter>,
+        key: super::block::IoKey,
+    ) {
+        if let super::block::IoKey::Fd(fd, interest) = key {
+            let tokens = self.io_fds.entry(fd).or_default();
+            debug_assert!(
+                !tokens.iter().any(|t| matches!(
+                    self.io.get(t),
+                    Some((_, super::block::IoKey::Fd(_, i))) if *i == interest
+                )),
+                "two waits on one fd and interest"
+            );
+            tokens.push(token);
+        }
+        self.io.insert(token, (waiter, key));
+    }
+
+    /// Takes a registration out of the table and the fd index.
+    pub(super) fn take_io(
+        &mut self,
+        token: u64,
+    ) -> Option<(Arc<super::block::Waiter>, super::block::IoKey)> {
+        let e = self.io.remove(&token)?;
+        if let super::block::IoKey::Fd(fd, _) = e.1
+            && let Some(tokens) = self.io_fds.get_mut(&fd)
+        {
+            tokens.retain(|t| *t != token);
+            if tokens.is_empty() {
+                self.io_fds.remove(&fd);
+            }
+        }
+        Some(e)
+    }
+
+    /// Takes every registration out (`Sched::abandon`).
+    pub(super) fn take_all_io(&mut self) -> Vec<super::block::IoKey> {
+        self.io_fds.clear();
+        self.io.drain().map(|(_, (_, k))| k).collect()
+    }
+
     pub(super) fn new(
         stdout: Box<dyn Write + Send>,
         stderr: Box<dyn Write + Send>,
@@ -147,17 +167,18 @@ impl World {
             modules: BTreeMap::new(),
             prelude: Prelude::default(),
             main: None,
-            running: 0,
-            idle: WaitList::default(),
-            live: 0,
-            held: false,
-            hold_taken: false,
+            new_fibers: Vec::new(),
+            in_run: false,
+            io: std::collections::HashMap::new(),
+            io_fds: std::collections::HashMap::new(),
             deadlocked: false,
             shields: Vec::new(),
             exit_by_deadlock: false,
             exit_after_deadlock: None,
             stop: Default::default(),
             interrupted: false,
+            abandon: false,
+            abandoned: false,
         }
     }
 
@@ -192,18 +213,6 @@ impl World {
         let g = Rc::new(RefCell::new(vec![None; n]));
         self.globals.push(g.clone());
         g
-    }
-
-    /// Counts a task being spawned (`up`) or one whose spawn failed: it
-    /// is running and live.
-    pub(super) fn count(&mut self, up: bool) {
-        if up {
-            self.running += 1;
-            self.live += 1;
-        } else {
-            self.running -= 1;
-            self.live -= 1;
-        }
     }
 
     /// A task's exit(n): the first request wins (05). One that comes
@@ -260,10 +269,9 @@ impl World {
     }
 
     /// Empties everything that holds fung values, dropping them here: the
-    /// caller holds the token. The global tables are emptied first, which
+    /// caller is the run thread. The global tables are emptied first, which
     /// breaks the closure ↔ globals cycles.
     pub(super) fn release_values(&mut self) {
-        token::assert_holds_token();
         let globals = std::mem::take(&mut self.globals);
         for g in &globals {
             let old = std::mem::take(&mut *g.borrow_mut());
@@ -279,8 +287,8 @@ impl World {
 }
 
 /// A stream shared by the world and `Failures` (standard error). Each
-/// write locks it for that write only; it is only written with the run
-/// token held, so the lock is never contended.
+/// write locks it for that write only; it is only written on the run
+/// thread, so the lock is never contended.
 #[derive(Clone)]
 pub(crate) struct Stream(Arc<Mutex<Box<dyn Write + Send>>>);
 
@@ -304,85 +312,96 @@ impl Write for Stream {
     }
 }
 
-/// The run token's mutex, the fair queue in front of it, and the roots of
-/// the cancellation tree. (Blocked tasks sleep on their own `Waiter`.)
+/// What threads other than the run thread use too: the ready queue the
+/// scheduler runs from (`sched.rs`), the event loop, the pool, the stop
+/// flag and the root of the cancellation tree. All of it is `Send +
+/// Sync` by itself.
 pub(crate) struct Shared {
-    world: Mutex<World>,
-    /// How many tasks are blocked, for the deadlock check (`block.rs`).
-    pub(super) census: Arc<Census>,
+    /// The tasks to run next and the events other threads post.
+    pub(super) ready: Arc<Ready>,
+    /// The next task's number.
+    next_fiber: AtomicU64,
+    /// A stop was requested (`stop.rs`): a signal after it ends the
+    /// process at once. Read by the signal thread, off the run thread.
+    pub(super) stop_requested: AtomicBool,
     /// Failures nobody handled (`failure.rs`).
     pub(super) failures: Arc<Failures>,
-    /// How many times a sleeping task woke up (tests count wakeups).
+    /// The threads offload jobs run on (`pool.rs`).
+    pub(crate) pool: Pool,
+    /// The event loop the run thread sleeps in (`poller.rs`, `sched.rs`).
+    pub(crate) poller: Poller,
+    /// Tokens for registrations in the loop, a fresh one per park.
+    pub(super) next_token: AtomicU64,
+    /// How many times a parked task was resumed (tests count wakeups).
     #[cfg(test)]
-    wakeups: AtomicUsize,
-    /// The stack sizes spawned tasks try, when a test replaces
-    /// `stack::TASK_STACKS` (`set_task_stacks`).
+    pub(super) wakeups: AtomicUsize,
+    /// How many tasks were parked when the scheduler last had nothing to
+    /// run (a test probe another thread reads).
     #[cfg(test)]
-    task_stacks: std::sync::OnceLock<&'static [usize]>,
-    gate: Gate,
+    pub(crate) parked_probe: AtomicUsize,
+    /// How many deadlines the scheduler kept at that moment (tests).
+    #[cfg(test)]
+    pub(crate) timers_probe: AtomicUsize,
+    /// How many times the scheduler looked at the event loop (tests).
+    #[cfg(test)]
+    pub(crate) io_polls: AtomicUsize,
     /// Every task descends from this node: the entry runs on it,
     /// `cancel_all` cancels it. Replaced only by the REPL's recovery from a
-    /// deadlock (`Runtime::recover_deadlock`), with the run token held and
+    /// deadlock (`Runtime::recover_deadlock`), on the run thread and with
     /// no task of the program left; read it through `root()`.
     root: Mutex<Arc<CancelNode>>,
 }
 
+/// The runtime is gone: its pool's idle threads end at once (`fung test`
+/// makes one runtime per file).
+impl Drop for Shared {
+    fn drop(&mut self) {
+        self.pool.shutdown();
+    }
+}
+
 impl Shared {
-    pub(super) fn new(world: World) -> Shared {
+    pub(super) fn new(world: &World) -> Shared {
+        // Without an event loop (no descriptor left, say) nothing could
+        // wait: refuse at once.
+        let poller = Poller::new().expect("cannot make the event loop");
         let failures = Arc::new(Failures::new(world.stderr.clone()));
         Shared {
-            world: Mutex::new(world),
-            census: Arc::default(),
+            ready: Arc::new(Ready::new(poller.waker())),
+            next_fiber: AtomicU64::new(1),
+            stop_requested: AtomicBool::new(false),
             failures,
+            pool: Pool::new(POOL_MAX, POOL_IDLE),
+            poller,
+            next_token: AtomicU64::new(1),
             #[cfg(test)]
             wakeups: AtomicUsize::new(0),
             #[cfg(test)]
-            task_stacks: std::sync::OnceLock::new(),
-            gate: Gate::default(),
+            parked_probe: AtomicUsize::new(0),
+            #[cfg(test)]
+            timers_probe: AtomicUsize::new(0),
+            #[cfg(test)]
+            io_polls: AtomicUsize::new(0),
             root: Mutex::new(CancelNode::root()),
         }
     }
 
-    /// Takes the run token, waiting for the thread that holds it. Waiters
-    /// get the token in the order they asked for it (`Gate`).
-    pub(super) fn lock(&self) -> Token<'_> {
-        token::assert_not_held();
-        self.gate.enter();
-        let guard = self.world.lock().unwrap_or_else(recover);
-        token::mark_taken();
-        Token {
-            shared: self,
-            guard: Some(guard),
-        }
+    /// A number for a new task.
+    pub(super) fn next_fiber(&self) -> FiberId {
+        self.next_fiber.fetch_add(1, Ordering::Relaxed)
     }
 
-    /// How many times a sleeping task woke up so far.
+    /// How many times a parked task was resumed so far.
     #[cfg(test)]
     pub(crate) fn wakeups(&self) -> usize {
         self.wakeups.load(Ordering::Relaxed)
     }
 
-    /// The stack sizes a spawned task's thread tries, in order
-    /// (`crate::stack::TASK_STACKS`, or a test's own).
-    pub(super) fn task_stacks(&self) -> &'static [usize] {
-        #[cfg(test)]
-        if let Some(s) = self.task_stacks.get() {
-            return s;
-        }
-        crate::stack::TASK_STACKS
-    }
-
-    /// Replaces the stack sizes spawned tasks try (once per runtime), so
-    /// a test can make the first ones fail.
-    #[cfg(test)]
-    pub(crate) fn set_task_stacks(&self, sizes: &'static [usize]) {
-        self.task_stacks.set(sizes).expect("task stacks set twice");
-    }
-
     /// Cancels every task: the root and everything below it, and wakes the
-    /// blocked ones. Takes the token.
+    /// parked ones. Any thread may call it: a
+    /// cancellation node is thread-safe, and a wake goes through the ready
+    /// queue (`sched.rs`).
     pub(crate) fn cancel_all(&self) {
-        let _t = self.lock();
         self.root().cancel();
     }
 
@@ -391,337 +410,17 @@ impl Shared {
         self.root.lock().unwrap_or_else(recover).clone()
     }
 
-    /// Gives the program a fresh run root. The caller holds the run
-    /// token, and every task of the program has ended.
+    /// Gives the program a fresh run root. Every task of the program has
+    /// ended.
     pub(super) fn replace_root(&self) {
-        token::assert_holds_token();
         *self.root.lock().unwrap_or_else(recover) = CancelNode::root();
     }
 }
 
-/// A poisoned mutex means a thread panicked while it held the token. The
-/// VM's panic fence already turned that panic into E0801 (or the panic is
-/// a test's), and the world's own fields are plain containers that no
-/// method leaves half-changed across a call that can panic, so refusing
-/// the lock would only wedge the runtime: every later task and the
-/// runtime's drop would fail on a lock nobody can clear.
-/// Take the guard as it is. (The gate's state is changed only in short
-/// sections that do not panic; the same reasoning applies.)
+/// A poisoned mutex (a stream's, the root's) means a thread panicked
+/// while it held it; what it guards is left whole by every method, so
+/// refusing the lock would only wedge the runtime. Take the guard as it
+/// is.
 fn recover<T>(e: PoisonError<T>) -> T {
     e.into_inner()
-}
-
-/// The fair queue in front of the run token (stage 3a: 차례 넘기기).
-///
-/// `std::sync::Mutex` is not fair: a thread that unlocks and locks again
-/// at once usually gets the lock back, and the others starve. So a thread
-/// may lock the world mutex only while it owns the gate, and the gate
-/// passes ownership in first-come order: a thread that finds the gate
-/// owned queues a `Turn` and parks until the owner, leaving, hands the
-/// turn to the first in the queue. Ownership passes directly, so a thread
-/// that leaves and enters again goes to the back of the queue.
-///
-/// The gate's own mutex is held only for a few instructions (to queue or
-/// to hand over), never while fung code runs.
-#[derive(Default)]
-struct Gate {
-    state: Mutex<GateState>,
-    /// How many threads are queued. The token's holder reads it without
-    /// any lock to decide whether yielding would help anyone.
-    queued: AtomicUsize,
-}
-
-#[derive(Default)]
-struct GateState {
-    /// Whether some thread owns the gate (holds or is about to take the
-    /// token).
-    owned: bool,
-    queue: VecDeque<Arc<Turn>>,
-}
-
-/// A queued thread's ticket: set ready when the gate is handed to it.
-struct Turn {
-    thread: Thread,
-    ready: AtomicBool,
-}
-
-impl Turn {
-    fn new() -> Arc<Turn> {
-        Arc::new(Turn {
-            thread: std::thread::current(),
-            ready: AtomicBool::new(false),
-        })
-    }
-
-    /// Parks until the gate is handed to this thread (park can wake
-    /// spuriously; the flag is the truth).
-    fn wait(&self) {
-        while !self.ready.load(Ordering::Acquire) {
-            std::thread::park();
-        }
-    }
-
-    fn give(&self) {
-        self.ready.store(true, Ordering::Release);
-        self.thread.unpark();
-    }
-}
-
-impl Gate {
-    fn state(&self) -> MutexGuard<'_, GateState> {
-        self.state.lock().unwrap_or_else(recover)
-    }
-
-    /// Becomes the owner, waiting in line if another thread owns it.
-    fn enter(&self) {
-        let mut g = self.state();
-        if !g.owned {
-            g.owned = true;
-            return;
-        }
-        let turn = Turn::new();
-        g.queue.push_back(turn.clone());
-        self.queued.fetch_add(1, Ordering::Relaxed);
-        drop(g);
-        turn.wait();
-    }
-
-    /// Stops owning: hands the gate to the first thread in line, if any.
-    fn leave(&self) {
-        let mut g = self.state();
-        match g.queue.pop_front() {
-            Some(next) => {
-                self.queued.fetch_sub(1, Ordering::Relaxed);
-                next.give();
-            }
-            None => g.owned = false,
-        }
-    }
-
-    /// Hands the gate to the first thread in line and queues this one
-    /// behind the rest, in one step. Returns the turn to wait for, or
-    /// `None` (still the owner) when nobody is in line.
-    fn pass(&self) -> Option<Arc<Turn>> {
-        let mut g = self.state();
-        let next = g.queue.pop_front()?;
-        let turn = Turn::new();
-        g.queue.push_back(turn.clone());
-        next.give();
-        Some(turn)
-    }
-}
-
-/// The run token: the guard of `Shared::world` while this thread holds it.
-/// The debug mark (`token.rs`) is set right after the mutex is locked and
-/// cleared right before it is unlocked, in every path: `Shared::lock`,
-/// `release`, `reacquire`, `wait`, `yield_turn` and the drop.
-///
-/// The guard is an `Option` so the token can be given up and taken back
-/// without dropping the `Token` (a task keeps one for its whole life).
-///
-/// Holding the token means owning the gate and holding the mutex. Giving
-/// it up drops the mutex guard first and then leaves the gate, so the
-/// next owner finds the mutex free (or about to be).
-pub(crate) struct Token<'a> {
-    shared: &'a Shared,
-    guard: Option<MutexGuard<'a, World>>,
-}
-
-impl Token<'_> {
-    /// Gives the token up; the world is unreachable until `reacquire`.
-    pub(super) fn release(&mut self) {
-        if let Some(g) = self.guard.take() {
-            token::mark_released();
-            drop(g);
-            self.shared.gate.leave();
-        }
-    }
-
-    /// Takes the token back if this `Token` gave it up (a no-op while it
-    /// is held).
-    pub(super) fn reacquire(&mut self) {
-        if self.guard.is_none() {
-            token::assert_not_held();
-            self.shared.gate.enter();
-            let g = self.shared.world.lock().unwrap_or_else(recover);
-            token::mark_taken();
-            self.guard = Some(g);
-        }
-    }
-
-    /// Gives the token up until `w` is woken or `deadline` passes, then
-    /// takes it back in line. The sleep parks the thread; it never needs
-    /// the world mutex (which a computing task holds), so a woken task
-    /// queues at the gate, where `yield_turn` sees it. A wake that came
-    /// before the sleep started is not lost: it set `w`'s flag, which is
-    /// checked before every park.
-    pub(super) fn sleep(&mut self, w: &Waiter, deadline: Option<Instant>) {
-        self.release();
-        loop {
-            if w.take_woken() {
-                break;
-            }
-            match deadline {
-                Some(at) => {
-                    let now = Instant::now();
-                    if now >= at {
-                        break;
-                    }
-                    std::thread::park_timeout(at - now);
-                }
-                None => std::thread::park(),
-            }
-        }
-        #[cfg(test)]
-        self.shared.wakeups.fetch_add(1, Ordering::Relaxed);
-        self.reacquire();
-    }
-
-    /// Whether another thread is waiting for the token. Reads one atomic,
-    /// without any lock.
-    #[inline]
-    pub(super) fn contended(&self) -> bool {
-        self.shared.gate.queued.load(Ordering::Relaxed) > 0
-    }
-
-    /// Lets every thread already waiting for the token run first, then
-    /// takes it back (turn handoff). Does nothing when nobody waits.
-    pub(super) fn yield_turn(&mut self) {
-        if !self.contended() {
-            return;
-        }
-        let Some(turn) = self.shared.gate.pass() else {
-            return;
-        };
-        let g = self.guard.take().expect("yielding without the run token");
-        token::mark_released();
-        drop(g);
-        turn.wait();
-        let g = self.shared.world.lock().unwrap_or_else(recover);
-        token::mark_taken();
-        self.guard = Some(g);
-    }
-}
-
-impl Deref for Token<'_> {
-    type Target = World;
-
-    fn deref(&self) -> &World {
-        self.guard
-            .as_deref()
-            .expect("the world reached without the run token")
-    }
-}
-
-impl DerefMut for Token<'_> {
-    fn deref_mut(&mut self) -> &mut World {
-        self.guard
-            .as_deref_mut()
-            .expect("the world reached without the run token")
-    }
-}
-
-impl Drop for Token<'_> {
-    fn drop(&mut self) {
-        self.release();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Cursor;
-    use std::sync::Arc;
-    use std::time::Duration;
-
-    fn shared() -> Arc<Shared> {
-        Arc::new(Shared::new(World::new(
-            Box::new(std::io::sink()),
-            Box::new(std::io::sink()),
-            Box::new(Cursor::new(Vec::new())),
-            SourceMap::default(),
-        )))
-    }
-
-    #[cfg(debug_assertions)]
-    #[test]
-    fn the_mark_follows_the_guard() {
-        let s = shared();
-        let mut t = s.lock();
-        token::assert_holds_token();
-        t.release();
-        assert!(std::panic::catch_unwind(token::assert_holds_token).is_err());
-        t.reacquire();
-        token::assert_holds_token();
-        drop(t);
-        assert!(std::panic::catch_unwind(token::assert_holds_token).is_err());
-    }
-
-    #[test]
-    fn a_sleep_gives_the_token_to_another_thread() {
-        let s = shared();
-        let mut t = s.lock();
-        t.exit = Some(1);
-        let me = Waiter::new(Arc::default());
-        let other = {
-            let (s, me) = (s.clone(), me.clone());
-            std::thread::spawn(move || {
-                let mut t = s.lock();
-                token::assert_holds_token();
-                t.exit = Some(2);
-                me.wake();
-            })
-        };
-        while t.exit != Some(2) {
-            t.sleep(&me, Some(Instant::now() + Duration::from_millis(10)));
-        }
-        token::assert_holds_token();
-        drop(t);
-        other.join().unwrap();
-    }
-
-    #[test]
-    fn a_poisoned_token_is_taken_as_it_is() {
-        let s = shared();
-        let s2 = s.clone();
-        let r = std::thread::spawn(move || {
-            let mut t = s2.lock();
-            t.exit = Some(7);
-            panic!("boom");
-        })
-        .join();
-        assert!(r.is_err());
-        assert_eq!(s.lock().exit, Some(7));
-    }
-
-    /// Threads waiting for the token get it in the order they asked, and
-    /// a yield lets every thread already waiting run first.
-    #[test]
-    fn the_token_goes_round_in_line() {
-        let s = shared();
-        let order = Arc::new(Mutex::new(Vec::new()));
-        let mut t = s.lock();
-        let mut threads = Vec::new();
-        for i in 0..4 {
-            let (s2, order) = (s.clone(), order.clone());
-            threads.push(std::thread::spawn(move || {
-                let _t = s2.lock();
-                order.lock().unwrap().push(i);
-            }));
-            // Wait until thread i is in line before starting the next.
-            while s.gate.queued.load(Ordering::Relaxed) <= i {
-                std::thread::yield_now();
-            }
-        }
-        assert!(t.contended());
-        t.yield_turn();
-        assert_eq!(*order.lock().unwrap(), vec![0, 1, 2, 3]);
-        assert!(!t.contended());
-        t.yield_turn(); // nobody waits: keeps the token
-        token::assert_holds_token();
-        drop(t);
-        for th in threads {
-            th.join().unwrap();
-        }
-    }
 }

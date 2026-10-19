@@ -8,8 +8,7 @@ use fung_front::loader::{Loader, Stage};
 use fung_front::source::{FileId, SourceMap};
 
 use crate::testutil::{Buf, on_big_stack};
-use crate::vm::task::CancelNode;
-use crate::vm::{Runtime, Stop, Task};
+use crate::vm::{Runtime, Stop};
 
 /// A REPL session as the command drives it, minus the line reading.
 struct Session {
@@ -39,7 +38,6 @@ impl Session {
         );
         rt.boot(Vec::new()).expect("boot");
         rt.prepare_repl();
-        rt.hold();
         let known = rt.with_sources(SourceMap::clone);
         Session {
             rt,
@@ -143,7 +141,6 @@ fn tasks_run_inside_an_input_and_a_deadlock_is_reported() {
         assert!(s.rt.deadlocked());
         s.rt.cancel_all();
         s.rt.wait();
-        s.rt.release();
     });
 }
 
@@ -152,7 +149,6 @@ fn exit_comes_back() {
     on_big_stack(|| {
         let mut s = Session::new();
         assert_eq!(s.input("exit(3)"), Outcome::Exit(3));
-        s.rt.release();
     });
 }
 
@@ -164,7 +160,6 @@ fn many_globals() {
         let src: String = (0..=65_536).map(|i| format!("v{i} = {i}\n")).collect();
         assert_eq!(s.input(&src), value("nil"));
         assert_eq!(s.input("v65536 + 1"), value("65537"));
-        s.rt.release();
     });
 }
 
@@ -177,7 +172,6 @@ fn atoms_keep_their_value_across_inputs() {
         assert_eq!(s.input("deref(atom(5))"), value("5"));
         assert_eq!(s.input("swap(a, (n) => n + 1)"), value("2"));
         assert_eq!(s.input("deref(a)"), value("2"));
-        s.rt.release();
     });
 }
 
@@ -227,7 +221,6 @@ fn a_deadlock_is_recovered() {
             s.err.text(),
             "error[E0702]: deadlock: all tasks are waiting\n".repeat(2)
         );
-        s.rt.release();
     });
 }
 
@@ -249,18 +242,16 @@ fn a_recovery_keeps_a_later_exit() {
             s.input("(_tx, never) = channel()\nrecv(never)"),
             Outcome::Error("E0702".into(), file)
         );
-        let shared = s.rt.shared();
-        Task::unlisted(&shared, CancelNode::root()).request_exit(5);
+        s.rt.task().request_exit(5);
         assert_eq!(s.rt.exit_code(), Some(1), "the first request stays");
         assert_eq!(s.rt.exit_requested(), Some(5));
         assert!(s.rt.recover_deadlock());
         assert!(!s.rt.deadlocked());
         assert_eq!(s.rt.exit_code(), Some(5), "the later exit is kept");
         assert!(
-            shared.root().is_cancelled(),
+            s.rt.shared().root().is_cancelled(),
             "no fresh root while an exit is pending"
         );
-        s.rt.release();
     });
 }
 
@@ -280,6 +271,5 @@ fn a_deadlocks_exit_is_not_a_tasks() {
         assert!(s.rt.recover_deadlock());
         assert_eq!(s.rt.exit_code(), None);
         assert!(!s.rt.shared().root().is_cancelled());
-        s.rt.release();
     });
 }

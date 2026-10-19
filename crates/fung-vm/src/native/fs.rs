@@ -3,8 +3,17 @@
 //! for outside reasons returns `Ok`/`Err({kind, message})`; wrong argument
 //! types are E0403.
 //!
-//! The operating system is called without the run token (`outside`), with
-//! owned paths and bytes only; values are made after the token is back.
+//! Every native hands its system calls off in one pool job, with owned
+//! paths and bytes only (a handle by a clone of its `Arc`); values are
+//! made in the offload's `finish`, back on the run thread. A cancellation or
+//! a deadline (spec 15):
+//! - lets go of the natives that only read a path (`read`, `list`,
+//!   `glob`, `walk`, `exists`, `stat`: `nat::offload_abandoning`): the
+//!   call unwinds at once, the job's result is dropped when it ends;
+//! - waits for the others once they run (`nat::offload`), since they
+//!   change something (a file, a directory, a handle's position) that
+//!   must not change after the call gave up.
+//!
 //! The reasons in the errors are `oserr`'s texts.
 
 use std::fs::{DirBuilder, OpenOptions};
@@ -12,7 +21,7 @@ use std::io::{self, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::rc::Rc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use fung_front::source::decode_lossy;
 
@@ -20,11 +29,11 @@ use fung_front::diag::Arg;
 
 use super::file::{self, Fault, File, Mode, NEW_FILE_MODE};
 use super::glob;
-use super::nat::{self, native, opt, param};
+use super::nat::{self, native_step, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, errno};
 use super::path;
 use crate::value::{Lit, MapBuilder, Module, Native, Value};
-use crate::vm::{Stop, Task, outside};
+use crate::vm::{Flow, Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -33,55 +42,61 @@ static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new()
 pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
-            ("read", native("read", read_fn, vec![param("path")])),
+            ("read", native_step("read", read_fn, vec![param("path")])),
             (
                 "write",
-                native("write", write_fn, vec![param("path"), param("text")]),
+                native_step("write", write_fn, vec![param("path"), param("text")]),
             ),
             (
                 "append",
-                native("append", append_fn, vec![param("path"), param("text")]),
+                native_step("append", append_fn, vec![param("path"), param("text")]),
             ),
             (
                 "list",
-                native(
+                native_step(
                     "list",
                     list_fn,
                     vec![param("dir"), opt("full", Lit::Bool(false))],
                 ),
             ),
-            ("glob", native("glob", glob_fn, vec![param("pattern")])),
-            ("walk", native("walk", walk_fn, vec![param("dir")])),
-            ("exists", native("exists", exists_fn, vec![param("path")])),
-            ("stat", native("stat", stat_fn, vec![param("path")])),
-            ("mkdir", native("mkdir", mkdir_fn, vec![param("path")])),
-            ("remove", native("remove", remove_fn, vec![param("path")])),
+            ("glob", native_step("glob", glob_fn, vec![param("pattern")])),
+            ("walk", native_step("walk", walk_fn, vec![param("dir")])),
+            (
+                "exists",
+                native_step("exists", exists_fn, vec![param("path")]),
+            ),
+            ("stat", native_step("stat", stat_fn, vec![param("path")])),
+            ("mkdir", native_step("mkdir", mkdir_fn, vec![param("path")])),
+            (
+                "remove",
+                native_step("remove", remove_fn, vec![param("path")]),
+            ),
             (
                 "remove_all",
-                native("remove_all", remove_all_fn, vec![param("path")]),
+                native_step("remove_all", remove_all_fn, vec![param("path")]),
             ),
             (
                 "move",
-                native("move", move_fn, vec![param("from"), param("to")]),
+                native_step("move", move_fn, vec![param("from"), param("to")]),
             ),
             (
                 "copy",
-                native("copy", copy_fn, vec![param("from"), param("to")]),
+                native_step("copy", copy_fn, vec![param("from"), param("to")]),
             ),
             (
                 "open",
-                native(
+                native_step(
                     "open",
                     open_fn,
                     vec![param("path"), opt("mode", Lit::Sym("read"))],
                 ),
             ),
-            ("close", native("close", close_fn, vec![param("f")])),
+            ("close", native_step("close", close_fn, vec![param("f")])),
             (
                 "write_line",
-                native("write_line", write_line_fn, vec![param("f"), param("line")]),
+                native_step("write_line", write_line_fn, vec![param("f"), param("line")]),
             ),
-            ("temp_dir", native("temp_dir", temp_dir_fn, vec![])),
+            ("temp_dir", native_step("temp_dir", temp_dir_fn, vec![])),
         ]
     });
     let mut m = Module::new("fs", "_native.fs");
@@ -129,43 +144,48 @@ fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
     f.write_all(bytes)
 }
 
-fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    let r = {
-        let p = p.clone();
-        outside(t, move || std::fs::read(checked(&p)?))
-    };
-    Ok(match r {
-        Ok(bytes) => nat::ok(Value::str(&decode_lossy(&bytes))),
-        Err(e) => fs_err("read", &p, &e),
-    })
+    let job = p.clone();
+    nat::offload_abandoning(
+        t,
+        move || std::fs::read(checked(&job)?),
+        move |_, r| {
+            Ok(match r {
+                Ok(bytes) => nat::ok(Value::str(&decode_lossy(&bytes))),
+                Err(e) => fs_err("read", &p, &e),
+            })
+        },
+    )
 }
 
-fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [p, text] = nat::str_args(&a, ["path", "text"])?;
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
-    let r = {
-        let p = p.clone();
-        outside(t, move || write_file(&p, &text, NEW_FILE_MODE))
-    };
-    Ok(done("write", &p, r))
+    let job = p.clone();
+    nat::offload(
+        t,
+        move || write_file(&job, &text, NEW_FILE_MODE),
+        move |_, r| Ok(done("write", &p, r)),
+    )
 }
 
-fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [p, text] = nat::str_args(&a, ["path", "text"])?;
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
-    let r = {
-        let p = p.clone();
-        outside(t, move || {
+    let job = p.clone();
+    nat::offload(
+        t,
+        move || {
             OpenOptions::new()
                 .append(true)
                 .create(true)
                 .mode(NEW_FILE_MODE)
-                .open(checked(&p)?)?
+                .open(checked(&job)?)?
                 .write_all(&text)
-        })
-    };
-    Ok(done("append to", &p, r))
+        },
+        move |_, r| Ok(done("append to", &p, r)),
+    )
 }
 
 /// A fung list of the strings `paths` holds (file names need not be
@@ -196,63 +216,71 @@ fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
     Ok(out)
 }
 
-fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let dir = nat::need_str("dir", &a[0])?.to_string();
     let Value::Bool(full) = a[1] else {
         return Err(nat::wrong_arg("full", "bool", &a[1]));
     };
-    let r = {
-        let dir = dir.clone();
-        outside(t, move || {
-            let names = read_dir(checked(&dir)?.as_bytes())?.into_iter();
+    let job = dir.clone();
+    nat::offload_abandoning(
+        t,
+        move || {
+            let names = read_dir(checked(&job)?.as_bytes())?.into_iter();
             Ok::<_, io::Error>(if full {
                 names
-                    .map(|(n, _)| path::join_bytes(dir.as_bytes(), &n))
+                    .map(|(n, _)| path::join_bytes(job.as_bytes(), &n))
                     .collect::<Vec<_>>()
             } else {
                 names.map(|(n, _)| n).collect()
             })
-        })
-    };
-    Ok(match r {
-        Ok(names) => nat::ok(str_list(&names)),
-        Err(e) => fs_err("list", &dir, &e),
-    })
+        },
+        move |_, r| {
+            Ok(match r {
+                Ok(names) => nat::ok(str_list(&names)),
+                Err(e) => fs_err("list", &dir, &e),
+            })
+        },
+    )
 }
 
-fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let pattern = nat::need_str("pattern", &a[0])?.to_string();
-    let r = {
-        let pattern = pattern.clone();
-        outside(t, move || glob::glob(pattern.as_bytes()))
-    };
-    Ok(match r {
-        Ok(mut found) => {
-            // The whole result in byte order, across directories too.
-            found.sort_unstable();
-            nat::ok(str_list(&found))
-        }
-        Err(glob::BadPattern) => nat::err_value(
-            "invalid",
-            &format!("bad glob pattern `{pattern}`: syntax error in pattern"),
-            Vec::new(),
-        ),
-    })
+    let job = pattern.clone();
+    nat::offload_abandoning(
+        t,
+        move || glob::glob(job.as_bytes()),
+        move |_, r| {
+            Ok(match r {
+                Ok(mut found) => {
+                    // The whole result in byte order, across directories too.
+                    found.sort_unstable();
+                    nat::ok(str_list(&found))
+                }
+                Err(glob::BadPattern) => nat::err_value(
+                    "invalid",
+                    &format!("bad glob pattern `{pattern}`: syntax error in pattern"),
+                    Vec::new(),
+                ),
+            })
+        },
+    )
 }
 
-fn walk_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn walk_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let dir = nat::need_str("dir", &a[0])?.to_string();
-    let r = {
-        let dir = dir.clone();
-        outside(t, move || match checked(&dir) {
+    nat::offload_abandoning(
+        t,
+        move || match checked(&dir) {
             Ok(d) => walk(d.as_bytes()),
             Err(e) => Err((dir.into_bytes(), e)),
-        })
-    };
-    Ok(match r {
-        Ok(files) => nat::ok(str_list(&files)),
-        Err((at, e)) => fs_err("walk", &String::from_utf8_lossy(&at), &e),
-    })
+        },
+        |_, r| {
+            Ok(match r {
+                Ok(files) => nat::ok(str_list(&files)),
+                Err((at, e)) => fs_err("walk", &String::from_utf8_lossy(&at), &e),
+            })
+        },
+    )
 }
 
 /// Every file below `root` (not the directories), depth first in byte
@@ -282,39 +310,44 @@ fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> Result<(), (Vec<u8>, io::Er
     Ok(())
 }
 
-fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    let found = outside(t, move || checked(&p).and_then(std::fs::metadata).is_ok());
-    Ok(Value::Bool(found))
+    nat::offload_abandoning(
+        t,
+        move || checked(&p).and_then(std::fs::metadata).is_ok(),
+        |_, found| Ok(Value::Bool(found)),
+    )
 }
 
-fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    let r = {
-        let p = p.clone();
-        outside(t, move || {
-            std::fs::metadata(checked(&p)?).map(|m| (m.size(), m.is_dir()))
-        })
-    };
-    let (size, is_dir) = match r {
-        Ok(info) => info,
-        Err(e) => return Ok(fs_err("stat", &p, &e)),
-    };
-    // The name is the last element of the path asked for.
-    let mut m = MapBuilder::default();
-    m.set(Rc::new("name".into()), Value::str(&path::base(&p)));
-    m.set(Rc::new("size".into()), Value::Int(size as i64));
-    m.set(Rc::new("is_dir".into()), Value::Bool(is_dir));
-    Ok(nat::ok(Value::Map(Rc::new(m.finish()))))
+    let job = p.clone();
+    nat::offload_abandoning(
+        t,
+        move || std::fs::metadata(checked(&job)?).map(|m| (m.size(), m.is_dir())),
+        move |_, r| {
+            let (size, is_dir) = match r {
+                Ok(info) => info,
+                Err(e) => return Ok(fs_err("stat", &p, &e)),
+            };
+            // The name is the last element of the path asked for.
+            let mut m = MapBuilder::default();
+            m.set(Rc::new("name".into()), Value::str(&path::base(&p)));
+            m.set(Rc::new("size".into()), Value::Int(size as i64));
+            m.set(Rc::new("is_dir".into()), Value::Bool(is_dir));
+            Ok(nat::ok(Value::Map(Rc::new(m.finish()))))
+        },
+    )
 }
 
-fn mkdir_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn mkdir_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    let r = {
-        let p = p.clone();
-        outside(t, move || mkdir_all(checked(&p)?, 0o755))
-    };
-    Ok(done("create directory", &p, r))
+    let job = p.clone();
+    nat::offload(
+        t,
+        move || mkdir_all(checked(&job)?, 0o755),
+        move |_, r| Ok(done("create directory", &p, r)),
+    )
 }
 
 /// A directory and the missing ones above it; one already there is
@@ -327,13 +360,14 @@ fn mkdir_all(p: &str, perm: u32) -> io::Result<()> {
     DirBuilder::new().recursive(true).mode(perm).create(p)
 }
 
-fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    let r = {
-        let p = p.clone();
-        outside(t, move || remove(checked(&p)?))
-    };
-    Ok(done("remove", &p, r))
+    let job = p.clone();
+    nat::offload(
+        t,
+        move || remove(checked(&job)?),
+        move |_, r| Ok(done("remove", &p, r)),
+    )
 }
 
 /// A file, a link or an empty directory.
@@ -345,13 +379,14 @@ fn remove(p: &str) -> io::Result<()> {
     }
 }
 
-fn remove_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn remove_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    let r = {
-        let p = p.clone();
-        outside(t, move || remove_all(checked(&p)?))
-    };
-    Ok(done("remove", &p, r))
+    let job = p.clone();
+    nat::offload(
+        t,
+        move || remove_all(checked(&job)?),
+        move |_, r| Ok(done("remove", &p, r)),
+    )
 }
 
 /// A path and everything below it. Nothing to do for `""` or a missing
@@ -378,14 +413,15 @@ fn remove_all(p: &str) -> io::Result<()> {
     }
 }
 
-fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [from, to] = nat::str_args(&a, ["from", "to"])?;
     let (from, to) = (from.to_string(), to.to_string());
-    let r = {
-        let (from, to) = (from.clone(), to.clone());
-        outside(t, move || rename(checked(&from)?, checked(&to)?))
-    };
-    Ok(done("move", &from, r))
+    let job = from.clone();
+    nat::offload(
+        t,
+        move || rename(checked(&job)?, checked(&to)?),
+        move |_, r| Ok(done("move", &from, r)),
+    )
 }
 
 /// `move` never replaces an existing directory: onto one, only the same
@@ -404,18 +440,21 @@ fn rename(from: &str, to: &str) -> io::Result<()> {
     std::fs::rename(from, to)
 }
 
-fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [from, to] = nat::str_args(&a, ["from", "to"])?;
     let (from, to) = (from.to_string(), to.to_string());
-    let r = {
-        let (from, to) = (from.clone(), to.clone());
-        outside(t, move || copy(&from, &to))
-    };
-    Ok(match r {
-        Ok(()) => nat::ok(Value::Nil),
-        Err((true, e)) => fs_err("copy", &from, &e),
-        Err((false, e)) => fs_err("copy to", &to, &e),
-    })
+    let job = (from.clone(), to.clone());
+    nat::offload(
+        t,
+        move || copy(&job.0, &job.1),
+        move |_, r| {
+            Ok(match r {
+                Ok(()) => nat::ok(Value::Nil),
+                Err((true, e)) => fs_err("copy", &from, &e),
+                Err((false, e)) => fs_err("copy to", &to, &e),
+            })
+        },
+    )
 }
 
 /// The source's permission bits, its bytes, then a write.
@@ -431,7 +470,7 @@ fn copy(from: &str, to: &str) -> Result<(), (bool, io::Error)> {
 const MODES: &str = "'read | 'write | 'append";
 
 /// `Ok(<file>)` or the open failure.
-fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
     let Value::Sym(mode) = a[1] else {
         return Err(nat::wrong_arg("mode", MODES, &a[1]));
@@ -447,18 +486,21 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
             ));
         }
     };
-    let r = {
-        let p = p.clone();
-        outside(t, move || file::open(checked(&p)?, mode))
-    };
-    Ok(match r {
-        Ok(io) => nat::ok(Value::File(Rc::new(File::new(p, io)))),
-        Err(e) => fs_err("open", &p, &e),
-    })
+    let job = p.clone();
+    nat::offload(
+        t,
+        move || file::open(checked(&job)?, mode),
+        move |_, r| {
+            Ok(match r {
+                Ok(io) => nat::ok(Value::File(Arc::new(File::new(p, io)))),
+                Err(e) => fs_err("open", &p, &e),
+            })
+        },
+    )
 }
 
 /// The file handle argument `name`, or E0403.
-pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a File, Stop> {
+pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a Arc<File>, Stop> {
     match v {
         Value::File(f) => Ok(f),
         _ => Err(nat::wrong_arg(name, "file", v)),
@@ -485,39 +527,56 @@ pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
     }
 }
 
-/// `fs.close`. The flush and the close run without the token.
-fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let f = need_file("f", &a[0])?;
-    Ok(match outside(t, || f.close()) {
-        Ok(()) => nat::ok(Value::Nil),
-        Err(e) => fault_value(f, "close", e),
-    })
+/// `fs.close`. The flush and the close run on a pool thread.
+fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let f = need_file("f", &a[0])?.clone();
+    let job = f.clone();
+    nat::offload(
+        t,
+        move || job.close(),
+        move |_, r| {
+            Ok(match r {
+                Ok(()) => nat::ok(Value::Nil),
+                Err(e) => fault_value(&f, "close", e),
+            })
+        },
+    )
 }
 
 /// `fs.write_line`: the line and its `\n` go in under the handle's
-/// lock, without the token.
-fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let f = need_file("f", &a[0])?;
+/// lock, on a pool thread.
+fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let f = need_file("f", &a[0])?.clone();
     let line = nat::need_str("line", &a[1])?;
     let mut bytes = Vec::with_capacity(line.len() + 1);
     bytes.extend_from_slice(line.as_bytes());
     bytes.push(b'\n');
-    Ok(match outside(t, || f.write_line(&bytes)) {
-        Ok(()) => nat::ok(Value::Nil),
-        Err(e) => fault_value(f, "write", e),
-    })
+    let job = f.clone();
+    nat::offload(
+        t,
+        move || job.write_line(&bytes),
+        move |_, r| {
+            Ok(match r {
+                Ok(()) => nat::ok(Value::Nil),
+                Err(e) => fault_value(&f, "write", e),
+            })
+        },
+    )
 }
 
-fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
     let base = temp_base();
-    let made = {
-        let base = base.clone();
-        outside(t, move || make_temp_dir_in(&base))
-    };
-    Ok(match made {
-        Ok(dir) => nat::ok(Value::str(&decode_lossy(&dir))),
-        Err(e) => temp_dir_failure(e, &base),
-    })
+    let job = base.clone();
+    nat::offload(
+        t,
+        move || make_temp_dir_in(&job),
+        move |_, made| {
+            Ok(match made {
+                Ok(dir) => nat::ok(Value::str(&decode_lossy(&dir))),
+                Err(e) => temp_dir_failure(e, &base),
+            })
+        },
+    )
 }
 
 #[derive(Debug)]

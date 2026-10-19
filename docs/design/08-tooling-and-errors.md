@@ -131,7 +131,7 @@ $ fung dump core -e 'files |> filter(is_log) |> map(size)'
 - 정의한 변수·함수는 유지된다. REPL에서는 함수 재정의 허용. 태스크가 도는 중의 재정의는 정의하지 않는다 (05).
 - REPL 명령은 `:`로 시작: `:help`, `:quit`, `:load file.fung`. 그 이상은 두지 않는다.
   `:load`는 파일을 **그 세션의 모듈로** 실행하므로 파일의 정의가 세션에 남는다.
-- 줄 편집은 표준 입력이 터미널일 때만(터미널 설정이 있을 때; `/dev/null` 같은 다른 장치는 아님) 켠다(raw 모드: 좌우 이동, Home/End, Backspace/Delete, 위아래 기록, Ctrl-C는 줄 취소(평가 중의 Ctrl-C는 그 평가를 취소하고 세션은 이어진다, L6),
+- 줄 편집은 표준 입력이 터미널일 때만(터미널 설정이 있을 때; `/dev/null` 같은 다른 장치는 아님) 켠다(raw 모드: 좌우 이동, Home/End, Backspace/Delete, 위아래 기록, Ctrl-C는 줄 취소(평가 중의 Ctrl-C는 그 평가를 취소하고 세션은 이어진다, L6. 취소된 평가의 `release`가 끝나지 않는 중에 다시 Ctrl-C를 누르면 그 평가의 태스크를 정리 없이 버리고 `interrupted again: the cleanup did not finish; the input's tasks were dropped` 한 줄을 표준 에러에 쓴 뒤 다음 입력으로 간다. 버린 태스크가 기다리던 외부 명령은 SIGKILL로 끝낸다, R4b. `request_stop()`은 보는 쪽이 없으면 `exit(0)`처럼 세션을 끝낸다),
   Ctrl-D는 종료; 자동완성 없음). 커서는 화면 칸 수로 옮긴다(한글은 2칸, 포매터와 같은 표), 잘못된 UTF-8 입력은 부분마다 U+FFFD 하나(2026-10-18). 파이프나 Windows에서는 보통 줄 읽기로 동작하므로 `echo 'print(1)' | fung`이 된다.
   기록은 `~/.fung_history`에 줄 단위로 저장한다 (2026-10-14): 시작할 때 읽고, 받아들인 줄마다 덧붙이며, 최근 1000줄만 남긴다.
   빈 줄과 바로 앞과 같은 줄은 저장하지 않는다. 홈 디렉터리를 모르거나 쓸 수 없으면 조용히 끈다. 파이프 입력은 기록하지 않는다.

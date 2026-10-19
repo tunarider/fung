@@ -1,7 +1,7 @@
 # fung — 작업 안내 (Claude용)
 
 fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (바이트코드 VM).
-설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 다음은 R7 스케줄러다.
+설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 동시성 v2의 언어 단계(L1~L6)를 마쳤고, 다음은 런타임 교체(R단계)다.
 
 ## 먼저 읽을 것
 
@@ -61,7 +61,8 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   일부러 동작을 바꾼 뒤에는 `FUNG_EXPECTED=bless cargo test -p fung-cli --test <이름>`(fung-vm의 기대 출력은 라이브러리 단위 테스트라 이름으로 거른다: `FUNG_EXPECTED=bless cargo test -p fung-vm runs_match_the_expected_output`)으로 다시 쓰고 **diff를 검토한 뒤** 커밋한다.
   기대 출력 실행은 `TZ=UTC`(`common::TZ`)이고, 호스트에 따라 달라지는 값(임시 경로·포트·디렉터리 크기)은 치환한다. Linux·macOS CI 둘 다 같은 파일로 통과해야 한다.
 - 테스트가 띄우는 자식 프로세스(서버·클라이언트)는 `common::Reaped`로 쥐어 패닉해도 죽이고 거둔다(고아 프로세스 금지, 사용자 요청).
-- 동시성: fung 값(`Rc`)은 실행권을 쥔 스레드만 만지고, `unsafe impl Send`는 `// SAFETY:` 근거와 디버그 단언으로 지킨다(`docs/notes/R3a-runtime.md` 3절).
+- 동시성: 실행 스레드 하나가 모든 태스크를 돈다(M:1, `vm/sched.rs`). 기다리는 태스크는 주차하고, 소켓·외부 명령은 kqueue/epoll 이벤트 루프(`vm/poller.rs`), 파일·이름 조회·정규식 컴파일은 스레드 풀(`vm/pool.rs`)이 맡는다.
+  fung 값(`Rc`)은 실행 스레드에만 살고 타입이 지킨다(`Runtime`은 `!Send`, `World`는 `Runtime` 안의 `RefCell`). 다른 스레드는 값이 없는 `Shared`만 본다. 손으로 쓴 `unsafe impl Send`·`Sync`는 두지 않는다(`repo_rust_only`가 지킴). 설명 `docs/notes/R7-scheduler.md`.
   동시성 테스트는 `sleep` 대신 상태로 순서를 정한다(`testutil`의 탐침).
 - 저장소가 Cargo만으로 빌드되고, 코드와 현재 문서가 이전 구현의 언어를 부르지 않게(언어 비교 문장만 허용 목록) `crates/fung-cli/tests/repo_rust_only.rs`가 지킨다.
 
@@ -73,7 +74,13 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
 - Rust 이식 1~6c단계 완료 (2026-10-15~18): 1 앞단, 2 값·VM, 3a 동시성(스레드 + 실행권), 3b `atom` → `agent`, 4a `fs`·`path`, 4b `time`·`json`, 4c `regex`·크레이트·SIGPIPE,
   4d 소켓·TLS·fung으로 쓴 HTTP, 5 도구, 6a 릴리스 준비(`conc` 모듈, musl 정적 릴리스, CHANGELOG), 6b 첫 구현 삭제(대조를 기대 출력으로 얼림, 명세를 Rust에서 생성), 6c 이식 잔가지 정리(흉내 동작을 fung 규칙으로, 2026-10-17~18).
   설명 `docs/notes/R<n>-*.md`(이식 전체의 기록 `R-port-record.md`, 6c 정리 `R6c-cleanup.md`), 스펙 `docs/superpowers/specs/`, 결정·남은 일·알려진 한계는 open-questions "Rust 구현: 정한 것과 남은 일".
-- 0.2.0 릴리스 (2026-10-18, 첫 Rust 구현). **다음: R7 스케줄러**, rustls 0.23.46 업그레이드(2026-10-28 이후). 릴리스 태그와 시험 실행은 사용자 확인 뒤.
+- 0.2.0 릴리스 (2026-10-18, 첫 Rust 구현).
+- 동시성 v2 언어 단계 L1~L6 완료 (2026-10-18, main에 스쿼시 `3f99a5c`, 아직 미릴리스): L1 `scope`·`supervise`·`spawn(s, f)`, L2 `timeout(d, f)`, L3 `with(acquire, use, release)`(`at_exit` 삭제),
+  L5 엄격한 `atom`(`agent` 삭제), L4 채널 두 끝 `(tx, rx)`와 자동 닫힘, L6 `stop_signal`·`request_stop`·SIGINT·SIGTERM·`http.serve`의 `drain`·`reuse_port`·취소된 외부 명령 끝내기·배경 태스크 삭제.
+  스펙 `docs/superpowers/specs/2026-10-18-concurrency-v2-r7-design.md`(구속력 있음), 설명 `docs/notes/R7-language.md`, 계획 `docs/plans/2026-10-18-concurrency-v2-l*.md`.
+- **R단계 진행 중(스펙 10·11·15절)**: 두 런타임을 함께 두지 않고 제자리에서 바꾸며, L단계 시험이 정답지다. 설명 `docs/notes/R7-scheduler.md`, 계획 `docs/plans/2026-10-1*-concurrency-v2-r*.md`.
+  R2(이어 가는 내장 함수)·R1a(주차 요청, offload)·R1b(M:1 스케줄러)·R3(스레드 풀)·R4a(이벤트 루프와 소켓)·R4b(외부 명령, REPL 두 번째 Ctrl-C)·R5(옛 런타임 삭제)·R6(측정과 마무리, 10.4 목표 모두 됨) 끝(2026-10-19, 작업 브랜치). **다음: rustls 0.23.46 뒤 0.3.0 준비**.
+  rustls는 0.23.45로 짰고 2026-10-28 이후 0.23.46으로 버전만 올린다. 0.3.0은 R단계가 끝난 뒤. 릴리스 태그와 시험 실행은 사용자 확인 뒤.
   tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에. 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
 - 매뉴얼: `docs/index.html`·`syntax.html`·`builtins.html`·`internals.html`, GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 매뉴얼도 같이 고친다.**

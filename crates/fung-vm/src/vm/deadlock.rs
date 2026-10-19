@@ -1,29 +1,17 @@
 //! Deadlock detection (05 "교착").
 //!
-//! The program is deadlocked when every live task is blocked in `block`
-//! and no timer will wake any of them: nothing can ever run again. The
-//! counts (`World::live`, `Census`) change only with the run token held,
-//! and each is exact at every moment the token changes hands:
-//! - a task is live from the moment it is spawned (counted by its
-//!   parent, before its thread exists) until its `Task` drops; a task
-//!   waiting for the token, or in `outside` (standard input, a child
-//!   process), is live and not blocked;
-//! - a task is blocked from the moment it finds its condition false and
-//!   decides to sleep until whoever wakes it uncounts it, with the
-//!   token held, before releasing it (`Waiter::wake`). So a task that was
-//!   woken but has not run yet is not blocked, and no task is counted
-//!   blocked while something is on its way to it.
-//!
-//! So no grace period (to absorb tasks counted blocked although their wait
-//! was already satisfiable) is needed: the check runs whenever the
-//! condition can become true — a live task counting itself blocked, and a
-//! live task ending — and reports at once (spec 2절). What nothing in fung
-//! can wake is out of the count: `Runtime::wait`'s task is not live (the
-//! command waiting for the program is not a task).
+//! The program is deadlocked when every task is parked and none of them
+//! is one a timer or the world outside ends: nothing can ever run again.
+//! The scheduler knows that exactly (`sched.rs`): every task is running,
+//! in the ready queue or parked with it, and the counts change only on
+//! the run thread. So it calls `judge` when the ready queue is empty and
+//! every parked task is stuck, and the report is at once, with no grace
+//! period (spec 2절). A parked task woken but not run yet is in the ready
+//! queue, so it is never counted stuck.
 //!
 //! After the report: E0702 on standard error, exit code 1 (the first exit
 //! request), and every task of the program cancelled (the root). Each
-//! blocked task wakes and unwinds with E0702 (its handle turns that into
+//! parked task wakes and unwinds with E0702 (its handle turns that into
 //! `Err({kind: 'cancelled})`); the command does not report the entry's
 //! E0702 again (an exit was requested).
 //!
@@ -31,39 +19,20 @@
 //! even after an exit or a deadlock: the release runs under a shield node
 //! nothing else cancels, so a deadlock there cancels the shield nodes of
 //! the releases running then (and the root), and they are cut short.
-//!
-//! The entry's end is judged too, so an entry error cancels the program
-//! before the entry task drops (`Runtime::run_with`): the tasks it leaves
-//! blocked are then being cancelled, not deadlocked.
 
 use fung_front::diag::{error, headline};
 
 use super::block::cancelled;
-use super::{Stop, Task, no_pos, token};
+use super::{Stop, Task, no_pos};
 
 impl Task<'_> {
-    /// Reports a deadlock if every live task is blocked with no timer to
-    /// wake one; true if it did. Called with the token held, when this
-    /// live task has counted itself blocked and when a live task ends.
+    /// Reports a deadlock: every task is parked and stuck (the scheduler
+    /// checked); true if it reported. After an exit or an earlier report
+    /// the program is unwinding, so it is judged only while a release
+    /// runs.
     pub(super) fn judge(&mut self) -> bool {
-        token::assert_holds_token();
-        let census = &self.shared.census;
         let w = &mut *self.world;
-        debug_assert!(census.blocked() <= w.live, "more blocked than live");
-        // The program's tasks are all stuck, or there are none left. With
-        // none left, there is nothing to judge unless a release is
-        // running.
         let shields = w.live_shields();
-        if w.live == 0 {
-            if shields.is_empty() {
-                return false;
-            }
-        } else if census.blocked() != w.live || census.waking() != 0 {
-            return false;
-        }
-        // After an exit or a deadlock the program unwinds through its
-        // `with` releases (`cleanup.rs`): a deadlock while one runs is
-        // judged too, since one stuck there would hang the process.
         if shields.is_empty() && (w.deadlocked || w.exit.is_some()) {
             return false;
         }

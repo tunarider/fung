@@ -157,7 +157,11 @@ fn call_out(name: &str, args: Vec<Value>) -> (Result<Value, Stop>, String) {
         Box::new(Cursor::new(Vec::new())),
         SourceMap::default(),
     );
-    let r = (n.func)(&mut rt.task(), args);
+    let r = match n.body {
+        crate::value::NativeBody::Plain(f) => f(&mut rt.task(), args),
+        // A step native needs the run loop (`vm/cont.rs`).
+        crate::value::NativeBody::Step(_) => rt.task().call_root(&Value::Native(n), args),
+    };
     drop(rt);
     (r, out.text())
 }

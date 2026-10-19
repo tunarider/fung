@@ -119,7 +119,7 @@ fn long_chains() -> Vec<String> {
 
 /// How many dump cases there are (Review: a case must not go missing
 /// unnoticed; change it together with the cases).
-const DUMP_CASES: usize = 683;
+const DUMP_CASES: usize = 695;
 
 /// A dump longer than this is kept as a hash (the deep and long shapes).
 const LIMIT: usize = 64 * 1024;

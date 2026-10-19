@@ -288,3 +288,24 @@ fn a_use_error_beside_an_exit_in_release_is_reported() {
     assert!(err.contains("E0502"), "{err}");
     assert_eq!(code, 3);
 }
+
+/// `acquire` cancels its own task: the cancellation is seen when `use`
+/// is called, right after `acquire` returned, and `release` still runs.
+#[test]
+fn a_cancel_before_use_still_releases() {
+    let o = exec_waiting(
+        "(tx, rx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(rx)\n    with(() => cancel(me), r => print(\"used\"), r => print(\"released\"))\n  ;;)\n  send(tx, t)\n  print(await(t))\n;;)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("released\nErr({kind: 'cancelled})\n", "")
+    );
+}
+
+#[test]
+fn exit_inside_a_callback_releases() {
+    assert_eq!(
+        run("with(() => 1, r => each([1], x => exit(3)), r => print(\"released\"))"),
+        ("released\n".into(), "".into(), 3)
+    );
+}

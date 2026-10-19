@@ -60,10 +60,21 @@ fn a_sleeper_keeps_a_waiting_chain_alive() {
         // the entry all blocked (the sleeper with its timer).
         let canceller = std::thread::spawn(move || {
             let until = Instant::now() + Duration::from_secs(10);
-            while shared.census.blocked() < 3 && Instant::now() < until {
+            while shared
+                .parked_probe
+                .load(std::sync::atomic::Ordering::SeqCst)
+                < 3
+                && Instant::now() < until
+            {
                 std::thread::sleep(Duration::from_millis(1));
             }
-            assert_eq!(shared.census.blocked(), 3, "the chain never blocked");
+            assert_eq!(
+                shared
+                    .parked_probe
+                    .load(std::sync::atomic::Ordering::SeqCst),
+                3,
+                "the chain never parked"
+            );
             shared.cancel_all();
         });
         let code = match s.rt.run() {
@@ -157,7 +168,7 @@ fn a_deadlock_after_the_last_runner_finishes() {
 
 /// The count is exact: a task that was woken but has not run yet is not
 /// blocked. Here the scope's body wakes `t` and ends while still holding
-/// the run token, so `t` has not run when the scope starts to wait for it.
+/// the run thread, so `t` has not run when the scope starts to wait for it.
 #[test]
 fn a_woken_task_that_has_not_run_is_not_blocked() {
     let o = within(10, || {
@@ -177,18 +188,22 @@ fn a_woken_task_that_has_not_run_is_not_blocked() {
     );
 }
 
-/// A wait outside the token (standard input, a child process) is not a
+/// A wait on the operating system (an offload job) is not a
 /// blocked task: the entry waits for a value the task sends after it.
 #[test]
 fn a_wait_outside_the_token_is_not_blocked() {
     fn natives() -> Vec<Value> {
-        vec![Value::Native(Native::leak(
+        fn os_sleep(t: &mut Task<'_>, _: Vec<Value>) -> Result<crate::vm::Flow, Stop> {
+            crate::native::nat::offload(
+                t,
+                || std::thread::sleep(Duration::from_millis(30)),
+                |_, ()| Ok(Value::Nil),
+            )
+        }
+        vec![Value::Native(Native::leak_step(
             "os_sleep",
             vec![],
-            |t: &mut Task, _| {
-                super::block::outside(t, || std::thread::sleep(Duration::from_millis(30)));
-                Ok(Value::Nil)
-            },
+            os_sleep,
         ))]
     }
     let o: Outcome = within(10, || {
@@ -219,21 +234,14 @@ fn a_mutual_wait_is_reported_at_once() {
 #[test]
 fn a_long_chain_of_task_results_drops_without_recursion() {
     use super::task::{CancelNode, TaskHandle};
-    let rt = on_big_stack(|| {
-        setup("nil", Opts::default())
-            .unwrap_or_else(|e| panic!("{e:?}"))
-            .rt
-    });
     std::thread::Builder::new()
         .stack_size(256 << 10)
         .spawn(move || {
-            let t = rt.lock();
             let mut v = Value::Nil;
             for _ in 0..200_000 {
                 v = TaskHandle::finished(v, CancelNode::root());
             }
             drop(v);
-            drop(t);
         })
         .unwrap()
         .join()
@@ -266,8 +274,8 @@ fn an_entry_error_beside_a_blocked_task_is_not_a_deadlock() {
 }
 
 /// The variant with a task still running when the entry fails: it is
-/// queued for the token (its 1 ms sleep ran out during `hold`), so it
-/// gets the token right after the entry, before the command can cancel
+/// queued to run (its 1 ms sleep ran out during `hold`), so it
+/// runs right after the entry, before the command can cancel
 /// anything, and then blocks for good.
 #[test]
 fn an_entry_error_beside_a_task_about_to_block_is_not_a_deadlock() {

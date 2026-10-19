@@ -175,11 +175,7 @@ mod tests {
         );
         assert_eq!(b.module_signature("_native.process", "env"), Some("name=?"));
         assert_eq!(b.module_signature("_native.fs", "temp_dir"), Some(""));
-        assert_eq!(b.modules["_native.conc"], ["try_spawn"]);
-        assert_eq!(
-            b.module_signature("_native.conc", "try_spawn"),
-            Some("s, f")
-        );
+        assert!(!b.modules.contains_key("_native.conc"), "gone with R1b");
         assert_eq!(b.module_signature("_native.process", "nope"), None);
         assert_eq!(b.module_signature("_native.nope", "exec"), None);
         assert_eq!(

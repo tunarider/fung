@@ -18,9 +18,10 @@ use std::sync::OnceLock;
 
 use fung_front::diag::Arg;
 
-use crate::native::nat::{self, def, fail, opt, param, rest};
+use crate::native::nat::{self, def, def_step, fail, opt, param, rest};
+use crate::native::walk::{Cursor, PerItem, walk};
 use crate::value::{ListBuilder, Lit, Native, Value, intern, type_name};
-use crate::vm::{Stop, Task};
+use crate::vm::{Flow, Stop, Task};
 
 pub use io::dbg;
 pub(crate) use strings::{MAX_CHARS, too_many_chars};
@@ -53,11 +54,15 @@ fn build() -> Vec<(&'static str, &'static Native)> {
     add(def("eprint", io::eprint_fn, vec![rest("args")]));
     add(def("fail", fail_fn, vec![rest("args")]));
     add(def("len", len_fn, vec![param("x")]));
-    add(def("map", map_fn, vec![param("xs"), param("f")]));
+    add(def_step("map", map_fn, vec![param("xs"), param("f")]));
     add(def("type_of", type_of_fn, vec![param("x")]));
     add(def("exit", io::exit_fn, vec![opt("code", Lit::Int(0))]));
-    add(def("read_line", io::read_line_fn, vec![opt("f", Lit::Nil)]));
-    add(def(
+    add(def_step(
+        "read_line",
+        io::read_line_fn,
+        vec![opt("f", Lit::Nil)],
+    ));
+    add(def_step(
         "read_lines",
         io::read_lines_fn,
         vec![opt("f", Lit::Nil)],
@@ -110,19 +115,26 @@ fn type_of_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 
 /// `map(xs, f)` applies `f` to every element of a list or range and
 /// collects the results (06). `for` lowers to this (03).
-fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "map over")?;
     nat::need_fn("f", &a[1])?;
     nat::limit_elements(&a[0])?;
+    struct Map(ListBuilder);
+    impl PerItem for Map {
+        fn args(&mut self, t: &mut Task<'_>, x: Value) -> usize {
+            t.push_arg(x);
+            1
+        }
+        fn got(&mut self, r: Value) -> Result<bool, Stop> {
+            self.0.push(r);
+            Ok(false)
+        }
+        fn result(&mut self, _: bool) -> Result<Value, Stop> {
+            Ok(Value::List(Rc::new(std::mem::take(&mut self.0).finish())))
+        }
+    }
     let hint = nat::size_hint(&a[0]);
     // Room for a modest hint only: memory comes as results arrive.
-    let mut out = ListBuilder::with_capacity(hint.min(1 << 16));
-    let mut buf = Vec::with_capacity(1);
-    let f = &a[1];
-    nat::each(t, &a[0], "map over", |t, x| {
-        buf.push(x);
-        out.push(t.call_buf(f, &mut buf)?);
-        Ok(())
-    })?;
-    Ok(Value::List(Rc::new(out.finish())))
+    let p = Map(ListBuilder::with_capacity(hint.min(1 << 16)));
+    walk(t, Cursor::new(&a[0]), a[1].clone(), p)
 }
