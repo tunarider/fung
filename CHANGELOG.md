@@ -8,6 +8,12 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
+동시성을 다시 짰다(동시성 v2). 언어는 구조적 동시성(`scope`·`supervise`), 기한 범위(`timeout`), 정리(`with`), 채널의 두 끝, 엄격한 `atom`,
+정지 신호를 얻었고, 런타임은 태스크마다 운영체제 스레드를 쓰던 방식에서 실행 스레드 하나 + 이벤트 루프 + 스레드 풀로 바뀌었다.
+태스크·채널·`atom`을 쓰던 코드는 아래 "바뀜"의 옮겨 쓰기를 따라 고쳐야 하는, 호환이 깨지는 릴리스다.
+
 ### 바뀜(호환 깨짐)
 
 - **태스크는 범위 안에서만 띄운다(구조적 동시성).** `spawn(f)`가 없어지고 `spawn(s, f)`가 된다. 범위는 `scope(f)`로 연다.
@@ -270,6 +276,7 @@ fung 실행 파일이 Go 구현에서 Rust 구현으로 바뀌었다. 언어와 
 - 설치 스크립트 `install.sh`, `go install github.com/tunarider/fung/cmd/fung@latest`.
 - HTML 매뉴얼(`docs/`, GitHub Pages).
 
-[Unreleased]: https://github.com/tunarider/fung/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/tunarider/fung/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tunarider/fung/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tunarider/fung/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tunarider/fung/releases/tag/v0.1.0

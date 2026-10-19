@@ -43,7 +43,7 @@
       <li><a href="internals.html">내부 구조</a></li>
     </ol>
   </nav>
-  <p class="side-foot">fung 0.2.0 · 설계 문서는 <a href="https://github.com/tunarider/fung/blob/main/docs/design/README.md">docs/design</a></p>
+  <p class="side-foot">fung 0.3.0 · 설계 문서는 <a href="https://github.com/tunarider/fung/blob/main/docs/design/README.md">docs/design</a></p>
 </aside>
 
 <main>
@@ -149,13 +149,13 @@ match logs:
 <p>Linux와 macOS(amd64, arm64)는 설치 스크립트로 받는다. GitHub 릴리스에서 내 플랫폼의 바이너리를 받아 <code>SHA256SUMS</code>와 대조한 뒤 <code>~/.local/bin</code>에 둔다. sudo는 필요 없다. Linux 바이너리는 정적 링크(musl)라 배포판·glibc 버전과 상관없이 돈다.</p>
 <pre class="plain"><code>curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 fung version</code></pre>
-<p>버전과 위치는 환경 변수로 고른다: <code>FUNG_VERSION=0.2.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>. 다시 실행하면 업데이트, 지우려면 그 파일을 지우면 된다. 바이너리 하나에 표준 모듈이 다 들어 있어 따로 설치할 것이 없다.</p>
+<p>버전과 위치는 환경 변수로 고른다: <code>FUNG_VERSION=0.3.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>. 다시 실행하면 업데이트, 지우려면 그 파일을 지우면 된다. 바이너리 하나에 표준 모듈이 다 들어 있어 따로 설치할 것이 없다.</p>
 <p>Rust 1.94 이상이 있다면 저장소에서 직접 빌드할 수도 있다. 실행 파일은 <code>target/release/fung</code>이다.</p>
 <pre class="plain"><code>git clone https://github.com/tunarider/fung &amp;&amp; cd fung
 cargo build --release --locked
 cp target/release/fung ~/.local/bin/</code></pre>
 <p><code>cargo install</code>로 바로 설치할 수도 있다(<code>~/.cargo/bin</code>에 들어간다). 이렇게 빌드한 바이너리는 <code>fung version</code>이 <code>0.0.0-dev</code>다.</p>
-<pre class="plain"><code>cargo install --locked --git https://github.com/tunarider/fung --tag v0.2.0 fung-cli</code></pre>
+<pre class="plain"><code>cargo install --locked --git https://github.com/tunarider/fung --tag v0.3.0 fung-cli</code></pre>
 <p class="note">받은 파일이 이 저장소의 GitHub Actions에서 빌드된 것인지는 <code>gh attestation verify &lt;파일&gt; --repo tunarider/fung</code>로 확인할 수 있다.</p>
 
 <h3>첫 스크립트</h3>

@@ -1,7 +1,7 @@
 # fung — 작업 안내 (Claude용)
 
 fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (바이트코드 VM).
-설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 동시성 v2의 언어 단계(L1~L6)를 마쳤고, 다음은 런타임 교체(R단계)다.
+설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 동시성 v2(언어 L1~L6, 런타임 R1~R6)를 마치고 0.3.0(2026-10-19)을 냈다.
 
 ## 먼저 읽을 것
 
@@ -78,9 +78,9 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
 - 동시성 v2 언어 단계 L1~L6 완료 (2026-10-18, main에 스쿼시 `3f99a5c`, 아직 미릴리스): L1 `scope`·`supervise`·`spawn(s, f)`, L2 `timeout(d, f)`, L3 `with(acquire, use, release)`(`at_exit` 삭제),
   L5 엄격한 `atom`(`agent` 삭제), L4 채널 두 끝 `(tx, rx)`와 자동 닫힘, L6 `stop_signal`·`request_stop`·SIGINT·SIGTERM·`http.serve`의 `drain`·`reuse_port`·취소된 외부 명령 끝내기·배경 태스크 삭제.
   스펙 `docs/superpowers/specs/2026-10-18-concurrency-v2-r7-design.md`(구속력 있음), 설명 `docs/notes/R7-language.md`, 계획 `docs/plans/2026-10-18-concurrency-v2-l*.md`.
-- **R단계 진행 중(스펙 10·11·15절)**: 두 런타임을 함께 두지 않고 제자리에서 바꾸며, L단계 시험이 정답지다. 설명 `docs/notes/R7-scheduler.md`, 계획 `docs/plans/2026-10-1*-concurrency-v2-r*.md`.
-  R2(이어 가는 내장 함수)·R1a(주차 요청, offload)·R1b(M:1 스케줄러)·R3(스레드 풀)·R4a(이벤트 루프와 소켓)·R4b(외부 명령, REPL 두 번째 Ctrl-C)·R5(옛 런타임 삭제)·R6(측정과 마무리, 10.4 목표 모두 됨) 끝(2026-10-19, 작업 브랜치). **다음: rustls 0.23.46 뒤 0.3.0 준비**.
-  rustls는 0.23.45로 짰고 2026-10-28 이후 0.23.46으로 버전만 올린다. 0.3.0은 R단계가 끝난 뒤. 릴리스 태그와 시험 실행은 사용자 확인 뒤.
+- 동시성 v2 런타임 단계 R1~R6 완료(스펙 10·11·15절): 두 런타임을 함께 두지 않고 제자리에서 바꾸며, L단계 시험이 정답지다. 설명 `docs/notes/R7-scheduler.md`, 계획 `docs/plans/2026-10-1*-concurrency-v2-r*.md`.
+  R2(이어 가는 내장 함수)·R1a(주차 요청, offload)·R1b(M:1 스케줄러)·R3(스레드 풀)·R4a(이벤트 루프와 소켓)·R4b(외부 명령, REPL 두 번째 Ctrl-C)·R5(옛 런타임 삭제)·R6(측정과 마무리, 10.4 목표 모두 됨) 끝(2026-10-19, 작업 브랜치). main에 스쿼시(`5a0061f`), 0.3.0 릴리스(2026-10-19). **다음: rustls 0.23.46(2026-10-28 이후, 0.3.1)**.
+  rustls는 0.23.45로 짰고 2026-10-28 이후 0.23.46으로 버전만 올린다. 릴리스 태그와 시험 실행은 사용자 확인 뒤.
   tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에. 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
 - 매뉴얼: `docs/index.html`·`syntax.html`·`builtins.html`·`internals.html`, GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 매뉴얼도 같이 고친다.**
