@@ -444,6 +444,38 @@ fn fung_prelude_functions() {
     }
 }
 
+/// A range wider than the int range is not empty, and `first`, `last`,
+/// `take` and `drop` work on it without counting it: only `len` fails
+/// (02). A result that would hold too many numbers is E0806.
+#[test]
+fn wide_ranges_need_no_length() {
+    let w = "-9223372036854775808..=9223372036854775807";
+    let cases = [
+        (
+            format!("print(is_empty({w}), first({w}), last({w}))"),
+            "false -9223372036854775808 9223372036854775807\n",
+        ),
+        (
+            format!(
+                "print(take({w}, 2), take({w}, -1), drop(0..=9223372036854775807, 9223372036854775807))"
+            ),
+            "[-9223372036854775808, -9223372036854775807] [] [9223372036854775807]\n",
+        ),
+        (
+            "print(is_empty(3..3), last(3..3), last(3..=3), last(-2..0), take(5..8, 10), drop(5..8, 1), drop(5..8, 9), drop(5..8, -1))"
+                .to_string(),
+            "true nil 3 -1 [5, 6, 7] [6, 7] [] [5, 6, 7]\n",
+        ),
+    ];
+    for (src, want) in &cases {
+        let o = exec(src, Opts::default());
+        assert_eq!((o.code.as_str(), o.out.as_str()), ("", *want), "{src}");
+    }
+    for src in [format!("drop({w}, 2)"), format!("take({w}, 200000000)")] {
+        assert_eq!(exec(&src, Opts::default()).code, "E0806", "{src}");
+    }
+}
+
 // --- take and drop check their count ---
 
 #[test]

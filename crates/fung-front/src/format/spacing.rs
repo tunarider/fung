@@ -60,6 +60,20 @@ pub(super) fn prefix_context(k: Kind) -> bool {
         )
 }
 
+/// Whether two tokens written without a space would read back as other
+/// tokens (`;` `;` as `;;`, `?` `?` as `??`, `;` `;;` as `;;` `;`).
+fn would_join(p: Kind, n: Kind) -> bool {
+    use Kind::*;
+    matches!(
+        (p, n),
+        (Semi, Semi)
+            | (Semi, DoubleSemi)
+            | (Question, Question)
+            | (Dot, Dot | DotDot | DotDotEq)
+            | (DotDot, Dot | DotDot | DotDotEq)
+    )
+}
+
 /// The number of spaces between two adjacent tokens on a line (spec:
 /// 토큰 사이 공백). `prev_is_sign` says `p` is a prefix `-`;
 /// `import_line` says the line is an import, whose name list is not a
@@ -67,6 +81,9 @@ pub(super) fn prefix_context(k: Kind) -> bool {
 pub(super) fn gap(p: Kind, n: Kind, prev_is_sign: bool, import_line: bool) -> usize {
     use Kind::*;
     if import_line && n == LParen {
+        return 1;
+    }
+    if would_join(p, n) {
         return 1;
     }
     let tight = is_opener(p)

@@ -200,9 +200,10 @@ impl ScopeState {
 ///    empty, the scope is cancelled, or `on_fail` fails (which fails the
 ///    scope). The handler runs under a node of its own below the scope's,
 ///    not under the failed task's: that task has finished, and cancelling
-///    a finished task's handle must not stop the handler. A failure whose
-///    `on_fail` was cancelled goes back to the queue, so the scope reports
-///    it when it closes;
+///    a finished task's handle must not stop the handler. A failure
+///    `on_fail` was called for has been handed over, even if `on_fail` is
+///    then cancelled or exits: only the ones still queued are reported
+///    when the scope closes (05 "범위");
 /// 3. the scope learns of the end and the task's node is cancelled (what
 ///    it spawned and left running ends with it).
 ///
@@ -212,8 +213,8 @@ pub(super) struct TaskEnd {
     state: Rc<super::task::TaskState>,
     scope: Option<Rc<ScopeState>>,
     node: Arc<CancelNode>,
-    /// While handling: the body's result, the task's own node (swapped
-    /// for the handler's) and the failure being handled.
+    /// While handling: the body's result and the task's own node
+    /// (swapped for the handler's).
     handling: Option<Handling>,
 }
 
@@ -221,7 +222,6 @@ struct Handling {
     r: Result<Value, Stop>,
     own: Arc<CancelNode>,
     handler: Arc<CancelNode>,
-    current: Option<(Value, String)>,
 }
 
 impl TaskEnd {
@@ -255,12 +255,7 @@ impl TaskEnd {
                 sv.handling.set(true);
                 let handler = s.node.child();
                 let own = std::mem::replace(&mut t.cancel, handler.clone());
-                self.handling = Some(Handling {
-                    r,
-                    own,
-                    handler,
-                    current: None,
-                });
+                self.handling = Some(Handling { r, own, handler });
                 return Ok(self.next_failure(t, sv));
             }
         }
@@ -269,12 +264,10 @@ impl TaskEnd {
 
     /// Calls `on_fail` for the next queued failure, or stops handling.
     fn next_failure(&mut self, t: &mut Task<'_>, sv: &Supervisor) -> Next {
-        let h = self.handling.as_mut().expect("handling");
         if !t.cancel.is_cancelled()
-            && let Some((e, text)) = sv.queue.borrow_mut().pop_front()
             && let Some(f) = sv.on_fail.borrow().clone()
+            && let Some((e, _)) = sv.queue.borrow_mut().pop_front()
         {
-            h.current = Some((e.clone(), text));
             t.push_arg(e);
             return Next::Call(f, 1);
         }
@@ -290,27 +283,21 @@ impl TaskEnd {
         self.ended(t, h.r)
     }
 
-    /// `on_fail` came to `r` for the failure being handled.
+    /// `on_fail` came to `r` for the failure being handled. That failure
+    /// was handed over whatever `r` is; a cancellation or an exit only
+    /// stops the handling, leaving the rest of the queue to be reported.
     fn handled(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Next {
         let s = self.scope.clone().expect("a supervised task");
         let Policy::Supervise(sv) = &s.policy else {
             unreachable!("handling outside a supervise scope")
         };
-        let current = self
-            .handling
-            .as_mut()
-            .and_then(|h| h.current.take())
-            .expect("a failure being handled");
         match r {
             Ok(_) => self.next_failure(t, sv),
             Err(Stop::Error(d)) if !is_cancel(&d) => {
                 s.fail(&d);
                 self.stop_handling(t, sv)
             }
-            Err(_) => {
-                sv.queue.borrow_mut().push_front(current);
-                self.stop_handling(t, sv)
-            }
+            Err(_) => self.stop_handling(t, sv),
         }
     }
 

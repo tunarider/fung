@@ -14,7 +14,7 @@ use fung_front::diag::Arg;
 use crate::native::nat::{self, native, native_step, opt, param};
 use crate::value::{Lit, Native, NativeFn, StepFn, Value, format};
 use crate::vm::channel::{self, Channel, Received, RecvWait, SendWait, Try};
-use crate::vm::{Cont, Flow, Next, Stop, Task, Wake, err_kind, park_until};
+use crate::vm::{Cont, Flow, Next, Stop, Task, Wake, err_kind, park_until, park_until_then};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -200,12 +200,14 @@ fn spawn(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `await(t)`: the task's result, kept for later calls. A deadline
-/// around the wait (`timeout`) ends the wait, not the task.
+/// around the wait (`timeout`) ends the wait, not the task; the waiter
+/// then leaves the task's list.
 fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
     let Value::Task(h) = &args[0] else {
         return Err(nat::wrong_arg("t", "task", &args[0]));
     };
     let h = h.clone();
+    let state = h.state.clone();
     let ready = move |_: &mut Task<'_>, me: &_| {
         let r = h.state.result();
         if r.is_none() {
@@ -213,7 +215,8 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
         }
         r.map(Ok)
     };
-    park_until(t, ready, Wake::default())
+    let leave = move |t: &mut Task<'_>| state.waiters.borrow_mut().remove(&t.waiter_handle());
+    park_until_then(t, ready, Wake::default(), leave)
 }
 
 /// `cancel(t)`: cancels the task and every task below it, or the scope

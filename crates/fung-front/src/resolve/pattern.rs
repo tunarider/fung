@@ -84,11 +84,21 @@ impl Resolver<'_> {
             }
             Head::Palt => {
                 let first = pattern_names(&n.kids[0]);
-                for alt in &n.kids[1..] {
-                    if pattern_names(alt) != first {
-                        self.errs.push(error("E0216", alt.pos, vec![]));
-                        return n.clone();
+                if let Some(alt) = n.kids[1..].iter().find(|a| pattern_names(a) != first) {
+                    self.errs.push(error("E0216", alt.pos, vec![]));
+                    // Bind every alternative's names anyway, so their uses
+                    // are not reported again as undefined (08).
+                    for alt in &n.kids {
+                        for name in pattern_names(alt) {
+                            if seen.insert(name.clone()) {
+                                match mode {
+                                    Mode::Assign => self.bind_new(&name, alt.pos),
+                                    Mode::Fresh => self.bind_fresh(&name, alt.pos),
+                                };
+                            }
+                        }
                     }
+                    return n.clone();
                 }
                 // Each alternative binds the same names once; start every
                 // alternative from the names seen before the `|`.
@@ -112,14 +122,25 @@ impl Resolver<'_> {
     }
 
     /// Resolves `(match subject (arm pat guard body)…)`: each arm is its
-    /// own block scope whose pattern names are fresh bindings.
+    /// own block scope whose pattern names are fresh bindings. The body's
+    /// statements share that block, so the arm may rebind its names like a
+    /// `for` body (03).
     pub(super) fn match_expr(&mut self, n: &Node) -> Node {
         let mut kids = vec![self.walk(&n.kids[0])];
         for arm in &n.kids[1..] {
-            self.push_block(arm, false);
+            let body = &arm.kids[2];
+            self.push_block(body, false);
             let pat = self.bind_pattern(&arm.kids[0], Mode::Fresh);
             let guard = self.walk(&arm.kids[1]);
-            let body = self.walk(&arm.kids[2]);
+            let body = if body.head == Head::Do {
+                let stmts = body.kids.iter().map(|k| self.stmt(k)).collect();
+                let mut d = Node::new(Head::Do, body.pos, stmts);
+                d.off = body.off;
+                d.end = body.end;
+                d
+            } else {
+                self.walk(body)
+            };
             self.pop_block(false);
             kids.push(Node::new(Head::Arm, arm.pos, vec![pat, guard, body]));
         }

@@ -18,6 +18,7 @@
 | 7
 | 9 -4
 | 3 1 -4 1 3.0 0.5
+| 0.04850743287925943 2.0 1.0 9.0 -0.5
 | 2.5 5.0 3.5
 | 1024 0.5 4.0 -4 512
 | 0.30000000000000004
@@ -150,6 +151,7 @@
 -- stdout
 | 1h30m 2s 1m 15s true 1.5ms -5s
 | 0s 30s
+| true 2562047h1ms 43800h7.000001ms 0.000004ms
 -- stderr
 -- exit: 0
 ==== tests/lang/err_alias_cycle.fung
@@ -166,10 +168,10 @@
 -- stdout
 -- stderr
 | error[E0217]: type `a` is defined twice
-|   --> tests/lang/err_alias_dup.fung:2:1
+|   --> tests/lang/err_alias_dup.fung:2:6
 |   |
 | 2 | type a = str
-|   | ^
+|   |      ^
 |   |
 -- exit: 2
 ==== tests/lang/err_alias_in_fn.fung
@@ -379,6 +381,13 @@
 -- stdout
 -- stderr
 | error[E0702]: deadlock: all tasks are waiting
+|   --> tests/lang/err_deadlock.fung:3:5
+|   |
+| 3 | recv(rx)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_deadlock.fung:3 <entry>
 -- exit: 1
 ==== tests/lang/err_destructure.fung
 -- stdout
@@ -1249,6 +1258,8 @@
 -- stdout
 | 0..3 0..=3 10 true false true
 | [1, 4, 9] [0, 1]
+| true false true true
+| false 9223372036854775807 [-9223372036854775808, -9223372036854775807] [9223372036854775807]
 -- stderr
 -- exit: 0
 ==== tests/lang/regex.fung
@@ -1829,6 +1840,7 @@
 | 7
 | 9 -4
 | 3 1 -4 1 3.0 0.5
+| 0.04850743287925943 2.0 1.0 9.0 -0.5
 | 2.5 5.0 3.5
 | 1024 0.5 4.0 -4 512
 | 0.30000000000000004

@@ -24,6 +24,7 @@ pub use crate::native::file::File;
 pub use crate::native::net::{Conn, Listener};
 use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHandle};
 
+pub(crate) use arith::check_chars;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, equal};
 pub use format::{format, format_for_print, type_name};

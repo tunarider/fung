@@ -85,6 +85,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         opts,
         imports: Vec::new(),
         module_names: HashMap::new(),
+        module_specs: HashMap::new(),
         import_bound: HashSet::new(),
         errs: Vec::new(),
         warnings: Vec::new(),
@@ -131,6 +132,9 @@ struct Resolver<'a> {
     imports: Vec<String>,
     /// Names bound to modules (unshadowable).
     module_names: HashMap<String, ModuleInfo>,
+    /// How each module name's import names its module (`fs`,
+    /// `"./lib/x"`), for E0308's help.
+    module_specs: HashMap<String, String>,
     /// Every name an import bound: never re-exported (04).
     import_bound: HashSet<String>,
     errs: Vec<Diag>,
@@ -257,7 +261,7 @@ impl Resolver<'_> {
                     continue;
                 }
                 let e = if b.module {
-                    module::shadow_error(name, k.pos)
+                    self.shadow_error(name, k.pos)
                 } else {
                     name_error("E0210", k.pos, name)
                 };
@@ -442,7 +446,8 @@ impl Resolver<'_> {
     fn bind_new(&mut self, name: &str, pos: Pos) -> Option<Binding> {
         if let Some(b) = self.cur_block().names.get(name).copied() {
             if b.module && !self.opts.redefine {
-                self.errs.push(module::shadow_error(name, pos));
+                let e = self.shadow_error(name, pos);
+                self.errs.push(e);
                 return None;
             }
             if b.constant && !self.opts.redefine {
@@ -543,9 +548,9 @@ impl Resolver<'_> {
         if let Some(node) = self.lookup(name, n.pos) {
             return node;
         }
-        if self.prelude.contains(name) {
-            return Node::leaf(Head::Prelude, n.pos, Lit::Str(name.to_string()));
-        }
+        // A name that left its block or is defined later in it is an error
+        // before it is the prelude's: reading the builtin of the same name
+        // would hide the mistake (03, rule 4).
         if self.cur().closed.contains(name) {
             let e = name_error("E0206", n.pos, name).with_help(&format!(
                 "assign the block's value instead: `{name} = if … ;;`"
@@ -560,6 +565,9 @@ impl Resolver<'_> {
         {
             self.errs.push(name_error("E0208", n.pos, name));
             return n.clone();
+        }
+        if self.prelude.contains(name) {
+            return Node::leaf(Head::Prelude, n.pos, Lit::Str(name.to_string()));
         }
         let mut e = name_error("E0204", n.pos, name);
         if let (Some(p), true) = (self.file_var_pos.get(name), self.in_function()) {

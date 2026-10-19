@@ -310,6 +310,17 @@ pub fn run_files_with(files: &[(&str, &str)], entry: &str, extra: fn() -> Vec<Va
     })
 }
 
+/// The first line of each report in `err`, for a test that checks which
+/// reports came and not where they point (a deadlock report shows where
+/// the tasks wait): the lines that start neither with a space nor with
+/// a source line's number.
+pub fn report_heads(err: &str) -> String {
+    err.lines()
+        .filter(|l| !l.starts_with(' ') && !l.starts_with(|c: char| c.is_ascii_digit()))
+        .map(|l| format!("{l}\n"))
+        .collect()
+}
+
 /// Test-only: `Opts.file` is `&'static str` so `Opts` stays `Copy`.
 fn leak(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
@@ -473,6 +484,7 @@ pub fn boom() -> Vec<Value> {
 ///   other task runs meanwhile;
 /// - `buffered(ch)`: how many values wait in `ch`'s buffer;
 /// - `finished(t)`: whether task `t` has finished;
+/// - `awaiters(t)`: how many tasks are registered as waiting for `t`;
 /// - `loop_depth()`: how many run loops run on this task (`cont.rs`);
 /// - `parks()`: how many times this task parked (`cont.rs`);
 /// - `offloads()`: how many waits on the operating system it handed off (`nat::offload`);
@@ -509,6 +521,16 @@ pub fn probes() -> Vec<Value> {
                     panic!("a task argument")
                 };
                 Ok(Value::Bool(h.state.result().is_some()))
+            },
+        )),
+        Value::Native(Native::leak(
+            "awaiters",
+            vec![nat::param("t")],
+            |_: &mut Task, a| {
+                let Value::Task(h) = &a[0] else {
+                    panic!("a task argument")
+                };
+                Ok(Value::Int(h.state.waiters.borrow().len() as i64))
             },
         )),
         Value::Native(Native::leak("yields", vec![], |t: &mut Task, _| {

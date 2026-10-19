@@ -8,16 +8,25 @@
 
 # Merges receiving ends into one (05): a forwarding task per input, in
 # scope `s`, sends to the output's sending end; the returned receiving
-# end closes when every input has closed.
+# end closes when every input has closed. Once the returned end is gone
+# (a send gives Err), every forwarder stops and the inputs are let go,
+# so their producers' sends give Err in turn.
 fn fan_in(s, rxs):
   (tx, rx) = channel(len(rxs))
   spawn(s, fn():
     scope(fn(inner):
-      each(rxs, r => spawn(inner, () => each(r, v => send(tx, v))))
+      each(rxs, r => spawn(inner, fn(): _forward(r, tx) then cancel(inner) else nil ;;))
     ;;)
     close(tx)
   ;;)
   rx
+;;
+
+# Sends what r gives to tx until r closes (false) or nobody can receive
+# from tx any more (true).
+fn _forward(r, tx) = match recv(r):
+  Ok(v) => is_ok(send(tx, v)) then _forward(r, tx) else true
+  _     => false
 ;;
 
 # Parallel map: at most `limit` tasks at once (0 = no limit), results in

@@ -7,16 +7,21 @@ use crate::tree::{Head, Lit, Node};
 
 impl Resolver<'_> {
     /// Registers the file's type aliases before anything else is resolved,
-    /// so functions above an alias can use it (07). Duplicates are E0217;
-    /// aliases are dropped from the core tree. Cycles are checked in
-    /// declaration order.
+    /// so functions above an alias can use it (07). A built-in type name is
+    /// E0222 (it would mean something else in this file only), duplicates
+    /// are E0217; aliases are dropped from the core tree. Cycles are
+    /// checked in declaration order.
     pub(super) fn declare_aliases(&mut self, root: &Node) {
         for k in &root.kids {
             let (Head::Typealias, Lit::Alias(a)) = (k.head, &k.lit) else {
                 continue;
             };
+            if is_builtin_type(&a.name) {
+                self.errs.push(name_error("E0222", a.name_pos, &a.name));
+                continue;
+            }
             if self.aliases.contains_key(&a.name) {
-                self.errs.push(name_error("E0217", k.pos, &a.name));
+                self.errs.push(name_error("E0217", a.name_pos, &a.name));
                 continue;
             }
             self.aliases.insert(a.name.clone(), a.alts.clone());

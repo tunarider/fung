@@ -137,6 +137,15 @@ impl<'a> Parser<'a> {
         self.toks[self.i + 1].kind
     }
 
+    /// The kind of token `j`, skipping newlines when inside brackets, where
+    /// they are whitespace (01).
+    fn kind_from(&self, mut j: usize) -> Kind {
+        while self.nest > 0 && self.toks[j].kind == Kind::Newline {
+            j += 1;
+        }
+        self.toks[j].kind
+    }
+
     /// A token usable as a name where nothing else can appear (01): a name,
     /// a tag, or a keyword (`m.type`, `{match: 1}`).
     fn at_name_like(&mut self) -> bool {

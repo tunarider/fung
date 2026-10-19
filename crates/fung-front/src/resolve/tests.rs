@@ -452,6 +452,54 @@ fn fn_scope_errors() {
 }
 
 #[test]
+fn defaults_see_names_of_earlier_pattern_params() {
+    // 03: a default may refer to the parameters before it, names bound by a
+    // pattern parameter included.
+    let opts = Options::default();
+    for src in [
+        "fn f((a, b), c = a + b) = c",
+        "fn f((a, b), c = a, d = c) = d + b",
+        "f = fn([x, ...rest], n = len(rest)): x + n ;;",
+    ] {
+        let (r, errs) = resolve_with(src, &["len"], &opts);
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+        assert!(
+            r.unwrap().warnings.is_empty(),
+            "{src:?}: no warning for the copies"
+        );
+    }
+    // A default still cannot see a later parameter (a pattern parameter
+    // cannot follow a default at all).
+    let (_, errs) = resolve_with("fn f((a, b), c = d, d = 1) = c", &[], &opts);
+    assert_eq!(codes(&errs), vec!["E0204"]);
+    // A name no one reads still warns, once.
+    let (r, _) = resolve_with("fn f((a, b), c = a) = c", &[], &opts);
+    let ws: Vec<String> = r.unwrap().warnings.iter().map(arg0).collect();
+    assert_eq!(ws, vec!["b"]);
+}
+
+#[test]
+fn a_closed_name_is_not_read_as_the_prelude() {
+    // A name that left its block is E0206 even when the prelude has a
+    // function of that name (03, rule 4): the read is not the builtin.
+    let opts = Options::default();
+    let (_, errs) = resolve_with(
+        "if true: lines = [1] ;;\nprint(lines)",
+        &["print", "lines"],
+        &opts,
+    );
+    assert_eq!(codes(&errs), vec!["E0206"]);
+    let (_, errs) = resolve_with("fn f():\n  if true: max = 1 ;;\n  max\n;;", &["max"], &opts);
+    assert_eq!(codes(&errs), vec!["E0206"]);
+    // A local fn defined later in the block is E0208, not the builtin.
+    let (_, errs) = resolve_with("fn f():\n  max(1)\n  fn max(x) = x\n;;", &["max"], &opts);
+    assert_eq!(codes(&errs), vec!["E0208"]);
+    // The prelude stays visible where nothing of that name was closed.
+    let (_, errs) = resolve_with("fn f(s) = lines(s)", &["lines"], &opts);
+    assert!(errs.is_empty(), "{errs:?}");
+}
+
+#[test]
 fn per_function_closed_sets() {
     // A name closed in f's block must not turn an unrelated typo in g into E0206.
     let (_, errs) = res("fn f(): if true: tmp = 1 ;; ;;\nfn g() = tmp");
@@ -501,6 +549,22 @@ fn match_arms_shadow_and_scope() {
 }
 
 #[test]
+fn an_arm_can_rebind_its_own_names() {
+    // 03: an arm's names are new names in the arm's block, like a `for`
+    // variable, so the arm may rebind them.
+    ok("x = match 1: v => v = v + 1; v ;;");
+    ok("for v in [1]: v = v * 10; v ;;");
+    // An outer name is still E0205, and arm names still do not leak.
+    let (_, errs) = res("y = 1\nmatch 1: v => y = 2; v ;;");
+    assert_eq!(codes(&errs), vec!["E0205"]);
+    let (_, errs) = res("match 1: v => w = v; w ;;\nprint(w)");
+    assert_eq!(codes(&errs), vec!["E0206"]);
+    // A local fn later in an arm is still E0208 before its definition.
+    let (_, errs) = res("match 1: v => g(); fn g() = v ;;");
+    assert_eq!(codes(&errs), vec!["E0208"]);
+}
+
+#[test]
 fn nested_match_uses_separate_hidden_slots() {
     let r = ok("match 1:\n  a => match 2:\n    b => a + b\n  ;;\n;;");
     let got = r.core.to_string();
@@ -543,6 +607,12 @@ fn type_aliases() {
         ("type a = int\ntype a = str", "E0217"),
         ("fn f(): type a = int ;;", "E0219"),
         ("type a = zzz", "E0212"),
+        // a built-in type name cannot be an alias: `int` would mean
+        // something else in this file only (07)
+        ("type int = str\nfn f(x: int) = x", "E0222"),
+        ("type any = int", "E0222"),
+        ("type num = int | float", "E0222"),
+        ("type int = int", "E0222"),
     ];
     for (src, want) in cases {
         let (_, errs) = res(src);
@@ -648,6 +718,37 @@ fn import_errors() {
             "{src:?}: {errs:?}"
         );
     }
+}
+
+#[test]
+fn shadowing_help_names_the_import_as_written() {
+    // E0308's help shows how to import the module under another name,
+    // with the module it really is (not the alias it is bound to).
+    let help_of = |src: &str| {
+        let (_, errs) = resolve_with(src, &["print"], &m5_opts(false));
+        assert_eq!(codes(&errs), vec!["E0308"], "{src:?}");
+        help(&errs[0]).to_string()
+    };
+    assert_eq!(
+        help_of("import fs\nfs = 1"),
+        "import it under another name: `import fs as m`"
+    );
+    assert_eq!(
+        help_of("import fs as f\nf = 1"),
+        "import it under another name: `import fs as m`"
+    );
+    assert_eq!(
+        help_of("import \"./lib/x\" as y\nfn f(y) = y"),
+        "import it under another name: `import \"./lib/x\" as m`"
+    );
+}
+
+#[test]
+fn alternatives_binding_different_names_do_not_cascade() {
+    // 08: one cause, one error — the names used in the arm are not also
+    // reported as undefined.
+    let (_, errs) = res("match [1]: [a] | [a, ...rest] => print(a, rest) ;;");
+    assert_eq!(codes(&errs), vec!["E0216"]);
 }
 
 #[test]

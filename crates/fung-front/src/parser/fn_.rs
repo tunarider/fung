@@ -25,6 +25,44 @@ fn pattern_param(pat: Node) -> Param {
     }
 }
 
+/// The names a parameter pattern binds, each once, with where it is bound.
+fn pattern_names(n: &Node, out: &mut Vec<(String, Pos)>) {
+    if matches!(n.head, Head::Pbind | Head::Prest)
+        && let Lit::Str(name) = &n.lit
+        && !out.iter().any(|(m, _)| m == name)
+    {
+        out.push((name.clone(), n.pos));
+    }
+    for k in &n.kids {
+        pattern_names(k, out);
+    }
+}
+
+/// E0110 when `name` is already bound by an earlier parameter, plain or
+/// inside a pattern (03); a pattern binding a name twice by itself is the
+/// resolver's E0221.
+fn note_param(seen: &mut Vec<String>, name: &str, pos: Pos) -> PResult<()> {
+    if seen.iter().any(|m| m == name) {
+        return Err(err(
+            "E0110",
+            pos,
+            vec![s(format!("duplicate parameter `{name}`"))],
+        ));
+    }
+    seen.push(name.to_string());
+    Ok(())
+}
+
+/// Records every name a pattern parameter binds (`note_param`).
+fn note_pattern(seen: &mut Vec<String>, pat: &Node) -> PResult<()> {
+    let mut names = Vec::new();
+    pattern_names(pat, &mut names);
+    for (name, pos) in names {
+        note_param(seen, &name, pos)?;
+    }
+    Ok(())
+}
+
 fn fn_info(name: String) -> FnInfo {
     FnInfo {
         name,
@@ -47,6 +85,7 @@ impl<'a> Parser<'a> {
         let mut kids = self.params(&mut info)?;
         if self.at(Kind::Arrow) {
             self.next();
+            self.skip_newlines_after_operator();
             info.ret = Some(self.type_spec()?);
         }
         let body = if self.at(Kind::Assign) && named {
@@ -83,7 +122,7 @@ impl<'a> Parser<'a> {
 
     fn params_inner(&mut self, info: &mut FnInfo) -> PResult<Vec<Node>> {
         let mut defaults = Vec::new();
-        let mut seen: Vec<&'a str> = Vec::new();
+        let mut seen: Vec<String> = Vec::new();
         let (mut saw_default, mut saw_rest) = (false, false);
         while !self.at(Kind::RParen) {
             if saw_rest {
@@ -108,6 +147,7 @@ impl<'a> Parser<'a> {
                         vec![s("required parameter after an optional one")],
                     ));
                 }
+                note_pattern(&mut seen, &pat)?;
                 info.params.push(pattern_param(pat));
                 if self.at(Kind::Comma) {
                     self.next();
@@ -119,14 +159,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             let name = self.expect_desc(Kind::Name, "a parameter name")?;
-            if seen.contains(&name.text.as_str()) {
-                return Err(err(
-                    "E0110",
-                    name.pos,
-                    vec![s(format!("duplicate parameter `{}`", name.text))],
-                ));
-            }
-            seen.push(&name.text);
+            note_param(&mut seen, &name.text, name.pos)?;
             let mut prm = param(name.text.clone(), name.pos);
             prm.rest = rest;
             if self.at(Kind::Colon) {
@@ -201,7 +234,9 @@ impl<'a> Parser<'a> {
 
     /// Whether the tokens at the current index form `( … ) =>` with balanced
     /// brackets, without consuming anything. The contents are parsed as
-    /// patterns by `lambda` (03).
+    /// patterns by `lambda` (03). Newlines inside the parentheses are
+    /// whitespace, and before `=>` too when the lambda itself sits inside
+    /// brackets (01).
     pub(super) fn lambda_params_ahead(&self) -> bool {
         let toks = self.toks;
         if toks[self.i].kind != Kind::LParen {
@@ -214,10 +249,10 @@ impl<'a> Parser<'a> {
                 Kind::RParen | Kind::RBracket | Kind::RBrace => {
                     depth -= 1;
                     if depth == 0 {
-                        return toks.get(j + 1).is_some_and(|n| n.kind == Kind::FatArrow);
+                        return self.kind_from(j + 1) == Kind::FatArrow;
                     }
                 }
-                Kind::Newline | Kind::Eof => return false,
+                Kind::Eof => return false,
                 _ => {}
             }
         }
@@ -257,8 +292,10 @@ impl<'a> Parser<'a> {
     }
 
     fn lambda_params(&mut self, info: &mut FnInfo) -> PResult<()> {
+        let mut seen = Vec::new();
         while !self.at(Kind::RParen) {
             let pat = self.pattern()?;
+            note_pattern(&mut seen, &pat)?;
             if pat.head == Head::Pbind
                 && let Lit::Str(name) = &pat.lit
             {

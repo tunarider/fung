@@ -129,8 +129,9 @@ impl Lexer<'_> {
             _ => 16,
         };
         let dig_start = self.off;
+        // `_` only between digits (01): not right after the prefix
         while is_hex_digit(self.peek())
-            || (self.peek() == Some('_') && is_hex_digit(self.peek_at(1)))
+            || (self.peek() == Some('_') && self.off > dig_start && is_hex_digit(self.peek_at(1)))
         {
             self.advance();
         }
@@ -213,7 +214,9 @@ impl Lexer<'_> {
             }
             if self.peek() == Some('.') && is_digit(self.peek_at(1)) {
                 self.advance();
-                self.digits();
+                if !self.digits() {
+                    return Err(self.bad_number("E0105", p, start));
+                }
             }
             if !is_ident_start(self.peek()) {
                 return Err(self.bad_number("E0105", p, start));
@@ -330,6 +333,14 @@ mod tests {
             ("30m1h", "E0105"),
             ("5x", "E0102"),
             ("1e5s", "E0102"),
+            // `_` only between digits (01), also right after a base prefix
+            // and in a duration's fraction
+            ("0x_ff", "E0102"),
+            ("0o_7", "E0102"),
+            ("0b_1", "E0102"),
+            ("0xf__f", "E0102"),
+            ("1h30.5_m", "E0105"),
+            ("1.5_s", "E0102"),
         ];
         for (src, want) in cases {
             match lex_src(src) {

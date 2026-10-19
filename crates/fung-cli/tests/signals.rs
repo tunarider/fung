@@ -207,6 +207,43 @@ fn repl_ctrl_c_cancels_the_evaluation() {
     assert_eq!(code, Some(0));
 }
 
+/// A swap's function runs without giving its turn; the first signal
+/// still reaches one that never ends (review C6: it took a second).
+#[test]
+fn a_signal_during_a_swap_stops_it() {
+    let mut l = run_e(
+        "fn spin(n) = spin(n + 1)\na = atom(0)\nprint(\"ready\")\nswap(a, x => spin(x))\nprint(\"not here\")",
+    );
+    l.wait_for("ready");
+    let start = Instant::now();
+    l.signal("TERM");
+    assert_eq!(l.finish(), ("ready\n".into(), "".into(), Some(143)));
+    assert!(
+        start.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// The REPL's Ctrl-C cancels an evaluation stuck in a swap's function
+/// (review C6: no number of Ctrl-Cs did).
+#[test]
+fn repl_ctrl_c_cancels_a_swap() {
+    let mut l = Live::start(&[], Stdio::piped());
+    let mut input = l.child.stdin.take().unwrap();
+    input
+        .write_all(b"fn spin(n) = spin(n + 1)\na = atom(0)\nfn(): print(\"ready\"); swap(a, x => spin(x)) ;;()\n")
+        .unwrap();
+    input.flush().unwrap();
+    l.wait_for("ready");
+    l.signal("INT");
+    input.write_all(b"print(\"after\", 1 + 1)\n").unwrap();
+    drop(input);
+    let (out, _, code) = l.finish();
+    assert!(out.contains("after 2\n"), "{out}");
+    assert_eq!(code, Some(0));
+}
+
 /// Each test block starts with no stop requested.
 #[test]
 fn fung_test_blocks_get_a_fresh_stop() {

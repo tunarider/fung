@@ -265,10 +265,10 @@
 -- stdout
 -- stderr
 | error[E0217]: type `a` is defined twice
-|   --> tests/lang/err_alias_dup.fung:2:1
+|   --> tests/lang/err_alias_dup.fung:2:6
 |   |
 | 2 | type a = str
-|   | ^
+|   |      ^
 |   |
 -- exit: 2
 ==== check tests/lang/err_alias_in_fn.fung

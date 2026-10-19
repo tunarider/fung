@@ -10,6 +10,7 @@ pub mod net;
 pub(crate) mod oserr;
 pub mod path;
 pub mod process;
+pub mod range;
 pub mod regex;
 pub(crate) mod sock;
 pub mod time;

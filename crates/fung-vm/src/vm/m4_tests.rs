@@ -241,3 +241,37 @@ fn m4_error_reports() {
         "error[E0509]: cannot index a value of type tuple\n  --> -e:1:12\n  |\n1 | print((1,2).x)\n  |            ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
 }
+
+/// A pattern or `!` error shows at most the first 200 characters of the
+/// value, then `…`: a list of a million ints would print megabytes into
+/// a one-line headline.
+#[test]
+fn errors_cut_long_values_in_the_headline() {
+    let head = |src: &str| exec(src, Opts::default()).error.expect(src).headline;
+    let ints: Vec<String> = (0..1000).map(|i| i.to_string()).collect();
+    let list: String = format!("[{}", ints.join(", ")).chars().take(200).collect();
+    assert_eq!(
+        head("[a] = map(0..1000000, x => x)"),
+        format!("error[E0602]: value {list}… does not match the pattern")
+    );
+    assert_eq!(
+        head("match map(0..1000000, x => x): [] => 0 ;;"),
+        format!("error[E0601]: no pattern matched {list}…")
+    );
+    let xs = "x".repeat(300);
+    assert_eq!(
+        head(&format!("Err({{message: \"{xs}\"}})!")),
+        format!("error[E0603]: unhandled Err: {}…", &xs[..200])
+    );
+    // 200 characters exactly are shown whole, quotes included.
+    let fits = "가".repeat(198);
+    assert_eq!(
+        head(&format!("match \"{fits}\": \"\" => 0 ;;")),
+        format!("error[E0601]: no pattern matched \"{fits}\"")
+    );
+    let over = "가".repeat(199);
+    assert_eq!(
+        head(&format!("match \"{over}\": \"\" => 0 ;;")),
+        format!("error[E0601]: no pattern matched \"{}…", &over[..199 * 3])
+    );
+}

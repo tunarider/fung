@@ -288,8 +288,9 @@ fn an_on_fail_error_fails_the_supervise() {
 }
 
 /// `a` fails first and its handler waits in `gate`; `b` fails while it
-/// waits, so its failure is queued; then the scope is cancelled. Neither
-/// failure is dropped: both are reported.
+/// waits, so its failure is queued; then the scope is cancelled. `b`
+/// never reached `on_fail`, so it is reported; `a` did (05 "범위": only
+/// the failures the scope could not handle are reported).
 #[test]
 fn queued_failures_of_a_cancelled_supervise_are_reported() {
     let o = exec_waiting(
@@ -297,9 +298,8 @@ fn queued_failures_of_a_cancelled_supervise_are_reported() {
          r = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  spawn(s, fn(): blocked(gate, 1); send(note_tx, 1); fail(\"b\") ;;)\n  spawn(s, fn(): recv(note); cancel(s) ;;)\n;;, e => recv(gate))\nprint(r)",
     );
     assert_eq!(o.out, "Err({kind: 'cancelled})\n");
-    // `a`'s handler was cut short too, so both are reported.
-    assert_eq!(o.err.matches("task failed:").count(), 2, "{}", o.err);
-    assert!(o.err.contains("error[E0803]: a"), "{}", o.err);
+    assert_eq!(o.err.matches("task failed:").count(), 1, "{}", o.err);
+    assert!(!o.err.contains("error[E0803]: a"), "{}", o.err);
     assert!(o.err.contains("error[E0803]: b"), "{}", o.err);
     assert_eq!(o.exit, 1);
 }
@@ -358,17 +358,58 @@ fn cancelling_a_finished_supervised_task_does_not_stop_on_fail() {
     assert_eq!((err.as_str(), code), ("", 0));
 }
 
-/// The failure `on_fail` was handling when the scope was cancelled is
-/// reported, like the ones still queued.
+/// The failure `on_fail` was handling when the scope was cancelled has
+/// reached `on_fail`: it is not reported again and the exit code stays
+/// 0 (05 "범위").
 #[test]
-fn a_failure_whose_handler_was_cancelled_is_reported() {
+fn a_failure_whose_handler_was_cancelled_is_not_reported_again() {
     let o = exec_waiting(
         "(_gate_tx, gate) = channel()\nr = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  blocked(gate, 1)\n  cancel(s)\n;;, e => recv(gate))\nprint(r)",
     );
-    assert_eq!(o.out, "Err({kind: 'cancelled})\n");
-    assert_eq!(o.err.matches("task failed:").count(), 1, "{}", o.err);
-    assert!(o.err.contains("error[E0803]: a"), "{}", o.err);
-    assert_eq!(o.exit, 1);
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err({kind: 'cancelled})\n", "", 0)
+    );
+}
+
+/// A cancellation from outside the `supervise` (here an outer scope's;
+/// a `timeout` is the same) while `on_fail` runs: the failure was
+/// handed over, so nothing is reported.
+#[test]
+fn an_outer_cancel_while_on_fail_runs_reports_nothing() {
+    let o = exec_waiting(
+        "(_gate_tx, gate) = channel()\n(_h_tx, h) = channel()\nr = scope(fn(o):\n  spawn(o, fn(): blocked(h, 1); cancel(o) ;;)\n  supervise(fn(s):\n    spawn(s, () => fail(\"a\"))\n    recv(gate)\n  ;;, e => recv(h))\n;;)\nprint(r)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err({kind: 'cancelled})\n", "", 0)
+    );
+}
+
+/// `on_fail` cancels its own scope: whether a statement follows the
+/// cancellation point does not change the result.
+#[test]
+fn cancel_inside_on_fail_reports_nothing() {
+    for after in ["", "\n  print(\"not here\")"] {
+        let o = exec_waiting(&format!(
+            "(stx, srx) = channel(1)\n(_gate_tx, gate) = channel()\nr = supervise(fn(s):\n  send(stx, s)\n  spawn(s, () => fail(\"a\"))\n  recv(gate)\n;;, fn(e):\n  print(\"handling\")\n  cancel(recv(srx)!){after}\n;;)\nprint(r)"
+        ));
+        assert_eq!(
+            (o.out.as_str(), o.err.as_str(), o.exit),
+            ("handling\nErr({kind: 'cancelled})\n", "", 0),
+            "after: {after:?}"
+        );
+    }
+}
+
+/// `exit` inside `on_fail` ends the program with its code; the failure
+/// being handled is not reported.
+#[test]
+fn exit_inside_on_fail_reports_nothing() {
+    let o = exec_waiting(
+        "(_gate_tx, gate) = channel()\nsupervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  recv(gate)\n;;, e => exit(7))",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("", "", 7));
 }
 
 /// The entry's error after a deadlock inside a scope's body is the

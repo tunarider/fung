@@ -12,6 +12,7 @@
 //! Turn handoff (차례 넘기기) lives here too: a task that computes without
 //! waiting gives its turn every `YIELD_EVERY` calls (`Task::tick`).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -91,24 +92,101 @@ impl Waiter {
 /// (or under the node's own lock for cancellation nodes).
 ///
 /// `wake_all` empties it, so a waiter is woken at most once per
-/// registration; a waiter that stopped waiting (a timeout) may still be
-/// in a list, and its wake is then a spurious one, which `block` absorbs.
-/// A waiter is in a list at most once, so a list never holds more
-/// entries than there are tasks.
+/// registration, in the order they were added. A wait that ends early (a
+/// cancellation, a deadline) takes its waiter out (`remove`); one that
+/// does not is woken spuriously, which the wait absorbs. A waiter is in a
+/// list at most once, so a list never holds more entries than there are
+/// tasks.
+///
+/// Adding and removing are O(1) however many tasks wait on one thing
+/// (review C3): a removed waiter leaves a hole, and the holes are dropped
+/// once they are half the slots; past `INDEXED` slots an index by task
+/// number finds a waiter, below that a look along the slots is quicker.
 #[derive(Default)]
-pub(crate) struct WaitList(Vec<Arc<Waiter>>);
+pub(crate) struct WaitList {
+    /// In the order they were added; `None` where one was removed.
+    slots: Vec<Option<Arc<Waiter>>>,
+    /// The slot of each waiter, by task number, once there are many.
+    index: Option<HashMap<FiberId, usize>>,
+    /// How many slots are holes.
+    holes: usize,
+}
+
+/// The slot count past which a [`WaitList`] keeps its index.
+const INDEXED: usize = 16;
 
 impl WaitList {
-    pub(crate) fn add(&mut self, w: &Arc<Waiter>) {
-        if !self.0.iter().any(|x| Arc::ptr_eq(x, w)) {
-            self.0.push(w.clone());
+    /// Adds `w`, unless it is in already; true if it was not.
+    pub(crate) fn add(&mut self, w: &Arc<Waiter>) -> bool {
+        if self.find(w.id()).is_some() {
+            return false;
+        }
+        if let Some(index) = &mut self.index {
+            index.insert(w.id(), self.slots.len());
+        }
+        self.slots.push(Some(w.clone()));
+        if self.index.is_none() && self.slots.len() > INDEXED {
+            self.reindex();
+        }
+        true
+    }
+
+    /// Takes `w` out, if it is in.
+    pub(crate) fn remove(&mut self, w: &Waiter) {
+        let Some(i) = self.find(w.id()) else {
+            return;
+        };
+        if let Some(index) = &mut self.index {
+            index.remove(&w.id());
+        }
+        self.slots[i] = None;
+        self.holes += 1;
+        if self.holes * 2 >= self.slots.len() {
+            self.slots.retain(Option::is_some);
+            self.holes = 0;
+            self.reindex();
         }
     }
 
+    /// How many waiters are in.
+    pub(crate) fn len(&self) -> usize {
+        self.slots.len() - self.holes
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Wakes every waiter, in the order they were added, and empties the
+    /// list.
     pub(crate) fn wake_all(&mut self) {
-        for w in self.0.drain(..) {
+        self.index = None;
+        self.holes = 0;
+        for w in self.slots.drain(..).flatten() {
             w.wake();
         }
+    }
+
+    fn find(&self, id: FiberId) -> Option<usize> {
+        match &self.index {
+            Some(index) => index.get(&id).copied(),
+            None => self
+                .slots
+                .iter()
+                .position(|s| s.as_ref().is_some_and(|w| w.id() == id)),
+        }
+    }
+
+    /// Builds the index if the list is long, or drops it if not (the
+    /// slots have no holes).
+    fn reindex(&mut self) {
+        self.index = (self.slots.len() > INDEXED).then(|| {
+            self.slots
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| s.as_ref().map(|w| (w.id(), i)))
+                .collect()
+        });
     }
 }
 
@@ -503,9 +581,13 @@ impl Task<'_> {
         }
         // A swap's function runs to its end in one turn: a task that swaps
         // the same atom on every turn would otherwise make it retry forever
-        // (it cannot park: effects are E0707).
+        // (it cannot park: effects are E0707). The events other threads
+        // posted are made here then, so that a signal or the REPL's Ctrl-C
+        // still reaches a function that never ends (review C6).
         if self.pure == 0 {
             self.turn_due = true;
+        } else {
+            super::stop::apply_in_swap(&mut self.world, self.shared);
         }
     }
 }

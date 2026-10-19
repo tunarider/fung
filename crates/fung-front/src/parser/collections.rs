@@ -119,10 +119,11 @@ impl Parser<'_> {
         Ok(n)
     }
 
-    /// Parses TAG or TAG(args) (02): a bare tag is its symbol.
+    /// Parses TAG or TAG(args) (02): a bare tag is its symbol. Outside
+    /// brackets a newline ends the tag; inside them it is whitespace (01).
     pub(super) fn tag_expr(&mut self) -> PResult<Node> {
         let t = self.next();
-        if !self.at(Kind::LParen) || self.peek().pos.line != t.pos.line {
+        if !self.at(Kind::LParen) {
             return Ok(Node::leaf(Head::Symbol, t.pos, Lit::Str(t.text.clone())));
         }
         let n = self.call_args(Node::with_lit(

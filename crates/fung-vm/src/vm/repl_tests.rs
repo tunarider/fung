@@ -118,6 +118,33 @@ fn failed_assignment_is_e0808_and_positions_name_their_input() {
     });
 }
 
+/// A destructuring that fails part way changes no global: the names it
+/// binds are written only once the whole pattern has matched, so the
+/// session goes on with the values it had (a new name stays unset).
+#[test]
+fn failed_destructuring_changes_no_global() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        assert_eq!(s.input("a = 5\nb = 6"), value("nil"));
+        let at = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("{x: a, y: [b]} = {x: 1, y: 2}"),
+            Outcome::Error("E0602".into(), at)
+        );
+        assert_eq!(s.input("(a, b)"), value("(5, 6)"));
+        let at = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("[c, 3] = [1, 2]"),
+            Outcome::Error("E0602".into(), at)
+        );
+        let at = FileId(s.known.len() as u32);
+        assert_eq!(s.input("c"), Outcome::Error("E0808".into(), at));
+        // A failed alternative leaves nothing behind for the one that
+        // matches.
+        assert_eq!(s.input("(a, 1) | (a, 2) = (7, 2)\na"), value("7"));
+    });
+}
+
 /// Tasks inside an input's scope run while the REPL holds the runtime,
 /// over a channel an earlier input made; a deadlock inside one input is
 /// still reported.
@@ -217,9 +244,11 @@ fn a_deadlock_is_recovered() {
         );
         assert!(s.rt.recover_deadlock());
         assert_eq!(s.input("1 + 1"), value("2"));
+        // Each report shows where the input and its tasks wait.
         assert_eq!(
             s.err.text(),
-            "error[E0702]: deadlock: all tasks are waiting\n".repeat(2)
+            "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:5:7\n  |\n5 |   recv(never)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:5   <lambda>\n   <repl>:3   <entry>\n 1 other task is waiting:\n   recv at <repl>:4:22 (<lambda>)\n\
+             error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:2:5\n  |\n2 | recv(never)\n  |     ^\n  |\n call path (innermost first):\n   <repl>:2   <entry>\n"
         );
     });
 }

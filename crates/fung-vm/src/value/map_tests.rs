@@ -781,7 +781,11 @@ fn slice_cases() {
             Err("E0507 index 4 is out of range (length 3)"),
         ),
         (i(0), i(4), Err("E0507 index 4 is out of range (length 3)")),
-        (i(2), i(1), Err("E0507 index 2 is out of range (length 3)")),
+        (
+            i(2),
+            i(1),
+            Err("E0516 slice start 2 is after its end 1 (length 3)"),
+        ),
         (n.clone(), n.clone(), Ok("[1, 2, 3]")),
         // the index is reported as written
         (
@@ -803,12 +807,13 @@ fn slice_cases() {
         slice_str(&xs, i(0), s("b"), false).unwrap_err(),
         "E0501 cannot slice with int and str"
     );
-    // an explicit nil is open
-
+    // an explicit nil is not open (`nil_slice_bound_is_a_type_error`)
     let nil = Value::Nil;
     assert_eq!(
-        format(&index::slice(&xs, Some(&nil), Some(&nil), false).unwrap()),
-        "[1, 2, 3]"
+        index::slice(&xs, Some(&nil), Some(&nil), false)
+            .unwrap_err()
+            .code,
+        "E0501"
     );
     assert_eq!(
         slice_str(&s("참치회"), i(1), n.clone(), false).unwrap(),
@@ -838,7 +843,11 @@ fn slice_inclusive_cases() {
         (i(0), i(-1), Ok("[1, 2, 3]")),
         (n.clone(), i(0), Ok("[1]")),
         (i(0), i(3), Err("E0507 index 3 is out of range (length 3)")),
-        (i(2), i(0), Err("E0507 index 2 is out of range (length 3)")),
+        (
+            i(2),
+            i(0),
+            Err("E0516 slice start 2 is after its end 0 (length 3)"),
+        ),
         // the end as written, not plus one, and nothing wraps
         (
             i(0),
@@ -871,7 +880,22 @@ fn contains_cases() {
         (range(0, 10, false), Value::Int(9), true),
         (range(0, 10, false), Value::Int(10), false),
         (range(0, 10, true), Value::Int(10), true),
-        (range(0, 10, false), Value::Float(1.0), false),
+        // `in` follows `==`: a whole float finds its int (02).
+        (range(0, 10, false), Value::Float(1.0), true),
+        (range(0, 10, false), Value::Float(-0.0), true),
+        (range(0, 10, false), Value::Float(1.5), false),
+        (range(0, 10, false), Value::Float(10.0), false),
+        (
+            range(i64::MIN, i64::MAX, true),
+            Value::Float(i64::MIN as f64),
+            true,
+        ),
+        (
+            range(i64::MIN, i64::MAX, true),
+            Value::Float(-(i64::MIN as f64)),
+            false,
+        ),
+        (range(0, 10, false), s("1"), false),
     ];
     for (c, x, want) in cases {
         let got = index::contains(&c, &x).unwrap();

@@ -17,7 +17,7 @@
 | 층 | 뜻 | 언어 | 예 |
 |------|------|------|------|
 | **core** | 언어의 의미와 런타임. 없으면 다른 언어가 된다. "언어가 보장하는 값 연산"을 포함한다 | Rust | 렉서~VM, 값·에러, 태스크·채널, `exit`·`at_exit`, `print`, `map`·`filter`·`fold`·`sort`, `split`·`join`, `int`·`str` |
-| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.conc`, `_native.json`, `_native.regex`, `_native.time`, `_native.net` |
+| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.conc`, `_native.json`, `_native.regex`, `_native.time`, `_native.net`, `_native.range`(prelude의 범위 함수가 `len` 없이 끝을 알게) |
 | **extras (내장)** | core·native 위에 **fung으로** 쓴 것. 없어도 언어는 같지만 불편하다 | fung | `fs`·`path`·`cli`·`conc`·`http` 모듈, `with_open`, `take`·`drop`·`lines`, `until` |
 | **extras (프로젝트)** | 사용자 패키지. 같은 메커니즘(맨 경로 import), 의존성 관리는 추후 | fung | — |
 

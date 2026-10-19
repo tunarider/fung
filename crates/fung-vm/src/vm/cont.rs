@@ -87,6 +87,19 @@ pub trait Cont {
         let _ = t;
         Err(stop)
     }
+
+    /// What a parked box waits in, for the deadlock report, when the
+    /// native's name does not say it (a walk over a receiving end
+    /// receives). By default the native's name.
+    fn waits_for(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Whether the box runs a `with`'s release now (the deadlock report
+    /// says so).
+    fn releasing(&self) -> bool {
+        false
+    }
 }
 
 /// A step native waiting for the call it asked for.

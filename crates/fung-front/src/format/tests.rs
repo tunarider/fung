@@ -92,6 +92,18 @@ fn spacing() {
 }
 
 #[test]
+fn tokens_that_would_join_keep_a_space() {
+    // `; ;` and `? ?` must not become `;;` and `??`, and `; ;;` must not
+    // become `;;;` (which reads as `;;` then `;`).
+    check_all(&[
+        ("print(1); ; print(2)", "print(1); ; print(2)\n"),
+        ("fn f() = Ok(Ok(1))? ?", "fn f() = Ok(Ok(1))? ?\n"),
+        ("fn f(): a; ;;", "fn f(): a; ;;\n"),
+        ("x = f()? ?? 1", "x = f()? ?? 1\n"),
+    ]);
+}
+
+#[test]
 fn rejects_syntax_errors() {
     let e = format("t.fung", "f(\n").unwrap_err();
     assert_eq!(e.code, "E0110", "a syntax error must come back untouched");

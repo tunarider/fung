@@ -508,3 +508,82 @@ fn an_abandoned_inputs_queued_pool_jobs_do_not_run() {
     assert!(jobs::until(|| pool.queued() == 0 && pool.idle() == 1));
     assert_eq!(jobs::count("q3c"), 0);
 }
+
+// --- the deadlock report (review C7, decided 2026-10-20) ---
+
+/// The report shows where the entry waits, as a runtime error does (its
+/// line and call path), then the other tasks: one line per kind of wait
+/// and place, with how many wait there.
+#[test]
+fn a_deadlock_report_shows_where_the_tasks_wait() {
+    let o = exec(
+        "fn worker(rx) = recv(rx)\nfn main() = scope(fn(s):\n  (_tx, rx) = channel()\n  (_tx2, rx2) = channel()\n  a = spawn(s, () => worker(rx))\n  spawn(s, () => worker(rx2))\n  await(a)\n;;)\nmain()",
+        Opts::default(),
+    );
+    assert_eq!(
+        o.err,
+        "error[E0702]: deadlock: all tasks are waiting\n  --> -e:7:8\n  |\n7 |   await(a)\n  |        ^\n  |\n call path (innermost first):\n   -e:7       <lambda>\n   -e:2       main\n   -e:9       <entry>\n 2 other tasks are waiting:\n   recv at -e:1:21 (worker) ×2\n"
+    );
+    assert_eq!(o.exit, 1);
+}
+
+/// Each line says what the task waits in: inside a built-in module's
+/// function, the one the user called (and its place in the user's code);
+/// inside a `with`'s release, that too. The lines keep the order the
+/// tasks were spawned in.
+#[test]
+fn a_deadlock_report_names_the_function_and_the_release() {
+    let o = exec(
+        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): take(rx, 1); nil ;;)\n  spawn(s, () => with(() => nil, _ => nil, _ => recv(rx)))\n  spawn(s, fn(): (tx, _rx) = channel(); send(tx, 1) ;;)\n  spawn(s, () => take(rx, 1))\n;;)",
+        Opts::default(),
+    );
+    let (_, others) = o
+        .err
+        .split_once(" 4 other tasks are waiting:\n")
+        .unwrap_or_else(|| panic!("{}", o.err));
+    let lines: Vec<&str> = others.lines().collect();
+    assert_eq!(
+        lines[..3],
+        [
+            "   recv in take at -e:3:22 (<lambda>)",
+            "   recv at -e:4:53 (<lambda>, in release)",
+            "   send at -e:5:45 (<lambda>)",
+        ],
+        "{}",
+        o.err
+    );
+    // The lambda tail-called `take`: no frame of user code is left, so
+    // the place is in the module, named by the function called.
+    assert!(
+        lines[3].starts_with("   recv in take at extras/prelude.fung:"),
+        "{}",
+        o.err
+    );
+}
+
+/// At most 10 lines; the tasks past them are counted.
+#[test]
+fn a_deadlock_report_lists_ten_places_at_most() {
+    let fns: String = (0..12)
+        .map(|i| format!("fn w{i}(rx) = recv(rx)\n"))
+        .collect();
+    let spawns: String = (0..12)
+        .map(|i| format!("  spawn(s, () => w{i}(rx))\n"))
+        .collect();
+    let o = exec(
+        &format!(
+            "{fns}(_tx, rx) = channel()\nscope(fn(s):\n  each(0..5, _ => spawn(s, () => w0(rx)))\n{spawns};;)"
+        ),
+        Opts::default(),
+    );
+    let others = o
+        .err
+        .split_once(" 17 other tasks are waiting:\n")
+        .map(|(_, r)| r);
+    let mut want: String = "   recv at -e:1:17 (w0) ×6\n".into();
+    for i in 1..10 {
+        want += &format!("   recv at -e:{}:17 (w{i})\n", i + 1);
+    }
+    want += "   … 2 more\n";
+    assert_eq!(others, Some(want.as_str()), "{}", o.err);
+}

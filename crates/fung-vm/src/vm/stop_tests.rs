@@ -6,12 +6,34 @@ use crate::testutil::{Opts, UNTIL, exec, probes, run};
 use crate::value::{Native, Value};
 use crate::vm::{StopHandle, Task};
 
-/// `probes` plus two natives that deliver a signal from another thread,
+/// `probes` plus natives that deliver a signal from another thread,
 /// as the command's signal thread does: `deliver_when_watched(sig)` once
 /// a task waits on the stop signal, `deliver_soon(sig)` at the next
-/// moment the run thread is free.
+/// moment the run thread is free; and two that post the event at once,
+/// from the run thread itself: `post_stop(sig)` (a signal's stop
+/// request) and `post_interrupt()` (the REPL's Ctrl-C). They have no
+/// effect the atom check knows of, so a swap's function may call them.
 fn signal_probes() -> Vec<Value> {
     let mut v = probes();
+    v.push(Value::Native(Native::leak(
+        "post_stop",
+        vec![nat::param("sig")],
+        |t: &mut Task, a| {
+            let Value::Int(sig) = a[0] else {
+                panic!("an int")
+            };
+            StopHandle::of(t).deliver(sig as i32);
+            Ok(Value::Nil)
+        },
+    )));
+    v.push(Value::Native(Native::leak(
+        "post_interrupt",
+        vec![],
+        |t: &mut Task, _| {
+            StopHandle::of(t).interrupt();
+            Ok(Value::Nil)
+        },
+    )));
     v.push(Value::Native(Native::leak(
         "deliver_when_watched",
         vec![nat::param("sig")],
@@ -137,4 +159,42 @@ fn stop_signal_gives_a_receiver() {
         run("print(type_of(stop_signal()), stop_signal() == stop_signal())"),
         ("'receiver true\n".into(), "".into(), 0)
     );
+}
+
+/// A swap's function runs to its end without giving its turn (so that it
+/// is not retried forever), and so it used to keep the scheduler from
+/// the events: a function that never ended kept a signal from stopping
+/// the program (review C6). The events are made inside it now, at the
+/// end of each turn's worth of calls. `spin` is long but ends, so the
+/// test ends either way.
+const SPIN: &str = "fn spin(n) = n == 0 then nil else spin(n - 1)\na = atom(0)\n";
+
+#[test]
+fn a_stop_reaches_a_function_running_in_swap() {
+    assert_eq!(
+        exec_signals(&format!(
+            "{SPIN}swap(a, fn(x): post_stop(15); spin(200000); x ;;)\nprint(\"not here\")"
+        )),
+        ("".into(), "".into(), 143)
+    );
+}
+
+/// The REPL's Ctrl-C cancels the input even while it runs a swap's
+/// function.
+#[test]
+fn an_interrupt_reaches_a_function_running_in_swap() {
+    let src = format!(
+        "{UNTIL}{SPIN}swap(a, fn(x): post_interrupt(); spin(200000); x ;;)\nprint(\"not here\")"
+    );
+    let s = crate::testutil::setup(
+        &src,
+        Opts {
+            extra: signal_probes,
+            ..Opts::default()
+        },
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let r = s.rt.run();
+    assert!(r.is_err(), "{r:?}");
+    assert_eq!(s.out.text(), "");
 }

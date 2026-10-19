@@ -1794,8 +1794,8 @@
 |   |    ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:17 <lambda>
-|    extras/prelude.fung:17 sum
+|    extras/prelude.fung:19 <lambda>
+|    extras/prelude.fung:19 sum
 |    -e:1       <entry>
 -- exit: 1
 ==== "map([[1, \"a\"]], sum)"
@@ -1808,8 +1808,8 @@
 |   |    ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:17 <lambda>
-|    extras/prelude.fung:17 sum
+|    extras/prelude.fung:19 <lambda>
+|    extras/prelude.fung:19 sum
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 3, \"\")"

@@ -255,12 +255,33 @@ impl Sched {
                 .store(self.timers.len(), std::sync::atomic::Ordering::SeqCst);
             // `parked_timed` counts every park a deadline ends, so with it
             // at zero any deadline left in `timers` is stale.
-            if self.parked_timed == 0 && t.judge() {
+            if self.parked_timed == 0 && t.judge(|t| self.stuck(t)) {
                 continue;
             }
             let until = self.timers.peek().map(|Reverse((at, _, _))| *at);
             self.sleep(t, until);
         }
+    }
+
+    /// Where every parked task waits, for the deadlock report: each
+    /// fiber is put in `t` for a moment, so the report reads its frames
+    /// as an error would. The order is the tasks' numbers, so the order
+    /// they were spawned in.
+    fn stuck(&mut self, t: &mut Task<'_>) -> super::deadlock::Stuck {
+        let mut ids: Vec<FiberId> = self.slots.keys().copied().collect();
+        ids.sort_unstable();
+        let mut s = super::deadlock::Stuck::default();
+        for id in ids {
+            let slot = self.slots.get_mut(&id).expect("a parked task");
+            t.exchange(&mut slot.fiber);
+            if id == self.root {
+                s.root = Some(t.stuck_root());
+            } else {
+                s.others.push(t.stuck_place());
+            }
+            t.exchange(&mut slot.fiber);
+        }
+        s
     }
 
     /// Waits in the event loop until a descriptor is ready, another

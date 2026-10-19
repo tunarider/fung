@@ -95,6 +95,13 @@
 | 1 passed, 1 failed
 -- stderr
 | error[E0702]: deadlock: all tasks are waiting
+|   --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|   |
+| 4 |   recv(rx)
+|   |       ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 -- exit: 1
 ==== test crates/fung-cli/tests/data/test/exit_in_task.fung
 -- stdout
@@ -301,6 +308,13 @@
 |    |
 |  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
+|   --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|   |
+| 4 |   recv(rx)
+|   |       ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 | error[E0204]: undefined name `nope`
 |   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -418,6 +432,13 @@
 |    |
 |  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
+|   --> crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|   |
+| 4 |   recv(rx)
+|   |       ^
+|   |
+|  call path (innermost first):
+|    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 | error[E0204]: undefined name `nope`
 |   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -555,6 +576,13 @@
 |    |
 |  help: prefix it with `_` if it is intentional
 | error[E0702]: deadlock: all tasks are waiting
+|   --> $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4:7
+|   |
+| 4 |   recv(rx)
+|   |       ^
+|   |
+|  call path (innermost first):
+|    $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
 | error[E0204]: undefined name `nope`
 |   --> $REPO/crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |

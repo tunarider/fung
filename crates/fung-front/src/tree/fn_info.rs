@@ -75,6 +75,8 @@ impl fmt::Display for Import {
 #[derive(Clone, Debug)]
 pub struct TypeAlias {
     pub name: String,
+    /// Where the alias name is written, for errors about the name.
+    pub name_pos: Pos,
     pub alts: Vec<String>,
 }
 

@@ -2614,55 +2614,7 @@
 -- stderr
 -- exit: 0
 ==== extras/conc.fung
--- stdout
-| # conc (stage 6a): the concurrency helpers written in fung over the
-| # concurrency builtins (05).
-| #
-| # They are a module, not prelude names: the prelude keeps only what
-| # every script needs. A program imports the module: `import conc`, then
-| # `conc.pmap(...)`. Calling one of them without the module is E0204,
-| # with a help line that names the module.
-|
-| # Merges receiving ends into one (05): a forwarding task per input, in
-| # scope `s`, sends to the output's sending end; the returned receiving
-| # end closes when every input has closed.
-| fn fan_in(s, rxs):
-|   (tx, rx) = channel(len(rxs))
-|   spawn(s, fn():
-|     scope(fn(inner):
-|       each(rxs, r => spawn(inner, () => each(r, v => send(tx, v))))
-|     ;;)
-|     close(tx)
-|   ;;)
-|   rx
-| ;;
-|
-| # Parallel map: at most `limit` tasks at once (0 = no limit), results in
-| # input order, in a scope of its own: a runtime error in f fails pmap
-| # (05), an Err that f returns is a result like any other.
-| fn pmap(xs, f, limit = 0):
-|   items = xs |> map(x => x)
-|   limit <= 0 or limit >= len(items)
-|     then _pmap_all(items, f)
-|     else _pmap_chunks(items, f, limit, [])
-| ;;
-|
-| fn _pmap_all(items, f) = scope(s => items |> map(x => spawn(s, () => f(x))) |> map(await))
-|
-| fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
-|   else _pmap_chunks(drop(items, limit), f, limit, acc + _pmap_all(take(items, limit), f))
-|
-| # Calls f until it returns a non-Err value, at most `times` tries,
-| # sleeping `delay` between tries; the last Err is returned (06).
-| fn retry(f, times = 3, delay = 0ms):
-|   r = f()
-|   times <= 1 or not is_err(r) then r else _retry_after(f, times - 1, delay)
-| ;;
-|
-| fn _retry_after(f, times, delay):
-|   sleep(delay)
-|   retry(f, times: times, delay: delay)
-| ;;
+-- stdout (2079 bytes, fnv1a64 664c3637999be311)
 -- stderr
 -- exit: 0
 ==== extras/fs.fung
@@ -2755,7 +2707,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4798 bytes, fnv1a64 eff5271d3466c292)
+-- stdout (4813 bytes, fnv1a64 e9c07a8d0aec692a)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -2844,6 +2796,8 @@
 | # expect: 9 -4
 | print(7 // 2, 7 % 2, -7 // 2, -7 % 2, 7.5 // 2, -7.5 % 2)
 | # expect: 3 1 -4 1 3.0 0.5
+| print(7.7e40 % 0.1, 123456789012345678.0 % 3.0, 1e300 % 7.0, 1 // 0.1, 7.5 % -2)
+| # expect: 0.04850743287925943 2.0 1.0 9.0 -0.5
 | print(10 / 4, 10 / 2, 1 + 2.5)
 | # expect: 2.5 5.0 3.5
 | print(2 ** 10, 2 ** -1, 2.0 ** 2, -2 ** 2, 2 ** 3 ** 2)
@@ -3153,6 +3107,9 @@
 | # expect: 1h30m 2s 1m 15s true 1.5ms -5s
 | print(1h - 1h, 0.5 * 1m)
 | # expect: 0s 30s
+| d = 2562047h + 1ms
+| print(d / 1 == d, d / 1, 43800h7.000001ms / 1, 0.000007ms / 2)
+| # expect: true 2562047h1ms 43800h7.000001ms 0.000004ms
 -- stderr
 -- exit: 0
 ==== tests/lang/err_alias_cycle.fung
@@ -4078,6 +4035,11 @@
 | # expect: 0..3 0..=3 10 true false true
 | print(for i in 1..=3: i * i ;;, map(0..2, x => x))
 | # expect: [1, 4, 9] [0, 1]
+| print(2.0 in 0..5, 2.5 in 0..5, 2.0 in [0, 1, 2], contains(0..5, 2.0))
+| # expect: true false true true
+| w = -9223372036854775808..=9223372036854775807
+| print(is_empty(w), last(w), take(w, 2), drop(0..=9223372036854775807, 9223372036854775807))
+| # expect: false 9223372036854775807 [-9223372036854775808, -9223372036854775807] [9223372036854775807]
 -- stderr
 -- exit: 0
 ==== tests/lang/regex.fung

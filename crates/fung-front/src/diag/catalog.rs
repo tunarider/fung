@@ -107,6 +107,12 @@ const CATALOG: &[[&str; 4]] = &[
         "use a guard to compare the two positions: `[a, b] when a == b`",
     ],
     [
+        "E0222",
+        "`%s` is a built-in type and cannot be a type alias",
+        "",
+        "give the alias another name",
+    ],
+    [
         "E0301",
         "cannot find module `%s`",
         "",
@@ -168,6 +174,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
     ],
     ["E0515", "invalid pattern %s", "", ""],
+    [
+        "E0516",
+        "slice start %d is after its end %d (length %d)",
+        "",
+        "",
+    ],
     ["E0601", "no pattern matched %s", "", ""],
     ["E0602", "value %s does not match the pattern", "", ""],
     ["E0603", "unhandled Err: %s", "", ""],

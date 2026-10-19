@@ -434,3 +434,33 @@ fn a_queued_job_is_dropped_at_the_deadline() {
         ("Err({kind: 'timeout})\n", "")
     );
 }
+
+/// An `await` that a deadline cuts short leaves the awaited task's
+/// waiting list (review C3): a server awaiting a shared task under a
+/// `timeout` per request used to grow that list with every request, and
+/// every later `await` scanned it.
+#[test]
+fn an_await_cut_short_leaves_the_waiting_list() {
+    assert_eq!(
+        out(
+            "scope(fn(s):\n  bg = spawn(s, () => sleep(1h))\n  scope(c => each(0..100, _ => spawn(c, () => timeout(1ms, () => await(bg)))))\n  print(awaiters(bg))\n  cancel(bg)\n;;)"
+        ),
+        ("0\n".into(), "".into())
+    );
+}
+
+/// Cancelled waiters leave the list; the ones left wake in the order
+/// they began waiting. 40 waiters, so the list is long enough to keep an
+/// index by task number, and 26 leave, so it is compacted.
+#[test]
+fn waiters_left_after_cancellations_wake_in_order() {
+    assert_eq!(
+        out(
+            "(go_tx, go) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(go))\n  ws = map(0..40, i => spawn(s, fn(): await(t); print(i) ;;))\n  until(() => awaiters(t) == 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  until(() => all(gone, finished))\n  print(\"left\", awaiters(t))\n  close(go_tx)\n;;)"
+        ),
+        (
+            "left 14\n0\n3\n6\n9\n12\n15\n18\n21\n24\n27\n30\n33\n36\n39\n".into(),
+            "".into()
+        )
+    );
+}

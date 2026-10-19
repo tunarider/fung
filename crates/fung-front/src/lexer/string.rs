@@ -104,12 +104,13 @@ impl Lexer<'_> {
 
     /// Consumes the code of a `${...}` up to and including its closing brace,
     /// tracking nested braces and skipping over nested string literals so a
-    /// quote inside them does not end the outer string.
+    /// quote inside them does not end the outer string. The code is inside
+    /// the quotes, so a newline there is E0104 like anywhere in them (01).
     fn skip_interpolation(&mut self, str_pos: Pos) -> Result<(), Diag> {
         let mut depth = 1;
         loop {
             match self.peek() {
-                None => return Err(self.err_no_arg("E0104", str_pos)),
+                None | Some('\n') => return Err(self.err_no_arg("E0104", str_pos)),
                 Some('{') => {
                     depth += 1;
                     self.advance();
@@ -125,7 +126,7 @@ impl Lexer<'_> {
                 Some('`') => {
                     self.advance();
                     while self.peek() != Some('`') {
-                        if self.peek().is_none() {
+                        if matches!(self.peek(), None | Some('\n')) {
                             return Err(self.err_no_arg("E0104", str_pos));
                         }
                         self.advance();
@@ -284,6 +285,9 @@ mod tests {
             (r#""\q""#, "E0103"),
             (r#""\u{zz}""#, "E0103"),
             (r#""${x""#, "E0104"),
+            // the code of `${…}` is inside the quotes too (01)
+            ("\"a${1 +\n2}b\"", "E0104"),
+            ("\"a${`x\ny`}b\"", "E0104"),
             ("`abc", "E0104"),
             ("'", "E0101"),
             ("' x", "E0101"),

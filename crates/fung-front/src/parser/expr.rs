@@ -85,7 +85,7 @@ fn is_arg_end(k: Kind) -> bool {
 
 /// Whether an Int token is the lexer's special 9223372036854775808 token,
 /// which only a preceding minus makes valid.
-fn is_min_int_magnitude(t: &Token) -> bool {
+pub(super) fn is_min_int_magnitude(t: &Token) -> bool {
     t.int == i64::MIN && t.text.replace('_', "") == "9223372036854775808"
 }
 
@@ -124,7 +124,35 @@ impl<'a> Parser<'a> {
 
     fn expr_loop(&mut self, min_bp: u32) -> PResult<Node> {
         let start = self.peek().off;
-        let mut lhs = self.prefix()?;
+        // `not` binds looser than comparison (01 EBNF), so it cannot be the
+        // operand of a tighter operator: `1 == not 2 == 3` would hide a
+        // comparison chain.
+        if min_bp > BP_NOT && self.at(Kind::KwNot) {
+            let mut e = self.unexpected();
+            e.help = Some("put it in parentheses: `(not x)`".into());
+            return Err(e);
+        }
+        let lhs = self.prefix()?;
+        self.infix_loop(lhs, start, min_bp)
+    }
+
+    /// Continues an expression whose first part, `lhs` (starting at byte
+    /// `start`), is already parsed with a higher power: the result is what
+    /// `expr(min_bp)` would have read from `start`.
+    fn expr_from(&mut self, lhs: Node, start: usize, min_bp: u32) -> PResult<Node> {
+        if self.depth >= MAX_DEPTH {
+            let pos = self.peek().pos;
+            return Err(err("E0802", pos, vec![Arg::Int(MAX_DEPTH as i64)]));
+        }
+        self.depth += 1;
+        let r = self.infix_loop(lhs, start, min_bp);
+        self.depth -= 1;
+        r
+    }
+
+    /// The operators after a parsed operand, as long as they bind at least
+    /// as tightly as `min_bp`.
+    fn infix_loop(&mut self, mut lhs: Node, start: usize, min_bp: u32) -> PResult<Node> {
         let mut last_was_compare = false;
         loop {
             self.span(&mut lhs, start);
@@ -214,6 +242,7 @@ impl<'a> Parser<'a> {
     /// `.name` after an expression, with the dot (t) not yet consumed.
     fn field(&mut self, x: Node, t: &'a Token) -> PResult<Node> {
         self.next();
+        self.skip_newlines_after_operator();
         if !self.at_name_like() {
             let p = self.peek();
             return Err(err(
@@ -286,7 +315,7 @@ impl<'a> Parser<'a> {
                 leaf(Head::Bool, Lit::Bool(false))
             }
             Kind::Name => {
-                if self.kind_after() == Kind::FatArrow && self.bare_lambda_ok() {
+                if self.kind_from(self.i + 1) == Kind::FatArrow && self.bare_lambda_ok() {
                     return self.lambda();
                 }
                 self.next();
@@ -478,20 +507,17 @@ impl<'a> Parser<'a> {
             return Ok(slice(Lit::Str("..=".into()), vec![x, nil(), end]));
         }
         // [a..] has no expression after `..`, so the general expression
-        // parser cannot read it: try the open-ended form first and back out
-        // otherwise.
-        let (save, save_depth) = (self.i, self.depth);
-        if let Ok(start) = self.expr(BP_RANGE + 1)
-            && self.at(Kind::DotDot)
-            && self.kind_after() == Kind::RBracket
-        {
+        // parser cannot read it. Read the part a range would start with,
+        // check for `..]`, and otherwise go on from that part: reading the
+        // contents twice made nested indexing exponential.
+        let off = self.peek().off;
+        let first = self.expr(BP_RANGE + 1)?;
+        if self.at(Kind::DotDot) && self.kind_after() == Kind::RBracket {
             self.next();
             self.next();
-            return Ok(slice(Lit::None, vec![x, start, nil()]));
+            return Ok(slice(Lit::None, vec![x, first, nil()]));
         }
-        self.i = save;
-        self.depth = save_depth;
-        let mut e = self.expr(0)?;
+        let mut e = self.expr_from(first, off, 0)?;
         self.expect_desc(Kind::RBracket, "`]`")?;
         if e.head == Head::Range {
             let inclusive = matches!(&e.lit, Lit::Str(op) if op == "..=");

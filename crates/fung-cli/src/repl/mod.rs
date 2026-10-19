@@ -278,7 +278,9 @@ impl Session {
             }
             Err(Stop::Exit(n)) => return Some(n),
             Err(Stop::Error(d)) => {
-                if !exited {
+                // The deadlock report showed where the input waits already.
+                let told = deadlocked && d.code == "E0702";
+                if !(exited || told) {
                     self.report(std::slice::from_ref(&*d));
                 }
             }

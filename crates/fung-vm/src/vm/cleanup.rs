@@ -73,7 +73,9 @@ impl With {
     /// `use` came to `r_use`: `release` is due, under a shield node.
     fn release(&mut self, t: &mut Task<'_>, res: Value, r_use: Result<Value, Stop>) -> Next {
         let shield = CancelNode::root();
-        t.world.shields.push(Arc::downgrade(&shield));
+        t.world
+            .shields
+            .insert(shield_key(&shield), Arc::downgrade(&shield));
         let outer = std::mem::replace(&mut t.cancel, shield.clone());
         self.phase = Phase::Release {
             r_use,
@@ -96,9 +98,7 @@ impl With {
             unreachable!("released outside the release phase")
         };
         t.cancel = outer;
-        t.world
-            .shields
-            .retain(|w| !std::ptr::eq(w.as_ptr(), Arc::as_ptr(&shield)));
+        t.world.shields.remove(&shield_key(&shield));
         let failed = |r: &Result<Value, Stop>| matches!(r, Err(Stop::Error(d)) if !is_cancel(d));
         match (r_use, r_rel) {
             (Err(Stop::Error(mut u)), r_rel) if !is_cancel(&u) => {
@@ -115,6 +115,14 @@ impl With {
             (r_use, Ok(_)) => r_use.map(Next::Done),
         }
     }
+}
+
+/// A shield's key in `World::shields`: its address, unique while the
+/// release that holds it runs. An entry left by a release that never
+/// ended (its task was dropped) is dead, and a new node at its address
+/// takes its place.
+fn shield_key(shield: &Arc<CancelNode>) -> usize {
+    Arc::as_ptr(shield) as usize
 }
 
 impl Cont for With {
@@ -145,5 +153,9 @@ impl Cont for With {
             }
             Phase::Ended => Err(stop),
         }
+    }
+
+    fn releasing(&self) -> bool {
+        matches!(self.phase, Phase::Release { .. })
     }
 }

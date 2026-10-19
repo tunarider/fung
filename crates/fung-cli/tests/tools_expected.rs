@@ -1077,7 +1077,9 @@ fn test_ends_each_files_run() {
     assert_eq!(String::from_utf8_lossy(&out), want);
     assert_eq!(
         String::from_utf8_lossy(&err),
-        "error[E0702]: deadlock: all tasks are waiting\n"
+        format!(
+            "error[E0702]: deadlock: all tasks are waiting\n  --> {after}:4:7\n  |\n4 |   recv(rx)\n  |       ^\n  |\n call path (innermost first):\n   {after}:4 test: deadlocks\n"
+        )
     );
     assert_eq!(status.code(), Some(1));
 }
@@ -2137,9 +2139,10 @@ fn repl_globals_have_no_fixed_limit() {
 
 /// Decided 2026-10-17 (08 REPL): a deadlock fails only the input it
 /// happened in, with the deadlock report (here a scope's body and its
-/// blocked child); the session goes on on a fresh run root, globals and
-/// atoms stay, later inputs can spawn again, and the recovered deadlock
-/// does not set the exit code.
+/// blocked child; the report shows where both wait, so the input's
+/// error is not printed again); the session goes on on a fresh run root,
+/// globals and atoms stay, later inputs can spawn again, and the
+/// recovered deadlock does not set the exit code.
 #[test]
 fn repl_recovers_after_a_deadlock() {
     let (out, err, code) = repl_session(
@@ -2149,7 +2152,7 @@ fn repl_recovers_after_a_deadlock() {
     assert_eq!(out, "> > > . . . > after\nnil\n> 42\n> 2\n> \n");
     assert_eq!(
         err,
-        "error[E0702]: deadlock: all tasks are waiting\nerror[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n"
+        "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n 1 other task is waiting:\n   recv at <repl>:2:26 (<lambda>)\n"
     );
     assert_eq!(code, Some(0));
 }

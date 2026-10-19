@@ -182,6 +182,21 @@ fn variables_blocks_and_literals() {
     }
 }
 
+/// Interpolation keeps to the string limit like `+` (02).
+#[test]
+fn interpolation_past_the_string_limit_is_an_error() {
+    let o = exec(
+        "s = repeat(\"a\", 60000000)\nprint(len(\"${s}${s}\"))",
+        Opts::default(),
+    );
+    assert_eq!(o.code, "E0806");
+    let o = exec(
+        "s = repeat(\"é\", 30000000)\nprint(len(\"${s}${s}\"))",
+        Opts::default(),
+    );
+    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "60000000\n"));
+}
+
 #[test]
 fn block_value_and_statement_value() {
     let o = exec("x = 1", Opts::default());

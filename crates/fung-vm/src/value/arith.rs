@@ -6,6 +6,7 @@ use fung_front::source::{FileId, Pos};
 use super::dur::{add_dur, div_dur, scale_dur, sub_dur};
 use super::time::{add_time_dur, sub_time_dur, sub_times};
 use super::{Value, type_name};
+use crate::prelude::MAX_CHARS;
 
 /// A position-less location; the VM fills the real one in with `with_pos`.
 pub(super) fn no_pos() -> Pos {
@@ -65,9 +66,38 @@ fn finite(f: f64) -> Result<Value, Diag> {
     }
 }
 
+/// E0806 for a string past the limit of `MAX_CHARS` characters (02).
+fn too_many_chars() -> Diag {
+    error(
+        "E0806",
+        no_pos(),
+        vec![Arg::Str("characters".into()), Arg::Int(MAX_CHARS)],
+    )
+}
+
+/// Whether strings of these parts together stay within the string limit.
+/// Bytes bound the characters from above, so the characters are counted
+/// only past it.
+fn chars_fit(parts: &[&str]) -> bool {
+    let fits = |n: usize| n as u64 <= MAX_CHARS as u64;
+    fits(parts.iter().map(|p| p.len()).sum()) || fits(parts.iter().map(|p| p.chars().count()).sum())
+}
+
+/// E0806 for a string the VM built past the string limit (interpolation).
+pub(crate) fn check_chars(s: &str) -> Result<(), Diag> {
+    if chars_fit(&[s]) {
+        Ok(())
+    } else {
+        Err(too_many_chars())
+    }
+}
+
 pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
     match (a, b) {
         (Value::Str(x), Value::Str(y)) => {
+            if !chars_fit(&[x, y]) {
+                return Err(too_many_chars());
+            }
             let mut s = String::with_capacity(x.len() + y.len());
             s.push_str(x);
             s.push_str(y);
@@ -154,7 +184,7 @@ pub fn floor_div(a: &Value, b: &Value) -> Result<Value, Diag> {
             if y == 0.0 {
                 return Err(divzero());
             }
-            finite((x / y).floor())
+            finite(float_divmod(x, y).0)
         }
         Num::Ints(x, y) => {
             if y == 0 {
@@ -179,7 +209,7 @@ pub fn rem(a: &Value, b: &Value) -> Result<Value, Diag> {
             if y == 0.0 {
                 return Err(divzero());
             }
-            finite(x - y * (x / y).floor())
+            finite(float_divmod(x, y).1)
         }
         Num::Ints(x, y) => {
             if y == 0 {
@@ -195,6 +225,33 @@ pub fn rem(a: &Value, b: &Value) -> Result<Value, Diag> {
             Ok(Value::Int(r))
         }
     }
+}
+
+/// Float `//` and `%` together, as CPython's `float_divmod` does: the
+/// remainder comes from `fmod`, which is exact, and takes the divisor's
+/// sign; the quotient is `(x - m) / y` snapped to the nearest integer.
+/// Flooring the rounded `x / y` instead can leave a remainder larger than
+/// the divisor and of the other sign. `y` is not zero.
+fn float_divmod(x: f64, y: f64) -> (f64, f64) {
+    let mut m = x % y;
+    let mut div = (x - m) / y;
+    if m != 0.0 {
+        if (y < 0.0) != (m < 0.0) {
+            m += y;
+            div -= 1.0;
+        }
+    } else {
+        // A zero remainder takes the divisor's sign too.
+        m = 0.0_f64.copysign(y);
+    }
+    let q = if div != 0.0 {
+        let q = div.floor();
+        if div - q > 0.5 { q + 1.0 } else { q }
+    } else {
+        // A zero quotient takes the sign of the true quotient.
+        0.0_f64.copysign(x / y)
+    };
+    (q, m)
 }
 
 /// `**`: int ** non-negative int stays int (checked), otherwise float.

@@ -112,6 +112,33 @@ fn division() {
     }
 }
 
+/// Float `//` and `%` come from the exact remainder (CPython's
+/// `float_divmod`), not from the rounded quotient: the remainder stays
+/// smaller than the divisor and takes its sign.
+#[test]
+fn float_floor_div_and_rem_use_the_exact_remainder() {
+    let f = Value::Float;
+    let cases = [
+        // x, y, x // y, x % y
+        (7.7e40, 0.1, 7.7e41, 0.04850743287925943),
+        (123456789012345678.0, 3.0, 4.1152263004115224e16, 2.0),
+        (1e300, 7.0, 1.4285714285714286e299, 1.0),
+        (1.0, 0.1, 9.0, 0.09999999999999995),
+        (-7.5, 2.0, -4.0, 0.5),
+        (7.5, -2.0, -4.0, -0.5),
+        (-0.5, 2.0, -1.0, 1.5),
+        (6.0, -3.0, -2.0, -0.0),
+        (-6.0, 3.0, -2.0, 0.0),
+        (0.0, -5.0, -0.0, -0.0),
+    ];
+    for (x, y, q, r) in cases {
+        ok(floor_div, f(x), f(y), f(q));
+        ok(rem, f(x), f(y), f(r));
+    }
+    ok(floor_div, Value::Int(1), f(0.1), f(9.0));
+    fails(floor_div, f(5.0), f(1e-320), "E0504");
+}
+
 #[test]
 fn pow_cases() {
     ok(pow, Value::Int(2), Value::Int(10), Value::Int(1024));
@@ -398,6 +425,35 @@ fn dur_arithmetic() {
     assert!(equal(&sd, &Value::Dur(SEC)) && !equal(&sd, &Value::Int(1_000_000_000)));
 }
 
+/// A duration divided by an int is exact, rounded to the nearest
+/// nanosecond with halves away from zero (as a duration literal rounds);
+/// a float divisor goes through f64.
+#[test]
+fn dur_div_by_int_is_exact() {
+    const H: i64 = 60 * MIN;
+    const MS: i64 = 1_000_000;
+    for d in [2562047 * H + MS, 43800 * H + 7 * MS + 1, i64::MAX, i64::MIN] {
+        ok(div, Value::Dur(d), Value::Int(1), Value::Dur(d));
+    }
+    let cases = [
+        (7, 2, 4),
+        (-7, 2, -4),
+        (7, -2, -4),
+        (5, 3, 2),
+        (4, 3, 1),
+        (-5, 3, -2),
+        (i64::MAX, -1, -i64::MAX),
+        (i64::MIN, 2, i64::MIN / 2),
+        (i64::MAX, i64::MAX, 1),
+        (i64::MAX, i64::MIN, -1),
+        (1, i64::MAX, 0),
+    ];
+    for (d, n, want) in cases {
+        ok(div, Value::Dur(d), Value::Int(n), Value::Dur(want));
+    }
+    fails(div, Value::Dur(i64::MIN), Value::Int(-1), "E0503");
+}
+
 #[test]
 fn dur_overflow_is_an_error() {
     let big = Value::Dur(1 << 62);
@@ -432,6 +488,25 @@ fn str_concat_and_errors() {
     fails(add, s("a"), Value::Int(1), "E0501");
     fails(sub, s("a"), s("b"), "E0501");
     fails(mul, s("a"), Value::Int(3), "E0501");
+}
+
+/// `+` keeps to the string limit of 100 million characters (02), counted
+/// in characters, not bytes.
+#[test]
+fn str_concat_past_the_limit_is_an_error() {
+    use fung_front::diag::message;
+    let half = s(&"a".repeat(60_000_000));
+    let e = add(&half, &half).unwrap_err();
+    assert_eq!(
+        message(&e.code, &e.args),
+        "too many characters (limit 100000000)"
+    );
+    // 120 million bytes, but 60 million characters.
+    let wide = s(&"é".repeat(30_000_000));
+    let Value::Str(both) = add(&wide, &wide).unwrap() else {
+        panic!("not a string");
+    };
+    assert_eq!(both.len(), 120_000_000);
 }
 
 #[test]
@@ -883,6 +958,35 @@ fn list_ordering() {
     }
 }
 
+/// Two elements that do not compare name their own types, not the
+/// collections' (sort reports what actually failed).
+#[test]
+fn ordering_error_names_the_elements() {
+    use fung_front::diag::message;
+    let shown = |a: Value, b: Value| {
+        let e = compare(&a, &b).unwrap_err();
+        message(&e.code, &e.args)
+    };
+    assert_eq!(
+        shown(
+            list(vec![Value::Int(1), s("a")]),
+            list(vec![Value::Int(1), Value::Int(2)])
+        ),
+        "cannot compare str and int"
+    );
+    assert_eq!(
+        shown(
+            Value::tuple(vec![list(vec![Value::Nil])]),
+            Value::tuple(vec![list(vec![Value::Nil])])
+        ),
+        "cannot compare nil and nil"
+    );
+    assert_eq!(
+        shown(list(vec![]), Value::tuple(vec![])),
+        "cannot compare list and tuple"
+    );
+}
+
 // TestListConcatAndMapPut (list cases)
 #[test]
 fn list_concat() {
@@ -999,5 +1103,55 @@ fn slice_errors_name_the_index_as_written() {
     assert_eq!(shown(Some(0), Some(5), true), Arg::Int(5));
     assert_eq!(shown(Some(0), Some(i64::MAX), true), Arg::Int(i64::MAX));
     assert_eq!(shown(Some(i64::MIN), None, false), Arg::Int(i64::MIN));
-    assert_eq!(shown(Some(2), Some(1), false), Arg::Int(2));
+}
+
+/// A start after the end is not out of range: it has its own message,
+/// with both ends as written.
+#[test]
+fn reversed_slice_names_both_ends() {
+    use fung_front::diag::message;
+    let l = Value::List(Rc::new(List::new(vec![
+        Value::Int(1),
+        Value::Int(2),
+        Value::Int(3),
+    ])));
+    let shown = |a: i64, b: i64, inclusive: bool| {
+        let (a, b) = (Value::Int(a), Value::Int(b));
+        let e = super::index::slice(&l, Some(&a), Some(&b), inclusive).unwrap_err();
+        message(&e.code, &e.args)
+    };
+    assert_eq!(
+        shown(2, 1, false),
+        "slice start 2 is after its end 1 (length 3)"
+    );
+    assert_eq!(
+        shown(2, 0, true),
+        "slice start 2 is after its end 0 (length 3)"
+    );
+    assert_eq!(
+        shown(-1, 1, false),
+        "slice start -1 is after its end 1 (length 3)"
+    );
+    let e = super::index::slice(
+        &s("hello"),
+        Some(&Value::Int(3)),
+        Some(&Value::Int(2)),
+        false,
+    )
+    .unwrap_err();
+    assert_eq!(e.code, "E0516");
+}
+
+/// nil is not an open end: only a missing end is (`SLICE` marks it), so
+/// a nil from `find` fails here instead of slicing to the end (02).
+#[test]
+fn nil_slice_bound_is_a_type_error() {
+    use fung_front::diag::message;
+    let l = Value::List(Rc::new(List::new(vec![Value::Int(1), Value::Int(2)])));
+    for x in [&l, &s("hello")] {
+        let e = super::index::slice(x, Some(&Value::Int(1)), Some(&Value::Nil), false).unwrap_err();
+        assert_eq!(message(&e.code, &e.args), "cannot slice with int and nil");
+        let e = super::index::slice(x, Some(&Value::Nil), None, false).unwrap_err();
+        assert_eq!(message(&e.code, &e.args), "cannot slice with int and nil");
+    }
 }

@@ -271,7 +271,7 @@
   <p>소문자로. 전체 매핑이고, 단어 끝의 시그마는 <code>ς</code>가 된다: <code>lower("ΟΔΟΣ")</code>는 <code>"οδος"</code>.</p>
 </div>
 <div class="fn" id="fn-replace"><code>replace(s, old, new)</code>
-  <p>모든 <code>old</code>를 <code>new</code>로. 패턴이 필요하면 <code>regex.replace</code>.</p>
+  <p>모든 <code>old</code>를 <code>new</code>로. 패턴이 필요하면 <code>regex.replace</code>. 결과가 1억 글자를 넘으면 만들기 전에 E0806.</p>
 </div>
 <div class="fn" id="fn-starts_with"><code>starts_with(s, prefix)</code>
   <p>접두사 검사.</p>
@@ -647,7 +647,7 @@ http.serve(&quot;:8080&quot;, req =&gt; match req.path:
 print(conc.pmap([1, 2, 3], x =&gt; x * x, limit: 2))</code></pre>
 </div>
 <div class="fn" id="fn-conc-fan_in"><code>conc.fan_in(s, rxs)</code><span class="by">fung으로 작성</span>
-  <p>여러 받는 끝을 하나로 모은 받는 끝. 전달 태스크는 범위 <code>s</code> 안에서 돈다. 모두 닫히면 닫힌다.</p>
+  <p>여러 받는 끝을 하나로 모은 받는 끝. 전달 태스크는 범위 <code>s</code> 안에서 돈다. 모두 닫히면 닫힌다. 돌려준 받는 끝이 사라지면 전달을 멈추고 입력을 놓으므로, 생산자의 <code>send</code>도 <code>Err</code>를 받는다.</p>
 </div>
 <div class="fn" id="fn-conc-retry"><code>conc.retry(f, times = 3, delay = 0ms)</code><span class="by">fung으로 작성</span>
   <p><code>f()</code>가 <code>Err</code>가 아닌 값을 돌려줄 때까지 최대 <code>times</code>번, 사이에 <code>delay</code>만큼 쉬며 부른다. 모두 실패하면 마지막 <code>Err</code>.</p>

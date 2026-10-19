@@ -462,6 +462,7 @@ mod tests {
         assert_eq!(
             TypeAlias {
                 name: "T".into(),
+                name_pos: p(),
                 alts: vec!["int".into()]
             }
             .to_string(),

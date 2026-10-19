@@ -57,6 +57,19 @@ fn s(x: &str) -> Arg {
     Arg::Str(x.to_string())
 }
 
+/// How much of a value a pattern or `!` error shows in its one-line
+/// headline (08): a value can print megabytes.
+const SHOWN_CHARS: usize = 200;
+
+/// `text` cut to `SHOWN_CHARS` characters, with `…` when it was cut.
+fn shown(mut text: String) -> Arg {
+    if let Some((end, _)) = text.char_indices().nth(SHOWN_CHARS) {
+        text.truncate(end);
+        text.push('…');
+    }
+    Arg::Str(text)
+}
+
 impl Task<'_> {
     /// Pops the top `n` operands in push order.
     fn pop_n(&mut self, n: usize) -> Vec<Value> {
@@ -149,7 +162,7 @@ impl Task<'_> {
                 match result_kind(&v) {
                     ResultKind::Ok(payload) => self.push(payload),
                     ResultKind::Err => {
-                        return Err(err("E0603", pos, vec![Arg::Str(err_message(&v))]));
+                        return Err(err("E0603", pos, vec![shown(err_message(&v))]));
                     }
                     ResultKind::Nil => return Err(err("E0604", pos, vec![s("!")])),
                     ResultKind::Other => {
@@ -184,12 +197,12 @@ impl Task<'_> {
             Op::MatchOrFail => {
                 let v = self.pop();
                 if !self.match_pattern(fi, &v, arg) {
-                    return Err(err("E0602", pos, vec![Arg::Str(format(&v))]));
+                    return Err(err("E0602", pos, vec![shown(format(&v))]));
                 }
             }
             Op::NoMatch => {
                 let v = self.pop();
-                return Err(err("E0601", pos, vec![Arg::Str(format(&v))]));
+                return Err(err("E0601", pos, vec![shown(format(&v))]));
             }
             _ => unreachable!("exec_m4 called with {}", op.name()),
         }
@@ -202,14 +215,19 @@ impl Task<'_> {
     }
 
     /// Matches `v` against pattern `pi` of frame `fi`, binding into the
-    /// frame's slots and globals.
+    /// frame's slots and, only if the whole pattern matched, its globals.
     fn match_pattern(&mut self, fi: usize, v: &Value, pi: usize) -> bool {
         let f = &self.frames[fi];
         let mut b = Binder {
             stack: &mut self.stack,
             base: f.base,
             globals: &f.globals,
+            pending: Vec::new(),
         };
-        b.matches(v, &f.proto.patterns[pi])
+        let ok = b.matches(v, &f.proto.patterns[pi]);
+        if ok {
+            b.commit();
+        }
+        ok
     }
 }

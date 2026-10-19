@@ -70,12 +70,8 @@ pub fn compare(a: &Value, b: &Value) -> Result<Ordering, Diag> {
         (Value::Str(x), Value::Str(y)) => Ok(x.as_str().cmp(y.as_str())),
         (Value::Dur(x), Value::Dur(y)) => Ok(x.cmp(y)),
         (Value::Time(x), Value::Time(y)) => Ok(x.cmp_instant(y)),
-        (Value::Tuple(x), Value::Tuple(y)) => {
-            compare_items(x.iter(), x.len(), y.iter(), y.len()).ok_or_else(|| compare_error(a, b))
-        }
-        (Value::List(x), Value::List(y)) => {
-            compare_items(x.iter(), x.len(), y.iter(), y.len()).ok_or_else(|| compare_error(a, b))
-        }
+        (Value::Tuple(x), Value::Tuple(y)) => compare_items(x.iter(), x.len(), y.iter(), y.len()),
+        (Value::List(x), Value::List(y)) => compare_items(x.iter(), x.len(), y.iter(), y.len()),
         _ => Err(compare_error(a, b)),
     }
 }
@@ -90,21 +86,21 @@ fn cmp_floats(x: f64, y: f64) -> Ordering {
     }
 }
 
-/// Lexicographic; a shorter prefix is smaller. `None` if two elements are
-/// not comparable.
+/// Lexicographic; a shorter prefix is smaller. Two elements that do not
+/// compare give their own error, naming their types.
 fn compare_items<'a>(
     a: impl Iterator<Item = &'a Value>,
     an: usize,
     b: impl Iterator<Item = &'a Value>,
     bn: usize,
-) -> Option<Ordering> {
+) -> Result<Ordering, Diag> {
     for (x, y) in a.zip(b) {
-        match compare(x, y).ok()? {
+        match compare(x, y)? {
             Ordering::Equal => {}
-            o => return Some(o),
+            o => return Ok(o),
         }
     }
-    Some(an.cmp(&bn))
+    Ok(an.cmp(&bn))
 }
 
 /// Compares an int and a float exactly, without converting the int to f64.

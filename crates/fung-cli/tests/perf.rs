@@ -225,6 +225,54 @@ fn many_receivers_on_one_channel() {
     assert!(took < Duration::from_secs(1), "{took:?}");
 }
 
+/// 50,000 tasks await one task under a 1 ms deadline, then 50,000 more
+/// await it until it ends: an `await` cut short leaves the task's
+/// waiting list, and joining the list costs O(1) (review C3: the cut
+/// waits stayed listed and every await scanned the list). Measured on an
+/// Apple M2 Max release build: 2.1 s before, 0.22 s after. Within 1.5 s.
+#[test]
+fn many_awaits_on_one_task() {
+    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, () => timeout(1ms, () => await(t)))))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
+    let (out, took) = run(src);
+    eprintln!("100,000 awaits on one task {took:?}");
+    assert_eq!(out, "50000\n");
+    assert!(took < Duration::from_millis(1500), "{took:?}");
+}
+
+/// Counts the tasks that reached their wait (`ready`), so the entry
+/// cancels only once all of them wait.
+const UNTIL_ALL: &str =
+    "fn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nready = atom(0)\n";
+
+/// 80,000 tasks wait to receive on one channel and are all cancelled:
+/// each wait that ends leaves the queue at O(1) (review C4: a scan of
+/// both queues per wait). 3.6 s before, 0.25 s after. Within 1.5 s.
+#[test]
+fn many_cancelled_receivers_on_one_channel() {
+    let src = format!(
+        "{UNTIL_ALL}(tx, rx) = channel()\nprint(scope(fn(s):\n  each(0..80000, _ => spawn(s, fn(): swap(ready, n => n + 1); recv(rx) ;;))\n  until(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
+    );
+    let (out, took) = run(&src);
+    eprintln!("80,000 cancelled receivers {took:?}");
+    assert_eq!(out, "Err({kind: 'cancelled})\n");
+    assert!(took < Duration::from_millis(1500), "{took:?}");
+}
+
+/// 80,000 tasks are cancelled while in `with`'s `use`, and each `release`
+/// parks: a release that ends drops its shield at O(1) (review C5: a
+/// scan of every running release's shield). 2.2 s before, 0.43 s after
+/// (80,000 timers). Within 1.5 s.
+#[test]
+fn many_releases_that_park() {
+    let src = format!(
+        "{UNTIL_ALL}print(scope(fn(s):\n  each(0..80000, i => spawn(s, () => with(() => i, fn(r): swap(ready, n => n + 1); sleep(10s) ;;, r => sleep(1ms))))\n  until(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
+    );
+    let (out, took) = run(&src);
+    eprintln!("80,000 releases that park {took:?}");
+    assert_eq!(out, "Err({kind: 'cancelled})\n");
+    assert!(took < Duration::from_millis(1500), "{took:?}");
+}
+
 /// Spec 10.4's latency, recorded only: a light request beside one whose
 /// handler parses a big JSON text (about 6 MB). The heavy request reaches
 /// its handler first and the parse starts once the light one is on its

@@ -453,6 +453,60 @@ fn lambda_params_require_commas() {
     assert_eq!(perr("(a b) => a + b"), "E0110");
 }
 
+#[test]
+fn least_int_magnitude_needs_a_minus_in_patterns_too() {
+    // 01: 9223372036854775808 is only valid right after `-`.
+    assert_eq!(perr("match x: 9223372036854775808 => 1 ;;"), "E0102");
+    assert_eq!(perr("[9223372036854775808] = xs"), "E0102");
+    p("match x: -9223372036854775808 => 1 ;;");
+}
+
+#[test]
+fn not_is_not_an_operand_of_tighter_operators() {
+    // 01 EBNF: not_expr sits between `and` and comparison, so `not` cannot
+    // be an operand of `==`, `+`, `??`, `..` or unary `-` without
+    // parentheses (`1 == not 2 == 3` hid a comparison chain).
+    for src in [
+        "print(1 == not 2 == 3)",
+        "x = 1 + not true",
+        "x = a ?? not b",
+        "x = a < not b",
+        "x = -not b",
+        "x = a |> not",
+    ] {
+        assert_eq!(perr(src), "E0110", "{src}");
+    }
+    for src in [
+        "x = a and not b",
+        "x = not not a",
+        "f(not a)",
+        "x = a == (not b)",
+        "x = [not a]",
+        "g = a => not a",
+        "x = c then not a else b",
+        "x = not a == b",
+        "x = a or not b and c",
+    ] {
+        p(src);
+    }
+}
+
+#[test]
+fn duplicate_names_across_parameters() {
+    // A name bound by two parameters, plain or inside a pattern, is the
+    // same error as `fn f(a, a)`.
+    check_errs(&[
+        ("(a, a) => a", "E0110"),
+        ("fn g(a, (a, b)) = a", "E0110"),
+        ("fn g((a, b), (a, c)) = a", "E0110"),
+        ("fn g([x, ...r], r) = x", "E0110"),
+        ("((a, b), [b]) => a", "E0110"),
+    ]);
+    // One pattern binding a name twice is the resolver's E0221.
+    p("((a, a)) => a");
+    p("fn g((a, _), (_, b)) = a");
+}
+
 // --- collections and patterns (M4) ---
 
 #[test]
@@ -476,6 +530,133 @@ fn collection_literals() {
         ("Red", "(program 'Red)"),
         ("Ok(x) + 1", "(program (binary + (tag Ok x) 1))"),
     ]);
+}
+
+#[test]
+fn newlines_inside_brackets_are_whitespace_everywhere() {
+    // 01: inside ( ) [ ] { } a newline is whitespace — in patterns and
+    // lambda parameter lists too, and a tag's `(` may follow on the next
+    // line there.
+    check(&[
+        (
+            "match r:\n  Ok(\n    y\n  ) => y\n;;",
+            "(program (match r (arm (ptag Ok (pbind y)) (nil) (block y))))",
+        ),
+        (
+            "[a,\n b] = xs",
+            "(program (assign (plist (pbind a) (pbind b)) xs))",
+        ),
+        (
+            "{name,\n port} = cfg",
+            "(program (assign (pmap (pentry name (pbind name)) (pentry port (pbind port))) cfg))",
+        ),
+        (
+            "fold(xs, 0, (acc,\n  x) => acc + x)",
+            "(program (call fold xs 0 (fn (acc, x) (block (binary + acc x)))))",
+        ),
+        ("f = (\n) => 1", "(program (assign f (fn () (block 1))))"),
+        (
+            "g = ([a,\n b]) => a",
+            "(program (assign g (fn ((plist (pbind a) (pbind b))) (block a))))",
+        ),
+        (
+            "map(xs, x\n  => x)",
+            "(program (call map xs (fn (x) (block x))))",
+        ),
+        ("x = [Ok\n  (1)]", "(program (assign x (list (tag Ok 1))))"),
+        (
+            "match r: [Ok\n (v)] => v ;;",
+            "(program (match r (arm (plist (ptag Ok (pbind v))) (nil) (block v))))",
+        ),
+    ]);
+    assert_eq!(
+        p("import fs (\n  read,\n  write\n)"),
+        p("import fs (read, write)")
+    );
+    // At the top level a newline still ends the tag: `Ok` alone is a value.
+    check(&[("x = Ok\n(1)", "(program (assign x 'Ok) 1)")]);
+}
+
+#[test]
+fn a_line_ending_in_dot_arrow_or_alias_equals_continues() {
+    // 01: a line ending in `.`, `->` or `=` continues on the next.
+    check(&[
+        ("x = m.\n  a", "(program (assign x (field a m)))"),
+        ("fn f() ->\n  int = 1", "(program (fn f()->int (block 1)))"),
+        ("type t =\n  int | str", "(program (typealias t))"),
+    ]);
+}
+
+#[test]
+fn nested_indexing_parses_in_linear_time() {
+    // Each `[` used to parse its contents twice (once looking for `a..]`),
+    // so the work doubled with every level: 26 levels took seconds.
+    let depth = 40;
+    let src = format!("y = {}0{}", "x[".repeat(depth), "]".repeat(depth));
+    let t = std::time::Instant::now();
+    p(&src);
+    assert!(
+        t.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        t.elapsed()
+    );
+    // The forms the second parse used to cover still read the same.
+    check(&[
+        ("xs[a + 1..]", "(program (slice xs (binary + a 1) (nil)))"),
+        ("xs[a..b + 1]", "(program (slice xs a (binary + b 1)))"),
+        (
+            "xs[a..b ?? c]",
+            "(program (index xs (coalesce (range .. a b) c)))",
+        ),
+        ("xs[a ?? 0]", "(program (index xs (coalesce a 0)))"),
+        (
+            "xs[f(x)[0]..]",
+            "(program (slice xs (index (call f x) 0) (nil)))",
+        ),
+    ]);
+}
+
+#[test]
+fn nested_guards_parse_in_linear_time() {
+    // An arm head was parsed once to decide it is an arm and again for
+    // real, so a match in a guard doubled the work per level.
+    let mut e = "1".to_string();
+    for _ in 0..30 {
+        e = format!("(match 1: v when ({e}) > 0 => v ;;)");
+    }
+    let t = std::time::Instant::now();
+    p(&format!("y = {e}"));
+    assert!(
+        t.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        t.elapsed()
+    );
+}
+
+#[test]
+fn arm_head_errors_point_at_the_mistake() {
+    // A guard (`when` only appears in arm heads) is reported where it
+    // breaks, in the first arm or a later one.
+    assert_eq!(
+        ast("x = match 3:\n  n when n >> 2 => 1\n  _ => 2\n;;"),
+        "E0110 2:13"
+    );
+    assert_eq!(
+        ast("x = match 3:\n  1 => 1\n  n when n >> 2 => 1\n;;"),
+        "E0110 3:13"
+    );
+    // A broken first pattern is reported inside the pattern.
+    assert_eq!(ast("x = match 3:\n  Ok(y => 1\n;;"), "E0110 2:8");
+}
+
+#[test]
+fn a_block_inside_a_guard_allows_bare_lambdas() {
+    // 01: in a guard a lambda goes inside parentheses; a block opened
+    // there is ordinary code again.
+    p(
+        "r = match 1:\n  x when any([1], fn(z):\n    f = y => y == 1\n    f(z)\n  ;;) => \"ok\"\n  _ => \"no\"\n;;",
+    );
+    p("r = match 1:\n  x when (match x: y => (z => z)(y) ;;) == 1 => 1\n  _ => 2\n;;");
 }
 
 #[test]

@@ -115,10 +115,12 @@ pub fn field(x: &Value, name: &str) -> Result<Value, Diag> {
     index(x, &Value::str(name))
 }
 
-/// One end of a slice: `None` or nil is open, otherwise an int.
+/// One end of a slice: `None` is open (`SLICE` marks a missing end),
+/// otherwise an int. nil is not an open end: it is an error like any
+/// other use of nil as an index (02).
 fn bound(v: Option<&Value>) -> Result<Option<i64>, Diag> {
     match v {
-        None | Some(Value::Nil) => Ok(None),
+        None => Ok(None),
         Some(Value::Int(n)) => Ok(Some(*n)),
         Some(other) => Err(err(
             "E0501",
@@ -132,7 +134,7 @@ fn bound(v: Option<&Value>) -> Result<Option<i64>, Diag> {
 }
 
 /// Resolves the ends against length `n`. Both ends may equal `n`; start
-/// may not exceed end. A negative end counts from the end, and an
+/// may not exceed end (E0516). A negative end counts from the end, and an
 /// inclusive end takes one more. An end out of range is reported as the
 /// program wrote it (counted in i128, so nothing wraps).
 fn slice_bounds(
@@ -158,13 +160,21 @@ fn slice_bounds(
         return Err(out_of_range(written(end, len), n));
     }
     if lo > hi {
-        return Err(out_of_range(written(start, 0), n));
+        // Both ends were written: an open one cannot cross the other.
+        return Err(err(
+            "E0516",
+            vec![
+                Arg::Int(written(start, 0)),
+                Arg::Int(written(end, len)),
+                Arg::Int(n as i64),
+            ],
+        ));
     }
     Ok((lo as usize, hi as usize))
 }
 
-/// `x[a..b]` and `x[a..=b]` on lists and strings (02). A missing end (or
-/// nil) is open.
+/// `x[a..b]` and `x[a..=b]` on lists and strings (02). A missing end is
+/// open.
 pub fn slice(
     x: &Value,
     start: Option<&Value>,
@@ -189,6 +199,8 @@ pub fn slice(
 }
 
 /// `x in c` (07): list elements, substrings, map keys, integers of a range.
+/// A range holds a float that `==` one of its ints: a whole float within
+/// the int range (02).
 pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
     match c {
         Value::List(l) => Ok(l.iter().any(|item| super::equal(item, x))),
@@ -202,8 +214,16 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
         },
         Value::Range(r) => match x {
             Value::Int(i) => Ok(r.contains(*i)),
+            Value::Float(f) => Ok(whole_int(*f).is_some_and(|i| r.contains(i))),
             _ => Ok(false),
         },
         _ => Err(err("E0512", vec![Arg::Str(type_name(c))])),
     }
+}
+
+/// The int a float equals exactly, if any: no fraction and within
+/// `[-2^63, 2^63)`.
+fn whole_int(f: f64) -> Option<i64> {
+    let in_range = (-9223372036854775808.0..9223372036854775808.0).contains(&f);
+    (in_range && f.fract() == 0.0).then_some(f as i64)
 }

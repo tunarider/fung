@@ -189,6 +189,21 @@ fn stop(w: &mut World, shared: &Shared, sig: i32) {
     }
 }
 
+/// Makes the posted events while a swap's function runs: it does not
+/// give its turn, so the scheduler would see them only once it ends
+/// (`Task::end_turn`). A test's stop that waits for a watcher is posted
+/// again for the scheduler.
+pub(super) fn apply_in_swap(w: &mut World, shared: &Shared) {
+    for e in shared.ready.take_events() {
+        #[cfg(test)]
+        if matches!(e, Event::StopWhenWatched(_)) && !watched(w) {
+            shared.ready.post(e);
+            continue;
+        }
+        apply(w, shared, e);
+    }
+}
+
 /// Applies the events posted while nothing ran (`Runtime`'s calls).
 pub(super) fn apply_posted(w: &mut World, shared: &Shared) {
     for e in shared.ready.take_events() {

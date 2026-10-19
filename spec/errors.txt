@@ -27,6 +27,7 @@ E0218	type `%s` refers to itself
 E0219	type aliases must be at the top level		
 E0220	`?` inside a for body		`for` builds a list and cannot return early; handle the Err with `match`, or use `all`/`any`/`fold`
 E0221	name `%s` is bound twice in one pattern		use a guard to compare the two positions: `[a, b] when a == b`
+E0222	`%s` is a built-in type and cannot be a type alias		give the alias another name
 E0301	cannot find module `%s`		standard library modules are imported by name (`import fs`); your own files by path (`import "./lib/x"`)
 E0302	circular import: %s		
 E0303	module `%s` has no member `%s`		
@@ -59,6 +60,7 @@ E0512	cannot test membership in a value of type %s
 E0513	cannot convert %s to %s		
 E0514	cannot use a value of type %s as a map key		
 E0515	invalid pattern %s		
+E0516	slice start %d is after its end %d (length %d)		
 E0601	no pattern matched %s		
 E0602	value %s does not match the pattern		
 E0603	unhandled Err: %s		

@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::testutil::{Opts, boom, exec, exec_waiting, run};
+use crate::testutil::{Opts, boom, exec, exec_waiting, report_heads, run};
 
 const DEADLOCK: &str = "error[E0702]: deadlock: all tasks are waiting\n";
 
@@ -157,10 +157,11 @@ fn at_exit_is_gone() {
 /// outer release still runs, and what follows the stuck `recv` does not.
 #[test]
 fn a_deadlock_in_a_release_is_reported_once() {
+    let (out, err, code) = run_within(
+        "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => print(1), fn(_): recv(never); print(\"no\") ;;), _ => print(\"second\"))",
+    );
     assert_eq!(
-        run_within(
-            "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => print(1), fn(_): recv(never); print(\"no\") ;;), _ => print(\"second\"))"
-        ),
+        (out, report_heads(&err), code),
         ("1\nsecond\n".into(), DEADLOCK.into(), 1)
     );
 }
@@ -169,10 +170,11 @@ fn a_deadlock_in_a_release_is_reported_once() {
 /// short, the exit code kept, and the outer release still runs.
 #[test]
 fn a_stuck_release_after_an_exit_lets_the_outer_release_run() {
+    let (out, err, code) = run_within(
+        "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => exit(0), _ => recv(never)), _ => print(\"second\"))",
+    );
     assert_eq!(
-        run_within(
-            "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => exit(0), _ => recv(never)), _ => print(\"second\"))"
-        ),
+        (out, report_heads(&err), code),
         ("second\n".into(), DEADLOCK.into(), 0)
     );
 }
@@ -180,10 +182,11 @@ fn a_stuck_release_after_an_exit_lets_the_outer_release_run() {
 /// A deadlock in `use`, then a release stuck too: each is reported.
 #[test]
 fn a_deadlock_then_a_stuck_release_are_both_reported() {
+    let (out, err, code) = run_within(
+        "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => recv(never), _ => recv(never)), _ => print(\"second\"))",
+    );
     assert_eq!(
-        run_within(
-            "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => recv(never), _ => recv(never)), _ => print(\"second\"))"
-        ),
+        (out, report_heads(&err), code),
         ("second\n".into(), format!("{DEADLOCK}{DEADLOCK}"), 1)
     );
 }
@@ -191,10 +194,11 @@ fn a_deadlock_then_a_stuck_release_are_both_reported() {
 /// The tasks a stuck release spawned are cut short with it.
 #[test]
 fn the_tasks_of_a_stuck_release_are_cut_with_it() {
+    let (out, err, code) = run_within(
+        "with(() => nil, _ => with(() => nil, _ => exit(4), fn(_): (_tx, ch) = channel(); scope(fn(s): spawn(s, () => recv(ch)); recv(ch) ;;) ;;), _ => print(\"second\"))",
+    );
     assert_eq!(
-        run_within(
-            "with(() => nil, _ => with(() => nil, _ => exit(4), fn(_): (_tx, ch) = channel(); scope(fn(s): spawn(s, () => recv(ch)); recv(ch) ;;) ;;), _ => print(\"second\"))"
-        ),
+        (out, report_heads(&err), code),
         ("second\n".into(), DEADLOCK.into(), 4)
     );
 }

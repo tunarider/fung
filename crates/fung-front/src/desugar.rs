@@ -328,6 +328,10 @@ impl Desugarer {
     /// Lowers a function: defaults and body are walked, and every
     /// destructuring parameter (03) gets a hidden name `$aN` whose value is
     /// matched at the top of the body with fresh (shadowing) bindings.
+    /// Defaults run before the body, so a default that uses names of an
+    /// earlier pattern parameter matches that pattern first, in its own
+    /// block, binding only the names it uses (03: a default sees the
+    /// parameters before it).
     fn fn_node(&mut self, n: &Node) -> R {
         let mut info = fn_info(n).clone();
         let mut kids = Vec::with_capacity(n.kids.len());
@@ -335,18 +339,53 @@ impl Desugarer {
             kids.push(self.walk(k)?);
         }
         let mut prologue = Vec::new();
+        let mut earlier: Vec<(Node, String)> = Vec::new();
+        let mut default_ix = 0;
+        // Names only defaults read are bound there, not again in the body
+        // (where the copy would be an unused variable, W0102).
+        let mut in_body = Vec::new();
+        names_in(kids.last().expect("fn has a body"), &mut in_body);
+        let mut in_defaults = Vec::new();
+        for d in &kids[..kids.len() - 1] {
+            names_in(d, &mut in_defaults);
+        }
+        let only_defaults: Vec<String> = in_defaults
+            .into_iter()
+            .filter(|name| !in_body.contains(name))
+            .collect();
         for prm in info.params.iter_mut() {
+            if prm.has_default {
+                let d = &mut kids[default_ix];
+                default_ix += 1;
+                let mut used = Vec::new();
+                names_in(d, &mut used);
+                let lets: Vec<Node> = earlier
+                    .iter()
+                    .filter_map(|(pat, tmp)| keep_names(pat, &used).map(|p| (p, tmp)))
+                    .map(|(p, tmp)| {
+                        Node::with_lit(Head::Let, d.pos, s("fresh"), vec![p, name_leaf(d.pos, tmp)])
+                    })
+                    .collect();
+                if !lets.is_empty() {
+                    let value = std::mem::replace(d, Node::new(Head::Nil, n.pos, Vec::new()));
+                    let mut block = lets;
+                    block.push(value);
+                    *d = Node::new(Head::Do, block[0].pos, block);
+                }
+            }
             let Some(pattern) = prm.pattern.take() else {
                 continue;
             };
             let tmp = self.hidden("a");
             let pos = prm.pos;
             *prm = plain_param(tmp.clone(), pos);
+            earlier.push(((*pattern).clone(), tmp.clone()));
+            let body_pattern = without_names(&pattern, &only_defaults);
             prologue.push(Node::with_lit(
                 Head::Let,
                 pos,
                 s("fresh"),
-                vec![*pattern, name_leaf(pos, &tmp)],
+                vec![body_pattern, name_leaf(pos, &tmp)],
             ));
         }
         if !prologue.is_empty() {
@@ -382,6 +421,51 @@ impl Desugarer {
             ],
         ))
     }
+}
+
+/// The names an expression reads (any depth; a name shadowed inside it
+/// still counts, which only binds an unused copy).
+fn names_in(n: &Node, out: &mut Vec<String>) {
+    if n.head == Head::Name
+        && let Lit::Str(name) = &n.lit
+    {
+        out.push(name.clone());
+    }
+    for k in &n.kids {
+        names_in(k, out);
+    }
+}
+
+/// A copy of a pattern where the names `drop` says are `_` (a rest keeps
+/// its `...` without a name). Reports whether any name was kept.
+fn strip_names(n: &Node, drop: &dyn Fn(&str) -> bool, kept: &mut bool) -> Node {
+    let mut out = n.clone();
+    if matches!(n.head, Head::Pbind | Head::Prest)
+        && let Lit::Str(name) = &n.lit
+    {
+        if !drop(name) {
+            *kept = true;
+        } else if n.head == Head::Pbind {
+            return Node::new(Head::Pwild, n.pos, Vec::new());
+        } else {
+            out.lit = Lit::None;
+        }
+    }
+    out.kids = n.kids.iter().map(|k| strip_names(k, drop, kept)).collect();
+    out
+}
+
+/// A copy of a parameter pattern that binds only the names in `used`, or
+/// `None` when it binds none of them.
+fn keep_names(pat: &Node, used: &[String]) -> Option<Node> {
+    let mut kept = false;
+    let copy = strip_names(pat, &|name| !used.iter().any(|u| u == name), &mut kept);
+    kept.then_some(copy)
+}
+
+/// A copy of a parameter pattern without the names in `gone`.
+fn without_names(pat: &Node, gone: &[String]) -> Node {
+    strip_names(pat, &|name| gone.iter().any(|g| g == name), &mut false)
 }
 
 #[cfg(test)]

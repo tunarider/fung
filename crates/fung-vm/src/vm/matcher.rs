@@ -73,20 +73,23 @@ pub(super) struct Binder<'a> {
     pub stack: &'a mut [Option<Value>],
     pub base: usize,
     pub globals: &'a Globals,
+    /// Global writes held back until the whole pattern has matched.
+    pub pending: Vec<(usize, Value)>,
 }
 
 impl Binder<'_> {
-    /// Tests `v` against `p` and, on success, writes every bound name. A
-    /// failed match may have written some names already; the compiler
-    /// never reads a name from a failed arm, so those writes are harmless.
+    /// Tests `v` against `p`, writing each bound slot as it goes and
+    /// holding the globals in `pending` for `commit`. A failed match may
+    /// have written some slots already; the compiler never reads a name
+    /// from a failed arm, so those writes are harmless. A global is
+    /// different: the REPL goes on after a failed destructuring, and must
+    /// see every global as it was.
     pub fn matches(&mut self, v: &Value, p: &RtPattern) -> bool {
         match p {
             RtPattern::Wild => true,
             RtPattern::Bind { global, index } => {
                 if *global {
-                    // The old value drops after the table's borrow ends.
-                    let old = self.globals.borrow_mut()[*index].replace(v.clone());
-                    drop(old);
+                    self.pending.push((*index, v.clone()));
                 } else {
                     self.stack[self.base + index] = Some(v.clone());
                 }
@@ -137,8 +140,30 @@ impl Binder<'_> {
                     .zip(kids)
                     .all(|(k, p)| m.get(k).is_some_and(|item| self.matches(item, p)))
             }
-            RtPattern::Alt(alts) => alts.iter().any(|alt| self.matches(v, alt)),
+            RtPattern::Alt(alts) => {
+                let mark = self.pending.len();
+                alts.iter().any(|alt| {
+                    self.pending.truncate(mark);
+                    self.matches(v, alt)
+                })
+            }
         }
+    }
+
+    /// Writes the globals a successful match bound.
+    pub fn commit(self) {
+        if self.pending.is_empty() {
+            return;
+        }
+        let mut table = self.globals.borrow_mut();
+        let old: Vec<Option<Value>> = self
+            .pending
+            .into_iter()
+            .map(|(i, v)| table[i].replace(v))
+            .collect();
+        // The old values drop after the table's borrow ends.
+        drop(table);
+        drop(old);
     }
 
     /// Matches items against patterns pairwise; lengths must agree.

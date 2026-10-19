@@ -44,6 +44,10 @@ impl Parser<'_> {
                 leaf(Head::Pbind, Lit::Str(t.text.clone()))
             }
             Kind::Int => {
+                // like an expression: only `-` makes this magnitude valid (01)
+                if super::expr::is_min_int_magnitude(t) {
+                    return Err(err("E0102", t.pos, vec![s(t.text.clone())]));
+                }
                 self.next();
                 leaf(Head::Plit, Lit::Int(t.int))
             }
@@ -101,42 +105,58 @@ impl Parser<'_> {
             }
             Kind::Tag => {
                 self.next();
-                if !self.at(Kind::LParen) || self.peek().pos.line != t.pos.line {
+                // Outside brackets a newline ends the tag; inside them it is
+                // whitespace (01), so `(` may follow on the next line.
+                if !self.at(Kind::LParen) {
                     // A bare tag matches the symbol only (03의 함정).
                     return leaf(Head::Psym, Lit::Str(t.text.clone()));
                 }
                 self.next();
                 let n = Node::with_lit(Head::Ptag, t.pos, Lit::Str(t.text.clone()), Vec::new());
-                self.pat_list(n, Kind::RParen)
+                self.bracketed(|p| p.pat_list(n, Kind::RParen))
             }
             Kind::LParen => {
                 self.next();
-                if self.at(Kind::RParen) {
-                    self.next();
-                    return Ok(Node::new(Head::Ptuple, t.pos, Vec::new()));
-                }
-                let first = self.pattern()?;
-                if !self.at(Kind::Comma) {
-                    let p = self.peek();
-                    let what = format!(
-                        "`{}` (a parenthesized pattern is not a pattern; write (p,) for a tuple)",
-                        describe(p)
-                    );
-                    return Err(err("E0110", p.pos, vec![s(what)]));
-                }
-                self.next();
-                self.pat_list(Node::new(Head::Ptuple, t.pos, vec![first]), Kind::RParen)
+                self.bracketed(|p| p.ptuple(t.pos))
             }
             Kind::LBracket => {
                 self.next();
-                self.plist(Node::new(Head::Plist, t.pos, Vec::new()))
+                self.bracketed(|p| p.plist(Node::new(Head::Plist, t.pos, Vec::new())))
             }
             Kind::LBrace => {
                 self.next();
-                self.pmap(Node::new(Head::Pmap, t.pos, Vec::new()))
+                self.bracketed(|p| p.pmap(Node::new(Head::Pmap, t.pos, Vec::new())))
             }
             _ => Err(self.unexpected()),
         }
+    }
+
+    /// Parses the inside of a bracketed pattern, where newlines are
+    /// whitespace (01). `f` consumes the closing bracket last.
+    fn bracketed(&mut self, f: impl FnOnce(&mut Self) -> PResult<Node>) -> PResult<Node> {
+        self.nest += 1;
+        let r = f(self);
+        self.nest -= 1;
+        r
+    }
+
+    /// A `(…)` pattern after the `(`: `()` or a tuple with at least one comma.
+    fn ptuple(&mut self, pos: crate::source::Pos) -> PResult<Node> {
+        if self.at(Kind::RParen) {
+            self.next();
+            return Ok(Node::new(Head::Ptuple, pos, Vec::new()));
+        }
+        let first = self.pattern()?;
+        if !self.at(Kind::Comma) {
+            let p = self.peek();
+            let what = format!(
+                "`{}` (a parenthesized pattern is not a pattern; write (p,) for a tuple)",
+                describe(p)
+            );
+            return Err(err("E0110", p.pos, vec![s(what)]));
+        }
+        self.next();
+        self.pat_list(Node::new(Head::Ptuple, pos, vec![first]), Kind::RParen)
     }
 
     /// The items of a `[…]` pattern after the `[`: patterns, then at most
@@ -218,30 +238,44 @@ impl Parser<'_> {
         Ok(n)
     }
 
-    /// Whether `pattern [when expr] =>` parses at the current index, without
-    /// consuming anything (01: 절 판정은 시도로). A nesting-limit error inside
-    /// the speculative parse is fatal (E0802) rather than "not an arm head",
-    /// so a stack overflow cannot hide behind a syntax error.
-    fn arm_head_ahead(&mut self) -> PResult<bool> {
+    /// Parses `pattern [when expr]` up to the arm's `=>` when the tokens at
+    /// the current index form an arm head (01: 절 판정은 시도로), so each
+    /// head is parsed once. Otherwise nothing is consumed and the result is
+    /// `None`.
+    /// - A pattern followed by `when` is an arm head: `when` appears nowhere
+    ///   else, so an error in the guard (or a missing `=>`) is reported as it
+    ///   is.
+    /// - A nesting-limit error (E0802) is always fatal, so a stack overflow
+    ///   cannot hide behind "not an arm head".
+    fn arm_head(&mut self) -> PResult<Option<(Node, Node)>> {
         let (save, save_nest, save_depth) = (self.i, self.nest, self.depth);
-        let r = self.arm_head_try();
-        self.i = save;
-        self.nest = save_nest;
-        self.depth = save_depth;
-        r
-    }
-
-    fn arm_head_try(&mut self) -> PResult<bool> {
-        if let Err(e) = self.pattern() {
-            return if e.code == "E0802" { Err(e) } else { Ok(false) };
-        }
+        let back = |p: &mut Self| {
+            p.i = save;
+            p.nest = save_nest;
+            p.depth = save_depth;
+        };
+        let pat = match self.pattern() {
+            Ok(pat) => pat,
+            Err(e) if e.code == "E0802" => return Err(e),
+            Err(_) => {
+                back(self);
+                return Ok(None);
+            }
+        };
         if self.at(Kind::KwWhen) {
             self.next();
-            if let Err(e) = self.guard_expr() {
-                return if e.code == "E0802" { Err(e) } else { Ok(false) };
+            let guard = self.guard_expr()?;
+            if !self.at(Kind::FatArrow) {
+                return Err(self.unexpected());
             }
+            return Ok(Some((pat, guard)));
         }
-        Ok(self.at(Kind::FatArrow))
+        if !self.at(Kind::FatArrow) {
+            back(self);
+            return Ok(None);
+        }
+        let guard = Node::new(Head::Nil, pat.pos, Vec::new());
+        Ok(Some((pat, guard)))
     }
 
     /// Parses a `when` condition with bare lambdas disabled so the arm's
@@ -255,40 +289,38 @@ impl Parser<'_> {
     }
 
     /// Parses `match e: arms ;;`. An arm's body runs until the next line
-    /// that parses as an arm head or the closing `;;` (01).
+    /// that parses as an arm head or the closing `;;` (01). Arm bodies are
+    /// ordinary code even when the match sits in a guard.
     pub(super) fn match_expr(&mut self) -> PResult<Node> {
         let t = self.next(); // match
         let subject = self.expr(0)?;
         self.expect_desc(Kind::Colon, "`:` after the match subject")?;
-        let saved = self.nest;
+        let (saved_nest, saved_guard) = (self.nest, self.guard);
         self.nest = 0;
+        self.guard = false;
         let r = self.match_arms(Node::new(Head::Match, t.pos, vec![subject]));
-        self.nest = saved;
+        self.nest = saved_nest;
+        self.guard = saved_guard;
         r
     }
 
     fn match_arms(&mut self, mut n: Node) -> PResult<Node> {
         self.skip_seps();
-        while !self.at(Kind::DoubleSemi) {
-            let is_arm = self.arm_head_ahead()?;
-            if self.at(Kind::Eof) || !is_arm {
-                return Err(self.unexpected());
-            }
-            let pat = self.pattern()?;
-            let guard = if self.at(Kind::KwWhen) {
-                self.next();
-                self.guard_expr()?
-            } else {
-                Node::new(Head::Nil, pat.pos, Vec::new())
-            };
+        let mut next = if self.at(Kind::DoubleSemi) {
+            None
+        } else {
+            Some(self.first_arm_head()?)
+        };
+        while let Some((pat, guard)) = next {
             let arrow = self.next(); // =>
-            let body = self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()))?;
+            let (body, following) = self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()))?;
             if body.kids.is_empty() {
                 let pos = self.peek().pos;
                 return Err(err("E0110", pos, vec![s("an empty match arm")]));
             }
             n.kids
                 .push(Node::new(Head::Arm, pat.pos, vec![pat, guard, body]));
+            next = following;
         }
         self.next(); // ;;
         if n.kids.len() == 1 {
@@ -297,12 +329,29 @@ impl Parser<'_> {
         Ok(n)
     }
 
-    /// The statements of one arm, up to the next arm head or `;;`.
-    fn arm_body(&mut self, mut body: Node) -> PResult<Node> {
+    /// The head of the first arm, which must be one: when it is not, the
+    /// pattern is parsed for real so its own error is reported.
+    fn first_arm_head(&mut self) -> PResult<(Node, Node)> {
+        if let Some(head) = self.arm_head()? {
+            return Ok(head);
+        }
+        if self.at(Kind::Eof) {
+            return Err(self.unexpected());
+        }
+        self.pattern()?;
+        Err(self.unexpected())
+    }
+
+    /// The statements of one arm, up to the next arm head (returned, parsed)
+    /// or `;;` (not consumed).
+    fn arm_body(&mut self, mut body: Node) -> PResult<(Node, Option<(Node, Node)>)> {
         self.skip_seps();
-        while !self.at(Kind::DoubleSemi) && !self.at(Kind::Eof) {
-            if self.arm_head_ahead()? {
-                break;
+        while !self.at(Kind::DoubleSemi) {
+            if self.at(Kind::Eof) {
+                return Err(self.unexpected());
+            }
+            if let Some(head) = self.arm_head()? {
+                return Ok((body, Some(head)));
             }
             self.block_depth += 1;
             let stmt = self.spanned_statement();
@@ -314,7 +363,7 @@ impl Parser<'_> {
             }
             self.skip_seps();
         }
-        Ok(body)
+        Ok((body, None))
     }
 
     /// Parses `for pat in e: body ;;`.

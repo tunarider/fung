@@ -6,7 +6,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::{Runtime, Stop, Task, at, err, internal};
-use crate::value::{Value, compare, equal, format, type_name};
+use crate::value::{Value, compare, equal, format, index, type_name};
 
 /// One registered test block: its name and the function to run.
 #[derive(Clone, Debug)]
@@ -39,11 +39,14 @@ impl Runtime {
     }
 }
 
-/// Applies an assert's comparison operator (08).
+/// Applies an assert's comparison operator (08); `in` and `not_in` test
+/// membership like the IN instruction.
 fn compare_by(op: &str, l: &Value, r: &Value) -> Result<bool, Diag> {
     match op {
         "==" => return Ok(equal(l, r)),
         "!=" => return Ok(!equal(l, r)),
+        "in" => return index::contains(r, l),
+        "not_in" => return index::contains(r, l).map(|found| !found),
         _ => {}
     }
     let c = compare(l, r)?;

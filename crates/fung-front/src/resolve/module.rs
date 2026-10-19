@@ -8,13 +8,16 @@ use crate::tree::{Head, Lit, Node};
 
 use super::ModuleInfo;
 
-pub(super) fn shadow_error(name: &str, pos: Pos) -> Diag {
-    name_error("E0308", pos, name).with_help(&format!(
-        "import it under another name: `import {name} as m`"
-    ))
-}
-
 impl Resolver<'_> {
+    /// E0308 for hiding the module bound to `name`; the help writes its
+    /// import with the module as imported, not the name it is bound to.
+    pub(super) fn shadow_error(&self, name: &str, pos: Pos) -> Diag {
+        let target = self.module_specs.get(name).map_or(name, String::as_str);
+        name_error("E0308", pos, name).with_help(&format!(
+            "import it under another name: `import {target} as m`"
+        ))
+    }
+
     /// Binds an import's names as constant globals — module names marked
     /// as modules so they cannot be shadowed (04) — and rewrites the
     /// statement to `(import key (global n)|(nil) (member name (global m))…)`.
@@ -33,6 +36,14 @@ impl Resolver<'_> {
         } else {
             im.alias.as_str()
         };
+        if !mod_name.is_empty() {
+            let target = if im.is_path {
+                format!("\"{}\"", im.spec)
+            } else {
+                im.spec.clone()
+            };
+            self.module_specs.insert(mod_name.to_string(), target);
+        }
         let mut kids = vec![match self.bind_module(mod_name, n.pos, info) {
             Some(b) => ref_node(n.pos, b),
             None => Node::new(Head::Nil, n.pos, vec![]),
@@ -88,7 +99,7 @@ impl Resolver<'_> {
             let e = if b.module {
                 name_error("E0309", pos, name)
             } else {
-                shadow_error(name, pos)
+                self.shadow_error(name, pos)
             };
             self.errs.push(e);
             return None;
@@ -110,7 +121,7 @@ impl Resolver<'_> {
     fn bind_const(&mut self, name: &str, pos: Pos) -> Option<Binding> {
         if let Some(b) = self.root_scope().names.get(name).copied() {
             let e = if b.module {
-                shadow_error(name, pos)
+                self.shadow_error(name, pos)
             } else {
                 name_error("E0209", pos, name)
             };
@@ -140,7 +151,8 @@ impl Resolver<'_> {
     /// params, patterns.
     pub(super) fn check_shadow(&mut self, name: &str, pos: Pos) -> bool {
         if self.module_names.contains_key(name) {
-            self.errs.push(shadow_error(name, pos));
+            let e = self.shadow_error(name, pos);
+            self.errs.push(e);
             return false;
         }
         true

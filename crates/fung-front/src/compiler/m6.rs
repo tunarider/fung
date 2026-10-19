@@ -7,7 +7,30 @@ use crate::diag::Diag;
 use crate::tree::{Head, Node};
 
 fn is_comparison(op: &str) -> bool {
-    matches!(op, "==" | "!=" | "<" | ">" | "<=" | ">=")
+    matches!(op, "==" | "!=" | "<" | ">" | "<=" | ">=" | "in")
+}
+
+/// The comparison at the top of an assert's expression, with its two
+/// sides: `x not in xs` arrives as `(op not (op in x xs))` (desugar).
+fn top_comparison(e: &Node) -> Option<(&str, &[Node])> {
+    if e.head != Head::Op {
+        return None;
+    }
+    let op = lit_str(e);
+    if is_comparison(op) && e.kids.len() == 2 {
+        return Some((op, &e.kids));
+    }
+    match e.kids.as_slice() {
+        [inner]
+            if op == "not"
+                && inner.head == Head::Op
+                && lit_str(inner) == "in"
+                && inner.kids.len() == 2 =>
+        {
+            Some(("not_in", &inner.kids))
+        }
+        _ => None,
+    }
 }
 
 fn is_literal(h: Head) -> bool {
@@ -34,9 +57,9 @@ impl Compiler<'_> {
             text: e.text(src).to_string(),
             ..Assert::default()
         };
-        if e.head == Head::Op && is_comparison(lit_str(e)) && e.kids.len() == 2 {
-            a.op = lit_str(e).to_string();
-            for (i, side) in e.kids.iter().enumerate() {
+        if let Some((op, sides)) = top_comparison(e) {
+            a.op = op.to_string();
+            for (i, side) in sides.iter().enumerate() {
                 self.expr(side, false)?;
                 if !is_literal(side.head) {
                     let text = side.text(src).to_string();

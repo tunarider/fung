@@ -938,6 +938,7 @@ impl<'rt> Task<'rt> {
                             part.as_ref().expect("CONCAT of an unassigned slot"),
                         ));
                     }
+                    value::check_chars(&s).map_err(|d| at(d, pos))?;
                     self.push(Value::Str(Rc::new(s)));
                 }
                 Op::List

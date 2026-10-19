@@ -132,10 +132,37 @@ fn lower_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `replace(s, old, new)`: every occurrence; an empty `old` matches before
-/// every character and at the end.
+/// every character and at the end. A result past `MAX_CHARS` characters is
+/// E0806 before anything is built (02).
 fn replace_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let [s, old, new] = nat::str_args(&a, ["s", "old", "new"])?;
+    if !replace_fits(s, old, new) {
+        return Err(too_many_chars());
+    }
     Ok(string(s.replace(old, new)))
+}
+
+/// Whether `replace(s, old, new)` stays within `MAX_CHARS`. The size of
+/// the result grows with the number of matches, so this counts them only
+/// when the most there could be might pass the limit, and counts
+/// characters only when the bytes do.
+fn replace_fits(s: &str, old: &str, new: &str) -> bool {
+    let limit = MAX_CHARS as i128;
+    let (len, old_len, new_len) = (s.len() as i128, old.len() as i128, new.len() as i128);
+    let most = if old.is_empty() {
+        len + 1
+    } else {
+        len / old_len
+    };
+    if len + most * (new_len - old_len).max(0) <= limit {
+        return true;
+    }
+    let n = s.matches(old).count() as i128;
+    if len + n * (new_len - old_len) <= limit {
+        return true;
+    }
+    let chars = |x: &str| x.chars().count() as i128;
+    chars(s) + n * (chars(new) - chars(old)) <= limit
 }
 
 fn starts_with_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {

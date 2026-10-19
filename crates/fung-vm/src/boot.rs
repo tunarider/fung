@@ -19,7 +19,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
 
-use crate::native::{fs, json, nat, net, path, process, regex, time};
+use crate::native::{fs, json, nat, net, path, process, range, regex, time};
 use crate::value::{Module, Value};
 use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
@@ -148,6 +148,7 @@ pub const NATIVE_MODULES: &[(&str, NativeModule)] = &[
     ("_native.net", net::module),
     ("_native.path", path::module),
     ("_native.process", process::module),
+    ("_native.range", range::module),
     ("_native.regex", regex::module),
     ("_native.time", time::module),
 ];

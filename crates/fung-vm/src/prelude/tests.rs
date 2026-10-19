@@ -409,6 +409,16 @@ fn string_size_limits() {
         "E0806"
     );
     assert!(call("repeat", vec![st("ab"), Value::Int(3)]).is_ok());
+    // `replace` checks the size before it builds: 200 million characters
+    // here, from 20,000 occurrences of a 10,000-character replacement.
+    let (a, b) = (st(&"a".repeat(20_000)), st(&"b".repeat(10_000)));
+    assert_eq!(code(&call("replace", vec![a, st("a"), b])), "E0806");
+    let a = st(&"a".repeat(60_000_000));
+    assert_eq!(code(&call("replace", vec![a, st(""), st("x")])), "E0806");
+    // 120 million bytes, but 60 million characters.
+    let (a, b) = (st(&"a".repeat(30_000)), st(&"é".repeat(2_000)));
+    let v = call("replace", vec![a, st("a"), b]).unwrap();
+    assert!(matches!(&v, Value::Str(r) if r.len() == 120_000_000));
 }
 
 /// The collection functions, the cases that need only the core

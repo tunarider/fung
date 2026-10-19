@@ -651,3 +651,74 @@ fn iterating_a_sender_says_to_use_the_receiving_end() {
         "{err}"
     );
 }
+
+/// When the merged receiving end is gone, `conc.fan_in` stops forwarding
+/// and lets go of its inputs, so the producers' `send` sees
+/// `Err({kind: 'closed})` and they end (05 "채널의 두 끝"). It used to
+/// drain the inputs forever, busy, so the scope never closed. The
+/// `timeout` only bounds the test.
+#[test]
+fn fan_in_stops_when_its_output_is_gone() {
+    let (out, err, code) = run("import conc\n\
+         fn ticker(s, name):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped ${name}\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
+         print(timeout(10s, () => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s, \"a\"), ticker(s, \"b\")])\n  len(take(out, 2))\n;;)))");
+    let mut lines: Vec<&str> = out.lines().collect();
+    lines.sort();
+    assert_eq!(
+        (lines, err.as_str(), code),
+        (vec!["2", "stopped a", "stopped b"], "", 0)
+    );
+}
+
+/// An input that never sends nor closes does not keep `fan_in` alive
+/// once its output is gone: the other inputs' forwarders find that out
+/// and stop the idle one too.
+#[test]
+fn fan_in_lets_an_idle_input_go_when_its_output_is_gone() {
+    let (out, err, code) = run("import conc\n(_idle_tx, idle) = channel()\n\
+         fn ticker(s):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
+         print(timeout(10s, () => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s), idle])\n  len(take(out, 2))\n;;)))");
+    assert_eq!((out.as_str(), err.as_str(), code), ("stopped\n2\n", "", 0));
+}
+
+/// The forwarding loop is a tail call: a long stream runs in constant
+/// stack.
+#[test]
+fn fan_in_forwards_a_long_stream() {
+    let (out, err, code) = run(
+        "import conc\nprint(scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, () => each(1..=200000, i => send(tx, i)))\n  sum(conc.fan_in(s, [rx]))\n;;))",
+    );
+    assert_eq!((out.as_str(), err.as_str(), code), ("20000100000\n", "", 0));
+}
+
+/// Receivers that stop waiting leave the queue (`queued` counts only
+/// the ones still waiting) and the rest are paired in the order they
+/// began waiting (review C4: a wait that ends marks its slot instead of
+/// scanning the queue). 40 receivers, 26 cancelled.
+#[test]
+fn receivers_left_after_cancellations_are_paired_in_order() {
+    let o = exec_waiting(
+        "(tx, rx) = channel()\nscope(fn(s):\n  ws = map(0..40, i => spawn(s, fn(): print(i, recv(rx)!) ;;))\n  blocked(rx, 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  until(() => all(gone, finished))\n  print(\"left\", queued(rx))\n  each(0..14, i => send(tx, i))\n;;)",
+    );
+    let want: String = std::iter::once("left 14\n".to_string())
+        .chain((0..14).map(|k| format!("{} {k}\n", k * 3)))
+        .collect();
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (want.as_str(), "", 0)
+    );
+}
+
+/// A send that stops waiting drops its value at once, even while
+/// other sends still wait in the queue: here the value is the only
+/// receiving end of another channel, which closes then (05 "채널의 두 끝").
+#[test]
+fn a_cancelled_send_drops_its_value_at_once() {
+    let o = exec_waiting(
+        "(a_tx, a) = channel()\n(out_tx, out) = channel(1)\nscope(fn(s):\n  each(0..2, i => spawn(s, () => send(a_tx, i)))\n  t = spawn(s, fn():\n    (b_tx, b) = channel(1)\n    send(out_tx, b_tx)\n    send(a_tx, b)\n  ;;)\n  b_tx = recv(out)!\n  blocked(a, 3)\n  cancel(t)\n  until(() => finished(t))\n  print(queued(a), send(b_tx, 1))\n  print(recv(a), recv(a))\n;;)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("2 Err({kind: 'closed})\nOk(0) Ok(1)\n", "", 0)
+    );
+}

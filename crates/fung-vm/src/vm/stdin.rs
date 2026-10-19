@@ -31,7 +31,7 @@ use std::collections::VecDeque;
 use std::io::BufRead;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-use super::block::Waiter;
+use super::block::{WaitList, Waiter};
 
 /// The buffer the command reads standard input with: one read takes at
 /// most this much. 64 KiB is the pipe buffer size on Linux, so one read
@@ -55,7 +55,7 @@ struct PumpState {
     /// input (or a read error).
     lines: VecDeque<Option<Vec<u8>>>,
     /// Tasks waiting for a line, woken when one comes.
-    waiting: Vec<Arc<Waiter>>,
+    waiting: WaitList,
     /// The runtime is gone: the reader thread stops.
     closed: bool,
 }
@@ -79,7 +79,7 @@ impl Stdin {
             state: Mutex::new(PumpState {
                 source: Some(source),
                 lines: VecDeque::new(),
-                waiting: Vec::new(),
+                waiting: WaitList::default(),
                 closed: false,
             }),
             demand: Condvar::new(),
@@ -101,11 +101,10 @@ impl Stdin {
                 .expect("start the standard input reader");
         }
         if let Some(line) = s.lines.pop_front() {
-            s.waiting.retain(|w| !Arc::ptr_eq(w, me));
+            s.waiting.remove(me);
             return Some(line);
         }
-        if !s.waiting.iter().any(|w| Arc::ptr_eq(w, me)) {
-            s.waiting.push(me.clone());
+        if s.waiting.add(me) {
             self.0.demand.notify_one();
         }
         None
@@ -114,7 +113,7 @@ impl Stdin {
     /// A wait that ended without a line (cancelled, or past its
     /// deadline): `me` leaves the waiting list.
     pub(crate) fn leave(&self, me: &Arc<Waiter>) {
-        lock(&self.0.state).waiting.retain(|w| !Arc::ptr_eq(w, me));
+        lock(&self.0.state).waiting.remove(me);
     }
 
     /// How many tasks wait for a line (a test probe).
@@ -180,9 +179,7 @@ impl Pump {
             if end {
                 s.lines.push_back(None);
             }
-            for w in s.waiting.drain(..) {
-                w.wake();
-            }
+            s.waiting.wake_all();
         }
     }
 }

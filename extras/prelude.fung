@@ -4,6 +4,7 @@
 # keeps the functions that walk elements natively (map, filter, fold, …).
 # The concurrency helpers (fan_in, pmap, retry) are the module `conc`.
 import _native.process as _p
+import _native.range as _r
 
 # Process functions (06), from the native bridge.
 exec = _p.exec
@@ -12,7 +13,8 @@ env = _p.env
 
 # ---- Collections ----------------------------------------------------
 
-fn is_empty(x) = len(x) == 0
+# A range is not counted: it may hold more numbers than len can (02).
+fn is_empty(x) = type_of(x) == 'range then _r.last(x) == nil else len(x) == 0
 
 fn sum(xs) = fold(xs, 0, (acc, x) => acc + x)
 
@@ -20,12 +22,10 @@ fn sum(xs) = fold(xs, 0, (acc, x) => acc + x)
 # until closed) become one.
 fn _list(xs) = type_of(xs) == 'list then xs else map(xs, x => x)
 
-# A range's first number; ranges step by one, so the others follow from
-# it and len (first/last/take/drop build only what they return).
+# A range's first number. The range natives (_r) give the rest without
+# counting it, so first/last/take/drop build only what they return, and a
+# range wider than the int range works too (02).
 fn _start(r) = find(r, x => true)
-
-# The numbers of r from position i (0-based) up to, not including, j.
-fn _span(r, i, j) = i >= j then [] else map(_start(r) + i..=_start(r) + (j - 1), x => x)
 
 # Up to n values from a receiving end, stopping early: the rest stays in
 # the channel (05).
@@ -68,13 +68,13 @@ fn first(xs):
 ;;
 
 fn last(xs):
-  if type_of(xs) == 'range: return is_empty(xs) then nil else _start(xs) + (len(xs) - 1) ;;
+  if type_of(xs) == 'range: return _r.last(xs) ;;
   ys = _list(xs)
   is_empty(ys) then nil else ys[-1]
 ;;
 
 # take/drop never fail on a count out of range (06): n is clamped into
-# 0..=len before slicing. A count that is not an int is the caller's bug.
+# 0..=len (by _r.slice for a range). A count not an int is the caller's bug.
 fn _clamp(verb, n, size):
   if type_of(n) != 'int: fail("${verb} expects an int count, got ${type_of(n)}") ;;
   n < 0 then 0 else (n > size then size else n)
@@ -82,13 +82,13 @@ fn _clamp(verb, n, size):
 
 fn take(xs, n):
   if type_of(xs) == 'receiver: return _receive(xs, _clamp("take", n, n), []) ;;
-  if type_of(xs) == 'range: return _span(xs, 0, _clamp("take", n, len(xs))) ;;
+  if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp("take", n, n)), x => x) ;;
   ys = _list(xs)
   ys[.._clamp("take", n, len(ys))]
 ;;
 
 fn drop(xs, n):
-  if type_of(xs) == 'range: return _span(xs, _clamp("drop", n, len(xs)), len(xs)) ;;
+  if type_of(xs) == 'range: return map(_r.slice(xs, _clamp("drop", n, n)), x => x) ;;
   ys = _list(xs)
   ys[_clamp("drop", n, len(ys))..]
 ;;

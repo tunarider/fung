@@ -77,13 +77,17 @@ impl<'a> Parser<'a> {
     /// Parses statements up to (not including) `;;` or `else`. Inside a
     /// block newlines separate statements even when the block sits inside
     /// parentheses (01: 괄호 안에서 블록이 열리면 그 ;;까지는 줄바꿈이 구분자).
+    /// A block inside a match guard is ordinary code again: bare lambdas
+    /// are allowed there (01).
     pub(super) fn body(&mut self, pos: Pos) -> PResult<Node> {
-        let saved = self.nest;
+        let (saved_nest, saved_guard) = (self.nest, self.guard);
         self.nest = 0;
+        self.guard = false;
         self.block_depth += 1;
         let r = self.body_inner(pos);
         self.block_depth -= 1;
-        self.nest = saved;
+        self.nest = saved_nest;
+        self.guard = saved_guard;
         r
     }
 
@@ -248,20 +252,30 @@ impl<'a> Parser<'a> {
         }
         if self.at(Kind::LParen) {
             self.next();
-            let mut names = Vec::new();
-            loop {
-                let name = self.expect_desc(Kind::Name, "a name to import")?;
-                names.push(name.text.clone());
-                im.name_pos.push(name.pos);
-                if !self.at(Kind::Comma) {
-                    break;
-                }
-                self.next();
-            }
-            im.names = Some(names);
-            self.expect_desc(Kind::RParen, "`)`")?;
+            // newlines inside the parentheses are whitespace (01)
+            self.nest += 1;
+            let r = self.import_names(&mut im);
+            self.nest -= 1;
+            r?;
         }
         Ok(Node::leaf(Head::Import, t.pos, Lit::Import(Box::new(im))))
+    }
+
+    /// The names of `import m (a, b)` after the `(`, through the `)`.
+    fn import_names(&mut self, im: &mut Import) -> PResult<()> {
+        let mut names = Vec::new();
+        loop {
+            let name = self.expect_desc(Kind::Name, "a name to import")?;
+            names.push(name.text.clone());
+            im.name_pos.push(name.pos);
+            if !self.at(Kind::Comma) {
+                break;
+            }
+            self.next();
+        }
+        im.names = Some(names);
+        self.expect_desc(Kind::RParen, "`)`")?;
+        Ok(())
     }
 
     /// Parses `type name = type` (07). Alias names are lowercase.
@@ -269,9 +283,11 @@ impl<'a> Parser<'a> {
         let t = self.next(); // type
         let name = self.expect_desc(Kind::Name, "a lowercase alias name after `type`")?;
         self.expect_desc(Kind::Assign, "`=`")?;
+        self.skip_newlines_after_operator();
         let alts = self.type_spec()?;
         let alias = TypeAlias {
             name: name.text.clone(),
+            name_pos: name.pos,
             alts,
         };
         Ok(Node::leaf(

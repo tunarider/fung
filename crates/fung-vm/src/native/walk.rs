@@ -225,6 +225,10 @@ impl<P: PerItem> Cont for Walker<P> {
         self.pending = Some(self.cur.cancel_wait(stop)?);
         self.advance(t)
     }
+
+    fn waits_for(&self) -> Option<&'static str> {
+        self.waiting.then_some("recv")
+    }
 }
 
 /// What a walk without a callback (`join`, `flatten`, collecting for
@@ -319,5 +323,16 @@ impl<P: Collect> Cont for Drainer<P> {
             Drained::Wait(wake) => Ok(Next::Park(wake)),
             Drained::Ended => self.ended(t),
         }
+    }
+
+    fn waits_for(&self) -> Option<&'static str> {
+        match &self.then {
+            Some(k) => k.waits_for(),
+            None => Some("recv"),
+        }
+    }
+
+    fn releasing(&self) -> bool {
+        self.then.as_ref().is_some_and(|k| k.releasing())
     }
 }

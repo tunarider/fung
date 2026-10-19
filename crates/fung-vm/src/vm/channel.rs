@@ -34,8 +34,11 @@
 //! done and returns E0701; a completed slot's task finds it
 //! done and succeeds even if it was cancelled just after (the value that
 //! moved wins). A wait that ends without
-//! completion takes its slot out of the queue (`leave`, a no-op if
-//! pairing already dropped it).
+//! completion leaves the queue (`leave`, a no-op if pairing already
+//! dropped it): it marks its slot left and drops its value at once,
+//! without looking for the slot; pairing passes over left slots, and a
+//! queue drops them all once they are half of it (`Line`). So N waits on
+//! one channel that all end early cost O(N), not O(N²) (review C4).
 //!
 //! **The ends close the channel by going away** (concurrency v2, L4).
 //! Each end is one `Rc` (`Sender`, `Receiver`) made by `channel()`; a
@@ -80,10 +83,69 @@ struct Inner {
     cap: usize,
     buf: VecDeque<Value>,
     /// Blocked senders, oldest first; each slot holds its value.
-    senders: VecDeque<Rc<Slot>>,
+    senders: Line,
     /// Blocked receivers, oldest first; each slot is empty.
-    receivers: VecDeque<Rc<Slot>>,
+    receivers: Line,
     closed: bool,
+}
+
+/// One queue of blocked sends or receives, oldest first. A slot whose
+/// wait ended stays in it, marked left (`Slot::queued` false), until
+/// pairing passes it or the queue is compacted: the left slots are
+/// dropped once they are half of the queue, so it stays within twice
+/// its waiting slots and each leave costs O(1) amortized.
+#[derive(Default)]
+struct Line {
+    q: VecDeque<Rc<Slot>>,
+    /// How many slots in `q` were left.
+    left: usize,
+}
+
+impl Line {
+    fn push(&mut self, slot: Rc<Slot>) {
+        slot.queued.set(true);
+        self.q.push_back(slot);
+    }
+
+    /// Pops the first slot that can still be paired, dropping the left
+    /// and the claimed ones before it (the claimed ones' tasks leave on
+    /// their own, and find their slot out already).
+    fn first_live(&mut self) -> Option<Rc<Slot>> {
+        while let Some(s) = self.q.pop_front() {
+            if !s.queued.replace(false) {
+                self.left -= 1;
+                continue;
+            }
+            if !s.claimed() {
+                return Some(s);
+            }
+        }
+        None
+    }
+
+    /// A slot of this queue was marked left.
+    fn one_left(&mut self) {
+        self.left += 1;
+        if self.left * 2 >= self.q.len() {
+            self.q.retain(|s| s.queued.get());
+            self.left = 0;
+        }
+    }
+
+    /// Takes every waiting slot out (the left ones are dropped).
+    fn take_all(&mut self) -> Vec<Rc<Slot>> {
+        self.left = 0;
+        self.q
+            .drain(..)
+            .filter(|s| s.queued.replace(false))
+            .collect()
+    }
+
+    /// How many slots still wait.
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.q.len() - self.left
+    }
 }
 
 /// One blocked `send` or `recv`: the value in transit, whether the other
@@ -93,10 +155,13 @@ struct Inner {
 struct Slot {
     value: RefCell<Option<Value>>,
     done: Cell<bool>,
-    /// In one of the channel's queues: a dropped wait must leave it
-    /// (`Drop` of `RecvWait`, `SendWait`), one that was taken out need not
-    /// scan for it.
+    /// Waiting in one of the channel's queues: a wait that ends without
+    /// completion must leave it (`leave`, also from the `Drop` of
+    /// `RecvWait` and `SendWait`); one that pairing or a close took out,
+    /// or that left already, need not.
     queued: Cell<bool>,
+    /// In the senders' queue (else the receivers').
+    sending: bool,
     waiter: Arc<Waiter>,
     cancel: Arc<CancelNode>,
 }
@@ -104,6 +169,7 @@ struct Slot {
 impl Slot {
     fn new(t: &Task<'_>, value: Option<Value>) -> Rc<Slot> {
         Rc::new(Slot {
+            sending: value.is_some(),
             value: RefCell::new(value),
             done: Cell::new(false),
             queued: Cell::new(false),
@@ -143,8 +209,8 @@ impl Channel {
             inner: RefCell::new(Inner {
                 cap,
                 buf: VecDeque::new(),
-                senders: VecDeque::new(),
-                receivers: VecDeque::new(),
+                senders: Line::default(),
+                receivers: Line::default(),
                 closed: false,
             }),
         }
@@ -158,7 +224,7 @@ impl Channel {
     /// neither can take it.
     fn try_send(&self, v: Value) -> Result<(), Value> {
         let mut c = self.inner.borrow_mut();
-        if let Some(r) = first_live(&mut c.receivers) {
+        if let Some(r) = c.receivers.first_live() {
             *r.value.borrow_mut() = Some(v);
             r.complete();
             return Ok(());
@@ -175,27 +241,36 @@ impl Channel {
     fn try_recv(&self) -> Option<Value> {
         let mut c = self.inner.borrow_mut();
         if let Some(v) = c.buf.pop_front() {
-            if let Some(s) = first_live(&mut c.senders) {
+            if let Some(s) = c.senders.first_live() {
                 let moved = s.value.borrow_mut().take().expect("a sender's value");
                 c.buf.push_back(moved);
                 s.complete();
             }
             return Some(v);
         }
-        let s = first_live(&mut c.senders)?;
+        let s = c.senders.first_live()?;
         let v = s.value.borrow_mut().take().expect("a sender's value");
         s.complete();
         Some(v)
     }
 
-    /// Takes a slot whose wait ended without completion out of its queue.
+    /// A slot whose wait ended without completion leaves its queue: it
+    /// is marked left, and a sender's value is dropped now, not when the
+    /// queue lets the slot go (it may hold the last copy of an end).
     fn leave(&self, slot: &Rc<Slot>) {
         if !slot.queued.replace(false) {
             return;
         }
-        let mut c = self.inner.borrow_mut();
-        c.senders.retain(|s| !Rc::ptr_eq(s, slot));
-        c.receivers.retain(|s| !Rc::ptr_eq(s, slot));
+        {
+            let mut c = self.inner.borrow_mut();
+            if slot.sending {
+                c.senders.one_left();
+            } else {
+                c.receivers.one_left();
+            }
+        }
+        let v = slot.value.borrow_mut().take();
+        drop(v);
     }
 
     /// `close`: idempotent. Every blocked task wakes and sees `closed`;
@@ -204,13 +279,9 @@ impl Channel {
         let (senders, receivers) = {
             let mut c = self.inner.borrow_mut();
             c.closed = true;
-            (
-                std::mem::take(&mut c.senders),
-                std::mem::take(&mut c.receivers),
-            )
+            (c.senders.take_all(), c.receivers.take_all())
         };
         for s in senders.iter().chain(receivers.iter()) {
-            s.queued.set(false);
             s.waiter.wake();
         }
     }
@@ -254,28 +325,17 @@ impl Channel {
         for v in std::mem::take(&mut c.buf) {
             keep(stack, v);
         }
-        for s in std::mem::take(&mut c.senders)
+        for s in c
+            .senders
+            .take_all()
             .into_iter()
-            .chain(std::mem::take(&mut c.receivers))
+            .chain(c.receivers.take_all())
         {
-            s.queued.set(false);
             if let Some(v) = s.value.borrow_mut().take() {
                 keep(stack, v);
             }
         }
     }
-}
-
-/// Pops the first slot that can still be paired, dropping the claimed
-/// ones before it from the queue (their tasks leave on their own).
-fn first_live(q: &mut VecDeque<Rc<Slot>>) -> Option<Rc<Slot>> {
-    while let Some(s) = q.pop_front() {
-        s.queued.set(false);
-        if !s.claimed() {
-            return Some(s);
-        }
-    }
-    None
 }
 
 impl std::fmt::Debug for Channel {
@@ -456,8 +516,7 @@ pub(crate) fn begin_send(t: &mut Task<'_>, end: &Rc<Sender>, v: Value) -> Try<bo
     // comes after it is seen (`block.rs`).
     t.waiter.take_woken();
     let slot = Slot::new(t, Some(v));
-    slot.queued.set(true);
-    ch.inner.borrow_mut().senders.push_back(slot.clone());
+    ch.inner.borrow_mut().senders.push(slot.clone());
     Try::Wait(SendWait {
         end: end.clone(),
         slot,
@@ -520,8 +579,7 @@ pub(crate) fn begin_recv(
     }
     t.waiter.take_woken();
     let slot = Slot::new(t, None);
-    slot.queued.set(true);
-    ch.inner.borrow_mut().receivers.push_back(slot.clone());
+    ch.inner.borrow_mut().receivers.push(slot.clone());
     Ok(Try::Wait(RecvWait {
         end: end.clone(),
         slot,

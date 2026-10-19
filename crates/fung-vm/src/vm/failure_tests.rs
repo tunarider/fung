@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::testutil::{Opts, Outcome, exec, exec_waiting, on_big_stack, run, setup};
+use crate::testutil::{Opts, Outcome, exec, exec_waiting, on_big_stack, report_heads, run, setup};
 use crate::value::{Native, Value};
 use crate::vm::{Stop, Task};
 
@@ -40,7 +40,10 @@ fn a_channel_nobody_sends_on_is_a_deadlock() {
     assert_eq!(code, 1);
     assert!(start.elapsed() < std::time::Duration::from_millis(500));
     // The report, then the release runs; nothing else.
-    assert_eq!((out.as_str(), err.as_str()), ("bye\n", DEADLOCK));
+    assert_eq!(
+        (out.as_str(), report_heads(&err).as_str()),
+        ("bye\n", DEADLOCK)
+    );
 }
 
 // --- failures and deadlocks ---
@@ -96,7 +99,7 @@ fn a_deadlock_is_detected() {
         exec("(_tx, ch) = channel()\nrecv(ch)", Opts::default())
     });
     assert_eq!(
-        (o.code.as_str(), o.err.as_str(), o.exit),
+        (o.code.as_str(), report_heads(&o.err).as_str(), o.exit),
         ("E0702", DEADLOCK, 1)
     );
     let o = within(10, || {
@@ -106,7 +109,7 @@ fn a_deadlock_is_detected() {
         )
     });
     assert!(o.code == "E0702" || o.code == "E0701", "{}", o.code);
-    assert_eq!((o.err.as_str(), o.exit), (DEADLOCK, 1));
+    assert_eq!((report_heads(&o.err).as_str(), o.exit), (DEADLOCK, 1));
     // A sleeper keeps the program alive: a recv with a timeout returns
     // instead of a false deadlock, and an unbuffered send meets its
     // receiver.
@@ -133,7 +136,7 @@ fn a_deadlock_after_the_last_runner_finishes() {
         )
     });
     assert_eq!(
-        (o.code.as_str(), o.err.as_str(), o.exit),
+        (o.code.as_str(), report_heads(&o.err).as_str(), o.exit),
         ("E0702", DEADLOCK, 1)
     );
     // A body that is done while its child is blocked for good: the scope
@@ -144,7 +147,10 @@ fn a_deadlock_after_the_last_runner_finishes() {
             Opts::default(),
         )
     });
-    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("", DEADLOCK, 1));
+    assert_eq!(
+        (o.out.as_str(), report_heads(&o.err).as_str(), o.exit),
+        ("", DEADLOCK, 1)
+    );
     // A test body counts as live: awaiting a worker is no deadlock.
     let ok = within(10, || {
         on_big_stack(|| {
@@ -225,7 +231,7 @@ fn a_mutual_wait_is_reported_at_once() {
     let (_, err, code) = run_within(
         "(a_tx, a) = channel()\n(b_tx, b) = channel()\nscope(fn(s):\n  t = spawn(s, fn(): recv(a); send(b_tx, 1) ;;)\n  recv(b)\n  send(a_tx, 1)\n;;)",
     );
-    assert_eq!((err.as_str(), code), (DEADLOCK, 1));
+    assert_eq!((report_heads(&err).as_str(), code), (DEADLOCK, 1));
     assert!(start.elapsed() < Duration::from_millis(500));
 }
 

@@ -205,9 +205,9 @@ print(logs, ok)</code></pre>
 <h2 id="operators">연산자</h2>
 <h3>산술</h3>
 <ul>
-  <li><code>+ - *</code>, <code>/</code>는 항상 실수 결과(<code>7 / 2 == 3.5</code>), <code>//</code>는 내림 나눗셈(<code>7 // 2 == 3</code>), <code>%</code>는 <code>//</code>와 짝인 나머지(<code>-7 % 3 == 2</code>), <code>**</code>는 거듭제곱(<code>2 ** 10 == 1024</code>, <code>2 ** -1 == 0.5</code>).</li>
+  <li><code>+ - *</code>, <code>/</code>는 항상 실수 결과(<code>7 / 2 == 3.5</code>), <code>//</code>는 내림 나눗셈(<code>7 // 2 == 3</code>), <code>%</code>는 <code>//</code>와 짝인 나머지(<code>-7 % 3 == 2</code>, 실수도 정확한 나머지라 나누는 수보다 작다), <code>**</code>는 거듭제곱(<code>2 ** 10 == 1024</code>, <code>2 ** -1 == 0.5</code>).</li>
   <li>정수와 실수를 섞으면 실수. 0으로 나누기, 정수 오버플로, <code>NaN</code>·<code>Inf</code>는 에러.</li>
-  <li><code>+</code>는 문자열·리스트를 이어 붙인다. <code>"a" + 1</code>은 에러, 반복은 <code>repeat(s, n)</code>.</li>
+  <li><code>+</code>는 문자열·리스트를 이어 붙인다. <code>"a" + 1</code>은 에러, 반복은 <code>repeat(s, n)</code>. 문자열은 1억 글자를 넘으면 E0806(보간도 같다).</li>
 </ul>
 <h3>비교·논리·포함</h3>
 <ul>
@@ -261,11 +261,12 @@ files |> map(path.join("/tmp", _))    # _의 올바른 쓰임: map에 넘길 함
 files |> len > 3                          # (files |> len) > 3
 fs.read(p) ?? "{}" |> json.parse          # (fs.read(p) ?? "{}") |> json.parse
 -2 ** 2                                   # -(2 ** 2) == -4</code></pre>
+<p><code>not</code>은 비교보다 낮으므로 그보다 높은 연산자의 피연산자가 될 수 없다. <code>a == not b</code>, <code>1 + not c</code>는 에러이고 괄호로 <code>a == (not b)</code>라고 쓴다. <code>not a == b</code>는 <code>not (a == b)</code>다.</p>
 
 <h2 id="access">인덱스·슬라이스·필드</h2>
 <ul>
   <li><code>xs[i]</code>: 음수는 뒤에서부터(<code>xs[-1]</code>). 범위를 벗어나면 에러.</li>
-  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나면 에러이고, 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다.</li>
+  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고, 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다. 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
   <li><code>m.name</code>은 <code>m["name"]</code>과 같다. 모듈의 <code>fs.read</code>도 같은 규칙이다.</li>
   <li>튜플은 인덱스로 꺼내지 않는다. 패턴으로 꺼낸다: <code>(a, b) = pair</code>.</li>
 </ul>
@@ -434,9 +435,9 @@ import "./lib/rename" (slug, to_kebab) # 이름만 직접 가져오기</code></p
 </ul>
 
 <h2 id="types">타입 표기</h2>
-<pre class="frag"><code>type Shape = Circle | Rect             # 별칭: 같은 모듈 안에서만
+<pre class="frag"><code>type shape = Circle | Rect             # 별칭: 같은 모듈 안에서만
 
-fn area(s: Shape) -> num = match s:
+fn area(s: shape) -> num = match s:
   Circle(r)  => 3.14 * r * r
   Rect(w, h) => w * h
 ;;
@@ -447,6 +448,7 @@ fn load(p: str) -> Ok | Err = …</code></pre>
   <li><code>|</code>로 유니온을 만든다. <code>list[int]</code>처럼 원소 타입을 적을 수 있지만 런타임은 바깥 타입만 검사한다.</li>
   <li>인자와 반환 타입에만 쓴다. 맞지 않으면 런타임 에러(E0403, E0404). 변수에는 쓰지 않는다.</li>
   <li>타입 이름은 값 이름과 다른 이름 공간이다. <code>list = [1]</code>이라는 변수가 있어도 <code>x: list</code>는 타입이다.</li>
+  <li>별칭 이름은 소문자이고(대문자는 태그), 위의 타입 이름은 별칭으로 쓸 수 없다(<code>type int = str</code>은 E0222).</li>
 </ul>
 
 <h2 id="testing">테스트와 디버깅</h2>

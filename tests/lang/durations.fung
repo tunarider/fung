@@ -2,3 +2,6 @@ print(1h30m, 500ms + 1.5s, 2 * 30s, 1m / 4, 30s < 1m, 1.5ms, -5s)
 # expect: 1h30m 2s 1m 15s true 1.5ms -5s
 print(1h - 1h, 0.5 * 1m)
 # expect: 0s 30s
+d = 2562047h + 1ms
+print(d / 1 == d, d / 1, 43800h7.000001ms / 1, 0.000007ms / 2)
+# expect: true 2562047h1ms 43800h7.000001ms 0.000004ms

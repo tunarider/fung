@@ -28,10 +28,13 @@ pub(super) fn scale_dur(d: i64, n: &Value) -> Result<Value, Diag> {
     round_to_dur((d as f64 * f).round())
 }
 
-/// Divides a duration by a number.
+/// Divides a duration by a number. An int divisor divides exactly and
+/// rounds to the nearest nanosecond, halves away from zero, as a duration
+/// literal does; only a float divisor goes through f64.
 pub(super) fn div_dur(d: i64, n: &Value) -> Result<Value, Diag> {
     let f = match n {
-        Value::Int(x) => *x as f64,
+        Value::Int(0) => return Err(divzero()),
+        Value::Int(x) => return div_dur_int(d, *x),
         Value::Float(x) => *x,
         _ => return Err(type_error("divide", "dur", &type_name(n))),
     };
@@ -39,4 +42,14 @@ pub(super) fn div_dur(d: i64, n: &Value) -> Result<Value, Diag> {
         return Err(divzero());
     }
     round_to_dur((d as f64 / f).round())
+}
+
+/// `d / n` for `n != 0`, in i128 so that nothing wraps.
+fn div_dur_int(d: i64, n: i64) -> Result<Value, Diag> {
+    let (d, n) = (i128::from(d), i128::from(n));
+    let (mut q, r) = (d / n, d % n);
+    if 2 * r.abs() >= n.abs() {
+        q += if (d < 0) == (n < 0) { 1 } else { -1 };
+    }
+    i64::try_from(q).map(Value::Dur).map_err(|_| overflow())
 }

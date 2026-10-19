@@ -39,6 +39,36 @@ fn assert_reports() {
     check_code(&[("assert 1 != 1.0", "E0807")]);
 }
 
+#[test]
+fn assert_shows_both_sides_of_in() {
+    // `in` and `not in` are comparisons too (07), so a failure shows the
+    // values of both sides (08).
+    let cases: [(&str, &[&str]); 2] = [
+        (
+            "x = 2\nxs = [1]\nassert x in xs",
+            &["assertion failed: x in xs", "x = 2", "xs = [1]"],
+        ),
+        (
+            "m = {a: 1}\nk = \"a\"\nassert k not in m",
+            &["assertion failed: k not in m", "k = \"a\"", "m = {a: 1}"],
+        ),
+    ];
+    for (src, wants) in cases {
+        let o = exec(src, Opts::default());
+        let e = o.error.unwrap_or_else(|| panic!("{src:?}: no error"));
+        assert_eq!(e.code, "E0807", "{src:?}");
+        let text = e.headline.clone() + "\n" + &e.notes.join("\n");
+        for w in wants {
+            assert!(text.contains(w), "{src:?}: {text:?} lacks {w:?}");
+        }
+    }
+    check_out(&[(
+        "assert 1 in [1]\nassert 2 not in [1]\nprint(\"ok\")",
+        "ok\n",
+    )]);
+    check_code(&[("assert 1 in 2", "E0512")]);
+}
+
 /// The whole report, as `fung` prints it.
 #[test]
 fn assert_report() {
@@ -109,9 +139,10 @@ fn test_blocks_run_one_after_another() {
             Err(Stop::Error(d)) => assert_eq!(d.code, "E0702"),
             r => panic!("stuck: {r:?}"),
         }
+        // The report shows where the block waits.
         assert_eq!(
             err.text(),
-            "error[E0702]: deadlock: all tasks are waiting\n"
+            "error[E0702]: deadlock: all tasks are waiting\n  --> t.fung:10:19\n   |\n10 | test \"stuck\": recv(ch) ;;\n   |                   ^\n   |\n call path (innermost first):\n   t.fung:10  test: stuck\n"
         );
         rt.cancel_all();
         rt.wait();

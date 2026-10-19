@@ -86,8 +86,10 @@ pub(crate) struct World {
     /// A deadlock was reported (it is reported once).
     pub(super) deadlocked: bool,
     /// The shield nodes of the `with` releases running now
-    /// (`cleanup.rs`): a deadlock while one runs cuts it short.
-    pub(super) shields: Vec<Weak<CancelNode>>,
+    /// (`cleanup.rs`): a deadlock while one runs cuts it short. Keyed by
+    /// the node's address, so a release that ends leaves at O(1) however
+    /// many run (review C5).
+    pub(super) shields: std::collections::HashMap<usize, Weak<CancelNode>>,
     /// The stop request and its channel (`stop.rs`).
     pub(super) stop: super::stop::StopState,
     /// The REPL's evaluation was interrupted (`StopHandle::interrupt`).
@@ -172,7 +174,7 @@ impl World {
             io: std::collections::HashMap::new(),
             io_fds: std::collections::HashMap::new(),
             deadlocked: false,
-            shields: Vec::new(),
+            shields: std::collections::HashMap::new(),
             exit_by_deadlock: false,
             exit_after_deadlock: None,
             stop: Default::default(),
@@ -256,8 +258,8 @@ impl World {
 
     /// The shield nodes of the releases running now; forgets the ended.
     pub(super) fn live_shields(&mut self) -> Vec<Arc<CancelNode>> {
-        self.shields.retain(|w| w.strong_count() > 0);
-        self.shields.iter().filter_map(Weak::upgrade).collect()
+        self.shields.retain(|_, w| w.strong_count() > 0);
+        self.shields.values().filter_map(Weak::upgrade).collect()
     }
 
     pub(super) fn stdout(&mut self) -> &mut dyn Write {
