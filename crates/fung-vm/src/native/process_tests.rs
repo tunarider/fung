@@ -27,6 +27,8 @@ fn alive(pid: &str) -> bool {
         .is_ok_and(|s| s.success())
 }
 
+/// The bound is above `TERM_GRACE`, as in
+/// `an_exit_terminates_running_commands`.
 #[test]
 fn a_cancelled_command_is_terminated() {
     own_group();
@@ -36,7 +38,7 @@ fn a_cancelled_command_is_terminated() {
         ("Err({kind: 'timeout})\n".into(), "".into(), 0)
     );
     assert!(
-        start.elapsed() < Duration::from_secs(2),
+        start.elapsed() < Duration::from_secs(5),
         "{:?}",
         start.elapsed()
     );
@@ -86,6 +88,9 @@ fn a_command_ignoring_term_is_killed() {
     );
 }
 
+/// The bound is above `TERM_GRACE` (2 s): a SIGTERM that comes while the
+/// shell is starting `sleep` may miss the new child, which then holds
+/// the output until the group's SIGKILL (seen once on a CI runner).
 #[test]
 fn an_exit_terminates_running_commands() {
     own_group();
@@ -98,7 +103,7 @@ fn an_exit_terminates_running_commands() {
     let start = Instant::now();
     assert_eq!(run(&src).2, 3);
     assert!(
-        start.elapsed() < Duration::from_secs(2),
+        start.elapsed() < Duration::from_secs(5),
         "{:?}",
         start.elapsed()
     );
