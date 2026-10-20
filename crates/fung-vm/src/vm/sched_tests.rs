@@ -103,7 +103,7 @@ fn deadlock_is_judged_by_the_scheduler() {
     assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
     for src in [
         // A sleeper: a timer ends it.
-        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  timeout(40ms, () => recv(rx))\n;;)\nprint(\"ok\")",
+        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  _ = timeout(40ms, () => recv(rx))\n;;)\nprint(\"ok\")",
         // An offload's job: the world outside ends it.
         "scope(fn(s):\n  t = spawn(s, () => slow_job())\n  await(t)\n;;)\nprint(\"ok\")",
     ] {
@@ -544,9 +544,10 @@ fn a_deadlock_report_names_the_function_and_the_release() {
     let lines: Vec<&str> = others.lines().collect();
     assert_eq!(
         lines[..3],
+        // `rx`'s sending end is a global, which every task holds (L7).
         [
-            "   recv in take at -e:3:22 (<lambda>)",
-            "   recv at -e:4:53 (<lambda>, in release)",
+            "   recv in take at -e:3:22 (<lambda>, holds its own sending end)",
+            "   recv at -e:4:53 (<lambda>, in release, holds its own sending end)",
             "   send at -e:5:45 (<lambda>)",
         ],
         "{}",
@@ -559,6 +560,48 @@ fn a_deadlock_report_names_the_function_and_the_release() {
         "{}",
         o.err
     );
+}
+
+/// A task that waits to receive while it holds that channel's sending
+/// end itself can never be woken: the report says so (review L7), for a
+/// variable of a function, a global, and another task's line.
+#[test]
+fn a_deadlock_report_names_a_sending_end_the_receiver_holds() {
+    let o = exec(
+        // `_held` is never read, so it lives on (03: 값의 수명).
+        "fn main() = scope(fn(s):\n  (tx, rx) = channel()\n  _held = tx\n  spawn(s, () => each(0..3, i => send(tx, i)))\n  for x in rx: x * 10 ;;\n;;)\nmain()",
+        Opts::default(),
+    );
+    assert!(
+        o.err.contains(
+            " help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `<lambda>`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only\n"
+        ),
+        "{}",
+        o.err
+    );
+    let o = exec("(tx, rx) = channel()\nfor x in rx: x ;;", Opts::default());
+    assert!(
+        o.err.contains("sending end itself (the global `tx`)"),
+        "{}",
+        o.err
+    );
+    let o = exec(
+        "scope(fn(s):\n  t = spawn(s, fn(): (_tx, rx) = channel(); recv(rx) ;;)\n  await(t)\n;;)",
+        Opts::default(),
+    );
+    assert!(
+        o.err
+            .contains("   recv at -e:2:49 (<lambda>, holds its own sending end)\n"),
+        "{}",
+        o.err
+    );
+    // A receiver whose sending end another task's variable holds gets no
+    // hint (a global is every task's).
+    let o = exec(
+        "fn worker(rx) = recv(rx)\nfn main() = scope(fn(s):\n  (_tx, rx) = channel()\n  a = spawn(s, () => worker(rx))\n  await(a)\n;;)\nmain()",
+        Opts::default(),
+    );
+    assert!(!o.err.contains("sending end"), "{}", o.err);
 }
 
 /// At most 10 lines; the tasks past them are counted.
@@ -580,9 +623,13 @@ fn a_deadlock_report_lists_ten_places_at_most() {
         .err
         .split_once(" 17 other tasks are waiting:\n")
         .map(|(_, r)| r);
-    let mut want: String = "   recv at -e:1:17 (w0) ×6\n".into();
+    // The sending end is a global, which every task holds (L7).
+    let mut want: String = "   recv at -e:1:17 (w0, holds its own sending end) ×6\n".into();
     for i in 1..10 {
-        want += &format!("   recv at -e:{}:17 (w{i})\n", i + 1);
+        want += &format!(
+            "   recv at -e:{}:17 (w{i}, holds its own sending end)\n",
+            i + 1
+        );
     }
     want += "   … 2 more\n";
     assert_eq!(others, Some(want.as_str()), "{}", o.err);

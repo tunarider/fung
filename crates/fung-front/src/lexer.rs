@@ -221,6 +221,16 @@ pub struct Token {
     pub float: f64,
     pub dur: i64,
     pub parts: Vec<Part>,
+    /// A name as written, when its NFC form (`text`) differs: a map key
+    /// is a string and keeps it (01, L8).
+    pub raw: Option<String>,
+}
+
+impl Token {
+    /// The text a name stands for as a map key: as written (01).
+    pub fn key(&self) -> &str {
+        self.raw.as_deref().unwrap_or(&self.text)
+    }
 }
 
 /// Trivia kept aside for the formatter.
@@ -356,6 +366,7 @@ impl<'a> Lexer<'a> {
             float: 0.0,
             dur: 0,
             parts: Vec::new(),
+            raw: None,
         }
     }
 
@@ -421,8 +432,11 @@ impl<'a> Lexer<'a> {
         while is_ident_part(self.peek()) {
             self.advance();
         }
-        // A name's text is its NFC form (01); the source keeps its bytes.
-        let text = unicode::nfc(&self.src[start..self.off]).into_owned();
+        // A name's text is its NFC form (01); the source keeps its bytes,
+        // and the token the written form for a map key.
+        let written = &self.src[start..self.off];
+        let text = unicode::nfc(written).into_owned();
+        let raw = (text != written).then(|| written.to_string());
         let kind = if let Some((_, k)) = KEYWORDS.iter().find(|(w, _)| *w == text) {
             *k
         } else if unicode::is_upper(text.chars().next().unwrap_or(first)) {
@@ -430,7 +444,7 @@ impl<'a> Lexer<'a> {
         } else {
             Kind::Name
         };
-        self.emit(kind, &text, p);
+        self.emit(kind, &text, p).raw = raw;
     }
 
     /// Tries the longest operator first so that `..=` wins over `..` and `;;`

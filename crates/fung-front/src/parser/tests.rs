@@ -1031,7 +1031,12 @@ fn map_shorthand() {
             "{a, b: 2, c}",
             "(program (map (entry a a) (entry b 2) (entry c c)))",
         ),
-        ("{DB_HOST}", "(program (map (entry DB_HOST DB_HOST)))"),
+        ("{DB_HOST: 1}", "(program (map (entry DB_HOST 1)))"),
+        (
+            "{HOME: h} = m",
+            "(program (assign (pmap (pentry HOME (pbind h))) m))",
+        ),
+        ("Ok(x) = r", "(program (assign (ptag Ok (pbind x)) r))"),
         (
             "{line, col} = e",
             "(program (assign (pmap (pentry line (pbind line)) (pentry col (pbind col))) e))",
@@ -1043,5 +1048,16 @@ fn map_shorthand() {
     ]);
     for src in ["{type}", "{\"a\"}", "{type} = m", "{a, a}"] {
         assert_ne!(perr_quiet(src), "", "{src} must not parse");
+    }
+    // An uppercase name is a tag: it names no variable (01, L4).
+    for src in [
+        "{DB_HOST}",
+        "{a, Red}",
+        "{HOME} = m",
+        "{a, PORT} = m",
+        "MAX = 3",
+        "Red = Red",
+    ] {
+        assert_eq!(perr(src), "E0225", "{src}");
     }
 }

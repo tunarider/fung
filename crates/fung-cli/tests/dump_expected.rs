@@ -119,7 +119,7 @@ fn long_chains() -> Vec<String> {
 
 /// How many dump cases there are (Review: a case must not go missing
 /// unnoticed; change it together with the cases).
-const DUMP_CASES: usize = 695;
+const DUMP_CASES: usize = 824;
 
 /// A dump longer than this is kept as a hash (the deep and long shapes).
 const LIMIT: usize = 64 * 1024;
@@ -186,7 +186,7 @@ fn dumps_match_the_expected_output() {
         vec!["dump", "ast", "-e", "Ⓐ = 1"],
         vec!["dump", "ast", "-e", "हिंदी = 1"],
         vec!["dump", "core", "-e", "ß1 = 2\nprint(ß1)"],
-        vec!["dump", "ast", "-e", "Σ1 = 1\nǅx = 2"],
+        vec!["dump", "ast", "-e", "print(Σ1)\nǅx = 2"],
         vec!["dump", "core", "-e", "x٣ = 1\nprint(x٣)"],
         vec!["dump", "ast", "-e", "x = ٣"],
         vec!["dump", "ast", "-e", "x = \u{378}"],

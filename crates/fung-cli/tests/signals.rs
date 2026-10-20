@@ -154,7 +154,7 @@ fn a_signal_during_a_busy_entry_stops_it() {
 #[test]
 fn a_watcher_finishes_and_ends_0() {
     let mut l = run_e(
-        "stop = stop_signal()\nprint(\"ready\")\nrecv(stop)\nprint(\"stopping\")\nsleep(50ms)\nprint(\"done\")",
+        "stop = stop_signal()\nprint(\"ready\")\n_ = recv(stop)\nprint(\"stopping\")\nsleep(50ms)\nprint(\"done\")",
     );
     l.wait_for("ready");
     l.signal("TERM");

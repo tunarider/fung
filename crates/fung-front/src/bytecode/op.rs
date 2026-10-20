@@ -37,7 +37,7 @@ pub enum Op {
     Return,
     LoadLocal,
     StoreLocal,
-    /// E0207 if unassigned
+    /// unassigned: E0808 in the REPL, E0809 otherwise (a constant read early)
     LoadGlobal,
     StoreGlobal,
     /// arg = part count; parts formatted as print would
@@ -86,11 +86,13 @@ pub enum Op {
     Assert,
     /// arg = const index of the Str test name
     Test,
+    /// let go of slot arg: it is not read again (03: 값의 수명)
+    ClearLocal,
 }
 
 impl Op {
     /// Every opcode in numbering order.
-    pub const ALL: [Op; 52] = [
+    pub const ALL: [Op; 53] = [
         Op::Const,
         Op::Pop,
         Op::Add,
@@ -143,6 +145,7 @@ impl Op {
         Op::Import,
         Op::Assert,
         Op::Test,
+        Op::ClearLocal,
     ];
 
     pub fn from_u8(b: u8) -> Option<Op> {
@@ -204,6 +207,7 @@ impl Op {
             Op::Import => "IMPORT",
             Op::Assert => "ASSERT",
             Op::Test => "TEST",
+            Op::ClearLocal => "CLEARLOCAL",
         }
     }
 

@@ -14,13 +14,23 @@ use crate::tree::{FnInfo, Head, Lit, Node, Param};
 /// Errors are boxed to keep the recursive frames small.
 type R = Result<Node, Box<Diag>>;
 
-pub fn desugar(n: &Node) -> Result<Node, Diag> {
-    let mut d = Desugarer { counter: 0 };
+/// Desugars a file. `keep_value`: the file's last expression is its
+/// value (the REPL prints it); otherwise that place is discarded like a
+/// statement (01: 버려지는 자리).
+pub fn desugar(n: &Node, keep_value: bool) -> Result<Node, Diag> {
+    let mut d = Desugarer {
+        counter: 0,
+        discard: !keep_value,
+    };
     d.walk(n).map_err(|e| *e)
 }
 
 struct Desugarer {
     counter: usize,
+    /// The node about to be walked is in a discarded place (01): a for
+    /// there runs as each, and so do those at the ends of its branches.
+    /// Each walk takes it, so it never reaches a node's operands.
+    discard: bool,
 }
 
 fn s(text: &str) -> Lit {
@@ -51,6 +61,7 @@ fn blank_info(name: &str) -> FnInfo {
         params: Vec::new(),
         ret: None,
         for_body: false,
+        expr_body: false,
         num_locals: 0,
         captures: Vec::new(),
     }
@@ -91,9 +102,30 @@ impl Desugarer {
         Ok(out)
     }
 
+    /// Walks `n` in a discarded place.
+    fn walk_discarded(&mut self, n: &Node) -> R {
+        self.discard = true;
+        self.walk(n)
+    }
+
+    /// A block: the items before the last are discarded; the last is when
+    /// the block itself is (`discard`).
+    fn block(&mut self, n: &Node, discard: bool) -> R {
+        let mut kids = Vec::with_capacity(n.kids.len());
+        for (i, k) in n.kids.iter().enumerate() {
+            kids.push(if discard || i + 1 < n.kids.len() {
+                self.walk_discarded(k)?
+            } else {
+                self.walk(k)?
+            });
+        }
+        Ok(Node::with_lit(Head::Do, n.pos, n.lit.clone(), kids))
+    }
+
     fn walk_node(&mut self, n: &Node) -> R {
+        let discard = std::mem::take(&mut self.discard);
         match n.head {
-            Head::Program | Head::Block => self.map_kids(Head::Do, n),
+            Head::Program | Head::Block => self.block(n, discard),
             Head::Assign => {
                 let rhs = self.walk(&n.kids[1])?;
                 Ok(Node::new(Head::Let, n.pos, vec![n.kids[0].clone(), rhs]))
@@ -136,7 +168,18 @@ impl Desugarer {
                 let a = self.walk(&n.kids[0])?;
                 Ok(Node::with_lit(Head::Op, n.pos, n.lit.clone(), vec![a]))
             }
-            Head::Then | Head::If => self.map_kids(Head::If, n),
+            // The condition is used; the branches are discarded with the if.
+            Head::Then | Head::If => {
+                let mut kids = vec![self.walk(&n.kids[0])?];
+                for k in &n.kids[1..] {
+                    kids.push(if discard {
+                        self.walk_discarded(k)?
+                    } else {
+                        self.walk(k)?
+                    });
+                }
+                Ok(Node::with_lit(Head::If, n.pos, n.lit.clone(), kids))
+            }
             Head::Interp => self.map_kids(Head::Concat, n),
             Head::Pipe => self.pipe(n),
             Head::Fn => self.fn_node(n),
@@ -157,8 +200,8 @@ impl Desugarer {
                 let kids: Vec<&Node> = n.kids.iter().collect();
                 self.call(n.pos, &kids)
             }
-            Head::For => self.for_loop(n),
-            Head::Match => self.match_expr(n),
+            Head::For => self.for_loop(n, discard),
+            Head::Match => self.match_expr(n, discard),
             Head::Return
             | Head::Named
             | Head::List
@@ -233,6 +276,26 @@ impl Desugarer {
     /// Lowers `x |> f(a)` to `f(x, a)` and `x |> f` to `f(x)` (01).
     fn pipe(&mut self, n: &Node) -> R {
         let rhs = &n.kids[1];
+        // The piped value is the first argument; a hole beside it would
+        // make a function of the rest instead (01: E0227).
+        if rhs.head == Head::Call
+            && let Some(h) = rhs.kids[1..].iter().find(|k| k.head == Head::Hole)
+        {
+            return Err(Box::new(error("E0227", h.pos, vec![])));
+        }
+        // A tag takes the value first too: `x |> Ok` is `Ok(x)` (01).
+        let tag_name = match rhs.head {
+            Head::Symbol if lit_str(rhs).starts_with(|c: char| c.is_uppercase()) => Some(rhs),
+            Head::Tag => Some(rhs),
+            _ => None,
+        };
+        if let Some(t) = tag_name {
+            let mut kids = vec![self.walk(&n.kids[0])?];
+            for k in &t.kids {
+                kids.push(self.walk(k)?);
+            }
+            return Ok(Node::with_lit(Head::Tag, t.pos, s(&lit_str(t)), kids));
+        }
         if rhs.head == Head::Call {
             // Insert the surface operand and walk the rebuilt call once: a
             // pre-walked operand would be walked again when pipes chain.
@@ -296,11 +359,18 @@ impl Desugarer {
 
     /// Lowers `for pat in e: body ;;` to `map(e, fn(pat): body ;;)` with the
     /// prelude's map, whatever the user has named `map` (01, 02). The lambda
-    /// is marked for_body so a return inside it is E0213 (03).
-    fn for_loop(&mut self, n: &Node) -> R {
+    /// is marked for_body so a return inside it is E0213 (03). A discarded
+    /// for (01) lowers to the prelude's `each` instead, with its body's
+    /// last item discarded too: no list is built, and each rejects an Err
+    /// the body returns (02: 버려지는 Err).
+    fn for_loop(&mut self, n: &Node, discard: bool) -> R {
         let (pat, iter, body) = (&n.kids[0], &n.kids[1], &n.kids[2]);
         let iter_c = self.walk(iter)?;
-        let mut body_c = self.walk(body)?;
+        let mut body_c = if discard {
+            self.walk_discarded(body)?
+        } else {
+            self.walk(body)?
+        };
         let mut info = blank_info("");
         info.for_body = true;
         if pat.head == Head::Pbind {
@@ -321,7 +391,15 @@ impl Desugarer {
         Ok(Node::new(
             Head::Call,
             n.pos,
-            vec![Node::leaf(Head::Prelude, n.pos, s("map")), iter_c, lambda],
+            vec![
+                Node::leaf(
+                    Head::Prelude,
+                    n.pos,
+                    s(if discard { "each" } else { "map" }),
+                ),
+                iter_c,
+                lambda,
+            ],
         ))
     }
 
@@ -404,12 +482,25 @@ impl Desugarer {
     /// Evaluates the subject once into a hidden variable:
     ///
     /// `(do (let $m0 e) (match $m0 (arm pat guard body)...))`
-    fn match_expr(&mut self, n: &Node) -> R {
+    /// A discarded match discards its arms' bodies.
+    fn match_expr(&mut self, n: &Node, discard: bool) -> R {
         let subject = self.walk(&n.kids[0])?;
         let tmp = self.hidden("m");
         let mut kids = vec![name_leaf(n.pos, &tmp)];
         for arm in &n.kids[1..] {
-            kids.push(self.map_kids(Head::Arm, arm)?);
+            let pat = self.walk(&arm.kids[0])?;
+            let guard = self.walk(&arm.kids[1])?;
+            let body = if discard {
+                self.walk_discarded(&arm.kids[2])?
+            } else {
+                self.walk(&arm.kids[2])?
+            };
+            kids.push(Node::with_lit(
+                Head::Arm,
+                arm.pos,
+                arm.lit.clone(),
+                vec![pat, guard, body],
+            ));
         }
         let m = Node::new(Head::Match, n.pos, kids);
         Ok(Node::new(
@@ -477,7 +568,7 @@ mod tests {
         let mut sm = SourceMap::new();
         let f = sm.add("t.fung", src);
         let (toks, _) = lex(f, src).unwrap();
-        desugar(&parse(&toks).unwrap()).unwrap()
+        desugar(&parse(&toks).unwrap(), true).unwrap()
     }
 
     fn core(src: &str) -> String {
@@ -496,6 +587,28 @@ mod tests {
         assert!(s.contains("(call map (list 1 2) (fn (x)"), "{s}");
         let s = core("s = \"hi ${1 + 1}\"");
         assert!(s.contains("(concat \"hi \" (op + 1 1))"), "{s}");
+    }
+
+    /// A tag on the right of a pipe takes the value as its first (01, L6).
+    #[test]
+    fn pipe_into_tags() {
+        check(&[
+            ("x |> Ok", "(do (tag Ok x))"),
+            ("x |> Pair(2)", "(do (tag Pair x 2))"),
+            ("x |> f |> Ok", "(do (tag Ok (call f x)))"),
+        ]);
+    }
+
+    #[test]
+    fn a_hole_in_a_piped_call_is_an_error() {
+        let mut sm = SourceMap::new();
+        let src = "x |> h(_, 1)";
+        let f = sm.add("t.fung", src);
+        let (toks, _) = lex(f, src).unwrap();
+        let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
+        assert_eq!((e.code.as_str(), e.pos.col), ("E0227", 8));
+        // A deeper call's hole is its own partial application.
+        assert!(core("x |> map(g(_))").starts_with("(do (call map x (do"));
     }
 
     #[test]
@@ -603,6 +716,57 @@ mod tests {
         ]);
     }
 
+    /// A for whose value is discarded runs as each (01: 버려지는 자리의
+    /// `for`); one whose value is used builds the list with map.
+    #[test]
+    fn discarded_for_becomes_each() {
+        check(&[
+            (
+                "for x in xs: g(x) ;;\n1",
+                "(do (call (prelude each) xs (fn (x) (do (call g x)))) 1)",
+            ),
+            (
+                "if c: for x in xs: x ;; ;;\n1",
+                "(do (if c (do (call (prelude each) xs (fn (x) (do x)))) (nil)) 1)",
+            ),
+            (
+                "match v: _ => for x in xs: x ;; ;;\n1",
+                "(do (do (let $m0 v) (match $m0 (arm (pwild) (nil) (do (call (prelude each) xs (fn (x) (do x))))))) 1)",
+            ),
+            (
+                "for x in xs: for y in x: y ;; ;;\n1",
+                "(do (call (prelude each) xs (fn (x) (do (call (prelude each) x (fn (y) (do y)))))) 1)",
+            ),
+            (
+                "ys = for x in xs: x ;;\n1",
+                "(do (let ys (call (prelude map) xs (fn (x) (do x)))) 1)",
+            ),
+            (
+                "fn f(): for x in xs: x ;; ;;\n1",
+                "(do (fn f() (do (call (prelude map) xs (fn (x) (do x))))) 1)",
+            ),
+            (
+                "g(for x in xs: x ;;)\n1",
+                "(do (call g (call (prelude map) xs (fn (x) (do x)))) 1)",
+            ),
+        ]);
+        // A file's last expression is discarded unless its value is kept
+        // (the REPL prints it).
+        let mut sm = SourceMap::new();
+        let src = "for x in xs: x ;;";
+        let f = sm.add("t.fung", src);
+        let (toks, _) = lex(f, src).unwrap();
+        let surface = parse(&toks).unwrap();
+        assert_eq!(
+            desugar(&surface, false).unwrap().to_string(),
+            "(do (call (prelude each) xs (fn (x) (do x))))"
+        );
+        assert_eq!(
+            desugar(&surface, true).unwrap().to_string(),
+            "(do (call (prelude map) xs (fn (x) (do x))))"
+        );
+    }
+
     #[test]
     fn for_body_lambda_is_marked() {
         let c = tree_of("for x in xs: x ;;");
@@ -656,7 +820,7 @@ mod tests {
                 let (toks, _) = lex(f, &src).unwrap();
                 let surface = parse(&toks).unwrap();
                 let before = surface.to_string();
-                let c = desugar(&surface).unwrap();
+                let c = desugar(&surface, true).unwrap();
                 assert_eq!(surface.to_string(), before);
                 assert!(c.to_string().starts_with("(do (let x (index"));
             })

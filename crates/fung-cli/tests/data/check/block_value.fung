@@ -1,6 +1,7 @@
-# W0104: a block used as a value whose last statement is an assignment.
+# E0224 (formerly the warning W0104): a block used as a value whose last
+# statement is an assignment. E0223: an if without else used as a value.
 fn a():
-  x = if true: _y = 1 ;;
+  x = if true: _y = 1 else: 0 ;;
   x
 ;;
 
@@ -16,22 +17,30 @@ fn c(v):
   ;;
 ;;
 
-print(if true: _q = 1 ;;)
-print(if true: (_m, _n) = (1, 2) ;;)
+print(if true: _q = 1 else: 0 ;;)
+print(if true: 1 ;;)
 
 fn d():
   x = if true:
-    _inner = if false: _deep = 1 ;;
+    _inner = if false: _deep = 1 else: 0 ;;
+  else:
+    0
   ;;
   x
 ;;
 
-fn fine() = if true: _not_checked = 2 ;;
+fn e() = if true: 1 ;;
+
+fn fine():
+  if true: _not_used = 2 ;;
+;;
 
 fn also_fine():
   x = if true:
     y = 1
     y
+  else:
+    0
   ;;
   x
 ;;

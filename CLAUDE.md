@@ -84,8 +84,11 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에. 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 언어·VM 검토 (2026-10-20): 고칠 문제 목록을 `docs/plans/2026-10-20-language-vm-review.md`에 모았다(항목마다 재현·명세 근거·원인 위치·고치는 법, 결정 항목은 선택지와 추천).
   결정 없는 버그 묶음(앞단 F1~F12, VM·값 V1~V7·V9, 동시성 C1~C7)은 고쳐 main에 스쿼시했다(2026-10-20, 미릴리스, CHANGELOG `[Unreleased]`).
-  **다음(새 세션에서)**: 결정 항목 L1~L11·T1~T4·V8·V10(사용자에게 묻고 정한 뒤 고침, L1 먼저), 성능 P1~P7, 문서 D1~D9.
-  처리하면 그 문서의 체크와 open-questions "남은 일"을 함께 고친다.
+  이어서 나머지 항목도 모두 처리했다(2026-10-20, 작업 브랜치, 미릴리스, CHANGELOG `[Unreleased]`): 결정 L1~L11·T1~T4·V8·V10, 성능 P1·P3~P7, 문서 D1~D9.
+  큰 언어 변화: 버려지는 `Err`는 E0606, 값 자리의 `else` 없는 `if`는 E0223, 변수 자리의 대문자 이름은 E0225, `map` 람다의 `?`는 E0226(`try_map`),
+  파이프의 `_`는 E0227, 심볼과 문자열 비교는 E0517, 지역 변수는 마지막 읽기 뒤에 놓음(`CLEARLOCAL`), 한 번만 대입되는 최상위 이름은 최상위 `fn`의 상수,
+  맵 키 자리 식별자는 쓴 그대로, 태스크 실패 값은 `{kind, code, message, at}`. P2와 P7의 맵·튜플은 open-questions "알려진 한계".
+  **다음**: main에 스쿼시(사용자 요청 시), 검토 문서 12절의 남은 의심, open-questions의 L1·L3·L7·L9 후속 한계.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
 - 매뉴얼: `docs/index.html`·`syntax.html`·`builtins.html`·`internals.html`, GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 매뉴얼도 같이 고친다.**
   매뉴얼의 코드 예제(`frag`·`plain`·`core` 클래스가 아닌 `<pre>`)는 `fung check`·`fmt --check`·실행을 통과해야 하고, `builtins.html`은 매개변수 표와 같아야 한다(`manual.rs`).

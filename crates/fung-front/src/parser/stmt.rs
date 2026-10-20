@@ -1,6 +1,6 @@
 //! Statements, bodies, `if`, `test`, `import` and `type`.
 
-use super::{PResult, Parser, describe, err, s};
+use super::{PResult, Parser, describe, err, s, tag_as_name};
 use crate::lexer::{Kind, Token};
 use crate::source::Pos;
 use crate::tree::{Head, Import, Lit, Node, TypeAlias};
@@ -48,6 +48,10 @@ impl<'a> Parser<'a> {
             let rhs = self.expr(0)?;
             let wild = Node::new(Head::Pwild, t.pos, Vec::new());
             return Ok(Node::new(Head::Assign, t.pos, vec![wild, rhs]));
+        }
+        // `MAX = 3` would be a pattern that only matches the tag (01).
+        if t.kind == Kind::Tag && self.kind_after() == Kind::Assign {
+            return Err(tag_as_name(t));
         }
         // Destructuring: try `pattern =` first when the statement starts like
         // a pattern (01: 문장 시작에서 패턴 =를 먼저 시도).

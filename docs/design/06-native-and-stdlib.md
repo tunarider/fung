@@ -16,8 +16,8 @@
 
 | 층 | 뜻 | 언어 | 예 |
 |------|------|------|------|
-| **core** | 언어의 의미와 런타임. 없으면 다른 언어가 된다. "언어가 보장하는 값 연산"을 포함한다 | Rust | 렉서~VM, 값·에러, 태스크·채널, `exit`·`at_exit`, `print`, `map`·`filter`·`fold`·`sort`, `split`·`join`, `int`·`str` |
-| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.conc`, `_native.json`, `_native.regex`, `_native.time`, `_native.net`, `_native.range`(prelude의 범위 함수가 `len` 없이 끝을 알게) |
+| **core** | 언어의 의미와 런타임. 없으면 다른 언어가 된다. "언어가 보장하는 값 연산"을 포함한다 | Rust | 렉서~VM, 값·에러, 태스크·채널, `exit`, `print`, `map`·`filter`·`fold`·`sort`, `split`·`join`, `int`·`str` |
+| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.json`, `_native.regex`, `_native.time`, `_native.net`, `_native.range`(prelude의 범위 함수가 `len` 없이 끝을 알게) |
 | **extras (내장)** | core·native 위에 **fung으로** 쓴 것. 없어도 언어는 같지만 불편하다 | fung | `fs`·`path`·`cli`·`conc`·`http` 모듈, `with_open`, `take`·`drop`·`lines`, `until` |
 | **extras (프로젝트)** | 사용자 패키지. 같은 메커니즘(맨 경로 import), 의존성 관리는 추후 | fung | — |
 
@@ -54,6 +54,8 @@
 - **외부 요인으로 실패할 수 있는 것** (파일, 네트워크, 파싱) → `Ok` / `Err` 반환.
 - **코드가 틀린 것** (타입 오류, 범위 밖 인덱스, 0으로 나누기) → 런타임 에러로 중단.
 - 변환 함수 `int`·`float`·`str`·`sym`은 잘못된 입력에 **런타임 에러** (코드 오류 취급). 그래서 `int("5") + 3`이 그대로 된다.
+- **`sym(s)`로 만든 심볼은 해제되지 않는다**(전역 인턴 표, V10 2026-10-20). 외부 입력(요청 값 등)을 `sym`으로 바꾸면 메모리가 계속 는다(Erlang의 atom과 같다).
+  바깥 값은 문자열 그대로 비교하거나, 정해진 몇 개의 이름만 `sym`으로 바꾼다.
   사용자 입력처럼 믿을 수 없는 문자열은 `parse_int(s)`·`parse_float(s)`가 `Ok`/`Err`로 돌려준다.
   문자열의 문법은 리터럴과 같다(01, 앞의 부호 하나 허용): 정수는 10진, 실수는 소수점 양쪽 숫자·지수·숫자 사이 `_`이고 정수 꼴(`"42"`)도 받는다.
   `.5`·`1.`·16진 실수·`inf`·`nan`은 거부한다.
@@ -85,7 +87,7 @@ match fs.read(p):
     (`{ fung a.fung; cat; } < file`의 `cat`)는 fung이 읽어 간 버퍼 뒤부터 받는다.
 - 타입·변환: `type_of`, `int`, `float`, `str`, `sym`, `parse_int`, `parse_float`, `parse_dur`
   - `parse_dur(s)`: 기간 리터럴 문법(`1h30m`, `500ms`, `-5s`, 앞뒤 공백 허용)을 `Ok(dur)`/`Err 'parse`로 (2026-10-14). `--timeout 30s` 같은 옵션용.
-- 컬렉션: `len`, `is_empty`, `map`, `filter`, `fold`, `each`, `sum`, `min`, `max`, `sort`, `sort_by`, `reverse`, `range`, `zip`, `first`, `last`, `take`, `drop`, `find`, `any`, `all`, `contains`, `unique`, `flatten`, `group_by`, `keys`, `values`, `pairs`, `get`, `put`, `merge`, `remove`, `chars`
+- 컬렉션: `len`, `is_empty`, `map`, `try_map`, `filter`, `fold`, `each`, `sum`, `min`, `max`, `sort`, `sort_by`, `reverse`, `range`, `zip`, `first`, `last`, `take`, `drop`, `find`, `any`, `all`, `contains`, `unique`, `flatten`, `group_by`, `keys`, `values`, `pairs`, `get`, `put`, `merge`, `remove`, `chars`
   - `each(xs, f)`: 부수효과용 순회, `nil` 반환 (`for`는 리스트를 만든다).
   - `chars(s)`, `pairs(m)`, `keys(m)`, `values(m)`: 문자열과 맵을 순회 가능한 리스트로 (02).
 - 문자열: `split`, `join`, `trim`, `upper`, `lower`, `replace`, `starts_with`, `ends_with`, `pad_left`, `pad_right`, `repeat`, `lines`
@@ -203,8 +205,7 @@ match fs.read(p):
 - 한도 (2026-10-14, 고정값; 2026-10-18 머리 한도 정리): 헤더를 10초 안에 보내지 않는 연결은 끊고, 요청 머리는 1 MiB(줄과 CRLF, 빈 줄 포함)·헤더 줄 500개까지(넘으면 431),
   요청 본문은 16 MiB까지(넘으면 413, 핸들러는 불리지 않음), 형식 오류는 400.
   조각 전송 요청 본문도 받는다.
-- 런타임 연동: 서버 루프는 fung 코드다(범위, `stop_signal`, `with`). 내부 함수는 연결 태스크를 띄우지 못했을 때(스레드가 바닥남) 서버가 죽지 않게 하는
-  `_native.conc.try_spawn` 하나다. R7에서 `spawn`이 실패하지 않게 되면 지운다.
+- 런타임 연동: 서버 루프는 fung 코드다(범위, `stop_signal`, `with`). 연결마다 태스크 하나이고, M:1 스케줄러(R1b) 뒤로 `spawn`이 실패하지 않아 내부 함수가 따로 없다.
 - 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙는다. 응답 본문은 언제나 `Content-Length`로 보낸다.
 
 **약속 밖**(지원하지 않는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축, 바이너리 본문(UTF-8이 아니면 U+FFFD).

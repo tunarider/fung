@@ -97,6 +97,9 @@ pub struct FnInfo {
     pub ret: Option<Vec<String>>,
     /// The synthetic lambda of a `for`: `return` inside is E0213.
     pub for_body: bool,
+    /// The body is one expression (`fn f() = e`, `x => e`), so its value
+    /// is used (01: 값을 쓰는 자리); a block body's last item is not.
+    pub expr_body: bool,
     pub num_locals: usize,
     pub captures: Vec<Capture>,
 }

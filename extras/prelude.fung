@@ -95,8 +95,6 @@ fn drop(xs, n):
 
 fn contains(c, x) = x in c
 
-fn unique(xs) = fold(xs, [], (acc, x) => x in acc then acc else acc + [x])
-
 fn keys(m) = pairs(m) |> map(((k, _)) => k)
 fn values(m) = pairs(m) |> map(((_, v)) => v)
 

@@ -52,6 +52,7 @@ impl Session {
         let loader = Loader {
             globals: self.globals.clone(),
             redefine: true,
+            keep_value: true,
             ..Loader::default()
         };
         let from = self.known.len();
@@ -85,7 +86,8 @@ fn globals_survive_and_closures_see_redefinitions() {
         assert_eq!(s.input("fn g() = 2\nh = 3\nf()"), value("2"));
         assert_eq!(s.input("x = 1"), value("nil"));
         assert_eq!(s.input("fn k(n) = n * x\nk(5) + h"), value("8"));
-        assert_eq!(s.input("x = 10\nk(5)"), value("5"), "k copied x (model C)");
+        // A REPL fn reads a global when called (03, L9).
+        assert_eq!(s.input("x = 10\nk(5)"), value("50"));
         assert_eq!(s.input("import fs\nfs.exists(\"/\")"), value("true"));
         assert_eq!(s.input("import fs\nfs = 1\nfs + 1"), value("2"));
         assert_eq!(s.out.text(), "");
@@ -142,6 +144,35 @@ fn failed_destructuring_changes_no_global() {
         // A failed alternative leaves nothing behind for the one that
         // matches.
         assert_eq!(s.input("(a, 1) | (a, 2) = (7, 2)\na"), value("7"));
+    });
+}
+
+/// In the REPL, where names can be assigned again, a top-level fn reads a
+/// global when it is called (03, L9).
+#[test]
+fn a_repl_fn_reads_globals_when_called() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        assert_eq!(s.input("x = 1"), value("nil"));
+        assert_eq!(s.input("fn f() = x"), value("nil"));
+        assert_eq!(s.input("f()"), value("1"));
+        assert_eq!(s.input("x = 2"), value("nil"));
+        assert_eq!(s.input("f()"), value("2"));
+        assert_eq!(s.input("y = 1\ny = 3\nfn g() = y\ng()"), value("3"));
+    });
+}
+
+/// An input's last value is printed, an Err too; one discarded before it
+/// is E0606 (02: 버려지는 Err), and a for at the end still shows its list.
+#[test]
+fn an_input_prints_its_last_err_and_rejects_a_discarded_one() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        assert_eq!(s.input("Err(1)"), value("Err(1)"));
+        assert_eq!(s.input("for x in [1]: Err(x) ;;"), value("[Err(1)]"));
+        let at = FileId(s.known.len() as u32);
+        assert_eq!(s.input("Err(1)\n2"), Outcome::Error("E0606".into(), at));
+        assert_eq!(s.input("_ = Err(1)\n2"), value("2"));
     });
 }
 
@@ -247,8 +278,9 @@ fn a_deadlock_is_recovered() {
         // Each report shows where the input and its tasks wait.
         assert_eq!(
             s.err.text(),
-            "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:5:7\n  |\n5 |   recv(never)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:5   <lambda>\n   <repl>:3   <entry>\n 1 other task is waiting:\n   recv at <repl>:4:22 (<lambda>)\n\
-             error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:2:5\n  |\n2 | recv(never)\n  |     ^\n  |\n call path (innermost first):\n   <repl>:2   <entry>\n"
+            // The REPL's globals hold the sending ends (L7).
+            "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:5:7\n  |\n5 |   recv(never)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:5   <lambda>\n   <repl>:3   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n 1 other task is waiting:\n   recv at <repl>:4:22 (<lambda>, holds its own sending end)\n\
+             error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:2:5\n  |\n2 | recv(never)\n  |     ^\n  |\n call path (innermost first):\n   <repl>:2   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n"
         );
     });
 }

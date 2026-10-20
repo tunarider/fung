@@ -47,6 +47,26 @@ const CASES: &[(&str, &str, &str)] = &[
         "20000\n",
     ),
     (
+        "index a long string",
+        "s = repeat(\"\u{e9}\", 1000000)\nprint(fold(0..200, 0, (n, i) => n + len(s[i] + s[i..i + 2])))",
+        "600\n",
+    ),
+    (
+        "a shared list equals itself",
+        "x = fold(0..24, [1], (a, _) => [a, a])\nprint(x == x, [x] == [x])",
+        "true true\n",
+    ),
+    (
+        "a list used as a stack",
+        "base = map(0..20000, x => x)\nprint(len(fold(0..20000, base, (s, i) => s[..-1] + [i])))",
+        "20000\n",
+    ),
+    (
+        "unique",
+        "print(len(unique(map(0..20000, x => x % 7000))))",
+        "7000\n",
+    ),
+    (
         "walk a list and its slice",
         "xs = map(0..200000, x => x)\nprint(fold(xs, 0, (a, x) => a + 1) + fold(xs[1..], 0, (a, x) => a + 1))",
         "399999\n",
@@ -176,7 +196,7 @@ fn threads_of(pid: u32) -> usize {
 
 /// The program of `two_thousand_connections_at_once`: its argument is
 /// the number of batches of 100 clients.
-const CONNS: &str = "import http\nfn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nbatches = parse_int(args[0])!\nn = batches * 100\n(go_tx, go_rx) = channel()\ncount = atom(0)\nh = fn(req):\n  swap(count, c => c + 1)\n  recv(go_rx)\n  \"ok\"\n;;\nfn ok(r) = match r:\n  Ok(_) => 1\n  _ => 0\n;;\nsupervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  got = scope(fn(cs):\n    # in batches below the listen backlog (128 on macOS)\n    fn batch(b) = map(0..100, _ => spawn(cs, () => http.get(\"http://\" + addr + \"/\")))\n    ts = flatten(map(0..batches, fn(b):\n      t = batch(b)\n      until(() => deref(count) == (b + 1) * 100)\n      t\n    ;;))\n    print(\"ready\")\n    read_line()\n    close(go_tx)\n    fold(ts, 0, (a, t) => a + ok(await(t)))\n  ;;)\n  print(got)\n  cancel(s)\n;;, e => nil)";
+const CONNS: &str = "import http\nfn until(f) = f() then nil else fn(): sleep(1ms); until(f) ;;()\nbatches = parse_int(args[0])!\nn = batches * 100\n(go_tx, go_rx) = channel()\ncount = atom(0)\nh = fn(req):\n  swap(count, c => c + 1)\n  _ = recv(go_rx)\n  \"ok\"\n;;\nfn ok(r) = match r:\n  Ok(_) => 1\n  _ => 0\n;;\nsupervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  got = scope(fn(cs):\n    # in batches below the listen backlog (128 on macOS)\n    fn batch(b) = map(0..100, _ => spawn(cs, () => http.get(\"http://\" + addr + \"/\")))\n    ts = flatten(map(0..batches, fn(b):\n      t = batch(b)\n      until(() => deref(count) == (b + 1) * 100)\n      t\n    ;;))\n    print(\"ready\")\n    read_line()\n    close(go_tx)\n    fold(ts, 0, (a, t) => a + ok(await(t)))\n  ;;)\n  print(got)\n  cancel(s)\n;;, e => nil)";
 
 /// Fifty tasks wait on commands at once (R4b): no thread waits for one,
 /// so the process has only a few threads (each command had four before:

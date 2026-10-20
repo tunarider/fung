@@ -1,0 +1,3 @@
+# dur // n would mean dur / n; it stays an error (07).
+print(10s // 3)
+# expect-error: E0501

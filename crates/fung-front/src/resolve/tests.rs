@@ -15,7 +15,7 @@ fn core_of(src: &str) -> Node {
     let mut sm = SourceMap::new();
     let f = sm.add("t.fung", src);
     let (toks, _) = lex(f, src).unwrap();
-    desugar(&parse(&toks).unwrap()).unwrap()
+    desugar(&parse(&toks).unwrap(), true).unwrap()
 }
 
 fn names(xs: &[&str]) -> Vec<String> {
@@ -77,7 +77,7 @@ fn core(src: &str) -> Result<String, Vec<String>> {
     let mut sm = SourceMap::new();
     let f = sm.add("-e", src);
     let (toks, _) = lex(f, src).unwrap();
-    let d = desugar(&parse(&toks).unwrap()).unwrap();
+    let d = desugar(&parse(&toks).unwrap(), true).unwrap();
     resolve(&d, &prelude(), &Options::default())
         .map(|r| r.core.to_string())
         .map_err(|es| es.iter().map(|e| e.code.clone()).collect())
@@ -135,10 +135,15 @@ fn help_texts_match_go() {
         "assign the block's value instead: `y = if … ;;`"
     );
     assert_eq!(errs[0].len, 1);
-    let (_, errs) = res("x = 1\nfn f() = x");
+    let (_, errs) = res("x = 1\nx = 2\nfn f() = x");
     assert_eq!(
         help(&errs[0]),
-        "`x` is a file-level variable (assigned on line 1) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument"
+        "`x` is a file-level variable (assigned on line 1) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument"
+    );
+    let (_, errs) = res("f = () => x\nx = 1");
+    assert_eq!(
+        help(&errs[0]),
+        "`x` is a file-level variable (assigned on line 2) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument"
     );
     let opts = m5_opts(false);
     let (_, errs) = resolve_with("import fs\nfs = 1", &["print", "map"], &opts);
@@ -395,9 +400,13 @@ fn top_level_variables_are_copied_by_lambdas_and_invisible_to_hoisted_fns() {
             index: 1
         }]
     );
-    // A top-level fn is created before any variable exists, so it cannot
-    // see x, whether x is assigned before or after it (03, model C).
+    // A top-level fn is created before any variable exists: it sees x
+    // only when x is assigned once (a constant, 03 L9), before or after it.
     for src in ["x = 1\nfn f() = x", "fn f() = x\nx = 1"] {
+        let (_, errs) = res(src);
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+    }
+    for src in ["x = 1\nx = 2\nfn f() = x", "fn f() = x\nx = 1\nx = 2"] {
         let (_, errs) = res(src);
         assert_eq!(codes(&errs), vec!["E0204"], "{src:?}");
         assert!(help(&errs[0]).contains("pass it as an argument"), "{src:?}");
@@ -427,7 +436,8 @@ fn fn_scope_errors() {
     let cases = [
         ("fn f() = 1\nfn f() = 2", "E0210"),
         ("fn f() = 1\nf = 2", "E0209"),
-        ("x = 1\nfn f(): x = 2 ;;", ""), // f cannot see x: this is a new local
+        ("x = 1\nfn f(): x = 2 ;;", ""), // f's own local x hides the constant (03, L9)
+        ("x = 1\nfn f():\n  y = x\n  x = 2\n  y\n;;", "E0204"), // read before f's own x
         ("x = 1\nf = fn(): x = 2 ;;", "E0205"), // an anonymous fn created after x sees it
         ("fn f(a): g = () => a; a = 2 ;;", ""), // same scope rebinding is fine
         ("return 1", "E0211"),
@@ -435,8 +445,9 @@ fn fn_scope_errors() {
         ("fn f(a: integer) = a", "E0212"),
         ("fn f(a) -> strng = a", "E0212"),
         ("fn f(a: Circle | int) = a", ""),
-        ("fn f() = y\ny = 1", "E0204"), // created before y exists
-        ("f = () => f()", "E0204"),     // f is not bound yet when the lambda is created
+        ("fn f() = y\ny = 1", ""), // y is assigned once: a constant (03, L9)
+        ("fn f() = y\ny = 1\ny = 2", "E0204"), // assigned twice: a variable
+        ("f = () => f()", "E0204"), // f is not bound yet when the lambda is created
         ("fn outer(): f = () => f(); f() ;;", "E0204"), // a block local: only named fns see themselves
         ("fn f():\n  if true: v = 1 ;;\n  v\n;;", "E0206"),
         ("fn f(): fn g() = 1 ;;\nfn h() = g()", "E0204"), // local fn of f is not visible in h
@@ -508,7 +519,7 @@ fn per_function_closed_sets() {
 
 // ---- collections and patterns (M4) ----
 
-const M4_PRELUDE: &[&str] = &["print", "f", "g", "xs"];
+const M4_PRELUDE: &[&str] = &["print", "f", "g", "xs", "map", "filter"];
 
 #[test]
 fn destructuring_binds_like_assignment() {
@@ -582,7 +593,15 @@ fn for_body_return_and_question_outside_fn() {
         ("fn f(xs) = for x in xs: x? ;;", "E0220"),
         ("fn f(xs) = for x in xs: g(x?) ;;", "E0220"),
         ("fn f(xs) = for x in xs: (() => x?)() ;;", ""), // a nested fn may return
-        ("a = 1\nfor (a, b) in xs: a ;;", ""),           // for variables shadow (03)
+        // A lambda given to map is the same trap (03, L2).
+        ("fn f(xs) = map(xs, x => x?)", "E0226"),
+        ("fn f(xs) = xs |> map(x => g(x?))", "E0226"),
+        ("fn f(xs) = map(xs, fn(x): x? ;;)", "E0226"),
+        ("fn f(xs) = map(xs, x => (() => x?)())", ""), // a nested fn may return
+        ("fn h(x) = x?\nfn f(xs) = map(xs, h)", ""),   // a named fn may
+        ("fn f(xs) = filter(xs, x => x?)", ""),        // not silent (03)
+        ("fn f(map, xs) = map(xs, x => x?)", ""),      // not the prelude's map
+        ("a = 1\nfor (a, b) in xs: a ;;", ""),         // for variables shadow (03)
         ("a = 1\nfor a in xs: a ;;", ""),
         ("f()?", "E0214"),
         ("fn g() = f()?", ""),
@@ -594,6 +613,35 @@ fn for_body_return_and_question_outside_fn() {
         let (_, errs) = resolve_with(src, M4_PRELUDE, &Options::default());
         assert_eq!(first_code(&errs), want, "{src:?}: {errs:?}");
     }
+}
+
+/// A top-level name assigned once is a constant a top-level fn sees
+/// (03, L9); one assigned twice is not, and the help says why.
+#[test]
+fn top_level_fns_see_names_assigned_once() {
+    for src in [
+        "x = 1\nfn f() = x",
+        "fn f() = x\nx = 1",
+        "(a, b) = (1, 2)\nfn f() = a + b",
+        "x = 1\nfn f() = () => x",
+        "x = 1\nfn f():\n  fn g() = x\n  g()\n;;",
+    ] {
+        let (_, errs) = res(src);
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+    }
+    let (_, errs) = res("x = 1\nx = 2\nfn f() = x");
+    assert_eq!(first_code(&errs), "E0204");
+    assert!(
+        help(&errs[0]).contains("assigned more than once"),
+        "{}",
+        help(&errs[0])
+    );
+    // A lambda is still made where it stands: top-down.
+    let (_, errs) = res("f = () => x\nx = 1");
+    assert_eq!(first_code(&errs), "E0204");
+    // A top-level fn's own local hides the constant of its name.
+    let (_, errs) = res("x = 1\nfn f():\n  x = 2\n  x\n;;");
+    assert!(errs.is_empty(), "{errs:?}");
 }
 
 #[test]
@@ -841,20 +889,6 @@ fn warnings() {
         ("fn f(v) = match v: map => map ;;", &["W0103:map"]),
         ("fn f():\n  x = 1\n  fn g() = x\n  g()\n;;", &[]), // read by a nested fn counts
         ("fn f():\n  x = 1\n  x = 2\n  x\n;;", &[]),        // reassigned then read
-        // A block used as a value ends with an assignment.
-        ("fn f():\n  x = if true: _y = 1 ;;\n  x\n;;", &["W0104:_y"]),
-        ("fn f():\n  x = if true: 1 ;;\n  x\n;;", &[]),
-        ("print(if true: _y = 1 ;;)", &["W0104:_y"]),
-        // Any branch.
-        (
-            "fn f():\n  x = if true: 1 else: _z = 2 ;;\n  x\n;;",
-            &["W0104:_z"],
-        ),
-        ("fn f() = if true: _z = 2 ;;", &[]), // fn bodies are not checked
-        (
-            "fn f():\n  return match 1: 1 => _y = 1 ;;\n;;",
-            &["W0104:_y"],
-        ),
         // more warning cases (Review Focus 3)
         ("fn f():\n  x = 1\n  h = () => x\n  h()\n;;", &[]), // a lambda's read counts
         ("x = 1\ntest \"t\":\n  assert x == 1\n;;", &[]),
@@ -877,10 +911,6 @@ fn warnings() {
             "fn f():\n  b = 1\n  a = 2\n  0\n;;",
             &["W0102:b", "W0102:a"],
         ), // sorted by position
-        (
-            "fn f():\n  x = if true: (a, b) = (1, 2) ;;\n  x\n;;",
-            &["W0104:this pattern", "W0102:a", "W0102:b"],
-        ),
     ];
     let lib = Options {
         library: true,
@@ -894,6 +924,53 @@ fn warnings() {
     for (src, want) in cases {
         assert_eq!(warnings_of(src, &opts), *want, "{src:?}");
     }
+}
+
+/// A value that is used must not be a silent nil (01, L3): an if without
+/// else is E0223, a block that ends in an assignment E0224 (was W0104).
+#[test]
+fn values_used_must_not_be_nil() {
+    let cases: &[(&str, &[&str])] = &[
+        ("fn f():\n  x = if true: 1 ;;\n  x\n;;", &["E0223"]),
+        (
+            "fn f():\n  x = if true: _y = 1 else: 2 ;;\n  x\n;;",
+            &["E0224"],
+        ),
+        ("print(if true: _y = 1 else: 1 ;;)", &["E0224"]),
+        ("x = if true: (_a, _b) = (1, 2) else: 0 ;;", &["E0224"]),
+        ("fn f(v):\n  return match v: 1 => _y = 1 ;;\n;;", &["E0224"]),
+        ("x = if false: 1 else if true: 2 ;;", &["E0223"]),
+        ("x = if true: if false: 1 ;; else: 2 ;;", &["E0223"]),
+        ("x = 1 + (if true: 1 ;;)", &["E0223"]),
+        ("x = [if true: 1 ;;]", &["E0223"]),
+        ("x = \"${if true: 1 ;;}\"", &["E0223"]),
+        ("assert if true: true ;;", &["E0223"]),
+        ("fn f(a = if true: 1 ;;) = a", &["E0223"]),
+        ("fn f() = if true: 1 ;;", &["E0223"]),
+        ("f = x => if x: 1 ;;", &["E0223"]),
+        ("ys = for x in [1]: if x: 1 ;; ;;", &["E0223"]),
+        ("print(for x in [1]: if x: 1 ;; ;;)", &["E0223"]),
+        // Nobody uses the value.
+        ("fn f():\n  if true: 1 ;;\n;;", &[]),
+        ("f = fn(x): if x: 1 ;; ;;", &[]),
+        ("if true: 1 ;;\n1", &[]),
+        ("for x in [1]: if x: 1 ;; ;;\n1", &[]),
+        ("for x in [1]: if x: 1 ;; ;;", &[]), // the REPL's last value
+        ("x = if true:\n  if false: 1 ;;\n  2\nelse:\n  3\n;;", &[]),
+        ("test \"t\":\n  if true: 1 ;;\n;;", &[]),
+        ("x = if false: 1 else: nil ;;", &[]),
+        ("x = true then 1 else nil", &[]),
+        (
+            "fn f():\n  x = if true:\n    y = 1\n    y\n  else: 0 ;;\n  x\n;;",
+            &[],
+        ),
+    ];
+    for (src, want) in cases {
+        let (_, errs) = res(src);
+        assert_eq!(codes(&errs), *want, "{src:?}");
+    }
+    let (_, errs) = res("x = if true: _y = 1 else: 2 ;;");
+    assert_eq!(arg0(&errs[0]), "_y", "E0224 names the assigned name");
 }
 
 #[test]

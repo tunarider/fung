@@ -1358,67 +1358,73 @@
 -- exit: 0
 ==== manual builtins:8
 -- stdout
-| print(fold([1, 2, 3], 0, (acc, x) => acc + x))
+| print(["1", "2"] |> try_map(parse_int))
+| print(["1", "x"] |> try_map(parse_int))
 -- stderr
 -- exit: 0
 ==== manual builtins:9
 -- stdout
-| print(["bb", "a", "ccc"] |> sort_by(len))
+| print(fold([1, 2, 3], 0, (acc, x) => acc + x))
 -- stderr
 -- exit: 0
 ==== manual builtins:10
 -- stdout
-| print(group_by(["ab", "c", "de"], s => str(len(s))))
+| print(["bb", "a", "ccc"] |> sort_by(len))
 -- stderr
 -- exit: 0
 ==== manual builtins:11
 -- stdout
-| print(get({a: 1}, "b", 0))
+| print(group_by(["ab", "c", "de"], s => str(len(s))))
 -- stderr
 -- exit: 0
 ==== manual builtins:12
 -- stdout
-| print(split("a,,b", ","))
+| print(get({a: 1}, "b", 0))
 -- stderr
 -- exit: 0
 ==== manual builtins:13
 -- stdout
-| print(lines("a\nb\n"))
+| print(split("a,,b", ","))
 -- stderr
 -- exit: 0
 ==== manual builtins:14
 -- stdout
-| print(trim("  x "), trim("--x--", "-"))
+| print(lines("a\nb\n"))
 -- stderr
 -- exit: 0
 ==== manual builtins:15
 -- stdout
-| print(pad_left("7", 3, "0"), "[" + pad_right("ab", 4) + "]")
+| print(trim("  x "), trim("--x--", "-"))
 -- stderr
 -- exit: 0
 ==== manual builtins:16
 -- stdout
-| print(until(1, x => x * 2, x => x > 100))
+| print(pad_left("7", 3, "0"), "[" + pad_right("ab", 4) + "]")
 -- stderr
 -- exit: 0
 ==== manual builtins:17
 -- stdout
-| print(with(() => "conn", c => c + " used", c => print("closed", c)))
+| print(until(1, x => x * 2, x => x > 100))
 -- stderr
 -- exit: 0
 ==== manual builtins:18
+-- stdout
+| print(with(() => "conn", c => c + " used", c => print("closed", c)))
+-- stderr
+-- exit: 0
+==== manual builtins:19
 -- stdout
 | r = exec(["echo", "hi"])!
 | print(trim(r.out))
 -- stderr
 -- exit: 0
-==== manual builtins:19
+==== manual builtins:20
 -- stdout
 | port = env("PORT") ?? "8080"
 | print(port)
 -- stderr
 -- exit: 0
-==== manual builtins:20
+==== manual builtins:21
 -- stdout
 | r = scope(fn(s):
 |   a = spawn(s, () => 6 * 7)
@@ -1428,7 +1434,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual builtins:21
+==== manual builtins:22
 -- stdout
 | supervise(fn(s):
 |   spawn(s, () => fail("boom"))
@@ -1436,19 +1442,19 @@
 | ;;, e => eprint("handled: ${e.message}"))
 -- stderr
 -- exit: 0
-==== manual builtins:22
+==== manual builtins:23
 -- stdout
 | print(scope(s => await(spawn(s, () => 6 * 7))))
 -- stderr
 -- exit: 0
-==== manual builtins:23
+==== manual builtins:24
 -- stdout
 | print(timeout(1s, () => 1 + 1))
 | (_tx, rx) = channel()
 | print(timeout(10ms, () => recv(rx)))
 -- stderr
 -- exit: 0
-==== manual builtins:24
+==== manual builtins:25
 -- stdout
 | fn numbers(s, n):
 |   (tx, rx) = channel()
@@ -1463,74 +1469,74 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual builtins:25
+==== manual builtins:26
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, "hi")
 | print(recv(rx)!)
 -- stderr
 -- exit: 0
-==== manual builtins:26
+==== manual builtins:27
 -- stdout
 | stop = stop_signal()
 | request_stop()
 | print(recv(stop))
 -- stderr
 -- exit: 0
-==== manual builtins:27
+==== manual builtins:28
 -- stdout
 | hits = atom(0)
 | each(1..=3, _ => swap(hits, n => n + 1))
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual builtins:28
+==== manual builtins:29
 -- stdout
 | import cli
 | opts = cli.parse(["--dry-run", "--n", "3", "a.txt"], bools: ["dry-run"])
 | print(opts.flags.dry_run, int(opts.flags.n), opts.rest)
 -- stderr
 -- exit: 0
-==== manual builtins:29
+==== manual builtins:30
 -- stdout
 | import json
 | data = json.parse(`{"name": "fung", "tags": ["a"], "n": 3}`)!
 | print(data.name, data.tags, data.n + 1)
 -- stderr
 -- exit: 0
-==== manual builtins:30
+==== manual builtins:31
 -- stdout
 | import json
 | print(json.stringify({ok: true, ids: (1, 2), at: 'now}))
 -- stderr
 -- exit: 0
-==== manual builtins:31
+==== manual builtins:32
 -- stdout
 | import time
 | t = time.parse("2026-10-04 09:05", "YYYY-MM-DD HH:mm")!
 | print(time.format(t + 90m, "HH:mm"))
 -- stderr
 -- exit: 0
-==== manual builtins:32
+==== manual builtins:33
 -- stdout
 | import regex
 | m = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
 | print(m.named.key, int(m.named.val) + 1)
 -- stderr
 -- exit: 0
-==== manual builtins:33
+==== manual builtins:34
 -- stdout
 | import regex
 | print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"))
 -- stderr
 -- exit: 0
-==== manual builtins:34
+==== manual builtins:35
 -- stdout
 | import conc
 | print(conc.pmap([1, 2, 3], x => x * x, limit: 2))
 -- stderr
 -- exit: 0
-==== manual builtins:35
+==== manual builtins:36
 -- stdout
 | import conc
 | print(conc.retry(() => Err("down"), times: 2))
@@ -1619,6 +1625,12 @@
 -- exit: 0
 ==== manual syntax:4
 -- stdout
+| elapsed = 1m30s
+| print(elapsed / 1ms, elapsed // 1m, elapsed % 1m)
+-- stderr
+-- exit: 0
+==== manual syntax:5
+-- stdout
 | fn classify(n):
 |   if n < 0:
 |     "negative"
@@ -1632,7 +1644,7 @@
 | fn classify_short(n) = if n < 0: "negative" else if n == 0: "zero" else: "positive" ;;
 -- stderr
 -- exit: 0
-==== manual syntax:5
+==== manual syntax:6
 -- stdout
 | names = ["b.log", "a.txt", "c.log"]
 | logs = names
@@ -1643,7 +1655,7 @@
 | print(logs, ok)
 -- stderr
 -- exit: 0
-==== manual syntax:6
+==== manual syntax:7
 -- stdout
 | line = " ERROR,disk full "
 | fields = line |> trim |> lower |> split(",")
@@ -1651,13 +1663,13 @@
 | print(fields, cfg |> keys)
 -- stderr
 -- exit: 0
-==== manual syntax:7
+==== manual syntax:8
 -- stdout
 | xs = [10, 20, 30, 40]
 | print(xs[-1], xs[1..3], xs[..2], "참치김밥"[1..3])
 -- stderr
 -- exit: 0
-==== manual syntax:8
+==== manual syntax:9
 -- stdout
 | # 식 하나짜리
 | fn add(a, b) = a + b
@@ -1683,26 +1695,26 @@
 | later()
 -- stderr
 -- exit: 0
-==== manual syntax:9
+==== manual syntax:10
 -- stdout
 | fn greet(name, greeting = "hello", ...extra) = "${greeting}, ${name}${join(extra)}"
 | print(greet("fung"), greet("fung", greeting: "hi"), greet("fung", "yo", "!", "?"))
 -- stderr
 -- exit: 0
-==== manual syntax:10
+==== manual syntax:11
 -- stdout
 | import path
 | files = ["a.txt", "b.txt"]
 | print(files |> map(path.join("/tmp", _)))
 -- stderr
 -- exit: 0
-==== manual syntax:11
+==== manual syntax:12
 -- stdout
 | fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 | print(count(1_000_000, 0))
 -- stderr
 -- exit: 0
-==== manual syntax:12
+==== manual syntax:13
 -- stdout
 | fn sign(n):
 |   if n > 0:
@@ -1716,7 +1728,7 @@
 | print(sign(5), 3 > 2 then "yes" else "no")
 -- stderr
 -- exit: 0
-==== manual syntax:13
+==== manual syntax:14
 -- stdout
 | (q, r) = (7 // 2, 7 % 2)
 | [top, ...rest] = ["a", "b", "c"]
@@ -1724,7 +1736,7 @@
 | print(q, r, top, rest, name, p)
 -- stderr
 -- exit: 0
-==== manual syntax:14
+==== manual syntax:15
 -- stdout
 | squares = for x in 1..=3: x * x ;;
 | for (k, v) in pairs({a: 1, b: 2}):
@@ -1733,7 +1745,7 @@
 | print(squares)
 -- stderr
 -- exit: 0
-==== manual syntax:15
+==== manual syntax:16
 -- stdout
 | fn half(n) = n // 2
 |
@@ -1762,9 +1774,10 @@
 -- exit: 0
 ==== crates/fung-cli/tests/data/check/block_value.fung
 -- stdout
-| # W0104: a block used as a value whose last statement is an assignment.
+| # E0224 (formerly the warning W0104): a block used as a value whose last
+| # statement is an assignment. E0223: an if without else used as a value.
 | fn a():
-|   x = if true: _y = 1 ;;
+|   x = if true: _y = 1 else: 0 ;;
 |   x
 | ;;
 |
@@ -1780,22 +1793,30 @@
 |   ;;
 | ;;
 |
-| print(if true: _q = 1 ;;)
-| print(if true: (_m, _n) = (1, 2) ;;)
+| print(if true: _q = 1 else: 0 ;;)
+| print(if true: 1 ;;)
 |
 | fn d():
 |   x = if true:
-|     _inner = if false: _deep = 1 ;;
+|     _inner = if false: _deep = 1 else: 0 ;;
+|   else:
+|     0
 |   ;;
 |   x
 | ;;
 |
-| fn fine() = if true: _not_checked = 2 ;;
+| fn e() = if true: 1 ;;
+|
+| fn fine():
+|   if true: _not_used = 2 ;;
+| ;;
 |
 | fn also_fine():
 |   x = if true:
 |     y = 1
 |     y
+|   else:
+|     0
 |   ;;
 |   x
 | ;;
@@ -2614,7 +2635,7 @@
 -- stderr
 -- exit: 0
 ==== extras/conc.fung
--- stdout (2079 bytes, fnv1a64 664c3637999be311)
+-- stdout (2083 bytes, fnv1a64 3b161c77533d774f)
 -- stderr
 -- exit: 0
 ==== extras/fs.fung
@@ -2679,7 +2700,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (68499 bytes, fnv1a64 16b10ab6f6c646b3)
+-- stdout (68440 bytes, fnv1a64 ce2bb87bbf147571)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -2707,7 +2728,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4813 bytes, fnv1a64 e9c07a8d0aec692a)
+-- stdout (4737 bytes, fnv1a64 467e3e30751a7355)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -2828,7 +2849,7 @@
 | w = if x > 5: "big" else: "small" ;;
 | print(w)
 | # expect: big
-| print(if false: 1 ;;)
+| print(if false: 1 else: nil ;;)
 | # expect: nil
 -- stderr
 -- exit: 0
@@ -3101,6 +3122,77 @@
 | # expect: 1 [2, 3] a hi
 -- stderr
 -- exit: 0
+==== tests/lang/discard.fung
+-- stdout
+| # What a discarded Err (02) leaves alone.
+|
+| # `_ = …` discards on purpose.
+| _ = Err("ignored")
+| _ = exec(["false"])
+|
+| # A value place keeps the Err: an assignment, an argument, a fn's result.
+| r = Err("kept")
+| print(r)
+| # expect: Err("kept")
+| fn fails() = Err("returned")
+| print(fails())
+| # expect: Err("returned")
+| print(is_err(exec(["false"])))
+| # expect: true
+|
+| # A for in a value place still builds its list, Errs and all.
+| xs = for x in [1, 2]: x == 2 then Err(x) else Ok(x) ;;
+| print(xs)
+| # expect: [Ok(1), Err(2)]
+|
+| # A nested for statement in a for statement is discarded as well.
+| for x in [1, 2]:
+|   for y in [x]:
+|     print(y)
+|   ;;
+| ;;
+| # expect: 1
+| # expect: 2
+|
+| # Ok and other values are discarded as before.
+| Ok(1)
+| nil
+| [Err(1)]
+| each([1], x => Ok(x))
+| print("done")
+| # expect: done
+-- stderr
+-- exit: 0
+==== tests/lang/discard_callbacks.fung
+-- stdout
+| # Callbacks whose results are used keep their Errs.
+| print(with(() => 1, _ => Err("use"), _ => nil))
+| # expect: Err("use")
+| print(map([1], x => Err(x)))
+| # expect: [Err(1)]
+|
+| # A use that fails wins over a release that returns Err; the release's
+| # error is a note (03).
+| r = supervise(fn(s):
+|   t = spawn(s, () => with(() => 1, _ => fail("in use"), _ => Err("in release")))
+|   await(t)
+| ;;, e => nil)
+| print(r)
+| # expect: Err({kind: 'error, code: "E0803", message: "in use", at: "tests/lang/discard_callbacks.fung:10"})
+-- stderr
+-- exit: 0
+==== tests/lang/dur_numbers.fung
+-- stdout
+| # A duration divided by a duration is a number in that unit (07).
+| elapsed = 1m30s
+| print(elapsed / 1s, elapsed / 1ms, elapsed // 1m, elapsed % 1m)
+| # expect: 90.0 90000.0 1 30s
+| print(-90s // 1m, -90s % 1m)
+| # expect: -2 30s
+| print(4 * (elapsed / 1s) * 1ms)
+| # expect: 360ms
+-- stderr
+-- exit: 0
 ==== tests/lang/durations.fung
 -- stdout
 | print(1h30m, 500ms + 1.5s, 2 * 30s, 1m / 4, 30s < 1m, 1.5ms, -5s)
@@ -3256,6 +3348,74 @@
 | # expect-error: E0602
 -- stderr
 -- exit: 0
+==== tests/lang/err_discard_branch.fung
+-- stdout
+| # The last value of a branch in a discarded place is discarded too.
+| if true:
+|   Err("in a branch")
+| ;;
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_each.fung
+-- stdout
+| # each discards what f returns.
+| (tx, rx) = channel(1)
+| close(tx)
+| each([1], x => send(tx, x))
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_end.fung
+-- stdout
+| # The last expression of a file is discarded too.
+| print("before")
+| # expect: before
+| Err({kind: 'oops, message: "at the end"})
+| # expect-error: E0606
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_for.fung
+-- stdout
+| # A for statement runs as each: its body's Err is discarded.
+| for x in [1, 2]:
+|   print(x)
+|   x == 2 then Err("two") else Ok(x)
+| ;;
+| # expect: 1
+| # expect: 2
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_on_fail.fung
+-- stdout
+| # on_fail's result is discarded: an Err fails the scope (05).
+| supervise(s => spawn(s, () => fail("boom")), e => Err(e.message))
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_release.fung
+-- stdout
+| # A release's Err is discarded: it is the release's runtime error (03).
+| r = with(() => 1, x => x + 1, _ => Err("cannot release"))
+| # expect-error: E0606
+| print("not reached", r)
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_stmt.fung
+-- stdout
+| # A statement whose value is an Err is an error (02: discarded Err).
+| print("before")
+| # expect: before
+| exec(["false"])
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
 ==== tests/lang/err_div_zero.fung
 -- stdout
 | print(1)
@@ -3285,6 +3445,19 @@
 -- stdout
 | [a, a] = [1, 2]
 | # expect-error: E0221
+-- stderr
+-- exit: 0
+==== tests/lang/err_dur_div_zero.fung
+-- stdout
+| print(1s / 0s)
+| # expect-error: E0502
+-- stderr
+-- exit: 0
+==== tests/lang/err_dur_floor_div_int.fung
+-- stdout
+| # dur // n would mean dur / n; it stays an error (07).
+| print(10s // 3)
+| # expect-error: E0501
 -- stderr
 -- exit: 0
 ==== tests/lang/err_escape.fung
@@ -3320,7 +3493,7 @@
 | fn f() = x
 | f()
 | x = 1
-| # expect-error: E0204
+| # expect-error: E0809
 -- stderr
 -- exit: 0
 ==== tests/lang/err_global_from_fn.fung
@@ -3431,6 +3604,28 @@
 | # expect-error: E0208
 -- stderr
 -- exit: 0
+==== tests/lang/err_local_never_read.fung
+-- stdout
+| # A local never read lives until its function returns (03): here it
+| # keeps the channel open on purpose, so the loop waits forever.
+| fn held() = scope(fn(s):
+|   (tx, rx) = channel()
+|   _held = tx
+|   spawn(s, () => send(tx, 1))
+|   for x in rx: x ;;
+| ;;)
+| print(held())
+| # expect-error: E0702
+-- stderr
+-- exit: 0
+==== tests/lang/err_map_question.fung
+-- stdout
+| # ? in a lambda given to map would put the Err into the list (03).
+| fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
+| # expect-error: E0226
+| print(ints(["1"]))
+-- stderr
+-- exit: 0
 ==== tests/lang/err_missing_arg.fung
 -- stdout
 | fn f(a, b) = a
@@ -3482,10 +3677,56 @@
 |   |       ^
 |   |
 -- exit: 2
+==== tests/lang/err_open_if_assign.fung
+-- stdout
+| # An if without else whose value is used is a compile error (01).
+| x = if false: 1 ;;
+| # expect-error: E0223
+| print(x)
+-- stderr
+-- exit: 0
+==== tests/lang/err_open_if_chain.fung
+-- stdout
+| # The chain's last branch decides: no final else is nil too.
+| fn sign(n) = if n > 0:
+|   1
+| else if n < 0:
+|   -1
+| ;;
+| # expect-error: E0223
+| print(sign(0))
+-- stderr
+-- exit: 0
+==== tests/lang/err_open_if_lambda.fung
+-- stdout
+| # A lambda's body is a value: map keeps it.
+| print(map([1, 2], x => if x > 1: x ;;))
+| # expect-error: E0223
+-- stderr
+-- exit: 0
+==== tests/lang/err_open_if_nested.fung
+-- stdout
+| # An if at the end of a used branch is used as well.
+| print(if true:
+|   if false: 1 ;;
+| else:
+|   2
+| ;;)
+| # expect-error: E0223
+-- stderr
+-- exit: 0
 ==== tests/lang/err_overflow.fung
 -- stdout
 | print(9223372036854775807 + 1)
 | # expect-error: E0503
+-- stderr
+-- exit: 0
+==== tests/lang/err_pipe_hole.fung
+-- stdout
+| # The piped value is always the first argument: a hole there is an error.
+| fn h(a, b) = a - b
+| print(3 |> h(_, 10))
+| # expect-error: E0227
 -- stderr
 -- exit: 0
 ==== tests/lang/err_pmap_failed.fung
@@ -3528,6 +3769,14 @@
 | import regex
 | print(regex.is_match("x", "("))
 | # expect-error: E0515
+-- stderr
+-- exit: 0
+==== tests/lang/err_rest_type.fung
+-- stdout
+| # A rest parameter is a list: another annotation would fail every call.
+| fn f(...xs: int) = xs
+| # expect-error: E0228
+| print(f())
 -- stderr
 -- exit: 0
 ==== tests/lang/err_return_in_for.fung
@@ -3595,6 +3844,33 @@
 | # expect-error: E0513
 -- stderr
 -- exit: 0
+==== tests/lang/err_sym_str_eq.fung
+-- stdout
+| # JSON has no symbols: what comes back is a string.
+| import json
+| back = json.parse(json.stringify({kind: 'not_found}))!
+| print(back.kind == 'not_found)
+| # expect-error: E0517
+-- stderr
+-- exit: 0
+==== tests/lang/err_sym_str_nested.fung
+-- stdout
+| # Inside a list too, and for `in`.
+| print('a in ["a", "b"])
+| # expect-error: E0517
+-- stderr
+-- exit: 0
+==== tests/lang/err_tag_assign.fung
+-- stdout
+-- stderr
+| error[E0225]: `MAX_RETRIES` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> <stdin>:2:1
+|   |
+| 2 | MAX_RETRIES = 3
+|   | ^^^^^^^^^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
 ==== tests/lang/err_tag_named.fung
 -- stdout
 -- stderr
@@ -3605,6 +3881,36 @@
 |   |          ^
 |   |
 -- exit: 2
+==== tests/lang/err_tag_shorthand_map.fung
+-- stdout
+-- stderr
+| error[E0225]: `Red` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> <stdin>:2:8
+|   |
+| 2 | print({Red})
+|   |        ^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
+==== tests/lang/err_tag_shorthand_pattern.fung
+-- stdout
+-- stderr
+| error[E0225]: `HOME` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> <stdin>:3:2
+|   |
+| 3 | {HOME} = cfg
+|   |  ^^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
+==== tests/lang/err_tail_return_type.fung
+-- stdout
+| # The return check still runs, once, where the self tail calls end.
+| fn down(n) -> int = n == 0 then "done" else down(n - 1)
+| print(down(3))
+| # expect-error: E0404
+-- stderr
+-- exit: 0
 ==== tests/lang/err_task_failed.fung
 -- stdout
 | # A failing child cancels the scope's body, even while it sleeps.
@@ -3634,16 +3940,60 @@
 | # expect-error: E0402
 -- stderr
 -- exit: 0
+==== tests/lang/err_top_assigned_twice.fung
+-- stdout
+| # A name assigned twice is a variable: a top-level fn cannot see it.
+| level = 1
+| level = 2
+| fn show() = level
+| # expect-error: E0204
+| print(show())
+-- stderr
+-- exit: 0
+==== tests/lang/err_top_before_init.fung
+-- stdout
+| # A constant read while the file starts, before its assignment ran.
+| x = twice()
+| limit = 10
+| fn twice() = limit * 2
+| # expect-error: E0809
+| print(x)
+-- stderr
+-- exit: 0
+==== tests/lang/err_top_lambda_before.fung
+-- stdout
+| # A lambda copies what exists where it is made: still top-down (03).
+| f = () => late
+| # expect-error: E0204
+| late = 1
+| print(f())
+-- stderr
+-- exit: 0
 ==== tests/lang/err_top_return.fung
 -- stdout
 | return 1
 | # expect-error: E0211
 -- stderr
 -- exit: 0
+==== tests/lang/err_try_map_not_result.fung
+-- stdout
+| # try_map's f must return Ok or Err, as ! and ? want.
+| print(try_map([1], x => x + 1))
+| # expect-error: E0605
+-- stderr
+-- exit: 0
 ==== tests/lang/err_type.fung
 -- stdout
 | print(1 + true)
 | # expect-error: E0501
+-- stderr
+-- exit: 0
+==== tests/lang/err_types_enum.fung
+-- stdout
+| type color = Red | Green
+| fn hex(c: color) = c
+| print(hex(Blue))
+| # expect-error: E0403
 -- stderr
 -- exit: 0
 ==== tests/lang/err_undefined.fung
@@ -3690,6 +4040,18 @@
 | # expect-error: E0204
 -- stderr
 -- exit: 0
+==== tests/lang/err_value_ends_in_assign.fung
+-- stdout
+| # A block used as a value that ends in an assignment (formerly W0104).
+| x = if true:
+|   _y = 1
+| else:
+|   2
+| ;;
+| # expect-error: E0224
+| print(x)
+-- stderr
+-- exit: 0
 ==== tests/lang/exit_from_task.fung
 -- stdout
 | with(() => nil, _ => scope(fn(s):
@@ -3699,6 +4061,19 @@
 | ;;), _ => print("bye"))
 | # expect: bye
 | # expect-exit: 5
+-- stderr
+-- exit: 0
+==== tests/lang/failure_value.fung
+-- stdout
+| # A task's failure is a map with its error code, its message and where
+| # it happened (05).
+| x = supervise(fn(s):
+|   t = spawn(s, () => 1 / 0)
+|   await(t)
+| ;;, e => print(e.code, e.message, ends_with(e.at, "failure_value.fung:4")))
+| # expect: E0502 division by zero true
+| print(x)
+| # expect: Err({kind: 'error, code: "E0502", message: "division by zero", at: "tests/lang/failure_value.fung:4"})
 -- stderr
 -- exit: 0
 ==== tests/lang/fn_basics.fung
@@ -3818,11 +4193,13 @@
 | ;;
 | print(label)
 | # expect: zero
-| print(if true: if false: 1 else: 2 ;; ;;)
+| print(if true: if false: 1 else: 2 ;; else: 3 ;;)
 | # expect: 2
 | print(
 |   if 1 < 2:
 |     "yes"
+|   else:
+|     "no"
 |   ;;
 | )
 | # expect: yes
@@ -3917,6 +4294,32 @@
 | # expect:
 -- stderr
 -- exit: 0
+==== tests/lang/local_lifetime.fung
+-- stdout
+| # A local is let go after the statement that reads it last (03), so a
+| # channel a function made closes when its producer is done.
+| fn tens() = scope(fn(s):
+|   (tx, rx) = channel()
+|   spawn(s, () => each(0..3, i => send(tx, i)))
+|   for x in rx: x * 10 ;;
+| ;;)
+| print(tens())
+| # expect: [0, 10, 20]
+|
+| # Read last inside a branch: let go after the statement holding it.
+| fn pick(flag) = scope(fn(s):
+|   (tx, rx) = channel(3)
+|   if flag:
+|     spawn(s, () => send(tx, 1))
+|   else:
+|     spawn(s, () => send(tx, 2))
+|   ;;
+|   for x in rx: x ;;
+| ;;)
+| print(pick(true), pick(false))
+| # expect: [1] [2]
+-- stderr
+-- exit: 0
 ==== tests/lang/map_shorthand.fung
 -- stdout
 | name = "fung"
@@ -3985,10 +4388,75 @@
 | # expect: -9223372036854775808 true
 -- stderr
 -- exit: 0
+==== tests/lang/nfc_keys.fung
+-- stdout
+| # A key is a string as written: a name in a key place is not made NFC
+| # (01). Here e + U+0301 (decomposed) and U+00E9 (composed) both show as e-acute.
+| m = {"café": 1}
+| print(m["café"], m.café)
+| # expect: 1 1
+| print({café: 1} == {"café": 1}, {café: 1} == {"café": 1})
+| # expect: true false
+|
+| # What print shows reads back as the same key.
+| print({"é": 1})
+| # expect: {é: 1}
+| print({é: 1} == {"é": 1})
+| # expect: true
+|
+| # A shorthand: the key as written, the variable's name in NFC.
+| café = 5
+| k = {café}
+| print(k["café"], café, get(k, "café", "none"))
+| # expect: 5 5 none
+| {café: v} = k
+| print(v)
+| # expect: 5
+-- stderr
+-- exit: 0
 ==== tests/lang/nil.fung
 -- stdout
 | print(nil, nil == nil, nil == 0, nil == false)
 | # expect: nil true false false
+-- stderr
+-- exit: 0
+==== tests/lang/open_if.fung
+-- stdout
+| # Where an if without else is fine: nobody uses its value (01).
+| fn shout(s):
+|   if s != "":
+|     print(s + "!")
+|   ;;
+| ;;
+| shout("hi")
+| # expect: hi!
+| if false: print("no") ;;
+| for x in [1, 2]:
+|   if x > 1: print(x) ;;
+| ;;
+| # expect: 2
+| each([3], fn(x): if x > 0: print(x) ;; ;;)
+| # expect: 3
+|
+| # A value place says what it means with else.
+| x = if false: 1 else: nil ;;
+| print(x)
+| # expect: nil
+| y = if false:
+|   1
+| else if true:
+|   2
+| else:
+|   3
+| ;;
+| print(y)
+| # expect: 2
+| z = match 1:
+|   1 => if false: 0 else: 1 ;;
+|   _ => 2
+| ;;
+| print(z)
+| # expect: 1
 -- stderr
 -- exit: 0
 ==== tests/lang/param_patterns.fung
@@ -4008,6 +4476,23 @@
 | # expect: true .hidden .gz a.tar .b
 | print(path.join("a", "/c"), path.join("a/./b/", ".."), path.base(""))
 | # expect: a/c a .
+-- stderr
+-- exit: 0
+==== tests/lang/pipe_tags.fung
+-- stdout
+| # A tag on the right of |> takes the value first, as a call does (01).
+| print(1 |> Ok, 1 |> Pair(2), "x" |> Some)
+| # expect: Ok(1) Pair(1, 2) Some("x")
+| print(" 7 " |> trim |> parse_int |> Wrapped)
+| # expect: Wrapped(Ok(7))
+|
+| # A hole deeper than the piped call is still a partial application.
+| fn join(a, b) = "${a}/${b}"
+| print(["x", "y"] |> map(join("d", _)))
+| # expect: ["d/x", "d/y"]
+| fn h(a, b) = a - b
+| print(3 |> (v => h(10, v)))
+| # expect: 7
 -- stderr
 -- exit: 0
 ==== tests/lang/pipes_partial.fung
@@ -4194,15 +4679,51 @@
 |   [await(a), await(c), await(b) |> is_err]
 | ;;, e => print("handled: ${e.message}"))
 | print(r)
-| # expect: handled: error[E0803]: b
+| # expect: handled: b
 | # expect: [1, 3, true]
+-- stderr
+-- exit: 0
+==== tests/lang/sym_str_compare.fung
+-- stdout
+| # == between other types is false; symbols and strings are the exception
+| # (02): there it is an error. Patterns are not comparisons.
+| print(1 == "1", nil == 0, [1] == (1,), 'a == 'a, "a" == "a", 1 == 1.0)
+| # expect: false false false true true true
+| print('a in ['a, 'b], "x" in ["x"], 2 in [1, "2"])
+| # expect: true true false
+| kind = "not_found"
+| r = match kind:
+|   'not_found  => "symbol"
+|   "not_found" => "string"
+| ;;
+| print(r)
+| # expect: string
+| print(sym(kind) == 'not_found)
+| # expect: true
 -- stderr
 -- exit: 0
 ==== tests/lang/symbols.fung
 -- stdout
 | s = 'ok
-| print(s, s == 'ok, s == "ok", 'a == 'b)
-| # expect: 'ok true false false
+| print(s, s == 'ok, 'a == 'b)
+| # expect: 'ok true false
+-- stderr
+-- exit: 0
+==== tests/lang/tag_keys.fung
+-- stdout
+| # Uppercase keys are strings, and tags in a larger pattern still match.
+| cfg = {HOME: "/home/me", PORT: 8080}
+| {HOME: home, PORT: port} = cfg
+| print(home, port, cfg.HOME)
+| # expect: /home/me 8080 /home/me
+| (Red, n) = (Red, 1)
+| print(n)
+| # expect: 1
+| Ok(v) = Ok(2)
+| print(v)
+| # expect: 2
+| print({HOME: Red})
+| # expect: {HOME: 'Red}
 -- stderr
 -- exit: 0
 ==== tests/lang/tasks.fung
@@ -4307,6 +4828,63 @@
 | # expect: Err({kind: 'timeout})
 -- stderr
 -- exit: 0
+==== tests/lang/top_constants.fung
+-- stdout
+| # A top-level name assigned once is a constant: top-level fns see it
+| # when they are called (03).
+| limit = 3
+| names = ["a", "b"]
+| counter = atom(0)
+| fn ok(n) = n <= limit
+| fn bump() = swap(counter, x => x + 1)
+| fn first() = names[0]
+| fn deep() = map([1, 5], x => ok(x))
+| print(ok(2), ok(4), first(), deep())
+| # expect: true false a [true, false]
+| bump()
+| bump()
+| print(deref(counter))
+| # expect: 2
+| (lo, hi) = (1, 9)
+| fn within(n) = lo <= n and n <= hi
+| print(within(5), within(10))
+| # expect: true false
+-- stderr
+-- exit: 0
+==== tests/lang/try_map.fung
+-- stdout
+| # try_map stops at the first Err (03).
+| print(["1", "2", "3"] |> try_map(s => parse_int(s)))
+| # expect: Ok([1, 2, 3])
+| calls = atom(0)
+| parse = fn(s):
+|   swap(calls, n => n + 1)
+|   parse_int(s)
+| ;;
+| print(try_map(["1", "x", "3"], parse))
+| # expect: Err({kind: 'parse, message: "not an integer: x"})
+| print(deref(calls))
+| # expect: 2
+| print(try_map([], parse), try_map(1..=2, n => Ok(n * 10)))
+| # expect: Ok([]) Ok([10, 20])
+|
+| # The usual shape: the first failure goes to the caller with ?.
+| fn total(xs) = Ok(sum(try_map(xs, parse_int)?))
+| print(total(["4", "5"]), total(["4", "y"]))
+| # expect: Ok(9) Err({kind: 'parse, message: "not an integer: y"})
+|
+| # A list of results made before: r => r.
+| print(try_map([Ok(1), Ok(2)], r => r))
+| # expect: Ok([1, 2])
+|
+| # ? stays fine in a named fn handed to map, and in other lambdas.
+| fn twice(s) = Ok(parse_int(s)? * 2)
+| print(map(["1", "x"], twice))
+| # expect: [Ok(2), Err({kind: 'parse, message: "not an integer: x"})]
+| print(with(() => "7", s => Ok(parse_int(s)?), _ => nil))
+| # expect: Ok(7)
+-- stderr
+-- exit: 0
 ==== tests/lang/tuples_tags.fung
 -- stdout
 | fn divmod(a, b) = (a // b, a % b)
@@ -4325,6 +4903,45 @@
 | fn k(v: any) = v
 | print(f(1), f(2, "y"), g(1), g(1.5), h(nil), h("a"), k('s))
 | # expect: x y 1 1.5 nil a 's
+-- stderr
+-- exit: 0
+==== tests/lang/types_enum.fung
+-- stdout
+| # A tag name as a type takes the tag without values too (07): an enum.
+| type color = Red | Green | Blue
+| fn hex(c: color) -> str = match c:
+|   Red   => "#f00"
+|   Green => "#0f0"
+|   Blue  => "#00f"
+| ;;
+| print(hex(Green), hex('Blue))
+| # expect: #0f0 #00f
+| fn area(s: Circle | Square) -> num = match s:
+|   Circle(r) => 3 * r * r
+|   Square(a) => a * a
+| ;;
+| print(area(Circle(1)), area(Square(2)))
+| # expect: 3 4
+| print(type_of(Red))
+| # expect: 'sym
+-- stderr
+-- exit: 0
+==== tests/lang/types_more.fung
+-- stdout
+| # `file` is a type name (07), `...rest` may say `list`, and a function
+| # with a return type calls itself in tail position without a stack (03).
+| import fs
+| fn kind(f: file) = type_of(f)
+| print(fs.with_temp_dir(fn(d):
+|   fs.with_open("${d}/x", f => kind(f), mode: 'write)
+| ;;))
+| # expect: 'file
+| fn count(...xs: list) -> int = len(xs)
+| print(count(1, 2, 3))
+| # expect: 3
+| fn deep(n, acc) -> int = n == 0 then acc else deep(n - 1, acc + 1)
+| print(deep(300000, 0))
+| # expect: 300000
 -- stderr
 -- exit: 0
 ==== tests/lang/underscore_assign.fung

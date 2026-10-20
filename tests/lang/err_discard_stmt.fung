@@ -1,0 +1,6 @@
+# A statement whose value is an Err is an error (02: discarded Err).
+print("before")
+# expect: before
+exec(["false"])
+# expect-error: E0606
+print("not reached")

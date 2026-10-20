@@ -1018,7 +1018,16 @@
 -- program: http.get("::bad", headers: {a: 1})
 -- stdout
 -- stderr
--- exit: 0
+| error[E0606]: discarded Err: cannot request `::bad`: invalid URL: empty scheme
+|   --> -e:2:1
+|   |
+| 2 | http.get("::bad", headers: {a: 1})
+|   | ^ this value is discarded
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
 ==== plain 1
 -- program: print(http, http.get, http.post, http.request, type_of(http.get))
 -- stdout

@@ -1,0 +1,35 @@
+# Where an if without else is fine: nobody uses its value (01).
+fn shout(s):
+  if s != "":
+    print(s + "!")
+  ;;
+;;
+shout("hi")
+# expect: hi!
+if false: print("no") ;;
+for x in [1, 2]:
+  if x > 1: print(x) ;;
+;;
+# expect: 2
+each([3], fn(x): if x > 0: print(x) ;; ;;)
+# expect: 3
+
+# A value place says what it means with else.
+x = if false: 1 else: nil ;;
+print(x)
+# expect: nil
+y = if false:
+  1
+else if true:
+  2
+else:
+  3
+;;
+print(y)
+# expect: 2
+z = match 1:
+  1 => if false: 0 else: 1 ;;
+  _ => 2
+;;
+print(z)
+# expect: 1

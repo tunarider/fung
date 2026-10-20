@@ -8,5 +8,5 @@ if true: z = 5; print(z) ;;
 w = if x > 5: "big" else: "small" ;;
 print(w)
 # expect: big
-print(if false: 1 ;;)
+print(if false: 1 else: nil ;;)
 # expect: nil

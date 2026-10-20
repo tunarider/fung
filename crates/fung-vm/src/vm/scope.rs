@@ -31,8 +31,8 @@ use fung_front::diag::{self, Diag, headline};
 use super::block::WaitList;
 use super::cont::{Cont, Flow, Next};
 use super::task::{CancelNode, err_kind, is_cancel};
-use super::{Stop, Task, Wake};
-use crate::value::{MapBuilder, Value, intern};
+use super::{Stop, Task, Wake, discarded};
+use crate::value::Value;
 
 /// The value `scope` hands its body: two handles are equal only when they
 /// are the same scope; it prints as `<scope>`.
@@ -240,7 +240,7 @@ impl TaskEnd {
 
     /// The function came to `r`.
     fn body_ended(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
-        *self.state.result.borrow_mut() = Some(super::task::outcome(&r));
+        *self.state.result.borrow_mut() = Some(super::task::outcome(&r, Some(&t.world)));
         self.state.waiters.borrow_mut().wake_all();
         let Some(s) = self.scope.clone() else {
             return Ok(self.ended(t, r));
@@ -250,7 +250,8 @@ impl TaskEnd {
             && !is_cancel(d)
         {
             let text = format!("task failed: {}", diag::format(d, &t.world.sources));
-            sv.queue.borrow_mut().push_back((failure_value(d), text));
+            let e = super::task::failure_value(d, Some(&t.world));
+            sv.queue.borrow_mut().push_back((e, text));
             if !sv.handling.get() {
                 sv.handling.set(true);
                 let handler = s.node.child();
@@ -291,7 +292,7 @@ impl TaskEnd {
         let Policy::Supervise(sv) = &s.policy else {
             unreachable!("handling outside a supervise scope")
         };
-        match r {
+        match discarded(r) {
             Ok(_) => self.next_failure(t, sv),
             Err(Stop::Error(d)) if !is_cancel(&d) => {
                 s.fail(&d);
@@ -321,7 +322,7 @@ impl Drop for TaskEnd {
             return;
         }
         let r = Err(super::block::cancelled(super::no_pos()));
-        *self.state.result.borrow_mut() = Some(super::task::outcome(&r));
+        *self.state.result.borrow_mut() = Some(super::task::outcome(&r, None));
         self.state.waiters.borrow_mut().wake_all();
     }
 }
@@ -340,15 +341,6 @@ impl Cont for TaskEnd {
         }
         self.body_ended(t, Err(stop))
     }
-}
-
-/// The value `on_fail` gets for a failure: the map `await` gives inside
-/// its `Err`, `{kind: 'error, message}`.
-fn failure_value(d: &Diag) -> Value {
-    let mut m = MapBuilder::default();
-    m.set(Rc::new("kind".to_string()), Value::Sym(intern("error")));
-    m.set(Rc::new("message".to_string()), Value::str(&headline(d)));
-    Value::Map(Rc::new(m.finish()))
 }
 
 /// `scope(f)`: opens a scope, runs `f(s)`, waits for the scope's children

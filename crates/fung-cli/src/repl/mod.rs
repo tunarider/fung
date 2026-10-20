@@ -233,6 +233,7 @@ impl Session {
         let loader = Loader {
             globals: self.globals.clone(),
             redefine: true,
+            keep_value: true,
             ..Loader::default()
         };
         let from = self.known.len();

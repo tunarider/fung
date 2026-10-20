@@ -56,6 +56,15 @@ pub(super) struct FnScope {
     pub(super) self_name: String,
     /// The synthetic lambda of a `for`: return inside is E0213.
     pub(super) for_body: bool,
+    /// A lambda written as an argument of the prelude's map: `?` inside
+    /// is E0226, the trap of a for body (03).
+    pub(super) map_body: bool,
+    /// A hoisted top-level fn: it and the functions inside it see the
+    /// file's constants when called (03, L9).
+    pub(super) top: bool,
+    /// The names a top-level fn binds in its own code: its locals, which
+    /// hide the file's constants of those names throughout it (03, L9).
+    pub(super) own: HashSet<String>,
     /// Names defined in blocks of this fn that have ended (E0206).
     pub(super) closed: HashSet<String>,
     /// Per block: local fn names declared later in that block (E0208).

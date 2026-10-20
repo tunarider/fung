@@ -216,7 +216,7 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 180;
+const CHECK_REPOSITORY_CASES: usize = 223;
 const CHECK_WARNING_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 25;
 const HELP_CASES: usize = 8;
@@ -224,9 +224,9 @@ const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
-const TEST_REPOSITORY_CASES: usize = 181;
-const FMT_INPUTS: usize = 4558;
-const FMT_STDIN_CASES: usize = 421;
+const TEST_REPOSITORY_CASES: usize = 224;
+const FMT_INPUTS: usize = 5504;
+const FMT_STDIN_CASES: usize = 466;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
 const REPL_CASES: usize = 30;
@@ -1078,7 +1078,7 @@ fn test_ends_each_files_run() {
     assert_eq!(
         String::from_utf8_lossy(&err),
         format!(
-            "error[E0702]: deadlock: all tasks are waiting\n  --> {after}:4:7\n  |\n4 |   recv(rx)\n  |       ^\n  |\n call path (innermost first):\n   {after}:4 test: deadlocks\n"
+            "error[E0702]: deadlock: all tasks are waiting\n  --> {after}:4:7\n  |\n4 |   recv(rx)\n  |       ^\n  |\n call path (innermost first):\n   {after}:4 test: deadlocks\n help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only\n"
         )
     );
     assert_eq!(status.code(), Some(1));
@@ -2152,7 +2152,7 @@ fn repl_recovers_after_a_deadlock() {
     assert_eq!(out, "> > > . . . > after\nnil\n> 42\n> 2\n> \n");
     assert_eq!(
         err,
-        "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n 1 other task is waiting:\n   recv at <repl>:2:26 (<lambda>)\n"
+        "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n 1 other task is waiting:\n   recv at <repl>:2:26 (<lambda>, holds its own sending end)\n"
     );
     assert_eq!(code, Some(0));
 }

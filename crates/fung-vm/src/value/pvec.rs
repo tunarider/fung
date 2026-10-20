@@ -119,6 +119,20 @@ fn new_path<T>(level: u32, node: Rc<Node<T>>) -> Rc<Node<T>> {
     n
 }
 
+/// The first `count` items of a subtree at `level` (`count` a positive
+/// multiple of `WIDTH`): the children before the cut are shared, the one
+/// it falls in is cut in turn.
+fn prefix<T>(node: &Rc<Node<T>>, level: u32, count: usize) -> Rc<Node<T>> {
+    let per = 1 << level;
+    let (full, rem) = (count / per, count % per);
+    let kids = node.kids();
+    let mut out: Vec<Rc<Node<T>>> = kids[..full].to_vec();
+    if rem > 0 {
+        out.push(prefix(&kids[full], level - BITS, rem));
+    }
+    branch(out)
+}
+
 impl<T: Clone> Pvec<T> {
     /// Builds a vector in O(n): full 32-chunks become leaves, the last
     /// chunk the tail, then levels are grouped bottom-up.
@@ -247,6 +261,39 @@ impl<T: Clone> Pvec<T> {
                 return;
             }
         }
+    }
+
+    /// Keeps the first `n` items (`n <= len`) in O(log n): the leaf that
+    /// holds item `n - 1` becomes the tail, and only the path to it is
+    /// copied; the leaves before it stay shared (P3).
+    pub(crate) fn truncate(&mut self, n: usize) {
+        assert!(n <= self.cnt, "pvec: truncate past the end");
+        if n == self.cnt {
+            return;
+        }
+        if n == 0 {
+            *self = Pvec::of(Vec::new());
+            return;
+        }
+        let start = (n - 1) & !MASK;
+        let mut vals = Vec::with_capacity(WIDTH);
+        vals.extend_from_slice(&self.leaf_for(n - 1)[..n - start]);
+        let mut root = if start == 0 {
+            branch(Vec::new())
+        } else {
+            prefix(&self.root, self.shift, start)
+        };
+        let mut shift = self.shift;
+        while shift > BITS && root.kids().len() == 1 {
+            root = root.kids()[0].clone();
+            shift -= BITS;
+        }
+        *self = Pvec {
+            cnt: n,
+            shift,
+            root,
+            tail: leaf(vals),
+        };
     }
 
     pub(crate) fn set(&mut self, i: usize, x: T) {

@@ -37,6 +37,7 @@ use fung_front::source::Pos;
 use super::block::cancelled;
 use super::frame::Frame;
 use super::{Stop, Task, no_pos};
+use crate::value::Value;
 
 /// The most lines the report gives the other tasks.
 const REPORT_LINES: usize = 10;
@@ -64,6 +65,9 @@ pub(super) struct Place {
     func: String,
     /// Inside a `with`'s release.
     release: bool,
+    /// It waits to receive while it holds that channel's sending end
+    /// itself (`Task::own_sender`).
+    holds_sender: bool,
 }
 
 impl Place {
@@ -75,6 +79,9 @@ impl Place {
         l += &format!(" ({}", self.func);
         if self.release {
             l += ", in release";
+        }
+        if self.holds_sender {
+            l += ", holds its own sending end";
         }
         l.push(')');
         if n > 1 {
@@ -198,11 +205,61 @@ impl Task<'_> {
         })
     }
 
+    /// Where this task, parked receiving, holds that channel's sending end
+    /// itself, so that the channel can never close (review L7): its stack
+    /// (a function's variables), its frames' captured values, or a
+    /// global, which every task holds. `None` if it does not.
+    fn own_sender(&self) -> Option<(String, Option<String>)> {
+        let rx = self.conts.last()?.k.receives_on()?;
+        let held = |v: &Value| matches!(v, Value::Sender(tx) if rx.pairs_with(tx));
+        for (i, v) in self.stack.iter().enumerate() {
+            if v.as_ref().is_some_and(held) {
+                let f = self.frames.iter().rev().find(|f| f.base <= i)?;
+                return Some((format!("a variable of `{}`", func_name(f)), None));
+            }
+        }
+        for f in self.frames.iter().rev() {
+            if f.closure
+                .as_ref()
+                .is_some_and(|c| c.captured.iter().any(held))
+            {
+                return Some((format!("a value `{}` captured", func_name(f)), None));
+            }
+        }
+        for f in &self.frames {
+            let g = f.globals.borrow();
+            if let Some(i) = g.iter().position(|v| v.as_ref().is_some_and(held)) {
+                // A function's proto has no names of its module's globals;
+                // the entry's do, when these are the entry's (a test block).
+                let entry = self.world.main.as_ref().map(|m| &m.global_names);
+                let names = Some(&f.proto.global_names)
+                    .filter(|n| !n.is_empty())
+                    .or(entry.filter(|n| n.len() == g.len()));
+                return Some(match names.and_then(|n| n.get(i)) {
+                    Some(name) => (format!("the global `{name}`"), Some(name.clone())),
+                    None => ("a global".to_string(), None),
+                });
+            }
+        }
+        None
+    }
+
     /// The root's wait as an error, as a runtime error there would show
-    /// (`Sched::stuck`).
+    /// (`Sched::stuck`), with what holds the channel open when the root
+    /// holds its sending end itself.
     pub(super) fn stuck_root(&self) -> Diag {
         let (pos, ..) = self.wait_site();
-        error("E0702", pos, Vec::new()).with_call_path(self.call_path())
+        let mut d = error("E0702", pos, Vec::new()).with_call_path(self.call_path());
+        if let Some((at, name)) = self.own_sender() {
+            let close = match name {
+                Some(n) => format!("`close({n})`"),
+                None => "`close`".to_string(),
+            };
+            d.help = Some(format!(
+                "this task waits to receive, but it still holds that channel's sending end itself ({at}), so the channel cannot close: close it with {close} first, or leave the sending end to the producers only"
+            ));
+        }
+        d
     }
 
     /// Another task's wait (`Sched::stuck`).
@@ -215,6 +272,7 @@ impl Task<'_> {
             col: pos.col,
             func,
             release,
+            holds_sender: self.own_sender().is_some(),
         }
     }
 

@@ -83,7 +83,7 @@ fn spawn_await_and_results() {
         // A supervised child's runtime error comes back from `await`.
         (
             "supervise(fn(s):\n  t = spawn(s, () => 1 / 0)\n  print(await(t))\n;;, e => nil)",
-            "Err({kind: 'error, message: \"error[E0502]: division by zero\"})\n",
+            "Err({kind: 'error, code: \"E0502\", message: \"division by zero\", at: \"-e:2\"})\n",
         ),
         (
             "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  print(await(t))\n;;)",
@@ -162,7 +162,7 @@ fn an_await_timeout_does_not_hide_a_later_failure() {
     assert_eq!(
         (out.as_str(), code),
         (
-            "Err({kind: 'timeout})\nErr({kind: 'error, message: \"error[E0803]: later\"})\n",
+            "Err({kind: 'timeout})\nErr({kind: 'error, code: \"E0803\", message: \"later\", at: \"-e:3\"})\n",
             0
         )
     );

@@ -1,0 +1,37 @@
+# What a discarded Err (02) leaves alone.
+
+# `_ = …` discards on purpose.
+_ = Err("ignored")
+_ = exec(["false"])
+
+# A value place keeps the Err: an assignment, an argument, a fn's result.
+r = Err("kept")
+print(r)
+# expect: Err("kept")
+fn fails() = Err("returned")
+print(fails())
+# expect: Err("returned")
+print(is_err(exec(["false"])))
+# expect: true
+
+# A for in a value place still builds its list, Errs and all.
+xs = for x in [1, 2]: x == 2 then Err(x) else Ok(x) ;;
+print(xs)
+# expect: [Ok(1), Err(2)]
+
+# A nested for statement in a for statement is discarded as well.
+for x in [1, 2]:
+  for y in [x]:
+    print(y)
+  ;;
+;;
+# expect: 1
+# expect: 2
+
+# Ok and other values are discarded as before.
+Ok(1)
+nil
+[Err(1)]
+each([1], x => Ok(x))
+print("done")
+# expect: done

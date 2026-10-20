@@ -1,0 +1,5 @@
+# The last expression of a file is discarded too.
+print("before")
+# expect: before
+Err({kind: 'oops, message: "at the end"})
+# expect-error: E0606

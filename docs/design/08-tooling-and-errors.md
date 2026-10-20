@@ -72,9 +72,9 @@ error[E0510]: cannot add str to int: 3 + "kb"
 - 쓰지 않는 import
 - 쓰지 않는 지역 변수 (`_`로 시작하면 경고 안 함. 비공개 의미는 모듈 최상위에서만이므로 충돌 없음)
 - prelude 이름 가리기(04) — `fn map(…)`처럼 내장 이름을 덮어쓴 경우 (실수를 잘 잡고 비용이 작다)
-- 보류: 값 자리의 블록이 문장으로 끝남(01). "값 자리"의 정의가 까다로워 알파 이후에 다시 본다.
-- 번호: W0101 쓰지 않는 import, W0102 쓰지 않는 지역 변수, W0103 prelude 이름 가리기, W0104 값 자리의 블록이 대입문으로 끝남
-  (`x = if c: y = 1 ;;`의 값은 `nil`; 대입의 오른쪽·인자·`return`에 온 `if`·`match`·블록만 본다, 2026-10-14). 형식은 `warning[W0101]: …`로 에러와 같다.
+- 번호: W0101 쓰지 않는 import, W0102 쓰지 않는 지역 변수, W0103 prelude 이름 가리기. 형식은 `warning[W0101]: …`로 에러와 같다.
+- W0104(값 자리의 블록이 대입문으로 끝남, 2026-10-14)는 L3(2026-10-20)에서 컴파일 에러 E0224가 되어 쓰지 않는다. 같은 판정이 `else` 없는 블록 `if`(E0223)도 본다.
+  "값을 쓰는 자리"의 정의는 01 "식과 문장".
 - 규칙은 파일을 어떻게 적재했든 같다(직접 검사하든 import되든). 내장 표준 라이브러리 자신의 경고는 사용자가 손댈 수 없으므로
   보여 주지 않는다. W0103은 최상위 이름에도 난다(`fn map(…)`, 모듈이 내보내는 `remove = …`): 가려도 되지만 알고 가리라는 뜻이다.
 - 경고는 위치 순서로 찍는다. 같은 위치에 여러 이름이 걸리면(`(a, b) = …`의 두 W0102) 이름 순서다(2026-10-18).
@@ -96,8 +96,10 @@ fung version
 ```
 
 ```
-$ fung dump core -e 'files |> filter(is_log) |> map(size)'
-(map (filter files is_log) size)
+$ fung dump core -e 'fn is_log(f) = true
+files = ["a"]
+files |> filter(is_log) |> map(len)'
+(do (let (global 0) (fn is_log(f) (do true))) (let (global 1) (list "a")) (call (prelude map) (call (prelude filter) (global 1) (global 0)) (prelude len)))
 ```
 
 - `fung check`: 렉싱·파싱·desugar·이름 해석(스코프, 가리기, `for` 안 `return` 등 모든 의미 검사)·
@@ -128,9 +130,10 @@ $ fung dump core -e 'files |> filter(is_log) |> map(size)'
 ## REPL
 
 - 블록이 열려 있거나(`:` 뒤 `;;` 미달) 줄이 이어짐 토큰으로 끝나면(01) 다음 줄을 이어 받는다.
-- 식 문장의 값은 출력하고, 대입·`fn` 정의는 출력하지 않는다.
+- 식 문장의 값은 출력하고, 대입·`fn` 정의는 출력하지 않는다. 입력의 마지막 식은 출력되므로 버려지는 자리가 아니다(`Err`도 출력만 한다, 02 "버려지는 Err").
 - 입력 기록, 줄 편집 지원.
 - 정의한 변수·함수는 유지된다. REPL에서는 함수 재정의 허용. 태스크가 도는 중의 재정의는 정의하지 않는다 (05).
+  REPL의 최상위 `fn`은 전역을 호출할 때 읽는다(이름을 다시 대입할 수 있으므로, 03 L9).
 - REPL 명령은 `:`로 시작: `:help`, `:quit`, `:load file.fung`. 그 이상은 두지 않는다.
   `:load`는 파일을 **그 세션의 모듈로** 실행하므로 파일의 정의가 세션에 남는다.
 - 줄 편집은 표준 입력이 터미널일 때만(터미널 설정이 있을 때; `/dev/null` 같은 다른 장치는 아님) 켠다(raw 모드: 좌우 이동, Home/End, Backspace/Delete, 위아래 기록, Ctrl-C는 줄 취소(평가 중의 Ctrl-C는 그 평가를 취소하고 세션은 이어진다, L6. 취소된 평가의 `release`가 끝나지 않는 중에 다시 Ctrl-C를 누르면 그 평가의 태스크를 정리 없이 버리고 `interrupted again: the cleanup did not finish; the input's tasks were dropped` 한 줄을 표준 에러에 쓴 뒤 다음 입력으로 간다. 버린 태스크가 기다리던 외부 명령은 SIGKILL로 끝낸다, R4b. `request_stop()`은 보는 쪽이 없으면 `exit(0)`처럼 세션을 끝낸다),
@@ -248,5 +251,5 @@ assertion failed: slugify("Hello World") == "hello-world"
 - `fung test`는 테스트마다 `ok   path: 이름` / `FAIL path: 이름` 한 줄(실패면 이유를 덧붙임) + 요약 `N passed, M failed`를
   출력한다. 하나라도 실패하면 종료 코드 1, 컴파일 실패면 2. 로드(컴파일)에 실패한 파일은 `FAIL path: <load>`로 실패에 센다; 여러 파일이
   같은 라이브러리 때문에 깨지면 그 에러는 **한 번만** 찍는다(같은 소스 이름·줄·열·코드, 2026-10-14). 읽지 못한 파일도 `FAIL path: <load>`이고
-  종료 코드 2, 종료 핸들러의 실패는 `FAIL path: <exit handler>`로 센다(2026-10-18).
+  종료 코드 2다. 종료 핸들러(`at_exit`)는 없다(L3에서 지움; 정리는 `with`).
 - fung 자체의 언어 기능 테스트도 fung 파일로 작성한다 (09. 구현 계획).

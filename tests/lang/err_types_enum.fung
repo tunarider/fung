@@ -1,0 +1,4 @@
+type color = Red | Green
+fn hex(c: color) = c
+print(hex(Blue))
+# expect-error: E0403

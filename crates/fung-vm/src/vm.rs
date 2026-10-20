@@ -105,6 +105,7 @@ pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
+pub(crate) use m4::{discarded, discarded_err};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub(crate) use offload::{Kind, offload_kind};
@@ -762,8 +763,13 @@ impl<'rt> Task<'rt> {
                     let v = self.frames[fi].proto.consts[arg].clone();
                     self.push(v);
                 }
+                // A statement's value is discarded: an Err is E0606 (02).
                 Op::Pop => {
-                    self.stack.pop();
+                    if let Some(Some(v)) = self.stack.pop()
+                        && let Some(a) = discarded_err(&v)
+                    {
+                        return Err(err("E0606", pos, vec![a]));
+                    }
                 }
                 Op::Add => self.binary(pos, i64::checked_add, value::add)?,
                 Op::Sub => self.binary(pos, i64::checked_sub, value::sub)?,
@@ -777,7 +783,7 @@ impl<'rt> Task<'rt> {
                 Op::Eq | Op::Ne => {
                     let b = self.pop();
                     let a = self.pop();
-                    let eq = value::equal(&a, &b);
+                    let eq = value::eq(&a, &b).map_err(|d| at(d, pos))?;
                     self.push(Value::Bool(eq == (instr.op() == Op::Eq)));
                 }
                 Op::Lt => self.compare(pos, Ordering::is_lt)?,
@@ -867,13 +873,13 @@ impl<'rt> Task<'rt> {
                         .as_ref()
                         .expect("CHECKTYPE on an unassigned slot");
                     let p = &self.frames[fi].proto;
-                    if !value::matches_type(v, Some(&p.types[ti])) {
+                    if !p.types[ti].matches(v) {
                         return Err(err(
                             "E0403",
                             pos,
                             vec![
                                 Arg::Str(p.params[slot].name.clone()),
-                                Arg::Str(p.types[ti].join(" | ")),
+                                Arg::Str(p.types[ti].text().to_string()),
                                 Arg::Str(value::type_name(v)),
                             ],
                         ));
@@ -882,12 +888,12 @@ impl<'rt> Task<'rt> {
                 Op::CheckReturn => {
                     let v = self.top();
                     let p = &self.frames[fi].proto;
-                    if !value::matches_type(v, Some(&p.types[arg])) {
+                    if !p.types[arg].matches(v) {
                         return Err(err(
                             "E0404",
                             pos,
                             vec![
-                                Arg::Str(p.types[arg].join(" | ")),
+                                Arg::Str(p.types[arg].text().to_string()),
                                 Arg::Str(value::type_name(v)),
                             ],
                         ));
@@ -902,25 +908,24 @@ impl<'rt> Task<'rt> {
                     let v = self.stack.pop().expect("VM stack underflow");
                     self.stack[base + arg] = v;
                 }
+                // The slot is not read again: its value goes now (03).
+                Op::ClearLocal => self.stack[base + arg] = None,
                 Op::LoadGlobal => {
                     let v = self.frames[fi].globals.borrow()[arg].clone();
                     match v {
                         Some(v) => self.push(v),
                         None => {
-                            let name = &self.frames[fi].proto.global_names[arg];
+                            let name = &self.global_name(fi, arg);
                             if self.world.repl.is_some() {
                                 // A REPL input declared the name, then
                                 // failed before storing it (08).
                                 let d = error("E0808", pos, vec![Arg::Str(name.clone())]);
                                 return Err(Stop::Error(Box::new(d.span(name.chars().count()))));
                             }
-                            // Unreachable since model C: resolve binds
-                            // top-down and functions copy variables.
-                            return Err(err(
-                                "E0801",
-                                pos,
-                                vec![Arg::Str(format!("global `{name}` read before assignment"))],
-                            ));
+                            // A top-level fn read a constant of the file
+                            // before its assignment ran (03, L9).
+                            let d = error("E0809", pos, vec![Arg::Str(name.clone())]);
+                            return Err(Stop::Error(Box::new(d.span(name.chars().count()))));
                         }
                     }
                 }
@@ -1001,6 +1006,23 @@ impl<'rt> Task<'rt> {
             captured,
             globals: f.globals.clone(),
         }))
+    }
+}
+
+impl Task<'_> {
+    /// The name of global `i` of frame `fi`'s module, for an error. A
+    /// function's proto has none of its module's names; the module's
+    /// `<main>` frame does, and it is running when its constant is read
+    /// too early (E0809).
+    fn global_name(&self, fi: usize, i: usize) -> String {
+        let g = &self.frames[fi].globals;
+        self.frames[..=fi]
+            .iter()
+            .rev()
+            .filter(|f| Rc::ptr_eq(&f.globals, g))
+            .find_map(|f| f.proto.global_names.get(i))
+            .cloned()
+            .unwrap_or_else(|| "a global".to_string())
     }
 }
 

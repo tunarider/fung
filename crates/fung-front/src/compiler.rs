@@ -20,7 +20,7 @@ use crate::consts::Const;
 use crate::diag::{Arg, Diag, error};
 use crate::resolve::Resolved;
 use crate::source::Pos;
-use crate::tree::{Head, Lit, Node};
+use crate::tree::{CaptureKind, Head, Lit, Node};
 
 /// Configures compilation of one file.
 #[derive(Clone, Debug, Default)]
@@ -32,12 +32,21 @@ pub struct Options {
     pub file: String,
     /// Register test blocks (`fung test` / `check`); false drops them.
     pub tests: bool,
+    /// The program's last expression is its value; otherwise it is
+    /// discarded like a statement (01: 버려지는 자리), and the program's
+    /// value is nil.
+    pub keep_value: bool,
 }
 
 struct Compiler<'a> {
     proto: Proto,
     prelude: &'a BTreeSet<String>,
     opts: &'a Options,
+    /// Byte offsets where the source's lines start (`start_pos`).
+    lines: &'a [usize],
+    /// The next block compiled is a function's body: its statements let
+    /// go of the locals not read again (`block`, 03: 값의 수명).
+    body_block: bool,
     /// A return type annotation disables tail calls (03).
     has_ret: bool,
 }
@@ -46,6 +55,7 @@ struct Compiler<'a> {
 /// become `Const::Builtin(name)` (`args` an empty `Const::List`). The main
 /// body never uses tail calls: it is the entry frame.
 pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Result<Proto, Diag> {
+    let lines = line_starts(&opts.source);
     let mut c = Compiler {
         proto: Proto {
             name: "<main>".into(),
@@ -56,11 +66,65 @@ pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Re
         },
         prelude,
         opts,
+        lines: &lines,
+        body_block: false,
         has_ret: true,
     };
     c.block(&res.core, false)?;
+    if !opts.keep_value
+        && let Some(last) = res.core.kids.last()
+        && !is_statement(last)
+    {
+        let pos = c.start_pos(last);
+        c.proto.emit(Op::Pop, 0, pos);
+        c.emit_const(Const::Nil, pos);
+    }
     c.proto.emit(Op::Return, 0, res.core.pos);
     Ok(c.proto)
+}
+
+/// The byte offsets where `src`'s lines start.
+fn line_starts(src: &str) -> Vec<usize> {
+    std::iter::once(0)
+        .chain(src.match_indices('\n').map(|(i, _)| i + 1))
+        .collect()
+}
+
+/// Adds the local slots `n` reads in this function's frame to `out`: its
+/// `(local i)` leaves, and the locals a function made there captures (a
+/// capture copies, so it is a read). A nested function's own code runs in
+/// its own frame; a pattern or an assignment's target only writes.
+fn local_reads(n: &Node, out: &mut BTreeSet<usize>) {
+    match n.head {
+        Head::Local => {
+            out.insert(lit_index(n));
+        }
+        Head::Fn => {
+            if let Lit::Fn(info) = &n.lit {
+                for c in &info.captures {
+                    if c.kind == CaptureKind::Local {
+                        out.insert(c.index);
+                    }
+                }
+            }
+        }
+        Head::Let => local_reads(&n.kids[1], out),
+        Head::Arm => {
+            for k in &n.kids[1..] {
+                local_reads(k, out);
+            }
+        }
+        _ => {
+            for k in &n.kids {
+                local_reads(k, out);
+            }
+        }
+    }
+}
+
+/// The items `Compiler::block` compiles as statements (no value).
+fn is_statement(n: &Node) -> bool {
+    matches!(n.head, Head::Let | Head::Import | Head::Assert | Head::Test)
 }
 
 /// An E0801 internal error.
@@ -121,6 +185,22 @@ fn unary_op(op: &str) -> Option<Op> {
 }
 
 impl Compiler<'_> {
+    /// Where `n`'s source text starts: a call's own position is its `(`,
+    /// an operator's is the operator. Falls back to `n.pos` without a span.
+    fn start_pos(&self, n: &Node) -> Pos {
+        let src = &self.opts.source;
+        if n.end == 0 || n.off > src.len() || !src.is_char_boundary(n.off) {
+            return n.pos;
+        }
+        let line = self.lines.partition_point(|&s| s <= n.off);
+        let from = self.lines[line - 1];
+        Pos {
+            file: n.pos.file,
+            line: line as u32,
+            col: src[from..n.off].chars().count() as u32 + 1,
+        }
+    }
+
     fn emit_const(&mut self, c: Const, pos: Pos) {
         let i = self.proto.add_const(c);
         self.proto.emit(Op::Const, i, pos);
@@ -131,13 +211,31 @@ impl Compiler<'_> {
     /// 블록이 문장으로 끝나면 nil). Only the last expression is in tail
     /// position.
     fn block(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
+        let body = std::mem::take(&mut self.body_block);
         if n.kids.is_empty() {
             self.emit_const(Const::Nil, n.pos);
             return Ok(());
         }
         let last_i = n.kids.len() - 1;
+        // A function body's statements let go of a local once it is not
+        // read again. Only there: a block inside an expression cannot see
+        // what the rest of that expression reads, so it keeps them all.
+        let read_later = if body {
+            let mut later = vec![BTreeSet::new(); n.kids.len()];
+            for i in (0..last_i).rev() {
+                later[i] = later[i + 1].clone();
+                local_reads(&n.kids[i + 1], &mut later[i]);
+            }
+            later
+        } else {
+            Vec::new()
+        };
+        let mut held = BTreeSet::new();
         for (i, k) in n.kids.iter().enumerate() {
             let last = i == last_i;
+            if body && !last {
+                local_reads(k, &mut held);
+            }
             let stmt = match k.head {
                 Head::Let => Some(self.let_stmt(k)),
                 Head::Import => Some(self.import_stmt(k)),
@@ -149,15 +247,34 @@ impl Compiler<'_> {
                 r?;
                 if last {
                     self.emit_const(Const::Nil, k.pos);
+                } else if body {
+                    let pos = self.start_pos(k);
+                    self.clear_unread(&mut held, &read_later[i], pos);
                 }
                 continue;
             }
             self.expr(k, tail && last)?;
             if !last {
-                self.proto.emit(Op::Pop, 0, k.pos);
+                // A discarded Err is reported where the statement starts.
+                let pos = self.start_pos(k);
+                self.proto.emit(Op::Pop, 0, pos);
+            }
+            if body && !last {
+                let pos = self.start_pos(k);
+                self.clear_unread(&mut held, &read_later[i], pos);
             }
         }
         Ok(())
+    }
+
+    /// Emits CLEARLOCAL for each local in `held` that `later` does not
+    /// read, and forgets it.
+    fn clear_unread(&mut self, held: &mut BTreeSet<usize>, later: &BTreeSet<usize>, pos: Pos) {
+        let gone: Vec<usize> = held.difference(later).copied().collect();
+        for slot in gone {
+            self.proto.emit(Op::ClearLocal, slot, pos);
+            held.remove(&slot);
+        }
     }
 
     /// Compiles an assignment: the value, then a store into the slot or
@@ -329,7 +446,7 @@ impl Compiler<'_> {
     }
 
     fn return_expr(&mut self, n: &Node) -> Result<(), Diag> {
-        self.expr(&n.kids[0], !self.has_ret)?;
+        self.expr(&n.kids[0], true)?;
         if self.has_ret && self.proto.return_type >= 0 {
             let rt = self.proto.return_type as usize;
             self.proto.emit(Op::CheckReturn, rt, n.pos);

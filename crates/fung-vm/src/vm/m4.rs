@@ -70,6 +70,29 @@ fn shown(mut text: String) -> Arg {
     Arg::Str(text)
 }
 
+/// E0606's argument when `v` is an Err that a discarded place drops
+/// (02: 버려지는 Err): a statement's value (POP) or what `each`'s `f`
+/// returned. It shows the Err as E0603 does.
+pub(crate) fn discarded_err(v: &Value) -> Option<Arg> {
+    match result_kind(v) {
+        ResultKind::Err => Some(shown(err_message(v))),
+        _ => None,
+    }
+}
+
+/// What a callback whose result is discarded came to (02: `with`'s
+/// release, `supervise`'s on_fail): an Err it returned becomes its
+/// runtime error E0606.
+pub(crate) fn discarded(r: Result<Value, Stop>) -> Result<Value, Stop> {
+    match r {
+        Ok(v) => match discarded_err(&v) {
+            Some(a) => Err(crate::native::nat::fail("E0606", vec![a])),
+            None => Ok(v),
+        },
+        r => r,
+    }
+}
+
 impl Task<'_> {
     /// Pops the top `n` operands in push order.
     fn pop_n(&mut self, n: usize) -> Vec<Value> {

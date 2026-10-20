@@ -1,0 +1,15 @@
+# == between other types is false; symbols and strings are the exception
+# (02): there it is an error. Patterns are not comparisons.
+print(1 == "1", nil == 0, [1] == (1,), 'a == 'a, "a" == "a", 1 == 1.0)
+# expect: false false false true true true
+print('a in ['a, 'b], "x" in ["x"], 2 in [1, "2"])
+# expect: true true false
+kind = "not_found"
+r = match kind:
+  'not_found  => "symbol"
+  "not_found" => "string"
+;;
+print(r)
+# expect: string
+print(sym(kind) == 'not_found)
+# expect: true

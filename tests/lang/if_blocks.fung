@@ -8,11 +8,13 @@ else:
 ;;
 print(label)
 # expect: zero
-print(if true: if false: 1 else: 2 ;; ;;)
+print(if true: if false: 1 else: 2 ;; else: 3 ;;)
 # expect: 2
 print(
   if 1 < 2:
     "yes"
+  else:
+    "no"
   ;;
 )
 # expect: yes

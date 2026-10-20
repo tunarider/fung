@@ -1,0 +1,14 @@
+# `file` is a type name (07), `...rest` may say `list`, and a function
+# with a return type calls itself in tail position without a stack (03).
+import fs
+fn kind(f: file) = type_of(f)
+print(fs.with_temp_dir(fn(d):
+  fs.with_open("${d}/x", f => kind(f), mode: 'write)
+;;))
+# expect: 'file
+fn count(...xs: list) -> int = len(xs)
+print(count(1, 2, 3))
+# expect: 3
+fn deep(n, acc) -> int = n == 0 then acc else deep(n - 1, acc + 1)
+print(deep(300000, 0))
+# expect: 300000

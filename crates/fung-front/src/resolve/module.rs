@@ -164,6 +164,8 @@ impl Resolver<'_> {
         if target.head != Head::Name {
             return;
         }
+        // A field is written as is (a map key, 01); a member is a name.
+        let member = &*crate::unicode::nfc(member);
         let Some(info) = self.module_names.get(lit_str(target)) else {
             return;
         };

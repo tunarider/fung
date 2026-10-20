@@ -1,0 +1,4 @@
+# A release's Err is discarded: it is the release's runtime error (03).
+r = with(() => 1, x => x + 1, _ => Err("cannot release"))
+# expect-error: E0606
+print("not reached", r)

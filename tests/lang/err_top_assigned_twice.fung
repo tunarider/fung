@@ -1,0 +1,6 @@
+# A name assigned twice is a variable: a top-level fn cannot see it.
+level = 1
+level = 2
+fn show() = level
+# expect-error: E0204
+print(show())

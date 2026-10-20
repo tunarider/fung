@@ -1,0 +1,6 @@
+# each discards what f returns.
+(tx, rx) = channel(1)
+close(tx)
+each([1], x => send(tx, x))
+# expect-error: E0606
+print("not reached")

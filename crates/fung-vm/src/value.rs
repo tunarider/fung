@@ -26,7 +26,7 @@ use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHa
 
 pub(crate) use arith::check_chars;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
-pub use compare::{compare, equal};
+pub use compare::{compare, eq, equal, hash_value};
 pub use format::{format, format_for_print, type_name};
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
@@ -34,7 +34,7 @@ pub(crate) use release::{drop_children, keep};
 pub use sym::{Sym, intern};
 pub use time::Time;
 pub(crate) use time::{Loc, MAX_UNIX, MIN_UNIX, civil_from_days, days_from_civil, offset_text};
-pub use types::matches_type;
+pub use types::{TypeSet, matches_type};
 
 /// Whether a value holds a mutable one (concurrency v2: what an atom
 /// may not hold, 05/스펙 7.2). Persistent collections remember the

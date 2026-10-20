@@ -1,0 +1,4 @@
+# on_fail's result is discarded: an Err fails the scope (05).
+supervise(s => spawn(s, () => fail("boom")), e => Err(e.message))
+# expect-error: E0606
+print("not reached")

@@ -302,6 +302,21 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/discard.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/discard_callbacks.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/dur_numbers.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/durations.fung
 -- stdout
 | 0 passed, 0 failed
@@ -456,6 +471,41 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_discard_branch.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_discard_each.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_discard_end.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_discard_for.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_discard_on_fail.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_discard_release.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_discard_stmt.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_div_zero.fung
 -- stdout
 | 0 passed, 0 failed
@@ -498,6 +548,16 @@
 |   |
 |  help: use a guard to compare the two positions: `[a, b] when a == b`
 -- exit: 2
+==== test tests/lang/err_dur_div_zero.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_dur_floor_div_int.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_escape.fung
 -- stdout
 | FAIL tests/lang/err_escape.fung: <load>
@@ -529,17 +589,9 @@
 -- exit: 0
 ==== test tests/lang/err_global_before_assign.fung
 -- stdout
-| FAIL tests/lang/err_global_before_assign.fung: <load>
-| 0 passed, 1 failed
+| 0 passed, 0 failed
 -- stderr
-| error[E0204]: undefined name `x`
-|   --> tests/lang/err_global_before_assign.fung:1:10
-|   |
-| 1 | fn f() = x
-|   |          ^ not found in this scope
-|   |
-|  help: `x` is a file-level variable (assigned on line 3) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument
--- exit: 2
+-- exit: 0
 ==== test tests/lang/err_global_from_fn.fung
 -- stdout
 | FAIL tests/lang/err_global_from_fn.fung: <load>
@@ -695,6 +747,24 @@
 |   |
 |  help: local functions can only call themselves; move both functions to the top level
 -- exit: 2
+==== test tests/lang/err_local_never_read.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_map_question.fung
+-- stdout
+| FAIL tests/lang/err_map_question.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0226]: `?` inside a lambda given to map
+|   --> tests/lang/err_map_question.fung:2:45
+|   |
+| 2 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
+|   |                                             ^
+|   |
+|  help: map keeps the Err as an element; use `try_map`, which stops at the first Err
+-- exit: 2
 ==== test tests/lang/err_missing_arg.fung
 -- stdout
 | 0 passed, 0 failed
@@ -751,11 +821,76 @@
 |   |       ^
 |   |
 -- exit: 2
+==== test tests/lang/err_open_if_assign.fung
+-- stdout
+| FAIL tests/lang/err_open_if_assign.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_assign.fung:2:5
+|   |
+| 2 | x = if false: 1 ;;
+|   |     ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant
+-- exit: 2
+==== test tests/lang/err_open_if_chain.fung
+-- stdout
+| FAIL tests/lang/err_open_if_chain.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_chain.fung:4:6
+|   |
+| 4 | else if n < 0:
+|   |      ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant
+-- exit: 2
+==== test tests/lang/err_open_if_lambda.fung
+-- stdout
+| FAIL tests/lang/err_open_if_lambda.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_lambda.fung:2:24
+|   |
+| 2 | print(map([1, 2], x => if x > 1: x ;;))
+|   |                        ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant
+-- exit: 2
+==== test tests/lang/err_open_if_nested.fung
+-- stdout
+| FAIL tests/lang/err_open_if_nested.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_nested.fung:3:3
+|   |
+| 3 |   if false: 1 ;;
+|   |   ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant
+-- exit: 2
 ==== test tests/lang/err_overflow.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_pipe_hole.fung
+-- stdout
+| FAIL tests/lang/err_pipe_hole.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0227]: `_` in a call on the right of `|>`
+|   --> tests/lang/err_pipe_hole.fung:3:14
+|   |
+| 3 | print(3 |> h(_, 10))
+|   |              ^
+|   |
+|  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
+-- exit: 2
 ==== test tests/lang/err_pmap_failed.fung
 -- stdout
 | 0 passed, 0 failed
@@ -772,7 +907,7 @@
 | 1 | fn f(xs) = for x in xs: x? ;;
 |   |                          ^
 |   |
-|  help: `for` builds a list and cannot return early; handle the Err with `match`, or use `all`/`any`/`fold`
+|  help: `for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`
 -- exit: 2
 ==== test tests/lang/err_question_top.fung
 -- stdout
@@ -817,6 +952,19 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_rest_type.fung
+-- stdout
+| FAIL tests/lang/err_rest_type.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0228]: the rest parameter `...xs` is always a list
+|   --> tests/lang/err_rest_type.fung:2:9
+|   |
+| 2 | fn f(...xs: int) = xs
+|   |         ^^
+|   |
+|  help: annotate it `list` (or not at all); `list[int]` names the elements without checking them
+-- exit: 2
 ==== test tests/lang/err_return_in_for.fung
 -- stdout
 | FAIL tests/lang/err_return_in_for.fung: <load>
@@ -883,6 +1031,29 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_sym_str_eq.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_sym_str_nested.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_tag_assign.fung
+-- stdout
+| FAIL tests/lang/err_tag_assign.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0225]: `MAX_RETRIES` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> tests/lang/err_tag_assign.fung:2:1
+|   |
+| 2 | MAX_RETRIES = 3
+|   | ^^^^^^^^^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
 ==== test tests/lang/err_tag_named.fung
 -- stdout
 | FAIL tests/lang/err_tag_named.fung: <load>
@@ -895,6 +1066,37 @@
 |   |          ^
 |   |
 -- exit: 2
+==== test tests/lang/err_tag_shorthand_map.fung
+-- stdout
+| FAIL tests/lang/err_tag_shorthand_map.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0225]: `Red` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> tests/lang/err_tag_shorthand_map.fung:2:8
+|   |
+| 2 | print({Red})
+|   |        ^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
+==== test tests/lang/err_tag_shorthand_pattern.fung
+-- stdout
+| FAIL tests/lang/err_tag_shorthand_pattern.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0225]: `HOME` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> tests/lang/err_tag_shorthand_pattern.fung:3:2
+|   |
+| 3 | {HOME} = cfg
+|   |  ^^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
+==== test tests/lang/err_tail_return_type.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_task_failed.fung
 -- stdout
 | 0 passed, 0 failed
@@ -917,6 +1119,37 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_top_assigned_twice.fung
+-- stdout
+| FAIL tests/lang/err_top_assigned_twice.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `level`
+|   --> tests/lang/err_top_assigned_twice.fung:4:13
+|   |
+| 4 | fn show() = level
+|   |             ^^^^^ not found in this scope
+|   |
+|  help: `level` is a file-level variable (assigned on line 2) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument
+-- exit: 2
+==== test tests/lang/err_top_before_init.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_top_lambda_before.fung
+-- stdout
+| FAIL tests/lang/err_top_lambda_before.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0204]: undefined name `late`
+|   --> tests/lang/err_top_lambda_before.fung:2:11
+|   |
+| 2 | f = () => late
+|   |           ^^^^ not found in this scope
+|   |
+|  help: `late` is a file-level variable (assigned on line 4) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument
+-- exit: 2
 ==== test tests/lang/err_top_return.fung
 -- stdout
 | FAIL tests/lang/err_top_return.fung: <load>
@@ -930,7 +1163,17 @@
 |   |
 |  help: use `exit()` to stop a script early
 -- exit: 2
+==== test tests/lang/err_try_map_not_result.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_type.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_types_enum.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -993,7 +1236,25 @@
 |   |       ^ not found in this scope
 |   |
 -- exit: 2
+==== test tests/lang/err_value_ends_in_assign.fung
+-- stdout
+| FAIL tests/lang/err_value_ends_in_assign.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0224]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
+|   --> tests/lang/err_value_ends_in_assign.fung:3:3
+|   |
+| 3 |   _y = 1
+|   |   ^^
+|   |
+|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+-- exit: 2
 ==== test tests/lang/exit_from_task.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/failure_value.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1058,6 +1319,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/local_lifetime.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/map_shorthand.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1083,7 +1349,17 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/nfc_keys.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/nil.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/open_if.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1094,6 +1370,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/path_rules.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/pipe_tags.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1183,7 +1464,17 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/sym_str_compare.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/symbols.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/tag_keys.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1239,12 +1530,32 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/top_constants.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/try_map.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/tuples_tags.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
 ==== test tests/lang/types.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/types_enum.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/types_more.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

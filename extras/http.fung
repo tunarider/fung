@@ -47,7 +47,8 @@ fn serve(addr: str, handler: fn, ready = nil, drain: dur = 10s, reuse_port: bool
     Ok(l)  => l
     Err(e) => return Err({kind: 'network, message: "cannot listen on `${addr}`: ${e.message}"})
   ;;
-  with(() => l, l => _serve_on(l, handler, ready, drain), l => _net.close(l))
+  # a stop request has closed the listener already (`_stopper`)
+  with(() => l, l => _serve_on(l, handler, ready, drain), fn(l): _ = _net.close(l) ;;)
 ;;
 
 # The check of `ready` (E0403 `must be fn`; the parameter may be nil).
@@ -154,8 +155,8 @@ fn _hop(r, u, method, with_body, strip, prev, n):
   if next == nil:
     return Ok(res)
   ;;
-  if n > _redirect_limit():
-    return Err(_err("too many redirects (limit ${_redirect_limit()})"))
+  if n > _redirect_limit:
+    return Err(_err("too many redirects (limit ${_redirect_limit})"))
   ;;
   # RFC 9110 15.4: 307 and 308 keep the method and the body (a string
   # can always be sent again); 301, 302 and 303 make a GET (a HEAD stays
@@ -167,7 +168,7 @@ fn _hop(r, u, method, with_body, strip, prev, n):
 ;;
 
 # At most 10 redirects are followed: the 11th is an error.
-fn _redirect_limit() = 10
+_redirect_limit = 10
 
 # The user's headers again for a redirect: without the credentials once
 # a request left the first host and its subdomains (for good), without
@@ -177,7 +178,7 @@ fn _redirect_limit() = 10
 # once a redirect leads to another host and port.
 fn _hop_headers(r, u, with_body, strip, prev):
   moved = lower(u.host) != lower(r.first.host)
-  kept = fold(pairs(r.headers), {}, (m, (k, v)) => (strip and k in _sensitive()) or (not with_body and k in _body_headers()) or (moved and k == "Host") then m else put(m, k, v))
+  kept = fold(pairs(r.headers), {}, (m, (k, v)) => (strip and k in _sensitive) or (not with_body and k in _body_headers) or (moved and k == "Host") then m else put(m, k, v))
   if prev.scheme == "https" and u.scheme == "http":
     kept
   else if "Referer" in kept and kept["Referer"] != "":
@@ -187,9 +188,9 @@ fn _hop_headers(r, u, with_body, strip, prev):
   ;;
 ;;
 
-fn _sensitive() = ["Authorization", "Www-Authenticate", "Cookie", "Cookie2", "Proxy-Authorization", "Proxy-Authenticate"]
+_sensitive = ["Authorization", "Www-Authenticate", "Cookie", "Cookie2", "Proxy-Authorization", "Proxy-Authenticate"]
 
-fn _body_headers() = ["Content-Encoding", "Content-Language", "Content-Location", "Content-Type"]
+_body_headers = ["Content-Encoding", "Content-Language", "Content-Location", "Content-Type"]
 
 # Credentials go along to the first host (port and case aside) and its
 # subdomains only.
@@ -280,7 +281,7 @@ fn _send(method, u, body, hs, r, ctx):
     Ok((x, loc)) => _redirect(u, x, loc, ctx)
     Err(e)       => Err(e)
   ;;
-  _net.close(c)
+  _ = _net.close(c)
   res
 ;;
 
@@ -598,7 +599,7 @@ fn _open(u, proxy, ctx):
   ;;
   r = _tunnel(c, u, proxy, ctx, at)
   if type_of(r) == 'Err:
-    _net.close(c)
+    _ = _net.close(c)
   ;;
   r
 ;;
@@ -628,15 +629,15 @@ fn _tunnel(c, u, proxy, ctx, at):
 fn _proxy_auth(p) = p.user == nil then nil else "Basic " + _basic(p.user)
 
 # The CONNECT's answer: Ok((code, reason or nil)).
-fn _connect_answer(c) = match _net.read_line(c, _header_limit()):
+fn _connect_answer(c) = match _net.read_line(c, _header_limit):
   Ok(nil)  => Err(_err("connection closed before an answer"))
   Ok(line) => _connect_head(c, line)
-  Err(e)   => Err(e.kind == 'limit then _err(_exceeded()) else e)
+  Err(e)   => Err(e.kind == 'limit then _err(_exceeded) else e)
 ;;
 
 fn _connect_head(c, line) = match _status_line(line):
   Err(why)         => Err(_err(why))
-  Ok((_, _, code)) => match _fields(c, _header_limit() - _net.byte_len(line) - 2, "", nil, []):
+  Ok((_, _, code)) => match _fields(c, _header_limit - _net.byte_len(line) - 2, "", nil, []):
     Err(e) => Err(e)
     Ok(_)  => Ok((code, _reason(line)))
   ;;
@@ -678,14 +679,14 @@ fn _request_text(method, u, body, hs, via):
   start = ["${method} ${target} HTTP/1.1", "Host: " + (own != "" then own else _host_header(u.host))]
   agent = ua == "" then [] else ["User-Agent: ${ua}"]
   length = n > 0 or method in ["POST", "PUT", "PATCH"] then ["Content-Length: ${n}"] else []
-  rest = pairs(hs) |> filter(((k, _)) => k not in _not_written()) |> map(((k, v)) => "${k}: ${_trim_ows(v)}")
+  rest = pairs(hs) |> filter(((k, _)) => k not in _not_written) |> map(((k, v)) => "${k}: ${_trim_ows(v)}")
   auth = via == nil or via.user == nil then [] else ["Proxy-Authorization: ${_proxy_auth(via)}"]
   join(start + agent + length + rest + auth, "\r\n") + "\r\n\r\n" + (body ?? "")
 ;;
 
 # Headers the request writes itself: Host and User-Agent from the user's
 # when given, the framing ones (where the body ends) always its own.
-fn _not_written() = ["Host", "User-Agent", "Content-Length", "Transfer-Encoding", "Trailer"]
+_not_written = ["Host", "User-Agent", "Content-Length", "Transfer-Encoding", "Trailer"]
 
 # The Host header has no IPv6 zone (RFC 6874 4).
 fn _host_header(host):
@@ -711,29 +712,29 @@ fn _request_uri(u):
 # ---- The response -----------------------------------------------------
 
 # A response head may hold at most 10 MiB.
-fn _header_limit() = 10485760
+_header_limit = 10485760
 
 # A body may hold at most 64 MiB (the contract promises no unbounded
 # memory).
-fn _body_cap() = 67108864
+_body_cap = 67108864
 
-fn _too_long() = _too_long_for(_body_cap())
+_too_long = _too_long_for(_body_cap)
 
 # A body past `cap` bytes: kind 'limit, so the server (16 MiB) can tell
 # it from a broken body; the client reports it as any other failure.
 fn _too_long_for(cap) = {kind: 'limit, message: "response body longer than ${cap} bytes"}
 
-fn _exceeded() = "response head longer than ${_header_limit()} bytes"
+_exceeded = "response head longer than ${_header_limit} bytes"
 
 fn _at(kind, ctx, why) = {kind, message: ctx + why}
 
-fn _head_err(e, ctx) = e.kind == 'limit then _at('network, ctx, _exceeded()) else _at(e.kind, ctx, e.message)
+fn _head_err(e, ctx) = e.kind == 'limit then _at('network, ctx, _exceeded) else _at(e.kind, ctx, e.message)
 
 fn _head_line(c, budget) = budget < 0 then Err({kind: 'limit, message: ""}) else _net.read_line(c, budget)
 
-fn _read_response(c, method, ctx) = match _net.read_line(c, _header_limit()):
+fn _read_response(c, method, ctx) = match _net.read_line(c, _header_limit):
   Ok(nil)  => Err(_err(ctx + "connection closed before a response"))
-  Ok(line) => _read_head(c, method, ctx, line, _header_limit() - _net.byte_len(line) - 2)
+  Ok(line) => _read_head(c, method, ctx, line, _header_limit - _net.byte_len(line) - 2)
   Err(e)   => Err(e.kind == 'limit then _head_err(e, ctx) else {kind: e.kind, message: ctx + e.message})
 ;;
 
@@ -752,7 +753,7 @@ fn _read_head(c, method, ctx, line, budget):
 ;;
 
 fn _next_head(c, method, ctx, budget) = match _head_line(c, budget):
-  Ok(nil)  => Err(_at('network, ctx, _head_cut()))
+  Ok(nil)  => Err(_at('network, ctx, _head_cut))
   Ok(line) => _read_head(c, method, ctx, line, budget - _net.byte_len(line) - 2)
   Err(e)   => Err(_head_err(e, ctx))
 ;;
@@ -810,7 +811,7 @@ fn _fields(c, left, ctx, pending, acc) = match _head_line(c, left):
 
 fn _fields_next(c, left, ctx, step) = match step:
   Err(why)              => Err(_at('network, ctx, why))
-  Ok((_, acc, true))    => left < 0 then Err(_at('network, ctx, _exceeded())) else Ok((acc, left))
+  Ok((_, acc, true))    => left < 0 then Err(_at('network, ctx, _exceeded)) else Ok((acc, left))
   Ok((pending, acc, _)) => _fields(c, left, ctx, pending, acc)
 ;;
 
@@ -818,10 +819,10 @@ fn _fields_next(c, left, ctx, step) = match step:
 # is still checked first.
 fn _fields_eof(pending, acc, ctx) = match _flush(pending, acc):
   Err(why) => Err(_at('network, ctx, why))
-  Ok(_)    => Err(_at('network, ctx, _head_cut()))
+  Ok(_)    => Err(_at('network, ctx, _head_cut))
 ;;
 
-fn _head_cut() = "connection closed in the response head"
+_head_cut = "connection closed in the response head"
 
 # One header line into the state: Ok((pending, acc, done)) or Err(why).
 fn _field_step(pending, acc, line):
@@ -984,7 +985,7 @@ fn _body_allowed(code) = not (code // 100 == 1 or code == 204 or code == 304)
 
 fn _read_body(c, method, code, chunked, length):
   if chunked:
-    method == "HEAD" or not _body_allowed(code) then Ok("") else _chunked(c, 0, _body_cap())
+    method == "HEAD" or not _body_allowed(code) then Ok("") else _chunked(c, 0, _body_cap)
   else if length == 0:
     Ok("")
   else if length > 0:
@@ -995,8 +996,8 @@ fn _read_body(c, method, code, chunked, length):
 ;;
 
 fn _fixed(c, n):
-  if n > _body_cap():
-    return Err(_too_long())
+  if n > _body_cap:
+    return Err(_too_long)
   ;;
   match _net.read_bytes(c, n):
     Ok(s)  => Ok(s)
@@ -1004,9 +1005,9 @@ fn _fixed(c, n):
   ;;
 ;;
 
-fn _until_close(c) = match _net.read_all(c, _body_cap()):
+fn _until_close(c) = match _net.read_all(c, _body_cap):
   Ok(s)               => Ok(s)
-  Err({kind: 'limit}) => Err(_too_long())
+  Err({kind: 'limit}) => Err(_too_long)
   Err(e)              => Err(e)
 ;;
 
@@ -1076,8 +1077,8 @@ fn _hex(s) = s == "" then Err("empty chunk size") else _hex_from(chars(s), 0, 0)
 
 # One pass over the digits: the first byte that is no digit (or the 17th
 # digit) decides the error; past 15 digits without the leading zeros
-# (`n` is then -1) no body fits, which `_body_cap() + 1` says.
-fn _hex_from(cs, i, n) = i == len(cs) then Ok(n < 0 then _body_cap() + 1 else n) else match _digit(cs[i]):
+# (`n` is then -1) no body fits, which `_body_cap + 1` says.
+fn _hex_from(cs, i, n) = i == len(cs) then Ok(n < 0 then _body_cap + 1 else n) else match _digit(cs[i]):
   nil => Err("invalid chunk size")
   d   => i == 16 then Err("chunk size too large")
     else _hex_from(cs, i + 1, n < 0 or n >= 72057594037927936 then -1 else n * 16 + d)
@@ -1157,7 +1158,7 @@ fn _with_fragment(url, raw, frag) = match _escape_error(frag, 'fragment):
 fn _url(scheme, opaque, user, host, path, query, force, omit) = {scheme, opaque, user, host, path, query, force_query: force, fragment: "", omit_host: omit}
 
 fn _parse(raw):
-  if any(_ctls(), ch => ch in raw) or "\t" in raw:
+  if any(_ctls, ch => ch in raw) or "\t" in raw:
     return Err("control character in URL")
   ;;
   if raw == "*":
@@ -1313,7 +1314,7 @@ else:
   _encode_path(bs, i + 1, out + [_encode_byte(bs[i])])
 ;;
 
-fn _encode_byte(b) = _path_safe(b) then _printable()[b - 32] else "%" + "0123456789ABCDEF"[b // 16] + "0123456789ABCDEF"[b % 16]
+fn _encode_byte(b) = _path_safe(b) then _printable[b - 32] else "%" + "0123456789ABCDEF"[b // 16] + "0123456789ABCDEF"[b % 16]
 
 fn _path_safe(b) = (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
   or b in [45, 95, 46, 126, 36, 38, 43, 44, 47, 58, 59, 61, 64]
@@ -1321,7 +1322,7 @@ fn _path_safe(b) = (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 an
 fn _hex_value(b) = b <= 57 then b - 48 else (b <= 70 then b - 55 else b - 87)
 
 # ASCII 32 to 126, indexed by code - 32.
-fn _printable() = " !\"#\$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+_printable = " !\"#\$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 
 # The URL as text, with a password shown as ***: the URL an error or a
 # Referer shows.
@@ -1354,7 +1355,7 @@ fn _unescape_ascii(s):
 
 fn _ascii_at(p):
   n = _hex_value(_net.utf8_bytes(p[0])[0]) * 16 + _hex_value(_net.utf8_bytes(p[1])[0])
-  (n >= 32 and n <= 126 then _printable()[n - 32] else "%" + p[..2]) + p[2..]
+  (n >= 32 and n <= 126 then _printable[n - 32] else "%" + p[..2]) + p[2..]
 ;;
 
 # ---- Text helpers -------------------------------------------------------
@@ -1371,10 +1372,10 @@ fn _is_tchar(ch) = _is_alnum(ch) or ch in "!#\$%&'*+-.^_`|~"
 fn _is_token(s) = s != "" and all(chars(s), _is_tchar)
 
 # The control characters but tab, and DEL.
-fn _ctls() = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\u{a}", "\u{b}", "\u{c}", "\u{d}", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}", "\u{7f}"]
+_ctls = ["\u{0}", "\u{1}", "\u{2}", "\u{3}", "\u{4}", "\u{5}", "\u{6}", "\u{7}", "\u{8}", "\u{a}", "\u{b}", "\u{c}", "\u{d}", "\u{e}", "\u{f}", "\u{10}", "\u{11}", "\u{12}", "\u{13}", "\u{14}", "\u{15}", "\u{16}", "\u{17}", "\u{18}", "\u{19}", "\u{1a}", "\u{1b}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}", "\u{7f}"]
 
 # A field value without control characters but tab (RFC 9110 5.5).
-fn _valid_value(v) = not any(_ctls(), ch => ch in v)
+fn _valid_value(v) = not any(_ctls, ch => ch in v)
 
 # A header name in its usual case: "content-type" → "Content-Type"; a key
 # with a character that is not a token character stays as written.
@@ -1430,15 +1431,15 @@ fn _trim_right_ows(s) = trim("\u{1}" + s, " \t")[1..]
 # `<code> <reason>` as the body.
 
 # The server's limits (06): headers within 10 s, a body of at most 16 MiB.
-fn _header_timeout() = 10s
+_header_timeout = 10s
 
-fn _max_body() = 16777216
+_max_body = 16777216
 
 # A request head may hold 1 MiB (its lines with their CRLFs and the blank
 # line) and at most 500 header lines; past either it is 431.
-fn _max_head() = 1048576
+_max_head = 1048576
 
-fn _max_values() = 500
+_max_values = 500
 
 # Watched from here on: a stop request is this server's to finish. The
 # scope `top` ends when the connections have (after the stop request
@@ -1448,9 +1449,9 @@ fn _serve_on(l, handler, ready, drain):
   if ready != nil:
     ready(_net.local_addr(l))
   ;;
-  scope(fn(top):
+  _ = scope(fn(top):
     w = spawn(top, () => _stopper(l, stop, drain, top))
-    supervise(conns => _accept(l, handler, conns, 0s), e => eprint("http: internal error: ${e.message}"))
+    supervise(conns => _accept(l, handler, conns, 0s), e => eprint("http: internal error: error[${e.code}]: ${e.message}"))
     cancel(w)
   ;;)
   nil
@@ -1460,7 +1461,7 @@ fn _serve_on(l, handler, ready, drain):
 # `_accept`), `drain` for the requests in flight, then the rest is
 # cancelled (their releases answer 503).
 fn _stopper(l, stop, drain, top):
-  recv(stop)
+  _ = recv(stop)
   _net.close(l)
   sleep(drain)
   cancel(top)
@@ -1509,7 +1510,7 @@ fn _backoff(delay):
 
 # One connection: its request, the answer, the end.
 fn _conn(c, handler, state):
-  _net.set_deadline(c, _header_timeout())
+  _net.set_deadline(c, _header_timeout)
   match _read_request(c):
     Ok(rq)   => _respond(c, rq, handler, state)
     Err(nil) => nil
@@ -1521,7 +1522,7 @@ fn _conn(c, handler, state):
 # writing and waits before it closes, so the client can read the answer
 # while it still sends.
 fn _refuse(c, no):
-  _net.write(c, no.text)
+  _ = _net.write(c, no.text)
   if no.linger:
     _linger(c)
   ;;
@@ -1551,10 +1552,10 @@ fn _drained(c):
 # or timed out before a whole head: there is no one to answer), or
 # Err({text, linger}) with the server's own answer.
 
-fn _read_request(c) = match _net.read_line(c, _max_head()):
+fn _read_request(c) = match _net.read_line(c, _max_head):
   Ok(nil)  => Err(nil)
-  Ok(line) => _request_head(c, line, _max_head() - _net.byte_len(line) - 2)
-  Err(e)   => Err(e.kind == 'limit then _too_large() else nil)
+  Ok(line) => _request_head(c, line, _max_head - _net.byte_len(line) - 2)
+  Err(e)   => Err(e.kind == 'limit then _too_large else nil)
 ;;
 
 fn _request_head(c, line, budget):
@@ -1563,38 +1564,38 @@ fn _request_head(c, line, budget):
   (target, proto) = _cut(rest, " ")
   version = _version(proto)
   if " " not in line or " " not in rest or not _is_token(method) or version == nil:
-    return Err(_bad_request())
+    return Err(_bad_request)
   ;;
   (major, minor) = version
   u = match _request_target(method, target):
-    nil => return Err(_bad_request())
+    nil => return Err(_bad_request)
     u   => u
   ;;
   fields = _req_fields(c, budget, nil, [])?
   h0 = _fix_pragma(_group(fields))
   if "Host" in h0 and len(h0["Host"]) > 1:
-    return Err(_bad_request())
+    return Err(_bad_request)
   ;;
   (h1, chunked) = match _transfer_encoding(h0, major, minor):
     Ok(x)  => x
-    Err(_) => return Err(_unsupported_te())
+    Err(_) => return Err(_unsupported_te)
   ;;
   (h2, n) = match _length(h1, 200, "", chunked):
     Ok(x)  => x
-    Err(_) => return Err(_bad_request())
+    Err(_) => return Err(_bad_request)
   ;;
   h = match _trailer_header(h2, chunked):
     Ok(x)  => x
-    Err(_) => return Err(_bad_request())
+    Err(_) => return Err(_bad_request)
   ;;
   if major != 1:
     return Err(_own_answer(505, false))
   else if _at_least_11(major, minor) and "Host" not in h and method != "CONNECT":
-    return Err(_bad_request())
+    return Err(_bad_request)
   else if "Host" in h and not _valid_host(h["Host"][0]):
-    return Err(_bad_request())
+    return Err(_bad_request)
   else if any(keys(h), k => not _is_token(k)):
-    return Err(_bad_request())
+    return Err(_bad_request)
   ;;
   length = chunked then -1 else max([n, 0])
   Ok({method, target, major, minor, path: u.path, query: _query(u.query), headers: _header_map(remove(h, "Host")), h, length, chunked})
@@ -1603,17 +1604,17 @@ fn _request_head(c, line, budget):
 # The header lines within the head's budget: Ok(fields) or Err(the
 # server's answer).
 fn _req_fields(c, left, pending, acc) = match _head_line(c, left):
-  Err(e)   => Err(e.kind == 'limit then _too_large() else nil)
-  Ok(nil)  => Err(_bad_request())
+  Err(e)   => Err(e.kind == 'limit then _too_large else nil)
+  Ok(nil)  => Err(_bad_request)
   Ok(line) => _req_field(c, left - _net.byte_len(line) - 2, _field_step(pending, acc, line))
 ;;
 
 fn _req_field(c, left, step) = match step:
-  Err(_)                                        => Err(_bad_request())
-  Ok(_) when left < 0                           => Err(_too_large())
-  Ok((_, acc, _)) when len(acc) > _max_values() => Err(_too_large())
-  Ok((_, acc, true))                            => Ok(acc)
-  Ok((pending, acc, _))                         => _req_fields(c, left, pending, acc)
+  Err(_)                                      => Err(_bad_request)
+  Ok(_) when left < 0                         => Err(_too_large)
+  Ok((_, acc, _)) when len(acc) > _max_values => Err(_too_large)
+  Ok((_, acc, true))                          => Ok(acc)
+  Ok((pending, acc, _))                       => _req_fields(c, left, pending, acc)
 ;;
 
 # The request target (RFC 9112 3.2: origin, absolute or asterisk form,
@@ -1621,7 +1622,7 @@ fn _req_field(c, left, step) = match step:
 # unescaped, or nil.
 fn _request_target(method, target):
   raw = method == "CONNECT" and not starts_with(target, "/") then "http://" + target else target
-  if raw == "" or "\t" in raw or any(_ctls(), ch => ch in raw):
+  if raw == "" or "\t" in raw or any(_ctls, ch => ch in raw):
     return nil
   else if raw == "*":
     return {path: "*", query: ""}
@@ -1708,11 +1709,11 @@ fn _own_answer(code, linger):
   {text: "HTTP/1.1 ${status}\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n${status}\n", linger}
 ;;
 
-fn _bad_request() = _own_answer(400, false)
+_bad_request = _own_answer(400, false)
 
-fn _too_large() = _own_answer(431, true)
+_too_large = _own_answer(431, true)
 
-fn _unsupported_te() = _own_answer(501, false)
+_unsupported_te = _own_answer(501, false)
 
 # ---- Answering -----------------------------------------------------------
 
@@ -1724,7 +1725,7 @@ fn _respond(c, rq, handler, state):
     return _write_reply(c, rq, 417, {Connection: "close"}, "")
   ;;
   if continues and _at_least_11(rq.major, rq.minor) and rq.length != 0:
-    _net.write(c, "HTTP/1.1 100 Continue\r\n\r\n")
+    _ = _net.write(c, "HTTP/1.1 100 Continue\r\n\r\n")
   ;;
   # `OPTIONS *` asks about the server, not a resource (RFC 9110 9.3.7):
   # answered here
@@ -1741,8 +1742,8 @@ fn _respond(c, rq, handler, state):
 # The body, at most 16 MiB: past it, an error of
 # kind 'limit.
 fn _request_body(c, rq) = if rq.chunked:
-  _chunked(c, 0, _max_body())
-else if rq.length > _max_body():
+  _chunked(c, 0, _max_body)
+else if rq.length > _max_body:
   Err({kind: 'limit, message: ""})
 else if rq.length > 0:
   _net.read_bytes(c, rq.length)
@@ -1757,7 +1758,7 @@ else:
 fn _call(c, rq, handler, state, body):
   req = {method: rq.method, path: rq.path, query: rq.query, headers: rq.headers, body}
   reset(state, ('handling, rq))
-  r = supervise(s => await(spawn(s, () => Ok(handler(req)))), e => eprint("http: handler failed: ${e.message}"))
+  r = supervise(s => await(spawn(s, () => Ok(handler(req)))), e => eprint("http: handler failed: error[${e.code}]: ${e.message}"))
   reset(state, 'done)
   match r:
     Ok(res)             => _answer(c, rq, res)
@@ -1819,7 +1820,7 @@ fn _http_error(c, rq, status):
 ;;
 
 fn _write_reply(c, rq, status, hs, body):
-  _net.write(c, _reply(rq, status, hs, body))
+  _ = _net.write(c, _reply(rq, status, hs, body))
   c
 ;;
 

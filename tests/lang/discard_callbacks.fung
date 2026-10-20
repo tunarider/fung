@@ -1,0 +1,14 @@
+# Callbacks whose results are used keep their Errs.
+print(with(() => 1, _ => Err("use"), _ => nil))
+# expect: Err("use")
+print(map([1], x => Err(x)))
+# expect: [Err(1)]
+
+# A use that fails wins over a release that returns Err; the release's
+# error is a note (03).
+r = supervise(fn(s):
+  t = spawn(s, () => with(() => 1, _ => fail("in use"), _ => Err("in release")))
+  await(t)
+;;, e => nil)
+print(r)
+# expect: Err({kind: 'error, code: "E0803", message: "in use", at: "tests/lang/discard_callbacks.fung:10"})

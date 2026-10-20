@@ -1,0 +1,13 @@
+# A tag on the right of |> takes the value first, as a call does (01).
+print(1 |> Ok, 1 |> Pair(2), "x" |> Some)
+# expect: Ok(1) Pair(1, 2) Some("x")
+print(" 7 " |> trim |> parse_int |> Wrapped)
+# expect: Wrapped(Ok(7))
+
+# A hole deeper than the piped call is still a partial application.
+fn join(a, b) = "${a}/${b}"
+print(["x", "y"] |> map(join("d", _)))
+# expect: ["d/x", "d/y"]
+fn h(a, b) = a - b
+print(3 |> (v => h(10, v)))
+# expect: 7

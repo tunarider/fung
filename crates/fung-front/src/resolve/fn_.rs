@@ -8,7 +8,7 @@ use crate::tree::{FnInfo, Head, Lit, Node};
 /// The type names of 07; tag names (uppercase) are also accepted.
 const BUILTIN_TYPES: &[&str] = &[
     "int", "float", "num", "str", "bool", "nil", "sym", "dur", "time", "list", "map", "tuple",
-    "range", "fn", "module", "task", "scope", "atom", "sender", "receiver", "any",
+    "range", "fn", "module", "task", "scope", "atom", "sender", "receiver", "file", "any",
 ];
 
 pub(super) fn is_builtin_type(name: &str) -> bool {
@@ -30,11 +30,17 @@ impl Resolver<'_> {
             params: decl.params.clone(),
             ret: decl.ret.clone(),
             for_body: false,
+            expr_body: decl.expr_body,
             num_locals: 0,
             captures: Vec::new(),
         };
         let mut f = FnScope::new(&decl.name);
         f.for_body = decl.for_body;
+        f.map_body = std::mem::take(&mut self.map_arg);
+        f.top = std::mem::take(&mut self.top_arg);
+        if f.top {
+            super::own_bindings(n.kids.last().expect("fn body"), &mut f.own);
+        }
         self.fns.push(f);
 
         self.check_types(&mut info, n.pos);
@@ -78,6 +84,13 @@ impl Resolver<'_> {
         for p in &mut info.params {
             if let Some(t) = &p.types {
                 p.types = Some(self.expand_types(t, p.pos)).filter(|t| !t.is_empty());
+            }
+            // A rest parameter is always a list (07, T3).
+            if p.rest
+                && let Some(t) = &p.types
+                && t.iter().any(|t| t != "list" && t != "any")
+            {
+                self.errs.push(super::name_error("E0228", p.pos, &p.name));
             }
         }
         if let Some(t) = &info.ret {

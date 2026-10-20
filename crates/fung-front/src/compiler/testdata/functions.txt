@@ -29,35 +29,35 @@
 0027  12:24 JUMP         30
 0028  12:27 CONST        5    ; false
 0029  12:27 CHECKBOOL
-0030  12:24 POP
+0030  12:1  POP
 0031  13:1  CONST        6    ; "x"
 0032  13:8  CONST        6    ; "x"
 0033  13:5  EQ
-0034  13:5  POP
+0034  13:1  POP
 0035  13:13 CONST        7    ; 2.0
 0036  13:19 CONST        1    ; 1
 0037  13:17 DIV
-0038  13:17 POP
+0038  13:13 POP
 0039  13:22 CONST        8    ; 7
 0040  13:27 CONST        2    ; 2
 0041  13:24 FLOORDIV
-0042  13:24 POP
+0042  13:22 POP
 0043  13:30 CONST        8    ; 7
 0044  13:34 CONST        2    ; 2
 0045  13:32 MOD
-0046  13:32 POP
+0046  13:30 POP
 0047  13:37 CONST        2    ; 2
 0048  13:42 CONST        9    ; 3
 0049  13:39 POW
-0050  13:39 POP
+0050  13:37 POP
 0051  13:45 CONST        1    ; 1
 0052  13:50 CONST        2    ; 2
 0053  13:47 NE
-0054  13:47 POP
+0054  13:45 POP
 0055  13:53 CONST        1    ; 1
 0056  13:58 CONST        2    ; 2
 0057  13:55 LE
-0058  13:55 POP
+0058  13:53 POP
 0059  13:61 CONST        1    ; 1
 0060  13:66 CONST        2    ; 2
 0061  13:63 GE
@@ -68,22 +68,21 @@
 0001  2:3   STORELOCAL   1
 0002  3:7   CLOSURE      1    ; <lambda>
 0003  3:3   STORELOCAL   2
-0004  4:3   CONST        0    ; <fn map>
-0005  4:13  CONST        1    ; 1
-0006  4:12  LIST         1
+0004  3:3   CLEARLOCAL   0
+0005  4:3   CONST        0    ; <fn each>
+0006  4:12  CONST        1    ; [1]
 0007  4:3   CLOSURE      2    ; <lambda>
 0008  4:3   CALL         2    ; 2 positional, 0 named
 0009  4:3   POP
-0010  5:20  CONST        1    ; 1
-0011  5:24  CONST        2    ; 2
-0012  5:23  LIST         1
-0013  5:19  TUPLE        2
-0014  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
-0015  6:10  LOADLOCAL    1
-0016  6:15  CONST        2    ; 2
-0017  6:14  TAILCALL     1    ; 1 positional, 0 named
-0018  6:3   RETURN
-0019  1:1   RETURN
+0010  5:20  CONST        2    ; 1
+0011  5:23  CONST        3    ; [2]
+0012  5:19  TUPLE        2
+0013  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
+0014  6:10  LOADLOCAL    1
+0015  6:15  CONST        4    ; 2
+0016  6:14  TAILCALL     1    ; 1 positional, 0 named
+0017  6:3   RETURN
+0018  1:1   RETURN
 
 == loop ==
 0000  2:16  LOADLOCAL    0

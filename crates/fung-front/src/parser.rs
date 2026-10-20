@@ -55,6 +55,12 @@ fn err(code: &str, pos: Pos, args: Vec<Arg>) -> Box<Diag> {
     Box::new(error(code, pos, args))
 }
 
+/// E0225: an uppercase name where a variable is bound or read by a
+/// shorthand (01: 대문자로 시작하는 이름은 태그 전용).
+fn tag_as_name(t: &Token) -> Box<Diag> {
+    Box::new(error("E0225", t.pos, vec![s(t.text.clone())]).span(t.text.chars().count()))
+}
+
 fn s(text: impl Into<String>) -> Arg {
     Arg::Str(text.into())
 }

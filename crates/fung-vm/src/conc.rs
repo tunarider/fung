@@ -341,6 +341,10 @@ fn received_value(r: Received) -> Value {
 struct RecvK(Option<RecvWait>);
 
 impl Cont for RecvK {
+    fn receives_on(&self) -> Option<&Rc<crate::vm::Receiver>> {
+        self.0.as_ref().map(RecvWait::end)
+    }
+
     fn resume(&mut self, _: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
         let w = self.0.as_ref().expect("a waiting recv");
         Ok(match w.poll() {

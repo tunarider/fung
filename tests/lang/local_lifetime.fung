@@ -1,0 +1,22 @@
+# A local is let go after the statement that reads it last (03), so a
+# channel a function made closes when its producer is done.
+fn tens() = scope(fn(s):
+  (tx, rx) = channel()
+  spawn(s, () => each(0..3, i => send(tx, i)))
+  for x in rx: x * 10 ;;
+;;)
+print(tens())
+# expect: [0, 10, 20]
+
+# Read last inside a branch: let go after the statement holding it.
+fn pick(flag) = scope(fn(s):
+  (tx, rx) = channel(3)
+  if flag:
+    spawn(s, () => send(tx, 1))
+  else:
+    spawn(s, () => send(tx, 2))
+  ;;
+  for x in rx: x ;;
+;;)
+print(pick(true), pick(false))
+# expect: [1] [2]

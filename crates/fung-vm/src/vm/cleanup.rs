@@ -35,7 +35,7 @@ use fung_front::diag::headline;
 
 use super::cont::{Cont, Flow, Next};
 use super::task::{CancelNode, is_cancel};
-use super::{Stop, Task};
+use super::{Stop, Task, discarded};
 use crate::value::Value;
 
 /// `with(acquire, use, release)`: see the module doc. The three calls are
@@ -99,6 +99,7 @@ impl With {
         };
         t.cancel = outer;
         t.world.shields.remove(&shield_key(&shield));
+        let r_rel = discarded(r_rel);
         let failed = |r: &Result<Value, Stop>| matches!(r, Err(Stop::Error(d)) if !is_cancel(d));
         match (r_use, r_rel) {
             (Err(Stop::Error(mut u)), r_rel) if !is_cancel(&u) => {

@@ -40,6 +40,10 @@ impl Compiler<'_> {
         if positional > MAX_ARGS || named > MAX_ARGS {
             return Err(too_many(n, "arguments"));
         }
+        // A function with a return type keeps its frame to check the value,
+        // except for a tail call to itself: the same check runs where its
+        // self calls end (03, T4).
+        let tail = tail && (!self.has_ret || n.kids[0].head == Head::SelfFn);
         let op = if tail { Op::TailCall } else { Op::Call };
         self.proto.emit(op, encode_call(positional, named), n.pos);
         Ok(())
@@ -94,6 +98,8 @@ impl Compiler<'_> {
             proto: child,
             prelude: self.prelude,
             opts: self.opts,
+            lines: self.lines,
+            body_block: false,
         };
 
         // Prologue: defaults, then type checks.
@@ -118,7 +124,8 @@ impl Compiler<'_> {
         }
 
         let body = n.kids.last().expect("fn has a body");
-        cc.block(body, !cc.has_ret)?;
+        cc.body_block = true;
+        cc.block(body, true)?;
         if cc.has_ret {
             let rt = cc.proto.return_type as usize;
             cc.proto.emit(Op::CheckReturn, rt, body.pos);

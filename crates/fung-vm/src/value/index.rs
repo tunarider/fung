@@ -75,9 +75,13 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
             let Value::Int(n) = i else {
                 return Err(type_error("index", x, i));
             };
-            let rs: Vec<char> = s.chars().collect();
-            let idx = norm_index(*n, rs.len())?;
-            Ok(Value::Str(Rc::new(rs[idx].to_string())))
+            let idx = norm_index(*n, char_len(s))?;
+            let at = byte_at(s, idx);
+            let ch = s[at..]
+                .chars()
+                .next()
+                .expect("index checked against the length");
+            Ok(Value::Str(Rc::new(ch.to_string())))
         }
         Value::Map(m) => {
             let Value::Str(k) = i else {
@@ -92,6 +96,8 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
             let Value::Str(k) = i else {
                 return Err(type_error("index", x, i));
             };
+            // A member is a name: found in NFC however it was written (01).
+            let k = &*fung_front::unicode::nfc(k);
             if k.starts_with('_') {
                 return Err(err(
                     "E0304",
@@ -190,9 +196,10 @@ pub fn slice(
             Ok(Value::List(Rc::new(List::slice(l, lo, hi))))
         }
         Value::Str(s) => {
-            let rs: Vec<char> = s.chars().collect();
-            let (lo, hi) = slice_bounds(start, end, rs.len(), inclusive)?;
-            Ok(Value::Str(Rc::new(rs[lo..hi].iter().collect())))
+            let (lo, hi) = slice_bounds(start, end, char_len(s), inclusive)?;
+            let from = byte_at(s, lo);
+            let to = from + byte_at(&s[from..], hi - lo);
+            Ok(Value::Str(Rc::new(s[from..to].to_string())))
         }
         _ => Err(err("E0511", vec![Arg::Str(type_name(x))])),
     }
@@ -203,7 +210,14 @@ pub fn slice(
 /// the int range (02).
 pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
     match c {
-        Value::List(l) => Ok(l.iter().any(|item| super::equal(item, x))),
+        Value::List(l) => {
+            for item in l.iter() {
+                if super::eq(item, x)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         Value::Str(s) => match x {
             Value::Str(sub) => Ok(s.contains(sub.as_str())),
             _ => Err(type_error("search", c, x)),
@@ -226,4 +240,22 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
 fn whole_int(f: f64) -> Option<i64> {
     let in_range = (-9223372036854775808.0..9223372036854775808.0).contains(&f);
     (in_range && f.fract() == 0.0).then_some(f as i64)
+}
+
+/// A string's length in characters (02), without a copy (P4). An ASCII
+/// string is its byte count.
+fn char_len(s: &str) -> usize {
+    if s.is_ascii() {
+        s.len()
+    } else {
+        s.chars().count()
+    }
+}
+
+/// The byte offset of character `i` of `s` (`s.len()` past the end).
+fn byte_at(s: &str, i: usize) -> usize {
+    if s.is_ascii() {
+        return i.min(s.len());
+    }
+    s.char_indices().nth(i).map_or(s.len(), |(b, _)| b)
 }

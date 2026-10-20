@@ -601,7 +601,19 @@ impl Drop for SendWait {
     }
 }
 
+impl Receiver {
+    /// Whether `tx` is the sending end of this receiving end's channel.
+    pub(crate) fn pairs_with(&self, tx: &Sender) -> bool {
+        Rc::ptr_eq(&self.0, &tx.0)
+    }
+}
+
 impl RecvWait {
+    /// The receiving end it waits on.
+    pub(crate) fn end(&self) -> &Rc<Receiver> {
+        &self.end
+    }
+
     /// After a wake: the value a sender delivered, or, once the channel
     /// closed (the slot leaves the queue), what the buffer still holds or
     /// `Closed`; `None` to wait again.

@@ -93,7 +93,6 @@ prelude fung reverse
 prelude fung sh
 prelude fung sum
 prelude fung take
-prelude fung unique
 prelude fung until
 prelude fung values
 prelude fung zip
@@ -154,6 +153,8 @@ prelude native swap(a, f)
 prelude native sym(x)
 prelude native timeout(d, f)
 prelude native trim(s, cut=?)
+prelude native try_map(xs, f)
 prelude native type_of(x)
+prelude native unique(xs)
 prelude native upper(s)
 prelude native with(acquire, use, release)

@@ -4,7 +4,7 @@ use super::{Compiler, lit_str};
 use crate::bytecode::Op;
 use crate::consts::Const;
 use crate::diag::Diag;
-use crate::tree::{Head, Node};
+use crate::tree::{Head, Lit, Node};
 
 impl Compiler<'_> {
     /// Compiles every child as a non-tail expression.
@@ -20,6 +20,12 @@ impl Compiler<'_> {
         let pos = n.pos;
         match n.head {
             Head::List => {
+                // A list of constants is one constant (P7): values are
+                // immutable, so every evaluation can share it.
+                if let Some(c) = constant_list(n) {
+                    self.emit_const(c, pos);
+                    return Ok(());
+                }
                 self.kids(n)?;
                 self.proto.emit(Op::List, n.kids.len(), pos);
             }
@@ -137,4 +143,28 @@ impl Compiler<'_> {
         }
         Ok(())
     }
+}
+
+/// The constant a non-empty list literal of constants stands for (P7).
+/// An empty list is left to LIST: the runtime reads an empty list
+/// constant as the prelude's `args` (`fung_vm::vm::link`).
+fn constant_list(n: &Node) -> Option<Const> {
+    if n.head != Head::List || n.kids.is_empty() {
+        return None;
+    }
+    let mut items = Vec::with_capacity(n.kids.len());
+    for k in &n.kids {
+        items.push(match (k.head, &k.lit) {
+            (Head::Int, Lit::Int(i)) => Const::Int(*i),
+            (Head::Float, Lit::Float(f)) => Const::Float(*f),
+            (Head::Bool, Lit::Bool(b)) => Const::Bool(*b),
+            (Head::Nil, _) => Const::Nil,
+            (Head::String, Lit::Str(s)) => Const::Str(s.clone()),
+            (Head::Symbol, Lit::Str(s)) => Const::Sym(s.clone()),
+            (Head::Duration, Lit::Dur(d)) => Const::Dur(*d),
+            (Head::List, _) => constant_list(k)?,
+            _ => return None,
+        });
+    }
+    Some(Const::List(items))
 }

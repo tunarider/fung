@@ -1,0 +1,30 @@
+# try_map stops at the first Err (03).
+print(["1", "2", "3"] |> try_map(s => parse_int(s)))
+# expect: Ok([1, 2, 3])
+calls = atom(0)
+parse = fn(s):
+  swap(calls, n => n + 1)
+  parse_int(s)
+;;
+print(try_map(["1", "x", "3"], parse))
+# expect: Err({kind: 'parse, message: "not an integer: x"})
+print(deref(calls))
+# expect: 2
+print(try_map([], parse), try_map(1..=2, n => Ok(n * 10)))
+# expect: Ok([]) Ok([10, 20])
+
+# The usual shape: the first failure goes to the caller with ?.
+fn total(xs) = Ok(sum(try_map(xs, parse_int)?))
+print(total(["4", "5"]), total(["4", "y"]))
+# expect: Ok(9) Err({kind: 'parse, message: "not an integer: y"})
+
+# A list of results made before: r => r.
+print(try_map([Ok(1), Ok(2)], r => r))
+# expect: Ok([1, 2])
+
+# ? stays fine in a named fn handed to map, and in other lambdas.
+fn twice(s) = Ok(parse_int(s)? * 2)
+print(map(["1", "x"], twice))
+# expect: [Ok(2), Err({kind: 'parse, message: "not an integer: x"})]
+print(with(() => "7", s => Ok(parse_int(s)?), _ => nil))
+# expect: Ok(7)

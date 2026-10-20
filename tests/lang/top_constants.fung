@@ -1,0 +1,19 @@
+# A top-level name assigned once is a constant: top-level fns see it
+# when they are called (03).
+limit = 3
+names = ["a", "b"]
+counter = atom(0)
+fn ok(n) = n <= limit
+fn bump() = swap(counter, x => x + 1)
+fn first() = names[0]
+fn deep() = map([1, 5], x => ok(x))
+print(ok(2), ok(4), first(), deep())
+# expect: true false a [true, false]
+bump()
+bump()
+print(deref(counter))
+# expect: 2
+(lo, hi) = (1, 9)
+fn within(n) = lo <= n and n <= hi
+print(within(5), within(10))
+# expect: true false

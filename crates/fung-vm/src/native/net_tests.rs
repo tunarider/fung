@@ -1218,7 +1218,7 @@ fn a_failure_accepting_ends_the_server() {
     let _g = serial();
     let o = exec_prepared(
         &format!(
-            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}r = await(s)\nprint(r)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
+            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}r = await(s)\nprint(match r: Err(e) => (e.kind, e.code, e.message, starts_with(e.at, \"extras/http.fung:\")) ;;)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
         ),
         Opts {
             internal: true,
@@ -1229,11 +1229,7 @@ fn a_failure_accepting_ends_the_server() {
     );
     assert_eq!(
         out(&o),
-        (
-            "Err({kind: 'error, message: \"error[E0803]: injected\"})\n'network\n",
-            "",
-            0
-        )
+        ("('error, \"E0803\", \"injected\", true)\n'network\n", "", 0)
     );
     assert_eq!(probe::sockets(), 0);
 }

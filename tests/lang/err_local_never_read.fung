@@ -1,0 +1,10 @@
+# A local never read lives until its function returns (03): here it
+# keeps the channel open on purpose, so the loop waits forever.
+fn held() = scope(fn(s):
+  (tx, rx) = channel()
+  _held = tx
+  spawn(s, () => send(tx, 1))
+  for x in rx: x ;;
+;;)
+print(held())
+# expect-error: E0702

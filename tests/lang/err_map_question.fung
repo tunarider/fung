@@ -1,0 +1,4 @@
+# ? in a lambda given to map would put the Err into the list (03).
+fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
+# expect-error: E0226
+print(ints(["1"]))

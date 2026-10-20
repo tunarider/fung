@@ -23,7 +23,7 @@ fn resolved(src: &str, prelude: &[&str], ropts: &ROpts) -> Resolved {
     let mut sm = SourceMap::new();
     let f = sm.add("t.fung", src);
     let (toks, _) = lex(f, src).unwrap();
-    let core = desugar(&parse(&toks).unwrap()).unwrap();
+    let core = desugar(&parse(&toks).unwrap(), true).unwrap();
     let names: Vec<String> = prelude.iter().map(|s| s.to_string()).collect();
     resolve(&core, &names, ropts).unwrap()
 }
@@ -33,6 +33,7 @@ fn opts(src: &str, tests: bool) -> Options {
         source: src.into(),
         file: "t.fung".into(),
         tests,
+        keep_value: true,
     }
 }
 
@@ -256,14 +257,17 @@ fn compile_tail_calls() {
         got.contains("TAILCALL(2)") && !got.contains(" CALL("),
         "expected a tail call: {got}"
     );
-    // Not tail: operand of +, with a return type.
-    for src in ["fn f(n) = 1 + f(n)", "fn f(n) -> int = f(n)"] {
+    // Not tail: operand of +; with a return type, a call to another fn.
+    for src in ["fn f(n) = 1 + f(n)", "fn f(n) -> int = g(n)\nfn g(n) = n"] {
         let got = ops(&comp(src).protos[0]);
         assert!(
             !got.contains("TAILCALL"),
             "{src:?} compiled a tail call: {got}"
         );
     }
+    // With a return type, a call to itself is still a tail call (03, T4).
+    let got = ops(&comp("fn f(n) -> int = f(n)").protos[0]);
+    assert!(got.contains("TAILCALL"), "{got}");
     // An argument is not in tail position, but the outer call is.
     let got = ops(&comp("fn f(n) = print(f(n))").protos[0]);
     assert!(
@@ -331,7 +335,14 @@ fn check_type_carries_the_parameter_position() {
 #[test]
 fn compile_collections_and_ops() {
     let cases = [
-        ("[1, 2]", "CONST(0) CONST(1) LIST(2) RETURN"),
+        // A list of constants is one constant (P7); one with a variable,
+        // or an empty one, is built.
+        ("[1, 2]", "CONST(0) RETURN"),
+        (
+            "x = 1\n[x, 2]",
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) LIST(2) RETURN",
+        ),
+        ("[[]]", "LIST(0) LIST(1) RETURN"),
         ("{a: 1}", "CONST(0) CONST(1) MAP(1) RETURN"),
         ("(1,)", "CONST(0) TUPLE(1) RETURN"),
         ("Ok(1)", "CONST(0) CONST(1) TAG(1) RETURN"),
@@ -352,7 +363,7 @@ fn compile_collections_and_ops() {
             "m = {}\nm.k",
             "MAP(0) STOREGLOBAL(0) LOADGLOBAL(0) FIELD(0) RETURN",
         ),
-        ("1 in [1]", "CONST(0) CONST(0) LIST(1) IN RETURN"),
+        ("1 in [1]", "CONST(0) CONST(1) IN RETURN"),
         ("Ok(1)!", "CONST(0) CONST(1) TAG(1) UNWRAPABORT RETURN"),
         ("nil ?? 1", "CONST(0) COALESCE(3) JUMP(4) CONST(1) RETURN"),
     ];
@@ -531,7 +542,7 @@ fn bytecode(src: &str) -> String {
     let (toks, _) = lex(f, src).unwrap();
     let names = builtins().prelude_names();
     let r = resolve(
-        &desugar(&parse(&toks).unwrap()).unwrap(),
+        &desugar(&parse(&toks).unwrap(), true).unwrap(),
         &names,
         &ROpts::default(),
     )
@@ -541,6 +552,7 @@ fn bytecode(src: &str) -> String {
         source: src.into(),
         file: "-e".into(),
         tests: false,
+        keep_value: true,
     };
     disassemble(&compile(&r, &set, &o).unwrap())
 }
@@ -558,6 +570,75 @@ fn dump_outputs() {
          0005  1:1   STOREGLOBAL  0    ; x\n\
          0006  1:1   CONST        3    ; nil\n\
          0007  1:1   RETURN\n"
+    );
+}
+
+/// A local is let go after the statement that reads it last (03, L7):
+/// CLEARLOCAL follows that statement. One never read is kept.
+#[test]
+fn locals_are_cleared_after_their_last_read() {
+    let ops = |src: &str| -> Vec<String> {
+        let b = bytecode(src);
+        let f = b.split("== f ==\n").nth(1).expect("f's code").to_string();
+        f.lines()
+            .take_while(|l| !l.is_empty())
+            .map(|l| {
+                let w: Vec<&str> = l.split_whitespace().skip(2).take(2).collect();
+                w.iter()
+                    .take_while(|x| **x != ";")
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect()
+    };
+    assert_eq!(
+        ops("fn f(a, b):\n  print(a)\n  x = b\n  print(x)\n  0\n;;"),
+        [
+            "CONST 0",
+            "LOADLOCAL 0",
+            "CALL 1",
+            "POP",
+            "CLEARLOCAL 0",
+            "LOADLOCAL 1",
+            "STORELOCAL 2",
+            "CLEARLOCAL 1",
+            "CONST 0",
+            "LOADLOCAL 2",
+            "CALL 1",
+            "POP",
+            "CLEARLOCAL 2",
+            "CONST 1",
+            "RETURN"
+        ]
+    );
+    // Read in a branch: let go after the if; never read: kept; captured
+    // by a lambda: that is a read.
+    assert_eq!(
+        ops("fn f(a, b, c):\n  _k = c\n  if b: print(a) ;;\n  g = () => b\n  print(1)\n  g\n;;"),
+        [
+            "LOADLOCAL 2",
+            "STORELOCAL 3",
+            "CLEARLOCAL 2",
+            "LOADLOCAL 1",
+            "JUMPIFFALSE 9",
+            "CONST 0",
+            "LOADLOCAL 0",
+            "CALL 1",
+            "JUMP 10",
+            "CONST 1",
+            "POP",
+            "CLEARLOCAL 0",
+            "CLOSURE 0",
+            "STORELOCAL 4",
+            "CLEARLOCAL 1",
+            "CONST 0",
+            "CONST 2",
+            "CALL 1",
+            "POP",
+            "LOADLOCAL 4",
+            "RETURN"
+        ]
     );
 }
 

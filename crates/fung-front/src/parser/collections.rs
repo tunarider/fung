@@ -1,6 +1,6 @@
 //! Collection literals: lists, maps, tuples and tags.
 
-use super::{PResult, Parser, describe, err, s};
+use super::{PResult, Parser, describe, err, s, tag_as_name};
 use crate::lexer::Kind;
 use crate::tree::{Head, Lit, Node};
 
@@ -43,8 +43,9 @@ impl Parser<'_> {
             let t = self.peek();
             let key = if self.at_name_like() {
                 // An identifier-shaped key is a string whatever its case
-                // (02); keywords are plain names here (01).
-                t.text.clone()
+                // (02), as written (not NFC); keywords are plain names
+                // here (01).
+                t.key().to_string()
             } else if t.kind == Kind::String {
                 let mut text = String::new();
                 for part in &t.parts {
@@ -62,9 +63,11 @@ impl Parser<'_> {
             }
             seen.push(key.clone());
             self.next();
-            let v = if matches!(t.kind, Kind::Name | Kind::Tag)
-                && (self.at(Kind::Comma) || self.at(Kind::RBrace))
-            {
+            let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
+            if t.kind == Kind::Tag && shorthand {
+                return Err(tag_as_name(t));
+            }
+            let v = if t.kind == Kind::Name && shorthand {
                 // {a, b} is {a: a, b: b} (02). Keywords and strings have no
                 // variable to stand for, so they take no shorthand.
                 Node::leaf(Head::Name, t.pos, Lit::Str(t.text.clone()))

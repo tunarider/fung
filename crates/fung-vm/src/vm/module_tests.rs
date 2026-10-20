@@ -342,6 +342,43 @@ fn unregistered_and_self_importing_modules_are_internal_errors() {
 }
 
 /// Every standard module runs (since stage 4d wrote `http` in fung).
+/// A module's functions see its constants and its state (03, L9): a
+/// name the module assigns once, an atom too.
+#[test]
+fn a_module_fn_sees_the_module_constants() {
+    let (out, code) = run_program(
+        &[
+            (
+                "/p/lib.fung",
+                "counter = atom(0)\nstep = 2\nfn bump() = swap(counter, x => x + step)\n",
+            ),
+            (
+                "/p/main.fung",
+                "import \"./lib\"\nlib.bump()\nprint(lib.bump(), deref(lib.counter))",
+            ),
+        ],
+        "/p/main.fung",
+    );
+    assert_eq!((out.as_str(), code.as_str()), ("4 4\n", ""));
+}
+
+/// A module member is a name, so it is found in NFC however `.` wrote
+/// it (01, L8): e + U+0301 reaches the export spelled U+00E9.
+#[test]
+fn a_module_member_is_found_in_nfc() {
+    let (out, code) = run_program(
+        &[
+            ("/p/lib.fung", "fn caf\u{e9}() = 1\n"),
+            (
+                "/p/main.fung",
+                "import \"./lib\"\nprint(lib.cafe\u{301}(), lib.caf\u{e9}())",
+            ),
+        ],
+        "/p/main.fung",
+    );
+    assert_eq!((out.as_str(), code.as_str()), ("1 1\n", ""));
+}
+
 #[test]
 fn standard_modules_run() {
     // `http` runs since stage 4d (its client: the arguments are checked).

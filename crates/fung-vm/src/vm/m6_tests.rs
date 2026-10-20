@@ -139,10 +139,11 @@ fn test_blocks_run_one_after_another() {
             Err(Stop::Error(d)) => assert_eq!(d.code, "E0702"),
             r => panic!("stuck: {r:?}"),
         }
-        // The report shows where the block waits.
+        // The report shows where the block waits, and that the entry's
+        // global still holds the sending end (L7).
         assert_eq!(
             err.text(),
-            "error[E0702]: deadlock: all tasks are waiting\n  --> t.fung:10:19\n   |\n10 | test \"stuck\": recv(ch) ;;\n   |                   ^\n   |\n call path (innermost first):\n   t.fung:10  test: stuck\n"
+            "error[E0702]: deadlock: all tasks are waiting\n  --> t.fung:10:19\n   |\n10 | test \"stuck\": recv(ch) ;;\n   |                   ^\n   |\n call path (innermost first):\n   t.fung:10  test: stuck\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `ch_tx`), so the channel cannot close: close it with `close(ch_tx)` first, or leave the sending end to the producers only\n"
         );
         rt.cancel_all();
         rt.wait();

@@ -102,6 +102,7 @@
 |   |
 |  call path (innermost first):
 |    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+|  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
 -- exit: 1
 ==== test crates/fung-cli/tests/data/test/exit_in_task.fung
 -- stdout
@@ -315,6 +316,7 @@
 |   |
 |  call path (innermost first):
 |    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+|  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
 | error[E0204]: undefined name `nope`
 |   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -439,6 +441,7 @@
 |   |
 |  call path (innermost first):
 |    crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+|  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
 | error[E0204]: undefined name `nope`
 |   --> crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |
@@ -583,6 +586,7 @@
 |   |
 |  call path (innermost first):
 |    $REPO/crates/fung-cli/tests/data/test/deadlock.fung:4 test: deadlocks
+|  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: deadlocks`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
 | error[E0204]: undefined name `nope`
 |   --> $REPO/crates/fung-cli/tests/data/test/own_error.fung:1:18
 |   |

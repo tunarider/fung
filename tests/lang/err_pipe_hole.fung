@@ -1,0 +1,4 @@
+# The piped value is always the first argument: a hole there is an error.
+fn h(a, b) = a - b
+print(3 |> h(_, 10))
+# expect-error: E0227

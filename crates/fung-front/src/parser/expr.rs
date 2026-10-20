@@ -251,11 +251,12 @@ impl<'a> Parser<'a> {
                 vec![s("a field name after `.`"), s(describe(p))],
             ));
         }
+        // A key as written (01); a module's member is found in NFC.
         let name = self.next();
         Ok(Node::with_lit(
             Head::Field,
             t.pos,
-            Lit::Str(name.text.clone()),
+            Lit::Str(name.key().to_string()),
             vec![x],
         ))
     }

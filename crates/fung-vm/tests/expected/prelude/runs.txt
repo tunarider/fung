@@ -441,6 +441,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`
 -- exit: 1
 ==== "print(group_by([1], x => nil))"
 -- stdout
@@ -453,6 +454,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`
 -- exit: 1
 ==== "print(group_by(1, 1))"
 -- stdout
@@ -1822,8 +1824,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:115 _padding
-|    extras/prelude.fung:120 pad_left
+|    extras/prelude.fung:113 _padding
+|    extras/prelude.fung:118 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1836,8 +1838,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:117 _padding
-|    extras/prelude.fung:120 pad_left
+|    extras/prelude.fung:115 _padding
+|    extras/prelude.fung:118 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1851,7 +1853,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:140 until
+|    extras/prelude.fung:138 until
 |    -e:1       <entry>
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
@@ -1865,7 +1867,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:143 iterate (1 tail calls elided)
+|    extras/prelude.fung:141 iterate (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
@@ -1878,7 +1880,7 @@
 |   |          ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:107 get
+|    extras/prelude.fung:105 get
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(lines(1))"
@@ -1891,8 +1893,8 @@
 |   |            ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:123 _chomp
-|    extras/prelude.fung:129 lines
+|    extras/prelude.fung:121 _chomp
+|    extras/prelude.fung:127 lines
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(keys([]))"
@@ -1905,7 +1907,7 @@
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:100 keys
+|    extras/prelude.fung:98 keys
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1]))"
@@ -2068,7 +2070,7 @@
 -- exit: 0
 ==== "supervise(s => print(await(spawn(s, () => 1 / 0)), await(spawn(s, () => [1][5]))), e => nil)"
 -- stdout
-| Err({kind: 'error, message: "error[E0502]: division by zero"}) Err({kind: 'error, message: "error[E0507]: index 5 is out of range (length 1)"})
+| Err({kind: 'error, code: "E0502", message: "division by zero", at: "-e:1"}) Err({kind: 'error, code: "E0507", message: "index 5 is out of range (length 1)", at: "-e:1"})
 -- stderr
 -- exit: 0
 ==== "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  print(await(t))\n;;)"

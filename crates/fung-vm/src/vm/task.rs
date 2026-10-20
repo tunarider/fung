@@ -26,12 +26,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 use std::time::Instant;
 
-use fung_front::diag::{Diag, headline};
+use fung_front::diag::Diag;
 
 use super::block::{WaitList, Waiter};
 use super::deadline::Deadline;
 use super::scope::ScopeState;
-use super::{Stop, Task};
+use super::{Stop, Task, World};
 use crate::native::nat;
 use crate::value::{MapBuilder, Value, drop_children, intern, keep};
 
@@ -290,14 +290,34 @@ pub(crate) fn err_kind(kind: &str) -> Value {
 /// What a task's run becomes as its result: the value, or
 /// `Err({kind: 'cancelled})` for a cancelled task (E0701), one woken by the
 /// deadlock report (E0702) or one that called `exit`, or
-/// `Err({kind: 'error, message: "error[E…]: …"})` for a failure.
-pub(super) fn outcome(r: &Result<Value, Stop>) -> Value {
+/// `Err(failure_value(d))` for a failure. `world` names the failure's file.
+pub(super) fn outcome(r: &Result<Value, Stop>, world: Option<&World>) -> Value {
     match r {
         Ok(v) => v.clone(),
         Err(Stop::Exit(_)) => err_kind("cancelled"),
         Err(Stop::Error(d)) if is_cancel(d) => err_kind("cancelled"),
-        Err(Stop::Error(d)) => nat::err_value("error", &headline(d), Vec::new()),
+        Err(Stop::Error(d)) => nat::tag("Err", vec![failure_value(d, world)]),
     }
+}
+
+/// A task's failure as a value (05, L11): `{kind: 'error, code: "E0502",
+/// message: "division by zero", at: "x.fung:3"}`, `at` only where the
+/// error has a place.
+pub(super) fn failure_value(d: &Diag, world: Option<&World>) -> Value {
+    let mut m = MapBuilder::default();
+    m.set(Rc::new("kind".to_string()), Value::Sym(intern("error")));
+    m.set(Rc::new("code".to_string()), Value::str(&d.code));
+    m.set(
+        Rc::new("message".to_string()),
+        Value::str(&fung_front::diag::message(&d.code, &d.args)),
+    );
+    if let Some(w) = world
+        && !d.pos.is_zero()
+    {
+        let at = format!("{}:{}", w.file_name(d.pos.file), d.pos.line);
+        m.set(Rc::new("at".to_string()), Value::str(&at));
+    }
+    Value::Map(Rc::new(m.finish()))
 }
 
 /// Cancelled, or woken by the deadlock report: not the task's failure.

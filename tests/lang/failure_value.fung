@@ -1,0 +1,9 @@
+# A task's failure is a map with its error code, its message and where
+# it happened (05).
+x = supervise(fn(s):
+  t = spawn(s, () => 1 / 0)
+  await(t)
+;;, e => print(e.code, e.message, ends_with(e.at, "failure_value.fung:4")))
+# expect: E0502 division by zero true
+print(x)
+# expect: Err({kind: 'error, code: "E0502", message: "division by zero", at: "tests/lang/failure_value.fung:4"})

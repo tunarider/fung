@@ -14,7 +14,7 @@ use fung_front::tree::Capture;
 
 use super::matcher::{RtPattern, link_pattern};
 use super::{Stop, Task, internal};
-use crate::value::{List, Native, NativeParam, Value, intern};
+use crate::value::{List, Native, NativeParam, TypeSet, Value, intern};
 
 /// The prelude table: every name a program can use without importing
 /// (06), mapped to its value.
@@ -35,7 +35,7 @@ pub struct RtProto {
     pub params: Vec<Param>,
     pub protos: Vec<Rc<RtProto>>,
     pub captures: Vec<Capture>,
-    pub types: Vec<Vec<String>>,
+    pub types: Vec<TypeSet>,
     pub return_type: i32,
     pub patterns: Vec<RtPattern>,
     pub exports: Vec<String>,
@@ -56,7 +56,7 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         params: p.params.clone(),
         protos: p.protos.iter().map(|c| link(c, prelude)).collect(),
         captures: p.captures.clone(),
-        types: p.types.clone(),
+        types: p.types.iter().map(|a| TypeSet::new(a)).collect(),
         return_type: p.return_type,
         patterns: p
             .patterns

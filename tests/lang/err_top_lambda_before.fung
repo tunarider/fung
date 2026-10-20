@@ -1,0 +1,5 @@
+# A lambda copies what exists where it is made: still top-down (03).
+f = () => late
+# expect-error: E0204
+late = 1
+print(f())

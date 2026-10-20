@@ -1,0 +1,5 @@
+# An uppercase name is a tag: a map pattern cannot bind it (01).
+cfg = {HOME: "/home/me"}
+{HOME} = cfg
+# expect-error: E0225
+print(HOME)

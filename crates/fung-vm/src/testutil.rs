@@ -211,6 +211,8 @@ fn setup_with(
         tests: opts.tests,
         read_file: opts.read,
         internal: opts.internal,
+        // Tests read the program's value (`Outcome::value`).
+        keep_value: true,
         ..Loader::default()
     };
     let (b, errs) = loader.compile(opts.file, src, Stage::All);

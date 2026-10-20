@@ -1436,7 +1436,7 @@ fn with_temp_dir_removes_after_a_runtime_error() {
 #[test]
 fn with_temp_dir_removes_after_a_cancel() {
     let o = testutil::exec_waiting(
-        "import fs\n(out_tx, out) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  t = spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); recv(never) ;;))\n  dir = recv(out)!\n  cancel(t)\n  await(t)\n  print(fs.exists(dir))\n;;)",
+        "import fs\n(out_tx, out) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  t = spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); recv(never) ;;))\n  dir = recv(out)!\n  cancel(t)\n  _ = await(t)\n  print(fs.exists(dir))\n;;)",
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""));
 }

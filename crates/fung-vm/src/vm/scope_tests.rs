@@ -224,7 +224,7 @@ fn a_supervised_failure_goes_to_on_fail_and_the_rest_run_on() {
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("handled: error[E0803]: b\n[1, 3]\n", "", 0)
+        ("handled: b\n[1, 3]\n", "", 0)
     );
 }
 
@@ -248,7 +248,7 @@ fn an_on_fail_that_waits_still_handles_in_order() {
     assert_eq!(lines.len(), 7, "{out}");
     for pair in lines[..6].chunks(2) {
         assert_eq!(pair[0], "start", "{out}");
-        assert!(pair[1].starts_with("end error[E0803]: "), "{out}");
+        assert!(pair[1].starts_with("end "), "{out}");
     }
     assert_eq!(lines[6], "done", "{out}");
     assert_eq!(code, 0);
@@ -265,7 +265,7 @@ fn on_fail_runs_one_at_a_time_in_order() {
     assert_eq!(lines.len(), 6, "{out}");
     for pair in lines.chunks(2) {
         assert_eq!(pair[0], "start", "{out}");
-        assert!(pair[1].starts_with("end error[E0803]: "), "{out}");
+        assert!(pair[1].starts_with("end "), "{out}");
     }
     let mut ms: Vec<&str> = lines
         .iter()
@@ -354,7 +354,7 @@ fn cancelling_a_finished_supervised_task_does_not_stop_on_fail() {
     let (out, err, code) = run(
         "r = supervise(fn(s):\n  t = spawn(s, () => fail(\"a\"))\n  print(await(t))\n  cancel(t)\n;;, fn(e): sleep(20ms); print(\"handled\", e.message) ;;)\nprint(r)",
     );
-    assert!(out.contains("handled error[E0803]: a\n"), "{out}");
+    assert!(out.contains("handled a\n"), "{out}");
     assert_eq!((err.as_str(), code), ("", 0));
 }
 

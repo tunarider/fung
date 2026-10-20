@@ -360,6 +360,10 @@ fn tuple_tag_range_forms() {
 #[test]
 fn matches_type_cases() {
     let alts = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let red1 = Value::Tag(Rc::new(Tag {
+        name: intern("Red"),
+        args: vec![Value::Int(1)],
+    }));
     let cases = [
         (Value::Int(1), alts(&["int"]), true),
         (Value::Int(1), alts(&["num"]), true),
@@ -370,6 +374,17 @@ fn matches_type_cases() {
         (Value::Bool(true), alts(&["str", "nil"]), false),
         (native("p"), alts(&["fn"]), true),
         (Value::Int(1), alts(&["Circle"]), false),
+        // A tag name takes the tagged value and the symbol of that name
+        // (07, T1): a tag without values is that symbol.
+        (Value::Sym(intern("Red")), alts(&["Red", "Green"]), true),
+        (Value::Sym(intern("Blue")), alts(&["Red", "Green"]), false),
+        (Value::Sym(intern("Red")), alts(&["sym"]), true),
+        (Value::Sym(intern("red")), alts(&["Red"]), false),
+        (red1.clone(), alts(&["Red"]), true),
+        (red1, alts(&["sym"]), false),
+        (Value::Sym(intern("Red")), alts(&["any"]), true),
+        (Value::Dur(1), alts(&["int", "dur"]), true),
+        (Value::Int(1), alts(&["time"]), false),
     ];
     for (v, a, want) in cases {
         assert_eq!(matches_type(&v, Some(&a)), want, "{v:?} {a:?}");
@@ -416,7 +431,7 @@ fn dur_arithmetic() {
     ok(div, md.clone(), Value::Int(4), Value::Dur(15 * SEC));
     ok(div, sd.clone(), Value::Float(0.5), Value::Dur(2 * SEC));
     fails(add, sd.clone(), Value::Int(1), "E0501");
-    fails(div, md.clone(), sd.clone(), "E0501");
+    ok(div, md.clone(), sd.clone(), Value::Float(60.0)); // a number (07, L5)
     fails(div, sd.clone(), Value::Int(0), "E0502");
     fails(floor_div, md.clone(), Value::Int(2), "E0501");
     fails(rem, md.clone(), Value::Int(2), "E0501");
@@ -452,6 +467,41 @@ fn dur_div_by_int_is_exact() {
         ok(div, Value::Dur(d), Value::Int(n), Value::Dur(want));
     }
     fails(div, Value::Dur(i64::MIN), Value::Int(-1), "E0503");
+}
+
+/// Durations divided by durations give numbers (07, L5): `/` a float,
+/// `//` an int and `%` a duration by the floor rule of ints.
+#[test]
+fn dur_by_dur_gives_numbers() {
+    const MS: i64 = 1_000_000;
+    let d = Value::Dur;
+    ok(div, d(1500 * MS), d(MS), Value::Float(1500.0));
+    ok(div, d(MS), d(4 * MS), Value::Float(0.25));
+    ok(div, d(2 * MS), d(MS), Value::Float(2.0));
+    // Exact past 2^53 ns: the quotient's whole part is an integer division.
+    ok(div, d(i64::MAX), d(1), Value::Float(i64::MAX as f64));
+    ok(div, d((1 << 60) + 1), d(1 << 59), Value::Float(2.0));
+    ok(div, d(-3 * MS), d(2 * MS), Value::Float(-1.5));
+    let floors = [
+        (7, 2, 3, 1),
+        (-7, 2, -4, 1),
+        (7, -2, -4, -1),
+        (-7, -2, 3, -1),
+        (6, 3, 2, 0),
+    ];
+    for (x, y, q, r) in floors {
+        ok(floor_div, d(x), d(y), Value::Int(q));
+        ok(rem, d(x), d(y), d(r));
+    }
+    ok(rem, d(i64::MIN), d(-1), d(0));
+    fails(floor_div, d(i64::MIN), d(-1), "E0503");
+    for f in [div as BinOp, floor_div, rem] {
+        fails(f, d(MS), d(0), "E0502");
+    }
+    // Mixed: dur // n, dur % n and n / dur stay errors.
+    fails(floor_div, d(MS), Value::Int(2), "E0501");
+    fails(rem, d(MS), Value::Int(2), "E0501");
+    fails(div, Value::Int(2), d(MS), "E0501");
 }
 
 #[test]
@@ -617,6 +667,63 @@ fn pvec_matches_slice() {
         assert_eq!(v.len(), want.len());
         for (i, x) in want.iter().enumerate() {
             assert_eq!(v.at(i), x, "at({i}) len {}", want.len());
+        }
+    }
+}
+
+/// `truncate` (P3) keeps the model's prefix, leaves every older version
+/// as it was, and the cut vector grows on as any vector does.
+#[test]
+fn pvec_truncate_matches_the_model() {
+    let mut r = Rng::new(0x0bad_cafe_f00d_1234);
+    let mut cur: (Pvec<i64>, Vec<i64>) = (Pvec::of(vec![]), vec![]);
+    let mut history = vec![cur.clone()];
+    for step in 0..40000 {
+        match r.int_n(10) {
+            0 if !cur.1.is_empty() => {
+                let n = r.int_n(cur.1.len() + 1);
+                cur.0.truncate(n);
+                cur.1.truncate(n);
+            }
+            1 if !cur.1.is_empty() => {
+                // pop-and-push, the stack shape of P3
+                let n = cur.1.len() - 1;
+                cur.0.truncate(n);
+                cur.1.truncate(n);
+            }
+            _ => {
+                let x = r.int();
+                cur.0.push(x);
+                cur.1.push(x);
+            }
+        }
+        if step % 499 == 0 {
+            history.push(cur.clone());
+        }
+    }
+    history.push(cur);
+    for (v, want) in &history {
+        assert_eq!(v.len(), want.len());
+        for (i, x) in want.iter().enumerate() {
+            assert_eq!(v.at(i), x, "at({i}) len {}", want.len());
+        }
+    }
+    for n in [1056, 32800, 33000] {
+        let v = Pvec::of((0..n as i64).collect());
+        for cut in [0, 1, 31, 32, 33, 1024, 1025, n - 1, n] {
+            let mut w = v.clone();
+            w.truncate(cut);
+            for k in 0..1100 {
+                w.push(-k);
+            }
+            assert_eq!(w.len(), cut + 1100, "n={n} cut={cut}");
+            for i in 0..cut {
+                assert_eq!(*w.at(i), i as i64, "n={n} cut={cut} at {i}");
+            }
+            for k in 0..1100 {
+                assert_eq!(*w.at(cut + k as usize), -k, "n={n} cut={cut} push {k}");
+            }
+            assert_eq!(*v.at(n - 1), n as i64 - 1, "the original kept its end");
         }
     }
 }

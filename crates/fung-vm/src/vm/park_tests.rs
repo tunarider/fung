@@ -456,7 +456,7 @@ fn an_await_cut_short_leaves_the_waiting_list() {
 fn waiters_left_after_cancellations_wake_in_order() {
     assert_eq!(
         out(
-            "(go_tx, go) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(go))\n  ws = map(0..40, i => spawn(s, fn(): await(t); print(i) ;;))\n  until(() => awaiters(t) == 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  until(() => all(gone, finished))\n  print(\"left\", awaiters(t))\n  close(go_tx)\n;;)"
+            "(go_tx, go) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(go))\n  ws = map(0..40, i => spawn(s, fn(): _ = await(t); print(i) ;;))\n  until(() => awaiters(t) == 40)\n  gone = filter(0..40, i => i % 3 != 0) |> map(i => ws[i])\n  each(gone, cancel)\n  until(() => all(gone, finished))\n  print(\"left\", awaiters(t))\n  close(go_tx)\n;;)"
         ),
         (
             "left 14\n0\n3\n6\n9\n12\n15\n18\n21\n24\n27\n30\n33\n36\n39\n".into(),

@@ -1,0 +1,3 @@
+# A lambda's body is a value: map keeps it.
+print(map([1, 2], x => if x > 1: x ;;))
+# expect-error: E0223

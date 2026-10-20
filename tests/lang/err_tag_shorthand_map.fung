@@ -1,0 +1,3 @@
+# A map literal's shorthand needs a variable; a tag is none (02).
+print({Red})
+# expect-error: E0225

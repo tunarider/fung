@@ -231,7 +231,7 @@ fn callback_errors_report_as_before() {
         ),
         (
             "print(group_by([1], x => 1))",
-            "error[E0514]: cannot use a value of type int as a map key\n  --> -e:1:15\n  |\n1 | print(group_by([1], x => 1))\n  |               ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n",
+            "error[E0514]: cannot use a value of type int as a map key\n  --> -e:1:15\n  |\n1 | print(group_by([1], x => 1))\n  |               ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`\n",
         ),
     ];
     for (src, want) in cases {

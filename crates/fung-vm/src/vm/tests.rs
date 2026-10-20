@@ -155,7 +155,7 @@ fn variables_blocks_and_literals() {
             "w = if 7 > 5: \"big\" else: \"small\" ;;\nprint(w)",
             "big\n",
         ),
-        ("print(if false: 1 ;;)", "nil\n"),
+        ("print(if false: 1 else: nil ;;)", "nil\n"),
         ("print(1 > 0 then \"a\" else \"b\")", "a\n"),
         (
             "x = 1\nprint(\"x is ${x}, next ${x + 1}\")",
@@ -165,7 +165,8 @@ fn variables_blocks_and_literals() {
             "print(\"a\" + \"b\", \"a\" == \"a\", \"a\" < \"b\")",
             "ab true true\n",
         ),
-        ("print('ok, 'ok == 'ok, 'ok == \"ok\")", "'ok true false\n"),
+        // A symbol meeting a string is E0517 (02, L10); other types: false.
+        ("print('ok, 'ok == 'ok, 'ok == 1)", "'ok true false\n"),
         (
             "print(1h30m, 500ms + 1.5s, 2 * 30s, 1m / 4, 30s < 1m)",
             "1h30m 2s 1m 15s true\n",
@@ -356,9 +357,14 @@ fn non_tail_recursion_hits_the_frame_limit() {
             "fn f(n) = n == 0 then 0 else 1 + f(n - 1)\nprint(f(200000))",
             "E0804",
         ),
-        // A return type annotation disables TCO (03), so this one overflows too.
+        // A return type keeps the frame for calls to other functions, but a
+        // self tail call reuses it (03, T4).
         (
             "fn count(n, acc) -> int = n == 0 then acc else count(n - 1, acc + 1)\nprint(count(200000, 0))",
+            "",
+        ),
+        (
+            "fn g(n) = n\nfn h(n) -> int = n == 0 then 0 else 1 + h(n - 1)\nprint(h(200000))",
             "E0804",
         ),
     ]);

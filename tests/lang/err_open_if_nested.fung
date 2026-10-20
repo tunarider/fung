@@ -1,0 +1,7 @@
+# An if at the end of a used branch is used as well.
+print(if true:
+  if false: 1 ;;
+else:
+  2
+;;)
+# expect-error: E0223

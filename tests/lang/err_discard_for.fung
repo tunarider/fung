@@ -1,0 +1,9 @@
+# A for statement runs as each: its body's Err is discarded.
+for x in [1, 2]:
+  print(x)
+  x == 2 then Err("two") else Ok(x)
+;;
+# expect: 1
+# expect: 2
+# expect-error: E0606
+print("not reached")

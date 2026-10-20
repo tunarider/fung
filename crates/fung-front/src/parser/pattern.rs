@@ -1,6 +1,6 @@
 //! Patterns, `match` and `for`.
 
-use super::{MAX_DEPTH, PResult, Parser, describe, err, s};
+use super::{MAX_DEPTH, PResult, Parser, describe, err, s, tag_as_name};
 use crate::diag::Arg;
 use crate::lexer::Kind;
 use crate::tree::{Head, Lit, Node};
@@ -198,19 +198,21 @@ impl Parser<'_> {
                 return Err(err("E0112", p.pos, vec![s("a map key"), s(describe(p))]));
             }
             let key = self.next();
-            let v = if matches!(key.kind, Kind::Name | Kind::Tag)
-                && (self.at(Kind::Comma) || self.at(Kind::RBrace))
-            {
+            let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
+            let v = if key.kind == Kind::Tag && shorthand {
+                return Err(tag_as_name(key));
+            } else if key.kind == Kind::Name && shorthand {
                 // {a, b} binds a and b (02); keywords take no shorthand.
                 Node::leaf(Head::Pbind, key.pos, Lit::Str(key.text.clone()))
             } else {
                 self.expect_desc(Kind::Colon, "`:`")?;
                 self.pattern()?
             };
+            // The key as written; a shorthand's variable is the NFC name.
             n.kids.push(Node::with_lit(
                 Head::Pentry,
                 key.pos,
-                Lit::Str(key.text.clone()),
+                Lit::Str(key.key().to_string()),
                 vec![v],
             ));
             if self.at(Kind::Comma) {

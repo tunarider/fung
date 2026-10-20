@@ -1,0 +1,4 @@
+# A rest parameter is a list: another annotation would fail every call.
+fn f(...xs: int) = xs
+# expect-error: E0228
+print(f())

@@ -1,0 +1,13 @@
+# Uppercase keys are strings, and tags in a larger pattern still match.
+cfg = {HOME: "/home/me", PORT: 8080}
+{HOME: home, PORT: port} = cfg
+print(home, port, cfg.HOME)
+# expect: /home/me 8080 /home/me
+(Red, n) = (Red, 1)
+print(n)
+# expect: 1
+Ok(v) = Ok(2)
+print(v)
+# expect: 2
+print({HOME: Red})
+# expect: {HOME: 'Red}

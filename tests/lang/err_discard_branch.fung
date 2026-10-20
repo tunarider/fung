@@ -1,0 +1,6 @@
+# The last value of a branch in a discarded place is discarded too.
+if true:
+  Err("in a branch")
+;;
+# expect-error: E0606
+print("not reached")

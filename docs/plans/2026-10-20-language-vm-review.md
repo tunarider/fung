@@ -31,7 +31,7 @@
 
 1. **결정 없이 고칠 버그 묶음**(언어 변경 없음). 셋은 파일이 겹치지 않아 따로(병렬로) 할 수 있다.
    - 진행(2026-10-20): 세 묶음 모두 끝나 main에 스쿼시 머지했다(F7의 결정 부분은 E0222, C7도 함께).
-     남은 것은 결정 항목 L1~L11·T1~T4·V8(L8에 달림)·V10, 성능 P1~P7, 문서 D1~D9이다.
+     남은 것은 결정 항목 L1~L11·T1~T4·V8(L8에 달림)·V10, 성능 P1~P7, 문서 D1~D9이다. 2026-10-20에 모든 항목을 처리했다(P2는 알려진 한계로 기록).
    - 앞단: F1 F2 F3 F4 F5 F6 F8 F9 F10 F11 F12
    - VM·값: V1 V2 V3 V4 V5 V6 V7 V9
    - 동시성: C1 C2 C3 C6 (C4·C5는 성능이지만 같은 파일이라 함께)
@@ -103,7 +103,14 @@
 
 ### L1. 식 문장의 `Err`를 조용히 버린다 — 결정, 높음
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 6개 모두 추천대로. ① (가) 버려지는 `Err`는 런타임 에러 E0606 `discarded Err: %s`(위치는 문장의 첫 글자).
+  ② `each`의 `f` 결과도. ③ 버려지는 자리의 `for`는 desugar가 `each`로 낮춘다(버려지는 자리는 블록의 마지막이 아닌 식, 그런 자리의 블록·`if`·`match` 가지의 끝, `for` 문장의 본문 끝).
+  ④ 파일의 마지막 식도(로더 `keep_value`: REPL과 VM 시험만 값을 남김). ⑤ 일부러 버리기는 `_ = 식`만. ⑥ `await`하지 않은 태스크의 `Err` 결과는 보류(open-questions).
+  명령 수는 그대로(`POP`이 늘 검사; 모든 `POP`이 문장 버림이라 표시가 필요 없었다). `extras`의 일부러 버리던 곳 8군데에 `_ =`
+  (`conc.fan_in`의 `scope`, `http`의 `_net.close`·`_net.write`·`recv(stop)`·`_serve_on`의 `scope`). 문서 01·02·03·08·09·open-questions, `syntax.html`·`builtins.html`·`internals.html`, CHANGELOG.
+  후속(사용자 결정 2026-10-20): `with`의 `release`와 `supervise`의 `on_fail`이 돌려준 `Err`도 E0606(그 콜백의 런타임 에러, `vm::discarded`), `http.serve`의 리스너 해제에 `_ =`.
+  `recv(stop)`의 어색함은 써 보며 판단(open-questions).
+  시험: 골든 `discard.fung`·`discard_callbacks.fung`·`err_discard_*.fung` 7개, `desugar::tests::discarded_for_becomes_each`, `repl_tests::an_input_prints_its_last_err_and_rejects_a_discarded_one`.
 - **증상**: 값을 버리는 자리(식 문장)의 값이 `Err`여도 아무 일 없이 지나간다. `fung check`도 조용하다.
   셸 대용 언어에서 `set -e`를 잊은 셸과 같은 상태다.
   ```
@@ -132,7 +139,10 @@
 
 ### L2. `for`의 `?` 금지가 람다에는 없고, 결과값을 모으는 함수가 없다 — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 4개 모두 추천대로. 다시 보니 조용한 것은 `map`뿐이었다(`each`는 L1의 E0606, `filter`·`find`·`all`·`any`·`fold`·`sort_by`·`group_by`는 다음 계산에서 에러).
+  ① 경고 대신 컴파일 에러 E0226(prelude `map`의 인자 자리 람다 리터럴, 파이프 포함; `FnScope::map_body`). ② `try_map(xs, f)`(첫 `Err`에서 멈춤, 결과값이 아니면 E0605; `prelude.rs` `try_map_fn`).
+  ③ `all_ok` 같은 별도 함수는 두지 않음(`try_map(rs, r => r)`). ④ 새 번호 E0226, E0220 힌트에 `try_map`. 문서 03·06, `builtins.html`·`syntax.html`, CHANGELOG.
+  시험: `resolve::tests::for_body_return_and_question_outside_fn`, 골든 `try_map.fung`·`err_map_question.fung`·`err_try_map_not_result.fung`.
 - **증상**: 03은 `for` 본문의 `?`를 E0220으로 막는다. 이유는 "`Err`가 조용히 리스트 원소가 된다"인데, 같은 일이 `map`에 넘긴 람다에서는 그대로 난다.
   ```
   $F -e 'print(["1", "x", "3"] |> map(s => parse_int(s)?))'
@@ -149,7 +159,11 @@
 
 ### L3. 값 자리의 `else` 없는 `if`가 조용히 `nil` — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 6개 모두 추천대로. ① (가) 컴파일 에러 E0223. ② 값을 쓰는 자리는 대입 오른쪽·인자·`return`·연산자·원소·보간·인덱스·`assert`·기본값·`= 식` 본문.
+  ③ 람다 `=>` 본문도(부수효과는 `fn(x): … ;;`). ④ 블록 본문 함수의 마지막 `if`는 제외(open-questions). ⑤ W0104는 에러 E0224로(번호 W0104는 쓰지 않음으로 남김). ⑥ `match`는 그대로(E0601).
+  `FnInfo::expr_body`(파서가 `=`·`=>` 본문에 켬), 판정은 이름 해석 뒤 한 번 더 도는 `resolve/value.rs`(`for` 본문은 그 `for`가 쓰일 때만, 그래서 REPL 끝의 `for`는 괜찮다).
+  저장소 코드에서 걸린 것은 없었다(그 동작을 보이던 시험 파일 셋만 고침). D6(01의 "M6에서 검토" 문장)도 함께 지웠다.
+  문서 01·08·open-questions, `syntax.html`·`internals.html`, CHANGELOG. 시험: 골든 `open_if.fung`·`err_open_if_*.fung` 4개·`err_value_ends_in_assign.fung`, `resolve::tests::values_used_must_not_be_nil`, `check/block_value.fung`.
 - **증상**
   ```
   $F -e $'x = if false: 1 ;;\nprint(x)'
@@ -166,7 +180,9 @@
 
 ### L4. 대문자 이름이 패턴 축약·대입에서 조용히 심볼이 된다 — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 4개 모두 추천대로. ① (가) 컴파일 에러 E0225(파서, `parser::tag_as_name`). ② 대입은 왼쪽 전체가 태그 하나일 때만(`Ok(x) = r`·`(Red, x) = p`는 그대로).
+  ③ 맵 리터럴 `{Red}`도 E0204 대신 E0225. ④ 번호 하나. (다) 전부 대문자 이름을 변수로 보기는 기각(02에 기록). 01 EBNF의 `pat_entry`·`entry`에서 `TAG` 축약을 지웠다.
+  저장소 코드에서 걸린 것은 없었다. 문서 01·02, `syntax.html`, CHANGELOG. 시험: 골든 `tag_keys.fung`·`err_tag_assign.fung`·`err_tag_shorthand_map.fung`·`err_tag_shorthand_pattern.fung`, `parser::tests::map_shorthand`.
 - **증상**
   ```
   $F -e $'cfg = {HOME: "/home/me", PORT: 8080}\n{HOME, PORT} = cfg\nprint(HOME, PORT)'
@@ -188,7 +204,9 @@
 
 ### L5. 기간을 숫자로 바꿀 길이 없다 — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 5개 모두 추천대로. (가) `dur / dur → float`(늘 실수), `dur // dur → int`, `dur % dur → dur`, 정수의 내림 규칙과 오버플로·0 나누기 그대로.
+  `/`는 몫의 정수 부분과 나머지 비율을 i128로 따로 구한다(2⁵³ ns를 넘어도 정확). 섞인 `dur // 수`·`dur % 수`·`수 / dur`은 에러 유지. `value/arith.rs`(`dur_ratio`, 정수 `//`·`%`를 `floor_div_i64`·`rem_i64`로 뺌).
+  문서 02·07, `syntax.html`, CHANGELOG(`### 더함`). 시험: `value::tests::dur_by_dur_gives_numbers`, 골든 `dur_numbers.fung`·`err_dur_div_zero.fung`·`err_dur_floor_div_int.fung`.
 - **증상**: `$F -e 'print(1s / 2s)'` → E0501 `cannot divide dur and dur`. `int(1500ms)`·`float(1500ms)` → E0513. `time.unix(t)`는 초 단위 정수다.
   경과 시간을 ms 숫자로 로그·지표에 남기거나 처리량(바이트/초)을 계산할 수 없다.
 - **근거**: `02-values-and-types.md:13`, `07-operators-and-types.md:27-28`(기간끼리는 `+ -`만).
@@ -200,7 +218,8 @@
 
 ### L6. 파이프와 `_` 부분 적용, 파이프 오른쪽의 태그 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 3개 모두 추천대로. `_`는 (가) 컴파일 에러 E0227(오른쪽 호출의 바로 그 인자만, 안쪽 호출의 `_`는 그대로). 태그는 (가) desugar(`x |> Ok` → `Ok(x)`, `x |> Pair(2)` → `Pair(x, 2)`).
+  `desugar.rs`의 `pipe`. 저장소 코드에서 걸린 것은 없었다. 문서 01·03·07, `syntax.html`, CHANGELOG. 시험: `desugar::tests::pipe_into_tags`·`a_hole_in_a_piped_call_is_an_error`, 골든 `pipe_tags.fung`·`err_pipe_hole.fung`.
 - **증상**
   - `$F -e $'fn h(a, b) = a - b\nprint(3 |> h(_, 10))'` → `<fn>`. 파이프 값이 구멍 앞에 들어가 `h(3, _, 10)`의 부분 적용이 된다.
   - `$F -e 'print(1 |> Ok)'` → 실행 중 E0401 `cannot call a value of type sym`.
@@ -211,7 +230,10 @@
 
 ### L7. 채널 자동 닫힘이 자연스러운 코드에서 교착한다 — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 4개 모두 추천대로. ① 교착 보고의 힌트(`b1a9d65`): 받으려고 기다리는 태스크가 같은 채널의 보내는 끝을 스스로 쥐면(변수·붙잡은 값·전역) 루트는 `help:`, 다른 태스크는 `, holds its own sending end`.
+  ② 지역 변수는 마지막으로 읽힌 문장 뒤에 놓는다: 새 명령 `CLEARLOCAL`(52), 함수 본문 블록의 문장 사이에서만(안쪽 블록은 같은 식의 뒷부분을 몰라 늦게 놓는 쪽으로 안전),
+  한 번도 읽지 않는 변수는 끝까지 산다(`let _guard` 관용구), 전역은 그대로(L9 미정). ③ 정적 경고는 하지 않음. ④ `close(tx)`는 그대로.
+  문서 03(값의 수명)·05, `syntax.html`·`builtins.html`·`internals.html`, CHANGELOG. 시험: `compiler::tests::locals_are_cleared_after_their_last_read`, `sched_tests::a_deadlock_report_names_a_sending_end_the_receiver_holds`, 골든 `local_lifetime.fung`·`err_local_never_read.fung`.
 - **증상**
   ```
   fn main() = scope(fn(s):
@@ -232,7 +254,9 @@
 
 ### L8. NFC 정규화로 `m.k`와 `m["k"]`가 어긋난다 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 4개 모두 추천대로. (가) 키 자리(`.` 뒤, 맵 리터럴 키, 맵 패턴 키)의 식별자는 쓴 그대로(`Token::raw`·`Token::key`). 모듈 멤버는 NFC로 찾는다
+  (`value/index.rs`, `resolve/module.rs` `check_member`). 축약은 키가 쓴 그대로, 변수는 NFC. V8도 함께 풀렸다. 포매터는 원래 소스 바이트를 옮기므로 그대로다.
+  문서 01·02, `syntax.html`, CHANGELOG. 시험: 골든 `nfc_keys.fung`, `module_tests::a_module_member_is_found_in_nfc`.
 - **증상**: 분해형 `é`(e + U+0301)를 소스에 그대로 쓴 경우
   ```
   printf 'm = {"cafe\xcc\x81": 1}\nprint(m["cafe\xcc\x81"])\nprint(m.cafe\xcc\x81)\n' > n.fung; $F n.fung
@@ -246,7 +270,12 @@
 
 ### L9. 최상위 `fn`이 최상위 값을 못 봐 모듈 상태·상수를 못 쓴다 — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 6개 모두 추천대로 + 하나 더. (나) 한 번만 대입되는 최상위 이름은 상수이고 최상위 `fn`(과 그 안의 함수)이 호출할 때 읽는다(`LOADGLOBAL`).
+  판정은 최상위 문장 수(구조 분해 포함), 초기화 전 읽기는 E0809, REPL은 전역을 늘 호출할 때 읽음, `http.fung` 상수 함수 18개를 상수로(`_http_date`만 함수), 전역 수명은 그대로.
+  추가 결정: 최상위 `fn`이 자기 본문에서 묶는 이름은 그 `fn` 전체의 지역이고 같은 이름의 상수를 가린다(E0205로 막는 안은 기존 코드를 깨서 기각).
+  `resolve.rs`(`declare_consts`·`consts`·`slots`·`FnScope::top`·`own`; 최상위 이름의 전역 칸을 처음 나온 순서로 미리 잡아 번호는 그대로), VM의 빈 전역 읽기는 E0801 대신 E0809(`global_name`).
+  문서 03·08·09, `syntax.html`, CHANGELOG. 시험: 골든 `top_constants.fung`·`err_top_assigned_twice.fung`·`err_top_before_init.fung`·`err_top_lambda_before.fung`,
+  `resolve::tests::top_level_fns_see_names_assigned_once` 등, `module_tests::a_module_fn_sees_the_module_constants`, `repl_tests::a_repl_fn_reads_globals_when_called`.
 - **증상**
   ```
   # lib.fung
@@ -264,7 +293,9 @@
 
 ### L10. 엄격함과 긴장하는 결정들 — 결정(논의), 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 3개 모두 추천대로. `??`는 그대로(모든 `Err`를 받음; 02와 `syntax.html`에 주의와 `match` 예).
+  심볼과 문자열의 `==`·`!=`·`in`(·`assert`)은 런타임 에러 E0517(`value::eq`, 컨테이너 안쪽까지; 패턴은 `equal` 그대로). 맵 키는 문자열 그대로, E0514에 `str(…)` 도움말.
+  문서 02, `syntax.html`·`builtins.html`, CHANGELOG. 시험: 골든 `sym_str_compare.fung`·`err_sym_str_eq.fung`·`err_sym_str_nested.fung`, `vm::tests`, `cont_tests`, prelude 기대 출력.
 - 셋 다 결정된 설계다. 바꿀지는 사용자 판단이고, 검토 의견은 "유지하되 `group_by`에는 힌트"다.
 - **`??`가 nil과 모든 `Err`를 삼킨다**(`02-values-and-types.md:145-153`).
   - `fs.read(p) ?? "{}"`는 권한 오류도 기본값으로 바꾼다.
@@ -278,7 +309,8 @@
 
 ### L11. `supervise` 에러 값에 진단 머리가 문자열로 섞인다 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). (가) `{kind: 'error, code, message, at}`(`vm/task.rs` `failure_value`, `await`와 `on_fail`이 같은 맵).
+  `at`은 파일:줄, 위치가 없으면 없음. `http.serve`의 내부 에러 보고는 `error[${e.code}]: ${e.message}`로 전과 같은 출력. 문서 05, `builtins.html`, CHANGELOG. 시험: 골든 `failure_value.fung` 외.
 - **증상**
   ```
   x = supervise(fn(s):
@@ -301,7 +333,8 @@
 
 ### T1. 인자 없는 태그를 타입 표기로 못 쓴다 — 결정, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 결정(2026-10-20) 3개 모두 추천대로. (가) 타입의 태그 이름은 같은 이름의 심볼도 받는다(대문자로 시작하는 타입 이름은 태그). P6을 함께(아래). `type_of(Red)`는 `'sym` 그대로(07에 적음).
+  `value/types.rs`의 `TypeSet`(값 종류 비트 + 태그 심볼 목록, `link`가 적재 때 만든다). 문서 07, `syntax.html`, CHANGELOG. 시험: `value::tests::matches_type_cases`, 골든 `types_enum.fung`·`err_types_enum.fung`.
 - **증상**: `$F -e $'fn f(c: Red | Green) = c\nprint(f(Red))'` → E0403 `argument c must be Red | Green, got sym`.
   인자 없는 태그는 심볼이고(`02:112`), 타입 검사는 태그 값의 이름만 본다. 열거형을 타입으로 쓸 수 없고, `type color = Red | Green`도 같다.
 - **근거**: `07-operators-and-types.md:109`(태그 이름도 타입). 인자 없는 태그의 경우를 명세가 말하지 않는다.
@@ -314,7 +347,7 @@
 
 ### T2. 타입 표기 `file`이 없다 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). `file`을 더함(`resolve/fn_.rs` `BUILTIN_TYPES`; 실행 검사는 `TypeSet`이 이미 앎). `conn`·`listener`는 더하지 않음. 문서 07(D3), `syntax.html`.
 - **증상**: `type_of(f)`는 `'file`(`02:16`)인데 `$F -e 'fn f(x: file) = 1'` → E0212 `unknown type file`.
 - **원인**: `crates/fung-front/src/resolve/fn_.rs:9`(`BUILTIN_TYPES`)와 07의 타입 이름 목록(`07:107`)에 `file`이 없다.
   `type_of`가 내는 이름은 `crates/fung-vm/src/value/format.rs`의 `type_name`이고, `conn`·`listener`도 있다.
@@ -322,13 +355,13 @@
 
 ### T3. `...rest`의 타입 표기가 모든 호출을 실패시킨다 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). (가) `list`·`any`만 허용, 다른 표기는 컴파일 에러 E0228. 문서 07, `syntax.html`. 시험: 골든 `err_rest_type.fung`.
 - **증상**: `$F -e $'fn f(...xs: int) = xs\nprint(f())'` → E0403 `argument xs must be int, got list`(인자 없는 호출도). `fung check`는 통과한다.
 - **선택지**: (가) `...rest`에는 `list`(또는 표기 없음)만 허용하고 나머지는 컴파일 에러. **추천**. (나) 표기를 원소 타입으로 해석해 원소마다 검사.
 
 ### T4. 반환 타입이 있으면 자기 꼬리 재귀도 스택을 쓴다 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). (가) 자기 자신(`SelfFn`)으로의 꼬리 호출은 `TAILCALL`(`compiler/fn_.rs` `call`). 다른 함수로의 꼬리 호출은 그대로. 문서 03, `syntax.html`. 시험: 골든 `types_more.fung`·`err_tail_return_type.fung`, `compile_tail_calls`, `non_tail_recursion_hits_the_frame_limit`.
 - **증상**: `$F -e $'fn count(n, acc) -> int = n == 0 then acc else count(n - 1, acc + 1)\nprint(count(200000, 0))'` → E0804.
 - **근거**: `03-functions-and-patterns.md:159`(명세대로 제외). 대가는 "안전을 위해 타입을 붙이면 재귀가 깨지는 것"이다.
 - **선택지**
@@ -550,7 +583,7 @@
 
 ### V8. 출력한 맵 키가 NFC가 아니면 다시 읽을 때 다른 키가 된다 — 버그, 낮음
 
-- [ ] 처리:
+- [x] 처리: L8과 함께(2026-10-20). 키 자리가 쓴 그대로라 출력한 `{é: 1}`(분해형)을 다시 읽으면 같은 키다(`nfc_keys.fung`).
 - **재현**: `$F -e 'print({"e\u{301}": 1})'` → `{é: 1}`(분해형을 따옴표 없이). 이 출력을 소스에 붙이면 키가 NFC `é`(한 글자)로 읽혀 다른 키가 된다.
 - **근거**: `08-tooling-and-errors.md:151`(출력을 그대로 코드에 붙여도 동작한다).
 - **원인**: `crates/fung-vm/src/value/format.rs:70`(`is_plain_key`).
@@ -572,7 +605,7 @@
 
 ### V10. `sym(s)`로 만든 심볼은 영원히 남는다 — 결정, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). (가) 06과 `builtins.html`의 `sym`에 "해제되지 않는다, 외부 입력에 쓰지 않는다"를 적었다.
 - **내용**
   - 심볼은 전역 인턴 표에 `Box::leak`으로 들어가 해제되지 않는다(`crates/fung-vm/src/value/sym.rs:24`, `intern`).
   - 서버가 요청 값을 `sym`으로 바꾸면 메모리가 계속 는다(Erlang의 atom 고갈과 같은 모양).
@@ -775,14 +808,14 @@
 
 ### P1. `unique`가 O(n²) — 성능, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). 내장 함수로 옮김(`prelude/collections.rs` `unique_fn`, `value/compare.rs` `hash_value`). 10만 개 21.7초 → 0.02초(L10 뒤의 같은 측정). 심볼은 이름 문자열과 같은 해시라 E0517 유지. perf 시험 `unique`.
 - **측정**: `$F -e 'print(len(unique(map(0..20000, x => x))))'`. 8천 0.09초, 2만 0.40초, 10만 약 12초. 서로 다른 문자열 10만 개 20.7초.
 - **원인**: `extras/prelude.fung:98`의 `fold(xs, [], (acc, x) => x in acc then acc else acc + [x])`. `docs/notes/M7b-structure.md`에 언급만 있고 open-questions에는 없다.
 - **고침**: Rust로 옮기고 `==`와 맞는 해시를 쓴다. 정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시다.
 
 ### P2. 앞에 붙이기 `[x] + acc`가 O(n²) — 성능, 중간
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). 구조 변경(앞쪽 버퍼·RRB)은 하지 않고 최소안: 매뉴얼에 이미 "뒤에 붙이고 `reverse`" 안내가 있어 open-questions "알려진 한계"에 기록.
 - **측정**: `$F -e 'print(len(fold(0..20000, [], (acc, i) => [i] + acc)))'`. 5천 0.08초, 2만 1.13초.
   함수형 언어에서 가장 흔한 누적 모양인데, open-questions의 "누적은 선형"은 뒤에 붙이기만 해당한다.
 - **고침**
@@ -792,7 +825,7 @@
 
 ### P3. 스택처럼 쓰기 `s[..-1] + [x]`가 O(n²) — 성능, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). `Pvec::truncate`(O(log n), 앞 잎은 공유)와 `List::push`가 대부분을 덮는 앞쪽 보기면 잘라서 키움. 2만 번 2.2초 → 0.02초. 시험 `pvec_truncate_matches_the_model`, perf `a list used as a stack`.
 - **측정**: `$F -e $'base = map(0..20000, x => x)\nprint(len(fold(0..20000, base, (s, i) => s[..-1] + [i])))'`. 1만 0.58초, 2만 2.25초, 4만 9.8초.
 - **원인**: `crates/fung-vm/src/value/list.rs:151-168`(`push`). 앞쪽만 남긴 보기(`hi < len`)에 더하면 리스트 전체를 `to_vec`으로 복사한다.
   `slice`가 `n*4 >= len`이면 보기로 남기므로 pop + push마다 다시 복사한다.
@@ -800,7 +833,7 @@
 
 ### P4. `s[i]`가 접근마다 문자열 전체를 글자 배열로 만든다 — 성능, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). `index.rs`의 `char_len`·`byte_at`(ASCII는 바이트 위치). 1억 글자 최대 메모리 1.3 GB → 0.11 GB, 비ASCII 1천만 글자 인덱스 200번 2.4초 → 0.17초. perf `index a long string`. 글자 수·ASCII 표시를 문자열에 두는 구조 변경은 하지 않음.
 - **측정**
   - `/usr/bin/time -l $F -e $'s = repeat("a", 100000000)\nprint(s[0], s[5..7])'` → 최대 상주 메모리 909 MB(문자열만이면 약 109 MB).
   - 1천만 글자에서 `s[0]` 하나에 약 8 ms.
@@ -812,14 +845,14 @@
 
 ### P5. `==`에 같은 포인터 지름길이 없다 — 성능, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). `compare.rs` `same_object`(List·Map·Tuple·Tag·Str), `eq`의 E0517 검사도 같은 지름길. 0.4초 → 0초. perf `a shared list equals itself`.
 - **측정**: `$F -e $'x = fold(0..24, [1], (a, _) => [a, a])\nprint(x == x)'`. 0.22초이고 한 단마다 두 배(22단 0.06초). 큰 리스트를 자기 자신과 비교해도 O(n)이다.
 - **원인**: `crates/fung-vm/src/value/compare.rs:11`(`equal`).
 - **고침**: List·Map·Tuple·Tag가 같은 `Rc`면 바로 참. fung에는 NaN이 없으므로 안전하다.
 
 ### P6. 타입 검사마다 문자열을 할당한다(호출 2배) — 성능, 중간
 
-- [ ] 처리:
+- [x] 처리: T1과 함께(2026-10-20). 같은 측정(M2 Max, 3회 중 최소): `int` 둘 0.55초 → 0.36초, 매개변수 셋 + 반환 타입 0.71초 → 0.38초, 표기 없음 0.33~0.34초.
 - **측정**: `fn add(a: int, b: int) = a + b`를 300만 번 부르면 0.43초, 표기가 없으면 0.23초. 매개변수 셋이면 0.59초 대 0.31초.
 - **원인**: `crates/fung-vm/src/value/types.rs:6`(`matches_type`)이 검사마다 `type_name`(`String`)을 만들고 타입 이름 문자열과 비교한다.
   호출 쪽은 `crates/fung-vm/src/vm.rs`의 `Op::CheckType`·`Op::CheckReturn`.
@@ -827,7 +860,7 @@
 
 ### P7. 상수 리터럴 리스트를 접지 않는다 — 성능, 낮음
 
-- [ ] 처리:
+- [x] 처리: 사용자 지시(2026-10-20: 남은 항목은 추천대로). 원소가 모두 상수인 비지 않은 리스트 리터럴을 `CONST` 하나로(`compiler/m4.rs` `constant_list`; 빈 리스트를 품으면 제외, `args` 때문). 0.39초 → 0.19초. 맵·튜플은 남김(open-questions).
 - **측정**: 문자열 16개짜리 리스트를 `fn _c() = [...]`로 두고 100만 번 `len(_c())`하면 0.36초. 같은 리스트를 변수로 두면 0.13초.
 - **원인**: 컴파일러가 원소가 모두 상수인 리스트·맵·튜플 리터럴도 매번 `CONST`들과 `LIST`로 만든다.
 - **고침**: 원소가 모두 상수인 리터럴은 컴파일 때 값 하나로 만들어 `CONST` 하나로 낸다. 값이 불변이라 공유해도 안전하다.
@@ -839,19 +872,19 @@
 
 모두 문서만 고친다. 결정 항목(L·T)을 처리할 때 해당 문서를 같이 고치는 것과 별개다.
 
-- [ ] D1. `05-concurrency.md:164-165` "취소… 감싸는 함수의 정리는 실행되지 않는다(03의 한계와 같음)". 지금은 `with`의 `release`가 돈다(03 "자원 정리: with").
-- [ ] D2. 지운 것이 남아 있다.
+- [x] D1(2026-10-20). `05-concurrency.md:164-165` "취소… 감싸는 함수의 정리는 실행되지 않는다(03의 한계와 같음)". 지금은 `with`의 `release`가 돈다(03 "자원 정리: with").
+- [x] D2(2026-10-20). 지운 것이 남아 있다.
   - `06-native-and-stdlib.md:19`(core 예에 `at_exit`)
   - `06:20`과 `05-concurrency.md:211`(`_native.conc`; R1b에서 지움)
   - `06:206-207`(`_native.conc.try_spawn`, "R7에서 … 지운다" — 이미 지움)
-- [ ] D3. `07-operators-and-types.md:107` 타입 이름 목록에 `file`이 없다(T2 결정과 함께).
-- [ ] D4. `08-tooling-and-errors.md:248` "종료 핸들러의 실패는 `FAIL path: <exit handler>`". 종료 핸들러(`at_exit`)가 없고 코드에도 그 문구가 없다.
-- [ ] D5. `08:97`의 `fung dump core -e 'files |> filter(is_log) |> map(size)'` 예. 지금은 이름 해석까지 해서 E0204로 실패하고, 출력 꼴도 `(do (call (prelude map) …))`다.
-- [ ] D6. `01-syntax.md:40` "(… 경고를 낼지는 M6에서 검토.)". W0104로 끝났다.
-- [ ] D7. `09-implementation-plan.md:106` 값 목록의 `Channel`·`Agent`. 지금은 `Sender`·`Receiver`·`Atom`·`Scope`.
-- [ ] D8. `05-concurrency.md:192` "모듈 초기화는 모듈당 뮤텍스로". M:1 뒤로 뮤텍스가 없다(`vm/module.rs`의 실행 중 표시).
+- [x] D3(T2와 함께, 2026-10-20). `07-operators-and-types.md:107` 타입 이름 목록에 `file`이 없다(T2 결정과 함께).
+- [x] D4(2026-10-20). `08-tooling-and-errors.md:248` "종료 핸들러의 실패는 `FAIL path: <exit handler>`". 종료 핸들러(`at_exit`)가 없고 코드에도 그 문구가 없다.
+- [x] D5(2026-10-20). `08:97`의 `fung dump core -e 'files |> filter(is_log) |> map(size)'` 예. 지금은 이름 해석까지 해서 E0204로 실패하고, 출력 꼴도 `(do (call (prelude map) …))`다.
+- [x] D6(L3과 함께, 2026-10-20). `01-syntax.md:40` "(… 경고를 낼지는 M6에서 검토.)". W0104로 끝났다.
+- [x] D7(2026-10-20). `09-implementation-plan.md:106` 값 목록의 `Channel`·`Agent`. 지금은 `Sender`·`Receiver`·`Atom`·`Scope`.
+- [x] D8(2026-10-20). `05-concurrency.md:192` "모듈 초기화는 모듈당 뮤텍스로". M:1 뒤로 뮤텍스가 없다(`vm/module.rs`의 실행 중 표시).
   `crates/fung-front/src/bytecode/op.rs:40` 주석의 "E0207 if unassigned"도 낡았다(E0207은 폐기, REPL은 E0808).
-- [ ] D9. open-questions "알려진 한계"
+- [x] D9(2026-10-20). open-questions "알려진 한계"
   - "형제 태스크가 시작하는 순서… 실행권 줄은 FIFO지만 스레드가 줄에 서는 시점에 달림"은 M:1 전의 설명이다.
   - "이름 조회(`getaddrinfo`)는 끊을 수 없어 스레드에서 돈다 … 개수로 묶이지 않음"은 같은 목록 위쪽의 "이름 조회는 풀(최대 64)"과 어긋난다.
 

@@ -20,7 +20,7 @@ use fung_front::diag::Arg;
 
 use crate::native::nat::{self, def, def_step, fail, opt, param, rest};
 use crate::native::walk::{Cursor, PerItem, walk};
-use crate::value::{ListBuilder, Lit, Native, Value, intern, type_name};
+use crate::value::{ListBuilder, Lit, Native, Tag, Value, intern, type_name};
 use crate::vm::{Flow, Stop, Task};
 
 pub use io::dbg;
@@ -55,6 +55,11 @@ fn build() -> Vec<(&'static str, &'static Native)> {
     add(def("fail", fail_fn, vec![rest("args")]));
     add(def("len", len_fn, vec![param("x")]));
     add(def_step("map", map_fn, vec![param("xs"), param("f")]));
+    add(def_step(
+        "try_map",
+        try_map_fn,
+        vec![param("xs"), param("f")],
+    ));
     add(def("type_of", type_of_fn, vec![param("x")]));
     add(def("exit", io::exit_fn, vec![opt("code", Lit::Int(0))]));
     add(def_step(
@@ -136,5 +141,58 @@ fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let hint = nat::size_hint(&a[0]);
     // Room for a modest hint only: memory comes as results arrive.
     let p = Map(ListBuilder::with_capacity(hint.min(1 << 16)));
+    walk(t, Cursor::new(&a[0]), a[1].clone(), p)
+}
+
+/// `try_map(xs, f)` (03): `Ok` of the values `f`'s `Ok`s hold, or the
+/// first `Err` it returns, after which no element is visited. A result of
+/// another kind is E0605, as for `!` and `?`.
+fn try_map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    nat::check_items(&a[0], "map over")?;
+    nat::need_fn("f", &a[1])?;
+    nat::limit_elements(&a[0])?;
+    struct TryMap {
+        out: ListBuilder,
+        err: Option<Value>,
+    }
+    impl PerItem for TryMap {
+        fn args(&mut self, t: &mut Task<'_>, x: Value) -> usize {
+            t.push_arg(x);
+            1
+        }
+        fn got(&mut self, r: Value) -> Result<bool, Stop> {
+            match &r {
+                Value::Tag(tag) if tag.name.name() == "Ok" => {
+                    // `Ok(a, b)` holds the tuple, as `?` unwraps it.
+                    self.out.push(match tag.args.as_slice() {
+                        [v] => v.clone(),
+                        vs => Value::tuple(vs.to_vec()),
+                    });
+                    Ok(false)
+                }
+                Value::Tag(tag) if tag.name.name() == "Err" => {
+                    self.err = Some(r);
+                    Ok(true)
+                }
+                _ => Err(fail(
+                    "E0605",
+                    vec![nat::s("try_map"), Arg::Str(type_name(&r))],
+                )),
+            }
+        }
+        fn result(&mut self, _: bool) -> Result<Value, Stop> {
+            Ok(match self.err.take() {
+                Some(e) => e,
+                None => Value::Tag(Rc::new(Tag {
+                    name: intern("Ok"),
+                    args: vec![Value::List(Rc::new(std::mem::take(&mut self.out).finish()))],
+                })),
+            })
+        }
+    }
+    let p = TryMap {
+        out: ListBuilder::with_capacity(nat::size_hint(&a[0]).min(1 << 16)),
+        err: None,
+    };
     walk(t, Cursor::new(&a[0]), a[1].clone(), p)
 }

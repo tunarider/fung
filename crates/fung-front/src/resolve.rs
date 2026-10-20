@@ -15,6 +15,7 @@ mod scope;
 mod similar;
 #[cfg(test)]
 mod tests;
+mod value;
 mod warn;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -89,8 +90,15 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         import_bound: HashSet::new(),
         errs: Vec::new(),
         warnings: Vec::new(),
+        map_arg: false,
+        top_arg: false,
+        consts: HashMap::new(),
+        assigned: HashMap::new(),
+        slots: HashMap::new(),
     };
     let out = r.root_block(core);
+    // The file's last item is discarded (01), or printed by the REPL.
+    value::check(core, false, &mut r.errs);
     warn::sort_warnings(&mut r.warnings);
     if !r.errs.is_empty() {
         return Err(r.errs);
@@ -139,6 +147,21 @@ struct Resolver<'a> {
     import_bound: HashSet<String>,
     errs: Vec<Diag>,
     warnings: Vec<Diag>,
+    /// The fn about to be resolved is a lambda argument of the prelude's
+    /// map (`FnScope::map_body`); `function` takes it.
+    map_arg: bool,
+    /// The fn about to be resolved is a hoisted top-level fn
+    /// (`FnScope::top`); `function` takes it.
+    top_arg: bool,
+    /// The file's constants, the names one top-level statement binds (03,
+    /// L9; every name an input binds in the REPL), with their global slots
+    /// taken before the top-level fns are resolved.
+    consts: HashMap<String, usize>,
+    /// How many top-level statements bind each name (for E0204's help).
+    assigned: HashMap<String, usize>,
+    /// The global slot of every name a top-level statement binds, taken in
+    /// the order the names first appear (as binding them in turn would).
+    slots: HashMap<String, usize>,
 }
 
 /// Where a captured name was found.
@@ -287,8 +310,10 @@ impl Resolver<'_> {
                     .or_insert(k.kids[0].pos);
             }
         }
+        self.declare_consts(&rest);
         for k in fns {
             let b = self.root_scope().names[fn_info(k).name.as_str()];
+            self.top_arg = true;
             let f = self.function(k);
             kids.push(Node::new(Head::Let, k.pos, vec![ref_node(k.pos, b), f]));
         }
@@ -303,6 +328,46 @@ impl Resolver<'_> {
         self.warn_unused_imports();
         self.pop_block(true);
         Node::new(Head::Do, n.pos, kids)
+    }
+
+    /// Takes the global slots of the file's constants (03, L9): the names
+    /// exactly one top-level assignment binds, or in the REPL every name
+    /// an input binds. A name the file already has (a fn, a module, an
+    /// earlier input's global) keeps its own binding.
+    fn declare_consts(&mut self, rest: &[&Node]) {
+        let mut order = Vec::new();
+        for k in rest {
+            if k.head != Head::Let || lit_str(k) == "fresh" {
+                continue;
+            }
+            let mut names: Vec<String> = Vec::new();
+            pattern_names(&k.kids[0], &mut names);
+            let mut seen = HashSet::new();
+            names.retain(|n| seen.insert(n.clone()));
+            for name in names {
+                let n = self.assigned.entry(name.clone()).or_insert(0);
+                if *n == 0 {
+                    order.push(name);
+                }
+                *n += 1;
+            }
+        }
+        for name in order {
+            if self.root_scope().names.contains_key(&name) {
+                continue;
+            }
+            let i = self.globals.len();
+            self.globals.push(name.clone());
+            self.slots.insert(name.clone(), i);
+            if self.assigned[&name] == 1 || self.opts.redefine {
+                self.consts.insert(name, i);
+            }
+        }
+    }
+
+    /// Whether the function being resolved is a top-level fn or inside one.
+    fn in_top_fn(&self) -> bool {
+        self.fns.get(1).is_some_and(|f| f.top)
     }
 
     /// Opens a block scope in the current function and notes which local
@@ -350,10 +415,7 @@ impl Resolver<'_> {
     fn walk_node(&mut self, n: &Node) -> Node {
         match n.head {
             Head::Do => return self.block(n),
-            Head::Let => {
-                self.warn_block_value(&n.kids[1]);
-                return self.let_(n);
-            }
+            Head::Let => return self.let_(n),
             Head::Name => return self.name(n),
             Head::Fn => return self.fn_node(n),
             Head::Match => return self.match_expr(n),
@@ -376,15 +438,7 @@ impl Resolver<'_> {
                 self.errs.push(error("E0311", n.pos, vec![]));
                 return Node::new(Head::Nil, n.pos, vec![]);
             }
-            Head::Call => {
-                for k in &n.kids[1..] {
-                    self.warn_block_value(k);
-                }
-            }
             Head::Return => {
-                if let Some(k) = n.kids.first() {
-                    self.warn_block_value(k);
-                }
                 if !self.in_function() {
                     self.errs.push(error("E0211", n.pos, vec![]));
                 } else if self.cur().for_body {
@@ -399,7 +453,21 @@ impl Resolver<'_> {
                     // and drop an Err into the list: the silent bug E0213
                     // prevents.
                     self.errs.push(error("E0220", n.pos, vec![]));
+                } else if self.cur().map_body {
+                    // The same trap in a lambda given to map (03).
+                    self.errs.push(error("E0226", n.pos, vec![]));
                 }
+            }
+            Head::Call => {
+                let callee = self.walk(&n.kids[0]);
+                let to_map = callee.head == Head::Prelude && lit_str(&callee) == "map";
+                let mut kids = vec![callee];
+                for k in &n.kids[1..] {
+                    self.map_arg = to_map && k.head == Head::Fn && !fn_info(k).for_body;
+                    kids.push(self.walk(k));
+                    self.map_arg = false;
+                }
+                return Node::with_lit(n.head, n.pos, n.lit.clone(), kids);
             }
             Head::Field => self.check_member(&n.kids[0], lit_str(n), n.pos),
             _ => {}
@@ -482,13 +550,19 @@ impl Resolver<'_> {
     /// current block, bound at `pos` (for warnings).
     fn bind_here(&mut self, name: &str, pos: Pos) -> Binding {
         let b = if self.cur_block().file {
-            let b = Binding {
-                global: true,
-                index: self.globals.len(),
-                ..Binding::default()
+            // The slot was taken before the fns (`declare_consts`).
+            let index = match self.slots.get(name) {
+                Some(&i) => i,
+                None => {
+                    self.globals.push(name.to_string());
+                    self.globals.len() - 1
+                }
             };
-            self.globals.push(name.to_string());
-            b
+            Binding {
+                global: true,
+                index,
+                ..Binding::default()
+            }
         } else {
             Binding {
                 index: self.cur_mut().alloc_slot(),
@@ -570,7 +644,16 @@ impl Resolver<'_> {
             return Node::leaf(Head::Prelude, n.pos, Lit::Str(name.to_string()));
         }
         let mut e = name_error("E0204", n.pos, name);
-        if let (Some(p), true) = (self.file_var_pos.get(name), self.in_function()) {
+        if let (Some(p), true, true) = (
+            self.file_var_pos.get(name),
+            self.in_top_fn(),
+            self.assigned.get(name).is_some_and(|&n| n > 1),
+        ) {
+            e = e.with_help(&format!(
+                "`{name}` is a file-level variable (assigned on line {}) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument",
+                p.line
+            ));
+        } else if let (Some(p), true) = (self.file_var_pos.get(name), self.in_function()) {
             e = e.with_help(&format!(
                 "`{name}` is a file-level variable (assigned on line {}) that this function cannot see: functions copy only the variables that exist when they are created, and top-level fns are created first; pass it as an argument",
                 p.line
@@ -621,6 +704,7 @@ impl Resolver<'_> {
             return Some(Found::Captured(idx));
         }
         let pi = fi - 1;
+        let repl_top = self.opts.redefine && pi == 0 && self.in_top_fn();
         let p = &mut self.fns[pi];
         let mut src = None;
         let found = p.blocks.iter_mut().rev().find_map(|sc| {
@@ -629,9 +713,10 @@ impl Resolver<'_> {
             Some(b)
         });
         if let Some(b) = found {
-            if b.global && b.constant {
+            if b.global && (b.constant || repl_top) {
                 // Another top-level fn: it never changes, so a direct
-                // reference is indistinguishable from a copy.
+                // reference is indistinguishable from a copy. In the REPL a
+                // top-level fn reads every global when called (03, L9).
                 return Some(Found::Global(b.index));
             }
             let kind = if b.global {
@@ -649,6 +734,15 @@ impl Resolver<'_> {
                 kind: CaptureKind::SelfFn,
                 index: 0,
             });
+        }
+        if src.is_none()
+            && pi == 0
+            && self.in_top_fn()
+            && !self.fns[1].own.contains(name)
+            && let Some(&i) = self.consts.get(name)
+        {
+            // A constant of the file, read when the fn is called (03, L9).
+            return Some(Found::Global(i));
         }
         if src.is_none() && pi > 0 {
             match self.capture_from(name, pi)? {
@@ -681,5 +775,37 @@ impl Resolver<'_> {
         }
         names.extend(self.prelude_list.iter().cloned());
         names
+    }
+}
+
+/// The names a pattern binds (`(pbind x)`, a named `...rest`).
+fn pattern_names(n: &Node, out: &mut Vec<String>) {
+    match n.head {
+        Head::Name | Head::Pbind => out.push(lit_str(n).to_string()),
+        Head::Prest if !lit_str(n).is_empty() => out.push(lit_str(n).to_string()),
+        _ => {}
+    }
+    for k in &n.kids {
+        pattern_names(k, out);
+    }
+}
+
+/// The names a function's own code binds by assignment, in any of its
+/// blocks but not in the functions inside it (a top-level fn's locals,
+/// `FnScope::own`).
+pub(super) fn own_bindings(n: &Node, out: &mut HashSet<String>) {
+    match n.head {
+        Head::Fn => {}
+        Head::Let => {
+            let mut names = Vec::new();
+            pattern_names(&n.kids[0], &mut names);
+            out.extend(names);
+            own_bindings(&n.kids[1], out);
+        }
+        _ => {
+            for k in &n.kids {
+                own_bindings(k, out);
+            }
+        }
     }
 }

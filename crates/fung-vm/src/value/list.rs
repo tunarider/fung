@@ -161,7 +161,15 @@ impl List {
                 vec.push(x);
                 *hi += 1;
             }
-            // a front slice gets its own vector
+            // a front slice that is most of its vector: cut the vector at
+            // its end (O(log n), the leaves before stay shared) and grow
+            // it, so a list used as a stack (`s[..-1] + [x]`) stays cheap
+            Repr::Big { vec, lo, hi } if (*hi - *lo) * 4 >= *hi => {
+                vec.truncate(*hi);
+                vec.push(x);
+                *hi += 1;
+            }
+            // a small front slice gets its own vector
             Repr::Big { .. } => {
                 let mut items = self.to_vec();
                 items.push(x);

@@ -1,0 +1,4 @@
+# The return check still runs, once, where the self tail calls end.
+fn down(n) -> int = n == 0 then "done" else down(n - 1)
+print(down(3))
+# expect-error: E0404

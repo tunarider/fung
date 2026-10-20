@@ -14,7 +14,7 @@
 fn fan_in(s, rxs):
   (tx, rx) = channel(len(rxs))
   spawn(s, fn():
-    scope(fn(inner):
+    _ = scope(fn(inner):
       each(rxs, r => spawn(inner, fn(): _forward(r, tx) then cancel(inner) else nil ;;))
     ;;)
     close(tx)

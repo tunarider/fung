@@ -1,0 +1,4 @@
+# An uppercase name is a tag: it cannot be assigned to (01).
+MAX_RETRIES = 3
+# expect-error: E0225
+print(MAX_RETRIES)

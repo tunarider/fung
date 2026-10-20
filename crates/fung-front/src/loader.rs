@@ -72,6 +72,10 @@ pub struct Loader {
     pub globals: Vec<String>,
     /// REPL: the entry file may define fns and imports again.
     pub redefine: bool,
+    /// The entry's last expression is its value (the REPL prints it, VM
+    /// tests read it). Otherwise, and always for an imported file, that
+    /// place is discarded like a statement (01: 버려지는 자리).
+    pub keep_value: bool,
     /// The built-in names to compile against; `None` (the default) is
     /// `spec/builtins.txt`. The generator of that file sets its own, built
     /// from the runtime's tables, so a new `_native.*` bridge or prelude
@@ -88,6 +92,7 @@ impl Default for Loader {
             extra_prelude: Vec::new(),
             globals: Vec::new(),
             redefine: false,
+            keep_value: false,
             spec: None,
         }
     }
@@ -204,7 +209,8 @@ impl State<'_> {
                 Err(errs) => return (b, errs),
             }
         }
-        let core = match desugar(&surface) {
+        let keep_value = self.l.keep_value && key == self.entry_key;
+        let core = match desugar(&surface, keep_value) {
             Ok(c) => c,
             Err(e) => return (b, vec![e]),
         };
@@ -233,6 +239,7 @@ impl State<'_> {
             source: src.to_string(),
             file: file.to_string(),
             tests: self.l.tests && key == self.entry_key,
+            keep_value,
         };
         match compiler::compile(&res, &self.prelude_set, &copts) {
             Ok(mut p) => {
@@ -608,6 +615,7 @@ mod tests {
         let l = Loader {
             globals: vec!["g".into()],
             redefine: true,
+            keep_value: true,
             ..mem_loader()
         };
         let (b, errs) = l.compile_after(

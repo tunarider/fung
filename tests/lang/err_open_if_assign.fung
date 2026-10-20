@@ -1,0 +1,4 @@
+# An if without else whose value is used is a compile error (01).
+x = if false: 1 ;;
+# expect-error: E0223
+print(x)

@@ -1,0 +1,8 @@
+# A block used as a value that ends in an assignment (formerly W0104).
+x = if true:
+  _y = 1
+else:
+  2
+;;
+# expect-error: E0224
+print(x)

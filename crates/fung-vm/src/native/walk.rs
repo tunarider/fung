@@ -36,6 +36,14 @@ pub(crate) enum Cursor {
 }
 
 impl Cursor {
+    /// The receiving end it walks, if it walks one.
+    pub(crate) fn receiver(&self) -> Option<&Rc<Receiver>> {
+        match self {
+            Cursor::Receiver { rx, .. } => Some(rx),
+            _ => None,
+        }
+    }
+
     /// A cursor over `v`, which the caller checked is a list, a range or
     /// a receiving end (`nat::check_items`).
     pub(crate) fn new(v: &Value) -> Cursor {
@@ -229,6 +237,10 @@ impl<P: PerItem> Cont for Walker<P> {
     fn waits_for(&self) -> Option<&'static str> {
         self.waiting.then_some("recv")
     }
+
+    fn receives_on(&self) -> Option<&Rc<Receiver>> {
+        self.cur.receiver().filter(|_| self.waiting)
+    }
 }
 
 /// What a walk without a callback (`join`, `flatten`, collecting for
@@ -329,6 +341,13 @@ impl<P: Collect> Cont for Drainer<P> {
         match &self.then {
             Some(k) => k.waits_for(),
             None => Some("recv"),
+        }
+    }
+
+    fn receives_on(&self) -> Option<&Rc<Receiver>> {
+        match &self.then {
+            Some(k) => k.receives_on(),
+            None => self.cur.receiver(),
         }
     }
 

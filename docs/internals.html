@@ -139,7 +139,7 @@ print(sum(xs))</code></pre>
     <tr><td><code>(let 패턴 e)</code></td><td><code>x = e</code>, 구조 분해 대입</td></tr>
     <tr><td><code>(if c a b)</code></td><td><code>if</code>/<code>else if</code> 사슬, <code>then … else</code>, <code>and</code>/<code>or</code>(단락 평가)</td></tr>
     <tr><td><code>(fn 이름 인자표 본문)</code></td><td><code>fn</code> 정의, 람다, 익명 함수, <code>_</code> 부분 적용, <code>for</code>의 본문</td></tr>
-    <tr><td><code>(call f 인자… (named 이름 e)…)</code></td><td>호출, <code>x |&gt; f(a)</code> → <code>(call f x a)</code>, <code>for</code> → <code>(call map xs (fn …))</code></td></tr>
+    <tr><td><code>(call f 인자… (named 이름 e)…)</code></td><td>호출, <code>x |&gt; f(a)</code> → <code>(call f x a)</code>, <code>for</code> → <code>(call map xs (fn …))</code>(값을 버리는 자리면 <code>each</code>)</td></tr>
     <tr><td><code>(op 연산자 a b)</code></td><td>산술·비교·<code>in</code>·<code>..</code>. 연산자는 값이 아니다(<code>fold(xs, 0, +)</code>는 없다).</td></tr>
     <tr><td><code>(field x "name")</code> <code>(index x i)</code> <code>(slice x a b)</code></td><td><code>x.name</code>, <code>x[i]</code>, <code>x[a..b]</code></td></tr>
     <tr><td><code>(tag Ok e…)</code></td><td><code>Ok(e)</code></td></tr>
@@ -158,7 +158,7 @@ print(sum(xs))</code></pre>
   <dt>모듈 전역 <code>(global n)</code></dt><dd>파일 최상위의 변수와 <code>fn</code>.</dd>
   <dt>prelude <code>(prelude name)</code></dt><dd>내장 함수. 상수로 직접 들어간다.</dd>
 </dl>
-<p>스코프 규칙 위반(정의 전 읽기 E0204, 바깥 변수 재대입 E0205, 블록 밖 이름 E0206, <code>for</code> 안의 <code>return</code>, 최상위 <code>return</code>, 모듈 이름 가리기, 대안 패턴의 이름 불일치)은 첫 번째에서 멈추지 않고 <strong>전부 모아</strong> 보고한다. 경고(W0101~W0104)도 여기서 만든다.</p>
+<p>스코프 규칙 위반(정의 전 읽기 E0204, 바깥 변수 재대입 E0205, 블록 밖 이름 E0206, <code>for</code> 안의 <code>return</code>, 최상위 <code>return</code>, 모듈 이름 가리기, 대안 패턴의 이름 불일치)은 첫 번째에서 멈추지 않고 <strong>전부 모아</strong> 보고한다. 경고(W0101~W0103)도 여기서 만든다. 이름 해석이 끝나면 값을 쓰는 자리의 조용한 <code>nil</code>(<code>else</code> 없는 <code>if</code> E0223, 대입으로 끝나는 블록 E0224)을 트리를 한 번 더 돌며 찾는다(<code>resolve/value.rs</code>).</p>
 
 <h2 id="bytecode">바이트코드</h2>
 <h3>명령 인코딩</h3>
@@ -175,7 +175,7 @@ print(sum(xs))</code></pre>
     <tr><td>값</td><td><code>CONST</code> <code>POP</code> <code>LIST</code> <code>MAP</code> <code>TUPLE</code> <code>TAG</code> <code>RANGE</code> <code>CONCAT</code>(문자열 보간)</td></tr>
     <tr><td>연산</td><td><code>ADD</code> <code>SUB</code> <code>MUL</code> <code>DIV</code> <code>FLOORDIV</code> <code>MOD</code> <code>POW</code> <code>NEG</code> <code>NOT</code> <code>EQ</code> <code>NE</code> <code>LT</code> <code>GT</code> <code>LE</code> <code>GE</code> <code>IN</code> <code>CHECKBOOL</code></td></tr>
     <tr><td>접근</td><td><code>INDEX</code> <code>SLICE</code> <code>FIELD</code></td></tr>
-    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>STORELOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
+    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code>(마지막으로 읽힌 문장 뒤에 칸을 비운다) <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
     <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFSET</code></td></tr>
     <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code></td></tr>
     <tr><td>결과값</td><td><code>UNWRAPABORT</code>(<code>!</code>) <code>UNWRAPTEST</code>(<code>?</code>) <code>COALESCE</code>(<code>??</code>)</td></tr>
@@ -280,6 +280,7 @@ print(sum(xs))</code></pre>
 <h3>결과값 축약</h3>
 <ul>
   <li><code>UNWRAPABORT</code>(<code>!</code>): <code>Ok(v)</code>면 <code>v</code>, <code>Err</code>면 E0603으로 중단.</li>
+  <li><code>POP</code>: 문장의 값을 버린다. 그 값이 <code>Err</code>면 E0606(태그 검사 하나). 진입 파일의 마지막 식도 <code>POP</code>한 뒤 <code>nil</code>을 돌려준다(REPL만 값을 남긴다).</li>
   <li><code>UNWRAPTEST</code>(<code>?</code>): <code>Ok(v)</code>면 <code>v</code>, <code>Err</code>면 그것을 남긴 채 함수의 반환으로 점프.</li>
   <li><code>COALESCE L</code>(<code>??</code>): <code>nil</code>이나 <code>Err</code>면 꺼내고 L로 점프해 오른쪽을 평가, <code>Ok(v)</code>면 <code>v</code>를 올리고 L을 건너뛴다.</li>
 </ul>
@@ -303,7 +304,8 @@ print(sum(xs))</code></pre>
     <tr><td><code>ys[1..]</code> 재귀</td><td>0.75s</td><td>14ms</td></tr>
   </tbody>
 </table>
-<p><code>crates/fung-cli/tests/perf.rs</code>(릴리스 빌드)가 이 다섯을 0.3초 기준으로 지키므로 n²로 돌아가면 테스트가 실패한다.</p>
+<p><code>crates/fung-cli/tests/perf.rs</code>(릴리스 빌드)가 이 다섯과 뒤에 더한 것들(스택처럼 쓰기, <code>unique</code>, 긴 문자열의 글자 인덱스, 자기 자신과의 <code>==</code>)을 0.3초 기준으로 지키므로 n²로 돌아가면 테스트가 실패한다.</p>
+<p>2026-10-20 검토에서 더 고친 것: <code>unique</code>는 <code>==</code>와 맞는 해시로 선형이다(정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시, 심볼은 그 이름의 문자열과 같은 해시라 E0517이 그대로 난다). 문자열의 <code>s[i]</code>·<code>s[a..b]</code>는 글자 배열을 만들지 않는다(ASCII는 바이트 위치 그대로). 같은 리스트·맵·튜플·태그끼리의 <code>==</code>는 바로 참이다. 원소가 모두 상수인 리스트 리터럴은 컴파일 때 상수 하나가 된다(빈 리스트를 품은 것은 제외).</p>
 
 <h3>구조 공유와 길 복사</h3>
 <p>값을 평평한 배열 대신 <strong>가지가 32개인 얕은 트리</strong>에 담는다. 하나를 바꾸면 그 값까지 내려가는 길의 노드만 새로 만들고, 나머지 가지는 원본의 노드를 그대로 가리킨다. 원본은 하나도 바뀌지 않는다.</p>
@@ -319,7 +321,7 @@ print(sum(xs))</code></pre>
 <h3>리스트: 영속 벡터와 보기</h3>
 <ul>
   <li><strong>영속 벡터</strong>(Clojure의 PersistentVector): 인덱스 <code>i</code>를 5비트씩 끊어 트리를 내려간다. 마지막 32개는 따로 둔 <code>tail</code> 배열에 있어서, 끝에 붙이기는 <code>tail</code>만 복사한다. <code>tail</code>이 차면 트리에 잎으로 끼우며 그 길만 복사한다.</li>
-  <li><strong>보기</strong>: 큰 리스트는 <code>{벡터, 시작, 끝}</code>이다. <code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code>는 같은 벡터를 가리키며 위치만 다른 보기를 만든다(상수 시간). 끝이 벡터의 끝인 보기에 덧붙이면 벡터를 이어서 키우고, 앞쪽 조각에 덧붙이면 그 조각을 새 벡터로 떼어 낸 뒤 붙인다. 원본은 어느 쪽이든 그대로다.</li>
+  <li><strong>보기</strong>: 큰 리스트는 <code>{벡터, 시작, 끝}</code>이다. <code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code>는 같은 벡터를 가리키며 위치만 다른 보기를 만든다(상수 시간). 끝이 벡터의 끝인 보기에 덧붙이면 벡터를 이어서 키운다. 앞쪽 조각이 벡터의 대부분이면 벡터를 그 끝에서 자르고(마지막 잎이 <code>tail</code>이 되고 그 길만 복사, O(log n)) 이어서 키우므로, 스택처럼 쓰는 <code>s[..-1] + [x]</code>도 선형이다. 작은 앞쪽 조각은 새 벡터로 떼어 낸 뒤 붙인다. 원본은 어느 쪽이든 그대로다.</li>
   <li><strong>메모리 규칙</strong>: 잘라 낸 결과가 바탕 벡터의 1/4보다 작으면 복사해서 떼어 낸다. 작은 조각이 큰 원본을 붙잡아 메모리에 남기지 않게 하려는 것이다.</li>
 </ul>
 
@@ -400,7 +402,7 @@ print(sum(xs))</code></pre>
 
 <h2 id="tools">도구</h2>
 <dl class="terms">
-  <dt><code>fung check</code></dt><dd>그래프 적재와 이름 해석까지만 하고 실행하지 않는다. 경고 W0101~W0104는 <code>check</code>와 <code>test</code>에서만 보인다.</dd>
+  <dt><code>fung check</code></dt><dd>그래프 적재와 이름 해석까지만 하고 실행하지 않는다. 경고 W0101~W0103은 <code>check</code>와 <code>test</code>에서만 보인다.</dd>
   <dt><code>fung test</code></dt><dd><code>test</code> 블록은 함수로 컴파일되어 등록된다(<code>TEST</code> 명령). 파일마다 새 런타임에서 최상위를 먼저 실행하고 등록된 테스트를 차례로 돌린다. 그동안 명령 자신을 살아 있는 태스크 하나로 세어(<code>Runtime::hold</code>) 블록 사이의 틈을 교착으로 보지 않는다. <code>assert</code>가 실패하면 비교의 양쪽 값을 보여 준다. <code>exit(n)</code>이 불리거나 교착이 보고되면 그 파일의 나머지를 건너뛰고 실패 하나로 센다. 로드에 실패한 파일은 실패로 세고, 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.</dd>
   <dt><code>fung fmt</code></dt><dd>AST를 다시 찍지 않고 렉서의 토큰과 주석을 줄 단위로 다시 배치한다. 줄 시작마다 열린 블록·괄호의 스택을 보고 들여쓰기를 정하고, 토큰 쌍 표로 공백을 정하며, 연속 줄의 꼬리 주석과 <code>match</code>의 <code>=&gt;</code>를 맞춘다. 출력을 다시 렉싱해 토큰 열이 입력과 같을 때만 쓴다. 그래서 포맷터 버그가 코드를 바꾸는 일은 사용자에게 닿지 않는다.</dd>
   <dt>REPL</dt><dd>한 줄씩 지금까지의 전역 이름을 알려 주며 컴파일하고 같은 런타임에서 실행한다. 전역 표를 미리 큰 용량으로 잡아 두어, 앞 줄에서 만든 클로저도 뒤에 정의된 이름을 본다. 터미널이면 raw 모드 줄 편집기(직접 구현), 파이프면 단순 읽기다. 재정의를 허용한다. 세션 내내 런타임을 붙잡고 있어 다음 입력을 기다리는 태스크는 교착이 아니다. 한 입력 안의 교착은 그 입력만 실패시키고 새 실행 루트에서 계속하며, 전역(전역에 담은 atom 포함)은 남는다.</dd>

@@ -179,6 +179,11 @@ impl Time {
     }
 
     /// The same instant, whatever the zones.
+    /// The instant, whatever the zone (what `==` compares).
+    pub(crate) fn instant(&self) -> (i64, u32) {
+        (self.unix, self.nsec)
+    }
+
     pub(crate) fn equal(&self, u: &Time) -> bool {
         self.unix == u.unix && self.nsec == u.nsec
     }

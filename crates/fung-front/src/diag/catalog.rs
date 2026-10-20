@@ -98,7 +98,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0220",
         "`?` inside a for body",
         "",
-        "`for` builds a list and cannot return early; handle the Err with `match`, or use `all`/`any`/`fold`",
+        "`for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`",
     ],
     [
         "E0221",
@@ -111,6 +111,42 @@ const CATALOG: &[[&str; 4]] = &[
         "`%s` is a built-in type and cannot be a type alias",
         "",
         "give the alias another name",
+    ],
+    [
+        "E0223",
+        "`if` without `else` used as a value: it is nil when the condition is false",
+        "this if has no else",
+        "add an `else:` branch; write `else: nil` if nil is meant",
+    ],
+    [
+        "E0224",
+        "`%s` is assigned as the last statement of a block used as a value, so the value is nil",
+        "",
+        "put the value last: end the block with an expression, e.g. the assigned name on its own line",
+    ],
+    [
+        "E0225",
+        "`%s` starts with an uppercase letter, so it is a tag and cannot name a variable",
+        "this is a tag",
+        "name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`",
+    ],
+    [
+        "E0226",
+        "`?` inside a lambda given to map",
+        "",
+        "map keeps the Err as an element; use `try_map`, which stops at the first Err",
+    ],
+    [
+        "E0227",
+        "`_` in a call on the right of `|>`",
+        "",
+        "the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`",
+    ],
+    [
+        "E0228",
+        "the rest parameter `...%s` is always a list",
+        "",
+        "annotate it `list` (or not at all); `list[int]` names the elements without checking them",
     ],
     [
         "E0301",
@@ -171,7 +207,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0514",
         "cannot use a value of type %s as a map key",
         "",
-        "",
+        "map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`",
     ],
     ["E0515", "invalid pattern %s", "", ""],
     [
@@ -179,6 +215,12 @@ const CATALOG: &[[&str; 4]] = &[
         "slice start %d is after its end %d (length %d)",
         "",
         "",
+    ],
+    [
+        "E0517",
+        "cannot compare a symbol with a string: %s and %s",
+        "",
+        "they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`",
     ],
     ["E0601", "no pattern matched %s", "", ""],
     ["E0602", "value %s does not match the pattern", "", ""],
@@ -189,6 +231,12 @@ const CATALOG: &[[&str; 4]] = &[
         "`%s` on a value of type %s (not Ok or Err)",
         "",
         "",
+    ],
+    [
+        "E0606",
+        "discarded Err: %s",
+        "this value is discarded",
+        "handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`",
     ],
     ["E0701", "task cancelled", "", ""],
     ["E0702", "deadlock: all tasks are waiting", "", ""],
@@ -238,6 +286,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "",
     ],
+    [
+        "E0809",
+        "`%s` is read before its assignment ran",
+        "",
+        "a top-level fn that reads it was called while the file was starting, above the assignment; move the assignment up or the call down",
+    ],
     ["W0101", "unused import `%s`", "", ""],
     [
         "W0102",
@@ -250,7 +304,7 @@ const CATALOG: &[[&str; 4]] = &[
         "W0104",
         "`%s` is assigned as the last statement of a block used as a value, so the value is nil",
         "",
-        "put the value last: end the block with an expression, e.g. the assigned name on its own line",
+        "not used: became the error E0224",
     ],
 ];
 

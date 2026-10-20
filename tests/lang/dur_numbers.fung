@@ -1,0 +1,8 @@
+# A duration divided by a duration is a number in that unit (07).
+elapsed = 1m30s
+print(elapsed / 1s, elapsed / 1ms, elapsed // 1m, elapsed % 1m)
+# expect: 90.0 90000.0 1 30s
+print(-90s // 1m, -90s % 1m)
+# expect: -2 30s
+print(4 * (elapsed / 1s) * 1ms)
+# expect: 360ms

@@ -1,0 +1,6 @@
+# A constant read while the file starts, before its assignment ran.
+x = twice()
+limit = 10
+fn twice() = limit * 2
+# expect-error: E0809
+print(x)

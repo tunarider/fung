@@ -45,14 +45,21 @@
 ==== check -e "print(if true: _y = 1 ;;)"
 -- stdout
 -- stderr
-| warning[W0104]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
+| error[E0224]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
 |   --> -e:1:16
 |   |
 | 1 | print(if true: _y = 1 ;;)
 |   |                ^^
 |   |
 |  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
--- exit: 0
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> -e:1:7
+|   |
+| 1 | print(if true: _y = 1 ;;)
+|   |       ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant
+-- exit: 2
 ==== check -e "fn f():\n  x = 1\n  len = 2\n  x\n;;"
 -- stdout
 -- stderr

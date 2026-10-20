@@ -6,7 +6,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::{Runtime, Stop, Task, at, err, internal};
-use crate::value::{Value, compare, equal, format, index, type_name};
+use crate::value::{Value, compare, eq, format, index, type_name};
 
 /// One registered test block: its name and the function to run.
 #[derive(Clone, Debug)]
@@ -43,8 +43,8 @@ impl Runtime {
 /// membership like the IN instruction.
 fn compare_by(op: &str, l: &Value, r: &Value) -> Result<bool, Diag> {
     match op {
-        "==" => return Ok(equal(l, r)),
-        "!=" => return Ok(!equal(l, r)),
+        "==" => return eq(l, r),
+        "!=" => return eq(l, r).map(|e| !e),
         "in" => return index::contains(r, l),
         "not_in" => return index::contains(r, l).map(|found| !found),
         _ => {}

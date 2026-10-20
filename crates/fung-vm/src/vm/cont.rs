@@ -95,6 +95,12 @@ pub trait Cont {
         None
     }
 
+    /// The receiving end the box is parked receiving on, if it is (the
+    /// deadlock report looks for its sending end in the waiting task).
+    fn receives_on(&self) -> Option<&std::rc::Rc<super::Receiver>> {
+        None
+    }
+
     /// Whether the box runs a `with`'s release now (the deadlock report
     /// says so).
     fn releasing(&self) -> bool {

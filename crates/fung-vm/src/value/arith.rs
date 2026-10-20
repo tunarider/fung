@@ -162,8 +162,11 @@ pub fn mul(a: &Value, b: &Value) -> Result<Value, Diag> {
 }
 
 /// `/`: always a float for numbers; a duration divided by a number stays a
-/// duration.
+/// duration, and by a duration is a float: the number in that unit (07).
 pub fn div(a: &Value, b: &Value) -> Result<Value, Diag> {
+    if let (Value::Dur(x), Value::Dur(y)) = (a, b) {
+        return dur_ratio(*x, *y);
+    }
     if let Value::Dur(d) = a {
         return div_dur(*d, b);
     }
@@ -177,8 +180,49 @@ pub fn div(a: &Value, b: &Value) -> Result<Value, Diag> {
     finite(x / y)
 }
 
-/// `//`: floor division; ints stay ints.
+/// `dur / dur` (07): the whole quotient and the remainder's share apart,
+/// so a quotient past 2^53 loses nothing to an early rounding of `x`.
+fn dur_ratio(x: i64, y: i64) -> Result<Value, Diag> {
+    if y == 0 {
+        return Err(divzero());
+    }
+    let (x, y) = (i128::from(x), i128::from(y));
+    finite((x / y) as f64 + (x % y) as f64 / y as f64)
+}
+
+/// `//` on ints, by the floor rule (07); `y` is not zero.
+fn floor_div_i64(x: i64, y: i64) -> Result<i64, Diag> {
+    if x == i64::MIN && y == -1 {
+        return Err(overflow());
+    }
+    let mut q = x / y;
+    if x % y != 0 && (x < 0) != (y < 0) {
+        q -= 1;
+    }
+    Ok(q)
+}
+
+/// `%` on ints, paired with `floor_div_i64`; `y` is not zero.
+fn rem_i64(x: i64, y: i64) -> i64 {
+    if x == i64::MIN && y == -1 {
+        return 0;
+    }
+    let mut r = x % y;
+    if r != 0 && (r < 0) != (y < 0) {
+        r += y;
+    }
+    r
+}
+
+/// `//`: floor division; ints stay ints, and a duration by a duration is
+/// an int (07).
 pub fn floor_div(a: &Value, b: &Value) -> Result<Value, Diag> {
+    if let (Value::Dur(x), Value::Dur(y)) = (a, b) {
+        if *y == 0 {
+            return Err(divzero());
+        }
+        return floor_div_i64(*x, *y).map(Value::Int);
+    }
     match numeric("divide", a, b)? {
         Num::Floats(x, y) => {
             if y == 0.0 {
@@ -190,20 +234,20 @@ pub fn floor_div(a: &Value, b: &Value) -> Result<Value, Diag> {
             if y == 0 {
                 return Err(divzero());
             }
-            if x == i64::MIN && y == -1 {
-                return Err(overflow());
-            }
-            let mut q = x / y;
-            if x % y != 0 && (x < 0) != (y < 0) {
-                q -= 1;
-            }
-            Ok(Value::Int(q))
+            floor_div_i64(x, y).map(Value::Int)
         }
     }
 }
 
-/// `%`, paired with `//`: the result has the sign of the divisor.
+/// `%`, paired with `//`: the result has the sign of the divisor. A
+/// duration by a duration is a duration (07).
 pub fn rem(a: &Value, b: &Value) -> Result<Value, Diag> {
+    if let (Value::Dur(x), Value::Dur(y)) = (a, b) {
+        if *y == 0 {
+            return Err(divzero());
+        }
+        return Ok(Value::Dur(rem_i64(*x, *y)));
+    }
     match numeric("take the remainder of", a, b)? {
         Num::Floats(x, y) => {
             if y == 0.0 {
@@ -215,14 +259,7 @@ pub fn rem(a: &Value, b: &Value) -> Result<Value, Diag> {
             if y == 0 {
                 return Err(divzero());
             }
-            if x == i64::MIN && y == -1 {
-                return Ok(Value::Int(0));
-            }
-            let mut r = x % y;
-            if r != 0 && (r < 0) != (y < 0) {
-                r += y;
-            }
-            Ok(Value::Int(r))
+            Ok(Value::Int(rem_i64(x, y)))
         }
     }
 }

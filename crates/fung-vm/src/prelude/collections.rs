@@ -9,8 +9,8 @@ use fung_front::diag::{Arg, Diag};
 
 use crate::native::nat::{self, def, def_step, fail, param};
 use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
-use crate::value::{ListBuilder, MapBuilder, Value, compare, type_name};
-use crate::vm::{Flow, Stop, Task};
+use crate::value::{ListBuilder, MapBuilder, Value, compare, eq, hash_value, type_name};
+use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def_step("filter", filter_fn, vec![param("xs"), param("f")]));
@@ -21,6 +21,7 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     ));
     add(def_step("each", each_fn, vec![param("xs"), param("f")]));
     add(def_step("sort", sort_fn, vec![param("xs")]));
+    add(def_step("unique", unique_fn, vec![param("xs")]));
     add(def_step(
         "sort_by",
         sort_by_fn,
@@ -109,8 +110,12 @@ fn each_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             t.push_arg(x);
             1
         }
-        fn got(&mut self, _: Value) -> Result<bool, Stop> {
-            Ok(false)
+        /// What `f` returns is discarded: an Err is E0606 (02).
+        fn got(&mut self, r: Value) -> Result<bool, Stop> {
+            match discarded_err(&r) {
+                Some(a) => Err(fail("E0606", vec![a])),
+                None => Ok(false),
+            }
         }
         fn result(&mut self, _: bool) -> Result<Value, Stop> {
             Ok(Value::Nil)
@@ -198,6 +203,35 @@ fn sort_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     all_items(t, &a[0], |_, xs| {
         let keys = xs.clone();
         sorted_by(xs, &keys).map(Flow::Done)
+    })
+}
+
+/// `unique(xs)`: the elements without the later ones `==` an earlier one,
+/// in order (02). Hashing by `hash_value` makes it linear (P1); elements
+/// in one bucket are compared with `eq`, so a symbol meeting a string is
+/// E0517 as with `in`.
+fn unique_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    nat::check_items(&a[0], "unique")?;
+    all_items(t, &a[0], |_, xs| {
+        let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
+        let mut out: Vec<Value> = Vec::new();
+        for x in xs {
+            let mut h = std::hash::DefaultHasher::new();
+            hash_value(&x, &mut h);
+            let b = buckets.entry(std::hash::Hasher::finish(&h)).or_default();
+            let mut seen = false;
+            for &i in b.iter() {
+                if eq(&out[i], &x)? {
+                    seen = true;
+                    break;
+                }
+            }
+            if !seen {
+                b.push(out.len());
+                out.push(x);
+            }
+        }
+        Ok(Flow::Done(nat::list(out)))
     })
 }
 

@@ -245,10 +245,7 @@ fn iterating_a_channel_in_f_is_an_effect() {
             "(tx, ch) = channel(3)\nsend(tx, 5)\nclose(tx)\na = atom(0)\nsupervise(s => spawn(s, () => swap(a, fn(x):\n  {body}\n  x + 1\n;;)), e => print(e.message))\nprint(recv(ch), deref(a))"
         );
         let (out, _, code) = run(&src);
-        assert!(
-            out.starts_with("error[E0707]: `recv` has an effect"),
-            "{body}: {out}"
-        );
+        assert!(out.starts_with("`recv` has an effect"), "{body}: {out}");
         assert!(out.ends_with("Ok(5) 0\n"), "{body}: {out}");
         assert_eq!(code, 0, "{body}");
     }
