@@ -108,7 +108,7 @@ match logs:
 <p>설계 중 새 결정이 필요할 때마다 아래 일곱 가지로 판단했다. 문법과 라이브러리의 모양은 대부분 여기서 따라 나온다.</p>
 
 <h3>엄격함이 우선이다</h3>
-<p>조용히 넘어가는 동작은 에러다. 암묵적 형변환(<code>"5" + 3</code>), 참·거짓 흉내(<code>if []:</code>), 정수 오버플로의 감김, 없는 키를 <code>nil</code>로 읽기, <code>NaN</code>·<code>Inf</code>는 모두 런타임 에러다. PHP의 "문법 에러만 아니면 일단 돈다"는 편안함은 부작용 때문에 버렸다.</p>
+<p>조용히 넘어가는 동작은 에러다. 암묵적 형변환(<code>"5" + 3</code>), 참·거짓 흉내(<code>if []:</code>), 정수 오버플로의 감김, 없는 키를 <code>nil</code>로 읽기, <code>NaN</code>·<code>Inf</code>, 아무도 보지 않고 버려지는 <code>Err</code>는 모두 에러다. PHP의 "문법 에러만 아니면 일단 돈다"는 편안함은 부작용 때문에 버렸다.</p>
 
 <h3>짧은 축약 문법을 좋아한다</h3>
 <p>자주 쓰는 일에는 짧은 표기가 있다: 에러 처리 <code>!</code> <code>?</code> <code>??</code>, 한 줄 조건 <code>c then a else b</code>, 짧은 함수 <code>fn f(x) = …</code>, 람다 <code>x =&gt; …</code>, 파이프 <code>|&gt;</code>, 맵 축약 <code>{name, port}</code>.</p>
@@ -178,7 +178,7 @@ sizes = fs.list(dir)!
 for (name, size) in sizes:
   print(pad_left(str(size), 10), name)
 ;;</code></pre>
-<p class="note">최상위 <code>fn</code>은 프로그램 시작 전에 만들어지므로 정의보다 앞에서 불러도 된다. 대신 최상위 변수는 볼 수 없어서 값은 인자로 넘긴다(<a href="syntax.html#scope">스코프</a>).</p>
+<p class="note">최상위 <code>fn</code>은 프로그램 시작 전에 만들어지므로 정의보다 앞에서 불러도 된다. 최상위에서 한 번만 대입되는 이름(상수)은 부를 때 읽고, 두 번 이상 대입되는 변수는 볼 수 없어서 인자로 넘긴다(<a href="syntax.html#scope">스코프</a>).</p>
 
 <h3>테스트를 같은 파일에</h3>
 <pre><code>fn slug(s) = lower(s) |&gt; split(" ") |&gt; filter(w =&gt; w != "") |&gt; join("-")
@@ -221,10 +221,10 @@ test "slug joins words with dashes":
     <tr><td><code>E03xx</code></td><td>모듈과 import</td></tr>
     <tr><td><code>E04xx</code></td><td>호출과 타입 표기</td></tr>
     <tr><td><code>E05xx</code></td><td>런타임 연산(타입 불일치, 0 나누기, 오버플로, 범위 밖 인덱스, 없는 키)</td></tr>
-    <tr><td><code>E06xx</code></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남)</td></tr>
+    <tr><td><code>E06xx</code></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code> E0606)</td></tr>
     <tr><td><code>E07xx</code></td><td>동시성(취소, 교착, 채널에 그 채널의 끝 보내기 E0705, 닫힌 범위 E0706, atom의 <code>f</code> 안 효과 E0707, atom에 못 담는 값 E0708)</td></tr>
     <tr><td><code>E08xx</code></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><code>W01xx</code></td><td>경고(<code>check</code>·<code>test</code>에서만): 안 쓰는 import·변수, prelude 이름 가리기, 값 자리 블록이 대입으로 끝남</td></tr>
+    <tr><td><code>W01xx</code></td><td>경고(<code>check</code>·<code>test</code>에서만): 안 쓰는 import·변수, prelude 이름 가리기</td></tr>
   </tbody>
 </table>
 <table>

@@ -35,7 +35,7 @@ fung/
       src/vm/        실행기, 태스크, 스케줄러, 이벤트 루프, 풀, 취소 트리, 채널, 교착 감지
       src/prelude/   core의 값 연산 (print, map, filter, split, int …)
       src/native/    숨은 원시 모듈 `_native.*` (fs, path, process, json, time, regex, net, TLS, range)
-      src/conc.rs    동시성 원시 연산 (`_native.conc`)
+      src/conc.rs    동시성 내장 함수 (`spawn`·`await`·`send`·`recv`·`sleep` …)
       src/boot.rs    prelude 부팅, `_native.*` 다리 표(`NATIVE_MODULES`), spec/builtins.txt 생성(테스트)
     fung-cli/        실행 파일 `fung`: 하위 명령(run, check, test, fmt, dump, version, help), REPL, 경로 순회
       tests/         통합 테스트, 골든 실행기, 기대 출력 파일(tests/expected/)
