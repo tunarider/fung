@@ -43,12 +43,21 @@ pub fn build(manual: &Path, bin: &Path, v: &Version) -> Result<BTreeMap<String, 
         pages.values().flat_map(markup::examples).collect();
     let results = run_all(bin, &examples).map_err(|e| e.join("\n"))?;
     let wordmark = read(&manual.join("assets/wordmark.svg"))?;
+    // the error catalog beside the manual (`spec/errors.txt`), when there is one
+    let catalog = match manual.parent().map(|r| r.join("spec/errors.txt")) {
+        Some(p) if p.exists() => read_catalog(&read(&p)?),
+        _ => BTreeMap::new(),
+    };
+    if !catalog.is_empty() {
+        check_catalog(&pages, &catalog)?;
+    }
     let ctx = Ctx {
         toc: &toc,
         pages: &pages,
         results: &results,
         version: v,
         wordmark: wordmark.trim_end(),
+        catalog: &catalog,
     };
     let mut files = BTreeMap::new();
     for md in &wanted {
@@ -81,6 +90,107 @@ pub fn build(manual: &Path, bin: &Path, v: &Version) -> Result<BTreeMap<String, 
     Ok(files)
 }
 
+/// `spec/errors.txt`: code → (message, help).
+pub fn read_catalog(text: &str) -> BTreeMap<String, (String, String)> {
+    text.lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| {
+            let f: Vec<&str> = l.split('\t').collect();
+            let get = |i: usize| f.get(i).copied().unwrap_or("").to_string();
+            (get(0), (get(1), get(3)))
+        })
+        .collect()
+}
+
+/// Every code of the catalog has exactly one `:::error` entry, and every
+/// entry is a code of the catalog.
+fn check_catalog(
+    pages: &BTreeMap<String, markup::Page>,
+    catalog: &BTreeMap<String, (String, String)>,
+) -> Result<(), String> {
+    fn walk(blocks: &[markup::Block], page: &str, out: &mut Vec<(String, String, usize)>) {
+        for b in blocks {
+            if let markup::Block::Container {
+                kind,
+                arg,
+                line,
+                blocks,
+            } = b
+            {
+                if kind == "error" {
+                    out.push((arg.clone(), page.to_string(), *line));
+                }
+                walk(blocks, page, out);
+            }
+        }
+    }
+    let mut entries = Vec::new();
+    for (path, page) in pages {
+        walk(&page.blocks, path, &mut entries);
+    }
+    let mut bad = Vec::new();
+    // an entry whose examples fail must show its own error in one of them
+    fn failing(blocks: &[markup::Block], out: &mut Vec<String>) {
+        for b in blocks {
+            match b {
+                markup::Block::Code(c) if c.exit != 0 => {
+                    out.extend(c.error.clone());
+                }
+                markup::Block::Container { blocks, .. } => failing(blocks, out),
+                _ => {}
+            }
+        }
+    }
+    fn own(blocks: &[markup::Block], page: &str, bad: &mut Vec<String>) {
+        for b in blocks {
+            if let markup::Block::Container {
+                kind,
+                arg,
+                line,
+                blocks,
+            } = b
+            {
+                if kind == "error" {
+                    let mut shown = Vec::new();
+                    failing(blocks, &mut shown);
+                    if !shown.is_empty() && !shown.contains(arg) {
+                        bad.push(format!(
+                            "{page}:{line}: `:::error {arg}` shows {} but never {arg}",
+                            shown.join(", ")
+                        ));
+                    }
+                }
+                own(blocks, page, bad);
+            }
+        }
+    }
+    for (path, page) in pages {
+        own(&page.blocks, path, &mut bad);
+    }
+    for (code, page, line) in &entries {
+        if !catalog.contains_key(code) {
+            bad.push(format!(
+                "{page}:{line}: `:::error {code}` is not in spec/errors.txt"
+            ));
+        }
+        if entries.iter().filter(|(c, ..)| c == code).count() > 1 {
+            bad.push(format!("{page}:{line}: a second `:::error {code}`"));
+        }
+    }
+    for code in catalog.keys() {
+        if !entries.iter().any(|(c, ..)| c == code) {
+            bad.push(format!(
+                "{code} (spec/errors.txt) has no `:::error {code}` entry in the manual"
+            ));
+        }
+    }
+    if bad.is_empty() {
+        Ok(())
+    } else {
+        Err(bad.join("\n"))
+    }
+}
+
 /// Every `.md` under `manual`, relative to it.
 fn manuscripts(manual: &Path) -> Vec<String> {
     let mut out = Vec::new();
@@ -106,7 +216,11 @@ fn manuscripts(manual: &Path) -> Vec<String> {
 
 /// The files shared by every version: paths relative to `docs/`. The
 /// old front page keeps the cover's link preview (`description`).
-pub fn shared(versions: &[Version], description: Option<&str>) -> BTreeMap<String, Vec<u8>> {
+pub fn shared(
+    versions: &[Version],
+    description: Option<&str>,
+    builtins: &BTreeMap<String, String>,
+) -> BTreeMap<String, Vec<u8>> {
     let mut files = BTreeMap::new();
     files.insert(
         "versions.js".to_string(),
@@ -118,21 +232,60 @@ pub fn shared(versions: &[Version], description: Option<&str>) -> BTreeMap<Strin
         } else {
             String::new()
         };
-        files.insert(old.to_string(), forward(new, &meta).into_bytes());
+        let anchors = if *old == "builtins.html" {
+            builtins.clone()
+        } else {
+            BTreeMap::new()
+        };
+        files.insert(old.to_string(), forward(new, &anchors, &meta).into_bytes());
     }
     files
 }
 
-/// A page that sends its visitor (and the `#anchor`) to `to`.
-fn forward(to: &str, meta: &str) -> String {
+/// Where the old single function page's anchors went: an entry's
+/// `fn-…` id to its page and anchor, and a group's id (the old
+/// `#strings`) to the page that now holds that group.
+pub fn builtins_anchors(built: &BTreeMap<String, Vec<u8>>) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (path, bytes) in built {
+        let Some(stem) = ["reference/prelude/", "reference/modules/"]
+            .iter()
+            .find_map(|d| path.strip_prefix(d))
+            .and_then(|f| f.strip_suffix(".html"))
+        else {
+            continue;
+        };
+        out.insert(stem.to_string(), format!("latest/{path}"));
+        for id in ids(&String::from_utf8_lossy(bytes)) {
+            if id.starts_with("fn-") {
+                out.insert(id.clone(), format!("latest/{path}#{id}"));
+            }
+        }
+    }
+    out
+}
+/// A page that sends its visitor (and the `#anchor`) to `to`, or, for
+/// an anchor in `anchors`, to where that anchor went.
+fn forward(to: &str, anchors: &BTreeMap<String, String>, meta: &str) -> String {
+    let script = if anchors.is_empty() {
+        format!("location.replace(\"{to}\" + location.hash)")
+    } else {
+        let pairs: Vec<String> = anchors
+            .iter()
+            .map(|(k, v)| format!("\"{k}\": \"{v}\""))
+            .collect();
+        format!(
+            "var m = {{{}}};\nvar h = location.hash.slice(1);\nlocation.replace(m[h] || \"{to}\" + location.hash)",
+            pairs.join(",\n")
+        )
+    };
     format!(
         "<!doctype html>\n<html lang=\"ko\">\n<head>\n<meta charset=\"utf-8\">\n<title>fung 매뉴얼</title>\n\
-         <script>location.replace(\"{to}\" + location.hash)</script>\n\
+         <script>{script}</script>\n\
          <meta http-equiv=\"refresh\" content=\"0; url={to}\">\n<link rel=\"canonical\" href=\"{to}\">\n{meta}</head>\n\
          <body>\n<p>매뉴얼이 옮겨졌다: <a href=\"{to}\">{to}</a></p>\n</body>\n</html>\n"
     )
 }
-
 /// `docs/versions.js`.
 pub fn versions_js(versions: &[Version]) -> String {
     let mut s = String::from("window.FUNG_VERSIONS = [\n");

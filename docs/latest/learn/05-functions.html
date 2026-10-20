@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>함수 · fung 매뉴얼</title>
+<meta name="description" content="함수를 정의하고 부르는 법, 짧은 형태 fn f(x) = …, 람다, 기본값·이름·나머지 인자, 값으로서의 함수, 만들어질 때 보이는 값을 복사하는 클로저, 파이프 |&gt;.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="learn">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">L</span><span class="mbar-where"><span class="mbar-title">5. 함수</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
+<ol class="chapters">
+<li><a href="../learn/01-programming.html">1. 프로그래밍과 fung</a></li>
+<li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
+<li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
+<li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
+<li><a href="../learn/05-functions.html" aria-current="page">5. 함수</a><ol class="toc2"><li><a href="#what">함수란</a></li><li><a href="#define">함수 정의하기</a></li><li><a href="#arguments">인자</a></li><li><a href="#values">함수는 값이다</a></li><li><a href="#closures">클로저: 만들어질 때 보이는 값을 복사한다</a></li><li><a href="#pipe">파이프</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
+<li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
+<li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
+<li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
+<li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
+<li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
+<li><a href="../learn/12-concurrency.html">12. 동시에 여러 일 하기</a></li>
+<li><a href="../learn/13-json-and-http.html">13. JSON과 HTTP</a></li>
+<li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
+</ol>
+</li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../learn/01-programming.html"><span class="glyph">L</span>fung 배우기</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>5장</span></nav>
+<h1>함수</h1>
+<p class="lede">계산에 이름을 붙여 다시 쓰는 법. fung에서 함수는 숫자나 문자열과 똑같은 값이다.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>함수가 무엇이고 왜 쓰는지</li>
+<li><code>fn</code>으로 함수를 정의하고 부르는 법, 짧은 형태 <code>fn f(x) = …</code></li>
+<li>기본값 있는 매개변수, 이름 붙인 인자, 나머지 인자 <code>...rest</code></li>
+<li>람다 <code>x =&gt; …</code>와 함수를 값으로 다루는 법</li>
+<li>클로저: 함수는 만들어질 때 보이는 값을 복사한다</li>
+<li>최상위 함수가 볼 수 있는 이름</li>
+<li>파이프 <code>|&gt;</code>와 부분 적용 <code>_</code></li>
+</ul>
+</div>
+<h2 id="what">함수란</h2>
+<p>같은 계산을 여러 곳에서 하게 되면, 그 계산에 이름을 붙여 두고 이름으로 부르는 것이 낫다. 고칠 때 한 곳만 고치면 되고, 읽는 사람은 <code>disk_level(91)</code>만 보고도 무슨 일을 하는지 안다. 이렇게 이름 붙인 계산이 <strong>함수(function)</strong>다.</p>
+<p>함수는 값을 받아서 값을 돌려준다. 받는 값을 <strong>인자(argument)</strong>, 돌려주는 값을 <strong>반환값(return value)</strong>이라고 한다. 이미 많이 써 봤다. <code>len(&quot;web-1&quot;)</code>은 <code>len</code> 함수에 인자 <code>&quot;web-1&quot;</code>을 주고 반환값 <code>5</code>를 받는 것이다. 이렇게 함수를 쓰는 것을 "함수를 <strong>부른다</strong>(호출, call)"고 한다.</p>
+<h2 id="define">함수 정의하기</h2>
+<p>함수는 <code>fn 이름(매개변수, …):</code>로 시작해 <code>;;</code>로 닫는 블록으로 정의한다. 괄호 안의 이름들을 <strong>매개변수(parameter)</strong>라고 하고, 부를 때 준 인자가 차례로 매개변수에 들어간다. 블록의 <strong>마지막 식의 값</strong>이 반환값이다.</p>
+<div class="run"><pre><code>fn disk_level(usage):
+  if usage &gt;= 90:
+    &quot;critical&quot;
+  else if usage &gt;= 75:
+    &quot;warning&quot;
+  else:
+    &quot;ok&quot;
+  ;;
+;;
+
+print(disk_level(91), disk_level(80), disk_level(12))</code></pre><pre class="out plain"><code>critical warning ok</code></pre></div>
+<p>본문이 식 하나뿐이면 <code>=</code> 뒤에 바로 쓴다. 짧은 함수는 대부분 이 모양이다.</p>
+<div class="run"><pre><code>fn percent(used, total) = used / total * 100
+fn is_log(name) = ends_with(name, &quot;.log&quot;)
+
+print(percent(45, 50), is_log(&quot;app.log&quot;), is_log(&quot;app.conf&quot;))</code></pre><pre class="out plain"><code>90.0 true false</code></pre></div>
+<p>중간에 일찍 끝내고 싶으면 <code>return 값</code>을 쓴다. <code>return</code>만 쓰면 <code>nil</code>을 돌려준다.</p>
+<div class="run"><pre><code>fn port_kind(port):
+  if port &lt; 1024:
+    return &quot;privileged&quot;
+  ;;
+  port &lt; 49152 then &quot;registered&quot; else &quot;dynamic&quot;
+;;
+
+print(port_kind(22), port_kind(8080), port_kind(50000))</code></pre><pre class="out plain"><code>privileged registered dynamic</code></pre></div>
+<p>파일 최상위의 <code>fn</code>은 프로그램이 시작하기 전에 모두 만들어진다. 그래서 정의보다 위에서 불러도 되고, 함수끼리 순서와 상관없이 서로 부를 수 있다.</p>
+<div class="run"><pre><code>print(greet(&quot;ops&quot;))
+
+fn greet(team) = &quot;hello, ${team}&quot;</code></pre><pre class="out plain"><code>hello, ops</code></pre></div>
+<h2 id="arguments">인자</h2>
+<p>매개변수에 <strong>기본값</strong>을 주면 부를 때 그 인자를 생략할 수 있다. 부를 때 <code>이름: 값</code>으로 <strong>이름 붙인 인자</strong>를 주면 순서와 상관없이 원하는 매개변수만 고를 수 있다. 이름 붙인 인자는 위치 인자 뒤에 쓴다.</p>
+<div class="run"><pre><code>fn endpoint(host, port = 443, scheme = &quot;https&quot;) = &quot;${scheme}://${host}:${port}&quot;
+
+print(endpoint(&quot;api.internal&quot;))
+print(endpoint(&quot;api.internal&quot;, 8080, &quot;http&quot;))
+print(endpoint(&quot;api.internal&quot;, scheme: &quot;http&quot;, port: 80))</code></pre><pre class="out plain"><code>https://api.internal:443
+http://api.internal:8080
+http://api.internal:80</code></pre></div>
+<p>마지막 매개변수 앞에 <code>...</code>를 붙이면 남는 위치 인자를 모두 리스트로 받는다. 이것을 <strong>나머지 인자</strong>라고 한다.</p>
+<div class="run"><pre><code>fn remote(host, ...cmd) = &quot;ssh ${host} ${join(cmd, &quot; &quot;)}&quot;
+print(remote(&quot;web-1&quot;, &quot;df&quot;, &quot;-h&quot;))
+print(remote(&quot;web-1&quot;))</code></pre><pre class="out plain"><code>ssh web-1 df -h
+ssh web-1 </code></pre></div>
+<p>매개변수의 순서는 "필수 → 기본값 있는 것 → <code>...rest</code>"다. 인자 개수가 맞지 않거나 모르는 이름을 주면 런타임 에러다.</p>
+<div class="run"><pre><code>fn endpoint(host, port = 443) = &quot;${host}:${port}&quot;
+print(endpoint(prot: 80))</code></pre><pre class="out err plain" data-code="1"><code>error[E0406]: endpoint has no argument named `prot`
+  --&gt; example.fung:2:15
+  |
+2 | print(endpoint(prot: 80))
+  |               ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<p>위에서는 <code>port</code>를 <code>prot</code>로 잘못 썼다. 모르는 인자 이름이라는 E0406으로 멈춘다.</p>
+<p>내장 함수도 똑같다. 예를 들어 <code>join(xs, sep = &quot;&quot;)</code>는 <code>sep</code>에 기본값이 있어서 <code>join([&quot;a&quot;, &quot;b&quot;])</code>로 부를 수 있다. 레퍼런스의 함수 항목에 이런 서명이 그대로 적혀 있다.</p>
+<h2 id="values">함수는 값이다</h2>
+<p>fung에서 함수는 숫자나 문자열과 같은 <strong>값</strong>이다. 이름에 대입할 수 있고, 다른 함수에 인자로 넘길 수 있고, 함수가 함수를 돌려줄 수도 있다. 4장의 <code>filter(usages, u =&gt; u &gt;= 90)</code>이 바로 함수를 인자로 넘긴 것이다.</p>
+<p>이름 없이 그 자리에서 만드는 짧은 함수를 <strong>람다(lambda)</strong>라고 한다. <code>매개변수 =&gt; 식</code> 꼴이다. 매개변수가 둘 이상이거나 없으면 괄호로 감싼다.</p>
+<div class="run"><pre><code>double = x =&gt; x * 2
+add = (a, b) =&gt; a + b
+hello = () =&gt; &quot;hello&quot;
+print(double(21), add(1, 2), hello(), type_of(double))</code></pre><pre class="out plain"><code>42 3 hello 'fn</code></pre></div>
+<p>람다의 본문은 식 하나다. 여러 문장이 필요하면 이름 없는 <code>fn(…): … ;;</code>를 쓴다.</p>
+<div class="run"><pre><code>check = fn(usage):
+  level = usage &gt; 90 then &quot;critical&quot; else &quot;ok&quot;
+  &quot;${usage}% ${level}&quot;
+;;
+print([95, 40] |&gt; map(check))</code></pre><pre class="out plain"><code>[&quot;95% critical&quot;, &quot;40% ok&quot;]</code></pre></div>
+<p>함수를 넘길 때는 괄호 없이 이름만 쓴다. <code>map(xs, check)</code>는 <code>check</code> 함수를 넘기는 것이고, <code>check(95)</code>는 <code>check</code>를 불러 나온 <strong>결과</strong>다.</p>
+<h2 id="closures">클로저: 만들어질 때 보이는 값을 복사한다</h2>
+<p>함수 안에서 함수를 만들면, 안쪽 함수는 바깥의 이름을 쓸 수 있다. 아래의 <code>tagger</code>는 <code>level</code>을 받아 "줄 앞에 <code>[level]</code>을 붙이는 함수"를 만들어 돌려준다. 돌려받은 함수는 <code>tagger</code>가 끝난 뒤에도 <code>level</code>을 기억한다. 이렇게 바깥 값을 품은 함수를 <strong>클로저(closure)</strong>라고 한다.</p>
+<div class="run"><pre><code>fn tagger(level) = line =&gt; &quot;[${level}] ${line}&quot;
+
+warn = tagger(&quot;WARN&quot;)
+error = tagger(&quot;ERROR&quot;)
+print(warn(&quot;disk 91%&quot;))
+print([&quot;timeout&quot;, &quot;refused&quot;] |&gt; map(error))</code></pre><pre class="out plain"><code>[WARN] disk 91%
+[&quot;[ERROR] timeout&quot;, &quot;[ERROR] refused&quot;]</code></pre></div>
+<p>fung의 클로저 규칙은 하나다. <strong>함수는 만들어질 때 보이는 변수의 값을 복사한다.</strong> 나중에 그 이름에 다른 값을 대입해도, 함수가 가진 값은 그대로다.</p>
+<div class="run"><pre><code>suffix = &quot;.log&quot;
+is_target = name =&gt; ends_with(name, suffix)
+suffix = &quot;.txt&quot;
+print(is_target(&quot;app.log&quot;), is_target(&quot;notes.txt&quot;))</code></pre><pre class="out plain"><code>true false</code></pre></div>
+<p><code>is_target</code>이 만들어질 때 <code>suffix</code>는 <code>&quot;.log&quot;</code>였으므로, 그 뒤에 <code>suffix</code>가 바뀌어도 <code>is_target</code>은 계속 <code>.log</code>를 찾는다. 값이 바뀌지 않는 언어라서 "그때의 값"과 "지금의 값"이 섞일 일이 없다.</p>
+<h3 id="top-level">최상위 함수가 볼 수 있는 이름</h3>
+<p>위 규칙을 최상위 <code>fn</code>에 적용하면 결론이 하나 나온다. 최상위 <code>fn</code>은 프로그램 시작 <strong>전에</strong> 만들어지므로, 그때는 복사할 변수가 아직 없다. 그래서 최상위 <code>fn</code>이 볼 수 있는 파일의 이름은 다음뿐이다.</p>
+<ul>
+<li>다른 최상위 <code>fn</code>과 <code>import</code>한 모듈(10장)</li>
+<li>최상위에서 <strong>한 번만</strong> 대입한 이름, 곧 상수(3장). 상수는 바뀔 일이 없으니 부를 때 읽는다.</li>
+</ul>
+<p>두 번 이상 대입한 이름은 보이지 않는다. 그런 값은 인자로 넘긴다.</p>
+<div class="run"><pre><code>log_dir = &quot;/var/log/app&quot;
+fn log_path(name) = &quot;${log_dir}/${name}&quot;
+print(log_path(&quot;api.log&quot;))</code></pre><pre class="out plain"><code>/var/log/app/api.log</code></pre></div>
+<div class="run"><pre><code>level = 1
+level = 2
+fn show() = level</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `level`
+  --&gt; example.fung:3:13
+  |
+3 | fn show() = level
+  |             ^^^^^ not found in this scope
+  |
+ help: `level` is a file-level variable (assigned on line 1) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument</code></pre></div>
+<h2 id="pipe">파이프</h2>
+<p>함수 결과를 다음 함수에 넣고, 그 결과를 또 다음 함수에 넣다 보면 괄호가 깊어진다. <code>len(filter(lines, is_error))</code>는 안쪽부터 거꾸로 읽어야 한다. <strong>파이프</strong> <code>|&gt;</code>는 같은 것을 데이터가 흐르는 순서대로 쓰게 해 준다. 규칙은 둘뿐이다.</p>
+<ul>
+<li><code>x |&gt; f(a, b)</code>는 <code>f(x, a, b)</code>다. 왼쪽 값이 오른쪽 호출의 <strong>맨 앞 인자</strong>로 들어간다.</li>
+<li><code>x |&gt; f</code>는 <code>f(x)</code>다.</li>
+</ul>
+<div class="run"><pre><code>line = &quot;  2026-10-20 ERROR disk full  &quot;
+words = line |&gt; trim |&gt; split(&quot; &quot;)
+print(words)
+log = [&quot;INFO start&quot;, &quot;ERROR disk full&quot;, &quot;ERROR timeout&quot;, &quot;INFO done&quot;]
+print(log |&gt; filter(l =&gt; starts_with(l, &quot;ERROR&quot;)) |&gt; len)</code></pre><pre class="out plain"><code>[&quot;2026-10-20&quot;, &quot;ERROR&quot;, &quot;disk&quot;, &quot;full&quot;]
+2</code></pre></div>
+<p>그래서 내장 함수는 모두 <strong>다루는 대상을 첫 매개변수</strong>로 받는다: <code>filter(xs, f)</code>, <code>split(s, sep)</code>, <code>put(m, k, v)</code>. 직접 만드는 함수도 대상을 맨 앞에 두면 파이프에 그대로 이어진다. 대상이 첫 자리가 아닌 함수에는 람다로 넘긴다.</p>
+<div class="run"><pre><code>fn scale(factor, n) = factor * n
+print(5 |&gt; (n =&gt; scale(2, n)))</code></pre><pre class="out plain"><code>10</code></pre></div>
+<h3 id="partial">부분 적용</h3>
+<p>호출의 인자 자리에 <code>_</code>를 쓰면, 그 자리를 비워 둔 새 함수가 만들어진다. <code>scale(10, _)</code>는 <code>n =&gt; scale(10, n)</code>과 같다. <code>map</code>에 넘길 함수를 짧게 만들 때 쓴다.</p>
+<div class="run"><pre><code>fn scale(factor, n) = factor * n
+print([1, 2, 3] |&gt; map(scale(10, _)))</code></pre><pre class="out plain"><code>[10, 20, 30]</code></pre></div>
+<h2 id="notes">짚고 넘어가기</h2>
+<div class="box learn"><b>매개변수와 인자, 정의와 호출</b>
+<p><strong>정의</strong>는 "이런 계산이 있다"고 적어 두는 것이고, <strong>호출</strong>은 그 계산을 실제로 하는 것이다. <code>fn percent(used, total) = …</code>의 <code>used</code>와 <code>total</code>이 매개변수(빈칸의 이름)이고, <code>percent(45, 50)</code>의 <code>45</code>와 <code>50</code>이 인자(빈칸에 넣은 값)다. 정의만 하고 부르지 않으면 아무 일도 일어나지 않는다.</p>
+</div>
+<div class="box mistake"><b>최상위 함수에서 바뀌는 변수 읽기 (E0204)</b>
+<p>최상위에서 두 번 이상 대입한 변수를 최상위 <code>fn</code>이 읽으면 E0204다. <code>help:</code> 줄이 이유를 알려 준다. 바뀌는 값은 인자로 넘기거나, 한 번만 대입하도록 고친다(예: <code>level = if … ;;</code>). 최상위 <code>fn</code>이 부를 때마다 파일의 "지금 값"을 찾는 언어에서는 함수의 결과가 호출 시점에 따라 달라지는데, fung은 그런 숨은 의존을 만들지 않는다.</p>
+</div>
+<div class="box mistake"><b>파이프 오른쪽 호출의 _ (E0227)</b>
+<p>파이프 값은 늘 맨 앞 인자로 들어가므로 <code>&quot;a.txt&quot; |&gt; path.join(&quot;/tmp&quot;, _)</code>는 <code>path.join(&quot;a.txt&quot;, &quot;/tmp&quot;, _)</code>가 되어 버린다. 그래서 이 모양은 컴파일 에러다. 다른 자리에 넣으려면 람다를 쓴다: <code>&quot;a.txt&quot; |&gt; (f =&gt; path.join(&quot;/tmp&quot;, f))</code>.</p>
+</div>
+<div class="box mistake"><b>꼬리가 아닌 깊은 재귀 (E0804)</b>
+<p><code>fn total(n) = n == 0 then 0 else n + total(n - 1)</code>은 자기 호출이 끝난 뒤 <code>n +</code>을 해야 하므로 꼬리 호출이 아니다. 깊이가 100,000을 넘으면 <code>stack overflow</code> 에러다. 모은 값을 인자로 넘기는 꼬리 재귀(4장)로 바꾸거나 <code>fold</code>·<code>sum</code>을 쓴다.</p>
+</div>
+<div class="box other"><b>다른 언어는</b>
+<p>Python의 <code>def f(x): return …</code>가 fung의 <code>fn f(x) = …</code>, <code>lambda x: …</code>가 <code>x =&gt; …</code>다. 이름 붙인 인자와 기본값, <code>*args</code>(fung의 <code>...rest</code>)도 Python과 비슷하다. 다른 점은 클로저다. Python과 JavaScript의 클로저는 변수 <strong>자체</strong>를 붙잡아서 나중에 변수가 바뀌면 함수의 결과도 바뀌지만, fung은 만들어질 때의 <strong>값</strong>을 복사한다. 파이프는 Elixir의 <code>|&gt;</code>와 같은 쪽(대상이 첫 인자)이고, 쉘의 <code>|</code>처럼 왼쪽 결과를 오른쪽으로 넘긴다.</p>
+</div>
+<h2 id="exercises">해 보기</h2>
+<div class="exercise"><b>접속 주소 만들기</b>
+<p><code>host</code>를 받고, <code>user</code>(기본값 <code>&quot;deploy&quot;</code>)와 <code>port</code>(기본값 <code>22</code>)를 고를 수 있는 함수 <code>ssh_target</code>을 만들어 <code>deploy@web-1:22</code>, <code>root@db-1:2222</code> 같은 문자열을 돌려주게 하자. 서버 목록 <code>[&quot;web-1&quot;, &quot;web-2&quot;]</code>에 <code>map</code>으로 적용해 본다.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>fn ssh_target(host, user = &quot;deploy&quot;, port = 22) = &quot;${user}@${host}:${port}&quot;
+
+print([&quot;web-1&quot;, &quot;web-2&quot;] |&gt; map(ssh_target))
+print(ssh_target(&quot;db-1&quot;, user: &quot;root&quot;, port: 2222))</code></pre><pre class="out plain"><code>[&quot;deploy@web-1:22&quot;, &quot;deploy@web-2:22&quot;]
+root@db-1:2222</code></pre></div>
+</details>
+</div>
+<div class="exercise"><b>문턱값 함수 만들기</b>
+<p>숫자 <code>limit</code>을 받아 "<code>limit</code>보다 큰가?"를 묻는 함수를 돌려주는 <code>over(limit)</code>을 만들자. 그것으로 <code>[45, 91, 78, 99]</code>에서 <code>80</code>보다 큰 값과 <code>95</code>보다 큰 값을 각각 골라 본다.</p>
+<details><summary>풀이 보기</summary>
+<p><code>over(80)</code>이 돌려주는 람다는 만들어질 때의 <code>limit</code>(80)을 복사해 둔다.</p>
+<div class="run"><pre><code>fn over(limit) = n =&gt; n &gt; limit
+
+usages = [45, 91, 78, 99]
+print(usages |&gt; filter(over(80)))
+print(usages |&gt; filter(over(95)))</code></pre><pre class="out plain"><code>[91, 99]
+[99]</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>함수는 <code>fn 이름(매개변수):</code> … <code>;;</code>로 정의하고, 마지막 식이 반환값이다. 식 하나면 <code>fn f(x) = …</code>.</li>
+<li>최상위 <code>fn</code>은 시작 전에 만들어지므로 순서와 상관없이 부를 수 있다.</li>
+<li>매개변수는 필수 → 기본값 → <code>...rest</code> 순서. 부를 때 <code>이름: 값</code>으로 골라 줄 수 있다.</li>
+<li>함수는 값이다. 람다 <code>x =&gt; …</code>로 그 자리에서 만들고, 인자로 넘기고, 돌려준다.</li>
+<li>함수는 만들어질 때 보이는 변수의 값을 복사한다. 최상위 <code>fn</code>은 상수만 읽을 수 있다.</li>
+<li><code>x |&gt; f(a)</code>는 <code>f(x, a)</code>. 대상이 첫 인자라는 규칙 덕분에 파이프가 이어진다. <code>f(a, _)</code>는 부분 적용.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/language.html#functions">함수</a>, <a href="../reference/language.html#scope">변수와 스코프</a>, <a href="../reference/language.html#pipe">파이프</a>, <a href="../reference/language.html#types">타입 표기</a>(인자와 반환값의 타입을 적어 검사하는 법), <a href="../reference/errors.html#E0204">E0204</a>, <a href="../reference/errors.html#E0227">E0227</a>. 클로저가 값을 복사하는 방법은 <a href="../vm/09-closures.html">함수와 클로저</a>에서 다룬다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/04-conditions-and-loops.html"><small>이전 장</small>4. 조건과 반복</a><a class="next" href="../learn/06-strings.html"><small>다음 장</small>6. 문자열 다루기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

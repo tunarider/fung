@@ -1,0 +1,3 @@
+# test catalog
+# code<TAB>message template<TAB>underline label<TAB>help
+E0606	discarded Err: %s	this value is discarded	handle it with `!`

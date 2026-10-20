@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>값과 메모리 · fung 매뉴얼</title>
+<meta name="description" content="값과 메모리. 동적 타입 언어가 값을 담는 방법, fung의 16바이트 Value, 가비지 컬렉터 대신 참조 계수(Rc), 깊은 값의 해제, 바꾸지 않는 리스트·맵을 싸게 &quot;바꾸는&quot; 영속 자료구조, 지역 변수의 수명.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">10. 값과 메모리</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html" aria-current="page">10. 값과 메모리</a><ol class="toc2"><li><a href="#representation">값을 담는 법</a></li><li><a href="#memory">다 쓴 값은 누가 치우나</a></li><li><a href="#release">깊은 값 지우기</a></li><li><a href="#persistent">바꾸지 않는 값을 싸게 바꾸기</a></li><li><a href="#lifetime">지역 변수의 수명</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">3부 뒷단: 트리에서 실행으로</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>10장</span></nav>
+<h1>값과 메모리</h1>
+<p class="lede">fung의 값은 16바이트짜리 Rust 열거형 하나다. 큰 값은 참조 계수로 공유하고, 리스트와 맵은 사본이 원본과 구조를 나눠 쓰는 영속 자료구조라서 불변이어도 누적이 선형이다.</p>
+<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li>바이트코드</li><li class="on">실행</li></ol>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>동적 타입 언어가 값의 종류와 내용을 함께 담는 방법(상자, 태그 붙은 공용체, NaN 박싱)</li>
+<li>메모리를 돌려받는 두 길, 가비지 컬렉터와 참조 계수의 장단점</li>
+<li>fung이 참조 계수를 고를 수 있었던 이유: 불변 값에는 순환이 없다</li>
+<li>깊이 겹친 값을 재귀 없이 지우는 방법</li>
+<li>불변 리스트·맵을 통째로 복사하지 않고 "바꾸는" 영속 자료구조</li>
+<li>지역 변수의 값이 언제 놓이는가(<code>CLEARLOCAL</code>)</li>
+</ul>
+</div>
+<p>9장까지 "값을 스택에 올린다", "값을 복사한다"고 쉽게 말했다. 이 장은 그 값이 메모리에서 어떤 모양이고, 다 쓰면 누가 치우는지를 본다.</p>
+<h2 id="representation">값을 담는 법</h2>
+<p>fung은 <strong>동적 타입</strong> 언어다. 변수 <code>x</code>에 정수가 들었는지 문자열이 들었는지는 실행해 봐야 안다. 그래서 값마다 "나는 무엇인가"(종류)와 "내 내용"(값)을 함께 들고 다녀야 한다. <code>ADD</code>는 두 값의 종류를 보고 정수 덧셈, 실수 덧셈, 문자열 잇기, 리스트 잇기 중 하나를 고르고, 맞지 않으면 E0501을 낸다(<code>1 + &quot;a&quot;</code>).</p>
+<p>종류와 내용을 담는 방법은 크게 셋이다.</p>
+<ul>
+<li><strong>모든 값을 상자에.</strong> 값마다 힙에 작은 객체를 만들고, 그 머리에 종류를 적는다. 변수는 그 객체를 가리키는 포인터 하나다. 단순하지만 <code>1 + 2</code>에도 객체가 생긴다.</li>
+<li><strong>태그 붙은 공용체</strong>(tagged union). 고정 크기의 칸 하나에 "종류 번호 + 내용"을 담는다. 작은 값(정수, 실수, 불)은 칸에 바로 들어가고, 큰 값(문자열, 리스트)만 힙의 객체를 가리킨다.</li>
+<li><strong>NaN 박싱</strong>(NaN boxing). 64비트 실수 중 "숫자가 아님"(NaN)을 나타내는 비트 패턴은 거의 쓰이지 않는다. 그 빈자리에 포인터나 작은 정수를 숨겨 넣어 값 하나를 8바이트에 담는다.</li>
+</ul>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>CPython</strong>은 모든 값이 상자다. 정수 <code>1</code>도 참조 계수와 타입 포인터를 머리에 단 <code>PyObject</code>다. 그래서 -5부터 256까지의 작은 정수는 미리 만들어 두고 다시 쓴다.</li>
+<li><strong>LuaJIT</strong>와 Firefox의 <strong>SpiderMonkey</strong>는 NaN 박싱을 쓴다. Chrome의 <strong>V8</strong>은 포인터의 맨 아래 비트로 "작은 정수"(Smi)와 포인터를 가르는 포인터 태깅을 쓴다.</li>
+<li><strong>Lua 5.x</strong>(표준 구현)는 태그 붙은 공용체다. 값 하나가 내용 칸과 종류 태그로 된 16바이트 남짓이다.</li>
+</ul>
+</div>
+<p>fung의 값은 Rust 열거형(<code>enum</code>) 하나, 곧 태그 붙은 공용체다(<code>crates/fung-vm/src/value.rs</code>의 <code>Value</code>).</p>
+<pre class="plain"><code>enum Value {
+    Int(i64), Float(f64), Bool(bool), Nil, Dur(i64),   ← 칸에 바로 들어감
+    Sym(Sym),                                          ← 전역 인턴 표의 번호
+    Str(Rc&lt;String&gt;), List(Rc&lt;List&gt;), Map(Rc&lt;Map&gt;),     ← 힙의 객체를 가리킴
+    Tuple(..), Tag(..), Range(..), Closure(..), Module(..), Time(..),
+    Native(&amp;'static Native),                           ← 내장 함수: 계수 없는 참조
+    Task(..), Scope(..), Sender(..), Receiver(..), Atom(..),
+    File(Arc&lt;File&gt;), Conn(Arc&lt;Conn&gt;), Listener(Arc&lt;Listener&gt;),
+}</code></pre>
+<ul>
+<li>크기는 <strong>16바이트</strong>다. 종류 표시 8바이트와 내용 칸 8바이트. 시험이 이 크기를 고정한다(<code>value/tests.rs</code>).</li>
+<li>정수·실수·불·기간은 상자 없이 칸에 바로 들어간다. <code>x * 2</code>는 힙을 건드리지 않는다.</li>
+<li>심볼 <code>'ok</code>는 프로세스 전체의 인턴 표에 한 번 등록된 이름의 번호다(<code>value/sym.rs</code>). 그래서 심볼 비교는 정수 비교다.</li>
+<li>내장 함수는 프로그램 내내 살아 있으므로 <code>&amp;'static</code> 참조로 가리킨다. 세어야 할 것이 없다.</li>
+<li>그 밖의 큰 값은 <code>Rc</code>(아래)로 가리킨다. <code>Value</code>를 복제해도 큰 리스트는 복사되지 않는다.</li>
+</ul>
+<p>9장에서 본 스택 칸은 <code>Option&lt;Value&gt;</code>였다. <code>None</code>이 "아직 빈 칸", <code>Some(Value::Nil)</code>이 fung의 <code>nil</code>이다. 이것도 16바이트다. Rust가 <code>Value</code>의 종류 표시에서 쓰지 않는 값 하나를 <code>None</code>으로 써서 크기를 늘리지 않기 때문이다(niche 최적화).</p>
+<h2 id="memory">다 쓴 값은 누가 치우나</h2>
+<p>리스트를 만들면 힙에 메모리를 잡는다. 아무도 그 리스트를 쓰지 않게 되면 메모리를 돌려줘야 한다. 이 일을 누가, 언제 하느냐가 언어 런타임의 큰 갈림길이다.</p>
+<ul>
+<li><strong>손으로.</strong> C의 <code>malloc</code>/<code>free</code>. 빠르지만 잊으면 누수, 두 번 하면 메모리 손상이다. 스크립트 언어의 사용자에게 맡길 일이 아니다.</li>
+<li><strong>추적형 가비지 컬렉터</strong>(tracing GC). 가끔 멈추고, 전역과 스택에서 출발해 닿는 객체를 모두 표시한 뒤, 닿지 않은 것을 치운다. 객체끼리 서로 가리키는 고리(순환)도 문제없이 치운다. 대신 언제 치울지 런타임이 정하고, 치우는 동안의 멈춤이나 그것을 줄이기 위한 복잡한 장치(세대별 수집, 동시 수집)가 따른다.</li>
+<li><strong>참조 계수</strong>(reference counting). 객체마다 "나를 가리키는 손잡이 수"를 센다. 손잡이를 복사하면 하나 올리고, 버리면 하나 내린다. 0이 되는 순간 그 자리에서 해제한다. 멈춤이 없고 해제 시점이 정확하다. 약점은 둘이다. 순환은 계수가 0이 되지 않아 치우지 못하고, 여러 스레드가 같은 계수를 고치려면 원자적 연산이 필요해 느려진다.</li>
+</ul>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>JVM</strong>과 <strong>JavaScript</strong> 엔진, <strong>Lua</strong>는 추적형 GC다. JVM과 V8은 세대별 GC, Lua 5.4는 점진적·세대별 모드를 고를 수 있다.</li>
+<li><strong>CPython</strong>은 참조 계수가 기본이고, 순환을 잡으려고 추적형 순환 수집기를 하나 더 둔다. 여러 스레드가 계수를 고쳐도 안전하게 하려고 GIL(13장)을 썼다.</li>
+<li><strong>Swift</strong>는 컴파일러가 계수를 올리고 내리는 코드를 넣는 ARC다. 순환은 사용자가 <code>weak</code>로 끊어야 한다.</li>
+<li><strong>Erlang</strong>은 프로세스(경량 태스크)마다 작은 힙을 따로 두고 따로 수집한다. 프로세스 사이로 보내는 메시지는 복사한다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택: 원자적이지 않은 참조 계수 Rc</b>
+<ul>
+<li>Rust에는 가비지 컬렉터가 없다. 직접 만들지 않는다면 남는 길은 참조 계수다(노트 R2).</li>
+<li>fung의 값은 불변이다. 값을 만들 때 그 값이 가리킬 수 있는 것은 <strong>이미 있는 값</strong>뿐이다. 그래서 값끼리는 고리를 만들 수 없고, 참조 계수만으로 회수가 완전하다(부록 <a href="internals.html#vm">내부 구조</a>). "순환을 회수하는 GC"는 동시성 v2 설계에서 일부러 목표 밖에 두었다.</li>
+<li>계수는 원자적이지 않은 <code>Rc</code>다. fung 값은 실행 스레드 하나에서만 만지므로 원자적 연산이 필요 없다(13장). 이것은 타입이 지킨다.</li>
+<li>덤으로 "손잡이가 하나뿐이면 몰래 고쳐도 아무도 모른다"는 성질을 쓸 수 있다(아래 영속 자료구조).</li>
+</ul>
+</div>
+<h3 id="cycles">순환이 생길 수 있는 자리</h3>
+<p>불변 값만으로는 고리가 생기지 않는다. 그런데 fung에도 <strong>바뀌는 것</strong>이 몇 있다. 채널(버퍼에 값이 쌓인다), atom(가리키는 값이 바뀐다), 모듈 전역 표가 그렇다. 이것들은 나중에 자기를 가리키게 될 수 있다. 그래서 고리가 생길 자리를 규칙으로 막았다.</p>
+<ul>
+<li>채널에 <strong>그 채널의 끝</strong>을 보내면 E0705다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. <code>send</code>가 보내는 값을 훑어 막는다.</li>
+</ul>
+<div class="run"><pre><code>(tx, rx) = channel(1)
+print(send(tx, [tx]))</code></pre><pre class="out err plain" data-code="1"><code>error[E0705]: channel sent into itself
+  --&gt; example.fung:2:11
+  |
+2 | print(send(tx, [tx]))
+  |           ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<ul>
+<li>atom에는 <strong>바뀌는 것을 품은 값</strong>(atom, 채널의 끝, 태스크, 범위, 파일, 소켓)을 넣지 못한다(E0708).</li>
+</ul>
+<div class="run"><pre><code>cache = atom({})
+(tx, rx) = channel()
+reset(cache, {inbox: tx})</code></pre><pre class="out err plain" data-code="1"><code>error[E0708]: an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket
+  --&gt; example.fung:3:6
+  |
+3 | reset(cache, {inbox: tx})
+  |      ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<ul>
+<li>모듈 전역 표는 그 모듈의 함수를 담고, 함수는 자기 모듈의 전역 표를 든다(11장). 이것은 고리다. 그래서 런타임이 끝날 때 전역 표를 비워 고리를 끊는다(<code>World::release_values</code>).</li>
+</ul>
+<p>두 검사가 값 전체를 훑으면 큰 맵을 <code>reset</code>할 때마다 비용이 크기에 비례한다. 그래서 영속 벡터의 노드마다 "바뀌는 것을 품었는가"를 기억해 두고, 바뀐 경로만 다시 본다. 막지 못하는 고리(서로의 끝을 버퍼에 담은 채 버려진 두 채널 등)는 open-questions의 "알려진 한계"에 적혀 있다.</p>
+<h2 id="release">깊은 값 지우기</h2>
+<p>참조 계수에는 덜 알려진 함정이 하나 더 있다. Rust는 값을 버릴 때 그 필드를 차례로 버린다. 리스트 안의 리스트 안의 리스트가 백만 겹이면, 마지막 손잡이가 사라질 때 버리기가 백만 단 재귀한다. 운영체제 스레드의 스택이 넘쳐 프로세스가 죽는다. 추적형 GC는 반복문으로 훑으므로 이런 문제가 없다.</p>
+<p>fung은 값을 담는 모든 그릇(리스트, 맵, 튜플, 태그, 클로저, 모듈, 채널의 끝, 태스크 핸들, atom)이 자기 <code>Drop</code>에서 자식을 <strong>꺼내</strong> 명시적 스택에 옮기고, 그 스택을 반복문으로 비운다(<code>crates/fung-vm/src/value/release.rs</code>). 계수가 1인, 곧 정말 지워질 그릇만 스택에 넣는다. 계수가 2 이상이면 계수만 내려가고 깊어질 일이 없기 때문이다.</p>
+<div class="run"><pre><code>fn nest(n, acc) = n == 0 then acc else nest(n - 1, [acc])
+
+deep = nest(1000000, [])
+print(len(deep))</code></pre><pre class="out plain"><code>1</code></pre></div>
+<p>백만 겹 리스트가 만들어지고, 프로그램이 끝날 때 재귀 없이 지워진다.</p>
+<h2 id="persistent">바꾸지 않는 값을 싸게 바꾸기</h2>
+<p>fung의 리스트와 맵은 불변이다. <code>put(m, k, v)</code>는 <code>m</code>을 고치지 않고 새 맵을 돌려준다. <code>xs + [4]</code>도 <code>xs</code>는 그대로 둔다.</p>
+<div class="run"><pre><code>xs = [1, 2, 3]
+ys = xs + [4]
+m = {host: &quot;web1&quot;, port: 80}
+m2 = put(m, &quot;port&quot;, 8080)
+
+print(xs, ys)
+print(m, m2)</code></pre><pre class="out plain"><code>[1, 2, 3] [1, 2, 3, 4]
+{host: &quot;web1&quot;, port: 80} {host: &quot;web1&quot;, port: 8080}</code></pre></div>
+<p>가장 쉬운 구현은 새 값을 만들 때 원본을 <strong>통째로 복사</strong>하는 것이다. 그러면 <code>fold</code>로 키 n개를 <code>put</code>해 쌓을 때 복사량이 1 + 2 + … + n, 곧 n²/2가 된다. 2만 개면 2억 번의 복사다. fung의 첫 구현(M10 전)이 그랬고, 2만 개 <code>put</code> 누적이 7.5초 걸렸다.</p>
+<p>고칠 길은 셋이었다(노트 M10).</p>
+<ol>
+<li><strong>영속 자료구조</strong>(persistent data structure). 새 버전이 옛 버전과 구조의 대부분을 <strong>공유</strong>한다. Clojure·Scala·Haskell의 길이다.</li>
+<li><strong>혼자 쥐었으면 제자리 수정.</strong> 참조가 하나뿐이면 몰래 고친다. Swift의 copy-on-write, Koka·Lean의 참조 계수 최적화가 이 길이다.</li>
+<li><strong>빠른 일괄 함수를 따로</strong>(<code>from_pairs</code> 등). 사용자가 느린 방법과 빠른 방법을 외워야 한다.</li>
+</ol>
+<div class="box choice"><b>fung의 선택: 영속 자료구조, 그리고 Rc::make_mut</b>
+<p>1번을 골랐다. 사용자가 코드를 하나도 바꾸지 않아도 빨라지고, 여러 태스크가 잠금 없이 같은 값에서 각자 새 값을 만들 수 있다는 성질도 그대로다. 3번은 "같은 일을 하는 방법은 하나로"(원칙 6)와 예외 조항을 줄이는 원칙 7에 어긋난다(노트 M10). 그리고 Rust의 <code>Rc</code>로 옮기면서 2번이 덤으로 따라왔다(아래).</p>
+</div>
+<h3 id="path-copying">구조 공유와 길 복사</h3>
+<p>값을 평평한 배열 대신 <strong>가지가 32개인 얕은 트리</strong>에 담는다. 하나를 바꾸면 루트에서 그 값까지 내려가는 <strong>길에 있는 노드만</strong> 새로 만들고, 나머지 가지는 원본의 노드를 그대로 가리킨다.</p>
+<pre class="plain"><code>원본                      바꾼 뒤
+   [루트]                    [루트']          ← 새 노드
+  /  |  \                   /  |  \
+ A   B   C                 A   B'  C          ← A·C는 원본과 공유
+     |                         |
+    [잎]                      [잎']           ← 새 노드</code></pre>
+<p>깊이는 log₃₂ n이다. 100만 개여도 4단계라 바꿀 때마다 노드 4개만 새로 만든다. 32 = 2⁵라서 인덱스나 해시를 5비트씩 잘라 "몇 번째 가지"를 비트 연산으로 바로 구한다. 노드 하나가 포인터 32개라 캐시에도 잘 맞는다. Clojure가 실험으로 정한 값을 여러 언어가 그대로 쓴다.</p>
+<p>Rust에서는 길의 노드마다 <code>Rc::make_mut</code>를 부른다(<code>value/pvec.rs</code>). 그 노드의 계수가 1이면, 곧 아무도 옛 버전을 쥐고 있지 않으면 <strong>제자리에서</strong> 고친다. 누가 쥐고 있으면 그 노드만 복사한다. 같은 코드가 "혼자 쓰는 누적값"과 "옛 버전이 살아 있는 값"을 둘 다 처리한다. 2번 길이 공짜로 붙은 셈이다.</p>
+<ul>
+<li><strong>리스트</strong>는 Clojure의 PersistentVector다. 마지막 32개 이하는 트리 밖의 <code>tail</code> 배열에 따로 두어서, 끝에 붙이기가 대부분 <code>tail</code>만 고치는 일이다. 큰 리스트는 <code>{벡터, 시작, 끝}</code> <strong>보기</strong>이기도 해서, <code>xs[1..]</code>이나 <code>[x, ...rest]</code>는 같은 벡터를 가리키며 범위만 다른 보기를 상수 시간에 만든다. 잘라 낸 조각이 바탕의 1/4보다 작으면 복사해서 떼어 낸다. 작은 조각이 큰 원본을 메모리에 붙잡아 두지 않게 하려는 것이다(<code>value/list.rs</code>).</li>
+<li><strong>맵</strong>은 키의 해시를 5비트씩 끊어 내려가는 HAMT(Hash Array Mapped Trie, <code>value/hamt.rs</code>)다. 그런데 HAMT는 해시 순서라 넣은 순서를 모르고, fung 맵은 넣은 순서대로 순회·출력해야 한다. 그래서 "넣은 순서의 항목 벡터 + 키에서 위치로 가는 HAMT 색인" 두 구조를 짝지었다(<code>value/omap.rs</code>). Python 3.7 이후의 <code>dict</code>가 순서 배열과 해시 색인으로 넣은 순서를 지키는 것과 같은 생각을 영속 구조로 옮긴 것이다.</li>
+<li><strong>작은 것은 평평하게.</strong> 스크립트의 컬렉션은 대부분 작다. 리스트는 32개, 맵은 16개 이하면 평범한 배열로 두고 넘을 때만 트리로 바꾼다(<code>SMALL_MAX</code>, <code>SMALL_MAP_MAX</code>). 경계값은 fung 스크립트로 재서 정했다. 읽기는 경계 16·32·64 어디서도 차이가 없었고(명령 하나를 해석하는 비용이 몇 ns 차이를 덮는다), 맵은 16으로 낮추니 48개짜리 맵 만들기가 빨라졌다.</li>
+</ul>
+<div class="run"><pre><code>n = 20000
+counts = fold(0..n, {}, (acc, i) =&gt; put(acc, &quot;k${i % 5000}&quot;, get(acc, &quot;k${i % 5000}&quot;, 0) + 1))
+items = fold(0..n, [], (acc, i) =&gt; acc + [i])
+
+print(len(counts), counts[&quot;k42&quot;])
+print(len(items), items[19999])</code></pre><pre class="out plain"><code>5000 4
+20000 19999</code></pre></div>
+<p>이 정도는 디버그 빌드에서도 순식간이다. 릴리스 빌드의 성능 시험(<code>crates/fung-cli/tests/perf.rs</code>)이 이런 모양 다섯을 2만 개로 돌려 0.3초를 넘으면 실패하므로, 구현이 n²로 돌아가면 바로 드러난다.</p>
+<p><strong>남은 n².</strong> 문자열은 <code>Rc&lt;String&gt;</code>이라 <code>acc + s</code>가 매번 새 문자열을 만든다. 긴 문자열을 쌓을 때는 리스트에 모아 <code>join</code>한다. 리스트 <strong>앞에</strong> 붙이기(<code>[x] + acc</code>)도 매번 전체를 복사하므로, 뒤에 붙인 뒤 <code>reverse</code>한다.</p>
+<h2 id="lifetime">지역 변수의 수명</h2>
+<p>참조 계수는 해제 시점이 정확하다. 그러면 "언제 마지막 손잡이가 사라지는가"가 곧 의미가 된다. 특히 채널은 보내는 끝의 마지막 사본이 사라질 때 <strong>닫힌다</strong>(14장). 그런데 지역 변수가 함수가 끝날 때까지 값을 쥐고 있으면, 그 함수 안에서 그 채널을 끝까지 읽는 코드는 영원히 기다린다.</p>
+<p>그래서 컴파일러는 함수 본문의 문장마다 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 그 문장 뒤에 칸을 비우는 명령 <code>CLEARLOCAL</code>을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 반복문이 없는 언어(반복은 재귀)라서 분석이 문장 단위로 끝난다. 클로저가 붙잡는 것도 읽기다.</p>
+<div class="run"><pre><code>fn total(path):
+  lines = [&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;]
+  sizes = map(lines, len)
+  print(path)
+  sum(sizes)
+;;
+
+print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; total
+0001  1:1   STOREGLOBAL  0    ; total
+0002  8:1   CONST        0    ; &lt;fn print&gt;
+0003  8:7   LOADGLOBAL   0    ; total
+0004  8:13  CONST        1    ; &quot;x.log&quot;
+0005  8:12  CALL         1    ; 1 positional, 0 named
+0006  8:6   CALL         1    ; 1 positional, 0 named
+0007  8:1   POP
+0008  8:1   CONST        2    ; nil
+0009  1:1   RETURN
+
+== total ==
+0000  2:11  CONST        0    ; [&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;]
+0001  2:3   STORELOCAL   1
+0002  3:11  CONST        1    ; &lt;fn map&gt;
+0003  3:15  LOADLOCAL    1
+0004  3:22  CONST        2    ; &lt;fn len&gt;
+0005  3:14  CALL         2    ; 2 positional, 0 named
+0006  3:3   STORELOCAL   2
+0007  3:3   CLEARLOCAL   1
+0008  4:3   CONST        3    ; &lt;fn print&gt;
+0009  4:9   LOADLOCAL    0
+0010  4:8   CALL         1    ; 1 positional, 0 named
+0011  4:3   POP
+0012  4:3   CLEARLOCAL   0
+0013  5:3   CONST        4    ; &lt;fn sum&gt;
+0014  5:7   LOADLOCAL    2
+0015  5:6   TAILCALL     1    ; 1 positional, 0 named
+0016  1:1   RETURN</code></pre></div>
+<p><code>total</code>의 0007번이 <code>lines</code>(슬롯 1)를, 0012번이 <code>path</code>(슬롯 0)를 비운다. 그 뒤로는 두 값이 이 프레임 때문에 살아 있지 않다. 채널 쪽에서 보면 이렇다.</p>
+<div class="run"><pre><code>fn numbers(n) = scope(fn(s):
+  (tx, rx) = channel()
+  spawn(s, () =&gt; each(0..n, i =&gt; send(tx, i)!))
+  fold(rx, 0, (acc, x) =&gt; acc + x)
+;;)
+
+print(numbers(5))</code></pre><pre class="out plain"><code>10</code></pre></div>
+<p><code>spawn</code> 문장 뒤에 <code>tx</code>의 칸이 비워지므로, 보내는 끝을 쥔 것은 생산 태스크의 클로저뿐이다. 그 태스크가 끝나면 마지막 사본이 사라지고 채널이 닫혀 <code>fold</code>가 끝난다.</p>
+<p>규칙의 나머지 둘도 알아 두자. <strong>한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다.</strong> <code>_watch = stop_signal()</code>처럼 쥐고 있는 것 자체가 뜻인 값을 위해서다(Rust의 <code>let _guard</code>와 같은 관용구). <strong>최상위 변수는 프로그램 끝까지 산다.</strong> 최상위 <code>fn</code>이 언제든 읽을 수 있기 때문이다(9장).</p>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-vm/src/value.rs</code>: <code>Value</code> 열거형, 함수 값 <code>Closure</code>, 모듈 값 <code>Module</code>, 바뀌는 것을 품었는지 보는 <code>holds_mutable</code>.</li>
+<li><code>crates/fung-vm/src/value/release.rs</code>: 깊은 값을 명시적 스택으로 지우는 <code>release</code>, <code>keep</code>, <code>drop_children</code>.</li>
+<li><code>crates/fung-vm/src/value/pvec.rs</code>: 영속 벡터 <code>Pvec</code>(가지 32개, <code>BITS</code>·<code>MASK</code>, 노드의 기억 <code>Memo</code>).</li>
+<li><code>crates/fung-vm/src/value/list.rs</code>: <code>List</code>(평평한 <code>Flat</code>과 보기 <code>Big</code>), <code>SMALL_MAX</code>, 빌더 <code>ListBuilder</code>.</li>
+<li><code>crates/fung-vm/src/value/map.rs</code>, <code>omap.rs</code>, <code>hamt.rs</code>: <code>Map</code>(<code>SMALL_MAP_MAX</code>), 항목 벡터와 색인을 짝지은 <code>Omap</code>, <code>Hamt</code>.</li>
+<li><code>crates/fung-vm/src/value/sym.rs</code>: 심볼 인턴 표 <code>intern</code>.</li>
+<li><code>crates/fung-front/src/compiler.rs</code>: 함수 본문의 문장마다 <code>CLEARLOCAL</code>을 넣는 <code>block</code>.</li>
+</ul>
+<div class="exercise"><b>로그 수준 세기</b>
+<p>수준이 <code>INFO</code>·<code>WARN</code>·<code>ERROR</code>인 로그 3만 줄을 흉내 낸 리스트를 만들고, <code>fold</code>와 <code>put</code>으로 수준별 개수를 세 보자. 그리고 0부터 29999까지를 "최근 것이 먼저" 순서로 담은 리스트를 만들되 앞에 붙이기(<code>[i] + acc</code>)를 쓰지 않고 만들어 보자. 왜 그 편이 빠른가?</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>levels = [&quot;INFO&quot;, &quot;WARN&quot;, &quot;INFO&quot;, &quot;ERROR&quot;, &quot;INFO&quot;]
+entries = map(0..30000, i =&gt; levels[i % 5])
+
+counts = fold(entries, {}, (acc, lv) =&gt; put(acc, lv, get(acc, lv, 0) + 1))
+newest_first = reverse(fold(0..30000, [], (acc, i) =&gt; acc + [i]))
+
+print(counts)
+print(take(newest_first, 3))</code></pre><pre class="out plain"><code>{INFO: 18000, WARN: 6000, ERROR: 6000}
+[29999, 29998, 29997]</code></pre></div>
+<p><code>put</code>의 누적값은 <code>fold</code>가 혼자 쥐고 있으므로 길의 노드가 대부분 제자리에서 고쳐지고, 맵이 커져도 바꿀 때마다 노드 몇 개만 손댄다. 뒤에 붙이기는 <code>tail</code>만 고치는 일이 대부분이다. 앞에 붙이기는 매번 리스트 전체를 새로 만들어 n²이 되므로, 뒤에 붙인 뒤 <code>reverse</code> 한 번(선형)으로 순서를 뒤집는다.</p>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>fung의 값은 16바이트 Rust 열거형 <code>Value</code>다. 정수·실수·불·기간은 칸에 바로 들어가고, 큰 값은 <code>Rc</code>로 힙의 객체를 가리킨다. 빈 칸은 <code>None</code>이라 <code>nil</code>과 다르다.</li>
+<li>메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0708이 막는다.</li>
+<li>깊은 값은 그릇마다의 <code>Drop</code>이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다.</li>
+<li>리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 <code>Rc::make_mut</code>로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.</li>
+<li>지역 변수는 마지막으로 읽힌 문장 뒤에 <code>CLEARLOCAL</code>로 놓인다. 그래서 채널의 끝이 제때 닫힌다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/language.html#values">값과 타입</a>, <a href="../reference/prelude/collections.html">컬렉션 함수</a>. 부록의 <a href="internals.html#collections">컬렉션의 내부</a>에 연산 비용 표가 있다. 다음 장은 값 중에서도 특별한 값, 모듈이 어떻게 찾아지고 실행되는지를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/09-closures.html"><small>이전 장</small>9. 함수와 클로저</a><a class="next" href="../vm/11-modules.html"><small>다음 장</small>11. 모듈 적재와 prelude</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

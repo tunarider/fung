@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>동시성 · fung 매뉴얼</title>
+<meta name="description" content="fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">동시성</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html" aria-current="page">동시성</a><ol class="toc2"><li><a href="#concepts">태스크와 동시성</a></li><li><a href="#tasks">범위와 태스크</a></li><li><a href="#channels">채널</a></li><li><a href="#stop">정지 요청</a></li><li><a href="#atoms">나누는 상태</a></li><li><a href="#sleep">기다리기</a></li></ol></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
+<h1>동시성</h1>
+<p class="lede">여러 일을 동시에 진행한다. 태스크는 범위(<code>scope</code>·<code>supervise</code>) 안에서만 띄우고, 범위는 안의 태스크가 모두 끝나야 돌아온다. 태스크 사이의 값은 채널로 주고받고, 나누는 상태는 <code>atom</code>에 둔다. 병렬 <code>map</code> 같은 도우미는 <a href="../modules/conc.html"><code>conc</code> 모듈</a>에 있다.</p>
+<h2 id="concepts">태스크와 동시성</h2>
+<p>스크립트가 하는 일의 대부분은 <strong>기다림</strong>이다. 서버 열 대에 <code>ssh</code>로 명령을 보내면 각 서버가 답할 때까지 기다리고, URL 스무 개를 확인하면 응답마다 기다린다. 하나씩 차례로 하면 기다리는 시간이 모두 더해진다. <strong>동시성</strong>(concurrency)은 하나를 기다리는 동안 다른 일을 진행해서 기다림을 겹치는 것이다. 열 대에 동시에 보내면 전체 시간은 가장 느린 한 대만큼이 된다.</p>
+<p>fung에서 동시에 진행하는 일 하나를 <strong>태스크</strong>(task)라고 한다. 태스크는 운영체제 스레드가 아니다. 실행 스레드 하나가 모든 태스크를 차례로 돌리고, 태스크가 기다리는 일(외부 명령, 소켓, <code>sleep</code>, 채널)을 만나면 그 태스크를 잠시 세워 두고 다른 태스크를 돌린다(<a href="../../vm/internals.html#concurrency">런타임</a>). 그래서 태스크는 가볍고(수천 개도 괜찮다), 한 순간에는 한 태스크의 코드만 돈다. 계산만 하는 일을 여러 CPU에 나눠 빠르게 하는 <strong>병렬성</strong>(parallelism)은 목표가 아니다. 목표는 기다림을 겹치는 것이다.</p>
+<div class="run"><pre><code>import time
+
+start = time.now()
+results = scope(fn(s):
+  tasks = for h in [&quot;web-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]:
+    spawn(s, fn():
+      sleep(300ms)
+      &quot;${h} ok&quot;
+    ;;)
+  ;;
+  map(tasks, await)
+;;)
+print(results)
+print(&quot;faster than one by one:&quot;, time.now() - start &lt; 900ms)</code></pre><pre class="out plain"><code>[&quot;web-1 ok&quot;, &quot;web-2 ok&quot;, &quot;web-3 ok&quot;]
+faster than one by one: true</code></pre></div>
+<p>세 태스크가 300ms씩 기다리지만 기다림이 겹치므로 전체는 300ms 남짓이다.</p>
+<h3 id="structured">범위: 태스크는 혼자 떠돌지 않는다</h3>
+<p>fung의 태스크는 언제나 <strong>범위</strong>(scope) 안에서 태어난다. <a href="#fn-scope"><code>scope(f)</code></a>가 범위를 열고, 그 안에서 <a href="#fn-spawn"><code>spawn(s, g)</code></a>으로 태스크를 띄운다. 범위는 본문과 그 안의 모든 태스크가 끝나야 돌아온다. 이것을 <strong>구조적 동시성</strong>(structured concurrency)이라고 한다. 덕분에 세 가지가 보장된다.</p>
+<ul>
+<li>범위가 돌아온 뒤에는 그 안의 태스크가 하나도 남아 있지 않다. 몰래 뒤에서 도는 태스크가 없다.</li>
+<li>태스크가 런타임 에러로 죽으면 그 에러는 언제나 범위를 연 코드로 간다. 실패가 사라지지 않는다.</li>
+<li>범위를 취소하면 그 안의 모든 것이 취소된다. 기한(<a href="#fn-timeout"><code>timeout</code></a>)도 범위 단위로 걸린다.</li>
+</ul>
+<h3 id="sharing">값을 나누는 법</h3>
+<p>fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. 태스크에 일을 줄 때는 람다가 붙잡은 값으로 주고, 결과는 <a href="#fn-await"><code>await</code></a>로 받는다. 태스크끼리 계속 값을 주고받아야 하면 <strong>채널</strong>(channel)을 쓴다. 한쪽 끝에서 <a href="#fn-send"><code>send</code></a>한 값을 다른 끝에서 <a href="#fn-recv"><code>recv</code></a>로 받는다. 여러 태스크가 함께 읽고 바꾸는 상태가 꼭 필요하면 <a href="#fn-atom"><code>atom</code></a>에 둔다.</p>
+<h2 id="tasks">범위와 태스크</h2>
+<section class="entry" id="fn-scope">
+<h3>scope</h3>
+<p>범위를 열고 <code>f(s)</code>를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 돌려준다.</p>
+<div class="sig"><code>scope(f)</code></div>
+<h4>설명</h4>
+<p><code>s</code>는 범위 핸들이고, <a href="#fn-spawn"><code>spawn(s, g)</code></a>으로 이 범위에 태스크를 띄울 때 쓴다. <code>scope</code>는 본문 <code>f(s)</code>가 끝난 뒤에도 띄운 태스크가 모두 끝날 때까지 기다린다. 결과는 본문의 반환값이다. 태스크의 결과가 필요하면 본문에서 <code>await</code>한다.</p>
+<p><strong>실패</strong>: 태스크 하나가 런타임 에러로 죽으면 범위는 나머지 태스크와 본문을 취소하고, 모두 멈추기를 기다린 뒤 그 에러를 <code>scope</code>를 부른 자리에서 다시 낸다. 에러에는 <code>note: scope opened at …</code>가 붙어 어느 범위였는지 알려 준다. 함수가 <code>Err</code> <strong>값</strong>을 돌려준 것은 실패가 아니다(그냥 결과다). 한 태스크의 실패가 다른 태스크를 멈추지 않게 하려면 <a href="#fn-supervise"><code>supervise</code></a>를 쓴다.</p>
+<p><strong>취소</strong>: <code>cancel(s)</code>로 취소된 범위는 <code>Err({kind: 'cancelled})</code>를 돌려준다. 본문에서 스스로 <code>cancel(s)</code>하면 본문도 그 자리에서 멈춘다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>f</code>: 범위 핸들 <code>s</code>를 받는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>본문 <code>f(s)</code>의 결과. 취소되었으면 <code>Err({kind: 'cancelled})</code>.</p>
+<h4>에러</h4>
+<p>안의 태스크나 본문의 런타임 에러를 다시 낸다.</p>
+<h4>예제</h4>
+<p><strong>두 태스크의 결과 모으기</strong></p>
+<div class="run"><pre><code>r = scope(fn(s):
+  a = spawn(s, () =&gt; 6 * 7)
+  b = spawn(s, () =&gt; 1 + 1)
+  [await(a), await(b)]
+;;)
+print(r)</code></pre><pre class="out plain"><code>[42, 2]</code></pre></div>
+<p><strong>결과를 기다리지 않아도 범위가 기다린다</strong></p>
+<div class="run"><pre><code>scope(fn(s):
+  spawn(s, fn():
+    sleep(50ms)
+    print(&quot;slow task done&quot;)
+  ;;)
+  print(&quot;body done&quot;)
+;;)
+print(&quot;scope returned&quot;)</code></pre><pre class="out plain"><code>body done
+slow task done
+scope returned</code></pre></div>
+<p><strong>태스크 하나의 실패가 범위 전체를 멈춘다</strong></p>
+<div class="run"><pre><code>scope(fn(s):
+  spawn(s, fn():
+    sleep(10ms)
+    fail(&quot;worker died&quot;)
+  ;;)
+  spawn(s, fn():
+    sleep(1s)
+    print(&quot;never printed&quot;)
+  ;;)
+;;)
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0803]: worker died
+  --&gt; example.fung:4:9
+  |
+4 |     fail(&quot;worker died&quot;)
+  |         ^
+  |
+  note: scope opened at example.fung:1
+ call path (innermost first):
+   example.fung:4 &lt;lambda&gt;</code></pre></div>
+<p>두 번째 태스크는 취소되어 찍지 못한다.</p>
+<p><strong>Err 값은 실패가 아니다</strong></p>
+<div class="run"><pre><code>print(scope(fn(s):
+  t = spawn(s, () =&gt; parse_int(&quot;x&quot;))
+  await(t)
+;;))</code></pre><pre class="out plain"><code>Err({kind: 'parse, message: &quot;not an integer: x&quot;})</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-spawn"><code>spawn</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="#fn-supervise"><code>supervise</code></a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a></p>
+</section>
+<section class="entry" id="fn-supervise">
+<h3>supervise</h3>
+<p><code>scope</code>와 같지만 태스크의 런타임 에러가 다른 태스크나 본문에 번지지 않고 <code>on_fail(e)</code>로 간다.</p>
+<div class="sig"><code>supervise(f, on_fail)</code></div>
+<h4>설명</h4>
+<p>서버 여러 대를 확인할 때처럼 하나가 실패해도 나머지는 끝까지 해야 할 때 쓴다. 태스크가 런타임 에러로 죽으면 <code>on_fail(e)</code>가 불린다. <code>e</code>는 <code>{kind: 'error, code, message, at}</code> 맵이다: 에러 번호(<code>&quot;E0803&quot;</code>), 메시지, 난 곳(<code>&quot;deploy.fung:3&quot;</code>). 그 태스크를 <code>await</code>하면 같은 맵을 담은 <code>Err(e)</code>를 받는다. 다른 태스크와 본문은 계속 돈다.</p>
+<p><code>on_fail</code>은 실패가 일어난 순서대로 하나씩 돈다. <code>on_fail</code>의 결과는 버리므로 <code>Err</code>를 돌려주면 E0606이고, <code>on_fail</code>이 런타임 에러를 내도 범위가 실패한다. 범위가 취소되어 처리하지 못한 실패는 <code>task failed:</code>로 보고되고 종료 코드가 1이 된다.</p>
+<p>본문 자체의 런타임 에러는 <code>on_fail</code>로 가지 않고 <code>scope</code>처럼 범위를 실패시킨다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>f</code>: 범위 핸들 <code>s</code>를 받는 함수.</li>
+<li><code>on_fail</code>: 실패 맵 <code>e</code>를 받는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>본문 <code>f(s)</code>의 결과. 취소되었으면 <code>Err({kind: 'cancelled})</code>.</p>
+<h4>에러</h4>
+<p>본문이나 <code>on_fail</code>의 런타임 에러, <code>on_fail</code>이 돌려준 <code>Err</code>(E0606).</p>
+<h4>예제</h4>
+<p><strong>하나가 죽어도 나머지는 돈다</strong></p>
+<div class="run"><pre><code>supervise(fn(s):
+  spawn(s, () =&gt; fail(&quot;boom&quot;))
+  spawn(s, () =&gt; print(&quot;still runs&quot;))
+;;, e =&gt; eprint(&quot;handled: ${e.message}&quot;))</code></pre><pre class="out plain"><code>handled: boom
+still runs</code></pre></div>
+<p><strong>실패 맵과 await</strong></p>
+<div class="run"><pre><code>r = supervise(fn(s):
+  t = spawn(s, () =&gt; 1 / 0)
+  await(t)
+;;, e =&gt; print(&quot;on_fail:&quot;, e.code, e.message))
+print(r)</code></pre><pre class="out plain"><code>on_fail: E0502 division by zero
+Err({kind: 'error, code: &quot;E0502&quot;, message: &quot;division by zero&quot;, at: &quot;example.fung:2&quot;})</code></pre></div>
+<p><strong>모두 해 보고 실패만 모으기</strong></p>
+<div class="run"><pre><code>hosts = [&quot;web-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]
+r = supervise(fn(s):
+  tasks = for h in hosts:
+    spawn(s, () =&gt; h == &quot;web-2&quot; then fail(&quot;${h} unreachable&quot;) else &quot;${h} ok&quot;)
+  ;;
+  map(tasks, await)
+;;, _ =&gt; nil)
+print(r |&gt; filter(x =&gt; not is_err(x)))
+print(r |&gt; filter(is_err) |&gt; len, &quot;failed&quot;)</code></pre><pre class="out plain"><code>[&quot;web-1 ok&quot;, &quot;web-3 ok&quot;]
+1 failed</code></pre></div>
+<p><code>on_fail</code>이 아무것도 하지 않아도 실패한 태스크의 결과는 <code>Err</code>로 남는다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-scope"><code>scope</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="../modules/conc.html#fn-conc-retry"><code>conc.retry</code></a></p>
+</section>
+<section class="entry" id="fn-spawn">
+<h3>spawn</h3>
+<p>범위 <code>s</code> 안에서 <code>f()</code>를 새 태스크로 띄우고 태스크 핸들을 돌려준다.</p>
+<div class="sig"><code>spawn(s, f)</code></div>
+<h4>설명</h4>
+<p><code>f</code>는 인자 없는 함수다. 보통 그 자리의 람다로 쓰고, 태스크에 줄 값은 람다가 붙잡게 한다: <code>spawn(s, () =&gt; check(host))</code>. <code>spawn</code>은 곧바로 돌아오고, 태스크는 지금 태스크가 기다리는 틈에 돈다. 돌려받은 핸들(<code>&lt;task&gt;</code>, <code>type_of</code>는 <code>'task</code>)로 <a href="#fn-await"><code>await</code></a>하거나 <a href="#fn-cancel"><code>cancel</code></a>한다.</p>
+<p>범위가 기다리는 동안에는 태스크 안에서도 같은 범위에 <code>spawn</code>할 수 있다(일감이 일감을 낳는 경우). <code>scope(</code>가 이미 돌아온 범위에 <code>spawn</code>하면 E0706이다. 범위 핸들을 범위 밖으로 들고 나가도 쓸 수 없다는 뜻이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 범위 핸들(<code>scope</code>·<code>supervise</code>의 <code>f</code>가 받은 것).</li>
+<li><code>f</code>: 인자 없는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>태스크 핸들.</p>
+<h4>에러</h4>
+<p>닫힌 범위면 런타임 에러 E0706(<code>spawn into a closed scope</code>).</p>
+<h4>예제</h4>
+<p><strong>리스트의 원소마다 태스크</strong></p>
+<div class="run"><pre><code>squares = scope(fn(s):
+  tasks = map(1..=4, n =&gt; spawn(s, () =&gt; n * n))
+  map(tasks, await)
+;;)
+print(squares)</code></pre><pre class="out plain"><code>[1, 4, 9, 16]</code></pre></div>
+<p><strong>닫힌 범위</strong></p>
+<div class="run"><pre><code>leaked = scope(s =&gt; s)
+spawn(leaked, () =&gt; 1)</code></pre><pre class="out err plain" data-code="1"><code>error[E0706]: spawn into a closed scope
+  --&gt; example.fung:2:6
+  |
+2 | spawn(leaked, () =&gt; 1)
+  |      ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-scope"><code>scope</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="#fn-cancel"><code>cancel</code></a></p>
+</section>
+<section class="entry" id="fn-await">
+<h3>await</h3>
+<p>태스크가 끝나기를 기다려 그 결과를 돌려준다.</p>
+<div class="sig"><code>await(t)</code></div>
+<h4>설명</h4>
+<ul>
+<li>정상으로 끝났으면 태스크 함수의 반환값.</li>
+<li>런타임 에러로 죽었으면 <code>Err({kind: 'error, code, message, at})</code>(<a href="#fn-supervise"><code>supervise</code></a>와 같은 맵). <code>scope</code> 안에서는 그 전에 범위가 실패하므로, 이 경우는 주로 <code>supervise</code>에서 본다.</li>
+<li>취소됐으면 <code>Err({kind: 'cancelled})</code>.</li>
+</ul>
+<p>이미 끝난 태스크면 곧바로 돌려주고, 여러 번 불러도 같은 결과다. 기다리는 시간에 한도를 두려면 <a href="#fn-timeout"><code>timeout</code></a>으로 감싼다. 시간이 지나도 태스크 자체는 계속 돈다(멈추려면 <code>cancel</code>).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 태스크 핸들.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>태스크의 결과, 또는 위의 <code>Err</code>.</p>
+<h4>에러</h4>
+<p><code>t</code>가 태스크가 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>결과 받기</strong></p>
+<div class="run"><pre><code>print(scope(s =&gt; await(spawn(s, () =&gt; 6 * 7))))</code></pre><pre class="out plain"><code>42</code></pre></div>
+<p><strong>기다리는 시간에 한도 두기</strong></p>
+<div class="run"><pre><code>r = scope(fn(s):
+  t = spawn(s, fn():
+    sleep(1s)
+    &quot;late&quot;
+  ;;)
+  r = timeout(20ms, () =&gt; await(t))
+  cancel(t)
+  r
+;;)
+print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+<p><code>timeout</code>이 기다림만 끊으므로 태스크는 <code>cancel</code>로 따로 멈춘다. 그러지 않으면 범위가 1초 동안 그 태스크를 기다린다.</p>
+<p><strong>취소된 태스크</strong></p>
+<div class="run"><pre><code>print(scope(fn(s):
+  t = spawn(s, fn():
+    sleep(1s)
+    &quot;late&quot;
+  ;;)
+  cancel(t)
+  await(t)
+;;))</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-spawn"><code>spawn</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="#fn-cancel"><code>cancel</code></a></p>
+</section>
+<section class="entry" id="fn-timeout">
+<h3>timeout</h3>
+<p><code>f()</code>를 부르되, <code>d</code>가 지나면 <code>f</code> 안의 모든 것을 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다.</p>
+<div class="sig"><code>timeout(d, f)</code></div>
+<h4>설명</h4>
+<p><code>d</code> 안에 끝나면 <code>f()</code>의 결과를 그대로 돌려준다(<code>f</code>가 돌려준 <code>Err</code>도 그대로다). 기한이 지나면 <code>f</code> 안에서 돌던 모든 것, 곧 그 안에서 연 범위의 태스크까지 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 취소되는 동안에도 <a href="program.html#fn-with"><code>with</code></a>의 <code>release</code>는 끝까지 돈다. <code>d</code>가 0 이하면 <code>f</code>를 부르지 않고 곧바로 <code>Err({kind: 'timeout})</code>이다.</p>
+<p>기한이 겹치면 이른 기한이 이긴다. 바깥 기한이 먼저 지나면 바깥 <code>timeout</code>이 답한다.</p>
+<p><strong>무엇이 끊기나</strong>: <code>sleep</code>, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(<code>exec</code>·<code>sh</code>)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(<code>fs.read</code>·<code>read_lines</code>·<code>list</code>·<code>glob</code>·<code>walk</code>·<code>exists</code>·<code>stat</code>)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. FIFO나 장치(<code>/dev/stdin</code> 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 핸들 읽기·쓰기(<code>read_line(f)</code> 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다(<a href="../../vm/internals.html#concurrency">런타임</a>).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>d</code>: 기간.</li>
+<li><code>f</code>: 인자 없는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>f()</code>의 결과, 또는 <code>Err({kind: 'timeout})</code>.</p>
+<h4>에러</h4>
+<p><code>f</code> 안의 런타임 에러는 그대로 난다.</p>
+<h4>예제</h4>
+<p><strong>제때 끝날 때와 아닐 때</strong></p>
+<div class="run"><pre><code>print(timeout(1s, () =&gt; 1 + 1))
+(_tx, rx) = channel()
+print(timeout(10ms, () =&gt; recv(rx)))</code></pre><pre class="out plain"><code>2
+Err({kind: 'timeout})</code></pre></div>
+<p><strong>걸린 명령 끊기</strong></p>
+<div class="run"><pre><code>r = timeout(100ms, () =&gt; exec([&quot;sleep&quot;, &quot;10&quot;]))
+print(r ?? &quot;gave up&quot;)</code></pre><pre class="out plain"><code>gave up</code></pre></div>
+<p><strong>안의 범위까지 취소된다</strong></p>
+<div class="run"><pre><code>r = timeout(20ms, fn():
+  scope(fn(s):
+    spawn(s, fn():
+      sleep(5s)
+      print(&quot;never printed&quot;)
+    ;;)
+    &quot;body&quot;
+  ;;)
+;;)
+print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+<p><strong>서버마다 기한 두기</strong></p>
+<div class="run"><pre><code>fn probe(host) = timeout(500ms, fn():
+  sleep(host == &quot;slow-1&quot; then 1s else 10ms)
+  &quot;${host} up&quot;
+;;)
+
+print(scope(s =&gt; map([&quot;web-1&quot;, &quot;slow-1&quot;], h =&gt; spawn(s, () =&gt; probe(h))) |&gt; map(await)))</code></pre><pre class="out plain"><code>[&quot;web-1 up&quot;, Err({kind: 'timeout})]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-cancel"><code>cancel</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="process.html#fn-exec"><code>exec</code></a>, <a href="program.html#fn-with"><code>with</code></a>, <a href="convert.html#fn-parse_dur"><code>parse_dur</code></a></p>
+</section>
+<section class="entry" id="fn-cancel">
+<h3>cancel</h3>
+<p>태스크나 범위를 취소한다. 그 아래의 태스크에도 전파된다.</p>
+<div class="sig"><code>cancel(t)</code></div>
+<h4>설명</h4>
+<p>취소는 "지금 멈춰라"다. 취소된 태스크는 다음에 기다리는 자리(또는 지금 기다리고 있는 자리)에서 멈추고, 지나는 <a href="program.html#fn-with"><code>with</code></a>의 <code>release</code>를 돌린 뒤 끝난다. 그 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>다. 범위를 취소하면 본문과 그 안의 모든 태스크가 취소되고 <code>scope</code>는 <code>Err({kind: 'cancelled})</code>를 돌려준다.</p>
+<p>취소는 실패가 아니라 종료 코드에 영향이 없다. 이미 끝난 태스크를 취소하면 아무 일도 없다(<code>await</code>는 원래 결과를 준다). "하던 일을 마치고 끝내라"는 정중한 요청은 <a href="#fn-stop_signal"><code>stop_signal</code></a>의 몫이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 태스크 핸들 또는 범위 핸들.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<p><code>t</code>가 태스크도 범위도 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>먼저 끝난 쪽만 쓰기</strong></p>
+<div class="run"><pre><code>winner = scope(fn(s):
+  (tx, rx) = channel(2)
+  a = spawn(s, fn():
+    sleep(10ms)
+    send(tx, &quot;mirror-a&quot;)!
+  ;;)
+  b = spawn(s, fn():
+    sleep(1s)
+    send(tx, &quot;mirror-b&quot;)!
+  ;;)
+  first = recv(rx)!
+  cancel(a)
+  cancel(b)
+  first
+;;)
+print(winner)</code></pre><pre class="out plain"><code>mirror-a</code></pre></div>
+<p><strong>범위 취소</strong></p>
+<div class="run"><pre><code>r = scope(fn(s):
+  spawn(s, fn():
+    sleep(1s)
+    print(&quot;never printed&quot;)
+  ;;)
+  cancel(s)
+  &quot;not returned&quot;
+;;)
+print(r)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-timeout"><code>timeout</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="#fn-stop_signal"><code>stop_signal</code></a></p>
+</section>
+<h2 id="channels">채널</h2>
+<section class="entry" id="fn-channel">
+<h3>channel</h3>
+<p>채널을 만들고 두 끝 <code>(tx, rx)</code>, 곧 보내는 끝과 받는 끝을 돌려준다.</p>
+<div class="sig"><code>channel(n = 0)</code></div>
+<h4>설명</h4>
+<p><strong>채널</strong>은 태스크 사이로 값을 나르는 관이다. 보내는 끝 <code>tx</code>(<code>sender</code>)로 <a href="#fn-send"><code>send</code></a>한 값이 받는 끝 <code>rx</code>(<code>receiver</code>)의 <a href="#fn-recv"><code>recv</code></a>로 보낸 순서대로 나온다. 출력은 <code>&lt;sender&gt;</code>·<code>&lt;receiver&gt;</code>, <code>type_of</code>는 <code>'sender</code>·<code>'receiver</code>, 타입 표기도 <code>sender</code>·<code>receiver</code>다.</p>
+<p><code>n</code>은 버퍼 크기다. 0(기본)이면 받는 쪽이 받을 때까지 <code>send</code>가 기다린다(주고받기가 맞물린다). <code>n</code>이 있으면 버퍼가 찰 때까지는 기다리지 않는다. 생산자가 소비자보다 너무 앞서지 않게 하는 것이 버퍼 크기의 역할이다.</p>
+<p>끝은 복사할 수 있다. 같은 <code>tx</code>를 여러 생산 태스크에, 같은 <code>rx</code>를 여러 일꾼 태스크에 줄 수 있다. 받는 끝은 <code>for</code>, <code>map</code>, <code>take</code> 같은 컬렉션 함수로 돌 수 있다. 값이 올 때마다 처리하고, 채널이 닫히면 끝난다.</p>
+<p><strong>자동 닫힘</strong>: 보내는 끝의 마지막 사본이 사라지면 채널이 닫힌다. 받는 쪽은 남은 값을 다 받은 뒤 <code>Err({kind: 'closed})</code>를 받고, 받는 끝을 돌던 <code>for</code>는 끝난다. 받는 끝의 마지막 사본이 사라지면 채널이 닫히고 버퍼를 버리며, 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>다. 지역 변수는 마지막으로 읽힌 문장 뒤에(한 번도 읽지 않으면 함수가 돌아올 때), 태스크가 붙잡은 값은 태스크가 끝날 때, 최상위 변수는 프로그램이 끝날 때 사라진다(<a href="../language.html#scope">값의 수명</a>). 그래서 함수 안에서 만든 채널의 보내는 끝을 생산 태스크에만 넘기면 생산이 끝날 때 저절로 닫힌다. 최상위에서 만든 채널은 <a href="#fn-close"><code>close</code></a>로 직접 닫는다.</p>
+<p>모든 태스크가 서로를 기다려 아무도 나아갈 수 없으면 <strong>교착</strong>(deadlock)이고 런타임 에러 E0702다. 받는 쪽이 보내는 끝을 스스로 쥐고 있어서 채널이 닫힐 수 없는 경우면 보고가 그것을 알려 준다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>n</code>: 버퍼 크기(정수). 기본은 0.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>튜플 <code>(sender, receiver)</code>.</p>
+<h4>에러</h4>
+<p><code>n</code>이 0 이상의 정수가 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>생산자 태스크와 자동 닫힘</strong></p>
+<div class="run"><pre><code>fn numbers(s, n):
+  (tx, rx) = channel()
+  spawn(s, () =&gt; each(0..n, i =&gt; send(tx, i)))
+  rx
+;;
+
+scope(fn(s):
+  for x in numbers(s, 3):
+    print(x)
+  ;;
+;;)</code></pre><pre class="out plain"><code>0
+1
+2</code></pre></div>
+<p>생산 태스크가 끝나면 <code>tx</code>의 마지막 사본이 사라져 채널이 닫히고, <code>for</code>가 끝난다.</p>
+<p><strong>일꾼 여럿이 한 채널에서 받기</strong></p>
+<div class="run"><pre><code>out = scope(fn(s):
+  (jobs_tx, jobs) = channel()
+  (res_tx, results) = channel()
+  for _ in 1..=2:
+    spawn(s, fn():
+      for j in jobs:
+        send(res_tx, j * j)!
+      ;;
+    ;;)
+  ;;
+  spawn(s, () =&gt; each(1..=4, j =&gt; send(jobs_tx, j)))
+  results |&gt; take(4) |&gt; sort
+;;)
+print(out)</code></pre><pre class="out plain"><code>[1, 4, 9, 16]</code></pre></div>
+<p>결과가 오는 순서는 일꾼에 따라 다를 수 있으므로 정렬해서 본다.</p>
+<p><strong>보내는 끝을 쥔 채 받으면 교착</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel()
+for x in rx:
+  print(x)
+;;</code></pre><pre class="out err plain" data-code="1"><code>error[E0702]: deadlock: all tasks are waiting
+  --&gt; example.fung:2:1
+  |
+2 | for x in rx:
+  | ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;
+ help: this task waits to receive, but it still holds that channel's sending end itself (the global `tx`), so the channel cannot close: close it with `close(tx)` first, or leave the sending end to the producers only</code></pre></div>
+<p>최상위의 <code>tx</code>가 프로그램 끝까지 살아 있으므로 채널은 닫히지 않는다. 에러의 도움말이 그것을 짚어 준다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-recv"><code>recv</code></a>, <a href="#fn-close"><code>close</code></a>, <a href="../modules/conc.html#fn-conc-fan_in"><code>conc.fan_in</code></a>, <a href="collections.html">컬렉션</a></p>
+</section>
+<section class="entry" id="fn-send">
+<h3>send</h3>
+<p>보내는 끝 <code>tx</code>로 값 <code>v</code>를 보낸다. <code>Ok(nil)</code>, 닫혔으면 <code>Err({kind: 'closed})</code>.</p>
+<div class="sig"><code>send(tx, v)</code></div>
+<h4>설명</h4>
+<p>버퍼가 없거나 찼으면 받는 쪽이 받아 갈 때까지 기다린다. 채널이 닫혔거나 받는 끝이 모두 사라졌으면 <code>Err({kind: 'closed})</code>를 돌려준다. 결과값이므로 문장으로 쓴 <code>send(tx, v)</code>가 닫힌 채널을 만나면 E0606으로 멈춘다. 받는 쪽이 먼저 그만둘 수 있으면 <code>match</code>로 가르거나, 그만둬도 되면 <code>_ = send(tx, v)</code>로 쓴다.</p>
+<p>값은 불변이므로 복사 걱정 없이 무엇이든 보낸다. 다른 채널의 끝(응답을 받을 채널)도 보낼 수 있다. 다만 채널에 <strong>그 채널 자신의</strong> 끝을 보내면(어느 끝이든, <code>v</code> 안 어디에 들어 있어도) 런타임 에러 E0705다. fung은 메모리를 참조 계수로 회수하므로 자기 끝을 담은 채널은 닫히지도 해제되지도 않기 때문이다. 채널 끝 같은 바뀌는 것을 품지 않은 값은 이 검사를 위해 훑지 않으므로 큰 값을 보내도 느리지 않다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>tx</code>: 보내는 끝.</li>
+<li><code>v</code>: 보낼 값.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(nil)</code> 또는 <code>Err({kind: 'closed})</code>.</p>
+<h4>에러</h4>
+<ul>
+<li><code>tx</code>가 보내는 끝이 아니면(받는 끝이면) 런타임 에러 E0403.</li>
+<li>채널에 자기 끝을 보내면 E0705.</li>
+<li>아무도 받지 않는데 기다리기만 하면 E0702(교착).</li>
+</ul>
+<h4>예제</h4>
+<p><strong>버퍼와 닫힌 채널</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(2)
+print(send(tx, 1), send(tx, 2))
+print(timeout(10ms, () =&gt; send(tx, 3)))
+close(tx)
+print(send(tx, 4))</code></pre><pre class="out plain"><code>Ok(nil) Ok(nil)
+Err({kind: 'timeout})
+Err({kind: 'closed})</code></pre></div>
+<p>버퍼 2개가 차자 세 번째 <code>send</code>는 기다리다 기한에 끊긴다.</p>
+<p><strong>응답 채널을 함께 보내기</strong></p>
+<div class="run"><pre><code>scope(fn(s):
+  (req_tx, reqs) = channel()
+  spawn(s, fn():
+    for (n, reply) in reqs:
+      send(reply, n * 2)!
+    ;;
+  ;;)
+  (reply_tx, reply_rx) = channel(1)
+  send(req_tx, (21, reply_tx))!
+  print(recv(reply_rx)!)
+;;)</code></pre><pre class="out plain"><code>42</code></pre></div>
+<p><strong>받는 쪽이 먼저 그만둘 때</strong></p>
+<div class="run"><pre><code>scope(fn(s):
+  (tx, rx) = channel()
+  spawn(s, fn():
+    print(&quot;got&quot;, recv(rx)!)
+  ;;)
+  send(tx, &quot;a&quot;)!
+  r = match send(tx, &quot;b&quot;):
+    Ok(_)                =&gt; &quot;sent&quot;
+    Err({kind: 'closed}) =&gt; &quot;receiver gone&quot;
+  ;;
+  print(r)
+;;)</code></pre><pre class="out plain"><code>got a
+receiver gone</code></pre></div>
+<p>받는 태스크가 하나만 받고 끝나면서 받는 끝의 마지막 사본이 사라졌으므로, 두 번째 <code>send</code>는 기다리다 <code>Err({kind: 'closed})</code>를 받는다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-recv"><code>recv</code></a>, <a href="#fn-channel"><code>channel</code></a>, <a href="#fn-close"><code>close</code></a></p>
+</section>
+<section class="entry" id="fn-recv">
+<h3>recv</h3>
+<p>받는 끝 <code>rx</code>에서 값 하나를 받는다. <code>Ok(v)</code>, 닫혔고 남은 값이 없으면 <code>Err({kind: 'closed})</code>.</p>
+<div class="sig"><code>recv(rx)</code></div>
+<h4>설명</h4>
+<p>값이 올 때까지 기다린다. 채널이 닫혀도 버퍼에 남은 값은 먼저 다 준 뒤에 <code>Err({kind: 'closed})</code>를 준다. 그래서 닫힘은 "더 올 것이 없다"는 정상적인 끝이다. 받는 끝을 끝까지 돌 때는 <code>recv</code>를 되풀이하는 대신 <code>for x in rx:</code>를 쓴다.</p>
+<p>기다리는 시간은 <a href="#fn-timeout"><code>timeout</code></a>으로 정한다: <code>timeout(1s, () =&gt; recv(rx))</code>. 기한이 지나면 받지 않은 값은 채널에 그대로 남는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>rx</code>: 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(값)</code> 또는 <code>Err({kind: 'closed})</code>.</p>
+<h4>에러</h4>
+<ul>
+<li><code>rx</code>가 받는 끝이 아니면 런타임 에러 E0403.</li>
+<li>보낼 수 있는 태스크가 없는데 기다리면 E0702(교착).</li>
+</ul>
+<h4>예제</h4>
+<p><strong>받기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(1)
+send(tx, &quot;hi&quot;)!
+print(recv(rx)!)</code></pre><pre class="out plain"><code>hi</code></pre></div>
+<p><strong>닫혀도 남은 값은 받는다</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(3)
+send(tx, 1)!
+send(tx, 2)!
+close(tx)
+print(recv(rx), recv(rx), recv(rx))</code></pre><pre class="out plain"><code>Ok(1) Ok(2) Err({kind: 'closed})</code></pre></div>
+<p><strong>기한을 두고 받기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel()
+print(timeout(10ms, () =&gt; recv(rx)) ?? &quot;nothing yet&quot;)
+close(tx)</code></pre><pre class="out plain"><code>nothing yet</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="../language.html#for">for</a></p>
+</section>
+<section class="entry" id="fn-close">
+<h3>close</h3>
+<p>보내는 끝 <code>tx</code>의 채널을 지금 닫는다.</p>
+<div class="sig"><code>close(tx)</code></div>
+<h4>설명</h4>
+<p>그 끝의 다른 사본이 살아 있어도 지금 닫는다. 보통은 <a href="#fn-channel">자동 닫힘</a>으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 <code>Err({kind: 'closed})</code>를 받고, 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>다. 이미 닫힌 채널을 다시 닫아도 에러가 아니다.</p>
+<p>받는 끝은 닫을 수 없다(E0403). 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다). 파일 핸들은 <a href="../modules/fs.html#fn-fs-close"><code>fs.close</code></a>로 닫는다. 이름이 같지만 다른 함수다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>tx</code>: 보내는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<p><code>tx</code>가 보내는 끝이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>최상위 채널을 닫고 끝까지 받기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(3)
+each([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], x =&gt; send(tx, x))
+close(tx)
+for x in rx:
+  print(x)
+;;</code></pre><pre class="out plain"><code>a
+b
+c</code></pre></div>
+<p><strong>받는 끝은 닫지 못한다</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel()
+close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `tx` must be sender, got receiver
+  --&gt; example.fung:2:6
+  |
+2 | close(rx)
+  |      ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-channel"><code>channel</code></a>, <a href="#fn-send"><code>send</code></a>, <a href="../modules/fs.html#fn-fs-close"><code>fs.close</code></a></p>
+</section>
+<h2 id="stop">정지 요청</h2>
+<section class="entry" id="fn-stop_signal">
+<h3>stop_signal</h3>
+<p>정지 요청을 받는 끝(<code>receiver</code>)을 돌려준다. 정지 요청이 오면 이 끝이 닫힌다.</p>
+<div class="sig"><code>stop_signal()</code></div>
+<h4>설명</h4>
+<p>정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, <code>kill</code>, 컨테이너 종료)이나 <a href="#fn-request_stop"><code>request_stop</code></a>이 보낸다. 요청이 오면 이 끝이 닫히므로 <code>recv</code>는 <code>Err({kind: 'closed})</code>를 돌려주고, 이 끝을 도는 <code>for</code>는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 <code>_ = recv(stop)</code>으로 쓴다(문장으로 쓴 <code>recv(stop)</code>은 그 <code>Err</code>를 버리므로 E0606이다). 이것은 <a href="#fn-cancel">취소</a>("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.</p>
+<p>이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(<code>with</code>의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.</p>
+<p><a href="../modules/http.html"><code>http.serve</code></a>는 이것으로 새 연결을 그만 받고 처리 중인 요청을 마무리한다.</p>
+<h4>매개변수</h4>
+<p>없다.</p>
+<h4>돌려주는 값</h4>
+<p>받는 끝.</p>
+<h4>에러</h4>
+<p>없다.</p>
+<h4>예제</h4>
+<p><strong>요청을 받고 하던 일을 마치기</strong></p>
+<div class="run"><pre><code>stop = stop_signal()
+request_stop()
+print(recv(stop))
+print(&quot;cleaning up, then exiting normally&quot;)</code></pre><pre class="out plain"><code>Err({kind: 'closed})
+cleaning up, then exiting normally</code></pre></div>
+<p><strong>일꾼이 정지 요청까지 돌기</strong></p>
+<div class="run"><pre><code>stop = stop_signal()
+scope(fn(s):
+  spawn(s, fn():
+    for _ in stop:
+      nil
+    ;;
+    print(&quot;worker: finished current job, stopping&quot;)
+  ;;)
+  spawn(s, fn():
+    sleep(10ms)
+    request_stop()
+  ;;)
+;;)
+print(&quot;done&quot;)</code></pre><pre class="out plain"><code>worker: finished current job, stopping
+done</code></pre></div>
+<p>실제 서비스에서는 두 번째 태스크 대신 Ctrl-C나 <code>kill</code>이 요청을 보낸다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-request_stop"><code>request_stop</code></a>, <a href="#fn-cancel"><code>cancel</code></a>, <a href="program.html#fn-with"><code>with</code></a>, <a href="../modules/http.html"><code>http.serve</code></a></p>
+</section>
+<section class="entry" id="fn-request_stop">
+<h3>request_stop</h3>
+<p>코드에서 정지 요청을 보낸다. 첫 신호(SIGINT·SIGTERM)와 똑같이 동작한다.</p>
+<div class="sig"><code>request_stop()</code></div>
+<h4>설명</h4>
+<p>보는 쪽(<a href="#fn-stop_signal"><code>stop_signal</code></a>의 끝)이 있으면 그 끝들을 닫고 <code>nil</code>을 돌려준다. 보는 쪽이 없으면 <code>exit(0)</code>처럼 프로그램을 끝낸다. 관리용 요청이나 헬스체크 실패로 스스로 내려가는 서비스, 정상 종료를 시험하는 <code>fung test</code>에 쓴다. <code>fung test</code>는 테스트 블록마다 정지 상태를 새로 둔다. REPL에서도 같다. 보는 쪽이 없으면 <code>exit(0)</code>처럼 세션을 끝낸다.</p>
+<h4>매개변수</h4>
+<p>없다.</p>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>(보는 쪽이 있을 때). 없으면 돌아오지 않는다.</p>
+<h4>에러</h4>
+<p>없다.</p>
+<h4>예제</h4>
+<p><strong>보는 쪽이 있을 때</strong></p>
+<div class="run"><pre><code>stop = stop_signal()
+print(request_stop())
+print(recv(stop))</code></pre><pre class="out plain"><code>nil
+Err({kind: 'closed})</code></pre></div>
+<p><strong>보는 쪽이 없으면 프로그램이 끝난다</strong></p>
+<div class="run"><pre><code>print(&quot;before&quot;)
+request_stop()
+print(&quot;not reached&quot;)</code></pre><pre class="out plain"><code>before</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-stop_signal"><code>stop_signal</code></a>, <a href="program.html#fn-exit"><code>exit</code></a></p>
+</section>
+<h2 id="atoms">나누는 상태</h2>
+<section class="entry" id="fn-atom">
+<h3>atom</h3>
+<p>값 <code>v</code>를 담은 칸(<code>atom</code>)을 만든다. 태스크 사이에 나누는 바뀌는 상태는 이것으로 둔다.</p>
+<div class="sig"><code>atom(v)</code></div>
+<h4>설명</h4>
+<p>fung의 값은 불변이고 이름은 다시 대입할 수 없으므로, 여러 태스크가 함께 보는 카운터나 캐시 같은 <strong>바뀌는 상태</strong>는 <code>atom</code>에 둔다. 칸 자체는 그대로이고 안의 값을 <a href="#fn-swap"><code>swap</code></a>·<a href="#fn-reset"><code>reset</code></a>으로 바꾸며, <a href="#fn-deref"><code>deref</code></a>로 읽는다. 출력은 <code>&lt;atom&gt;</code>(값을 보이지 않는다), <code>type_of</code>는 <code>'atom</code>, 타입 표기는 <code>a: atom</code>, <code>==</code>는 같은 칸인지를 본다(같은 값을 담은 다른 칸은 다르다).</p>
+<p>안에는 바뀌는 것(atom, 채널 끝, 태스크·범위 핸들, 파일, 소켓, 그리고 그것들을 품은 리스트·맵·튜플·태그·클로저)을 넣지 못한다(E0708). 상태는 평범한 불변 값이어야 하기 때문이다. 이 검사는 값이 커도 빠르다.</p>
+<p>먼저 다른 방법을 생각한다. 태스크의 결과는 <code>await</code>로 모으고, 흐름은 채널로 나르는 것이 대개 더 단순하다. <code>atom</code>은 정말로 여러 태스크가 같은 상태를 봐야 할 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>v</code>: 처음 값. 바뀌는 것을 품지 않은 값.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>atom.</p>
+<h4>에러</h4>
+<p><code>v</code>가 바뀌는 것을 품고 있으면 런타임 에러 E0708.</p>
+<h4>예제</h4>
+<p><strong>만들고 읽기</strong></p>
+<div class="run"><pre><code>a = atom(0)
+print(a, type_of(a), deref(a), a == a, atom(0) == atom(0))</code></pre><pre class="out plain"><code>&lt;atom&gt; 'atom 0 true false</code></pre></div>
+<p><strong>여러 태스크가 함께 세기</strong></p>
+<div class="run"><pre><code>hits = atom(0)
+scope(fn(s):
+  for _ in 1..=100:
+    spawn(s, () =&gt; swap(hits, n =&gt; n + 1))
+  ;;
+;;)
+print(deref(hits))</code></pre><pre class="out plain"><code>100</code></pre></div>
+<p><strong>바뀌는 것은 넣지 못한다</strong></p>
+<div class="run"><pre><code>(tx, _rx) = channel()
+registry = atom({main: tx})</code></pre><pre class="out err plain" data-code="1"><code>error[E0708]: an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket
+  --&gt; example.fung:2:16
+  |
+2 | registry = atom({main: tx})
+  |                ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-swap"><code>swap</code></a>, <a href="#fn-reset"><code>reset</code></a>, <a href="#fn-deref"><code>deref</code></a>, <a href="#fn-channel"><code>channel</code></a></p>
+</section>
+<section class="entry" id="fn-swap">
+<h3>swap</h3>
+<p><code>f(지금 값)</code>으로 atom의 값을 바꾸고 새 값을 돌려준다. 여러 태스크가 동시에 바꿔도 갱신이 사라지지 않는다.</p>
+<div class="sig"><code>swap(a, f)</code></div>
+<h4>설명</h4>
+<p><strong>비교 후 교체</strong>(compare-and-swap)로 동작한다. 지금 값을 읽어 <code>f</code>로 새 값을 계산하고, 그사이 아무도 바꾸지 않았으면 바꾼다. 누가 먼저 바꿨으면 그 새 값으로 <code>f</code>를 다시 돌린다. 그래서 <code>deref</code>로 읽고 <code>reset</code>으로 쓰는 두 단계 사이에 다른 태스크가 끼어들어 갱신이 사라지는 일이 없다.</p>
+<p><code>f</code>는 여러 번 돌 수 있으므로 <strong>순수 계산만</strong> 한다. 출력, 표준 입력, <code>exit</code>, 태스크·채널 연산, <code>sleep</code>, 다른 atom의 <code>swap</code>·<code>reset</code>, 파일·네트워크·외부 프로세스를 부르면 런타임 에러 E0707이다. 에러는 부른 함수의 이름을 댄다(<code>fs.with_open</code>, <code>http.get</code>, <code>print</code> 등). 읽기(<code>deref</code>, 시간, 환경 변수)는 된다. <code>f</code>가 실패하면 상태는 그대로다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>a</code>: atom.</li>
+<li><code>f</code>: 지금 값을 받아 새 값을 돌려주는 순수 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>새 값.</p>
+<h4>에러</h4>
+<ul>
+<li><code>f</code> 안의 부수효과는 런타임 에러 E0707.</li>
+<li>새 값이 바뀌는 것을 품으면 E0708.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>세기</strong></p>
+<div class="run"><pre><code>hits = atom(0)
+each(1..=3, _ =&gt; swap(hits, n =&gt; n + 1))
+print(deref(hits))</code></pre><pre class="out plain"><code>3</code></pre></div>
+<p><strong>맵 상태 갱신하기</strong></p>
+<div class="run"><pre><code>stats = atom({ok: 0, failed: 0})
+for code in [200, 500, 200]:
+  key = code &lt; 400 then &quot;ok&quot; else &quot;failed&quot;
+  swap(stats, m =&gt; put(m, key, m[key] + 1))
+;;
+print(deref(stats))</code></pre><pre class="out plain"><code>{ok: 2, failed: 1}</code></pre></div>
+<p><strong>f 안에서 출력하면 에러</strong></p>
+<div class="run"><pre><code>a = atom(0)
+swap(a, fn(n):
+  print(&quot;updating&quot;)
+  n + 1
+;;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0707]: `print` has an effect, which a swap's function must not have
+  --&gt; example.fung:3:8
+  |
+3 |   print(&quot;updating&quot;)
+  |        ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;lambda&gt;
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-reset"><code>reset</code></a>, <a href="#fn-deref"><code>deref</code></a>, <a href="#fn-atom"><code>atom</code></a></p>
+</section>
+<section class="entry" id="fn-reset">
+<h3>reset</h3>
+<p>atom의 값을 <code>v</code>로 바꾸고 <code>v</code>를 돌려준다.</p>
+<div class="sig"><code>reset(a, v)</code></div>
+<h4>설명</h4>
+<p>지금 값과 상관없이 덮어쓴다. 지금 값을 바탕으로 바꾸는 일은 <a href="#fn-swap"><code>swap</code></a>으로 한다(<code>reset(a, deref(a) + 1)</code>은 그사이 다른 태스크의 갱신을 잃을 수 있다). 입출력이 필요한 갱신, 예를 들어 주기적으로 설정 파일을 다시 읽는 일은 갱신 태스크 하나가 읽어서 <code>reset</code>하고 나머지는 <code>deref</code>하는 모양으로 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>a</code>: atom.</li>
+<li><code>v</code>: 새 값. 바뀌는 것을 품지 않은 값.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>v</code>.</p>
+<h4>에러</h4>
+<p><code>v</code>가 바뀌는 것을 품으면 런타임 에러 E0708.</p>
+<h4>예제</h4>
+<p><strong>덮어쓰기</strong></p>
+<div class="run"><pre><code>cfg = atom({version: 1})
+reset(cfg, {version: 2})
+print(deref(cfg))</code></pre><pre class="out plain"><code>{version: 2}</code></pre></div>
+<p><strong>갱신 태스크 하나, 읽는 쪽 여럿</strong></p>
+<div class="run"><pre><code>current = atom(&quot;v1&quot;)
+scope(fn(s):
+  spawn(s, fn():
+    sleep(10ms)
+    reset(current, &quot;v2&quot;)
+  ;;)
+  print(&quot;before:&quot;, deref(current))
+  sleep(300ms)
+  print(&quot;after:&quot;, deref(current))
+;;)</code></pre><pre class="out plain"><code>before: v1
+after: v2</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-swap"><code>swap</code></a>, <a href="#fn-deref"><code>deref</code></a></p>
+</section>
+<section class="entry" id="fn-deref">
+<h3>deref</h3>
+<p>atom의 지금 값을 돌려준다. 기다리지 않는다.</p>
+<div class="sig"><code>deref(a)</code></div>
+<h4>설명</h4>
+<p>읽는 순간의 값이다. 돌려받은 값은 불변이라 그 뒤에 다른 태스크가 atom을 바꿔도 이미 받은 값은 바뀌지 않는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>a</code>: atom.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>지금 값.</p>
+<h4>에러</h4>
+<p><code>a</code>가 atom이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>읽은 값은 바뀌지 않는다</strong></p>
+<div class="run"><pre><code>a = atom([1, 2])
+before = deref(a)
+swap(a, xs =&gt; xs + [3])
+print(before, deref(a))</code></pre><pre class="out plain"><code>[1, 2] [1, 2, 3]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-atom"><code>atom</code></a>, <a href="#fn-swap"><code>swap</code></a></p>
+</section>
+<h2 id="sleep">기다리기</h2>
+<section class="entry" id="fn-sleep">
+<h3>sleep</h3>
+<p>기간 <code>d</code>만큼 기다린다. 그동안 다른 태스크가 돈다.</p>
+<div class="sig"><code>sleep(d)</code></div>
+<h4>설명</h4>
+<p>지금 태스크만 세워 두고 다른 태스크는 계속 돈다. 취소되면(<code>timeout</code>, <code>cancel</code>, <code>exit</code>) 곧바로 깨어나 취소로 되감긴다. <code>d</code>가 0 이하면 기다리지 않는다. 재시도 사이의 간격이나 주기적인 작업에 쓴다. 다른 태스크를 기다리는 데 <code>sleep</code>을 쓰지는 않는다. 그럴 때는 <code>await</code>나 채널로 기다려야 정확하다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>d</code>: 기간(<code>dur</code>). 수가 아니다(<code>sleep(1)</code>은 에러, <code>sleep(1s)</code>).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<p><code>d</code>가 기간이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>잠깐 기다리기와 기한</strong></p>
+<div class="run"><pre><code>print(sleep(10ms))
+print(timeout(10ms, () =&gt; sleep(1s)))</code></pre><pre class="out plain"><code>nil
+Err({kind: 'timeout})</code></pre></div>
+<p><strong>주기적으로 하기</strong></p>
+<div class="run"><pre><code>fn poll(n):
+  if n == 0: return &quot;done&quot; ;;
+  print(&quot;poll&quot;, n)
+  sleep(10ms)
+  poll(n - 1)
+;;
+
+print(poll(3))</code></pre><pre class="out plain"><code>poll 3
+poll 2
+poll 1
+done</code></pre></div>
+<p><strong>수가 아니라 기간</strong></p>
+<div class="run"><pre><code>sleep(1)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `d` must be dur, got int
+  --&gt; example.fung:1:6
+  |
+1 | sleep(1)
+  |      ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-timeout"><code>timeout</code></a>, <a href="convert.html#fn-parse_dur"><code>parse_dur</code></a>, <a href="../modules/conc.html#fn-conc-retry"><code>conc.retry</code></a></p>
+</section>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/process.html"><small>이전</small>프로세스와 환경</a><a class="next" href="../../reference/modules/fs.html"><small>다음</small>fs — 파일과 디렉터리</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

@@ -2,9 +2,93 @@
 # sidebar, breadcrumbs, pager and the cover's cards come from here.
 # part KEY GLYPH [numbered] TITLE | BLURB [| WHO]
 
+part learn L numbered fung 배우기 | 처음부터 순서대로 읽는 책 | 처음 온 사람
+page learn/01-programming.md
+page learn/02-first-program.md
+page learn/03-values-and-names.md
+page learn/04-conditions-and-loops.md
+page learn/05-functions.md
+page learn/06-strings.md
+page learn/07-collections.md
+page learn/08-patterns.md
+page learn/09-errors.md
+page learn/10-modules.md
+page learn/11-files-and-commands.md
+page learn/12-concurrency.md
+page learn/13-json-and-http.md
+page learn/14-testing.md
+
+part recipes R 예제 모음 | 자주 하는 작업별 레시피 | 당장 스크립트가 필요한 사람
+group 파일 다루기
+page recipes/rename.md
+page recipes/find-big-files.md
+page recipes/count-log-patterns.md
+page recipes/replace-config.md
+page recipes/stdin-filter.md
+group 여러 서버에서 모으기
+page recipes/ssh-collect.md
+page recipes/server-table.md
+page recipes/unreachable-servers.md
+group HTTP와 문자열
+page recipes/json-fields.md
+page recipes/check-urls.md
+page recipes/regex-split.md
+page recipes/pagination.md
+page recipes/save-csv-json.md
+group 작은 도구
+page recipes/cli-options.md
+page recipes/exit-codes.md
+page recipes/webhook-server.md
+
 part reference § 레퍼런스 | 찾아보는 곳 · 언어 명세 | 정확한 규칙을 찾는 사람
 page reference/language.md
 page reference/functions.md
+group prelude
+page reference/prelude/io.md
+page reference/prelude/convert.md
+page reference/prelude/collections.md
+page reference/prelude/maps.md
+page reference/prelude/strings.md
+page reference/prelude/results.md
+page reference/prelude/loops.md
+page reference/prelude/program.md
+page reference/prelude/process.md
+page reference/prelude/concurrency.md
+group 표준 모듈
+page reference/modules/fs.md
+page reference/modules/path.md
+page reference/modules/cli.md
+page reference/modules/json.md
+page reference/modules/time.md
+page reference/modules/regex.md
+page reference/modules/http.md
+page reference/modules/conc.md
+group 도구
+page reference/errors.md
+page reference/cli.md
 
-part vm VM fung VM | 언어는 어떻게 만들어지나 | 언어 구현이 궁금한 사람
+part vm VM numbered fung VM | 언어는 어떻게 만들어지나 | 언어 구현이 궁금한 사람
+group 1부 언어란 무엇인가
+page vm/01-how-programs-run.md
+page vm/02-interpreters-compilers-vms.md
+group 2부 앞단: 글자에서 트리로
+page vm/03-lexer.md
+page vm/04-parser.md
+page vm/05-desugar.md
+page vm/06-resolve.md
+page vm/07-diagnostics.md
+group 3부 뒷단: 트리에서 실행으로
+page vm/08-bytecode.md
+page vm/09-closures.md
+page vm/10-values-and-memory.md
+page vm/11-modules.md
+group 4부 런타임
+page vm/12-scheduler.md
+page vm/13-event-loop.md
+page vm/14-cancellation.md
+group 5부 도구
+page vm/15-formatter.md
+page vm/16-repl.md
+page vm/17-test-runner.md
+group 부록
 page vm/internals.md

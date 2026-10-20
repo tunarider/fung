@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>URL 여러 개 상태 동시에 확인하기 · fung 매뉴얼</title>
+<meta name="description" content="URL 여러 개 상태 동시에 확인하기.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">URL 여러 개 상태 동시에 확인하기</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html" aria-current="page">URL 여러 개 상태 동시에 확인하기</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">HTTP와 문자열</span></nav>
+<h1>URL 여러 개 상태 동시에 확인하기</h1>
+<p class="lede">목록 파일의 URL을 모두 동시에 요청해 상태 코드와 걸린 시간을 찍고, 하나라도 실패하면 종료 코드 1로 끝난다. 배포 직후 점검이나 cron 감시에 쓴다.</p>
+<p>배포가 끝나면 서비스의 헬스 체크 주소, 대표 페이지, 내부 API 몇 개가 제대로 대답하는지 확인한다. 하나씩 <code>curl</code>을 돌리면 응답이 느린 주소 하나가 나머지를 기다리게 한다. 여기서는 URL 목록 파일을 받아 모두 <strong>동시에</strong> 요청하고, 결과를 목록 순서대로 한 줄씩 찍는다. 400 이상의 상태 코드, 연결 실패, 시간 초과는 모두 실패로 센다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>while read -r u; do
+  curl -s -o /dev/null -m 5 -w &quot;%{http_code} %{time_total}s $u\n&quot; &quot;$u&quot;
+done &lt; urls.txt</code></pre>
+<p><code>curl</code>의 <code>-w</code>는 편하지만 주소를 하나씩 차례로 요청한다. 연결이 안 되면 상태 코드 자리에 <code>000</code>이 찍혀서 "거절"인지 "이름 없음"인지 "시간 초과"인지 따로 봐야 한다(<code>curl</code>의 종료 코드를 보면 되지만 반복문 안에서 모으기 번거롭다). 하나라도 실패했을 때 스크립트 전체를 실패로 끝내려면 플래그 변수를 따로 관리해야 한다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: urls.txt</summary>
+<p><code>urls.txt</code></p>
+<pre class="plain"><code># after deploy: the public site and the internal APIs
+https://www.example.com/healthz
+https://www.example.com/old-path
+https://api.example.com/v1/missing
+https://reports.internal.example.com/slow
+https://old.example.com/</code></pre>
+</details>
+<pre><code>#!/usr/bin/env fung
+# Checks many URLs at once: status, time taken, and whether the answer
+# was good (below 400, within the time limit). Exit code 1 if any was not.
+# usage: fung checkurls.fung urls.txt [--timeout 5s]
+import conc
+import cli
+import fs
+import http
+import time
+
+fn check(url, limit):
+  t0 = time.now()
+  r = http.get(url, timeout: limit)
+  ms = (time.now() - t0) // 1ms
+  match r:
+    Ok(res) =&gt; {url, ok: res.status &lt; 400, status: str(res.status), ms, note: &quot;&quot;}
+    Err(e)  =&gt; {url, ok: false, status: &quot;-&quot;, ms, note: &quot; (${e.message})&quot;}
+  ;;
+;;
+
+opts = cli.parse(args)
+file = first(opts.rest) ?? fail(&quot;usage: checkurls.fung urls.txt [--timeout 5s]&quot;)
+limit = parse_dur(get(opts.flags, &quot;timeout&quot;, &quot;5s&quot;)) ?? fail(&quot;--timeout takes a duration like 5s&quot;)
+urls = fs.read_lines(file)! |&gt; map(trim) |&gt; filter(u =&gt; u != &quot;&quot; and not starts_with(u, &quot;#&quot;))
+
+results = conc.pmap(urls, u =&gt; check(u, limit), limit: 16)
+for r in results:
+  mark = r.ok then &quot;ok  &quot; else &quot;FAIL&quot;
+  print(mark, pad_left(r.status, 3), pad_left(&quot;${r.ms}ms&quot;, 7), r.url + r.note)
+;;
+bad = results |&gt; filter(r =&gt; not r.ok) |&gt; len
+eprint(&quot;${len(results) - bad} ok, ${bad} failed&quot;)
+if bad &gt; 0: exit(1) ;;</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>$ fung checkurls.fung urls.txt --timeout 2s
+ok   200    41ms https://www.example.com/healthz
+ok   200    87ms https://www.example.com/old-path
+FAIL 404    52ms https://api.example.com/v1/missing
+FAIL   -  2000ms https://reports.internal.example.com/slow (request to `https://reports.internal.example.com/slow` timed out)
+FAIL   -     3ms https://old.example.com/ (cannot request `https://old.example.com/`: no such host)
+2 ok, 3 failed
+$ echo $?
+1</code></pre>
+<p><code>/old-path</code>는 301로 다른 주소를 가리키는데, <code>http.get</code>이 리다이렉트를 따라가서(10번까지) 마지막 응답의 상태 <code>200</code>을 보여 준다. 걸린 시간은 리다이렉트를 모두 포함한다.</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>check</code>: URL 하나를 요청해 결과를 맵 하나로 정리한다. 성공과 실패가 같은 키(<code>url</code>, <code>ok</code>, <code>status</code>, <code>ms</code>, <code>note</code>)를 가지므로 출력하는 쪽은 경우를 나누지 않는다.</li>
+<li><code>time.now() - t0</code>: 시각끼리 빼면 기간(duration)이고, <code>// 1ms</code>로 나누면 밀리초 정수가 된다.</li>
+<li><code>http.get(url, timeout: limit)</code>: 서버가 대답하면 상태 코드가 404든 500이든 <code>Ok({status, headers, body})</code>다. 그래서 "성공"의 기준(여기서는 400 미만)은 스크립트가 정한다. 대답을 못 받으면 <code>Err</code>이고 <code>kind</code>는 <code>'network</code>(이름 조회, 연결 거절, 인증서 문제)나 <code>'timeout</code>, <code>message</code>에 이유가 있다. <code>timeout</code>은 연결과 리다이렉트까지 포함한 요청 전체의 한도다.</li>
+<li><code>parse_dur(…) ?? fail(…)</code>: <code>--timeout 2s</code>, <code>--timeout 500ms</code>처럼 기간으로 받는다. 기간 문자열이 아니면 알려 주고 멈춘다.</li>
+<li><code>conc.pmap(urls, …, limit: 16)</code>: 16개씩 동시에 요청한다. 결과는 끝난 순서가 아니라 목록 순서다. 그래서 위 출력에서 느린 주소가 끝나기를 기다린 뒤에도 줄 순서가 파일과 같다.</li>
+<li><code>mark = r.ok then &quot;ok  &quot; else &quot;FAIL&quot;</code>: 한 줄짜리 조건식이다. <code>&quot;ok  &quot;</code>의 공백 두 개는 <code>FAIL</code>과 너비를 맞추려는 것이다.</li>
+<li><code>eprint(…)</code>와 <code>exit(1)</code>: 요약은 표준 에러로, 실패가 있으면 종료 코드 1. <code>fung checkurls.fung urls.txt || 알림-명령</code>처럼 쓸 수 있다.</li>
+</ul>
+<div class="box mistake"><b><code>http.get(…)!</code>로 상태 확인하기</b>
+<p><code>curl -f</code>처럼 <code>!</code>가 404에서 멈춰 줄 것이라 생각하기 쉽다. 그러나 <code>!</code>는 <code>Err</code>일 때만 멈추고, 404 응답은 <code>Ok</code>다. <code>http.get(url)!.body</code>는 404 페이지의 본문을 아무 일 없다는 듯 돌려준다. 상태 코드가 중요하면 <code>res.status</code>를 직접 본다.</p>
+<pre class="frag"><code>res = http.get(url)!
+if res.status &gt;= 400: fail(&quot;${url}: HTTP ${res.status}&quot;) ;;</code></pre>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>본문까지 확인</strong>: 헬스 체크가 <code>{&quot;status&quot;:&quot;ok&quot;}</code>를 돌려주는지 보려면 <code>Ok(res)</code> 가지에서 <code>json.parse(res.body)</code>를 하고 필드를 확인한다. <a href="json-fields.html">JSON API에서 필드 뽑기</a>.</li>
+<li><strong>느린 응답도 실패로</strong>: <code>ok: res.status &lt; 400 and ms &lt; 1000</code>처럼 기준에 시간을 더한다.</li>
+<li><strong>재시도</strong>: 한 번 실패로 알리지 않으려면 <code>conc.retry(() =&gt; …, times: 3, delay: 1s)</code>로 감싼다. 이때 <code>check</code>가 실패를 <code>Err</code>로 돌려주게 바꿔야 <code>retry</code>가 다시 시도한다. <a href="unreachable-servers.html">실패·무응답 서버만 알리기</a>.</li>
+<li><strong>결과 저장</strong>: 매번 결과를 JSON 줄로 <code>fs.append</code>해 두면 시간에 따른 응답 시간을 볼 수 있다. <a href="save-csv-json.html">CSV와 JSON으로 저장하기</a>.</li>
+<li>저장소의 <code>examples/checkurls.fung</code>·<code>examples/urlcheck.fung</code>는 JSON 응답의 최상위 키까지 보여 주는 판이고, <code>test</code> 블록 안에서 서버를 띄워 스스로를 시험한다.</li>
+</ul>
+<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>. 레퍼런스: <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>, <a href="../reference/modules/time.html#fn-time-now"><code>time.now</code></a>, <a href="../reference/prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/json-fields.html"><small>이전</small>JSON API에서 필드 뽑기</a><a class="next" href="../recipes/regex-split.html"><small>다음</small>텍스트 응답을 정규식으로 쪼개기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

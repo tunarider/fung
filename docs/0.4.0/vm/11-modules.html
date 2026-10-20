@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>모듈 적재와 prelude · fung 매뉴얼</title>
+<meta name="description" content="모듈 적재와 prelude. 실행 전에 import 그래프 전체를 컴파일하는 로더, 처음 쓸 때 한 번만 도는 모듈 본문, 값으로서의 모듈과 모듈마다의 전역 표, 실행 파일에 들어 있는 fung 표준 라이브러리와 네 층.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">11. 모듈 적재와 prelude</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html" aria-current="page">11. 모듈 적재와 prelude</a><ol class="toc2"><li><a href="#concept">모듈이란 무엇인가</a></li><li><a href="#walkthrough">따라가기</a></li><li><a href="#globals">모듈마다 전역 표</a></li><li><a href="#layers">prelude와 네 층</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">3부 뒷단: 트리에서 실행으로</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>11장</span></nav>
+<h1>모듈 적재와 prelude</h1>
+<p class="lede">fung은 진입 파일을 실행하기 전에 그것이 가져오는 모듈 전체를 읽고 컴파일한다. 실행은 각 모듈이 처음 쓰일 때 한 번이고, 그 결과는 불변 값 하나로 남는다.</p>
+<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li>바이트코드</li><li class="on">실행</li></ol>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>모듈 체계를 설계할 때 정해야 하는 다섯 가지 질문</li>
+<li>컴파일 시점(그래프 전체를 먼저)과 실행 시점(처음 쓸 때 한 번)을 나눈 이유</li>
+<li>모듈이 값이라는 것의 뜻과 모듈마다 전역 표가 따로 있는 이유</li>
+<li>prelude가 시작될 때 만들어지는 과정, 그리고 core·native·extras의 네 층</li>
+<li>내장 fung 코드 안에서 난 에러가 사용자 코드를 가리키는 방법</li>
+</ul>
+</div>
+<h2 id="concept">모듈이란 무엇인가</h2>
+<p>프로그램이 커지면 파일을 나눈다. 파일 하나가 이름 묶음 하나가 되고, 다른 파일은 그 이름을 가져다 쓴다. 이것이 <strong>모듈</strong>(module)이다. 모듈 체계를 만들 때는 생각보다 많은 것을 정해야 한다.</p>
+<ol>
+<li><strong>어떻게 찾나.</strong> <code>import &quot;./servers&quot;</code>의 <code>&quot;./servers&quot;</code>는 어느 파일인가. 가져오는 파일의 디렉터리가 기준인가, 지금 디렉터리가 기준인가.</li>
+<li><strong>언제 검사하나.</strong> 가져온 모듈에 없는 이름을 쓰면 언제 알게 되나. 실행 전인가, 그 줄에 닿았을 때인가.</li>
+<li><strong>언제, 몇 번 실행하나.</strong> 모듈의 최상위 코드는 언제 도는가. 두 파일이 같은 모듈을 가져오면 두 번 도는가.</li>
+<li><strong>무엇을 주나.</strong> <code>import</code>가 남기는 것은 이름들인가, 하나의 값인가.</li>
+<li><strong>고리는.</strong> <code>a</code>가 <code>b</code>를 가져오고 <code>b</code>가 <code>a</code>를 가져오면 어떻게 되나.</li>
+</ol>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Python</strong>의 <code>import</code>는 실행 중에 일어난다. 처음 가져올 때 모듈의 코드를 실행하고 <code>sys.modules</code>에 캐시해 두며, 다음부터는 캐시를 준다. 없는 이름을 쓰면 그 줄에 닿아서야 <code>AttributeError</code>다. 고리가 있으면 덜 만들어진 모듈을 받는다.</li>
+<li><strong>Node.js</strong>의 CommonJS <code>require</code>도 실행 중에 파일을 읽고 실행하며 캐시한다. 고리에서는 그때까지 채워진 <code>exports</code>만 받는다.</li>
+<li><strong>JavaScript ES 모듈</strong>은 반대쪽이다. 실행 전에 import 그래프를 모두 읽고 이름을 연결한 뒤에 본문을 실행한다.</li>
+<li><strong>Java</strong>는 클래스를 처음 쓸 때 클래스 로더가 읽어 들인다. 컴파일러가 이름을 미리 확인하므로 없는 이름은 컴파일 에러다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택: 컴파일은 그래프 전체를 먼저, 실행은 처음 쓸 때 한 번</b>
+<ul>
+<li><strong>실행 전에 그래프 전체를 읽고 컴파일한다.</strong> 순환 import(E0302), 없는 멤버(E0303), 비공개 이름 접근(E0304), 라이브러리 파일 최상위의 단독 문장(E0306)이 모두 실행 전에 걸린다. 모든 모듈의 문법·의미 에러가 종료 코드 2로 모이고, <code>fung check</code>가 이 로더를 그대로 쓴다(노트 M5).</li>
+<li><strong>실행은 처음 쓸 때 한 번.</strong> 모듈 본문은 그 모듈의 <code>IMPORT</code>가 처음 실행될 때 한 번 돌고, 결과는 캐시된다. 컴파일은 전부 먼저, 실행은 필요할 때 한 번. 두 시점을 나눈 것이 핵심이다(노트 M5).</li>
+<li><strong>모듈은 불변 값이다.</strong> 모듈의 최상위가 한 번 돈 뒤 공개 이름들을 읽어 레코드 하나로 굳힌다. 이 "스냅숏"이 안전한 이유는 9장의 규칙이다. 최상위 코드는 한 번만 돌고, 함수는 전역에 대입할 수 없고, 블록은 바깥 변수를 바꿀 수 없다. 그 뒤로 모듈의 전역을 바꿀 사람이 없다. 엄격한 스코프 규칙 덕에 모듈 체계가 단순해진 경우다(노트 M5).</li>
+</ul>
+</div>
+<h2 id="walkthrough">따라가기</h2>
+<p>라이브러리 하나와 그것을 쓰는 두 파일을 만들어 보자. <code>servers.fung</code>은 최상위에서 한 줄을 출력하게 해 두었다(대입의 오른쪽에서 부른 <code>print</code>). 라이브러리 최상위에는 <code>import</code>, <code>fn</code>, <code>type</code>, 대입만 쓸 수 있기 때문이다.</p>
+<details class="fixture"><summary>준비물: servers.fung, helper.fung</summary>
+<p><code>servers.fung</code></p>
+<pre class="plain"><code># servers: a small library
+_note = print(&quot;servers: body runs&quot;)
+
+hosts = [&quot;web1&quot;, &quot;web2&quot;, &quot;db1&quot;]
+
+fn web() = filter(hosts, h =&gt; starts_with(h, &quot;web&quot;))
+fn _secret() = &quot;hidden&quot;</code></pre>
+<p><code>helper.fung</code></p>
+<pre class="plain"><code>import &quot;./servers&quot;
+
+fn count() = len(servers.hosts)</code></pre>
+</details>
+<div class="run"><pre><code>import &quot;./servers&quot;
+import &quot;./helper&quot;
+
+print(servers.web())
+print(helper.count())
+print(servers)</code></pre><pre class="out plain"><code>servers: body runs
+[&quot;web1&quot;, &quot;web2&quot;]
+3
+&lt;module servers&gt;</code></pre></div>
+<p><code>servers</code>는 진입 파일과 <code>helper</code> 양쪽에서 가져왔지만 본문은 한 번만 돌았다. 일의 순서는 이렇다.</p>
+<ol>
+<li><strong>그래프 읽기</strong>(<code>crates/fung-front/src/loader.rs</code>의 <code>Loader</code>). 진입 파일을 파싱하고, <code>import</code> 문만 먼저 훑어 각 모듈을 깊이 우선으로 적재한다. <code>servers</code>를 컴파일하고, <code>helper</code>로 내려가 다시 <code>servers</code>를 만나면 이미 끝난 것을 쓴다(<code>done</code>). 아직 적재 중인 모듈을 다시 만나면(<code>loading</code>) 고리이므로 경로 전체를 보여 주는 E0302다.</li>
+<li><strong>이름을 들고 해석하기.</strong> 모듈을 컴파일하고 나면 공개 이름 목록(<code>exports</code>)이 나온다. 진입 파일은 그 목록을 들고 이름 해석(6장)을 한다. 그래서 <code>servers.exits()</code> 같은 오타나 <code>servers._secret()</code>은 실행 전에 걸린다.</li>
+<li><strong>실행.</strong> 진입 파일의 <code>IMPORT</code> 명령이 처음 실행될 때 <code>servers</code>의 본문이 돈다. 본문은 새 프레임으로 같은 태스크 위에서 돌고(12장에서 볼 이어 가기 상자 <code>ImportBody</code>가 그 끝을 기다린다), 끝나면 공개 이름들이 모듈 값으로 굳어 표에 저장된다. <code>helper</code>의 <code>IMPORT</code>는 그 값을 그대로 받는다.</li>
+</ol>
+<p>비공개 이름을 쓰면 실행 전에 이렇게 멈춘다(종료 코드 2).</p>
+<details class="fixture"><summary>준비물: servers.fung</summary>
+<p><code>servers.fung</code></p>
+<pre class="plain"><code># servers: a small library
+_note = print(&quot;servers: body runs&quot;)
+
+hosts = [&quot;web1&quot;, &quot;web2&quot;, &quot;db1&quot;]
+
+fn web() = filter(hosts, h =&gt; starts_with(h, &quot;web&quot;))
+fn _secret() = &quot;hidden&quot;</code></pre>
+</details>
+<div class="run"><pre><code>import &quot;./servers&quot;
+
+print(servers._secret())</code></pre><pre class="out err plain" data-code="2"><code>error[E0304]: `_secret` is private to module `servers`
+  --&gt; example.fung:3:14
+  |
+3 | print(servers._secret())
+  |              ^^^^^^^
+  |
+ help: names starting with `_` are not exported</code></pre></div>
+<p>고리는 경로 전체가 보인다.</p>
+<details class="fixture"><summary>준비물: cyc_a.fung, cyc_b.fung</summary>
+<p><code>cyc_a.fung</code></p>
+<pre class="plain"><code>import &quot;./cyc_b&quot;
+
+fn a() = 1</code></pre>
+<p><code>cyc_b.fung</code></p>
+<pre class="plain"><code>import &quot;./cyc_a&quot;
+
+fn b() = 2</code></pre>
+</details>
+<div class="run"><pre><code>import &quot;./cyc_a&quot;
+
+print(cyc_a.a())</code></pre><pre class="out err plain" data-code="2"><code>error[E0302]: circular import: cyc_a.fung → cyc_b.fung → cyc_a.fung
+  --&gt; cyc_b.fung:1:1
+  |
+1 | import &quot;./cyc_a&quot;
+  | ^
+  |</code></pre></div>
+<h3 id="import-op">IMPORT 명령</h3>
+<p>표준 모듈로 바이트코드를 보자.</p>
+<div class="run"><pre><code>import fs
+import path (join)
+
+fn double(x) = x * 2
+
+print(fs.exists(join(&quot;.&quot;, &quot;nothing-here&quot;)))
+print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   IMPORT       0    ; fs
+0001  1:1   STOREGLOBAL  0    ; fs
+0002  2:14  IMPORT       1    ; path
+0003  2:14  FIELD        2    ; join
+0004  2:14  STOREGLOBAL  1    ; join
+0005  4:1   CLOSURE      0    ; double
+0006  4:1   STOREGLOBAL  2    ; double
+0007  6:1   CONST        3    ; &lt;fn print&gt;
+0008  6:7   LOADGLOBAL   0    ; fs
+0009  6:9   FIELD        4    ; exists
+0010  6:17  LOADGLOBAL   1    ; join
+0011  6:22  CONST        5    ; &quot;.&quot;
+0012  6:27  CONST        6    ; &quot;nothing-here&quot;
+0013  6:21  CALL         2    ; 2 positional, 0 named
+0014  6:16  CALL         1    ; 1 positional, 0 named
+0015  6:6   CALL         1    ; 1 positional, 0 named
+0016  6:1   POP
+0017  7:1   CONST        3    ; &lt;fn print&gt;
+0018  7:7   LOADGLOBAL   2    ; double
+0019  7:14  CONST        7    ; 21
+0020  7:13  CALL         1    ; 1 positional, 0 named
+0021  7:6   CALL         1    ; 1 positional, 0 named
+0022  7:1   POP
+0023  7:1   CONST        8    ; nil
+0024  1:1   RETURN
+
+== double ==
+0000  4:16  LOADLOCAL    0
+0001  4:20  CONST        0    ; 2
+0002  4:18  MUL
+0003  4:14  RETURN</code></pre></div>
+<ul>
+<li><code>import fs</code>는 <code>IMPORT 0</code> 하나와 전역 저장이다. 상수 0번은 모듈의 열쇠(<code>fs</code>, 사용자 파일이면 절대 경로)다.</li>
+<li><code>import path (join)</code>은 "가져와서 <code>FIELD</code>로 꺼내 전역에 저장"일 뿐이다. 이름을 골라 가져오는 문법이 따로 있는 것이 아니다.</li>
+<li><code>fs.exists</code>는 맵의 <code>m.name</code>과 같은 <code>FIELD</code>다. 모듈이 값이기 때문이다. 그래서 모듈을 변수에 담거나 인자로 넘겨도 된다.</li>
+<li><code>import</code>는 끌어올린 <code>fn</code>보다도 앞에 온다(0000~0004번 뒤에 0005번 <code>CLOSURE</code>). 함수가 만들어질 때 모듈 이름이 이미 채워져 있다.</li>
+</ul>
+<div class="run"><pre><code>import fs
+
+m = fs
+print(m, type_of(m))
+print(m.exists(&quot;/nothing/here&quot;))</code></pre><pre class="out plain"><code>&lt;module fs&gt; 'module
+false</code></pre></div>
+<h2 id="globals">모듈마다 전역 표</h2>
+<p><code>a.fung</code>의 <code>fn helper()</code>와 <code>b.fung</code>의 <code>fn helper()</code>는 둘 다 자기 파일의 전역 0번일 수 있다. <code>main.fung</code>이 <code>b.run()</code>을 부르고 <code>b.run</code>이 <code>helper()</code>를 부르면, 그것은 <strong>b의</strong> <code>helper</code>여야 한다. 지금 실행 중인 진입 파일의 전역 표를 쓰면 틀린다.</p>
+<p>fung의 답은 "<strong>함수 값이 자기 모듈의 전역 표를 들고 다닌다</strong>"이다. 모듈 본문을 실행할 때 그 모듈만의 전역 표(<code>Globals</code>, 곧 <code>Rc&lt;RefCell&lt;Vec&lt;Option&lt;Value&gt;&gt;&gt;&gt;</code>)를 새로 만든다. 그 안에서 만들어지는 클로저는 그 표를 함께 쥐고(<code>Closure::globals</code>), 호출하면 프레임이 그 표를 넘겨받는다(<code>Frame::globals</code>). <code>LOADGLOBAL</code>은 "지금 프레임의 전역 표"를 본다. 그래서 함수는 어디서 불리든 자기 모듈의 전역을 본다.</p>
+<p>다른 길도 있었다. 전역 표를 프로그램에 하나만 두고 모듈마다 시작 번호를 주는 방식이다. 그러면 모듈을 적재하는 순서에 따라 번호가 바뀌어 따로 "링크" 단계가 필요하고, REPL처럼 전역이 계속 자라는 경우가 복잡해진다. 모듈마다 표 하나에는 그런 조정이 없다(노트 M5).</p>
+<p>전역 표는 그 모듈의 함수를 담고, 그 함수는 다시 전역 표를 든다. 참조 계수로는 풀리지 않는 고리다(10장). 그래서 런타임이 끝날 때 표를 비워 고리를 끊는다.</p>
+<h2 id="layers">prelude와 네 층</h2>
+<p><code>print</code>, <code>map</code>, <code>take</code>처럼 <code>import</code> 없이 쓰는 이름의 묶음을 <strong>prelude</strong>라고 한다. fung의 라이브러리는 네 층으로 나뉜다.</p>
+<table>
+  <thead><tr><th>층</th><th>뜻</th><th>언어</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td>core</td><td>언어의 의미와 런타임, 언어가 보장하는 값 연산</td><td>Rust</td><td><code>print</code>, <code>map</code>·<code>filter</code>·<code>fold</code>, <code>split</code>, <code>int</code>, 태스크·채널</td></tr>
+    <tr><td>native <code>_native.*</code></td><td>바깥세상과의 다리, 또는 안쪽 루프라 Rust가 필요한 것. 숨겨져 있다</td><td>Rust</td><td><code>_native.fs</code>, <code>_native.process</code>, <code>_native.net</code>, <code>_native.json</code>, <code>_native.regex</code></td></tr>
+    <tr><td>extras(내장)</td><td>core와 native 위에 fung으로 쓴 것. 실행 파일 안에 들어 있다</td><td>fung</td><td><code>fs</code>·<code>cli</code>·<code>http</code>·<code>conc</code> 모듈, prelude의 <code>take</code>·<code>sum</code>·<code>exec</code></td></tr>
+    <tr><td>extras(프로젝트)</td><td>사용자의 라이브러리</td><td>fung</td><td>상대 경로 <code>import</code></td></tr>
+  </tbody>
+</table>
+<p>예를 들어 <code>extras/fs.fung</code>는 이렇게 시작한다.</p>
+<pre class="frag"><code>import _native.fs as _n
+
+read = _n.read
+write = _n.write</code></pre>
+<p><code>fs.read</code>는 Rust로 쓴 원시 함수를 다시 내보낸 것이고, <code>fs.with_open</code>이나 <code>fs.read_lines</code>는 그 파일 안에 fung으로 쓴 함수다. <code>http</code>는 통째로 fung이다. <code>_native.*</code>는 내장 파일에서만 가져올 수 있고, 사용자 코드에서 가져오면 E0310이다.</p>
+<div class="run"><pre><code>import _native.fs
+
+print(1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0310]: `_native.fs` is internal; import `fs` instead
+  --&gt; example.fung:1:1
+  |
+1 | import _native.fs
+  | ^
+  |</code></pre></div>
+<div class="box choice"><b>fung의 선택: 핵심은 작게, 나머지는 fung으로</b>
+<ul>
+<li>원칙 5는 "언어 핵심은 최소한, 나머지는 fung으로 직접"이다(<code>background.md</code>). 런타임은 파일·프로세스·소켓·TLS·시간·정규식 같은 원시 기능만 주고, HTTP 프로토콜·<code>cli</code> 등은 fung 라이브러리로 쓴다(open-questions).</li>
+<li>공개 API의 이름·인자·기본값·에러 모양은 fung 쪽에서 정하고, Rust 쪽은 되도록 작은 원시 기능만 둔다. 그래서 공개 이름은 바꾸지 않고 다리 쪽을 고칠 수 있다(노트 M5).</li>
+<li>prelude에는 확실한 것만 둔다. 나중에 prelude에 더하는 것은 사용자 코드에 경고(W0103) 하나를 낼 뿐이지만, 빼는 것은 호환성을 깨기 때문이다(open-questions).</li>
+<li>fung 소스는 <code>include_str!</code>로 실행 파일 안에 들어간다(<code>crates/fung-front/src/extras.rs</code>). 배포는 여전히 <code>fung</code> 파일 하나다. 내장 모듈은 <code>import</code>될 때 컴파일하고, prelude만 시작할 때 컴파일한다. 스크립트 시작 시간을 지키기 위해서다(부록 <a href="internals.html#modules">내부 구조</a>).</li>
+</ul>
+</div>
+<h3 id="boot">시작할 때 prelude 만들기</h3>
+<p><code>fung</code>이 스크립트를 실행하기 전에 하는 일은 <code>crates/fung-vm/src/boot.rs</code>의 <code>boot</code>에 있다.</p>
+<ol>
+<li>Rust로 쓴 core 내장 함수(<code>prelude::core</code>)와 동시성 원시 연산(<code>conc::natives</code>), 그리고 스크립트 인자 <code>args</code>를 prelude 표에 넣는다.</li>
+<li><code>extras/prelude.fung</code>를 컴파일한다. 이 파일은 내장 파일이라 <code>_native.process</code>와 <code>_native.range</code>를 가져올 수 있다.</li>
+<li>그것을 모듈로 실행하고, 공개 이름들(<code>take</code>, <code>sum</code>, <code>exec</code> …)을 prelude 표에 더한다.</li>
+</ol>
+<p>앞단(<code>fung-front</code>)은 값을 모른다. 그래서 컴파일러는 prelude 이름을 <code>Const::Builtin(이름)</code>이라는 자리 표시로 남기고, VM의 <strong>링크</strong> 단계(<code>vm/link.rs</code>의 <code>link</code>)가 그 자리에 실제 함수 값을 채운다. 8장에서 <code>CONST 0 ; &lt;fn print&gt;</code>가 보인 이유다. 이름 해석은 prelude에 어떤 이름이 있는지만 알면 된다. 그래서 앞단은 <code>spec/builtins.txt</code>를 읽는다(<code>builtins.rs</code>). 이 파일은 VM의 실제 표에서 시험(<code>spec_file</code>)이 만들어 내는 것이라, 두 쪽이 어긋나면 시험이 실패한다.</p>
+<h3 id="builtin-errors">내장 코드 안의 에러</h3>
+<p><code>take</code>는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 <code>extras/prelude.fung</code>를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 <code>builtin</code> 표시가 붙고(<code>loader.rs</code>의 <code>mark_builtin</code>), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에는 안쪽 프레임이 그대로 보인다.</p>
+<div class="run"><pre><code>print(take(5, 2))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot map over int
+  --&gt; example.fung:1:11
+  |
+1 | print(take(5, 2))
+  |           ^
+  |
+ call path (innermost first):
+   extras/prelude.fung:23 _list
+   extras/prelude.fung:86 take
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-front/src/loader.rs</code>: <code>Loader</code>(<code>compile</code>, <code>load_import</code>, <code>load_file</code>, <code>load_module</code>), 순환 검사(<code>loading</code>·<code>stack</code>), <code>Loaded</code>·<code>Build</code>, <code>mark_builtin</code>.</li>
+<li><code>crates/fung-front/src/extras.rs</code>: 실행 파일에 넣은 fung 소스(<code>source</code>, <code>PRELUDE_FILES</code>).</li>
+<li><code>crates/fung-front/src/builtins.rs</code>: 이름 해석이 쓰는 내장 이름 표.</li>
+<li><code>crates/fung-vm/src/vm/module.rs</code>: 실행 시점의 모듈 표(<code>ModuleState</code>), <code>IMPORT</code>(<code>exec_import</code>, <code>begin_import</code>), 모듈 본문의 이어 가기 <code>ImportBody</code>.</li>
+<li><code>crates/fung-vm/src/vm/link.rs</code>: <code>link</code>, 원형의 실행판 <code>RtProto</code>, prelude 표 <code>Prelude</code>.</li>
+<li><code>crates/fung-vm/src/boot.rs</code>: <code>boot</code>, <code>native_prelude</code>, <code>boot_file</code>.</li>
+<li><code>crates/fung-vm/src/value.rs</code>: 모듈 값 <code>Module</code>, 전역 표 <code>Globals</code>.</li>
+<li><code>extras/*.fung</code>: 내장 모듈의 fung 소스.</li>
+</ul>
+<div class="exercise"><b>비공개 도우미가 있는 라이브러리</b>
+<p><code>units.fung</code> 라이브러리를 만들어 보자. 공개 함수 <code>human(bytes)</code>는 바이트 수를 <code>&quot;1.5 KiB&quot;</code> 같은 문자열로 바꾸고, 계산에 쓰는 도우미 <code>_scale</code>은 밖에서 보이지 않게 한다. 진입 파일에서 가져와 몇 가지 크기를 출력하고, <code>units._scale</code>을 부르면 무엇이 언제 나는지 생각해 보자.</p>
+<details><summary>풀이 보기</summary>
+<details class="fixture"><summary>준비물: units.fung</summary>
+<p><code>units.fung</code></p>
+<pre class="plain"><code># units: human-readable sizes
+_names = [&quot;B&quot;, &quot;KiB&quot;, &quot;MiB&quot;, &quot;GiB&quot;]
+
+# tenths of the size, scaled down by 1024 while it is big
+fn _scale(t, i) = t &gt;= 10240 and i &lt; len(_names) - 1 then _scale(t // 1024, i + 1) else (t, i)
+
+fn human(bytes):
+  (t, i) = _scale(bytes * 10, 0)
+  i == 0 then &quot;${bytes} B&quot; else &quot;${t // 10}.${t % 10} ${_names[i]}&quot;
+;;</code></pre>
+</details>
+<div class="run"><pre><code>import &quot;./units&quot;
+
+each([512, 1536, 5242880], b =&gt; print(units.human(b)))</code></pre><pre class="out plain"><code>512 B
+1.5 KiB
+5.0 MiB</code></pre></div>
+<p><code>units._scale(10, 0)</code>을 쓰면 실행 전에 E0304로 멈춘다(종료 코드 2). 이름 해석이 <code>units</code>의 공개 이름 목록을 들고 진입 파일을 보기 때문이다. <code>human</code>은 같은 모듈 안이라 <code>_scale</code>과 <code>_names</code>를 쓸 수 있다. <code>_names</code>는 한 번만 대입되므로 최상위 <code>fn</code>이 읽을 수 있다(9장). 크기는 정수로만 계산했다. 10을 곱해 소수 첫째 자리까지 들고 다니다가 마지막에 <code>//</code>와 <code>%</code>로 나눈다.</p>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>로더는 진입 파일을 실행하기 전에 import 그래프 전체를 깊이 우선으로 읽고 컴파일한다. 고리, 없는 멤버, 비공개 접근, 라이브러리 최상위의 단독 문장은 모두 종료 코드 2다.</li>
+<li>모듈 본문은 그 모듈의 <code>IMPORT</code>가 처음 실행될 때 한 번 돌고, 공개 이름의 불변 레코드(모듈 값)로 캐시된다. 멤버 접근은 <code>FIELD</code>다.</li>
+<li>함수 값이 자기 모듈의 전역 표를 들고 다녀서, 어디서 불리든 자기 모듈을 본다.</li>
+<li>라이브러리는 core·native·extras(내장)·extras(프로젝트)의 네 층이다. <code>_native.*</code>는 숨겨져 있고(E0310), 내장 fung 소스는 실행 파일 안에 있다. prelude는 시작할 때 <code>boot</code>가 만든다.</li>
+<li>앞단은 prelude 이름을 자리 표시로 남기고 VM의 링크가 값을 채운다. 내장 코드 안의 에러는 사용자 코드의 호출 자리를 가리킨다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/language.html#modules">모듈</a>, <a href="../reference/modules/fs.html">표준 모듈</a>. 배우기: <a href="../learn/10-modules.html">10장 모듈</a>. 3부는 여기까지다. 4부는 이 VM 위에서 여러 일을 동시에 돌리는 런타임을 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/10-values-and-memory.html"><small>이전 장</small>10. 값과 메모리</a><a class="next" href="../vm/12-scheduler.html"><small>다음 장</small>12. 태스크와 스케줄러</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

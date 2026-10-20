@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>프로그래밍과 fung · fung 매뉴얼</title>
+<meta name="description" content="프로그램과 프로그래밍 언어가 무엇인지, fung이 어떤 언어이고 무엇을 위해 만들었는지, 이 매뉴얼을 읽는 법.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="learn">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">L</span><span class="mbar-where"><span class="mbar-title">1. 프로그래밍과 fung</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
+<ol class="chapters">
+<li><a href="../learn/01-programming.html" aria-current="page">1. 프로그래밍과 fung</a><ol class="toc2"><li><a href="#program">프로그램이란</a></li><li><a href="#language">프로그래밍 언어</a></li><li><a href="#interpreter">스크립트와 인터프리터</a></li><li><a href="#fung">fung은 어떤 언어인가</a></li><li><a href="#principles">fung의 원칙</a></li><li><a href="#how-to-read">이 매뉴얼을 읽는 법</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
+<li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
+<li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
+<li><a href="../learn/05-functions.html">5. 함수</a></li>
+<li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
+<li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
+<li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
+<li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
+<li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
+<li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
+<li><a href="../learn/12-concurrency.html">12. 동시에 여러 일 하기</a></li>
+<li><a href="../learn/13-json-and-http.html">13. JSON과 HTTP</a></li>
+<li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
+</ol>
+</li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../learn/01-programming.html"><span class="glyph">L</span>fung 배우기</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>1장</span></nav>
+<h1>프로그래밍과 fung</h1>
+<p class="lede">프로그래밍을 처음 하는 사람도 따라올 수 있게, 가장 바깥의 그림부터 시작한다.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>프로그램과 프로그래밍 언어가 무엇인지</li>
+<li>스크립트 언어와 인터프리터가 하는 일</li>
+<li>fung이 어떤 언어이고, 어떤 일에 쓰는지</li>
+<li>fung이 다른 언어와 다르게 고른 몇 가지 원칙</li>
+<li>이 매뉴얼의 네 부분과 읽는 순서</li>
+</ul>
+</div>
+<h2 id="program">프로그램이란</h2>
+<p>컴퓨터는 시킨 일만 한다. 대신 시킨 일은 지치지 않고, 빠르고, 매번 똑같이 한다. <strong>프로그램(program)</strong>은 컴퓨터에게 시킬 일을 차례로 적어 둔 글이다. 요리법이 "물을 끓인다, 면을 넣는다, 3분 기다린다"라고 적혀 있듯이, 프로그램은 "이 디렉터리의 파일 목록을 읽는다, 이름이 <code>.log</code>로 끝나는 것만 고른다, 개수를 찍는다"처럼 적혀 있다.</p>
+<p>프로그램을 쓰는 일이 <strong>프로그래밍(programming)</strong>이다. 프로그래밍의 대부분은 두 가지를 다루는 일이다.</p>
+<ul>
+<li><strong>데이터(data)</strong>: 다루는 재료. 숫자, 글자, 파일 이름 목록, 서버 이름과 포트의 짝 같은 것.</li>
+<li><strong>절차</strong>: 재료로 무엇을 하는지. 고르고, 세고, 바꾸고, 합치고, 찍는 것.</li>
+</ul>
+<p>이미 쉘에서 <code>ls *.log | wc -l</code>을 쳐 본 적이 있다면 작은 프로그램을 쓴 것이다. 파일 목록이 데이터이고, "고른다, 센다"가 절차다.</p>
+<h2 id="language">프로그래밍 언어</h2>
+<p>컴퓨터의 중앙 처리 장치(CPU)가 직접 알아듣는 것은 숫자로 된 아주 단순한 명령뿐이다. 사람이 그것으로 "로그 파일을 세라"를 쓰기는 너무 힘들다. 그래서 사람이 읽고 쓰기 쉬운 글을 정하고, 그 글을 컴퓨터가 할 수 있는 일로 옮겨 주는 프로그램을 따로 둔다. 그 글의 규칙이 <strong>프로그래밍 언어</strong>다.</p>
+<p>언어마다 정해 둔 것이 있다.</p>
+<ul>
+<li><strong>문법(syntax)</strong>: 글자를 어떻게 늘어놓아야 하는가. 예를 들어 fung에서 <code>print(&quot;hi&quot;)</code>는 맞고 <code>print &quot;hi&quot;</code>는 틀리다.</li>
+<li><strong>의미(semantics)</strong>: 그렇게 쓴 것이 무엇을 하는가. <code>1 + 2</code>가 <code>3</code>이 된다는 것, <code>&quot;5&quot; + 3</code>은 에러라는 것.</li>
+<li><strong>표준 라이브러리(standard library)</strong>: 언어와 함께 오는, 미리 만들어 둔 기능들. 파일 읽기, 문자열 쪼개기, 정렬 같은 것.</li>
+</ul>
+<p>이 매뉴얼의 대부분은 fung의 이 세 가지를 설명한다.</p>
+<h2 id="interpreter">스크립트와 인터프리터</h2>
+<p>fung 프로그램은 <code>.fung</code>으로 끝나는 텍스트 파일에 쓴다. 이런 파일을 <strong>소스 코드(source code)</strong>, 줄여서 소스라고 한다. 소스를 실행하는 것은 실행 파일 <code>fung</code>이다.</p>
+<pre class="plain"><code>$ fung hello.fung
+hello, world!</code></pre>
+<p><code>fung</code>은 소스를 읽어서 먼저 <strong>검사</strong>한다. 문법이 맞는지, 쓴 이름이 다 있는지 본다. 문제가 있으면 한 줄도 실행하지 않고 에러를 보여 준다. 문제가 없으면 소스를 VM이 이해하는 명령으로 옮긴 뒤(컴파일), 그 명령을 차례로 <strong>실행</strong>한다. 이렇게 소스를 받아 바로 실행해 주는 프로그램을 <strong>인터프리터(interpreter)</strong>라고 부르고, 인터프리터로 바로 돌리는 짧은 프로그램을 흔히 <strong>스크립트(script)</strong>라고 부른다. 쉘 스크립트가 그렇고, fung 스크립트도 그렇다.</p>
+<p>어떻게 옮기고 실행하는지는 이 매뉴얼의 마지막 부분인 <a href="../vm/01-how-programs-run.html">fung VM</a>에서 자세히 다룬다. 언어를 쓰는 데는 몰라도 된다.</p>
+<h2 id="fung">fung은 어떤 언어인가</h2>
+<p>fung은 개인 학습과 일상의 작은 일을 위해 만든 작은 스크립트 언어다. 범용 언어가 목표가 아니다. 쓰는 곳은 이런 일이다.</p>
+<ul>
+<li>쉘 스크립트로 짜던 작은 작업: 파일 이름 일괄 변경, 로그 집계, 설정 파일 검사</li>
+<li>여러 서버나 URL을 동시에 확인하는 도구</li>
+<li>JSON을 주고받는 간단한 HTTP 서버</li>
+</ul>
+<p>쓰지 않는 곳도 분명하다. 본격적인 쉘 작업은 계속 쉘로 하고, 성능이 중요한 처리나 화면(GUI) 프로그램에는 쓰지 않는다.</p>
+<p>아래는 맛보기로, 서버 목록에서 이름이 <code>web</code>으로 시작하는 것만 골라 찍는 프로그램이다. 지금은 읽히지 않아도 된다. 3장부터 한 줄씩 다 배운다.</p>
+<div class="run"><pre><code>servers = [&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;cache-1&quot;]
+web = servers |&gt; filter(s =&gt; starts_with(s, &quot;web&quot;))
+print(&quot;web servers:&quot;, web)
+print(&quot;count:&quot;, len(web))</code></pre><pre class="out plain"><code>web servers: [&quot;web-1&quot;, &quot;web-2&quot;]
+count: 2</code></pre></div>
+<p>코드 아래 칸이 실제로 돌려 본 출력이다. 이 매뉴얼의 실행 예제는 모두 매뉴얼을 만들 때 실제로 실행하고, 그 결과를 그대로 붙인다.</p>
+<h2 id="principles">fung의 원칙</h2>
+<p>언어는 결정의 모음이다. 같은 일을 하는 언어라도 무엇을 중요하게 여기느냐에 따라 모양이 달라진다. fung이 고른 것 가운데 처음부터 알아 두면 좋은 것이 넷 있다.</p>
+<p><strong>조용히 틀리는 것보다 시끄럽게 멈추는 것이 낫다.</strong> 많은 스크립트 언어는 <code>&quot;5&quot; + 3</code>을 어떻게든 계산해 준다. 편해 보이지만, 설정 파일에서 읽은 포트 번호가 문자열인 줄 모르고 계산하다가 엉뚱한 값을 쓰게 된다. fung은 이런 것을 모두 에러로 멈춘다. 없는 키 읽기, 정수 넘침, 아무도 확인하지 않고 버려지는 실패도 그렇다. 처음에는 깐깐하게 느껴지지만, 새벽에 도는 스크립트가 조용히 틀리는 것보다 낫다.</p>
+<p><strong>값은 바뀌지 않는다.</strong> 리스트에 원소를 더하면 원래 리스트가 바뀌는 대신 새 리스트가 생긴다. 그래서 어떤 값을 함수에 넘겨도 그 값이 몰래 바뀌는 일이 없다. 3장과 7장에서 다룬다.</p>
+<p><strong>실패는 값이다.</strong> 파일이 없거나 네트워크가 끊기는 일은 버그가 아니라 늘 일어나는 일이다. fung에서 이런 일을 할 수 있는 함수는 "성공과 그 값" 또는 "실패와 그 이유"를 값으로 돌려준다. 9장에서 다룬다.</p>
+<p><strong>같은 일을 하는 방법은 하나다.</strong> 주석은 <code>#</code> 하나, 반복은 <code>for</code>와 몇 가지 함수뿐이다. 남이 쓴 코드도 내가 쓴 코드와 비슷한 모양이 된다. 모양은 포맷터 <code>fung fmt</code>가 맞춰 준다.</p>
+<p>fung은 실행 파일 하나로 배포된다. 그 안에 표준 모듈, REPL(대화형 실행), 검사기, 포맷터, 테스트 실행기가 다 들어 있다. 따로 설치할 것이 없다.</p>
+<h2 id="how-to-read">이 매뉴얼을 읽는 법</h2>
+<p>매뉴얼은 네 부분이다. 사이드바 맨 위에서 고른다.</p>
+<table>
+  <thead><tr><th>부분</th><th>무엇인가</th><th>이런 사람에게</th></tr></thead>
+  <tbody>
+    <tr><td><strong>fung 배우기</strong></td><td>처음부터 순서대로 읽는 책. 지금 읽는 곳이다.</td><td>fung이나 프로그래밍이 처음인 사람</td></tr>
+    <tr><td><strong>예제 모음</strong></td><td>"로그에서 패턴 세기"처럼 작업별로 정리한 완성된 스크립트</td><td>당장 스크립트가 필요한 사람</td></tr>
+    <tr><td><strong>레퍼런스</strong></td><td>언어 명세, 모든 함수, 모든 에러 번호, 명령줄 도구</td><td>정확한 규칙을 찾는 사람</td></tr>
+    <tr><td><strong>fung VM</strong></td><td>언어가 안에서 어떻게 만들어지고 도는지</td><td>언어 구현이 궁금한 사람</td></tr>
+  </tbody>
+</table>
+<p>배우기의 장은 앞 장만 알면 읽히게 썼다. 1장부터 차례로 읽는 것을 권한다. 뒤 장에서 다룰 내용이 먼저 나오면 "9장에서 다룬다"처럼 적어 둔다. 장마다 다음 것이 들어 있다.</p>
+<ul>
+<li>맨 위의 <strong>이 장에서 배울 것</strong></li>
+<li>본문: 일반 개념을 먼저 쉬운 말로 설명하고, 그다음 fung으로 쓰는 법을 보인다. 코드 옆에는 실제 출력이 붙어 있다.</li>
+<li>색이 다른 상자들 (아래)</li>
+<li><strong>해 보기</strong>: 작은 연습 문제. 풀이는 접혀 있다.</li>
+<li><strong>정리</strong>와, 같은 주제의 레퍼런스로 가는 링크</li>
+</ul>
+<p>예제는 직접 쳐 보는 것이 가장 빨리 배우는 길이다. 2장에서 <code>fung</code>을 설치하고 예제를 돌리는 법을 배운다.</p>
+<div class="box learn"><b>처음 배우는 분께</b>
+<p>이런 상자는 프로그래밍 자체의 일반 개념을 설명한다. 다른 언어를 이미 써 본 사람은 건너뛰어도 된다. 예를 들어 "<strong>코드(code)</strong>"는 프로그램의 글을 가리키는 말이고, "코드를 돌린다", "실행한다"는 같은 뜻이다. "<strong>출력(output)</strong>"은 프로그램이 화면에 찍은 글이다.</p>
+</div>
+<div class="box mistake"><b>자주 하는 실수</b>
+<p>이런 상자는 처음 쓸 때 자주 걸리는 에러를 에러 번호와 함께 보여 주고, 그 규칙이 왜 있는지 설명한다. 에러 번호(<code>E0205</code> 같은 것)는 <a href="../reference/errors.html">에러 카탈로그</a>에서 찾아볼 수 있다.</p>
+</div>
+<div class="box other"><b>다른 언어는</b>
+<p>이런 상자는 다른 언어(Python, JavaScript, 쉘 등)를 아는 사람을 위해 무엇이 같고 다른지 짚는다. 다른 언어를 모르면 건너뛰어도 된다.</p>
+</div>
+<h2 id="exercises">해 보기</h2>
+<div class="exercise"><b>컴퓨터에게 계산 시키기</b>
+<p>하루는 몇 초일까? 24시간 × 60분 × 60초를 fung으로 계산해 찍는 한 줄을 생각해 보자. 곱하기는 <code>*</code>, 찍기는 <code>print(…)</code>다. 2장에서 설치를 마친 뒤 직접 돌려 본다.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>print(24 * 60 * 60)</code></pre><pre class="out plain"><code>86400</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>프로그램은 컴퓨터에게 시킬 일을 적은 글이고, 데이터와 절차로 이루어진다.</li>
+<li>프로그래밍 언어는 그 글의 규칙(문법, 의미)과 함께 오는 기능(표준 라이브러리)이다.</li>
+<li><code>fung</code>은 <code>.fung</code> 소스를 먼저 검사하고, 문제가 없으면 실행한다.</li>
+<li>fung은 일상의 작은 스크립트를 위한 언어이고, 조용히 틀리는 동작을 막는 쪽을 택했다.</li>
+<li>배우기는 1장부터 차례로 읽고, 예제는 직접 돌려 본다.</li>
+</ul>
+<p>더 읽을거리: 매뉴얼의 <a href="../index.html">표지</a>에 fung의 기조가 정리되어 있다. 언어가 어떻게 도는지는 <a href="../vm/01-how-programs-run.html">프로그램이 실행되기까지</a>에서 시작한다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="next" href="../learn/02-first-program.html"><small>다음 장</small>2. 설치와 첫 프로그램</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

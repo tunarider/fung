@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>명령줄 옵션과 도움말 · fung 매뉴얼</title>
+<meta name="description" content="명령줄 옵션과 도움말.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">명령줄 옵션과 도움말</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html" aria-current="page">명령줄 옵션과 도움말</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">작은 도구</span></nav>
+<h1>명령줄 옵션과 도움말</h1>
+<p class="lede">남이 써도 되는 작은 도구의 모양: <code>--help</code>, 기본값이 있는 옵션, 잘못 쓴 인자에 대한 친절한 메시지와 종료 코드 2. 예제는 오래된 백업을 지우는 도구다.</p>
+<p>혼자 쓰는 스크립트는 인자 순서를 외우면 되지만, 팀이 함께 쓰거나 몇 달 뒤의 내가 쓰려면 <code>--help</code>가 있어야 하고, 잘못 쓰면 무엇이 틀렸는지 알려 줘야 한다. 특히 파일을 지우는 도구라면 미리 보기(<code>--dry-run</code>)가 필요하다. 여기서는 백업 디렉터리에서 최신 N개만 남기고 나머지를 지우는 <code>prune.fung</code>을 만들며 옵션을 다루는 방법을 보인다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>keep=7; dry=no
+while getopts &quot;k:nh&quot; o; do
+  case $o in k) keep=$OPTARG;; n) dry=yes;; h) echo &quot;usage: ...&quot;; exit 0;; *) exit 2;; esac
+done
+shift $((OPTIND - 1))</code></pre>
+<p><code>getopts</code>는 <code>-k 7</code> 같은 한 글자 옵션만 다룬다. <code>--keep</code>처럼 긴 옵션은 직접 <code>case</code>를 짜거나, 플랫폼마다 다른 GNU <code>getopt</code>에 기대야 한다. <code>keep</code>이 숫자인지는 따로 확인해야 하고, 확인을 빠뜨리면 <code>ls | tail -n +$((keep+1))</code> 같은 줄이 엉뚱하게 돈다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: db-2026-10-15.tar.gz, db-2026-10-16.tar.gz, db-2026-10-17.tar.gz, db-2026-10-18.tar.gz, db-2026-10-19.tar.gz, notes.txt</summary>
+<p><code>db-2026-10-15.tar.gz</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>db-2026-10-16.tar.gz</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>db-2026-10-17.tar.gz</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>db-2026-10-18.tar.gz</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>db-2026-10-19.tar.gz</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>notes.txt</code></p>
+<pre class="plain"><code></code></pre>
+<pre class="plain shell"><code>fung example.fung --keep 2 --dry-run .</code></pre>
+</details>
+<div class="run"><pre><code>#!/usr/bin/env fung
+# prune: keeps the newest N backups in a directory and deletes the rest.
+import fs
+import path
+import cli
+
+help = `usage: prune.fung [options] DIR
+
+Keeps the newest backups in DIR and deletes the older ones. Backups are
+the files matching --pattern; their names sort by date (db-2026-10-19.tar.gz).
+
+options:
+  --keep N         how many to keep (default 7)
+  --pattern GLOB   which files are backups (default *.tar.gz)
+  --dry-run        only print what would be deleted
+  -h, --help       show this help`
+
+known = [&quot;keep&quot;, &quot;pattern&quot;, &quot;dry_run&quot;, &quot;help&quot;]
+
+# A mistake in the arguments: say what is wrong, point at --help, exit 2.
+fn usage_error(msg):
+  eprint(&quot;prune.fung: ${msg}&quot;)
+  eprint(&quot;try `prune.fung --help`&quot;)
+  exit(2)
+;;
+
+opts = cli.parse(args, bools: [&quot;dry-run&quot;, &quot;help&quot;])
+if get(opts.flags, &quot;help&quot;, false) or &quot;-h&quot; in opts.rest:
+  print(help)
+  exit(0)
+;;
+unknown = keys(opts.flags) |&gt; filter(k =&gt; k not in known)
+if not is_empty(unknown): usage_error(&quot;unknown option --${replace(unknown[0], &quot;_&quot;, &quot;-&quot;)}&quot;) ;;
+
+dir = match opts.rest:
+  [d] =&gt; d
+  []  =&gt; usage_error(&quot;DIR is missing&quot;)
+  _   =&gt; usage_error(&quot;only one DIR, got ${len(opts.rest)}&quot;)
+;;
+keep = match parse_int(get(opts.flags, &quot;keep&quot;, &quot;7&quot;)):
+  Ok(n) when n &gt;= 1 =&gt; n
+  _                 =&gt; usage_error(&quot;--keep takes a whole number of at least 1&quot;)
+;;
+pattern = get(opts.flags, &quot;pattern&quot;, &quot;*.tar.gz&quot;)
+dry = get(opts.flags, &quot;dry_run&quot;, false)
+
+backups = fs.glob(path.join(dir, pattern))! |&gt; sort |&gt; reverse
+old = drop(backups, keep)
+for f in old:
+  print(dry then &quot;would delete&quot; else &quot;delete&quot;, f)
+  if not dry: fs.remove(f)! ;;
+;;
+print(&quot;kept ${len(backups) - len(old)}, ${dry then &quot;would delete&quot; else &quot;deleted&quot;} ${len(old)}&quot;)</code></pre><pre class="out plain"><code>would delete db-2026-10-17.tar.gz
+would delete db-2026-10-16.tar.gz
+would delete db-2026-10-15.tar.gz
+kept 2, would delete 3</code></pre></div>
+<p><code>notes.txt</code>는 <code>--pattern</code>에 맞지 않아 아예 후보가 아니다. 다른 인자로 부르면 이렇게 된다(직접 돌린 출력).</p>
+<pre class="plain"><code>$ fung prune.fung --keep x /backups
+prune.fung: --keep takes a whole number of at least 1
+try `prune.fung --help`
+$ echo $?
+2
+$ fung prune.fung --kep 2 /backups
+prune.fung: unknown option --kep
+try `prune.fung --help`
+$ fung prune.fung --help
+usage: prune.fung [options] DIR
+
+Keeps the newest backups in DIR and deletes the older ones. Backups are
+the files matching --pattern; their names sort by date (db-2026-10-19.tar.gz).
+
+options:
+  --keep N         how many to keep (default 7)
+  --pattern GLOB   which files are backups (default *.tar.gz)
+  --dry-run        only print what would be deleted
+  -h, --help       show this help</code></pre>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>help</code>: 도움말은 여러 줄 원시 문자열 하나로 둔다. 따옴표나 <code>$</code>를 신경 쓰지 않고 화면에 보일 모양 그대로 쓴다. 맨 위에 <code>usage:</code> 한 줄, 그 아래 무엇을 하는지, 옵션 목록과 기본값. 이 순서가 대부분의 명령줄 도구가 따르는 관례다.</li>
+<li><code>cli.parse(args, bools: […])</code>: <code>--name value</code>와 <code>--name=value</code>를 <code>flags</code> 맵에, 나머지 인자를 <code>rest</code> 리스트에 순서대로 넣는다. 옵션 이름의 <code>-</code>는 <code>_</code>가 되어 <code>--dry-run</code>은 <code>flags.dry_run</code>이다. 옵션과 인자의 순서는 자유라 <code>prune.fung . --keep 3</code>도 된다. <code>--</code> 뒤의 인자는 모두 <code>rest</code>로 간다(<code>-</code>로 시작하는 파일 이름을 넘길 때).</li>
+<li><code>-h</code>: <code>cli.parse</code>는 <code>--</code>로 시작하는 것만 옵션으로 본다. 한 글자 옵션 <code>-h</code>는 <code>rest</code>에 들어오므로 직접 확인한다.</li>
+<li><code>known</code>·<code>unknown</code>: <code>cli.parse</code>는 모르는 옵션도 그대로 받아 준다. 오타(<code>--kep</code>)를 조용히 무시하면 기본값 7로 지워 버리므로, 아는 옵션 목록과 비교해서 막는다.</li>
+<li><code>usage_error</code>: 무엇이 틀렸는지 한 줄, 도움말 보는 법 한 줄을 표준 에러에 쓰고 종료 코드 2로 끝낸다. "사용법이 틀렸다"를 2로 알리는 것은 많은 명령의 관례다(<code>grep</code>, <code>ls</code> 등). <code>exit</code>는 돌아오지 않으므로 <code>match</code>의 가지에서 값 대신 불러도 된다.</li>
+<li><code>dir = match opts.rest: …</code>: 위치 인자가 정확히 하나인지 리스트 패턴으로 가른다. <code>[d]</code>는 원소가 하나인 리스트, <code>[]</code>는 빈 리스트, <code>_</code>는 나머지 전부다.</li>
+<li><code>keep = match parse_int(…)</code>: 숫자로 바뀌고 1 이상일 때만 받는다. guard <code>when n &gt;= 1</code>이 범위를 함께 확인한다.</li>
+<li><code>fs.glob(…)! |&gt; sort |&gt; reverse</code>: 이름에 날짜가 들어 있으므로 이름순 정렬이 곧 시간순이다. 뒤집어서 최신이 앞에 오게 하고 <code>drop(backups, keep)</code>으로 앞의 <code>keep</code>개를 뺀 나머지가 지울 대상이다.</li>
+<li><code>if not dry: fs.remove(f)! ;;</code>: 미리 보기가 아니면 지운다. 지우기가 실패하면 <code>!</code>가 그 자리에서 멈춘다.</li>
+</ul>
+<div class="box mistake"><b>스위치 옵션을 <code>bools</code>에 빠뜨리기</b>
+<p><code>cli.parse</code>는 옵션 뒤에 <code>--</code>로 시작하지 않는 인자가 있으면 그것을 옵션의 값으로 가져간다. 값을 받지 않는 스위치(<code>--dry-run</code>)를 <code>bools</code>에 넣지 않으면, 바로 뒤의 디렉터리 이름이 스위치의 값이 되어 버린다. 그러면 디렉터리를 주지 않은 것이 되고, <code>--dry-run</code>의 값은 <code>true</code>가 아니라 문자열이다.</p>
+<div class="run"><pre><code>import cli
+
+print(cli.parse([&quot;--dry-run&quot;, &quot;/backups&quot;]))
+print(cli.parse([&quot;--dry-run&quot;, &quot;/backups&quot;], bools: [&quot;dry-run&quot;]))</code></pre><pre class="out plain"><code>{flags: {dry_run: &quot;/backups&quot;}, rest: []}
+{flags: {dry_run: true}, rest: [&quot;/backups&quot;]}</code></pre></div>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>환경 변수를 기본값으로</strong>: <code>keep = get(opts.flags, &quot;keep&quot;, env(&quot;PRUNE_KEEP&quot;) ?? &quot;7&quot;)</code>. 명령줄 옵션이 환경 변수보다, 환경 변수가 코드의 기본값보다 우선한다.</li>
+<li><strong>기간 옵션</strong>: <code>--older-than 30d</code>처럼 받으려면 <code>parse_dur</code>를 쓴다. 단위는 <code>ms</code>·<code>s</code>·<code>m</code>·<code>h</code>뿐이라 30일은 <code>720h</code>로 쓴다.</li>
+<li><strong>여러 번 쓰는 옵션</strong>: <code>cli.parse</code>는 같은 옵션을 두 번 주면 마지막 값만 남긴다. 여러 값이 필요하면 <code>--hosts web1,web2</code>처럼 받아 <code>split(…, &quot;,&quot;)</code>한다.</li>
+<li><strong>종료 코드의 뜻 나누기</strong>: 사용법 오류는 2, 작업 실패는 1처럼 나누는 방법은 <a href="exit-codes.html">종료 코드와 표준 에러</a>.</li>
+<li>저장소의 <code>examples/rename.fung</code>, <code>examples/tidy.fung</code>, <code>examples/envcheck.fung</code>도 <code>cli.parse</code>로 옵션을 받는다.</li>
+</ul>
+<p>배우기: <a href="../learn/10-modules.html">10장 모듈</a>, <a href="../learn/08-patterns.html">8장 패턴</a>, <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>. 레퍼런스: <a href="../reference/modules/cli.html#fn-cli-parse"><code>cli.parse</code></a>, <a href="../reference/prelude/program.html#fn-args"><code>args</code></a>, <a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a>, <a href="../reference/modules/fs.html#fn-fs-glob"><code>fs.glob</code></a>, <a href="../reference/modules/fs.html#fn-fs-remove"><code>fs.remove</code></a>, <a href="../reference/cli.html">명령줄 도구</a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/save-csv-json.html"><small>이전</small>CSV나 JSON으로 저장하기</a><a class="next" href="../recipes/exit-codes.html"><small>다음</small>종료 코드와 표준 에러</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

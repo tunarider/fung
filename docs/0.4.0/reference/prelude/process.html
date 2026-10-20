@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>프로세스와 환경 · fung 매뉴얼</title>
+<meta name="description" content="fung prelude 프로세스와 환경: exec, sh, env.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">프로세스와 환경</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html" aria-current="page">프로세스와 환경</a><ol class="toc2"><li><a href="#concepts">프로세스와 환경이란</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
+<h1>프로세스와 환경</h1>
+<p class="lede">외부 명령을 실행하고 환경 변수를 읽는다. 명령은 쉘을 거치지 않는 <code>exec</code>가 기본이다. 종료 코드가 0이 아니면 <code>Err</code>이므로 <code>exec(…)!</code>가 쉘의 <code>set -e</code>와 같다.</p>
+<h2 id="concepts">프로세스와 환경이란</h2>
+<p>실행 중인 프로그램 하나를 <strong>프로세스</strong>(process)라고 한다. fung 스크립트도 프로세스이고, 스크립트가 <code>git</code>이나 <code>ssh</code>, <code>kubectl</code>을 실행하면 그것은 <strong>자식 프로세스</strong>(child process)가 된다. 자식 프로세스는 세 가지를 남긴다: 표준 출력에 쓴 글(<code>out</code>), 표준 에러에 쓴 글(<code>err</code>), 종료 코드(<code>code</code>, 0이면 성공). <a href="#fn-exec"><code>exec</code></a>는 명령이 끝날 때까지 기다렸다가 이 셋을 맵으로 돌려준다. 출력은 터미널에 흘러나오지 않고 값으로 모인다.</p>
+<p>명령은 <strong>문자열의 리스트</strong>로 준다: <code>[&quot;git&quot;, &quot;commit&quot;, &quot;-m&quot;, msg]</code>. 첫 원소가 실행할 프로그램이고 나머지가 인자다. 쉘을 거치지 않으므로 <code>msg</code>에 공백, 따옴표, <code>$</code>, <code>;</code>가 들어 있어도 한 인자로 그대로 간다. 쉘의 따옴표 규칙을 신경 쓸 필요가 없고, 바깥에서 온 값이 명령을 바꿔 버리는 <strong>명령 주입</strong>(command injection)도 일어나지 않는다. 파이프(<code>|</code>)나 글로브(<code>*.log</code>) 같은 쉘 기능이 꼭 필요할 때만 <a href="#fn-sh"><code>sh</code></a>를 쓴다.</p>
+<p><strong>환경 변수</strong>(environment variable)는 프로세스가 부모에게서 물려받는 <code>이름=값</code> 목록이다. <code>HOME</code>, <code>PATH</code>, 그리고 <code>DB_HOST</code>처럼 설정을 넘기는 데 쓰는 것들이 있다. <a href="#fn-env"><code>env</code></a>로 읽고, 자식 프로세스에 더 넘길 것은 <code>exec</code>의 <code>env</code> 인자로 준다. fung에는 자기 환경을 바꾸는 함수가 없다.</p>
+<p>이 페이지의 세 함수는 fung으로 쓴 prelude가 네이티브 함수를 그대로 이름 붙인 것이다.</p>
+<h2 id="functions">함수</h2>
+<section class="entry" id="fn-exec">
+<h3>exec</h3>
+<p>명령을 쉘 없이 실행하고 끝나기를 기다려 <code>Ok({out, err, code})</code>를 돌려준다. 0이 아닌 종료는 <code>Err</code>.</p>
+<div class="sig"><code>exec(cmd, cwd = nil, env = nil, stdin = nil)</code></div>
+<h4>설명</h4>
+<p><code>cmd</code>의 첫 원소를 <code>PATH</code>에서 찾아 나머지를 인자로 실행한다(<code>/</code>가 든 이름이면 그 경로를 쓴다). 명령이 끝나면 표준 출력과 표준 에러를 문자열로 모아 돌려준다. 출력 끝의 줄바꿈도 그대로 들어 있으므로 값 하나를 얻을 때는 <a href="strings.html#fn-trim"><code>trim</code></a>하고, 여러 줄이면 <a href="strings.html#fn-lines"><code>lines</code></a>로 나눈다.</p>
+<ul>
+<li><strong>성공</strong>(종료 코드 0): <code>Ok({out, err, code: 0})</code>.</li>
+<li><strong>0이 아닌 종료</strong>: <code>Err({kind: 'exit, code, out, err, message})</code>. 출력도 들어 있으므로 실패 이유를 <code>e.err</code>로 보여 줄 수 있다. <code>exec(…)!</code>로 쓰면 실패할 때 멈추므로 쉘의 <code>set -e</code>와 같고, 문장으로만 쓴 <code>exec(…)</code>도 <code>Err</code>를 버리면 E0606으로 멈춘다.</li>
+<li><strong>실행할 수 없음</strong>: 실행 파일이 없거나, 실행 권한이 없거나, <code>cwd</code>가 없으면 <code>Err({kind: 'not_found, message})</code>. 이유는 <code>command not found in PATH</code>, <code>permission denied</code> 등이다. 실행 권한이 없는 스크립트는 <code>[&quot;sh&quot;, &quot;script.sh&quot;]</code>로 돌린다.</li>
+</ul>
+<p><code>cwd</code>를 주면 그 디렉터리에서 실행한다. <code>env</code>는 지금 환경에 <strong>덧붙일</strong> 맵이다(같은 이름은 덮어쓴다). <code>stdin</code>을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. <code>stdin</code>이 <code>nil</code>이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: <code>exec([&quot;make&quot;], cwd: &quot;/src&quot;, env: {CC: &quot;clang&quot;})</code>.</p>
+<p><strong>취소</strong>: 부른 태스크가 취소되면(<code>timeout</code>, <code>exit</code>, 범위의 취소) 명령에 SIGTERM을 보내고, 2초 뒤에도 남아 있으면 SIGKILL을 보낸 뒤 취소로 되감긴다. 그래서 <code>timeout(30s, () =&gt; exec(cmd))</code>는 걸린 명령을 남겨 두지 않는다.</p>
+<p><strong>터미널</strong>: fung이 터미널의 전경에서 돌면(사람이 터미널에서 실행했으면) 명령도 fung과 같은 프로세스 그룹이라 비밀번호 프롬프트처럼 터미널을 직접 쓸 수 있고, Ctrl-C도 셸에서처럼 명령에 간다. 이때 취소는 명령 하나에만 간다. 터미널이 없으면(서비스, 컨테이너, CI, cron) 명령은 자기 프로세스 그룹에서 돌고, 취소는 그룹 전체에 가서 셸이 띄운 손자 프로세스까지 끝난다.</p>
+<p>여러 명령을 동시에 돌리려면 태스크로 나눈다(<a href="concurrency.html#fn-scope"><code>scope</code></a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>). 명령을 기다리는 동안에도 다른 태스크는 계속 돈다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>cmd</code>: 비지 않은 문자열 리스트. <code>[프로그램, 인자…]</code>.</li>
+<li><code>cwd</code>: 실행할 디렉터리, 또는 <code>nil</code>(지금 디렉터리).</li>
+<li><code>env</code>: 덧붙일 환경 변수(값이 문자열인 맵), 또는 <code>nil</code>.</li>
+<li><code>stdin</code>: 표준 입력으로 넣을 문자열, 또는 <code>nil</code>.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok({out: 문자열, err: 문자열, code: 0})</code>, 또는 <code>Err({kind: 'exit, code, out, err, message})</code>, 또는 <code>Err({kind: 'not_found, message})</code>.</p>
+<h4>에러</h4>
+<p>인자의 타입이 틀리면 런타임 에러 E0403: <code>cmd</code>가 문자열이거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 문자열이 아닌 원소가 있을 때, <code>env</code>의 값이 문자열이 아닐 때 등.</p>
+<h4>예제</h4>
+<p><strong>출력 얻기</strong></p>
+<div class="run"><pre><code>r = exec([&quot;echo&quot;, &quot;hi&quot;])!
+print(r)
+print(trim(r.out))</code></pre><pre class="out plain"><code>{out: &quot;hi\n&quot;, err: &quot;&quot;, code: 0}
+hi</code></pre></div>
+<p><strong>실패를 가르기</strong></p>
+<div class="run"><pre><code>fn run(cmd) = match exec(cmd):
+  Ok(r)                    =&gt; &quot;ok: ${trim(r.out)}&quot;
+  Err({kind: 'exit, code}) =&gt; &quot;exited with ${code}&quot;
+  Err({kind: 'not_found})  =&gt; &quot;no such command&quot;
+;;
+
+print(run([&quot;echo&quot;, &quot;fine&quot;]))
+print(run([&quot;sh&quot;, &quot;-c&quot;, &quot;exit 3&quot;]))
+print(run([&quot;no-such-command-xyz&quot;]))</code></pre><pre class="out plain"><code>ok: fine
+exited with 3
+no such command</code></pre></div>
+<p><strong>셸의 set -e처럼 멈추기</strong></p>
+<div class="run"><pre><code>exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo building; exit 2&quot;])!
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0603]: unhandled Err: `sh` exited with code 2
+  --&gt; example.fung:1:44
+  |
+1 | exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo building; exit 2&quot;])!
+  |                                            ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<p><strong>인자에 공백과 특수 문자가 있어도 그대로</strong></p>
+<div class="run"><pre><code>msg = &quot;fix: it's \&quot;done\&quot;; rm -rf /&quot;
+print(exec([&quot;printf&quot;, &quot;%s\n&quot;, msg])!.out |&gt; trim)</code></pre><pre class="out plain"><code>fix: it's &quot;done&quot;; rm -rf /</code></pre></div>
+<p><code>msg</code>는 쉘을 거치지 않으므로 <code>;</code> 뒤가 명령으로 실행되지 않는다.</p>
+<p><strong>디렉터리, 환경, 표준 입력</strong></p>
+<details class="fixture"><summary>준비물: notes.txt</summary>
+<p><code>notes.txt</code></p>
+<pre class="plain"><code>b
+a</code></pre>
+</details>
+<div class="run"><pre><code>print(lines(exec([&quot;ls&quot;], cwd: &quot;.&quot;)!.out))
+print(trim(exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo $GREETING&quot;], env: {GREETING: &quot;hello&quot;})!.out))
+print(lines(exec([&quot;sort&quot;], stdin: &quot;web-2\nweb-1\n&quot;)!.out))
+print(exec([&quot;cat&quot;])!.out == &quot;&quot;)</code></pre><pre class="out plain"><code>[&quot;example.fung&quot;, &quot;notes.txt&quot;]
+hello
+[&quot;web-1&quot;, &quot;web-2&quot;]
+true</code></pre></div>
+<p>마지막 줄: <code>stdin</code>을 주지 않은 <code>cat</code>은 빈 입력을 받고 곧바로 끝난다.</p>
+<p><strong>기한을 두고 실행하기</strong></p>
+<div class="run"><pre><code>print(timeout(100ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+<p><code>sleep</code>은 기한이 지나자 SIGTERM으로 끝났다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-sh"><code>sh</code></a>, <a href="#fn-env"><code>env</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, <a href="strings.html#fn-lines"><code>lines</code></a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a></p>
+</section>
+<section class="entry" id="fn-sh">
+<h3>sh</h3>
+<p>문자열 <code>cmd</code>를 <code>/bin/sh -c cmd</code>로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다.</p>
+<div class="sig"><code>sh(cmd, cwd = nil, env = nil, stdin = nil)</code></div>
+<h4>설명</h4>
+<p><code>exec([&quot;/bin/sh&quot;, &quot;-c&quot;, cmd], …)</code>와 같다. 돌려주는 값, <code>cwd</code>·<code>env</code>·<code>stdin</code>, 취소의 규칙이 모두 <a href="#fn-exec"><code>exec</code></a>와 같다. 종료 코드는 쉘의 것, 곧 파이프라인의 마지막 명령의 것이다.</p>
+<div class="box mistake"><b>바깥에서 온 값을 sh 문자열에 끼워 넣지 않는다</b>
+<p><code>sh(&quot;grep ${pattern} app.log&quot;)</code>에서 <code>pattern</code>이 사용자 입력이면, <code>x; rm -rf ~</code> 같은 값이 명령이 되어 실행된다(명령 주입). 값이 들어가는 명령은 <code>exec([&quot;grep&quot;, pattern, &quot;app.log&quot;])</code>처럼 리스트로 쓴다. 쉘 기능이 꼭 필요하면 값을 <code>env</code>로 넘기고 쉘 안에서 <code>&quot;$PATTERN&quot;</code>으로 따옴표를 쳐서 읽는다.</p>
+</div>
+<h4>매개변수</h4>
+<ul>
+<li><code>cmd</code>: 쉘 명령 문자열.</li>
+<li><code>cwd</code>, <code>env</code>, <code>stdin</code>: <a href="#fn-exec"><code>exec</code></a>와 같다.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><a href="#fn-exec"><code>exec</code></a>와 같다.</p>
+<h4>에러</h4>
+<p><a href="#fn-exec"><code>exec</code></a>와 같다.</p>
+<h4>예제</h4>
+<p><strong>파이프와 글로브</strong></p>
+<details class="fixture"><summary>준비물: a.log, b.log</summary>
+<p><code>a.log</code></p>
+<pre class="plain"><code>ok
+ERROR one</code></pre>
+<p><code>b.log</code></p>
+<pre class="plain"><code>ERROR two
+ERROR three</code></pre>
+</details>
+<div class="run"><pre><code>print(sh(&quot;cat *.log | grep -c ERROR&quot;)!.out |&gt; trim)</code></pre><pre class="out plain"><code>3</code></pre></div>
+<p><strong>값은 env로 넘기기</strong></p>
+<div class="run"><pre><code>pattern = &quot;two; echo injected&quot;
+r = sh(&quot;echo \&quot;$P\&quot;&quot;, env: {P: pattern})!
+print(trim(r.out))</code></pre><pre class="out plain"><code>two; echo injected</code></pre></div>
+<p><strong>실패도 Err</strong></p>
+<div class="run"><pre><code>print(sh(&quot;exit 2&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'exit, code: 2, out: &quot;&quot;, err: &quot;&quot;, message: &quot;`/bin/sh` exited with code 2&quot;})</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-exec"><code>exec</code></a>, <a href="../modules/fs.html#fn-fs-glob"><code>fs.glob</code></a>, <a href="../modules/regex.html"><code>regex</code></a></p>
+</section>
+<section class="entry" id="fn-env">
+<h3>env</h3>
+<p>환경 변수 <code>name</code>의 값(문자열)을, 없으면 <code>nil</code>을 돌려준다. 인자가 없으면 전체를 맵으로.</p>
+<div class="sig"><code>env(name = nil)</code></div>
+<h4>설명</h4>
+<p>값은 언제나 문자열이다. 수가 필요하면 <a href="convert.html#fn-parse_int"><code>parse_int</code></a>로 바꾼다. 없는 변수는 에러가 아니라 <code>nil</code>이므로 <code>??</code>로 기본값을 붙이기 좋다: <code>env(&quot;PORT&quot;) ?? &quot;8080&quot;</code>. 꼭 있어야 하는 변수면 <code>env(&quot;DB_HOST&quot;) ?? fail(&quot;DB_HOST is required&quot;)</code>.</p>
+<p>인자 없이 부르면 모든 환경 변수를 <code>{이름: 값}</code> 맵으로 돌려준다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>name</code>: 변수 이름(문자열), 또는 <code>nil</code>(전체).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열 또는 <code>nil</code>. 인자가 없으면 맵.</p>
+<h4>에러</h4>
+<p><code>name</code>이 문자열도 <code>nil</code>도 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>기본값과 함께</strong></p>
+<div class="run"><pre><code>port = env(&quot;PORT&quot;) ?? &quot;8080&quot;
+print(port)</code></pre><pre class="out plain"><code>8080</code></pre></div>
+<p><strong>값이 있을 때</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>DEPLOY_ENV=staging RETRIES=3 fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>print(env(&quot;DEPLOY_ENV&quot;), parse_int(env(&quot;RETRIES&quot;) ?? &quot;1&quot;)!)
+print(env(&quot;NOT_SET_ANYWHERE&quot;))</code></pre><pre class="out plain"><code>staging 3
+nil</code></pre></div>
+<p><strong>전체를 맵으로</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>APP_DEBUG=1 APP_NAME=api fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>app = pairs(env()) |&gt; filter(((k, _)) =&gt; starts_with(k, &quot;APP_&quot;)) |&gt; sort_by(((k, _)) =&gt; k)
+print(app)</code></pre><pre class="out plain"><code>[(&quot;APP_DEBUG&quot;, &quot;1&quot;), (&quot;APP_NAME&quot;, &quot;api&quot;)]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-exec"><code>exec</code></a>, <a href="program.html#fn-args"><code>args</code></a>, <a href="../language.html#results"><code>??</code></a></p>
+</section>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/program.html"><small>이전</small>에러와 종료</a><a class="next" href="../../reference/prelude/concurrency.html"><small>다음</small>동시성</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>종료 코드와 표준 에러 · fung 매뉴얼</title>
+<meta name="description" content="종료 코드와 표준 에러.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">종료 코드와 표준 에러</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html" aria-current="page">종료 코드와 표준 에러</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">작은 도구</span></nav>
+<h1>종료 코드와 표준 에러</h1>
+<p class="lede">다른 프로그램이 내 스크립트의 결과를 읽는 두 통로, 종료 코드와 출력. 예제는 모니터링 도구(Nagios·Icinga·Sensu)의 규칙을 따르는 점검 스크립트다.</p>
+<p>스크립트를 cron, CI, systemd, 모니터링 도구가 부르면 사람이 아니라 프로그램이 결과를 읽는다. 그 프로그램이 보는 것은 두 가지다. <strong>종료 코드</strong>(exit code, 끝날 때 남기는 숫자 하나, 쉘의 <code>$?</code>)와 <strong>출력</strong>이다. 출력도 둘로 나뉜다. 결과 데이터는 표준 출력(stdout)으로, 진행 상황·경고·에러 메시지는 표준 에러(stderr)로 보내야 파이프와 리다이렉트가 데이터만 받는다. 여기서는 모니터링 점검의 관례(0 정상, 1 경고, 2 위험, 3 점검 불가)를 따르는 로그 점검 스크립트를 만든다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>n=$(grep -c ' ERROR ' &quot;$1&quot;) || true
+if [ &quot;$n&quot; -ge 10 ]; then echo &quot;CRITICAL - $n errors&quot;; exit 2
+elif [ &quot;$n&quot; -ge 1 ]; then echo &quot;WARNING - $n errors&quot;; exit 1
+else echo &quot;OK - $n errors&quot;; exit 0; fi</code></pre>
+<p><code>grep -c</code>는 맞는 줄이 없으면 종료 코드 1을 돌려줘서 <code>set -e</code> 아래에서는 <code>|| true</code>가 필요하다. 로그 파일이 없으면 <code>grep</code>이 에러를 표준 에러에 찍고 <code>n</code>이 빈 문자열이 되어, <code>[ &quot;&quot; -ge 10 ]</code>이 다시 에러를 내고 결국 엉뚱한 상태(대개 OK)로 끝난다. 점검이 <strong>돌지 못한</strong> 것과 <strong>문제가 없는</strong> 것이 구별되지 않는다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: app.log</summary>
+<p><code>app.log</code></p>
+<pre class="plain"><code>2026-10-20 09:00:01 INFO started on :8080
+2026-10-20 09:01:13 ERROR upstream timeout after 3000 ms
+2026-10-20 09:01:40 WARN slow query: 1840 ms
+2026-10-20 09:02:05 ERROR upstream timeout after 3000 ms
+2026-10-20 09:03:51 ERROR connection refused: db1:5432
+2026-10-20 09:04:00 INFO healthcheck ok</code></pre>
+<pre class="plain shell"><code>fung example.fung app.log --warn 2 --crit 5</code></pre>
+</details>
+<div class="run"><pre><code>#!/usr/bin/env fung
+# A monitoring check (Nagios, Icinga, Sensu): counts ERROR lines in a log.
+# One status line on standard output; the exit code is the verdict:
+#   0 OK, 1 WARNING, 2 CRITICAL, 3 UNKNOWN (the check itself could not run)
+# usage: fung check_errors.fung LOG [--warn 1] [--crit 10]
+import cli
+import fs
+
+fn finish(code, text):
+  names = [&quot;OK&quot;, &quot;WARNING&quot;, &quot;CRITICAL&quot;, &quot;UNKNOWN&quot;]
+  print(&quot;${names[code]} - ${text}&quot;)
+  exit(code)
+;;
+
+fn number(opts, name, default) = match parse_int(get(opts.flags, name, str(default))):
+  Ok(n)  =&gt; n
+  Err(_) =&gt; finish(3, &quot;--${name} is not a number&quot;)
+;;
+
+opts = cli.parse(args)
+file = first(opts.rest) ?? finish(3, &quot;usage: check_errors.fung LOG [--warn N] [--crit N]&quot;)
+warn = number(opts, &quot;warn&quot;, 1)
+crit = number(opts, &quot;crit&quot;, 10)
+
+log_lines = match fs.read_lines(file):
+  Ok(ls) =&gt; ls
+  Err(e) =&gt; finish(3, e.message)
+;;
+errors = log_lines |&gt; filter(l =&gt; &quot; ERROR &quot; in l) |&gt; len
+eprint(&quot;debug: ${len(log_lines)} lines read from ${file}&quot;)
+
+text = &quot;${errors} errors in ${file} | errors=${errors};${warn};${crit}&quot;
+if errors &gt;= crit: finish(2, text) ;;
+if errors &gt;= warn: finish(1, text) ;;
+finish(0, text)</code></pre><pre class="out err plain" data-code="1"><code>debug: 6 lines read from app.log
+WARNING - 3 errors in app.log | errors=3;2;5</code></pre></div>
+<p>에러 줄이 3개라 경고 기준(2)은 넘고 위험 기준(5)은 넘지 않았다. 그래서 <code>WARNING</code>과 종료 코드 1이다. <code>debug:</code> 줄은 표준 에러로 갔으므로 모니터링 도구는 보지 않는다. 없는 파일을 주면 이렇게 끝난다(직접 돌린 출력).</p>
+<pre class="plain"><code>$ fung check_errors.fung nope.log; echo &quot;exit $?&quot;
+UNKNOWN - cannot read `nope.log`: no such file or directory
+exit 3</code></pre>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>finish</code>: 상태 이름과 설명을 한 줄로 찍고 그 코드로 끝낸다. 모니터링 도구는 표준 출력의 첫 줄을 상태 메시지로 쓴다. <code>exit</code>는 돌아오지 않고, 끝나기 전에 열려 있는 <code>with</code>의 정리(파일 닫기 등)를 모두 돌린다.</li>
+<li><code>number</code>: 옵션 값을 정수로 바꾸고, 안 되면 <code>3</code>(점검 불가)으로 끝낸다. 설정 실수를 "문제 없음"이나 "경고"로 보고하지 않는다.</li>
+<li><code>first(opts.rest) ?? finish(3, …)</code>: 파일 이름이 없으면 사용법을 상태 메시지로 내고 3으로 끝난다.</li>
+<li><code>match fs.read_lines(file)</code>: 파일을 못 읽은 경우를 <code>Err</code>로 받아 직접 3으로 바꾼다. <code>!</code>를 쓰지 않는 이유는 아래 상자에 있다.</li>
+<li><code>&quot; ERROR &quot; in l</code>: 문자열의 <code>in</code>은 부분 문자열 검사다. 앞뒤 공백까지 넣어 <code>ERRORS</code> 같은 단어에 걸리지 않게 한다.</li>
+<li><code>eprint(…)</code>: 사람을 위한 진단은 표준 에러로. 수동으로 돌릴 때는 보이고, 도구는 무시한다.</li>
+<li><code>| errors=3;2;5</code>: 세로 막대 뒤는 Nagios 계열의 성능 데이터(performance data) 형식이다. 그래프를 그리는 도구가 읽는다.</li>
+<li>마지막 세 줄: 위험부터 확인한다. 기준을 넘으면 <code>finish</code>가 끝내므로 아래 줄은 돌지 않는다.</li>
+</ul>
+<div class="box mistake"><b>점검 스크립트 안의 <code>!</code></b>
+<p>평소 스크립트에서는 <code>fs.read_lines(file)!</code>가 가장 간단하다. 그러나 <code>!</code>가 <code>Err</code>를 만나면 fung은 에러를 표준 에러에 찍고 <strong>종료 코드 1</strong>로 끝난다. 모니터링 도구에게 1은 <code>WARNING</code>이다. 파일을 못 읽어 점검이 돌지 못했는데 "경고 하나"로 보고되는 것이다. 다른 규칙의 종료 코드를 쓰는 스크립트에서는 <code>Err</code>를 <code>match</code>로 받아 직접 코드를 정한다.</p>
+<div class="run"><pre><code>import fs
+
+log_lines = fs.read_lines(&quot;nope.log&quot;)!
+print(len(log_lines))</code></pre><pre class="out err plain" data-code="1"><code>error[E0603]: unhandled Err: cannot read `nope.log`: no such file or directory
+  --&gt; example.fung:3:38
+  |
+3 | log_lines = fs.read_lines(&quot;nope.log&quot;)!
+  |                                      ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>fung 자신의 종료 코드는 0(정상), 1(실행 중 실패), 2(문법 같은 컴파일 실패), 3(<code>fung</code> 명령을 잘못 씀), 그리고 <code>exit(n)</code>의 <code>n</code>이다(<a href="../reference/cli.html#errors">명령줄 도구</a>). 컴파일 실패의 2는 모니터링 쪽에서 <code>CRITICAL</code>로 읽히므로, 배포하기 전에 <code>fung check</code>로 확인해 둔다.</p>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>명령의 종료 코드 받기</strong>: <code>exec</code>는 0이 아닌 종료를 <code>Err({kind: 'exit, code, out, err})</code>로 준다. <code>systemctl is-active nginx</code>는 멈춘 서비스에 3을 돌려주므로 <code>match exec([&quot;systemctl&quot;, &quot;is-active&quot;, &quot;nginx&quot;]): Ok(_) =&gt; finish(0, &quot;nginx active&quot;); Err({kind: 'exit, out}) =&gt; finish(2, &quot;nginx ${trim(out)}&quot;); Err(e) =&gt; finish(3, e.message) ;;</code>처럼 옮긴다.</li>
+<li><strong>종료 코드 그대로 넘기기</strong>: 감싸는 스크립트라면 <code>Err({kind: 'exit, code}) =&gt; exit(code)</code>로 안쪽 명령의 코드를 그대로 돌려준다.</li>
+<li><strong>cron과 systemd</strong>: cron은 출력이 있으면 메일을 보내고 종료 코드는 보지 않는다. systemd는 0이 아닌 코드를 실패로 기록하고 <code>Restart=on-failure</code>면 다시 띄운다. 어떤 프로그램이 부를지에 따라 출력과 코드를 정한다.</li>
+<li><strong>사용법 오류는 2</strong>: 일반 명령줄 도구에서는 잘못 쓴 인자에 2를 쓰는 관례가 있다. <a href="cli-options.html">명령줄 옵션과 도움말</a>.</li>
+<li><strong>실패한 서버만</strong>: 여러 대를 점검해 하나라도 실패하면 1로 끝내는 모양은 <a href="unreachable-servers.html">실패·무응답 서버만 알리기</a>.</li>
+</ul>
+<p>배우기: <a href="../learn/09-errors.html">9장 에러</a>, <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>. 레퍼런스: <a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a>, <a href="../reference/prelude/io.html#fn-eprint"><code>eprint</code></a>, <a href="../reference/prelude/process.html#fn-exec"><code>exec</code></a>, <a href="../reference/modules/fs.html#fn-fs-read_lines"><code>fs.read_lines</code></a>, <a href="../reference/cli.html#errors">에러와 종료 코드</a>, <a href="../reference/language.html#results">결과값과 에러</a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/cli-options.html"><small>이전</small>명령줄 옵션과 도움말</a><a class="next" href="../recipes/webhook-server.html"><small>다음</small>웹훅을 받는 작은 HTTP 서버</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

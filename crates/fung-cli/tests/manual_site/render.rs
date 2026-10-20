@@ -27,6 +27,8 @@ pub struct Ctx<'a> {
     pub version: &'a Version,
     /// The wordmark's inline SVG.
     pub wordmark: &'a str,
+    /// The error catalog (`spec/errors.txt`): code → (message, help).
+    pub catalog: &'a BTreeMap<String, (String, String)>,
 }
 
 /// The page's HTML file path: `vm/internals.md` → `vm/internals.html`.
@@ -221,25 +223,7 @@ pub fn page_html(ctx: &Ctx, path: &str) -> String {
         .into_iter()
         .map(|(l, c)| (c as *const Code, l))
         .collect();
-    for b in &page.blocks {
-        match b {
-            Block::Html(x) => h += x,
-            Block::Heading { level, id, html } => {
-                let id = id
-                    .as_ref()
-                    .map_or(String::new(), |i| format!(" id=\"{i}\""));
-                h += &format!("<h{level}{id}>{html}</h{level}>");
-            }
-            Block::Parts => h += &cards(ctx, &up),
-            Block::Code(c) => {
-                let outcome = labels
-                    .get(&(c as *const Code))
-                    .and_then(|l| ctx.results.get(l));
-                h += &code_html(c, outcome);
-            }
-        }
-        h += "\n";
-    }
+    h += &blocks_html(ctx, &page.blocks, &labels, &up);
     if let Some((part, n, _)) = place {
         h += &pager(ctx, part, n, &up);
     }
@@ -248,6 +232,217 @@ pub fn page_html(ctx: &Ctx, path: &str) -> String {
         "<script src=\"{up}../versions.js\"></script>\n<script src=\"{up}assets/manual.js\"></script>\n"
     );
     h += "</body>\n</html>\n";
+    h
+}
+
+/// The HTML of a run of blocks (a page's, or a container's).
+fn blocks_html(
+    ctx: &Ctx,
+    blocks: &[Block],
+    labels: &HashMap<*const Code, String>,
+    up: &str,
+) -> String {
+    let mut h = String::new();
+    for b in blocks {
+        match b {
+            Block::Html(x) => h += x,
+            Block::Heading { level, id, html } => {
+                let id = id
+                    .as_ref()
+                    .map_or(String::new(), |i| format!(" id=\"{i}\""));
+                h += &format!("<h{level}{id}>{html}</h{level}>");
+            }
+            Block::Parts => h += &cards(ctx, up),
+            Block::Functions => h += &function_list(ctx, up),
+            Block::Errors => h += &error_index(ctx),
+            Block::Code(c) => {
+                let outcome = labels
+                    .get(&(c as *const Code))
+                    .and_then(|l| ctx.results.get(l));
+                h += &code_html(c, outcome);
+            }
+            Block::Container {
+                kind, arg, blocks, ..
+            } => h += &container(ctx, kind, arg, blocks, labels, up),
+        }
+        h += "\n";
+    }
+    h
+}
+
+/// A function entry's name, anchor, signature and whether it is written
+/// in fung, from `:::fn SIGNATURE [fung]`.
+pub fn fn_entry(arg: &str) -> (String, String, String, bool) {
+    let (sig, by) = match arg.strip_suffix(" fung") {
+        Some(s) => (s.trim(), true),
+        None => (arg, false),
+    };
+    let name = sig.split('(').next().unwrap().trim().to_string();
+    let id = format!("fn-{}", name.replace('.', "-"));
+    (name, id, sig.to_string(), by)
+}
+
+/// A container's HTML.
+fn container(
+    ctx: &Ctx,
+    kind: &str,
+    arg: &str,
+    blocks: &[Block],
+    labels: &HashMap<*const Code, String>,
+    up: &str,
+) -> String {
+    match kind {
+        "fn" => {
+            let (name, id, sig, by) = fn_entry(arg);
+            let by = if by {
+                "<span class=\"by\">fung으로 작성</span>"
+            } else {
+                ""
+            };
+            // the summary (the first paragraph) goes above the signature
+            let (summary, rest) = match blocks.first() {
+                Some(Block::Html(p)) if p.starts_with("<p>") => (p.as_str(), &blocks[1..]),
+                _ => ("", blocks),
+            };
+            format!(
+                "<section class=\"entry\" id=\"{id}\">\n<h3>{}{by}</h3>\n{summary}\n<div class=\"sig\"><code>{}</code></div>\n{}</section>",
+                escape(&name),
+                escape(&sig),
+                blocks_html(ctx, rest, labels, up)
+            )
+        }
+        "error" => {
+            let (message, help) = ctx.catalog.get(arg).cloned().unwrap_or_default();
+            let help = if help.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "<p class=\"help\">도움말: <code>{}</code></p>\n",
+                    escape(&help)
+                )
+            };
+            format!(
+                "<section class=\"entry error\" id=\"{arg}\">\n<h3>{arg}</h3>\n<p class=\"catalog\"><code>{}</code></p>\n{}{help}</section>",
+                escape(&message),
+                blocks_html(ctx, blocks, labels, up)
+            )
+        }
+        "box" => {
+            let (k, title) = arg.split_once(' ').unwrap();
+            format!(
+                "<div class=\"box {k}\"><b>{}</b>\n{}</div>",
+                inline(title.trim()),
+                blocks_html(ctx, blocks, labels, up)
+            )
+        }
+        "goals" => format!(
+            "<div class=\"goals\"><b>이 장에서 배울 것</b>\n{}</div>",
+            blocks_html(ctx, blocks, labels, up)
+        ),
+        "exercise" => format!(
+            "<div class=\"exercise\"><b>{}</b>\n{}</div>",
+            inline(arg),
+            blocks_html(ctx, blocks, labels, up)
+        ),
+        "solution" => format!(
+            "<details><summary>풀이 보기</summary>\n{}</details>",
+            blocks_html(ctx, blocks, labels, up)
+        ),
+        _ => unreachable!("the parser checks container kinds"),
+    }
+}
+
+/// Every function entry of the manual, in contents order: (page,
+/// name, anchor, summary text).
+pub fn functions(ctx: &Ctx) -> Vec<(String, String, String, String)> {
+    fn walk(blocks: &[Block], page: &str, out: &mut Vec<(String, String, String, String)>) {
+        for b in blocks {
+            if let Block::Container {
+                kind, arg, blocks, ..
+            } = b
+            {
+                if kind == "fn" {
+                    let (name, id, _, _) = fn_entry(arg);
+                    let summary = match blocks.first() {
+                        Some(Block::Html(p)) if p.starts_with("<p>") => strip_tags(p),
+                        _ => String::new(),
+                    };
+                    out.push((page.to_string(), name, id, summary));
+                }
+                walk(blocks, page, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for part in &ctx.toc.parts {
+        for p in part.pages() {
+            walk(&ctx.pages[p].blocks, p, &mut out);
+        }
+    }
+    out
+}
+
+/// Text without its tags.
+fn strip_tags(html: &str) -> String {
+    let mut out = String::new();
+    let mut tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => tag = true,
+            '>' => tag = false,
+            c if !tag => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// `{{functions}}`: every function, by page, with the filter.
+fn function_list(ctx: &Ctx, up: &str) -> String {
+    let all = functions(ctx);
+    let mut h = format!(
+        "<div class=\"filter\">\n<label for=\"fn-search\" class=\"note\">이름이나 설명으로 찾기</label><br>\n\
+         <input id=\"fn-search\" type=\"search\" placeholder=\"예: split, 정렬, Err\" autocomplete=\"off\">\n\
+         <p id=\"fn-count\">{}개 함수</p>\n</div>\n<div class=\"fn-list\">\n",
+        all.len()
+    );
+    let mut current = "";
+    for (page, name, id, summary) in &all {
+        if page != current {
+            if !current.is_empty() {
+                h += "</ul></section>\n";
+            }
+            current = page;
+            h += &format!(
+                "<section class=\"group\"><h3><a href=\"{up}{}\">{}</a></h3><ul>\n",
+                out_path(page),
+                escape(&ctx.pages[page.as_str()].title)
+            );
+        }
+        h += &format!(
+            "<li class=\"fn\"><a href=\"{up}{}#{id}\"><code>{}</code></a> {}</li>\n",
+            out_path(page),
+            escape(name),
+            summary
+        );
+    }
+    if !current.is_empty() {
+        h += "</ul></section>\n";
+    }
+    h += "</div>";
+    h
+}
+
+/// `{{errors}}`: an index of the catalog's codes, linking their entries.
+fn error_index(ctx: &Ctx) -> String {
+    let mut h = String::from("<div class=\"error-index\">");
+    for (code, (message, _)) in ctx.catalog {
+        h += &format!(
+            "<a href=\"#{code}\"><code>{code}</code> {}</a>",
+            escape(message)
+        );
+    }
+    h += "</div>";
     h
 }
 
@@ -412,7 +607,7 @@ fn code_html(c: &Code, outcome: Option<&Outcome>) -> String {
         Kind::Check => {
             h += &pre("", &c.src);
             if let Some(e) = &c.expect {
-                h += "\n<p class=\"unchecked\">검사만 하는 예제다. 실행하지 않으므로 아래 출력은 예상이다.</p>\n";
+                h += "\n<p class=\"unchecked\">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>\n";
                 h += &pre("plain", e);
             }
         }

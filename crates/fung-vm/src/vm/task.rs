@@ -1,6 +1,5 @@
-//! Tasks (05, stage 3a): `spawn(s, f)` runs a function on a new
-//! operating-system thread inside scope `s` (`scope.rs`) and hands back a
-//! handle; the handle keeps the task's result for `await` and cancels it.
+//! Tasks (05): `spawn(s, f)` runs a function as a new task inside scope
+//! `s` (`scope.rs`) and hands back a handle; the handle keeps the task's result for `await` and cancels it.
 //!
 //! **Fibers.** A spawned task is a `Fiber` the scheduler runs on the
 //! run thread (`sched.rs`): its function is called with its end waiting

@@ -11,11 +11,11 @@
 //! **Waking.** A parked task registered its waiter on what it waits for;
 //! whoever changes that thing calls `Waiter::wake`, which puts the task's
 //! id on the ready queue (`Ready`) the first time since the task last
-//! looked (`take_woken`). The queue sits behind a mutex and a condition
-//! variable, because other threads wake tasks too (an offload's job, the
-//! standard input reader) and the signal thread posts events (`Event`).
-//! When nothing is ready the run thread waits on that condition variable,
-//! at most until the earliest timer.
+//! looked (`take_woken`). The queue sits behind a mutex, because other
+//! threads wake tasks too (an offload's job, the standard input reader)
+//! and the signal thread posts events (`Event`); a wake from another
+//! thread rouses the event loop. When nothing is ready the run thread
+//! sleeps in the event loop (`poll_io`), at most until the earliest timer.
 //!
 //! **No wake is lost.** A task takes its woken flag and registers its
 //! waiter before it checks its condition (`park_until`). A change after

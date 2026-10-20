@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>에러와 종료 · fung 매뉴얼</title>
+<meta name="description" content="fung prelude 에러와 종료: fail, with, exit, args.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">에러와 종료</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html" aria-current="page">에러와 종료</a><ol class="toc2"><li><a href="#concepts">프로그램의 시작과 끝</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
+<h1>에러와 종료</h1>
+<p class="lede">프로그램이 받은 인자, 프로그램을 끝내는 법, 버그를 알리는 법, 무슨 일이 있어도 정리를 하는 법을 다룬다.</p>
+<h2 id="concepts">프로그램의 시작과 끝</h2>
+<p>명령줄 프로그램은 <strong>인자</strong>(argument)를 받아 시작하고 <strong>종료 코드</strong>(exit code)를 남기고 끝난다. 인자는 <code>fung run deploy.fung prod web-1</code>에서 스크립트 경로 뒤의 낱말들(<code>prod</code>, <code>web-1</code>)이고, fung에서는 <a href="#fn-args"><code>args</code></a>로 읽는다. 종료 코드는 0부터 255까지의 수로, 0은 성공, 그 밖은 실패를 뜻한다. 셸의 <code>$?</code>, <code>&amp;&amp;</code>·<code>||</code>, CI, cron, systemd가 모두 이 수로 성공을 판단한다.</p>
+<p>fung 프로그램이 끝나는 길은 다음과 같다.</p>
+<table>
+  <thead><tr><th>끝나는 길</th><th>종료 코드</th></tr></thead>
+  <tbody>
+    <tr><td>진입 파일의 마지막 줄까지 실행</td><td>0</td></tr>
+    <tr><td><code>exit(n)</code></td><td><code>n</code></td></tr>
+    <tr><td>런타임 에러(<code>fail</code>, <code>r!</code>의 <code>Err</code>, 0으로 나누기, 없는 키 …)</td><td>1</td></tr>
+    <tr><td>컴파일 에러(문법, 정의되지 않은 이름 …): 실행 전에 멈춘다</td><td>2</td></tr>
+    <tr><td>SIGINT·SIGTERM(Ctrl-C, <code>kill</code>)으로 취소</td><td>130·143(<a href="concurrency.html#fn-stop_signal"><code>stop_signal</code></a>)</td></tr>
+  </tbody>
+</table>
+<p><strong>런타임 에러</strong>는 "여기 오면 코드가 틀린 것"을 알리는 멈춤이다. 메시지, 에러 번호, 난 곳과 호출 경로를 표준 에러에 찍고 끝난다. 실패할 수 있는 일(파일 없음, 수가 아닌 입력)은 <a href="results.html">결과값</a>으로 돌려주고, 런타임 에러는 버그에만 쓴다는 것이 fung의 나눔이다. 런타임 에러를 잡아 되살리는 <code>try</code>/<code>catch</code>는 없다. 그 대신 끝나기 전에 꼭 해야 하는 정리(임시 파일 지우기, 잠금 풀기, 연결 닫기)는 <a href="#fn-with"><code>with</code></a>로 묶어 두면 어떻게 끝나든 돈다.</p>
+<h2 id="functions">함수</h2>
+<section class="entry" id="fn-fail">
+<h3>fail</h3>
+<p>인자를 <code>print</code>처럼 이은 메시지로 런타임 에러(E0803)를 내고 멈춘다.</p>
+<div class="sig"><code>fail(...args)</code></div>
+<h4>설명</h4>
+<p>"여기 오면 버그"라고 말할 때 쓴다. 메시지는 <a href="io.html#fn-print"><code>print</code></a>와 같은 규칙으로 인자를 공백으로 이은 것이다. 인자가 없으면 메시지는 <code>fail</code>이다. 런타임 에러이므로 종료 코드는 1이고, 지나는 <a href="#fn-with"><code>with</code></a>의 정리는 돈다. 태스크 안에서 부르면 그 태스크가 실패하고, 범위가 그 실패를 받는다(<a href="concurrency.html#fn-scope"><code>scope</code></a>, <a href="concurrency.html#fn-supervise"><code>supervise</code></a>).</p>
+<p><code>fail</code>은 값을 돌려주지 않으므로 어떤 식 자리에도 쓸 수 있다. 특히 <code>??</code>와 짝이 맞는다: <code>cfg.port ?? fail(&quot;config.port is required&quot;)</code>. 사용자가 고칠 수 있는 실패(잘못된 입력, 없는 파일)라면 <code>fail</code> 대신 <code>eprint</code>로 이유를 알리고 <code>exit(1)</code>하거나 <code>Err</code>를 돌려주는 편이 친절하다. <code>fail</code>의 메시지에는 소스 위치와 호출 경로가 붙기 때문이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>args</code>: 메시지를 이룰 값들.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>돌아오지 않는다.</p>
+<h4>에러</h4>
+<p>언제나 런타임 에러 E0803.</p>
+<h4>예제</h4>
+<p><strong>필수 값이 없을 때</strong></p>
+<div class="run"><pre><code>cfg = {host: &quot;db-1&quot;}
+port = get(cfg, &quot;port&quot;) ?? fail(&quot;config.port is required&quot;)
+print(port)</code></pre><pre class="out err plain" data-code="1"><code>error[E0803]: config.port is required
+  --&gt; example.fung:2:32
+  |
+2 | port = get(cfg, &quot;port&quot;) ?? fail(&quot;config.port is required&quot;)
+  |                                ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<p><strong>여러 값으로 메시지 만들기</strong></p>
+<div class="run"><pre><code>fn check_port(n) = n &gt; 0 and n &lt; 65536 then n else fail(&quot;bad port:&quot;, n, &quot;(want 1..65535)&quot;)
+
+print(check_port(443))
+print(check_port(70000))</code></pre><pre class="out err plain" data-code="1"><code>443
+error[E0803]: bad port: 70000 (want 1..65535)
+  --&gt; example.fung:1:56
+  |
+1 | fn check_port(n) = n &gt; 0 and n &lt; 65536 then n else fail(&quot;bad port:&quot;, n, &quot;(want 1..65535)&quot;)
+  |                                                        ^
+  |
+ call path (innermost first):
+   example.fung:1 check_port
+   example.fung:4 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-exit"><code>exit</code></a>, <a href="io.html#fn-eprint"><code>eprint</code></a>, <a href="../language.html#results">결과값과 에러</a>, <a href="../errors.html#E0803">E0803</a></p>
+</section>
+<section class="entry" id="fn-with">
+<h3>with</h3>
+<p><code>acquire()</code>로 얻은 것을 <code>use</code>에 넘기고, <code>use</code>가 어떻게 끝나든 <code>release</code>를 부른다.</p>
+<div class="sig"><code>with(acquire, use, release)</code></div>
+<h4>설명</h4>
+<p>자원(resource)을 빌리고 돌려주는 모양을 한 함수로 묶는다. 파일, 잠금, 임시 디렉터리, 서버 연결처럼 "얻었으면 반드시 돌려줘야 하는 것"에 쓴다.</p>
+<ol>
+<li><code>acquire()</code>를 부른다. 여기서 런타임 에러가 나면 얻은 것이 없으므로 <code>release</code>는 돌지 않는다.</li>
+<li>얻은 값 <code>r</code>로 <code>use(r)</code>를 부른다.</li>
+<li><code>use</code>가 어떻게 끝나든, 곧 값을 돌려주든, <code>Err</code>를 돌려주든, 런타임 에러가 나든, 취소되든, <code>exit</code>가 불리든 <code>release(r)</code>를 부른다.</li>
+<li><code>use</code>가 정상으로 끝났으면 그 값이 <code>with</code>의 결과다.</li>
+</ol>
+<p><code>acquire</code>가 <code>Err</code>를 돌려줘도 그것이 "얻은 값"이다. <code>use</code>와 <code>release</code>는 그 <code>Err</code>를 그대로 받으므로 열기에 실패할 수 있는 자원은 둘 다에서 <code>match</code>로 가른다. <a href="../modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a>과 <a href="../modules/fs.html#fn-fs-with_temp_dir"><code>fs.with_temp_dir</code></a>이 이것을 대신 해 주는 <code>with</code>이므로 파일과 임시 디렉터리에는 그쪽을 쓴다.</p>
+<p><code>release</code>는 그것을 부르게 만든 취소나 기한(<a href="concurrency.html#fn-timeout"><code>timeout</code></a>)에 끊기지 않는다. 정리가 반쯤 하다 마는 일이 없게 하려는 것이다.</p>
+<p><code>release</code>의 실패는 버리지 않는다. <code>use</code>도 실패했으면 <code>use</code>의 에러에 <code>note: also failed in release</code>로 붙고, 아니면 <code>release</code>의 에러가 난다. <code>release</code>의 결과는 버리는 값이라 <code>Err</code>를 돌려주면 E0606이다. 실패해도 되는 정리는 <code>fn(c): _ = close(c) ;;</code>처럼 일부러 버린다. 프로그램이 끝날 때의 정리도 <code>with</code>로 한다(따로 <code>at_exit</code> 같은 것은 없다). 프로그램 전체를 <code>with</code>의 <code>use</code> 안에 두면 된다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>acquire</code>: 인자 없이 불려 자원을 돌려주는 함수.</li>
+<li><code>use</code>: 자원을 받아 일을 하는 함수. 그 결과가 <code>with</code>의 결과다.</li>
+<li><code>release</code>: 자원을 받아 정리하는 함수. 결과는 버린다.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>use</code>의 결과.</p>
+<h4>에러</h4>
+<ul>
+<li><code>use</code>나 <code>release</code>의 런타임 에러는 그대로 난다(둘 다면 <code>use</code>의 에러에 <code>release</code>의 것이 붙는다).</li>
+<li><code>release</code>가 <code>Err</code>를 돌려주면 E0606.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>정상으로 끝날 때</strong></p>
+<div class="run"><pre><code>print(with(() =&gt; &quot;conn&quot;, c =&gt; c + &quot; used&quot;, c =&gt; print(&quot;closed&quot;, c)))</code></pre><pre class="out plain"><code>closed conn
+conn used</code></pre></div>
+<p><code>release</code>가 먼저 돌고, 그 뒤에 <code>with</code>의 결과가 찍힌다.</p>
+<p><strong>use가 실패해도 정리는 돈다</strong></p>
+<div class="run"><pre><code>with(() =&gt; &quot;/tmp/lock&quot;, fn(lock):
+  print(&quot;working with&quot;, lock)
+  fail(&quot;disk full&quot;)
+;;, lock =&gt; print(&quot;removed&quot;, lock))</code></pre><pre class="out err plain" data-code="1"><code>working with /tmp/lock
+removed /tmp/lock
+error[E0803]: disk full
+  --&gt; example.fung:3:7
+  |
+3 |   fail(&quot;disk full&quot;)
+  |       ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;lambda&gt;
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<p><strong>exit와 기한에도 정리는 돈다</strong></p>
+<div class="run"><pre><code>r = timeout(20ms, () =&gt; with(() =&gt; &quot;lock&quot;, fn(c):
+  sleep(1s)
+  &quot;done&quot;
+;;, fn(c):
+  sleep(30ms)
+  print(&quot;released&quot;, c)
+;;))
+print(r)</code></pre><pre class="out plain"><code>released lock
+Err({kind: 'timeout})</code></pre></div>
+<p><code>release</code>의 <code>sleep(30ms)</code>는 이미 지난 기한에 끊기지 않고 끝까지 돈다.</p>
+<p><strong>실패해도 되는 정리</strong></p>
+<div class="run"><pre><code>fn cleanup(path) = exec([&quot;rm&quot;, path])
+
+r = with(() =&gt; &quot;./no-such-file&quot;, p =&gt; &quot;used ${p}&quot;, fn(p):
+  _ = cleanup(p)
+;;)
+print(r)</code></pre><pre class="out plain"><code>used ./no-such-file</code></pre></div>
+<p><code>rm</code>은 실패하지만 <code>_ =</code>로 일부러 버렸으므로 멈추지 않는다.</p>
+<h4>같이 보기</h4>
+<p><a href="../modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a>, <a href="../modules/fs.html#fn-fs-with_temp_dir"><code>fs.with_temp_dir</code></a>, <a href="#fn-exit"><code>exit</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, <a href="concurrency.html#fn-stop_signal"><code>stop_signal</code></a></p>
+</section>
+<section class="entry" id="fn-exit">
+<h3>exit</h3>
+<p>프로그램을 끝내고 종료 코드 <code>code</code>를 남긴다.</p>
+<div class="sig"><code>exit(code = 0)</code></div>
+<h4>설명</h4>
+<p>어느 태스크에서 불러도 프로그램 전체를 끝낸다. 남은 태스크는 모두 취소되고, 되감기가 지나는 모든 <a href="#fn-with"><code>with</code></a>의 <code>release</code>가 돈 뒤 그 코드로 끝난다. 성공은 <code>exit()</code>이나 <code>exit(0)</code>, 실패는 보통 <code>exit(1)</code>이다. 진입 파일의 끝까지 가면 저절로 0으로 끝나므로 성공 때는 <code>exit</code>를 쓸 필요가 없다.</p>
+<p>종료 코드는 운영체제가 하위 8비트만 남기므로 0부터 255까지를 쓴다. 그 밖의 수는 256으로 나눈 나머지가 된다(<code>exit(256)</code>은 0, <code>exit(-1)</code>은 255).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>code</code>: 정수. 기본은 0.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>돌아오지 않는다.</p>
+<h4>에러</h4>
+<p><code>code</code>가 정수가 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>실패를 알리고 끝내기</strong></p>
+<div class="run"><pre><code>missing = [&quot;DB_HOST&quot;, &quot;DB_USER&quot;] |&gt; filter(k =&gt; env(k) == nil)
+if not is_empty(missing):
+  eprint(&quot;missing env:&quot;, join(missing, &quot;, &quot;))
+  exit(2)
+;;
+print(&quot;all set&quot;)</code></pre><pre class="out err plain" data-code="2"><code>missing env: DB_HOST, DB_USER</code></pre></div>
+<p><strong>exit 뒤에도 정리는 돈다</strong></p>
+<div class="run"><pre><code>with(() =&gt; &quot;tmp&quot;, fn(t):
+  print(&quot;exiting&quot;)
+  exit(3)
+;;, t =&gt; print(&quot;cleaned&quot;, t))</code></pre><pre class="out err plain" data-code="3"><code>exiting
+cleaned tmp</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-fail"><code>fail</code></a>, <a href="#fn-with"><code>with</code></a>, <a href="io.html#fn-eprint"><code>eprint</code></a>, <a href="concurrency.html#fn-request_stop"><code>request_stop</code></a></p>
+</section>
+<section class="entry" id="fn-args">
+<h3>args</h3>
+<p>스크립트 경로 뒤의 명령행 인자를 담은 문자열 리스트. 함수가 아니라 값이다.</p>
+<div class="sig"><code>args</code></div>
+<h4>설명</h4>
+<p><code>fung run deploy.fung prod --dry-run</code>이면 <code>args</code>는 <code>[&quot;prod&quot;, &quot;--dry-run&quot;]</code>이다. 스크립트 경로와 <code>fung run</code>은 들어가지 않는다. 인자가 없으면 <code>[]</code>다. 함수가 아니므로 괄호 없이 <code>args</code>로 쓴다.</p>
+<p>인자는 언제나 문자열이라 수나 기간이 필요하면 <a href="convert.html#fn-parse_int"><code>parse_int</code></a>·<a href="convert.html#fn-parse_dur"><code>parse_dur</code></a>로 바꾼다. <code>--name value</code> 같은 옵션과 도움말이 필요하면 <a href="../modules/cli.html"><code>cli</code> 모듈</a>이 <code>args</code>를 읽어 준다.</p>
+<h4>매개변수</h4>
+<p>없다(값이다).</p>
+<h4>돌려주는 값</h4>
+<p>문자열의 리스트.</p>
+<h4>에러</h4>
+<p>없다.</p>
+<h4>예제</h4>
+<p><strong>인자 읽기</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>fung example.fung prod web-1 web-2</code></pre>
+</details>
+<div class="run"><pre><code>match args:
+  []                   =&gt; print(&quot;usage: deploy ENV HOST...&quot;)
+  [env_name, ...hosts] =&gt; print(&quot;deploying to&quot;, env_name, hosts)
+;;</code></pre><pre class="out plain"><code>deploying to prod [&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
+<p><strong>인자가 없을 때</strong></p>
+<div class="run"><pre><code>if is_empty(args):
+  eprint(&quot;usage: count N&quot;)
+  exit(2)
+;;
+print(parse_int(args[0])!)</code></pre><pre class="out err plain" data-code="2"><code>usage: count N</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="../modules/cli.html"><code>cli</code> 모듈</a>, <a href="process.html#fn-env"><code>env</code></a>, <a href="../cli.html">명령줄 도구</a></p>
+</section>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/loops.html"><small>이전</small>반복 패턴</a><a class="next" href="../../reference/prelude/process.html"><small>다음</small>프로세스와 환경</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

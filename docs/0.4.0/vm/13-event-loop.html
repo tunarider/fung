@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>이벤트 루프와 스레드 풀 · fung 매뉴얼</title>
+<meta name="description" content="이벤트 루프와 스레드 풀. 운영체제를 기다리는 일을 스레드 하나 위에서 다루는 법, kqueue·epoll의 준비 상태 알림과 one-shot 등록, 소켓 연산의 &quot;다시 해 보기&quot;, 파일·이름 조회를 맡는 스레드 풀, 외부 명령, 그리고 fung 값이 실행 스레드를 떠나지 않게 하는 타입.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">13. 이벤트 루프와 스레드 풀</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html" aria-current="page">13. 이벤트 루프와 스레드 풀</a><ol class="toc2"><li><a href="#waits">운영체제를 기다리는 일</a></li><li><a href="#event-loop">이벤트 루프</a></li><li><a href="#retry">소켓 연산: 다시 해 보기</a></li><li><a href="#pool">스레드 풀</a></li><li><a href="#commands">외부 명령</a></li><li><a href="#stdin">표준 입력</a></li><li><a href="#one-thread">값은 실행 스레드에만</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">4부 런타임</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>13장</span></nav>
+<h1>이벤트 루프와 스레드 풀</h1>
+<p class="lede">소켓과 외부 명령은 kqueue·epoll 이벤트 루프 위에서, 파일과 이름 조회와 정규식 컴파일은 스레드 풀에서 기다린다. 어느 쪽이든 fung 값은 실행 스레드를 떠나지 않고, 그것을 Rust 타입이 지킨다.</p>
+<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li>바이트코드</li><li class="on">실행</li></ol>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>막히는 시스템 호출이 M:1 런타임에 왜 위험한가</li>
+<li>이벤트 루프: <code>select</code>에서 kqueue·epoll까지, 준비 상태 기반과 완료 기반</li>
+<li>소켓 연산을 "한 번 해 보고, 막히면 등록하고, 깨어나면 처음부터 다시" 하는 방식</li>
+<li>스레드 풀이 맡는 일, 그리고 취소될 때 일을 버리는가 기다리는가</li>
+<li>외부 명령의 끝과 파이프 셋을 함께 기다리는 법</li>
+<li>fung 값이 실행 스레드에만 산다는 규칙과 그것을 지키는 <code>Send</code>·<code>Sync</code></li>
+</ul>
+</div>
+<h2 id="waits">운영체제를 기다리는 일</h2>
+<p>12장의 주차는 다른 <strong>태스크</strong>를 기다릴 때의 이야기였다(채널, <code>await</code>). 실제 프로그램은 <strong>운영체제</strong>도 기다린다.</p>
+<ul>
+<li>소켓에 데이터가 올 때까지(<code>read</code>), 상대가 받을 자리가 날 때까지(<code>write</code>), 새 연결이 올 때까지(<code>accept</code>)</li>
+<li>외부 명령이 끝날 때까지, 그 명령의 출력이 나올 때까지</li>
+<li>파일을 읽거나 쓰는 동안, 디렉터리를 훑는 동안</li>
+<li>호스트 이름을 IP 주소로 바꾸는 동안(이름 조회, DNS)</li>
+</ul>
+<p>이런 시스템 호출은 보통 <strong>막힌다</strong>(blocking). 답이 올 때까지 그 호출을 한 스레드가 돌아오지 않는다. 운영체제 스레드마다 태스크 하나라면 상관없다. 그 스레드만 잔다. 하지만 fung은 실행 스레드 하나가 모든 태스크를 돈다(12장). 한 태스크가 <code>read</code>에서 막히면 <strong>모든 태스크가 멈춘다.</strong> 그래서 M:1 런타임에는 운영체제를 기다리는 두 가지 장치가 필요하다.</p>
+<ol>
+<li><strong>이벤트 루프.</strong> 막히지 않는 모드로 시스템 호출을 하고, "준비되면 알려 달라"고 운영체제에 등록한 뒤 다른 일을 한다. 소켓과 파이프처럼 운영체제가 준비 상태를 알려 줄 수 있는 것에 쓴다.</li>
+<li><strong>스레드 풀.</strong> 준비 상태를 알 수 없는 것(일반 파일은 언제나 "준비됨"으로 보이지만 실제로는 디스크를 기다린다, 이름 조회 함수는 막히는 함수뿐이다)은 다른 운영체제 스레드에 맡기고 결과를 기다린다.</li>
+</ol>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Node.js</strong>의 libuv가 거의 같은 구조다. 소켓은 epoll·kqueue(Windows는 IOCP) 이벤트 루프에서, 파일 시스템·이름 조회(<code>getaddrinfo</code>)·일부 암호 연산은 스레드 풀(기본 4개)에서 돌린다.</li>
+<li><strong>Python</strong>의 <code>asyncio</code>도 소켓은 <code>selectors</code> 모듈(epoll·kqueue)로 기다리고, 막히는 일은 <code>run_in_executor</code>로 스레드 풀에 넘긴다.</li>
+<li><strong>Rust</strong>의 tokio는 <code>mio</code>라는 크레이트로 epoll·kqueue를 감싸고, 막히는 일은 <code>spawn_blocking</code>의 스레드 풀에 맡긴다.</li>
+</ul>
+</div>
+<h2 id="event-loop">이벤트 루프</h2>
+<h3 id="history">select에서 epoll·kqueue로</h3>
+<p>오래된 방법은 <code>select</code>와 <code>poll</code>이다. "이 fd(파일 디스크립터, 열린 파일·소켓의 번호) 목록 중 준비된 것이 있으면 알려 달라." 문제는 부를 때마다 목록 전체를 커널에 넘기고, 커널도 전체를 훑는다는 점이다. 연결 1만 개를 쥔 서버라면 깨어날 때마다 1만 개를 훑는다.</p>
+<p>그래서 운영체제들은 <strong>등록을 커널에 남겨 두는</strong> API를 만들었다. Linux의 <strong>epoll</strong>, BSD와 macOS의 <strong>kqueue</strong>다. 한 번 등록해 두면 기다릴 때는 "준비된 것만" 받는다.</p>
+<p>운영체제가 "여러 개를 한꺼번에 기다리기"를 주는 방식은 두 갈래다.</p>
+<ul>
+<li><strong>준비 상태 기반</strong>(readiness-based; kqueue, epoll): "이 fd가 읽을 수 있게 되면 알려 달라." 알림이 오면 프로그램이 직접 <code>read</code>한다.</li>
+<li><strong>완료 기반</strong>(completion-based; Linux io_uring, Windows IOCP): "이 버퍼에 읽어 두고, 다 되면 알려 달라." 운영체제가 읽는 동안 버퍼를 빌려 간다.</li>
+</ul>
+<div class="box choice"><b>fung의 선택: 준비 상태 기반, one-shot, libc로 직접</b>
+<ul>
+<li><strong>준비 상태 기반.</strong> 완료 기반은 일이 끝날 때까지 버퍼가 커널의 것이라, 태스크가 취소돼도 버퍼를 바로 놓을 수 없다. 그리고 macOS에는 완료 기반이 없다(노트 R7-scheduler의 R4a, 스펙 15절).</li>
+<li><strong>one-shot 등록.</strong> 알림이 한 번 오면 그 등록은 잠든다. 기다리던 태스크가 시스템 호출을 다시 해 보고, 여전히 막힐 때만 다시 등록한다. 그래서 아무도 기다리지 않는 fd가 루프를 깨우는 일이 없고, 알림 하나를 두 기다림이 나눠 받는 일도 없다.</li>
+<li><strong><code>libc</code>로 직접 감싼다.</strong> 이벤트 루프 크레이트(<code>mio</code>)를 쓰지 않고 kqueue와 epoll을 같은 작은 API 뒤에 숨겼다(스펙 2절). fung은 의존성을 허용 목록으로 최소화하고, 운영체제 접근은 <code>libc</code> 하나로 한다.</li>
+</ul>
+</div>
+<p>그 작은 API는 <code>crates/fung-vm/src/vm/poller.rs</code>의 <code>Poller</code>다. 등록(<code>register</code>), 해제(<code>deregister</code>), 시간 제한 있는 기다림(<code>wait</code>), 다른 스레드에서 깨우기(<code>Waker</code>) 넷이다. 아래에 운영체제마다 한 파일이 있다(<code>poller/kqueue.rs</code>, <code>poller/epoll.rs</code>). kqueue는 (fd, 방향)마다 따로 등록되므로 한 연결의 읽기 기다림과 쓰기 기다림이 저절로 갈린다. epoll은 fd마다 등록이 하나뿐이라, 두 방향의 토큰을 따로 쥐고 알림이 오면 남은 방향을 다시 건다.</p>
+<h3 id="tokens">토큰: fd 번호는 다시 쓰인다</h3>
+<p>fd 번호는 닫히면 곧바로 다른 소켓이 가져간다. 등록을 fd 번호로 찾으면, 닫힌 연결을 기다리던 태스크가 새 소켓의 알림에 깨어날 수 있다. 그래서 fung은 주차할 때마다 새 <strong>토큰</strong>(번호)을 붙여 등록하고, "토큰 → (깨움 표시, fd)" 표(<code>World::io</code>)에 넣는다.</p>
+<ul>
+<li>기다림이 끝나면(알림, 기한, 취소, 다른 깨움) 토큰을 표에서 뺀다. 표에 없는 토큰의 알림은 버린다.</li>
+<li>소켓을 닫을 때는 그 fd의 등록을 먼저 지우고 기다리던 태스크를 깨운 뒤에 fd를 닫는다(<code>drop_io_waits</code>). 등록이 fd보다 오래 살지 않는다.</li>
+</ul>
+<h3 id="waker">잠든 스케줄러 깨우기</h3>
+<p>할 일이 없으면 실행 스레드는 이벤트 루프의 <code>wait</code> 안에서 잔다(12장 스케줄러의 7단계). 그런데 스레드 풀의 일, 표준 입력 읽기 스레드, 신호 스레드는 루프 밖에서 태스크를 깨운다. 그 깨움은 루프의 <strong>깨우개</strong>를 당겨서 전한다. macOS는 kqueue의 <code>EVFILT_USER</code>, Linux는 <code>eventfd</code>다.</p>
+<p>"자려는 순간 온 깨움"을 잃지 않는 순서는 12장의 잃어버린 깨움과 같은 모양이다.</p>
+<ol>
+<li>실행 스레드는 대기열 잠금 아래에서 "비었음"을 확인하고 <code>sleeping</code> 표시를 세운다. 잠금을 풀고 루프에서 기다린다.</li>
+<li>깨우는 쪽은 같은 잠금 아래에서 번호를 넣고, <code>sleeping</code>이면 깨우개를 당긴다.</li>
+<li>깨우개는 기다리기 전에 당겨져도 남아 있다가 다음 기다림을 곧바로 끝낸다.</li>
+</ol>
+<p>입출력을 기다리는 태스크가 있을 때는 자지 않을 때도 루프를 본다. 누가 차례를 넘겼을 때와 256바퀴마다(<code>POLL_EVERY</code>) 시간 제한 0으로 본다. 처음에는 매 바퀴 봤는데, 한 번이 시스템 호출 하나라서 소켓 기다림이 하나만 있어도 채널 주고받기가 25배 느려졌다(노트 R7-scheduler의 R4a 7절).</p>
+<h2 id="retry">소켓 연산: 다시 해 보기</h2>
+<p><code>read_line(conn)</code>처럼 막힐 수 있는 소켓 연산은 어떻게 주차하나. 운영체제 스레드였다면 "읽고, 막히면 기다리고, 이어서 읽는다"는 직선 반복이면 됐다. 기다림이 Rust 스택 위에 있었기 때문이다. M:1에서는 Rust 함수 한가운데서 기다릴 수 없다(12장).</p>
+<p>fung은 연산을 상태 기계로 다시 쓰는 대신 <strong>처음부터 다시 해 보기</strong>로 했다(<code>crates/fung-vm/src/native/net.rs</code>).</p>
+<ol>
+<li>연산을 한 번 해 본다(<code>Attempt</code>). 소켓은 막히지 않는 모드라서 막힐 자리에서 곧바로 "지금은 안 됨"(<code>EAGAIN</code>)을 받는다.</li>
+<li>그러면 "이 fd를 이 방향으로 기다려야 한다"고 말하고 그대로 돌아온다(<code>wait_io</code>).</li>
+<li>내장 함수는 그 fd를 새 토큰으로 루프에 등록하고 주차한다(<code>vm/block.rs</code>의 <code>park_io</code>).</li>
+<li>준비되면 깨어나 연산을 <strong>처음부터</strong> 다시 한다(<code>run_io</code>).</li>
+</ol>
+<p>처음부터 다시 해도 안전한 이유는, 그때까지 한 일이 Rust 스택이 아니라 다른 곳에 남아 있기 때문이다. 읽은 바이트는 연결의 버퍼에, 쓴 바이트 수는 내장 함수의 상태에, 어느 주소까지 연결해 봤는지와 TLS 핸드셰이크 상태는 연결 객체와 rustls 안에 있다. Rust의 <code>Future::poll</code>이 <code>Pending</code>을 돌려주는 방식과 같은 생각이다. 다만 상태를 컴파일러가 만들어 주지 않으므로, 무엇을 다시 해도 되는지는 사람이 지킨다.</p>
+<p>한 연결을 두 태스크가 함께 읽으면 어떻게 되나. 읽는 쪽과 쓰는 쪽은 각각 <strong>차례 줄</strong>(<code>Turnstile</code>)이 있어서 한 번에 한 연산만 차지하고, 다음 연산은 주차해서 기다린다. <code>Mutex</code>로 기다리면 실행 스레드 전체가 멈추기 때문이다. 이 기다림도 주차라서 기한과 취소에 끊긴다.</p>
+<p>결과는 이렇다. 한 프로그램이 HTTP 연결 2,000개를 동시에 쥐어도 운영체제 스레드는 넷이다(노트 R7-scheduler의 R4a 10절). 그 전 구현(기다림마다 스레드 하나)은 같은 시험을 60초 안에 준비하지 못했다. 아래는 같은 프로그램 안에서 서버를 띄우고 요청 셋을 동시에 보내는 예다. 느린 요청이 300 ms를 쉬는 동안 나머지 둘이 먼저 답을 받는다.</p>
+<pre><code>import conc
+import http
+
+fn slow():
+  sleep(300ms)
+  &quot;slow done&quot;
+;;
+
+fn handler(req) = req.path == &quot;/slow&quot; then slow() else &quot;fast ${req.path}&quot;
+
+(port_tx, port_rx) = channel(1)
+scope(fn(s):
+  spawn(s, () =&gt; http.serve(&quot;127.0.0.1:0&quot;, handler, ready: a =&gt; send(port_tx, a)!))
+  addr = recv(port_rx)!
+  urls = map([&quot;/slow&quot;, &quot;/a&quot;, &quot;/b&quot;], p =&gt; &quot;http://${addr}${p}&quot;)
+  print(conc.pmap(urls, u =&gt; http.get(u)!.body))
+  request_stop()
+;;)
+print(&quot;server drained&quot;)</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>[&quot;slow done&quot;, &quot;fast /a&quot;, &quot;fast /b&quot;]
+server drained</code></pre>
+<p><code>conc.pmap</code>은 결과를 입력 순서대로 모은다. <code>request_stop()</code>은 14장의 정지 요청이다. 서버가 그것을 보고 리스너를 닫은 뒤 범위가 닫힌다.</p>
+<h2 id="pool">스레드 풀</h2>
+<h3 id="why-pool">왜 풀인가</h3>
+<p>파일을 읽는 일은 이벤트 루프로 기다릴 수 없다. 일반 파일의 fd는 언제나 "준비됨"으로 보고되지만 실제 <code>read</code>는 디스크를 기다리며 막힌다. 이름 조회(<code>getaddrinfo</code>)는 막히는 함수만 있다. 이런 일은 다른 운영체제 스레드에서 해야 한다.</p>
+<p>처음(R1b)에는 일마다 스레드를 새로 만들었다. 스레드 하나를 만들고 거두는 데 십몇 µs가 들어서, <code>fs.exists</code>를 5만 번 부르는 반복이 2.6배 느려졌다. 그래서 스레드를 만들어 두고 다시 쓰는 <strong>풀</strong>(pool)을 두었다(<code>crates/fung-vm/src/vm/pool.rs</code>).</p>
+<ul>
+<li>일이 들어왔을 때 노는 스레드가 없고 64개 미만이면 하나 더 만든다(<code>POOL_MAX</code>).</li>
+<li>64개가 다 바쁘면 일은 FIFO 줄에서 기다린다.</li>
+<li>10초 동안 일이 없는 스레드는 끝난다(<code>POOL_IDLE</code>). 런타임이 사라지면 노는 스레드는 곧바로 끝난다.</li>
+</ul>
+<p>풀에서 도는 <strong>일</strong>(job)은 fung 값이 아닌 평범한 데이터만 가진다(<code>Send + 'static</code>). 경로 문자열을 복사해 가고, 파일 핸들은 <code>Arc</code>를 복제해 간다. 태스크는 그동안 주차하고, 일을 마친 스레드가 결과를 칸에 넣고 태스크를 깨운다. 결과를 fung 값으로 바꾸는 <strong>마무리</strong>는 실행 스레드에서 돈다(<code>crates/fung-vm/src/vm/offload.rs</code>의 <code>offload_kind</code>).</p>
+<div class="run"><pre><code>import fs
+import path
+
+fn double(x) = x * 2
+
+fs.with_temp_dir(fn(dir):
+  p = path.join(dir, &quot;n.txt&quot;)
+  fs.write(p, &quot;21\n&quot;)!
+  n = int(trim(fs.read(p)!))
+  print(double(n))
+  print(fs.exists(p), fs.exists(path.join(dir, &quot;nope&quot;)))
+;;)</code></pre><pre class="out plain"><code>42
+true false</code></pre></div>
+<p>이 짧은 스크립트에서도 <code>fs.write</code>, <code>fs.read</code>, <code>fs.exists</code>, 임시 디렉터리 만들기와 지우기가 모두 풀의 일이다. 그동안 다른 태스크가 있었다면 그 태스크가 돌았을 것이다. 대가는 호출 하나의 왕복 비용이다. 파일 시스템 호출 하나가 약 9 µs다. 0.2.0은 태스크의 스레드가 그 자리에서 시스템 호출을 했으므로 하나씩 차례로 부르는 반복은 그때가 더 빨랐다(<code>bench/fs.fung</code> 0.082초 → 0.446초). 대신 파일을 기다리는 동안 다른 태스크가 돈다. 한 호출의 지연과 동시에 쥘 수 있는 일의 수는 함께 좋아지기 어렵다.</p>
+<h3 id="abandon">버리는 일과 기다리는 일</h3>
+<p>운영체제 스레드는 시스템 호출 도중에 멈출 수 없다. 그래서 기한이 지나거나 취소가 오면 "일을 끊는다"는 것은 <strong>태스크만 놓아준다</strong>는 뜻이다. 그런데 모든 일을 그렇게 놓아 버리면, <code>timeout(1s, () =&gt; fs.write(p, x))</code>가 시간 초과를 돌려준 <strong>뒤에</strong> 파일이 써질 수 있다. 재시도나 정리 코드와 경쟁하게 된다. 그래서 일을 둘로 나눴다(스펙 15절, 노트 R7-scheduler의 R3).</p>
+<table>
+  <thead><tr><th>종류</th><th>예</th><th>취소·기한이 오면</th></tr></thead>
+  <tbody>
+    <tr><td>버리는 일 (<code>offload_abandoning</code>)</td><td>경로만 읽는 <code>fs.read</code>·<code>list</code>·<code>glob</code>·<code>walk</code>·<code>exists</code>·<code>stat</code>, 정규식 컴파일, 이름 조회</td><td>태스크는 곧바로 되감는다. 일은 풀에서 끝까지 돌고 결과는 그 스레드에서 버린다</td></tr>
+    <tr><td>기다리는 일 (<code>offload</code>)</td><td>쓰기·지우기·옮기기, 핸들 열기·닫기·읽기(읽은 만큼 위치가 옮겨지므로)</td><td>이미 돌고 있으면 끝까지 기다린 뒤 되감는다</td></tr>
+  </tbody>
+</table>
+<p>줄에서 아직 시작하지 않은 일은 종류와 상관없이 버린다. 일마다 표(<code>Ticket</code>)가 있고 상태는 "줄에 있음 / 도는 중 / 버려짐" 셋이다. 풀 스레드는 꺼낼 때 "줄에 있음 → 도는 중"을, 태스크는 "줄에 있음 → 버려짐"을 원자적 비교 후 교체로 시도한다. 둘이 동시에 와도 하나만 이긴다.</p>
+<h3 id="not-pool">풀에 넣지 않는 것</h3>
+<p>소켓 기다림과 외부 명령은 풀에 넣지 않는다. 풀에 넣으면, 같은 프로그램 안의 HTTP 서버에 느린 클라이언트 64개가 붙었을 때 풀이 꽉 차고, 서버의 <code>accept</code> 일이 줄 뒤에서 영영 돌지 못한다. 교착 판정에도 보이지 않는 멈춤이다. "한정된 자원(스레드 64개)을 서로를 기다리는 일끼리 나눠 쓰면 교착이 생긴다"는 것은 스레드 풀을 쓰는 런타임이 늘 부딪히는 문제다. fung은 "다른 태스크가 끝내 줄 수 있는 기다림"을 풀에 넣지 않는 식으로 피했다. 파일과 정규식 컴파일은 fung 쪽 일에 기대지 않고 스스로 끝난다(노트 R7-scheduler의 R3 2절).</p>
+<h2 id="commands">외부 명령</h2>
+<p><code>exec</code>·<code>sh</code>로 띄운 명령도 이벤트 루프 위에서 기다린다. 처음에는 명령 하나에 스레드 넷을 썼다. 끝을 기다리는 스레드, 표준 출력을 읽는 스레드, 표준 에러를 읽는 스레드, 표준 입력을 넣는 스레드다. 출력 둘을 따로 읽어야 했던 이유가 있다. 한쪽만 읽으면 명령이 다른 쪽 파이프(버퍼는 64 KB 남짓)를 채운 채 멈추고, 우리는 명령이 끝나기를, 명령은 우리가 읽기를 기다리는 교착이 된다.</p>
+<p>지금은 상자 하나(<code>CommandWait</code>, <code>crates/fung-vm/src/native/process.rs</code>)가 <strong>명령의 끝과 파이프 셋</strong>을 한꺼번에 루프에 등록한다. 깨어날 때마다 할 수 있는 만큼 읽고 쓰고, 끝났으면 거두고, 아직 올 것만 다시 등록한다. 셋을 동시에 보므로 위의 교착이 생기지 않는다. 명령의 끝을 루프에서 아는 법은 운영체제마다 다르다.</p>
+<ul>
+<li><strong>macOS</strong>: kqueue의 <code>EVFILT_PROC</code>에 pid를 직접 등록한다.</li>
+<li><strong>Linux 5.3 이상</strong>: <code>pidfd_open(pid)</code>이 주는 fd는 프로세스가 끝나면 읽을 수 있게 된다. 소켓처럼 epoll에 등록한다.</li>
+<li><strong>더 오래된 Linux</strong>: 풀의 일 하나가 <code>waitid</code>로 기다렸다가 태스크를 깨운다.</li>
+</ul>
+<p>출력을 아주 빨리 쏟는 명령 옆의 태스크가 굶지 않게, 한 번 볼 때 256 KiB까지만 옮기고 다시 주차한다(<code>PUMP_BUDGET</code>). 명령 50개를 동시에 기다려도 스레드는 다섯이다.</p>
+<div class="run"><pre><code>scope(fn(s):
+  spawn(s, fn():
+    r = exec([&quot;sh&quot;, &quot;-c&quot;, &quot;sleep 0.3; echo deployed&quot;])!
+    print(&quot;cmd:&quot;, trim(r.out))
+  ;;)
+  spawn(s, () =&gt; each(1..4, i =&gt; print(&quot;other task:&quot;, i)))
+;;)</code></pre><pre class="out plain"><code>other task: 1
+other task: 2
+other task: 3
+cmd: deployed</code></pre></div>
+<p>첫 태스크가 명령을 기다리며 주차하는 동안 두 번째 태스크가 돈다.</p>
+<h2 id="stdin">표준 입력</h2>
+<p>표준 입력은 이벤트 루프에 올리지 않는다. fd 0에 "막히지 않는 모드"(<code>O_NONBLOCK</code>)를 켜면, 같은 열린 파일을 나눠 쓰는 부모 셸과 다른 프로세스에도 그 모드가 걸리기 때문이다(스펙 15절). 대신 <strong>읽기 전용 스레드 하나</strong>가 있다(<code>crates/fung-vm/src/vm/stdin.rs</code>).</p>
+<ul>
+<li>처음 읽을 때 생긴다. 대부분의 프로그램은 표준 입력을 읽지 않는다.</li>
+<li>어떤 태스크가 줄을 기다리고 줄 큐가 비었을 때만 읽는다. 그래서 프로그램이 달라고 하지 않은 입력은 그대로 남아, 셸에서 fung 다음에 오는 명령이 읽을 수 있다.</li>
+<li>읽은 줄을 큐에 넣고 기다리는 태스크를 깨운다. 바이트만 다루고, fung 문자열로 바꾸는 일은 실행 스레드에서 한다.</li>
+</ul>
+<h2 id="one-thread">값은 실행 스레드에만</h2>
+<p>지금까지 나온 스레드를 모아 보자.</p>
+<table>
+  <thead><tr><th>스레드</th><th>하는 일</th><th>fung 값을 만지나</th></tr></thead>
+  <tbody>
+    <tr><td>메인 스레드</td><td>큰 스택의 실행 스레드를 띄우고 끝나기를 기다린다</td><td>아니오</td></tr>
+    <tr><td>실행 스레드</td><td>모든 태스크, 스케줄러, 이벤트 루프의 기다림</td><td><b>예, 이 스레드만</b></td></tr>
+    <tr><td>신호 스레드</td><td>SIGINT·SIGTERM을 받아 사건을 게시한다(14장)</td><td>아니오</td></tr>
+    <tr><td>표준 입력 스레드</td><td>바이트를 읽어 줄 큐에 넣는다(필요할 때만)</td><td>아니오</td></tr>
+    <tr><td>풀 스레드(0~64개)</td><td>파일, 이름 조회, 정규식 컴파일</td><td>아니오(평범한 데이터만)</td></tr>
+  </tbody>
+</table>
+<p>다른 스레드가 할 수 있는 일은 <strong>태스크 번호</strong>를 실행 대기열에 넣거나 사건을 게시하고 깨우개를 당기는 것뿐이다. 그래서 fung 값은 원자적이지 않은 <code>Rc</code>로 공유해도 된다(10장).</p>
+<p>이 규칙을 사람이 지키면 언젠가 틀린다. Rust는 타입마다 두 가지를 따진다.</p>
+<ul>
+<li><strong><code>Send</code></strong>: 이 값을 다른 스레드로 <strong>옮겨도</strong> 된다.</li>
+<li><strong><code>Sync</code></strong>: 이 값을 여러 스레드가 <strong>함께 빌려도</strong> 된다.</li>
+</ul>
+<p>컴파일러가 구성 요소를 보고 스스로 판단한다. <code>Rc</code>는 계수를 원자 연산 없이 세므로 둘 다 아니다. fung 값은 <code>Rc</code>로 이뤄져 있으므로 값을 품은 것은 모두 <code>!Send</code>다. fung은 이것을 그대로 쓴다(노트 R7-scheduler의 R5).</p>
+<ul>
+<li>값을 품은 런타임 상태 <code>World</code>는 <code>Runtime</code> 안의 <code>RefCell</code>에 있다. 그래서 <code>Runtime</code>은 <code>!Send</code>이고, 컴파일러가 그것을 다른 스레드로 옮기는 코드를 거절한다.</li>
+<li>다른 스레드가 보는 것은 <code>Shared</code>뿐이다. 실행 대기열, 이벤트 루프, 풀, 정지 표시, 취소 루트처럼 원래 스레드에 안전한 것만 들어 있어서 <code>unsafe</code> 없이 <code>Send + Sync</code>다.</li>
+<li>풀의 일은 <code>Send + 'static</code>이어야 컴파일된다. fung 값을 실수로 넘기면 빌드가 실패한다.</li>
+</ul>
+<p>처음 Rust 런타임(태스크마다 스레드)은 값을 품은 <code>World</code>를 잠금 하나로 감싸고, "잠금을 쥔 스레드만 값을 만지므로 안전하다"는 약속을 <code>unsafe impl Send</code>로 컴파일러에게 손으로 적었다. M:1이 되면서 그 약속이 구조로 지켜지게 되었고, 마지막 단계(R5)에서 그것을 타입으로 드러내 손으로 쓴 <code>unsafe impl Send</code>·<code>Sync</code>를 0개로 만들었다. 저장소 시험이 다시 생기지 않게 지킨다.</p>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>CPython</strong>은 GIL이 참조 계수를 지킨다. GIL을 없앤 free-threaded 빌드는 참조 계수를 스레드에 안전하게 세는 장치를 따로 들여야 했다.</li>
+<li><strong>JavaScript</strong>의 Web Worker와 Node.js의 <code>worker_threads</code>는 힙을 아예 따로 두고, 메시지로 값을 <strong>복사</strong>해 보낸다.</li>
+<li><strong>Erlang</strong>도 프로세스마다 힙이 따로이고 메시지를 복사한다(큰 바이너리만 공유).</li>
+<li>fung이 여러 코어로 간다면 이 길(태스크마다 힙, 경계에서 복사)을 따를 것이 설계에 적혀 있다(설계 05). 불변 값이라 프로그램은 공유와 복사의 차이를 볼 수 없다.</li>
+</ul>
+</div>
+<h3 id="nofile">열린 파일 수</h3>
+<p>연결마다 fd 하나다. 셸에서 띄운 프로그램은 열린 파일의 소프트 한도가 256인 경우가 많아서, 스레드 문제를 풀어도 수백 연결에서 <code>too many open files</code>에 걸린다. 그래서 <code>fung</code>은 시작할 때 소프트 한도를 하드 한도까지 올리고(macOS는 <code>kern.maxfilesperproc</code>, Linux는 <code>fs.nr_open</code>을 넘지 않게), 자식 프로세스에는 원래 값을 돌려 넘긴다(<code>crates/fung-vm/src/rlimit.rs</code>). <code>select()</code>를 쓰는 옛 프로그램이 1024 넘는 fd에서 깨지지 않게 하려는 것이다.</p>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-vm/src/vm/poller.rs</code>: 이벤트 루프 <code>Poller</code>(<code>register</code>·<code>deregister</code>·<code>wait</code>·<code>exit_watch</code>), <code>Waker</code>, <code>Interest</code>, <code>ExitWatch</code>. 운영체제별 구현 <code>poller/kqueue.rs</code>, <code>poller/epoll.rs</code>.</li>
+<li><code>crates/fung-vm/src/vm/block.rs</code>: 소켓 기다림 <code>park_io</code>, <code>IoStep</code>, 닫을 때의 <code>drop_io_waits</code>.</li>
+<li><code>crates/fung-vm/src/vm/sched.rs</code>: 루프 보기 <code>poll_io</code>, 준비된 토큰으로 깨우기 <code>wake_ready</code>, <code>POLL_EVERY</code>, 자기 <code>sleep</code>.</li>
+<li><code>crates/fung-vm/src/native/net.rs</code>: 다시 해 보기 <code>Attempt</code>·<code>wait_io</code>·<code>run_io</code>, 연결의 차례 줄 <code>Turnstile</code>.</li>
+<li><code>crates/fung-vm/src/vm/pool.rs</code>: 스레드 풀 <code>Pool</code>, <code>POOL_MAX</code>, <code>POOL_IDLE</code>, 일의 표 <code>Ticket</code>.</li>
+<li><code>crates/fung-vm/src/vm/offload.rs</code>, <code>native/nat.rs</code>: <code>offload_kind</code>, <code>Kind::Wait</code>·<code>Kind::Abandon</code>, <code>nat::offload</code>·<code>nat::offload_abandoning</code>.</li>
+<li><code>crates/fung-vm/src/native/process.rs</code>: 외부 명령의 상자 <code>CommandWait</code>, <code>PUMP_BUDGET</code>.</li>
+<li><code>crates/fung-vm/src/vm/stdin.rs</code>: 표준 입력 읽기 스레드.</li>
+<li><code>crates/fung-vm/src/vm/runtime.rs</code>, <code>vm/world.rs</code>: <code>!Send</code>인 <code>Runtime</code>, 값을 품은 <code>World</code>, 스레드에 안전한 <code>Shared</code>.</li>
+<li><code>crates/fung-vm/src/rlimit.rs</code>: 열린 파일 한도.</li>
+</ul>
+<div class="exercise"><b>서버 셋을 동시에 점검하기</b>
+<p><code>sh -c &quot;sleep 0.5; echo web1 ok&quot;</code> 같은 명령을 서버 셋에 대해 부르는 점검 함수가 있다. 하나씩 부르면 1.5초, 동시에 부르면 0.5초 남짓이다. 전체 기한 1.2초를 걸어서, 동시에 부르면 결과 리스트가, 하나씩 부르면 시간 초과가 나오는지 확인해 보자. 그동안 운영체제 스레드는 몇 개가 필요했을까?</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>import conc
+
+hosts = [&quot;web1&quot;, &quot;web2&quot;, &quot;web3&quot;]
+
+fn check(h) = trim(exec([&quot;sh&quot;, &quot;-c&quot;, &quot;sleep 0.5; echo ${h} ok&quot;])!.out)
+
+print(timeout(1200ms, () =&gt; conc.pmap(hosts, check)))
+print(timeout(1200ms, () =&gt; map(hosts, check)))</code></pre><pre class="out plain"><code>[&quot;web1 ok&quot;, &quot;web2 ok&quot;, &quot;web3 ok&quot;]
+Err({kind: 'timeout})</code></pre></div>
+<p><code>conc.pmap</code>은 원소마다 태스크를 띄운다. 각 태스크는 명령을 띄우고 그 끝과 출력 파이프를 이벤트 루프에 등록한 뒤 주차한다. 명령 셋이 동시에 돌아도 기다리는 데 스레드가 더 들지 않는다. 기다림은 실행 스레드 하나가 이벤트 루프에서 한꺼번에 한다. 하나씩 부르는 <code>map</code>은 1.2초 기한에 걸려 <code>Err({kind: 'timeout})</code>이 되고, 기한이 왔을 때 돌던 명령은 SIGTERM을 받아 끝난다(14장).</p>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>M:1 런타임에서 막히는 시스템 호출은 모든 태스크를 멈춘다. 그래서 소켓·파이프·명령의 끝은 이벤트 루프로, 파일·이름 조회·정규식 컴파일은 스레드 풀로 기다린다.</li>
+<li>이벤트 루프는 kqueue·epoll을 <code>libc</code>로 직접 감싼 준비 상태 기반, one-shot 등록이다. 주차마다 새 토큰을 붙여 재사용된 fd 번호의 알림을 걸러 낸다.</li>
+<li>소켓 연산은 한 번 해 보고, 막히면 fd를 등록하고 주차했다가, 깨어나면 처음부터 다시 한다. 진행 상태는 연결과 내장 함수가 쥔다.</li>
+<li>풀은 필요할 때 최대 64개, 10초 놀면 끝, 꽉 차면 FIFO다. 읽기만 하는 일은 취소 때 버리고, 무엇을 바꾸는 일은 끝까지 기다린다. 서로를 기다릴 수 있는 일은 풀에 넣지 않는다.</li>
+<li>외부 명령은 끝과 파이프 셋을 한 상자가 함께 등록한다. 표준 입력은 전용 스레드가 필요할 때만 읽는다.</li>
+<li>fung 값은 실행 스레드에만 산다. <code>Runtime</code>은 <code>!Send</code>이고 다른 스레드는 값이 없는 <code>Shared</code>만 본다. 손으로 쓴 <code>unsafe impl Send</code>는 없다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/modules/fs.html">fs</a>, <a href="../reference/prelude/process.html">외부 명령</a>, <a href="../reference/modules/http.html">http</a>. 다음 장은 이렇게 기다리는 태스크를 <strong>멈추게</strong> 하는 법, 곧 취소·기한·정리를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/12-scheduler.html"><small>이전 장</small>12. 태스크와 스케줄러</a><a class="next" href="../vm/14-cancellation.html"><small>다음 장</small>14. 취소와 정리</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

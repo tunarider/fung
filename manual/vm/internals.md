@@ -75,18 +75,18 @@ print(sum(xs))
   <li><strong>글자 수준 규칙은 전부 여기서</strong> 끝난다: 숫자 형태와 범위, 기간의 단위 순서, 문자열 이스케이프, 보간 <code>${…}</code> 조각, 원시 문자열, 심볼. 잘못된 것은 E01xx로 바로 멈춘다.</li>
   <li><strong>줄바꿈은 <code>NEWLINE</code> 토큰으로 그대로 내보낸다.</strong> 줄 이어짐이나 <code>:</code>의 역할은 렉서가 판단하지 않고 파서가 문맥으로 정한다.</li>
   <li><strong>주석은 토큰 흐름에서 빼되 위치와 함께 별도 목록(trivia)에 보관한다.</strong> 실행에는 필요 없지만 포맷터가 원래 자리에 돌려놓는 데 쓴다.</li>
-  <li><code>;;</code>는 항상 가장 길게 자른다. 이름은 첫 글자만 보고 이름·태그·예약어를 가른다.</li>
+  <li><code>;;</code>는 항상 가장 길게 자른다. 예약어는 이름 전체로 가르고(<code>if</code>, <code>match</code> …), 태그(<code>Ok</code>, <code>Red</code>)와 보통 이름은 첫 글자가 대문자인지로 가른다.</li>
 </ul>
 
 ## 파서와 균일 트리 {#parser}
 
 <p>문장은 재귀 하강으로, 식은 <strong>Pratt 파서</strong>로 읽는다. Pratt 파서는 연산자마다 "왼쪽 결합력"을 숫자로 두고, 그 숫자 비교 하나로 모든 이항·단항·후위 연산의 우선순위와 결합 방향을 처리한다. <a href="../reference/language.html#precedence">우선순위 표</a>를 숫자로 옮긴 것이 곧 파서다.</p>
-<p>세 곳에서 <strong>되돌리기</strong>를 쓴다. 앞을 조금 읽어 보고 아니면 원래 자리로 돌아가는 방식이다.</p>
+<p>두 곳에서 <strong>되돌리기</strong>를 쓴다. 앞을 조금 읽어 보고 아니면 원래 자리로 돌아가는 방식이다.</p>
 <ul>
-  <li>문장 시작의 <code>패턴 =</code>(구조 분해 대입인가, 식인가)</li>
-  <li><code>(a, b) =&gt;</code>(람다인가, 튜플인가)</li>
-  <li><code>match</code> 절의 <code>패턴 [when 조건] =&gt;</code>(새 절인가, 앞 절 본문의 문장인가)</li>
+  <li>문장 시작의 <code>패턴 =</code>(구조 분해 대입인가, 식인가, <code>try_destructure</code>)</li>
+  <li><code>match</code> 절의 <code>패턴 [when 조건] =&gt;</code>(새 절인가, 앞 절 본문의 문장인가, <code>arm_head</code>)</li>
 </ul>
+<p><code>(a, b) =&gt;</code>(람다인가, 튜플인가)는 되돌리지 않는다. 괄호의 짝을 앞질러 훑어 바로 뒤에 <code>=&gt;</code>가 오는지만 본다(<code>lambda_params_ahead</code>).</p>
 <p>패턴 문법이 작아서 되돌리기 비용이 적다.</p>
 <h3>균일 트리</h3>
 <p>트리 노드의 모양은 하나뿐이다: <code>{머리, 위치, 자식들, 리터럴 값, 소스 구간}</code>. <code>f(a, b)</code>는 <code>(call f a b)</code>, <code>if c: a else: b ;;</code>는 <code>(if c (do a) (do b))</code>. 노드 종류마다 Rust 타입을 따로 만들지 않는다. "속은 Lisp"의 실체이며, <code>dump</code>, desugar, 이름 해석이 모두 같은 모양 위에서 일하고, 나중에 매크로를 넣을 자리도 이것이다.</p>
@@ -223,7 +223,7 @@ fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 0014  1:18  RETURN
 ```
 
-<p>반환 타입을 적은 함수는 반환값을 검사해야 하므로 프레임이 남아 있어야 해서 <code>TAILCALL</code> 대상에서 빠진다.</p>
+<p>반환 타입을 적은 함수는 반환값을 검사해야 하므로, 다른 함수로의 꼬리 호출은 프레임을 남기는 보통 호출(<code>CALL</code>)이 된다. 자기 자신으로의 꼬리 호출은 같은 검사를 다시 하게 되므로 <code>TAILCALL</code>로 남는다.</p>
 <h3>패턴 매칭</h3>
 <p>패턴은 명령열로 펼치지 않고 원형의 <strong>패턴 트리</strong>로 둔다. <code>MATCH n</code> 한 명령이 실행 중에 트리를 해석해 맞으면 이름들을 슬롯에 묶고 <code>true</code>를 올린다. 패턴의 의미가 Rust 함수 하나(<code>vm/matcher.rs</code>)에 모여 있어 이해하고 고치기 쉽다. guard는 그 뒤의 평범한 비교와 <code>JUMPIFFALSE</code>이고, 아무 절도 맞지 않으면 <code>NOMATCH</code>가 E0601을 낸다. 구조 분해 대입은 <code>MATCHORFAIL</code>이다.</p>
 
@@ -381,9 +381,9 @@ match v:
 
 <dl class="terms">
   <dt><code>fung check</code></dt><dd>그래프 적재와 이름 해석까지만 하고 실행하지 않는다. 경고 W0101~W0103은 <code>check</code>와 <code>test</code>에서만 보인다.</dd>
-  <dt><code>fung test</code></dt><dd><code>test</code> 블록은 함수로 컴파일되어 등록된다(<code>TEST</code> 명령). 파일마다 새 런타임에서 최상위를 먼저 실행하고 등록된 테스트를 차례로 돌린다. 그동안 명령 자신을 살아 있는 태스크 하나로 세어(<code>Runtime::hold</code>) 블록 사이의 틈을 교착으로 보지 않는다. <code>assert</code>가 실패하면 비교의 양쪽 값을 보여 준다. <code>exit(n)</code>이 불리거나 교착이 보고되면 그 파일의 나머지를 건너뛰고 실패 하나로 센다. 로드에 실패한 파일은 실패로 세고, 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.</dd>
+  <dt><code>fung test</code></dt><dd><code>test</code> 블록은 함수로 컴파일되어 등록된다(<code>TEST</code> 명령). 파일마다 새 런타임에서 최상위를 먼저 실행하고 등록된 테스트를 차례로 돌린다. 블록마다 따로 실행하므로 블록 사이의 틈은 교착이 아니다. <code>assert</code>가 실패하면 비교의 양쪽 값을 보여 준다. <code>exit(n)</code>이 불리거나 교착이 보고되면 그 파일의 나머지를 건너뛰고 실패 하나로 센다. 로드에 실패한 파일은 실패로 세고, 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.</dd>
   <dt><code>fung fmt</code></dt><dd>AST를 다시 찍지 않고 렉서의 토큰과 주석을 줄 단위로 다시 배치한다. 줄 시작마다 열린 블록·괄호의 스택을 보고 들여쓰기를 정하고, 토큰 쌍 표로 공백을 정하며, 연속 줄의 꼬리 주석과 <code>match</code>의 <code>=&gt;</code>를 맞춘다. 출력을 다시 렉싱해 토큰 열이 입력과 같을 때만 쓴다. 그래서 포맷터 버그가 코드를 바꾸는 일은 사용자에게 닿지 않는다.</dd>
-  <dt>REPL</dt><dd>한 줄씩 지금까지의 전역 이름을 알려 주며 컴파일하고 같은 런타임에서 실행한다. 전역 표를 미리 큰 용량으로 잡아 두어, 앞 줄에서 만든 클로저도 뒤에 정의된 이름을 본다. 터미널이면 raw 모드 줄 편집기(직접 구현), 파이프면 단순 읽기다. 재정의를 허용한다. 세션 내내 런타임을 붙잡고 있어 다음 입력을 기다리는 태스크는 교착이 아니다. 한 입력 안의 교착은 그 입력만 실패시키고 새 실행 루트에서 계속하며, 전역(전역에 담은 atom 포함)은 남는다.</dd>
+  <dt>REPL</dt><dd>한 줄씩 지금까지의 전역 이름을 알려 주며 컴파일하고 같은 런타임에서 실행한다. 전역 표는 비어 시작해 필요할 때 늘어난다. 최상위 <code>fn</code>은 부를 때 전역을 읽으므로 뒤에 다시 정의한 이름을 보고, 람다는 만들 때 값을 복사하므로 옛 정의를 쥔다. 터미널이면 raw 모드 줄 편집기(직접 구현), 파이프면 단순 읽기다. 재정의를 허용한다. 입력마다 따로 실행하므로 다음 입력을 기다리는 동안은 교착이 아니다. 한 입력 안의 교착은 그 입력만 실패시키고 새 실행 루트에서 계속하며, 전역(전역에 담은 atom 포함)은 남는다.</dd>
   <dt><code>fung dump</code></dt><dd>위 단계들의 중간 결과(<code>ast</code>, <code>core</code>, <code>bytecode</code>)를 보여 준다.</dd>
 </dl>
 

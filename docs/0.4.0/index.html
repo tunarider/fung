@@ -34,8 +34,10 @@
 <a class="brand" href="index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
 <div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
 <nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
 <li class="reference"><a href="reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
-<li class="vm"><a href="vm/internals.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+<li class="vm"><a href="vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
 </ol></nav>
 </aside>
 <main><div class="col">
@@ -44,9 +46,12 @@
 <p class="lede">Go처럼 쓰고 Lisp처럼 도는 작은 함수형 스크립트 언어. 파일 이름 바꾸기, 로그 요약, 작은 웹서버 같은 일상의 스크립트를 위해 만들었다.</p>
 </header>
 <div class="cover">
+<a class="learn" href="learn/01-programming.html"><span class="glyph">L</span><h3>fung 배우기</h3><p>처음부터 순서대로 읽는 책</p><div class="who"><b>처음 온 사람</b></div></a>
+<a class="recipes" href="recipes/rename.html"><span class="glyph">R</span><h3>예제 모음</h3><p>자주 하는 작업별 레시피</p><div class="who"><b>당장 스크립트가 필요한 사람</b></div></a>
 <a class="reference" href="reference/language.html"><span class="glyph">§</span><h3>레퍼런스</h3><p>찾아보는 곳 · 언어 명세</p><div class="who"><b>정확한 규칙을 찾는 사람</b></div></a>
-<a class="vm" href="vm/internals.html"><span class="glyph">VM</span><h3>fung VM</h3><p>언어는 어떻게 만들어지나</p><div class="who"><b>언어 구현이 궁금한 사람</b></div></a>
+<a class="vm" href="vm/01-how-programs-run.html"><span class="glyph">VM</span><h3>fung VM</h3><p>언어는 어떻게 만들어지나</p><div class="who"><b>언어 구현이 궁금한 사람</b></div></a>
 </div>
+<p><strong>어디서 시작할까.</strong> 프로그래밍이 처음이라면 <a href="learn/01-programming.html">배우기 1장</a>부터 차례로 읽는다. 다른 언어를 써 봤다면 <a href="learn/02-first-program.html">2장</a>에서 설치하고 <a href="learn/03-values-and-names.html">3장</a>부터 훑은 뒤 필요할 때 <a href="reference/language.html">레퍼런스</a>를 찾아본다. 쉘 스크립트로 하던 일을 옮기고 싶다면 <a href="recipes/rename.html">예제 모음</a>이 빠르다. 언어가 안에서 어떻게 도는지 궁금하다면 <a href="vm/01-how-programs-run.html">fung VM</a>으로 간다.</p>
 </div>
 <div class="wide">
 <div class="twofold">
@@ -128,6 +133,7 @@ match logs:
   <dd>범위(<code>scope</code>/<code>supervise</code>) 안의 <code>spawn</code>/<code>await</code>/<code>cancel</code>, 채널, <code>atom</code>, <code>sleep</code>. async/await 문법은 없고, 막히는 호출은 그냥 막히며 그동안 다른 태스크가 돈다.</dd>
 </dl>
 <h2 id="start">빠른 시작</h2>
+<p>설치부터 첫 스크립트, REPL, 에러 메시지 읽는 법까지 차례로 따라가려면 <a href="learn/02-first-program.html">배우기 2장</a>을 본다. 여기는 요약이다.</p>
 <h3>설치</h3>
 <p>Linux와 macOS(amd64, arm64)는 설치 스크립트로 받는다. GitHub 릴리스에서 내 플랫폼의 바이너리를 받아 <code>SHA256SUMS</code>와 대조한 뒤 <code>~/.local/bin</code>에 둔다. sudo는 필요 없다. Linux 바이너리는 정적 링크(musl)라 배포판·glibc 버전과 상관없이 돈다.</p>
 <pre class="plain"><code>curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
@@ -172,53 +178,6 @@ test &quot;slug joins words with dashes&quot;:
   assert slug(&quot;&quot;) == &quot;&quot;
 ;;</code></pre>
 <p><code>fung run</code>은 <code>test</code> 블록을 무시하고, <code>fung test</code>가 그것만 돌린다. 실패하면 양쪽 값이 함께 찍힌다.</p>
-<h2 id="commands">명령</h2>
-<table>
-  <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
-  <tbody>
-    <tr><td><code>fung script.fung [args…]</code></td><td>스크립트 실행. <code>fung run script.fung</code>과 같다. 뒤의 인자는 <code>args</code>(문자열 리스트)로 들어간다.</td></tr>
-    <tr><td><code>fung -e 'code'</code></td><td>코드 한 줄 실행.</td></tr>
-    <tr><td><code>fung</code></td><td>REPL. 줄 편집, 기록(<code>~/.fung_history</code>), 정의 유지, <code>:help</code> <code>:load</code> <code>:quit</code>. 에러는 그 코드를 정의한 입력의 줄을 보인다. 한 입력 안의 교착은 그 입력만 실패시키고 세션은 계속된다. 띄운 태스크가 <code>exit(n)</code>을 부르면 세션이 코드 n으로 끝난다. 다음 입력을 기다리는 태스크는 교착이 아니다. 전역에 담은 에이전트는 다음 입력에서도 쓸 수 있고 세션이 끝날 때 끝나며, 아무도 붙잡지 않은 에이전트는 핸들이 사라질 때(대개 그 입력 끝에) 더 일찍 끝난다.</td></tr>
-    <tr><td><code>fung check script.fung</code></td><td>실행하지 않고 문법·이름·import를 검사하고 경고를 보여 준다.</td></tr>
-    <tr><td><code>fung test [path]</code></td><td><code>test</code> 블록 실행. 경로가 디렉터리면 그 아래 <code>.fung</code> 전부(<code>_</code>나 <code>.</code>으로 시작하는 디렉터리 제외, <code>fmt</code>와 같은 규칙). 테스트가 없는 파일은 건너뛴다. 읽지 못한 파일과 종료 핸들러의 실패도 실패로 센다. 파일 안에서 <code>exit(n)</code>이 불리거나(띄운 태스크에서도) 교착이 보고되면 그 파일의 나머지 블록을 건너뛰고 실패 하나로 센다.</td></tr>
-    <tr><td><code>fung fmt [--check] path…</code></td><td>공백·들여쓰기·정렬을 단일 스타일로 고친다. 줄바꿈은 그대로 둔다. 정렬은 화면 칸 수로 맞춘다(한글·한자는 2칸). <code>--check</code>는 고칠 파일만 알려 주고, <code>-</code>는 표준 입력을 받는다. <code>--check -</code>는 고칠 게 있으면 <code>&lt;stdin&gt;</code>을 찍고 종료 코드 1, 없으면 아무것도 찍지 않고 0.</td></tr>
-    <tr><td><code>fung dump ast|core|bytecode file</code></td><td>컴파일의 중간 단계를 보여 준다(<a href="vm/internals.html">내부 구조</a>).</td></tr>
-  </tbody>
-</table>
-<h2 id="errors">에러와 종료 코드</h2>
-<p>에러는 번호, 메시지, 소스 발췌, 런타임 에러면 호출 경로를 보여 준다. 구현 언어의 패닉이나 스택 추적은 나오지 않는다.</p>
-<pre class="plain"><code>error[E0507]: index 5 is out of range (length 2)
-  --&gt; report.fung:2:8
-  |
-2 | print(x[5])
-  |        ^
-  |
- call path (innermost first):
-   report.fung:2 &lt;entry&gt;</code></pre>
-<table>
-  <thead><tr><th>번호</th><th>분류</th></tr></thead>
-  <tbody>
-    <tr><td><code>E01xx</code></td><td>문법(렉서·파서)</td></tr>
-    <tr><td><code>E02xx</code></td><td>이름과 스코프</td></tr>
-    <tr><td><code>E03xx</code></td><td>모듈과 import</td></tr>
-    <tr><td><code>E04xx</code></td><td>호출과 타입 표기</td></tr>
-    <tr><td><code>E05xx</code></td><td>런타임 연산(타입 불일치, 0 나누기, 오버플로, 범위 밖 인덱스, 없는 키)</td></tr>
-    <tr><td><code>E06xx</code></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code> E0606)</td></tr>
-    <tr><td><code>E07xx</code></td><td>동시성(취소, 교착, 채널에 그 채널의 끝 보내기 E0705, 닫힌 범위 E0706, atom의 <code>f</code> 안 효과 E0707, atom에 못 담는 값 E0708)</td></tr>
-    <tr><td><code>E08xx</code></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><code>W01xx</code></td><td>경고(<code>check</code>·<code>test</code>에서만): 안 쓰는 import·변수, prelude 이름 가리기</td></tr>
-  </tbody>
-</table>
-<table>
-  <thead><tr><th>종료 코드</th><th>뜻</th></tr></thead>
-  <tbody>
-    <tr><td><code>0</code></td><td>정상 종료</td></tr>
-    <tr><td><code>1</code></td><td>실행 중 실패: 런타임 에러, <code>!</code>가 <code>Err</code>를 만남, 끝내 아무도 확인하지 않은 태스크의 실패, 테스트 실패</td></tr>
-    <tr><td><code>2</code></td><td>컴파일 실패: 문법·이름·import 에러</td></tr>
-    <tr><td><code>3</code></td><td><code>fung</code> 명령을 잘못 씀</td></tr>
-    <tr><td><code>n</code></td><td>스크립트가 <code>exit(n)</code>을 부름</td></tr>
-  </tbody>
-</table>
 </div></main>
 </div>
 <script src="../versions.js"></script>

@@ -6,6 +6,8 @@ lede: Go처럼 쓰고 Lisp처럼 도는 작은 함수형 스크립트 언어. �
 
 {{parts}}
 
+**어디서 시작할까.** 프로그래밍이 처음이라면 [배우기 1장](learn/01-programming.html)부터 차례로 읽는다. 다른 언어를 써 봤다면 [2장](learn/02-first-program.html)에서 설치하고 [3장](learn/03-values-and-names.html)부터 훑은 뒤 필요할 때 [레퍼런스](reference/language.html)를 찾아본다. 쉘 스크립트로 하던 일을 옮기고 싶다면 [예제 모음](recipes/rename.html)이 빠르다. 언어가 안에서 어떻게 도는지 궁금하다면 [fung VM](vm/01-how-programs-run.html)으로 간다.
+
 </div>
 <div class="wide">
 <div class="twofold">
@@ -103,6 +105,8 @@ match logs:
 
 ## 빠른 시작 {#start}
 
+설치부터 첫 스크립트, REPL, 에러 메시지 읽는 법까지 차례로 따라가려면 [배우기 2장](learn/02-first-program.html)을 본다. 여기는 요약이다.
+
 <h3>설치</h3>
 <p>Linux와 macOS(amd64, arm64)는 설치 스크립트로 받는다. GitHub 릴리스에서 내 플랫폼의 바이너리를 받아 <code>SHA256SUMS</code>와 대조한 뒤 <code>~/.local/bin</code>에 둔다. sudo는 필요 없다. Linux 바이너리는 정적 링크(musl)라 배포판·glibc 버전과 상관없이 돈다.</p>
 
@@ -164,58 +168,3 @@ test "slug joins words with dashes":
 ```
 
 <p><code>fung run</code>은 <code>test</code> 블록을 무시하고, <code>fung test</code>가 그것만 돌린다. 실패하면 양쪽 값이 함께 찍힌다.</p>
-
-## 명령 {#commands}
-
-<table>
-  <thead><tr><th>명령</th><th>하는 일</th></tr></thead>
-  <tbody>
-    <tr><td><code>fung script.fung [args…]</code></td><td>스크립트 실행. <code>fung run script.fung</code>과 같다. 뒤의 인자는 <code>args</code>(문자열 리스트)로 들어간다.</td></tr>
-    <tr><td><code>fung -e 'code'</code></td><td>코드 한 줄 실행.</td></tr>
-    <tr><td><code>fung</code></td><td>REPL. 줄 편집, 기록(<code>~/.fung_history</code>), 정의 유지, <code>:help</code> <code>:load</code> <code>:quit</code>. 에러는 그 코드를 정의한 입력의 줄을 보인다. 한 입력 안의 교착은 그 입력만 실패시키고 세션은 계속된다. 띄운 태스크가 <code>exit(n)</code>을 부르면 세션이 코드 n으로 끝난다. 다음 입력을 기다리는 태스크는 교착이 아니다. 전역에 담은 에이전트는 다음 입력에서도 쓸 수 있고 세션이 끝날 때 끝나며, 아무도 붙잡지 않은 에이전트는 핸들이 사라질 때(대개 그 입력 끝에) 더 일찍 끝난다.</td></tr>
-    <tr><td><code>fung check script.fung</code></td><td>실행하지 않고 문법·이름·import를 검사하고 경고를 보여 준다.</td></tr>
-    <tr><td><code>fung test [path]</code></td><td><code>test</code> 블록 실행. 경로가 디렉터리면 그 아래 <code>.fung</code> 전부(<code>_</code>나 <code>.</code>으로 시작하는 디렉터리 제외, <code>fmt</code>와 같은 규칙). 테스트가 없는 파일은 건너뛴다. 읽지 못한 파일과 종료 핸들러의 실패도 실패로 센다. 파일 안에서 <code>exit(n)</code>이 불리거나(띄운 태스크에서도) 교착이 보고되면 그 파일의 나머지 블록을 건너뛰고 실패 하나로 센다.</td></tr>
-    <tr><td><code>fung fmt [--check] path…</code></td><td>공백·들여쓰기·정렬을 단일 스타일로 고친다. 줄바꿈은 그대로 둔다. 정렬은 화면 칸 수로 맞춘다(한글·한자는 2칸). <code>--check</code>는 고칠 파일만 알려 주고, <code>-</code>는 표준 입력을 받는다. <code>--check -</code>는 고칠 게 있으면 <code>&lt;stdin&gt;</code>을 찍고 종료 코드 1, 없으면 아무것도 찍지 않고 0.</td></tr>
-    <tr><td><code>fung dump ast|core|bytecode file</code></td><td>컴파일의 중간 단계를 보여 준다(<a href="vm/internals.html">내부 구조</a>).</td></tr>
-  </tbody>
-</table>
-
-## 에러와 종료 코드 {#errors}
-
-<p>에러는 번호, 메시지, 소스 발췌, 런타임 에러면 호출 경로를 보여 준다. 구현 언어의 패닉이나 스택 추적은 나오지 않는다.</p>
-
-```plain
-error[E0507]: index 5 is out of range (length 2)
-  --> report.fung:2:8
-  |
-2 | print(x[5])
-  |        ^
-  |
- call path (innermost first):
-   report.fung:2 <entry>
-```
-
-<table>
-  <thead><tr><th>번호</th><th>분류</th></tr></thead>
-  <tbody>
-    <tr><td><code>E01xx</code></td><td>문법(렉서·파서)</td></tr>
-    <tr><td><code>E02xx</code></td><td>이름과 스코프</td></tr>
-    <tr><td><code>E03xx</code></td><td>모듈과 import</td></tr>
-    <tr><td><code>E04xx</code></td><td>호출과 타입 표기</td></tr>
-    <tr><td><code>E05xx</code></td><td>런타임 연산(타입 불일치, 0 나누기, 오버플로, 범위 밖 인덱스, 없는 키)</td></tr>
-    <tr><td><code>E06xx</code></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code> E0606)</td></tr>
-    <tr><td><code>E07xx</code></td><td>동시성(취소, 교착, 채널에 그 채널의 끝 보내기 E0705, 닫힌 범위 E0706, atom의 <code>f</code> 안 효과 E0707, atom에 못 담는 값 E0708)</td></tr>
-    <tr><td><code>E08xx</code></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
-    <tr><td><code>W01xx</code></td><td>경고(<code>check</code>·<code>test</code>에서만): 안 쓰는 import·변수, prelude 이름 가리기</td></tr>
-  </tbody>
-</table>
-<table>
-  <thead><tr><th>종료 코드</th><th>뜻</th></tr></thead>
-  <tbody>
-    <tr><td><code>0</code></td><td>정상 종료</td></tr>
-    <tr><td><code>1</code></td><td>실행 중 실패: 런타임 에러, <code>!</code>가 <code>Err</code>를 만남, 끝내 아무도 확인하지 않은 태스크의 실패, 테스트 실패</td></tr>
-    <tr><td><code>2</code></td><td>컴파일 실패: 문법·이름·import 에러</td></tr>
-    <tr><td><code>3</code></td><td><code>fung</code> 명령을 잘못 씀</td></tr>
-    <tr><td><code>n</code></td><td>스크립트가 <code>exit(n)</code>을 부름</td></tr>
-  </tbody>
-</table>

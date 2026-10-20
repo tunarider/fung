@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>컬렉션 · fung 매뉴얼</title>
+<meta name="description" content="fung prelude 컬렉션: len, map, filter, fold, sort_by, group_by, take 등 리스트·범위·채널을 다루는 함수.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">컬렉션</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html" aria-current="page">컬렉션</a><ol class="toc2"><li><a href="#concepts">컬렉션이란</a></li><li><a href="#basics">세기와 고르기</a></li><li><a href="#transform">바꾸기와 고르기</a></li><li><a href="#order">정렬과 모양 바꾸기</a></li><li><a href="#numbers">수 모으기</a></li></ol></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
+<h1>컬렉션</h1>
+<p class="lede">여러 값을 담은 묶음(리스트, 범위, 채널의 받는 끝)을 세고, 바꾸고, 고르고, 접고, 정렬한다. 모든 함수는 원본을 건드리지 않고 새 값을 돌려준다. 원소를 도는 함수는 Rust로, 그 위의 조합은 fung으로 썼다.</p>
+<h2 id="concepts">컬렉션이란</h2>
+<p><strong>컬렉션</strong>(collection)은 값 여러 개를 하나로 묶은 값이다. fung에서 가장 많이 쓰는 컬렉션은 <strong>리스트</strong>(list)다. <code>[&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]</code>처럼 대괄호 안에 순서대로 쓰고, <code>xs[0]</code>으로 첫 원소를, <code>xs[1..]</code>로 첫 원소를 뺀 나머지를 꺼낸다(인덱스는 0부터). 리스트 말고도 이 페이지의 함수가 받는 것이 둘 더 있다.</p>
+<ul>
+<li><strong>범위</strong>(range): <code>0..10</code>(10은 빠짐), <code>1..=10</code>(10 포함). 정수를 차례로 내놓지만 리스트를 미리 만들지 않으므로 아주 큰 범위도 공짜로 만든다.</li>
+<li><strong>채널의 받는 끝</strong>(receiver): 다른 태스크가 보내는 값의 흐름(<a href="concurrency.html">동시성</a>). 값이 올 때마다 처리하고, 채널이 닫히면 끝난다. 일찍 멈추는 함수(<code>find</code>·<code>any</code>·<code>all</code>·<code>take</code>·<code>first</code>)는 필요한 만큼만 받고 남은 값을 채널에 둔다. 전체가 필요한 함수(<code>sort</code>·<code>reverse</code>·<code>last</code> 등)는 닫힐 때까지 받는다.</li>
+</ul>
+<p>문자열은 컬렉션 함수에 넣지 않는다(<code>map(&quot;abc&quot;, f)</code>는 에러). 글자로 다루려면 <a href="strings.html#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다. 맵은 <a href="maps.html">맵</a> 함수로 다루고, 쌍의 리스트가 필요하면 <a href="maps.html#fn-pairs"><code>pairs</code></a>를 쓴다.</p>
+<h3 id="immutable">불변: 원본은 바뀌지 않는다</h3>
+<p>fung의 리스트는 <strong>불변</strong>(immutable)이다. 한 번 만든 리스트는 바뀌지 않는다. <code>sort(xs)</code>는 <code>xs</code>를 정렬하는 것이 아니라 정렬된 <strong>새</strong> 리스트를 돌려준다. 그래서 결과를 쓰려면 이름에 담는다: <code>sorted = sort(xs)</code>. 원본을 여러 곳이 같이 보고 있어도 한 곳의 작업이 다른 곳을 몰래 바꾸지 않으므로, 태스크 사이에 리스트를 그냥 넘겨도 안전하다. 사본은 원본과 구조를 나눠 쓰므로 <code>acc + [x]</code>로 하나씩 붙여 가도 매번 전체를 복사하지 않는다(<a href="../language.html#for">누적과 재귀의 비용</a>).</p>
+<h3 id="higher-order">함수를 받는 함수</h3>
+<p><code>map</code>·<code>filter</code>·<code>fold</code>처럼 <strong>함수를 인자로 받는</strong> 함수를 고차 함수(higher-order function)라고 한다. 반복문을 직접 쓰는 대신 "각 원소에 무엇을 할지"만 함수로 건넨다. 보통 그 자리에서 람다(<code>x =&gt; x * 2</code>)를 쓰고, 이미 있는 함수 이름(<code>len</code>, <code>parse_int</code>)을 넘겨도 된다.</p>
+<p>모든 함수가 컬렉션을 첫 인자로 받으므로 파이프 <code>|&gt;</code>로 단계를 이을 수 있다. <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같고, 위에서 아래로 읽힌다(<a href="../language.html#pipe">파이프</a>).</p>
+<div class="run"><pre><code>hosts = [&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]
+web = hosts |&gt; filter(h =&gt; starts_with(h, &quot;web&quot;)) |&gt; map(upper)
+print(web, len(web))
+print(hosts)</code></pre><pre class="out plain"><code>[&quot;WEB-1&quot;, &quot;WEB-2&quot;, &quot;WEB-3&quot;] 3
+[&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]</code></pre></div>
+<p>마지막 줄처럼 원본 <code>hosts</code>는 그대로다.</p>
+<h3 id="limits">크기 제한</h3>
+<p>결과가 모든 원소를 담는 함수(<code>map</code>, <code>sort</code>, <code>reverse</code>, <code>unique</code> 등)는 원소 1억 개를 넘는 범위를 받으면 만들기 전에 E0806으로 거절한다. 메모리를 다 쓰고 죽는 대신 이유를 알려 주기 위해서다. 결과가 작을 수 있는 <code>filter</code>·<code>fold</code>와 일찍 멈추는 <code>find</code>·<code>any</code>·<code>take</code>는 큰 범위도 받는다(원소를 하나씩 만들어 보므로 시간은 든다). <code>len</code>은 원소를 만들지 않고 계산한다.</p>
+<h2 id="basics">세기와 고르기</h2>
+<section class="entry" id="fn-len">
+<h3>len</h3>
+<p>문자열의 글자 수, 리스트·맵·튜플·범위의 원소 수를 돌려준다.</p>
+<div class="sig"><code>len(x)</code></div>
+<h4>설명</h4>
+<p>문자열은 바이트가 아니라 <strong>글자</strong>(유니코드 코드 포인트)를 센다. 그래서 <code>len(&quot;참치&quot;)</code>는 2다. 결합 문자로 쓴 <code>&quot;e\u{301}&quot;</code>(é)는 코드 포인트 둘이라 2다. 범위는 원소를 만들지 않고 계산하므로 <code>len(0..1_000_000_000_000)</code>도 바로 답한다. 끝이 시작보다 작은 범위(<code>5..1</code>)는 비어 있어 0이다.</p>
+<p>채널의 받는 끝은 몇 개가 올지 미리 알 수 없으므로 길이가 없다(E0506). 다 받아 세려면 <code>len(map(rx, x =&gt; x))</code>처럼 리스트로 만든다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>x</code>: <code>str</code>, <code>list</code>, <code>map</code>, <code>tuple</code>, <code>range</code>.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>정수.</p>
+<h4>에러</h4>
+<p>그 밖의 타입이면 런타임 에러 E0506(<code>cannot take the length of int</code>).</p>
+<h4>예제</h4>
+<p><strong>여러 타입의 길이</strong></p>
+<div class="run"><pre><code>print(len(&quot;참치&quot;), len([1, 2]), len({a: 1, b: 2}), len((1, 2, 3)))
+print(len(0..10), len(0..=10), len(5..1), len(0..1_000_000_000_000))</code></pre><pre class="out plain"><code>2 2 2 3
+10 11 0 1000000000000</code></pre></div>
+<p><strong>길이가 없는 값</strong></p>
+<div class="run"><pre><code>print(len(42))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot take the length of int
+  --&gt; example.fung:1:10
+  |
+1 | print(len(42))
+  |          ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-is_empty"><code>is_empty</code></a>, <a href="strings.html#fn-chars"><code>chars</code></a></p>
+</section>
+<section class="entry" id="fn-is_empty">
+<h3>is_empty<span class="by">fung으로 작성</span></h3>
+<p>비었으면 <code>true</code>. <code>len(x) == 0</code>과 같다.</p>
+<div class="sig"><code>is_empty(x)</code></div>
+<h4>설명</h4>
+<p><code>len</code>이 받는 모든 값을 받는다. 범위는 길이를 세지 않고 원소가 하나라도 있는지만 본다. <code>[nil]</code>은 원소가 하나 있으므로 비어 있지 않다.</p>
+<p>조건 자리에는 <code>bool</code>만 오므로, 리스트가 비었는지 물을 때 <code>if xs:</code>라고 쓸 수 없다. <code>if is_empty(xs):</code> 또는 <code>if not is_empty(xs):</code>로 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>x</code>: <code>str</code>, <code>list</code>, <code>map</code>, <code>tuple</code>, <code>range</code>.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>bool</code>.</p>
+<h4>에러</h4>
+<p><code>len</code>과 같다(E0506).</p>
+<h4>예제</h4>
+<p><strong>여러 값</strong></p>
+<div class="run"><pre><code>print(is_empty([]), is_empty(&quot;&quot;), is_empty({}), is_empty(0..0))
+print(is_empty([nil]), is_empty(5..1), is_empty(&quot;x&quot;))</code></pre><pre class="out plain"><code>true true true true
+false true false</code></pre></div>
+<p><strong>조건에 쓰기</strong></p>
+<div class="run"><pre><code>failed = []
+print(is_empty(failed) then &quot;all ok&quot; else &quot;${len(failed)} failed&quot;)</code></pre><pre class="out plain"><code>all ok</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-len"><code>len</code></a>, <a href="../language.html#conditions">조건</a></p>
+</section>
+<section class="entry" id="fn-first">
+<h3>first<span class="by">fung으로 작성</span></h3>
+<p>첫 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
+<div class="sig"><code>first(xs)</code></div>
+<h4>설명</h4>
+<p><code>xs[0]</code>과 달리 빈 리스트에서도 에러가 나지 않는다. 그래서 "있으면 쓰고 없으면 기본값"을 <code>first(xs) ?? 기본값</code>으로 쓸 수 있다. 다만 원소 자체가 <code>nil</code>인 것과 비어 있는 것은 구별되지 않는다.</p>
+<p>범위는 리스트를 만들지 않고 첫 수를 준다. 채널의 받는 끝이면 값 하나를 받고(나머지는 채널에 남는다), 닫혀 있고 남은 값이 없으면 <code>nil</code>이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>첫 원소 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p>다른 타입이면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>리스트와 범위</strong></p>
+<div class="run"><pre><code>print(first([3, 1, 2]), first([]), first(5..10), first(0..0))</code></pre><pre class="out plain"><code>3 nil 5 nil</code></pre></div>
+<p><strong>기본값과 함께</strong></p>
+<div class="run"><pre><code>mirrors = []
+print(first(mirrors) ?? &quot;https://default.example&quot;)</code></pre><pre class="out plain"><code>https://default.example</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-last"><code>last</code></a>, <a href="#fn-find"><code>find</code></a>, <a href="#fn-take"><code>take</code></a></p>
+</section>
+<section class="entry" id="fn-last">
+<h3>last<span class="by">fung으로 작성</span></h3>
+<p>마지막 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
+<div class="sig"><code>last(xs)</code></div>
+<h4>설명</h4>
+<p><code>xs[-1]</code>과 같지만 빈 리스트에서 에러 대신 <code>nil</code>이다. 범위는 계산으로 마지막 수를 준다. 채널의 받는 끝이면 닫힐 때까지 모두 받고 마지막 값을 준다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>마지막 원소 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p>다른 타입이면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>리스트와 범위</strong></p>
+<div class="run"><pre><code>print(last([3, 1, 2]), last([]), last(0..10), last(1..=10))</code></pre><pre class="out plain"><code>2 nil 9 10</code></pre></div>
+<p><strong>가장 최근 것 고르기</strong></p>
+<div class="run"><pre><code>releases = [&quot;v0.2.0&quot;, &quot;v0.3.0&quot;, &quot;v0.4.0&quot;]
+print(&quot;latest:&quot;, last(releases) ?? &quot;none&quot;)</code></pre><pre class="out plain"><code>latest: v0.4.0</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-first"><code>first</code></a>, <a href="#fn-reverse"><code>reverse</code></a></p>
+</section>
+<section class="entry" id="fn-take">
+<h3>take<span class="by">fung으로 작성</span></h3>
+<p>앞에서 최대 <code>n</code>개를 리스트로 돌려준다.</p>
+<div class="sig"><code>take(xs, n)</code></div>
+<h4>설명</h4>
+<p>슬라이스 <code>xs[..n]</code>과 달리 <code>n</code>이 길이보다 커도 에러가 아니다. 있는 만큼만 준다. <code>n</code>이 0 이하면 <code>[]</code>다. 범위는 필요한 수만 만들므로 <code>take(0..1_000_000_000, 3)</code>도 빠르다. 채널의 받는 끝이면 <code>n</code>개를 받을 때까지(또는 닫힐 때까지) 받고 멈추며, 남은 값은 채널에 그대로 있다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>n</code>: 정수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<p><code>n</code>이 정수가 아니면 런타임 에러 E0803(<code>take expects an int count, got 'float</code>).</p>
+<h4>예제</h4>
+<p><strong>넘쳐도 에러가 아니다</strong></p>
+<div class="run"><pre><code>print(take([1, 2, 3], 2), take([1], 5), take([1, 2], -1), take(0..1_000_000_000, 3))</code></pre><pre class="out plain"><code>[1, 2] [1] [] [0, 1, 2]</code></pre></div>
+<p><strong>상위 3개</strong></p>
+<div class="run"><pre><code>sizes = {&quot;a.log&quot;: 120, &quot;b.log&quot;: 900, &quot;c.log&quot;: 40, &quot;d.log&quot;: 300}
+top = pairs(sizes) |&gt; sort_by(((_, n)) =&gt; -n) |&gt; take(3)
+print(top)</code></pre><pre class="out plain"><code>[(&quot;b.log&quot;, 900), (&quot;d.log&quot;, 300), (&quot;a.log&quot;, 120)]</code></pre></div>
+<p><strong>채널에서 몇 개만 받기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(5)
+each(1..=5, i =&gt; send(tx, i))
+print(take(rx, 2))
+print(take(rx, 2))</code></pre><pre class="out plain"><code>[1, 2]
+[3, 4]</code></pre></div>
+<p>두 번째 <code>take</code>는 남아 있던 값에서 이어 받는다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-drop"><code>drop</code></a>, <a href="#fn-first"><code>first</code></a>, <a href="../language.html#access">슬라이스</a></p>
+</section>
+<section class="entry" id="fn-drop">
+<h3>drop<span class="by">fung으로 작성</span></h3>
+<p>앞의 <code>n</code>개를 뺀 나머지를 리스트로 돌려준다.</p>
+<div class="sig"><code>drop(xs, n)</code></div>
+<h4>설명</h4>
+<p>슬라이스 <code>xs[n..]</code>과 달리 <code>n</code>이 길이보다 커도 에러가 아니고 <code>[]</code>를 준다. <code>n</code>이 0 이하면 전부를 준다. 범위는 필요한 부분만 만든다. 받는 끝이면 닫힐 때까지 모두 받은 뒤 앞의 <code>n</code>개를 버린다(그래서 닫히지 않는 채널에서는 끝나지 않는다).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>n</code>: 정수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<p><code>n</code>이 정수가 아니면 런타임 에러 E0803.</p>
+<h4>예제</h4>
+<p><strong>넘쳐도 에러가 아니다</strong></p>
+<div class="run"><pre><code>print(drop([1, 2, 3], 1), drop([1], 5), drop([1, 2], -1), drop(0..5, 3))</code></pre><pre class="out plain"><code>[2, 3] [] [1, 2] [3, 4]</code></pre></div>
+<p><strong>머리줄 빼기</strong></p>
+<div class="run"><pre><code>rows = [&quot;name,size&quot;, &quot;a.log,120&quot;, &quot;b.log,900&quot;]
+print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&quot;, &quot;b.log,900&quot;]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-take"><code>take</code></a>, <a href="../language.html#access">슬라이스</a></p>
+</section>
+<section class="entry" id="fn-range">
+<h3>range<span class="by">fung으로 작성</span></h3>
+<p>범위 값을 만든다. <code>range(n)</code>은 <code>0..n</code>, <code>range(a, b)</code>는 <code>a..b</code>.</p>
+<div class="sig"><code>range(a, b = nil)</code></div>
+<h4>설명</h4>
+<p>범위 리터럴(<code>0..n</code>)을 함수로 쓰는 것이다. 끝은 들어가지 않는다. 끝을 넣으려면 리터럴 <code>a..=b</code>를 쓴다. 돌려주는 값은 리스트가 아니라 범위라서, 리스트가 필요하면 <code>map(range(n), x =&gt; x)</code>처럼 만든다. 끝이 시작보다 작으면 빈 범위다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>a</code>: 정수. <code>b</code>가 없으면 끝, 있으면 시작.</li>
+<li><code>b</code>: 정수 또는 <code>nil</code>.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>범위.</p>
+<h4>에러</h4>
+<p>정수가 아니면 런타임 에러 E0501(<code>cannot make a range from int and str</code>).</p>
+<h4>예제</h4>
+<p><strong>범위 만들기</strong></p>
+<div class="run"><pre><code>print(range(3), range(2, 5), map(range(3), x =&gt; x * 10))</code></pre><pre class="out plain"><code>0..3 2..5 [0, 10, 20]</code></pre></div>
+<p><strong>번호 붙이기</strong></p>
+<div class="run"><pre><code>names = [&quot;web&quot;, &quot;db&quot;, &quot;cache&quot;]
+for i in range(len(names)):
+  print(i + 1, names[i])
+;;</code></pre><pre class="out plain"><code>1 web
+2 db
+3 cache</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="../language.html#values">범위</a>, <a href="#fn-zip"><code>zip</code></a>, <a href="../language.html#for">for</a></p>
+</section>
+<section class="entry" id="fn-contains">
+<h3>contains<span class="by">fung으로 작성</span></h3>
+<p><code>x in c</code>와 같다: 리스트의 원소인지, 맵의 키인지, 부분 문자열인지.</p>
+<div class="sig"><code>contains(c, x)</code></div>
+<h4>설명</h4>
+<p><code>c</code>의 타입에 따라 묻는 것이 다르다.</p>
+<ul>
+<li>리스트·범위: <code>x</code>와 <code>==</code>인 원소가 있는가. 비교 규칙을 따르므로 <code>contains([1], 1.0)</code>도 참이다.</li>
+<li>맵: <code>x</code>가 키인가(값이 아니다). 키는 문자열이므로 <code>x</code>도 문자열이어야 한다.</li>
+<li>문자열: <code>x</code>가 부분 문자열인가. 빈 문자열은 언제나 들어 있다.</li>
+</ul>
+<p>심볼과 문자열을 견주면 E0517이다(<code>contains(['a], &quot;a&quot;)</code>). 외부에서 온 문자열은 <a href="convert.html#fn-sym"><code>sym</code></a>으로 바꿔서 찾는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>c</code>: 리스트, 범위, 맵, 문자열.</li>
+<li><code>x</code>: 찾을 값.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>bool</code>.</p>
+<h4>에러</h4>
+<ul>
+<li>맵에서 문자열이 아닌 키를, 문자열에서 문자열이 아닌 값을 찾으면 런타임 에러 E0501(<code>cannot search map and int</code>).</li>
+<li>심볼과 문자열을 견주면 E0517.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>세 가지 뜻</strong></p>
+<div class="run"><pre><code>print(contains([1, 2], 2), contains({a: 1}, &quot;a&quot;), contains({a: 1}, &quot;b&quot;), contains(&quot;hello&quot;, &quot;ell&quot;))
+print(contains(0..10, 5), 2 in [1, 2])</code></pre><pre class="out plain"><code>true true false true
+true true</code></pre></div>
+<p><strong>허용 목록 검사</strong></p>
+<div class="run"><pre><code>allowed = [&quot;prod&quot;, &quot;staging&quot;]
+for target in [&quot;prod&quot;, &quot;dev&quot;]:
+  print(target, contains(allowed, target) then &quot;ok&quot; else &quot;refused&quot;)
+;;</code></pre><pre class="out plain"><code>prod ok
+dev refused</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-find"><code>find</code></a>, <a href="#fn-any"><code>any</code></a>, <a href="strings.html#fn-starts_with"><code>starts_with</code></a>, <a href="../language.html#values">비교와 동일성</a></p>
+</section>
+<h2 id="transform">바꾸기와 고르기</h2>
+<section class="entry" id="fn-map">
+<h3>map</h3>
+<p>각 원소에 <code>f</code>를 부른 결과를 모아 새 리스트로 돌려준다.</p>
+<div class="sig"><code>map(xs, f)</code></div>
+<h4>설명</h4>
+<p><code>map([a, b, c], f)</code>는 <code>[f(a), f(b), f(c)]</code>다. 원소 수는 그대로이고 순서도 지킨다. 원본은 바뀌지 않는다. <code>for x in xs: 식 ;;</code>도 리스트를 만들지만, 이미 있는 함수를 넘기거나 파이프로 이을 때는 <code>map</code>이 짧다.</p>
+<p><code>f</code>는 인자 하나를 받는 함수다. 범위를 주면 리스트가 된다(<code>map(0..3, x =&gt; x)</code>는 <code>[0, 1, 2]</code>). 받는 끝을 주면 값이 올 때마다 <code>f</code>를 부르고 채널이 닫히면 끝난다.</p>
+<div class="box mistake"><b>map 안의 ? 는 컴파일 에러다 (E0226)</b>
+<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 <code>map</code>에 바로 쓴 람다 안의 <code>?</code>는 컴파일 에러 E0226이다. <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버리기 때문이다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
+</div>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소 하나를 받는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<ul>
+<li><code>xs</code>가 문자열·맵·튜플 등이면 런타임 에러 E0506(<code>cannot map over str</code>).</li>
+<li><code>f</code>가 함수가 아니면 E0403, 인자 수가 맞지 않으면 E0407.</li>
+<li>결과가 1억 개를 넘으면 E0806.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>각 원소를 바꾸기</strong></p>
+<div class="run"><pre><code>print([1, 2, 3] |&gt; map(x =&gt; x * 10))
+print(map(1..=4, x =&gt; x * x))</code></pre><pre class="out plain"><code>[10, 20, 30]
+[1, 4, 9, 16]</code></pre></div>
+<p><strong>이미 있는 함수를 넘기기</strong></p>
+<div class="run"><pre><code>print(map([&quot;web&quot;, &quot;db&quot;], upper), map([&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;], len))</code></pre><pre class="out plain"><code>[&quot;WEB&quot;, &quot;DB&quot;] [1, 2, 3]</code></pre></div>
+<p><strong>맵의 리스트에서 필드 하나씩</strong></p>
+<div class="run"><pre><code>servers = [{name: &quot;web-1&quot;, cpu: 72}, {name: &quot;db-1&quot;, cpu: 15}]
+print(map(servers, s =&gt; s.name))
+print(map(servers, s =&gt; &quot;${s.name}: ${s.cpu}%&quot;))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;db-1&quot;]
+[&quot;web-1: 72%&quot;, &quot;db-1: 15%&quot;]</code></pre></div>
+<p><strong>맵을 돌 때는 pairs로</strong></p>
+<div class="run"><pre><code>ports = {web: 80, db: 5432}
+print(pairs(ports) |&gt; map(((k, v)) =&gt; &quot;${k}=${v}&quot;))</code></pre><pre class="out plain"><code>[&quot;web=80&quot;, &quot;db=5432&quot;]</code></pre></div>
+<p><strong>문자열은 바로 받지 않는다</strong></p>
+<div class="run"><pre><code>print(map(&quot;abc&quot;, upper))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot map over str
+  --&gt; example.fung:1:10
+  |
+1 | print(map(&quot;abc&quot;, upper))
+  |          ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<p><code>map(chars(&quot;abc&quot;), upper)</code>로 쓴다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-try_map"><code>try_map</code></a>, <a href="#fn-filter"><code>filter</code></a>, <a href="#fn-each"><code>each</code></a>, <a href="../language.html#for">for</a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>(병렬)</p>
+</section>
+<section class="entry" id="fn-try_map">
+<h3>try_map</h3>
+<p><code>f</code>가 돌려준 결과값을 모아, 모두 <code>Ok</code>면 <code>Ok(리스트)</code>, 아니면 처음 나온 <code>Err</code>를 돌려준다.</p>
+<div class="sig"><code>try_map(xs, f)</code></div>
+<h4>설명</h4>
+<p><code>f</code>는 원소마다 <code>Ok(v)</code>나 <code>Err(e)</code>를 돌려주는 함수다(<code>parse_int</code> 같은). 모두 <code>Ok(v)</code>면 <code>Ok([v, …])</code>를 돌려준다. 처음 <code>Err</code>가 나오면 그 <code>Err</code>를 그대로 돌려주고 남은 원소에는 <code>f</code>를 부르지 않는다. 그래서 "하나라도 틀리면 전체가 실패"인 변환에 쓴다. 결과는 보통 <code>!</code>나 <code>?</code>로 푼다.</p>
+<p>이미 결과값의 리스트를 가지고 있으면 <code>try_map(rs, r =&gt; r)</code>로 하나로 모은다. 실패한 것만 건너뛰고 싶으면 <code>try_map</code> 대신 <code>map</code>과 <a href="results.html#fn-is_ok"><code>filter(is_ok)</code></a>를 쓴다.</p>
+<div class="box mistake"><b>파이프 끝의 ? 와 ! 는 괄호로 감싼다</b>
+<p>후위 <code>?</code>·<code>!</code>는 <code>|&gt;</code>보다 단단히 붙는다(<a href="../language.html#precedence">우선순위</a>). 그래서 <code>xs |&gt; try_map(f)?</code>는 <code>xs |&gt; (try_map(f)?)</code>로 읽혀 <code>try_map</code>이 인자 하나로 불린다(E0407 <code>missing argument</code>). 파이프 전체를 괄호로 감싸 <code>(xs |&gt; try_map(f))?</code>로 쓰거나, 파이프 없이 <code>try_map(xs, f)?</code>로 쓴다.</p>
+</div>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소 하나를 받아 <code>Ok</code>나 <code>Err</code>를 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(리스트)</code> 또는 처음 나온 <code>Err(e)</code>.</p>
+<h4>에러</h4>
+<p><code>f</code>가 결과값이 아닌 값을 돌려주면 런타임 에러 E0605. 나머지는 <code>map</code>과 같다.</p>
+<h4>예제</h4>
+<p><strong>모두 성공, 하나 실패</strong></p>
+<div class="run"><pre><code>print([&quot;1&quot;, &quot;2&quot;] |&gt; try_map(parse_int))
+print([&quot;1&quot;, &quot;x&quot;, &quot;y&quot;] |&gt; try_map(parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2])
+Err({kind: 'parse, message: &quot;not an integer: x&quot;})</code></pre></div>
+<p><strong>함수 안에서 ? 와 함께</strong></p>
+<div class="run"><pre><code>fn ports(spec):
+  nums = (split(spec, &quot;,&quot;) |&gt; try_map(s =&gt; parse_int(trim(s))))?
+  Ok(sort(nums))
+;;
+
+print(ports(&quot;443, 80, 8080&quot;))
+print(ports(&quot;443, http&quot;))</code></pre><pre class="out plain"><code>Ok([80, 443, 8080])
+Err({kind: 'parse, message: &quot;not an integer: http&quot;})</code></pre></div>
+<p><strong>결과값 리스트를 하나로</strong></p>
+<div class="run"><pre><code>rs = [Ok(1), Ok(2), Ok(3)]
+print(try_map(rs, r =&gt; r))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-map"><code>map</code></a>, <a href="../language.html#results">결과값과 에러</a>, <a href="../errors.html#E0226">E0226</a></p>
+</section>
+<section class="entry" id="fn-filter">
+<h3>filter</h3>
+<p><code>f(x)</code>가 <code>true</code>인 원소만 모은 새 리스트를 돌려준다.</p>
+<div class="sig"><code>filter(xs, f)</code></div>
+<h4>설명</h4>
+<p>원소의 순서는 지킨다. <code>f</code>는 반드시 <code>bool</code>을 돌려줘야 한다. <code>0</code>이나 <code>nil</code>, 빈 문자열을 거짓으로 쳐 주지 않는다(E0505). 그래서 "값이 있는 것만"은 <code>x =&gt; x != nil</code>처럼 조건을 다 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소를 받아 <code>bool</code>을 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<ul>
+<li><code>f</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505(<code>expected bool, got int</code>).</li>
+<li><code>xs</code>가 받지 않는 타입이면 E0506.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>조건에 맞는 것만</strong></p>
+<div class="run"><pre><code>print(filter([1, 2, 3, 4], x =&gt; x % 2 == 0), filter(1..10, x =&gt; x &gt; 7))</code></pre><pre class="out plain"><code>[2, 4] [8, 9]</code></pre></div>
+<p><strong>로그에서 에러 줄만</strong></p>
+<div class="run"><pre><code>log = [&quot;INFO start&quot;, &quot;ERROR disk full&quot;, &quot;INFO ok&quot;, &quot;ERROR timeout&quot;]
+errors = log |&gt; filter(l =&gt; starts_with(l, &quot;ERROR&quot;))
+print(len(errors), errors)</code></pre><pre class="out plain"><code>2 [&quot;ERROR disk full&quot;, &quot;ERROR timeout&quot;]</code></pre></div>
+<p><strong>nil 빼기</strong></p>
+<div class="run"><pre><code>print(filter([1, nil, 2], x =&gt; x != nil))</code></pre><pre class="out plain"><code>[1, 2]</code></pre></div>
+<p><strong>조건은 bool이어야 한다</strong></p>
+<div class="run"><pre><code>print(filter([0, 1, 2], x =&gt; x))</code></pre><pre class="out err plain" data-code="1"><code>error[E0505]: expected bool, got int
+  --&gt; example.fung:1:13
+  |
+1 | print(filter([0, 1, 2], x =&gt; x))
+  |             ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-find"><code>find</code></a>, <a href="#fn-any"><code>any</code></a>, <a href="#fn-map"><code>map</code></a>, <a href="results.html#fn-is_ok"><code>is_ok</code></a></p>
+</section>
+<section class="entry" id="fn-fold">
+<h3>fold</h3>
+<p><code>init</code>에서 시작해 원소를 하나씩 <code>f</code>로 합쳐 값 하나로 접는다: <code>f(f(init, x1), x2)</code>….</p>
+<div class="sig"><code>fold(xs, init, f)</code></div>
+<h4>설명</h4>
+<p><code>fold</code>는 "누적값"을 들고 원소를 왼쪽부터 차례로 지나간다. 처음 누적값은 <code>init</code>이고, 원소마다 <code>acc = f(acc, x)</code>로 바꾼다. 다 지나간 뒤의 <code>acc</code>가 결과다. 빈 리스트면 <code>init</code>을 그대로 돌려준다.</p>
+<p>합계, 최댓값, 개수 세기, 리스트나 맵 쌓기처럼 "여러 개에서 하나를 만드는" 거의 모든 일을 <code>fold</code>로 할 수 있다. 자주 쓰는 것은 따로 있다: <a href="#fn-sum"><code>sum</code></a>, <a href="#fn-max"><code>max</code></a>, <a href="#fn-group_by"><code>group_by</code></a>. fung에는 바깥 변수를 바꾸는 반복문이 없으므로(블록 안에서 바깥 이름에 다시 대입하면 E0205) 반복하며 값을 쌓는 일은 <code>fold</code>나 재귀로 한다.</p>
+<div class="box tip"><b>문자열은 리스트에 모아 join</b>
+<p><code>fold(xs, &quot;&quot;, (acc, s) =&gt; acc + s)</code>처럼 문자열을 하나씩 이어 붙이면 매번 문자열 전체를 새로 만든다. 리스트에 모은 뒤 <a href="strings.html#fn-join"><code>join</code></a>하는 것이 빠르다. 리스트를 쌓을 때는 앞에 붙이는 <code>[x] + acc</code> 대신 뒤에 붙이는 <code>acc + [x]</code>를 쓴다.</p>
+</div>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>init</code>: 처음 누적값.</li>
+<li><code>f</code>: <code>(누적값, 원소)</code>를 받아 새 누적값을 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>마지막 누적값.</p>
+<h4>에러</h4>
+<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506(<code>cannot fold str</code>). <code>f</code> 안의 에러는 그대로 난다.</p>
+<h4>예제</h4>
+<p><strong>합계와 곱</strong></p>
+<div class="run"><pre><code>print(fold([1, 2, 3], 0, (acc, x) =&gt; acc + x))
+print(fold(1..=5, 1, (acc, x) =&gt; acc * x))
+print(fold([], 99, (acc, x) =&gt; acc + x))</code></pre><pre class="out plain"><code>6
+120
+99</code></pre></div>
+<p><strong>한 번에 여러 개 세기</strong></p>
+<div class="run"><pre><code>codes = [200, 404, 200, 500, 200]
+counts = fold(codes, {ok: 0, bad: 0}, fn(acc, c):
+  key = c &lt; 400 then &quot;ok&quot; else &quot;bad&quot;
+  put(acc, key, acc[key] + 1)
+;;)
+print(counts)</code></pre><pre class="out plain"><code>{ok: 3, bad: 2}</code></pre></div>
+<p><strong>기간 더하기: sum은 0(정수)에서 시작하므로 fold로</strong></p>
+<div class="run"><pre><code>durations = [1500ms, 2s, 250ms]
+print(fold(durations, 0s, (acc, d) =&gt; acc + d))</code></pre><pre class="out plain"><code>3s750ms</code></pre></div>
+<p><strong>리스트를 쌓기</strong></p>
+<div class="run"><pre><code>evens = fold(1..=6, [], (acc, x) =&gt; x % 2 == 0 then acc + [x * x] else acc)
+print(evens)</code></pre><pre class="out plain"><code>[4, 16, 36]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-sum"><code>sum</code></a>, <a href="#fn-map"><code>map</code></a>, <a href="#fn-group_by"><code>group_by</code></a>, <a href="loops.html#fn-until"><code>until</code></a>, <a href="../language.html#for">for</a></p>
+</section>
+<section class="entry" id="fn-each">
+<h3>each</h3>
+<p>각 원소에 <code>f</code>를 부르고 결과는 버린다. 출력이나 전송처럼 부수효과만 필요할 때 쓴다.</p>
+<div class="sig"><code>each(xs, f)</code></div>
+<h4>설명</h4>
+<p><code>map</code>과 같은 순서로 <code>f</code>를 부르지만 결과를 모으지 않고 <code>nil</code>을 돌려준다. <code>for</code> 문장도 같은 일을 하지만 <code>for</code>는 식이라 결과 리스트를 만든다. 값을 모을 필요가 없는 일(찍기, 채널에 보내기, 파일에 쓰기)에 <code>each</code>를 쓴다.</p>
+<p><code>f</code>의 결과를 버리므로, <code>f</code>가 <code>Err</code>를 돌려주면 그 자리에서 E0606(버려지는 <code>Err</code>)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버린다: <code>fn(x): _ = 식 ;;</code>(람다 <code>x =&gt; …</code>의 몸에는 대입을 쓸 수 없다)(<a href="../language.html#results">버려지는 <code>Err</code></a>).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소 하나를 받는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<p><code>f</code>가 <code>Err</code>를 돌려주면 런타임 에러 E0606. 나머지는 <code>map</code>과 같다.</p>
+<h4>예제</h4>
+<p><strong>찍기</strong></p>
+<div class="run"><pre><code>each([&quot;web-1&quot;, &quot;web-2&quot;], h =&gt; print(&quot;deploy&quot;, h))</code></pre><pre class="out plain"><code>deploy web-1
+deploy web-2</code></pre></div>
+<p><strong>채널에 보내기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(3)
+each(1..=3, i =&gt; send(tx, i * 100))
+close(tx)
+print(map(rx, x =&gt; x))</code></pre><pre class="out plain"><code>[100, 200, 300]</code></pre></div>
+<p><code>send</code>는 <code>Ok(nil)</code>을 돌려주고, 닫힌 채널이면 <code>Err</code>라서 E0606으로 멈춘다.</p>
+<p><strong>버려지는 Err는 멈춘다</strong></p>
+<div class="run"><pre><code>each([&quot;8080&quot;, &quot;http&quot;], s =&gt; parse_int(s))</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: http
+  --&gt; example.fung:1:5
+  |
+1 | each([&quot;8080&quot;, &quot;http&quot;], s =&gt; parse_int(s))
+  |     ^ this value is discarded
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;
+ help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-map"><code>map</code></a>, <a href="../language.html#for">for</a>, <a href="../errors.html#E0606">E0606</a></p>
+</section>
+<section class="entry" id="fn-find">
+<h3>find</h3>
+<p><code>f(x)</code>가 <code>true</code>인 첫 원소를, 없으면 <code>nil</code>을 돌려준다.</p>
+<div class="sig"><code>find(xs, f)</code></div>
+<h4>설명</h4>
+<p>앞에서부터 보다가 처음 맞는 원소에서 멈춘다. 그 뒤의 원소에는 <code>f</code>를 부르지 않으므로 아주 큰 범위나 끝없는 채널에도 쓸 수 있다. <code>f</code>는 <code>bool</code>을 돌려줘야 한다.</p>
+<p>찾은 원소가 아니라 "있는가"만 알면 되면 <a href="#fn-any"><code>any</code></a>를, 맞는 것 전부가 필요하면 <a href="#fn-filter"><code>filter</code></a>를 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소를 받아 <code>bool</code>을 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>원소 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p><code>f</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505.</p>
+<h4>예제</h4>
+<p><strong>첫 번째 맞는 것</strong></p>
+<div class="run"><pre><code>print(find([1, 5, 10], x =&gt; x &gt; 3), find([1], x =&gt; x &gt; 3))
+print(find(0..1_000_000_000, x =&gt; x * x &gt; 50))</code></pre><pre class="out plain"><code>5 nil
+8</code></pre></div>
+<p><strong>이름으로 찾기</strong></p>
+<div class="run"><pre><code>servers = [{name: &quot;web-1&quot;, ip: &quot;10.0.0.1&quot;}, {name: &quot;db-1&quot;, ip: &quot;10.0.0.9&quot;}]
+db = find(servers, s =&gt; s.name == &quot;db-1&quot;)
+print(db == nil then &quot;not found&quot; else db.ip)</code></pre><pre class="out plain"><code>10.0.0.9</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-any"><code>any</code></a>, <a href="#fn-filter"><code>filter</code></a>, <a href="#fn-first"><code>first</code></a></p>
+</section>
+<section class="entry" id="fn-any">
+<h3>any</h3>
+<p><code>f(x)</code>가 <code>true</code>인 원소가 하나라도 있으면 <code>true</code>.</p>
+<div class="sig"><code>any(xs, f)</code></div>
+<h4>설명</h4>
+<p>처음 <code>true</code>가 나오면 거기서 멈추고 나머지는 보지 않는다. 빈 컬렉션은 <code>false</code>다. <code>f</code>는 <code>bool</code>을 돌려줘야 한다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소를 받아 <code>bool</code>을 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>bool</code>.</p>
+<h4>에러</h4>
+<p><code>f</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505.</p>
+<h4>예제</h4>
+<p><strong>하나라도</strong></p>
+<div class="run"><pre><code>print(any([1, 2], x =&gt; x &gt; 1), any([], x =&gt; true))</code></pre><pre class="out plain"><code>true false</code></pre></div>
+<p><strong>처음 맞는 곳에서 멈춘다</strong></p>
+<div class="run"><pre><code>r = any([1, 2, 3, 4], fn(x):
+  print(&quot;checking&quot;, x)
+  x &gt;= 2
+;;)
+print(r)</code></pre><pre class="out plain"><code>checking 1
+checking 2
+true</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-all"><code>all</code></a>, <a href="#fn-find"><code>find</code></a>, <a href="#fn-contains"><code>contains</code></a></p>
+</section>
+<section class="entry" id="fn-all">
+<h3>all</h3>
+<p>모든 원소에서 <code>f(x)</code>가 <code>true</code>면 <code>true</code>. 빈 컬렉션은 <code>true</code>.</p>
+<div class="sig"><code>all(xs, f)</code></div>
+<h4>설명</h4>
+<p>처음 <code>false</code>가 나오면 멈춘다. 빈 컬렉션이 <code>true</code>인 것은 "어긋나는 원소가 하나도 없다"는 뜻이기 때문이다(수학의 관례와 같다). 빈 목록을 "실패"로 다루고 싶으면 <code>not is_empty(xs) and all(xs, f)</code>로 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소를 받아 <code>bool</code>을 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>bool</code>.</p>
+<h4>에러</h4>
+<p><code>f</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505.</p>
+<h4>예제</h4>
+<p><strong>모두</strong></p>
+<div class="run"><pre><code>print(all([2, 4], x =&gt; x % 2 == 0), all([2, 3], x =&gt; x % 2 == 0), all([], x =&gt; false))</code></pre><pre class="out plain"><code>true false true</code></pre></div>
+<p><strong>모든 검사가 통과했는가</strong></p>
+<div class="run"><pre><code>checks = [{name: &quot;disk&quot;, ok: true}, {name: &quot;dns&quot;, ok: false}]
+print(all(checks, c =&gt; c.ok) then &quot;healthy&quot; else &quot;unhealthy&quot;)
+print(checks |&gt; filter(c =&gt; not c.ok) |&gt; map(c =&gt; c.name))</code></pre><pre class="out plain"><code>unhealthy
+[&quot;dns&quot;]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-any"><code>any</code></a>, <a href="#fn-filter"><code>filter</code></a></p>
+</section>
+<h2 id="order">정렬과 모양 바꾸기</h2>
+<section class="entry" id="fn-sort">
+<h3>sort</h3>
+<p>작은 것부터 정렬한 새 리스트를 돌려준다.</p>
+<div class="sig"><code>sort(xs)</code></div>
+<h4>설명</h4>
+<p>순서는 <a href="../language.html#values">비교와 동일성</a> 표의 <code>&lt;</code>를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(<code>&quot;B&quot; &lt; &quot;a&quot;</code>). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.</p>
+<p><strong>안정 정렬</strong>(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, <code>bool</code>, 심볼, 태그처럼 <code>&lt;</code>가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이 섞이면 처음 실패한 비교에서 에러가 난다. 큰 것부터는 <code>sort(xs) |&gt; reverse</code>, 다른 기준은 <a href="#fn-sort_by"><code>sort_by</code></a>.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<ul>
+<li>비교할 수 없는 값이 섞이면 런타임 에러 E0501(<code>cannot compare str and int</code>).</li>
+<li><code>xs</code>가 맵 등이면 E0506.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>수, 문자열, 리스트</strong></p>
+<div class="run"><pre><code>print(sort([3, 1, 2]), sort([2.5, 1, 3]))
+print(sort([&quot;b&quot;, &quot;a&quot;, &quot;B&quot;]), sort([[2, 1], [1, 9]]))</code></pre><pre class="out plain"><code>[1, 2, 3] [1, 2.5, 3]
+[&quot;B&quot;, &quot;a&quot;, &quot;b&quot;] [[1, 9], [2, 1]]</code></pre></div>
+<p><strong>큰 것부터</strong></p>
+<div class="run"><pre><code>print([5, 3, 9] |&gt; sort |&gt; reverse)</code></pre><pre class="out plain"><code>[9, 5, 3]</code></pre></div>
+<p><strong>맵은 비교할 수 없다</strong></p>
+<div class="run"><pre><code>print(sort([{cpu: 3}, {cpu: 1}]))</code></pre><pre class="out err plain" data-code="1"><code>error[E0501]: cannot compare map and map
+  --&gt; example.fung:1:11
+  |
+1 | print(sort([{cpu: 3}, {cpu: 1}]))
+  |           ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<p>맵의 리스트는 <code>sort_by(xs, m =&gt; m.cpu)</code>로 기준을 준다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-sort_by"><code>sort_by</code></a>, <a href="#fn-reverse"><code>reverse</code></a>, <a href="#fn-unique"><code>unique</code></a>, <a href="#fn-min"><code>min</code></a></p>
+</section>
+<section class="entry" id="fn-sort_by">
+<h3>sort_by</h3>
+<p><code>f(x)</code>를 키로 삼아 안정 정렬한 새 리스트를 돌려준다.</p>
+<div class="sig"><code>sort_by(xs, f)</code></div>
+<h4>설명</h4>
+<p>원소 대신 <code>f(x)</code>의 값을 비교한다. 원소는 바뀌지 않고 순서만 바뀐다. 키의 비교 규칙은 <a href="#fn-sort"><code>sort</code></a>와 같다. 안정 정렬이라 키가 같은 원소는 원래 순서를 지킨다.</p>
+<ul>
+<li><strong>내림차순</strong>: 수 키면 <code>-</code>를 붙인다(<code>x =&gt; -x.cpu</code>). 문자열 키면 정렬한 뒤 <a href="#fn-reverse"><code>reverse</code></a>한다.</li>
+<li><strong>여러 기준</strong>: 튜플이나 리스트를 키로 쓴다. <code>p =&gt; (p.team, p.name)</code>은 팀으로 먼저, 같은 팀 안에서는 이름으로 정렬한다.</li>
+<li><strong>대소문자 무시</strong>: <code>sort_by(xs, lower)</code>.</li>
+</ul>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소를 받아 키를 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<p>키끼리 비교할 수 없으면 런타임 에러 E0501. <code>f</code>가 함수가 아니면 E0403.</p>
+<h4>예제</h4>
+<p><strong>길이 순, 내림차순</strong></p>
+<div class="run"><pre><code>print([&quot;bb&quot;, &quot;a&quot;, &quot;ccc&quot;] |&gt; sort_by(len))
+print([3, 1, 2] |&gt; sort_by(x =&gt; -x))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;]
+[3, 2, 1]</code></pre></div>
+<p><strong>필드로, 같은 키는 원래 순서</strong></p>
+<div class="run"><pre><code>servers = [{n: &quot;web-1&quot;, cpu: 70}, {n: &quot;db-1&quot;, cpu: 15}, {n: &quot;web-2&quot;, cpu: 70}]
+print(servers |&gt; sort_by(s =&gt; -s.cpu) |&gt; map(s =&gt; s.n))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]</code></pre></div>
+<p><code>web-1</code>과 <code>web-2</code>는 키가 같아 원래 순서대로다.</p>
+<p><strong>여러 기준</strong></p>
+<div class="run"><pre><code>people = [{team: &quot;sre&quot;, name: &quot;kim&quot;}, {team: &quot;dev&quot;, name: &quot;lee&quot;}, {team: &quot;sre&quot;, name: &quot;ahn&quot;}]
+print(people |&gt; sort_by(p =&gt; (p.team, p.name)) |&gt; map(p =&gt; &quot;${p.team}/${p.name}&quot;))</code></pre><pre class="out plain"><code>[&quot;dev/lee&quot;, &quot;sre/ahn&quot;, &quot;sre/kim&quot;]</code></pre></div>
+<p><strong>대소문자 무시, 맵의 값으로</strong></p>
+<div class="run"><pre><code>print(sort_by([&quot;Banana&quot;, &quot;apple&quot;, &quot;cherry&quot;], lower))
+print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) =&gt; v))</code></pre><pre class="out plain"><code>[&quot;apple&quot;, &quot;Banana&quot;, &quot;cherry&quot;]
+[(&quot;db&quot;, 1), (&quot;cache&quot;, 2), (&quot;web&quot;, 3)]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-sort"><code>sort</code></a>, <a href="#fn-reverse"><code>reverse</code></a>, <a href="#fn-group_by"><code>group_by</code></a></p>
+</section>
+<section class="entry" id="fn-reverse">
+<h3>reverse<span class="by">fung으로 작성</span></h3>
+<p>순서를 거꾸로 뒤집은 새 리스트를 돌려준다.</p>
+<div class="sig"><code>reverse(xs)</code></div>
+<h4>설명</h4>
+<p>리스트, 범위, 받는 끝(닫힐 때까지 받는다)을 받는다. 문자열은 받지 않으므로 글자를 뒤집으려면 <code>chars</code>와 <code>join</code>을 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<p>다른 타입이면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>뒤집기</strong></p>
+<div class="run"><pre><code>print(reverse([1, 2, 3]), reverse(0..3), reverse([]))</code></pre><pre class="out plain"><code>[3, 2, 1] [2, 1, 0] []</code></pre></div>
+<p><strong>문자열 뒤집기</strong></p>
+<div class="run"><pre><code>print(chars(&quot;fung&quot;) |&gt; reverse |&gt; join)</code></pre><pre class="out plain"><code>gnuf</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-sort"><code>sort</code></a>, <a href="#fn-last"><code>last</code></a></p>
+</section>
+<section class="entry" id="fn-unique">
+<h3>unique</h3>
+<p>처음 나온 순서를 지키며 중복을 뺀 새 리스트를 돌려준다.</p>
+<div class="sig"><code>unique(xs)</code></div>
+<h4>설명</h4>
+<p>같은지는 <code>==</code>로 본다. 그래서 <code>1</code>과 <code>1.0</code>은 같은 값이고(앞의 것이 남는다), 리스트나 맵도 내용이 같으면 중복이다. 대소문자는 구별한다(<code>&quot;a&quot;</code>와 <code>&quot;A&quot;</code>는 다르다). 정렬하지 않으므로 정렬된 결과가 필요하면 <code>unique</code> 뒤에 <code>sort</code>한다. 원소 수에 비례하는 시간이 든다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>중복 빼기</strong></p>
+<div class="run"><pre><code>print(unique([1, 2, 1, 3, 2]), unique([1, 1.0]), unique([[1], [1], [2]]))</code></pre><pre class="out plain"><code>[1, 2, 3] [1] [[1], [2]]</code></pre></div>
+<p><strong>로그에 나온 호스트 목록</strong></p>
+<div class="run"><pre><code>hits = [&quot;web-2&quot;, &quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;, &quot;web-1&quot;]
+print(unique(hits), unique(hits) |&gt; sort)</code></pre><pre class="out plain"><code>[&quot;web-2&quot;, &quot;web-1&quot;, &quot;db-1&quot;] [&quot;db-1&quot;, &quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-sort"><code>sort</code></a>, <a href="#fn-group_by"><code>group_by</code></a></p>
+</section>
+<section class="entry" id="fn-flatten">
+<h3>flatten</h3>
+<p>리스트의 리스트를 한 단계만 펼친다: <code>[[1, [2]], 3]</code> → <code>[1, [2], 3]</code>.</p>
+<div class="sig"><code>flatten(xs)</code></div>
+<h4>설명</h4>
+<p>원소가 리스트면 그 원소들을 꺼내 잇고, 리스트가 아닌 원소는 그대로 둔다. 한 단계만 펼치므로 더 깊은 리스트는 남는다. 각 원소가 여러 개를 만드는 변환은 <code>map</code> 뒤에 <code>flatten</code>을 붙인다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>리스트.</p>
+<h4>에러</h4>
+<p><code>xs</code>가 받지 않는 타입이면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>한 단계만</strong></p>
+<div class="run"><pre><code>print(flatten([[1, [2]], 3]), flatten([[], [1]]), flatten([[[1]]]))</code></pre><pre class="out plain"><code>[1, [2], 3] [1] [[1]]</code></pre></div>
+<p><strong>원소 하나가 여러 개가 될 때</strong></p>
+<div class="run"><pre><code>groups = {web: [&quot;web-1&quot;, &quot;web-2&quot;], db: [&quot;db-1&quot;]}
+print(values(groups) |&gt; flatten)
+print(flatten(map([1, 2], x =&gt; [x, x * 10])))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
+[1, 10, 2, 20]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-map"><code>map</code></a>, <a href="maps.html#fn-values"><code>values</code></a></p>
+</section>
+<section class="entry" id="fn-group_by">
+<h3>group_by</h3>
+<p><code>f(x)</code>를 키로 원소를 묶은 맵을 돌려준다.</p>
+<div class="sig"><code>group_by(xs, f)</code></div>
+<h4>설명</h4>
+<p>결과 맵의 키는 <code>f(x)</code>의 값이고, 값은 그 키를 가진 원소의 리스트다. 키의 순서와 각 리스트 안의 순서는 모두 처음 나온 순서다.</p>
+<p>맵의 키는 언제나 문자열이므로 <code>f</code>는 문자열을 돌려줘야 한다. 수나 심볼로 묶으려면 <code>str</code>로 바꾼다: <code>group_by(xs, x =&gt; str(x % 2))</code>. 각 묶음의 개수가 필요하면 결과의 값에 <code>len</code>을 부른다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>f</code>: 원소를 받아 문자열 키를 돌려주는 함수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>맵(키 → 원소의 리스트).</p>
+<h4>에러</h4>
+<p><code>f</code>가 문자열이 아닌 값을 돌려주면 런타임 에러 E0514(<code>cannot use a value of type int as a map key</code>).</p>
+<h4>예제</h4>
+<p><strong>글자 수로 묶기</strong></p>
+<div class="run"><pre><code>print(group_by([&quot;ab&quot;, &quot;c&quot;, &quot;de&quot;], s =&gt; str(len(s))))</code></pre><pre class="out plain"><code>{&quot;2&quot;: [&quot;ab&quot;, &quot;de&quot;], &quot;1&quot;: [&quot;c&quot;]}</code></pre></div>
+<p><strong>환경별 서버 목록</strong></p>
+<div class="run"><pre><code>servers = [{env: &quot;prod&quot;, host: &quot;a&quot;}, {env: &quot;dev&quot;, host: &quot;b&quot;}, {env: &quot;prod&quot;, host: &quot;c&quot;}]
+by_env = group_by(servers, s =&gt; s.env)
+for (name, group) in pairs(by_env):
+  print(name, map(group, s =&gt; s.host))
+;;</code></pre><pre class="out plain"><code>prod [&quot;a&quot;, &quot;c&quot;]
+dev [&quot;b&quot;]</code></pre></div>
+<p><strong>상태 코드별 개수</strong></p>
+<div class="run"><pre><code>codes = [200, 404, 200, 500, 200]
+counts = group_by(codes, str)
+print(pairs(counts) |&gt; map(((code, xs)) =&gt; &quot;${code}: ${len(xs)}&quot;))</code></pre><pre class="out plain"><code>[&quot;200: 3&quot;, &quot;404: 1&quot;, &quot;500: 1&quot;]</code></pre></div>
+<p><strong>키는 문자열이어야 한다</strong></p>
+<div class="run"><pre><code>print(group_by([1, 2, 3], x =&gt; x % 2))</code></pre><pre class="out err plain" data-code="1"><code>error[E0514]: cannot use a value of type int as a map key
+  --&gt; example.fung:1:15
+  |
+1 | print(group_by([1, 2, 3], x =&gt; x % 2))
+  |               ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;
+ help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x =&gt; str(x % 2))`</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="maps.html#fn-pairs"><code>pairs</code></a>, <a href="#fn-unique"><code>unique</code></a>, <a href="#fn-fold"><code>fold</code></a></p>
+</section>
+<section class="entry" id="fn-zip">
+<h3>zip<span class="by">fung으로 작성</span></h3>
+<p>두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</p>
+<div class="sig"><code>zip(xs, ys)</code></div>
+<h4>설명</h4>
+<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>, <code>ys</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>튜플의 리스트.</p>
+<h4>에러</h4>
+<p>받지 않는 타입이면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>짝짓기</strong></p>
+<div class="run"><pre><code>print(zip([1, 2, 3], [&quot;a&quot;, &quot;b&quot;]))</code></pre><pre class="out plain"><code>[(1, &quot;a&quot;), (2, &quot;b&quot;)]</code></pre></div>
+<p><strong>두 목록을 나란히 돌기</strong></p>
+<div class="run"><pre><code>names = [&quot;web-1&quot;, &quot;db-1&quot;]
+ips = [&quot;10.0.0.1&quot;, &quot;10.0.0.9&quot;]
+for (name, ip) in zip(names, ips):
+  print(pad_right(name, 6), ip)
+;;</code></pre><pre class="out plain"><code>web-1  10.0.0.1
+db-1   10.0.0.9</code></pre></div>
+<p><strong>번호 붙이기</strong></p>
+<div class="run"><pre><code>for (i, step) in zip(1..100, [&quot;build&quot;, &quot;test&quot;, &quot;deploy&quot;]):
+  print(&quot;${i}. ${step}&quot;)
+;;</code></pre><pre class="out plain"><code>1. build
+2. test
+3. deploy</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-range"><code>range</code></a>, <a href="../language.html#values">튜플</a>, <a href="../language.html#for">for</a></p>
+</section>
+<h2 id="numbers">수 모으기</h2>
+<section class="entry" id="fn-sum">
+<h3>sum<span class="by">fung으로 작성</span></h3>
+<p>수의 합을 돌려준다. 빈 리스트는 0.</p>
+<div class="sig"><code>sum(xs)</code></div>
+<h4>설명</h4>
+<p><code>fold(xs, 0, (acc, x) =&gt; acc + x)</code>와 같다. 정수와 실수를 섞으면 실수가 된다. 0(정수)에서 시작하므로 기간(<code>dur</code>)의 리스트는 더할 수 없다. 기간은 <code>fold(ds, 0s, (acc, d) =&gt; acc + d)</code>로 더한다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 수의 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>수.</p>
+<h4>에러</h4>
+<p>수가 아닌 원소가 있으면 런타임 에러 E0501(<code>cannot add int and str</code>).</p>
+<h4>예제</h4>
+<p><strong>합계</strong></p>
+<div class="run"><pre><code>print(sum([1, 2, 3]), sum([]), sum([1.5, 2]), sum(1..=100))</code></pre><pre class="out plain"><code>6 0 3.5 5050</code></pre></div>
+<p><strong>필드의 합</strong></p>
+<div class="run"><pre><code>files = [{name: &quot;a.log&quot;, size: 120}, {name: &quot;b.log&quot;, size: 900}]
+print(files |&gt; map(f =&gt; f.size) |&gt; sum)</code></pre><pre class="out plain"><code>1020</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-fold"><code>fold</code></a>, <a href="#fn-max"><code>max</code></a></p>
+</section>
+<section class="entry" id="fn-min">
+<h3>min<span class="by">fung으로 작성</span></h3>
+<p>가장 작은 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
+<div class="sig"><code>min(xs)</code></div>
+<h4>설명</h4>
+<p>비교는 <code>&lt;</code>로 한다(<a href="#fn-sort"><code>sort</code></a>와 같은 규칙). 그래서 수뿐 아니라 문자열이나 리스트에도 쓸 수 있다. <code>nil</code>이 원소로 섞여 있으면 건너뛰지 않고 에러를 낸다. 필드 기준의 최솟값은 <code>sort_by(xs, f) |&gt; first</code>로 원소째 얻는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>원소 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p>비교할 수 없는 값이 섞이면 런타임 에러 E0501.</p>
+<h4>예제</h4>
+<p><strong>최솟값</strong></p>
+<div class="run"><pre><code>print(min([3, 1, 2]), min([]), min([&quot;b&quot;, &quot;a&quot;]), min(5..10))</code></pre><pre class="out plain"><code>1 nil a 5</code></pre></div>
+<p><strong>가장 한가한 서버</strong></p>
+<div class="run"><pre><code>servers = [{n: &quot;web-1&quot;, cpu: 70}, {n: &quot;web-2&quot;, cpu: 12}]
+print(min(map(servers, s =&gt; s.cpu)), first(sort_by(servers, s =&gt; s.cpu)).n)</code></pre><pre class="out plain"><code>12 web-2</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-max"><code>max</code></a>, <a href="#fn-sort_by"><code>sort_by</code></a></p>
+</section>
+<section class="entry" id="fn-max">
+<h3>max<span class="by">fung으로 작성</span></h3>
+<p>가장 큰 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
+<div class="sig"><code>max(xs)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-min"><code>min</code></a>의 반대다. 같은 규칙으로 비교하고, 빈 컬렉션은 <code>nil</code>이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>원소 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p>비교할 수 없는 값이 섞이면 런타임 에러 E0501.</p>
+<h4>예제</h4>
+<p><strong>최댓값</strong></p>
+<div class="run"><pre><code>print(max([3, 1, 2]), max([1, 2.5]), max([]), max([[1, 2], [1, 3]]))</code></pre><pre class="out plain"><code>3 2.5 nil [1, 3]</code></pre></div>
+<p><strong>빈 목록의 기본값</strong></p>
+<div class="run"><pre><code>latencies = []
+print(&quot;worst:&quot;, max(latencies) ?? 0)</code></pre><pre class="out plain"><code>worst: 0</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-min"><code>min</code></a>, <a href="#fn-sum"><code>sum</code></a></p>
+</section>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/convert.html"><small>이전</small>타입과 변환</a><a class="next" href="../../reference/prelude/maps.html"><small>다음</small>맵</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

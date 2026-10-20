@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>문자열 · fung 매뉴얼</title>
+<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">문자열</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html" aria-current="page">문자열</a><ol class="toc2"><li><a href="#concepts">문자열이란</a></li><li><a href="#split-join">나누기와 잇기</a></li><li><a href="#clean">다듬기와 바꾸기</a></li><li><a href="#test-build">검사와 만들기</a></li></ol></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
+<h1>문자열</h1>
+<p class="lede">글자를 나누고, 잇고, 다듬고, 바꾼다. 문자열은 불변이고, 인덱스와 길이는 바이트가 아니라 글자 단위다.</p>
+<h2 id="concepts">문자열이란</h2>
+<p><strong>문자열</strong>(string)은 글자를 순서대로 늘어놓은 값이다. 큰따옴표로 쓴다: <code>&quot;web-1&quot;</code>. 스크립트가 다루는 데이터의 대부분, 곧 파일 내용, 명령 출력, 로그 줄, 환경 변수, HTTP 응답은 처음에 문자열로 들어온다. 그래서 문자열을 쪼개고 다듬는 일이 스크립트의 절반쯤 된다.</p>
+<p>fung의 문자열에 대해 알아 둘 것은 넷이다.</p>
+<ul>
+<li><strong>불변</strong>이다. <code>upper(s)</code>는 <code>s</code>를 바꾸지 않고 대문자로 된 새 문자열을 돌려준다.</li>
+<li><strong>글자 단위</strong>다. 문자열은 UTF-8로 저장되지만 <code>len</code>, 인덱스 <code>s[0]</code>, 슬라이스 <code>s[1..3]</code>은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 <code>&quot;참치&quot;[0]</code>은 <code>&quot;참&quot;</code>이고 <code>len(&quot;참치&quot;)</code>는 2다.</li>
+<li><strong>잇기는 <code>+</code>, 끼워 넣기는 보간</strong>이다. <code>&quot;a&quot; + &quot;b&quot;</code>는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 <code>&quot;${name}: ${count}&quot;</code>처럼 쓴다. 보간은 어떤 값이든 <a href="convert.html#fn-str"><code>str</code></a>과 같은 규칙으로 바꿔 넣는다.</li>
+<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>는 에러다. 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
+</ul>
+<div class="run"><pre><code>s = &quot;  ERROR disk full  &quot;
+clean = trim(s)
+print(&quot;[${clean}]&quot;, len(clean), clean[0..5], lower(clean))
+print(s == &quot;  ERROR disk full  &quot;)</code></pre><pre class="out plain"><code>[ERROR disk full] 15 ERROR error disk full
+true</code></pre></div>
+<p>리터럴의 이스케이프(<code>\n</code>, <code>\t</code>, <code>\u{301}</code>), 여러 줄 문자열, 원시 문자열은 <a href="../language.html#lexical">어휘</a>에, 패턴으로 찾고 바꾸는 일은 <a href="../modules/regex.html"><code>regex</code> 모듈</a>에 있다.</p>
+<h2 id="split-join">나누기와 잇기</h2>
+<section class="entry" id="fn-split">
+<h3>split</h3>
+<p><code>s</code>를 구분자 <code>sep</code>로 나눈 문자열의 리스트를 돌려준다.</p>
+<div class="sig"><code>split(s, sep)</code></div>
+<h4>설명</h4>
+<p><code>sep</code>가 나올 때마다 자른다. 구분자가 연달아 있거나 맨 앞·맨 뒤에 있으면 그 사이의 <strong>빈 조각도 남긴다</strong>(<code>split(&quot;a,,b&quot;, &quot;,&quot;)</code>는 <code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;]</code>). 그래서 CSV처럼 칸 수가 중요한 데이터를 잘 다룬다. 구분자가 없으면 원래 문자열 하나짜리 리스트이고, 빈 문자열을 나누면 <code>[&quot;&quot;]</code>이다. <code>sep</code>가 <code>&quot;&quot;</code>면 글자 단위로 나눈다(<code>chars</code>와 같다).</p>
+<p>공백이 여러 개 섞인 글을 낱말로 나눌 때는 빈 조각을 걸러 낸다: <code>split(s, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;)</code>. 줄로 나눌 때는 <code>split(s, &quot;\n&quot;)</code> 대신 <a href="#fn-lines"><code>lines</code></a>를 쓴다(마지막 줄바꿈과 <code>\r</code>을 처리해 준다). 정규식으로 나누려면 <a href="../modules/regex.html#fn-regex-split"><code>regex.split</code></a>.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 나눌 문자열.</li>
+<li><code>sep</code>: 구분자 문자열. 여러 글자여도 된다.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열의 리스트. 언제나 원소가 하나 이상이다.</p>
+<h4>에러</h4>
+<p><code>s</code>나 <code>sep</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>빈 조각도 남긴다</strong></p>
+<div class="run"><pre><code>print(split(&quot;a,,b&quot;, &quot;,&quot;), split(&quot;,a,&quot;, &quot;,&quot;), split(&quot;abc&quot;, &quot;x&quot;), split(&quot;&quot;, &quot;,&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;] [&quot;&quot;, &quot;a&quot;, &quot;&quot;] [&quot;abc&quot;] [&quot;&quot;]</code></pre></div>
+<p><strong>여러 글자 구분자, 글자 단위</strong></p>
+<div class="run"><pre><code>print(split(&quot;a::b::c&quot;, &quot;::&quot;), split(&quot;abc&quot;, &quot;&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre></div>
+<p><strong><code>키=값</code> 줄 읽기</strong></p>
+<div class="run"><pre><code>line = &quot;DB_HOST=db-1.internal&quot;
+[key, value] = split(line, &quot;=&quot;)
+print(key, &quot;-&gt;&quot;, value)</code></pre><pre class="out plain"><code>DB_HOST -&gt; db-1.internal</code></pre></div>
+<p><strong>공백이 여러 개인 줄을 낱말로</strong></p>
+<div class="run"><pre><code>line = &quot;web-1    up   12d&quot;
+print(split(line, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;up&quot;, &quot;12d&quot;]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-join"><code>join</code></a>, <a href="#fn-lines"><code>lines</code></a>, <a href="#fn-chars"><code>chars</code></a>, <a href="../modules/regex.html#fn-regex-split"><code>regex.split</code></a></p>
+</section>
+<section class="entry" id="fn-join">
+<h3>join</h3>
+<p>리스트의 원소를 <code>sep</code>로 이어 문자열 하나로 만든다.</p>
+<div class="sig"><code>join(xs, sep = &quot;&quot;)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-split"><code>split</code></a>의 반대다. 원소 사이에만 <code>sep</code>를 넣고 앞뒤에는 넣지 않는다. 빈 리스트는 <code>&quot;&quot;</code>이다. 문자열이 아닌 원소는 <a href="convert.html#fn-str"><code>str</code></a>로 바꿔 넣으므로 수의 리스트도 바로 잇는다. <code>sep</code>를 주지 않으면 그냥 붙인다.</p>
+<p>문자열을 하나씩 <code>+</code>로 쌓는 것보다 리스트에 모아 한 번에 <code>join</code>하는 것이 빠르다. 여러 줄 출력을 만들 때는 <code>join(rows, &quot;\n&quot;)</code>.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>sep</code>: 사이에 넣을 문자열. 기본은 <code>&quot;&quot;</code>.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<ul>
+<li><code>xs</code>가 리스트 등이 아니면 런타임 에러 E0506(<code>cannot join str</code>).</li>
+<li><code>sep</code>가 문자열이 아니면 E0403.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>잇기</strong></p>
+<div class="run"><pre><code>print(join([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], &quot;, &quot;), join([1, 2, 3]), join(0..4, &quot;-&quot;), &quot;[&quot; + join([], &quot;|&quot;) + &quot;]&quot;)</code></pre><pre class="out plain"><code>a, b, c 123 0-1-2-3 []</code></pre></div>
+<p><strong>여러 줄 만들기</strong></p>
+<div class="run"><pre><code>rows = [(&quot;web-1&quot;, &quot;up&quot;), (&quot;db-1&quot;, &quot;down&quot;)]
+print(join(map(rows, ((h, s)) =&gt; &quot;${h}\t${s}&quot;), &quot;\n&quot;))</code></pre><pre class="out plain"><code>web-1	up
+db-1	down</code></pre></div>
+<p><strong>나누고, 고치고, 다시 잇기</strong></p>
+<div class="run"><pre><code>path = &quot;/usr/local/bin&quot;
+print(split(path, &quot;/&quot;) |&gt; filter(p =&gt; p != &quot;&quot;) |&gt; map(upper) |&gt; join(&quot;.&quot;))</code></pre><pre class="out plain"><code>USR.LOCAL.BIN</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-split"><code>split</code></a>, <a href="convert.html#fn-str"><code>str</code></a>, <a href="io.html#fn-print"><code>print</code></a></p>
+</section>
+<section class="entry" id="fn-lines">
+<h3>lines<span class="by">fung으로 작성</span></h3>
+<p>글을 줄의 리스트로 나눈다.</p>
+<div class="sig"><code>lines(s)</code></div>
+<h4>설명</h4>
+<p><code>\n</code>으로 나누되, 줄 끝의 <code>\r</code>(Windows식 줄 끝 <code>\r\n</code>)을 떼고, 마지막 줄바꿈 뒤에 빈 줄을 만들지 않는다. 그래서 파일 끝에 줄바꿈이 있든 없든 같은 결과다. 가운데의 빈 줄은 <code>&quot;&quot;</code>로 남는다. 빈 문자열은 <code>[]</code>이다. <a href="io.html#fn-read_lines"><code>read_lines</code></a>와 같은 규칙이다.</p>
+<p><code>split(s, &quot;\n&quot;)</code>을 쓰면 끝에 빈 문자열이 하나 더 붙으므로(<code>split(&quot;a\n&quot;, &quot;\n&quot;)</code>은 <code>[&quot;a&quot;, &quot;&quot;]</code>), 글을 줄로 나눌 때는 언제나 <code>lines</code>를 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열의 리스트.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>마지막 줄바꿈과 \r</strong></p>
+<div class="run"><pre><code>print(lines(&quot;a\nb\n&quot;), lines(&quot;a\r\nb&quot;), lines(&quot;a\n\nb&quot;), lines(&quot;&quot;))
+print(split(&quot;a\nb\n&quot;, &quot;\n&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;b&quot;] [&quot;a&quot;, &quot;b&quot;] [&quot;a&quot;, &quot;&quot;, &quot;b&quot;] []
+[&quot;a&quot;, &quot;b&quot;, &quot;&quot;]</code></pre></div>
+<p><strong>명령 출력을 줄로</strong></p>
+<div class="run"><pre><code>out = exec([&quot;printf&quot;, &quot;web-1\nweb-2\n&quot;])!.out
+for (i, host) in zip(1..100, lines(out)):
+  print(i, host)
+;;</code></pre><pre class="out plain"><code>1 web-1
+2 web-2</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-split"><code>split</code></a>, <a href="io.html#fn-read_lines"><code>read_lines</code></a>, <a href="../modules/fs.html#fn-fs-read_lines"><code>fs.read_lines</code></a></p>
+</section>
+<section class="entry" id="fn-chars">
+<h3>chars</h3>
+<p>문자열을 글자 하나짜리 문자열의 리스트로 나눈다.</p>
+<div class="sig"><code>chars(s)</code></div>
+<h4>설명</h4>
+<p>글자는 유니코드 코드 포인트 하나다. 그래서 결합 문자로 쓴 <code>&quot;e\u{301}&quot;</code>(é)나 피부색이 붙은 이모지는 둘로 나뉜다. 글자 리스트를 얻으면 컬렉션 함수(<code>map</code>, <code>filter</code>, <code>reverse</code>, <code>unique</code> …)를 모두 쓸 수 있고, 다 고친 뒤 <code>join</code>으로 다시 잇는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열의 리스트.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0506.</p>
+<h4>예제</h4>
+<p><strong>글자로 나누기</strong></p>
+<div class="run"><pre><code>print(chars(&quot;참치a&quot;), chars(&quot;&quot;), len(chars(&quot;e\u{301}&quot;)))</code></pre><pre class="out plain"><code>[&quot;참&quot;, &quot;치&quot;, &quot;a&quot;] [] 2</code></pre></div>
+<p><strong>글자 단위로 다루기</strong></p>
+<div class="run"><pre><code>word = &quot;deploy&quot;
+print(chars(word) |&gt; reverse |&gt; join, chars(word) |&gt; unique |&gt; len)
+print(chars(&quot;a1b2c3&quot;) |&gt; filter(c =&gt; c &gt;= &quot;0&quot; and c &lt;= &quot;9&quot;) |&gt; join)</code></pre><pre class="out plain"><code>yolped 6
+123</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-split"><code>split</code></a>, <a href="#fn-join"><code>join</code></a>, <a href="collections.html#fn-len"><code>len</code></a></p>
+</section>
+<h2 id="clean">다듬기와 바꾸기</h2>
+<section class="entry" id="fn-trim">
+<h3>trim</h3>
+<p>양 끝의 공백을 지운다. <code>cut</code>을 주면 그 글자들을 지운다.</p>
+<div class="sig"><code>trim(s, cut = nil)</code></div>
+<h4>설명</h4>
+<p><code>cut</code>이 없으면 양 끝의 공백 글자(스페이스, 탭, <code>\n</code>, <code>\r</code>, 유니코드 공백)를 모두 지운다. 가운데의 공백은 건드리지 않는다. 파일이나 명령 출력에서 읽은 값은 끝에 줄바꿈이 붙어 있는 일이 많으므로 비교하거나 수로 바꾸기 전에 <code>trim</code>한다.</p>
+<p><code>cut</code>을 주면 <code>cut</code>에 든 <strong>글자 하나하나</strong>를 지울 글자로 본다. 접두사·접미사 문자열이 아니다. <code>trim(&quot;abcxcba&quot;, &quot;abc&quot;)</code>는 양 끝에서 <code>a</code>·<code>b</code>·<code>c</code> 중 하나인 글자를 계속 지워 <code>&quot;x&quot;</code>가 된다. 정해진 접두사 하나만 떼려면 <code>starts_with</code>와 슬라이스를 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>cut</code>: 지울 글자들을 모은 문자열, 또는 <code>nil</code>(공백).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p>인자가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>공백과 줄바꿈</strong></p>
+<div class="run"><pre><code>print(&quot;[&quot; + trim(&quot;  x &quot;) + &quot;]&quot;, &quot;[&quot; + trim(&quot;\t\n v1.2.3 \r\n&quot;) + &quot;]&quot;)</code></pre><pre class="out plain"><code>[x] [v1.2.3]</code></pre></div>
+<p><strong>지울 글자 고르기</strong></p>
+<div class="run"><pre><code>print(trim(&quot;--x--&quot;, &quot;-&quot;), trim(&quot;abcxcba&quot;, &quot;abc&quot;), trim(&quot;\&quot;quoted\&quot;&quot;, &quot;\&quot;&quot;))</code></pre><pre class="out plain"><code>x x quoted</code></pre></div>
+<p><strong>명령 출력에서 값 얻기</strong></p>
+<div class="run"><pre><code>count = exec([&quot;echo&quot;, &quot;42&quot;])!.out |&gt; trim |&gt; int
+print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-replace"><code>replace</code></a>, <a href="#fn-starts_with"><code>starts_with</code></a>, <a href="#fn-lines"><code>lines</code></a></p>
+</section>
+<section class="entry" id="fn-upper">
+<h3>upper</h3>
+<p>대문자로 바꾼 문자열을 돌려준다.</p>
+<div class="sig"><code>upper(s)</code></div>
+<h4>설명</h4>
+<p>유니코드 기본 대소문자 변환(전체 매핑)을 쓴다. 그래서 글자 수가 바뀔 수 있다: <code>upper(&quot;straße&quot;)</code>는 <code>&quot;STRASSE&quot;</code>. 한글처럼 대소문자가 없는 글자는 그대로다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>대문자로</strong></p>
+<div class="run"><pre><code>print(upper(&quot;hello&quot;), upper(&quot;straße&quot;), upper(&quot;참치 v1&quot;))</code></pre><pre class="out plain"><code>HELLO STRASSE 참치 V1</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-lower"><code>lower</code></a></p>
+</section>
+<section class="entry" id="fn-lower">
+<h3>lower</h3>
+<p>소문자로 바꾼 문자열을 돌려준다.</p>
+<div class="sig"><code>lower(s)</code></div>
+<h4>설명</h4>
+<p>전체 매핑이고, 그리스어 시그마는 단어 끝에서 <code>ς</code>가 된다: <code>lower(&quot;ΟΔΟΣ&quot;)</code>는 <code>&quot;οδος&quot;</code>. 대소문자를 무시하고 비교하려면 양쪽을 <code>lower</code>해서 비교한다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>소문자로, 대소문자 무시 비교</strong></p>
+<div class="run"><pre><code>print(lower(&quot;ABC&quot;), lower(&quot;ΟΔΟΣ&quot;))
+answer = &quot;Yes&quot;
+print(lower(answer) == &quot;yes&quot;)</code></pre><pre class="out plain"><code>abc οδος
+true</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-upper"><code>upper</code></a>, <a href="collections.html#fn-sort_by"><code>sort_by</code></a></p>
+</section>
+<section class="entry" id="fn-replace">
+<h3>replace</h3>
+<p><code>s</code> 안의 모든 <code>old</code>를 <code>new</code>로 바꾼 문자열을 돌려준다.</p>
+<div class="sig"><code>replace(s, old, new)</code></div>
+<h4>설명</h4>
+<p>왼쪽부터 겹치지 않게 찾아 모두 바꾼다(<code>replace(&quot;aaa&quot;, &quot;aa&quot;, &quot;b&quot;)</code>는 <code>&quot;ba&quot;</code>). <code>new</code>가 <code>&quot;&quot;</code>면 지우는 것이다. <code>old</code>가 <code>&quot;&quot;</code>면 글자 사이사이와 양 끝에 <code>new</code>를 넣는다. 첫 번째 것만 바꾸거나 패턴으로 바꾸려면 <a href="../modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>를 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>old</code>: 찾을 문자열.</li>
+<li><code>new</code>: 바꿔 넣을 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<ul>
+<li>인자가 문자열이 아니면 런타임 에러 E0403.</li>
+<li>결과가 1억 글자를 넘으면 만들기 전에 E0806.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>모두 바꾸기, 지우기</strong></p>
+<div class="run"><pre><code>print(replace(&quot;a-b-c&quot;, &quot;-&quot;, &quot;+&quot;), replace(&quot;aaa&quot;, &quot;aa&quot;, &quot;b&quot;), replace(&quot;v1.2.3&quot;, &quot;.&quot;, &quot;&quot;))</code></pre><pre class="out plain"><code>a+b+c ba v123</code></pre></div>
+<p><strong>설정 템플릿 채우기</strong></p>
+<div class="run"><pre><code>tmpl = &quot;host={{HOST}} port={{PORT}}&quot;
+vals = {HOST: &quot;db-1&quot;, PORT: &quot;5432&quot;}
+print(fold(pairs(vals), tmpl, (acc, (k, v)) =&gt; replace(acc, &quot;{{${k}}}&quot;, v)))</code></pre><pre class="out plain"><code>host=db-1 port=5432</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="../modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>, <a href="#fn-trim"><code>trim</code></a>, <a href="#fn-split"><code>split</code></a></p>
+</section>
+<h2 id="test-build">검사와 만들기</h2>
+<section class="entry" id="fn-starts_with">
+<h3>starts_with</h3>
+<p><code>s</code>가 <code>prefix</code>로 시작하면 <code>true</code>.</p>
+<div class="sig"><code>starts_with(s, prefix)</code></div>
+<h4>설명</h4>
+<p>빈 접두사는 언제나 참이다. 부분 문자열이 어디에든 있는지는 <code>x in s</code>(또는 <a href="collections.html#fn-contains"><code>contains</code></a>), 패턴은 <a href="../modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a>로 본다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>prefix</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>bool</code>.</p>
+<h4>에러</h4>
+<p>인자가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>접두사로 고르기</strong></p>
+<div class="run"><pre><code>print(starts_with(&quot;fung.toml&quot;, &quot;fung&quot;), starts_with(&quot;a&quot;, &quot;&quot;))
+log = [&quot;# comment&quot;, &quot;host=a&quot;, &quot;&quot;, &quot;# x&quot;, &quot;port=1&quot;]
+print(filter(log, l =&gt; l != &quot;&quot; and not starts_with(l, &quot;#&quot;)))</code></pre><pre class="out plain"><code>true true
+[&quot;host=a&quot;, &quot;port=1&quot;]</code></pre></div>
+<p><strong>접두사 떼기</strong></p>
+<div class="run"><pre><code>tag = &quot;v1.4.2&quot;
+print(starts_with(tag, &quot;v&quot;) then tag[1..] else tag)</code></pre><pre class="out plain"><code>1.4.2</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-ends_with"><code>ends_with</code></a>, <a href="collections.html#fn-contains"><code>contains</code></a></p>
+</section>
+<section class="entry" id="fn-ends_with">
+<h3>ends_with</h3>
+<p><code>s</code>가 <code>suffix</code>로 끝나면 <code>true</code>.</p>
+<div class="sig"><code>ends_with(s, suffix)</code></div>
+<h4>설명</h4>
+<p>확장자 검사에 많이 쓴다. 대소문자를 가리므로 <code>&quot;A.LOG&quot;</code>도 받으려면 <code>ends_with(lower(name), &quot;.log&quot;)</code>.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>suffix</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>bool</code>.</p>
+<h4>에러</h4>
+<p>인자가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>확장자로 고르기</strong></p>
+<div class="run"><pre><code>files = [&quot;app.log&quot;, &quot;app.log.1&quot;, &quot;ERROR.LOG&quot;, &quot;notes.txt&quot;]
+print(filter(files, f =&gt; ends_with(lower(f), &quot;.log&quot;)))</code></pre><pre class="out plain"><code>[&quot;app.log&quot;, &quot;ERROR.LOG&quot;]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-starts_with"><code>starts_with</code></a>, <a href="../modules/path.html#fn-path-ext"><code>path.ext</code></a></p>
+</section>
+<section class="entry" id="fn-repeat">
+<h3>repeat</h3>
+<p><code>s</code>를 <code>n</code>번 이어 붙인 문자열을 돌려준다.</p>
+<div class="sig"><code>repeat(s, n)</code></div>
+<h4>설명</h4>
+<p>fung에는 <code>&quot;a&quot; * 3</code>이 없다(문자열과 수의 곱은 에러다). 구분선이나 들여쓰기를 만들 때 쓴다. <code>n</code>이 0 이하면 <code>&quot;&quot;</code>이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>n</code>: 정수.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<ul>
+<li>인자의 타입이 틀리면 런타임 에러 E0403.</li>
+<li>결과가 1억 글자를 넘으면 만들기 전에 E0806.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>구분선</strong></p>
+<div class="run"><pre><code>print(repeat(&quot;ab&quot;, 3), &quot;[&quot; + repeat(&quot;x&quot;, 0) + &quot;]&quot;)
+print(repeat(&quot;-&quot;, 20))</code></pre><pre class="out plain"><code>ababab []
+--------------------</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-pad_left"><code>pad_left</code></a>, <a href="#fn-join"><code>join</code></a></p>
+</section>
+<section class="entry" id="fn-pad_left">
+<h3>pad_left<span class="by">fung으로 작성</span></h3>
+<p>왼쪽을 <code>pad</code>로 채워 <code>n</code>글자로 만든다. 이미 <code>n</code>글자 이상이면 그대로.</p>
+<div class="sig"><code>pad_left(s, n, pad = &quot; &quot;)</code></div>
+<h4>설명</h4>
+<p>수를 오른쪽으로 맞추거나 앞에 0을 채울 때 쓴다. <code>pad</code>가 여러 글자면 돌려 가며 채우고 모자란 만큼에서 자른다(<code>pad_left(&quot;1&quot;, 5, &quot;ab&quot;)</code>는 <code>&quot;abab1&quot;</code>). 길이는 <a href="collections.html#fn-len"><code>len</code></a>처럼 글자 수로 센다. 한글처럼 화면에서 두 칸을 차지하는 글자도 한 글자로 세므로, 한글이 섞인 표는 터미널에서 줄이 어긋날 수 있다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열. 수는 먼저 <code>str</code>로 바꾼다.</li>
+<li><code>n</code>: 만들 글자 수.</li>
+<li><code>pad</code>: 채울 문자열. 기본은 공백 하나.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<ul>
+<li><code>pad</code>가 <code>&quot;&quot;</code>면 런타임 에러 E0803(<code>pad must be a non-empty string</code>).</li>
+<li><code>s</code>가 문자열이 아니면 E0506.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>0 채우기, 오른쪽 맞춤</strong></p>
+<div class="run"><pre><code>print(pad_left(&quot;7&quot;, 3, &quot;0&quot;), pad_left(&quot;abc&quot;, 2), pad_left(&quot;1&quot;, 5, &quot;ab&quot;))
+for n in [5, 120, 42]:
+  print(pad_left(str(n), 5))
+;;</code></pre><pre class="out plain"><code>007 abc abab1
+    5
+  120
+   42</code></pre></div>
+<p><strong>표 만들기</strong></p>
+<div class="run"><pre><code>rows = [(&quot;web-1&quot;, 72), (&quot;db-1&quot;, 5)]
+for (host, cpu) in rows:
+  print(pad_right(host, 8) + pad_left(str(cpu), 4) + &quot;%&quot;)
+;;</code></pre><pre class="out plain"><code>web-1     72%
+db-1       5%</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-pad_right"><code>pad_right</code></a>, <a href="#fn-repeat"><code>repeat</code></a></p>
+</section>
+<section class="entry" id="fn-pad_right">
+<h3>pad_right<span class="by">fung으로 작성</span></h3>
+<p>오른쪽을 <code>pad</code>로 채워 <code>n</code>글자로 만든다. 이미 <code>n</code>글자 이상이면 그대로.</p>
+<div class="sig"><code>pad_right(s, n, pad = &quot; &quot;)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-pad_left"><code>pad_left</code></a>와 같은 규칙으로 오른쪽을 채운다. 표의 왼쪽 칸(이름)을 맞출 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+<li><code>n</code>: 만들 글자 수.</li>
+<li><code>pad</code>: 채울 문자열. 기본은 공백 하나.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p><a href="#fn-pad_left"><code>pad_left</code></a>와 같다.</p>
+<h4>예제</h4>
+<p><strong>칸 맞추기</strong></p>
+<div class="run"><pre><code>print(&quot;[&quot; + pad_right(&quot;ab&quot;, 4) + &quot;]&quot;, pad_right(&quot;1&quot;, 4, &quot;-=&quot;))
+print(pad_right(&quot;name&quot;, 8, &quot;.&quot;) + &quot;value&quot;)</code></pre><pre class="out plain"><code>[ab  ] 1-=-
+name....value</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-pad_left"><code>pad_left</code></a></p>
+</section>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/maps.html"><small>이전</small>맵</a><a class="next" href="../../reference/prelude/results.html"><small>다음</small>결과값</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

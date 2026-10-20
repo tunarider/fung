@@ -122,7 +122,7 @@ fn test_blocks_register_only_when_requested() {
     });
 }
 
-/// `Runtime::hold` (`fung test`): a block's tasks (in a scope inside the
+/// `fung test` runs each block on its own: a block's tasks (in a scope inside the
 /// block) talk to it over a channel the entry made, a deadlock inside a
 /// block is still reported.
 #[test]

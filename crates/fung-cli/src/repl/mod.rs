@@ -22,8 +22,8 @@
 //! code stays 0). A spawned task's `exit(n)` ends the session as
 //! `exit(n)` typed at the prompt does.
 //!
-//! Tasks: an input's tasks run in its scopes and end with it; the session
-//! holds the runtime open (`Runtime::hold`) between inputs. At the end
+//! Tasks: an input's tasks run in its scopes and end with it; each input
+//! is its own run, so waiting for the next line is no deadlock. At the end
 //! (`:quit`, the end of input or `exit(n)`) the tasks are cancelled and
 //! waited for (unwinding through their `with` releases).
 

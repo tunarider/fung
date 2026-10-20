@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>파일 이름 한꺼번에 바꾸기 · fung 매뉴얼</title>
+<meta name="description" content="파일 이름 한꺼번에 바꾸기.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">파일 이름 한꺼번에 바꾸기</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html" aria-current="page">파일 이름 한꺼번에 바꾸기</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">파일 다루기</span></nav>
+<h1>파일 이름 한꺼번에 바꾸기</h1>
+<p class="lede">디렉터리 안 파일 이름을 규칙 하나로 모두 바꾼다. 미리 보기(<code>--dry-run</code>)가 있고, 이미 있는 이름은 덮어쓰지 않고 건너뛴다.</p>
+<p>내려받은 파일, 스캔한 문서, 다른 팀이 보낸 보고서는 이름이 제각각이다. <code>Q3 Report (final).TXT</code>처럼 공백·괄호·대문자가 섞이면 쉘에서 따옴표를 빠뜨리기 쉽고 스크립트로 다루기도 번거롭다. 여기서는 디렉터리 안의 모든 파일 이름을 소문자와 <code>-</code>만 쓰는 꼴(kebab-case, 케밥 표기)로 바꾼다. <code>Q3 Report (final).TXT</code>는 <code>q3-report-final.txt</code>가 된다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>for f in *\ *; do mv -n &quot;$f&quot; &quot;$(echo &quot;$f&quot; | tr 'A-Z ' 'a-z-')&quot;; done</code></pre>
+<p>한 줄로 되지만 빈틈이 많다. <code>tr</code>은 공백만 <code>-</code>로 바꾸므로 괄호는 그대로 남고(<code>q3-report-(final).txt</code>), 이어진 공백은 <code>--</code>가 된다. 바꿀 이름이 이미 있으면 <code>mv -n</code>이 아무 말 없이 건너뛰어서 무엇이 안 바뀌었는지 모른다. <code>-n</code>을 빠뜨리면 다른 파일을 덮어쓴다. 무엇이 바뀔지 먼저 보려면 <code>mv</code> 앞에 <code>echo</code>를 붙였다 떼었다 해야 한다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: Q3 Report (final).TXT, IMG 2041.JPG, Server List.csv, server-list.csv, my-notes.md, 참치.md</summary>
+<p><code>Q3 Report (final).TXT</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>IMG 2041.JPG</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>Server List.csv</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>server-list.csv</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>my-notes.md</code></p>
+<pre class="plain"><code></code></pre>
+<p><code>참치.md</code></p>
+<pre class="plain"><code></code></pre>
+<pre class="plain shell"><code>fung example.fung . --dry-run</code></pre>
+</details>
+<div class="run"><pre><code>#!/usr/bin/env fung
+# Renames the files in a directory to kebab-case:
+#   &quot;Q3 Report (final).TXT&quot; -&gt; &quot;q3-report-final.txt&quot;
+# usage: fung rename.fung &lt;dir&gt; [--dry-run]
+import fs
+import path
+import cli
+
+# Lowercase, letters and digits kept, every other run of characters one &quot;-&quot;.
+fn kebab(name):
+  kept = for c in chars(lower(name)):
+    c in &quot;abcdefghijklmnopqrstuvwxyz0123456789&quot; then c else &quot;-&quot;
+  ;;
+  join(kept) |&gt; split(&quot;-&quot;) |&gt; filter(p =&gt; p != &quot;&quot;) |&gt; join(&quot;-&quot;)
+;;
+
+# The new name; a name with no ASCII letter or digit is kept.
+fn target(file):
+  stem = kebab(path.stem(file))
+  stem == &quot;&quot; then file else stem + lower(path.ext(file))
+;;
+
+fn rename(dir, file, dry):
+  to = target(file)
+  if to == file: return 'same ;;
+  if fs.exists(path.join(dir, to)):
+    eprint(&quot;skip:&quot;, file, &quot;-&gt;&quot;, to, &quot;(already exists)&quot;)
+    return 'skipped
+  ;;
+  print(file, &quot;-&gt;&quot;, to)
+  if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
+  'renamed
+;;
+
+opts = cli.parse(args, bools: [&quot;dry-run&quot;])
+dir = first(opts.rest) ?? fail(&quot;usage: rename.fung &lt;dir&gt; [--dry-run]&quot;)
+dry = get(opts.flags, &quot;dry_run&quot;, false)
+results = fs.list(dir)! |&gt; map(f =&gt; rename(dir, f, dry))
+done = results |&gt; filter(r =&gt; r == 'renamed) |&gt; len
+skipped = results |&gt; filter(r =&gt; r == 'skipped) |&gt; len
+note = dry then &quot; (dry run)&quot; else &quot;&quot;
+print(&quot;${done} renamed, ${skipped} skipped${note}&quot;)</code></pre><pre class="out plain"><code>IMG 2041.JPG -&gt; img-2041.jpg
+Q3 Report (final).TXT -&gt; q3-report-final.txt
+skip: Server List.csv -&gt; server-list.csv (already exists)
+2 renamed, 1 skipped (dry run)</code></pre></div>
+<p>출력을 보고 괜찮으면 <code>--dry-run</code>을 빼고 다시 돌린다. 그때 실제로 이름이 바뀐다. <code>server-list.csv</code>가 이미 있으므로 <code>Server List.csv</code>는 건너뛰고, 영문자나 숫자가 하나도 없는 <code>참치.md</code>는 그대로 둔다(<code>example.fung</code>은 스크립트 자신이고 이미 규칙에 맞는다).</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>kebab</code>: <code>chars(lower(name))</code>로 글자 리스트를 만들고, <code>for</code>로 글자마다 "영문 소문자·숫자면 그대로, 아니면 <code>-</code>"를 고른다. <code>for</code>는 리스트를 돌려주는 식이라 결과를 바로 <code>kept</code>에 담는다. 그다음 <code>-</code>로 쪼개 빈 조각을 버리고 다시 <code>-</code>로 이으면, 연달아 나온 <code>-</code>가 하나로 줄고 앞뒤의 <code>-</code>도 사라진다.</li>
+<li><code>target</code>: 이름을 몸통(<code>path.stem</code>)과 확장자(<code>path.ext</code>, 점 포함)로 나눠 몸통만 <code>kebab</code>으로 바꾸고 확장자는 소문자로 만든다. 몸통이 빈 문자열이 되면(한글만 있는 이름) 원래 이름을 지킨다.</li>
+<li><code>rename</code>: 파일 하나를 맡아 무슨 일이 있었는지를 심볼 <code>'same</code>·<code>'skipped</code>·<code>'renamed</code>로 돌려준다. <code>fs.move</code>는 대상이 있으면 <strong>말없이 덮어쓴다</strong>. 그래서 먼저 <code>fs.exists</code>로 확인하고, 있으면 표준 에러에 이유를 찍고 건너뛴다.</li>
+<li><code>fs.move(…)!</code>: 옮기기가 실패하면(권한 등) <code>!</code>가 그 자리에서 스크립트를 멈춘다. 반쯤 바꾼 상태로 조용히 넘어가지 않는다.</li>
+<li><code>cli.parse(args, bools: [&quot;dry-run&quot;])</code>: <code>--dry-run</code>을 값 없는 스위치로 읽는다. 옵션 이름의 <code>-</code>는 <code>_</code>로 바뀌어 <code>opts.flags.dry_run</code>이 된다. 옵션이 아닌 인자는 <code>opts.rest</code>에 순서대로 들어간다.</li>
+<li><code>first(opts.rest) ?? fail(…)</code>: 디렉터리를 주지 않았으면 사용법을 보이고 멈춘다.</li>
+<li><code>done</code>·<code>skipped</code>: 결과 심볼 리스트에서 <code>filter</code>와 <code>len</code>으로 센다. 반복하면서 세는 변수를 따로 두지 않는다(아래 상자).</li>
+</ul>
+<div class="box mistake"><b>반복문 안에서 개수 세기</b>
+<p>쉘에서는 <code>n=$((n+1))</code>로 반복문 안에서 수를 센다. fung에서 같은 모양으로 쓰면 컴파일 에러 E0205다. 블록(<code>:</code>부터 <code>;;</code>까지)은 바깥 변수를 읽을 수는 있어도 바꿀 수는 없다.</p>
+<div class="run"><pre><code>n = 0
+for f in [&quot;a.txt&quot;, &quot;b.txt&quot;]:
+  n = n + 1  # E0205
+;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot reassign `n` here: it was defined outside this block
+  --&gt; example.fung:3:3
+  |
+3 |   n = n + 1  # E0205
+  |   ^
+  |
+ help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
+<p>위 스크립트처럼 반복의 결과를 리스트로 모은 다음 <code>filter</code>·<code>len</code>으로 세거나, 누적이 필요하면 <code>fold</code>를 쓴다. 왜 이렇게 정했는지는 <a href="../learn/03-values-and-names.html">배우기 3장</a>에 있다.</p>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>확장자만 고르기</strong>: <code>fs.list(dir)!</code> 대신 <code>fs.glob(path.join(dir, &quot;*.JPG&quot;))!</code>를 쓰면 맞는 경로만 온다. 원소가 경로이므로 <code>path.base</code>로 이름만 떼어 넘긴다.</li>
+<li><strong>하위 디렉터리까지</strong>: <code>fs.walk(dir)!</code>는 아래의 모든 파일 경로를 준다. 파일마다 <code>path.dir</code>과 <code>path.base</code>로 나눠 <code>rename(path.dir(p), path.base(p), dry)</code>를 부른다.</li>
+<li><strong>다른 규칙</strong>: 날짜를 앞에 붙이거나(<code>&quot;2026-10-20-&quot; + to</code>) 번호를 매기는 것은 <code>target</code>만 고치면 된다. 번호는 <code>zip(1..=len(files), files)</code>처럼 짝을 지어 넘긴다.</li>
+<li><strong>같은 이름으로 모이는 파일</strong>: <code>Server List.csv</code>와 <code>SERVER  LIST.csv</code>처럼 둘 다 <code>server-list.csv</code>가 되면, 실제로 돌릴 때는 먼저 처리된 쪽만 바뀌고 나머지는 <code>skip:</code>으로 남는다. 미리 보기는 파일을 옮기지 않으므로 둘 다 바뀔 것처럼 보인다. 미리 보기에서 같은 대상이 두 번 나오는지 살핀다.</li>
+</ul>
+<p>배우기: <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>, <a href="../learn/07-collections.html">7장 컬렉션</a>. 레퍼런스: <a href="../reference/modules/fs.html#fn-fs-list"><code>fs.list</code></a>, <a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a>, <a href="../reference/modules/fs.html#fn-fs-exists"><code>fs.exists</code></a>, <a href="../reference/modules/path.html#fn-path-stem"><code>path.stem</code></a>, <a href="../reference/modules/path.html#fn-path-ext"><code>path.ext</code></a>, <a href="../reference/modules/cli.html#fn-cli-parse"><code>cli.parse</code></a>, <a href="../reference/errors.html#E0205">E0205</a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="next" href="../recipes/find-big-files.html"><small>다음</small>큰 파일, 오래된 파일 찾기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

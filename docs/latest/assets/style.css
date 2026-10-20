@@ -412,3 +412,20 @@ details.fixture summary { font-weight: 500; color: var(--muted); margin: 0; }
   .banner { font-size: 12.5px; }
 }
 @media (prefers-reduced-motion: reduce) { .js .side, .js .side.open { transition: none; } }
+
+/* ---- reference: error entries, the error index, the list of functions ---- */
+.entry.error h3 { font-family: var(--mono); }
+.entry .catalog { margin: 0 0 .8rem; }
+.entry .catalog code { white-space: normal; font-size: .95rem; }
+.entry .help { color: var(--muted); font-size: .92em; }
+.entry .help code { white-space: normal; }
+.error-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .15rem 1rem; margin: 0 0 2rem; font-size: 13.5px; }
+.error-index a { display: block; padding: .2rem 0; color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.error-index a:hover { color: var(--accent); }
+.error-index code { background: none; padding: 0; margin-right: .4rem; color: var(--accent); }
+.fn-list .group h3 { margin: 1.8rem 0 .4rem; font-size: 1.05rem; }
+.fn-list .group h3 a { color: var(--ink); text-decoration: none; }
+.fn-list ul { list-style: none; padding: 0; margin: 0; }
+.fn-list li.fn { padding: .3rem 0; border-bottom: 1px dashed var(--rule); font-size: 14.5px; }
+.fn-list li.fn > a { font-weight: 600; margin-right: .4rem; }
+.fn-list li.fn > a code { background: none; padding: 0; }

@@ -50,7 +50,7 @@ print(event.type, event.match)
 </table>
 <h3>문자열</h3>
 <ul>
-  <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code>뿐이고, 모르는 이스케이프(<code>"C:\new"</code>)는 컴파일 에러다. 실제 줄바꿈은 넣을 수 없다.</li>
+  <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. 실제 줄바꿈은 넣을 수 없다.</li>
   <li><code>`…`</code>: 원시 문자열. 이스케이프도 보간도 없고, 여러 줄이 된다. 정규식과 Windows 경로에 쓴다.</li>
   <li>보간 안에는 어떤 식이든 온다: <code>"${m["k"]}"</code>.</li>
   <li>길이와 인덱스는 글자(유니코드 코드 포인트) 단위다. <code>len("참치") == 2</code>, <code>"참치"[0] == "참"</code>. 따로 문자 타입은 없다.</li>
@@ -63,7 +63,7 @@ pattern = `^\d{4}-\d{2}$`
 ```
 
 <h3>심볼</h3>
-<p><code>'ok</code>, <code>'not_found</code>. 이름만 있는 값으로, 선언 없이 쓰는 열거형이다. 문자열과는 다른 타입이라 <code>'ok == "ok"</code>는 거짓이다.</p>
+<p><code>'ok</code>, <code>'not_found</code>. 이름만 있는 값으로, 선언 없이 쓰는 열거형이다. 문자열과는 다른 타입이라 <code>'ok == "ok"</code>처럼 심볼과 문자열을 비교하면 런타임 에러 E0517이다(<code>sym(s)</code>로 바꿔 비교한다).</p>
 <h3>기간</h3>
 <p><code>500ms</code> <code>30s</code> <code>1.5s</code> <code>1h30m</code>. 단위는 <code>ms</code> <code>s</code> <code>m</code> <code>h</code>이고 큰 단위부터 쓴다. 숫자 바로 뒤에 붙여야 한다(<code>30 s</code>는 숫자와 이름 <code>s</code>).</p>
 <p>기간을 숫자로 바꿀 때는 원하는 단위로 나눈다. <code>d / 1ms</code>는 ms 수(실수), <code>d // 1m</code>은 몇 분(정수), <code>d % 1m</code>은 분으로 나눈 나머지(기간)다. 숫자를 기간으로는 <code>n * 1ms</code>.</p>
@@ -138,7 +138,7 @@ print(logs, ok)
     <tr><td><code>fn</code></td><td><code>x =&gt; x</code></td><td>함수. 내장 함수도 같은 타입.</td></tr>
     <tr><td><code>module</code></td><td><code>fs</code></td><td>모듈의 공개 이름들로 된 불변 레코드.</td></tr>
     <tr><td><code>file</code></td><td><code>fs.open(p)!</code></td><td>열린 파일 핸들. 상태가 있는 자원.</td></tr>
-    <tr><td><code>task</code> <code>scope</code> <code>sender</code> <code>receiver</code> <code>atom</code></td><td><code>scope(s =&gt; spawn(s, f))</code>, <code>(tx, rx) = channel()</code></td><td>동시성 값(<a href="functions.html#concurrency">내장 함수</a>). 채널은 보내는 끝과 받는 끝 두 값으로 다룬다. atom은 값을 보이지 않고 <code>&lt;atom&gt;</code>으로 찍힌다(<code>deref</code>로 읽는다).</td></tr>
+    <tr><td><code>task</code> <code>scope</code> <code>sender</code> <code>receiver</code> <code>atom</code></td><td><code>scope(s =&gt; spawn(s, f))</code>, <code>(tx, rx) = channel()</code></td><td>동시성 값(<a href="prelude/concurrency.html">내장 함수</a>). 채널은 보내는 끝과 받는 끝 두 값으로 다룬다. atom은 값을 보이지 않고 <code>&lt;atom&gt;</code>으로 찍힌다(<code>deref</code>로 읽는다).</td></tr>
   </tbody>
 </table>
 <p><code>type_of(x)</code>가 위 타입 이름을 심볼로 돌려준다: <code>type_of(1) == 'int</code>, <code>type_of(Circle(3)) == 'Circle</code>, <code>type_of('red) == 'sym</code>.</p>
@@ -247,7 +247,7 @@ fs.read(p) ?? "{}" |> json.parse          # (fs.read(p) ?? "{}") |> json.parse
 
 <ul>
   <li><code>xs[i]</code>: 음수는 뒤에서부터(<code>xs[-1]</code>). 범위를 벗어나면 에러.</li>
-  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고, 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다. 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
+  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고, 리스트에서 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다(문자열에는 쓰지 않는다). 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
   <li><code>m.name</code>은 <code>m["name"]</code>과 같다. 모듈의 <code>fs.read</code>도 같은 규칙이다.</li>
   <li>튜플은 인덱스로 꺼내지 않는다. 패턴으로 꺼낸다: <code>(a, b) = pair</code>.</li>
 </ul>

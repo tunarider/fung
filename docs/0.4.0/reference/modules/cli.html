@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>cli — 명령줄 옵션 · fung 매뉴얼</title>
+<meta name="description" content="fung 모듈 cli — 명령줄 인자를 옵션과 나머지로 나누는 cli.parse.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">cli — 명령줄 옵션</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html" aria-current="page">cli — 명령줄 옵션</a><ol class="toc2"><li><a href="#concepts">명령줄 인자와 옵션</a></li></ol></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">표준 모듈</span></nav>
+<h1>cli — 명령줄 옵션</h1>
+<p class="lede"><code>import cli</code>. 명령줄 인자를 옵션(<code>--name value</code>)과 나머지로 나눈다. 일부러 작게 만들었다. 값의 검사와 변환은 보통의 fung 코드로 한다. fung으로 썼다.</p>
+<h2 id="concepts">명령줄 인자와 옵션</h2>
+<p>터미널에서 <code>fung deploy.fung --env prod --dry-run web-1 web-2</code>처럼 스크립트를 실행하면, 스크립트 이름 뒤의 단어들이 <strong>명령줄 인자</strong>(command-line arguments)다. fung은 이것을 prelude 값 <a href="../prelude/program.html#fn-args"><code>args</code></a>에 문자열 리스트로 넣어 준다: <code>[&quot;--env&quot;, &quot;prod&quot;, &quot;--dry-run&quot;, &quot;web-1&quot;, &quot;web-2&quot;]</code>. 셸이 따옴표를 풀고 공백에서 나눈 뒤의 모습이다.</p>
+<p>인자 중 <code>--</code>로 시작하는 것은 관례상 <strong>옵션</strong>(option, 플래그)이다. 옵션은 값을 하나 받거나(<code>--env prod</code>, <code>--env=prod</code>), 켜고 끄는 스위치일 수 있다(<code>--dry-run</code>). 옵션이 아닌 인자(<code>web-1 web-2</code>)는 보통 작업 대상이다. <code>cli.parse</code>는 이 관례대로 <code>args</code>를 옵션 맵과 나머지 리스트로 나눈다.</p>
+<table>
+  <thead><tr><th>인자</th><th>결과</th></tr></thead>
+  <tbody>
+    <tr><td><code>--name value</code></td><td><code>flags.name = "value"</code>(다음 인자가 <code>--</code>로 시작하지 않을 때)</td></tr>
+    <tr><td><code>--name=value</code></td><td><code>flags.name = "value"</code>(값에 <code>=</code>가 더 있어도 첫 <code>=</code>에서만 나눈다)</td></tr>
+    <tr><td><code>--name</code></td><td><code>flags.name = true</code>(다음 인자가 없거나 <code>--</code>로 시작할 때, 또는 <code>bools</code>에 있는 이름일 때)</td></tr>
+    <tr><td><code>--</code></td><td>그 뒤는 <code>--</code>로 시작해도 모두 <code>rest</code></td></tr>
+    <tr><td>그 밖(<code>file.txt</code>, <code>-v</code>, <code>-</code>)</td><td>순서대로 <code>rest</code></td></tr>
+  </tbody>
+</table>
+<p>옵션 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>flags.dry_run</code>). <code>flags.dry_run</code>처럼 점으로 바로 읽을 수 있게 하려는 것이다. 같은 옵션이 두 번 나오면 뒤의 것이 이긴다. 한 글자 옵션(<code>-v</code>)과 묶음(<code>-xvf</code>)은 따로 해석하지 않고 <code>rest</code>에 둔다.</p>
+<div class="box choice"><b>왜 이렇게 작은가</b>
+<p><code>cli</code>는 도움말 생성, 필수 옵션 검사, 타입 변환을 하지 않는다. 그런 기능은 규칙이 많아 배울 것이 늘고, 스크립트마다 원하는 모양이 다르다. 대신 결과가 평범한 맵과 리스트이므로 <code>get(flags, &quot;port&quot;, &quot;8080&quot;)</code>, <code>int(...)</code>, <a href="../prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <code>match</code>로 필요한 만큼 직접 쓴다.</p>
+</div>
+<section class="entry" id="fn-cli-parse">
+<h3>cli.parse<span class="by">fung으로 작성</span></h3>
+<p>명령줄 인자를 옵션 맵과 나머지 리스트로 나눈다.</p>
+<div class="sig"><code>cli.parse(argv, bools = [])</code></div>
+<h4>설명</h4>
+<p><code>argv</code>를 앞에서부터 읽으며 <a href="#concepts">위의 표</a>대로 나눈다. 값은 언제나 <strong>문자열</strong>(값 없는 옵션은 <code>true</code>)이므로 숫자나 기간이 필요하면 직접 바꾼다. <code>bools</code>에 적은 이름(앞의 <code>--</code> 없이, <code>-</code>는 그대로: <code>&quot;dry-run&quot;</code>)은 값을 받지 않는 스위치로 다룬다. 이것이 없으면 <code>--dry-run web-1</code>의 <code>web-1</code>이 <code>dry_run</code>의 값이 되어 버린다.</p>
+<p>없는 옵션을 <code>flags.port</code>로 읽으면 E0508(없는 키)이다. 선택 옵션은 <a href="../prelude/maps.html#fn-get"><code>get</code></a>의 기본값으로 읽는다(<code>get(opts.flags, &quot;port&quot;, &quot;8080&quot;)</code>). <code>opts.flags.port ?? &quot;8080&quot;</code>은 <code>??</code>에 닿기 전에 E0508로 멈춘다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>argv</code>: 문자열 리스트. 보통 <a href="../prelude/program.html#fn-args"><code>args</code></a>를 그대로 넘긴다.</li>
+<li><code>bools</code>: 값을 받지 않는 옵션 이름의 리스트.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>{flags, rest}</code> 맵. <code>flags</code>는 이름(문자열 키) → 문자열 또는 <code>true</code>, <code>rest</code>는 옵션이 아닌 인자의 리스트(순서 유지).</p>
+<h4>에러</h4>
+<ul>
+<li><code>argv</code>가 리스트가 아니면 런타임 에러 E0601(맞는 패턴 없음).</li>
+</ul>
+<h4>예제</h4>
+<p><strong>스크립트의 인자 나누기</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>fung example.fung --env prod --dry-run web-1 web-2</code></pre>
+</details>
+<div class="run"><pre><code>import cli
+
+opts = cli.parse(args, bools: [&quot;dry-run&quot;])
+print(opts)
+print(opts.flags.env, opts.rest)</code></pre><pre class="out plain"><code>{flags: {env: &quot;prod&quot;, dry_run: true}, rest: [&quot;web-1&quot;, &quot;web-2&quot;]}
+prod [&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
+<p><strong><code>bools</code>가 없으면</strong></p>
+<div class="run"><pre><code>import cli
+
+print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;]))
+print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;], bools: [&quot;dry-run&quot;]))</code></pre><pre class="out plain"><code>{flags: {dry_run: &quot;web-1&quot;}, rest: []}
+{flags: {dry_run: true}, rest: [&quot;web-1&quot;]}</code></pre></div>
+<p><strong>기본값과 변환</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>fung example.fung --retries 5 --timeout 2s report.csv</code></pre>
+</details>
+<div class="run"><pre><code>import cli
+
+opts = cli.parse(args)
+retries = int(get(opts.flags, &quot;retries&quot;, &quot;3&quot;))
+wait = parse_dur(get(opts.flags, &quot;timeout&quot;, &quot;30s&quot;))!
+verbose = get(opts.flags, &quot;verbose&quot;, false)
+print(retries + 1, wait, verbose, opts.rest)</code></pre><pre class="out plain"><code>6 2s false [&quot;report.csv&quot;]</code></pre></div>
+<p><strong><code>=</code>와 <code>--</code></strong></p>
+<div class="run"><pre><code>import cli
+
+print(cli.parse([&quot;--label=env=prod&quot;, &quot;--&quot;, &quot;--not-a-flag&quot;, &quot;-v&quot;]))</code></pre><pre class="out plain"><code>{flags: {label: &quot;env=prod&quot;}, rest: [&quot;--not-a-flag&quot;, &quot;-v&quot;]}</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="../prelude/program.html#fn-args"><code>args</code></a>, <a href="../prelude/maps.html#fn-get"><code>get</code></a>, <a href="../prelude/convert.html#fn-parse_int"><code>parse_int</code></a>, <a href="../prelude/program.html#fn-exit"><code>exit</code></a>, <a href="../../recipes/cli-options.html">명령줄 옵션과 도움말</a></p>
+</section>
+<p>배우는 순서로는 <a href="../../learn/11-files-and-commands.html">11장 파일·외부 명령·CLI</a>를 본다. 스크립트를 실행하는 <code>fung</code> 명령 자체의 옵션은 <a href="../cli.html">명령줄 도구</a>에 있다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/modules/path.html"><small>이전</small>path — 경로 계산</a><a class="next" href="../../reference/modules/json.html"><small>다음</small>json — JSON</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

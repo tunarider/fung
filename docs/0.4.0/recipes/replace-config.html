@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>설정 파일 값 바꾸기 (sed 대신) · fung 매뉴얼</title>
+<meta name="description" content="설정 파일 값 바꾸기 (sed 대신).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">설정 파일 값 바꾸기 (sed 대신)</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html" aria-current="page">설정 파일 값 바꾸기 (sed 대신)</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">파일 다루기</span></nav>
+<h1>설정 파일 값 바꾸기 (sed 대신)</h1>
+<p class="lede"><code>key = value</code> 꼴의 설정 파일에서 지정한 키의 값만 바꾼다. 주석·공백·순서는 그대로 두고, 없는 키는 끝에 더하고, 무엇이 바뀌었는지 알려 준다.</p>
+<p>배포 스크립트나 서버 준비 단계에서 설정 파일의 값 몇 개를 바꾸는 일은 흔하다. 포트를 바꾸고, 로그 레벨을 올리고, 새 키를 하나 더한다. 여기서는 <code>fung setconf.fung app.conf port=9090 log_level=debug</code>처럼 부르면 그 키들만 바꾸는 작은 도구를 만든다. 주석 처리된 옛 값(<code># port = 9999</code>)은 건드리지 않고, 파일은 한 번에 통째로 바꿔서 중간에 멈춰도 반쯤 쓴 설정이 남지 않는다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>sed -i 's/^port *=.*/port = 9090/' app.conf
+grep -q '^timeout' app.conf || echo 'timeout=30s' &gt;&gt; app.conf</code></pre>
+<p><code>sed -i</code>는 GNU sed의 옵션이고, macOS의 sed는 <code>sed -i ''</code>처럼 빈 인자를 하나 더 받아야 해서 같은 줄이 두 곳에서 돌지 않는다. 새 값에 <code>/</code>나 <code>&amp;</code>가 들어 있으면(<code>url=http://…</code>) 식이 깨지거나 다른 뜻이 된다. 바꿀 키가 없을 때 아무 말이 없어서 오타를 낸 키 이름을 알아채지 못하고, 없는 키를 더하려면 <code>grep</code>과 <code>echo</code>를 따로 써야 한다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: app.conf</summary>
+<p><code>app.conf</code></p>
+<pre class="plain"><code># app settings
+listen = 0.0.0.0
+port = 8080
+log_level = info
+# port = 9999  (old)
+data_dir=/var/lib/app</code></pre>
+<pre class="plain shell"><code>fung example.fung app.conf port=9090 log_level=debug timeout=30s --print</code></pre>
+</details>
+<div class="run"><pre><code>#!/usr/bin/env fung
+# Sets KEY=VALUE pairs in a &quot;key = value&quot; config file, keeping comments,
+# spacing and order. Keys that are not there are added at the end.
+# usage: fung setconf.fung &lt;file&gt; KEY=VALUE... [--print]
+import fs
+import cli
+import regex
+
+# indent, key, separator, value; comment lines never match
+setting = `^(\s*)([\w.-]+)(\s*=\s*)(.*)$`
+
+# &quot;port=9090&quot; → (&quot;port&quot;, &quot;9090&quot;); the value may itself hold &quot;=&quot;.
+fn pair(arg):
+  [k, ...rest] = split(arg, &quot;=&quot;)
+  if k == &quot;&quot; or is_empty(rest): fail(&quot;not KEY=VALUE: ${arg}&quot;) ;;
+  (k, join(rest, &quot;=&quot;))
+;;
+
+# The line with its key's new value, or the line as it was.
+fn update(line, wanted):
+  m = regex.find(line, setting)
+  if m == nil: return line ;;
+  [indent, key, sep, old] = m.groups
+  new = get(wanted, key, old)
+  if new != old: eprint(&quot;${key}: ${old} -&gt; ${new}&quot;) ;;
+  indent + key + sep + new
+;;
+
+opts = cli.parse(args, bools: [&quot;print&quot;])
+file = first(opts.rest) ?? fail(&quot;usage: setconf.fung &lt;file&gt; KEY=VALUE... [--print]&quot;)
+wanted = drop(opts.rest, 1) |&gt; map(pair) |&gt; fold({}, (m, (k, v)) =&gt; put(m, k, v))
+
+old = fs.read_lines(file)!
+existing = old |&gt; map(l =&gt; regex.find(l, setting)) |&gt; filter(m =&gt; m != nil) |&gt; map(m =&gt; m.groups[1])
+added = keys(wanted) |&gt; filter(k =&gt; k not in existing) |&gt; map(k =&gt; &quot;${k}=${wanted[k]}&quot;)
+result = (old |&gt; map(l =&gt; update(l, wanted))) + added
+each(added, l =&gt; eprint(&quot;added:&quot;, l))
+
+if get(opts.flags, &quot;print&quot;, false):
+  print(join(result, &quot;\n&quot;))
+else:
+  # a whole new file first, then one rename: never half a config
+  fs.write(file + &quot;.tmp&quot;, join(result, &quot;\n&quot;) + &quot;\n&quot;)!
+  fs.move(file + &quot;.tmp&quot;, file)!
+;;</code></pre><pre class="out plain"><code>port: 8080 -&gt; 9090
+log_level: info -&gt; debug
+added: timeout=30s
+# app settings
+listen = 0.0.0.0
+port = 9090
+log_level = debug
+# port = 9999  (old)
+data_dir=/var/lib/app
+timeout=30s</code></pre></div>
+<p><code>--print</code>를 주면 <code>sed</code>를 <code>-i</code> 없이 쓴 것처럼 새 내용을 표준 출력에 찍기만 하고 파일은 그대로 둔다. 바뀐 내용 보고(<code>port: 8080 -&gt; 9090</code>)는 표준 에러로 가므로 <code>--print</code>의 출력을 파일로 돌려도 섞이지 않는다. <code>--print</code>를 빼면 파일을 바꾼다.</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>setting</code>: 설정 줄 하나를 네 조각(들여쓰기, 키, <code>=</code>와 주변 공백, 값)으로 나누는 정규식이다. 줄 처음에 <code>#</code>이 오면 키 자리(<code>[\w.-]+</code>)에 맞지 않으므로 주석 줄은 저절로 빠진다. 정규식은 원시 문자열 <code></code> <code>…</code> <code></code>에 써서 백슬래시를 두 번 쓰지 않는다.</li>
+<li><code>pair</code>: 인자를 <code>=</code>로 쪼갠다. 첫 조각이 키이고, 나머지를 다시 <code>=</code>로 이어 값으로 쓴다. 그래서 <code>url=http://x/?a=b</code>처럼 값 안의 <code>=</code>도 지켜진다. <code>split</code>은 늘 원소가 하나 이상인 리스트를 주므로 <code>[k, ...rest]</code> 구조 분해는 실패하지 않는다.</li>
+<li><code>update</code>: <code>regex.find</code>는 맞는 것이 없으면 <code>nil</code>, 있으면 <code>{text, groups, …}</code> 맵을 준다. 맞으면 <code>groups</code>를 네 이름으로 풀고, 키가 바꿀 목록에 있으면 값 조각만 갈아 끼운다. 들여쓰기와 구분자(<code>&quot; = &quot;</code>인지 <code>&quot;=&quot;</code>인지)는 원래 줄의 것을 그대로 쓴다. 문자열을 이어 붙여 만들기 때문에 새 값에 <code>/</code>, <code>&amp;</code>, <code>$</code> 같은 글자가 있어도 아무 일이 없다.</li>
+<li><code>wanted</code>: <code>(키, 값)</code> 튜플 리스트를 <code>fold</code>로 맵 하나에 모은다. 람다의 매개변수 자리에서 <code>(k, v)</code> 패턴이 튜플을 바로 푼다.</li>
+<li><code>existing</code>·<code>added</code>: 파일에 이미 있는 키를 모으고, 없는 키만 <code>key=value</code> 줄로 만든다.</li>
+<li>마지막 <code>if</code>: 새 내용을 <code>app.conf.tmp</code>에 다 쓴 뒤 <code>fs.move</code>로 이름을 바꾼다. 같은 파일 시스템 안의 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 <code>app.conf</code>는 옛 내용 그대로다. <code>fs.move</code>는 대상이 있으면 덮어쓴다(여기서는 그것이 목적이다).</li>
+</ul>
+<div class="box mistake"><b><code>replace</code>는 정규식이 아니다</b>
+<p><code>replace(s, old, new)</code>는 글자 그대로 찾아 바꾼다. <code>replace(line, &quot;port=.*&quot;, &quot;port=9090&quot;)</code>은 <code>.*</code>라는 글자를 찾으므로 아무것도 바꾸지 않는다. 패턴으로 바꾸려면 <code>regex.replace(s, pat, repl)</code>을 쓰는데, 그 <code>repl</code> 안의 <code>$1</code>·<code>$0</code>은 잡은 조각을 가리키는 특별한 표기다. 사용자가 준 값처럼 무엇이 들어 있을지 모르는 문자열은 위 스크립트처럼 조각을 잡아서(<code>regex.find</code>) 이어 붙이는 쪽이 안전하다.</p>
+<div class="run"><pre><code>import regex
+
+line = &quot;port = 8080&quot;
+print(replace(line, &quot;port = .*&quot;, &quot;port = 9090&quot;))
+print(regex.replace(line, `=.*`, &quot;= 9090&quot;))
+print(regex.replace(&quot;price = 10&quot;, `\d+`, &quot;$5&quot;))</code></pre><pre class="out plain"><code>port = 8080
+port = 9090
+price = </code></pre></div>
+<p>마지막 줄의 <code>$5</code>는 "다섯째 조각"으로 읽혀 빈 문자열이 되었다.</p>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>파일 권한</strong>: 새로 쓴 <code>.tmp</code> 파일은 기본 권한(보통 <code>0644</code>)으로 만들어지므로, 이름을 바꾸고 나면 원래 파일의 권한이 사라진다. 비밀값이 든 <code>0600</code> 파일이면 뒤에 <code>exec([&quot;chmod&quot;, &quot;600&quot;, file])!</code>를 더한다. 권한을 지키는 쪽이 더 중요하면 <code>fs.write(file, …)!</code>로 제자리에 쓰되, 그러면 한 번에 바뀌는 성질은 잃는다.</li>
+<li><strong>값 뒤의 주석</strong>: <code>port = 8080  # default</code>의 값 조각은 <code>8080  # default</code>까지다. 주석을 지키려면 정규식의 값 부분을 <code>([^#]*?)(\s*#.*)?$</code>처럼 나눈다. 주석이 없는 줄에서는 마지막 조각이 <code>nil</code>로 온다.</li>
+<li><strong>백업</strong>: <code>fs.copy(file, file + &quot;.bak&quot;)!</code>을 쓰기 전에 둔다.</li>
+<li><strong>env 파일 검사</strong>: 필수 키가 다 있는지는 저장소 <code>examples/envcheck.fung</code>·<code>examples/dotenv.fung</code>가 보여 준다.</li>
+<li><strong>여러 서버에</strong>: 설정을 바꾼 뒤 <code>exec([&quot;scp&quot;, file, &quot;${host}:/etc/app/app.conf&quot;])!</code>로 보낸다. 여러 대를 동시에 하는 방법은 <a href="ssh-collect.html">여러 서버에 명령 보내고 모으기</a>.</li>
+</ul>
+<p>배우기: <a href="../learn/06-strings.html">6장 문자열</a>, <a href="../learn/11-files-and-commands.html">11장 파일과 외부 명령</a>. 레퍼런스: <a href="../reference/modules/regex.html#fn-regex-find"><code>regex.find</code></a>, <a href="../reference/modules/regex.html#fn-regex-replace"><code>regex.replace</code></a>, <a href="../reference/prelude/strings.html#fn-replace"><code>replace</code></a>, <a href="../reference/modules/fs.html#fn-fs-write"><code>fs.write</code></a>, <a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a>, <a href="../reference/prelude/collections.html#fn-fold"><code>fold</code></a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/count-log-patterns.html"><small>이전</small>여러 로그에서 패턴 세고 요약하기</a><a class="next" href="../recipes/stdin-filter.html"><small>다음</small>표준 입력을 받아 파이프 중간에서 쓰기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

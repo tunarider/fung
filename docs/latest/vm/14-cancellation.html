@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>취소와 정리 · fung 매뉴얼</title>
+<meta name="description" content="취소와 정리. 구조적 동시성(범위)과 취소 트리, 취소가 도는 코드와 기다리는 코드에 닿는 방법, 블록에 거는 기한 timeout, 무슨 일이 있어도 도는 정리 with, 취소와 다른 정지 요청, 신호, exit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">14. 취소와 정리</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html" aria-current="page">14. 취소와 정리</a><ol class="toc2"><li><a href="#why">왜 멈추게 해야 하나</a></li><li><a href="#structured">구조적 동시성</a></li><li><a href="#delivery">취소가 닿는 법</a></li><li><a href="#timeout">기한: timeout</a></li><li><a href="#with">정리: with</a></li><li><a href="#stop">정지 요청과 신호</a></li><li><a href="#exit">exit</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">4부 런타임</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>14장</span></nav>
+<h1>취소와 정리</h1>
+<p class="lede">fung의 태스크는 범위 안에서만 태어나고, 범위는 취소 트리의 노드 하나다. 기한도 그 노드에 실리고, 정리는 되감기가 반드시 지나가는 내장 함수 with 하나가 맡는다.</p>
+<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li>바이트코드</li><li class="on">실행</li></ol>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>태스크를 멈추게 해야 하는 경우들과, 아무 데서나 멈추면 생기는 문제</li>
+<li>구조적 동시성: 태스크를 범위 안에서만 띄우는 이유와 그 구현(취소 트리)</li>
+<li>취소가 계산하는 태스크와 기다리는 태스크에 닿는 방법</li>
+<li>연산이 아니라 블록에 거는 기한, 그리고 타이머 스레드가 없는 기한</li>
+<li>에러·취소·<code>exit</code>에도 도는 정리 <code>with</code>, 그리고 <code>defer</code>를 두지 않은 이유</li>
+<li>"지금 멈춰라"(취소)와 "하던 일을 마치고 끝내라"(정지 요청), 그리고 신호</li>
+</ul>
+</div>
+<p>12장과 13장은 태스크를 띄우고 기다리게 하는 법이었다. 이 장은 반대쪽, 태스크를 <strong>멈추게</strong> 하는 법이다. 동시성 런타임에서 가장 까다로운 부분이고, fung의 동시성 v2가 가장 많이 바꾼 부분이기도 하다.</p>
+<h2 id="why">왜 멈추게 해야 하나</h2>
+<p>태스크를 도중에 멈춰야 하는 경우는 많다.</p>
+<ul>
+<li><strong>기한.</strong> "이 요청은 2초 안에." 그 안에 DB 질의 하나, HTTP 호출 둘, 채널 받기 하나가 있다.</li>
+<li><strong>형제의 실패.</strong> 사용자 정보와 주문 목록을 동시에 가져오다가 주문 쪽이 죽으면, 사용자 쪽을 계속할 이유가 없다.</li>
+<li><strong>사람의 중단.</strong> Ctrl-C.</li>
+<li><strong>배포.</strong> Kubernetes나 systemd가 SIGTERM을 보내고 유예 시간 뒤에 SIGKILL을 보낸다. 그 사이에 받은 요청은 마치고 끝내야 한다.</li>
+</ul>
+<p>그런데 아무 데서나 멈추면 문제가 생긴다. 파일을 반쯤 썼거나, 커넥션을 풀에 돌려주지 않았거나, 잠금을 쥔 채였을 수 있다. 그래서 언어는 두 가지를 정해야 한다. <strong>어디서</strong> 멈추는가(멈춤이 닿는 지점), 그리고 멈출 때 <strong>무엇이 반드시 도는가</strong>(정리).</p>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Java</strong>의 <code>Thread.stop</code>은 아무 지점에서나 스레드를 죽였다. 잠금과 객체가 반쯤 바뀐 채 남아서 일찍이 쓰지 말라는 것이 되었고, 지금은 "취소를 요청하는 표시"인 <code>interrupt</code>를 쓴다. 표시를 보는 것은 각 코드의 몫이다.</li>
+<li><strong>Python</strong>의 <code>asyncio</code>는 취소된 태스크의 다음 <code>await</code> 지점에서 <code>CancelledError</code> 예외를 던진다. <code>try</code>/<code>finally</code>가 정리를 맡는다.</li>
+<li><strong>JavaScript</strong>는 <code>AbortController</code>의 신호를 함수마다 손으로 넘기고 확인한다.</li>
+<li><strong>Erlang</strong>은 프로세스에 종료 신호를 보내고, 링크된 프로세스들이 함께 죽거나 supervisor가 받아서 다시 띄운다.</li>
+</ul>
+</div>
+<h2 id="structured">구조적 동시성</h2>
+<p>0.2.0까지 fung의 <code>spawn(f)</code>는 어디서든 태스크를 띄웠다. 태스크의 수명이 어떤 코드 블록에도 묶여 있지 않았다. 이런 "자유로운 spawn"은 쓰기는 쉽지만, 언어가 답할 수 없는 질문을 남긴다(노트 R7-language의 L1).</p>
+<ul>
+<li>태스크가 실패하면 <strong>누가 아는가.</strong> 아무도 <code>await</code>하지 않으면 실패가 사라진다. 그래서 "핸들이 사라질 때 보고한다"는 특별 규칙을 두어야 했다.</li>
+<li>프로그램은 <strong>언제 끝나는가.</strong> 진입 파일이 끝나도 태스크가 남아 있을 수 있다. 그래서 "진입 파일은 남은 태스크를 기다린다"는 규칙이 붙었다.</li>
+<li>자기가 띄운 태스크를 반드시 기다리는 도우미(<code>pmap</code>)는 보고에서 빼야 해서 내부 전용 <code>spawn_awaited</code>가 생겼다.</li>
+</ul>
+<p>모두 같은 뿌리에서 나온 예외 규칙이다. <strong>구조적 동시성</strong>(structured concurrency)은 그 뿌리를 뽑는다. 규칙은 하나다. <strong>태스크는 범위 안에서만 태어나고, 범위는 그 안의 태스크가 모두 끝나야 닫힌다.</strong> 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 범위는 "열면 그 안에서 시작한 동시 작업이 다 끝나고 돌아온다"를 보장한다.</p>
+<div class="box other"><b>다른 언어는</b>
+<p>2018년 Nathaniel J. Smith가 Python 라이브러리 <strong>Trio</strong>에서 "nursery"라는 이름으로 정리했다. 같은 생각이 <strong>Kotlin</strong>의 <code>coroutineScope</code>, <strong>Swift</strong>의 <code>TaskGroup</code>, <strong>Java 21</strong>의 <code>StructuredTaskScope</code>에 들어갔다. 실패를 격리하는 쪽은 <strong>Erlang</strong>의 supervisor가 원조다.</p>
+</div>
+<div class="box choice"><b>fung의 선택: 범위가 유일한 태스크 생성 방식</b>
+<p>동시성 v2는 구조적 동시성을 <strong>유일한</strong> 태스크 생성 방식으로 두었다(스펙 1절). 규칙 하나로 위의 질문에 답이 정해진다(노트 R7-language의 L1).</p>
+<ul>
+<li>실패는 범위를 연 코드로 간다. 자식 하나가 죽으면 형제와 본문이 취소되고, 그 에러가 <code>scope(</code> 호출에서 다시 난다. 보고할 "아무도 모르는 실패"가 없다.</li>
+<li>범위 밖에 사는 태스크가 없으니 진입 파일이 끝나면 프로그램이 끝난다. 배경 태스크라는 종류도 없앴다(HTTP 서버도 자기 범위 안에서 돈다).</li>
+<li>실패를 값으로 다뤄야 하는 곳(서버의 요청 하나하나)은 <code>supervise(f, on_fail)</code>다. 숨은 예외 규칙이 아니라 이름 붙은 정책이다.</li>
+</ul>
+</div>
+<div class="run"><pre><code>fn slow(name) = with(
+  () =&gt; name,
+  n =&gt; sleep(10s),
+  n =&gt; print(&quot;release&quot;, n),
+)
+
+scope(fn(s):
+  spawn(s, () =&gt; slow(&quot;db&quot;))
+  spawn(s, () =&gt; 1 / 0)
+;;)</code></pre><pre class="out err plain" data-code="1"><code>release db
+error[E0502]: division by zero
+  --&gt; example.fung:9:20
+  |
+9 |   spawn(s, () =&gt; 1 / 0)
+  |                    ^
+  |
+  note: scope opened at example.fung:7
+ call path (innermost first):
+   example.fung:9 &lt;lambda&gt;</code></pre></div>
+<p>두 번째 자식이 0으로 나누자 범위가 형제 <code>db</code>를 취소했다. <code>db</code>는 10초를 기다리지 않고 곧바로 되감기며 <code>release</code>를 지났고(아래 <code>with</code> 절), 그다음 범위가 자식의 에러를 그대로 다시 냈다. 취소된 형제가 여럿이면 그들이 되감기는 순서는 정해져 있지 않다. <code>note: scope opened at …</code>가 범위를 연 자리를 알려 준다.</p>
+<h3 id="cancel-tree">취소 트리</h3>
+<p>구현의 중심은 <strong>취소 노드</strong>(<code>CancelNode</code>, <code>crates/fung-vm/src/vm/task.rs</code>)의 트리다.</p>
+<ul>
+<li>태스크마다 노드가 하나 있다. 범위도 노드를 하나 만든다. 범위 노드는 범위를 연 태스크의 노드 아래에, 자식 태스크의 노드는 범위 노드 아래에 달린다. 범위의 본문도 범위 노드 아래에서 돈다(태스크의 노드를 잠시 바꿔 끼운다).</li>
+<li>노드를 취소하면 그 아래가 모두 취소된다. 재귀가 아니라 명시적 목록으로 내려가므로 깊은 사슬도 괜찮다.</li>
+<li>노드는 원자적 표시(<code>AtomicBool</code>) 하나와, 자식 목록, 그 노드 아래에서 기다리는 태스크의 깨움 표시 목록(<code>watchers</code>)을 가진다. 취소하면 표시를 세우고 기다리는 태스크를 모두 깨운다.</li>
+<li>부모는 자식을 <strong>강하게</strong> 든다(자식은 부모를 약한 참조로 든다). 그래서 중간의 태스크나 핸들이 사라져도 살아 있는 노드 아래의 것은 루트에서 늘 닿는다. 루트를 취소하면 프로그램의 모든 태스크에 닿는다.</li>
+</ul>
+<p>이 구조 덕에 여러 동작이 따로 장치 없이 나온다.</p>
+<ul>
+<li><code>cancel(s)</code>: 범위 노드를 취소한다. 본문과 모든 자식이 취소된다.</li>
+<li>바깥의 취소(바깥 범위의 실패, <code>timeout</code>, <code>exit</code>): 트리를 타고 범위에 닿는다.</li>
+<li><code>cancel(t)</code>: 그 태스크의 노드만 취소한다. <code>await(t)</code>는 <code>Err({kind: 'cancelled})</code>를 받는다.</li>
+</ul>
+<div class="run"><pre><code>r = scope(fn(s):
+  t = spawn(s, () =&gt; sleep(10s))
+  cancel(t)
+  await(t)
+;;)
+print(r)
+
+r2 = scope(fn(s):
+  spawn(s, () =&gt; sleep(10s))
+  cancel(s)
+  &quot;body value&quot;
+;;)
+print(r2)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})
+Err({kind: 'cancelled})</code></pre></div>
+<h3 id="scope">범위가 하는 일</h3>
+<p>범위(<code>crates/fung-vm/src/vm/scope.rs</code>)는 자식의 핸들을 쥐지 않는다. <strong>살아 있는 자식 수</strong>만 센다. 자식이 범위 핸들을 붙잡는 일은 흔하다(손자를 띄우려고). 범위가 자식을 쥐면 범위 → 자식 → 범위의 <code>Rc</code> 고리가 생긴다(10장). 수만 세면 자식이 범위를 쥐는 것은 "도는 동안만"이라 고리가 없다.</p>
+<p>본문이 끝나면 범위는 자식이 0이 될 때까지 기다린다. 이 기다림은 <strong>취소로 끊기면 안 된다.</strong> 바깥에서 취소가 왔다고 자식이 남은 채 돌아오면 "범위가 돌아오면 다 끝났다"는 약속이 깨진다. 그래서 기다리는 동안만 태스크의 노드를 <strong>새 루트 노드</strong>로 바꿔 끼운다. 바깥 취소는 그래도 자식에게 닿는다(자식은 원래 트리에 달려 있다). 자식들이 되감고 끝나면 기다림이 풀리고, 그다음에 범위가 취소를 이어서 되감는다. 이 기다림은 교착 판정에 든다(12장). 그래서 "모두가 범위 끝에서 서로를 기다린다"도 E0702로 잡힌다.</p>
+<p>범위가 돌아올 때 결과는 이 순서로 정한다.</p>
+<ol>
+<li>자식의 실패: 자식의 위치와 호출 경로를 그대로 두고 <code>note: scope opened at …</code>, 동시에 난 다른 실패는 <code>also failed:</code>로 덧붙인다.</li>
+<li>본문 자신의 에러나 <code>exit</code></li>
+<li>바깥의 취소: 계속 되감는다.</li>
+<li><code>cancel(s)</code>: <code>Err({kind: 'cancelled})</code></li>
+<li>본문의 값</li>
+</ol>
+<p>"취소는 그것이 겨눈 범위가 받는다"는 Trio의 cancel scope와 같은 규칙이다. 그래서 아래의 <code>timeout</code>도 "타이머가 취소하는 범위"로 같은 자리에 들어간다.</p>
+<h3 id="supervise">supervise: 실패를 격리하기</h3>
+<div class="run"><pre><code>fn handle(req) = req == &quot;bad&quot; then 1 / 0 else print(&quot;ok&quot;, req)
+
+supervise(fn(s):
+  each([&quot;a&quot;, &quot;bad&quot;, &quot;c&quot;], r =&gt; spawn(s, () =&gt; handle(r)))
+;;, f =&gt; print(&quot;failed:&quot;, f.kind, f.code))
+print(&quot;server still up&quot;)</code></pre><pre class="out plain"><code>ok a
+failed: 'error E0502
+ok c
+server still up</code></pre></div>
+<p><code>supervise</code>의 자식이 죽으면 형제를 취소하지 않고, 실패 값 <code>{kind, code, message, at}</code>를 <code>on_fail</code>에 준다. 처리기 태스크를 따로 띄워 두지 않는다. 늘 떠 있는 처리기가 있으면 범위가 그것을 기다리느라 닫히지 않기 때문이다. 대신 처리하는 쪽이 없을 때 <strong>처음 실패한 자식이 처리기가 되어</strong> 대기열이 빌 때까지 <code>on_fail</code>을 부르고, 그동안 범위의 살아 있는 자식으로 남는다. 범위가 취소되어 처리하지 못한 실패는 버리지 않고 <code>task failed:</code>로 보고한다(종료 코드 1).</p>
+<h2 id="delivery">취소가 닿는 법</h2>
+<p>취소 표시가 섰다고 태스크가 곧바로 멈추지는 않는다. fung의 취소는 <strong>협력형</strong>이다. 태스크가 정해진 지점에서 표시를 보고 스스로 되감는다. 그 지점이 둘이다.</p>
+<ul>
+<li><strong>계산하는 태스크</strong>: 모든 <code>CALL</code>·<code>TAILCALL</code>에서 <code>Task::tick</code>이 표시를 본다(12장의 차례 넘기기와 같은 자리). 표시가 서 있으면 그 자리에서 E0701 <code>task cancelled</code>로 되감기를 시작한다. 반복은 모두 호출을 지나므로, 끝없는 계산도 다음 호출에서 멈춘다. 표시 읽기는 원자 변수 읽기 하나라 평소에는 비용이 보이지 않는다.</li>
+<li><strong>기다리는 태스크</strong>: 주차한 태스크는 자기 노드의 <code>watchers</code>에 등록되어 있다. 취소가 그것을 깨우고, 깨어난 태스크는 기다림이 끝난 이유가 취소임을 보고(<code>after_park</code>) 기다리던 상자의 <code>unwind</code>로 간다. 상자마다 "이미 건너온 값은 취소보다 먼저" 같은 자기 규칙을 정한다(채널).</li>
+</ul>
+<p>되감기(unwinding)는 프레임을 하나씩 걷어 내며 위로 올라간다. 그 길에 이어 가기 상자(12장)가 있으면 그 상자의 <code>unwind</code>가 본다. 기본은 그대로 올려 보내기이고, <code>with</code>·<code>timeout</code>·<code>scope</code>가 여기서 끼어든다. E0701은 사용자에게 찍히지 않는다. 태스크의 핸들이 그것을 <code>Err({kind: 'cancelled})</code>로 바꾸고, 범위가 결과를 정한다.</p>
+<h2 id="timeout">기한: timeout</h2>
+<p>0.2.0까지 기한은 연산마다 따로 있었다(<code>await(t, timeout: d)</code>, <code>recv(ch, timeout: d)</code>). 연산 하나라면 충분하지만 웹서비스의 기한은 대개 <strong>요청 하나 전체</strong>에 걸린다. 연산마다의 기한으로는 남은 시간을 계산해 다음 연산에 넘겨야 하고, 그 안에서 띄운 태스크에는 기한이 닿지 않으며, 바깥 함수가 정한 기한을 안쪽 함수가 모른다.</p>
+<p>Trio의 글 "Timeouts and cancellation for humans"(2018)가 이 문제를 정리했다. 기한을 연산이 아니라 <strong>코드 블록</strong>에 건다. 그러면 기한이 합쳐지고(바깥과 안쪽 중 이른 쪽), 그 안의 모든 연산과 태스크가 따른다. fung은 이미 범위를 들였으므로 <code>timeout(d, f)</code>는 "타이머가 취소하는 범위"로 같은 자리에 들어갔다(노트 R7-language의 L2).</p>
+<div class="run"><pre><code>print(timeout(100ms, () =&gt; sleep(10s)))
+print(timeout(1s, () =&gt; &quot;fast&quot;))
+print(timeout(1s, () =&gt; [&quot;inner answered&quot;, timeout(50ms, () =&gt; sleep(10s))]))
+print(timeout(50ms, () =&gt; [&quot;inner answered&quot;, timeout(1s, () =&gt; sleep(10s))]))
+print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})
+fast
+[&quot;inner answered&quot;, Err({kind: 'timeout})]
+Err({kind: 'timeout})
+Err({kind: 'timeout})</code></pre></div>
+<p>세 번째 줄은 안쪽 기한이 먼저라 안쪽 <code>timeout</code>이 답했고 바깥은 그 값을 받았다. 네 번째 줄은 바깥 기한이 먼저라 안쪽은 값을 내지 못하고 되감겼고, 바깥 <code>timeout</code>이 답했다. 마지막 줄은 외부 명령 <code>sleep 5</code>가 200 ms에 끝났다(아래 "외부 명령").</p>
+<h3 id="deadline-node">기한은 노드에</h3>
+<p><code>timeout</code>은 기한이 실린 취소 노드를 만든다(<code>CancelNode::with_deadline</code>). 그 아래에 생기는 노드(범위, 그 안의 태스크)는 부모의 기한을 그대로 물려받는다. 안쪽 <code>timeout</code>의 기한이 바깥보다 늦으면 바깥 기한을 물려받으므로, "이른 쪽이 이긴다"가 저절로 된다. 노드는 기한과 함께 그 기한의 <strong>주인</strong>(그 기한을 만든 <code>timeout</code>의 노드)을 기억한다.</p>
+<p><strong>타이머 스레드는 없다.</strong> 처음 떠오르는 구현은 타이머 스레드가 기한에 노드를 취소하는 것이지만, 스레드가 하나 더 늘고 교착 판정이 그 스레드를 모르게 된다(노트 R7-language의 L2). 대신 <strong>노드 아래에 있는 쪽이 스스로 기한을 본다.</strong></p>
+<ul>
+<li>주차하는 태스크는 기한까지만 잔다. 스케줄러가 주차할 때 노드의 기한을 기다림의 기한과 합쳐 타이머 힙에 넣는다(<code>Sched::park</code>). 기한이 있는 기다림은 "타이머가 끝낼 기다림"이라 교착으로 몰리지 않는다.</li>
+<li>계산하는 태스크는 차례를 넘길 때(호출 1,000번마다, <code>end_turn</code>) 시계를 본다. 그 사이 수천 번의 호출에는 비용이 없다.</li>
+<li>기한이 지난 것을 처음 본 쪽이 주인 노드를 <strong>만료</strong>시킨다(<code>expire</code>). 만료는 "기한으로 취소됨" 표시를 세우고 취소하는 일이다. 그러면 아래가 모두 취소된다.</li>
+</ul>
+<p><code>timeout</code>이 끝날 때의 규칙은 범위와 같은 모양이다(<code>crates/fung-vm/src/vm/deadline.rs</code>의 <code>Timeout</code>).</p>
+<ul>
+<li>본문이 값을 돌려줬으면 그 값이다.</li>
+<li>본문이 취소로 되감겼고, 이 노드가 <strong>자기 기한으로</strong> 만료됐고, 바깥은 취소되지 않았으면 <code>Err({kind: 'timeout})</code>이다.</li>
+<li>나머지는 그대로 올라간다. 바깥 기한이 먼저면 바깥 <code>timeout</code>이 답하는 이유다.</li>
+</ul>
+<p><code>timeout(0s, f)</code>는 이미 지난 기한이라 <code>f</code>가 첫 호출에서 되감긴다. 예외 규칙 없이 일관되지만 "기다리지 않고 한 번 보기"로는 쓸 수 없다.</p>
+<div class="run"><pre><code>fn double(x) = x * 2
+
+print(timeout(0s, () =&gt; double(21)))
+print(timeout(1s, () =&gt; double(21)))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})
+42</code></pre></div>
+<h3 id="os-waits">운영체제를 기다리던 중이었다면</h3>
+<p>13장의 기다림들은 기한과 취소를 이렇게 받는다.</p>
+<ul>
+<li><strong>소켓·표준 입력</strong>: 주차이므로 곧바로 깨어나 되감는다. 이벤트 루프 등록은 그 기다림이 끝날 때 지운다.</li>
+<li><strong>풀의 일</strong>: 줄에서 아직 시작하지 않은 일은 버린다. 읽기만 하는 일은 돌던 중이어도 태스크가 곧바로 되감고 결과는 버린다. 무엇을 바꾸는 일은 끝날 때까지 기다린 뒤 기한을 확인한다. 취소된 쓰기가 나중에 일어나지 않게 하려는 것이다.</li>
+<li><strong>외부 명령</strong>: 명령에 SIGTERM을 보내고, 2초 뒤에도 남아 있으면 SIGKILL을 보낸다(Kubernetes와 같은 모양). 명령은 자기 <strong>프로세스 그룹</strong>으로 띄우므로 <code>sh -c &quot;a | b&quot;</code>의 <code>a</code>·<code>b</code>처럼 셸이 띄운 손자도 함께 끝난다. 다만 fung이 터미널의 전경 그룹이면 명령을 같은 그룹에 둔다. 다른 그룹의 프로세스가 터미널을 읽으면 운영체제가 멈춰 세우므로(SIGTTIN), <code>sh(&quot;sudo …&quot;)</code>의 비밀번호 프롬프트가 멈춰 버렸기 때문이다(노트 R7-language의 L6).</li>
+</ul>
+<h2 id="with">정리: with</h2>
+<p>취소가 흔해지면 "취소돼도 반드시 도는 정리"가 꼭 필요해진다. 서버에서는 요청 하나가 기한에 걸릴 때도 커넥션을 풀에 돌려줘야 한다.</p>
+<p>언어들의 답은 대개 셋 중 하나다. <code>try</code>/<code>finally</code> 블록(Java, Python, JavaScript), 자원을 여는 문법(Python의 <code>with</code>, Java의 try-with-resources), 그리고 "이 함수가 끝날 때 이것을 하라"는 <code>defer</code>. 함수형 쪽에는 Haskell의 <code>bracket(acquire, release, use)</code>가 있다.</p>
+<div class="box choice"><b>fung의 선택: 평범한 내장 함수 with(acquire, use, release) 하나</b>
+<p><code>defer</code>는 기각했다(<code>background.md</code>, 노트 R7-language의 L3).</p>
+<ul>
+<li>할 일을 프레임에 매달면 꼬리 호출 최적화와 충돌한다. 꼬리 호출은 프레임을 다시 쓰는데(9장), 매달린 일이 그 프레임에 있다.</li>
+<li>VM에 프레임마다의 목록과 되감기 로직이 필요해진다.</li>
+</ul>
+<p><code>with</code>는 <strong>평범한 내장 함수</strong>라서 둘 다 피한다. <code>use</code>는 내장 함수 안에서 부르므로 처음부터 꼬리 호출이 아니고, 정리할 일은 이어 가기 상자(12장)의 상태로 들고 있으면 된다. 되감기는 이미 있는 길(상자의 <code>unwind</code>)을 그대로 쓴다. 문법이 아니라 함수라서 "무엇을 어떻게 닫는가"를 언어가 알 필요도 없다. 예전의 <code>at_exit</code>(프로세스가 끝날 때 도는 처리기)도 지웠다. <code>exit</code>·교착·진입 파일의 에러가 모두 "루트 취소 → 되감기"이므로, 진입 파일 본문을 <code>with</code>로 감싸면 같은 일을 한다. 정리 장치가 하나면 규칙도 하나다.</p>
+</div>
+<p><code>with</code>는 <code>acquire()</code>를 부르고, 그 값으로 <code>use(r)</code>를 부르고, <code>use</code>가 <strong>어떻게 끝나든</strong> <code>release(r)</code>를 부른다. 값, <code>Err</code> 반환, 런타임 에러, 취소(<code>cancel</code>·<code>timeout</code>·범위 실패), <code>exit</code> 모두다(<code>crates/fung-vm/src/vm/cleanup.rs</code>의 <code>run_with</code>).</p>
+<div class="run"><pre><code>fn conn(name) = with(
+  () =&gt; print(&quot;open&quot;, name),
+  _ =&gt; sleep(10s),
+  _ =&gt; print(&quot;close&quot;, name),
+)
+
+r = timeout(100ms, () =&gt; conn(&quot;db&quot;))
+print(r)</code></pre><pre class="out plain"><code>open db
+close db
+Err({kind: 'timeout})</code></pre></div>
+<div class="run"><pre><code>with(
+  () =&gt; &quot;tmp&quot;,
+  _ =&gt; exit(3),
+  _ =&gt; print(&quot;cleanup runs even on exit&quot;),
+)
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="3"><code>cleanup runs even on exit</code></pre></div>
+<h3 id="shield">차단 노드</h3>
+<p><code>release</code>는 그것을 부른 취소 안에서 돌면 안 된다. 요청이 기한으로 취소됐는데 <code>release</code>가 커넥션을 닫으려고 쓰기를 하면, 그 쓰기가 곧바로 E0701로 끊긴다. 그래서 <code>release</code>는 <strong>새 루트 노드</strong>(차단 노드, shield) 아래에서 돈다. 바깥 취소도 기한도 닿지 않는다.</p>
+<p>대가는 "끊을 수 없는 일"이 생긴다는 점이다. <code>exit</code> 뒤의 되감기에서 <code>release</code>가 <code>recv(channel())</code>에 멈추면 아무도 깨우지 못하고 프로세스가 영원히 남는다. 그래서 도는 <code>release</code>의 차단 노드를 목록(<code>World::shields</code>)에 올려 두고, 교착 판정은 그 목록이 비어 있지 않으면 앞선 <code>exit</code>·교착과 무관하게 판정하며, 교착이면 차단 노드들을 취소한다. 교착 보고는 그 태스크가 <code>release</code> 안에서 기다린다고 말한다.</p>
+<h3 id="merge">에러를 합치는 규칙</h3>
+<p><code>use</code>와 <code>release</code>가 둘 다 실패할 수 있다. 원칙은 "<strong><code>release</code>의 실패는 버리지 않는다</strong>"이다.</p>
+<ol>
+<li><code>use</code>의 런타임 에러(release도 실패했으면 그것은 <code>note: also failed in release</code>로 붙는다. 원인 쪽을 보여 준다)</li>
+<li>그 밖에는 <code>release</code>의 런타임 에러</li>
+<li>그 밖에는 <code>release</code>가 부른 <code>exit</code>이나 교착 판정이 끊은 것</li>
+<li>그 밖에는 <code>use</code>의 결과(값, <code>Err</code>, 취소, <code>exit</code>)</li>
+</ol>
+<div class="run"><pre><code>fn close_conn(c):
+  print(&quot;closing&quot;, c)
+  fail(&quot;close failed&quot;)
+;;
+
+with(() =&gt; &quot;db&quot;, c =&gt; 1 / 0, close_conn)</code></pre><pre class="out err plain" data-code="1"><code>closing db
+error[E0502]: division by zero
+  --&gt; example.fung:6:25
+  |
+6 | with(() =&gt; &quot;db&quot;, c =&gt; 1 / 0, close_conn)
+  |                         ^
+  |
+  note: also failed in release: error[E0803]: close failed
+ call path (innermost first):
+   example.fung:6 &lt;lambda&gt;
+   example.fung:6 &lt;entry&gt;</code></pre></div>
+<h2 id="stop">정지 요청과 신호</h2>
+<h3 id="stop-vs-cancel">취소와 정지 요청은 다르다</h3>
+<p>배포할 때 오케스트레이터는 SIGTERM을 보내고 유예 시간(Kubernetes 기본 30초)을 준 뒤 SIGKILL을 보낸다. 웹 서비스가 그 사이에 해야 할 일은 "새 요청은 그만 받고, 받은 요청은 마치고 끝내기"다(노트 R7-language의 L6).</p>
+<ul>
+<li><strong>취소</strong>는 "지금 멈춰라"다. 모든 자손에게 곧바로 가고, 도는 코드는 다음 확인 지점에서 되감긴다. 처리 중인 요청도 끊긴다.</li>
+<li><strong>정지 요청</strong>은 "하던 일을 마치고 끝내라"다. 받는 쪽이 무엇을 마칠지 스스로 정한다.</li>
+</ul>
+<p>그래서 둘을 따로 둔다. <code>stop_signal()</code>은 정지 요청이 오면 닫히는 채널의 받는 끝을 준다. 정지 요청을 <strong>보는 쪽이 없으면</strong> 그때만 취소로 넘어간다. 그래서 정지 요청을 모르는 스크립트는 Ctrl-C에 지금처럼 곧바로 멈춘다.</p>
+<p><strong>보는 쪽이 있는지는 참조 수로 안다</strong>(<code>crates/fung-vm/src/vm/stop.rs</code>). 런타임은 정지 채널의 보내는 끝을 쥐고, 받는 끝은 약한 참조(<code>Weak</code>)로만 기억한다. 받는 끝의 사본이 하나라도 살아 있으면 약한 참조가 되살아난다. 그것이 "보는 쪽이 있다"다. 정지 요청이 오면,</p>
+<ul>
+<li>보는 쪽이 있으면: 런타임이 보내는 끝을 놓는다. 채널이 닫히고(마지막 사본이 사라졌으므로) 기다리던 쪽이 모두 깨어난다. 새 장치가 필요 없었다. 프로그램은 스스로 끝날 때 끝나고, 종료 코드는 0이다.</li>
+<li>보는 쪽이 없으면: <code>exit</code>처럼 루트를 취소한다. 종료 코드는 128 + 신호 번호(SIGINT 130, SIGTERM 143), <code>request_stop()</code>이면 0이다.</li>
+</ul>
+<div class="run"><pre><code>stop = stop_signal()
+
+scope(fn(s):
+  spawn(s, fn():
+    _ = recv(stop)
+    print(&quot;worker: stop requested, finishing&quot;)
+  ;;)
+  request_stop()
+;;)
+print(&quot;clean exit&quot;)</code></pre><pre class="out plain"><code>worker: stop requested, finishing
+clean exit</code></pre></div>
+<div class="run"><pre><code>fn job(_):
+  request_stop()
+  sleep(10s)
+;;
+
+with(() =&gt; &quot;job&quot;, job, _ =&gt; print(&quot;release runs&quot;))
+print(&quot;not reached&quot;)</code></pre><pre class="out plain"><code>release runs</code></pre></div>
+<p>첫 예는 일꾼이 정지 채널을 보고 있으므로 채널이 닫히기만 했다. 둘째 예는 보는 쪽이 없으므로 루트가 취소되어 <code>sleep</code>이 끊기고 <code>release</code>를 지나 끝났다. <code>http.serve</code>는 정지 요청을 보고 리스너를 닫은 뒤 처리 중인 요청을 <code>drain</code>(기본 10초)까지 마친다.</p>
+<p>정지 채널은 "바깥에서 깨우는 채널"로 표시되어 있다. 그 채널만 기다리는 프로그램은 교착이 아니다.</p>
+<h3 id="signals">신호는 전용 스레드가 받는다</h3>
+<p>유닉스 신호 처리기(signal handler)는 아무 스레드의 아무 지점에 끼어든다. 그래서 처리기 안에서는 잠금을 잡거나 메모리를 할당하면 안 되고(async-signal-safe 함수만 부를 수 있다), 할 수 있는 일은 표시 하나를 세우는 정도다.</p>
+<p>fung은 처리기를 쓰지 않는다(<code>crates/fung-vm/src/signals.rs</code>).</p>
+<ul>
+<li>명령이 시작하자마자, 다른 스레드가 생기기 전에 SIGINT·SIGTERM을 막는다(<code>pthread_sigmask</code>). 막힌 상태는 나중에 생기는 스레드도 물려받는다.</li>
+<li>전용 스레드 하나가 <code>sigwait</code>로 기다렸다가 신호를 받는다. 받은 뒤는 보통 코드라서, 실행 스레드에 사건(<code>Event::Stop</code>)을 게시하고 깨우개를 당긴다. 스케줄러가 한 바퀴의 처음에 그것을 처리한다(12장).</li>
+<li>두 번째 신호는 정리를 기다리지 않고 곧바로 끝낸다. 멈춘 정리에 갇히지 않게 하는 탈출구다.</li>
+<li>막은 마스크는 <code>exec</code>을 지나도 자식에게 남는다. 그래서 자식 프로세스는 <code>fork</code>와 <code>exec</code> 사이에서 마스크를 비우고 시작한다. 비우지 않으면 fung이 띄운 명령은 SIGTERM을 받지 못한다.</li>
+</ul>
+<p>자식 프로세스가 부모(fung)에게 SIGTERM을 보내게 해서 실제 신호로 확인해 보자.</p>
+<div class="run"><pre><code>stop = stop_signal()
+
+scope(fn(s):
+  spawn(s, fn():
+    _ = recv(stop)
+    print(&quot;got the stop request: draining&quot;)
+  ;;)
+  exec([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -TERM $PPID&quot;])!
+;;)
+print(&quot;finished cleanly&quot;)</code></pre><pre class="out plain"><code>got the stop request: draining
+finished cleanly</code></pre></div>
+<div class="run"><pre><code>fn work(_):
+  exec([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -TERM $PPID&quot;])!
+  sleep(10s)
+;;
+
+with(() =&gt; &quot;lock&quot;, work, _ =&gt; print(&quot;release: lock returned&quot;))
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="143"><code>release: lock returned</code></pre></div>
+<p>보는 쪽이 있으면 종료 코드 0(사용자 결정: 정상 종료라서 systemd·Kubernetes가 배포마다 "실패"로 적지 않는다), 없으면 143이다.</p>
+<h2 id="exit">exit</h2>
+<p><code>exit(n)</code>은 어느 태스크에서 불러도 같다. 첫 요청의 코드를 기록하고 프로그램의 루트 노드를 취소한다(<code>Task::request_exit</code>). 부른 태스크는 <code>exit</code>로, 다른 태스크는 E0701로, 어디서 기다리든 되감기며 모든 <code>with</code>의 <code>release</code>를 지난다. <code>release</code>는 차단 노드 아래에서 돌므로 <code>exit</code>가 닿지 않는다. 종료 코드는 처음 요청된 것이 이긴다. <code>exit</code>는 운영체제의 프로세스 종료를 곧바로 부르지 않고 이렇게 "되감기는 신호"로 다루므로, 같은 프로세스에서 VM을 돌리는 단위 시험도 무사하다.</p>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-vm/src/vm/task.rs</code>: 취소 노드 <code>CancelNode</code>(<code>child</code>, <code>with_deadline</code>, <code>cancel</code>, <code>watch</code>, <code>expire_due</code>), 태스크 핸들 <code>TaskHandle</code>.</li>
+<li><code>crates/fung-vm/src/vm/scope.rs</code>: <code>ScopeHandle</code>, <code>ScopeState</code>, <code>run_scope</code>, <code>supervise</code>의 <code>Supervisor</code>, 태스크의 끝 상자 <code>TaskEnd</code>.</li>
+<li><code>crates/fung-vm/src/vm/deadline.rs</code>: <code>Deadline</code>(기한과 주인), <code>run_timeout</code>, <code>Timeout</code> 상자.</li>
+<li><code>crates/fung-vm/src/vm/cleanup.rs</code>: <code>run_with</code>, <code>With</code> 상자, 차단 노드.</li>
+<li><code>crates/fung-vm/src/vm/block.rs</code>: 취소 확인 <code>Task::tick</code>, <code>check_cancelled</code>, 기한을 보는 <code>end_turn</code>.</li>
+<li><code>crates/fung-vm/src/vm/stop.rs</code>: 정지 채널 <code>StopState</code>, <code>stop_signal</code>, <code>StopHandle</code>.</li>
+<li><code>crates/fung-vm/src/signals.rs</code>: 신호 막기 <code>init</code>, <code>sigwait</code> 스레드, 정책 <code>Policy</code>, 자식의 마스크 비우기.</li>
+<li><code>crates/fung-vm/src/native/process.rs</code>: 취소된 명령의 SIGTERM·SIGKILL(<code>TERM_GRACE</code>), 프로세스 그룹.</li>
+<li><code>crates/fung-vm/src/vm/deadlock.rs</code>: <code>release</code> 안의 교착 판정.</li>
+</ul>
+<div class="exercise"><b>기한 맞히기</b>
+<p>아래 다섯 줄이 무엇을 찍을지 먼저 적어 보고 실행해 확인하자. 셋째 줄과 넷째 줄은 어느 <code>timeout</code>이 답하는가? 마지막 줄에서 <code>sleep 5</code> 명령은 언제 어떻게 끝나는가?</p>
+<pre class="frag"><code>print(timeout(100ms, () =&gt; sleep(10s)))
+print(timeout(1s, () =&gt; &quot;fast&quot;))
+print(timeout(1s, () =&gt; [&quot;inner answered&quot;, timeout(50ms, () =&gt; sleep(10s))]))
+print(timeout(50ms, () =&gt; [&quot;inner answered&quot;, timeout(1s, () =&gt; sleep(10s))]))
+print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>print(timeout(100ms, () =&gt; sleep(10s)))
+print(timeout(1s, () =&gt; &quot;fast&quot;))
+print(timeout(1s, () =&gt; [&quot;inner answered&quot;, timeout(50ms, () =&gt; sleep(10s))]))
+print(timeout(50ms, () =&gt; [&quot;inner answered&quot;, timeout(1s, () =&gt; sleep(10s))]))
+print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})
+fast
+[&quot;inner answered&quot;, Err({kind: 'timeout})]
+Err({kind: 'timeout})
+Err({kind: 'timeout})</code></pre></div>
+<p>셋째 줄은 안쪽 기한(50 ms)이 먼저 지나 안쪽 노드가 <strong>자기 기한으로</strong> 만료되므로 안쪽 <code>timeout</code>이 <code>Err({kind: 'timeout})</code>을 내고, 바깥은 그 값이 든 리스트를 받는다. 넷째 줄은 안쪽 노드가 바깥 기한(50 ms)을 물려받았다. 만료되는 것은 바깥 노드이고, 안쪽은 "자기 기한이 아닌 취소"라 그대로 되감긴다. 그래서 리스트가 만들어지지 않고 바깥 <code>timeout</code>이 답한다. 마지막 줄은 200 ms에 명령에 SIGTERM이 가고, <code>sleep</code>이 그 신호로 끝나서 2초를 기다리지 않는다.</p>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>태스크는 <code>scope</code>·<code>supervise</code>가 연 범위 안에서만 태어나고, 범위는 자식이 모두 끝나야 돌아온다. 그래서 아무도 모르는 실패와 끝나지 않는 배경 태스크가 없다.</li>
+<li>취소는 노드의 트리다. 범위 노드 아래에 자식이, 부모는 자식을 강하게 든다. 노드를 취소하면 아래가 모두 취소되고 기다리던 태스크가 깨어난다.</li>
+<li>취소는 협력형이다. 계산하는 태스크는 호출마다, 기다리는 태스크는 깨어나서 표시를 보고 E0701로 되감는다. 되감기는 이어 가기 상자의 <code>unwind</code>를 지난다.</li>
+<li><code>timeout</code>은 기한이 실린 노드다. 타이머 스레드 없이, 주차한 태스크는 기한까지만 자고 계산하는 태스크는 차례를 넘길 때 시계를 본다. 이른 기한이 이긴다.</li>
+<li><code>with</code>는 무슨 일이 있어도 <code>release</code>를 부르는 평범한 내장 함수다. <code>release</code>는 차단 노드 아래에서 돌고, 그 실패는 버리지 않는다. <code>defer</code>와 <code>at_exit</code>는 없다.</li>
+<li>정지 요청은 취소와 다르다. 보는 쪽(받는 끝의 사본)이 있으면 채널을 닫기만 하고, 없으면 루트를 취소한다. 신호는 처리기 없이 <code>sigwait</code> 스레드가 받는다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/prelude/concurrency.html#fn-scope">scope</a>, <a href="../reference/prelude/concurrency.html#fn-timeout">timeout</a>, <a href="../reference/prelude/program.html#fn-with">with</a>, <a href="../reference/prelude/concurrency.html#fn-stop_signal">stop_signal</a>. 4부는 여기까지다. 5부는 언어 둘레의 도구, 포맷터·REPL·테스트 러너를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/13-event-loop.html"><small>이전 장</small>13. 이벤트 루프와 스레드 풀</a><a class="next" href="../vm/15-formatter.html"><small>다음 장</small>15. 포맷터</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

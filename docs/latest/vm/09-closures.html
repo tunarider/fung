@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>함수와 클로저 · fung 매뉴얼</title>
+<meta name="description" content="함수와 클로저. 호출이 프레임을 쌓는 방법, 인자를 칸에 묶는 방법, 클로저가 바깥 변수를 붙잡는 방법(fung은 복사한다), 최상위 함수와 전역, 꼬리 호출과 스택 한도.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">9. 함수와 클로저</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html" aria-current="page">9. 함수와 클로저</a><ol class="toc2"><li><a href="#calls">함수 호출은 무엇을 하나</a></li><li><a href="#frames">프레임</a></li><li><a href="#closures">클로저</a></li><li><a href="#globals">최상위 함수와 전역</a></li><li><a href="#tail-calls">꼬리 호출</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">3부 뒷단: 트리에서 실행으로</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>9장</span></nav>
+<h1>함수와 클로저</h1>
+<p class="lede">함수를 부르면 VM 안에서는 프레임 하나가 쌓인다. 함수 안에서 만든 함수는 바깥 변수를 붙잡아야 하는데, fung은 그 값을 만들어질 때 복사하는 규칙 하나로 정했다.</p>
+<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li>바이트코드</li><li class="on">실행</li></ol>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>함수 호출이 하는 일: 돌아올 자리, 인자, 지역 변수, 그리고 이것을 담는 프레임</li>
+<li>인자를 칸에 묶는 호출 규약과 기본값이 바이트코드로 바뀌는 모습</li>
+<li>클로저(closure)가 바깥 변수를 붙잡는 여러 방법과 fung이 고른 "복사"</li>
+<li>최상위 함수가 전역 변수를 보는 규칙과 그 구현상 이유</li>
+<li>꼬리 호출(tail call)이 스택을 쓰지 않는 원리와 깊이 한도</li>
+</ul>
+</div>
+<p>8장에서 VM이 명령을 하나씩 읽어 값 스택에 쌓고 꺼내는 모습을 봤다. 그때는 <code>CALL</code>을 "함수를 부른다"로만 읽고 넘어갔다. 이 장은 그 한 명령 안에서 일어나는 일을 연다.</p>
+<h2 id="calls">함수 호출은 무엇을 하나</h2>
+<p>함수를 부르는 일은 생각보다 많은 것을 기억해야 한다.</p>
+<ol>
+<li><strong>돌아올 자리.</strong> 함수가 끝나면 부른 쪽의 다음 명령으로 돌아가야 한다.</li>
+<li><strong>인자.</strong> 부른 쪽이 넘긴 값을 받는 쪽의 매개변수 이름에 붙여야 한다.</li>
+<li><strong>지역 변수.</strong> 함수 안에서 만든 변수는 그 호출에만 속한다. 같은 함수가 재귀로 두 번 돌면 변수도 두 벌이다.</li>
+</ol>
+<p>이 셋을 묶은 것을 <strong>프레임</strong>(frame, 활성 레코드라고도 한다)이라고 한다. 함수를 부를 때마다 프레임이 하나 쌓이고, 돌아올 때 하나 빠진다. 쌓인 프레임 전체를 <strong>호출 스택</strong>(call stack)이라고 부른다. 에러 메시지의 "call path"가 바로 이 스택을 위에서부터 읽은 것이다.</p>
+<p>책 내내 따라온 예를 다시 보자.</p>
+<div class="run"><pre><code>fn double(x) = x * 2
+print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; double
+0001  1:1   STOREGLOBAL  0    ; double
+0002  2:1   CONST        0    ; &lt;fn print&gt;
+0003  2:7   LOADGLOBAL   0    ; double
+0004  2:14  CONST        1    ; 21
+0005  2:13  CALL         1    ; 1 positional, 0 named
+0006  2:6   CALL         1    ; 1 positional, 0 named
+0007  2:1   POP
+0008  2:1   CONST        2    ; nil
+0009  1:1   RETURN
+
+== double ==
+0000  1:16  LOADLOCAL    0
+0001  1:20  CONST        0    ; 2
+0002  1:18  MUL
+0003  1:14  RETURN</code></pre></div>
+<p><code>&lt;main&gt;</code>의 0005번 <code>CALL 1</code>이 실행되기 직전, 값 스택에는 아래에서부터 <code>&lt;fn print&gt;</code>, <code>double</code>, <code>21</code>이 쌓여 있다. <code>CALL 1</code>은 "맨 위 인자 하나와 그 아래의 함수"를 뜻한다. VM은 <code>double</code>의 프레임을 새로 쌓고, 그 함수의 명령 0000번부터 실행한다.</p>
+<pre class="plain"><code>CALL 1 직전                 double의 프레임이 쌓인 뒤
+[2]  21
+[1]  &lt;fn double&gt;            [1]  21           ← double 프레임의 슬롯 0(x), base = 1
+[0]  &lt;fn print&gt;             [0]  &lt;fn print&gt;   (main이 계산 중인 값)</code></pre>
+<p>VM은 함수 값이 있던 칸을 빼고, 그 자리부터를 새 프레임의 슬롯으로 삼는다. <code>double</code> 안의 <code>LOADLOCAL 0</code>은 "내 프레임의 슬롯 0"을 읽는다. 슬롯 0은 값 스택의 <code>base + 0</code>번 칸이고, 인자 <code>21</code>이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. <code>MUL</code>이 42를 올리고, <code>RETURN</code>이 42를 꺼낸 뒤 스택을 <code>base</code>까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 <code>&lt;main&gt;</code>의 <code>CALL 1</code>이 다시 <code>print</code>를 부른다.</p>
+<div class="run"><pre><code>fn double(x) = x * 2
+print(double(21))</code></pre><pre class="out plain"><code>42</code></pre></div>
+<h2 id="frames">프레임</h2>
+<p>fung의 프레임은 Rust 구조체 하나다(<code>crates/fung-vm/src/vm/frame.rs</code>의 <code>Frame</code>).</p>
+<table>
+  <thead><tr><th>필드</th><th>뜻</th></tr></thead>
+  <tbody>
+    <tr><td><code>proto</code></td><td>실행할 함수의 원형(8장): 명령열, 상수, 매개변수 표</td></tr>
+    <tr><td><code>ip</code></td><td>다음에 실행할 명령의 번호. "돌아올 자리"는 부른 쪽 프레임의 이 값이다</td></tr>
+    <tr><td><code>base</code></td><td>이 함수의 슬롯이 값 스택의 몇 번째 칸부터인가</td></tr>
+    <tr><td><code>closure</code></td><td>실행 중인 함수 값. 붙잡은 값(아래 클로저 절)을 여기서 읽는다</td></tr>
+    <tr><td><code>globals</code></td><td>이 함수가 속한 모듈의 전역 표(11장)</td></tr>
+    <tr><td><code>tail_calls</code></td><td>꼬리 호출로 이 프레임을 몇 번 다시 썼나(아래 꼬리 호출 절)</td></tr>
+  </tbody>
+</table>
+<p>프레임들은 태스크의 <code>frames</code>라는 Rust <code>Vec</code>에 들어 있고, 지역 변수와 계산 중인 값은 모두 태스크의 값 스택 <code>stack</code> 한 줄에 쌓인다. 둘 다 힙(heap)에 있는 배열이다. 그래서 fung 함수가 fung 함수를 부를 때 Rust 함수 호출은 일어나지 않는다. 실행 루프는 반복문 하나이고, <code>CALL</code>은 배열에 원소를 하나 더할 뿐이다. 이 사실이 뒤의 꼬리 호출, 그리고 12장의 스케줄러를 가능하게 한다.</p>
+<h3 id="calling-convention">호출 규약</h3>
+<p><strong>호출 규약</strong>(calling convention)은 "부르는 쪽이 인자를 어디에 어떤 순서로 놓고, 받는 쪽이 그것을 어떻게 가져가는가"의 약속이다. fung의 <code>CALL n</code>은 스택에 <code>[함수, 위치 인자…, (이름 심볼, 값)…]</code>이 쌓여 있다고 약속한다. 피연산자 하나에 수 둘을 담는데, 아래 12비트가 위치 인자 수, 그 위 12비트가 이름 인자 수다. 그래서 이름 인자 하나가 있으면 피연산자가 4097(= 1 + 4096)이 된다.</p>
+<div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;) = &quot;${greeting}, ${name}&quot;
+
+print(greet(&quot;fung&quot;))
+print(greet(&quot;fung&quot;, greeting: &quot;hi&quot;))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; greet
+0001  1:1   STOREGLOBAL  0    ; greet
+0002  3:1   CONST        0    ; &lt;fn print&gt;
+0003  3:7   LOADGLOBAL   0    ; greet
+0004  3:13  CONST        1    ; &quot;fung&quot;
+0005  3:12  CALL         1    ; 1 positional, 0 named
+0006  3:6   CALL         1    ; 1 positional, 0 named
+0007  3:1   POP
+0008  4:1   CONST        0    ; &lt;fn print&gt;
+0009  4:7   LOADGLOBAL   0    ; greet
+0010  4:13  CONST        1    ; &quot;fung&quot;
+0011  4:21  CONST        2    ; 'greeting
+0012  4:31  CONST        3    ; &quot;hi&quot;
+0013  4:12  CALL         4097    ; 1 positional, 1 named
+0014  4:6   CALL         1    ; 1 positional, 0 named
+0015  4:1   POP
+0016  4:1   CONST        4    ; nil
+0017  1:1   RETURN
+
+== greet ==
+0000  1:1   LOADLOCAL    1
+0001  1:1   JUMPIFSET    4
+0002  1:27  CONST        0    ; &quot;hello&quot;
+0003  1:1   STORELOCAL   1
+0004  1:41  LOADLOCAL    1
+0005  1:38  CONST        1    ; &quot;, &quot;
+0006  1:54  LOADLOCAL    0
+0007  1:38  CONCAT       3
+0008  1:36  RETURN</code></pre></div>
+<p>VM이 인자를 묶는 길은 둘이다(<code>crates/fung-vm/src/vm/call.rs</code>의 <code>call_op</code>).</p>
+<ul>
+<li><strong>빠른 길.</strong> fung 함수를 위치 인자만으로, 매개변수 개수만큼 정확히 부르면 스택에 놓인 인자가 그 자리에서 새 프레임의 첫 슬롯이 된다. 나머지 지역 변수 칸은 비워 둔 채 이어 붙인다. 힙 할당이 없다. <code>double(21)</code>이 이 길이다.</li>
+<li><strong>일반 길.</strong> 이름 인자, 기본값, <code>...rest</code>가 있거나 개수가 맞지 않으면 <code>bind_args</code>가 매개변수 표를 보고 칸을 새로 배치한다. 위치 인자는 차례로, 이름 인자는 표에서 찾아 넣고, 남는 위치 인자는 <code>...rest</code> 리스트로 모은다. 맞지 않으면 E0402(인자 수가 맞지 않음), E0405(같은 인자 두 번), E0406(없는 이름), E0407(빠진 인자)이다.</li>
+</ul>
+<div class="run"><pre><code>fn f(a, b) = a + b
+
+print(f(1))</code></pre><pre class="out err plain" data-code="1"><code>error[E0407]: missing argument `b`
+  --&gt; example.fung:3:8
+  |
+3 | print(f(1))
+  |        ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>내장 함수도 같은 매개변수 표를 선언하므로(<code>NativeParam</code>) 같은 <code>bind_args</code>를 지난다. <code>exec(cmd, cwd: dir)</code>처럼 내장 함수에 이름 인자를 줄 수 있고, 에러 번호도 fung 함수와 같다.</p>
+<h3 id="defaults">기본값은 함수 서두에서</h3>
+<p>위 <code>greet</code>의 바이트코드를 다시 보자. 0000~0003번은 본문이 아니라 <strong>서두</strong>(prologue)다. "슬롯 1이 비었으면 <code>&quot;hello&quot;</code>를 넣어라"를 명령으로 적은 것이다.</p>
+<ul>
+<li><code>LOADLOCAL 1</code>이 슬롯을 읽고, <code>JUMPIFSET 4</code>가 "칸이 차 있으면 4번으로 건너뛰라"고 한다.</li>
+<li>비어 있으면 <code>CONST</code>와 <code>STORELOCAL 1</code>이 기본값을 채운다.</li>
+</ul>
+<p>여기서 "비어 있음"은 fung의 <code>nil</code>이 아니다. 값 스택의 칸은 Rust의 <code>Option&lt;Value&gt;</code>이고, 아직 아무것도 들어가지 않은 칸은 <code>None</code>, fung의 <code>nil</code>은 <code>Some(Value::Nil)</code>이다. <code>greet(&quot;x&quot;, greeting: nil)</code>처럼 <code>nil</code>을 일부러 넘기면 기본값이 쓰이지 않는다. 기본값 식이 호출할 때마다 다시 평가되고 앞 매개변수를 참조할 수 있는 것도 기본값이 그냥 서두의 명령이기 때문이다. 타입 표기가 있으면 서두 끝에 <code>CHECKTYPE</code>이, 반환 타입이 있으면 <code>RETURN</code> 앞에 <code>CHECKRETURN</code>이 붙는다.</p>
+<h2 id="closures">클로저</h2>
+<p>이제 이 장의 중심이다. 함수 안에서 함수를 만들면 무슨 일이 생기나.</p>
+<div class="run"><pre><code>fn adder(n) = x =&gt; x + n
+
+add5 = adder(5)
+print(add5(1))
+print(map([1, 2, 3], adder(10)))</code></pre><pre class="out plain"><code>6
+[11, 12, 13]</code></pre></div>
+<p>람다 <code>x =&gt; x + n</code> 안의 <code>n</code>은 람다 자신의 매개변수가 아니다. 바깥 함수 <code>adder</code>의 매개변수다. 이런 이름을 <strong>자유 변수</strong>(free variable)라고 한다. 문제는 <code>adder(5)</code>가 이미 돌아왔다는 점이다. <code>adder</code>의 프레임은 사라졌고 <code>n</code>이 있던 슬롯도 다른 값이 덮었다. 그런데 <code>add5(1)</code>은 여전히 5를 알아야 한다.</p>
+<p>그래서 함수 값은 코드만이 아니라 <strong>자유 변수를 함께 들고 다녀야</strong> 한다. 코드와 그것이 본 바깥 변수를 묶은 값을 <strong>클로저</strong>(closure)라고 한다. 언어를 만들 때 정해야 하는 것은 "바깥 변수를 어떻게 들고 다니나"이고, 답에 따라 언어의 의미가 달라진다.</p>
+<ul>
+<li><strong>변수를 공유한다.</strong> 클로저가 바깥 변수의 "자리"를 가리킨다. 나중에 바깥에서 그 변수를 바꾸면 클로저도 바뀐 값을 본다. 반대로 클로저가 바꾸면 바깥도 본다.</li>
+<li><strong>값을 복사한다.</strong> 클로저가 만들어지는 순간의 값을 자기 안에 복사해 둔다. 그 뒤 바깥 변수가 무엇이 되든 클로저는 처음 값을 본다.</li>
+</ul>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Lua</strong>는 공유한다. 바깥 변수를 <strong>upvalue</strong>라는 작은 상자로 가리킨다. 바깥 함수가 살아 있는 동안 상자는 바깥 프레임의 칸을 가리키다가(열린 upvalue), 바깥 함수가 돌아오면 그 값을 상자 안으로 옮긴다(닫힌 upvalue). 같은 변수를 붙잡은 클로저 여럿은 상자 하나를 나눠 쓴다. 이 방식은 *Crafting Interpreters*의 clox도 그대로 쓴다.</li>
+<li><strong>CPython</strong>도 공유한다. 바깥 변수는 cell 객체에 담기고, 안쪽 함수는 그 cell을 가리킨다. 안쪽에서 바꾸려면 <code>nonlocal</code>을 적어야 한다.</li>
+<li><strong>JavaScript</strong>도 공유한다. 그래서 유명한 함정이 있다. 예전의 <code>var</code>로 반복문을 돌며 콜백을 만들면, 모든 콜백이 변수 하나를 공유해 마지막 값만 본다. <code>let</code>이 반복마다 새 변수를 만들게 된 것도 이 때문이다.</li>
+<li><strong>Java</strong>의 람다는 사실상 복사다. 다만 붙잡는 변수가 "사실상 final"(대입이 한 번뿐)이어야 한다는 조건을 컴파일러가 강제해서, 공유와 복사의 차이가 드러날 일 자체를 막는다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택: 만들어질 때 보이는 값을 복사한다</b>
+<p>fung의 규칙은 한 문장이다. <strong>함수는 만들어질 때 보이는 변수의 값을 복사한다</strong>(설계 03, "모델 C"). 이 규칙 하나가 함수 정의, 람다, 최상위, 블록 어디서나 같다.</p>
+<ul>
+<li>처음 구현은 "최상위 <code>fn</code>은 최상위 변수를 호출할 때 찾는다"(C·Python식)였다. 그러면 같은 코드가 최상위에서와 함수 안에서 답이 달랐다. 설계 원칙 7(규칙 하나에서 결과가 따라 나오고 예외 조항이 적을 것)에 따라 규칙을 하나로 합쳤다(<code>background.md</code>의 기각된 대안, 노트 M3).</li>
+<li>복사라서 Lua의 upvalue 상자가 필요 없다. fung에서 <code>x = 2</code>는 이름을 새 값에 붙이는 일이지 값을 고치는 일이 아니다. 블록은 바깥 변수를 다시 대입할 수 없고(E0205) 함수는 전역에 대입할 수 없으므로, 클로저가 가진 값을 누가 몰래 바꿀 길이 없다. 상자를 두어도 그 안이 바뀌는 것을 볼 사람이 없다(노트 M3).</li>
+<li>공유 상태가 정말 필요하면 이름 붙은 장치 하나, <code>atom</code>(12장)을 쓴다.</li>
+</ul>
+</div>
+<p>복사의 결과를 직접 보자.</p>
+<div class="run"><pre><code>fn make():
+  x = 1
+  f = () =&gt; x
+  x = 2
+  [f(), x]
+;;
+
+print(make())</code></pre><pre class="out plain"><code>[1, 2]</code></pre></div>
+<p><code>f</code>가 만들어진 순간 <code>x</code>는 1이었다. 그 뒤의 <code>x = 2</code>는 <code>f</code>가 가진 1에 닿지 않는다.</p>
+<h3 id="closure-op">CLOSURE 명령</h3>
+<p>클로저는 바이트코드 명령 <code>CLOSURE</code> 하나로 만들어진다.</p>
+<div class="run"><pre><code>fn adder(n) = x =&gt; x + n
+
+print(adder(5)(1))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; adder
+0001  1:1   STOREGLOBAL  0    ; adder
+0002  3:1   CONST        0    ; &lt;fn print&gt;
+0003  3:7   LOADGLOBAL   0    ; adder
+0004  3:13  CONST        1    ; 5
+0005  3:12  CALL         1    ; 1 positional, 0 named
+0006  3:16  CONST        2    ; 1
+0007  3:15  CALL         1    ; 1 positional, 0 named
+0008  3:6   CALL         1    ; 1 positional, 0 named
+0009  3:1   POP
+0010  3:1   CONST        3    ; nil
+0011  1:1   RETURN
+
+== adder ==
+0000  1:15  CLOSURE      0    ; &lt;lambda&gt;
+0001  1:13  RETURN
+
+== &lt;lambda&gt; ==
+0000  1:20  LOADLOCAL    0
+0001  1:24  LOADCAPTURED 0
+0002  1:22  ADD
+0003  1:17  RETURN</code></pre></div>
+<ul>
+<li>컴파일러는 람다를 <code>adder</code>의 <strong>자식 원형</strong>(<code>== &lt;lambda&gt; ==</code>)으로 따로 컴파일하고, 그 원형에 "무엇을 붙잡는가" 목록(<code>captures</code>)을 적어 둔다. 여기서는 "만드는 프레임의 슬롯 0"(<code>n</code>) 하나다.</li>
+<li>실행 중 <code>adder</code>의 <code>CLOSURE 0</code>은 자식 원형 0번을 꺼내 그 목록대로 값을 <strong>복사</strong>해 <code>Closure{원형, 붙잡은 값들, 전역 표}</code>를 만든다(<code>crates/fung-vm/src/vm.rs</code>의 <code>make_closure</code>).</li>
+<li>람다 안의 <code>LOADCAPTURED 0</code>은 실행 중인 클로저의 붙잡은 값 0번을 읽는다. 바깥 프레임이 이미 사라졌어도 상관없다. 값은 클로저 안에 있다.</li>
+</ul>
+<p>붙잡는 출처는 네 가지다(<code>fung-front</code>의 <code>tree::CaptureKind</code>).</p>
+<table>
+  <thead><tr><th>종류</th><th>어디서 복사하나</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td><code>Local</code></td><td>만드는 프레임의 슬롯</td><td><code>adder</code>의 <code>n</code></td></tr>
+    <tr><td><code>Captured</code></td><td>만드는 클로저가 이미 붙잡은 값</td><td><code>x =&gt; y =&gt; x + y + n</code>의 안쪽 람다가 보는 <code>n</code></td></tr>
+    <tr><td><code>SelfFn</code></td><td>만드는 프레임의 클로저 자신</td><td>람다 안에서 바깥 함수 이름을 부를 때</td></tr>
+    <tr><td><code>Global</code></td><td>그 순간의 파일 변수</td><td>최상위에서 만든 람다가 보는 최상위 변수</td></tr>
+  </tbody>
+</table>
+<p>두 겹 안쪽의 람다가 바깥의 바깥 변수를 쓰면 <strong>붙잡기 사슬</strong>이 생긴다. 가운데 람다가 그 값을 먼저 붙잡아 두고, 안쪽 람다는 가운데 람다의 붙잡은 값에서 다시 복사한다. 이름이 어느 칸에서 오는지는 6장의 이름 해석이 이미 정해 두었으므로, 실행 중에는 번호만 따라가면 된다.</p>
+<h3 id="self">자기 자신 부르기</h3>
+<p>함수가 자기를 부를 때는 한 가지 문제가 있다. 블록 안에서 <code>fn go(…) = … go(…)</code>를 만드는 순간, 이름 <code>go</code>가 들어갈 슬롯은 <strong>아직 비어 있다</strong>. 클로저를 다 만든 뒤에야 저장되기 때문이다. 복사할 값이 없다. 그래서 자기 참조는 슬롯이 아니라 "지금 실행 중인 클로저를 올려라"라는 명령 <code>LOADSELF</code> 하나로 푼다.</p>
+<div class="run"><pre><code>fn countdown(n):
+  fn go(i, acc) = i == 0 then acc else go(i - 1, acc + [i])
+  go(n, [])
+;;
+
+print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; countdown
+0001  1:1   STOREGLOBAL  0    ; countdown
+0002  6:1   CONST        0    ; &lt;fn print&gt;
+0003  6:7   LOADGLOBAL   0    ; countdown
+0004  6:17  CONST        1    ; 3
+0005  6:16  CALL         1    ; 1 positional, 0 named
+0006  6:6   CALL         1    ; 1 positional, 0 named
+0007  6:1   POP
+0008  6:1   CONST        2    ; nil
+0009  1:1   RETURN
+
+== countdown ==
+0000  2:3   CLOSURE      0    ; go
+0001  2:3   STORELOCAL   1
+0002  3:3   LOADLOCAL    1
+0003  3:6   LOADLOCAL    0
+0004  3:9   LIST         0
+0005  3:5   TAILCALL     2    ; 2 positional, 0 named
+0006  1:1   RETURN
+
+== go ==
+0000  2:19  LOADLOCAL    0
+0001  2:24  CONST        0    ; 0
+0002  2:21  EQ
+0003  2:21  JUMPIFFALSE  6
+0004  2:31  LOADLOCAL    1
+0005  2:26  JUMP         15
+0006  2:40  LOADSELF
+0007  2:43  LOADLOCAL    0
+0008  2:47  CONST        1    ; 1
+0009  2:45  SUB
+0010  2:50  LOADLOCAL    1
+0011  2:57  LOADLOCAL    0
+0012  2:56  LIST         1
+0013  2:54  ADD
+0014  2:42  TAILCALL     2    ; 2 positional, 0 named
+0015  2:17  RETURN</code></pre></div>
+<p><code>go</code>의 0006번이 <code>LOADSELF</code>다. 최상위 함수가 자기를 부를 때도 전역을 읽지 않고 같은 명령을 쓴다.</p>
+<h2 id="globals">최상위 함수와 전역</h2>
+<p>파일 최상위의 <code>fn</code>은 <strong>끌어올려진다</strong>(hoisting). 이름 해석이 최상위 <code>fn</code>을 먼저 모아 전역 번호를 붙이고, 파일 본문의 맨 앞에서 <code>CLOSURE</code>·<code>STOREGLOBAL</code>로 만든다. 그래서 정의보다 위에서 불러도 되고, 두 함수가 서로를 불러도 된다.</p>
+<p>그 대신 최상위 <code>fn</code>은 <strong>어떤 최상위 문장보다 먼저</strong> 만들어진다. "만들어질 때 보이는 변수를 복사한다"는 규칙대로라면 복사할 최상위 변수가 하나도 없다. 그런데 설정값 하나를 함수마다 인자로 넘기라고 하면 불편하다. 그래서 규칙을 하나 더 두지 않고 관찰 하나를 썼다. <strong>최상위에서 한 번만 대입되는 이름은 바뀌지 않는다.</strong> 그런 이름은 상수와 같으므로, 이름 해석이 그 전역 칸을 미리 잡아 두고 최상위 <code>fn</code>이 부를 때 <code>LOADGLOBAL</code>로 읽게 한다(2026-10-20 검토의 결정 L9).</p>
+<div class="run"><pre><code>limit = 3
+
+fn small(n) = n &lt; limit
+
+print(small(2))</code></pre><pre class="out plain"><code>true</code></pre></div>
+<div class="run"><pre><code>limit = 3
+
+fn small(n) = n &lt; limit
+
+print(small(2))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  3:1   CLOSURE      0    ; small
+0001  3:1   STOREGLOBAL  0    ; small
+0002  1:9   CONST        0    ; 3
+0003  1:1   STOREGLOBAL  1    ; limit
+0004  5:1   CONST        1    ; &lt;fn print&gt;
+0005  5:7   LOADGLOBAL   0    ; small
+0006  5:13  CONST        2    ; 2
+0007  5:12  CALL         1    ; 1 positional, 0 named
+0008  5:6   CALL         1    ; 1 positional, 0 named
+0009  5:1   POP
+0010  5:1   CONST        3    ; nil
+0011  1:1   RETURN
+
+== small ==
+0000  3:15  LOADLOCAL    0
+0001  3:19  LOADGLOBAL   1
+0002  3:17  LT
+0003  3:13  RETURN</code></pre></div>
+<p><code>&lt;main&gt;</code>의 0000~0001번에서 <code>small</code>이 먼저 만들어지고, <code>limit</code>은 그다음 0002~0003번에서 채워진다. <code>small</code> 안의 <code>LOADGLOBAL 1</code>은 부를 때 그 칸을 읽는다. 두 번 대입되는 이름은 상수가 아니므로 보이지 않는다. 이것은 실행 전에 걸리는 컴파일 에러(종료 코드 2)다.</p>
+<div class="run"><pre><code>limit = 3
+limit = 4
+
+fn small(n) = n &lt; limit
+
+print(small(2))</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `limit`
+  --&gt; example.fung:4:19
+  |
+4 | fn small(n) = n &lt; limit
+  |                   ^^^^^ not found in this scope
+  |
+ help: `limit` is a file-level variable (assigned on line 1) that a top-level fn cannot see: it is assigned more than once, and top-level fns see only the names assigned once; pass it as an argument</code></pre></div>
+<p>순서가 어긋나서, 대입이 실행되기 전에 함수가 불리면 칸이 아직 비어 있다. 이것은 실행 중에야 알 수 있으므로 런타임 에러 E0809다.</p>
+<div class="run"><pre><code>fn small(n) = n &lt; limit
+
+print(small(2))
+limit = 3</code></pre><pre class="out err plain" data-code="1"><code>error[E0809]: `limit` is read before its assignment ran
+  --&gt; example.fung:1:19
+  |
+1 | fn small(n) = n &lt; limit
+  |                   ^^^^^
+  |
+ call path (innermost first):
+   example.fung:1 small
+   example.fung:3 &lt;entry&gt;
+ help: a top-level fn that reads it was called while the file was starting, above the assignment; move the assignment up or the call down</code></pre></div>
+<p>최상위에서 만든 <strong>람다</strong>는 다르다. 최상위 문장이 진행되는 도중에 만들어지므로, 그때까지 대입된 전역을 보통 규칙대로 복사한다(<code>CaptureKind::Global</code>).</p>
+<div class="run"><pre><code>x = 1
+f = () =&gt; x
+x = 2
+print(f(), x)</code></pre><pre class="out plain"><code>1 2</code></pre></div>
+<h2 id="tail-calls">꼬리 호출</h2>
+<p><code>1 + f(n)</code>에서 <code>f(n)</code>을 부른 뒤에도 할 일이 남는다(<code>1 +</code>). 반면 <code>f(n)</code>이 함수의 마지막에 오고 그 결과를 그대로 돌려줄 뿐이면, 부른 쪽 프레임에는 더 할 일이 없다. 이런 자리를 <strong>꼬리 위치</strong>(tail position)라고 하고, 거기서 하는 호출을 <strong>꼬리 호출</strong>이라고 한다.</p>
+<p>꼬리 호출이라면 부른 쪽 프레임을 남겨 둘 이유가 없다. 새 프레임을 쌓는 대신 <strong>지금 프레임을 다시 쓰면</strong> 재귀가 아무리 깊어도 스택이 자라지 않는다. 이것을 꼬리 호출 최적화(TCO, tail call optimization)라고 한다. 함수형 언어에서는 반복문 대신 재귀를 쓰므로 이것이 사실상 필수다.</p>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Scheme</strong>은 언어 명세가 꼬리 호출 최적화를 요구한다. <strong>Lua</strong>도 "proper tail call"을 보장한다.</li>
+<li><strong>CPython</strong>은 하지 않는다. 재귀 깊이 기본 한도는 1,000이고, 넘으면 <code>RecursionError</code>다. 귀도 반 로섬은 에러의 호출 경로가 사라지는 것을 이유로 들었다.</li>
+<li><strong>JavaScript</strong>는 ES2015 명세에 들어갔지만 실제로 구현한 엔진은 Safari의 JavaScriptCore 정도다.</li>
+<li><strong>JVM</strong>은 바이트코드 수준에서 지원하지 않아서, Scala·Clojure는 자기 재귀만 반복문으로 바꾸는(<code>@tailrec</code>, <code>recur</code>) 길을 따로 둔다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택: 꼬리 위치의 호출은 모두 TAILCALL</b>
+<p>fung은 함수형 언어이고 반복문 대신 재귀와 <code>fold</code>를 쓴다. 그래서 꼬리 호출 최적화는 처음부터 요구 사항이었다(설계 03). 트리를 직접 도는 인터프리터 대신 바이트코드 VM을 고른 이유 중 하나도 "꼬리 호출 최적화가 VM 쪽이 자연스럽다"였다(부록 <a href="internals.html">내부 구조</a>). 대가로 생기는 "호출 경로에서 사라진 프레임"은 횟수로 보여 준다.</p>
+</div>
+<p>컴파일러는 트리를 내려가며 <code>tail</code> 표시를 함께 넘긴다(<code>crates/fung-front/src/compiler.rs</code>). 함수 본문의 마지막 식은 꼬리이고, <code>if</code>·<code>then … else</code>의 두 갈래는 꼬리를 물려받으며, <code>return</code>의 피연산자도 꼬리다. 연산자의 피연산자와 호출의 인자는 꼬리가 아니다. 꼬리 위치의 호출은 <code>CALL</code> 대신 <code>TAILCALL</code>이 된다.</p>
+<div class="run"><pre><code>fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
+
+print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; count
+0001  1:1   STOREGLOBAL  0    ; count
+0002  2:1   CLOSURE      1    ; depth
+0003  2:1   STOREGLOBAL  1    ; depth
+0004  4:1   CONST        0    ; &lt;fn print&gt;
+0005  4:7   LOADGLOBAL   0    ; count
+0006  4:13  CONST        1    ; 5
+0007  4:16  CONST        2    ; 0
+0008  4:12  CALL         2    ; 2 positional, 0 named
+0009  4:21  LOADGLOBAL   1    ; depth
+0010  4:27  CONST        1    ; 5
+0011  4:26  CALL         1    ; 1 positional, 0 named
+0012  4:19  ADD
+0013  4:6   CALL         1    ; 1 positional, 0 named
+0014  4:1   POP
+0015  4:1   CONST        3    ; nil
+0016  1:1   RETURN
+
+== count ==
+0000  1:20  LOADLOCAL    0
+0001  1:25  CONST        0    ; 0
+0002  1:22  EQ
+0003  1:22  JUMPIFFALSE  6
+0004  1:32  LOADLOCAL    1
+0005  1:27  JUMP         14
+0006  1:41  LOADSELF
+0007  1:47  LOADLOCAL    0
+0008  1:51  CONST        1    ; 1
+0009  1:49  SUB
+0010  1:54  LOADLOCAL    1
+0011  1:60  CONST        1    ; 1
+0012  1:58  ADD
+0013  1:46  TAILCALL     2    ; 2 positional, 0 named
+0014  1:18  RETURN
+
+== depth ==
+0000  2:15  LOADLOCAL    0
+0001  2:20  CONST        0    ; 0
+0002  2:17  EQ
+0003  2:17  JUMPIFFALSE  6
+0004  2:27  CONST        0    ; 0
+0005  2:22  JUMP         13
+0006  2:34  CONST        1    ; 1
+0007  2:38  LOADSELF
+0008  2:44  LOADLOCAL    0
+0009  2:48  CONST        1    ; 1
+0010  2:46  SUB
+0011  2:43  CALL         1    ; 1 positional, 0 named
+0012  2:36  ADD
+0013  2:13  RETURN</code></pre></div>
+<p><code>count</code>의 0013번은 <code>TAILCALL</code>이고, <code>depth</code>의 0011번은 그냥 <code>CALL</code>이다(<code>1 +</code>가 남아 있으므로). VM의 <code>TAILCALL</code>은 새 프레임을 쌓지 않는다. 지금 프레임의 슬롯을 지우고 새 인자를 <code>base</code> 자리로 옮긴 뒤, 프레임의 원형을 바꾸고 <code>ip</code>를 0으로 돌린다(<code>call.rs</code>의 <code>reuse_frame</code>). 그래서 <code>count(1000000, 0)</code>은 프레임 하나로 돈다.</p>
+<p>꼬리가 아닌 재귀는 프레임이 쌓인다. 쌓인 프레임이 100,000개를 넘으면 E0804다(<code>MAX_FRAMES</code>). 프레임은 힙의 작은 구조체라서 이 깊이도 메모리 수십 MB 수준이지만, 끝없는 재귀를 빨리 알리려고 한도를 둔다.</p>
+<div class="run"><pre><code>fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
+
+print(count(1000000, 0))
+print(depth(1000))
+print(depth(200000))</code></pre><pre class="out err plain" data-code="1"><code>1000000
+1000
+error[E0804]: stack overflow: call depth exceeded 100000
+  --&gt; example.fung:2:43
+  |
+2 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
+  |                                           ^
+  |
+ call path (innermost first):
+   example.fung:2 depth
+   example.fung:2 depth
+   example.fung:2 depth
+   example.fung:2 depth
+   example.fung:2 depth
+   example.fung:2 depth
+   example.fung:2 depth
+   example.fung:2 depth
+   … 99990 more
+   example.fung:2 depth
+   example.fung:6 &lt;entry&gt;
+ help: make the recursion a tail call or use `fold`</code></pre></div>
+<p>에러가 꼬리 재귀 안에서 나면, 다시 쓴 프레임은 경로에서 보이지 않는 대신 횟수가 붙는다.</p>
+<div class="run"><pre><code>fn down(n) = n == 0 then 1 / n else down(n - 1)
+
+print(down(5))</code></pre><pre class="out err plain" data-code="1"><code>error[E0502]: division by zero
+  --&gt; example.fung:1:28
+  |
+1 | fn down(n) = n == 0 then 1 / n else down(n - 1)
+  |                            ^
+  |
+ call path (innermost first):
+   example.fung:1 down (5 tail calls elided)
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<h3 id="return-type">반환 타입과 꼬리 호출</h3>
+<p>반환 타입을 적은 함수(<code>-&gt; int</code>)는 돌아오는 값을 <code>CHECKRETURN</code>으로 검사해야 한다. 그러려면 그 함수의 프레임이 남아 있어야 하므로, 다른 함수를 부르는 꼬리 호출은 <code>CALL</code>이 된다. 다만 <strong>자기 자신을 부르는 꼬리 호출</strong>은 예외 없이 <code>TAILCALL</code>로 남는다. 자기를 부른 값은 결국 같은 함수의 끝에서 같은 검사를 받기 때문이다(검토 결정 T4). 그래서 <code>fn count(n, acc) -&gt; int = …</code>도 백만 번 돈다.</p>
+<h3 id="defer">정리 장치와 꼬리 호출</h3>
+<p>많은 언어에 "이 함수가 끝날 때 이것을 실행하라"는 <code>defer</code>나 <code>finally</code>가 있다. fung은 <code>defer</code>를 두지 않았다. 할 일을 프레임에 매달면, 꼬리 호출이 그 프레임을 다시 쓰는 순간 매달린 일이 갈 곳을 잃는다(<code>background.md</code>). 정리는 평범한 내장 함수 <code>with(acquire, use, release)</code> 하나가 맡는다. 14장에서 자세히 본다.</p>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-vm/src/vm/frame.rs</code>: <code>Frame</code> 구조체.</li>
+<li><code>crates/fung-vm/src/vm.rs</code>: 실행 루프 <code>step_loop</code>(<code>Op::Call</code>·<code>Op::TailCall</code>·<code>Op::Closure</code>·<code>Op::LoadCaptured</code>·<code>Op::LoadSelf</code>·<code>Op::JumpIfSet</code> 갈래), 클로저를 만드는 <code>make_closure</code>.</li>
+<li><code>crates/fung-vm/src/vm/call.rs</code>: 호출 규약. <code>call_op</code>(빠른 길), <code>enter</code>, <code>bind_args</code>, <code>push_frame</code>, 꼬리 호출의 <code>reuse_frame</code>, <code>ret_with</code>, 깊이 한도 <code>MAX_FRAMES</code>.</li>
+<li><code>crates/fung-vm/src/value.rs</code>: 함수 값 <code>Closure{proto, captured, globals}</code>.</li>
+<li><code>crates/fung-front/src/tree/fn_info.rs</code>: 붙잡기 목록 <code>Capture</code>와 <code>CaptureKind</code>.</li>
+<li><code>crates/fung-front/src/compiler.rs</code>, <code>compiler/fn_.rs</code>: <code>tail</code> 표시, <code>call</code>(CALL·TAILCALL 고르기), <code>function</code>(서두와 자식 원형).</li>
+</ul>
+<div class="exercise"><b>반복문 안의 클로저</b>
+<p><code>map(1..n + 1, i =&gt; () =&gt; i * 10)</code>은 람다 셋을 담은 리스트를 만든다. 이것을 하나씩 불러 <code>[10, 20, 30]</code>이 나오는지 확인하고, JavaScript의 <code>var</code> 반복문 함정이 fung에서 왜 생기지 않는지 설명해 보자. 그리고 <code>[x, ...rest]</code> 패턴으로 리스트의 합을 구하는 함수를 꼬리 재귀로 써서 원소 20만 개짜리 리스트에서 돌려 보자.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>fn makers(n):
+  fs = map(1..n + 1, i =&gt; () =&gt; i * 10)
+  map(fs, f =&gt; f())
+;;
+
+fn total(xs, acc) = match xs:
+  []           =&gt; acc
+  [x, ...rest] =&gt; total(rest, acc + x)
+;;
+
+print(makers(3))
+print(total(map(0..200000, i =&gt; 1), 0))</code></pre><pre class="out plain"><code>[10, 20, 30]
+200000</code></pre></div>
+<p><code>i =&gt; () =&gt; i * 10</code>의 안쪽 람다는 만들어지는 순간의 <code>i</code>를 복사한다. <code>map</code>은 원소마다 바깥 람다를 새로 부르고, 그때마다 <code>i</code>는 그 원소의 값이다. 공유할 변수가 없으니 마지막 값만 보는 일이 없다. <code>total</code>의 재귀 호출은 꼬리 위치라서 <code>TAILCALL</code>이 되고, 20만 번 돌아도 프레임은 하나다.</p>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>함수 호출은 프레임 하나를 쌓는다. 프레임은 원형, 다음 명령 번호(<code>ip</code>), 슬롯의 시작(<code>base</code>), 실행 중인 클로저, 모듈 전역을 든다. 프레임과 값 스택은 힙의 배열이라 fung의 재귀는 Rust의 재귀가 아니다.</li>
+<li><code>CALL n</code>의 피연산자는 위치 인자 수와 이름 인자 수를 담는다. 개수가 맞는 위치 인자는 그 자리에서 슬롯이 되고, 나머지는 <code>bind_args</code>가 배치한다. 내장 함수도 같은 규약을 쓴다.</li>
+<li>기본값은 함수 서두의 <code>JUMPIFSET</code>이다. 빈 칸(<code>None</code>)과 <code>nil</code>은 다르다.</li>
+<li>클로저는 코드와 붙잡은 값의 묶음이다. fung은 만들어질 때 보이는 값을 <strong>복사</strong>하므로 upvalue 상자가 없다. 자기 참조는 <code>LOADSELF</code>다.</li>
+<li>최상위 <code>fn</code>은 끌어올려지고 최상위 변수를 복사할 수 없다. 한 번만 대입되는 이름만 <code>LOADGLOBAL</code>로 읽는다(비어 있으면 E0809).</li>
+<li>꼬리 위치의 호출은 <code>TAILCALL</code>이 되어 프레임을 다시 쓴다. 꼬리가 아닌 재귀는 100,000단계에서 E0804다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/language.html#functions">함수</a>, <a href="../reference/language.html#scope">변수와 스코프</a>. 배우기: <a href="../learn/05-functions.html">5장 함수</a>. 다음 장은 이 장에서 "값"이라고만 부른 것, 곧 <code>Value</code>가 메모리에 어떻게 놓이는지를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/08-bytecode.html"><small>이전 장</small>8. 바이트코드와 스택 머신</a><a class="next" href="../vm/10-values-and-memory.html"><small>다음 장</small>10. 값과 메모리</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

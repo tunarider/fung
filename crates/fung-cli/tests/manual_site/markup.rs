@@ -28,6 +28,52 @@ pub enum Block {
     Code(Code),
     /// `{{parts}}`: the cover's cards of the parts.
     Parts,
+    /// `{{functions}}`: the list of every function entry.
+    Functions,
+    /// `{{errors}}`: reserved for a generated list of the error catalog.
+    Errors,
+    /// `:::kind arg` … `:::`: a function or error entry, a callout box,
+    /// the goals of a chapter, an exercise and its solution.
+    Container {
+        kind: String,
+        arg: String,
+        line: usize,
+        blocks: Vec<Block>,
+    },
+}
+
+/// The kinds of `:::` containers and what their argument must be.
+fn check_container(kind: &str, arg: &str, inside: Option<&str>) -> Result<(), String> {
+    let ok = match kind {
+        "fn" => !arg.is_empty(),
+        "error" => {
+            let b = arg.as_bytes();
+            b.len() == 5 && (b[0] == b'E' || b[0] == b'W') && b[1..].iter().all(u8::is_ascii_digit)
+        }
+        "box" => match arg.split_once(' ') {
+            Some((k, title)) => {
+                ["learn", "mistake", "tip", "other", "choice"].contains(&k)
+                    && !title.trim().is_empty()
+            }
+            None => false,
+        },
+        "goals" => arg.is_empty(),
+        "exercise" => !arg.is_empty(),
+        "solution" => arg.is_empty() && inside == Some("exercise"),
+        _ => {
+            return Err(format!(
+                "unknown container `:::{kind}`: fn, error, box, goals, exercise, solution"
+            ));
+        }
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "`:::{kind}` is `:::fn SIGNATURE [fung]`, `:::error E0000`, `:::box learn|mistake|tip|other|choice TITLE`, \
+             `:::goals`, `:::exercise TITLE` or `:::solution` (inside an exercise), not `:::{kind} {arg}`"
+        ))
+    }
 }
 
 /// A fenced code block.
@@ -42,6 +88,8 @@ pub struct Code {
     pub stdin: Option<String>,
     pub env: Vec<(String, String)>,
     pub exit: i32,
+    /// The error a failing example shows (`error=E0205`).
+    pub error: Option<String>,
     pub hide_output: bool,
     /// Fixture files (name, contents) laid out before it runs.
     pub files: Vec<(String, String)>,
@@ -110,6 +158,7 @@ pub fn parse(path: &str, text: &str) -> Result<Page, String> {
 
     let mut p = Parser {
         blocks: Vec::new(),
+        open: Vec::new(),
         para: Vec::new(),
         list: None,
         files: Vec::new(),
@@ -139,8 +188,37 @@ pub fn parse(path: &str, text: &str) -> Result<Page, String> {
             }
             p.fence(info.trim(), body, start + 1)
                 .map_err(|(n, why)| err(n, &why))?;
+        } else if let Some(rest) = t.strip_prefix(":::") {
+            p.flush();
+            let rest = rest.trim();
+            if rest.is_empty() {
+                let Some((kind, arg, line, outer)) = p.open.pop() else {
+                    return Err(err(n, "a `:::` that closes nothing"));
+                };
+                let inner = std::mem::replace(&mut p.blocks, outer);
+                p.blocks.push(Block::Container {
+                    kind,
+                    arg,
+                    line,
+                    blocks: inner,
+                });
+            } else {
+                let (kind, arg) = rest.split_once(' ').unwrap_or((rest, ""));
+                let inside = p.open.last().map(|(k, ..)| k.as_str());
+                check_container(kind, arg.trim(), inside).map_err(|why| err(n, &why))?;
+                let outer = std::mem::take(&mut p.blocks);
+                p.open
+                    .push((kind.to_string(), arg.trim().to_string(), n, outer));
+            }
+            i += 1;
         } else if p.para.is_empty() && p.list.is_none() && t == "{{parts}}" {
             p.blocks.push(Block::Parts);
+            i += 1;
+        } else if p.para.is_empty() && p.list.is_none() && t == "{{functions}}" {
+            p.blocks.push(Block::Functions);
+            i += 1;
+        } else if p.para.is_empty() && p.list.is_none() && t == "{{errors}}" {
+            p.blocks.push(Block::Errors);
             i += 1;
         } else if p.para.is_empty() && p.list.is_none() && t.starts_with('#') {
             let level = t.chars().take_while(|&c| c == '#').count();
@@ -217,6 +295,9 @@ pub fn parse(path: &str, text: &str) -> Result<Page, String> {
         }
     }
     p.flush();
+    if let Some((kind, _, n, _)) = p.open.last() {
+        return Err(err(*n, &format!("`:::{kind}` is never closed with `:::`")));
+    }
     if let Some((_, _, n)) = p.files.first() {
         return Err(err(
             *n,
@@ -245,7 +326,7 @@ fn buried(line: &str, raw: bool) -> Option<&'static str> {
     if hashes > 0 && t[hashes..].starts_with(' ') {
         return Some("a heading needs a blank line before it");
     }
-    if raw && t.starts_with("```") {
+    if raw && (t.starts_with("```") || t.starts_with(":::")) {
         return Some("a fence needs a blank line between it and raw HTML");
     }
     None
@@ -253,6 +334,8 @@ fn buried(line: &str, raw: bool) -> Option<&'static str> {
 
 struct Parser<'a> {
     blocks: Vec<Block>,
+    /// open containers: (kind, arg, line, the blocks around it)
+    open: Vec<(String, String, usize, Vec<Block>)>,
     para: Vec<&'a str>,
     /// (ordered, items)
     list: Option<(bool, Vec<String>)>,
@@ -333,6 +416,7 @@ impl Parser<'_> {
             stdin: None,
             env: Vec::new(),
             exit: 0,
+            error: None,
             hide_output: false,
             files: Vec::new(),
             expect: None,
@@ -353,6 +437,16 @@ impl Parser<'_> {
                     code.exit = v
                         .parse()
                         .map_err(|_| at(format!("`exit` is a number, not `{v}`")))?
+                }
+                Some(("error", v)) => {
+                    let b = v.as_bytes();
+                    let ok = b.len() == 5
+                        && (b[0] == b'E' || b[0] == b'W')
+                        && b[1..].iter().all(u8::is_ascii_digit);
+                    if !ok {
+                        return Err(at(format!("`error` is a code like `E0205`, not `{v}`")));
+                    }
+                    code.error = Some(v.to_string());
                 }
                 None if *a == "hide-output" => code.hide_output = true,
                 _ => return Err(at(format!("unknown attribute `{a}`"))),
@@ -411,12 +505,21 @@ fn list_item(t: &str) -> Option<(bool, &str)> {
 /// The page's examples that the generator checks: `run`, `check` and
 /// `dump`, labelled `path:n` from 1 in page order.
 pub fn examples(page: &Page) -> Vec<(String, &Code)> {
-    page.blocks
-        .iter()
-        .filter_map(|b| match b {
-            Block::Code(c) if matches!(c.kind, Kind::Run | Kind::Check | Kind::Dump(_)) => Some(c),
-            _ => None,
-        })
+    fn walk<'a>(blocks: &'a [Block], out: &mut Vec<&'a Code>) {
+        for b in blocks {
+            match b {
+                Block::Code(c) if matches!(c.kind, Kind::Run | Kind::Check | Kind::Dump(_)) => {
+                    out.push(c)
+                }
+                Block::Container { blocks, .. } => walk(blocks, out),
+                _ => {}
+            }
+        }
+    }
+    let mut codes = Vec::new();
+    walk(&page.blocks, &mut codes);
+    codes
+        .into_iter()
         .enumerate()
         .map(|(i, c)| (format!("{}:{}", page.path, i + 1), c))
         .collect()
@@ -426,30 +529,41 @@ pub fn examples(page: &Page) -> Vec<(String, &Code)> {
 /// `[text](href)` (the text is inline markup too); anything else, inline
 /// HTML included, passes through.
 pub fn inline(text: &str) -> String {
-    let mut out = String::new();
+    // code spans and links are rendered first and held as placeholders, so
+    // `**…**` may span them and never reaches inside them
+    let mut held: Vec<String> = Vec::new();
     let mut prose = String::new();
     let mut rest = text;
+    let mut hold = |html: String, prose: &mut String| {
+        prose.push_str(&format!("\u{E000}{}\u{E001}", held.len()));
+        held.push(html);
+    };
     while let Some(c) = rest.chars().next() {
         let code = (c == '`').then(|| rest[1..].find('`')).flatten();
         if let Some(j) = code {
-            out.push_str(&strong(&std::mem::take(&mut prose)));
-            out.push_str("<code>");
-            out.push_str(&escape(&rest[1..1 + j]));
-            out.push_str("</code>");
+            hold(
+                format!("<code>{}</code>", escape(&rest[1..1 + j])),
+                &mut prose,
+            );
             rest = &rest[1 + j + 1..];
             continue;
         }
         let linked = (c == '[').then(|| link(rest)).flatten();
         if let Some((label, href, after)) = linked {
-            out.push_str(&strong(&std::mem::take(&mut prose)));
-            out.push_str(&format!("<a href=\"{href}\">{}</a>", inline(label)));
+            hold(
+                format!("<a href=\"{href}\">{}</a>", inline(label)),
+                &mut prose,
+            );
             rest = after;
             continue;
         }
         prose.push(c);
         rest = &rest[c.len_utf8()..];
     }
-    out.push_str(&strong(&prose));
+    let mut out = strong(&prose);
+    for (i, h) in held.iter().enumerate() {
+        out = out.replacen(&format!("\u{E000}{i}\u{E001}"), h, 1);
+    }
     out
 }
 
@@ -673,12 +787,96 @@ mod tests {
     }
 
     #[test]
+    fn strong_may_hold_code_and_links() {
+        assert_eq!(inline("**`a` b** c"), "<strong><code>a</code> b</strong> c");
+        assert_eq!(
+            inline("**[x](y) z**"),
+            "<strong><a href=\"y\">x</a> z</strong>"
+        );
+        // stars inside code stay
+        assert_eq!(inline("`**x**`"), "<code>**x**</code>");
+    }
+
+    #[test]
     fn link_text_may_be_code() {
         assert_eq!(
             inline("[`map`](#fn-map)"),
             "<a href=\"#fn-map\"><code>map</code></a>"
         );
         assert_eq!(inline("`[a](b)`"), "<code>[a](b)</code>");
+    }
+
+    #[test]
+    fn containers_nest_and_hold_markup() {
+        let p = parse(
+            "p.md",
+            "# T\n\n:::fn get(m, k, default = nil) fung\n맵에서 꺼낸다.\n\n```fung run\nprint(1)\n```\n:::\n\n\
+             :::exercise 두 수 더하기\n해 보자.\n\n:::solution\n```fung run\nprint(2)\n```\n:::\n:::\n\n\
+             :::box mistake 결과를 버리기\n**굵게**\n:::\n\n:::goals\n- 하나\n:::\n\n:::error E0606\n설명\n:::\n\n{{functions}}\n\n{{errors}}\n",
+        )
+        .unwrap();
+        let Block::Container {
+            kind, arg, blocks, ..
+        } = &p.blocks[0]
+        else {
+            panic!("{:?}", p.blocks[0])
+        };
+        assert_eq!(
+            (kind.as_str(), arg.as_str()),
+            ("fn", "get(m, k, default = nil) fung")
+        );
+        assert_eq!(blocks[0], Block::Html("<p>맵에서 꺼낸다.</p>".into()));
+        assert!(matches!(&blocks[1], Block::Code(c) if c.src == "print(1)"));
+        let Block::Container { kind, blocks, .. } = &p.blocks[1] else {
+            panic!()
+        };
+        assert_eq!(kind, "exercise");
+        assert!(matches!(&blocks[1], Block::Container { kind, .. } if kind == "solution"));
+        let Block::Container {
+            kind, arg, blocks, ..
+        } = &p.blocks[2]
+        else {
+            panic!()
+        };
+        assert_eq!(
+            (kind.as_str(), arg.as_str()),
+            ("box", "mistake 결과를 버리기")
+        );
+        assert_eq!(
+            blocks[0],
+            Block::Html("<p><strong>굵게</strong></p>".into())
+        );
+        assert!(matches!(&p.blocks[3], Block::Container { kind, .. } if kind == "goals"));
+        assert!(
+            matches!(&p.blocks[4], Block::Container { kind, arg, .. } if kind == "error" && arg == "E0606")
+        );
+        assert_eq!(p.blocks[5], Block::Functions);
+        assert_eq!(p.blocks[6], Block::Errors);
+        // examples inside containers count, in page order
+        let labels: Vec<String> = examples(&p)
+            .into_iter()
+            .map(|(l, c)| format!("{l}={}", c.src))
+            .collect();
+        assert_eq!(labels, vec!["p.md:1=print(1)", "p.md:2=print(2)"]);
+    }
+
+    #[test]
+    fn bad_containers_are_errors() {
+        for (src, line) in [
+            ("# T\n\n:::fn x()\nbody\n", ":3:"),
+            ("# T\n\n:::\n", ":3:"),
+            ("# T\n\n:::what\n:::\n", ":3:"),
+            ("# T\n\n:::box nope 제목\n:::\n", ":3:"),
+            ("# T\n\n:::box tip\n:::\n", ":3:"),
+            ("# T\n\n:::error X1\n:::\n", ":3:"),
+            ("# T\n\n:::fn\n:::\n", ":3:"),
+            ("# T\n\n:::solution\n:::\n", ":3:"),
+            ("# T\n\n:::exercise\n:::\n", ":3:"),
+            ("# T\n\n<div>\n:::goals\n</div>\n", ":4:"),
+        ] {
+            let e = parse("p.md", src).expect_err(src);
+            assert!(e.contains(line), "{src:?}: {e}");
+        }
     }
 
     #[test]

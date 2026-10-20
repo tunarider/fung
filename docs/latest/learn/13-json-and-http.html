@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>JSON과 HTTP · fung 매뉴얼</title>
+<meta name="description" content="JSON 읽고 쓰기(json.parse·json.stringify), HTTP 요청(http.get·http.post)과 작은 서버(http.serve), 시각과 기간(time).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="learn">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">L</span><span class="mbar-where"><span class="mbar-title">13. JSON과 HTTP</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
+<ol class="chapters">
+<li><a href="../learn/01-programming.html">1. 프로그래밍과 fung</a></li>
+<li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
+<li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
+<li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
+<li><a href="../learn/05-functions.html">5. 함수</a></li>
+<li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
+<li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
+<li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
+<li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
+<li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
+<li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
+<li><a href="../learn/12-concurrency.html">12. 동시에 여러 일 하기</a></li>
+<li><a href="../learn/13-json-and-http.html" aria-current="page">13. JSON과 HTTP</a><ol class="toc2"><li><a href="#json">JSON이란</a></li><li><a href="#parse">JSON 읽기</a></li><li><a href="#stringify">JSON 쓰기</a></li><li><a href="#http">HTTP: 요청과 응답</a></li><li><a href="#serve">작은 HTTP 서버</a></li><li><a href="#time">시각과 기간</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
+</ol>
+</li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../learn/01-programming.html"><span class="glyph">L</span>fung 배우기</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>13장</span></nav>
+<h1>JSON과 HTTP</h1>
+<p class="lede">요즘 도구는 대부분 JSON으로 말하고 HTTP로 주고받는다. 이 장은 API에서 데이터를 받아 다루고, 작은 HTTP 서버를 띄우고, 시각을 계산하는 법을 배운다.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>JSON이 무엇이고 fung 값과 어떻게 대응하는지</li>
+<li><code>json.parse</code>로 읽고 <code>json.stringify</code>로 쓰기</li>
+<li>HTTP의 요청과 응답, <code>http.get</code>·<code>http.post</code>로 API 부르기</li>
+<li><code>http.serve</code>로 작은 서버 만들기</li>
+<li><code>time</code>으로 시각을 읽고, 계산하고, 문자열로 바꾸기</li>
+</ul>
+</div>
+<h2 id="json">JSON이란</h2>
+<p>프로그램끼리 데이터를 주고받으려면 양쪽이 아는 글자 형식이 필요하다. <strong>JSON</strong>(JavaScript Object Notation)은 그런 형식 중 가장 널리 쓰인다. Kubernetes의 <code>kubectl get -o json</code>, 클라우드 API의 응답, 많은 설정 파일이 JSON이다. 생김새는 7장의 리스트·맵과 거의 같다.</p>
+<pre class="plain"><code>{&quot;name&quot;: &quot;api&quot;, &quot;replicas&quot;: 3, &quot;ports&quot;: [80, 443], &quot;debug&quot;: false, &quot;owner&quot;: null}</code></pre>
+<p>JSON의 값은 fung의 값으로 이렇게 바뀐다.</p>
+<table>
+  <thead><tr><th>JSON</th><th>fung</th></tr></thead>
+  <tbody>
+    <tr><td>객체 <code>{"k": v}</code></td><td>맵(키 순서를 지킨다)</td></tr>
+    <tr><td>배열 <code>[1, 2]</code></td><td>리스트</td></tr>
+    <tr><td>문자열 <code>"a"</code></td><td>문자열</td></tr>
+    <tr><td>소수점·지수 없는 숫자 <code>3</code></td><td>정수(<code>int</code>)</td></tr>
+    <tr><td>그 밖의 숫자 <code>0.5</code></td><td>실수(<code>float</code>)</td></tr>
+    <tr><td><code>true</code> <code>false</code></td><td><code>true</code> <code>false</code></td></tr>
+    <tr><td><code>null</code></td><td><code>nil</code></td></tr>
+  </tbody>
+</table>
+<h2 id="parse">JSON 읽기</h2>
+<p><code>json</code> 모듈의 <code>json.parse(문자열)</code>은 JSON 문자열을 fung 값으로 바꿔 <code>Ok(값)</code>을 준다. 형식이 틀렸으면 <code>Err</code>다. 아래 예제의 <code></code> <code>…</code> <code></code>는 이스케이프 없는 원시 문자열(6장)이라, 안의 <code>&quot;</code>를 그대로 쓸 수 있다.</p>
+<div class="run"><pre><code>import json
+
+text = `{&quot;name&quot;: &quot;api&quot;, &quot;replicas&quot;: 3, &quot;ports&quot;: [80, 443], &quot;debug&quot;: false, &quot;owner&quot;: null}`
+svc = json.parse(text)!
+
+print(svc)
+print(svc.name, svc.ports[0], svc.owner)
+print(type_of(svc.replicas), len(svc.ports))</code></pre><pre class="out plain"><code>{name: &quot;api&quot;, replicas: 3, ports: [80, 443], debug: false, owner: nil}
+api 80 nil
+'int 2</code></pre></div>
+<p>형식이 틀린 JSON의 <code>Err</code>는 몇째 줄 몇째 칸에서 틀렸는지(<code>line</code>, <code>col</code>)도 알려 준다.</p>
+<div class="run"><pre><code>import json
+
+print(json.parse(`{&quot;name&quot;: &quot;api&quot;,}`))</code></pre><pre class="out plain"><code>Err({kind: 'parse, line: 1, col: 16, message: &quot;invalid JSON at line 1, column 16: expected a string for an object key&quot;})</code></pre></div>
+<p>읽은 값은 평범한 맵과 리스트라서 7장의 함수와 8장의 패턴을 그대로 쓴다. 파일에 든 JSON은 <code>fs.read</code>와 이어서 읽는다(11장).</p>
+<details class="fixture"><summary>준비물: services.json</summary>
+<p><code>services.json</code></p>
+<pre class="plain"><code>[
+  {&quot;name&quot;: &quot;api&quot;, &quot;status&quot;: &quot;up&quot;, &quot;replicas&quot;: 3},
+  {&quot;name&quot;: &quot;worker&quot;, &quot;status&quot;: &quot;down&quot;, &quot;replicas&quot;: 0},
+  {&quot;name&quot;: &quot;cron&quot;, &quot;status&quot;: &quot;up&quot;, &quot;replicas&quot;: 1}
+]</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import json
+
+services = json.parse(fs.read(&quot;services.json&quot;)!)!
+for svc in services:
+  match svc:
+    {name, status: &quot;down&quot;} =&gt; print(&quot;DOWN&quot;, name)
+    {name, replicas}       =&gt; print(&quot;up  &quot;, name, &quot;x${replicas}&quot;)
+  ;;
+;;</code></pre><pre class="out plain"><code>up   api x3
+DOWN worker
+up   cron x1</code></pre></div>
+<div class="box mistake"><b>JSON의 문자열과 심볼을 비교하기</b>
+<p>JSON에서 온 값은 늘 문자열이다. <code>svc.status == 'down</code>처럼 심볼과 비교하면 조용히 거짓이 되는 대신 런타임 에러 E0517로 멈춘다. 가장 흔한 함정이라서 일부러 에러로 만들었다. 문자열과 비교하거나(<code>svc.status == &quot;down&quot;</code>), <code>sym(svc.status) == 'down</code>으로 바꿔 비교한다. 패턴 <code>{status: &quot;down&quot;}</code>도 문자열로 쓴다.</p>
+<div class="run"><pre><code>import json
+
+svc = json.parse(`{&quot;status&quot;: &quot;down&quot;}`)!
+print(svc.status == 'down)</code></pre><pre class="out err plain" data-code="1"><code>error[E0517]: cannot compare a symbol with a string: &quot;down&quot; and 'down
+  --&gt; example.fung:4:18
+  |
+4 | print(svc.status == 'down)
+  |                  ^
+  |
+ call path (innermost first):
+   example.fung:4 &lt;entry&gt;
+ help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
+</div>
+<h2 id="stringify">JSON 쓰기</h2>
+<p><code>json.stringify(값)</code>은 fung 값을 JSON 문자열로 바꾼다. <code>indent:</code>에 칸 수를 주면 사람이 읽기 좋게 줄을 나눈다. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. JSON에 없는 값(기간, 함수, 태그 등)은 런타임 에러 E0513이므로 <code>str(d)</code>처럼 먼저 바꿔 둔다.</p>
+<div class="run"><pre><code>import json
+
+report = {host: &quot;web1&quot;, status: 'ok, load: (0.5, 0.7), checked_in: str(1m30s)}
+print(json.stringify(report))
+print(json.stringify({services: [&quot;api&quot;, &quot;cron&quot;], healthy: true}, indent: 2))</code></pre><pre class="out plain"><code>{&quot;host&quot;:&quot;web1&quot;,&quot;status&quot;:&quot;ok&quot;,&quot;load&quot;:[0.5,0.7],&quot;checked_in&quot;:&quot;1m30s&quot;}
+{
+  &quot;services&quot;: [
+    &quot;api&quot;,
+    &quot;cron&quot;
+  ],
+  &quot;healthy&quot;: true
+}</code></pre></div>
+<p>JSON 설정 파일의 값 하나를 고쳐 다시 쓰는 일은 읽기, <code>put</code>(7장), 쓰기를 잇는다.</p>
+<details class="fixture"><summary>준비물: deploy.json</summary>
+<p><code>deploy.json</code></p>
+<pre class="plain"><code>{&quot;name&quot;: &quot;api&quot;, &quot;replicas&quot;: 2, &quot;image&quot;: &quot;api:1.4&quot;}</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import json
+
+cfg = json.parse(fs.read(&quot;deploy.json&quot;)!)!
+scaled = put(cfg, &quot;replicas&quot;, cfg.replicas + 1)
+fs.write(&quot;deploy.json&quot;, json.stringify(scaled, indent: 2) + &quot;\n&quot;)!
+print(fs.read(&quot;deploy.json&quot;)!)</code></pre><pre class="out plain"><code>{
+  &quot;name&quot;: &quot;api&quot;,
+  &quot;replicas&quot;: 3,
+  &quot;image&quot;: &quot;api:1.4&quot;
+}</code></pre></div>
+<h2 id="http">HTTP: 요청과 응답</h2>
+<p><strong>HTTP</strong>는 웹에서 쓰는 주고받기 규칙이다. 한쪽(<strong>클라이언트</strong>)이 <strong>요청</strong>(request)을 보내면 다른 쪽(<strong>서버</strong>)이 <strong>응답</strong>(response)을 돌려준다. 요청에는 <strong>메서드</strong>(무엇을 할지: <code>GET</code>은 가져오기, <code>POST</code>는 보내기), <strong>URL</strong>(어디에), <strong>헤더</strong>(덧붙이는 정보), <strong>본문</strong>(보내는 내용)이 있다. 응답에는 <strong>상태 코드</strong>(200 성공, 404 없음, 500 서버 오류 …), 헤더, 본문이 있다.</p>
+<p><code>http</code> 모듈의 <code>http.get(url)</code>은 GET 요청을 보내고 <code>Ok({status, headers, body})</code>를 준다. 응답을 받기만 했으면 상태 코드가 404여도 <code>Ok</code>다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 <code>Err({kind: 'network, …})</code>, 시간 안에 끝나지 않으면 <code>Err({kind: 'timeout})</code>이다. 시간 한도는 <code>timeout:</code>으로 주고 기본은 30초다. 응답 헤더의 이름은 소문자다.</p>
+<p>네트워크 예제는 이 매뉴얼을 만들 때 실행하지 않는다. 아래 출력은 실제로 돌렸을 때의 모양이고, 날짜처럼 바뀌는 값은 다를 수 있다.</p>
+<pre><code>import http
+
+r = http.get(&quot;https://example.com&quot;, timeout: 10s)!
+print(r.status, r.headers[&quot;content-type&quot;])
+print(len(r.body) &gt; 0)
+print(http.get(&quot;http://127.0.0.1:1/&quot;))</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>200 text/html; charset=utf-8
+true
+Err({kind: 'network, message: &quot;cannot request `http://127.0.0.1:1/`: connection refused&quot;})</code></pre>
+<p>JSON API는 <code>http.get</code>과 <code>json.parse</code>를 잇는다. 실패할 수 있는 단계가 둘이므로 함수로 묶고 <code>?</code>로 넘기면 깔끔하다(9장). 상태 코드가 200이 아닌 것도 실패로 바꿔 준다.</p>
+<pre><code>import http
+import json
+
+fn get_json(url):
+  r = http.get(url, headers: {accept: &quot;application/json&quot;}, timeout: 5s)?
+  if r.status != 200:
+    return Err({kind: 'http, message: &quot;${url}: status ${r.status}&quot;})
+  ;;
+  json.parse(r.body)
+;;
+
+repo = get_json(&quot;https://api.github.com/repos/tunarider/fung&quot;)!
+print(repo.full_name, repo.default_branch)
+print(get_json(&quot;https://api.github.com/repos/tunarider/no-such-repo-xyz&quot;))</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>tunarider/fung main
+Err({kind: 'http, message: &quot;https://api.github.com/repos/tunarider/no-such-repo-xyz: status 404&quot;})</code></pre>
+<p><code>http.post(url, 본문)</code>은 본문을 문자열로 받는다. JSON을 보내려면 <code>json.stringify</code>로 바꾸고 <code>content-type</code> 헤더를 붙인다. 웹훅에 알림을 보내는 모양이다. 아래의 <code>httpbin.org/post</code>는 받은 요청을 JSON으로 되돌려 주는 시험용 서비스라서, 보낸 본문이 응답의 <code>json</code> 필드에 그대로 돌아온다.</p>
+<pre><code>import http
+import json
+
+payload = json.stringify({text: &quot;deploy finished: api 1.4.2&quot;})
+r = http.post(&quot;https://httpbin.org/post&quot;, payload, headers: {&quot;content-type&quot;: &quot;application/json&quot;})!
+print(r.status, json.parse(r.body)!.json)</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>200 {text: &quot;deploy finished: api 1.4.2&quot;}</code></pre>
+<h2 id="serve">작은 HTTP 서버</h2>
+<p><code>http.serve(주소, 처리기)</code>는 주소(<code>&quot;:8080&quot;</code>, <code>&quot;127.0.0.1:8080&quot;</code>)에서 요청을 기다리는 서버를 띄운다. 요청이 올 때마다 새 태스크(12장)에서 <code>처리기(req)</code>를 부른다. <code>req</code>는 <code>{method, path, query, headers, body}</code> 맵이다. 처리기는 문자열(상태 200의 텍스트) 또는 <code>{status, headers, body}</code> 맵을 돌려준다. 처리기가 런타임 에러를 내면 그 요청에만 500으로 답하고 서버는 계속 돈다. <code>ready:</code>에 함수를 주면 서버가 듣기 시작한 직후 실제 주소로 한 번 부른다.</p>
+<p>서버는 멈추지 않고 계속 돌기 때문에 이 예제도 매뉴얼에서는 실행하지 않는다. Ctrl-C(SIGINT)나 SIGTERM을 받으면 새 연결을 그만 받고 처리 중인 요청을 마친 뒤 <code>nil</code>을 돌려주며 끝난다. 주소를 열지 못하면(이미 쓰는 포트 등) <code>Err</code>를 돌려주므로, 아래처럼 문장으로 두면 그 <code>Err</code>가 버려져 E0606으로 멈춘다(9장). <code>nil</code>에 <code>!</code>를 붙이면 에러(E0604)이므로 여기에는 <code>!</code>를 붙이지 않는다.</p>
+<pre><code>import http
+import json
+
+hits = atom(0)
+
+fn handle(req):
+  swap(hits, n =&gt; n + 1)
+  match (req.method, req.path):
+    (&quot;GET&quot;, &quot;/health&quot;) =&gt; &quot;ok&quot;
+    (&quot;GET&quot;, &quot;/hello&quot;)  =&gt; &quot;hello, ${get(req.query, &quot;name&quot;, &quot;stranger&quot;)}&quot;
+    (&quot;GET&quot;, &quot;/stats&quot;)  =&gt; {status: 200, headers: {&quot;content-type&quot;: &quot;application/json&quot;}, body: json.stringify({hits: deref(hits)})}
+    _                  =&gt; {status: 404, body: &quot;not found: ${req.path}&quot;}
+  ;;
+;;
+
+http.serve(&quot;127.0.0.1:8080&quot;, handle, ready: addr =&gt; print(&quot;listening on&quot;, addr))</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>listening on 127.0.0.1:8080</code></pre>
+<p>다른 터미널에서 <code>curl</code>로 부르면 이렇게 답한다.</p>
+<pre class="plain shell"><code>$ curl -s 'http://127.0.0.1:8080/hello?name=fung'
+hello, fung
+$ curl -s http://127.0.0.1:8080/stats
+{&quot;hits&quot;:2}
+$ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/nope
+404</code></pre>
+<p>처리기는 여러 요청을 동시에 처리할 수 있으므로, 요청 수 같은 공유 상태는 12장의 <code>atom</code>에 둔다.</p>
+<h2 id="time">시각과 기간</h2>
+<p><strong>기간</strong>(duration)은 3장에서 본 <code>500ms</code>, <code>30s</code>, <code>1h30m</code> 같은 값이다. 기간끼리 더하고 빼고, 숫자를 곱하고, 같은 단위로 나눠 숫자로 바꾼다. 문자열의 기간은 <code>parse_dur</code>로 읽는다.</p>
+<div class="run"><pre><code>d = 90s
+print(d, d / 1s, d // 1m)
+print(1h30m + 15m, 3 * 45s)
+print(parse_dur(&quot;2m30s&quot;))</code></pre><pre class="out plain"><code>1m30s 90.0 1
+1h45m 2m15s
+Ok(2m30s)</code></pre></div>
+<p><strong>시각</strong>(time)은 <code>time</code> 모듈이 다룬다. <code>time.now()</code>는 지금 시각, <code>time.parse(문자열)</code>은 ISO 8601(RFC 3339) 문자열을 시각으로 읽는다. 시각에 기간을 더하면 시각, 시각에서 시각을 빼면 기간이다. <code>time.format(t, 형식)</code>은 <code>YYYY</code> <code>MM</code> <code>DD</code> <code>HH</code> <code>mm</code> <code>ss</code> 같은 토큰으로 문자열을 만든다.</p>
+<div class="run"><pre><code>import time
+
+deployed = time.parse(&quot;2026-10-20T09:30:00Z&quot;)!
+checked = time.parse(&quot;2026-10-21T10:00:00Z&quot;)!
+
+print(deployed + 90m)
+print(checked - deployed, (checked - deployed) // 1h, &quot;hours&quot;)
+print(time.format(deployed, &quot;YYYY-MM-DD HH:mm&quot;))
+print(time.parse(&quot;20/10/2026 18:00&quot;, format: &quot;DD/MM/YYYY HH:mm&quot;))</code></pre><pre class="out plain"><code>2026-10-20T11:00:00Z
+24h30m 24 hours
+2026-10-20 09:30
+Ok(2026-10-20T18:00:00Z)</code></pre></div>
+<p>걸린 시간을 재려면 두 <code>time.now()</code>의 차를 구한다. 지금 시각은 실행할 때마다 다르므로 아래 예제는 출력을 싣지 않았다. 직접 돌려 보면 <code>now: 2026-10-20T13:54:07.173139Z</code>처럼 지금 시각과 <code>took about 50 ms</code>쯤이 찍힌다.</p>
+<pre><code>import time
+
+start = time.now()
+sleep(50ms)
+print(&quot;now:&quot;, start)
+print(&quot;took about&quot;, (time.now() - start) // 10ms * 10, &quot;ms&quot;)</code></pre>
+<div class="box other"><b>다른 언어는</b>
+<p>쉘에서는 <code>curl</code>로 받고 <code>jq</code>로 JSON을 다루고 <code>date</code>로 시각을 계산하며, 세 도구의 문법이 저마다 다르다. fung에서는 셋이 같은 값(맵·리스트·시각) 위에서 이어진다. Python의 <code>json</code>·<code>urllib</code>·<code>datetime</code>이나 JavaScript의 <code>JSON.parse</code>·<code>fetch</code>·<code>Date</code>와 하는 일이 같다.</p>
+</div>
+<div class="exercise"><b>내려간 서비스 알리기</b>
+<p><code>services.json</code>(위와 같은 모양)을 읽어 <code>status</code>가 <code>&quot;down&quot;</code>인 서비스 이름을 쉼표로 이어 출력하고, 하나라도 있으면 종료 코드 1로 끝내 보자. 없으면 <code>all services up</code>을 출력한다.</p>
+<details><summary>풀이 보기</summary>
+<details class="fixture"><summary>준비물: services.json</summary>
+<p><code>services.json</code></p>
+<pre class="plain"><code>[
+  {&quot;name&quot;: &quot;api&quot;, &quot;status&quot;: &quot;up&quot;},
+  {&quot;name&quot;: &quot;worker&quot;, &quot;status&quot;: &quot;down&quot;},
+  {&quot;name&quot;: &quot;mailer&quot;, &quot;status&quot;: &quot;down&quot;}
+]</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import json
+
+services = json.parse(fs.read(&quot;services.json&quot;)!)!
+down = services |&gt; filter(s =&gt; s.status == &quot;down&quot;) |&gt; map(s =&gt; s.name)
+if is_empty(down):
+  print(&quot;all services up&quot;)
+else:
+  eprint(&quot;down:&quot;, join(down, &quot;, &quot;))
+  exit(1)
+;;</code></pre><pre class="out err plain" data-code="1"><code>down: worker, mailer</code></pre></div>
+</details>
+</div>
+<div class="exercise"><b>점검 기록을 JSON으로</b>
+<p>서버 이름과 응답 시간(기간)의 리스트 <code>[(&quot;web1&quot;, 120ms), (&quot;web2&quot;, 2s)]</code>를 받아, <code>{&quot;checked&quot;: 2, &quot;slow&quot;: [&quot;web2&quot;], &quot;times_ms&quot;: {&quot;web1&quot;: 120, &quot;web2&quot;: 2000}}</code> 꼴의 JSON 문자열을 만들어 보자. 1초 이상이면 느린 서버다. 힌트: 기간을 ms 정수로 바꾸려면 <code>d // 1ms</code>.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>import json
+
+fn summarize(results) = {
+  checked: len(results),
+  slow: results |&gt; filter(((_, d)) =&gt; d &gt;= 1s) |&gt; map(((h, _)) =&gt; h),
+  times_ms: fold(results, {}, (acc, (h, d)) =&gt; put(acc, h, d // 1ms)),
+}
+
+print(json.stringify(summarize([(&quot;web1&quot;, 120ms), (&quot;web2&quot;, 2s)])))</code></pre><pre class="out plain"><code>{&quot;checked&quot;:2,&quot;slow&quot;:[&quot;web2&quot;],&quot;times_ms&quot;:{&quot;web1&quot;:120,&quot;web2&quot;:2000}}</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li><code>json.parse</code>는 JSON 문자열을 맵·리스트·문자열·숫자·<code>nil</code>로 바꿔 <code>Ok</code>를 주고, <code>json.stringify</code>는 그 반대다(<code>indent:</code>로 보기 좋게).</li>
+<li>JSON에서 온 값은 문자열이다. 심볼과 비교하면 E0517이므로 문자열과 비교하거나 <code>sym</code>으로 바꾼다.</li>
+<li><code>http.get</code>·<code>http.post</code>는 응답을 받으면 상태 코드와 상관없이 <code>Ok({status, headers, body})</code>, 전송 실패는 <code>Err('network)</code>, 시간 초과는 <code>Err('timeout)</code>.</li>
+<li><code>http.serve(주소, 처리기)</code>는 요청마다 태스크에서 처리기를 부른다. 처리기는 문자열이나 <code>{status, headers, body}</code>를 돌려준다.</li>
+<li>기간은 <code>90s</code>·<code>1h30m</code>처럼 쓰고, 시각은 <code>time.now</code>·<code>time.parse</code>·<code>time.format</code>으로 다룬다. 시각 ± 기간은 시각, 시각 − 시각은 기간이다.</li>
+</ul>
+<p>함수마다의 규칙은 레퍼런스의 <a href="../reference/modules/json.html">json</a>, <a href="../reference/modules/http.html">http</a>, <a href="../reference/modules/time.html">time</a>에 있다. 실무 예는 예제 모음의 <a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a>, <a href="../recipes/check-urls.html">URL 상태 동시 확인</a>, <a href="../recipes/webhook-server.html">웹훅 서버</a>를 보라.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/12-concurrency.html"><small>이전 장</small>12. 동시에 여러 일 하기</a><a class="next" href="../learn/14-testing.html"><small>다음 장</small>14. 테스트와 포맷터</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

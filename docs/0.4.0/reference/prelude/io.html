@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>출력과 입력 · fung 매뉴얼</title>
+<meta name="description" content="fung prelude 출력과 입력: print, eprint, read_line, read_lines, dbg.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">출력과 입력</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html" aria-current="page">출력과 입력</a><ol class="toc2"><li><a href="#streams">표준 입출력이란</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
+<h1>출력과 입력</h1>
+<p class="lede">프로그램이 바깥과 글자를 주고받는 세 통로, 곧 표준 출력·표준 에러·표준 입력을 다룬다. 결과는 <code>print</code>로 쓰고, 진행 상황과 경고는 <code>eprint</code>로, 들어오는 줄은 <code>read_line</code>·<code>read_lines</code>로 읽는다.</p>
+<h2 id="streams">표준 입출력이란</h2>
+<p>명령줄에서 도는 프로그램은 처음부터 열린 통로 세 개를 받는다. <strong>표준 출력</strong>(stdout)은 프로그램의 결과가 나가는 곳이고, <strong>표준 에러</strong>(stderr)는 진단 메시지가 나가는 곳이며, <strong>표준 입력</strong>(stdin)은 들어오는 글자가 오는 곳이다. 터미널에서 그냥 돌리면 셋 다 터미널에 이어져 있어서 출력과 에러가 한 화면에 섞여 보인다. 하지만 <code>fung run report.fung &gt; out.txt</code>처럼 출력을 파일로 돌리면 표준 에러는 여전히 화면에 남는다. 그래서 다른 프로그램이 읽을 결과는 표준 출력에, 사람이 볼 진행 상황·경고·에러는 표준 에러에 쓰는 것이 규칙이다.</p>
+<p>표준 입력은 파이프(<code>cat hosts.txt | fung run check.fung</code>)나 리다이렉트(<code>fung run check.fung &lt; hosts.txt</code>)로 다른 곳의 글자를 받는다. 터미널에서 아무것도 이어 주지 않고 돌리면 사용자가 치는 글자가 들어온다.</p>
+<p>fung에서 출력은 실패하지 않는 연산으로 다루고(쓰기에 실패하면 프로그램이 끝난다), 입력은 끝이나 닫힌 파일처럼 정상적으로 일어나는 일이 있으므로 <a href="results.html">결과값</a>(<code>Ok</code>/<code>Err</code>)으로 돌려준다. 파일을 직접 열어 읽고 쓰는 함수는 <a href="../modules/fs.html"><code>fs</code> 모듈</a>에 있다.</p>
+<h2 id="functions">함수</h2>
+<section class="entry" id="fn-print">
+<h3>print</h3>
+<p>인자들을 공백 하나로 이어 한 줄로 표준 출력에 쓴다.</p>
+<div class="sig"><code>print(...args)</code></div>
+<h4>설명</h4>
+<p>인자는 몇 개든 받는다(<code>...args</code>). 각 인자를 글자로 바꾼 뒤 사이에 공백 하나를 넣고, 끝에 줄바꿈을 붙여 쓴다. 인자가 없으면 빈 줄 하나를 쓴다.</p>
+<p>글자로 바꾸는 규칙은 <a href="convert.html#fn-str"><code>str</code></a>과 같다. 맨 바깥의 문자열은 따옴표 없이 내용 그대로 찍고, 나머지 값은 소스에 쓰는 리터럴 모양으로 찍는다. 그래서 리스트나 맵 <strong>안의</strong> 문자열은 따옴표가 붙는다(<code>[&quot;a&quot;]</code>). 심볼은 <code>'ok</code>, 기간은 <code>1m30s</code>, 결과값은 <code>Ok(&quot;x&quot;)</code>처럼 보인다. 문자열 안의 줄바꿈은 그대로 줄을 바꾼다.</p>
+<p>태스크 여럿이 동시에 <code>print</code>해도 한 호출의 줄은 섞이지 않는다. 한 번의 <code>print</code>가 한 줄을 통째로 쓰기 때문이다.</p>
+<p>구분자를 바꾸고 싶으면 <a href="strings.html#fn-join"><code>join</code></a>으로 먼저 문자열을 만들고, 값을 끼워 넣을 때는 문자열 보간(<code>&quot;${x}&quot;</code>)을 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>args</code>: 찍을 값들. 어떤 타입이든 된다.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<p>인자 때문에 실패하지는 않는다. 표준 출력을 읽던 쪽이 먼저 끝나면(<code>fung run x.fung | head -1</code>) 다른 명령줄 도구처럼 에러 메시지 없이 조용히 끝난다(SIGPIPE, 셸이 보는 종료 코드 141).</p>
+<h4>예제</h4>
+<p><strong>여러 값을 한 줄로</strong></p>
+<div class="run"><pre><code>print(&quot;total:&quot;, 3, [1, 2], 'ok)</code></pre><pre class="out plain"><code>total: 3 [1, 2] 'ok</code></pre></div>
+<p><strong>값의 모양: 바깥 문자열만 따옴표가 없다</strong></p>
+<div class="run"><pre><code>print(&quot;web-1&quot;, [&quot;web-1&quot;], {host: &quot;web-1&quot;, port: 22}, (1, &quot;a&quot;), nil, 1.5, 90s, Ok(&quot;x&quot;))</code></pre><pre class="out plain"><code>web-1 [&quot;web-1&quot;] {host: &quot;web-1&quot;, port: 22} (1, &quot;a&quot;) nil 1.5 1m30s Ok(&quot;x&quot;)</code></pre></div>
+<p><strong>구분자를 바꿀 때는 join, 끼워 넣을 때는 보간</strong></p>
+<div class="run"><pre><code>hosts = [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
+print(join(hosts, &quot;,&quot;))
+print(&quot;${len(hosts)} hosts&quot;)
+print()
+print(&quot;(위는 빈 줄)&quot;)</code></pre><pre class="out plain"><code>web-1,web-2,db-1
+3 hosts
+
+(위는 빈 줄)</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-eprint"><code>eprint</code></a>, <a href="convert.html#fn-str"><code>str</code></a>, <a href="strings.html#fn-join"><code>join</code></a>, <a href="#fn-dbg"><code>dbg</code></a>, <a href="../modules/fs.html#fn-fs-write_line"><code>fs.write_line</code></a></p>
+</section>
+<section class="entry" id="fn-eprint">
+<h3>eprint</h3>
+<p><code>print</code>와 같은 모양으로 표준 에러에 쓴다.</p>
+<div class="sig"><code>eprint(...args)</code></div>
+<h4>설명</h4>
+<p>인자를 잇는 규칙, 줄바꿈, 줄이 섞이지 않는 성질은 <a href="#fn-print"><code>print</code></a>와 같고, 나가는 곳만 표준 에러다. 진행 상황, 경고, 실패 이유처럼 "결과가 아닌 것"을 쓴다. 그러면 결과를 파일이나 다음 명령으로 넘길 때 메시지가 섞여 들어가지 않는다.</p>
+<p><code>eprint</code>는 프로그램을 멈추지 않는다. 실패를 알리고 끝내려면 <code>eprint</code> 뒤에 <a href="program.html#fn-exit"><code>exit(1)</code></a>을 부르고, "여기 오면 버그"라면 <a href="program.html#fn-fail"><code>fail</code></a>을 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>args</code>: 찍을 값들.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<p>없다.</p>
+<h4>예제</h4>
+<p><strong>결과와 진단을 나눠 쓰기</strong></p>
+<div class="run"><pre><code>eprint(&quot;checking 2 hosts...&quot;)
+print(&quot;web-1 ok&quot;)
+print(&quot;web-2 ok&quot;)</code></pre><pre class="out plain"><code>checking 2 hosts...
+web-1 ok
+web-2 ok</code></pre></div>
+<p>이 매뉴얼의 출력 칸은 두 통로를 한데 모아 보여 준다. 셸에서 <code>fung run x.fung &gt; out.txt</code>로 돌리면 <code>out.txt</code>에는 <code>web-1 ok</code>·<code>web-2 ok</code> 두 줄만 들어가고 <code>checking …</code>은 화면에 남는다.</p>
+<p><strong>실패를 알리고 종료 코드 1로 끝내기</strong></p>
+<div class="run"><pre><code>port = &quot;abc&quot;
+match parse_int(port):
+  Ok(n)  =&gt; print(&quot;port&quot;, n)
+  Err(e) =&gt;
+    eprint(&quot;bad port:&quot;, e.message)
+    exit(1)
+;;</code></pre><pre class="out err plain" data-code="1"><code>bad port: not an integer: abc</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-print"><code>print</code></a>, <a href="program.html#fn-exit"><code>exit</code></a>, <a href="program.html#fn-fail"><code>fail</code></a></p>
+</section>
+<section class="entry" id="fn-read_line">
+<h3>read_line</h3>
+<p>한 줄을 읽어 <code>Ok(줄)</code>을, 더 읽을 것이 없으면 <code>Ok(nil)</code>을 돌려준다.</p>
+<div class="sig"><code>read_line(f = nil)</code></div>
+<h4>설명</h4>
+<p><code>f</code>가 <code>nil</code>(기본값)이면 표준 입력에서, <a href="../modules/fs.html#fn-fs-open"><code>fs.open</code></a>으로 연 파일 핸들이면 그 파일에서 읽는다. 읽은 줄의 끝에 붙은 <code>\n</code>과 그 앞의 <code>\r</code>(Windows식 줄 끝)은 떼고 돌려준다. 그래서 빈 줄은 <code>Ok(&quot;&quot;)</code>이고 끝은 <code>Ok(nil)</code>이라 둘이 구별된다.</p>
+<p>마지막 줄에 줄바꿈이 없어도 그 줄을 돌려준다. UTF-8이 아닌 바이트는 잘못된 부분마다 U+FFFD(<code>�</code>) 한 글자로 바뀐다(에러가 아니다).</p>
+<p>한 줄씩 읽으면 입력 전체를 메모리에 올리지 않아도 되고, 사용자의 대답을 하나씩 받는 대화형 스크립트도 만들 수 있다. 입력을 다 읽어 리스트로 다룰 거라면 <a href="#fn-read_lines"><code>read_lines</code></a>가 간단하다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>f</code>: <code>nil</code>(표준 입력) 또는 파일 핸들.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(문자열)</code>, 입력이 끝났으면 <code>Ok(nil)</code>.</p>
+<h4>에러</h4>
+<ul>
+<li>닫힌 파일 핸들이면 <code>Err({kind: 'closed, message})</code>.</li>
+<li>쓰기용으로 연 핸들이면 <code>Err({kind: 'invalid, message})</code>(<code>file … is not open for reading</code>).</li>
+<li>그 밖의 읽기 실패는 <a href="../modules/fs.html"><code>fs</code></a>의 다른 함수와 같은 <code>Err</code>(<code>'io</code> 등).</li>
+<li><code>f</code>가 파일도 <code>nil</code>도 아니면 런타임 에러 E0403.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>표준 입력을 끝까지 한 줄씩</strong></p>
+<details class="fixture"><summary>준비물: hosts.txt</summary>
+<p><code>hosts.txt</code></p>
+<pre class="plain"><code>web-1
+web-2
+
+db-1</code></pre>
+<pre class="plain shell"><code>fung example.fung &lt; hosts.txt</code></pre>
+</details>
+<div class="run"><pre><code>fn loop(n):
+  match read_line()!:
+    nil  =&gt; n
+    &quot;&quot;   =&gt; loop(n)
+    line =&gt;
+      print(&quot;host:&quot;, line)
+      loop(n + 1)
+  ;;
+;;
+
+print(loop(0), &quot;hosts&quot;)</code></pre><pre class="out plain"><code>host: web-1
+host: web-2
+host: db-1
+3 hosts</code></pre></div>
+<p>빈 줄은 <code>&quot;&quot;</code>이라 건너뛰고, 끝(<code>nil</code>)에서 센 수를 돌려준다. fung에는 <code>while</code>이 없으므로 이런 반복은 꼬리 재귀로 쓴다(<a href="loops.html">반복 패턴</a>).</p>
+<p><strong>파일 핸들에서 읽기, 닫힌 핸들</strong></p>
+<details class="fixture"><summary>준비물: app.log</summary>
+<p><code>app.log</code></p>
+<pre class="plain"><code>start
+ready</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+
+f = fs.open(&quot;app.log&quot;)!
+print(read_line(f))
+print(read_line(f))
+print(read_line(f))
+fs.close(f)!
+print(read_line(f))</code></pre><pre class="out plain"><code>Ok(&quot;start&quot;)
+Ok(&quot;ready&quot;)
+Ok(nil)
+Err({kind: 'closed, message: &quot;file `app.log` is closed&quot;})</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-read_lines"><code>read_lines</code></a>, <a href="../modules/fs.html#fn-fs-open"><code>fs.open</code></a>, <a href="../modules/fs.html#fn-fs-read_lines"><code>fs.read_lines</code></a>, <a href="strings.html#fn-lines"><code>lines</code></a></p>
+</section>
+<section class="entry" id="fn-read_lines">
+<h3>read_lines</h3>
+<p>남은 줄을 모두 읽어 <code>Ok(리스트)</code>로 돌려준다.</p>
+<div class="sig"><code>read_lines(f = nil)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-read_line"><code>read_line</code></a>을 끝까지 부른 것과 같다. 줄 끝의 <code>\n</code>·<code>\r</code>을 떼는 규칙, 마지막 줄바꿈이 빈 줄을 만들지 않는 규칙, 잘못된 UTF-8을 <code>�</code>로 바꾸는 규칙이 모두 같다. 입력이 비어 있으면 <code>Ok([])</code>다. 이미 몇 줄을 <code>read_line</code>으로 읽었다면 그 뒤의 줄만 돌려준다.</p>
+<p>경로로 파일 전체를 줄 리스트로 읽을 때는 <a href="../modules/fs.html#fn-fs-read_lines"><code>fs.read_lines(path)</code></a>가 열고 닫는 일까지 해 준다. 이미 문자열로 가진 글을 줄로 나눌 때는 <a href="strings.html#fn-lines"><code>lines</code></a>다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>f</code>: <code>nil</code>(표준 입력) 또는 파일 핸들.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(문자열의 리스트)</code>.</p>
+<h4>에러</h4>
+<p><a href="#fn-read_line"><code>read_line</code></a>과 같다: 닫힌 핸들은 <code>Err({kind: 'closed, message})</code>, 쓰기용 핸들은 <code>Err({kind: 'invalid, message})</code>, 잘못된 인자는 E0403.</p>
+<h4>예제</h4>
+<p><strong>파이프로 받은 목록을 정리하기</strong></p>
+<details class="fixture"><summary>준비물: names.txt</summary>
+<p><code>names.txt</code></p>
+<pre class="plain"><code>db-1
+web-2
+web-1
+web-2</code></pre>
+<pre class="plain shell"><code>fung example.fung &lt; names.txt</code></pre>
+</details>
+<div class="run"><pre><code>names = read_lines()!
+print(len(names), &quot;lines&quot;)
+print(names |&gt; unique |&gt; sort)</code></pre><pre class="out plain"><code>4 lines
+[&quot;db-1&quot;, &quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
+<p><strong>빈 입력은 빈 리스트</strong></p>
+<div class="run"><pre><code>print(read_lines())</code></pre><pre class="out plain"><code>Ok([])</code></pre></div>
+<p>이 예제는 표준 입력에 아무것도 이어 주지 않고 돌렸다.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-read_line"><code>read_line</code></a>, <a href="strings.html#fn-lines"><code>lines</code></a>, <a href="../modules/fs.html#fn-fs-read_lines"><code>fs.read_lines</code></a></p>
+</section>
+<section class="entry" id="fn-dbg">
+<h3>dbg</h3>
+<p><code>[파일:줄] 식 = 값</code>을 표준 에러에 찍고 <code>x</code>를 그대로 돌려준다.</p>
+<div class="sig"><code>dbg(x)</code></div>
+<h4>설명</h4>
+<p>디버깅용이다. 값을 돌려주기 때문에 식 한가운데에 끼워 넣어도 프로그램의 동작이 바뀌지 않는다: <code>total = dbg(a + b) * 2</code>. 파이프 중간에도 넣을 수 있다: <code>xs |&gt; dbg |&gt; sort</code>. 찍히는 <strong>식</strong>은 소스에 쓴 글자 그대로이고, 컴파일러가 부른 자리의 파일·줄과 함께 채워 넣는다. 그래서 <code>dbg</code>를 여러 군데 넣어도 어느 것이 찍었는지 바로 안다.</p>
+<p>표준 에러에 쓰므로 결과 출력을 더럽히지 않는다. 다 고친 뒤에는 지운다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>x</code>: 살펴볼 값.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>x</code> 그대로.</p>
+<h4>에러</h4>
+<p>없다.</p>
+<h4>예제</h4>
+<p><strong>식 한가운데에 끼우기</strong></p>
+<div class="run"><pre><code>sizes = [120, 30, 450]
+total = dbg(sum(sizes)) * 2
+print(total)</code></pre><pre class="out plain"><code>[example.fung:2] sum(sizes) = 600
+1200</code></pre></div>
+<p><strong>파이프 중간에 끼우기</strong></p>
+<div class="run"><pre><code>top = [3, 9, 1] |&gt; dbg |&gt; sort |&gt; reverse
+print(top)</code></pre><pre class="out plain"><code>[example.fung:1] [3, 9, 1] = [3, 9, 1]
+[9, 3, 1]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-eprint"><code>eprint</code></a>, <a href="../language.html#testing">테스트와 디버깅</a></p>
+</section>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/functions.html"><small>이전</small>모든 함수</a><a class="next" href="../../reference/prelude/convert.html"><small>다음</small>타입과 변환</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

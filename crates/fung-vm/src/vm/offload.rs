@@ -7,7 +7,7 @@
 //! wakes (not a deadlock). Then, back on the run thread, `finish` turns the
 //! result into the native's value.
 //!
-//! Three kinds of job (spec 15):
+//! Two kinds of job (spec 15):
 //! - **`Wait`** runs on the pool (`pool.rs`). A stop (a cancellation, a
 //!   deadline) that comes while the job waits in the queue drops it and
 //!   unwinds at once. One that comes while it runs is not let through:

@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>REPL · fung 매뉴얼</title>
+<meta name="description" content="REPL. 한 줄씩 읽고 실행하고 출력하는 루프를 바이트코드 언어 위에 만드는 법. 입력이 끝났는지 판단하기, 입력마다 따로 컴파일하되 전역은 하나로 잇기, 재정의, 에러와 교착 뒤에도 세션을 이어 가기, 직접 만든 줄 편집기.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">16. REPL</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html" aria-current="page">16. REPL</a><ol class="toc2"><li><a href="#what">REPL이란</a></li><li><a href="#complete">입력이 끝났는가</a></li><li><a href="#globals">입력마다 컴파일, 전역은 하나</a></li><li><a href="#errors">실수해도 세션은 이어진다</a></li><li><a href="#editor">줄 편집기</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">5부 도구</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>16장</span></nav>
+<h1>REPL</h1>
+<p class="lede">REPL은 입력마다 따로 컴파일하지만 실행은 런타임 하나에서 한다. 앞 입력의 전역 이름을 같은 번호로 미리 묶어 두어서, 정의는 남고 다시 정의할 수 있다.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>REPL이 무엇이고, 컴파일하는 언어가 REPL을 만들 때 부딪히는 문제</li>
+<li>"입력이 아직 끝나지 않았다"를 파서로 판단하는 법</li>
+<li>입력마다 따로 컴파일하면서 전역을 하나로 잇는 법, 그리고 재정의의 규칙</li>
+<li>에러·교착·Ctrl-C 뒤에도 세션을 이어 가는 법</li>
+<li>터미널의 raw 모드와 직접 만든 줄 편집기</li>
+</ul>
+</div>
+<h2 id="what">REPL이란</h2>
+<p><strong>REPL</strong>(read-eval-print loop)은 이름 그대로 한 입력을 <strong>읽고</strong>(read), <strong>실행하고</strong>(eval), 결과를 <strong>출력하고</strong>(print), 다시 읽는 <strong>반복</strong>(loop)이다. 1960년대 Lisp에서 시작했고, 지금은 Python, Node.js, Erlang 셸처럼 대부분의 동적 언어에 있다. 인자 없이 <code>fung</code>을 실행하면 fung의 REPL이 뜬다.</p>
+<p>인터프리터가 트리를 바로 도는 언어라면 REPL은 쉽다. 트리 하나를 읽어 돌리면 된다. fung은 소스를 바이트코드로 <strong>컴파일한 뒤</strong> 실행하는 언어다(2부, 3부). 그래서 몇 가지를 따로 정해야 한다.</p>
+<ol>
+<li>사용자가 엔터를 쳤을 때, 입력이 끝났나, 아직 블록 한가운데인가.</li>
+<li>입력마다 컴파일하면 이름 해석(6장)은 앞 입력에서 정의한 이름을 어떻게 아나. 전역의 번호는 어떻게 맞추나.</li>
+<li>같은 이름을 다시 정의하면 어떻게 되나. 파일에서는 <code>fn</code>을 두 번 정의하면 에러(E0210)다.</li>
+<li>한 입력이 에러, 교착, Ctrl-C로 끝나도 세션은 살아 있어야 한다.</li>
+<li>줄 편집(커서 이동, 이전 입력 불러오기)은 누가 하나.</li>
+</ol>
+<h2 id="complete">입력이 끝났는가</h2>
+<p>fung의 블록은 <code>:</code> … <code>;;</code>이고, 줄이 이항 연산자로 끝나면 다음 줄로 이어진다. 그래서 <code>fn f():</code>에서 엔터를 쳤다면 입력은 아직 끝나지 않았다.</p>
+<p>이것을 위해 따로 규칙을 만들지 않았다. <strong>파서에게 물어본다</strong>(<code>crates/fung-cli/src/repl/mod.rs</code>의 <code>needs_more</code>). 지금까지의 글을 렉싱하고 파싱해서, 파서가 <strong>입력의 맨 끝</strong>에서 실패했으면 "더 읽어야 한다"로 본다. 끝이 아닌 곳에서 실패했으면 그냥 문법 에러다. 이어 받는 줄의 프롬프트는 <code>. </code>이다.</p>
+<pre class="plain"><code>&gt; map(hosts, h =&gt;
+.   upper(h))
+[&quot;WEB1&quot;, &quot;WEB2&quot;]</code></pre>
+<p>파서가 이미 아는 것을 다시 적지 않으므로, 문법이 바뀌어도 REPL의 판단이 따라간다.</p>
+<h2 id="globals">입력마다 컴파일, 전역은 하나</h2>
+<p>각 입력은 그 자체로 작은 진입 파일처럼 컴파일된다. 다만 로더에 세 가지 선택을 켠다(<code>crates/fung-front/src/loader.rs</code>의 <code>Loader</code>).</p>
+<ul>
+<li><strong><code>globals</code></strong>: 앞 입력들이 정의한 전역 이름을 <strong>같은 번호로 미리 묶어 둔다.</strong> 이름 해석은 그 이름을 이미 있는 전역으로 알고, 컴파일러는 같은 번호의 <code>LOADGLOBAL</code>·<code>STOREGLOBAL</code>을 낸다.</li>
+<li><strong><code>redefine</code></strong>: 이미 있는 이름에 <code>fn</code>이나 <code>import</code>를 다시 묶을 수 있다.</li>
+<li><strong><code>keep_value</code></strong>: 입력의 마지막 식을 버리지 않고 입력의 값으로 남긴다. 파일에서는 마지막 식도 <code>POP</code>으로 버리고 <code>nil</code>을 돌려주지만(8장), REPL은 그 값을 출력해야 한다.</li>
+</ul>
+<p>실행은 런타임 하나에서 한다. 런타임은 세션의 <strong>전역 표 하나</strong>를 만들어 두고(<code>Runtime::prepare_repl</code>), 입력마다 그 표를 필요한 길이로 늘려 그 위에서 입력을 돌린다(<code>Runtime::run_repl</code>). 표는 <code>Rc</code> 하나라서, 앞 입력에서 만든 함수 값도 같은 표를 쥐고 있다(11장의 "모듈마다 전역 표"). 그래서 앞에서 정의한 최상위 <code>fn</code>이 뒤에서 다시 정의된 함수를 부른다.</p>
+<pre class="plain"><code>&gt; fn double(x) = x * 2
+&gt; fn quad(n) = double(double(n))
+&gt; quad(1)
+4
+&gt; fn double(x) = x * 3
+&gt; quad(1)
+9</code></pre>
+<p>REPL의 최상위 <code>fn</code>은 전역을 <strong>부를 때</strong> 읽는다. 파일에서는 최상위 <code>fn</code>이 한 번만 대입되는 이름만 읽을 수 있었다(9장). REPL에서는 이름을 언제든 다시 대입할 수 있으니 그 구분이 의미가 없다(설계 08).</p>
+<pre class="plain"><code>&gt; y = 10
+&gt; fn gety() = y
+&gt; y = 20
+&gt; gety()
+20</code></pre>
+<p>람다는 다르다. 9장의 규칙 그대로 <strong>만들어질 때 보이는 값을 복사한다.</strong> 그래서 람다로 만든 <code>quad</code>는 재정의 전의 <code>double</code>을 쥐고 있다.</p>
+<pre class="plain"><code>&gt; fn double(x) = x * 2
+&gt; quad = n =&gt; double(double(n))
+&gt; fn double(x) = x * 3
+&gt; quad(1)
+4</code></pre>
+<h3 id="positions">위치와 발췌</h3>
+<p>에러 메시지는 소스의 줄을 발췌해 보여 준다(7장). 그런데 REPL의 "소스"는 입력마다 따로다. 그래서 입력마다 소스 지도에 <strong>파일 하나</strong>(<code>&lt;repl&gt;</code>)를 더한다. 각 입력은 앞서 있던 파일들 뒤에 이어서 번호를 매겨 컴파일하고(<code>Loader::compile_after</code>), 런타임도 같은 파일들을 받아 둔다(<code>Runtime::add_session_files</code>). 그래서 세 번째 입력에서 정의한 함수가 열 번째 입력에서 실패해도, 에러는 세 번째 입력의 줄을 보여 준다.</p>
+<h3 id="print">무엇을 출력하나</h3>
+<p>입력의 마지막이 <strong>식</strong>이면 그 값을 fung 리터럴 모양으로 출력한다. 대입, <code>fn</code> 정의, <code>import</code>, <code>test</code>, <code>assert</code>로 끝나면 출력하지 않는다(<code>is_statement</code>). 출력은 그대로 코드에 붙여도 동작하는 모양이다(<code>&quot;a&quot;</code>는 따옴표와 함께, 맵은 <code>{name: &quot;x&quot;}</code>). 입력의 마지막 식은 버려지는 자리가 아니므로, 거기서 나온 <code>Err</code>도 E0606이 아니라 그냥 출력된다.</p>
+<h2 id="errors">실수해도 세션은 이어진다</h2>
+<p>REPL은 실수하라고 있는 곳이다. 실수 하나에 세션이 죽으면 안 된다(노트 R5-tools).</p>
+<ul>
+<li><strong>런타임 에러</strong>: 에러를 보고하고 다음 입력으로 간다. 전역은 남는다. 대입이 실패한 이름을 나중에 읽으면 E0808이다.</li>
+<li><strong>교착</strong>: 그 입력만 실패시킨다. 보고는 평소와 같다. 그다음 <code>Runtime::recover_deadlock</code>이 그 입력의 태스크가 모두 되감기기를 기다리고, 교착 표시와 그것이 요청한 <code>exit(1)</code>을 지운 뒤, <strong>새 실행 루트</strong>를 단다. 전역(전역에 담은 atom 포함)은 남고, 세션의 종료 코드도 그대로 0이다(사용자 결정).</li>
+<li><strong><code>exit(n)</code></strong>: 프롬프트에서 친 것이든 띄운 태스크가 부른 것이든 세션을 코드 n으로 끝낸다.</li>
+<li><strong>Ctrl-C</strong>: 평가 중이면 그 평가를 취소한다(14장의 취소, 세션은 이어진다). 취소된 평가의 <code>release</code>가 끝나지 않아 다시 Ctrl-C를 누르면, 스케줄러가 그 평가의 태스크를 되감지 않고 <strong>있는 그대로 버린다</strong>(<code>Sched::abandon</code>). 버려지는 기다림들은 Rust의 <code>Drop</code>에서 채널의 줄을 떠나고, 기다리던 외부 명령은 SIGKILL로 끝낸다. "정리 없이 버린다"는 fung 쪽 정리를 건너뛴다는 뜻이지, 운영체제 자원을 흘려도 된다는 뜻은 아니다. 그리고 한 줄을 알린다: <code>interrupted again: the cleanup did not finish; the input's tasks were dropped</code>.</li>
+</ul>
+<pre class="plain"><code>&gt; hosts = [&quot;web1&quot;, &quot;web2&quot;]
+&gt; 1 / 0
+error[E0502]: division by zero
+  --&gt; &lt;repl&gt;:1:3
+  |
+1 | 1 / 0
+  |   ^
+  |
+ call path (innermost first):
+   &lt;repl&gt;:1   &lt;entry&gt;
+&gt; hosts
+[&quot;web1&quot;, &quot;web2&quot;]
+&gt; (tx, rx) = channel()
+&gt; recv(rx)
+error[E0702]: deadlock: all tasks are waiting
+  --&gt; &lt;repl&gt;:1:5
+  |
+1 | recv(rx)
+  |     ^
+  |
+ call path (innermost first):
+   &lt;repl&gt;:1   &lt;entry&gt;
+ help: this task waits to receive, but it still holds that channel's sending end itself (the global `tx`), so the channel cannot close: close it with `close(tx)` first, or leave the sending end to the producers only
+&gt; len(hosts)
+2</code></pre>
+<p>다음 입력을 기다리는 동안은 어떤 fung 코드도 돌지 않는다. 각 입력은 자기 실행(<code>run_root</code>)이고, 그 안에서 띄운 태스크는 범위 안에서만 살므로(14장) 입력이 끝나면 함께 끝나 있다. 그래서 "다음 입력을 기다리는 사이"가 교착으로 판정될 일이 없다. 세션이 끝날 때(<code>:quit</code>, 입력 끝, <code>exit(n)</code>)는 남은 것을 취소하고 되감기가 <code>with</code>의 <code>release</code>를 지난다.</p>
+<h2 id="editor">줄 편집기</h2>
+<p>터미널은 보통 <strong>표준 모드</strong>(canonical mode)다. 사용자가 엔터를 칠 때까지 커널이 한 줄을 모아 두고, 친 글자를 화면에 다시 찍어 주고(echo), Ctrl-C를 SIGINT 신호로 바꾼다. 이 모드에서는 왼쪽 화살표가 <code>^[[D</code>라는 글자로 찍힐 뿐이다. 줄 편집을 하려면 터미널을 <strong>raw 모드</strong>로 바꿔, 키 하나하나를 프로그램이 바로 받고 화면도 프로그램이 직접 그려야 한다.</p>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Python</strong>의 REPL은 GNU readline이나 libedit 라이브러리를 쓴다(있으면). 3.13부터는 Python으로 쓴 새 REPL이 기본이다.</li>
+<li><strong>Node.js</strong>는 자체 <code>readline</code> 모듈을 쓴다.</li>
+<li>많은 C 프로그램이 readline을 링크하거나, 수백 줄짜리 linenoise 같은 작은 라이브러리를 넣는다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택: 직접 만든 작은 줄 편집기</b>
+<p>fung의 의존성 정책은 "기본은 Rust 표준 라이브러리, REPL 줄 편집 같은 것도 직접 구현"이다. 크레이트는 허용 목록에 있는 것만 쓴다. 그래서 줄 편집기를 직접 만들었다. 운영체제 호출(<code>tcgetattr</code>·<code>tcsetattr</code>)만 <code>libc</code>를 쓰는 <code>fung-vm</code>의 <code>term.rs</code>에 두었다. <code>fung-cli</code>는 작업 공간 크레이트에만 기댈 수 있기 때문이다(노트 R5-tools).</p>
+</div>
+<ul>
+<li><strong>터미널일 때만.</strong> 표준 입력에 터미널 설정이 있으면(<code>term::is_terminal</code>: <code>tcgetattr</code>가 성공) 줄 편집기(<code>TermReader</code>)를 쓰고, 아니면(파이프, 파일, <code>/dev/null</code>) 평범한 줄 읽기(<code>PlainReader</code>)를 쓴다. 그래서 <code>echo 'print(1)' | fung</code>이 된다.</li>
+<li><strong>raw 모드는 한 줄을 읽는 동안만.</strong> <code>read_line</code>이 시작할 때 raw 모드를 켜는 가드(<code>RawMode</code>)를 만들고, 돌아오거나 패닉으로 되감길 때 <code>Drop</code>이 원래 설정을 되돌린다. 그래서 입력을 <strong>실행하는</strong> 동안 터미널은 늘 원래 모드다. <code>exit(n)</code>이나 내부 오류가 나도 터미널이 raw로 남지 않는다.</li>
+<li><strong>키.</strong> raw 모드에서는 ISIG가 꺼져 있어 Ctrl-C가 신호가 아니라 키로 온다. 줄을 읽는 중의 Ctrl-C는 그 줄을 지운다(<code>^C</code>). Ctrl-D는 빈 줄에서 세션을 끝낸다. 좌우 이동, Home/End, Backspace/Delete, 위아래 기록, Ctrl-L(화면 지우기)이 있다.</li>
+<li><strong>편집 상태</strong>(<code>Editor</code>)는 터미널과 떨어진 순수한 자료구조다. 글자 배열, 커서, 기록, 기록을 넘기는 중의 위치. 그래서 키 순서만으로 시험할 수 있다. 화면은 <code>\r</code> + 프롬프트 + 글 + 줄 끝 지우기(<code>\x1b[K</code>) + 커서 되돌리기로 다시 그린다. 커서는 <strong>화면 칸 수</strong>로 옮긴다(한글은 2칸, 15장의 포맷터와 같은 표).</li>
+<li><strong>기록 파일.</strong> <code>~/.fung_history</code>에 받아들인 줄을 하나씩 덧붙이고, 시작할 때 읽고, 최근 1,000줄만 남긴다(<code>MAX_HISTORY</code>). 빈 줄과 바로 앞과 같은 줄은 저장하지 않는다. 쓸 수 없으면 조용히 끈다. 기록은 편의 기능이라 REPL을 멈추게 해서는 안 된다.</li>
+</ul>
+<p>명령은 셋뿐이다. <code>:help</code>, <code>:quit</code>, <code>:load 파일</code>. <code>:load</code>는 파일을 세션의 입력으로 실행하므로 그 정의가 세션에 남는다.</p>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-cli/src/repl/mod.rs</code>: 시작 <code>start</code>, 세션 <code>Session</code>(<code>run</code>, <code>eval</code>, <code>command</code>, <code>finish</code>), 입력이 끝났는지 보는 <code>needs_more</code>, 출력하지 않는 형태 <code>is_statement</code>.</li>
+<li><code>crates/fung-cli/src/repl/line.rs</code>: <code>LineReader</code>, 줄 편집기 <code>TermReader</code>, 평범한 읽기 <code>PlainReader</code>.</li>
+<li><code>crates/fung-cli/src/repl/editor.rs</code>: 편집 상태 <code>Editor</code>, 키 <code>Key</code>.</li>
+<li><code>crates/fung-cli/src/repl/history.rs</code>: 기록 파일 <code>History</code>, <code>MAX_HISTORY</code>.</li>
+<li><code>crates/fung-vm/src/term.rs</code>: <code>is_terminal</code>, raw 모드 가드 <code>RawMode</code>.</li>
+<li><code>crates/fung-vm/src/vm/runtime.rs</code>: <code>prepare_repl</code>, <code>run_repl</code>, <code>add_session_files</code>, <code>recover_deadlock</code>, <code>recover_interrupt</code>, <code>take_abandoned</code>.</li>
+<li><code>crates/fung-front/src/loader.rs</code>: <code>Loader</code>의 <code>globals</code>·<code>redefine</code>·<code>keep_value</code>, <code>compile_after</code>.</li>
+</ul>
+<div class="exercise"><b>재정의 맞히기</b>
+<p>REPL에 아래를 차례로 입력하면 마지막 두 줄은 무엇을 출력할까? 먼저 예측하고 <code>fung</code>을 띄워 확인해 보자.</p>
+<pre class="plain"><code>&gt; fn double(x) = x * 2
+&gt; quad = n =&gt; double(double(n))
+&gt; fn quad2(n) = double(double(n))
+&gt; fn double(x) = x * 3
+&gt; quad(1)
+&gt; quad2(1)</code></pre>
+<details><summary>풀이 보기</summary>
+<pre class="plain"><code>&gt; quad(1)
+4
+&gt; quad2(1)
+9</code></pre>
+<p><code>quad</code>는 람다라서 만들어질 때 보이는 값, 곧 처음의 <code>double</code>을 복사해 쥐고 있다. <code>quad2</code>는 REPL의 최상위 <code>fn</code>이라 부를 때 전역 표에서 <code>double</code>을 읽고, 그때는 다시 정의된 <code>x * 3</code>이 들어 있다. 파일에서도 람다의 규칙은 같다. 최상위에서 만든 람다는 그때까지 대입된 값을 복사한다.</p>
+<div class="run"><pre><code>x = 1
+f = () =&gt; x
+x = 2
+print(f(), x)</code></pre><pre class="out plain"><code>1 2</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>REPL은 읽기·실행·출력의 반복이다. 컴파일하는 언어에서는 입력의 끝, 입력 사이의 이름, 재정의, 실패 뒤의 회복을 따로 정해야 한다.</li>
+<li>입력이 끝났는지는 파서가 입력의 맨 끝에서 실패했는지로 판단한다.</li>
+<li>입력마다 따로 컴파일하되, 앞 입력의 전역을 같은 번호로 미리 묶고(<code>globals</code>) 다시 정의를 허락한다(<code>redefine</code>). 실행은 세션의 전역 표 하나 위에서 한다. REPL의 최상위 <code>fn</code>은 부를 때 전역을 읽고, 람다는 만들 때 복사한다.</li>
+<li>런타임 에러와 교착은 그 입력만 실패시키고 세션은 새 실행 루트에서 이어진다. 두 번째 Ctrl-C는 정리가 멈춘 평가의 태스크를 버린다.</li>
+<li>줄 편집기는 직접 만들었다. raw 모드는 한 줄을 읽는 동안만 켜고, 가드의 <code>Drop</code>이 되돌린다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/cli.html#repl">명령줄 도구</a>. 배우기: <a href="../learn/02-first-program.html">2장 첫 프로그램</a>. 다음 장은 마지막 도구, 테스트 러너를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/15-formatter.html"><small>이전 장</small>15. 포맷터</a><a class="next" href="../vm/17-test-runner.html"><small>다음 장</small>17. 테스트 러너</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>리스트·맵·튜플 · fung 매뉴얼</title>
+<meta name="description" content="여러 값을 묶는 리스트·맵·튜플을 만들고 꺼내는 법, 값을 고치는 대신 새 값을 만드는 법, 맵의 키, 자주 쓰는 컬렉션 함수.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="learn">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">L</span><span class="mbar-where"><span class="mbar-title">7. 리스트·맵·튜플</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
+<ol class="chapters">
+<li><a href="../learn/01-programming.html">1. 프로그래밍과 fung</a></li>
+<li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
+<li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
+<li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
+<li><a href="../learn/05-functions.html">5. 함수</a></li>
+<li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
+<li><a href="../learn/07-collections.html" aria-current="page">7. 리스트·맵·튜플</a><ol class="toc2"><li><a href="#collections">값을 묶기</a></li><li><a href="#lists">리스트</a></li><li><a href="#maps">맵</a></li><li><a href="#tuples">튜플</a></li><li><a href="#count">세고 묶기</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
+<li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
+<li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
+<li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
+<li><a href="../learn/12-concurrency.html">12. 동시에 여러 일 하기</a></li>
+<li><a href="../learn/13-json-and-http.html">13. JSON과 HTTP</a></li>
+<li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
+</ol>
+</li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../learn/01-programming.html"><span class="glyph">L</span>fung 배우기</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>7장</span></nav>
+<h1>리스트·맵·튜플</h1>
+<p class="lede">서버 목록, 설정 한 벌, 이름과 상태의 짝. 값 여러 개를 하나로 묶어 다루는 법.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>컬렉션이 무엇이고, 리스트·맵·튜플을 언제 쓰는지</li>
+<li>리스트를 만들고, 인덱스와 슬라이스로 꺼내고, 이어 붙이는 법</li>
+<li>맵을 만들고 키로 읽는 법, 없는 키를 다루는 법</li>
+<li>컬렉션을 고치는 대신 새 값을 만드는 함수(<code>put</code>, <code>merge</code>, <code>remove</code>)</li>
+<li>튜플로 작은 묶음을 만들고 풀어 받는 법</li>
+<li>정렬, 묶기, 세기 같은 자주 쓰는 함수</li>
+</ul>
+</div>
+<h2 id="collections">값을 묶기</h2>
+<p>지금까지의 값은 숫자 하나, 문자열 하나였다. 실제로는 "서버 열 대의 이름", "데이터베이스 접속 설정(호스트, 포트, 사용자)"처럼 여러 값을 한 덩어리로 다뤄야 한다. 여러 값을 담는 값을 <strong>컬렉션(collection)</strong> 또는 자료 구조라고 한다. fung의 컬렉션은 셋이다.</p>
+<table>
+  <thead><tr><th>종류</th><th>모양</th><th>이럴 때</th></tr></thead>
+  <tbody>
+    <tr><td><strong>리스트</strong></td><td><code>["web-1", "web-2"]</code></td><td>같은 종류의 값이 여러 개, 순서가 있다(서버 목록, 로그 줄)</td></tr>
+    <tr><td><strong>맵</strong></td><td><code>{host: "db-1", port: 5432}</code></td><td>이름 붙은 항목들(설정 한 벌, JSON 객체)</td></tr>
+    <tr><td><strong>튜플</strong></td><td><code>("web-1", 200)</code></td><td>개수가 정해진 작은 묶음(이름과 상태 코드의 짝)</td></tr>
+  </tbody>
+</table>
+<p>셋 다 3장의 다른 값처럼 <strong>바뀌지 않는다</strong>. 원소를 더하거나 고치는 연산은 모두 새 컬렉션을 만든다. 원소로는 어떤 값이든, 다른 컬렉션도 담을 수 있다.</p>
+<h2 id="lists">리스트</h2>
+<p><strong>리스트(list)</strong>는 값들을 순서대로 늘어놓은 것이다. 대괄호 안에 쉼표로 나눠 쓴다. 문자열처럼 <code>len</code>으로 개수를 세고, 0부터 시작하는 인덱스로 꺼내고, 슬라이스로 자른다.</p>
+<div class="run"><pre><code>servers = [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;, &quot;cache-1&quot;]
+print(len(servers), servers[0], servers[-1])
+print(servers[1..3], servers[..2], servers[2..])
+print(first(servers), last(servers), first([]))</code></pre><pre class="out plain"><code>4 web-1 cache-1
+[&quot;web-2&quot;, &quot;db-1&quot;] [&quot;web-1&quot;, &quot;web-2&quot;] [&quot;db-1&quot;, &quot;cache-1&quot;]
+web-1 cache-1 nil</code></pre></div>
+<p>없는 인덱스를 읽으면 런타임 에러다. <code>first</code>와 <code>last</code>는 빈 리스트에서 에러 대신 <code>nil</code>을 돌려준다.</p>
+<div class="run"><pre><code>servers = [&quot;web-1&quot;, &quot;web-2&quot;]
+print(servers[5])</code></pre><pre class="out err plain" data-code="1"><code>error[E0507]: index 5 is out of range (length 2)
+  --&gt; example.fung:2:14
+  |
+2 | print(servers[5])
+  |              ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<h3 id="build-lists">새 리스트 만들기</h3>
+<p>리스트에는 <code>servers[0] = &quot;x&quot;</code> 같은 고치기가 없다(문법 에러다). 원소를 더하거나 빼거나 바꾼 리스트가 필요하면 새로 만든다.</p>
+<ul>
+<li>이어 붙이기: <code>xs + ys</code>, 원소 하나는 <code>xs + [x]</code></li>
+<li>바꾸기·고르기: 4장의 <code>map</code>, <code>filter</code>, <code>for</code></li>
+<li>앞뒤 자르기: <code>take(xs, n)</code>, <code>drop(xs, n)</code> (슬라이스와 달리 개수가 모자라도 에러가 아니다)</li>
+</ul>
+<div class="run"><pre><code>servers = [&quot;web-1&quot;, &quot;web-2&quot;]
+more = servers + [&quot;db-1&quot;]
+print(servers, more)
+print(take(more, 2), drop(more, 1), take(more, 10))
+print(more |&gt; map(upper), more |&gt; filter(s =&gt; starts_with(s, &quot;web&quot;)))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;web-2&quot;] [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
+[&quot;web-1&quot;, &quot;web-2&quot;] [&quot;web-2&quot;, &quot;db-1&quot;] [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
+[&quot;WEB-1&quot;, &quot;WEB-2&quot;, &quot;DB-1&quot;] [&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
+<p><code>servers</code>는 그대로다. 그래서 같은 리스트를 여러 곳에 넘겨도 안전하다. 새 리스트를 만든다고 원소 전체를 복사하는 것은 아니다. 새 리스트는 원래 리스트와 구조를 나눠 쓰므로, <code>acc + [x]</code>로 하나씩 쌓아도 빠르다.</p>
+<h3 id="list-functions">리스트 함수</h3>
+<p>자주 쓰는 것들이다. 모두 새 값을 돌려준다.</p>
+<div class="run"><pre><code>nums = [340, 12, 7, 12, 98]
+print(sort(nums), reverse(nums), unique(nums))
+print(sum(nums), min(nums), max(nums), 12 in nums)
+print(find(nums, n =&gt; n &gt; 50), any(nums, n =&gt; n &gt; 300), all(nums, n =&gt; n &gt; 0))
+print([[1, 2], [3]] |&gt; flatten, range(5), range(5) |&gt; map(i =&gt; i * i))</code></pre><pre class="out plain"><code>[7, 12, 12, 98, 340] [98, 12, 7, 12, 340] [340, 12, 7, 98]
+469 7 340 true
+340 true true
+[1, 2, 3] 0..5 [0, 1, 4, 9, 16]</code></pre></div>
+<ul>
+<li><code>sort</code>는 작은 것부터, <code>reverse</code>는 순서를 뒤집는다. <code>unique</code>는 처음 나온 것만 남긴다.</li>
+<li><code>find(xs, f)</code>는 <code>f</code>가 참인 첫 원소(없으면 <code>nil</code>), <code>any</code>는 하나라도, <code>all</code>은 모두 참인지 묻는다.</li>
+<li><code>flatten</code>은 리스트의 리스트를 한 겹 편다. <code>range(n)</code>은 <code>0..n</code>이고, 범위도 리스트처럼 <code>map</code>할 수 있다.</li>
+</ul>
+<h2 id="maps">맵</h2>
+<p><strong>맵(map)</strong>은 <strong>키(key)</strong>와 <strong>값(value)</strong>의 짝들이다. 리스트가 "몇 번째"로 찾는다면 맵은 "이름"으로 찾는다. 중괄호 안에 <code>키: 값</code>을 쓴다.</p>
+<div class="run"><pre><code>db = {host: &quot;db-1&quot;, port: 5432, user: &quot;app&quot;}
+print(db)
+print(db.host, db[&quot;port&quot;], len(db))
+print(&quot;user&quot; in db, &quot;password&quot; in db)</code></pre><pre class="out plain"><code>{host: &quot;db-1&quot;, port: 5432, user: &quot;app&quot;}
+db-1 5432 3
+true false</code></pre></div>
+<ul>
+<li>맵의 <strong>키는 항상 문자열</strong>이다. <code>{host: &quot;db-1&quot;}</code>은 <code>{&quot;host&quot;: &quot;db-1&quot;}</code>을 줄여 쓴 것이다.</li>
+<li>키가 이름 모양이 아니면(<code>-</code>나 공백이 들어감) 따옴표로 쓰고, 읽을 때도 <code>m[&quot;db-host&quot;]</code>로 읽는다. <code>m.키</code>는 이름 모양의 키에만 쓴다.</li>
+<li><code>m.k</code>와 <code>m[&quot;k&quot;]</code>는 같다. <code>in</code>은 키가 있는지 묻는다.</li>
+<li>맵은 넣은 순서를 지킨다. 찍거나 돌 때 그 순서로 나온다.</li>
+<li>같은 키를 두 번 쓰면 컴파일 에러(E0113)다.</li>
+</ul>
+<div class="run"><pre><code>headers = {&quot;content-type&quot;: &quot;application/json&quot;, &quot;x-request-id&quot;: &quot;abc123&quot;}
+print(headers[&quot;content-type&quot;])</code></pre><pre class="out plain"><code>application/json</code></pre></div>
+<h3 id="missing-keys">없는 키</h3>
+<p><strong>없는 키를 읽으면 런타임 에러</strong>다(E0508). <code>nil</code>을 돌려주는 언어가 많지만, 그러면 키 이름의 오타가 조용히 <code>nil</code>로 퍼진다. 없을 수도 있는 키는 <code>get(m, 키, 기본값)</code>으로 읽는다. 기본값을 주지 않으면 <code>nil</code>이다.</p>
+<div class="run"><pre><code>db = {host: &quot;db-1&quot;, port: 5432}
+print(get(db, &quot;user&quot;, &quot;postgres&quot;), get(db, &quot;user&quot;), get(db, &quot;port&quot;, 0))</code></pre><pre class="out plain"><code>postgres nil 5432</code></pre></div>
+<div class="run"><pre><code>db = {host: &quot;db-1&quot;, port: 5432}
+print(db.usr)</code></pre><pre class="out err plain" data-code="1"><code>error[E0508]: key `usr` not found
+  --&gt; example.fung:2:9
+  |
+2 | print(db.usr)
+  |         ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;
+ help: use get(m, key, default) or ?? for a default</code></pre></div>
+<h3 id="build-maps">새 맵 만들기</h3>
+<p>맵도 고치지 않고 새로 만든다. <code>put(m, k, v)</code>는 키 하나를 넣거나 바꾼 맵, <code>merge(a, b)</code>는 <code>a</code>에 <code>b</code>를 덮은 맵, <code>remove(m, k)</code>는 키 하나를 뺀 맵이다.</p>
+<div class="run"><pre><code>server = {name: &quot;web-1&quot;, port: 8080}
+moved = put(server, &quot;port&quot;, 9090)
+tagged = merge(server, {region: &quot;kr&quot;, port: 80})
+print(server)
+print(moved)
+print(tagged)
+print(remove(tagged, &quot;region&quot;))</code></pre><pre class="out plain"><code>{name: &quot;web-1&quot;, port: 8080}
+{name: &quot;web-1&quot;, port: 9090}
+{name: &quot;web-1&quot;, port: 80, region: &quot;kr&quot;}
+{name: &quot;web-1&quot;, port: 80}</code></pre></div>
+<p>키가 변수에 들어 있으면 <code>put</code>을 쓴다. 맵 리터럴의 키 자리에 쓴 이름은 변수가 아니라 <strong>글자 그대로의 키</strong>다.</p>
+<div class="run"><pre><code>key = &quot;port&quot;
+print({key: 1})
+print(put({}, key, 1))</code></pre><pre class="out plain"><code>{key: 1}
+{port: 1}</code></pre></div>
+<p>값이 같은 이름의 변수일 때는 키만 써도 된다. <code>{host, port}</code>는 <code>{host: host, port: port}</code>다.</p>
+<div class="run"><pre><code>host = &quot;db-1&quot;
+port = 5432
+print({host, port})</code></pre><pre class="out plain"><code>{host: &quot;db-1&quot;, port: 5432}</code></pre></div>
+<h3 id="map-iteration">맵 돌기</h3>
+<p>맵을 직접 <code>for</code>로 돌 수는 없다. <code>keys(m)</code>, <code>values(m)</code>으로 키나 값의 리스트를 얻거나, <code>pairs(m)</code>으로 <code>(키, 값)</code> 튜플의 리스트를 얻어서 돈다.</p>
+<div class="run"><pre><code>ports = {web: 80, db: 5432, cache: 6379}
+print(keys(ports), values(ports))
+for (name, port) in pairs(ports):
+  print(pad_right(name, 6), port)
+;;</code></pre><pre class="out plain"><code>[&quot;web&quot;, &quot;db&quot;, &quot;cache&quot;] [80, 5432, 6379]
+web    80
+db     5432
+cache  6379</code></pre></div>
+<h2 id="tuples">튜플</h2>
+<p><strong>튜플(tuple)</strong>은 개수가 정해진 값의 묶음이다. 괄호 안에 쉼표로 쓴다. "서버 이름과 응답 시간"처럼 늘 함께 다니는 두세 개의 값을 묶을 때 쓴다. 원소가 하나뿐인 튜플은 <code>(x,)</code>처럼 쉼표를 붙인다.</p>
+<p>튜플은 인덱스로 꺼내지 않는다. 같은 모양으로 <strong>풀어서 받는다</strong>. 대입의 왼쪽에 괄호와 이름을 쓰면 원소가 차례로 이름에 들어간다. <code>for (a, b) in …</code>, 람다의 <code>((a, b)) =&gt; …</code>도 같다. 이렇게 모양을 맞춰 꺼내는 것을 <strong>패턴(pattern)</strong>이라고 하고, 8장에서 리스트와 맵에도 쓰는 법을 배운다.</p>
+<div class="run"><pre><code>result = (&quot;web-1&quot;, 200)
+(host, code) = result
+print(result, host, code, type_of(result))
+
+checks = [(&quot;web-1&quot;, 340), (&quot;db-1&quot;, 7), (&quot;web-2&quot;, 12)]
+for (name, ms) in checks:
+  print(name, &quot;${ms}ms&quot;)
+;;
+print(checks |&gt; sort_by(((_, ms)) =&gt; ms))</code></pre><pre class="out plain"><code>(&quot;web-1&quot;, 200) web-1 200 'tuple
+web-1 340ms
+db-1 7ms
+web-2 12ms
+[(&quot;db-1&quot;, 7), (&quot;web-2&quot;, 12), (&quot;web-1&quot;, 340)]</code></pre></div>
+<p><code>sort_by(xs, f)</code>는 <code>f</code>가 돌려준 값을 기준으로 정렬한다. 위에서는 튜플의 둘째 값(응답 시간)이 기준이다. 쓰지 않는 자리는 <code>_</code>로 비운다. 큰 것부터 정렬하려면 기준에 <code>-</code>를 붙인다.</p>
+<p><code>zip(xs, ys)</code>는 두 리스트를 짝지어 튜플의 리스트를 만든다.</p>
+<div class="run"><pre><code>print(zip([&quot;web-1&quot;, &quot;web-2&quot;], [200, 503]))</code></pre><pre class="out plain"><code>[(&quot;web-1&quot;, 200), (&quot;web-2&quot;, 503)]</code></pre></div>
+<h2 id="count">세고 묶기</h2>
+<p>로그를 다루다 보면 "수준별로 몇 줄인가"를 자주 센다. 맵을 모은 값으로 하는 <code>fold</code>로 쓸 수 있다. 줄마다 그 수준의 지금 개수를 <code>get</code>으로 읽고(처음이면 0), 하나 더한 값을 <code>put</code>한 새 맵을 다음 단계로 넘긴다.</p>
+<div class="run"><pre><code>log = [&quot;INFO start&quot;, &quot;ERROR disk full&quot;, &quot;WARN slow&quot;, &quot;ERROR timeout&quot;, &quot;INFO done&quot;]
+fn level(line) = split(line, &quot; &quot;)[0]
+counts = log |&gt; fold({}, (acc, l) =&gt; put(acc, level(l), get(acc, level(l), 0) + 1))
+print(counts)</code></pre><pre class="out plain"><code>{INFO: 2, ERROR: 2, WARN: 1}</code></pre></div>
+<p>같은 기준으로 원소를 묶기만 하려면 <code>group_by(xs, f)</code>가 있다. <code>f</code>의 결과(문자열이어야 한다)가 키, 그 키에 해당하는 원소의 리스트가 값인 맵을 돌려준다.</p>
+<div class="run"><pre><code>servers = [&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;cache-1&quot;]
+by_role = servers |&gt; group_by(s =&gt; split(s, &quot;-&quot;)[0])
+print(by_role)
+print(by_role.web)</code></pre><pre class="out plain"><code>{web: [&quot;web-1&quot;, &quot;web-2&quot;], db: [&quot;db-1&quot;], cache: [&quot;cache-1&quot;]}
+[&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
+<h2 id="notes">짚고 넘어가기</h2>
+<div class="box learn"><b>왜 0부터 세나</b>
+<p>대부분의 프로그래밍 언어는 첫 원소를 <code>0</code>번으로 센다. 인덱스를 "처음에서 몇 칸 떨어졌나"로 보기 때문이다. 첫 원소는 0칸 떨어져 있다. 이렇게 세면 <code>xs[a..b]</code>의 길이가 정확히 <code>b - a</code>이고, <code>xs[..n]</code>이 앞의 <code>n</code>개가 되어 계산이 깔끔하다.</p>
+</div>
+<div class="box mistake"><b>없는 키 읽기 (E0508)</b>
+<p>JSON이나 설정에서 온 맵의 키는 있을 수도 없을 수도 있다. <code>cfg.timeout</code>처럼 바로 읽으면 키가 없을 때 E0508로 멈춘다. 없을 수 있는 키는 <code>get(cfg, &quot;timeout&quot;, 30s)</code>로 읽고, 반드시 있어야 하는 키만 <code>cfg.timeout</code>으로 읽는다. 그러면 코드만 보고도 어느 키가 필수인지 알 수 있다.</p>
+</div>
+<div class="box mistake"><b>변수를 키로 쓰려다 글자 그대로 들어감</b>
+<p><code>{key: 1}</code>의 <code>key</code>는 변수 <code>key</code>의 값이 아니라 문자열 <code>&quot;key&quot;</code>다. 키 자리의 이름은 늘 글자 그대로의 문자열이다. 그래서 <code>{type: &quot;deploy&quot;}</code>처럼 예약어도 키로 쓸 수 있다. 변수에 든 키로 맵을 만들려면 <code>put({}, key, 1)</code>을 쓴다.</p>
+</div>
+<div class="box mistake"><b>튜플을 인덱스로 읽기 (E0509)</b>
+<p><code>pair[0]</code>은 <code>cannot index a value of type tuple</code> 에러다. 튜플은 <code>(a, b) = pair</code>처럼 풀어서 받는다. 원소가 많아져 순서를 헷갈릴 정도면 튜플 대신 이름 붙은 키가 있는 맵을 쓴다.</p>
+</div>
+<div class="box mistake"><b>앞에 붙이기</b>
+<p><code>[x] + acc</code>로 리스트의 <strong>앞</strong>에 하나씩 붙이면 매번 전체를 복사해서 원소가 많으면 느려진다. 뒤에 붙인 뒤(<code>acc + [x]</code>) 마지막에 <code>reverse</code>한다.</p>
+</div>
+<div class="box other"><b>다른 언어는</b>
+<p>fung의 리스트는 Python의 list나 JavaScript의 배열, 맵은 Python의 dict나 JavaScript의 객체, 튜플은 Python의 tuple과 비슷하다. 다른 점은 셋 다 고칠 수 없다는 것이다(<code>append</code>, <code>xs[0] = …</code>, <code>d[&quot;k&quot;] = …</code>가 없다). Python의 dict와 달리 키는 문자열뿐이고, 없는 키를 읽으면 JavaScript처럼 <code>undefined</code>가 아니라 에러다. <code>jq '.items[0].name'</code>은 fung에서 <code>data.items[0].name</code>이다(JSON은 13장).</p>
+</div>
+<h2 id="exercises">해 보기</h2>
+<div class="exercise"><b>포트 표 만들기</b>
+<p><code>[&quot;web-1:80&quot;, &quot;db-1:5432&quot;, &quot;cache-1:6379&quot;]</code>처럼 <code>호스트:포트</code> 문자열의 리스트를 <code>{&quot;web-1&quot;: 80, &quot;db-1&quot;: 5432, &quot;cache-1&quot;: 6379}</code> 맵으로 바꾸고, <code>db-1</code>의 포트를 찍어 보자. 포트는 정수여야 한다.</p>
+<details><summary>풀이 보기</summary>
+<p><code>fold</code>로 빈 맵에서 시작해 하나씩 <code>put</code>한다. 키에 <code>-</code>가 있으므로 <code>ports[&quot;db-1&quot;]</code>로 읽는다.</p>
+<div class="run"><pre><code>specs = [&quot;web-1:80&quot;, &quot;db-1:5432&quot;, &quot;cache-1:6379&quot;]
+fn add_spec(m, spec):
+  parts = split(spec, &quot;:&quot;)
+  put(m, parts[0], int(parts[1]))
+;;
+ports = specs |&gt; fold({}, add_spec)
+print(ports)
+print(ports[&quot;db-1&quot;])</code></pre><pre class="out plain"><code>{&quot;web-1&quot;: 80, &quot;db-1&quot;: 5432, &quot;cache-1&quot;: 6379}
+5432</code></pre></div>
+</details>
+</div>
+<div class="exercise"><b>느린 서버 찾기</b>
+<p><code>[(&quot;web-1&quot;, 340), (&quot;db-1&quot;, 7), (&quot;web-2&quot;, 1200), (&quot;cache-1&quot;, 95)]</code>은 서버 이름과 응답 시간(ms)의 리스트다. 100ms를 넘는 서버만 골라 느린 순서대로 이름만 찍어 보자. 결과는 <code>[&quot;web-2&quot;, &quot;web-1&quot;]</code>이다.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>checks = [(&quot;web-1&quot;, 340), (&quot;db-1&quot;, 7), (&quot;web-2&quot;, 1200), (&quot;cache-1&quot;, 95)]
+slow = checks
+  |&gt; filter(((_, ms)) =&gt; ms &gt; 100)
+  |&gt; sort_by(((_, ms)) =&gt; -ms)
+  |&gt; map(((name, _)) =&gt; name)
+print(slow)</code></pre><pre class="out plain"><code>[&quot;web-2&quot;, &quot;web-1&quot;]</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>리스트 <code>[…]</code>는 순서 있는 목록, 맵 <code>{…}</code>은 문자열 키와 값의 짝, 튜플 <code>(…)</code>은 개수가 정해진 묶음이다.</li>
+<li>리스트는 <code>xs[i]</code>, <code>xs[a..b]</code>로 꺼내고, 맵은 <code>m.k</code>나 <code>m[&quot;k&quot;]</code>로 읽는다. 없는 인덱스나 키는 에러다. 없을 수 있는 키는 <code>get(m, k, 기본값)</code>.</li>
+<li>셋 다 바뀌지 않는다. <code>xs + [x]</code>, <code>put</code>, <code>merge</code>, <code>remove</code>, <code>map</code>, <code>filter</code>가 새 값을 만든다.</li>
+<li>맵 리터럴의 키 자리 이름은 글자 그대로다. 변수에 든 키는 <code>put</code>으로.</li>
+<li>튜플은 <code>(a, b) = t</code>처럼 풀어서 받는다. <code>pairs</code>, <code>zip</code>, <code>for (a, b) in …</code>이 튜플을 쓴다.</li>
+<li>세기는 <code>fold</code>와 <code>put</code>/<code>get</code>, 묶기는 <code>group_by</code>, 정렬은 <code>sort</code>·<code>sort_by</code>.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/prelude/collections.html">리스트 함수</a>, <a href="../reference/prelude/maps.html">맵 함수</a>, <a href="../reference/prelude/maps.html#fn-get"><code>get</code></a>, <a href="../reference/prelude/maps.html#fn-put"><code>put</code></a>, <a href="../reference/prelude/collections.html#fn-group_by"><code>group_by</code></a>, <a href="../reference/language.html#values">값과 타입</a>, <a href="../reference/language.html#access">인덱스·슬라이스·필드</a>, <a href="../reference/errors.html#E0508">E0508</a>. 새 리스트가 구조를 나눠 쓰는 방법은 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/06-strings.html"><small>이전 장</small>6. 문자열 다루기</a><a class="next" href="../learn/08-patterns.html"><small>다음 장</small>8. 패턴과 match</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

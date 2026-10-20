@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>실패·무응답 서버만 알리기 · fung 매뉴얼</title>
+<meta name="description" content="실패·무응답 서버만 알리기 (시간 제한, 재시도).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">실패·무응답 서버만 알리기</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html" aria-current="page">실패·무응답 서버만 알리기</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">여러 서버에서 모으기</span></nav>
+<h1>실패·무응답 서버만 알리기</h1>
+<p class="lede">모든 서버에 <code>ssh</code>로 접속해 보고, 세 번 시도해도 대답이 없는 서버만 알린다. 모두 살아 있으면 아무것도 찍지 않아 cron에 걸어 두기 좋다.</p>
+<p>서버 목록을 주기적으로 훑어 "접속이 안 되는 서버"만 알고 싶을 때가 있다. 이때 중요한 것은 세 가지다. 멈춘 서버 하나가 점검 전체를 붙잡지 않도록 시간 제한을 두고, 순간적인 네트워크 흔들림에 알림이 울리지 않도록 몇 번 다시 시도하고, 문제가 없으면 조용해야 한다. cron은 명령이 무엇이든 출력하면 메일을 보내므로 "문제없음"을 찍지 않는 것이 곧 기능이다. 여기에 환경 변수 <code>ALERT_WEBHOOK</code>이 있으면 Slack 같은 웹훅에도 보낸다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>for h in $(cat hosts.txt); do
+  ok=no
+  for i in 1 2 3; do timeout 10 ssh -o BatchMode=yes &quot;$h&quot; true &amp;&amp; { ok=yes; break; }; sleep 2; done
+  [ &quot;$ok&quot; = no ] &amp;&amp; echo &quot;DOWN $h&quot;
+done</code></pre>
+<p>동작은 하지만 서버를 한 대씩, 시도마다 최대 10초씩 기다리므로 죽은 서버가 많을수록 점검 한 번이 몇 분씩 걸린다. 실패 이유(이름 조회 실패인지, 접속 거부인지, 무응답인지)가 남지 않는다. <code>timeout</code> 명령은 GNU coreutils에 있고 macOS에는 기본으로 없다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: hosts.txt</summary>
+<p><code>hosts.txt</code></p>
+<pre class="plain"><code>web1
+web2
+flaky
+db2
+slow</code></pre>
+</details>
+<pre><code>#!/usr/bin/env fung
+# Checks that every server answers over ssh, trying each up to three
+# times. Prints nothing when all answer (quiet in cron); otherwise one
+# line per server that did not, and exit code 1. With ALERT_WEBHOOK set,
+# also posts the list there as JSON.
+# usage: fung reachable.fung hosts.txt
+import conc
+import fs
+import http
+import json
+
+# One try: Ok(nil) when the server ran `true`, else Err(why).
+fn try_once(host):
+  cmd = [&quot;ssh&quot;, &quot;-o&quot;, &quot;BatchMode=yes&quot;, &quot;-o&quot;, &quot;ConnectTimeout=5&quot;, host, &quot;true&quot;]
+  match timeout(10s, () =&gt; exec(cmd)):
+    Ok(_)                   =&gt; Ok(nil)
+    Err({kind: 'timeout})   =&gt; Err(&quot;no answer in 10s&quot;)
+    Err({kind: 'exit, err}) =&gt; Err(trim(err))
+    Err(e)                  =&gt; Err(e.message)
+  ;;
+;;
+
+fn check(host) = conc.retry(() =&gt; try_once(host), times: 3, delay: 2s)
+
+file = first(args) ?? fail(&quot;usage: reachable.fung hosts.txt&quot;)
+hosts = fs.read_lines(file)! |&gt; filter(h =&gt; h != &quot;&quot;)
+down = zip(hosts, conc.pmap(hosts, check, limit: 20))
+  |&gt; filter(((_, r)) =&gt; is_err(r))
+  |&gt; map(((host, Err(why))) =&gt; {host, why})
+
+if is_empty(down): exit(0) ;;
+for d in down:
+  print(&quot;DOWN&quot;, d.host, &quot;-&quot;, d.why)
+;;
+match env(&quot;ALERT_WEBHOOK&quot;):
+  nil =&gt; nil
+  url =&gt;
+    text = &quot;${len(down)} of ${len(hosts)} servers down: ${down |&gt; map(d =&gt; d.host) |&gt; join(&quot;, &quot;)}&quot;
+    http.post(url, json.stringify({text}), headers: {&quot;content-type&quot;: &quot;application/json&quot;})!
+;;
+exit(1)</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>$ ALERT_WEBHOOK=https://hooks.example.com/T000/B000 fung reachable.fung hosts.txt
+DOWN db2 - ssh: connect to host db2 port 22: Connection refused
+DOWN slow - no answer in 10s
+$ echo $?
+1</code></pre>
+<p><code>flaky</code>는 첫 시도에 실패했지만 두 번째에 대답해서 목록에 없다. 웹훅에는 <code>{&quot;text&quot;:&quot;2 of 5 servers down: db2, slow&quot;}</code>가 간다. 서버가 모두 대답하면 아무것도 찍지 않고 종료 코드 0으로 끝난다.</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>try_once</code>: 접속해서 아무 일도 하지 않는 명령 <code>true</code>를 돌린다. 접속과 로그인과 명령 실행이 모두 되어야 성공이다. 결과를 <code>Ok(nil)</code>이나 <code>Err(이유 문자열)</code> 둘로만 줄인다. <code>timeout</code>의 <code>Err</code>에는 <code>message</code>가 없어서 따로 맞춘다.</li>
+<li><code>timeout(10s, …)</code>과 <code>ConnectTimeout=5</code>: <code>ConnectTimeout</code>은 접속 단계만 지킨다. 접속은 됐는데 로그인 뒤에 멈추는 서버(디스크가 걸린 서버의 셸 초기화 등)는 <code>timeout</code>이 10초에서 <code>ssh</code>를 끝낸다.</li>
+<li><code>conc.retry(f, times: 3, delay: 2s)</code>: <code>f()</code>가 <code>Err</code>를 돌려주면 2초 쉬고 다시 부른다. 세 번 모두 실패하면 마지막 <code>Err</code>를 돌려준다. <code>f</code>는 인자 없는 함수여야 하므로 <code>() =&gt; try_once(host)</code>로 감싼다.</li>
+<li><code>conc.pmap(hosts, check, limit: 20)</code>: 20대씩 동시에 점검한다. 죽은 서버가 몇 대든 점검 시간은 대략 "한 대가 세 번 실패하는 시간"(10초 × 3 + 쉼 2초 × 2)으로 묶인다.</li>
+<li><code>zip</code> 뒤의 두 줄: <code>(서버, 결과)</code> 짝에서 실패만 남기고, 람다의 매개변수 패턴 <code>((host, Err(why)))</code>로 튜플과 그 안의 <code>Err</code>를 한 번에 풀어 맵을 만든다. 앞 줄에서 <code>Err</code>만 남겼으므로 이 패턴은 늘 맞는다.</li>
+<li><code>if is_empty(down): exit(0) ;;</code>: 문제가 없으면 여기서 조용히 끝난다.</li>
+<li><code>match env(&quot;ALERT_WEBHOOK&quot;)</code>: 환경 변수가 없으면 <code>nil</code>이다. 있으면 그 주소로 JSON을 보낸다. <code>{text}</code>는 <code>{text: text}</code>의 축약이다. 웹훅 전송이 실패하면 <code>!</code>가 멈추고 종료 코드는 1이 된다. 알림이 안 갔다는 것을 숨기지 않기 위해서다.</li>
+<li>마지막 <code>exit(1)</code>: 하나라도 죽었으면 1로 끝내 cron 래퍼나 모니터링이 실패로 볼 수 있게 한다.</li>
+</ul>
+<div class="box mistake"><b>재시도할 함수 안의 <code>!</code></b>
+<p><code>conc.retry</code>는 <code>f</code>가 <code>Err</code> <strong>값을 돌려줄 때만</strong> 다시 시도한다. 쉘의 <code>set -e</code>처럼 <code>exec(…)!</code>를 습관으로 붙이면, 첫 실패에서 <code>!</code>가 프로그램 전체를 멈춰서 재시도할 기회가 없다.</p>
+<div class="run"><pre><code>import conc
+
+r = conc.retry(() =&gt; exec([&quot;false&quot;])!, times: 3)
+print(r)</code></pre><pre class="out err plain" data-code="1"><code>error[E0603]: unhandled Err: `false` exited with code 1
+  --&gt; example.fung:3:37
+  |
+3 | r = conc.retry(() =&gt; exec([&quot;false&quot;])!, times: 3)
+  |                                     ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;lambda&gt;
+   extras/conc.fung:50 retry
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>재시도할 함수는 <code>Err</code>를 그대로 돌려주게 쓰고(<code>() =&gt; exec([&quot;false&quot;])</code>), <code>!</code>는 재시도가 다 끝난 결과에 붙인다.</p>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>HTTP 서비스도 함께</strong>: 같은 모양으로 <code>try_once</code>만 <code>http.get(url, timeout: 5s)</code>로 바꾸면 웹 서비스 점검이 된다. 상태 코드까지 보는 판은 <a href="check-urls.html">URL 여러 개 상태 동시 확인</a>.</li>
+<li><strong>알림 폭주 막기</strong>: 직전 결과를 <code>fs.write(&quot;/var/tmp/reachable.last&quot;, …)</code>로 남기고, 이번 목록이 지난번과 같으면 웹훅을 건너뛴다. 새로 죽은 서버와 살아난 서버만 알릴 수 있다.</li>
+<li><strong>종료 코드로 나누기</strong>: 모니터링 도구의 규칙(0 정상, 1 경고, 2 위험)에 맞추려면 죽은 비율로 <code>exit(1)</code>과 <code>exit(2)</code>를 고른다. <a href="exit-codes.html">종료 코드와 표준 에러</a>.</li>
+<li><strong>cron에 걸기</strong>: <code>*/5 * * * * fung /opt/ops/reachable.fung /opt/ops/hosts.txt</code>. 출력이 있을 때만 cron이 메일을 보낸다.</li>
+</ul>
+<p>배우기: <a href="../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>, <a href="../learn/09-errors.html">9장 에러</a>. 레퍼런스: <a href="../reference/modules/conc.html#fn-conc-retry"><code>conc.retry</code></a>, <a href="../reference/modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>, <a href="../reference/prelude/concurrency.html#fn-timeout"><code>timeout</code></a>, <a href="../reference/prelude/process.html#fn-env"><code>env</code></a>, <a href="../reference/modules/http.html#fn-http-post"><code>http.post</code></a>, <a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a>, <a href="../reference/language.html#results">결과값과 에러</a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/server-table.html"><small>이전</small>서버별 결과를 표 하나로</a><a class="next" href="../recipes/json-fields.html"><small>다음</small>JSON API에서 필드 뽑기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

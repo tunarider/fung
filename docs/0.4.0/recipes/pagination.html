@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>페이지 넘기며 모두 받기 · fung 매뉴얼</title>
+<meta name="description" content="페이지 넘기며 모두 받기.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">페이지 넘기며 모두 받기</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html" aria-current="page">페이지 넘기며 모두 받기</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">HTTP와 문자열</span></nav>
+<h1>페이지 넘기며 모두 받기</h1>
+<p class="lede">한 번에 일부만 돌려주는 API를 끝 페이지까지 따라가며 모두 받는다. 요청이 너무 잦다는 429 응답에는 서버가 말한 만큼 기다렸다가 같은 페이지를 다시 요청한다.</p>
+<p>인벤토리, 사용자 목록, 감사 로그 같은 API는 결과가 많으면 한 번에 50개, 100개씩 나눠서(페이지네이션, pagination) 준다. 응답에 "다음 페이지 주소"가 들어 있고, 그 주소가 없으면 끝이다. 여기서는 <code>{&quot;items&quot;: [...], &quot;next&quot;: &quot;https://…?page=2&quot;}</code> 꼴의 API를 끝까지 따라가 모든 항목을 한 줄에 JSON 하나씩(JSON Lines) 찍는다. 출력을 파일로 돌리면 다른 도구가 한 줄씩 읽기 좋다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>url=&quot;https://inventory.example.com/api/hosts&quot;
+while [ &quot;$url&quot; != &quot;null&quot; ]; do
+  page=$(curl -sf &quot;$url&quot;) || exit 1
+  echo &quot;$page&quot; | jq -c '.items[]'
+  url=$(echo &quot;$page&quot; | jq -r '.next')
+done</code></pre>
+<p>쉘에서는 <code>while</code>과 바꿔 가는 변수 <code>url</code>로 쓴다. 짧지만 <code>curl -f</code>를 빠뜨리면 에러 응답의 본문이 <code>jq</code>로 가서 무한 반복이 되기도 하고, 429(요청 과다)를 받으면 그냥 실패한다. 응답을 <code>jq</code>로 두 번 읽고, 페이지 수 상한이 없어서 API가 같은 <code>next</code>를 계속 돌려주면 끝나지 않는다.</p>
+<h2 id="code">fung으로</h2>
+<pre><code>#!/usr/bin/env fung
+# Follows a paged JSON API to the end and prints every item as one JSON
+# line. Each page is {&quot;items&quot;: [...], &quot;next&quot;: URL or null}.
+# usage: fung allpages.fung https://inventory.example.com/api/hosts &gt; hosts.jsonl
+import http
+import json
+
+max_pages = 1000
+token = env(&quot;API_TOKEN&quot;)
+headers = token == nil then {accept: &quot;application/json&quot;}
+  else {accept: &quot;application/json&quot;, authorization: &quot;Bearer ${token}&quot;}
+
+# One page as a map. A 429 (too many requests) waits as the server asks
+# and tries the same page again.
+fn page(url, tries = 1):
+  res = http.get(url, headers: headers, timeout: 30s)?
+  match res.status:
+    200                =&gt; json.parse(res.body)
+    429 when tries &lt; 5 =&gt;
+      wait = parse_int(get(res.headers, &quot;retry-after&quot;, &quot;1&quot;)) ?? 1
+      eprint(&quot;rate limited, waiting ${wait}s&quot;)
+      sleep(wait * 1s)
+      page(url, tries + 1)
+    code               =&gt; Err({kind: 'http, message: &quot;${url}: HTTP ${code}&quot;})
+  ;;
+;;
+
+# All the items from url on: pages are fetched one after another, each
+# naming the next. Returns Ok(items) or the first Err.
+fn all_items(url, acc, n):
+  if n &gt; max_pages: return Err({kind: 'limit, message: &quot;more than ${max_pages} pages&quot;}) ;;
+  p = page(url)?
+  items = acc + get(p, &quot;items&quot;, [])
+  match get(p, &quot;next&quot;):
+    nil  =&gt; Ok(items)
+    next =&gt; all_items(next, items, n + 1)
+  ;;
+;;
+
+url = first(args) ?? fail(&quot;usage: allpages.fung URL&quot;)
+items = all_items(url, [], 1)!
+each(items, i =&gt; print(json.stringify(i)))
+eprint(&quot;${len(items)} items&quot;)</code></pre>
+<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<pre class="plain"><code>$ API_TOKEN=… fung allpages.fung https://inventory.example.com/api/hosts
+rate limited, waiting 1s
+{&quot;id&quot;:11,&quot;name&quot;:&quot;host-1a&quot;}
+{&quot;id&quot;:12,&quot;name&quot;:&quot;host-1b&quot;}
+{&quot;id&quot;:21,&quot;name&quot;:&quot;host-2a&quot;}
+{&quot;id&quot;:22,&quot;name&quot;:&quot;host-2b&quot;}
+{&quot;id&quot;:31,&quot;name&quot;:&quot;host-3a&quot;}
+{&quot;id&quot;:32,&quot;name&quot;:&quot;host-3b&quot;}
+6 items</code></pre>
+<p>세 페이지를 따라갔고, 두 번째 요청에서 429를 받아 1초 기다린 뒤 같은 페이지를 다시 받았다. <code>rate limited…</code>와 <code>6 items</code>는 표준 에러로 가므로 <code>&gt; hosts.jsonl</code>로 돌리면 파일에는 항목 줄만 남는다.</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>token</code>·<code>headers</code>: 토큰은 스크립트에 적지 않고 환경 변수에서 읽는다. 없으면(<code>nil</code>) <code>authorization</code> 헤더 없이 보낸다. 최상위에서 한 번만 대입한 이름이라 아래 함수들이 그대로 읽는다.</li>
+<li><code>page</code>: 페이지 하나를 받아 JSON을 맵으로 바꾼다. <code>http.get(…)?</code>의 <code>?</code>는 네트워크 실패면 그 <code>Err</code>를 곧바로 돌려보낸다. 상태 코드는 <code>match</code>로 가른다. <code>200</code>이면 <code>json.parse</code>의 결과(<code>Ok(맵)</code>이나 <code>Err</code>)가 곧 반환값이다.</li>
+<li><code>429 when tries &lt; 5</code>: 리터럴 패턴 <code>429</code>에 guard를 붙여 다섯 번까지만 기다린다. <code>Retry-After</code> 헤더(응답 헤더 키는 늘 소문자다)의 초를 읽고, 숫자가 아니면 1초로 친다. <code>sleep(wait * 1s)</code>처럼 숫자에 <code>1s</code>를 곱하면 기간이 된다. 기다린 뒤 같은 URL로 자기 자신을 다시 부른다.</li>
+<li><code>code =&gt;</code>: 나머지 상태 코드는 이름 <code>code</code>에 묶어 에러 메시지에 넣는다. 패턴의 이름은 늘 새로 묶는 변수다.</li>
+<li><code>all_items</code>: 반복을 <code>while</code> 대신 꼬리 재귀로 쓴다. 지금까지 모은 항목 <code>acc</code>와 페이지 번호 <code>n</code>을 인자로 넘기고, <code>next</code>가 <code>nil</code>(JSON의 <code>null</code>이거나 키가 없음)이면 끝이다. 마지막 줄의 호출이 꼬리 호출이라 페이지가 수천 개여도 스택이 쌓이지 않는다.</li>
+<li><code>max_pages</code>: API가 실수로 같은 <code>next</code>를 계속 돌려줘도 1000페이지에서 멈춘다. 끝나지 않는 반복을 막는 안전장치다.</li>
+<li><code>acc + get(p, &quot;items&quot;, [])</code>: 리스트 이어 붙이기는 앞 리스트와 구조를 공유해서, 이렇게 뒤에 쌓아 가도 전체 시간은 항목 수에 비례한다.</li>
+<li><code>all_items(url, [], 1)!</code>: 어느 페이지에서든 실패하면 첫 <code>Err</code>가 여기까지 올라오고, <code>!</code>가 메시지를 찍고 종료 코드 1로 멈춘다. 반쯤 받은 결과를 성공처럼 내보내지 않는다.</li>
+</ul>
+<div class="box mistake"><b><code>while</code>과 바뀌는 변수</b>
+<p>쉘의 <code>while [ &quot;$url&quot; != &quot;null&quot; ]; do …; url=…; done</code>을 옮기려 하면 막힌다. fung에는 <code>while</code>이 없고, 블록 안에서 바깥의 <code>url</code>이나 <code>all</code>에 다시 대입하면 E0205다. "바뀌는 변수"는 "다음 호출의 인자"로 바꿔 쓴다. 위의 <code>all_items(next, items, n + 1)</code>가 그 모양이다. 정해진 횟수나 조건까지 되풀이하는 간단한 경우는 <a href="../reference/prelude/loops.html#fn-until"><code>until</code></a>도 있다.</p>
+<div class="run"><pre><code>fn pages(n, acc) = n &gt; 3 then acc else pages(n + 1, acc + [&quot;page-${n}&quot;])
+print(pages(1, []))
+print(until(1, x =&gt; x * 2, x =&gt; x &gt; 100))</code></pre><pre class="out plain"><code>[&quot;page-1&quot;, &quot;page-2&quot;, &quot;page-3&quot;]
+128</code></pre></div>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>페이지 번호 방식</strong>: <code>?page=1</code>, <code>?page=2</code>…로 넘기고 빈 페이지에서 끝나는 API라면 <code>next</code> 대신 번호를 인자로 넘긴다: <code>is_empty(p.items) then Ok(acc) else all_items(base, acc + p.items, n + 1)</code>, 주소는 <code>&quot;${base}?page=${n}&quot;</code>.</li>
+<li><strong>Link 헤더 방식</strong>: GitHub처럼 다음 주소를 <code>link: &lt;https://…?page=2&gt;; rel=&quot;next&quot;</code> 헤더로 주면 원시 문자열 정규식 <code>&lt;([^&gt;]+)&gt;;\s*rel=&quot;next&quot;</code>을 <code>regex.find(get(res.headers, &quot;link&quot;, &quot;&quot;), pat)</code>에 넘겨 얻은 첫 조각이 다음 주소다. 이때 <code>page</code>는 본문과 함께 헤더도 돌려주게 바꾼다.</li>
+<li><strong>파일로 바로</strong>: <code>each</code> 대신 <code>fs.write(&quot;hosts.json&quot;, json.stringify(items, indent: 2))!</code>. <a href="save-csv-json.html">CSV와 JSON으로 저장하기</a>.</li>
+<li><strong>필드만 골라</strong>: 항목마다 필요한 필드만 남기려면 <a href="json-fields.html">JSON API에서 필드 뽑기</a>의 <code>dig</code>를 쓴다.</li>
+<li><strong>동시에 받기</strong>: 전체 페이지 수를 첫 응답에서 알 수 있으면 나머지 페이지 주소를 만들어 <code>conc.pmap(urls, page, limit: 4)</code>로 동시에 받는다. 서버에 부담을 주지 않도록 <code>limit</code>을 작게 둔다.</li>
+</ul>
+<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/05-functions.html">5장 함수</a>(꼬리 호출), <a href="../learn/09-errors.html">9장 에러</a>. 레퍼런스: <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a>, <a href="../reference/modules/json.html#fn-json-stringify"><code>json.stringify</code></a>, <a href="../reference/prelude/concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="../reference/prelude/loops.html#fn-until"><code>until</code></a>, <a href="../reference/language.html#results">결과값과 에러</a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/regex-split.html"><small>이전</small>텍스트 응답을 정규식으로 쪼개기</a><a class="next" href="../recipes/save-csv-json.html"><small>다음</small>CSV나 JSON으로 저장하기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

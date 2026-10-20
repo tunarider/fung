@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>테스트 러너 · fung 매뉴얼</title>
+<meta name="description" content="테스트 러너. 테스트를 언어 안에 두는 방법, test 블록이 함수로 컴파일되어 등록되는 과정, 비교의 양쪽 값을 보여 주는 assert, 파일마다 새 런타임, exit와 교착 뒤에 나머지를 건너뛰는 규칙, 출력과 종료 코드.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">17. 테스트 러너</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html">6. 이름 해석과 스코프</a></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html" aria-current="page">17. 테스트 러너</a><ol class="toc2"><li><a href="#where">테스트를 어디에 두나</a></li><li><a href="#compile">test 블록이 함수가 되기까지</a></li><li><a href="#assert">assert</a></li><li><a href="#runner">실행기</a></li><li><a href="#golden">언어 자체의 테스트</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">5부 도구</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>17장</span></nav>
+<h1>테스트 러너</h1>
+<p class="lede">test 블록은 그 자리에서 만들어지는 인자 없는 함수다. fung test는 파일마다 새 런타임에서 최상위를 먼저 실행하고, 등록된 블록을 차례로 돌린다.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>테스트를 언어 밖(프레임워크)에 두는 것과 언어 안에 두는 것의 차이</li>
+<li><code>test</code> 블록이 컴파일되고 등록되고 실행되는 과정</li>
+<li>실패한 <code>assert</code>가 비교의 양쪽 값을 보여 주는 방법과 그 한계</li>
+<li>파일마다 새 런타임을 쓰는 이유, 그리고 <code>exit</code>·교착 뒤에 나머지를 건너뛰는 규칙</li>
+</ul>
+</div>
+<p>책의 마지막 장이다. 테스트 러너는 앞에서 본 거의 모든 장치(로더, 컴파일러, 런타임, 스케줄러, 취소)를 "여러 번 나눠 실행하기" 위해 다시 조합한다.</p>
+<h2 id="where">테스트를 어디에 두나</h2>
+<p><strong>단위 테스트</strong>(unit test)는 함수 하나가 기대대로 동작하는지 확인하는 작은 코드다. 언어마다 테스트를 두는 자리가 다르다.</p>
+<ul>
+<li><strong>언어 밖의 프레임워크.</strong> 테스트는 보통 함수이고, 이름 규칙(<code>test_</code>로 시작)이나 표시로 찾는다. 실행기는 따로 설치하는 도구다.</li>
+<li><strong>언어 안.</strong> 컴파일러가 테스트를 알고, 테스트 코드는 평소 빌드에서 빠진다.</li>
+</ul>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Python</strong>의 pytest는 <code>test_</code>로 시작하는 함수를 찾아 돌린다. 평범한 <code>assert a == b</code>가 실패하면 <code>a</code>와 <code>b</code>의 값을 보여 주는데, 이것은 pytest가 테스트 파일을 불러올 때 <code>assert</code> 문의 트리를 <strong>고쳐 쓰기</strong> 때문이다.</li>
+<li><strong>Rust</strong>는 <code>#[test]</code> 표시를 컴파일러가 안다. <code>cargo test</code>는 테스트를 포함한 별도 실행 파일을 만들고, 평소 빌드에서는 <code>#[cfg(test)]</code> 코드가 빠진다. <code>assert_eq!</code> 매크로가 양쪽 값을 보여 준다.</li>
+<li><strong>Elixir</strong>의 ExUnit은 <code>assert</code>가 매크로라서 컴파일 때 식의 모양을 보고 양쪽 값을 보여 준다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택: 같은 파일의 test 블록, 컴파일러가 아는 assert</b>
+<ul>
+<li><code>test &quot;이름&quot;: … ;;</code> 블록을 코드와 <strong>같은 파일</strong>에 둔다. 따로 설치할 것이 없고, 함수 옆에 그 함수의 테스트가 있다(설계 08).</li>
+<li>블록의 본문은 <strong>인자 없는 함수</strong>다. 그 자리에서 만들어지므로(9장의 규칙, 그때 보이는 파일 변수를 복사) <code>return</code>과 <code>?</code>를 쓸 수 있고, 하나가 실패해도 다음 블록이 돈다.</li>
+<li><code>assert</code>는 함수가 아니라 <strong>키워드</strong>다. 컴파일러가 식의 모양을 알아야 양쪽 값을 보여 줄 수 있기 때문이다.</li>
+<li><code>fung run</code>은 <code>test</code> 블록을 무시하고, <code>fung test</code>만 돌린다.</li>
+</ul>
+</div>
+<h2 id="compile">test 블록이 함수가 되기까지</h2>
+<p><code>test</code> 블록은 최상위에만 쓸 수 있다(E0114). 로더의 <code>tests</code> 선택(<code>crates/fung-front/src/loader.rs</code>)이 꺼져 있으면, 곧 <code>fung run</code>·<code>fung dump</code>에서는 블록이 아예 컴파일되지 않는다. 그래서 테스트가 있는 파일도 평소처럼 실행된다.</p>
+<div class="run"><pre><code>fn double(x) = x * 2
+
+servers = [&quot;web1&quot;]
+
+test &quot;sees one server&quot;:
+  assert len(servers) == 1
+;;
+
+servers = servers + [&quot;web2&quot;]
+print(&quot;top level ran with&quot;, len(servers), &quot;servers&quot;)
+
+test &quot;sees two servers&quot;:
+  assert len(servers) == 2
+  assert double(21) == 42
+;;</code></pre><pre class="out plain"><code>top level ran with 2 servers</code></pre></div>
+<p><code>fung test</code>는 <code>tests</code>를 켜고 컴파일한다. 그러면 블록마다 두 가지가 생긴다.</p>
+<ol>
+<li>블록의 본문이 <strong>자식 원형 하나</strong>로 컴파일된다. 람다와 똑같다.</li>
+<li>블록이 있던 자리에 <code>CLOSURE</code>(함수 값 만들기)와 <strong><code>TEST</code> 명령</strong>이 들어간다. <code>TEST</code>는 만든 함수를 이름과 함께 런타임의 테스트 목록(<code>World::tests</code>)에 <strong>등록</strong>만 한다(<code>crates/fung-vm/src/vm/m6.rs</code>의 <code>exec_m6</code>, <code>TestCase</code>). 실행하지는 않는다.</li>
+</ol>
+<p>그래서 최상위가 끝까지 돌고 나면 블록들이 순서대로 등록되어 있다. 각 블록은 <strong>자기 자리에서</strong> 만들어졌으므로, 첫 블록은 <code>servers</code>가 하나일 때의 값을, 둘째 블록은 둘일 때의 값을 복사해 쥐고 있다.</p>
+<pre class="plain"><code>$ fung test order_test.fung
+top level ran with 2 servers
+ok   order_test.fung: sees one server
+ok   order_test.fung: sees two servers
+2 passed, 0 failed</code></pre>
+<h2 id="assert">assert</h2>
+<p><code>assert</code> 식이 거짓이면 E0807이다. <code>fung run</code> 중이면 보통 런타임 에러(종료 코드 1)이고, <code>fung test</code> 안에서는 실행기가 그 에러를 <code>FAIL</code>로 기록하고 다음 블록으로 넘어간다.</p>
+<p>실패 메시지가 쓸모 있으려면 <code>x == 5</code>가 거짓이었다는 것만이 아니라 <strong><code>x</code>가 무엇이었는지</strong>를 보여야 한다. 그런데 실행이 끝난 뒤에는 <code>x == 5</code>의 결과 <code>false</code>만 남는다. 그래서 컴파일러가 미리 식을 쪼갠다(<code>crates/fung-front/src/compiler/m6.rs</code>). 식의 <strong>맨 바깥이 비교 연산</strong>(<code>==</code>·<code>!=</code>·<code>&lt;</code>·<code>&gt;</code>·<code>&lt;=</code>·<code>&gt;=</code>·<code>in</code>·<code>not in</code>)이면,</p>
+<ul>
+<li>비교를 하지 않고 왼쪽과 오른쪽 값을 각각 스택에 올린 뒤 <code>ASSERT</code> 한 명령을 낸다.</li>
+<li>원형의 <code>asserts</code> 표에 연산자와 각 쪽의 <strong>소스 글</strong>(<code>double(21)</code>)을 적어 둔다. 리터럴인 쪽(<code>42</code>)은 글이 곧 값이라 적지 않는다.</li>
+<li>실행 중 <code>ASSERT</code>가 두 값을 꺼내 비교하고, 실패하면 소스 글과 값을 짝지어 메모로 붙인다.</li>
+</ul>
+<div class="run"><pre><code>fn double(x) = x * 2
+
+assert double(21) == 42
+print(&quot;ok&quot;)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; double
+0001  1:1   STOREGLOBAL  0    ; double
+0002  3:8   LOADGLOBAL   0    ; double
+0003  3:15  CONST        0    ; 21
+0004  3:14  CALL         1    ; 1 positional, 0 named
+0005  3:22  CONST        1    ; 42
+0006  3:1   ASSERT       0    ; double(21) == 42
+0007  4:1   CONST        2    ; &lt;fn print&gt;
+0008  4:7   CONST        3    ; &quot;ok&quot;
+0009  4:6   CALL         1    ; 1 positional, 0 named
+0010  4:1   POP
+0011  4:1   CONST        4    ; nil
+0012  1:1   RETURN
+
+== double ==
+0000  1:16  LOADLOCAL    0
+0001  1:20  CONST        0    ; 2
+0002  1:18  MUL
+0003  1:14  RETURN</code></pre></div>
+<p><code>&lt;main&gt;</code>의 0006번 <code>ASSERT 0</code> 앞에 <code>EQ</code>가 없다. 두 값이 그대로 <code>ASSERT</code>에 간다. 실패하면 이렇게 보인다.</p>
+<div class="run"><pre><code>fn double(x) = x * 2
+
+assert double(2) == 5</code></pre><pre class="out err plain" data-code="1"><code>error[E0807]: assertion failed: double(2) == 5
+  --&gt; example.fung:3:1
+  |
+3 | assert double(2) == 5
+  | ^
+  |
+  double(2) = 4
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>맨 바깥이 비교가 아니면(<code>assert is_valid(x)</code>) 식 전체의 값만 보인다. 더 깊이 쪼개지 않는 이유가 있다. 안쪽 식을 하나하나 보여 주려면 그 식들을 다시 평가하거나 모든 중간값을 붙잡아야 하는데, 부수효과가 있는 식(<code>assert pop(queue) == 1</code>)을 두 번 평가하면 결과가 달라진다(설계 08). 맨 바깥 비교의 두 쪽은 원래도 한 번씩 평가되므로 공짜로 얻을 수 있다.</p>
+<h2 id="runner">실행기</h2>
+<p><code>fung test [경로]</code>(<code>crates/fung-cli/src/test.rs</code>의 <code>run_test</code>)는 이렇게 돈다.</p>
+<ol>
+<li><strong>파일 고르기.</strong> 경로가 디렉터리면 그 아래 <code>.fung</code> 파일을 모두 바이트 순서로 고른다. <code>_</code>나 <code>.</code>으로 시작하는 디렉터리(픽스처, <code>.git</code>)는 들어가지 않는다. <code>fung fmt</code>와 같은 규칙이다(<code>paths.rs</code>의 <code>fung_files</code>). 인자가 없으면 지금 디렉터리다.</li>
+<li><strong>파일마다</strong>(<code>test_file</code>):</li>
+<li><code>tests</code>를 켜고 그래프 전체를 컴파일한다(11장). 실패하면 <code>FAIL 경로: &lt;load&gt;</code>. 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.</li>
+<li>진입 원형에 <code>TEST</code> 명령이 하나도 없으면 테스트가 없는 파일이다. <strong>실행하지도 목록에 넣지도 않는다</strong>(<code>has_tests</code>). 그래서 스크립트가 섞인 디렉터리에서 <code>fung test</code>를 돌려도 스크립트가 실행되지 않는다.</li>
+<li><strong>새 런타임</strong>을 만들고 prelude를 부팅한 뒤 최상위를 실행한다. 이때 블록들이 등록된다.</li>
+<li>등록된 블록을 순서대로 하나씩 실행한다(<code>Runtime::call_test</code>). 블록마다 루트 아래 새 취소 노드에서 자기 실행(<code>run_root</code>, 12장)으로 돈다. 블록이 끝나면 그 노드를 취소한다. 블록이 범위 밖에 남긴 것은 없지만(14장), 있어도 함께 끝난다.</li>
+<li>파일이 끝나면 루트 아래의 남은 것을 취소한다(<code>cancel_all</code>). 실행마다 그 태스크가 모두 끝나야 돌아오므로(12장) 실제로 기다릴 것은 남아 있지 않다. 처리되지 않은 태스크 실패(취소된 <code>supervise</code>의 대기열)가 있었으면 <code>FAIL 경로: &lt;tasks&gt;</code>.</li>
+<li><strong>요약.</strong> <code>N passed, M failed</code>를 찍고 종료 코드를 정한다. 컴파일 실패가 있으면 2, 실패한 테스트가 있으면 1, 아니면 0.</li>
+</ol>
+<pre class="plain"><code>$ fung test slug.fung
+ok   slug.fung: spaces become hyphens
+FAIL slug.fung: keeps digits
+  error[E0807]: assertion failed: slugify(&quot;Release 0.4&quot;) == &quot;release-0-4&quot;
+    --&gt; slug.fung:8:3
+    |
+  8 |   assert slugify(&quot;Release 0.4&quot;) == &quot;release-0-4&quot;
+    |   ^
+    |
+    slugify(&quot;Release 0.4&quot;) = &quot;release-0.4&quot;
+   call path (innermost first):
+     slug.fung:8 test: keeps digits
+FAIL slug.fung: trims
+  error[E0807]: assertion failed: slugify(&quot; a &quot;) == &quot;a&quot;
+    --&gt; slug.fung:12:3
+     |
+  12 |   assert slugify(&quot; a &quot;) == &quot;a&quot;
+     |   ^
+     |
+    slugify(&quot; a &quot;) = &quot;-a-&quot;
+   call path (innermost first):
+     slug.fung:12 test: trims
+1 passed, 2 failed</code></pre>
+<p>호출 경로의 <code>test: keeps digits</code>가 블록이 함수라는 흔적이다.</p>
+<h3 id="runtime-per-file">파일 하나에 런타임 하나</h3>
+<p><code>fung test</code>가 파일마다 새 <code>Runtime</code>을 만드는 것은 한 파일의 상태가 다음 파일로 새지 않게 하려는 것이다(노트 R5-tools). 새면 안 되는 것은 전역에 담은 atom, 요청된 <code>exit</code>, 보고된 교착, 처리되지 않은 실패 같은 것이다. 한 파일 안의 블록들은 같은 런타임을 쓴다. 최상위에서 정의한 것을 블록들이 함께 쓰기 때문이다.</p>
+<h3 id="skip">exit와 교착 뒤에는 나머지를 건너뛴다</h3>
+<p>테스트 파일 안에서 <code>exit(n)</code>이 불리거나(띄운 태스크에서도) 교착이 보고되면, 그 파일의 프로그램은 루트가 취소된 상태다(14장). 남은 블록을 그 위에서 돌리면 호출이 있는 블록은 E0701로 실패하고 호출이 없는 블록은 통과하는, 이상한 결과가 난다. 그래서 규칙을 두었다(설계 08, 사용자 결정).</p>
+<ul>
+<li>돌던 블록은 평소대로 <code>ok</code>/<code>FAIL</code> 줄을 낸다.</li>
+<li>남은 블록이 있으면 메모 한 줄을 붙이고 <strong>나머지를 건너뛴다.</strong></li>
+<li>건너뛴 블록은 세지 않지만 <strong>건너뛰기 자체를 실패 하나로 센다.</strong> 메모 앞의 블록이 통과했으면 <code>FAIL 경로: &lt;rest of file&gt;</code> 줄을 따로 낸다. "조용히 끝나는 테스트 실행은 없다"는 원칙 때문이다.</li>
+<li>명령의 종료 코드는 n이 되지 않는다. 테스트 안의 <code>exit</code>는 테스트의 실패다.</li>
+</ul>
+<pre class="plain"><code>$ fung test exit_test.fung
+ok   exit_test.fung: first
+FAIL exit_test.fung: calls exit
+  exit(3) called inside a test file; the rest of the file was skipped
+1 passed, 1 failed</code></pre>
+<p>교착도 같다. 블록 안에서 채널을 기다리는데 보내는 끝을 그 블록의 지역 변수가 쥐고 있으면 교착이고(10장: 한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다), 보고 뒤에 나머지를 건너뛴다.</p>
+<pre class="plain"><code>$ fung test dead_test.fung
+error[E0702]: deadlock: all tasks are waiting
+  --&gt; dead_test.fung:3:7
+  |
+3 |   recv(rx)
+  |       ^
+  |
+ call path (innermost first):
+   dead_test.fung:3 test: waits forever
+ help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `test: waits forever`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
+FAIL dead_test.fung: waits forever
+  error[E0702]: deadlock: all tasks are waiting
+    --&gt; dead_test.fung:3:7
+    |
+  3 |   recv(rx)
+    |       ^
+    |
+   call path (innermost first):
+     dead_test.fung:3 test: waits forever
+  a deadlock was reported; the rest of the file was skipped
+0 passed, 1 failed</code></pre>
+<h3 id="signals">신호</h3>
+<p><code>fung test</code>가 도는 중에 첫 SIGINT·SIGTERM이 오면 그것은 지금 도는 파일에 대한 정지 요청이다(14장). 그 파일이 끝나면 다음 파일은 돌지 않고, 명령은 128 + 신호 번호로 끝난다. 끊긴 블록에는 <code>SIGINT stopped the run; the rest of the file was skipped</code> 같은 메모가 붙는다.</p>
+<h2 id="golden">언어 자체의 테스트</h2>
+<p>fung 저장소는 이 책의 장치들을 어떻게 시험하나. 언어 기능의 시험은 fung 파일로 쓴다(설계 09). <code>tests/lang/*.fung</code> 파일에 <code># expect:</code> 주석으로 기대 출력을 적어 두면, <code>crates/fung-cli/tests/golden.rs</code>가 실제 실행 결과와 비교한다(골든 테스트). <code>dump</code>·실행·도구의 기대 출력은 <code>crates/*/tests/expected/</code> 아래 파일로 얼려 두고 시험이 사례 수까지 확인한다. 이 매뉴얼의 예제도 같은 방식이다. 페이지를 만들 때 모든 <code>run</code> 예제를 두 번 실행해 출력이 같은지 보고, <code>dump</code> 출력은 실제 명령의 결과다.</p>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-cli/src/test.rs</code>: 명령 <code>run_test</code>, 파일 하나 <code>test_file</code>, 테스트가 있는지 보는 <code>has_tests</code>, 요약 <code>Tally</code>.</li>
+<li><code>crates/fung-cli/src/paths.rs</code>: 파일 고르기 <code>test_files</code>, <code>fung_files</code>.</li>
+<li><code>crates/fung-front/src/compiler/m6.rs</code>: <code>assert</code>의 비교 쪼개기(<code>top_comparison</code>), <code>test</code> 블록 컴파일.</li>
+<li><code>crates/fung-front/src/loader.rs</code>: <code>Loader::tests</code>(진입 파일의 블록만 남긴다).</li>
+<li><code>crates/fung-vm/src/vm/m6.rs</code>: <code>ASSERT</code>·<code>TEST</code> 실행 <code>exec_m6</code>, 등록된 블록 <code>TestCase</code>, <code>Runtime::tests</code>, <code>Runtime::call_test</code>.</li>
+<li><code>crates/fung-cli/tests/golden.rs</code>, <code>tests/lang/</code>: 언어의 골든 테스트.</li>
+</ul>
+<div class="exercise"><b>slugify 고치기</b>
+<p>위 <code>slug.fung</code>의 두 테스트가 실패한다. <code>slugify</code>를 고쳐 세 테스트가 모두 통과하게 하자. 고친 파일은 <code>fung run</code>으로도 돌려 보자. <code>test</code> 블록은 무시되고 최상위만 돈다.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>fn slugify(s) = s |&gt; trim |&gt; lower |&gt; replace(&quot; &quot;, &quot;-&quot;) |&gt; replace(&quot;.&quot;, &quot;-&quot;)
+
+test &quot;spaces become hyphens&quot;:
+  assert slugify(&quot;Hello World&quot;) == &quot;hello-world&quot;
+;;
+
+test &quot;keeps digits&quot;:
+  assert slugify(&quot;Release 0.4&quot;) == &quot;release-0-4&quot;
+;;
+
+test &quot;trims&quot;:
+  assert slugify(&quot; a &quot;) == &quot;a&quot;
+;;
+
+print(slugify(&quot; Release 0.4 &quot;))</code></pre><pre class="out plain"><code>release-0-4</code></pre></div>
+<pre class="plain"><code>$ fung test fixed.fung
+release-0-4
+ok   fixed.fung: spaces become hyphens
+ok   fixed.fung: keeps digits
+ok   fixed.fung: trims
+3 passed, 0 failed</code></pre>
+<p><code>fung test</code>도 최상위를 먼저 실행하므로 <code>print</code>의 출력이 맨 앞에 나온다. 공백을 바꾸기 전에 <code>trim</code>해야 앞뒤 공백이 <code>-</code>가 되지 않는다.</p>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li><code>test</code> 블록은 같은 파일의 최상위에 둔다. <code>fung run</code>은 블록을 컴파일하지 않고, <code>fung test</code>는 블록을 인자 없는 함수로 컴파일해 그 자리의 <code>TEST</code> 명령으로 등록한다. 블록은 만들어질 때 보이는 파일 변수를 복사한다.</li>
+<li><code>assert</code>는 키워드다. 맨 바깥 비교는 컴파일러가 쪼개어 <code>ASSERT</code>가 양쪽 값을 보여 준다. 더 깊이 쪼개지 않는 것은 부수효과 있는 식을 두 번 평가하지 않으려는 것이다.</li>
+<li>실행기는 파일마다 새 런타임에서 최상위를 먼저 돌리고, 블록을 차례로 각자의 실행으로 돌린다. 테스트가 없는 파일은 실행하지 않는다.</li>
+<li><code>exit</code>나 교착 뒤에는 그 파일의 나머지를 건너뛰되 그것을 실패로 센다. 조용히 끝나는 테스트 실행은 없다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/language.html#testing">테스트와 디버깅</a>, <a href="../reference/cli.html#test">명령줄 도구</a>. 배우기: <a href="../learn/14-testing.html">14장 테스트</a>. 이것으로 책을 마친다. 전체를 한눈에 보는 요약은 부록 <a href="internals.html">내부 구조</a>에 있다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/16-repl.html"><small>이전 장</small>16. REPL</a><a class="next" href="../vm/internals.html"><small>다음 장</small>18. 내부 구조</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

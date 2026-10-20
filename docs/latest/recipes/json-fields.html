@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>JSON API에서 필드 뽑기 · fung 매뉴얼</title>
+<meta name="description" content="JSON API에서 필드 뽑기 (curl + jq 대신).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">JSON API에서 필드 뽑기</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html" aria-current="page">JSON API에서 필드 뽑기</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">HTTP와 문자열</span></nav>
+<h1>JSON API에서 필드 뽑기</h1>
+<p class="lede">HTTP API의 JSON 응답에서 필요한 필드만 골라 표로 찍는다. 주소를 주면 직접 받고, 주지 않으면 표준 입력을 읽어서 <code>curl</code>이나 <code>kubectl … -o json</code> 뒤에도 붙는다.</p>
+<p>배포 시스템, 모니터링, 클라우드 API는 거의 다 JSON을 돌려준다. 보고 싶은 것은 그중 몇 필드뿐이다. 여기서는 서비스 목록 API(<code>{&quot;items&quot;: [...]}</code>)에서 이름, 상태, 준비된 복제본 수, 담당 팀을 뽑아 표로 찍는다. 깊이 들어 있는 필드(<code>status.replicas.ready</code>)가 어떤 서비스에는 없거나 <code>null</code>이어도 멈추지 않고 기본값을 쓴다. <code>--state degraded</code>로 상태를 거를 수 있다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>curl -s https://deploy.example.com/api/v1/services \
+  | jq -r '.items[] | [.name, .status.state, &quot;\(.status.replicas.ready // 0)/\(.status.replicas.want // 0)&quot;, (.labels.team // &quot;-&quot;)] | @tsv'</code></pre>
+<p><code>jq</code>는 이 일에 아주 잘 맞는 도구다. 다만 <code>jq</code>는 그 자체로 작은 언어라서 조금만 길어져도 따로 배워야 하고, 서버나 CI 이미지에 늘 깔려 있지는 않다. <code>curl -s</code>는 HTTP 500 응답의 에러 본문도 조용히 <code>jq</code>에 넘기므로 <code>-f</code>를 잊으면 <code>jq</code>가 이상한 에러를 낸다. 결과를 가지고 다른 일(다른 API 부르기, 파일 쓰기, 종료 코드 정하기)을 하려면 다시 쉘로 돌아와야 한다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: services.json</summary>
+<p><code>services.json</code></p>
+<pre class="plain"><code>{
+  &quot;items&quot;: [
+    {&quot;name&quot;: &quot;api&quot;, &quot;status&quot;: {&quot;state&quot;: &quot;running&quot;, &quot;replicas&quot;: {&quot;ready&quot;: 3, &quot;want&quot;: 3}}, &quot;labels&quot;: {&quot;team&quot;: &quot;core&quot;}},
+    {&quot;name&quot;: &quot;worker&quot;, &quot;status&quot;: {&quot;state&quot;: &quot;degraded&quot;, &quot;replicas&quot;: {&quot;ready&quot;: 1, &quot;want&quot;: 4}}, &quot;labels&quot;: {&quot;team&quot;: &quot;data&quot;}},
+    {&quot;name&quot;: &quot;cron&quot;, &quot;status&quot;: {&quot;state&quot;: &quot;running&quot;, &quot;replicas&quot;: {&quot;ready&quot;: 1, &quot;want&quot;: 1}}, &quot;labels&quot;: {}},
+    {&quot;name&quot;: &quot;search&quot;, &quot;status&quot;: {&quot;state&quot;: &quot;stopped&quot;, &quot;replicas&quot;: null}, &quot;labels&quot;: {&quot;team&quot;: &quot;core&quot;}}
+  ],
+  &quot;next&quot;: null
+}</code></pre>
+<pre class="plain shell"><code>fung example.fung &lt; services.json</code></pre>
+</details>
+<div class="run"><pre><code>#!/usr/bin/env fung
+# Prints the services of a deploy API as a table: name, state, replicas
+# ready/wanted, team. Reads the JSON from a URL, or from standard input:
+#   fung services.fung https://deploy.example.com/api/v1/services
+#   curl -s https://deploy.example.com/api/v1/services | fung services.fung
+# --state STATE keeps only the services in that state.
+import cli
+import http
+import json
+
+fn fetch(url):
+  res = http.get(url, headers: {accept: &quot;application/json&quot;}, timeout: 10s)?
+  if res.status != 200: return Err({kind: 'http, message: &quot;${url}: HTTP ${res.status}&quot;}) ;;
+  Ok(res.body)
+;;
+
+# The value at a path of keys, or nil when any step is missing.
+fn dig(v, path) = match path:
+  []           =&gt; v
+  [k, ...rest] =&gt; type_of(v) == 'map then dig(get(v, k), rest) else nil
+;;
+
+opts = cli.parse(args)
+text = match first(opts.rest):
+  nil =&gt; join(read_lines()!, &quot;\n&quot;)
+  url =&gt; fetch(url)!
+;;
+items = dig(json.parse(text)!, [&quot;items&quot;]) ?? []
+wanted = get(opts.flags, &quot;state&quot;)
+
+rows = items
+  |&gt; filter(s =&gt; wanted == nil or dig(s, [&quot;status&quot;, &quot;state&quot;]) == wanted)
+  |&gt; map(s =&gt; [
+    s.name,
+    dig(s, [&quot;status&quot;, &quot;state&quot;]) ?? &quot;?&quot;,
+    &quot;${dig(s, [&quot;status&quot;, &quot;replicas&quot;, &quot;ready&quot;]) ?? 0}/${dig(s, [&quot;status&quot;, &quot;replicas&quot;, &quot;want&quot;]) ?? 0}&quot;,
+    dig(s, [&quot;labels&quot;, &quot;team&quot;]) ?? &quot;-&quot;,
+  ])
+for [name, state, ready, team] in rows:
+  print(pad_right(name, 8), pad_right(state, 9), pad_left(ready, 5), &quot; &quot;, team)
+;;</code></pre><pre class="out plain"><code>api      running     3/3   core
+worker   degraded    1/4   data
+cron     running     1/1   -
+search   stopped     0/0   core</code></pre></div>
+<p>여기서는 준비해 둔 파일을 표준 입력으로 넣었다(<code>fung services.fung &lt; services.json</code>). 실제로는 주소를 인자로 주거나 <code>curl -s … |</code> 뒤에 붙인다. <code>cron</code>은 팀 라벨이 없어 <code>-</code>, <code>search</code>는 <code>replicas</code>가 <code>null</code>이라 <code>0/0</code>이 되었다.</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>json.parse(text)!</code>: JSON 텍스트를 fung 값으로 바꾼다. 객체는 맵, 배열은 리스트, 숫자는 정수나 실수, <code>null</code>은 <code>nil</code>이 된다. 잘못된 JSON이면 <code>Err({kind: 'parse, line, col, message})</code>이고, <code>!</code>가 줄과 칸을 알려 주며 멈춘다.</li>
+<li><code>dig</code>: jq의 <code>.status.replicas.ready</code>에 해당한다. 키 리스트를 따라 한 단계씩 들어가다가 중간에 맵이 아닌 것(없는 키의 <code>nil</code>, JSON의 <code>null</code>)을 만나면 <code>nil</code>을 돌려준다. <code>s.status.replicas.ready</code>처럼 바로 쓰면 없는 키에서 런타임 에러로 멈추므로, 있을 수도 없을 수도 있는 필드에는 <code>dig</code>나 <code>get(m, k, 기본값)</code>을 쓴다.</li>
+<li><code>?? &quot;?&quot;</code>, <code>?? 0</code>, <code>?? &quot;-&quot;</code>: <code>dig</code>가 <code>nil</code>이면 기본값을 쓴다. jq의 <code>//</code>와 같은 일이다.</li>
+<li><code>fetch</code>: <code>http.get</code>은 네트워크가 실패하면(이름 조회, 접속, 시간 초과) <code>Err</code>를, 서버가 대답하면 상태 코드와 상관없이 <code>Ok({status, headers, body})</code>를 준다. 그래서 <code>200</code>이 아니면 직접 <code>Err</code>를 만든다. <code>?</code>는 <code>Err</code>면 그것을 그대로 호출한 쪽으로 돌려보내고, 바깥의 <code>fetch(url)!</code>이 메시지를 찍고 멈춘다. <code>curl -f</code>를 잊는 실수가 생기지 않는다.</li>
+<li><code>text = match first(opts.rest): …</code>: 주소가 없으면(<code>nil</code>) 표준 입력 전부를, 있으면 HTTP로 받는다. <code>match</code>도 값을 돌려주는 식이라 결과를 바로 대입한다.</li>
+<li><code>map(s =&gt; [ … ])</code>: 서비스 하나를 문자열 네 칸의 리스트로 만든다. 괄호 안에서는 줄을 바꿔 써도 된다. 문자열 보간 <code>&quot;${…}/${…}&quot;</code> 안에는 어떤 식이든 쓸 수 있다.</li>
+<li><code>for [name, state, ready, team] in rows</code>: <code>for</code>의 변수 자리에도 패턴을 쓴다. 칸 네 개를 이름으로 받는다.</li>
+</ul>
+<div class="box mistake"><b>JSON 값과 심볼 비교하기</b>
+<p>fung에서는 상태 같은 이름을 <code>'running</code> 같은 심볼로 쓰는 일이 많다. 그런데 JSON·파일·명령 출력에서 온 값은 언제나 <strong>문자열</strong>이다. 둘을 <code>==</code>로 비교하면 조용히 거짓이 되는 대신 E0517로 멈춘다. 문자열끼리 비교하거나, 문자열을 <code>sym(s)</code>로 바꿔서 비교한다.</p>
+<div class="run"><pre><code>import json
+
+svc = json.parse(`{&quot;name&quot;: &quot;api&quot;, &quot;state&quot;: &quot;running&quot;}`)!
+print(svc.state == &quot;running&quot;, sym(svc.state) == 'running)
+print(svc.state == 'running)</code></pre><pre class="out err plain" data-code="1"><code>true true
+error[E0517]: cannot compare a symbol with a string: &quot;running&quot; and 'running
+  --&gt; example.fung:5:17
+  |
+5 | print(svc.state == 'running)
+  |                 ^
+  |
+ call path (innermost first):
+   example.fung:5 &lt;entry&gt;
+ help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`</code></pre></div>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>인증 헤더</strong>: <code>http.get(url, headers: {authorization: &quot;Bearer ${env(&quot;API_TOKEN&quot;) ?? fail(&quot;API_TOKEN is not set&quot;)}&quot;})</code>. 토큰은 스크립트에 쓰지 않고 환경 변수로 받는다.</li>
+<li><strong>kubectl 출력</strong>: <code>kubectl get pods -o json | fung pods.fung</code>도 같은 방식이다. <code>dig(p, [&quot;status&quot;, &quot;phase&quot;])</code>, 컨테이너별 재시작 횟수는 <code>(dig(p, [&quot;status&quot;, &quot;containerStatuses&quot;]) ?? []) |&gt; map(c =&gt; c.restartCount) |&gt; sum</code>.</li>
+<li><strong>JSON으로 다시 내보내기</strong>: 골라낸 것을 다음 도구에 넘기려면 <code>print(json.stringify(rows))</code>. 들여쓰기는 <code>json.stringify(v, indent: 2)</code>. <a href="save-csv-json.html">CSV와 JSON으로 저장하기</a>.</li>
+<li><strong>여러 페이지</strong>: 응답의 <code>next</code>가 다음 주소를 가리키면 <a href="pagination.html">페이지 넘기며 모두 받기</a>처럼 끝까지 따라간다.</li>
+<li><strong>여러 API 동시에</strong>: 지역마다 API가 따로 있으면 <code>conc.pmap(urls, fetch)</code>로 한 번에 받는다.</li>
+</ul>
+<p>배우기: <a href="../learn/13-json-and-http.html">13장 JSON과 HTTP</a>, <a href="../learn/09-errors.html">9장 에러</a>, <a href="../learn/07-collections.html">7장 컬렉션</a>. 레퍼런스: <a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a>, <a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a>, <a href="../reference/prelude/maps.html#fn-get"><code>get</code></a>, <a href="../reference/prelude/convert.html#fn-type_of"><code>type_of</code></a>, <a href="../reference/prelude/convert.html#fn-sym"><code>sym</code></a>, <a href="../reference/language.html#values">비교와 동일성</a>, <a href="../reference/errors.html#E0517">E0517</a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/unreachable-servers.html"><small>이전</small>실패·무응답 서버만 알리기</a><a class="next" href="../recipes/check-urls.html"><small>다음</small>URL 여러 개 상태 동시에 확인하기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

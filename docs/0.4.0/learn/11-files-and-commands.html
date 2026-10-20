@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>파일·외부 명령·CLI · fung 매뉴얼</title>
+<meta name="description" content="파일 읽기·쓰기, 디렉터리 돌기, 외부 명령 실행(exec·sh), 명령줄 인자와 cli.parse, 환경 변수, 표준 입력, 종료 코드.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="learn">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">L</span><span class="mbar-where"><span class="mbar-title">11. 파일·외부 명령·CLI</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
+<ol class="chapters">
+<li><a href="../learn/01-programming.html">1. 프로그래밍과 fung</a></li>
+<li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
+<li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
+<li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
+<li><a href="../learn/05-functions.html">5. 함수</a></li>
+<li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
+<li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
+<li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
+<li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
+<li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
+<li><a href="../learn/11-files-and-commands.html" aria-current="page">11. 파일·외부 명령·CLI</a><ol class="toc2"><li><a href="#paths">파일과 경로</a></li><li><a href="#read">파일 읽기</a></li><li><a href="#write">파일 쓰기</a></li><li><a href="#dirs">디렉터리 돌기</a></li><li><a href="#exec">외부 명령 실행</a></li><li><a href="#args">명령줄 인자</a></li><li><a href="#env">환경 변수</a></li><li><a href="#stdin">표준 입력</a></li><li><a href="#exit">표준 에러와 종료 코드</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/12-concurrency.html">12. 동시에 여러 일 하기</a></li>
+<li><a href="../learn/13-json-and-http.html">13. JSON과 HTTP</a></li>
+<li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
+</ol>
+</li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../learn/01-programming.html"><span class="glyph">L</span>fung 배우기</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>11장</span></nav>
+<h1>파일·외부 명령·CLI</h1>
+<p class="lede">스크립트가 하는 일의 대부분은 파일을 읽고, 명령을 돌리고, 결과를 남기는 것이다. 이 장은 fung으로 쉘 스크립트가 하던 일을 하는 법을 배운다.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>파일을 읽고 쓰기: <code>fs.read</code>, <code>fs.read_lines</code>, <code>fs.write</code>, <code>fs.append</code></li>
+<li>디렉터리를 보고 돌기: <code>fs.list</code>, <code>fs.walk</code>, <code>fs.stat</code>, <code>fs.glob</code>, <code>path</code></li>
+<li>외부 명령 실행: <code>exec</code>와 <code>sh</code>, 종료 코드가 <code>Err</code>가 되는 규칙</li>
+<li>명령줄 인자 <code>args</code>와 <code>cli.parse</code>, 환경 변수 <code>env</code>, 표준 입력</li>
+<li>표준 에러와 종료 코드로 결과를 알리기</li>
+</ul>
+</div>
+<h2 id="paths">파일과 경로</h2>
+<p><strong>파일</strong>(file)은 디스크에 이름을 붙여 저장한 글자나 바이트의 묶음이고, <strong>디렉터리</strong>(directory, 폴더)는 파일과 다른 디렉터리를 담는 상자다. 파일의 위치는 <strong>경로</strong>(path)로 나타낸다. <code>/var/log/app.log</code>처럼 <code>/</code>로 시작하면 맨 위에서부터 적은 <strong>절대 경로</strong>, <code>logs/app.log</code>처럼 아니면 프로그램이 지금 서 있는 디렉터리(<strong>현재 디렉터리</strong>)에서부터 적은 <strong>상대 경로</strong>다.</p>
+<p>fung에서 파일을 다루는 함수는 <code>fs</code> 모듈에, 경로를 계산하는 함수는 <code>path</code> 모듈에 있다(10장). 파일 연산은 늘 실패할 수 있으므로(파일이 없다, 권한이 없다) 대부분 9장의 결과값을 돌려준다. 실패의 <code>kind</code>는 <code>'not_found</code>, <code>'exists</code>, <code>'permission</code>, <code>'io</code> 중 하나다.</p>
+<p>이 장의 예제는 빈 디렉터리에서 준비물 파일만 두고 돈다. 준비물은 예제 위의 접힌 상자에서 볼 수 있다.</p>
+<h2 id="read">파일 읽기</h2>
+<p><code>fs.read(경로)</code>는 파일 전체를 문자열 하나로, <code>fs.read_lines(경로)</code>는 줄의 리스트로 읽는다. 둘 다 결과값이므로 스크립트에서는 보통 <code>!</code>를 붙인다. 로그에서 <code>ERROR</code> 줄만 골라 세어 보자.</p>
+<details class="fixture"><summary>준비물: app.log</summary>
+<p><code>app.log</code></p>
+<pre class="plain"><code>2026-10-20T09:00:01Z INFO server started
+2026-10-20T09:03:12Z ERROR disk /data is 95% full
+2026-10-20T09:03:40Z WARN slow query (1.2s)
+2026-10-20T09:05:00Z ERROR upstream timeout: payments
+2026-10-20T09:06:30Z INFO request served</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+
+rows = fs.read_lines(&quot;app.log&quot;)!
+errors = rows |&gt; filter(r =&gt; &quot;ERROR&quot; in r)
+
+print(&quot;${len(errors)} errors in ${len(rows)} lines&quot;)
+for e in errors:
+  print(&quot; &quot;, e)
+;;</code></pre><pre class="out plain"><code>2 errors in 5 lines
+  2026-10-20T09:03:12Z ERROR disk /data is 95% full
+  2026-10-20T09:05:00Z ERROR upstream timeout: payments</code></pre></div>
+<p>없는 파일을 읽으면 <code>Err</code>가 온다. <code>!</code>를 붙였다면 거기서 멈추고, 처리하고 싶다면 <code>match</code>나 <code>??</code>를 쓴다(9장).</p>
+<div class="run"><pre><code>import fs
+
+match fs.read(&quot;settings.ini&quot;):
+  Ok(text)                =&gt; print(len(text), &quot;chars&quot;)
+  Err({kind: 'not_found}) =&gt; print(&quot;no settings.ini, using defaults&quot;)
+  Err(e)                  =&gt; print(&quot;cannot read:&quot;, e.message)
+;;</code></pre><pre class="out plain"><code>no settings.ini, using defaults</code></pre></div>
+<h2 id="write">파일 쓰기</h2>
+<p><code>fs.write(경로, 문자열)</code>은 파일을 만들거나 덮어쓰고, <code>fs.append(경로, 문자열)</code>은 끝에 덧붙인다(없으면 만든다). 줄바꿈은 자동으로 붙지 않으니 <code>&quot;\n&quot;</code>을 직접 넣는다. 성공하면 <code>Ok(nil)</code>이다. 쓰기가 실패했는데 모르고 지나가면 안 되므로, 결과를 버리면 9장의 E0606이다. 스크립트에서는 <code>!</code>를 붙인다.</p>
+<div class="run"><pre><code>import fs
+
+fs.write(&quot;report.txt&quot;, &quot;disk check\n&quot;)!
+for host in [&quot;web1&quot;, &quot;web2&quot;]:
+  fs.append(&quot;report.txt&quot;, &quot;${host}: ok\n&quot;)!
+;;
+print(fs.read(&quot;report.txt&quot;)!)</code></pre><pre class="out plain"><code>disk check
+web1: ok
+web2: ok</code></pre></div>
+<p>쓰려는 디렉터리가 없으면 쓰기가 실패한다. <code>fs.mkdir</code>는 중간 디렉터리까지 한꺼번에 만들고, 이미 있으면 그대로 둔다(<code>mkdir -p</code>와 같다).</p>
+<div class="run"><pre><code>import fs
+
+print(fs.write(&quot;out/2026/report.txt&quot;, &quot;x&quot;))
+fs.mkdir(&quot;out/2026&quot;)!
+fs.write(&quot;out/2026/report.txt&quot;, &quot;x&quot;)!
+print(fs.exists(&quot;out/2026/report.txt&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'not_found, message: &quot;cannot write `out/2026/report.txt`: no such file or directory&quot;})
+true</code></pre></div>
+<div class="box tip"><b>큰 파일과 핸들</b>
+<p><code>fs.read</code>는 파일을 통째로 메모리에 읽는다. 아주 큰 파일을 한 줄씩 다루거나 많은 줄을 차례로 쓸 때는 파일 <strong>핸들</strong>(handle, 열린 파일을 가리키는 값)을 연다. <code>fs.with_open(경로, f, mode: 'write)</code>는 파일을 열어 <code>f(핸들)</code>을 부르고, <code>f</code>가 어떻게 끝나든 닫아 준다. 핸들에는 <code>read_line(h)</code>·<code>fs.write_line(h, 줄)</code>을 쓴다. 자세한 것은 <a href="../reference/modules/fs.html#fn-fs-with_open">fs 레퍼런스</a>에 있다.</p>
+</div>
+<h2 id="dirs">디렉터리 돌기</h2>
+<p><code>fs.list(디렉터리)</code>는 바로 안의 이름들을, <code>fs.walk(디렉터리)</code>는 아래의 모든 파일 경로를 하위 디렉터리까지 내려가며 돌려준다(디렉터리 자신은 빼고). <code>fs.stat(경로)</code>는 <code>{name, size, is_dir}</code>을 돌려준다. <code>size</code>는 바이트 수다. 셋을 합치면 "로그 디렉터리에서 큰 <code>.log</code> 파일 찾기"가 된다.</p>
+<details class="fixture"><summary>준비물: api.log, worker.log, notes.txt</summary>
+<p><code>api.log</code></p>
+<pre class="plain"><code>GET /users 200
+GET /users 200
+POST /orders 500</code></pre>
+<p><code>worker.log</code></p>
+<pre class="plain"><code>job 1 done</code></pre>
+<p><code>notes.txt</code></p>
+<pre class="plain"><code>remember to rotate</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import path
+
+print(fs.list(&quot;.&quot;)!)
+
+sizes = fs.walk(&quot;.&quot;)!
+  |&gt; filter(p =&gt; path.ext(p) == &quot;.log&quot;)
+  |&gt; map(p =&gt; (p, fs.stat(p)!.size))
+  |&gt; sort_by(((_, size)) =&gt; -size)
+
+for (p, size) in sizes:
+  print(pad_left(str(size), 4), p)
+;;</code></pre><pre class="out plain"><code>[&quot;api.log&quot;, &quot;example.fung&quot;, &quot;notes.txt&quot;, &quot;worker.log&quot;]
+  47 api.log
+  11 worker.log</code></pre></div>
+<p>예제의 디렉터리에는 준비물과 예제 파일 <code>example.fung</code>만 있다. <code>fs.walk</code>는 하위 디렉터리가 있으면 <code>logs/old/api.1.log</code>처럼 그 경로까지 붙여서 준다.</p>
+<p><code>fs.glob(&quot;*.log&quot;)</code>는 쉘의 <code>*</code>·<code>?</code>처럼 패턴에 맞는 경로를 준다. <code>path</code>의 <code>join</code>·<code>base</code>·<code>dir</code>·<code>ext</code>·<code>stem</code>은 파일을 건드리지 않고 경로 문자열만 계산한다. 경로를 <code>+</code>와 <code>&quot;/&quot;</code>로 이어 붙이기보다 <code>path.join</code>을 쓰면 <code>/</code>가 겹치거나 빠지는 실수가 없다.</p>
+<details class="fixture"><summary>준비물: api.log, worker.log</summary>
+<p><code>api.log</code></p>
+<pre class="plain"><code>GET /users 200</code></pre>
+<p><code>worker.log</code></p>
+<pre class="plain"><code>job 1 done</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import path
+
+for p in fs.glob(&quot;*.log&quot;)!:
+  backup = path.join(&quot;backup&quot;, path.stem(p) + &quot;.old&quot;)
+  print(p, &quot;-&gt;&quot;, backup)
+;;</code></pre><pre class="out plain"><code>api.log -&gt; backup/api.old
+worker.log -&gt; backup/worker.old</code></pre></div>
+<div class="box mistake"><b>블록 안에서 바깥 변수 늘리기</b>
+<p>쉘에서는 <code>total=$((total + size))</code>를 반복문 안에서 쓴다. fung에서 <code>for</code> 본문 안에 <code>total = total + size</code>를 쓰면 컴파일 에러 E0205다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: <code>sizes |&gt; map(((_, s)) =&gt; s) |&gt; sum</code>, 또는 <code>fold</code>.</p>
+</div>
+<h2 id="exec">외부 명령 실행</h2>
+<p>fung으로 하기 어려운 일, 이미 있는 도구가 잘하는 일은 외부 명령(<code>git</code>, <code>kubectl</code>, <code>ssh</code> …)에 맡긴다. <code>exec</code>는 명령을 <strong>문자열 리스트</strong>로 받는다. 첫 원소가 실행할 프로그램이고 나머지가 인자다. 쉘을 거치지 않으므로 인자에 공백이나 <code>*</code>가 있어도 쪼개지거나 펼쳐지지 않는다.</p>
+<div class="run"><pre><code>r = exec([&quot;echo&quot;, &quot;hello&quot;, &quot;fung&quot;])
+print(r)
+out = exec([&quot;echo&quot;, &quot;hello&quot;, &quot;fung&quot;])!
+print(trim(out.out))</code></pre><pre class="out plain"><code>Ok({out: &quot;hello fung\n&quot;, err: &quot;&quot;, code: 0})
+hello fung</code></pre></div>
+<p>결과는 <code>Ok({out, err, code})</code>다. <code>out</code>과 <code>err</code>는 명령이 표준 출력과 표준 에러에 쓴 글자다. 명령이 0이 아닌 종료 코드로 끝나면 <code>Err({kind: 'exit, code, out, err, message})</code>이고, 명령을 찾지 못하면 <code>Err({kind: 'not_found, …})</code>다. 그래서 <code>exec(…)!</code>는 쉘의 <code>set -e</code>처럼 "실패하면 멈춘다"가 된다.</p>
+<div class="run"><pre><code>print(exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo partial; exit 3&quot;]))
+print(exec([&quot;no-such-tool&quot;, &quot;--version&quot;]))</code></pre><pre class="out plain"><code>Err({kind: 'exit, code: 3, out: &quot;partial\n&quot;, err: &quot;&quot;, message: &quot;`sh` exited with code 3&quot;})
+Err({kind: 'not_found, message: &quot;cannot run `no-such-tool`: command not found in PATH&quot;})</code></pre></div>
+<p>파이프(<code>|</code>), 리다이렉션(<code>&gt;</code>), 글로브처럼 쉘 기능이 꼭 필요하면 <code>sh(문자열)</code>을 쓴다. <code>/bin/sh -c 문자열</code>로 돌리고 결과의 모양은 <code>exec</code>와 같다. 둘 다 이름 붙인 인자 <code>cwd:</code>(실행할 디렉터리), <code>env:</code>(덧붙일 환경 변수 맵), <code>stdin:</code>(표준 입력으로 줄 문자열)을 받는다.</p>
+<div class="run"><pre><code>r = sh(&quot;printf 'a\\nERROR x\\nERROR y\\n' | grep -c ERROR&quot;)!
+print(&quot;errors:&quot;, trim(r.out))
+
+greeting = exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo \&quot;hi $WHO\&quot;&quot;], env: {WHO: &quot;ops&quot;})!
+print(trim(greeting.out))
+
+sorted = exec([&quot;sort&quot;], stdin: &quot;pear\napple\nfig\n&quot;)!
+print(lines(sorted.out))</code></pre><pre class="out plain"><code>errors: 2
+hi ops
+[&quot;apple&quot;, &quot;fig&quot;, &quot;pear&quot;]</code></pre></div>
+<div class="box mistake"><b>명령을 문자열 하나로 주기</b>
+<p><code>exec(&quot;ls -l&quot;)</code>은 런타임 에러 E0403(<code>argument </code>cmd<code> must be a list of strings</code>)이다. <code>exec</code>는 쉘처럼 문자열을 쪼개 주지 않는다. <code>exec([&quot;ls&quot;, &quot;-l&quot;])</code>로 나눠 쓰거나, 쉘 문법이 필요하면 <code>sh(&quot;ls -l | head&quot;)</code>를 쓴다. 바깥에서 온 값(파일 이름, 사용자 입력)을 <code>sh</code>의 문자열에 끼워 넣으면 쉘이 그것을 명령으로 해석할 수 있으니, 그런 값은 <code>exec</code>의 리스트 원소로 넘긴다.</p>
+</div>
+<h2 id="args">명령줄 인자</h2>
+<p><code>fung script.fung a b c</code>로 실행하면 스크립트 이름 뒤의 인자가 <code>args</code>에 문자열 리스트로 들어온다(2장). <code>--dir logs</code> 같은 옵션을 받으려면 <code>cli</code> 모듈의 <code>cli.parse(args)</code>를 쓴다. 결과는 <code>{flags, rest}</code>다. <code>--이름 값</code>과 <code>--이름=값</code>은 <code>flags</code>에, 나머지는 순서대로 <code>rest</code>에 간다. 값 없는 <code>--이름</code>은 <code>true</code>이고, <code>bools:</code>에 적은 이름은 다음 인자를 값으로 먹지 않는다. 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>dry_run</code>).</p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>fung example.fung --dir logs --min 100 --dry-run a.log b.log</code></pre>
+</details>
+<div class="run"><pre><code>import cli
+
+opts = cli.parse(args, bools: [&quot;dry-run&quot;])
+print(opts)
+
+dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
+min_size = int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
+dry_run = get(opts.flags, &quot;dry_run&quot;, false)
+print(dir, min_size, dry_run, opts.rest)</code></pre><pre class="out plain"><code>{flags: {dir: &quot;logs&quot;, min: &quot;100&quot;, dry_run: true}, rest: [&quot;a.log&quot;, &quot;b.log&quot;]}
+logs 100 true [&quot;a.log&quot;, &quot;b.log&quot;]</code></pre></div>
+<p>옵션 값은 늘 문자열이라 숫자가 필요하면 직접 바꾼다. 주지 않았을 수도 있는 옵션은 <code>get</code>으로 기본값을 준다(<code>opts.flags.dir</code>은 옵션이 없으면 런타임 에러다, 9장).</p>
+<h2 id="env">환경 변수</h2>
+<p><strong>환경 변수</strong>(environment variable)는 프로그램을 띄운 쪽(쉘, systemd, 컨테이너)이 넘겨주는 이름-값 쌍이다. <code>env(&quot;이름&quot;)</code>은 값을 문자열로, 없으면 <code>nil</code>을 돌려준다. 그래서 <code>??</code>로 기본값을 붙이는 모양이 흔하다. <code>env()</code>는 전체를 맵으로 준다.</p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>APP_ENV=staging fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>app_env = env(&quot;APP_ENV&quot;) ?? &quot;production&quot;
+port = int(env(&quot;PORT&quot;) ?? &quot;8080&quot;)
+print(app_env, port)</code></pre><pre class="out plain"><code>staging 8080</code></pre></div>
+<h2 id="stdin">표준 입력</h2>
+<p>파이프 중간에서 쓰는 스크립트(<code>cat app.log | fung count.fung</code>)는 <strong>표준 입력</strong>(standard input)을 읽는다. <code>read_lines()</code>는 인자 없이 부르면 표준 입력 전체를 줄 리스트로, <code>read_line()</code>은 한 줄을 <code>Ok(줄)</code>로, 끝에 닿으면 <code>Ok(nil)</code>로 준다. 아래 예제는 준비물 <code>in.txt</code>를 표준 입력으로 넣어 돌렸다.</p>
+<details class="fixture"><summary>준비물: in.txt</summary>
+<p><code>in.txt</code></p>
+<pre class="plain"><code>web1 200
+web2 500
+web3 200
+db1 503</code></pre>
+<pre class="plain shell"><code>fung example.fung &lt; in.txt</code></pre>
+</details>
+<div class="run"><pre><code>bad = read_lines()!
+  |&gt; map(row =&gt; split(row, &quot; &quot;))
+  |&gt; filter(([_, code]) =&gt; starts_with(code, &quot;5&quot;))
+  |&gt; map(([host, _]) =&gt; host)
+
+print(&quot;failing:&quot;, join(bad, &quot;, &quot;))</code></pre><pre class="out plain"><code>failing: web2, db1</code></pre></div>
+<h2 id="exit">표준 에러와 종료 코드</h2>
+<p>프로그램이 끝날 때 남기는 <strong>종료 코드</strong>(exit code)는 0이면 성공, 그 밖이면 실패라는 관례다. cron, CI, systemd, 쉘의 <code>&amp;&amp;</code>가 모두 이 숫자를 본다. fung 스크립트는 끝까지 가면 0, 런타임 에러나 <code>!</code>가 <code>Err</code>를 만나면 1, 컴파일 에러면 2로 끝난다. 원하는 코드로 끝내려면 <code>exit(n)</code>을 부른다.</p>
+<p>결과는 표준 출력(<code>print</code>)에, 사람에게 보이는 경고와 에러는 <strong>표준 에러</strong>(<code>eprint</code>)에 쓴다. 그래야 <code>fung check.fung &gt; result.txt</code>처럼 출력을 파일로 받아도 에러가 섞이지 않는다.</p>
+<div class="run"><pre><code>import fs
+
+missing = [&quot;app.conf&quot;, &quot;db.conf&quot;] |&gt; filter(f =&gt; not fs.exists(f))
+if not is_empty(missing):
+  eprint(&quot;missing config:&quot;, join(missing, &quot;, &quot;))
+  exit(2)
+;;
+print(&quot;all config present&quot;)</code></pre><pre class="out err plain" data-code="2"><code>missing config: app.conf, db.conf</code></pre></div>
+<p>파일 첫 줄에 <code>#!/usr/bin/env fung</code>을 쓰고 실행 권한을 주면(<code>chmod +x check.fung</code>) <code>./check.fung</code>으로 바로 실행할 수 있다. fung에게 그 줄은 그냥 주석이다.</p>
+<div class="box other"><b>쉘과 비교하면</b>
+<p>쉘 스크립트는 명령을 잇는 데 강하지만, 변수가 모두 문자열이고 공백이 든 파일 이름에서 자주 깨지며, 실패를 놓치기 쉽다(<code>set -euo pipefail</code>을 잊으면). fung은 값에 타입이 있고, <code>exec</code>가 인자를 쪼개지 않으며, 실패가 결과값이라 무시하면 E0606으로 멈춘다. 그 대신 짧은 한 줄짜리 일에는 쉘이 더 간결하다. 둘은 경쟁이 아니라, 파이프 한 줄은 <code>sh</code>에 맡기고 나머지 논리는 fung으로 쓰는 식으로 섞어 쓴다.</p>
+</div>
+<div class="exercise"><b>큰 로그 찾기</b>
+<p><code>--dir 디렉터리</code>와 <code>--min 바이트</code>를 받아, 그 디렉터리 아래에서 크기가 <code>min</code> 이상인 <code>.log</code> 파일을 큰 순서로 출력하는 스크립트를 써 보자. 하나도 없으면 표준 에러에 <code>no log files over N bytes</code>를 쓰고 종료 코드 1로 끝낸다. <code>--dir</code>의 기본값은 <code>.</code>, <code>--min</code>의 기본값은 <code>0</code>이다.</p>
+<details><summary>풀이 보기</summary>
+<p>준비물 파일 셋을 두고 <code>--min 20</code>으로 돌린 결과다(<code>--dir</code>을 주지 않았으니 현재 디렉터리).</p>
+<details class="fixture"><summary>준비물: api.log, worker.log, health.log</summary>
+<p><code>api.log</code></p>
+<pre class="plain"><code>GET /users 200
+GET /users 200
+POST /orders 500</code></pre>
+<p><code>worker.log</code></p>
+<pre class="plain"><code>job 1 done</code></pre>
+<p><code>health.log</code></p>
+<pre class="plain"><code>GET /health 200
+GET /health 200</code></pre>
+<pre class="plain shell"><code>fung example.fung --min 20</code></pre>
+</details>
+<div class="run"><pre><code>import cli
+import fs
+import path
+
+opts = cli.parse(args)
+dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
+min_size = int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
+
+found = fs.walk(dir)!
+  |&gt; filter(p =&gt; path.ext(p) == &quot;.log&quot;)
+  |&gt; map(p =&gt; (p, fs.stat(p)!.size))
+  |&gt; filter(((_, size)) =&gt; size &gt;= min_size)
+  |&gt; sort_by(((_, size)) =&gt; -size)
+
+if is_empty(found):
+  eprint(&quot;no log files over ${min_size} bytes&quot;)
+  exit(1)
+;;
+for (p, size) in found:
+  print(size, p)
+;;</code></pre><pre class="out plain"><code>47 api.log
+32 health.log</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li><code>fs.read</code>·<code>fs.read_lines</code>로 읽고, <code>fs.write</code>·<code>fs.append</code>로 쓴다. 모두 결과값이라 스크립트에서는 <code>!</code>를 붙인다.</li>
+<li><code>fs.list</code>·<code>fs.walk</code>·<code>fs.glob</code>로 파일을 찾고, <code>fs.stat</code>로 크기를 본다. 경로 계산은 <code>path</code>.</li>
+<li><code>exec([프로그램, 인자…])</code>는 쉘 없이 명령을 돌리고 <code>Ok({out, err, code})</code>를 준다. 0이 아닌 종료는 <code>Err({kind: 'exit, …})</code>. 쉘 기능이 필요할 때만 <code>sh</code>.</li>
+<li>인자는 <code>args</code>, 옵션은 <code>cli.parse(args)</code>, 환경 변수는 <code>env(&quot;이름&quot;) ?? 기본값</code>, 표준 입력은 <code>read_lines()</code>.</li>
+<li>결과는 <code>print</code>, 경고와 에러는 <code>eprint</code>, 끝내는 코드는 <code>exit(n)</code>.</li>
+</ul>
+<p>함수마다의 자세한 설명은 레퍼런스의 <a href="../reference/modules/fs.html">fs</a>, <a href="../reference/modules/path.html">path</a>, <a href="../reference/modules/cli.html">cli</a>, <a href="../reference/prelude/process.html">프로세스와 환경</a>, <a href="../reference/prelude/io.html">입출력</a>, <a href="../reference/prelude/program.html">에러와 종료</a>에 있다. 명령줄 도구의 종료 코드 표는 <a href="../reference/cli.html#exit-codes">명령줄 도구</a>에 있다. 실무 예는 예제 모음의 <a href="../recipes/find-big-files.html">큰 파일 찾기</a>, <a href="../recipes/exit-codes.html">종료 코드와 stderr</a>를 보라.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/10-modules.html"><small>이전 장</small>10. 모듈로 나누기</a><a class="next" href="../learn/12-concurrency.html"><small>다음 장</small>12. 동시에 여러 일 하기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

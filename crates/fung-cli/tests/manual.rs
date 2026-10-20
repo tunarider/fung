@@ -1,5 +1,5 @@
-//! The manual's function reference (`docs/latest/reference/functions.html`,
-//! generated from `manual/reference/functions.md`) against the
+//! The manual's function reference (`docs/latest/reference/{prelude,modules}/`,
+//! generated from `manual/reference/`) against the
 //! runtime's own parameter tables. Every public prelude name and
 //! every public member of the standard modules has exactly one entry,
 //! the entry's signature is the real one (names, defaults, rest), and the
@@ -225,22 +225,45 @@ fn expected() -> BTreeMap<String, Entry> {
     out
 }
 
-/// The entries of the generated function reference: `<div class="fn" id="fn-ID"><code>SIG</code>`
-/// and whether a `<span class="by">` mark follows.
+/// The function entries of a generated reference page:
+/// `<section class="entry" id="fn-ID">`, its `<h3>` (with a
+/// `<span class="by">` mark for one written in fung) and
+/// `<div class="sig"><code>SIG</code></div>`.
 fn documented(html: &str) -> BTreeMap<String, Entry> {
     let mut out = BTreeMap::new();
-    let marker = "<div class=\"fn\" id=\"fn-";
+    let marker = "<section class=\"entry\" id=\"fn-";
     let mut rest = html;
     while let Some(i) = rest.find(marker) {
         rest = &rest[i + marker.len()..];
         let id = &rest[..rest.find('"').unwrap()];
-        let code = rest.find("><code>").unwrap() + "><code>".len();
-        let end = rest[code..].find("</code>").unwrap() + code;
-        let sig = unescape(&rest[code..end]);
-        let line_end = rest[end..].find('\n').unwrap() + end;
-        let fung = rest[end..line_end].contains("<span class=\"by\"");
+        let entry = &rest[..rest.find("</section>").unwrap()];
+        let h3 = &entry[entry.find("<h3>").unwrap()..entry.find("</h3>").unwrap()];
+        let fung = h3.contains("<span class=\"by\"");
+        let sig_at =
+            entry.find("<div class=\"sig\"><code>").unwrap() + "<div class=\"sig\"><code>".len();
+        let sig = unescape(&entry[sig_at..sig_at + entry[sig_at..].find("</code>").unwrap()]);
         let old = out.insert(id.to_string(), Entry { sig, fung });
         assert!(old.is_none(), "fn-{id} twice");
+    }
+    out
+}
+
+/// Every function entry of the generated reference pages.
+fn documented_all() -> BTreeMap<String, Entry> {
+    let root = common::repo().join("docs/latest/reference");
+    let mut out = BTreeMap::new();
+    for dir in ["prelude", "modules"] {
+        let mut files: Vec<_> = std::fs::read_dir(root.join(dir))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        files.sort();
+        for f in files {
+            for (id, e) in documented(&std::fs::read_to_string(&f).unwrap()) {
+                let old = out.insert(id.clone(), e);
+                assert!(old.is_none(), "fn-{id} on two pages");
+            }
+        }
     }
     out
 }
@@ -258,7 +281,7 @@ fn the_function_reference_matches_the_parameter_tables() {
     let html = std::fs::read_to_string(common::repo().join("docs/latest/reference/functions.html"))
         .unwrap();
     let want = expected();
-    let got = documented(&html);
+    let got = documented_all();
     let mut bad = Vec::new();
     for (id, w) in &want {
         match got.get(id) {

@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>path — 경로 계산 · fung 매뉴얼</title>
+<meta name="description" content="fung 모듈 path — 파일 시스템을 건드리지 않는 경로 계산(join, base, dir, ext, stem, abs).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">path — 경로 계산</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html" aria-current="page">path — 경로 계산</a><ol class="toc2"><li><a href="#concepts">경로란</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">표준 모듈</span></nav>
+<h1>path — 경로 계산</h1>
+<p class="lede"><code>import path</code>. 경로 문자열을 잇고 나누는 계산이다. 디스크를 전혀 건드리지 않으므로 실패하지 않고, 결과는 결과값이 아닌 문자열이다.</p>
+<h2 id="concepts">경로란</h2>
+<p><strong>경로</strong>(path)는 파일 시스템 안의 위치를 적은 문자열이다. <code>/</code>로 나눈 조각 하나하나를 <strong>요소</strong>(component)라고 부른다. <code>/var/log/nginx/access.log</code>에서 요소는 <code>var</code>, <code>log</code>, <code>nginx</code>, <code>access.log</code>이고, 마지막 요소가 파일 이름이다. 파일 이름의 마지막 <code>.</code> 뒤(<code>.log</code>)가 <strong>확장자</strong>(extension)로, 파일의 종류를 나타내는 관례다.</p>
+<ul>
+<li><code>/</code>로 시작하면 <strong>절대 경로</strong>, 아니면 현재 디렉터리에서 시작하는 <strong>상대 경로</strong>다.</li>
+<li><code>.</code>은 "지금 디렉터리", <code>..</code>은 "한 단계 위"다. <code>a/./b</code>는 <code>a/b</code>, <code>a/../b</code>는 <code>b</code>와 같은 곳이다.</li>
+<li><code>a//b</code>처럼 <code>/</code>가 겹쳐도 <code>a/b</code>와 같다.</li>
+</ul>
+<p>경로는 그냥 문자열이니 <code>&quot;${dir}/${name}&quot;</code>처럼 이어 붙여도 된다. 하지만 <code>dir</code>이 <code>/</code>로 끝나거나 비어 있으면 <code>//</code>나 <code>/name</code> 같은 엉뚱한 경로가 나온다. <code>path</code> 모듈은 이런 경우를 정리해 준다. 이 모듈의 함수는 <strong>문자열만 계산</strong>하고 디스크를 보지 않는다. 그래서 파일이 실제로 있는지와 상관없이 늘 같은 답을 주고, 실패하지 않는다. 파일이 있는지는 <a href="fs.html#fn-fs-exists"><code>fs.exists</code></a>로 알아본다.</p>
+<p><strong>정리</strong>(clean)는 같은 곳을 가리키는 가장 짧은 꼴로 바꾸는 것이다: 겹친 <code>/</code>를 하나로, <code>.</code> 요소를 빼고, <code>이름/..</code>을 지우고, 끝의 <code>/</code>를 뗀다. 빈 결과는 <code>.</code>이 된다. <code>path.join</code>, <code>path.dir</code>, <code>path.abs</code>가 결과를 정리한다. 정리는 글자만 보고 하므로 심볼릭 링크를 따라가지 않는다.</p>
+<div class="run"><pre><code>import path
+
+p = &quot;/var/log/nginx/access.log&quot;
+print(path.dir(p), path.base(p), path.stem(p), path.ext(p))</code></pre><pre class="out plain"><code>/var/log/nginx access.log access .log</code></pre></div>
+<h2 id="functions">함수</h2>
+<section class="entry" id="fn-path-join">
+<h3>path.join</h3>
+<p>경로 조각들을 이어 붙이고 정리한다.</p>
+<div class="sig"><code>path.join(...parts)</code></div>
+<h4>설명</h4>
+<p>인자로 받은 문자열을 <code>/</code>로 잇고 <a href="#concepts">정리</a>한다. 빈 조각은 건너뛴다. 조각이 없거나 모두 비면 <code>&quot;&quot;</code>다. 다른 언어의 경로 함수와 달리, <strong>뒤의 절대 경로가 앞을 지우지 않는다</strong>: <code>path.join(&quot;a&quot;, &quot;/c&quot;)</code>는 <code>&quot;a/c&quot;</code>다. 사용자가 준 이름이 <code>/</code>로 시작해도 지정한 디렉터리 밖으로 나가지 않게 하려는 선택이다. 다만 <code>..</code>은 정리되므로 <code>path.join(&quot;a&quot;, &quot;../..&quot;)</code>는 <code>&quot;..&quot;</code>이다. 믿을 수 없는 이름을 붙일 때는 <code>..</code>을 따로 검사한다.</p>
+<p>인자는 몇 개든 줄 수 있다. 리스트를 그대로 넘길 수는 없으므로, 리스트에 담긴 조각은 <code>fold(xs, &quot;&quot;, path.join)</code>으로 잇는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>...parts</code>: 이을 문자열들(0개 이상).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>정리된 경로 문자열.</p>
+<h4>에러</h4>
+<ul>
+<li>문자열이 아닌 인자는 런타임 에러 E0403.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>이어 붙이기와 정리</strong></p>
+<div class="run"><pre><code>import path
+
+print(path.join(&quot;/var/log&quot;, &quot;nginx&quot;, &quot;access.log&quot;))
+print(path.join(&quot;logs/&quot;, &quot;/app.log&quot;))
+print(path.join(&quot;./a/./b/&quot;, &quot;../c&quot;))
+print(path.join(&quot;a&quot;, &quot;..&quot;, &quot;..&quot;))</code></pre><pre class="out plain"><code>/var/log/nginx/access.log
+logs/app.log
+a/c
+..</code></pre></div>
+<p><strong>리스트로 받은 조각</strong></p>
+<div class="run"><pre><code>import path
+
+parts = [&quot;etc&quot;, &quot;nginx&quot;, &quot;conf.d&quot;]
+print(fold(parts, &quot;&quot;, path.join))
+print(fold(parts, &quot;/&quot;, path.join))</code></pre><pre class="out plain"><code>etc/nginx/conf.d
+/etc/nginx/conf.d</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-path-dir"><code>path.dir</code></a>, <a href="#fn-path-abs"><code>path.abs</code></a>, <a href="fs.html#fn-fs-list"><code>fs.list</code></a>(<code>full: true</code>)</p>
+</section>
+<section class="entry" id="fn-path-base">
+<h3>path.base</h3>
+<p>경로의 마지막 요소(파일 이름)를 돌려준다.</p>
+<div class="sig"><code>path.base(p)</code></div>
+<h4>설명</h4>
+<p>셸의 <code>basename</code>과 같다. 끝의 <code>/</code>는 무시한다(<code>&quot;a/b/&quot;</code> → <code>&quot;b&quot;</code>). <code>&quot;/&quot;</code>는 <code>&quot;/&quot;</code>, 빈 경로는 <code>&quot;.&quot;</code>이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>p</code>: 경로 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>마지막 요소(문자열).</p>
+<h4>예제</h4>
+<div class="run"><pre><code>import path
+
+print(path.base(&quot;/var/log/app.log&quot;), path.base(&quot;backup/2026/&quot;), path.base(&quot;/&quot;), path.base(&quot;&quot;))</code></pre><pre class="out plain"><code>app.log 2026 / .</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-path-dir"><code>path.dir</code></a>, <a href="#fn-path-stem"><code>path.stem</code></a></p>
+</section>
+<section class="entry" id="fn-path-dir">
+<h3>path.dir</h3>
+<p>마지막 요소를 뺀 나머지(들어 있는 디렉터리)를 돌려준다.</p>
+<div class="sig"><code>path.dir(p)</code></div>
+<h4>설명</h4>
+<p>셸의 <code>dirname</code>과 비슷하다. 결과는 정리된 꼴이다. 디렉터리가 없는 이름(<code>&quot;app.log&quot;</code>)은 현재 디렉터리 <code>&quot;.&quot;</code>, <code>&quot;/x&quot;</code>는 <code>&quot;/&quot;</code>이다. 끝에 <code>/</code>가 있으면 그 앞까지가 디렉터리로 남는다(<code>&quot;a/b/&quot;</code> → <code>&quot;a/b&quot;</code>).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>p</code>: 경로 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>디렉터리 부분(문자열).</p>
+<h4>예제</h4>
+<p><strong>들어 있는 디렉터리</strong></p>
+<div class="run"><pre><code>import path
+
+print(path.dir(&quot;/var/log/app.log&quot;), path.dir(&quot;app.log&quot;), path.dir(&quot;/x&quot;), path.dir(&quot;a/b/&quot;))</code></pre><pre class="out plain"><code>/var/log . / a/b</code></pre></div>
+<p><strong>같은 디렉터리에 다른 파일 만들기</strong></p>
+<div class="run"><pre><code>import path
+
+conf = &quot;deploy/prod/app.yaml&quot;
+print(path.join(path.dir(conf), &quot;secrets.yaml&quot;))</code></pre><pre class="out plain"><code>deploy/prod/secrets.yaml</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-path-base"><code>path.base</code></a>, <a href="#fn-path-join"><code>path.join</code></a></p>
+</section>
+<section class="entry" id="fn-path-ext">
+<h3>path.ext</h3>
+<p>확장자를 점까지 포함해 돌려준다.</p>
+<div class="sig"><code>path.ext(p)</code></div>
+<h4>설명</h4>
+<p>마지막 요소에서 마지막 <code>.</code>부터 끝까지다: <code>&quot;a.tar.gz&quot;</code> → <code>&quot;.gz&quot;</code>. 확장자가 없으면 <code>&quot;&quot;</code>. <code>.</code>으로 시작하는 숨은 파일 이름(<code>&quot;.bashrc&quot;</code>)은 확장자가 없는 것으로 본다. 디렉터리 이름의 점은 보지 않는다(<code>&quot;a/b.c/d&quot;</code> → <code>&quot;&quot;</code>).</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>p</code>: 경로 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>.</code>으로 시작하는 확장자, 또는 <code>&quot;&quot;</code>.</p>
+<h4>예제</h4>
+<p><strong>확장자별로 나누기</strong></p>
+<div class="run"><pre><code>import path
+
+files = [&quot;a.log&quot;, &quot;b.txt&quot;, &quot;c.log&quot;, &quot;Makefile&quot;, &quot;.env&quot;]
+print(files |&gt; group_by(path.ext))</code></pre><pre class="out plain"><code>{&quot;.log&quot;: [&quot;a.log&quot;, &quot;c.log&quot;], &quot;.txt&quot;: [&quot;b.txt&quot;], &quot;&quot;: [&quot;Makefile&quot;, &quot;.env&quot;]}</code></pre></div>
+<p><strong>여러 겹 확장자</strong></p>
+<div class="run"><pre><code>import path
+
+print(path.ext(&quot;backup.tar.gz&quot;), path.ext(&quot;.hidden&quot;), path.ext(&quot;dir.d/file&quot;))</code></pre><pre class="out plain"><code>.gz  </code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-path-stem"><code>path.stem</code></a></p>
+</section>
+<section class="entry" id="fn-path-stem">
+<h3>path.stem</h3>
+<p>마지막 요소에서 확장자를 뺀 이름을 돌려준다.</p>
+<div class="sig"><code>path.stem(p)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-path-base"><code>path.base</code></a>에서 <a href="#fn-path-ext"><code>path.ext</code></a>를 뗀 것이다. 디렉터리 부분은 남지 않는다(<code>&quot;dir/report.csv&quot;</code> → <code>&quot;report&quot;</code>). 확장자는 마지막 하나만 떼므로 <code>&quot;a.tar.gz&quot;</code>는 <code>&quot;a.tar&quot;</code>다. 숨은 파일 이름은 그대로다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>p</code>: 경로 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>확장자 없는 이름(문자열).</p>
+<h4>예제</h4>
+<p><strong>확장자 바꾸기</strong></p>
+<div class="run"><pre><code>import path
+
+src = &quot;reports/2026-10.csv&quot;
+print(path.join(path.dir(src), path.stem(src) + &quot;.json&quot;))
+print(path.stem(&quot;a.tar.gz&quot;), path.stem(&quot;.bashrc&quot;))</code></pre><pre class="out plain"><code>reports/2026-10.json
+a.tar .bashrc</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-path-ext"><code>path.ext</code></a>, <a href="#fn-path-base"><code>path.base</code></a></p>
+</section>
+<section class="entry" id="fn-path-abs">
+<h3>path.abs</h3>
+<p>현재 디렉터리를 기준으로 한 절대 경로를 돌려준다.</p>
+<div class="sig"><code>path.abs(p)</code></div>
+<h4>설명</h4>
+<p><code>p</code>가 상대 경로면 현재 디렉터리 앞에 붙이고 정리한다. 이미 절대 경로면 정리만 한다. 파일이 있는지는 보지 않고, 심볼릭 링크도 풀지 않는다. 로그나 에러 메시지에 "어느 파일인지" 분명히 적을 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>p</code>: 경로 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>절대 경로(문자열).</p>
+<h4>예제</h4>
+<p>이 매뉴얼의 예제는 빈 디렉터리에서 돌고, 그 디렉터리의 실제 경로는 출력에서 <code>.</code>으로 바꿔 보인다. 실제로는 <code>/home/me/work/app.log</code>처럼 나온다.</p>
+<div class="run"><pre><code>import path
+
+print(path.abs(&quot;app.log&quot;))
+print(path.abs(&quot;/etc/../tmp&quot;))</code></pre><pre class="out plain"><code>./app.log
+/tmp</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-path-join"><code>path.join</code></a>, <a href="fs.html#fn-fs-exists"><code>fs.exists</code></a></p>
+</section>
+<p>파일을 실제로 읽고 쓰는 함수는 <a href="fs.html"><code>fs</code></a>에 있다. 배우는 순서로는 <a href="../../learn/11-files-and-commands.html">11장 파일·외부 명령·CLI</a>를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/modules/fs.html"><small>이전</small>fs — 파일과 디렉터리</a><a class="next" href="../../reference/modules/cli.html"><small>다음</small>cli — 명령줄 옵션</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

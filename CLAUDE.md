@@ -1,7 +1,7 @@
 # fung — 작업 안내 (Claude용)
 
 fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (바이트코드 VM).
-설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 동시성 v2(언어 L1~L6, 런타임 R1~R6)를 마치고 0.3.0(2026-10-19)을, 언어·VM 검토와 매뉴얼 개편 1단계를 마치고 0.4.0(2026-10-20)을 냈다.
+설계, 알파(M0~M10), Rust 이식(1~6c단계)을 마치고 0.2.0(첫 Rust 릴리스, 2026-10-18)을 냈다. 동시성 v2(언어 L1~L6, 런타임 R1~R6)를 마치고 0.3.0(2026-10-19)을, 언어·VM 검토와 매뉴얼 개편을 마치고 0.4.0(2026-10-20)을 냈다.
 
 ## 먼저 읽을 것
 
@@ -93,7 +93,7 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
 - 매뉴얼: 원고는 `manual/`(목차 `toc.txt`, 마크다운 부분집합 + 날 HTML, 형식은 `docs/plans/2026-10-20-manual-1-skeleton.md` "원고 형식"), 생성 결과는 `docs/latest/`(커밋한다).
   GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 원고를 고치고 `FUNG_UPDATE_MANUAL=1 cargo test -p fung-cli --test manual_build`로 다시 만든 뒤 diff를 검토한다.**
   생성기(`crates/fung-cli/tests/manual_site/`)가 `fung run`·`check`·`dump` 펜스를 검사·실행하고(`run`은 두 번 돌려 출력이 같아야 한다) 실제 출력을 페이지에 넣으며, 깨진 내부 링크를 막는다.
-  함수 레퍼런스는 매개변수 표와 같아야 한다(`manual.rs`). 설계 `docs/superpowers/specs/2026-10-20-manual-structure-design.md`(네 부분, 1단계 뼈대까지 끝).
+  함수 레퍼런스는 매개변수 표와 같아야 한다(`manual.rs`). 설계 `docs/superpowers/specs/2026-10-20-manual-structure-design.md`(네 부분 모두 씀: 배우기·예제 모음·레퍼런스·VM). 원고 작성 지침 `docs/plans/2026-10-20-manual-2-content.md`, 쓰며 찾은 언어 문제 `docs/plans/2026-10-20-manual-findings.md`.
   버전: `docs/versions.js`, 옛 주소(`docs/index.html` 등)는 `latest`로 넘겨 주는 생성물이다. 0.4.0부터 릴리스 때 버전을 얼린다(`docs/notes/release.md` 7절).
 - 배포: 버전은 빌드 때의 `FUNG_BUILD_VERSION` → `0.0.0-dev`, `scripts/build-release.sh`(Linux musl 정적·macOS, `SHA256SUMS`), `scripts/check-release.sh`, `install.sh`,
   `.github/workflows/release.yml`(`v*` 태그만 게시). **사용자에게 보이는 변화는 `CHANGELOG.md`의 `[Unreleased]`에 적는다. 릴리스 때 그 절을 고치고 매뉴얼을 얼린다**(`changelog.rs`).

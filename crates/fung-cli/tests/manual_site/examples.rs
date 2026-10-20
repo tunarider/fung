@@ -49,12 +49,17 @@ pub fn run_all(
 fn one(bin: &Path, code: &Code) -> Result<Outcome, String> {
     let dir = laid_out(code)?;
     let checked = exec(bin, &dir, code, &["check", "example.fung"], false)?;
-    if checked.code != 0 || checked.output.contains("error[") {
+    // an example that states a failing exit may be one `check` refuses
+    // (a compile error); its run below shows that error for real
+    let shows_failure = code.exit != 0;
+    if (checked.code != 0 || checked.output.contains("error[")) && !shows_failure {
         return Err(format!("check: exit {}\n{}", checked.code, checked.output));
     }
     if matches!(code.kind, Kind::Run | Kind::Check) {
         let f = exec(bin, &dir, code, &["fmt", "--check", "example.fung"], false)?;
-        if f.code != 0 {
+        // the formatter cannot parse a syntax error: that is no format fault
+        let unparsable = shows_failure && f.output.contains("error[");
+        if f.code != 0 && !unparsable {
             return Err(format!(
                 "fmt --check: the example is not formatted (exit {})\n{}",
                 f.code, f.output
@@ -80,6 +85,31 @@ fn one(bin: &Path, code: &Code) -> Result<Outcome, String> {
             first.code, code.exit, first.output
         ));
     }
+    // a failing example names the error it shows, so a wrong
+    // reproduction (a missing fixture, a typo) cannot pass for it
+    let shown = first
+        .output
+        .split("error[")
+        .nth(1)
+        .map(|r| r.chars().take(5).collect::<String>());
+    match (&code.error, &shown) {
+        (Some(want), Some(got)) if want != got => {
+            return Err(format!("shows {got}, not error={want}\n{}", first.output));
+        }
+        (Some(want), None) => {
+            return Err(format!(
+                "shows no error, not error={want}\n{}",
+                first.output
+            ));
+        }
+        (None, Some(got)) if code.exit != 0 => {
+            return Err(format!(
+                "shows {got}: say which error it is about with `error={got}`\n{}",
+                first.output
+            ));
+        }
+        _ => {}
+    }
     if !code.hide_output {
         let again = exec(bin, &laid_out(code)?, code, &args, true)?;
         if again != first {
@@ -98,7 +128,18 @@ fn laid_out(code: &Code) -> Result<Scratch, String> {
     std::fs::write(dir.0.join("example.fung"), format!("{}\n", code.src))
         .map_err(|e| e.to_string())?;
     for (name, contents) in &code.files {
-        std::fs::write(dir.0.join(name), contents).map_err(|e| e.to_string())?;
+        let rel = Path::new(name);
+        let inside = rel
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)));
+        if !inside {
+            return Err(format!(
+                "file {name}: a fixture stays inside the example's directory (a relative path without `..`)"
+            ));
+        }
+        let path = dir.0.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+        std::fs::write(&path, contents).map_err(|e| format!("file {name}: {e}"))?;
     }
     Ok(dir)
 }

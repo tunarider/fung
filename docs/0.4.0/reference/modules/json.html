@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>json — JSON · fung 매뉴얼</title>
+<meta name="description" content="fung 모듈 json — JSON 텍스트와 fung 값 사이의 변환(parse, stringify).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">json — JSON</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html" aria-current="page">json — JSON</a><ol class="toc2"><li><a href="#concepts">JSON이란</a></li></ol></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">표준 모듈</span></nav>
+<h1>json — JSON</h1>
+<p class="lede"><code>import json</code>. JSON 텍스트를 fung 값으로 읽고(<code>parse</code>), fung 값을 JSON 텍스트로 쓴다(<code>stringify</code>). 모든 글자를 훑는 일이라 네이티브 코드로 만들었다.</p>
+<h2 id="concepts">JSON이란</h2>
+<p><strong>JSON</strong>(JavaScript Object Notation)은 데이터를 글자로 적는 형식이다. 웹 API의 응답, 설정 파일, 로그 한 줄 등 프로그램끼리 데이터를 주고받는 곳 대부분이 JSON을 쓴다. 생김새는 fung의 맵·리스트 리터럴과 거의 같다.</p>
+<pre class="plain"><code>{&quot;name&quot;: &quot;web-1&quot;, &quot;port&quot;: 8080, &quot;tags&quot;: [&quot;prod&quot;, &quot;eu&quot;], &quot;healthy&quot;: true, &quot;owner&quot;: null}</code></pre>
+<p>JSON 텍스트는 그냥 문자열이다. 문자열인 채로는 <code>&quot;port&quot;</code> 값을 꺼낼 수 없으므로, 먼저 fung 값(맵, 리스트, 숫자 …)으로 바꿔야 한다. 이것을 <strong>파싱</strong>(parsing, 읽기)이라 하고, 반대로 fung 값을 JSON 텍스트로 바꾸는 것을 <strong>직렬화</strong>(serialization, 쓰기)라 한다. <code>json.parse</code>와 <code>json.stringify</code>가 각각을 맡는다.</p>
+<table>
+  <thead><tr><th>JSON</th><th>fung</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td>객체 <code>{"a": 1}</code></td><td>맵 <code>{a: 1}</code></td><td>키 순서를 지킨다. 키는 문자열.</td></tr>
+    <tr><td>배열 <code>[1, 2]</code></td><td>리스트</td><td>쓸 때는 튜플도 배열이 된다.</td></tr>
+    <tr><td>문자열</td><td>문자열</td><td>쓸 때는 심볼도 문자열이 된다.</td></tr>
+    <tr><td>숫자 <code>42</code></td><td><code>int</code></td><td>소수점·지수가 없으면 정수(64비트).</td></tr>
+    <tr><td>숫자 <code>2.5</code> <code>1e3</code></td><td><code>float</code></td><td>소수점이나 지수가 있으면 실수.</td></tr>
+    <tr><td><code>true</code> <code>false</code></td><td><code>true</code> <code>false</code></td><td></td></tr>
+    <tr><td><code>null</code></td><td><code>nil</code></td><td></td></tr>
+  </tbody>
+</table>
+<p>외부에서 오는 JSON은 깨져 있을 수 있으므로 <code>json.parse</code>는 결과값(<code>Ok</code>/<code>Err</code>)을 돌려준다. 반대로 <code>json.stringify</code>가 실패하는 것은 JSON에 없는 값(함수, 기간 등)을 넘긴 프로그램의 잘못이라 런타임 에러로 멈춘다(<a href="../language.html#results">에러 규칙</a>).</p>
+<section class="entry" id="fn-json-parse">
+<h3>json.parse</h3>
+<p>JSON 텍스트를 fung 값으로 읽는다.</p>
+<div class="sig"><code>json.parse(s)</code></div>
+<h4>설명</h4>
+<p><code>s</code> 전체가 JSON 값 하나여야 한다. 앞뒤 공백은 괜찮지만 값 뒤에 다른 글자가 남으면 <code>Err</code>다. 변환 규칙은 <a href="#concepts">위의 표</a>와 같다. 표준(RFC 8259)을 엄격하게 따른다: 끝의 쉼표(<code>[1, 2,]</code>), 주석, 작은따옴표 문자열은 받지 않는다. 같은 키가 두 번 나오거나, 짝 없는 서로게이트 이스케이프(<code>\ud800</code>)가 있거나, 64비트 정수나 실수의 범위를 넘는 숫자가 있거나, 중첩이 10,000단계를 넘어도 <code>Err</code>다. 공백은 스페이스·탭·LF·CR만 공백이다.</p>
+<p>파싱한 맵은 보통의 fung 맵이라 <code>data.name</code>이나 <code>data[&quot;name&quot;]</code>으로 읽는다. 키가 없을 수 있으면 <a href="../prelude/maps.html#fn-get"><code>get</code></a>으로 기본값을 준다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: JSON 텍스트(문자열).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(값)</code>.</p>
+<h4>에러</h4>
+<ul>
+<li><code>Err({kind: 'parse, line, col, message})</code>: 형식이 틀렸다. <code>line</code>·<code>col</code>은 1부터 세는 문제 글자의 위치(열은 글자 단위)이고, <code>message</code>는 <code></code>invalid JSON at line 1, column 9: expected a string for an object key<code></code>처럼 위치와 이유를 담는다. 이유의 예: <code>unexpected end of input</code>, <code>unexpected text after the value</code>, <code></code>duplicate key "a"<code></code>, <code>number out of range</code>, <code>nesting too deep (limit 10000)</code>.</li>
+<li><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>API 응답에서 필드 꺼내기</strong></p>
+<details class="fixture"><summary>준비물: user.json</summary>
+<p><code>user.json</code></p>
+<pre class="plain"><code>{&quot;user&quot;: {&quot;name&quot;: &quot;kim&quot;, &quot;roles&quot;: [&quot;admin&quot;, &quot;ops&quot;]}, &quot;active&quot;: true}</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import json
+
+data = json.parse(fs.read(&quot;user.json&quot;)!)!
+print(data.user.name, data.user.roles[0], data.active)
+print(get(data.user, &quot;email&quot;, &quot;(none)&quot;))</code></pre><pre class="out plain"><code>kim admin true
+(none)</code></pre></div>
+<p><strong>숫자의 타입</strong></p>
+<div class="run"><pre><code>import json
+
+print(json.parse(`[1, 2.5, 1e3, -0, 12.50]`)!)</code></pre><pre class="out plain"><code>[1, 2.5, 1000.0, 0, 12.5]</code></pre></div>
+<p><strong>잘못된 입력</strong></p>
+<div class="run"><pre><code>import json
+
+print(json.parse(`{&quot;a&quot;: 1,}`))
+print(json.parse(`{&quot;a&quot;: 1, &quot;a&quot;: 2}`))
+match json.parse(`[1, 2`):
+  Ok(v)  =&gt; print(v)
+  Err(e) =&gt; print(&quot;bad json at ${e.line}:${e.col}&quot;)
+;;</code></pre><pre class="out plain"><code>Err({kind: 'parse, line: 1, col: 9, message: &quot;invalid JSON at line 1, column 9: expected a string for an object key&quot;})
+Err({kind: 'parse, line: 1, col: 10, message: &quot;invalid JSON at line 1, column 10: duplicate key \&quot;a\&quot;&quot;})
+bad json at 1:6</code></pre></div>
+<p><strong>한 줄에 하나씩(JSON Lines)</strong></p>
+<details class="fixture"><summary>준비물: events.jsonl</summary>
+<p><code>events.jsonl</code></p>
+<pre class="plain"><code>{&quot;level&quot;: &quot;info&quot;, &quot;msg&quot;: &quot;start&quot;}
+{&quot;level&quot;: &quot;error&quot;, &quot;msg&quot;: &quot;disk full&quot;}
+{&quot;level&quot;: &quot;error&quot;, &quot;msg&quot;: &quot;timeout&quot;}</code></pre>
+</details>
+<div class="run"><pre><code>import fs
+import json
+
+events = fs.read_lines(&quot;events.jsonl&quot;)! |&gt; map(l =&gt; json.parse(l)!)
+print(events |&gt; filter(e =&gt; e.level == &quot;error&quot;) |&gt; map(e =&gt; e.msg))</code></pre><pre class="out plain"><code>[&quot;disk full&quot;, &quot;timeout&quot;]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-json-stringify"><code>json.stringify</code></a>, <a href="http.html#fn-http-get"><code>http.get</code></a>, <a href="../../recipes/json-fields.html">JSON API에서 필드 뽑기</a></p>
+</section>
+<section class="entry" id="fn-json-stringify">
+<h3>json.stringify</h3>
+<p>fung 값을 JSON 텍스트로 쓴다.</p>
+<div class="sig"><code>json.stringify(v, indent = nil)</code></div>
+<h4>설명</h4>
+<p><code>v</code>를 JSON 문자열로 바꾼다. 맵·리스트·문자열·정수·실수·<code>true</code>·<code>false</code>·<code>nil</code>은 <a href="#concepts">위의 표</a>대로 그대로 가고, 튜플은 배열, 심볼은 이름 문자열(<code>'ok</code> → <code>&quot;ok&quot;</code>), 시각은 ISO 8601 문자열(<code>&quot;2026-10-04T09:05:07Z&quot;</code>)이 된다. 맵은 키 순서대로 쓴다. 실수는 늘 소수점을 붙인다(<code>1.0</code>). JSON에 대응하는 것이 없는 값(기간, 함수, 태그 <code>Ok(1)</code>, 범위 <code>range(…)</code>, 채널, atom 등)은 런타임 에러 E0513이다. 기간은 <code>d / 1s</code>처럼 숫자로, 범위는 <code>map(r, x =&gt; x)</code>처럼 리스트로 바꿔서 넘긴다.</p>
+<p><code>indent</code>가 없으면(또는 <code>0</code>) 공백 없는 한 줄이다. 숫자를 주면 그 칸 수로 들여 쓴 여러 줄이 된다(사람이 읽을 파일에). 문자열은 꼭 필요한 것만 이스케이프한다: <code>&quot;</code>, <code>\</code>, U+0020 미만의 제어 문자. 한글 같은 비ASCII 글자는 그대로 둔다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>v</code>: 바꿀 값.</li>
+<li><code>indent</code>: <code>nil</code>(한 줄) 또는 들여쓰기 칸 수(0 이상의 정수).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>JSON 문자열.</p>
+<h4>에러</h4>
+<ul>
+<li>런타임 에러 E0513: JSON으로 바꿀 수 없는 값이 들어 있다(<code></code>cannot convert dur to JSON<code></code>).</li>
+<li>런타임 에러 E0403: <code>indent</code>가 음수다.</li>
+<li>런타임 에러 E0806: 결과가 1억 글자를 넘는다.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>한 줄과 여러 줄</strong></p>
+<div class="run"><pre><code>import json
+
+report = {host: &quot;web-1&quot;, ok: true, ms: [12, 15.5], note: nil}
+print(json.stringify(report))
+print(json.stringify(report, indent: 2))</code></pre><pre class="out plain"><code>{&quot;host&quot;:&quot;web-1&quot;,&quot;ok&quot;:true,&quot;ms&quot;:[12,15.5],&quot;note&quot;:null}
+{
+  &quot;host&quot;: &quot;web-1&quot;,
+  &quot;ok&quot;: true,
+  &quot;ms&quot;: [
+    12,
+    15.5
+  ],
+  &quot;note&quot;: null
+}</code></pre></div>
+<p><strong>심볼, 튜플, 시각, 이스케이프</strong></p>
+<div class="run"><pre><code>import json
+import time
+
+print(json.stringify({status: 'ok, pair: (1, &quot;a&quot;), at: time.from_unix(0)}))
+print(json.stringify(&quot;탭\t따옴표\&quot; 줄\n&quot;))</code></pre><pre class="out plain"><code>{&quot;status&quot;:&quot;ok&quot;,&quot;pair&quot;:[1,&quot;a&quot;],&quot;at&quot;:&quot;1970-01-01T00:00:00Z&quot;}
+&quot;탭\t따옴표\&quot; 줄\n&quot;</code></pre></div>
+<p><strong>바꿀 수 없는 값</strong></p>
+<div class="run"><pre><code>import json
+
+print(json.stringify({elapsed: 1500ms}))</code></pre><pre class="out err plain" data-code="1"><code>error[E0513]: cannot convert dur to JSON
+  --&gt; example.fung:3:21
+  |
+3 | print(json.stringify({elapsed: 1500ms}))
+  |                     ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>기간은 숫자로 바꿔서 넘긴다: <code>{elapsed_ms: 1500ms / 1ms}</code>.</p>
+<h4>같이 보기</h4>
+<p><a href="#fn-json-parse"><code>json.parse</code></a>, <a href="http.html#fn-http-post"><code>http.post</code></a>, <a href="fs.html#fn-fs-write"><code>fs.write</code></a>, <a href="../../recipes/save-csv-json.html">CSV/JSON으로 저장</a></p>
+</section>
+<p>배우는 순서로는 <a href="../../learn/13-json-and-http.html">13장 JSON과 HTTP</a>를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/modules/cli.html"><small>이전</small>cli — 명령줄 옵션</a><a class="next" href="../../reference/modules/time.html"><small>다음</small>time — 시각</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

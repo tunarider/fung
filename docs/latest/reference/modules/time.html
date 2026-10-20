@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>time — 시각 · fung 매뉴얼</title>
+<meta name="description" content="fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대 바꾸기(now, parse, format, utc, local, unix, from_unix, parts).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">time — 시각</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html" aria-current="page">time — 시각</a><ol class="toc2"><li><a href="#concepts">시각, 기간, 시간대</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">표준 모듈</span></nav>
+<h1>time — 시각</h1>
+<p class="lede"><code>import time</code>. 지금 시각을 얻고, 글자로 된 시각을 읽고 쓰고, 시간대를 바꾼다. 시각은 언어의 값 타입이라 <code>==</code>, <code>&lt;</code>, <code>t + 1h</code>, <code>t2 - t1</code>이 바로 된다.</p>
+<h2 id="concepts">시각, 기간, 시간대</h2>
+<p>시간을 다루는 값은 두 가지다. 둘을 구분하는 것이 시간 계산의 첫걸음이다.</p>
+<ul>
+<li><strong>시각</strong>(instant, <code>time</code> 타입): "2026년 10월 4일 9시 5분"처럼 시간 위의 한 <strong>점</strong>이다. <code>time.now()</code>나 <code>time.parse</code>로 만든다.</li>
+<li><strong>기간</strong>(duration, <code>dur</code> 타입): "90분"처럼 두 점 사이의 <strong>길이</strong>다. 리터럴로 바로 쓴다: <code>500ms</code>, <code>30s</code>, <code>1h30m</code>(<a href="../language.html#lexical">기간 리터럴</a>).</li>
+</ul>
+<p>시각에 기간을 더하거나 빼면 시각이고, 시각에서 시각을 빼면 기간이다. 시각끼리는 <code>==</code>·<code>&lt;</code>로 비교한다.</p>
+<div class="run"><pre><code>import time
+
+start = time.parse(&quot;2026-10-04T09:00:00Z&quot;)!
+end = start + 1h30m
+print(end, end - start, start &lt; end)
+print((end - start) / 1m, &quot;minutes&quot;)</code></pre><pre class="out plain"><code>2026-10-04T10:30:00Z 1h30m true
+90.0 minutes</code></pre></div>
+<p>같은 순간도 사는 곳에 따라 벽시계가 다르게 읽힌다. 런던에서 0시 5분일 때 서울은 9시 5분이다. 지역마다 정한 시계의 규칙이 <strong>시간대</strong>(time zone)이고, 기준이 되는 시계가 <strong>UTC</strong>(협정 세계시)다. 시간대는 UTC와의 차이인 <strong>오프셋</strong>(offset)으로 적는다: 서울은 <code>+09:00</code>, UTC 자체는 <code>Z</code>. 어떤 지역은 여름에 시계를 한 시간 앞당기는 <strong>서머타임</strong>(DST)이 있어서 오프셋이 철마다 바뀐다.</p>
+<p>fung의 시각 값은 순간과 함께 <strong>시간대를 기억</strong>한다. 출력하면 ISO 8601 꼴(<code>2026-10-04T09:05:07+09:00</code>, UTC면 <code>…Z</code>)로 그 시간대의 벽시계와 오프셋을 보인다. 시간대가 달라도 같은 순간이면 <code>==</code>는 참이다. 시간대를 정하지 않은 값은 컴퓨터의 <strong>로컬 시간대</strong>를 쓴다. 로컬 시간대는 환경 변수 <code>TZ</code>(없으면 <code>/etc/localtime</code>)로 정해진다. <code>TZ</code>는 <code>Asia/Seoul</code> 같은 이름(시간대 데이터베이스 <code>$TZDIR</code>나 <code>/usr/share/zoneinfo</code>에서 찾는다)이나 <code>KST-9</code> 같은 POSIX 시간대 문자열이고, <code>&quot;&quot;</code>·<code>UTC</code>면 UTC, 모두 실패하면 UTC다. 이 매뉴얼의 예제는 <code>TZ=UTC</code>로 돈다.</p>
+<p><strong>유닉스 시간</strong>(Unix time)은 1970-01-01T00:00:00Z부터 센 초의 수다. 로그와 API가 시각을 정수 하나로 주고받을 때 흔히 쓴다.</p>
+<p>시각은 UTC 기준으로 0000년부터 9999년까지 나타낼 수 있다. 계산이 이 범위를 넘으면 런타임 에러 E0503이다.</p>
+<h3 id="tokens">형식 토큰</h3>
+<p><code>time.parse</code>와 <code>time.format</code>의 <code>format</code> 인자는 토큰으로 모양을 적는다. 목록에 없는 글자는 그대로 쓰고 그대로 기대한다. 긴 토큰부터 맞춘다(<code>MMM</code>이 <code>MM</code>보다 먼저).</p>
+<table>
+  <thead><tr><th>토큰</th><th>뜻</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td><code>YYYY</code></td><td>네 자리 연도</td><td><code>2026</code></td></tr>
+    <tr><td><code>YY</code></td><td>두 자리 연도(읽을 때 2000~2099)</td><td><code>26</code></td></tr>
+    <tr><td><code>MM</code></td><td>두 자리 월</td><td><code>10</code></td></tr>
+    <tr><td><code>MMM</code></td><td>영문 월 약자(읽을 때 대소문자 무시)</td><td><code>Oct</code></td></tr>
+    <tr><td><code>DD</code></td><td>두 자리 일</td><td><code>04</code></td></tr>
+    <tr><td><code>ddd</code></td><td>영문 요일 약자(읽을 때 이름만 검사하고 날짜와 대조하지 않음)</td><td><code>Sun</code></td></tr>
+    <tr><td><code>HH</code></td><td>두 자리 시(24시간제)</td><td><code>09</code></td></tr>
+    <tr><td><code>mm</code></td><td>두 자리 분</td><td><code>05</code></td></tr>
+    <tr><td><code>ss</code></td><td>두 자리 초</td><td><code>07</code></td></tr>
+    <tr><td><code>SSS</code></td><td>밀리초 세 자리</td><td><code>123</code></td></tr>
+    <tr><td><code>Z</code></td><td>오프셋(콜론 있음)</td><td><code>+09:00</code></td></tr>
+    <tr><td><code>ZZ</code></td><td>오프셋(콜론 없음)</td><td><code>+0900</code></td></tr>
+  </tbody>
+</table>
+<p>읽을 때는 자리 수를 정확히 맞춰야 한다(<code>9:05</code>는 <code>HH:mm</code>에 맞지 않는다). 12시간제(AM/PM)와 이스케이프는 없다.</p>
+<h2 id="functions">함수</h2>
+<section class="entry" id="fn-time-now">
+<h3>time.now</h3>
+<p>지금 시각을 돌려준다.</p>
+<div class="sig"><code>time.now()</code></div>
+<h4>설명</h4>
+<p>컴퓨터 시계의 지금 시각을 로컬 시간대로 돌려준다. 실행할 때마다 값이 다르다. 이 값은 시스템 시계를 읽은 것이고 단조 시계(앞으로만 가는 시계)를 함께 싣지 않는다. 그래서 두 <code>now()</code> 사이에 시스템 시각이 바뀌면(NTP 보정, 사람이 바꿈) <code>t2 - t1</code>로 잰 경과 시간이 틀리거나 음수일 수 있다. 짧은 작업의 시간 재기 정도에는 충분하다.</p>
+<h4>매개변수</h4>
+<p>없음.</p>
+<h4>돌려주는 값</h4>
+<p><code>time</code> 값.</p>
+<h4>예제</h4>
+<p><strong>타임스탬프 찍기</strong></p>
+<pre><code>import time
+
+print(&quot;[${time.format(time.now(), &quot;YYYY-MM-DD HH:mm:ss&quot;)}] backup started&quot;)</code></pre>
+<p><strong>걸린 시간 재기</strong></p>
+<pre><code>import time
+
+start = time.now()
+sleep(50ms)
+elapsed = time.now() - start
+print(&quot;took ${elapsed / 1ms} ms&quot;)</code></pre>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-format"><code>time.format</code></a>, <a href="../prelude/concurrency.html#fn-sleep"><code>sleep</code></a></p>
+</section>
+<section class="entry" id="fn-time-parse">
+<h3>time.parse</h3>
+<p>글자로 적은 시각을 읽어 시각 값으로 바꾼다.</p>
+<div class="sig"><code>time.parse(s, format = nil)</code></div>
+<h4>설명</h4>
+<p><code>format</code>이 없으면 <strong>RFC 3339</strong>(ISO 8601의 인터넷용 꼴)를 엄격하게 읽는다: <code>2026-10-04T09:05:07Z</code>, <code>2026-10-04T09:05:07.5+09:00</code>. 날짜와 시각 사이는 <code>T</code>(공백은 안 됨), 필드는 모두 두 자리, 소수 초는 <code>.</code>과 1~9자리, 끝에는 <code>Z</code>나 오프셋이 꼭 있어야 한다. <code>T</code>와 <code>Z</code>는 소문자도 된다.</p>
+<p><code>format</code>이 있으면 <a href="#tokens">형식 토큰</a>대로 읽는다. 형식에 시간대 토큰(<code>Z</code>·<code>ZZ</code>)이 없으면 로컬 시간대의 벽시계로 읽는다. 형식에 없는 날짜 필드는 0000-01-01, 시각 필드는 0으로 채운다. 숫자 오프셋으로 읽은 값은 그 오프셋을 그대로 기억한다.</p>
+<p>로컬 시간으로 읽은 벽시계 시각이 서머타임 경계에 걸리면: 시계를 앞당겨 <strong>없는</strong> 시각(빈틈)은 빈틈만큼 뒤로 밀리고(<code>02:30</code> → <code>03:30</code>), 시계를 되돌려 <strong>두 번 있는</strong> 시각은 이른 쪽이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 읽을 문자열.</li>
+<li><code>format</code>: 형식 문자열. <code>nil</code>이면 RFC 3339.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(time)</code>.</p>
+<h4>에러</h4>
+<ul>
+<li><code>Err({kind: 'parse, message})</code>: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일). <code>message</code>는 <code></code>cannot parse <code>2026-13-04T09:05:07Z</code> as a time: month out of range<code></code>처럼 이유를 담는다.</li>
+<li><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>RFC 3339</strong></p>
+<div class="run"><pre><code>import time
+
+print(time.parse(&quot;2026-10-04T09:05:07Z&quot;))
+print(time.parse(&quot;2026-10-04T09:05:07.5+09:00&quot;))
+print(time.parse(&quot;2026-10-04 09:05:07&quot;))</code></pre><pre class="out plain"><code>Ok(2026-10-04T09:05:07Z)
+Ok(2026-10-04T09:05:07.5+09:00)
+Err({kind: 'parse, message: &quot;cannot parse `2026-10-04 09:05:07` as a time: expected `T` between the date and the time&quot;})</code></pre></div>
+<p><strong>로그의 시각 읽기</strong></p>
+<div class="run"><pre><code>import time
+
+line = `10.0.0.7 - - [04/Oct/2026:09:05:07 +0900] &quot;GET / HTTP/1.1&quot; 200`
+stamp = split(split(line, &quot;[&quot;)[1], &quot;]&quot;)[0]
+t = time.parse(stamp, &quot;DD/MMM/YYYY:HH:mm:ss ZZ&quot;)!
+print(t, time.utc(t))</code></pre><pre class="out plain"><code>2026-10-04T09:05:07+09:00 2026-10-04T00:05:07Z</code></pre></div>
+<p><strong>시간대 없이 읽으면 로컬 시간</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>TZ=KST-9 fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>import time
+
+t = time.parse(&quot;2026-10-04 09:05&quot;, &quot;YYYY-MM-DD HH:mm&quot;)!
+print(t, time.utc(t))</code></pre><pre class="out plain"><code>2026-10-04T09:05:00+09:00 2026-10-04T00:05:00Z</code></pre></div>
+<p><strong>서머타임 경계</strong>(미국 동부 규칙을 POSIX 문자열로 준 예)</p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>TZ=EST5EDT,M3.2.0,M11.1.0 fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>import time
+
+print(time.parse(&quot;2026-03-08 02:30&quot;, &quot;YYYY-MM-DD HH:mm&quot;)!)
+print(time.parse(&quot;2026-11-01 01:30&quot;, &quot;YYYY-MM-DD HH:mm&quot;)!)</code></pre><pre class="out plain"><code>2026-03-08T03:30:00-04:00
+2026-11-01T01:30:00-04:00</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-format"><code>time.format</code></a>, <a href="../prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>(기간 읽기)</p>
+</section>
+<section class="entry" id="fn-time-format">
+<h3>time.format</h3>
+<p>시각을 문자열로 쓴다.</p>
+<div class="sig"><code>time.format(t, format = nil)</code></div>
+<h4>설명</h4>
+<p><code>format</code>이 없으면 ISO 8601 꼴이고, <code>print</code>·<code>str</code>·<code>&quot;${t}&quot;</code>도 같은 꼴을 쓴다. 소수 초는 0이 아닐 때만 붙는다. <code>format</code>이 있으면 <a href="#tokens">형식 토큰</a>대로 쓴다. 값이 기억하는 시간대의 벽시계로 쓰므로, 다른 시간대로 보이려면 먼저 <a href="#fn-time-utc"><code>time.utc</code></a>나 <a href="#fn-time-local"><code>time.local</code></a>로 바꾼다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 시각.</li>
+<li><code>format</code>: 형식 문자열. <code>nil</code>이면 ISO 8601.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>예제</h4>
+<p><strong>여러 모양</strong></p>
+<div class="run"><pre><code>import time
+
+t = time.parse(&quot;2026-10-04T09:05:07.123+09:00&quot;)!
+print(time.format(t))
+print(time.format(t, &quot;YYYY-MM-DD&quot;))
+print(time.format(t, &quot;ddd, DD MMM YYYY HH:mm:ss ZZ&quot;))
+print(time.format(t, &quot;HH:mm:ss.SSS Z&quot;))</code></pre><pre class="out plain"><code>2026-10-04T09:05:07.123+09:00
+2026-10-04
+Sun, 04 Oct 2026 09:05:07 +0900
+09:05:07.123 +09:00</code></pre></div>
+<p><strong>날짜별 파일 이름</strong></p>
+<div class="run"><pre><code>import time
+
+t = time.parse(&quot;2026-10-04T23:59:00Z&quot;)!
+print(&quot;backup-${time.format(t, &quot;YYYYMMDD-HHmm&quot;)}.tar.gz&quot;)
+print(&quot;backup-${time.format(t + 1m, &quot;YYYYMMDD-HHmm&quot;)}.tar.gz&quot;)</code></pre><pre class="out plain"><code>backup-20261004-2359.tar.gz
+backup-20261005-0000.tar.gz</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-parse"><code>time.parse</code></a>, <a href="#fn-time-parts"><code>time.parts</code></a></p>
+</section>
+<section class="entry" id="fn-time-utc">
+<h3>time.utc</h3>
+<p>같은 순간을 UTC 시간대로 바꾼다.</p>
+<div class="sig"><code>time.utc(t)</code></div>
+<h4>설명</h4>
+<p>순간은 그대로 두고 시간대만 UTC로 바꾼다. 출력과 <a href="#fn-time-format"><code>time.format</code></a>·<a href="#fn-time-parts"><code>time.parts</code></a>의 벽시계가 UTC 기준이 된다. 서버 여러 대의 로그를 합칠 때처럼, 시간대가 섞인 시각을 한 기준으로 맞출 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 시각.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>UTC 시간대의 <code>time</code> 값.</p>
+<h4>예제</h4>
+<div class="run"><pre><code>import time
+
+seoul = time.parse(&quot;2026-10-04T09:05:07+09:00&quot;)!
+u = time.utc(seoul)
+print(u, u == seoul, time.parts(u).hour)</code></pre><pre class="out plain"><code>2026-10-04T00:05:07Z true 0</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-local"><code>time.local</code></a></p>
+</section>
+<section class="entry" id="fn-time-local">
+<h3>time.local</h3>
+<p>같은 순간을 로컬 시간대로 바꾼다.</p>
+<div class="sig"><code>time.local(t)</code></div>
+<h4>설명</h4>
+<p>순간은 그대로 두고 시간대를 <a href="#concepts">로컬 시간대</a>로 바꾼다. 외부에서 받은 UTC 시각을 사람에게 보일 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 시각.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>로컬 시간대의 <code>time</code> 값.</p>
+<h4>예제</h4>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>TZ=KST-9 fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>import time
+
+t = time.parse(&quot;2026-10-04T00:05:07Z&quot;)!
+print(time.local(t), time.format(time.local(t), &quot;HH:mm&quot;))</code></pre><pre class="out plain"><code>2026-10-04T09:05:07+09:00 09:05</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-utc"><code>time.utc</code></a></p>
+</section>
+<section class="entry" id="fn-time-unix">
+<h3>time.unix</h3>
+<p>시각을 유닉스 시간(초)으로 바꾼다.</p>
+<div class="sig"><code>time.unix(t)</code></div>
+<h4>설명</h4>
+<p>1970-01-01T00:00:00Z부터 <code>t</code>까지의 초를 정수로 돌려준다. 초 밑은 과거 쪽으로 내린다(<code>23:59:59.5Z</code>는 <code>…59</code>초). 1970년 전의 시각은 음수다. 시간대와 무관하다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 시각.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>정수.</p>
+<h4>예제</h4>
+<div class="run"><pre><code>import time
+
+print(time.unix(time.parse(&quot;2026-10-04T09:05:07+09:00&quot;)!))
+print(time.unix(time.parse(&quot;1969-12-31T23:59:59Z&quot;)!))</code></pre><pre class="out plain"><code>1791072307
+-1</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-from_unix"><code>time.from_unix</code></a></p>
+</section>
+<section class="entry" id="fn-time-from_unix">
+<h3>time.from_unix</h3>
+<p>유닉스 시간(초)을 시각으로 바꾼다.</p>
+<div class="sig"><code>time.from_unix(n)</code></div>
+<h4>설명</h4>
+<p>정수 <code>n</code>초를 로컬 시간대의 시각으로 돌려준다. 밀리초로 된 값은 <code>n // 1000</code>으로 나눠서 넘긴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>n</code>: 1970-01-01T00:00:00Z부터 센 초(정수).</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>로컬 시간대의 <code>time</code> 값.</p>
+<h4>에러</h4>
+<ul>
+<li>런타임 에러 E0403: <code>n</code>이 정수가 아니거나, 0000~9999년 범위를 벗어난다.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>로그의 유닉스 시간 읽기</strong></p>
+<div class="run"><pre><code>import time
+
+print(time.from_unix(0))
+print(time.from_unix(1791104707))
+print(time.from_unix(1791104707123 // 1000))</code></pre><pre class="out plain"><code>1970-01-01T00:00:00Z
+2026-10-04T09:05:07Z
+2026-10-04T09:05:07Z</code></pre></div>
+<p><strong>로컬 시간대로 나온다</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>TZ=KST-9 fung example.fung</code></pre>
+</details>
+<div class="run"><pre><code>import time
+
+print(time.from_unix(0))</code></pre><pre class="out plain"><code>1970-01-01T09:00:00+09:00</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-unix"><code>time.unix</code></a></p>
+</section>
+<section class="entry" id="fn-time-parts">
+<h3>time.parts</h3>
+<p>시각을 연·월·일·시·분·초·요일로 나눈다.</p>
+<div class="sig"><code>time.parts(t)</code></div>
+<h4>설명</h4>
+<p><code>{year, month, day, hour, minute, second, weekday}</code> 맵을 돌려준다. 값은 모두 정수이고 <code>weekday</code>만 심볼(<code>'mon</code> <code>'tue</code> <code>'wed</code> <code>'thu</code> <code>'fri</code> <code>'sat</code> <code>'sun</code>)이다. 값이 기억하는 시간대의 벽시계 기준이다. "주말이면 건너뛴다", "매시 정각에만" 같은 조건에 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>t</code>: 시각.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>맵.</p>
+<h4>예제</h4>
+<p><strong>나누기</strong></p>
+<div class="run"><pre><code>import time
+
+print(time.parts(time.parse(&quot;2026-10-04T09:05:07+09:00&quot;)!))</code></pre><pre class="out plain"><code>{year: 2026, month: 10, day: 4, hour: 9, minute: 5, second: 7, weekday: 'sun}</code></pre></div>
+<p><strong>주말 검사</strong></p>
+<div class="run"><pre><code>import time
+
+fn is_weekend(t) = time.parts(t).weekday in ['sat, 'sun]
+
+print(is_weekend(time.parse(&quot;2026-10-04T12:00:00Z&quot;)!), is_weekend(time.parse(&quot;2026-10-05T12:00:00Z&quot;)!))</code></pre><pre class="out plain"><code>true false</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-format"><code>time.format</code></a></p>
+</section>
+<p>기간 값 자체(리터럴, 나누기, <code>parse_dur</code>)는 <a href="../language.html#lexical">언어 명세</a>와 <a href="../prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>에 있다. 시간 제한은 prelude의 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a>을 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/modules/json.html"><small>이전</small>json — JSON</a><a class="next" href="../../reference/modules/regex.html"><small>다음</small>regex — 정규식</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

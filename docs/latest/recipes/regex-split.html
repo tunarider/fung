@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>텍스트 응답을 정규식으로 쪼개기 · fung 매뉴얼</title>
+<meta name="description" content="텍스트 응답을 정규식으로 쪼개기.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="recipes">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">R</span><span class="mbar-where"><span class="mbar-title">텍스트 응답을 정규식으로 쪼개기</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a>
+<ol class="chapters">
+<li class="sub">파일 다루기</li>
+<li><a href="../recipes/rename.html">파일 이름 한꺼번에 바꾸기</a></li>
+<li><a href="../recipes/find-big-files.html">큰 파일, 오래된 파일 찾기</a></li>
+<li><a href="../recipes/count-log-patterns.html">여러 로그에서 패턴 세고 요약하기</a></li>
+<li><a href="../recipes/replace-config.html">설정 파일 값 바꾸기 (sed 대신)</a></li>
+<li><a href="../recipes/stdin-filter.html">표준 입력을 받아 파이프 중간에서 쓰기</a></li>
+<li class="sub">여러 서버에서 모으기</li>
+<li><a href="../recipes/ssh-collect.html">여러 서버에 명령 보내고 모으기</a></li>
+<li><a href="../recipes/server-table.html">서버별 결과를 표 하나로</a></li>
+<li><a href="../recipes/unreachable-servers.html">실패·무응답 서버만 알리기</a></li>
+<li class="sub">HTTP와 문자열</li>
+<li><a href="../recipes/json-fields.html">JSON API에서 필드 뽑기</a></li>
+<li><a href="../recipes/check-urls.html">URL 여러 개 상태 동시에 확인하기</a></li>
+<li><a href="../recipes/regex-split.html" aria-current="page">텍스트 응답을 정규식으로 쪼개기</a><ol class="toc2"><li><a href="#shell">쉘로는</a></li><li><a href="#code">fung으로</a></li><li><a href="#how">줄별 설명</a></li><li><a href="#vary">응용</a></li></ol></li>
+<li><a href="../recipes/pagination.html">페이지 넘기며 모두 받기</a></li>
+<li><a href="../recipes/save-csv-json.html">CSV나 JSON으로 저장하기</a></li>
+<li class="sub">작은 도구</li>
+<li><a href="../recipes/cli-options.html">명령줄 옵션과 도움말</a></li>
+<li><a href="../recipes/exit-codes.html">종료 코드와 표준 에러</a></li>
+<li><a href="../recipes/webhook-server.html">웹훅을 받는 작은 HTTP 서버</a></li>
+</ol>
+</li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../recipes/rename.html"><span class="glyph">R</span>예제 모음</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">HTTP와 문자열</span></nav>
+<h1>텍스트 응답을 정규식으로 쪼개기</h1>
+<p class="lede">JSON이 아닌 텍스트 응답(Prometheus 지표, 명령 출력)을 정규식으로 조각내 값으로 바꾼다. 예제는 node_exporter의 지표에서 파일 시스템 사용률을 계산한다.</p>
+<p>모든 것이 JSON을 주지는 않는다. Prometheus 익스포터의 <code>/metrics</code>, nginx의 <code>stub_status</code>, <code>ss</code>나 <code>df</code> 같은 명령 출력은 사람이 읽기 좋게 만든 텍스트다. 이런 출력에서 값을 꺼낼 때는 줄의 <strong>모양</strong>을 정규식(regular expression)으로 적고, 맞은 조각을 이름으로 받는다. 여기서는 node_exporter 지표를 <code>curl</code>로 받아 파이프로 넘기면 파일 시스템마다 사용률을 계산하고, 기준을 넘은 것이 있으면 종료 코드 1로 끝나는 스크립트를 만든다.</p>
+<h2 id="shell">쉘로는</h2>
+<pre class="plain shell"><code>curl -s http://web1:9100/metrics | grep '^node_filesystem_avail_bytes' \
+  | sed -E 's/.*mountpoint=&quot;([^&quot;]*)&quot;.* (.*)/\1 \2/'</code></pre>
+<p>사용 가능 바이트만 뽑는 데도 <code>grep</code>과 <code>sed</code>가 필요하다. 사용률을 내려면 <code>node_filesystem_size_bytes</code>도 따로 뽑아 마운트 지점으로 맞춰 붙여야 하는데(<code>join</code>이나 <code>awk</code> 배열), 값이 <code>1.6234029056e+10</code>처럼 지수 표기라 쉘의 정수 계산(<code>$((…))</code>)으로는 다룰 수 없다. 라벨의 순서가 바뀌거나 라벨 값에 따옴표가 들어가면 <code>sed</code> 식이 엉뚱한 곳을 잡는다.</p>
+<h2 id="code">fung으로</h2>
+<details class="fixture"><summary>준비물: metrics.txt</summary>
+<p><code>metrics.txt</code></p>
+<pre class="plain"><code># HELP node_filesystem_avail_bytes Filesystem space available to non-root users in bytes.
+# TYPE node_filesystem_avail_bytes gauge
+node_filesystem_avail_bytes{device=&quot;/dev/sda1&quot;,fstype=&quot;ext4&quot;,mountpoint=&quot;/&quot;} 1.6234029056e+10
+node_filesystem_avail_bytes{device=&quot;/dev/sdb1&quot;,fstype=&quot;xfs&quot;,mountpoint=&quot;/data&quot;} 3.221225472e+09
+node_filesystem_avail_bytes{device=&quot;tmpfs&quot;,fstype=&quot;tmpfs&quot;,mountpoint=&quot;/run&quot;} 8.28461056e+08
+node_filesystem_avail_bytes{device=&quot;/dev/sdc1&quot;,fstype=&quot;ext4&quot;,mountpoint=&quot;/mnt/broken&quot;} NaN
+# HELP node_filesystem_size_bytes Filesystem size in bytes.
+# TYPE node_filesystem_size_bytes gauge
+node_filesystem_size_bytes{device=&quot;/dev/sda1&quot;,fstype=&quot;ext4&quot;,mountpoint=&quot;/&quot;} 4.2006183936e+10
+node_filesystem_size_bytes{device=&quot;/dev/sdb1&quot;,fstype=&quot;xfs&quot;,mountpoint=&quot;/data&quot;} 1.073741824e+11
+node_filesystem_size_bytes{device=&quot;tmpfs&quot;,fstype=&quot;tmpfs&quot;,mountpoint=&quot;/run&quot;} 8.32716800e+08
+node_filesystem_size_bytes{device=&quot;/dev/sdc1&quot;,fstype=&quot;ext4&quot;,mountpoint=&quot;/mnt/broken&quot;} 1.073741824e+10
+# HELP node_load1 1m load average.
+node_load1 0.42</code></pre>
+<pre class="plain shell"><code>fung example.fung &lt; metrics.txt</code></pre>
+</details>
+<div class="run"><pre><code>#!/usr/bin/env fung
+# Reads node_exporter metrics (Prometheus text format) on standard input
+# and prints how full each filesystem is, fullest first. Exit code 1 if
+# any is above --max percent (default 90).
+# usage: curl -s http://web1:9100/metrics | fung diskfull.fung [--max 90]
+import cli
+import regex
+
+# name{labels} value   (the labels are optional)
+sample = `^(?P&lt;name&gt;[a-zA-Z_:][\w:]*)(\{(?P&lt;labels&gt;.*)\})?\s+(?P&lt;value&gt;\S+)$`
+# key=&quot;value&quot; pairs inside the braces
+label = `(\w+)=&quot;((?:[^&quot;\\]|\\.)*)&quot;`
+
+# One line → {name, labels: {…}, value}, or nil for comments, blanks and
+# values that are not numbers (NaN, +Inf).
+fn parse(line):
+  m = regex.find(line, sample)
+  if m == nil: return nil ;;
+  labels = regex.find_all(m.named.labels ?? &quot;&quot;, label)
+    |&gt; fold({}, (acc, l) =&gt; put(acc, l.groups[0], l.groups[1]))
+  match parse_float(m.named.value):
+    Ok(v)  =&gt; {name: m.named.name, labels, value: v}
+    Err(_) =&gt; nil
+  ;;
+;;
+
+# The samples of one metric as mountpoint → value.
+fn by_mount(samples, name) = samples
+  |&gt; filter(s =&gt; s.name == name and &quot;mountpoint&quot; in s.labels)
+  |&gt; filter(s =&gt; get(s.labels, &quot;fstype&quot;, &quot;&quot;) != &quot;tmpfs&quot;)
+  |&gt; fold({}, (acc, s) =&gt; put(acc, s.labels.mountpoint, s.value))
+
+opts = cli.parse(args)
+max_pct = parse_int(get(opts.flags, &quot;max&quot;, &quot;90&quot;)) ?? fail(&quot;--max takes a whole percent&quot;)
+samples = read_lines()! |&gt; map(parse) |&gt; filter(s =&gt; s != nil)
+avail = by_mount(samples, &quot;node_filesystem_avail_bytes&quot;)
+size = by_mount(samples, &quot;node_filesystem_size_bytes&quot;)
+
+rows = keys(size)
+  |&gt; filter(mp =&gt; mp in avail and size[mp] &gt; 0)
+  |&gt; map(mp =&gt; (mp, int(100 - avail[mp] * 100 / size[mp]), size[mp] / 1024 ** 3))
+  |&gt; sort_by(((_, pct, _)) =&gt; -pct)
+for (mp, pct, gib) in rows:
+  flag = pct &gt; max_pct then &quot;  &lt;-- over ${max_pct}%&quot; else &quot;&quot;
+  print(pad_right(mp, 8), pad_left(&quot;${pct}%&quot;, 4), pad_left(&quot;${int(gib)} GiB&quot;, 8) + flag)
+;;
+if any(rows, ((_, pct, _)) =&gt; pct &gt; max_pct): exit(1) ;;</code></pre><pre class="out err plain" data-code="1"><code>/data     97%  100 GiB  &lt;-- over 90%
+/         61%   39 GiB</code></pre></div>
+<p><code>/data</code>가 90%를 넘어서 종료 코드가 1이다. <code>tmpfs</code>는 일부러 뺐고, 값이 <code>NaN</code>인 <code>/mnt/broken</code>은 사용 가능 바이트를 알 수 없어 표에서 빠졌다.</p>
+<h2 id="how">줄별 설명</h2>
+<ul>
+<li><code>sample</code>: 지표 한 줄의 모양이다. <code>(?P&lt;name&gt;…)</code>처럼 이름 붙인 조각(named group)은 <code>m.named.name</code>으로 꺼낸다. 번호(<code>groups[0]</code>)보다 읽기 쉽고, 정규식 중간에 조각을 더해도 번호가 밀리지 않는다. 중괄호 부분 <code>(\{…\})?</code>는 없어도 되므로, <code>node_load1 0.42</code>처럼 라벨이 없는 줄에서는 <code>m.named.labels</code>가 <code>nil</code>이다.</li>
+<li><code>label</code>: 중괄호 안의 <code>key=&quot;value&quot;</code> 하나다. 값 부분 <code>(?:[^&quot;\\]|\\.)*</code>는 "따옴표나 백슬래시가 아닌 글자, 또는 백슬래시와 그다음 한 글자"의 반복이라 <code>\&quot;</code>가 든 값도 끝까지 잡는다. 원시 문자열 <code></code> <code>…</code> <code></code>이라 백슬래시를 정규식에 적힌 그대로 쓴다.</li>
+<li><code>regex.find</code>와 <code>regex.find_all</code>: <code>find</code>는 처음 맞는 곳 하나(<code>{text, start, end, groups, named}</code>)나 <code>nil</code>, <code>find_all</code>은 맞는 곳 전부의 리스트를 준다. 라벨은 <code>find_all</code>로 모두 찾아 <code>fold</code>로 맵 하나에 모은다.</li>
+<li><code>parse_float(…)</code>: <code>1.6234029056e+10</code> 같은 지수 표기도 읽는다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없어서, Prometheus가 보내는 <code>NaN</code>·<code>+Inf</code>는 <code>Err</code>가 되고 그 줄을 버린다.</li>
+<li><code>by_mount</code>: 지표 하나를 "마운트 지점 → 값" 맵으로 만든다. 두 지표를 같은 키로 맞춰 놓으면 <code>avail[mp]</code>와 <code>size[mp]</code>로 바로 짝지어 계산할 수 있다(쉘의 <code>join</code>에 해당).</li>
+<li>사용률 계산: <code>/</code>는 늘 실수 나눗셈이고 <code>int(…)</code>는 소수점 아래를 버린다. <code>1024 ** 3</code>은 GiB다(<code>**</code>는 거듭제곱).</li>
+<li><code>sort_by(((_, pct, _)) =&gt; -pct)</code>: 튜플 세 칸 중 가운데만 이름으로 받아 큰 것부터 정렬한다.</li>
+</ul>
+<div class="box mistake"><b>공백이 여러 개인 출력을 <code>split(s, &quot; &quot;)</code>로 쪼개기</b>
+<p><code>ss</code>, <code>df</code>, <code>ps</code> 같은 명령은 열을 맞추려고 공백을 여러 개 넣는다. <code>split</code>은 구분자 하나마다 자르므로 빈 문자열이 잔뜩 생기고 열 번호가 줄마다 달라진다. 공백 덩어리로 자르려면 <code>regex.split</code>을 쓴다(앞뒤 공백은 <code>trim</code>으로 먼저 뗀다). 쉘의 <code>awk '{print $5}'</code>가 해 주던 일이다.</p>
+<div class="run"><pre><code>import regex
+
+line = &quot;tcp   LISTEN 0      4096   127.0.0.1:9100   0.0.0.0:*&quot;
+print(split(line, &quot; &quot;))
+print(regex.split(trim(line), `\s+`))</code></pre><pre class="out plain"><code>[&quot;tcp&quot;, &quot;&quot;, &quot;&quot;, &quot;LISTEN&quot;, &quot;0&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;4096&quot;, &quot;&quot;, &quot;&quot;, &quot;127.0.0.1:9100&quot;, &quot;&quot;, &quot;&quot;, &quot;0.0.0.0:*&quot;]
+[&quot;tcp&quot;, &quot;LISTEN&quot;, &quot;0&quot;, &quot;4096&quot;, &quot;127.0.0.1:9100&quot;, &quot;0.0.0.0:*&quot;]</code></pre></div>
+</div>
+<h2 id="vary">응용</h2>
+<ul>
+<li><strong>HTTP로 바로 받기</strong>: 파이프 대신 <code>http.get(&quot;http://${host}:9100/metrics&quot;)!.body |&gt; lines</code>로 받으면 <a href="ssh-collect.html">여러 서버</a>를 <code>conc.pmap</code>으로 한 번에 훑을 수 있다.</li>
+<li><strong>다른 지표</strong>: <code>by_mount</code>의 조건만 바꾸면 된다. 예를 들어 <code>node_load1</code>은 라벨이 없으므로 <code>find(samples, s =&gt; s.name == &quot;node_load1&quot;)</code>로 꺼낸다.</li>
+<li><strong>nginx stub_status</strong>: <code>Active connections: 291</code>처럼 정해진 문장은 정규식 <code>Active connections: (\d+)</code>를 원시 문자열에 담아 <code>regex.find(text, pat)</code>로 찾고, <code>groups[0]</code>의 숫자를 <code>int</code>로 바꾼다.</li>
+<li><strong>바꾸기</strong>: 찾은 조각으로 문자열을 바꿀 때는 <code>regex.replace(s, pat, repl)</code>이고 <code>repl</code> 안의 <code>$1</code>이 첫 조각이다. <a href="replace-config.html">설정 파일 값 바꾸기</a>에 주의점이 있다.</li>
+</ul>
+<p>배우기: <a href="../learn/06-strings.html">6장 문자열</a>, <a href="../learn/08-patterns.html">8장 패턴</a>. 레퍼런스: <a href="../reference/modules/regex.html#fn-regex-find"><code>regex.find</code></a>, <a href="../reference/modules/regex.html#fn-regex-find_all"><code>regex.find_all</code></a>, <a href="../reference/modules/regex.html#fn-regex-split"><code>regex.split</code></a>, <a href="../reference/prelude/strings.html#fn-split"><code>split</code></a>, <a href="../reference/prelude/convert.html#fn-parse_float"><code>parse_float</code></a>, <a href="../reference/prelude/io.html#fn-read_lines"><code>read_lines</code></a>.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../recipes/check-urls.html"><small>이전</small>URL 여러 개 상태 동시에 확인하기</a><a class="next" href="../recipes/pagination.html"><small>다음</small>페이지 넘기며 모두 받기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

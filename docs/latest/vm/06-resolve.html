@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>이름 해석과 스코프 · fung 매뉴얼</title>
+<meta name="description" content="이름 해석과 스코프.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">6. 이름 해석과 스코프</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li class="sub">1부 언어란 무엇인가</li>
+<li><a href="../vm/01-how-programs-run.html">1. 프로그램이 실행되기까지</a></li>
+<li><a href="../vm/02-interpreters-compilers-vms.html">2. 인터프리터, 컴파일러, VM</a></li>
+<li class="sub">2부 앞단: 글자에서 트리로</li>
+<li><a href="../vm/03-lexer.html">3. 렉서: 글자를 토큰으로</a></li>
+<li><a href="../vm/04-parser.html">4. 파서: 토큰을 트리로</a></li>
+<li><a href="../vm/05-desugar.html">5. desugar와 코어 언어</a></li>
+<li><a href="../vm/06-resolve.html" aria-current="page">6. 이름 해석과 스코프</a><ol class="toc2"><li><a href="#names">이름은 무엇을 가리키나</a></li><li><a href="#lookup">실행 중에 찾기와 미리 번호 매기기</a></li><li><a href="#follow">따라가기: 이름이 번호로</a></li><li><a href="#slots">블록 스코프와 슬롯</a></li><li><a href="#globals">파일 최상위: 전역과 끌어올리기</a></li><li><a href="#order">찾는 순서</a></li><li><a href="#rules">스코프 규칙과 에러 모으기</a></li><li><a href="#source">코드에서 찾아보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../vm/07-diagnostics.html">7. 에러 메시지 만들기</a></li>
+<li class="sub">3부 뒷단: 트리에서 실행으로</li>
+<li><a href="../vm/08-bytecode.html">8. 바이트코드와 스택 머신</a></li>
+<li><a href="../vm/09-closures.html">9. 함수와 클로저</a></li>
+<li><a href="../vm/10-values-and-memory.html">10. 값과 메모리</a></li>
+<li><a href="../vm/11-modules.html">11. 모듈 적재와 prelude</a></li>
+<li class="sub">4부 런타임</li>
+<li><a href="../vm/12-scheduler.html">12. 태스크와 스케줄러</a></li>
+<li><a href="../vm/13-event-loop.html">13. 이벤트 루프와 스레드 풀</a></li>
+<li><a href="../vm/14-cancellation.html">14. 취소와 정리</a></li>
+<li class="sub">5부 도구</li>
+<li><a href="../vm/15-formatter.html">15. 포맷터</a></li>
+<li><a href="../vm/16-repl.html">16. REPL</a></li>
+<li><a href="../vm/17-test-runner.html">17. 테스트 러너</a></li>
+<li class="sub">부록</li>
+<li><a href="../vm/internals.html">18. 내부 구조</a></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">2부 앞단: 글자에서 트리로</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>6장</span></nav>
+<h1>이름 해석과 스코프</h1>
+<p class="lede">프로그램 속 이름 하나하나가 어디에 사는 값을 가리키는지 실행 전에 정한다. 그 덕분에 VM은 실행 중에 이름을 찾지 않고, 스코프 실수는 실행 전에 모두 잡힌다.</p>
+<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li class="on">코어</li><li>바이트코드</li><li>실행</li></ol>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>바인딩, 스코프, 환경, 심볼 테이블이라는 말의 뜻</li>
+<li>실행 중에 이름을 찾는 방식과 미리 번호를 매기는 방식의 차이</li>
+<li>fung이 이름을 나누는 다섯 갈래: 지역 슬롯, 붙잡은 값, 자기 자신, 모듈 전역, prelude</li>
+<li>슬롯 번호가 정해지고 재사용되는 방식</li>
+<li>스코프 규칙 위반을 모두 모아 보고하는 법</li>
+</ul>
+</div>
+<h2 id="names">이름은 무엇을 가리키나</h2>
+<p><code>x = 21</code>이라고 쓰면 이름 <code>x</code>가 값 21을 가리키게 된다. 이름과 값의 이 연결을 <strong>바인딩</strong>(binding, 묶기)이라고 한다. 프로그램 어디에서나 <code>x</code>를 쓸 수 있는 것은 아니다. 함수 안에서 만든 이름은 함수 밖에서 보이지 않는다. 이름이 보이는 범위를 <strong>스코프</strong>(scope, 유효 범위)라고 한다.</p>
+<p>fung의 스코프는 소스의 생김새만 보고 정해진다. "이 이름은 이 블록 안에 쓰였으니 이 블록의 이름이다"를 코드를 읽는 것만으로 알 수 있다. 이것을 <strong>렉시컬 스코프</strong>(lexical scope, 정적 스코프)라고 한다. 반대로 "실행 중에 누가 나를 불렀는가"에 따라 보이는 이름이 달라지는 방식을 <strong>동적 스코프</strong>(dynamic scope)라고 한다. 옛 Lisp들과 bash의 <code>local</code> 변수가 동적 스코프다. bash 함수 안에서 부른 다른 함수가 부른 쪽의 <code>local</code> 변수를 볼 수 있는 것이 그 때문이다.</p>
+<p>실행 중의 어느 순간, 보이는 이름들과 그 값의 묶음을 <strong>환경</strong>(environment)이라고 한다. 그리고 컴파일러가 "지금까지 나온 이름들과 그 정보"를 적어 두는 표를 <strong>심볼 테이블</strong>(symbol table)이라고 한다. 이 장의 주인공은 그 심볼 테이블을 들고 코어 트리를 한 번 훑는 단계, <strong>이름 해석</strong>(name resolution, fung 코드에서는 resolve)이다.</p>
+<h2 id="lookup">실행 중에 찾기와 미리 번호 매기기</h2>
+<p>이름을 값으로 바꾸는 방법은 크게 둘이다.</p>
+<p><strong>실행 중에 찾기.</strong> 환경을 "이름 → 값" 사전(해시 표)으로 들고 다니다가, 이름이 나올 때마다 문자열로 찾는다. 만들기 쉽고 유연하다. 대신 이름이 나올 때마다 문자열 해시를 계산하고 표를 뒤진다. 그리고 오타가 있어도 그 줄이 실행될 때까지 모른다.</p>
+<p><strong>미리 번호 매기기.</strong> 컴파일 시점에 모든 이름의 자리를 정해 번호를 붙인다. "이 함수의 <code>x</code>는 0번 칸, <code>total</code>은 1번 칸". 실행 중에는 "0번 칸을 읽어라"만 하면 된다. 배열 접근 한 번이다. 오타는 번호를 매기다가 "이런 이름은 없다"로 실행 전에 드러난다.</p>
+<p>fung은 둘째 방식이다. 이름 해석이 끝나면 트리에 이름 문자열이 남지 않는다. 컴파일러와 VM은 이름을 다시 찾지 않는다.</p>
+<h2 id="follow">따라가기: 이름이 번호로</h2>
+<div class="run"><pre><code>fn double(x) = x * 2
+print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast example.fung
+(program (fn double(x) (block (binary * x 2))) (call print (call double 21)))</code></pre></div>
+<div class="run"><pre><code>fn double(x) = x * 2
+print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
+(do (let (global 0) (fn double(x) (do (op * (local 0) 2)))) (call (prelude print) (call (global 0) 21)))</code></pre></div>
+<p>이름 셋이 세 갈래로 갈렸다.</p>
+<ul>
+<li><code>x</code> → <code>(local 0)</code>: 함수 <code>double</code>의 <strong>지역 슬롯</strong> 0번. 매개변수도 지역 변수이고, 첫 매개변수가 0번이다.</li>
+<li><code>double</code> → <code>(global 0)</code>: 이 파일(모듈)의 <strong>전역 칸</strong> 0번. 파일 최상위에서 만든 이름이다.</li>
+<li><code>print</code> → <code>(prelude print)</code>: <strong>prelude</strong>(미리 들어 있는 내장 이름들)의 <code>print</code>. 내장 함수는 번호 대신 이름을 남기지만, 이것은 컴파일러가 그 함수 값을 상수로 직접 박아 넣으라는 표시다(8장의 <code>CONST 0 ; &lt;fn print&gt;</code>). 실행 중에 찾는 일은 없다.</li>
+</ul>
+<h3 id="five">다섯 갈래</h3>
+<p>fung의 이름 해석은 모든 이름을 다섯 갈래 중 하나로 정한다.</p>
+<table>
+  <thead><tr><th>코어 표기</th><th>뜻</th><th>어디에 사는가</th></tr></thead>
+  <tbody>
+    <tr><td><code>(local n)</code></td><td>지역 슬롯</td><td>함수의 매개변수와 블록 안의 변수. 실행 중에는 그 함수 호출의 스택 칸(8장)</td></tr>
+    <tr><td><code>(captured n)</code></td><td>붙잡은 값</td><td>클로저가 만들어질 때 복사해 둔 바깥 변수(9장)</td></tr>
+    <tr><td><code>(self)</code></td><td>자기 자신</td><td>블록 안의 이름 있는 <code>fn</code>이 자기를 부를 때(9장)</td></tr>
+    <tr><td><code>(global n)</code></td><td>모듈 전역</td><td>파일 최상위의 변수와 <code>fn</code>. 모듈마다 있는 전역 표(11장)</td></tr>
+    <tr><td><code>(prelude 이름)</code></td><td>prelude</td><td>내장 이름. 80개 남짓(<code>print</code>, <code>map</code>, <code>len</code> …)</td></tr>
+  </tbody>
+</table>
+<p>이 장에서는 지역·전역·prelude를 본다. 붙잡은 값과 자기 자신은 함수와 클로저를 다루는 9장에서 다시 만난다.</p>
+<h2 id="slots">블록 스코프와 슬롯</h2>
+<p>fung에서 <code>if</code>·<code>else</code>·<code>match</code> 절의 본문은 각자 <strong>블록</strong>이고, 블록마다 스코프가 하나씩 생긴다. 블록 안에서 만든 이름은 블록이 끝나면 보이지 않는다. 이름 해석은 블록에 들어갈 때 스코프를 쌓고, 나올 때 버린다.</p>
+<p>슬롯 번호는 이렇게 정한다. 함수마다 "다음에 줄 빈 번호"가 하나 있다. 새 지역 이름이 나오면 그 번호를 주고 하나 올린다. 블록이 끝나면 그 블록에 들어갈 때의 번호로 <strong>되돌린다</strong>. 블록이 끝난 이름의 칸은 더 이상 아무도 읽을 수 없으니, 다음 이름이 같은 칸을 다시 써도 된다.</p>
+<div class="run"><pre><code>fn label(n):
+  word = if n &gt; 9:
+    big = n * 10
+    &quot;big ${big}&quot;
+  else:
+    small = n + 1
+    &quot;small ${small}&quot;
+  ;;
+  word
+;;
+print(label(12))</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
+(do (let (global 0) (fn label(n) (do (let (local 1) (if (op &gt; (local 0) 9) (do (let (local 1) (op * (local 0) 10)) (concat &quot;big &quot; (local 1))) (do (let (local 1) (op + (local 0) 1)) (concat &quot;small &quot; (local 1))))) (local 1)))) (call (prelude print) (call (global 0) 12)))</code></pre></div>
+<ul>
+<li><code>n</code>은 매개변수라 0번이다.</li>
+<li><code>if</code> 가지 안의 <code>big</code>은 1번이다. 가지가 끝나면 번호가 1로 되돌아가서, <code>else</code> 가지의 <code>small</code>도 1번이다. 두 이름은 동시에 살아 있을 수 없으므로 칸 하나를 나눠 쓴다.</li>
+<li><code>word</code>도 1번이다. 대입은 <strong>오른쪽을 먼저</strong> 해석하고 그 뒤에 이름을 묶는다. <code>if</code> 전체를 해석하는 동안 <code>big</code>과 <code>small</code>이 1번을 잠시 쓰고 돌려준 뒤, 그 1번이 <code>word</code>에게 간다.</li>
+</ul>
+<p>함수가 쓰는 칸의 수는 "동시에 살아 있는 이름의 최대 수"다. 이 함수는 2칸이면 된다. 8장에서 VM이 함수를 부를 때 이 수만큼 칸을 마련한다.</p>
+<div class="run"><pre><code>fn label(n):
+  word = if n &gt; 9:
+    big = n * 10
+    &quot;big ${big}&quot;
+  else:
+    small = n + 1
+    &quot;small ${small}&quot;
+  ;;
+  word
+;;
+print(label(12))</code></pre><pre class="out plain"><code>big 120</code></pre></div>
+<p>"오른쪽을 먼저"에는 다른 효과도 있다. <code>x = x + 1</code>에서 오른쪽의 <code>x</code>는 대입하기 <strong>전의</strong> <code>x</code>다. 같은 스코프에서 같은 이름에 다시 대입하면 같은 칸을 다시 쓴다.</p>
+<div class="run"><pre><code>x = 1
+x = x + 1
+print(x)</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
+(do (let (global 0) 1) (let (global 0) (op + (global 0) 1)) (call (prelude print) (global 0)))</code></pre></div>
+<h2 id="globals">파일 최상위: 전역과 끌어올리기</h2>
+<p>파일 최상위에서 만든 이름은 지역 슬롯이 아니라 <strong>전역 칸</strong>(global)이 된다. 함수 호출의 스택 칸은 함수가 끝나면 사라지지만, 파일의 이름은 그 파일의 함수들이 언제 불려도 거기 있어야 하기 때문이다. 다른 파일이 <code>import</code>해서 쓰는 이름도 이 칸들이다(11장).</p>
+<p>최상위의 <code>fn</code>은 특별하게 다룬다. 이름 해석은 파일의 <code>fn</code> 문장을 <strong>먼저</strong> 모아 전역 번호를 붙이고, 코어 트리의 맨 앞으로 옮긴다. 이것을 <strong>끌어올리기</strong>(hoisting)라고 한다. 그래서 함수를 정의하기 전 줄에서 불러도 되고, 두 함수가 서로를 불러도 된다.</p>
+<div class="run"><pre><code>limit = 10
+fn clamp(x) = x &gt; limit then limit else x
+print(clamp(42))</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
+(do (let (global 0) (fn clamp(x) (do (if (op &gt; (local 0) (global 1)) (global 1) (local 0))))) (let (global 1) 10) (call (prelude print) (call (global 0) 42)))</code></pre></div>
+<p>소스에서는 <code>limit = 10</code>이 먼저인데, 코어에서는 <code>clamp</code>의 대입이 맨 앞으로 왔다. <code>clamp</code>가 0번, <code>limit</code>이 1번 칸이다. 그런데 <code>clamp</code>는 <code>limit</code>보다 먼저 만들어지는데도 안에서 <code>(global 1)</code>로 <code>limit</code>을 읽는다. 이것은 <code>limit</code>이 최상위에서 <strong>딱 한 번만</strong> 대입되는 이름이라서 가능하다. 한 번만 대입되면 값이 바뀌지 않으므로 상수와 같고, 최상위 <code>fn</code>이 불릴 때 그 칸을 읽어도 안전하다. 두 번 이상 대입되는 최상위 변수는 최상위 <code>fn</code> 안에서 보이지 않는다(<code>E0204</code>와 "인자로 넘기세요" 도움말). 이 규칙의 이유는 9장에서 "함수는 만들어질 때 보이는 변수를 복사한다"는 fung의 함수 규칙과 함께 본다.</p>
+<div class="run"><pre><code>limit = 10
+fn clamp(x) = x &gt; limit then limit else x
+print(clamp(42))</code></pre><pre class="out plain"><code>10</code></pre></div>
+<h2 id="order">찾는 순서</h2>
+<p>이름 해석이 이름 하나를 읽을 때 찾는 순서는 이렇다.</p>
+<ol>
+<li>지금 함수의 블록들. 가장 안쪽 블록부터 바깥쪽으로.</li>
+<li>지금 함수 자신의 이름(블록 안의 이름 있는 <code>fn</code>이면).</li>
+<li>바깥 함수들. 거기서 찾으면 "붙잡은 값"이 된다(9장).</li>
+<li>파일의 전역.</li>
+<li>prelude.</li>
+</ol>
+<p>어디에도 없으면 에러다. 그런데 바로 <code>E0204</code>(undefined name)를 내지 않고, 더 쓸모 있는 설명이 있는지 먼저 본다.</p>
+<ul>
+<li>이미 끝난 블록에서 만든 이름이면 <code>E0206</code>: "블록 안에서 만든 이름이라 여기서 안 보인다." 블록의 값을 대입하라는 도움말이 붙는다.</li>
+<li>같은 블록의 뒤에서 정의하는 지역 <code>fn</code>이면 <code>E0208</code>.</li>
+<li>그 밖이면 <code>E0204</code>. 보이는 이름 가운데 비슷한 것이 있으면 "a similar name exists"를 붙인다. 비슷함은 글자를 몇 번 고치면 같아지는가(편집 거리)로 잰다. 이름 길이가 3~4글자면 1번, 5글자 이상이면 2번까지 허용하고, 이웃한 두 글자를 맞바꾼 것(<code>fiels</code> → <code>files</code>)도 한 번으로 친다.</li>
+</ul>
+<div class="run"><pre><code>fn double(x) = x * 2
+print(doubel(21))</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `doubel`
+  --&gt; example.fung:2:7
+  |
+2 | print(doubel(21))
+  |       ^^^^^^ not found in this scope
+  |
+ help: a similar name exists: `double`</code></pre></div>
+<h2 id="rules">스코프 규칙과 에러 모으기</h2>
+<p>이름 해석은 이름을 번호로 바꾸는 김에 fung의 스코프 규칙도 검사한다. 대표적인 것이 <strong>바깥 변수 재대입 금지</strong>다. 블록 안에서 블록 바깥의 변수에 다시 대입할 수 없다. 쉘 스크립트에 익숙하면 이렇게 쓰고 싶어진다.</p>
+<div class="run"><pre><code>lines = [&quot;ok&quot;, &quot;error: disk&quot;, &quot;ok&quot;, &quot;error: net&quot;]
+count = 0
+for l in lines:
+  if starts_with(l, &quot;error&quot;): count = count + 1 ;;
+;;
+print(count)</code></pre><pre class="out err plain" data-code="2"><code>error[E0205]: cannot reassign `count` here: it was defined outside this block
+  --&gt; example.fung:4:31
+  |
+4 |   if starts_with(l, &quot;error&quot;): count = count + 1 ;;
+  |                               ^^^^^
+  |
+ help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`</code></pre></div>
+<p>판정 방법은 간단하다. 대입을 만나면 지금 블록의 표를 본다. 있으면 같은 칸에 다시 대입. 없는데 바깥 스코프 어딘가에 있으면 <code>E0205</code>. 어디에도 없으면 새 이름이다.</p>
+<p>이름 해석은 <strong>에러를 하나 찾아도 멈추지 않는다</strong>. 파일 끝까지 훑으며 모든 에러를 모아 한꺼번에 보고한다.</p>
+<div class="run"><pre><code>print(a)
+print(b)</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `a`
+  --&gt; example.fung:1:7
+  |
+1 | print(a)
+  |       ^ not found in this scope
+  |
+error[E0204]: undefined name `b`
+  --&gt; example.fung:2:7
+  |
+2 | print(b)
+  |       ^ not found in this scope
+  |</code></pre></div>
+<p>파서는 첫 에러에서 멈췄는데(4장) 이름 해석은 왜 다 모을 수 있을까? 파서가 틀리면 그 뒤의 구조를 믿을 수 없지만, 이름 해석은 이미 올바른 트리 위에서 일한다. 이름 하나가 틀려도 트리의 다른 부분은 멀쩡하므로 계속 검사해도 엉뚱한 에러가 따라 나오지 않는다.</p>
+<p>이름 해석이 검사하는 것은 그 밖에도 많다. <code>for</code> 안의 <code>return</code>(<code>E0213</code>), 파일 최상위의 <code>return</code>(<code>E0211</code>), 모듈 이름 가리기, 최상위 <code>fn</code> 이름에 대입(<code>E0209</code>), 대문자 이름을 변수로(<code>E0225</code>)… 그리고 <strong>경고</strong>도 여기서 만든다. 쓰지 않는 지역 변수(<code>W0102</code>), 쓰지 않는 import(<code>W0101</code>), prelude 이름 가리기(<code>W0103</code>). 경고는 <code>fung check</code>와 <code>fung test</code>에서만 보인다. 끝으로 이름 해석이 끝난 트리를 한 번 더 돌며 "값을 쓰는 자리의 조용한 <code>nil</code>"(<code>else</code> 없는 <code>if</code>는 <code>E0223</code>, 대입으로 끝나는 블록은 <code>E0224</code>)을 찾는다.</p>
+<div class="box mistake"><b>블록 안에서 바깥 변수 바꾸기</b>
+<p><code>E0205</code>는 쉘이나 다른 언어에서 넘어온 사람이 가장 자주 만나는 에러다. 값을 바꾸는 대신 값을 <strong>만든다</strong>. 위의 예는 <code>fold</code>로 쓴다. <code>fold(xs, 처음, f)</code>는 처음 값에서 시작해 원소마다 <code>f(지금까지, 원소)</code>를 불러 새 값을 만든다.</p>
+<div class="run"><pre><code>lines = [&quot;ok&quot;, &quot;error: disk&quot;, &quot;ok&quot;, &quot;error: net&quot;]
+count = fold(lines, 0, (n, l) =&gt; starts_with(l, &quot;error&quot;) then n + 1 else n)
+print(count)</code></pre><pre class="out plain"><code>2</code></pre></div>
+</div>
+<div class="box other"><b>다른 언어는</b>
+<ul>
+<li><strong>Python</strong>: 함수의 지역 변수는 컴파일 때 번호가 정해져 <code>LOAD_FAST n</code>으로 칸을 바로 읽는다. 그러나 전역과 내장 이름은 <code>LOAD_GLOBAL</code>이 실행 중에 사전을 찾는다. 그래서 오타가 난 전역 이름은 그 줄이 실행될 때 <code>NameError</code>가 된다.</li>
+<li><strong>Lua</strong>: 지역 변수는 레지스터 번호로, 전역은 실행 중에 표(<code>_ENV</code>)에서 찾는다. 선언하지 않은 이름은 에러가 아니라 <code>nil</code>이다.</li>
+<li><strong>JavaScript</strong>: <code>var</code>는 함수 전체가 스코프이고 선언이 함수 맨 위로 끌어올려진다. 블록 스코프는 나중에 <code>let</code>·<code>const</code>로 더해졌다.</li>
+<li><strong>bash</strong>: 기본은 전역 변수 하나의 공간이고, <code>local</code>은 동적 스코프다. 이름은 늘 실행 중에 찾는다.</li>
+</ul>
+</div>
+<div class="box choice"><b>fung의 선택</b>
+<ul>
+<li><strong>실행 중에는 이름을 찾지 않는다.</strong> 이름 해석이 모든 이름을 다섯 갈래 중 하나로 분류하고, 컴파일러는 이름을 다시 찾지 않는다(설계 문서 09). 마일스톤 노트 M2는 이것을 실행 중에 사전을 찾는 언어(Python 같은)와 컴파일 언어의 중요한 차이로 들었다.</li>
+<li><strong>블록이 끝나면 슬롯을 재사용한다</strong>(설계 문서 09). 함수가 쓰는 칸 수가 "동시에 살아 있는 이름 수"로 줄어든다.</li>
+<li><strong>의미 에러는 파일 전체를 검사한 뒤 모두 보고한다</strong>(설계 문서 08). 문법 에러가 첫 번째 하나인 것과 대비된다.</li>
+<li><strong>블록은 바깥 변수를 바꿀 수 없다.</strong> fung은 반복문과 블록 안 재할당을 채택하지 않았다. 설계 문서 00은 그 이유로 "<code>for</code> 안에서 <code>total = total + x</code>가 조용히 0이 되는 함정"을 든다. <code>for</code>의 본문은 람다(5장)이므로, 바깥 변수를 바꾸는 것을 허용하면 그 변경이 람다 안에서만 일어나고 바깥은 그대로인 버그가 된다. fung은 그것을 조용히 두지 않고 <code>E0205</code>로 만든다(결정 원칙 1: 엄격함 우선).</li>
+</ul>
+</div>
+<h2 id="source">코드에서 찾아보기</h2>
+<ul>
+<li><code>crates/fung-front/src/resolve.rs</code>: 입구 <code>resolve(core, prelude, opts)</code>가 <code>Resolved</code>(바뀐 트리, 메인 프레임의 칸 수 <code>num_locals</code>, 전역 이름 목록 <code>globals</code>, 경고)나 에러 목록을 돌려준다.</li>
+<li><code>Resolver::root_block</code>: 파일 최상위. <code>fn</code>을 먼저 모아 전역 번호를 붙이는 끌어올리기, 한 번만 대입되는 이름의 칸을 미리 잡는 <code>Resolver::declare_consts</code>.</li>
+<li><code>Resolver::name</code>(이름 읽기와 <code>E0204</code>·<code>E0206</code>·<code>E0208</code>), <code>Resolver::lookup</code>(찾는 순서), <code>Resolver::capture_from</code>(바깥 함수에서 붙잡기).</li>
+<li><code>Resolver::let_</code>(오른쪽 먼저), <code>Resolver::bind_new</code>(<code>E0205</code>·<code>E0209</code> 판정), <code>Resolver::bind_here</code>(전역 칸 또는 슬롯 배정).</li>
+<li><code>Resolver::push_block</code>·<code>Resolver::pop_block</code>: 블록 스코프를 쌓고 버리며, 버릴 때 슬롯 번호를 되돌린다.</li>
+<li><code>crates/fung-front/src/resolve/scope.rs</code>: 심볼 테이블. <code>Binding</code>(전역인가, 번호, 상수인가), 블록 스코프 <code>Scope</code>, 함수 스코프 <code>FnScope</code>와 <code>FnScope::alloc_slot</code>.</li>
+<li><code>crates/fung-front/src/resolve/similar.rs</code>: 비슷한 이름 찾기 <code>similar</code>, <code>edit_budget</code>, <code>edit_distance</code>.</li>
+<li><code>crates/fung-front/src/resolve/value.rs</code>의 <code>check</code>: 값 자리의 <code>nil</code>(<code>E0223</code>·<code>E0224</code>). <code>resolve/warn.rs</code>: 경고.</li>
+<li><code>crates/fung-front/src/builtins.rs</code>와 <code>spec/builtins.txt</code>: prelude 이름의 목록. VM 쪽 표에서 생성하고 테스트가 같은지 지킨다.</li>
+</ul>
+<div class="exercise"><b>슬롯 번호 맞히기</b>
+<p>아래 함수에서 <code>host</code>, <code>port</code>, <code>addr</code>, <code>msg</code>는 각각 몇 번 슬롯일까? 예상한 뒤 <code>fung dump core</code>로 확인하자.</p>
+<pre class="frag"><code>fn describe(host, port):
+  addr = &quot;${host}:${port}&quot;
+  msg = if port == 443:
+    tls = &quot;https&quot;
+    &quot;${tls}://${addr}&quot;
+  else:
+    &quot;http://${addr}&quot;
+  ;;
+  msg
+;;</code></pre>
+<details><summary>풀이 보기</summary>
+<p>매개변수 <code>host</code>가 0번, <code>port</code>가 1번, <code>addr</code>이 2번이다. <code>if</code> 가지의 <code>tls</code>가 3번을 잠시 쓰고 돌려준 뒤, 오른쪽을 다 해석한 <code>msg</code>가 3번을 받는다.</p>
+<div class="run"><pre><code>fn describe(host, port):
+  addr = &quot;${host}:${port}&quot;
+  msg = if port == 443:
+    tls = &quot;https&quot;
+    &quot;${tls}://${addr}&quot;
+  else:
+    &quot;http://${addr}&quot;
+  ;;
+  msg
+;;
+print(describe(&quot;db1&quot;, 443))</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
+(do (let (global 0) (fn describe(host, port) (do (let (local 2) (concat (local 0) &quot;:&quot; (local 1))) (let (local 3) (if (op == (local 1) 443) (do (let (local 3) &quot;https&quot;) (concat (local 3) &quot;://&quot; (local 2))) (do (concat &quot;http://&quot; (local 2))))) (local 3)))) (call (prelude print) (call (global 0) &quot;db1&quot; 443)))</code></pre></div>
+<div class="run"><pre><code>fn describe(host, port):
+  addr = &quot;${host}:${port}&quot;
+  msg = if port == 443:
+    tls = &quot;https&quot;
+    &quot;${tls}://${addr}&quot;
+  else:
+    &quot;http://${addr}&quot;
+  ;;
+  msg
+;;
+print(describe(&quot;db1&quot;, 443))</code></pre><pre class="out plain"><code>https://db1:443</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>바인딩은 이름과 값의 연결, 스코프는 이름이 보이는 범위다. fung은 소스만 보고 스코프가 정해지는 렉시컬 스코프다.</li>
+<li>이름 해석은 모든 이름을 지역 슬롯, 붙잡은 값, 자기 자신, 모듈 전역, prelude 중 하나로 정한다. 실행 중에는 이름을 찾지 않는다.</li>
+<li>슬롯 번호는 함수마다 차례로 주고, 블록이 끝나면 되돌려 재사용한다. 대입은 오른쪽을 먼저 해석한다.</li>
+<li>최상위 <code>fn</code>은 끌어올려진다. 한 번만 대입되는 최상위 이름은 최상위 <code>fn</code>에서도 읽힌다.</li>
+<li>스코프 위반은 멈추지 않고 모두 모아 보고한다. 비슷한 이름 힌트는 편집 거리로 찾는다.</li>
+</ul>
+<p>다음 장에서는 지금까지 본 에러 메시지가 어떻게 만들어지는지, 위치와 카탈로그를 본다. 스코프 규칙 전체는 <a href="../reference/language.html#scope">언어 레퍼런스의 스코프</a>에, <code>E0205</code>는 <a href="../reference/errors.html#E0205">에러 목록</a>에 있다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/05-desugar.html"><small>이전 장</small>5. desugar와 코어 언어</a><a class="next" href="../vm/07-diagnostics.html"><small>다음 장</small>7. 에러 메시지 만들기</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

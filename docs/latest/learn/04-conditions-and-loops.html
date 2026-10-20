@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>조건과 반복 · fung 매뉴얼</title>
+<meta name="description" content="비교 연산자, 값을 내는 if·else와 한 줄 조건 then … else, for로 목록 돌기, map·filter·fold, while 대신 꼬리 재귀.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="learn">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">L</span><span class="mbar-where"><span class="mbar-title">4. 조건과 반복</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
+<ol class="chapters">
+<li><a href="../learn/01-programming.html">1. 프로그래밍과 fung</a></li>
+<li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
+<li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
+<li><a href="../learn/04-conditions-and-loops.html" aria-current="page">4. 조건과 반복</a><ol class="toc2"><li><a href="#flow">프로그램의 흐름</a></li><li><a href="#comparison">비교</a></li><li><a href="#if">if와 else</a></li><li><a href="#for">for: 목록 돌기</a></li><li><a href="#map-filter-fold">map, filter, fold</a></li><li><a href="#no-while">while이 없는 이유</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/05-functions.html">5. 함수</a></li>
+<li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
+<li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
+<li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
+<li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
+<li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
+<li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
+<li><a href="../learn/12-concurrency.html">12. 동시에 여러 일 하기</a></li>
+<li><a href="../learn/13-json-and-http.html">13. JSON과 HTTP</a></li>
+<li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
+</ol>
+</li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../learn/01-programming.html"><span class="glyph">L</span>fung 배우기</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>4장</span></nav>
+<h1>조건과 반복</h1>
+<p class="lede">프로그램이 경우에 따라 다른 일을 하고, 같은 일을 여러 번 하게 만드는 법.</p>
+<div class="goals"><b>이 장에서 배울 것</b>
+<ul>
+<li>비교 연산자와 <code>and</code>·<code>or</code>·<code>not</code>, <code>in</code></li>
+<li><code>if</code>·<code>else if</code>·<code>else</code>, 그리고 <code>if</code>가 값을 낸다는 것</li>
+<li>한 줄 조건 <code>c then a else b</code></li>
+<li><code>for</code>로 목록과 범위를 도는 법, <code>for</code>가 리스트를 만든다는 것</li>
+<li><code>map</code>·<code>filter</code>·<code>fold</code>로 목록을 바꾸고 고르고 모으는 법</li>
+<li><code>while</code>이 없는 이유와, 대신 쓰는 꼬리 재귀</li>
+</ul>
+</div>
+<h2 id="flow">프로그램의 흐름</h2>
+<p>2장의 스크립트는 위에서 아래로 한 줄씩 한 번만 실행됐다. 실제 일은 그렇게 곧지 않다. "디스크 사용률이 90%를 넘으면 알린다"처럼 <strong>경우에 따라</strong> 다른 일을 해야 하고, "서버마다 확인한다"처럼 같은 일을 <strong>여러 번</strong> 해야 한다. 앞의 것을 <strong>조건(condition)</strong>, 뒤의 것을 <strong>반복(loop)</strong>이라고 한다. 거의 모든 프로그램은 값, 조건, 반복의 조합이다.</p>
+<h2 id="comparison">비교</h2>
+<p>조건은 질문이고, 질문의 답은 bool(<code>true</code>나 <code>false</code>)이다. 질문은 비교 연산자로 만든다.</p>
+<table>
+  <thead><tr><th>연산자</th><th>뜻</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td><code>==</code> <code>!=</code></td><td>같다, 다르다</td><td><code>status == 'ok</code></td></tr>
+    <tr><td><code>&lt;</code> <code>&gt;</code></td><td>작다, 크다</td><td><code>usage &gt; 90</code></td></tr>
+    <tr><td><code>&lt;=</code> <code>&gt;=</code></td><td>작거나 같다, 크거나 같다</td><td><code>retries &lt;= 3</code></td></tr>
+    <tr><td><code>in</code> <code>not in</code></td><td>들어 있다, 없다</td><td><code>"ERROR" in line</code></td></tr>
+  </tbody>
+</table>
+<div class="run"><pre><code>print(&quot;web-1&quot; == &quot;web-1&quot;, &quot;web-1&quot; &lt; &quot;web-2&quot;, 10 &lt; 9.5)
+print(5 in 1..10, 10 in 1..10, &quot;ERROR&quot; in &quot;2026-10-20 ERROR disk full&quot;)
+print(1 == &quot;1&quot;)</code></pre><pre class="out plain"><code>true true false
+true false true
+false</code></pre></div>
+<ul>
+<li>문자열은 사전 순서로 비교한다. 정확히는 글자의 유니코드 번호 순서라서, 대문자가 소문자보다 앞이다.</li>
+<li><code>1..10</code>은 1부터 10 <strong>앞까지</strong>의 정수 범위다. 10까지 넣으려면 <code>1..=10</code>이라고 쓴다.</li>
+<li>타입이 다른 값을 <code>==</code>로 비교하면 그냥 <code>false</code>다(정수와 실수는 숫자로 비교해서 <code>1 == 1.0</code>은 참이다). 크기 비교 <code>&lt;</code>는 타입이 다르면 에러다.</li>
+<li>비교는 이어 쓸 수 없다. <code>0 &lt; x &lt; 10</code>은 E0111 에러이고, <code>0 &lt; x and x &lt; 10</code>이라고 쓴다.</li>
+</ul>
+<p>질문을 엮을 때는 <code>and</code>, <code>or</code>, <code>not</code>을 쓴다. <code>and</code>는 왼쪽이 거짓이면 오른쪽을 아예 계산하지 않는다(<code>or</code>는 왼쪽이 참이면). 그래서 아래처럼 "0이 아닐 때만 나눈다"를 한 줄로 쓸 수 있다.</p>
+<div class="run"><pre><code>count = 0
+print(count != 0 and 100 / count &gt; 5)</code></pre><pre class="out plain"><code>false</code></pre></div>
+<h2 id="if">if와 else</h2>
+<p><code>if</code>는 조건이 참일 때만 블록을 실행한다. 블록은 <code>:</code>로 열고 <code>;;</code>로 닫는다. 조건이 거짓일 때 할 일은 <code>else:</code> 뒤에, 조건을 더 나눌 때는 <code>else if</code>를 쓴다. 위에서부터 차례로 보고 처음 참인 가지 하나만 실행한다.</p>
+<div class="run"><pre><code>usage = 91
+if usage &gt;= 90:
+  print(&quot;critical: disk&quot;, usage, &quot;%&quot;)
+else if usage &gt;= 75:
+  print(&quot;warning: disk&quot;, usage, &quot;%&quot;)
+else:
+  print(&quot;ok&quot;)
+;;</code></pre><pre class="out plain"><code>critical: disk 91 %</code></pre></div>
+<p>들여쓰기는 읽기 좋으라고 하는 것이고 뜻은 없다. 블록의 끝은 오직 <code>;;</code>가 정한다. 짧으면 한 줄로 써도 된다: <code>if usage &gt;= 90: print(&quot;critical&quot;) ;;</code>. 들여쓰기는 <code>fung fmt</code>가 맞춰 준다(14장).</p>
+<p>조건 자리에는 반드시 bool이 와야 한다. <code>if count:</code>처럼 숫자를 주면 런타임 에러 E0505다. "0이 아니면"은 <code>if count != 0:</code>이라고 분명히 쓴다.</p>
+<h3 id="if-value">if는 값을 낸다</h3>
+<p>fung의 <code>if</code>는 <strong>식(expression)</strong>이다. 실행된 가지의 마지막 값이 <code>if</code> 전체의 값이 된다. 그래서 결과를 바로 이름에 대입할 수 있다. 3장에서 본 "블록은 바깥 변수를 바꿀 수 없다" 규칙은 이렇게 푼다: 가지 안에서 변수를 고치는 대신, <code>if</code>가 낸 값을 대입한다.</p>
+<div class="run"><pre><code>usage = 78
+level = if usage &gt;= 90:
+  &quot;critical&quot;
+else if usage &gt;= 75:
+  &quot;warning&quot;
+else:
+  &quot;ok&quot;
+;;
+print(level)</code></pre><pre class="out plain"><code>warning</code></pre></div>
+<p>값으로 쓰는 <code>if</code>에는 <code>else</code>가 반드시 있어야 한다. 없으면 조건이 거짓일 때 값이 <code>nil</code>이 되는데, 그것이 의도인지 실수인지 알 수 없어서 컴파일 에러 E0223으로 막는다. 정말 <code>nil</code>을 원하면 <code>else: nil</code>이라고 쓴다.</p>
+<h3 id="then">한 줄 조건: then … else</h3>
+<p>값 두 개 중 하나를 고르는 짧은 조건은 <code>조건 then 값1 else 값2</code>로 쓴다. 다른 언어의 <code>조건 ? a : b</code>와 같은 것이다. <code>else</code>는 빠뜨릴 수 없고, 이어 쓸 수 있다.</p>
+<div class="run"><pre><code>usage = 91
+print(usage &gt; 80 then &quot;alert&quot; else &quot;fine&quot;)
+size = 1_500_000
+print(size &gt; 1_000_000 then &quot;big&quot; else size &gt; 1000 then &quot;medium&quot; else &quot;small&quot;)</code></pre><pre class="out plain"><code>alert
+big</code></pre></div>
+<h2 id="for">for: 목록 돌기</h2>
+<p><code>for 이름 in 목록:</code>은 목록의 원소마다 블록을 한 번씩 실행한다. 원소는 차례로 <code>이름</code>에 들어간다. 목록 자리에는 리스트(7장)나 범위를 쓴다.</p>
+<div class="run"><pre><code>for host in [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]:
+  print(&quot;checking&quot;, host)
+;;
+for i in 1..=3:
+  print(&quot;attempt&quot;, i)
+;;</code></pre><pre class="out plain"><code>checking web-1
+checking web-2
+checking db-1
+attempt 1
+attempt 2
+attempt 3</code></pre></div>
+<p>fung의 <code>for</code>도 식이다. 블록이 낸 값을 원소마다 모아 <strong>새 리스트</strong>를 만든다. 그 리스트를 이름에 대입하면 "목록의 각 원소를 바꾼 목록"이 된다.</p>
+<div class="run"><pre><code>usages = [45, 91, 78, 99]
+levels = for u in usages:
+  u &gt;= 90 then &quot;critical&quot; else &quot;ok&quot;
+;;
+print(levels)</code></pre><pre class="out plain"><code>[&quot;ok&quot;, &quot;critical&quot;, &quot;ok&quot;, &quot;critical&quot;]</code></pre></div>
+<p>위의 첫 예제처럼 결과를 아무도 쓰지 않는 자리의 <code>for</code>는 리스트를 만들지 않고 돌기만 한다. 문자열의 글자나 맵(7장)을 돌 때는 <code>chars(s)</code>, <code>pairs(m)</code>으로 리스트로 바꿔서 돈다.</p>
+<h2 id="map-filter-fold">map, filter, fold</h2>
+<p>목록을 다루는 일은 거의 세 가지로 나뉜다. fung은 세 가지 각각에 함수를 둔다.</p>
+<ul>
+<li><strong>바꾸기</strong> <code>map(xs, f)</code>: 원소마다 <code>f</code>를 적용한 새 리스트. <code>for</code>와 같다.</li>
+<li><strong>고르기</strong> <code>filter(xs, f)</code>: <code>f</code>가 참인 원소만 남긴 새 리스트.</li>
+<li><strong>모으기</strong> <code>fold(xs, init, f)</code>: 처음 값 <code>init</code>에서 시작해, 원소마다 "지금까지 모은 값"과 그 원소로 다음 값을 만든다. 합계, 개수, 가장 큰 값 같은 것.</li>
+</ul>
+<p><code>f</code> 자리에는 함수를 준다. <code>u =&gt; u &gt;= 90</code>은 "<code>u</code>를 받아 <code>u &gt;= 90</code>을 돌려주는 함수"를 짧게 쓴 것이다(5장에서 자세히 배운다).</p>
+<div class="run"><pre><code>usages = [45, 91, 78, 99]
+print(map(usages, u =&gt; u + 1))
+print(filter(usages, u =&gt; u &gt;= 90))
+print(fold(usages, 0, (total, u) =&gt; total + u))</code></pre><pre class="out plain"><code>[46, 92, 79, 100]
+[91, 99]
+313</code></pre></div>
+<p><code>fold</code>는 처음엔 낯설다. 위의 합계는 이렇게 진행된다: <code>0</code>에서 시작해 <code>0 + 45 = 45</code>, <code>45 + 91 = 136</code>, <code>136 + 78 = 214</code>, <code>214 + 99 = 313</code>. 매 단계의 "모은 값"이 다음 단계로 넘어갈 뿐, 어떤 변수도 바뀌지 않는다. 합계는 자주 쓰므로 <code>sum(xs)</code>도 있다.</p>
+<p>여러 단계를 이을 때는 <strong>파이프</strong> <code>|&gt;</code>를 쓰면 데이터가 흐르는 순서대로 읽힌다. <code>xs |&gt; filter(f)</code>는 <code>filter(xs, f)</code>와 같다. 파이프는 5장에서 자세히 다룬다.</p>
+<div class="run"><pre><code>usages = [45, 91, 78, 99]
+critical = usages |&gt; filter(u =&gt; u &gt;= 90) |&gt; len
+print(critical, &quot;disk(s) over 90%&quot;)</code></pre><pre class="out plain"><code>2 disk(s) over 90%</code></pre></div>
+<h2 id="no-while">while이 없는 이유</h2>
+<p>많은 언어에는 "조건이 참인 동안 되풀이한다"는 <code>while</code>이 있다. fung에는 없다. <code>while</code>은 반복할 때마다 바깥 변수를 고쳐야 끝날 수 있는데, fung에서는 값이 바뀌지 않고 블록이 바깥 변수를 고칠 수 없기 때문이다(3장). 대신 두 가지를 쓴다.</p>
+<ol>
+<li>목록이 있는 반복은 앞에서 본 <code>for</code>, <code>map</code>, <code>filter</code>, <code>fold</code>.</li>
+<li>목록 없이 "될 때까지" 되풀이하는 반복(재시도, 대기, 누적)은 <strong>재귀(recursion)</strong>, 곧 함수가 자기 자신을 부르는 것.</li>
+</ol>
+<p>함수는 5장에서 배우지만, 모양은 간단하다. 아래는 8080번부터 시작해 이미 쓰는 포트를 건너뛰고 비어 있는 첫 포트를 찾는다. "쓰는 중이면 다음 번호로 같은 일을 다시 하고, 아니면 그 번호가 답"이다.</p>
+<div class="run"><pre><code>fn next_free(port, used) = port in used then next_free(port + 1, used) else port
+print(next_free(8080, [8080, 8081, 8083]))</code></pre><pre class="out plain"><code>8082</code></pre></div>
+<p><code>while</code>에서 바뀌던 변수(<code>port</code>)가 여기서는 <strong>다음 호출의 인자</strong>가 된다. 바뀌는 것이 없으니 3장의 규칙과 부딪히지 않는다.</p>
+<p>이렇게 함수가 하는 마지막 일이 자기 호출인 것을 <strong>꼬리 재귀(tail recursion)</strong>라고 한다. fung은 꼬리 호출을 할 때 새 자리를 쌓지 않고 지금 자리를 다시 쓰므로, 백만 번을 돌아도 문제가 없다. 결과를 모아 가려면 모은 값을 인자로 넘긴다. 아래는 1초에서 시작해 두 배씩 늘리는 재시도 간격을 30초까지 모은다.</p>
+<div class="run"><pre><code>fn backoff(delay, limit, acc) = delay &gt; limit then acc else backoff(delay * 2, limit, acc + [delay])
+print(backoff(1s, 30s, []))</code></pre><pre class="out plain"><code>[1s, 2s, 4s, 8s, 16s]</code></pre></div>
+<p>자주 쓰는 모양은 함수로 준비되어 있다. <code>until(x, f, pred)</code>는 <code>pred</code>가 참이 될 때까지 <code>x</code>에 <code>f</code>를 되풀이하고, <code>iterate(x, f, n)</code>은 <code>f</code>를 <code>n</code>번 적용한다.</p>
+<div class="run"><pre><code>print(until(1, n =&gt; n * 2, n =&gt; n &gt; 100))
+print(iterate(1s, d =&gt; d * 2, 4))</code></pre><pre class="out plain"><code>128
+16s</code></pre></div>
+<h2 id="notes">짚고 넘어가기</h2>
+<div class="box learn"><b>반복과 재귀</b>
+<p>재귀는 "문제를 한 걸음 줄인 같은 문제로 바꾸는 것"이다. 3부터 0까지 세는 일은 "3을 찍고, 2부터 0까지 세는 일"이다. 줄이다 보면 더 줄일 수 없는 경우(0)에 닿고, 거기서 멈춘다. 이 멈추는 경우를 빠뜨리면 끝나지 않는다. 재귀 함수를 쓸 때는 늘 "언제 멈추는가"부터 쓴다.</p>
+<div class="run"><pre><code>fn countdown(n):
+  if n == 0:
+    print(&quot;liftoff&quot;)
+  else:
+    print(n)
+    countdown(n - 1)
+  ;;
+;;
+countdown(3)</code></pre><pre class="out plain"><code>3
+2
+1
+liftoff</code></pre></div>
+</div>
+<div class="box mistake"><b>값으로 쓰는 if에 else가 없음 (E0223)</b>
+<p><code>label = if ok: &quot;up&quot; ;;</code>은 컴파일 에러다. 조건이 거짓이면 <code>label</code>이 <code>nil</code>이 되는데, 대개 <code>else</code>를 빠뜨린 실수이기 때문이다. 결과를 쓰는 <code>for</code>(<code>xs = for …</code>) 안의 <code>if</code>도 값을 내는 자리라 같다. <code>else</code>를 쓰거나, 원소를 고르는 것이 목적이면 <code>filter</code>를 쓴다. 결과를 쓰지 않는 <code>for</code> 문장 안이나 <code>if</code>를 문장으로 쓸 때는 <code>else</code> 없이 써도 된다.</p>
+<div class="run"><pre><code>ok = false
+label = if ok: &quot;up&quot; ;;
+print(label)</code></pre><pre class="out err plain" data-code="2"><code>error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+  --&gt; example.fung:2:9
+  |
+2 | label = if ok: &quot;up&quot; ;;
+  |         ^^ this if has no else
+  |
+ help: add an `else:` branch; write `else: nil` if nil is meant</code></pre></div>
+</div>
+<div class="box mistake"><b>조건에 bool이 아닌 값 (E0505)</b>
+<p><code>if len(errors):</code>는 런타임 에러 <code>expected bool, got int</code>다(<code>if name:</code>이면 <code>got str</code>). fung은 <code>0</code>, 빈 문자열, 빈 리스트를 거짓으로 봐 주지 않는다. <code>if len(errors) &gt; 0:</code>, <code>if name != &quot;&quot;:</code>, <code>if not is_empty(errors):</code>처럼 질문을 분명히 쓴다.</p>
+</div>
+<div class="box mistake"><b>반복 안에서 합계 쌓기 (E0205)</b>
+<p><code>for</code> 안에서 <code>total = total + x</code>는 E0205다(3장). 합계는 <code>sum</code>, 개수는 <code>len</code>이나 <code>filter</code> 뒤의 <code>len</code>, 그 밖의 누적은 <code>fold</code>로 쓴다.</p>
+</div>
+<div class="box other"><b>다른 언어는</b>
+<p>Python의 <code>x if c else y</code>, JavaScript의 <code>c ? x : y</code>가 fung의 <code>c then x else y</code>다. Python의 리스트 내포 <code>[f(x) for x in xs]</code>가 fung의 <code>for x in xs: f(x) ;;</code>와 같다. 쉘의 <code>while read line</code>처럼 줄을 읽는 반복은 fung에서 줄 목록을 받아 <code>for</code>로 돈다(11장). Python과 JavaScript는 깊은 재귀에서 스택이 넘치지만, fung은 꼬리 재귀를 반복처럼 돌린다.</p>
+</div>
+<h2 id="exercises">해 보기</h2>
+<div class="exercise"><b>디스크 경보</b>
+<p>서버들의 디스크 사용률이 <code>[45, 91, 78, 99, 82]</code>다. 각 사용률을 <code>90</code> 이상은 <code>&quot;critical&quot;</code>, <code>75</code> 이상은 <code>&quot;warning&quot;</code>, 나머지는 <code>&quot;ok&quot;</code>로 바꾼 리스트를 찍고, <code>&quot;critical&quot;</code>이 몇 개인지 찍어 보자.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>usages = [45, 91, 78, 99, 82]
+levels = for u in usages:
+  u &gt;= 90 then &quot;critical&quot; else u &gt;= 75 then &quot;warning&quot; else &quot;ok&quot;
+;;
+print(levels)
+print(levels |&gt; filter(l =&gt; l == &quot;critical&quot;) |&gt; len)</code></pre><pre class="out plain"><code>[&quot;ok&quot;, &quot;critical&quot;, &quot;warning&quot;, &quot;critical&quot;, &quot;warning&quot;]
+2</code></pre></div>
+</details>
+</div>
+<div class="exercise"><b>가장 큰 값 찾기</b>
+<p><code>fold</code>로 <code>[45, 91, 78, 99, 82]</code>에서 가장 큰 값을 찾아 보자. 처음 값은 첫 원소로 한다. (실제로는 <code>max(xs)</code>가 있다.)</p>
+<details><summary>풀이 보기</summary>
+<p>모은 값 <code>best</code>와 원소 <code>u</code> 중 큰 것을 다음 단계로 넘긴다.</p>
+<div class="run"><pre><code>usages = [45, 91, 78, 99, 82]
+print(fold(usages, usages[0], (best, u) =&gt; u &gt; best then u else best))
+print(max(usages))</code></pre><pre class="out plain"><code>99
+99</code></pre></div>
+</details>
+</div>
+<h2 id="summary">정리</h2>
+<ul>
+<li>비교는 bool을 낸다. 비교는 이어 쓰지 않고 <code>and</code>로 엮는다. <code>and</code>·<code>or</code>는 필요할 때만 오른쪽을 계산한다.</li>
+<li><code>if</code>·<code>else if</code>·<code>else</code>는 블록이고 식이다. 값으로 쓸 때는 <code>else</code>가 꼭 있어야 한다(E0223).</li>
+<li>짧은 조건은 <code>c then a else b</code>.</li>
+<li><code>for x in xs: … ;;</code>는 원소마다 블록을 돌고, 그 값들로 새 리스트를 만든다.</li>
+<li>바꾸기는 <code>map</code>, 고르기는 <code>filter</code>, 모으기는 <code>fold</code>.</li>
+<li><code>while</code>은 없다. 목록이 없는 반복은 꼬리 재귀로 쓰고, <code>until</code>·<code>iterate</code>가 흔한 모양을 대신한다.</li>
+</ul>
+<p>레퍼런스: <a href="../reference/language.html#conditions">조건</a>, <a href="../reference/language.html#for">for</a>, <a href="../reference/language.html#functions">꼬리 호출</a>, <a href="../reference/prelude/collections.html#fn-map"><code>map</code></a>, <a href="../reference/prelude/collections.html#fn-filter"><code>filter</code></a>, <a href="../reference/prelude/collections.html#fn-fold"><code>fold</code></a>, <a href="../reference/prelude/loops.html">반복 패턴</a>, <a href="../reference/errors.html#E0223">E0223</a>. 꼬리 호출이 프레임을 다시 쓰는 방법은 <a href="../vm/09-closures.html">함수와 클로저</a>에서 다룬다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/03-values-and-names.html"><small>이전 장</small>3. 값과 이름</a><a class="next" href="../learn/05-functions.html"><small>다음 장</small>5. 함수</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

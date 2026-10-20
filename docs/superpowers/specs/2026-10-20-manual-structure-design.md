@@ -3,7 +3,7 @@
 2026-10-20. 지금의 매뉴얼(`docs/index.html`·`syntax.html`·`builtins.html`·`internals.html`, 레퍼런스 형식 네 장)을
 "언어 책 한 권을 대신하는" 매뉴얼로 다시 짓는다. 이 문서는 전체 구조와 뼈대를 정하고, 각 부분의 원고는 뒤의 작업 단위에서 쓴다.
 
-상태: 1단계(뼈대) 끝(2026-10-20, 계획 `docs/plans/2026-10-20-manual-1-skeleton.md`). 남은 단계는 open-questions "매뉴얼".
+상태: 1~5단계 끝(2026-10-20, 계획 `docs/plans/2026-10-20-manual-1-skeleton.md`, 작성 지침 `docs/plans/2026-10-20-manual-2-content.md`). 쓰며 찾은 문제는 `docs/plans/2026-10-20-manual-findings.md`.
 
 ## 1. 의도와 이유
 

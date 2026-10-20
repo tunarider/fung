@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>regex — 정규식 · fung 매뉴얼</title>
+<meta name="description" content="fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기, 나누기(is_match, find, find_all, replace, split).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">regex — 정규식</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.4.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.4.0"><option value="0.4.0">0.4.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html" aria-current="page">regex — 정규식</a><ol class="toc2"><li><a href="#concepts">정규식이란</a></li><li><a href="#functions">함수</a></li></ol></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">표준 모듈</span></nav>
+<h1>regex — 정규식</h1>
+<p class="lede"><code>import regex</code>. 정규식으로 문자열에서 모양을 찾고, 꺼내고, 바꾸고, 나눈다. 문법은 RE2 계열이라 역참조와 전후방 탐색이 없는 대신 항상 선형 시간에 돈다.</p>
+<h2 id="concepts">정규식이란</h2>
+<p><strong>정규식</strong>(regular expression, regex)은 "문자열의 모양"을 적는 작은 언어다. "숫자가 하나 이상", "<code>ERROR</code>로 시작하는 줄", "<code>키=값</code> 꼴" 같은 조건을 짧은 패턴으로 쓴다. <code>grep</code>, <code>sed</code>, 편집기의 찾기 기능이 쓰는 그것이다. 고정된 글자를 찾을 때는 prelude의 <a href="../prelude/collections.html#fn-contains"><code>contains</code></a>·<a href="../prelude/strings.html#fn-split"><code>split</code></a>·<a href="../prelude/strings.html#fn-replace"><code>replace</code></a>가 더 간단하고 빠르다. 모양이 들쭉날쭉할 때 정규식을 쓴다.</p>
+<p>자주 쓰는 문법:</p>
+<table>
+  <thead><tr><th>패턴</th><th>뜻</th></tr></thead>
+  <tbody>
+    <tr><td><code>abc</code></td><td>글자 그대로</td></tr>
+    <tr><td><code>.</code></td><td>줄바꿈이 아닌 아무 글자 하나</td></tr>
+    <tr><td><code>\d</code> <code>\w</code> <code>\s</code></td><td>숫자, 단어 글자(글자·숫자·<code>_</code>), 공백 하나. 대문자(<code>\D</code> …)는 그 반대</td></tr>
+    <tr><td><code>[abc]</code> <code>[a-z]</code> <code>[^0-9]</code></td><td>괄호 안의 글자 하나, 범위, 여집합</td></tr>
+    <tr><td><code>x*</code> <code>x+</code> <code>x?</code></td><td>0번 이상, 1번 이상, 0번이나 1번</td></tr>
+    <tr><td><code>x{3}</code> <code>x{2,5}</code></td><td>정확히 3번, 2~5번</td></tr>
+    <tr><td><code>^</code> <code>$</code></td><td>문자열의 처음과 끝(<code>(?m)</code>을 붙이면 줄의 처음과 끝)</td></tr>
+    <tr><td><code>\b</code></td><td>단어의 경계</td></tr>
+    <tr><td><code>a|b</code></td><td><code>a</code> 또는 <code>b</code></td></tr>
+    <tr><td><code>(…)</code></td><td>캡처 그룹: 맞은 부분을 따로 꺼낸다</td></tr>
+    <tr><td><code>(?P&lt;name&gt;…)</code></td><td>이름 있는 캡처 그룹</td></tr>
+    <tr><td><code>(?:…)</code></td><td>꺼내지 않는 묶음</td></tr>
+    <tr><td><code>(?i)</code></td><td>대소문자 무시</td></tr>
+    <tr><td><code>\.</code> <code>\(</code></td><td>특수 글자를 글자 그대로</td></tr>
+  </tbody>
+</table>
+<p>문법은 Rust <code>regex</code> 크레이트의 것(RE2 계열)이다. 역참조(<code>\1</code>)와 전후방 탐색(<code>(?=…)</code>, <code>(?&lt;=…)</code>)이 없다. 그 대신 어떤 패턴과 입력이든 입력 길이에 비례하는 시간에 끝나므로, 외부 입력에 패턴을 돌려도 "끝나지 않는 정규식" 문제가 없다. <code>\d</code>·<code>\w</code>·<code>\s</code>·<code>\b</code>는 유니코드를 알아본다(아랍 숫자 <code>٣</code>도 <code>\d</code>다). ASCII만 원하면 <code>(?-u:\d)</code>처럼 쓴다. 그룹 이름은 ASCII 글자·숫자·<code>_</code>이고 겹치면 안 된다.</p>
+<p><strong>패턴은 원시 문자열 <code></code> <code>…</code> <code></code>로 쓴다.</strong> 보통 문자열 <code>&quot;…&quot;</code>에서는 <code>\d</code>가 모르는 이스케이프라 컴파일 에러이고, <code>${name}</code>은 보간이 되어 버린다. 원시 문자열은 쓴 글자 그대로다.</p>
+<p><strong>위치는 글자 단위다.</strong> 매치의 <code>start</code>·<code>end</code>는 바이트가 아니라 글자(유니코드 코드 포인트) 인덱스이므로 <code>s[m.start..m.end]</code>가 그대로 맞는다.</p>
+<p>잘못된 패턴은 프로그램의 잘못이므로 런타임 에러 E0515다(<code></code>invalid pattern <code>a(</code>: unclosed group<code></code>). 패턴의 중첩은 250단계, 컴파일한 크기는 128 MiB까지다. 컴파일한 패턴은 캐시되므로, 같은 패턴을 반복문에서 여러 번 써도 다시 컴파일하지 않는다. 따로 "컴파일된 정규식" 값을 만들 필요가 없다.</p>
+<h3 id="match-map">매치 맵</h3>
+<p><code>regex.find</code>와 <code>regex.find_all</code>은 맞은 곳 하나를 다음 맵으로 준다.</p>
+<table>
+  <thead><tr><th>키</th><th>값</th></tr></thead>
+  <tbody>
+    <tr><td><code>text</code></td><td>맞은 부분 전체(문자열)</td></tr>
+    <tr><td><code>start</code> <code>end</code></td><td>맞은 부분의 글자 인덱스(<code>end</code>는 마지막 글자 다음)</td></tr>
+    <tr><td><code>groups</code></td><td>캡처 그룹의 리스트(전체 매치는 빼고, 순서대로). 잡히지 않은 그룹은 <code>nil</code></td></tr>
+    <tr><td><code>named</code></td><td>이름 있는 그룹의 맵(이름 → 문자열 또는 <code>nil</code>)</td></tr>
+  </tbody>
+</table>
+<h2 id="functions">함수</h2>
+<section class="entry" id="fn-regex-is_match">
+<h3>regex.is_match</h3>
+<p><code>s</code>의 어딘가에 패턴이 맞는지 알려 준다.</p>
+<div class="sig"><code>regex.is_match(s, pat)</code></div>
+<h4>설명</h4>
+<p>패턴이 <code>s</code>의 어느 부분에든 맞으면 <code>true</code>다. 문자열 전체가 맞아야 한다면 <code>^…$</code>로 감싼다. 맞은 내용이 필요 없을 때 <a href="#fn-regex-find"><code>regex.find</code></a>보다 간단하다. 이름이 <code>match</code>가 아닌 것은 <code>match</code>가 예약어이기 때문이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 검사할 문자열.</li>
+<li><code>pat</code>: 패턴.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>true</code> 또는 <code>false</code>.</p>
+<h4>에러</h4>
+<ul>
+<li>런타임 에러 E0515: 패턴이 잘못되었다.</li>
+<li>런타임 에러 E0403: <code>s</code>나 <code>pat</code>이 문자열이 아니다.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>로그 줄 고르기</strong></p>
+<div class="run"><pre><code>import regex
+
+lines = [&quot;INFO ok&quot;, &quot;ERROR disk full&quot;, &quot;error: retry&quot;, &quot;WARN slow&quot;]
+print(lines |&gt; filter(l =&gt; regex.is_match(l, `(?i)^error`)))</code></pre><pre class="out plain"><code>[&quot;ERROR disk full&quot;, &quot;error: retry&quot;]</code></pre></div>
+<p><strong>전체 모양 검사</strong></p>
+<div class="run"><pre><code>import regex
+
+fn is_host(s) = regex.is_match(s, `^[a-z][a-z0-9-]*-\d+$`)
+
+print(is_host(&quot;web-1&quot;), is_host(&quot;db-12&quot;), is_host(&quot;Web-1&quot;), is_host(&quot;web-1.example.com&quot;))</code></pre><pre class="out plain"><code>true true false false</code></pre></div>
+<p><strong>잘못된 패턴</strong></p>
+<div class="run"><pre><code>import regex
+
+print(regex.is_match(&quot;a&quot;, `a(`))</code></pre><pre class="out err plain" data-code="1"><code>error[E0515]: invalid pattern `a(`: unclosed group
+  --&gt; example.fung:3:21
+  |
+3 | print(regex.is_match(&quot;a&quot;, `a(`))
+  |                     ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-regex-find"><code>regex.find</code></a>, <a href="../prelude/collections.html#fn-contains"><code>contains</code></a>, <a href="../prelude/strings.html#fn-starts_with"><code>starts_with</code></a></p>
+</section>
+<section class="entry" id="fn-regex-find">
+<h3>regex.find</h3>
+<p>처음 맞는 곳을 찾아 <a href="#match-map">매치 맵</a>으로 돌려준다.</p>
+<div class="sig"><code>regex.find(s, pat)</code></div>
+<h4>설명</h4>
+<p><code>s</code>에서 왼쪽부터 처음 맞는 곳 하나를 찾는다. 없으면 <code>nil</code>이다(실패가 아니라 "없음"이라 결과값이 아니다). 캡처 그룹으로 값을 꺼낼 때 쓴다. <code>nil</code>일 수 있으므로 <code>m.groups</code>를 읽기 전에 확인하거나 <code>match</code>로 나눈다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 찾을 대상 문자열.</li>
+<li><code>pat</code>: 패턴.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><a href="#match-map">매치 맵</a> 또는 <code>nil</code>.</p>
+<h4>에러</h4>
+<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>와 같다.</p>
+<h4>예제</h4>
+<p><strong>이름 있는 그룹으로 꺼내기</strong></p>
+<div class="run"><pre><code>import regex
+
+m = regex.find(&quot;listen port=8080 proto=tcp&quot;, `(?P&lt;key&gt;port)=(?P&lt;val&gt;\d+)`)
+print(m.named.key, int(m.named.val) + 1)
+print(m.text, m.start, m.end)</code></pre><pre class="out plain"><code>port 8081
+port=8080 7 16</code></pre></div>
+<p><strong>없으면 <code>nil</code></strong></p>
+<div class="run"><pre><code>import regex
+
+fn version(s) = match regex.find(s, `v(\d+)\.(\d+)`):
+  nil =&gt; &quot;unknown&quot;
+  m   =&gt; &quot;major ${m.groups[0]}, minor ${m.groups[1]}&quot;
+;;
+
+print(version(&quot;release v2.14 is out&quot;))
+print(version(&quot;nightly build&quot;))</code></pre><pre class="out plain"><code>major 2, minor 14
+unknown</code></pre></div>
+<p><strong>글자 단위 위치와 잡히지 않은 그룹</strong></p>
+<div class="run"><pre><code>import regex
+
+m = regex.find(&quot;참치 42개&quot;, `(\d+)(개)?(마리)?`)
+print(m)
+print(&quot;참치 42개&quot;[m.start..m.end])</code></pre><pre class="out plain"><code>{text: &quot;42개&quot;, start: 3, end: 6, groups: [&quot;42&quot;, &quot;개&quot;, nil], named: {}}
+42개</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-regex-find_all"><code>regex.find_all</code></a>, <a href="#fn-regex-is_match"><code>regex.is_match</code></a></p>
+</section>
+<section class="entry" id="fn-regex-find_all">
+<h3>regex.find_all</h3>
+<p>겹치지 않는 모든 매치를 리스트로 돌려준다.</p>
+<div class="sig"><code>regex.find_all(s, pat)</code></div>
+<h4>설명</h4>
+<p>왼쪽부터 차례로 찾고, 한 매치가 끝난 자리에서 다음을 찾는다(겹치지 않는다). 앞 매치 바로 뒤의 빈 매치는 세지 않는다. 맞는 곳이 없으면 빈 리스트다. 각 원소는 <a href="#match-map">매치 맵</a>이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 찾을 대상 문자열.</li>
+<li><code>pat</code>: 패턴.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>매치 맵의 리스트.</p>
+<h4>에러</h4>
+<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>와 같다.</p>
+<h4>예제</h4>
+<p><strong>숫자 모두 꺼내기</strong></p>
+<div class="run"><pre><code>import regex
+
+ms = regex.find_all(&quot;took 12ms, 340ms and 7ms&quot;, `\d+`)
+print(ms |&gt; map(m =&gt; int(m.text)) |&gt; sum)</code></pre><pre class="out plain"><code>359</code></pre></div>
+<p><strong><code>키=값</code> 쌍을 맵으로</strong></p>
+<div class="run"><pre><code>import regex
+
+line = &quot;user=kim role=admin  region=eu&quot;
+pairs = regex.find_all(line, `(?P&lt;k&gt;\w+)=(?P&lt;v&gt;\S+)`)
+print(pairs |&gt; fold({}, (acc, m) =&gt; put(acc, m.named.k, m.named.v)))</code></pre><pre class="out plain"><code>{user: &quot;kim&quot;, role: &quot;admin&quot;, region: &quot;eu&quot;}</code></pre></div>
+<p><strong>로그 줄 나누기</strong></p>
+<div class="run"><pre><code>import regex
+
+log = [&quot;GET /a 200&quot;, &quot;POST /b 500&quot;, &quot;junk&quot;, &quot;GET /c 404&quot;]
+rows = log |&gt; map(l =&gt; regex.find(l, `^(\w+) (\S+) (\d{3})$`)) |&gt; filter(m =&gt; m != nil)
+print(rows |&gt; map(m =&gt; m.groups) |&gt; filter(g =&gt; g[2] != &quot;200&quot;))</code></pre><pre class="out plain"><code>[[&quot;POST&quot;, &quot;/b&quot;, &quot;500&quot;], [&quot;GET&quot;, &quot;/c&quot;, &quot;404&quot;]]</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-regex-find"><code>regex.find</code></a>, <a href="#fn-regex-split"><code>regex.split</code></a></p>
+</section>
+<section class="entry" id="fn-regex-replace">
+<h3>regex.replace</h3>
+<p>맞는 곳을 모두 바꾼 문자열을 돌려준다.</p>
+<div class="sig"><code>regex.replace(s, pat, repl)</code></div>
+<h4>설명</h4>
+<p><code>s</code>에서 패턴이 맞는 곳을 <strong>모두</strong> <code>repl</code>로 바꾼다(첫 곳만이 아니다). 맞는 곳이 없으면 <code>s</code> 그대로다. <code>repl</code> 안에서 캡처 그룹을 다시 쓸 수 있다.</p>
+<table>
+  <thead><tr><th><code>repl</code> 안의 표기</th><th>뜻</th></tr></thead>
+  <tbody>
+    <tr><td><code>$1</code> <code>$2</code></td><td>번호 그룹(1부터). <code>$0</code>은 전체 매치</td></tr>
+    <tr><td><code>${name}</code></td><td>이름 있는 그룹</td></tr>
+    <tr><td><code>${1}</code></td><td>번호 그룹, 뒤에 글자를 붙일 때</td></tr>
+    <tr><td><code>$$</code></td><td><code>$</code> 글자 하나</td></tr>
+  </tbody>
+</table>
+<p><code>$</code> 뒤의 이름은 가능한 한 길게 읽는다. 그래서 <code>$1x</code>는 "이름이 <code>1x</code>인 그룹"이고, 그런 그룹이 없으면 빈 문자열이 된다. 그룹 뒤에 글자를 붙이려면 <code>${1}x</code>로 쓴다. <code>${…}</code>를 쓰는 <code>repl</code>은 보간을 피하려고 원시 문자열 <code></code> <code>…</code> <code></code>로 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 대상 문자열.</li>
+<li><code>pat</code>: 패턴.</li>
+<li><code>repl</code>: 바꿀 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>바꾼 문자열.</p>
+<h4>에러</h4>
+<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>와 같다.</p>
+<h4>예제</h4>
+<p><strong>날짜 꼴 바꾸기</strong></p>
+<div class="run"><pre><code>import regex
+
+print(regex.replace(&quot;2026-10-04, 2026-10-05&quot;, `(\d+)-(\d+)-(\d+)`, &quot;$3/$2/$1&quot;))</code></pre><pre class="out plain"><code>04/10/2026, 05/10/2026</code></pre></div>
+<p><strong>비밀 가리기</strong></p>
+<div class="run"><pre><code>import regex
+
+line = &quot;login user=kim password=hunter2 token=abc123&quot;
+print(regex.replace(line, `(?P&lt;key&gt;password|token)=\S+`, `${key}=***`))</code></pre><pre class="out plain"><code>login user=kim password=*** token=***</code></pre></div>
+<p><strong><code>$1x</code>와 <code>${1}x</code>, <code>$$</code></strong></p>
+<div class="run"><pre><code>import regex
+
+print(regex.replace(&quot;ab&quot;, `(a)`, &quot;$1x&quot;))
+print(regex.replace(&quot;ab&quot;, `(a)`, `${1}x`))
+print(regex.replace(&quot;cost 5&quot;, `(\d+)`, &quot;$$$1&quot;))</code></pre><pre class="out plain"><code>b
+axb
+cost $5</code></pre></div>
+<div class="box mistake"><b>보통 문자열에 <code>${name}</code></b>
+<p><code>regex.replace(s, pat, &quot;&lt;${w}&gt;&quot;)</code>처럼 보통 문자열에 <code>${w}</code>를 쓰면 fung이 먼저 변수 <code>w</code>를 보간하려 해서 E0204(없는 이름)가 난다. 그룹을 가리키는 <code>${w}</code>는 원시 문자열 <code></code> <code>&lt;${w}&gt;</code> <code></code>에 쓴다.</p>
+</div>
+<h4>같이 보기</h4>
+<p><a href="../prelude/strings.html#fn-replace"><code>replace</code></a>(고정된 글자 바꾸기), <a href="../../recipes/replace-config.html">설정 파일 값 치환</a></p>
+</section>
+<section class="entry" id="fn-regex-split">
+<h3>regex.split</h3>
+<p>맞는 곳을 경계로 문자열을 나눈다.</p>
+<div class="sig"><code>regex.split(s, pat)</code></div>
+<h4>설명</h4>
+<p>패턴이 맞는 곳마다 잘라 그 사이 조각들의 리스트를 돌려준다. prelude의 <a href="../prelude/strings.html#fn-split"><code>split</code></a>처럼 빈 조각도 남긴다(구분자가 맨 앞이나 맨 끝, 또는 연달아 있을 때). 문자열 맨 앞과 맨 끝의 <strong>빈 매치</strong>로는 자르지 않으므로 <code>regex.split(&quot;abc&quot;, &quot;&quot;)</code>는 <code>[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code>이고, 빈 문자열을 빈 패턴으로 나누면 <code>[]</code>다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 나눌 문자열.</li>
+<li><code>pat</code>: 구분자 패턴.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열 리스트.</p>
+<h4>에러</h4>
+<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>와 같다.</p>
+<h4>예제</h4>
+<p><strong>여러 모양의 구분자</strong></p>
+<div class="run"><pre><code>import regex
+
+print(regex.split(&quot;web-1, web-2;db-1   cache-1&quot;, `[,;\s]+`))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;, &quot;cache-1&quot;]</code></pre></div>
+<p><strong>빈 조각</strong></p>
+<div class="run"><pre><code>import regex
+
+print(regex.split(&quot;a,,b,&quot;, `,`))
+print(regex.split(&quot;  a  b &quot;, `\s+`))
+print(regex.split(&quot;abc&quot;, &quot;&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;, &quot;&quot;]
+[&quot;&quot;, &quot;a&quot;, &quot;b&quot;, &quot;&quot;]
+[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre></div>
+<p>빈 조각이 필요 없으면 <code>filter(x =&gt; x != &quot;&quot;)</code>로 걸러 낸다.</p>
+<h4>같이 보기</h4>
+<p><a href="../prelude/strings.html#fn-split"><code>split</code></a>, <a href="../prelude/strings.html#fn-lines"><code>lines</code></a>, <a href="../../recipes/regex-split.html">텍스트 응답을 정규식으로 쪼개기</a></p>
+</section>
+<p>배우는 순서로는 <a href="../../learn/06-strings.html">6장 문자열 다루기</a>를 본다.</p>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/modules/time.html"><small>이전</small>time — 시각</a><a class="next" href="../../reference/modules/http.html"><small>다음</small>http — HTTP</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>
