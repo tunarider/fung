@@ -1,0 +1,7 @@
+# the generator's test manual
+part learn L numbered 배우기 | 순서대로 읽는 책 | 처음 온 사람
+page a.md
+group 둘째 묶음
+page b.md
+part reference § 레퍼런스 | 찾아보는 곳
+page c.md

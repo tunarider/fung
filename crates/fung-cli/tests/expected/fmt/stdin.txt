@@ -1321,228 +1321,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual builtins:1
--- stdout
-| print("total:", 3, [1, 2], 'ok)
--- stderr
--- exit: 0
-==== manual builtins:2
--- stdout
-| print(type_of(1.5), type_of(Ok(1)), type_of('x))
--- stderr
--- exit: 0
-==== manual builtins:3
--- stdout
-| print(int("42") + 1, int(-3.9))
--- stderr
--- exit: 0
-==== manual builtins:4
--- stdout
-| print(parse_int("1_000"), parse_int("x"))
--- stderr
--- exit: 0
-==== manual builtins:5
--- stdout
-| print(parse_dur("90s")!, parse_dur("soon"))
--- stderr
--- exit: 0
-==== manual builtins:6
--- stdout
-| print(len("참치"), len([1, 2]), len(0..10))
--- stderr
--- exit: 0
-==== manual builtins:7
--- stdout
-| print([1, 2, 3] |> map(x => x * 10))
--- stderr
--- exit: 0
-==== manual builtins:8
--- stdout
-| print(["1", "2"] |> try_map(parse_int))
-| print(["1", "x"] |> try_map(parse_int))
--- stderr
--- exit: 0
-==== manual builtins:9
--- stdout
-| print(fold([1, 2, 3], 0, (acc, x) => acc + x))
--- stderr
--- exit: 0
-==== manual builtins:10
--- stdout
-| print(["bb", "a", "ccc"] |> sort_by(len))
--- stderr
--- exit: 0
-==== manual builtins:11
--- stdout
-| print(group_by(["ab", "c", "de"], s => str(len(s))))
--- stderr
--- exit: 0
-==== manual builtins:12
--- stdout
-| print(get({a: 1}, "b", 0))
--- stderr
--- exit: 0
-==== manual builtins:13
--- stdout
-| print(split("a,,b", ","))
--- stderr
--- exit: 0
-==== manual builtins:14
--- stdout
-| print(lines("a\nb\n"))
--- stderr
--- exit: 0
-==== manual builtins:15
--- stdout
-| print(trim("  x "), trim("--x--", "-"))
--- stderr
--- exit: 0
-==== manual builtins:16
--- stdout
-| print(pad_left("7", 3, "0"), "[" + pad_right("ab", 4) + "]")
--- stderr
--- exit: 0
-==== manual builtins:17
--- stdout
-| print(until(1, x => x * 2, x => x > 100))
--- stderr
--- exit: 0
-==== manual builtins:18
--- stdout
-| print(with(() => "conn", c => c + " used", c => print("closed", c)))
--- stderr
--- exit: 0
-==== manual builtins:19
--- stdout
-| r = exec(["echo", "hi"])!
-| print(trim(r.out))
--- stderr
--- exit: 0
-==== manual builtins:20
--- stdout
-| port = env("PORT") ?? "8080"
-| print(port)
--- stderr
--- exit: 0
-==== manual builtins:21
--- stdout
-| r = scope(fn(s):
-|   a = spawn(s, () => 6 * 7)
-|   b = spawn(s, () => 1 + 1)
-|   [await(a), await(b)]
-| ;;)
-| print(r)
--- stderr
--- exit: 0
-==== manual builtins:22
--- stdout
-| supervise(fn(s):
-|   spawn(s, () => fail("boom"))
-|   spawn(s, () => print("still runs"))
-| ;;, e => eprint("handled: ${e.message}"))
--- stderr
--- exit: 0
-==== manual builtins:23
--- stdout
-| print(scope(s => await(spawn(s, () => 6 * 7))))
--- stderr
--- exit: 0
-==== manual builtins:24
--- stdout
-| print(timeout(1s, () => 1 + 1))
-| (_tx, rx) = channel()
-| print(timeout(10ms, () => recv(rx)))
--- stderr
--- exit: 0
-==== manual builtins:25
--- stdout
-| fn numbers(s, n):
-|   (tx, rx) = channel()
-|   spawn(s, () => each(0..n, i => send(tx, i)))
-|   rx
-| ;;
-|
-| scope(fn(s):
-|   for x in numbers(s, 3):
-|     print(x)
-|   ;;
-| ;;)
--- stderr
--- exit: 0
-==== manual builtins:26
--- stdout
-| (tx, rx) = channel(1)
-| send(tx, "hi")
-| print(recv(rx)!)
--- stderr
--- exit: 0
-==== manual builtins:27
--- stdout
-| stop = stop_signal()
-| request_stop()
-| print(recv(stop))
--- stderr
--- exit: 0
-==== manual builtins:28
--- stdout
-| hits = atom(0)
-| each(1..=3, _ => swap(hits, n => n + 1))
-| print(deref(hits))
--- stderr
--- exit: 0
-==== manual builtins:29
--- stdout
-| import cli
-| opts = cli.parse(["--dry-run", "--n", "3", "a.txt"], bools: ["dry-run"])
-| print(opts.flags.dry_run, int(opts.flags.n), opts.rest)
--- stderr
--- exit: 0
-==== manual builtins:30
--- stdout
-| import json
-| data = json.parse(`{"name": "fung", "tags": ["a"], "n": 3}`)!
-| print(data.name, data.tags, data.n + 1)
--- stderr
--- exit: 0
-==== manual builtins:31
--- stdout
-| import json
-| print(json.stringify({ok: true, ids: (1, 2), at: 'now}))
--- stderr
--- exit: 0
-==== manual builtins:32
--- stdout
-| import time
-| t = time.parse("2026-10-04 09:05", "YYYY-MM-DD HH:mm")!
-| print(time.format(t + 90m, "HH:mm"))
--- stderr
--- exit: 0
-==== manual builtins:33
--- stdout
-| import regex
-| m = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
-| print(m.named.key, int(m.named.val) + 1)
--- stderr
--- exit: 0
-==== manual builtins:34
--- stdout
-| import regex
-| print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"))
--- stderr
--- exit: 0
-==== manual builtins:35
--- stdout
-| import conc
-| print(conc.pmap([1, 2, 3], x => x * x, limit: 2))
--- stderr
--- exit: 0
-==== manual builtins:36
--- stdout
-| import conc
-| print(conc.retry(() => Err("down"), times: 2))
--- stderr
--- exit: 0
-==== manual index:1
+==== manual index.md:1
 -- stdout
 | import fs
 |
@@ -1555,7 +1334,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual index:2
+==== manual index.md:2
 -- stdout
 | #!/usr/bin/env fung
 | # usage: fung biggest.fung <dir> [n]
@@ -1577,7 +1356,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual index:3
+==== manual index.md:3
 -- stdout
 | fn slug(s) = lower(s) |> split(" ") |> filter(w => w != "") |> join("-")
 |
@@ -1587,14 +1366,228 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual internals:1
+==== manual reference/functions.md:1
 -- stdout
-| fn sq(x) = x * x
-| xs = [1, 2, 3] |> map(sq)
-| print(sum(xs))
+| print("total:", 3, [1, 2], 'ok)
 -- stderr
 -- exit: 0
-==== manual syntax:1
+==== manual reference/functions.md:2
+-- stdout
+| print(type_of(1.5), type_of(Ok(1)), type_of('x))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:3
+-- stdout
+| print(int("42") + 1, int(-3.9))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:4
+-- stdout
+| print(parse_int("1_000"), parse_int("x"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:5
+-- stdout
+| print(parse_dur("90s")!, parse_dur("soon"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:6
+-- stdout
+| print(len("참치"), len([1, 2]), len(0..10))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:7
+-- stdout
+| print([1, 2, 3] |> map(x => x * 10))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:8
+-- stdout
+| print(["1", "2"] |> try_map(parse_int))
+| print(["1", "x"] |> try_map(parse_int))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:9
+-- stdout
+| print(fold([1, 2, 3], 0, (acc, x) => acc + x))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:10
+-- stdout
+| print(["bb", "a", "ccc"] |> sort_by(len))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:11
+-- stdout
+| print(group_by(["ab", "c", "de"], s => str(len(s))))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:12
+-- stdout
+| print(get({a: 1}, "b", 0))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:13
+-- stdout
+| print(split("a,,b", ","))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:14
+-- stdout
+| print(lines("a\nb\n"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:15
+-- stdout
+| print(trim("  x "), trim("--x--", "-"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:16
+-- stdout
+| print(pad_left("7", 3, "0"), "[" + pad_right("ab", 4) + "]")
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:17
+-- stdout
+| print(until(1, x => x * 2, x => x > 100))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:18
+-- stdout
+| print(with(() => "conn", c => c + " used", c => print("closed", c)))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:19
+-- stdout
+| r = exec(["echo", "hi"])!
+| print(trim(r.out))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:20
+-- stdout
+| port = env("PORT") ?? "8080"
+| print(port)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:21
+-- stdout
+| r = scope(fn(s):
+|   a = spawn(s, () => 6 * 7)
+|   b = spawn(s, () => 1 + 1)
+|   [await(a), await(b)]
+| ;;)
+| print(r)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:22
+-- stdout
+| supervise(fn(s):
+|   spawn(s, () => fail("boom"))
+|   spawn(s, () => print("still runs"))
+| ;;, e => eprint("handled: ${e.message}"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:23
+-- stdout
+| print(scope(s => await(spawn(s, () => 6 * 7))))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:24
+-- stdout
+| print(timeout(1s, () => 1 + 1))
+| (_tx, rx) = channel()
+| print(timeout(10ms, () => recv(rx)))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:25
+-- stdout
+| fn numbers(s, n):
+|   (tx, rx) = channel()
+|   spawn(s, () => each(0..n, i => send(tx, i)))
+|   rx
+| ;;
+|
+| scope(fn(s):
+|   for x in numbers(s, 3):
+|     print(x)
+|   ;;
+| ;;)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:26
+-- stdout
+| (tx, rx) = channel(1)
+| send(tx, "hi")
+| print(recv(rx)!)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:27
+-- stdout
+| stop = stop_signal()
+| request_stop()
+| print(recv(stop))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:28
+-- stdout
+| hits = atom(0)
+| each(1..=3, _ => swap(hits, n => n + 1))
+| print(deref(hits))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:29
+-- stdout
+| import cli
+| opts = cli.parse(["--dry-run", "--n", "3", "a.txt"], bools: ["dry-run"])
+| print(opts.flags.dry_run, int(opts.flags.n), opts.rest)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:30
+-- stdout
+| import json
+| data = json.parse(`{"name": "fung", "tags": ["a"], "n": 3}`)!
+| print(data.name, data.tags, data.n + 1)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:31
+-- stdout
+| import json
+| print(json.stringify({ok: true, ids: (1, 2), at: 'now}))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:32
+-- stdout
+| import time
+| t = time.parse("2026-10-04 09:05", "YYYY-MM-DD HH:mm")!
+| print(time.format(t + 90m, "HH:mm"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:33
+-- stdout
+| import regex
+| m = regex.find("port=8080", `(?P<key>\w+)=(?P<val>\d+)`)
+| print(m.named.key, int(m.named.val) + 1)
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:34
+-- stdout
+| import regex
+| print(regex.replace("2026-10-04", `(\d+)-(\d+)-(\d+)`, "$3/$2/$1"))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:35
+-- stdout
+| import conc
+| print(conc.pmap([1, 2, 3], x => x * x, limit: 2))
+-- stderr
+-- exit: 0
+==== manual reference/functions.md:36
+-- stdout
+| import conc
+| print(conc.retry(() => Err("down"), times: 2))
+-- stderr
+-- exit: 0
+==== manual reference/language.md:1
 -- stdout
 | # 한눈에 보는 fung
 | import fs
@@ -1610,26 +1603,26 @@
 | print("${size} bytes (${label})")
 -- stderr
 -- exit: 0
-==== manual syntax:2
+==== manual reference/language.md:2
 -- stdout
 | event = {type: "deploy", match: "api-*"}
 | print(event.type, event.match)
 -- stderr
 -- exit: 0
-==== manual syntax:3
+==== manual reference/language.md:3
 -- stdout
 | name = "fung"
 | print("hello, ${name}! ${1 + 2}")
 | pattern = `^\d{4}-\d{2}$`
 -- stderr
 -- exit: 0
-==== manual syntax:4
+==== manual reference/language.md:4
 -- stdout
 | elapsed = 1m30s
 | print(elapsed / 1ms, elapsed // 1m, elapsed % 1m)
 -- stderr
 -- exit: 0
-==== manual syntax:5
+==== manual reference/language.md:5
 -- stdout
 | fn classify(n):
 |   if n < 0:
@@ -1644,7 +1637,7 @@
 | fn classify_short(n) = if n < 0: "negative" else if n == 0: "zero" else: "positive" ;;
 -- stderr
 -- exit: 0
-==== manual syntax:6
+==== manual reference/language.md:6
 -- stdout
 | names = ["b.log", "a.txt", "c.log"]
 | logs = names
@@ -1655,7 +1648,7 @@
 | print(logs, ok)
 -- stderr
 -- exit: 0
-==== manual syntax:7
+==== manual reference/language.md:7
 -- stdout
 | line = " ERROR,disk full "
 | fields = line |> trim |> lower |> split(",")
@@ -1663,13 +1656,13 @@
 | print(fields, cfg |> keys)
 -- stderr
 -- exit: 0
-==== manual syntax:8
+==== manual reference/language.md:8
 -- stdout
 | xs = [10, 20, 30, 40]
 | print(xs[-1], xs[1..3], xs[..2], "참치김밥"[1..3])
 -- stderr
 -- exit: 0
-==== manual syntax:9
+==== manual reference/language.md:9
 -- stdout
 | # 식 하나짜리
 | fn add(a, b) = a + b
@@ -1695,26 +1688,26 @@
 | later()
 -- stderr
 -- exit: 0
-==== manual syntax:10
+==== manual reference/language.md:10
 -- stdout
 | fn greet(name, greeting = "hello", ...extra) = "${greeting}, ${name}${join(extra)}"
 | print(greet("fung"), greet("fung", greeting: "hi"), greet("fung", "yo", "!", "?"))
 -- stderr
 -- exit: 0
-==== manual syntax:11
+==== manual reference/language.md:11
 -- stdout
 | import path
 | files = ["a.txt", "b.txt"]
 | print(files |> map(path.join("/tmp", _)))
 -- stderr
 -- exit: 0
-==== manual syntax:12
+==== manual reference/language.md:12
 -- stdout
 | fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 | print(count(1_000_000, 0))
 -- stderr
 -- exit: 0
-==== manual syntax:13
+==== manual reference/language.md:13
 -- stdout
 | fn sign(n):
 |   if n > 0:
@@ -1728,7 +1721,7 @@
 | print(sign(5), 3 > 2 then "yes" else "no")
 -- stderr
 -- exit: 0
-==== manual syntax:14
+==== manual reference/language.md:14
 -- stdout
 | (q, r) = (7 // 2, 7 % 2)
 | [top, ...rest] = ["a", "b", "c"]
@@ -1736,7 +1729,7 @@
 | print(q, r, top, rest, name, p)
 -- stderr
 -- exit: 0
-==== manual syntax:15
+==== manual reference/language.md:15
 -- stdout
 | squares = for x in 1..=3: x * x ;;
 | for (k, v) in pairs({a: 1, b: 2}):
@@ -1745,7 +1738,7 @@
 | print(squares)
 -- stderr
 -- exit: 0
-==== manual syntax:16
+==== manual reference/language.md:16
 -- stdout
 | fn half(n) = n // 2
 |
@@ -1757,6 +1750,13 @@
 | # [파일:줄] half(10) = 5 를 표준 에러로 찍고 값을 돌려준다
 | x = dbg(half(10)) + 1
 | print(x)
+-- stderr
+-- exit: 0
+==== manual vm/internals.md:1
+-- stdout
+| fn sq(x) = x * x
+| xs = [1, 2, 3] |> map(sq)
+| print(sum(xs))
 -- stderr
 -- exit: 0
 ==== crates/fung-cli/tests/data/check/_lib/warns.fung

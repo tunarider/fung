@@ -16,7 +16,7 @@
 
 설계 문서는 [docs/design](docs/design/README.md)에 있다. 마일스톤별 설명은 [docs/notes](docs/notes/)에.
 개발: `cargo test --locked`가 언어 골든 테스트(`tests/lang`)와 기대 출력 파일(`crates/*/tests/expected`)까지 모두 돌린다.
-매뉴얼은 <https://blog.tunarider.net/fung/> (원본 [docs/index.html](docs/index.html)).
+매뉴얼은 <https://blog.tunarider.net/fung/> (원고 [manual/](manual/), 생성 결과 `docs/latest/`).
 
 ## 설치
 

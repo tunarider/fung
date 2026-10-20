@@ -112,8 +112,9 @@ macOS에서 만든 묶음에 AppleDouble(`._fung`)·확장 속성이 끼지 않�
 
 1. `CHANGELOG.md`의 `[Unreleased]` 절을 `## [x.y.z] - 날짜`로 바꾸고 빈 `[Unreleased]`를 새로 둔다. 맨 아래 비교 링크도 고친다.
    이 절이 GitHub 릴리스 노트가 된다(`scripts/changelog-section.sh`). 절이 없으면 릴리스가 실패한다.
-2. 매뉴얼 사이드바의 버전 표기(`fung 0.1.0` 꼴, `docs/*.html`)를 새 버전으로 고친다. `crates/fung-cli/tests/changelog.rs`가 이 버전의
-   CHANGELOG 절이 있는지 확인하므로, 둘 중 하나만 고치면 테스트가 실패한다.
+2. (0.4.0부터) 매뉴얼을 얼린다: `FUNG_MANUAL_FREEZE=x.y.z cargo test -p fung-cli --test manual_build freeze_a_release`가
+   `docs/x.y.z/`를 만들고 `docs/versions.js`에 넣는다(한 번만, 이미 있으면 실패). `latest`는 그대로 main을 따라간다.
+   `crates/fung-cli/tests/changelog.rs`가 가장 최근에 얼린 버전의 CHANGELOG 절이 있는지 확인한다.
 3. (처음이거나 워크플로를 바꿨다면) 태그 전에 위 6절의 수동 실행으로 시험한다.
 4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. Actions의 release 실행이 끝나면 Releases 페이지에 tar.gz 네 개와 `SHA256SUMS`가 올라온다.

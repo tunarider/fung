@@ -11,14 +11,16 @@
 //! - `check` on every `.fung` file of `tests/lang` (with `_lib`),
 //!   `examples` and `extras`, the warning fixtures in
 //!   `tests/data/check`, `-e` programs, and argument errors.
-//! - The manual: its runnable examples pass `check`, `fmt --check` and a
-//!   run (`manual_examples_check_format_and_run`); their formatting has a
-//!   fixed output like any source.
+//! - The manual: its checked examples (`manual/**/*.md`, which the
+//!   generator in `manual_build.rs` checks and runs) have a fixed
+//!   formatter output like any source.
 //! - File names that are not UTF-8 are tested where the file system
 //!   allows them, by comparison with the same file under a UTF-8 name
 //!   (`*_non_utf8_*`), so the fixed outputs are the same on every system.
 
 mod common;
+#[path = "manual_site/markup.rs"]
+mod markup;
 #[allow(dead_code)]
 #[path = "../src/paths.rs"]
 mod paths;
@@ -115,82 +117,40 @@ pub fn corpus(dirs: &[&str]) -> Vec<String> {
     files
 }
 
-/// The manual's runnable examples: every `<pre>` of `docs/*.html` that is
-/// not a fragment, a plain drawing or a core tree (`class="frag"`,
-/// `"plain"`, `"core"`), as `(page:n, source)`. CLAUDE.md requires them
-/// to pass `fung check`, `fmt --check` and a run.
+/// The manual's checked examples: every `fung run` and `fung check`
+/// fence of `manual/**/*.md`, as `(label, source)` with the generator's
+/// labels (`reference/functions.md:12`). The generator
+/// (`manual_build.rs`) checks and runs them; here they feed the
+/// formatter's corpus.
 pub fn manual_examples() -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    let mut pages: Vec<PathBuf> = std::fs::read_dir(repo().join("docs"))
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "html"))
-        .collect();
-    pages.sort();
-    for page in pages {
-        let html = std::fs::read_to_string(&page).unwrap();
-        let name = page.file_stem().unwrap().to_string_lossy().into_owned();
-        let mut rest = html.as_str();
-        let mut n = 0;
-        while let Some(i) = rest.find("<pre") {
-            rest = &rest[i..];
-            let open_end = rest.find('>').unwrap();
-            let attrs = &rest[4..open_end];
-            let body = &rest[open_end + 1..];
-            let end = body.find("</pre>").unwrap();
-            let block = &body[..end];
-            rest = &body[end..];
-            if excluded(attrs) {
-                continue;
+    let root = repo().join("manual");
+    let mut files = Vec::new();
+    let mut stack = vec![root.clone()];
+    while let Some(d) = stack.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().is_some_and(|x| x == "md") {
+                files.push(p);
             }
-            let code = block
-                .strip_prefix("<code>")
-                .and_then(|b| b.strip_suffix("</code>"))
-                .unwrap_or_else(|| panic!("{name}: a <pre> without one <code>: {block:.40}"));
-            n += 1;
-            out.push((format!("{name}:{n}"), unescape(code)));
         }
     }
-    out
-}
-
-/// Whether a `<pre>` with these attributes is left out of the runnable
-/// examples: `class="frag"`, `"plain"` or `"core"`. Any other class is
-/// unknown here and panics, so a new kind of block is decided on, not
-/// silently skipped.
-fn excluded(attrs: &str) -> bool {
-    let Some(i) = attrs.find("class=") else {
-        return false;
-    };
-    let class = attrs[i + "class=".len()..]
-        .strip_prefix('"')
-        .and_then(|v| v.split('"').next())
-        .unwrap_or_else(|| panic!("an unquoted class in <pre{attrs}>"));
-    assert!(
-        matches!(class, "frag" | "plain" | "core"),
-        "unknown <pre> class {class:?}: add it to `excluded` or drop it"
-    );
-    true
-}
-
-/// The HTML entities the manual's code uses.
-fn unescape(s: &str) -> String {
-    let mut out = String::new();
-    let mut rest = s;
-    while let Some(i) = rest.find('&') {
-        out.push_str(&rest[..i]);
-        let semi = rest[i..].find(';').unwrap() + i;
-        out.push_str(match &rest[i..=semi] {
-            "&lt;" => "<",
-            "&gt;" => ">",
-            "&amp;" => "&",
-            "&quot;" => "\"",
-            "&#x27;" | "&#39;" => "'",
-            e => panic!("unknown entity {e} in a manual example"),
-        });
-        rest = &rest[semi + 1..];
+    files.sort();
+    let mut out = Vec::new();
+    for f in files {
+        let rel = f
+            .strip_prefix(&root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let page = markup::parse(&rel, &std::fs::read_to_string(&f).unwrap()).unwrap();
+        for (label, code) in markup::examples(&page) {
+            if matches!(code.kind, markup::Kind::Run | markup::Kind::Check) {
+                out.push((label, code.src.clone()));
+            }
+        }
     }
-    out.push_str(rest);
     out
 }
 
@@ -264,105 +224,6 @@ fn check_matches_the_expected_output_on_warning_fixtures() {
         &os_args(&["check", "crates/fung-cli/tests/data/check/unused_vars.fung"]),
     );
     assert!(String::from_utf8_lossy(&err).contains("warning[W0102]"));
-}
-
-/// Runs `bin` with `args` in `dir`, killing it after `limit`: the
-/// standard output and error, and the exit code (`None`: killed).
-fn run_limited(
-    bin: &Path,
-    dir: &Path,
-    args: &[OsString],
-    limit: std::time::Duration,
-) -> (String, String, Option<i32>) {
-    use std::process::{Command, Stdio};
-    // killed and waited for if anything below panics
-    let child = common::Reaped::new(
-        Command::new(bin)
-            .env("TZ", common::TZ)
-            .args(args)
-            .current_dir(dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
-    );
-    let (o, killed) = child.output_within(limit).unwrap();
-    (
-        String::from_utf8_lossy(&o.stdout).into_owned(),
-        String::from_utf8_lossy(&o.stderr).into_owned(),
-        if killed { None } else { o.status.code() },
-    )
-}
-
-/// The arguments a manual example runs with: its `<pre data-args="...">`
-/// split at blanks.
-fn manual_example_args(label: &str) -> Vec<String> {
-    let (page, n) = label.split_once(':').unwrap();
-    let n: usize = n.parse().unwrap();
-    let html = std::fs::read_to_string(repo().join(format!("docs/{page}.html"))).unwrap();
-    let mut seen = 0;
-    let mut rest = html.as_str();
-    while let Some(i) = rest.find("<pre") {
-        rest = &rest[i..];
-        let open_end = rest.find('>').unwrap();
-        let attrs = &rest[4..open_end];
-        rest = &rest[open_end..];
-        if excluded(attrs) {
-            continue;
-        }
-        seen += 1;
-        if seen == n {
-            return attrs
-                .find("data-args=\"")
-                .map(|i| {
-                    let v = &attrs[i + "data-args=\"".len()..];
-                    v[..v.find('"').unwrap()]
-                        .split_whitespace()
-                        .map(String::from)
-                        .collect()
-                })
-                .unwrap_or_default();
-        }
-    }
-    panic!("no example {label}")
-}
-
-/// Every runnable manual example passes `fung check` with no errors, is
-/// formatted (`fmt --check`), and runs to the end with exit code 0, in a
-/// scratch directory, with its `data-args` as arguments, and within a few
-/// seconds.
-#[test]
-fn manual_examples_check_format_and_run() {
-    let bin = fung_bin();
-    let dir = scratch("tools-manual");
-    let examples = manual_examples();
-    assert!(examples.len() > 40, "{} examples", examples.len());
-    let results = par_map(&examples, |(label, src)| {
-        let name = format!("{}.fung", label.replace(':', "_"));
-        // A `<pre>` ends without the final newline a file has.
-        std::fs::write(dir.join(&name), format!("{src}\n")).unwrap();
-        let limit = std::time::Duration::from_secs(20);
-        let mut bad = Vec::new();
-        let (_, err, code) = run_limited(&bin, &dir, &os_args(&["check", &name]), limit);
-        if code != Some(0) || err.contains("error[") {
-            bad.push(format!("{label}: check: {code:?}\n{err}"));
-        }
-        let (_, err, code) = run_limited(&bin, &dir, &os_args(&["fmt", "--check", &name]), limit);
-        if code != Some(0) {
-            bad.push(format!("{label}: fmt --check: {code:?}\n{err}"));
-        }
-        let mut args = vec!["run".to_string(), name.clone()];
-        args.extend(manual_example_args(label));
-        let a: Vec<OsString> = args.iter().map(OsString::from).collect();
-        let (_, err, code) = run_limited(&bin, &dir, &a, limit);
-        if code != Some(0) {
-            bad.push(format!("{label}: run: {code:?}\n{err}"));
-        }
-        bad
-    });
-    let bad: Vec<String> = results.into_iter().flatten().collect();
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
 const CHECK_E: &[&str] = &[
@@ -806,22 +667,11 @@ fn walker_reports_unreadable_directories() {
 #[test]
 fn manual_examples_are_extracted() {
     let ex = manual_examples();
+    assert!(ex.len() > 40, "{} examples", ex.len());
     assert!(
         ex.iter()
             .any(|(_, s)| s.contains("fn slug(s) = lower(s) |> split(\" \")"))
     );
-    assert!(
-        ex.iter()
-            .all(|(_, s)| !s.contains("&lt;") && !s.contains("<code>"))
-    );
-    assert_eq!(
-        unescape("a &lt;b&gt; &amp; &quot;c&quot; &#x27;d&#39;"),
-        "a <b> & \"c\" 'd'"
-    );
-    assert!(excluded(r#" class="frag""#) && excluded(r#" class="plain""#));
-    assert!(excluded(r#" class="core""#));
-    assert!(!excluded("") && !excluded(r#" data-args=". 3""#));
-    assert!(std::panic::catch_unwind(|| excluded(r#" class="code""#)).is_err());
 }
 
 // ---- `fung test` (stage 5 task 2) ----

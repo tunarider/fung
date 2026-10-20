@@ -1,4 +1,5 @@
-//! The manual's function reference (`docs/builtins.html`) against the
+//! The manual's function reference (`docs/latest/reference/functions.html`,
+//! generated from `manual/reference/functions.md`) against the
 //! runtime's own parameter tables. Every public prelude name and
 //! every public member of the standard modules has exactly one entry,
 //! the entry's signature is the real one (names, defaults, rest), and the
@@ -224,7 +225,7 @@ fn expected() -> BTreeMap<String, Entry> {
     out
 }
 
-/// The entries of `docs/builtins.html`: `<div class="fn" id="fn-ID"><code>SIG</code>`
+/// The entries of the generated function reference: `<div class="fn" id="fn-ID"><code>SIG</code>`
 /// and whether a `<span class="by">` mark follows.
 fn documented(html: &str) -> BTreeMap<String, Entry> {
     let mut out = BTreeMap::new();
@@ -254,7 +255,8 @@ fn unescape(s: &str) -> String {
 
 #[test]
 fn the_function_reference_matches_the_parameter_tables() {
-    let html = std::fs::read_to_string(common::repo().join("docs/builtins.html")).unwrap();
+    let html = std::fs::read_to_string(common::repo().join("docs/latest/reference/functions.html"))
+        .unwrap();
     let want = expected();
     let got = documented(&html);
     let mut bad = Vec::new();

@@ -59,6 +59,13 @@
 - [ ] `fung upgrade` 자체 업데이트 명령: 지금은 설치 스크립트를 다시 실행하면 된다.
 - [ ] macOS 코드 서명·공증: 브라우저로 받은 바이너리는 Gatekeeper가 막는다(`curl` 설치는 해당 없음). Apple 개발자 계정이 필요하다.
 
+## 매뉴얼 (2026-10-20 설계, `docs/superpowers/specs/2026-10-20-manual-structure-design.md`)
+
+- [x] 1단계 뼈대: 원고 `manual/` → `docs/latest/` 생성기, 버전 목록, 옛 주소 넘기기, 네 장 옮기기.
+- [ ] 2단계 레퍼런스: 함수 항목을 PHP식(설명·매개변수·돌려주는 값·에러·권장·예제 여럿)으로, 모듈·주제별 페이지와 "모든 함수 목록"(필터), 언어 명세·에러 카탈로그·명령줄 도구 페이지. 옛 앵커 대응표.
+- [ ] 3단계 배우기, 4단계 예제 모음, 5단계 VM 책(내부 구조의 손으로 적은 `dump` 출력을 검사되는 `dump` 펜스로).
+- [ ] 보류: 매뉴얼 전문 검색(지금은 함수 필터만).
+
 ## 태스크 실패 후속 (2026-10-14 보류 → 2026-10-18 닫음)
 
 동시성 v2 L1(구조적 동시성)으로 세 항목 모두 닫았다. 태스크는 범위 안에서만 띄우고, 실패는 범위를 연 코드로 가거나(`scope`)
@@ -241,8 +248,8 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
 - [ ] 시험 부채: `crates/fung-cli/tests/sigpipe.rs` fifo 시험의 읽는 쪽 스레드가 실패하는 길에서 거둬지지 않음, `read_all` 쪽 취소 시험은 실패를 먼저 확인하지 않음,
   교착 없음 시험의 `free_port`(닫은 포트를 다른 프로세스가 잡을 수 있음), 시험 없음(`SSL_CERT_FILE`의 깨진 PEM, `SSL_CERT_DIR`만 있는 경우, TLS 읽기 도중의 취소),
   헤더 10초 한도 시험이 실제로 10초를 기다림, `run_expected.rs`의 `CONCURRENCY` 목록에 맨 이름 `pmap`·`fan_in`·`retry`(무해),
-  `tools_expected.rs`의 `run_limited`가 기다리는 동안 파이프를 비우지 않음(64 KB 넘게 찍는 매뉴얼 예제가 생기면 막힘), `manual.rs`의 손으로 적은 `MODULES`와 줄 훑기 서명 읽기,
-  `builtins.html`의 U+FFFD 글자를 문자 그대로 씀, 앞단 테스트의 이른 실패 때 임시 파일 정리와 `has_source` 도우미(R1 노트),
+  `manual.rs`의 손으로 적은 `MODULES`와 줄 훑기 서명 읽기,
+  함수 레퍼런스(`manual/reference/functions.md`)의 U+FFFD 글자를 문자 그대로 씀, 앞단 테스트의 이른 실패 때 임시 파일 정리와 `has_source` 도우미(R1 노트),
   비UTF-8 파일 이름 복원은 단위 테스트만(macOS에서 그런 이름을 만들 수 없음), `check-release.sh`의 ELF 패턴은 GNU `file` 문구를 가정(darwin/amd64는 러너에 Rosetta가 있을 때만 실제로 돌림).
 - [ ] 일정: 정하지 않음. 지금은 공부를 겸한 단계.
 

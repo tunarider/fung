@@ -131,6 +131,7 @@ fn no_workflow_script_or_test_calls_another_toolchain() {
         "README.md",
         "extras",
         "examples",
+        "manual",
         "docs",
     ] {
         let top = Path::new(top);
@@ -195,15 +196,32 @@ const COMPARISONS: &[(&str, &str)] = &[
         "docs/design/background.md",
         "\"겉은 {L}, 속은 Lisp\" 균일 트리",
     ),
-    ("docs/assets/style.css", "(\"겉은 {L}, 속은 Lisp\")"),
+    ("manual/assets/style.css", "(\"겉은 {L}, 속은 Lisp\")"),
+    ("docs/latest/assets/style.css", "(\"겉은 {L}, 속은 Lisp\")"),
+    ("manual/index.md", "fung — {L}처럼 쓰고 Lisp처럼 도는"),
+    // the old front page keeps the cover's link preview
     ("docs/index.html", "fung — {L}처럼 쓰고 Lisp처럼 도는"),
     (
-        "docs/index.html",
+        "docs/latest/index.html",
+        "fung — {L}처럼 쓰고 Lisp처럼 도는",
+    ),
+    ("manual/index.md", "lede: {L}처럼 쓰고 Lisp처럼 도는"),
+    (
+        "docs/latest/index.html",
         "<p class=\"lede\">{L}처럼 쓰고 Lisp처럼 도는",
     ),
-    ("docs/index.html", "이것이 \"겉은 {L}, 속은 Lisp\"의 실체다"),
-    ("docs/index.html", "문법의 겉모양은 {L}·Python을"),
-    ("docs/syntax.html", "겉은 {L}와 Python을 닮았고"),
+    ("manual/index.md", "이것이 \"겉은 {L}, 속은 Lisp\"의 실체다"),
+    (
+        "docs/latest/index.html",
+        "이것이 \"겉은 {L}, 속은 Lisp\"의 실체다",
+    ),
+    ("manual/index.md", "문법의 겉모양은 {L}·Python을"),
+    ("docs/latest/index.html", "문법의 겉모양은 {L}·Python을"),
+    ("manual/reference/language.md", "겉은 {L}와 Python을 닮았고"),
+    (
+        "docs/latest/reference/language.html",
+        "겉은 {L}와 Python을 닮았고",
+    ),
     ("scripts/logo/render.html", "'{L}처럼 쓰고 Lisp처럼 도는"),
     ("scripts/logo/render.html", "'가나다 {L}'"),
     // design choices explained against the language that has the feature
@@ -322,6 +340,7 @@ fn no_code_or_current_document_names_the_other_language() {
         "README.md",
         "extras",
         "examples",
+        "manual",
         "docs",
     ] {
         let top = Path::new(top);
@@ -420,11 +439,13 @@ fn no_current_text_describes_the_run_token() {
         .into_iter()
         .filter(|f| f.extension().is_some_and(|e| e == "rs" || e == "fung"))
         .collect();
+    paths.extend(
+        files(&root, Path::new("manual"))
+            .into_iter()
+            .filter(|f| f.extension().is_some_and(|e| e == "md"))
+            .map(|f| root.join(f)),
+    );
     for doc in [
-        "docs/index.html",
-        "docs/syntax.html",
-        "docs/builtins.html",
-        "docs/internals.html",
         "docs/design/00-concept.md",
         "docs/design/05-concurrency.md",
         "docs/design/06-native-and-stdlib.md",

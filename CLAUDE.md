@@ -45,13 +45,13 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   - `cargo test --locked --no-fail-fast`와 같은 명령에 `--release` (릴리스 전용 `perf` 테스트가 컬렉션 누적을 0.3초로 지키고, 동시성 실행 사례를 50번씩 반복한다)
   - `cargo deny check`·`cargo audit` (설치되어 있으면; CI는 버전을 고정해 돌린다)
   `cargo test` 안에 언어 골든 테스트, 기대 출력 비교, `fung fmt --check`(`fmt_repo`: `extras`·`examples`·`tests/lang`(`err_*` 일부 예외)·`crates/fung-cli/tests/data`),
-  매뉴얼 검사(`manual.rs`), `install.sh`·CHANGELOG 검사, 크레이트 허용 목록 검사가 모두 들어 있다.
+  매뉴얼 생성·검사(`manual_build.rs`·`manual.rs`), `install.sh`·CHANGELOG 검사, 크레이트 허용 목록 검사가 모두 들어 있다.
 
 ## 구조와 테스트
 
 - Cargo 작업 공간(`Cargo.toml`): `crates/fung-front`(앞단: 렉서·파서·desugar·resolve·컴파일러·포맷터·에러 카탈로그·로더),
   `crates/fung-vm`(값·VM·런타임·prelude·`_native.*` 다리), `crates/fung-cli`(실행 파일 `fung`: `run`·`-e`·`dump`·`check`·`test`·`fmt`·REPL·`version`·`help`).
-  구조 설명은 `docs/design/09-implementation-plan.md`, 매뉴얼 `docs/internals.html`.
+  구조 설명은 `docs/design/09-implementation-plan.md`, 매뉴얼의 내부 구조(`manual/vm/internals.md`).
 - `extras/*.fung`: fung으로 쓴 내장 모듈(`prelude`·`agent`·`fs`·`path`·`cli`·`conc`·`json`·`time`·`regex`·`http`). `fung-front/src/extras.rs`가 `include_str!`로 넣는다.
 - `spec/builtins.txt`·`spec/errors.txt`: Rust 표(`fung_vm::boot`, `fung_front::diag::catalog`)에서 생성하고 테스트가 같은지 지킨다. 갱신은 `FUNG_UPDATE_SPEC=1 cargo test spec_file`.
   `spec/unicode.txt`(식별자·대문자·보이는 글자·표시 너비)·`spec/unicode_nfc.txt`는 유니코드 문자 데이터베이스에서 생성한다(`FUNG_UPDATE_SPEC=1 FUNG_UCD=<dir> cargo test -p fung-front unicode_spec_file`, 01). 에러 번호는 `crates/fung-front/src/diag/catalog.rs`에서 할당하며 한 번 붙이면 바꾸지 않는다.
@@ -90,9 +90,12 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   맵 키 자리 식별자는 쓴 그대로, 태스크 실패 값은 `{kind, code, message, at}`. P2와 P7의 맵·튜플은 open-questions "알려진 한계".
   **다음**: main에 스쿼시(사용자 요청 시), 검토 문서 12절의 남은 의심, open-questions의 L1·L3·L7·L9 후속 한계.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
-- 매뉴얼: `docs/index.html`·`syntax.html`·`builtins.html`·`internals.html`, GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 매뉴얼도 같이 고친다.**
-  매뉴얼의 코드 예제(`frag`·`plain`·`core` 클래스가 아닌 `<pre>`)는 `fung check`·`fmt --check`·실행을 통과해야 하고, `builtins.html`은 매개변수 표와 같아야 한다(`manual.rs`).
+- 매뉴얼: 원고는 `manual/`(목차 `toc.txt`, 마크다운 부분집합 + 날 HTML, 형식은 `docs/plans/2026-10-20-manual-1-skeleton.md` "원고 형식"), 생성 결과는 `docs/latest/`(커밋한다).
+  GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 원고를 고치고 `FUNG_UPDATE_MANUAL=1 cargo test -p fung-cli --test manual_build`로 다시 만든 뒤 diff를 검토한다.**
+  생성기(`crates/fung-cli/tests/manual_site/`)가 `fung run`·`check`·`dump` 펜스를 검사·실행하고(`run`은 두 번 돌려 출력이 같아야 한다) 실제 출력을 페이지에 넣으며, 깨진 내부 링크를 막는다.
+  함수 레퍼런스는 매개변수 표와 같아야 한다(`manual.rs`). 설계 `docs/superpowers/specs/2026-10-20-manual-structure-design.md`(네 부분, 1단계 뼈대까지 끝).
+  버전: `docs/versions.js`, 옛 주소(`docs/index.html` 등)는 `latest`로 넘겨 주는 생성물이다. 0.4.0부터 릴리스 때 버전을 얼린다(`docs/notes/release.md` 7절).
 - 배포: 버전은 빌드 때의 `FUNG_BUILD_VERSION` → `0.0.0-dev`, `scripts/build-release.sh`(Linux musl 정적·macOS, `SHA256SUMS`), `scripts/check-release.sh`, `install.sh`,
-  `.github/workflows/release.yml`(`v*` 태그만 게시). **사용자에게 보이는 변화는 `CHANGELOG.md`의 `[Unreleased]`에 적는다. 릴리스 때 그 절과 매뉴얼 사이드바 버전을 함께 고친다**(`changelog.rs`).
+  `.github/workflows/release.yml`(`v*` 태그만 게시). **사용자에게 보이는 변화는 `CHANGELOG.md`의 `[Unreleased]`에 적는다. 릴리스 때 그 절을 고치고 매뉴얼을 얼린다**(`changelog.rs`).
   설명 `docs/notes/release.md`, 보류는 open-questions "배포 후속". 로고는 `docs/assets/logo/`(규격 `README.md`, 스크립트 `scripts/logo/`).
 - 학습용 설명은 `docs/notes/`에 한국어로 남긴다(마일스톤 `M<n>-<주제>.md`, 이식 단계 `R<n>-<주제>.md`). 무엇을 만들었고 왜 그렇게 했는지 쓴다.

@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>내부 구조 · fung 매뉴얼</title>
+<meta name="description" content="fung이 소스를 실행하기까지: 렉서, 파서, 균일 트리, desugar, 이름 해석, 바이트코드, VM, 모듈 적재, 동시성 런타임, 도구.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="vm">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">VM</span><span class="mbar-where"><span class="mbar-title">내부 구조</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a></li>
+<li class="vm"><a href="../vm/internals.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a>
+<ol class="chapters">
+<li><a href="../vm/internals.html" aria-current="page">내부 구조</a><ol class="toc2"><li><a href="#pipeline">한 프로그램의 여정</a></li><li><a href="#lexer">렉서</a></li><li><a href="#parser">파서와 균일 트리</a></li><li><a href="#desugar">desugar와 코어 언어</a></li><li><a href="#resolve">이름 해석</a></li><li><a href="#bytecode">바이트코드</a></li><li><a href="#vm">VM</a></li><li><a href="#collections">컬렉션의 내부</a></li><li><a href="#modules">모듈 적재</a></li><li><a href="#layers">라이브러리의 네 층</a></li><li><a href="#concurrency">동시성 런타임</a></li><li><a href="#tools">도구</a></li><li><a href="#source">소스 지도</a></li></ol></li>
+</ol>
+</li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/internals.html"><span class="glyph">VM</span>fung VM</a></nav>
+<h1>내부 구조</h1>
+<p class="lede">Rust로 쓴 바이트코드 VM이다. 트리를 직접 도는 인터프리터가 더 단순하다는 것을 알고 고른 선택으로, 컴파일러와 VM의 원리를 배우는 것이 목적이었고 꼬리 호출 최적화도 VM 쪽이 자연스럽다.</p>
+<h2 id="pipeline">한 프로그램의 여정</h2>
+<ol class="stages">
+  <li>렉서</li><li>파서</li><li>균일 트리</li><li>desugar</li><li>resolve</li><li>컴파일러</li><li>바이트코드</li><li>VM</li>
+</ol>
+<p>아래 세 줄짜리 프로그램이 각 단계에서 어떤 모양인지 <code>fung dump</code>로 볼 수 있다. 이 쪽의 출력은 모두 실제 명령의 결과다.</p>
+<div class="run"><pre><code>fn sq(x) = x * x
+xs = [1, 2, 3] |&gt; map(sq)
+print(sum(xs))</code></pre><pre class="out plain"><code>14</code></pre></div>
+<h3>겉 트리 (<code>fung dump ast</code>)</h3>
+<p>파서가 만든 트리. 문법의 모양을 그대로 담는다: 파이프는 <code>pipe</code>, 블록은 <code>block</code>, 이름은 아직 이름이다.</p>
+<pre class="core"><code>(program
+  (fn sq(x) (block (binary * x x)))
+  (assign xs (pipe (list 1 2 3) (call map sq)))
+  (call print (call sum xs)))</code></pre>
+<h3>코어 트리 (<code>fung dump core</code>)</h3>
+<p>desugar와 resolve를 거친 트리. 파이프가 평범한 호출이 되었고, 모든 이름이 자리 번호로 바뀌었다: 함수의 지역 슬롯 <code>(local n)</code>, 모듈 전역 칸 <code>(global n)</code>, prelude 값 <code>(prelude name)</code>.</p>
+<pre class="core"><code>(do
+  (let (global 0) (fn sq(x) (do (op * (local 0) (local 0)))))
+  (let (global 1) (call (prelude map) (list 1 2 3) (global 0)))
+  (call (prelude print) (call (prelude sum) (global 1))))</code></pre>
+<h3>바이트코드 (<code>fung dump bytecode</code>)</h3>
+<p>컴파일러가 함수마다 하나씩 만든 명령열. 왼쪽 열은 명령 번호와 그 명령의 소스 위치(줄:칸)다. prelude 함수는 상수로 직접 들어가고, 지역 변수는 슬롯 번호로 읽는다.</p>
+<pre class="plain"><code>== &lt;main&gt; ==
+0000  1:1   CLOSURE      0    ; sq
+0001  1:1   STOREGLOBAL  0    ; sq
+0002  2:19  CONST        0    ; &lt;fn map&gt;
+0003  2:7   CONST        1    ; 1
+0004  2:10  CONST        2    ; 2
+0005  2:13  CONST        3    ; 3
+0006  2:6   LIST         3
+0007  2:23  LOADGLOBAL   0    ; sq
+0008  2:22  CALL         2    ; 2 positional, 0 named
+0009  2:1   STOREGLOBAL  1    ; xs
+0010  3:1   CONST        4    ; &lt;fn print&gt;
+0011  3:7   CONST        5    ; &lt;fn sum&gt;
+0012  3:11  LOADGLOBAL   1    ; xs
+0013  3:10  CALL         1    ; 1 positional, 0 named
+0014  3:6   CALL         1    ; 1 positional, 0 named
+0015  1:1   RETURN
+
+== sq ==
+0000  1:12  LOADLOCAL    0
+0001  1:16  LOADLOCAL    0
+0002  1:14  MUL
+0003  1:10  RETURN</code></pre>
+<p>VM은 <code>&lt;main&gt;</code>을 실행한다. 스택 기계라서 <code>CONST</code>와 <code>LOAD*</code>가 값을 쌓고, <code>MUL</code>·<code>LIST</code>·<code>CALL</code>이 쌓인 값을 꺼내 결과를 올린다.</p>
+<h2 id="lexer">렉서</h2>
+<p>소스 문자열을 토큰 열로 바꾼다. 토큰은 <code>{종류, 글자, 위치(파일·줄·칸), 바이트 구간, 값}</code>이다.</p>
+<ul>
+  <li><strong>글자 수준 규칙은 전부 여기서</strong> 끝난다: 숫자 형태와 범위, 기간의 단위 순서, 문자열 이스케이프, 보간 <code>${…}</code> 조각, 원시 문자열, 심볼. 잘못된 것은 E01xx로 바로 멈춘다.</li>
+  <li><strong>줄바꿈은 <code>NEWLINE</code> 토큰으로 그대로 내보낸다.</strong> 줄 이어짐이나 <code>:</code>의 역할은 렉서가 판단하지 않고 파서가 문맥으로 정한다.</li>
+  <li><strong>주석은 토큰 흐름에서 빼되 위치와 함께 별도 목록(trivia)에 보관한다.</strong> 실행에는 필요 없지만 포맷터가 원래 자리에 돌려놓는 데 쓴다.</li>
+  <li><code>;;</code>는 항상 가장 길게 자른다. 이름은 첫 글자만 보고 이름·태그·예약어를 가른다.</li>
+</ul>
+<h2 id="parser">파서와 균일 트리</h2>
+<p>문장은 재귀 하강으로, 식은 <strong>Pratt 파서</strong>로 읽는다. Pratt 파서는 연산자마다 "왼쪽 결합력"을 숫자로 두고, 그 숫자 비교 하나로 모든 이항·단항·후위 연산의 우선순위와 결합 방향을 처리한다. <a href="../reference/language.html#precedence">우선순위 표</a>를 숫자로 옮긴 것이 곧 파서다.</p>
+<p>세 곳에서 <strong>되돌리기</strong>를 쓴다. 앞을 조금 읽어 보고 아니면 원래 자리로 돌아가는 방식이다.</p>
+<ul>
+  <li>문장 시작의 <code>패턴 =</code>(구조 분해 대입인가, 식인가)</li>
+  <li><code>(a, b) =&gt;</code>(람다인가, 튜플인가)</li>
+  <li><code>match</code> 절의 <code>패턴 [when 조건] =&gt;</code>(새 절인가, 앞 절 본문의 문장인가)</li>
+</ul>
+<p>패턴 문법이 작아서 되돌리기 비용이 적다.</p>
+<h3>균일 트리</h3>
+<p>트리 노드의 모양은 하나뿐이다: <code>{머리, 위치, 자식들, 리터럴 값, 소스 구간}</code>. <code>f(a, b)</code>는 <code>(call f a b)</code>, <code>if c: a else: b ;;</code>는 <code>(if c (do a) (do b))</code>. 노드 종류마다 Rust 타입을 따로 만들지 않는다. "속은 Lisp"의 실체이며, <code>dump</code>, desugar, 이름 해석이 모두 같은 모양 위에서 일하고, 나중에 매크로를 넣을 자리도 이것이다.</p>
+<p>대가로 Rust 컴파일러가 "이 노드에는 자식이 셋"을 검사해 주지 않는다. 그 검사는 desugar가 한다.</p>
+<h2 id="desugar">desugar와 코어 언어</h2>
+<p>겉 문법을 작은 코어 언어로 풀어낸다. 컴파일러는 코어 언어만 안다. 겉 문법을 늘려도 컴파일러와 VM은 그대로다.</p>
+<table>
+  <thead><tr><th>코어 형태</th><th>여기로 풀리는 겉 문법</th></tr></thead>
+  <tbody>
+    <tr><td><code>(do e…)</code></td><td>블록 본문. 값은 마지막 식.</td></tr>
+    <tr><td><code>(let 패턴 e)</code></td><td><code>x = e</code>, 구조 분해 대입</td></tr>
+    <tr><td><code>(if c a b)</code></td><td><code>if</code>/<code>else if</code> 사슬, <code>then … else</code>, <code>and</code>/<code>or</code>(단락 평가)</td></tr>
+    <tr><td><code>(fn 이름 인자표 본문)</code></td><td><code>fn</code> 정의, 람다, 익명 함수, <code>_</code> 부분 적용, <code>for</code>의 본문</td></tr>
+    <tr><td><code>(call f 인자… (named 이름 e)…)</code></td><td>호출, <code>x |&gt; f(a)</code> → <code>(call f x a)</code>, <code>for</code> → <code>(call map xs (fn …))</code>(값을 버리는 자리면 <code>each</code>)</td></tr>
+    <tr><td><code>(op 연산자 a b)</code></td><td>산술·비교·<code>in</code>·<code>..</code>. 연산자는 값이 아니다(<code>fold(xs, 0, +)</code>는 없다).</td></tr>
+    <tr><td><code>(field x "name")</code> <code>(index x i)</code> <code>(slice x a b)</code></td><td><code>x.name</code>, <code>x[i]</code>, <code>x[a..b]</code></td></tr>
+    <tr><td><code>(tag Ok e…)</code></td><td><code>Ok(e)</code></td></tr>
+    <tr><td><code>(match e (arm 패턴 guard 본문)…)</code></td><td><code>match</code></td></tr>
+    <tr><td><code>(unwrap e 모드)</code></td><td><code>e!</code>, <code>e?</code>, <code>e ?? b</code></td></tr>
+    <tr><td><code>(return e)</code> <code>(import …)</code> <code>(test …)</code> <code>(assert e)</code></td><td>그대로</td></tr>
+  </tbody>
+</table>
+<h2 id="resolve">이름 해석</h2>
+<p>코어 트리를 한 번 훑어 모든 이름을 다섯 가지 중 하나로 분류하고 번호를 매긴다. 컴파일러와 VM은 이름을 다시 찾지 않는다. 실행 중에는 문자열 이름 조회가 없다.</p>
+<dl class="terms">
+  <dt>지역 슬롯 <code>(local n)</code></dt><dd>함수의 인자와 지역 변수. 블록이 끝나면 그 슬롯을 다른 변수가 재사용한다.</dd>
+  <dt>붙잡은 값 <code>(captured n)</code></dt><dd>클로저가 만들어질 때 복사해 둔 바깥 변수.</dd>
+  <dt>자기 자신 <code>(self)</code></dt><dd>블록 안에서 이름 붙인 <code>fn</code>이 자기를 부를 때.</dd>
+  <dt>모듈 전역 <code>(global n)</code></dt><dd>파일 최상위의 변수와 <code>fn</code>.</dd>
+  <dt>prelude <code>(prelude name)</code></dt><dd>내장 함수. 상수로 직접 들어간다.</dd>
+</dl>
+<p>스코프 규칙 위반(정의 전 읽기 E0204, 바깥 변수 재대입 E0205, 블록 밖 이름 E0206, <code>for</code> 안의 <code>return</code>, 최상위 <code>return</code>, 모듈 이름 가리기, 대안 패턴의 이름 불일치)은 첫 번째에서 멈추지 않고 <strong>전부 모아</strong> 보고한다. 경고(W0101~W0103)도 여기서 만든다. 이름 해석이 끝나면 값을 쓰는 자리의 조용한 <code>nil</code>(<code>else</code> 없는 <code>if</code> E0223, 대입으로 끝나는 블록 E0224)을 트리를 한 번 더 돌며 찾는다(<code>resolve/value.rs</code>).</p>
+<h2 id="bytecode">바이트코드</h2>
+<h3>명령 인코딩</h3>
+<p>명령 하나는 <strong>고정 폭 32비트</strong>다: 상위 8비트가 명령, 하위 24비트가 피연산자. 디코딩과 점프 계산이 단순하고 역어셈블러가 쉽다. 24비트면 상수 번호, 슬롯 번호, 점프 위치에 충분하다. 가변 길이 바이트 열은 매 명령의 길이를 따져야 해서 택하지 않았다.</p>
+<p><code>CALL</code>은 피연산자 하나에 두 수를 담는다: 하위 12비트가 위치 인자 수, 그 위 12비트가 이름 인자 수.</p>
+<h3>함수 원형(Proto)</h3>
+<p>함수마다 하나. 명령열, 상수 풀, 인자 표(이름·기본값 여부·<code>...rest</code>·타입 표기), 지역 슬롯 수, 붙잡을 값 목록, 안쪽 함수 원형들, 패턴 트리들, 그리고 <strong>명령마다 소스 위치 하나</strong>(명령열과 나란한 배열)를 가진다. 런타임 에러가 정확한 줄과 칸을 가리킬 수 있는 이유다.</p>
+<h3>명령 목록</h3>
+<table>
+  <thead><tr><th>무리</th><th>명령</th></tr></thead>
+  <tbody>
+    <tr><td>값</td><td><code>CONST</code> <code>POP</code> <code>LIST</code> <code>MAP</code> <code>TUPLE</code> <code>TAG</code> <code>RANGE</code> <code>CONCAT</code>(문자열 보간)</td></tr>
+    <tr><td>연산</td><td><code>ADD</code> <code>SUB</code> <code>MUL</code> <code>DIV</code> <code>FLOORDIV</code> <code>MOD</code> <code>POW</code> <code>NEG</code> <code>NOT</code> <code>EQ</code> <code>NE</code> <code>LT</code> <code>GT</code> <code>LE</code> <code>GE</code> <code>IN</code> <code>CHECKBOOL</code></td></tr>
+    <tr><td>접근</td><td><code>INDEX</code> <code>SLICE</code> <code>FIELD</code></td></tr>
+    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code>(마지막으로 읽힌 문장 뒤에 칸을 비운다) <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
+    <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFSET</code></td></tr>
+    <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code></td></tr>
+    <tr><td>결과값</td><td><code>UNWRAPABORT</code>(<code>!</code>) <code>UNWRAPTEST</code>(<code>?</code>) <code>COALESCE</code>(<code>??</code>)</td></tr>
+    <tr><td>패턴</td><td><code>MATCH</code> <code>MATCHORFAIL</code> <code>NOMATCH</code></td></tr>
+    <tr><td>기타</td><td><code>IMPORT</code> <code>ASSERT</code> <code>TEST</code></td></tr>
+  </tbody>
+</table>
+<h2 id="vm">VM</h2>
+<h3>값의 표현</h3>
+<p>Rust 열거형 <code>Value</code> 하나다: <code>Int(i64)</code>, <code>Float</code>, <code>Bool</code>, <code>Nil</code>, <code>Sym</code>(전역 인턴 표의 번호라 비교가 정수 비교), <code>Dur</code>, <code>Time</code>, <code>Str(Rc&lt;String&gt;)</code>, <code>List</code>·<code>Map</code>(<a href="#collections">컬렉션의 내부</a>), <code>Tuple</code>, <code>Tag</code>, <code>Range</code>, <code>Closure</code>, <code>Native</code>(Rust 함수, <code>&amp;'static</code> 참조), <code>Module</code>, <code>File</code>, 소켓, 그리고 태스크·범위·채널의 두 끝·atom. 크기는 16바이트(종류 표시 + 칸 하나)이고, 정수·실수·불·기간은 상자 없이 칸에 바로 들어간다.</p>
+<p>큰 값은 <strong>참조 계수</strong> <code>Rc</code>로 가리킨다. 가비지 컬렉터가 없고, 값을 가리키는 손잡이가 0이 되는 순간 바로 해제된다. 값을 복제해도 큰 리스트가 복사되지 않고 계수만 오른다. 불변 값만으로는 순환을 만들 수 없으므로(값을 만들 때 그 값은 아직 없다) 참조 계수만으로 회수가 완전하다. 바뀌는 칸인 atom에는 바뀌는 것을 담지 못하게 하고(E0708), 채널에 그 채널의 끝을 보내는 것은 E0705로 막는다. 깊게 겹친 값(백만 겹 리스트)도 재귀 없이 명시적 스택으로 해제한다.</p>
+<p>모든 연산이 새 값을 만든다. 리스트와 맵은 사본이 원본과 구조를 공유하는 영속 자료구조라, 누적과 꼬리 재귀도 선형이다(<a href="#collections">컬렉션의 내부</a>). 값 층 밖의 코드는 <code>Len</code>·<code>At</code>·<code>All</code>·<code>Slice</code>·<code>Put</code> 같은 메서드와 빌더로만 리스트·맵을 다룬다.</p>
+<p>스택 칸은 <code>Option&lt;Value&gt;</code>다. <code>None</code>은 "슬롯이 아직 비어 있음"이고, fung의 <code>nil</code>은 별도 값 <code>Value::Nil</code>이다. 이 구분이 기본값 처리를 공짜로 만든다(아래).</p>
+<h3>태스크, 스택, 프레임</h3>
+<p>실행 단위는 <strong>태스크</strong>다. 태스크마다 피연산자 스택 하나를 갖고, 호출마다 프레임 <code>{Proto, ip, 슬롯 시작 위치, 클로저, 전역 표}</code>을 쌓는다. 지역 변수는 그 프레임의 슬롯 시작 위치 + 번호로 스택에서 바로 읽는다. 전역 상태는 없다: 여러 태스크가 서로 다른 운영체제 스레드에서 같은 바이트코드를 번갈아 실행한다(<a href="#concurrency">동시성 런타임</a>).</p>
+<p>프레임 깊이가 100,000을 넘으면 E0804 "stack overflow"와 "꼬리 재귀나 fold를 쓰세요"라는 힌트가 나온다. 프레임이 작은 구조체라 그 깊이도 수십 MB 수준이다.</p>
+<h3>호출 규약</h3>
+<p>스택에는 <code>[함수, 위치 인자…, (이름 심볼, 값)…]</code>이 놓인다. VM이 원형의 인자 표를 보고 새 프레임 슬롯에 묶는다: 위치 인자는 차례로, 이름 인자는 표에서 찾아, 남는 위치 인자는 <code>...rest</code> 리스트로. 맞지 않으면 E04xx. 내장 함수도 같은 인자 표를 선언하므로 같은 검사를 같은 곳에서 받는다. 그래서 <code>exec(cmd, cwd: d)</code>가 된다.</p>
+<p><strong>빠른 길</strong>: fung 함수를 위치 인자만으로, 매개변수 개수만큼 정확히 부르는 가장 흔한 경우는 묶는 일을 건너뛴다. 인자가 그대로 새 프레임의 첫 슬롯이 되고, 나머지 슬롯은 비워 둔 채 스택에 이어 붙는다. 힙 할당이 하나도 없다. 인자를 잠시 담는 배열도 태스크마다 하나를 재사용한다. 호출된 쪽이 인자를 곧바로 프레임이나 내장 함수의 새 배열로 옮겨 두기 때문에, 다음 호출이 그 배열을 덮어써도 안전하다. <code>fold</code>·<code>map</code>·<code>each</code>·<code>filter</code>는 원소마다의 인자를 태스크 스택에 바로 쌓으므로 원소마다 배열을 만들지 않고, 범위(<code>0..n</code>)는 리스트로 펼치지 않고 수를 하나씩 만들어 돈다. 이 둘로 함수 호출과 반복이 약 2.5배 빨라졌다.</p>
+<p><strong>이어 가기 프레임</strong>: 람다를 부르는 내장 함수(<code>map</code>·<code>fold</code>·<code>with</code>·<code>timeout</code>·<code>scope</code>·<code>swap</code> 등)는 함수를 직접 부르지 않는다. "이 함수를 이 인자로 불러 달라, 끝나면 이 상태로 이어 달라"를 돌려주고(Lua 5.2의 <code>lua_callk</code>와 같은 생각), VM이 그 상태 상자를 프레임 옆의 이어 가기 줄에 두고 같은 실행 루프에서 부른다. 부른 함수가 돌아오면 상자가 결과를 받고, 에러·취소·<code>exit</code>가 지나가면 상자가 되감기를 본다(<code>with</code>가 <code>release</code>를 부르는 자리). 그래서 태스크 하나에는 실행 루프가 하나뿐이고, 태스크의 모든 상태(프레임, 값, 상자)가 힙에 있다. 그린 스레드 스케줄러가 태스크를 주차하려면 이것이 필요하다. 처음 가져오는 모듈의 본문도 같은 방식으로 돈다. 콜백이 보통 내장 함수면(<code>map(xs, str)</code>) 되부를 일이 없으므로 그 자리에서 바로 부른다.</p>
+<p><strong>기본값은 함수 서두(prologue)에 컴파일된다</strong>: "슬롯이 비었으면 기본값 식을 실행해 채운다". 호출할 때마다 평가되고 앞 인자를 참조할 수 있는 이유다.</p>
+<pre class="plain"><code>fn greet(name, greeting = &quot;hello&quot;) = &quot;${greeting}, ${name}&quot;
+
+== greet ==
+0000  1:1   LOADLOCAL    1
+0001  1:1   JUMPIFSET    4          ; 슬롯 1이 차 있으면 기본값 건너뛰기
+0002  1:27  CONST        0    ; &quot;hello&quot;
+0003  1:1   STORELOCAL   1
+0004  1:41  LOADLOCAL    1
+0005  1:38  CONST        1    ; &quot;, &quot;
+0006  1:54  LOADLOCAL    0
+0007  1:38  CONCAT       3          ; 보간 조각 셋을 잇는다
+0008  1:36  RETURN</code></pre>
+<p>타입 표기는 서두의 <code>CHECKTYPE</code>, 반환 타입은 <code>RETURN</code> 직전의 <code>CHECKRETURN</code>이 검사한다.</p>
+<h3>클로저: 복사, 상자 없음</h3>
+<p><code>CLOSURE n</code>은 원형 n의 "붙잡을 값 목록"(현재 프레임의 슬롯 또는 현재 클로저가 붙잡은 값)을 <strong>복사</strong>해 새 클로저를 만든다. 대부분의 언어는 바깥 변수가 나중에 바뀌는 것을 보여 주려고 변수를 상자(upvalue)에 담아 공유하지만, fung은 "함수는 만들어질 때 보이는 변수의 값을 복사한다"는 규칙 하나로 정했기 때문에 상자가 필요 없다.</p>
+<pre class="plain"><code>fn adder(n) = x =&gt; x + n
+
+== adder ==
+0000  2:15  CLOSURE      0    ; &lt;lambda&gt;      n을 복사해 넣는다
+0001  2:13  RETURN
+
+== &lt;lambda&gt; ==
+0000  2:20  LOADLOCAL    0                   x
+0001  2:24  LOADCAPTURED 0                   복사해 둔 n
+0002  2:22  ADD
+0003  2:17  RETURN</code></pre>
+<p>블록 안 이름 있는 <code>fn</code>의 자기 참조는 <code>LOADSELF</code> 한 명령이다(실행 중인 클로저를 올린다).</p>
+<h3>모듈 전역과 끌어올리기</h3>
+<p>모듈마다 전역 표(<code>Vec&lt;Option&lt;Value&gt;&gt;</code>)가 있고 이름→번호는 컴파일 때 정해진다. 최상위 <code>fn</code> 칸은 모듈 본문을 실행하기 전에 채운다(끌어올리기). 그래서 순서와 상관없이 서로 부른다. 변수 칸은 본문이 진행되며 채워진다. 함수는 전역 변수를 실행 중에 조회하지 않고 만들어질 때 복사하는데, 최상위 <code>fn</code>은 변수가 생기기 전에 만들어지므로 복사할 것이 없다. 대신 최상위에서 한 번만 대입되는 이름은 바뀌지 않으므로, 이름 해석이 그 전역 칸을 미리 잡아 두고 최상위 <code>fn</code>이 부를 때 <code>LOADGLOBAL</code>로 읽는다(비어 있으면 E0809). 두 번 이상 대입되는 이름은 보이지 않는다. 이것이 <a href="../reference/language.html#scope">스코프 규칙</a>의 구현상 이유다.</p>
+<h3>꼬리 호출</h3>
+<p>컴파일러가 꼬리 위치의 호출을 <code>TAILCALL</code>로 낸다. VM은 새 프레임을 쌓지 않고 인자를 현재 프레임 슬롯에 다시 묶은 뒤 <code>ip</code>를 0으로 돌린다. 그래서 꼬리 재귀는 스택을 쓰지 않는다.</p>
+<pre class="plain"><code>fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+
+== count ==
+0000  1:20  LOADLOCAL    0
+0001  1:25  CONST        0    ; 0
+0002  1:22  EQ
+0003  1:22  JUMPIFFALSE  6
+0004  1:32  LOADLOCAL    1
+0005  1:27  JUMP         14
+0006  1:41  LOADSELF
+0007  1:47  LOADLOCAL    0
+0008  1:51  CONST        1    ; 1
+0009  1:49  SUB
+0010  1:54  LOADLOCAL    1
+0011  1:60  CONST        1    ; 1
+0012  1:58  ADD
+0013  1:46  TAILCALL     2    ; 2 positional, 0 named
+0014  1:18  RETURN</code></pre>
+<p>반환 타입을 적은 함수는 반환값을 검사해야 하므로 프레임이 남아 있어야 해서 <code>TAILCALL</code> 대상에서 빠진다.</p>
+<h3>패턴 매칭</h3>
+<p>패턴은 명령열로 펼치지 않고 원형의 <strong>패턴 트리</strong>로 둔다. <code>MATCH n</code> 한 명령이 실행 중에 트리를 해석해 맞으면 이름들을 슬롯에 묶고 <code>true</code>를 올린다. 패턴의 의미가 Rust 함수 하나(<code>vm/matcher.rs</code>)에 모여 있어 이해하고 고치기 쉽다. guard는 그 뒤의 평범한 비교와 <code>JUMPIFFALSE</code>이고, 아무 절도 맞지 않으면 <code>NOMATCH</code>가 E0601을 낸다. 구조 분해 대입은 <code>MATCHORFAIL</code>이다.</p>
+<pre class="plain"><code>match v:
+  0 =&gt; print(&quot;zero&quot;)
+  n when n &gt; 2 =&gt; print(&quot;big&quot;, n)
+  _ =&gt; print(&quot;small&quot;)
+;;
+
+0011  3:1   LOADLOCAL    0
+0012  4:3   MATCH        0    ; 0
+0013  4:3   JUMPIFFALSE  18
+  …                                    첫 절 본문
+0018  3:1   LOADLOCAL    0
+0019  5:3   MATCH        1    ; $1     n을 슬롯 1에 묶는다
+0020  5:3   JUMPIFFALSE  30
+0021  5:10  LOADLOCAL    1             guard: n &gt; 2
+0022  5:14  CONST        5    ; 2
+0023  5:12  GT
+0024  5:12  JUMPIFFALSE  30
+  …
+0037  3:1   LOADLOCAL    0
+0038  3:1   NOMATCH</code></pre>
+<h3>결과값 축약</h3>
+<ul>
+  <li><code>UNWRAPABORT</code>(<code>!</code>): <code>Ok(v)</code>면 <code>v</code>, <code>Err</code>면 E0603으로 중단.</li>
+  <li><code>POP</code>: 문장의 값을 버린다. 그 값이 <code>Err</code>면 E0606(태그 검사 하나). 진입 파일의 마지막 식도 <code>POP</code>한 뒤 <code>nil</code>을 돌려준다(REPL만 값을 남긴다).</li>
+  <li><code>UNWRAPTEST</code>(<code>?</code>): <code>Ok(v)</code>면 <code>v</code>, <code>Err</code>면 그것을 남긴 채 함수의 반환으로 점프.</li>
+  <li><code>COALESCE L</code>(<code>??</code>): <code>nil</code>이나 <code>Err</code>면 꺼내고 L로 점프해 오른쪽을 평가, <code>Ok(v)</code>면 <code>v</code>를 올리고 L을 건너뛴다.</li>
+</ul>
+<h3>에러</h3>
+<p>VM 에러는 <code>{번호, 인자, 위치, 호출 경로}</code>다. 위치는 실패한 명령의 소스 위치 표에서, 호출 경로는 프레임들을 거슬러 올라가며 만든다(꼬리 호출로 재사용된 프레임은 횟수로 표시). 런타임 에러는 태스크 전체를 되감는다. 잡는 구문은 없다.</p>
+<p>Rust 코드의 패닉(내장 함수나 VM의 버그)은 Rust에서 fung 코드로 들어가는 입구마다 <code>catch_unwind</code>로 잡아 E0801 내부 오류로 바꾼다. Rust 백트레이스는 사용자에게 가지 않는다.</p>
+<h2 id="collections">컬렉션의 내부</h2>
+<p>리스트와 맵은 불변이다. 그래서 "바뀐 사본"을 만들 때마다 원본은 그대로 두어야 한다. M10 전까지 fung은 사본을 <strong>통째로</strong> 만들었고, 그 때문에 누적과 꼬리 재귀가 n²이었다. 지금은 사본이 원본과 대부분을 <strong>공유</strong>하는 영속 자료구조를 쓴다. 언어의 의미(값, 순서, 비교, 출력)는 하나도 바뀌지 않았다.</p>
+<h3>왜 통째 복사는 n²인가</h3>
+<p><code>put(acc, k, v)</code>가 맵 전체를 복사하면, n개를 쌓을 때 복사량이 1 + 2 + … + n, 곧 n²/2다. 리스트의 <code>acc + [x]</code>, 꼬리를 떼는 <code>[_, ...rest]</code>와 <code>ys[1..]</code>도 같은 모양이었다. 2만 개 기준으로 0.1에서 잰 값이다(같은 기계, fung 스크립트).</p>
+<table>
+  <thead><tr><th>패턴</th><th>M10 전</th><th>M10 후</th></tr></thead>
+  <tbody>
+    <tr><td><code>fold</code>로 <code>put</code> 누적(새 키)</td><td>7.5s</td><td>61ms</td></tr>
+    <tr><td><code>fold</code>로 <code>put</code>(기존 키 갱신 섞임)</td><td>3.1s</td><td>31ms</td></tr>
+    <tr><td><code>fold</code>로 <code>acc + [i]</code></td><td>0.80s</td><td>13ms</td></tr>
+    <tr><td><code>[_, ...rest]</code> 재귀</td><td>0.76s</td><td>14ms</td></tr>
+    <tr><td><code>ys[1..]</code> 재귀</td><td>0.75s</td><td>14ms</td></tr>
+  </tbody>
+</table>
+<p><code>crates/fung-cli/tests/perf.rs</code>(릴리스 빌드)가 이 다섯과 뒤에 더한 것들(스택처럼 쓰기, <code>unique</code>, 긴 문자열의 글자 인덱스, 자기 자신과의 <code>==</code>)을 0.3초 기준으로 지키므로 n²로 돌아가면 테스트가 실패한다.</p>
+<p>2026-10-20 검토에서 더 고친 것: <code>unique</code>는 <code>==</code>와 맞는 해시로 선형이다(정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시, 심볼은 그 이름의 문자열과 같은 해시라 E0517이 그대로 난다). 문자열의 <code>s[i]</code>·<code>s[a..b]</code>는 글자 배열을 만들지 않는다(ASCII는 바이트 위치 그대로). 같은 리스트·맵·튜플·태그끼리의 <code>==</code>는 바로 참이다. 원소가 모두 상수인 리스트 리터럴은 컴파일 때 상수 하나가 된다(빈 리스트를 품은 것은 제외).</p>
+<h3>구조 공유와 길 복사</h3>
+<p>값을 평평한 배열 대신 <strong>가지가 32개인 얕은 트리</strong>에 담는다. 하나를 바꾸면 그 값까지 내려가는 길의 노드만 새로 만들고, 나머지 가지는 원본의 노드를 그대로 가리킨다. 원본은 하나도 바뀌지 않는다.</p>
+<pre class="plain"><code>원본                      바꾼 뒤
+   [루트]                    [루트']          ← 새 노드
+  /  |  \                   /  |  \
+ A   B   C                 A   B'  C          ← A·C는 원본과 공유
+     |                         |
+    [잎]                      [잎']           ← 새 노드</code></pre>
+<p>깊이는 log₃₂ n이다. 100만 개여도 4단계라 바꿀 때마다 노드 4개(포인터 약 128개)만 복사한다. 32 = 2⁵라서 인덱스나 해시를 5비트씩 잘라 "몇 번째 가지"를 비트 연산으로 바로 구한다.</p>
+<p>Rust에서는 길의 노드마다 <code>Rc::make_mut</code>를 부른다. 그 노드를 아무도 공유하지 않으면(혼자 쓰는 누적값, 빌더) 제자리에서 고치고, 누가 옛 버전을 들고 있으면 위처럼 길만 복사한다. 같은 코드가 두 경우를 다 처리한다.</p>
+<h3>리스트: 영속 벡터와 보기</h3>
+<ul>
+  <li><strong>영속 벡터</strong>(Clojure의 PersistentVector): 인덱스 <code>i</code>를 5비트씩 끊어 트리를 내려간다. 마지막 32개는 따로 둔 <code>tail</code> 배열에 있어서, 끝에 붙이기는 <code>tail</code>만 복사한다. <code>tail</code>이 차면 트리에 잎으로 끼우며 그 길만 복사한다.</li>
+  <li><strong>보기</strong>: 큰 리스트는 <code>{벡터, 시작, 끝}</code>이다. <code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code>는 같은 벡터를 가리키며 위치만 다른 보기를 만든다(상수 시간). 끝이 벡터의 끝인 보기에 덧붙이면 벡터를 이어서 키운다. 앞쪽 조각이 벡터의 대부분이면 벡터를 그 끝에서 자르고(마지막 잎이 <code>tail</code>이 되고 그 길만 복사, O(log n)) 이어서 키우므로, 스택처럼 쓰는 <code>s[..-1] + [x]</code>도 선형이다. 작은 앞쪽 조각은 새 벡터로 떼어 낸 뒤 붙인다. 원본은 어느 쪽이든 그대로다.</li>
+  <li><strong>메모리 규칙</strong>: 잘라 낸 결과가 바탕 벡터의 1/4보다 작으면 복사해서 떼어 낸다. 작은 조각이 큰 원본을 붙잡아 메모리에 남기지 않게 하려는 것이다.</li>
+</ul>
+<h3>맵: HAMT와 넣은 순서</h3>
+<p><strong>HAMT</strong>(Hash Array Mapped Trie)는 키를 32비트로 해시하고 5비트씩 끊어 내려가는 트리다. 노드는 "어느 칸이 차 있는가"를 나타내는 32비트 비트맵과 찬 칸만 담은 배열이다. 칸의 위치는 "내 앞에 찬 칸의 수"로, CPU의 비트 세기 명령 한 번(<code>u32::count_ones</code>)으로 구한다. 해시 32비트를 다 써도 같은 키들은 마지막에 작은 충돌 목록에 둔다.</p>
+<p>그런데 HAMT는 해시 순서라 <strong>넣은 순서를 모른다</strong>. fung 맵은 넣은 순서대로 순회·출력해야 한다(02). 그래서 두 구조를 짝짓는다.</p>
+<pre class="plain"><code>항목들(영속 벡터, 넣은 순서): [(&quot;a&quot;, 1), (&quot;b&quot;, 2), (&quot;c&quot;, 3)]
+색인(HAMT):                   &quot;a&quot; → 0, &quot;b&quot; → 1, &quot;c&quot; → 2</code></pre>
+<ul>
+  <li>새 키: 항목 벡터 끝에 붙이고 색인에 위치를 넣는다.</li>
+  <li>기존 키: 색인으로 위치를 찾아 그 칸만 바꾼다. 순서가 유지된다.</li>
+  <li><code>remove</code>: 그 칸을 "빈 자리"로 표시하고 색인에서 뺀다. 순회는 빈 자리를 건너뛰고, 빈 자리가 살아 있는 항목보다 많아지면 한 번 다시 만든다.</li>
+  <li>해시 시드는 실행마다 다르지만(<code>RandomState</code>), 순서는 항목 벡터가 정하므로 출력은 항상 같다.</li>
+</ul>
+<h3>작은 컬렉션은 예전 그대로</h3>
+<p>스크립트의 컬렉션은 대부분 작다(설정, 인자, 헤더, 한 줄의 필드). 그래서 <strong>리스트는 32개, 맵은 16개 이하</strong>면 평평한 배열(맵은 넣은 순서대로 둔 (키, 값) 쌍의 배열을 처음부터 훑는다)로 두고, 넘으면 트리로 바꾼다. 경계값은 M10에서 fung 스크립트로 재서 정했다.</p>
+<ul>
+  <li>읽기는 경계 16·32·64 어디서도 차이가 없었다(±3%). 몇 ns 차이는 해석기 비용에 묻힌다.</li>
+  <li>리스트는 32와 64가 같아서 트리 노드 하나 크기인 32로 두었다.</li>
+  <li>그 결과 크기 8·24·48의 작은 컬렉션 만들기·읽기는 M10 전 대비 ±3% 안이었다.</li>
+</ul>
+<h3>연산 비용</h3>
+<table>
+  <thead><tr><th>연산</th><th>작을 때</th><th>클 때</th></tr></thead>
+  <tbody>
+    <tr><td><code>xs[i]</code>, <code>len</code></td><td>O(1)</td><td>O(log₃₂ n), O(1)</td></tr>
+    <tr><td><code>xs + [x]</code></td><td>O(n), n ≤ 32</td><td>거의 O(1)</td></tr>
+    <tr><td><code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code></td><td>O(b−a)</td><td>O(1) 보기(작아지면 복사)</td></tr>
+    <tr><td><code>xs + ys</code></td><td colspan="2">오른쪽 길이에 비례</td></tr>
+    <tr><td><code>[x] + xs</code>(앞에 붙이기)</td><td colspan="2">O(n): 피한다</td></tr>
+    <tr><td><code>m[k]</code>, <code>k in m</code>, <code>get</code></td><td>O(1)</td><td>O(log₃₂ n)</td></tr>
+    <tr><td><code>put</code>, <code>remove</code></td><td>O(n), n ≤ 16</td><td>거의 O(1)</td></tr>
+    <tr><td><code>merge(a, b)</code></td><td colspan="2"><code>b</code>의 크기에 비례</td></tr>
+  </tbody>
+</table>
+<h3>동시성</h3>
+<p>트리의 노드는 원자적이지 않은 참조 계수 <code>Rc</code>로 공유한다. fung 값은 실행 스레드 하나만 만지므로(<a href="#concurrency">동시성 런타임</a>) 여러 태스크가 같은 리스트나 맵에서 새 값을 만들어도 잠금이 필요 없다. 내장 함수가 결과를 만들 때 쓰는 빌더(<code>ListBuilder</code>, <code>MapBuilder</code>)만 제자리에서 바뀌고, 다 만든 뒤 굳혀서 넘긴다.</p>
+<h2 id="modules">모듈 적재</h2>
+<ol>
+  <li><strong>그래프 먼저.</strong> 진입 파일을 컴파일할 때 import 그래프 전체를 읽고 컴파일한다. 순환 import, 비공개 이름 접근, 라이브러리 파일의 최상위 단독 문장, 없는 이름 가져오기는 모두 실행 전에 걸린다(종료 코드 2).</li>
+  <li><strong>실행은 처음 쓸 때 한 번.</strong> <code>IMPORT</code> 명령이 모듈 본문을 처음 만났을 때 그 태스크에서 실행하고 모듈 값(공개 이름들의 불변 레코드)을 캐시한다. 뒤의 import는 캐시된 값을 받는다.</li>
+  <li><strong>모듈마다 전역 표.</strong> 함수 값은 자기 모듈의 전역 표를 들고 다니므로, 다른 모듈에서 불려도 자기 전역을 본다.</li>
+</ol>
+<p>내장 모듈(<code>fs</code>, <code>json</code>, <code>http</code>, <code>conc</code> …)의 fung 소스는 <code>include_str!</code>로 실행 파일 안에 들어 있고(<code>crates/fung-front/src/extras.rs</code>), import될 때 컴파일된다. prelude(<code>extras/prelude.fung</code>)만 시작할 때 컴파일된다. 스크립트 시작 시간을 지키기 위해서다.</p>
+<h2 id="layers">라이브러리의 네 층</h2>
+<table>
+  <thead><tr><th>층</th><th>뜻</th><th>언어</th><th>예</th></tr></thead>
+  <tbody>
+    <tr><td>core</td><td>언어의 의미와 런타임, 언어가 보장하는 값 연산</td><td>Rust</td><td>렉서~VM, <code>print</code>, <code>map</code>·<code>filter</code>·<code>fold</code>, <code>split</code>, <code>int</code>, 태스크·채널</td></tr>
+    <tr><td>native <code>_native.*</code></td><td>바깥세상과의 다리, 또는 안쪽 루프라 Rust가 필요한 것. 숨겨져 있다.</td><td>Rust</td><td><code>_native.fs</code> <code>_native.process</code> <code>_native.json</code> <code>_native.regex</code> <code>_native.time</code> <code>_native.net</code>(소켓·TLS) <code>_native.range</code>(prelude의 범위 함수)</td></tr>
+    <tr><td>extras(내장)</td><td>core와 native 위에 fung으로 쓴 것</td><td>fung</td><td><code>fs</code>·<code>cli</code>·<code>http</code>·<code>conc</code> 모듈, <code>take</code>·<code>lines</code></td></tr>
+    <tr><td>extras(프로젝트)</td><td>사용자 라이브러리. 의존성 관리는 아직 없다.</td><td>fung</td><td>상대 경로 import</td></tr>
+  </tbody>
+</table>
+<p>예를 들어 <code>import fs</code>의 <code>fs.read</code>는 <code>extras/fs.fung</code>가 <code>import _native.fs as _n</code> 뒤 <code>read = _n.read</code>로 다시 내보낸 Rust 함수이고, <code>fs.with_open</code>은 그 파일 안에 fung으로 쓴 함수다. <code>http</code>는 통째로 fung이다: <code>extras/http.fung</code>가 <code>_native.net</code>의 소켓 위에서 HTTP/1.1 요청·응답·리다이렉트·프록시·서버를 쓴다. 사용자 코드는 <code>_native.*</code>를 직접 import할 수 없다(E0310).</p>
+<p>구현은 크레이트 셋이다: 앞단 <code>fung-front</code>(렉서~컴파일러, 포맷터, 로더), 값과 런타임 <code>fung-vm</code>, 명령 <code>fung-cli</code>. 크레이트 의존성은 허용 목록으로 막는다(<code>deny.toml</code>, <code>crates/fung-cli/tests/deps.rs</code>): 앞단은 0개, VM은 운영체제 접근(<code>libc</code>)·정규식 엔진(<code>regex</code>)·TLS(<code>rustls</code>)처럼 직접 짜면 위험한 것만 쓴다. 내장 fung 코드 안에서 난 런타임 에러는 사용자 코드의 가장 가까운 줄을 가리킨다(사용자는 내장 파일을 열 수 없으므로).</p>
+<h2 id="concurrency">동시성 런타임</h2>
+<ul>
+  <li><strong>실행 스레드 하나가 모든 태스크를 돈다(M:1).</strong> 태스크는 운영체제 스레드가 아니라 데이터다(<code>Fiber</code>: 스택, 프레임, 이어 가기 상자, 취소 노드, 깨움 표시). 명령을 부른 스레드가 실행 스레드이고, 실행 대기열 맨 앞의 태스크를 자기 <code>Task</code>에 맞바꿔 넣어 돌린 뒤 다시 치워 둔다(<code>vm/sched.rs</code>). 그래서 <code>spawn(s, f)</code>는 스레드를 만들지 않고(태스크 하나 약 1 µs) 실패하지 않으며, 기다리는 태스크 수만 개가 돈다. 값은 원자적이지 않은 <code>Rc</code>로 공유한다. 값을 만지는 스레드가 실행 스레드 하나뿐이기 때문이다. 다른 스레드(신호, 표준 입력 읽기, offload의 일)는 값을 만지지 않고, 실행 대기열에 태스크 번호를 넣거나 받은 편지함에 사건을 넣는다. 여러 코어는 여러 프로세스로 쓴다(<code>reuse_port</code>).</li>
+  <li><strong>막히는 곳은 하나.</strong> <code>await</code>·<code>sleep</code>·<code>send</code>·<code>recv</code>, 받는 끝 순회, 범위가 자식을 기다리는 것은 모두 실행 루프에 <strong>주차 요청</strong>을 돌려준다(이어 가기의 한 갈래, <code>Next::Park</code>). 기다리는 것에 자기 깨움 표시를 등록한 상자가 줄 맨 위에 남고, 실행 루프는 스케줄러로 돌아간다. 깨우면(<code>Waiter::wake</code>: 실행 대기열에 넣음) 상자가 조건을 다시 보고, 취소·기한은 상자의 되감기로 간다(이미 건너온 값은 취소보다 먼저). <strong>소켓과 TLS는 이벤트 루프 위에서 기다린다</strong>(<code>vm/poller.rs</code>: macOS kqueue, Linux epoll, 준비 상태 기반 one-shot 등록). 소켓 연산은 기다리지 않고 한 번 해 보고, 막힐 자리면 어느 fd를 무엇 때문에 기다리는지 말한다. 태스크는 그 fd를 새 토큰으로 루프에 등록하고 주차했다가, 준비되면 처음부터 다시 해 본다(<code>park_io</code>). 그때까지 한 일은 연결(읽어 둔 버퍼, rustls 상태)이나 내장 함수(쓴 바이트 수, 연결 단계)에 남아 있다. 할 일이 없으면 실행 스레드가 그 루프에서 자고, 다른 스레드는 루프의 깨우개를 당긴다. 입출력을 기다리는 태스크가 있으면 차례마다 루프를 시간 제한 0으로 본다. 연결의 읽는 쪽과 쓰는 쪽은 각각 한 연산이 차지하고, 다음 연산은 차례 줄에서 주차한다. 그 밖에 운영체제를 기다리는 일(파일, 이름 조회, 정규식 컴파일)은 <code>offload(일, 마무리)</code>로 넘긴다. 일은 fung 값이 아닌 평범한 데이터만 가지고 다른 스레드에서 돌고, 그동안 태스크는 주차한다. 파일, 이름 조회, 정규식 컴파일은 <strong>스레드 풀</strong>(<code>vm/pool.rs</code>: 필요할 때 만들고 최대 64개, 10초 놀면 끝남, 꽉 차면 FIFO 줄)에서 돈다. <strong>외부 명령도 이벤트 루프 위에서 기다린다</strong>(R4b): 명령의 끝(macOS <code>EVFILT_PROC</code>, Linux pidfd, pidfd가 없으면 풀의 <code>waitid</code>)과 파이프 셋(출력·에러 읽기, 입력 쓰기, 모두 블로킹하지 않는 모드)을 한 상자(<code>CommandWait</code>)가 함께 등록하므로, 두 출력을 채우면서 입력을 받는 명령도 멈추지 않는다. 운영체제를 기다리는 스레드는 표준 입력 읽기 스레드, 신호 스레드, 풀뿐이다. 표준 입력은 읽기 스레드가 줄을 넣고 기다리는 태스크를 깨운다. 계산만 하는 태스크는 호출 1,000번마다 차례를 넘긴다(<code>YIELD_EVERY</code>).</li>
+  <li><strong>기한은 노드에.</strong> <code>timeout(d, f)</code>는 기한이 실린 취소 노드를 만들고, 그 아래에 생기는 노드(범위, 그 안의 태스크)가 기한을 물려받는다(<code>vm/deadline.rs</code>). 타이머 스레드는 없다. 주차한 태스크의 기한은 스케줄러의 타이머 힙에 들어가고, 스케줄러는 가장 이른 기한까지만 잔다. 계산하는 태스크는 차례를 넘길 때 시계를 본다. 처음 본 쪽이 기한의 주인 노드를 만료시켜 아래를 모두 취소한다. 운영체제 스레드는 도중에 멈출 수 없으므로, 기한이나 취소가 오면 offload의 일을 <strong>버리거나 기다린다</strong>. 줄에서 아직 시작하지 않은 일은 언제나 버린다. 경로만 읽는 일(파일 읽기, 목록, <code>stat</code>, 정규식 컴파일)은 돌던 중이어도 태스크가 곧바로 되감고, 일의 결과는 그 스레드에서 버린다. 무엇을 바꾸는 일(쓰기, 지우기, 핸들)은 시작했으면 끝날 때까지 기다린 뒤 기한을 확인한다. 취소된 쓰기가 나중에 일어나지 않게 하려는 것이다.</li>
+  <li><strong>취소는 트리.</strong> 태스크마다 취소 노드가 있고 부모가 자식을 강하게 든다. 취소되면 원자적 표시가 서고, VM은 <code>CALL</code>·<code>TAILCALL</code>마다 이 표시를 읽는다. 노드에 등록된 잠든 태스크는 곧바로 깬다(소켓을 기다리는 태스크도 같다: 이벤트 루프의 등록은 그 기다림이 끝날 때 지운다).</li>
+  <li><strong>교착은 바로 판정한다.</strong> 모든 태스크는 도는 중이거나, 실행 대기열에 있거나, 스케줄러에 주차해 있다. 이 수는 실행 스레드에서만 바뀐다. 그래서 대기열이 비었을 때 주차한 태스크 중 타이머나 바깥(<code>sleep</code>, 기한, offload, 표준 입력, 정지 채널)이 깨울 것이 하나도 없으면 그것이 정확히 교착이다. 원자 변수도 유예 시간도 없이 E0702를 보고하고 루트를 취소하며 종료 코드 1로 끝낸다. 깨워졌지만 아직 돌지 않은 태스크는 대기열에 있으므로 막힌 것으로 세지 않는다. 주차한 태스크는 모두 힙에 있으므로(프레임, 이어 가기 상자) 보고는 태스크마다 맨 위 상자가 어느 내장 함수의 기다림이고 어디서 불렸는지 읽는다. 실행 루트는 런타임 에러처럼 위치와 호출 경로로, 나머지는 같은 종류·위치끼리 묶은 줄(<code>recv at f.fung:3:12 (worker) ×1000</code>)로 10줄까지 보인다.</li>
+  <li><strong>채널</strong>은 기다리는 쪽의 줄을 직접 둔 구조이고, fung 코드는 두 끝(<code>Sender</code>·<code>Receiver</code>, 각각 <code>Rc</code> 하나)으로만 만진다. 끝을 복사하면 그 <code>Rc</code>가 복사되므로, 참조 계수가 0이 되는 <code>Drop</code>이 곧 마지막 사본이 사라진 순간이다. 보내는 끝은 그때 채널을 닫고, 받는 끝은 닫고 버퍼를 버린다(버퍼는 명시적 스택으로 해제). 닫힌 채널에 보내면 <code>Err({kind: 'closed})</code>(채널을 닫는 것은 다른 태스크, 곧 외부 요인). 채널에 그 채널의 끝을 보내면 E0705다. 자기를 가리키는 고리는 참조 계수로 해제할 수 없으므로 <code>send</code>가 보내는 값을 훑어 막는다. 바뀌는 것을 품지 않은 값은 건너뛴다(큰 리스트·맵은 노드의 기억으로 O(1), 작은 것은 공유된 부분을 한 번씩 훑는다).</li>
+  <li><strong>atom</strong>은 불변 값 하나를 가리키는 칸과 판 번호다(<code>vm/atom.rs</code>, Clojure의 atom과 같은 의미). <code>swap</code>은 비교 후 교체라서 <code>f</code> 도중에 다른 태스크가 바꿨으면 <code>f</code>를 다시 돌린다. 그래서 <code>f</code>는 순수해야 하고, VM은 <code>f</code>를 도는 동안(태스크의 <code>pure</code> 깊이) 효과 표에 있는 내장 함수를 부르면 E0707을 낸다. 표는 내장 함수의 주소 집합으로, 처음 쓸 때 한 번 만든다. atom에 담는 값은 변하는 것을 품으면 안 된다(E0708). 이 검사는 영속 벡터의 노드마다 "품었는지"를 기억해 두는 덕에 O(1)이다. 바뀐 노드는 <code>make_mut</code>을 지나며 기억을 잊으므로 복사된 경로만 다시 본다. 0.1의 atom을 3b에서 상태를 쥔 배경 태스크(에이전트)로 바꿨다가 동시성 v2 L5에서 되돌렸다. 순환과 재진입은 위의 두 규칙이 막는다.</li>
+  <li><strong>범위(구조적 동시성)</strong>: 태스크는 <code>scope</code>·<code>supervise</code>가 연 범위 안에서만 띄운다(<code>vm/scope.rs</code>). 범위마다 취소 노드가 하나 있어 본문과 자식이 그 아래에서 돌고, 범위는 살아 있는 자식 수와 첫 실패를 든다. 자식 핸들은 쥐지 않으므로 자식이 범위 핸들을 붙잡아도 참조 계수 순환이 생기지 않는다. 본문이 끝나면 새 루트 노드 아래에서 자식이 0이 되기를 기다린다. 그래서 바깥 취소가 와도 자식이 다 끝난 뒤에야 되감고, 그 기다림은 교착 판정에 든다. <code>supervise</code>는 처리기 태스크를 따로 띄우지 않고, 처리하는 쪽이 없을 때 실패한 자식이 처리기가 되어 대기열을 비운다. 범위 밖에 사는 태스크가 없으므로 "아무도 확인하지 않은 실패"를 추적하는 장치가 없다.</li>
+  <li><strong>신호와 정지 요청</strong>: 명령은 시작하자마자 SIGINT·SIGTERM을 모든 스레드에서 막고, 전용 스레드가 <code>sigwait</code>로 받는다(<code>fung-vm/src/signals.rs</code>). 신호 처리기가 아무 스레드의 아무 지점에 끼어들지 않으므로, 신호는 보통 코드로 처리된다: 사건을 실행 대기열에 게시할 뿐 아무것도 기다리지 않는다. 첫 신호는 정지 요청이다(<code>vm/stop.rs</code>). 런타임은 정지 채널의 보내는 끝을 쥐고 받는 끝은 약한 참조로만 기억해서, 그 참조가 살아 있으면(누가 <code>stop_signal()</code>의 끝을 쥐고 있으면) 채널을 닫기만 하고, 아니면 <code>exit</code>처럼 루트를 취소한다. 두 번째 신호는 곧바로 끝낸다. 외부 프로세스는 신호 마스크를 비우고 띄운다(<code>pre_exec</code>).</li>
+  <li><strong>끝내기</strong>: 진입 파일(그 안의 범위가 태스크를 모두 기다린다; 에러나 <code>exit</code>면 취소하고 기다림). 배경 태스크는 없다. HTTP 서버도 자기 범위 안에서 돈다. <code>exit(n)</code>은 어느 태스크에서든 루트를 취소하고, 되감기가 모든 <code>with</code>의 <code>release</code>를 지난다. <code>release</code>는 새 루트 노드(차단 노드)에서 돌아 취소와 기한이 닿지 않고, 도는 동안 목록에 올라 교착 판정이 <code>exit</code> 뒤에도 그것을 보고 멈춘 것을 끊는다(<code>vm/cleanup.rs</code>). 출력은 잠금으로 감싸 한 번의 <code>print</code>가 한 번의 쓰기가 된다.</li>
+  <li><strong>내장 함수가 VM에 되묻는 길</strong>: 내장 함수는 <code>&amp;mut Task</code>를 받아 출력, 입력, 주차, <code>offload</code>를 쓴다. 람다는 직접 부르지 않고 이어 가기로 부탁한다(<a href="#vm">VM</a>의 이어 가기 프레임). 그래서 람다 안에서 막혀도 Rust 스택에는 VM의 실행 루프 하나만 있고, 막히는 원시 연산은 태스크를 주차한다.</li>
+  <li><strong>비용</strong>: 태스크 만들기 약 1 µs, 버퍼 없는 채널로 값 하나 약 0.5 µs(Apple M2 Max, R1b). 계산만 하는 프로그램은 차례 넘기기 비용이 보이지 않는다. 풀에서 도는 파일 시스템 호출 하나는 약 9 µs다(R3). 한 프로그램이 HTTP 연결 2,000개를 동시에 쥐어도 스레드는 넷이다(R4a). 입출력을 기다리는 태스크가 있으면 스케줄러는 차례가 넘어갈 때와 256바퀴마다 루프를 시간 제한 0으로 본다(한 번이 시스템 호출 하나).</li>
+</ul>
+<h2 id="tools">도구</h2>
+<dl class="terms">
+  <dt><code>fung check</code></dt><dd>그래프 적재와 이름 해석까지만 하고 실행하지 않는다. 경고 W0101~W0103은 <code>check</code>와 <code>test</code>에서만 보인다.</dd>
+  <dt><code>fung test</code></dt><dd><code>test</code> 블록은 함수로 컴파일되어 등록된다(<code>TEST</code> 명령). 파일마다 새 런타임에서 최상위를 먼저 실행하고 등록된 테스트를 차례로 돌린다. 그동안 명령 자신을 살아 있는 태스크 하나로 세어(<code>Runtime::hold</code>) 블록 사이의 틈을 교착으로 보지 않는다. <code>assert</code>가 실패하면 비교의 양쪽 값을 보여 준다. <code>exit(n)</code>이 불리거나 교착이 보고되면 그 파일의 나머지를 건너뛰고 실패 하나로 센다. 로드에 실패한 파일은 실패로 세고, 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.</dd>
+  <dt><code>fung fmt</code></dt><dd>AST를 다시 찍지 않고 렉서의 토큰과 주석을 줄 단위로 다시 배치한다. 줄 시작마다 열린 블록·괄호의 스택을 보고 들여쓰기를 정하고, 토큰 쌍 표로 공백을 정하며, 연속 줄의 꼬리 주석과 <code>match</code>의 <code>=&gt;</code>를 맞춘다. 출력을 다시 렉싱해 토큰 열이 입력과 같을 때만 쓴다. 그래서 포맷터 버그가 코드를 바꾸는 일은 사용자에게 닿지 않는다.</dd>
+  <dt>REPL</dt><dd>한 줄씩 지금까지의 전역 이름을 알려 주며 컴파일하고 같은 런타임에서 실행한다. 전역 표를 미리 큰 용량으로 잡아 두어, 앞 줄에서 만든 클로저도 뒤에 정의된 이름을 본다. 터미널이면 raw 모드 줄 편집기(직접 구현), 파이프면 단순 읽기다. 재정의를 허용한다. 세션 내내 런타임을 붙잡고 있어 다음 입력을 기다리는 태스크는 교착이 아니다. 한 입력 안의 교착은 그 입력만 실패시키고 새 실행 루트에서 계속하며, 전역(전역에 담은 atom 포함)은 남는다.</dd>
+  <dt><code>fung dump</code></dt><dd>위 단계들의 중간 결과(<code>ast</code>, <code>core</code>, <code>bytecode</code>)를 보여 준다.</dd>
+</dl>
+<h2 id="source">소스 지도</h2>
+<table>
+  <thead><tr><th>디렉터리</th><th>하는 일</th></tr></thead>
+  <tbody>
+    <tr><td><code>crates/fung-cli</code></td><td>실행 파일. 하위 명령(<code>run</code> <code>check</code> <code>test</code> <code>fmt</code> <code>repl/</code>), 종료 코드, 경로 순회</td></tr>
+    <tr><td><code>crates/fung-front/src/lexer</code></td><td>소스 → 토큰, 주석 trivia</td></tr>
+    <tr><td><code>…/parser</code> <code>…/tree</code></td><td>토큰 → 균일 트리</td></tr>
+    <tr><td><code>…/desugar.rs</code></td><td>겉 트리 → 코어 트리</td></tr>
+    <tr><td><code>…/resolve</code></td><td>이름 해석, 스코프 에러, 경고</td></tr>
+    <tr><td><code>…/compiler</code> <code>…/bytecode</code></td><td>코어 트리 → 함수 원형과 명령열, 역어셈블러</td></tr>
+    <tr><td><code>…/loader.rs</code> <code>…/builtins.rs</code> <code>…/extras.rs</code></td><td>import 그래프를 적재하는 로더, 내장 이름 표, 실행 파일에 넣은 fung 소스</td></tr>
+    <tr><td><code>…/diag</code> <code>…/format</code></td><td>에러 번호 카탈로그와 출력 형식, 포맷터</td></tr>
+    <tr><td><code>crates/fung-vm/src/value</code></td><td>fung 값의 Rust 표현과 원시 연산(산술, 비교, 출력 형식), 영속 벡터·HAMT, 깊은 해제</td></tr>
+    <tr><td><code>…/vm</code></td><td>실행기, 태스크, 스케줄러, 이벤트 루프, 스레드 풀, 취소 트리, 채널, 교착 감지, atom, HTTP 서버 도우미</td></tr>
+    <tr><td><code>…/prelude</code> <code>…/native</code> <code>…/conc.rs</code> <code>…/boot.rs</code></td><td>core 값 연산, <code>_native.*</code> 다리(파일·프로세스·시간·JSON·정규식·소켓·TLS·범위), 동시성 원시 연산, prelude 부팅</td></tr>
+    <tr><td><code>extras/</code></td><td>fung으로 쓴 내장 모듈(<code>prelude.fung</code> <code>fs.fung</code> <code>cli.fung</code> <code>conc.fung</code> <code>http.fung</code> …)</td></tr>
+    <tr><td><code>tests/lang</code></td><td>언어 골든 테스트(<code>.fung</code> 파일 안의 <code># expect:</code> 주석과 실제 출력 비교). 실행기는 <code>crates/fung-cli/tests/golden.rs</code></td></tr>
+    <tr><td><code>crates/*/tests/expected</code></td><td>기대 출력 파일. <code>dump</code>, 실행, <code>check</code>·<code>test</code>·<code>fmt</code>·REPL, <code>json</code>·<code>time</code>·<code>regex</code>·<code>http</code>의 사례마다 표준 출력·에러·종료 코드를 적어 두고 테스트가 비교한다</td></tr>
+    <tr><td><code>spec/</code></td><td>내장 이름 표와 에러 카탈로그(Rust 표에서 생성), 유니코드 표</td></tr>
+  </tbody>
+</table>
+<p>설계의 결정과 그 이유는 <a href="https://github.com/tunarider/fung/blob/main/docs/design/README.md">docs/design</a>에, 마일스톤마다 무엇을 만들었는지는 <code>docs/notes</code>에 있다.</p>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>

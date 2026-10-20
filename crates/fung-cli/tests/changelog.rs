@@ -50,17 +50,25 @@ fn section_extracts_one_version() {
     );
 }
 
-/// The real changelog must have a section for the version in the manual,
-/// so a release tag never ships with empty notes.
+/// The real changelog must have a section for the newest frozen manual
+/// (`docs/versions.js`, written by `manual_build.rs`'s freeze), so a
+/// release tag never ships with empty notes. Before the first frozen
+/// version there is nothing to check.
 #[test]
-fn covers_the_manual_version() {
-    let page = fs::read_to_string(common::repo().join("docs/index.html")).unwrap();
-    let rest = page
-        .split_once("<p class=\"side-foot\">fung ")
-        .expect("no version in the manual sidebar")
-        .1;
-    let version = rest.split(' ').next().unwrap();
-    let got = section(&common::repo().join("CHANGELOG.md"), version)
+fn covers_the_newest_frozen_manual() {
+    let js = fs::read_to_string(common::repo().join("docs/versions.js")).unwrap();
+    let frozen = js
+        .lines()
+        .filter(|l| l.trim_start().starts_with('{') && !l.contains("\"tag\""))
+        .map(|l| {
+            let rest = &l[l.find("\"name\": \"").expect("a version without a name") + 9..];
+            rest[..rest.find('"').unwrap()].to_string()
+        })
+        .next();
+    let Some(version) = frozen else {
+        return;
+    };
+    let got = section(&common::repo().join("CHANGELOG.md"), &version)
         .unwrap_or_else(|e| panic!("CHANGELOG.md has no notes for {version}: {e}"));
     assert!(
         !got.trim().is_empty(),
