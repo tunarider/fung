@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 fung version
 ```
 
-`FUNG_VERSION=0.3.0`, `FUNG_INSTALL_DIR=/usr/local/bin`으로 버전과 위치를 고른다.
+`FUNG_VERSION=0.4.0`, `FUNG_INSTALL_DIR=/usr/local/bin`으로 버전과 위치를 고른다.
 Rust 1.94 이상이 있다면 저장소에서 직접 빌드할 수도 있다. 실행 파일은 `target/release/fung`이다.
 
 ```
@@ -40,7 +40,7 @@ cp target/release/fung ~/.local/bin/
 `cargo install`로 바로 설치할 수도 있다(`~/.cargo/bin`에 들어간다). 태그를 붙이지 않고 빌드한 바이너리는 `fung version`이 `0.0.0-dev`다.
 
 ```
-cargo install --locked --git https://github.com/tunarider/fung --tag v0.3.0 fung-cli
+cargo install --locked --git https://github.com/tunarider/fung --tag v0.4.0 fung-cli
 ```
 
 ## 사용
@@ -61,7 +61,7 @@ fung -e 'import conc; print(conc.pmap([1, 2, 3], x => x * x))'   # 범위·태�
 Actions에서 수동 실행하면 게시와 빌드 증명을 빼고 같은 과정을 돌려 결과를 아티팩트로 남긴다. 릴리스 노트는 [CHANGELOG.md](CHANGELOG.md)의 해당 버전 절이다. 절차는 [docs/notes/release.md](docs/notes/release.md) 7절.
 
 ```
-git tag v0.3.0 && git push origin v0.3.0
+git tag v0.4.0 && git push origin v0.4.0
 ```
 
 ## 라이선스

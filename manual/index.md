@@ -111,7 +111,7 @@ curl -fsSL https://raw.githubusercontent.com/tunarider/fung/main/install.sh | sh
 fung version
 ```
 
-<p>버전과 위치는 환경 변수로 고른다: <code>FUNG_VERSION=0.3.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>. 다시 실행하면 업데이트, 지우려면 그 파일을 지우면 된다. 바이너리 하나에 표준 모듈이 다 들어 있어 따로 설치할 것이 없다.</p>
+<p>버전과 위치는 환경 변수로 고른다: <code>FUNG_VERSION=0.4.0</code>, <code>FUNG_INSTALL_DIR=/usr/local/bin</code>. 다시 실행하면 업데이트, 지우려면 그 파일을 지우면 된다. 바이너리 하나에 표준 모듈이 다 들어 있어 따로 설치할 것이 없다.</p>
 <p>Rust 1.94 이상이 있다면 저장소에서 직접 빌드할 수도 있다. 실행 파일은 <code>target/release/fung</code>이다.</p>
 
 ```plain
@@ -123,7 +123,7 @@ cp target/release/fung ~/.local/bin/
 <p><code>cargo install</code>로 바로 설치할 수도 있다(<code>~/.cargo/bin</code>에 들어간다). 이렇게 빌드한 바이너리는 <code>fung version</code>이 <code>0.0.0-dev</code>다.</p>
 
 ```plain
-cargo install --locked --git https://github.com/tunarider/fung --tag v0.3.0 fung-cli
+cargo install --locked --git https://github.com/tunarider/fung --tag v0.4.0 fung-cli
 ```
 
 <p class="note">받은 파일이 이 저장소의 GitHub Actions에서 빌드된 것인지는 <code>gh attestation verify &lt;파일&gt; --repo tunarider/fung</code>로 확인할 수 있다.</p>

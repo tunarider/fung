@@ -5,7 +5,8 @@
 //! (stage 6c), but for the sentences that compare fung with it
 //! (`COMPARISONS`). The history documents (`docs/notes`, `docs/plans`,
 //! `docs/superpowers`, `CHANGELOG.md`) record how the project got here
-//! and are left out.
+//! and are left out, and so are the manuals frozen at a release
+//! (`docs/<x.y.z>/`).
 
 mod common;
 
@@ -16,7 +17,8 @@ use std::path::{Path, PathBuf};
 /// `.cargo`).
 fn skipped_dir(rel: &Path) -> bool {
     let name = rel.file_name().unwrap().to_string_lossy();
-    rel == Path::new("target")
+    frozen_manual(rel)
+        || rel == Path::new("target")
         || (name.starts_with('.') && name != ".github" && name != ".cargo")
         || [
             "docs/notes",
@@ -26,6 +28,16 @@ fn skipped_dir(rel: &Path) -> bool {
         ]
         .iter()
         .any(|h| rel == Path::new(h))
+}
+
+/// A manual frozen at a release (`docs/0.4.0`): a record, never edited.
+fn frozen_manual(rel: &Path) -> bool {
+    rel.parent() == Some(Path::new("docs"))
+        && rel
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with(|c: char| c.is_ascii_digit())
 }
 
 /// Every file under `dir` (relative to the repository), skipping
@@ -314,7 +326,8 @@ fn no_code_or_current_document_names_the_other_language() {
     // the expected outputs are code's too; the history is not
     let skip = |rel: &Path| {
         let name = rel.file_name().unwrap().to_string_lossy();
-        rel == Path::new("target")
+        frozen_manual(rel)
+            || rel == Path::new("target")
             || (name.starts_with('.') && name != ".github" && name != ".cargo")
             || ["docs/notes", "docs/plans", "docs/superpowers"]
                 .iter()
@@ -495,4 +508,12 @@ fn no_current_text_describes_the_run_token() {
         found.len(),
         found.join("\n")
     );
+}
+
+#[test]
+fn frozen_manuals_are_records() {
+    assert!(frozen_manual(Path::new("docs/0.4.0")));
+    assert!(!frozen_manual(Path::new("docs/latest")));
+    assert!(!frozen_manual(Path::new("docs/design")));
+    assert!(!frozen_manual(Path::new("crates/0.4.0")));
 }

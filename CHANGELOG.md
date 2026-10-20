@@ -8,6 +8,8 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-20
+
 ### 바뀜(호환 깨짐)
 
 - 태스크 실패의 값(`await`의 `Err`, `supervise`의 `on_fail`이 받는 것)이 `{kind: 'error, code: "E0502", message: "division by zero", at: "x.fung:3"}`이다(05).
@@ -402,7 +404,8 @@ fung 실행 파일이 Go 구현에서 Rust 구현으로 바뀌었다. 언어와 
 - 설치 스크립트 `install.sh`, `go install github.com/tunarider/fung/cmd/fung@latest`.
 - HTML 매뉴얼(`docs/`, GitHub Pages).
 
-[Unreleased]: https://github.com/tunarider/fung/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/tunarider/fung/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/tunarider/fung/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tunarider/fung/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tunarider/fung/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tunarider/fung/releases/tag/v0.1.0
