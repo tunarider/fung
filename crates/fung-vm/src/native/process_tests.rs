@@ -263,15 +263,22 @@ fn a_cancel_is_bounded_when_a_grandchild_ignores_term() {
 }
 
 /// A command whose output comes fast does not hold the run thread: a
-/// ticking task keeps ticking while the command's output is read.
+/// ticking task keeps ticking while the command's output is read. The
+/// test judges the ticks against how long the command took, not a fixed
+/// count: where the producer is fast (uutils `head` on Ubuntu 26.04) the
+/// command ends in tens of ms, and a reader that drained the pipe until
+/// it was empty let the ticker run twice in 1.5 s.
 #[test]
 fn a_fast_command_does_not_starve_other_tasks() {
-    assert_eq!(
-        run(
-            "n = atom(0)\ndone = atom(false)\nscope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): sleep(2ms); swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  r = sh(\"head -c 100000000 /dev/zero\")\n  reset(done, true)\n;;)\nprint(deref(n) > 10)"
-        ),
-        ("true\n".into(), "".into(), 0)
+    let (out, err, code) = run(
+        "import time\nn = atom(0)\ndone = atom(false)\nt0 = time.now()\nscope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): sleep(2ms); swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  _ = sh(\"head -c 300000000 /dev/zero\")\n  reset(done, true)\n;;)\nprint(deref(n), (time.now() - t0) // 1ms)",
     );
+    assert_eq!((err.as_str(), code), ("", 0), "{out}");
+    let got: Vec<i64> = out.split_whitespace().map(|w| w.parse().unwrap()).collect();
+    let (ticks, ms) = (got[0], got[1]);
+    // A fair share is one tick per 2 ms plus the time a turn takes; ask
+    // for an eighth of it (measured: about a third; starved: 1/40).
+    assert!(ticks * 2 * 8 >= ms, "{ticks} ticks in {ms} ms");
 }
 
 /// A registration that fails while a cancelled command is being ended

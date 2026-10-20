@@ -146,11 +146,17 @@ impl Tty {
     }
 
     /// Waits for the process to end and returns its exit code.
+    /// Waits for `fung` to end, then for all it wrote to be read: a
+    /// pty hands the bytes over after the writer's call returns (on
+    /// Linux through a kernel work queue), so the last output can come
+    /// after the process is gone. A marker written to the terminal side
+    /// now comes out after everything written before it; once it is
+    /// here, so is the rest, and it is cut off again.
     fn wait(&mut self) -> Option<i32> {
         let end = Instant::now() + LIMIT;
-        loop {
+        let code = loop {
             if let Some(st) = self.child.try_wait().unwrap() {
-                return st.code();
+                break st.code();
             }
             assert!(
                 Instant::now() < end,
@@ -158,7 +164,18 @@ impl Tty {
                 self.text()
             );
             std::thread::yield_now();
-        }
+        };
+        const MARK: &[u8] = b"<<fung-tty-end>>";
+        std::fs::File::from(self.terminal.try_clone().unwrap())
+            .write_all(MARK)
+            .unwrap();
+        self.until("all of the output", |t| {
+            t.text().ends_with("<<fung-tty-end>>")
+        });
+        let mut out = self.out.lock().unwrap();
+        let n = out.len() - MARK.len();
+        out.truncate(n);
+        code
     }
 }
 

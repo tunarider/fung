@@ -283,14 +283,30 @@ fn non_blocking(fd: RawFd) {
     }
 }
 
-/// Reads what `pipe` has into `buf`; false once it reached its end (or
-/// failed, which ends it too).
+/// The most a command's pipes move in one look (`CommandWait::pump`):
+/// 256 KiB, a fraction of a millisecond.
+/// A command that writes as fast as it is read keeps its pipe from ever
+/// running empty: moving everything at once held the run thread for the
+/// whole command, and other tasks got no turn (Ubuntu 26.04's `head`
+/// gave a ticking task 2 turns in 1.5 s). Past the budget the wait parks
+/// again; the loop's one-shot registration fires at once on what is left.
+const PUMP_BUDGET: usize = 1 << 18;
+
+/// Reads what `pipe` has into `buf`, at most about `PUMP_BUDGET` bytes;
+/// false once it reached its end (or failed, which ends it too).
 fn drain(pipe: &mut impl Read, buf: &mut Vec<u8>) -> bool {
     let mut chunk = [0u8; 16 * 1024];
+    let mut moved = 0;
     loop {
+        if moved >= PUMP_BUDGET {
+            return true;
+        }
         match pipe.read(&mut chunk) {
             Ok(0) => return false,
-            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            Ok(n) => {
+                buf.extend_from_slice(&chunk[..n]);
+                moved += n;
+            }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return true,
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
             Err(_) => return false,
@@ -441,7 +457,11 @@ impl CommandWait {
             self.err = None;
         }
         if let Some(i) = &mut self.input {
+            let start = i.off;
             loop {
+                if i.off - start >= PUMP_BUDGET {
+                    break;
+                }
                 if i.off >= i.text.len() {
                     // all given: closing the pipe is the end of input
                     self.input = None;
