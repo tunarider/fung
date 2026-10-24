@@ -8,6 +8,11 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+### 보안
+
+- TLS 인증서 검증의 `rustls-webpki`를 0.103.16으로 올렸다(RUSTSEC-2026-0382). 그 전 판은 개인 키가 알려진 emSign(eMudhra) 중간 인증서를 거친 사슬을 믿을 수 있어서,
+  운영체제의 인증서 저장소에 emSign 루트가 있으면 `http.get` 등이 위조된 인증서를 받아들일 수 있었다.
+
 ### 바뀜(호환 깨짐)
 
 - **`fs.move`가 이미 있는 대상을 덮어쓰지 않는다**(06): `Err({kind: 'exists, message: "cannot move `a` to `b`: file exists"})`. 전에는 파일을 말없이 덮어써서,

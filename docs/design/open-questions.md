@@ -140,7 +140,7 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
     | `rustls` | 0.23.45 (2026-09-14; 공지 아래 참고) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접, 기본 기능 끄고 `ring`·`std`·`tls12` (+ `fung-cli` dev-dependency, 테스트 TLS 서버 `tests/common/tls_server.rs`) | TLS(암호와 프로토콜 상태 기계)는 직접 짜면 위험하다(의존성 정책). 소켓을 만지지 않는 상태 기계라 비차단 소켓과 이벤트 루프(`vm/poller.rs`) 위에서 돈다 | `ring`, `rustls-pki-types`, `rustls-webpki`, `subtle`, `zeroize`, `once_cell` |
     | `rustls-native-certs` | 0.8.4 (2026-06-01; 0.8.5는 2주 미만) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접 | 운영체제 루트 인증서(macOS 키체인, Linux 인증서 파일)와 `SSL_CERT_FILE`·`SSL_CERT_DIR`을 읽는다. 운영체제마다 다른 저장소를 직접 읽는 것은 플랫폼 코드다 | `rustls-pki-types`, `openssl-probe`(macOS 밖 유닉스), `security-framework`(macOS), `schannel`(Windows) |
     | `rustls-pki-types` | 1.15.1 (2026-07-23) | MIT OR Apache-2.0 | `rustls`·`rustls-webpki`·`rustls-native-certs`가 끌고 옴 | 인증서·키·서버 이름 타입 | `zeroize` |
-    | `rustls-webpki` | 0.103.15 (2026-08-21) | ISC | `rustls`가 끌고 옴 | 인증서 사슬·이름 검증(rustls의 WebPKI 검증기, `native/tls.rs`) | `ring`, `rustls-pki-types`, `untrusted` |
+    | `rustls-webpki` | 0.103.16 (2026-10-20; 공지 RUSTSEC-2026-0382가 닿아 2주 규칙의 예외로 바로 올림, 아래 보안 공지 정책) | ISC | `rustls`가 끌고 옴 | 인증서 사슬·이름 검증(rustls의 WebPKI 검증기, `native/tls.rs`) | `ring`, `rustls-pki-types`, `untrusted` |
     | `ring` | 0.17.14 (2025-03-11) | Apache-2.0 AND ISC | `rustls`가 끌고 옴(암호 공급자로 고름) | 암호 기본 연산. C·어셈블리를 빌드하므로 C 컴파일러가 필요하다(CI 러너에 있음) | `cc`·`find-msvc-tools`·`shlex`(빌드 때만), `cfg-if`, `getrandom`, `untrusted`, `windows-sys`(Windows) |
     | `untrusted` | 0.9.0 (2021-07-13) | ISC | `ring`·`rustls-webpki`가 끌고 옴 | 믿을 수 없는 입력을 안전하게 읽는 도우미 | 없음 |
     | `subtle` | 2.6.1 (2024-06-24) | BSD-3-Clause | `rustls`가 끌고 옴 | 상수 시간 비교 | 없음 |
@@ -157,6 +157,8 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
     `MIT` 밖의 셋을 허용한다. `ring`의 라이선스 칸이 깨끗한 SPDX라 `[[licenses.clarify]]`는 필요 없다.
   - **보안 공지 정책** (사용자 결정, 2026-10-16): 공지가 우리 설정에 **닿지 않으면** 2주 규칙을 지키고 이유를 적어 무시하며 해제 날짜를 아래 "남은 일"에서 추적한다.
     **닿으면** 2주를 기다리지 않고 바로 올린다. 무시는 `deny.toml`의 `[advisories] ignore`(이유와 함께)와 `.cargo/audit.toml`(cargo-audit용, 같은 번호) 두 곳에 적는다.
+    - 닿은 예: RUSTSEC-2026-0382(2026-10-20, `rustls-webpki` 0.103.15). emSign(eMudhra) 중간 인증서의 개인 키가 알려져, 그것을 거친 사슬을 믿을 수 있었다.
+      fung의 https는 운영체제의 루트 인증서를 믿으므로(`rustls-native-certs`) 그 저장소에 emSign 루트가 있으면 닿는다. 2026-10-24 CI의 `cargo deny`가 잡았고 같은 날 0.103.16으로 올렸다(`rustls`는 0.23.45 그대로).
 - [x] 정규식 문법 → **`regex` 크레이트의 문법이 fung 정규식 문법이다** (6c-4, 2026-10-18 사용자 결정). RE2 계열(선형 시간, 역참조 없음), 유니코드 클래스, 크레이트의 반복·`$` 규칙.
   에러 문구는 fung 것이고, 크레이트를 올릴 때 문법 변화는 기대 출력이 잡는다(06 "정규식"). 정규식 엔진 직접 구현(Thompson NFA)은 나중의 공부 과제.
 - [x] 배포 → **플랫폼별 CI 러너**(TLS 암호 부분의 C 코드 때문에 대상용 C 컴파일러가 필요): `x86_64-unknown-linux-musl`·`aarch64-unknown-linux-musl`(C 컴파일러 `musl-gcc`),
