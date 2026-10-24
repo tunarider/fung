@@ -8,9 +8,20 @@ mod common;
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use common::{Reaped, fung_bin};
+
+/// One timing test at a time: they run as threads of one process, and a
+/// heavy neighbour (2,000 connections, 20,000 tasks, a large compile)
+/// slowed a 0.3 s measurement past its limit on a three-core CI runner.
+fn serial() -> MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    // A failed assertion in another test poisons the lock; the `()` it
+    // guards cannot be left inconsistent, so go on.
+    LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 const LIMIT: Duration = Duration::from_millis(300);
 
@@ -112,6 +123,7 @@ fn run_file(name: &str, src: &str) -> (String, Duration) {
 
 #[test]
 fn collections_stay_linear() {
+    let _serial = serial();
     let mut slow = Vec::new();
     for (name, src, want) in CASES {
         run(src); // warm-up: the first run pays for loading the binary
@@ -134,6 +146,7 @@ fn collections_stay_linear() {
 /// the start for every match.
 #[test]
 fn regex_find_all_stays_linear() {
+    let _serial = serial();
     let src = "import regex\ns = repeat(\"가나다라 마바 1 \", 100000)\nms = regex.find_all(s, `\\d`)\nprint(len(s), len(ms), ms[-1].end)";
     run(src);
     let (out, took) = run(src);
@@ -152,6 +165,7 @@ fn regex_find_all_stays_linear() {
 /// runner).
 #[test]
 fn many_constants_compile_in_linear_time() {
+    let _serial = serial();
     let items: Vec<String> = (0..32_768).map(|i| format!("str({i})")).collect();
     let src = format!("print(len([{}]))", items.join(", "));
     run_file("consts", &src);
@@ -170,6 +184,7 @@ fn many_constants_compile_in_linear_time() {
 /// past its 8,192 threads). Within 3 s.
 #[test]
 fn twenty_thousand_waiting_tasks() {
+    let _serial = serial();
     let src = "fn worker(s):\n  (tx, rx) = channel()\n  t = spawn(s, () => recv(rx)!)\n  [tx, t]\n;;\nprint(scope(fn(s):\n  ws = map(0..20000, _ => worker(s))\n  each(ws, w => send(w[0], 1))\n  fold(ws, 0, (a, w) => a + await(w[1]))\n;;))";
     let (out, took) = run(src);
     eprintln!("20,000 tasks {took:?}");
@@ -186,6 +201,7 @@ fn twenty_thousand_waiting_tasks() {
 /// limit (4,000 sockets). Then everything answers within 10 s.
 #[test]
 fn two_thousand_connections_at_once() {
+    let _serial = serial();
     let child = Command::new("sh")
         .arg("-c")
         .arg("ulimit -Sn 256 && exec \"$0\" -e \"$1\" 20")
@@ -242,6 +258,7 @@ const CONNS: &str = "import http\nfn until(f) = f() then nil else fn(): sleep(1m
 /// a waiter, two output readers, an input feeder).
 #[test]
 fn fifty_commands_at_once() {
+    let _serial = serial();
     let dir = std::env::temp_dir().join(format!("fung-fifty-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -277,6 +294,7 @@ fn fifty_commands_at_once() {
 /// scan per wait made this quadratic).
 #[test]
 fn many_receivers_on_one_channel() {
+    let _serial = serial();
     let src = "(tx, rx) = channel()\nprint(scope(fn(s):\n  ts = map(0..50000, _ => spawn(s, () => recv(rx)!))\n  each(0..50000, i => send(tx, 1))\n  fold(ts, 0, (a, t) => a + await(t))\n;;))";
     let (out, took) = run(src);
     eprintln!("50,000 receivers on one channel {took:?}");
@@ -291,6 +309,7 @@ fn many_receivers_on_one_channel() {
 /// Apple M2 Max release build: 2.1 s before, 0.22 s after. Within 1.5 s.
 #[test]
 fn many_awaits_on_one_task() {
+    let _serial = serial();
     let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, () => timeout(1ms, () => await(t)))))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
     let (out, took) = run(src);
     eprintln!("100,000 awaits on one task {took:?}");
@@ -308,6 +327,7 @@ const UNTIL_ALL: &str =
 /// both queues per wait). 3.6 s before, 0.25 s after. Within 1.5 s.
 #[test]
 fn many_cancelled_receivers_on_one_channel() {
+    let _serial = serial();
     let src = format!(
         "{UNTIL_ALL}(tx, rx) = channel()\nprint(scope(fn(s):\n  each(0..80000, _ => spawn(s, fn(): swap(ready, n => n + 1); recv(rx) ;;))\n  until(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
     );
@@ -323,6 +343,7 @@ fn many_cancelled_receivers_on_one_channel() {
 /// (80,000 timers). Within 1.5 s.
 #[test]
 fn many_releases_that_park() {
+    let _serial = serial();
     let src = format!(
         "{UNTIL_ALL}print(scope(fn(s):\n  each(0..80000, i => spawn(s, () => with(() => i, fn(r): swap(ready, n => n + 1); sleep(10s) ;;, r => sleep(1ms))))\n  until(() => deref(ready) == 80000)\n  cancel(s)\n;;))"
     );
@@ -340,6 +361,7 @@ fn many_releases_that_park() {
 /// bounded inside (`timeout`) and out (killed after 30 s).
 #[test]
 fn a_light_request_beside_a_heavy_parse() {
+    let _serial = serial();
     for mode in ["light", "heavy"] {
         let child = Command::new(fung_bin())
             .args(["-e", LATENCY, mode])
