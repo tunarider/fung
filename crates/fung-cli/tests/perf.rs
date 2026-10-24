@@ -90,6 +90,26 @@ fn run(src: &str) -> (String, Duration) {
     (String::from_utf8_lossy(&out.stdout).into_owned(), took)
 }
 
+/// `run` for a program too long for one argument (Linux allows 128 KiB):
+/// from a file, removed afterwards.
+fn run_file(name: &str, src: &str) -> (String, Duration) {
+    let path = std::env::temp_dir().join(format!("fung-perf-{name}-{}.fung", std::process::id()));
+    std::fs::write(&path, src).unwrap();
+    let start = Instant::now();
+    let out = Command::new(env!("CARGO_BIN_EXE_fung"))
+        .arg(&path)
+        .output()
+        .unwrap();
+    let took = start.elapsed();
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (String::from_utf8_lossy(&out.stdout).into_owned(), took)
+}
+
 #[test]
 fn collections_stay_linear() {
     let mut slow = Vec::new();
@@ -134,8 +154,8 @@ fn regex_find_all_stays_linear() {
 fn many_constants_compile_in_linear_time() {
     let items: Vec<String> = (0..32_768).map(|i| format!("str({i})")).collect();
     let src = format!("print(len([{}]))", items.join(", "));
-    run(&src);
-    let (out, took) = run(&src);
+    run_file("consts", &src);
+    let (out, took) = run_file("consts", &src);
     eprintln!("many constants {took:?}");
     assert_eq!(out, "32768\n");
     assert!(
