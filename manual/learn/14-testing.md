@@ -144,7 +144,7 @@ import path
 # Moves every .log file in dir to <name>.log.1 and returns how many it moved.
 fn rotate(dir):
   logs = fs.glob(path.join(dir, "*.log"))?
-  try_map(logs, p => fs.move(p, p + ".1"))?
+  try_map(logs, p => fs.move(p, p + ".1", overwrite: true))?
   Ok(len(logs))
 ;;
 

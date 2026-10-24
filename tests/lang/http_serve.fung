@@ -34,3 +34,11 @@ server = scope(fn(s):
 # expect: 3
 print(await(server))
 # expect: Err({kind: 'cancelled, message: "cancelled"})
+
+# A clean stop (here a stop request as soon as it listens) is Ok(nil),
+# so `!` on serve stops only on a failure to listen.
+print(http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop()))
+# expect: Ok(nil)
+http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())!
+print("after")
+# expect: after

@@ -267,7 +267,7 @@ fn fung_test_blocks_get_a_fresh_stop() {
 }
 
 /// SIGTERM to a server: the request in flight is answered, a new
-/// connection is refused, `serve` returns nil and the run ends with 0.
+/// connection is refused, `serve` returns Ok(nil) and the run ends with 0.
 #[test]
 fn a_server_drains_on_sigterm() {
     use std::net::TcpStream;
@@ -295,7 +295,7 @@ fn a_server_drains_on_sigterm() {
     let (out, err, code) = l.finish();
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("in\nnil\nserved\n", "", Some(0))
+        ("in\nOk(nil)\nserved\n", "", Some(0))
     );
 }
 

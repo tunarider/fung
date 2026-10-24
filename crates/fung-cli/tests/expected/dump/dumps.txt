@@ -3807,7 +3807,7 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (77299 bytes, fnv1a64 08101bedbc92ef68)
+-- stdout (77308 bytes, fnv1a64 c9c5bd02a85a1e57)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
@@ -9963,12 +9963,12 @@
 -- exit: 0
 ==== dump ast tests/lang/http_serve.fung
 -- stdout
-| (program (import http) (import json) (assign hits (call atom 0)) (assign handle (fn (req) (block (call swap hits (fn (n) (block (binary + n 1)))) (match (field path req) (arm (plit "/health") (nil) (block (map (entry status 200) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify json) (map (entry ok true) (entry n (call deref hits)))))))) (arm (plit "/echo") (nil) (block (interp (field method req) " " (field body req) " " (call get (field query req) "x" "-")))) (arm (pwild) (nil) (block (map (entry status 404) (entry body "no such page")))))))) (assign server (call scope (fn (s) (block (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (assign server (call spawn s (fn () (block (call (field serve http) "127.0.0.1:0" handle (named ready (fn (addr) (block (call send port_tx addr))))))))) (assign base (binary + "http://" (unwrap ! (call recv port)))) (assign r (unwrap ! (call (field get http) (interp base "/health")))) (call print (field status r) (index (field headers r) "content-type") (field ok (unwrap ! (call (field parse json) (field body r))))) (assign r (unwrap ! (call (field post http) (interp base "/echo?x=1") "hello"))) (call print (field status r) (field body r) (index (field headers r) "content-type")) (assign r (unwrap ! (call (field get http) (interp base "/nowhere")))) (call print (field status r) (field body r)) (call print (call deref hits)) (call cancel server) server)))) (call print (call await server)))
+| (program (import http) (import json) (assign hits (call atom 0)) (assign handle (fn (req) (block (call swap hits (fn (n) (block (binary + n 1)))) (match (field path req) (arm (plit "/health") (nil) (block (map (entry status 200) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify json) (map (entry ok true) (entry n (call deref hits)))))))) (arm (plit "/echo") (nil) (block (interp (field method req) " " (field body req) " " (call get (field query req) "x" "-")))) (arm (pwild) (nil) (block (map (entry status 404) (entry body "no such page")))))))) (assign server (call scope (fn (s) (block (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (assign server (call spawn s (fn () (block (call (field serve http) "127.0.0.1:0" handle (named ready (fn (addr) (block (call send port_tx addr))))))))) (assign base (binary + "http://" (unwrap ! (call recv port)))) (assign r (unwrap ! (call (field get http) (interp base "/health")))) (call print (field status r) (index (field headers r) "content-type") (field ok (unwrap ! (call (field parse json) (field body r))))) (assign r (unwrap ! (call (field post http) (interp base "/echo?x=1") "hello"))) (call print (field status r) (field body r) (index (field headers r) "content-type")) (assign r (unwrap ! (call (field get http) (interp base "/nowhere")))) (call print (field status r) (field body r)) (call print (call deref hits)) (call cancel server) server)))) (call print (call await server)) (call print (call (field serve http) "127.0.0.1:0" (fn (req) (block "hi")) (named ready (fn ((pwild)) (block (call request_stop)))))) (unwrap ! (call (field serve http) "127.0.0.1:0" (fn (req) (block "hi")) (named ready (fn ((pwild)) (block (call request_stop)))))) (call print "after"))
 -- stderr
 -- exit: 0
 ==== dump core tests/lang/http_serve.fung
 -- stdout
-| (do (import "http" (global 0)) (import "json" (global 1)) (let (global 2) (call (prelude atom) 0)) (let (global 3) (fn (req) (do (call (prelude swap) (captured 0) (fn (n) (do (op + (local 0) 1)))) (do (let (local 1) (field path (local 0))) (match (local 1) (arm (plit "/health") (nil) (do (map (entry status 200) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify (global 1)) (map (entry ok true) (entry n (call (prelude deref) (captured 0))))))))) (arm (plit "/echo") (nil) (do (concat (field method (local 0)) " " (field body (local 0)) " " (call (prelude get) (field query (local 0)) "x" "-")))) (arm (pwild) (nil) (do (map (entry status 404) (entry body "no such page"))))))))) (let (global 4) (call (prelude scope) (fn (s) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel) 1)) (let (local 3) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (captured 0) (named ready (fn (addr) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 4) (op + "http://" (unwrap ! (call (prelude recv) (local 2))))) (let (local 5) (unwrap ! (call (field get (global 0)) (concat (local 4) "/health")))) (call (prelude print) (field status (local 5)) (index (field headers (local 5)) "content-type") (field ok (unwrap ! (call (field parse (global 1)) (field body (local 5)))))) (let (local 5) (unwrap ! (call (field post (global 0)) (concat (local 4) "/echo?x=1") "hello"))) (call (prelude print) (field status (local 5)) (field body (local 5)) (index (field headers (local 5)) "content-type")) (let (local 5) (unwrap ! (call (field get (global 0)) (concat (local 4) "/nowhere")))) (call (prelude print) (field status (local 5)) (field body (local 5))) (call (prelude print) (call (prelude deref) (captured 1))) (call (prelude cancel) (local 3)) (local 3))))) (call (prelude print) (call (prelude await) (global 4))))
+| (do (import "http" (global 0)) (import "json" (global 1)) (let (global 2) (call (prelude atom) 0)) (let (global 3) (fn (req) (do (call (prelude swap) (captured 0) (fn (n) (do (op + (local 0) 1)))) (do (let (local 1) (field path (local 0))) (match (local 1) (arm (plit "/health") (nil) (do (map (entry status 200) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify (global 1)) (map (entry ok true) (entry n (call (prelude deref) (captured 0))))))))) (arm (plit "/echo") (nil) (do (concat (field method (local 0)) " " (field body (local 0)) " " (call (prelude get) (field query (local 0)) "x" "-")))) (arm (pwild) (nil) (do (map (entry status 404) (entry body "no such page"))))))))) (let (global 4) (call (prelude scope) (fn (s) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel) 1)) (let (local 3) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (captured 0) (named ready (fn (addr) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 4) (op + "http://" (unwrap ! (call (prelude recv) (local 2))))) (let (local 5) (unwrap ! (call (field get (global 0)) (concat (local 4) "/health")))) (call (prelude print) (field status (local 5)) (index (field headers (local 5)) "content-type") (field ok (unwrap ! (call (field parse (global 1)) (field body (local 5)))))) (let (local 5) (unwrap ! (call (field post (global 0)) (concat (local 4) "/echo?x=1") "hello"))) (call (prelude print) (field status (local 5)) (field body (local 5)) (index (field headers (local 5)) "content-type")) (let (local 5) (unwrap ! (call (field get (global 0)) (concat (local 4) "/nowhere")))) (call (prelude print) (field status (local 5)) (field body (local 5))) (call (prelude print) (call (prelude deref) (captured 1))) (call (prelude cancel) (local 3)) (local 3))))) (call (prelude print) (call (prelude await) (global 4))) (call (prelude print) (call (field serve (global 0)) "127.0.0.1:0" (fn (req) (do "hi")) (named ready (fn ($a1) (do (let (pwild) (local 0)) (call (prelude request_stop))))))) (unwrap ! (call (field serve (global 0)) "127.0.0.1:0" (fn (req) (do "hi")) (named ready (fn ($a2) (do (let (pwild) (local 0)) (call (prelude request_stop))))))) (call (prelude print) "after"))
 -- stderr
 -- exit: 0
 ==== dump bytecode tests/lang/http_serve.fung
@@ -9994,8 +9994,31 @@
 | 0017  35:12 CALL         1    ; 1 positional, 0 named
 | 0018  35:6  CALL         1    ; 1 positional, 0 named
 | 0019  35:1  POP
-| 0020  35:1  CONST        7    ; nil
-| 0021  1:50  RETURN
+| 0020  40:1  CONST        5    ; <fn print>
+| 0021  40:7  LOADGLOBAL   0    ; http
+| 0022  40:11 FIELD        7    ; serve
+| 0023  40:18 CONST        8    ; "127.0.0.1:0"
+| 0024  40:33 CLOSURE      2    ; <lambda>
+| 0025  40:46 CONST        9    ; 'ready
+| 0026  40:53 CLOSURE      3    ; <lambda>
+| 0027  40:17 CALL         4098    ; 2 positional, 1 named
+| 0028  40:6  CALL         1    ; 1 positional, 0 named
+| 0029  40:1  POP
+| 0030  42:1  LOADGLOBAL   0    ; http
+| 0031  42:5  FIELD        7    ; serve
+| 0032  42:12 CONST        8    ; "127.0.0.1:0"
+| 0033  42:27 CLOSURE      4    ; <lambda>
+| 0034  42:40 CONST        9    ; 'ready
+| 0035  42:47 CLOSURE      5    ; <lambda>
+| 0036  42:11 CALL         4098    ; 2 positional, 1 named
+| 0037  42:67 UNWRAPABORT
+| 0038  42:1  POP
+| 0039  43:1  CONST        5    ; <fn print>
+| 0040  43:7  CONST        10    ; "after"
+| 0041  43:6  CALL         1    ; 1 positional, 0 named
+| 0042  43:1  POP
+| 0043  43:1  CONST        11    ; nil
+| 0044  1:50  RETURN
 |
 | == <lambda> ==
 | 0000  7:3   CONST        0    ; <fn swap>
@@ -10174,6 +10197,30 @@
 | 0002  18:90 LOADLOCAL    0
 | 0003  18:80 TAILCALL     2    ; 2 positional, 0 named
 | 0004  18:73 RETURN
+|
+| == <lambda> ==
+| 0000  40:40 CONST        0    ; "hi"
+| 0001  40:37 RETURN
+|
+| == <lambda> ==
+| 0000  40:53 LOADLOCAL    0
+| 0001  40:53 MATCHORFAIL  0    ; _
+| 0002  40:53 CLEARLOCAL   0
+| 0003  40:58 CONST        0    ; <fn request_stop>
+| 0004  40:70 TAILCALL     0    ; 0 positional, 0 named
+| 0005  40:55 RETURN
+|
+| == <lambda> ==
+| 0000  42:34 CONST        0    ; "hi"
+| 0001  42:31 RETURN
+|
+| == <lambda> ==
+| 0000  42:47 LOADLOCAL    0
+| 0001  42:47 MATCHORFAIL  0    ; _
+| 0002  42:47 CLEARLOCAL   0
+| 0003  42:52 CONST        0    ; <fn request_stop>
+| 0004  42:64 TAILCALL     0    ; 0 positional, 0 named
+| 0005  42:49 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/ident_unicode.fung

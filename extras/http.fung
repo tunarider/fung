@@ -36,7 +36,7 @@ fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, time
 # request (05 "정지 요청": the first SIGINT or SIGTERM, or
 # `request_stop()`): then it stops accepting, lets the requests in flight
 # finish for at most `drain`, cancels what is left (answered 503) and
-# returns nil. Cancelled itself (an outer scope, `timeout`, an exit) it
+# returns Ok(nil). Cancelled itself (an outer scope, `timeout`, an exit) it
 # stops at once. With `reuse_port`, several processes may listen on one
 # port (SO_REUSEPORT). A bind failure is `Err 'network`.
 fn serve(addr: str, handler: fn, ready = nil, drain: dur = 10s, reuse_port: bool = false):
@@ -1454,7 +1454,7 @@ fn _serve_on(l, handler, ready, drain):
     supervise(conns => _accept(l, handler, conns, 0s), e => eprint("http: internal error: error[${e.code}]: ${e.message}"))
     cancel(w)
   ;;)
-  nil
+  Ok(nil)
 ;;
 
 # The stop request: no new connection (closing the listener ends

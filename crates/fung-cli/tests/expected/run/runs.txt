@@ -1513,6 +1513,8 @@
 | 404 no such page
 | 3
 | Err({kind: 'cancelled, message: "cancelled"})
+| Ok(nil)
+| after
 -- stderr
 -- exit: 0
 ==== tests/lang/ident_unicode.fung

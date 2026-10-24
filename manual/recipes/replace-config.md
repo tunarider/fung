@@ -70,7 +70,7 @@ if get(opts.flags, "print", false):
 else:
   # a whole new file first, then one rename: never half a config
   fs.write(file + ".tmp", join(result, "\n") + "\n")!
-  fs.move(file + ".tmp", file)!
+  fs.move(file + ".tmp", file, overwrite: true)!
 ;;
 ```
 
@@ -83,7 +83,7 @@ else:
 - `update`: `regex.find`는 맞는 것이 없으면 `nil`, 있으면 `{text, groups, …}` 맵을 준다. 맞으면 `groups`를 네 이름으로 풀고, 키가 바꿀 목록에 있으면 값 조각만 갈아 끼운다. 들여쓰기와 구분자(`" = "`인지 `"="`인지)는 원래 줄의 것을 그대로 쓴다. 문자열을 이어 붙여 만들기 때문에 새 값에 `/`, `&`, `$` 같은 글자가 있어도 아무 일이 없다.
 - `wanted`: `(키, 값)` 튜플 리스트를 `fold`로 맵 하나에 모은다. 람다의 매개변수 자리에서 `(k, v)` 패턴이 튜플을 바로 푼다.
 - `existing`·`added`: 파일에 이미 있는 키를 모으고, 없는 키만 `key=value` 줄로 만든다.
-- 마지막 `if`: 새 내용을 `app.conf.tmp`에 다 쓴 뒤 `fs.move`로 이름을 바꾼다. 같은 파일 시스템 안의 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 `app.conf`는 옛 내용 그대로다. `fs.move`는 대상이 있으면 덮어쓴다(여기서는 그것이 목적이다).
+- 마지막 `if`: 새 내용을 `app.conf.tmp`에 다 쓴 뒤 `fs.move`로 이름을 바꾼다. 같은 파일 시스템 안의 이름 바꾸기는 한 번에 일어나므로, 쓰는 도중에 디스크가 차거나 스크립트가 멈춰도 `app.conf`는 옛 내용 그대로다. `fs.move`는 대상이 있으면 거절하므로 바꿔치기가 목적인 여기서는 `overwrite: true`를 준다.
 
 :::box mistake `replace`는 정규식이 아니다
 

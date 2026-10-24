@@ -201,6 +201,64 @@ fn params_match_the_spec() {
     }
 }
 
+/// `move` never replaces an existing path unless asked (06, F-11): the
+/// refusal is the system's own no-replace rename, so no file can appear
+/// between a check and the move. `overwrite: true` replaces a file (an
+/// atomic swap, the temporary-file pattern) but still never a directory.
+#[test]
+fn move_refuses_an_existing_target_unless_asked() {
+    let d = Scratch::new("move-noreplace");
+    let (a, b) = (d.at("a.txt"), d.at("b.txt"));
+    std::fs::write(&a, "new").unwrap();
+    std::fs::write(&b, "old").unwrap();
+    assert_eq!(
+        show(call("move", vec![p(&a), p(&b)])),
+        format!(
+            "Err({{kind: 'exists, message: \"cannot move `{}` to `{}`: file exists\"}})",
+            a.display(),
+            b.display()
+        )
+    );
+    assert_eq!(std::fs::read_to_string(&b).unwrap(), "old");
+    assert!(a.exists());
+    assert_eq!(
+        show(call("move", vec![p(&a), p(&b), Value::Bool(false)])),
+        show(call("move", vec![p(&a), p(&b)]))
+    );
+    assert_eq!(
+        show(call("move", vec![p(&a), p(&b), Value::Bool(true)])),
+        "Ok(nil)"
+    );
+    assert_eq!(std::fs::read_to_string(&b).unwrap(), "new");
+    assert!(!a.exists());
+    // Onto a missing path it moves as before.
+    let c = d.at("c.txt");
+    assert_eq!(show(call("move", vec![p(&b), p(&c)])), "Ok(nil)");
+    // A directory is never replaced, overwrite or not.
+    let (x, y) = (d.at("x"), d.at("y"));
+    std::fs::create_dir(&x).unwrap();
+    std::fs::create_dir(&y).unwrap();
+    for ow in [false, true] {
+        assert!(
+            show(call("move", vec![p(&c), p(&y), Value::Bool(ow)])).contains("'exists"),
+            "overwrite: {ow}"
+        );
+    }
+    // A name that differs only in case is the same file on a case-blind
+    // file system (macOS): renaming it is no replacement.
+    let lower = d.at("case.txt");
+    std::fs::write(&lower, "c").unwrap();
+    let upper = d.at("CASE.txt");
+    assert_eq!(show(call("move", vec![p(&lower), p(&upper)])), "Ok(nil)");
+    let names: Vec<String> = std::fs::read_dir(d.at(""))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter(|n| n.ends_with(".txt"))
+        .collect();
+    assert!(names.contains(&"CASE.txt".to_string()), "{names:?}");
+    assert!(!names.contains(&"case.txt".to_string()), "{names:?}");
+}
+
 /// Reading, writing, stat, copy, move and remove.
 #[test]
 fn read_write_stat_copy_move_remove() {
@@ -557,12 +615,29 @@ fn failures_give_exact_messages() {
             vec![s(&at("a.txt")), s(&at("sub"))],
             err(
                 "exists",
-                format!("cannot move `{}`: file exists", at("a.txt")),
+                format!(
+                    "cannot move `{}` to `{}`: file exists",
+                    at("a.txt"),
+                    at("sub")
+                ),
             ),
         ),
         (
             "move",
             vec![s(&at("sub")), s(&at("a.txt"))],
+            err(
+                "exists",
+                format!(
+                    "cannot move `{}` to `{}`: file exists",
+                    at("sub"),
+                    at("a.txt")
+                ),
+            ),
+        ),
+        // Asked to replace, a directory still cannot replace a file.
+        (
+            "move",
+            vec![s(&at("sub")), s(&at("a.txt")), Value::Bool(true)],
             err(
                 "io",
                 format!("cannot move `{}`: not a directory", at("sub")),
@@ -573,7 +648,11 @@ fn failures_give_exact_messages() {
             vec![s(&at("sub")), s(&at("emptyd"))],
             err(
                 "exists",
-                format!("cannot move `{}`: file exists", at("sub")),
+                format!(
+                    "cannot move `{}` to `{}`: file exists",
+                    at("sub"),
+                    at("emptyd")
+                ),
             ),
         ),
         (

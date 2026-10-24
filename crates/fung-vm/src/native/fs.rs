@@ -77,7 +77,15 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "move",
-                native_step("move", move_fn, vec![param("from"), param("to")]),
+                native_step(
+                    "move",
+                    move_fn,
+                    vec![
+                        param("from"),
+                        param("to"),
+                        opt("overwrite", Lit::Bool(false)),
+                    ],
+                ),
             ),
             (
                 "copy",
@@ -415,29 +423,126 @@ fn remove_all(p: &str) -> io::Result<()> {
 
 fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [from, to] = nat::str_args(&a, ["from", "to"])?;
+    let Value::Bool(overwrite) = a[2] else {
+        return Err(nat::wrong_arg("overwrite", "bool", &a[2]));
+    };
     let (from, to) = (from.to_string(), to.to_string());
-    let job = from.clone();
+    let job = (from.clone(), to.clone());
     nat::offload(
         t,
-        move || rename(checked(&job)?, checked(&to)?),
-        move |_, r| Ok(done("move", &from, r)),
+        move || rename(checked(&job.0)?, checked(&job.1)?, overwrite),
+        move |_, r| {
+            Ok(match r {
+                // The target is the path that exists: name both.
+                Err(e) if e.raw_os_error() == Some(EEXIST) => nat::err_value(
+                    oserr::kind(&e),
+                    &format!("cannot move `{from}` to `{to}`: {}", oserr::reason(&e)),
+                    Vec::new(),
+                ),
+                r => done("move", &from, r),
+            })
+        },
     )
 }
 
 /// `move` never replaces an existing directory: onto one, only the same
 /// directory may go (a case-only rename); anything else is "file exists",
-/// after the source's own error.
-fn rename(from: &str, to: &str) -> io::Result<()> {
-    if let Ok(target) = std::fs::symlink_metadata(to)
-        && target.is_dir()
-    {
+/// after the source's own error. A file is replaced only with
+/// `overwrite`; otherwise the move is the system's no-replace rename, so
+/// a file made between a check and the move is not lost either. The same
+/// file under another name (a case-only rename on a case-blind file
+/// system) is no replacement.
+fn rename(from: &str, to: &str, overwrite: bool) -> io::Result<()> {
+    if let Ok(target) = std::fs::symlink_metadata(to) {
         let source = std::fs::symlink_metadata(from)?;
         let same = source.dev() == target.dev() && source.ino() == target.ino();
-        if from == to || !same {
+        if target.is_dir() && (from == to || !same) {
             return Err(errno(EEXIST));
         }
+        if same {
+            return std::fs::rename(from, to);
+        }
+    }
+    if overwrite {
+        std::fs::rename(from, to)
+    } else {
+        rename_noreplace(from, to)
+    }
+}
+
+/// A rename that fails with EEXIST when `to` exists, decided by the
+/// system in one step. A file system without it (EINVAL, ENOTSUP, or no
+/// such call) falls back to a hard link, which fails the same way, and
+/// last to a check before the rename (the one step that can race).
+fn rename_noreplace(from: &str, to: &str) -> io::Result<()> {
+    match noreplace_call(from, to) {
+        Some(Err(e)) if is_unsupported(&e) => {}
+        Some(r) => return r,
+        None => {}
+    }
+    if !std::fs::symlink_metadata(from)?.is_dir() {
+        match std::fs::hard_link(from, to) {
+            Ok(()) => return std::fs::remove_file(from),
+            Err(e) if e.raw_os_error() == Some(EEXIST) => return Err(e),
+            Err(_) => {}
+        }
+    }
+    if std::fs::symlink_metadata(to).is_ok() {
+        return Err(errno(EEXIST));
     }
     std::fs::rename(from, to)
+}
+
+fn is_unsupported(e: &io::Error) -> bool {
+    matches!(
+        e.raw_os_error(),
+        Some(libc::EINVAL) | Some(libc::ENOTSUP) | Some(libc::ENOSYS)
+    )
+}
+
+/// The system's own no-replace rename, or `None` where there is none.
+#[cfg(target_os = "linux")]
+fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
+    let (from, to) = (c_path(from), c_path(to));
+    // SAFETY: two NUL-terminated paths that live across the call;
+    // AT_FDCWD resolves them like `rename` does.
+    let rc = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    Some(if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
+    let (from, to) = (c_path(from), c_path(to));
+    // SAFETY: two NUL-terminated paths that live across the call.
+    let rc = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    Some(if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    })
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn noreplace_call(_: &str, _: &str) -> Option<io::Result<()>> {
+    None
+}
+
+/// A path for a system call (`checked` refused a NUL already).
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn c_path(p: &str) -> std::ffi::CString {
+    std::ffi::CString::new(p).expect("checked: no NUL")
 }
 
 fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {

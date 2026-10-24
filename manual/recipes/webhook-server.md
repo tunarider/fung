@@ -77,7 +77,7 @@ fn handle(req) = match (req.method, req.path):
   _                   => reply(404, {error: "not found"})
 ;;
 
-# nil after a clean stop, Err when the address cannot be bound
+# Ok(nil) after a clean stop, Err when the address cannot be bound
 match http.serve(addr, handle, ready: a => eprint("listening on", a), drain: 5s):
   Err(e) => fail(e.message)
   _      => eprint("stopped after", deref(received), "alerts")
@@ -118,19 +118,20 @@ $ cat alerts.jsonl
 - `alerts`: 먼저 토큰을 확인하고 틀리면 401로 일찍 돌아간다(`return`). 맵 패턴 `Ok({alerts: list})`는 "JSON이 맞고 `alerts` 키가 있다"를 한 번에 확인하고 그 값을 `list`로 꺼낸다. JSON이 아니면 `Err(e)`, 모양이 다르면 `Ok(_)` 가지로 가서 400을 답한다.
 - `fs.append(…)!`: 줄을 파일 끝에 덧붙인다(없으면 만든다). 디스크가 차서 실패하면 `!`가 이 요청의 처리만 실패시킨다. 서버는 그 요청에 500으로 답하고 표준 에러에 `http: handler failed: …`를 남긴 뒤 계속 돈다. 보낸 쪽(Alertmanager)은 실패 응답을 보고 다시 보낸다.
 - `handle`: `(메서드, 경로)` 튜플 하나로 `match`하면 라우팅 표처럼 읽힌다. `(_, "/alerts")`는 "다른 메서드로 온 `/alerts`"다.
-- `http.serve(…, drain: 5s)`: 주소에서 요청을 받으며 여기서 멈춰 있다. 첫 Ctrl-C나 SIGTERM(systemd의 `stop`, 쿠버네티스의 파드 종료)을 받으면 새 연결을 그만 받고, 처리 중인 요청을 최대 5초 기다린 뒤 `nil`을 돌려준다. 포트를 이미 누가 쓰고 있으면 `Err`다.
+- `http.serve(…, drain: 5s)`: 주소에서 요청을 받으며 여기서 멈춰 있다. 첫 Ctrl-C나 SIGTERM(systemd의 `stop`, 쿠버네티스의 파드 종료)을 받으면 새 연결을 그만 받고, 처리 중인 요청을 최대 5초 기다린 뒤 `Ok(nil)`을 돌려준다. 포트를 이미 누가 쓰고 있으면 `Err`다.
 - 주소 기본값 `127.0.0.1`: 이 컴퓨터 안에서만 받는다. 다른 서버의 Alertmanager가 보내게 하려면 `--addr 0.0.0.0:9095`처럼 열고, 앞에 TLS를 맡는 프록시를 둔다(fung의 서버는 평문 HTTP만 받는다).
 
-:::box mistake `http.serve(…)!`
+:::box tip `http.serve(…)!`로 줄여 쓰기
 
-`http.serve`는 깔끔하게 멈추면 `Ok`가 아니라 `nil`을 돌려준다. 버릇처럼 `!`를 붙이면 SIGTERM으로 잘 멈춘 서버가 마지막에 `!` on nil 에러를 내고 종료 코드 1로 끝나서, systemd 같은 관리 도구가 실패로 기록한다. 위처럼 `match`로 `Err`만 골라 다룬다. 아래 예는 `ready`에서 `request_stop()`을 불러, 띄우자마자 SIGTERM을 받은 것처럼 멈추게 한 것이다.
+멈춘 뒤 할 일이 없으면 `match` 대신 `!`로 충분하다. 깔끔하게 멈추면 `Ok(nil)`이라 `!`가 지나가고 종료 코드 0으로 끝나며(systemd 같은 관리 도구가 정상 종료로 기록한다), 듣지 못했을 때만 그 `Err`로 멈춘다. 아래 예는 `ready`에서 `request_stop()`을 불러, 띄우자마자 SIGTERM을 받은 것처럼 멈추게 한 것이다.
 
-```fung run exit=1 error=E0604
+```fung run
 import http
 
 r = http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())
 print("serve returned", r)
 http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())!
+print("stopped cleanly")
 ```
 
 :::

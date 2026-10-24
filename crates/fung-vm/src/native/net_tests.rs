@@ -1058,14 +1058,14 @@ fn a_cancel_does_not_wait_for_an_idle_connection() {
 }
 
 /// A stop request: the request in flight is answered, no new connection
-/// is accepted, and `serve` returns nil.
+/// is accepted, and `serve` returns Ok(nil).
 #[test]
 fn a_stop_request_lets_the_request_in_flight_finish() {
     let _g = serial();
     let o = run(&format!(
         "import http\n(gate_tx, gate) = channel()\nh = fn(req): recv(gate); \"slow\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nrequest_stop()\nuntil(() => kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)) == 'network)\nsend(gate_tx, 1)\nprint(await(t))\nprint(await(s)){SERVE_END}"
     ));
-    assert_eq!(out(&o), ("slow\nnil\n", "", 0));
+    assert_eq!(out(&o), ("slow\nOk(nil)\n", "", 0));
 }
 
 /// Past `drain`, what still runs is cancelled and answered 503.
@@ -1075,7 +1075,7 @@ fn drain_cuts_what_is_still_running() {
     let o = run(&format!(
         "import http\n(_gate_tx, gate) = channel()\nh = fn(req): recv(gate); \"never\" ;;\n{SERVE_DRAIN}t = spawn(sc, () => http.get(base + \"/slow\")!)\nblocked(gate, 1)\nrequest_stop()\nr = await(t)\nprint(r.status, r.body)\nprint(await(s)){SERVE_END}"
     ));
-    assert_eq!(out(&o), ("503 503 Service Unavailable\n\nnil\n", "", 0));
+    assert_eq!(out(&o), ("503 503 Service Unavailable\n\nOk(nil)\n", "", 0));
 }
 
 /// `reuse_port`: two listeners on one port.

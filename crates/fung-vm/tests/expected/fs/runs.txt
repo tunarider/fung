@@ -30,10 +30,10 @@
 | Err({kind: 'io, message: "cannot copy to `$D`: is a directory"})
 | Err({kind: 'not_found, message: "cannot move `$D/none`: no such file or directory"})
 | Err({kind: 'not_found, message: "cannot move `$D/a.txt`: no such file or directory"})
-| Err({kind: 'exists, message: "cannot move `$D/a.txt`: file exists"})
+| Err({kind: 'exists, message: "cannot move `$D/a.txt` to `$D/sub`: file exists"})
 | Err({kind: 'not_found, message: "cannot move `$D/none`: no such file or directory"})
-| Err({kind: 'io, message: "cannot move `$D/sub`: not a directory"})
-| Err({kind: 'exists, message: "cannot move `$D/sub`: file exists"})
+| Err({kind: 'exists, message: "cannot move `$D/sub` to `$D/a.txt`: file exists"})
+| Err({kind: 'exists, message: "cannot move `$D/sub` to `$D/emptyd`: file exists"})
 | Err({kind: 'io, message: "cannot move `$D/sub`: invalid argument"})
 | Ok({name: "a.txt", size: 3, is_dir: false})
 | Ok({name: "deep", size: $SIZE, is_dir: true})
@@ -54,7 +54,7 @@
 | Ok(nil) Ok({name: "c.txt", size: 5, is_dir: false})
 | Ok(nil) Ok(nil)
 | Ok(nil) false Ok("short")
-| Ok(nil) Err({kind: 'exists, message: "cannot move `$D/m/n`: file exists"})
+| Ok(nil) Err({kind: 'exists, message: "cannot move `$D/m/n` to `$D/m/n`: file exists"})
 | Ok(nil) true
 | Ok(nil) Ok(nil) Ok(nil) false
 | Ok(nil) false

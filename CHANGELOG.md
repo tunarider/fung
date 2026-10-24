@@ -10,6 +10,10 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ### 바뀜(호환 깨짐)
 
+- **`fs.move`가 이미 있는 대상을 덮어쓰지 않는다**(06): `Err({kind: 'exists, message: "cannot move `a` to `b`: file exists"})`. 전에는 파일을 말없이 덮어써서,
+  이름이 겹치는 일괄 이름 바꾸기가 파일을 잃었다. 확인과 옮기기는 운영체제의 호출 하나라(Linux `renameat2`, macOS `renamex_np`) 그 사이에 생긴 파일도 지킨다.
+  임시 파일을 써서 바꿔치기하던 코드는 `fs.move(tmp, file, overwrite: true)`로 바꾼다. 디렉터리는 전처럼 어느 쪽이든 덮지 않는다.
+- **`http.serve`가 정상 종료(정지 요청) 때 `Ok(nil)`을 돌려준다**(06). 전에는 `nil`이라 습관처럼 쓴 `http.serve(…)!`가 SIGTERM으로 잘 멈춘 서버를 E0604(`!` on nil), 종료 코드 1로 끝냈다(`examples/serve.fung`도 그랬다). 이제 `!`는 듣기에 실패했을 때만 멈춘다. 결과를 `nil`과 견주던 코드는 `Ok(nil)`로 바꾼다.
 - 시간 초과·취소·닫힌 채널의 `Err` 맵에 `message`가 있다(05): `Err({kind: 'timeout, message: "timed out after 2s"})`, `Err({kind: 'cancelled, message: "cancelled"})`,
   `Err({kind: 'closed, message: "channel closed"})`. 다른 `Err`처럼 `e.message`를 찍을 수 있다(전에는 E0508로 멈췄다).
   패턴 `Err({kind: 'timeout}) => …`은 그대로 맞는다. 값을 `==`로 견주던 `r == Err({kind: 'timeout})`은 이제 `false`이므로 패턴이나 `r.kind`로 바꾼다.

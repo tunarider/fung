@@ -91,6 +91,7 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   **다음**: 검토 문서 12절의 남은 의심, open-questions의 L1·L3·L7·L9 후속 한계.
 - 보수 작업 (2026-10-24, main에 스쿼시 `38f1e08`, 미릴리스): open-questions를 열린 항목만 남게 정리(닫은 것은 `docs/notes/open-questions-closed.md`), 매뉴얼 찾은 문제 F-1~F-4·F-6~F-10·F-13·D-1·D-4를 고침.
   큰 것: 시간 초과·취소·닫힘 `Err`에 `message`(호환 깨짐), 파이프 끝 `?`·`!`는 E0229, `get`은 내장 함수(E0506), `take`·`drop`이 문자열, `conc.pmap`은 작업자 n개, 상수 표 해시 색인. 남은 결정은 open-questions "남은 일".
+  이어서(2026-10-24, 작업 브랜치, 미릴리스) F-5 `http.serve`가 정상 종료 때 `Ok(nil)`, F-11 `fs.move`가 기본 거절(`overwrite: true`, no-replace 이름 바꾸기). 권한 보존은 F-14로 남김.
 - 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
   약점은 파일·텍스트 처리량. **다음 성능 작업**: open-questions "성능" 절 P8(파일 흘려 읽기·짧은 `fs` 호출의 풀 왕복)부터 P13까지 순서대로.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).

@@ -5364,15 +5364,15 @@
 |   | ^
 |   |
 | error[E0110]: unexpected end of file
-|   --> in/tests~lang~http_serve@halfbytes.fung:18:54
+|   --> in/tests~lang~http_serve@halfbytes.fung:22:47
 |    |
-| 18 |   server = spawn(s, () => http.serve("127.0.0.1:0", h
-|    |                                                      ^
+| 22 |   print(r.status, r.headers["content-type"], j
+|    |                                               ^
 |    |
 | error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/tests~lang~http_serve@halflines.fung:19:1
+|   --> in/tests~lang~http_serve@halflines.fung:23:1
 |    |
-| 19 | 
+| 23 | 
 |    | ^
 |    |
 | error[E0112]: expected `;;` to close the if, found end of file
@@ -11062,15 +11062,15 @@
 |   | ^
 |   |
 | error[E0110]: unexpected end of file
-|   --> in/tests~lang~http_serve@halfbytes.fung:18:54
+|   --> in/tests~lang~http_serve@halfbytes.fung:22:47
 |    |
-| 18 |   server = spawn(s, () => http.serve("127.0.0.1:0", h
-|    |                                                      ^
+| 22 |   print(r.status, r.headers["content-type"], j
+|    |                                               ^
 |    |
 | error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/tests~lang~http_serve@halflines.fung:19:1
+|   --> in/tests~lang~http_serve@halflines.fung:23:1
 |    |
-| 19 | 
+| 23 | 
 |    | ^
 |    |
 | error[E0112]: expected `;;` to close the if, found end of file
@@ -12391,27 +12391,27 @@
 | extras~fs@trailing.fung 1708 98fbff77076fa532
 | extras~fs@wide4.fung 1708 98fbff77076fa532
 | extras~http.fung unchanged
-| extras~http@bom.fung 68459 ae6e1c48e7c30488
-| extras~http@cglued.fung 68459 ae6e1c48e7c30488
+| extras~http@bom.fung 68467 acdb98b56faf7e58
+| extras~http@cglued.fung 68467 acdb98b56faf7e58
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 68459 ae6e1c48e7c30488
-| extras~http@crlf.fung 68459 ae6e1c48e7c30488
-| extras~http@dedent.fung 68459 ae6e1c48e7c30488
+| extras~http@cpushed.fung 68467 acdb98b56faf7e58
+| extras~http@crlf.fung 68467 acdb98b56faf7e58
+| extras~http@dedent.fung 68467 acdb98b56faf7e58
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 68864 0f17cd27f3e4f992
+| extras~http@moreblank.fung 68872 d7cf98de02d8936c
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 68459 ae6e1c48e7c30488
-| extras~http@odd3.fung 68459 ae6e1c48e7c30488
+| extras~http@nofinal.fung 68467 acdb98b56faf7e58
+| extras~http@odd3.fung 68467 acdb98b56faf7e58
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 68459 ae6e1c48e7c30488
-| extras~http@split.fung 98329 db94a7d04361b9be
-| extras~http@tabs.fung 68459 ae6e1c48e7c30488
-| extras~http@tight.fung 68459 ae6e1c48e7c30488
-| extras~http@trailing.fung 68459 ae6e1c48e7c30488
-| extras~http@wide4.fung 68459 ae6e1c48e7c30488
+| extras~http@spaced.fung 68467 acdb98b56faf7e58
+| extras~http@split.fung 98344 79c84fc7e8d95d00
+| extras~http@tabs.fung 68467 acdb98b56faf7e58
+| extras~http@tight.fung 68467 acdb98b56faf7e58
+| extras~http@trailing.fung 68467 acdb98b56faf7e58
+| extras~http@wide4.fung 68467 acdb98b56faf7e58
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1
@@ -15585,27 +15585,27 @@
 | tests~lang~fs_and_path@trailing.fung 439 082814ebc99ac19d
 | tests~lang~fs_and_path@wide4.fung 439 082814ebc99ac19d
 | tests~lang~http_serve.fung unchanged
-| tests~lang~http_serve@bom.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@cglued.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@bom.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@cglued.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@cnospace.fung unchanged
-| tests~lang~http_serve@contsplit.fung 1288 c2cbd8a183152307
-| tests~lang~http_serve@cpushed.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@crlf.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@dedent.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@contsplit.fung 1610 7e69fcc05a5b9f79
+| tests~lang~http_serve@cpushed.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@crlf.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@dedent.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@halfbytes.fung unchanged
 | tests~lang~http_serve@halflines.fung unchanged
 | tests~lang~http_serve@joined.fung unchanged
-| tests~lang~http_serve@moreblank.fung 1207 29a837c0d960b37f
+| tests~lang~http_serve@moreblank.fung 1529 36cb25110d04495b
 | tests~lang~http_serve@noblank.fung unchanged
-| tests~lang~http_serve@nofinal.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@odd3.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@opsplit.fung 1336 b007c2abf36aea61
-| tests~lang~http_serve@spaced.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@split.fung 1686 fddbc7fdb5fe77e9
-| tests~lang~http_serve@tabs.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@tight.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@trailing.fung 1194 b948c78d4a48478f
-| tests~lang~http_serve@wide4.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@nofinal.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@odd3.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@opsplit.fung 1660 171f69f5728e8e0f
+| tests~lang~http_serve@spaced.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@split.fung 2034 2748fe5028626f6d
+| tests~lang~http_serve@tabs.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@tight.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@trailing.fung 1510 260ddb78ab758969
+| tests~lang~http_serve@wide4.fung 1510 260ddb78ab758969
 | tests~lang~ident_unicode.fung unchanged
 | tests~lang~ident_unicode@bom.fung 446 e3fb517dbd7d5fc6
 | tests~lang~ident_unicode@cglued.fung 446 e3fb517dbd7d5fc6

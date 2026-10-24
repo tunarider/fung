@@ -21,7 +21,7 @@ description: fung 모듈 fs — 파일과 디렉터리를 읽고 쓰고 만들�
   <thead><tr><th><code>kind</code></th><th>뜻</th></tr></thead>
   <tbody>
     <tr><td><code>'not_found</code></td><td>경로가 없다(위의 디렉터리가 없는 경우도).</td></tr>
-    <tr><td><code>'exists</code></td><td>이미 있다(<code>mkdir</code>할 자리에 파일이 있음, 비지 않은 디렉터리를 <code>remove</code>함 등).</td></tr>
+    <tr><td><code>'exists</code></td><td>이미 있다(<code>mkdir</code>할 자리에 파일이 있음, 비지 않은 디렉터리를 <code>remove</code>함, <code>move</code>할 자리에 이미 있음 등).</td></tr>
     <tr><td><code>'permission</code></td><td>권한이 없다.</td></tr>
     <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디렉터리를 파일처럼 읽음, 경로 중간이 파일임, 디스크가 참 등).</td></tr>
     <tr><td><code>'invalid</code></td><td>잘못된 glob 패턴(<code>fs.glob</code>), 읽기로 열지 않은 핸들로 읽기(또는 그 반대).</td></tr>
@@ -651,18 +651,19 @@ print(fs.remove_all("/"))
 
 :::
 
-:::fn fs.move(from, to)
+:::fn fs.move(from, to, overwrite = false)
 
 파일이나 디렉터리의 이름을 바꾸거나 다른 곳으로 옮긴다.
 
 #### 설명
 
-셸의 `mv`와 비슷하다. 대상이 파일이면 덮어쓴다. 하지만 이미 있는 **디렉터리**는 덮지 않는다(`mv a dir`처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: `fs.move("a.txt", "dir/a.txt")`. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다.
+셸의 `mv`와 비슷하지만 **이미 있는 것을 덮어쓰지 않는다**: `to`가 있으면 `Err({kind: 'exists})`다(셸의 `mv -n`과 같고, 실패를 알린다). 파일을 덮어쓰려면 `overwrite: true`를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux `renameat2`, macOS `renamex_np`), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 **디렉터리**는 `overwrite`를 줘도 덮지 않는다(`mv a dir`처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: `fs.move("a.txt", "dir/a.txt")`. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다.
 
 #### 매개변수
 
 - `from`: 옮길 경로.
 - `to`: 새 경로.
+- `overwrite`: `true`면 `to`에 있는 파일을 바꾼다. 기본은 `false`.
 
 #### 돌려주는 값
 
@@ -671,7 +672,7 @@ print(fs.remove_all("/"))
 #### 에러
 
 - `Err({kind: 'not_found})`: `from`이 없거나 `to`의 위 디렉터리가 없다.
-- `Err({kind: 'exists})`: `to`에 디렉터리가 있다.
+- `Err({kind: 'exists})`: `to`가 이미 있다(``cannot move `a.txt` to `b.txt`: file exists``). 디렉터리면 `overwrite: true`여도 그렇다.
 
 #### 예제
 
@@ -683,6 +684,18 @@ import fs
 fs.write("report.tmp", "done")!
 fs.move("report.tmp", "report.txt")!
 print(fs.list(".")! |> filter(n => starts_with(n, "report")))
+```
+
+**덮어쓰지 않는다, 바꿔치기는 `overwrite`로**
+
+```fung run
+import fs
+
+fs.write("app.conf", "port=80\n")!
+fs.write("app.conf.tmp", "port=8080\n")!
+print(fs.move("app.conf.tmp", "app.conf"))
+fs.move("app.conf.tmp", "app.conf", overwrite: true)!
+print(fs.read("app.conf")!)
 ```
 
 **디렉터리 안으로**

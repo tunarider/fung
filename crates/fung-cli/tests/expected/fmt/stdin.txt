@@ -3259,7 +3259,7 @@
 | # Moves every .log file in dir to <name>.log.1 and returns how many it moved.
 | fn rotate(dir):
 |   logs = fs.glob(path.join(dir, "*.log"))?
-|   try_map(logs, p => fs.move(p, p + ".1"))?
+|   try_map(logs, p => fs.move(p, p + ".1", overwrite: true))?
 |   Ok(len(logs))
 | ;;
 |
@@ -3873,7 +3873,7 @@
 | else:
 |   # a whole new file first, then one rename: never half a config
 |   fs.write(file + ".tmp", join(result, "\n") + "\n")!
-|   fs.move(file + ".tmp", file)!
+|   fs.move(file + ".tmp", file, overwrite: true)!
 | ;;
 -- stderr
 -- exit: 0
@@ -4158,7 +4158,7 @@
 -- stderr
 -- exit: 0
 ==== manual recipes/webhook-server.md:1
--- stdout (2132 bytes, fnv1a64 54406ab874bcb49c)
+-- stdout (2136 bytes, fnv1a64 d843342c19b05b5f)
 -- stderr
 -- exit: 0
 ==== manual recipes/webhook-server.md:2
@@ -4168,6 +4168,7 @@
 | r = http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())
 | print("serve returned", r)
 | http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())!
+| print("stopped cleanly")
 -- stderr
 -- exit: 0
 ==== manual reference/cli.md:1
@@ -5909,6 +5910,17 @@
 ==== manual reference/modules/fs.md:24
 -- stdout
 | import fs
+|
+| fs.write("app.conf", "port=80\n")!
+| fs.write("app.conf.tmp", "port=8080\n")!
+| print(fs.move("app.conf.tmp", "app.conf"))
+| fs.move("app.conf.tmp", "app.conf", overwrite: true)!
+| print(fs.read("app.conf")!)
+-- stderr
+-- exit: 0
+==== manual reference/modules/fs.md:25
+-- stdout
+| import fs
 | import path
 |
 | fs.mkdir("archive")!
@@ -5917,7 +5929,7 @@
 | print(fs.move("a.log", path.join("archive", "a.log")), fs.list("archive")!)
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:25
+==== manual reference/modules/fs.md:26
 -- stdout
 | import fs
 |
@@ -5926,7 +5938,7 @@
 | print(trim(fs.read("nginx.conf.bak")!), "->", trim(fs.read("nginx.conf")!))
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:26
+==== manual reference/modules/fs.md:27
 -- stdout
 | import fs
 |
@@ -5934,7 +5946,7 @@
 | print(fs.copy("dir", "dir2"))
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:27
+==== manual reference/modules/fs.md:28
 -- stdout
 | import fs
 |
@@ -5946,14 +5958,14 @@
 | fs.close(h)!
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:28
+==== manual reference/modules/fs.md:29
 -- stdout
 | import fs
 |
 | fs.open("servers.txt", 'readwrite)
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:29
+==== manual reference/modules/fs.md:30
 -- stdout
 | import fs
 |
@@ -5964,7 +5976,7 @@
 | print(fs.write_line(h, "two"))
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:30
+==== manual reference/modules/fs.md:31
 -- stdout
 | import fs
 |
@@ -5974,7 +5986,7 @@
 | print(fs.read_lines("squares.txt")!)
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:31
+==== manual reference/modules/fs.md:32
 -- stdout
 | import fs
 |
@@ -5982,7 +5994,7 @@
 | print(first)
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:32
+==== manual reference/modules/fs.md:33
 -- stdout
 | import fs
 |
@@ -5995,7 +6007,7 @@
 | print(fs.with_open("missing.txt", h => read_line(h)))
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:33
+==== manual reference/modules/fs.md:34
 -- stdout
 | import fs
 |
@@ -6004,7 +6016,7 @@
 | print(read_line(h))
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:34
+==== manual reference/modules/fs.md:35
 -- stdout
 | import fs
 | import path
@@ -6018,7 +6030,7 @@
 | print(fs.exists(kept))
 -- stderr
 -- exit: 0
-==== manual reference/modules/fs.md:35
+==== manual reference/modules/fs.md:36
 -- stdout
 | import fs
 |
@@ -10048,7 +10060,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (68459 bytes, fnv1a64 ae6e1c48e7c30488)
+-- stdout (68467 bytes, fnv1a64 acdb98b56faf7e58)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -11519,6 +11531,14 @@
 | # expect: 3
 | print(await(server))
 | # expect: Err({kind: 'cancelled, message: "cancelled"})
+|
+| # A clean stop (here a stop request as soon as it listens) is Ok(nil),
+| # so `!` on serve stops only on a failure to listen.
+| print(http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop()))
+| # expect: Ok(nil)
+| http.serve("127.0.0.1:0", req => "hi", ready: _ => request_stop())!
+| print("after")
+| # expect: after
 -- stderr
 -- exit: 0
 ==== tests/lang/ident_unicode.fung

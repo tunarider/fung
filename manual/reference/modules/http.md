@@ -282,7 +282,7 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 **끝나는 길은 둘이다.**
 
-- **정지 요청**: 첫 SIGINT(Ctrl-C)·SIGTERM(`kill`, 컨테이너 종료)이나 [`request_stop()`](../prelude/concurrency.html#fn-request_stop)이 오면([`stop_signal`](../prelude/concurrency.html#fn-stop_signal)) 새 연결을 그만 받고(듣던 소켓을 닫음), 처리 중인 요청을 최대 `drain`까지 마저 끝낸 뒤, 그때도 남은 것은 취소해 503으로 답하고 `nil`을 돌려준다. 정상 종료다.
+- **정지 요청**: 첫 SIGINT(Ctrl-C)·SIGTERM(`kill`, 컨테이너 종료)이나 [`request_stop()`](../prelude/concurrency.html#fn-request_stop)이 오면([`stop_signal`](../prelude/concurrency.html#fn-stop_signal)) 새 연결을 그만 받고(듣던 소켓을 닫음), 처리 중인 요청을 최대 `drain`까지 마저 끝낸 뒤, 그때도 남은 것은 취소해 503으로 답하고 `Ok(nil)`을 돌려준다. 정상 종료다.
 - **취소**: 서버가 든 범위가 취소되면(바깥 `timeout`, `cancel`, `exit`) 기다리지 않고 곧바로 멈춘다. 핸들러 안의 `exit`도 503이다.
 
 `ready`를 주면 듣기 시작한 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다. 포트 `0`으로 띄운 서버의 포트를 아는 길이고, 시험에서 서버가 준비된 뒤에 요청을 보내는 데 쓴다. `reuse_port: true`는 `SO_REUSEPORT`를 켜서 프로세스 여럿이 한 포트에서 받게 한다(Linux는 연결을 나눠 주고, macOS는 받게만 한다). 여러 코어를 쓰는 방법이다.
@@ -299,13 +299,13 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 #### 돌려주는 값
 
-정지 요청으로 끝나면 `nil`.
+정지 요청으로 끝나면 `Ok(nil)`.
 
 #### 에러
 
 - `Err({kind: 'network, message})`: 듣기 시작하지 못했다(``cannot listen on `127.0.0.1:80`: permission denied``, 이미 쓰는 포트, ``invalid address `bogus` (missing port)``).
 
-`serve`가 `Ok`/`Err`가 아닌 `nil`로 끝나므로 `http.serve(…)!`처럼 `!`를 붙이면 정상 종료 때 E0604(`!` on nil)가 난다. 문장으로 그냥 쓰면 듣기 실패의 `Err`는 버려지는 `Err`(E0606)로 멈추고, 정상 종료의 `nil`은 조용히 지나간다.
+정상 종료가 `Ok(nil)`이므로 `http.serve(…)!`는 듣기에 실패했을 때만 멈추고, 깔끔하게 멈춘 서버는 종료 코드 0으로 끝난다. `!` 없이 문장으로 써도 듣기 실패의 `Err`는 버려지는 `Err`(E0606)로 멈춘다.
 
 #### 예제
 
