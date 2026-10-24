@@ -73,6 +73,12 @@ fn shown(mut text: String) -> Arg {
 /// E0606's argument when `v` is an Err that a discarded place drops
 /// (02: 버려지는 Err): a statement's value (POP) or what `each`'s `f`
 /// returned. It shows the Err as E0603 does.
+/// Whether `v` is an `Err`: the cheap test the run loop makes on every
+/// discarded value, before the cold path builds E0606.
+pub(crate) fn is_err(v: &Value) -> bool {
+    matches!(v, Value::Tag(t) if t.name.name() == "Err")
+}
+
 pub(crate) fn discarded_err(v: &Value) -> Option<Arg> {
     match result_kind(v) {
         ResultKind::Err => Some(shown(err_message(v))),

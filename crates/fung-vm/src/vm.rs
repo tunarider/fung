@@ -105,7 +105,7 @@ pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
-pub(crate) use m4::{discarded, discarded_err};
+pub(crate) use m4::{discarded, discarded_err, is_err};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub(crate) use offload::{Kind, offload_kind};
@@ -162,6 +162,16 @@ fn at(d: Diag, pos: Pos) -> Stop {
 
 fn err(code: &str, pos: Pos, args: Vec<Arg>) -> Stop {
     Stop::Error(Box::new(error(code, pos, args)))
+}
+
+/// E0606 for an `Err` that a statement discarded (02). Out of the run
+/// loop, like every rare error path there: inlined, such a path changes
+/// how the compiler lays out the whole loop and slows the instructions
+/// that never take it (P12: `fib` lost 11% to two of them).
+#[cold]
+#[inline(never)]
+fn discarded_stop(pos: Pos, v: &Value) -> Stop {
+    err("E0606", pos, vec![discarded_err(v).expect("an Err")])
 }
 
 /// An E0801 internal error without a position.
@@ -452,6 +462,23 @@ impl<'rt> Task<'rt> {
             entry: None,
         });
         self.run_root(Todo::Loop)
+    }
+
+    /// A global read before it holds a value: E0808 in the REPL (an input
+    /// declared the name, then failed before storing it, 08), else E0809
+    /// (a top-level fn read a constant of the file before its assignment
+    /// ran, 03, L9). Cold, out of the run loop (`discarded_stop`).
+    #[cold]
+    #[inline(never)]
+    fn unset_global(&self, fi: usize, arg: usize, pos: Pos) -> Stop {
+        let name = self.global_name(fi, arg);
+        let code = if self.world.repl.is_some() {
+            "E0808"
+        } else {
+            "E0809"
+        };
+        let len = name.chars().count();
+        Stop::Error(Box::new(error(code, pos, vec![Arg::Str(name)]).span(len)))
     }
 
     /// A caught panic as E0801 at the innermost frame, with the call path.
@@ -766,9 +793,9 @@ impl<'rt> Task<'rt> {
                 // A statement's value is discarded: an Err is E0606 (02).
                 Op::Pop => {
                     if let Some(Some(v)) = self.stack.pop()
-                        && let Some(a) = discarded_err(&v)
+                        && is_err(&v)
                     {
-                        return Err(err("E0606", pos, vec![a]));
+                        return Err(discarded_stop(pos, &v));
                     }
                 }
                 Op::Add => self.binary(pos, i64::checked_add, value::add)?,
@@ -914,19 +941,7 @@ impl<'rt> Task<'rt> {
                     let v = self.frames[fi].globals.borrow()[arg].clone();
                     match v {
                         Some(v) => self.push(v),
-                        None => {
-                            let name = &self.global_name(fi, arg);
-                            if self.world.repl.is_some() {
-                                // A REPL input declared the name, then
-                                // failed before storing it (08).
-                                let d = error("E0808", pos, vec![Arg::Str(name.clone())]);
-                                return Err(Stop::Error(Box::new(d.span(name.chars().count()))));
-                            }
-                            // A top-level fn read a constant of the file
-                            // before its assignment ran (03, L9).
-                            let d = error("E0809", pos, vec![Arg::Str(name.clone())]);
-                            return Err(Stop::Error(Box::new(d.span(name.chars().count()))));
-                        }
+                        None => return Err(self.unset_global(fi, arg, pos)),
                     }
                 }
                 Op::StoreGlobal => {
