@@ -1,0 +1,1 @@
+print(len(join(map(0..500000, str), ",")))

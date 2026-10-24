@@ -1,0 +1,5 @@
+# 50,000 file system calls one after another (`exists`, `stat`): an
+# offload job each
+import fs
+fn probe(a, _) = a + len(filter([fs.exists("/"), fs.stat("/")], r => r != nil))
+print(fold(0..25000, 0, probe))

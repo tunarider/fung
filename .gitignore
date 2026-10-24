@@ -1,3 +1,4 @@
 # Rust build output
 /target
 .superpowers/
+/bench/compare/data

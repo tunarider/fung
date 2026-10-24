@@ -66,6 +66,743 @@
 | 0003  5:22  RETURN
 -- stderr
 -- exit: 0
+==== dump ast bench/compare/fung/chan.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel)) (call print (call scope (fn (sc) (block (call spawn sc (fn () (block (call each (range .. 0 100000) (fn (i) (block (call send tx i)))) (call close tx)))) (call fold rx 0 (fn (s, x) (block (binary + s x)))))))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/chan.fung
+-- stdout
+| (do (let (ptuple (pbind (global 0)) (pbind (global 1))) (call (prelude channel))) (call (prelude print) (call (prelude scope) (fn (sc) (do (call (prelude spawn) (local 0) (fn () (do (call (prelude each) (range .. 0 100000) (fn (i) (do (call (prelude send) (captured 0) (local 0))))) (call (prelude close) (captured 0))))) (call (prelude fold) (captured 1) 0 (fn (s, x) (do (op + (local 0) (local 1))))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/chan.fung
+-- stdout
+| == <main> ==
+| 0000  2:12  CONST        0    ; <fn channel>
+| 0001  2:19  CALL         0    ; 0 positional, 0 named
+| 0002  2:1   MATCHORFAIL  0    ; (@0, @1)
+| 0003  3:1   CONST        1    ; <fn print>
+| 0004  3:7   CONST        2    ; <fn scope>
+| 0005  3:13  CLOSURE      0    ; <lambda>
+| 0006  3:12  CALL         1    ; 1 positional, 0 named
+| 0007  3:6   CALL         1    ; 1 positional, 0 named
+| 0008  3:1   POP
+| 0009  3:1   CONST        3    ; nil
+| 0010  1:72  RETURN
+|
+| == <lambda> ==
+| 0000  4:3   CONST        0    ; <fn spawn>
+| 0001  4:9   LOADLOCAL    0
+| 0002  4:13  CLOSURE      0    ; <lambda>
+| 0003  4:8   CALL         2    ; 2 positional, 0 named
+| 0004  4:3   POP
+| 0005  4:3   CLEARLOCAL   0
+| 0006  5:3   CONST        1    ; <fn fold>
+| 0007  5:8   LOADCAPTURED 1
+| 0008  5:12  CONST        2    ; 0
+| 0009  5:15  CLOSURE      1    ; <lambda>
+| 0010  5:7   TAILCALL     3    ; 3 positional, 0 named
+| 0011  3:13  RETURN
+|
+| == <lambda> ==
+| 0000  4:19  CONST        0    ; <fn each>
+| 0001  4:24  CONST        1    ; 0
+| 0002  4:27  CONST        2    ; 100000
+| 0003  4:25  RANGE        0
+| 0004  4:35  CLOSURE      0    ; <lambda>
+| 0005  4:23  CALL         2    ; 2 positional, 0 named
+| 0006  4:19  POP
+| 0007  4:54  CONST        3    ; <fn close>
+| 0008  4:60  LOADCAPTURED 0
+| 0009  4:59  TAILCALL     1    ; 1 positional, 0 named
+| 0010  4:13  RETURN
+|
+| == <lambda> ==
+| 0000  4:40  CONST        0    ; <fn send>
+| 0001  4:45  LOADCAPTURED 0
+| 0002  4:49  LOADLOCAL    0
+| 0003  4:44  TAILCALL     2    ; 2 positional, 0 named
+| 0004  4:37  RETURN
+|
+| == <lambda> ==
+| 0000  5:25  LOADLOCAL    0
+| 0001  5:29  LOADLOCAL    1
+| 0002  5:27  ADD
+| 0003  5:22  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/exec.fung
+-- stdout
+| (program (call print (call fold (range .. 0 500) 0 (fn (a, (pwild)) (block (binary + a (field code (unwrap ! (call exec (list "true"))))))))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/exec.fung
+-- stdout
+| (do (call (prelude print) (call (prelude fold) (range .. 0 500) 0 (fn (a, $a0) (do (let (pwild) (local 1)) (op + (local 0) (field code (unwrap ! (call (prelude exec) (list "true"))))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/exec.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   CONST        0    ; <fn print>
+| 0001  3:7   CONST        1    ; <fn fold>
+| 0002  3:12  CONST        2    ; 0
+| 0003  3:15  CONST        3    ; 500
+| 0004  3:13  RANGE        0
+| 0005  3:20  CONST        2    ; 0
+| 0006  3:23  CLOSURE      0    ; <lambda>
+| 0007  3:11  CALL         3    ; 3 positional, 0 named
+| 0008  3:6   CALL         1    ; 1 positional, 0 named
+| 0009  3:1   POP
+| 0010  3:1   CONST        4    ; nil
+| 0011  1:73  RETURN
+|
+| == <lambda> ==
+| 0000  3:27  LOADLOCAL    1
+| 0001  3:27  MATCHORFAIL  0    ; _
+| 0002  3:27  CLEARLOCAL   1
+| 0003  3:33  LOADLOCAL    0
+| 0004  3:37  CONST        0    ; <fn exec>
+| 0005  3:42  CONST        1    ; ["true"]
+| 0006  3:41  CALL         1    ; 1 positional, 0 named
+| 0007  3:51  UNWRAPABORT
+| 0008  3:52  FIELD        2    ; code
+| 0009  3:35  ADD
+| 0010  3:30  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/fib.fung
+-- stdout
+| (program (fn fib(n) (block (then (binary < n 2) n (binary + (call fib (binary - n 1)) (call fib (binary - n 2)))))) (call print (call fib 30)))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/fib.fung
+-- stdout
+| (do (let (global 0) (fn fib(n) (do (if (op < (local 0) 2) (local 0) (op + (call (self) (op - (local 0) 1)) (call (self) (op - (local 0) 2))))))) (call (prelude print) (call (global 0) 30)))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/fib.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   CLOSURE      0    ; fib
+| 0001  1:1   STOREGLOBAL  0    ; fib
+| 0002  2:1   CONST        0    ; <fn print>
+| 0003  2:7   LOADGLOBAL   0    ; fib
+| 0004  2:11  CONST        1    ; 30
+| 0005  2:10  CALL         1    ; 1 positional, 0 named
+| 0006  2:6   CALL         1    ; 1 positional, 0 named
+| 0007  2:1   POP
+| 0008  2:1   CONST        2    ; nil
+| 0009  1:1   RETURN
+|
+| == fib ==
+| 0000  1:13  LOADLOCAL    0
+| 0001  1:17  CONST        0    ; 2
+| 0002  1:15  LT
+| 0003  1:15  JUMPIFFALSE  6
+| 0004  1:24  LOADLOCAL    0
+| 0005  1:19  JUMP         17
+| 0006  1:31  LOADSELF
+| 0007  1:35  LOADLOCAL    0
+| 0008  1:39  CONST        1    ; 1
+| 0009  1:37  SUB
+| 0010  1:34  CALL         1    ; 1 positional, 0 named
+| 0011  1:44  LOADSELF
+| 0012  1:48  LOADLOCAL    0
+| 0013  1:52  CONST        0    ; 2
+| 0014  1:50  SUB
+| 0015  1:47  CALL         1    ; 1 positional, 0 named
+| 0016  1:42  ADD
+| 0017  1:11  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/fs.fung
+-- stdout
+| (program (import fs) (fn probe(a, (pwild)) (block (binary + a (call len (call filter (list (call (field exists fs) "/") (call (field stat fs) "/")) (fn (r) (block (binary != r (nil))))))))) (call print (call fold (range .. 0 25000) 0 probe)))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/fs.fung
+-- stdout
+| (do (import "fs" (global 0)) (let (global 1) (fn probe(a, $a0) (do (let (pwild) (local 1)) (op + (local 0) (call (prelude len) (call (prelude filter) (list (call (field exists (global 0)) "/") (call (field stat (global 0)) "/")) (fn (r) (do (op != (local 0) (nil)))))))))) (call (prelude print) (call (prelude fold) (range .. 0 25000) 0 (global 1))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/fs.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   IMPORT       0    ; fs
+| 0001  3:1   STOREGLOBAL  0    ; fs
+| 0002  4:1   CLOSURE      0    ; probe
+| 0003  4:1   STOREGLOBAL  1    ; probe
+| 0004  5:1   CONST        1    ; <fn print>
+| 0005  5:7   CONST        2    ; <fn fold>
+| 0006  5:12  CONST        3    ; 0
+| 0007  5:15  CONST        4    ; 25000
+| 0008  5:13  RANGE        0
+| 0009  5:22  CONST        3    ; 0
+| 0010  5:25  LOADGLOBAL   1    ; probe
+| 0011  5:11  CALL         3    ; 3 positional, 0 named
+| 0012  5:6   CALL         1    ; 1 positional, 0 named
+| 0013  5:1   POP
+| 0014  5:1   CONST        5    ; nil
+| 0015  1:68  RETURN
+|
+| == probe ==
+| 0000  4:13  LOADLOCAL    1
+| 0001  4:13  MATCHORFAIL  0    ; _
+| 0002  4:13  CLEARLOCAL   1
+| 0003  4:18  LOADLOCAL    0
+| 0004  4:22  CONST        0    ; <fn len>
+| 0005  4:26  CONST        1    ; <fn filter>
+| 0006  4:34  LOADGLOBAL   0
+| 0007  4:36  FIELD        2    ; exists
+| 0008  4:44  CONST        3    ; "/"
+| 0009  4:43  CALL         1    ; 1 positional, 0 named
+| 0010  4:50  LOADGLOBAL   0
+| 0011  4:52  FIELD        4    ; stat
+| 0012  4:58  CONST        3    ; "/"
+| 0013  4:57  CALL         1    ; 1 positional, 0 named
+| 0014  4:33  LIST         2
+| 0015  4:65  CLOSURE      0    ; <lambda>
+| 0016  4:32  CALL         2    ; 2 positional, 0 named
+| 0017  4:25  CALL         1    ; 1 positional, 0 named
+| 0018  4:20  ADD
+| 0019  4:16  RETURN
+|
+| == <lambda> ==
+| 0000  4:70  LOADLOCAL    0
+| 0001  4:75  CONST        0    ; nil
+| 0002  4:72  NE
+| 0003  4:67  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/json.fung
+-- stdout
+| (program (import fs) (import json) (assign rows (unwrap ! (call (field parse json) (unwrap ! (call (field read fs) "data/data.json"))))) (assign ids (call fold rows 0 (fn (s, r) (block (then (field active r) (binary + s (field id r)) s))))) (assign tags (call fold rows 0 (fn (s, r) (block (binary + s (call len (field tags r))))))) (call print ids tags (binary > (call len (call (field stringify json) rows)) 1000000)))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/json.fung
+-- stdout
+| (do (import "fs" (global 0)) (import "json" (global 1)) (let (global 2) (unwrap ! (call (field parse (global 1)) (unwrap ! (call (field read (global 0)) "data/data.json"))))) (let (global 3) (call (prelude fold) (global 2) 0 (fn (s, r) (do (if (field active (local 1)) (op + (local 0) (field id (local 1))) (local 0)))))) (let (global 4) (call (prelude fold) (global 2) 0 (fn (s, r) (do (op + (local 0) (call (prelude len) (field tags (local 1)))))))) (call (prelude print) (global 3) (global 4) (op > (call (prelude len) (call (field stringify (global 1)) (global 2))) 1000000)))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/json.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   IMPORT       0    ; fs
+| 0001  1:1   STOREGLOBAL  0    ; fs
+| 0002  2:1   IMPORT       1    ; json
+| 0003  2:1   STOREGLOBAL  1    ; json
+| 0004  3:8   LOADGLOBAL   1    ; json
+| 0005  3:12  FIELD        2    ; parse
+| 0006  3:19  LOADGLOBAL   0    ; fs
+| 0007  3:21  FIELD        3    ; read
+| 0008  3:27  CONST        4    ; "data/data.json"
+| 0009  3:26  CALL         1    ; 1 positional, 0 named
+| 0010  3:44  UNWRAPABORT
+| 0011  3:18  CALL         1    ; 1 positional, 0 named
+| 0012  3:46  UNWRAPABORT
+| 0013  3:1   STOREGLOBAL  2    ; rows
+| 0014  4:7   CONST        5    ; <fn fold>
+| 0015  4:12  LOADGLOBAL   2    ; rows
+| 0016  4:18  CONST        6    ; 0
+| 0017  4:21  CLOSURE      0    ; <lambda>
+| 0018  4:11  CALL         3    ; 3 positional, 0 named
+| 0019  4:1   STOREGLOBAL  3    ; ids
+| 0020  5:8   CONST        5    ; <fn fold>
+| 0021  5:13  LOADGLOBAL   2    ; rows
+| 0022  5:19  CONST        6    ; 0
+| 0023  5:22  CLOSURE      1    ; <lambda>
+| 0024  5:12  CALL         3    ; 3 positional, 0 named
+| 0025  5:1   STOREGLOBAL  4    ; tags
+| 0026  6:1   CONST        7    ; <fn print>
+| 0027  6:7   LOADGLOBAL   3    ; ids
+| 0028  6:12  LOADGLOBAL   4    ; tags
+| 0029  6:18  CONST        8    ; <fn len>
+| 0030  6:22  LOADGLOBAL   1    ; json
+| 0031  6:26  FIELD        9    ; stringify
+| 0032  6:37  LOADGLOBAL   2    ; rows
+| 0033  6:36  CALL         1    ; 1 positional, 0 named
+| 0034  6:21  CALL         1    ; 1 positional, 0 named
+| 0035  6:46  CONST        10    ; 1000000
+| 0036  6:44  GT
+| 0037  6:6   CALL         3    ; 3 positional, 0 named
+| 0038  6:1   POP
+| 0039  6:1   CONST        11    ; nil
+| 0040  1:1   RETURN
+|
+| == <lambda> ==
+| 0000  4:31  LOADLOCAL    1
+| 0001  4:32  FIELD        0    ; active
+| 0002  4:32  JUMPIFFALSE  8
+| 0003  4:45  LOADLOCAL    0
+| 0004  4:49  LOADLOCAL    1
+| 0005  4:50  FIELD        1    ; id
+| 0006  4:47  ADD
+| 0007  4:40  JUMP         9
+| 0008  4:59  LOADLOCAL    0
+| 0009  4:28  RETURN
+|
+| == <lambda> ==
+| 0000  5:32  LOADLOCAL    0
+| 0001  5:36  CONST        0    ; <fn len>
+| 0002  5:40  LOADLOCAL    1
+| 0003  5:41  FIELD        1    ; tags
+| 0004  5:39  CALL         1    ; 1 positional, 0 named
+| 0005  5:34  ADD
+| 0006  5:29  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/list.fung
+-- stdout
+| (program (assign xs (call map (range .. 0 500000) (fn (i) (block (binary % (binary * i 7) 1000))))) (assign ys (call filter (call map xs (fn (x) (block (binary + x 1)))) (fn (x) (block (binary == (binary % x 2) 0))))) (assign zs (call sort_by xs (fn (x) (block (unary - x))))) (call print (binary + (binary + (call sum ys) (index zs 0)) (call len ys))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/list.fung
+-- stdout
+| (do (let (global 0) (call (prelude map) (range .. 0 500000) (fn (i) (do (op % (op * (local 0) 7) 1000))))) (let (global 1) (call (prelude filter) (call (prelude map) (global 0) (fn (x) (do (op + (local 0) 1)))) (fn (x) (do (op == (op % (local 0) 2) 0))))) (let (global 2) (call (prelude sort_by) (global 0) (fn (x) (do (op - (local 0)))))) (call (prelude print) (op + (op + (call (prelude sum) (global 1)) (index (global 2) 0)) (call (prelude len) (global 1)))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/list.fung
+-- stdout
+| == <main> ==
+| 0000  1:6   CONST        0    ; <fn map>
+| 0001  1:10  CONST        1    ; 0
+| 0002  1:13  CONST        2    ; 500000
+| 0003  1:11  RANGE        0
+| 0004  1:21  CLOSURE      0    ; <lambda>
+| 0005  1:9   CALL         2    ; 2 positional, 0 named
+| 0006  1:1   STOREGLOBAL  0    ; xs
+| 0007  2:6   CONST        3    ; <fn filter>
+| 0008  2:13  CONST        0    ; <fn map>
+| 0009  2:17  LOADGLOBAL   0    ; xs
+| 0010  2:21  CLOSURE      1    ; <lambda>
+| 0011  2:16  CALL         2    ; 2 positional, 0 named
+| 0012  2:34  CLOSURE      2    ; <lambda>
+| 0013  2:12  CALL         2    ; 2 positional, 0 named
+| 0014  2:1   STOREGLOBAL  1    ; ys
+| 0015  3:6   CONST        4    ; <fn sort_by>
+| 0016  3:14  LOADGLOBAL   0    ; xs
+| 0017  3:18  CLOSURE      3    ; <lambda>
+| 0018  3:13  CALL         2    ; 2 positional, 0 named
+| 0019  3:1   STOREGLOBAL  2    ; zs
+| 0020  4:1   CONST        5    ; <fn print>
+| 0021  4:7   CONST        6    ; <fn sum>
+| 0022  4:11  LOADGLOBAL   1    ; ys
+| 0023  4:10  CALL         1    ; 1 positional, 0 named
+| 0024  4:17  LOADGLOBAL   2    ; zs
+| 0025  4:20  CONST        1    ; 0
+| 0026  4:19  INDEX
+| 0027  4:15  ADD
+| 0028  4:25  CONST        7    ; <fn len>
+| 0029  4:29  LOADGLOBAL   1    ; ys
+| 0030  4:28  CALL         1    ; 1 positional, 0 named
+| 0031  4:23  ADD
+| 0032  4:6   CALL         1    ; 1 positional, 0 named
+| 0033  4:1   POP
+| 0034  4:1   CONST        8    ; nil
+| 0035  1:1   RETURN
+|
+| == <lambda> ==
+| 0000  1:26  LOADLOCAL    0
+| 0001  1:30  CONST        0    ; 7
+| 0002  1:28  MUL
+| 0003  1:34  CONST        1    ; 1000
+| 0004  1:32  MOD
+| 0005  1:23  RETURN
+|
+| == <lambda> ==
+| 0000  2:26  LOADLOCAL    0
+| 0001  2:30  CONST        0    ; 1
+| 0002  2:28  ADD
+| 0003  2:23  RETURN
+|
+| == <lambda> ==
+| 0000  2:39  LOADLOCAL    0
+| 0001  2:43  CONST        0    ; 2
+| 0002  2:41  MOD
+| 0003  2:48  CONST        1    ; 0
+| 0004  2:45  EQ
+| 0005  2:36  RETURN
+|
+| == <lambda> ==
+| 0000  3:24  LOADLOCAL    0
+| 0001  3:23  NEG
+| 0002  3:20  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/loop.fung
+-- stdout
+| (program (call print (call fold (range .. 0 3000000) 0 (fn (s, i) (block (binary + s (binary % (binary * i i) 7)))))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/loop.fung
+-- stdout
+| (do (call (prelude print) (call (prelude fold) (range .. 0 3000000) 0 (fn (s, i) (do (op + (local 0) (op % (op * (local 1) (local 1)) 7)))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/loop.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   CONST        0    ; <fn print>
+| 0001  1:7   CONST        1    ; <fn fold>
+| 0002  1:12  CONST        2    ; 0
+| 0003  1:15  CONST        3    ; 3000000
+| 0004  1:13  RANGE        0
+| 0005  1:24  CONST        2    ; 0
+| 0006  1:27  CLOSURE      0    ; <lambda>
+| 0007  1:11  CALL         3    ; 3 positional, 0 named
+| 0008  1:6   CALL         1    ; 1 positional, 0 named
+| 0009  1:1   POP
+| 0010  1:1   CONST        4    ; nil
+| 0011  1:1   RETURN
+|
+| == <lambda> ==
+| 0000  1:37  LOADLOCAL    0
+| 0001  1:41  LOADLOCAL    1
+| 0002  1:45  LOADLOCAL    1
+| 0003  1:43  MUL
+| 0004  1:49  CONST        0    ; 7
+| 0005  1:47  MOD
+| 0006  1:39  ADD
+| 0007  1:34  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/map.fung
+-- stdout
+| (program (assign n 200000) (assign m (call fold (range .. 0 n) (map) (fn (m, i) (block (call put m (interp "k" i) i))))) (call print (call fold (range .. 0 n) 0 (fn (s, i) (block (binary + s (index m (interp "k" i))))))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/map.fung
+-- stdout
+| (do (let (global 0) 200000) (let (global 1) (call (prelude fold) (range .. 0 (global 0)) (map) (fn (m, i) (do (call (prelude put) (local 0) (concat "k" (local 1)) (local 1)))))) (call (prelude print) (call (prelude fold) (range .. 0 (global 0)) 0 (fn (s, i) (do (op + (local 0) (index (captured 0) (concat "k" (local 1)))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/map.fung
+-- stdout
+| == <main> ==
+| 0000  1:5   CONST        0    ; 200000
+| 0001  1:1   STOREGLOBAL  0    ; n
+| 0002  2:5   CONST        1    ; <fn fold>
+| 0003  2:10  CONST        2    ; 0
+| 0004  2:13  LOADGLOBAL   0    ; n
+| 0005  2:11  RANGE        0
+| 0006  2:16  MAP          0
+| 0007  2:20  CLOSURE      0    ; <lambda>
+| 0008  2:9   CALL         3    ; 3 positional, 0 named
+| 0009  2:1   STOREGLOBAL  1    ; m
+| 0010  3:1   CONST        3    ; <fn print>
+| 0011  3:7   CONST        1    ; <fn fold>
+| 0012  3:12  CONST        2    ; 0
+| 0013  3:15  LOADGLOBAL   0    ; n
+| 0014  3:13  RANGE        0
+| 0015  3:18  CONST        2    ; 0
+| 0016  3:21  CLOSURE      1    ; <lambda>
+| 0017  3:11  CALL         3    ; 3 positional, 0 named
+| 0018  3:6   CALL         1    ; 1 positional, 0 named
+| 0019  3:1   POP
+| 0020  3:1   CONST        4    ; nil
+| 0021  1:1   RETURN
+|
+| == <lambda> ==
+| 0000  2:30  CONST        0    ; <fn put>
+| 0001  2:34  LOADLOCAL    0
+| 0002  2:37  CONST        1    ; "k"
+| 0003  2:41  LOADLOCAL    1
+| 0004  2:37  CONCAT       2
+| 0005  2:46  LOADLOCAL    1
+| 0006  2:33  TAILCALL     3    ; 3 positional, 0 named
+| 0007  2:27  RETURN
+|
+| == <lambda> ==
+| 0000  3:31  LOADLOCAL    0
+| 0001  3:35  LOADCAPTURED 0
+| 0002  3:37  CONST        0    ; "k"
+| 0003  3:41  LOADLOCAL    1
+| 0004  3:37  CONCAT       2
+| 0005  3:36  INDEX
+| 0006  3:33  ADD
+| 0007  3:28  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/regex.fung
+-- stdout
+| (program (import fs) (import regex) (fn ms(l) (block (call int (index (field groups (call (field find regex) l "latency_ms=(\\d+)")) 0)))) (call print (call fold (call lines (unwrap ! (call (field read fs) "data/logs.txt"))) 0 (fn (s, l) (block (binary + s (call ms l)))))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/regex.fung
+-- stdout
+| (do (import "fs" (global 0)) (import "regex" (global 1)) (let (global 2) (fn ms(l) (do (call (prelude int) (index (field groups (call (field find (global 1)) (local 0) "latency_ms=(\\d+)")) 0))))) (call (prelude print) (call (prelude fold) (call (prelude lines) (unwrap ! (call (field read (global 0)) "data/logs.txt"))) 0 (fn (s, l) (do (op + (local 0) (call (global 2) (local 1))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/regex.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   IMPORT       0    ; fs
+| 0001  1:1   STOREGLOBAL  0    ; fs
+| 0002  2:1   IMPORT       1    ; regex
+| 0003  2:1   STOREGLOBAL  1    ; regex
+| 0004  3:1   CLOSURE      0    ; ms
+| 0005  3:1   STOREGLOBAL  2    ; ms
+| 0006  4:1   CONST        2    ; <fn print>
+| 0007  4:7   CONST        3    ; <fn fold>
+| 0008  4:12  CONST        4    ; <fn lines>
+| 0009  4:18  LOADGLOBAL   0    ; fs
+| 0010  4:20  FIELD        5    ; read
+| 0011  4:26  CONST        6    ; "data/logs.txt"
+| 0012  4:25  CALL         1    ; 1 positional, 0 named
+| 0013  4:42  UNWRAPABORT
+| 0014  4:17  CALL         1    ; 1 positional, 0 named
+| 0015  4:46  CONST        7    ; 0
+| 0016  4:49  CLOSURE      1    ; <lambda>
+| 0017  4:11  CALL         3    ; 3 positional, 0 named
+| 0018  4:6   CALL         1    ; 1 positional, 0 named
+| 0019  4:1   POP
+| 0020  4:1   CONST        8    ; nil
+| 0021  1:1   RETURN
+|
+| == ms ==
+| 0000  3:12  CONST        0    ; <fn int>
+| 0001  3:16  LOADGLOBAL   1
+| 0002  3:21  FIELD        1    ; find
+| 0003  3:27  LOADLOCAL    0
+| 0004  3:30  CONST        2    ; "latency_ms=(\\d+)"
+| 0005  3:26  CALL         2    ; 2 positional, 0 named
+| 0006  3:49  FIELD        3    ; groups
+| 0007  3:57  CONST        4    ; 0
+| 0008  3:56  INDEX
+| 0009  3:15  TAILCALL     1    ; 1 positional, 0 named
+| 0010  3:10  RETURN
+|
+| == <lambda> ==
+| 0000  4:59  LOADLOCAL    0
+| 0001  4:63  LOADGLOBAL   2
+| 0002  4:66  LOADLOCAL    1
+| 0003  4:65  CALL         1    ; 1 positional, 0 named
+| 0004  4:61  ADD
+| 0005  4:56  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/spawn.fung
+-- stdout
+| (program (call print (call scope (fn (sc) (block (assign ts (call map (range .. 0 2000) (fn (i) (block (call spawn sc (fn () (block (binary % (binary * i i) 7)))))))) (call fold ts 0 (fn (s, t) (block (binary + s (call await t))))))))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/spawn.fung
+-- stdout
+| (do (call (prelude print) (call (prelude scope) (fn (sc) (do (let (local 1) (call (prelude map) (range .. 0 2000) (fn (i) (do (call (prelude spawn) (captured 0) (fn () (do (op % (op * (captured 0) (captured 0)) 7)))))))) (call (prelude fold) (local 1) 0 (fn (s, t) (do (op + (local 0) (call (prelude await) (local 1)))))))))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/spawn.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   CONST        0    ; <fn print>
+| 0001  2:7   CONST        1    ; <fn scope>
+| 0002  2:13  CLOSURE      0    ; <lambda>
+| 0003  2:12  CALL         1    ; 1 positional, 0 named
+| 0004  2:6   CALL         1    ; 1 positional, 0 named
+| 0005  2:1   POP
+| 0006  2:1   CONST        2    ; nil
+| 0007  1:64  RETURN
+|
+| == <lambda> ==
+| 0000  3:8   CONST        0    ; <fn map>
+| 0001  3:12  CONST        1    ; 0
+| 0002  3:15  CONST        2    ; 2000
+| 0003  3:13  RANGE        0
+| 0004  3:21  CLOSURE      0    ; <lambda>
+| 0005  3:11  CALL         2    ; 2 positional, 0 named
+| 0006  3:3   STORELOCAL   1
+| 0007  3:3   CLEARLOCAL   0
+| 0008  4:3   CONST        3    ; <fn fold>
+| 0009  4:8   LOADLOCAL    1
+| 0010  4:12  CONST        1    ; 0
+| 0011  4:15  CLOSURE      1    ; <lambda>
+| 0012  4:7   TAILCALL     3    ; 3 positional, 0 named
+| 0013  2:13  RETURN
+|
+| == <lambda> ==
+| 0000  3:26  CONST        0    ; <fn spawn>
+| 0001  3:32  LOADCAPTURED 0
+| 0002  3:36  CLOSURE      0    ; <lambda>
+| 0003  3:31  TAILCALL     2    ; 2 positional, 0 named
+| 0004  3:23  RETURN
+|
+| == <lambda> ==
+| 0000  3:42  LOADCAPTURED 0
+| 0001  3:46  LOADCAPTURED 0
+| 0002  3:44  MUL
+| 0003  3:50  CONST        0    ; 7
+| 0004  3:48  MOD
+| 0005  3:39  RETURN
+|
+| == <lambda> ==
+| 0000  4:25  LOADLOCAL    0
+| 0001  4:29  CONST        0    ; <fn await>
+| 0002  4:35  LOADLOCAL    1
+| 0003  4:34  CALL         1    ; 1 positional, 0 named
+| 0004  4:27  ADD
+| 0005  4:22  RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/startup.fung
+-- stdout
+| (program (call print 1))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/startup.fung
+-- stdout
+| (do (call (prelude print) 1))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/startup.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   CONST        0    ; <fn print>
+| 0001  1:7   CONST        1    ; 1
+| 0002  1:6   CALL         1    ; 1 positional, 0 named
+| 0003  1:1   POP
+| 0004  1:1   CONST        2    ; nil
+| 0005  1:1   RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/str.fung
+-- stdout
+| (program (call print (call len (call join (call map (range .. 0 500000) str) ","))))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/str.fung
+-- stdout
+| (do (call (prelude print) (call (prelude len) (call (prelude join) (call (prelude map) (range .. 0 500000) (prelude str)) ","))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/str.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   CONST        0    ; <fn print>
+| 0001  1:7   CONST        1    ; <fn len>
+| 0002  1:11  CONST        2    ; <fn join>
+| 0003  1:16  CONST        3    ; <fn map>
+| 0004  1:20  CONST        4    ; 0
+| 0005  1:23  CONST        5    ; 500000
+| 0006  1:21  RANGE        0
+| 0007  1:31  CONST        6    ; <fn str>
+| 0008  1:19  CALL         2    ; 2 positional, 0 named
+| 0009  1:37  CONST        7    ; ","
+| 0010  1:15  CALL         2    ; 2 positional, 0 named
+| 0011  1:10  CALL         1    ; 1 positional, 0 named
+| 0012  1:6   CALL         1    ; 1 positional, 0 named
+| 0013  1:1   POP
+| 0014  1:1   CONST        8    ; nil
+| 0015  1:1   RETURN
+-- stderr
+-- exit: 0
+==== dump ast bench/compare/fung/text.fung
+-- stdout
+| (program (import fs) (fn step(acc, l) (block (assign (ptuple (pbind counts) (pbind err)) acc) (assign p (call split l " ")) (assign lv (index p 1)) (assign ms (call int (index (call split (index p 3) "=") 1))) (tuple (call put counts lv (binary + (call get counts lv 0) 1)) (then (binary == lv "ERROR") (binary + err ms) err)))) (assign (ptuple (pbind counts) (pbind err)) (call fold (call lines (unwrap ! (call (field read fs) "data/logs.txt"))) (tuple (map) 0) step)) (call each (call sort (call keys counts)) (fn (k) (block (call print k (index counts k))))) (call print err))
+-- stderr
+-- exit: 0
+==== dump core bench/compare/fung/text.fung
+-- stdout
+| (do (import "fs" (global 0)) (let (global 1) (fn step(acc, l) (do (let (ptuple (pbind (local 2)) (pbind (local 3))) (local 0)) (let (local 4) (call (prelude split) (local 1) " ")) (let (local 5) (index (local 4) 1)) (let (local 6) (call (prelude int) (index (call (prelude split) (index (local 4) 3) "=") 1))) (tuple (call (prelude put) (local 2) (local 5) (op + (call (prelude get) (local 2) (local 5) 0) 1)) (if (op == (local 5) "ERROR") (op + (local 3) (local 6)) (local 3)))))) (let (ptuple (pbind (global 2)) (pbind (global 3))) (call (prelude fold) (call (prelude lines) (unwrap ! (call (field read (global 0)) "data/logs.txt"))) (tuple (map) 0) (global 1))) (call (prelude each) (call (prelude sort) (call (prelude keys) (global 2))) (fn (k) (do (call (prelude print) (local 0) (index (captured 0) (local 0)))))) (call (prelude print) (global 3)))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/compare/fung/text.fung
+-- stdout
+| == <main> ==
+| 0000  1:1   IMPORT       0    ; fs
+| 0001  1:1   STOREGLOBAL  0    ; fs
+| 0002  2:1   CLOSURE      0    ; step
+| 0003  2:1   STOREGLOBAL  1    ; step
+| 0004  9:17  CONST        1    ; <fn fold>
+| 0005  9:22  CONST        2    ; <fn lines>
+| 0006  9:28  LOADGLOBAL   0    ; fs
+| 0007  9:30  FIELD        3    ; read
+| 0008  9:36  CONST        4    ; "data/logs.txt"
+| 0009  9:35  CALL         1    ; 1 positional, 0 named
+| 0010  9:52  UNWRAPABORT
+| 0011  9:27  CALL         1    ; 1 positional, 0 named
+| 0012  9:57  MAP          0
+| 0013  9:61  CONST        5    ; 0
+| 0014  9:56  TUPLE        2
+| 0015  9:65  LOADGLOBAL   1    ; step
+| 0016  9:21  CALL         3    ; 3 positional, 0 named
+| 0017  9:1   MATCHORFAIL  0    ; (@2, @3)
+| 0018  10:1  CONST        6    ; <fn each>
+| 0019  10:6  CONST        7    ; <fn sort>
+| 0020  10:11 CONST        8    ; <fn keys>
+| 0021  10:16 LOADGLOBAL   2    ; counts
+| 0022  10:15 CALL         1    ; 1 positional, 0 named
+| 0023  10:10 CALL         1    ; 1 positional, 0 named
+| 0024  10:26 CLOSURE      1    ; <lambda>
+| 0025  10:5  CALL         2    ; 2 positional, 0 named
+| 0026  10:1  POP
+| 0027  11:1  CONST        9    ; <fn print>
+| 0028  11:7  LOADGLOBAL   3    ; err
+| 0029  11:6  CALL         1    ; 1 positional, 0 named
+| 0030  11:1  POP
+| 0031  11:1  CONST        10    ; nil
+| 0032  1:1   RETURN
+|
+| == step ==
+| 0000  3:19  LOADLOCAL    0
+| 0001  3:3   MATCHORFAIL  0    ; ($2, $3)
+| 0002  3:3   CLEARLOCAL   0
+| 0003  4:7   CONST        0    ; <fn split>
+| 0004  4:13  LOADLOCAL    1
+| 0005  4:16  CONST        1    ; " "
+| 0006  4:12  CALL         2    ; 2 positional, 0 named
+| 0007  4:3   STORELOCAL   4
+| 0008  4:3   CLEARLOCAL   1
+| 0009  5:8   LOADLOCAL    4
+| 0010  5:10  CONST        2    ; 1
+| 0011  5:9   INDEX
+| 0012  5:3   STORELOCAL   5
+| 0013  6:8   CONST        3    ; <fn int>
+| 0014  6:12  CONST        0    ; <fn split>
+| 0015  6:18  LOADLOCAL    4
+| 0016  6:20  CONST        4    ; 3
+| 0017  6:19  INDEX
+| 0018  6:24  CONST        5    ; "="
+| 0019  6:17  CALL         2    ; 2 positional, 0 named
+| 0020  6:29  CONST        2    ; 1
+| 0021  6:28  INDEX
+| 0022  6:11  CALL         1    ; 1 positional, 0 named
+| 0023  6:3   STORELOCAL   6
+| 0024  6:3   CLEARLOCAL   4
+| 0025  7:4   CONST        6    ; <fn put>
+| 0026  7:8   LOADLOCAL    2
+| 0027  7:16  LOADLOCAL    5
+| 0028  7:20  CONST        7    ; <fn get>
+| 0029  7:24  LOADLOCAL    2
+| 0030  7:32  LOADLOCAL    5
+| 0031  7:36  CONST        8    ; 0
+| 0032  7:23  CALL         3    ; 3 positional, 0 named
+| 0033  7:41  CONST        2    ; 1
+| 0034  7:39  ADD
+| 0035  7:7   CALL         3    ; 3 positional, 0 named
+| 0036  7:45  LOADLOCAL    5
+| 0037  7:51  CONST        9    ; "ERROR"
+| 0038  7:48  EQ
+| 0039  7:48  JUMPIFFALSE  44
+| 0040  7:64  LOADLOCAL    3
+| 0041  7:70  LOADLOCAL    6
+| 0042  7:68  ADD
+| 0043  7:59  JUMP         45
+| 0044  7:78  LOADLOCAL    3
+| 0045  7:3   TUPLE        2
+| 0046  2:1   RETURN
+|
+| == <lambda> ==
+| 0000  10:31 CONST        0    ; <fn print>
+| 0001  10:37 LOADLOCAL    0
+| 0002  10:40 LOADCAPTURED 0
+| 0003  10:47 LOADLOCAL    0
+| 0004  10:46 INDEX
+| 0005  10:36 TAILCALL     2    ; 2 positional, 0 named
+| 0006  10:28 RETURN
+-- stderr
+-- exit: 0
 ==== dump ast bench/exec.fung
 -- stdout
 | (program (call print (call fold (range .. 0 500) 0 (fn (a, (pwild)) (block (binary + a (field code (unwrap ! (call exec (list "true"))))))))))

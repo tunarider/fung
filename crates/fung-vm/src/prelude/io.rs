@@ -4,6 +4,7 @@
 
 use fung_front::source::decode_lossy;
 
+use crate::native::file::{Fault, File};
 use crate::native::fs::fault_value;
 use crate::native::nat::{self, opt, param};
 use crate::value::{Lit, Native, Value, format};
@@ -58,8 +59,9 @@ fn trim_line(line: &str) -> &str {
 
 /// `read_line(f = nil)`: Ok(line), Ok(nil) at the end. A handle that
 /// cannot be read gives its `Err` value. A wait for standard input parks
-/// until its reader thread brings a line (`vm/stdin.rs`); a file's read is
-/// handed off (`nat::offload`).
+/// until its reader thread brings a line (`vm/stdin.rs`); a file's line
+/// already in its buffer is read here, and any other read is handed off
+/// (`nat::offload`).
 pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     match &a[0] {
         Value::Nil => park_until_then(
@@ -69,17 +71,15 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
             |t| t.stdin_leave(),
         ),
         Value::File(h) => {
+            if let Some(r) = h.read_buffered_line() {
+                return Ok(Flow::Done(file_line_value(h, r)));
+            }
             let h = h.clone();
             let job = h.clone();
             nat::offload(
                 t,
                 move || job.read_line(),
-                move |_, r| {
-                    Ok(match r {
-                        Ok(l) => line_value(l.map(|l| decode_lossy(&l))),
-                        Err(e) => fault_value(&h, "read", e),
-                    })
-                },
+                move |_, r| Ok(file_line_value(&h, r)),
             )
         }
         f => Err(nat::wrong_arg("f", "file | nil", f)),
@@ -92,6 +92,14 @@ const STDIN_WAKE: Wake = Wake {
     until: None,
     timed: true,
 };
+
+/// A handle's line read (or its fault) as `read_line` gives it.
+fn file_line_value(h: &File, r: Result<Option<Vec<u8>>, Fault>) -> Value {
+    match r {
+        Ok(l) => line_value(l.map(|l| decode_lossy(&l))),
+        Err(e) => fault_value(h, "read", e),
+    }
+}
 
 /// A line read (with its ending, or `None` at the end) as `read_line`
 /// gives it.

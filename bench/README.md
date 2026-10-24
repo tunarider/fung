@@ -23,6 +23,9 @@ time target/release/fung bench/fib.fung
 `scripts/bench.sh <바이너리>...`는 아래 기록의 방법(파일마다 바이너리마다 준비 1회 + 9회 중앙값)으로 모든 파일을 재서 표로 찍는다.
 두 바이너리를 주면 같은 기계에서 나란히 비교한다(예: `scripts/bench.sh /tmp/fung-base target/release/fung`).
 
+다른 언어(Python·Lua·Ruby·Node)와 같은 작업으로 견주는 프로그램은 `compare/`에 있다: `python3 -I bench/compare/run.py target/release/fung`.
+방법·결과·원인 분석은 `docs/notes/bench-languages.md`(2026-10-21), 거기서 나온 할 일은 open-questions "성능" 절의 P8~P13.
+
 ## 기록: 0.1.0과 0.2.0 (2026-10-17)
 
 기계: Apple M2 Max (Mac14,13), macOS 27.0.1 arm64. 방법: 파일마다 바이너리마다 준비 운전 1회 뒤 9회 실행해 벽시계 시간의 중앙값(초,

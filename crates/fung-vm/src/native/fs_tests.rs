@@ -885,6 +885,77 @@ print(fs.close(h))"#,
     assert!(seen == want, "some lines are torn or missing");
 }
 
+/// Runs `body` as [`run_in`] does, with the test probes (`offloads()`)
+/// and `lines_of(h)`: every line `read_line` gives until the end.
+fn run_probed_in(d: &Scratch, body: &str) -> testutil::Outcome {
+    exec(
+        &format!(
+            "import fs\nd = \"{}\"\nfn _lines(h, acc) = match read_line(h)!:\n  nil => acc\n  l => _lines(h, acc + [l])\n;;\nfn lines_of(h) = _lines(h, [])\n{body}",
+            d.text()
+        ),
+        Opts {
+            extra: testutil::probes,
+            ..Opts::default()
+        },
+    )
+}
+
+/// A line already in a handle's buffer is read on the run thread, and a
+/// line that fits the write buffer is written there: only reads that
+/// need the file hand a job off (`offloads()`): the first fill, the last
+/// line (no `\n` ends it in the buffer) and the end.
+#[test]
+fn buffered_lines_are_not_handed_off() {
+    let d = Scratch::new("buffered");
+    let mut text: String = (0..1000).map(|i| format!("line {i}\n")).collect();
+    text.push_str("crlf\r\nlast");
+    std::fs::write(d.at("in.txt"), text).unwrap();
+    let o = run_probed_in(
+        &d,
+        r#"h = fs.open("${d}/in.txt")!
+n0 = offloads()
+xs = lines_of(h)
+n1 = offloads()
+print(len(xs), xs[0], xs[999], xs[1000], xs[1001], n1 - n0)
+w = fs.open("${d}/out.txt", 'write)!
+n2 = offloads()
+each(xs, x => fs.write_line(w, x)!)
+n3 = offloads()
+print(n3 - n2, fs.close(w), fs.read("${d}/out.txt")! == join(xs, "\n") + "\n")"#,
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("1002 line 0 line 999 crlf last 3\n0 Ok(nil) true\n", "")
+    );
+}
+
+/// Lines across the 64 KiB buffer's edge, a line longer than the buffer
+/// and multi-byte characters read the same as `lines` of the whole text,
+/// and a long write still reaches the file whole.
+#[test]
+fn lines_across_the_buffer_edge_read_whole() {
+    let d = Scratch::new("edge");
+    let mut text = String::new();
+    for i in 0..9000 {
+        text.push_str(&format!("{i} é{}\n", "x".repeat(i % 37)));
+        if i == 4000 {
+            text.push_str(&"y".repeat(100_000));
+            text.push('\n');
+        }
+    }
+    std::fs::write(d.at("in.txt"), &text).unwrap();
+    let o = run_probed_in(
+        &d,
+        r#"xs = fs.with_open("${d}/in.txt", lines_of)
+print(len(xs), xs == lines(fs.read("${d}/in.txt")!))
+w = fs.open("${d}/out.txt", 'write)!
+each(xs, x => fs.write_line(w, x)!)
+fs.close(w)!
+print(fs.read("${d}/out.txt")! == fs.read("${d}/in.txt")!)"#,
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("9001 true\ntrue\n", ""));
+}
+
 /// Review Focus 3: a handle closes its file when its last copy goes, so
 /// thousands of handles dropped without `close` leak no descriptors. The
 /// program runs in a child process (this test binary again) whose
@@ -1468,7 +1539,9 @@ fn with_open_tolerates_a_handle_f_closed() {
 }
 
 /// Each fs native hands its system calls off in one job (R1a); a
-/// `with_temp_dir` makes the directory and removes it, two jobs.
+/// `with_temp_dir` makes the directory and removes it, two jobs. A
+/// `write_line` that fits in the handle's buffer is no job: opening and
+/// closing (which flushes) are the two.
 #[test]
 fn fs_natives_offload() {
     let d = Scratch::new("offload");
@@ -1489,5 +1562,5 @@ fn fs_natives_offload() {
             ..Opts::default()
         },
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("1\n1\n1\n3\n2\n", ""));
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("1\n1\n1\n2\n2\n", ""));
 }

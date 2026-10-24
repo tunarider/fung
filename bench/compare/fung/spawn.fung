@@ -1,0 +1,5 @@
+# 2,000 tasks spawned at once, then awaited: the cost of a task
+print(scope(fn(sc):
+  ts = map(0..2000, i => spawn(sc, () => i * i % 7))
+  fold(ts, 0, (s, t) => s + await(t))
+;;))

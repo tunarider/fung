@@ -135,6 +135,8 @@ server drained
 
 풀에서 도는 **일**(job)은 fung 값이 아닌 평범한 데이터만 가진다(`Send + 'static`). 경로 문자열을 복사해 가고, 파일 핸들은 `Arc`를 복제해 간다. 태스크는 그동안 주차하고, 일을 마친 스레드가 결과를 칸에 넣고 태스크를 깨운다. 결과를 fung 값으로 바꾸는 **마무리**는 실행 스레드에서 돈다(`crates/fung-vm/src/vm/offload.rs`의 `offload_kind`).
 
+풀을 한 번 오가는 데는 수 µs가 든다. 일 자체가 그보다 짧으면 왕복이 시간 대부분이다. 그래서 파일 핸들은 64KiB 버퍼를 두고, `read_line`은 다음 줄이 이미 버퍼에 다 있으면 풀에 넘기지 않고 실행 스레드에서 바로 꺼낸다. `fs.write_line`도 줄이 버퍼에 들어가면 그 자리에서 쓴다. 이 길에는 시스템 호출이 없어서 실행 스레드가 막힐 일이 없다. 버퍼를 채우거나 비워야 할 때만 풀에 간다(`crates/fung-vm/src/native/file.rs`의 `read_buffered_line`·`write_buffered_line`). 20만 줄을 한 줄씩 읽는 시간이 1.2초에서 0.1초가 되었다.
+
 ```fung run
 import fs
 import path

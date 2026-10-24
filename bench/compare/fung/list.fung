@@ -1,0 +1,4 @@
+xs = map(0..500000, i => i * 7 % 1000)
+ys = filter(map(xs, x => x + 1), x => x % 2 == 0)
+zs = sort_by(xs, x => -x)
+print(sum(ys) + zs[0] + len(ys))

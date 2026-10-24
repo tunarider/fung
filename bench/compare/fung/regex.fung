@@ -1,0 +1,4 @@
+import fs
+import regex
+fn ms(l) = int(regex.find(l, `latency_ms=(\d+)`).groups[0])
+print(fold(lines(fs.read("data/logs.txt")!), 0, (s, l) => s + ms(l)))

@@ -544,24 +544,30 @@ fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `fs.write_line`: the line and its `\n` go in under the handle's
-/// lock, on a pool thread.
+/// lock: here when they fit in the write buffer, else on a pool thread.
 fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let f = need_file("f", &a[0])?.clone();
     let line = nat::need_str("line", &a[1])?;
     let mut bytes = Vec::with_capacity(line.len() + 1);
     bytes.extend_from_slice(line.as_bytes());
     bytes.push(b'\n');
+    if let Some(r) = f.write_buffered_line(&bytes) {
+        return Ok(Flow::Done(written_value(&f, r)));
+    }
     let job = f.clone();
     nat::offload(
         t,
         move || job.write_line(&bytes),
-        move |_, r| {
-            Ok(match r {
-                Ok(()) => nat::ok(Value::Nil),
-                Err(e) => fault_value(&f, "write", e),
-            })
-        },
+        move |_, r| Ok(written_value(&f, r)),
     )
+}
+
+/// A handle's `write_line` result (or its fault) as `fs.write_line` gives it.
+fn written_value(f: &File, r: Result<(), Fault>) -> Value {
+    match r {
+        Ok(()) => nat::ok(Value::Nil),
+        Err(e) => fault_value(f, "write", e),
+    }
 }
 
 fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {

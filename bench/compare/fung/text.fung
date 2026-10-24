@@ -1,0 +1,11 @@
+import fs
+fn step(acc, l):
+  (counts, err) = acc
+  p = split(l, " ")
+  lv = p[1]
+  ms = int(split(p[3], "=")[1])
+  (put(counts, lv, get(counts, lv, 0) + 1), lv == "ERROR" then err + ms else err)
+;;
+(counts, err) = fold(lines(fs.read("data/logs.txt")!), ({}, 0), step)
+each(sort(keys(counts)), k => print(k, counts[k]))
+print(err)

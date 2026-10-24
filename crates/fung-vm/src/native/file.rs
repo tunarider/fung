@@ -2,10 +2,12 @@
 //! `read_line` and `read_lines` use it.
 //!
 //! A handle is shared by every task that holds a copy, and its input and
-//! output run on a pool thread (`nat::offload`), so the run thread's
-//! exclusive access does not protect it: each handle has its own lock, held for one whole operation
-//! (one `write_line`, one line read). Lines written by different tasks
-//! therefore never mix.
+//! output run on a pool thread (`nat::offload`), but for a line already
+//! in the read buffer or one that fits in the write buffer, which the run
+//! thread takes or puts there itself (no system call, so it never
+//! blocks). The run thread's exclusive access does not protect a handle:
+//! each has its own lock, held for one whole operation (one `write_line`,
+//! one line read). Lines written by different tasks therefore never mix.
 //!
 //! The handle holds no fung value (only its path and the open file), so
 //! it may be used and dropped on any thread: an
@@ -15,7 +17,7 @@
 //! from that flush.
 
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, TryLockError};
 
 /// The read and write buffer of a handle: what decides when written lines
 /// reach the file before `close`.
@@ -90,6 +92,49 @@ impl File {
                     Err(_) => Ok(Some(line)),
                 }
             }
+        }
+    }
+
+    /// The handle's state if no other thread holds it now.
+    fn try_lock(&self) -> Option<MutexGuard<'_, Option<Io>>> {
+        match self.state.try_lock() {
+            Ok(g) => Some(g),
+            Err(TryLockError::Poisoned(e)) => Some(e.into_inner()),
+            Err(TryLockError::WouldBlock) => None,
+        }
+    }
+
+    /// [`read_line`](Self::read_line) without a system call, for the run
+    /// thread: the next line when the read buffer already holds all of
+    /// it (and the answer for a closed or write-only handle). `None` when
+    /// the read needs the file, or a pool job holds the handle: then the
+    /// caller hands the read off.
+    pub(crate) fn read_buffered_line(&self) -> Option<Result<Option<Vec<u8>>, Fault>> {
+        match &mut *self.try_lock()? {
+            None => Some(Err(Fault::Closed)),
+            Some(Io::Write(_)) => Some(Err(Fault::NotReading)),
+            Some(Io::Read(r)) => {
+                let buf = r.buffer();
+                let n = buf.iter().position(|&b| b == b'\n')? + 1;
+                let line = buf[..n].to_vec();
+                r.consume(n);
+                Some(Ok(Some(line)))
+            }
+        }
+    }
+
+    /// [`write_line`](Self::write_line) without a system call, for the
+    /// run thread: when `line` fits in the write buffer's free space (so
+    /// nothing is flushed), and for a closed or read-only handle. `None`
+    /// otherwise: the caller hands the write off.
+    pub(crate) fn write_buffered_line(&self, line: &[u8]) -> Option<Result<(), Fault>> {
+        match &mut *self.try_lock()? {
+            None => Some(Err(Fault::Closed)),
+            Some(Io::Read(_)) => Some(Err(Fault::NotWriting)),
+            Some(Io::Write(w)) if line.len() < w.capacity() - w.buffer().len() => {
+                Some(w.write_all(line).map_err(Fault::Io))
+            }
+            Some(Io::Write(_)) => None,
         }
     }
 

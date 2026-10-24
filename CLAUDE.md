@@ -89,8 +89,10 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   파이프의 `_`는 E0227, 심볼과 문자열 비교는 E0517, 지역 변수는 마지막 읽기 뒤에 놓음(`CLEARLOCAL`), 한 번만 대입되는 최상위 이름은 최상위 `fn`의 상수,
   맵 키 자리 식별자는 쓴 그대로, 태스크 실패 값은 `{kind, code, message, at}`. P2와 P7의 맵·튜플은 open-questions "알려진 한계".
   **다음**: 검토 문서 12절의 남은 의심, open-questions의 L1·L3·L7·L9 후속 한계.
-- 보수 작업 (2026-10-24, 작업 브랜치, 미릴리스): open-questions를 열린 항목만 남게 정리(닫은 것은 `docs/notes/open-questions-closed.md`), 매뉴얼 찾은 문제 F-1~F-4·F-6~F-10·F-13·D-1·D-4를 고침.
+- 보수 작업 (2026-10-24, main에 스쿼시 `38f1e08`, 미릴리스): open-questions를 열린 항목만 남게 정리(닫은 것은 `docs/notes/open-questions-closed.md`), 매뉴얼 찾은 문제 F-1~F-4·F-6~F-10·F-13·D-1·D-4를 고침.
   큰 것: 시간 초과·취소·닫힘 `Err`에 `message`(호환 깨짐), 파이프 끝 `?`·`!`는 E0229, `get`은 내장 함수(E0506), `take`·`drop`이 문자열, `conc.pmap`은 작업자 n개, 상수 표 해시 색인. 남은 결정은 open-questions "남은 일".
+- 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
+  약점은 파일·텍스트 처리량. **다음 성능 작업**: open-questions "성능" 절 P8(파일 흘려 읽기·짧은 `fs` 호출의 풀 왕복)부터 P13까지 순서대로.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
 - 매뉴얼: 원고는 `manual/`(목차 `toc.txt`, 마크다운 부분집합 + 날 HTML, 형식은 `docs/plans/2026-10-20-manual-1-skeleton.md` "원고 형식"), 생성 결과는 `docs/latest/`(커밋한다).
   GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 원고를 고치고 `FUNG_UPDATE_MANUAL=1 cargo test -p fung-cli --test manual_build`로 다시 만든 뒤 diff를 검토한다.**

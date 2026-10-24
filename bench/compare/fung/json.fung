@@ -1,0 +1,6 @@
+import fs
+import json
+rows = json.parse(fs.read("data/data.json")!)!
+ids = fold(rows, 0, (s, r) => r.active then s + r.id else s)
+tags = fold(rows, 0, (s, r) => s + len(r.tags))
+print(ids, tags, len(json.stringify(rows)) > 1000000)
