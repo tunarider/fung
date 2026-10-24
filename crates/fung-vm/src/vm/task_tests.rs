@@ -29,7 +29,10 @@ fn cancel_reaches_a_sleeping_task_and_its_children() {
     );
     assert_eq!(
         (out.as_str(), code),
-        ("Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0)
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"}) Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
+            0
+        )
     );
     assert!(start.elapsed() < Duration::from_secs(2));
 }
@@ -54,7 +57,10 @@ fn a_busy_task_hands_the_token_back() {
     );
     assert_eq!(
         (out.as_str(), code),
-        ("other ran\nErr({kind: 'cancelled})\n", 0)
+        (
+            "other ran\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
+            0
+        )
     );
     assert!(start.elapsed() < Duration::from_secs(2));
 }
@@ -87,11 +93,11 @@ fn spawn_await_and_results() {
         ),
         (
             "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  print(await(t))\n;;)",
-            "Err({kind: 'cancelled})\n",
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
         (
             "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  print(timeout(10ms, () => await(t)))\n  cancel(t)\n;;)",
-            "Err({kind: 'timeout})\n",
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
         ),
         (
             "scope(fn(s):\n  ts = for i in 0..5: spawn(s, () => i * i) ;;\n  print(ts |> map(await))\n;;)",
@@ -103,7 +109,7 @@ fn spawn_await_and_results() {
         ),
         (
             "scope(fn(s):\n  outer = spawn(s, () => scope(fn(c):\n    inner = spawn(c, () => sleep(10s))\n    await(inner)\n  ;;))\n  sleep(10ms)\n  cancel(outer)\n  print(await(outer))\n;;)",
-            "Err({kind: 'cancelled})\n",
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
         // Cancelling a finished task changes nothing.
         (
@@ -149,7 +155,10 @@ fn a_task_that_cancels_itself_stops_at_its_next_call() {
     let (out, _, code) = run(
         "(tx, ch) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn(): me = recv(ch)!; cancel(me); print(\"after self cancel\"); 1 ;;)\n  send(tx, t)\n  print(await(t))\n;;)",
     );
-    assert_eq!((out.as_str(), code), ("Err({kind: 'cancelled})\n", 0));
+    assert_eq!(
+        (out.as_str(), code),
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", 0)
+    );
 }
 
 /// The failure of a supervised task stays retrievable after a timed-out
@@ -162,7 +171,7 @@ fn an_await_timeout_does_not_hide_a_later_failure() {
     assert_eq!(
         (out.as_str(), code),
         (
-            "Err({kind: 'timeout})\nErr({kind: 'error, code: \"E0803\", message: \"later\", at: \"-e:3\"})\n",
+            "Err({kind: 'timeout, message: \"timed out after 1ms\"})\nErr({kind: 'error, code: \"E0803\", message: \"later\", at: \"-e:3\"})\n",
             0
         )
     );

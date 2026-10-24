@@ -180,7 +180,7 @@ error[E0803]: disk full
   print(&quot;released&quot;, c)
 ;;))
 print(r)</code></pre><pre class="out plain"><code>released lock
-Err({kind: 'timeout})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 20ms&quot;})</code></pre></div>
 <p><code>release</code>의 <code>sleep(30ms)</code>는 이미 지난 기한에 끊기지 않고 끝까지 돈다.</p>
 <p><strong>실패해도 되는 정리</strong></p>
 <div class="run"><pre><code>fn cleanup(path) = exec([&quot;rm&quot;, path])

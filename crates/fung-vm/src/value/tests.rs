@@ -1204,7 +1204,7 @@ fn slice_errors_name_the_index_as_written() {
         let (a, b) = (a.map(Value::Int), b.map(Value::Int));
         let e = super::index::slice(&l, a.as_ref(), b.as_ref(), inclusive).unwrap_err();
         assert_eq!(e.code, "E0507");
-        e.args[0].clone()
+        e.args[1].clone()
     };
     assert_eq!(shown(Some(-5), None, false), Arg::Int(-5));
     assert_eq!(shown(Some(0), Some(5), true), Arg::Int(5));

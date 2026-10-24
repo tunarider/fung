@@ -35,7 +35,11 @@ fn a_cancelled_command_is_terminated() {
     let start = Instant::now();
     assert_eq!(
         run("print(timeout(100ms, () => sh(\"sleep 5; echo no\")))"),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     assert!(
         start.elapsed() < Duration::from_secs(5),
@@ -253,7 +257,11 @@ fn a_cancel_is_bounded_when_a_grandchild_ignores_term() {
     let start = Instant::now();
     assert_eq!(
         run("print(timeout(300ms, () => sh(\"(trap '' TERM; exec sleep 8) & exec sleep 60\")))"),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 300ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     assert!(
         start.elapsed() < Duration::from_secs(5),

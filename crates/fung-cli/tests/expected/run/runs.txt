@@ -63,7 +63,7 @@
 -- exit: 0
 ==== tests/lang/cancel.fung
 -- stdout
-| Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})
+| Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'timeout, message: "timed out after 10ms"}) Err({kind: 'timeout, message: "timed out after 5ms"})
 -- stderr
 -- exit: 0
 ==== tests/lang/channel_stream.fung
@@ -80,7 +80,7 @@
 ==== tests/lang/channels.fung
 -- stdout
 | 15
-| Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+| Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"})
 | <sender> <receiver>
 | 0
 | 1
@@ -101,6 +101,7 @@
 -- stdout
 | [1, 2, 3] [20, 30] 10
 | [1, 2] [3] nil [(1, "a")] [1] [1, 2]
+| ["hé", "lo", "ab", "ab", ""]
 | {"2": ["aa", "cc"], "1": ["b"]} [("a", 1)] 0 {k: 1}
 | 1
 | 2
@@ -122,6 +123,7 @@
 -- stdout
 | [1, 2, 3] [1, 4, 9] []
 | [Err('no), 2]
+| [0, 10, 20, 30]
 | Err("never")
 | [0, 1, 10, 11]
 -- stderr
@@ -443,7 +445,7 @@
 ==== tests/lang/err_discard_each.fung
 -- stdout
 -- stderr
-| error[E0606]: discarded Err: {kind: 'closed}
+| error[E0606]: discarded Err: channel closed
 |   --> tests/lang/err_discard_each.fung:4:5
 |   |
 | 4 | each([1], x => send(tx, x))
@@ -717,7 +719,7 @@
 ==== tests/lang/err_import_top.fung
 -- stdout
 -- stderr
-| error[E0306]: only import, fn, type, and assignment are allowed at the top level of an imported module
+| error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
 |   --> tests/lang/_lib/noisy.fung:1:6
 |   |
 | 1 | print("side effect")
@@ -729,10 +731,10 @@
 -- stdout
 -- stderr
 | error[E0309]: name `fs` is already bound to a module
-|   --> tests/lang/err_import_twice.fung:2:1
+|   --> tests/lang/err_import_twice.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 -- exit: 2
 ==== tests/lang/err_in.fung
@@ -804,7 +806,7 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_key.fung:1 <entry>
-|  help: use get(m, key, default) or ?? for a default
+|  help: use get(m, key, default) for a default
 -- exit: 1
 ==== tests/lang/err_local_fn_later.fung
 -- stdout
@@ -1510,7 +1512,7 @@
 | 200 POST hello 1 text/plain; charset=utf-8
 | 404 no such page
 | 3
-| Err({kind: 'cancelled})
+| Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
 ==== tests/lang/ident_unicode.fung
@@ -1854,8 +1856,8 @@
 ==== tests/lang/timeouts.fung
 -- stdout
 | 2
-| Err({kind: 'timeout})
-| Err({kind: 'timeout})
+| Err({kind: 'timeout, message: "timed out after 20ms"})
+| Err({kind: 'timeout, message: "timed out after 0s"})
 -- stderr
 -- exit: 0
 ==== tests/lang/top_constants.fung
@@ -2194,12 +2196,12 @@
 -- exit: 0
 ==== -e "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(1ms, () => await(u)))\n  cancel(u)\n;;)"
 -- stdout
-| Err({kind: 'cancelled}) Err({kind: 'timeout})
+| Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'timeout, message: "timed out after 1ms"})
 -- stderr
 -- exit: 0
 ==== -e "(tx, rx) = channel(1)\nprint(scope(fn(s):\n  send(tx, spawn(s, () => sleep(10s)))\n  cancel(s)\n;;), await(recv(rx)!))"
 -- stdout
-| Err({kind: 'cancelled}) Err({kind: 'cancelled})
+| Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
 ==== -e "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))"
@@ -2214,12 +2216,12 @@
 -- exit: 0
 ==== -e "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(5ms, () => recv(never)))"
 -- stdout
-| Ok("a") Err({kind: 'closed}) Err({kind: 'closed}) Err({kind: 'timeout})
+| Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Err({kind: 'timeout, message: "timed out after 5ms"})
 -- stderr
 -- exit: 0
 ==== -e "(tx, _rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(1..=5, x => send(tx, x)))\n  cancel(t)\n  print(await(t))\n;;)"
 -- stdout
-| Err({kind: 'cancelled})
+| Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
 ==== -e "print(channel(-1))"
@@ -2246,7 +2248,7 @@
 -- exit: 3
 ==== -e "scope(fn(s):\n  t = spawn(s, () => each(1..=3, x => sleep(10s)))\n  spawn(s, fn(): sleep(10ms); cancel(t) ;;)\n  print(await(t))\n;;)"
 -- stdout
-| Err({kind: 'cancelled})
+| Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
 ==== -e "scope(fn(s):\n  spawn(s, () => sleep(10s))\n  fail(\"entry\")\n;;)"

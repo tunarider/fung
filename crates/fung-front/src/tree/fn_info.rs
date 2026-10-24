@@ -52,6 +52,11 @@ pub struct Import {
     pub names: Option<Vec<String>>,
     /// One per `names` entry, for errors.
     pub name_pos: Vec<Pos>,
+    /// Where the module name this import binds is written, and its length
+    /// in characters: the alias after `as`, else the module name or the
+    /// path string. Diagnostics about that name underline it.
+    pub bind_pos: Pos,
+    pub bind_len: usize,
 }
 
 impl fmt::Display for Import {

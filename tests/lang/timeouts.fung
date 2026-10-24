@@ -5,5 +5,5 @@ print(timeout(1s, () => 1 + 1))
 print(timeout(20ms, () => recv(rx)))
 print(timeout(0s, () => 1))
 # expect: 2
-# expect: Err({kind: 'timeout})
-# expect: Err({kind: 'timeout})
+# expect: Err({kind: 'timeout, message: "timed out after 20ms"})
+# expect: Err({kind: 'timeout, message: "timed out after 0s"})

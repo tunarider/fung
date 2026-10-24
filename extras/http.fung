@@ -73,7 +73,7 @@ fn _request(method, url, body, headers, limit):
   ;;
 ;;
 
-# The scope's own `Err({kind: 'timeout})` (no message) is the request's
+# The scope's own `Err({kind: 'timeout, …})` (its message names no URL) is the request's
 # time running out.
 fn _failed(url, e) = e.kind == 'timeout
   then Err({kind: 'timeout, message: "request to `${url}` timed out"})

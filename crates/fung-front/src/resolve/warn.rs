@@ -45,8 +45,8 @@ impl Resolver<'_> {
         let found: Vec<Diag> = self
             .globals
             .iter()
-            .filter(|g| self.import_bound.contains(*g) && !sc.used.contains(*g))
-            .map(|g| name_error("W0101", sc.pos[g], g))
+            .filter(|g| self.import_bound.contains_key(*g) && !sc.used.contains(*g))
+            .map(|g| name_error("W0101", sc.pos[g], g).span(self.import_bound[g]))
             .collect();
         self.warnings.extend(found);
     }

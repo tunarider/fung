@@ -46,7 +46,10 @@ fn a_cancelled_sleep_unwinds() {
     let start = Instant::now();
     assert_eq!(
         out("scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  print(await(t))\n;;)"),
-        ("Err({kind: 'cancelled})\n".into(), "".into())
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
+            "".into()
+        )
     );
     assert!(start.elapsed() < Duration::from_secs(1));
 }
@@ -107,14 +110,20 @@ fn a_cancelled_walk_leaves_the_rest_in_the_channel() {
         out(
             "(tx, rx) = channel(3)\neach([1, 2, 3], x => send(tx, x))\n(htx, hrx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(hrx)\n    each(rx, x => cancel(me))\n  ;;)\n  send(htx, t)\n  print(await(t), buffered(rx))\n;;)"
         ),
-        ("Err({kind: 'cancelled}) 1\n".into(), "".into())
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"}) 1\n".into(),
+            "".into()
+        )
     );
     // Cancelled while the walk waits for a value.
     assert_eq!(
         out(
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(rx, x => x))\n  blocked(rx, 1)\n  cancel(t)\n  print(await(t))\n;;)"
         ),
-        ("Err({kind: 'cancelled})\n".into(), "".into())
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
+            "".into()
+        )
     );
 }
 
@@ -134,7 +143,10 @@ fn an_outer_cancel_waits_for_the_children_then_unwinds() {
         out(
             "(_tx, rx) = channel()\nprint(timeout(20ms, () => scope(fn(s):\n  spawn(s, () => with(() => 1, r => recv(rx), fn(r): sleep(50ms); print(\"released\") ;;))\n  recv(rx)\n;;)))"
         ),
-        ("released\nErr({kind: 'timeout})\n".into(), "".into())
+        (
+            "released\nErr({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
+            "".into()
+        )
     );
 }
 
@@ -395,7 +407,10 @@ fn an_offload_wait_is_not_cut_by_a_cancel() {
     let o = with_offload_natives("print(timeout(10ms, fn(): slow_job(); len(\"x\") ;;))");
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("Err({kind: 'timeout})\n", "")
+        (
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
+            ""
+        )
     );
 }
 
@@ -410,7 +425,10 @@ fn a_late_wake_from_an_abandoned_job_is_harmless() {
     ));
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("Err({kind: 'timeout})\nOk(42)\n", "")
+        (
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\nOk(42)\n",
+            ""
+        )
     );
 }
 
@@ -431,7 +449,10 @@ fn a_queued_job_is_dropped_at_the_deadline() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("Err({kind: 'timeout})\n", "")
+        (
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n",
+            ""
+        )
     );
 }
 

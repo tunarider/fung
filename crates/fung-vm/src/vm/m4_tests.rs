@@ -219,7 +219,7 @@ fn m4_error_reports() {
         ),
         (
             "[1, 2, 3][1..=3]",
-            "error[E0507]: index 3 is out of range (length 3)",
+            "error[E0507]: slice end 3 is out of range (length 3)",
         ),
         (
             "1 in (1, 2)",

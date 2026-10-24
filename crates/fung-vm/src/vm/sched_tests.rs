@@ -211,7 +211,10 @@ fn a_queued_wait_job_is_dropped_on_cancel() {
     let pool = &s.rt.shared().pool;
     pool.set_limits(1, Duration::from_secs(10));
     s.rt.run().unwrap();
-    assert_eq!(s.out.text(), "Err({kind: 'timeout})\n");
+    assert_eq!(
+        s.out.text(),
+        "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n"
+    );
     assert!(crate::testutil::jobs::until(
         || pool.queued() == 0 && pool.idle() == 1
     ));
@@ -306,7 +309,7 @@ fn a_cancel_while_a_waited_job_runs_unwinds_after_it() {
     );
     assert_eq!(
         (out.as_str(), err.as_str()),
-        ("Err({kind: 'cancelled})\n", "")
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "")
     );
 }
 
@@ -365,7 +368,10 @@ fn a_stale_token_is_ignored() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("Err({kind: 'timeout})\n0\ny\n", "")
+        (
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n0\ny\n",
+            ""
+        )
     );
 }
 
@@ -560,6 +566,23 @@ fn a_deadlock_report_names_the_function_and_the_release() {
         "{}",
         o.err
     );
+}
+
+/// A task a built-in module spawned on a lambda of its own has no named
+/// function to report: the line names the module alone (`scope in conc`),
+/// not an empty member (`conc.`).
+#[test]
+fn a_deadlock_report_names_the_module_of_its_own_task() {
+    let o = exec(
+        "import conc\n(_tx, rx) = channel()\nscope(fn(s):\n  out = conc.fan_in(s, [rx])\n  print(recv(out))\n;;)",
+        Opts::default(),
+    );
+    assert!(
+        o.err.contains("   scope in conc at extras/conc.fung:"),
+        "{}",
+        o.err
+    );
+    assert!(!o.err.contains("conc. at"), "{}", o.err);
 }
 
 /// A task that waits to receive while it holds that channel's sending

@@ -41,6 +41,21 @@ fn proto_emit_patch_and_const_dedup() {
     let i1 = p.add_const(Const::Int(1));
     let i2 = p.add_const(Const::Float(1.0));
     assert_eq!((i0, i1, i2), (0, 0, 1));
+    // Floats compare with `==`: 0.0 and -0.0 share a slot, a NaN never does.
+    let z = p.add_const(Const::Float(0.0));
+    assert_eq!(p.add_const(Const::Float(-0.0)), z);
+    let n = p.add_const(Const::Float(f64::NAN));
+    assert_ne!(p.add_const(Const::Float(f64::NAN)), n);
+    // Same text, different types: different slots.
+    let s = p.add_const(Const::Str("a".into()));
+    let y = p.add_const(Const::Sym("a".into()));
+    assert_ne!(s, y);
+    assert_eq!(p.add_const(Const::Sym("a".into())), y);
+    assert_eq!(
+        p.add_const(Const::List(Vec::new())),
+        p.add_const(Const::List(Vec::new()))
+    );
+    assert_eq!(p.add_const(Const::Int(1)), i0);
     let at = p.emit(Op::JumpIfFalse, 0, at_pos);
     p.emit(Op::Const, i0, at_pos);
     p.patch(at, 2);

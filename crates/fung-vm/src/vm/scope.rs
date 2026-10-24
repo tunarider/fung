@@ -152,7 +152,7 @@ impl ScopeState {
     }
 
     /// `cancel(s)`: cancels the body and every child; `scope(` gives
-    /// `Err({kind: 'cancelled})`.
+    /// `Err({kind: 'cancelled, …})`.
     pub(crate) fn cancel(&self) {
         self.self_cancelled.set(true);
         self.node.cancel();
@@ -349,7 +349,7 @@ impl Cont for TaskEnd {
 /// - the body's own runtime error or exit;
 /// - a cancellation from outside, unwinding further (E0701, or E0702
 ///   after a deadlock report), even if the body had returned;
-/// - `cancel(s)`: `Err({kind: 'cancelled})`;
+/// - `cancel(s)`: `Err({kind: 'cancelled, …})`;
 /// - the body's value.
 ///
 /// The run loop calls the body (`cont.rs`); the rest happens when it
@@ -503,7 +503,7 @@ pub(crate) fn settle(
         // it, its stop keeps the place the body stopped at.
         Err(_) if outer.is_some() => r,
         _ if outer.is_some() => Err(outer.expect("checked")),
-        _ if state.self_cancelled.get() => Ok(err_kind("cancelled")),
+        _ if state.self_cancelled.get() => Ok(err_kind("cancelled", "cancelled")),
         _ => r,
     }
 }

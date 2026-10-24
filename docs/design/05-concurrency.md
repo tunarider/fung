@@ -79,7 +79,7 @@
 
 ## fung으로 작성하는 것들 (예)
 
-- `pmap(list, f, limit: n)`: 병렬 map (자기 범위 안에서; 결과는 같고, 여러 코어를 쓰는지는 구현이 정한다. open-questions "R7 스케줄러")
+- `pmap(list, f, limit: n)`: 병렬 map (자기 범위 안에서; 결과는 같고, 여러 코어를 쓰는지는 구현이 정한다. open-questions "여러 코어")
 - `fan_in(s, rxs)`: 채널 합치기
 - 워커 풀, 파이프라인, 액터식 상태 태스크
 
@@ -105,6 +105,7 @@ fn load(id) = scope(fn(s):
 - **취소는 그것이 겨눈 범위가 받는다** (Trio의 cancel scope와 같음). `cancel(s)`로 취소된 범위는 `scope(`에서 `Err({kind: 'cancelled})`를
   돌려주고 호출한 쪽은 이어 간다. 바깥에서 온 취소(바깥 범위, 태스크 취소, `exit`, 교착 보고)는 범위를 지나 계속 되감는다.
   범위가 자식을 기다리는 동안 바깥에서 취소가 와도 자식이 다 끝난 뒤에야 되감는다.
+  한꺼번에 취소된 형제 태스크들이 되감기는 순서는 정해져 있지 않다(시작 순서처럼; 2026-10-24 지금 동작을 적음). 순서에 기대는 `release`는 경쟁 상태다.
   본문이 이미 값을 돌려준 뒤(자식을 기다리는 동안)에 `cancel(s)`돼도 결과는 `Err({kind: 'cancelled})`다. 범위가 취소됐다는 사실을 언제나 보이게 한다(2026-10-18 결정).
 - 본문 자신의 런타임 에러나 `exit`은 그대로 올라간다(자식을 취소하고 기다린 뒤).
 - `supervise(f, on_fail)`: 자식의 런타임 에러가 형제·주인에게 번지지 않고 `on_fail(e)`로 간다.
@@ -127,6 +128,7 @@ fn load(id) = scope(fn(s):
     `scope` 안에서는 범위가 실패해 기다리던 쪽이 취소되므로 이 값을 볼 일이 없다.
   - 취소됨: `Err({kind: 'cancelled})`
   - 시간 초과: `Err({kind: 'timeout})`
+  - 이 문서에서 `kind`만 적은 `Err`는 패턴의 모양이다. 실제 맵에는 다른 `Err`처럼 `message`도 있다(2026-10-24): `"cancelled"`, `"timed out after 2s"`(`timeout`에 준 기간), 닫힌 채널은 `"channel closed"`.
 - `await(t)!`, `await(t)?`, `await(t) ?? v` 사용 가능.
 - `await`를 두 번 하면 같은 결과를 돌려준다 (결과는 저장된다). 닫힌 범위의 태스크를 `await`해도 저장된 결과를 준다.
 - **취소된 태스크는 실패가 아니다.** 출력 없이 끝나고 종료 코드에 영향이 없다. `await`하면 `Err({kind: 'cancelled})`.
@@ -201,7 +203,7 @@ E0708 `an atom cannot hold …`. (E0703·E0704는 0.1의 atom·3b의 에이전�
 
 ## fung으로 쓰는 것의 자리
 
-`conc` 모듈(`extras/conc.fung`, `import conc`; 06): `fan_in(s, chs)`, `pmap(xs, f, limit = 0)`(0은 제한 없음), `retry(f, times = 3, delay = 0ms)`(`f`가 `Err`를 돌려주면
+`conc` 모듈(`extras/conc.fung`, `import conc`; 06): `fan_in(s, chs)`, `pmap(xs, f, limit = 0)`(0은 제한 없음, 양수면 작업자 `limit`개가 다음 원소를 집어 감; 2026-10-24 전에는 `limit`개씩 묶음), `retry(f, times = 3, delay = 0ms)`(`f`가 `Err`를 돌려주면
 `delay`만큼 쉬고 다시, 마지막 `Err` 반환).
 
 ## 출력과 공유 상태
@@ -247,5 +249,5 @@ E0708 `an atom cannot hold …`. (E0703·E0704는 0.1의 atom·3b의 에이전�
   fung 값은 실행 스레드에만 산다(`Runtime`은 `!Send`). 처음(2026-10-15)에는 태스크마다 운영체제 스레드 하나였다(`docs/notes/R3a-runtime.md`).
   설명은 `docs/notes/R7-scheduler.md`.
 - 목표는 Erlang VM식 런타임이다: 그린 스레드, 태스크마다 힙을 따로 두고 경계에서만 값을 복사(불변 값이라 프로그램은 차이를 볼 수 없다).
-  open-questions "Rust 구현: 정한 것과 남은 일"의 R7 스케줄러.
+  open-questions "Rust 구현: 정한 것과 남은 일"의 여러 코어.
 

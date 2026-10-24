@@ -768,6 +768,34 @@ fn import_errors() {
     }
 }
 
+/// A diagnostic about the name an import binds underlines that name as
+/// written (the module, its alias or the path string), not the start of
+/// the `import` keyword.
+#[test]
+fn import_diagnostics_point_at_the_bound_name() {
+    let at = |d: &Diag| (d.code.clone(), d.pos.line, d.pos.col, d.len);
+    let warned = |src: &str| {
+        let (r, errs) = resolve_with(src, &["print"], &m5_opts(false));
+        assert!(errs.is_empty(), "{src:?}: {errs:?}");
+        r.unwrap().warnings.iter().map(at).collect::<Vec<_>>()
+    };
+    assert_eq!(warned("import fs"), [("W0101".into(), 1, 8, 2)]);
+    assert_eq!(warned("import fs as f"), [("W0101".into(), 1, 14, 1)]);
+    assert_eq!(warned("import \"./lib/x\""), [("W0101".into(), 1, 8, 9)]);
+    let failed = |src: &str| {
+        let (_, errs) = resolve_with(src, &["print"], &m5_opts(false));
+        errs.iter().map(at).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        failed("import fs\nimport fs\nprint(fs)"),
+        [("E0309".into(), 2, 8, 2)]
+    );
+    assert_eq!(
+        failed("import fs\nimport \"./lib/x\" as fs\nprint(fs)"),
+        [("E0309".into(), 2, 21, 2)]
+    );
+}
+
 #[test]
 fn shadowing_help_names_the_import_as_written() {
     // E0308's help shows how to import the module under another name,

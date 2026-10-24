@@ -75,7 +75,7 @@
 <div class="sig"><code>conc.pmap(xs, f, limit = 0)</code></div>
 <h4>설명</h4>
 <p><code>map(xs, f)</code>의 동시 실행판이다. 원소마다 태스크를 하나씩 띄워 <code>f(x)</code>를 돌리고, 모두 끝나면 결과를 <strong>입력 순서대로</strong> 리스트로 돌려준다(끝난 순서가 아니다). 자기만의 범위 안에서 돌므로, <code>pmap</code>이 돌아올 때 남은 태스크는 없다.</p>
-<p><code>limit</code>은 한꺼번에 도는 태스크의 수다. <code>0</code>(기본)이면 제한 없이 모두 한꺼번에 띄운다. 양수면 앞에서부터 <code>limit</code>개씩 묶어서 돌리고, <strong>한 묶음이 모두 끝나야 다음 묶음을 시작한다</strong>. 서버 수백 대에 접속할 때 상대 쪽이나 자기 쪽(열린 연결 수)을 지키려면 <code>limit</code>을 준다.</p>
+<p><code>limit</code>은 한꺼번에 도는 태스크의 수다. <code>0</code>(기본)이면 제한 없이 모두 한꺼번에 띄운다. 양수면 작업자 <code>limit</code>개가 원소를 앞에서부터 하나씩 집어 가고, 하나를 끝낸 작업자가 곧바로 다음 원소를 집는다. 그래서 느린 원소 하나는 자기 작업자만 붙잡고 나머지는 계속 돈다. 서버 수백 대에 접속할 때 상대 쪽이나 자기 쪽(열린 연결 수)을 지키려면 <code>limit</code>을 준다.</p>
 <p>실패는 두 가지로 다르게 다룬다.</p>
 <ul>
 <li><code>f</code>가 <strong>런타임 에러</strong>를 내면(버그, <code>!</code>가 <code>Err</code>를 만남, <code>fail</code>) 그 범위의 다른 태스크를 취소하고 <code>pmap</code> 전체가 그 에러로 실패한다.</li>
@@ -128,7 +128,7 @@ fn check(host):
   &quot;${host} ok&quot;
 ;;
 
-print(conc.pmap([&quot;a&quot;, &quot;slow&quot;, &quot;b&quot;], h =&gt; timeout(1s, () =&gt; check(h))))</code></pre><pre class="out plain"><code>[&quot;a ok&quot;, Err({kind: 'timeout}), &quot;b ok&quot;]</code></pre></div>
+print(conc.pmap([&quot;a&quot;, &quot;slow&quot;, &quot;b&quot;], h =&gt; timeout(1s, () =&gt; check(h))))</code></pre><pre class="out plain"><code>[&quot;a ok&quot;, Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), &quot;b ok&quot;]</code></pre></div>
 <p><strong>서버 여러 대에 명령 보내기</strong></p>
 <p>실제 서버가 필요해서 이 예는 검사만 한다.</p>
 <pre><code>import conc

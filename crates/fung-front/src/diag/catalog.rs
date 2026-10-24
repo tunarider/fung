@@ -149,6 +149,12 @@ const CATALOG: &[[&str; 4]] = &[
         "annotate it `list` (or not at all); `list[int]` names the elements without checking them",
     ],
     [
+        "E0229",
+        "`%s` on the right of `|>` applies to the call, not to the pipe",
+        "",
+        "put the pipe in parentheses: `(xs |> try_map(f))?`",
+    ],
+    [
         "E0301",
         "cannot find module `%s`",
         "",
@@ -165,7 +171,7 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0305", "`%s` is not a valid module name; use `as`", "", ""],
     [
         "E0306",
-        "only import, fn, type, and assignment are allowed at the top level of an imported module",
+        "only import, fn, type, test, and assignment are allowed at the top level of an imported module",
         "",
         "move the statement into a function, or into the entry file",
     ],
@@ -187,12 +193,12 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0504", "result is not a finite number", "", ""],
     ["E0505", "expected bool, got %s", "", ""],
     ["E0506", "cannot %s %s", "", ""],
-    ["E0507", "index %d is out of range (length %d)", "", ""],
+    ["E0507", "%s %d is out of range (length %d)", "", ""],
     [
         "E0508",
         "key `%s` not found",
         "",
-        "use get(m, key, default) or ?? for a default",
+        "use get(m, key, default) for a default",
     ],
     ["E0509", "cannot index a value of type %s", "", ""],
     ["E0511", "cannot slice a value of type %s", "", ""],
@@ -361,6 +367,22 @@ mod tests {
     #[test]
     fn codes_are_sorted_and_unique() {
         assert!(CATALOG.windows(2).all(|w| w[0][0] < w[1][0]));
+    }
+
+    #[test]
+    fn messages_match_what_the_language_allows() {
+        // A module's top level also takes `test` blocks (04).
+        let e0306 = super::entry("E0306").unwrap();
+        assert!(e0306.message.contains("test"), "{}", e0306.message);
+        // `m.k ?? d` stops at the missing key before `??` runs, so the
+        // help names only `get`.
+        let e0508 = super::entry("E0508").unwrap();
+        assert!(!e0508.help.contains("??"), "{}", e0508.help);
+        assert!(
+            e0508.help.contains("get(m, key, default)"),
+            "{}",
+            e0508.help
+        );
     }
 
     #[test]

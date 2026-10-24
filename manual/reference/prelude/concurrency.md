@@ -41,6 +41,19 @@ fung의 태스크는 언제나 **범위**(scope) 안에서 태어난다. [`scope
 
 fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. 태스크에 일을 줄 때는 람다가 붙잡은 값으로 주고, 결과는 [`await`](#fn-await)로 받는다. 태스크끼리 계속 값을 주고받아야 하면 **채널**(channel)을 쓴다. 한쪽 끝에서 [`send`](#fn-send)한 값을 다른 끝에서 [`recv`](#fn-recv)로 받는다. 여러 태스크가 함께 읽고 바꾸는 상태가 꼭 필요하면 [`atom`](#fn-atom)에 둔다.
 
+### 기다림의 실패 {#errs}
+
+이 페이지에서 `Err({kind: 'timeout})`처럼 `kind`만 적은 것은 패턴의 모양이다. 실제 값에는 다른 `Err`처럼 `message`도 있어서 `e.message`를 그대로 찍을 수 있다: 시간 초과는 `"timed out after 2s"`, 취소는 `"cancelled"`, 닫힌 채널은 `"channel closed"`. 맵 패턴은 적지 않은 키를 상관하지 않으므로 `Err({kind: 'timeout}) => …`으로 가른다.
+
+```fung run
+r = timeout(10ms, () => sleep(1s))
+print(r)
+match r:
+  Err({kind: 'timeout}) => print("slow")
+  _                     => print("done")
+;;
+```
+
 ## 범위와 태스크 {#tasks}
 
 :::fn scope(f)

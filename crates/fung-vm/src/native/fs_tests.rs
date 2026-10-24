@@ -1021,7 +1021,10 @@ fn a_deadline_ends_a_read_of_a_fifo() {
     release_fifo(&f);
     assert_eq!(
         (out.as_str(), err.as_str()),
-        ("Err({kind: 'timeout})\n", "")
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n",
+            ""
+        )
     );
     assert!(took < std::time::Duration::from_secs(2), "{took:?}");
 }
@@ -1038,7 +1041,7 @@ fn a_cancel_ends_a_read_of_a_fifo() {
     release_fifo(&f);
     assert_eq!(
         (out.as_str(), err.as_str()),
-        ("Err({kind: 'cancelled})\n", "")
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "")
     );
     assert!(took < std::time::Duration::from_secs(2), "{took:?}");
 }

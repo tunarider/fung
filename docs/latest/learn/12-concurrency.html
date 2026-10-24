@@ -174,9 +174,9 @@ body finished</code></pre></div>
 
 print(timeout(1s, () =&gt; answer(10ms)))
 print(timeout(1s, () =&gt; answer(5s)))</code></pre><pre class="out plain"><code>answered after 10ms
-Err({kind: 'timeout})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 1s&quot;})</code></pre></div>
 <p>기한은 그 안에서 띄운 태스크, 외부 명령, HTTP 요청(13장)까지 모두에 걸린다. 기한이 지났을 때 도는 외부 명령은 끝내 준다(먼저 SIGTERM, 2초 안에 안 끝나면 SIGKILL). 그래서 <code>ssh</code>가 걸려 버린 서버도 정해진 시간 안에 포기할 수 있다.</p>
-<div class="run"><pre><code>print(timeout(200ms, () =&gt; sh(&quot;sleep 10; echo finished&quot;)))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+<div class="run"><pre><code>print(timeout(200ms, () =&gt; sh(&quot;sleep 10; echo finished&quot;)))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p><code>pmap</code>과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 <code>Err</code>로 섞인다.</p>
 <div class="run"><pre><code>import conc
 
@@ -186,7 +186,7 @@ fn probe(host):
 ;;
 
 results = conc.pmap([&quot;web1&quot;, &quot;slow-db&quot;, &quot;web2&quot;], h =&gt; timeout(1s, () =&gt; probe(h)))
-print(results)</code></pre><pre class="out plain"><code>[Ok(&quot;web1 ok&quot;), Err({kind: 'timeout}), Ok(&quot;web2 ok&quot;)]</code></pre></div>
+print(results)</code></pre><pre class="out plain"><code>[Ok(&quot;web1 ok&quot;), Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), Ok(&quot;web2 ok&quot;)]</code></pre></div>
 <h3 id="cancel">취소</h3>
 <p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(범위)</code>는 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
 <div class="run"><pre><code>scope(fn(s):
@@ -196,7 +196,7 @@ print(results)</code></pre><pre class="out plain"><code>[Ok(&quot;web1 ok&quot;)
   ;;)
   cancel(t)
   print(await(t))
-;;)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})</code></pre></div>
+;;)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
 <h2 id="channels">채널로 주고받기</h2>
 <p>태스크끼리 값을 넘기는 통로가 <strong>채널</strong>(channel)이다. <code>channel()</code>은 두 끝을 튜플로 준다. 보내는 끝(<code>tx</code>)에는 <code>send(tx, 값)</code>을, 받는 끝(<code>rx</code>)에는 <code>recv(rx)</code>나 <code>for x in rx</code>를 쓴다. 받는 쪽은 값이 올 때까지 기다린다. <code>for x in rx</code>는 채널이 <strong>닫힐</strong> 때까지 값마다 돈다.</p>
 <p>채널은 보내는 끝의 사본이 모두 사라지면 저절로 닫힌다. 그래서 채널을 만드는 함수 안에서 보내는 끝을 생산 태스크에만 넘기면, 생산이 끝날 때 채널이 닫히고 받는 <code>for</code>도 끝난다.</p>

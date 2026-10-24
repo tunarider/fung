@@ -145,16 +145,15 @@ id,name,role,disk,note
 <li><code>fs.write(…)!</code>: 파일 전체를 덮어쓴다. 실패하면(디렉터리가 없음, 권한) <code>!</code>가 멈춘다.</li>
 </ul>
 <div class="box mistake"><b>파이프 끝의 <code>!</code></b>
-<p>후위 연산자 <code>!</code>·<code>?</code>는 <code>|&gt;</code>보다 먼저 묶인다. 그래서 <code>xs |&gt; try_map(f)!</code>는 "파이프 전체에 <code>!</code>"가 아니라 <code>try_map(f)!</code>, 곧 인자 하나로 <code>try_map</code>을 부른 것에 <code>!</code>를 붙인 것이 되어 E0407로 멈춘다. 파이프 전체의 결과에 붙이려면 괄호로 감싼다. 위 스크립트의 <code>rows = (… |&gt; try_map(json.parse))!</code>가 그 모양이다.</p>
+<p>후위 연산자 <code>!</code>·<code>?</code>는 <code>|&gt;</code>보다 먼저 묶인다. 그래서 <code>xs |&gt; try_map(f)!</code>는 "파이프 전체에 <code>!</code>"가 아니라 <code>try_map(f)!</code>, 곧 인자 하나로 <code>try_map</code>을 부른 것에 <code>!</code>를 붙인 것이 된다. 뜻과 다르므로 실행 전에 E0229로 막는다. 파이프 전체의 결과에 붙이려면 괄호로 감싼다. 위 스크립트의 <code>rows = (… |&gt; try_map(json.parse))!</code>가 그 모양이다.</p>
 <div class="run"><pre><code>nums = [&quot;1&quot;, &quot;2&quot;] |&gt; try_map(parse_int)!
-print(nums)</code></pre><pre class="out err plain" data-code="1"><code>error[E0407]: missing argument `f`
-  --&gt; example.fung:1:29
+print(nums)</code></pre><pre class="out err plain" data-code="2"><code>error[E0229]: `!` on the right of `|&gt;` applies to the call, not to the pipe
+  --&gt; example.fung:1:40
   |
 1 | nums = [&quot;1&quot;, &quot;2&quot;] |&gt; try_map(parse_int)!
-  |                             ^
+  |                                        ^
   |
- call path (innermost first):
-   example.fung:1 &lt;entry&gt;</code></pre></div>
+ help: put the pipe in parentheses: `(xs |&gt; try_map(f))?`</code></pre></div>
 </div>
 <h2 id="vary">응용</h2>
 <ul>

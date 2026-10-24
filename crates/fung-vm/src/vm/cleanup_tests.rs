@@ -48,7 +48,11 @@ fn release_runs_after_a_cancel() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("released\nErr({kind: 'cancelled})\n", "", 0)
+        (
+            "released\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
+            "",
+            0
+        )
     );
 }
 
@@ -81,7 +85,11 @@ fn a_deadline_does_not_cut_release() {
         run(
             "(_tx, never) = channel()\nprint(timeout(20ms, () => with(() => 1, r => recv(never), fn(r): sleep(50ms); print(\"released\") ;;)))"
         ),
-        ("released\nErr({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "released\nErr({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -302,7 +310,10 @@ fn a_cancel_before_use_still_releases() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("released\nErr({kind: 'cancelled})\n", "")
+        (
+            "released\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
+            ""
+        )
     );
 }
 

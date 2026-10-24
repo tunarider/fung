@@ -87,7 +87,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         imports: Vec::new(),
         module_names: HashMap::new(),
         module_specs: HashMap::new(),
-        import_bound: HashSet::new(),
+        import_bound: HashMap::new(),
         errs: Vec::new(),
         warnings: Vec::new(),
         map_arg: false,
@@ -106,7 +106,7 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
     let exports = r
         .globals
         .iter()
-        .filter(|g| !g.starts_with('_') && !g.starts_with('$') && !r.import_bound.contains(*g))
+        .filter(|g| !g.starts_with('_') && !g.starts_with('$') && !r.import_bound.contains_key(*g))
         .cloned()
         .collect();
     Ok(Resolved {
@@ -143,8 +143,9 @@ struct Resolver<'a> {
     /// How each module name's import names its module (`fs`,
     /// `"./lib/x"`), for E0308's help.
     module_specs: HashMap<String, String>,
-    /// Every name an import bound: never re-exported (04).
-    import_bound: HashSet<String>,
+    /// Every name an import bound, with the length of where it is written
+    /// (for W0101's underline): never re-exported (04).
+    import_bound: HashMap<String, usize>,
     errs: Vec<Diag>,
     warnings: Vec<Diag>,
     /// The fn about to be resolved is a lambda argument of the prelude's

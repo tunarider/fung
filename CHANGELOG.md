@@ -8,6 +8,32 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+### 바뀜(호환 깨짐)
+
+- 시간 초과·취소·닫힌 채널의 `Err` 맵에 `message`가 있다(05): `Err({kind: 'timeout, message: "timed out after 2s"})`, `Err({kind: 'cancelled, message: "cancelled"})`,
+  `Err({kind: 'closed, message: "channel closed"})`. 다른 `Err`처럼 `e.message`를 찍을 수 있다(전에는 E0508로 멈췄다).
+  패턴 `Err({kind: 'timeout}) => …`은 그대로 맞는다. 값을 `==`로 견주던 `r == Err({kind: 'timeout})`은 이제 `false`이므로 패턴이나 `r.kind`로 바꾼다.
+
+### 바뀜
+
+- **파이프 오른쪽 끝의 후위 `?`·`!`는 컴파일 에러다**(E0229, 01). 후위 연산자가 `|>`보다 세게 묶여 `xs |> try_map(f)?`가 `xs |> (try_map(f)?)`로 읽히고
+  인자 하나로 부른 `try_map`의 E0407로 멈추던 것을, 원인과 고치는 법(`(xs |> try_map(f))?`)을 알리는 진단으로 바꿨다. 우선순위는 그대로다.
+
+### 고침
+
+- 교착 보고의 "다른 태스크" 줄이 내장 모듈이 스스로 띄운 태스크에서 빈 함수 이름을 보이던 것(`scope in conc. at …`). 이제 모듈 이름만 쓴다(`scope in conc at …`).
+- `conc.pmap`의 `limit`이 "동시에 n개"가 아니라 "n개씩 묶음"으로 돌던 것. 한 묶음이 다 끝나야 다음을 시작해 느린 원소 하나가 묶음 전체를 붙잡았다. 이제 작업자 n개가 끝나는 대로 다음 원소를 집는다. 결과 순서는 그대로 입력 순서다.
+- `take`·`drop`이 문자열도 받는다: 글자 단위로 자르고 문자열을 돌려준다(`take("3f99a5c0", 7)`). 슬라이스처럼 문자열에도 되는 것과 맞췄다. 전에는 내부 이름이 드러난 `cannot map over str`(E0506)이었다.
+- `get`에 맵이 아닌 값을 주면 다른 맵 함수(`put`·`remove`)처럼 E0506(`cannot get from list`)이다. 전에는 E0803 `get expects a map, got 'list`이었고 호출 경로에 prelude 내부(`extras/prelude.fung`)가 보였다.
+- 사용하지 않는 import(W0101)와 같은 모듈 이름의 두 번째 import(E0309)의 밑줄이 줄 처음의 `import` 위에 모듈 이름 길이만큼 그려지던 것. 이제 묶인 이름이 쓰인 자리(모듈 이름, `as` 뒤 이름, 경로 문자열)를 가리킨다.
+- 슬라이스의 시작이나 끝이 길이를 넘을 때의 E0507이 인덱스 에러와 같은 문구(`index 5 is out of range`)라 무엇이 틀렸는지 덜 분명하던 것: `slice end 5 is out of range (length 2)`. 번호는 그대로다.
+- E0306의 문구가 라이브러리 파일 최상위에 오는 `test`를 빠뜨리던 것: `only import, fn, type, test, and assignment are allowed …`.
+- E0508(없는 키)의 도움말이 통하지 않는 `??`를 권하던 것. `cfg.port ?? 5432`는 키를 읽는 순간 멈추므로 도움말은 `get(m, key, default)`만 말한다.
+
+### 성능
+
+- 컴파일러의 상수 표가 같은 상수를 해시 색인으로 찾는다. 전에는 넣을 때마다 앞의 상수와 모두 견주어 상수 수의 제곱으로 느려졌다(서로 다른 상수 32,768개를 컴파일하는 데 1.3초, 전역 65,537개를 정의하는 REPL 입력 하나에 5초 → 0.6초·0.4초, 릴리스 빌드).
+
 ## [0.4.0] - 2026-10-20
 
 ### 바뀜(호환 깨짐)

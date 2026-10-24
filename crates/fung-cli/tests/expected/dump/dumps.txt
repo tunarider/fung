@@ -2684,12 +2684,12 @@
 -- exit: 0
 ==== dump ast extras/conc.fung
 -- stdout
-| (program (fn fan_in(s, rxs) (block (assign (ptuple (pbind tx) (pbind rx)) (call channel (call len rxs))) (call spawn s (fn () (block (assign (pwild) (call scope (fn (inner) (block (call each rxs (fn (r) (block (call spawn inner (fn () (block (then (call _forward r tx) (call cancel inner) (nil)))))))))))) (call close tx)))) rx)) (fn _forward(r, tx) (block (match (call recv r) (arm (ptag Ok (pbind v)) (nil) (block (then (call is_ok (call send tx v)) (call _forward r tx) true))) (arm (pwild) (nil) (block false))))) (fn pmap(xs, f, limit=?) 0 (block (assign items (pipe xs (call map (fn (x) (block x))))) (then (binary or (binary <= limit 0) (binary >= limit (call len items))) (call _pmap_all items f) (call _pmap_chunks items f limit (list))))) (fn _pmap_all(items, f) (block (call scope (fn (s) (block (pipe (pipe items (call map (fn (x) (block (call spawn s (fn () (block (call f x)))))))) (call map await))))))) (fn _pmap_chunks(items, f, limit, acc) (block (then (call is_empty items) acc (call _pmap_chunks (call drop items limit) f limit (binary + acc (call _pmap_all (call take items limit) f)))))) (fn retry(f, times=?, delay=?) 3 0s (block (assign r (call f)) (then (binary or (binary <= times 1) (unary not (call is_err r))) r (call _retry_after f (binary - times 1) delay)))) (fn _retry_after(f, times, delay) (block (call sleep delay) (call retry f (named times times) (named delay delay)))))
+| (program (fn fan_in(s, rxs) (block (assign (ptuple (pbind tx) (pbind rx)) (call channel (call len rxs))) (call spawn s (fn () (block (assign (pwild) (call scope (fn (inner) (block (call each rxs (fn (r) (block (call spawn inner (fn () (block (then (call _forward r tx) (call cancel inner) (nil)))))))))))) (call close tx)))) rx)) (fn _forward(r, tx) (block (match (call recv r) (arm (ptag Ok (pbind v)) (nil) (block (then (call is_ok (call send tx v)) (call _forward r tx) true))) (arm (pwild) (nil) (block false))))) (fn pmap(xs, f, limit=?) 0 (block (assign items (pipe xs (call map (fn (x) (block x))))) (then (binary or (binary <= limit 0) (binary >= limit (call len items))) (call _pmap_all items f) (call _pmap_workers items f limit)))) (fn _pmap_all(items, f) (block (call scope (fn (s) (block (pipe (pipe items (call map (fn (x) (block (call spawn s (fn () (block (call f x)))))))) (call map await))))))) (fn _pmap_workers(items, f, limit) (block (assign (ptuple (pbind jobs_tx) (pbind jobs)) (call channel (call len items))) (call each (range .. 0 (call len items)) (fn (i) (block (call send jobs_tx i)))) (call close jobs_tx) (assign done (call scope (fn (s) (block (pipe (pipe (range .. 0 limit) (call map (fn ((pwild)) (block (call spawn s (fn () (block (call _work items f jobs (list))))))))) (call map await)))))) (pipe (pipe (pipe done flatten) (call sort_by (fn ((ptuple (pbind i) (pwild))) (block i)))) (call map (fn ((ptuple (pwild) (pbind v))) (block v)))))) (fn _work(items, f, jobs, acc) (block (match (call recv jobs) (arm (ptag Ok (pbind i)) (nil) (block (call _work items f jobs (binary + acc (list (tuple i (call f (index items i)))))))) (arm (pwild) (nil) (block acc))))) (fn retry(f, times=?, delay=?) 3 0s (block (assign r (call f)) (then (binary or (binary <= times 1) (unary not (call is_err r))) r (call _retry_after f (binary - times 1) delay)))) (fn _retry_after(f, times, delay) (block (call sleep delay) (call retry f (named times times) (named delay delay)))))
 -- stderr
 -- exit: 0
 ==== dump core extras/conc.fung
 -- stdout
-| (do (let (global 0) (fn fan_in(s, rxs) (do (let (ptuple (pbind (local 2)) (pbind (local 3))) (call (prelude channel) (call (prelude len) (local 1)))) (call (prelude spawn) (local 0) (fn () (do (let (pwild) (call (prelude scope) (fn (inner) (do (call (prelude each) (captured 0) (fn (r) (do (call (prelude spawn) (captured 0) (fn () (do (if (call (global 1) (captured 0) (captured 1)) (call (prelude cancel) (captured 2)) (nil)))))))))))) (call (prelude close) (captured 1))))) (local 3)))) (let (global 1) (fn _forward(r, tx) (do (do (let (local 2) (call (prelude recv) (local 0))) (match (local 2) (arm (ptag Ok (pbind (local 3))) (nil) (do (if (call (prelude is_ok) (call (prelude send) (local 1) (local 3))) (call (self) (local 0) (local 1)) true))) (arm (pwild) (nil) (do false))))))) (let (global 2) (fn pmap(xs, f, limit=?) 0 (do (let (local 3) (call (prelude map) (local 0) (fn (x) (do (local 0))))) (if (if (op <= (local 2) 0) true (op bool (op >= (local 2) (call (prelude len) (local 3))))) (call (global 3) (local 3) (local 1)) (call (global 4) (local 3) (local 1) (local 2) (list)))))) (let (global 3) (fn _pmap_all(items, f) (do (call (prelude scope) (fn (s) (do (call (prelude map) (call (prelude map) (captured 0) (fn (x) (do (call (prelude spawn) (captured 0) (fn () (do (call (captured 0) (captured 1)))))))) (prelude await)))))))) (let (global 4) (fn _pmap_chunks(items, f, limit, acc) (do (if (call (prelude is_empty) (local 0)) (local 3) (call (self) (call (prelude drop) (local 0) (local 2)) (local 1) (local 2) (op + (local 3) (call (global 3) (call (prelude take) (local 0) (local 2)) (local 1)))))))) (let (global 5) (fn retry(f, times=?, delay=?) 3 0s (do (let (local 3) (call (local 0))) (if (if (op <= (local 1) 1) true (op bool (op not (call (prelude is_err) (local 3))))) (local 3) (call (global 6) (local 0) (op - (local 1) 1) (local 2)))))) (let (global 6) (fn _retry_after(f, times, delay) (do (call (prelude sleep) (local 2)) (call (global 5) (local 0) (named times (local 1)) (named delay (local 2)))))))
+| (do (let (global 0) (fn fan_in(s, rxs) (do (let (ptuple (pbind (local 2)) (pbind (local 3))) (call (prelude channel) (call (prelude len) (local 1)))) (call (prelude spawn) (local 0) (fn () (do (let (pwild) (call (prelude scope) (fn (inner) (do (call (prelude each) (captured 0) (fn (r) (do (call (prelude spawn) (captured 0) (fn () (do (if (call (global 1) (captured 0) (captured 1)) (call (prelude cancel) (captured 2)) (nil)))))))))))) (call (prelude close) (captured 1))))) (local 3)))) (let (global 1) (fn _forward(r, tx) (do (do (let (local 2) (call (prelude recv) (local 0))) (match (local 2) (arm (ptag Ok (pbind (local 3))) (nil) (do (if (call (prelude is_ok) (call (prelude send) (local 1) (local 3))) (call (self) (local 0) (local 1)) true))) (arm (pwild) (nil) (do false))))))) (let (global 2) (fn pmap(xs, f, limit=?) 0 (do (let (local 3) (call (prelude map) (local 0) (fn (x) (do (local 0))))) (if (if (op <= (local 2) 0) true (op bool (op >= (local 2) (call (prelude len) (local 3))))) (call (global 3) (local 3) (local 1)) (call (global 4) (local 3) (local 1) (local 2)))))) (let (global 3) (fn _pmap_all(items, f) (do (call (prelude scope) (fn (s) (do (call (prelude map) (call (prelude map) (captured 0) (fn (x) (do (call (prelude spawn) (captured 0) (fn () (do (call (captured 0) (captured 1)))))))) (prelude await)))))))) (let (global 4) (fn _pmap_workers(items, f, limit) (do (let (ptuple (pbind (local 3)) (pbind (local 4))) (call (prelude channel) (call (prelude len) (local 0)))) (call (prelude each) (range .. 0 (call (prelude len) (local 0))) (fn (i) (do (call (prelude send) (captured 0) (local 0))))) (call (prelude close) (local 3)) (let (local 5) (call (prelude scope) (fn (s) (do (call (prelude map) (call (prelude map) (range .. 0 (captured 0)) (fn ($a1) (do (let (pwild) (local 0)) (call (prelude spawn) (captured 0) (fn () (do (call (global 5) (captured 0) (captured 1) (captured 2) (list)))))))) (prelude await)))))) (call (prelude map) (call (prelude sort_by) (call (prelude flatten) (local 5)) (fn ($a2) (do (let (ptuple (pbind (local 1)) (pwild)) (local 0)) (local 1)))) (fn ($a3) (do (let (ptuple (pwild) (pbind (local 1))) (local 0)) (local 1))))))) (let (global 5) (fn _work(items, f, jobs, acc) (do (do (let (local 4) (call (prelude recv) (local 2))) (match (local 4) (arm (ptag Ok (pbind (local 5))) (nil) (do (call (self) (local 0) (local 1) (local 2) (op + (local 3) (list (tuple (local 5) (call (local 1) (index (local 0) (local 5))))))))) (arm (pwild) (nil) (do (local 3)))))))) (let (global 6) (fn retry(f, times=?, delay=?) 3 0s (do (let (local 3) (call (local 0))) (if (if (op <= (local 1) 1) true (op bool (op not (call (prelude is_err) (local 3))))) (local 3) (call (global 7) (local 0) (op - (local 1) 1) (local 2)))))) (let (global 7) (fn _retry_after(f, times, delay) (do (call (prelude sleep) (local 2)) (call (global 6) (local 0) (named times (local 1)) (named delay (local 2)))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode extras/conc.fung
@@ -2703,14 +2703,16 @@
 | 0005  35:1  STOREGLOBAL  2    ; pmap
 | 0006  42:1  CLOSURE      3    ; _pmap_all
 | 0007  42:1  STOREGLOBAL  3    ; _pmap_all
-| 0008  44:1  CLOSURE      4    ; _pmap_chunks
-| 0009  44:1  STOREGLOBAL  4    ; _pmap_chunks
-| 0010  49:1  CLOSURE      5    ; retry
-| 0011  49:1  STOREGLOBAL  5    ; retry
-| 0012  54:1  CLOSURE      6    ; _retry_after
-| 0013  54:1  STOREGLOBAL  6    ; _retry_after
-| 0014  54:1  CONST        0    ; nil
-| 0015  1:68  RETURN
+| 0008  47:1  CLOSURE      4    ; _pmap_workers
+| 0009  47:1  STOREGLOBAL  4    ; _pmap_workers
+| 0010  55:1  CLOSURE      5    ; _work
+| 0011  55:1  STOREGLOBAL  5    ; _work
+| 0012  62:1  CLOSURE      6    ; retry
+| 0013  62:1  STOREGLOBAL  6    ; retry
+| 0014  67:1  CLOSURE      7    ; _retry_after
+| 0015  67:1  STOREGLOBAL  7    ; _retry_after
+| 0016  67:1  CONST        0    ; nil
+| 0017  1:68  RETURN
 |
 | == fan_in ==
 | 0000  15:14 CONST        0    ; <fn channel>
@@ -2826,14 +2828,13 @@
 | 0024  38:20 LOADLOCAL    3
 | 0025  38:27 LOADLOCAL    1
 | 0026  38:19 TAILCALL     2    ; 2 positional, 0 named
-| 0027  38:5  JUMP         34
+| 0027  38:5  JUMP         33
 | 0028  39:10 LOADGLOBAL   4
-| 0029  39:23 LOADLOCAL    3
-| 0030  39:30 LOADLOCAL    1
-| 0031  39:33 LOADLOCAL    2
-| 0032  39:40 LIST         0
-| 0033  39:22 TAILCALL     4    ; 4 positional, 0 named
-| 0034  35:1  RETURN
+| 0029  39:24 LOADLOCAL    3
+| 0030  39:31 LOADLOCAL    1
+| 0031  39:34 LOADLOCAL    2
+| 0032  39:23 TAILCALL     3    ; 3 positional, 0 named
+| 0033  35:1  RETURN
 |
 | == <lambda> ==
 | 0000  36:26 LOADLOCAL    0
@@ -2868,80 +2869,179 @@
 | 0002  42:71 TAILCALL     1    ; 1 positional, 0 named
 | 0003  42:67 RETURN
 |
-| == _pmap_chunks ==
-| 0000  44:41 CONST        0    ; <fn is_empty>
-| 0001  44:50 LOADLOCAL    0
-| 0002  44:49 CALL         1    ; 1 positional, 0 named
-| 0003  44:49 JUMPIFFALSE  6
-| 0004  44:62 LOADLOCAL    3
-| 0005  44:57 JUMP         23
-| 0006  45:8  LOADSELF
-| 0007  45:21 CONST        1    ; <fn drop>
-| 0008  45:26 LOADLOCAL    0
-| 0009  45:33 LOADLOCAL    2
-| 0010  45:25 CALL         2    ; 2 positional, 0 named
-| 0011  45:41 LOADLOCAL    1
-| 0012  45:44 LOADLOCAL    2
-| 0013  45:51 LOADLOCAL    3
-| 0014  45:57 LOADGLOBAL   3
-| 0015  45:67 CONST        2    ; <fn take>
-| 0016  45:72 LOADLOCAL    0
-| 0017  45:79 LOADLOCAL    2
-| 0018  45:71 CALL         2    ; 2 positional, 0 named
-| 0019  45:87 LOADLOCAL    1
-| 0020  45:66 CALL         2    ; 2 positional, 0 named
-| 0021  45:55 ADD
-| 0022  45:20 TAILCALL     4    ; 4 positional, 0 named
-| 0023  44:39 RETURN
+| == _pmap_workers ==
+| 0000  48:21 CONST        0    ; <fn channel>
+| 0001  48:29 CONST        1    ; <fn len>
+| 0002  48:33 LOADLOCAL    0
+| 0003  48:32 CALL         1    ; 1 positional, 0 named
+| 0004  48:28 CALL         1    ; 1 positional, 0 named
+| 0005  48:3  MATCHORFAIL  0    ; ($3, $4)
+| 0006  49:3  CONST        2    ; <fn each>
+| 0007  49:8  CONST        3    ; 0
+| 0008  49:11 CONST        1    ; <fn len>
+| 0009  49:15 LOADLOCAL    0
+| 0010  49:14 CALL         1    ; 1 positional, 0 named
+| 0011  49:9  RANGE        0
+| 0012  49:23 CLOSURE      0    ; <lambda>
+| 0013  49:7  CALL         2    ; 2 positional, 0 named
+| 0014  49:3  POP
+| 0015  50:3  CONST        4    ; <fn close>
+| 0016  50:9  LOADLOCAL    3
+| 0017  50:8  CALL         1    ; 1 positional, 0 named
+| 0018  50:3  POP
+| 0019  50:3  CLEARLOCAL   3
+| 0020  51:10 CONST        5    ; <fn scope>
+| 0021  51:16 CLOSURE      1    ; <lambda>
+| 0022  51:15 CALL         1    ; 1 positional, 0 named
+| 0023  51:3  STORELOCAL   5
+| 0024  51:3  CLEARLOCAL   0
+| 0025  51:3  CLEARLOCAL   1
+| 0026  51:3  CLEARLOCAL   2
+| 0027  51:3  CLEARLOCAL   4
+| 0028  52:48 CONST        6    ; <fn map>
+| 0029  52:22 CONST        7    ; <fn sort_by>
+| 0030  52:11 CONST        8    ; <fn flatten>
+| 0031  52:3  LOADLOCAL    5
+| 0032  52:8  CALL         1    ; 1 positional, 0 named
+| 0033  52:30 CLOSURE      2    ; <lambda>
+| 0034  52:29 CALL         2    ; 2 positional, 0 named
+| 0035  52:52 CLOSURE      3    ; <lambda>
+| 0036  52:51 TAILCALL     2    ; 2 positional, 0 named
+| 0037  47:1  RETURN
+|
+| == <lambda> ==
+| 0000  49:28 CONST        0    ; <fn send>
+| 0001  49:33 LOADCAPTURED 0
+| 0002  49:42 LOADLOCAL    0
+| 0003  49:32 TAILCALL     2    ; 2 positional, 0 named
+| 0004  49:25 RETURN
+|
+| == <lambda> ==
+| 0000  51:88 CONST        0    ; <fn map>
+| 0001  51:33 CONST        0    ; <fn map>
+| 0002  51:21 CONST        1    ; 0
+| 0003  51:24 LOADCAPTURED 0
+| 0004  51:22 RANGE        0
+| 0005  51:37 CLOSURE      0    ; <lambda>
+| 0006  51:36 CALL         2    ; 2 positional, 0 named
+| 0007  51:92 CONST        2    ; <fn await>
+| 0008  51:91 TAILCALL     2    ; 2 positional, 0 named
+| 0009  51:18 RETURN
+|
+| == <lambda> ==
+| 0000  51:37 LOADLOCAL    0
+| 0001  51:37 MATCHORFAIL  0    ; _
+| 0002  51:37 CLEARLOCAL   0
+| 0003  51:42 CONST        0    ; <fn spawn>
+| 0004  51:48 LOADCAPTURED 0
+| 0005  51:51 CLOSURE      0    ; <lambda>
+| 0006  51:47 TAILCALL     2    ; 2 positional, 0 named
+| 0007  51:39 RETURN
+|
+| == <lambda> ==
+| 0000  51:57 LOADGLOBAL   5
+| 0001  51:63 LOADCAPTURED 0
+| 0002  51:70 LOADCAPTURED 1
+| 0003  51:73 LOADCAPTURED 2
+| 0004  51:79 LIST         0
+| 0005  51:62 TAILCALL     4    ; 4 positional, 0 named
+| 0006  51:54 RETURN
+|
+| == <lambda> ==
+| 0000  52:31 LOADLOCAL    0
+| 0001  52:31 MATCHORFAIL  0    ; ($1, _)
+| 0002  52:31 CLEARLOCAL   0
+| 0003  52:42 LOADLOCAL    1
+| 0004  52:39 RETURN
+|
+| == <lambda> ==
+| 0000  52:53 LOADLOCAL    0
+| 0001  52:53 MATCHORFAIL  0    ; (_, $1)
+| 0002  52:53 CLEARLOCAL   0
+| 0003  52:64 LOADLOCAL    1
+| 0004  52:61 RETURN
+|
+| == _work ==
+| 0000  55:39 CONST        0    ; <fn recv>
+| 0001  55:44 LOADLOCAL    2
+| 0002  55:43 CALL         1    ; 1 positional, 0 named
+| 0003  55:33 STORELOCAL   4
+| 0004  55:33 LOADLOCAL    4
+| 0005  56:3  MATCH        0    ; Ok($5)
+| 0006  56:3  JUMPIFFALSE  23
+| 0007  56:12 LOADSELF
+| 0008  56:18 LOADLOCAL    0
+| 0009  56:25 LOADLOCAL    1
+| 0010  56:28 LOADLOCAL    2
+| 0011  56:34 LOADLOCAL    3
+| 0012  56:42 LOADLOCAL    5
+| 0013  56:45 LOADLOCAL    1
+| 0014  56:47 LOADLOCAL    0
+| 0015  56:53 LOADLOCAL    5
+| 0016  56:52 INDEX
+| 0017  56:46 CALL         1    ; 1 positional, 0 named
+| 0018  56:41 TUPLE        2
+| 0019  56:40 LIST         1
+| 0020  56:38 ADD
+| 0021  56:17 TAILCALL     4    ; 4 positional, 0 named
+| 0022  56:3  JUMP         30
+| 0023  55:33 LOADLOCAL    4
+| 0024  57:3  MATCH        1    ; _
+| 0025  57:3  JUMPIFFALSE  28
+| 0026  57:12 LOADLOCAL    3
+| 0027  57:3  JUMP         30
+| 0028  55:33 LOADLOCAL    4
+| 0029  55:33 NOMATCH
+| 0030  55:31 RETURN
 |
 | == retry ==
-| 0000  49:1  LOADLOCAL    1
-| 0001  49:1  JUMPIFSET    4
-| 0002  49:21 CONST        0    ; 3
-| 0003  49:1  STORELOCAL   1
-| 0004  49:1  LOADLOCAL    2
-| 0005  49:1  JUMPIFSET    8
-| 0006  49:32 CONST        1    ; 0s
-| 0007  49:1  STORELOCAL   2
-| 0008  50:7  LOADLOCAL    0
-| 0009  50:8  CALL         0    ; 0 positional, 0 named
-| 0010  50:3  STORELOCAL   3
-| 0011  51:3  LOADLOCAL    1
-| 0012  51:12 CONST        2    ; 1
-| 0013  51:9  LE
-| 0014  51:9  JUMPIFFALSE  17
-| 0015  51:14 CONST        3    ; true
-| 0016  51:14 JUMP         22
-| 0017  51:21 CONST        4    ; <fn is_err>
-| 0018  51:28 LOADLOCAL    3
-| 0019  51:27 CALL         1    ; 1 positional, 0 named
-| 0020  51:17 NOT
-| 0021  51:17 CHECKBOOL
-| 0022  51:14 JUMPIFFALSE  25
-| 0023  51:36 LOADLOCAL    3
-| 0024  51:31 JUMP         32
-| 0025  51:43 LOADGLOBAL   6
-| 0026  51:56 LOADLOCAL    0
-| 0027  51:59 LOADLOCAL    1
-| 0028  51:67 CONST        2    ; 1
-| 0029  51:65 SUB
-| 0030  51:70 LOADLOCAL    2
-| 0031  51:55 TAILCALL     3    ; 3 positional, 0 named
-| 0032  49:1  RETURN
+| 0000  62:1  LOADLOCAL    1
+| 0001  62:1  JUMPIFSET    4
+| 0002  62:21 CONST        0    ; 3
+| 0003  62:1  STORELOCAL   1
+| 0004  62:1  LOADLOCAL    2
+| 0005  62:1  JUMPIFSET    8
+| 0006  62:32 CONST        1    ; 0s
+| 0007  62:1  STORELOCAL   2
+| 0008  63:7  LOADLOCAL    0
+| 0009  63:8  CALL         0    ; 0 positional, 0 named
+| 0010  63:3  STORELOCAL   3
+| 0011  64:3  LOADLOCAL    1
+| 0012  64:12 CONST        2    ; 1
+| 0013  64:9  LE
+| 0014  64:9  JUMPIFFALSE  17
+| 0015  64:14 CONST        3    ; true
+| 0016  64:14 JUMP         22
+| 0017  64:21 CONST        4    ; <fn is_err>
+| 0018  64:28 LOADLOCAL    3
+| 0019  64:27 CALL         1    ; 1 positional, 0 named
+| 0020  64:17 NOT
+| 0021  64:17 CHECKBOOL
+| 0022  64:14 JUMPIFFALSE  25
+| 0023  64:36 LOADLOCAL    3
+| 0024  64:31 JUMP         32
+| 0025  64:43 LOADGLOBAL   7
+| 0026  64:56 LOADLOCAL    0
+| 0027  64:59 LOADLOCAL    1
+| 0028  64:67 CONST        2    ; 1
+| 0029  64:65 SUB
+| 0030  64:70 LOADLOCAL    2
+| 0031  64:55 TAILCALL     3    ; 3 positional, 0 named
+| 0032  62:1  RETURN
 |
 | == _retry_after ==
-| 0000  55:3  CONST        0    ; <fn sleep>
-| 0001  55:9  LOADLOCAL    2
-| 0002  55:8  CALL         1    ; 1 positional, 0 named
-| 0003  55:3  POP
-| 0004  56:3  LOADGLOBAL   5
-| 0005  56:9  LOADLOCAL    0
-| 0006  56:12 CONST        1    ; 'times
-| 0007  56:19 LOADLOCAL    1
-| 0008  56:26 CONST        2    ; 'delay
-| 0009  56:33 LOADLOCAL    2
-| 0010  56:8  TAILCALL     8193    ; 1 positional, 2 named
-| 0011  54:1  RETURN
+| 0000  68:3  CONST        0    ; <fn sleep>
+| 0001  68:9  LOADLOCAL    2
+| 0002  68:8  CALL         1    ; 1 positional, 0 named
+| 0003  68:3  POP
+| 0004  69:3  LOADGLOBAL   6
+| 0005  69:9  LOADLOCAL    0
+| 0006  69:12 CONST        1    ; 'times
+| 0007  69:19 LOADLOCAL    1
+| 0008  69:26 CONST        2    ; 'delay
+| 0009  69:33 LOADLOCAL    2
+| 0010  69:8  TAILCALL     8193    ; 1 positional, 2 named
+| 0011  67:1  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast extras/fs.fung
@@ -3045,7 +3145,7 @@
 -- exit: 2
 ==== dump ast extras/prelude.fung
 -- stdout
-| (program (import _native.process as _p) (import _native.range as _r) (assign exec (field exec _p)) (assign sh (field sh _p)) (assign env (field env _p)) (fn is_empty(x) (block (then (binary == (call type_of x) 'range) (binary == (call (field last _r) x) (nil)) (binary == (call len x) 0)))) (fn sum(xs) (block (call fold xs 0 (fn (acc, x) (block (binary + acc x)))))) (fn _list(xs) (block (then (binary == (call type_of xs) 'list) xs (call map xs (fn (x) (block x)))))) (fn _start(r) (block (call find r (fn (x) (block true))))) (fn _receive(rx, n, acc) (block (then (binary <= n 0) acc (match (call recv rx) (arm (ptag Ok (pbind x)) (nil) (block (call _receive rx (binary - n 1) (binary + acc (list x))))) (arm (ptag Err (pwild)) (nil) (block acc)))))) (fn min(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary < x best) x best))))))) (fn max(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary > x best) x best))))))) (fn reverse(xs) (block (assign ys (call _list xs)) (assign n (call len ys)) (for (pbind i) (range .. 0 n) (block (index ys (binary - (binary - n 1) i)))))) (fn range(a, b=?) (nil) (block (then (binary == b (nil)) (range .. 0 a) (range .. a b)))) (fn zip(xs, ys) (block (assign left (call _list xs)) (assign right (call _list ys)) (assign n (call min (list (call len left) (call len right)))) (for (pbind i) (range .. 0 n) (block (tuple (index left i) (index right i)))))) (fn first(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call _start xs))) (nil)) (assign ys (then (binary == (call type_of xs) 'receiver) (call _receive xs 1 (list)) (call _list xs))) (then (call is_empty ys) (nil) (index ys 0)))) (fn last(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call (field last _r) xs))) (nil)) (assign ys (call _list xs)) (then (call is_empty ys) (nil) (index ys (unary - 1))))) (fn _clamp(verb, n, size) (block (if (binary != (call type_of n) 'int) (block (call fail (interp verb " expects an int count, got " (call type_of n)))) (nil)) (then (binary < n 0) 0 (then (binary > n size) size n)))) (fn take(xs, n) (block (if (binary == (call type_of xs) 'receiver) (block (return (call _receive xs (call _clamp "take" n n) (list)))) (nil)) (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs 0 (call _clamp "take" n n)) (fn (x) (block x))))) (nil)) (assign ys (call _list xs)) (slice ys (nil) (call _clamp "take" n (call len ys))))) (fn drop(xs, n) (block (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs (call _clamp "drop" n n)) (fn (x) (block x))))) (nil)) (assign ys (call _list xs)) (slice ys (call _clamp "drop" n (call len ys)) (nil)))) (fn contains(c, x) (block (binary in x c))) (fn keys(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pbind k) (pwild))) (block k)))))) (fn values(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pwild) (pbind v))) (block v)))))) (fn get(m, k, default=?) (nil) (block (match (call type_of m) (arm (psym map) (nil) (block (then (binary in k m) (index m k) default))) (arm (pbind t) (nil) (block (call fail (interp "get expects a map, got " t))))))) (fn _padding(s, n, pad) (block (match (tuple pad (binary - n (call len s))) (arm (ptuple (plit "") (pwild)) (nil) (block (call fail "pad must be a non-empty string"))) (arm (ptuple (pwild) (pbind missing)) (binary <= missing 0) (block "")) (arm (ptuple (pwild) (pbind missing)) (nil) (block (slice (call repeat pad (binary + (call int (binary / missing (call len pad))) 1)) (nil) missing)))))) (fn pad_left(s, n, pad=?) " " (block (binary + (call _padding s n pad) s))) (fn pad_right(s, n, pad=?) " " (block (binary + s (call _padding s n pad)))) (fn _chomp(s, suffix) (block (then (call ends_with s suffix) (slice s (nil) (binary - (call len s) (call len suffix))) s))) (fn lines(s) (block (match s (arm (plit "") (nil) (block (list))) (arm (pwild) (nil) (block (pipe (call split (call _chomp s "\n") "\n") (call map (fn (l) (block (call _chomp l "\r")))))))))) (fn is_ok(x) (block (binary == (call type_of x) 'Ok))) (fn is_err(x) (block (binary == (call type_of x) 'Err))) (fn until(x, f, pred) (block (then (call pred x) x (call until (call f x) f pred)))) (fn iterate(x, f, n) (block (then (binary <= n 0) x (call iterate (call f x) f (binary - n 1))))))
+| (program (import _native.process as _p) (import _native.range as _r) (assign exec (field exec _p)) (assign sh (field sh _p)) (assign env (field env _p)) (fn is_empty(x) (block (then (binary == (call type_of x) 'range) (binary == (call (field last _r) x) (nil)) (binary == (call len x) 0)))) (fn sum(xs) (block (call fold xs 0 (fn (acc, x) (block (binary + acc x)))))) (fn _list(xs) (block (then (binary == (call type_of xs) 'list) xs (call map xs (fn (x) (block x)))))) (fn _start(r) (block (call find r (fn (x) (block true))))) (fn _receive(rx, n, acc) (block (then (binary <= n 0) acc (match (call recv rx) (arm (ptag Ok (pbind x)) (nil) (block (call _receive rx (binary - n 1) (binary + acc (list x))))) (arm (ptag Err (pwild)) (nil) (block acc)))))) (fn min(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary < x best) x best))))))) (fn max(xs) (block (assign ys (call _list xs)) (then (call is_empty ys) (nil) (call fold (slice ys 1 (nil)) (index ys 0) (fn (best, x) (block (then (binary > x best) x best))))))) (fn reverse(xs) (block (assign ys (call _list xs)) (assign n (call len ys)) (for (pbind i) (range .. 0 n) (block (index ys (binary - (binary - n 1) i)))))) (fn range(a, b=?) (nil) (block (then (binary == b (nil)) (range .. 0 a) (range .. a b)))) (fn zip(xs, ys) (block (assign left (call _list xs)) (assign right (call _list ys)) (assign n (call min (list (call len left) (call len right)))) (for (pbind i) (range .. 0 n) (block (tuple (index left i) (index right i)))))) (fn first(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call _start xs))) (nil)) (assign ys (then (binary == (call type_of xs) 'receiver) (call _receive xs 1 (list)) (call _list xs))) (then (call is_empty ys) (nil) (index ys 0)))) (fn last(xs) (block (if (binary == (call type_of xs) 'range) (block (return (call (field last _r) xs))) (nil)) (assign ys (call _list xs)) (then (call is_empty ys) (nil) (index ys (unary - 1))))) (fn _clamp(verb, n, size) (block (if (binary != (call type_of n) 'int) (block (call fail (interp verb " expects an int count, got " (call type_of n)))) (nil)) (then (binary < n 0) 0 (then (binary > n size) size n)))) (fn take(xs, n) (block (if (binary == (call type_of xs) 'receiver) (block (return (call _receive xs (call _clamp "take" n n) (list)))) (nil)) (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs 0 (call _clamp "take" n n)) (fn (x) (block x))))) (nil)) (if (binary == (call type_of xs) 'str) (block (return (slice xs (nil) (call _clamp "take" n (call len xs))))) (nil)) (assign ys (call _list xs)) (slice ys (nil) (call _clamp "take" n (call len ys))))) (fn drop(xs, n) (block (if (binary == (call type_of xs) 'range) (block (return (call map (call (field slice _r) xs (call _clamp "drop" n n)) (fn (x) (block x))))) (nil)) (if (binary == (call type_of xs) 'str) (block (return (slice xs (call _clamp "drop" n (call len xs)) (nil)))) (nil)) (assign ys (call _list xs)) (slice ys (call _clamp "drop" n (call len ys)) (nil)))) (fn contains(c, x) (block (binary in x c))) (fn keys(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pbind k) (pwild))) (block k)))))) (fn values(m) (block (pipe (call pairs m) (call map (fn ((ptuple (pwild) (pbind v))) (block v)))))) (fn _padding(s, n, pad) (block (match (tuple pad (binary - n (call len s))) (arm (ptuple (plit "") (pwild)) (nil) (block (call fail "pad must be a non-empty string"))) (arm (ptuple (pwild) (pbind missing)) (binary <= missing 0) (block "")) (arm (ptuple (pwild) (pbind missing)) (nil) (block (slice (call repeat pad (binary + (call int (binary / missing (call len pad))) 1)) (nil) missing)))))) (fn pad_left(s, n, pad=?) " " (block (binary + (call _padding s n pad) s))) (fn pad_right(s, n, pad=?) " " (block (binary + s (call _padding s n pad)))) (fn _chomp(s, suffix) (block (then (call ends_with s suffix) (slice s (nil) (binary - (call len s) (call len suffix))) s))) (fn lines(s) (block (match s (arm (plit "") (nil) (block (list))) (arm (pwild) (nil) (block (pipe (call split (call _chomp s "\n") "\n") (call map (fn (l) (block (call _chomp l "\r")))))))))) (fn is_ok(x) (block (binary == (call type_of x) 'Ok))) (fn is_err(x) (block (binary == (call type_of x) 'Err))) (fn until(x, f, pred) (block (then (call pred x) x (call until (call f x) f pred)))) (fn iterate(x, f, n) (block (then (binary <= n 0) x (call iterate (call f x) f (binary - n 1))))))
 -- stderr
 -- exit: 0
 ==== dump core extras/prelude.fung
@@ -4587,12 +4687,12 @@
 -- exit: 0
 ==== dump ast tests/lang/collections.fung
 -- stdout
-| (program (call print (pipe (list 3 1 2) sort) (pipe (pipe (list 1 2 3) (call filter (fn (x) (block (binary > x 1))))) (call map (fn (x) (block (binary * x 10))))) (call fold (range ..= 1 4) 0 (fn (a, x) (block (binary + a x))))) (call print (call take (list 1 2 3) 2) (call drop (list 1 2 3) 2) (call first (list)) (call zip (list 1) (list "a")) (call unique (list 1 1)) (call flatten (list (list 1) (list 2)))) (call print (call group_by (list "aa" "b" "cc") (fn (s) (block (call str (call len s))))) (call pairs (map (entry a 1))) (call get (map) "x" 0) (call put (map) "k" 1)) (call each (list 1 2) (fn (x) (block (call print x)))))
+| (program (call print (pipe (list 3 1 2) sort) (pipe (pipe (list 1 2 3) (call filter (fn (x) (block (binary > x 1))))) (call map (fn (x) (block (binary * x 10))))) (call fold (range ..= 1 4) 0 (fn (a, x) (block (binary + a x))))) (call print (call take (list 1 2 3) 2) (call drop (list 1 2 3) 2) (call first (list)) (call zip (list 1) (list "a")) (call unique (list 1 1)) (call flatten (list (list 1) (list 2)))) (call print (list (call take "héllo" 2) (call drop "héllo" 3) (call take "ab" 5) (call drop "ab" (unary - 1)) (call take "" 1))) (call print (call group_by (list "aa" "b" "cc") (fn (s) (block (call str (call len s))))) (call pairs (map (entry a 1))) (call get (map) "x" 0) (call put (map) "k" 1)) (call each (list 1 2) (fn (x) (block (call print x)))))
 -- stderr
 -- exit: 0
 ==== dump core tests/lang/collections.fung
 -- stdout
-| (do (call (prelude print) (call (prelude sort) (list 3 1 2)) (call (prelude map) (call (prelude filter) (list 1 2 3) (fn (x) (do (op > (local 0) 1)))) (fn (x) (do (op * (local 0) 10)))) (call (prelude fold) (range ..= 1 4) 0 (fn (a, x) (do (op + (local 0) (local 1)))))) (call (prelude print) (call (prelude take) (list 1 2 3) 2) (call (prelude drop) (list 1 2 3) 2) (call (prelude first) (list)) (call (prelude zip) (list 1) (list "a")) (call (prelude unique) (list 1 1)) (call (prelude flatten) (list (list 1) (list 2)))) (call (prelude print) (call (prelude group_by) (list "aa" "b" "cc") (fn (s) (do (call (prelude str) (call (prelude len) (local 0)))))) (call (prelude pairs) (map (entry a 1))) (call (prelude get) (map) "x" 0) (call (prelude put) (map) "k" 1)) (call (prelude each) (list 1 2) (fn (x) (do (call (prelude print) (local 0))))))
+| (do (call (prelude print) (call (prelude sort) (list 3 1 2)) (call (prelude map) (call (prelude filter) (list 1 2 3) (fn (x) (do (op > (local 0) 1)))) (fn (x) (do (op * (local 0) 10)))) (call (prelude fold) (range ..= 1 4) 0 (fn (a, x) (do (op + (local 0) (local 1)))))) (call (prelude print) (call (prelude take) (list 1 2 3) 2) (call (prelude drop) (list 1 2 3) 2) (call (prelude first) (list)) (call (prelude zip) (list 1) (list "a")) (call (prelude unique) (list 1 1)) (call (prelude flatten) (list (list 1) (list 2)))) (call (prelude print) (list (call (prelude take) "héllo" 2) (call (prelude drop) "héllo" 3) (call (prelude take) "ab" 5) (call (prelude drop) "ab" (op - 1)) (call (prelude take) "" 1))) (call (prelude print) (call (prelude group_by) (list "aa" "b" "cc") (fn (s) (do (call (prelude str) (call (prelude len) (local 0)))))) (call (prelude pairs) (map (entry a 1))) (call (prelude get) (map) "x" 0) (call (prelude put) (map) "k" 1)) (call (prelude each) (list 1 2) (fn (x) (do (call (prelude print) (local 0))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode tests/lang/collections.fung
@@ -4643,34 +4743,59 @@
 | 0042  3:6   CALL         6    ; 6 positional, 0 named
 | 0043  3:1   POP
 | 0044  5:1   CONST        0    ; <fn print>
-| 0045  5:7   CONST        21    ; <fn group_by>
-| 0046  5:16  CONST        22    ; ["aa", "b", "cc"]
-| 0047  5:35  CLOSURE      3    ; <lambda>
-| 0048  5:15  CALL         2    ; 2 positional, 0 named
-| 0049  5:54  CONST        23    ; <fn pairs>
-| 0050  5:61  CONST        24    ; "a"
-| 0051  5:64  CONST        7    ; 1
-| 0052  5:60  MAP          1
-| 0053  5:59  CALL         1    ; 1 positional, 0 named
-| 0054  5:69  CONST        25    ; <fn get>
-| 0055  5:73  MAP          0
-| 0056  5:77  CONST        26    ; "x"
-| 0057  5:82  CONST        9    ; 0
-| 0058  5:72  CALL         3    ; 3 positional, 0 named
-| 0059  5:86  CONST        27    ; <fn put>
-| 0060  5:90  MAP          0
-| 0061  5:94  CONST        28    ; "k"
-| 0062  5:99  CONST        7    ; 1
-| 0063  5:89  CALL         3    ; 3 positional, 0 named
-| 0064  5:6   CALL         4    ; 4 positional, 0 named
-| 0065  5:1   POP
-| 0066  7:1   CONST        29    ; <fn each>
-| 0067  7:6   CONST        30    ; [1, 2]
-| 0068  7:14  CLOSURE      4    ; <lambda>
-| 0069  7:5   CALL         2    ; 2 positional, 0 named
-| 0070  7:1   POP
-| 0071  7:1   CONST        31    ; nil
-| 0072  1:1   RETURN
+| 0045  5:8   CONST        10    ; <fn take>
+| 0046  5:13  CONST        21    ; "héllo"
+| 0047  5:22  CONST        11    ; 2
+| 0048  5:12  CALL         2    ; 2 positional, 0 named
+| 0049  5:26  CONST        12    ; <fn drop>
+| 0050  5:31  CONST        21    ; "héllo"
+| 0051  5:40  CONST        22    ; 3
+| 0052  5:30  CALL         2    ; 2 positional, 0 named
+| 0053  5:44  CONST        10    ; <fn take>
+| 0054  5:49  CONST        23    ; "ab"
+| 0055  5:55  CONST        24    ; 5
+| 0056  5:48  CALL         2    ; 2 positional, 0 named
+| 0057  5:59  CONST        12    ; <fn drop>
+| 0058  5:64  CONST        23    ; "ab"
+| 0059  5:71  CONST        7    ; 1
+| 0060  5:70  NEG
+| 0061  5:63  CALL         2    ; 2 positional, 0 named
+| 0062  5:75  CONST        10    ; <fn take>
+| 0063  5:80  CONST        25    ; ""
+| 0064  5:84  CONST        7    ; 1
+| 0065  5:79  CALL         2    ; 2 positional, 0 named
+| 0066  5:7   LIST         5
+| 0067  5:6   CALL         1    ; 1 positional, 0 named
+| 0068  5:1   POP
+| 0069  7:1   CONST        0    ; <fn print>
+| 0070  7:7   CONST        26    ; <fn group_by>
+| 0071  7:16  CONST        27    ; ["aa", "b", "cc"]
+| 0072  7:35  CLOSURE      3    ; <lambda>
+| 0073  7:15  CALL         2    ; 2 positional, 0 named
+| 0074  7:54  CONST        28    ; <fn pairs>
+| 0075  7:61  CONST        29    ; "a"
+| 0076  7:64  CONST        7    ; 1
+| 0077  7:60  MAP          1
+| 0078  7:59  CALL         1    ; 1 positional, 0 named
+| 0079  7:69  CONST        30    ; <fn get>
+| 0080  7:73  MAP          0
+| 0081  7:77  CONST        31    ; "x"
+| 0082  7:82  CONST        9    ; 0
+| 0083  7:72  CALL         3    ; 3 positional, 0 named
+| 0084  7:86  CONST        32    ; <fn put>
+| 0085  7:90  MAP          0
+| 0086  7:94  CONST        33    ; "k"
+| 0087  7:99  CONST        7    ; 1
+| 0088  7:89  CALL         3    ; 3 positional, 0 named
+| 0089  7:6   CALL         4    ; 4 positional, 0 named
+| 0090  7:1   POP
+| 0091  9:1   CONST        34    ; <fn each>
+| 0092  9:6   CONST        35    ; [1, 2]
+| 0093  9:14  CLOSURE      4    ; <lambda>
+| 0094  9:5   CALL         2    ; 2 positional, 0 named
+| 0095  9:1   POP
+| 0096  9:1   CONST        36    ; nil
+| 0097  1:1   RETURN
 |
 | == <lambda> ==
 | 0000  1:51  LOADLOCAL    0
@@ -4691,18 +4816,18 @@
 | 0003  1:101 RETURN
 |
 | == <lambda> ==
-| 0000  5:40  CONST        0    ; <fn str>
-| 0001  5:44  CONST        1    ; <fn len>
-| 0002  5:48  LOADLOCAL    0
-| 0003  5:47  CALL         1    ; 1 positional, 0 named
-| 0004  5:43  TAILCALL     1    ; 1 positional, 0 named
-| 0005  5:37  RETURN
+| 0000  7:40  CONST        0    ; <fn str>
+| 0001  7:44  CONST        1    ; <fn len>
+| 0002  7:48  LOADLOCAL    0
+| 0003  7:47  CALL         1    ; 1 positional, 0 named
+| 0004  7:43  TAILCALL     1    ; 1 positional, 0 named
+| 0005  7:37  RETURN
 |
 | == <lambda> ==
-| 0000  7:19  CONST        0    ; <fn print>
-| 0001  7:25  LOADLOCAL    0
-| 0002  7:24  TAILCALL     1    ; 1 positional, 0 named
-| 0003  7:16  RETURN
+| 0000  9:19  CONST        0    ; <fn print>
+| 0001  9:25  LOADLOCAL    0
+| 0002  9:24  TAILCALL     1    ; 1 positional, 0 named
+| 0003  9:16  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/compare_exact.fung
@@ -4812,12 +4937,12 @@
 -- exit: 0
 ==== dump ast tests/lang/conc_helpers.fung
 -- stdout
-| (program (import conc) (assign (ptuple (pbind a_tx) (pbind a)) (call channel 2)) (assign (ptuple (pbind b_tx) (pbind b)) (call channel 2)) (call each (list 1 2) (fn (x) (block (call send a_tx x)))) (call close a_tx) (call send b_tx 3) (call close b_tx) (call print (call scope (fn (s) (block (pipe (pipe (call (field fan_in conc) s (list a b)) (call map (fn (x) (block x)))) sort)))) (call (field pmap conc) (list 1 2 3) (fn (x) (block (binary * x x))) (named limit 2)) (call (field pmap conc) (list) (fn (x) (block x)))) (call print (call (field pmap conc) (list 1 2) (fn (x) (block (then (binary == x 1) (tag Err 'no) x))))) (call print (call (field retry conc) (fn () (block (tag Err "never"))) (named times 2))) (fn numbers(s, from, n) (block (assign (ptuple (pbind tx) (pbind rx)) (call channel)) (call spawn s (fn () (block (call each (range .. from (binary + from n)) (fn (i) (block (call send tx i))))))) rx)) (call print (call scope (fn (s) (block (pipe (pipe (call (field fan_in conc) s (list (call numbers s 0 2) (call numbers s 10 2))) (call map (fn (x) (block x)))) sort))))))
+| (program (import conc) (assign (ptuple (pbind a_tx) (pbind a)) (call channel 2)) (assign (ptuple (pbind b_tx) (pbind b)) (call channel 2)) (call each (list 1 2) (fn (x) (block (call send a_tx x)))) (call close a_tx) (call send b_tx 3) (call close b_tx) (call print (call scope (fn (s) (block (pipe (pipe (call (field fan_in conc) s (list a b)) (call map (fn (x) (block x)))) sort)))) (call (field pmap conc) (list 1 2 3) (fn (x) (block (binary * x x))) (named limit 2)) (call (field pmap conc) (list) (fn (x) (block x)))) (call print (call (field pmap conc) (list 1 2) (fn (x) (block (then (binary == x 1) (tag Err 'no) x))))) (assign (ptuple (pbind go_tx) (pbind go)) (call channel 1)) (assign waits (fn (i) (block (if (binary == i 0) (block (assign (pwild) (call recv go))) (nil)) (if (binary == i 2) (block (assign (pwild) (call send go_tx 1))) (nil)) (binary * i 10)))) (call print (call (field pmap conc) (list 0 1 2 3) waits (named limit 2))) (call print (call (field retry conc) (fn () (block (tag Err "never"))) (named times 2))) (fn numbers(s, from, n) (block (assign (ptuple (pbind tx) (pbind rx)) (call channel)) (call spawn s (fn () (block (call each (range .. from (binary + from n)) (fn (i) (block (call send tx i))))))) rx)) (call print (call scope (fn (s) (block (pipe (pipe (call (field fan_in conc) s (list (call numbers s 0 2) (call numbers s 10 2))) (call map (fn (x) (block x)))) sort))))))
 -- stderr
 -- exit: 0
 ==== dump core tests/lang/conc_helpers.fung
 -- stdout
-| (do (import "conc" (global 0)) (let (global 1) (fn numbers(s, from, n) (do (let (ptuple (pbind (local 3)) (pbind (local 4))) (call (prelude channel))) (call (prelude spawn) (local 0) (fn () (do (call (prelude each) (range .. (captured 0) (op + (captured 0) (captured 1))) (fn (i) (do (call (prelude send) (captured 0) (local 0)))))))) (local 4)))) (let (ptuple (pbind (global 2)) (pbind (global 3))) (call (prelude channel) 2)) (let (ptuple (pbind (global 4)) (pbind (global 5))) (call (prelude channel) 2)) (call (prelude each) (list 1 2) (fn (x) (do (call (prelude send) (captured 0) (local 0))))) (call (prelude close) (global 2)) (call (prelude send) (global 4) 3) (call (prelude close) (global 4)) (call (prelude print) (call (prelude scope) (fn (s) (do (call (prelude sort) (call (prelude map) (call (field fan_in (global 0)) (local 0) (list (captured 0) (captured 1))) (fn (x) (do (local 0)))))))) (call (field pmap (global 0)) (list 1 2 3) (fn (x) (do (op * (local 0) (local 0)))) (named limit 2)) (call (field pmap (global 0)) (list) (fn (x) (do (local 0))))) (call (prelude print) (call (field pmap (global 0)) (list 1 2) (fn (x) (do (if (op == (local 0) 1) (tag Err 'no) (local 0)))))) (call (prelude print) (call (field retry (global 0)) (fn () (do (tag Err "never"))) (named times 2))) (call (prelude print) (call (prelude scope) (fn (s) (do (call (prelude sort) (call (prelude map) (call (field fan_in (global 0)) (local 0) (list (call (global 1) (local 0) 0 2) (call (global 1) (local 0) 10 2))) (fn (x) (do (local 0))))))))))
+| (do (import "conc" (global 0)) (let (global 1) (fn numbers(s, from, n) (do (let (ptuple (pbind (local 3)) (pbind (local 4))) (call (prelude channel))) (call (prelude spawn) (local 0) (fn () (do (call (prelude each) (range .. (captured 0) (op + (captured 0) (captured 1))) (fn (i) (do (call (prelude send) (captured 0) (local 0)))))))) (local 4)))) (let (ptuple (pbind (global 2)) (pbind (global 3))) (call (prelude channel) 2)) (let (ptuple (pbind (global 4)) (pbind (global 5))) (call (prelude channel) 2)) (call (prelude each) (list 1 2) (fn (x) (do (call (prelude send) (captured 0) (local 0))))) (call (prelude close) (global 2)) (call (prelude send) (global 4) 3) (call (prelude close) (global 4)) (call (prelude print) (call (prelude scope) (fn (s) (do (call (prelude sort) (call (prelude map) (call (field fan_in (global 0)) (local 0) (list (captured 0) (captured 1))) (fn (x) (do (local 0)))))))) (call (field pmap (global 0)) (list 1 2 3) (fn (x) (do (op * (local 0) (local 0)))) (named limit 2)) (call (field pmap (global 0)) (list) (fn (x) (do (local 0))))) (call (prelude print) (call (field pmap (global 0)) (list 1 2) (fn (x) (do (if (op == (local 0) 1) (tag Err 'no) (local 0)))))) (let (ptuple (pbind (global 6)) (pbind (global 7))) (call (prelude channel) 1)) (let (global 8) (fn (i) (do (if (op == (local 0) 0) (do (let (pwild) (call (prelude recv) (captured 0)))) (nil)) (if (op == (local 0) 2) (do (let (pwild) (call (prelude send) (captured 1) 1))) (nil)) (op * (local 0) 10)))) (call (prelude print) (call (field pmap (global 0)) (list 0 1 2 3) (global 8) (named limit 2))) (call (prelude print) (call (field retry (global 0)) (fn () (do (tag Err "never"))) (named times 2))) (call (prelude print) (call (prelude scope) (fn (s) (do (call (prelude sort) (call (prelude map) (call (field fan_in (global 0)) (local 0) (list (call (global 1) (local 0) 0 2) (call (global 1) (local 0) 10 2))) (fn (x) (do (local 0))))))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode tests/lang/conc_helpers.fung
@@ -4825,8 +4950,8 @@
 | == <main> ==
 | 0000  2:1   IMPORT       0    ; conc
 | 0001  2:1   STOREGLOBAL  0    ; conc
-| 0002  19:1  CLOSURE      0    ; numbers
-| 0003  19:1  STOREGLOBAL  1    ; numbers
+| 0002  29:1  CLOSURE      0    ; numbers
+| 0003  29:1  STOREGLOBAL  1    ; numbers
 | 0004  4:13  CONST        1    ; <fn channel>
 | 0005  4:21  CONST        2    ; 2
 | 0006  4:20  CALL         1    ; 1 positional, 0 named
@@ -4879,57 +5004,73 @@
 | 0053  12:16 CALL         2    ; 2 positional, 0 named
 | 0054  12:6  CALL         1    ; 1 positional, 0 named
 | 0055  12:1  POP
-| 0056  14:1  CONST        8    ; <fn print>
-| 0057  14:7  LOADGLOBAL   0    ; conc
-| 0058  14:11 FIELD        13    ; retry
-| 0059  14:18 CLOSURE      6    ; <lambda>
-| 0060  14:38 CONST        14    ; 'times
-| 0061  14:45 CONST        2    ; 2
-| 0062  14:17 CALL         4097    ; 1 positional, 1 named
-| 0063  14:6  CALL         1    ; 1 positional, 0 named
-| 0064  14:1  POP
-| 0065  25:1  CONST        8    ; <fn print>
-| 0066  25:7  CONST        9    ; <fn scope>
-| 0067  25:13 CLOSURE      7    ; <lambda>
-| 0068  25:12 CALL         1    ; 1 positional, 0 named
-| 0069  25:6  CALL         1    ; 1 positional, 0 named
-| 0070  25:1  POP
-| 0071  25:1  CONST        15    ; nil
-| 0072  1:52  RETURN
+| 0056  16:15 CONST        1    ; <fn channel>
+| 0057  16:23 CONST        13    ; 1
+| 0058  16:22 CALL         1    ; 1 positional, 0 named
+| 0059  16:1  MATCHORFAIL  2    ; (@6, @7)
+| 0060  17:9  CLOSURE      6    ; <lambda>
+| 0061  17:1  STOREGLOBAL  8    ; waits
+| 0062  22:1  CONST        8    ; <fn print>
+| 0063  22:7  LOADGLOBAL   0    ; conc
+| 0064  22:11 FIELD        10    ; pmap
+| 0065  22:17 CONST        14    ; [0, 1, 2, 3]
+| 0066  22:31 LOADGLOBAL   8    ; waits
+| 0067  22:38 CONST        12    ; 'limit
+| 0068  22:45 CONST        2    ; 2
+| 0069  22:16 CALL         4098    ; 2 positional, 1 named
+| 0070  22:6  CALL         1    ; 1 positional, 0 named
+| 0071  22:1  POP
+| 0072  24:1  CONST        8    ; <fn print>
+| 0073  24:7  LOADGLOBAL   0    ; conc
+| 0074  24:11 FIELD        15    ; retry
+| 0075  24:18 CLOSURE      7    ; <lambda>
+| 0076  24:38 CONST        16    ; 'times
+| 0077  24:45 CONST        2    ; 2
+| 0078  24:17 CALL         4097    ; 1 positional, 1 named
+| 0079  24:6  CALL         1    ; 1 positional, 0 named
+| 0080  24:1  POP
+| 0081  35:1  CONST        8    ; <fn print>
+| 0082  35:7  CONST        9    ; <fn scope>
+| 0083  35:13 CLOSURE      8    ; <lambda>
+| 0084  35:12 CALL         1    ; 1 positional, 0 named
+| 0085  35:6  CALL         1    ; 1 positional, 0 named
+| 0086  35:1  POP
+| 0087  35:1  CONST        17    ; nil
+| 0088  1:52  RETURN
 |
 | == numbers ==
-| 0000  20:14 CONST        0    ; <fn channel>
-| 0001  20:21 CALL         0    ; 0 positional, 0 named
-| 0002  20:3  MATCHORFAIL  0    ; ($3, $4)
-| 0003  21:3  CONST        1    ; <fn spawn>
-| 0004  21:9  LOADLOCAL    0
-| 0005  21:12 CLOSURE      0    ; <lambda>
-| 0006  21:8  CALL         2    ; 2 positional, 0 named
-| 0007  21:3  POP
-| 0008  21:3  CLEARLOCAL   0
-| 0009  21:3  CLEARLOCAL   1
-| 0010  21:3  CLEARLOCAL   2
-| 0011  21:3  CLEARLOCAL   3
-| 0012  22:3  LOADLOCAL    4
-| 0013  19:1  RETURN
+| 0000  30:14 CONST        0    ; <fn channel>
+| 0001  30:21 CALL         0    ; 0 positional, 0 named
+| 0002  30:3  MATCHORFAIL  0    ; ($3, $4)
+| 0003  31:3  CONST        1    ; <fn spawn>
+| 0004  31:9  LOADLOCAL    0
+| 0005  31:12 CLOSURE      0    ; <lambda>
+| 0006  31:8  CALL         2    ; 2 positional, 0 named
+| 0007  31:3  POP
+| 0008  31:3  CLEARLOCAL   0
+| 0009  31:3  CLEARLOCAL   1
+| 0010  31:3  CLEARLOCAL   2
+| 0011  31:3  CLEARLOCAL   3
+| 0012  32:3  LOADLOCAL    4
+| 0013  29:1  RETURN
 |
 | == <lambda> ==
-| 0000  21:18 CONST        0    ; <fn each>
-| 0001  21:23 LOADCAPTURED 0
-| 0002  21:29 LOADCAPTURED 0
-| 0003  21:36 LOADCAPTURED 1
-| 0004  21:34 ADD
-| 0005  21:27 RANGE        0
-| 0006  21:39 CLOSURE      0    ; <lambda>
-| 0007  21:22 TAILCALL     2    ; 2 positional, 0 named
-| 0008  21:15 RETURN
+| 0000  31:18 CONST        0    ; <fn each>
+| 0001  31:23 LOADCAPTURED 0
+| 0002  31:29 LOADCAPTURED 0
+| 0003  31:36 LOADCAPTURED 1
+| 0004  31:34 ADD
+| 0005  31:27 RANGE        0
+| 0006  31:39 CLOSURE      0    ; <lambda>
+| 0007  31:22 TAILCALL     2    ; 2 positional, 0 named
+| 0008  31:15 RETURN
 |
 | == <lambda> ==
-| 0000  21:44 CONST        0    ; <fn send>
-| 0001  21:49 LOADCAPTURED 0
-| 0002  21:53 LOADLOCAL    0
-| 0003  21:48 TAILCALL     2    ; 2 positional, 0 named
-| 0004  21:41 RETURN
+| 0000  31:44 CONST        0    ; <fn send>
+| 0001  31:49 LOADCAPTURED 0
+| 0002  31:53 LOADLOCAL    0
+| 0003  31:48 TAILCALL     2    ; 2 positional, 0 named
+| 0004  31:41 RETURN
 |
 | == <lambda> ==
 | 0000  6:19  CONST        0    ; <fn send>
@@ -4980,37 +5121,68 @@
 | 0009  12:27 RETURN
 |
 | == <lambda> ==
-| 0000  14:24 CONST        0    ; 'Err
-| 0001  14:28 CONST        1    ; "never"
-| 0002  14:24 TAG          1    ; 1 args
-| 0003  14:21 RETURN
+| 0000  18:6  LOADLOCAL    0
+| 0001  18:11 CONST        0    ; 0
+| 0002  18:8  EQ
+| 0003  18:8  JUMPIFFALSE  10
+| 0004  18:18 CONST        1    ; <fn recv>
+| 0005  18:23 LOADCAPTURED 0
+| 0006  18:22 CALL         1    ; 1 positional, 0 named
+| 0007  18:14 MATCHORFAIL  0    ; _
+| 0008  18:14 CONST        2    ; nil
+| 0009  18:3  JUMP         11
+| 0010  18:3  CONST        2    ; nil
+| 0011  18:3  POP
+| 0012  19:6  LOADLOCAL    0
+| 0013  19:11 CONST        3    ; 2
+| 0014  19:8  EQ
+| 0015  19:8  JUMPIFFALSE  23
+| 0016  19:18 CONST        4    ; <fn send>
+| 0017  19:23 LOADCAPTURED 1
+| 0018  19:30 CONST        5    ; 1
+| 0019  19:22 CALL         2    ; 2 positional, 0 named
+| 0020  19:14 MATCHORFAIL  1    ; _
+| 0021  19:14 CONST        2    ; nil
+| 0022  19:3  JUMP         24
+| 0023  19:3  CONST        2    ; nil
+| 0024  19:3  POP
+| 0025  20:3  LOADLOCAL    0
+| 0026  20:7  CONST        6    ; 10
+| 0027  20:5  MUL
+| 0028  17:9  RETURN
 |
 | == <lambda> ==
-| 0000  25:90 CONST        0    ; <fn sort>
-| 0001  25:75 CONST        1    ; <fn map>
-| 0002  25:18 LOADGLOBAL   0
-| 0003  25:22 FIELD        2    ; fan_in
-| 0004  25:30 LOADLOCAL    0
-| 0005  25:34 LOADGLOBAL   1
-| 0006  25:42 LOADLOCAL    0
-| 0007  25:45 CONST        3    ; 0
-| 0008  25:48 CONST        4    ; 2
-| 0009  25:41 CALL         3    ; 3 positional, 0 named
-| 0010  25:52 LOADGLOBAL   1
-| 0011  25:60 LOADLOCAL    0
-| 0012  25:63 CONST        5    ; 10
-| 0013  25:67 CONST        4    ; 2
-| 0014  25:59 CALL         3    ; 3 positional, 0 named
-| 0015  25:33 LIST         2
-| 0016  25:29 CALL         2    ; 2 positional, 0 named
-| 0017  25:79 CLOSURE      0    ; <lambda>
-| 0018  25:78 CALL         2    ; 2 positional, 0 named
-| 0019  25:87 TAILCALL     1    ; 1 positional, 0 named
-| 0020  25:15 RETURN
+| 0000  24:24 CONST        0    ; 'Err
+| 0001  24:28 CONST        1    ; "never"
+| 0002  24:24 TAG          1    ; 1 args
+| 0003  24:21 RETURN
 |
 | == <lambda> ==
-| 0000  25:84 LOADLOCAL    0
-| 0001  25:81 RETURN
+| 0000  35:90 CONST        0    ; <fn sort>
+| 0001  35:75 CONST        1    ; <fn map>
+| 0002  35:18 LOADGLOBAL   0
+| 0003  35:22 FIELD        2    ; fan_in
+| 0004  35:30 LOADLOCAL    0
+| 0005  35:34 LOADGLOBAL   1
+| 0006  35:42 LOADLOCAL    0
+| 0007  35:45 CONST        3    ; 0
+| 0008  35:48 CONST        4    ; 2
+| 0009  35:41 CALL         3    ; 3 positional, 0 named
+| 0010  35:52 LOADGLOBAL   1
+| 0011  35:60 LOADLOCAL    0
+| 0012  35:63 CONST        5    ; 10
+| 0013  35:67 CONST        4    ; 2
+| 0014  35:59 CALL         3    ; 3 positional, 0 named
+| 0015  35:33 LIST         2
+| 0016  35:29 CALL         2    ; 2 positional, 0 named
+| 0017  35:79 CLOSURE      0    ; <lambda>
+| 0018  35:78 CALL         2    ; 2 positional, 0 named
+| 0019  35:87 TAILCALL     1    ; 1 positional, 0 named
+| 0020  35:15 RETURN
+|
+| == <lambda> ==
+| 0000  35:84 LOADLOCAL    0
+| 0001  35:81 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/continuation.fung
@@ -6804,7 +6976,7 @@
 ==== dump core tests/lang/err_import_top.fung
 -- stdout
 -- stderr
-| error[E0306]: only import, fn, type, and assignment are allowed at the top level of an imported module
+| error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
 |   --> tests/lang/_lib/noisy.fung:1:6
 |   |
 | 1 | print("side effect")
@@ -6815,7 +6987,7 @@
 ==== dump bytecode tests/lang/err_import_top.fung
 -- stdout
 -- stderr
-| error[E0306]: only import, fn, type, and assignment are allowed at the top level of an imported module
+| error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
 |   --> tests/lang/_lib/noisy.fung:1:6
 |   |
 | 1 | print("side effect")
@@ -6832,20 +7004,20 @@
 -- stdout
 -- stderr
 | error[E0309]: name `fs` is already bound to a module
-|   --> tests/lang/err_import_twice.fung:2:1
+|   --> tests/lang/err_import_twice.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 -- exit: 2
 ==== dump bytecode tests/lang/err_import_twice.fung
 -- stdout
 -- stderr
 | error[E0309]: name `fs` is already bound to a module
-|   --> tests/lang/err_import_twice.fung:2:1
+|   --> tests/lang/err_import_twice.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 -- exit: 2
 ==== dump ast tests/lang/err_in.fung

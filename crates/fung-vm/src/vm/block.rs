@@ -38,7 +38,7 @@ use crate::value::Value;
 pub(crate) const YIELD_EVERY: u32 = 1_000;
 
 /// E0701 `task cancelled`, the internal error a cancelled task unwinds
-/// with (never printed: its handle turns it into `Err({kind: 'cancelled})`).
+/// with (never printed: its handle turns it into `Err({kind: 'cancelled, …})`).
 #[cold]
 pub(crate) fn cancelled(pos: Pos) -> Stop {
     Stop::Error(Box::new(error("E0701", pos, Vec::new())))

@@ -507,8 +507,8 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |     ^
   |
  call path (innermost first):
-   extras/prelude.fung:79 _clamp
-   extras/prelude.fung:87 take
+   extras/prelude.fung:80 _clamp
+   extras/prelude.fung:89 take
    -e:2       <entry>
 "
     );
@@ -525,7 +525,7 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:138 until
+   extras/prelude.fung:134 until
    -e:1       <entry>
 "
     );
@@ -556,8 +556,8 @@ fn prelude_frames_and_imported_files_keep_their_names() {
   |                  ^
   |
  call path (innermost first):
-   extras/prelude.fung:79 _clamp
-   extras/prelude.fung:87 take
+   extras/prelude.fung:80 _clamp
+   extras/prelude.fung:89 take
    {d}/lib.fung:1 cut
    {d}/main.fung:3 <entry>
 "

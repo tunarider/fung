@@ -148,7 +148,7 @@ print(r)</code></pre><pre class="out err plain" data-code="1"><code>error[E0603]
   |
  call path (innermost first):
    example.fung:3 &lt;lambda&gt;
-   extras/conc.fung:50 retry
+   extras/conc.fung:63 retry
    example.fung:3 &lt;entry&gt;</code></pre></div>
 <p>재시도할 함수는 <code>Err</code>를 그대로 돌려주게 쓰고(<code>() =&gt; exec([&quot;false&quot;])</code>), <code>!</code>는 재시도가 다 끝난 결과에 붙인다.</p>
 </div>

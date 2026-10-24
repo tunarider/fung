@@ -7,4 +7,4 @@ scope(fn(s):
   print(await(t), timeout(10ms, () => await(u)), timeout(5ms, () => recv(rx)))
   cancel(u)
 ;;)
-# expect: Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})
+# expect: Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'timeout, message: "timed out after 10ms"}) Err({kind: 'timeout, message: "timed out after 5ms"})

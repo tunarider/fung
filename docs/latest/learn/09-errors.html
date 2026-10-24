@@ -192,7 +192,7 @@ print(limits.memory)</code></pre><pre class="out err plain" data-code="1"><code>
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;
- help: use get(m, key, default) or ?? for a default</code></pre></div>
+ help: use get(m, key, default) for a default</code></pre></div>
 <p>둘의 구분은 이렇다. 프로그램 바깥 세상 때문에 생기는, 정상적인 프로그램에서도 일어나는 실패(파일이 없다, 입력이 숫자가 아니다, 서버가 꺼졌다)는 결과값이다. 코드가 틀려서 생기는 실패(버그)는 런타임 에러다. 버그는 감추지 말고 빨리 드러내는 편이 낫기 때문이다. 없을 수도 있는 키는 <code>get(m, 키, 기본값)</code>으로 읽으면 런타임 에러가 나지 않는다. <code>limits.memory ?? &quot;128Mi&quot;</code>처럼 <code>??</code>를 붙이는 것으로는 안 된다. <code>??</code>에 닿기 전에 키를 읽는 순간 멈추기 때문이다.</p>
 <p>직접 "여기 오면 버그다"라고 말하고 싶으면 <code>fail(메시지)</code>로 런타임 에러를 낸다(E0803). 꼭 있어야 하는 값이 없을 때 <code>??</code>와 함께 자주 쓴다.</p>
 <div class="run"><pre><code>fn require_port(cfg) = get(cfg, &quot;port&quot;, nil) ?? fail(&quot;config.port is required&quot;)

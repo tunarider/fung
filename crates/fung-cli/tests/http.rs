@@ -1035,7 +1035,11 @@ fn an_outer_timeout_is_shorter_than_the_requests() {
     drop(l);
     assert_eq!(
         r,
-        ("Err({kind: 'timeout})\n".into(), String::new(), Some(0))
+        (
+            "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n".into(),
+            String::new(),
+            Some(0)
+        )
     );
     assert!(took < Duration::from_secs(2), "{took:?}");
 }

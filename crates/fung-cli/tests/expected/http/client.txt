@@ -799,9 +799,9 @@
 | ;;)
 \ no newline
 -- stdout
-| Err({kind: 'timeout})
-| Err({kind: 'cancelled})
-| Err({kind: 'timeout})
+| Err({kind: 'timeout, message: "timed out after 200ms"})
+| Err({kind: 'cancelled, message: "cancelled"})
+| Err({kind: 'timeout, message: "timed out after 100ms"})
 -- stderr
 -- exit: 3
 -- request 0.0 (escaped)

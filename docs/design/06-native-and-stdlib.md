@@ -66,6 +66,7 @@
   보고·종료 처리기 없이 어느 태스크에서든 곧바로 끝나고, 부모가 SIGPIPE를 무시로 둔 채 띄웠어도 같다(파이프라인의 한 단계는 파이프라인이 끝나면 함께 끝나야 한다).
   신호로 끝나지 못하면 셸이 보여 줄 값 141로 끝난다. 다른 파일·자식 표준 입력·소켓에 쓰다 읽는 쪽이 없으면 에러 값이다.
 - 표준 라이브러리 `Err`의 내용은 맵으로 통일한다: `kind`(심볼), `message`(사람이 읽는 문장), 그 외 상황별 필드.
+  시간 초과·취소·닫힌 채널도 같다(2026-10-24, 전에는 `kind`뿐). 이 문서의 `Err 'k`는 `Err({kind: 'k, message: …})`의 줄임이다.
 - `kind` 어휘 (처음 목록, 알파에서 추가):
   `'not_found` `'exists` `'permission` `'io` `'parse` `'invalid` `'timeout` `'closed` `'cancelled` `'error` `'exit` `'network`
 
@@ -212,7 +213,7 @@ match fs.read(p):
 
 ## 파일 핸들
 
-- `fs.open(path, mode = 'read)` → `Ok(file)` / `Err`. `mode`는 `'read` `'write` `'append`. `fs.close(f)` → `Ok(nil)`.
+- `fs.open(path, mode = 'read)` → `Ok(file)` / `Err`. `mode`는 `'read` `'write` `'append`. `fs.close(f)` → `Ok(nil)`, 이미 닫힌 핸들이면 `Err 'closed`(두 번째 `close`도).
 - 새로 만드는 파일(`fs.write`·`fs.append`·`fs.open`의 `'write`·`'append`)의 권한은 0666에서 umask를 뺀 것이다(셸의 `>`·`>>`와 같음; 2026-10-18).
 - `fs.with_open(path, f, mode = 'read)`: 열고 `f(핸들)`를 부르고 **결과가 무엇이든** 닫은 뒤 그 결과를 돌려준다 (fung 코드, 03).
   람다 안의 `?`는 람다에서 `Err`를 돌려주는 것이므로 그대로 닫히고 전달된다.

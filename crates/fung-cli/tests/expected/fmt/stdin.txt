@@ -4738,79 +4738,91 @@
 -- exit: 0
 ==== manual reference/errors.md:72
 -- stdout
-| import util
+| nums = ["1", "2"] |> try_map(parse_int)!
+| print(nums)
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:73
+-- stdout
+| nums = (["1", "2"] |> try_map(parse_int))!
+| print(nums)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:74
+-- stdout
+| import util
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:75
 -- stdout
 | import "./util"
 | print(util.shout("hi"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:74
+==== manual reference/errors.md:76
 -- stdout
 | import "./a"
 |
 | print(a.one())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:75
+==== manual reference/errors.md:77
 -- stdout
 | import "./a"
 | import "./b"
 | print(a.one(), b.two())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:76
+==== manual reference/errors.md:78
 -- stdout
 | import fs
 | print(fs.read_file("notes.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:77
+==== manual reference/errors.md:79
 -- stdout
 | import fs
 | print(fs.read("notes.txt")!)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:78
+==== manual reference/errors.md:80
 -- stdout
 | import "./greet"
 |
 | print(greet._prefix())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:79
+==== manual reference/errors.md:81
 -- stdout
 | import "./greet"
 | print(greet.hello("fung"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:80
+==== manual reference/errors.md:82
 -- stdout
 | import "./my-lib"
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:81
+==== manual reference/errors.md:83
 -- stdout
 | import "./my-lib" as my_lib
 | print(my_lib.answer())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:82
+==== manual reference/errors.md:84
 -- stdout
 | import "./config"
 |
 | print(config.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:83
+==== manual reference/errors.md:85
 -- stdout
 | import "./config"
 | print(config.describe())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:84
+==== manual reference/errors.md:86
 -- stdout
 | import "./helper"
 |
@@ -4818,26 +4830,26 @@
 | print(helper.twice(limit))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:85
+==== manual reference/errors.md:87
 -- stdout
 | import "./helper"
 | print(helper.doubled_limit())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:86
+==== manual reference/errors.md:88
 -- stdout
 | import path
 | path = "/tmp/out"
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:87
+==== manual reference/errors.md:89
 -- stdout
 | import path
 | out_path = "/tmp/out"
 | print(path.join(out_path, "a.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:88
+==== manual reference/errors.md:90
 -- stdout
 | import fs
 | import "./fs"
@@ -4845,19 +4857,19 @@
 | print(1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:89
+==== manual reference/errors.md:91
 -- stdout
 | import fs
 | import "./fs" as local_fs
 | print(type_of(fs), local_fs.x())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:90
+==== manual reference/errors.md:92
 -- stdout
 | import _native.fs
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:91
+==== manual reference/errors.md:93
 -- stdout
 | fn load(p):
 |   import fs
@@ -4865,7 +4877,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:92
+==== manual reference/errors.md:94
 -- stdout
 | import fs
 |
@@ -4873,272 +4885,272 @@
 | print(load("missing.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:93
+==== manual reference/errors.md:95
 -- stdout
 | name = "deploy"
 | print(name())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:94
+==== manual reference/errors.md:96
 -- stdout
 | fn deploy() = "deploying"
 | print(deploy())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:95
+==== manual reference/errors.md:97
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:96
+==== manual reference/errors.md:98
 -- stdout
 | fn connect(host, port, wait = 5s) = "${host}:${port} (${wait})"
 | print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:97
+==== manual reference/errors.md:99
 -- stdout
 | fn backoff(n: int) = n * 2
 | print(backoff("3"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:98
+==== manual reference/errors.md:100
 -- stdout
 | fn backoff(n: int) = n * 2
 | print(backoff(parse_int("3")!))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:99
+==== manual reference/errors.md:101
 -- stdout
 | fn port_of(url) -> int = split(url, ":")[-1]
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:100
+==== manual reference/errors.md:102
 -- stdout
 | fn port_of(url) -> int = parse_int(split(url, ":")[-1])!
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:101
+==== manual reference/errors.md:103
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", host: "db2"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:102
+==== manual reference/errors.md:104
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", port: 5432))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:103
+==== manual reference/errors.md:105
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", prot: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:104
+==== manual reference/errors.md:106
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", port: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:105
+==== manual reference/errors.md:107
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:106
+==== manual reference/errors.md:108
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:107
+==== manual reference/errors.md:109
 -- stdout
 | count = 3
 | print("found " + count + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:108
+==== manual reference/errors.md:110
 -- stdout
 | count = 3
 | print("found ${count} files")
 | print("found " + str(count) + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:109
+==== manual reference/errors.md:111
 -- stdout
 | fn average(xs) = sum(xs) / len(xs)
 | print(average([]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:110
+==== manual reference/errors.md:112
 -- stdout
 | fn average(xs) = len(xs) == 0 then 0 else sum(xs) / len(xs)
 | print(average([]), average([2, 4]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:111
+==== manual reference/errors.md:113
 -- stdout
 | print(9223372036854775807 + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:112
+==== manual reference/errors.md:114
 -- stdout
 | fn add_safe(a, b) = a > 9223372036854775807 - b then Err("too big") else Ok(a + b)
 | print(add_safe(9223372036854775807, 1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:113
+==== manual reference/errors.md:115
 -- stdout
 | print(1e308 * 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:114
+==== manual reference/errors.md:116
 -- stdout
 | xs = [1, 2]
 | if len(xs): print("not empty") ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:115
+==== manual reference/errors.md:117
 -- stdout
 | xs = [1, 2]
 | if len(xs) > 0: print("not empty") ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:116
+==== manual reference/errors.md:118
 -- stdout
 | print(-"5")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:117
+==== manual reference/errors.md:119
 -- stdout
 | print(-parse_int("5")!)
 | print(first(chars("abc")))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:118
+==== manual reference/errors.md:120
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:119
+==== manual reference/errors.md:121
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[-1], len(hosts) > 2 then hosts[2] else "none")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:120
+==== manual reference/errors.md:122
 -- stdout
 | cfg = {host: "db1"}
 | print(cfg.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:121
+==== manual reference/errors.md:123
 -- stdout
 | cfg = {host: "db1"}
 | print(get(cfg, "port", 5432), get(cfg, "port") ?? 5432, "port" in cfg)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:122
+==== manual reference/errors.md:124
 -- stdout
 | pair = ("db1", 5432)
 | print(pair[0])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:123
+==== manual reference/errors.md:125
 -- stdout
 | pair = ("db1", 5432)
 | (host, port) = pair
 | print(host, port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:124
+==== manual reference/errors.md:126
 -- stdout
 | print((1, 2, 3)[0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:125
+==== manual reference/errors.md:127
 -- stdout
 | print([1, 2, 3][0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:126
+==== manual reference/errors.md:128
 -- stdout
 | print(3 in 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:127
+==== manual reference/errors.md:129
 -- stdout
 | print(3 in 0..10, 3 in [1, 2, 3])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:128
+==== manual reference/errors.md:130
 -- stdout
 | print(int("8080x"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:129
+==== manual reference/errors.md:131
 -- stdout
 | import json
 | print(parse_int("8080x"))
 | print(json.stringify({wait: str(5s)}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:130
+==== manual reference/errors.md:132
 -- stdout
 | print(group_by([1, 2, 3, 4], x => x % 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:131
+==== manual reference/errors.md:133
 -- stdout
 | print(group_by([1, 2, 3, 4], x => str(x % 2)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:132
+==== manual reference/errors.md:134
 -- stdout
 | import regex
 | print(regex.is_match("a(b", "(b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:133
+==== manual reference/errors.md:135
 -- stdout
 | import regex
 | print(regex.is_match("a(b", `\(b`))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:134
+==== manual reference/errors.md:136
 -- stdout
 | xs = [1, 2, 3, 4]
 | print(xs[3..1])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:135
+==== manual reference/errors.md:137
 -- stdout
 | xs = [1, 2, 3, 4]
 | print(xs[1..3], take(drop(xs, 2), 10))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:136
+==== manual reference/errors.md:138
 -- stdout
 | import json
 | back = json.parse(`{"status": "ok"}`)!
 | print(back.status == 'ok)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:137
+==== manual reference/errors.md:139
 -- stdout
 | import json
 | back = json.parse(`{"status": "ok"}`)!
 | print(sym(back.status) == 'ok, back.status == "ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:138
+==== manual reference/errors.md:140
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -5147,7 +5159,7 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:139
+==== manual reference/errors.md:141
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -5157,26 +5169,26 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:140
+==== manual reference/errors.md:142
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, role] = split(line, " ")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:141
+==== manual reference/errors.md:143
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, ...rest] = split(line, " ")
 | print(name, addr, rest)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:142
+==== manual reference/errors.md:144
 -- stdout
 | import fs
 | text = fs.read("config.json")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:143
+==== manual reference/errors.md:145
 -- stdout
 | import fs
 | text = match fs.read("config.json"):
@@ -5187,37 +5199,37 @@
 | print(text)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:144
+==== manual reference/errors.md:146
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:145
+==== manual reference/errors.md:147
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port") ?? 5432
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:146
+==== manual reference/errors.md:148
 -- stdout
 | print(try_map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:147
+==== manual reference/errors.md:149
 -- stdout
 | print(try_map(["1", "2"], parse_int), map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:148
+==== manual reference/errors.md:150
 -- stdout
 | import fs
 | fs.write("missing/out.txt", "data")
 | print("saved")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:149
+==== manual reference/errors.md:151
 -- stdout
 | import fs
 | match fs.write("missing/out.txt", "data"):
@@ -5228,13 +5240,13 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:150
+==== manual reference/errors.md:152
 -- stdout
 | (tx, rx) = channel()
 | print(recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:151
+==== manual reference/errors.md:153
 -- stdout
 | (tx, rx) = channel()
 | send(tx, "job")!
@@ -5242,7 +5254,7 @@
 | for job in rx: print(job) ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:152
+==== manual reference/errors.md:154
 -- stdout
 | fn collect() = scope(fn(s):
 |   (tx, rx) = channel()
@@ -5255,13 +5267,13 @@
 | print(collect())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:153
+==== manual reference/errors.md:155
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, rx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:154
+==== manual reference/errors.md:156
 -- stdout
 | (tx, rx) = channel(1)
 | (reply_tx, reply_rx) = channel(1)
@@ -5270,94 +5282,94 @@
 | print(recv(reply_rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:155
+==== manual reference/errors.md:157
 -- stdout
 | s = scope(s => s)
 | spawn(s, () => print("late"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:156
+==== manual reference/errors.md:158
 -- stdout
 | scope(fn(s):
 |   spawn(s, () => print("inside"))
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:157
+==== manual reference/errors.md:159
 -- stdout
 | hits = atom(0)
 | swap(hits, n => dbg(n) + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:158
+==== manual reference/errors.md:160
 -- stdout
 | hits = atom(0)
 | new = swap(hits, n => n + 1)
 | print("hits:", new)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:159
+==== manual reference/errors.md:161
 -- stdout
 | (tx, rx) = channel()
 | latest = atom(tx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:160
+==== manual reference/errors.md:162
 -- stdout
 | latest = atom({host: "web1", up: true})
 | swap(latest, m => put(m, "up", false))
 | print(deref(latest))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:161
+==== manual reference/errors.md:163
 -- stdout
 | fn port_of(cfg) = cfg.port ?? fail("config.port is required")
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:162
+==== manual reference/errors.md:164
 -- stdout
 | fn port_of(cfg) = cfg.port ?? 8080
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:163
+==== manual reference/errors.md:165
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:164
+==== manual reference/errors.md:166
 -- stdout
 | fn depth(n, acc = 0) = n == 0 then acc else depth(n - 1, acc + 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:165
+==== manual reference/errors.md:167
 -- stdout
 | line = repeat("=", 200_000_000)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:166
+==== manual reference/errors.md:168
 -- stdout
 | line = repeat("=", 20)
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:167
+==== manual reference/errors.md:169
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 3
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:168
+==== manual reference/errors.md:170
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 2
 | print("ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:169
+==== manual reference/errors.md:171
 -- stdout
 | x = twice()
 | limit = 10
@@ -5365,7 +5377,7 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:170
+==== manual reference/errors.md:172
 -- stdout
 | limit = 10
 | fn twice() = limit * 2
@@ -6615,12 +6627,18 @@
 -- exit: 0
 ==== manual reference/prelude/collections.md:11
 -- stdout
+| commit = "3f99a5c0d1e2"
+| print(take(commit, 7), take("ok", 7))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/collections.md:12
+-- stdout
 | sizes = {"a.log": 120, "b.log": 900, "c.log": 40, "d.log": 300}
 | top = pairs(sizes) |> sort_by(((_, n)) => -n) |> take(3)
 | print(top)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:12
+==== manual reference/prelude/collections.md:13
 -- stdout
 | (tx, rx) = channel(5)
 | each(1..=5, i => send(tx, i))
@@ -6628,23 +6646,24 @@
 | print(take(rx, 2))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:13
+==== manual reference/prelude/collections.md:14
 -- stdout
 | print(drop([1, 2, 3], 1), drop([1], 5), drop([1, 2], -1), drop(0..5, 3))
+| print(drop("v1.2.3", 1))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:14
+==== manual reference/prelude/collections.md:15
 -- stdout
 | rows = ["name,size", "a.log,120", "b.log,900"]
 | print(drop(rows, 1))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:15
+==== manual reference/prelude/collections.md:16
 -- stdout
 | print(range(3), range(2, 5), map(range(3), x => x * 10))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:16
+==== manual reference/prelude/collections.md:17
 -- stdout
 | names = ["web", "db", "cache"]
 | for i in range(len(names)):
@@ -6652,13 +6671,13 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:17
+==== manual reference/prelude/collections.md:18
 -- stdout
 | print(contains([1, 2], 2), contains({a: 1}, "a"), contains({a: 1}, "b"), contains("hello", "ell"))
 | print(contains(0..10, 5), 2 in [1, 2])
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:18
+==== manual reference/prelude/collections.md:19
 -- stdout
 | allowed = ["prod", "staging"]
 | for target in ["prod", "dev"]:
@@ -6666,42 +6685,42 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:19
+==== manual reference/prelude/collections.md:20
 -- stdout
 | print([1, 2, 3] |> map(x => x * 10))
 | print(map(1..=4, x => x * x))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:20
+==== manual reference/prelude/collections.md:21
 -- stdout
 | print(map(["web", "db"], upper), map(["a", "bb", "ccc"], len))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:21
+==== manual reference/prelude/collections.md:22
 -- stdout
 | servers = [{name: "web-1", cpu: 72}, {name: "db-1", cpu: 15}]
 | print(map(servers, s => s.name))
 | print(map(servers, s => "${s.name}: ${s.cpu}%"))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:22
+==== manual reference/prelude/collections.md:23
 -- stdout
 | ports = {web: 80, db: 5432}
 | print(pairs(ports) |> map(((k, v)) => "${k}=${v}"))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:23
+==== manual reference/prelude/collections.md:24
 -- stdout
 | print(map("abc", upper))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:24
+==== manual reference/prelude/collections.md:25
 -- stdout
 | print(["1", "2"] |> try_map(parse_int))
 | print(["1", "x", "y"] |> try_map(parse_int))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:25
+==== manual reference/prelude/collections.md:26
 -- stdout
 | fn ports(spec):
 |   nums = (split(spec, ",") |> try_map(s => parse_int(trim(s))))?
@@ -6712,42 +6731,42 @@
 | print(ports("443, http"))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:26
+==== manual reference/prelude/collections.md:27
 -- stdout
 | rs = [Ok(1), Ok(2), Ok(3)]
 | print(try_map(rs, r => r))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:27
+==== manual reference/prelude/collections.md:28
 -- stdout
 | print(filter([1, 2, 3, 4], x => x % 2 == 0), filter(1..10, x => x > 7))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:28
+==== manual reference/prelude/collections.md:29
 -- stdout
 | log = ["INFO start", "ERROR disk full", "INFO ok", "ERROR timeout"]
 | errors = log |> filter(l => starts_with(l, "ERROR"))
 | print(len(errors), errors)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:29
+==== manual reference/prelude/collections.md:30
 -- stdout
 | print(filter([1, nil, 2], x => x != nil))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:30
+==== manual reference/prelude/collections.md:31
 -- stdout
 | print(filter([0, 1, 2], x => x))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:31
+==== manual reference/prelude/collections.md:32
 -- stdout
 | print(fold([1, 2, 3], 0, (acc, x) => acc + x))
 | print(fold(1..=5, 1, (acc, x) => acc * x))
 | print(fold([], 99, (acc, x) => acc + x))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:32
+==== manual reference/prelude/collections.md:33
 -- stdout
 | codes = [200, 404, 200, 500, 200]
 | counts = fold(codes, {ok: 0, bad: 0}, fn(acc, c):
@@ -6757,24 +6776,24 @@
 | print(counts)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:33
+==== manual reference/prelude/collections.md:34
 -- stdout
 | durations = [1500ms, 2s, 250ms]
 | print(fold(durations, 0s, (acc, d) => acc + d))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:34
+==== manual reference/prelude/collections.md:35
 -- stdout
 | evens = fold(1..=6, [], (acc, x) => x % 2 == 0 then acc + [x * x] else acc)
 | print(evens)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:35
+==== manual reference/prelude/collections.md:36
 -- stdout
 | each(["web-1", "web-2"], h => print("deploy", h))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:36
+==== manual reference/prelude/collections.md:37
 -- stdout
 | (tx, rx) = channel(3)
 | each(1..=3, i => send(tx, i * 100))
@@ -6782,30 +6801,30 @@
 | print(map(rx, x => x))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:37
+==== manual reference/prelude/collections.md:38
 -- stdout
 | each(["8080", "http"], s => parse_int(s))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:38
+==== manual reference/prelude/collections.md:39
 -- stdout
 | print(find([1, 5, 10], x => x > 3), find([1], x => x > 3))
 | print(find(0..1_000_000_000, x => x * x > 50))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:39
+==== manual reference/prelude/collections.md:40
 -- stdout
 | servers = [{name: "web-1", ip: "10.0.0.1"}, {name: "db-1", ip: "10.0.0.9"}]
 | db = find(servers, s => s.name == "db-1")
 | print(db == nil then "not found" else db.ip)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:40
+==== manual reference/prelude/collections.md:41
 -- stdout
 | print(any([1, 2], x => x > 1), any([], x => true))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:41
+==== manual reference/prelude/collections.md:42
 -- stdout
 | r = any([1, 2, 3, 4], fn(x):
 |   print("checking", x)
@@ -6814,97 +6833,97 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:42
+==== manual reference/prelude/collections.md:43
 -- stdout
 | print(all([2, 4], x => x % 2 == 0), all([2, 3], x => x % 2 == 0), all([], x => false))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:43
+==== manual reference/prelude/collections.md:44
 -- stdout
 | checks = [{name: "disk", ok: true}, {name: "dns", ok: false}]
 | print(all(checks, c => c.ok) then "healthy" else "unhealthy")
 | print(checks |> filter(c => not c.ok) |> map(c => c.name))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:44
+==== manual reference/prelude/collections.md:45
 -- stdout
 | print(sort([3, 1, 2]), sort([2.5, 1, 3]))
 | print(sort(["b", "a", "B"]), sort([[2, 1], [1, 9]]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:45
+==== manual reference/prelude/collections.md:46
 -- stdout
 | print([5, 3, 9] |> sort |> reverse)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:46
+==== manual reference/prelude/collections.md:47
 -- stdout
 | print(sort([{cpu: 3}, {cpu: 1}]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:47
+==== manual reference/prelude/collections.md:48
 -- stdout
 | print(["bb", "a", "ccc"] |> sort_by(len))
 | print([3, 1, 2] |> sort_by(x => -x))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:48
+==== manual reference/prelude/collections.md:49
 -- stdout
 | servers = [{n: "web-1", cpu: 70}, {n: "db-1", cpu: 15}, {n: "web-2", cpu: 70}]
 | print(servers |> sort_by(s => -s.cpu) |> map(s => s.n))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:49
+==== manual reference/prelude/collections.md:50
 -- stdout
 | people = [{team: "sre", name: "kim"}, {team: "dev", name: "lee"}, {team: "sre", name: "ahn"}]
 | print(people |> sort_by(p => (p.team, p.name)) |> map(p => "${p.team}/${p.name}"))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:50
+==== manual reference/prelude/collections.md:51
 -- stdout
 | print(sort_by(["Banana", "apple", "cherry"], lower))
 | print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) => v))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:51
+==== manual reference/prelude/collections.md:52
 -- stdout
 | print(reverse([1, 2, 3]), reverse(0..3), reverse([]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:52
+==== manual reference/prelude/collections.md:53
 -- stdout
 | print(chars("fung") |> reverse |> join)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:53
+==== manual reference/prelude/collections.md:54
 -- stdout
 | print(unique([1, 2, 1, 3, 2]), unique([1, 1.0]), unique([[1], [1], [2]]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:54
+==== manual reference/prelude/collections.md:55
 -- stdout
 | hits = ["web-2", "web-1", "web-2", "db-1", "web-1"]
 | print(unique(hits), unique(hits) |> sort)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:55
+==== manual reference/prelude/collections.md:56
 -- stdout
 | print(flatten([[1, [2]], 3]), flatten([[], [1]]), flatten([[[1]]]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:56
+==== manual reference/prelude/collections.md:57
 -- stdout
 | groups = {web: ["web-1", "web-2"], db: ["db-1"]}
 | print(values(groups) |> flatten)
 | print(flatten(map([1, 2], x => [x, x * 10])))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:57
+==== manual reference/prelude/collections.md:58
 -- stdout
 | print(group_by(["ab", "c", "de"], s => str(len(s))))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:58
+==== manual reference/prelude/collections.md:59
 -- stdout
 | servers = [{env: "prod", host: "a"}, {env: "dev", host: "b"}, {env: "prod", host: "c"}]
 | by_env = group_by(servers, s => s.env)
@@ -6913,24 +6932,24 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:59
+==== manual reference/prelude/collections.md:60
 -- stdout
 | codes = [200, 404, 200, 500, 200]
 | counts = group_by(codes, str)
 | print(pairs(counts) |> map(((code, xs)) => "${code}: ${len(xs)}"))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:60
+==== manual reference/prelude/collections.md:61
 -- stdout
 | print(group_by([1, 2, 3], x => x % 2))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:61
+==== manual reference/prelude/collections.md:62
 -- stdout
 | print(zip([1, 2, 3], ["a", "b"]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:62
+==== manual reference/prelude/collections.md:63
 -- stdout
 | names = ["web-1", "db-1"]
 | ips = ["10.0.0.1", "10.0.0.9"]
@@ -6939,41 +6958,41 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:63
+==== manual reference/prelude/collections.md:64
 -- stdout
 | for (i, step) in zip(1..100, ["build", "test", "deploy"]):
 |   print("${i}. ${step}")
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:64
+==== manual reference/prelude/collections.md:65
 -- stdout
 | print(sum([1, 2, 3]), sum([]), sum([1.5, 2]), sum(1..=100))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:65
+==== manual reference/prelude/collections.md:66
 -- stdout
 | files = [{name: "a.log", size: 120}, {name: "b.log", size: 900}]
 | print(files |> map(f => f.size) |> sum)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:66
+==== manual reference/prelude/collections.md:67
 -- stdout
 | print(min([3, 1, 2]), min([]), min(["b", "a"]), min(5..10))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:67
+==== manual reference/prelude/collections.md:68
 -- stdout
 | servers = [{n: "web-1", cpu: 70}, {n: "web-2", cpu: 12}]
 | print(min(map(servers, s => s.cpu)), first(sort_by(servers, s => s.cpu)).n)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:68
+==== manual reference/prelude/collections.md:69
 -- stdout
 | print(max([3, 1, 2]), max([1, 2.5]), max([]), max([[1, 2], [1, 3]]))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/collections.md:69
+==== manual reference/prelude/collections.md:70
 -- stdout
 | latencies = []
 | print("worst:", max(latencies) ?? 0)
@@ -6999,6 +7018,16 @@
 -- exit: 0
 ==== manual reference/prelude/concurrency.md:2
 -- stdout
+| r = timeout(10ms, () => sleep(1s))
+| print(r)
+| match r:
+|   Err({kind: 'timeout}) => print("slow")
+|   _                     => print("done")
+| ;;
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:3
+-- stdout
 | r = scope(fn(s):
 |   a = spawn(s, () => 6 * 7)
 |   b = spawn(s, () => 1 + 1)
@@ -7007,7 +7036,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:3
+==== manual reference/prelude/concurrency.md:4
 -- stdout
 | scope(fn(s):
 |   spawn(s, fn():
@@ -7019,7 +7048,7 @@
 | print("scope returned")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:4
+==== manual reference/prelude/concurrency.md:5
 -- stdout
 | scope(fn(s):
 |   spawn(s, fn():
@@ -7034,7 +7063,7 @@
 | print("not reached")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:5
+==== manual reference/prelude/concurrency.md:6
 -- stdout
 | print(scope(fn(s):
 |   t = spawn(s, () => parse_int("x"))
@@ -7042,7 +7071,7 @@
 | ;;))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:6
+==== manual reference/prelude/concurrency.md:7
 -- stdout
 | supervise(fn(s):
 |   spawn(s, () => fail("boom"))
@@ -7050,7 +7079,7 @@
 | ;;, e => eprint("handled: ${e.message}"))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:7
+==== manual reference/prelude/concurrency.md:8
 -- stdout
 | r = supervise(fn(s):
 |   t = spawn(s, () => 1 / 0)
@@ -7059,7 +7088,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:8
+==== manual reference/prelude/concurrency.md:9
 -- stdout
 | hosts = ["web-1", "web-2", "web-3"]
 | r = supervise(fn(s):
@@ -7072,7 +7101,7 @@
 | print(r |> filter(is_err) |> len, "failed")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:9
+==== manual reference/prelude/concurrency.md:10
 -- stdout
 | squares = scope(fn(s):
 |   tasks = map(1..=4, n => spawn(s, () => n * n))
@@ -7081,18 +7110,18 @@
 | print(squares)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:10
+==== manual reference/prelude/concurrency.md:11
 -- stdout
 | leaked = scope(s => s)
 | spawn(leaked, () => 1)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:11
+==== manual reference/prelude/concurrency.md:12
 -- stdout
 | print(scope(s => await(spawn(s, () => 6 * 7))))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:12
+==== manual reference/prelude/concurrency.md:13
 -- stdout
 | r = scope(fn(s):
 |   t = spawn(s, fn():
@@ -7106,7 +7135,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:13
+==== manual reference/prelude/concurrency.md:14
 -- stdout
 | print(scope(fn(s):
 |   t = spawn(s, fn():
@@ -7118,20 +7147,20 @@
 | ;;))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:14
+==== manual reference/prelude/concurrency.md:15
 -- stdout
 | print(timeout(1s, () => 1 + 1))
 | (_tx, rx) = channel()
 | print(timeout(10ms, () => recv(rx)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:15
+==== manual reference/prelude/concurrency.md:16
 -- stdout
 | r = timeout(100ms, () => exec(["sleep", "10"]))
 | print(r ?? "gave up")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:16
+==== manual reference/prelude/concurrency.md:17
 -- stdout
 | r = timeout(20ms, fn():
 |   scope(fn(s):
@@ -7145,7 +7174,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:17
+==== manual reference/prelude/concurrency.md:18
 -- stdout
 | fn probe(host) = timeout(500ms, fn():
 |   sleep(host == "slow-1" then 1s else 10ms)
@@ -7155,7 +7184,7 @@
 | print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(await)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:18
+==== manual reference/prelude/concurrency.md:19
 -- stdout
 | winner = scope(fn(s):
 |   (tx, rx) = channel(2)
@@ -7175,7 +7204,7 @@
 | print(winner)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:19
+==== manual reference/prelude/concurrency.md:20
 -- stdout
 | r = scope(fn(s):
 |   spawn(s, fn():
@@ -7188,7 +7217,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:20
+==== manual reference/prelude/concurrency.md:21
 -- stdout
 | fn numbers(s, n):
 |   (tx, rx) = channel()
@@ -7203,7 +7232,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:21
+==== manual reference/prelude/concurrency.md:22
 -- stdout
 | out = scope(fn(s):
 |   (jobs_tx, jobs) = channel()
@@ -7221,7 +7250,7 @@
 | print(out)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:22
+==== manual reference/prelude/concurrency.md:23
 -- stdout
 | (tx, rx) = channel()
 | for x in rx:
@@ -7229,7 +7258,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:23
+==== manual reference/prelude/concurrency.md:24
 -- stdout
 | (tx, rx) = channel(2)
 | print(send(tx, 1), send(tx, 2))
@@ -7238,7 +7267,7 @@
 | print(send(tx, 4))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:24
+==== manual reference/prelude/concurrency.md:25
 -- stdout
 | scope(fn(s):
 |   (req_tx, reqs) = channel()
@@ -7253,7 +7282,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:25
+==== manual reference/prelude/concurrency.md:26
 -- stdout
 | scope(fn(s):
 |   (tx, rx) = channel()
@@ -7269,14 +7298,14 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:26
+==== manual reference/prelude/concurrency.md:27
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, "hi")!
 | print(recv(rx)!)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:27
+==== manual reference/prelude/concurrency.md:28
 -- stdout
 | (tx, rx) = channel(3)
 | send(tx, 1)!
@@ -7285,14 +7314,14 @@
 | print(recv(rx), recv(rx), recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:28
+==== manual reference/prelude/concurrency.md:29
 -- stdout
 | (tx, rx) = channel()
 | print(timeout(10ms, () => recv(rx)) ?? "nothing yet")
 | close(tx)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:29
+==== manual reference/prelude/concurrency.md:30
 -- stdout
 | (tx, rx) = channel(3)
 | each(["a", "b", "c"], x => send(tx, x))
@@ -7302,13 +7331,13 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:30
+==== manual reference/prelude/concurrency.md:31
 -- stdout
 | (tx, rx) = channel()
 | close(rx)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:31
+==== manual reference/prelude/concurrency.md:32
 -- stdout
 | stop = stop_signal()
 | request_stop()
@@ -7316,7 +7345,7 @@
 | print("cleaning up, then exiting normally")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:32
+==== manual reference/prelude/concurrency.md:33
 -- stdout
 | stop = stop_signal()
 | scope(fn(s):
@@ -7334,27 +7363,27 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:33
+==== manual reference/prelude/concurrency.md:34
 -- stdout
 | stop = stop_signal()
 | print(request_stop())
 | print(recv(stop))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:34
+==== manual reference/prelude/concurrency.md:35
 -- stdout
 | print("before")
 | request_stop()
 | print("not reached")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:35
+==== manual reference/prelude/concurrency.md:36
 -- stdout
 | a = atom(0)
 | print(a, type_of(a), deref(a), a == a, atom(0) == atom(0))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:36
+==== manual reference/prelude/concurrency.md:37
 -- stdout
 | hits = atom(0)
 | scope(fn(s):
@@ -7365,20 +7394,20 @@
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:37
+==== manual reference/prelude/concurrency.md:38
 -- stdout
 | (tx, _rx) = channel()
 | registry = atom({main: tx})
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:38
+==== manual reference/prelude/concurrency.md:39
 -- stdout
 | hits = atom(0)
 | each(1..=3, _ => swap(hits, n => n + 1))
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:39
+==== manual reference/prelude/concurrency.md:40
 -- stdout
 | stats = atom({ok: 0, failed: 0})
 | for code in [200, 500, 200]:
@@ -7388,7 +7417,7 @@
 | print(deref(stats))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:40
+==== manual reference/prelude/concurrency.md:41
 -- stdout
 | a = atom(0)
 | swap(a, fn(n):
@@ -7397,14 +7426,14 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:41
+==== manual reference/prelude/concurrency.md:42
 -- stdout
 | cfg = atom({version: 1})
 | reset(cfg, {version: 2})
 | print(deref(cfg))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:42
+==== manual reference/prelude/concurrency.md:43
 -- stdout
 | current = atom("v1")
 | scope(fn(s):
@@ -7418,7 +7447,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:43
+==== manual reference/prelude/concurrency.md:44
 -- stdout
 | a = atom([1, 2])
 | before = deref(a)
@@ -7426,13 +7455,13 @@
 | print(before, deref(a))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:44
+==== manual reference/prelude/concurrency.md:45
 -- stdout
 | print(sleep(10ms))
 | print(timeout(10ms, () => sleep(1s)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:45
+==== manual reference/prelude/concurrency.md:46
 -- stdout
 | fn poll(n):
 |   if n == 0: return "done" ;;
@@ -7444,7 +7473,7 @@
 | print(poll(3))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:46
+==== manual reference/prelude/concurrency.md:47
 -- stdout
 | sleep(1)
 -- stderr
@@ -9954,7 +9983,7 @@
 -- stderr
 -- exit: 0
 ==== extras/conc.fung
--- stdout (2083 bytes, fnv1a64 3b161c77533d774f)
+-- stdout (2570 bytes, fnv1a64 ce9a62f4b03c00fd)
 -- stderr
 -- exit: 0
 ==== extras/fs.fung
@@ -10019,7 +10048,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (68440 bytes, fnv1a64 ce2bb87bbf147571)
+-- stdout (68459 bytes, fnv1a64 ae6e1c48e7c30488)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -10047,7 +10076,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4737 bytes, fnv1a64 467e3e30751a7355)
+-- stdout (4658 bytes, fnv1a64 8a0997de56b1a4ad)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -10232,7 +10261,7 @@
 |   print(await(t), timeout(10ms, () => await(u)), timeout(5ms, () => recv(rx)))
 |   cancel(u)
 | ;;)
-| # expect: Err({kind: 'cancelled}) Err({kind: 'timeout}) Err({kind: 'timeout})
+| # expect: Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'timeout, message: "timed out after 10ms"}) Err({kind: 'timeout, message: "timed out after 5ms"})
 -- stderr
 -- exit: 0
 ==== tests/lang/channel_stream.fung
@@ -10290,7 +10319,7 @@
 | send(buf_tx, "a")
 | close(buf_tx)
 | print(recv(buf), recv(buf), send(buf_tx, "b"))
-| # expect: Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+| # expect: Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"})
 | print(tx, rx)
 | # expect: <sender> <receiver>
 |
@@ -10350,6 +10379,8 @@
 | # expect: [1, 2, 3] [20, 30] 10
 | print(take([1, 2, 3], 2), drop([1, 2, 3], 2), first([]), zip([1], ["a"]), unique([1, 1]), flatten([[1], [2]]))
 | # expect: [1, 2] [3] nil [(1, "a")] [1] [1, 2]
+| print([take("héllo", 2), drop("héllo", 3), take("ab", 5), drop("ab", -1), take("", 1)])
+| # expect: ["hé", "lo", "ab", "ab", ""]
 | print(group_by(["aa", "b", "cc"], s => str(len(s))), pairs({a: 1}), get({}, "x", 0), put({}, "k", 1))
 | # expect: {"2": ["aa", "cc"], "1": ["b"]} [("a", 1)] 0 {k: 1}
 | each([1, 2], x => print(x))
@@ -10388,6 +10419,16 @@
 | # expect: [1, 2, 3] [1, 4, 9] []
 | print(conc.pmap([1, 2], x => x == 1 then Err('no) else x))
 | # expect: [Err('no), 2]
+| # `limit` is how many run at once, not a batch size: while item 0 waits
+| # for item 2, the other worker goes on to items 1 and 2.
+| (go_tx, go) = channel(1)
+| waits = fn(i):
+|   if i == 0: _ = recv(go) ;;
+|   if i == 2: _ = send(go_tx, 1) ;;
+|   i * 10
+| ;;
+| print(conc.pmap([0, 1, 2, 3], waits, limit: 2))
+| # expect: [0, 10, 20, 30]
 | print(conc.retry(() => Err("never"), times: 2))
 | # expect: Err("never")
 |
@@ -11477,7 +11518,7 @@
 | # expect: 404 no such page
 | # expect: 3
 | print(await(server))
-| # expect: Err({kind: 'cancelled})
+| # expect: Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
 ==== tests/lang/ident_unicode.fung
@@ -12143,8 +12184,8 @@
 | print(timeout(20ms, () => recv(rx)))
 | print(timeout(0s, () => 1))
 | # expect: 2
-| # expect: Err({kind: 'timeout})
-| # expect: Err({kind: 'timeout})
+| # expect: Err({kind: 'timeout, message: "timed out after 20ms"})
+| # expect: Err({kind: 'timeout, message: "timed out after 0s"})
 -- stderr
 -- exit: 0
 ==== tests/lang/top_constants.fung

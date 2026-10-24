@@ -76,7 +76,6 @@ prelude fung drop
 prelude fung env
 prelude fung exec
 prelude fung first
-prelude fung get
 prelude fung is_empty
 prelude fung is_err
 prelude fung is_ok
@@ -117,6 +116,7 @@ prelude native find(xs, f)
 prelude native flatten(xs)
 prelude native float(x)
 prelude native fold(xs, init, f)
+prelude native get(m, k, default=?)
 prelude native group_by(xs, f)
 prelude native int(x)
 prelude native join(xs, sep=?)

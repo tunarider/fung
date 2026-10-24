@@ -5,10 +5,10 @@
 -- stdout
 -- stderr
 | warning[W0101]: unused import `fs`
-|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:2:1
+|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 | warning[W0102]: unused variable `dead`
 |   --> crates/fung-cli/tests/data/check/_lib/warns.fung:5:3
@@ -96,10 +96,10 @@
 -- stdout
 -- stderr
 | warning[W0101]: unused import `fs`
-|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:2:1
+|   --> crates/fung-cli/tests/data/check/_lib/warns.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 | warning[W0102]: unused variable `dead`
 |   --> crates/fung-cli/tests/data/check/_lib/warns.fung:5:3
@@ -109,10 +109,10 @@
 |   |
 |  help: prefix it with `_` if it is intentional
 | warning[W0101]: unused import `path`
-|   --> crates/fung-cli/tests/data/check/imports_lib.fung:2:1
+|   --> crates/fung-cli/tests/data/check/imports_lib.fung:2:8
 |   |
 | 2 | import path
-|   | ^^^^
+|   |        ^^^^
 |   |
 | warning[W0102]: unused variable `unused`
 |   --> crates/fung-cli/tests/data/check/imports_lib.fung:5:3
@@ -176,16 +176,16 @@
 -- stdout
 -- stderr
 | warning[W0101]: unused import `fs`
-|   --> crates/fung-cli/tests/data/check/unused_imports.fung:2:1
+|   --> crates/fung-cli/tests/data/check/unused_imports.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 | warning[W0101]: unused import `p`
-|   --> crates/fung-cli/tests/data/check/unused_imports.fung:3:1
+|   --> crates/fung-cli/tests/data/check/unused_imports.fung:3:16
 |   |
 | 3 | import path as p
-|   | ^
+|   |                ^
 |   |
 | warning[W0101]: unused import `parse`
 |   --> crates/fung-cli/tests/data/check/unused_imports.fung:4:14

@@ -63,7 +63,11 @@ fn with_temp_dir_leaves_nothing_when_cut_right_after_acquiring() {
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("Err({kind: 'timeout})\n", "", Some(0))
+        (
+            "Err({kind: 'timeout, message: \"timed out after 1ms\"})\n",
+            "",
+            Some(0)
+        )
     );
     let left: Vec<_> = std::fs::read_dir(&tmp.0).unwrap().collect();
     assert!(left.is_empty(), "left behind: {left:?}");
@@ -109,7 +113,11 @@ fn exit_does_not_wait_for_an_abandoned_job() {
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("Err({kind: 'timeout})\n", "", Some(0))
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n",
+            "",
+            Some(0)
+        )
     );
     assert!(
         start.elapsed() < Duration::from_secs(5),

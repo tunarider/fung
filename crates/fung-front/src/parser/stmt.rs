@@ -208,12 +208,16 @@ impl<'a> Parser<'a> {
             alias: String::new(),
             names: None,
             name_pos: Vec::new(),
+            bind_pos: t.pos,
+            bind_len: 0,
         };
         match self.peek().kind {
             Kind::Name => {
                 // Dotted names: `_native.fs` for the stdlib's own layer (06)
                 // and, later, packages.
-                im.spec = self.next().text.clone();
+                let first = self.next();
+                im.bind_pos = first.pos;
+                im.spec = first.text.clone();
                 while self.at(Kind::Dot) && self.kind_after() == Kind::Name {
                     self.next();
                     im.spec.push('.');
@@ -232,6 +236,8 @@ impl<'a> Parser<'a> {
                         ],
                     ));
                 };
+                im.bind_pos = st.pos;
+                im.bind_len = crate::diag::quote(&text).chars().count();
                 im.spec = text;
                 im.is_path = true;
             }
@@ -247,12 +253,15 @@ impl<'a> Parser<'a> {
                 ));
             }
         }
+        if !im.is_path {
+            im.bind_len = im.spec.chars().count();
+        }
         if self.at(Kind::KwAs) {
             self.next();
-            im.alias = self
-                .expect_desc(Kind::Name, "a name after `as`")?
-                .text
-                .clone();
+            let alias = self.expect_desc(Kind::Name, "a name after `as`")?;
+            im.bind_pos = alias.pos;
+            im.alias = alias.text.clone();
+            im.bind_len = im.alias.chars().count();
         }
         if self.at(Kind::LParen) {
             self.next();

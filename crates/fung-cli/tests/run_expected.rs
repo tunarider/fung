@@ -224,8 +224,9 @@ fn runs_match_the_expected_output() {
     );
 }
 
-/// The concurrency builtins: a `tests/lang` file that calls one is a
-/// concurrent case.
+/// The concurrency builtins and the `conc` module's helpers (called by
+/// their module name): a `tests/lang` file that calls one is a concurrent
+/// case.
 #[cfg(not(debug_assertions))]
 const CONCURRENCY: &[&str] = &[
     "scope",
@@ -244,9 +245,9 @@ const CONCURRENCY: &[&str] = &[
     "swap",
     "deref",
     "reset",
-    "pmap",
-    "fan_in",
-    "retry",
+    "conc.pmap",
+    "conc.fan_in",
+    "conc.retry",
 ];
 
 /// Whether `src` calls `name`: `name(` not preceded by a name character
@@ -273,6 +274,8 @@ fn calls_finds_calls_only() {
     assert!(!calls("m.close(1)", "close"));
     assert!(!calls("# close the file", "close"));
     assert!(calls("x = atom(0)\n", "atom"));
+    assert!(calls("conc.pmap(xs, f)", "conc.pmap"));
+    assert!(!calls("x.conc.pmap(xs, f)", "conc.pmap"));
 }
 
 /// How many times `concurrent_runs_are_stable` runs each case.
@@ -281,7 +284,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 53;
+const CONCURRENT_CASES: usize = 54;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.

@@ -143,7 +143,7 @@ hello
 true</code></pre></div>
 <p>마지막 줄: <code>stdin</code>을 주지 않은 <code>cat</code>은 빈 입력을 받고 곧바로 끝난다.</p>
 <p><strong>기한을 두고 실행하기</strong></p>
-<div class="run"><pre><code>print(timeout(100ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+<div class="run"><pre><code>print(timeout(100ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 100ms&quot;})</code></pre></div>
 <p><code>sleep</code>은 기한이 지나자 SIGTERM으로 끝났다.</p>
 <h4>같이 보기</h4>
 <p><a href="#fn-sh"><code>sh</code></a>, <a href="#fn-env"><code>env</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, <a href="strings.html#fn-lines"><code>lines</code></a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a></p>

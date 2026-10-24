@@ -183,8 +183,8 @@ fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, St
     let stdin = child.stdin.take();
     let reader = {
         let f = f.to_path_buf();
-        // Blocks until fung opens the fifo for writing. Left blocked if
-        // fung fails before that; the assertions below then fail.
+        // Blocks until fung opens the fifo for writing; if fung ends
+        // before that, the open below lets it go.
         std::thread::spawn(move || drop(std::fs::File::open(f).unwrap()))
     };
     // Wait for the reader to have come and gone before letting fung on
@@ -198,10 +198,22 @@ fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, St
         }
         first.push_str(&line);
         if line == "opened\n" {
-            reader.join().unwrap();
             break;
         }
     }
+    if !first.ends_with("opened\n") {
+        // fung ended without opening the fifo: opening it for reading and
+        // writing (which does not wait on Linux or macOS) is the writer
+        // the reader waits for, so its thread ends and is joined.
+        drop(
+            std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(f)
+                .unwrap(),
+        );
+    }
+    reader.join().unwrap();
     drop(stdin);
     let mut rest = String::new();
     std::io::Read::read_to_string(&mut stdout, &mut rest).unwrap();
@@ -212,6 +224,17 @@ fn into_closed_fifo(bin: &Path, f: &Path, dir: &Path, code: &str) -> (String, St
         String::from_utf8_lossy(&o.stderr).replace(d, "D"),
         o.status,
     )
+}
+
+/// When fung ends without opening the fifo, the helper still returns:
+/// its reader thread is let go and joined, not left blocked.
+#[test]
+fn the_fifo_reader_ends_when_fung_never_opens_it() {
+    let _serial = serial();
+    let (dir, f) = fifo("never");
+    let (out, _, status) = into_closed_fifo(&fung_bin(), &f, &dir, "exit(3)");
+    assert_eq!((out.as_str(), status.code()), ("", Some(3)));
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// fung gives `want` on standard output and exits 0.

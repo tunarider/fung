@@ -36,13 +36,26 @@ fn pmap(xs, f, limit = 0):
   items = xs |> map(x => x)
   limit <= 0 or limit >= len(items)
     then _pmap_all(items, f)
-    else _pmap_chunks(items, f, limit, [])
+    else _pmap_workers(items, f, limit)
 ;;
 
 fn _pmap_all(items, f) = scope(s => items |> map(x => spawn(s, () => f(x))) |> map(await))
 
-fn _pmap_chunks(items, f, limit, acc) = is_empty(items) then acc
-  else _pmap_chunks(drop(items, limit), f, limit, acc + _pmap_all(take(items, limit), f))
+# `limit` workers take the next index from a channel as each finishes, so
+# a slow item holds up only its own worker. Each gives its (index, value)
+# pairs; sorting by index puts the results back in input order.
+fn _pmap_workers(items, f, limit):
+  (jobs_tx, jobs) = channel(len(items))
+  each(0..len(items), i => send(jobs_tx, i))
+  close(jobs_tx)
+  done = scope(s => 0..limit |> map(_ => spawn(s, () => _work(items, f, jobs, []))) |> map(await))
+  done |> flatten |> sort_by(((i, _)) => i) |> map(((_, v)) => v)
+;;
+
+fn _work(items, f, jobs, acc) = match recv(jobs):
+  Ok(i) => _work(items, f, jobs, acc + [(i, f(items[i]))])
+  _     => acc
+;;
 
 # Calls f until it returns a non-Err value, at most `times` tries,
 # sleeping `delay` between tries; the last Err is returned (06).

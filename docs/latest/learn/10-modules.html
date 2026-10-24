@@ -176,7 +176,7 @@ fn summary(xs) = &quot;${len(xs)} items&quot;</code></pre>
 </details>
 <div class="run"><pre><code>import &quot;./report&quot;
 
-print(report.summary([&quot;a&quot;]))</code></pre><pre class="out err plain" data-code="2"><code>error[E0306]: only import, fn, type, and assignment are allowed at the top level of an imported module
+print(report.summary([&quot;a&quot;]))</code></pre><pre class="out err plain" data-code="2"><code>error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
   --&gt; report.fung:1:6
   |
 1 | print(&quot;loading report&quot;)

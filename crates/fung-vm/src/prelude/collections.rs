@@ -7,9 +7,9 @@ use std::rc::Rc;
 
 use fung_front::diag::{Arg, Diag};
 
-use crate::native::nat::{self, def, def_step, fail, param};
+use crate::native::nat::{self, def, def_step, fail, opt, param};
 use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
-use crate::value::{ListBuilder, MapBuilder, Value, compare, eq, hash_value, type_name};
+use crate::value::{ListBuilder, Lit, MapBuilder, Value, compare, eq, hash_value, type_name};
 use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -37,6 +37,11 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
         vec![param("xs"), param("f")],
     ));
     add(def("pairs", pairs_fn, vec![param("m")]));
+    add(def(
+        "get",
+        get_fn,
+        vec![param("m"), param("k"), opt("default", Lit::Nil)],
+    ));
     add(def("put", put_fn, vec![param("m"), param("k"), param("v")]));
     add(def("merge", merge_fn, vec![param("a"), param("b")]));
     add(def("remove", remove_fn, vec![param("m"), param("k")]));
@@ -394,6 +399,26 @@ fn take_map(a: &mut [Value], i: usize) -> Rc<crate::value::Map> {
     match std::mem::replace(&mut a[i], Value::Nil) {
         Value::Map(m) => m,
         _ => unreachable!("checked by need_map"),
+    }
+}
+
+/// `get(m, k, default = nil)`: the value at `k`, or `default` when the
+/// key is missing. A key that is not a string fails like `k in m`.
+fn get_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    let m = nat::need_map("get from", &a[0])?;
+    let Value::Str(k) = &a[1] else {
+        return Err(fail(
+            "E0501",
+            vec![
+                Arg::Str("search".into()),
+                Arg::Str("map".into()),
+                Arg::Str(type_name(&a[1])),
+            ],
+        ));
+    };
+    match m.get(k) {
+        Some(v) => Ok(v.clone()),
+        None => Ok(a.pop().expect("default")),
     }
 }
 

@@ -75,6 +75,7 @@ fn last(xs):
 
 # take/drop never fail on a count out of range (06): n is clamped into
 # 0..=len (by _r.slice for a range). A count not an int is the caller's bug.
+# A string is cut by characters, like its slices.
 fn _clamp(verb, n, size):
   if type_of(n) != 'int: fail("${verb} expects an int count, got ${type_of(n)}") ;;
   n < 0 then 0 else (n > size then size else n)
@@ -83,12 +84,14 @@ fn _clamp(verb, n, size):
 fn take(xs, n):
   if type_of(xs) == 'receiver: return _receive(xs, _clamp("take", n, n), []) ;;
   if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp("take", n, n)), x => x) ;;
+  if type_of(xs) == 'str: return xs[.._clamp("take", n, len(xs))] ;;
   ys = _list(xs)
   ys[.._clamp("take", n, len(ys))]
 ;;
 
 fn drop(xs, n):
   if type_of(xs) == 'range: return map(_r.slice(xs, _clamp("drop", n, n)), x => x) ;;
+  if type_of(xs) == 'str: return xs[_clamp("drop", n, len(xs))..] ;;
   ys = _list(xs)
   ys[_clamp("drop", n, len(ys))..]
 ;;
@@ -97,13 +100,6 @@ fn contains(c, x) = x in c
 
 fn keys(m) = pairs(m) |> map(((k, _)) => k)
 fn values(m) = pairs(m) |> map(((_, v)) => v)
-
-# `in` on a list would test membership of the value, so the map check
-# comes first (06: fung extras check arguments with fail).
-fn get(m, k, default = nil) = match type_of(m):
-  'map => k in m then m[k] else default
-  t    => fail("get expects a map, got ${t}")
-;;
 
 # ---- Strings --------------------------------------------------------
 

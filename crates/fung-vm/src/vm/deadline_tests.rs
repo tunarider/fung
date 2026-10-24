@@ -29,7 +29,11 @@ fn a_wait_under_a_deadline_is_not_a_deadlock() {
     let done = quick();
     assert_eq!(
         run("(_tx, never) = channel()\nprint(timeout(50ms, () => recv(never)))"),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     done();
 }
@@ -50,7 +54,11 @@ fn a_computation_is_cut_at_the_deadline() {
         run(
             "fn spin(n) = n == 0 then 0 else spin(n - 1)\nprint(timeout(50ms, () => spin(1000000000)))"
         ),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     done();
 }
@@ -60,7 +68,11 @@ fn sleep_is_cut_at_the_deadline() {
     let done = quick();
     assert_eq!(
         run("print(timeout(20ms, () => sleep(10s)))"),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     done();
 }
@@ -70,7 +82,7 @@ fn a_zero_timeout_always_times_out() {
     assert_eq!(
         run("print(timeout(0s, () => 1), timeout(-1s, () => 1))"),
         (
-            "Err({kind: 'timeout}) Err({kind: 'timeout})\n".into(),
+            "Err({kind: 'timeout, message: \"timed out after 0s\"}) Err({kind: 'timeout, message: \"timed out after 0s\"})\n".into(),
             "".into(),
             0
         )
@@ -82,13 +94,21 @@ fn nested_timeouts_answer_at_the_right_level() {
     let done = quick();
     assert_eq!(
         run("(_tx, never) = channel()\nprint(timeout(1s, () => timeout(20ms, () => recv(never))))"),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     assert_eq!(
         run(
             "(_tx, never) = channel()\nprint(timeout(20ms, fn(): r = timeout(10s, () => recv(never)); print(\"not here\") ;;))"
         ),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     done();
 }
@@ -103,7 +123,11 @@ fn a_grandchild_in_a_scope_wakes_at_the_deadline() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'timeout}) 0\n", "", 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"}) 0\n",
+            "",
+            0
+        )
     );
     done();
 }
@@ -123,7 +147,11 @@ fn an_outer_cancel_is_not_a_timeout() {
         run(
             "(_tx, never) = channel()\nr = scope(fn(s): t = spawn(s, () => timeout(10s, () => recv(never))); cancel(t); await(t) ;;)\nprint(r)"
         ),
-        ("Err({kind: 'cancelled})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -155,7 +183,11 @@ fn a_deadline_passing_during_a_plain_wait_is_enforced_after_it() {
     let done = quick();
     assert_eq!(
         run("print(timeout(50ms, fn(): sh(\"sleep 0.2\"); print(\"not here\"); 1 ;;))"),
-        ("Err({kind: 'timeout})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n".into(),
+            "".into(),
+            0
+        )
     );
     done();
 }
@@ -170,6 +202,10 @@ fn a_zero_timeout_inside_a_passed_outer_deadline_answers_outside() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'timeout})\n", "", 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\n",
+            "",
+            0
+        )
     );
 }

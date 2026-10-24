@@ -262,7 +262,7 @@ fn need_sender(v: &Value) -> Result<&Rc<Channel>, Stop> {
 }
 
 /// `send(tx, v)`: `Ok(nil)` once delivered,
-/// `Err({kind: 'closed})` on a closed channel (closed, or no receiving
+/// `Err({kind: 'closed, …})` on a closed channel (closed, or no receiving
 /// end left). E0705 when `v` contains an end of the same channel
 /// (`channel::contains`), checked before anything else
 /// happens, so the error is the same whether or not the channel is
@@ -293,7 +293,7 @@ fn sent_value(sent: bool) -> Value {
     if sent {
         nat::ok(Value::Nil)
     } else {
-        err_kind("closed")
+        err_kind("closed", "channel closed")
     }
 }
 
@@ -315,7 +315,7 @@ impl Cont for SendK {
     }
 }
 
-/// `recv(rx)`: `Ok(v)`, or `Err({kind: 'closed})` once the channel is
+/// `recv(rx)`: `Ok(v)`, or `Err({kind: 'closed, …})` once the channel is
 /// closed and empty.
 fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
     let Value::Receiver(end) = &args[0] else {
@@ -333,7 +333,7 @@ fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
 fn received_value(r: Received) -> Value {
     match r {
         Received::Value(v) => nat::ok(v),
-        Received::Closed => err_kind("closed"),
+        Received::Closed => err_kind("closed", "channel closed"),
     }
 }
 

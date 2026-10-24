@@ -118,7 +118,11 @@ fn a_deadlock_is_detected() {
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
-        ("Err({kind: 'timeout})\n", "", 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
+            "",
+            0
+        )
     );
     let (out, err, code) = run_within(
         "(tx, ch) = channel()\nscope(fn(s):\n  spawn(s, fn(): sleep(10ms); send(tx, 1) ;;)\n  print(recv(ch))\n;;)",
@@ -190,7 +194,7 @@ fn a_woken_task_that_has_not_run_is_not_blocked() {
     });
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'cancelled})\n", "", 0)
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0)
     );
 }
 

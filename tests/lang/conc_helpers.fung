@@ -11,6 +11,16 @@ print(scope(s => conc.fan_in(s, [a, b]) |> map(x => x) |> sort), conc.pmap([1, 2
 # expect: [1, 2, 3] [1, 4, 9] []
 print(conc.pmap([1, 2], x => x == 1 then Err('no) else x))
 # expect: [Err('no), 2]
+# `limit` is how many run at once, not a batch size: while item 0 waits
+# for item 2, the other worker goes on to items 1 and 2.
+(go_tx, go) = channel(1)
+waits = fn(i):
+  if i == 0: _ = recv(go) ;;
+  if i == 2: _ = send(go_tx, 1) ;;
+  i * 10
+;;
+print(conc.pmap([0, 1, 2, 3], waits, limit: 2))
+# expect: [0, 10, 20, 30]
 print(conc.retry(() => Err("never"), times: 2))
 # expect: Err("never")
 

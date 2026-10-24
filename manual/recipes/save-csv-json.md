@@ -75,9 +75,9 @@ print(trim(fs.read("${out}.json")!))
 
 :::box mistake 파이프 끝의 `!`
 
-후위 연산자 `!`·`?`는 `|>`보다 먼저 묶인다. 그래서 `xs |> try_map(f)!`는 "파이프 전체에 `!`"가 아니라 `try_map(f)!`, 곧 인자 하나로 `try_map`을 부른 것에 `!`를 붙인 것이 되어 E0407로 멈춘다. 파이프 전체의 결과에 붙이려면 괄호로 감싼다. 위 스크립트의 `rows = (… |> try_map(json.parse))!`가 그 모양이다.
+후위 연산자 `!`·`?`는 `|>`보다 먼저 묶인다. 그래서 `xs |> try_map(f)!`는 "파이프 전체에 `!`"가 아니라 `try_map(f)!`, 곧 인자 하나로 `try_map`을 부른 것에 `!`를 붙인 것이 된다. 뜻과 다르므로 실행 전에 E0229로 막는다. 파이프 전체의 결과에 붙이려면 괄호로 감싼다. 위 스크립트의 `rows = (… |> try_map(json.parse))!`가 그 모양이다.
 
-```fung run exit=1 error=E0407
+```fung run exit=2 error=E0229
 nums = ["1", "2"] |> try_map(parse_int)!
 print(nums)
 ```

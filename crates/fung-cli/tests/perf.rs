@@ -125,6 +125,25 @@ fn regex_find_all_stays_linear() {
     );
 }
 
+/// A program with 32,768 distinct constants compiles in well under a
+/// second: the constant pool finds an equal constant by a hash index, not
+/// by comparing with every earlier one (that took about 1.3 s here, and a
+/// REPL input defining 65,537 globals about 5 s, timing out on a slow CI
+/// runner).
+#[test]
+fn many_constants_compile_in_linear_time() {
+    let items: Vec<String> = (0..32_768).map(|i| format!("str({i})")).collect();
+    let src = format!("print(len([{}]))", items.join(", "));
+    run(&src);
+    let (out, took) = run(&src);
+    eprintln!("many constants {took:?}");
+    assert_eq!(out, "32768\n");
+    assert!(
+        took < Duration::from_millis(500),
+        "32,768 constants took {took:?}"
+    );
+}
+
 /// 20,000 tasks wait at once, each on a rendezvous channel of its own,
 /// until the entry sends to each (R1b: a task is no thread, so there is
 /// no thread limit; the thread runtime before failed with E0801 on macOS,
@@ -274,7 +293,7 @@ fn many_cancelled_receivers_on_one_channel() {
     );
     let (out, took) = run(&src);
     eprintln!("80,000 cancelled receivers {took:?}");
-    assert_eq!(out, "Err({kind: 'cancelled})\n");
+    assert_eq!(out, "Err({kind: 'cancelled, message: \"cancelled\"})\n");
     assert!(took < Duration::from_millis(1500), "{took:?}");
 }
 
@@ -289,7 +308,7 @@ fn many_releases_that_park() {
     );
     let (out, took) = run(&src);
     eprintln!("80,000 releases that park {took:?}");
-    assert_eq!(out, "Err({kind: 'cancelled})\n");
+    assert_eq!(out, "Err({kind: 'cancelled, message: \"cancelled\"})\n");
     assert!(took < Duration::from_millis(1500), "{took:?}");
 }
 

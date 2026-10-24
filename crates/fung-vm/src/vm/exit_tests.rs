@@ -92,7 +92,7 @@ fn a_cancelled_stdin_wait_leaves_the_queue() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
-        ("Err({kind: 'cancelled}) 0\n", "")
+        ("Err({kind: 'cancelled, message: \"cancelled\"}) 0\n", "")
     );
 }
 
@@ -246,7 +246,7 @@ fn a_task_waiting_for_stdin_is_not_a_deadlock_and_can_be_cancelled() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'cancelled})\n", "", 0)
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0)
     );
 }
 
@@ -345,7 +345,11 @@ fn a_stdin_read_is_cut_at_the_deadline() {
     let o = exec_on_silent_stdin("print(timeout(50ms, () => read_line()))\nprint(reading())");
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'timeout})\n0\n", "", 0)
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n0\n",
+            "",
+            0
+        )
     );
     assert!(
         start.elapsed() < Duration::from_secs(2),

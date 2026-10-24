@@ -78,7 +78,11 @@ fn a_watcher_sees_the_stop_request() {
         exec_signals(
             "scope(fn(s):\n  stop = stop_signal()\n  t = spawn(s, () => recv(stop))\n  blocked(stop, 1)\n  request_stop()\n  print(await(t))\n;;)\nprint(\"after\")"
         ),
-        ("Err({kind: 'closed})\nafter\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'closed, message: \"channel closed\"})\nafter\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -87,7 +91,11 @@ fn a_watcher_sees_the_stop_request() {
 fn waiting_only_for_the_stop_is_not_a_deadlock() {
     assert_eq!(
         exec_signals("deliver_when_watched(15)\nprint(recv(stop_signal()))\nprint(\"after\")"),
-        ("Err({kind: 'closed})\nafter\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'closed, message: \"channel closed\"})\nafter\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -122,7 +130,7 @@ fn after_a_stop_the_signal_is_closed() {
     assert_eq!(
         run("stop = stop_signal()\nrequest_stop()\nprint(recv(stop), recv(stop_signal()))"),
         (
-            "Err({kind: 'closed}) Err({kind: 'closed})\n".into(),
+            "Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\n".into(),
             "".into(),
             0
         )
@@ -136,7 +144,7 @@ fn every_watcher_wakes() {
             "scope(fn(s):\n  ts = map(0..3, _ => spawn(s, () => recv(stop_signal())))\n  blocked(stop_signal(), 3)\n  request_stop()\n  print(map(ts, await))\n;;)"
         ),
         (
-            "[Err({kind: 'closed}), Err({kind: 'closed}), Err({kind: 'closed})]\n".into(),
+            "[Err({kind: 'closed, message: \"channel closed\"}), Err({kind: 'closed, message: \"channel closed\"}), Err({kind: 'closed, message: \"channel closed\"})]\n".into(),
             "".into(),
             0
         )

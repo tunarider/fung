@@ -1,7 +1,8 @@
-//! A spawned task (here in a scope) gets a large stack (1 GiB, the first of
-//! `fung_vm::stack::TASK_STACKS`): a program that nests Rust frames
-//! deeply (a native calling back into fung) gives the same result in a
-//! task as on the entry thread instead of aborting the process.
+//! A spawned task (here in a scope) runs on the command thread and its
+//! large stack (`fung_vm::stack::ENTRY_STACKS`, since R1b): a program
+//! that nests Rust frames deeply (a native calling back into fung) gives
+//! the same result in a task as at the top level instead of aborting the
+//! process.
 //! Formatting a value nested 1,000,000 deep also needs more than 256
 //! MiB, but `str` on it takes over a minute, so it is not tested here.
 //! Release builds only: a debug build uses far more stack per frame and

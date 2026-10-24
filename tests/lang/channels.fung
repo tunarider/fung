@@ -8,7 +8,7 @@ scope(fn(s):
 send(buf_tx, "a")
 close(buf_tx)
 print(recv(buf), recv(buf), send(buf_tx, "b"))
-# expect: Ok("a") Err({kind: 'closed}) Err({kind: 'closed})
+# expect: Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"})
 print(tx, rx)
 # expect: <sender> <receiver>
 

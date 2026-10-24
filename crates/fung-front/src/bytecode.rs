@@ -12,6 +12,8 @@ pub use disasm::disassemble;
 pub use op::{Instr, Op, decode_call, encode_call};
 pub use pattern::{PatKind, Pattern};
 
+use std::collections::HashMap;
+
 use crate::consts::Const;
 use crate::source::Pos;
 use crate::tree::Capture;
@@ -67,6 +69,46 @@ pub struct Proto {
     pub asserts: Vec<Assert>,
     /// Compiled from an embedded extras file: errors point at the caller (06).
     pub builtin: bool,
+    /// Where each constant with a hashable key sits in `consts`, so that
+    /// `add_const` finds an equal one without comparing with all of them.
+    pub(crate) const_index: HashMap<ConstKey, usize>,
+}
+
+/// A constant as a hash key, under the pool's equality (`Const`'s
+/// `PartialEq`): the type and the value, floats by their bits with -0.0
+/// as 0.0. A NaN equals nothing and a list is rare (only `args`), so
+/// neither has a key; they are compared one by one.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ConstKey {
+    Int(i64),
+    Float(u64),
+    Bool(bool),
+    Nil,
+    Str(String),
+    Sym(String),
+    Dur(i64),
+    Builtin(String),
+}
+
+impl ConstKey {
+    fn of(c: &Const) -> Option<ConstKey> {
+        Some(match c {
+            Const::Int(n) => ConstKey::Int(*n),
+            Const::Float(f) if f.is_nan() => return None,
+            Const::Float(f) => ConstKey::Float(if *f == 0.0 {
+                0f64.to_bits()
+            } else {
+                f.to_bits()
+            }),
+            Const::Bool(b) => ConstKey::Bool(*b),
+            Const::Nil => ConstKey::Nil,
+            Const::Str(t) => ConstKey::Str(t.clone()),
+            Const::Sym(t) => ConstKey::Sym(t.clone()),
+            Const::Dur(d) => ConstKey::Dur(*d),
+            Const::Builtin(t) => ConstKey::Builtin(t.clone()),
+            Const::List(_) => return None,
+        })
+    }
 }
 
 impl Default for Proto {
@@ -87,6 +129,7 @@ impl Default for Proto {
             exports: Vec::new(),
             asserts: Vec::new(),
             builtin: false,
+            const_index: HashMap::new(),
         }
     }
 }
@@ -112,10 +155,19 @@ impl Proto {
 
     /// Adds a constant, reusing an existing equal one of the same type.
     pub fn add_const(&mut self, c: Const) -> usize {
-        if let Some(i) = self.consts.iter().position(|x| *x == c) {
+        let key = ConstKey::of(&c);
+        let found = match &key {
+            Some(k) => self.const_index.get(k).copied(),
+            None => self.consts.iter().position(|x| *x == c),
+        };
+        if let Some(i) = found {
             return i;
         }
         self.consts.push(c);
-        self.consts.len() - 1
+        let i = self.consts.len() - 1;
+        if let Some(k) = key {
+            self.const_index.insert(k, i);
+        }
+        i
     }
 }

@@ -5,10 +5,10 @@
 -- stdout
 -- stderr
 | warning[W0101]: unused import `fs`
-|   --> -e:1:1
+|   --> -e:1:8
 |   |
 | 1 | import fs
-|   | ^^
+|   |        ^^
 |   |
 -- exit: 0
 ==== check -e "import fs as f\nprint(f.read)"

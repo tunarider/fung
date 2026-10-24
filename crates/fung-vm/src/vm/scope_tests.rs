@@ -152,7 +152,7 @@ fn outer_cancel_drains_children_first() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'cancelled}) 0\n", "", 0)
+        ("Err({kind: 'cancelled, message: \"cancelled\"}) 0\n", "", 0)
     );
 }
 
@@ -162,7 +162,11 @@ fn cancel_of_the_scope_returns_err_cancelled() {
         run(
             "(_tx, never) = channel()\nr = scope(fn(s): spawn(s, () => cancel(s)); recv(never) ;;)\nprint(r, \"after\")"
         ),
-        ("Err({kind: 'cancelled}) after\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"}) after\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -172,7 +176,11 @@ fn cancelling_one_child_is_not_a_failure() {
         run(
             "(_tx, never) = channel()\nscope(fn(s): t = spawn(s, () => recv(never)); cancel(t); print(await(t)) ;;)"
         ),
-        ("Err({kind: 'cancelled})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -297,7 +305,7 @@ fn queued_failures_of_a_cancelled_supervise_are_reported() {
         "(_gate_tx, gate) = channel()\n(note_tx, note) = channel(1)\n\
          r = supervise(fn(s):\n  spawn(s, () => fail(\"a\"))\n  spawn(s, fn(): blocked(gate, 1); send(note_tx, 1); fail(\"b\") ;;)\n  spawn(s, fn(): recv(note); cancel(s) ;;)\n;;, e => recv(gate))\nprint(r)",
     );
-    assert_eq!(o.out, "Err({kind: 'cancelled})\n");
+    assert_eq!(o.out, "Err({kind: 'cancelled, message: \"cancelled\"})\n");
     assert_eq!(o.err.matches("task failed:").count(), 1, "{}", o.err);
     assert!(!o.err.contains("error[E0803]: a"), "{}", o.err);
     assert!(o.err.contains("error[E0803]: b"), "{}", o.err);
@@ -368,7 +376,7 @@ fn a_failure_whose_handler_was_cancelled_is_not_reported_again() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'cancelled})\n", "", 0)
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0)
     );
 }
 
@@ -382,7 +390,7 @@ fn an_outer_cancel_while_on_fail_runs_reports_nothing() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'cancelled})\n", "", 0)
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0)
     );
 }
 
@@ -396,7 +404,11 @@ fn cancel_inside_on_fail_reports_nothing() {
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str(), o.exit),
-            ("handling\nErr({kind: 'cancelled})\n", "", 0),
+            (
+                "handling\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
+                "",
+                0
+            ),
             "after: {after:?}"
         );
     }
@@ -464,11 +476,15 @@ fn a_body_error_beside_a_child_failure_is_kept() {
 }
 
 /// Decided 2026-10-18 (05): a scope cancelled after its body returned
-/// still gives `Err({kind: 'cancelled})`, not the body's value.
+/// still gives `Err({kind: 'cancelled, …})`, not the body's value.
 #[test]
 fn a_scope_cancelled_after_its_body_returned_is_cancelled() {
     assert_eq!(
         run("print(scope(fn(s): spawn(s, () => cancel(s)); 42 ;;))"),
-        ("Err({kind: 'cancelled})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n".into(),
+            "".into(),
+            0
+        )
     );
 }

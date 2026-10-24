@@ -169,7 +169,14 @@ fn a_second_reader_can_be_cancelled_while_it_waits() {
     let o = run(&format!(
         "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  print(timeout(20ms, () => net.read_line(s, 10)))\n  net.write(c, \"a\\n\")!\n  print(await(r1))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
-    assert_eq!(out(&o), ("Err({kind: 'timeout})\nOk(\"a\")\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(\"a\")\n",
+            "",
+            0
+        )
+    );
 }
 
 #[test]
@@ -573,7 +580,11 @@ fn a_link_local_address_dials_through_its_zone() {
 #[test]
 fn reset_and_closed_connections() {
     let _g = serial();
-    let (port, h) = peer(|s| {
+    let (port, h) = peer(|mut s| {
+        // Reset only once the client has connected: its byte has come (a
+        // reset before its connect is checked would fail the connect).
+        let mut b = [0u8; 1];
+        s.read_exact(&mut b).unwrap();
         // SO_LINGER 0: close sends a reset
         let l = libc::linger {
             l_onoff: 1,
@@ -594,7 +605,7 @@ fn reset_and_closed_connections() {
     });
     // the read waits for the reset
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\nname = net.local_addr(c) + \"->127.0.0.1:{port}\"\nlocal = net.local_addr(c)\nshow = (r) => replace(replace(msg(r), name, \"A->B\"), local, \"A\")\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(net.close(c))\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(show(net.close(c)))\nprint(show(net.set_deadline(c, 1s)))"
+        "c = net.connect(\"127.0.0.1\", {port})!\nnet.write(c, \"?\")!\nname = net.local_addr(c) + \"->127.0.0.1:{port}\"\nlocal = net.local_addr(c)\nshow = (r) => replace(replace(msg(r), name, \"A->B\"), local, \"A\")\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(net.close(c))\nprint(show(net.read_line(c, 10)))\nprint(show(net.write(c, \"x\")))\nprint(show(net.close(c)))\nprint(show(net.set_deadline(c, 1s)))"
     ));
     h.join().unwrap();
     assert_eq!(
@@ -664,7 +675,7 @@ fn close_wakes_a_task_blocked_on_the_same_handle() {
 }
 
 /// Review Focus 1: a task blocked in `accept` ends with E0701 when
-/// cancelled (its handle gives `Err({kind: 'cancelled})`), at once, and
+/// cancelled (its handle gives `Err({kind: 'cancelled, …})`), at once, and
 /// leaves no socket, pipe or thread behind (`run` checks).
 #[test]
 fn cancel_ends_a_blocked_accept() {
@@ -673,7 +684,14 @@ fn cancel_ends_a_blocked_accept() {
     let o = run(
         "scope(fn(s):\n  l = net.listen(\"127.0.0.1:0\")!\n  t = spawn(s, () => net.accept(l))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)",
     );
-    assert_eq!(out(&o), ("Err({kind: 'cancelled})\n0\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n0\n",
+            "",
+            0
+        )
+    );
     assert!(start.elapsed() < Duration::from_secs(5));
 }
 
@@ -683,7 +701,14 @@ fn cancel_ends_a_blocked_read() {
     let o = run(&format!(
         "{PAIR}scope(fn(sc):\n  t = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  net.write(c, \"still\\n\")!\n  print(net.read_line(s, 10))\n;;)"
     ));
-    assert_eq!(out(&o), ("Err({kind: 'cancelled})\nOk(\"still\")\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\nOk(\"still\")\n",
+            "",
+            0
+        )
+    );
 }
 
 #[test]
@@ -692,7 +717,10 @@ fn cancel_ends_a_blocked_write() {
     let o = run(&format!(
         "{PAIR}scope(fn(sc):\n  t = spawn(sc, () => net.write(c, repeat(\"x\", 50000000)))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)"
     ));
-    assert_eq!(out(&o), ("Err({kind: 'cancelled})\n", "", 0));
+    assert_eq!(
+        out(&o),
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0)
+    );
 }
 
 /// `connect` cancelled while its name lookup runs. The lookup is held
@@ -707,7 +735,10 @@ fn cancel_ends_a_blocked_connect() {
         "scope(fn(s):\n  t = spawn(s, () => net.connect(\"gate.invalid\", 80))\n  until(() => lookups() == 1)\n  cancel(t)\n  print(await(t))\n;;)",
         move || drop(gate),
     );
-    assert_eq!(out(&o), ("Err({kind: 'cancelled})\n", "", 0));
+    assert_eq!(
+        out(&o),
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0)
+    );
 }
 
 /// A lookup that outlives the deadline is a timeout: the `timeout`
@@ -720,7 +751,14 @@ fn a_connect_timeout_covers_the_lookup() {
         "print(timeout(30ms, () => net.connect(\"gate.invalid\", 80)))",
         move || drop(gate),
     );
-    assert_eq!(out(&o), ("Err({kind: 'timeout})\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 30ms\"})\n",
+            "",
+            0
+        )
+    );
 }
 
 /// `run`, with `release` called after the program (the lookup gate is
@@ -969,7 +1007,7 @@ fn a_slow_handler_does_not_hold_up_the_others() {
     assert_eq!(
         out(&o),
         (
-            "fast\nfast\nslow\nErr({kind: 'cancelled})\nno task left\n",
+            "fast\nfast\nslow\nErr({kind: 'cancelled, message: \"cancelled\"})\nno task left\n",
             "",
             0
         )
@@ -989,7 +1027,7 @@ fn cancelling_the_server_answers_running_requests_503() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'cancelled})\n503 503 Service Unavailable\n\n'network\n",
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n503 503 Service Unavailable\n\n'network\n",
             "",
             0
         )
@@ -1009,7 +1047,14 @@ fn a_cancel_does_not_wait_for_an_idle_connection() {
     let o = run(&format!(
         "import http\nimport time\nfn h(req) = \"x\"\n{SERVE}until(() => net_waiting() == 1)\nc = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)!\nuntil(() => net_waiting() == 2)\nt0 = time.now()\ncancel(s)\nprint(await(s))\nprint(time.now() - t0 < 1s){SERVE_END}"
     ));
-    assert_eq!(out(&o), ("Err({kind: 'cancelled})\ntrue\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\ntrue\n",
+            "",
+            0
+        )
+    );
 }
 
 /// A stop request: the request in flight is answered, no new connection
@@ -1115,7 +1160,7 @@ fn cancel_sweep(from: i64, to: i64) -> String {
     // server that should be closed. (Another process could still bind
     // the port, but would hardly answer HTTP within the 2 s deadline.)
     format!(
-        "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(c) => fn():\n    net.set_deadline(c, 2s)\n    net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(c, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  scope(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", r => \"x\", ready: fn(a): send(port_tx, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  ;;\n  ;;)\n;;\n
+        "import http\nfn burn(n) = n == 0 then nil else burn(n - 1)\nfn answers(c) = match c:\n  Ok(c) => fn():\n    net.set_deadline(c, 2s)\n    net.write(c, \"GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n\")\n    match net.read_line(c, 100):\n      Ok(line) when line != nil => starts_with(line, \"HTTP/\")\n      _                         => false\n    ;;\n  ;;()\n  _ => false\n;;\nfn attempt(k):\n  scope(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", r => \"x\", ready: fn(a): send(port_tx, a); burn(k) ;;))\n  addr = recv(port)!\n  cancel(s)\n  r = await(s)\n  c = net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)\n  if r != Err({{kind: 'cancelled, message: \"cancelled\"}}) or answers(c):\n    print(\"k=${{k}}\", r, c)\n  ;;\n  ;;)\n;;\n
 each({from}..{to}, attempt)\nprint(\"done\")"
     )
 }
@@ -1202,7 +1247,7 @@ fn a_failure_answering_a_connection_is_reported() {
     assert_eq!(
         out(&o),
         (
-            "Ok(nil) Ok(nil)\nErr({kind: 'cancelled})\n",
+            "Ok(nil) Ok(nil)\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
             "http: internal error: error[E0803]: injected\nhttp: internal error: error[E0803]: injected\n",
             0
         )
@@ -1243,7 +1288,14 @@ fn a_read_is_cut_at_the_deadline() {
     let o = run(&format!(
         "{PAIR}print(timeout(100ms, () => net.read_line(c, 100)))"
     ));
-    assert_eq!(out(&o), ("Err({kind: 'timeout})\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n",
+            "",
+            0
+        )
+    );
     assert!(
         start.elapsed() < Duration::from_secs(2),
         "{:?}",
@@ -1313,7 +1365,7 @@ fn the_fd_index_empties_with_the_table() {
     assert_eq!(
         out(&o),
         (
-            "2 2\nOk(\"x\")\n'network\nErr({kind: 'timeout})\n0 0\n",
+            "2 2\nOk(\"x\")\n'network\nErr({kind: 'timeout, message: \"timed out after 10ms\"})\n0 0\n",
             "",
             0
         )

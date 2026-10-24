@@ -92,6 +92,15 @@ faster than one by one: true</code></pre></div>
 </ul>
 <h3 id="sharing">값을 나누는 법</h3>
 <p>fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. 태스크에 일을 줄 때는 람다가 붙잡은 값으로 주고, 결과는 <a href="#fn-await"><code>await</code></a>로 받는다. 태스크끼리 계속 값을 주고받아야 하면 <strong>채널</strong>(channel)을 쓴다. 한쪽 끝에서 <a href="#fn-send"><code>send</code></a>한 값을 다른 끝에서 <a href="#fn-recv"><code>recv</code></a>로 받는다. 여러 태스크가 함께 읽고 바꾸는 상태가 꼭 필요하면 <a href="#fn-atom"><code>atom</code></a>에 둔다.</p>
+<h3 id="errs">기다림의 실패</h3>
+<p>이 페이지에서 <code>Err({kind: 'timeout})</code>처럼 <code>kind</code>만 적은 것은 패턴의 모양이다. 실제 값에는 다른 <code>Err</code>처럼 <code>message</code>도 있어서 <code>e.message</code>를 그대로 찍을 수 있다: 시간 초과는 <code>&quot;timed out after 2s&quot;</code>, 취소는 <code>&quot;cancelled&quot;</code>, 닫힌 채널은 <code>&quot;channel closed&quot;</code>. 맵 패턴은 적지 않은 키를 상관하지 않으므로 <code>Err({kind: 'timeout}) =&gt; …</code>으로 가른다.</p>
+<div class="run"><pre><code>r = timeout(10ms, () =&gt; sleep(1s))
+print(r)
+match r:
+  Err({kind: 'timeout}) =&gt; print(&quot;slow&quot;)
+  _                     =&gt; print(&quot;done&quot;)
+;;</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})
+slow</code></pre></div>
 <h2 id="tasks">범위와 태스크</h2>
 <section class="entry" id="fn-scope">
 <h3>scope</h3>
@@ -271,7 +280,7 @@ spawn(leaked, () =&gt; 1)</code></pre><pre class="out err plain" data-code="1"><
   cancel(t)
   r
 ;;)
-print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 20ms&quot;})</code></pre></div>
 <p><code>timeout</code>이 기다림만 끊으므로 태스크는 <code>cancel</code>로 따로 멈춘다. 그러지 않으면 범위가 1초 동안 그 태스크를 기다린다.</p>
 <p><strong>취소된 태스크</strong></p>
 <div class="run"><pre><code>print(scope(fn(s):
@@ -281,7 +290,7 @@ print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></
   ;;)
   cancel(t)
   await(t)
-;;))</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})</code></pre></div>
+;;))</code></pre><pre class="out plain"><code>Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-spawn"><code>spawn</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="#fn-cancel"><code>cancel</code></a></p>
 </section>
@@ -307,7 +316,7 @@ print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></
 <div class="run"><pre><code>print(timeout(1s, () =&gt; 1 + 1))
 (_tx, rx) = channel()
 print(timeout(10ms, () =&gt; recv(rx)))</code></pre><pre class="out plain"><code>2
-Err({kind: 'timeout})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})</code></pre></div>
 <p><strong>걸린 명령 끊기</strong></p>
 <div class="run"><pre><code>r = timeout(100ms, () =&gt; exec([&quot;sleep&quot;, &quot;10&quot;]))
 print(r ?? &quot;gave up&quot;)</code></pre><pre class="out plain"><code>gave up</code></pre></div>
@@ -321,14 +330,14 @@ print(r ?? &quot;gave up&quot;)</code></pre><pre class="out plain"><code>gave up
     &quot;body&quot;
   ;;)
 ;;)
-print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout})</code></pre></div>
+print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 20ms&quot;})</code></pre></div>
 <p><strong>서버마다 기한 두기</strong></p>
 <div class="run"><pre><code>fn probe(host) = timeout(500ms, fn():
   sleep(host == &quot;slow-1&quot; then 1s else 10ms)
   &quot;${host} up&quot;
 ;;)
 
-print(scope(s =&gt; map([&quot;web-1&quot;, &quot;slow-1&quot;], h =&gt; spawn(s, () =&gt; probe(h))) |&gt; map(await)))</code></pre><pre class="out plain"><code>[&quot;web-1 up&quot;, Err({kind: 'timeout})]</code></pre></div>
+print(scope(s =&gt; map([&quot;web-1&quot;, &quot;slow-1&quot;], h =&gt; spawn(s, () =&gt; probe(h))) |&gt; map(await)))</code></pre><pre class="out plain"><code>[&quot;web-1 up&quot;, Err({kind: 'timeout, message: &quot;timed out after 500ms&quot;})]</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-cancel"><code>cancel</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="process.html#fn-exec"><code>exec</code></a>, <a href="program.html#fn-with"><code>with</code></a>, <a href="convert.html#fn-parse_dur"><code>parse_dur</code></a></p>
 </section>
@@ -374,7 +383,7 @@ print(winner)</code></pre><pre class="out plain"><code>mirror-a</code></pre></di
   cancel(s)
   &quot;not returned&quot;
 ;;)
-print(r)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})</code></pre></div>
+print(r)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-timeout"><code>timeout</code></a>, <a href="#fn-await"><code>await</code></a>, <a href="#fn-stop_signal"><code>stop_signal</code></a></p>
 </section>
@@ -473,8 +482,8 @@ print(send(tx, 1), send(tx, 2))
 print(timeout(10ms, () =&gt; send(tx, 3)))
 close(tx)
 print(send(tx, 4))</code></pre><pre class="out plain"><code>Ok(nil) Ok(nil)
-Err({kind: 'timeout})
-Err({kind: 'closed})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})
+Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <p>버퍼 2개가 차자 세 번째 <code>send</code>는 기다리다 기한에 끊긴다.</p>
 <p><strong>응답 채널을 함께 보내기</strong></p>
 <div class="run"><pre><code>scope(fn(s):
@@ -534,7 +543,7 @@ print(recv(rx)!)</code></pre><pre class="out plain"><code>hi</code></pre></div>
 send(tx, 1)!
 send(tx, 2)!
 close(tx)
-print(recv(rx), recv(rx), recv(rx))</code></pre><pre class="out plain"><code>Ok(1) Ok(2) Err({kind: 'closed})</code></pre></div>
+print(recv(rx), recv(rx), recv(rx))</code></pre><pre class="out plain"><code>Ok(1) Ok(2) Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <p><strong>기한을 두고 받기</strong></p>
 <div class="run"><pre><code>(tx, rx) = channel()
 print(timeout(10ms, () =&gt; recv(rx)) ?? &quot;nothing yet&quot;)
@@ -600,7 +609,7 @@ close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403
 <div class="run"><pre><code>stop = stop_signal()
 request_stop()
 print(recv(stop))
-print(&quot;cleaning up, then exiting normally&quot;)</code></pre><pre class="out plain"><code>Err({kind: 'closed})
+print(&quot;cleaning up, then exiting normally&quot;)</code></pre><pre class="out plain"><code>Err({kind: 'closed, message: &quot;channel closed&quot;})
 cleaning up, then exiting normally</code></pre></div>
 <p><strong>일꾼이 정지 요청까지 돌기</strong></p>
 <div class="run"><pre><code>stop = stop_signal()
@@ -639,7 +648,7 @@ done</code></pre></div>
 <div class="run"><pre><code>stop = stop_signal()
 print(request_stop())
 print(recv(stop))</code></pre><pre class="out plain"><code>nil
-Err({kind: 'closed})</code></pre></div>
+Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <p><strong>보는 쪽이 없으면 프로그램이 끝난다</strong></p>
 <div class="run"><pre><code>print(&quot;before&quot;)
 request_stop()
@@ -814,7 +823,7 @@ print(before, deref(a))</code></pre><pre class="out plain"><code>[1, 2] [1, 2, 3
 <p><strong>잠깐 기다리기와 기한</strong></p>
 <div class="run"><pre><code>print(sleep(10ms))
 print(timeout(10ms, () =&gt; sleep(1s)))</code></pre><pre class="out plain"><code>nil
-Err({kind: 'timeout})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})</code></pre></div>
 <p><strong>주기적으로 하기</strong></p>
 <div class="run"><pre><code>fn poll(n):
   if n == 0: return &quot;done&quot; ;;

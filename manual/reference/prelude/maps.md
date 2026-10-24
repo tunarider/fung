@@ -25,7 +25,7 @@ fung의 맵에는 규칙이 셋 있다([값과 타입](../language.html#values))
 
 ## 함수 {#functions}
 
-:::fn get(m, k, default = nil) fung
+:::fn get(m, k, default = nil)
 
 키 `k`가 있으면 그 값을, 없으면 `default`를 돌려준다.
 
@@ -47,7 +47,7 @@ fung의 맵에는 규칙이 셋 있다([값과 타입](../language.html#values))
 
 #### 에러
 
-- `m`이 맵이 아니면 런타임 에러 E0803(`get expects a map, got 'list`). 리스트는 인덱스로 읽는다.
+- `m`이 맵이 아니면 E0506(`cannot get from list`). 리스트는 인덱스로 읽는다.
 - `k`가 문자열이 아니면 E0501.
 
 #### 예제

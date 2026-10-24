@@ -330,7 +330,14 @@ fn cancel_ends_a_handshake() {
         "scope(fn(s):\n  t = spawn(s, () => net.connect(\"127.0.0.1\", {port}, tls: true))\n  until(() => read_waits() > {base} and net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n  print(net_waiting())\n;;)"
     ));
     drop(l);
-    assert_eq!(out(&o), ("Err({kind: 'cancelled})\n0\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\n0\n",
+            "",
+            0
+        )
+    );
     assert!(start.elapsed() < Duration::from_secs(5));
 }
 
@@ -345,7 +352,14 @@ fn a_timeout_ends_a_handshake() {
         "print(timeout(50ms, () => net.connect(\"127.0.0.1\", {port}, tls: true)))"
     ));
     drop(l);
-    assert_eq!(out(&o), ("Err({kind: 'timeout})\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n",
+            "",
+            0
+        )
+    );
 }
 
 /// Reading until the server closes: close_notify ends the stream, and so
@@ -622,7 +636,7 @@ fn start_tls_refuses_a_connection_in_use() {
     assert_eq!(
         out(&o),
         (
-            "Err({kind: 'network, message: \"connection is in use\"})\nErr({kind: 'cancelled})\nOk(nil)\n",
+            "Err({kind: 'network, message: \"connection is in use\"})\nErr({kind: 'cancelled, message: \"cancelled\"})\nOk(nil)\n",
             "",
             0
         )

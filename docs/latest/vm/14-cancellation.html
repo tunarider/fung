@@ -157,8 +157,8 @@ r2 = scope(fn(s):
   cancel(s)
   &quot;body value&quot;
 ;;)
-print(r2)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled})
-Err({kind: 'cancelled})</code></pre></div>
+print(r2)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled, message: &quot;cancelled&quot;})
+Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
 <h3 id="scope">범위가 하는 일</h3>
 <p>범위(<code>crates/fung-vm/src/vm/scope.rs</code>)는 자식의 핸들을 쥐지 않는다. <strong>살아 있는 자식 수</strong>만 센다. 자식이 범위 핸들을 붙잡는 일은 흔하다(손자를 띄우려고). 범위가 자식을 쥐면 범위 → 자식 → 범위의 <code>Rc</code> 고리가 생긴다(10장). 수만 세면 자식이 범위를 쥐는 것은 "도는 동안만"이라 고리가 없다.</p>
 <p>본문이 끝나면 범위는 자식이 0이 될 때까지 기다린다. 이 기다림은 <strong>취소로 끊기면 안 된다.</strong> 바깥에서 취소가 왔다고 자식이 남은 채 돌아오면 "범위가 돌아오면 다 끝났다"는 약속이 깨진다. 그래서 기다리는 동안만 태스크의 노드를 <strong>새 루트 노드</strong>로 바꿔 끼운다. 바깥 취소는 그래도 자식에게 닿는다(자식은 원래 트리에 달려 있다). 자식들이 되감고 끝나면 기다림이 풀리고, 그다음에 범위가 취소를 이어서 되감는다. 이 기다림은 교착 판정에 든다(12장). 그래서 "모두가 범위 끝에서 서로를 기다린다"도 E0702로 잡힌다.</p>
@@ -196,11 +196,11 @@ server still up</code></pre></div>
 print(timeout(1s, () =&gt; &quot;fast&quot;))
 print(timeout(1s, () =&gt; [&quot;inner answered&quot;, timeout(50ms, () =&gt; sleep(10s))]))
 print(timeout(50ms, () =&gt; [&quot;inner answered&quot;, timeout(1s, () =&gt; sleep(10s))]))
-print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})
+print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 100ms&quot;})
 fast
-[&quot;inner answered&quot;, Err({kind: 'timeout})]
-Err({kind: 'timeout})
-Err({kind: 'timeout})</code></pre></div>
+[&quot;inner answered&quot;, Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})]
+Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})
+Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p>세 번째 줄은 안쪽 기한이 먼저라 안쪽 <code>timeout</code>이 답했고 바깥은 그 값을 받았다. 네 번째 줄은 바깥 기한이 먼저라 안쪽은 값을 내지 못하고 되감겼고, 바깥 <code>timeout</code>이 답했다. 마지막 줄은 외부 명령 <code>sleep 5</code>가 200 ms에 끝났다(아래 "외부 명령").</p>
 <h3 id="deadline-node">기한은 노드에</h3>
 <p><code>timeout</code>은 기한이 실린 취소 노드를 만든다(<code>CancelNode::with_deadline</code>). 그 아래에 생기는 노드(범위, 그 안의 태스크)는 부모의 기한을 그대로 물려받는다. 안쪽 <code>timeout</code>의 기한이 바깥보다 늦으면 바깥 기한을 물려받으므로, "이른 쪽이 이긴다"가 저절로 된다. 노드는 기한과 함께 그 기한의 <strong>주인</strong>(그 기한을 만든 <code>timeout</code>의 노드)을 기억한다.</p>
@@ -220,7 +220,7 @@ Err({kind: 'timeout})</code></pre></div>
 <div class="run"><pre><code>fn double(x) = x * 2
 
 print(timeout(0s, () =&gt; double(21)))
-print(timeout(1s, () =&gt; double(21)))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})
+print(timeout(1s, () =&gt; double(21)))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 0s&quot;})
 42</code></pre></div>
 <h3 id="os-waits">운영체제를 기다리던 중이었다면</h3>
 <p>13장의 기다림들은 기한과 취소를 이렇게 받는다.</p>
@@ -250,7 +250,7 @@ print(timeout(1s, () =&gt; double(21)))</code></pre><pre class="out plain"><code
 r = timeout(100ms, () =&gt; conn(&quot;db&quot;))
 print(r)</code></pre><pre class="out plain"><code>open db
 close db
-Err({kind: 'timeout})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 100ms&quot;})</code></pre></div>
 <div class="run"><pre><code>with(
   () =&gt; &quot;tmp&quot;,
   _ =&gt; exit(3),
@@ -372,11 +372,11 @@ print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code><
 print(timeout(1s, () =&gt; &quot;fast&quot;))
 print(timeout(1s, () =&gt; [&quot;inner answered&quot;, timeout(50ms, () =&gt; sleep(10s))]))
 print(timeout(50ms, () =&gt; [&quot;inner answered&quot;, timeout(1s, () =&gt; sleep(10s))]))
-print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout})
+print(timeout(200ms, () =&gt; exec([&quot;sleep&quot;, &quot;5&quot;])))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 100ms&quot;})
 fast
-[&quot;inner answered&quot;, Err({kind: 'timeout})]
-Err({kind: 'timeout})
-Err({kind: 'timeout})</code></pre></div>
+[&quot;inner answered&quot;, Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})]
+Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})
+Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p>셋째 줄은 안쪽 기한(50 ms)이 먼저 지나 안쪽 노드가 <strong>자기 기한으로</strong> 만료되므로 안쪽 <code>timeout</code>이 <code>Err({kind: 'timeout})</code>을 내고, 바깥은 그 값이 든 리스트를 받는다. 넷째 줄은 안쪽 노드가 바깥 기한(50 ms)을 물려받았다. 만료되는 것은 바깥 노드이고, 안쪽은 "자기 기한이 아닌 취소"라 그대로 되감긴다. 그래서 리스트가 만들어지지 않고 바깥 <code>timeout</code>이 답한다. 마지막 줄은 200 ms에 명령에 SIGTERM이 가고, <code>sleep</code>이 그 신호로 끝나서 2초를 기다리지 않는다.</p>
 </details>
 </div>

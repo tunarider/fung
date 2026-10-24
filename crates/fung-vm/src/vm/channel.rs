@@ -4,7 +4,7 @@
 //! copied. `channel()` is unbuffered, so `send` waits until a receiver
 //! takes the value (맞교환); `channel(n)` holds up to `n` values. `close`
 //! is a flag, not an end of the queue: values buffered before it can
-//! still be received, then `recv` gives `Err({kind: 'closed})`, and so
+//! still be received, then `recv` gives `Err({kind: 'closed, …})`, and so
 //! does any `send` after it.
 //!
 //! The state is fung values, so it lives in a `RefCell` touched only by

@@ -44,10 +44,12 @@ impl Resolver<'_> {
             };
             self.module_specs.insert(mod_name.to_string(), target);
         }
-        let mut kids = vec![match self.bind_module(mod_name, n.pos, info) {
-            Some(b) => ref_node(n.pos, b),
-            None => Node::new(Head::Nil, n.pos, vec![]),
-        }];
+        let mut kids = vec![
+            match self.bind_module(mod_name, im.bind_pos, im.bind_len, info) {
+                Some(b) => ref_node(n.pos, b),
+                None => Node::new(Head::Nil, n.pos, vec![]),
+            },
+        ];
         for (i, name) in im.names.iter().flatten().enumerate() {
             let pos = im.name_pos[i];
             if name.starts_with('_') {
@@ -78,8 +80,15 @@ impl Resolver<'_> {
     }
 
     /// Binds a module name: constant, unshadowable, once (E0309). An empty
-    /// name (only a name list was written) binds nothing.
-    fn bind_module(&mut self, name: &str, pos: Pos, info: &ModuleInfo) -> Option<Binding> {
+    /// name (only a name list was written) binds nothing. `pos` and `len`
+    /// are where the name is written, for diagnostics.
+    fn bind_module(
+        &mut self,
+        name: &str,
+        pos: Pos,
+        len: usize,
+        info: &ModuleInfo,
+    ) -> Option<Binding> {
         if name.is_empty() {
             return None;
         }
@@ -93,7 +102,7 @@ impl Resolver<'_> {
                 };
                 self.root_scope().names.insert(name.to_string(), b);
                 self.module_names.insert(name.to_string(), info.clone());
-                self.import_bound.insert(name.to_string());
+                self.import_bound.insert(name.to_string(), len);
                 return Some(b);
             }
             let e = if b.module {
@@ -101,7 +110,7 @@ impl Resolver<'_> {
             } else {
                 self.shadow_error(name, pos)
             };
-            self.errs.push(e);
+            self.errs.push(e.span(len));
             return None;
         }
         self.warn_shadow(name, pos);
@@ -111,7 +120,7 @@ impl Resolver<'_> {
             constant: true,
             module: true,
         };
-        self.bind_import(name, pos, b);
+        self.bind_import(name, pos, len, b);
         self.module_names.insert(name.to_string(), info.clone());
         Some(b)
     }
@@ -135,15 +144,15 @@ impl Resolver<'_> {
             constant: true,
             module: false,
         };
-        self.bind_import(name, pos, b);
+        self.bind_import(name, pos, rune_len(name), b);
         Some(b)
     }
 
-    fn bind_import(&mut self, name: &str, pos: Pos, b: Binding) {
+    fn bind_import(&mut self, name: &str, pos: Pos, len: usize, b: Binding) {
         self.globals.push(name.to_string());
         self.root_scope().names.insert(name.to_string(), b);
         self.root_scope().pos.insert(name.to_string(), pos);
-        self.import_bound.insert(name.to_string());
+        self.import_bound.insert(name.to_string(), len);
     }
 
     /// Reports E0308 when a new name would hide an imported module name

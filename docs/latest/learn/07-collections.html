@@ -152,7 +152,7 @@ print(db.usr)</code></pre><pre class="out err plain" data-code="1"><code>error[E
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;
- help: use get(m, key, default) or ?? for a default</code></pre></div>
+ help: use get(m, key, default) for a default</code></pre></div>
 <h3 id="build-maps">새 맵 만들기</h3>
 <p>맵도 고치지 않고 새로 만든다. <code>put(m, k, v)</code>는 키 하나를 넣거나 바꾼 맵, <code>merge(a, b)</code>는 <code>a</code>에 <code>b</code>를 덮은 맵, <code>remove(m, k)</code>는 키 하나를 뺀 맵이다.</p>
 <div class="run"><pre><code>server = {name: &quot;web-1&quot;, port: 8080}

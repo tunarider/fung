@@ -192,22 +192,25 @@ print(&quot;latest:&quot;, last(releases) ?? &quot;none&quot;)</code></pre><pre 
 </section>
 <section class="entry" id="fn-take">
 <h3>take<span class="by">fung으로 작성</span></h3>
-<p>앞에서 최대 <code>n</code>개를 리스트로 돌려준다.</p>
+<p>앞에서 최대 <code>n</code>개를 리스트로 돌려준다. 문자열이면 앞의 <code>n</code>글자를 문자열로 돌려준다.</p>
 <div class="sig"><code>take(xs, n)</code></div>
 <h4>설명</h4>
-<p>슬라이스 <code>xs[..n]</code>과 달리 <code>n</code>이 길이보다 커도 에러가 아니다. 있는 만큼만 준다. <code>n</code>이 0 이하면 <code>[]</code>다. 범위는 필요한 수만 만들므로 <code>take(0..1_000_000_000, 3)</code>도 빠르다. 채널의 받는 끝이면 <code>n</code>개를 받을 때까지(또는 닫힐 때까지) 받고 멈추며, 남은 값은 채널에 그대로 있다.</p>
+<p>슬라이스 <code>xs[..n]</code>과 달리 <code>n</code>이 길이보다 커도 에러가 아니다. 있는 만큼만 준다. <code>n</code>이 0 이하면 <code>[]</code>(문자열이면 <code>&quot;&quot;</code>)다. 문자열은 슬라이스처럼 글자 단위로 자른다. 범위는 필요한 수만 만들므로 <code>take(0..1_000_000_000, 3)</code>도 빠르다. 채널의 받는 끝이면 <code>n</code>개를 받을 때까지(또는 닫힐 때까지) 받고 멈추며, 남은 값은 채널에 그대로 있다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>xs</code>: 리스트, 문자열, 범위, 받는 끝.</li>
 <li><code>n</code>: 정수.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p>리스트.</p>
+<p>리스트. <code>xs</code>가 문자열이면 문자열.</p>
 <h4>에러</h4>
 <p><code>n</code>이 정수가 아니면 런타임 에러 E0803(<code>take expects an int count, got 'float</code>).</p>
 <h4>예제</h4>
 <p><strong>넘쳐도 에러가 아니다</strong></p>
 <div class="run"><pre><code>print(take([1, 2, 3], 2), take([1], 5), take([1, 2], -1), take(0..1_000_000_000, 3))</code></pre><pre class="out plain"><code>[1, 2] [1] [] [0, 1, 2]</code></pre></div>
+<p><strong>문자열의 앞부분</strong></p>
+<div class="run"><pre><code>commit = &quot;3f99a5c0d1e2&quot;
+print(take(commit, 7), take(&quot;ok&quot;, 7))</code></pre><pre class="out plain"><code>3f99a5c ok</code></pre></div>
 <p><strong>상위 3개</strong></p>
 <div class="run"><pre><code>sizes = {&quot;a.log&quot;: 120, &quot;b.log&quot;: 900, &quot;c.log&quot;: 40, &quot;d.log&quot;: 300}
 top = pairs(sizes) |&gt; sort_by(((_, n)) =&gt; -n) |&gt; take(3)
@@ -224,22 +227,24 @@ print(take(rx, 2))</code></pre><pre class="out plain"><code>[1, 2]
 </section>
 <section class="entry" id="fn-drop">
 <h3>drop<span class="by">fung으로 작성</span></h3>
-<p>앞의 <code>n</code>개를 뺀 나머지를 리스트로 돌려준다.</p>
+<p>앞의 <code>n</code>개를 뺀 나머지를 리스트로 돌려준다. 문자열이면 앞의 <code>n</code>글자를 뺀 문자열을 돌려준다.</p>
 <div class="sig"><code>drop(xs, n)</code></div>
 <h4>설명</h4>
-<p>슬라이스 <code>xs[n..]</code>과 달리 <code>n</code>이 길이보다 커도 에러가 아니고 <code>[]</code>를 준다. <code>n</code>이 0 이하면 전부를 준다. 범위는 필요한 부분만 만든다. 받는 끝이면 닫힐 때까지 모두 받은 뒤 앞의 <code>n</code>개를 버린다(그래서 닫히지 않는 채널에서는 끝나지 않는다).</p>
+<p>슬라이스 <code>xs[n..]</code>과 달리 <code>n</code>이 길이보다 커도 에러가 아니고 <code>[]</code>(문자열이면 <code>&quot;&quot;</code>)를 준다. <code>n</code>이 0 이하면 전부를 준다. 범위는 필요한 부분만 만든다. 받는 끝이면 닫힐 때까지 모두 받은 뒤 앞의 <code>n</code>개를 버린다(그래서 닫히지 않는 채널에서는 끝나지 않는다).</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
+<li><code>xs</code>: 리스트, 문자열, 범위, 받는 끝.</li>
 <li><code>n</code>: 정수.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p>리스트.</p>
+<p>리스트. <code>xs</code>가 문자열이면 문자열.</p>
 <h4>에러</h4>
 <p><code>n</code>이 정수가 아니면 런타임 에러 E0803.</p>
 <h4>예제</h4>
 <p><strong>넘쳐도 에러가 아니다</strong></p>
-<div class="run"><pre><code>print(drop([1, 2, 3], 1), drop([1], 5), drop([1, 2], -1), drop(0..5, 3))</code></pre><pre class="out plain"><code>[2, 3] [] [1, 2] [3, 4]</code></pre></div>
+<div class="run"><pre><code>print(drop([1, 2, 3], 1), drop([1], 5), drop([1, 2], -1), drop(0..5, 3))
+print(drop(&quot;v1.2.3&quot;, 1))</code></pre><pre class="out plain"><code>[2, 3] [] [1, 2] [3, 4]
+1.2.3</code></pre></div>
 <p><strong>머리줄 빼기</strong></p>
 <div class="run"><pre><code>rows = [&quot;name,size&quot;, &quot;a.log,120&quot;, &quot;b.log,900&quot;]
 print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&quot;, &quot;b.log,900&quot;]</code></pre></div>

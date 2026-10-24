@@ -34,12 +34,13 @@ E0225	`%s` starts with an uppercase letter, so it is a tag and cannot name a var
 E0226	`?` inside a lambda given to map		map keeps the Err as an element; use `try_map`, which stops at the first Err
 E0227	`_` in a call on the right of `|>`		the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 E0228	the rest parameter `...%s` is always a list		annotate it `list` (or not at all); `list[int]` names the elements without checking them
+E0229	`%s` on the right of `|>` applies to the call, not to the pipe		put the pipe in parentheses: `(xs |> try_map(f))?`
 E0301	cannot find module `%s`		standard library modules are imported by name (`import fs`); your own files by path (`import "./lib/x"`)
 E0302	circular import: %s		
 E0303	module `%s` has no member `%s`		
 E0304	`%s` is private to module `%s`		names starting with `_` are not exported
 E0305	`%s` is not a valid module name; use `as`		
-E0306	only import, fn, type, and assignment are allowed at the top level of an imported module		move the statement into a function, or into the entry file
+E0306	only import, fn, type, test, and assignment are allowed at the top level of an imported module		move the statement into a function, or into the entry file
 E0307	cannot import the entry file		
 E0308	cannot shadow module `%s`		
 E0309	name `%s` is already bound to a module		
@@ -58,8 +59,8 @@ E0503	integer overflow
 E0504	result is not a finite number		
 E0505	expected bool, got %s		
 E0506	cannot %s %s		
-E0507	index %d is out of range (length %d)		
-E0508	key `%s` not found		use get(m, key, default) or ?? for a default
+E0507	%s %d is out of range (length %d)		
+E0508	key `%s` not found		use get(m, key, default) for a default
 E0509	cannot index a value of type %s		
 E0511	cannot slice a value of type %s		
 E0512	cannot test membership in a value of type %s		

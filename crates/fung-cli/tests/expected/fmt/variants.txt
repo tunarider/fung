@@ -568,6 +568,7 @@
 | in/extras~conc@cpushed.fung
 | in/extras~conc@crlf.fung
 | in/extras~conc@dedent.fung
+| in/extras~conc@halfbytes.fung
 | in/extras~conc@moreblank.fung
 | in/extras~conc@nofinal.fung
 | in/extras~conc@odd3.fung
@@ -633,7 +634,6 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
-| in/extras~prelude@halfbytes.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -843,7 +843,6 @@
 | in/tests~lang~collections@contsplit.fung
 | in/tests~lang~collections@cpushed.fung
 | in/tests~lang~collections@crlf.fung
-| in/tests~lang~collections@halfbytes.fung
 | in/tests~lang~collections@moreblank.fung
 | in/tests~lang~collections@nofinal.fung
 | in/tests~lang~collections@opsplit.fung
@@ -879,7 +878,6 @@
 | in/tests~lang~conc_helpers@cpushed.fung
 | in/tests~lang~conc_helpers@crlf.fung
 | in/tests~lang~conc_helpers@dedent.fung
-| in/tests~lang~conc_helpers@halfbytes.fung
 | in/tests~lang~conc_helpers@moreblank.fung
 | in/tests~lang~conc_helpers@nofinal.fung
 | in/tests~lang~conc_helpers@odd3.fung
@@ -3140,16 +3138,10 @@
 | 10 | dir = first(opts.rest) ?? fail("usage: t
 |    |                                ^
 |    |
-| error[E0110]: unexpected end of file
-|   --> in/extras~conc@halfbytes.fung:28:7
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~conc@halflines.fung:36:1
 |    |
-| 28 |   Ok(v
-|    |       ^
-|    |
-| error[E0110]: unexpected end of file
-|   --> in/extras~conc@halflines.fung:29:1
-|    |
-| 29 | 
+| 36 | 
 |    | ^
 |    |
 | error[E0110]: unexpected `.`
@@ -3164,11 +3156,11 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `:` or `if` after else, found end of file
-|   --> in/extras~http@halfbytes.fung:941:8
+| error[E0112]: expected `)`, found end of file
+|   --> in/extras~http@halfbytes.fung:940:14
 |     |
-| 941 |   else 
-|     |        ^
+| 940 |     Ok((h1, 0
+|     |              ^
 |     |
 | error[E0112]: expected `;;` to close the if, found end of file
 |   --> in/extras~http@halflines.fung:967:1
@@ -3206,11 +3198,11 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halflines.fung:71:1
+| error[E0110]: unexpected end of file
+|   --> in/extras~prelude@halfbytes.fung:73:30
 |    |
-| 71 | 
-|    | ^
+| 73 |   is_empty(ys) then nil else 
+|    |                              ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -3296,11 +3288,11 @@
 | 2 | swap(a, x => x 
 |   |                ^
 |   |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/tests~lang~cancel@halfbytes.fung:7:2
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~cancel@halfbytes.fung:7:46
 |   |
-| 7 |  
-|   |  ^
+| 7 |   print(await(t), timeout(10ms, () => await(u
+|   |                                              ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~cancel@halflines.fung:6:1
@@ -3315,6 +3307,12 @@
 |    |              ^
 |    |
 | error[E0110]: unexpected end of file
+|   --> in/tests~lang~collections@halfbytes.fung:5:22
+|   |
+| 5 | print([take("héllo", 
+|   |                      ^
+|   |
+| error[E0110]: unexpected end of file
 |   --> in/tests~lang~compare_exact@halfbytes.fung:1:54
 |   |
 | 1 | print(9007199254740993 == 9007199254740992.0, 9007199
@@ -3326,6 +3324,18 @@
 | 3 | print(not true, true and false, false o
 |   |                                       ^
 |   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~conc_helpers@halfbytes.fung:17:9
+|    |
+| 17 | waits = 
+|    |         ^
+|    |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~conc_helpers@halflines.fung:19:1
+|    |
+| 19 | 
+|    | ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~convert@halfbytes.fung:3:22
 |   |
@@ -5353,11 +5363,11 @@
 | 9 | 
 |   | ^
 |   |
-| error[E0104]: unterminated string
-|   --> in/tests~lang~http_serve@halfbytes.fung:18:38
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~http_serve@halfbytes.fung:18:54
 |    |
-| 18 |   server = spawn(s, () => http.serve("127.
-|    |                                      ^
+| 18 |   server = spawn(s, () => http.serve("127.0.0.1:0", h
+|    |                                                      ^
 |    |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~http_serve@halflines.fung:19:1
@@ -5618,10 +5628,10 @@
 |   |                                                              ^
 |   |
 | error[E0110]: unexpected end of file
-|   --> in/tests~lang~timeouts@halfbytes.fung:4:3
+|   --> in/tests~lang~timeouts@halfbytes.fung:5:13
 |   |
-| 4 | (_
-|   |   ^
+| 5 | print(timeou
+|   |             ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~top_constants@halfbytes.fung:9:18
@@ -6256,6 +6266,7 @@
 | in/extras~conc@cpushed.fung
 | in/extras~conc@crlf.fung
 | in/extras~conc@dedent.fung
+| in/extras~conc@halfbytes.fung
 | in/extras~conc@moreblank.fung
 | in/extras~conc@nofinal.fung
 | in/extras~conc@odd3.fung
@@ -6321,7 +6332,6 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
-| in/extras~prelude@halfbytes.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -6531,7 +6541,6 @@
 | in/tests~lang~collections@contsplit.fung
 | in/tests~lang~collections@cpushed.fung
 | in/tests~lang~collections@crlf.fung
-| in/tests~lang~collections@halfbytes.fung
 | in/tests~lang~collections@moreblank.fung
 | in/tests~lang~collections@nofinal.fung
 | in/tests~lang~collections@opsplit.fung
@@ -6567,7 +6576,6 @@
 | in/tests~lang~conc_helpers@cpushed.fung
 | in/tests~lang~conc_helpers@crlf.fung
 | in/tests~lang~conc_helpers@dedent.fung
-| in/tests~lang~conc_helpers@halfbytes.fung
 | in/tests~lang~conc_helpers@moreblank.fung
 | in/tests~lang~conc_helpers@nofinal.fung
 | in/tests~lang~conc_helpers@odd3.fung
@@ -8828,16 +8836,10 @@
 | 10 | dir = first(opts.rest) ?? fail("usage: t
 |    |                                ^
 |    |
-| error[E0110]: unexpected end of file
-|   --> in/extras~conc@halfbytes.fung:28:7
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~conc@halflines.fung:36:1
 |    |
-| 28 |   Ok(v
-|    |       ^
-|    |
-| error[E0110]: unexpected end of file
-|   --> in/extras~conc@halflines.fung:29:1
-|    |
-| 29 | 
+| 36 | 
 |    | ^
 |    |
 | error[E0110]: unexpected `.`
@@ -8852,11 +8854,11 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `:` or `if` after else, found end of file
-|   --> in/extras~http@halfbytes.fung:941:8
+| error[E0112]: expected `)`, found end of file
+|   --> in/extras~http@halfbytes.fung:940:14
 |     |
-| 941 |   else 
-|     |        ^
+| 940 |     Ok((h1, 0
+|     |              ^
 |     |
 | error[E0112]: expected `;;` to close the if, found end of file
 |   --> in/extras~http@halflines.fung:967:1
@@ -8894,11 +8896,11 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halflines.fung:71:1
+| error[E0110]: unexpected end of file
+|   --> in/extras~prelude@halfbytes.fung:73:30
 |    |
-| 71 | 
-|    | ^
+| 73 |   is_empty(ys) then nil else 
+|    |                              ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -8984,11 +8986,11 @@
 | 2 | swap(a, x => x 
 |   |                ^
 |   |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/tests~lang~cancel@halfbytes.fung:7:2
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~cancel@halfbytes.fung:7:46
 |   |
-| 7 |  
-|   |  ^
+| 7 |   print(await(t), timeout(10ms, () => await(u
+|   |                                              ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~cancel@halflines.fung:6:1
@@ -9003,6 +9005,12 @@
 |    |              ^
 |    |
 | error[E0110]: unexpected end of file
+|   --> in/tests~lang~collections@halfbytes.fung:5:22
+|   |
+| 5 | print([take("héllo", 
+|   |                      ^
+|   |
+| error[E0110]: unexpected end of file
 |   --> in/tests~lang~compare_exact@halfbytes.fung:1:54
 |   |
 | 1 | print(9007199254740993 == 9007199254740992.0, 9007199
@@ -9014,6 +9022,18 @@
 | 3 | print(not true, true and false, false o
 |   |                                       ^
 |   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~conc_helpers@halfbytes.fung:17:9
+|    |
+| 17 | waits = 
+|    |         ^
+|    |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~conc_helpers@halflines.fung:19:1
+|    |
+| 19 | 
+|    | ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~convert@halfbytes.fung:3:22
 |   |
@@ -11041,11 +11061,11 @@
 | 9 | 
 |   | ^
 |   |
-| error[E0104]: unterminated string
-|   --> in/tests~lang~http_serve@halfbytes.fung:18:38
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~http_serve@halfbytes.fung:18:54
 |    |
-| 18 |   server = spawn(s, () => http.serve("127.
-|    |                                      ^
+| 18 |   server = spawn(s, () => http.serve("127.0.0.1:0", h
+|    |                                                      ^
 |    |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~http_serve@halflines.fung:19:1
@@ -11306,10 +11326,10 @@
 |   |                                                              ^
 |   |
 | error[E0110]: unexpected end of file
-|   --> in/tests~lang~timeouts@halfbytes.fung:4:3
+|   --> in/tests~lang~timeouts@halfbytes.fung:5:13
 |   |
-| 4 | (_
-|   |   ^
+| 5 | print(timeou
+|   |             ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~top_constants@halfbytes.fung:9:18
@@ -12327,27 +12347,27 @@
 | extras~cli@trailing.fung 2043 54e01951e17adcac
 | extras~cli@wide4.fung 2043 54e01951e17adcac
 | extras~conc.fung unchanged
-| extras~conc@bom.fung 2083 3b161c77533d774f
-| extras~conc@cglued.fung 2083 3b161c77533d774f
+| extras~conc@bom.fung 2570 ce9a62f4b03c00fd
+| extras~conc@cglued.fung 2570 ce9a62f4b03c00fd
 | extras~conc@cnospace.fung unchanged
-| extras~conc@contsplit.fung 2137 d6f953b28dc0b1c7
-| extras~conc@cpushed.fung 2083 3b161c77533d774f
-| extras~conc@crlf.fung 2083 3b161c77533d774f
-| extras~conc@dedent.fung 2083 3b161c77533d774f
-| extras~conc@halfbytes.fung unchanged
+| extras~conc@contsplit.fung 2642 d8613bdca8e9c031
+| extras~conc@cpushed.fung 2570 ce9a62f4b03c00fd
+| extras~conc@crlf.fung 2570 ce9a62f4b03c00fd
+| extras~conc@dedent.fung 2570 ce9a62f4b03c00fd
+| extras~conc@halfbytes.fung 1286 22f386e3f1c783a3
 | extras~conc@halflines.fung unchanged
 | extras~conc@joined.fung unchanged
-| extras~conc@moreblank.fung 2107 ee4ce3d4dd1312d3
+| extras~conc@moreblank.fung 2597 fdd51d34331ae3ff
 | extras~conc@noblank.fung unchanged
-| extras~conc@nofinal.fung 2083 3b161c77533d774f
-| extras~conc@odd3.fung 2083 3b161c77533d774f
-| extras~conc@opsplit.fung 2297 f404a65dc711231f
-| extras~conc@spaced.fung 2083 3b161c77533d774f
-| extras~conc@split.fung 2791 04caa1b8c02bf461
-| extras~conc@tabs.fung 2083 3b161c77533d774f
-| extras~conc@tight.fung 2083 3b161c77533d774f
-| extras~conc@trailing.fung 2083 3b161c77533d774f
-| extras~conc@wide4.fung 2083 3b161c77533d774f
+| extras~conc@nofinal.fung 2570 ce9a62f4b03c00fd
+| extras~conc@odd3.fung 2570 ce9a62f4b03c00fd
+| extras~conc@opsplit.fung 2874 7467b1cf3e0d938f
+| extras~conc@spaced.fung 2570 ce9a62f4b03c00fd
+| extras~conc@split.fung 3680 0d635631b765a0b5
+| extras~conc@tabs.fung 2570 ce9a62f4b03c00fd
+| extras~conc@tight.fung 2570 ce9a62f4b03c00fd
+| extras~conc@trailing.fung 2570 ce9a62f4b03c00fd
+| extras~conc@wide4.fung 2570 ce9a62f4b03c00fd
 | extras~fs.fung unchanged
 | extras~fs@bom.fung 1708 98fbff77076fa532
 | extras~fs@cglued.fung 1708 98fbff77076fa532
@@ -12371,27 +12391,27 @@
 | extras~fs@trailing.fung 1708 98fbff77076fa532
 | extras~fs@wide4.fung 1708 98fbff77076fa532
 | extras~http.fung unchanged
-| extras~http@bom.fung 68440 ce2bb87bbf147571
-| extras~http@cglued.fung 68440 ce2bb87bbf147571
+| extras~http@bom.fung 68459 ae6e1c48e7c30488
+| extras~http@cglued.fung 68459 ae6e1c48e7c30488
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 68440 ce2bb87bbf147571
-| extras~http@crlf.fung 68440 ce2bb87bbf147571
-| extras~http@dedent.fung 68440 ce2bb87bbf147571
+| extras~http@cpushed.fung 68459 ae6e1c48e7c30488
+| extras~http@crlf.fung 68459 ae6e1c48e7c30488
+| extras~http@dedent.fung 68459 ae6e1c48e7c30488
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 68845 c258abc65520c1e3
+| extras~http@moreblank.fung 68864 0f17cd27f3e4f992
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 68440 ce2bb87bbf147571
-| extras~http@odd3.fung 68440 ce2bb87bbf147571
+| extras~http@nofinal.fung 68459 ae6e1c48e7c30488
+| extras~http@odd3.fung 68459 ae6e1c48e7c30488
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 68440 ce2bb87bbf147571
-| extras~http@split.fung 98310 0622bd0599236453
-| extras~http@tabs.fung 68440 ce2bb87bbf147571
-| extras~http@tight.fung 68440 ce2bb87bbf147571
-| extras~http@trailing.fung 68440 ce2bb87bbf147571
-| extras~http@wide4.fung 68440 ce2bb87bbf147571
+| extras~http@spaced.fung 68459 ae6e1c48e7c30488
+| extras~http@split.fung 98329 db94a7d04361b9be
+| extras~http@tabs.fung 68459 ae6e1c48e7c30488
+| extras~http@tight.fung 68459 ae6e1c48e7c30488
+| extras~http@trailing.fung 68459 ae6e1c48e7c30488
+| extras~http@wide4.fung 68459 ae6e1c48e7c30488
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1
@@ -12437,27 +12457,27 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 4737 467e3e30751a7355
-| extras~prelude@cglued.fung 4737 467e3e30751a7355
+| extras~prelude@bom.fung 4658 8a0997de56b1a4ad
+| extras~prelude@cglued.fung 4658 8a0997de56b1a4ad
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 4737 467e3e30751a7355
-| extras~prelude@crlf.fung 4737 467e3e30751a7355
-| extras~prelude@dedent.fung 4737 467e3e30751a7355
-| extras~prelude@halfbytes.fung 2368 6c29fbf25c8f4a0c
+| extras~prelude@cpushed.fung 4658 8a0997de56b1a4ad
+| extras~prelude@crlf.fung 4658 8a0997de56b1a4ad
+| extras~prelude@dedent.fung 4658 8a0997de56b1a4ad
+| extras~prelude@halfbytes.fung unchanged
 | extras~prelude@halflines.fung unchanged
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 4745 9ce2c8b8aad5f159
+| extras~prelude@moreblank.fung 4669 a07483dfbd100259
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 4737 467e3e30751a7355
-| extras~prelude@odd3.fung 4737 467e3e30751a7355
-| extras~prelude@opsplit.fung 5232 cf26362fdf8e514b
-| extras~prelude@spaced.fung 4737 467e3e30751a7355
-| extras~prelude@split.fung 6367 0c4a25df80b3d4d3
-| extras~prelude@tabs.fung 4737 467e3e30751a7355
-| extras~prelude@tight.fung 4737 467e3e30751a7355
-| extras~prelude@trailing.fung 4737 467e3e30751a7355
-| extras~prelude@wide4.fung 4737 467e3e30751a7355
+| extras~prelude@nofinal.fung 4658 8a0997de56b1a4ad
+| extras~prelude@odd3.fung 4658 8a0997de56b1a4ad
+| extras~prelude@opsplit.fung 5127 c486588a628cf57b
+| extras~prelude@spaced.fung 4658 8a0997de56b1a4ad
+| extras~prelude@split.fung 6370 4bf9aec27413df2b
+| extras~prelude@tabs.fung 4658 8a0997de56b1a4ad
+| extras~prelude@tight.fung 4658 8a0997de56b1a4ad
+| extras~prelude@trailing.fung 4658 8a0997de56b1a4ad
+| extras~prelude@wide4.fung 4658 8a0997de56b1a4ad
 | extras~regex.fung unchanged
 | extras~regex@bom.fung 213 b042b42db3e3ed81
 | extras~regex@cglued.fung unchanged
@@ -12745,27 +12765,27 @@
 | tests~lang~atoms@trailing.fung 1213 ef6a9319abad59bc
 | tests~lang~atoms@wide4.fung 1213 ef6a9319abad59bc
 | tests~lang~cancel.fung unchanged
-| tests~lang~cancel@bom.fung 343 919d21237c14e7ad
-| tests~lang~cancel@cglued.fung 343 919d21237c14e7ad
+| tests~lang~cancel@bom.fung 430 323fd47bfa016efb
+| tests~lang~cancel@cglued.fung 430 323fd47bfa016efb
 | tests~lang~cancel@cnospace.fung unchanged
 | tests~lang~cancel@contsplit.fung unchanged
-| tests~lang~cancel@cpushed.fung 343 919d21237c14e7ad
-| tests~lang~cancel@crlf.fung 343 919d21237c14e7ad
-| tests~lang~cancel@dedent.fung 343 919d21237c14e7ad
+| tests~lang~cancel@cpushed.fung 430 323fd47bfa016efb
+| tests~lang~cancel@crlf.fung 430 323fd47bfa016efb
+| tests~lang~cancel@dedent.fung 430 323fd47bfa016efb
 | tests~lang~cancel@halfbytes.fung unchanged
 | tests~lang~cancel@halflines.fung unchanged
 | tests~lang~cancel@joined.fung unchanged
-| tests~lang~cancel@moreblank.fung 350 ebe1a6bb7944a577
+| tests~lang~cancel@moreblank.fung 437 cb78bd15762413bd
 | tests~lang~cancel@noblank.fung unchanged
-| tests~lang~cancel@nofinal.fung 343 919d21237c14e7ad
-| tests~lang~cancel@odd3.fung 343 919d21237c14e7ad
-| tests~lang~cancel@opsplit.fung 377 efaffdb3a96f5dcb
-| tests~lang~cancel@spaced.fung 343 919d21237c14e7ad
-| tests~lang~cancel@split.fung 631 235fa76fdb470543
-| tests~lang~cancel@tabs.fung 343 919d21237c14e7ad
-| tests~lang~cancel@tight.fung 343 919d21237c14e7ad
-| tests~lang~cancel@trailing.fung 343 919d21237c14e7ad
-| tests~lang~cancel@wide4.fung 343 919d21237c14e7ad
+| tests~lang~cancel@nofinal.fung 430 323fd47bfa016efb
+| tests~lang~cancel@odd3.fung 430 323fd47bfa016efb
+| tests~lang~cancel@opsplit.fung 464 3930fed526bf3d69
+| tests~lang~cancel@spaced.fung 430 323fd47bfa016efb
+| tests~lang~cancel@split.fung 718 bc67fe8095c7a091
+| tests~lang~cancel@tabs.fung 430 323fd47bfa016efb
+| tests~lang~cancel@tight.fung 430 323fd47bfa016efb
+| tests~lang~cancel@trailing.fung 430 323fd47bfa016efb
+| tests~lang~cancel@wide4.fung 430 323fd47bfa016efb
 | tests~lang~channel_stream.fung unchanged
 | tests~lang~channel_stream@bom.fung 989 e288ba61ef3a6cd9
 | tests~lang~channel_stream@cglued.fung 989 e288ba61ef3a6cd9
@@ -12789,27 +12809,27 @@
 | tests~lang~channel_stream@trailing.fung 989 e288ba61ef3a6cd9
 | tests~lang~channel_stream@wide4.fung 989 e288ba61ef3a6cd9
 | tests~lang~channels.fung unchanged
-| tests~lang~channels@bom.fung 740 7f85de03997a7c27
-| tests~lang~channels@cglued.fung 740 7f85de03997a7c27
+| tests~lang~channels@bom.fung 794 0694a00b38d54295
+| tests~lang~channels@cglued.fung 794 0694a00b38d54295
 | tests~lang~channels@cnospace.fung unchanged
 | tests~lang~channels@contsplit.fung unchanged
-| tests~lang~channels@cpushed.fung 740 7f85de03997a7c27
-| tests~lang~channels@crlf.fung 740 7f85de03997a7c27
-| tests~lang~channels@dedent.fung 740 7f85de03997a7c27
-| tests~lang~channels@halfbytes.fung 371 5d72b3b1a70cd956
+| tests~lang~channels@cpushed.fung 794 0694a00b38d54295
+| tests~lang~channels@crlf.fung 794 0694a00b38d54295
+| tests~lang~channels@dedent.fung 794 0694a00b38d54295
+| tests~lang~channels@halfbytes.fung 398 9533d6c734a06e72
 | tests~lang~channels@halflines.fung unchanged
 | tests~lang~channels@joined.fung unchanged
-| tests~lang~channels@moreblank.fung 759 cff73752545bb8b7
+| tests~lang~channels@moreblank.fung 813 2fb3f54f4703048d
 | tests~lang~channels@noblank.fung unchanged
-| tests~lang~channels@nofinal.fung 740 7f85de03997a7c27
-| tests~lang~channels@odd3.fung 740 7f85de03997a7c27
-| tests~lang~channels@opsplit.fung 770 1070315b1476228b
-| tests~lang~channels@spaced.fung 740 7f85de03997a7c27
-| tests~lang~channels@split.fung 1120 8df6b6d736a99da7
-| tests~lang~channels@tabs.fung 740 7f85de03997a7c27
-| tests~lang~channels@tight.fung 740 7f85de03997a7c27
-| tests~lang~channels@trailing.fung 740 7f85de03997a7c27
-| tests~lang~channels@wide4.fung 740 7f85de03997a7c27
+| tests~lang~channels@nofinal.fung 794 0694a00b38d54295
+| tests~lang~channels@odd3.fung 794 0694a00b38d54295
+| tests~lang~channels@opsplit.fung 824 eb1358eb26afac25
+| tests~lang~channels@spaced.fung 794 0694a00b38d54295
+| tests~lang~channels@split.fung 1174 51da0a432fe42589
+| tests~lang~channels@tabs.fung 794 0694a00b38d54295
+| tests~lang~channels@tight.fung 794 0694a00b38d54295
+| tests~lang~channels@trailing.fung 794 0694a00b38d54295
+| tests~lang~channels@wide4.fung 794 0694a00b38d54295
 | tests~lang~closures.fung unchanged
 | tests~lang~closures@bom.fung 408 81e8451a519001c5
 | tests~lang~closures@cglued.fung 408 81e8451a519001c5
@@ -12833,26 +12853,26 @@
 | tests~lang~closures@trailing.fung 408 81e8451a519001c5
 | tests~lang~closures@wide4.fung 408 81e8451a519001c5
 | tests~lang~collections.fung unchanged
-| tests~lang~collections@bom.fung 517 3fb6a9c53c4b3be4
-| tests~lang~collections@cglued.fung 517 3fb6a9c53c4b3be4
+| tests~lang~collections@bom.fung 647 3f3499149c560922
+| tests~lang~collections@cglued.fung 647 3f3499149c560922
 | tests~lang~collections@cnospace.fung unchanged
-| tests~lang~collections@contsplit.fung 523 46da90eed70968fe
-| tests~lang~collections@cpushed.fung 517 3fb6a9c53c4b3be4
-| tests~lang~collections@crlf.fung 517 3fb6a9c53c4b3be4
+| tests~lang~collections@contsplit.fung 653 6b2fcbee632b3b9c
+| tests~lang~collections@cpushed.fung 647 3f3499149c560922
+| tests~lang~collections@crlf.fung 647 3f3499149c560922
 | tests~lang~collections@dedent.fung unchanged
-| tests~lang~collections@halfbytes.fung 259 e64b83e7c511dba3
+| tests~lang~collections@halfbytes.fung unchanged
 | tests~lang~collections@halflines.fung unchanged
 | tests~lang~collections@joined.fung unchanged
-| tests~lang~collections@moreblank.fung 525 746732422ace47fa
+| tests~lang~collections@moreblank.fung 657 8f90589034564246
 | tests~lang~collections@noblank.fung unchanged
-| tests~lang~collections@nofinal.fung 517 3fb6a9c53c4b3be4
+| tests~lang~collections@nofinal.fung 647 3f3499149c560922
 | tests~lang~collections@odd3.fung unchanged
-| tests~lang~collections@opsplit.fung 555 593beacc00a0f6b8
-| tests~lang~collections@spaced.fung 517 3fb6a9c53c4b3be4
-| tests~lang~collections@split.fung 876 1769043c298a09f6
+| tests~lang~collections@opsplit.fung 688 477e32641987ccfe
+| tests~lang~collections@spaced.fung 647 3f3499149c560922
+| tests~lang~collections@split.fung 1095 f1efad1a69e86914
 | tests~lang~collections@tabs.fung unchanged
-| tests~lang~collections@tight.fung 517 3fb6a9c53c4b3be4
-| tests~lang~collections@trailing.fung 517 3fb6a9c53c4b3be4
+| tests~lang~collections@tight.fung 647 3f3499149c560922
+| tests~lang~collections@trailing.fung 647 3f3499149c560922
 | tests~lang~collections@wide4.fung unchanged
 | tests~lang~compare_exact.fung unchanged
 | tests~lang~compare_exact@bom.fung 106 bd8cb110a57ef68a
@@ -12899,27 +12919,27 @@
 | tests~lang~compare_logic@trailing.fung 253 e39fe0cd8e69a256
 | tests~lang~compare_logic@wide4.fung unchanged
 | tests~lang~conc_helpers.fung unchanged
-| tests~lang~conc_helpers@bom.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@cglued.fung 866 028fbc1e227e2f0d
+| tests~lang~conc_helpers@bom.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@cglued.fung 1185 654bad35225f5018
 | tests~lang~conc_helpers@cnospace.fung unchanged
-| tests~lang~conc_helpers@contsplit.fung 902 13453c16ba67dfad
-| tests~lang~conc_helpers@cpushed.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@crlf.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@dedent.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@halfbytes.fung 434 d9e43842973e4069
+| tests~lang~conc_helpers@contsplit.fung 1224 b9a1d6c5998c226e
+| tests~lang~conc_helpers@cpushed.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@crlf.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@dedent.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@halfbytes.fung unchanged
 | tests~lang~conc_helpers@halflines.fung unchanged
 | tests~lang~conc_helpers@joined.fung unchanged
-| tests~lang~conc_helpers@moreblank.fung 883 8afb6530f7452de1
+| tests~lang~conc_helpers@moreblank.fung 1210 ad72a2cc6e47a23c
 | tests~lang~conc_helpers@noblank.fung unchanged
-| tests~lang~conc_helpers@nofinal.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@odd3.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@opsplit.fung 938 8a63b79e1dd1460f
-| tests~lang~conc_helpers@spaced.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@split.fung 1293 135251e2e13576ef
-| tests~lang~conc_helpers@tabs.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@tight.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@trailing.fung 866 028fbc1e227e2f0d
-| tests~lang~conc_helpers@wide4.fung 866 028fbc1e227e2f0d
+| tests~lang~conc_helpers@nofinal.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@odd3.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@opsplit.fung 1307 f509190cd185d15c
+| tests~lang~conc_helpers@spaced.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@split.fung 1694 7733fbc6f0adafea
+| tests~lang~conc_helpers@tabs.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@tight.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@trailing.fung 1185 654bad35225f5018
+| tests~lang~conc_helpers@wide4.fung 1185 654bad35225f5018
 | tests~lang~continuation.fung unchanged
 | tests~lang~continuation@bom.fung 144 168499369bee2bb6
 | tests~lang~continuation@cglued.fung 144 168499369bee2bb6
@@ -15565,27 +15585,27 @@
 | tests~lang~fs_and_path@trailing.fung 439 082814ebc99ac19d
 | tests~lang~fs_and_path@wide4.fung 439 082814ebc99ac19d
 | tests~lang~http_serve.fung unchanged
-| tests~lang~http_serve@bom.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@cglued.fung 1172 3c90dc3b32cd851d
+| tests~lang~http_serve@bom.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@cglued.fung 1194 b948c78d4a48478f
 | tests~lang~http_serve@cnospace.fung unchanged
-| tests~lang~http_serve@contsplit.fung 1266 2dae451453a61bd5
-| tests~lang~http_serve@cpushed.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@crlf.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@dedent.fung 1172 3c90dc3b32cd851d
+| tests~lang~http_serve@contsplit.fung 1288 c2cbd8a183152307
+| tests~lang~http_serve@cpushed.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@crlf.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@dedent.fung 1194 b948c78d4a48478f
 | tests~lang~http_serve@halfbytes.fung unchanged
 | tests~lang~http_serve@halflines.fung unchanged
 | tests~lang~http_serve@joined.fung unchanged
-| tests~lang~http_serve@moreblank.fung 1185 a0fbe82d3f3bbded
+| tests~lang~http_serve@moreblank.fung 1207 29a837c0d960b37f
 | tests~lang~http_serve@noblank.fung unchanged
-| tests~lang~http_serve@nofinal.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@odd3.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@opsplit.fung 1314 582b6589940a14a3
-| tests~lang~http_serve@spaced.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@split.fung 1664 e65237f8327a8dcb
-| tests~lang~http_serve@tabs.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@tight.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@trailing.fung 1172 3c90dc3b32cd851d
-| tests~lang~http_serve@wide4.fung 1172 3c90dc3b32cd851d
+| tests~lang~http_serve@nofinal.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@odd3.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@opsplit.fung 1336 b007c2abf36aea61
+| tests~lang~http_serve@spaced.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@split.fung 1686 fddbc7fdb5fe77e9
+| tests~lang~http_serve@tabs.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@tight.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@trailing.fung 1194 b948c78d4a48478f
+| tests~lang~http_serve@wide4.fung 1194 b948c78d4a48478f
 | tests~lang~ident_unicode.fung unchanged
 | tests~lang~ident_unicode@bom.fung 446 e3fb517dbd7d5fc6
 | tests~lang~ident_unicode@cglued.fung 446 e3fb517dbd7d5fc6
@@ -16643,26 +16663,26 @@
 | tests~lang~time_values@trailing.fung 340 a69fff52d8e7624b
 | tests~lang~time_values@wide4.fung unchanged
 | tests~lang~timeouts.fung unchanged
-| tests~lang~timeouts@bom.fung 322 92824b3d69122fca
-| tests~lang~timeouts@cglued.fung 322 92824b3d69122fca
+| tests~lang~timeouts@bom.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@cglued.fung 386 a4de2d687c646ee1
 | tests~lang~timeouts@cnospace.fung unchanged
 | tests~lang~timeouts@contsplit.fung unchanged
-| tests~lang~timeouts@cpushed.fung 322 92824b3d69122fca
-| tests~lang~timeouts@crlf.fung 322 92824b3d69122fca
+| tests~lang~timeouts@cpushed.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@crlf.fung 386 a4de2d687c646ee1
 | tests~lang~timeouts@dedent.fung unchanged
 | tests~lang~timeouts@halfbytes.fung unchanged
 | tests~lang~timeouts@halflines.fung unchanged
 | tests~lang~timeouts@joined.fung unchanged
-| tests~lang~timeouts@moreblank.fung 330 39111280db6b7c76
+| tests~lang~timeouts@moreblank.fung 394 e221d28bb427fee5
 | tests~lang~timeouts@noblank.fung unchanged
-| tests~lang~timeouts@nofinal.fung 322 92824b3d69122fca
+| tests~lang~timeouts@nofinal.fung 386 a4de2d687c646ee1
 | tests~lang~timeouts@odd3.fung unchanged
-| tests~lang~timeouts@opsplit.fung 338 1ee4ec36ff1d196c
-| tests~lang~timeouts@spaced.fung 322 92824b3d69122fca
-| tests~lang~timeouts@split.fung 400 e4085cb4467cb8dc
+| tests~lang~timeouts@opsplit.fung 402 014d3f01bdbc7397
+| tests~lang~timeouts@spaced.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@split.fung 464 61b4f061602934f7
 | tests~lang~timeouts@tabs.fung unchanged
-| tests~lang~timeouts@tight.fung 322 92824b3d69122fca
-| tests~lang~timeouts@trailing.fung 322 92824b3d69122fca
+| tests~lang~timeouts@tight.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@trailing.fung 386 a4de2d687c646ee1
 | tests~lang~timeouts@wide4.fung unchanged
 | tests~lang~top_constants.fung unchanged
 | tests~lang~top_constants@bom.fung 488 de567efc4ad65311

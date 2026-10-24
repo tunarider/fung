@@ -123,7 +123,7 @@ print(&quot;참치김밥&quot;[2..])</code></pre><pre class="out plain"><code>2 
 김밥</code></pre></div>
 <p>범위를 벗어나면 런타임 에러다. 조용히 짧은 문자열을 돌려주지 않는다. 길이를 모르는 문자열을 자를 때는 먼저 <code>len(s)</code>로 확인한다.</p>
 <div class="run"><pre><code>code = &quot;E05&quot;
-print(code[0..4])</code></pre><pre class="out err plain" data-code="1"><code>error[E0507]: index 4 is out of range (length 3)
+print(code[0..4])</code></pre><pre class="out err plain" data-code="1"><code>error[E0507]: slice end 4 is out of range (length 3)
   --&gt; example.fung:2:11
   |
 2 | print(code[0..4])

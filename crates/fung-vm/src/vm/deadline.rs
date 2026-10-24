@@ -55,7 +55,7 @@ impl Deadline {
 }
 
 /// `timeout(d, f)`: runs `f()` under a node with a deadline `d` from now
-/// and gives its value, or `Err({kind: 'timeout})` once the deadline
+/// and gives its value, or `Err({kind: 'timeout, message})` once the deadline
 /// unwound it. A zero or negative `d` has passed already: `f` unwinds at
 /// its first call (as Trio's `move_on_after(0)`). The run loop calls `f`
 /// (`cont.rs`).
@@ -71,6 +71,7 @@ pub(crate) fn run_timeout(t: &mut Task<'_>, d: i64, f: Value) -> Flow {
         Box::new(Timeout {
             node,
             outer: Some(outer),
+            d,
         }),
         f,
         0,
@@ -82,6 +83,8 @@ pub(crate) fn run_timeout(t: &mut Task<'_>, d: i64, f: Value) -> Flow {
 struct Timeout {
     node: Arc<CancelNode>,
     outer: Option<Arc<CancelNode>>,
+    /// The duration as given, for the message.
+    d: i64,
 }
 
 impl Timeout {
@@ -92,7 +95,11 @@ impl Timeout {
         self.node.cancel();
         match r {
             Err(Stop::Error(ref e)) if is_cancel(e) && timed_out && !t.cancel.is_cancelled() => {
-                Ok(Next::Done(err_kind("timeout")))
+                let d = crate::value::format(&Value::Dur(self.d.max(0)));
+                Ok(Next::Done(err_kind(
+                    "timeout",
+                    &format!("timed out after {d}"),
+                )))
             }
             r => r.map(Next::Done),
         }

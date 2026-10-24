@@ -22,7 +22,7 @@ fn closed_and_buffered_channels() {
     assert_eq!(
         (out.as_str(), code),
         (
-            "Ok(\"a\") Err({kind: 'closed}) Err({kind: 'closed}) Err({kind: 'timeout})\n",
+            "Ok(\"a\") Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'timeout, message: \"timed out after 5ms\"})\n",
             0
         )
     );
@@ -33,7 +33,10 @@ fn cancelling_a_task_blocked_in_send_inside_each_ends_it() {
     let (out, _, code) = run(
         "(tx, _rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(1..=5, x => send(tx, x)))\n  cancel(t)\n  print(await(t))\n;;)",
     );
-    assert_eq!((out.as_str(), code), ("Err({kind: 'cancelled})\n", 0));
+    assert_eq!(
+        (out.as_str(), code),
+        ("Err({kind: 'cancelled, message: \"cancelled\"})\n", 0)
+    );
 }
 
 #[test]
@@ -45,11 +48,11 @@ fn channels_send_receive_and_close() {
         ),
         (
             "(tx, rx) = channel(2)\nsend(tx, 1)\nsend(tx, 2)\nclose(tx)\nprint(recv(rx), recv(rx), recv(rx), send(tx, 3))",
-            "Ok(1) Ok(2) Err({kind: 'closed}) Err({kind: 'closed})\n",
+            "Ok(1) Ok(2) Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
         (
             "(_tx, rx) = channel()\nprint(timeout(10ms, () => recv(rx)))",
-            "Err({kind: 'timeout})\n",
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
         ),
         (
             "(tx, rx) = channel(3)\neach(1..=3, x => send(tx, x))\nclose(tx)\nprint(for x in rx: x * 10 ;;)",
@@ -150,11 +153,11 @@ fn a_send_waits_for_a_receiver_or_for_room() {
     let cases = [
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  print(timeout(20ms, () => await(t)))\n  print(recv(rx), await(t))\n;;)",
-            "Err({kind: 'timeout})\nOk(1) Ok(nil)\n",
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(1) Ok(nil)\n",
         ),
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  print(send(tx, 1))\n  t = spawn(s, () => send(tx, 2))\n  print(timeout(20ms, () => await(t)), recv(rx), await(t), recv(rx))\n;;)",
-            "Ok(nil)\nErr({kind: 'timeout}) Ok(1) Ok(nil) Ok(2)\n",
+            "Ok(nil)\nErr({kind: 'timeout, message: \"timed out after 20ms\"}) Ok(1) Ok(nil) Ok(2)\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  ts = for i in 0..4: spawn(s, () => send(tx, i)) ;;\n  xs = for _ in 0..4: recv(rx)! ;;\n  print(sort(xs), map(ts, await))\n;;)",
@@ -178,15 +181,15 @@ fn close_wakes_waiting_senders_and_receivers() {
     let cases = [
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  close(tx)\n  print(await(t), recv(rx))\n;;)",
-            "Err({kind: 'closed}) Err({kind: 'closed})\n",
+            "Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  blocked(rx, 1)\n  close(tx)\n  print(await(t))\n;;)",
-            "Err({kind: 'closed})\n",
+            "Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 1)\n  t = spawn(s, () => send(tx, 2))\n  blocked(rx, 1)\n  close(tx)\n  print(await(t), recv(rx), recv(rx))\n;;)",
-            "Err({kind: 'closed}) Ok(1) Err({kind: 'closed})\n",
+            "Err({kind: 'closed, message: \"channel closed\"}) Ok(1) Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
     ];
     for (src, want) in cases {
@@ -215,7 +218,7 @@ fn a_delivered_value_wins_over_a_later_cancel() {
         ),
         (
             "(_tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  cancel(t)\n  print(await(t))\n  t2 = spawn(s, () => timeout(10s, () => recv(rx)))\n  blocked(rx, 1)\n  cancel(t2)\n  print(await(t2))\n;;)",
-            "Err({kind: 'cancelled})\nErr({kind: 'cancelled})\n",
+            "Err({kind: 'cancelled, message: \"cancelled\"})\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
     ];
     // Here the task is already blocked when the other side moves the
@@ -259,7 +262,10 @@ fn a_cancelled_sender_takes_its_value_back() {
     );
     assert_eq!(
         (o.out.as_str(), o.exit),
-        ("Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0)
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"}) Err({kind: 'timeout, message: \"timed out after 20ms\"})\n",
+            0
+        )
     );
     assert!(start.elapsed() < Duration::from_secs(2));
 }
@@ -334,28 +340,28 @@ fn a_cancelled_waiter_is_never_paired() {
         // The wrong receiver: r2 must get the value, not the cancelled r1.
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  r1 = spawn(s, () => recv(rx))\n  blocked(rx, 1)\n  r2 = spawn(s, () => recv(rx))\n  blocked(rx, 2)\n  cancel(r1)\n  print(send(tx, 1), await(r1), await(r2))\n;;)",
-            "Ok(nil) Err({kind: 'cancelled}) Ok(1)\n",
+            "Ok(nil) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(1)\n",
         ),
         // A lost value: the send must wait for the receiver that comes
         // after the cancel instead of handing the value to the cancelled one.
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, () => recv(rx))\n  blocked(rx, 1)\n  cancel(r)\n  r2 = spawn(s, () => recv(rx))\n  print(send(tx, 1), await(r), await(r2))\n;;)",
-            "Ok(nil) Err({kind: 'cancelled}) Ok(1)\n",
+            "Ok(nil) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(1)\n",
         ),
         // A cancelled sender delivers nothing.
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(timeout(20ms, () => recv(rx)), await(t))\n;;)",
-            "Err({kind: 'timeout}) Err({kind: 'cancelled})\n",
+            "Err({kind: 'timeout, message: \"timed out after 20ms\"}) Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
         (
             "(tx, rx) = channel()\nscope(fn(s):\n  s1 = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  s2 = spawn(s, () => send(tx, 2))\n  blocked(rx, 2)\n  cancel(s1)\n  print(recv(rx), await(s1), await(s2))\n;;)",
-            "Ok(2) Err({kind: 'cancelled}) Ok(nil)\n",
+            "Ok(2) Err({kind: 'cancelled, message: \"cancelled\"}) Ok(nil)\n",
         ),
         // The same with a full buffer: the cancelled sender's value does
         // not move into the freed place.
         (
             "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 0)\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(recv(rx), timeout(20ms, () => recv(rx)), await(t))\n;;)",
-            "Ok(0) Err({kind: 'timeout}) Err({kind: 'cancelled})\n",
+            "Ok(0) Err({kind: 'timeout, message: \"timed out after 20ms\"}) Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
     ];
     for (src, want) in cases {
@@ -376,7 +382,10 @@ fn a_timed_out_receiver_is_never_paired() {
     );
     assert_eq!(
         (o.code.as_str(), o.out.as_str()),
-        ("", "Ok(nil) Err({kind: 'timeout}) Ok(1)\n")
+        (
+            "",
+            "Ok(nil) Err({kind: 'timeout, message: \"timed out after 30ms\"}) Ok(1)\n"
+        )
     );
 }
 
@@ -392,7 +401,10 @@ fn a_sender_cancelled_before_it_runs_sends_nothing() {
     );
     assert_eq!(
         (out.as_str(), code),
-        ("Ok(0) Err({kind: 'cancelled}) Err({kind: 'timeout})\n", 0)
+        (
+            "Ok(0) Err({kind: 'cancelled, message: \"cancelled\"}) Err({kind: 'timeout, message: \"timed out after 50ms\"})\n",
+            0
+        )
     );
 }
 
@@ -537,7 +549,7 @@ fn close_closes_for_every_copy() {
             "(tx, rx) = channel(2)\nt2 = tx\nsend(tx, 1)\nclose(t2)\nprint(send(tx, 2), recv(rx), recv(rx))"
         ),
         (
-            "Err({kind: 'closed}) Ok(1) Err({kind: 'closed})\n".into(),
+            "Err({kind: 'closed, message: \"channel closed\"}) Ok(1) Err({kind: 'closed, message: \"channel closed\"})\n".into(),
             "".into(),
             0
         )
@@ -553,7 +565,7 @@ fn dropping_the_receiver_wakes_a_blocked_sender() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("Err({kind: 'closed})\n", "", 0)
+        ("Err({kind: 'closed, message: \"channel closed\"})\n", "", 0)
     );
 }
 
@@ -561,7 +573,11 @@ fn dropping_the_receiver_wakes_a_blocked_sender() {
 fn dropping_the_receiver_fails_later_sends() {
     assert_eq!(
         run("fn mk() = channel(1)\n(tx, _) = mk()\nprint(send(tx, 1))"),
-        ("Err({kind: 'closed})\n".into(), "".into(), 0)
+        (
+            "Err({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "".into(),
+            0
+        )
     );
 }
 
@@ -654,7 +670,7 @@ fn iterating_a_sender_says_to_use_the_receiving_end() {
 
 /// When the merged receiving end is gone, `conc.fan_in` stops forwarding
 /// and lets go of its inputs, so the producers' `send` sees
-/// `Err({kind: 'closed})` and they end (05 "채널의 두 끝"). It used to
+/// `Err({kind: 'closed, …})` and they end (05 "채널의 두 끝"). It used to
 /// drain the inputs forever, busy, so the scope never closed. The
 /// `timeout` only bounds the test.
 #[test]
@@ -719,6 +735,10 @@ fn a_cancelled_send_drops_its_value_at_once() {
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
-        ("2 Err({kind: 'closed})\nOk(0) Ok(1)\n", "", 0)
+        (
+            "2 Err({kind: 'closed, message: \"channel closed\"})\nOk(0) Ok(1)\n",
+            "",
+            0
+        )
     );
 }

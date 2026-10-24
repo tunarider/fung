@@ -224,6 +224,7 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "flatten",
             "group_by",
             "pairs",
+            "get",
             "put",
             "merge",
             "remove",

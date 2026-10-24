@@ -283,6 +283,15 @@ impl Desugarer {
         {
             return Err(Box::new(error("E0227", h.pos, vec![])));
         }
+        // A postfix `?`/`!` binds tighter than `|>`, so on the right it
+        // would unwrap the function before the pipe calls it (01: E0229).
+        if rhs.head == Head::Unwrap {
+            return Err(Box::new(error(
+                "E0229",
+                rhs.pos,
+                vec![Arg::Str(lit_str(rhs).to_string())],
+            )));
+        }
         // A tag takes the value first too: `x |> Ok` is `Ok(x)` (01).
         let tag_name = match rhs.head {
             Head::Symbol if lit_str(rhs).starts_with(|c: char| c.is_uppercase()) => Some(rhs),
@@ -609,6 +618,30 @@ mod tests {
         assert_eq!((e.code.as_str(), e.pos.col), ("E0227", 8));
         // A deeper call's hole is its own partial application.
         assert!(core("x |> map(g(_))").starts_with("(do (call map x (do"));
+    }
+
+    /// A postfix `?`/`!` binds tighter than `|>`: `xs |> f(a)?` would
+    /// unwrap `f(a)` before the pipe calls it (01, E0229).
+    #[test]
+    fn a_postfix_unwrap_on_the_right_of_a_pipe_is_an_error() {
+        let err_of = |src: &str| {
+            let mut sm = SourceMap::new();
+            let f = sm.add("t.fung", src);
+            let (toks, _) = lex(f, src).unwrap();
+            let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
+            (e.code.clone(), e.pos.col, e.args.clone())
+        };
+        assert_eq!(
+            err_of("x |> f(a)?"),
+            ("E0229".into(), 10, vec![Arg::Str("?".into())])
+        );
+        assert_eq!(
+            err_of("x |> g |> f!"),
+            ("E0229".into(), 12, vec![Arg::Str("!".into())])
+        );
+        // Inside the parentheses or an argument, it is not the pipe's.
+        assert!(core("(x |> f(a))?").contains("(unwrap ?"));
+        assert!(core("x |> f(g(a)?)").contains("(call f x"));
     }
 
     #[test]

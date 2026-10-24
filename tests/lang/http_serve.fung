@@ -33,4 +33,4 @@ server = scope(fn(s):
 # expect: 404 no such page
 # expect: 3
 print(await(server))
-# expect: Err({kind: 'cancelled})
+# expect: Err({kind: 'cancelled, message: "cancelled"})

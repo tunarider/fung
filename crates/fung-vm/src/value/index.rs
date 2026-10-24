@@ -29,8 +29,12 @@ fn type_error(verb: &str, a: &Value, b: &Value) -> Diag {
     )
 }
 
-fn out_of_range(i: i64, n: usize) -> Diag {
-    err("E0507", vec![Arg::Int(i), Arg::Int(n as i64)])
+/// E0507 for `what` (an index, or a slice's start or end) at `i`.
+fn out_of_range(what: &str, i: i64, n: usize) -> Diag {
+    err(
+        "E0507",
+        vec![str_arg(what), Arg::Int(i), Arg::Int(n as i64)],
+    )
 }
 
 /// Runes of a string or elements of a collection (02).
@@ -54,7 +58,7 @@ pub fn len(x: &Value) -> Result<i64, Diag> {
 fn norm_index(i: i64, n: usize) -> Result<usize, Diag> {
     let idx = if i < 0 { i + n as i64 } else { i };
     if idx < 0 || idx >= n as i64 {
-        return Err(out_of_range(i, n));
+        return Err(out_of_range("index", i, n));
     }
     Ok(idx as usize)
 }
@@ -160,10 +164,10 @@ fn slice_bounds(
     let hi = end.map_or(len, |e| resolve(e) + i128::from(inclusive));
     let written = |b: Option<i64>, dflt: i128| b.unwrap_or(dflt as i64);
     if !(0..=len).contains(&lo) {
-        return Err(out_of_range(written(start, 0), n));
+        return Err(out_of_range("slice start", written(start, 0), n));
     }
     if !(0..=len).contains(&hi) {
-        return Err(out_of_range(written(end, len), n));
+        return Err(out_of_range("slice end", written(end, len), n));
     }
     if lo > hi {
         // Both ends were written: an open one cannot cross the other.

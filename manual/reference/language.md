@@ -204,6 +204,7 @@ print(fields, cfg |> keys)
 <p>대상이 첫 자리가 아닌 함수에는 람다로 넘긴다: <code>5 |&gt; (n =&gt; scale(2, n))</code>.</p>
 <div class="aside">
 <p><strong>파이프 오른쪽 호출의 인자에 <code>_</code>를 쓰면 컴파일 에러 E0227이다.</strong> 파이프 값은 늘 첫 인자로 들어가므로 <code>"a.txt" |&gt; path.join("/tmp", _)</code>는 <code>path.join("a.txt", "/tmp", _)</code>, 곧 함수가 되어 버리던 함정이다. 다른 자리에 넣으려면 람다를 쓴다. 더 안쪽 호출의 <code>_</code>는 그대로 부분 적용이다.</p>
+<p><strong>파이프 오른쪽 끝의 후위 <code>?</code>·<code>!</code>도 컴파일 에러 E0229다.</strong> 후위 연산자가 <code>|&gt;</code>보다 먼저 묶여 <code>xs |&gt; try_map(f)?</code>는 <code>try_map(f)?</code>를 파이프에 넘기는 것이 되기 때문이다. 파이프 전체의 결과를 꺼내려면 <code>(xs |&gt; try_map(f))?</code>로 감싼다.</p>
 </div>
 
 ```fung frag
@@ -247,7 +248,7 @@ fs.read(p) ?? "{}" |> json.parse          # (fs.read(p) ?? "{}") |> json.parse
 
 <ul>
   <li><code>xs[i]</code>: 음수는 뒤에서부터(<code>xs[-1]</code>). 범위를 벗어나면 에러.</li>
-  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고, 리스트에서 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다(문자열에는 쓰지 않는다). 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
+  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고, 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다(리스트와 문자열 모두). 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
   <li><code>m.name</code>은 <code>m["name"]</code>과 같다. 모듈의 <code>fs.read</code>도 같은 규칙이다.</li>
   <li>튜플은 인덱스로 꺼내지 않는다. 패턴으로 꺼낸다: <code>(a, b) = pair</code>.</li>
 </ul>

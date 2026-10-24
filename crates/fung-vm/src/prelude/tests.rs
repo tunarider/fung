@@ -477,6 +477,8 @@ fn collection_functions() {
         ("fold(\"ab\", 0, (a, x) => a)", "E0506"),
         ("group_by([1], x => x)", "E0514"),
         ("put(1, \"a\", 2)", "E0506"),
+        ("get([1], 0)", "E0506"),
+        ("get({a: 1}, 1)", "E0501"),
         ("chars(1)", "E0506"),
         ("each([1], 1)", "E0403"),
     ];
@@ -537,8 +539,8 @@ fn collection_functions_with_the_fung_prelude() {
         ("min([1, \"a\"])", "E0501"),
         ("keys([])", "E0506"),
         ("get({}, 1)", "E0501"),
-        ("get([1], 0)", "E0803"),
-        ("get([10, 20], 20)", "E0803"),
+        ("get([1], 0)", "E0506"),
+        ("get([10, 20], 20)", "E0506"),
         ("min([nil, 1])", "E0501"),
         ("max([nil, 1])", "E0501"),
         ("sum([1, \"a\"])", "E0501"),
@@ -797,4 +799,20 @@ fn wide_ranges_count_every_number() {
     assert!(err.starts_with("error[E0503]: integer overflow"), "{err}");
     let (_, err, _) = run("print(map(-9000000000000000000..9000000000000000000, x => x))");
     assert!(err.starts_with("error[E0806]: too many elements"), "{err}");
+}
+
+/// `get` is a core map function like `put` (06): a value that is not a
+/// map is E0506 at the caller, with no prelude frame in the call path,
+/// and a missing key gives the default.
+#[test]
+fn get_reads_a_key_or_the_default() {
+    let o = exec(
+        "m = {a: 1}\nprint(get(m, \"a\"), get(m, \"b\"), get(m, \"b\", 0))",
+        Opts::default(),
+    );
+    assert_eq!((o.code.as_str(), o.out.as_str()), ("", "1 nil 0\n"));
+    let o = exec("fn f(x) = get(x, 0)\nprint(f([1]))", Opts::default());
+    assert_eq!(o.code, "E0506");
+    assert!(o.err.contains("cannot get from list"), "{}", o.err);
+    assert!(!o.err.contains("extras/prelude.fung"), "{}", o.err);
 }

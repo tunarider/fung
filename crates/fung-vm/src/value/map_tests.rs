@@ -778,9 +778,13 @@ fn slice_cases() {
         (
             i(4),
             n.clone(),
-            Err("E0507 index 4 is out of range (length 3)"),
+            Err("E0507 slice start 4 is out of range (length 3)"),
         ),
-        (i(0), i(4), Err("E0507 index 4 is out of range (length 3)")),
+        (
+            i(0),
+            i(4),
+            Err("E0507 slice end 4 is out of range (length 3)"),
+        ),
         (
             i(2),
             i(1),
@@ -791,7 +795,7 @@ fn slice_cases() {
         (
             i(-5),
             n.clone(),
-            Err("E0507 index -5 is out of range (length 3)"),
+            Err("E0507 slice start -5 is out of range (length 3)"),
         ),
         (
             s("a"),
@@ -842,7 +846,11 @@ fn slice_inclusive_cases() {
         (i(1), i(2), Ok("[2, 3]")),
         (i(0), i(-1), Ok("[1, 2, 3]")),
         (n.clone(), i(0), Ok("[1]")),
-        (i(0), i(3), Err("E0507 index 3 is out of range (length 3)")),
+        (
+            i(0),
+            i(3),
+            Err("E0507 slice end 3 is out of range (length 3)"),
+        ),
         (
             i(2),
             i(0),
@@ -852,7 +860,7 @@ fn slice_inclusive_cases() {
         (
             i(0),
             i(i64::MAX),
-            Err("E0507 index 9223372036854775807 is out of range (length 3)"),
+            Err("E0507 slice end 9223372036854775807 is out of range (length 3)"),
         ),
     ];
     for (a, b, want) in cases {

@@ -450,6 +450,8 @@ mod tests {
             alias: "x".into(),
             names: Some(vec!["a".into(), "b".into()]),
             name_pos: vec![p(), p()],
+            bind_pos: p(),
+            bind_len: 1,
         };
         assert_eq!(im.to_string(), "\"./lib/x\" as x (a, b)");
         let m = Import {
@@ -458,6 +460,8 @@ mod tests {
             alias: String::new(),
             names: None,
             name_pos: vec![],
+            bind_pos: p(),
+            bind_len: 2,
         };
         assert_eq!(m.to_string(), "fs");
         assert_eq!(
@@ -479,6 +483,8 @@ mod tests {
             alias: String::new(),
             names: None,
             name_pos: vec![],
+            bind_pos: p(),
+            bind_len: 2,
         };
         assert_eq!(im.to_string(), "\"a\\u{7}\\u{A0}b\"");
     }

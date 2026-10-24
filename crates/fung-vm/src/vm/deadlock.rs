@@ -12,7 +12,7 @@
 //! After the report: E0702 on standard error, exit code 1 (the first exit
 //! request), and every task of the program cancelled (the root). Each
 //! parked task wakes and unwinds with E0702 (its handle turns that into
-//! `Err({kind: 'cancelled})`); the command does not report the entry's
+//! `Err({kind: 'cancelled, …})`); the command does not report the entry's
 //! E0702 again (an exit was requested).
 //!
 //! While a `with`'s release runs (`cleanup.rs`), the check is judged too
@@ -192,16 +192,18 @@ impl Task<'_> {
 
     /// The built-in module function a task runs inside of when no user
     /// frame is left: a lambda that tail-called it (`() => take(rx, 2)`)
-    /// gave its frame to it. Named as `user_callee` names one.
+    /// gave its frame to it. Named as `user_callee` names one. A task the
+    /// module spawned on a lambda of its own names the module alone.
     fn outer_callee(&self) -> Option<String> {
         let p = self.frames.first()?.entry.clone()?;
         let at = p.pos.first()?;
         let file = self.world.file_name(at.file);
         let module = std::path::Path::new(file).file_stem()?.to_str()?;
-        Some(if module == "prelude" {
-            p.name.clone()
-        } else {
-            format!("{module}.{}", p.name)
+        Some(match (module, p.name.is_empty()) {
+            ("prelude", true) => return None,
+            ("prelude", false) => p.name.clone(),
+            (_, true) => module.to_string(),
+            (_, false) => format!("{module}.{}", p.name),
         })
     }
 

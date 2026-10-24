@@ -677,7 +677,7 @@
 | FAIL tests/lang/err_import_top.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0306]: only import, fn, type, and assignment are allowed at the top level of an imported module
+| error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
 |   --> tests/lang/_lib/noisy.fung:1:6
 |   |
 | 1 | print("side effect")
@@ -691,10 +691,10 @@
 | 0 passed, 1 failed
 -- stderr
 | error[E0309]: name `fs` is already bound to a module
-|   --> tests/lang/err_import_twice.fung:2:1
+|   --> tests/lang/err_import_twice.fung:2:8
 |   |
 | 2 | import fs
-|   | ^^
+|   |        ^^
 |   |
 -- exit: 2
 ==== test tests/lang/err_in.fung

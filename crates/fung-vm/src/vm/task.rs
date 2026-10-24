@@ -12,7 +12,7 @@
 //! tasks it spawned and left running end with it. The VM checks the flag at
 //! every call and backward jump (`Task::tick`) and `block` checks it while
 //! waiting; a cancelled task unwinds with E0701, which its handle turns
-//! into `Err({kind: 'cancelled})`.
+//! into `Err({kind: 'cancelled, …})`.
 //!
 //! Every task belongs to the program: it hangs, through its scopes, from
 //! the program's root (`Shared::root`) and ends before the program does,
@@ -279,22 +279,28 @@ impl Drop for TaskState {
     }
 }
 
-/// `Err({kind: 'k})`, the result of a cancelled task or a timed-out wait.
-pub(crate) fn err_kind(kind: &str) -> Value {
+/// `Err({kind: 'k, message})`, the result of a cancelled task, a timed-out
+/// wait or a closed channel. Every `Err` map has a `message` (06), so a
+/// program can print `e.message` whatever failed.
+pub(crate) fn err_kind(kind: &str, message: &str) -> Value {
     let mut m = MapBuilder::default();
     m.set(Rc::new("kind".to_string()), Value::Sym(intern(kind)));
+    m.set(
+        Rc::new("message".to_string()),
+        Value::Str(Rc::new(message.to_string())),
+    );
     nat::tag("Err", vec![Value::Map(Rc::new(m.finish()))])
 }
 
 /// What a task's run becomes as its result: the value, or
-/// `Err({kind: 'cancelled})` for a cancelled task (E0701), one woken by the
+/// `Err({kind: 'cancelled, …})` for a cancelled task (E0701), one woken by the
 /// deadlock report (E0702) or one that called `exit`, or
 /// `Err(failure_value(d))` for a failure. `world` names the failure's file.
 pub(super) fn outcome(r: &Result<Value, Stop>, world: Option<&World>) -> Value {
     match r {
         Ok(v) => v.clone(),
-        Err(Stop::Exit(_)) => err_kind("cancelled"),
-        Err(Stop::Error(d)) if is_cancel(d) => err_kind("cancelled"),
+        Err(Stop::Exit(_)) => err_kind("cancelled", "cancelled"),
+        Err(Stop::Error(d)) if is_cancel(d) => err_kind("cancelled", "cancelled"),
         Err(Stop::Error(d)) => nat::tag("Err", vec![failure_value(d, world)]),
     }
 }

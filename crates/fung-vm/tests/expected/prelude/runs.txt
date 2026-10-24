@@ -1768,8 +1768,8 @@
 |   |     ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:79 _clamp
-|    extras/prelude.fung:87 take
+|    extras/prelude.fung:80 _clamp
+|    extras/prelude.fung:89 take
 |    -e:2       <entry>
 -- exit: 1
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
@@ -1782,8 +1782,8 @@
 |   |  ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:79 _clamp
-|    extras/prelude.fung:87 take (1 tail calls elided)
+|    extras/prelude.fung:80 _clamp
+|    extras/prelude.fung:89 take (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "sum([1, \"a\"])"
@@ -1824,8 +1824,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:113 _padding
-|    extras/prelude.fung:118 pad_left
+|    extras/prelude.fung:109 _padding
+|    extras/prelude.fung:114 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1838,8 +1838,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:115 _padding
-|    extras/prelude.fung:118 pad_left
+|    extras/prelude.fung:111 _padding
+|    extras/prelude.fung:114 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1853,7 +1853,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:138 until
+|    extras/prelude.fung:134 until
 |    -e:1       <entry>
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
@@ -1867,20 +1867,19 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:141 iterate (1 tail calls elided)
+|    extras/prelude.fung:137 iterate (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
 -- stdout
 -- stderr
-| error[E0803]: get expects a map, got 'list
+| error[E0506]: cannot get from list
 |   --> -e:1:10
 |   |
 | 1 | print(get([1], 0))
 |   |          ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:105 get
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(lines(1))"
@@ -1893,8 +1892,8 @@
 |   |            ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:121 _chomp
-|    extras/prelude.fung:127 lines
+|    extras/prelude.fung:117 _chomp
+|    extras/prelude.fung:123 lines
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(keys([]))"
@@ -1907,7 +1906,7 @@
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:98 keys
+|    extras/prelude.fung:101 keys
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1]))"
@@ -2075,7 +2074,7 @@
 -- exit: 0
 ==== "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  print(await(t))\n;;)"
 -- stdout
-| Err({kind: 'cancelled})
+| Err({kind: 'cancelled, message: "cancelled"})
 -- stderr
 -- exit: 0
 ==== "t = scope(s => spawn(s, () => 1))\nt < t"
@@ -2266,12 +2265,12 @@
 -- exit: 1
 ==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (227 bytes, f4e7d618d9e17ea9)
 -- stdout
-| Ok("a") Err({kind: 'closed}) Err({kind: 'closed}) Ok(nil) Err({kind: 'timeout}) Err({kind: 'timeout})
+| Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Ok(nil) Err({kind: 'timeout, message: "timed out after 1ms"}) Err({kind: 'timeout, message: "timed out after 0s"})
 -- stderr
 -- exit: 0
 ==== "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => se… (136 bytes, 8a9047378ebca5e6)
 -- stdout
-| Err({kind: 'timeout}) Ok(1) Ok(nil)
+| Err({kind: 'timeout, message: "timed out after 10ms"}) Ok(1) Ok(nil)
 -- stderr
 -- exit: 0
 ==== "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => … (129 bytes, 225068134b6e5134)

@@ -283,7 +283,7 @@ fn check(h) = trim(exec([&quot;sh&quot;, &quot;-c&quot;, &quot;sleep 0.5; echo $
 
 print(timeout(1200ms, () =&gt; conc.pmap(hosts, check)))
 print(timeout(1200ms, () =&gt; map(hosts, check)))</code></pre><pre class="out plain"><code>[&quot;web1 ok&quot;, &quot;web2 ok&quot;, &quot;web3 ok&quot;]
-Err({kind: 'timeout})</code></pre></div>
+Err({kind: 'timeout, message: &quot;timed out after 1s200ms&quot;})</code></pre></div>
 <p><code>conc.pmap</code>은 원소마다 태스크를 띄운다. 각 태스크는 명령을 띄우고 그 끝과 출력 파이프를 이벤트 루프에 등록한 뒤 주차한다. 명령 셋이 동시에 돌아도 기다리는 데 스레드가 더 들지 않는다. 기다림은 실행 스레드 하나가 이벤트 루프에서 한꺼번에 한다. 하나씩 부르는 <code>map</code>은 1.2초 기한에 걸려 <code>Err({kind: 'timeout})</code>이 되고, 기한이 왔을 때 돌던 명령은 SIGTERM을 받아 끝난다(14장).</p>
 </details>
 </div>
