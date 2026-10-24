@@ -346,15 +346,16 @@ fn with_job_natives(src: &str) -> crate::testutil::Outcome {
     )
 }
 
-/// Offloads one after another reuse pool threads: 200 jobs take a few
-/// threads, not one each. Not exactly one: a job wakes its task just
-/// before its thread is idle again, and the task's next job may come in
-/// that gap; on a busy machine (a CI runner) two threads were seen
-/// caught in it at once, so the bound is loose.
+/// Offloads one after another reuse pool threads: a job that finds a
+/// thread idle runs on it, so 200 jobs take one thread. A job wakes its
+/// task just before its thread is idle again, so the task waits for that
+/// state (`pool_state()`) before the next job; otherwise the next job may
+/// come in that gap and start another thread, as many as the machine is
+/// busy (nine were seen on a CI runner).
 #[test]
 fn offloads_reuse_pool_threads() {
     let s = crate::testutil::setup(
-        "for i in 0..200: count_job(\"reuse\") ;;",
+        "fn settle() = match pool_state():\n  [t, i, 0] when i == t => nil\n  _ => settle()\n;;\nfor i in 0..200:\n  settle()\n  count_job(\"reuse\")\n;;",
         crate::testutil::Opts {
             extra: crate::testutil::jobs::job_natives,
             ..crate::testutil::Opts::default()
@@ -363,11 +364,7 @@ fn offloads_reuse_pool_threads() {
     .unwrap_or_else(|e| panic!("{e:?}"));
     s.rt.run().unwrap();
     assert_eq!(crate::testutil::jobs::count("reuse"), 200);
-    assert!(
-        s.rt.shared().pool.threads() <= 8,
-        "{}",
-        s.rt.shared().pool.threads()
-    );
+    assert_eq!(s.rt.shared().pool.threads(), 1);
 }
 
 /// A panic in a pool job is E0801 at the call, and the pool thread lives.

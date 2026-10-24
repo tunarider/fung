@@ -1202,10 +1202,19 @@ fn fill(s: &str, ports: &[u16], words: &[(&str, String)]) -> String {
     s
 }
 
-/// A port nothing listens on.
+/// A port nothing listens on, on 127.0.0.1 and ::1. It comes from below
+/// the systems' ephemeral ranges (Linux from 32768, macOS from 49152):
+/// the fake servers of the tests running beside this one bind port 0, so
+/// the system never hands them this port. One that had been free and
+/// was let go could be (a CI run got a fake server's 403 from it).
 fn refused_port() -> u16 {
-    let l = TcpListener::bind("127.0.0.1:0").unwrap();
-    l.local_addr().unwrap().port()
+    let start = 20_000 + (std::process::id() % 5_000) as u16;
+    (start..30_000)
+        .chain(20_000..start)
+        .find(|&p| {
+            TcpListener::bind(("127.0.0.1", p)).is_ok() && TcpListener::bind(("::1", p)).is_ok()
+        })
+        .expect("a free port below the ephemeral range")
 }
 
 /// Runs each case against its fake servers: the entries for an

@@ -583,10 +583,15 @@ impl Task<'_> {
         // the same atom on every turn would otherwise make it retry forever
         // (it cannot park: effects are E0707). The events other threads
         // posted are made here then, so that a signal or the REPL's Ctrl-C
-        // still reaches a function that never ends (review C6).
+        // still reaches a function that never ends (review C6). The turn
+        // is owed, not dropped: the budget stays at 1, so the first tick
+        // after the function ends the turn. Refilled, a loop whose calls a
+        // round divide `YIELD_EVERY` ended every turn inside its swap and
+        // never gave one.
         if self.pure == 0 {
             self.turn_due = true;
         } else {
+            self.budget = 1;
             super::stop::apply_in_swap(&mut self.world, self.shared);
         }
     }

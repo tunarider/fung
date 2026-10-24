@@ -211,9 +211,14 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
   라이브러리에 들어 있다(테스트 전용 feature는 `deps.rs`의 `path`만 규칙과 부딪혀 미룸; 명령은 `pty`를 부르지 않는다). `conc` 모듈과 `_native.conc`의 `Module` 이름이 둘 다 "conc"(키가 달라 충돌 없음).
 - [ ] 앞단 다듬기 (R1 노트): 견고성(`desugar`·`compiler`의 `lit_str`/`lit_index`가 잘못된 리터럴 종류에 빈 값을 돌려줌(사용자 입력으로는 도달 불가), 카탈로그 파싱이 깨진 줄을 조용히 받아들임,
   `SourceMap::add`의 `as u32`), 성능(맵 리터럴·매개변수 중복 검사 O(n²), 렉서가 토큰마다 `String`을 여러 번 만듦, `Display for Node`의 임시 문자열), 깊은 입력 테스트를 실제 CLI 스택 크기와 `MAX_DEPTH`에서.
-- [ ] CI에서 본 간헐 실패 (2026-10-24, main 푸시 네 번): Ubuntu `http_client_matches_the_expected_output`의 "no server 26·27"(거부되어야 할 포트에 다른 프로세스의 서버가 떠서 403; 아래 `free_port`와 같은 경쟁),
-  macOS `native::process::tests::a_fast_command_does_not_starve_other_tasks`(814 ms에 차례 44번; 같은 실행의 다른 시험과 CPU를 다툰 것으로 보임, 로컬 10번 모두 통과).
-  `perf`의 `collections_stay_linear`이 macOS에서 두 번 0.3초를 넘긴 것은 같은 파일의 무거운 시험과 동시에 돈 탓이라, `perf` 시험을 잠금 하나로 줄 세웠다(같은 날).
+- [x] CI에서 본 간헐 실패 (2026-10-24, main 푸시 네 번) → 같은 날 시간 대신 상태로 판정하게 고쳤다.
+  - `perf`의 `collections_stay_linear`(macOS에서 두 번 0.3초 초과): 같은 파일의 무거운 시험과 동시에 돈 탓. `perf` 시험을 잠금 하나로 줄 세웠다.
+  - `vm::park_tests::offloads_reuse_pool_threads`(Ubuntu, 일 200개에 스레드 9개, 한도 8): 일마다 풀 스레드가 모두 쉬는 상태(`pool_state()`)를 기다린 뒤 다음 일을 맡기고, 스레드가 정확히 1개인지 본다.
+  - `native::process::tests::a_fast_command_does_not_starve_other_tasks`(macOS, `sleep(2ms)` 태스크의 횟수를 시간과 견줌): 출력을 읽는 태스크의 주차 횟수(`parks()`, 300 MB를 약 272 KiB씩이면 1,077번 이상)와
+    `sleep` 없이 도는 옆 태스크의 진행이 그 이상인지를 본다. 이 시험을 바꾸다 **런타임 버그**를 찾았다: `swap`의 함수 안에서 끝난 차례를 버려서, 한 바퀴의 호출 수가
+    `YIELD_EVERY`의 약수인 반복(`fn(): swap(n, f); lp(k - 1) ;;()`, 릴리스 빌드)이 차례를 영영 넘기지 않았다. 차례를 빚으로 남기게 고쳤다(`block.rs`의 `end_turn`, 시험 `atom_tests`).
+  - `http_client_matches_the_expected_output`의 "no server"(Ubuntu, 거부되어야 할 포트에서 다른 시험의 가짜 서버가 403): `refused_port()`가 놓은 `:0` 포트를 옆 시험의 가짜 서버가 받았다.
+    거부될 포트를 운영체제의 임시 포트 범위 밖(20000~29999)에서 고른다. `fung-vm`의 `free_port`(아래 시험 부채)는 아직 같은 성질이다.
 - [ ] 시험 부채: `read_all` 쪽 취소 시험은 실패를 먼저 확인하지 않음,
   교착 없음 시험의 `free_port`(닫은 포트를 다른 프로세스가 잡을 수 있음), 시험 없음(`SSL_CERT_FILE`의 깨진 PEM, `SSL_CERT_DIR`만 있는 경우, TLS 읽기 도중의 취소),
   헤더 10초 한도 시험이 실제로 10초를 기다림,

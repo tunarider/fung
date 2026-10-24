@@ -27,6 +27,23 @@ fn concurrent_swaps_lose_no_update() {
     );
 }
 
+/// A turn that ends inside a swap's function is owed, not dropped: the
+/// task gives it at the first yield point after the function. Here the
+/// function runs longer than a turn (`YIELD_EVERY` calls), so every turn
+/// ends inside a swap; the task used to never give its turn, and the
+/// sleeping root (and timers, commands, other tasks) waited for the whole
+/// loop. Release builds met it in `fn(): swap(n, x => x + 1); lp(k - 1) ;;()`
+/// too, whose 4 calls a round divide `YIELD_EVERY`.
+#[test]
+fn a_turn_ending_inside_a_swap_is_given_after_it() {
+    assert_eq!(
+        run(
+            "n = atom(0)\nfn spin(k) = k == 0 then 0 else spin(k - 1)\nfn lp(k) = k == 0 then nil else lp(k - 1 + 0 * swap(n, fn(x): spin(1500); x + 1 ;;))\nscope(fn(s):\n  spawn(s, () => lp(300))\n  sleep(1ms)\n  print(deref(n) < 300)\n;;)"
+        ),
+        ("true\n".into(), "".into(), 0)
+    );
+}
+
 #[test]
 fn an_effect_in_f_is_e0707() {
     let (out, err, code) = run("swap(atom(1), fn(x): print(x); x ;;)");
