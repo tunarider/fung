@@ -501,13 +501,19 @@ fn is_unsupported(e: &io::Error) -> bool {
 }
 
 /// The system's own no-replace rename, or `None` where there is none.
+/// On Linux it is the system call itself, not the C library's
+/// `renameat2`: the musl that Rust links statically has no such function
+/// (glibc has had it since 2.28), while every kernel since 3.15 has the
+/// call; an older kernel answers ENOSYS and the fallback runs.
 #[cfg(target_os = "linux")]
 fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
     let (from, to) = (c_path(from), c_path(to));
-    // SAFETY: two NUL-terminated paths that live across the call;
-    // AT_FDCWD resolves them like `rename` does.
+    // SAFETY: renameat2(2) takes two directory descriptors, two
+    // NUL-terminated paths that live across the call and the flags;
+    // AT_FDCWD resolves the paths like `rename` does.
     let rc = unsafe {
-        libc::renameat2(
+        libc::syscall(
+            libc::SYS_renameat2,
             libc::AT_FDCWD,
             from.as_ptr(),
             libc::AT_FDCWD,
