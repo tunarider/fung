@@ -88,11 +88,14 @@ pub enum Op {
     Test,
     /// let go of slot arg: it is not read again (03: 값의 수명)
     ClearLocal,
+    /// push local slot arg and empty the slot: its last read (03: 값의
+    /// 수명), which hands the value over
+    MoveLocal,
 }
 
 impl Op {
     /// Every opcode in numbering order.
-    pub const ALL: [Op; 53] = [
+    pub const ALL: [Op; 54] = [
         Op::Const,
         Op::Pop,
         Op::Add,
@@ -146,6 +149,7 @@ impl Op {
         Op::Assert,
         Op::Test,
         Op::ClearLocal,
+        Op::MoveLocal,
     ];
 
     pub fn from_u8(b: u8) -> Option<Op> {
@@ -208,6 +212,7 @@ impl Op {
             Op::Assert => "ASSERT",
             Op::Test => "TEST",
             Op::ClearLocal => "CLEARLOCAL",
+            Op::MoveLocal => "MOVELOCAL",
         }
     }
 

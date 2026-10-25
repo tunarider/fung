@@ -2198,7 +2198,6 @@
 | in/tests~lang~local_lifetime@cpushed.fung
 | in/tests~lang~local_lifetime@crlf.fung
 | in/tests~lang~local_lifetime@dedent.fung
-| in/tests~lang~local_lifetime@halfbytes.fung
 | in/tests~lang~local_lifetime@moreblank.fung
 | in/tests~lang~local_lifetime@nofinal.fung
 | in/tests~lang~local_lifetime@odd3.fung
@@ -3198,11 +3197,17 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0110]: unexpected end of file
-|   --> in/extras~prelude@halfbytes.fung:73:30
+| error[E0112]: expected `else` after then, found end of file
+|   --> in/extras~prelude@halfbytes.fung:66:57
 |    |
-| 73 |   is_empty(ys) then nil else 
-|    |                              ^
+| 66 |   ys = type_of(xs) == 'receiver then _receive(xs, 1, [])
+|    |                                                         ^
+|    |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~prelude@halflines.fung:65:1
+|    |
+| 65 | 
+|    | ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -5405,10 +5410,22 @@
 | 4 | print([1] + [2, 3], [] == [],
 |   |                              ^
 |   |
-| error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/tests~lang~local_lifetime@opsplit.fung:24:7
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~local_lifetime@halfbytes.fung:16:20
 |    |
-| 24 |   else
+| 16 |     spawn(s, () => 
+|    |                    ^
+|    |
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/tests~lang~local_lifetime@halflines.fung:18:1
+|    |
+| 18 | 
+|    | ^
+|    |
+| error[E0112]: expected `:` or `if` after else, found newline
+|   --> in/tests~lang~local_lifetime@opsplit.fung:25:7
+|    |
+| 25 |   else
 |    |       ^
 |    |
 | error[E0112]: expected `:` after the map key, found end of file
@@ -7896,7 +7913,6 @@
 | in/tests~lang~local_lifetime@cpushed.fung
 | in/tests~lang~local_lifetime@crlf.fung
 | in/tests~lang~local_lifetime@dedent.fung
-| in/tests~lang~local_lifetime@halfbytes.fung
 | in/tests~lang~local_lifetime@moreblank.fung
 | in/tests~lang~local_lifetime@nofinal.fung
 | in/tests~lang~local_lifetime@odd3.fung
@@ -8896,11 +8912,17 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0110]: unexpected end of file
-|   --> in/extras~prelude@halfbytes.fung:73:30
+| error[E0112]: expected `else` after then, found end of file
+|   --> in/extras~prelude@halfbytes.fung:66:57
 |    |
-| 73 |   is_empty(ys) then nil else 
-|    |                              ^
+| 66 |   ys = type_of(xs) == 'receiver then _receive(xs, 1, [])
+|    |                                                         ^
+|    |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~prelude@halflines.fung:65:1
+|    |
+| 65 | 
+|    | ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -11103,10 +11125,22 @@
 | 4 | print([1] + [2, 3], [] == [],
 |   |                              ^
 |   |
-| error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/tests~lang~local_lifetime@opsplit.fung:24:7
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~local_lifetime@halfbytes.fung:16:20
 |    |
-| 24 |   else
+| 16 |     spawn(s, () => 
+|    |                    ^
+|    |
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/tests~lang~local_lifetime@halflines.fung:18:1
+|    |
+| 18 | 
+|    | ^
+|    |
+| error[E0112]: expected `:` or `if` after else, found newline
+|   --> in/tests~lang~local_lifetime@opsplit.fung:25:7
+|    |
+| 25 |   else
 |    |       ^
 |    |
 | error[E0112]: expected `:` after the map key, found end of file
@@ -12457,27 +12491,27 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 4658 8a0997de56b1a4ad
-| extras~prelude@cglued.fung 4658 8a0997de56b1a4ad
+| extras~prelude@bom.fung 4331 49113894f231eafd
+| extras~prelude@cglued.fung 4331 49113894f231eafd
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 4658 8a0997de56b1a4ad
-| extras~prelude@crlf.fung 4658 8a0997de56b1a4ad
-| extras~prelude@dedent.fung 4658 8a0997de56b1a4ad
+| extras~prelude@cpushed.fung 4331 49113894f231eafd
+| extras~prelude@crlf.fung 4331 49113894f231eafd
+| extras~prelude@dedent.fung 4331 49113894f231eafd
 | extras~prelude@halfbytes.fung unchanged
 | extras~prelude@halflines.fung unchanged
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 4669 a07483dfbd100259
+| extras~prelude@moreblank.fung 4340 5dbe626848b7b88f
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 4658 8a0997de56b1a4ad
-| extras~prelude@odd3.fung 4658 8a0997de56b1a4ad
-| extras~prelude@opsplit.fung 5127 c486588a628cf57b
-| extras~prelude@spaced.fung 4658 8a0997de56b1a4ad
-| extras~prelude@split.fung 6370 4bf9aec27413df2b
-| extras~prelude@tabs.fung 4658 8a0997de56b1a4ad
-| extras~prelude@tight.fung 4658 8a0997de56b1a4ad
-| extras~prelude@trailing.fung 4658 8a0997de56b1a4ad
-| extras~prelude@wide4.fung 4658 8a0997de56b1a4ad
+| extras~prelude@nofinal.fung 4331 49113894f231eafd
+| extras~prelude@odd3.fung 4331 49113894f231eafd
+| extras~prelude@opsplit.fung 4756 9f2a325ef6950b55
+| extras~prelude@spaced.fung 4331 49113894f231eafd
+| extras~prelude@split.fung 5928 8617b53c87c18d93
+| extras~prelude@tabs.fung 4331 49113894f231eafd
+| extras~prelude@tight.fung 4331 49113894f231eafd
+| extras~prelude@trailing.fung 4331 49113894f231eafd
+| extras~prelude@wide4.fung 4331 49113894f231eafd
 | extras~regex.fung unchanged
 | extras~regex@bom.fung 213 b042b42db3e3ed81
 | extras~regex@cglued.fung unchanged
@@ -15805,27 +15839,27 @@
 | tests~lang~literals@trailing.fung 249 f27acb0c6737a706
 | tests~lang~literals@wide4.fung unchanged
 | tests~lang~local_lifetime.fung unchanged
-| tests~lang~local_lifetime@bom.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@cglued.fung 573 566e2b4feda9652b
+| tests~lang~local_lifetime@bom.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@cglued.fung 981 56b1d9bfcd98c0ca
 | tests~lang~local_lifetime@cnospace.fung unchanged
 | tests~lang~local_lifetime@contsplit.fung unchanged
-| tests~lang~local_lifetime@cpushed.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@crlf.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@dedent.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@halfbytes.fung 286 c1cf47a9d8bb6c43
+| tests~lang~local_lifetime@cpushed.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@crlf.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@dedent.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@halfbytes.fung unchanged
 | tests~lang~local_lifetime@halflines.fung unchanged
 | tests~lang~local_lifetime@joined.fung unchanged
-| tests~lang~local_lifetime@moreblank.fung 585 cf8d0b1ec5ebbd5f
+| tests~lang~local_lifetime@moreblank.fung 1001 076e4fafd6d8150a
 | tests~lang~local_lifetime@noblank.fung unchanged
-| tests~lang~local_lifetime@nofinal.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@odd3.fung 573 566e2b4feda9652b
+| tests~lang~local_lifetime@nofinal.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@odd3.fung 981 56b1d9bfcd98c0ca
 | tests~lang~local_lifetime@opsplit.fung unchanged
-| tests~lang~local_lifetime@spaced.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@split.fung 952 53895f07c1e60eed
-| tests~lang~local_lifetime@tabs.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@tight.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@trailing.fung 573 566e2b4feda9652b
-| tests~lang~local_lifetime@wide4.fung 573 566e2b4feda9652b
+| tests~lang~local_lifetime@spaced.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@split.fung 1453 b4f5730a7f1ba20a
+| tests~lang~local_lifetime@tabs.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@tight.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@trailing.fung 981 56b1d9bfcd98c0ca
+| tests~lang~local_lifetime@wide4.fung 981 56b1d9bfcd98c0ca
 | tests~lang~map_shorthand.fung unchanged
 | tests~lang~map_shorthand@bom.fung 267 b82b4c51c4c3d020
 | tests~lang~map_shorthand@cglued.fung 267 b82b4c51c4c3d020

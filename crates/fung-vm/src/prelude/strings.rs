@@ -12,6 +12,7 @@ use crate::vm::{Flow, Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("split", split_fn, vec![param("s"), param("sep")]));
+    add(def("lines", lines_fn, vec![param("s")]));
     add(def_step(
         "join",
         join_fn,
@@ -54,6 +55,22 @@ fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     } else {
         s.split(sep).map(Value::str).collect()
     };
+    Ok(nat::list(parts))
+}
+
+/// `lines(s)`: `s` split on `\n`, one `\r` that ends a line dropped, and
+/// no empty line after a final newline; the empty string has no lines (06,
+/// the rule of `read_lines`).
+fn lines_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let s = nat::need_str("s", &a[0])?;
+    if s.is_empty() {
+        return Ok(nat::list(Vec::new()));
+    }
+    let body = s.strip_suffix('\n').unwrap_or(s);
+    let parts = body
+        .split('\n')
+        .map(|l| Value::str(l.strip_suffix('\r').unwrap_or(l)))
+        .collect();
     Ok(nat::list(parts))
 }
 

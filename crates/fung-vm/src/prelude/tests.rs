@@ -816,3 +816,30 @@ fn get_reads_a_key_or_the_default() {
     assert!(o.err.contains("cannot get from list"), "{}", o.err);
     assert!(!o.err.contains("extras/prelude.fung"), "{}", o.err);
 }
+
+/// `lines` splits on `\n`, drops one `\r` that ends a line, and a final
+/// newline makes no empty line (06, as `read_lines`). It is a native: a
+/// value that is not a string is E0403 at the caller, with no prelude frame
+/// in the call path.
+#[test]
+fn lines_splits_text_into_lines() {
+    let o = exec(
+        "print(lines(\"\"), lines(\"a\\nb\"), lines(\"a\\n\"), lines(\"a\\r\\nb\\r\\n\"), lines(\"a\\n\\n\"), lines(\"\\n\"), lines(\"a\\r\"), lines(\"\\r\\n\"), lines(\"x\\r\\r\\n\"))",
+        Opts::default(),
+    );
+    assert_eq!(
+        (o.code.as_str(), o.out.as_str()),
+        (
+            "",
+            "[] [\"a\", \"b\"] [\"a\"] [\"a\", \"b\"] [\"a\", \"\"] [\"\"] [\"a\"] [\"\"] [\"x\\r\"]\n"
+        )
+    );
+    let o = exec("fn f(x) = lines(x)\nprint(f(1))", Opts::default());
+    assert_eq!(o.code, "E0403");
+    assert!(
+        o.err.contains("argument `s` must be str, got int"),
+        "{}",
+        o.err
+    );
+    assert!(!o.err.contains("extras/prelude.fung"), "{}", o.err);
+}

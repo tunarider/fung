@@ -82,7 +82,6 @@ prelude fung is_ok
 prelude fung iterate
 prelude fung keys
 prelude fung last
-prelude fung lines
 prelude fung max
 prelude fung min
 prelude fung pad_left
@@ -121,6 +120,7 @@ prelude native group_by(xs, f)
 prelude native int(x)
 prelude native join(xs, sep=?)
 prelude native len(x)
+prelude native lines(s)
 prelude native lower(s)
 prelude native map(xs, f)
 prelude native merge(a, b)

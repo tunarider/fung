@@ -8627,7 +8627,19 @@
 | print(numbers(5))
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:8
+==== manual vm/10-values-and-memory.md:9
+-- stdout
+| fn drop_it(_x) = nil
+|
+| fn closes_early() = scope(fn(s):
+|   (tx, rx) = channel()
+|   [drop_it(tx), recv(rx)]
+| ;;)
+|
+| print(closes_early())
+-- stderr
+-- exit: 0
+==== manual vm/10-values-and-memory.md:10
 -- stdout
 | levels = ["INFO", "WARN", "INFO", "ERROR", "INFO"]
 | entries = map(0..30000, i => levels[i % 5])
@@ -10088,7 +10100,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4658 bytes, fnv1a64 8a0997de56b1a4ad)
+-- stdout (4331 bytes, fnv1a64 49113894f231eafd)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung
@@ -11676,8 +11688,9 @@
 -- exit: 0
 ==== tests/lang/local_lifetime.fung
 -- stdout
-| # A local is let go after the statement that reads it last (03), so a
-| # channel a function made closes when its producer is done.
+| # A local's last read hands its value over, and a local is let go after
+| # the statement that reads it last (03), so a channel a function made
+| # closes when its producer is done.
 | fn tens() = scope(fn(s):
 |   (tx, rx) = channel()
 |   spawn(s, () => each(0..3, i => send(tx, i)))
@@ -11698,6 +11711,17 @@
 | ;;)
 | print(pick(true), pick(false))
 | # expect: [1] [2]
+|
+| # The last read hands the value over within its statement: the sending
+| # end moves into `drop_it`, which lets it go, so the channel is closed
+| # before `recv` waits.
+| fn drop_it(_x) = nil
+| fn closes_early() = scope(fn(s):
+|   (tx, rx) = channel()
+|   [drop_it(tx), recv(rx)]
+| ;;)
+| print(closes_early())
+| # expect: [nil, Err({kind: 'closed, message: "channel closed"})]
 -- stderr
 -- exit: 0
 ==== tests/lang/map_shorthand.fung

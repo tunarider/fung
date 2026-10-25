@@ -525,7 +525,7 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:134 until
+   extras/prelude.fung:125 until
    -e:1       <entry>
 "
     );

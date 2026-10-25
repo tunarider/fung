@@ -136,7 +136,7 @@ print(split(path, "/") |> filter(p => p != "") |> map(upper) |> join("."))
 
 :::
 
-:::fn lines(s) fung
+:::fn lines(s)
 
 글을 줄의 리스트로 나눈다.
 

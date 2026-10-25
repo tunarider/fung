@@ -114,15 +114,6 @@ fn _padding(s, n, pad) = match (pad, n - len(s)):
 fn pad_left(s, n, pad = " ") = _padding(s, n, pad) + s
 fn pad_right(s, n, pad = " ") = s + _padding(s, n, pad)
 
-fn _chomp(s, suffix) = ends_with(s, suffix) then s[..len(s) - len(suffix)] else s
-
-# Text to lines, the same rule as read_lines (06): split on `\n`, drop a
-# trailing `\r` per line, and a final newline makes no empty line.
-fn lines(s) = match s:
-  "" => []
-  _  => split(_chomp(s, "\n"), "\n") |> map(l => _chomp(l, "\r"))
-;;
-
 # ---- Results --------------------------------------------------------
 
 fn is_ok(x) = type_of(x) == 'Ok

@@ -24,6 +24,7 @@ time target/release/fung bench/fib.fung
 두 바이너리를 주면 같은 기계에서 나란히 비교한다(예: `scripts/bench.sh /tmp/fung-base target/release/fung`).
 
 다른 언어(Python·Lua·Ruby·Node)와 같은 작업으로 견주는 프로그램은 `compare/`에 있다: `python3 -I bench/compare/run.py target/release/fung`.
+fung만 매번 재고, 다른 언어의 결과는 `compare/records/<기계>.json`의 기록을 다시 쓴다(재는 방식·프로그램·데이터·명령·해석기 판이 그대로일 때. `--remeasure`로 모두 다시 잼).
 방법·결과·원인 분석은 `docs/notes/bench-languages.md`(2026-10-21), 거기서 나온 할 일은 open-questions "성능" 절의 P8~P13.
 
 ## 기록: 0.1.0과 0.2.0 (2026-10-17)
@@ -43,7 +44,7 @@ Python `perf_counter`로 프로세스 시작~종료, 출력은 버림). 다른 �
 | `chan.fung` | 0.112 | 0.251 | 2.24 |
 | `spawn.fung` | 0.010 | 0.126 | 12.6 |
 
-musl 정적 빌드 열은 비어 있다. 이 기계에는 musl 타깃도 교차 도구도 없어 만들 수 없었고, 추정치는 적지 않는다.
-Linux 기계나 CI에서 `scripts/build-release.sh`로 만든 musl 바이너리로 같은 방법으로 재서 채운다.
+musl 정적 빌드는 2026-10-25에 같은 Mac의 Docker 가상 머신(arm64 Linux)에서 glibc 판과 나란히 쟀다(위 표와는 기계가 달라 따로 둔다).
+할당이 많은 것은 musl이 4~15% 느리고, 계산은 거꾸로 glibc 판이 느리다. 표와 해석은 `docs/notes/bench-languages.md` 4.1절.
 2026-10-14 기록과 다른 언어 비교는 `docs/design/open-questions.md`의 "성능" 절. 0.2.0 구현의 측정 배경은 `docs/notes/R2-vm.md` 9절과
 `docs/notes/R3a-runtime.md` 9절(미릴리스 중간 구현과의 비교 포함).

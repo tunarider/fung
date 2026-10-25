@@ -100,6 +100,7 @@ impl Compiler<'_> {
             opts: self.opts,
             lines: self.lines,
             body_block: false,
+            moves: super::moves::last_reads(n.kids.last().expect("fn has a body")),
         };
 
         // Prologue: defaults, then type checks.

@@ -12,7 +12,7 @@ lede: fung의 값은 16바이트짜리 Rust 열거형 하나다. 큰 값은 참�
 - fung이 참조 계수를 고를 수 있었던 이유: 불변 값에는 순환이 없다
 - 깊이 겹친 값을 재귀 없이 지우는 방법
 - 불변 리스트·맵을 통째로 복사하지 않고 "바꾸는" 영속 자료구조
-- 지역 변수의 값이 언제 놓이는가(`CLEARLOCAL`)
+- 지역 변수의 값이 언제 넘어가고 놓이는가(`MOVELOCAL`·`CLEARLOCAL`)
 :::
 
 9장까지 "값을 스택에 올린다", "값을 복사한다"고 쉽게 말했다. 이 장은 그 값이 메모리에서 어떤 모양이고, 다 쓰면 누가 치우는지를 본다.
@@ -208,6 +208,34 @@ print(numbers(5))
 
 규칙의 나머지 둘도 알아 두자. **한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다.** `_watch = stop_signal()`처럼 쥐고 있는 것 자체가 뜻인 값을 위해서다(Rust의 `let _guard`와 같은 관용구). **최상위 변수는 프로그램 끝까지 산다.** 최상위 `fn`이 언제든 읽을 수 있기 때문이다(9장).
 
+### 마지막 읽기는 값을 넘긴다 {#move}
+
+칸을 비우는 것만으로는 부족한 곳이 있다. `put(m, k, v)`를 부르면 인자가 맵을 하나 쥐는데, 변수 `m`도 그 문장이 끝날 때까지 같은 맵을 쥔다. 참조 계수가 2이니 `put`은 맵을 홀로 쥐었다고 볼 수 없어서 길의 노드를 복사한다. `fold`로 맵을 쌓으면 원소마다 이 복사가 일어난다.
+
+그래서 컴파일러는 함수 본문을 평가 순서의 **뒤에서 앞으로** 걸으며, 뒤에서 다시 읽히지 않는 읽기를 `MOVELOCAL`로 낸다(설계 03 "값의 수명", P9). `MOVELOCAL`은 칸의 값을 스택에 올리고 칸을 비운다. 복사가 아니라 넘겨주기다. 받은 `put`은 참조 계수 1인 맵을 `Rc::make_mut`로 제자리에서 고친다.
+
+```dump bytecode
+m = fold(0..3, {}, (m, i) => put(m, "k${i}", i))
+print(m)
+```
+
+`<lambda>`에서 `m`(슬롯 0)은 한 번 읽히니 `MOVELOCAL 0`이다. `i`(슬롯 1)는 두 번 읽히는데, 보간 안의 첫 읽기는 뒤에 또 읽히니 `LOADLOCAL 1`(복사), 인자로 가는 둘째가 `MOVELOCAL 1`이다. 가지(`if`·`??`)는 가지마다 따로 보고, `match`의 주제와 가드는 갈래마다 다시 읽힐 수 있어 넘기지 않는다. 클로저가 붙잡는 것은 복사다.
+
+넘겨준 값은 그 문장이 끝나기 전에도 놓일 수 있다. 받은 쪽이 놓으면 그만이기 때문이다.
+
+```fung run
+fn drop_it(_x) = nil
+
+fn closes_early() = scope(fn(s):
+  (tx, rx) = channel()
+  [drop_it(tx), recv(rx)]
+;;)
+
+print(closes_early())
+```
+
+`tx`가 `drop_it`으로 넘어가고 거기서 놓이니, 같은 문장의 `recv`가 기다리기 전에 채널이 닫혀 있다.
+
 ## 코드에서 찾아보기 {#source}
 
 - `crates/fung-vm/src/value.rs`: `Value` 열거형, 함수 값 `Closure`, 모듈 값 `Module`, 바뀌는 것을 품었는지 보는 `holds_mutable`.
@@ -217,6 +245,7 @@ print(numbers(5))
 - `crates/fung-vm/src/value/map.rs`, `omap.rs`, `hamt.rs`: `Map`(`SMALL_MAP_MAX`), 항목 벡터와 색인을 짝지은 `Omap`, `Hamt`.
 - `crates/fung-vm/src/value/sym.rs`: 심볼 인턴 표 `intern`.
 - `crates/fung-front/src/compiler.rs`: 함수 본문의 문장마다 `CLEARLOCAL`을 넣는 `block`.
+- `crates/fung-front/src/compiler/moves.rs`: 마지막 읽기를 찾는 `last_reads`(뒤에서 앞으로의 생존 분석, `MOVELOCAL`).
 
 :::exercise 로그 수준 세기
 수준이 `INFO`·`WARN`·`ERROR`인 로그 3만 줄을 흉내 낸 리스트를 만들고, `fold`와 `put`으로 수준별 개수를 세 보자. 그리고 0부터 29999까지를 "최근 것이 먼저" 순서로 담은 리스트를 만들되 앞에 붙이기(`[i] + acc`)를 쓰지 않고 만들어 보자. 왜 그 편이 빠른가?
@@ -243,6 +272,6 @@ print(take(newest_first, 3))
 - 메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0708이 막는다.
 - 깊은 값은 그릇마다의 `Drop`이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다.
 - 리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 `Rc::make_mut`로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.
-- 지역 변수는 마지막으로 읽힌 문장 뒤에 `CLEARLOCAL`로 놓인다. 그래서 채널의 끝이 제때 닫힌다.
+- 지역 변수의 마지막 읽기는 `MOVELOCAL`로 값을 넘기고, 읽힌 문장 뒤에는 `CLEARLOCAL`로 놓인다. 그래서 `fold`로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.
 
 레퍼런스: [값과 타입](../reference/language.html#values), [컬렉션 함수](../reference/prelude/collections.html). 부록의 [컬렉션의 내부](internals.html#collections)에 연산 비용 표가 있다. 다음 장은 값 중에서도 특별한 값, 모듈이 어떻게 찾아지고 실행되는지를 본다.

@@ -78,7 +78,7 @@
 0011  5:23  CONST        3    ; [2]
 0012  5:19  TUPLE        2
 0013  5:3   MATCHORFAIL  0    ; ($3, [$4, ...])
-0014  6:10  LOADLOCAL    1
+0014  6:10  MOVELOCAL    1
 0015  6:15  CONST        4    ; 2
 0016  6:14  TAILCALL     1    ; 1 positional, 0 named
 0017  6:3   RETURN
@@ -92,26 +92,26 @@
 0004  2:28  LOADCAPTURED 0
 0005  2:23  JUMP         11
 0006  2:35  LOADSELF
-0007  2:40  LOADLOCAL    0
+0007  2:40  MOVELOCAL    0
 0008  2:44  CONST        1    ; 1
 0009  2:42  SUB
 0010  2:39  TAILCALL     1    ; 1 positional, 0 named
 0011  2:14  RETURN
 
 == <lambda> ==
-0000  3:12  LOADLOCAL    0
+0000  3:12  MOVELOCAL    0
 0001  3:16  LOADCAPTURED 0
 0002  3:14  ADD
 0003  3:9   RETURN
 
 == <lambda> ==
 0000  4:17  CONST        0    ; <fn print>
-0001  4:23  LOADLOCAL    0
+0001  4:23  MOVELOCAL    0
 0002  4:22  TAILCALL     1    ; 1 positional, 0 named
 0003  4:3   RETURN
 
 == h ==
-0000  8:18  LOADLOCAL    0
+0000  8:18  MOVELOCAL    0
 0001  8:19  UNWRAPTEST   3
 0002  8:19  JUMP         5
 0003  8:19  CHECKRETURN  0    ; -> int

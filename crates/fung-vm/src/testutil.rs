@@ -490,7 +490,10 @@ pub fn boom() -> Vec<Value> {
 /// - `loop_depth()`: how many run loops run on this task (`cont.rs`);
 /// - `parks()`: how many times this task parked (`cont.rs`);
 /// - `offloads()`: how many waits on the operating system it handed off (`nat::offload`);
-/// - `yields()`: how many times it gave its turn at a yield point.
+/// - `yields()`: how many times it gave its turn at a yield point;
+/// - `sole(x)`: `x` itself when the argument is the only holder of map or
+///   list `x` (a call's last read of a local moves it, 03), else
+///   `Err("shared")`.
 pub fn probes() -> Vec<Value> {
     fn int_arg(a: &[Value]) -> i64 {
         let Value::Int(n) = a[0] else {
@@ -533,6 +536,22 @@ pub fn probes() -> Vec<Value> {
                     panic!("a task argument")
                 };
                 Ok(Value::Int(h.state.waiters.borrow().len() as i64))
+            },
+        )),
+        Value::Native(Native::leak(
+            "sole",
+            vec![nat::param("x")],
+            |_: &mut Task, mut a| {
+                let sole = match &a[0] {
+                    Value::Map(m) => std::rc::Rc::strong_count(m) == 1,
+                    Value::List(l) => std::rc::Rc::strong_count(l) == 1,
+                    _ => panic!("a map or a list"),
+                };
+                Ok(if sole {
+                    a.pop().expect("x")
+                } else {
+                    nat::tag("Err", vec![Value::str("shared")])
+                })
             },
         )),
         Value::Native(Native::leak("yields", vec![], |t: &mut Task, _| {

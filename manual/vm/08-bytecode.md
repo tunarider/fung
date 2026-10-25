@@ -79,7 +79,7 @@ fung의 명령 하나는 **32비트 단어 하나**다. 위 8비트가 명령의
     <tr><td>값</td><td><code>CONST</code> <code>POP</code> <code>LIST</code> <code>MAP</code> <code>TUPLE</code> <code>TAG</code> <code>RANGE</code> <code>CONCAT</code></td></tr>
     <tr><td>연산</td><td><code>ADD</code> <code>SUB</code> <code>MUL</code> <code>DIV</code> <code>FLOORDIV</code> <code>MOD</code> <code>POW</code> <code>NEG</code> <code>NOT</code> <code>EQ</code> <code>NE</code> <code>LT</code> <code>GT</code> <code>LE</code> <code>GE</code> <code>IN</code> <code>CHECKBOOL</code></td></tr>
     <tr><td>접근</td><td><code>INDEX</code> <code>SLICE</code> <code>FIELD</code></td></tr>
-    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
+    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>MOVELOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
     <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFSET</code></td></tr>
     <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code></td></tr>
     <tr><td>결과값</td><td><code>UNWRAPABORT</code>(<code>!</code>) <code>UNWRAPTEST</code>(<code>?</code>) <code>COALESCE</code>(<code>??</code>)</td></tr>

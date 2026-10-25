@@ -1853,7 +1853,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:134 until
+|    extras/prelude.fung:125 until
 |    -e:1       <entry>
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
@@ -1867,7 +1867,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:137 iterate (1 tail calls elided)
+|    extras/prelude.fung:128 iterate (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
@@ -1892,8 +1892,6 @@
 |   |            ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:117 _chomp
-|    extras/prelude.fung:123 lines
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(keys([]))"

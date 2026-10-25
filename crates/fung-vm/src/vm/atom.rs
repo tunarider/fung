@@ -230,6 +230,7 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "remove",
             "chars",
             "split",
+            "lines",
             "join",
             "trim",
             "upper",

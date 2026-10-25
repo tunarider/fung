@@ -367,3 +367,24 @@ fn split_of_nothing_by_nothing() {
     assert_eq!(ok("split", &["", ""]), "[]");
     assert_eq!(ok("split", &["", "x*"]), r#"[""]"#);
 }
+
+/// A match is the same map whatever the subject: positions are character
+/// indexes on an ASCII subject too, a group that did not take part is
+/// nil, named groups fill `named`, and `find_all` past a multibyte
+/// character keeps counting characters (P11 made the map cheaper, not
+/// different).
+#[test]
+fn matches_read_the_same_on_ascii_and_multibyte_subjects() {
+    assert_eq!(
+        ok("find", &["id=42 x", r"id=(?P<n>\d+)( y)?"]),
+        r#"{text: "id=42", start: 0, end: 5, groups: ["42", nil], named: {n: "42"}}"#
+    );
+    assert_eq!(
+        ok("find_all", &["a1 é2 b3", r"\w(\d)"]),
+        r#"[{text: "a1", start: 0, end: 2, groups: ["1"], named: {}}, {text: "é2", start: 3, end: 5, groups: ["2"], named: {}}, {text: "b3", start: 6, end: 8, groups: ["3"], named: {}}]"#
+    );
+    assert_eq!(
+        ok("find", &["abc", "b"]),
+        r#"{text: "b", start: 1, end: 2, groups: [], named: {}}"#
+    );
+}

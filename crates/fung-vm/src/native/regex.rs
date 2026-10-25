@@ -208,30 +208,60 @@ impl<'a> RuneCursor<'a> {
     }
 }
 
-fn key(k: &str) -> Rc<String> {
-    Rc::new(k.to_string())
+/// The keys of a match map and the `named` of a pattern without names,
+/// made once per run thread and shared by every match (P11: a match was
+/// a dozen allocations, most of them these).
+struct Shared {
+    text: Rc<String>,
+    start: Rc<String>,
+    end: Rc<String>,
+    groups: Rc<String>,
+    named: Rc<String>,
+    no_names: Value,
+}
+
+thread_local! {
+    static SHARED: Shared = {
+        let key = |k: &str| Rc::new(k.to_string());
+        Shared {
+            text: key("text"),
+            start: key("start"),
+            end: key("end"),
+            groups: key("groups"),
+            named: key("named"),
+            no_names: Value::Map(Rc::new(MapBuilder::default().finish())),
+        }
+    };
 }
 
 /// `{text, start, end, groups, named}` for one match: a group that did
 /// not take part is nil.
 fn match_value(c: &Compiled, caps: &Captures, cur: &mut RuneCursor) -> Value {
-    let whole = caps.get(0).expect("the whole match");
-    let mut m = MapBuilder::default();
-    m.set(key("text"), Value::str(whole.as_str()));
-    m.set(key("start"), Value::Int(cur.index(whole.start())));
-    m.set(key("end"), Value::Int(cur.index(whole.end())));
-    let mut groups = Vec::with_capacity(caps.len().saturating_sub(1));
-    let mut named = MapBuilder::default();
-    for i in 1..caps.len() {
-        let g = caps.get(i).map_or(Value::Nil, |g| Value::str(g.as_str()));
-        if !c.names[i].is_empty() {
-            named.set(key(&c.names[i]), g.clone());
+    SHARED.with(|k| {
+        let whole = caps.get(0).expect("the whole match");
+        let mut m = MapBuilder::with_capacity(5);
+        m.set(k.text.clone(), Value::str(whole.as_str()));
+        m.set(k.start.clone(), Value::Int(cur.index(whole.start())));
+        m.set(k.end.clone(), Value::Int(cur.index(whole.end())));
+        let mut groups = Vec::with_capacity(caps.len().saturating_sub(1));
+        let mut named = None;
+        for i in 1..caps.len() {
+            let g = caps.get(i).map_or(Value::Nil, |g| Value::str(g.as_str()));
+            if !c.names[i].is_empty() {
+                named
+                    .get_or_insert_with(MapBuilder::default)
+                    .set(Rc::new(c.names[i].clone()), g.clone());
+            }
+            groups.push(g);
         }
-        groups.push(g);
-    }
-    m.set(key("groups"), nat::list(groups));
-    m.set(key("named"), Value::Map(Rc::new(named.finish())));
-    Value::Map(Rc::new(m.finish()))
+        m.set(k.groups.clone(), nat::list(groups));
+        let named = match named {
+            Some(b) => Value::Map(Rc::new(b.finish())),
+            None => k.no_names.clone(),
+        };
+        m.set(k.named.clone(), named);
+        Value::Map(Rc::new(m.finish()))
+    })
 }
 
 fn is_match_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {

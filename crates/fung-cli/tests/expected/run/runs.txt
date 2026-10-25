@@ -1594,6 +1594,7 @@
 -- stdout
 | [0, 10, 20]
 | [1] [2]
+| [nil, Err({kind: 'closed, message: "channel closed"})]
 -- stderr
 -- exit: 0
 ==== tests/lang/map_shorthand.fung

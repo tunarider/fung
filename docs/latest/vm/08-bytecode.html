@@ -128,7 +128,7 @@
     <tr><td>값</td><td><code>CONST</code> <code>POP</code> <code>LIST</code> <code>MAP</code> <code>TUPLE</code> <code>TAG</code> <code>RANGE</code> <code>CONCAT</code></td></tr>
     <tr><td>연산</td><td><code>ADD</code> <code>SUB</code> <code>MUL</code> <code>DIV</code> <code>FLOORDIV</code> <code>MOD</code> <code>POW</code> <code>NEG</code> <code>NOT</code> <code>EQ</code> <code>NE</code> <code>LT</code> <code>GT</code> <code>LE</code> <code>GE</code> <code>IN</code> <code>CHECKBOOL</code></td></tr>
     <tr><td>접근</td><td><code>INDEX</code> <code>SLICE</code> <code>FIELD</code></td></tr>
-    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
+    <tr><td>변수</td><td><code>LOADLOCAL</code> <code>MOVELOCAL</code> <code>STORELOCAL</code> <code>CLEARLOCAL</code> <code>LOADGLOBAL</code> <code>STOREGLOBAL</code> <code>LOADCAPTURED</code> <code>LOADSELF</code></td></tr>
     <tr><td>흐름</td><td><code>JUMP</code> <code>JUMPIFFALSE</code> <code>JUMPIFSET</code></td></tr>
     <tr><td>함수</td><td><code>CLOSURE</code> <code>CALL</code> <code>TAILCALL</code> <code>RETURN</code> <code>CHECKTYPE</code> <code>CHECKRETURN</code></td></tr>
     <tr><td>결과값</td><td><code>UNWRAPABORT</code>(<code>!</code>) <code>UNWRAPTEST</code>(<code>?</code>) <code>COALESCE</code>(<code>??</code>)</td></tr>
@@ -166,7 +166,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  1:1   RETURN
 
 == double ==
-0000  1:16  LOADLOCAL    0
+0000  1:16  MOVELOCAL    0
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>
@@ -274,7 +274,7 @@ print(sign(-3))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0010  1:1   RETURN
 
 == sign ==
-0000  1:14  LOADLOCAL    0
+0000  1:14  MOVELOCAL    0
 0001  1:18  CONST        0    ; 0
 0002  1:16  LT
 0003  1:16  JUMPIFFALSE  6
@@ -311,15 +311,15 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 0003  2:3   STORELOCAL   1
 0004  3:9   LOADLOCAL    1
 0005  3:17  CONST        1    ; &lt;fn len&gt;
-0006  3:21  LOADLOCAL    0
+0006  3:21  MOVELOCAL    0
 0007  3:20  CALL         1    ; 1 positional, 0 named
 0008  3:15  DIV
 0009  3:3   STORELOCAL   2
 0010  3:3   CLEARLOCAL   0
 0011  4:3   CONST        2    ; &quot;total &quot;
-0012  4:12  LOADLOCAL    1
+0012  4:12  MOVELOCAL    1
 0013  4:3   CONST        3    ; &quot;, avg &quot;
-0014  4:26  LOADLOCAL    2
+0014  4:26  MOVELOCAL    2
 0015  4:3   CONCAT       4
 0016  1:1   RETURN</code></pre></div>
 <p>몇 가지가 보인다.</p>
@@ -390,7 +390,7 @@ print(grade(95), grade(85), grade(10))</code></pre><pre class="out dump plain"><
 0003  1:25  JUMPIFFALSE  6
 0004  1:36  CONST        1    ; &quot;A&quot;
 0005  1:31  JUMP         13
-0006  1:45  LOADLOCAL    0
+0006  1:45  MOVELOCAL    0
 0007  1:54  CONST        2    ; 80
 0008  1:51  GE
 0009  1:51  JUMPIFFALSE  12

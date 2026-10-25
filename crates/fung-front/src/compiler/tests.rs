@@ -231,7 +231,7 @@ fn compile_function_proto_and_closure() {
     assert_eq!(add.num_locals, 2);
     assert_eq!(add.params.len(), 2);
     assert_eq!(add.return_type, -1);
-    assert_eq!(ops(add), "LOADLOCAL(0) LOADLOCAL(1) ADD RETURN");
+    assert_eq!(ops(add), "MOVELOCAL(0) MOVELOCAL(1) ADD RETURN");
 }
 
 #[test]
@@ -241,7 +241,7 @@ fn compile_defaults_and_type_checks() {
     // JUMPIFSET skips the default expression and its store (index 6).
     assert_eq!(
         ops(f),
-        "LOADLOCAL(1) JUMPIFSET(6) LOADLOCAL(0) CONST(0) MUL STORELOCAL(1) CHECKTYPE(0) LOADLOCAL(0) LOADLOCAL(1) ADD CHECKRETURN(1) RETURN"
+        "LOADLOCAL(1) JUMPIFSET(6) LOADLOCAL(0) CONST(0) MUL STORELOCAL(1) CHECKTYPE(0) MOVELOCAL(0) MOVELOCAL(1) ADD CHECKRETURN(1) RETURN"
     );
     assert_eq!(f.types, [vec!["int".to_string()], vec!["num".to_string()]]);
     assert_eq!(f.return_type, 1);
@@ -271,7 +271,7 @@ fn compile_tail_calls() {
     // An argument is not in tail position, but the outer call is.
     let got = ops(&comp("fn f(n) = print(f(n))").protos[0]);
     assert!(
-        got.contains("LOADSELF LOADLOCAL(0) CALL(1) TAILCALL(1)"),
+        got.contains("LOADSELF MOVELOCAL(0) CALL(1) TAILCALL(1)"),
         "{got}"
     );
     // return of a call is a tail call; the branches of if are tail positions.
@@ -378,7 +378,7 @@ fn compile_question_inside_function() {
     // r; UNWRAPTEST L1; JUMP L2; L1: RETURN; L2: CONST 1; ADD; RETURN
     assert_eq!(
         ops(&p.protos[0]),
-        "LOADLOCAL(0) UNWRAPTEST(3) JUMP(4) RETURN CONST(0) ADD RETURN"
+        "MOVELOCAL(0) UNWRAPTEST(3) JUMP(4) RETURN CONST(0) ADD RETURN"
     );
     let got = ops(&comp("fn f(r) -> int = r?").protos[0]);
     assert!(
@@ -596,15 +596,15 @@ fn locals_are_cleared_after_their_last_read() {
         ops("fn f(a, b):\n  print(a)\n  x = b\n  print(x)\n  0\n;;"),
         [
             "CONST 0",
-            "LOADLOCAL 0",
+            "MOVELOCAL 0",
             "CALL 1",
             "POP",
             "CLEARLOCAL 0",
-            "LOADLOCAL 1",
+            "MOVELOCAL 1",
             "STORELOCAL 2",
             "CLEARLOCAL 1",
             "CONST 0",
-            "LOADLOCAL 2",
+            "MOVELOCAL 2",
             "CALL 1",
             "POP",
             "CLEARLOCAL 2",
@@ -617,13 +617,13 @@ fn locals_are_cleared_after_their_last_read() {
     assert_eq!(
         ops("fn f(a, b, c):\n  _k = c\n  if b: print(a) ;;\n  g = () => b\n  print(1)\n  g\n;;"),
         [
-            "LOADLOCAL 2",
+            "MOVELOCAL 2",
             "STORELOCAL 3",
             "CLEARLOCAL 2",
             "LOADLOCAL 1",
             "JUMPIFFALSE 9",
             "CONST 0",
-            "LOADLOCAL 0",
+            "MOVELOCAL 0",
             "CALL 1",
             "JUMP 10",
             "CONST 1",
@@ -636,10 +636,77 @@ fn locals_are_cleared_after_their_last_read() {
             "CONST 2",
             "CALL 1",
             "POP",
-            "LOADLOCAL 4",
+            "MOVELOCAL 4",
             "RETURN"
         ]
     );
+}
+
+/// The loads of locals in `f`'s code, in order (`LOADLOCAL i` or
+/// `MOVELOCAL i`).
+fn local_loads(src: &str) -> Vec<String> {
+    let b = bytecode(src);
+    let f = b.split("== f ==\n").nth(1).expect("f's code").to_string();
+    f.lines()
+        .take_while(|l| !l.is_empty())
+        .filter_map(|l| {
+            let w: Vec<&str> = l.split_whitespace().skip(2).take(2).collect();
+            matches!(w[0], "LOADLOCAL" | "MOVELOCAL").then(|| w.join(" "))
+        })
+        .collect()
+}
+
+/// The last read of a local moves its value out of the slot (03, P9):
+/// reads before it in evaluation order, in later statements, in a match's
+/// subject or guard, and captures copy. Each branch moves its own last
+/// read.
+#[test]
+fn the_last_read_of_a_local_moves_it() {
+    let cases: &[(&str, &[&str])] = &[
+        (
+            "fn f(m, i) = put(m, \"k${i}\", i)",
+            &["MOVELOCAL 0", "LOADLOCAL 1", "MOVELOCAL 1"],
+        ),
+        (
+            "fn f(m):\n  a = put(m, \"x\", 1)\n  len(m) + len(a)\n;;",
+            &["LOADLOCAL 0", "MOVELOCAL 0", "MOVELOCAL 1"],
+        ),
+        (
+            "fn f(x, c) = c then len(x) else str(x)",
+            &["MOVELOCAL 1", "MOVELOCAL 0", "MOVELOCAL 0"],
+        ),
+        (
+            "fn f(x, c):\n  if c: print(x) ;;\n  len(x)\n;;",
+            &["MOVELOCAL 1", "LOADLOCAL 0", "MOVELOCAL 0"],
+        ),
+        (
+            "fn f(x) = match x:\n  [a] when a > 0 => a\n  _ => len(x)\n;;",
+            // The subject is first stored in slot 1; `a` is slot 2.
+            &[
+                "LOADLOCAL 0",
+                "LOADLOCAL 1",
+                "LOADLOCAL 2",
+                "MOVELOCAL 2",
+                "LOADLOCAL 1",
+                "MOVELOCAL 0",
+                "LOADLOCAL 1",
+            ],
+        ),
+        (
+            "fn f(x):\n  g = () => x\n  [g, x]\n;;",
+            &["MOVELOCAL 1", "MOVELOCAL 0"],
+        ),
+        ("fn f(x):\n  print(x)\n  () => x\n;;", &["LOADLOCAL 0"]),
+        ("fn f(x, y) = x ?? y", &["MOVELOCAL 0", "MOVELOCAL 1"]),
+        ("fn f(x) = x ?? len(x)", &["LOADLOCAL 0", "MOVELOCAL 0"]),
+        (
+            "fn f(x):\n  if x > 0: return x ;;\n  x\n;;",
+            &["LOADLOCAL 0", "MOVELOCAL 0", "MOVELOCAL 0"],
+        ),
+    ];
+    for (src, want) in cases {
+        assert_eq!(local_loads(src), *want, "{src}");
+    }
 }
 
 #[test]

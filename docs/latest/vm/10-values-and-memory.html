@@ -71,7 +71,7 @@
 <li>fung이 참조 계수를 고를 수 있었던 이유: 불변 값에는 순환이 없다</li>
 <li>깊이 겹친 값을 재귀 없이 지우는 방법</li>
 <li>불변 리스트·맵을 통째로 복사하지 않고 "바꾸는" 영속 자료구조</li>
-<li>지역 변수의 값이 언제 놓이는가(<code>CLEARLOCAL</code>)</li>
+<li>지역 변수의 값이 언제 넘어가고 놓이는가(<code>MOVELOCAL</code>·<code>CLEARLOCAL</code>)</li>
 </ul>
 </div>
 <p>9장까지 "값을 스택에 올린다", "값을 복사한다"고 쉽게 말했다. 이 장은 그 값이 메모리에서 어떤 모양이고, 다 쓰면 누가 치우는지를 본다.</p>
@@ -241,18 +241,18 @@ print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ 
 0000  2:11  CONST        0    ; [&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;]
 0001  2:3   STORELOCAL   1
 0002  3:11  CONST        1    ; &lt;fn map&gt;
-0003  3:15  LOADLOCAL    1
+0003  3:15  MOVELOCAL    1
 0004  3:22  CONST        2    ; &lt;fn len&gt;
 0005  3:14  CALL         2    ; 2 positional, 0 named
 0006  3:3   STORELOCAL   2
 0007  3:3   CLEARLOCAL   1
 0008  4:3   CONST        3    ; &lt;fn print&gt;
-0009  4:9   LOADLOCAL    0
+0009  4:9   MOVELOCAL    0
 0010  4:8   CALL         1    ; 1 positional, 0 named
 0011  4:3   POP
 0012  4:3   CLEARLOCAL   0
 0013  5:3   CONST        4    ; &lt;fn sum&gt;
-0014  5:7   LOADLOCAL    2
+0014  5:7   MOVELOCAL    2
 0015  5:6   TAILCALL     1    ; 1 positional, 0 named
 0016  1:1   RETURN</code></pre></div>
 <p><code>total</code>의 0007번이 <code>lines</code>(슬롯 1)를, 0012번이 <code>path</code>(슬롯 0)를 비운다. 그 뒤로는 두 값이 이 프레임 때문에 살아 있지 않다. 채널 쪽에서 보면 이렇다.</p>
@@ -265,6 +265,47 @@ print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ 
 print(numbers(5))</code></pre><pre class="out plain"><code>10</code></pre></div>
 <p><code>spawn</code> 문장 뒤에 <code>tx</code>의 칸이 비워지므로, 보내는 끝을 쥔 것은 생산 태스크의 클로저뿐이다. 그 태스크가 끝나면 마지막 사본이 사라지고 채널이 닫혀 <code>fold</code>가 끝난다.</p>
 <p>규칙의 나머지 둘도 알아 두자. <strong>한 번도 읽지 않는 변수는 함수가 돌아올 때까지 산다.</strong> <code>_watch = stop_signal()</code>처럼 쥐고 있는 것 자체가 뜻인 값을 위해서다(Rust의 <code>let _guard</code>와 같은 관용구). <strong>최상위 변수는 프로그램 끝까지 산다.</strong> 최상위 <code>fn</code>이 언제든 읽을 수 있기 때문이다(9장).</p>
+<h3 id="move">마지막 읽기는 값을 넘긴다</h3>
+<p>칸을 비우는 것만으로는 부족한 곳이 있다. <code>put(m, k, v)</code>를 부르면 인자가 맵을 하나 쥐는데, 변수 <code>m</code>도 그 문장이 끝날 때까지 같은 맵을 쥔다. 참조 계수가 2이니 <code>put</code>은 맵을 홀로 쥐었다고 볼 수 없어서 길의 노드를 복사한다. <code>fold</code>로 맵을 쌓으면 원소마다 이 복사가 일어난다.</p>
+<p>그래서 컴파일러는 함수 본문을 평가 순서의 <strong>뒤에서 앞으로</strong> 걸으며, 뒤에서 다시 읽히지 않는 읽기를 <code>MOVELOCAL</code>로 낸다(설계 03 "값의 수명", P9). <code>MOVELOCAL</code>은 칸의 값을 스택에 올리고 칸을 비운다. 복사가 아니라 넘겨주기다. 받은 <code>put</code>은 참조 계수 1인 맵을 <code>Rc::make_mut</code>로 제자리에서 고친다.</p>
+<div class="run"><pre><code>m = fold(0..3, {}, (m, i) =&gt; put(m, &quot;k${i}&quot;, i))
+print(m)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+== &lt;main&gt; ==
+0000  1:5   CONST        0    ; &lt;fn fold&gt;
+0001  1:10  CONST        1    ; 0
+0002  1:13  CONST        2    ; 3
+0003  1:11  RANGE        0
+0004  1:16  MAP          0
+0005  1:20  CLOSURE      0    ; &lt;lambda&gt;
+0006  1:9   CALL         3    ; 3 positional, 0 named
+0007  1:1   STOREGLOBAL  0    ; m
+0008  2:1   CONST        3    ; &lt;fn print&gt;
+0009  2:7   LOADGLOBAL   0    ; m
+0010  2:6   CALL         1    ; 1 positional, 0 named
+0011  2:1   POP
+0012  2:1   CONST        4    ; nil
+0013  1:1   RETURN
+
+== &lt;lambda&gt; ==
+0000  1:30  CONST        0    ; &lt;fn put&gt;
+0001  1:34  MOVELOCAL    0
+0002  1:37  CONST        1    ; &quot;k&quot;
+0003  1:41  LOADLOCAL    1
+0004  1:37  CONCAT       2
+0005  1:46  MOVELOCAL    1
+0006  1:33  TAILCALL     3    ; 3 positional, 0 named
+0007  1:27  RETURN</code></pre></div>
+<p><code>&lt;lambda&gt;</code>에서 <code>m</code>(슬롯 0)은 한 번 읽히니 <code>MOVELOCAL 0</code>이다. <code>i</code>(슬롯 1)는 두 번 읽히는데, 보간 안의 첫 읽기는 뒤에 또 읽히니 <code>LOADLOCAL 1</code>(복사), 인자로 가는 둘째가 <code>MOVELOCAL 1</code>이다. 가지(<code>if</code>·<code>??</code>)는 가지마다 따로 보고, <code>match</code>의 주제와 가드는 갈래마다 다시 읽힐 수 있어 넘기지 않는다. 클로저가 붙잡는 것은 복사다.</p>
+<p>넘겨준 값은 그 문장이 끝나기 전에도 놓일 수 있다. 받은 쪽이 놓으면 그만이기 때문이다.</p>
+<div class="run"><pre><code>fn drop_it(_x) = nil
+
+fn closes_early() = scope(fn(s):
+  (tx, rx) = channel()
+  [drop_it(tx), recv(rx)]
+;;)
+
+print(closes_early())</code></pre><pre class="out plain"><code>[nil, Err({kind: 'closed, message: &quot;channel closed&quot;})]</code></pre></div>
+<p><code>tx</code>가 <code>drop_it</code>으로 넘어가고 거기서 놓이니, 같은 문장의 <code>recv</code>가 기다리기 전에 채널이 닫혀 있다.</p>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>
 <li><code>crates/fung-vm/src/value.rs</code>: <code>Value</code> 열거형, 함수 값 <code>Closure</code>, 모듈 값 <code>Module</code>, 바뀌는 것을 품었는지 보는 <code>holds_mutable</code>.</li>
@@ -274,6 +315,7 @@ print(numbers(5))</code></pre><pre class="out plain"><code>10</code></pre></div>
 <li><code>crates/fung-vm/src/value/map.rs</code>, <code>omap.rs</code>, <code>hamt.rs</code>: <code>Map</code>(<code>SMALL_MAP_MAX</code>), 항목 벡터와 색인을 짝지은 <code>Omap</code>, <code>Hamt</code>.</li>
 <li><code>crates/fung-vm/src/value/sym.rs</code>: 심볼 인턴 표 <code>intern</code>.</li>
 <li><code>crates/fung-front/src/compiler.rs</code>: 함수 본문의 문장마다 <code>CLEARLOCAL</code>을 넣는 <code>block</code>.</li>
+<li><code>crates/fung-front/src/compiler/moves.rs</code>: 마지막 읽기를 찾는 <code>last_reads</code>(뒤에서 앞으로의 생존 분석, <code>MOVELOCAL</code>).</li>
 </ul>
 <div class="exercise"><b>로그 수준 세기</b>
 <p>수준이 <code>INFO</code>·<code>WARN</code>·<code>ERROR</code>인 로그 3만 줄을 흉내 낸 리스트를 만들고, <code>fold</code>와 <code>put</code>으로 수준별 개수를 세 보자. 그리고 0부터 29999까지를 "최근 것이 먼저" 순서로 담은 리스트를 만들되 앞에 붙이기(<code>[i] + acc</code>)를 쓰지 않고 만들어 보자. 왜 그 편이 빠른가?</p>
@@ -296,7 +338,7 @@ print(take(newest_first, 3))</code></pre><pre class="out plain"><code>{INFO: 180
 <li>메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0708이 막는다.</li>
 <li>깊은 값은 그릇마다의 <code>Drop</code>이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다.</li>
 <li>리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 <code>Rc::make_mut</code>로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.</li>
-<li>지역 변수는 마지막으로 읽힌 문장 뒤에 <code>CLEARLOCAL</code>로 놓인다. 그래서 채널의 끝이 제때 닫힌다.</li>
+<li>지역 변수의 마지막 읽기는 <code>MOVELOCAL</code>로 값을 넘기고, 읽힌 문장 뒤에는 <code>CLEARLOCAL</code>로 놓인다. 그래서 <code>fold</code>로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.</li>
 </ul>
 <p>레퍼런스: <a href="../reference/language.html#values">값과 타입</a>, <a href="../reference/prelude/collections.html">컬렉션 함수</a>. 부록의 <a href="internals.html#collections">컬렉션의 내부</a>에 연산 비용 표가 있다. 다음 장은 값 중에서도 특별한 값, 모듈이 어떻게 찾아지고 실행되는지를 본다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/09-closures.html"><small>이전 장</small>9. 함수와 클로저</a><a class="next" href="../vm/11-modules.html"><small>다음 장</small>11. 모듈 적재와 prelude</a></nav>

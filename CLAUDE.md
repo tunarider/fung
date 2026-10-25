@@ -93,7 +93,7 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   큰 것: 시간 초과·취소·닫힘 `Err`에 `message`(호환 깨짐), 파이프 끝 `?`·`!`는 E0229, `get`은 내장 함수(E0506), `take`·`drop`이 문자열, `conc.pmap`은 작업자 n개, 상수 표 해시 색인. 남은 결정은 open-questions "남은 일".
   이어서(2026-10-24, 작업 브랜치, 미릴리스) F-5 `http.serve`가 정상 종료 때 `Ok(nil)`, F-11 `fs.move`가 기본 거절(`overwrite: true`, no-replace 이름 바꾸기). 권한 보존은 F-14로 남김.
 - 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
-  약점은 파일·텍스트 처리량. **다음 성능 작업**: open-questions "성능" 절 P9(맵 누적의 transient)부터 P13까지 순서대로(P8은 2026-10-25에 끝).
+  약점은 파일·텍스트 처리량. **다음 성능 작업**: P8~P11·P13은 2026-10-25에 끝(기록 `docs/notes/bench-languages.md` 4.1절). 남은 것은 open-questions "성능" 절의 P14(glibc 판의 계산 속도)와 레지스터 VM·인라인 캐시·LTO(P12b) 판단.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
 - 매뉴얼: 원고는 `manual/`(목차 `toc.txt`, 마크다운 부분집합 + 날 HTML, 형식은 `docs/plans/2026-10-20-manual-1-skeleton.md` "원고 형식"), 생성 결과는 `docs/latest/`(커밋한다).
   GitHub Pages("Deploy from branch → /docs"). **문법·내장 함수·내부 구조를 바꾸면 원고를 고치고 `FUNG_UPDATE_MANUAL=1 cargo test -p fung-cli --test manual_build`로 다시 만든 뒤 diff를 검토한다.**

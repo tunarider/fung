@@ -404,6 +404,7 @@ fn every_opcode_has_its_name_and_number() {
         "ASSERT",
         "TEST",
         "CLEARLOCAL",
+        "MOVELOCAL",
     ];
     assert_eq!(Op::ALL.len(), names.len());
     for (i, (op, name)) in Op::ALL.iter().zip(names).enumerate() {

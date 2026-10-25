@@ -98,7 +98,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  1:1   RETURN
 
 == double ==
-0000  1:16  LOADLOCAL    0
+0000  1:16  MOVELOCAL    0
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>
@@ -155,9 +155,9 @@ print(greet(&quot;fung&quot;, greeting: &quot;hi&quot;))</code></pre><pre class=
 0001  1:1   JUMPIFSET    4
 0002  1:27  CONST        0    ; &quot;hello&quot;
 0003  1:1   STORELOCAL   1
-0004  1:41  LOADLOCAL    1
+0004  1:41  MOVELOCAL    1
 0005  1:38  CONST        1    ; &quot;, &quot;
-0006  1:54  LOADLOCAL    0
+0006  1:54  MOVELOCAL    0
 0007  1:38  CONCAT       3
 0008  1:36  RETURN</code></pre></div>
 <p>VM이 인자를 묶는 길은 둘이다(<code>crates/fung-vm/src/vm/call.rs</code>의 <code>call_op</code>).</p>
@@ -247,7 +247,7 @@ print(adder(5)(1))</code></pre><pre class="out dump plain"><code>$ fung dump byt
 0001  1:13  RETURN
 
 == &lt;lambda&gt; ==
-0000  1:20  LOADLOCAL    0
+0000  1:20  MOVELOCAL    0
 0001  1:24  LOADCAPTURED 0
 0002  1:22  ADD
 0003  1:17  RETURN</code></pre></div>
@@ -290,8 +290,8 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 == countdown ==
 0000  2:3   CLOSURE      0    ; go
 0001  2:3   STORELOCAL   1
-0002  3:3   LOADLOCAL    1
-0003  3:6   LOADLOCAL    0
+0002  3:3   MOVELOCAL    1
+0003  3:6   MOVELOCAL    0
 0004  3:9   LIST         0
 0005  3:5   TAILCALL     2    ; 2 positional, 0 named
 0006  1:1   RETURN
@@ -301,14 +301,14 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0001  2:24  CONST        0    ; 0
 0002  2:21  EQ
 0003  2:21  JUMPIFFALSE  6
-0004  2:31  LOADLOCAL    1
+0004  2:31  MOVELOCAL    1
 0005  2:26  JUMP         15
 0006  2:40  LOADSELF
 0007  2:43  LOADLOCAL    0
 0008  2:47  CONST        1    ; 1
 0009  2:45  SUB
-0010  2:50  LOADLOCAL    1
-0011  2:57  LOADLOCAL    0
+0010  2:50  MOVELOCAL    1
+0011  2:57  MOVELOCAL    0
 0012  2:56  LIST         1
 0013  2:54  ADD
 0014  2:42  TAILCALL     2    ; 2 positional, 0 named
@@ -342,7 +342,7 @@ print(small(2))</code></pre><pre class="out dump plain"><code>$ fung dump byteco
 0011  1:1   RETURN
 
 == small ==
-0000  3:15  LOADLOCAL    0
+0000  3:15  MOVELOCAL    0
 0001  3:19  LOADGLOBAL   1
 0002  3:17  LT
 0003  3:13  RETURN</code></pre></div>
@@ -421,13 +421,13 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0001  1:25  CONST        0    ; 0
 0002  1:22  EQ
 0003  1:22  JUMPIFFALSE  6
-0004  1:32  LOADLOCAL    1
+0004  1:32  MOVELOCAL    1
 0005  1:27  JUMP         14
 0006  1:41  LOADSELF
-0007  1:47  LOADLOCAL    0
+0007  1:47  MOVELOCAL    0
 0008  1:51  CONST        1    ; 1
 0009  1:49  SUB
-0010  1:54  LOADLOCAL    1
+0010  1:54  MOVELOCAL    1
 0011  1:60  CONST        1    ; 1
 0012  1:58  ADD
 0013  1:46  TAILCALL     2    ; 2 positional, 0 named
@@ -442,7 +442,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0005  2:22  JUMP         13
 0006  2:34  CONST        1    ; 1
 0007  2:38  LOADSELF
-0008  2:44  LOADLOCAL    0
+0008  2:44  MOVELOCAL    0
 0009  2:48  CONST        1    ; 1
 0010  2:46  SUB
 0011  2:43  CALL         1    ; 1 positional, 0 named

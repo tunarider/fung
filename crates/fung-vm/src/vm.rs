@@ -937,6 +937,10 @@ impl<'rt> Task<'rt> {
                 }
                 // The slot is not read again: its value goes now (03).
                 Op::ClearLocal => self.stack[base + arg] = None,
+                Op::MoveLocal => {
+                    let v = self.stack[base + arg].take();
+                    self.stack.push(v);
+                }
                 Op::LoadGlobal => {
                     let v = self.frames[fi].globals.borrow()[arg].clone();
                     match v {

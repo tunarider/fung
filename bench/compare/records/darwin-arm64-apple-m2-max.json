@@ -1,0 +1,836 @@
+{
+ "lua": {
+  "chan": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "3b82d05d31fd0f87",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "4999950000",
+   "rc": 0,
+   "rss": 1.921875,
+   "time": 0.012429290916770697
+  },
+  "exec": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "2d143092966c24f1",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "0",
+   "rc": 0,
+   "rss": 2.234375,
+   "time": 1.56632195902057
+  },
+  "fib": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "5e7f34b879b1a8e4",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "832040",
+   "rc": 0,
+   "rss": 1.953125,
+   "time": 0.038141666911542416
+  },
+  "list": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "f5449cda257a0e84",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "125500999",
+   "rc": 0,
+   "rss": 19.96875,
+   "time": 0.3251563748344779
+  },
+  "loop": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "872fb473dd77933f",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "5999999",
+   "rc": 0,
+   "rss": 1.9375,
+   "time": 0.03437604196369648
+  },
+  "map": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "f787efa3b7961329",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "19999900000",
+   "rc": 0,
+   "rss": 31.71875,
+   "time": 0.133305124938488
+  },
+  "regex": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "009c24a335650046",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "99900000",
+   "rc": 0,
+   "rss": 1.96875,
+   "time": 0.12030370789580047
+  },
+  "spawn": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "8b4cade9a0cb3b47",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "3999",
+   "rc": 0,
+   "rss": 4.21875,
+   "time": 0.004917666083201766
+  },
+  "startup": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "cc42155088fca573",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "1",
+   "rc": 0,
+   "rss": 1.90625,
+   "time": 0.003773166798055172
+  },
+  "str": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "4e0e381bb2bab839",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "3388889",
+   "rc": 0,
+   "rss": 36.296875,
+   "time": 0.13488637492991984
+  },
+  "text": {
+   "key": {
+    "command": [
+     "lua"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "f965f4f2e46cbc5c",
+    "version": "Lua 5.5.1  Copyright (C) 1994-2026 Lua.org, PUC-Rio"
+   },
+   "measured": "2026-10-25",
+   "out": "DEBUG 40000 ERROR 20000 INFO 100000 WARN 40000 10020000",
+   "rc": 0,
+   "rss": 2.0625,
+   "time": 0.302028541918844
+  }
+ },
+ "node": {
+  "chan": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "efaff3da4ddf2ad9",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "4999950000",
+   "rc": 0,
+   "rss": 51.3125,
+   "time": 0.048836209112778306
+  },
+  "exec": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "2768bb3e8d4810e6",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "0",
+   "rc": 0,
+   "rss": 47.53125,
+   "time": 1.0156047909986228
+  },
+  "fib": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "0cb4dc8133b47c92",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "832040",
+   "rc": 0,
+   "rss": 47.703125,
+   "time": 0.033776459051296115
+  },
+  "fs": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "5a24ca78bb00c776",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "50000",
+   "rc": 0,
+   "rss": 51.125,
+   "time": 0.06656274991109967
+  },
+  "json": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "e57bc2f6fdbd31a3",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "3333266667 150000 true",
+   "rc": 0,
+   "rss": 129.171875,
+   "time": 0.08691091602668166
+  },
+  "list": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "8b0f8df2d453fe75",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "125500999",
+   "rc": 0,
+   "rss": 72.46875,
+   "time": 0.08714295900426805
+  },
+  "loop": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "5f5bd210cc364d27",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "5999999",
+   "rc": 0,
+   "rss": 49.1875,
+   "time": 0.20421554101631045
+  },
+  "map": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "876b407a48d763b3",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "19999900000",
+   "rc": 0,
+   "rss": 79.53125,
+   "time": 0.0762825000565499
+  },
+  "regex": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "dc616dc2094d8eaa",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "99900000",
+   "rc": 0,
+   "rss": 120.03125,
+   "time": 0.06297370884567499
+  },
+  "spawn": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "b83436ff4c9eecd9",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "3999",
+   "rc": 0,
+   "rss": 45.703125,
+   "time": 0.028487708186730742
+  },
+  "startup": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "3879a5d930ae1999",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "1",
+   "rc": 0,
+   "rss": 44.203125,
+   "time": 0.027216375106945634
+  },
+  "str": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "115c77f0c4a4843f",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "3388889",
+   "rc": 0,
+   "rss": 88.5625,
+   "time": 0.074626374989748
+  },
+  "text": {
+   "key": {
+    "command": [
+     "node"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "23c0bd4169117059",
+    "version": "v24.13.0"
+   },
+   "measured": "2026-10-25",
+   "out": "DEBUG 40000 ERROR 20000 INFO 100000 WARN 40000 10020000",
+   "rc": 0,
+   "rss": 120.65625,
+   "time": 0.10998849989846349
+  }
+ },
+ "python": {
+  "chan": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "2b9a29a268c9685d",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "4999950000",
+   "rc": 0,
+   "rss": 23.390625,
+   "time": 3.0656615409534425
+  },
+  "exec": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "e10d3e2e545e4306",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "0",
+   "rc": 0,
+   "rss": 16.0625,
+   "time": 1.3210867089219391
+  },
+  "fib": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "50bbb14a5fcd4616",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "832040",
+   "rc": 0,
+   "rss": 14.359375,
+   "time": 0.1207542500924319
+  },
+  "fs": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "5cbc105173a8cf63",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "50000",
+   "rc": 0,
+   "rss": 14.265625,
+   "time": 0.08492762502282858
+  },
+  "json": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "d09a2edd179f3d82",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "3333266667 150000 true",
+   "rc": 0,
+   "rss": 81.0625,
+   "time": 0.20182987488806248
+  },
+  "list": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "63f2d20ae06a335b",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "125500999",
+   "rc": 0,
+   "rss": 67.640625,
+   "time": 0.12009075004607439
+  },
+  "loop": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "00dd84a1ff00c4bc",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "5999999",
+   "rc": 0,
+   "rss": 14.265625,
+   "time": 0.2898490419611335
+  },
+  "map": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "661521f71f175546",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "19999900000",
+   "rc": 0,
+   "rss": 44.109375,
+   "time": 0.10998195898719132
+  },
+  "regex": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "ec9a8017c493b676",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "99900000",
+   "rc": 0,
+   "rss": 14.359375,
+   "time": 0.09125170786865056
+  },
+  "spawn": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "88e5f49244890fc3",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "3999",
+   "rc": 0,
+   "rss": 24.703125,
+   "time": 0.06007120804861188
+  },
+  "startup": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "cc42155088fca573",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "1",
+   "rc": 0,
+   "rss": 14.296875,
+   "time": 0.02221349999308586
+  },
+  "str": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "23255dae557d1af0",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "3388889",
+   "rc": 0,
+   "rss": 46.296875,
+   "time": 0.056424041045829654
+  },
+  "text": {
+   "key": {
+    "command": [
+     "python3",
+     "-I"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "433ca0cb005c6acb",
+    "version": "Python 3.14.3"
+   },
+   "measured": "2026-10-25",
+   "out": "DEBUG 40000 ERROR 20000 INFO 100000 WARN 40000 10020000",
+   "rc": 0,
+   "rss": 14.5,
+   "time": 0.13214220781810582
+  }
+ },
+ "ruby": {
+  "chan": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "44d42b4089966afa",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "4999950000",
+   "rc": 0,
+   "rss": 18.875,
+   "time": 0.051943207858130336
+  },
+  "exec": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "f28e77cbfa6f9546",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "0",
+   "rc": 0,
+   "rss": 18.96875,
+   "time": 1.0916963329073042
+  },
+  "fib": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "b0e6d7b04ea8c4e5",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "832040",
+   "rc": 0,
+   "rss": 18.875,
+   "time": 0.04815016710199416
+  },
+  "fs": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "0c55386b7e2285b6",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "50000",
+   "rc": 0,
+   "rss": 19.453125,
+   "time": 0.10329312505200505
+  },
+  "json": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "9344197df3f26b0a",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "3333266667 150000 true",
+   "rc": 0,
+   "rss": 82.9375,
+   "time": 0.15185249992646277
+  },
+  "list": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "40637b6ee3537d55",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "125500999",
+   "rc": 0,
+   "rss": 37.703125,
+   "time": 0.12988304090686142
+  },
+  "loop": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "fdf4e70402f3bb52",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "5999999",
+   "rc": 0,
+   "rss": 18.765625,
+   "time": 0.1312512499280274
+  },
+  "map": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "b8a06370405a1136",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "19999900000",
+   "rc": 0,
+   "rss": 59.328125,
+   "time": 0.18308462505228817
+  },
+  "regex": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "8ad4b7160781134a",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "99900000",
+   "rc": 0,
+   "rss": 20.046875,
+   "time": 0.10607087495736778
+  },
+  "spawn": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "fff6f453bc8e5cfe",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "3999",
+   "rc": 0,
+   "rss": 20.640625,
+   "time": 0.04418766708113253
+  },
+  "startup": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "82be84ab06491c73",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "1",
+   "rc": 0,
+   "rss": 18.65625,
+   "time": 0.037030958104878664
+  },
+  "str": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "a8d04ce71e212aac",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "3388889",
+   "rc": 0,
+   "rss": 49.09375,
+   "time": 0.0981636659707874
+  },
+  "text": {
+   "key": {
+    "command": [
+     "ruby",
+     "--yjit"
+    ],
+    "data": "ab3e1268781d302f",
+    "method": 1,
+    "program": "f1de0245fb6c404f",
+    "version": "ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +YJIT +PRISM [arm64-darwin27]"
+   },
+   "measured": "2026-10-25",
+   "out": "DEBUG 40000 ERROR 20000 INFO 100000 WARN 40000 10020000",
+   "rc": 0,
+   "rss": 19.140625,
+   "time": 0.2187127498909831
+  }
+ }
+}

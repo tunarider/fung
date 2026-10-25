@@ -9,11 +9,12 @@
 mod fn_;
 mod m4;
 mod m6;
+mod moves;
 mod pattern;
 #[cfg(test)]
 mod tests;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use crate::bytecode::{Op, Proto};
 use crate::consts::Const;
@@ -49,6 +50,9 @@ struct Compiler<'a> {
     body_block: bool,
     /// A return type annotation disables tail calls (03).
     has_ret: bool,
+    /// The reads of locals that are their last (`moves::last_reads`):
+    /// they compile to MOVELOCAL.
+    moves: HashSet<*const Node>,
 }
 
 /// Produces the `<main>` proto for a resolved program. Prelude names
@@ -69,6 +73,7 @@ pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Re
         lines: &lines,
         body_block: false,
         has_ret: true,
+        moves: HashSet::new(),
     };
     c.block(&res.core, false)?;
     if !opts.keep_value
@@ -357,7 +362,14 @@ impl Compiler<'_> {
                 let ns = if let Lit::Dur(d) = n.lit { d } else { 0 };
                 self.emit_const(Const::Dur(ns), pos);
             }
-            Head::Local => _ = self.proto.emit(Op::LoadLocal, lit_index(n), pos),
+            Head::Local => {
+                let op = if self.moves.contains(&(n as *const Node)) {
+                    Op::MoveLocal
+                } else {
+                    Op::LoadLocal
+                };
+                self.proto.emit(op, lit_index(n), pos);
+            }
             Head::Global => _ = self.proto.emit(Op::LoadGlobal, lit_index(n), pos),
             Head::Captured => _ = self.proto.emit(Op::LoadCaptured, lit_index(n), pos),
             Head::SelfFn => _ = self.proto.emit(Op::LoadSelf, 0, pos),

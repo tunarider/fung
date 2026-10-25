@@ -195,6 +195,15 @@ pub struct MapBuilder {
 }
 
 impl MapBuilder {
+    /// A builder with room for `n` entries of a small map.
+    pub fn with_capacity(n: usize) -> MapBuilder {
+        MapBuilder {
+            m: Map {
+                repr: Repr::Flat(Vec::with_capacity(n.min(SMALL_MAP_MAX))),
+            },
+        }
+    }
+
     /// Sets `k`; a repeated key keeps its first place.
     pub fn set(&mut self, k: Rc<String>, v: Value) {
         self.m.put(k, v);

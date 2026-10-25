@@ -190,7 +190,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0009  1:1   RETURN
 
 == double ==
-0000  1:16  LOADLOCAL    0
+0000  1:16  MOVELOCAL    0
 0001  1:20  CONST        0    ; 2
 0002  1:18  MUL
 0003  1:14  RETURN</code></pre></div>
@@ -234,14 +234,14 @@ print(sum_to(200000))</code></pre><pre class="out dump plain"><code>$ fung dump 
 0005  1:30  CONST        0    ; 0
 0006  1:27  EQ
 0007  1:27  JUMPIFFALSE  10
-0008  1:37  LOADLOCAL    1
+0008  1:37  MOVELOCAL    1
 0009  1:32  JUMP         18
 0010  1:46  LOADSELF
 0011  1:53  LOADLOCAL    0
 0012  1:57  CONST        1    ; 1
 0013  1:55  SUB
-0014  1:60  LOADLOCAL    1
-0015  1:66  LOADLOCAL    0
+0014  1:60  MOVELOCAL    1
+0015  1:66  MOVELOCAL    0
 0016  1:64  ADD
 0017  1:52  TAILCALL     2    ; 2 positional, 0 named
 0018  1:23  RETURN</code></pre></div>

@@ -848,3 +848,29 @@ fn the_public_api_runs_a_program_without_handing_out_values() {
         assert_eq!(out.text(), "[\"a\"]\nbye\n");
     });
 }
+
+/// A call's last read of a local moves the value (03, P9): the callee
+/// holds a map or list alone, so `put` and `+` change it in place. A read
+/// that is not the last copies.
+#[test]
+fn the_last_read_of_a_local_hands_the_value_over() {
+    let o = crate::testutil::exec(
+        "fn last(m) = sole(m)\n\
+         fn not_last(m):\n  s = sole(m)\n  [s, len(m)]\n;;\n\
+         print(last({a: 1}), last(map(0..2, i => i)), not_last({a: 1}))\n\
+         print(fold(0..3, {}, (m, i) => put(sole(m), \"k${i}\", i)))\n\
+         fn go(acc, n) = n == 0 then acc else go(sole(acc) + [n], n - 1)\n\
+         print(go([], 3))",
+        crate::testutil::Opts {
+            extra: crate::testutil::probes,
+            ..crate::testutil::Opts::default()
+        },
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            "{a: 1} [0, 1] [Err(\"shared\"), 1]\n{k0: 0, k1: 1, k2: 2}\n[3, 2, 1]\n",
+            ""
+        )
+    );
+}
