@@ -71,6 +71,9 @@ pub(crate) struct World {
     /// Tasks spawned during the current turn, which the scheduler takes
     /// in after it (`sched.rs`).
     pub(super) new_fibers: Vec<super::Fiber>,
+    /// When the current turn began, another task was ready to run or
+    /// parked on a timer or the world outside (`Sched::turn`).
+    pub(super) others_waiting: bool,
     /// A run is going (`Task::run_root`), which allows no other inside it.
     pub(super) in_run: bool,
     /// The tasks parked on a descriptor, by the token of their
@@ -170,6 +173,7 @@ impl World {
             prelude: Prelude::default(),
             main: None,
             new_fibers: Vec::new(),
+            others_waiting: false,
             in_run: false,
             io: std::collections::HashMap::new(),
             io_fds: std::collections::HashMap::new(),

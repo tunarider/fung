@@ -1,5 +1,5 @@
-# 50,000 file system calls one after another (`exists`, `stat`): an
-# offload job each
+# 50,000 file system calls one after another (`exists`, `stat`): on the
+# run thread, as the task is alone (P8)
 import fs
 fn probe(a, _) = a + len(filter([fs.exists("/"), fs.stat("/")], r => r != nil))
 print(fold(0..25000, 0, probe))

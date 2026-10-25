@@ -471,11 +471,15 @@ fn interrupts_while_idle_do_not_abandon_the_next_run() {
 }
 
 /// A runtime that goes ends its pool's idle threads (`fung test` makes
-/// one runtime per file).
+/// one runtime per file). A task alone calls `exists` on the run thread
+/// (P8), so the job is a listing.
 #[test]
 fn a_dropped_runtime_ends_its_pool_threads() {
-    let s = setup("import fs\nprint(fs.exists(\"/\"))", Opts::default())
-        .unwrap_or_else(|e| panic!("{e:?}"));
+    let s = setup(
+        "import fs\nprint(len(fs.list(\"/\")!) > 0)",
+        Opts::default(),
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
     s.rt.run().unwrap();
     let pool = s.rt.shared().pool.clone();
     assert!(crate::testutil::jobs::until(|| pool.idle() == 1));

@@ -108,7 +108,7 @@ pub(crate) use link::{Prelude, link};
 pub(crate) use m4::{discarded, discarded_err, is_err};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
-pub(crate) use offload::{Kind, offload_kind};
+pub(crate) use offload::{Kind, alone, offload_kind};
 pub(crate) use poller::Interest;
 pub(crate) use pool::{Pool, Ticket};
 pub use runtime::Runtime;

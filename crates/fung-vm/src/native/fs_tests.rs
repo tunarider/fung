@@ -1643,3 +1643,58 @@ fn fs_natives_offload() {
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("1\n1\n1\n2\n2\n", ""));
 }
+
+/// `exists` and `stat` of a task alone call the system on the run thread
+/// (no job): no other task is ready to run or waits on a timer or the
+/// world outside, and the task has no deadline. A task parked on a
+/// channel does not count, as only this task can wake it. Otherwise they
+/// hand off a job as before (a task spawned or woken then gets its turn
+/// meanwhile). The results are the same either way.
+#[test]
+fn exists_and_stat_of_a_task_alone_are_not_handed_off() {
+    let d = Scratch::new("alone");
+    std::fs::write(d.at("a.txt"), "x").unwrap();
+    let body = format!(
+        "{}{}",
+        testutil::UNTIL,
+        r#"fn count(f):
+  n = offloads()
+  r = f()
+  [r, offloads() - n]
+;;
+fn both() = [fs.exists("${d}/a.txt"), fs.stat("${d}/a.txt")!.size, fs.exists("${d}/none"), fs.stat("${d}/none")]
+fn one() = fs.exists("${d}/a.txt")
+print(count(both))
+print(timeout(10s, () => count(both)))
+(tx, rx) = channel()
+print(scope(fn(s):
+  spawn(s, () => recv(rx))
+  spawned = count(one)
+  blocked(rx, 1)
+  on_channel = count(both)
+  _ = send(tx, 1)
+  woken = count(one)
+  [spawned[1], on_channel[1], woken[1]]
+;;))
+print(scope(fn(s):
+  t = spawn(s, () => sleep(10s))
+  sleep(1ms)
+  r = count(both)
+  cancel(t)
+  r[1]
+;;))"#
+    );
+    let o = run_probed_in(&d, &body);
+    let none = format!(
+        "Err({{kind: 'not_found, message: \"cannot stat `{}/none`: no such file or directory\"}})",
+        d.text()
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            format!("[[true, 1, false, {none}], 0]\n[[true, 1, false, {none}], 4]\n[1, 0, 1]\n4\n")
+                .as_str(),
+            ""
+        )
+    );
+}

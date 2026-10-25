@@ -14,6 +14,11 @@
 //!   change something (a file, a directory, a handle's position) that
 //!   must not change after the call gave up.
 //!
+//! `exists` and `stat` of a task alone (`vm::alone`: no other task held
+//! back, no deadline to keep) call the system on the run thread instead
+//! (`nat::offload_short`, P8): the pool's round trip costs several times
+//! the call itself.
+//!
 //! The reasons in the errors are `oserr`'s texts.
 
 use std::fs::{DirBuilder, OpenOptions};
@@ -320,7 +325,7 @@ fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> Result<(), (Vec<u8>, io::Er
 
 fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
-    nat::offload_abandoning(
+    nat::offload_short(
         t,
         move || checked(&p).and_then(std::fs::metadata).is_ok(),
         |_, found| Ok(Value::Bool(found)),
@@ -330,7 +335,7 @@ fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
     let job = p.clone();
-    nat::offload_abandoning(
+    nat::offload_short(
         t,
         move || std::fs::metadata(checked(&job)?).map(|m| (m.size(), m.is_dir())),
         move |_, r| {

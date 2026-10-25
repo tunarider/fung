@@ -53,6 +53,20 @@ const JOB_WAKE: Wake = Wake {
     timed: true,
 };
 
+/// Whether a short wait of task `t` on the operating system may block the
+/// run thread instead (P8): no other task is ready to run (queued, woken
+/// by another thread, or spawned this turn) or parked on a timer or the
+/// world outside, so none is held back meanwhile; and `t` has no deadline
+/// and is not cancelled, so none is missed. A task parked on a channel or
+/// an `await` does not count: only a running task can wake it.
+pub(crate) fn alone(t: &Task<'_>) -> bool {
+    !t.world.others_waiting
+        && t.world.new_fibers.is_empty()
+        && t.cancel.deadline_at().is_none()
+        && !t.cancel.is_cancelled()
+        && !t.shared.ready.has_others(t.waiter.id())
+}
+
 /// Runs `job` as `kind` says and parks until it ends; then `finish`.
 pub(crate) fn offload_kind<R: Send + 'static>(
     t: &mut Task<'_>,

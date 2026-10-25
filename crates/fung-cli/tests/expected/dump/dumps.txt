@@ -245,7 +245,7 @@
 | 0012  5:6   CALL         1    ; 1 positional, 0 named
 | 0013  5:1   POP
 | 0014  5:1   CONST        5    ; nil
-| 0015  1:68  RETURN
+| 0015  1:72  RETURN
 |
 | == probe ==
 | 0000  4:13  LOADLOCAL    1
@@ -916,7 +916,7 @@
 | 0012  5:6   CALL         1    ; 1 positional, 0 named
 | 0013  5:1   POP
 | 0014  5:1   CONST        5    ; nil
-| 0015  1:68  RETURN
+| 0015  1:72  RETURN
 |
 | == probe ==
 | 0000  4:13  LOADLOCAL    1

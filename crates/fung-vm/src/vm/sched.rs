@@ -107,6 +107,13 @@ impl Ready {
         }
     }
 
+    /// Whether an event is posted or a task other than `me` queued (a
+    /// task's own id may be queued twice, by a wake that came early).
+    pub(crate) fn has_others(&self, me: FiberId) -> bool {
+        let s = self.state();
+        !s.events.is_empty() || s.ids.iter().any(|&id| id != me)
+    }
+
     /// The events posted so far.
     pub(crate) fn take_events(&self) -> Vec<Event> {
         std::mem::take(&mut self.state().events)
@@ -416,6 +423,7 @@ impl Sched {
                 .wakeups
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+        t.world.others_waiting = self.parked_timed > 0 || self.queue.iter().any(|&q| q != id);
         t.exchange(&mut slot.fiber);
         let turn = t.turn();
         t.exchange(&mut slot.fiber);

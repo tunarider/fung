@@ -89,6 +89,23 @@ pub(crate) fn offload_abandoning<R: Send + 'static>(
     crate::vm::offload_kind(t, Kind::Abandon, job, |t, r| finish(t, r).map(Flow::Done))
 }
 
+/// [`offload_abandoning`] for a job that only reads and is short on a
+/// local file system: while the task is alone (`vm::alone`) it runs here,
+/// on the run thread, where blocking holds no other task back; otherwise
+/// it is handed off. A slow file system then delays only the events that
+/// come meanwhile (a stop request), as a computing turn does.
+pub(crate) fn offload_short<R: Send + 'static>(
+    t: &mut Task<'_>,
+    job: impl FnOnce() -> R + Send + 'static,
+    finish: impl FnOnce(&mut Task<'_>, R) -> Result<Value, Stop> + 'static,
+) -> Result<Flow, Stop> {
+    if crate::vm::alone(t) {
+        let r = job();
+        return finish(t, r).map(Flow::Done);
+    }
+    offload_abandoning(t, job, finish)
+}
+
 /// An error without a position: the VM gives it the call's.
 pub fn fail(code: &str, args: Vec<Arg>) -> Stop {
     Stop::Error(Box::new(error(code, no_pos(), args)))
