@@ -200,7 +200,8 @@ impl Runtime {
         w.repl = Some(g);
     }
 
-    /// Appends `sources`' files from `from` on, with their texts: the
+    /// Appends `sources`' files from `from` on, sharing their texts (no
+    /// second copy per input, `SourceMap::add_from`): the
     /// REPL compiles each input after the files the runtime has
     /// (`Loader::compile_after`), so the ids agree, and a task failure
     /// report excerpts the input its code came from.
@@ -208,8 +209,7 @@ impl Runtime {
         let mut w = self.world();
         debug_assert_eq!(w.sources.len(), from, "the ids would not agree");
         for i in from..sources.len() {
-            let id = FileId(i as u32);
-            w.sources.add(sources.name(id), sources.text(id));
+            w.sources.add_from(sources, FileId(i as u32));
         }
     }
 

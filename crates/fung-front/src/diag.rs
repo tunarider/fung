@@ -1,6 +1,6 @@
 //! Diagnostics: catalog-numbered errors and the way fung prints them.
 
-mod catalog;
+pub(crate) mod catalog;
 
 use crate::source::{Pos, SourceMap};
 
@@ -424,11 +424,14 @@ mod tests {
     fn is_compile_error_table() {
         for (code, want) in [
             ("E0101", true),
+            ("E0115", true),
+            ("E0230", true),
             ("E0204", true),
             ("E0301", true),
             ("E0401", false),
             ("E0502", false),
             ("E0801", false),
+            ("E0806", false),
         ] {
             assert_eq!(is_compile_error(code), want, "{code}");
         }

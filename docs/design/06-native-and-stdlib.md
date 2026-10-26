@@ -110,7 +110,7 @@ match fs.read(p):
 
 | 모듈 | 내용 |
 |------|------|
-| `fs` | read, read_lines, write, append, list(`dir, full = false` — `full`이면 `dir`을 붙인 경로), glob, walk, exists, stat, mkdir, remove, remove_all, move, copy, open, close, write_line, with_open, with_temp_dir |
+| `fs` | read, read_lines, write, append, list(`dir, full = false` — `full`이면 `dir`을 붙인 경로), glob, walk, exists, stat(`{name, size, is_dir, mtime}`, `mtime`은 지역 시간대의 `time`이나 `nil`; 2026-10-26 F-12), mkdir, remove, remove_all, move, copy, open, close, write_line, with_open, with_temp_dir |
 | `path` | join(이어 붙이고 정리, 뒤의 절대 경로가 앞을 지우지 않음), base, dir, ext(점으로 시작하는 이름은 확장자 없음), stem, abs |
 | `cli` | `parse(argv, bools = [])` → `{flags, rest}`. `--name value`·`--name=value`·`--name`(true, `bools`에 있으면 값을 먹지 않음), `--` 뒤는 전부 rest, 이름의 `-`는 `_`로. 검사·변환은 보통 코드로 (fung으로 작성) |
 | `json` | `parse(s)` → `Ok(값)` / `Err({kind: 'parse, line, col, message})`, `stringify(v, indent = nil)`. 아래 "JSON" 참고 (`_native.json`, M8) |
@@ -165,7 +165,7 @@ match fs.read(p):
   `body`는 문자열. 응답 `headers`의 키는 **소문자**, 같은 이름이 여럿이면 `", "`로 잇는다.
 - HTTP/1.1(RFC 9110·9112). 요청에 `Host`, `User-Agent: fung/<버전>`(사용자 값이 덮고, 빈 값이면 보내지 않음), 본문이 있으면 `Content-Length`.
   사용자 헤더는 이름을 표준 대소문자로 바꾼 뒤 **맵 순서 그대로** 보낸다. 같은 이름이면 사용자 것이고, 비어 있지 않은 사용자 `Host`도 자동 값을 대신한다(다른 백엔드·가상 호스트 고르기; 리다이렉트가 다른 `host:port`로 가면 그 요청부터 버림).
-  `Content-Length`·`Transfer-Encoding`·`Trailer`는 본문의 끝을 정하므로 언제나 클라이언트가 쓴다. URL에 사용자 정보(`user:pass@`)가 있고 `Authorization`이 없으면 `Authorization: Basic …`.
+  `Content-Length`·`Transfer-Encoding`·`Trailer`는 본문의 끝을 정하므로 언제나 클라이언트가 쓴다. URL에 사용자 정보(`user:pass@`)가 있고 `Authorization`이 없으면 `Authorization: Basic …`. 에러 문구의 URL은 비밀번호를 `***`로 가린다(해석하지 못한 URL도; 2026-10-26).
 - 응답 본문은 `Content-Length`, `Transfer-Encoding: chunked`, 연결 닫힘까지 중 하나로 읽는다. `HEAD` 응답과 1xx·204·304는 본문 없음.
 - **리다이렉트**(RFC 9110 15.4): 301·302·303 → `GET`(원래 `HEAD`면 `HEAD`), 본문 버림. 307·308 → 메서드·본문 유지.
   리다이렉트는 10번까지 따라가고 11번째는 `Err 'network`(`too many redirects (limit 10)`). 리다이렉트 응답의 본문은 읽지 않고 연결을 닫는다.
@@ -213,9 +213,12 @@ match fs.read(p):
 
 ## 파일 핸들
 
-- `fs.open(path, mode = 'read)` → `Ok(file)` / `Err`. `mode`는 `'read` `'write` `'append`. `fs.close(f)` → `Ok(nil)`, 이미 닫힌 핸들이면 `Err 'closed`(두 번째 `close`도).
+- `fs.open(path, mode = 'read, perm = nil)` → `Ok(file)` / `Err`. `mode`는 `'read` `'write` `'append`. `fs.close(f)` → `Ok(nil)`, 이미 닫힌 핸들이면 `Err 'closed`(두 번째 `close`도).
 - 새로 만드는 파일(`fs.write`·`fs.append`·`fs.open`의 `'write`·`'append`)의 권한은 0666에서 umask를 뺀 것이다(셸의 `>`·`>>`와 같음; 2026-10-18).
-- `fs.with_open(path, f, mode = 'read)`: 열고 `f(핸들)`를 부르고 **결과가 무엇이든** 닫은 뒤 그 결과를 돌려준다 (fung 코드, 03).
+- 그 셋에 `perm = nil`(0부터 `0o777`까지의 정수, `'read`에는 E0403)을 주면 파일은 정확히 그 권한이 된다(2026-10-26 F-14, `install -m`과 같음):
+  `perm`(umask를 뺀 것)으로 만들고, 쓰기 전에 연 파일에 `fchmod`한다. umask를 빼지 않고 이미 있는 파일도 바꾼다(지난 실행이 남긴 0644 임시 파일에 비밀값을 쓰지 않게).
+  바꿀 수 없으면(남의 파일) 쓰지 않고 `Err 'permission`. 한계: 바꾸기 전에 다른 프로세스가 열어 둔 핸들은 막지 못한다. `fs.with_open`도 `perm`을 넘긴다.
+- `fs.with_open(path, f, mode = 'read, perm = nil)`: 열고 `f(핸들)`를 부르고 **결과가 무엇이든** 닫은 뒤 그 결과를 돌려준다 (fung 코드, 03).
   람다 안의 `?`는 람다에서 `Err`를 돌려주는 것이므로 그대로 닫히고 전달된다.
 - `read_line(f)` `read_lines(f)`(prelude), `fs.write_line(f, s)` → `Ok(nil)` / `Err`.
 - 핸들의 읽기·쓰기 버퍼는 64 KiB다. 쓴 줄은 버퍼가 차거나 `close`할 때 파일에 닿고, `close` 없이 마지막 사본이 사라져도 비운다(그때의 쓰기 에러는 보고되지 않는다).

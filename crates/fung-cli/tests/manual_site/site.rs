@@ -43,10 +43,16 @@ pub fn build(manual: &Path, bin: &Path, v: &Version) -> Result<BTreeMap<String, 
         pages.values().flat_map(markup::examples).collect();
     let results = run_all(bin, &examples).map_err(|e| e.join("\n"))?;
     let wordmark = read(&manual.join("assets/wordmark.svg"))?;
-    // the error catalog beside the manual (`spec/errors.txt`), when there is one
+    // the error catalog beside the manual (`spec/errors.txt`): a manual
+    // without error entries needs none, one with them must have it
     let catalog = match manual.parent().map(|r| r.join("spec/errors.txt")) {
-        Some(p) if p.exists() => read_catalog(&read(&p)?),
-        _ => BTreeMap::new(),
+        Some(p) if p.exists() => read_catalog(&read(&p)?)?,
+        _ if error_entries(&pages).is_empty() => BTreeMap::new(),
+        _ => {
+            return Err(
+                "spec/errors.txt is missing beside the manual, which has `:::error` entries".into(),
+            );
+        }
     };
     if !catalog.is_empty() {
         check_catalog(&pages, &catalog)?;
@@ -90,24 +96,30 @@ pub fn build(manual: &Path, bin: &Path, v: &Version) -> Result<BTreeMap<String, 
     Ok(files)
 }
 
-/// `spec/errors.txt`: code → (message, help).
-pub fn read_catalog(text: &str) -> BTreeMap<String, (String, String)> {
-    text.lines()
-        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-        .map(|l| {
-            let f: Vec<&str> = l.split('\t').collect();
-            let get = |i: usize| f.get(i).copied().unwrap_or("").to_string();
-            (get(0), (get(1), get(3)))
-        })
-        .collect()
+/// `spec/errors.txt`: code → (message, help). Every line has the four
+/// tab-separated fields (code, message, label, help) the catalog test
+/// writes; one that does not is a broken file.
+pub fn read_catalog(text: &str) -> Result<BTreeMap<String, (String, String)>, String> {
+    let mut out = BTreeMap::new();
+    for (i, l) in text.lines().enumerate() {
+        if l.starts_with('#') || l.trim().is_empty() {
+            continue;
+        }
+        let f: Vec<&str> = l.split('\t').collect();
+        if f.len() != 4 {
+            return Err(format!(
+                "spec/errors.txt:{}: {} fields, not 4: {l:?}",
+                i + 1,
+                f.len()
+            ));
+        }
+        out.insert(f[0].to_string(), (f[1].to_string(), f[3].to_string()));
+    }
+    Ok(out)
 }
 
-/// Every code of the catalog has exactly one `:::error` entry, and every
-/// entry is a code of the catalog.
-fn check_catalog(
-    pages: &BTreeMap<String, markup::Page>,
-    catalog: &BTreeMap<String, (String, String)>,
-) -> Result<(), String> {
+/// The `:::error` entries of the pages: (code, page, line).
+fn error_entries(pages: &BTreeMap<String, markup::Page>) -> Vec<(String, String, usize)> {
     fn walk(blocks: &[markup::Block], page: &str, out: &mut Vec<(String, String, usize)>) {
         for b in blocks {
             if let markup::Block::Container {
@@ -128,6 +140,16 @@ fn check_catalog(
     for (path, page) in pages {
         walk(&page.blocks, path, &mut entries);
     }
+    entries
+}
+
+/// Every code of the catalog has exactly one `:::error` entry, and every
+/// entry is a code of the catalog.
+fn check_catalog(
+    pages: &BTreeMap<String, markup::Page>,
+    catalog: &BTreeMap<String, (String, String)>,
+) -> Result<(), String> {
+    let entries = error_entries(pages);
     let mut bad = Vec::new();
     // an entry whose examples fail must show its own error in one of them
     fn failing(blocks: &[markup::Block], out: &mut Vec<String>) {

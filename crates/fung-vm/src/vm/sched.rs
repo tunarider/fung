@@ -283,6 +283,7 @@ impl Sched {
             t.exchange(&mut slot.fiber);
             if id == self.root {
                 s.root = Some(t.stuck_root());
+                s.root_place = Some(t.stuck_place());
             } else {
                 s.others.push(t.stuck_place());
             }

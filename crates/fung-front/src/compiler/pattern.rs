@@ -87,6 +87,63 @@ fn build(n: &Node) -> Result<Pattern, Diag> {
     }
 }
 
+/// How many alternatives a guarded pattern may spread into (each nested
+/// `|` multiplies them).
+const MAX_ALTERNATIVES: usize = 256;
+
+/// The alternatives of `n` with every `|` moved to the top, in the order
+/// they are tried: `Ok((a, _) | (_, a))` is `Ok((a, _))`, `Ok((_, a))`.
+/// A guarded arm tries the guard with each in turn (03), so a guard that
+/// fails on one alternative's bindings still lets a later one match.
+/// More than [`MAX_ALTERNATIVES`] is E0230.
+pub(super) fn alternatives(n: &Node) -> Result<Vec<Node>, Diag> {
+    fn spread(n: &Node, limit: usize) -> Option<Vec<Node>> {
+        if n.head == Head::Palt {
+            let mut out = Vec::new();
+            for k in &n.kids {
+                out.extend(spread(k, limit)?);
+                if out.len() > limit {
+                    return None;
+                }
+            }
+            return Some(out);
+        }
+        // Every combination of the kids' alternatives, first kid slowest.
+        let mut out = vec![Vec::<Node>::new()];
+        for k in &n.kids {
+            let ks = spread(k, limit)?;
+            if out.len() * ks.len() > limit {
+                return None;
+            }
+            out = out
+                .iter()
+                .flat_map(|pre| {
+                    ks.iter().map(move |k| {
+                        let mut v = pre.clone();
+                        v.push(k.clone());
+                        v
+                    })
+                })
+                .collect();
+        }
+        Some(
+            out.into_iter()
+                .map(|kids| Node::with_lit(n.head, n.pos, n.lit.clone(), kids))
+                .collect(),
+        )
+    }
+    spread(n, MAX_ALTERNATIVES).ok_or_else(|| {
+        crate::diag::error(
+            "E0230",
+            n.pos,
+            vec![
+                crate::diag::Arg::Str("alternatives in a guarded pattern".into()),
+                crate::diag::Arg::Int(MAX_ALTERNATIVES as i64),
+            ],
+        )
+    })
+}
+
 fn kids(mut p: Pattern, kids: &[Node]) -> Result<Pattern, Diag> {
     for k in kids {
         p.kids.push(build(k)?);

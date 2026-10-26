@@ -31,7 +31,7 @@ fung 프로그램이 끝나는 길은 다음과 같다.
 
 #### 설명
 
-"여기 오면 버그"라고 말할 때 쓴다. 메시지는 [`print`](io.html#fn-print)와 같은 규칙으로 인자를 공백으로 이은 것이다. 인자가 없으면 메시지는 `fail`이다. 런타임 에러이므로 종료 코드는 1이고, 지나는 [`with`](#fn-with)의 정리는 돈다. 태스크 안에서 부르면 그 태스크가 실패하고, 범위가 그 실패를 받는다([`scope`](concurrency.html#fn-scope), [`supervise`](concurrency.html#fn-supervise)).
+"여기 오면 버그"라고 말할 때 쓴다. 메시지는 [`print`](io.html#fn-print)와 같은 규칙으로 인자를 공백으로 이은 것이다. 인자가 없으면 메시지는 `fail`이다. 런타임 에러이므로 종료 코드는 1이고, 지나는 [`with`](#fn-with)의 정리는 돈다. 태스크 안에서 부르면 그 태스크가 실패하고, 태스크 범위가 그 실패를 받는다([`scope`](concurrency.html#fn-scope), [`supervise`](concurrency.html#fn-supervise)).
 
 `fail`은 값을 돌려주지 않으므로 어떤 식 자리에도 쓸 수 있다. 특히 `??`와 짝이 맞는다: `cfg.port ?? fail("config.port is required")`. 사용자가 고칠 수 있는 실패(잘못된 입력, 없는 파일)라면 `fail` 대신 `eprint`로 이유를 알리고 `exit(1)`하거나 `Err`를 돌려주는 편이 친절하다. `fail`의 메시지에는 소스 위치와 호출 경로가 붙기 때문이다.
 

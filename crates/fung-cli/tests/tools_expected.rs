@@ -186,7 +186,7 @@ const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
 const TEST_REPOSITORY_CASES: usize = 224;
 const FMT_INPUTS: usize = 5504;
-const FMT_STDIN_CASES: usize = 1257;
+const FMT_STDIN_CASES: usize = 1266;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
 const REPL_CASES: usize = 30;
@@ -798,12 +798,13 @@ fn test_counts_an_unreadable_file() {
 fn test_without_a_path_walks_the_working_directory() {
     let dir = repo().join(TEST_DATA).join("_lib");
     let entry = |bin: &Path| {
-        let o = std::process::Command::new(bin)
-            .env("TZ", common::TZ)
-            .arg("test")
-            .current_dir(&dir)
-            .output()
-            .unwrap();
+        let o = common::output(
+            std::process::Command::new(bin)
+                .env("TZ", common::TZ)
+                .arg("test")
+                .current_dir(&dir),
+        )
+        .unwrap();
         Entry::run(
             format!("test (in {TEST_DATA}/_lib)"),
             &(o.stdout, o.stderr, format!("{:?}", o.status)),
@@ -975,19 +976,20 @@ fn run_in(bin: &Path, dir: &Path, args: &[OsString], stdin: Option<&[u8]>) -> co
     use std::process::{Command, Stdio};
     // killed and waited for if anything below panics
     let mut child = common::Reaped::new(
-        Command::new(bin)
-            .env("TZ", common::TZ)
-            .args(args)
-            .current_dir(dir)
-            .stdin(if stdin.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            Command::new(bin)
+                .env("TZ", common::TZ)
+                .args(args)
+                .current_dir(dir)
+                .stdin(if stdin.is_some() {
+                    Stdio::piped()
+                } else {
+                    Stdio::null()
+                })
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )
+        .unwrap(),
     );
     if let Some(data) = stdin {
         let mut pipe = child.stdin.take().unwrap();
@@ -1735,6 +1737,57 @@ fn fmt_handles_a_file_name(tag: &str, name: &[u8]) {
     assert_eq!(std::fs::read(&file).unwrap(), b"q = 1\n");
 }
 
+/// `fmt` rewrites a file by writing a temporary file beside it and
+/// renaming it over (a crash never leaves half a file): a plain file gets
+/// a new inode, its mode is kept, and no temporary file is left. A
+/// symbolic link stays a link (the file it names is rewritten), and a
+/// file with several hard links is rewritten in place so every name sees
+/// the new text.
+#[test]
+fn fmt_in_place_renames_over_and_keeps_links() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let dir = scratch("fmt-atomic");
+    let bin = fung_bin();
+    let fmt = |name: &str| run_in(&bin, &dir, &[OsString::from("fmt"), name.into()], None);
+    let plain = dir.join("a.fung");
+    std::fs::write(&plain, "a=1\n").unwrap();
+    std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o640)).unwrap();
+    let before = std::fs::metadata(&plain).unwrap().ino();
+    assert!(fmt("a.fung").1.is_empty());
+    let after = std::fs::metadata(&plain).unwrap();
+    assert_eq!(std::fs::read_to_string(&plain).unwrap(), "a = 1\n");
+    assert_ne!(after.ino(), before, "renamed over");
+    assert_eq!(after.permissions().mode() & 0o777, 0o640);
+    // a link stays a link
+    std::fs::write(dir.join("t.fung"), "t=1\n").unwrap();
+    std::os::unix::fs::symlink("t.fung", dir.join("l.fung")).unwrap();
+    assert!(fmt("l.fung").1.is_empty());
+    assert!(
+        std::fs::symlink_metadata(dir.join("l.fung"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("t.fung")).unwrap(),
+        "t = 1\n"
+    );
+    // hard links all see the change
+    std::fs::write(dir.join("h.fung"), "h=1\n").unwrap();
+    std::fs::hard_link(dir.join("h.fung"), dir.join("h2.fung")).unwrap();
+    assert!(fmt("h.fung").1.is_empty());
+    assert_eq!(
+        std::fs::read_to_string(dir.join("h2.fung")).unwrap(),
+        "h = 1\n"
+    );
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["a.fung", "h.fung", "h2.fung", "l.fung", "t.fung"]);
+}
+
 // ---- the REPL (stage 5 task 4) ----
 
 /// Runs the REPL (`fung` without arguments) in `dir` with `stdin` piped
@@ -1744,15 +1797,16 @@ fn repl_in(bin: &Path, dir: &Path, stdin: &[u8]) -> common::Run {
     use std::process::{Command, Stdio};
     // killed and waited for if anything below panics
     let mut child = common::Reaped::new(
-        Command::new(bin)
-            .env("TZ", common::TZ)
-            .current_dir(dir)
-            .env("HOME", dir)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            Command::new(bin)
+                .env("TZ", common::TZ)
+                .current_dir(dir)
+                .env("HOME", dir)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )
+        .unwrap(),
     );
     let mut pipe = child.stdin.take().unwrap();
     let data = stdin.to_vec();
@@ -1906,15 +1960,16 @@ fn repl_session(tag: &str, input: &str) -> (String, String, Option<i32>) {
     let dir = repl_dir(tag);
     // killed and waited for if anything below panics
     let mut child = common::Reaped::new(
-        std::process::Command::new(fung_bin())
-            .env("TZ", common::TZ)
-            .current_dir(&dir)
-            .env("HOME", &dir)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            std::process::Command::new(fung_bin())
+                .env("TZ", common::TZ)
+                .current_dir(&dir)
+                .env("HOME", &dir)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped()),
+        )
+        .unwrap(),
     );
     let mut pipe = child.stdin.take().unwrap();
     let data = input.as_bytes().to_vec();
@@ -1937,13 +1992,18 @@ fn repl_session(tag: &str, input: &str) -> (String, String, Option<i32>) {
 #[test]
 fn repl_reads_a_device_that_is_no_terminal_plainly() {
     let dir = repl_dir("devnull");
-    let o = std::process::Command::new(fung_bin())
-        .env("TZ", common::TZ)
-        .current_dir(&dir)
-        .env("HOME", &dir)
-        .stdin(std::fs::File::open("/dev/null").unwrap())
-        .output()
-        .unwrap();
+    let o = common::spawn(
+        std::process::Command::new(fung_bin())
+            .env("TZ", common::TZ)
+            .current_dir(&dir)
+            .env("HOME", &dir)
+            .stdin(std::fs::File::open("/dev/null").unwrap())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped()),
+    )
+    .unwrap()
+    .wait_with_output()
+    .unwrap();
     assert_eq!(String::from_utf8_lossy(&o.stdout), "> \n");
     assert!(o.status.success());
     assert!(

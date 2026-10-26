@@ -10,6 +10,9 @@ E0111	comparison operators cannot be chained		split it with `and`: a < b and b <
 E0112	expected %s, found %s		
 E0113	duplicate key `%s` in map literal		
 E0114	test must be at the top level		
+E0115	expression nesting too deep (limit %d)		
+E0116	argument `%s` given twice		
+E0117	`%s()` has no arguments		a tag without arguments is a symbol: write it without the parentheses
 E0204	undefined name `%s`	not found in this scope	
 E0205	cannot reassign `%s` here: it was defined outside this block		a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 E0206	`%s` is not visible here: it was defined inside a block		assign the block's value instead: `x = if … ;;`
@@ -35,6 +38,7 @@ E0226	`?` inside a lambda given to map		map keeps the Err as an element; use `tr
 E0227	`_` in a call on the right of `|>`		the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 E0228	the rest parameter `...%s` is always a list		annotate it `list` (or not at all); `list[int]` names the elements without checking them
 E0229	`%s` on the right of `|>` applies to the call, not to the pipe		put the pipe in parentheses: `(xs |> try_map(f))?`
+E0230	too many %s (limit %d)		
 E0301	cannot find module `%s`		standard library modules are imported by name (`import fs`); your own files by path (`import "./lib/x"`)
 E0302	circular import: %s		
 E0303	module `%s` has no member `%s`		
@@ -42,9 +46,9 @@ E0304	`%s` is private to module `%s`		names starting with `_` are not exported
 E0305	`%s` is not a valid module name; use `as`		
 E0306	only import, fn, type, test, and assignment are allowed at the top level of an imported module		move the statement into a function, or into the entry file
 E0307	cannot import the entry file		
-E0308	cannot shadow module `%s`		
+E0308	cannot shadow module `%s`		import it under another name: `import fs as m`
 E0309	name `%s` is already bound to a module		
-E0310	`%s` is internal; import `%s` instead		
+E0310	`%s` is internal; %s		
 E0311	import must be at the top level		
 E0401	cannot call a value of type %s		
 E0402	%s takes %d argument(s), got %d		
@@ -84,7 +88,7 @@ E0706	spawn into a closed scope
 E0707	`%s` has an effect, which a swap's function must not have		
 E0708	an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket		
 E0801	internal error: %v		
-E0802	expression nesting too deep (limit %d)		
+E0802	expression nesting too deep (limit %d)		not used: became the syntax error E0115
 E0803	%s		
 E0804	stack overflow: call depth exceeded %d		make the recursion a tail call or use `fold`
 E0805	not supported yet: %s		

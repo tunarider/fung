@@ -29,6 +29,7 @@ pub const EXIT_BROKEN_PIPE: i32 = 141;
 /// kill the process, it exits with [`EXIT_BROKEN_PIPE`], what a shell
 /// would show for the signal.
 pub fn die() -> ! {
+    crate::term::restore();
     #[cfg(unix)]
     // SAFETY: `signal`, `sigemptyset`, `sigaddset`, `pthread_sigmask` and
     // `raise` are thread-safe libc calls; the only memory they touch is

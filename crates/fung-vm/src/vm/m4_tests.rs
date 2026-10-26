@@ -125,7 +125,7 @@ fn review_fixes() {
     ]);
     check_code(&[
         ("[1, 2, 3][1..=3]", "E0507"),
-        ("Err()!", "E0603"),
+        ("Err()!", "E0117"),
         ("Err(1, 2)!", "E0603"),
     ]);
     assert_eq!(
@@ -158,8 +158,8 @@ fn result_operators() {
         ),
         ("print(nil ?? Err(1) ?? 2)", "2\n"),
         ("fn f(r) = r?\nprint(f(nil))", "nil\n"),
-        // Ok with zero or several payloads unwraps to a tuple.
-        ("print(Ok() ?? 1, Ok(1, 2)!)", "() (1, 2)\n"),
+        // Ok with several payloads unwraps to a tuple (`Ok()` is E0117).
+        ("print(Ok(1, 2)!)", "(1, 2)\n"),
     ]);
     check_code(&[
         ("Err({kind: 'x, message: \"boom\"})!", "E0603"),
@@ -274,4 +274,46 @@ fn errors_cut_long_values_in_the_headline() {
         head(&format!("match \"{over}\": \"\" => 0 ;;")),
         format!("error[E0601]: no pattern matched \"{}…", &over[..199 * 3])
     );
+}
+
+/// A guard on alternatives is tried with each alternative in turn (03):
+/// the arm is taken when any alternative matches and passes the guard,
+/// nested alternatives included. Without a guard the first match wins,
+/// as before.
+#[test]
+fn a_failed_guard_tries_the_next_alternative() {
+    check_out(&[
+        (
+            "fn big(p) = match p: (a, _) | (_, a) when a > 1 => a; _ => -1 ;;\n\
+             print(big((0, 5)), big((7, 0)), big((0, 0)), big((3, 9)))",
+            "5 7 -1 3\n",
+        ),
+        (
+            "fn f(r) = match r: Ok((a, _) | (_, a)) when a > 1 => a; _ => -1 ;;\n\
+             print(f(Ok((0, 5))), f(Ok((0, 0))), f(Err(1)))",
+            "5 -1 -1\n",
+        ),
+        (
+            "fn f(x) = match x: (1, a) | (a, 1) when a == 2 => \"two\"; _ => \"no\" ;;\n\
+             print(f((1, 2)), f((2, 1)), f((1, 1)))",
+            "two two no\n",
+        ),
+        // the guard runs once per alternative tried
+        (
+            "fn g(a):\n  print(\"g\", a)\n  a > 1\n;;\n\
+             print(match (0, 5): (a, _) | (_, a) when g(a) => a; _ => -1 ;;)",
+            "g 0\ng 5\n5\n",
+        ),
+    ]);
+    // the expansion has a limit (each nested `|` multiplies it)
+    let many = ["1 | 2"; 9].join(", ");
+    check_code(&[(
+        &format!("print(match 1: [{many}] when true => 1; _ => 2 ;;)"),
+        "E0230",
+    )]);
+    let fine = ["1 | 2"; 8].join(", ");
+    check_out(&[(
+        &format!("print(match [2, 2, 2, 2, 2, 2, 2, 2]: [{fine}] when true => 1; _ => 2 ;;)"),
+        "1\n",
+    )]);
 }

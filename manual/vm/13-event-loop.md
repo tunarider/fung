@@ -119,7 +119,7 @@ print("server drained")
 server drained
 ```
 
-`conc.pmap`은 결과를 입력 순서대로 모은다. `request_stop()`은 14장의 정지 요청이다. 서버가 그것을 보고 리스너를 닫은 뒤 범위가 닫힌다.
+`conc.pmap`은 결과를 입력 순서대로 모은다. `request_stop()`은 14장의 정지 요청이다. 서버가 그것을 보고 리스너를 닫은 뒤 태스크 범위가 닫힌다.
 
 ## 스레드 풀 {#pool}
 

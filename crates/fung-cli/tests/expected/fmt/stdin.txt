@@ -1406,25 +1406,32 @@
 -- exit: 0
 ==== manual learn/02-first-program.md:5
 -- stdout
+| import fs
+|
+| print("hi")
+-- stderr
+-- exit: 0
+==== manual learn/02-first-program.md:6
+-- stdout
 | print("start")
 | prnt("disk check")
 -- stderr
 -- exit: 0
-==== manual learn/02-first-program.md:6
+==== manual learn/02-first-program.md:7
 -- stdout
 | print("checking disks")
 | used = "91"
 | print(used + 1)
 -- stderr
 -- exit: 0
-==== manual learn/02-first-program.md:7
+==== manual learn/02-first-program.md:8
 -- stdout
 | fn percent(used, total) = used * 100 // total
 | print(percent(45, 50))
 | print(percent(45, 0))
 -- stderr
 -- exit: 0
-==== manual learn/02-first-program.md:8
+==== manual learn/02-first-program.md:9
 -- stdout
 -- stderr
 | error[E0110]: unexpected end of file
@@ -1434,13 +1441,13 @@
 |   |                         ^
 |   |
 -- exit: 2
-==== manual learn/02-first-program.md:9
+==== manual learn/02-first-program.md:10
 -- stdout
 | name = first(args) ?? "stranger"
 | print("hello, ${name}! you have", len(args), "argument(s)")
 -- stderr
 -- exit: 0
-==== manual learn/02-first-program.md:10
+==== manual learn/02-first-program.md:11
 -- stdout
 | total = 3
 | print("servers:", total)
@@ -3597,12 +3604,13 @@
 -- stdout
 | # Files under a directory not modified for more than 30 days, largest first.
 | import fs
+| import time
 |
 | dir = first(args) ?? "."
-| old = lines(exec(["find", dir, "-type", "f", "-mtime", "+30"])!.out)
-| sized = old |> map(p => (p, get(fs.stat(p) ?? {}, "size", 0)))
-| for (p, size) in sized |> sort_by(((_, s)) => -s):
-|   print(pad_left(str(size), 10), p)
+| now = time.now()
+| old = fs.walk(dir)! |> map(p => (p, fs.stat(p)!)) |> filter(((_, st)) => now - st.mtime > 720h)
+| for (p, st) in old |> sort_by(((_, st)) => -st.size):
+|   print(pad_left(str(st.size), 10), p)
 | ;;
 -- stderr
 -- exit: 0
@@ -4378,11 +4386,38 @@
 -- exit: 0
 ==== manual reference/errors.md:23
 -- stdout
+-- stderr
+| error[E0116]: argument `host` given twice
+|   --> <stdin>:2:28
+|   |
+| 2 | print(connect(host: "db1", host: "db2"))
+|   |                            ^
+|   |
+-- exit: 2
+==== manual reference/errors.md:24
+-- stdout
+| fn connect(host, port) = "${host}:${port}"
+| print(connect(host: "db1", port: 5432))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:25
+-- stdout
+| light = Red()
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:26
+-- stdout
+| light = Red
+| print(light, light == 'Red)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:27
+-- stdout
 | files = ["a.log", "b.log"]
 | print(len(fiels))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:24
+==== manual reference/errors.md:28
 -- stdout
 | level = 1
 | level = 2
@@ -4390,13 +4425,13 @@
 | print(show())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:25
+==== manual reference/errors.md:29
 -- stdout
 | files = ["a.log", "b.log"]
 | print(len(files))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:26
+==== manual reference/errors.md:30
 -- stdout
 | files = ["a.log", "b.txt", "c.log"]
 | count = 0
@@ -4406,7 +4441,7 @@
 | print(count)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:27
+==== manual reference/errors.md:31
 -- stdout
 | files = ["a.log", "b.txt", "c.log"]
 | count = files |> filter(f => ends_with(f, ".log")) |> len
@@ -4414,7 +4449,7 @@
 | print(count, total)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:28
+==== manual reference/errors.md:32
 -- stdout
 | port = 8080
 | if port < 1024:
@@ -4425,7 +4460,7 @@
 | print(kind)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:29
+==== manual reference/errors.md:33
 -- stdout
 | port = 8080
 | kind = if port < 1024:
@@ -4436,7 +4471,7 @@
 | print(kind)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:30
+==== manual reference/errors.md:34
 -- stdout
 | fn main():
 |   fn is_even(n) = n == 0 then true else is_odd(n - 1)
@@ -4446,7 +4481,7 @@
 | main()
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:31
+==== manual reference/errors.md:35
 -- stdout
 | fn is_even(n) = n == 0 then true else is_odd(n - 1)
 | fn is_odd(n) = n == 0 then false else is_even(n - 1)
@@ -4455,33 +4490,33 @@
 | main()
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:32
+==== manual reference/errors.md:36
 -- stdout
 | fn greet(name) = "hello, ${name}"
 | greet = "hi"
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:33
+==== manual reference/errors.md:37
 -- stdout
 | fn greet(name) = "hello, ${name}"
 | greeting = greet("fung")
 | print(greeting)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:34
+==== manual reference/errors.md:38
 -- stdout
 | fn area(w, h) = w * h
 | fn area(r) = 3.14 * r * r
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:35
+==== manual reference/errors.md:39
 -- stdout
 | fn rect_area(w, h) = w * h
 | fn circle_area(r) = 3.14 * r * r
 | print(rect_area(2, 3), circle_area(1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:36
+==== manual reference/errors.md:40
 -- stdout
 | if len(args) == 0:
 |   print("usage: tool FILE")
@@ -4489,7 +4524,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:37
+==== manual reference/errors.md:41
 -- stdout
 | if len(args) == 0:
 |   print("usage: tool FILE")
@@ -4498,18 +4533,18 @@
 | print("working")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:38
+==== manual reference/errors.md:42
 -- stdout
 | fn retry(times: integer) = times
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:39
+==== manual reference/errors.md:43
 -- stdout
 | fn retry(times: int) = times
 | print(retry(3))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:40
+==== manual reference/errors.md:44
 -- stdout
 | fn first_big(sizes):
 |   for s in sizes:
@@ -4518,29 +4553,29 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:41
+==== manual reference/errors.md:45
 -- stdout
 | fn first_big(sizes) = find(sizes, s => s > 100)
 | print(first_big([10, 300, 500]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:42
+==== manual reference/errors.md:46
 -- stdout
 | port = parse_int("8080")?
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:43
+==== manual reference/errors.md:47
 -- stdout
 | port = parse_int("8080")!
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:44
+==== manual reference/errors.md:48
 -- stdout
 | add_one = _ + 1
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:45
+==== manual reference/errors.md:49
 -- stdout
 | add_one = x => x + 1
 | add = (a, b) => a + b
@@ -4548,14 +4583,14 @@
 | print(add_one(1), add_ten(5))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:46
+==== manual reference/errors.md:50
 -- stdout
 | fn describe(r) = match r:
 |   Ok(v) | Err(e) => "done"
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:47
+==== manual reference/errors.md:51
 -- stdout
 | fn describe(r) = match r:
 |   Ok(_) | Err(_) => "done"
@@ -4563,13 +4598,13 @@
 | print(describe(Ok(1)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:48
+==== manual reference/errors.md:52
 -- stdout
 | type id = int
 | type id = str
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:49
+==== manual reference/errors.md:53
 -- stdout
 | type user_id = int
 | type token = str
@@ -4577,13 +4612,13 @@
 | print(show(7, "abc"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:50
+==== manual reference/errors.md:54
 -- stdout
 | type tree = tree
 | fn size(t: tree) = 1
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:51
+==== manual reference/errors.md:55
 -- stdout
 | type tree = Leaf | Node
 | fn size(t: tree) = match t:
@@ -4593,7 +4628,7 @@
 | print(size(Node(Leaf, Node(Leaf, Leaf))))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:52
+==== manual reference/errors.md:56
 -- stdout
 | fn area(s):
 |   type shape = Circle | Rect
@@ -4601,7 +4636,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:53
+==== manual reference/errors.md:57
 -- stdout
 | type shape = Circle | Rect
 |
@@ -4612,19 +4647,19 @@
 | print(area(Rect(2, 3)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:54
+==== manual reference/errors.md:58
 -- stdout
 | fn ports(xs) = for x in xs: parse_int(x)? ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:55
+==== manual reference/errors.md:59
 -- stdout
 | fn ports(xs) = try_map(xs, x => parse_int(x))
 | print(ports(["80", "443"]))
 | print(ports(["80", "http"]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:56
+==== manual reference/errors.md:60
 -- stdout
 | fn same(pair) = match pair:
 |   [a, a] => true
@@ -4632,7 +4667,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:57
+==== manual reference/errors.md:61
 -- stdout
 | fn same(pair) = match pair:
 |   [a, b] when a == b => true
@@ -4641,30 +4676,30 @@
 | print(same([1, 1]), same([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:58
+==== manual reference/errors.md:62
 -- stdout
 | type str = int
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:59
+==== manual reference/errors.md:63
 -- stdout
 | type name = str
 | fn hello(n: name) = "hello, ${n}"
 | print(hello("fung"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:60
+==== manual reference/errors.md:64
 -- stdout
 | fn label(code) = if code >= 500: "server error" ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:61
+==== manual reference/errors.md:65
 -- stdout
 | fn label(code) = if code >= 500: "server error" else: "ok" ;;
 | print(label(503), label(200))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:62
+==== manual reference/errors.md:66
 -- stdout
 | x = if true:
 |   y = 1
@@ -4673,7 +4708,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:63
+==== manual reference/errors.md:67
 -- stdout
 | x = if true:
 |   y = 1
@@ -4684,7 +4719,7 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:64
+==== manual reference/errors.md:68
 -- stdout
 -- stderr
 | error[E0225]: `HOME` starts with an uppercase letter, so it is a tag and cannot name a variable
@@ -4695,7 +4730,7 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
-==== manual reference/errors.md:65
+==== manual reference/errors.md:69
 -- stdout
 | max_retries = 3
 | cfg = {HOME: "/home/me"}
@@ -4703,127 +4738,127 @@
 | print(max_retries, home, cfg.HOME)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:66
+==== manual reference/errors.md:70
 -- stdout
 | fn ports(xs) = Ok(xs |> map(s => parse_int(s)?))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:67
+==== manual reference/errors.md:71
 -- stdout
 | fn ports(xs) = try_map(xs, s => parse_int(s))
 | print(ports(["80", "443"]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:68
+==== manual reference/errors.md:72
 -- stdout
 | import path
 | print("a.txt" |> path.join("/tmp", _))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:69
+==== manual reference/errors.md:73
 -- stdout
 | import path
 | print("a.txt" |> (f => path.join("/tmp", f)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:70
+==== manual reference/errors.md:74
 -- stdout
 | fn total(...ns: int) = fold(ns, 0, (a, b) => a + b)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:71
+==== manual reference/errors.md:75
 -- stdout
 | fn total(...ns: list[int]) = fold(ns, 0, (a, b) => a + b)
 | print(total(1, 2, 3))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:72
+==== manual reference/errors.md:76
 -- stdout
 | nums = ["1", "2"] |> try_map(parse_int)!
 | print(nums)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:73
+==== manual reference/errors.md:77
 -- stdout
 | nums = (["1", "2"] |> try_map(parse_int))!
 | print(nums)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:74
+==== manual reference/errors.md:78
 -- stdout
 | import util
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:75
+==== manual reference/errors.md:79
 -- stdout
 | import "./util"
 | print(util.shout("hi"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:76
+==== manual reference/errors.md:80
 -- stdout
 | import "./a"
 |
 | print(a.one())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:77
+==== manual reference/errors.md:81
 -- stdout
 | import "./a"
 | import "./b"
 | print(a.one(), b.two())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:78
+==== manual reference/errors.md:82
 -- stdout
 | import fs
 | print(fs.read_file("notes.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:79
+==== manual reference/errors.md:83
 -- stdout
 | import fs
 | print(fs.read("notes.txt")!)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:80
+==== manual reference/errors.md:84
 -- stdout
 | import "./greet"
 |
 | print(greet._prefix())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:81
+==== manual reference/errors.md:85
 -- stdout
 | import "./greet"
 | print(greet.hello("fung"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:82
+==== manual reference/errors.md:86
 -- stdout
 | import "./my-lib"
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:83
+==== manual reference/errors.md:87
 -- stdout
 | import "./my-lib" as my_lib
 | print(my_lib.answer())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:84
+==== manual reference/errors.md:88
 -- stdout
 | import "./config"
 |
 | print(config.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:85
+==== manual reference/errors.md:89
 -- stdout
 | import "./config"
 | print(config.describe())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:86
+==== manual reference/errors.md:90
 -- stdout
 | import "./helper"
 |
@@ -4831,26 +4866,26 @@
 | print(helper.twice(limit))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:87
+==== manual reference/errors.md:91
 -- stdout
 | import "./helper"
 | print(helper.doubled_limit())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:88
+==== manual reference/errors.md:92
 -- stdout
 | import path
 | path = "/tmp/out"
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:89
+==== manual reference/errors.md:93
 -- stdout
 | import path
 | out_path = "/tmp/out"
 | print(path.join(out_path, "a.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:90
+==== manual reference/errors.md:94
 -- stdout
 | import fs
 | import "./fs"
@@ -4858,19 +4893,19 @@
 | print(1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:91
+==== manual reference/errors.md:95
 -- stdout
 | import fs
 | import "./fs" as local_fs
 | print(type_of(fs), local_fs.x())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:92
+==== manual reference/errors.md:96
 -- stdout
 | import _native.fs
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:93
+==== manual reference/errors.md:97
 -- stdout
 | fn load(p):
 |   import fs
@@ -4878,7 +4913,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:94
+==== manual reference/errors.md:98
 -- stdout
 | import fs
 |
@@ -4886,272 +4921,272 @@
 | print(load("missing.txt"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:95
+==== manual reference/errors.md:99
 -- stdout
 | name = "deploy"
 | print(name())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:96
+==== manual reference/errors.md:100
 -- stdout
 | fn deploy() = "deploying"
 | print(deploy())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:97
+==== manual reference/errors.md:101
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:98
+==== manual reference/errors.md:102
 -- stdout
 | fn connect(host, port, wait = 5s) = "${host}:${port} (${wait})"
 | print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:99
+==== manual reference/errors.md:103
 -- stdout
 | fn backoff(n: int) = n * 2
 | print(backoff("3"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:100
+==== manual reference/errors.md:104
 -- stdout
 | fn backoff(n: int) = n * 2
 | print(backoff(parse_int("3")!))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:101
+==== manual reference/errors.md:105
 -- stdout
 | fn port_of(url) -> int = split(url, ":")[-1]
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:102
+==== manual reference/errors.md:106
 -- stdout
 | fn port_of(url) -> int = parse_int(split(url, ":")[-1])!
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:103
+==== manual reference/errors.md:107
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", host: "db2"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:104
+==== manual reference/errors.md:108
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", port: 5432))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:105
+==== manual reference/errors.md:109
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", prot: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:106
+==== manual reference/errors.md:110
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", port: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:107
+==== manual reference/errors.md:111
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:108
+==== manual reference/errors.md:112
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:109
+==== manual reference/errors.md:113
 -- stdout
 | count = 3
 | print("found " + count + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:110
+==== manual reference/errors.md:114
 -- stdout
 | count = 3
 | print("found ${count} files")
 | print("found " + str(count) + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:111
+==== manual reference/errors.md:115
 -- stdout
 | fn average(xs) = sum(xs) / len(xs)
 | print(average([]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:112
+==== manual reference/errors.md:116
 -- stdout
 | fn average(xs) = len(xs) == 0 then 0 else sum(xs) / len(xs)
 | print(average([]), average([2, 4]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:113
+==== manual reference/errors.md:117
 -- stdout
 | print(9223372036854775807 + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:114
+==== manual reference/errors.md:118
 -- stdout
 | fn add_safe(a, b) = a > 9223372036854775807 - b then Err("too big") else Ok(a + b)
 | print(add_safe(9223372036854775807, 1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:115
+==== manual reference/errors.md:119
 -- stdout
 | print(1e308 * 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:116
+==== manual reference/errors.md:120
 -- stdout
 | xs = [1, 2]
 | if len(xs): print("not empty") ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:117
+==== manual reference/errors.md:121
 -- stdout
 | xs = [1, 2]
 | if len(xs) > 0: print("not empty") ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:118
+==== manual reference/errors.md:122
 -- stdout
 | print(-"5")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:119
+==== manual reference/errors.md:123
 -- stdout
 | print(-parse_int("5")!)
 | print(first(chars("abc")))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:120
+==== manual reference/errors.md:124
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:121
+==== manual reference/errors.md:125
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[-1], len(hosts) > 2 then hosts[2] else "none")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:122
+==== manual reference/errors.md:126
 -- stdout
 | cfg = {host: "db1"}
 | print(cfg.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:123
+==== manual reference/errors.md:127
 -- stdout
 | cfg = {host: "db1"}
 | print(get(cfg, "port", 5432), get(cfg, "port") ?? 5432, "port" in cfg)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:124
+==== manual reference/errors.md:128
 -- stdout
 | pair = ("db1", 5432)
 | print(pair[0])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:125
+==== manual reference/errors.md:129
 -- stdout
 | pair = ("db1", 5432)
 | (host, port) = pair
 | print(host, port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:126
+==== manual reference/errors.md:130
 -- stdout
 | print((1, 2, 3)[0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:127
+==== manual reference/errors.md:131
 -- stdout
 | print([1, 2, 3][0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:128
+==== manual reference/errors.md:132
 -- stdout
 | print(3 in 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:129
+==== manual reference/errors.md:133
 -- stdout
 | print(3 in 0..10, 3 in [1, 2, 3])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:130
+==== manual reference/errors.md:134
 -- stdout
 | print(int("8080x"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:131
+==== manual reference/errors.md:135
 -- stdout
 | import json
 | print(parse_int("8080x"))
 | print(json.stringify({wait: str(5s)}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:132
+==== manual reference/errors.md:136
 -- stdout
 | print(group_by([1, 2, 3, 4], x => x % 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:133
+==== manual reference/errors.md:137
 -- stdout
 | print(group_by([1, 2, 3, 4], x => str(x % 2)))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:134
+==== manual reference/errors.md:138
 -- stdout
 | import regex
 | print(regex.is_match("a(b", "(b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:135
+==== manual reference/errors.md:139
 -- stdout
 | import regex
 | print(regex.is_match("a(b", `\(b`))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:136
+==== manual reference/errors.md:140
 -- stdout
 | xs = [1, 2, 3, 4]
 | print(xs[3..1])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:137
+==== manual reference/errors.md:141
 -- stdout
 | xs = [1, 2, 3, 4]
 | print(xs[1..3], take(drop(xs, 2), 10))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:138
+==== manual reference/errors.md:142
 -- stdout
 | import json
 | back = json.parse(`{"status": "ok"}`)!
 | print(back.status == 'ok)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:139
+==== manual reference/errors.md:143
 -- stdout
 | import json
 | back = json.parse(`{"status": "ok"}`)!
 | print(sym(back.status) == 'ok, back.status == "ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:140
+==== manual reference/errors.md:144
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -5160,7 +5195,7 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:141
+==== manual reference/errors.md:145
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -5170,26 +5205,26 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:142
+==== manual reference/errors.md:146
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, role] = split(line, " ")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:143
+==== manual reference/errors.md:147
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, ...rest] = split(line, " ")
 | print(name, addr, rest)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:144
+==== manual reference/errors.md:148
 -- stdout
 | import fs
 | text = fs.read("config.json")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:145
+==== manual reference/errors.md:149
 -- stdout
 | import fs
 | text = match fs.read("config.json"):
@@ -5200,37 +5235,37 @@
 | print(text)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:146
+==== manual reference/errors.md:150
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:147
+==== manual reference/errors.md:151
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port") ?? 5432
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:148
+==== manual reference/errors.md:152
 -- stdout
 | print(try_map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:149
+==== manual reference/errors.md:153
 -- stdout
 | print(try_map(["1", "2"], parse_int), map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:150
+==== manual reference/errors.md:154
 -- stdout
 | import fs
 | fs.write("missing/out.txt", "data")
 | print("saved")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:151
+==== manual reference/errors.md:155
 -- stdout
 | import fs
 | match fs.write("missing/out.txt", "data"):
@@ -5241,13 +5276,13 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:152
+==== manual reference/errors.md:156
 -- stdout
 | (tx, rx) = channel()
 | print(recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:153
+==== manual reference/errors.md:157
 -- stdout
 | (tx, rx) = channel()
 | send(tx, "job")!
@@ -5255,7 +5290,7 @@
 | for job in rx: print(job) ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:154
+==== manual reference/errors.md:158
 -- stdout
 | fn collect() = scope(fn(s):
 |   (tx, rx) = channel()
@@ -5268,13 +5303,13 @@
 | print(collect())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:155
+==== manual reference/errors.md:159
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, rx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:156
+==== manual reference/errors.md:160
 -- stdout
 | (tx, rx) = channel(1)
 | (reply_tx, reply_rx) = channel(1)
@@ -5283,94 +5318,94 @@
 | print(recv(reply_rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:157
+==== manual reference/errors.md:161
 -- stdout
 | s = scope(s => s)
 | spawn(s, () => print("late"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:158
+==== manual reference/errors.md:162
 -- stdout
 | scope(fn(s):
 |   spawn(s, () => print("inside"))
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:159
+==== manual reference/errors.md:163
 -- stdout
 | hits = atom(0)
 | swap(hits, n => dbg(n) + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:160
+==== manual reference/errors.md:164
 -- stdout
 | hits = atom(0)
 | new = swap(hits, n => n + 1)
 | print("hits:", new)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:161
+==== manual reference/errors.md:165
 -- stdout
 | (tx, rx) = channel()
 | latest = atom(tx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:162
+==== manual reference/errors.md:166
 -- stdout
 | latest = atom({host: "web1", up: true})
 | swap(latest, m => put(m, "up", false))
 | print(deref(latest))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:163
+==== manual reference/errors.md:167
 -- stdout
 | fn port_of(cfg) = cfg.port ?? fail("config.port is required")
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:164
+==== manual reference/errors.md:168
 -- stdout
 | fn port_of(cfg) = cfg.port ?? 8080
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:165
+==== manual reference/errors.md:169
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:166
+==== manual reference/errors.md:170
 -- stdout
 | fn depth(n, acc = 0) = n == 0 then acc else depth(n - 1, acc + 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:167
+==== manual reference/errors.md:171
 -- stdout
 | line = repeat("=", 200_000_000)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:168
+==== manual reference/errors.md:172
 -- stdout
 | line = repeat("=", 20)
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:169
+==== manual reference/errors.md:173
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 3
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:170
+==== manual reference/errors.md:174
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 2
 | print("ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:171
+==== manual reference/errors.md:175
 -- stdout
 | x = twice()
 | limit = 10
@@ -5378,12 +5413,37 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:172
+==== manual reference/errors.md:176
 -- stdout
 | limit = 10
 | fn twice() = limit * 2
 | x = twice()
 | print(x)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:177
+-- stdout
+| import fs
+| import path
+| print(path.join("a", "b"))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:178
+-- stdout
+| fn total(xs):
+|   count = len(xs)
+|   fold(xs, 0, (a, b) => a + b)
+| ;;
+| print(total([1, 2]))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:179
+-- stdout
+| fn summary(xs):
+|   max = 0
+|   len(xs) + max
+| ;;
+| print(summary([1]))
 -- stderr
 -- exit: 0
 ==== manual reference/language.md:1
@@ -8454,6 +8514,16 @@
 -- exit: 0
 ==== manual vm/07-diagnostics.md:5
 -- stdout
+| fn f():
+|   unused = 1
+|   2
+| ;;
+|
+| print(f())
+-- stderr
+-- exit: 0
+==== manual vm/07-diagnostics.md:6
+-- stdout
 | fn avg(xs) = sum(xs) // len(xs)
 | fn report(name, xs) = "${name}: ${avg(xs)}"
 | print(report("web", [3, 5]))
@@ -10044,7 +10114,7 @@
 | # opening and the promise to close it. A close that fails (a write that
 | # could not be flushed) is a runtime error; a handle f closed itself is
 | # not a failure.
-| fn with_open(path, f, mode = 'read) = with(() => _n.open(path, mode), r => _with_ok(r, f), r => _close_opened(r))
+| fn with_open(path, f, mode = 'read, perm = nil) = with(() => _n.open(path, mode, perm), r => _with_ok(r, f), r => _close_opened(r))
 |
 | # Creates a temporary directory, calls f with its path, and removes it,
 | # whatever f does (a `with`, made inside it as `with_open` opens). A
@@ -10072,7 +10142,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (68467 bytes, fnv1a64 acdb98b56faf7e58)
+-- stdout (69284 bytes, fnv1a64 50a9b625f90cd8fc)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -10100,7 +10170,7 @@
 -- stderr
 -- exit: 0
 ==== extras/prelude.fung
--- stdout (4331 bytes, fnv1a64 49113894f231eafd)
+-- stdout (4448 bytes, fnv1a64 f7e9d6a6c417ef87)
 -- stderr
 -- exit: 0
 ==== extras/regex.fung

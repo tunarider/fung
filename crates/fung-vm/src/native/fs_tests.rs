@@ -281,8 +281,8 @@ fn read_write_stat_copy_move_remove() {
         "Ok(nil)"
     );
     assert_eq!(
-        show(call("stat", vec![p(&a)])),
-        r#"Ok({name: "a.txt", size: 9, is_dir: false})"#
+        without_mtimes(&show(call("stat", vec![p(&a)]))),
+        r#"Ok({name: "a.txt", size: 9, is_dir: false, mtime: $TIME})"#
     );
     assert_eq!(show(call("exists", vec![p(&a)])), "true");
     assert_eq!(
@@ -659,7 +659,7 @@ fn failures_give_exact_messages() {
             "stat",
             vec![s(&at("sub/"))],
             format!(
-                "Ok({{name: \"sub\", size: {}, is_dir: true}})",
+                "Ok({{name: \"sub\", size: {}, is_dir: true, mtime: $TIME}})",
                 std::fs::metadata(at("sub")).unwrap().len()
             ),
         ),
@@ -692,7 +692,7 @@ fn failures_give_exact_messages() {
             "{name}({})",
             args.iter().map(format).collect::<Vec<_>>().join(", ")
         );
-        assert_eq!(show(call(name, args)), want, "{shown}");
+        assert_eq!(without_mtimes(&show(call(name, args))), want, "{shown}");
     }
 }
 
@@ -747,6 +747,118 @@ fn copy_keeps_the_permission_bits() {
     );
     let mode = std::fs::metadata(d.at("y")).unwrap().permissions().mode();
     assert_eq!(mode & 0o777, 0o700);
+}
+
+fn perm_of(f: &Path) -> u32 {
+    std::fs::metadata(f).unwrap().permissions().mode() & 0o777
+}
+
+/// `perm` (06, F-14): the file ends with exactly these bits, umask or
+/// not, whether `write`, `append` or `open` made it or it was there
+/// already (a leftover temporary file must not keep wider bits). Without
+/// `perm` an existing file keeps its bits.
+#[test]
+fn perm_sets_the_permission_bits() {
+    let d = Scratch::new("perm-bits");
+    let a = d.at("a");
+    // 0666 survives a umask such as 022: the bits are set, not masked.
+    for (name, bits) in [("write", 0o600), ("write", 0o666), ("append", 0o640)] {
+        let _ = std::fs::remove_file(&a);
+        let args = vec![p(&a), s("x"), Value::Int(bits)];
+        assert_eq!(show(call(name, args)), "Ok(nil)", "{name}");
+        assert_eq!(perm_of(&a), bits as u32, "{name} {bits:o}");
+    }
+    for name in ["write", "append"] {
+        std::fs::set_permissions(&a, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let args = vec![p(&a), s("y"), Value::Int(0o600)];
+        assert_eq!(show(call(name, args)), "Ok(nil)", "{name}");
+        assert_eq!(perm_of(&a), 0o600, "{name} over an existing file");
+        assert_eq!(show(call(name, vec![p(&a), s("z")])), "Ok(nil)");
+        assert_eq!(perm_of(&a), 0o600, "{name} without perm");
+    }
+    // write "y" then "z" (truncating), append "y" then "z".
+    assert_eq!(std::fs::read_to_string(&a).unwrap(), "zyz");
+    std::fs::set_permissions(&a, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let o = run_in(
+        &d,
+        r#"h = fs.open("${d}/a", 'write, perm: 0o600)!
+print(fs.write_line(h, "w"), fs.close(h))
+h2 = fs.open("${d}/b", 'append, perm: 0o640)!
+print(fs.close(h2), fs.write("${d}/c", "c", perm: 0o600), fs.append("${d}/c", "d", perm: 0o604))
+print(fs.with_open("${d}/e", h => fs.write_line(h, "e"), 'write, perm: 0o600))"#,
+    );
+    assert_eq!(
+        o.out, "Ok(nil) Ok(nil)\nOk(nil) Ok(nil) Ok(nil)\nOk(nil)\n",
+        "{}",
+        o.err
+    );
+    for (f, bits) in [("a", 0o600), ("b", 0o640), ("c", 0o604), ("e", 0o600)] {
+        assert_eq!(perm_of(&d.at(f)), bits, "{f}");
+    }
+    assert_eq!(std::fs::read_to_string(d.at("c")).unwrap(), "cd");
+}
+
+/// `perm` is nil or an int from 0 to 0o777, and only for writing.
+#[test]
+fn perm_out_of_range_or_for_reading_is_e0403() {
+    let d = Scratch::new("perm-args");
+    let a = d.at("a");
+    for (name, args) in [
+        ("write", vec![p(&a), s("x"), s("600")]),
+        ("write", vec![p(&a), s("x"), Value::Int(0o1000)]),
+        ("append", vec![p(&a), s("x"), Value::Int(-1)]),
+        ("append", vec![p(&a), s("x"), Value::Int(0o4755)]),
+    ] {
+        assert_eq!(show(call(name, args)), "E0403", "{name}");
+    }
+    assert!(!a.exists(), "a refused perm makes no file");
+    for (body, want) in [
+        (
+            r#"fs.write("${d}/a", "x", perm: 0o1000)"#,
+            "error[E0403]: argument `perm` must be an int from 0 to 0o777, got 0o1000\n",
+        ),
+        (
+            r#"fs.write("${d}/a", "x", perm: -1)"#,
+            "error[E0403]: argument `perm` must be an int from 0 to 0o777, got -1\n",
+        ),
+        (
+            r#"fs.write("${d}/a", "x", perm: "600")"#,
+            "error[E0403]: argument `perm` must be int | nil, got str\n",
+        ),
+        (
+            r#"fs.open("${d}/a", perm: 0o600)"#,
+            "error[E0403]: argument `perm` must be nil when mode is 'read, got 0o600\n",
+        ),
+    ] {
+        let o = run_in(&d, body);
+        assert_eq!(o.code, "E0403", "{body}");
+        assert!(o.err.starts_with(want), "{body}\n{}", o.err);
+    }
+    assert!(!a.exists(), "a refused perm makes no file");
+}
+
+/// `stat` gives the last modification as a `time` (F-12), to the
+/// nanosecond the file system keeps, in the local zone like `time.now()`.
+#[test]
+fn stat_gives_the_modification_time() {
+    let d = Scratch::new("mtime");
+    let f = d.at("old.log");
+    std::fs::write(&f, "x").unwrap();
+    let when = std::time::UNIX_EPOCH + std::time::Duration::new(1_700_000_000, 0);
+    std::fs::File::options()
+        .write(true)
+        .open(&f)
+        .unwrap()
+        .set_modified(when)
+        .unwrap();
+    let o = run_in(
+        &d,
+        r#"import time
+st = fs.stat("${d}/old.log")!
+print(type_of(st.mtime), time.unix(st.mtime), st.mtime == time.from_unix(1700000000))
+print(fs.stat(d)!.mtime |> type_of)"#,
+    );
+    assert_eq!(o.out, "'time 1700000000 true\n'time\n", "{}", o.err);
 }
 
 /// `temp_dir`: `$TMPDIR` (or `/tmp`) joined with `fung-` and a decimal
@@ -1047,13 +1159,14 @@ fn dropped_handles_free_their_descriptors() {
     let name = name.split_once("::").unwrap().1;
     if std::env::var(CHILD).is_err() {
         let exe = std::env::current_exe().unwrap();
-        let o = std::process::Command::new("sh")
-            .args(["-c", "ulimit -n 128 && exec \"$@\"", "sh"])
-            .arg(exe)
-            .args(["--exact", name, "--nocapture", "--test-threads=1"])
-            .env(CHILD, "1")
-            .output()
-            .unwrap();
+        let o = crate::testutil::child::output(
+            std::process::Command::new("sh")
+                .args(["-c", "ulimit -n 128 && exec \"$@\"", "sh"])
+                .arg(exe)
+                .args(["--exact", name, "--nocapture", "--test-threads=1"])
+                .env(CHILD, "1"),
+        )
+        .unwrap();
         let out = String::from_utf8_lossy(&o.stdout);
         assert!(
             o.status.success() && out.contains("1 passed"),
@@ -1095,10 +1208,8 @@ print(fs.open(p) |> is_ok, fs.with_open(p, read_lines))"#,
 fn file_io_runs_without_the_run_token() {
     let d = Scratch::new("fifo");
     let fifo = d.at("pipe");
-    let made = std::process::Command::new("mkfifo")
-        .arg(&fifo)
-        .status()
-        .unwrap();
+    let made =
+        crate::testutil::child::status(std::process::Command::new("mkfifo").arg(&fifo)).unwrap();
     assert!(made.success());
     let src = format!(
         "import fs\np = \"{}\"\nscope(fn(s):\n  r = spawn(s, () => fs.with_open(p, read_lines))\n  w = spawn(s, fn(): h = fs.open(p, 'append)!; each(0..3, i => fs.write_line(h, \"l${{i}}\")!); fs.close(h) ;;)\n  print(await(w), await(r))\n;;)",
@@ -1123,10 +1234,8 @@ fn file_io_runs_without_the_run_token() {
 fn fifo(tag: &str) -> (Scratch, PathBuf) {
     let d = Scratch::new(tag);
     let f = d.at("pipe");
-    let made = std::process::Command::new("mkfifo")
-        .arg(&f)
-        .status()
-        .unwrap();
+    let made =
+        crate::testutil::child::status(std::process::Command::new("mkfifo").arg(&f)).unwrap();
     assert!(made.success());
     (d, f)
 }
@@ -1409,6 +1518,31 @@ fn without_dir_sizes(text: &str) -> String {
     out
 }
 
+/// `text` with each `mtime: <time>` of a stat as `mtime: $TIME`: it is
+/// when the test ran.
+fn without_mtimes(text: &str) -> String {
+    const KEY: &str = "mtime: ";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(i) = rest.find(KEY) {
+        let after = &rest[i + KEY.len()..];
+        let end = after.find(['}', ',', ' ', '\n']).unwrap_or(after.len());
+        out.push_str(&rest[..i + KEY.len()]);
+        out.push_str(if end > 0 { "$TIME" } else { "" });
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+#[test]
+fn modification_times_are_masked() {
+    assert_eq!(
+        without_mtimes("{is_dir: true, mtime: 2026-10-26T13:09:11.78Z} mtime: nil x"),
+        "{is_dir: true, mtime: $TIME} mtime: $TIME x"
+    );
+}
+
 #[test]
 fn directory_sizes_are_masked() {
     assert_eq!(
@@ -1433,7 +1567,7 @@ fn runs_match_the_expected_output() {
         // normal user's.
         as_root |= std::fs::read(d.at("locked")).is_ok();
         let mut o = exec(&format!("import fs\n{decl}{body}"), Opts::default());
-        o.out = without_dir_sizes(&o.out);
+        o.out = without_mtimes(&without_dir_sizes(&o.out));
         got.push(testutil::outcome_entry(
             &format!("program {i}"),
             &o,

@@ -155,11 +155,15 @@ nil
 $ echo $?
 0</code></pre>
 <p><code>check</code>는 에러가 아닌 <strong>경고(warning)</strong>도 보여 준다. 예를 들어 가져오고 쓰지 않은 모듈이 있으면 이렇게 알린다. 경고는 실행을 막지 않는다.</p>
+<pre><code>import fs
+
+print(&quot;hi&quot;)</code></pre>
+<p class="checked"><code>fung check</code>의 출력이다(페이지를 만들 때 확인했다).</p>
 <pre class="plain"><code>warning[W0101]: unused import `fs`
-  --&gt; w.fung:1:1
+  --&gt; example.fung:1:8
   |
 1 | import fs
-  | ^^
+  |        ^^
   |</code></pre>
 <h2 id="errors">에러 메시지 읽기</h2>
 <p>에러 메시지는 적이 아니라 안내문이다. fung의 에러는 모두 같은 모양이라, 한 번 읽는 법을 익히면 된다. 아래 스크립트는 둘째 줄에 오타가 있다.</p>

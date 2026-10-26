@@ -597,6 +597,9 @@ impl<'rt> Task<'rt> {
                     {
                         self.parks += 1;
                     }
+                    // A park gives the turn: one that ended on the call
+                    // that parked is not owed again after the wake.
+                    self.turn_due = false;
                     self.todo = Some(Todo::Resume);
                     return Turn::Parked(w);
                 }

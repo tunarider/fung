@@ -48,6 +48,8 @@ const REPORT_LINES: usize = 10;
 pub(super) struct Stuck {
     /// The root's wait as an error: its place and call path.
     pub root: Option<Diag>,
+    /// The root's wait as a place (for the note after a report).
+    pub root_place: Option<Place>,
     /// The other tasks' waits, in the order they were spawned.
     pub others: Vec<Place>,
 }
@@ -111,7 +113,14 @@ impl Task<'_> {
             return false;
         }
         let s = stuck(self);
-        let report = self.deadlock_report(s);
+        // A release that waits after a deadlock was reported is that
+        // deadlock going on (its tasks unwind through their releases): a
+        // note, not a second report.
+        let report = if self.world.deadlocked {
+            Self::stuck_release_note(s)
+        } else {
+            self.deadlock_report(s)
+        };
         let w = &mut *self.world;
         w.deadlocked = true;
         let _ = w.stderr().write_all(report.as_bytes());
@@ -122,6 +131,25 @@ impl Task<'_> {
         }
         self.shared.root().cancel();
         true
+    }
+
+    /// The note for releases stuck after the report: where they wait.
+    fn stuck_release_note(s: Stuck) -> String {
+        let all: Vec<Place> = s.root_place.into_iter().chain(s.others).collect();
+        let in_release: Vec<&Place> = all.iter().filter(|p| p.release).collect();
+        let shown = if in_release.is_empty() {
+            all.iter().collect()
+        } else {
+            in_release
+        };
+        let at: Vec<String> = shown
+            .iter()
+            .map(|p| format!("{} at {}:{}:{}", p.kind, p.file, p.line, p.col))
+            .collect();
+        format!(
+            " note: a release waited too after the deadlock and was cut short: {}\n",
+            at.join(", ")
+        )
     }
 
     /// The report's text (see the module doc).

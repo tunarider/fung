@@ -478,17 +478,40 @@ fn wide_ranges_need_no_length() {
 
 // --- take and drop check their count ---
 
+/// A count that is not an int is an argument error, as for a native.
 #[test]
 fn take_drop_check_their_count() {
     for (src, want) in [
-        ("take([1], \"x\")", "take expects an int count, got 'str"),
-        ("drop([1], \"x\")", "drop expects an int count, got 'str"),
-        ("take([1], 1.5)", "take expects an int count, got 'float"),
-        ("drop(0..3, nil)", "drop expects an int count, got 'nil"),
+        ("take([1], \"x\")", "argument `n` must be int, got str"),
+        ("drop([1], \"x\")", "argument `n` must be int, got str"),
+        ("take([1], 1.5)", "argument `n` must be int, got float"),
+        ("drop(0..3, nil)", "argument `n` must be int, got nil"),
+        ("take(\"ab\", nil)", "argument `n` must be int, got nil"),
     ] {
         let e = exec(src, Opts::default()).error.expect(src);
-        assert_eq!(e.code, "E0803", "{src}");
+        assert_eq!(e.code, "E0403", "{src}");
         assert!(e.headline.contains(want), "{src}: {}", e.headline);
+    }
+}
+
+/// The prelude functions written in fung name themselves when given
+/// something they cannot go over (F-4): not the `map` they use inside.
+#[test]
+fn prelude_collection_errors_name_the_function() {
+    for (src, want) in [
+        ("take(5, 2)", "cannot take from int"),
+        ("drop(nil, 1)", "cannot drop from nil"),
+        ("first({})", "cannot take the first of map"),
+        ("last(5)", "cannot take the last of int"),
+        ("min(5)", "cannot take the min of int"),
+        ("max((1, 2))", "cannot take the max of tuple"),
+        ("reverse(5)", "cannot reverse int"),
+        ("zip(5, [1])", "cannot zip int"),
+        ("zip([1], true)", "cannot zip bool"),
+    ] {
+        let e = exec(src, Opts::default()).error.expect(src);
+        assert_eq!(e.code, "E0506", "{src}");
+        assert!(e.headline.ends_with(want), "{src}: {}", e.headline);
     }
 }
 
@@ -500,15 +523,15 @@ fn errors_inside_the_fung_prelude_name_its_file() {
     assert_eq!(out, "1\n");
     assert_eq!(
         err,
-        "error[E0803]: take expects an int count, got 'str
+        "error[E0403]: argument `n` must be int, got str
   --> -e:2:5
   |
 2 | take([1], \"x\")
   |     ^
   |
  call path (innermost first):
-   extras/prelude.fung:80 _clamp
-   extras/prelude.fung:89 take
+   extras/prelude.fung:81 _clamp
+   extras/prelude.fung:90 take
    -e:2       <entry>
 "
     );
@@ -525,7 +548,7 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:125 until
+   extras/prelude.fung:126 until
    -e:1       <entry>
 "
     );
@@ -549,15 +572,15 @@ fn prelude_frames_and_imported_files_keep_their_names() {
     assert_eq!(
         err,
         format!(
-            "error[E0803]: take expects an int count, got 'str
+            "error[E0403]: argument `n` must be int, got str
   --> {d}/lib.fung:1:18
   |
 1 | fn cut(xs) = take(xs, \"x\") + []
   |                  ^
   |
  call path (innermost first):
-   extras/prelude.fung:80 _clamp
-   extras/prelude.fung:89 take
+   extras/prelude.fung:81 _clamp
+   extras/prelude.fung:90 take
    {d}/lib.fung:1 cut
    {d}/main.fung:3 <entry>
 "

@@ -59,9 +59,13 @@ fn align_runs(
     width: impl Fn(&Rendered) -> usize,
     pad: impl Fn(&mut Rendered, usize),
 ) {
+    // A line already padded as a member of a run starts none of its own:
+    // its run is done (starting one at every member scanned the rest of
+    // the run again, quadratic in its length).
+    let mut aligned = vec![false; rs.len()];
     let mut i = 0;
     while i < rs.len() {
-        if !has(&rs[i]) {
+        if aligned[i] || !has(&rs[i]) {
             i += 1;
             continue;
         }
@@ -77,6 +81,7 @@ fn align_runs(
         let max = members.iter().map(|&k| width(&rs[k])).max().unwrap_or(0);
         for &k in &members {
             pad(&mut rs[k], max);
+            aligned[k] = true;
         }
         // Lines passed through may start runs of their own (an inner
         // match), so continue right after this run's first member.

@@ -29,14 +29,15 @@ impl Drop for Scratch {
 /// Runs `fung args…` with `TMPDIR` set to `tmp`: (stdout, stderr, code).
 fn fung(args: &[&str], tmp: &std::path::Path) -> (String, String, Option<i32>) {
     let child = Reaped::new(
-        Command::new(fung_bin())
-            .args(args)
-            .env("TMPDIR", tmp)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            Command::new(fung_bin())
+                .args(args)
+                .env("TMPDIR", tmp)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )
+        .unwrap(),
     );
     let (o, killed) = child.output_within(Duration::from_secs(20)).unwrap();
     assert!(!killed, "fung did not end");
@@ -98,7 +99,7 @@ fn a_deadlock_in_a_release_fails_the_test_block() {
 fn exit_does_not_wait_for_an_abandoned_job() {
     let tmp = Scratch::new("abandoned");
     let f = tmp.0.join("pipe");
-    let made = Command::new("mkfifo").arg(&f).status().unwrap();
+    let made = common::status(Command::new("mkfifo").arg(&f)).unwrap();
     assert!(made.success());
     let start = std::time::Instant::now();
     let (out, err, code) = fung(

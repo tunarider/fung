@@ -101,14 +101,20 @@ impl Cursor {
                         Some(r) => r,
                         None => return Ok(Step::Wait(w.wake())),
                     },
-                    None => match channel::begin_recv(t, rx)? {
-                        Try::Ready(r) => r,
-                        Try::Wait(w) => {
-                            let wake = w.wake();
-                            *wait = Some(w);
-                            return Ok(Step::Wait(wake));
+                    None => {
+                        // A function that cancelled its task returns here
+                        // before any call checks: look first, so a value
+                        // is never taken only to be dropped (05).
+                        t.check_cancelled()?;
+                        match channel::begin_recv(t, rx)? {
+                            Try::Ready(r) => r,
+                            Try::Wait(w) => {
+                                let wake = w.wake();
+                                *wait = Some(w);
+                                return Ok(Step::Wait(wake));
+                            }
                         }
-                    },
+                    }
                 };
                 *wait = None;
                 match got {

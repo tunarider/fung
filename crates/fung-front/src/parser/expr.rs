@@ -1,6 +1,8 @@
 //! Expressions: the Pratt loop, prefix forms, calls, indexing and string
 //! interpolation.
 
+use std::collections::HashSet;
+
 use super::{MAX_DEPTH, PResult, Parser, describe, err, s};
 use crate::diag::Arg;
 use crate::lexer::{Kind, Token, lex_at};
@@ -114,7 +116,7 @@ impl<'a> Parser<'a> {
     pub(super) fn expr(&mut self, min_bp: u32) -> PResult<Node> {
         if self.depth >= MAX_DEPTH {
             let pos = self.peek().pos;
-            return Err(err("E0802", pos, vec![Arg::Int(MAX_DEPTH as i64)]));
+            return Err(err("E0115", pos, vec![Arg::Int(MAX_DEPTH as i64)]));
         }
         self.depth += 1;
         let r = self.expr_loop(min_bp);
@@ -134,20 +136,6 @@ impl<'a> Parser<'a> {
         }
         let lhs = self.prefix()?;
         self.infix_loop(lhs, start, min_bp)
-    }
-
-    /// Continues an expression whose first part, `lhs` (starting at byte
-    /// `start`), is already parsed with a higher power: the result is what
-    /// `expr(min_bp)` would have read from `start`.
-    fn expr_from(&mut self, lhs: Node, start: usize, min_bp: u32) -> PResult<Node> {
-        if self.depth >= MAX_DEPTH {
-            let pos = self.peek().pos;
-            return Err(err("E0802", pos, vec![Arg::Int(MAX_DEPTH as i64)]));
-        }
-        self.depth += 1;
-        let r = self.infix_loop(lhs, start, min_bp);
-        self.depth -= 1;
-        r
     }
 
     /// The operators after a parsed operand, as long as they bind at least
@@ -181,6 +169,12 @@ impl<'a> Parser<'a> {
                     }
                 };
                 continue;
+            }
+            // `..]` ends an open slice (`xs[a ?? 0..]`): the `..` is the
+            // slice's, not a range operator, so the whole expression before
+            // it is the start (`index_or_slice`).
+            if t.kind == Kind::DotDot && self.kind_after() == Kind::RBracket {
+                return Ok(lhs);
             }
             let not_in = t.kind == Kind::KwNot && self.kind_after() == Kind::KwIn;
             let info = if not_in {
@@ -400,10 +394,14 @@ impl<'a> Parser<'a> {
 
     fn call_args_inner(&mut self, mut node: Node) -> PResult<Node> {
         let mut saw_named = false;
+        let mut names: HashSet<&str> = HashSet::new();
         while !self.at(Kind::RParen) {
             if self.at(Kind::Name) && self.kind_after() == Kind::Colon {
                 // Named argument: positional ones must come first (03).
                 let name = self.next();
+                if !names.insert(&name.text) {
+                    return Err(err("E0116", name.pos, vec![s(&name.text)]));
+                }
                 self.next();
                 if self.at_hole() {
                     let pos = self.peek().pos;
@@ -507,18 +505,15 @@ impl<'a> Parser<'a> {
             self.expect_desc(Kind::RBracket, "`]`")?;
             return Ok(slice(Lit::Str("..=".into()), vec![x, nil(), end]));
         }
-        // [a..] has no expression after `..`, so the general expression
-        // parser cannot read it. Read the part a range would start with,
-        // check for `..]`, and otherwise go on from that part: reading the
-        // contents twice made nested indexing exponential.
-        let off = self.peek().off;
-        let first = self.expr(BP_RANGE + 1)?;
+        // [a..]: the expression parser stops before a `..` that `]`
+        // follows, so whatever comes before it is the start, read once
+        // (reading the contents twice made nested indexing exponential).
+        let mut e = self.expr(0)?;
         if self.at(Kind::DotDot) && self.kind_after() == Kind::RBracket {
             self.next();
             self.next();
-            return Ok(slice(Lit::None, vec![x, first, nil()]));
+            return Ok(slice(Lit::None, vec![x, e, nil()]));
         }
-        let mut e = self.expr_from(first, off, 0)?;
         self.expect_desc(Kind::RBracket, "`]`")?;
         if e.head == Head::Range {
             let inclusive = matches!(&e.lit, Lit::Str(op) if op == "..=");

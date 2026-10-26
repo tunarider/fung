@@ -146,7 +146,7 @@ print(send(tx, [tx]))</code></pre><pre class="out err plain" data-code="1"><code
  call path (innermost first):
    example.fung:2 &lt;entry&gt;</code></pre></div>
 <ul>
-<li>atom에는 <strong>바뀌는 것을 품은 값</strong>(atom, 채널의 끝, 태스크, 범위, 파일, 소켓)을 넣지 못한다(E0708).</li>
+<li>atom에는 <strong>바뀌는 것을 품은 값</strong>(atom, 채널의 끝, 태스크, 태스크 범위, 파일, 소켓)을 넣지 못한다(E0708).</li>
 </ul>
 <div class="run"><pre><code>cache = atom({})
 (tx, rx) = channel()

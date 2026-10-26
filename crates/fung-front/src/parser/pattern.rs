@@ -24,7 +24,7 @@ impl Parser<'_> {
     fn pat_term(&mut self) -> PResult<Node> {
         if self.depth >= MAX_DEPTH {
             let pos = self.peek().pos;
-            return Err(err("E0802", pos, vec![Arg::Int(MAX_DEPTH as i64)]));
+            return Err(err("E0115", pos, vec![Arg::Int(MAX_DEPTH as i64)]));
         }
         self.depth += 1;
         let r = self.pat_term_inner();
@@ -112,6 +112,10 @@ impl Parser<'_> {
                     return leaf(Head::Psym, Lit::Str(t.text.clone()));
                 }
                 self.next();
+                // `TAG()` is E0117 here too: the bare tag is the symbol.
+                if self.at(Kind::RParen) {
+                    return Err(err("E0117", t.pos, vec![s(&t.text)]));
+                }
                 let n = Node::with_lit(Head::Ptag, t.pos, Lit::Str(t.text.clone()), Vec::new());
                 self.bracketed(|p| p.pat_list(n, Kind::RParen))
             }
@@ -247,7 +251,7 @@ impl Parser<'_> {
     /// - A pattern followed by `when` is an arm head: `when` appears nowhere
     ///   else, so an error in the guard (or a missing `=>`) is reported as it
     ///   is.
-    /// - A nesting-limit error (E0802) is always fatal, so a stack overflow
+    /// - A nesting-limit error (E0115) is always fatal, so a stack overflow
     ///   cannot hide behind "not an arm head".
     fn arm_head(&mut self) -> PResult<Option<(Node, Node)>> {
         let (save, save_nest, save_depth) = (self.i, self.nest, self.depth);
@@ -258,7 +262,7 @@ impl Parser<'_> {
         };
         let pat = match self.pattern() {
             Ok(pat) => pat,
-            Err(e) if e.code == "E0802" => return Err(e),
+            Err(e) if e.code == "E0115" => return Err(e),
             Err(_) => {
                 back(self);
                 return Ok(None);

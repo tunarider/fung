@@ -1761,29 +1761,29 @@
 -- stdout
 | 1
 -- stderr
-| error[E0803]: take expects an int count, got 'str
+| error[E0403]: argument `n` must be int, got str
 |   --> -e:2:5
 |   |
 | 2 | take([1], "x")
 |   |     ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:80 _clamp
-|    extras/prelude.fung:89 take
+|    extras/prelude.fung:81 _clamp
+|    extras/prelude.fung:90 take
 |    -e:2       <entry>
 -- exit: 1
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
 -- stdout
 -- stderr
-| error[E0803]: take expects an int count, got 'str
+| error[E0403]: argument `n` must be int, got str
 |   --> -e:2:2
 |   |
 | 2 | f([1])
 |   |  ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:80 _clamp
-|    extras/prelude.fung:89 take (1 tail calls elided)
+|    extras/prelude.fung:81 _clamp
+|    extras/prelude.fung:90 take (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "sum([1, \"a\"])"
@@ -1824,8 +1824,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:109 _padding
-|    extras/prelude.fung:114 pad_left
+|    extras/prelude.fung:110 _padding
+|    extras/prelude.fung:115 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1838,8 +1838,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:111 _padding
-|    extras/prelude.fung:114 pad_left
+|    extras/prelude.fung:112 _padding
+|    extras/prelude.fung:115 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1853,7 +1853,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:125 until
+|    extras/prelude.fung:126 until
 |    -e:1       <entry>
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
@@ -1867,7 +1867,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:128 iterate (1 tail calls elided)
+|    extras/prelude.fung:129 iterate (1 tail calls elided)
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
@@ -1904,7 +1904,7 @@
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:101 keys
+|    extras/prelude.fung:102 keys
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1]))"
@@ -2004,15 +2004,13 @@
 ==== "sleep(d: 1ms, d: 2ms)"
 -- stdout
 -- stderr
-| error[E0405]: argument `d` given twice
-|   --> -e:1:6
+| error[E0116]: argument `d` given twice
+|   --> -e:1:15
 |   |
 | 1 | sleep(d: 1ms, d: 2ms)
-|   |      ^
+|   |               ^
 |   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 2
 ==== "print(sleep(1ms), sleep(0s), sleep(-1s))"
 -- stdout
 | nil nil nil
@@ -2408,7 +2406,7 @@
 ==== "print(exec([\"sh\", \"-c\", \"echo $FOO\"], env: {\"FOO\": 1}))"
 -- stdout
 -- stderr
-| error[E0403]: argument `env` must be a map of strings, got a map holding int
+| error[E0403]: argument `env` must be a map of variable names (not empty, no `=`) to strings, got a map holding int
 |   --> -e:1:11
 |   |
 | 1 | print(exec(["sh", "-c", "echo $FOO"], env: {"FOO": 1}))
@@ -2900,10 +2898,22 @@
 ==== "import fs\nprint(fs.open(\"/dev/null\", 'read, 1))"
 -- stdout
 -- stderr
-| error[E0402]: open takes 2 argument(s), got 3
+| error[E0403]: argument `perm` must be nil when mode is 'read, got 0o1
 |   --> -e:2:14
 |   |
 | 2 | print(fs.open("/dev/null", 'read, 1))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import fs\nprint(fs.open(\"/dev/null\", 'read, nil, 1))"
+-- stdout
+-- stderr
+| error[E0402]: open takes 3 argument(s), got 4
+|   --> -e:2:14
+|   |
+| 2 | print(fs.open("/dev/null", 'read, nil, 1))
 |   |              ^
 |   |
 |  call path (innermost first):

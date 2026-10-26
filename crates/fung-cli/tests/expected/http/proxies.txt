@@ -272,7 +272,7 @@
 -- stdout
 | Err({kind: 'network, message: "cannot request `https://example.test/a`: proxy `127.0.0.1:$PORT0`: CONNECT answered 403 Forbidden"})
 | Err({kind: 'network, message: "cannot request `https://[2001:db8::1]:8443/b`: proxy `127.0.0.1:$PORT0`: CONNECT answered 403 Forbidden"})
-| Err({kind: 'network, message: "cannot request `https://u:p@example.test:444/c`: proxy `127.0.0.1:$PORT0`: CONNECT answered 403 Forbidden"})
+| Err({kind: 'network, message: "cannot request `https://u:***@example.test:444/c`: proxy `127.0.0.1:$PORT0`: CONNECT answered 403 Forbidden"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)

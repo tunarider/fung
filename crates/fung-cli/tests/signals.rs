@@ -25,13 +25,14 @@ struct Live {
 impl Live {
     fn start(args: &[&str], stdin: Stdio) -> Live {
         let mut child = Reaped::new(
-            Command::new(fung_bin())
-                .args(args)
-                .stdin(stdin)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .unwrap(),
+            common::spawn(
+                Command::new(fung_bin())
+                    .args(args)
+                    .stdin(stdin)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped()),
+            )
+            .unwrap(),
         );
         let out = BufReader::new(child.stdout.take().unwrap());
         let mut e = child.stderr.take().unwrap();
@@ -52,9 +53,7 @@ impl Live {
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }
-            let _ = Command::new("kill")
-                .args(["-KILL", &pid.to_string()])
-                .status();
+            let _ = common::status(Command::new("kill").args(["-KILL", &pid.to_string()]));
         });
         Live {
             child,
@@ -80,10 +79,10 @@ impl Live {
     }
 
     fn signal(&self, sig: &str) {
-        let st = Command::new("kill")
-            .args([format!("-{sig}"), self.child.id().to_string()])
-            .status()
-            .unwrap();
+        let st = common::status(
+            Command::new("kill").args([format!("-{sig}"), self.child.id().to_string()]),
+        )
+        .unwrap();
         assert!(st.success());
     }
 
@@ -323,11 +322,12 @@ fn a_command_can_read_the_terminal() {
             .arg("/dev/null");
     }
     let mut child = Reaped::new(
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            cmd.stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )
+        .unwrap(),
     );
     child.stdin.take().unwrap().write_all(b"hello\n").unwrap();
     let (o, killed) = child.output_within(Duration::from_secs(10)).unwrap();
@@ -521,12 +521,13 @@ fn an_abandoned_command_is_killed_and_reaped() {
     // still answers it)
     let start = Instant::now();
     let gone = loop {
-        let alive = Command::new("kill")
-            .args(["-0", &pid])
-            .stderr(Stdio::null())
-            .status()
-            .unwrap()
-            .success();
+        let alive = common::status(
+            Command::new("kill")
+                .args(["-0", &pid])
+                .stderr(Stdio::null()),
+        )
+        .unwrap()
+        .success();
         if !alive {
             break true;
         }
@@ -574,12 +575,13 @@ fn an_abandoned_command_group_is_killed_after_its_leader_exited() {
     l.wait_for("after");
     let start = Instant::now();
     let gone = loop {
-        let alive = Command::new("kill")
-            .args(["-0", &pid])
-            .stderr(Stdio::null())
-            .status()
-            .unwrap()
-            .success();
+        let alive = common::status(
+            Command::new("kill")
+                .args(["-0", &pid])
+                .stderr(Stdio::null()),
+        )
+        .unwrap()
+        .success();
         if !alive {
             break true;
         }

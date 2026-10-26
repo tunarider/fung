@@ -62,18 +62,24 @@ fn time(t: Time) -> Value {
     Value::Time(Rc::new(t))
 }
 
-/// The system clock now, in the local zone (no monotonic reading; see
-/// `crate::value::Time`).
-fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
-    let (sec, nsec) = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+/// A system time as a fung `time` in the local zone, or `None` outside
+/// years 0000 to 9999 (`time.now()`, `fs.stat`'s `mtime`).
+pub(crate) fn from_system(at: std::time::SystemTime) -> Option<Value> {
+    let (sec, nsec) = match at.duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => (d.as_secs() as i64, i64::from(d.subsec_nanos())),
         Err(e) => {
             let d = e.duration();
             (-(d.as_secs() as i64), -i64::from(d.subsec_nanos()))
         }
     };
-    match Time::from_unix(sec, nsec, Loc::Zone(tz::local())) {
-        Some(t) => Ok(time(t)),
+    Time::from_unix(sec, nsec, Loc::Zone(tz::local())).map(time)
+}
+
+/// The system clock now, in the local zone (no monotonic reading; see
+/// `crate::value::Time`).
+fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+    match from_system(std::time::SystemTime::now()) {
+        Some(t) => Ok(t),
         None => Err(nat::fail(
             "E0801",
             vec![nat::s("the system clock is outside years 0000 to 9999")],

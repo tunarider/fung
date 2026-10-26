@@ -3,7 +3,7 @@
 //! are tokens, and the parser decides from context whether one ends a
 //! statement (01. 줄 이어짐 규칙).
 //!
-//! Recursion is bounded by `MAX_DEPTH` so absurd input yields E0802
+//! Recursion is bounded by `MAX_DEPTH` so absurd input yields E0115
 //! instead of a stack overflow. A thread's stack does not grow: callers
 //! that may parse input nested close to the limit must run the parser on a thread with a large stack (the tests use
 //! 512 MiB).

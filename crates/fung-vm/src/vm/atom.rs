@@ -273,7 +273,7 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
         &["join", "base", "dir", "ext", "stem", "abs"],
     ),
     ("_native.process", &["env"]),
-    ("_native.range", &["last", "slice"]),
+    ("_native.range", &["count", "items", "last", "slice"]),
     (
         "_native.regex",
         &["is_match", "find", "find_all", "replace", "split"],

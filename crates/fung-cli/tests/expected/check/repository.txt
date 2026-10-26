@@ -84,7 +84,7 @@
 ==== check extras/http.fung
 -- stdout
 -- stderr
-| error[E0310]: `_native.net` is internal; import `net` instead
+| error[E0310]: `_native.net` is internal; import `http` instead
 |   --> extras/http.fung:19:1
 |    |
 | 19 | import _native.net as _net
@@ -114,7 +114,7 @@
 ==== check extras/prelude.fung
 -- stdout
 -- stderr
-| error[E0310]: `_native.process` is internal; import `process` instead
+| error[E0310]: `_native.process` is internal; its functions are in the prelude
 |   --> extras/prelude.fung:6:1
 |   |
 | 6 | import _native.process as _p

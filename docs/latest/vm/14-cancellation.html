@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>취소와 정리 · fung 매뉴얼</title>
-<meta name="description" content="취소와 정리. 구조적 동시성(범위)과 취소 트리, 취소가 도는 코드와 기다리는 코드에 닿는 방법, 블록에 거는 기한 timeout, 무슨 일이 있어도 도는 정리 with, 취소와 다른 정지 요청, 신호, exit.">
+<meta name="description" content="취소와 정리. 구조적 동시성(태스크 범위)과 취소 트리, 취소가 도는 코드와 기다리는 코드에 닿는 방법, 블록에 거는 기한 timeout, 무슨 일이 있어도 도는 정리 with, 취소와 다른 정지 요청, 신호, exit.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -62,12 +62,12 @@
 <main><div class="col">
 <nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../vm/01-how-programs-run.html"><span class="glyph">VM</span>fung VM</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">4부 런타임</span><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>14장</span></nav>
 <h1>취소와 정리</h1>
-<p class="lede">fung의 태스크는 범위 안에서만 태어나고, 범위는 취소 트리의 노드 하나다. 기한도 그 노드에 실리고, 정리는 되감기가 반드시 지나가는 내장 함수 with 하나가 맡는다.</p>
+<p class="lede">fung의 태스크는 태스크 범위 안에서만 태어나고, 범위는 취소 트리의 노드 하나다. 기한도 그 노드에 실리고, 정리는 되감기가 반드시 지나가는 내장 함수 with 하나가 맡는다.</p>
 <ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li>바이트코드</li><li class="on">실행</li></ol>
 <div class="goals"><b>이 장에서 배울 것</b>
 <ul>
 <li>태스크를 멈추게 해야 하는 경우들과, 아무 데서나 멈추면 생기는 문제</li>
-<li>구조적 동시성: 태스크를 범위 안에서만 띄우는 이유와 그 구현(취소 트리)</li>
+<li>구조적 동시성: 태스크를 태스크 범위 안에서만 띄우는 이유와 그 구현(취소 트리)</li>
 <li>취소가 계산하는 태스크와 기다리는 태스크에 닿는 방법</li>
 <li>연산이 아니라 블록에 거는 기한, 그리고 타이머 스레드가 없는 기한</li>
 <li>에러·취소·<code>exit</code>에도 도는 정리 <code>with</code>, 그리고 <code>defer</code>를 두지 않은 이유</li>
@@ -99,11 +99,11 @@
 <li>프로그램은 <strong>언제 끝나는가.</strong> 진입 파일이 끝나도 태스크가 남아 있을 수 있다. 그래서 "진입 파일은 남은 태스크를 기다린다"는 규칙이 붙었다.</li>
 <li>자기가 띄운 태스크를 반드시 기다리는 도우미(<code>pmap</code>)는 보고에서 빼야 해서 내부 전용 <code>spawn_awaited</code>가 생겼다.</li>
 </ul>
-<p>모두 같은 뿌리에서 나온 예외 규칙이다. <strong>구조적 동시성</strong>(structured concurrency)은 그 뿌리를 뽑는다. 규칙은 하나다. <strong>태스크는 범위 안에서만 태어나고, 범위는 그 안의 태스크가 모두 끝나야 닫힌다.</strong> 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 범위는 "열면 그 안에서 시작한 동시 작업이 다 끝나고 돌아온다"를 보장한다.</p>
+<p>모두 같은 뿌리에서 나온 예외 규칙이다. <strong>구조적 동시성</strong>(structured concurrency)은 그 뿌리를 뽑는다. 규칙은 하나다. <strong>태스크는 태스크 범위 안에서만 태어나고, 범위는 그 안의 태스크가 모두 끝나야 닫힌다.</strong> 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 범위는 "열면 그 안에서 시작한 동시 작업이 다 끝나고 돌아온다"를 보장한다.</p>
 <div class="box other"><b>다른 언어는</b>
 <p>2018년 Nathaniel J. Smith가 Python 라이브러리 <strong>Trio</strong>에서 "nursery"라는 이름으로 정리했다. 같은 생각이 <strong>Kotlin</strong>의 <code>coroutineScope</code>, <strong>Swift</strong>의 <code>TaskGroup</code>, <strong>Java 21</strong>의 <code>StructuredTaskScope</code>에 들어갔다. 실패를 격리하는 쪽은 <strong>Erlang</strong>의 supervisor가 원조다.</p>
 </div>
-<div class="box choice"><b>fung의 선택: 범위가 유일한 태스크 생성 방식</b>
+<div class="box choice"><b>fung의 선택: 태스크 범위가 유일한 태스크 생성 방식</b>
 <p>동시성 v2는 구조적 동시성을 <strong>유일한</strong> 태스크 생성 방식으로 두었다(스펙 1절). 규칙 하나로 위의 질문에 답이 정해진다(노트 R7-language의 L1).</p>
 <ul>
 <li>실패는 범위를 연 코드로 간다. 자식 하나가 죽으면 형제와 본문이 취소되고, 그 에러가 <code>scope(</code> 호출에서 다시 난다. 보고할 "아무도 모르는 실패"가 없다.</li>
@@ -130,11 +130,11 @@ error[E0502]: division by zero
   note: scope opened at example.fung:7
  call path (innermost first):
    example.fung:9 &lt;lambda&gt;</code></pre></div>
-<p>두 번째 자식이 0으로 나누자 범위가 형제 <code>db</code>를 취소했다. <code>db</code>는 10초를 기다리지 않고 곧바로 되감기며 <code>release</code>를 지났고(아래 <code>with</code> 절), 그다음 범위가 자식의 에러를 그대로 다시 냈다. 취소된 형제가 여럿이면 그들이 되감기는 순서는 정해져 있지 않다. <code>note: scope opened at …</code>가 범위를 연 자리를 알려 준다.</p>
+<p>두 번째 자식이 0으로 나누자 태스크 범위가 형제 <code>db</code>를 취소했다. <code>db</code>는 10초를 기다리지 않고 곧바로 되감기며 <code>release</code>를 지났고(아래 <code>with</code> 절), 그다음 범위가 자식의 에러를 그대로 다시 냈다. 취소된 형제가 여럿이면 그들이 되감기는 순서는 정해져 있지 않다. <code>note: scope opened at …</code>가 범위를 연 자리를 알려 준다.</p>
 <h3 id="cancel-tree">취소 트리</h3>
 <p>구현의 중심은 <strong>취소 노드</strong>(<code>CancelNode</code>, <code>crates/fung-vm/src/vm/task.rs</code>)의 트리다.</p>
 <ul>
-<li>태스크마다 노드가 하나 있다. 범위도 노드를 하나 만든다. 범위 노드는 범위를 연 태스크의 노드 아래에, 자식 태스크의 노드는 범위 노드 아래에 달린다. 범위의 본문도 범위 노드 아래에서 돈다(태스크의 노드를 잠시 바꿔 끼운다).</li>
+<li>태스크마다 노드가 하나 있다. 태스크 범위도 노드를 하나 만든다. 범위 노드는 범위를 연 태스크의 노드 아래에, 자식 태스크의 노드는 범위 노드 아래에 달린다. 범위의 본문도 범위 노드 아래에서 돈다(태스크의 노드를 잠시 바꿔 끼운다).</li>
 <li>노드를 취소하면 그 아래가 모두 취소된다. 재귀가 아니라 명시적 목록으로 내려가므로 깊은 사슬도 괜찮다.</li>
 <li>노드는 원자적 표시(<code>AtomicBool</code>) 하나와, 자식 목록, 그 노드 아래에서 기다리는 태스크의 깨움 표시 목록(<code>watchers</code>)을 가진다. 취소하면 표시를 세우고 기다리는 태스크를 모두 깨운다.</li>
 <li>부모는 자식을 <strong>강하게</strong> 든다(자식은 부모를 약한 참조로 든다). 그래서 중간의 태스크나 핸들이 사라져도 살아 있는 노드 아래의 것은 루트에서 늘 닿는다. 루트를 취소하면 프로그램의 모든 태스크에 닿는다.</li>
@@ -159,10 +159,10 @@ r2 = scope(fn(s):
 ;;)
 print(r2)</code></pre><pre class="out plain"><code>Err({kind: 'cancelled, message: &quot;cancelled&quot;})
 Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
-<h3 id="scope">범위가 하는 일</h3>
-<p>범위(<code>crates/fung-vm/src/vm/scope.rs</code>)는 자식의 핸들을 쥐지 않는다. <strong>살아 있는 자식 수</strong>만 센다. 자식이 범위 핸들을 붙잡는 일은 흔하다(손자를 띄우려고). 범위가 자식을 쥐면 범위 → 자식 → 범위의 <code>Rc</code> 고리가 생긴다(10장). 수만 세면 자식이 범위를 쥐는 것은 "도는 동안만"이라 고리가 없다.</p>
-<p>본문이 끝나면 범위는 자식이 0이 될 때까지 기다린다. 이 기다림은 <strong>취소로 끊기면 안 된다.</strong> 바깥에서 취소가 왔다고 자식이 남은 채 돌아오면 "범위가 돌아오면 다 끝났다"는 약속이 깨진다. 그래서 기다리는 동안만 태스크의 노드를 <strong>새 루트 노드</strong>로 바꿔 끼운다. 바깥 취소는 그래도 자식에게 닿는다(자식은 원래 트리에 달려 있다). 자식들이 되감고 끝나면 기다림이 풀리고, 그다음에 범위가 취소를 이어서 되감는다. 이 기다림은 교착 판정에 든다(12장). 그래서 "모두가 범위 끝에서 서로를 기다린다"도 E0702로 잡힌다.</p>
-<p>범위가 돌아올 때 결과는 이 순서로 정한다.</p>
+<h3 id="scope">태스크 범위가 하는 일</h3>
+<p>태스크 범위(<code>crates/fung-vm/src/vm/scope.rs</code>)는 자식의 핸들을 쥐지 않는다. <strong>살아 있는 자식 수</strong>만 센다. 자식이 범위 핸들을 붙잡는 일은 흔하다(손자를 띄우려고). 범위가 자식을 쥐면 범위 → 자식 → 범위의 <code>Rc</code> 고리가 생긴다(10장). 수만 세면 자식이 범위를 쥐는 것은 "도는 동안만"이라 고리가 없다.</p>
+<p>본문이 끝나면 태스크 범위는 자식이 0이 될 때까지 기다린다. 이 기다림은 <strong>취소로 끊기면 안 된다.</strong> 바깥에서 취소가 왔다고 자식이 남은 채 돌아오면 "범위가 돌아오면 다 끝났다"는 약속이 깨진다. 그래서 기다리는 동안만 태스크의 노드를 <strong>새 루트 노드</strong>로 바꿔 끼운다. 바깥 취소는 그래도 자식에게 닿는다(자식은 원래 트리에 달려 있다). 자식들이 되감고 끝나면 기다림이 풀리고, 그다음에 범위가 취소를 이어서 되감는다. 이 기다림은 교착 판정에 든다(12장). 그래서 "모두가 범위 끝에서 서로를 기다린다"도 E0702로 잡힌다.</p>
+<p>태스크 범위가 돌아올 때 결과는 이 순서로 정한다.</p>
 <ol>
 <li>자식의 실패: 자식의 위치와 호출 경로를 그대로 두고 <code>note: scope opened at …</code>, 동시에 난 다른 실패는 <code>also failed:</code>로 덧붙인다.</li>
 <li>본문 자신의 에러나 <code>exit</code></li>
@@ -170,7 +170,7 @@ Err({kind: 'cancelled, message: &quot;cancelled&quot;})</code></pre></div>
 <li><code>cancel(s)</code>: <code>Err({kind: 'cancelled})</code></li>
 <li>본문의 값</li>
 </ol>
-<p>"취소는 그것이 겨눈 범위가 받는다"는 Trio의 cancel scope와 같은 규칙이다. 그래서 아래의 <code>timeout</code>도 "타이머가 취소하는 범위"로 같은 자리에 들어간다.</p>
+<p>"취소는 그것이 겨눈 태스크 범위가 받는다"는 Trio의 cancel scope와 같은 규칙이다. 그래서 아래의 <code>timeout</code>도 "타이머가 취소하는 범위"로 같은 자리에 들어간다.</p>
 <h3 id="supervise">supervise: 실패를 격리하기</h3>
 <div class="run"><pre><code>fn handle(req) = req == &quot;bad&quot; then 1 / 0 else print(&quot;ok&quot;, req)
 
@@ -181,17 +181,17 @@ print(&quot;server still up&quot;)</code></pre><pre class="out plain"><code>ok a
 failed: 'error E0502
 ok c
 server still up</code></pre></div>
-<p><code>supervise</code>의 자식이 죽으면 형제를 취소하지 않고, 실패 값 <code>{kind, code, message, at}</code>를 <code>on_fail</code>에 준다. 처리기 태스크를 따로 띄워 두지 않는다. 늘 떠 있는 처리기가 있으면 범위가 그것을 기다리느라 닫히지 않기 때문이다. 대신 처리하는 쪽이 없을 때 <strong>처음 실패한 자식이 처리기가 되어</strong> 대기열이 빌 때까지 <code>on_fail</code>을 부르고, 그동안 범위의 살아 있는 자식으로 남는다. 범위가 취소되어 처리하지 못한 실패는 버리지 않고 <code>task failed:</code>로 보고한다(종료 코드 1).</p>
+<p><code>supervise</code>의 자식이 죽으면 형제를 취소하지 않고, 실패 값 <code>{kind, code, message, at}</code>를 <code>on_fail</code>에 준다. 처리기 태스크를 따로 띄워 두지 않는다. 늘 떠 있는 처리기가 있으면 태스크 범위가 그것을 기다리느라 닫히지 않기 때문이다. 대신 처리하는 쪽이 없을 때 <strong>처음 실패한 자식이 처리기가 되어</strong> 대기열이 빌 때까지 <code>on_fail</code>을 부르고, 그동안 범위의 살아 있는 자식으로 남는다. 범위가 취소되어 처리하지 못한 실패는 버리지 않고 <code>task failed:</code>로 보고한다(종료 코드 1).</p>
 <h2 id="delivery">취소가 닿는 법</h2>
 <p>취소 표시가 섰다고 태스크가 곧바로 멈추지는 않는다. fung의 취소는 <strong>협력형</strong>이다. 태스크가 정해진 지점에서 표시를 보고 스스로 되감는다. 그 지점이 둘이다.</p>
 <ul>
 <li><strong>계산하는 태스크</strong>: 모든 <code>CALL</code>·<code>TAILCALL</code>에서 <code>Task::tick</code>이 표시를 본다(12장의 차례 넘기기와 같은 자리). 표시가 서 있으면 그 자리에서 E0701 <code>task cancelled</code>로 되감기를 시작한다. 반복은 모두 호출을 지나므로, 끝없는 계산도 다음 호출에서 멈춘다. 표시 읽기는 원자 변수 읽기 하나라 평소에는 비용이 보이지 않는다.</li>
 <li><strong>기다리는 태스크</strong>: 주차한 태스크는 자기 노드의 <code>watchers</code>에 등록되어 있다. 취소가 그것을 깨우고, 깨어난 태스크는 기다림이 끝난 이유가 취소임을 보고(<code>after_park</code>) 기다리던 상자의 <code>unwind</code>로 간다. 상자마다 "이미 건너온 값은 취소보다 먼저" 같은 자기 규칙을 정한다(채널).</li>
 </ul>
-<p>되감기(unwinding)는 프레임을 하나씩 걷어 내며 위로 올라간다. 그 길에 이어 가기 상자(12장)가 있으면 그 상자의 <code>unwind</code>가 본다. 기본은 그대로 올려 보내기이고, <code>with</code>·<code>timeout</code>·<code>scope</code>가 여기서 끼어든다. E0701은 사용자에게 찍히지 않는다. 태스크의 핸들이 그것을 <code>Err({kind: 'cancelled})</code>로 바꾸고, 범위가 결과를 정한다.</p>
+<p>되감기(unwinding)는 프레임을 하나씩 걷어 내며 위로 올라간다. 그 길에 이어 가기 상자(12장)가 있으면 그 상자의 <code>unwind</code>가 본다. 기본은 그대로 올려 보내기이고, <code>with</code>·<code>timeout</code>·<code>scope</code>가 여기서 끼어든다. E0701은 사용자에게 찍히지 않는다. 태스크의 핸들이 그것을 <code>Err({kind: 'cancelled})</code>로 바꾸고, 태스크 범위가 결과를 정한다.</p>
 <h2 id="timeout">기한: timeout</h2>
 <p>0.2.0까지 기한은 연산마다 따로 있었다(<code>await(t, timeout: d)</code>, <code>recv(ch, timeout: d)</code>). 연산 하나라면 충분하지만 웹서비스의 기한은 대개 <strong>요청 하나 전체</strong>에 걸린다. 연산마다의 기한으로는 남은 시간을 계산해 다음 연산에 넘겨야 하고, 그 안에서 띄운 태스크에는 기한이 닿지 않으며, 바깥 함수가 정한 기한을 안쪽 함수가 모른다.</p>
-<p>Trio의 글 "Timeouts and cancellation for humans"(2018)가 이 문제를 정리했다. 기한을 연산이 아니라 <strong>코드 블록</strong>에 건다. 그러면 기한이 합쳐지고(바깥과 안쪽 중 이른 쪽), 그 안의 모든 연산과 태스크가 따른다. fung은 이미 범위를 들였으므로 <code>timeout(d, f)</code>는 "타이머가 취소하는 범위"로 같은 자리에 들어갔다(노트 R7-language의 L2).</p>
+<p>Trio의 글 "Timeouts and cancellation for humans"(2018)가 이 문제를 정리했다. 기한을 연산이 아니라 <strong>코드 블록</strong>에 건다. 그러면 기한이 합쳐지고(바깥과 안쪽 중 이른 쪽), 그 안의 모든 연산과 태스크가 따른다. fung은 이미 태스크 범위를 들였으므로 <code>timeout(d, f)</code>는 "타이머가 취소하는 범위"로 같은 자리에 들어갔다(노트 R7-language의 L2).</p>
 <div class="run"><pre><code>print(timeout(100ms, () =&gt; sleep(10s)))
 print(timeout(1s, () =&gt; &quot;fast&quot;))
 print(timeout(1s, () =&gt; [&quot;inner answered&quot;, timeout(50ms, () =&gt; sleep(10s))]))
@@ -203,14 +203,14 @@ Err({kind: 'timeout, message: &quot;timed out after 50ms&quot;})
 Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p>세 번째 줄은 안쪽 기한이 먼저라 안쪽 <code>timeout</code>이 답했고 바깥은 그 값을 받았다. 네 번째 줄은 바깥 기한이 먼저라 안쪽은 값을 내지 못하고 되감겼고, 바깥 <code>timeout</code>이 답했다. 마지막 줄은 외부 명령 <code>sleep 5</code>가 200 ms에 끝났다(아래 "외부 명령").</p>
 <h3 id="deadline-node">기한은 노드에</h3>
-<p><code>timeout</code>은 기한이 실린 취소 노드를 만든다(<code>CancelNode::with_deadline</code>). 그 아래에 생기는 노드(범위, 그 안의 태스크)는 부모의 기한을 그대로 물려받는다. 안쪽 <code>timeout</code>의 기한이 바깥보다 늦으면 바깥 기한을 물려받으므로, "이른 쪽이 이긴다"가 저절로 된다. 노드는 기한과 함께 그 기한의 <strong>주인</strong>(그 기한을 만든 <code>timeout</code>의 노드)을 기억한다.</p>
+<p><code>timeout</code>은 기한이 실린 취소 노드를 만든다(<code>CancelNode::with_deadline</code>). 그 아래에 생기는 노드(태스크 범위, 그 안의 태스크)는 부모의 기한을 그대로 물려받는다. 안쪽 <code>timeout</code>의 기한이 바깥보다 늦으면 바깥 기한을 물려받으므로, "이른 쪽이 이긴다"가 저절로 된다. 노드는 기한과 함께 그 기한의 <strong>주인</strong>(그 기한을 만든 <code>timeout</code>의 노드)을 기억한다.</p>
 <p><strong>타이머 스레드는 없다.</strong> 처음 떠오르는 구현은 타이머 스레드가 기한에 노드를 취소하는 것이지만, 스레드가 하나 더 늘고 교착 판정이 그 스레드를 모르게 된다(노트 R7-language의 L2). 대신 <strong>노드 아래에 있는 쪽이 스스로 기한을 본다.</strong></p>
 <ul>
 <li>주차하는 태스크는 기한까지만 잔다. 스케줄러가 주차할 때 노드의 기한을 기다림의 기한과 합쳐 타이머 힙에 넣는다(<code>Sched::park</code>). 기한이 있는 기다림은 "타이머가 끝낼 기다림"이라 교착으로 몰리지 않는다.</li>
 <li>계산하는 태스크는 차례를 넘길 때(호출 1,000번마다, <code>end_turn</code>) 시계를 본다. 그 사이 수천 번의 호출에는 비용이 없다.</li>
 <li>기한이 지난 것을 처음 본 쪽이 주인 노드를 <strong>만료</strong>시킨다(<code>expire</code>). 만료는 "기한으로 취소됨" 표시를 세우고 취소하는 일이다. 그러면 아래가 모두 취소된다.</li>
 </ul>
-<p><code>timeout</code>이 끝날 때의 규칙은 범위와 같은 모양이다(<code>crates/fung-vm/src/vm/deadline.rs</code>의 <code>Timeout</code>).</p>
+<p><code>timeout</code>이 끝날 때의 규칙은 태스크 범위와 같은 모양이다(<code>crates/fung-vm/src/vm/deadline.rs</code>의 <code>Timeout</code>).</p>
 <ul>
 <li>본문이 값을 돌려줬으면 그 값이다.</li>
 <li>본문이 취소로 되감겼고, 이 노드가 <strong>자기 기한으로</strong> 만료됐고, 바깥은 취소되지 않았으면 <code>Err({kind: 'timeout})</code>이다.</li>
@@ -240,7 +240,7 @@ print(timeout(1s, () =&gt; double(21)))</code></pre><pre class="out plain"><code
 </ul>
 <p><code>with</code>는 <strong>평범한 내장 함수</strong>라서 둘 다 피한다. <code>use</code>는 내장 함수 안에서 부르므로 처음부터 꼬리 호출이 아니고, 정리할 일은 이어 가기 상자(12장)의 상태로 들고 있으면 된다. 되감기는 이미 있는 길(상자의 <code>unwind</code>)을 그대로 쓴다. 문법이 아니라 함수라서 "무엇을 어떻게 닫는가"를 언어가 알 필요도 없다. 예전의 <code>at_exit</code>(프로세스가 끝날 때 도는 처리기)도 지웠다. <code>exit</code>·교착·진입 파일의 에러가 모두 "루트 취소 → 되감기"이므로, 진입 파일 본문을 <code>with</code>로 감싸면 같은 일을 한다. 정리 장치가 하나면 규칙도 하나다.</p>
 </div>
-<p><code>with</code>는 <code>acquire()</code>를 부르고, 그 값으로 <code>use(r)</code>를 부르고, <code>use</code>가 <strong>어떻게 끝나든</strong> <code>release(r)</code>를 부른다. 값, <code>Err</code> 반환, 런타임 에러, 취소(<code>cancel</code>·<code>timeout</code>·범위 실패), <code>exit</code> 모두다(<code>crates/fung-vm/src/vm/cleanup.rs</code>의 <code>run_with</code>).</p>
+<p><code>with</code>는 <code>acquire()</code>를 부르고, 그 값으로 <code>use(r)</code>를 부르고, <code>use</code>가 <strong>어떻게 끝나든</strong> <code>release(r)</code>를 부른다. 값, <code>Err</code> 반환, 런타임 에러, 취소(<code>cancel</code>·<code>timeout</code>·태스크 범위의 실패), <code>exit</code> 모두다(<code>crates/fung-vm/src/vm/cleanup.rs</code>의 <code>run_with</code>).</p>
 <div class="run"><pre><code>fn conn(name) = with(
   () =&gt; print(&quot;open&quot;, name),
   _ =&gt; sleep(10s),
@@ -382,8 +382,8 @@ Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></
 </div>
 <h2 id="summary">정리</h2>
 <ul>
-<li>태스크는 <code>scope</code>·<code>supervise</code>가 연 범위 안에서만 태어나고, 범위는 자식이 모두 끝나야 돌아온다. 그래서 아무도 모르는 실패와 끝나지 않는 배경 태스크가 없다.</li>
-<li>취소는 노드의 트리다. 범위 노드 아래에 자식이, 부모는 자식을 강하게 든다. 노드를 취소하면 아래가 모두 취소되고 기다리던 태스크가 깨어난다.</li>
+<li>태스크는 <code>scope</code>·<code>supervise</code>가 연 태스크 범위 안에서만 태어나고, 범위는 자식이 모두 끝나야 돌아온다. 그래서 아무도 모르는 실패와 끝나지 않는 배경 태스크가 없다.</li>
+<li>취소는 노드의 트리다. 태스크 범위의 노드 아래에 자식이, 부모는 자식을 강하게 든다. 노드를 취소하면 아래가 모두 취소되고 기다리던 태스크가 깨어난다.</li>
 <li>취소는 협력형이다. 계산하는 태스크는 호출마다, 기다리는 태스크는 깨어나서 표시를 보고 E0701로 되감는다. 되감기는 이어 가기 상자의 <code>unwind</code>를 지난다.</li>
 <li><code>timeout</code>은 기한이 실린 노드다. 타이머 스레드 없이, 주차한 태스크는 기한까지만 자고 계산하는 태스크는 차례를 넘길 때 시계를 본다. 이른 기한이 이긴다.</li>
 <li><code>with</code>는 무슨 일이 있어도 <code>release</code>를 부르는 평범한 내장 함수다. <code>release</code>는 차단 노드 아래에서 돌고, 그 실패는 버리지 않는다. <code>defer</code>와 <code>at_exit</code>는 없다.</li>

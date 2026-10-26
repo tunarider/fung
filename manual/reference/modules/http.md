@@ -22,7 +22,7 @@ description: fung 모듈 http — HTTP 요청 보내기(get, post, request)와 H
 ### fung에서의 모양 {#shape}
 
 - 클라이언트 함수는 응답을 `Ok({status, headers, body})`로 준다. **응답을 받았으면 상태 코드가 무엇이든 `Ok`**다. "서버가 404라고 답했다"와 "요청이 가지 못했다"는 다른 일이기 때문이다. 상태 코드는 직접 검사한다.
-- 요청이 가지 못하면(연결 거부, 없는 호스트, 인증서 오류 등) `Err({kind: 'network, message})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout, message})`다. `message`는 ``cannot request `URL`: 이유`` 꼴이고, 이유는 `connection refused`, `no such host`, ``unsupported scheme `ftp` ``, `invalid URL: …`, `unknown certificate authority`, ``certificate is not valid for `host` ``, `certificate has expired (valid until …)`, `too many redirects (limit 10)` 같은 짧은 문구다. 시간 초과의 문구는 ``request to `URL` timed out``이다.
+- 요청이 가지 못하면(연결 거부, 없는 호스트, 인증서 오류 등) `Err({kind: 'network, message})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout, message})`다. `message`는 ``cannot request `URL`: 이유`` 꼴이고, 이유는 `connection refused`, `no such host`, ``unsupported scheme `ftp` ``, `invalid URL: …`, `unknown certificate authority`, ``certificate is not valid for `host` ``, `certificate has expired (valid until …)`, `too many redirects (limit 10)` 같은 짧은 문구다. 시간 초과의 문구는 ``request to `URL` timed out``이다. 문구 속 URL의 비밀번호는 언제나 `***`로 가린다(`http://ann:***@host/`): 에러는 로그에 남기 때문이다.
 - 응답 `headers`는 맵이고 **키는 소문자**다(`r.headers["content-type"]`). 같은 이름의 헤더가 여럿이면 `", "`로 이어 하나로 준다.
 - 본문은 문자열이다. JSON이면 [`json.parse`](json.html#fn-json-parse)로 읽는다. UTF-8이 아닌 바이트는 U+FFFD로 바뀌므로 이미지 같은 바이너리 본문은 그대로 받을 수 없다.
 - 태스크가 취소되면(바깥의 `timeout`, `cancel`) 요청도 멈춘다(E0701).
@@ -283,7 +283,7 @@ print(r.status, r.headers["content-length"], r.body == "")
 **끝나는 길은 둘이다.**
 
 - **정지 요청**: 첫 SIGINT(Ctrl-C)·SIGTERM(`kill`, 컨테이너 종료)이나 [`request_stop()`](../prelude/concurrency.html#fn-request_stop)이 오면([`stop_signal`](../prelude/concurrency.html#fn-stop_signal)) 새 연결을 그만 받고(듣던 소켓을 닫음), 처리 중인 요청을 최대 `drain`까지 마저 끝낸 뒤, 그때도 남은 것은 취소해 503으로 답하고 `Ok(nil)`을 돌려준다. 정상 종료다.
-- **취소**: 서버가 든 범위가 취소되면(바깥 `timeout`, `cancel`, `exit`) 기다리지 않고 곧바로 멈춘다. 핸들러 안의 `exit`도 503이다.
+- **취소**: 서버가 든 태스크 범위가 취소되면(바깥 `timeout`, `cancel`, `exit`) 기다리지 않고 곧바로 멈춘다. 핸들러 안의 `exit`도 503이다.
 
 `ready`를 주면 듣기 시작한 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다. 포트 `0`으로 띄운 서버의 포트를 아는 길이고, 시험에서 서버가 준비된 뒤에 요청을 보내는 데 쓴다. `reuse_port: true`는 `SO_REUSEPORT`를 켜서 프로세스 여럿이 한 포트에서 받게 한다(Linux는 연결을 나눠 주고, macOS는 받게만 한다). 여러 코어를 쓰는 방법이다.
 

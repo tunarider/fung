@@ -9,13 +9,31 @@
 //! lasts only while one line is read: [`RawMode`] restores the saved
 //! settings when it drops, which also happens when the reading code
 //! unwinds from a panic. The code a line runs (an `exit(n)`, a crash)
-//! therefore always finds the terminal as it was.
+//! therefore always finds the terminal as it was. A process that ends
+//! without unwinding (SIGTERM or SIGHUP from outside, a closed output's
+//! SIGPIPE) restores the saved settings first ([`restore`]): they are
+//! also kept in [`SAVED`] while raw mode is on.
 //!
 //! `fung-cli` may depend only on workspace crates, so the `libc` calls
 //! live here (`tests/deps.rs`).
 
 use std::io;
 use std::os::fd::RawFd;
+use std::sync::Mutex;
+
+/// The settings raw mode replaced, while it is on: what [`restore`] puts
+/// back when the process ends without dropping the [`RawMode`].
+static SAVED: Mutex<Option<(RawFd, libc::termios)>> = Mutex::new(None);
+
+/// Puts back the settings raw mode replaced, if it is on: for a process
+/// about to end at once (`signals::exit_now`, `sigpipe::die`).
+pub fn restore() {
+    let saved = SAVED.lock().unwrap_or_else(|e| e.into_inner()).take();
+    if let Some((fd, t)) = saved {
+        // the process ends right after: a failure changes nothing
+        let _ = set(fd, &t);
+    }
+}
 
 /// Whether `fd` is a terminal: it has terminal settings (`tcgetattr`
 /// succeeds). `/dev/null` and other devices are not.
@@ -63,13 +81,18 @@ impl RawMode {
         raw.c_lflag &= !(libc::ECHO | libc::ICANON | libc::ISIG | libc::IEXTEN);
         raw.c_cc[libc::VMIN] = 1;
         raw.c_cc[libc::VTIME] = 0;
-        set(fd, &raw)?;
+        *SAVED.lock().unwrap_or_else(|e| e.into_inner()) = Some((fd, saved));
+        if let Err(e) = set(fd, &raw) {
+            SAVED.lock().unwrap_or_else(|e| e.into_inner()).take();
+            return Err(e);
+        }
         Ok(RawMode { fd, saved })
     }
 }
 
 impl Drop for RawMode {
     fn drop(&mut self) {
+        SAVED.lock().unwrap_or_else(|e| e.into_inner()).take();
         // a failure here has nothing left to do about it
         let _ = set(self.fd, &self.saved);
     }
@@ -114,7 +137,16 @@ pub mod pty {
             return Err(io::Error::last_os_error());
         }
         // SAFETY: on success both are fresh descriptors nothing else owns.
-        Ok(unsafe { (OwnedFd::from_raw_fd(master), OwnedFd::from_raw_fd(slave)) })
+        let fds = unsafe { (OwnedFd::from_raw_fd(master), OwnedFd::from_raw_fd(slave)) };
+        // `openpty` leaves them open across `exec`: a child another
+        // thread starts would keep the terminal open after its test ends.
+        for fd in [master, slave] {
+            // SAFETY: `fd` is open (owned by `fds`); fcntl takes no pointers here.
+            if unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
+                return Err(io::Error::last_os_error());
+            }
+        }
+        Ok(fds)
     }
 
     /// Whether the terminal `fd` reads keys raw: canonical mode and echo
@@ -171,7 +203,7 @@ mod tests {
 
     #[test]
     fn not_a_terminal() {
-        let (r, _w) = std::io::pipe().unwrap();
+        let (r, _w) = crate::testutil::child::pipe().unwrap();
         assert!(!is_terminal(r.as_raw_fd()));
         assert!(RawMode::enable(r.as_raw_fd()).is_err());
         // a character device, but no terminal

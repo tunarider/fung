@@ -812,6 +812,11 @@ print(fs.open("/dev/null", 'read, 1))"#,
     ),
     (
         r#"import fs
+print(fs.open("/dev/null", 'read, nil, 1))"#,
+        "",
+    ),
+    (
+        r#"import fs
 print(fs.close(1))"#,
         "",
     ),

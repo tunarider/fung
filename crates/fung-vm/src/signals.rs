@@ -28,7 +28,8 @@ pub type Policy = Arc<dyn Fn(i32) + Send + Sync>;
 
 static POLICY: Mutex<Option<Policy>> = Mutex::new(None);
 
-/// The set of SIGINT and SIGTERM.
+/// The set of SIGINT, SIGTERM and SIGHUP (which ends the process at once,
+/// restoring a raw terminal first).
 fn stop_set() -> libc::sigset_t {
     // SAFETY: `sigemptyset` initialises the zeroed local set before
     // `sigaddset` uses it; both only touch that set.
@@ -37,6 +38,7 @@ fn stop_set() -> libc::sigset_t {
         libc::sigemptyset(&mut set);
         libc::sigaddset(&mut set, libc::SIGINT);
         libc::sigaddset(&mut set, libc::SIGTERM);
+        libc::sigaddset(&mut set, libc::SIGHUP);
         set
     }
 }
@@ -61,6 +63,11 @@ pub fn init() {
                 let r = unsafe { libc::sigwait(&set, &mut sig) };
                 if r != 0 {
                     continue;
+                }
+                // A hang-up ends the process as its default action would,
+                // whatever the command: the terminal is gone (08).
+                if sig == libc::SIGHUP {
+                    exit_now(sig);
                 }
                 let policy = POLICY.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 match policy {
@@ -102,8 +109,10 @@ pub fn set(policy: Option<Policy>) {
 }
 
 /// Ends the process at once with 128 + `sig`, without unwinding or
-/// cleanup (a second signal; a command that runs no fung code).
+/// cleanup (a second signal; a command that runs no fung code). A
+/// terminal in the REPL's raw mode is put back first (`term::restore`).
 pub fn exit_now(sig: i32) -> ! {
+    crate::term::restore();
     std::process::exit(128 + sig)
 }
 

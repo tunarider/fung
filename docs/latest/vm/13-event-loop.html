@@ -160,7 +160,7 @@ print(&quot;server drained&quot;)</code></pre>
 <p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
 <pre class="plain"><code>[&quot;slow done&quot;, &quot;fast /a&quot;, &quot;fast /b&quot;]
 server drained</code></pre>
-<p><code>conc.pmap</code>은 결과를 입력 순서대로 모은다. <code>request_stop()</code>은 14장의 정지 요청이다. 서버가 그것을 보고 리스너를 닫은 뒤 범위가 닫힌다.</p>
+<p><code>conc.pmap</code>은 결과를 입력 순서대로 모은다. <code>request_stop()</code>은 14장의 정지 요청이다. 서버가 그것을 보고 리스너를 닫은 뒤 태스크 범위가 닫힌다.</p>
 <h2 id="pool">스레드 풀</h2>
 <h3 id="why-pool">왜 풀인가</h3>
 <p>파일을 읽는 일은 이벤트 루프로 기다릴 수 없다. 일반 파일의 fd는 언제나 "준비됨"으로 보고되지만 실제 <code>read</code>는 디스크를 기다리며 막힌다. 이름 조회(<code>getaddrinfo</code>)는 막히는 함수만 있다. 이런 일은 다른 운영체제 스레드에서 해야 한다.</p>

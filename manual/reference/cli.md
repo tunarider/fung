@@ -75,7 +75,7 @@ from shebang ["x"]
 
 스크립트 파일을 읽지 못하면 `error: cannot read `nofile.fung`: no such file or directory`를 쓰고 종료 코드 3으로 끝난다. 컴파일 에러가 하나라도 있으면 아무것도 실행하지 않고 모든 에러를 보인 뒤 2로 끝난다. 실행 중 에러는 1이다([종료 코드](#exit-codes)).
 
-**신호**: 실행 중 첫 Ctrl-C(SIGINT)나 SIGTERM은 **정지 요청**이다. [`stop_signal`](prelude/concurrency.html#fn-stop_signal)을 보는 코드가 없으면 프로그램을 취소하고(`with`의 정리는 돈다) 130(SIGINT)·143(SIGTERM)으로 끝난다. 보는 코드가 있으면 그 코드가 스스로 정리하고 끝낸다(예: [`http.serve`](modules/http.html#fn-http-serve)는 처리 중인 요청을 마치고 돌아온다). 두 번째 신호는 정리를 기다리지 않고 곧바로 끝낸다. 출력을 읽는 쪽이 사라지면(`fung x.fung | head -1`) 다른 셸 명령처럼 SIGPIPE로 조용히 끝난다(셸에는 141).
+**신호**: 실행 중 첫 Ctrl-C(SIGINT)나 SIGTERM은 **정지 요청**이다. [`stop_signal`](prelude/concurrency.html#fn-stop_signal)을 보는 코드가 없으면 프로그램을 취소하고(`with`의 정리는 돈다) 130(SIGINT)·143(SIGTERM)으로 끝난다. 보는 코드가 있으면 그 코드가 스스로 정리하고 끝낸다(예: [`http.serve`](modules/http.html#fn-http-serve)는 처리 중인 요청을 마치고 돌아온다). 두 번째 신호는 정리를 기다리지 않고 곧바로 끝낸다. 출력을 읽는 쪽이 사라지면(`fung x.fung | head -1`) 다른 셸 명령처럼 SIGPIPE로 조용히 끝난다(셸에는 141). SIGHUP(터미널이 닫힘)은 정리 없이 곧바로 129로 끝난다. REPL이 이렇게 끝나도 터미널 설정은 되돌려 놓는다.
 
 ## 코드 한 줄 실행: `-e` {#eval}
 
@@ -219,6 +219,7 @@ print(f(x, 2))
 ```
 
 - 파일을 그 자리에서 고치고, 고친 파일의 경로를 한 줄씩 쓴다. 이미 맞는 파일은 건드리지도 쓰지도 않는다.
+- 고칠 때는 옆에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 죽거나 디스크가 차도 파일이 반만 남지 않는다. 권한은 그대로이고, 링크는 링크로 남는다(가리키는 파일을 고친다). 하드 링크가 여럿이거나 남의 파일이면 그 자리에 바로 쓴다.
 - 디렉터리를 주면 [`test`와 같은 규칙](#test)으로 그 아래의 `.fung` 파일을 모두 고친다: `fung fmt .`
 - `--check`는 고치지 않고 고쳐야 할 파일만 쓴다. 하나라도 있으면 종료 코드 1이라 CI에서 쓴다.
 - `-`는 표준 입력을 읽어 고친 결과를 표준 출력에 쓴다(편집기 연동용). `--check -`는 고칠 게 있으면 `<stdin>`을 쓰고 1, 없으면 아무것도 쓰지 않고 0이다.
@@ -305,7 +306,7 @@ $ echo $?
     <tr><td><a href="errors.html#e04"><code>E04xx</code></a></td><td>호출과 타입 표기(인자 수, 인자 타입)</td></tr>
     <tr><td><a href="errors.html#e05"><code>E05xx</code></a></td><td>런타임 연산(타입 불일치, 0 나누기, 오버플로, 범위 밖 인덱스, 없는 키)</td></tr>
     <tr><td><a href="errors.html#e06"><code>E06xx</code></a></td><td>패턴과 결과값(맞는 패턴 없음, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>)</td></tr>
-    <tr><td><a href="errors.html#e07"><code>E07xx</code></a></td><td>동시성(취소, 교착, 닫힌 범위, atom 규칙)</td></tr>
+    <tr><td><a href="errors.html#e07"><code>E07xx</code></a></td><td>동시성(취소, 교착, 닫힌 태스크 범위, atom 규칙)</td></tr>
     <tr><td><a href="errors.html#e08"><code>E08xx</code></a></td><td>한도와 환경(스택 깊이, <code>fail</code>, <code>assert</code>, 내부 오류)</td></tr>
     <tr><td><a href="errors.html#w01"><code>W01xx</code></a></td><td>경고(<code>check</code>·<code>test</code>에서만): 안 쓰는 import·변수, prelude 이름 가리기</td></tr>
   </tbody>

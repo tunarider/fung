@@ -135,6 +135,22 @@ fn a_release_stuck_without_exit_is_a_deadlock() {
     assert_eq!(code, 1);
 }
 
+/// A release that waits too after a deadlock was reported is the same
+/// deadlock going on: it is cut short with a one-line note, not reported
+/// as a second E0702.
+#[test]
+fn a_release_stuck_after_a_deadlock_is_a_note() {
+    let (_, err, code) = run("(tx, rx) = channel()\nwith(() => 1, x => recv(rx), x => recv(rx))");
+    assert_eq!(err.matches("error[E0702]").count(), 1, "{err}");
+    assert!(
+        err.ends_with(
+            " note: a release waited too after the deadlock and was cut short: recv at -e:2:39\n"
+        ),
+        "{err}"
+    );
+    assert_eq!(code, 1);
+}
+
 #[test]
 fn with_checks_its_arguments() {
     let (_, err, _) = run("with(1, r => r, r => r)");
@@ -187,15 +203,22 @@ fn a_stuck_release_after_an_exit_lets_the_outer_release_run() {
     );
 }
 
-/// A deadlock in `use`, then a release stuck too: each is reported.
+/// A deadlock in `use`, then a release stuck too: the deadlock is reported
+/// once and the stuck release is a note; the outer release still runs.
 #[test]
-fn a_deadlock_then_a_stuck_release_are_both_reported() {
+fn a_deadlock_then_a_stuck_release_are_a_report_and_a_note() {
     let (out, err, code) = run_within(
         "(_tx, never) = channel()\nwith(() => nil, _ => with(() => nil, _ => recv(never), _ => recv(never)), _ => print(\"second\"))",
     );
     assert_eq!(
         (out, report_heads(&err), code),
-        ("second\n".into(), format!("{DEADLOCK}{DEADLOCK}"), 1)
+        ("second\n".into(), DEADLOCK.into(), 1)
+    );
+    assert!(
+        err.contains(
+            " note: a release waited too after the deadlock and was cut short: recv at -e:2:"
+        ),
+        "{err}"
     );
 }
 

@@ -29,6 +29,14 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0112", "expected %s, found %s", "", ""],
     ["E0113", "duplicate key `%s` in map literal", "", ""],
     ["E0114", "test must be at the top level", "", ""],
+    ["E0115", "expression nesting too deep (limit %d)", "", ""],
+    ["E0116", "argument `%s` given twice", "", ""],
+    [
+        "E0117",
+        "`%s()` has no arguments",
+        "",
+        "a tag without arguments is a symbol: write it without the parentheses",
+    ],
     [
         "E0204",
         "undefined name `%s`",
@@ -154,6 +162,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "put the pipe in parentheses: `(xs |> try_map(f))?`",
     ],
+    ["E0230", "too many %s (limit %d)", "", ""],
     [
         "E0301",
         "cannot find module `%s`",
@@ -176,9 +185,14 @@ const CATALOG: &[[&str; 4]] = &[
         "move the statement into a function, or into the entry file",
     ],
     ["E0307", "cannot import the entry file", "", ""],
-    ["E0308", "cannot shadow module `%s`", "", ""],
+    [
+        "E0308",
+        "cannot shadow module `%s`",
+        "",
+        "import it under another name: `import fs as m`",
+    ],
     ["E0309", "name `%s` is already bound to a module", "", ""],
-    ["E0310", "`%s` is internal; import `%s` instead", "", ""],
+    ["E0310", "`%s` is internal; %s", "", ""],
     ["E0311", "import must be at the top level", "", ""],
     ["E0401", "cannot call a value of type %s", "", ""],
     ["E0402", "%s takes %d argument(s), got %d", "", ""],
@@ -275,7 +289,13 @@ const CATALOG: &[[&str; 4]] = &[
         "",
     ],
     ["E0801", "internal error: %v", "", ""],
-    ["E0802", "expression nesting too deep (limit %d)", "", ""],
+    // not raised since the nesting limit became the syntax error E0115
+    [
+        "E0802",
+        "expression nesting too deep (limit %d)",
+        "",
+        "not used: became the syntax error E0115",
+    ],
     ["E0803", "%s", "", ""],
     [
         "E0804",

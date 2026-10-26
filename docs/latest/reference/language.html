@@ -368,8 +368,9 @@ print(sign(5), 3 &gt; 2 then &quot;yes&quot; else &quot;no&quot;)</code></pre><p
   <li>절의 본문은 다음 절이나 <code>;;</code>가 나올 때까지의 문장들이다. 한 줄로도 쓴다: <code>match x: 0 =&gt; "zero"; _ =&gt; "other" ;;</code>.</li>
   <li>아무 패턴도 맞지 않으면 런타임 에러(E0601).</li>
   <li>패턴 안의 이름은 항상 새로 묶는다. 바깥 변수와 비교하려면 guard를 쓴다: <code>y when y == x =&gt; …</code>.</li>
+  <li>대안(<code>|</code>)에 붙은 guard는 맞는 대안마다 차례로 본다. <code>(a, _) | (_, a) when a &gt; 1</code>은 <code>(0, 5)</code>에서 첫 대안(<code>a</code>가 0)의 guard가 거짓이라 둘째 대안(<code>a</code>가 5)으로 맞는다. guard는 그만큼 여러 번 돌 수 있다.</li>
   <li><code>|</code> 대안들은 같은 이름들을 묶어야 한다. 한 패턴에 같은 이름을 두 번 쓸 수 없다.</li>
-  <li>괄호 없는 태그 패턴 <code>Ok</code>는 심볼 <code>'Ok</code>와 같은 뜻이 아니다. <code>Ok(_)</code>처럼 인자 모양까지 쓴다.</li>
+  <li>괄호 없는 태그 패턴 <code>Ok</code>는 심볼 <code>'Ok</code>에만 맞고 <code>Ok(1)</code> 같은 태그 값에는 맞지 않는다. 태그 값은 <code>Ok(_)</code>처럼 인자 모양까지 쓴다.</li>
 </ul>
 <h3>구조 분해 대입</h3>
 <p>대입의 왼쪽에도 같은 패턴을 쓴다. 맞지 않으면 런타임 에러(E0602).</p>

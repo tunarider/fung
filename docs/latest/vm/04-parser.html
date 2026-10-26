@@ -232,7 +232,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast 
 <li><code>E0110 unexpected …</code>: 이 자리에 올 수 없는 토큰.</li>
 <li><code>E0112 expected …, found …</code>: 특정 토큰이 와야 하는 자리(<code>then</code> 뒤의 <code>else</code> 등).</li>
 <li><code>E0111</code>: 비교 연쇄.</li>
-<li><code>E0802 expression nesting too deep (limit 10000)</code>: 식이나 패턴이 만 겹 넘게 중첩됨.</li>
+<li><code>E0115 expression nesting too deep (limit 10000)</code>: 식이나 패턴이 만 겹 넘게 중첩됨.</li>
 </ul>
 <p>마지막 것은 안전장치다. 재귀 하강 파서는 괄호가 한 겹 깊어질 때마다 함수 호출이 몇 겹 깊어진다. 괄호를 수십만 겹 쌓은 입력을 받으면 파서 자신의 스택이 넘쳐 프로세스가 죽는다. 그래서 깊이를 세다가 10,000에서 fung 에러로 멈춘다(이식 노트 R1).</p>
 <div class="box other"><b>다른 언어는</b>

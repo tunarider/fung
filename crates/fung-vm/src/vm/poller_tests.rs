@@ -7,6 +7,7 @@ use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
 use super::poller::{Interest, Poller};
+use crate::testutil::child;
 
 fn wait(p: &Poller, timeout: Duration) -> Vec<u64> {
     let mut out = Vec::new();
@@ -17,7 +18,7 @@ fn wait(p: &Poller, timeout: Duration) -> Vec<u64> {
 #[test]
 fn a_registered_read_fires_once() {
     let p = Poller::new().unwrap();
-    let (r, mut w) = std::io::pipe().unwrap();
+    let (r, mut w) = child::pipe().unwrap();
     p.register(r.as_raw_fd(), Interest::Read, 7).unwrap();
     assert_eq!(wait(&p, Duration::ZERO), Vec::<u64>::new());
     w.write_all(b"x").unwrap();
@@ -83,7 +84,7 @@ fn a_waker_from_another_thread_ends_the_wait() {
 #[test]
 fn a_deregistered_fd_does_not_fire() {
     let p = Poller::new().unwrap();
-    let (r, mut w) = std::io::pipe().unwrap();
+    let (r, mut w) = child::pipe().unwrap();
     p.register(r.as_raw_fd(), Interest::Read, 5).unwrap();
     p.deregister(r.as_raw_fd(), Interest::Read);
     w.write_all(b"x").unwrap();
@@ -96,7 +97,7 @@ fn a_deregistered_fd_does_not_fire() {
 #[test]
 fn a_hang_up_fires_the_read_token() {
     let p = Poller::new().unwrap();
-    let (r, w) = std::io::pipe().unwrap();
+    let (r, w) = child::pipe().unwrap();
     p.register(r.as_raw_fd(), Interest::Read, 9).unwrap();
     drop(w);
     assert_eq!(wait(&p, Duration::from_secs(5)), vec![9]);
@@ -105,7 +106,7 @@ fn a_hang_up_fires_the_read_token() {
 #[test]
 fn registering_again_replaces_the_token() {
     let p = Poller::new().unwrap();
-    let (r, mut w) = std::io::pipe().unwrap();
+    let (r, mut w) = child::pipe().unwrap();
     p.register(r.as_raw_fd(), Interest::Read, 1).unwrap();
     p.register(r.as_raw_fd(), Interest::Read, 2).unwrap();
     w.write_all(b"x").unwrap();
@@ -166,10 +167,7 @@ fn a_half_closed_peer_does_not_wake_the_loop() {
 #[test]
 fn an_exited_child_fires_its_exit_token() {
     let p = Poller::new().unwrap();
-    let mut c = std::process::Command::new("sleep")
-        .arg("0.05")
-        .spawn()
-        .unwrap();
+    let mut c = child::spawn(std::process::Command::new("sleep").arg("0.05")).unwrap();
     let w = p.exit_watch(c.id() as libc::pid_t).unwrap();
     assert!(p.register_exit(&w, 9).unwrap());
     assert_eq!(wait(&p, Duration::from_secs(5)), vec![9]);
@@ -181,7 +179,7 @@ fn an_exited_child_fires_its_exit_token() {
 #[test]
 fn a_child_that_already_exited_fires_at_once() {
     let p = Poller::new().unwrap();
-    let mut c = std::process::Command::new("true").spawn().unwrap();
+    let mut c = child::spawn(&mut std::process::Command::new("true")).unwrap();
     let pid = c.id() as libc::pid_t;
     // SAFETY: an all-zero `siginfo_t` is a valid value to be filled in;
     // `WNOWAIT` leaves the child to reap below.

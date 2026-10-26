@@ -84,7 +84,7 @@
 <p>인자를 <code>print</code>처럼 이은 메시지로 런타임 에러(E0803)를 내고 멈춘다.</p>
 <div class="sig"><code>fail(...args)</code></div>
 <h4>설명</h4>
-<p>"여기 오면 버그"라고 말할 때 쓴다. 메시지는 <a href="io.html#fn-print"><code>print</code></a>와 같은 규칙으로 인자를 공백으로 이은 것이다. 인자가 없으면 메시지는 <code>fail</code>이다. 런타임 에러이므로 종료 코드는 1이고, 지나는 <a href="#fn-with"><code>with</code></a>의 정리는 돈다. 태스크 안에서 부르면 그 태스크가 실패하고, 범위가 그 실패를 받는다(<a href="concurrency.html#fn-scope"><code>scope</code></a>, <a href="concurrency.html#fn-supervise"><code>supervise</code></a>).</p>
+<p>"여기 오면 버그"라고 말할 때 쓴다. 메시지는 <a href="io.html#fn-print"><code>print</code></a>와 같은 규칙으로 인자를 공백으로 이은 것이다. 인자가 없으면 메시지는 <code>fail</code>이다. 런타임 에러이므로 종료 코드는 1이고, 지나는 <a href="#fn-with"><code>with</code></a>의 정리는 돈다. 태스크 안에서 부르면 그 태스크가 실패하고, 태스크 범위가 그 실패를 받는다(<a href="concurrency.html#fn-scope"><code>scope</code></a>, <a href="concurrency.html#fn-supervise"><code>supervise</code></a>).</p>
 <p><code>fail</code>은 값을 돌려주지 않으므로 어떤 식 자리에도 쓸 수 있다. 특히 <code>??</code>와 짝이 맞는다: <code>cfg.port ?? fail(&quot;config.port is required&quot;)</code>. 사용자가 고칠 수 있는 실패(잘못된 입력, 없는 파일)라면 <code>fail</code> 대신 <code>eprint</code>로 이유를 알리고 <code>exit(1)</code>하거나 <code>Err</code>를 돌려주는 편이 친절하다. <code>fail</code>의 메시지에는 소스 위치와 호출 경로가 붙기 때문이다.</p>
 <h4>매개변수</h4>
 <ul>

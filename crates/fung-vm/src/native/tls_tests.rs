@@ -341,6 +341,35 @@ fn cancel_ends_a_handshake() {
     assert!(start.elapsed() < Duration::from_secs(5));
 }
 
+/// A read over TLS that waits for data ends on a cancel at once, and the
+/// connection stays usable: the next read gets what the server sends
+/// afterwards. The order is by state: the server answers only once the
+/// client wrote `go`, which it does after the cancel.
+#[test]
+fn cancel_ends_a_read_over_tls() {
+    let _g = serial();
+    let _t = trust_ca();
+    let (port, h) = tls_peer("localhost", |mut s| {
+        let go = line(&mut s);
+        s.write_all(b"after\n").unwrap();
+        s.flush().unwrap();
+        close_notify(&mut s);
+        go
+    });
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nscope(fn(s):\n  t = spawn(s, () => net.read_line(c, 100))\n  until(() => net_waiting() == 1)\n  cancel(t)\n  print(await(t))\n;;)\nnet.write(c, \"go\\n\")!\nprint(net.read_line(c, 100))\nnet.close(c)!"
+    ));
+    assert_eq!(h.join().unwrap(), "go");
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'cancelled, message: \"cancelled\"})\nOk(\"after\")\n",
+            "",
+            0
+        )
+    );
+}
+
 /// The connect timeout covers the handshake.
 #[test]
 fn a_timeout_ends_a_handshake() {
@@ -528,18 +557,19 @@ fn ssl_cert_file_gives_the_roots() {
         };
         let (p1, h1) = tls_peer("localhost", serve);
         let (p2, h2) = tls_peer("localhost", serve);
-        let child = std::process::Command::new(std::env::current_exe().unwrap())
-            .args([
-                "native::net::tls_tests::ssl_cert_file_gives_the_roots",
-                "--exact",
-                "--nocapture",
-                "--test-threads=1",
-            ])
-            .env("FUNG_TLS_TEST_PORTS", format!("{p1} {p2}"))
-            .env("SSL_CERT_FILE", data(roots))
-            .env_remove("SSL_CERT_DIR")
-            .output()
-            .unwrap();
+        let child = crate::testutil::child::output(
+            std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "native::net::tls_tests::ssl_cert_file_gives_the_roots",
+                    "--exact",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env("FUNG_TLS_TEST_PORTS", format!("{p1} {p2}"))
+                .env("SSL_CERT_FILE", data(roots))
+                .env_remove("SSL_CERT_DIR"),
+        )
+        .unwrap();
         h1.join().unwrap();
         h2.join().unwrap();
         let stdout = String::from_utf8_lossy(&child.stdout);

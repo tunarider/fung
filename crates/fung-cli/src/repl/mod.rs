@@ -114,8 +114,8 @@ struct Session {
     out: ProcessOut<std::io::Stdout>,
     err: ProcessOut<std::io::Stderr>,
     rt: Runtime,
-    /// Every file compiled so far, with its text; the runtime holds the
-    /// same (`Runtime::add_session_files`).
+    /// Every file compiled so far, with its text; the runtime shares the
+    /// same texts (`Runtime::add_session_files`).
     known: SourceMap,
     /// The entry globals defined so far, in index order.
     globals: Vec<String>,

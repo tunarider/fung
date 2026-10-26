@@ -824,12 +824,19 @@ pub mod jobs {
             vec![nat::param("name")],
             |_: &mut Task, a| {
                 let mut fds = [0; 2];
+                // Made under the start lock and closed on `exec`: a command
+                // another test starts must not hold the write end open,
+                // or a reader waiting for its end would wait for that
+                // command too (`child`).
+                let _held = crate::testutil::child::starting();
                 // SAFETY: `fds` holds the two descriptors `pipe` makes;
-                // the read end is made non-blocking. The test never
-                // closes them.
+                // the read end is made non-blocking and both close on
+                // `exec`. The test never closes them.
                 unsafe {
                     assert_eq!(libc::pipe(fds.as_mut_ptr()), 0);
                     libc::fcntl(fds[0], libc::F_SETFL, libc::O_NONBLOCK);
+                    libc::fcntl(fds[0], libc::F_SETFD, libc::FD_CLOEXEC);
+                    libc::fcntl(fds[1], libc::F_SETFD, libc::FD_CLOEXEC);
                 }
                 state()
                     .0
@@ -877,5 +884,56 @@ pub mod jobs {
             },
         )));
         v
+    }
+}
+
+/// Starting child processes from the tests' many threads.
+///
+/// The tests run on parallel threads of one process, and each runtime
+/// starts its commands (`exec`, `sh`) on its own run thread. On macOS the
+/// standard library makes a child's pipes (and `std::io::pipe`) with
+/// `pipe` and marks them close-on-exec only after, so a child another
+/// test starts in between inherits their ends and holds them open:
+/// reading a command's output to its end, or waiting for a pipe's hang
+/// up, then waits until that unrelated child exits. Every start in this
+/// binary, and every pipe a test makes, takes one lock
+/// (`process.rs` takes it around its `spawn` in tests).
+pub mod child {
+    use std::io;
+    use std::process::{Child, Command, ExitStatus, Output, Stdio};
+    use std::sync::{Mutex, MutexGuard};
+
+    /// The lock every start of a child in this binary holds.
+    pub fn starting() -> MutexGuard<'static, ()> {
+        static STARTING: Mutex<()> = Mutex::new(());
+        STARTING.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// `cmd.spawn()` under [`starting`].
+    pub fn spawn(cmd: &mut Command) -> io::Result<Child> {
+        let _held = starting();
+        cmd.spawn()
+    }
+
+    /// `Command::status`, started through [`spawn`].
+    pub fn status(cmd: &mut Command) -> io::Result<ExitStatus> {
+        spawn(cmd)?.wait()
+    }
+
+    /// `Command::output`, started through [`spawn`]. Standard input is
+    /// `/dev/null`, whatever `cmd` set.
+    pub fn output(cmd: &mut Command) -> io::Result<Output> {
+        spawn(
+            cmd.stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )?
+        .wait_with_output()
+    }
+
+    /// `std::io::pipe()` under [`starting`].
+    pub fn pipe() -> io::Result<(io::PipeReader, io::PipeWriter)> {
+        let _held = starting();
+        io::pipe()
     }
 }

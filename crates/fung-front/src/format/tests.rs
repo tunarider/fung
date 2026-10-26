@@ -116,6 +116,16 @@ fn indentation() {
     check_all(&[
         // blocks
         ("fn f(x):\nx + 1\n;;\n", "fn f(x):\n  x + 1\n;;\n"),
+        // a block whose head runs over lines indents from its keyword's
+        // line, not from the line that has its `:`
+        (
+            "fn f(h:\nint):\nh + 1\n;;\n",
+            "fn f(h:\n  int):\n  h + 1\n;;\n",
+        ),
+        (
+            "fn g(a,\nb):\nif a > (b +\n1):\na\n;;\n;;\n",
+            "fn g(a,\n  b):\n  if a > (b +\n    1):\n    a\n  ;;\n;;\n",
+        ),
         (
             "fn f(x):\n    if x:\n  1\n  ;;\n;;\n",
             "fn f(x):\n  if x:\n    1\n  ;;\n;;\n",

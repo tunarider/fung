@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>동시에 여러 일 하기 · fung 매뉴얼</title>
-<meta name="description" content="태스크와 범위(scope·spawn·await), 실패를 격리하는 supervise, 기한 timeout, 취소, 채널, atom, conc.pmap.">
+<meta name="description" content="태스크와 태스크 범위(scope·spawn·await), 실패를 격리하는 supervise, 기한 timeout, 취소, 채널, atom, conc.pmap.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -39,7 +39,7 @@
 <li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
 <li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
 <li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
-<li><a href="../learn/12-concurrency.html" aria-current="page">12. 동시에 여러 일 하기</a><ol class="toc2"><li><a href="#why">기다리는 시간을 겹치기</a></li><li><a href="#pmap">가장 쉬운 길: conc.pmap</a></li><li><a href="#scope">범위와 태스크</a></li><li><a href="#failure">실패하는 태스크</a></li><li><a href="#timeout">기한: timeout</a></li><li><a href="#channels">채널로 주고받기</a></li><li><a href="#atom">함께 쓰는 값: atom</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/12-concurrency.html" aria-current="page">12. 동시에 여러 일 하기</a><ol class="toc2"><li><a href="#why">기다리는 시간을 겹치기</a></li><li><a href="#pmap">가장 쉬운 길: conc.pmap</a></li><li><a href="#scope">태스크 범위와 태스크</a></li><li><a href="#failure">실패하는 태스크</a></li><li><a href="#timeout">기한: timeout</a></li><li><a href="#channels">채널로 주고받기</a></li><li><a href="#atom">함께 쓰는 값: atom</a></li><li><a href="#summary">정리</a></li></ol></li>
 <li><a href="../learn/13-json-and-http.html">13. JSON과 HTTP</a></li>
 <li><a href="../learn/14-testing.html">14. 테스트와 포맷터</a></li>
 </ol>
@@ -57,8 +57,8 @@
 <ul>
 <li>동시성이 무엇이고 언제 도움이 되는지</li>
 <li><code>conc.pmap</code>으로 리스트의 일을 한꺼번에 처리하기</li>
-<li>범위와 태스크: <code>scope</code>, <code>spawn</code>, <code>await</code></li>
-<li>실패를 다루기: 범위의 실패, <code>supervise</code>, <code>timeout</code>, 취소</li>
+<li>태스크 범위와 태스크: <code>scope</code>, <code>spawn</code>, <code>await</code></li>
+<li>실패를 다루기: 태스크 범위의 실패, <code>supervise</code>, <code>timeout</code>, 취소</li>
 <li>태스크끼리 값을 주고받는 채널, 함께 쓰는 값 <code>atom</code></li>
 </ul>
 </div>
@@ -100,8 +100,8 @@ for r in conc.pmap([&quot;web1&quot;, &quot;web2&quot;, &quot;db1&quot;, &quot;w
 up   web2
 DOWN db1 unreachable
 up   web3</code></pre></div>
-<h2 id="scope">범위와 태스크</h2>
-<p><code>pmap</code>보다 자유롭게 태스크를 다루려면 직접 띄운다. fung에서 태스크는 반드시 <strong>범위</strong>(scope) 안에서 태어난다. <code>scope(fn(s): … ;;)</code>는 범위 <code>s</code>를 열고 본문을 실행한다. 본문에서 <code>spawn(s, 함수)</code>로 그 범위에 태스크를 띄우고, <code>await(태스크)</code>로 그 태스크가 끝나기를 기다려 결과를 받는다.</p>
+<h2 id="scope">태스크 범위와 태스크</h2>
+<p><code>pmap</code>보다 자유롭게 태스크를 다루려면 직접 띄운다. fung에서 태스크는 반드시 <strong>태스크 범위</strong>(scope) 안에서 태어난다. <code>scope(fn(s): … ;;)</code>는 범위 <code>s</code>를 열고 본문을 실행한다. 본문에서 <code>spawn(s, 함수)</code>로 그 범위에 태스크를 띄우고, <code>await(태스크)</code>로 그 태스크가 끝나기를 기다려 결과를 받는다.</p>
 <div class="run"><pre><code>fn fetch(name, d):
   sleep(d)
   &quot;${name} (${d})&quot;
@@ -113,7 +113,7 @@ r = scope(fn(s):
   {users: await(users), orders: await(orders)}
 ;;)
 print(r)</code></pre><pre class="out plain"><code>{users: &quot;users (50ms)&quot;, orders: &quot;orders (20ms)&quot;}</code></pre></div>
-<p><code>scope</code>의 가장 중요한 약속은 <strong>범위는 그 안의 태스크가 모두 끝나야 돌아온다</strong>는 것이다. <code>await</code>하지 않은 태스크도 범위가 끝날 때까지 기다린다. 그래서 <code>scope(</code> 다음 줄에 이르렀다면 그 안에서 시작한 일은 모두 끝났다. 어딘가에서 몰래 계속 도는 태스크가 없다. 본문이 먼저 끝나도, 늦은 태스크를 기다린 뒤에 <code>after scope</code>가 찍히는 것을 보자.</p>
+<p><code>scope</code>의 가장 중요한 약속은 <strong>태스크 범위는 그 안의 태스크가 모두 끝나야 돌아온다</strong>는 것이다. <code>await</code>하지 않은 태스크도 범위가 끝날 때까지 기다린다. 그래서 <code>scope(</code> 다음 줄에 이르렀다면 그 안에서 시작한 일은 모두 끝났다. 어딘가에서 몰래 계속 도는 태스크가 없다. 본문이 먼저 끝나도, 늦은 태스크를 기다린 뒤에 <code>after scope</code>가 찍히는 것을 보자.</p>
 <div class="run"><pre><code>scope(fn(s):
   spawn(s, fn():
     sleep(300ms)
@@ -130,10 +130,10 @@ fast task done
 slow task done
 after scope</code></pre></div>
 <div class="box learn"><b>구조적 동시성</b>
-<p>태스크의 수명을 코드 블록에 묶는 방식을 <strong>구조적 동시성</strong>(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.</p>
+<p>태스크의 수명을 코드 블록에 묶는 방식을 <strong>구조적 동시성</strong>(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 태스크 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.</p>
 </div>
 <h2 id="failure">실패하는 태스크</h2>
-<p>태스크 하나가 런타임 에러로 죽으면 어떻게 될까? 범위는 나머지 태스크를 <strong>취소</strong>(cancel, 하던 일을 그 자리에서 그만두게 함)하고, 그 에러를 <code>scope(</code>를 연 곳에서 다시 낸다. 실패는 사라지지 않고 늘 범위를 연 코드에 닿는다. 아래에서 1초를 자는 태스크는 <code>never</code>를 찍지 못한다.</p>
+<p>태스크 하나가 런타임 에러로 죽으면 어떻게 될까? 태스크 범위는 나머지 태스크를 <strong>취소</strong>(cancel, 하던 일을 그 자리에서 그만두게 함)하고, 그 에러를 <code>scope(</code>를 연 곳에서 다시 낸다. 실패는 사라지지 않고 늘 범위를 연 코드에 닿는다. 아래에서 1초를 자는 태스크는 <code>never</code>를 찍지 못한다.</p>
 <div class="run"><pre><code>r = scope(fn(s):
   spawn(s, () =&gt; 1 // 0)
   spawn(s, fn():
@@ -151,9 +151,9 @@ print(r)</code></pre><pre class="out err plain" data-code="1"><code>error[E0502]
   note: scope opened at example.fung:1
  call path (innermost first):
    example.fung:2 &lt;lambda&gt;</code></pre></div>
-<p>에러 메시지의 <code>note: scope opened at …</code>가 실패가 올라온 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 <code>Err</code> 값을 돌려주는 것은 실패가 아니다. 그냥 <code>await</code>가 받는 결과일 뿐이다.</p>
+<p>에러 메시지의 <code>note: scope opened at …</code>가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 <code>Err</code> 값을 돌려주는 것은 실패가 아니다. 그냥 <code>await</code>가 받는 결과일 뿐이다.</p>
 <h3 id="supervise">실패를 격리하기: supervise</h3>
-<p>요청을 하나씩 처리하는 서버라면 요청 하나의 버그로 서버 전체가 멈추면 곤란하다. <code>supervise(본문, on_fail)</code>는 <code>scope</code>처럼 범위를 열되, 자식 태스크의 실패를 범위의 실패로 만들지 않고 <code>on_fail(실패)</code>에 넘긴다. 다른 태스크는 계속 돈다. 실패는 <code>{kind, code, message, at}</code> 맵이다.</p>
+<p>요청을 하나씩 처리하는 서버라면 요청 하나의 버그로 서버 전체가 멈추면 곤란하다. <code>supervise(본문, on_fail)</code>는 <code>scope</code>처럼 태스크 범위를 열되, 자식 태스크의 실패를 범위의 실패로 만들지 않고 <code>on_fail(실패)</code>에 넘긴다. 다른 태스크는 계속 돈다. 실패는 <code>{kind, code, message, at}</code> 맵이다.</p>
 <div class="run"><pre><code>r = supervise(fn(s):
   spawn(s, () =&gt; 1 // 0)
   spawn(s, fn():
@@ -188,7 +188,7 @@ fn probe(host):
 results = conc.pmap([&quot;web1&quot;, &quot;slow-db&quot;, &quot;web2&quot;], h =&gt; timeout(1s, () =&gt; probe(h)))
 print(results)</code></pre><pre class="out plain"><code>[Ok(&quot;web1 ok&quot;), Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), Ok(&quot;web2 ok&quot;)]</code></pre></div>
 <h3 id="cancel">취소</h3>
-<p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(범위)</code>는 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
+<p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(태스크 범위)</code>는 그 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
 <div class="run"><pre><code>scope(fn(s):
   t = spawn(s, fn():
     sleep(1s)
@@ -278,7 +278,7 @@ swap(hits, fn(n):
    example.fung:3 &lt;lambda&gt;
    example.fung:2 &lt;entry&gt;</code></pre></div>
 <div class="box other"><b>다른 언어는</b>
-<p>Python의 <code>threading</code>·<code>asyncio</code>, JavaScript의 <code>Promise</code>·<code>async/await</code>, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 범위는 Python Trio의 nursery, Kotlin의 <code>coroutineScope</code>, Java 21의 <code>StructuredTaskScope</code>와 같은 구조적 동시성이다. <code>atom</code>과 <code>swap</code>은 Clojure의 atom에서, 실패를 격리하는 <code>supervise</code>는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 <code>cmd &amp;</code>와 <code>wait</code>도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.</p>
+<p>Python의 <code>threading</code>·<code>asyncio</code>, JavaScript의 <code>Promise</code>·<code>async/await</code>, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 태스크 범위는 Python Trio의 nursery, Kotlin의 <code>coroutineScope</code>, Java 21의 <code>StructuredTaskScope</code>와 같은 구조적 동시성이다. <code>atom</code>과 <code>swap</code>은 Clojure의 atom에서, 실패를 격리하는 <code>supervise</code>는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 <code>cmd &amp;</code>와 <code>wait</code>도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.</p>
 </div>
 <div class="exercise"><b>서버 상태 표</b>
 <p>서버 이름 리스트를 받아, 서버마다 동시에 확인하고 <code>web1  up</code> / <code>db1   TIMEOUT</code>처럼 한 줄씩 출력해 보자. 확인 함수 <code>probe(host)</code>는 이미 있다고 하자(아래 풀이는 <code>sleep</code>으로 흉내 낸다). 한 서버에 0.5초 넘게 걸리면 <code>TIMEOUT</code>이다. 마지막에 실패한 서버가 있으면 종료 코드 1로 끝낸다.</p>
@@ -325,8 +325,8 @@ print(total)</code></pre><pre class="out plain"><code>14</code></pre></div>
 <ul>
 <li>동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.</li>
 <li>리스트의 일을 동시에 하려면 <code>conc.pmap(xs, f, limit: n)</code>. 결과는 입력 순서대로다.</li>
-<li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 범위는 모든 태스크가 끝나야 돌아온다.</li>
-<li>태스크의 런타임 에러는 범위를 실패시키고 나머지를 취소한다. 격리하려면 <code>supervise(f, on_fail)</code>.</li>
+<li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다.</li>
+<li>태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 <code>supervise(f, on_fail)</code>.</li>
 <li><code>timeout(d, f)</code>는 기한이 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
 <li>채널 <code>(tx, rx) = channel()</code>로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.</li>
 <li>함께 고치는 값은 <code>atom</code>·<code>deref</code>·<code>swap</code>. <code>swap</code>의 함수에는 효과를 쓸 수 없다(E0707).</li>

@@ -99,17 +99,18 @@ print(pad_left(human(found |> map(f => f.size) |> sum), 7), "total")
 
 ## 응용 {#vary}
 
-**오래된 파일.** `fs.stat`이 주는 것은 `name`·`size`·`is_dir`뿐이고 수정 시각은 없다. 오래된 파일은 `find -mtime`에 맡기고, 그 결과를 같은 방식으로 정렬한다. `exec`는 쉘을 거치지 않으므로 `+30` 같은 인자를 따옴표 없이 리스트 원소로 넘긴다.
+**오래된 파일.** `fs.stat`의 `mtime`은 마지막으로 고친 시각(`time` 값)이다. `time.now()`에서 빼면 기간(`dur`)이 되므로 `720h`(30일)와 견준다.
 
 ```fung check
 # Files under a directory not modified for more than 30 days, largest first.
 import fs
+import time
 
 dir = first(args) ?? "."
-old = lines(exec(["find", dir, "-type", "f", "-mtime", "+30"])!.out)
-sized = old |> map(p => (p, get(fs.stat(p) ?? {}, "size", 0)))
-for (p, size) in sized |> sort_by(((_, s)) => -s):
-  print(pad_left(str(size), 10), p)
+now = time.now()
+old = fs.walk(dir)! |> map(p => (p, fs.stat(p)!)) |> filter(((_, st)) => now - st.mtime > 720h)
+for (p, st) in old |> sort_by(((_, st)) => -st.size):
+  print(pad_left(str(st.size), 10), p)
 ;;
 ```
 

@@ -35,8 +35,8 @@
 | Err({kind: 'exists, message: "cannot move `$D/sub` to `$D/a.txt`: file exists"})
 | Err({kind: 'exists, message: "cannot move `$D/sub` to `$D/emptyd`: file exists"})
 | Err({kind: 'io, message: "cannot move `$D/sub`: invalid argument"})
-| Ok({name: "a.txt", size: 3, is_dir: false})
-| Ok({name: "deep", size: $SIZE, is_dir: true})
+| Ok({name: "a.txt", size: 3, is_dir: false, mtime: $TIME})
+| Ok({name: "deep", size: $SIZE, is_dir: true, mtime: $TIME})
 | Err({kind: 'not_found, message: "cannot stat `$D/none`: no such file or directory"})
 | Err({kind: 'not_found, message: "cannot stat ``: no such file or directory"})
 | Err({kind: 'io, message: "cannot stat `$D/a.txt/x`: not a directory"})
@@ -51,7 +51,7 @@
 | Ok("hi\nthere\n") Ok("x")
 | Ok(nil) Ok("short")
 | Ok(nil) Ok(nil) Ok(nil) true Ok(nil)
-| Ok(nil) Ok({name: "c.txt", size: 5, is_dir: false})
+| Ok(nil) Ok({name: "c.txt", size: 5, is_dir: false, mtime: $TIME})
 | Ok(nil) Ok(nil)
 | Ok(nil) false Ok("short")
 | Ok(nil) Err({kind: 'exists, message: "cannot move `$D/m/n` to `$D/m/n`: file exists"})
@@ -59,9 +59,9 @@
 | Ok(nil) Ok(nil) Ok(nil) false
 | Ok(nil) false
 | Ok(nil) false
-| Err({kind: 'io, message: "cannot stat `$D/new.txt/`: not a directory"}) Ok({name: "new.txt", size: 1, is_dir: false})
-| Ok(nil) Ok("한글 ok") Ok({name: "u.txt", size: 9, is_dir: false})
-| Ok({name: "u.txt", size: 9, is_dir: false}) Ok({name: "..", size: $SIZE, is_dir: true})
+| Err({kind: 'io, message: "cannot stat `$D/new.txt/`: not a directory"}) Ok({name: "new.txt", size: 1, is_dir: false, mtime: $TIME})
+| Ok(nil) Ok("한글 ok") Ok({name: "u.txt", size: 9, is_dir: false, mtime: $TIME})
+| Ok({name: "u.txt", size: 9, is_dir: false, mtime: $TIME}) Ok({name: "..", size: $SIZE, is_dir: true, mtime: $TIME})
 -- stderr
 -- exit: 0
 ==== program 2

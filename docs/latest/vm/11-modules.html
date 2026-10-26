@@ -268,15 +268,15 @@ print(1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0310]
 <p>앞단(<code>fung-front</code>)은 값을 모른다. 그래서 컴파일러는 prelude 이름을 <code>Const::Builtin(이름)</code>이라는 자리 표시로 남기고, VM의 <strong>링크</strong> 단계(<code>vm/link.rs</code>의 <code>link</code>)가 그 자리에 실제 함수 값을 채운다. 8장에서 <code>CONST 0 ; &lt;fn print&gt;</code>가 보인 이유다. 이름 해석은 prelude에 어떤 이름이 있는지만 알면 된다. 그래서 앞단은 <code>spec/builtins.txt</code>를 읽는다(<code>builtins.rs</code>). 이 파일은 VM의 실제 표에서 시험(<code>spec_file</code>)이 만들어 내는 것이라, 두 쪽이 어긋나면 시험이 실패한다.</p>
 <h3 id="builtin-errors">내장 코드 안의 에러</h3>
 <p><code>take</code>는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 <code>extras/prelude.fung</code>를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 <code>builtin</code> 표시가 붙고(<code>loader.rs</code>의 <code>mark_builtin</code>), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에는 안쪽 프레임이 그대로 보인다.</p>
-<div class="run"><pre><code>print(take(5, 2))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot map over int
+<div class="run"><pre><code>print(take(5, 2))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot take from int
   --&gt; example.fung:1:11
   |
 1 | print(take(5, 2))
   |           ^
   |
  call path (innermost first):
-   extras/prelude.fung:23 _list
-   extras/prelude.fung:88 take
+   extras/prelude.fung:24 _list
+   extras/prelude.fung:89 take
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>

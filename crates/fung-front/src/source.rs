@@ -1,13 +1,17 @@
 //! Source files and positions.
 
+use std::sync::Arc;
+
 /// Index of a file registered in a [`SourceMap`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FileId(pub u32);
 
-/// Owns the names and texts of every source file seen by a run.
+/// Owns the names and texts of every source file seen by a run. The
+/// texts are shared (`Arc<str>`): a map that takes a file from another
+/// (`add_from`, the REPL's runtime) holds no copy of it.
 #[derive(Clone, Default, Debug)]
 pub struct SourceMap {
-    files: Vec<(String, String)>,
+    files: Vec<(Arc<str>, Arc<str>)>,
 }
 
 impl SourceMap {
@@ -16,8 +20,20 @@ impl SourceMap {
     }
 
     pub fn add(&mut self, name: &str, text: &str) -> FileId {
-        self.files.push((name.to_string(), text.to_string()));
-        FileId((self.files.len() - 1) as u32)
+        self.files.push((name.into(), text.into()));
+        self.last_id()
+    }
+
+    /// Adds `other`'s file `id`, sharing its name and text.
+    pub fn add_from(&mut self, other: &SourceMap, id: FileId) -> FileId {
+        self.files.push(other.files[id.0 as usize].clone());
+        self.last_id()
+    }
+
+    /// The id of the file just added; more files than a `u32` counts
+    /// would make two share an id, so that stops.
+    fn last_id(&self) -> FileId {
+        FileId(u32::try_from(self.files.len() - 1).expect("fewer than 2^32 source files"))
     }
 
     pub fn name(&self, id: FileId) -> &str {
@@ -70,6 +86,18 @@ mod tests {
         assert_eq!(decode_lossy(b"a\xE2\x82b"), "a\u{FFFD}b");
         assert_eq!(decode_lossy(b"\xFF\xFF"), "\u{FFFD}\u{FFFD}");
         assert_eq!(decode_lossy("파일".as_bytes()), "파일");
+    }
+
+    /// A file taken from another map shares its text: the REPL's runtime
+    /// keeps every input the front end keeps, without a second copy.
+    #[test]
+    fn a_shared_file_is_not_copied() {
+        let mut a = super::SourceMap::new();
+        let id = a.add("<input 1>", "fn f(x) = x + 1");
+        let mut b = super::SourceMap::new();
+        let id2 = b.add_from(&a, id);
+        assert_eq!((b.name(id2), b.text(id2)), ("<input 1>", "fn f(x) = x + 1"));
+        assert!(std::ptr::eq(a.text(id).as_ptr(), b.text(id2).as_ptr()));
     }
 
     #[test]

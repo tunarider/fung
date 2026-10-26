@@ -111,6 +111,9 @@ fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// the group gets SIGTERM, and SIGKILL if it is still there 2 s later
 /// (L6), and the call unwinds with the cancellation instead of giving the
 /// output.
+/// What `env` must be (E0403).
+const ENV_WANT: &str = "a map of variable names (not empty, no `=`) to strings";
+
 fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Flow, Stop> {
     let cwd = nat::opt_str("cwd", &a[1])?
         .filter(|d| !d.is_empty())
@@ -125,11 +128,24 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Flow,
                         "E0403",
                         vec![
                             nat::s("env"),
-                            nat::s("a map of strings"),
+                            nat::s(ENV_WANT),
                             Arg::Str(format!("a map holding {}", type_name(v))),
                         ],
                     ));
                 };
+                // The system reads a name up to its first `=`: such a name
+                // would set another one. (NUL is the system's refusal, an
+                // `Err`, as in a value or `cwd`.)
+                if k.is_empty() || k.contains('=') {
+                    return Err(nat::fail(
+                        "E0403",
+                        vec![
+                            nat::s("env"),
+                            nat::s(ENV_WANT),
+                            Arg::Str(format!("the name {}", fung_front::diag::quote(k))),
+                        ],
+                    ));
+                }
                 vars.push((k.to_string(), s.to_string()));
             }
             Some(vars)
@@ -146,6 +162,9 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Flow,
         } else {
             Stdio::null()
         });
+        // Tests start commands from many threads at once (`testutil::child`).
+        #[cfg(test)]
+        let _held = crate::testutil::child::starting();
         cmd.spawn().map_err(|e| reason(&e))
     });
     let child = match spawned {

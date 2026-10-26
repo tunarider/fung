@@ -76,8 +76,28 @@ fn _request(method, url, body, headers, limit):
 # The scope's own `Err({kind: 'timeout, …})` (its message names no URL) is the request's
 # time running out.
 fn _failed(url, e) = e.kind == 'timeout
-  then Err({kind: 'timeout, message: "request to `${url}` timed out"})
-  else Err({kind: 'network, message: "cannot request `${url}`: ${e.message}"})
+  then Err({kind: 'timeout, message: "request to `${_shown(url)}` timed out"})
+  else Err({kind: 'network, message: "cannot request `${_shown(url)}`: ${e.message}"})
+
+# The URL an error shows: as given, but never with its password (errors go
+# to logs). One that reads and has a password is written as the redirect
+# errors write it (`_url_string`, `user:***@`); one that does not read
+# keeps its text with the password replaced.
+fn _shown(url) = match _parse_url(url):
+  Ok(u)  => u.user != nil and ":" in u.user then _url_string(u) else url
+  Err(_) => _hide_password(url)
+;;
+
+fn _hide_password(url):
+  if not ("://" in url): return url ;;
+  scheme = _before(url, "://")
+  rest = url[len(scheme) + 3..]
+  auth = _before(_before(_before(rest, "/"), "?"), "#")
+  if not ("@" in auth): return url ;;
+  userinfo = join(split(auth, "@")[..-1], "@")
+  if not (":" in userinfo): return url ;;
+  "${scheme}://${_before(userinfo, ":")}:***@" + rest[len(userinfo) + 1..]
+;;
 
 fn _err(message) = {kind: 'network, message}
 

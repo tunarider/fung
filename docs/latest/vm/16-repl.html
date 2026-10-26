@@ -153,7 +153,7 @@ error[E0702]: deadlock: all tasks are waiting
  help: this task waits to receive, but it still holds that channel's sending end itself (the global `tx`), so the channel cannot close: close it with `close(tx)` first, or leave the sending end to the producers only
 &gt; len(hosts)
 2</code></pre>
-<p>다음 입력을 기다리는 동안은 어떤 fung 코드도 돌지 않는다. 각 입력은 자기 실행(<code>run_root</code>)이고, 그 안에서 띄운 태스크는 범위 안에서만 살므로(14장) 입력이 끝나면 함께 끝나 있다. 그래서 "다음 입력을 기다리는 사이"가 교착으로 판정될 일이 없다. 세션이 끝날 때(<code>:quit</code>, 입력 끝, <code>exit(n)</code>)는 남은 것을 취소하고 되감기가 <code>with</code>의 <code>release</code>를 지난다.</p>
+<p>다음 입력을 기다리는 동안은 어떤 fung 코드도 돌지 않는다. 각 입력은 자기 실행(<code>run_root</code>)이고, 그 안에서 띄운 태스크는 태스크 범위 안에서만 살므로(14장) 입력이 끝나면 함께 끝나 있다. 그래서 "다음 입력을 기다리는 사이"가 교착으로 판정될 일이 없다. 세션이 끝날 때(<code>:quit</code>, 입력 끝, <code>exit(n)</code>)는 남은 것을 취소하고 되감기가 <code>with</code>의 <code>release</code>를 지난다.</p>
 <h2 id="editor">줄 편집기</h2>
 <p>터미널은 보통 <strong>표준 모드</strong>(canonical mode)다. 사용자가 엔터를 칠 때까지 커널이 한 줄을 모아 두고, 친 글자를 화면에 다시 찍어 주고(echo), Ctrl-C를 SIGINT 신호로 바꾼다. 이 모드에서는 왼쪽 화살표가 <code>^[[D</code>라는 글자로 찍힐 뿐이다. 줄 편집을 하려면 터미널을 <strong>raw 모드</strong>로 바꿔, 키 하나하나를 프로그램이 바로 받고 화면도 프로그램이 직접 그려야 한다.</p>
 <div class="box other"><b>다른 언어는</b>

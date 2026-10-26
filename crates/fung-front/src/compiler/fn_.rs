@@ -11,7 +11,7 @@ const MAX_ARGS: usize = 4095;
 
 fn too_many(n: &Node, what: &str) -> Diag {
     error(
-        "E0806",
+        "E0230",
         n.pos,
         vec![Arg::Str(what.into()), Arg::Int(MAX_ARGS as i64)],
     )

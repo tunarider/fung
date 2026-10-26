@@ -145,7 +145,7 @@ print(is_empty(failed) then "all ok" else "${len(failed)} failed")
 
 #### 에러
 
-다른 타입이면 런타임 에러 E0506.
+다른 타입이면 런타임 에러 E0506(`cannot take the first of int`).
 
 #### 예제
 
@@ -186,7 +186,7 @@ print(first(mirrors) ?? "https://default.example")
 
 #### 에러
 
-다른 타입이면 런타임 에러 E0506.
+다른 타입이면 런타임 에러 E0506(`cannot take the last of int`).
 
 #### 예제
 
@@ -228,7 +228,7 @@ print("latest:", last(releases) ?? "none")
 
 #### 에러
 
-`n`이 정수가 아니면 런타임 에러 E0803(`take expects an int count, got 'float`).
+`xs`를 받지 않는 타입이면 런타임 에러 E0506(`cannot take from int`), `n`이 정수가 아니면 E0403(``argument `n` must be int, got float``).
 
 #### 예제
 
@@ -289,7 +289,7 @@ print(take(rx, 2))
 
 #### 에러
 
-`n`이 정수가 아니면 런타임 에러 E0803.
+`xs`를 받지 않는 타입이면 런타임 에러 E0506(`cannot drop from int`), `n`이 정수가 아니면 E0403.
 
 #### 예제
 
@@ -999,7 +999,7 @@ print(sort_by(pairs({web: 3, db: 1, cache: 2}), ((_, v)) => v))
 
 #### 에러
 
-다른 타입이면 런타임 에러 E0506.
+다른 타입이면 런타임 에러 E0506(`cannot reverse int`).
 
 #### 예제
 
@@ -1183,7 +1183,7 @@ print(group_by([1, 2, 3], x => x % 2))
 
 #### 에러
 
-받지 않는 타입이면 런타임 에러 E0506.
+받지 않는 타입이면 런타임 에러 E0506(`cannot zip int`).
 
 #### 예제
 
@@ -1278,7 +1278,7 @@ print(files |> map(f => f.size) |> sum)
 
 #### 에러
 
-비교할 수 없는 값이 섞이면 런타임 에러 E0501.
+비교할 수 없는 값이 섞이면 런타임 에러 E0501. 리스트·범위·받는 끝이 아니면 E0506(`cannot take the min of int`).
 
 #### 예제
 
@@ -1319,7 +1319,7 @@ print(min(map(servers, s => s.cpu)), first(sort_by(servers, s => s.cpu)).n)
 
 #### 에러
 
-비교할 수 없는 값이 섞이면 런타임 에러 E0501.
+비교할 수 없는 값이 섞이면 런타임 에러 E0501. 리스트·범위·받는 끝이 아니면 E0506(`cannot take the max of int`).
 
 #### 예제
 

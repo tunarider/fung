@@ -41,7 +41,7 @@ match fs.read("config.txt"):
 ;;
 ```
 
-파일 내용은 문자열로 읽는다. fung의 문자열은 UTF-8 텍스트이므로, UTF-8이 아닌 바이트는 잘못된 부분마다 U+FFFD(`�`) 하나로 바뀐다. 이미지 같은 바이너리 파일은 그대로 다룰 수 없다.
+파일 내용은 문자열로 읽는다. fung의 문자열은 UTF-8 텍스트이므로, UTF-8이 아닌 바이트는 잘못된 부분마다 U+FFFD(`"\u{FFFD}"`) 하나로 바뀐다. 이미지 같은 바이너리 파일은 그대로 다룰 수 없다.
 
 :::box mistake 이름이 같은 다른 함수
 
@@ -161,18 +161,19 @@ print(fs.read_lines("crlf.txt")!)
 
 :::
 
-:::fn fs.write(path, text)
+:::fn fs.write(path, text, perm = nil)
 
 파일에 문자열을 쓴다. 있던 내용은 지운다.
 
 #### 설명
 
-`path`에 `text`를 쓴다. 파일이 없으면 새로 만들고, 있으면 **내용을 모두 지우고** 덮어쓴다(셸의 `>`와 같다). 새 파일의 권한은 0666에서 umask를 뺀 것이다(셸과 같다). 위의 디렉터리는 만들지 않으므로, 필요하면 먼저 [`fs.mkdir`](#fn-fs-mkdir)를 부른다. 줄바꿈은 자동으로 붙지 않는다.
+`path`에 `text`를 쓴다. 파일이 없으면 새로 만들고, 있으면 **내용을 모두 지우고** 덮어쓴다(셸의 `>`와 같다). 새 파일의 권한은 0666에서 umask를 뺀 것이다(셸과 같다). `perm`을 주면 파일은 정확히 그 권한이 된다(아래). 위의 디렉터리는 만들지 않으므로, 필요하면 먼저 [`fs.mkdir`](#fn-fs-mkdir)를 부른다. 줄바꿈은 자동으로 붙지 않는다.
 
 #### 매개변수
 
 - `path`: 쓸 파일의 경로.
 - `text`: 쓸 내용(문자열). 다른 값은 `str(x)`나 [`json.stringify`](json.html#fn-json-stringify)로 바꿔서 넘긴다.
+- `perm`: 파일의 권한 비트(`0o600`처럼 8진수로, 0부터 `0o777`까지). 주면 내용을 쓰기 전에 파일을 정확히 이 권한으로 맞춘다. umask를 빼지 않고, **이미 있는 파일도** 바꾼다(셸의 `install -m`과 같다). 기본 `nil`이면 새 파일은 0666에서 umask를 뺀 것이고 있던 파일은 그대로다. 범위 밖이면 런타임 에러 E0403.
 
 #### 돌려주는 값
 
@@ -182,7 +183,7 @@ print(fs.read_lines("crlf.txt")!)
 
 - `Err({kind: 'not_found})`: 위의 디렉터리가 없다.
 - `Err({kind: 'io})`: 경로가 디렉터리다.
-- `Err({kind: 'permission})`: 쓸 권한이 없다.
+- `Err({kind: 'permission})`: 쓸 권한이 없다. `perm`을 줬는데 권한을 바꿀 수 없는 파일(다른 사용자의 것)이어도 그렇다. 그때는 아무것도 쓰지 않는다.
 
 #### 예제
 
@@ -207,13 +208,25 @@ fs.mkdir("out")!
 print(fs.write("out/report.txt", "x"))
 ```
 
+**비밀값은 `perm`으로**
+
+토큰이나 비밀번호가 든 파일은 다른 사용자가 읽지 못하게 처음부터 `0o600`으로 쓴다. 쓴 뒤에 권한을 바꾸면 그 사이에 열려 있는 틈이 생긴다.
+
+```fung frag
+import fs
+
+fs.write("token.txt", token, perm: 0o600)!
+```
+
+`perm`은 이미 있는 파일에도 적용된다. 지난 실행이 남긴 임시 파일이 0644여도 비밀값을 쓰기 전에 0600이 된다. 다만 그 전에 다른 프로세스가 열어 둔 핸들은 막지 못한다. 그런 걱정이 있으면 먼저 [`fs.remove`](#fn-fs-remove)로 지운다.
+
 #### 같이 보기
 
-[`fs.append`](#fn-fs-append), [`fs.write_line`](#fn-fs-write_line), [`fs.mkdir`](#fn-fs-mkdir)
+[`fs.append`](#fn-fs-append), [`fs.write_line`](#fn-fs-write_line), [`fs.mkdir`](#fn-fs-mkdir), [`fs.move`](#fn-fs-move)(바꿔치기)
 
 :::
 
-:::fn fs.append(path, text)
+:::fn fs.append(path, text, perm = nil)
 
 파일 끝에 문자열을 덧붙인다.
 
@@ -225,6 +238,7 @@ print(fs.write("out/report.txt", "x"))
 
 - `path`: 파일의 경로.
 - `text`: 덧붙일 문자열.
+- `perm`: [`fs.write`](#fn-fs-write)와 같다. 이미 있는 파일도 이 권한으로 맞춘다.
 
 #### 돌려주는 값
 
@@ -459,11 +473,11 @@ print(fs.exists("lock"), fs.exists("."), fs.exists("nope"))
 
 :::fn fs.stat(path)
 
-경로의 이름, 크기, 디렉터리 여부를 알려 준다.
+경로의 이름, 크기, 디렉터리 여부, 고친 시각을 알려 준다.
 
 #### 설명
 
-`{name, size, is_dir}` 맵을 돌려준다. `name`은 경로의 마지막 요소, `size`는 바이트 수(글자 수가 아니다: 한글 한 글자는 UTF-8로 3바이트), `is_dir`은 디렉터리면 `true`다. 디렉터리의 `size`는 운영체제가 정한 값이라 내용의 크기와 관계가 없다.
+`{name, size, is_dir, mtime}` 맵을 돌려준다. `name`은 경로의 마지막 요소, `size`는 바이트 수(글자 수가 아니다: 한글 한 글자는 UTF-8로 3바이트), `is_dir`은 디렉터리면 `true`, `mtime`은 마지막으로 고친 시각으로 `time.now()`와 같은 지역 시간대의 [`time`](time.html) 값이다(파일 시스템이 시각을 주지 않으면 `nil`). 디렉터리의 `size`는 운영체제가 정한 값이라 내용의 크기와 관계가 없다.
 
 #### 매개변수
 
@@ -471,7 +485,7 @@ print(fs.exists("lock"), fs.exists("."), fs.exists("nope"))
 
 #### 돌려주는 값
 
-`Ok({name, size, is_dir})`.
+`Ok({name, size, is_dir, mtime})`.
 
 #### 에러
 
@@ -777,7 +791,7 @@ print(fs.copy("dir", "dir2"))
 
 핸들은 태스크 사이에 나눠 써도 된다. `read_line`·`write_line`·`close` 같은 연산 하나하나가 차례로 처리되어 줄이 찢어지거나 섞이지 않는다. 다만 어느 태스크가 어느 줄을 받는지는 정해지지 않는다.
 
-:::fn fs.open(path, mode = 'read)
+:::fn fs.open(path, mode = 'read, perm = nil)
 
 파일을 열어 핸들을 돌려준다.
 
@@ -798,6 +812,7 @@ print(fs.copy("dir", "dir2"))
 
 - `path`: 열 파일.
 - `mode`: `'read`, `'write`, `'append` 중 하나.
+- `perm`: `'write`·`'append`일 때 파일의 권한. [`fs.write`](#fn-fs-write)와 같다. `'read`에 주면 런타임 에러 E0403.
 
 #### 돌려주는 값
 
@@ -807,7 +822,7 @@ print(fs.copy("dir", "dir2"))
 
 - `Err({kind: 'not_found})`: `'read`로 여는데 파일이 없다, 또는 위의 디렉터리가 없다.
 - `Err({kind: 'permission})`: 권한이 없다.
-- `mode`가 셋 중 하나가 아니면 런타임 에러 E0403.
+- `mode`가 셋 중 하나가 아니거나 `perm`이 맞지 않으면 런타임 에러 E0403.
 
 #### 예제
 
@@ -929,7 +944,7 @@ print(fs.read_lines("squares.txt")!)
 
 :::
 
-:::fn fs.with_open(path, f, mode = 'read) fung
+:::fn fs.with_open(path, f, mode = 'read, perm = nil) fung
 
 파일을 열어 함수에 넘기고, 끝나면 무슨 일이 있어도 닫는다.
 
@@ -944,6 +959,7 @@ print(fs.read_lines("squares.txt")!)
 - `path`: 열 파일.
 - `f`: 핸들을 받는 함수. 그 결과가 `with_open`의 결과가 된다.
 - `mode`: [`fs.open`](#fn-fs-open)과 같다.
+- `perm`: [`fs.open`](#fn-fs-open)과 같다.
 
 #### 돌려주는 값
 

@@ -30,7 +30,7 @@ fn read_lines(path) = Ok(lines(_n.read(path)?))
 # opening and the promise to close it. A close that fails (a write that
 # could not be flushed) is a runtime error; a handle f closed itself is
 # not a failure.
-fn with_open(path, f, mode = 'read) = with(() => _n.open(path, mode), r => _with_ok(r, f), r => _close_opened(r))
+fn with_open(path, f, mode = 'read, perm = nil) = with(() => _n.open(path, mode, perm), r => _with_ok(r, f), r => _close_opened(r))
 
 # Creates a temporary directory, calls f with its path, and removes it,
 # whatever f does (a `with`, made inside it as `with_open` opens). A

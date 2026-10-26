@@ -152,3 +152,20 @@
   window.addEventListener("resize", update);
   update();
 })();
+
+// An old deep link (`reference/functions.html#fn-map`, from when every
+// function had its entry on that page) goes on to where the function is
+// now: the page still links to it by the same anchor.
+(function () {
+  "use strict";
+  var h = location.hash;
+  if (!/^#fn-/.test(h) || document.getElementById(decodeURIComponent(h.slice(1)))) return;
+  var links = document.querySelectorAll("a[href]");
+  for (var i = 0; i < links.length; i++) {
+    var href = links[i].getAttribute("href");
+    if (href.slice(-h.length) === h && href !== h) {
+      location.replace(links[i].href);
+      return;
+    }
+  }
+})();

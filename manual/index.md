@@ -100,7 +100,7 @@ match logs:
   <dt>동적 타입, 선택적 표기</dt>
   <dd><code>fn area(r: num) -&gt; float</code>처럼 타입을 적으면 호출과 반환 때 검사한다. 적지 않으면 검사하지 않는다.</dd>
   <dt>동시성은 원시 연산 몇 개</dt>
-  <dd>범위(<code>scope</code>/<code>supervise</code>) 안의 <code>spawn</code>/<code>await</code>/<code>cancel</code>, 채널, <code>atom</code>, <code>sleep</code>. async/await 문법은 없고, 막히는 호출은 그냥 막히며 그동안 다른 태스크가 돈다.</dd>
+  <dd>태스크 범위(<code>scope</code>/<code>supervise</code>) 안의 <code>spawn</code>/<code>await</code>/<code>cancel</code>, 채널, <code>atom</code>, <code>sleep</code>. async/await 문법은 없고, 막히는 호출은 그냥 막히며 그동안 다른 태스크가 돈다.</dd>
 </dl>
 
 ## 빠른 시작 {#start}

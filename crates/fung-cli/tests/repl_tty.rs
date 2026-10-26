@@ -54,6 +54,10 @@ fn start_bin(bin: &std::path::Path, tag: &str, stdin_pipe: bool, history: Option
     if let Some(h) = history {
         std::fs::write(home.join(".fung_history"), h).unwrap();
     }
+    // `openpty` makes the descriptors without close-on-exec (`pty::open`
+    // sets it after), and a piped stdin is a pipe: both are made and the
+    // child started under the lock every start here takes.
+    let held = common::starting();
     let (controller, terminal) = pty::open().unwrap();
     let stdin = if stdin_pipe {
         Stdio::piped()
@@ -72,6 +76,7 @@ fn start_bin(bin: &std::path::Path, tag: &str, stdin_pipe: bool, history: Option
             .spawn()
             .unwrap(),
     );
+    drop(held);
     let controller = std::fs::File::from(controller);
     let out = Arc::new(Mutex::new(Vec::new()));
     {
@@ -232,6 +237,34 @@ fn exit_restores_the_terminal() {
     assert!(!t.raw());
     assert!(t.text().contains("bye\r\n"), "{:?}", t.text());
     assert_eq!(pty::lflag(t.terminal.as_raw_fd()).unwrap(), cooked);
+}
+
+/// SIGTERM and SIGHUP from outside end the REPL at once (128 + the
+/// signal), and the terminal is put back as it was first: it was left in
+/// raw mode, with no echo, for the shell that comes back.
+#[test]
+fn a_signal_from_outside_restores_the_terminal() {
+    for (sig, code) in [("TERM", 143), ("HUP", 129)] {
+        let mut t = start(&format!("sig-{sig}"), false);
+        let cooked = pty::lflag(t.terminal.as_raw_fd()).unwrap();
+        t.send(b"1 + 1\r");
+        t.until("the value", |t| t.text().contains("2\r\n"));
+        t.until("the editor", Tty::ready);
+        assert!(t.raw());
+        let pid = t.child.id().to_string();
+        let killed =
+            common::spawn(std::process::Command::new("kill").args([&format!("-{sig}"), &pid]))
+                .and_then(|mut c| c.wait())
+                .unwrap();
+        assert!(killed.success());
+        assert_eq!(t.wait(), Some(code), "SIG{sig}");
+        assert!(!t.raw(), "SIG{sig} left raw mode on");
+        assert_eq!(
+            pty::lflag(t.terminal.as_raw_fd()).unwrap(),
+            cooked,
+            "SIG{sig}"
+        );
+    }
 }
 
 /// Standard input that is not a terminal gets plain line reading: raw

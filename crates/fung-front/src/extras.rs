@@ -19,6 +19,10 @@ pub fn source(name: &str) -> Option<&'static str> {
     })
 }
 
+/// The standard modules written in fung (the prelude files aside), as
+/// `import` names them. A test keeps it equal to `extras/`.
+pub const MODULES: &[&str] = &["fs", "path", "cli", "json", "time", "regex", "http", "conc"];
+
 /// Where a built-in file's source lives, as call paths show it:
 /// `extras/<name>.fung`.
 pub fn path(name: &str) -> String {
@@ -34,6 +38,29 @@ pub const PRELUDE_FILES: &[(&str, &str)] =
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `MODULES` and the prelude files are the `extras/` directory, one
+    /// for one: a new file there is a module the lists must name.
+    #[test]
+    fn the_lists_are_the_extras_directory() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../extras");
+        let mut files: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .filter_map(|n| n.strip_suffix(".fung").map(str::to_string))
+            .collect();
+        files.sort();
+        let mut listed: Vec<String> = MODULES
+            .iter()
+            .chain(PRELUDE_FILES.iter().map(|(n, _)| n))
+            .map(|n| n.to_string())
+            .collect();
+        listed.sort();
+        assert_eq!(files, listed);
+        for m in MODULES {
+            assert!(source(m).is_some(), "{m}");
+        }
+    }
 
     #[test]
     fn source_returns_embedded_modules() {

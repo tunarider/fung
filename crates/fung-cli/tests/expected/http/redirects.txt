@@ -951,7 +951,7 @@
 \ no newline
 -- stdout
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad1`: invalid Location header `http://[::1`: missing `]` in host"})
-| Err({kind: 'network, message: "cannot request `http://u:secret@127.0.0.1:$PORT0/bad2`: invalid Location header `/%zz`: invalid escape `%zz`"})
+| Err({kind: 'network, message: "cannot request `http://u:***@127.0.0.1:$PORT0/bad2`: invalid Location header `/%zz`: invalid escape `%zz`"})
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad3`: redirected to `ftp://x/y`: unsupported scheme `ftp`"})
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad4`: redirected to `http:opaque`: URL has no host"})
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/bad5`: redirected to `http://127.0.0.1:$PORT1/gone`: connection closed before a response"})

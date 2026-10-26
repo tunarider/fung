@@ -5,7 +5,7 @@
 
 use std::time::{Duration, Instant};
 
-use crate::testutil::{run, temp_dir};
+use crate::testutil::{child, run, temp_dir};
 
 /// The tests here check what a group of its own gives (a cancel ends the
 /// command's children too): force it, whether or not `cargo test` runs
@@ -20,11 +20,12 @@ const WAIT_FILE: &str =
 
 /// Whether process `pid` still exists.
 fn alive(pid: &str) -> bool {
-    std::process::Command::new("kill")
-        .args(["-0", pid.trim()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    child::status(
+        std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stderr(std::process::Stdio::null()),
+    )
+    .is_ok_and(|s| s.success())
 }
 
 /// The bound is above `TERM_GRACE`, as in
@@ -308,4 +309,23 @@ fn a_failed_registration_after_a_cancel_leaves_nothing_registered() {
         },
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("'error\n0\n", ""));
+}
+
+/// A variable name holding `=` (or no name at all) cannot be set:
+/// the system would read `HOME=z=x` as `HOME`. It is an argument error,
+/// not a variable silently set under another name.
+#[test]
+fn an_env_name_with_an_equals_sign_is_refused() {
+    for key in ["HOME=z", ""] {
+        let (out, err, code) = run(&format!(
+            "print(sh(\"echo $HOME\", env: {{\"{key}\": \"x\"}}))"
+        ));
+        assert_eq!((out.as_str(), code), ("", 1), "{key}: {err}");
+        assert!(
+            err.starts_with("error[E0403]: argument `env` must be a map of variable names"),
+            "{key}: {err}"
+        );
+    }
+    let (out, err, _) = run("print(sh(\"echo $A_B\", env: {A_B: \"ok\"})!.out)");
+    assert_eq!(out, "ok\n\n", "{err}");
 }

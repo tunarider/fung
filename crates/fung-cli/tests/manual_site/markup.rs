@@ -93,8 +93,11 @@ pub struct Code {
     pub hide_output: bool,
     /// Fixture files (name, contents) laid out before it runs.
     pub files: Vec<(String, String)>,
-    /// The shown, unchecked output of a `check` example.
+    /// The shown output of a `check` example: unchecked (`expect`, the
+    /// output of another command), or `fung check`'s own output, compared
+    /// when the page is built (`expect check`).
     pub expect: Option<String>,
+    pub expect_checked: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -391,10 +394,12 @@ impl Parser<'_> {
                 self.files.push((name.to_string(), contents, line));
                 return Ok(());
             }
-            ["expect"] => {
+            ["expect"] | ["expect", "check"] => {
+                let checked = w.len() == 2;
                 return match self.blocks.last_mut() {
                     Some(Block::Code(c)) if c.kind == Kind::Check && c.expect.is_none() => {
                         c.expect = Some(src);
+                        c.expect_checked = checked;
                         Ok(())
                     }
                     _ => Err(at(
@@ -404,7 +409,7 @@ impl Parser<'_> {
             }
             _ => {
                 return Err(at(format!(
-                    "unknown fence `{info}`: fung run|check|frag, dump ast|core|bytecode, shell, plain, core, file NAME, expect"
+                    "unknown fence `{info}`: fung run|check|frag, dump ast|core|bytecode, shell, plain, core, file NAME, expect [check]"
                 )));
             }
         };
@@ -420,6 +425,7 @@ impl Parser<'_> {
             hide_output: false,
             files: Vec::new(),
             expect: None,
+            expect_checked: false,
         };
         for a in attrs {
             match a.split_once('=') {

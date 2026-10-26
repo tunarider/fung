@@ -163,26 +163,39 @@ impl File {
 pub(crate) const NEW_FILE_MODE: u32 = 0o666;
 
 /// Opens `path` for `fs.open`: read only; write (read and write,
-/// truncated); or append (write only). A new file is made with
-/// [`NEW_FILE_MODE`].
-pub(crate) fn open(path: &str, mode: Mode) -> io::Result<Io> {
-    use std::os::unix::fs::OpenOptionsExt;
+/// truncated); or append (write only). The file is written with `perm`
+/// as [`open_writing`] does.
+pub(crate) fn open(path: &str, mode: Mode, perm: Option<u32>) -> io::Result<Io> {
     let mut o = std::fs::OpenOptions::new();
     match mode {
-        Mode::Read => o.read(true),
-        Mode::Write => o
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(NEW_FILE_MODE),
-        Mode::Append => o.append(true).create(true).mode(NEW_FILE_MODE),
+        Mode::Read => {
+            let f = o.read(true).open(path)?;
+            return Ok(Io::Read(BufReader::with_capacity(BUF_SIZE, f)));
+        }
+        Mode::Write => o.read(true).write(true).create(true).truncate(true),
+        Mode::Append => o.append(true).create(true),
     };
-    let f = o.open(path)?;
-    Ok(match mode {
-        Mode::Read => Io::Read(BufReader::with_capacity(BUF_SIZE, f)),
-        Mode::Write | Mode::Append => Io::Write(BufWriter::with_capacity(BUF_SIZE, f)),
-    })
+    let f = open_writing(&mut o, path, perm)?;
+    Ok(Io::Write(BufWriter::with_capacity(BUF_SIZE, f)))
+}
+
+/// Opens `path` with `o` (which may create it) for writing. A new file
+/// is made with [`NEW_FILE_MODE`] less the umask, or with `perm` (06,
+/// F-14): then, before anything is written, the open file gets exactly
+/// `perm`, umask or not, and an existing file too (a leftover temporary
+/// file must not keep wider bits). Made with `perm` before the umask, a
+/// new file is never wider than `perm` in between.
+pub(crate) fn open_writing(
+    o: &mut std::fs::OpenOptions,
+    path: &str,
+    perm: Option<u32>,
+) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let f = o.mode(perm.unwrap_or(NEW_FILE_MODE)).open(path)?;
+    if let Some(p) = perm {
+        f.set_permissions(std::fs::Permissions::from_mode(p))?;
+    }
+    Ok(f)
 }
 
 /// `fs.open`'s modes.

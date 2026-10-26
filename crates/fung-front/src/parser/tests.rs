@@ -125,7 +125,7 @@ fn deep_nesting_is_an_error_not_a_crash() {
         .stack_size(512 << 20)
         .spawn(move || ast(&src))
         .unwrap();
-    assert_eq!(handle.join().unwrap(), "E0802 1:10005");
+    assert_eq!(handle.join().unwrap(), "E0115 1:10005");
 }
 
 // --- expressions and statements ---
@@ -205,7 +205,7 @@ fn error_position_points_at_offending_token() {
 fn deep_nesting_is_a_fung_error_not_a_crash() {
     big_stack(|| {
         let deep = format!("{}1{}", "(".repeat(20_000), ")".repeat(20_000));
-        assert_eq!(perr(&deep), "E0802");
+        assert_eq!(perr(&deep), "E0115");
         let fine = format!("{}1{}", "(".repeat(1000), ")".repeat(1000));
         assert_eq!(p(&fine), "(program 1)", "1000-deep nesting");
     });
@@ -322,7 +322,7 @@ fn if_blocks() {
 fn deeply_nested_blocks_hit_the_depth_limit() {
     big_stack(|| {
         let src = format!("{}1{}", "if true: ".repeat(20_000), " ;;".repeat(20_000));
-        assert_eq!(perr(&src), "E0802");
+        assert_eq!(perr(&src), "E0115");
     });
 }
 
@@ -674,6 +674,17 @@ fn postfix_and_new_infix() {
             "xs[(i ?? 0)..]",
             "(program (slice xs (coalesce i 0) (nil)))",
         ),
+        // the start of an open slice is any expression (01 EBNF
+        // `[ expr ] ".."`), looser operators than `..` included
+        ("xs[i ?? 0..]", "(program (slice xs (coalesce i 0) (nil)))"),
+        (
+            "xs[n |> half..]",
+            "(program (slice xs (pipe n half) (nil)))",
+        ),
+        (
+            "xs[c then 1 else 2..]",
+            "(program (slice xs (then c 1 2) (nil)))",
+        ),
         ("m.name.first", "(program (field first (field name m)))"),
         ("f(1)!", "(program (unwrap ! (call f 1)))"),
         ("f(1)?", "(program (unwrap ? (call f 1)))"),
@@ -828,13 +839,13 @@ fn tag_rejects_named_args() {
 fn deep_pattern_is_bounded() {
     big_stack(|| {
         let src = format!("{}x{} = 1", "[".repeat(20_000), "]".repeat(20_000));
-        assert_eq!(perr_quiet(&src), "E0802", "deep pattern");
+        assert_eq!(perr_quiet(&src), "E0115", "deep pattern");
         let src = format!(
             "match v: {}x{} => 1 ;;",
             "Ok(".repeat(20_000),
             ")".repeat(20_000)
         );
-        assert_eq!(perr_quiet(&src), "E0802", "deep pattern in match");
+        assert_eq!(perr_quiet(&src), "E0115", "deep pattern in match");
     });
 }
 
@@ -878,6 +889,29 @@ fn import_statement() {
         ("import \"x\" as Fs", "E0112"),
         ("import \"${x}\"", "E0112"),
     ]);
+}
+
+/// A tag without arguments is its symbol (02), so the pattern `Red()`
+/// would match a second value that looks like `Red`: it is a syntax error
+/// (E0117; the expression `Red()` is refused by `desugar`, after pipes).
+#[test]
+fn a_tag_pattern_with_empty_parentheses_is_an_error() {
+    assert_eq!(perr("match x: Red() => 1 ;;"), "E0117");
+    assert_eq!(perr("match x: Ok(Red()) => 1 ;;"), "E0117");
+    assert_eq!(p("x = Red"), "(program (assign x 'Red))");
+}
+
+/// A name given twice in one call is caught before running, as a map
+/// literal's key is (E0116; a positional and a named argument for the same
+/// parameter is still E0405 at the call, which knows the parameters).
+#[test]
+fn call_rejects_a_named_argument_given_twice() {
+    assert_eq!(perr("f(a: 1, a: 2)"), "E0116");
+    assert_eq!(perr("f(1, a: 1, b: 2, a: 3)"), "E0116");
+    assert_eq!(
+        p("f(a: 1, b: 2)"),
+        "(program (call f (named a 1) (named b 2)))"
+    );
 }
 
 #[test]

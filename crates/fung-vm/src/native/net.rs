@@ -1186,10 +1186,14 @@ fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let wrap = |r: Result<Listener, Fail>| result(r.map(|l| Value::Listener(Arc::new(l))));
     let host = split_host_port(&addr).map(|(h, _)| h.to_string());
     match host {
+        // Only the lookup goes to the pool: the socket is made here, on the
+        // run thread, which also starts the commands. Made on a pool thread
+        // it could be inherited by a command started meanwhile (macOS sets
+        // close-on-exec after making a socket), which would hold the port.
         Ok(h) if !h.is_empty() && literal(&h).is_none() => nat::offload_abandoning(
             t,
-            move || lookup_targets(&h).and_then(|ips| listen(&addr, reuse_port, Some(ips))),
-            move |_, r| Ok(wrap(r)),
+            move || lookup_targets(&h),
+            move |_, r| Ok(wrap(r.and_then(|ips| listen(&addr, reuse_port, Some(ips))))),
         ),
         _ => Ok(Flow::Done(wrap(listen(&addr, reuse_port, None)))),
     }

@@ -87,7 +87,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 356;
+const RUN_CASE_COUNT: usize = 357;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -758,6 +758,24 @@ fn each_failure_leaves_rest() {
          print(type_of(await(t)), recv(c))\n;;, e => nil)",
     );
     assert_eq!(out, "'Err Ok(3)\n", "{err}");
+}
+
+/// A walk whose function cancels its own scope stops before it takes the
+/// next value: that value and the rest stay in the channel (05). Before,
+/// the walk received the next value and only then saw the cancellation,
+/// so that value was lost.
+#[test]
+fn a_cancelled_walk_takes_no_more_values() {
+    for walk in ["each", "map", "filter", "any"] {
+        let src = format!(
+            "(tx, rx) = channel(4)\neach([1, 2, 3, 4], x => send(tx, x)!)\nclose(tx)\n\
+             fn stop_at(s, x):\n  if x == 2: cancel(s) ;;\n  false\n;;\n\
+             print(scope(s => {walk}(rx, x => stop_at(s, x))) |> is_err)\n\
+             print(recv(rx), recv(rx))"
+        );
+        let (out, err, _) = run(&src);
+        assert_eq!(out, "true\nOk(3) Ok(4)\n", "{walk}: {err}");
+    }
 }
 
 /// The function may send into the channel it walks: each value is seen

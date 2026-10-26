@@ -993,13 +993,13 @@
 ==== no server 26
 -- program: print(http.get("http://u:secret@127.0.0.1:REFUSED/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://u:secret@127.0.0.1:$REFUSED/`: connection refused"})
+| Err({kind: 'network, message: "cannot request `http://u:***@127.0.0.1:$REFUSED/`: connection refused"})
 -- stderr
 -- exit: 0
 ==== no server 27
 -- program: print(http.get("http://us%20er:secret@127.0.0.1:REFUSED/"))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://us%20er:secret@127.0.0.1:$REFUSED/`: connection refused"})
+| Err({kind: 'network, message: "cannot request `http://us er:***@127.0.0.1:$REFUSED/`: connection refused"})
 -- stderr
 -- exit: 0
 ==== no server 28

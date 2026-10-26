@@ -709,13 +709,14 @@ fn run_env(bin: &Path, src: &str, env: &[(String, String)]) -> Out {
     }
     // killed and waited for if anything below panics
     let mut child = common::Reaped::new(
-        cmd.args(["-e", src])
-            .current_dir(common::repo())
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            cmd.args(["-e", src])
+                .current_dir(common::repo())
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped()),
+        )
+        .unwrap(),
     );
     // The pipes are read on threads while the child runs, so a child
     // writing more than a pipe holds cannot block waiting for us.
@@ -743,7 +744,8 @@ fn run_env(bin: &Path, src: &str, env: &[(String, String)]) -> Out {
         std::thread::sleep(Duration::from_millis(10));
     };
     // the child is gone, so the pipes end (unless a grandchild holds
-    // them: this runner starts none)
+    // them: this runner starts none; no other test's child inherits
+    // them, as every start goes through `common::spawn`)
     let (out, err) = (out.join().unwrap(), err.join().unwrap());
     match status {
         Some(st) => (out, err, st.code()),
@@ -763,10 +765,7 @@ const PLAIN_CASES: usize = 2;
 fn fung_version() -> &'static str {
     static V: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     V.get_or_init(|| {
-        let o = std::process::Command::new(fung_bin())
-            .arg("version")
-            .output()
-            .unwrap();
+        let o = common::output(std::process::Command::new(fung_bin()).arg("version")).unwrap();
         let text = String::from_utf8(o.stdout).unwrap();
         text.trim().strip_prefix("fung ").unwrap().to_string()
     })
@@ -997,6 +996,40 @@ fn a_refused_connection_gives_its_reason() {
         "Err({{kind: 'network, message: \"cannot request `http://127.0.0.1:{port}/x`: connection refused\"}})\n"
     );
     assert_eq!(run(&fung_bin(), &src), (want, String::new(), Some(0)));
+}
+
+/// An error never shows the URL's password (it goes to logs): the URL is
+/// written as the redirect errors write it, `user:***@`, whether the
+/// request failed or the URL could not be read. A URL without a password
+/// is shown as given.
+#[test]
+fn errors_hide_the_password_in_the_url() {
+    let port = refused_port();
+    let src = format!(
+        "import http\nprint(http.get(\"http://ann:s3cret@127.0.0.1:{port}/x\"))\n\
+         print(http.get(\"http://ann:s3cret@host:no/\"))\n\
+         print(http.get(\"http://ann@127.0.0.1:{port}/x\"))"
+    );
+    let (out, err, code) = run(&fung_bin(), &src);
+    assert_eq!((err.as_str(), code), ("", Some(0)));
+    assert!(!out.contains("s3cret"), "{out}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(
+        lines[0],
+        format!(
+            "Err({{kind: 'network, message: \"cannot request `http://ann:***@127.0.0.1:{port}/x`: connection refused\"}})"
+        )
+    );
+    assert!(
+        lines[1].contains("`http://ann:***@host:no/`"),
+        "{}",
+        lines[1]
+    );
+    assert!(
+        lines[2].contains(&format!("`http://ann@127.0.0.1:{port}/x`")),
+        "{}",
+        lines[2]
+    );
 }
 
 /// The request's `timeout` covers the TLS handshake as it covers the
@@ -2272,15 +2305,16 @@ fn serve(bin: &Path, src: &str) -> Served {
 fn serve_args(bin: &Path, args: &[&str]) -> Served {
     use std::io::BufRead;
     let mut child = common::Reaped::new(
-        std::process::Command::new(bin)
-            .env("TZ", common::TZ)
-            .args(args)
-            .current_dir(common::repo())
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap(),
+        common::spawn(
+            std::process::Command::new(bin)
+                .env("TZ", common::TZ)
+                .args(args)
+                .current_dir(common::repo())
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped()),
+        )
+        .unwrap(),
     );
     let mut lines = std::io::BufReader::new(child.stdout.take().unwrap());
     let (tx, rx) = std::sync::mpsc::channel();
@@ -2900,7 +2934,7 @@ fn the_http_examples_run() {
     cmd.args(["run", "examples/checkurls.fung"])
         .args(&urls)
         .current_dir(common::repo());
-    let o = cmd.output().unwrap();
+    let o = common::output(&mut cmd).unwrap();
     let out = String::from_utf8_lossy(&o.stdout).into_owned();
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 2, "{out}");
@@ -2970,11 +3004,13 @@ fn a_panicking_test_leaves_no_server_behind() {
     let pid = rx.recv().unwrap();
     // `kill -0` fails for a process that no longer exists (it was
     // waited for, so not even a zombie is left)
-    let alive = std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .unwrap()
-        .success();
+    let alive = common::spawn(
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stderr(std::process::Stdio::null()),
+    )
+    .and_then(|mut c| c.wait())
+    .unwrap()
+    .success();
     assert!(!alive, "the server {pid} is still running");
 }

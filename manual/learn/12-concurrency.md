@@ -1,5 +1,5 @@
 ---
-description: 태스크와 범위(scope·spawn·await), 실패를 격리하는 supervise, 기한 timeout, 취소, 채널, atom, conc.pmap.
+description: 태스크와 태스크 범위(scope·spawn·await), 실패를 격리하는 supervise, 기한 timeout, 취소, 채널, atom, conc.pmap.
 lede: 서버 스무 대에 차례로 접속하면 기다리는 시간이 스무 배가 된다. 이 장은 여러 일을 동시에 진행시키는 법, 그리고 그때 생기는 실패·기한·공유 상태를 안전하게 다루는 법을 배운다.
 ---
 # 동시에 여러 일 하기
@@ -7,8 +7,8 @@ lede: 서버 스무 대에 차례로 접속하면 기다리는 시간이 스무 
 :::goals
 - 동시성이 무엇이고 언제 도움이 되는지
 - `conc.pmap`으로 리스트의 일을 한꺼번에 처리하기
-- 범위와 태스크: `scope`, `spawn`, `await`
-- 실패를 다루기: 범위의 실패, `supervise`, `timeout`, 취소
+- 태스크 범위와 태스크: `scope`, `spawn`, `await`
+- 실패를 다루기: 태스크 범위의 실패, `supervise`, `timeout`, 취소
 - 태스크끼리 값을 주고받는 채널, 함께 쓰는 값 `atom`
 :::
 
@@ -59,9 +59,9 @@ for r in conc.pmap(["web1", "web2", "db1", "web3"], ping, limit: 2):
 ;;
 ```
 
-## 범위와 태스크 {#scope}
+## 태스크 범위와 태스크 {#scope}
 
-`pmap`보다 자유롭게 태스크를 다루려면 직접 띄운다. fung에서 태스크는 반드시 **범위**(scope) 안에서 태어난다. `scope(fn(s): … ;;)`는 범위 `s`를 열고 본문을 실행한다. 본문에서 `spawn(s, 함수)`로 그 범위에 태스크를 띄우고, `await(태스크)`로 그 태스크가 끝나기를 기다려 결과를 받는다.
+`pmap`보다 자유롭게 태스크를 다루려면 직접 띄운다. fung에서 태스크는 반드시 **태스크 범위**(scope) 안에서 태어난다. `scope(fn(s): … ;;)`는 범위 `s`를 열고 본문을 실행한다. 본문에서 `spawn(s, 함수)`로 그 범위에 태스크를 띄우고, `await(태스크)`로 그 태스크가 끝나기를 기다려 결과를 받는다.
 
 ```fung run
 fn fetch(name, d):
@@ -77,7 +77,7 @@ r = scope(fn(s):
 print(r)
 ```
 
-`scope`의 가장 중요한 약속은 **범위는 그 안의 태스크가 모두 끝나야 돌아온다**는 것이다. `await`하지 않은 태스크도 범위가 끝날 때까지 기다린다. 그래서 `scope(` 다음 줄에 이르렀다면 그 안에서 시작한 일은 모두 끝났다. 어딘가에서 몰래 계속 도는 태스크가 없다. 본문이 먼저 끝나도, 늦은 태스크를 기다린 뒤에 `after scope`가 찍히는 것을 보자.
+`scope`의 가장 중요한 약속은 **태스크 범위는 그 안의 태스크가 모두 끝나야 돌아온다**는 것이다. `await`하지 않은 태스크도 범위가 끝날 때까지 기다린다. 그래서 `scope(` 다음 줄에 이르렀다면 그 안에서 시작한 일은 모두 끝났다. 어딘가에서 몰래 계속 도는 태스크가 없다. 본문이 먼저 끝나도, 늦은 태스크를 기다린 뒤에 `after scope`가 찍히는 것을 보자.
 
 ```fung run
 scope(fn(s):
@@ -95,12 +95,12 @@ print("after scope")
 ```
 
 :::box learn 구조적 동시성
-태스크의 수명을 코드 블록에 묶는 방식을 **구조적 동시성**(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.
+태스크의 수명을 코드 블록에 묶는 방식을 **구조적 동시성**(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 태스크 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.
 :::
 
 ## 실패하는 태스크 {#failure}
 
-태스크 하나가 런타임 에러로 죽으면 어떻게 될까? 범위는 나머지 태스크를 **취소**(cancel, 하던 일을 그 자리에서 그만두게 함)하고, 그 에러를 `scope(`를 연 곳에서 다시 낸다. 실패는 사라지지 않고 늘 범위를 연 코드에 닿는다. 아래에서 1초를 자는 태스크는 `never`를 찍지 못한다.
+태스크 하나가 런타임 에러로 죽으면 어떻게 될까? 태스크 범위는 나머지 태스크를 **취소**(cancel, 하던 일을 그 자리에서 그만두게 함)하고, 그 에러를 `scope(`를 연 곳에서 다시 낸다. 실패는 사라지지 않고 늘 범위를 연 코드에 닿는다. 아래에서 1초를 자는 태스크는 `never`를 찍지 못한다.
 
 ```fung run exit=1 error=E0502
 r = scope(fn(s):
@@ -114,11 +114,11 @@ r = scope(fn(s):
 print(r)
 ```
 
-에러 메시지의 `note: scope opened at …`가 실패가 올라온 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 `Err` 값을 돌려주는 것은 실패가 아니다. 그냥 `await`가 받는 결과일 뿐이다.
+에러 메시지의 `note: scope opened at …`가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 `Err` 값을 돌려주는 것은 실패가 아니다. 그냥 `await`가 받는 결과일 뿐이다.
 
 ### 실패를 격리하기: supervise {#supervise}
 
-요청을 하나씩 처리하는 서버라면 요청 하나의 버그로 서버 전체가 멈추면 곤란하다. `supervise(본문, on_fail)`는 `scope`처럼 범위를 열되, 자식 태스크의 실패를 범위의 실패로 만들지 않고 `on_fail(실패)`에 넘긴다. 다른 태스크는 계속 돈다. 실패는 `{kind, code, message, at}` 맵이다.
+요청을 하나씩 처리하는 서버라면 요청 하나의 버그로 서버 전체가 멈추면 곤란하다. `supervise(본문, on_fail)`는 `scope`처럼 태스크 범위를 열되, 자식 태스크의 실패를 범위의 실패로 만들지 않고 `on_fail(실패)`에 넘긴다. 다른 태스크는 계속 돈다. 실패는 `{kind, code, message, at}` 맵이다.
 
 ```fung run
 r = supervise(fn(s):
@@ -168,7 +168,7 @@ print(results)
 
 ### 취소 {#cancel}
 
-`cancel(태스크)`는 그 태스크를 취소하고, `cancel(범위)`는 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 `await`하면 `Err({kind: 'cancelled})`를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.
+`cancel(태스크)`는 그 태스크를 취소하고, `cancel(태스크 범위)`는 그 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 `await`하면 `Err({kind: 'cancelled})`를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.
 
 ```fung run
 scope(fn(s):
@@ -266,7 +266,7 @@ swap(hits, fn(n):
 ```
 
 :::box other 다른 언어는
-Python의 `threading`·`asyncio`, JavaScript의 `Promise`·`async/await`, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 범위는 Python Trio의 nursery, Kotlin의 `coroutineScope`, Java 21의 `StructuredTaskScope`와 같은 구조적 동시성이다. `atom`과 `swap`은 Clojure의 atom에서, 실패를 격리하는 `supervise`는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 `cmd &`와 `wait`도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.
+Python의 `threading`·`asyncio`, JavaScript의 `Promise`·`async/await`, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 태스크 범위는 Python Trio의 nursery, Kotlin의 `coroutineScope`, Java 21의 `StructuredTaskScope`와 같은 구조적 동시성이다. `atom`과 `swap`은 Clojure의 atom에서, 실패를 격리하는 `supervise`는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 `cmd &`와 `wait`도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.
 :::
 
 :::exercise 서버 상태 표
@@ -324,8 +324,8 @@ print(total)
 
 - 동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.
 - 리스트의 일을 동시에 하려면 `conc.pmap(xs, f, limit: n)`. 결과는 입력 순서대로다.
-- 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 범위는 모든 태스크가 끝나야 돌아온다.
-- 태스크의 런타임 에러는 범위를 실패시키고 나머지를 취소한다. 격리하려면 `supervise(f, on_fail)`.
+- 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다.
+- 태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 `supervise(f, on_fail)`.
 - `timeout(d, f)`는 기한이 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.
 - 채널 `(tx, rx) = channel()`로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.
 - 함께 고치는 값은 `atom`·`deref`·`swap`. `swap`의 함수에는 효과를 쓸 수 없다(E0707).

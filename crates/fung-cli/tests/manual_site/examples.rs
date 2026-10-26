@@ -55,6 +55,16 @@ fn one(bin: &Path, code: &Code) -> Result<Outcome, String> {
     if (checked.code != 0 || checked.output.contains("error[")) && !shows_failure {
         return Err(format!("check: exit {}\n{}", checked.code, checked.output));
     }
+    // `expect check`: what `fung check` printed, as the page shows it
+    if code.expect_checked
+        && let Some(want) = &code.expect
+        && checked.output.trim_end() != want.trim_end()
+    {
+        return Err(format!(
+            "expect check: `fung check` printed\n{}\nnot\n{want}",
+            checked.output
+        ));
+    }
     if matches!(code.kind, Kind::Run | Kind::Check) {
         let f = exec(bin, &dir, code, &["fmt", "--check", "example.fung"], false)?;
         // the formatter cannot parse a syntax error: that is no format fault
@@ -155,6 +165,9 @@ fn exec(
     args: &[&str],
     with_input: bool,
 ) -> Result<Outcome, String> {
+    // The pipe close-on-exec only in a second step: made, and the child
+    // started, under the lock every start of the binary takes.
+    let held = crate::common::starting();
     let (mut reader, writer) = std::io::pipe().map_err(|e| e.to_string())?;
     let mut cmd = Command::new(bin);
     // nothing of the host's environment but `PATH` reaches a page: home
@@ -182,6 +195,7 @@ fn exec(
         }
     }
     let child = Reaped::new(cmd.spawn().map_err(|e| e.to_string())?);
+    drop(held);
     // the parent's copies of the pipe's writing end go with `cmd`
     drop(cmd);
     let read = std::thread::spawn(move || {

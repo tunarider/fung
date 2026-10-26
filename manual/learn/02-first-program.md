@@ -157,12 +157,18 @@ $ echo $?
 
 `check`는 에러가 아닌 **경고(warning)**도 보여 준다. 예를 들어 가져오고 쓰지 않은 모듈이 있으면 이렇게 알린다. 경고는 실행을 막지 않는다.
 
-```plain
+```fung check
+import fs
+
+print("hi")
+```
+
+```expect check
 warning[W0101]: unused import `fs`
-  --> w.fung:1:1
+  --> example.fung:1:8
   |
 1 | import fs
-  | ^^
+  |        ^^
   |
 ```
 

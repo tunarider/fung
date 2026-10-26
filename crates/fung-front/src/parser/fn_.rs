@@ -1,6 +1,8 @@
 //! Functions: `fn` definitions, parameter lists, type annotations and
 //! lambdas.
 
+use std::collections::HashSet;
+
 use super::{PResult, Parser, describe, err, s};
 use crate::lexer::{Kind, Token};
 use crate::source::Pos;
@@ -41,20 +43,19 @@ fn pattern_names(n: &Node, out: &mut Vec<(String, Pos)>) {
 /// E0110 when `name` is already bound by an earlier parameter, plain or
 /// inside a pattern (03); a pattern binding a name twice by itself is the
 /// resolver's E0221.
-fn note_param(seen: &mut Vec<String>, name: &str, pos: Pos) -> PResult<()> {
-    if seen.iter().any(|m| m == name) {
+fn note_param(seen: &mut HashSet<String>, name: &str, pos: Pos) -> PResult<()> {
+    if !seen.insert(name.to_string()) {
         return Err(err(
             "E0110",
             pos,
             vec![s(format!("duplicate parameter `{name}`"))],
         ));
     }
-    seen.push(name.to_string());
     Ok(())
 }
 
 /// Records every name a pattern parameter binds (`note_param`).
-fn note_pattern(seen: &mut Vec<String>, pat: &Node) -> PResult<()> {
+fn note_pattern(seen: &mut HashSet<String>, pat: &Node) -> PResult<()> {
     let mut names = Vec::new();
     pattern_names(pat, &mut names);
     for (name, pos) in names {
@@ -124,7 +125,7 @@ impl<'a> Parser<'a> {
 
     fn params_inner(&mut self, info: &mut FnInfo) -> PResult<Vec<Node>> {
         let mut defaults = Vec::new();
-        let mut seen: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
         let (mut saw_default, mut saw_rest) = (false, false);
         while !self.at(Kind::RParen) {
             if saw_rest {
@@ -295,7 +296,7 @@ impl<'a> Parser<'a> {
     }
 
     fn lambda_params(&mut self, info: &mut FnInfo) -> PResult<()> {
-        let mut seen = Vec::new();
+        let mut seen = HashSet::new();
         while !self.at(Kind::RParen) {
             let pat = self.pattern()?;
             note_pattern(&mut seen, &pat)?;

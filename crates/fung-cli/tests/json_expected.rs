@@ -5,7 +5,7 @@
 
 mod common;
 
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use common::expected::{self, Entry};
 use common::{fung_bin, repo};
@@ -179,14 +179,14 @@ fn parse_all(bin: &std::path::Path, file: &std::path::Path) -> (String, String, 
 }
 
 fn run(bin: &std::path::Path, src: &str, args: &[&str]) -> (String, String, Option<i32>) {
-    let o = Command::new(bin)
-        .env("TZ", common::TZ)
-        .args(["-e", src])
-        .args(args)
-        .current_dir(repo())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+    let o = common::output(
+        Command::new(bin)
+            .env("TZ", common::TZ)
+            .args(["-e", src])
+            .args(args)
+            .current_dir(repo()),
+    )
+    .unwrap();
     (
         String::from_utf8_lossy(&o.stdout).into_owned(),
         String::from_utf8_lossy(&o.stderr).into_owned(),

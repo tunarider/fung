@@ -19,8 +19,9 @@ fn is_empty(x) = type_of(x) == 'range then _r.last(x) == nil else len(x) == 0
 fn sum(xs) = fold(xs, 0, (acc, x) => acc + x)
 
 # Positional access needs a list: ranges (and receiving ends, received
-# until closed) become one.
-fn _list(xs) = type_of(xs) == 'list then xs else map(xs, x => x)
+# until closed) become one. Anything else is E0506 with `verb`, the
+# function the user called ("cannot reverse int").
+fn _list(xs, verb) = type_of(xs) == 'list then xs else map(_r.items(xs, verb), x => x)
 
 # A range's first number. The range natives (_r) give the rest without
 # counting it, so first/last/take/drop build only what they return, and a
@@ -37,17 +38,17 @@ fn _receive(rx, n, acc) = n <= 0 then acc else match recv(rx):
 # min/max: nil for an empty collection; the first element seeds the fold
 # so a nil element fails as `<` does instead of being skipped.
 fn min(xs):
-  ys = _list(xs)
+  ys = _list(xs, "take the min of")
   is_empty(ys) then nil else fold(ys[1..], ys[0], (best, x) => x < best then x else best)
 ;;
 
 fn max(xs):
-  ys = _list(xs)
+  ys = _list(xs, "take the max of")
   is_empty(ys) then nil else fold(ys[1..], ys[0], (best, x) => x > best then x else best)
 ;;
 
 fn reverse(xs):
-  ys = _list(xs)
+  ys = _list(xs, "reverse")
   n = len(ys)
   for i in 0..n: ys[n - 1 - i] ;;
 ;;
@@ -55,45 +56,45 @@ fn reverse(xs):
 fn range(a, b = nil) = b == nil then 0..a else a..b
 
 fn zip(xs, ys):
-  left = _list(xs)
-  right = _list(ys)
+  left = _list(xs, "zip")
+  right = _list(ys, "zip")
   n = min([len(left), len(right)])
   for i in 0..n: (left[i], right[i]) ;;
 ;;
 
 fn first(xs):
   if type_of(xs) == 'range: return _start(xs) ;;
-  ys = type_of(xs) == 'receiver then _receive(xs, 1, []) else _list(xs)
+  ys = type_of(xs) == 'receiver then _receive(xs, 1, []) else _list(xs, "take the first of")
   is_empty(ys) then nil else ys[0]
 ;;
 
 fn last(xs):
   if type_of(xs) == 'range: return _r.last(xs) ;;
-  ys = _list(xs)
+  ys = _list(xs, "take the last of")
   is_empty(ys) then nil else ys[-1]
 ;;
 
 # take/drop never fail on a count out of range (06): n is clamped into
-# 0..=len (by _r.slice for a range). A count not an int is the caller's bug.
-# A string is cut by characters, like its slices.
-fn _clamp(verb, n, size):
-  if type_of(n) != 'int: fail("${verb} expects an int count, got ${type_of(n)}") ;;
+# 0..=len (by _r.slice for a range). A count not an int is E0403, as for
+# a native. A string is cut by characters, like its slices.
+fn _clamp(n, size):
+  _r.count(n)
   n < 0 then 0 else (n > size then size else n)
 ;;
 
 fn take(xs, n):
-  if type_of(xs) == 'receiver: return _receive(xs, _clamp("take", n, n), []) ;;
-  if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp("take", n, n)), x => x) ;;
-  if type_of(xs) == 'str: return xs[.._clamp("take", n, len(xs))] ;;
-  ys = _list(xs)
-  ys[.._clamp("take", n, len(ys))]
+  if type_of(xs) == 'receiver: return _receive(xs, _clamp(n, n), []) ;;
+  if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp(n, n)), x => x) ;;
+  if type_of(xs) == 'str: return xs[.._clamp(n, len(xs))] ;;
+  ys = _list(xs, "take from")
+  ys[.._clamp(n, len(ys))]
 ;;
 
 fn drop(xs, n):
-  if type_of(xs) == 'range: return map(_r.slice(xs, _clamp("drop", n, n)), x => x) ;;
-  if type_of(xs) == 'str: return xs[_clamp("drop", n, len(xs))..] ;;
-  ys = _list(xs)
-  ys[_clamp("drop", n, len(ys))..]
+  if type_of(xs) == 'range: return map(_r.slice(xs, _clamp(n, n)), x => x) ;;
+  if type_of(xs) == 'str: return xs[_clamp(n, len(xs))..] ;;
+  ys = _list(xs, "drop from")
+  ys[_clamp(n, len(ys))..]
 ;;
 
 fn contains(c, x) = x in c

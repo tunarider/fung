@@ -169,12 +169,12 @@
 <li class="fn"><a href="../reference/prelude/process.html#fn-env"><code>env</code></a> 환경 변수 name의 값(문자열)을, 없으면 nil을 돌려준다. 인자가 없으면 전체를 맵으로.</li>
 </ul></section>
 <section class="group"><h3><a href="../reference/prelude/concurrency.html">동시성</a></h3><ul>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-scope"><code>scope</code></a> 범위를 열고 f(s)를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-scope"><code>scope</code></a> 태스크 범위를 열고 f(s)를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-supervise"><code>supervise</code></a> scope와 같지만 태스크의 런타임 에러가 다른 태스크나 본문에 번지지 않고 on_fail(e)로 간다.</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-spawn"><code>spawn</code></a> 범위 s 안에서 f()를 새 태스크로 띄우고 태스크 핸들을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-spawn"><code>spawn</code></a> 태스크 범위 s 안에서 f()를 새 태스크로 띄우고 태스크 핸들을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-await"><code>await</code></a> 태스크가 끝나기를 기다려 그 결과를 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-timeout"><code>timeout</code></a> f()를 부르되, d가 지나면 f 안의 모든 것을 취소하고 Err({kind: 'timeout})을 돌려준다.</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-cancel"><code>cancel</code></a> 태스크나 범위를 취소한다. 그 아래의 태스크에도 전파된다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-cancel"><code>cancel</code></a> 태스크나 태스크 범위를 취소한다. 그 아래의 태스크에도 전파된다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-channel"><code>channel</code></a> 채널을 만들고 두 끝 (tx, rx), 곧 보내는 끝과 받는 끝을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-send"><code>send</code></a> 보내는 끝 tx로 값 v를 보낸다. Ok(nil), 닫혔으면 Err({kind: 'closed}).</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-recv"><code>recv</code></a> 받는 끝 rx에서 값 하나를 받는다. Ok(v), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
@@ -196,7 +196,7 @@
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-glob"><code>fs.glob</code></a> 와일드카드 패턴에 맞는 경로들을 돌려준다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-walk"><code>fs.walk</code></a> 디렉터리 아래의 모든 파일 경로를 하위 디렉터리까지 돌려준다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-exists"><code>fs.exists</code></a> 경로에 무엇이 있는지 true/false로 알려 준다.</li>
-<li class="fn"><a href="../reference/modules/fs.html#fn-fs-stat"><code>fs.stat</code></a> 경로의 이름, 크기, 디렉터리 여부를 알려 준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-stat"><code>fs.stat</code></a> 경로의 이름, 크기, 디렉터리 여부, 고친 시각을 알려 준다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-mkdir"><code>fs.mkdir</code></a> 디렉터리를 만든다. 위의 디렉터리도 없으면 함께 만든다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-remove"><code>fs.remove</code></a> 파일 하나나 빈 디렉터리 하나를 지운다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-remove_all"><code>fs.remove_all</code></a> 디렉터리를 안의 것까지 통째로 지운다.</li>

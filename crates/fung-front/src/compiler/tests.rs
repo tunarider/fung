@@ -307,12 +307,12 @@ fn compile_captures_self_and_named_args() {
 fn too_many_arguments_or_parameters_is_a_compile_error() {
     let args = vec!["1"; 4096].join(", ");
     let err = compile_err(&format!("print({args})")).unwrap_err();
-    assert_eq!(err.code, "E0806");
+    assert_eq!(err.code, "E0230");
     assert_eq!(err.args, [Arg::Str("arguments".into()), Arg::Int(4095)]);
     assert_eq!((err.pos.line, err.pos.col), (1, 6));
     let names: Vec<String> = (0..4096).map(|i| format!("p{i}")).collect();
     let err = compile_err(&format!("fn f({}) = 1", names.join(", "))).unwrap_err();
-    assert_eq!(err.code, "E0806");
+    assert_eq!(err.code, "E0230");
     assert_eq!(err.args, [Arg::Str("parameters".into()), Arg::Int(4095)]);
     let ok = vec!["1"; 4095].join(", ");
     assert!(compile_err(&format!("print({ok})")).is_ok());

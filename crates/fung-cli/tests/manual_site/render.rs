@@ -317,7 +317,7 @@ fn container(
                 String::new()
             } else {
                 format!(
-                    "<p class=\"help\">도움말: <code>{}</code></p>\n",
+                    "<p class=\"help\">기본 도움말: <code>{}</code></p>\n",
                     escape(&help)
                 )
             };
@@ -607,7 +607,11 @@ fn code_html(c: &Code, outcome: Option<&Outcome>) -> String {
         Kind::Check => {
             h += &pre("", &c.src);
             if let Some(e) = &c.expect {
-                h += "\n<p class=\"unchecked\">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>\n";
+                if c.expect_checked {
+                    h += "\n<p class=\"checked\"><code>fung check</code>의 출력이다(페이지를 만들 때 확인했다).</p>\n";
+                } else {
+                    h += "\n<p class=\"unchecked\">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>\n";
+                }
                 h += &pre("plain", e);
             }
         }

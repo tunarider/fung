@@ -278,7 +278,13 @@ impl State<'_> {
         }
         if let Some(public) = spec.strip_prefix("_native.") {
             if !from_stdlib {
-                return Err(e("E0310", vec![s(spec), s(public)]));
+                // What wraps the bridge: its module, or the prelude.
+                let hint = match public {
+                    "net" => "import `http` instead".to_string(),
+                    "process" | "range" => "its functions are in the prelude".to_string(),
+                    m => format!("import `{m}` instead"),
+                };
+                return Err(e("E0310", vec![s(spec), s(&hint)]));
             }
             let Some(names) = self.l.builtins().modules.get(spec) else {
                 return Err(e("E0301", vec![s(spec)]));
@@ -564,13 +570,30 @@ mod tests {
         diag::format(&errs[0], &b.sources)
     }
 
+    /// Whether the build kept a file `name` (with `text`, if given).
     fn has_source(b: &Build, name: &str, text: Option<&str>) -> bool {
-        (0..8).map(FileId).any(|id| {
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                b.sources.name(id) == name && text.is_none_or(|t| b.sources.text(id) == t)
-            }))
-            .unwrap_or(false)
-        })
+        (0..b.sources.len() as u32)
+            .map(FileId)
+            .any(|id| b.sources.name(id) == name && text.is_none_or(|t| b.sources.text(id) == t))
+    }
+
+    /// A scratch directory removed when the test ends, failed or not.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(tag: &str) -> Scratch {
+            let dir =
+                std::env::temp_dir().join(format!("fung-loader-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Scratch(dir)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     /// A module's name from its file is a name like any other: NFC, so
@@ -589,18 +612,14 @@ mod tests {
 
     #[test]
     fn default_reader_decodes_invalid_utf8() {
-        let dir = std::env::temp_dir().join(format!("fung-loader-utf8-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("m.fung"), b"x = \"\xeb\x8b\"\n").unwrap();
-        let entry = dir.join("main.fung").to_string_lossy().into_owned();
+        let dir = Scratch::new("utf8");
+        std::fs::write(dir.0.join("m.fung"), b"x = \"\xeb\x8b\"\n").unwrap();
+        let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
         let (b, errs) = Loader::default().compile(&entry, "import \"./m\"\nprint(m.x)", Stage::All);
-        let _ = std::fs::remove_dir_all(&dir);
         assert!(errs.is_empty(), "{errs:?}");
         assert!(b.modules.iter().any(|m| m.name == "m"));
-        let text = "x = \"\u{fffd}\"\n";
-        assert!((0..8).map(FileId).any(|id| {
-            std::panic::catch_unwind(|| b.sources.text(id) == text).unwrap_or(false)
-        }));
+        let m = dir.0.join("m.fung").to_string_lossy().into_owned();
+        assert!(has_source(&b, &m, Some("x = \"\u{fffd}\"\n")));
     }
 
     /// The REPL (08) compiles each input after the files the runtime
@@ -700,6 +719,29 @@ mod tests {
 
         let (_, errs) = l.compile("-e", "import _native.fs", Stage::All);
         assert_eq!(codes(&errs), ["E0310"]);
+        // the hint names what wraps the bridge, not a module that is not there
+        for (spec, want) in [
+            (
+                "_native.fs",
+                "`_native.fs` is internal; import `fs` instead",
+            ),
+            (
+                "_native.net",
+                "`_native.net` is internal; import `http` instead",
+            ),
+            (
+                "_native.process",
+                "`_native.process` is internal; its functions are in the prelude",
+            ),
+            (
+                "_native.range",
+                "`_native.range` is internal; its functions are in the prelude",
+            ),
+        ] {
+            let (_, errs) = l.compile("-e", &format!("import {spec}"), Stage::All);
+            let shown = crate::diag::message(&errs[0].code, &errs[0].args);
+            assert_eq!(shown, want, "{spec}");
+        }
         let (_, errs) = l.compile("-e", "import prelude", Stage::All);
         assert_eq!(codes(&errs), ["E0301"], "prelude is not a module");
 

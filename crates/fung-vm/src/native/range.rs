@@ -2,7 +2,9 @@
 //! beyond walking it. A range may hold more numbers than an int counts
 //! (`-9223372036854775808..=9223372036854775807`, 02), so `len` fails on
 //! it; these count in i128 and never do. `extras/prelude.fung` builds
-//! `last`, `take` and `drop` of a range from them.
+//! `last`, `take` and `drop` of a range from them. `items` and `count`
+//! check the prelude's arguments as a native would (F-4): the error names
+//! the function the user called, not the `map` or `fail` inside it.
 
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -19,6 +21,11 @@ pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
             ("last", native("last", last_fn, vec![param("r")])),
+            (
+                "items",
+                native("items", items_fn, vec![param("xs"), param("verb")]),
+            ),
+            ("count", native("count", count_fn, vec![param("n")])),
             (
                 "slice",
                 native(
@@ -41,6 +48,20 @@ fn need_range(v: &Value) -> Result<&Range, Stop> {
         Value::Range(r) => Ok(r),
         _ => Err(nat::wrong_arg("r", "range", v)),
     }
+}
+
+/// `items(xs, verb)`: `xs` when it is a list, a range or a receiving end;
+/// otherwise E0506 `cannot <verb> <type>`.
+fn items_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::check_items(&a[0], nat::need_str("verb", &a[1])?)?;
+    Ok(a[0].clone())
+}
+
+/// `count(n)`: `n` when it is an int; otherwise E0403 for the argument
+/// `n` of `take` and `drop`.
+fn count_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    nat::need_int("n", &a[0])?;
+    Ok(a[0].clone())
 }
 
 /// `last(r)`: the last number, nil for an empty range.

@@ -105,7 +105,7 @@ print(double("21"))
   <tbody>
     <tr><td>언제</td><td>실행 전, 렉서·파서·desugar·이름 해석·컴파일러</td><td>VM이 명령을 수행하는 동안</td></tr>
     <tr><td>예</td><td>괄호 짝, 모르는 이름, 블록 밖에서 변수 바꾸기</td><td>0으로 나누기, 타입이 맞지 않는 연산, 정수 넘침</td></tr>
-    <tr><td>에러 번호</td><td><code>E01xx</code>~<code>E03xx</code>(그리고 중첩 한도 <code>E0802</code>)</td><td>대부분 <code>E04xx</code>~<code>E08xx</code></td></tr>
+    <tr><td>에러 번호</td><td><code>E01xx</code>~<code>E03xx</code></td><td>대부분 <code>E04xx</code>~<code>E08xx</code></td></tr>
     <tr><td>종료 코드</td><td>2</td><td>1</td></tr>
   </tbody>
 </table>

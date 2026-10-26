@@ -182,6 +182,14 @@ impl Desugarer {
             }
             Head::Interp => self.map_kids(Head::Concat, n),
             Head::Pipe => self.pipe(n),
+            // A tag without arguments is its symbol (02): `Red()` would be
+            // a second value that looks like `Red` (E0117). A pipe fills
+            // it first (`x |> Ok()`), so this sees only what is left empty.
+            Head::Tag if n.kids.is_empty() => Err(Box::new(error(
+                "E0117",
+                n.pos,
+                vec![Arg::Str(lit_str(n).to_string())],
+            ))),
             Head::Fn => self.fn_node(n),
             Head::Test => {
                 // A test block is a function made where it stands (08): it
@@ -605,7 +613,20 @@ mod tests {
             ("x |> Ok", "(do (tag Ok x))"),
             ("x |> Pair(2)", "(do (tag Pair x 2))"),
             ("x |> f |> Ok", "(do (tag Ok (call f x)))"),
+            ("x |> Ok()", "(do (tag Ok x))"),
         ]);
+    }
+
+    /// `Red()` is E0117 (02): a tag without arguments is its symbol.
+    #[test]
+    fn a_tag_with_empty_parentheses_is_an_error() {
+        for src in ["x = Red()", "print(Ok())", "f(Err())"] {
+            let mut sm = SourceMap::new();
+            let fid = sm.add("t.fung", src);
+            let (toks, _) = lex(fid, src).unwrap();
+            let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
+            assert_eq!(e.code, "E0117", "{src}");
+        }
     }
 
     #[test]

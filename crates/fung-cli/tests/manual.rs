@@ -17,9 +17,6 @@ use std::collections::BTreeMap;
 use fung_front::extras;
 use fung_vm::value::{Native, Value, format};
 
-/// The standard modules the manual documents, in its order.
-const MODULES: &[&str] = &["fs", "path", "cli", "json", "time", "regex", "http", "conc"];
-
 /// One documented name: its signature as the manual writes it
 /// (`get(m, k, default = nil)`, or `args` for a plain value) and whether
 /// it is written in fung.
@@ -132,7 +129,10 @@ fn fung_param(p: &str) -> String {
 fn fung_entries(src: &str) -> BTreeMap<String, Entry> {
     let mut aliases: BTreeMap<String, String> = BTreeMap::new();
     let mut out = BTreeMap::new();
+    let mut at = 0;
     for line in src.lines() {
+        let start = at;
+        at += line.len() + 1;
         if line.starts_with(char::is_whitespace) || line.starts_with('#') || line.is_empty() {
             continue;
         }
@@ -148,13 +148,22 @@ fn fung_entries(src: &str) -> BTreeMap<String, Entry> {
             if name.starts_with('_') {
                 continue;
             }
-            // The parameter list ends at the `)` that closes the first `(`.
-            let after = &rest[open..];
+            // The parameter list ends at the `)` that closes the first
+            // `(`, which may be on a later line (`fmt` keeps a long head
+            // over lines): look in the source from there on.
+            let after = &src[start + "fn ".len() + open..];
             let list = &after[1..closing(after)];
             let params: Vec<String> = split_top(list, ',')
                 .iter()
+                // a line break and the next line's indent read as one space
+                .map(|p| {
+                    p.split('\n')
+                        .map(str::trim_start)
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
                 .filter(|p| !p.trim().is_empty())
-                .map(|p| fung_param(p))
+                .map(|p| fung_param(&p))
                 .collect();
             out.insert(
                 name.to_string(),
@@ -216,7 +225,7 @@ fn expected() -> BTreeMap<String, Entry> {
     for (_, src) in extras::PRELUDE_FILES {
         out.extend(fung_entries(src));
     }
-    for m in MODULES {
+    for m in extras::MODULES {
         for (name, mut e) in fung_entries(extras::source(m).unwrap()) {
             e.sig = format!("{m}.{}", e.sig);
             out.insert(format!("{m}-{name}"), e);
@@ -324,4 +333,7 @@ fn signatures_are_read_like_the_manual_writes_them() {
         }
     );
     assert!(!e.contains_key("_g"));
+    // a head over several lines, as `fmt` keeps it
+    let e = fung_entries("fn h(a,\n  b = [1,\n    2], c = \"x  y\"):\n  a\n;;\n");
+    assert_eq!(e["h"].sig, "h(a, b = [1, 2], c = \"x  y\")");
 }

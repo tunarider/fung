@@ -249,12 +249,12 @@ fn report(rows):
 
 print(path.base(&quot;/tmp/x.log&quot;))
 print(report([&quot;a&quot;, &quot;b&quot;]))</code></pre>
-<p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
+<p class="checked"><code>fung check</code>의 출력이다(페이지를 만들 때 확인했다).</p>
 <pre class="plain"><code>warning[W0101]: unused import `fs`
-  --&gt; example.fung:1:1
+  --&gt; example.fung:1:8
   |
 1 | import fs
-  | ^^
+  |        ^^
   |
 warning[W0102]: unused variable `total`
   --&gt; example.fung:5:3

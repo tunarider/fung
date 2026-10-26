@@ -11,9 +11,50 @@ use std::{
     ffi::OsString,
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, ExitStatus, Output, Stdio},
+    sync::{Mutex, MutexGuard},
     time::{Duration, Instant},
 };
+
+/// Starts `cmd` holding a lock every start of the test binary takes.
+/// On macOS the standard library makes a child's pipes with `pipe` and
+/// marks them close-on-exec only after, so a child another test thread
+/// starts in between inherits their ends and holds them open: reading
+/// the first child's output to the end then waits until that unrelated
+/// child exits (a 100 ms run in `http.rs` took 10 s, as long as a
+/// neighbour's request). The lock helps only if every start in the
+/// binary takes it, piped or not: `run_status` does, and so does every
+/// start of a binary whose tests start children from more than one
+/// thread (a binary of one test, or one whose tests run one at a time,
+/// like `perf.rs`, needs none).
+pub fn spawn(cmd: &mut Command) -> std::io::Result<Child> {
+    let _held = starting();
+    cmd.spawn()
+}
+
+/// The lock [`spawn`] holds. A test that makes descriptors of its own
+/// that close-on-exec only in a second step (a pipe, a pseudo-terminal)
+/// holds it from making them to starting its child with `cmd.spawn()`.
+pub fn starting() -> MutexGuard<'static, ()> {
+    static STARTING: Mutex<()> = Mutex::new(());
+    STARTING.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// `Command::status`, started through [`spawn`].
+pub fn status(cmd: &mut Command) -> std::io::Result<ExitStatus> {
+    spawn(cmd)?.wait()
+}
+
+/// `Command::output`, started through [`spawn`]. Standard input is
+/// `/dev/null`, whatever `cmd` set.
+pub fn output(cmd: &mut Command) -> std::io::Result<Output> {
+    spawn(
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )?
+    .wait_with_output()
+}
 
 pub fn repo() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -59,19 +100,20 @@ pub fn run_status(
 ) -> (Vec<u8>, Vec<u8>, std::process::ExitStatus) {
     // killed and waited for if anything below panics
     let mut child = Reaped::new(
-        Command::new(bin)
-            .args(args)
-            .env("TZ", TZ)
-            .current_dir(repo())
-            .stdin(if stdin.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
+        spawn(
+            Command::new(bin)
+                .args(args)
+                .env("TZ", TZ)
+                .current_dir(repo())
+                .stdin(if stdin.is_some() {
+                    Stdio::piped()
+                } else {
+                    Stdio::null()
+                })
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )
+        .unwrap(),
     );
     let writer = stdin.map(|data| {
         let mut pipe = child.stdin.take().unwrap();

@@ -66,7 +66,7 @@
 <p class="lede"><code>import conc</code>. prelude의 동시성 함수(<code>scope</code>, <code>spawn</code>, <code>channel</code> …) 위에 fung으로 쓴 조합 세 개다. 여러 일을 한꺼번에 돌리고(<code>pmap</code>), 여러 채널을 하나로 모으고(<code>fan_in</code>), 실패하면 다시 해 본다(<code>retry</code>).</p>
 <h2 id="concepts">동시성 도우미</h2>
 <p>서버 스무 대에 같은 명령을 보내는 스크립트를 생각해 보자. 한 대가 1초씩 걸리면 차례로 하면 20초, 한꺼번에 하면 1초 남짓이다. 이렇게 여러 일을 겹쳐서 진행하는 것이 <strong>동시성</strong>(concurrency)이다. 기다리는 시간이 대부분인 일(네트워크, 외부 명령, 파일)에서 효과가 크다.</p>
-<p>fung에서 동시에 도는 일 하나하나는 <strong>태스크</strong>(task)다. 태스크는 <a href="../prelude/concurrency.html#fn-spawn"><code>spawn</code></a>으로 띄우고, 반드시 <strong>범위</strong>(scope, <a href="../prelude/concurrency.html#fn-scope"><code>scope</code></a>) 안에서 돈다. 범위는 안에서 띄운 태스크가 모두 끝나야 끝나므로 "띄워 놓고 잊은" 태스크가 남지 않는다. 태스크끼리 값을 주고받을 때는 <strong>채널</strong>(channel, <a href="../prelude/concurrency.html#fn-channel"><code>channel</code></a>)을 쓴다. 이 규칙은 <a href="../prelude/concurrency.html">동시성 함수</a>와 <a href="../../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>에 있다.</p>
+<p>fung에서 동시에 도는 일 하나하나는 <strong>태스크</strong>(task)다. 태스크는 <a href="../prelude/concurrency.html#fn-spawn"><code>spawn</code></a>으로 띄우고, 반드시 <strong>태스크 범위</strong>(scope, <a href="../prelude/concurrency.html#fn-scope"><code>scope</code></a>) 안에서 돈다. 범위는 안에서 띄운 태스크가 모두 끝나야 끝나므로 "띄워 놓고 잊은" 태스크가 남지 않는다. 태스크끼리 값을 주고받을 때는 <strong>채널</strong>(channel, <a href="../prelude/concurrency.html#fn-channel"><code>channel</code></a>)을 쓴다. 이 규칙은 <a href="../prelude/concurrency.html">동시성 함수</a>와 <a href="../../learn/12-concurrency.html">12장 동시에 여러 일 하기</a>에 있다.</p>
 <p><code>conc</code> 모듈은 이 기본 함수로 자주 쓰는 모양 세 가지를 만들어 둔 것이다. 모두 fung으로 썼고(<code>extras/conc.fung</code>), prelude에는 모든 스크립트에 필요한 것만 두므로 모듈로 뺐다. <code>import conc</code> 없이 <code>pmap</code>을 부르면 E0204이고, 도움말이 모듈 이름을 알려 준다.</p>
 <p>fung의 태스크는 실행 스레드 하나 위에서 번갈아 돈다. 그래서 CPU 계산 자체가 빨라지지는 않고, 기다리는 일(외부 명령, 네트워크, <code>sleep</code>)을 겹치는 데 쓴다. 자세한 원리는 VM 책의 <a href="../../vm/12-scheduler.html">태스크와 스케줄러</a>에 있다.</p>
 <section class="entry" id="fn-conc-pmap">
@@ -74,11 +74,11 @@
 <p>리스트의 원소마다 <code>f</code>를 동시에 돌리고, 결과를 입력 순서대로 모은다.</p>
 <div class="sig"><code>conc.pmap(xs, f, limit = 0)</code></div>
 <h4>설명</h4>
-<p><code>map(xs, f)</code>의 동시 실행판이다. 원소마다 태스크를 하나씩 띄워 <code>f(x)</code>를 돌리고, 모두 끝나면 결과를 <strong>입력 순서대로</strong> 리스트로 돌려준다(끝난 순서가 아니다). 자기만의 범위 안에서 돌므로, <code>pmap</code>이 돌아올 때 남은 태스크는 없다.</p>
+<p><code>map(xs, f)</code>의 동시 실행판이다. 원소마다 태스크를 하나씩 띄워 <code>f(x)</code>를 돌리고, 모두 끝나면 결과를 <strong>입력 순서대로</strong> 리스트로 돌려준다(끝난 순서가 아니다). 자기만의 태스크 범위 안에서 돌므로, <code>pmap</code>이 돌아올 때 남은 태스크는 없다.</p>
 <p><code>limit</code>은 한꺼번에 도는 태스크의 수다. <code>0</code>(기본)이면 제한 없이 모두 한꺼번에 띄운다. 양수면 작업자 <code>limit</code>개가 원소를 앞에서부터 하나씩 집어 가고, 하나를 끝낸 작업자가 곧바로 다음 원소를 집는다. 그래서 느린 원소 하나는 자기 작업자만 붙잡고 나머지는 계속 돈다. 서버 수백 대에 접속할 때 상대 쪽이나 자기 쪽(열린 연결 수)을 지키려면 <code>limit</code>을 준다.</p>
 <p>실패는 두 가지로 다르게 다룬다.</p>
 <ul>
-<li><code>f</code>가 <strong>런타임 에러</strong>를 내면(버그, <code>!</code>가 <code>Err</code>를 만남, <code>fail</code>) 그 범위의 다른 태스크를 취소하고 <code>pmap</code> 전체가 그 에러로 실패한다.</li>
+<li><code>f</code>가 <strong>런타임 에러</strong>를 내면(버그, <code>!</code>가 <code>Err</code>를 만남, <code>fail</code>) 그 태스크 범위의 다른 태스크를 취소하고 <code>pmap</code> 전체가 그 에러로 실패한다.</li>
 <li><code>f</code>가 <strong><code>Err</code> 값을 돌려주면</strong> 그것은 그냥 결과 하나다. 다른 원소는 계속되고, 결과 리스트에 <code>Err</code>가 그대로 들어간다.</li>
 </ul>
 <p>그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 <code>f</code> 안에서 <code>!</code> 대신 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 <code>f</code> 안에서 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a>을 쓴다.</p>
@@ -153,11 +153,11 @@ db-1 FAILED: timeout</code></pre>
 <p>여러 받는 끝(receiver)을 하나로 합친 받는 끝을 돌려준다.</p>
 <div class="sig"><code>conc.fan_in(s, rxs)</code></div>
 <h4>설명</h4>
-<p>채널의 받는 끝 여럿(<code>rxs</code>)에서 오는 값을 모두 받아 새 받는 끝 하나로 넘겨 준다. 받는 쪽은 그 하나만 <code>recv</code>하면 된다. 값은 도착한 순서로 섞여 나오고, 같은 입력 안의 순서는 지켜진다. 입력마다 값을 넘겨 주는 태스크가 범위 <code>s</code> 안에서 돈다. 모든 입력이 닫히면 돌려준 받는 끝도 닫힌다(<code>recv</code>가 <code>Err({kind: 'closed})</code>, <code>for</code>가 끝난다).</p>
+<p>채널의 받는 끝 여럿(<code>rxs</code>)에서 오는 값을 모두 받아 새 받는 끝 하나로 넘겨 준다. 받는 쪽은 그 하나만 <code>recv</code>하면 된다. 값은 도착한 순서로 섞여 나오고, 같은 입력 안의 순서는 지켜진다. 입력마다 값을 넘겨 주는 태스크가 태스크 범위 <code>s</code> 안에서 돈다. 모든 입력이 닫히면 돌려준 받는 끝도 닫힌다(<code>recv</code>가 <code>Err({kind: 'closed})</code>, <code>for</code>가 끝난다).</p>
 <p>받는 쪽이 먼저 그만두면(돌려준 받는 끝이 사라지면) 넘겨 주던 태스크가 멈추고 입력을 놓는다. 그러면 입력 쪽 생산자의 <code>send</code>도 <code>Err</code>를 받으므로, 생산자가 그것을 보고 멈출 수 있다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>s</code>: 넘겨 주는 태스크가 돌 범위(<code>scope</code>가 넘겨 준 값).</li>
+<li><code>s</code>: 넘겨 주는 태스크가 돌 태스크 범위(<code>scope</code>가 넘겨 준 값).</li>
 <li><code>rxs</code>: 받는 끝의 리스트.</li>
 </ul>
 <h4>돌려주는 값</h4>

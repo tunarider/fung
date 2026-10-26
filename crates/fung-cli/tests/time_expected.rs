@@ -7,7 +7,7 @@
 
 mod common;
 
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use common::expected::{self, Entry};
 use common::{fung_bin, repo};
@@ -93,13 +93,12 @@ print(type_of(n), time.unix(n) > 1790000000, time.format(n, "Z") == time.format(
 fn run(bin: &std::path::Path, src: &str, tz: Option<&str>) -> (String, String, Option<i32>) {
     let mut cmd = Command::new(bin);
     cmd.args(["-e", &format!("import time\n{src}")])
-        .current_dir(repo())
-        .stdin(Stdio::null());
+        .current_dir(repo());
     match tz {
         Some(tz) => cmd.env("TZ", tz),
         None => cmd.env_remove("TZ"),
     };
-    let o = cmd.output().unwrap();
+    let o = common::output(&mut cmd).unwrap();
     (
         String::from_utf8_lossy(&o.stdout).into_owned(),
         String::from_utf8_lossy(&o.stderr).into_owned(),

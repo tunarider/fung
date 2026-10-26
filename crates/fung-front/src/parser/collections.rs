@@ -1,5 +1,7 @@
 //! Collection literals: lists, maps, tuples and tags.
 
+use std::collections::HashSet;
+
 use super::{PResult, Parser, describe, err, s, tag_as_name};
 use crate::lexer::Kind;
 use crate::tree::{Head, Lit, Node};
@@ -38,7 +40,7 @@ impl Parser<'_> {
     }
 
     fn map_entries(&mut self, mut n: Node) -> PResult<Node> {
-        let mut seen: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
         while !self.at(Kind::RBrace) {
             let t = self.peek();
             let key = if self.at_name_like() {
@@ -58,10 +60,9 @@ impl Parser<'_> {
             } else {
                 return Err(err("E0112", t.pos, vec![s("a map key"), s(describe(t))]));
             };
-            if seen.contains(&key) {
+            if !seen.insert(key.clone()) {
                 return Err(err("E0113", t.pos, vec![s(key)]));
             }
-            seen.push(key.clone());
             self.next();
             let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
             if t.kind == Kind::Tag && shorthand {
@@ -122,8 +123,10 @@ impl Parser<'_> {
         Ok(n)
     }
 
-    /// Parses TAG or TAG(args) (02): a bare tag is its symbol. Outside
-    /// brackets a newline ends the tag; inside them it is whitespace (01).
+    /// Parses TAG or TAG(args) (02): a bare tag is its symbol. `TAG()` is
+    /// read here and refused by `desugar` (E0117) unless a pipe fills it:
+    /// `x |> Ok()` is `Ok(x)`. Outside brackets a newline ends the tag;
+    /// inside them it is whitespace (01).
     pub(super) fn tag_expr(&mut self) -> PResult<Node> {
         let t = self.next();
         if !self.at(Kind::LParen) {

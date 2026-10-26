@@ -123,13 +123,17 @@ fn peer<T: Send + 'static>(
     (port, h)
 }
 
-/// A port nothing listens on (bound, then closed).
+/// A port nothing listens on, outside the system's ephemeral range
+/// (Linux 32768 up, macOS 49152 up): a port `:0` gave and the test closed
+/// could be the next one handed to another test's connection or server
+/// before the test uses it. These are handed out only when asked for, and
+/// the start depends on the process, so two test runs seldom try the same.
 fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
+    let start = 20_000 + (std::process::id() % 5_000) as u16;
+    (start..30_000)
+        .chain(20_000..start)
+        .find(|&p| TcpListener::bind(("127.0.0.1", p)).is_ok())
+        .expect("a free port below the ephemeral range")
 }
 
 /// Program lines that listen on 127.0.0.1, connect a client `c` to it

@@ -62,16 +62,18 @@ fn tls_gets_match_the_expected_output() {
         );
         let url = format!("https://{host}:{port}/");
         let get = |bin: &Path| {
-            let o = Command::new(bin)
-                .env("TZ", common::TZ)
-                .arg("run")
-                .arg(tmp.join("get.fung"))
-                .arg(&url)
-                .env("SSL_CERT_FILE", data.join(roots))
-                // an empty directory: only SSL_CERT_FILE's roots
-                .env("SSL_CERT_DIR", tmp.join("certs"))
-                .output()
-                .unwrap();
+            // through the binary's lock: the other test starts children too
+            let o = common::output(
+                Command::new(bin)
+                    .env("TZ", common::TZ)
+                    .arg("run")
+                    .arg(tmp.join("get.fung"))
+                    .arg(&url)
+                    .env("SSL_CERT_FILE", data.join(roots))
+                    // an empty directory: only SSL_CERT_FILE's roots
+                    .env("SSL_CERT_DIR", tmp.join("certs")),
+            )
+            .unwrap();
             let ports = [(port, "$PORT")];
             Entry::new(format!("{cert} {roots} {host}"))
                 .field("stdout", expected::replace_ports(&o.stdout, &ports))
@@ -98,4 +100,58 @@ fn tls_gets_match_the_expected_output() {
     }
     let _ = std::fs::remove_dir_all(&tmp);
     expected::verify("tls/gets.txt", HEADER, 64 * 1024, &got);
+}
+
+/// Where the roots come from when the variables are odd, set on the
+/// child alone: a root file whose only block is a broken PEM loads no
+/// root (the server is then of an unknown authority; a distinct error for
+/// "no roots" is part of `docs/plans/0.5.0/12-sockets-tls.md`), a broken
+/// block before a good one skips only itself, and `SSL_CERT_DIR` alone
+/// (a directory holding the test CA, no `SSL_CERT_FILE`) is enough.
+#[test]
+fn odd_root_variables() {
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
+    let tmp = std::env::temp_dir().join(format!("fung-tls-odd-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("dir")).unwrap();
+    std::fs::copy(data.join("ca.pem"), tmp.join("dir/ca.pem")).unwrap();
+    let ca = std::fs::read_to_string(data.join("ca.pem")).unwrap();
+    let broken = ca.replacen("MII", "M!I", 1);
+    std::fs::write(tmp.join("broken.pem"), &broken).unwrap();
+    std::fs::write(tmp.join("broken-then-good.pem"), format!("{broken}{ca}")).unwrap();
+    let hi: common::tls_server::Handler = Arc::new(|_: &[u8]| {
+        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nhi".to_vec()
+    });
+    let port =
+        common::tls_server::start(&data.join("localhost.pem"), &data.join("localhost.key"), hi);
+    let src = format!(
+        "import http\nr = http.get(\"https://localhost:{port}/\")\nprint(match r:\n  Ok(v) => \"${{v.status}} ${{v.body}}\"\n  Err(e) => e.message\n;;)"
+    );
+    let get = |var: &str, path: std::path::PathBuf| {
+        let mut cmd = Command::new(common::fung_bin());
+        cmd.env("TZ", common::TZ)
+            .args(["-e", &src])
+            .env_remove("SSL_CERT_FILE")
+            .env_remove("SSL_CERT_DIR")
+            .env(var, path);
+        let o = common::output(&mut cmd).unwrap();
+        assert!(
+            o.stderr.is_empty(),
+            "{}",
+            String::from_utf8_lossy(&o.stderr)
+        );
+        String::from_utf8_lossy(&o.stdout)
+            .trim_end()
+            .replace(&port.to_string(), "$PORT")
+    };
+    assert_eq!(
+        get("SSL_CERT_FILE", tmp.join("broken.pem")),
+        "cannot request `https://localhost:$PORT/`: unknown certificate authority"
+    );
+    assert_eq!(
+        get("SSL_CERT_FILE", tmp.join("broken-then-good.pem")),
+        "200 hi"
+    );
+    assert_eq!(get("SSL_CERT_DIR", tmp.join("dir")), "200 hi");
+    let _ = std::fs::remove_dir_all(&tmp);
 }

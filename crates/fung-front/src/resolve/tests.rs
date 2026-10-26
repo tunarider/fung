@@ -1093,3 +1093,29 @@ fn repl_redefinition_in_one_input() {
     assert!(errs.is_empty(), "{errs:?}");
     assert_eq!(r.unwrap().globals, names(&["fs"]));
 }
+
+/// The catalog's help is the default help (08, D-2): an error that always
+/// writes its own help line (to name the variable or the module) has a
+/// default in the catalog too, and says the same up to the first code
+/// span, so the catalog and the manual show what users see.
+#[test]
+fn errors_that_always_have_a_help_line_have_its_default_in_the_catalog() {
+    let opts = m5_opts(false);
+    for (src, code) in [
+        ("if true: y = 1 ;;\nprint(y)", "E0206"),
+        ("import fs\nfs = 1", "E0308"),
+    ] {
+        let (_, errs) = resolve_with(src, &["print"], &opts);
+        assert_eq!(codes(&errs), vec![code], "{src:?}");
+        let default = &crate::diag::catalog::entry(code).unwrap().help;
+        assert!(!default.is_empty(), "{code} has no default help");
+        let lead = |h: &str| h.split('`').next().unwrap_or("").to_string();
+        assert_eq!(lead(help(&errs[0])), lead(default), "{code}");
+    }
+    // the import as written, with the module and not the name bound to it
+    let (_, errs) = resolve_with("import fs as f\nf = 1", &["print"], &opts);
+    assert_eq!(
+        help(&errs[0]),
+        "import it under another name: `import fs as m`"
+    );
+}

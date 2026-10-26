@@ -201,7 +201,8 @@ fn render(path: &str, v: &Version) -> String {
     let catalog = site::read_catalog(
         &std::fs::read_to_string(common::repo().join("crates/fung-cli/tests/data/spec/errors.txt"))
             .unwrap(),
-    );
+    )
+    .unwrap();
     let ctx = Ctx {
         toc: &toc,
         pages: &pages,
@@ -495,6 +496,27 @@ fn every_real_page_has_a_description() {
     }
 }
 
+/// An `expect check` fence is `fung check`'s output for the example
+/// before it, checked when the page is built (a plain `expect` stays an
+/// unchecked text, for output of another command).
+#[test]
+fn an_expect_check_fence_is_compared_with_check() {
+    let m = manual_copy("expect-check");
+    let c = m.join("c.md");
+    let base = std::fs::read_to_string(&c).unwrap();
+    let page = |shown: &str| {
+        format!("{base}\n```fung check\nimport fs\nprint(1)\n```\n\n```expect check\n{shown}```\n")
+    };
+    let right = "warning[W0101]: unused import `fs`\n  --> example.fung:1:8\n  |\n1 | import fs\n  |        ^^\n  |\n";
+    std::fs::write(&c, page(right)).unwrap();
+    let built = site::build(&m, &common::fung_bin(), &latest());
+    assert!(built.is_ok(), "{:?}", built.err());
+    std::fs::write(&c, page(&right.replace("1:8", "1:1"))).unwrap();
+    let e = site::build(&m, &common::fung_bin(), &latest()).unwrap_err();
+    assert!(e.contains("expect check") && e.contains("1:8"), "{e}");
+    let _ = std::fs::remove_dir_all(m.parent().unwrap());
+}
+
 #[test]
 fn an_error_entry_shows_its_own_error() {
     let m = manual_copy("own-error");
@@ -512,6 +534,24 @@ fn an_error_entry_shows_its_own_error() {
     );
     std::fs::write(&c, &text).unwrap();
     assert!(site::build(&m, &common::fung_bin(), &latest()).is_ok());
+    let _ = std::fs::remove_dir_all(m.parent().unwrap());
+}
+
+/// The catalog is the generated `spec/errors.txt`: a line without its
+/// four tab-separated fields is a broken file, and a manual with error
+/// entries but no catalog beside it is a broken checkout. Both fail the
+/// build instead of showing entries without their messages.
+#[test]
+fn a_broken_or_missing_catalog_fails_the_build() {
+    let m = manual_copy("catalog-broken");
+    let spec = m.parent().unwrap().join("spec/errors.txt");
+    let good = std::fs::read_to_string(&spec).unwrap();
+    std::fs::write(&spec, format!("{good}E0999\tno help field\n")).unwrap();
+    let e = site::build(&m, &common::fung_bin(), &latest()).unwrap_err();
+    assert!(e.contains("spec/errors.txt") && e.contains("E0999"), "{e}");
+    std::fs::remove_file(&spec).unwrap();
+    let e = site::build(&m, &common::fung_bin(), &latest()).unwrap_err();
+    assert!(e.contains("spec/errors.txt"), "{e}");
     let _ = std::fs::remove_dir_all(m.parent().unwrap());
 }
 

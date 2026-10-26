@@ -247,12 +247,12 @@ print(path.base("/tmp/x.log"))
 print(report(["a", "b"]))
 ```
 
-```expect
+```expect check
 warning[W0101]: unused import `fs`
-  --> example.fung:1:1
+  --> example.fung:1:8
   |
 1 | import fs
-  | ^^
+  |        ^^
   |
 warning[W0102]: unused variable `total`
   --> example.fung:5:3

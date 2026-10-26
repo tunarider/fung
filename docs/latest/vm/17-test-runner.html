@@ -174,7 +174,7 @@ assert double(2) == 5</code></pre><pre class="out err plain" data-code="1"><code
 <li><code>tests</code>를 켜고 그래프 전체를 컴파일한다(11장). 실패하면 <code>FAIL 경로: &lt;load&gt;</code>. 여러 파일이 같은 라이브러리 때문에 깨지면 그 에러는 한 번만 찍는다.</li>
 <li>진입 원형에 <code>TEST</code> 명령이 하나도 없으면 테스트가 없는 파일이다. <strong>실행하지도 목록에 넣지도 않는다</strong>(<code>has_tests</code>). 그래서 스크립트가 섞인 디렉터리에서 <code>fung test</code>를 돌려도 스크립트가 실행되지 않는다.</li>
 <li><strong>새 런타임</strong>을 만들고 prelude를 부팅한 뒤 최상위를 실행한다. 이때 블록들이 등록된다.</li>
-<li>등록된 블록을 순서대로 하나씩 실행한다(<code>Runtime::call_test</code>). 블록마다 루트 아래 새 취소 노드에서 자기 실행(<code>run_root</code>, 12장)으로 돈다. 블록이 끝나면 그 노드를 취소한다. 블록이 범위 밖에 남긴 것은 없지만(14장), 있어도 함께 끝난다.</li>
+<li>등록된 블록을 순서대로 하나씩 실행한다(<code>Runtime::call_test</code>). 블록마다 루트 아래 새 취소 노드에서 자기 실행(<code>run_root</code>, 12장)으로 돈다. 블록이 끝나면 그 노드를 취소한다. 블록이 태스크 범위 밖에 남긴 것은 없지만(14장), 있어도 함께 끝난다.</li>
 <li>파일이 끝나면 루트 아래의 남은 것을 취소한다(<code>cancel_all</code>). 실행마다 그 태스크가 모두 끝나야 돌아오므로(12장) 실제로 기다릴 것은 남아 있지 않다. 처리되지 않은 태스크 실패(취소된 <code>supervise</code>의 대기열)가 있었으면 <code>FAIL 경로: &lt;tasks&gt;</code>.</li>
 <li><strong>요약.</strong> <code>N passed, M failed</code>를 찍고 종료 코드를 정한다. 컴파일 실패가 있으면 2, 실패한 테스트가 있으면 1, 아니면 0.</li>
 </ol>

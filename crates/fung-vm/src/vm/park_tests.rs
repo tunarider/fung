@@ -101,9 +101,9 @@ fn a_walk_over_a_receiver_parks() {
     }
 }
 
-/// The walk's own task is cancelled in its callback: the next element is
-/// taken (as before: the value was received before the next call saw the
-/// cancellation), the rest stays in the channel.
+/// The walk's own task is cancelled in its callback: the walk stops before
+/// it takes the next element, so everything after the first stays in the
+/// channel (05).
 #[test]
 fn a_cancelled_walk_leaves_the_rest_in_the_channel() {
     assert_eq!(
@@ -111,7 +111,7 @@ fn a_cancelled_walk_leaves_the_rest_in_the_channel() {
             "(tx, rx) = channel(3)\neach([1, 2, 3], x => send(tx, x))\n(htx, hrx) = channel(1)\nscope(fn(s):\n  t = spawn(s, fn():\n    Ok(me) = recv(hrx)\n    each(rx, x => cancel(me))\n  ;;)\n  send(htx, t)\n  print(await(t), buffered(rx))\n;;)"
         ),
         (
-            "Err({kind: 'cancelled, message: \"cancelled\"}) 1\n".into(),
+            "Err({kind: 'cancelled, message: \"cancelled\"}) 2\n".into(),
             "".into()
         )
     );
@@ -278,6 +278,19 @@ fn every_yield_point_lets_others_run() {
             "{src}"
         );
     }
+}
+
+/// A turn that ends on the call that parks is over with the park: the
+/// task does not give a second turn as soon as it wakes. `each(ps,
+/// fs.read)` ticks once per element, on the read itself, and every read
+/// parks for the pool; so every thousandth park ends a turn, and none of
+/// them may add a yield.
+#[test]
+fn a_park_ends_the_turn_it_ended_on() {
+    let o = exec_waiting(
+        "import fs\nps = map(0..3000, _ => \"/dev/null\")\nn = yields()\np = parks()\neach(ps, fs.read)\nprint(parks() - p >= 3000, yields() - n)",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("true 0\n", ""));
 }
 
 /// The probes plus `this_thread()`, `job_thread()` (the thread an

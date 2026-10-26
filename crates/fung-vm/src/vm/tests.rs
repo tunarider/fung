@@ -538,7 +538,10 @@ fn natives_share_the_calling_convention() {
     }
     let errs = [
         (r#"pad()"#, "E0407"),
-        (r#"pad("a", n: 1, n: 2)"#, "E0405"),
+        // a name twice is caught by the parser; positional and named for
+        // the same parameter only at the call
+        (r#"pad("a", n: 1, n: 2)"#, "E0116"),
+        (r#"pad("a", s: "b")"#, "E0405"),
         (r#"pad("a", m: 1)"#, "E0406"),
         // rest params cannot be named
         (r#"print(1, sep: "")"#, "E0406"),

@@ -88,7 +88,7 @@ enum Value {
 print(send(tx, [tx]))
 ```
 
-- atom에는 **바뀌는 것을 품은 값**(atom, 채널의 끝, 태스크, 범위, 파일, 소켓)을 넣지 못한다(E0708).
+- atom에는 **바뀌는 것을 품은 값**(atom, 채널의 끝, 태스크, 태스크 범위, 파일, 소켓)을 넣지 못한다(E0708).
 
 ```fung run exit=1 error=E0708
 cache = atom({})

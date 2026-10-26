@@ -29,11 +29,12 @@ impl Drop for Scratch {
 
 fn sh_output(cmd: &mut Command) -> String {
     let out = common::Reaped::new(
-        cmd.stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn"),
+        common::spawn(
+            cmd.stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )
+        .expect("spawn"),
     )
     .output()
     .unwrap();
@@ -57,7 +58,7 @@ fn platform() -> String {
 }
 
 fn sha256(file: &Path) -> String {
-    let sum = if Command::new("sha256sum").arg("--version").output().is_ok() {
+    let sum = if common::output(Command::new("sha256sum").arg("--version")).is_ok() {
         sh_output(Command::new("sha256sum").arg(file))
     } else {
         sh_output(Command::new("shasum").args(["-a", "256"]).arg(file))
@@ -107,7 +108,7 @@ fn run_install(env: &[(&str, String)]) -> (String, bool) {
     for (k, v) in env {
         cmd.env(k, v);
     }
-    let out = common::Reaped::new(cmd.spawn().expect("spawn sh"))
+    let out = common::Reaped::new(common::spawn(&mut cmd).expect("spawn sh"))
         .output()
         .unwrap();
     let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
@@ -124,9 +125,7 @@ fn env_for(version: &str, bin: &Path, rel: &Path) -> Vec<(&'static str, String)>
 }
 
 fn have(tool: &str) -> bool {
-    Command::new(tool)
-        .arg("--version")
-        .output()
+    common::output(Command::new(tool).arg("--version"))
         .map(|_| true)
         .unwrap_or(false)
 }

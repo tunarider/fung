@@ -634,6 +634,7 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
+| in/extras~prelude@halflines.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -3155,22 +3156,22 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `)`, found end of file
-|   --> in/extras~http@halfbytes.fung:940:14
+| error[E0112]: expected `else` after then, found end of file
+|   --> in/extras~http@halfbytes.fung:951:35
 |     |
-| 940 |     Ok((h1, 0
-|     |              ^
+| 951 |   first = len(cls) > 0 then _trim_
+|     |                                   ^
 |     |
 | error[E0112]: expected `;;` to close the if, found end of file
-|   --> in/extras~http@halflines.fung:967:1
+|   --> in/extras~http@halflines.fung:977:1
 |     |
-| 967 | 
+| 977 | 
 |     | ^
 |     |
 | error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:186:5
+|   --> in/extras~http@opsplit.fung:220:5
 |     |
-| 186 | else
+| 220 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected `.`
@@ -3197,17 +3198,11 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0112]: expected `else` after then, found end of file
-|   --> in/extras~prelude@halfbytes.fung:66:57
+| error[E0112]: expected `(` after fn, found end of file
+|   --> in/extras~prelude@halfbytes.fung:65:3
 |    |
-| 66 |   ys = type_of(xs) == 'receiver then _receive(xs, 1, [])
-|    |                                                         ^
-|    |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halflines.fung:65:1
-|    |
-| 65 | 
-|    | ^
+| 65 | fn
+|    |   ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -6349,6 +6344,7 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
+| in/extras~prelude@halflines.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -8870,22 +8866,22 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `)`, found end of file
-|   --> in/extras~http@halfbytes.fung:940:14
+| error[E0112]: expected `else` after then, found end of file
+|   --> in/extras~http@halfbytes.fung:951:35
 |     |
-| 940 |     Ok((h1, 0
-|     |              ^
+| 951 |   first = len(cls) > 0 then _trim_
+|     |                                   ^
 |     |
 | error[E0112]: expected `;;` to close the if, found end of file
-|   --> in/extras~http@halflines.fung:967:1
+|   --> in/extras~http@halflines.fung:977:1
 |     |
-| 967 | 
+| 977 | 
 |     | ^
 |     |
 | error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:186:5
+|   --> in/extras~http@opsplit.fung:220:5
 |     |
-| 186 | else
+| 220 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected `.`
@@ -8912,17 +8908,11 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0112]: expected `else` after then, found end of file
-|   --> in/extras~prelude@halfbytes.fung:66:57
+| error[E0112]: expected `(` after fn, found end of file
+|   --> in/extras~prelude@halfbytes.fung:65:3
 |    |
-| 66 |   ys = type_of(xs) == 'receiver then _receive(xs, 1, [])
-|    |                                                         ^
-|    |
-| error[E0112]: expected `;;` to close the function, found end of file
-|   --> in/extras~prelude@halflines.fung:65:1
-|    |
-| 65 | 
-|    | ^
+| 65 | fn
+|    |   ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -11473,7 +11463,7 @@
 | crates~fung-cli~tests~data~check~block_value@odd3.fung 614 aa0319a0e65e40c1
 | crates~fung-cli~tests~data~check~block_value@opsplit.fung unchanged
 | crates~fung-cli~tests~data~check~block_value@spaced.fung 614 aa0319a0e65e40c1
-| crates~fung-cli~tests~data~check~block_value@split.fung 639 37457fa01d8fcc9d
+| crates~fung-cli~tests~data~check~block_value@split.fung 629 32a88776d9673f8d
 | crates~fung-cli~tests~data~check~block_value@tabs.fung 614 aa0319a0e65e40c1
 | crates~fung-cli~tests~data~check~block_value@tight.fung 614 aa0319a0e65e40c1
 | crates~fung-cli~tests~data~check~block_value@trailing.fung 614 aa0319a0e65e40c1
@@ -11561,7 +11551,7 @@
 | crates~fung-cli~tests~data~check~no_false_positives@odd3.fung 851 a98058d891dcbd42
 | crates~fung-cli~tests~data~check~no_false_positives@opsplit.fung 969 8a0fcf368f120346
 | crates~fung-cli~tests~data~check~no_false_positives@spaced.fung 851 a98058d891dcbd42
-| crates~fung-cli~tests~data~check~no_false_positives@split.fung 1000 1ae5477b23cfc750
+| crates~fung-cli~tests~data~check~no_false_positives@split.fung 968 cc7a9411cdd3d680
 | crates~fung-cli~tests~data~check~no_false_positives@tabs.fung 851 a98058d891dcbd42
 | crates~fung-cli~tests~data~check~no_false_positives@tight.fung 851 a98058d891dcbd42
 | crates~fung-cli~tests~data~check~no_false_positives@trailing.fung 851 a98058d891dcbd42
@@ -11627,7 +11617,7 @@
 | crates~fung-cli~tests~data~check~unused_vars@odd3.fung 613 04a6874f785085e0
 | crates~fung-cli~tests~data~check~unused_vars@opsplit.fung unchanged
 | crates~fung-cli~tests~data~check~unused_vars@spaced.fung 613 04a6874f785085e0
-| crates~fung-cli~tests~data~check~unused_vars@split.fung 756 2689e6d3dc874104
+| crates~fung-cli~tests~data~check~unused_vars@split.fung 704 211c0c697c3c5c34
 | crates~fung-cli~tests~data~check~unused_vars@tabs.fung 613 04a6874f785085e0
 | crates~fung-cli~tests~data~check~unused_vars@tight.fung 613 04a6874f785085e0
 | crates~fung-cli~tests~data~check~unused_vars@trailing.fung 613 04a6874f785085e0
@@ -11693,7 +11683,7 @@
 | crates~fung-cli~tests~data~test_ends~task_exit@odd3.fung 183 55e0c2b1ed9e6a28
 | crates~fung-cli~tests~data~test_ends~task_exit@opsplit.fung 227 98e04a98aa6a5bbe
 | crates~fung-cli~tests~data~test_ends~task_exit@spaced.fung 183 55e0c2b1ed9e6a28
-| crates~fung-cli~tests~data~test_ends~task_exit@split.fung 308 42f866ce511703a8
+| crates~fung-cli~tests~data~test_ends~task_exit@split.fung 292 0c88f8727248c838
 | crates~fung-cli~tests~data~test_ends~task_exit@tabs.fung 183 55e0c2b1ed9e6a28
 | crates~fung-cli~tests~data~test_ends~task_exit@tight.fung 183 55e0c2b1ed9e6a28
 | crates~fung-cli~tests~data~test_ends~task_exit@trailing.fung 183 55e0c2b1ed9e6a28
@@ -11715,7 +11705,7 @@
 | crates~fung-cli~tests~data~test_ends~top_task_exit@odd3.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~top_task_exit@opsplit.fung 449 93ccc55f70aae04f
 | crates~fung-cli~tests~data~test_ends~top_task_exit@spaced.fung 445 076bafc6befa2cf7
-| crates~fung-cli~tests~data~test_ends~top_task_exit@split.fung 614 fe63e2287bed5629
+| crates~fung-cli~tests~data~test_ends~top_task_exit@split.fung 578 92e54167304d9ef1
 | crates~fung-cli~tests~data~test_ends~top_task_exit@tabs.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~top_task_exit@tight.fung 445 076bafc6befa2cf7
 | crates~fung-cli~tests~data~test_ends~top_task_exit@trailing.fung 445 076bafc6befa2cf7
@@ -11847,7 +11837,7 @@
 | crates~fung-cli~tests~data~test~exit_in_task@odd3.fung 140 0778ccecf9e86d9a
 | crates~fung-cli~tests~data~test~exit_in_task@opsplit.fung 162 4265ecb7bab1e8a6
 | crates~fung-cli~tests~data~test~exit_in_task@spaced.fung 140 0778ccecf9e86d9a
-| crates~fung-cli~tests~data~test~exit_in_task@split.fung 220 d922de83df481638
+| crates~fung-cli~tests~data~test~exit_in_task@split.fung 204 9f98b9d3230ca8b8
 | crates~fung-cli~tests~data~test~exit_in_task@tabs.fung 140 0778ccecf9e86d9a
 | crates~fung-cli~tests~data~test~exit_in_task@tight.fung 140 0778ccecf9e86d9a
 | crates~fung-cli~tests~data~test~exit_in_task@trailing.fung 140 0778ccecf9e86d9a
@@ -12054,7 +12044,7 @@
 | examples~api@bom.fung 1751 78121312c937043e
 | examples~api@cglued.fung 1751 78121312c937043e
 | examples~api@cnospace.fung unchanged
-| examples~api@contsplit.fung 1988 005aa0bfa6a70720
+| examples~api@contsplit.fung 1960 7908ac7a37c4c048
 | examples~api@cpushed.fung 1751 78121312c937043e
 | examples~api@crlf.fung 1751 78121312c937043e
 | examples~api@dedent.fung 1751 78121312c937043e
@@ -12067,7 +12057,7 @@
 | examples~api@odd3.fung 1751 78121312c937043e
 | examples~api@opsplit.fung 1899 43b030b95ed395e0
 | examples~api@spaced.fung 1751 78121312c937043e
-| examples~api@split.fung 2662 ddaa33caeecf5af8
+| examples~api@split.fung 2406 3a014d8fb4f90910
 | examples~api@tabs.fung 1751 78121312c937043e
 | examples~api@tight.fung 1751 78121312c937043e
 | examples~api@trailing.fung 1751 78121312c937043e
@@ -12089,7 +12079,7 @@
 | examples~bigfiles@odd3.fung 983 14662022cb02a69a
 | examples~bigfiles@opsplit.fung 1130 0d3fc8a960a71c42
 | examples~bigfiles@spaced.fung 983 14662022cb02a69a
-| examples~bigfiles@split.fung 1580 228db2faa7f8bdc8
+| examples~bigfiles@split.fung 1462 13c7f7c3647b6438
 | examples~bigfiles@tabs.fung 983 14662022cb02a69a
 | examples~bigfiles@tight.fung 983 14662022cb02a69a
 | examples~bigfiles@trailing.fung 983 14662022cb02a69a
@@ -12133,7 +12123,7 @@
 | examples~dotenv@odd3.fung 1473 96c0164a697ede51
 | examples~dotenv@opsplit.fung 1625 cd261bd6ba275715
 | examples~dotenv@spaced.fung 1473 96c0164a697ede51
-| examples~dotenv@split.fung 2334 c15ccb2f9a3a2253
+| examples~dotenv@split.fung 2126 61cbf49c2a1e8b53
 | examples~dotenv@tabs.fung 1473 96c0164a697ede51
 | examples~dotenv@tight.fung 1473 96c0164a697ede51
 | examples~dotenv@trailing.fung 1473 96c0164a697ede51
@@ -12177,7 +12167,7 @@
 | examples~kebab@odd3.fung 934 d45ee3be98a7262a
 | examples~kebab@opsplit.fung 1016 fd98a4d735619e72
 | examples~kebab@spaced.fung 934 d45ee3be98a7262a
-| examples~kebab@split.fung 1070 a610d68a06f8cf3c
+| examples~kebab@split.fung 1038 d7867955b4cf0d1c
 | examples~kebab@tabs.fung 934 d45ee3be98a7262a
 | examples~kebab@tight.fung 934 d45ee3be98a7262a
 | examples~kebab@trailing.fung 934 d45ee3be98a7262a
@@ -12199,7 +12189,7 @@
 | examples~loglines@odd3.fung 1591 f9be811662352b58
 | examples~loglines@opsplit.fung 1732 05ec8c79b69549a4
 | examples~loglines@spaced.fung 1591 f9be811662352b58
-| examples~loglines@split.fung 2212 5859bbff5beba97c
+| examples~loglines@split.fung 2104 eb865fa30636372c
 | examples~loglines@tabs.fung 1591 f9be811662352b58
 | examples~loglines@tight.fung 1591 f9be811662352b58
 | examples~loglines@trailing.fung 1591 f9be811662352b58
@@ -12221,7 +12211,7 @@
 | examples~logsum@odd3.fung 904 867795be239a029b
 | examples~logsum@opsplit.fung 944 dfe5d99f6017d005
 | examples~logsum@spaced.fung 904 867795be239a029b
-| examples~logsum@split.fung 1399 91aa9d378e158193
+| examples~logsum@split.fung 1225 e9967fc8ff614773
 | examples~logsum@tabs.fung 904 867795be239a029b
 | examples~logsum@tight.fung 904 867795be239a029b
 | examples~logsum@trailing.fung 904 867795be239a029b
@@ -12243,7 +12233,7 @@
 | examples~rename@odd3.fung 633 aa52a49e0ea10f8c
 | examples~rename@opsplit.fung 649 19ee397c44da5cfa
 | examples~rename@spaced.fung 633 aa52a49e0ea10f8c
-| examples~rename@split.fung 899 54bcca4e0230240a
+| examples~rename@split.fung 821 5684061f5ffd7c32
 | examples~rename@tabs.fung 633 aa52a49e0ea10f8c
 | examples~rename@tight.fung 633 aa52a49e0ea10f8c
 | examples~rename@trailing.fung 633 aa52a49e0ea10f8c
@@ -12287,7 +12277,7 @@
 | examples~static@odd3.fung 516 5331eff20c9a481c
 | examples~static@opsplit.fung 544 d215f20595f29660
 | examples~static@spaced.fung 516 5331eff20c9a481c
-| examples~static@split.fung 584 dd5ab67694c4bef6
+| examples~static@split.fung 568 55bee5268b234956
 | examples~static@tabs.fung 516 5331eff20c9a481c
 | examples~static@tight.fung 516 5331eff20c9a481c
 | examples~static@trailing.fung 516 5331eff20c9a481c
@@ -12296,7 +12286,7 @@
 | examples~staticfiles@bom.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@cglued.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@cnospace.fung unchanged
-| examples~staticfiles@contsplit.fung 3041 31b3012e6638a034
+| examples~staticfiles@contsplit.fung 2991 7787e561a4121f94
 | examples~staticfiles@cpushed.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@crlf.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@dedent.fung 2768 9ca9a1e39f27e006
@@ -12307,9 +12297,9 @@
 | examples~staticfiles@noblank.fung unchanged
 | examples~staticfiles@nofinal.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@odd3.fung 2768 9ca9a1e39f27e006
-| examples~staticfiles@opsplit.fung 3016 e33bbde81a894340
+| examples~staticfiles@opsplit.fung 3012 7d3a7ee5fc6c8f28
 | examples~staticfiles@spaced.fung 2768 9ca9a1e39f27e006
-| examples~staticfiles@split.fung 3740 216336069c82ca3e
+| examples~staticfiles@split.fung 3458 e66758d82a93f0e6
 | examples~staticfiles@tabs.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@tight.fung 2768 9ca9a1e39f27e006
 | examples~staticfiles@trailing.fung 2768 9ca9a1e39f27e006
@@ -12331,7 +12321,7 @@
 | examples~tidy@odd3.fung 602 82790522379b2b47
 | examples~tidy@opsplit.fung 616 e2ee52bdf069e8fd
 | examples~tidy@spaced.fung 602 82790522379b2b47
-| examples~tidy@split.fung 851 0a80562b1422621d
+| examples~tidy@split.fung 783 29a5fe740317c82d
 | examples~tidy@tabs.fung 602 82790522379b2b47
 | examples~tidy@tight.fung 602 82790522379b2b47
 | examples~tidy@trailing.fung 602 82790522379b2b47
@@ -12340,7 +12330,7 @@
 | examples~urlcheck@bom.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@cglued.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@cnospace.fung unchanged
-| examples~urlcheck@contsplit.fung 1787 06eb13a7ac6acbd4
+| examples~urlcheck@contsplit.fung 1775 f82c499274368534
 | examples~urlcheck@cpushed.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@crlf.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@dedent.fung 1610 6ca08b4bd7a8b7ba
@@ -12351,9 +12341,9 @@
 | examples~urlcheck@noblank.fung unchanged
 | examples~urlcheck@nofinal.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@odd3.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@opsplit.fung 1812 c14316b9dfba3b6a
+| examples~urlcheck@opsplit.fung 1782 631c3d6ff280d55a
 | examples~urlcheck@spaced.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@split.fung 2430 c9a2e51d2afedf7e
+| examples~urlcheck@split.fung 2200 d225637439f1e3be
 | examples~urlcheck@tabs.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@tight.fung 1610 6ca08b4bd7a8b7ba
 | examples~urlcheck@trailing.fung 1610 6ca08b4bd7a8b7ba
@@ -12375,7 +12365,7 @@
 | extras~cli@odd3.fung 2043 54e01951e17adcac
 | extras~cli@opsplit.fung 2189 b1ee4a7747d688ee
 | extras~cli@spaced.fung 2043 54e01951e17adcac
-| extras~cli@split.fung 3111 73b2c7c42f923f88
+| extras~cli@split.fung 3047 d2d0a8f2feb91250
 | extras~cli@tabs.fung 2043 54e01951e17adcac
 | extras~cli@tight.fung 2043 54e01951e17adcac
 | extras~cli@trailing.fung 2043 54e01951e17adcac
@@ -12395,57 +12385,57 @@
 | extras~conc@noblank.fung unchanged
 | extras~conc@nofinal.fung 2570 ce9a62f4b03c00fd
 | extras~conc@odd3.fung 2570 ce9a62f4b03c00fd
-| extras~conc@opsplit.fung 2874 7467b1cf3e0d938f
+| extras~conc@opsplit.fung 2836 71cd73b0d3fd20b7
 | extras~conc@spaced.fung 2570 ce9a62f4b03c00fd
-| extras~conc@split.fung 3680 0d635631b765a0b5
+| extras~conc@split.fung 3438 2ebe8d6f7ca4553d
 | extras~conc@tabs.fung 2570 ce9a62f4b03c00fd
 | extras~conc@tight.fung 2570 ce9a62f4b03c00fd
 | extras~conc@trailing.fung 2570 ce9a62f4b03c00fd
 | extras~conc@wide4.fung 2570 ce9a62f4b03c00fd
 | extras~fs.fung unchanged
-| extras~fs@bom.fung 1708 98fbff77076fa532
-| extras~fs@cglued.fung 1708 98fbff77076fa532
+| extras~fs@bom.fung 1726 b6224080c511fa8a
+| extras~fs@cglued.fung 1726 b6224080c511fa8a
 | extras~fs@cnospace.fung unchanged
 | extras~fs@contsplit.fung unchanged
-| extras~fs@cpushed.fung 1708 98fbff77076fa532
-| extras~fs@crlf.fung 1708 98fbff77076fa532
-| extras~fs@dedent.fung 1708 98fbff77076fa532
-| extras~fs@halfbytes.fung 855 d747bb4ccf37b509
+| extras~fs@cpushed.fung 1726 b6224080c511fa8a
+| extras~fs@crlf.fung 1726 b6224080c511fa8a
+| extras~fs@dedent.fung 1726 b6224080c511fa8a
+| extras~fs@halfbytes.fung 864 be94a34111fd68e1
 | extras~fs@halflines.fung unchanged
 | extras~fs@joined.fung unchanged
-| extras~fs@moreblank.fung 1702 18950f26bd6d0436
+| extras~fs@moreblank.fung 1720 33ededd96ecdf512
 | extras~fs@noblank.fung unchanged
-| extras~fs@nofinal.fung 1708 98fbff77076fa532
-| extras~fs@odd3.fung 1708 98fbff77076fa532
-| extras~fs@opsplit.fung 1848 cbc5e357d095164a
-| extras~fs@spaced.fung 1708 98fbff77076fa532
-| extras~fs@split.fung 1934 a2a2b7ba8c95642c
-| extras~fs@tabs.fung 1708 98fbff77076fa532
-| extras~fs@tight.fung 1708 98fbff77076fa532
-| extras~fs@trailing.fung 1708 98fbff77076fa532
-| extras~fs@wide4.fung 1708 98fbff77076fa532
+| extras~fs@nofinal.fung 1726 b6224080c511fa8a
+| extras~fs@odd3.fung 1726 b6224080c511fa8a
+| extras~fs@opsplit.fung 1868 3b4a4913bb6e3ad0
+| extras~fs@spaced.fung 1726 b6224080c511fa8a
+| extras~fs@split.fung 1952 d6cecb1358f66a14
+| extras~fs@tabs.fung 1726 b6224080c511fa8a
+| extras~fs@tight.fung 1726 b6224080c511fa8a
+| extras~fs@trailing.fung 1726 b6224080c511fa8a
+| extras~fs@wide4.fung 1726 b6224080c511fa8a
 | extras~http.fung unchanged
-| extras~http@bom.fung 68467 acdb98b56faf7e58
-| extras~http@cglued.fung 68467 acdb98b56faf7e58
+| extras~http@bom.fung 69284 50a9b625f90cd8fc
+| extras~http@cglued.fung 69284 50a9b625f90cd8fc
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 68467 acdb98b56faf7e58
-| extras~http@crlf.fung 68467 acdb98b56faf7e58
-| extras~http@dedent.fung 68467 acdb98b56faf7e58
+| extras~http@cpushed.fung 69284 50a9b625f90cd8fc
+| extras~http@crlf.fung 69284 50a9b625f90cd8fc
+| extras~http@dedent.fung 69284 50a9b625f90cd8fc
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 68872 d7cf98de02d8936c
+| extras~http@moreblank.fung 69700 3515b831a5393ac6
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 68467 acdb98b56faf7e58
-| extras~http@odd3.fung 68467 acdb98b56faf7e58
+| extras~http@nofinal.fung 69284 50a9b625f90cd8fc
+| extras~http@odd3.fung 69284 50a9b625f90cd8fc
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 68467 acdb98b56faf7e58
-| extras~http@split.fung 98344 79c84fc7e8d95d00
-| extras~http@tabs.fung 68467 acdb98b56faf7e58
-| extras~http@tight.fung 68467 acdb98b56faf7e58
-| extras~http@trailing.fung 68467 acdb98b56faf7e58
-| extras~http@wide4.fung 68467 acdb98b56faf7e58
+| extras~http@spaced.fung 69284 50a9b625f90cd8fc
+| extras~http@split.fung 90267 0f8f09d0b11893ea
+| extras~http@tabs.fung 69284 50a9b625f90cd8fc
+| extras~http@tight.fung 69284 50a9b625f90cd8fc
+| extras~http@trailing.fung 69284 50a9b625f90cd8fc
+| extras~http@wide4.fung 69284 50a9b625f90cd8fc
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1
@@ -12491,27 +12481,27 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 4331 49113894f231eafd
-| extras~prelude@cglued.fung 4331 49113894f231eafd
+| extras~prelude@bom.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@cglued.fung 4448 f7e9d6a6c417ef87
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 4331 49113894f231eafd
-| extras~prelude@crlf.fung 4331 49113894f231eafd
-| extras~prelude@dedent.fung 4331 49113894f231eafd
+| extras~prelude@cpushed.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@crlf.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@dedent.fung 4448 f7e9d6a6c417ef87
 | extras~prelude@halfbytes.fung unchanged
-| extras~prelude@halflines.fung unchanged
+| extras~prelude@halflines.fung 2221 a9edfe03048b0c57
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 4340 5dbe626848b7b88f
+| extras~prelude@moreblank.fung 4458 e8ef512ced96d911
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 4331 49113894f231eafd
-| extras~prelude@odd3.fung 4331 49113894f231eafd
-| extras~prelude@opsplit.fung 4756 9f2a325ef6950b55
-| extras~prelude@spaced.fung 4331 49113894f231eafd
-| extras~prelude@split.fung 5928 8617b53c87c18d93
-| extras~prelude@tabs.fung 4331 49113894f231eafd
-| extras~prelude@tight.fung 4331 49113894f231eafd
-| extras~prelude@trailing.fung 4331 49113894f231eafd
-| extras~prelude@wide4.fung 4331 49113894f231eafd
+| extras~prelude@nofinal.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@odd3.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@opsplit.fung 4855 e9019979eab7ed97
+| extras~prelude@spaced.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@split.fung 5685 713652547e6ed821
+| extras~prelude@tabs.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@tight.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@trailing.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@wide4.fung 4448 f7e9d6a6c417ef87
 | extras~regex.fung unchanged
 | extras~regex@bom.fung 213 b042b42db3e3ed81
 | extras~regex@cglued.fung unchanged
@@ -12683,7 +12673,7 @@
 | tests~lang~args_and_exit@odd3.fung 176 4fd59b67526ac71b
 | tests~lang~args_and_exit@opsplit.fung 190 f72eda908ca3d6f7
 | tests~lang~args_and_exit@spaced.fung 176 4fd59b67526ac71b
-| tests~lang~args_and_exit@split.fung 244 97ffcfc3c2b1e58d
+| tests~lang~args_and_exit@split.fung 234 ce52f0fc671be75d
 | tests~lang~args_and_exit@tabs.fung 176 4fd59b67526ac71b
 | tests~lang~args_and_exit@tight.fung 176 4fd59b67526ac71b
 | tests~lang~args_and_exit@trailing.fung 176 4fd59b67526ac71b
@@ -12793,7 +12783,7 @@
 | tests~lang~atoms@odd3.fung 1213 ef6a9319abad59bc
 | tests~lang~atoms@opsplit.fung 1351 0e71b0929d3c4026
 | tests~lang~atoms@spaced.fung 1213 ef6a9319abad59bc
-| tests~lang~atoms@split.fung 1668 1bc65a6437e164c8
+| tests~lang~atoms@split.fung 1648 4c1c5172ff5e0298
 | tests~lang~atoms@tabs.fung 1213 ef6a9319abad59bc
 | tests~lang~atoms@tight.fung 1213 ef6a9319abad59bc
 | tests~lang~atoms@trailing.fung 1213 ef6a9319abad59bc
@@ -12815,7 +12805,7 @@
 | tests~lang~cancel@odd3.fung 430 323fd47bfa016efb
 | tests~lang~cancel@opsplit.fung 464 3930fed526bf3d69
 | tests~lang~cancel@spaced.fung 430 323fd47bfa016efb
-| tests~lang~cancel@split.fung 718 bc67fe8095c7a091
+| tests~lang~cancel@split.fung 650 f179464ed27864c9
 | tests~lang~cancel@tabs.fung 430 323fd47bfa016efb
 | tests~lang~cancel@tight.fung 430 323fd47bfa016efb
 | tests~lang~cancel@trailing.fung 430 323fd47bfa016efb
@@ -12837,7 +12827,7 @@
 | tests~lang~channel_stream@odd3.fung 989 e288ba61ef3a6cd9
 | tests~lang~channel_stream@opsplit.fung 1023 7340284b369dda59
 | tests~lang~channel_stream@spaced.fung 989 e288ba61ef3a6cd9
-| tests~lang~channel_stream@split.fung 1421 1134275c09050ddb
+| tests~lang~channel_stream@split.fung 1373 ddcae87e58e46a4b
 | tests~lang~channel_stream@tabs.fung 989 e288ba61ef3a6cd9
 | tests~lang~channel_stream@tight.fung 989 e288ba61ef3a6cd9
 | tests~lang~channel_stream@trailing.fung 989 e288ba61ef3a6cd9
@@ -12859,7 +12849,7 @@
 | tests~lang~channels@odd3.fung 794 0694a00b38d54295
 | tests~lang~channels@opsplit.fung 824 eb1358eb26afac25
 | tests~lang~channels@spaced.fung 794 0694a00b38d54295
-| tests~lang~channels@split.fung 1174 51da0a432fe42589
+| tests~lang~channels@split.fung 1092 93d28cad34b71021
 | tests~lang~channels@tabs.fung 794 0694a00b38d54295
 | tests~lang~channels@tight.fung 794 0694a00b38d54295
 | tests~lang~channels@trailing.fung 794 0694a00b38d54295
@@ -12881,7 +12871,7 @@
 | tests~lang~closures@odd3.fung 408 81e8451a519001c5
 | tests~lang~closures@opsplit.fung 478 76dc52b3330ddbab
 | tests~lang~closures@spaced.fung 408 81e8451a519001c5
-| tests~lang~closures@split.fung 545 6b2bafad760f2c05
+| tests~lang~closures@split.fung 527 f166e4772ff91625
 | tests~lang~closures@tabs.fung 408 81e8451a519001c5
 | tests~lang~closures@tight.fung 408 81e8451a519001c5
 | tests~lang~closures@trailing.fung 408 81e8451a519001c5
@@ -12967,9 +12957,9 @@
 | tests~lang~conc_helpers@noblank.fung unchanged
 | tests~lang~conc_helpers@nofinal.fung 1185 654bad35225f5018
 | tests~lang~conc_helpers@odd3.fung 1185 654bad35225f5018
-| tests~lang~conc_helpers@opsplit.fung 1307 f509190cd185d15c
+| tests~lang~conc_helpers@opsplit.fung 1303 ccbd1330e6d20a14
 | tests~lang~conc_helpers@spaced.fung 1185 654bad35225f5018
-| tests~lang~conc_helpers@split.fung 1694 7733fbc6f0adafea
+| tests~lang~conc_helpers@split.fung 1652 b8c24237f3472972
 | tests~lang~conc_helpers@tabs.fung 1185 654bad35225f5018
 | tests~lang~conc_helpers@tight.fung 1185 654bad35225f5018
 | tests~lang~conc_helpers@trailing.fung 1185 654bad35225f5018
@@ -13057,7 +13047,7 @@
 | tests~lang~discard@odd3.fung 770 6b431c17ab778c7b
 | tests~lang~discard@opsplit.fung 800 38dfb7b65fd987a1
 | tests~lang~discard@spaced.fung 770 6b431c17ab778c7b
-| tests~lang~discard@split.fung 907 25f4aebab500b141
+| tests~lang~discard@split.fung 889 4d127c8436f1d699
 | tests~lang~discard@tabs.fung 770 6b431c17ab778c7b
 | tests~lang~discard@tight.fung 770 6b431c17ab778c7b
 | tests~lang~discard@trailing.fung 770 6b431c17ab778c7b
@@ -13079,7 +13069,7 @@
 | tests~lang~discard_callbacks@odd3.fung 509 dee38e2fec20f3e7
 | tests~lang~discard_callbacks@opsplit.fung 573 4a95e0f855e35265
 | tests~lang~discard_callbacks@spaced.fung 509 dee38e2fec20f3e7
-| tests~lang~discard_callbacks@split.fung 693 36c3202f4c7dca7b
+| tests~lang~discard_callbacks@split.fung 667 4ba3385612bd3fc3
 | tests~lang~discard_callbacks@tabs.fung 509 dee38e2fec20f3e7
 | tests~lang~discard_callbacks@tight.fung 509 dee38e2fec20f3e7
 | tests~lang~discard_callbacks@trailing.fung 509 dee38e2fec20f3e7
@@ -13673,7 +13663,7 @@
 | tests~lang~err_discard_for@odd3.fung 195 6ef966c90838dce0
 | tests~lang~err_discard_for@opsplit.fung 207 466f83b625c132e2
 | tests~lang~err_discard_for@spaced.fung 195 6ef966c90838dce0
-| tests~lang~err_discard_for@split.fung 232 892f1981b80db786
+| tests~lang~err_discard_for@split.fung 220 b604a6e559a5f9f6
 | tests~lang~err_discard_for@tabs.fung 195 6ef966c90838dce0
 | tests~lang~err_discard_for@tight.fung 195 6ef966c90838dce0
 | tests~lang~err_discard_for@trailing.fung 195 6ef966c90838dce0
@@ -14324,7 +14314,7 @@
 | tests~lang~err_local_never_read@odd3.fung 283 845c150dc5fe11a0
 | tests~lang~err_local_never_read@opsplit.fung 313 70770149304b3f6c
 | tests~lang~err_local_never_read@spaced.fung 283 845c150dc5fe11a0
-| tests~lang~err_local_never_read@split.fung 393 62ce29f861f6b6ea
+| tests~lang~err_local_never_read@split.fung 367 208b1cd2e4b6b62a
 | tests~lang~err_local_never_read@tabs.fung 283 845c150dc5fe11a0
 | tests~lang~err_local_never_read@tight.fung 283 845c150dc5fe11a0
 | tests~lang~err_local_never_read@trailing.fung 283 845c150dc5fe11a0
@@ -14577,7 +14567,7 @@
 | tests~lang~err_open_if_nested@noblank.fung unchanged
 | tests~lang~err_open_if_nested@nofinal.fung 121 e3b23fd4055727b1
 | tests~lang~err_open_if_nested@odd3.fung 121 e3b23fd4055727b1
-| tests~lang~err_open_if_nested@opsplit.fung 130 4f4745a16b19c0e9
+| tests~lang~err_open_if_nested@opsplit.fung 124 fefd9466fe90c979
 | tests~lang~err_open_if_nested@spaced.fung 121 e3b23fd4055727b1
 | tests~lang~err_open_if_nested@split.fung 134 745b18b2eaf89377
 | tests~lang~err_open_if_nested@tabs.fung 121 e3b23fd4055727b1
@@ -15173,7 +15163,7 @@
 | tests~lang~err_task_failed@odd3.fung 191 5ac4b8d06df47548
 | tests~lang~err_task_failed@opsplit.fung 195 944f79c01a8ff35e
 | tests~lang~err_task_failed@spaced.fung 191 5ac4b8d06df47548
-| tests~lang~err_task_failed@split.fung 275 6cdf570c14d2277a
+| tests~lang~err_task_failed@split.fung 255 0634e217662bbdaa
 | tests~lang~err_task_failed@tabs.fung 191 5ac4b8d06df47548
 | tests~lang~err_task_failed@tight.fung 191 5ac4b8d06df47548
 | tests~lang~err_task_failed@trailing.fung 191 5ac4b8d06df47548
@@ -15547,7 +15537,7 @@
 | tests~lang~exit_from_task@odd3.fung 161 5eddc629c95b1ef2
 | tests~lang~exit_from_task@opsplit.fung 179 ac41f57437136e1c
 | tests~lang~exit_from_task@spaced.fung 161 5eddc629c95b1ef2
-| tests~lang~exit_from_task@split.fung 302 367cce1401a26d12
+| tests~lang~exit_from_task@split.fung 280 b58ff3013781e042
 | tests~lang~exit_from_task@tabs.fung 161 5eddc629c95b1ef2
 | tests~lang~exit_from_task@tight.fung 161 5eddc629c95b1ef2
 | tests~lang~exit_from_task@trailing.fung 161 5eddc629c95b1ef2
@@ -15569,7 +15559,7 @@
 | tests~lang~failure_value@odd3.fung 387 0d7cfcb404d30b3a
 | tests~lang~failure_value@opsplit.fung 421 c17afc4fae03ca58
 | tests~lang~failure_value@spaced.fung 387 0d7cfcb404d30b3a
-| tests~lang~failure_value@split.fung 475 0524a34c75247742
+| tests~lang~failure_value@split.fung 461 a1bc56362bba5772
 | tests~lang~failure_value@tabs.fung 387 0d7cfcb404d30b3a
 | tests~lang~failure_value@tight.fung 387 0d7cfcb404d30b3a
 | tests~lang~failure_value@trailing.fung 387 0d7cfcb404d30b3a
@@ -15591,7 +15581,7 @@
 | tests~lang~fn_basics@odd3.fung 464 3736aeff2e5a8a5b
 | tests~lang~fn_basics@opsplit.fung 538 4131f408340f481d
 | tests~lang~fn_basics@spaced.fung 464 3736aeff2e5a8a5b
-| tests~lang~fn_basics@split.fung 624 dc527604d8515deb
+| tests~lang~fn_basics@split.fung 606 7ff713394ad01973
 | tests~lang~fn_basics@tabs.fung 464 3736aeff2e5a8a5b
 | tests~lang~fn_basics@tight.fung 464 3736aeff2e5a8a5b
 | tests~lang~fn_basics@trailing.fung 464 3736aeff2e5a8a5b
@@ -15613,7 +15603,7 @@
 | tests~lang~fs_and_path@odd3.fung 439 082814ebc99ac19d
 | tests~lang~fs_and_path@opsplit.fung 457 d39635780a1b1db5
 | tests~lang~fs_and_path@spaced.fung 439 082814ebc99ac19d
-| tests~lang~fs_and_path@split.fung 730 0847ed3819ebc469
+| tests~lang~fs_and_path@split.fung 656 1ecb2d98720fbee9
 | tests~lang~fs_and_path@tabs.fung 439 082814ebc99ac19d
 | tests~lang~fs_and_path@tight.fung 439 082814ebc99ac19d
 | tests~lang~fs_and_path@trailing.fung 439 082814ebc99ac19d
@@ -15622,7 +15612,7 @@
 | tests~lang~http_serve@bom.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@cglued.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@cnospace.fung unchanged
-| tests~lang~http_serve@contsplit.fung 1610 7e69fcc05a5b9f79
+| tests~lang~http_serve@contsplit.fung 1600 51103aafe643e369
 | tests~lang~http_serve@cpushed.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@crlf.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@dedent.fung 1510 260ddb78ab758969
@@ -15635,7 +15625,7 @@
 | tests~lang~http_serve@odd3.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@opsplit.fung 1660 171f69f5728e8e0f
 | tests~lang~http_serve@spaced.fung 1510 260ddb78ab758969
-| tests~lang~http_serve@split.fung 2034 2748fe5028626f6d
+| tests~lang~http_serve@split.fung 1910 34df488801273455
 | tests~lang~http_serve@tabs.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@tight.fung 1510 260ddb78ab758969
 | tests~lang~http_serve@trailing.fung 1510 260ddb78ab758969
@@ -15732,7 +15722,7 @@
 | tests~lang~json@bom.fung 897 4c0fee0c0235d366
 | tests~lang~json@cglued.fung 897 4c0fee0c0235d366
 | tests~lang~json@cnospace.fung unchanged
-| tests~lang~json@contsplit.fung 936 29e7506d0e682578
+| tests~lang~json@contsplit.fung 932 df947e7e35942fa0
 | tests~lang~json@cpushed.fung 897 4c0fee0c0235d366
 | tests~lang~json@crlf.fung 897 4c0fee0c0235d366
 | tests~lang~json@dedent.fung 897 4c0fee0c0235d366
@@ -15745,7 +15735,7 @@
 | tests~lang~json@odd3.fung 897 4c0fee0c0235d366
 | tests~lang~json@opsplit.fung 907 0028ca69160385d2
 | tests~lang~json@spaced.fung 897 4c0fee0c0235d366
-| tests~lang~json@split.fung 1089 f43d608f3ed9e2b2
+| tests~lang~json@split.fung 1071 5a38102715c3ca8a
 | tests~lang~json@tabs.fung 897 4c0fee0c0235d366
 | tests~lang~json@tight.fung 897 4c0fee0c0235d366
 | tests~lang~json@trailing.fung 897 4c0fee0c0235d366
@@ -15855,7 +15845,7 @@
 | tests~lang~local_lifetime@odd3.fung 981 56b1d9bfcd98c0ca
 | tests~lang~local_lifetime@opsplit.fung unchanged
 | tests~lang~local_lifetime@spaced.fung 981 56b1d9bfcd98c0ca
-| tests~lang~local_lifetime@split.fung 1453 b4f5730a7f1ba20a
+| tests~lang~local_lifetime@split.fung 1363 b23613809f3113b2
 | tests~lang~local_lifetime@tabs.fung 981 56b1d9bfcd98c0ca
 | tests~lang~local_lifetime@tight.fung 981 56b1d9bfcd98c0ca
 | tests~lang~local_lifetime@trailing.fung 981 56b1d9bfcd98c0ca
@@ -15877,7 +15867,7 @@
 | tests~lang~map_shorthand@odd3.fung 267 b82b4c51c4c3d020
 | tests~lang~map_shorthand@opsplit.fung 279 d3bd528f73d91612
 | tests~lang~map_shorthand@spaced.fung 267 b82b4c51c4c3d020
-| tests~lang~map_shorthand@split.fung 338 d51c552c21bbb488
+| tests~lang~map_shorthand@split.fung 324 849621f08e871428
 | tests~lang~map_shorthand@tabs.fung 267 b82b4c51c4c3d020
 | tests~lang~map_shorthand@tight.fung 267 b82b4c51c4c3d020
 | tests~lang~map_shorthand@trailing.fung 267 b82b4c51c4c3d020
@@ -16031,7 +16021,7 @@
 | tests~lang~open_if@odd3.fung 525 105f5949867a6ffe
 | tests~lang~open_if@opsplit.fung unchanged
 | tests~lang~open_if@spaced.fung 525 105f5949867a6ffe
-| tests~lang~open_if@split.fung 600 16c6e5c32dfecca2
+| tests~lang~open_if@split.fung 584 20e182f09c4acf42
 | tests~lang~open_if@tabs.fung 525 105f5949867a6ffe
 | tests~lang~open_if@tight.fung 525 105f5949867a6ffe
 | tests~lang~open_if@trailing.fung 525 105f5949867a6ffe
@@ -16251,7 +16241,7 @@
 | tests~lang~results_fns@odd3.fung 290 f3e67bf9daf1c721
 | tests~lang~results_fns@opsplit.fung 314 5347c3f5ff2be725
 | tests~lang~results_fns@spaced.fung 290 f3e67bf9daf1c721
-| tests~lang~results_fns@split.fung 369 eee6e68019ad8681
+| tests~lang~results_fns@split.fung 353 334c9d6468e01d31
 | tests~lang~results_fns@tabs.fung 290 f3e67bf9daf1c721
 | tests~lang~results_fns@tight.fung 290 f3e67bf9daf1c721
 | tests~lang~results_fns@trailing.fung 290 f3e67bf9daf1c721
@@ -16273,7 +16263,7 @@
 | tests~lang~return@odd3.fung 206 ef2c18b607397e00
 | tests~lang~return@opsplit.fung 215 750c09c1f3e31132
 | tests~lang~return@spaced.fung 206 ef2c18b607397e00
-| tests~lang~return@split.fung 248 9dd6dcc97c735c70
+| tests~lang~return@split.fung 240 c9a05e5f9046f3e8
 | tests~lang~return@tabs.fung 206 ef2c18b607397e00
 | tests~lang~return@tight.fung 206 ef2c18b607397e00
 | tests~lang~return@trailing.fung 206 ef2c18b607397e00
@@ -16295,7 +16285,7 @@
 | tests~lang~scopes@odd3.fung 413 5c50b119279e7080
 | tests~lang~scopes@opsplit.fung 473 f8234836778a133e
 | tests~lang~scopes@spaced.fung 413 5c50b119279e7080
-| tests~lang~scopes@split.fung 658 9af2c05c3385616a
+| tests~lang~scopes@split.fung 628 2f4e548c0ac6c182
 | tests~lang~scopes@tabs.fung 413 5c50b119279e7080
 | tests~lang~scopes@tight.fung 413 5c50b119279e7080
 | tests~lang~scopes@trailing.fung 413 5c50b119279e7080
@@ -16471,7 +16461,7 @@
 | tests~lang~supervise@odd3.fung 308 03ebd69fffe25af6
 | tests~lang~supervise@opsplit.fung 372 77fe68e0daffc988
 | tests~lang~supervise@spaced.fung 308 03ebd69fffe25af6
-| tests~lang~supervise@split.fung 497 f3a884e35b8f83e0
+| tests~lang~supervise@split.fung 455 0f6d521ed51be638
 | tests~lang~supervise@tabs.fung 308 03ebd69fffe25af6
 | tests~lang~supervise@tight.fung 308 03ebd69fffe25af6
 | tests~lang~supervise@trailing.fung 308 03ebd69fffe25af6
@@ -16559,7 +16549,7 @@
 | tests~lang~tasks@odd3.fung 210 ff6aea66d6afc269
 | tests~lang~tasks@opsplit.fung 260 7a9302b99744838b
 | tests~lang~tasks@spaced.fung 210 ff6aea66d6afc269
-| tests~lang~tasks@split.fung 409 819098fcffae73b5
+| tests~lang~tasks@split.fung 371 d9e77350b27cd67d
 | tests~lang~tasks@tabs.fung 210 ff6aea66d6afc269
 | tests~lang~tasks@tight.fung 210 ff6aea66d6afc269
 | tests~lang~tasks@trailing.fung 210 ff6aea66d6afc269
@@ -16757,7 +16747,7 @@
 | tests~lang~try_map@odd3.fung 1011 e16bcad931569f95
 | tests~lang~try_map@opsplit.fung 1063 f0425e257eda5bd7
 | tests~lang~try_map@spaced.fung 1011 e16bcad931569f95
-| tests~lang~try_map@split.fung 1346 b72f92a698b1aaef
+| tests~lang~try_map@split.fung 1334 5ed205120dc71657
 | tests~lang~try_map@tabs.fung 1011 e16bcad931569f95
 | tests~lang~try_map@tight.fung 1011 e16bcad931569f95
 | tests~lang~try_map@trailing.fung 1011 e16bcad931569f95
@@ -16845,7 +16835,7 @@
 | tests~lang~types_more@odd3.fung 468 e8352b3f95997461
 | tests~lang~types_more@opsplit.fung 492 ff578a1c2bc204df
 | tests~lang~types_more@spaced.fung 468 e8352b3f95997461
-| tests~lang~types_more@split.fung 601 301f201395bc4aed
+| tests~lang~types_more@split.fung 589 7af5d5b954e05f15
 | tests~lang~types_more@tabs.fung 468 e8352b3f95997461
 | tests~lang~types_more@tight.fung 468 e8352b3f95997461
 | tests~lang~types_more@trailing.fung 468 e8352b3f95997461
@@ -16933,7 +16923,7 @@
 | tests~lang~with_exit@odd3.fung 310 3ae74c9899ef2410
 | tests~lang~with_exit@opsplit.fung 354 07610694e7ed77ec
 | tests~lang~with_exit@spaced.fung 310 3ae74c9899ef2410
-| tests~lang~with_exit@split.fung 501 c1a2df719b489fda
+| tests~lang~with_exit@split.fung 455 8bf1241e76043502
 | tests~lang~with_exit@tabs.fung 310 3ae74c9899ef2410
 | tests~lang~with_exit@tight.fung 310 3ae74c9899ef2410
 | tests~lang~with_exit@trailing.fung 310 3ae74c9899ef2410

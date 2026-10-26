@@ -114,19 +114,42 @@ impl Compiler<'_> {
 
     /// Compiles `(match subject (arm pat guard body)…)`: each arm loads the
     /// subject, tries its pattern, checks its guard, and runs its body in
-    /// tail position; falling off the end is E0601 (09).
+    /// tail position; falling off the end is E0601 (09). A guarded arm
+    /// with alternatives tries the pattern and the guard once per
+    /// alternative (`pattern::alternatives`, 03) before the next arm; its
+    /// body is compiled once.
     pub(super) fn match_expr(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
         let subject = &n.kids[0];
         let mut ends = Vec::new();
         for arm in &n.kids[1..] {
             let (pat, guard, body) = (&arm.kids[0], &arm.kids[1], &arm.kids[2]);
-            self.expr(subject, false)?;
-            let idx = self.add_pattern(pat)?;
-            self.proto.emit(Op::Match, idx, pat.pos);
-            let mut fails = vec![self.proto.emit(Op::JumpIfFalse, 0, pat.pos)];
-            if guard.head != Head::Nil {
-                self.expr(guard, false)?;
-                fails.push(self.proto.emit(Op::JumpIfFalse, 0, guard.pos));
+            let tries = if guard.head == Head::Nil {
+                vec![pat.clone()]
+            } else {
+                super::pattern::alternatives(pat)?
+            };
+            let mut fails = Vec::new();
+            let mut taken = Vec::new();
+            for (i, alt) in tries.iter().enumerate() {
+                let here = self.proto.code.len();
+                for f in fails.drain(..) {
+                    self.proto.patch(f, here);
+                }
+                self.expr(subject, false)?;
+                let idx = self.add_pattern(alt)?;
+                self.proto.emit(Op::Match, idx, alt.pos);
+                fails.push(self.proto.emit(Op::JumpIfFalse, 0, alt.pos));
+                if guard.head != Head::Nil {
+                    self.expr(guard, false)?;
+                    fails.push(self.proto.emit(Op::JumpIfFalse, 0, guard.pos));
+                }
+                if i + 1 < tries.len() {
+                    taken.push(self.proto.emit(Op::Jump, 0, arm.pos));
+                }
+            }
+            let start = self.proto.code.len();
+            for t in taken {
+                self.proto.patch(t, start);
             }
             self.expr(body, tail)?;
             ends.push(self.proto.emit(Op::Jump, 0, arm.pos));

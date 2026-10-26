@@ -32,7 +32,7 @@ use fung_front::source::decode_lossy;
 
 use fung_front::diag::Arg;
 
-use super::file::{self, Fault, File, Mode, NEW_FILE_MODE};
+use super::file::{self, Fault, File, Mode};
 use super::glob;
 use super::nat::{self, native_step, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, errno};
@@ -50,11 +50,19 @@ pub fn module() -> Rc<Module> {
             ("read", native_step("read", read_fn, vec![param("path")])),
             (
                 "write",
-                native_step("write", write_fn, vec![param("path"), param("text")]),
+                native_step(
+                    "write",
+                    write_fn,
+                    vec![param("path"), param("text"), opt("perm", Lit::Nil)],
+                ),
             ),
             (
                 "append",
-                native_step("append", append_fn, vec![param("path"), param("text")]),
+                native_step(
+                    "append",
+                    append_fn,
+                    vec![param("path"), param("text"), opt("perm", Lit::Nil)],
+                ),
             ),
             (
                 "list",
@@ -101,7 +109,11 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "open",
                     open_fn,
-                    vec![param("path"), opt("mode", Lit::Sym("read"))],
+                    vec![
+                        param("path"),
+                        opt("mode", Lit::Sym("read")),
+                        opt("perm", Lit::Nil),
+                    ],
                 ),
             ),
             ("close", native_step("close", close_fn, vec![param("f")])),
@@ -146,7 +158,34 @@ fn checked(p: &str) -> io::Result<&str> {
     }
 }
 
-/// Creates or truncates with `perm`, then writes.
+/// The `perm` argument (06, F-14): nil, or the permission bits 0 to
+/// 0o777 a written file gets (`file::open_writing`).
+fn perm_arg(v: &Value) -> Result<Option<u32>, Stop> {
+    match v {
+        Value::Nil => Ok(None),
+        Value::Int(n @ 0..=0o777) => Ok(Some(*n as u32)),
+        Value::Int(n) => Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("perm"),
+                nat::s("an int from 0 to 0o777"),
+                Arg::Str(octal(*n)),
+            ],
+        )),
+        v => Err(nat::wrong_arg("perm", "int | nil", v)),
+    }
+}
+
+/// `n` as permission bits are written: `0o1000`, or `-1`.
+fn octal(n: i64) -> String {
+    if n < 0 {
+        n.to_string()
+    } else {
+        format!("0o{n:o}")
+    }
+}
+
+/// Creates with `perm` (less the umask) or truncates, then writes.
 fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
     let mut f = OpenOptions::new()
         .write(true)
@@ -174,28 +213,31 @@ fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [p, text] = nat::str_args(&a, ["path", "text"])?;
+    let perm = perm_arg(&a[2])?;
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
     let job = p.clone();
     nat::offload(
         t,
-        move || write_file(&job, &text, NEW_FILE_MODE),
+        move || {
+            let mut o = OpenOptions::new();
+            o.write(true).create(true).truncate(true);
+            file::open_writing(&mut o, checked(&job)?, perm)?.write_all(&text)
+        },
         move |_, r| Ok(done("write", &p, r)),
     )
 }
 
 fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [p, text] = nat::str_args(&a, ["path", "text"])?;
+    let perm = perm_arg(&a[2])?;
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
     let job = p.clone();
     nat::offload(
         t,
         move || {
-            OpenOptions::new()
-                .append(true)
-                .create(true)
-                .mode(NEW_FILE_MODE)
-                .open(checked(&job)?)?
-                .write_all(&text)
+            let mut o = OpenOptions::new();
+            o.append(true).create(true);
+            file::open_writing(&mut o, checked(&job)?, perm)?.write_all(&text)
         },
         move |_, r| Ok(done("append to", &p, r)),
     )
@@ -337,9 +379,11 @@ fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let job = p.clone();
     nat::offload_short(
         t,
-        move || std::fs::metadata(checked(&job)?).map(|m| (m.size(), m.is_dir())),
+        move || {
+            std::fs::metadata(checked(&job)?).map(|m| (m.size(), m.is_dir(), m.modified().ok()))
+        },
         move |_, r| {
-            let (size, is_dir) = match r {
+            let (size, is_dir, modified) = match r {
                 Ok(info) => info,
                 Err(e) => return Ok(fs_err("stat", &p, &e)),
             };
@@ -348,6 +392,9 @@ fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             m.set(Rc::new("name".into()), Value::str(&path::base(&p)));
             m.set(Rc::new("size".into()), Value::Int(size as i64));
             m.set(Rc::new("is_dir".into()), Value::Bool(is_dir));
+            // nil where the system keeps no time, or one past year 9999
+            let mtime = modified.and_then(super::time::from_system);
+            m.set(Rc::new("mtime".into()), mtime.unwrap_or(Value::Nil));
             Ok(nat::ok(Value::Map(Rc::new(m.finish()))))
         },
     )
@@ -602,10 +649,21 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             ));
         }
     };
+    let perm = perm_arg(&a[2])?;
+    if let (Mode::Read, Some(bits)) = (mode, perm) {
+        return Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("perm"),
+                nat::s("nil when mode is 'read"),
+                Arg::Str(octal(bits.into())),
+            ],
+        ));
+    }
     let job = p.clone();
     nat::offload(
         t,
-        move || file::open(checked(&job)?, mode),
+        move || file::open(checked(&job)?, mode, perm),
         move |_, r| {
             Ok(match r {
                 Ok(io) => nat::ok(Value::File(Arc::new(File::new(p, io)))),

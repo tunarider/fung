@@ -178,6 +178,40 @@ fn many_constants_compile_in_linear_time() {
     );
 }
 
+/// `fmt` aligns a run of 20,000 match arms in linear time: each line of
+/// a run starts no run of its own (it took 6.8 s here when every arm
+/// scanned the rest of the run again; now about 0.2 s with the pipes, so
+/// 2 s tells the two apart on a slow runner).
+#[test]
+fn fmt_aligns_a_long_run_in_linear_time() {
+    use std::io::Write;
+    let _serial = serial();
+    let mut src = String::from("x = match 1:\n");
+    for i in 0..20_000 {
+        src += &format!("  {i} => {i}\n");
+    }
+    src += ";;\n";
+    let start = Instant::now();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_fung"))
+        .args(["fmt", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(src.as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let took = start.elapsed();
+    eprintln!("fmt 20,000 arms {took:?}");
+    assert!(out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("\n  19999 => 19999\n"));
+    assert!(took < Duration::from_secs(2), "20,000 arms took {took:?}");
+}
+
 /// 20,000 tasks wait at once, each on a rendezvous channel of its own,
 /// until the entry sends to each (R1b: a task is no thread, so there is
 /// no thread limit; the thread runtime before failed with E0801 on macOS,

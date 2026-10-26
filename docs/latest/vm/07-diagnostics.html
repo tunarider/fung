@@ -205,6 +205,13 @@ print(countdown(5))</code></pre><pre class="out err plain" data-code="1"><code>e
    example.fung:2 &lt;entry&gt;</code></pre></div>
 <h3 id="warnings">경고</h3>
 <p>경고는 에러와 같은 모양으로 찍되 머리가 <code>warning[W0102]</code>이다. 프로그램은 그대로 실행된다.</p>
+<pre><code>fn f():
+  unused = 1
+  2
+;;
+
+print(f())</code></pre>
+<p class="checked"><code>fung check</code>의 출력이다(페이지를 만들 때 확인했다).</p>
 <pre class="plain"><code>warning[W0102]: unused variable `unused`
   --&gt; example.fung:2:3
   |

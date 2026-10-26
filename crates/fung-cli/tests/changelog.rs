@@ -10,15 +10,16 @@ use std::{
 
 /// The notes of `version` in `file`, or the failure output.
 fn section(file: &std::path::Path, version: &str) -> Result<String, String> {
-    let child = Command::new("sh")
-        .arg(common::repo().join("scripts/changelog-section.sh"))
-        .arg(version)
-        .arg(file)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn sh");
+    let child = common::spawn(
+        Command::new("sh")
+            .arg(common::repo().join("scripts/changelog-section.sh"))
+            .arg(version)
+            .arg(file)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .expect("spawn sh");
     let out = common::Reaped::new(child).output().unwrap();
     let text =
         String::from_utf8_lossy(&out.stdout).into_owned() + &String::from_utf8_lossy(&out.stderr);

@@ -21,6 +21,9 @@ struct Pending {
     kind: Kind,
     /// Bracket depth where the keyword appeared.
     depth: usize,
+    /// Indent of the line where the keyword appeared: the block's base,
+    /// even when its head runs over lines (`fn f(h:` / `int):`).
+    base: usize,
 }
 
 struct Layouter {
@@ -282,9 +285,14 @@ impl Layouter {
                 self.pend.push(Pending {
                     kind: Kind::KwIf,
                     depth: d,
+                    base: ln.indent,
                 });
             } else if block_keyword(k) && (k != Kind::KwFn || fn_head(&ln.toks, i)) {
-                self.pend.push(Pending { kind: k, depth: d });
+                self.pend.push(Pending {
+                    kind: k,
+                    depth: d,
+                    base: ln.indent,
+                });
             } else if k == Kind::Colon {
                 let Some(p) = self.pend.last() else {
                     continue;
@@ -305,7 +313,7 @@ impl Layouter {
                 self.stack.push(Opener {
                     kind: p.kind,
                     block: true,
-                    base: ln.indent,
+                    base: p.base,
                 });
                 if i == n - 1 {
                     ln.opens_block = true;

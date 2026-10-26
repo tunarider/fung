@@ -150,7 +150,16 @@ print(countdown(5))
 
 경고는 에러와 같은 모양으로 찍되 머리가 `warning[W0102]`이다. 프로그램은 그대로 실행된다.
 
-```plain
+```fung check
+fn f():
+  unused = 1
+  2
+;;
+
+print(f())
+```
+
+```expect check
 warning[W0102]: unused variable `unused`
   --> example.fung:2:3
   |

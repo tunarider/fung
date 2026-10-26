@@ -81,7 +81,8 @@ docs/
 | `dump ast\|core\|bytecode` | 내용은 fung 소스, `fung dump <단계>` 결과를 출력 칸에 |
 | `shell`, `plain`, `core` | 검사 없음(`shell`은 bash 표시, `core`는 코어 트리 색) |
 | `file 이름` | 다음 `run`/`check` 예제의 준비물 파일(여러 개 가능). 페이지에는 그 예제 위의 접힌 "준비물" 상자로 |
-| `expect` | 바로 앞 `check`의 예상 출력 |
+| `expect` | 바로 앞 `check`의 예상 출력(다른 명령의 출력, 검사하지 않음) |
+| `expect check` | 바로 앞 `check` 예제의 `fung check` 출력. 페이지를 만들 때 실제 출력과 견준다(2026-10-26) |
 
 - 예제 라벨: `원고경로:n`(`run`·`check`·`dump`를 1부터 셈). 예: `reference/functions.md:12`.
 
