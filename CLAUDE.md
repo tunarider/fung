@@ -79,8 +79,8 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   L5 엄격한 `atom`(`agent` 삭제), L4 채널 두 끝 `(tx, rx)`와 자동 닫힘, L6 `stop_signal`·`request_stop`·SIGINT·SIGTERM·`http.serve`의 `drain`·`reuse_port`·취소된 외부 명령 끝내기·배경 태스크 삭제.
   스펙 `docs/superpowers/specs/2026-10-18-concurrency-v2-r7-design.md`(구속력 있음), 설명 `docs/notes/R7-language.md`, 계획 `docs/plans/2026-10-18-concurrency-v2-l*.md`.
 - 동시성 v2 런타임 단계 R1~R6 완료(스펙 10·11·15절): 두 런타임을 함께 두지 않고 제자리에서 바꾸며, L단계 시험이 정답지다. 설명 `docs/notes/R7-scheduler.md`, 계획 `docs/plans/2026-10-1*-concurrency-v2-r*.md`.
-  R2(이어 가는 내장 함수)·R1a(주차 요청, offload)·R1b(M:1 스케줄러)·R3(스레드 풀)·R4a(이벤트 루프와 소켓)·R4b(외부 명령, REPL 두 번째 Ctrl-C)·R5(옛 런타임 삭제)·R6(측정과 마무리, 10.4 목표 모두 됨) 끝(2026-10-19, 작업 브랜치). main에 스쿼시(`5a0061f`), 0.3.0 릴리스(2026-10-19). **다음: rustls 0.23.46(2026-10-28 이후, 0.4.1)**.
-  rustls는 0.23.45로 짰고 2026-10-28 이후 0.23.46으로 버전만 올린다. 릴리스 태그와 시험 실행은 사용자 확인 뒤.
+  R2(이어 가는 내장 함수)·R1a(주차 요청, offload)·R1b(M:1 스케줄러)·R3(스레드 풀)·R4a(이벤트 루프와 소켓)·R4b(외부 명령, REPL 두 번째 Ctrl-C)·R5(옛 런타임 삭제)·R6(측정과 마무리, 10.4 목표 모두 됨) 끝(2026-10-19, 작업 브랜치). main에 스쿼시(`5a0061f`), 0.3.0 릴리스(2026-10-19). **다음 릴리스는 0.5.0**(호환을 깼음, 아래 "0.5.0 준비").
+  rustls는 0.23.45로 짰고 2026-10-28 이후 0.23.46으로 버전만 올린다(0.5.0 전에). 릴리스 태그와 시험 실행은 사용자 확인 뒤.
   tree-sitter·LSP·패키지 관리는 별도 세션에서 필요한 시점에. 보류 목록은 open-questions. 사용자는 언어 완성도를 편의 기능보다 우선한다.
 - 언어·VM 검토 (2026-10-20): 고칠 문제 목록을 `docs/plans/2026-10-20-language-vm-review.md`에 모았다(항목마다 재현·명세 근거·원인 위치·고치는 법, 결정 항목은 선택지와 추천).
   결정 없는 버그 묶음(앞단 F1~F12, VM·값 V1~V7·V9, 동시성 C1~C7)은 고쳐 main에 스쿼시했다(2026-10-20).
@@ -88,10 +88,16 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   큰 언어 변화: 버려지는 `Err`는 E0606, 값 자리의 `else` 없는 `if`는 E0223, 변수 자리의 대문자 이름은 E0225, `map` 람다의 `?`는 E0226(`try_map`),
   파이프의 `_`는 E0227, 심볼과 문자열 비교는 E0517, 지역 변수는 마지막 읽기 뒤에 놓음(`CLEARLOCAL`), 한 번만 대입되는 최상위 이름은 최상위 `fn`의 상수,
   맵 키 자리 식별자는 쓴 그대로, 태스크 실패 값은 `{kind, code, message, at}`. P2와 P7의 맵·튜플은 open-questions "알려진 한계".
-  **다음**: 검토 문서 12절의 남은 의심, open-questions의 L1·L3·L7·L9 후속 한계.
+  12절의 남은 의심과 L1·L3·L7·L9 후속 한계는 2026-10-26에 0.5.0 목록으로 옮겨 처리했다(아래).
 - 보수 작업 (2026-10-24, main에 스쿼시 `38f1e08`, 미릴리스): open-questions를 열린 항목만 남게 정리(닫은 것은 `docs/notes/open-questions-closed.md`), 매뉴얼 찾은 문제 F-1~F-4·F-6~F-10·F-13·D-1·D-4를 고침.
   큰 것: 시간 초과·취소·닫힘 `Err`에 `message`(호환 깨짐), 파이프 끝 `?`·`!`는 E0229, `get`은 내장 함수(E0506), `take`·`drop`이 문자열, `conc.pmap`은 작업자 n개, 상수 표 해시 색인. 남은 결정은 open-questions "남은 일".
-  이어서(2026-10-24, 작업 브랜치, 미릴리스) F-5 `http.serve`가 정상 종료 때 `Ok(nil)`, F-11 `fs.move`가 기본 거절(`overwrite: true`, no-replace 이름 바꾸기). 권한 보존은 F-14로 남김.
+  이어서(2026-10-24, 미릴리스) F-5 `http.serve`가 정상 종료 때 `Ok(nil)`, F-11 `fs.move`가 기본 거절(`overwrite: true`, no-replace 이름 바꾸기).
+- 0.5.0 준비 (2026-10-26, main에 스쿼시 `d04ec76`, 미릴리스). **사용자 결정: 0.5.0 전에 남은 문제를 모두 고친다. 지금은 사용자가 없으니 하위 호환은 따지지 않고 가장 올바른 쪽을 고른다**(바뀐 동작은 CHANGELOG "호환 깨짐"에 계속 적음).
+  목록 `docs/plans/0.5.0/README.md`: 작은 문제 S1~S20(모두 끝), 큰 문제 L1~L18(문제마다 `docs/plans/0.5.0/NN-*.md`: 재현·원인 위치·선택지와 추천·정할 것·할 일·끝의 기준; **개별 세션에서 하나씩**), 0.5.0 뒤의 새 기능(여러 코어, 배포, 모듈 기능, LSP 등).
+  결정: D-2 카탈로그의 help는 기본 도움말(늘 붙는 도움말은 카탈로그에도), D-3 컴파일 단계 한도는 E0115(중첩)·E0230(인자·매개변수 개수, E0802 은퇴), F-14 `fs.write`·`append`·`open`·`with_open`의 `perm`(쓰기 전에 정확히 그 권한, 이미 있는 파일도).
+  큰 언어 변화: 같은 이름 인자 두 번 E0116, `Red()` E0117(`x |> Ok()`는 됨), 대안 패턴의 가드가 실패하면 다음 대안, `xs[a ?? 0..]`, `fs.stat`의 `mtime`, `env` 이름의 `=`는 E0403, HTTP 에러가 URL 비밀번호를 가림.
+  시험: 시험 바이너리마다 자식을 한 잠금 아래서 띄운다(`common::spawn`·`testutil::child`; macOS에서 파이프가 옆 시험의 자식에게 새어 EOF가 늦던 간헐 실패). 매뉴얼: `expect check` 펜스가 `fung check` 출력과 견줌, 태스크의 scope는 "태스크 범위".
+  `cargo deny`·`cargo audit`가 설치되어 있다(CI와 같은 0.20.2·0.22.2).
 - 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
   약점은 파일·텍스트 처리량. **다음 성능 작업**: P8~P11·P13은 2026-10-25에 끝(기록 `docs/notes/bench-languages.md` 4.1절). 남은 것은 open-questions "성능" 절의 P14(glibc 판의 계산 속도)와 레지스터 VM·인라인 캐시·LTO(P12b) 판단.
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).
