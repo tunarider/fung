@@ -217,6 +217,8 @@ print(r |> filter(is_err) |> len, "failed")
 
 태스크 범위가 기다리는 동안에는 태스크 안에서도 같은 범위에 `spawn`할 수 있다(일감이 일감을 낳는 경우). `scope(`가 이미 돌아온 범위에 `spawn`하면 E0706이다. 범위 핸들을 범위 밖으로 들고 나가도 쓸 수 없다는 뜻이다.
 
+태스크의 함수가 `Err`를 돌려주면 누군가 `await`로 읽어야 한다. 핸들을 버려 아무도 읽을 수 없게 되면 버려진 `Err`처럼 E0607로 범위가 실패한다([`await`](#fn-await)). 결과가 필요 없는 일이면 함수를 `nil`로 맺는다: `spawn(s, fn(): _ = fs.remove(p); nil ;;)`.
+
 #### 매개변수
 
 - `s`: 태스크 범위 핸들(`scope`·`supervise`의 `f`가 받은 것).
@@ -228,7 +230,7 @@ print(r |> filter(is_err) |> len, "failed")
 
 #### 에러
 
-닫힌 태스크 범위면 런타임 에러 E0706(`spawn into a closed scope`).
+닫힌 태스크 범위면 런타임 에러 E0706(`spawn into a closed scope`). 함수가 돌려준 `Err`를 아무도 읽지 않으면 이 자리를 가리키는 E0607(`task's Err was never awaited`)로 범위가 실패한다.
 
 #### 예제
 
@@ -267,6 +269,8 @@ spawn(leaked, () => 1)
 
 이미 끝난 태스크면 곧바로 돌려주고, 여러 번 불러도 같은 결과다. 기다리는 시간에 한도를 두려면 [`timeout`](#fn-timeout)으로 감싼다. 시간이 지나도 태스크 자체는 계속 돈다(멈추려면 `cancel`).
 
+**함수가 돌려준 `Err`는 읽어야 한다.** 읽기 전에 읽을 수 없게 되면 실패다(E0607, 위치는 `spawn` 자리). 태스크가 끝날 때 핸들이 하나도 없을 때, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라질 때, 범위가 닫힐 때 핸들이 범위 밖에 남았을 때가 그렇다. `scope`는 실패하고 `supervise`는 `on_fail`이 `code: "E0607"`로 받는다. 리스트를 돌려주면 그 원소(한 겹)도 본다. 취소·시간 초과의 `Err`는 런타임이 만든 것이라 세지 않는다. 그러니 `Err`가 날 수 있는 결과는 범위 안에서 `await`한다.
+
 #### 매개변수
 
 - `t`: 태스크 핸들.
@@ -285,6 +289,15 @@ spawn(leaked, () => 1)
 
 ```fung run
 print(scope(s => await(spawn(s, () => 6 * 7))))
+```
+
+**읽지 않은 `Err`**
+
+```fung run exit=1 error=E0607
+scope(fn(s):
+  spawn(s, () => parse_int("x"))
+;;)
+print("not reached")
 ```
 
 **기다리는 시간에 한도 두기**

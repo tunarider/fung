@@ -1,0 +1,6 @@
+# A task whose function returns Err and whose handle nobody keeps: the
+# Err can never be read, so it fails the scope (E0607, 05).
+import fs
+scope(s => spawn(s, () => fs.write("no-such-dir/out.txt", "data")))
+# expect-error: E0607
+print("not reached")

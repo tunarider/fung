@@ -79,6 +79,7 @@ E0603	unhandled Err: %s
 E0604	`%s` on nil		
 E0605	`%s` on a value of type %s (not Ok or Err)		
 E0606	discarded Err: %s	this value is discarded	handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+E0607	task's Err was never awaited: %s	this task's result is discarded	`await` it, or end the task's function with `nil`
 E0701	task cancelled		
 E0702	deadlock: all tasks are waiting		
 E0703	atom swapped inside its own swap		not used: atoms became agents, see E0704

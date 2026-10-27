@@ -1,0 +1,28 @@
+# A task's Err result is the task's answer: read it with await (05).
+r = scope(fn(s):
+  t = spawn(s, fn(): Err("no") ;;)
+  await(t)
+;;)
+print(r)
+# expect: Err("no")
+
+# A task that returns nothing ends in nil, Errs it discards on purpose too.
+scope(fn(s):
+  spawn(s, fn():
+    _ = Err("ignored")
+    nil
+  ;;)
+;;)
+
+# A cancelled task's Err is the runtime's, not its function's.
+(_tx, rx) = channel()
+scope(fn(s):
+  t = spawn(s, () => recv(rx))
+  cancel(t)
+;;)
+
+# In supervise, an Err nobody awaited goes to on_fail.
+supervise(s => spawn(s, fn(): Err("lost") ;;), e => print(e.code, e.message))
+# expect: E0607 task's Err was never awaited: "lost"
+print("done")
+# expect: done

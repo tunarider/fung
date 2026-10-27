@@ -20,12 +20,13 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{self, Rc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 use std::time::Instant;
 
-use fung_front::diag::Diag;
+use fung_front::diag::{self, Diag};
+use fung_front::source::Pos;
 
 use super::block::{WaitList, Waiter};
 use super::deadline::Deadline;
@@ -238,13 +239,23 @@ impl TaskHandle {
     /// (tests of value lifetimes).
     #[cfg(test)]
     pub(crate) fn finished(v: Value, cancel: Arc<CancelNode>) -> Value {
-        Value::Task(Rc::new(TaskHandle {
-            state: Rc::new(TaskState {
-                result: RefCell::new(Some(v)),
-                waiters: RefCell::new(WaitList::default()),
-            }),
-            cancel,
-        }))
+        let state = TaskState::new(super::no_pos(), None);
+        *state.result.borrow_mut() = Some(v);
+        Value::Task(Rc::new(TaskHandle { state, cancel }))
+    }
+}
+
+/// The last handle is gone (a task has one `TaskHandle`, shared by every
+/// copy of the value): an Err the task's function returned that nobody
+/// read can never be read now, and fails the scope while it is open (L1).
+impl Drop for TaskHandle {
+    fn drop(&mut self) {
+        let unread = self.state.unread.borrow_mut().take();
+        if let Some(u) = unread
+            && let Some(s) = self.state.scope.upgrade()
+        {
+            s.unread_lost(u);
+        }
     }
 }
 
@@ -255,12 +266,70 @@ pub(crate) struct TaskState {
     pub(super) result: RefCell<Option<Value>>,
     /// The tasks waiting for the result (`await`), woken when it is set.
     pub(crate) waiters: RefCell<WaitList>,
+    /// Where the task was spawned: an E0607 points there.
+    pub(super) at: Pos,
+    /// The scope the task was spawned into, failed by an Err nobody read.
+    pub(super) scope: rc::Weak<ScopeState>,
+    /// An Err the task's function returned that no `await` has read yet
+    /// (L1), as the failure it becomes if it can no longer be read.
+    pub(super) unread: RefCell<Option<Unread>>,
+}
+
+/// An unread Err as a failure (E0607): the error, and its value and
+/// report for a `supervise` scope's `on_fail`, made while the world was
+/// at hand.
+pub(crate) struct Unread {
+    pub(super) diag: Box<Diag>,
+    pub(super) value: Value,
+    pub(super) text: String,
+}
+
+impl Unread {
+    /// The E0607 for the result `v` of a task spawned at `at`, if `v` is
+    /// an Err or a list holding one (02, as a discarded value is seen).
+    pub(super) fn of(v: &Value, at: Pos, world: &World) -> Option<Unread> {
+        let mut d = super::discarded_err(v)?;
+        d.code = "E0607".to_string();
+        d.pos = at;
+        let value = failure_value(&d, Some(world));
+        let text = format!("task failed: {}", diag::format(&d, &world.sources));
+        Some(Unread {
+            diag: Box::new(d),
+            value,
+            text,
+        })
+    }
 }
 
 impl TaskState {
+    fn new(at: Pos, scope: Option<&Rc<ScopeState>>) -> Rc<TaskState> {
+        Rc::new(TaskState {
+            result: RefCell::new(None),
+            waiters: RefCell::new(WaitList::default()),
+            at,
+            scope: scope.map(Rc::downgrade).unwrap_or_default(),
+            unread: RefCell::new(None),
+        })
+    }
+
     /// The result, if the task has finished.
     pub(crate) fn result(&self) -> Option<Value> {
         self.result.borrow().clone()
+    }
+
+    /// The result for `await`, if the task has finished: an Err in it has
+    /// now been read.
+    pub(crate) fn read(&self) -> Option<Value> {
+        let r = self.result();
+        if r.is_some() {
+            self.unread.borrow_mut().take();
+        }
+        r
+    }
+
+    /// Whether an Err in the result is still unread (`scope.rs`).
+    pub(super) fn is_unread(&self) -> bool {
+        self.unread.borrow().is_some()
     }
 
     /// Takes the result out (`value/release.rs`).
@@ -348,10 +417,8 @@ impl<'rt> Task<'rt> {
         node: Arc<CancelNode>,
         scope: Option<Rc<ScopeState>>,
     ) -> Result<Value, Stop> {
-        let state = Rc::new(TaskState {
-            result: RefCell::new(None),
-            waiters: RefCell::new(WaitList::default()),
-        });
+        let at = self.user_pos().unwrap_or_else(super::no_pos);
+        let state = TaskState::new(at, scope.as_ref());
         let handle = Rc::new(TaskHandle {
             state: state.clone(),
             cancel: node.clone(),

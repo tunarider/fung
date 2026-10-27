@@ -1336,6 +1336,34 @@
 |    tests/lang/err_tail_return_type.fung:2 down (3 tail calls elided)
 |    tests/lang/err_tail_return_type.fung:3 <entry>
 -- exit: 1
+==== tests/lang/err_task_err_dropped.fung
+-- stdout
+-- stderr
+| error[E0607]: task's Err was never awaited: cannot write `no-such-dir/out.txt`: no such file or directory
+|   --> tests/lang/err_task_err_dropped.fung:4:17
+|   |
+| 4 | scope(s => spawn(s, () => fs.write("no-such-dir/out.txt", "data")))
+|   |                 ^ this task's result is discarded
+|   |
+|   note: scope opened at tests/lang/err_task_err_dropped.fung:4
+|  call path (innermost first):
+|    tests/lang/err_task_err_dropped.fung:4 <entry>
+|  help: `await` it, or end the task's function with `nil`
+-- exit: 1
+==== tests/lang/err_task_err_escaped.fung
+-- stdout
+-- stderr
+| error[E0607]: task's Err was never awaited: "late"
+|   --> tests/lang/err_task_err_escaped.fung:3:21
+|   |
+| 3 | t = scope(s => spawn(s, fn(): Err("late") ;;))
+|   |                     ^ this task's result is discarded
+|   |
+|   note: scope opened at tests/lang/err_task_err_escaped.fung:3
+|  call path (innermost first):
+|    tests/lang/err_task_err_escaped.fung:3 <entry>
+|  help: `await` it, or end the task's function with `nil`
+-- exit: 1
 ==== tests/lang/err_task_failed.fung
 -- stdout
 -- stderr
@@ -1852,6 +1880,13 @@
 | 1
 | 2
 | {HOME: 'Red}
+-- stderr
+-- exit: 0
+==== tests/lang/task_err.fung
+-- stdout
+| Err("no")
+| E0607 task's Err was never awaited: "lost"
+| done
 -- stderr
 -- exit: 0
 ==== tests/lang/tasks.fung

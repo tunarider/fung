@@ -219,6 +219,7 @@ print(r |&gt; filter(is_err) |&gt; len, &quot;failed&quot;)</code></pre><pre cla
 <h4>설명</h4>
 <p><code>f</code>는 인자 없는 함수다. 보통 그 자리의 람다로 쓰고, 태스크에 줄 값은 람다가 붙잡게 한다: <code>spawn(s, () =&gt; check(host))</code>. <code>spawn</code>은 곧바로 돌아오고, 태스크는 지금 태스크가 기다리는 틈에 돈다. 돌려받은 핸들(<code>&lt;task&gt;</code>, <code>type_of</code>는 <code>'task</code>)로 <a href="#fn-await"><code>await</code></a>하거나 <a href="#fn-cancel"><code>cancel</code></a>한다.</p>
 <p>태스크 범위가 기다리는 동안에는 태스크 안에서도 같은 범위에 <code>spawn</code>할 수 있다(일감이 일감을 낳는 경우). <code>scope(</code>가 이미 돌아온 범위에 <code>spawn</code>하면 E0706이다. 범위 핸들을 범위 밖으로 들고 나가도 쓸 수 없다는 뜻이다.</p>
+<p>태스크의 함수가 <code>Err</code>를 돌려주면 누군가 <code>await</code>로 읽어야 한다. 핸들을 버려 아무도 읽을 수 없게 되면 버려진 <code>Err</code>처럼 E0607로 범위가 실패한다(<a href="#fn-await"><code>await</code></a>). 결과가 필요 없는 일이면 함수를 <code>nil</code>로 맺는다: <code>spawn(s, fn(): _ = fs.remove(p); nil ;;)</code>.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 태스크 범위 핸들(<code>scope</code>·<code>supervise</code>의 <code>f</code>가 받은 것).</li>
@@ -227,7 +228,7 @@ print(r |&gt; filter(is_err) |&gt; len, &quot;failed&quot;)</code></pre><pre cla
 <h4>돌려주는 값</h4>
 <p>태스크 핸들.</p>
 <h4>에러</h4>
-<p>닫힌 태스크 범위면 런타임 에러 E0706(<code>spawn into a closed scope</code>).</p>
+<p>닫힌 태스크 범위면 런타임 에러 E0706(<code>spawn into a closed scope</code>). 함수가 돌려준 <code>Err</code>를 아무도 읽지 않으면 이 자리를 가리키는 E0607(<code>task's Err was never awaited</code>)로 범위가 실패한다.</p>
 <h4>예제</h4>
 <p><strong>리스트의 원소마다 태스크</strong></p>
 <div class="run"><pre><code>squares = scope(fn(s):
@@ -259,6 +260,7 @@ spawn(leaked, () =&gt; 1)</code></pre><pre class="out err plain" data-code="1"><
 <li>취소됐으면 <code>Err({kind: 'cancelled})</code>.</li>
 </ul>
 <p>이미 끝난 태스크면 곧바로 돌려주고, 여러 번 불러도 같은 결과다. 기다리는 시간에 한도를 두려면 <a href="#fn-timeout"><code>timeout</code></a>으로 감싼다. 시간이 지나도 태스크 자체는 계속 돈다(멈추려면 <code>cancel</code>).</p>
+<p><strong>함수가 돌려준 <code>Err</code>는 읽어야 한다.</strong> 읽기 전에 읽을 수 없게 되면 실패다(E0607, 위치는 <code>spawn</code> 자리). 태스크가 끝날 때 핸들이 하나도 없을 때, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라질 때, 범위가 닫힐 때 핸들이 범위 밖에 남았을 때가 그렇다. <code>scope</code>는 실패하고 <code>supervise</code>는 <code>on_fail</code>이 <code>code: &quot;E0607&quot;</code>로 받는다. 리스트를 돌려주면 그 원소(한 겹)도 본다. 취소·시간 초과의 <code>Err</code>는 런타임이 만든 것이라 세지 않는다. 그러니 <code>Err</code>가 날 수 있는 결과는 범위 안에서 <code>await</code>한다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>t</code>: 태스크 핸들.</li>
@@ -270,6 +272,20 @@ spawn(leaked, () =&gt; 1)</code></pre><pre class="out err plain" data-code="1"><
 <h4>예제</h4>
 <p><strong>결과 받기</strong></p>
 <div class="run"><pre><code>print(scope(s =&gt; await(spawn(s, () =&gt; 6 * 7))))</code></pre><pre class="out plain"><code>42</code></pre></div>
+<p><strong>읽지 않은 <code>Err</code></strong></p>
+<div class="run"><pre><code>scope(fn(s):
+  spawn(s, () =&gt; parse_int(&quot;x&quot;))
+;;)
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0607]: task's Err was never awaited: not an integer: x
+  --&gt; example.fung:2:8
+  |
+2 |   spawn(s, () =&gt; parse_int(&quot;x&quot;))
+  |        ^ this task's result is discarded
+  |
+  note: scope opened at example.fung:1
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;
+ help: `await` it, or end the task's function with `nil`</code></pre></div>
 <p><strong>기다리는 시간에 한도 두기</strong></p>
 <div class="run"><pre><code>r = scope(fn(s):
   t = spawn(s, fn():

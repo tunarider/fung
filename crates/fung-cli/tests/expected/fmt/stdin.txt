@@ -2892,6 +2892,14 @@
 -- exit: 0
 ==== manual learn/12-concurrency.md:6
 -- stdout
+| scope(fn(s):
+|   spawn(s, () => parse_int("x"))
+| ;;)
+| print("not reached")
+-- stderr
+-- exit: 0
+==== manual learn/12-concurrency.md:7
+-- stdout
 | r = supervise(fn(s):
 |   spawn(s, () => 1 // 0)
 |   spawn(s, fn():
@@ -2903,7 +2911,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:7
+==== manual learn/12-concurrency.md:8
 -- stdout
 | fn answer(d):
 |   sleep(d)
@@ -2914,12 +2922,12 @@
 | print(timeout(1s, () => answer(5s)))
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:8
+==== manual learn/12-concurrency.md:9
 -- stdout
 | print(timeout(200ms, () => sh("sleep 10; echo finished")))
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:9
+==== manual learn/12-concurrency.md:10
 -- stdout
 | import conc
 |
@@ -2932,7 +2940,7 @@
 | print(results)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:10
+==== manual learn/12-concurrency.md:11
 -- stdout
 | scope(fn(s):
 |   t = spawn(s, fn():
@@ -2944,7 +2952,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:11
+==== manual learn/12-concurrency.md:12
 -- stdout
 | fn countdown(s, n):
 |   (tx, rx) = channel()
@@ -2963,7 +2971,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:12
+==== manual learn/12-concurrency.md:13
 -- stdout
 | fn worker(id, jobs, results):
 |   for job in jobs:
@@ -2982,7 +2990,7 @@
 | print(len(done), "jobs done")
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:13
+==== manual learn/12-concurrency.md:14
 -- stdout
 | (tx, rx) = channel()
 | scope(fn(s):
@@ -2993,7 +3001,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:14
+==== manual learn/12-concurrency.md:15
 -- stdout
 | done = atom(0)
 |
@@ -3003,7 +3011,7 @@
 | print(deref(done), done)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:15
+==== manual learn/12-concurrency.md:16
 -- stdout
 | hits = atom(0)
 | swap(hits, fn(n):
@@ -3012,7 +3020,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:16
+==== manual learn/12-concurrency.md:17
 -- stdout
 | import conc
 |
@@ -3035,7 +3043,7 @@
 | if any(results, is_err): exit(1) ;;
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:17
+==== manual learn/12-concurrency.md:18
 -- stdout
 | fn count_chars(rx) = fold(rx, 0, (acc, row) => acc + len(row))
 |
@@ -5313,11 +5321,34 @@
 -- exit: 0
 ==== manual reference/errors.md:156
 -- stdout
+| import fs
+| scope(s => spawn(s, () => fs.write("missing/out.txt", "data")))
+| print("saved")
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:157
+-- stdout
+| import fs
+| scope(fn(s):
+|   t = spawn(s, () => fs.write("missing/out.txt", "data"))
+|   match await(t):
+|     Ok(_)  => print("saved")
+|     Err(e) => print("skip:", e.kind)
+|   ;;
+|   spawn(s, fn():
+|     _ = fs.remove("missing/old.txt")
+|     nil
+|   ;;)
+| ;;)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:158
+-- stdout
 | (tx, rx) = channel()
 | print(recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:157
+==== manual reference/errors.md:159
 -- stdout
 | (tx, rx) = channel()
 | send(tx, "job")!
@@ -5325,7 +5356,7 @@
 | for job in rx: print(job) ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:158
+==== manual reference/errors.md:160
 -- stdout
 | fn collect() = scope(fn(s):
 |   (tx, rx) = channel()
@@ -5338,13 +5369,13 @@
 | print(collect())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:159
+==== manual reference/errors.md:161
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, rx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:160
+==== manual reference/errors.md:162
 -- stdout
 | (tx, rx) = channel(1)
 | (reply_tx, reply_rx) = channel(1)
@@ -5353,117 +5384,117 @@
 | print(recv(reply_rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:161
+==== manual reference/errors.md:163
 -- stdout
 | s = scope(s => s)
 | spawn(s, () => print("late"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:162
+==== manual reference/errors.md:164
 -- stdout
 | scope(fn(s):
 |   spawn(s, () => print("inside"))
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:163
+==== manual reference/errors.md:165
 -- stdout
 | hits = atom(0)
 | swap(hits, n => dbg(n) + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:164
+==== manual reference/errors.md:166
 -- stdout
 | hits = atom(0)
 | new = swap(hits, n => n + 1)
 | print("hits:", new)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:165
+==== manual reference/errors.md:167
 -- stdout
 | (tx, rx) = channel()
 | latest = atom(tx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:166
+==== manual reference/errors.md:168
 -- stdout
 | latest = atom({host: "web1", up: true})
 | swap(latest, m => put(m, "up", false))
 | print(deref(latest))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:167
+==== manual reference/errors.md:169
 -- stdout
 | fn port_of(cfg) = cfg.port ?? fail("config.port is required")
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:168
+==== manual reference/errors.md:170
 -- stdout
 | fn port_of(cfg) = cfg.port ?? 8080
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:169
+==== manual reference/errors.md:171
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:170
+==== manual reference/errors.md:172
 -- stdout
 | fn depth(n, acc = 0) = n == 0 then acc else depth(n - 1, acc + 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:171
+==== manual reference/errors.md:173
 -- stdout
 | line = repeat("=", 200_000_000)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:172
+==== manual reference/errors.md:174
 -- stdout
 | line = repeat("=", 20)
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:173
+==== manual reference/errors.md:175
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 3
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:174
+==== manual reference/errors.md:176
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 2
 | print("ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:175
--- stdout
-| x = twice()
-| limit = 10
-| fn twice() = limit * 2
-| print(x)
--- stderr
--- exit: 0
-==== manual reference/errors.md:176
--- stdout
-| limit = 10
-| fn twice() = limit * 2
-| x = twice()
-| print(x)
--- stderr
--- exit: 0
 ==== manual reference/errors.md:177
+-- stdout
+| x = twice()
+| limit = 10
+| fn twice() = limit * 2
+| print(x)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:178
+-- stdout
+| limit = 10
+| fn twice() = limit * 2
+| x = twice()
+| print(x)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:179
 -- stdout
 | import fs
 | import path
 | print(path.join("a", "b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:178
+==== manual reference/errors.md:180
 -- stdout
 | fn total(xs):
 |   count = len(xs)
@@ -5472,7 +5503,7 @@
 | print(total([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:179
+==== manual reference/errors.md:181
 -- stdout
 | fn summary(xs):
 |   max = 0
@@ -7230,6 +7261,14 @@
 -- exit: 0
 ==== manual reference/prelude/concurrency.md:13
 -- stdout
+| scope(fn(s):
+|   spawn(s, () => parse_int("x"))
+| ;;)
+| print("not reached")
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:14
+-- stdout
 | r = scope(fn(s):
 |   t = spawn(s, fn():
 |     sleep(1s)
@@ -7242,7 +7281,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:14
+==== manual reference/prelude/concurrency.md:15
 -- stdout
 | print(scope(fn(s):
 |   t = spawn(s, fn():
@@ -7254,20 +7293,20 @@
 | ;;))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:15
+==== manual reference/prelude/concurrency.md:16
 -- stdout
 | print(timeout(1s, () => 1 + 1))
 | (_tx, rx) = channel()
 | print(timeout(10ms, () => recv(rx)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:16
+==== manual reference/prelude/concurrency.md:17
 -- stdout
 | r = timeout(100ms, () => exec(["sleep", "10"]))
 | print(r ?? "gave up")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:17
+==== manual reference/prelude/concurrency.md:18
 -- stdout
 | r = timeout(20ms, fn():
 |   scope(fn(s):
@@ -7281,7 +7320,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:18
+==== manual reference/prelude/concurrency.md:19
 -- stdout
 | fn probe(host) = timeout(500ms, fn():
 |   sleep(host == "slow-1" then 1s else 10ms)
@@ -7291,7 +7330,7 @@
 | print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(await)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:19
+==== manual reference/prelude/concurrency.md:20
 -- stdout
 | winner = scope(fn(s):
 |   (tx, rx) = channel(2)
@@ -7311,7 +7350,7 @@
 | print(winner)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:20
+==== manual reference/prelude/concurrency.md:21
 -- stdout
 | r = scope(fn(s):
 |   spawn(s, fn():
@@ -7324,7 +7363,7 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:21
+==== manual reference/prelude/concurrency.md:22
 -- stdout
 | fn numbers(s, n):
 |   (tx, rx) = channel()
@@ -7339,7 +7378,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:22
+==== manual reference/prelude/concurrency.md:23
 -- stdout
 | out = scope(fn(s):
 |   (jobs_tx, jobs) = channel()
@@ -7357,7 +7396,7 @@
 | print(out)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:23
+==== manual reference/prelude/concurrency.md:24
 -- stdout
 | (tx, rx) = channel()
 | for x in rx:
@@ -7365,7 +7404,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:24
+==== manual reference/prelude/concurrency.md:25
 -- stdout
 | (tx, rx) = channel(2)
 | print(send(tx, 1), send(tx, 2))
@@ -7374,7 +7413,7 @@
 | print(send(tx, 4))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:25
+==== manual reference/prelude/concurrency.md:26
 -- stdout
 | scope(fn(s):
 |   (req_tx, reqs) = channel()
@@ -7389,7 +7428,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:26
+==== manual reference/prelude/concurrency.md:27
 -- stdout
 | scope(fn(s):
 |   (tx, rx) = channel()
@@ -7405,14 +7444,14 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:27
+==== manual reference/prelude/concurrency.md:28
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, "hi")!
 | print(recv(rx)!)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:28
+==== manual reference/prelude/concurrency.md:29
 -- stdout
 | (tx, rx) = channel(3)
 | send(tx, 1)!
@@ -7421,14 +7460,14 @@
 | print(recv(rx), recv(rx), recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:29
+==== manual reference/prelude/concurrency.md:30
 -- stdout
 | (tx, rx) = channel()
 | print(timeout(10ms, () => recv(rx)) ?? "nothing yet")
 | close(tx)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:30
+==== manual reference/prelude/concurrency.md:31
 -- stdout
 | (tx, rx) = channel(3)
 | each(["a", "b", "c"], x => send(tx, x))
@@ -7438,13 +7477,13 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:31
+==== manual reference/prelude/concurrency.md:32
 -- stdout
 | (tx, rx) = channel()
 | close(rx)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:32
+==== manual reference/prelude/concurrency.md:33
 -- stdout
 | stop = stop_signal()
 | request_stop()
@@ -7452,7 +7491,7 @@
 | print("cleaning up, then exiting normally")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:33
+==== manual reference/prelude/concurrency.md:34
 -- stdout
 | stop = stop_signal()
 | scope(fn(s):
@@ -7470,27 +7509,27 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:34
+==== manual reference/prelude/concurrency.md:35
 -- stdout
 | stop = stop_signal()
 | print(request_stop())
 | print(recv(stop))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:35
+==== manual reference/prelude/concurrency.md:36
 -- stdout
 | print("before")
 | request_stop()
 | print("not reached")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:36
+==== manual reference/prelude/concurrency.md:37
 -- stdout
 | a = atom(0)
 | print(a, type_of(a), deref(a), a == a, atom(0) == atom(0))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:37
+==== manual reference/prelude/concurrency.md:38
 -- stdout
 | hits = atom(0)
 | scope(fn(s):
@@ -7501,20 +7540,20 @@
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:38
+==== manual reference/prelude/concurrency.md:39
 -- stdout
 | (tx, _rx) = channel()
 | registry = atom({main: tx})
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:39
+==== manual reference/prelude/concurrency.md:40
 -- stdout
 | hits = atom(0)
 | each(1..=3, _ => swap(hits, n => n + 1))
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:40
+==== manual reference/prelude/concurrency.md:41
 -- stdout
 | stats = atom({ok: 0, failed: 0})
 | for code in [200, 500, 200]:
@@ -7524,7 +7563,7 @@
 | print(deref(stats))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:41
+==== manual reference/prelude/concurrency.md:42
 -- stdout
 | a = atom(0)
 | swap(a, fn(n):
@@ -7533,14 +7572,14 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:42
+==== manual reference/prelude/concurrency.md:43
 -- stdout
 | cfg = atom({version: 1})
 | reset(cfg, {version: 2})
 | print(deref(cfg))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:43
+==== manual reference/prelude/concurrency.md:44
 -- stdout
 | current = atom("v1")
 | scope(fn(s):
@@ -7554,7 +7593,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:44
+==== manual reference/prelude/concurrency.md:45
 -- stdout
 | a = atom([1, 2])
 | before = deref(a)
@@ -7562,13 +7601,13 @@
 | print(before, deref(a))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:45
+==== manual reference/prelude/concurrency.md:46
 -- stdout
 | print(sleep(10ms))
 | print(timeout(10ms, () => sleep(1s)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:46
+==== manual reference/prelude/concurrency.md:47
 -- stdout
 | fn poll(n):
 |   if n == 0: return "done" ;;
@@ -7580,7 +7619,7 @@
 | print(poll(3))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:47
+==== manual reference/prelude/concurrency.md:48
 -- stdout
 | sleep(1)
 -- stderr
@@ -11467,6 +11506,25 @@
 | # expect-error: E0404
 -- stderr
 -- exit: 0
+==== tests/lang/err_task_err_dropped.fung
+-- stdout
+| # A task whose function returns Err and whose handle nobody keeps: the
+| # Err can never be read, so it fails the scope (E0607, 05).
+| import fs
+| scope(s => spawn(s, () => fs.write("no-such-dir/out.txt", "data")))
+| # expect-error: E0607
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_task_err_escaped.fung
+-- stdout
+| # A handle that leaves its scope unread: when the scope closes, nobody in
+| # it read the Err (05).
+| t = scope(s => spawn(s, fn(): Err("late") ;;))
+| # expect-error: E0607
+| print(await(t))
+-- stderr
+-- exit: 0
 ==== tests/lang/err_task_failed.fung
 -- stdout
 | # A failing child cancels the scope's body, even while it sleeps.
@@ -12307,6 +12365,38 @@
 | # expect: 2
 | print({HOME: Red})
 | # expect: {HOME: 'Red}
+-- stderr
+-- exit: 0
+==== tests/lang/task_err.fung
+-- stdout
+| # A task's Err result is the task's answer: read it with await (05).
+| r = scope(fn(s):
+|   t = spawn(s, fn(): Err("no") ;;)
+|   await(t)
+| ;;)
+| print(r)
+| # expect: Err("no")
+|
+| # A task that returns nothing ends in nil, Errs it discards on purpose too.
+| scope(fn(s):
+|   spawn(s, fn():
+|     _ = Err("ignored")
+|     nil
+|   ;;)
+| ;;)
+|
+| # A cancelled task's Err is the runtime's, not its function's.
+| (_tx, rx) = channel()
+| scope(fn(s):
+|   t = spawn(s, () => recv(rx))
+|   cancel(t)
+| ;;)
+|
+| # In supervise, an Err nobody awaited goes to on_fail.
+| supervise(s => spawn(s, fn(): Err("lost") ;;), e => print(e.code, e.message))
+| # expect: E0607 task's Err was never awaited: "lost"
+| print("done")
+| # expect: done
 -- stderr
 -- exit: 0
 ==== tests/lang/tasks.fung

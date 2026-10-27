@@ -258,6 +258,12 @@ const CATALOG: &[[&str; 4]] = &[
         "this value is discarded",
         "handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`",
     ],
+    [
+        "E0607",
+        "task's Err was never awaited: %s",
+        "this task's result is discarded",
+        "`await` it, or end the task's function with `nil`",
+    ],
     ["E0701", "task cancelled", "", ""],
     ["E0702", "deadlock: all tasks are waiting", "", ""],
     // not raised since atoms became agents (E0704); the number stays taken

@@ -474,7 +474,7 @@ fn a_queued_job_is_dropped_at_the_deadline() {
 fn an_await_cut_short_leaves_the_waiting_list() {
     assert_eq!(
         out(
-            "scope(fn(s):\n  bg = spawn(s, () => sleep(1h))\n  scope(c => each(0..100, _ => spawn(c, () => timeout(1ms, () => await(bg)))))\n  print(awaiters(bg))\n  cancel(bg)\n;;)"
+            "scope(fn(s):\n  bg = spawn(s, () => sleep(1h))\n  scope(c => each(0..100, _ => spawn(c, fn(): _ = timeout(1ms, () => await(bg)); nil ;;)))\n  print(awaiters(bg))\n  cancel(bg)\n;;)"
         ),
         ("0\n".into(), "".into())
     );

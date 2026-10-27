@@ -47,7 +47,7 @@
 
 | 번호 | 문서 | 요지 |
 |---|---|---|
-| L1 | [01-unawaited-task-err.md](01-unawaited-task-err.md) | 아무도 `await`하지 않은 태스크의 `Err`가 조용히 사라진다 |
+| L1 | [01-unawaited-task-err.md](01-unawaited-task-err.md) | ~~아무도 `await`하지 않은 태스크의 `Err`가 조용히 사라진다~~ **닫힘 2026-10-27** |
 | L2 | [02-trailing-if-for.md](02-trailing-if-for.md) | ~~함수 본문 끝의 `if`·`for`가 값 자리에서 조용히 `nil`·리스트가 된다~~ **닫힘 2026-10-27** |
 | L3 | [03-channel-wait-api.md](03-channel-wait-api.md) | 정지 신호만 기다리는 `_ = recv(stop)`, 기다리지 않고 보기(`try_recv`)가 없음 |
 | L4 | [04-strings-and-bytes.md](04-strings-and-bytes.md) | 문자열이 바이트를 품지 못해 비UTF-8 입력이 U+FFFD로 바뀐다 |

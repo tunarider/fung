@@ -152,6 +152,20 @@ print(r)</code></pre><pre class="out err plain" data-code="1"><code>error[E0502]
  call path (innermost first):
    example.fung:2 &lt;lambda&gt;</code></pre></div>
 <p>에러 메시지의 <code>note: scope opened at …</code>가 실패가 올라온 태스크 범위를 알려 준다. 반면 태스크의 함수가 런타임 에러가 아니라 <code>Err</code> 값을 돌려주는 것은 실패가 아니다. 그냥 <code>await</code>가 받는 결과일 뿐이다.</p>
+<p>다만 그 결과를 아무도 받지 않으면 이야기가 다르다. 9장에서 버려진 <code>Err</code>가 에러였듯, 핸들을 버려서 <code>Err</code>를 읽을 길이 사라지면 E0607로 범위가 실패한다. 결과가 필요 없는 일이라면 태스크의 함수를 <code>nil</code>로 맺어 "버린다"고 적는다.</p>
+<div class="run"><pre><code>scope(fn(s):
+  spawn(s, () =&gt; parse_int(&quot;x&quot;))
+;;)
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0607]: task's Err was never awaited: not an integer: x
+  --&gt; example.fung:2:8
+  |
+2 |   spawn(s, () =&gt; parse_int(&quot;x&quot;))
+  |        ^ this task's result is discarded
+  |
+  note: scope opened at example.fung:1
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;
+ help: `await` it, or end the task's function with `nil`</code></pre></div>
 <h3 id="supervise">실패를 격리하기: supervise</h3>
 <p>요청을 하나씩 처리하는 서버라면 요청 하나의 버그로 서버 전체가 멈추면 곤란하다. <code>supervise(본문, on_fail)</code>는 <code>scope</code>처럼 태스크 범위를 열되, 자식 태스크의 실패를 범위의 실패로 만들지 않고 <code>on_fail(실패)</code>에 넘긴다. 다른 태스크는 계속 돈다. 실패는 <code>{kind, code, message, at}</code> 맵이다.</p>
 <div class="run"><pre><code>r = supervise(fn(s):
@@ -325,7 +339,7 @@ print(total)</code></pre><pre class="out plain"><code>14</code></pre></div>
 <ul>
 <li>동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.</li>
 <li>리스트의 일을 동시에 하려면 <code>conc.pmap(xs, f, limit: n)</code>. 결과는 입력 순서대로다.</li>
-<li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다.</li>
+<li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 <code>Err</code>를 아무도 읽지 않으면 E0607이다.</li>
 <li>태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 <code>supervise(f, on_fail)</code>.</li>
 <li><code>timeout(d, f)</code>는 기한이 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
 <li>채널 <code>(tx, rx) = channel()</code>로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.</li>

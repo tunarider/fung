@@ -349,7 +349,7 @@ fn many_receivers_on_one_channel() {
 #[test]
 fn many_awaits_on_one_task() {
     let _serial = serial();
-    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, () => timeout(1ms, () => await(t)))))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
+    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, fn(): _ = timeout(1ms, () => await(t)); nil ;;)))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
     let (out, took) = run(src);
     eprintln!("100,000 awaits on one task {took:?}");
     assert_eq!(out, "50000\n");

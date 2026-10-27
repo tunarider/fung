@@ -1,0 +1,5 @@
+# A handle that leaves its scope unread: when the scope closes, nobody in
+# it read the Err (05).
+t = scope(s => spawn(s, fn(): Err("late") ;;))
+# expect-error: E0607
+print(await(t))

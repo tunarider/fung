@@ -1706,6 +1706,37 @@ print("done")
 
 :::
 
+:::error E0607
+
+태스크의 함수가 `Err`를 돌려줬는데, 그 결과를 아무도 `await`로 읽지 않은 채 읽을 수 없게 되었다. 핸들을 버리고 띄운 일이 실패하면 아무도 모르게 지나가므로, 버려지는 `Err`(E0606)처럼 에러로 만든다. 에러는 `spawn`한 자리를 가리키고 그 범위를 실패시킨다(`supervise`면 `on_fail`이 받는다).
+
+읽을 수 없게 되는 때는 셋이다. 태스크가 끝났을 때 핸들이 하나도 남지 않았거나, 끝난 뒤 마지막 핸들이 읽히지 않은 채 사라졌거나, 범위가 닫힐 때 읽지 않은 핸들이 범위 밖에 남았을 때다. 어느 경우든 에러인지 아닌지는 같고, 알리는 때만 다르다. 리스트를 돌려주면 그 원소(한 겹)도 본다. 취소·시간 초과로 끝난 태스크의 `Err`는 런타임이 만든 것이라 세지 않는다.
+
+```fung run exit=1 error=E0607
+import fs
+scope(s => spawn(s, () => fs.write("missing/out.txt", "data")))
+print("saved")
+```
+
+고치는 법: 결과를 `await`로 읽어 다루거나, 실패해도 상관없는 일이면 태스크의 함수를 `nil`로 맺는다.
+
+```fung run
+import fs
+scope(fn(s):
+  t = spawn(s, () => fs.write("missing/out.txt", "data"))
+  match await(t):
+    Ok(_)  => print("saved")
+    Err(e) => print("skip:", e.kind)
+  ;;
+  spawn(s, fn():
+    _ = fs.remove("missing/old.txt")
+    nil
+  ;;)
+;;)
+```
+
+:::
+
 ## E07xx: 동시성 {#e07}
 
 동시성(concurrency)은 여러 일(태스크, task)을 번갈아 진행하는 것이다. fung의 태스크는 `scope` 안에서 `spawn`으로 띄우고, 채널(channel)로 값을 주고받고, 여럿이 함께 보는 값은 `atom`에 둔다([동시성 내장 함수](prelude/concurrency.html)). 이 규칙을 어기거나 모든 태스크가 서로를 기다리며 멈추면 E07xx다. 모두 실행 중의 에러다.

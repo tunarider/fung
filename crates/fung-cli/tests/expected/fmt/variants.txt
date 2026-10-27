@@ -1892,6 +1892,31 @@
 | in/tests~lang~err_tail_return_type@split.fung
 | in/tests~lang~err_tail_return_type@tight.fung
 | in/tests~lang~err_tail_return_type@trailing.fung
+| in/tests~lang~err_task_err_dropped@bom.fung
+| in/tests~lang~err_task_err_dropped@cglued.fung
+| in/tests~lang~err_task_err_dropped@contsplit.fung
+| in/tests~lang~err_task_err_dropped@cpushed.fung
+| in/tests~lang~err_task_err_dropped@crlf.fung
+| in/tests~lang~err_task_err_dropped@halfbytes.fung
+| in/tests~lang~err_task_err_dropped@moreblank.fung
+| in/tests~lang~err_task_err_dropped@nofinal.fung
+| in/tests~lang~err_task_err_dropped@opsplit.fung
+| in/tests~lang~err_task_err_dropped@spaced.fung
+| in/tests~lang~err_task_err_dropped@split.fung
+| in/tests~lang~err_task_err_dropped@tight.fung
+| in/tests~lang~err_task_err_dropped@trailing.fung
+| in/tests~lang~err_task_err_escaped@bom.fung
+| in/tests~lang~err_task_err_escaped@cglued.fung
+| in/tests~lang~err_task_err_escaped@cpushed.fung
+| in/tests~lang~err_task_err_escaped@crlf.fung
+| in/tests~lang~err_task_err_escaped@halfbytes.fung
+| in/tests~lang~err_task_err_escaped@moreblank.fung
+| in/tests~lang~err_task_err_escaped@nofinal.fung
+| in/tests~lang~err_task_err_escaped@opsplit.fung
+| in/tests~lang~err_task_err_escaped@spaced.fung
+| in/tests~lang~err_task_err_escaped@split.fung
+| in/tests~lang~err_task_err_escaped@tight.fung
+| in/tests~lang~err_task_err_escaped@trailing.fung
 | in/tests~lang~err_task_failed@bom.fung
 | in/tests~lang~err_task_failed@cglued.fung
 | in/tests~lang~err_task_failed@cpushed.fung
@@ -2649,6 +2674,23 @@
 | in/tests~lang~tag_keys@split.fung
 | in/tests~lang~tag_keys@tight.fung
 | in/tests~lang~tag_keys@trailing.fung
+| in/tests~lang~task_err@bom.fung
+| in/tests~lang~task_err@cglued.fung
+| in/tests~lang~task_err@contsplit.fung
+| in/tests~lang~task_err@cpushed.fung
+| in/tests~lang~task_err@crlf.fung
+| in/tests~lang~task_err@dedent.fung
+| in/tests~lang~task_err@halfbytes.fung
+| in/tests~lang~task_err@moreblank.fung
+| in/tests~lang~task_err@nofinal.fung
+| in/tests~lang~task_err@odd3.fung
+| in/tests~lang~task_err@opsplit.fung
+| in/tests~lang~task_err@spaced.fung
+| in/tests~lang~task_err@split.fung
+| in/tests~lang~task_err@tabs.fung
+| in/tests~lang~task_err@tight.fung
+| in/tests~lang~task_err@trailing.fung
+| in/tests~lang~task_err@wide4.fung
 | in/tests~lang~tasks@bom.fung
 | in/tests~lang~tasks@contsplit.fung
 | in/tests~lang~tasks@cpushed.fung
@@ -5691,6 +5733,12 @@
 | 4 | print(home, port, c
 |   |                    ^
 |   |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~task_err@halflines.fung:15:1
+|    |
+| 15 | 
+|    | ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~tasks@halfbytes.fung:3:41
 |   |
@@ -7690,6 +7738,31 @@
 | in/tests~lang~err_tail_return_type@split.fung
 | in/tests~lang~err_tail_return_type@tight.fung
 | in/tests~lang~err_tail_return_type@trailing.fung
+| in/tests~lang~err_task_err_dropped@bom.fung
+| in/tests~lang~err_task_err_dropped@cglued.fung
+| in/tests~lang~err_task_err_dropped@contsplit.fung
+| in/tests~lang~err_task_err_dropped@cpushed.fung
+| in/tests~lang~err_task_err_dropped@crlf.fung
+| in/tests~lang~err_task_err_dropped@halfbytes.fung
+| in/tests~lang~err_task_err_dropped@moreblank.fung
+| in/tests~lang~err_task_err_dropped@nofinal.fung
+| in/tests~lang~err_task_err_dropped@opsplit.fung
+| in/tests~lang~err_task_err_dropped@spaced.fung
+| in/tests~lang~err_task_err_dropped@split.fung
+| in/tests~lang~err_task_err_dropped@tight.fung
+| in/tests~lang~err_task_err_dropped@trailing.fung
+| in/tests~lang~err_task_err_escaped@bom.fung
+| in/tests~lang~err_task_err_escaped@cglued.fung
+| in/tests~lang~err_task_err_escaped@cpushed.fung
+| in/tests~lang~err_task_err_escaped@crlf.fung
+| in/tests~lang~err_task_err_escaped@halfbytes.fung
+| in/tests~lang~err_task_err_escaped@moreblank.fung
+| in/tests~lang~err_task_err_escaped@nofinal.fung
+| in/tests~lang~err_task_err_escaped@opsplit.fung
+| in/tests~lang~err_task_err_escaped@spaced.fung
+| in/tests~lang~err_task_err_escaped@split.fung
+| in/tests~lang~err_task_err_escaped@tight.fung
+| in/tests~lang~err_task_err_escaped@trailing.fung
 | in/tests~lang~err_task_failed@bom.fung
 | in/tests~lang~err_task_failed@cglued.fung
 | in/tests~lang~err_task_failed@cpushed.fung
@@ -8447,6 +8520,23 @@
 | in/tests~lang~tag_keys@split.fung
 | in/tests~lang~tag_keys@tight.fung
 | in/tests~lang~tag_keys@trailing.fung
+| in/tests~lang~task_err@bom.fung
+| in/tests~lang~task_err@cglued.fung
+| in/tests~lang~task_err@contsplit.fung
+| in/tests~lang~task_err@cpushed.fung
+| in/tests~lang~task_err@crlf.fung
+| in/tests~lang~task_err@dedent.fung
+| in/tests~lang~task_err@halfbytes.fung
+| in/tests~lang~task_err@moreblank.fung
+| in/tests~lang~task_err@nofinal.fung
+| in/tests~lang~task_err@odd3.fung
+| in/tests~lang~task_err@opsplit.fung
+| in/tests~lang~task_err@spaced.fung
+| in/tests~lang~task_err@split.fung
+| in/tests~lang~task_err@tabs.fung
+| in/tests~lang~task_err@tight.fung
+| in/tests~lang~task_err@trailing.fung
+| in/tests~lang~task_err@wide4.fung
 | in/tests~lang~tasks@bom.fung
 | in/tests~lang~tasks@contsplit.fung
 | in/tests~lang~tasks@cpushed.fung
@@ -11489,6 +11579,12 @@
 | 4 | print(home, port, c
 |   |                    ^
 |   |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~task_err@halflines.fung:15:1
+|    |
+| 15 | 
+|    | ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~tasks@halfbytes.fung:3:41
 |   |
@@ -15410,6 +15506,50 @@
 | tests~lang~err_tail_return_type@tight.fung 161 0ae869de44fda55d
 | tests~lang~err_tail_return_type@trailing.fung 161 0ae869de44fda55d
 | tests~lang~err_tail_return_type@wide4.fung unchanged
+| tests~lang~err_task_err_dropped.fung unchanged
+| tests~lang~err_task_err_dropped@bom.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@cglued.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@cnospace.fung unchanged
+| tests~lang~err_task_err_dropped@contsplit.fung 255 4223a317f279c252
+| tests~lang~err_task_err_dropped@cpushed.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@crlf.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@dedent.fung unchanged
+| tests~lang~err_task_err_dropped@halfbytes.fung 126 f26e39605f11d80b
+| tests~lang~err_task_err_dropped@halflines.fung unchanged
+| tests~lang~err_task_err_dropped@joined.fung unchanged
+| tests~lang~err_task_err_dropped@moreblank.fung 257 aa88b5ef3936cbe2
+| tests~lang~err_task_err_dropped@noblank.fung unchanged
+| tests~lang~err_task_err_dropped@nofinal.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@odd3.fung unchanged
+| tests~lang~err_task_err_dropped@opsplit.fung 258 f0aa951f2e936a58
+| tests~lang~err_task_err_dropped@spaced.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@split.fung 285 891e3a9116fbcba0
+| tests~lang~err_task_err_dropped@tabs.fung unchanged
+| tests~lang~err_task_err_dropped@tight.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@trailing.fung 252 5c5dc637f552f284
+| tests~lang~err_task_err_dropped@wide4.fung unchanged
+| tests~lang~err_task_err_escaped.fung unchanged
+| tests~lang~err_task_err_escaped@bom.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@cglued.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@cnospace.fung unchanged
+| tests~lang~err_task_err_escaped@contsplit.fung unchanged
+| tests~lang~err_task_err_escaped@cpushed.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@crlf.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@dedent.fung unchanged
+| tests~lang~err_task_err_escaped@halfbytes.fung 92 9e0cd426500eef5b
+| tests~lang~err_task_err_escaped@halflines.fung unchanged
+| tests~lang~err_task_err_escaped@joined.fung unchanged
+| tests~lang~err_task_err_escaped@moreblank.fung 187 b43cdd9cda76c639
+| tests~lang~err_task_err_escaped@noblank.fung unchanged
+| tests~lang~err_task_err_escaped@nofinal.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@odd3.fung unchanged
+| tests~lang~err_task_err_escaped@opsplit.fung 189 0ed256649e017be3
+| tests~lang~err_task_err_escaped@spaced.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@split.fung 215 ca61da5f958d7c2f
+| tests~lang~err_task_err_escaped@tabs.fung unchanged
+| tests~lang~err_task_err_escaped@tight.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@trailing.fung 183 96b8accc6900dceb
+| tests~lang~err_task_err_escaped@wide4.fung unchanged
 | tests~lang~err_task_failed.fung unchanged
 | tests~lang~err_task_failed@bom.fung 191 5ac4b8d06df47548
 | tests~lang~err_task_failed@cglued.fung 191 5ac4b8d06df47548
@@ -16796,6 +16936,28 @@
 | tests~lang~tag_keys@tight.fung 319 f5bb285e92215eed
 | tests~lang~tag_keys@trailing.fung 319 f5bb285e92215eed
 | tests~lang~tag_keys@wide4.fung unchanged
+| tests~lang~task_err.fung unchanged
+| tests~lang~task_err@bom.fung 675 43874078c8682781
+| tests~lang~task_err@cglued.fung 675 43874078c8682781
+| tests~lang~task_err@cnospace.fung unchanged
+| tests~lang~task_err@contsplit.fung 681 cc4ed36b5b0d6b91
+| tests~lang~task_err@cpushed.fung 675 43874078c8682781
+| tests~lang~task_err@crlf.fung 675 43874078c8682781
+| tests~lang~task_err@dedent.fung 675 43874078c8682781
+| tests~lang~task_err@halfbytes.fung 338 3c90550a62afbfd1
+| tests~lang~task_err@halflines.fung unchanged
+| tests~lang~task_err@joined.fung unchanged
+| tests~lang~task_err@moreblank.fung 688 d0750a349bc77c41
+| tests~lang~task_err@noblank.fung unchanged
+| tests~lang~task_err@nofinal.fung 675 43874078c8682781
+| tests~lang~task_err@odd3.fung 675 43874078c8682781
+| tests~lang~task_err@opsplit.fung 711 dc05155a1a8204dd
+| tests~lang~task_err@spaced.fung 675 43874078c8682781
+| tests~lang~task_err@split.fung 881 3fa1f128d3891a89
+| tests~lang~task_err@tabs.fung 675 43874078c8682781
+| tests~lang~task_err@tight.fung 675 43874078c8682781
+| tests~lang~task_err@trailing.fung 675 43874078c8682781
+| tests~lang~task_err@wide4.fung 675 43874078c8682781
 | tests~lang~tasks.fung unchanged
 | tests~lang~tasks@bom.fung 210 ff6aea66d6afc269
 | tests~lang~tasks@cglued.fung unchanged

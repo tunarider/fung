@@ -927,6 +927,14 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_task_err_dropped.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_task_err_escaped.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_task_failed.fung
 -- stdout
 -- stderr
@@ -1252,6 +1260,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/tag_keys.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/task_err.fung
 -- stdout
 -- stderr
 -- exit: 0

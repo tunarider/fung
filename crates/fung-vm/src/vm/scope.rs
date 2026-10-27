@@ -30,7 +30,7 @@ use fung_front::diag::{self, Diag, headline};
 
 use super::block::WaitList;
 use super::cont::{Cont, Flow, Next};
-use super::task::{CancelNode, err_kind, is_cancel};
+use super::task::{CancelNode, TaskState, Unread, err_kind, is_cancel};
 use super::{Stop, Task, Wake, discarded};
 use crate::value::Value;
 
@@ -64,9 +64,18 @@ pub(crate) struct ScopeState {
     /// Cancelled by `cancel(s)`: `scope(` then gives `Err({kind:
     /// 'cancelled})` instead of unwinding further.
     self_cancelled: Cell<bool>,
+    /// The ended children whose Err result is unread while a handle
+    /// lives (L1): what is still unread when the scope closes fails it.
+    unread: RefCell<Vec<std::rc::Weak<TaskState>>>,
+    /// The length at which `unread` is next swept of the read and the
+    /// dropped (a long-lived scope keeps it short).
+    sweep_at: Cell<usize>,
     /// What a child's failure does.
     policy: Policy,
 }
+
+/// The shortest `unread` list that is swept.
+const SWEEP_MIN: usize = 64;
 
 /// What a child's failure does to its scope.
 pub(crate) enum Policy {
@@ -121,6 +130,8 @@ impl ScopeState {
             failure: RefCell::new(None),
             also: RefCell::new(Vec::new()),
             self_cancelled: Cell::new(false),
+            unread: RefCell::new(Vec::new()),
+            sweep_at: Cell::new(SWEEP_MIN),
             policy,
         })
     }
@@ -161,6 +172,36 @@ impl ScopeState {
     /// Whether tasks may still be spawned into it.
     pub(crate) fn is_open(&self) -> bool {
         self.open.get()
+    }
+
+    /// A child ended with an Err result that a live handle may still
+    /// read (L1).
+    fn keep_unread(&self, st: &Rc<TaskState>) {
+        let mut v = self.unread.borrow_mut();
+        v.push(Rc::downgrade(st));
+        if v.len() >= self.sweep_at.get() {
+            v.retain(|w| w.upgrade().is_some_and(|st| st.is_unread()));
+            self.sweep_at.set((2 * v.len()).max(SWEEP_MIN));
+        }
+    }
+
+    /// The last handle of a child dropped its Err unread (`TaskHandle`'s
+    /// drop): a failure of the scope while it is open; once it has closed
+    /// the Err was reported already.
+    pub(crate) fn unread_lost(&self, u: Unread) {
+        if self.is_open() {
+            self.lose(u);
+        }
+    }
+
+    /// An Err nobody can read fails the scope: `scope` raises it,
+    /// `supervise` queues it for `on_fail` (its next handler, or the
+    /// opener when the scope closes).
+    fn lose(&self, u: Unread) {
+        match &self.policy {
+            Policy::FailFast => self.fail(&u.diag),
+            Policy::Supervise(sv) => sv.queue.borrow_mut().push_back((u.value, u.text)),
+        }
     }
 
     /// A child is about to start.
@@ -239,12 +280,25 @@ impl TaskEnd {
     }
 
     /// The function came to `r`.
-    fn body_ended(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
+    fn body_ended(&mut self, t: &mut Task<'_>, mut r: Result<Value, Stop>) -> Result<Next, Stop> {
         *self.state.result.borrow_mut() = Some(super::task::outcome(&r, Some(&t.world)));
         self.state.waiters.borrow_mut().wake_all();
         let Some(s) = self.scope.clone() else {
             return Ok(self.ended(t, r));
         };
+        // An Err the function returned must be read (L1). With no handle
+        // left (this end holds the only reference) it never can be: the
+        // task fails. Otherwise the scope keeps it until it is read.
+        if let Ok(v) = &r
+            && let Some(u) = Unread::of(v, self.state.at, &t.world)
+        {
+            if Rc::strong_count(&self.state) == 1 {
+                r = Err(Stop::Error(u.diag));
+            } else {
+                *self.state.unread.borrow_mut() = Some(u);
+                s.keep_unread(&self.state);
+            }
+        }
         if let Policy::Supervise(sv) = &s.policy
             && let Err(Stop::Error(d)) = &r
             && !is_cancel(d)
@@ -378,6 +432,7 @@ pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> F
             outer: Some(outer),
             opened_at,
             draining: None,
+            handling: None,
         }),
         f,
         1,
@@ -392,6 +447,9 @@ struct Scope {
     opened_at: String,
     /// The body has ended and the scope waits for its children.
     draining: Option<Draining>,
+    /// The scope has closed and the opener runs a `supervise` scope's
+    /// `on_fail` for the failures left; the body's result waits here.
+    handling: Option<Result<Value, Stop>>,
 }
 
 /// A scope waiting for its children: the body's result, and the task's
@@ -434,10 +492,69 @@ impl Scope {
         self.state.waiters.borrow_mut().add(&me);
     }
 
-    /// Every child has ended: the scope closes and settles.
+    /// Every child has ended: the scope closes. An Err still unread
+    /// fails it (L1); in a `supervise` scope that is not cancelled the
+    /// opener then runs `on_fail` for the failures nobody handled, in
+    /// order, before the scope settles.
     fn closed(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
-        let (node, state) = (&self.node, &self.state);
+        let state = self.state.clone();
         state.open.set(false);
+        let left: Vec<_> = state.unread.borrow_mut().drain(..).collect();
+        for st in left.iter().filter_map(std::rc::Weak::upgrade) {
+            let u = st.unread.borrow_mut().take();
+            if let Some(u) = u {
+                state.lose(u);
+            }
+        }
+        if let Policy::Supervise(sv) = &state.policy
+            && !state.node.is_cancelled()
+            && !t.cancel.is_cancelled()
+            && !sv.queue.borrow().is_empty()
+        {
+            self.handling = Some(r);
+            return self.next_failure(t);
+        }
+        self.settled(t, r)
+    }
+
+    /// Calls `on_fail` for the next failure left, or settles.
+    fn next_failure(&mut self, t: &mut Task<'_>) -> Result<Next, Stop> {
+        let Policy::Supervise(sv) = &self.state.policy else {
+            unreachable!("handling outside a supervise scope")
+        };
+        if !t.cancel.is_cancelled()
+            && let Some(f) = sv.on_fail.borrow().clone()
+            && let Some((e, _)) = sv.queue.borrow_mut().pop_front()
+        {
+            t.push_arg(e);
+            return Ok(Next::Call(f, 1));
+        }
+        let r = self.handling.take().expect("handling");
+        self.settled(t, r)
+    }
+
+    /// `on_fail` came to `h` while the opener handles: as in a child
+    /// handler (`TaskEnd::handled`), a failure of `on_fail` fails the
+    /// scope and a cancellation stops the handling.
+    fn handled(&mut self, t: &mut Task<'_>, h: Result<Value, Stop>) -> Result<Next, Stop> {
+        match discarded(h) {
+            Ok(_) => self.next_failure(t),
+            Err(Stop::Error(d)) if !is_cancel(&d) => {
+                self.state.fail(&d);
+                let r = self.handling.take().expect("handling");
+                self.settled(t, r)
+            }
+            Err(_) => {
+                let r = self.handling.take().expect("handling");
+                self.settled(t, r)
+            }
+        }
+    }
+
+    /// The scope has closed: what is left unhandled is reported, and
+    /// `scope(` gives its result.
+    fn settled(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
+        let (node, state) = (&self.node, &self.state);
         if let Policy::Supervise(sv) = &state.policy {
             sv.on_fail.borrow_mut().take();
             // Failures the scope was cancelled before handling: reported as
@@ -455,6 +572,9 @@ impl Scope {
 
 impl Cont for Scope {
     fn resume(&mut self, t: &mut Task<'_>, v: Value) -> Result<Next, Stop> {
+        if self.handling.is_some() {
+            return self.handled(t, Ok(v));
+        }
         let Some(d) = self.draining.take() else {
             return self.body_ended(t, Ok(v));
         };
@@ -469,6 +589,9 @@ impl Cont for Scope {
     }
 
     fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        if self.handling.is_some() {
+            return self.handled(t, Err(stop));
+        }
         let Some(d) = self.draining.take() else {
             return self.body_ended(t, Err(stop));
         };

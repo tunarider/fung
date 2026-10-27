@@ -1125,6 +1125,16 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_task_err_dropped.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_task_err_escaped.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_task_failed.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1503,6 +1513,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/tag_keys.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/task_err.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

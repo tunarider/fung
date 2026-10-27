@@ -209,7 +209,7 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
     let h = h.clone();
     let state = h.state.clone();
     let ready = move |_: &mut Task<'_>, me: &_| {
-        let r = h.state.result();
+        let r = h.state.read();
         if r.is_none() {
             h.state.waiters.borrow_mut().add(me);
         }

@@ -488,3 +488,78 @@ fn a_scope_cancelled_after_its_body_returned_is_cancelled() {
         )
     );
 }
+
+/// L1: an Err a task's function returned that nobody can read any more
+/// fails the scope with E0607 at the `spawn`, however it became unreadable:
+/// no handle when the task ends, the last handle dropped unread after the
+/// end, or a handle that left the scope unread.
+#[test]
+fn an_unawaited_err_fails_the_scope() {
+    for (what, src) in [
+        (
+            "no handle",
+            "scope(s => spawn(s, fn(): Err(\"x\") ;;))\nprint(\"not here\")",
+        ),
+        (
+            "dropped unread",
+            "scope(fn(s):\n  t = spawn(s, fn(): Err(\"x\") ;;)\n  until(() => finished(t))\n  hold(1)\n;;)\nprint(\"not here\")",
+        ),
+        (
+            "left the scope",
+            "t = scope(s => spawn(s, fn(): Err(\"x\") ;;))\nprint(await(t))",
+        ),
+    ] {
+        let o = exec_waiting(src);
+        let (out, err, code) = (o.out, o.err, o.exit);
+        assert_eq!(out, "", "{what}");
+        assert!(
+            err.starts_with("error[E0607]: task's Err was never awaited: \"x\"\n"),
+            "{what}: {err}"
+        );
+        assert!(err.contains("note: scope opened at -e:"), "{what}: {err}");
+        assert_eq!(code, 1, "{what}");
+    }
+    // A list holding an Err is looked into, as a discarded one is (02).
+    let (_, err, code) = run("scope(s => spawn(s, () => [1, Err(2)]))");
+    assert!(
+        err.starts_with("error[E0607]: task's Err was never awaited: 2\n"),
+        "{err}"
+    );
+    assert!(
+        err.contains("note: element 2 of the discarded list (of 2)"),
+        "{err}"
+    );
+    assert_eq!(code, 1);
+}
+
+/// What an E0607 leaves alone: an Err that was awaited (before or after
+/// the end), a cancelled task's Err (the runtime's, not the function's),
+/// a task that ends in nil, and an awaited Err discarded on purpose.
+#[test]
+fn a_read_or_runtime_err_is_no_e0607() {
+    let src = "(_tx, rx) = channel()\nscope(fn(s):\n  a = spawn(s, fn(): Err(\"a\") ;;)\n  print(await(a))\n  b = spawn(s, fn(): Err(\"b\") ;;)\n  until(() => finished(b))\n  print(await(b))\n  c = spawn(s, () => recv(rx))\n  cancel(c)\n  spawn(s, fn():\n    _ = Err(\"d\")\n    nil\n  ;;)\n  e = spawn(s, fn(): Err(\"e\") ;;)\n  _ = await(e)\n  nil\n;;)\nprint(\"done\")";
+    let o = exec_waiting(src);
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Err(\"a\")\nErr(\"b\")\ndone\n", "", 0)
+    );
+}
+
+/// In a supervise scope an unread Err goes to `on_fail` as a failure,
+/// from each of the three places.
+#[test]
+fn supervise_hands_an_unawaited_err_to_on_fail() {
+    for src in [
+        "supervise(s => spawn(s, fn(): Err(\"x\") ;;), e => print(e.code, e.message))",
+        "supervise(fn(s):\n  t = spawn(s, fn(): Err(\"x\") ;;)\n  until(() => finished(t))\n  hold(1)\n;;, e => print(e.code, e.message))",
+        "t = supervise(s => spawn(s, fn(): Err(\"x\") ;;), e => print(e.code, e.message))\nprint(\"after\")",
+    ] {
+        let o = exec_waiting(src);
+        let (out, err, code) = (o.out, o.err, o.exit);
+        assert!(
+            out.starts_with("E0607 task's Err was never awaited: \"x\"\n"),
+            "{src}: {out} {err}"
+        );
+        assert_eq!((err.as_str(), code), ("", 0), "{src}");
+    }
+}

@@ -1,6 +1,11 @@
 # L1. 아무도 `await`하지 않은 태스크의 `Err`
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-10-27)**. 선택지 (가), 정할 것 1~4 모두 추천대로(사용자 결정 2026-10-27). 목록: [README](README.md).
+
+결과: `TaskState`에 띄운 자리·범위(`Weak`)·읽지 않은 `Err`(`Unread`: E0607 진단과 `on_fail`용 값·보고)를 두고, `await`가 읽으면 지운다(`TaskState::read`).
+판정은 `TaskEnd::body_ended`(핸들 없음: 태스크의 실패로), `TaskHandle`의 `Drop`(범위가 열려 있으면 `ScopeState::unread_lost`), `Scope::closed`(범위가 기억한 것 중 남은 것)의 세 자리다.
+`supervise`에서 처리기가 없을 때 생긴 것은 대기열에 들어가 다음 처리기나, 범위가 닫힐 때 여는 태스크가 `on_fail`을 부른다(`Scope`의 `handling`). 진단은 L2의 `discarded_err`를 써서 리스트도 한 겹 본다(계획에 없던 것, L2와 맞춤).
+저장소에서 걸린 곳은 시험 하나(`park_tests`의 시간 초과 `Err`를 돌려주는 태스크)뿐이었다. `http`의 연결 태스크는 `c`·`nil`을, `conc.fan_in`은 `close`의 `Ok(nil)`을 돌려준다.
 
 ## 문제
 
