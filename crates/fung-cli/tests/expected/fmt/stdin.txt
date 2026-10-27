@@ -2992,6 +2992,14 @@
 -- exit: 0
 ==== manual learn/12-concurrency.md:14
 -- stdout
+| (tx, rx) = channel(1)
+| print(try_recv(rx))
+| print(try_send(tx, "a"), try_send(tx, "b"))
+| print(try_recv(rx))
+-- stderr
+-- exit: 0
+==== manual learn/12-concurrency.md:15
+-- stdout
 | (tx, rx) = channel()
 | scope(fn(s):
 |   spawn(s, () => each(["a", "b"], x => send(tx, x)!))
@@ -3001,7 +3009,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:15
+==== manual learn/12-concurrency.md:16
 -- stdout
 | done = atom(0)
 |
@@ -3011,7 +3019,7 @@
 | print(deref(done), done)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:16
+==== manual learn/12-concurrency.md:17
 -- stdout
 | hits = atom(0)
 | swap(hits, fn(n):
@@ -3020,7 +3028,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:17
+==== manual learn/12-concurrency.md:18
 -- stdout
 | import conc
 |
@@ -3043,7 +3051,7 @@
 | if any(results, is_err): exit(1) ;;
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:18
+==== manual learn/12-concurrency.md:19
 -- stdout
 | fn count_chars(rx) = fold(rx, 0, (acc, row) => acc + len(row))
 |
@@ -7469,6 +7477,60 @@
 -- exit: 0
 ==== manual reference/prelude/concurrency.md:31
 -- stdout
+| (tx, rx) = channel(2)
+| send(tx, "job-1")!
+| for _ in 1..=2:
+|   match try_recv(rx):
+|     Ok(job)             => print("doing", job)
+|     Err({kind: 'empty}) => print("nothing queued")
+|     Err(_)              => print("closed")
+|   ;;
+| ;;
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:32
+-- stdout
+| stop = stop_signal()
+| print(try_recv(stop))
+| request_stop()
+| print(try_recv(stop))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:33
+-- stdout
+| (tx, rx) = channel(2)
+| dropped = fold(1..=5, 0, (n, i) => is_ok(try_send(tx, "line ${i}")) then n else n + 1)
+| close(tx)
+| print(map(rx, x => x), "dropped:", dropped)
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:34
+-- stdout
+| (tx, rx) = channel(3)
+| scope(fn(s):
+|   spawn(s, fn():
+|     each(["a", "b", "c"], x => send(tx, x)!)
+|     close(tx)
+|   ;;)
+|   wait_closed(rx)
+| ;;)
+| print(map(rx, x => x))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:35
+-- stdout
+| stop = stop_signal()
+| scope(fn(s):
+|   spawn(s, fn():
+|     wait_closed(stop)
+|     print("worker: stopping")
+|   ;;)
+|   request_stop()
+| ;;)
+-- stderr
+-- exit: 0
+==== manual reference/prelude/concurrency.md:36
+-- stdout
 | (tx, rx) = channel(3)
 | each(["a", "b", "c"], x => send(tx, x))
 | close(tx)
@@ -7477,13 +7539,13 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:32
+==== manual reference/prelude/concurrency.md:37
 -- stdout
 | (tx, rx) = channel()
 | close(rx)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:33
+==== manual reference/prelude/concurrency.md:38
 -- stdout
 | stop = stop_signal()
 | request_stop()
@@ -7491,7 +7553,7 @@
 | print("cleaning up, then exiting normally")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:34
+==== manual reference/prelude/concurrency.md:39
 -- stdout
 | stop = stop_signal()
 | scope(fn(s):
@@ -7509,27 +7571,27 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:35
+==== manual reference/prelude/concurrency.md:40
 -- stdout
 | stop = stop_signal()
 | print(request_stop())
 | print(recv(stop))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:36
+==== manual reference/prelude/concurrency.md:41
 -- stdout
 | print("before")
 | request_stop()
 | print("not reached")
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:37
+==== manual reference/prelude/concurrency.md:42
 -- stdout
 | a = atom(0)
 | print(a, type_of(a), deref(a), a == a, atom(0) == atom(0))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:38
+==== manual reference/prelude/concurrency.md:43
 -- stdout
 | hits = atom(0)
 | scope(fn(s):
@@ -7540,20 +7602,20 @@
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:39
+==== manual reference/prelude/concurrency.md:44
 -- stdout
 | (tx, _rx) = channel()
 | registry = atom({main: tx})
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:40
+==== manual reference/prelude/concurrency.md:45
 -- stdout
 | hits = atom(0)
 | each(1..=3, _ => swap(hits, n => n + 1))
 | print(deref(hits))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:41
+==== manual reference/prelude/concurrency.md:46
 -- stdout
 | stats = atom({ok: 0, failed: 0})
 | for code in [200, 500, 200]:
@@ -7563,7 +7625,7 @@
 | print(deref(stats))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:42
+==== manual reference/prelude/concurrency.md:47
 -- stdout
 | a = atom(0)
 | swap(a, fn(n):
@@ -7572,14 +7634,14 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:43
+==== manual reference/prelude/concurrency.md:48
 -- stdout
 | cfg = atom({version: 1})
 | reset(cfg, {version: 2})
 | print(deref(cfg))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:44
+==== manual reference/prelude/concurrency.md:49
 -- stdout
 | current = atom("v1")
 | scope(fn(s):
@@ -7593,7 +7655,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:45
+==== manual reference/prelude/concurrency.md:50
 -- stdout
 | a = atom([1, 2])
 | before = deref(a)
@@ -7601,13 +7663,13 @@
 | print(before, deref(a))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:46
+==== manual reference/prelude/concurrency.md:51
 -- stdout
 | print(sleep(10ms))
 | print(timeout(10ms, () => sleep(1s)))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:47
+==== manual reference/prelude/concurrency.md:52
 -- stdout
 | fn poll(n):
 |   if n == 0: return "done" ;;
@@ -7619,7 +7681,7 @@
 | print(poll(3))
 -- stderr
 -- exit: 0
-==== manual reference/prelude/concurrency.md:48
+==== manual reference/prelude/concurrency.md:53
 -- stdout
 | sleep(1)
 -- stderr
@@ -9125,7 +9187,7 @@
 |
 | scope(fn(s):
 |   spawn(s, fn():
-|     _ = recv(stop)
+|     wait_closed(stop)
 |     print("worker: stop requested, finishing")
 |   ;;)
 |   request_stop()
@@ -9150,7 +9212,7 @@
 |
 | scope(fn(s):
 |   spawn(s, fn():
-|     _ = recv(stop)
+|     wait_closed(stop)
 |     print("got the stop request: draining")
 |   ;;)
 |   exec(["sh", "-c", "kill -TERM $PPID"])!
@@ -10229,7 +10291,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (69314 bytes, fnv1a64 6395b487adacdfc9)
+-- stdout (69317 bytes, fnv1a64 2762bb9745186a51)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -12558,6 +12620,25 @@
 | # expect: Ok(7)
 -- stderr
 -- exit: 0
+==== tests/lang/try_recv.fung
+-- stdout
+| # try_recv and try_send look once, without waiting (05).
+| (tx, rx) = channel(1)
+| print(try_recv(rx))
+| # expect: Err({kind: 'empty, message: "channel empty"})
+| print(try_send(tx, "job"), try_send(tx, "more"))
+| # expect: Ok(nil) Err({kind: 'full, message: "channel full"})
+| match try_recv(rx):
+|   Ok(v)                => print("got", v)
+|   Err({kind: 'empty})  => print("nothing yet")
+|   Err({kind: 'closed}) => print("done")
+| ;;
+| # expect: got job
+| close(tx)
+| print(try_recv(rx))
+| # expect: Err({kind: 'closed, message: "channel closed"})
+-- stderr
+-- exit: 0
 ==== tests/lang/tuples_tags.fung
 -- stdout
 | fn divmod(a, b) = (a // b, a % b)
@@ -12633,6 +12714,34 @@
 | ;;
 | print(f())
 | # expect: 2
+-- stderr
+-- exit: 0
+==== tests/lang/wait_closed.fung
+-- stdout
+| # wait_closed waits until a channel closes and takes nothing out (05).
+| (tx, rx) = channel(3)
+| scope(fn(s):
+|   spawn(s, fn():
+|     each(1..=3, n => send(tx, n)!)
+|     close(tx)
+|   ;;)
+|   wait_closed(rx)
+|   print("closed")
+| ;;)
+| # expect: closed
+| print(map(rx, x => x * 10))
+| # expect: [10, 20, 30]
+|
+| # The stop signal is a channel that a stop request closes.
+| stop = stop_signal()
+| scope(fn(s):
+|   spawn(s, fn():
+|     wait_closed(stop)
+|     print("stopping")
+|   ;;)
+|   request_stop()
+| ;;)
+| # expect: stopping
 -- stderr
 -- exit: 0
 ==== tests/lang/with.fung

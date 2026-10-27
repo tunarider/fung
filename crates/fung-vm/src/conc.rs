@@ -43,6 +43,9 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("channel", vec![opt("n", Lit::Int(0))]),
                 ("send", vec![param("tx"), param("v")]),
                 ("recv", vec![param("rx")]),
+                ("try_send", vec![param("tx"), param("v")]),
+                ("try_recv", vec![param("rx")]),
+                ("wait_closed", vec![param("rx")]),
                 ("close", vec![param("tx")]),
                 ("stop_signal", vec![]),
                 ("request_stop", vec![]),
@@ -54,6 +57,7 @@ fn all() -> Vec<(&'static str, Value)> {
                         "sleep" => Some(sleep),
                         "send" => Some(send),
                         "recv" => Some(recv),
+                        "wait_closed" => Some(wait_closed),
                         "await" => Some(await_fn),
                         "scope" => Some(scope),
                         "supervise" => Some(supervise),
@@ -73,6 +77,8 @@ fn all() -> Vec<(&'static str, Value)> {
                         "cancel" => cancel,
                         "channel" => channel_fn,
                         "close" => close,
+                        "try_send" => try_send,
+                        "try_recv" => try_recv,
                         "stop_signal" => crate::vm::stop::stop_signal,
                         "request_stop" => crate::vm::stop::request_stop,
                         _ => unreachable!("no native {name}"),
@@ -357,6 +363,57 @@ impl Cont for RecvK {
         let w = self.0.take().expect("a waiting recv");
         w.cancel(stop).map(|v| Next::Done(nat::ok(v)))
     }
+}
+
+/// `try_recv(rx)` (L3): what `recv` would take without waiting: `Ok(v)`,
+/// `Err({kind: 'empty, …})` while the channel is open with nothing to
+/// take, or `Err({kind: 'closed, …})` once it is closed and empty.
+fn try_recv(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+    let Value::Receiver(end) = &args[0] else {
+        return Err(nat::wrong_arg("rx", "receiver", &args[0]));
+    };
+    Ok(end
+        .recv_now()
+        .map_or_else(|| err_kind("empty", "channel empty"), received_value))
+}
+
+/// `try_send(tx, v)` (L3): what `send` would do without waiting:
+/// `Ok(nil)` once handed to a waiting receiver or the buffer,
+/// `Err({kind: 'full, …})` when it would wait, `Err({kind: 'closed, …})`
+/// on a closed channel. E0705 as `send`.
+fn try_send(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+    let v = args.pop().expect("v");
+    let end = need_sender(&args[0])?;
+    if channel::contains(end, &v) {
+        return Err(nat::fail("E0705", vec![]));
+    }
+    let Value::Sender(end) = &args[0] else {
+        unreachable!("need_sender checked it")
+    };
+    Ok(match end.send_now(v) {
+        Ok(()) => nat::ok(Value::Nil),
+        Err(true) => err_kind("closed", "channel closed"),
+        Err(false) => err_kind("full", "channel full"),
+    })
+}
+
+/// `wait_closed(rx)` (L3): waits until the channel closes and gives nil,
+/// taking nothing out (what is buffered stays). The wait holds `rx`, so
+/// waiting on the stop signal watches it (`stop.rs`), and such a wait is
+/// woken from outside: not a deadlock.
+fn wait_closed(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+    let Value::Receiver(end) = &args[0] else {
+        return Err(nat::wrong_arg("rx", "receiver", &args[0]));
+    };
+    let end = end.clone();
+    let wake = Wake {
+        until: None,
+        timed: end.external(),
+    };
+    let left = end.clone();
+    let ready = move |_: &mut Task<'_>, me: &_| end.closed_or_watch(me).then_some(Ok(Value::Nil));
+    let leave = move |t: &mut Task<'_>| left.unwatch(&t.waiter_handle());
+    park_until_then(t, ready, wake, leave)
 }
 
 /// `close(tx)`: `Ok(nil)`, also on a closed channel. It closes for every

@@ -236,6 +236,15 @@ done = scope(fn(s):
 print(len(done), "jobs done")
 ```
 
+기다리지 않고 한 번만 보고 싶을 때는 `try_recv(rx)`를 쓴다. 받을 값이 있으면 `Ok(v)`, 없으면 `Err({kind: 'empty})`를 곧바로 돌려준다. 보내는 쪽은 `try_send(tx, v)`이고, 가득 차서 기다려야 하면 `Err({kind: 'full})`이다. 반대로 값은 필요 없고 채널이 닫히기만 기다릴 때는 `wait_closed(rx)`를 쓴다. 정지 요청(Ctrl-C)을 기다리는 `wait_closed(stop_signal())`이 대표적인 쓰임이다.
+
+```fung run
+(tx, rx) = channel(1)
+print(try_recv(rx))
+print(try_send(tx, "a"), try_send(tx, "b"))
+print(try_recv(rx))
+```
+
 :::box mistake 보내는 끝을 쥔 채 기다리기
 채널을 최상위나 받는 함수 안에서 만들고 그 함수가 보내는 끝을 계속 쥐고 있으면, 채널은 닫히지 않는다. 받는 `for`는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(`deadlock: all tasks are waiting`, 교착)로 멈추고 누가 보내는 끝을 쥐었는지 도움말로 알려 준다. 보내는 끝은 생산하는 쪽에만 넘기거나, 다 보냈으면 `close(tx)`로 직접 닫는다.
 
@@ -333,6 +342,7 @@ print(total)
 
 - 동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.
 - 리스트의 일을 동시에 하려면 `conc.pmap(xs, f, limit: n)`. 결과는 입력 순서대로다.
+- 기다리지 않고 한 번 보기는 `try_recv`·`try_send`, 닫힘만 기다리기는 `wait_closed`.
 - 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 `Err`를 아무도 읽지 않으면 E0607이다.
 - 태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 `supervise(f, on_fail)`.
 - `timeout(d, f)`는 기한이 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.

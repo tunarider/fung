@@ -3809,7 +3809,7 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (78235 bytes, fnv1a64 e6d3accdbc145a02)
+-- stdout (78225 bytes, fnv1a64 395a0e10841b12b9)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
@@ -14298,6 +14298,83 @@
 | 0004  29:49 RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/try_recv.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 1)) (call print (call try_recv rx)) (call print (call try_send tx "job") (call try_send tx "more")) (match (call try_recv rx) (arm (ptag Ok (pbind v)) (nil) (block (call print "got" v))) (arm (ptag Err (pmap (pentry kind (psym empty)))) (nil) (block (call print "nothing yet"))) (arm (ptag Err (pmap (pentry kind (psym closed)))) (nil) (block (call print "done")))) (call close tx) (call print (call try_recv rx)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/try_recv.fung
+-- stdout
+| (do (let (ptuple (pbind (global 0)) (pbind (global 1))) (call (prelude channel) 1)) (call (prelude print) (call (prelude try_recv) (global 1))) (call (prelude print) (call (prelude try_send) (global 0) "job") (call (prelude try_send) (global 0) "more")) (do (let (local 0) (call (prelude try_recv) (global 1))) (match (local 0) (arm (ptag Ok (pbind (local 1))) (nil) (do (call (prelude print) "got" (local 1)))) (arm (ptag Err (pmap (pentry kind (psym empty)))) (nil) (do (call (prelude print) "nothing yet"))) (arm (ptag Err (pmap (pentry kind (psym closed)))) (nil) (do (call (prelude print) "done"))))) (call (prelude close) (global 0)) (call (prelude print) (call (prelude try_recv) (global 1))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/try_recv.fung
+-- stdout
+| == <main> ==
+| 0000  2:12  CONST        0    ; <fn channel>
+| 0001  2:20  CONST        1    ; 1
+| 0002  2:19  CALL         1    ; 1 positional, 0 named
+| 0003  2:1   MATCHORFAIL  0    ; (@0, @1)
+| 0004  3:1   CONST        2    ; <fn print>
+| 0005  3:7   CONST        3    ; <fn try_recv>
+| 0006  3:16  LOADGLOBAL   1    ; rx
+| 0007  3:15  CALL         1    ; 1 positional, 0 named
+| 0008  3:6   CALL         1    ; 1 positional, 0 named
+| 0009  3:1   POP
+| 0010  5:1   CONST        2    ; <fn print>
+| 0011  5:7   CONST        4    ; <fn try_send>
+| 0012  5:16  LOADGLOBAL   0    ; tx
+| 0013  5:20  CONST        5    ; "job"
+| 0014  5:15  CALL         2    ; 2 positional, 0 named
+| 0015  5:28  CONST        4    ; <fn try_send>
+| 0016  5:37  LOADGLOBAL   0    ; tx
+| 0017  5:41  CONST        6    ; "more"
+| 0018  5:36  CALL         2    ; 2 positional, 0 named
+| 0019  5:6   CALL         2    ; 2 positional, 0 named
+| 0020  5:1   POP
+| 0021  7:7   CONST        3    ; <fn try_recv>
+| 0022  7:16  LOADGLOBAL   1    ; rx
+| 0023  7:15  CALL         1    ; 1 positional, 0 named
+| 0024  7:1   STORELOCAL   0
+| 0025  7:1   LOADLOCAL    0
+| 0026  8:3   MATCH        1    ; Ok($1)
+| 0027  8:3   JUMPIFFALSE  33
+| 0028  8:27  CONST        2    ; <fn print>
+| 0029  8:33  CONST        7    ; "got"
+| 0030  8:40  LOADLOCAL    1
+| 0031  8:32  CALL         2    ; 2 positional, 0 named
+| 0032  8:3   JUMP         49
+| 0033  7:1   LOADLOCAL    0
+| 0034  9:3   MATCH        2    ; Err({kind: 'empty})
+| 0035  9:3   JUMPIFFALSE  40
+| 0036  9:27  CONST        2    ; <fn print>
+| 0037  9:33  CONST        8    ; "nothing yet"
+| 0038  9:32  CALL         1    ; 1 positional, 0 named
+| 0039  9:3   JUMP         49
+| 0040  7:1   LOADLOCAL    0
+| 0041  10:3  MATCH        3    ; Err({kind: 'closed})
+| 0042  10:3  JUMPIFFALSE  47
+| 0043  10:27 CONST        2    ; <fn print>
+| 0044  10:33 CONST        9    ; "done"
+| 0045  10:32 CALL         1    ; 1 positional, 0 named
+| 0046  10:3  JUMP         49
+| 0047  7:1   LOADLOCAL    0
+| 0048  7:1   NOMATCH
+| 0049  7:1   POP
+| 0050  13:1  CONST        10    ; <fn close>
+| 0051  13:7  LOADGLOBAL   0    ; tx
+| 0052  13:6  CALL         1    ; 1 positional, 0 named
+| 0053  13:1  POP
+| 0054  14:1  CONST        2    ; <fn print>
+| 0055  14:7  CONST        3    ; <fn try_recv>
+| 0056  14:16 LOADGLOBAL   1    ; rx
+| 0057  14:15 CALL         1    ; 1 positional, 0 named
+| 0058  14:6  CALL         1    ; 1 positional, 0 named
+| 0059  14:1  POP
+| 0060  14:1  CONST        11    ; nil
+| 0061  1:57  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/tuples_tags.fung
 -- stdout
 | (program (fn divmod(a, b) (block (tuple (binary // a b) (binary % a b)))) (assign (ptuple (pbind q) (pbind r)) (call divmod 7 2)) (call print q r (tuple 1) (tuple) (binary == (tuple 1 2) (tuple 1 2))) (call print (tag Circle 3) (tag Rect 2 5) 'Red (binary == (tag Ok 1) (tag Ok 1)) (call type_of (tag Circle 3)) (call type_of 'Red)))
@@ -14698,6 +14775,109 @@
 | 0001  2:3   STORELOCAL   0
 | 0002  3:3   CONST        1    ; 2
 | 0003  1:1   RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/wait_closed.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 3)) (call scope (fn (s) (block (call spawn s (fn () (block (call each (range ..= 1 3) (fn (n) (block (unwrap ! (call send tx n))))) (call close tx)))) (call wait_closed rx) (call print "closed")))) (call print (call map rx (fn (x) (block (binary * x 10))))) (assign stop (call stop_signal)) (call scope (fn (s) (block (call spawn s (fn () (block (call wait_closed stop) (call print "stopping")))) (call request_stop)))))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/wait_closed.fung
+-- stdout
+| (do (let (ptuple (pbind (global 0)) (pbind (global 1))) (call (prelude channel) 3)) (call (prelude scope) (fn (s) (do (call (prelude spawn) (local 0) (fn () (do (call (prelude each) (range ..= 1 3) (fn (n) (do (unwrap ! (call (prelude send) (captured 0) (local 0)))))) (call (prelude close) (captured 0))))) (call (prelude wait_closed) (captured 1)) (call (prelude print) "closed")))) (call (prelude print) (call (prelude map) (global 1) (fn (x) (do (op * (local 0) 10))))) (let (global 2) (call (prelude stop_signal))) (call (prelude scope) (fn (s) (do (call (prelude spawn) (local 0) (fn () (do (call (prelude wait_closed) (captured 0)) (call (prelude print) "stopping")))) (call (prelude request_stop))))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/wait_closed.fung
+-- stdout
+| == <main> ==
+| 0000  2:12  CONST        0    ; <fn channel>
+| 0001  2:20  CONST        1    ; 3
+| 0002  2:19  CALL         1    ; 1 positional, 0 named
+| 0003  2:1   MATCHORFAIL  0    ; (@0, @1)
+| 0004  3:1   CONST        2    ; <fn scope>
+| 0005  3:7   CLOSURE      0    ; <lambda>
+| 0006  3:6   CALL         1    ; 1 positional, 0 named
+| 0007  3:1   POP
+| 0008  12:1  CONST        3    ; <fn print>
+| 0009  12:7  CONST        4    ; <fn map>
+| 0010  12:11 LOADGLOBAL   1    ; rx
+| 0011  12:15 CLOSURE      1    ; <lambda>
+| 0012  12:10 CALL         2    ; 2 positional, 0 named
+| 0013  12:6  CALL         1    ; 1 positional, 0 named
+| 0014  12:1  POP
+| 0015  16:8  CONST        5    ; <fn stop_signal>
+| 0016  16:19 CALL         0    ; 0 positional, 0 named
+| 0017  16:1  STOREGLOBAL  2    ; stop
+| 0018  17:1  CONST        2    ; <fn scope>
+| 0019  17:7  CLOSURE      2    ; <lambda>
+| 0020  17:6  CALL         1    ; 1 positional, 0 named
+| 0021  17:1  POP
+| 0022  17:1  CONST        6    ; nil
+| 0023  1:71  RETURN
+|
+| == <lambda> ==
+| 0000  4:3   CONST        0    ; <fn spawn>
+| 0001  4:9   MOVELOCAL    0
+| 0002  4:12  CLOSURE      0    ; <lambda>
+| 0003  4:8   CALL         2    ; 2 positional, 0 named
+| 0004  4:3   POP
+| 0005  4:3   CLEARLOCAL   0
+| 0006  8:3   CONST        1    ; <fn wait_closed>
+| 0007  8:15  LOADCAPTURED 1
+| 0008  8:14  CALL         1    ; 1 positional, 0 named
+| 0009  8:3   POP
+| 0010  9:3   CONST        2    ; <fn print>
+| 0011  9:9   CONST        3    ; "closed"
+| 0012  9:8   TAILCALL     1    ; 1 positional, 0 named
+| 0013  3:7   RETURN
+|
+| == <lambda> ==
+| 0000  5:5   CONST        0    ; <fn each>
+| 0001  5:10  CONST        1    ; 1
+| 0002  5:14  CONST        2    ; 3
+| 0003  5:11  RANGE        1    ; inclusive
+| 0004  5:17  CLOSURE      0    ; <lambda>
+| 0005  5:9   CALL         2    ; 2 positional, 0 named
+| 0006  5:5   POP
+| 0007  6:5   CONST        3    ; <fn close>
+| 0008  6:11  LOADCAPTURED 0
+| 0009  6:10  TAILCALL     1    ; 1 positional, 0 named
+| 0010  4:12  RETURN
+|
+| == <lambda> ==
+| 0000  5:22  CONST        0    ; <fn send>
+| 0001  5:27  LOADCAPTURED 0
+| 0002  5:31  MOVELOCAL    0
+| 0003  5:26  CALL         2    ; 2 positional, 0 named
+| 0004  5:33  UNWRAPABORT
+| 0005  5:19  RETURN
+|
+| == <lambda> ==
+| 0000  12:20 MOVELOCAL    0
+| 0001  12:24 CONST        0    ; 10
+| 0002  12:22 MUL
+| 0003  12:17 RETURN
+|
+| == <lambda> ==
+| 0000  18:3  CONST        0    ; <fn spawn>
+| 0001  18:9  MOVELOCAL    0
+| 0002  18:12 CLOSURE      0    ; <lambda>
+| 0003  18:8  CALL         2    ; 2 positional, 0 named
+| 0004  18:3  POP
+| 0005  18:3  CLEARLOCAL   0
+| 0006  22:3  CONST        1    ; <fn request_stop>
+| 0007  22:15 TAILCALL     0    ; 0 positional, 0 named
+| 0008  17:7  RETURN
+|
+| == <lambda> ==
+| 0000  19:5  CONST        0    ; <fn wait_closed>
+| 0001  19:17 LOADCAPTURED 0
+| 0002  19:16 CALL         1    ; 1 positional, 0 named
+| 0003  19:5  POP
+| 0004  20:5  CONST        1    ; <fn print>
+| 0005  20:11 CONST        2    ; "stopping"
+| 0006  20:10 TAILCALL     1    ; 1 positional, 0 named
+| 0007  18:12 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/with.fung

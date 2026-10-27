@@ -1583,6 +1583,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/try_recv.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/tuples_tags.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1609,6 +1614,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/unused_var_silent_in_run.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/wait_closed.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

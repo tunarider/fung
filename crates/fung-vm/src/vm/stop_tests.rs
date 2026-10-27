@@ -206,3 +206,23 @@ fn an_interrupt_reaches_a_function_running_in_swap() {
     assert!(r.is_err(), "{r:?}");
     assert_eq!(s.out.text(), "");
 }
+
+/// L3: `wait_closed(stop)` waits for the stop request as a statement (no
+/// discarded Err), and like `recv` it is no deadlock alone.
+#[test]
+fn wait_closed_waits_for_the_stop() {
+    assert_eq!(
+        exec_signals(
+            "scope(fn(s):\n  stop = stop_signal()\n  t = spawn(s, fn():\n    wait_closed(stop)\n    \"stopped\"\n  ;;)\n  blocked(stop, 1)\n  request_stop()\n  print(await(t), try_recv(stop))\n;;)"
+        ),
+        (
+            "stopped Err({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "".into(),
+            0
+        )
+    );
+    assert_eq!(
+        exec_signals("deliver_when_watched(15)\nwait_closed(stop_signal())\nprint(\"after\")"),
+        ("after\n".into(), "".into(), 0)
+    );
+}

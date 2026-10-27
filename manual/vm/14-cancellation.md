@@ -272,7 +272,7 @@ stop = stop_signal()
 
 scope(fn(s):
   spawn(s, fn():
-    _ = recv(stop)
+    wait_closed(stop)
     print("worker: stop requested, finishing")
   ;;)
   request_stop()
@@ -312,7 +312,7 @@ stop = stop_signal()
 
 scope(fn(s):
   spawn(s, fn():
-    _ = recv(stop)
+    wait_closed(stop)
     print("got the stop request: draining")
   ;;)
   exec(["sh", "-c", "kill -TERM $PPID"])!

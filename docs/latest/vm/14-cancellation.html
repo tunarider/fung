@@ -301,7 +301,7 @@ error[E0502]: division by zero
 
 scope(fn(s):
   spawn(s, fn():
-    _ = recv(stop)
+    wait_closed(stop)
     print(&quot;worker: stop requested, finishing&quot;)
   ;;)
   request_stop()
@@ -331,7 +331,7 @@ print(&quot;not reached&quot;)</code></pre><pre class="out plain"><code>release 
 
 scope(fn(s):
   spawn(s, fn():
-    _ = recv(stop)
+    wait_closed(stop)
     print(&quot;got the stop request: draining&quot;)
   ;;)
   exec([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -TERM $PPID&quot;])!

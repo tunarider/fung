@@ -1,0 +1,15 @@
+# try_recv and try_send look once, without waiting (05).
+(tx, rx) = channel(1)
+print(try_recv(rx))
+# expect: Err({kind: 'empty, message: "channel empty"})
+print(try_send(tx, "job"), try_send(tx, "more"))
+# expect: Ok(nil) Err({kind: 'full, message: "channel full"})
+match try_recv(rx):
+  Ok(v)                => print("got", v)
+  Err({kind: 'empty})  => print("nothing yet")
+  Err({kind: 'closed}) => print("done")
+;;
+# expect: got job
+close(tx)
+print(try_recv(rx))
+# expect: Err({kind: 'closed, message: "channel closed"})

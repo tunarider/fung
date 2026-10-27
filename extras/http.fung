@@ -1484,7 +1484,7 @@ fn _serve_on(l, handler, ready, drain):
 # `_accept`), `drain` for the requests in flight, then the rest is
 # cancelled (their releases answer 503).
 fn _stopper(l, stop, drain, top):
-  _ = recv(stop)
+  wait_closed(stop)
   _net.close(l)
   sleep(drain)
   cancel(top)

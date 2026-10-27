@@ -1,6 +1,6 @@
 ---
 lede: 여러 일을 동시에 진행한다. 태스크는 태스크 범위(<code>scope</code>·<code>supervise</code>) 안에서만 띄우고, 범위는 안의 태스크가 모두 끝나야 돌아온다. 태스크 사이의 값은 채널로 주고받고, 나누는 상태는 <code>atom</code>에 둔다. 병렬 <code>map</code> 같은 도우미는 <a href="../modules/conc.html"><code>conc</code> 모듈</a>에 있다.
-description: fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.
+description: fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, try_recv, try_send, wait_closed, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.
 ---
 # 동시성
 
@@ -696,7 +696,161 @@ close(tx)
 
 #### 같이 보기
 
-[`send`](#fn-send), [`timeout`](#fn-timeout), [for](../language.html#for)
+[`send`](#fn-send), [`try_recv`](#fn-try_recv), [`timeout`](#fn-timeout), [for](../language.html#for)
+
+:::
+
+:::fn try_recv(rx)
+
+기다리지 않고 받는 끝 `rx`를 한 번 본다. 받을 값이 있으면 `Ok(v)`, 없으면 `Err({kind: 'empty})`, 닫혔고 남은 값이 없으면 `Err({kind: 'closed})`.
+
+#### 설명
+
+[`recv`](#fn-recv)가 기다릴 자리에서 기다리는 대신 `Err({kind: 'empty, message: "channel empty"})`를 돌려준다. 받는 것은 `recv`와 같다: 버퍼의 맨 앞 값, 버퍼가 없는 채널(`channel()`)이면 이미 기다리고 있는 보내는 쪽의 값. 그래서 버퍼 없는 채널에서는 보내는 쪽이 먼저 `send`로 기다리고 있을 때만 받는다.
+
+일꾼이 다른 일 사이에 "쌓인 일이 있나", "정지 요청이 왔나"를 볼 때 쓴다(정지 신호면 `Err({kind: 'closed})`가 요청이 온 것이다). 값을 기다릴 때는 `recv`를 쓴다. `try_recv`를 `sleep` 없이 되풀이하면 기다리는 대신 차례만 먹는다.
+
+#### 매개변수
+
+- `rx`: 받는 끝.
+
+#### 돌려주는 값
+
+`Ok(값)`, `Err({kind: 'empty})` 또는 `Err({kind: 'closed})`.
+
+#### 에러
+
+`rx`가 받는 끝이 아니면 런타임 에러 E0403.
+
+#### 예제
+
+**쌓인 일을 기다리지 않고 꺼내기**
+
+```fung run
+(tx, rx) = channel(2)
+send(tx, "job-1")!
+for _ in 1..=2:
+  match try_recv(rx):
+    Ok(job)             => print("doing", job)
+    Err({kind: 'empty}) => print("nothing queued")
+    Err(_)              => print("closed")
+  ;;
+;;
+```
+
+**정지 요청이 왔는지 보기**
+
+```fung run
+stop = stop_signal()
+print(try_recv(stop))
+request_stop()
+print(try_recv(stop))
+```
+
+#### 같이 보기
+
+[`recv`](#fn-recv), [`try_send`](#fn-try_send), [`wait_closed`](#fn-wait_closed)
+
+:::
+
+:::fn try_send(tx, v)
+
+기다리지 않고 보내는 끝 `tx`로 `v`를 보낸다. 넘겼으면 `Ok(nil)`, 기다려야 하면 `Err({kind: 'full})`, 닫혔으면 `Err({kind: 'closed})`.
+
+#### 설명
+
+[`send`](#fn-send)가 기다릴 자리에서 기다리는 대신 `Err({kind: 'full, message: "channel full"})`를 돌려준다. 값은 기다리는 받는 쪽에게 바로 가거나 버퍼의 빈자리에 들어간다. 버퍼 없는 채널이면 받는 쪽이 이미 `recv`로 기다리고 있을 때만 보낸다.
+
+받는 쪽이 따라오지 못할 때 기다리지 않고 버리는 일(로그·지표 전송의 역압)에 쓴다. 자기 채널의 끝을 담은 값은 `send`처럼 E0705다.
+
+#### 매개변수
+
+- `tx`: 보내는 끝.
+- `v`: 보낼 값.
+
+#### 돌려주는 값
+
+`Ok(nil)`, `Err({kind: 'full})` 또는 `Err({kind: 'closed})`.
+
+#### 에러
+
+- `tx`가 보내는 끝이 아니면 런타임 에러 E0403.
+- `v`가 같은 채널의 끝을 담고 있으면 E0705.
+
+#### 예제
+
+**가득 차면 버리기**
+
+```fung run
+(tx, rx) = channel(2)
+dropped = fold(1..=5, 0, (n, i) => is_ok(try_send(tx, "line ${i}")) then n else n + 1)
+close(tx)
+print(map(rx, x => x), "dropped:", dropped)
+```
+
+#### 같이 보기
+
+[`send`](#fn-send), [`try_recv`](#fn-try_recv)
+
+:::
+
+:::fn wait_closed(rx)
+
+받는 끝 `rx`의 채널이 닫힐 때까지 기다린다. 값은 꺼내지 않는다.
+
+#### 설명
+
+닫히면 `nil`을 돌려준다. 이미 닫혔으면 곧바로 돌아온다. 버퍼에 남은 값은 그대로 남아서 뒤에 [`recv`](#fn-recv)나 `for`로 받을 수 있다. 채널은 [`close`](#fn-close)나 보내는 끝의 마지막 사본이 사라질 때 닫힌다.
+
+정지 신호를 기다릴 때 쓴다: `wait_closed(stop)`. 정지 요청은 정지 채널을 닫아서 알리기 때문이다. `recv(stop)`도 기다리지만 닫힘을 `Err({kind: 'closed})`로 돌려주므로 문장으로 쓰면 버려진 `Err`(E0606)가 된다. 생산자가 모두 끝나기를 값을 꺼내지 않고 기다릴 때도 쓴다.
+
+기다리는 동안 `rx`를 쥐고 있으므로, 정지 신호에서 기다리는 것은 "보는 쪽"이다([`stop_signal`](#fn-stop_signal)). 기한은 [`timeout`](#fn-timeout)으로 둔다.
+
+#### 매개변수
+
+- `rx`: 받는 끝.
+
+#### 돌려주는 값
+
+`nil`.
+
+#### 에러
+
+- `rx`가 받는 끝이 아니면 런타임 에러 E0403.
+- 닫을 수 있는 태스크가 없는데 기다리면 E0702(교착). 정지 신호만 기다리는 것은 교착이 아니다(신호가 깨운다).
+
+#### 예제
+
+**생산자가 끝나기를 기다린 뒤 모아 받기**
+
+```fung run
+(tx, rx) = channel(3)
+scope(fn(s):
+  spawn(s, fn():
+    each(["a", "b", "c"], x => send(tx, x)!)
+    close(tx)
+  ;;)
+  wait_closed(rx)
+;;)
+print(map(rx, x => x))
+```
+
+**정지 요청까지 기다리기**
+
+```fung run
+stop = stop_signal()
+scope(fn(s):
+  spawn(s, fn():
+    wait_closed(stop)
+    print("worker: stopping")
+  ;;)
+  request_stop()
+;;)
+```
+
+#### 같이 보기
+
+[`stop_signal`](#fn-stop_signal), [`recv`](#fn-recv), [`try_recv`](#fn-try_recv)
 
 :::
 
@@ -756,7 +910,7 @@ close(rx)
 
 #### 설명
 
-정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, `kill`, 컨테이너 종료)이나 [`request_stop`](#fn-request_stop)이 보낸다. 요청이 오면 이 끝이 닫히므로 `recv`는 `Err({kind: 'closed})`를 돌려주고, 이 끝을 도는 `for`는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 `_ = recv(stop)`으로 쓴다(문장으로 쓴 `recv(stop)`은 그 `Err`를 버리므로 E0606이다). 이것은 [취소](#fn-cancel)("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.
+정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, `kill`, 컨테이너 종료)이나 [`request_stop`](#fn-request_stop)이 보낸다. 요청이 오면 이 끝이 닫히므로 `recv`는 `Err({kind: 'closed})`를 돌려주고, 이 끝을 도는 `for`는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 [`wait_closed(stop)`](#fn-wait_closed), 기다리지 않고 요청이 왔는지 볼 때는 [`try_recv(stop)`](#fn-try_recv)이 `Err({kind: 'closed})`인지 본다(문장으로 쓴 `recv(stop)`은 닫힘의 `Err`를 버리므로 E0606이다). 이것은 [취소](#fn-cancel)("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.
 
 이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(`with`의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.
 

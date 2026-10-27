@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>동시성 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.">
+<meta name="description" content="fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, try_recv, try_send, wait_closed, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -565,7 +565,113 @@ print(recv(rx), recv(rx), recv(rx))</code></pre><pre class="out plain"><code>Ok(
 print(timeout(10ms, () =&gt; recv(rx)) ?? &quot;nothing yet&quot;)
 close(tx)</code></pre><pre class="out plain"><code>nothing yet</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="../language.html#for">for</a></p>
+<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-try_recv"><code>try_recv</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="../language.html#for">for</a></p>
+</section>
+<section class="entry" id="fn-try_recv">
+<h3>try_recv</h3>
+<p>기다리지 않고 받는 끝 <code>rx</code>를 한 번 본다. 받을 값이 있으면 <code>Ok(v)</code>, 없으면 <code>Err({kind: 'empty})</code>, 닫혔고 남은 값이 없으면 <code>Err({kind: 'closed})</code>.</p>
+<div class="sig"><code>try_recv(rx)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-recv"><code>recv</code></a>가 기다릴 자리에서 기다리는 대신 <code>Err({kind: 'empty, message: &quot;channel empty&quot;})</code>를 돌려준다. 받는 것은 <code>recv</code>와 같다: 버퍼의 맨 앞 값, 버퍼가 없는 채널(<code>channel()</code>)이면 이미 기다리고 있는 보내는 쪽의 값. 그래서 버퍼 없는 채널에서는 보내는 쪽이 먼저 <code>send</code>로 기다리고 있을 때만 받는다.</p>
+<p>일꾼이 다른 일 사이에 "쌓인 일이 있나", "정지 요청이 왔나"를 볼 때 쓴다(정지 신호면 <code>Err({kind: 'closed})</code>가 요청이 온 것이다). 값을 기다릴 때는 <code>recv</code>를 쓴다. <code>try_recv</code>를 <code>sleep</code> 없이 되풀이하면 기다리는 대신 차례만 먹는다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>rx</code>: 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(값)</code>, <code>Err({kind: 'empty})</code> 또는 <code>Err({kind: 'closed})</code>.</p>
+<h4>에러</h4>
+<p><code>rx</code>가 받는 끝이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>쌓인 일을 기다리지 않고 꺼내기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(2)
+send(tx, &quot;job-1&quot;)!
+for _ in 1..=2:
+  match try_recv(rx):
+    Ok(job)             =&gt; print(&quot;doing&quot;, job)
+    Err({kind: 'empty}) =&gt; print(&quot;nothing queued&quot;)
+    Err(_)              =&gt; print(&quot;closed&quot;)
+  ;;
+;;</code></pre><pre class="out plain"><code>doing job-1
+nothing queued</code></pre></div>
+<p><strong>정지 요청이 왔는지 보기</strong></p>
+<div class="run"><pre><code>stop = stop_signal()
+print(try_recv(stop))
+request_stop()
+print(try_recv(stop))</code></pre><pre class="out plain"><code>Err({kind: 'empty, message: &quot;channel empty&quot;})
+Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-recv"><code>recv</code></a>, <a href="#fn-try_send"><code>try_send</code></a>, <a href="#fn-wait_closed"><code>wait_closed</code></a></p>
+</section>
+<section class="entry" id="fn-try_send">
+<h3>try_send</h3>
+<p>기다리지 않고 보내는 끝 <code>tx</code>로 <code>v</code>를 보낸다. 넘겼으면 <code>Ok(nil)</code>, 기다려야 하면 <code>Err({kind: 'full})</code>, 닫혔으면 <code>Err({kind: 'closed})</code>.</p>
+<div class="sig"><code>try_send(tx, v)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-send"><code>send</code></a>가 기다릴 자리에서 기다리는 대신 <code>Err({kind: 'full, message: &quot;channel full&quot;})</code>를 돌려준다. 값은 기다리는 받는 쪽에게 바로 가거나 버퍼의 빈자리에 들어간다. 버퍼 없는 채널이면 받는 쪽이 이미 <code>recv</code>로 기다리고 있을 때만 보낸다.</p>
+<p>받는 쪽이 따라오지 못할 때 기다리지 않고 버리는 일(로그·지표 전송의 역압)에 쓴다. 자기 채널의 끝을 담은 값은 <code>send</code>처럼 E0705다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>tx</code>: 보내는 끝.</li>
+<li><code>v</code>: 보낼 값.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>Ok(nil)</code>, <code>Err({kind: 'full})</code> 또는 <code>Err({kind: 'closed})</code>.</p>
+<h4>에러</h4>
+<ul>
+<li><code>tx</code>가 보내는 끝이 아니면 런타임 에러 E0403.</li>
+<li><code>v</code>가 같은 채널의 끝을 담고 있으면 E0705.</li>
+</ul>
+<h4>예제</h4>
+<p><strong>가득 차면 버리기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(2)
+dropped = fold(1..=5, 0, (n, i) =&gt; is_ok(try_send(tx, &quot;line ${i}&quot;)) then n else n + 1)
+close(tx)
+print(map(rx, x =&gt; x), &quot;dropped:&quot;, dropped)</code></pre><pre class="out plain"><code>[&quot;line 1&quot;, &quot;line 2&quot;] dropped: 3</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-try_recv"><code>try_recv</code></a></p>
+</section>
+<section class="entry" id="fn-wait_closed">
+<h3>wait_closed</h3>
+<p>받는 끝 <code>rx</code>의 채널이 닫힐 때까지 기다린다. 값은 꺼내지 않는다.</p>
+<div class="sig"><code>wait_closed(rx)</code></div>
+<h4>설명</h4>
+<p>닫히면 <code>nil</code>을 돌려준다. 이미 닫혔으면 곧바로 돌아온다. 버퍼에 남은 값은 그대로 남아서 뒤에 <a href="#fn-recv"><code>recv</code></a>나 <code>for</code>로 받을 수 있다. 채널은 <a href="#fn-close"><code>close</code></a>나 보내는 끝의 마지막 사본이 사라질 때 닫힌다.</p>
+<p>정지 신호를 기다릴 때 쓴다: <code>wait_closed(stop)</code>. 정지 요청은 정지 채널을 닫아서 알리기 때문이다. <code>recv(stop)</code>도 기다리지만 닫힘을 <code>Err({kind: 'closed})</code>로 돌려주므로 문장으로 쓰면 버려진 <code>Err</code>(E0606)가 된다. 생산자가 모두 끝나기를 값을 꺼내지 않고 기다릴 때도 쓴다.</p>
+<p>기다리는 동안 <code>rx</code>를 쥐고 있으므로, 정지 신호에서 기다리는 것은 "보는 쪽"이다(<a href="#fn-stop_signal"><code>stop_signal</code></a>). 기한은 <a href="#fn-timeout"><code>timeout</code></a>으로 둔다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>rx</code>: 받는 끝.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p><code>nil</code>.</p>
+<h4>에러</h4>
+<ul>
+<li><code>rx</code>가 받는 끝이 아니면 런타임 에러 E0403.</li>
+<li>닫을 수 있는 태스크가 없는데 기다리면 E0702(교착). 정지 신호만 기다리는 것은 교착이 아니다(신호가 깨운다).</li>
+</ul>
+<h4>예제</h4>
+<p><strong>생산자가 끝나기를 기다린 뒤 모아 받기</strong></p>
+<div class="run"><pre><code>(tx, rx) = channel(3)
+scope(fn(s):
+  spawn(s, fn():
+    each([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], x =&gt; send(tx, x)!)
+    close(tx)
+  ;;)
+  wait_closed(rx)
+;;)
+print(map(rx, x =&gt; x))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre></div>
+<p><strong>정지 요청까지 기다리기</strong></p>
+<div class="run"><pre><code>stop = stop_signal()
+scope(fn(s):
+  spawn(s, fn():
+    wait_closed(stop)
+    print(&quot;worker: stopping&quot;)
+  ;;)
+  request_stop()
+;;)</code></pre><pre class="out plain"><code>worker: stopping</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-stop_signal"><code>stop_signal</code></a>, <a href="#fn-recv"><code>recv</code></a>, <a href="#fn-try_recv"><code>try_recv</code></a></p>
 </section>
 <section class="entry" id="fn-close">
 <h3>close</h3>
@@ -611,7 +717,7 @@ close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403
 <p>정지 요청을 받는 끝(<code>receiver</code>)을 돌려준다. 정지 요청이 오면 이 끝이 닫힌다.</p>
 <div class="sig"><code>stop_signal()</code></div>
 <h4>설명</h4>
-<p>정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, <code>kill</code>, 컨테이너 종료)이나 <a href="#fn-request_stop"><code>request_stop</code></a>이 보낸다. 요청이 오면 이 끝이 닫히므로 <code>recv</code>는 <code>Err({kind: 'closed})</code>를 돌려주고, 이 끝을 도는 <code>for</code>는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 <code>_ = recv(stop)</code>으로 쓴다(문장으로 쓴 <code>recv(stop)</code>은 그 <code>Err</code>를 버리므로 E0606이다). 이것은 <a href="#fn-cancel">취소</a>("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.</p>
+<p>정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, <code>kill</code>, 컨테이너 종료)이나 <a href="#fn-request_stop"><code>request_stop</code></a>이 보낸다. 요청이 오면 이 끝이 닫히므로 <code>recv</code>는 <code>Err({kind: 'closed})</code>를 돌려주고, 이 끝을 도는 <code>for</code>는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 <a href="#fn-wait_closed"><code>wait_closed(stop)</code></a>, 기다리지 않고 요청이 왔는지 볼 때는 <a href="#fn-try_recv"><code>try_recv(stop)</code></a>이 <code>Err({kind: 'closed})</code>인지 본다(문장으로 쓴 <code>recv(stop)</code>은 닫힘의 <code>Err</code>를 버리므로 E0606이다). 이것은 <a href="#fn-cancel">취소</a>("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.</p>
 <p>이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(<code>with</code>의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.</p>
 <p><a href="../modules/http.html"><code>http.serve</code></a>는 이것으로 새 연결을 그만 받고 처리 중인 요청을 마무리한다.</p>
 <h4>매개변수</h4>

@@ -21,7 +21,10 @@
 //!   the first waiting sender), or the first waiting sender's value, or
 //!   queues and blocks;
 //! - `close` sets the flag, empties both queues and wakes their tasks,
-//!   which see `closed` (a sender's value is never delivered).
+//!   which see `closed` (a sender's value is never delivered), and the
+//!   tasks waiting for the close only (`wait_closed`);
+//! - `try_recv` and `try_send` (L3) do what `recv` and `send` do without
+//!   queueing: when they would wait they say so instead.
 //!
 //! A blocked task waits through `block`; its slot holds its `Waiter`, so
 //! completing or closing wakes exactly that task.
@@ -66,7 +69,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::block::Waiter;
+use super::block::{WaitList, Waiter};
 use super::{CancelNode, Stop, Task, Wake};
 use crate::value::{Value, drop_children, keep};
 
@@ -86,6 +89,8 @@ struct Inner {
     senders: Line,
     /// Blocked receivers, oldest first; each slot is empty.
     receivers: Line,
+    /// The tasks waiting for the close only (`wait_closed`).
+    closing: WaitList,
     closed: bool,
 }
 
@@ -211,6 +216,7 @@ impl Channel {
                 buf: VecDeque::new(),
                 senders: Line::default(),
                 receivers: Line::default(),
+                closing: WaitList::default(),
                 closed: false,
             }),
         }
@@ -279,6 +285,7 @@ impl Channel {
         let (senders, receivers) = {
             let mut c = self.inner.borrow_mut();
             c.closed = true;
+            c.closing.wake_all();
             (c.senders.take_all(), c.receivers.take_all())
         };
         for s in senders.iter().chain(receivers.iter()) {
@@ -296,13 +303,13 @@ impl Channel {
         }
     }
 
-    /// How many blocked sends and receives wait in the queues (tests:
-    /// a test waits for a task to be blocked instead of sleeping and
-    /// hoping it is).
+    /// How many blocked sends, receives and waits for the close wait on
+    /// the channel (tests: a test waits for a task to be blocked instead
+    /// of sleeping and hoping it is).
     #[cfg(test)]
     pub(crate) fn queued(&self) -> usize {
         let c = self.inner.borrow();
-        c.senders.len() + c.receivers.len()
+        c.senders.len() + c.receivers.len() + c.closing.len()
     }
 
     /// How many values wait in the buffer (tests: a check that does not
@@ -605,6 +612,49 @@ impl Receiver {
     /// Whether `tx` is the sending end of this receiving end's channel.
     pub(crate) fn pairs_with(&self, tx: &Sender) -> bool {
         Rc::ptr_eq(&self.0, &tx.0)
+    }
+
+    /// `try_recv(rx)`: what `recv` would take now, or `None` if it would
+    /// wait (the channel is open and nothing can be taken).
+    pub(crate) fn recv_now(&self) -> Option<Received> {
+        let ch = &self.0;
+        if let Some(v) = ch.try_recv() {
+            return Some(Received::Value(v));
+        }
+        ch.closed().then_some(Received::Closed)
+    }
+
+    /// Whether the channel has closed (`wait_closed`); if not, `w` is
+    /// woken when it does.
+    pub(crate) fn closed_or_watch(&self, w: &Arc<Waiter>) -> bool {
+        let mut c = self.0.inner.borrow_mut();
+        if !c.closed {
+            c.closing.add(w);
+        }
+        c.closed
+    }
+
+    /// A `wait_closed` cut short leaves the channel's list.
+    pub(crate) fn unwatch(&self, w: &Waiter) {
+        self.0.inner.borrow_mut().closing.remove(w);
+    }
+
+    /// Whether the stop channel woken from outside is this one: waiting
+    /// on it is not a deadlock.
+    pub(crate) fn external(&self) -> bool {
+        self.0.external
+    }
+}
+
+impl Sender {
+    /// `try_send(tx, v)`: `Ok` once handed to a waiting receiver or the
+    /// buffer; otherwise whether the channel was closed (`true`) or full.
+    pub(crate) fn send_now(&self, v: Value) -> Result<(), bool> {
+        let ch = &self.0;
+        if ch.closed() {
+            return Err(true);
+        }
+        ch.try_send(v).map_err(|_| false)
     }
 }
 

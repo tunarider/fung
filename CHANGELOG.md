@@ -42,6 +42,8 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ### 더함
 
+- 채널을 기다리지 않고 한 번 보는 `try_recv(rx)`·`try_send(tx, v)`와, 닫힐 때까지만 기다리는 `wait_closed(rx)`(05).
+  `try_recv`는 받을 값이 없으면 `Err({kind: 'empty})`, `try_send`는 기다려야 하면 `Err({kind: 'full})`이다. 정지 요청을 기다리는 `_ = recv(stop)`은 이제 `wait_closed(stop)`으로 쓴다.
 - `fs.stat`이 마지막으로 고친 시각 `mtime`(`time` 값)을 준다(06). `time.now() - fs.stat(p)!.mtime > 720h`처럼 오래된 파일을 fung만으로 고른다.
 - `fs.write`·`fs.append`·`fs.open`·`fs.with_open`에 `perm`(06): `fs.write("token.txt", token, perm: 0o600)`. 파일은 쓰기 전에 정확히 그 권한이 된다.
   umask를 빼지 않고, 이미 있는 파일도 바꾼다(`install -m`과 같다). 임시 파일에 쓰고 `fs.move(…, overwrite: true)`로 바꿔치기하면 새 파일이 기본 권한(보통 0644)이라

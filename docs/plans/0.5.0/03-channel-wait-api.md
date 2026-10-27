@@ -1,6 +1,10 @@
 # L3. 채널을 기다리는 방법: 정지 신호만 기다리기, 기다리지 않고 보기
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-10-27)**. 선택지 (나), 정할 것 1~5 모두 추천대로(사용자 결정 2026-10-27). 목록: [README](README.md).
+
+결과: `conc.rs`에 `try_recv`·`try_send`(채널의 `try_recv`·`try_send`를 `Receiver::recv_now`·`Sender::send_now`로 내보냄)와 `wait_closed`(채널의 `closing` 대기 목록, `close`가 깨움, `park_until_then`).
+정지 채널이면 바깥에서 깨는 기다림이라 교착이 아니다. 셋 다 효과 표(`atom.rs`)에 있다. 시험용 `Channel::queued`가 닫힘을 기다리는 쪽도 센다(`blocked`·`deliver_when_watched`가 그대로 통함).
+`_ = recv(stop)`은 `http.fung`의 `_stopper`, 매뉴얼 VM 14장의 예 둘, `signals.rs`에서 `wait_closed(stop)`으로 바꿨다.
 
 ## 문제
 

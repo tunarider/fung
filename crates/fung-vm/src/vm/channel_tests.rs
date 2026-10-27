@@ -742,3 +742,90 @@ fn a_cancelled_send_drops_its_value_at_once() {
         )
     );
 }
+
+/// L3: `try_recv` takes a value without waiting: the oldest buffered one,
+/// or an empty or closed channel's Err.
+#[test]
+fn try_recv_looks_once() {
+    let (out, err, code) = run(
+        "(tx, rx) = channel(2)\nprint(try_recv(rx))\nsend(tx, 5)!\nprint(try_recv(rx))\nsend(tx, 6)!\nclose(tx)\nprint(try_recv(rx), try_recv(rx))",
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
+            "Err({kind: 'empty, message: \"channel empty\"})\nOk(5)\nOk(6) Err({kind: 'closed, message: \"channel closed\"})\n",
+            "",
+            0
+        )
+    );
+}
+
+/// On a rendezvous channel `try_recv` takes a blocked sender's value, and
+/// it never parks: the task does not give up its turn.
+#[test]
+fn try_recv_takes_from_a_blocked_sender_without_parking() {
+    let o = exec_waiting(
+        "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  n = parks()\n  print(try_recv(rx), try_recv(rx), parks() == n)\n  print(await(t))\n;;)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "Ok(1) Err({kind: 'empty, message: \"channel empty\"}) true\nOk(nil)\n",
+            "",
+            0
+        )
+    );
+}
+
+/// `try_send` hands a value over without waiting: to a waiting receiver or
+/// the buffer, else a full channel's Err; a closed channel's as `send`.
+#[test]
+fn try_send_gives_up_on_a_full_channel() {
+    let o = exec_waiting(
+        "(tx, rx) = channel(1)\nprint(try_send(tx, 1), try_send(tx, 2), recv(rx))\n(rtx, rrx) = channel()\nprint(try_send(rtx, 1))\nscope(fn(s):\n  t = spawn(s, () => recv(rrx))\n  blocked(rrx, 1)\n  print(try_send(rtx, 2), await(t))\n;;)\nclose(tx)\nprint(try_send(tx, 3))",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "Ok(nil) Err({kind: 'full, message: \"channel full\"}) Ok(1)\nErr({kind: 'full, message: \"channel full\"})\nOk(nil) Ok(2)\nErr({kind: 'closed, message: \"channel closed\"})\n",
+            "",
+            0
+        )
+    );
+}
+
+/// `wait_closed` waits for the close and takes nothing: what is buffered
+/// stays. A cancellation or a deadline cuts the wait short.
+#[test]
+fn wait_closed_waits_for_the_close_only() {
+    let o = exec_waiting(
+        "(tx, rx) = channel(2)\nscope(fn(s):\n  w = spawn(s, () => wait_closed(rx))\n  blocked(rx, 1)\n  send(tx, 1)!\n  print(finished(w))\n  close(tx)\n  print(await(w), recv(rx))\n;;)\nprint(wait_closed(rx))\n(_tx2, rx2) = channel()\nprint(timeout(5ms, () => wait_closed(rx2)))\nscope(fn(s):\n  w = spawn(s, () => wait_closed(rx2))\n  blocked(rx2, 1)\n  cancel(w)\n  print(await(w))\n;;)",
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "false\nnil Ok(1)\nnil\nErr({kind: 'timeout, message: \"timed out after 5ms\"})\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
+            "",
+            0
+        )
+    );
+}
+
+/// The channel closes when its last sending end goes, which wakes
+/// `wait_closed` too; waiting for a close only the waiter could make is a
+/// deadlock reported under its own name.
+#[test]
+fn wait_closed_wakes_when_the_senders_go_and_deadlocks_by_name() {
+    let (out, err, code) = run(
+        "scope(fn(s):\n  (tx, rx) = channel()\n  spawn(s, () => wait_closed(rx))\n  spawn(s, fn():\n    _ = tx\n    nil\n  ;;)\n;;)\nprint(\"woken\")",
+    );
+    assert_eq!((out.as_str(), err.as_str(), code), ("woken\n", "", 0));
+    let (_, err, code) =
+        run("(tx, rx) = channel()\nscope(s => spawn(s, () => wait_closed(rx)))\nprint(tx)");
+    assert!(
+        err.starts_with("error[E0702]: deadlock: all tasks are waiting\n"),
+        "{err}"
+    );
+    assert!(err.contains("   wait_closed at -e:2:"), "{err}");
+    assert_eq!(code, 1);
+}

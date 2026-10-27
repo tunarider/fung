@@ -1313,6 +1313,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/try_recv.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/tuples_tags.fung
 -- stdout
 -- stderr
@@ -1343,6 +1347,10 @@
 |   |   ^^^^^^
 |   |
 |  help: prefix it with `_` if it is intentional
+-- exit: 0
+==== check tests/lang/wait_closed.fung
+-- stdout
+-- stderr
 -- exit: 0
 ==== check tests/lang/with.fung
 -- stdout

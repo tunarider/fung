@@ -1,0 +1,24 @@
+# wait_closed waits until a channel closes and takes nothing out (05).
+(tx, rx) = channel(3)
+scope(fn(s):
+  spawn(s, fn():
+    each(1..=3, n => send(tx, n)!)
+    close(tx)
+  ;;)
+  wait_closed(rx)
+  print("closed")
+;;)
+# expect: closed
+print(map(rx, x => x * 10))
+# expect: [10, 20, 30]
+
+# The stop signal is a channel that a stop request closes.
+stop = stop_signal()
+scope(fn(s):
+  spawn(s, fn():
+    wait_closed(stop)
+    print("stopping")
+  ;;)
+  request_stop()
+;;)
+# expect: stopping

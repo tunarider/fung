@@ -60,6 +60,9 @@ fn blocking_spawning_and_other_atoms_are_effects() {
     for (body, name) in [
         ("sleep(1ms)", "sleep"),
         ("recv(rx)", "recv"),
+        ("try_recv(rx)", "try_recv"),
+        ("try_send(_tx, 1)", "try_send"),
+        ("wait_closed(rx)", "wait_closed"),
         ("scope(s => spawn(s, () => 1))", "spawn"),
         ("swap(b, y => y)", "swap"),
         ("reset(b, 1)", "reset"),

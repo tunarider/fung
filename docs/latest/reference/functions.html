@@ -77,7 +77,7 @@
 <div class="filter">
 <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
 <input id="fn-search" type="search" placeholder="예: split, 정렬, Err" autocomplete="off">
-<p id="fn-count">135개 함수</p>
+<p id="fn-count">138개 함수</p>
 </div>
 <div class="fn-list">
 <section class="group"><h3><a href="../reference/prelude/io.html">출력과 입력</a></h3><ul>
@@ -178,6 +178,9 @@
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-channel"><code>channel</code></a> 채널을 만들고 두 끝 (tx, rx), 곧 보내는 끝과 받는 끝을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-send"><code>send</code></a> 보내는 끝 tx로 값 v를 보낸다. Ok(nil), 닫혔으면 Err({kind: 'closed}).</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-recv"><code>recv</code></a> 받는 끝 rx에서 값 하나를 받는다. Ok(v), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-try_recv"><code>try_recv</code></a> 기다리지 않고 받는 끝 rx를 한 번 본다. 받을 값이 있으면 Ok(v), 없으면 Err({kind: 'empty}), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-try_send"><code>try_send</code></a> 기다리지 않고 보내는 끝 tx로 v를 보낸다. 넘겼으면 Ok(nil), 기다려야 하면 Err({kind: 'full}), 닫혔으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-wait_closed"><code>wait_closed</code></a> 받는 끝 rx의 채널이 닫힐 때까지 기다린다. 값은 꺼내지 않는다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-close"><code>close</code></a> 보내는 끝 tx의 채널을 지금 닫는다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-stop_signal"><code>stop_signal</code></a> 정지 요청을 받는 끝(receiver)을 돌려준다. 정지 요청이 오면 이 끝이 닫힌다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-request_stop"><code>request_stop</code></a> 코드에서 정지 요청을 보낸다. 첫 신호(SIGINT·SIGTERM)와 똑같이 동작한다.</li>

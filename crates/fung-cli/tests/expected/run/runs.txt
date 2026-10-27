@@ -1971,6 +1971,14 @@
 | Ok(7)
 -- stderr
 -- exit: 0
+==== tests/lang/try_recv.fung
+-- stdout
+| Err({kind: 'empty, message: "channel empty"})
+| Ok(nil) Err({kind: 'full, message: "channel full"})
+| got job
+| Err({kind: 'closed, message: "channel closed"})
+-- stderr
+-- exit: 0
 ==== tests/lang/tuples_tags.fung
 -- stdout
 | 3 1 (1,) () true
@@ -2005,6 +2013,13 @@
 ==== tests/lang/unused_var_silent_in_run.fung
 -- stdout
 | 2
+-- stderr
+-- exit: 0
+==== tests/lang/wait_closed.fung
+-- stdout
+| closed
+| [10, 20, 30]
+| stopping
 -- stderr
 -- exit: 0
 ==== tests/lang/with.fung
