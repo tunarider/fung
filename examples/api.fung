@@ -8,7 +8,7 @@ fn json_response(status, data) =
   {status, headers: {"content-type": "application/json"}, body: json.stringify(data)}
 
 fn health(started, requests) =
-  json_response(200, {ok: true, uptime: str(time.now() - started), requests: deref(requests)})
+  json_response(200, {ok: true, uptime: str(time.monotonic() - started), requests: deref(requests)})
 
 fn echo(req):
   match json.parse(req.body):
@@ -17,7 +17,8 @@ fn echo(req):
   ;;
 ;;
 
-# Builds the handler: the request count lives in an atom the closure
+# Builds the handler: `started` is a reading of `time.monotonic()`, so
+# the uptime is right even if the wall clock is set. The request count lives in an atom the closure
 # holds (05: shared state is an atom, updated by a pure function), so
 # the handler's tasks each add their request with one swap.
 fn handler(started, requests):
@@ -34,7 +35,7 @@ fn handler(started, requests):
 test "health, echo and 404":
   scope(fn(app):
     (port_tx, port) = channel(1)
-    h = handler(time.now(), atom(0))
+    h = handler(time.monotonic(), atom(0))
     s = spawn(app, () => http.serve("127.0.0.1:0", h, ready: a => send(port_tx, a)))
     base = "http://" + recv(port)!
     r = http.get("${base}/health")!

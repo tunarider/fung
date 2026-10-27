@@ -117,7 +117,7 @@ match fs.read(p):
 | `json` | `parse(s)` → `Ok(값)` / `Err({kind: 'parse, line, col, message})`, `stringify(v, indent = nil)`. 아래 "JSON" 참고 (`_native.json`, M8) |
 | `http` | `get(url, headers = {}, timeout = 30s)`, `post(url, body, headers = {}, timeout = 30s)`, `request(method, url, body = nil, headers = {}, timeout = 30s)`, `serve(addr, handler, ready = nil)`. 아래 "HTTP" 참고 (`_native.net` 위의 fung, `extras/http.fung`) |
 | `conc` | `fan_in(s, rxs)`, `pmap(xs, f, limit = 0)`, `retry(f, times = 3, delay = 0ms)` (05, fung으로 작성) |
-| `time` | `now()`, `parse(s, format = nil)` → `Ok`/`Err 'parse`, `format(t, format = nil)`, `utc(t)`, `local(t)`, `unix(t)`, `from_unix(n)`, `parts(t)`. `now()`는 `time` 타입 값 (02·07): `==`, `<`, `+ dur`, `time - time → dur`. 아래 "시간 형식" 참고 (`_native.time`, M8) |
+| `time` | `now()`, `monotonic()`, `parse(s, format = nil)` → `Ok`/`Err 'parse`, `format(t, format = nil)`, `utc(t)`, `local(t)`, `unix(t)`, `from_unix(n)`, `parts(t)`. `now()`는 `time` 타입 값 (02·07): `==`, `<`, `+ dur`, `time - time → dur`. 벽시계라 시스템 시각이 바뀌면 그 차도 바뀐다. `monotonic()`은 거꾸로 가지 않는 시계의 값을 `dur`로 준다: 기준점은 정하지 않고(지금은 프로세스 시작 무렵) 차만 뜻이 있으며, `sleep`·기한과 같은 시계라 잠든 시간은 세지 않는다. 경과 시간은 `monotonic()`의 차로 잰다(L10, 2026-10-27; 기각: `time` 값에 단조 값을 숨겨 싣기, 같은 순간의 `==`가 두 갈래가 된다). 아래 "시간 형식" 참고 (`_native.time`, M8) |
 | `regex` | `is_match(s, pat)` → bool, `find(s, pat)` → 매치 맵 또는 `nil`, `find_all(s, pat)`, `replace(s, pat, repl)`, `split(s, pat)`. 아래 "정규식" 참고 (`_native.regex`, M8) |
 | `math`, `random` | (M8 이후) |
 

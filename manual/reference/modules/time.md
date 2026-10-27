@@ -1,6 +1,6 @@
 ---
 lede: <code>import time</code>. 지금 시각을 얻고, 글자로 된 시각을 읽고 쓰고, 시간대를 바꾼다. 시각은 언어의 값 타입이라 <code>==</code>, <code>&lt;</code>, <code>t + 1h</code>, <code>t2 - t1</code>이 바로 된다.
-description: fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대 바꾸기(now, parse, format, utc, local, unix, from_unix, parts).
+description: fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대 바꾸기, 걸린 시간 재기(now, monotonic, parse, format, utc, local, unix, from_unix, parts).
 ---
 # time — 시각
 
@@ -12,6 +12,8 @@ description: fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대
 - **기간**(duration, `dur` 타입): "90분"처럼 두 점 사이의 **길이**다. 리터럴로 바로 쓴다: `500ms`, `30s`, `1h30m`([기간 리터럴](../language.html#lexical)).
 
 시각에 기간을 더하거나 빼면 시각이고, 시각에서 시각을 빼면 기간이다. 시각끼리는 `==`·`<`로 비교한다.
+
+시계도 두 가지다. `time.now()`는 **벽시계**로 "지금 몇 시인가"를 준다. 사람이나 NTP가 고칠 수 있으므로 걸린 시간을 재는 데는 맞지 않다. 걸린 시간은 거꾸로 가지 않는 **단조 시계** `time.monotonic()`(기간을 준다)의 차로 잰다.
 
 ```fung run
 import time
@@ -62,7 +64,7 @@ fung의 시각 값은 순간과 함께 **시간대를 기억**한다. 출력하�
 
 #### 설명
 
-컴퓨터 시계의 지금 시각을 로컬 시간대로 돌려준다. 실행할 때마다 값이 다르다. 이 값은 시스템 시계를 읽은 것이고 단조 시계(앞으로만 가는 시계)를 함께 싣지 않는다. 그래서 두 `now()` 사이에 시스템 시각이 바뀌면(NTP 보정, 사람이 바꿈) `t2 - t1`로 잰 경과 시간이 틀리거나 음수일 수 있다. 짧은 작업의 시간 재기 정도에는 충분하다.
+컴퓨터 시계의 지금 시각을 로컬 시간대로 돌려준다. 실행할 때마다 값이 다르다. 이 값은 시스템 시계(벽시계)를 읽은 것이다. 두 `now()` 사이에 시스템 시각이 바뀌면(NTP 보정, 사람이 바꿈) `t2 - t1`이 틀리거나 음수일 수 있으므로, **걸린 시간은 [`time.monotonic()`](#fn-time-monotonic)으로 잰다**. `now()`는 기록에 남길 시각, 파일 시각과의 비교처럼 "몇 시인가"가 필요할 때 쓴다.
 
 #### 매개변수
 
@@ -82,20 +84,46 @@ import time
 print("[${time.format(time.now(), "YYYY-MM-DD HH:mm:ss")}] backup started")
 ```
 
+#### 같이 보기
+
+[`time.monotonic`](#fn-time-monotonic), [`time.format`](#fn-time-format)
+
+:::
+
+:::fn time.monotonic()
+
+거꾸로 가지 않는 시계의 지금 값을 기간(`dur`)으로 돌려준다. 걸린 시간을 잴 때 쓴다.
+
+#### 설명
+
+기준점부터 지난 기간이다. 기준점은 정하지 않았으므로(지금은 프로세스가 시작할 무렵) 값 하나에는 뜻이 없고, **두 값의 차만 뜻이 있다**: `time.monotonic() - t0`가 걸린 시간이다. 시스템 시각이 바뀌어도(NTP 보정, 사람이 바꿈) 흔들리지 않고 줄지 않는다. [`sleep`](../prelude/concurrency.html#fn-sleep)과 [`timeout`](../prelude/concurrency.html#fn-timeout)의 기한도 이 시계를 쓰므로 잰 값과 기한이 맞는다. 컴퓨터가 잠든(절전) 동안은 세지 않는다.
+
+시각이 필요하면(기록에 남길 때, 파일 시각과 견줄 때) [`time.now()`](#fn-time-now)를 쓴다. 두 시계의 값은 섞어 쓸 수 없다: 하나는 `dur`, 하나는 `time`이다.
+
+#### 매개변수
+
+없음.
+
+#### 돌려주는 값
+
+`dur` 값.
+
+#### 예제
+
 **걸린 시간 재기**
 
-```fung run hide-output
+```fung run
 import time
 
-start = time.now()
+start = time.monotonic()
 sleep(50ms)
-elapsed = time.now() - start
-print("took ${elapsed / 1ms} ms")
+elapsed = time.monotonic() - start
+print(elapsed >= 50ms)
 ```
 
 #### 같이 보기
 
-[`time.format`](#fn-time-format), [`sleep`](../prelude/concurrency.html#fn-sleep)
+[`time.now`](#fn-time-now), [`sleep`](../prelude/concurrency.html#fn-sleep), [`timeout`](../prelude/concurrency.html#fn-timeout)
 
 :::
 

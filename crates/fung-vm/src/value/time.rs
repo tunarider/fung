@@ -1,9 +1,10 @@
 //! Time values (02, `time`): an instant, seconds since 1970 UTC and
 //! nanoseconds, with the zone it is shown in. fung has no time literal;
 //! `_native.time` makes them. Instants run from year 0000 to 9999 (UTC);
-//! arithmetic past that is an overflow (E0503). The wall clock has no
+//! arithmetic past that is an overflow (E0503). A time carries no
 //! monotonic reading: two `now()` calls straddling a clock change differ
-//! by the change.
+//! by the change, so elapsed time is measured with `time.monotonic()`, a
+//! dur (L10).
 
 use std::cmp::Ordering;
 

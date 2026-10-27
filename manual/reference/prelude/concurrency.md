@@ -13,7 +13,7 @@ fung에서 동시에 진행하는 일 하나를 **태스크**(task)라고 한다
 ```fung run
 import time
 
-start = time.now()
+start = time.monotonic()
 results = scope(fn(s):
   tasks = for h in ["web-1", "web-2", "web-3"]:
     spawn(s, fn():
@@ -24,7 +24,7 @@ results = scope(fn(s):
   map(tasks, await)
 ;;)
 print(results)
-print("faster than one by one:", time.now() - start < 900ms)
+print("faster than one by one:", time.monotonic() - start < 900ms)
 ```
 
 세 태스크가 300ms씩 기다리지만 기다림이 겹치므로 전체는 300ms 남짓이다.

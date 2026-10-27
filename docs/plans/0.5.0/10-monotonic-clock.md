@@ -1,6 +1,9 @@
 # L10. `now()`뿐이라 경과 시간이 시스템 시각 변경에 흔들린다
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-10-27)**. 선택지 (나), 정할 것 1~5 모두 추천대로(사용자 결정 2026-10-27). 목록: [README](README.md).
+
+결과: `native/time.rs`의 `monotonic_fn`과 기준점 `ORIGIN`(`Runtime::new`가 `start_clock`으로 처음 찍음), `extras/time.fung`의 `monotonic`, 효과 표의 순수 쪽(`now`와 같음).
+매뉴얼(배우기 12·13장, 레시피 `check-urls`, `prelude/concurrency.md`, `time.md`)과 예제(`urlcheck`, `api`·`serve`의 `uptime`)의 경과 시간을 바꿨다. 파일 `mtime`과 견주는 `find-big-files`처럼 시각이 필요한 곳은 `now()`로 둔다.
 
 ## 문제
 

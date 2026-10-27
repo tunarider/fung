@@ -42,6 +42,7 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ### 더함
 
+- `time.monotonic()`: 거꾸로 가지 않는 시계의 값(`dur`). 걸린 시간은 `time.monotonic() - t0`로 잰다. 벽시계인 `time.now()`의 차는 그사이 시스템 시각이 바뀌면(NTP 보정) 틀리거나 음수가 될 수 있었다(06). 매뉴얼과 예제의 시간 재기를 모두 바꿨다.
 - 채널을 기다리지 않고 한 번 보는 `try_recv(rx)`·`try_send(tx, v)`와, 닫힐 때까지만 기다리는 `wait_closed(rx)`(05).
   `try_recv`는 받을 값이 없으면 `Err({kind: 'empty})`, `try_send`는 기다려야 하면 `Err({kind: 'full})`이다. 정지 요청을 기다리는 `_ = recv(stop)`은 이제 `wait_closed(stop)`으로 쓴다.
 - `fs.stat`이 마지막으로 고친 시각 `mtime`(`time` 값)을 준다(06). `time.now() - fs.stat(p)!.mtime > 720h`처럼 오래된 파일을 fung만으로 고른다.

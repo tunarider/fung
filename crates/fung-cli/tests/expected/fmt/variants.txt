@@ -659,6 +659,7 @@
 | in/extras~time@cglued.fung
 | in/extras~time@cpushed.fung
 | in/extras~time@crlf.fung
+| in/extras~time@halfbytes.fung
 | in/extras~time@moreblank.fung
 | in/extras~time@nofinal.fung
 | in/extras~time@opsplit.fung
@@ -2773,6 +2774,19 @@
 | in/tests~lang~time_module@split.fung
 | in/tests~lang~time_module@tight.fung
 | in/tests~lang~time_module@trailing.fung
+| in/tests~lang~time_monotonic@bom.fung
+| in/tests~lang~time_monotonic@cglued.fung
+| in/tests~lang~time_monotonic@contsplit.fung
+| in/tests~lang~time_monotonic@cpushed.fung
+| in/tests~lang~time_monotonic@crlf.fung
+| in/tests~lang~time_monotonic@halfbytes.fung
+| in/tests~lang~time_monotonic@moreblank.fung
+| in/tests~lang~time_monotonic@nofinal.fung
+| in/tests~lang~time_monotonic@opsplit.fung
+| in/tests~lang~time_monotonic@spaced.fung
+| in/tests~lang~time_monotonic@split.fung
+| in/tests~lang~time_monotonic@tight.fung
+| in/tests~lang~time_monotonic@trailing.fung
 | in/tests~lang~time_rules@bom.fung
 | in/tests~lang~time_rules@cglued.fung
 | in/tests~lang~time_rules@contsplit.fung
@@ -3178,11 +3192,11 @@
 | 2 | test "nothing 
 |   |      ^
 |   |
-| error[E0110]: unexpected end of file
-|   --> in/examples~api@halfbytes.fung:25:21
+| error[E0112]: expected a parameter name, found end of file
+|   --> in/examples~api@halfbytes.fung:24:12
 |    |
-| 25 |     swap(requests, n
-|    |                     ^
+| 24 | fn handler(
+|    |            ^
 |    |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/examples~api@halflines.fung:26:1
@@ -3262,12 +3276,6 @@
 | 12 | 
 |    | ^
 |    |
-| error[E0112]: expected `)`, found end of file
-|   --> in/examples~serve@halfbytes.fung:7:23
-|   |
-| 7 | import "./api" (handle
-|   |                       ^
-|   |
 | error[E0112]: expected `:` after the map key, found end of file
 |   --> in/examples~staticfiles@halfbytes.fung:34:46
 |    |
@@ -3357,12 +3365,6 @@
 |   |
 | 4 | .time as _n
 |   | ^
-|   |
-| error[E0110]: unexpected name `a`
-|   --> in/extras~time@halfbytes.fung:3:21
-|   |
-| 3 | import _native.time a
-|   |                     ^
 |   |
 | error[E0104]: unterminated string
 |   --> in/tests~lang~_lib~cyc_a@halfbytes.fung:1:8
@@ -6565,6 +6567,7 @@
 | in/extras~time@cglued.fung
 | in/extras~time@cpushed.fung
 | in/extras~time@crlf.fung
+| in/extras~time@halfbytes.fung
 | in/extras~time@moreblank.fung
 | in/extras~time@nofinal.fung
 | in/extras~time@opsplit.fung
@@ -8679,6 +8682,19 @@
 | in/tests~lang~time_module@split.fung
 | in/tests~lang~time_module@tight.fung
 | in/tests~lang~time_module@trailing.fung
+| in/tests~lang~time_monotonic@bom.fung
+| in/tests~lang~time_monotonic@cglued.fung
+| in/tests~lang~time_monotonic@contsplit.fung
+| in/tests~lang~time_monotonic@cpushed.fung
+| in/tests~lang~time_monotonic@crlf.fung
+| in/tests~lang~time_monotonic@halfbytes.fung
+| in/tests~lang~time_monotonic@moreblank.fung
+| in/tests~lang~time_monotonic@nofinal.fung
+| in/tests~lang~time_monotonic@opsplit.fung
+| in/tests~lang~time_monotonic@spaced.fung
+| in/tests~lang~time_monotonic@split.fung
+| in/tests~lang~time_monotonic@tight.fung
+| in/tests~lang~time_monotonic@trailing.fung
 | in/tests~lang~time_rules@bom.fung
 | in/tests~lang~time_rules@cglued.fung
 | in/tests~lang~time_rules@contsplit.fung
@@ -9084,11 +9100,11 @@
 | 2 | test "nothing 
 |   |      ^
 |   |
-| error[E0110]: unexpected end of file
-|   --> in/examples~api@halfbytes.fung:25:21
+| error[E0112]: expected a parameter name, found end of file
+|   --> in/examples~api@halfbytes.fung:24:12
 |    |
-| 25 |     swap(requests, n
-|    |                     ^
+| 24 | fn handler(
+|    |            ^
 |    |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/examples~api@halflines.fung:26:1
@@ -9168,12 +9184,6 @@
 | 12 | 
 |    | ^
 |    |
-| error[E0112]: expected `)`, found end of file
-|   --> in/examples~serve@halfbytes.fung:7:23
-|   |
-| 7 | import "./api" (handle
-|   |                       ^
-|   |
 | error[E0112]: expected `:` after the map key, found end of file
 |   --> in/examples~staticfiles@halfbytes.fung:34:46
 |    |
@@ -9263,12 +9273,6 @@
 |   |
 | 4 | .time as _n
 |   | ^
-|   |
-| error[E0110]: unexpected name `a`
-|   --> in/extras~time@halfbytes.fung:3:21
-|   |
-| 3 | import _native.time a
-|   |                     ^
 |   |
 | error[E0104]: unterminated string
 |   --> in/tests~lang~_lib~cyc_a@halfbytes.fung:1:8
@@ -12433,27 +12437,27 @@
 | crates~fung-cli~tests~data~test~z_clean@trailing.fung 88 7b1b3af7e1c61b6d
 | crates~fung-cli~tests~data~test~z_clean@wide4.fung unchanged
 | examples~api.fung unchanged
-| examples~api@bom.fung 1751 78121312c937043e
-| examples~api@cglued.fung 1751 78121312c937043e
+| examples~api@bom.fung 1865 86ee72de17036e3d
+| examples~api@cglued.fung 1865 86ee72de17036e3d
 | examples~api@cnospace.fung unchanged
-| examples~api@contsplit.fung 1960 7908ac7a37c4c048
-| examples~api@cpushed.fung 1751 78121312c937043e
-| examples~api@crlf.fung 1751 78121312c937043e
-| examples~api@dedent.fung 1751 78121312c937043e
+| examples~api@contsplit.fung 2074 b824a01855e1c1d1
+| examples~api@cpushed.fung 1865 86ee72de17036e3d
+| examples~api@crlf.fung 1865 86ee72de17036e3d
+| examples~api@dedent.fung 1865 86ee72de17036e3d
 | examples~api@halfbytes.fung unchanged
 | examples~api@halflines.fung unchanged
 | examples~api@joined.fung unchanged
-| examples~api@moreblank.fung 1756 5cf06c1299451582
+| examples~api@moreblank.fung 1871 a4032e5444f411a1
 | examples~api@noblank.fung unchanged
-| examples~api@nofinal.fung 1751 78121312c937043e
-| examples~api@odd3.fung 1751 78121312c937043e
-| examples~api@opsplit.fung 1899 43b030b95ed395e0
-| examples~api@spaced.fung 1751 78121312c937043e
-| examples~api@split.fung 2406 3a014d8fb4f90910
-| examples~api@tabs.fung 1751 78121312c937043e
-| examples~api@tight.fung 1751 78121312c937043e
-| examples~api@trailing.fung 1751 78121312c937043e
-| examples~api@wide4.fung 1751 78121312c937043e
+| examples~api@nofinal.fung 1865 86ee72de17036e3d
+| examples~api@odd3.fung 1865 86ee72de17036e3d
+| examples~api@opsplit.fung 2013 d8364e69371cf67b
+| examples~api@spaced.fung 1865 86ee72de17036e3d
+| examples~api@split.fung 2520 16509e742511365b
+| examples~api@tabs.fung 1865 86ee72de17036e3d
+| examples~api@tight.fung 1865 86ee72de17036e3d
+| examples~api@trailing.fung 1865 86ee72de17036e3d
+| examples~api@wide4.fung 1865 86ee72de17036e3d
 | examples~bigfiles.fung unchanged
 | examples~bigfiles@bom.fung 983 14662022cb02a69a
 | examples~bigfiles@cglued.fung 983 14662022cb02a69a
@@ -12631,26 +12635,26 @@
 | examples~rename@trailing.fung 619 27ab7ece174afc7f
 | examples~rename@wide4.fung 619 27ab7ece174afc7f
 | examples~serve.fung unchanged
-| examples~serve@bom.fung 324 426f6afe6664cefb
-| examples~serve@cglued.fung 324 426f6afe6664cefb
+| examples~serve@bom.fung 330 cb5ea9f135456bef
+| examples~serve@cglued.fung 330 cb5ea9f135456bef
 | examples~serve@cnospace.fung unchanged
-| examples~serve@contsplit.fung 338 115bc8f773693a37
-| examples~serve@cpushed.fung 324 426f6afe6664cefb
-| examples~serve@crlf.fung 324 426f6afe6664cefb
+| examples~serve@contsplit.fung 344 35f0d695b4d42c8b
+| examples~serve@cpushed.fung 330 cb5ea9f135456bef
+| examples~serve@crlf.fung 330 cb5ea9f135456bef
 | examples~serve@dedent.fung unchanged
 | examples~serve@halfbytes.fung unchanged
 | examples~serve@halflines.fung unchanged
 | examples~serve@joined.fung unchanged
-| examples~serve@moreblank.fung 332 626a03a0ec6f122b
+| examples~serve@moreblank.fung 338 b104552dab08989f
 | examples~serve@noblank.fung unchanged
-| examples~serve@nofinal.fung 324 426f6afe6664cefb
+| examples~serve@nofinal.fung 330 cb5ea9f135456bef
 | examples~serve@odd3.fung unchanged
-| examples~serve@opsplit.fung 330 2617fb14e673dc61
-| examples~serve@spaced.fung 324 426f6afe6664cefb
-| examples~serve@split.fung 374 73a9ba4d47583085
+| examples~serve@opsplit.fung 336 5d8fca802e59c785
+| examples~serve@spaced.fung 330 cb5ea9f135456bef
+| examples~serve@split.fung 380 eec60bd358e9d9b1
 | examples~serve@tabs.fung unchanged
-| examples~serve@tight.fung 324 426f6afe6664cefb
-| examples~serve@trailing.fung 324 426f6afe6664cefb
+| examples~serve@tight.fung 330 cb5ea9f135456bef
+| examples~serve@trailing.fung 330 cb5ea9f135456bef
 | examples~serve@wide4.fung unchanged
 | examples~static.fung unchanged
 | examples~static@bom.fung 516 5331eff20c9a481c
@@ -12719,27 +12723,27 @@
 | examples~tidy@trailing.fung 598 4c556d23ef3d6c9c
 | examples~tidy@wide4.fung 598 4c556d23ef3d6c9c
 | examples~urlcheck.fung unchanged
-| examples~urlcheck@bom.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@cglued.fung 1610 6ca08b4bd7a8b7ba
+| examples~urlcheck@bom.fung 1622 db1807d848ec32e6
+| examples~urlcheck@cglued.fung 1622 db1807d848ec32e6
 | examples~urlcheck@cnospace.fung unchanged
-| examples~urlcheck@contsplit.fung 1775 f82c499274368534
-| examples~urlcheck@cpushed.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@crlf.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@dedent.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@halfbytes.fung 806 0db5ab3c6add0fcc
+| examples~urlcheck@contsplit.fung 1787 610265630238dd24
+| examples~urlcheck@cpushed.fung 1622 db1807d848ec32e6
+| examples~urlcheck@crlf.fung 1622 db1807d848ec32e6
+| examples~urlcheck@dedent.fung 1622 db1807d848ec32e6
+| examples~urlcheck@halfbytes.fung 812 1e38b6cabda976cb
 | examples~urlcheck@halflines.fung unchanged
 | examples~urlcheck@joined.fung unchanged
-| examples~urlcheck@moreblank.fung 1607 93102f1139dfb20a
+| examples~urlcheck@moreblank.fung 1619 6398d7aff34194ba
 | examples~urlcheck@noblank.fung unchanged
-| examples~urlcheck@nofinal.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@odd3.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@opsplit.fung 1782 631c3d6ff280d55a
-| examples~urlcheck@spaced.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@split.fung 2200 d225637439f1e3be
-| examples~urlcheck@tabs.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@tight.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@trailing.fung 1610 6ca08b4bd7a8b7ba
-| examples~urlcheck@wide4.fung 1610 6ca08b4bd7a8b7ba
+| examples~urlcheck@nofinal.fung 1622 db1807d848ec32e6
+| examples~urlcheck@odd3.fung 1622 db1807d848ec32e6
+| examples~urlcheck@opsplit.fung 1794 79405c9bd6354bb6
+| examples~urlcheck@spaced.fung 1622 db1807d848ec32e6
+| examples~urlcheck@split.fung 2212 e19ca7a09b76562e
+| examples~urlcheck@tabs.fung 1622 db1807d848ec32e6
+| examples~urlcheck@tight.fung 1622 db1807d848ec32e6
+| examples~urlcheck@trailing.fung 1622 db1807d848ec32e6
+| examples~urlcheck@wide4.fung 1622 db1807d848ec32e6
 | extras~cli.fung unchanged
 | extras~cli@bom.fung 2043 54e01951e17adcac
 | extras~cli@cglued.fung 2043 54e01951e17adcac
@@ -12917,26 +12921,26 @@
 | extras~regex@trailing.fung 213 b042b42db3e3ed81
 | extras~regex@wide4.fung unchanged
 | extras~time.fung unchanged
-| extras~time@bom.fung 283 a057e5eab8ccbc97
-| extras~time@cglued.fung 283 a057e5eab8ccbc97
+| extras~time@bom.fung 308 dec42bef83e4c4b1
+| extras~time@cglued.fung 308 dec42bef83e4c4b1
 | extras~time@cnospace.fung unchanged
 | extras~time@contsplit.fung unchanged
-| extras~time@cpushed.fung 283 a057e5eab8ccbc97
-| extras~time@crlf.fung 283 a057e5eab8ccbc97
+| extras~time@cpushed.fung 308 dec42bef83e4c4b1
+| extras~time@crlf.fung 308 dec42bef83e4c4b1
 | extras~time@dedent.fung unchanged
-| extras~time@halfbytes.fung unchanged
+| extras~time@halfbytes.fung 155 9518edfbd1b1be21
 | extras~time@halflines.fung unchanged
 | extras~time@joined.fung unchanged
-| extras~time@moreblank.fung 292 2c2b5e541e286c3f
+| extras~time@moreblank.fung 318 ec9f1930e7e37f09
 | extras~time@noblank.fung unchanged
-| extras~time@nofinal.fung 283 a057e5eab8ccbc97
+| extras~time@nofinal.fung 308 dec42bef83e4c4b1
 | extras~time@odd3.fung unchanged
-| extras~time@opsplit.fung 299 3597cfce8a7a946f
-| extras~time@spaced.fung 283 a057e5eab8ccbc97
+| extras~time@opsplit.fung 326 e821a8675fd76cc3
+| extras~time@spaced.fung 308 dec42bef83e4c4b1
 | extras~time@split.fung unchanged
 | extras~time@tabs.fung unchanged
-| extras~time@tight.fung 283 a057e5eab8ccbc97
-| extras~time@trailing.fung 283 a057e5eab8ccbc97
+| extras~time@tight.fung 308 dec42bef83e4c4b1
+| extras~time@trailing.fung 308 dec42bef83e4c4b1
 | extras~time@wide4.fung unchanged
 | tests~lang~_lib~cyc_a.fung unchanged
 | tests~lang~_lib~cyc_a@bom.fung 17 a65994a73addaf67
@@ -17210,6 +17214,28 @@
 | tests~lang~time_module@tight.fung 613 825806b8cf3cb46f
 | tests~lang~time_module@trailing.fung 613 825806b8cf3cb46f
 | tests~lang~time_module@wide4.fung unchanged
+| tests~lang~time_monotonic.fung unchanged
+| tests~lang~time_monotonic@bom.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@cglued.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@cnospace.fung unchanged
+| tests~lang~time_monotonic@contsplit.fung 300 ddb1271e0326939d
+| tests~lang~time_monotonic@cpushed.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@crlf.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@dedent.fung unchanged
+| tests~lang~time_monotonic@halfbytes.fung 148 98aafd38a4b4db31
+| tests~lang~time_monotonic@halflines.fung unchanged
+| tests~lang~time_monotonic@joined.fung unchanged
+| tests~lang~time_monotonic@moreblank.fung 303 eba013dc30e07491
+| tests~lang~time_monotonic@noblank.fung unchanged
+| tests~lang~time_monotonic@nofinal.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@odd3.fung unchanged
+| tests~lang~time_monotonic@opsplit.fung 304 d299b9c2205e2b2b
+| tests~lang~time_monotonic@spaced.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@split.fung 314 f1e3fb8a0d1bfd25
+| tests~lang~time_monotonic@tabs.fung unchanged
+| tests~lang~time_monotonic@tight.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@trailing.fung 294 f400847b08eee703
+| tests~lang~time_monotonic@wide4.fung unchanged
 | tests~lang~time_rules.fung unchanged
 | tests~lang~time_rules@bom.fung 1074 566894bbabe10f3d
 | tests~lang~time_rules@cglued.fung 1074 566894bbabe10f3d

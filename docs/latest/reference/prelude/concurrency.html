@@ -69,7 +69,7 @@
 <p>fung에서 동시에 진행하는 일 하나를 <strong>태스크</strong>(task)라고 한다. 태스크는 운영체제 스레드가 아니다. 실행 스레드 하나가 모든 태스크를 차례로 돌리고, 태스크가 기다리는 일(외부 명령, 소켓, <code>sleep</code>, 채널)을 만나면 그 태스크를 잠시 세워 두고 다른 태스크를 돌린다(<a href="../../vm/internals.html#concurrency">런타임</a>). 그래서 태스크는 가볍고(수천 개도 괜찮다), 한 순간에는 한 태스크의 코드만 돈다. 계산만 하는 일을 여러 CPU에 나눠 빠르게 하는 <strong>병렬성</strong>(parallelism)은 목표가 아니다. 목표는 기다림을 겹치는 것이다.</p>
 <div class="run"><pre><code>import time
 
-start = time.now()
+start = time.monotonic()
 results = scope(fn(s):
   tasks = for h in [&quot;web-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]:
     spawn(s, fn():
@@ -80,7 +80,7 @@ results = scope(fn(s):
   map(tasks, await)
 ;;)
 print(results)
-print(&quot;faster than one by one:&quot;, time.now() - start &lt; 900ms)</code></pre><pre class="out plain"><code>[&quot;web-1 ok&quot;, &quot;web-2 ok&quot;, &quot;web-3 ok&quot;]
+print(&quot;faster than one by one:&quot;, time.monotonic() - start &lt; 900ms)</code></pre><pre class="out plain"><code>[&quot;web-1 ok&quot;, &quot;web-2 ok&quot;, &quot;web-3 ok&quot;]
 faster than one by one: true</code></pre></div>
 <p>세 태스크가 300ms씩 기다리지만 기다림이 겹치므로 전체는 300ms 남짓이다.</p>
 <h3 id="structured">태스크 범위: 태스크는 혼자 떠돌지 않는다</h3>

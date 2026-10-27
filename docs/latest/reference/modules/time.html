@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>time — 시각 · fung 매뉴얼</title>
-<meta name="description" content="fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대 바꾸기(now, parse, format, utc, local, unix, from_unix, parts).">
+<meta name="description" content="fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대 바꾸기, 걸린 시간 재기(now, monotonic, parse, format, utc, local, unix, from_unix, parts).">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -71,6 +71,7 @@
 <li><strong>기간</strong>(duration, <code>dur</code> 타입): "90분"처럼 두 점 사이의 <strong>길이</strong>다. 리터럴로 바로 쓴다: <code>500ms</code>, <code>30s</code>, <code>1h30m</code>(<a href="../language.html#lexical">기간 리터럴</a>).</li>
 </ul>
 <p>시각에 기간을 더하거나 빼면 시각이고, 시각에서 시각을 빼면 기간이다. 시각끼리는 <code>==</code>·<code>&lt;</code>로 비교한다.</p>
+<p>시계도 두 가지다. <code>time.now()</code>는 <strong>벽시계</strong>로 "지금 몇 시인가"를 준다. 사람이나 NTP가 고칠 수 있으므로 걸린 시간을 재는 데는 맞지 않다. 걸린 시간은 거꾸로 가지 않는 <strong>단조 시계</strong> <code>time.monotonic()</code>(기간을 준다)의 차로 잰다.</p>
 <div class="run"><pre><code>import time
 
 start = time.parse(&quot;2026-10-04T09:00:00Z&quot;)!
@@ -108,7 +109,7 @@ print((end - start) / 1m, &quot;minutes&quot;)</code></pre><pre class="out plain
 <p>지금 시각을 돌려준다.</p>
 <div class="sig"><code>time.now()</code></div>
 <h4>설명</h4>
-<p>컴퓨터 시계의 지금 시각을 로컬 시간대로 돌려준다. 실행할 때마다 값이 다르다. 이 값은 시스템 시계를 읽은 것이고 단조 시계(앞으로만 가는 시계)를 함께 싣지 않는다. 그래서 두 <code>now()</code> 사이에 시스템 시각이 바뀌면(NTP 보정, 사람이 바꿈) <code>t2 - t1</code>로 잰 경과 시간이 틀리거나 음수일 수 있다. 짧은 작업의 시간 재기 정도에는 충분하다.</p>
+<p>컴퓨터 시계의 지금 시각을 로컬 시간대로 돌려준다. 실행할 때마다 값이 다르다. 이 값은 시스템 시계(벽시계)를 읽은 것이다. 두 <code>now()</code> 사이에 시스템 시각이 바뀌면(NTP 보정, 사람이 바꿈) <code>t2 - t1</code>이 틀리거나 음수일 수 있으므로, <strong>걸린 시간은 <a href="#fn-time-monotonic"><code>time.monotonic()</code></a>으로 잰다</strong>. <code>now()</code>는 기록에 남길 시각, 파일 시각과의 비교처럼 "몇 시인가"가 필요할 때 쓴다.</p>
 <h4>매개변수</h4>
 <p>없음.</p>
 <h4>돌려주는 값</h4>
@@ -118,15 +119,30 @@ print((end - start) / 1m, &quot;minutes&quot;)</code></pre><pre class="out plain
 <pre><code>import time
 
 print(&quot;[${time.format(time.now(), &quot;YYYY-MM-DD HH:mm:ss&quot;)}] backup started&quot;)</code></pre>
-<p><strong>걸린 시간 재기</strong></p>
-<pre><code>import time
-
-start = time.now()
-sleep(50ms)
-elapsed = time.now() - start
-print(&quot;took ${elapsed / 1ms} ms&quot;)</code></pre>
 <h4>같이 보기</h4>
-<p><a href="#fn-time-format"><code>time.format</code></a>, <a href="../prelude/concurrency.html#fn-sleep"><code>sleep</code></a></p>
+<p><a href="#fn-time-monotonic"><code>time.monotonic</code></a>, <a href="#fn-time-format"><code>time.format</code></a></p>
+</section>
+<section class="entry" id="fn-time-monotonic">
+<h3>time.monotonic</h3>
+<p>거꾸로 가지 않는 시계의 지금 값을 기간(<code>dur</code>)으로 돌려준다. 걸린 시간을 잴 때 쓴다.</p>
+<div class="sig"><code>time.monotonic()</code></div>
+<h4>설명</h4>
+<p>기준점부터 지난 기간이다. 기준점은 정하지 않았으므로(지금은 프로세스가 시작할 무렵) 값 하나에는 뜻이 없고, <strong>두 값의 차만 뜻이 있다</strong>: <code>time.monotonic() - t0</code>가 걸린 시간이다. 시스템 시각이 바뀌어도(NTP 보정, 사람이 바꿈) 흔들리지 않고 줄지 않는다. <a href="../prelude/concurrency.html#fn-sleep"><code>sleep</code></a>과 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a>의 기한도 이 시계를 쓰므로 잰 값과 기한이 맞는다. 컴퓨터가 잠든(절전) 동안은 세지 않는다.</p>
+<p>시각이 필요하면(기록에 남길 때, 파일 시각과 견줄 때) <a href="#fn-time-now"><code>time.now()</code></a>를 쓴다. 두 시계의 값은 섞어 쓸 수 없다: 하나는 <code>dur</code>, 하나는 <code>time</code>이다.</p>
+<h4>매개변수</h4>
+<p>없음.</p>
+<h4>돌려주는 값</h4>
+<p><code>dur</code> 값.</p>
+<h4>예제</h4>
+<p><strong>걸린 시간 재기</strong></p>
+<div class="run"><pre><code>import time
+
+start = time.monotonic()
+sleep(50ms)
+elapsed = time.monotonic() - start
+print(elapsed &gt;= 50ms)</code></pre><pre class="out plain"><code>true</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-time-now"><code>time.now</code></a>, <a href="../prelude/concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a></p>
 </section>
 <section class="entry" id="fn-time-parse">
 <h3>time.parse</h3>

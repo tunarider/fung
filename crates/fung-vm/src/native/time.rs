@@ -22,6 +22,7 @@ pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
             ("now", native("now", now_fn, vec![])),
+            ("monotonic", native("monotonic", monotonic_fn, vec![])),
             (
                 "parse",
                 native("parse", parse_fn, vec![param("s"), opt("format", Lit::Nil)]),
@@ -75,8 +76,26 @@ pub(crate) fn from_system(at: std::time::SystemTime) -> Option<Value> {
     Time::from_unix(sec, nsec, Loc::Zone(tz::local())).map(time)
 }
 
-/// The system clock now, in the local zone (no monotonic reading; see
-/// `crate::value::Time`).
+/// The system clock now, in the local zone: the wall clock, which can be
+/// set; elapsed time is measured with `monotonic` (L10).
+/// The fixed point `monotonic` counts from: read when the first runtime
+/// is made (`start_clock`), so near the process's start. Only differences
+/// mean anything (06).
+static ORIGIN: OnceLock<std::time::Instant> = OnceLock::new();
+
+/// Fixes `monotonic`'s point if it is not fixed yet (`Runtime::new`).
+pub(crate) fn start_clock() -> std::time::Instant {
+    *ORIGIN.get_or_init(std::time::Instant::now)
+}
+
+/// `time.monotonic()` (L10): the time since a fixed point, as a dur, from
+/// the clock `sleep` and deadlines use. It never goes back, whatever the
+/// wall clock does, and does not count a system's sleep.
+fn monotonic_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+    let d = start_clock().elapsed();
+    Ok(Value::Dur(i64::try_from(d.as_nanos()).unwrap_or(i64::MAX)))
+}
+
 fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
     match from_system(std::time::SystemTime::now()) {
         Some(t) => Ok(t),

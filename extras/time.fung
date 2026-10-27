@@ -3,6 +3,7 @@
 import _native.time as _n
 
 now = _n.now
+monotonic = _n.monotonic
 parse = _n.parse
 format = _n.format
 utc = _n.utc

@@ -250,15 +250,15 @@ print(time.format(deployed, "YYYY-MM-DD HH:mm"))
 print(time.parse("20/10/2026 18:00", format: "DD/MM/YYYY HH:mm"))
 ```
 
-걸린 시간을 재려면 두 `time.now()`의 차를 구한다. 지금 시각은 실행할 때마다 다르므로 아래 예제는 출력을 싣지 않았다. 직접 돌려 보면 `now: 2026-10-20T13:54:07.173139Z`처럼 지금 시각과 `took about 50 ms`쯤이 찍힌다.
+걸린 시간은 `time.now()`가 아니라 `time.monotonic()`의 차로 잰다. `now()`는 벽시계라서 그사이에 시스템 시각이 바뀌면(NTP 보정) 차가 틀리거나 음수가 될 수 있다. `monotonic()`은 거꾸로 가지 않는 시계로, 기준점부터 지난 기간(`dur`)을 준다. 지금 시각은 실행할 때마다 다르므로 아래 예제는 출력을 싣지 않았다. 직접 돌려 보면 `now: 2026-10-20T13:54:07.173139Z`처럼 지금 시각과 `took about 50 ms`쯤이 찍힌다.
 
 ```fung run hide-output
 import time
 
-start = time.now()
+print("now:", time.now())
+start = time.monotonic()
 sleep(50ms)
-print("now:", start)
-print("took about", (time.now() - start) // 10ms * 10, "ms")
+print("took about", (time.monotonic() - start) // 10ms * 10, "ms")
 ```
 
 :::box other 다른 언어는

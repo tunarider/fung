@@ -285,6 +285,7 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
         "_native.time",
         &[
             "now",
+            "monotonic",
             "parse",
             "format",
             "utc",

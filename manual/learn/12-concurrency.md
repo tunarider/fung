@@ -33,9 +33,9 @@ fn check(host):
   "${host}: ok"
 ;;
 
-start = time.now()
+start = time.monotonic()
 results = conc.pmap(["web1", "web2", "db1"], check)
-elapsed = time.now() - start
+elapsed = time.monotonic() - start
 
 print(results)
 print("faster than one by one:", elapsed < 600ms)

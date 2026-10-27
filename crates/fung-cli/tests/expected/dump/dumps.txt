@@ -1346,12 +1346,12 @@
 -- exit: 0
 ==== dump ast examples/api.fung
 -- stdout
-| (program (import http) (import json) (import time) (fn json_response(status, data) (block (map (entry status status) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify json) data))))) (fn health(started, requests) (block (call json_response 200 (map (entry ok true) (entry uptime (call str (binary - (call (field now time)) started))) (entry requests (call deref requests)))))) (fn echo(req) (block (match (call (field parse json) (field body req)) (arm (ptag Ok (pbind data)) (nil) (block (call json_response 200 (map (entry received data) (entry at (call (field format time) (call (field now time)))))))) (arm (ptag Err (pbind e)) (nil) (block (map (entry status 400) (entry body (interp "bad json: " (field message e))))))))) (fn handler(started, requests) (block (fn (req) (block (call swap requests (fn (n) (block (binary + n 1)))) (match (tuple (field method req) (field path req)) (arm (ptuple (plit "GET") (plit "/health")) (nil) (block (call health started requests))) (arm (ptuple (plit "POST") (plit "/echo")) (nil) (block (call echo req))) (arm (pwild) (nil) (block (map (entry status 404) (entry body (interp "not found: " (field path req))))))))))) (test "health, echo and 404" (block (call scope (fn (app) (block (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (assign h (call handler (call (field now time)) (call atom 0))) (assign s (call spawn app (fn () (block (call (field serve http) "127.0.0.1:0" h (named ready (fn (a) (block (call send port_tx a))))))))) (assign base (binary + "http://" (unwrap ! (call recv port)))) (assign r (unwrap ! (call (field get http) (interp base "/health")))) (assert (binary == (field status r) 200)) (assert (binary == (field ok (unwrap ! (call (field parse json) (field body r)))) true)) (assign e (unwrap ! (call (field post http) (interp base "/echo") (call (field stringify json) (map (entry x 1)))))) (assert (binary == (field x (field received (unwrap ! (call (field parse json) (field body e))))) 1)) (assert (binary == (field status (unwrap ! (call (field post http) (interp base "/echo") "{"))) 400)) (assert (binary == (field status (unwrap ! (call (field get http) (interp base "/nope")))) 404)) (assert (binary == (field requests (unwrap ! (call (field parse json) (field body (unwrap ! (call (field get http) (interp base "/health"))))))) 5)) (call cancel s)))))))
+| (program (import http) (import json) (import time) (fn json_response(status, data) (block (map (entry status status) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify json) data))))) (fn health(started, requests) (block (call json_response 200 (map (entry ok true) (entry uptime (call str (binary - (call (field monotonic time)) started))) (entry requests (call deref requests)))))) (fn echo(req) (block (match (call (field parse json) (field body req)) (arm (ptag Ok (pbind data)) (nil) (block (call json_response 200 (map (entry received data) (entry at (call (field format time) (call (field now time)))))))) (arm (ptag Err (pbind e)) (nil) (block (map (entry status 400) (entry body (interp "bad json: " (field message e))))))))) (fn handler(started, requests) (block (fn (req) (block (call swap requests (fn (n) (block (binary + n 1)))) (match (tuple (field method req) (field path req)) (arm (ptuple (plit "GET") (plit "/health")) (nil) (block (call health started requests))) (arm (ptuple (plit "POST") (plit "/echo")) (nil) (block (call echo req))) (arm (pwild) (nil) (block (map (entry status 404) (entry body (interp "not found: " (field path req))))))))))) (test "health, echo and 404" (block (call scope (fn (app) (block (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (assign h (call handler (call (field monotonic time)) (call atom 0))) (assign s (call spawn app (fn () (block (call (field serve http) "127.0.0.1:0" h (named ready (fn (a) (block (call send port_tx a))))))))) (assign base (binary + "http://" (unwrap ! (call recv port)))) (assign r (unwrap ! (call (field get http) (interp base "/health")))) (assert (binary == (field status r) 200)) (assert (binary == (field ok (unwrap ! (call (field parse json) (field body r)))) true)) (assign e (unwrap ! (call (field post http) (interp base "/echo") (call (field stringify json) (map (entry x 1)))))) (assert (binary == (field x (field received (unwrap ! (call (field parse json) (field body e))))) 1)) (assert (binary == (field status (unwrap ! (call (field post http) (interp base "/echo") "{"))) 400)) (assert (binary == (field status (unwrap ! (call (field get http) (interp base "/nope")))) 404)) (assert (binary == (field requests (unwrap ! (call (field parse json) (field body (unwrap ! (call (field get http) (interp base "/health"))))))) 5)) (call cancel s)))))))
 -- stderr
 -- exit: 0
 ==== dump core examples/api.fung
 -- stdout
-| (do (import "http" (global 0)) (import "json" (global 1)) (import "time" (global 2)) (let (global 3) (fn json_response(status, data) (do (map (entry status (local 0)) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify (global 1)) (local 1))))))) (let (global 4) (fn health(started, requests) (do (call (global 3) 200 (map (entry ok true) (entry uptime (call (prelude str) (op - (call (field now (global 2))) (local 0)))) (entry requests (call (prelude deref) (local 1)))))))) (let (global 5) (fn echo(req) (do (do (let (local 1) (call (field parse (global 1)) (field body (local 0)))) (match (local 1) (arm (ptag Ok (pbind (local 2))) (nil) (do (call (global 3) 200 (map (entry received (local 2)) (entry at (call (field format (global 2)) (call (field now (global 2))))))))) (arm (ptag Err (pbind (local 2))) (nil) (do (map (entry status 400) (entry body (concat "bad json: " (field message (local 2)))))))))))) (let (global 6) (fn handler(started, requests) (do (fn (req) (do (call (prelude swap) (captured 0) (fn (n) (do (op + (local 0) 1)))) (do (let (local 1) (tuple (field method (local 0)) (field path (local 0)))) (match (local 1) (arm (ptuple (plit "GET") (plit "/health")) (nil) (do (call (global 4) (captured 1) (captured 0)))) (arm (ptuple (plit "POST") (plit "/echo")) (nil) (do (call (global 5) (local 0)))) (arm (pwild) (nil) (do (map (entry status 404) (entry body (concat "not found: " (field path (local 0)))))))))))))) (test "health, echo and 404" (fn test: health, echo and 404() (do (call (prelude scope) (fn (app) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel) 1)) (let (local 3) (call (global 6) (call (field now (global 2))) (call (prelude atom) 0))) (let (local 4) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (captured 0) (named ready (fn (a) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 5) (op + "http://" (unwrap ! (call (prelude recv) (local 2))))) (let (local 6) (unwrap ! (call (field get (global 0)) (concat (local 5) "/health")))) (assert (op == (field status (local 6)) 200)) (assert (op == (field ok (unwrap ! (call (field parse (global 1)) (field body (local 6))))) true)) (let (local 7) (unwrap ! (call (field post (global 0)) (concat (local 5) "/echo") (call (field stringify (global 1)) (map (entry x 1)))))) (assert (op == (field x (field received (unwrap ! (call (field parse (global 1)) (field body (local 7)))))) 1)) (assert (op == (field status (unwrap ! (call (field post (global 0)) (concat (local 5) "/echo") "{"))) 400)) (assert (op == (field status (unwrap ! (call (field get (global 0)) (concat (local 5) "/nope")))) 404)) (assert (op == (field requests (unwrap ! (call (field parse (global 1)) (field body (unwrap ! (call (field get (global 0)) (concat (local 5) "/health"))))))) 5)) (call (prelude cancel) (local 4)))))))))
+| (do (import "http" (global 0)) (import "json" (global 1)) (import "time" (global 2)) (let (global 3) (fn json_response(status, data) (do (map (entry status (local 0)) (entry headers (map (entry content-type "application/json"))) (entry body (call (field stringify (global 1)) (local 1))))))) (let (global 4) (fn health(started, requests) (do (call (global 3) 200 (map (entry ok true) (entry uptime (call (prelude str) (op - (call (field monotonic (global 2))) (local 0)))) (entry requests (call (prelude deref) (local 1)))))))) (let (global 5) (fn echo(req) (do (do (let (local 1) (call (field parse (global 1)) (field body (local 0)))) (match (local 1) (arm (ptag Ok (pbind (local 2))) (nil) (do (call (global 3) 200 (map (entry received (local 2)) (entry at (call (field format (global 2)) (call (field now (global 2))))))))) (arm (ptag Err (pbind (local 2))) (nil) (do (map (entry status 400) (entry body (concat "bad json: " (field message (local 2)))))))))))) (let (global 6) (fn handler(started, requests) (do (fn (req) (do (call (prelude swap) (captured 0) (fn (n) (do (op + (local 0) 1)))) (do (let (local 1) (tuple (field method (local 0)) (field path (local 0)))) (match (local 1) (arm (ptuple (plit "GET") (plit "/health")) (nil) (do (call (global 4) (captured 1) (captured 0)))) (arm (ptuple (plit "POST") (plit "/echo")) (nil) (do (call (global 5) (local 0)))) (arm (pwild) (nil) (do (map (entry status 404) (entry body (concat "not found: " (field path (local 0)))))))))))))) (test "health, echo and 404" (fn test: health, echo and 404() (do (call (prelude scope) (fn (app) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel) 1)) (let (local 3) (call (global 6) (call (field monotonic (global 2))) (call (prelude atom) 0))) (let (local 4) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (captured 0) (named ready (fn (a) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 5) (op + "http://" (unwrap ! (call (prelude recv) (local 2))))) (let (local 6) (unwrap ! (call (field get (global 0)) (concat (local 5) "/health")))) (assert (op == (field status (local 6)) 200)) (assert (op == (field ok (unwrap ! (call (field parse (global 1)) (field body (local 6))))) true)) (let (local 7) (unwrap ! (call (field post (global 0)) (concat (local 5) "/echo") (call (field stringify (global 1)) (map (entry x 1)))))) (assert (op == (field x (field received (unwrap ! (call (field parse (global 1)) (field body (local 7)))))) 1)) (assert (op == (field status (unwrap ! (call (field post (global 0)) (concat (local 5) "/echo") "{"))) 400)) (assert (op == (field status (unwrap ! (call (field get (global 0)) (concat (local 5) "/nope")))) 404)) (assert (op == (field requests (unwrap ! (call (field parse (global 1)) (field body (unwrap ! (call (field get (global 0)) (concat (local 5) "/health"))))))) 5)) (call (prelude cancel) (local 4)))))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode examples/api.fung
@@ -1369,9 +1369,9 @@
 | 0009  10:1  STOREGLOBAL  4    ; health
 | 0010  13:1  CLOSURE      2    ; echo
 | 0011  13:1  STOREGLOBAL  5    ; echo
-| 0012  23:1  CLOSURE      3    ; handler
-| 0013  23:1  STOREGLOBAL  6    ; handler
-| 0014  34:1  CONST        3    ; nil
+| 0012  24:1  CLOSURE      3    ; handler
+| 0013  24:1  STOREGLOBAL  6    ; handler
+| 0014  35:1  CONST        3    ; nil
 | 0015  1:72  RETURN
 |
 | == json_response ==
@@ -1397,15 +1397,15 @@
 | 0004  11:33 CONST        3    ; "uptime"
 | 0005  11:41 CONST        4    ; <fn str>
 | 0006  11:45 LOADGLOBAL   2
-| 0007  11:49 FIELD        5    ; now
-| 0008  11:53 CALL         0    ; 0 positional, 0 named
-| 0009  11:58 MOVELOCAL    0
-| 0010  11:56 SUB
+| 0007  11:49 FIELD        5    ; monotonic
+| 0008  11:59 CALL         0    ; 0 positional, 0 named
+| 0009  11:64 MOVELOCAL    0
+| 0010  11:62 SUB
 | 0011  11:44 CALL         1    ; 1 positional, 0 named
-| 0012  11:68 CONST        6    ; "requests"
-| 0013  11:78 CONST        7    ; <fn deref>
-| 0014  11:84 MOVELOCAL    1
-| 0015  11:83 CALL         1    ; 1 positional, 0 named
+| 0012  11:74 CONST        6    ; "requests"
+| 0013  11:84 CONST        7    ; <fn deref>
+| 0014  11:90 MOVELOCAL    1
+| 0015  11:89 CALL         1    ; 1 positional, 0 named
 | 0016  11:22 MAP          3
 | 0017  11:16 TAILCALL     2    ; 2 positional, 0 named
 | 0018  10:30 RETURN
@@ -1451,57 +1451,57 @@
 | 0037  13:1  RETURN
 |
 | == handler ==
-| 0000  24:3  CLOSURE      0    ; <lambda>
-| 0001  23:1  RETURN
+| 0000  25:3  CLOSURE      0    ; <lambda>
+| 0001  24:1  RETURN
 |
 | == <lambda> ==
-| 0000  25:5  CONST        0    ; <fn swap>
-| 0001  25:10 LOADCAPTURED 0
-| 0002  25:20 CLOSURE      0    ; <lambda>
-| 0003  25:9  CALL         2    ; 2 positional, 0 named
-| 0004  25:5  POP
-| 0005  26:12 LOADLOCAL    0
-| 0006  26:15 FIELD        1    ; method
-| 0007  26:24 LOADLOCAL    0
-| 0008  26:27 FIELD        2    ; path
-| 0009  26:11 TUPLE        2
-| 0010  26:5  STORELOCAL   1
-| 0011  26:5  LOADLOCAL    1
-| 0012  27:7  MATCH        0    ; ("GET", "/health")
-| 0013  27:7  JUMPIFFALSE  19
-| 0014  27:29 LOADGLOBAL   4
-| 0015  27:36 LOADCAPTURED 1
-| 0016  27:45 LOADCAPTURED 0
-| 0017  27:35 TAILCALL     2    ; 2 positional, 0 named
-| 0018  27:7  JUMP         40
-| 0019  26:5  LOADLOCAL    1
-| 0020  28:7  MATCH        1    ; ("POST", "/echo")
-| 0021  28:7  JUMPIFFALSE  26
-| 0022  28:29 LOADGLOBAL   5
-| 0023  28:34 MOVELOCAL    0
-| 0024  28:33 TAILCALL     1    ; 1 positional, 0 named
-| 0025  28:7  JUMP         40
-| 0026  26:5  LOADLOCAL    1
-| 0027  29:7  MATCH        2    ; _
-| 0028  29:7  JUMPIFFALSE  38
-| 0029  29:30 CONST        3    ; "status"
-| 0030  29:38 CONST        4    ; 404
-| 0031  29:43 CONST        5    ; "body"
-| 0032  29:49 CONST        6    ; "not found: "
-| 0033  29:63 MOVELOCAL    0
-| 0034  29:66 FIELD        2    ; path
-| 0035  29:49 CONCAT       2
-| 0036  29:29 MAP          2
-| 0037  29:7  JUMP         40
-| 0038  26:5  LOADLOCAL    1
-| 0039  26:5  NOMATCH
-| 0040  24:3  RETURN
+| 0000  26:5  CONST        0    ; <fn swap>
+| 0001  26:10 LOADCAPTURED 0
+| 0002  26:20 CLOSURE      0    ; <lambda>
+| 0003  26:9  CALL         2    ; 2 positional, 0 named
+| 0004  26:5  POP
+| 0005  27:12 LOADLOCAL    0
+| 0006  27:15 FIELD        1    ; method
+| 0007  27:24 LOADLOCAL    0
+| 0008  27:27 FIELD        2    ; path
+| 0009  27:11 TUPLE        2
+| 0010  27:5  STORELOCAL   1
+| 0011  27:5  LOADLOCAL    1
+| 0012  28:7  MATCH        0    ; ("GET", "/health")
+| 0013  28:7  JUMPIFFALSE  19
+| 0014  28:29 LOADGLOBAL   4
+| 0015  28:36 LOADCAPTURED 1
+| 0016  28:45 LOADCAPTURED 0
+| 0017  28:35 TAILCALL     2    ; 2 positional, 0 named
+| 0018  28:7  JUMP         40
+| 0019  27:5  LOADLOCAL    1
+| 0020  29:7  MATCH        1    ; ("POST", "/echo")
+| 0021  29:7  JUMPIFFALSE  26
+| 0022  29:29 LOADGLOBAL   5
+| 0023  29:34 MOVELOCAL    0
+| 0024  29:33 TAILCALL     1    ; 1 positional, 0 named
+| 0025  29:7  JUMP         40
+| 0026  27:5  LOADLOCAL    1
+| 0027  30:7  MATCH        2    ; _
+| 0028  30:7  JUMPIFFALSE  38
+| 0029  30:30 CONST        3    ; "status"
+| 0030  30:38 CONST        4    ; 404
+| 0031  30:43 CONST        5    ; "body"
+| 0032  30:49 CONST        6    ; "not found: "
+| 0033  30:63 MOVELOCAL    0
+| 0034  30:66 FIELD        2    ; path
+| 0035  30:49 CONCAT       2
+| 0036  30:29 MAP          2
+| 0037  30:7  JUMP         40
+| 0038  27:5  LOADLOCAL    1
+| 0039  27:5  NOMATCH
+| 0040  25:3  RETURN
 |
 | == <lambda> ==
-| 0000  25:25 MOVELOCAL    0
-| 0001  25:29 CONST        0    ; 1
-| 0002  25:27 ADD
-| 0003  25:22 RETURN
+| 0000  26:25 MOVELOCAL    0
+| 0001  26:29 CONST        0    ; 1
+| 0002  26:27 ADD
+| 0003  26:22 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast examples/bigfiles.fung
@@ -2515,12 +2515,12 @@
 -- exit: 0
 ==== dump ast examples/serve.fung
 -- stdout
-| (program (import http) (import time) (import cli) (import "./api" (handler)) (assign opts (call (field parse cli) args)) (assign addr (call get (field flags opts) "addr" "127.0.0.1:8080")) (unwrap ! (call (field serve http) addr (call handler (call (field now time)) (call atom 0)) (named ready (fn (a) (block (call print "listening on" a)))))))
+| (program (import http) (import time) (import cli) (import "./api" (handler)) (assign opts (call (field parse cli) args)) (assign addr (call get (field flags opts) "addr" "127.0.0.1:8080")) (unwrap ! (call (field serve http) addr (call handler (call (field monotonic time)) (call atom 0)) (named ready (fn (a) (block (call print "listening on" a)))))))
 -- stderr
 -- exit: 0
 ==== dump core examples/serve.fung
 -- stdout
-| (do (import "http" (global 0)) (import "time" (global 1)) (import "cli" (global 2)) (import "$REPO/examples/api.fung" (nil) (member handler (global 3))) (let (global 4) (call (field parse (global 2)) (prelude args))) (let (global 5) (call (prelude get) (field flags (global 4)) "addr" "127.0.0.1:8080")) (unwrap ! (call (field serve (global 0)) (global 5) (call (global 3) (call (field now (global 1))) (call (prelude atom) 0)) (named ready (fn (a) (do (call (prelude print) "listening on" (local 0))))))))
+| (do (import "http" (global 0)) (import "time" (global 1)) (import "cli" (global 2)) (import "$REPO/examples/api.fung" (nil) (member handler (global 3))) (let (global 4) (call (field parse (global 2)) (prelude args))) (let (global 5) (call (prelude get) (field flags (global 4)) "addr" "127.0.0.1:8080")) (unwrap ! (call (field serve (global 0)) (global 5) (call (global 3) (call (field monotonic (global 1))) (call (prelude atom) 0)) (named ready (fn (a) (do (call (prelude print) "listening on" (local 0))))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode examples/serve.fung
@@ -2552,26 +2552,26 @@
 | 0023  11:12 LOADGLOBAL   5    ; addr
 | 0024  11:18 LOADGLOBAL   3    ; handler
 | 0025  11:26 LOADGLOBAL   1    ; time
-| 0026  11:30 FIELD        12    ; now
-| 0027  11:34 CALL         0    ; 0 positional, 0 named
-| 0028  11:38 CONST        13    ; <fn atom>
-| 0029  11:43 CONST        14    ; 0
-| 0030  11:42 CALL         1    ; 1 positional, 0 named
+| 0026  11:30 FIELD        12    ; monotonic
+| 0027  11:40 CALL         0    ; 0 positional, 0 named
+| 0028  11:44 CONST        13    ; <fn atom>
+| 0029  11:49 CONST        14    ; 0
+| 0030  11:48 CALL         1    ; 1 positional, 0 named
 | 0031  11:25 CALL         2    ; 2 positional, 0 named
-| 0032  11:48 CONST        15    ; 'ready
-| 0033  11:55 CLOSURE      0    ; <lambda>
+| 0032  11:54 CONST        15    ; 'ready
+| 0033  11:61 CLOSURE      0    ; <lambda>
 | 0034  11:11 CALL         4098    ; 2 positional, 1 named
-| 0035  11:85 UNWRAPABORT
+| 0035  11:91 UNWRAPABORT
 | 0036  11:1  POP
 | 0037  11:1  CONST        16    ; nil
 | 0038  1:20  RETURN
 |
 | == <lambda> ==
-| 0000  11:60 CONST        0    ; <fn print>
-| 0001  11:66 CONST        1    ; "listening on"
-| 0002  11:82 MOVELOCAL    0
-| 0003  11:65 TAILCALL     2    ; 2 positional, 0 named
-| 0004  11:57 RETURN
+| 0000  11:66 CONST        0    ; <fn print>
+| 0001  11:72 CONST        1    ; "listening on"
+| 0002  11:88 MOVELOCAL    0
+| 0003  11:71 TAILCALL     2    ; 2 positional, 0 named
+| 0004  11:63 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast examples/static.fung
@@ -3043,12 +3043,12 @@
 -- exit: 0
 ==== dump ast examples/urlcheck.fung
 -- stdout
-| (program (import http) (import json) (import regex) (import time) (fn json_keys(resp) (block (assign ct (call get (field headers resp) "content-type" "")) (if (unary not (call (field is_match regex) ct "^application/json")) (block (return (list))) (nil)) (match (call (field parse json) (field body resp)) (arm (ptag Ok (pbind m)) (binary == (call type_of m) 'map) (block (call keys m))) (arm (pwild) (nil) (block (list)))))) (fn check(url, limit=?) 5s (block (assign t0 (call (field now time))) (assign r (call (field get http) url (named timeout limit))) (assign took (binary - (call (field now time)) t0)) (match r (arm (ptag Ok (pbind resp)) (nil) (block (map (entry url url) (entry ok (binary < (field status resp) 400)) (entry status (field status resp)) (entry took took) (entry keys (call json_keys resp))))) (arm (ptag Err (pbind e)) (nil) (block (map (entry url url) (entry ok false) (entry status (field kind e)) (entry took took) (entry keys (list)))))))) (fn report(results) (block (call each results (fn (r) (block (call print (then (field ok r) "ok  " "FAIL") (field status r) (field took r) (field url r) (call join (field keys r) ","))))) (call all results (fn (r) (block (field ok r)))))) (test "check reports status and json keys" (block (call scope (fn (app) (block (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (assign handler (fn (req) (block (then (binary == (field path req) "/j") (map (entry headers (map (entry content-type "application/json"))) (entry body "{\"a\":1,\"b\":2}")) (map (entry status 500) (entry body "x")))))) (assign s (call spawn app (fn () (block (call (field serve http) "127.0.0.1:0" handler (named ready (fn (a) (block (call send port_tx a))))))))) (assign base (binary + "http://" (unwrap ! (call recv port)))) (assign good (call check (interp base "/j") 2s)) (assert (field ok good)) (assert (binary == (field keys good) (list "a" "b"))) (assign bad (call check (interp base "/x") 2s)) (assert (unary not (field ok bad))) (assert (binary == (field status bad) 500)) (assign down (call check "http://127.0.0.1:1/" 2s)) (assert (binary == (field status down) 'network)) (call cancel s)))))))
+| (program (import http) (import json) (import regex) (import time) (fn json_keys(resp) (block (assign ct (call get (field headers resp) "content-type" "")) (if (unary not (call (field is_match regex) ct "^application/json")) (block (return (list))) (nil)) (match (call (field parse json) (field body resp)) (arm (ptag Ok (pbind m)) (binary == (call type_of m) 'map) (block (call keys m))) (arm (pwild) (nil) (block (list)))))) (fn check(url, limit=?) 5s (block (assign t0 (call (field monotonic time))) (assign r (call (field get http) url (named timeout limit))) (assign took (binary - (call (field monotonic time)) t0)) (match r (arm (ptag Ok (pbind resp)) (nil) (block (map (entry url url) (entry ok (binary < (field status resp) 400)) (entry status (field status resp)) (entry took took) (entry keys (call json_keys resp))))) (arm (ptag Err (pbind e)) (nil) (block (map (entry url url) (entry ok false) (entry status (field kind e)) (entry took took) (entry keys (list)))))))) (fn report(results) (block (call each results (fn (r) (block (call print (then (field ok r) "ok  " "FAIL") (field status r) (field took r) (field url r) (call join (field keys r) ","))))) (call all results (fn (r) (block (field ok r)))))) (test "check reports status and json keys" (block (call scope (fn (app) (block (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (assign handler (fn (req) (block (then (binary == (field path req) "/j") (map (entry headers (map (entry content-type "application/json"))) (entry body "{\"a\":1,\"b\":2}")) (map (entry status 500) (entry body "x")))))) (assign s (call spawn app (fn () (block (call (field serve http) "127.0.0.1:0" handler (named ready (fn (a) (block (call send port_tx a))))))))) (assign base (binary + "http://" (unwrap ! (call recv port)))) (assign good (call check (interp base "/j") 2s)) (assert (field ok good)) (assert (binary == (field keys good) (list "a" "b"))) (assign bad (call check (interp base "/x") 2s)) (assert (unary not (field ok bad))) (assert (binary == (field status bad) 500)) (assign down (call check "http://127.0.0.1:1/" 2s)) (assert (binary == (field status down) 'network)) (call cancel s)))))))
 -- stderr
 -- exit: 0
 ==== dump core examples/urlcheck.fung
 -- stdout
-| (do (import "http" (global 0)) (import "json" (global 1)) (import "regex" (global 2)) (import "time" (global 3)) (let (global 4) (fn json_keys(resp) (do (let (local 1) (call (prelude get) (field headers (local 0)) "content-type" "")) (if (op not (call (field is_match (global 2)) (local 1) "^application/json")) (do (return (list))) (nil)) (do (let (local 2) (call (field parse (global 1)) (field body (local 0)))) (match (local 2) (arm (ptag Ok (pbind (local 3))) (op == (call (prelude type_of) (local 3)) 'map) (do (call (prelude keys) (local 3)))) (arm (pwild) (nil) (do (list)))))))) (let (global 5) (fn check(url, limit=?) 5s (do (let (local 2) (call (field now (global 3)))) (let (local 3) (call (field get (global 0)) (local 0) (named timeout (local 1)))) (let (local 4) (op - (call (field now (global 3))) (local 2))) (do (let (local 5) (local 3)) (match (local 5) (arm (ptag Ok (pbind (local 6))) (nil) (do (map (entry url (local 0)) (entry ok (op < (field status (local 6)) 400)) (entry status (field status (local 6))) (entry took (local 4)) (entry keys (call (global 4) (local 6)))))) (arm (ptag Err (pbind (local 6))) (nil) (do (map (entry url (local 0)) (entry ok false) (entry status (field kind (local 6))) (entry took (local 4)) (entry keys (list)))))))))) (let (global 6) (fn report(results) (do (call (prelude each) (local 0) (fn (r) (do (call (prelude print) (if (field ok (local 0)) "ok  " "FAIL") (field status (local 0)) (field took (local 0)) (field url (local 0)) (call (prelude join) (field keys (local 0)) ","))))) (call (prelude all) (local 0) (fn (r) (do (field ok (local 0)))))))) (test "check reports status and json keys" (fn test: check reports status and json keys() (do (call (prelude scope) (fn (app) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel) 1)) (let (local 3) (fn (req) (do (if (op == (field path (local 0)) "/j") (map (entry headers (map (entry content-type "application/json"))) (entry body "{\"a\":1,\"b\":2}")) (map (entry status 500) (entry body "x")))))) (let (local 4) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (captured 0) (named ready (fn (a) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 5) (op + "http://" (unwrap ! (call (prelude recv) (local 2))))) (let (local 6) (call (global 5) (concat (local 5) "/j") 2s)) (assert (field ok (local 6))) (assert (op == (field keys (local 6)) (list "a" "b"))) (let (local 7) (call (global 5) (concat (local 5) "/x") 2s)) (assert (op not (field ok (local 7)))) (assert (op == (field status (local 7)) 500)) (let (local 8) (call (global 5) "http://127.0.0.1:1/" 2s)) (assert (op == (field status (local 8)) 'network)) (call (prelude cancel) (local 4)))))))))
+| (do (import "http" (global 0)) (import "json" (global 1)) (import "regex" (global 2)) (import "time" (global 3)) (let (global 4) (fn json_keys(resp) (do (let (local 1) (call (prelude get) (field headers (local 0)) "content-type" "")) (if (op not (call (field is_match (global 2)) (local 1) "^application/json")) (do (return (list))) (nil)) (do (let (local 2) (call (field parse (global 1)) (field body (local 0)))) (match (local 2) (arm (ptag Ok (pbind (local 3))) (op == (call (prelude type_of) (local 3)) 'map) (do (call (prelude keys) (local 3)))) (arm (pwild) (nil) (do (list)))))))) (let (global 5) (fn check(url, limit=?) 5s (do (let (local 2) (call (field monotonic (global 3)))) (let (local 3) (call (field get (global 0)) (local 0) (named timeout (local 1)))) (let (local 4) (op - (call (field monotonic (global 3))) (local 2))) (do (let (local 5) (local 3)) (match (local 5) (arm (ptag Ok (pbind (local 6))) (nil) (do (map (entry url (local 0)) (entry ok (op < (field status (local 6)) 400)) (entry status (field status (local 6))) (entry took (local 4)) (entry keys (call (global 4) (local 6)))))) (arm (ptag Err (pbind (local 6))) (nil) (do (map (entry url (local 0)) (entry ok false) (entry status (field kind (local 6))) (entry took (local 4)) (entry keys (list)))))))))) (let (global 6) (fn report(results) (do (call (prelude each) (local 0) (fn (r) (do (call (prelude print) (if (field ok (local 0)) "ok  " "FAIL") (field status (local 0)) (field took (local 0)) (field url (local 0)) (call (prelude join) (field keys (local 0)) ","))))) (call (prelude all) (local 0) (fn (r) (do (field ok (local 0)))))))) (test "check reports status and json keys" (fn test: check reports status and json keys() (do (call (prelude scope) (fn (app) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (call (prelude channel) 1)) (let (local 3) (fn (req) (do (if (op == (field path (local 0)) "/j") (map (entry headers (map (entry content-type "application/json"))) (entry body "{\"a\":1,\"b\":2}")) (map (entry status 500) (entry body "x")))))) (let (local 4) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (captured 0) (named ready (fn (a) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 5) (op + "http://" (unwrap ! (call (prelude recv) (local 2))))) (let (local 6) (call (global 5) (concat (local 5) "/j") 2s)) (assert (field ok (local 6))) (assert (op == (field keys (local 6)) (list "a" "b"))) (let (local 7) (call (global 5) (concat (local 5) "/x") 2s)) (assert (op not (field ok (local 7)))) (assert (op == (field status (local 7)) 500)) (let (local 8) (call (global 5) "http://127.0.0.1:1/" 2s)) (assert (op == (field status (local 8)) 'network)) (call (prelude cancel) (local 4)))))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode examples/urlcheck.fung
@@ -3126,8 +3126,8 @@
 | 0002  18:23 CONST        0    ; 5s
 | 0003  18:1  STORELOCAL   1
 | 0004  19:8  LOADGLOBAL   3
-| 0005  19:12 FIELD        1    ; now
-| 0006  19:16 CALL         0    ; 0 positional, 0 named
+| 0005  19:12 FIELD        1    ; monotonic
+| 0006  19:22 CALL         0    ; 0 positional, 0 named
 | 0007  19:3  STORELOCAL   2
 | 0008  20:7  LOADGLOBAL   0
 | 0009  20:11 FIELD        2    ; get
@@ -3138,10 +3138,10 @@
 | 0014  20:3  STORELOCAL   3
 | 0015  20:3  CLEARLOCAL   1
 | 0016  21:10 LOADGLOBAL   3
-| 0017  21:14 FIELD        1    ; now
-| 0018  21:18 CALL         0    ; 0 positional, 0 named
-| 0019  21:23 MOVELOCAL    2
-| 0020  21:21 SUB
+| 0017  21:14 FIELD        1    ; monotonic
+| 0018  21:24 CALL         0    ; 0 positional, 0 named
+| 0019  21:29 MOVELOCAL    2
+| 0020  21:27 SUB
 | 0021  21:3  STORELOCAL   4
 | 0022  21:3  CLEARLOCAL   2
 | 0023  22:9  MOVELOCAL    3
@@ -3934,7 +3934,7 @@
 -- exit: 2
 ==== dump ast extras/time.fung
 -- stdout
-| (program (import _native.time as _n) (assign now (field now _n)) (assign parse (field parse _n)) (assign format (field format _n)) (assign utc (field utc _n)) (assign local (field local _n)) (assign unix (field unix _n)) (assign from_unix (field from_unix _n)) (assign parts (field parts _n)))
+| (program (import _native.time as _n) (assign now (field now _n)) (assign monotonic (field monotonic _n)) (assign parse (field parse _n)) (assign format (field format _n)) (assign utc (field utc _n)) (assign local (field local _n)) (assign unix (field unix _n)) (assign from_unix (field from_unix _n)) (assign parts (field parts _n)))
 -- stderr
 -- exit: 0
 ==== dump core extras/time.fung
@@ -13819,6 +13819,54 @@
 | 0077  11:1  POP
 | 0078  11:1  CONST        20    ; nil
 | 0079  1:1   RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/time_monotonic.fung
+-- stdout
+| (program (import time) (assign t0 (call (field monotonic time))) (call print (call type_of t0)) (call sleep 20ms) (assign took (binary - (call (field monotonic time)) t0)) (call print (binary >= took 20ms) (binary < took 10s)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/time_monotonic.fung
+-- stdout
+| (do (import "time" (global 0)) (let (global 1) (call (field monotonic (global 0)))) (call (prelude print) (call (prelude type_of) (global 1))) (call (prelude sleep) 20ms) (let (global 2) (op - (call (field monotonic (global 0))) (global 1))) (call (prelude print) (op >= (global 2) 20ms) (op < (global 2) 10s)))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/time_monotonic.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   IMPORT       0    ; time
+| 0001  3:1   STOREGLOBAL  0    ; time
+| 0002  4:6   LOADGLOBAL   0    ; time
+| 0003  4:10  FIELD        1    ; monotonic
+| 0004  4:20  CALL         0    ; 0 positional, 0 named
+| 0005  4:1   STOREGLOBAL  1    ; t0
+| 0006  5:1   CONST        2    ; <fn print>
+| 0007  5:7   CONST        3    ; <fn type_of>
+| 0008  5:15  LOADGLOBAL   1    ; t0
+| 0009  5:14  CALL         1    ; 1 positional, 0 named
+| 0010  5:6   CALL         1    ; 1 positional, 0 named
+| 0011  5:1   POP
+| 0012  7:1   CONST        4    ; <fn sleep>
+| 0013  7:7   CONST        5    ; 20ms
+| 0014  7:6   CALL         1    ; 1 positional, 0 named
+| 0015  7:1   POP
+| 0016  8:8   LOADGLOBAL   0    ; time
+| 0017  8:12  FIELD        1    ; monotonic
+| 0018  8:22  CALL         0    ; 0 positional, 0 named
+| 0019  8:27  LOADGLOBAL   1    ; t0
+| 0020  8:25  SUB
+| 0021  8:1   STOREGLOBAL  2    ; took
+| 0022  9:1   CONST        2    ; <fn print>
+| 0023  9:7   LOADGLOBAL   2    ; took
+| 0024  9:15  CONST        5    ; 20ms
+| 0025  9:12  GE
+| 0026  9:21  LOADGLOBAL   2    ; took
+| 0027  9:28  CONST        6    ; 10s
+| 0028  9:26  LT
+| 0029  9:6   CALL         2    ; 2 positional, 0 named
+| 0030  9:1   POP
+| 0031  9:1   CONST        7    ; nil
+| 0032  1:72  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/time_rules.fung

@@ -1291,6 +1291,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/time_monotonic.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/time_rules.fung
 -- stdout
 -- stderr

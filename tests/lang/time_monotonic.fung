@@ -1,0 +1,10 @@
+# Elapsed time is measured with time.monotonic(), a dur that never goes
+# back; time.now() is the wall clock, which can be set (06).
+import time
+t0 = time.monotonic()
+print(type_of(t0))
+# expect: 'dur
+sleep(20ms)
+took = time.monotonic() - t0
+print(took >= 20ms, took < 10s)
+# expect: true true

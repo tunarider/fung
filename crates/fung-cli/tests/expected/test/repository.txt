@@ -1563,6 +1563,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/time_monotonic.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/time_rules.fung
 -- stdout
 | 0 passed, 0 failed

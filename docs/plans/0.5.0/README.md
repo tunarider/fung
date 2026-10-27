@@ -56,7 +56,7 @@
 | L7 | [07-rc-cycles.md](07-rc-cycles.md) | 회수되지 않는 `Rc` 순환, E0705가 훑지 않는 곳 |
 | L8 | [08-tail-call-errors.md](08-tail-call-errors.md) | ~~라이브러리 함수의 꼬리 호출이 에러 위치와 호출 경로를 흐린다~~ **닫힘 2026-10-27** |
 | L9 | [09-deep-values-and-stacks.md](09-deep-values-and-stacks.md) | 재귀인 값 출력과 깊은 네이티브 재귀의 스택 한도 |
-| L10 | [10-monotonic-clock.md](10-monotonic-clock.md) | `now()`뿐이라 경과 시간이 시스템 시각 변경에 흔들린다 |
+| L10 | [10-monotonic-clock.md](10-monotonic-clock.md) | ~~`now()`뿐이라 경과 시간이 시스템 시각 변경에 흔들린다~~ **닫힘 2026-10-27** |
 | L11 | [11-files-close-and-blocking.md](11-files-close-and-blocking.md) | `close(2)` 에러를 보고하지 않음, 실행 스레드의 `Drop` 닫기, 끝없는 파일 읽기가 풀 스레드를 붙잡음 |
 | L12 | [12-sockets-tls.md](12-sockets-tls.md) | 막힌 호출에 닿지 않는 `set_deadline`, 주소 계열 경주 없음, 이름 붙은 포트, TLS 세부 |
 | L13 | [13-http.md](13-http.md) | HTTP 클라이언트·서버의 세부 한계(연결 재사용, 본문 상한, 프록시, URL, 서버 헤더) |

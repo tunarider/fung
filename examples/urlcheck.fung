@@ -16,9 +16,9 @@ fn json_keys(resp):
 ;;
 
 fn check(url, limit = 5s):
-  t0 = time.now()
+  t0 = time.monotonic()
   r = http.get(url, timeout: limit)
-  took = time.now() - t0
+  took = time.monotonic() - t0
   match r:
     Ok(resp) => {url, ok: resp.status < 400, status: resp.status, took, keys: json_keys(resp)}
     Err(e)   => {url, ok: false, status: e.kind, took, keys: []}

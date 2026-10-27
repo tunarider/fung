@@ -2821,9 +2821,9 @@
 |   "${host}: ok"
 | ;;
 |
-| start = time.now()
+| start = time.monotonic()
 | results = conc.pmap(["web1", "web2", "db1"], check)
-| elapsed = time.now() - start
+| elapsed = time.monotonic() - start
 |
 | print(results)
 | print("faster than one by one:", elapsed < 600ms)
@@ -3209,10 +3209,10 @@
 -- stdout
 | import time
 |
-| start = time.now()
+| print("now:", time.now())
+| start = time.monotonic()
 | sleep(50ms)
-| print("now:", start)
-| print("took about", (time.now() - start) // 10ms * 10, "ms")
+| print("took about", (time.monotonic() - start) // 10ms * 10, "ms")
 -- stderr
 -- exit: 0
 ==== manual learn/13-json-and-http.md:14
@@ -3399,9 +3399,9 @@
 | import time
 |
 | fn check(url, limit):
-|   t0 = time.now()
+|   t0 = time.monotonic()
 |   r = http.get(url, timeout: limit)
-|   ms = (time.now() - t0) // 1ms
+|   ms = (time.monotonic() - t0) // 1ms
 |   match r:
 |     Ok(res) => {url, ok: res.status < 400, status: str(res.status), ms, note: ""}
 |     Err(e)  => {url, ok: false, status: "-", ms, note: " (${e.message})"}
@@ -6595,10 +6595,10 @@
 -- stdout
 | import time
 |
-| start = time.now()
+| start = time.monotonic()
 | sleep(50ms)
-| elapsed = time.now() - start
-| print("took ${elapsed / 1ms} ms")
+| elapsed = time.monotonic() - start
+| print(elapsed >= 50ms)
 -- stderr
 -- exit: 0
 ==== manual reference/modules/time.md:4
@@ -7148,7 +7148,7 @@
 -- stdout
 | import time
 |
-| start = time.now()
+| start = time.monotonic()
 | results = scope(fn(s):
 |   tasks = for h in ["web-1", "web-2", "web-3"]:
 |     spawn(s, fn():
@@ -7159,7 +7159,7 @@
 |   map(tasks, await)
 | ;;)
 | print(results)
-| print("faster than one by one:", time.now() - start < 900ms)
+| print("faster than one by one:", time.monotonic() - start < 900ms)
 -- stderr
 -- exit: 0
 ==== manual reference/prelude/concurrency.md:2
@@ -9785,7 +9785,7 @@
 |   {status, headers: {"content-type": "application/json"}, body: json.stringify(data)}
 |
 | fn health(started, requests) =
-|   json_response(200, {ok: true, uptime: str(time.now() - started), requests: deref(requests)})
+|   json_response(200, {ok: true, uptime: str(time.monotonic() - started), requests: deref(requests)})
 |
 | fn echo(req):
 |   match json.parse(req.body):
@@ -9794,7 +9794,8 @@
 |   ;;
 | ;;
 |
-| # Builds the handler: the request count lives in an atom the closure
+| # Builds the handler: `started` is a reading of `time.monotonic()`, so
+| # the uptime is right even if the wall clock is set. The request count lives in an atom the closure
 | # holds (05: shared state is an atom, updated by a pure function), so
 | # the handler's tasks each add their request with one swap.
 | fn handler(started, requests):
@@ -9811,7 +9812,7 @@
 | test "health, echo and 404":
 |   scope(fn(app):
 |     (port_tx, port) = channel(1)
-|     h = handler(time.now(), atom(0))
+|     h = handler(time.monotonic(), atom(0))
 |     s = spawn(app, () => http.serve("127.0.0.1:0", h, ready: a => send(port_tx, a)))
 |     base = "http://" + recv(port)!
 |     r = http.get("${base}/health")!
@@ -10086,7 +10087,7 @@
 |
 | opts = cli.parse(args)
 | addr = get(opts.flags, "addr", "127.0.0.1:8080")
-| http.serve(addr, handler(time.now(), atom(0)), ready: a => print("listening on", a))!
+| http.serve(addr, handler(time.monotonic(), atom(0)), ready: a => print("listening on", a))!
 -- stderr
 -- exit: 0
 ==== examples/static.fung
@@ -10158,9 +10159,9 @@
 | ;;
 |
 | fn check(url, limit = 5s):
-|   t0 = time.now()
+|   t0 = time.monotonic()
 |   r = http.get(url, timeout: limit)
-|   took = time.now() - t0
+|   took = time.monotonic() - t0
 |   match r:
 |     Ok(resp) => {url, ok: resp.status < 400, status: resp.status, took, keys: json_keys(resp)}
 |     Err(e)   => {url, ok: false, status: e.kind, took, keys: []}
@@ -10355,6 +10356,7 @@
 | import _native.time as _n
 |
 | now = _n.now
+| monotonic = _n.monotonic
 | parse = _n.parse
 | format = _n.format
 | utc = _n.utc
@@ -12546,6 +12548,20 @@
 | print(time.parse("2026/10/04", "YYYY/MM/DD") |> is_ok, time.parse("2026-13-04", "YYYY-MM-DD"))
 | # expect: true Err({kind: 'parse, message: "cannot parse `2026-13-04` as a time: month out of range"})
 | print(time.utc(t) == t, time.from_unix(1791072307) == t)
+| # expect: true true
+-- stderr
+-- exit: 0
+==== tests/lang/time_monotonic.fung
+-- stdout
+| # Elapsed time is measured with time.monotonic(), a dur that never goes
+| # back; time.now() is the wall clock, which can be set (06).
+| import time
+| t0 = time.monotonic()
+| print(type_of(t0))
+| # expect: 'dur
+| sleep(20ms)
+| took = time.monotonic() - t0
+| print(took >= 20ms, took < 10s)
 | # expect: true true
 -- stderr
 -- exit: 0

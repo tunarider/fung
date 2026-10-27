@@ -176,7 +176,7 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 233;
+const CHECK_REPOSITORY_CASES: usize = 234;
 const CHECK_WARNING_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 25;
 const HELP_CASES: usize = 8;
@@ -184,9 +184,9 @@ const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
-const TEST_REPOSITORY_CASES: usize = 234;
-const FMT_INPUTS: usize = 5724;
-const FMT_STDIN_CASES: usize = 1289;
+const TEST_REPOSITORY_CASES: usize = 235;
+const FMT_INPUTS: usize = 5746;
+const FMT_STDIN_CASES: usize = 1290;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
 const REPL_CASES: usize = 30;

@@ -130,3 +130,21 @@ fn format_default_is_iso() {
         "\"1970-01-01T00:00:00.000000005Z\""
     );
 }
+
+/// L10: `monotonic` is a dur from a fixed point near the start, that never
+/// goes back and grows with the time that passes, whatever the wall clock
+/// does.
+#[test]
+fn monotonic_is_a_growing_dur() {
+    let dur = |v: Value| match v {
+        Value::Dur(d) => d,
+        v => panic!("not a dur: {}", format(&v)),
+    };
+    let a = dur(ok("monotonic", vec![]));
+    let b = dur(ok("monotonic", vec![]));
+    assert!(a >= 0 && b >= a, "{a} {b}");
+    assert!(a < 60_000_000_000, "near the start: {a}");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let c = dur(ok("monotonic", vec![]));
+    assert!(c - b >= 20_000_000, "{b} {c}");
+}

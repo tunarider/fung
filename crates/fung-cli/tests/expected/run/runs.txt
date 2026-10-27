@@ -1937,6 +1937,12 @@
 | true true
 -- stderr
 -- exit: 0
+==== tests/lang/time_monotonic.fung
+-- stdout
+| 'dur
+| true true
+-- stderr
+-- exit: 0
 ==== tests/lang/time_rules.fung
 -- stdout
 | Ok(2026-10-17T10:02:03Z) Ok(2026-10-17T10:02:03.5Z) Ok(2026-10-17T10:02:03+08:27:52)

@@ -251,13 +251,13 @@ print(time.parse(&quot;20/10/2026 18:00&quot;, format: &quot;DD/MM/YYYY HH:mm&qu
 24h30m 24 hours
 2026-10-20 09:30
 Ok(2026-10-20T18:00:00Z)</code></pre></div>
-<p>걸린 시간을 재려면 두 <code>time.now()</code>의 차를 구한다. 지금 시각은 실행할 때마다 다르므로 아래 예제는 출력을 싣지 않았다. 직접 돌려 보면 <code>now: 2026-10-20T13:54:07.173139Z</code>처럼 지금 시각과 <code>took about 50 ms</code>쯤이 찍힌다.</p>
+<p>걸린 시간은 <code>time.now()</code>가 아니라 <code>time.monotonic()</code>의 차로 잰다. <code>now()</code>는 벽시계라서 그사이에 시스템 시각이 바뀌면(NTP 보정) 차가 틀리거나 음수가 될 수 있다. <code>monotonic()</code>은 거꾸로 가지 않는 시계로, 기준점부터 지난 기간(<code>dur</code>)을 준다. 지금 시각은 실행할 때마다 다르므로 아래 예제는 출력을 싣지 않았다. 직접 돌려 보면 <code>now: 2026-10-20T13:54:07.173139Z</code>처럼 지금 시각과 <code>took about 50 ms</code>쯤이 찍힌다.</p>
 <pre><code>import time
 
-start = time.now()
+print(&quot;now:&quot;, time.now())
+start = time.monotonic()
 sleep(50ms)
-print(&quot;now:&quot;, start)
-print(&quot;took about&quot;, (time.now() - start) // 10ms * 10, &quot;ms&quot;)</code></pre>
+print(&quot;took about&quot;, (time.monotonic() - start) // 10ms * 10, &quot;ms&quot;)</code></pre>
 <div class="box other"><b>다른 언어는</b>
 <p>쉘에서는 <code>curl</code>로 받고 <code>jq</code>로 JSON을 다루고 <code>date</code>로 시각을 계산하며, 세 도구의 문법이 저마다 다르다. fung에서는 셋이 같은 값(맵·리스트·시각) 위에서 이어진다. Python의 <code>json</code>·<code>urllib</code>·<code>datetime</code>이나 JavaScript의 <code>JSON.parse</code>·<code>fetch</code>·<code>Date</code>와 하는 일이 같다.</p>
 </div>

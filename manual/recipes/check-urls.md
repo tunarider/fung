@@ -39,9 +39,9 @@ import http
 import time
 
 fn check(url, limit):
-  t0 = time.now()
+  t0 = time.monotonic()
   r = http.get(url, timeout: limit)
-  ms = (time.now() - t0) // 1ms
+  ms = (time.monotonic() - t0) // 1ms
   match r:
     Ok(res) => {url, ok: res.status < 400, status: str(res.status), ms, note: ""}
     Err(e)  => {url, ok: false, status: "-", ms, note: " (${e.message})"}
@@ -80,7 +80,7 @@ $ echo $?
 ## 줄별 설명 {#how}
 
 - `check`: URL 하나를 요청해 결과를 맵 하나로 정리한다. 성공과 실패가 같은 키(`url`, `ok`, `status`, `ms`, `note`)를 가지므로 출력하는 쪽은 경우를 나누지 않는다.
-- `time.now() - t0`: 시각끼리 빼면 기간(duration)이고, `// 1ms`로 나누면 밀리초 정수가 된다.
+- `time.monotonic() - t0`: 거꾸로 가지 않는 시계의 두 값의 차가 걸린 시간(기간, duration)이고, `// 1ms`로 나누면 밀리초 정수가 된다. 벽시계인 `time.now()`의 차는 그사이 시스템 시각이 바뀌면 틀린다.
 - `http.get(url, timeout: limit)`: 서버가 대답하면 상태 코드가 404든 500이든 `Ok({status, headers, body})`다. 그래서 "성공"의 기준(여기서는 400 미만)은 스크립트가 정한다. 대답을 못 받으면 `Err`이고 `kind`는 `'network`(이름 조회, 연결 거절, 인증서 문제)나 `'timeout`, `message`에 이유가 있다. `timeout`은 연결과 리다이렉트까지 포함한 요청 전체의 한도다.
 - `parse_dur(…) ?? fail(…)`: `--timeout 2s`, `--timeout 500ms`처럼 기간으로 받는다. 기간 문자열이 아니면 알려 주고 멈춘다.
 - `conc.pmap(urls, …, limit: 16)`: 16개씩 동시에 요청한다. 결과는 끝난 순서가 아니라 목록 순서다. 그래서 위 출력에서 느린 주소가 끝나기를 기다린 뒤에도 줄 순서가 파일과 같다.

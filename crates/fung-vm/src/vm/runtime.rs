@@ -43,6 +43,7 @@ impl Runtime {
         stdin: Box<dyn BufRead + Send>,
         sources: SourceMap,
     ) -> Runtime {
+        crate::native::time::start_clock();
         let world = World::new(stdout, stderr, stdin, sources);
         Runtime {
             shared: Arc::new(Shared::new(&world)),
