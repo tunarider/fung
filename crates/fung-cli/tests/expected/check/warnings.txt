@@ -55,7 +55,7 @@
 | 21 | print(if true: 1 ;;)
 |    |       ^^ this if has no else
 |    |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 | error[E0224]: `_inner` is assigned as the last statement of a block used as a value, so the value is nil
 |   --> crates/fung-cli/tests/data/check/block_value.fung:25:5
 |    |
@@ -76,7 +76,7 @@
 | 32 | fn e() = if true: 1 ;;
 |    |          ^^ this if has no else
 |    |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== check crates/fung-cli/tests/data/check/clean.fung
 -- stdout

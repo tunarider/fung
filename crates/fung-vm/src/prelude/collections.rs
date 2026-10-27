@@ -118,7 +118,7 @@ fn each_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         /// What `f` returns is discarded: an Err is E0606 (02).
         fn got(&mut self, r: Value) -> Result<bool, Stop> {
             match discarded_err(&r) {
-                Some(a) => Err(fail("E0606", vec![a])),
+                Some(d) => Err(Stop::Error(Box::new(d))),
                 None => Ok(false),
             }
         }

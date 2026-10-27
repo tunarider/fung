@@ -1755,13 +1755,32 @@
 -- exit: 0
 ==== manual learn/05-functions.md:2
 -- stdout
+| fn warn(usage):
+|   if usage >= 90:
+|     print("disk almost full:", usage)
+|   else: nil ;;
+| ;;
+|
+| fn report(usages):
+|   for u in usages:
+|     if u >= 75: print("high:", u) ;;
+|   ;;
+|   nil
+| ;;
+|
+| warn(95)
+| report([80, 20])
+-- stderr
+-- exit: 0
+==== manual learn/05-functions.md:3
+-- stdout
 | fn percent(used, total) = used / total * 100
 | fn is_log(name) = ends_with(name, ".log")
 |
 | print(percent(45, 50), is_log("app.log"), is_log("app.conf"))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:3
+==== manual learn/05-functions.md:4
 -- stdout
 | fn port_kind(port):
 |   if port < 1024:
@@ -1773,14 +1792,14 @@
 | print(port_kind(22), port_kind(8080), port_kind(50000))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:4
+==== manual learn/05-functions.md:5
 -- stdout
 | print(greet("ops"))
 |
 | fn greet(team) = "hello, ${team}"
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:5
+==== manual learn/05-functions.md:6
 -- stdout
 | fn endpoint(host, port = 443, scheme = "https") = "${scheme}://${host}:${port}"
 |
@@ -1789,20 +1808,20 @@
 | print(endpoint("api.internal", scheme: "http", port: 80))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:6
+==== manual learn/05-functions.md:7
 -- stdout
 | fn remote(host, ...cmd) = "ssh ${host} ${join(cmd, " ")}"
 | print(remote("web-1", "df", "-h"))
 | print(remote("web-1"))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:7
+==== manual learn/05-functions.md:8
 -- stdout
 | fn endpoint(host, port = 443) = "${host}:${port}"
 | print(endpoint(prot: 80))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:8
+==== manual learn/05-functions.md:9
 -- stdout
 | double = x => x * 2
 | add = (a, b) => a + b
@@ -1810,7 +1829,7 @@
 | print(double(21), add(1, 2), hello(), type_of(double))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:9
+==== manual learn/05-functions.md:10
 -- stdout
 | check = fn(usage):
 |   level = usage > 90 then "critical" else "ok"
@@ -1819,7 +1838,7 @@
 | print([95, 40] |> map(check))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:10
+==== manual learn/05-functions.md:11
 -- stdout
 | fn tagger(level) = line => "[${level}] ${line}"
 |
@@ -1829,7 +1848,7 @@
 | print(["timeout", "refused"] |> map(error))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:11
+==== manual learn/05-functions.md:12
 -- stdout
 | suffix = ".log"
 | is_target = name => ends_with(name, suffix)
@@ -1837,21 +1856,21 @@
 | print(is_target("app.log"), is_target("notes.txt"))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:12
+==== manual learn/05-functions.md:13
 -- stdout
 | log_dir = "/var/log/app"
 | fn log_path(name) = "${log_dir}/${name}"
 | print(log_path("api.log"))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:13
+==== manual learn/05-functions.md:14
 -- stdout
 | level = 1
 | level = 2
 | fn show() = level
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:14
+==== manual learn/05-functions.md:15
 -- stdout
 | line = "  2026-10-20 ERROR disk full  "
 | words = line |> trim |> split(" ")
@@ -1860,19 +1879,19 @@
 | print(log |> filter(l => starts_with(l, "ERROR")) |> len)
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:15
+==== manual learn/05-functions.md:16
 -- stdout
 | fn scale(factor, n) = factor * n
 | print(5 |> (n => scale(2, n)))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:16
+==== manual learn/05-functions.md:17
 -- stdout
 | fn scale(factor, n) = factor * n
 | print([1, 2, 3] |> map(scale(10, _)))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:17
+==== manual learn/05-functions.md:18
 -- stdout
 | fn ssh_target(host, user = "deploy", port = 22) = "${user}@${host}:${port}"
 |
@@ -1880,7 +1899,7 @@
 | print(ssh_target("db-1", user: "root", port: 2222))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:18
+==== manual learn/05-functions.md:19
 -- stdout
 | fn over(limit) = n => n > limit
 |
@@ -2469,6 +2488,16 @@
 -- exit: 0
 ==== manual learn/09-errors.md:12
 -- stdout
+| fn parse_all(texts):
+|   for t in texts: parse_int(t) ;;
+| ;;
+|
+| parse_all(["1", "x"])
+| print("not reached")
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:13
+-- stdout
 | fn check_port(p):
 |   if p < 1 or p > 65535:
 |     return Err({kind: 'bad_port, message: "port out of range: ${p}"})
@@ -2481,33 +2510,18 @@
 | print(check_port(0) ?? 8080)
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:13
+==== manual learn/09-errors.md:14
 -- stdout
 | limits = {cpu: "500m"}
 | print(limits.memory)
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:14
+==== manual learn/09-errors.md:15
 -- stdout
 | fn require_port(cfg) = get(cfg, "port", nil) ?? fail("config.port is required")
 |
 | print(require_port({port: 8080}))
 | print(require_port({}))
--- stderr
--- exit: 0
-==== manual learn/09-errors.md:15
--- stdout
-| fn add_args(xs) = match xs:
-|   [a, b] => Ok(parse_int(a)? + parse_int(b)?)
-|   _      => Err({kind: 'usage, message: "usage: add.fung A B"})
-| ;;
-|
-| match add_args(args):
-|   Ok(total) => print(total)
-|   Err(e)    =>
-|     eprint("error:", e.message)
-|     exit(1)
-| ;;
 -- stderr
 -- exit: 0
 ==== manual learn/09-errors.md:16
@@ -2526,6 +2540,21 @@
 -- stderr
 -- exit: 0
 ==== manual learn/09-errors.md:17
+-- stdout
+| fn add_args(xs) = match xs:
+|   [a, b] => Ok(parse_int(a)? + parse_int(b)?)
+|   _      => Err({kind: 'usage, message: "usage: add.fung A B"})
+| ;;
+|
+| match add_args(args):
+|   Ok(total) => print(total)
+|   Err(e)    =>
+|     eprint("error:", e.message)
+|     exit(1)
+| ;;
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:18
 -- stdout
 | fn parse_kv(line) = match split(line, "="):
 |   [k, v] => Ok((k, v))
@@ -4550,6 +4579,7 @@
 |   for s in sizes:
 |     if s > 100: return s ;;
 |   ;;
+|   nil
 | ;;
 -- stderr
 -- exit: 0
@@ -4697,6 +4727,11 @@
 -- stdout
 | fn label(code) = if code >= 500: "server error" else: "ok" ;;
 | print(label(503), label(200))
+|
+| fn alert(code):
+|   if code >= 500: print("page someone") else: nil ;;
+| ;;
+| alert(503)
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:66
@@ -8048,6 +8083,7 @@
 |
 | r = with(() => "./no-such-file", p => "used ${p}", fn(p):
 |   _ = cleanup(p)
+|   nil
 | ;;)
 | print(r)
 -- stderr
@@ -9251,6 +9287,7 @@
 |
 | fn fine():
 |   if true: _not_used = 2 ;;
+|   nil
 | ;;
 |
 | fn also_fine():
@@ -9472,6 +9509,17 @@
 | test "unused warning":
 |   y = 1
 |   assert true
+| ;;
+| test "an Err at the end is discarded":
+|   (tx, _rx) = channel(1)
+|   close(tx)
+|   send(tx, 1)
+| ;;
+| test "a list of Errs at the end":
+|   for x in [1]: Err("in a list") ;;
+| ;;
+| test "an if at the end":
+|   if false: 1 ;;
 | ;;
 -- stderr
 -- exit: 0
@@ -9896,14 +9944,14 @@
 | import "./kebab" (target)
 |
 | fn rename_all(dir, dry):
-|   files = fs.list(dir)!
-|   each(files, fn(file):
+|   for file in fs.list(dir)!:
 |     to = target(file)
 |     if to != file:
 |       print(file, "->", to)
 |       if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
 |     ;;
-|   ;;)
+|   ;;
+|   nil
 | ;;
 |
 | opts = cli.parse(args, bools: ["dry-run"])
@@ -9966,13 +10014,13 @@
 | n = len(opts.rest) > 1 then int(opts.rest[1]) else 5
 | trash = get(opts.flags, "trash")
 |
-| each(largest(dir, n), fn((p, size)):
+| for (p, size) in largest(dir, n):
 |   print(pad_left(human(size), 8), p)
 |   if trash != nil:
 |     fs.mkdir(trash)!
 |     fs.move(p, path.join(trash, path.base(p)))!
 |   ;;
-| ;;)
+| ;;
 -- stderr
 -- exit: 0
 ==== examples/urlcheck.fung
@@ -10142,7 +10190,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (69284 bytes, fnv1a64 50a9b625f90cd8fc)
+-- stdout (69314 bytes, fnv1a64 6395b487adacdfc9)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -10608,11 +10656,21 @@
 | # expect: 1
 | # expect: 2
 |
-| # Ok and other values are discarded as before.
+| # Ok and other values are discarded as before, lists without an Err too.
 | Ok(1)
 | nil
-| [Err(1)]
-| each([1], x => Ok(x))
+| [Ok(1), 2]
+| map([1, 2], x => Ok(x))
+| each([1], x => [Ok(x)])
+| fn names(xs): for x in xs: "n${x}" ;; ;;
+| print(names([1, 2]))
+| # expect: ["n1", "n2"]
+|
+| # Only the list's own items are looked at: a nested list, a tuple or a
+| # map that holds an Err is discarded as before.
+| [[Err(1)]]
+| [(Err(1), 2)]
+| [{e: Err(1)}]
 | print("done")
 | # expect: done
 -- stderr
@@ -10844,6 +10902,36 @@
 | print("not reached")
 -- stderr
 -- exit: 0
+==== tests/lang/err_discard_list_each.fung
+-- stdout
+| # each discards what f returns, a list of Errs as well.
+| each([1], x => [Ok(x), Err("in a list")])
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_list_end.fung
+-- stdout
+| # A function that ends in a for returns its list; a statement that
+| # discards the list still sees the Errs in it (02).
+| fn main():
+|   (tx, _rx) = channel(1)
+|   close(tx)
+|   for f in [1, 2]: send(tx, f) ;;
+| ;;
+| main()
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
+==== tests/lang/err_discard_list_map.fung
+-- stdout
+| # A discarded map: the Errs in its list are not lost.
+| map([1, 2, 3], x => x == 2 then Err("two") else Ok(x))
+| # expect-error: E0606
+| print("not reached")
+-- stderr
+-- exit: 0
 ==== tests/lang/err_discard_on_fail.fung
 -- stdout
 | # on_fail's result is discarded: an Err fails the scope (05).
@@ -10953,7 +11041,10 @@
 ==== tests/lang/err_global_from_fn.fung
 -- stdout
 | x = 1
-| f = fn(): x = 2 ;;
+| f = fn():
+|   x = 2
+|   x
+| ;;
 | # expect-error: E0205
 -- stderr
 -- exit: 0
@@ -11149,6 +11240,17 @@
 | ;;
 | # expect-error: E0223
 | print(sign(0))
+-- stderr
+-- exit: 0
+==== tests/lang/err_open_if_fn_end.fung
+-- stdout
+| # A block-bodied function's last item is its value, so an if there needs
+| # else (01): the caller may use it.
+| fn f(x):
+|   if x: 1 ;;
+| ;;
+| print(f(false))
+| # expect-error: E0223
 -- stderr
 -- exit: 0
 ==== tests/lang/err_open_if_lambda.fung
@@ -11897,20 +11999,27 @@
 ==== tests/lang/open_if.fung
 -- stdout
 | # Where an if without else is fine: nobody uses its value (01).
-| fn shout(s):
-|   if s != "":
-|     print(s + "!")
-|   ;;
-| ;;
-| shout("hi")
-| # expect: hi!
 | if false: print("no") ;;
 | for x in [1, 2]:
 |   if x > 1: print(x) ;;
 | ;;
 | # expect: 2
-| each([3], fn(x): if x > 0: print(x) ;; ;;)
-| # expect: 3
+|
+| # A function's last item is its value, so a function that returns nothing
+| # says so after its if (L2).
+| fn shout(s):
+|   if s != "":
+|     print(s + "!")
+|   ;;
+|   nil
+| ;;
+| shout("hi")
+| # expect: hi!
+| fn whisper(s):
+|   if s != "": print(s) else: nil ;;
+| ;;
+| whisper("hm")
+| # expect: hm
 |
 | # A value place says what it means with else.
 | x = if false: 1 else: nil ;;

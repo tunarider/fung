@@ -11,10 +11,10 @@ dir = first(opts.rest) ?? fail("usage: tidy.fung <dir> [n] [--trash <trash-dir>]
 n = len(opts.rest) > 1 then int(opts.rest[1]) else 5
 trash = get(opts.flags, "trash")
 
-each(largest(dir, n), fn((p, size)):
+for (p, size) in largest(dir, n):
   print(pad_left(human(size), 8), p)
   if trash != nil:
     fs.mkdir(trash)!
     fs.move(p, path.join(trash, path.base(p)))!
   ;;
-;;)
+;;

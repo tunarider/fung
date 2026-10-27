@@ -157,6 +157,7 @@
 | [Ok(1), Err(2)]
 | 1
 | 2
+| ["n1", "n2"]
 | done
 -- stderr
 -- exit: 0
@@ -484,6 +485,48 @@
 |    tests/lang/err_discard_for.fung:2 <entry>
 |  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 -- exit: 1
+==== tests/lang/err_discard_list_each.fung
+-- stdout
+-- stderr
+| error[E0606]: discarded Err: "in a list"
+|   --> tests/lang/err_discard_list_each.fung:2:5
+|   |
+| 2 | each([1], x => [Ok(x), Err("in a list")])
+|   |     ^ this value is discarded
+|   |
+|   note: element 2 of the discarded list (of 2)
+|  call path (innermost first):
+|    tests/lang/err_discard_list_each.fung:2 <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
+==== tests/lang/err_discard_list_end.fung
+-- stdout
+-- stderr
+| error[E0606]: discarded Err: channel closed
+|   --> tests/lang/err_discard_list_end.fung:8:1
+|   |
+| 8 | main()
+|   | ^ this value is discarded
+|   |
+|   note: element 1 of the discarded list (of 2)
+|  call path (innermost first):
+|    tests/lang/err_discard_list_end.fung:8 <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
+==== tests/lang/err_discard_list_map.fung
+-- stdout
+-- stderr
+| error[E0606]: discarded Err: "two"
+|   --> tests/lang/err_discard_list_map.fung:2:1
+|   |
+| 2 | map([1, 2, 3], x => x == 2 then Err("two") else Ok(x))
+|   | ^ this value is discarded
+|   |
+|   note: element 2 of the discarded list (of 3)
+|  call path (innermost first):
+|    tests/lang/err_discard_list_map.fung:2 <entry>
+|  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
+-- exit: 1
 ==== tests/lang/err_discard_on_fail.fung
 -- stdout
 -- stderr
@@ -644,10 +687,10 @@
 -- stdout
 -- stderr
 | error[E0205]: cannot reassign `x` here: it was defined outside this block
-|   --> tests/lang/err_global_from_fn.fung:2:11
+|   --> tests/lang/err_global_from_fn.fung:3:3
 |   |
-| 2 | f = fn(): x = 2 ;;
-|   |           ^
+| 3 |   x = 2
+|   |   ^
 |   |
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
@@ -932,7 +975,7 @@
 | 2 | x = if false: 1 ;;
 |   |     ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== tests/lang/err_open_if_chain.fung
 -- stdout
@@ -943,7 +986,18 @@
 | 4 | else if n < 0:
 |   |      ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
+-- exit: 2
+==== tests/lang/err_open_if_fn_end.fung
+-- stdout
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_fn_end.fung:4:3
+|   |
+| 4 |   if x: 1 ;;
+|   |   ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== tests/lang/err_open_if_lambda.fung
 -- stdout
@@ -954,7 +1008,7 @@
 | 2 | print(map([1, 2], x => if x > 1: x ;;))
 |   |                        ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== tests/lang/err_open_if_nested.fung
 -- stdout
@@ -965,7 +1019,7 @@
 | 3 |   if false: 1 ;;
 |   |   ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== tests/lang/err_overflow.fung
 -- stdout
@@ -1645,9 +1699,9 @@
 -- exit: 0
 ==== tests/lang/open_if.fung
 -- stdout
-| hi!
 | 2
-| 3
+| hi!
+| hm
 | nil
 | 2
 | 1

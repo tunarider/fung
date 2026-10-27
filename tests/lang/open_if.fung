@@ -1,18 +1,25 @@
 # Where an if without else is fine: nobody uses its value (01).
-fn shout(s):
-  if s != "":
-    print(s + "!")
-  ;;
-;;
-shout("hi")
-# expect: hi!
 if false: print("no") ;;
 for x in [1, 2]:
   if x > 1: print(x) ;;
 ;;
 # expect: 2
-each([3], fn(x): if x > 0: print(x) ;; ;;)
-# expect: 3
+
+# A function's last item is its value, so a function that returns nothing
+# says so after its if (L2).
+fn shout(s):
+  if s != "":
+    print(s + "!")
+  ;;
+  nil
+;;
+shout("hi")
+# expect: hi!
+fn whisper(s):
+  if s != "": print(s) else: nil ;;
+;;
+whisper("hm")
+# expect: hm
 
 # A value place says what it means with else.
 x = if false: 1 else: nil ;;

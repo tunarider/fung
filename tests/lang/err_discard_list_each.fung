@@ -1,0 +1,4 @@
+# each discards what f returns, a list of Errs as well.
+each([1], x => [Ok(x), Err("in a list")])
+# expect-error: E0606
+print("not reached")

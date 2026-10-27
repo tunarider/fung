@@ -1,0 +1,10 @@
+# A function that ends in a for returns its list; a statement that
+# discards the list still sees the Errs in it (02).
+fn main():
+  (tx, _rx) = channel(1)
+  close(tx)
+  for f in [1, 2]: send(tx, f) ;;
+;;
+main()
+# expect-error: E0606
+print("not reached")

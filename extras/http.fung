@@ -48,7 +48,10 @@ fn serve(addr: str, handler: fn, ready = nil, drain: dur = 10s, reuse_port: bool
     Err(e) => return Err({kind: 'network, message: "cannot listen on `${addr}`: ${e.message}"})
   ;;
   # a stop request has closed the listener already (`_stopper`)
-  with(() => l, l => _serve_on(l, handler, ready, drain), fn(l): _ = _net.close(l) ;;)
+  with(() => l, l => _serve_on(l, handler, ready, drain), fn(l):
+    _ = _net.close(l)
+    nil
+  ;;)
 ;;
 
 # The check of `ready` (E0403 `must be fn`; the parameter may be nil).
@@ -1545,6 +1548,8 @@ fn _refuse(c, no):
   _ = _net.write(c, no.text)
   if no.linger:
     _linger(c)
+  else:
+    nil
   ;;
 ;;
 

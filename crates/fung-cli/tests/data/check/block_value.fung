@@ -33,6 +33,7 @@ fn e() = if true: 1 ;;
 
 fn fine():
   if true: _not_used = 2 ;;
+  nil
 ;;
 
 fn also_fine():

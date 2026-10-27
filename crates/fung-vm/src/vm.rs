@@ -105,7 +105,7 @@ pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
-pub(crate) use m4::{discarded, discarded_err, is_err};
+pub(crate) use m4::{discarded, discarded_err, may_hold_err};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub(crate) use offload::{Kind, alone, offload_kind};
@@ -164,14 +164,15 @@ fn err(code: &str, pos: Pos, args: Vec<Arg>) -> Stop {
     Stop::Error(Box::new(error(code, pos, args)))
 }
 
-/// E0606 for an `Err` that a statement discarded (02). Out of the run
-/// loop, like every rare error path there: inlined, such a path changes
-/// how the compiler lays out the whole loop and slows the instructions
-/// that never take it (P12: `fib` lost 11% to two of them).
+/// E0606 for an `Err` that a statement discarded, alone or in a list
+/// (02). Out of the run loop, like every rare error path there: inlined,
+/// such a path changes how the compiler lays out the whole loop and slows
+/// the instructions that never take it (P12: `fib` lost 11% to two of
+/// them).
 #[cold]
 #[inline(never)]
-fn discarded_stop(pos: Pos, v: &Value) -> Stop {
-    err("E0606", pos, vec![discarded_err(v).expect("an Err")])
+fn discarded_stop(pos: Pos, v: &Value) -> Option<Stop> {
+    discarded_err(v).map(|d| at(d, pos))
 }
 
 /// An E0801 internal error without a position.
@@ -796,9 +797,10 @@ impl<'rt> Task<'rt> {
                 // A statement's value is discarded: an Err is E0606 (02).
                 Op::Pop => {
                     if let Some(Some(v)) = self.stack.pop()
-                        && is_err(&v)
+                        && may_hold_err(&v)
+                        && let Some(stop) = discarded_stop(pos, &v)
                     {
-                        return Err(discarded_stop(pos, &v));
+                        return Err(stop);
                     }
                 }
                 Op::Add => self.binary(pos, i64::checked_add, value::add)?,

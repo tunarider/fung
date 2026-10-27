@@ -44,6 +44,34 @@ fn tail_calls_do_not_grow_and_deep_recursion_is_e0804() {
     assert_eq!(code, 1);
 }
 
+/// A discarded long list answers from its nodes' memo (02, L2): a slice
+/// that leaves the Err out is discarded quietly, one that keeps it is
+/// E0606 at the right element, also after the memo was filled.
+#[test]
+fn a_discarded_long_list_finds_its_err() {
+    let long = "xs = map(0..200, x => x == 70 then Err(x) else x)\n";
+    let quiet = format!("{long}xs[71..]\nxs[..70]\nxs[71..]\nprint(\"ok\")");
+    assert_eq!(run_src(&quiet), ("ok\n".into(), "".into(), 0));
+    for tail in ["xs[60..90]", "xs[..70]\nxs[60..90]", "xs[71..]\nxs[60..90]"] {
+        let (_, err, code) = run_src(&format!("{long}{tail}\nprint(1)"));
+        assert!(
+            err.starts_with("error[E0606]: discarded Err: 70\n"),
+            "{tail}: {err}"
+        );
+        assert!(
+            err.contains("note: element 11 of the discarded list (of 30)"),
+            "{err}"
+        );
+        assert_eq!(code, 1);
+    }
+    let pushed = format!("{long}ys = xs[71..] + [Err(\"late\")]\nys[..10]\nys\nprint(1)");
+    let (_, err, _) = run_src(&pushed);
+    assert!(
+        err.contains("note: element 130 of the discarded list (of 130)"),
+        "{err}"
+    );
+}
+
 /// The whole E0804 report, as `fung` prints it.
 #[test]
 fn deep_recursion_report() {
@@ -276,7 +304,7 @@ fn functions_run() {
             "pos other\n",
         ),
         ("fn f() = return\nprint(f())", "nil\n"),
-        ("fn f(): x = 1 ;;\nprint(f())", "nil\n"),
+        ("fn f():\n  _ = 1\n  nil\n;;\nprint(f())", "nil\n"),
         (
             "fn add(a, b) = a + b\nprint(add, x => x)",
             "<fn add> <fn>\n",

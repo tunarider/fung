@@ -5,9 +5,9 @@
 
 use std::fmt;
 
-use super::Value;
 use super::pvec::{MASK, Pvec};
 use super::release::{drop_children, keep};
+use super::{Probe, Probed, Value};
 
 /// The largest list kept as a plain vector; 32 is one
 /// trie node.
@@ -55,10 +55,21 @@ impl List {
     }
 
     pub(crate) fn holds_mutable(&self) -> bool {
+        self.holds(Probe::Mutable)
+    }
+
+    /// Whether an item is an `Err` (a discarded list, 02): a big list
+    /// answers from its memo, so discarding versions of one long list
+    /// again and again does not scan it each time.
+    pub(crate) fn holds_err(&self) -> bool {
+        self.holds(Probe::Err)
+    }
+
+    fn holds(&self, p: Probe) -> bool {
         match &self.repr {
-            Repr::Flat(v) => v.iter().any(Value::holds_mutable),
-            Repr::Big { vec, lo, hi } if *lo == 0 && *hi == vec.len() => vec.holds_mutable(),
-            Repr::Big { vec, lo, hi } => vec.holds_mutable_in(*lo, *hi),
+            Repr::Flat(v) => v.iter().any(|x| x.has(p)),
+            Repr::Big { vec, lo, hi } if *lo == 0 && *hi == vec.len() => vec.holds(p),
+            Repr::Big { vec, lo, hi } => vec.holds_in(*lo, *hi, p),
         }
     }
 

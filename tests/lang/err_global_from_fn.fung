@@ -1,3 +1,6 @@
 x = 1
-f = fn(): x = 2 ;;
+f = fn():
+  x = 2
+  x
+;;
 # expect-error: E0205

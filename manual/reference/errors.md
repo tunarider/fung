@@ -495,6 +495,7 @@ fn first_big(sizes):
   for s in sizes:
     if s > 100: return s ;;
   ;;
+  nil
 ;;
 ```
 
@@ -688,7 +689,7 @@ print(hello("fung"))
 
 :::error E0223
 
-값으로 쓰는 자리의 `if`에 `else`가 없다. `else`가 없는 `if`는 조건이 거짓일 때 `nil`이 되는데, 값을 쓰는 자리(대입의 오른쪽, 인자, `fn f() = …`나 람다의 본문, `return` 등)에서는 거의 늘 실수다.
+값으로 쓰는 자리의 `if`에 `else`가 없다. `else`가 없는 `if`는 조건이 거짓일 때 `nil`이 되는데, 값을 쓰는 자리(대입의 오른쪽, 인자, 함수 본문의 끝, `return` 등)에서는 거의 늘 실수다. 함수 본문의 끝은 블록 본문 함수(`fn f(): … ;;`)도 포함한다. 부르는 쪽이 반환값을 쓸 수 있기 때문이다.
 
 흔한 원인: 한 가지만 쓰고 나머지 경우를 잊음. `else if` 사슬의 마지막에 `else`가 없는 것도 같다.
 
@@ -696,11 +697,16 @@ print(hello("fung"))
 fn label(code) = if code >= 500: "server error" ;;
 ```
 
-고치는 법: `else`를 쓴다. 정말 `nil`을 뜻하면 `else: nil`이라고 적는다. 값을 쓰지 않는 문장 자리의 `if`는 `else` 없이 써도 된다([조건](language.html#conditions)).
+고치는 법: `else`를 쓴다. 정말 `nil`을 뜻하면 `else: nil`이라고 적는다. 돌려줄 것이 없는 함수는 `else: nil`이나 마지막 줄 `nil`로 맺는다. 값을 쓰지 않는 문장 자리의 `if`는 `else` 없이 써도 된다([조건](language.html#conditions)).
 
 ```fung run
 fn label(code) = if code >= 500: "server error" else: "ok" ;;
 print(label(503), label(200))
+
+fn alert(code):
+  if code >= 500: print("page someone") else: nil ;;
+;;
+alert(503)
 ```
 
 :::
@@ -1676,7 +1682,9 @@ print(try_map(["1", "2"], parse_int), map([1, 2], x => x * 2))
 
 값을 쓰지 않는 자리에서 `Err`가 나와 버려졌다. 실패가 아무도 모르게 지나가지 않도록 fung은 버려지는 `Err`를 에러로 만든다. 셸의 `set -e`를 늘 켜 둔 것과 같다.
 
-버려지는 자리: 문장으로 쓴 호출, 그런 자리의 `if`·`match` 가지의 끝, `for` 문장의 본문, 파일의 마지막 식, `each`에 준 함수, `with`의 `release`, `supervise`의 `on_fail`. 외부 명령이 실패해도 `exec`가 `Err`를 돌려주므로 같다.
+버려지는 자리: 문장으로 쓴 호출, 그런 자리의 `if`·`match` 가지의 끝, `for` 문장의 본문, 파일의 마지막 식, `each`에 준 함수, `with`의 `release`, `supervise`의 `on_fail`, `test` 블록이 돌려준 값. 외부 명령이 실패해도 `exec`가 `Err`를 돌려주므로 같다.
+
+버려지는 값이 리스트면 그 원소(한 겹만)도 본다. `for`로 끝나는 함수를 문장으로 부르거나 `map(…)`을 문장으로 쓰면 리스트가 버려지는데, 그 안의 첫 `Err`가 E0606이 되고 `note: element 2 of the discarded list (of 3)`처럼 몇 번째 원소인지 덧붙는다.
 
 ```fung run exit=1 error=E0606
 import fs

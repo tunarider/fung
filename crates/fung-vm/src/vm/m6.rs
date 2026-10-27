@@ -5,14 +5,16 @@ use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
-use super::{Runtime, Stop, Task, at, err, internal};
+use super::{Runtime, Stop, Task, at, discarded, err, internal};
 use crate::value::{Value, compare, eq, format, index, type_name};
 
-/// One registered test block: its name and the function to run.
+/// One registered test block: its name, the function to run and where
+/// the block stands.
 #[derive(Clone, Debug)]
 pub(crate) struct TestCase {
     pub name: String,
     pub func: Value,
+    pub pos: Pos,
 }
 
 impl Runtime {
@@ -28,10 +30,14 @@ impl Runtime {
     /// back as `Stop::Exit` so `fung test` can stop.
     pub fn call_test(&self, i: usize) -> Result<(), Stop> {
         let mut t = self.child_task();
-        let Some(f) = t.world.tests.get(i).map(|c| c.func.clone()) else {
+        let Some((f, pos)) = t.world.tests.get(i).map(|c| (c.func.clone(), c.pos)) else {
             return Err(internal(vec![Arg::Str(format!("no test block {i}"))]));
         };
-        let r = t.call_root(&f, Vec::new()).map(|_| ());
+        // What the block returns is discarded: an Err in it fails it (02).
+        let r = match discarded(t.call_root(&f, Vec::new())) {
+            Err(Stop::Error(d)) => Err(at(*d, pos)),
+            r => r.map(|_| ()),
+        };
         // The block runs on a fresh node below the root, cancelled when it
         // returns: what it spawned and left running ends with it.
         t.cancel.cancel();
@@ -95,6 +101,7 @@ impl Task<'_> {
                 self.world.tests.push(TestCase {
                     name: name.to_string(),
                     func,
+                    pos,
                 });
             }
             _ => unreachable!("exec_m6 called with {}", op.name()),

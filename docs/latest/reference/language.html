@@ -346,7 +346,7 @@ print(count(1_000_000, 0))</code></pre><pre class="out plain"><code>1000000</cod
 ;;
 print(sign(5), 3 &gt; 2 then &quot;yes&quot; else &quot;no&quot;)</code></pre><pre class="out plain"><code>+ yes</code></pre></div>
 <ul>
-  <li><code>if</code>는 식이다. <code>else</code>가 없고 조건이 거짓이면 값은 <code>nil</code>. 그래서 값을 쓰는 자리(대입의 오른쪽, 인자, <code>return</code>, 연산자, <code>fn f() = …</code>와 람다 <code>=&gt;</code>의 본문 등)의 <code>if</code>는 <code>else</code>가 있어야 한다(없으면 컴파일 에러 E0223, <code>nil</code>이 의도라면 <code>else: nil</code>). 같은 자리의 블록이 대입으로 끝나도 E0224다. 블록 본문 함수의 마지막 <code>if</code>와 문장으로 쓴 <code>if</code>는 <code>else</code> 없이 써도 된다.</li>
+  <li><code>if</code>는 식이다. <code>else</code>가 없고 조건이 거짓이면 값은 <code>nil</code>. 그래서 값을 쓰는 자리(대입의 오른쪽, 인자, <code>return</code>, 연산자, <code>fn f() = …</code>와 람다 <code>=&gt;</code>의 본문 등)의 <code>if</code>는 <code>else</code>가 있어야 한다(없으면 컴파일 에러 E0223, <code>nil</code>이 의도라면 <code>else: nil</code>). 같은 자리의 블록이 대입으로 끝나도 E0224다. 함수 본문의 마지막 항목도 값을 쓰는 자리다(반환값이므로, 블록 본문 함수도). 돌려줄 것이 없는 함수는 <code>else: nil</code>이나 마지막 줄 <code>nil</code>로 맺는다. 문장으로 쓴 <code>if</code>, 문장 <code>for</code>의 본문, <code>test</code> 블록의 끝은 <code>else</code> 없이 써도 된다.</li>
   <li><code>c then a else b</code>는 한 줄짜리 조건 식이다. <code>else</code>가 반드시 있어야 하고, 사슬로 이을 수 있다.</li>
   <li>조건은 bool이어야 한다. 다른 값이면 런타임 에러.</li>
 </ul>
@@ -410,7 +410,7 @@ match fs.read(p):
   Err({kind: 'not_found}) =&gt; print(&quot;no file&quot;)
   Err(e)                  =&gt; print(e.message)
 ;;</code></pre>
-<p><strong>버려지는 <code>Err</code>는 에러다.</strong> 값을 쓰지 않는 자리(문장으로 쓴 호출, 그런 자리의 <code>if</code>·<code>match</code> 가지, <code>for</code> 문장의 본문, 파일의 마지막 식, <code>each</code>의 <code>f</code>, <code>with</code>의 <code>release</code>, <code>supervise</code>의 <code>on_fail</code>)에서 <code>Err</code>가 나오면 E0606 <code>discarded Err</code>로 멈춘다. <code>set -e</code>를 늘 켜 둔 셸과 같다. 실패해도 상관없으면 <code>_ = 식</code>으로 일부러 버린다. 함수의 마지막 식은 반환값이라 버려지지 않고, REPL은 입력의 마지막 값을 출력한다.</p>
+<p><strong>버려지는 <code>Err</code>는 에러다.</strong> 값을 쓰지 않는 자리(문장으로 쓴 호출, 그런 자리의 <code>if</code>·<code>match</code> 가지, <code>for</code> 문장의 본문, 파일의 마지막 식, <code>each</code>의 <code>f</code>, <code>with</code>의 <code>release</code>, <code>supervise</code>의 <code>on_fail</code>, <code>test</code> 블록이 돌려준 값)에서 <code>Err</code>가 나오면 E0606 <code>discarded Err</code>로 멈춘다. 버려지는 값이 리스트면 그 원소(한 겹만)를 보고, 처음 나온 <code>Err</code>를 몇 번째 원소인지와 함께 알린다. 그래서 <code>for</code>로 끝나는 함수를 문장으로 부르거나 <code>map(…)</code>을 문장으로 써도 실패가 사라지지 않는다. <code>set -e</code>를 늘 켜 둔 셸과 같다. 실패해도 상관없으면 <code>_ = 식</code>으로 일부러 버린다. 함수의 마지막 식은 반환값이라 버려지지 않고, REPL은 입력의 마지막 값을 출력한다.</p>
 <pre class="frag"><code>fs.write(p, text)          # 실패하면 E0606
 fs.write(p, text)!         # 실패하면 E0603으로 중단
 _ = fs.remove(tmp)         # 실패해도 상관없다

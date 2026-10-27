@@ -436,10 +436,10 @@ fn fn_scope_errors() {
     let cases = [
         ("fn f() = 1\nfn f() = 2", "E0210"),
         ("fn f() = 1\nf = 2", "E0209"),
-        ("x = 1\nfn f(): x = 2 ;;", ""), // f's own local x hides the constant (03, L9)
+        ("x = 1\nfn f(): x = 2; x ;;", ""), // f's own local x hides the constant (03, L9)
         ("x = 1\nfn f():\n  y = x\n  x = 2\n  y\n;;", "E0204"), // read before f's own x
-        ("x = 1\nf = fn(): x = 2 ;;", "E0205"), // an anonymous fn created after x sees it
-        ("fn f(a): g = () => a; a = 2 ;;", ""), // same scope rebinding is fine
+        ("x = 1\nf = fn():\n  x = 2\n  x\n;;", "E0205"), // an anonymous fn created after x sees it
+        ("fn f(a): g = () => a; a = 2; g ;;", ""), // same scope rebinding is fine
         ("return 1", "E0211"),
         ("if true: return 1 ;;", "E0211"),
         ("fn f(a: integer) = a", "E0212"),
@@ -450,7 +450,7 @@ fn fn_scope_errors() {
         ("f = () => f()", "E0204"), // f is not bound yet when the lambda is created
         ("fn outer(): f = () => f(); f() ;;", "E0204"), // a block local: only named fns see themselves
         ("fn f():\n  if true: v = 1 ;;\n  v\n;;", "E0206"),
-        ("fn f(): fn g() = 1 ;;\nfn h() = g()", "E0204"), // local fn of f is not visible in h
+        ("fn f(): fn g() = 1; g ;;\nfn h() = g()", "E0204"), // local fn of f is not visible in h
     ];
     for (src, want) in cases {
         let (_, errs) = res(src);
@@ -513,7 +513,7 @@ fn a_closed_name_is_not_read_as_the_prelude() {
 #[test]
 fn per_function_closed_sets() {
     // A name closed in f's block must not turn an unrelated typo in g into E0206.
-    let (_, errs) = res("fn f(): if true: tmp = 1 ;; ;;\nfn g() = tmp");
+    let (_, errs) = res("fn f():\n  if true: tmp = 1 ;;\n  nil\n;;\nfn g() = tmp");
     assert_eq!(codes(&errs), vec!["E0204"]);
 }
 
@@ -978,9 +978,14 @@ fn values_used_must_not_be_nil() {
         ("f = x => if x: 1 ;;", &["E0223"]),
         ("ys = for x in [1]: if x: 1 ;; ;;", &["E0223"]),
         ("print(for x in [1]: if x: 1 ;; ;;)", &["E0223"]),
+        // A block-bodied function's last item is its value.
+        ("fn f():\n  if true: 1 ;;\n;;", &["E0223"]),
+        ("f = fn(x): if x: 1 ;; ;;", &["E0223"]),
+        ("fn f():\n  _ = 1\n;;", &["E0224"]),
+        ("fn f(x):\n  y = x\n;;", &["E0224"]),
+        ("fn f(x):\n  if x: 1 else: nil ;;\n;;", &[]),
+        ("fn f(x):\n  if x: 1 ;;\n  nil\n;;", &[]),
         // Nobody uses the value.
-        ("fn f():\n  if true: 1 ;;\n;;", &[]),
-        ("f = fn(x): if x: 1 ;; ;;", &[]),
         ("if true: 1 ;;\n1", &[]),
         ("for x in [1]: if x: 1 ;; ;;\n1", &[]),
         ("for x in [1]: if x: 1 ;; ;;", &[]), // the REPL's last value

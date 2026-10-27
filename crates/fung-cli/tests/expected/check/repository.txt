@@ -401,6 +401,18 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_discard_list_each.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_discard_list_end.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/err_discard_list_map.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_discard_on_fail.fung
 -- stdout
 -- stderr
@@ -488,10 +500,10 @@
 -- stdout
 -- stderr
 | error[E0205]: cannot reassign `x` here: it was defined outside this block
-|   --> tests/lang/err_global_from_fn.fung:2:11
+|   --> tests/lang/err_global_from_fn.fung:3:3
 |   |
-| 2 | f = fn(): x = 2 ;;
-|   |           ^
+| 3 |   x = 2
+|   |   ^
 |   |
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
@@ -683,7 +695,7 @@
 | 2 | x = if false: 1 ;;
 |   |     ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== check tests/lang/err_open_if_chain.fung
 -- stdout
@@ -694,7 +706,18 @@
 | 4 | else if n < 0:
 |   |      ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
+-- exit: 2
+==== check tests/lang/err_open_if_fn_end.fung
+-- stdout
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_fn_end.fung:4:3
+|   |
+| 4 |   if x: 1 ;;
+|   |   ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== check tests/lang/err_open_if_lambda.fung
 -- stdout
@@ -705,7 +728,7 @@
 | 2 | print(map([1, 2], x => if x > 1: x ;;))
 |   |                        ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== check tests/lang/err_open_if_nested.fung
 -- stdout
@@ -716,7 +739,7 @@
 | 3 |   if false: 1 ;;
 |   |   ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== check tests/lang/err_overflow.fung
 -- stdout

@@ -103,7 +103,7 @@ fn deadlock_is_judged_by_the_scheduler() {
     assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
     for src in [
         // A sleeper: a timer ends it.
-        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  _ = timeout(40ms, () => recv(rx))\n;;)\nprint(\"ok\")",
+        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  _ = timeout(40ms, () => recv(rx))\n  nil\n;;)\nprint(\"ok\")",
         // An offload's job: the world outside ends it.
         "scope(fn(s):\n  t = spawn(s, () => slow_job())\n  await(t)\n;;)\nprint(\"ok\")",
     ] {

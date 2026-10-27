@@ -28,10 +28,20 @@ for x in [1, 2]:
 # expect: 1
 # expect: 2
 
-# Ok and other values are discarded as before.
+# Ok and other values are discarded as before, lists without an Err too.
 Ok(1)
 nil
-[Err(1)]
-each([1], x => Ok(x))
+[Ok(1), 2]
+map([1, 2], x => Ok(x))
+each([1], x => [Ok(x)])
+fn names(xs): for x in xs: "n${x}" ;; ;;
+print(names([1, 2]))
+# expect: ["n1", "n2"]
+
+# Only the list's own items are looked at: a nested list, a tuple or a
+# map that holds an Err is discarded as before.
+[[Err(1)]]
+[(Err(1), 2)]
+[{e: Err(1)}]
 print("done")
 # expect: done

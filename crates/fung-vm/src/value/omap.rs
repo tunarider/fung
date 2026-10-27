@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use super::hamt::{Hamt, hash_key};
 use super::pvec::{MASK, Pvec};
-use super::{HoldsMutable, Value};
+use super::{Probe, Probed, Value};
 
 #[derive(Clone)]
 pub(super) struct Entry {
@@ -24,16 +24,16 @@ pub(super) struct Omap {
     dead: usize,
 }
 
-impl HoldsMutable for Option<Entry> {
-    fn holds_mutable(&self) -> bool {
-        self.as_ref().is_some_and(|e| e.val.holds_mutable())
+impl Probed for Option<Entry> {
+    fn has(&self, p: Probe) -> bool {
+        self.as_ref().is_some_and(|e| e.val.has(p))
     }
 }
 
 impl Omap {
     /// Whether a live entry's value holds a mutable one.
     pub(super) fn holds_mutable(&self) -> bool {
-        self.ents.holds_mutable()
+        self.ents.holds(Probe::Mutable)
     }
 
     /// A map of distinct keys in the given order.

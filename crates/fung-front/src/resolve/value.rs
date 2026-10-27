@@ -4,10 +4,11 @@
 //!
 //! A pass over the desugared tree, before names are resolved. `used` says
 //! whether the node's value is used. A block's items before the last are
-//! not; its last is when the block is. A block-bodied function's last item
-//! is not used (a side-effect function often ends in an if), an
-//! expression-bodied one's (`fn f() = e`, `x => e`) is. A `for` body is
-//! used when its `for` is (`map`, not the `each` of a discarded `for`).
+//! not; its last is when the block is. A function's body is its value, so
+//! its last item is used, block-bodied or not (L2: a function that ends in
+//! an if without else would be a silent nil to a caller that uses it). A
+//! `for` body is used when its `for` is (`map`, not the `each` of a
+//! discarded `for`). A test block's body is not: its value is discarded.
 
 use super::{lit_str, name_error};
 use crate::diag::{Diag, error};
@@ -50,7 +51,9 @@ pub(super) fn check(n: &Node, used: bool, errs: &mut Vec<Diag>) {
                 check(&arm.kids[2], used, errs);
             }
         }
-        Head::Fn => function(n, fn_body_used(n), errs),
+        Head::Fn => function(n, true, errs),
+        // `fung test` discards what a test block returns (E0606 for an Err).
+        Head::Test => function(&n.kids[0], false, errs),
         Head::Call => {
             check(&n.kids[0], true, errs);
             for k in &n.kids[1..] {
@@ -78,13 +81,6 @@ fn function(n: &Node, body_used: bool, errs: &mut Vec<Diag>) {
         check(d, true, errs);
     }
     check(body, body_used, errs);
-}
-
-fn fn_body_used(n: &Node) -> bool {
-    match &n.lit {
-        Lit::Fn(info) => info.expr_body,
-        _ => false,
-    }
 }
 
 fn for_body(n: &Node) -> bool {

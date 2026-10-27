@@ -4,11 +4,11 @@
 use std::rc::Rc;
 
 use fung_front::bytecode::Op;
-use fung_front::diag::Arg;
+use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::matcher::Binder;
-use super::{Stop, Task, at, err};
+use super::{Stop, Task, at, err, no_pos};
 use crate::value::{List, MapBuilder, Range, Tag, Value, format, index, type_name};
 
 /// How `!`, `?` and `??` see a value (02): an Ok payload, an Err, nil, or
@@ -70,20 +70,36 @@ fn shown(mut text: String) -> Arg {
     Arg::Str(text)
 }
 
-/// E0606's argument when `v` is an Err that a discarded place drops
-/// (02: 버려지는 Err): a statement's value (POP) or what `each`'s `f`
-/// returned. It shows the Err as E0603 does.
-/// Whether `v` is an `Err`: the cheap test the run loop makes on every
-/// discarded value, before the cold path builds E0606.
-pub(crate) fn is_err(v: &Value) -> bool {
-    matches!(v, Value::Tag(t) if t.name.name() == "Err")
+/// Whether a discarded `v` may hold an Err: the cheap test the run loop
+/// makes on every discarded value, before the cold path looks closer.
+pub(crate) fn may_hold_err(v: &Value) -> bool {
+    matches!(v, Value::List(_)) || matches!(v, Value::Tag(t) if t.name.name() == "Err")
 }
 
-pub(crate) fn discarded_err(v: &Value) -> Option<Arg> {
-    match result_kind(v) {
-        ResultKind::Err => Some(shown(err_message(v))),
-        _ => None,
+/// E0606 (without a position) when a discarded place drops an Err (02:
+/// 버려지는 Err): a statement's value (POP), what `each`'s `f` returned,
+/// a discarded callback's result. It shows the Err as E0603 does. A list
+/// is looked into one level deep (L2: a function that ends in a `for`
+/// returns its list), and the note says which item failed.
+pub(crate) fn discarded_err(v: &Value) -> Option<Diag> {
+    if let Value::List(xs) = v {
+        if !xs.holds_err() {
+            return None;
+        }
+        let (i, e) = xs.iter().enumerate().find(|(_, x)| is_err(x))?;
+        let mut d = error("E0606", no_pos(), vec![shown(err_message(e))]);
+        d.notes.push(format!(
+            "note: element {} of the discarded list (of {})",
+            i + 1,
+            xs.len()
+        ));
+        return Some(d);
     }
+    is_err(v).then(|| error("E0606", no_pos(), vec![shown(err_message(v))]))
+}
+
+fn is_err(v: &Value) -> bool {
+    matches!(result_kind(v), ResultKind::Err)
 }
 
 /// What a callback whose result is discarded came to (02: `with`'s
@@ -92,7 +108,7 @@ pub(crate) fn discarded_err(v: &Value) -> Option<Arg> {
 pub(crate) fn discarded(r: Result<Value, Stop>) -> Result<Value, Stop> {
     match r {
         Ok(v) => match discarded_err(&v) {
-            Some(a) => Err(crate::native::nat::fail("E0606", vec![a])),
+            Some(d) => Err(Stop::Error(Box::new(d))),
             None => Ok(v),
         },
         r => r,

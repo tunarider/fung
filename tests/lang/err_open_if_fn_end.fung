@@ -1,0 +1,7 @@
+# A block-bodied function's last item is its value, so an if there needs
+# else (01): the caller may use it.
+fn f(x):
+  if x: 1 ;;
+;;
+print(f(false))
+# expect-error: E0223

@@ -124,7 +124,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0223",
         "`if` without `else` used as a value: it is nil when the condition is false",
         "this if has no else",
-        "add an `else:` branch; write `else: nil` if nil is meant",
+        "add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)",
     ],
     [
         "E0224",

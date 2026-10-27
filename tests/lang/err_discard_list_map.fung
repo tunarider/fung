@@ -1,0 +1,4 @@
+# A discarded map: the Errs in its list are not lost.
+map([1, 2, 3], x => x == 2 then Err("two") else Ok(x))
+# expect-error: E0606
+print("not reached")

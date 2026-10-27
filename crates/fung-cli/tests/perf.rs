@@ -53,6 +53,11 @@ const CASES: &[(&str, &str, &str)] = &[
         "98000\n",
     ),
     (
+        "discard slices of a long list",
+        "xs = map(0..100000, x => x)\nfor i in 0..2000: xs[i..] ;;\neach(0..2000, i => xs[..i + 50000])\nprint(len(xs))",
+        "100000\n",
+    ),
+    (
         "slice tail",
         "fn go(ys, acc) = len(ys) == 0 then acc else go(ys[1..], acc + 1)\nprint(go(map(0..20000, x => x), 0))",
         "20000\n",

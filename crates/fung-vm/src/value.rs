@@ -36,17 +36,29 @@ pub use time::Time;
 pub(crate) use time::{Loc, MAX_UNIX, MIN_UNIX, civil_from_days, days_from_civil, offset_text};
 pub use types::{TypeSet, matches_type};
 
-/// Whether a value holds a mutable one (concurrency v2: what an atom
-/// may not hold, 05/스펙 7.2). Persistent collections remember the
-/// answer per node (`pvec.rs`), so a look after a change costs the
+/// What a persistent collection can be asked of its items. Its nodes
+/// remember each answer (`pvec.rs`), so a look after a change costs the
 /// changed path only.
-pub(crate) trait HoldsMutable {
-    fn holds_mutable(&self) -> bool;
+#[derive(Clone, Copy)]
+pub(crate) enum Probe {
+    /// An item holds a mutable value (concurrency v2: what an atom may
+    /// not hold, 05/스펙 7.2).
+    Mutable,
+    /// An item is an `Err` (a discarded list, 02 버려지는 Err).
+    Err,
 }
 
-impl HoldsMutable for Value {
-    fn holds_mutable(&self) -> bool {
-        Value::holds_mutable(self)
+/// An item that answers a `Probe`.
+pub(crate) trait Probed {
+    fn has(&self, p: Probe) -> bool;
+}
+
+impl Probed for Value {
+    fn has(&self, p: Probe) -> bool {
+        match p {
+            Probe::Mutable => self.holds_mutable(),
+            Probe::Err => matches!(self, Value::Tag(t) if t.name.name() == "Err"),
+        }
     }
 }
 

@@ -187,6 +187,7 @@ Err({kind: 'timeout, message: &quot;timed out after 20ms&quot;})</code></pre></d
 
 r = with(() =&gt; &quot;./no-such-file&quot;, p =&gt; &quot;used ${p}&quot;, fn(p):
   _ = cleanup(p)
+  nil
 ;;)
 print(r)</code></pre><pre class="out plain"><code>used ./no-such-file</code></pre></div>
 <p><code>rm</code>은 실패하지만 <code>_ =</code>로 일부러 버렸으므로 멈추지 않는다.</p>

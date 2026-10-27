@@ -80,6 +80,23 @@
 ;;
 
 print(disk_level(91), disk_level(80), disk_level(12))</code></pre><pre class="out plain"><code>critical warning ok</code></pre></div>
+<p>마지막 항목이 반환값이므로, 거기에 <code>else</code> 없는 <code>if</code>나 대입을 두면 컴파일 에러다(E0223·E0224). 부르는 쪽이 그 값을 쓰면 조용히 <code>nil</code>이 되기 때문이다. 돌려줄 것이 없는 함수는 <code>if</code>에 <code>else: nil</code>을 붙이거나 마지막 줄에 <code>nil</code>을 쓴다.</p>
+<div class="run"><pre><code>fn warn(usage):
+  if usage &gt;= 90:
+    print(&quot;disk almost full:&quot;, usage)
+  else: nil ;;
+;;
+
+fn report(usages):
+  for u in usages:
+    if u &gt;= 75: print(&quot;high:&quot;, u) ;;
+  ;;
+  nil
+;;
+
+warn(95)
+report([80, 20])</code></pre><pre class="out plain"><code>disk almost full: 95
+high: 80</code></pre></div>
 <p>본문이 식 하나뿐이면 <code>=</code> 뒤에 바로 쓴다. 짧은 함수는 대부분 이 모양이다.</p>
 <div class="run"><pre><code>fn percent(used, total) = used / total * 100
 fn is_log(name) = ends_with(name, &quot;.log&quot;)

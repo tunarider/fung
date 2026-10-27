@@ -31,7 +31,7 @@ E0219	type aliases must be at the top level
 E0220	`?` inside a for body		`for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`
 E0221	name `%s` is bound twice in one pattern		use a guard to compare the two positions: `[a, b] when a == b`
 E0222	`%s` is a built-in type and cannot be a type alias		give the alias another name
-E0223	`if` without `else` used as a value: it is nil when the condition is false	this if has no else	add an `else:` branch; write `else: nil` if nil is meant
+E0223	`if` without `else` used as a value: it is nil when the condition is false	this if has no else	add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 E0224	`%s` is assigned as the last statement of a block used as a value, so the value is nil		put the value last: end the block with an expression, e.g. the assigned name on its own line
 E0225	`%s` starts with an uppercase letter, so it is a tag and cannot name a variable	this is a tag	name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 E0226	`?` inside a lambda given to map		map keeps the Err as an element; use `try_map`, which stops at the first Err

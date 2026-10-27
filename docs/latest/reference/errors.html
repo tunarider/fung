@@ -489,6 +489,7 @@ print(retry(3))</code></pre><pre class="out plain"><code>3</code></pre></div>
   for s in sizes:
     if s &gt; 100: return s ;;
   ;;
+  nil
 ;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0213]: return inside a for body
   --&gt; example.fung:3:17
   |
@@ -667,7 +668,7 @@ print(hello(&quot;fung&quot;))</code></pre><pre class="out plain"><code>hello, f
 <section class="entry error" id="E0223">
 <h3>E0223</h3>
 <p class="catalog"><code>`if` without `else` used as a value: it is nil when the condition is false</code></p>
-<p>값으로 쓰는 자리의 <code>if</code>에 <code>else</code>가 없다. <code>else</code>가 없는 <code>if</code>는 조건이 거짓일 때 <code>nil</code>이 되는데, 값을 쓰는 자리(대입의 오른쪽, 인자, <code>fn f() = …</code>나 람다의 본문, <code>return</code> 등)에서는 거의 늘 실수다.</p>
+<p>값으로 쓰는 자리의 <code>if</code>에 <code>else</code>가 없다. <code>else</code>가 없는 <code>if</code>는 조건이 거짓일 때 <code>nil</code>이 되는데, 값을 쓰는 자리(대입의 오른쪽, 인자, 함수 본문의 끝, <code>return</code> 등)에서는 거의 늘 실수다. 함수 본문의 끝은 블록 본문 함수(<code>fn f(): … ;;</code>)도 포함한다. 부르는 쪽이 반환값을 쓸 수 있기 때문이다.</p>
 <p>흔한 원인: 한 가지만 쓰고 나머지 경우를 잊음. <code>else if</code> 사슬의 마지막에 <code>else</code>가 없는 것도 같다.</p>
 <div class="run"><pre><code>fn label(code) = if code &gt;= 500: &quot;server error&quot; ;;</code></pre><pre class="out err plain" data-code="2"><code>error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
   --&gt; example.fung:1:18
@@ -675,11 +676,17 @@ print(hello(&quot;fung&quot;))</code></pre><pre class="out plain"><code>hello, f
 1 | fn label(code) = if code &gt;= 500: &quot;server error&quot; ;;
   |                  ^^ this if has no else
   |
- help: add an `else:` branch; write `else: nil` if nil is meant</code></pre></div>
-<p>고치는 법: <code>else</code>를 쓴다. 정말 <code>nil</code>을 뜻하면 <code>else: nil</code>이라고 적는다. 값을 쓰지 않는 문장 자리의 <code>if</code>는 <code>else</code> 없이 써도 된다(<a href="language.html#conditions">조건</a>).</p>
+ help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)</code></pre></div>
+<p>고치는 법: <code>else</code>를 쓴다. 정말 <code>nil</code>을 뜻하면 <code>else: nil</code>이라고 적는다. 돌려줄 것이 없는 함수는 <code>else: nil</code>이나 마지막 줄 <code>nil</code>로 맺는다. 값을 쓰지 않는 문장 자리의 <code>if</code>는 <code>else</code> 없이 써도 된다(<a href="language.html#conditions">조건</a>).</p>
 <div class="run"><pre><code>fn label(code) = if code &gt;= 500: &quot;server error&quot; else: &quot;ok&quot; ;;
-print(label(503), label(200))</code></pre><pre class="out plain"><code>server error ok</code></pre></div>
-<p class="help">기본 도움말: <code>add an `else:` branch; write `else: nil` if nil is meant</code></p>
+print(label(503), label(200))
+
+fn alert(code):
+  if code &gt;= 500: print(&quot;page someone&quot;) else: nil ;;
+;;
+alert(503)</code></pre><pre class="out plain"><code>server error ok
+page someone</code></pre></div>
+<p class="help">기본 도움말: <code>add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)</code></p>
 </section>
 <section class="entry error" id="E0224">
 <h3>E0224</h3>
@@ -1580,7 +1587,8 @@ print(port)</code></pre><pre class="out plain"><code>5432</code></pre></div>
 <h3>E0606</h3>
 <p class="catalog"><code>discarded Err: %s</code></p>
 <p>값을 쓰지 않는 자리에서 <code>Err</code>가 나와 버려졌다. 실패가 아무도 모르게 지나가지 않도록 fung은 버려지는 <code>Err</code>를 에러로 만든다. 셸의 <code>set -e</code>를 늘 켜 둔 것과 같다.</p>
-<p>버려지는 자리: 문장으로 쓴 호출, 그런 자리의 <code>if</code>·<code>match</code> 가지의 끝, <code>for</code> 문장의 본문, 파일의 마지막 식, <code>each</code>에 준 함수, <code>with</code>의 <code>release</code>, <code>supervise</code>의 <code>on_fail</code>. 외부 명령이 실패해도 <code>exec</code>가 <code>Err</code>를 돌려주므로 같다.</p>
+<p>버려지는 자리: 문장으로 쓴 호출, 그런 자리의 <code>if</code>·<code>match</code> 가지의 끝, <code>for</code> 문장의 본문, 파일의 마지막 식, <code>each</code>에 준 함수, <code>with</code>의 <code>release</code>, <code>supervise</code>의 <code>on_fail</code>, <code>test</code> 블록이 돌려준 값. 외부 명령이 실패해도 <code>exec</code>가 <code>Err</code>를 돌려주므로 같다.</p>
+<p>버려지는 값이 리스트면 그 원소(한 겹만)도 본다. <code>for</code>로 끝나는 함수를 문장으로 부르거나 <code>map(…)</code>을 문장으로 쓰면 리스트가 버려지는데, 그 안의 첫 <code>Err</code>가 E0606이 되고 <code>note: element 2 of the discarded list (of 3)</code>처럼 몇 번째 원소인지 덧붙는다.</p>
 <div class="run"><pre><code>import fs
 fs.write(&quot;missing/out.txt&quot;, &quot;data&quot;)
 print(&quot;saved&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: cannot write `missing/out.txt`: no such file or directory

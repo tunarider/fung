@@ -7,7 +7,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use super::HoldsMutable;
+use super::{Probe, Probed};
 
 const BITS: u32 = 5;
 const WIDTH: usize = 1 << BITS;
@@ -20,14 +20,22 @@ enum Node<T> {
     Leaf(Vec<T>, Memo),
 }
 
-/// Whether a node's subtree holds a mutable value (`holds_mutable`),
-/// found on the first look and kept: `UNKNOWN` until then. A node changes
-/// only through `kids_mut`/`vals_mut` (on a node this vector owns alone,
-/// `Rc::make_mut`), which forget it.
+/// What a node's subtree answers to each `Probe` (`holds`), found on the
+/// first look and kept, two bits a probe: `UNKNOWN` until then. A node
+/// changes only through `kids_mut`/`vals_mut` (on a node this vector owns
+/// alone, `Rc::make_mut`), which forget all of it.
 type Memo = Cell<u8>;
 const UNKNOWN: u8 = 0;
 const NO: u8 = 1;
 const YES: u8 = 2;
+
+/// Where a probe's two bits sit in a memo.
+fn shift(p: Probe) -> u8 {
+    match p {
+        Probe::Mutable => 0,
+        Probe::Err => 2,
+    }
+}
 
 fn leaf<T>(items: Vec<T>) -> Rc<Node<T>> {
     Rc::new(Node::Leaf(items, Cell::new(UNKNOWN)))
@@ -326,48 +334,44 @@ impl<T: Clone> Pvec<T> {
     }
 }
 
-impl<T: HoldsMutable> Pvec<T> {
-    /// Whether an item holds a mutable value (`Value::holds_mutable`):
-    /// the trie's nodes remember the answer, so after a change only the
-    /// copied path is looked at again; the tail (at most 32) is scanned.
-    pub(crate) fn holds_mutable(&self) -> bool {
-        node_holds(&self.root) || self.tail.vals().iter().any(HoldsMutable::holds_mutable)
+impl<T: Probed> Pvec<T> {
+    /// Whether an item answers `p` (`Probed::has`): the trie's nodes
+    /// remember the answer, so after a change only the copied path is
+    /// looked at again; the tail (at most 32) is scanned.
+    pub(crate) fn holds(&self, p: Probe) -> bool {
+        node_holds(&self.root, p) || self.tail.vals().iter().any(|x| x.has(p))
     }
 }
 
-impl<T: HoldsMutable + Clone> Pvec<T> {
-    /// `holds_mutable` for the items `lo..hi` only (a list's slice): the
-    /// subtrees inside the range answer from their memo, and only the
-    /// leaves the range cuts are scanned, so a slice costs about what the
-    /// whole vector does.
-    pub(crate) fn holds_mutable_in(&self, lo: usize, hi: usize) -> bool {
+impl<T: Probed + Clone> Pvec<T> {
+    /// `holds` for the items `lo..hi` only (a list's slice): the subtrees
+    /// inside the range answer from their memo, and only the leaves the
+    /// range cuts are scanned, so a slice costs about what the whole
+    /// vector does.
+    pub(crate) fn holds_in(&self, lo: usize, hi: usize, p: Probe) -> bool {
         let off = self.tail_off();
         if hi > off {
             let from = lo.max(off) - off;
-            if self.tail.vals()[from..hi - off]
-                .iter()
-                .any(HoldsMutable::holds_mutable)
-            {
+            if self.tail.vals()[from..hi - off].iter().any(|x| x.has(p)) {
                 return true;
             }
         }
-        lo < off && range_holds(&self.root, self.shift, 0, lo, hi.min(off))
+        lo < off && range_holds(&self.root, self.shift, 0, lo, hi.min(off), p)
     }
 }
 
 /// Whether an item `lo..hi` of the subtree `n` (at `level`, whose first
-/// item is `start`) holds a mutable value.
-fn range_holds<T: HoldsMutable>(
+/// item is `start`) answers `p`.
+fn range_holds<T: Probed>(
     n: &Node<T>,
     level: u32,
     start: usize,
     lo: usize,
     hi: usize,
+    p: Probe,
 ) -> bool {
     match n {
-        Node::Leaf(v, _) => v[lo - start..hi - start]
-            .iter()
-            .any(HoldsMutable::holds_mutable),
+        Node::Leaf(v, _) => v[lo - start..hi - start].iter().any(|x| x.has(p)),
         Node::Branch(k, _) => {
             let width = 1usize << level;
             k.iter().enumerate().any(|(j, kid)| {
@@ -376,28 +380,30 @@ fn range_holds<T: HoldsMutable>(
                 if ke <= lo || ks >= hi {
                     false
                 } else if lo <= ks && ke <= hi {
-                    node_holds(kid)
+                    node_holds(kid, p)
                 } else {
-                    range_holds(kid, level - BITS, ks, lo.max(ks), hi.min(ke))
+                    range_holds(kid, level - BITS, ks, lo.max(ks), hi.min(ke), p)
                 }
             })
         }
     }
 }
 
-fn node_holds<T: HoldsMutable>(n: &Node<T>) -> bool {
+fn node_holds<T: Probed>(n: &Node<T>, p: Probe) -> bool {
     let memo = match n {
         Node::Branch(_, m) | Node::Leaf(_, m) => m,
     };
-    match memo.get() {
+    let s = shift(p);
+    match (memo.get() >> s) & 3 {
         YES => return true,
         NO => return false,
         _ => {}
     }
     let held = match n {
-        Node::Branch(k, _) => k.iter().any(|c| node_holds(c)),
-        Node::Leaf(v, _) => v.iter().any(HoldsMutable::holds_mutable),
+        Node::Branch(k, _) => k.iter().any(|c| node_holds(c, p)),
+        Node::Leaf(v, _) => v.iter().any(|x| x.has(p)),
     };
-    memo.set(if held { YES } else { NO });
+    let answer = if held { YES } else { NO };
+    memo.set(memo.get() & !(3 << s) | answer << s);
     held
 }

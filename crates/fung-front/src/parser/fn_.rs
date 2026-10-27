@@ -70,7 +70,6 @@ fn fn_info(name: String) -> FnInfo {
         params: Vec::new(),
         ret: None,
         for_body: false,
-        expr_body: false,
         num_locals: 0,
         captures: Vec::new(),
     }
@@ -91,7 +90,6 @@ impl<'a> Parser<'a> {
             info.ret = Some(self.type_spec()?);
         }
         let body = if self.at(Kind::Assign) && named {
-            info.expr_body = true;
             let eq = self.next();
             self.skip_newlines_after_operator();
             let e = self.expr(0)?;
@@ -284,7 +282,6 @@ impl<'a> Parser<'a> {
             self.next(); // )
         }
         let arrow = self.next(); // =>
-        info.expr_body = true;
         self.skip_newlines_after_operator();
         let body = self.expr(0)?;
         Ok(Node::with_lit(

@@ -30,7 +30,6 @@ impl Resolver<'_> {
             params: decl.params.clone(),
             ret: decl.ret.clone(),
             for_body: false,
-            expr_body: decl.expr_body,
             num_locals: 0,
             captures: Vec::new(),
         };

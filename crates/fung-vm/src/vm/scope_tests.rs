@@ -133,7 +133,7 @@ fn an_err_value_is_not_a_failure() {
 fn a_body_error_cancels_and_waits_for_the_children() {
     let start = std::time::Instant::now();
     let (_, err, code) =
-        run("(_tx, never) = channel()\nscope(fn(s): spawn(s, () => recv(never)); x = 1 / 0 ;;)");
+        run("(_tx, never) = channel()\nscope(fn(s): spawn(s, () => recv(never)); x = 1 / 0; x ;;)");
     assert!(err.contains("1 / 0"), "{err}");
     assert!(!err.contains("E0702"), "{err}");
     assert_eq!(code, 1);

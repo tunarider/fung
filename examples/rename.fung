@@ -8,14 +8,14 @@ import cli
 import "./kebab" (target)
 
 fn rename_all(dir, dry):
-  files = fs.list(dir)!
-  each(files, fn(file):
+  for file in fs.list(dir)!:
     to = target(file)
     if to != file:
       print(file, "->", to)
       if not dry: fs.move(path.join(dir, file), path.join(dir, to))! ;;
     ;;
-  ;;)
+  ;;
+  nil
 ;;
 
 opts = cli.parse(args, bools: ["dry-run"])

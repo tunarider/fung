@@ -40,6 +40,26 @@ fn disk_level(usage):
 print(disk_level(91), disk_level(80), disk_level(12))
 ```
 
+마지막 항목이 반환값이므로, 거기에 `else` 없는 `if`나 대입을 두면 컴파일 에러다(E0223·E0224). 부르는 쪽이 그 값을 쓰면 조용히 `nil`이 되기 때문이다. 돌려줄 것이 없는 함수는 `if`에 `else: nil`을 붙이거나 마지막 줄에 `nil`을 쓴다.
+
+```fung run
+fn warn(usage):
+  if usage >= 90:
+    print("disk almost full:", usage)
+  else: nil ;;
+;;
+
+fn report(usages):
+  for u in usages:
+    if u >= 75: print("high:", u) ;;
+  ;;
+  nil
+;;
+
+warn(95)
+report([80, 20])
+```
+
 본문이 식 하나뿐이면 `=` 뒤에 바로 쓴다. 짧은 함수는 대부분 이 모양이다.
 
 ```fung run

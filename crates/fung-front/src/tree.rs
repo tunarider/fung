@@ -400,7 +400,6 @@ mod tests {
             params,
             ret: None,
             for_body: false,
-            expr_body: false,
             num_locals: 0,
             captures: vec![],
         }

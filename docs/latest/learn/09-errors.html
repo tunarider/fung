@@ -166,7 +166,24 @@ _ = fs.remove(&quot;tmp-work.txt&quot;)
 print(&quot;cleaned up&quot;)</code></pre><pre class="out plain"><code>cleaned up</code></pre></div>
 <div class="box learn"><b>값을 쓰는 자리와 버리는 자리</b>
 <p>블록에서 마지막이 아닌 식, 문장으로 쓴 함수 호출, 값을 버리는 <code>for</code>의 본문이 "버리는 자리"다. 함수의 마지막 식은 반환값이므로 버려지지 않는다. 그래서 <code>fn f() = parse_int(&quot;x&quot;)</code>는 괜찮고, <code>f()</code>를 부른 쪽이 그 <code>Err</code>를 다뤄야 한다.</p>
+<p>버려지는 값이 리스트면 fung은 그 원소도 본다. <code>for</code>로 끝나는 함수는 리스트를 돌려주는데, 그 함수를 문장으로 불러도 안의 <code>Err</code>가 사라지지 않는다.</p>
 </div>
+<div class="run"><pre><code>fn parse_all(texts):
+  for t in texts: parse_int(t) ;;
+;;
+
+parse_all([&quot;1&quot;, &quot;x&quot;])
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: x
+  --&gt; example.fung:5:1
+  |
+5 | parse_all([&quot;1&quot;, &quot;x&quot;])
+  | ^ this value is discarded
+  |
+  note: element 2 of the discarded list (of 2)
+ call path (innermost first):
+   example.fung:5 &lt;entry&gt;
+ help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
+<p>리스트 안의 리스트·튜플·맵까지 훑지는 않는다. <code>for</code>·<code>map</code>이 만드는 리스트는 한 겹이라 그것으로 충분하다.</p>
 <h2 id="own">내 함수에서 실패 돌려주기</h2>
 <p>직접 만드는 함수도 같은 모양을 따르면 <code>match</code>·<code>?</code>·<code>!</code>·<code>??</code>가 그대로 통한다. 성공은 <code>Ok(값)</code>, 실패는 <code>Err(…)</code>로 돌려준다. <code>Err</code> 안에는 아무 값이나 넣을 수 있지만, 표준 라이브러리처럼 <code>{kind, message}</code> 맵을 넣으면 부르는 쪽이 <code>kind</code>로 나누고 <code>message</code>를 보여 주기 쉽다. 일찍 돌아갈 때는 <code>return</code>을 쓴다(5장).</p>
 <div class="run"><pre><code>fn check_port(p):

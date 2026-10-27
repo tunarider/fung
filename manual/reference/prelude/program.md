@@ -147,6 +147,7 @@ fn cleanup(path) = exec(["rm", path])
 
 r = with(() => "./no-such-file", p => "used ${p}", fn(p):
   _ = cleanup(p)
+  nil
 ;;)
 print(r)
 ```

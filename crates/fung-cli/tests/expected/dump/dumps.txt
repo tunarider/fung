@@ -2407,12 +2407,12 @@
 -- exit: 0
 ==== dump ast examples/rename.fung
 -- stdout
-| (program (import fs) (import path) (import cli) (import "./kebab" (target)) (fn rename_all(dir, dry) (block (assign files (unwrap ! (call (field list fs) dir))) (call each files (fn (file) (block (assign to (call target file)) (if (binary != to file) (block (call print file "->" to) (if (unary not dry) (block (unwrap ! (call (field move fs) (call (field join path) dir file) (call (field join path) dir to)))) (nil))) (nil))))))) (assign opts (call (field parse cli) args (named bools (list "dry-run")))) (assign dir (coalesce (call first (field rest opts)) (call fail "usage: rename.fung <dir> [--dry-run]"))) (call rename_all dir (call get (field flags opts) "dry_run" false)))
+| (program (import fs) (import path) (import cli) (import "./kebab" (target)) (fn rename_all(dir, dry) (block (for (pbind file) (unwrap ! (call (field list fs) dir)) (block (assign to (call target file)) (if (binary != to file) (block (call print file "->" to) (if (unary not dry) (block (unwrap ! (call (field move fs) (call (field join path) dir file) (call (field join path) dir to)))) (nil))) (nil)))) (nil))) (assign opts (call (field parse cli) args (named bools (list "dry-run")))) (assign dir (coalesce (call first (field rest opts)) (call fail "usage: rename.fung <dir> [--dry-run]"))) (call rename_all dir (call get (field flags opts) "dry_run" false)))
 -- stderr
 -- exit: 0
 ==== dump core examples/rename.fung
 -- stdout
-| (do (import "fs" (global 0)) (import "path" (global 1)) (import "cli" (global 2)) (import "$REPO/examples/kebab.fung" (nil) (member target (global 3))) (let (global 4) (fn rename_all(dir, dry) (do (let (local 2) (unwrap ! (call (field list (global 0)) (local 0)))) (call (prelude each) (local 2) (fn (file) (do (let (local 1) (call (global 3) (local 0))) (if (op != (local 1) (local 0)) (do (call (prelude print) (local 0) "->" (local 1)) (if (op not (captured 0)) (do (unwrap ! (call (field move (global 0)) (call (field join (global 1)) (captured 1) (local 0)) (call (field join (global 1)) (captured 1) (local 1))))) (nil))) (nil)))))))) (let (global 5) (call (field parse (global 2)) (prelude args) (named bools (list "dry-run")))) (let (global 6) (coalesce (call (prelude first) (field rest (global 5))) (call (prelude fail) "usage: rename.fung <dir> [--dry-run]"))) (call (global 4) (global 6) (call (prelude get) (field flags (global 5)) "dry_run" false)))
+| (do (import "fs" (global 0)) (import "path" (global 1)) (import "cli" (global 2)) (import "$REPO/examples/kebab.fung" (nil) (member target (global 3))) (let (global 4) (fn rename_all(dir, dry) (do (call (prelude each) (unwrap ! (call (field list (global 0)) (local 0))) (fn (file) (do (let (local 1) (call (global 3) (local 0))) (if (op != (local 1) (local 0)) (do (call (prelude print) (local 0) "->" (local 1)) (if (op not (captured 0)) (do (unwrap ! (call (field move (global 0)) (call (field join (global 1)) (captured 1) (local 0)) (call (field join (global 1)) (captured 1) (local 1))))) (nil))) (nil))))) (nil)))) (let (global 5) (call (field parse (global 2)) (prelude args) (named bools (list "dry-run")))) (let (global 6) (coalesce (call (prelude first) (field rest (global 5))) (call (prelude fail) "usage: rename.fung <dir> [--dry-run]"))) (call (global 4) (global 6) (call (prelude get) (field flags (global 5)) "dry_run" false)))
 -- stderr
 -- exit: 0
 ==== dump bytecode examples/rename.fung
@@ -2460,55 +2460,57 @@
 | 0039  1:20  RETURN
 |
 | == rename_all ==
-| 0000  11:11 LOADGLOBAL   0
-| 0001  11:13 FIELD        0    ; list
-| 0002  11:19 LOADLOCAL    0
-| 0003  11:18 CALL         1    ; 1 positional, 0 named
-| 0004  11:23 UNWRAPABORT
-| 0005  11:3  STORELOCAL   2
-| 0006  12:3  CONST        1    ; <fn each>
-| 0007  12:8  MOVELOCAL    2
-| 0008  12:15 CLOSURE      0    ; <lambda>
-| 0009  12:7  TAILCALL     2    ; 2 positional, 0 named
-| 0010  10:1  RETURN
+| 0000  11:3  CONST        0    ; <fn each>
+| 0001  11:15 LOADGLOBAL   0
+| 0002  11:17 FIELD        1    ; list
+| 0003  11:23 LOADLOCAL    0
+| 0004  11:22 CALL         1    ; 1 positional, 0 named
+| 0005  11:27 UNWRAPABORT
+| 0006  11:3  CLOSURE      0    ; <lambda>
+| 0007  11:3  CALL         2    ; 2 positional, 0 named
+| 0008  11:3  POP
+| 0009  11:3  CLEARLOCAL   0
+| 0010  11:3  CLEARLOCAL   1
+| 0011  18:3  CONST        2    ; nil
+| 0012  10:1  RETURN
 |
 | == <lambda> ==
-| 0000  13:10 LOADGLOBAL   3
-| 0001  13:17 LOADLOCAL    0
-| 0002  13:16 CALL         1    ; 1 positional, 0 named
-| 0003  13:5  STORELOCAL   1
-| 0004  14:8  LOADLOCAL    1
-| 0005  14:14 LOADLOCAL    0
-| 0006  14:11 NE
-| 0007  14:11 JUMPIFFALSE  34
-| 0008  15:7  CONST        0    ; <fn print>
-| 0009  15:13 LOADLOCAL    0
-| 0010  15:19 CONST        1    ; "->"
-| 0011  15:25 LOADLOCAL    1
-| 0012  15:12 CALL         3    ; 3 positional, 0 named
-| 0013  15:7  POP
-| 0014  16:14 LOADCAPTURED 0
-| 0015  16:10 NOT
-| 0016  16:10 JUMPIFFALSE  32
-| 0017  16:19 LOADGLOBAL   0
-| 0018  16:21 FIELD        2    ; move
-| 0019  16:27 LOADGLOBAL   1
-| 0020  16:31 FIELD        3    ; join
-| 0021  16:37 LOADCAPTURED 1
-| 0022  16:42 MOVELOCAL    0
-| 0023  16:36 CALL         2    ; 2 positional, 0 named
-| 0024  16:49 LOADGLOBAL   1
-| 0025  16:53 FIELD        3    ; join
-| 0026  16:59 LOADCAPTURED 1
-| 0027  16:64 MOVELOCAL    1
-| 0028  16:58 CALL         2    ; 2 positional, 0 named
-| 0029  16:26 CALL         2    ; 2 positional, 0 named
-| 0030  16:68 UNWRAPABORT
-| 0031  16:7  JUMP         33
-| 0032  16:7  CONST        4    ; nil
-| 0033  14:5  JUMP         35
-| 0034  14:5  CONST        4    ; nil
-| 0035  12:15 RETURN
+| 0000  12:10 LOADGLOBAL   3
+| 0001  12:17 LOADLOCAL    0
+| 0002  12:16 CALL         1    ; 1 positional, 0 named
+| 0003  12:5  STORELOCAL   1
+| 0004  13:8  LOADLOCAL    1
+| 0005  13:14 LOADLOCAL    0
+| 0006  13:11 NE
+| 0007  13:11 JUMPIFFALSE  34
+| 0008  14:7  CONST        0    ; <fn print>
+| 0009  14:13 LOADLOCAL    0
+| 0010  14:19 CONST        1    ; "->"
+| 0011  14:25 LOADLOCAL    1
+| 0012  14:12 CALL         3    ; 3 positional, 0 named
+| 0013  14:7  POP
+| 0014  15:14 LOADCAPTURED 0
+| 0015  15:10 NOT
+| 0016  15:10 JUMPIFFALSE  32
+| 0017  15:19 LOADGLOBAL   0
+| 0018  15:21 FIELD        2    ; move
+| 0019  15:27 LOADGLOBAL   1
+| 0020  15:31 FIELD        3    ; join
+| 0021  15:37 LOADCAPTURED 1
+| 0022  15:42 MOVELOCAL    0
+| 0023  15:36 CALL         2    ; 2 positional, 0 named
+| 0024  15:49 LOADGLOBAL   1
+| 0025  15:53 FIELD        3    ; join
+| 0026  15:59 LOADCAPTURED 1
+| 0027  15:64 MOVELOCAL    1
+| 0028  15:58 CALL         2    ; 2 positional, 0 named
+| 0029  15:26 CALL         2    ; 2 positional, 0 named
+| 0030  15:68 UNWRAPABORT
+| 0031  15:7  JUMP         33
+| 0032  15:7  CONST        4    ; nil
+| 0033  13:5  JUMP         35
+| 0034  13:5  CONST        4    ; nil
+| 0035  11:3  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast examples/serve.fung
@@ -2925,12 +2927,12 @@
 -- exit: 0
 ==== dump ast examples/tidy.fung
 -- stdout
-| (program (import fs) (import path) (import cli) (import "./bigfiles" (largest, human)) (assign opts (call (field parse cli) args)) (assign dir (coalesce (call first (field rest opts)) (call fail "usage: tidy.fung <dir> [n] [--trash <trash-dir>]"))) (assign n (then (binary > (call len (field rest opts)) 1) (call int (index (field rest opts) 1)) 5)) (assign trash (call get (field flags opts) "trash")) (call each (call largest dir n) (fn ((ptuple (pbind p) (pbind size))) (block (call print (call pad_left (call human size) 8) p) (if (binary != trash (nil)) (block (unwrap ! (call (field mkdir fs) trash)) (unwrap ! (call (field move fs) p (call (field join path) trash (call (field base path) p))))) (nil))))))
+| (program (import fs) (import path) (import cli) (import "./bigfiles" (largest, human)) (assign opts (call (field parse cli) args)) (assign dir (coalesce (call first (field rest opts)) (call fail "usage: tidy.fung <dir> [n] [--trash <trash-dir>]"))) (assign n (then (binary > (call len (field rest opts)) 1) (call int (index (field rest opts) 1)) 5)) (assign trash (call get (field flags opts) "trash")) (for (ptuple (pbind p) (pbind size)) (call largest dir n) (block (call print (call pad_left (call human size) 8) p) (if (binary != trash (nil)) (block (unwrap ! (call (field mkdir fs) trash)) (unwrap ! (call (field move fs) p (call (field join path) trash (call (field base path) p))))) (nil)))))
 -- stderr
 -- exit: 0
 ==== dump core examples/tidy.fung
 -- stdout
-| (do (import "fs" (global 0)) (import "path" (global 1)) (import "cli" (global 2)) (import "$REPO/examples/bigfiles.fung" (nil) (member largest (global 3)) (member human (global 4))) (let (global 5) (call (field parse (global 2)) (prelude args))) (let (global 6) (coalesce (call (prelude first) (field rest (global 5))) (call (prelude fail) "usage: tidy.fung <dir> [n] [--trash <trash-dir>]"))) (let (global 7) (if (op > (call (prelude len) (field rest (global 5))) 1) (call (prelude int) (index (field rest (global 5)) 1)) 5)) (let (global 8) (call (prelude get) (field flags (global 5)) "trash")) (call (prelude each) (call (global 3) (global 6) (global 7)) (fn ($a0) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (local 0)) (call (prelude print) (call (prelude pad_left) (call (global 4) (local 2)) 8) (local 1)) (if (op != (captured 0) (nil)) (do (unwrap ! (call (field mkdir (global 0)) (captured 0))) (unwrap ! (call (field move (global 0)) (local 1) (call (field join (global 1)) (captured 0) (call (field base (global 1)) (local 1)))))) (nil))))))
+| (do (import "fs" (global 0)) (import "path" (global 1)) (import "cli" (global 2)) (import "$REPO/examples/bigfiles.fung" (nil) (member largest (global 3)) (member human (global 4))) (let (global 5) (call (field parse (global 2)) (prelude args))) (let (global 6) (coalesce (call (prelude first) (field rest (global 5))) (call (prelude fail) "usage: tidy.fung <dir> [n] [--trash <trash-dir>]"))) (let (global 7) (if (op > (call (prelude len) (field rest (global 5))) 1) (call (prelude int) (index (field rest (global 5)) 1)) 5)) (let (global 8) (call (prelude get) (field flags (global 5)) "trash")) (call (prelude each) (call (global 3) (global 6) (global 7)) (fn ($f0) (do (let (ptuple (pbind (local 1)) (pbind (local 2))) (local 0)) (call (prelude print) (call (prelude pad_left) (call (global 4) (local 2)) 8) (local 1)) (if (op != (captured 0) (nil)) (do (unwrap ! (call (field mkdir (global 0)) (captured 0))) (unwrap ! (call (field move (global 0)) (local 1) (call (field join (global 1)) (captured 0) (call (field base (global 1)) (local 1)))))) (nil))))))
 -- stderr
 -- exit: 0
 ==== dump bytecode examples/tidy.fung
@@ -2986,20 +2988,20 @@
 | 0047  12:12 CALL         2    ; 2 positional, 0 named
 | 0048  12:1  STOREGLOBAL  8    ; trash
 | 0049  14:1  CONST        19    ; <fn each>
-| 0050  14:6  LOADGLOBAL   3    ; largest
-| 0051  14:14 LOADGLOBAL   6    ; dir
-| 0052  14:19 LOADGLOBAL   7    ; n
-| 0053  14:13 CALL         2    ; 2 positional, 0 named
-| 0054  14:23 CLOSURE      0    ; <lambda>
-| 0055  14:5  CALL         2    ; 2 positional, 0 named
+| 0050  14:18 LOADGLOBAL   3    ; largest
+| 0051  14:26 LOADGLOBAL   6    ; dir
+| 0052  14:31 LOADGLOBAL   7    ; n
+| 0053  14:25 CALL         2    ; 2 positional, 0 named
+| 0054  14:1  CLOSURE      0    ; <lambda>
+| 0055  14:1  CALL         2    ; 2 positional, 0 named
 | 0056  14:1  POP
 | 0057  14:1  CONST        20    ; nil
 | 0058  1:20  RETURN
 |
 | == <lambda> ==
-| 0000  14:26 MOVELOCAL    0
-| 0001  14:26 MATCHORFAIL  0    ; ($1, $2)
-| 0002  14:26 CLEARLOCAL   0
+| 0000  14:5  MOVELOCAL    0
+| 0001  14:5  MATCHORFAIL  0    ; ($1, $2)
+| 0002  14:5  CLEARLOCAL   0
 | 0003  15:3  CONST        0    ; <fn print>
 | 0004  15:9  CONST        1    ; <fn pad_left>
 | 0005  15:18 LOADGLOBAL   4
@@ -3036,7 +3038,7 @@
 | 0036  18:47 UNWRAPABORT
 | 0037  16:3  JUMP         39
 | 0038  16:3  CONST        3    ; nil
-| 0039  14:23 RETURN
+| 0039  14:1  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast examples/urlcheck.fung
@@ -3807,7 +3809,7 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (78221 bytes, fnv1a64 1ed95e67bbb88ef0)
+-- stdout (78235 bytes, fnv1a64 e6d3accdbc145a02)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
@@ -6081,12 +6083,12 @@
 -- exit: 0
 ==== dump ast tests/lang/discard.fung
 -- stdout
-| (program (assign (pwild) (tag Err "ignored")) (assign (pwild) (call exec (list "false"))) (assign r (tag Err "kept")) (call print r) (fn fails() (block (tag Err "returned"))) (call print (call fails)) (call print (call is_err (call exec (list "false")))) (assign xs (for (pbind x) (list 1 2) (block (then (binary == x 2) (tag Err x) (tag Ok x))))) (call print xs) (for (pbind x) (list 1 2) (block (for (pbind y) (list x) (block (call print y))))) (tag Ok 1) (nil) (list (tag Err 1)) (call each (list 1) (fn (x) (block (tag Ok x)))) (call print "done"))
+| (program (assign (pwild) (tag Err "ignored")) (assign (pwild) (call exec (list "false"))) (assign r (tag Err "kept")) (call print r) (fn fails() (block (tag Err "returned"))) (call print (call fails)) (call print (call is_err (call exec (list "false")))) (assign xs (for (pbind x) (list 1 2) (block (then (binary == x 2) (tag Err x) (tag Ok x))))) (call print xs) (for (pbind x) (list 1 2) (block (for (pbind y) (list x) (block (call print y))))) (tag Ok 1) (nil) (list (tag Ok 1) 2) (call map (list 1 2) (fn (x) (block (tag Ok x)))) (call each (list 1) (fn (x) (block (list (tag Ok x))))) (fn names(xs) (block (for (pbind x) xs (block (interp "n" x))))) (call print (call names (list 1 2))) (list (list (tag Err 1))) (list (tuple (tag Err 1) 2)) (list (map (entry e (tag Err 1)))) (call print "done"))
 -- stderr
 -- exit: 0
 ==== dump core tests/lang/discard.fung
 -- stdout
-| (do (let (global 0) (fn fails() (do (tag Err "returned")))) (let (pwild) (tag Err "ignored")) (let (pwild) (call (prelude exec) (list "false"))) (let (global 1) (tag Err "kept")) (call (prelude print) (global 1)) (call (prelude print) (call (global 0))) (call (prelude print) (call (prelude is_err) (call (prelude exec) (list "false")))) (let (global 2) (call (prelude map) (list 1 2) (fn (x) (do (if (op == (local 0) 2) (tag Err (local 0)) (tag Ok (local 0))))))) (call (prelude print) (global 2)) (call (prelude each) (list 1 2) (fn (x) (do (call (prelude each) (list (local 0)) (fn (y) (do (call (prelude print) (local 0)))))))) (tag Ok 1) (nil) (list (tag Err 1)) (call (prelude each) (list 1) (fn (x) (do (tag Ok (local 0))))) (call (prelude print) "done"))
+| (do (let (global 0) (fn fails() (do (tag Err "returned")))) (let (global 1) (fn names(xs) (do (call (prelude map) (local 0) (fn (x) (do (concat "n" (local 0)))))))) (let (pwild) (tag Err "ignored")) (let (pwild) (call (prelude exec) (list "false"))) (let (global 2) (tag Err "kept")) (call (prelude print) (global 2)) (call (prelude print) (call (global 0))) (call (prelude print) (call (prelude is_err) (call (prelude exec) (list "false")))) (let (global 3) (call (prelude map) (list 1 2) (fn (x) (do (if (op == (local 0) 2) (tag Err (local 0)) (tag Ok (local 0))))))) (call (prelude print) (global 3)) (call (prelude each) (list 1 2) (fn (x) (do (call (prelude each) (list (local 0)) (fn (y) (do (call (prelude print) (local 0)))))))) (tag Ok 1) (nil) (list (tag Ok 1) 2) (call (prelude map) (list 1 2) (fn (x) (do (tag Ok (local 0))))) (call (prelude each) (list 1) (fn (x) (do (list (tag Ok (local 0)))))) (call (prelude print) (call (global 1) (list 1 2))) (list (list (tag Err 1))) (list (tuple (tag Err 1) 2)) (list (map (entry e (tag Err 1)))) (call (prelude print) "done"))
 -- stderr
 -- exit: 0
 ==== dump bytecode tests/lang/discard.fung
@@ -6094,77 +6096,124 @@
 | == <main> ==
 | 0000  11:1  CLOSURE      0    ; fails
 | 0001  11:1  STOREGLOBAL  0    ; fails
-| 0002  4:5   CONST        0    ; 'Err
-| 0003  4:9   CONST        1    ; "ignored"
-| 0004  4:5   TAG          1    ; 1 args
-| 0005  4:1   MATCHORFAIL  0    ; _
-| 0006  5:5   CONST        2    ; <fn exec>
-| 0007  5:10  CONST        3    ; ["false"]
-| 0008  5:9   CALL         1    ; 1 positional, 0 named
-| 0009  5:1   MATCHORFAIL  1    ; _
-| 0010  8:5   CONST        0    ; 'Err
-| 0011  8:9   CONST        4    ; "kept"
-| 0012  8:5   TAG          1    ; 1 args
-| 0013  8:1   STOREGLOBAL  1    ; r
-| 0014  9:1   CONST        5    ; <fn print>
-| 0015  9:7   LOADGLOBAL   1    ; r
-| 0016  9:6   CALL         1    ; 1 positional, 0 named
-| 0017  9:1   POP
-| 0018  12:1  CONST        5    ; <fn print>
-| 0019  12:7  LOADGLOBAL   0    ; fails
-| 0020  12:12 CALL         0    ; 0 positional, 0 named
-| 0021  12:6  CALL         1    ; 1 positional, 0 named
-| 0022  12:1  POP
-| 0023  14:1  CONST        5    ; <fn print>
-| 0024  14:7  CONST        6    ; <fn is_err>
-| 0025  14:14 CONST        2    ; <fn exec>
-| 0026  14:19 CONST        3    ; ["false"]
-| 0027  14:18 CALL         1    ; 1 positional, 0 named
-| 0028  14:13 CALL         1    ; 1 positional, 0 named
-| 0029  14:6  CALL         1    ; 1 positional, 0 named
-| 0030  14:1  POP
-| 0031  18:6  CONST        7    ; <fn map>
-| 0032  18:15 CONST        8    ; [1, 2]
-| 0033  18:6  CLOSURE      1    ; <lambda>
-| 0034  18:6  CALL         2    ; 2 positional, 0 named
-| 0035  18:1  STOREGLOBAL  2    ; xs
-| 0036  19:1  CONST        5    ; <fn print>
-| 0037  19:7  LOADGLOBAL   2    ; xs
-| 0038  19:6  CALL         1    ; 1 positional, 0 named
-| 0039  19:1  POP
-| 0040  23:1  CONST        9    ; <fn each>
-| 0041  23:10 CONST        8    ; [1, 2]
-| 0042  23:1  CLOSURE      2    ; <lambda>
-| 0043  23:1  CALL         2    ; 2 positional, 0 named
-| 0044  23:1  POP
-| 0045  32:1  CONST        10    ; 'Ok
-| 0046  32:4  CONST        11    ; 1
-| 0047  32:1  TAG          1    ; 1 args
-| 0048  32:1  POP
-| 0049  33:1  CONST        12    ; nil
-| 0050  33:1  POP
-| 0051  34:2  CONST        0    ; 'Err
-| 0052  34:6  CONST        11    ; 1
-| 0053  34:2  TAG          1    ; 1 args
-| 0054  34:1  LIST         1
-| 0055  34:1  POP
-| 0056  35:1  CONST        9    ; <fn each>
-| 0057  35:6  CONST        13    ; [1]
-| 0058  35:11 CLOSURE      3    ; <lambda>
-| 0059  35:5  CALL         2    ; 2 positional, 0 named
-| 0060  35:1  POP
-| 0061  36:1  CONST        5    ; <fn print>
-| 0062  36:7  CONST        14    ; "done"
-| 0063  36:6  CALL         1    ; 1 positional, 0 named
-| 0064  36:1  POP
-| 0065  36:1  CONST        12    ; nil
-| 0066  1:42  RETURN
+| 0002  37:1  CLOSURE      1    ; names
+| 0003  37:1  STOREGLOBAL  1    ; names
+| 0004  4:5   CONST        0    ; 'Err
+| 0005  4:9   CONST        1    ; "ignored"
+| 0006  4:5   TAG          1    ; 1 args
+| 0007  4:1   MATCHORFAIL  0    ; _
+| 0008  5:5   CONST        2    ; <fn exec>
+| 0009  5:10  CONST        3    ; ["false"]
+| 0010  5:9   CALL         1    ; 1 positional, 0 named
+| 0011  5:1   MATCHORFAIL  1    ; _
+| 0012  8:5   CONST        0    ; 'Err
+| 0013  8:9   CONST        4    ; "kept"
+| 0014  8:5   TAG          1    ; 1 args
+| 0015  8:1   STOREGLOBAL  2    ; r
+| 0016  9:1   CONST        5    ; <fn print>
+| 0017  9:7   LOADGLOBAL   2    ; r
+| 0018  9:6   CALL         1    ; 1 positional, 0 named
+| 0019  9:1   POP
+| 0020  12:1  CONST        5    ; <fn print>
+| 0021  12:7  LOADGLOBAL   0    ; fails
+| 0022  12:12 CALL         0    ; 0 positional, 0 named
+| 0023  12:6  CALL         1    ; 1 positional, 0 named
+| 0024  12:1  POP
+| 0025  14:1  CONST        5    ; <fn print>
+| 0026  14:7  CONST        6    ; <fn is_err>
+| 0027  14:14 CONST        2    ; <fn exec>
+| 0028  14:19 CONST        3    ; ["false"]
+| 0029  14:18 CALL         1    ; 1 positional, 0 named
+| 0030  14:13 CALL         1    ; 1 positional, 0 named
+| 0031  14:6  CALL         1    ; 1 positional, 0 named
+| 0032  14:1  POP
+| 0033  18:6  CONST        7    ; <fn map>
+| 0034  18:15 CONST        8    ; [1, 2]
+| 0035  18:6  CLOSURE      2    ; <lambda>
+| 0036  18:6  CALL         2    ; 2 positional, 0 named
+| 0037  18:1  STOREGLOBAL  3    ; xs
+| 0038  19:1  CONST        5    ; <fn print>
+| 0039  19:7  LOADGLOBAL   3    ; xs
+| 0040  19:6  CALL         1    ; 1 positional, 0 named
+| 0041  19:1  POP
+| 0042  23:1  CONST        9    ; <fn each>
+| 0043  23:10 CONST        8    ; [1, 2]
+| 0044  23:1  CLOSURE      3    ; <lambda>
+| 0045  23:1  CALL         2    ; 2 positional, 0 named
+| 0046  23:1  POP
+| 0047  32:1  CONST        10    ; 'Ok
+| 0048  32:4  CONST        11    ; 1
+| 0049  32:1  TAG          1    ; 1 args
+| 0050  32:1  POP
+| 0051  33:1  CONST        12    ; nil
+| 0052  33:1  POP
+| 0053  34:2  CONST        10    ; 'Ok
+| 0054  34:5  CONST        11    ; 1
+| 0055  34:2  TAG          1    ; 1 args
+| 0056  34:9  CONST        13    ; 2
+| 0057  34:1  LIST         2
+| 0058  34:1  POP
+| 0059  35:1  CONST        7    ; <fn map>
+| 0060  35:5  CONST        8    ; [1, 2]
+| 0061  35:13 CLOSURE      4    ; <lambda>
+| 0062  35:4  CALL         2    ; 2 positional, 0 named
+| 0063  35:1  POP
+| 0064  36:1  CONST        9    ; <fn each>
+| 0065  36:6  CONST        14    ; [1]
+| 0066  36:11 CLOSURE      5    ; <lambda>
+| 0067  36:5  CALL         2    ; 2 positional, 0 named
+| 0068  36:1  POP
+| 0069  38:1  CONST        5    ; <fn print>
+| 0070  38:7  LOADGLOBAL   1    ; names
+| 0071  38:13 CONST        8    ; [1, 2]
+| 0072  38:12 CALL         1    ; 1 positional, 0 named
+| 0073  38:6  CALL         1    ; 1 positional, 0 named
+| 0074  38:1  POP
+| 0075  43:3  CONST        0    ; 'Err
+| 0076  43:7  CONST        11    ; 1
+| 0077  43:3  TAG          1    ; 1 args
+| 0078  43:2  LIST         1
+| 0079  43:1  LIST         1
+| 0080  43:1  POP
+| 0081  44:3  CONST        0    ; 'Err
+| 0082  44:7  CONST        11    ; 1
+| 0083  44:3  TAG          1    ; 1 args
+| 0084  44:11 CONST        13    ; 2
+| 0085  44:2  TUPLE        2
+| 0086  44:1  LIST         1
+| 0087  44:1  POP
+| 0088  45:3  CONST        15    ; "e"
+| 0089  45:6  CONST        0    ; 'Err
+| 0090  45:10 CONST        11    ; 1
+| 0091  45:6  TAG          1    ; 1 args
+| 0092  45:2  MAP          1
+| 0093  45:1  LIST         1
+| 0094  45:1  POP
+| 0095  46:1  CONST        5    ; <fn print>
+| 0096  46:7  CONST        16    ; "done"
+| 0097  46:6  CALL         1    ; 1 positional, 0 named
+| 0098  46:1  POP
+| 0099  46:1  CONST        12    ; nil
+| 0100  1:42  RETURN
 |
 | == fails ==
 | 0000  11:14 CONST        0    ; 'Err
 | 0001  11:18 CONST        1    ; "returned"
 | 0002  11:14 TAG          1    ; 1 args
 | 0003  11:12 RETURN
+|
+| == names ==
+| 0000  37:15 CONST        0    ; <fn map>
+| 0001  37:24 MOVELOCAL    0
+| 0002  37:15 CLOSURE      0    ; <lambda>
+| 0003  37:15 TAILCALL     2    ; 2 positional, 0 named
+| 0004  37:1  RETURN
+|
+| == <lambda> ==
+| 0000  37:28 CONST        0    ; "n"
+| 0001  37:32 MOVELOCAL    0
+| 0002  37:28 CONCAT       2
+| 0003  37:15 RETURN
 |
 | == <lambda> ==
 | 0000  18:23 LOADLOCAL    0
@@ -6195,10 +6244,17 @@
 | 0003  24:3  RETURN
 |
 | == <lambda> ==
-| 0000  35:16 CONST        0    ; 'Ok
-| 0001  35:19 MOVELOCAL    0
-| 0002  35:16 TAG          1    ; 1 args
-| 0003  35:13 RETURN
+| 0000  35:18 CONST        0    ; 'Ok
+| 0001  35:21 MOVELOCAL    0
+| 0002  35:18 TAG          1    ; 1 args
+| 0003  35:15 RETURN
+|
+| == <lambda> ==
+| 0000  36:17 CONST        0    ; 'Ok
+| 0001  36:20 MOVELOCAL    0
+| 0002  36:17 TAG          1    ; 1 args
+| 0003  36:16 LIST         1
+| 0004  36:13 RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/discard_callbacks.fung
@@ -7131,6 +7187,130 @@
 | 0015  2:1   RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/err_discard_list_each.fung
+-- stdout
+| (program (call each (list 1) (fn (x) (block (list (tag Ok x) (tag Err "in a list"))))) (call print "not reached"))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_list_each.fung
+-- stdout
+| (do (call (prelude each) (list 1) (fn (x) (do (list (tag Ok (local 0)) (tag Err "in a list"))))) (call (prelude print) "not reached"))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/err_discard_list_each.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   CONST        0    ; <fn each>
+| 0001  2:6   CONST        1    ; [1]
+| 0002  2:11  CLOSURE      0    ; <lambda>
+| 0003  2:5   CALL         2    ; 2 positional, 0 named
+| 0004  2:1   POP
+| 0005  4:1   CONST        2    ; <fn print>
+| 0006  4:7   CONST        3    ; "not reached"
+| 0007  4:6   CALL         1    ; 1 positional, 0 named
+| 0008  4:1   POP
+| 0009  4:1   CONST        4    ; nil
+| 0010  1:56  RETURN
+|
+| == <lambda> ==
+| 0000  2:17  CONST        0    ; 'Ok
+| 0001  2:20  MOVELOCAL    0
+| 0002  2:17  TAG          1    ; 1 args
+| 0003  2:24  CONST        1    ; 'Err
+| 0004  2:28  CONST        2    ; "in a list"
+| 0005  2:24  TAG          1    ; 1 args
+| 0006  2:16  LIST         2
+| 0007  2:13  RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/err_discard_list_end.fung
+-- stdout
+| (program (fn main() (block (assign (ptuple (pbind tx) (pbind _rx)) (call channel 1)) (call close tx) (for (pbind f) (list 1 2) (block (call send tx f))))) (call main) (call print "not reached"))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_list_end.fung
+-- stdout
+| (do (let (global 0) (fn main() (do (let (ptuple (pbind (local 0)) (pbind (local 1))) (call (prelude channel) 1)) (call (prelude close) (local 0)) (call (prelude map) (list 1 2) (fn (f) (do (call (prelude send) (captured 0) (local 0)))))))) (call (global 0)) (call (prelude print) "not reached"))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/err_discard_list_end.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   CLOSURE      0    ; main
+| 0001  3:1   STOREGLOBAL  0    ; main
+| 0002  8:1   LOADGLOBAL   0    ; main
+| 0003  8:5   CALL         0    ; 0 positional, 0 named
+| 0004  8:1   POP
+| 0005  10:1  CONST        0    ; <fn print>
+| 0006  10:7  CONST        1    ; "not reached"
+| 0007  10:6  CALL         1    ; 1 positional, 0 named
+| 0008  10:1  POP
+| 0009  10:1  CONST        2    ; nil
+| 0010  1:67  RETURN
+|
+| == main ==
+| 0000  4:15  CONST        0    ; <fn channel>
+| 0001  4:23  CONST        1    ; 1
+| 0002  4:22  CALL         1    ; 1 positional, 0 named
+| 0003  4:3   MATCHORFAIL  0    ; ($0, $1)
+| 0004  5:3   CONST        2    ; <fn close>
+| 0005  5:9   LOADLOCAL    0
+| 0006  5:8   CALL         1    ; 1 positional, 0 named
+| 0007  5:3   POP
+| 0008  6:3   CONST        3    ; <fn map>
+| 0009  6:12  CONST        4    ; [1, 2]
+| 0010  6:3   CLOSURE      0    ; <lambda>
+| 0011  6:3   TAILCALL     2    ; 2 positional, 0 named
+| 0012  3:1   RETURN
+|
+| == <lambda> ==
+| 0000  6:20  CONST        0    ; <fn send>
+| 0001  6:25  LOADCAPTURED 0
+| 0002  6:29  MOVELOCAL    0
+| 0003  6:24  TAILCALL     2    ; 2 positional, 0 named
+| 0004  6:3   RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/err_discard_list_map.fung
+-- stdout
+| (program (call map (list 1 2 3) (fn (x) (block (then (binary == x 2) (tag Err "two") (tag Ok x))))) (call print "not reached"))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_discard_list_map.fung
+-- stdout
+| (do (call (prelude map) (list 1 2 3) (fn (x) (do (if (op == (local 0) 2) (tag Err "two") (tag Ok (local 0)))))) (call (prelude print) "not reached"))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/err_discard_list_map.fung
+-- stdout
+| == <main> ==
+| 0000  2:1   CONST        0    ; <fn map>
+| 0001  2:5   CONST        1    ; [1, 2, 3]
+| 0002  2:16  CLOSURE      0    ; <lambda>
+| 0003  2:4   CALL         2    ; 2 positional, 0 named
+| 0004  2:1   POP
+| 0005  4:1   CONST        2    ; <fn print>
+| 0006  4:7   CONST        3    ; "not reached"
+| 0007  4:6   CALL         1    ; 1 positional, 0 named
+| 0008  4:1   POP
+| 0009  4:1   CONST        4    ; nil
+| 0010  1:54  RETURN
+|
+| == <lambda> ==
+| 0000  2:21  LOADLOCAL    0
+| 0001  2:26  CONST        0    ; 2
+| 0002  2:23  EQ
+| 0003  2:23  JUMPIFFALSE  8
+| 0004  2:33  CONST        1    ; 'Err
+| 0005  2:37  CONST        2    ; "two"
+| 0006  2:33  TAG          1    ; 1 args
+| 0007  2:28  JUMP         11
+| 0008  2:49  CONST        3    ; 'Ok
+| 0009  2:52  MOVELOCAL    0
+| 0010  2:49  TAG          1    ; 1 args
+| 0011  2:18  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/err_discard_on_fail.fung
 -- stdout
 | (program (call supervise (fn (s) (block (call spawn s (fn () (block (call fail "boom")))))) (fn (e) (block (tag Err (field message e))))) (call print "not reached"))
@@ -7523,17 +7703,17 @@
 -- exit: 0
 ==== dump ast tests/lang/err_global_from_fn.fung
 -- stdout
-| (program (assign x 1) (assign f (fn () (block (assign x 2)))))
+| (program (assign x 1) (assign f (fn () (block (assign x 2) x))))
 -- stderr
 -- exit: 0
 ==== dump core tests/lang/err_global_from_fn.fung
 -- stdout
 -- stderr
 | error[E0205]: cannot reassign `x` here: it was defined outside this block
-|   --> tests/lang/err_global_from_fn.fung:2:11
+|   --> tests/lang/err_global_from_fn.fung:3:3
 |   |
-| 2 | f = fn(): x = 2 ;;
-|   |           ^
+| 3 |   x = 2
+|   |   ^
 |   |
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
@@ -7541,10 +7721,10 @@
 -- stdout
 -- stderr
 | error[E0205]: cannot reassign `x` here: it was defined outside this block
-|   --> tests/lang/err_global_from_fn.fung:2:11
+|   --> tests/lang/err_global_from_fn.fung:3:3
 |   |
-| 2 | f = fn(): x = 2 ;;
-|   |           ^
+| 3 |   x = 2
+|   |   ^
 |   |
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
@@ -8223,7 +8403,7 @@
 | 2 | x = if false: 1 ;;
 |   |     ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump bytecode tests/lang/err_open_if_assign.fung
 -- stdout
@@ -8234,7 +8414,7 @@
 | 2 | x = if false: 1 ;;
 |   |     ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump ast tests/lang/err_open_if_chain.fung
 -- stdout
@@ -8250,7 +8430,7 @@
 | 4 | else if n < 0:
 |   |      ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump bytecode tests/lang/err_open_if_chain.fung
 -- stdout
@@ -8261,7 +8441,34 @@
 | 4 | else if n < 0:
 |   |      ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
+-- exit: 2
+==== dump ast tests/lang/err_open_if_fn_end.fung
+-- stdout
+| (program (fn f(x) (block (if x (block 1) (nil)))) (call print (call f false)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_open_if_fn_end.fung
+-- stdout
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_fn_end.fung:4:3
+|   |
+| 4 |   if x: 1 ;;
+|   |   ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
+-- exit: 2
+==== dump bytecode tests/lang/err_open_if_fn_end.fung
+-- stdout
+-- stderr
+| error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
+|   --> tests/lang/err_open_if_fn_end.fung:4:3
+|   |
+| 4 |   if x: 1 ;;
+|   |   ^^ this if has no else
+|   |
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump ast tests/lang/err_open_if_lambda.fung
 -- stdout
@@ -8277,7 +8484,7 @@
 | 2 | print(map([1, 2], x => if x > 1: x ;;))
 |   |                        ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump bytecode tests/lang/err_open_if_lambda.fung
 -- stdout
@@ -8288,7 +8495,7 @@
 | 2 | print(map([1, 2], x => if x > 1: x ;;))
 |   |                        ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump ast tests/lang/err_open_if_nested.fung
 -- stdout
@@ -8304,7 +8511,7 @@
 | 3 |   if false: 1 ;;
 |   |   ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump bytecode tests/lang/err_open_if_nested.fung
 -- stdout
@@ -8315,7 +8522,7 @@
 | 3 |   if false: 1 ;;
 |   |   ^^ this if has no else
 |   |
-|  help: add an `else:` branch; write `else: nil` if nil is meant
+|  help: add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 -- exit: 2
 ==== dump ast tests/lang/err_overflow.fung
 -- stdout
@@ -11357,128 +11564,132 @@
 -- exit: 0
 ==== dump ast tests/lang/open_if.fung
 -- stdout
-| (program (fn shout(s) (block (if (binary != s "") (block (call print (binary + s "!"))) (nil)))) (call shout "hi") (if false (block (call print "no")) (nil)) (for (pbind x) (list 1 2) (block (if (binary > x 1) (block (call print x)) (nil)))) (call each (list 3) (fn (x) (block (if (binary > x 0) (block (call print x)) (nil))))) (assign x (if false (block 1) (block (nil)))) (call print x) (assign y (if false (block 1) (if true (block 2) (block 3)))) (call print y) (assign z (match 1 (arm (plit 1) (nil) (block (if false (block 0) (block 1)))) (arm (pwild) (nil) (block 2)))) (call print z))
+| (program (if false (block (call print "no")) (nil)) (for (pbind x) (list 1 2) (block (if (binary > x 1) (block (call print x)) (nil)))) (fn shout(s) (block (if (binary != s "") (block (call print (binary + s "!"))) (nil)) (nil))) (call shout "hi") (fn whisper(s) (block (if (binary != s "") (block (call print s)) (block (nil))))) (call whisper "hm") (assign x (if false (block 1) (block (nil)))) (call print x) (assign y (if false (block 1) (if true (block 2) (block 3)))) (call print y) (assign z (match 1 (arm (plit 1) (nil) (block (if false (block 0) (block 1)))) (arm (pwild) (nil) (block 2)))) (call print z))
 -- stderr
 -- exit: 0
 ==== dump core tests/lang/open_if.fung
 -- stdout
-| (do (let (global 0) (fn shout(s) (do (if (op != (local 0) "") (do (call (prelude print) (op + (local 0) "!"))) (nil))))) (call (global 0) "hi") (if false (do (call (prelude print) "no")) (nil)) (call (prelude each) (list 1 2) (fn (x) (do (if (op > (local 0) 1) (do (call (prelude print) (local 0))) (nil))))) (call (prelude each) (list 3) (fn (x) (do (if (op > (local 0) 0) (do (call (prelude print) (local 0))) (nil))))) (let (global 1) (if false (do 1) (do (nil)))) (call (prelude print) (global 1)) (let (global 2) (if false (do 1) (if true (do 2) (do 3)))) (call (prelude print) (global 2)) (let (global 3) (do (let (local 0) 1) (match (local 0) (arm (plit 1) (nil) (do (if false (do 0) (do 1)))) (arm (pwild) (nil) (do 2))))) (call (prelude print) (global 3)))
+| (do (let (global 0) (fn shout(s) (do (if (op != (local 0) "") (do (call (prelude print) (op + (local 0) "!"))) (nil)) (nil)))) (let (global 1) (fn whisper(s) (do (if (op != (local 0) "") (do (call (prelude print) (local 0))) (do (nil)))))) (if false (do (call (prelude print) "no")) (nil)) (call (prelude each) (list 1 2) (fn (x) (do (if (op > (local 0) 1) (do (call (prelude print) (local 0))) (nil))))) (call (global 0) "hi") (call (global 1) "hm") (let (global 2) (if false (do 1) (do (nil)))) (call (prelude print) (global 2)) (let (global 3) (if false (do 1) (if true (do 2) (do 3)))) (call (prelude print) (global 3)) (let (global 4) (do (let (local 0) 1) (match (local 0) (arm (plit 1) (nil) (do (if false (do 0) (do 1)))) (arm (pwild) (nil) (do 2))))) (call (prelude print) (global 4)))
 -- stderr
 -- exit: 0
 ==== dump bytecode tests/lang/open_if.fung
 -- stdout
 | == <main> ==
-| 0000  2:1   CLOSURE      0    ; shout
-| 0001  2:1   STOREGLOBAL  0    ; shout
-| 0002  7:1   LOADGLOBAL   0    ; shout
-| 0003  7:7   CONST        0    ; "hi"
-| 0004  7:6   CALL         1    ; 1 positional, 0 named
-| 0005  7:1   POP
-| 0006  9:4   CONST        1    ; false
-| 0007  9:4   JUMPIFFALSE  12
-| 0008  9:11  CONST        2    ; <fn print>
-| 0009  9:17  CONST        3    ; "no"
-| 0010  9:16  CALL         1    ; 1 positional, 0 named
-| 0011  9:1   JUMP         13
-| 0012  9:1   CONST        4    ; nil
-| 0013  9:1   POP
-| 0014  10:1  CONST        5    ; <fn each>
-| 0015  10:10 CONST        6    ; [1, 2]
-| 0016  10:1  CLOSURE      1    ; <lambda>
-| 0017  10:1  CALL         2    ; 2 positional, 0 named
-| 0018  10:1  POP
-| 0019  14:1  CONST        5    ; <fn each>
-| 0020  14:6  CONST        7    ; [3]
-| 0021  14:11 CLOSURE      2    ; <lambda>
-| 0022  14:5  CALL         2    ; 2 positional, 0 named
-| 0023  14:1  POP
-| 0024  18:8  CONST        1    ; false
-| 0025  18:8  JUMPIFFALSE  28
-| 0026  18:15 CONST        8    ; 1
-| 0027  18:5  JUMP         29
-| 0028  18:23 CONST        4    ; nil
-| 0029  18:1  STOREGLOBAL  1    ; x
-| 0030  19:1  CONST        2    ; <fn print>
-| 0031  19:7  LOADGLOBAL   1    ; x
-| 0032  19:6  CALL         1    ; 1 positional, 0 named
-| 0033  19:1  POP
-| 0034  21:8  CONST        1    ; false
-| 0035  21:8  JUMPIFFALSE  38
-| 0036  22:3  CONST        8    ; 1
-| 0037  21:5  JUMP         43
-| 0038  23:9  CONST        9    ; true
-| 0039  23:9  JUMPIFFALSE  42
-| 0040  24:3  CONST        10    ; 2
-| 0041  23:6  JUMP         43
-| 0042  26:3  CONST        11    ; 3
-| 0043  21:1  STOREGLOBAL  2    ; y
-| 0044  28:1  CONST        2    ; <fn print>
-| 0045  28:7  LOADGLOBAL   2    ; y
-| 0046  28:6  CALL         1    ; 1 positional, 0 named
-| 0047  28:1  POP
-| 0048  30:11 CONST        8    ; 1
-| 0049  30:5  STORELOCAL   0
-| 0050  30:5  LOADLOCAL    0
-| 0051  31:3  MATCH        0    ; 1
-| 0052  31:3  JUMPIFFALSE  59
-| 0053  31:11 CONST        1    ; false
-| 0054  31:11 JUMPIFFALSE  57
-| 0055  31:18 CONST        12    ; 0
-| 0056  31:8  JUMP         58
-| 0057  31:26 CONST        8    ; 1
-| 0058  31:3  JUMP         66
-| 0059  30:5  LOADLOCAL    0
-| 0060  32:3  MATCH        1    ; _
-| 0061  32:3  JUMPIFFALSE  64
-| 0062  32:8  CONST        10    ; 2
-| 0063  32:3  JUMP         66
-| 0064  30:5  LOADLOCAL    0
-| 0065  30:5  NOMATCH
-| 0066  30:1  STOREGLOBAL  3    ; z
-| 0067  34:1  CONST        2    ; <fn print>
-| 0068  34:7  LOADGLOBAL   3    ; z
-| 0069  34:6  CALL         1    ; 1 positional, 0 named
-| 0070  34:1  POP
-| 0071  34:1  CONST        4    ; nil
-| 0072  1:64  RETURN
+| 0000  10:1  CLOSURE      0    ; shout
+| 0001  10:1  STOREGLOBAL  0    ; shout
+| 0002  18:1  CLOSURE      1    ; whisper
+| 0003  18:1  STOREGLOBAL  1    ; whisper
+| 0004  2:4   CONST        0    ; false
+| 0005  2:4   JUMPIFFALSE  10
+| 0006  2:11  CONST        1    ; <fn print>
+| 0007  2:17  CONST        2    ; "no"
+| 0008  2:16  CALL         1    ; 1 positional, 0 named
+| 0009  2:1   JUMP         11
+| 0010  2:1   CONST        3    ; nil
+| 0011  2:1   POP
+| 0012  3:1   CONST        4    ; <fn each>
+| 0013  3:10  CONST        5    ; [1, 2]
+| 0014  3:1   CLOSURE      2    ; <lambda>
+| 0015  3:1   CALL         2    ; 2 positional, 0 named
+| 0016  3:1   POP
+| 0017  16:1  LOADGLOBAL   0    ; shout
+| 0018  16:7  CONST        6    ; "hi"
+| 0019  16:6  CALL         1    ; 1 positional, 0 named
+| 0020  16:1  POP
+| 0021  21:1  LOADGLOBAL   1    ; whisper
+| 0022  21:9  CONST        7    ; "hm"
+| 0023  21:8  CALL         1    ; 1 positional, 0 named
+| 0024  21:1  POP
+| 0025  25:8  CONST        0    ; false
+| 0026  25:8  JUMPIFFALSE  29
+| 0027  25:15 CONST        8    ; 1
+| 0028  25:5  JUMP         30
+| 0029  25:23 CONST        3    ; nil
+| 0030  25:1  STOREGLOBAL  2    ; x
+| 0031  26:1  CONST        1    ; <fn print>
+| 0032  26:7  LOADGLOBAL   2    ; x
+| 0033  26:6  CALL         1    ; 1 positional, 0 named
+| 0034  26:1  POP
+| 0035  28:8  CONST        0    ; false
+| 0036  28:8  JUMPIFFALSE  39
+| 0037  29:3  CONST        8    ; 1
+| 0038  28:5  JUMP         44
+| 0039  30:9  CONST        9    ; true
+| 0040  30:9  JUMPIFFALSE  43
+| 0041  31:3  CONST        10    ; 2
+| 0042  30:6  JUMP         44
+| 0043  33:3  CONST        11    ; 3
+| 0044  28:1  STOREGLOBAL  3    ; y
+| 0045  35:1  CONST        1    ; <fn print>
+| 0046  35:7  LOADGLOBAL   3    ; y
+| 0047  35:6  CALL         1    ; 1 positional, 0 named
+| 0048  35:1  POP
+| 0049  37:11 CONST        8    ; 1
+| 0050  37:5  STORELOCAL   0
+| 0051  37:5  LOADLOCAL    0
+| 0052  38:3  MATCH        0    ; 1
+| 0053  38:3  JUMPIFFALSE  60
+| 0054  38:11 CONST        0    ; false
+| 0055  38:11 JUMPIFFALSE  58
+| 0056  38:18 CONST        12    ; 0
+| 0057  38:8  JUMP         59
+| 0058  38:26 CONST        8    ; 1
+| 0059  38:3  JUMP         67
+| 0060  37:5  LOADLOCAL    0
+| 0061  39:3  MATCH        1    ; _
+| 0062  39:3  JUMPIFFALSE  65
+| 0063  39:8  CONST        10    ; 2
+| 0064  39:3  JUMP         67
+| 0065  37:5  LOADLOCAL    0
+| 0066  37:5  NOMATCH
+| 0067  37:1  STOREGLOBAL  4    ; z
+| 0068  41:1  CONST        1    ; <fn print>
+| 0069  41:7  LOADGLOBAL   4    ; z
+| 0070  41:6  CALL         1    ; 1 positional, 0 named
+| 0071  41:1  POP
+| 0072  41:1  CONST        3    ; nil
+| 0073  1:64  RETURN
 |
 | == shout ==
-| 0000  3:6   LOADLOCAL    0
-| 0001  3:11  CONST        0    ; ""
-| 0002  3:8   NE
-| 0003  3:8   JUMPIFFALSE  10
-| 0004  4:5   CONST        1    ; <fn print>
-| 0005  4:11  MOVELOCAL    0
-| 0006  4:15  CONST        2    ; "!"
-| 0007  4:13  ADD
-| 0008  4:10  TAILCALL     1    ; 1 positional, 0 named
-| 0009  3:3   JUMP         11
-| 0010  3:3   CONST        3    ; nil
-| 0011  2:1   RETURN
-|
-| == <lambda> ==
 | 0000  11:6  LOADLOCAL    0
-| 0001  11:10 CONST        0    ; 1
-| 0002  11:8  GT
-| 0003  11:8  JUMPIFFALSE  8
-| 0004  11:13 CONST        1    ; <fn print>
-| 0005  11:19 MOVELOCAL    0
-| 0006  11:18 TAILCALL     1    ; 1 positional, 0 named
-| 0007  11:3  JUMP         9
-| 0008  11:3  CONST        2    ; nil
-| 0009  10:1  RETURN
+| 0001  11:11 CONST        0    ; ""
+| 0002  11:8  NE
+| 0003  11:8  JUMPIFFALSE  10
+| 0004  12:5  CONST        1    ; <fn print>
+| 0005  12:11 MOVELOCAL    0
+| 0006  12:15 CONST        2    ; "!"
+| 0007  12:13 ADD
+| 0008  12:10 CALL         1    ; 1 positional, 0 named
+| 0009  11:3  JUMP         11
+| 0010  11:3  CONST        3    ; nil
+| 0011  11:3  POP
+| 0012  11:3  CLEARLOCAL   0
+| 0013  14:3  CONST        3    ; nil
+| 0014  10:1  RETURN
+|
+| == whisper ==
+| 0000  19:6  LOADLOCAL    0
+| 0001  19:11 CONST        0    ; ""
+| 0002  19:8  NE
+| 0003  19:8  JUMPIFFALSE  8
+| 0004  19:15 CONST        1    ; <fn print>
+| 0005  19:21 MOVELOCAL    0
+| 0006  19:20 TAILCALL     1    ; 1 positional, 0 named
+| 0007  19:3  JUMP         9
+| 0008  19:30 CONST        2    ; nil
+| 0009  18:1  RETURN
 |
 | == <lambda> ==
-| 0000  14:21 LOADLOCAL    0
-| 0001  14:25 CONST        0    ; 0
-| 0002  14:23 GT
-| 0003  14:23 JUMPIFFALSE  8
-| 0004  14:28 CONST        1    ; <fn print>
-| 0005  14:34 MOVELOCAL    0
-| 0006  14:33 TAILCALL     1    ; 1 positional, 0 named
-| 0007  14:18 JUMP         9
-| 0008  14:18 CONST        2    ; nil
-| 0009  14:11 RETURN
+| 0000  4:6   LOADLOCAL    0
+| 0001  4:10  CONST        0    ; 1
+| 0002  4:8   GT
+| 0003  4:8   JUMPIFFALSE  8
+| 0004  4:13  CONST        1    ; <fn print>
+| 0005  4:19  MOVELOCAL    0
+| 0006  4:18  TAILCALL     1    ; 1 positional, 0 named
+| 0007  4:3   JUMP         9
+| 0008  4:3   CONST        2    ; nil
+| 0009  3:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/param_patterns.fung
