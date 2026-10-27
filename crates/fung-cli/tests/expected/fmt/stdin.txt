@@ -8651,6 +8651,20 @@
 -- exit: 0
 ==== manual vm/07-diagnostics.md:5
 -- stdout
+| fn firsts(xs):
+|   take(xs, "two")
+| ;;
+|
+| fn main():
+|   r = firsts([1, 2, 3])
+|   print(r)
+| ;;
+|
+| main()
+-- stderr
+-- exit: 0
+==== manual vm/07-diagnostics.md:6
+-- stdout
 | fn f():
 |   unused = 1
 |   2
@@ -8659,7 +8673,7 @@
 | print(f())
 -- stderr
 -- exit: 0
-==== manual vm/07-diagnostics.md:6
+==== manual vm/07-diagnostics.md:7
 -- stdout
 | fn avg(xs) = sum(xs) // len(xs)
 | fn report(name, xs) = "${name}: ${avg(xs)}"
@@ -11560,6 +11574,23 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
+==== tests/lang/err_tail_library.fung
+-- stdout
+| # A library call in tail position: the error points at it, not at the
+| # line that called this function (08, L8).
+| fn firsts(xs):
+|   take(xs, "two")
+| ;;
+|
+| fn main():
+|   r = firsts([1, 2, 3])
+|   print(r)
+| ;;
+|
+| main()
+| # expect-error: E0403
+-- stderr
+-- exit: 0
 ==== tests/lang/err_tail_return_type.fung
 -- stdout
 | # The return check still runs, once, where the self tail calls end.

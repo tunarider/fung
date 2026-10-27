@@ -36,7 +36,7 @@ use fung_front::source::Pos;
 
 use super::block::cancelled;
 use super::frame::Frame;
-use super::{Stop, Task, no_pos};
+use super::{RtProto, Stop, Task, no_pos};
 use crate::value::Value;
 
 /// The most lines the report gives the other tasks.
@@ -95,7 +95,11 @@ impl Place {
 
 /// A frame's function as call paths name it.
 fn func_name(f: &Frame) -> String {
-    match f.proto.name.as_str() {
+    proto_name(&f.proto)
+}
+
+fn proto_name(p: &RtProto) -> String {
+    match p.name.as_str() {
         "" => "<lambda>".to_string(),
         "<main>" => "<entry>".to_string(),
         name => name.to_string(),
@@ -207,13 +211,19 @@ impl Task<'_> {
                 kind = format!("{wait} in {callee}");
             }
         }
+        // The innermost function of user code, or the one whose frame a
+        // tail call into a built-in function replaced (L8).
         let func = self
             .frames
             .iter()
             .rev()
-            .find(|f| !f.proto.builtin)
-            .or(self.frames.last())
-            .map_or_else(|| "<entry>".to_string(), func_name);
+            .find_map(|f| match &f.tail_from {
+                _ if !f.proto.builtin => Some(func_name(f)),
+                Some(t) => Some(proto_name(&t.proto)),
+                None => None,
+            })
+            .or_else(|| self.frames.last().map(func_name))
+            .unwrap_or_else(|| "<entry>".to_string());
         let release = self.conts.iter().any(|c| c.k.releasing());
         (pos, kind, func, release)
     }

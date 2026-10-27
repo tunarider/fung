@@ -1880,6 +1880,23 @@
 | in/tests~lang~err_tag_assign@halfbytes.fung
 | in/tests~lang~err_tag_shorthand_map@halfbytes.fung
 | in/tests~lang~err_tag_shorthand_pattern@halfbytes.fung
+| in/tests~lang~err_tail_library@bom.fung
+| in/tests~lang~err_tail_library@cglued.fung
+| in/tests~lang~err_tail_library@cpushed.fung
+| in/tests~lang~err_tail_library@crlf.fung
+| in/tests~lang~err_tail_library@dedent.fung
+| in/tests~lang~err_tail_library@halfbytes.fung
+| in/tests~lang~err_tail_library@halflines.fung
+| in/tests~lang~err_tail_library@moreblank.fung
+| in/tests~lang~err_tail_library@nofinal.fung
+| in/tests~lang~err_tail_library@odd3.fung
+| in/tests~lang~err_tail_library@opsplit.fung
+| in/tests~lang~err_tail_library@spaced.fung
+| in/tests~lang~err_tail_library@split.fung
+| in/tests~lang~err_tail_library@tabs.fung
+| in/tests~lang~err_tail_library@tight.fung
+| in/tests~lang~err_tail_library@trailing.fung
+| in/tests~lang~err_tail_library@wide4.fung
 | in/tests~lang~err_tail_return_type@bom.fung
 | in/tests~lang~err_tail_return_type@cglued.fung
 | in/tests~lang~err_tail_return_type@contsplit.fung
@@ -7769,6 +7786,23 @@
 | in/tests~lang~err_tag_assign@halfbytes.fung
 | in/tests~lang~err_tag_shorthand_map@halfbytes.fung
 | in/tests~lang~err_tag_shorthand_pattern@halfbytes.fung
+| in/tests~lang~err_tail_library@bom.fung
+| in/tests~lang~err_tail_library@cglued.fung
+| in/tests~lang~err_tail_library@cpushed.fung
+| in/tests~lang~err_tail_library@crlf.fung
+| in/tests~lang~err_tail_library@dedent.fung
+| in/tests~lang~err_tail_library@halfbytes.fung
+| in/tests~lang~err_tail_library@halflines.fung
+| in/tests~lang~err_tail_library@moreblank.fung
+| in/tests~lang~err_tail_library@nofinal.fung
+| in/tests~lang~err_tail_library@odd3.fung
+| in/tests~lang~err_tail_library@opsplit.fung
+| in/tests~lang~err_tail_library@spaced.fung
+| in/tests~lang~err_tail_library@split.fung
+| in/tests~lang~err_tail_library@tabs.fung
+| in/tests~lang~err_tail_library@tight.fung
+| in/tests~lang~err_tail_library@trailing.fung
+| in/tests~lang~err_tail_library@wide4.fung
 | in/tests~lang~err_tail_return_type@bom.fung
 | in/tests~lang~err_tail_return_type@cglued.fung
 | in/tests~lang~err_tail_return_type@contsplit.fung
@@ -15570,6 +15604,28 @@
 | tests~lang~err_tag_shorthand_pattern@tight.fung unchanged
 | tests~lang~err_tag_shorthand_pattern@trailing.fung unchanged
 | tests~lang~err_tag_shorthand_pattern@wide4.fung unchanged
+| tests~lang~err_tail_library.fung unchanged
+| tests~lang~err_tail_library@bom.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@cglued.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@cnospace.fung unchanged
+| tests~lang~err_tail_library@contsplit.fung unchanged
+| tests~lang~err_tail_library@cpushed.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@crlf.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@dedent.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@halfbytes.fung 115 f72d513ecc11ed25
+| tests~lang~err_tail_library@halflines.fung 149 66e1e06bc601f94b
+| tests~lang~err_tail_library@joined.fung unchanged
+| tests~lang~err_tail_library@moreblank.fung 233 478f151340b3fdbd
+| tests~lang~err_tail_library@noblank.fung unchanged
+| tests~lang~err_tail_library@nofinal.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@odd3.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@opsplit.fung 233 d25484fc349052bb
+| tests~lang~err_tail_library@spaced.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@split.fung 272 52af41e37eaded5d
+| tests~lang~err_tail_library@tabs.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@tight.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@trailing.fung 229 d0e833a06505efb9
+| tests~lang~err_tail_library@wide4.fung 229 d0e833a06505efb9
 | tests~lang~err_tail_return_type.fung unchanged
 | tests~lang~err_tail_return_type@bom.fung 161 0ae869de44fda55d
 | tests~lang~err_tail_return_type@cglued.fung 161 0ae869de44fda55d

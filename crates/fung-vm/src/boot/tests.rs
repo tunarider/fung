@@ -80,10 +80,14 @@ fn atoms_run() {
 #[test]
 fn fung_helpers_over_concurrency_fail_at_the_user_call() {
     let cases = [
-        // the lambda's call is a tail call: the nearest user frame is
-        // the entry's, at `scope(`
-        ("import conc\nscope(s => conc.fan_in(s, 1))", 2, 6),
-        ("import conc\nprint(1)\nscope(s => conc.fan_in(s, 1))", 3, 6),
+        // the lambda's call is a tail call: the frame it left behind
+        // keeps the place, at `fan_in(` (L8)
+        ("import conc\nscope(s => conc.fan_in(s, 1))", 2, 23),
+        (
+            "import conc\nprint(1)\nscope(s => conc.fan_in(s, 1))",
+            3,
+            23,
+        ),
     ];
     for (src, line, col) in cases {
         let o = exec(src, Opts::default());

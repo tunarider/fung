@@ -461,6 +461,7 @@ impl<'rt> Task<'rt> {
             globals,
             tail_calls: 0,
             entry: None,
+            tail_from: None,
         });
         self.run_root(Todo::Loop)
     }
@@ -660,11 +661,13 @@ impl<'rt> Task<'rt> {
     /// Where the innermost frame of user code is (its current call), for
     /// an error raised inside an embedded extras file (`attach`).
     pub(crate) fn user_pos(&self) -> Option<Pos> {
-        self.frames
-            .iter()
-            .rev()
-            .filter(|f| !f.proto.builtin)
-            .find_map(|f| f.current_pos())
+        self.frames.iter().rev().find_map(|f| {
+            if f.proto.builtin {
+                f.tail_from.as_ref().and_then(|t| t.pos)
+            } else {
+                f.current_pos()
+            }
+        })
     }
 
     /// The function of a built-in module that user code called, which is
@@ -691,28 +694,36 @@ impl<'rt> Task<'rt> {
     }
 
     /// The frames innermost first, for error reports (08).
+    /// One line per frame, innermost first, and after a frame the frame
+    /// of user code its tail call into a built-in function replaced (L8).
     fn call_path(&self) -> Vec<CallSite> {
-        self.frames
-            .iter()
-            .rev()
-            .map(|f| {
-                let (file, line) = match f.current_pos() {
-                    Some(p) => (self.world.file_name(p.file).to_string(), p.line),
-                    None => (String::new(), 0),
-                };
-                let func = if f.proto.name.is_empty() {
-                    "<lambda>".to_string()
-                } else {
-                    f.proto.name.clone()
-                };
-                CallSite {
-                    file,
-                    line,
-                    func,
-                    elided: f.tail_calls,
-                }
-            })
-            .collect()
+        let mut path = Vec::with_capacity(self.frames.len());
+        for f in self.frames.iter().rev() {
+            path.push(self.site(&f.proto, f.current_pos(), f.tail_calls));
+            if let Some(t) = &f.tail_from {
+                path.push(self.site(&t.proto, t.pos, t.tail_calls));
+            }
+        }
+        path
+    }
+
+    /// A line of the call path: `proto` at `pos`, after `elided` tail calls.
+    fn site(&self, proto: &RtProto, pos: Option<Pos>, elided: u64) -> CallSite {
+        let (file, line) = match pos {
+            Some(p) => (self.world.file_name(p.file).to_string(), p.line),
+            None => (String::new(), 0),
+        };
+        let func = if proto.name.is_empty() {
+            "<lambda>".to_string()
+        } else {
+            proto.name.clone()
+        };
+        CallSite {
+            file,
+            line,
+            func,
+            elided,
+        }
     }
 
     fn push(&mut self, v: Value) {

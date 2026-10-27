@@ -9250,6 +9250,47 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
+==== dump ast tests/lang/err_tail_library.fung
+-- stdout
+| (program (fn firsts(xs) (block (call take xs "two"))) (fn main() (block (assign r (call firsts (list 1 2 3))) (call print r))) (call main))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_tail_library.fung
+-- stdout
+| (do (let (global 0) (fn firsts(xs) (do (call (prelude take) (local 0) "two")))) (let (global 1) (fn main() (do (let (local 0) (call (global 0) (list 1 2 3))) (call (prelude print) (local 0))))) (call (global 1)))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/err_tail_library.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   CLOSURE      0    ; firsts
+| 0001  3:1   STOREGLOBAL  0    ; firsts
+| 0002  7:1   CLOSURE      1    ; main
+| 0003  7:1   STOREGLOBAL  1    ; main
+| 0004  12:1  LOADGLOBAL   1    ; main
+| 0005  12:5  CALL         0    ; 0 positional, 0 named
+| 0006  12:1  POP
+| 0007  12:1  CONST        0    ; nil
+| 0008  1:70  RETURN
+|
+| == firsts ==
+| 0000  4:3   CONST        0    ; <fn take>
+| 0001  4:8   MOVELOCAL    0
+| 0002  4:12  CONST        1    ; "two"
+| 0003  4:7   TAILCALL     2    ; 2 positional, 0 named
+| 0004  3:1   RETURN
+|
+| == main ==
+| 0000  8:7   LOADGLOBAL   0
+| 0001  8:14  CONST        0    ; [1, 2, 3]
+| 0002  8:13  CALL         1    ; 1 positional, 0 named
+| 0003  8:3   STORELOCAL   0
+| 0004  9:3   CONST        1    ; <fn print>
+| 0005  9:9   MOVELOCAL    0
+| 0006  9:8   TAILCALL     1    ; 1 positional, 0 named
+| 0007  7:1   RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/err_tail_return_type.fung
 -- stdout
 | (program (fn down(n)->int (block (then (binary == n 0) "done" (call down (binary - n 1))))) (call print (call down 3)))

@@ -72,6 +72,67 @@ fn a_discarded_long_list_finds_its_err() {
     );
 }
 
+/// L8: user code that tail-calls a library function written in fung
+/// keeps its place: the error points at that call, and the call path
+/// shows the frame the tail call replaced, with the tail calls it had
+/// made before (the library's own are counted apart).
+#[test]
+fn a_tail_call_into_the_library_keeps_the_callers_place() {
+    let (_, err, code) = run_src(
+        "fn firsts(xs):\n  take(xs, \"two\")\n;;\nfn main():\n  r = firsts([1, 2, 3])\n  print(r)\n;;\nmain()",
+    );
+    assert!(
+        err.starts_with("error[E0403]: argument `n` must be int, got str\n  --> -e:2:7\n"),
+        "{err}"
+    );
+    assert!(
+        err.contains(
+            "   extras/prelude.fung:90 take\n   -e:2       firsts\n   -e:5       main\n   -e:8       <entry>\n"
+        ),
+        "{err}"
+    );
+    assert_eq!(code, 1);
+    // A tail-recursive caller: its own tail calls are shown on its line.
+    let (_, err, _) =
+        run_src("fn go(n) = n == 0 then take([1], \"x\") else go(n - 1)\nprint(go(3))");
+    assert!(err.contains("\n  --> -e:1:"), "{err}");
+    assert!(
+        err.contains("   -e:1       go (3 tail calls elided)\n"),
+        "{err}"
+    );
+}
+
+/// A user callback a library function tail-calls does not inherit the
+/// library's tail calls, and the frame that called the library stays.
+#[test]
+fn a_callback_after_a_library_tail_call_keeps_the_path() {
+    let (_, err, _) = run_src(
+        "import fs\nfn load(p):\n  fs.with_open(p, fn(h): 1 / 0 ;;)\n;;\nr = load(\"Cargo.toml\")\nprint(r)",
+    );
+    assert!(err.contains("\n  --> -e:3:28\n"), "{err}");
+    assert!(err.contains("   -e:3       <lambda>\n"), "{err}");
+    assert!(
+        err.contains("   -e:3       load\n   -e:5       <entry>\n"),
+        "{err}"
+    );
+}
+
+/// The deadlock report points at the library call too.
+#[test]
+fn a_deadlock_in_a_library_tail_call_points_at_the_call() {
+    let (_, err, _) = run_src(
+        "fn first_two(rx):\n  take(rx, 2)\n;;\n(tx, rx) = channel()\nr = first_two(rx)\nprint(r, tx)",
+    );
+    assert!(
+        err.starts_with("error[E0702]: deadlock: all tasks are waiting\n  --> -e:2:7\n"),
+        "{err}"
+    );
+    assert!(
+        err.contains("   -e:2       first_two\n   -e:5       <entry>\n"),
+        "{err}"
+    );
+}
+
 /// The whole E0804 report, as `fung` prints it.
 #[test]
 fn deep_recursion_report() {
@@ -793,6 +854,7 @@ fn elided_tail_calls_count_past_u32() {
         globals,
         tail_calls: u32::MAX as u64,
         entry: None,
+        tail_from: None,
     });
     t.frames[0].tail_calls += 1;
     let path = t.call_path();

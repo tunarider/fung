@@ -314,7 +314,7 @@
 |   |                                                       ^
 |   |
 |  call path (innermost first):
-|    -e:4       <lambda> (2 tail calls elided)
+|    -e:4       <lambda>
 |    extras/fs.fung:33 with_open
 |    -e:4       <entry>
 -- exit: 1

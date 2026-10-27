@@ -177,6 +177,7 @@ impl Task<'_> {
             globals: globals.clone(),
             tail_calls: 0,
             entry: None,
+            tail_from: None,
         });
         Ok(Imported::Body(Body {
             key: key.to_string(),

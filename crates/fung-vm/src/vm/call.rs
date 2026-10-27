@@ -9,7 +9,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::cont::{Cont, ContFrame, Flow, Next, Wake};
-use super::frame::Frame;
+use super::frame::{Frame, TailFrom};
 use super::{RtProto, Stop, Task, at, err, no_pos};
 use crate::value::{Closure, List, NativeBody, NativeParam, Sym, Value, type_name};
 
@@ -377,6 +377,7 @@ impl Task<'_> {
             closure: Some(c),
             tail_calls: 0,
             entry,
+            tail_from: None,
         });
     }
 
@@ -410,11 +411,26 @@ impl Task<'_> {
         };
         let f = self.frames.last_mut().expect("a frame");
         f.entry = entry;
+        // Across the boundary between user code and a built-in function
+        // the count starts again (L8): user code going in leaves its frame
+        // behind as `tail_from`; a callback coming out does not inherit
+        // the library's tail calls.
+        if f.proto.builtin == c.proto.builtin {
+            f.tail_calls += 1;
+        } else {
+            if !f.proto.builtin {
+                f.tail_from = Some(Box::new(TailFrom {
+                    proto: f.proto.clone(),
+                    pos: f.current_pos(),
+                    tail_calls: f.tail_calls,
+                }));
+            }
+            f.tail_calls = 0;
+        }
         f.proto = c.proto.clone();
         f.globals = c.globals.clone();
         f.closure = Some(c);
         f.ip = 0;
-        f.tail_calls += 1;
     }
 
     /// Pops the current frame (a RETURN, or a TAILCALL whose native

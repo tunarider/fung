@@ -203,6 +203,29 @@ print(countdown(5))</code></pre><pre class="out err plain" data-code="1"><code>e
  call path (innermost first):
    example.fung:1 countdown (5 tail calls elided)
    example.fung:2 &lt;entry&gt;</code></pre></div>
+<p>예외가 하나 있다. 사용자 코드가 fung으로 쓴 라이브러리 함수(<code>take</code>, <code>http.get</code> …)를 꼬리 위치에서 부르면, 사라지는 사용자 프레임의 함수와 호출 자리를 새 프레임의 칸 하나(<code>Frame::tail_from</code>)에 적어 둔다. 내장 파일 안에서 난 에러는 사용자 코드의 가장 가까운 프레임을 가리키는데(06), 적어 두지 않으면 그 프레임이 이미 없어서 한 줄 위를 가리키게 되기 때문이다. 이 저장은 사용자 코드와 라이브러리의 경계를 넘을 때만 일어나므로 꼬리 재귀의 비용은 그대로다. 꼬리 호출 수도 경계마다 새로 센다.</p>
+<div class="run"><pre><code>fn firsts(xs):
+  take(xs, &quot;two&quot;)
+;;
+
+fn main():
+  r = firsts([1, 2, 3])
+  print(r)
+;;
+
+main()</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `n` must be int, got str
+  --&gt; example.fung:2:7
+  |
+2 |   take(xs, &quot;two&quot;)
+  |       ^
+  |
+ call path (innermost first):
+   extras/prelude.fung:81 _clamp
+   extras/prelude.fung:90 take
+   example.fung:2 firsts
+   example.fung:6 main
+   example.fung:10 &lt;entry&gt;</code></pre></div>
+<p>에러는 <code>firsts</code>의 2줄을 가리키고, 경로에는 <code>take</code> 다음에 <code>firsts</code>가 남는다.</p>
 <h3 id="warnings">경고</h3>
 <p>경고는 에러와 같은 모양으로 찍되 머리가 <code>warning[W0102]</code>이다. 프로그램은 그대로 실행된다.</p>
 <pre><code>fn f():

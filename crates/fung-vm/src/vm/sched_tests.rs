@@ -563,10 +563,10 @@ fn a_deadlock_report_names_the_function_and_the_release() {
         "{}",
         o.err
     );
-    // The lambda tail-called `take`: no frame of user code is left, so
-    // the place is in the module, named by the function called.
-    assert!(
-        lines[3].starts_with("   recv in take at extras/prelude.fung:"),
+    // The lambda tail-called `take`: the frame it left behind gives the
+    // place and the name (L8).
+    assert_eq!(
+        lines[3], "   recv in take at -e:6:22 (<lambda>)",
         "{}",
         o.err
     );

@@ -1120,6 +1120,11 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
+==== test tests/lang/err_tail_library.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_tail_return_type.fung
 -- stdout
 | 0 passed, 0 failed

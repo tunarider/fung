@@ -1261,13 +1261,14 @@ fn a_failure_answering_a_connection_is_reported() {
 
 /// A failure in the accept loop ends the server: the listener closes,
 /// and the server task fails with that error (it would otherwise wait,
-/// deaf, until cancelled).
+/// deaf, until cancelled). Its place is the user's `http.serve(` call,
+/// which the task's lambda tail-called (L8).
 #[test]
 fn a_failure_accepting_ends_the_server() {
     let _g = serial();
     let o = exec_prepared(
         &format!(
-            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}r = await(s)\nprint(match r: Err(e) => (e.kind, e.code, e.message, starts_with(e.at, \"extras/http.fung:\")) ;;)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
+            "import _native.net as net\nimport http\n{UNTIL}{HELPERS}fn h(req) = \"x\"\n{SERVE}r = await(s)\nprint(match r: Err(e) => (e.kind, e.code, e.message, starts_with(e.at, \"-e:\")) ;;)\nprint(kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!))){SERVE_END}"
         ),
         Opts {
             internal: true,

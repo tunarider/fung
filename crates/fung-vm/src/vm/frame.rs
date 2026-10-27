@@ -20,6 +20,19 @@ pub(super) struct Frame {
     /// this frame runs inside of (itself, or a helper it went on to,
     /// through calls and tail calls): what E0707 names (`user_callee`).
     pub entry: Option<Rc<RtProto>>,
+    /// The frame of user code a tail call into a built-in function
+    /// replaced (L8): where an error inside is put (`user_pos`) and a
+    /// line of the call path. Kept through the built-in function's own
+    /// tail calls; only that crossing pays for it.
+    pub tail_from: Option<Box<TailFrom>>,
+}
+
+/// A frame of user code that a tail call into a built-in function
+/// replaced: its function, the call it made, and its tail calls before.
+pub(super) struct TailFrom {
+    pub proto: Rc<RtProto>,
+    pub pos: Option<fung_front::source::Pos>,
+    pub tail_calls: u64,
 }
 
 impl Frame {

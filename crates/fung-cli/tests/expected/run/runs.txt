@@ -1055,7 +1055,7 @@
 |   |
 |   note: scope opened at tests/lang/err_pmap_failed.fung:3
 |  call path (innermost first):
-|    tests/lang/err_pmap_failed.fung:3 <lambda> (1 tail calls elided)
+|    tests/lang/err_pmap_failed.fung:3 <lambda>
 -- exit: 1
 ==== tests/lang/err_question_in_for.fung
 -- stdout
@@ -1323,6 +1323,22 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
+==== tests/lang/err_tail_library.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be int, got str
+|   --> tests/lang/err_tail_library.fung:4:7
+|   |
+| 4 |   take(xs, "two")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    extras/prelude.fung:81 _clamp
+|    extras/prelude.fung:90 take
+|    tests/lang/err_tail_library.fung:4 firsts
+|    tests/lang/err_tail_library.fung:8 main
+|    tests/lang/err_tail_library.fung:12 <entry>
+-- exit: 1
 ==== tests/lang/err_tail_return_type.fung
 -- stdout
 -- stderr

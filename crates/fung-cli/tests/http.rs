@@ -890,14 +890,14 @@ fn argument_errors_point_at_the_call() {
             failures.push(format!("{src}\n  got:  {r:?}\n  want: {want:?}"));
         }
     }
-    // A user function whose last call is `http.get` is replaced by it (a
-    // tail call to a fung function), so the error points at that
-    // function's caller and its frame is gone from the path.
+    // A user function whose last call is `http.get` gives its frame to
+    // it (a tail call to a fung function), but the frame is remembered
+    // (L8): the error points at that call, and the path keeps `g`.
     let src = "import http\nfn g(x) = http.get(x)\nfn h() = print(g(1))\nh()";
     let want = format!(
-        "error[E0403]: argument `url` must be str, got int\n  --> -e:3:17\n  |\n3 | fn h() = print(g(1))\n  |                 ^\n  |\n call path (innermost first):\n{}",
+        "error[E0403]: argument `url` must be str, got int\n  --> -e:2:19\n  |\n2 | fn g(x) = http.get(x)\n  |                   ^\n  |\n call path (innermost first):\n{}",
         call_path(
-            "   extras/http.fung:@fn get(@ get (1 tail calls elided)\n   -e:3       h\n   -e:4       <entry>\n"
+            "   extras/http.fung:@fn get(@ get\n   -e:2       g\n   -e:3       h\n   -e:4       <entry>\n"
         )
     );
     let r = run(&bin, src);

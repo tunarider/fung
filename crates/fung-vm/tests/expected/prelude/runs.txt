@@ -1776,14 +1776,15 @@
 -- stdout
 -- stderr
 | error[E0403]: argument `n` must be int, got str
-|   --> -e:2:2
+|   --> -e:1:15
 |   |
-| 2 | f([1])
-|   |  ^
+| 1 | fn f(x) = take(x, "a")
+|   |               ^
 |   |
 |  call path (innermost first):
 |    extras/prelude.fung:81 _clamp
-|    extras/prelude.fung:90 take (1 tail calls elided)
+|    extras/prelude.fung:90 take
+|    -e:1       f
 |    -e:2       <entry>
 -- exit: 1
 ==== "sum([1, \"a\"])"
@@ -1867,7 +1868,8 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:129 iterate (1 tail calls elided)
+|    extras/prelude.fung:129 iterate
+|    -e:1       r
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
@@ -3027,7 +3029,7 @@
 |   |      ^
 |   |
 |  call path (innermost first):
-|    -e:2       g (2 tail calls elided)
+|    -e:2       g
 |    extras/fs.fung:33 with_open
 |    -e:3       <entry>
 -- exit: 1

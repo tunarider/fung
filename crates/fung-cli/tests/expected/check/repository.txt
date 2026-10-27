@@ -923,6 +923,10 @@
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
 -- exit: 2
+==== check tests/lang/err_tail_library.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_tail_return_type.fung
 -- stdout
 -- stderr
