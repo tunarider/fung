@@ -30,6 +30,9 @@ struct Tty {
     terminal: OwnedFd,
     out: Arc<Mutex<Vec<u8>>>,
     home: std::path::PathBuf,
+    /// The terminal's local flags before the child started: the child
+    /// may make it raw before the test could look.
+    cooked: u64,
     /// How much output there was when keys were last sent.
     sent_at: usize,
     /// How many line ends (`\r\n`) the output must hold before the
@@ -59,6 +62,7 @@ fn start_bin(bin: &std::path::Path, tag: &str, stdin_pipe: bool, history: Option
     // child started under the lock every start here takes.
     let held = common::starting();
     let (controller, terminal) = pty::open().unwrap();
+    let cooked = pty::lflag(terminal.as_raw_fd()).unwrap();
     let stdin = if stdin_pipe {
         Stdio::piped()
     } else {
@@ -99,6 +103,7 @@ fn start_bin(bin: &std::path::Path, tag: &str, stdin_pipe: bool, history: Option
         terminal,
         out,
         home,
+        cooked,
         sent_at: 0,
         lines_due: 0,
     }
@@ -201,7 +206,7 @@ impl Drop for Tty {
 #[test]
 fn the_editor_reads_keys_and_restores_the_terminal() {
     let mut t = start("edit", false);
-    let cooked = pty::lflag(t.terminal.as_raw_fd()).unwrap();
+    let cooked = t.cooked;
     t.send(b"1 + 1\r");
     t.until("the value", |t| t.text().contains("> 1 + 1\x1b[K\r\n2\r\n"));
     // Editing: Backspace, Home (Ctrl-A), End (Ctrl-E), the arrows.
@@ -231,7 +236,7 @@ fn the_editor_reads_keys_and_restores_the_terminal() {
 #[test]
 fn exit_restores_the_terminal() {
     let mut t = start("exit", false);
-    let cooked = pty::lflag(t.terminal.as_raw_fd()).unwrap();
+    let cooked = t.cooked;
     t.send(b"with(() => nil, _ => exit(3), _ => print(\"bye\"))\r");
     assert_eq!(t.wait(), Some(3));
     assert!(!t.raw());
@@ -246,7 +251,7 @@ fn exit_restores_the_terminal() {
 fn a_signal_from_outside_restores_the_terminal() {
     for (sig, code) in [("TERM", 143), ("HUP", 129)] {
         let mut t = start(&format!("sig-{sig}"), false);
-        let cooked = pty::lflag(t.terminal.as_raw_fd()).unwrap();
+        let cooked = t.cooked;
         t.send(b"1 + 1\r");
         t.until("the value", |t| t.text().contains("2\r\n"));
         t.until("the editor", Tty::ready);
@@ -273,7 +278,7 @@ fn a_signal_from_outside_restores_the_terminal() {
 #[test]
 fn a_pipe_never_sets_raw_mode() {
     let mut t = start("pipe", true);
-    let cooked = pty::lflag(t.terminal.as_raw_fd()).unwrap();
+    let cooked = t.cooked;
     let mut stdin = t.child.stdin.take().unwrap();
     stdin.write_all(b"1 + 1\n").unwrap();
     t.until("the value", |t| t.text().contains("2"));

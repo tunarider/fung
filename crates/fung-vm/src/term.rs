@@ -159,8 +159,10 @@ pub mod pty {
     /// The local-mode flags of the terminal `fd`, to compare settings.
     /// PENDIN is left out: the kernel sets it (macOS does) when canonical
     /// mode comes back on, to reprocess input typed meanwhile.
-    pub fn lflag(fd: RawFd) -> io::Result<libc::tcflag_t> {
-        Ok(super::get(fd)?.c_lflag & !libc::PENDIN)
+    /// As `u64` on every system (`tcflag_t` is narrower on Linux).
+    #[allow(clippy::useless_conversion)]
+    pub fn lflag(fd: RawFd) -> io::Result<u64> {
+        Ok((super::get(fd)?.c_lflag & !libc::PENDIN).into())
     }
 }
 
