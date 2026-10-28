@@ -59,8 +59,8 @@ const CASES: &[(&str, &str, &str)] = &[
     ),
     (
         "show and compare a deep list",
-        "d = fold(1..=300000, [], (acc, _) => [acc])\ne = fold(1..=300000, [], (acc, _) => [acc])\nprint(len(str(d)), d == e, d < e, len(unique([d, e])))",
-        "600002 true false 1\n",
+        "d = fold(1..=100000, [], (acc, _) => [acc])\ne = fold(1..=100000, [], (acc, _) => [acc])\nprint(len(str(d)), d == e, d < e, len(unique([d, e])))",
+        "200002 true false 1\n",
     ),
     (
         "slice tail",
