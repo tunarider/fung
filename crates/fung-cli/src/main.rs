@@ -32,11 +32,14 @@ pub(crate) const USAGE: &str = "usage:
 ";
 
 /// The command runs on a thread with a large stack. The front end
-/// recurses on the shape of the tree: deeply nested input and long flat
-/// chains (`1 + 1 + ...`, `x.b.b...`) recurse once per level in the later
-/// passes. At run time, natives that call fung functions (`fold`, `map`)
-/// recurse on the Rust stack, and formatting, comparing and dropping
-/// deeply nested values recurse too. 4 GiB is only reserved address space
+/// recurses on the shape of the tree: deeply nested input (up to E0115)
+/// and long flat chains (`1 + 1 + ...`, `x.b.b...`) recurse once per
+/// link in the later passes, about 1 KiB each in a release build (64 MiB
+/// takes some 68,000 links, 4 GiB millions; L9). At run time nothing
+/// follows a value's or a call's depth on the Rust stack: fung calls,
+/// natives that call fung (`fold`, `map`), and showing, comparing,
+/// hashing and dropping values all keep their work on the heap (R2, L9).
+/// 4 GiB is only reserved address space
 /// (pages are committed when touched): deep recursion runs out of memory
 /// long before it runs out of stack. A host that refuses the reservation
 /// (little memory and swap, strict overcommit, `ulimit -v`) gets the next

@@ -1262,3 +1262,152 @@ fn nil_slice_bound_is_a_type_error() {
         assert_eq!(message(&e.code, &e.args), "cannot slice with int and nil");
     }
 }
+
+// --- deep values (L9): walked without the Rust stack ---
+
+/// Runs `f` on a thread with a 1 MiB stack: a walk that recursed once per
+/// level would overflow it long before a million levels.
+fn on_small_stack(f: impl FnOnce() + Send + 'static) {
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+const DEEP: usize = 1_000_000;
+
+/// `bottom` wrapped `n` times by `wrap`.
+fn deep(n: usize, bottom: Value, wrap: fn(Value) -> Value) -> Value {
+    let mut v = bottom;
+    for _ in 0..n {
+        v = wrap(v);
+    }
+    v
+}
+
+fn in_list(v: Value) -> Value {
+    Value::List(Rc::new(List::new(vec![v])))
+}
+
+fn in_tuple(v: Value) -> Value {
+    Value::tuple(vec![v])
+}
+
+fn in_map(v: Value) -> Value {
+    let mut b = MapBuilder::default();
+    b.set(Rc::new("k".to_string()), v);
+    Value::Map(Rc::new(b.finish()))
+}
+
+fn in_tag(v: Value) -> Value {
+    Value::Tag(Rc::new(Tag {
+        name: intern("Ok"),
+        args: vec![v],
+    }))
+}
+
+#[test]
+fn deep_values_format_in_linear_time_without_recursion() {
+    on_small_stack(|| {
+        let start = std::time::Instant::now();
+        for (wrap, open, close) in [
+            (in_list as fn(Value) -> Value, "[", "]"),
+            (in_tuple, "(", ",)"),
+            (in_map, "{k: ", "}"),
+            (in_tag, "Ok(", ")"),
+        ] {
+            let text = format(&deep(DEEP, Value::Int(7), wrap));
+            assert_eq!(text.len(), DEEP * (open.len() + close.len()) + 1);
+            assert!(text.starts_with(&open.repeat(3)), "{}", &text[..20]);
+            assert!(text[DEEP * open.len()..].starts_with(&format!("7{close}")));
+            assert!(text.ends_with(&close.repeat(3)));
+        }
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(30),
+            "{:?}",
+            start.elapsed()
+        );
+    });
+}
+
+#[test]
+fn deep_values_compare_and_hash_without_recursion() {
+    on_small_stack(|| {
+        for wrap in [in_list as fn(Value) -> Value, in_tuple, in_map, in_tag] {
+            let a = deep(DEEP, Value::Int(1), wrap);
+            let b = deep(DEEP, Value::Int(1), wrap);
+            let c = deep(DEEP, Value::Int(2), wrap);
+            assert!(equal(&a, &b));
+            assert!(!equal(&a, &c));
+            assert_eq!(eq(&a, &b).map_err(|d| d.code), Ok(true));
+            let hash = |v: &Value| {
+                let mut h = std::hash::DefaultHasher::new();
+                hash_value(v, &mut h);
+                std::hash::Hasher::finish(&h)
+            };
+            assert_eq!(hash(&a), hash(&b));
+        }
+        for wrap in [in_list as fn(Value) -> Value, in_tuple] {
+            let a = deep(DEEP, Value::Int(1), wrap);
+            let c = deep(DEEP, Value::Int(2), wrap);
+            assert_eq!(compare(&a, &c).map_err(|d| d.code), Ok(Ordering::Less));
+            assert_eq!(compare(&c, &a).map_err(|d| d.code), Ok(Ordering::Greater));
+            let text = deep(DEEP, s("x"), wrap);
+            assert_eq!(
+                compare(&a, &text).map_err(|d| d.code),
+                Err("E0501".to_string())
+            );
+        }
+        // A symbol meeting a string at the bottom is E0517 (`eq`).
+        let sym = deep(DEEP, Value::Sym(intern("x")), in_list);
+        let st = deep(DEEP, s("x"), in_list);
+        assert_eq!(eq(&sym, &st).map_err(|d| d.code), Err("E0517".to_string()));
+    });
+}
+
+/// What the walks keep (L9): `compare` stops at the first difference and
+/// reports the first pair that does not compare; maps equal and hash
+/// alike whatever their order; a shared collection equals itself.
+#[test]
+fn the_walks_keep_their_rules() {
+    let list = |xs: Vec<Value>| Value::List(Rc::new(List::new(xs)));
+    let int = Value::Int;
+    assert_eq!(
+        compare(&list(vec![int(1), s("a")]), &list(vec![int(2), int(3)])).map_err(|d| d.code),
+        Ok(Ordering::Less)
+    );
+    let e = compare(&list(vec![int(1), s("a")]), &list(vec![int(1), int(3)])).unwrap_err();
+    assert_eq!(e.code, "E0501");
+    assert_eq!(
+        compare(&list(vec![int(1)]), &list(vec![int(1), int(0)])).map_err(|d| d.code),
+        Ok(Ordering::Less)
+    );
+    let map = |kv: &[(&str, i64)]| {
+        let mut b = MapBuilder::default();
+        for (k, v) in kv {
+            b.set(Rc::new(k.to_string()), Value::Int(*v));
+        }
+        Value::Map(Rc::new(b.finish()))
+    };
+    let (m1, m2) = (map(&[("a", 1), ("b", 2)]), map(&[("b", 2), ("a", 1)]));
+    assert!(equal(&m1, &m2));
+    assert!(!equal(&m1, &map(&[("a", 1), ("c", 2)])));
+    let hash = |v: &Value| {
+        let mut h = std::hash::DefaultHasher::new();
+        hash_value(v, &mut h);
+        std::hash::Hasher::finish(&h)
+    };
+    assert_eq!(hash(&m1), hash(&m2));
+    assert_eq!(
+        hash(&list(vec![int(1)])),
+        hash(&list(vec![Value::Float(1.0)]))
+    );
+    let shared = list(vec![Value::Float(0.5)]);
+    assert!(equal(&shared, &shared.clone()));
+    assert_eq!(
+        format(&list(vec![Value::tuple(vec![int(1)]), map(&[("a b", 1)])])),
+        "[(1,), {\"a b\": 1}]"
+    );
+}

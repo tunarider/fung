@@ -3,18 +3,19 @@
 //! 2절 "스택 크기", 6a 마무리). A stack is reserved address space, but a
 //! host with little memory and swap, strict overcommit or `ulimit -v`
 //! may refuse a reservation of gigabytes. Such a host then runs with a
-//! smaller stack: only very deep native recursion (natives calling fung,
-//! formatting deeply nested values) hits its lower limit.
+//! smaller stack: only the front end's recursion on a very long flat
+//! chain in the source (about 1 KiB a link in a release build) hits its
+//! lower limit; values and calls use no Rust stack for their depth (L9).
 
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::thread::{Builder, JoinHandle};
 
 /// The stack sizes the `fung` command thread tries, in order. 4 GiB is
-/// only reserved address space for very deep recursion in Rust
-/// (formatting or comparing deeply nested values, R3a 2절). Since R1b
-/// every task runs on this thread (`vm/sched.rs`), and fung calls use no
-/// Rust stack (frames and continuations live on the heap).
+/// only reserved address space, for the front end's recursion on long
+/// flat chains (R3a 2절, L9). Since R1b every task runs on this thread
+/// (`vm/sched.rs`); fung calls use no Rust stack (frames and
+/// continuations live on the heap), nor do the walks of values (L9).
 pub const ENTRY_STACKS: &[usize] = &[4 << 30, 1 << 30, 256 << 20, 64 << 20];
 
 /// Starts `body(payload)` on a thread made by `builder` with the first

@@ -1,12 +1,10 @@
-//! A spawned task (here in a scope) runs on the command thread and its
-//! large stack (`fung_vm::stack::ENTRY_STACKS`, since R1b): a program
-//! that nests Rust frames deeply (a native calling back into fung) gives
-//! the same result in a task as at the top level instead of aborting the
-//! process.
-//! Formatting a value nested 1,000,000 deep also needs more than 256
-//! MiB, but `str` on it takes over a minute, so it is not tested here.
-//! Release builds only: a debug build uses far more stack per frame and
-//! overflows much earlier, on the entry thread too.
+//! A spawned task (here in a scope) runs on the command thread, as the
+//! entry does (since R1b): a program that nests calls deeply through a
+//! native that calls back into fung (`map`) gives the same result in a
+//! task as at the top level. Such calls keep their frames on the heap
+//! (R2), and values are shown and compared without the Rust stack (L9;
+//! `value/tests.rs` walks a million levels on a 1 MiB stack).
+//! Release builds only, as the depth makes a debug build slow.
 #![cfg(not(debug_assertions))]
 
 mod common;

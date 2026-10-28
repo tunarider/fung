@@ -58,6 +58,11 @@ const CASES: &[(&str, &str, &str)] = &[
         "100000\n",
     ),
     (
+        "show and compare a deep list",
+        "d = fold(1..=300000, [], (acc, _) => [acc])\ne = fold(1..=300000, [], (acc, _) => [acc])\nprint(len(str(d)), d == e, d < e, len(unique([d, e])))",
+        "600002 true false 1\n",
+    ),
+    (
         "slice tail",
         "fn go(ys, acc) = len(ys) == 0 then acc else go(ys[1..], acc + 1)\nprint(go(map(0..20000, x => x), 0))",
         "20000\n",
