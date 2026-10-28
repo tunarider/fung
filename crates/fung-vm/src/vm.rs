@@ -96,8 +96,7 @@ pub(crate) use atom::{
     make as atom_make, read as atom_read, reset as atom_reset, run_swap as atom_swap,
 };
 pub(crate) use block::{
-    IoRegs, IoStep, WaitList, Waiter, YIELD_EVERY, drop_io_waits, park_io, park_until,
-    park_until_then,
+    IoRegs, IoStep, Waiter, YIELD_EVERY, drop_io_waits, park_io, park_until, park_until_then,
 };
 pub use call::MAX_FRAMES;
 pub use channel::{Channel, Receiver, Sender};
@@ -114,6 +113,7 @@ pub(crate) use offload::{Kind, alone, offload_kind};
 pub(crate) use poller::Interest;
 pub(crate) use pool::{Pool, Ticket};
 pub use runtime::Runtime;
+pub(crate) use sched::FiberId;
 pub use scope::ScopeHandle;
 pub(crate) use scope::run_scope;
 pub use stdin::BUFFER as STDIN_BUFFER;
@@ -543,6 +543,13 @@ impl<'rt> Task<'rt> {
     #[cfg(test)]
     pub(crate) fn io_waiting_for_tests(&self) -> usize {
         self.world.io.len()
+    }
+
+    /// Whether the ready queue held a task twice when this turn began
+    /// (test probes).
+    #[cfg(test)]
+    pub(crate) fn queue_dupes_for_tests(&self) -> bool {
+        self.world.queue_dupes
     }
 
     /// A parked task resumed: its woken flag is taken first, so a wake

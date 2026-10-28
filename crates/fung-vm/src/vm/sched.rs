@@ -120,8 +120,8 @@ impl Ready {
     }
 
     /// Moves the queued ids to `into`.
-    fn take_ids(&self, into: &mut VecDeque<FiberId>) {
-        into.extend(self.state().ids.drain(..));
+    fn take_ids(&self) -> Vec<FiberId> {
+        self.state().ids.drain(..).collect()
     }
 
     /// Whether the run thread may sleep: nothing queued or posted. If so
@@ -133,10 +133,10 @@ impl Ready {
     }
 
     /// The run thread is awake again: moves the queued ids to `into`.
-    fn woke(&self, into: &mut VecDeque<FiberId>) {
+    fn woke(&self) -> Vec<FiberId> {
         let mut s = self.state();
         s.sleeping = false;
-        into.extend(s.ids.drain(..));
+        s.ids.drain(..).collect()
     }
 
     /// Forgets the queued ids (a run starts: tasks of an earlier run are
@@ -152,6 +152,10 @@ struct Slot {
     /// Parked since its `seq`-th park, a timer or the outside world ending
     /// it if `timed`; `None` while it waits in the ready queue.
     parked: Option<(u64, bool)>,
+    /// In the ready queue: a second wake does not queue it again, so a
+    /// task gets one turn a round (L14; a stale wake of a task that gave
+    /// its turn used to give it two).
+    queued: bool,
 }
 
 /// One run's tasks: the root (the entry, a test block, a module body)
@@ -187,6 +191,7 @@ impl Sched {
             Slot {
                 fiber: root,
                 parked: None,
+                queued: true,
             },
         );
         Sched {
@@ -211,6 +216,7 @@ impl Sched {
     pub(super) fn run(mut self, t: &mut Task<'_>) -> (Result<Value, Stop>, Fiber) {
         let mut root = None;
         loop {
+            t.world.round += 1;
             self.events(t);
             if t.world.abandon {
                 return self.abandon(t);
@@ -221,7 +227,7 @@ impl Sched {
             // empty: a computing task that keeps giving its turn would
             // otherwise hold back every task another thread or a channel
             // woke.
-            t.shared.ready.take_ids(&mut self.queue);
+            self.take_woken(t);
             // Tasks wait on descriptors: look at the loop without waiting
             // when a task gave its turn (spec 15), and every
             // `POLL_EVERY` rounds of tasks that park and wake each other
@@ -234,8 +240,14 @@ impl Sched {
                     self.since_poll = 0;
                     self.poll_io(t, Some(std::time::Duration::ZERO));
                     self.wake_ready(t);
-                    t.shared.ready.take_ids(&mut self.queue);
+                    self.take_woken(t);
                 }
+            }
+            #[cfg(test)]
+            {
+                let mut ids: Vec<FiberId> = self.queue.iter().copied().collect();
+                ids.sort_unstable();
+                t.world.queue_dupes = ids.windows(2).any(|w| w[0] == w[1]);
             }
             if let Some(id) = self.queue.pop_front() {
                 if let Some(f) = self.turn(t, id) {
@@ -243,7 +255,7 @@ impl Sched {
                 }
                 continue;
             }
-            t.shared.ready.take_ids(&mut self.queue);
+            self.take_woken(t);
             if !self.queue.is_empty() {
                 continue;
             }
@@ -302,9 +314,13 @@ impl Sched {
             self.poll_io(t, timeout);
         }
         // Awake first: the wakes below then pull no waker.
-        t.shared.ready.woke(&mut self.queue);
+        let mut ids = t.shared.ready.woke();
+        shuffle(&mut t.world.shuffle, &mut ids);
+        for id in ids {
+            self.enqueue(id);
+        }
         self.wake_ready(t);
-        t.shared.ready.take_ids(&mut self.queue);
+        self.take_woken(t);
     }
 
     /// Waits in the loop at most `timeout` for descriptors to be ready;
@@ -332,18 +348,17 @@ impl Sched {
 
     /// The REPL's second Ctrl-C (`stop.rs`): every task of this run is
     /// dropped as it stands, without unwinding (its `release`s do not
-    /// run). Their values drop here, on the run thread; their waits
-    /// leave the queues they stood in as they drop (`Drop` of a channel's
-    /// wait, a socket wait's turn, a command, which is killed). The
-    /// event loop's registrations go too. The run ends cancelled.
+    /// run). The event loop's registrations go first, while their
+    /// descriptors are still open (L14); then the tasks' values drop
+    /// here, on the run thread, and their waits leave the queues they
+    /// stood in as they drop (`Drop` of a channel's wait, a socket wait's
+    /// turn, a command, which is killed). The run ends cancelled.
     fn abandon(mut self, t: &mut Task<'_>) -> (Result<Value, Stop>, Fiber) {
         t.world.abandon = false;
         t.world.abandoned = true;
         self.queue.clear();
         self.timers.clear();
         t.world.new_fibers.clear();
-        let slots = std::mem::take(&mut self.slots);
-        drop(slots);
         let regs = t.world.take_all_io();
         for k in regs {
             match k {
@@ -354,6 +369,8 @@ impl Sched {
                     .deregister_exit(&super::poller::ExitWatch::Pid(pid)),
             }
         }
+        let slots = std::mem::take(&mut self.slots);
+        drop(slots);
         (
             Err(super::block::cancelled(super::no_pos())),
             Fiber::empty(t.shared),
@@ -378,15 +395,36 @@ impl Sched {
         }
     }
 
+    /// Queues task `id` unless it is queued already (or has ended).
+    fn enqueue(&mut self, id: FiberId) {
+        if let Some(s) = self.slots.get_mut(&id)
+            && !std::mem::replace(&mut s.queued, true)
+        {
+            self.queue.push_back(id);
+        }
+    }
+
+    /// Queues the tasks other threads and channels woke.
+    fn take_woken(&mut self, t: &mut Task<'_>) {
+        let mut ids = t.shared.ready.take_ids();
+        shuffle(&mut t.world.shuffle, &mut ids);
+        for id in ids {
+            self.enqueue(id);
+        }
+    }
+
     /// Takes in the tasks spawned during the last turn.
     fn adopt(&mut self, t: &mut Task<'_>) {
-        for f in t.world.new_fibers.drain(..) {
+        let mut fibers: Vec<Fiber> = t.world.new_fibers.drain(..).collect();
+        shuffle(&mut t.world.shuffle, &mut fibers);
+        for f in fibers {
             let id = f.id();
             self.slots.insert(
                 id,
                 Slot {
                     fiber: f,
                     parked: None,
+                    queued: true,
                 },
             );
             self.queue.push_back(id);
@@ -406,7 +444,7 @@ impl Sched {
                 .get(&id)
                 .is_some_and(|s| s.parked.is_some_and(|(n, _)| n == seq))
             {
-                self.queue.push_back(id);
+                self.enqueue(id);
             }
         }
     }
@@ -414,6 +452,7 @@ impl Sched {
     /// Gives task `id` a turn. The root's fiber comes back when it ends.
     fn turn(&mut self, t: &mut Task<'_>, id: FiberId) -> Option<Fiber> {
         let slot = self.slots.get_mut(&id)?;
+        slot.queued = false;
         if let Some((_, timed)) = slot.parked.take() {
             self.parked -= 1;
             if timed {
@@ -431,7 +470,7 @@ impl Sched {
         match turn {
             Turn::Yielded => {
                 self.poll_due = true;
-                self.queue.push_back(id);
+                self.enqueue(id);
             }
             Turn::Parked(w) => self.park(id, w),
             Turn::Done(r) => {
@@ -463,7 +502,7 @@ impl Sched {
         f.cancel.watch(&f.waiter);
         let now = Instant::now();
         if f.cancel.is_cancelled() || until.is_some_and(|at| now >= at) {
-            self.queue.push_back(id);
+            self.enqueue(id);
             return;
         }
         let timed = w.timed || until.is_some();
@@ -486,6 +525,22 @@ impl Sched {
                     .is_some_and(|s| s.parked.is_some_and(|(n, _)| n == *seq))
             });
         }
+    }
+}
+
+/// Shuffles `xs` with the generator `state` (Fisher–Yates on splitmix64),
+/// if there is one (`Runtime::shuffle_schedule`).
+fn shuffle<T>(state: &mut Option<u64>, xs: &mut [T]) {
+    let Some(s) = state else {
+        return;
+    };
+    for i in (1..xs.len()).rev() {
+        *s = s.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *s;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        xs.swap(i, (z % (i as u64 + 1)) as usize);
     }
 }
 

@@ -33,7 +33,8 @@ pub(super) fn serial() -> MutexGuard<'static, ()> {
 /// task's ticks left before its next turn handoff).
 pub(super) fn net_probes() -> Vec<Value> {
     type F = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
-    let natives: [(&'static str, F); 8] = [
+    let natives: [(&'static str, F); 9] = [
+        ("in_line", |_, _| Ok(Value::Int(probe::in_line() as i64))),
         ("io_table", |t, _| {
             let (table, index) = t.io_table();
             Ok(Value::str(&format!("{table} {index}")))
@@ -1393,4 +1394,17 @@ fn two_accepts_on_one_listener_trip_the_assert() {
         "{}",
         o.err
     );
+}
+
+/// L14: a connection's turn goes to the first task in line when it is
+/// released, so a task that reads again at once cannot keep it: A reads
+/// three lines, B one. Once A waits for data holding the turn and B waits
+/// in line, four lines come: B gets the line after A's first.
+#[test]
+fn a_released_turn_goes_to_the_next_in_line() {
+    let _g = serial();
+    let o = run(&format!(
+        "{PAIR}fn reads(n, acc) = n == 0 then acc else reads(n - 1, acc + [net.read_line(s, 10)!])\nscope(fn(sc):\n  a = spawn(sc, () => reads(3, []))\n  b = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1 and in_line() == 1)\n  net.write(c, \"1\\n2\\n3\\n4\\n\")!\n  print(await(a), await(b))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+    ));
+    assert_eq!(out(&o), ("[\"1\", \"3\", \"4\"] Ok(\"2\")\n", "", 0));
 }

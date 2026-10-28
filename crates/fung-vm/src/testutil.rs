@@ -569,6 +569,16 @@ pub fn probes() -> Vec<Value> {
         Value::Native(Native::leak("loop_depth", vec![], |t: &mut Task, _| {
             Ok(Value::Int(i64::from(t.loops)))
         })),
+        // Wakes the calling task's own waiter, as a stale wake would.
+        Value::Native(Native::leak("wake_self", vec![], |t: &mut Task, _| {
+            t.waiter_handle().wake();
+            Ok(Value::Nil)
+        })),
+        Value::Native(Native::leak(
+            "queue_has_dupes",
+            vec![],
+            |t: &mut Task, _| Ok(Value::Bool(t.queue_dupes_for_tests())),
+        )),
         Value::Native(Native::leak(
             "hold",
             vec![nat::param("ms")],

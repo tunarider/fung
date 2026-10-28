@@ -260,6 +260,15 @@ impl Runtime {
         r.map(|v| crate::value::format(&v))
     }
 
+    /// From now on, the tasks started or woken in a round of the
+    /// scheduler run in an order drawn from `seed` (`fung test`, L14):
+    /// the language promises no order among them, and a program that
+    /// leans on the one they came in shows it. The same seed gives the
+    /// same order.
+    pub fn shuffle_schedule(&self, seed: u64) {
+        self.world().shuffle = Some(seed);
+    }
+
     /// Whether a task failure nobody handled was reported (a `supervise`
     /// scope cancelled before its handler took it; 05: the exit code
     /// becomes 1).

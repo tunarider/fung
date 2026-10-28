@@ -165,11 +165,17 @@ pub(super) fn apply(w: &mut World, shared: &Shared, e: Event) {
         Event::StopWhenWatched(sig) => stop(w, shared, sig),
         Event::Interrupt => {
             // Again while the input is cut short already (stuck in a
-            // `release`): its tasks are dropped (`Sched::abandon`).
+            // `release`): its tasks are dropped (`Sched::abandon`). Not in
+            // the round of the first: two in one batch of events would
+            // drop the tasks before the first's cancellation ran.
             if w.interrupted && w.in_run {
-                w.abandon = true;
+                if w.round > w.interrupted_round {
+                    w.abandon = true;
+                }
+                return;
             }
             w.interrupted = true;
+            w.interrupted_round = w.round;
             // The root of the input running now, not a fresh one the REPL
             // puts in place after (`Runtime::recover_interrupt`).
             shared.root().cancel();

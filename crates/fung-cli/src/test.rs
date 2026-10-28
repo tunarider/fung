@@ -67,8 +67,10 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
     // The first SIGINT or SIGTERM is a stop request to the file running
     // then; no file runs after it, and the run ends with 128 + n.
     let first = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
+    fung_vm::signals::set(Some(fung_vm::signals::between_runs(first.clone())));
+    let (seed, chosen) = sched_seed();
     for path in &files {
-        let t = test_file(path, &mut seen, &first);
+        let t = test_file(path, &mut seen, &first, seed);
         total.passed += t.passed;
         total.failed += t.failed;
         total.compile_failed |= t.compile_failed;
@@ -84,6 +86,14 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
         total.passed,
         total.failed
     );
+    // The tasks ran in an order drawn from the seed (L14): a failure that
+    // depends on it comes back with the same seed. One given is known.
+    if total.failed > 0 && chosen {
+        let _ = writeln!(
+            ProcessOut::stderr(),
+            "scheduler seed {seed}: FUNG_SCHED_SEED={seed} runs the tasks in the same order again"
+        );
+    }
     let code = if sig != 0 {
         128 + sig
     } else if total.compile_failed {
@@ -100,10 +110,32 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
 }
 
 /// Compiles one file with its tests and runs it.
+/// The seed of the order tasks run in (`Runtime::shuffle_schedule`):
+/// `FUNG_SCHED_SEED`, or one drawn from the clock and the process (then
+/// `true`: it is shown when a test fails).
+fn sched_seed() -> (u64, bool) {
+    if let Some(s) = std::env::var("FUNG_SCHED_SEED")
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+    {
+        return (s, false);
+    }
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    );
+    h.write_u32(std::process::id());
+    (h.finish() % 1_000_000, true)
+}
+
 fn test_file(
     path: &[u8],
     seen: &mut HashSet<String>,
     first: &std::sync::Arc<std::sync::atomic::AtomicI32>,
+    seed: u64,
 ) -> Tally {
     let mut t = Tally::default();
     let stdout = &mut ProcessOut::stdout();
@@ -170,6 +202,7 @@ fn test_file(
         return t;
     }
     rt.load(&entry, &b.modules);
+    rt.shuffle_schedule(seed);
     fung_vm::signals::set(Some(fung_vm::signals::stop_requests(
         rt.stop_handle(),
         first.clone(),
@@ -279,6 +312,8 @@ fn test_file(
     rt.cancel_all();
     rt.wait();
     rt.release();
+    // The file is done: the policy lets go of its runtime (L14).
+    fung_vm::signals::set(Some(fung_vm::signals::between_runs(first.clone())));
     if rt.failed() {
         let _ = stdout.write_all(
             &[

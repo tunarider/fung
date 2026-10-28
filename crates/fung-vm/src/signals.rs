@@ -184,6 +184,22 @@ pub fn stop_requests(h: StopHandle, first: Arc<AtomicI32>) -> Policy {
     })
 }
 
+/// The policy between runs (`fung test` between files, L14): the first
+/// signal is kept in `first`, which the command reads to run no more
+/// files; any later one ends the process at once. It holds no runtime,
+/// so the last file's runtime goes when it is dropped, not when the next
+/// file sets its policy.
+pub fn between_runs(first: Arc<AtomicI32>) -> Policy {
+    Arc::new(move |sig| {
+        if first
+            .compare_exchange(0, sig, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            exit_now(sig);
+        }
+    })
+}
+
 /// The REPL's policy: SIGINT cancels the evaluation in progress (the
 /// session goes on), SIGTERM ends the process at once.
 pub fn repl(h: StopHandle) -> Policy {
@@ -194,4 +210,44 @@ pub fn repl(h: StopHandle) -> Policy {
             exit_now(sig);
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use std::sync::atomic::AtomicI32;
+    use std::sync::{Arc, Mutex};
+
+    use fung_front::source::SourceMap;
+
+    use crate::testutil::Buf;
+    use crate::vm::Runtime;
+
+    /// Tests that set the process-wide policy run one at a time.
+    static POLICY_TESTS: Mutex<()> = Mutex::new(());
+
+    /// L14: between runs (`fung test` between files) the policy holds no
+    /// runtime, so the last file's runtime is gone once it is dropped,
+    /// not when the next file sets its own policy.
+    #[test]
+    fn the_policy_between_runs_holds_no_runtime() {
+        let _g = POLICY_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        let first = Arc::new(AtomicI32::new(0));
+        let rt = Runtime::new(
+            Box::new(Buf::default()),
+            Box::new(Buf::default()),
+            Box::new(Cursor::new(Vec::new())),
+            SourceMap::default(),
+        );
+        let shared = Arc::downgrade(&rt.shared());
+        super::set(Some(super::stop_requests(rt.stop_handle(), first.clone())));
+        super::set(Some(super::between_runs(first.clone())));
+        drop(rt);
+        assert!(shared.upgrade().is_none(), "the policy kept the runtime");
+        // The first signal between runs is kept for the command to see.
+        let p = super::between_runs(first.clone());
+        p(2);
+        assert_eq!(first.load(std::sync::atomic::Ordering::SeqCst), 2);
+        super::set(None);
+    }
 }

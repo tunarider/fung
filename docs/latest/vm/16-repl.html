@@ -126,7 +126,7 @@
 <li><strong>런타임 에러</strong>: 에러를 보고하고 다음 입력으로 간다. 전역은 남는다. 대입이 실패한 이름을 나중에 읽으면 E0808이다.</li>
 <li><strong>교착</strong>: 그 입력만 실패시킨다. 보고는 평소와 같다. 그다음 <code>Runtime::recover_deadlock</code>이 그 입력의 태스크가 모두 되감기기를 기다리고, 교착 표시와 그것이 요청한 <code>exit(1)</code>을 지운 뒤, <strong>새 실행 루트</strong>를 단다. 전역(전역에 담은 atom 포함)은 남고, 세션의 종료 코드도 그대로 0이다(사용자 결정).</li>
 <li><strong><code>exit(n)</code></strong>: 프롬프트에서 친 것이든 띄운 태스크가 부른 것이든 세션을 코드 n으로 끝낸다.</li>
-<li><strong>Ctrl-C</strong>: 평가 중이면 그 평가를 취소한다(14장의 취소, 세션은 이어진다). 취소된 평가의 <code>release</code>가 끝나지 않아 다시 Ctrl-C를 누르면, 스케줄러가 그 평가의 태스크를 되감지 않고 <strong>있는 그대로 버린다</strong>(<code>Sched::abandon</code>). 버려지는 기다림들은 Rust의 <code>Drop</code>에서 채널의 줄을 떠나고, 기다리던 외부 명령은 SIGKILL로 끝낸다. "정리 없이 버린다"는 fung 쪽 정리를 건너뛴다는 뜻이지, 운영체제 자원을 흘려도 된다는 뜻은 아니다. 그리고 한 줄을 알린다: <code>interrupted again: the cleanup did not finish; the input's tasks were dropped</code>.</li>
+<li><strong>Ctrl-C</strong>: 평가 중이면 그 평가를 취소한다(14장의 취소, 세션은 이어진다). 취소된 평가의 <code>release</code>가 끝나지 않아 다시 Ctrl-C를 누르면(첫 Ctrl-C 뒤 스케줄러가 적어도 한 바퀴 돈 다음에 온 것만 센다. 한 묶음에 둘이 오면 첫 취소가 돌 틈도 없이 버리게 되기 때문이다), 스케줄러가 그 평가의 태스크를 되감지 않고 <strong>있는 그대로 버린다</strong>(<code>Sched::abandon</code>). 버려지는 기다림들은 Rust의 <code>Drop</code>에서 채널의 줄을 떠나고, 기다리던 외부 명령은 SIGKILL로 끝낸다. "정리 없이 버린다"는 fung 쪽 정리를 건너뛴다는 뜻이지, 운영체제 자원을 흘려도 된다는 뜻은 아니다. 그리고 한 줄을 알린다: <code>interrupted again: the cleanup did not finish; the input's tasks were dropped</code>.</li>
 </ul>
 <pre class="plain"><code>&gt; hosts = [&quot;web1&quot;, &quot;web2&quot;]
 &gt; 1 / 0

@@ -226,3 +226,14 @@ fn wait_closed_waits_for_the_stop() {
         ("after\n".into(), "".into(), 0)
     );
 }
+
+/// L14: two Ctrl-Cs in one batch of events are not a second Ctrl-C after
+/// the first: the cancellation they make runs, and the release with it.
+/// Only one after the scheduler has gone round since drops the tasks.
+#[test]
+fn two_interrupts_in_one_batch_still_run_the_release() {
+    let (out, _, _) = exec_signals(
+        "with(() => nil, fn(_):\n  post_interrupt()\n  post_interrupt()\n  sleep(1s)\n;;, _ => print(\"released\"))",
+    );
+    assert_eq!(out, "released\n");
+}

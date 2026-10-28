@@ -139,6 +139,9 @@ FAIL example.fung: count_level counts matching rows
 <li>맨 위의 <code>1</code>은 파일 최상위의 <code>print</code>가 찍은 것이다. <code>fung test</code>는 파일의 최상위 코드를 먼저 실행한 뒤 테스트 블록을 돌린다. 테스트 블록이 최상위의 함수와 값을 쓰게 하려는 것이다. 그래서 최상위에서 파일을 지우거나 서버에 요청하는 스크립트는 테스트할 때도 그 일을 한다. 다음 절의 방법으로 나눈다.</li>
 </ul>
 <p>이 테스트에서 틀린 쪽은 코드가 아니라 기대(<code>warn</code> 줄은 없으니 0이 맞다)다. 마지막 <code>assert</code>를 <code>== 0</code>으로 고치면 <code>2 passed, 0 failed</code>가 된다.</p>
+<div class="box learn"><b>태스크의 순서는 약속되지 않는다</b>
+<p><code>fung test</code>는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 일부러 섞는다. 언어가 그 순서를 약속하지 않으므로, 우연히 맞던 순서에 기대는 시험이 언젠가 드러나게 하려는 것이다. 실패하면 표준 에러에 <code>scheduler seed N: FUNG_SCHED_SEED=N …</code> 한 줄이 나온다. <code>FUNG_SCHED_SEED=N fung test …</code>로 같은 순서를 다시 돌려 고친다. 결과의 순서가 중요하면 태스크마다 <code>await</code>로 차례대로 받거나 정렬한다.</p>
+</div>
 <h2 id="design">테스트하기 좋은 코드</h2>
 <p>테스트하기 쉬운 함수는 <strong>입력을 받아 값을 돌려주기만 하는</strong> 함수다. 파일을 읽고, 계산하고, 출력하는 일을 한 함수에 몰면 테스트에 파일과 출력이 필요해진다. 읽기·쓰기는 얇게 두고 계산을 따로 떼어 내면, 계산은 문자열과 리스트만으로 테스트할 수 있다.</p>
 <p>10장의 모듈로 나누면 더 좋다. 계산하는 함수와 그 테스트는 라이브러리 파일에 두고, 진입 파일은 인자를 읽고 라이브러리를 불러 결과를 출력하기만 한다. 라이브러리 파일의 최상위에는 <code>print</code> 같은 문장이 올 수 없으므로(E0306), 테스트할 때 엉뚱한 일이 일어나지 않는다.</p>

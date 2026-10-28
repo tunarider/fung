@@ -60,7 +60,7 @@
 | L11 | [11-files-close-and-blocking.md](11-files-close-and-blocking.md) | ~~`close(2)` 에러를 보고하지 않음, 실행 스레드의 `Drop` 닫기, 끝없는 파일 읽기가 풀 스레드를 붙잡음~~ **닫힘 2026-10-27** |
 | L12 | [12-sockets-tls.md](12-sockets-tls.md) | 막힌 호출에 닿지 않는 `set_deadline`, 주소 계열 경주 없음, 이름 붙은 포트, TLS 세부 |
 | L13 | [13-http.md](13-http.md) | HTTP 클라이언트·서버의 세부 한계(연결 재사용, 본문 상한, 프록시, URL, 서버 헤더) |
-| L14 | [14-scheduling.md](14-scheduling.md) | 형제 태스크의 시작 순서, 띄운 태스크가 바로 돌지 않음, 공정성, REPL Ctrl-C 두 번 |
+| L14 | [14-scheduling.md](14-scheduling.md) | ~~형제 태스크의 시작 순서, 띄운 태스크가 바로 돌지 않음, 공정성, REPL Ctrl-C 두 번~~ **닫힘 2026-10-28** |
 | L15 | [15-performance.md](15-performance.md) | P14(glibc 판의 계산 속도), P12b(LTO), 레지스터 VM·인라인 캐시 판단 |
 | L16 | [16-manual-depth.md](16-manual-depth.md) | 언어 명세를 레퍼런스 깊이로, VM 부록의 손으로 적은 `dump`를 검사되는 펜스로 |
 | L17 | [17-display-width.md](17-display-width.md) | 표시 너비가 글자 단위라 ZWJ 이모지·VS16에서 터미널과 다르다 |

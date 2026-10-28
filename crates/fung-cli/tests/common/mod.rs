@@ -27,10 +27,17 @@ use std::{
 /// start of a binary whose tests start children from more than one
 /// thread (a binary of one test, or one whose tests run one at a time,
 /// like `perf.rs`, needs none).
+///
+/// It also fixes the seed of the order `fung test` runs tasks in
+/// (`FUNG_SCHED_SEED`, L14), so that its output is the same every time.
 pub fn spawn(cmd: &mut Command) -> std::io::Result<Child> {
     let _held = starting();
+    cmd.env("FUNG_SCHED_SEED", SCHED_SEED);
     cmd.spawn()
 }
+
+/// The seed `fung test` runs with in the tests (`spawn`).
+pub const SCHED_SEED: &str = "1";
 
 /// The lock [`spawn`] holds. A test that makes descriptors of its own
 /// that close-on-exec only in a second step (a pipe, a pseudo-terminal)

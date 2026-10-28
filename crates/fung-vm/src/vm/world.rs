@@ -97,11 +97,25 @@ pub(crate) struct World {
     pub(super) stop: super::stop::StopState,
     /// The REPL's evaluation was interrupted (`StopHandle::interrupt`).
     pub(super) interrupted: bool,
+    /// The scheduler's round when it was interrupted: a second Ctrl-C
+    /// counts only once a round has passed since (L14), so the first
+    /// one's cancellation has run.
+    pub(super) interrupted_round: u64,
+    /// Rounds of the scheduler so far (`Sched::run`).
+    pub(super) round: u64,
+    /// The state of the generator that shuffles the order of the tasks
+    /// started or woken in a round (`fung test`, L14); `None` keeps the
+    /// order they came in.
+    pub(super) shuffle: Option<u64>,
     /// Interrupted again while still running: drop its tasks
     /// (`Sched::abandon`). Reset by `Runtime::take_abandoned`.
     pub(super) abandon: bool,
     /// The last run's tasks were dropped that way.
     pub(super) abandoned: bool,
+    /// The ready queue held a task twice when the last turn began (tests:
+    /// a task gets one turn a round, L14).
+    #[cfg(test)]
+    pub(crate) queue_dupes: bool,
 }
 
 impl World {
@@ -185,6 +199,11 @@ impl World {
             interrupted: false,
             abandon: false,
             abandoned: false,
+            interrupted_round: 0,
+            round: 0,
+            shuffle: None,
+            #[cfg(test)]
+            queue_dupes: false,
         }
     }
 

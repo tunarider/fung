@@ -60,8 +60,9 @@ use super::nat::{self, native, native_step, opt, param};
 use super::oserr;
 use super::sock;
 use crate::value::{Lit, Module, Native, Value};
+use crate::vm::FiberId;
 use crate::vm::poller::Interest;
-use crate::vm::{CancelNode, Flow, IoStep, Kind, Stop, Task, WaitList, Waiter};
+use crate::vm::{CancelNode, Flow, IoStep, Kind, Stop, Task, Waiter};
 
 /// What a closed connection or listener answers.
 const CLOSED: &str = "connection is closed";
@@ -194,6 +195,8 @@ const CHUNK: usize = 16 * 1024;
 static SOCKETS: AtomicUsize = AtomicUsize::new(0);
 static LOOKUPS: AtomicUsize = AtomicUsize::new(0);
 static WAITING: AtomicUsize = AtomicUsize::new(0);
+/// Tasks waiting in a connection's turn line (tests).
+static IN_LINE: AtomicUsize = AtomicUsize::new(0);
 static READ_WAITS: AtomicUsize = AtomicUsize::new(0);
 static WRITE_WAITS: AtomicUsize = AtomicUsize::new(0);
 
@@ -266,34 +269,84 @@ fn wait_io(a: &mut Attempt, fd: RawFd, interest: Interest, deadline: Option<Inst
 }
 
 /// One task at a time on a connection's read side or write side, for a
-/// whole operation and the waits in it. The others park in line; a
-/// cancellation or deadline ends that wait too.
+/// whole operation and the waits in it. The others park in line, first
+/// come first served: a released turn goes to the first in line (L14), so
+/// a task that starts its next operation at once cannot keep it while
+/// others wait. A cancellation or deadline ends a wait in line too; a
+/// task the turn was handed to that leaves without taking it hands it on.
 #[derive(Default)]
 struct Turnstile {
-    busy: Mutex<bool>,
-    waiting: Mutex<WaitList>,
+    state: Mutex<TurnState>,
+}
+
+#[derive(Default)]
+struct TurnState {
+    /// Held, or handed to `handed` and not yet taken.
+    busy: bool,
+    /// The task the turn was handed to, which has not taken it yet.
+    handed: Option<FiberId>,
+    /// The tasks waiting, oldest first.
+    line: std::collections::VecDeque<Arc<Waiter>>,
 }
 
 impl Turnstile {
     fn is_busy(&self) -> bool {
-        *lock(&self.busy)
+        lock(&self.state).busy
     }
 
-    /// Takes the turn, or lines the task up and says it waits.
+    /// Takes the turn (free, or handed to this task), or lines the task
+    /// up and says it waits.
     fn take(&self, a: &mut Attempt) -> Result<(), Fail> {
-        let mut busy = lock(&self.busy);
-        if *busy {
-            lock(&self.waiting).add(&a.me);
-            a.blocked = Some(IoStep::Park);
-            return Err(Fail::Block);
+        let mut s = lock(&self.state);
+        let me = a.me.id();
+        if !s.busy {
+            s.busy = true;
+            return Ok(());
         }
-        *busy = true;
-        Ok(())
+        if s.handed == Some(me) {
+            s.handed = None;
+            return Ok(());
+        }
+        if !s.line.iter().any(|w| w.id() == me) {
+            s.line.push_back(a.me.clone());
+            IN_LINE.fetch_add(1, Ordering::SeqCst);
+        }
+        a.blocked = Some(IoStep::Park);
+        Err(Fail::Block)
     }
 
+    /// Gives the turn up: to the first in line, if any.
     fn release(&self) {
-        *lock(&self.busy) = false;
-        lock(&self.waiting).wake_all();
+        let mut s = lock(&self.state);
+        Self::hand_on(&mut s);
+    }
+
+    /// Task `me` stops waiting without taking the turn (its wait ended
+    /// some other way): it leaves the line, and a turn handed to it goes
+    /// on to the next.
+    fn leave(&self, me: FiberId) {
+        let mut s = lock(&self.state);
+        let before = s.line.len();
+        s.line.retain(|w| w.id() != me);
+        IN_LINE.fetch_sub(before - s.line.len(), Ordering::SeqCst);
+        if s.handed == Some(me) {
+            Self::hand_on(&mut s);
+        }
+    }
+
+    fn hand_on(s: &mut TurnState) {
+        match s.line.pop_front() {
+            Some(w) => {
+                IN_LINE.fetch_sub(1, Ordering::SeqCst);
+                s.busy = true;
+                s.handed = Some(w.id());
+                w.wake();
+            }
+            None => {
+                s.busy = false;
+                s.handed = None;
+            }
+        }
     }
 }
 
@@ -312,6 +365,8 @@ enum Side {
 struct IoState {
     waiting: Cell<bool>,
     held: Cell<bool>,
+    /// Waiting in the turn's line, as this task.
+    in_line: Cell<Option<FiberId>>,
     turn: Option<(Arc<Conn>, Side)>,
 }
 
@@ -328,10 +383,13 @@ impl IoState {
 
     fn end(&self) {
         self.set_waiting(false);
-        if self.held.replace(false)
-            && let Some((c, side)) = &self.turn
-        {
+        let Some((c, side)) = &self.turn else {
+            return;
+        };
+        if self.held.replace(false) {
             c.turnstile(*side).release();
+        } else if let Some(me) = self.in_line.take() {
+            c.turnstile(*side).leave(me);
         }
     }
 }
@@ -355,6 +413,7 @@ fn run_io<T: 'static>(
     let state = Rc::new(IoState {
         waiting: Cell::new(false),
         held: Cell::new(false),
+        in_line: Cell::new(None),
         turn,
     });
     let st = state.clone();
@@ -369,7 +428,11 @@ fn run_io<T: 'static>(
             if let Some((c, side)) = &st.turn
                 && !st.held.get()
             {
-                c.turnstile(*side).take(&mut a)?;
+                if let Err(e) = c.turnstile(*side).take(&mut a) {
+                    st.in_line.set(Some(a.me.id()));
+                    return Err(e);
+                }
+                st.in_line.set(None);
                 st.held.set(true);
             }
             step(&mut a)
@@ -1433,7 +1496,11 @@ pub(crate) mod probe {
     use std::sync::atomic::Ordering;
     use std::sync::{Condvar, Mutex};
 
-    use super::{LOOKUPS, READ_WAITS, SOCKETS, WAITING, WRITE_WAITS, lock};
+    use super::{IN_LINE, LOOKUPS, READ_WAITS, SOCKETS, WAITING, WRITE_WAITS, lock};
+
+    pub(crate) fn in_line() -> usize {
+        IN_LINE.load(Ordering::SeqCst)
+    }
 
     pub(crate) fn sockets() -> usize {
         SOCKETS.load(Ordering::SeqCst)

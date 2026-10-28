@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::native::nat;
-use crate::testutil::{Opts, exec, probes, setup};
+use crate::testutil::{Opts, exec, exec_waiting, probes, setup};
 use crate::value::{Native, Value};
 use crate::vm::{Cont, Flow, Next, Stop, Task, Wake};
 
@@ -660,4 +660,47 @@ fn a_deadlock_report_lists_ten_places_at_most() {
     }
     want += "   … 2 more\n";
     assert_eq!(others, Some(want.as_str()), "{}", o.err);
+}
+
+/// L14: a task is in the ready queue at most once, so it gets one turn a
+/// round. A gives its turn (a long loop) after a wake of its own waiter
+/// (a stale wake); B, next in the round, sees the queue.
+#[test]
+fn a_task_is_queued_once() {
+    let o = exec_waiting(
+        "fn spin(n) = n == 0 then 0 else spin(n - 1) + 0\nscope(fn(s):\n  a = spawn(s, fn():\n    wake_self()\n    spin(3000)\n  ;;)\n  b = spawn(s, () => queue_has_dupes())\n  print(await(b), await(a))\n;;)",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("false 0\n", ""));
+}
+
+fn seed_1(rt: &crate::vm::Runtime) {
+    rt.shuffle_schedule(1);
+}
+
+fn seed_2(rt: &crate::vm::Runtime) {
+    rt.shuffle_schedule(2);
+}
+
+fn seed_3(rt: &crate::vm::Runtime) {
+    rt.shuffle_schedule(3);
+}
+
+/// L14: with a seed (`fung test`), the tasks started or woken in a round
+/// run in an order drawn from it: the same seed, the same order; without
+/// one, the order they were spawned in.
+#[test]
+fn the_schedule_shuffles_by_its_seed() {
+    let src = "scope(fn(s): each(0..8, i => spawn(s, () => print(i))) ;;)";
+    let plain = exec(src, Opts::default()).out;
+    assert_eq!(plain, "0\n1\n2\n3\n4\n5\n6\n7\n");
+    let run =
+        |p: fn(&crate::vm::Runtime)| crate::testutil::exec_prepared(src, Opts::default(), p).out;
+    assert_eq!(run(seed_1), run(seed_1));
+    let orders = [run(seed_1), run(seed_2), run(seed_3)];
+    assert!(orders.iter().any(|o| *o != plain), "{orders:?}");
+    for o in &orders {
+        let mut lines: Vec<&str> = o.lines().collect();
+        lines.sort_unstable();
+        assert_eq!(lines, ["0", "1", "2", "3", "4", "5", "6", "7"]);
+    }
 }
