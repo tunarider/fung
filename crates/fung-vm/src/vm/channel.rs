@@ -76,6 +76,10 @@ use crate::value::{Value, drop_children, keep};
 /// The queue both ends of a channel share.
 pub struct Channel {
     inner: RefCell<Inner>,
+    /// An end of this channel has been put in a channel's buffer (or a
+    /// parked send) or a task's result: only then can a walk through
+    /// buffers and results reach it (`cycle_to`, L7). Never cleared.
+    kept: Cell<bool>,
     /// Woken from outside the program (the stop channel, `stop.rs`): a
     /// task waiting on it is not counted stuck by the deadlock check.
     external: bool,
@@ -85,6 +89,9 @@ struct Inner {
     /// The buffer size: 0 for a rendezvous channel.
     cap: usize,
     buf: VecDeque<Value>,
+    /// How many buffered values hold something mutable: with none, a
+    /// cycle check passes over the buffer at once (`cycle_to`, L7).
+    buf_mutable: usize,
     /// Blocked senders, oldest first; each slot holds its value.
     senders: Line,
     /// Blocked receivers, oldest first; each slot is empty.
@@ -211,9 +218,11 @@ impl Channel {
     pub(crate) fn new(cap: usize) -> Channel {
         Channel {
             external: false,
+            kept: Cell::new(false),
             inner: RefCell::new(Inner {
                 cap,
                 buf: VecDeque::new(),
+                buf_mutable: 0,
                 senders: Line::default(),
                 receivers: Line::default(),
                 closing: WaitList::default(),
@@ -236,6 +245,7 @@ impl Channel {
             return Ok(());
         }
         if c.buf.len() < c.cap {
+            c.buf_mutable += usize::from(v.holds_mutable());
             c.buf.push_back(v);
             return Ok(());
         }
@@ -247,8 +257,10 @@ impl Channel {
     fn try_recv(&self) -> Option<Value> {
         let mut c = self.inner.borrow_mut();
         if let Some(v) = c.buf.pop_front() {
+            c.buf_mutable -= usize::from(v.holds_mutable());
             if let Some(s) = c.senders.first_live() {
                 let moved = s.value.borrow_mut().take().expect("a sender's value");
+                c.buf_mutable += usize::from(moved.holds_mutable());
                 c.buf.push_back(moved);
                 s.complete();
             }
@@ -297,7 +309,11 @@ impl Channel {
     /// out to be dropped (`Receiver`'s `Drop`, `release`). Idempotent.
     pub(crate) fn abandon(&self, stack: &mut Vec<Value>) {
         self.close();
-        let buf = std::mem::take(&mut self.inner.borrow_mut().buf);
+        let buf = {
+            let mut c = self.inner.borrow_mut();
+            c.buf_mutable = 0;
+            std::mem::take(&mut c.buf)
+        };
         for v in buf {
             keep(stack, v);
         }
@@ -323,12 +339,15 @@ impl Channel {
     /// channels built without a task).
     #[cfg(test)]
     pub(crate) fn put(&self, v: Value) {
-        self.inner.borrow_mut().buf.push_back(v);
+        let mut c = self.inner.borrow_mut();
+        c.buf_mutable += usize::from(v.holds_mutable());
+        c.buf.push_back(v);
     }
 
     /// Moves every value out for `release` (`value/release.rs`).
     pub(crate) fn spill(&mut self, stack: &mut Vec<Value>) {
         let c = self.inner.get_mut();
+        c.buf_mutable = 0;
         for v in std::mem::take(&mut c.buf) {
             keep(stack, v);
         }
@@ -408,79 +427,209 @@ impl Drop for Channel {
     }
 }
 
-/// Whether `v` contains an end of `ch` (E0705, `send` only): `v` is one,
-/// or holds one somewhere inside. A value that holds nothing mutable
-/// (`Value::holds_mutable`, O(1) for the big collections) is not walked. Cost is linear in the size of `v`, in constant
-/// Rust stack.
+/// What a value would close if it were put where `cycle_to` is asked
+/// about (05, L7).
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Cycle {
+    /// None: it leads to no end of the place.
+    No,
+    /// It holds an end of the channel itself (E0705).
+    Itself,
+    /// It leads back through other channels' buffers or tasks' results
+    /// (E0709).
+    Through,
+}
+
+/// Where a value is about to be kept: a channel's buffer (`send`) or a
+/// task's result (its end).
+pub(crate) enum Place<'a> {
+    Channel(&'a Rc<Channel>),
+    Task(&'a super::task::TaskState),
+}
+
+impl Place<'_> {
+    /// Whether an end or handle of this place may sit in a buffer or a
+    /// result: if not, no walk through them can reach it.
+    fn kept(&self) -> bool {
+        match self {
+            Place::Channel(ch) => ch.kept.get(),
+            Place::Task(st) => st.kept.get(),
+        }
+    }
+
+    /// Whether `x` is an end of this channel or this task's handle.
+    fn is(&self, x: &Value) -> bool {
+        match (self, x) {
+            (Place::Channel(ch), Value::Sender(e)) => Rc::ptr_eq(&e.0, ch),
+            (Place::Channel(ch), Value::Receiver(e)) => Rc::ptr_eq(&e.0, ch),
+            (Place::Task(st), Value::Task(h)) => std::ptr::eq(Rc::as_ptr(&h.state), *st),
+            _ => false,
+        }
+    }
+}
+
+/// Whether keeping `v` at `place` would close a cycle of references that
+/// counting could never free (L7): `v`, or what it leads to, holds an end
+/// of that channel or that task's handle. A value is kept later than it
+/// is made only in two places, a channel's buffer and a task's result
+/// (atoms hold nothing mutable, E0708), so these are the only places a
+/// cycle can close, and each is checked as it closes.
 ///
-/// - Scanned: lists (their items, so views of a persistent vector are
-///   walked through the view), map values (keys are strings), tuples,
-///   tag arguments and the values a closure captured.
-/// - Not scanned:
-///   - other channels' buffers: a cycle through two channels is not
-///     caught (spec, documented);
-///   - a closure's module globals and module values: a module's globals
-///     already hold its closures, which hold the globals, so those
-///     cycles exist without channels and are broken when the runtime
-///     ends (`World::release_values`) — which frees a channel reached
-///     only through them too; walking them would also mean walking the
-///     whole program's state on every send;
-///   - task handles: a running task's result does not exist yet, so
-///     looking at it would make the error depend on timing;
-///   - strings, numbers, symbols,
-///     durations, ranges, natives and nil.
+/// First `v` itself is walked: the items of lists, the values of maps,
+/// tuples, tag arguments and the values a closure captured. An end of the
+/// place there is E0705 (a task's own handle, E0709). Every other end and
+/// handle met is marked kept, since `v` is about to be. Then, only if an
+/// end of the place has ever been kept (`Place::kept`), the walk goes on
+/// through what those ends lead to: from an end of another channel, its
+/// buffer and the values of the sends parked on it; from a task's handle,
+/// its result once it has finished (a running task has none yet; its end
+/// checks itself). A place whose ends were never kept cannot be reached
+/// that way, so a long chain of channels is not walked at every send.
 ///
-/// Explicit stack, no recursion: a million nested lists must not
-/// overflow. A container reached through a shared `Rc` (count above 1)
-/// is recorded by address and walked once, so a value with many paths
-/// to the same part (`[x, x]` nested) costs its node count, not its
-/// path count; an unshared one has one path, so it is not recorded.
-pub(crate) fn contains(ch: &Rc<Channel>, v: &Value) -> bool {
+/// Not followed: a closure's module globals and module values (a module's
+/// globals already hold its closures, which hold them; such cycles exist
+/// without channels, number at most the top-level names, which are
+/// assigned once, and are broken when the runtime ends,
+/// `World::release_values`), strings, numbers and the like.
+///
+/// In constant Rust stack: an explicit stack of owned copies, so the
+/// channels it looks into are not held borrowed. A value that holds
+/// nothing mutable (`Value::holds_mutable`, O(1) for the big collections)
+/// is not walked; a container reached through a shared `Rc`, a channel or
+/// a task is looked at once.
+pub(crate) fn cycle_to(place: Place<'_>, v: &Value) -> Cycle {
     if !v.holds_mutable() {
-        return false;
+        return Cycle::No;
     }
-    let mut stack: Vec<&Value> = Vec::new();
-    let mut seen: HashSet<*const ()> = HashSet::new();
-    if visit(ch, v, &mut stack) {
-        return true;
+    let deep = place.kept();
+    // A lone end or handle with nothing to walk past it: decided here,
+    // without the stack (the common `send(tx, reply_tx)`).
+    if !deep {
+        let kept = match v {
+            Value::Sender(e) if !place.is(v) => &e.0.kept,
+            Value::Receiver(e) if !place.is(v) => &e.0.kept,
+            Value::Task(h) if !place.is(v) => &h.state.kept,
+            Value::Sender(_) | Value::Receiver(_) => return Cycle::Itself,
+            Value::Task(_) => return Cycle::Through,
+            _ => return walk(&place, v, deep),
+        };
+        kept.set(true);
+        return Cycle::No;
     }
-    while let Some(x) = stack.pop() {
-        let (ptr, shared) = match x {
+    walk(&place, v, deep)
+}
+
+/// The walk of `cycle_to`.
+fn walk(place: &Place<'_>, v: &Value, deep: bool) -> Cycle {
+    // Each value to look at, and whether it was reached through another
+    // channel's buffer or a task's result.
+    let mut stack: Vec<(Value, bool)> = vec![(v.clone(), false)];
+    let mut seen = Seen::default();
+    while let Some((x, through)) = stack.pop() {
+        let (ptr, shared) = match &x {
             Value::List(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
             Value::Map(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
             Value::Tuple(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
             Value::Tag(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
             Value::Closure(rc) => (Rc::as_ptr(rc).cast(), Rc::strong_count(rc) > 1),
+            Value::Sender(e) => (Rc::as_ptr(&e.0).cast(), true),
+            Value::Receiver(e) => (Rc::as_ptr(&e.0).cast(), true),
+            Value::Task(h) => (Rc::as_ptr(&h.state).cast(), true),
             _ => continue,
         };
+        if place.is(&x) {
+            let direct = matches!(place, Place::Channel(_)) && !through;
+            return if direct {
+                Cycle::Itself
+            } else {
+                Cycle::Through
+            };
+        }
         if shared && !seen.insert(ptr) {
             continue;
         }
-        let found = match x {
-            Value::List(l) => l.iter().any(|c| visit(ch, c, &mut stack)),
-            Value::Map(m) => m.iter().any(|(_, c)| visit(ch, c, &mut stack)),
-            Value::Tuple(t) => t.iter().any(|c| visit(ch, c, &mut stack)),
-            Value::Tag(t) => t.args.iter().any(|c| visit(ch, c, &mut stack)),
-            Value::Closure(f) => f.captured.iter().any(|c| visit(ch, c, &mut stack)),
-            _ => false,
+        let mut push = |y: &Value, t: bool| {
+            if y.holds_mutable() {
+                stack.push((y.clone(), t));
+            }
         };
-        if found {
-            return true;
+        match &x {
+            Value::List(l) => l.iter().for_each(|y| push(y, through)),
+            Value::Map(m) => m.iter().for_each(|(_, y)| push(y, through)),
+            Value::Tuple(t) => t.iter().for_each(|y| push(y, through)),
+            Value::Tag(t) => t.args.iter().for_each(|y| push(y, through)),
+            Value::Closure(f) => f.captured.iter().for_each(|y| push(y, through)),
+            Value::Sender(e) => {
+                if !through {
+                    e.0.kept.set(true);
+                }
+                if deep {
+                    e.0.each_kept(|y| push(y, true));
+                }
+            }
+            Value::Receiver(e) => {
+                if !through {
+                    e.0.kept.set(true);
+                }
+                if deep {
+                    e.0.each_kept(|y| push(y, true));
+                }
+            }
+            Value::Task(h) => {
+                if !through {
+                    h.state.kept.set(true);
+                }
+                if deep && let Some(r) = h.state.result() {
+                    push(&r, true);
+                }
+            }
+            _ => {}
         }
     }
-    false
+    Cycle::No
 }
 
-/// One value met by `contains`: `true` if it is `ch`; a container is pushed to be walked, anything else is skipped.
-fn visit<'a>(ch: &Rc<Channel>, v: &'a Value, stack: &mut Vec<&'a Value>) -> bool {
-    match v {
-        Value::Sender(e) => Rc::ptr_eq(&e.0, ch),
-        Value::Receiver(e) => Rc::ptr_eq(&e.0, ch),
-        Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_) | Value::Closure(_) => {
-            stack.push(v);
-            false
+/// The shared containers, channels and tasks a walk has looked at: a few
+/// in a list (most walks meet one or two), a set past that.
+#[derive(Default)]
+struct Seen {
+    few: Vec<*const ()>,
+    many: HashSet<*const ()>,
+}
+
+impl Seen {
+    /// Adds `p`; false if it was in already.
+    fn insert(&mut self, p: *const ()) -> bool {
+        const FEW: usize = 16;
+        if self.many.is_empty() {
+            if self.few.contains(&p) {
+                return false;
+            }
+            if self.few.len() < FEW {
+                self.few.push(p);
+                return true;
+            }
+            self.many.extend(self.few.drain(..));
         }
-        _ => false,
+        self.many.insert(p)
+    }
+}
+
+impl Channel {
+    /// Each value the channel keeps: its buffer and the values of the
+    /// sends parked on it (`cycle_to`).
+    fn each_kept(&self, mut f: impl FnMut(&Value)) {
+        let c = self.inner.borrow();
+        if c.buf_mutable > 0 {
+            for v in &c.buf {
+                f(v);
+            }
+        }
+        for s in c.senders.q.iter().filter(|s| s.queued.get()) {
+            if let Some(v) = &*s.value.borrow() {
+                f(v);
+            }
+        }
     }
 }
 

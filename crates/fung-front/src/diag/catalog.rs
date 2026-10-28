@@ -294,6 +294,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "",
     ],
+    [
+        "E0709",
+        "this value would make a cycle through channels or tasks, which could never be freed",
+        "",
+        "send or return the data, not the channel end or task handle that leads back here",
+    ],
     ["E0801", "internal error: %v", "", ""],
     // not raised since the nesting limit became the syntax error E0115
     [

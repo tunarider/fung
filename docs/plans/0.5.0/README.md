@@ -53,7 +53,7 @@
 | L4 | [04-strings-and-bytes.md](04-strings-and-bytes.md) | 문자열이 바이트를 품지 못해 비UTF-8 입력이 U+FFFD로 바뀐다 |
 | L5 | [05-collections.md](05-collections.md) | 앞에 붙이기의 n², 맵·튜플 상수 접기 없음, 변하는 것을 품은 값의 `send` 비용 |
 | L6 | [06-long-natives.md](06-long-natives.md) | Rust로 쓴 긴 내장 함수(큰 `json.parse`, 콜백 없는 정렬)가 차례를 넘기지 않는다 |
-| L7 | [07-rc-cycles.md](07-rc-cycles.md) | 회수되지 않는 `Rc` 순환, E0705가 훑지 않는 곳 |
+| L7 | [07-rc-cycles.md](07-rc-cycles.md) | ~~회수되지 않는 `Rc` 순환, E0705가 훑지 않는 곳~~ **닫힘 2026-10-28** |
 | L8 | [08-tail-call-errors.md](08-tail-call-errors.md) | ~~라이브러리 함수의 꼬리 호출이 에러 위치와 호출 경로를 흐린다~~ **닫힘 2026-10-27** |
 | L9 | [09-deep-values-and-stacks.md](09-deep-values-and-stacks.md) | ~~재귀인 값 출력과 깊은 네이티브 재귀의 스택 한도~~ **닫힘 2026-10-28** |
 | L10 | [10-monotonic-clock.md](10-monotonic-clock.md) | ~~`now()`뿐이라 경과 시간이 시스템 시각 변경에 흔들린다~~ **닫힘 2026-10-27** |

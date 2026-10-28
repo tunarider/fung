@@ -6925,6 +6925,47 @@
 |   |
 |  help: split it with `and`: a < b and b < c
 -- exit: 2
+==== dump ast tests/lang/err_channel_cycle.fung
+-- stdout
+| (program (assign (ptuple (pbind ta) (pbind ra)) (call channel 1)) (assign (ptuple (pbind tb) (pbind rb)) (call channel 1)) (unwrap ! (call send ta rb)) (unwrap ! (call send tb ra)) (call print "not reached"))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_channel_cycle.fung
+-- stdout
+| (do (let (ptuple (pbind (global 0)) (pbind (global 1))) (call (prelude channel) 1)) (let (ptuple (pbind (global 2)) (pbind (global 3))) (call (prelude channel) 1)) (unwrap ! (call (prelude send) (global 0) (global 3))) (unwrap ! (call (prelude send) (global 2) (global 1))) (call (prelude print) "not reached"))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/err_channel_cycle.fung
+-- stdout
+| == <main> ==
+| 0000  4:12  CONST        0    ; <fn channel>
+| 0001  4:20  CONST        1    ; 1
+| 0002  4:19  CALL         1    ; 1 positional, 0 named
+| 0003  4:1   MATCHORFAIL  0    ; (@0, @1)
+| 0004  5:12  CONST        0    ; <fn channel>
+| 0005  5:20  CONST        1    ; 1
+| 0006  5:19  CALL         1    ; 1 positional, 0 named
+| 0007  5:1   MATCHORFAIL  1    ; (@2, @3)
+| 0008  6:1   CONST        2    ; <fn send>
+| 0009  6:6   LOADGLOBAL   0    ; ta
+| 0010  6:10  LOADGLOBAL   3    ; rb
+| 0011  6:5   CALL         2    ; 2 positional, 0 named
+| 0012  6:13  UNWRAPABORT
+| 0013  6:1   POP
+| 0014  7:1   CONST        2    ; <fn send>
+| 0015  7:6   LOADGLOBAL   2    ; tb
+| 0016  7:10  LOADGLOBAL   1    ; ra
+| 0017  7:5   CALL         2    ; 2 positional, 0 named
+| 0018  7:13  UNWRAPABORT
+| 0019  7:1   POP
+| 0020  9:1   CONST        3    ; <fn print>
+| 0021  9:7   CONST        4    ; "not reached"
+| 0022  9:6   CALL         1    ; 1 positional, 0 named
+| 0023  9:1   POP
+| 0024  9:1   CONST        5    ; nil
+| 0025  1:70  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/err_channel_self.fung
 -- stdout
 | (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 1)) (call send tx (list rx)))
@@ -9458,6 +9499,57 @@
 | 0001  3:23  CONST        1    ; "x"
 | 0002  3:22  TAILCALL     1    ; 1 positional, 0 named
 | 0003  3:15  RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/err_task_self_result.fung
+-- stdout
+| (program (assign (ptuple (pbind tx) (pbind rx)) (call channel 1)) (call scope (fn (s) (block (assign t (call spawn s (fn () (block (call recv rx))))) (unwrap ! (call send tx t)) (call print (call await t))))))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/err_task_self_result.fung
+-- stdout
+| (do (let (ptuple (pbind (global 0)) (pbind (global 1))) (call (prelude channel) 1)) (call (prelude scope) (fn (s) (do (let (local 1) (call (prelude spawn) (local 0) (fn () (do (call (prelude recv) (captured 0)))))) (unwrap ! (call (prelude send) (captured 1) (local 1))) (call (prelude print) (call (prelude await) (local 1)))))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/err_task_self_result.fung
+-- stdout
+| == <main> ==
+| 0000  3:12  CONST        0    ; <fn channel>
+| 0001  3:20  CONST        1    ; 1
+| 0002  3:19  CALL         1    ; 1 positional, 0 named
+| 0003  3:1   MATCHORFAIL  0    ; (@0, @1)
+| 0004  4:1   CONST        2    ; <fn scope>
+| 0005  4:7   CLOSURE      0    ; <lambda>
+| 0006  4:6   CALL         1    ; 1 positional, 0 named
+| 0007  4:1   POP
+| 0008  4:1   CONST        3    ; nil
+| 0009  1:74  RETURN
+|
+| == <lambda> ==
+| 0000  5:7   CONST        0    ; <fn spawn>
+| 0001  5:13  MOVELOCAL    0
+| 0002  5:16  CLOSURE      0    ; <lambda>
+| 0003  5:12  CALL         2    ; 2 positional, 0 named
+| 0004  5:3   STORELOCAL   1
+| 0005  5:3   CLEARLOCAL   0
+| 0006  6:3   CONST        1    ; <fn send>
+| 0007  6:8   LOADCAPTURED 1
+| 0008  6:12  LOADLOCAL    1
+| 0009  6:7   CALL         2    ; 2 positional, 0 named
+| 0010  6:14  UNWRAPABORT
+| 0011  6:3   POP
+| 0012  7:3   CONST        2    ; <fn print>
+| 0013  7:9   CONST        3    ; <fn await>
+| 0014  7:15  MOVELOCAL    1
+| 0015  7:14  CALL         1    ; 1 positional, 0 named
+| 0016  7:8   TAILCALL     1    ; 1 positional, 0 named
+| 0017  4:7   RETURN
+|
+| == <lambda> ==
+| 0000  5:22  CONST        0    ; <fn recv>
+| 0001  5:27  LOADCAPTURED 0
+| 0002  5:26  TAILCALL     1    ; 1 positional, 0 named
+| 0003  5:19  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_test_nested.fung

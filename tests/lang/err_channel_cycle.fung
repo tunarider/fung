@@ -1,0 +1,9 @@
+# Two channels that hold each other's receiving ends in their buffers
+# would keep each other alive forever: the send that closes the cycle is
+# E0709 (05).
+(ta, ra) = channel(1)
+(tb, rb) = channel(1)
+send(ta, rb)!
+send(tb, ra)!
+# expect-error: E0709
+print("not reached")

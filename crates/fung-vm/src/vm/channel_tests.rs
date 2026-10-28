@@ -829,3 +829,54 @@ fn wait_closed_wakes_when_the_senders_go_and_deadlocks_by_name() {
     assert!(err.contains("   wait_closed at -e:2:"), "{err}");
     assert_eq!(code, 1);
 }
+
+/// L7: a value that would close a cycle through other channels' buffers
+/// (or a parked send's value) is E0709 at the send that closes it; a send
+/// of a reply channel, which leads back to no buffer that leads here, is
+/// fine.
+#[test]
+fn a_cycle_through_channels_is_e0709() {
+    for (what, src) in [
+        (
+            "three channels",
+            "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\n(tc, rc) = channel(1)\nsend(ta, rb)!\nsend(tb, rc)!\nsend(tc, ra)!",
+        ),
+        (
+            "sending ends",
+            "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\nsend(ta, tb)!\nsend(tb, ta)!\nprint(ra, rb)",
+        ),
+        (
+            "inside a tuple",
+            "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\nsend(ta, (1, [rb]))!\nsend(tb, {r: ra})!",
+        ),
+        (
+            "try_send",
+            "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\ntry_send(ta, rb)!\ntry_send(tb, ra)!",
+        ),
+    ] {
+        let (out, err, code) = run(src);
+        assert_eq!(out, "", "{what}");
+        assert!(err.starts_with("error[E0709]: "), "{what}: {err}");
+        assert_eq!(code, 1, "{what}");
+    }
+}
+
+/// A send parked on a full channel holds its value before any buffer
+/// does: the send that would close the cycle with it is E0709 too.
+#[test]
+fn a_parked_send_counts_in_a_cycle() {
+    let o = exec_waiting(
+        "(ta, ra) = channel()\n(tb, rb) = channel(1)\nscope(fn(s):\n  spawn(s, () => send(ta, rb))\n  blocked(ra, 1)\n  print(send(tb, ra))\n;;)",
+    );
+    assert!(o.err.starts_with("error[E0709]: "), "{}", o.err);
+}
+
+/// What is no cycle still goes: a reply channel sent with a request, a
+/// channel end in another channel's buffer that leads nowhere back.
+#[test]
+fn a_reply_channel_is_no_cycle() {
+    let (out, err, code) = run(
+        "(req_tx, req_rx) = channel(4)\nscope(fn(s):\n  spawn(s, fn():\n    for (x, reply) in req_rx: send(reply, x * 2)! ;;\n  ;;)\n  (rtx, rrx) = channel(1)\n  send(req_tx, (21, rtx))!\n  print(recv(rrx)!)\n  close(req_tx)\n;;)\n(ta, ra) = channel(1)\n(tb, _rb) = channel(1)\nsend(ta, tb)!\nprint(recv(ra) |> is_ok)",
+    );
+    assert_eq!((out.as_str(), err.as_str(), code), ("42\ntrue\n", "", 0));
+}

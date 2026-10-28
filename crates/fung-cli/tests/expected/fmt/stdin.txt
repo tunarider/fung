@@ -5433,69 +5433,92 @@
 -- exit: 0
 ==== manual reference/errors.md:169
 -- stdout
+| (ta, ra) = channel(1)
+| (tb, rb) = channel(1)
+| send(ta, rb)!
+| send(tb, ra)!
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:170
+-- stdout
+| (req_tx, req_rx) = channel(4)
+| scope(fn(s):
+|   spawn(s, fn():
+|     for (x, reply) in req_rx: send(reply, x * 2)! ;;
+|     nil
+|   ;;)
+|   (rtx, rrx) = channel(1)
+|   send(req_tx, (21, rtx))!
+|   print(recv(rrx)!)
+|   close(req_tx)
+| ;;)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:171
+-- stdout
 | fn port_of(cfg) = cfg.port ?? fail("config.port is required")
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:170
+==== manual reference/errors.md:172
 -- stdout
 | fn port_of(cfg) = cfg.port ?? 8080
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:171
+==== manual reference/errors.md:173
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:172
+==== manual reference/errors.md:174
 -- stdout
 | fn depth(n, acc = 0) = n == 0 then acc else depth(n - 1, acc + 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:173
+==== manual reference/errors.md:175
 -- stdout
 | line = repeat("=", 200_000_000)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:174
+==== manual reference/errors.md:176
 -- stdout
 | line = repeat("=", 20)
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:175
+==== manual reference/errors.md:177
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 3
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:176
+==== manual reference/errors.md:178
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 2
 | print("ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:177
--- stdout
-| x = twice()
-| limit = 10
-| fn twice() = limit * 2
-| print(x)
--- stderr
--- exit: 0
-==== manual reference/errors.md:178
--- stdout
-| limit = 10
-| fn twice() = limit * 2
-| x = twice()
-| print(x)
--- stderr
--- exit: 0
 ==== manual reference/errors.md:179
+-- stdout
+| x = twice()
+| limit = 10
+| fn twice() = limit * 2
+| print(x)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:180
+-- stdout
+| limit = 10
+| fn twice() = limit * 2
+| x = twice()
+| print(x)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:181
 -- stdout
 | import fs
 | r = fs.with_open("report.txt", fn(h):
@@ -5504,14 +5527,14 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:180
+==== manual reference/errors.md:182
 -- stdout
 | import fs
 | import path
 | print(path.join("a", "b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:181
+==== manual reference/errors.md:183
 -- stdout
 | fn total(xs):
 |   count = len(xs)
@@ -5520,7 +5543,7 @@
 | print(total([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:182
+==== manual reference/errors.md:184
 -- stdout
 | fn summary(xs):
 |   max = 0
@@ -8819,13 +8842,21 @@
 -- exit: 0
 ==== manual vm/10-values-and-memory.md:3
 -- stdout
+| (ta, ra) = channel(1)
+| (tb, rb) = channel(1)
+| send(ta, rb)!
+| print(send(tb, ra))
+-- stderr
+-- exit: 0
+==== manual vm/10-values-and-memory.md:4
+-- stdout
 | fn nest(n, acc) = n == 0 then acc else nest(n - 1, [acc])
 |
 | deep = nest(1000000, [])
 | print(len(deep))
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:4
+==== manual vm/10-values-and-memory.md:5
 -- stdout
 | fn nest(n, acc) = n == 0 then acc else nest(n - 1, [acc])
 |
@@ -8834,7 +8865,7 @@
 | print(len(str(a)), a == b, a < nest(300000, 1))
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:5
+==== manual vm/10-values-and-memory.md:6
 -- stdout
 | xs = [1, 2, 3]
 | ys = xs + [4]
@@ -8845,7 +8876,7 @@
 | print(m, m2)
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:6
+==== manual vm/10-values-and-memory.md:7
 -- stdout
 | n = 20000
 | counts = fold(0..n, {}, (acc, i) => put(acc, "k${i % 5000}", get(acc, "k${i % 5000}", 0) + 1))
@@ -8855,7 +8886,7 @@
 | print(len(items), items[19999])
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:8
+==== manual vm/10-values-and-memory.md:9
 -- stdout
 | fn numbers(n) = scope(fn(s):
 |   (tx, rx) = channel()
@@ -8866,7 +8897,7 @@
 | print(numbers(5))
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:10
+==== manual vm/10-values-and-memory.md:11
 -- stdout
 | fn drop_it(_x) = nil
 |
@@ -8878,7 +8909,7 @@
 | print(closes_early())
 -- stderr
 -- exit: 0
-==== manual vm/10-values-and-memory.md:11
+==== manual vm/10-values-and-memory.md:12
 -- stdout
 | levels = ["INFO", "WARN", "INFO", "ERROR", "INFO"]
 | entries = map(0..30000, i => levels[i % 5])
@@ -10962,6 +10993,19 @@
 |   |
 |  help: split it with `and`: a < b and b < c
 -- exit: 2
+==== tests/lang/err_channel_cycle.fung
+-- stdout
+| # Two channels that hold each other's receiving ends in their buffers
+| # would keep each other alive forever: the send that closes the cycle is
+| # E0709 (05).
+| (ta, ra) = channel(1)
+| (tb, rb) = channel(1)
+| send(ta, rb)!
+| send(tb, ra)!
+| # expect-error: E0709
+| print("not reached")
+-- stderr
+-- exit: 0
 ==== tests/lang/err_channel_self.fung
 -- stdout
 | (tx, rx) = channel(1)
@@ -11648,6 +11692,19 @@
 | ;;)
 | print("not here either")
 | # expect-error: E0803
+-- stderr
+-- exit: 0
+==== tests/lang/err_task_self_result.fung
+-- stdout
+| # A task whose result would hold its own handle could never be freed: the
+| # task fails with E0709 instead (05).
+| (tx, rx) = channel(1)
+| scope(fn(s):
+|   t = spawn(s, () => recv(rx))
+|   send(tx, t)!
+|   print(await(t))
+| ;;)
+| # expect-error: E0709
 -- stderr
 -- exit: 0
 ==== tests/lang/err_test_nested.fung

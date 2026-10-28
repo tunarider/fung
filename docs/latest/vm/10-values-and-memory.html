@@ -161,7 +161,22 @@ reset(cache, {inbox: tx})</code></pre><pre class="out err plain" data-code="1"><
 <ul>
 <li>모듈 전역 표는 그 모듈의 함수를 담고, 함수는 자기 모듈의 전역 표를 든다(11장). 이것은 고리다. 그래서 런타임이 끝날 때 전역 표를 비워 고리를 끊는다(<code>World::release_values</code>).</li>
 </ul>
-<p>두 검사가 값 전체를 훑으면 큰 맵을 <code>reset</code>할 때마다 비용이 크기에 비례한다. 그래서 영속 벡터의 노드마다 "바뀌는 것을 품었는가"를 기억해 두고, 바뀐 경로만 다시 본다. 막지 못하는 고리(서로의 끝을 버퍼에 담은 채 버려진 두 채널 등)는 open-questions의 "알려진 한계"에 적혀 있다.</p>
+<ul>
+<li>다른 채널을 거쳐 닿는 고리도 막는다(E0709, 0.5.0 L7). 서로의 받는 끝을 버퍼에 담은 두 채널은 둘 다 버려도 계수가 0이 되지 않는다. 값을 나중에 받는 칸은 채널의 버퍼와 태스크의 결과 둘뿐이라, 고리가 닫히는 순간도 <code>send</code>와 태스크의 끝 둘뿐이다. 그 자리에서 보낼 값(돌려줄 값)으로부터 다른 채널의 버퍼와 끝난 태스크의 결과를 따라가, 넣는 곳 자신에 닿으면 막는다.</li>
+</ul>
+<div class="run"><pre><code>(ta, ra) = channel(1)
+(tb, rb) = channel(1)
+send(ta, rb)!
+print(send(tb, ra))</code></pre><pre class="out err plain" data-code="1"><code>error[E0709]: this value would make a cycle through channels or tasks, which could never be freed
+  --&gt; example.fung:4:11
+  |
+4 | print(send(tb, ra))
+  |           ^
+  |
+ call path (innermost first):
+   example.fung:4 &lt;entry&gt;
+ help: send or return the data, not the channel end or task handle that leads back here</code></pre></div>
+<p>검사가 값 전체를 훑으면 큰 맵을 <code>reset</code>할 때마다 비용이 크기에 비례한다. 그래서 영속 벡터의 노드마다 "바뀌는 것을 품었는가"를 기억해 두고, 바뀐 경로만 다시 본다. 고리 검사도 같은 이유로 지름길이 둘 있다. 채널의 끝과 태스크의 핸들은 "버퍼나 결과에 들어간 적 있음"을 기억해서, 넣는 곳의 끝이 한 번도 들어간 적이 없으면 버퍼를 건너 따라가지 않는다(어떤 버퍼를 거쳐도 닿을 수 없으므로). 채널은 버퍼에 바뀌는 것을 품은 값이 몇 개인지 세어 두어, 없으면 버퍼를 통째로 건너뛴다.</p>
 <h2 id="release">깊은 값 지우기</h2>
 <p>참조 계수에는 덜 알려진 함정이 하나 더 있다. Rust는 값을 버릴 때 그 필드를 차례로 버린다. 리스트 안의 리스트 안의 리스트가 백만 겹이면, 마지막 손잡이가 사라질 때 버리기가 백만 단 재귀한다. 운영체제 스레드의 스택이 넘쳐 프로세스가 죽는다. 추적형 GC는 반복문으로 훑으므로 이런 문제가 없다.</p>
 <p>fung은 값을 담는 모든 그릇(리스트, 맵, 튜플, 태그, 클로저, 모듈, 채널의 끝, 태스크 핸들, atom)이 자기 <code>Drop</code>에서 자식을 <strong>꺼내</strong> 명시적 스택에 옮기고, 그 스택을 반복문으로 비운다(<code>crates/fung-vm/src/value/release.rs</code>). 계수가 1인, 곧 정말 지워질 그릇만 스택에 넣는다. 계수가 2 이상이면 계수만 내려가고 깊어질 일이 없기 때문이다.</p>
@@ -346,7 +361,7 @@ print(take(newest_first, 3))</code></pre><pre class="out plain"><code>{INFO: 180
 <h2 id="summary">정리</h2>
 <ul>
 <li>fung의 값은 16바이트 Rust 열거형 <code>Value</code>다. 정수·실수·불·기간은 칸에 바로 들어가고, 큰 값은 <code>Rc</code>로 힙의 객체를 가리킨다. 빈 칸은 <code>None</code>이라 <code>nil</code>과 다르다.</li>
-<li>메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0708이 막는다.</li>
+<li>메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0709·E0708이 막는다.</li>
 <li>깊은 값은 그릇마다의 <code>Drop</code>이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다. 출력·비교·해시도 명시적 스택으로 훑으므로 값이 아무리 깊어도 프로세스가 죽지 않고, 출력은 깊이에 선형이다.</li>
 <li>리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 <code>Rc::make_mut</code>로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.</li>
 <li>지역 변수의 마지막 읽기는 <code>MOVELOCAL</code>로 값을 넘기고, 읽힌 문장 뒤에는 <code>CLEARLOCAL</code>로 놓인다. 그래서 <code>fold</code>로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.</li>

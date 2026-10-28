@@ -273,6 +273,9 @@ pub(crate) struct TaskState {
     /// An Err the task's function returned that no `await` has read yet
     /// (L1), as the failure it becomes if it can no longer be read.
     pub(super) unread: RefCell<Option<Unread>>,
+    /// The task's handle has been put in a channel's buffer or a task's
+    /// result (`channel::cycle_to`, L7). Never cleared.
+    pub(super) kept: std::cell::Cell<bool>,
 }
 
 /// An unread Err as a failure (E0607): the error, and its value and
@@ -309,6 +312,7 @@ impl TaskState {
             at,
             scope: scope.map(Rc::downgrade).unwrap_or_default(),
             unread: RefCell::new(None),
+            kept: std::cell::Cell::new(false),
         })
     }
 

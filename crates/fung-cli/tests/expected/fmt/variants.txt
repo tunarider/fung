@@ -1134,6 +1134,18 @@
 | in/tests~lang~err_bool@spaced.fung
 | in/tests~lang~err_bool@split.fung
 | in/tests~lang~err_bool@trailing.fung
+| in/tests~lang~err_channel_cycle@bom.fung
+| in/tests~lang~err_channel_cycle@cglued.fung
+| in/tests~lang~err_channel_cycle@cpushed.fung
+| in/tests~lang~err_channel_cycle@crlf.fung
+| in/tests~lang~err_channel_cycle@halfbytes.fung
+| in/tests~lang~err_channel_cycle@moreblank.fung
+| in/tests~lang~err_channel_cycle@nofinal.fung
+| in/tests~lang~err_channel_cycle@opsplit.fung
+| in/tests~lang~err_channel_cycle@spaced.fung
+| in/tests~lang~err_channel_cycle@split.fung
+| in/tests~lang~err_channel_cycle@tight.fung
+| in/tests~lang~err_channel_cycle@trailing.fung
 | in/tests~lang~err_channel_self@bom.fung
 | in/tests~lang~err_channel_self@cpushed.fung
 | in/tests~lang~err_channel_self@crlf.fung
@@ -1950,6 +1962,21 @@
 | in/tests~lang~err_task_failed@tight.fung
 | in/tests~lang~err_task_failed@trailing.fung
 | in/tests~lang~err_task_failed@wide4.fung
+| in/tests~lang~err_task_self_result@bom.fung
+| in/tests~lang~err_task_self_result@cglued.fung
+| in/tests~lang~err_task_self_result@cpushed.fung
+| in/tests~lang~err_task_self_result@crlf.fung
+| in/tests~lang~err_task_self_result@dedent.fung
+| in/tests~lang~err_task_self_result@moreblank.fung
+| in/tests~lang~err_task_self_result@nofinal.fung
+| in/tests~lang~err_task_self_result@odd3.fung
+| in/tests~lang~err_task_self_result@opsplit.fung
+| in/tests~lang~err_task_self_result@spaced.fung
+| in/tests~lang~err_task_self_result@split.fung
+| in/tests~lang~err_task_self_result@tabs.fung
+| in/tests~lang~err_task_self_result@tight.fung
+| in/tests~lang~err_task_self_result@trailing.fung
+| in/tests~lang~err_task_self_result@wide4.fung
 | in/tests~lang~err_too_many_args@bom.fung
 | in/tests~lang~err_too_many_args@cpushed.fung
 | in/tests~lang~err_too_many_args@crlf.fung
@@ -5203,6 +5230,18 @@
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~err_task_failed@halflines.fung:5:1
+|   |
+| 5 | 
+|   | ^
+|   |
+| error[E0112]: expected `)`, found end of file
+|   --> in/tests~lang~err_task_self_result@halfbytes.fung:3:7
+|   |
+| 3 | (tx, r
+|   |       ^
+|   |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~err_task_self_result@halflines.fung:5:1
 |   |
 | 5 | 
 |   | ^
@@ -7042,6 +7081,18 @@
 | in/tests~lang~err_bool@spaced.fung
 | in/tests~lang~err_bool@split.fung
 | in/tests~lang~err_bool@trailing.fung
+| in/tests~lang~err_channel_cycle@bom.fung
+| in/tests~lang~err_channel_cycle@cglued.fung
+| in/tests~lang~err_channel_cycle@cpushed.fung
+| in/tests~lang~err_channel_cycle@crlf.fung
+| in/tests~lang~err_channel_cycle@halfbytes.fung
+| in/tests~lang~err_channel_cycle@moreblank.fung
+| in/tests~lang~err_channel_cycle@nofinal.fung
+| in/tests~lang~err_channel_cycle@opsplit.fung
+| in/tests~lang~err_channel_cycle@spaced.fung
+| in/tests~lang~err_channel_cycle@split.fung
+| in/tests~lang~err_channel_cycle@tight.fung
+| in/tests~lang~err_channel_cycle@trailing.fung
 | in/tests~lang~err_channel_self@bom.fung
 | in/tests~lang~err_channel_self@cpushed.fung
 | in/tests~lang~err_channel_self@crlf.fung
@@ -7858,6 +7909,21 @@
 | in/tests~lang~err_task_failed@tight.fung
 | in/tests~lang~err_task_failed@trailing.fung
 | in/tests~lang~err_task_failed@wide4.fung
+| in/tests~lang~err_task_self_result@bom.fung
+| in/tests~lang~err_task_self_result@cglued.fung
+| in/tests~lang~err_task_self_result@cpushed.fung
+| in/tests~lang~err_task_self_result@crlf.fung
+| in/tests~lang~err_task_self_result@dedent.fung
+| in/tests~lang~err_task_self_result@moreblank.fung
+| in/tests~lang~err_task_self_result@nofinal.fung
+| in/tests~lang~err_task_self_result@odd3.fung
+| in/tests~lang~err_task_self_result@opsplit.fung
+| in/tests~lang~err_task_self_result@spaced.fung
+| in/tests~lang~err_task_self_result@split.fung
+| in/tests~lang~err_task_self_result@tabs.fung
+| in/tests~lang~err_task_self_result@tight.fung
+| in/tests~lang~err_task_self_result@trailing.fung
+| in/tests~lang~err_task_self_result@wide4.fung
 | in/tests~lang~err_too_many_args@bom.fung
 | in/tests~lang~err_too_many_args@cpushed.fung
 | in/tests~lang~err_too_many_args@crlf.fung
@@ -11111,6 +11177,18 @@
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
 |   --> in/tests~lang~err_task_failed@halflines.fung:5:1
+|   |
+| 5 | 
+|   | ^
+|   |
+| error[E0112]: expected `)`, found end of file
+|   --> in/tests~lang~err_task_self_result@halfbytes.fung:3:7
+|   |
+| 3 | (tx, r
+|   |       ^
+|   |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~err_task_self_result@halflines.fung:5:1
 |   |
 | 5 | 
 |   | ^
@@ -13866,6 +13944,28 @@
 | tests~lang~err_chain@tight.fung unchanged
 | tests~lang~err_chain@trailing.fung unchanged
 | tests~lang~err_chain@wide4.fung unchanged
+| tests~lang~err_channel_cycle.fung unchanged
+| tests~lang~err_channel_cycle@bom.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@cglued.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@cnospace.fung unchanged
+| tests~lang~err_channel_cycle@contsplit.fung unchanged
+| tests~lang~err_channel_cycle@cpushed.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@crlf.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@dedent.fung unchanged
+| tests~lang~err_channel_cycle@halfbytes.fung 137 b2dbe752eec249c9
+| tests~lang~err_channel_cycle@halflines.fung unchanged
+| tests~lang~err_channel_cycle@joined.fung unchanged
+| tests~lang~err_channel_cycle@moreblank.fung 280 ecb8e64e98b15d60
+| tests~lang~err_channel_cycle@noblank.fung unchanged
+| tests~lang~err_channel_cycle@nofinal.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@odd3.fung unchanged
+| tests~lang~err_channel_cycle@opsplit.fung 276 9d37f5c315c84290
+| tests~lang~err_channel_cycle@spaced.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@split.fung 305 190384cc28d65644
+| tests~lang~err_channel_cycle@tabs.fung unchanged
+| tests~lang~err_channel_cycle@tight.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@trailing.fung 272 d6532b2ebf17e734
+| tests~lang~err_channel_cycle@wide4.fung unchanged
 | tests~lang~err_channel_self.fung unchanged
 | tests~lang~err_channel_self@bom.fung 59 2ac701ce6511c18d
 | tests~lang~err_channel_self@cglued.fung unchanged
@@ -15718,6 +15818,28 @@
 | tests~lang~err_task_failed@tight.fung 191 5ac4b8d06df47548
 | tests~lang~err_task_failed@trailing.fung 191 5ac4b8d06df47548
 | tests~lang~err_task_failed@wide4.fung 191 5ac4b8d06df47548
+| tests~lang~err_task_self_result.fung unchanged
+| tests~lang~err_task_self_result@bom.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@cglued.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@cnospace.fung unchanged
+| tests~lang~err_task_self_result@contsplit.fung unchanged
+| tests~lang~err_task_self_result@cpushed.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@crlf.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@dedent.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@halfbytes.fung unchanged
+| tests~lang~err_task_self_result@halflines.fung unchanged
+| tests~lang~err_task_self_result@joined.fung unchanged
+| tests~lang~err_task_self_result@moreblank.fung 243 280d307807f4ddb4
+| tests~lang~err_task_self_result@noblank.fung unchanged
+| tests~lang~err_task_self_result@nofinal.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@odd3.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@opsplit.fung 249 856965f3f4b64934
+| tests~lang~err_task_self_result@spaced.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@split.fung 323 5353510cd76becb0
+| tests~lang~err_task_self_result@tabs.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@tight.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@trailing.fung 237 3c2d0b58b3afb72e
+| tests~lang~err_task_self_result@wide4.fung 237 3c2d0b58b3afb72e
 | tests~lang~err_test_nested.fung unchanged
 | tests~lang~err_test_nested@bom.fung unchanged
 | tests~lang~err_test_nested@cglued.fung unchanged

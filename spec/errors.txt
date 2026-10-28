@@ -88,6 +88,7 @@ E0705	channel sent into itself
 E0706	spawn into a closed scope		
 E0707	`%s` has an effect, which a swap's function must not have		
 E0708	an atom cannot hold an atom, a channel end, a task, a scope, a file or a socket		
+E0709	this value would make a cycle through channels or tasks, which could never be freed		send or return the data, not the channel end or task handle that leads back here
 E0801	internal error: %v		
 E0802	expression nesting too deep (limit %d)		not used: became the syntax error E0115
 E0803	%s		

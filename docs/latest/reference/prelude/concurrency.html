@@ -228,7 +228,7 @@ print(r |&gt; filter(is_err) |&gt; len, &quot;failed&quot;)</code></pre><pre cla
 <h4>돌려주는 값</h4>
 <p>태스크 핸들.</p>
 <h4>에러</h4>
-<p>닫힌 태스크 범위면 런타임 에러 E0706(<code>spawn into a closed scope</code>). 함수가 돌려준 <code>Err</code>를 아무도 읽지 않으면 이 자리를 가리키는 E0607(<code>task's Err was never awaited</code>)로 범위가 실패한다.</p>
+<p>닫힌 태스크 범위면 런타임 에러 E0706(<code>spawn into a closed scope</code>). 함수가 돌려준 <code>Err</code>를 아무도 읽지 않으면 이 자리를 가리키는 E0607(<code>task's Err was never awaited</code>)로 범위가 실패한다. 함수의 결과가 그 태스크 자신의 핸들에 닿으면(채널을 거쳐 받은 자기 핸들을 돌려줌) 해제할 수 없는 고리라 E0709로 실패한다.</p>
 <h4>예제</h4>
 <p><strong>리스트의 원소마다 태스크</strong></p>
 <div class="run"><pre><code>squares = scope(fn(s):
@@ -477,7 +477,7 @@ for x in rx:
 <div class="sig"><code>send(tx, v)</code></div>
 <h4>설명</h4>
 <p>버퍼가 없거나 찼으면 받는 쪽이 받아 갈 때까지 기다린다. 채널이 닫혔거나 받는 끝이 모두 사라졌으면 <code>Err({kind: 'closed})</code>를 돌려준다. 결과값이므로 문장으로 쓴 <code>send(tx, v)</code>가 닫힌 채널을 만나면 E0606으로 멈춘다. 받는 쪽이 먼저 그만둘 수 있으면 <code>match</code>로 가르거나, 그만둬도 되면 <code>_ = send(tx, v)</code>로 쓴다.</p>
-<p>값은 불변이므로 복사 걱정 없이 무엇이든 보낸다. 다른 채널의 끝(응답을 받을 채널)도 보낼 수 있다. 다만 채널에 <strong>그 채널 자신의</strong> 끝을 보내면(어느 끝이든, <code>v</code> 안 어디에 들어 있어도) 런타임 에러 E0705다. fung은 메모리를 참조 계수로 회수하므로 자기 끝을 담은 채널은 닫히지도 해제되지도 않기 때문이다. 채널 끝 같은 바뀌는 것을 품지 않은 값은 이 검사를 위해 훑지 않으므로 큰 값을 보내도 느리지 않다.</p>
+<p>값은 불변이므로 복사 걱정 없이 무엇이든 보낸다. 다른 채널의 끝(응답을 받을 채널)도 보낼 수 있다. 다만 채널에 <strong>그 채널 자신의</strong> 끝을 보내면(어느 끝이든, <code>v</code> 안 어디에 들어 있어도) 런타임 에러 E0705다. fung은 메모리를 참조 계수로 회수하므로 자기 끝을 담은 채널은 닫히지도 해제되지도 않기 때문이다. 다른 채널의 버퍼나 끝난 태스크의 결과를 거쳐 자기 끝에 닿는 값(서로의 받는 끝을 담은 두 채널)도 같은 이유로 E0709다. 채널 끝 같은 바뀌는 것을 품지 않은 값은 이 검사를 위해 훑지 않으므로 큰 값을 보내도 느리지 않다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>tx</code>: 보내는 끝.</li>
@@ -488,7 +488,7 @@ for x in rx:
 <h4>에러</h4>
 <ul>
 <li><code>tx</code>가 보내는 끝이 아니면(받는 끝이면) 런타임 에러 E0403.</li>
-<li>채널에 자기 끝을 보내면 E0705.</li>
+<li>채널에 자기 끝을 보내면 E0705, 다른 채널·태스크를 거쳐 자기 끝에 닿는 값이면 E0709.</li>
 <li>아무도 받지 않는데 기다리기만 하면 E0702(교착).</li>
 </ul>
 <h4>예제</h4>
@@ -620,7 +620,7 @@ Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <h4>에러</h4>
 <ul>
 <li><code>tx</code>가 보내는 끝이 아니면 런타임 에러 E0403.</li>
-<li><code>v</code>가 같은 채널의 끝을 담고 있으면 E0705.</li>
+<li><code>v</code>가 같은 채널의 끝을 담고 있으면 E0705, 다른 채널·태스크를 거쳐 닿으면 E0709.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>가득 차면 버리기</strong></p>

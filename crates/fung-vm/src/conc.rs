@@ -269,15 +269,23 @@ fn need_sender(v: &Value) -> Result<&Rc<Channel>, Stop> {
 
 /// `send(tx, v)`: `Ok(nil)` once delivered,
 /// `Err({kind: 'closed, …})` on a closed channel (closed, or no receiving
-/// end left). E0705 when `v` contains an end of the same channel
-/// (`channel::contains`), checked before anything else
-/// happens, so the error is the same whether or not the channel is
-/// closed or full.
+/// end left). E0705 when `v` contains an end of the same channel, E0709
+/// when it leads back to one through other channels or tasks
+/// (`refuse_cycle`), checked before anything else happens, so the error
+/// is the same whether or not the channel is closed or full.
 fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
-    if channel::contains(need_sender(&args[0])?, &args[1]) {
-        return Err(nat::fail("E0705", vec![]));
-    }
+    refuse_cycle(need_sender(&args[0])?, &args[1])?;
     deliver(t, args)
+}
+
+/// E0705 or E0709 when keeping `v` in `ch`'s buffer would close a cycle
+/// counting could never free (`channel::cycle_to`, L7).
+fn refuse_cycle(ch: &Rc<Channel>, v: &Value) -> Result<(), Stop> {
+    match channel::cycle_to(channel::Place::Channel(ch), v) {
+        channel::Cycle::No => Ok(()),
+        channel::Cycle::Itself => Err(nat::fail("E0705", vec![])),
+        channel::Cycle::Through => Err(nat::fail("E0709", vec![])),
+    }
 }
 
 /// The delivery itself.
@@ -380,13 +388,10 @@ fn try_recv(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 /// `try_send(tx, v)` (L3): what `send` would do without waiting:
 /// `Ok(nil)` once handed to a waiting receiver or the buffer,
 /// `Err({kind: 'full, …})` when it would wait, `Err({kind: 'closed, …})`
-/// on a closed channel. E0705 as `send`.
+/// on a closed channel. E0705 and E0709 as `send`.
 fn try_send(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let v = args.pop().expect("v");
-    let end = need_sender(&args[0])?;
-    if channel::contains(end, &v) {
-        return Err(nat::fail("E0705", vec![]));
-    }
+    refuse_cycle(need_sender(&args[0])?, &v)?;
     let Value::Sender(end) = &args[0] else {
         unreachable!("need_sender checked it")
     };

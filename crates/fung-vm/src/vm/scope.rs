@@ -281,6 +281,16 @@ impl TaskEnd {
 
     /// The function came to `r`.
     fn body_ended(&mut self, t: &mut Task<'_>, mut r: Result<Value, Stop>) -> Result<Next, Stop> {
+        // A result that leads back to this task's own handle (through
+        // channels or other tasks) would keep it alive forever (L7): the
+        // task fails instead, at its spawn, and the value is not kept.
+        if let Ok(v) = &r
+            && super::channel::cycle_to(super::channel::Place::Task(&self.state), v)
+                != super::channel::Cycle::No
+        {
+            let d = fung_front::diag::error("E0709", self.state.at, vec![]);
+            r = Err(Stop::Error(Box::new(d)));
+        }
         *self.state.result.borrow_mut() = Some(super::task::outcome(&r, Some(&t.world)));
         self.state.waiters.borrow_mut().wake_all();
         let Some(s) = self.scope.clone() else {

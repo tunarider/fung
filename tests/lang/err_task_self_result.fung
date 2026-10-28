@@ -1,0 +1,9 @@
+# A task whose result would hold its own handle could never be freed: the
+# task fails with E0709 instead (05).
+(tx, rx) = channel(1)
+scope(fn(s):
+  t = spawn(s, () => recv(rx))
+  send(tx, t)!
+  print(await(t))
+;;)
+# expect-error: E0709

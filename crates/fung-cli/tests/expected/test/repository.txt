@@ -446,6 +446,11 @@
 |   |
 |  help: split it with `and`: a < b and b < c
 -- exit: 2
+==== test tests/lang/err_channel_cycle.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_channel_self.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1141,6 +1146,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/err_task_failed.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_task_self_result.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

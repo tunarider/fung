@@ -369,6 +369,19 @@
 |   |
 |  help: split it with `and`: a < b and b < c
 -- exit: 2
+==== tests/lang/err_channel_cycle.fung
+-- stdout
+-- stderr
+| error[E0709]: this value would make a cycle through channels or tasks, which could never be freed
+|   --> tests/lang/err_channel_cycle.fung:7:5
+|   |
+| 7 | send(tb, ra)!
+|   |     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_channel_cycle.fung:7 <entry>
+|  help: send or return the data, not the channel end or task handle that leads back here
+-- exit: 1
 ==== tests/lang/err_channel_self.fung
 -- stdout
 -- stderr
@@ -1392,6 +1405,20 @@
 |   note: scope opened at tests/lang/err_task_failed.fung:2
 |  call path (innermost first):
 |    tests/lang/err_task_failed.fung:3 <lambda>
+-- exit: 1
+==== tests/lang/err_task_self_result.fung
+-- stdout
+-- stderr
+| error[E0709]: this value would make a cycle through channels or tasks, which could never be freed
+|   --> tests/lang/err_task_self_result.fung:5:12
+|   |
+| 5 |   t = spawn(s, () => recv(rx))
+|   |            ^
+|   |
+|   note: scope opened at tests/lang/err_task_self_result.fung:4
+|  call path (innermost first):
+|    tests/lang/err_task_self_result.fung:4 <entry>
+|  help: send or return the data, not the channel end or task handle that leads back here
 -- exit: 1
 ==== tests/lang/err_test_nested.fung
 -- stdout
