@@ -163,6 +163,8 @@ pub(super) fn apply(w: &mut World, shared: &Shared, e: Event) {
         Event::Stop(sig) => stop(w, shared, sig),
         #[cfg(test)]
         Event::StopWhenWatched(sig) => stop(w, shared, sig),
+        #[cfg(test)]
+        Event::CancelAll => shared.root().cancel(),
         Event::Interrupt => {
             // Again while the input is cut short already (stuck in a
             // `release`): its tasks are dropped (`Sched::abandon`). Not in

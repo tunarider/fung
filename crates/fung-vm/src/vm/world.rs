@@ -425,12 +425,14 @@ impl Shared {
         self.wakeups.load(Ordering::Relaxed)
     }
 
-    /// Cancels every task: the root and everything below it, and wakes the
-    /// parked ones. Any thread may call it: a
-    /// cancellation node is thread-safe, and a wake goes through the ready
-    /// queue (`sched.rs`).
+    /// Cancels every task from another thread while the program runs
+    /// (tests): posted, so the run thread cancels the whole tree between
+    /// turns. Cancelling here would mark the nodes one at a time while
+    /// tasks run, and a task not yet marked could take a marked one's
+    /// cancellation as a value (an `await`) and return it.
+    #[cfg(test)]
     pub(crate) fn cancel_all(&self) {
-        self.root().cancel();
+        self.ready.post(super::sched::Event::CancelAll);
     }
 
     /// The run root (see the field).

@@ -75,6 +75,32 @@ impl Closer {
         }
     }
 
+    /// Waits up to `limit` for the closes pending now; whether any was
+    /// pending. An open that ran out of descriptors calls this before it
+    /// tries again: the closer may lag behind a program that drops
+    /// handles fast. The limit keeps a close that hangs (NFS) from
+    /// holding the open forever; then the open fails as it would have.
+    pub(crate) fn settle(&self, limit: std::time::Duration) -> bool {
+        let mut s = self.0.state();
+        if s.pending == 0 {
+            return false;
+        }
+        let until = std::time::Instant::now() + limit;
+        while s.pending > 0 {
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                break;
+            }
+            s = self
+                .0
+                .idle
+                .wait_timeout(s, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+        true
+    }
+
     /// Waits until every dropped handle is closed (the runtime's end).
     pub(crate) fn wait(&self) {
         let mut s = self.0.state();

@@ -1154,25 +1154,10 @@ print(fs.read("${d}/out.txt")! == fs.read("${d}/in.txt")!)"#,
 /// them one at a time does not.
 #[test]
 fn dropped_handles_free_their_descriptors() {
-    const CHILD: &str = "FUNG_FD_LIMIT_CHILD";
-    let name = concat!(module_path!(), "::dropped_handles_free_their_descriptors");
-    let name = name.split_once("::").unwrap().1;
-    if std::env::var(CHILD).is_err() {
-        let exe = std::env::current_exe().unwrap();
-        let o = crate::testutil::child::output(
-            std::process::Command::new("sh")
-                .args(["-c", "ulimit -n 128 && exec \"$@\"", "sh"])
-                .arg(exe)
-                .args(["--exact", name, "--nocapture", "--test-threads=1"])
-                .env(CHILD, "1"),
-        )
-        .unwrap();
-        let out = String::from_utf8_lossy(&o.stdout);
-        assert!(
-            o.status.success() && out.contains("1 passed"),
-            "child failed:\n{out}\n{}",
-            String::from_utf8_lossy(&o.stderr)
-        );
+    if !in_fd_limited_child(concat!(
+        module_path!(),
+        "::dropped_handles_free_their_descriptors"
+    )) {
         return;
     }
     let d = Scratch::new("fdleak");
@@ -1195,6 +1180,58 @@ print(fs.open(p) |> is_ok, fs.with_open(p, read_lines))"#,
         "{}",
         o.err
     );
+}
+
+/// Runs the test `name` (its module path) again in a child process whose
+/// descriptor limit is 128; true there, false here once the child passed.
+fn in_fd_limited_child(name: &str) -> bool {
+    const CHILD: &str = "FUNG_FD_LIMIT_CHILD";
+    if std::env::var(CHILD).is_ok() {
+        return true;
+    }
+    let name = name.split_once("::").unwrap().1;
+    let exe = std::env::current_exe().unwrap();
+    let o = crate::testutil::child::output(
+        std::process::Command::new("sh")
+            .args(["-c", "ulimit -n 128 && exec \"$@\"", "sh"])
+            .arg(exe)
+            .args(["--exact", name, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1"),
+    )
+    .unwrap();
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        o.status.success() && out.contains("1 passed"),
+        "child failed:\n{out}\n{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    false
+}
+
+/// Dropped handles close on the closer's thread (L11 B), which may fall
+/// behind a program that opens and drops handles fast. An open that runs
+/// out of descriptors while closes are pending waits for them and tries
+/// again, so dropping handles never fails an open that would succeed once
+/// the dropped ones are closed. The closes here take 2 ms each, so 500
+/// opens outrun them under a limit of 128.
+#[test]
+fn an_open_waits_for_pending_closes_before_running_out() {
+    if !in_fd_limited_child(concat!(
+        module_path!(),
+        "::an_open_waits_for_pending_closes_before_running_out"
+    )) {
+        return;
+    }
+    let d = Scratch::new("fdslow");
+    std::fs::write(d.at("a.txt"), "hi\n").unwrap();
+    super::file::slow_close_of(d.at("a.txt").to_str().unwrap());
+    let o = run_in(
+        &d,
+        r#"p = "${d}/a.txt"
+each(0..500, _ => fs.open(p)!)
+print(fs.with_open(p, read_lines))"#,
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok([\"hi\"])\n", ""));
 }
 
 /// File input and output run on a pool thread: two tasks open the

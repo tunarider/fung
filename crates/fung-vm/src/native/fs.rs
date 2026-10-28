@@ -708,6 +708,10 @@ fn copy(from: &str, to: &str) -> Result<(), (bool, io::Error)> {
 
 const MODES: &str = "'read | 'write | 'append";
 
+/// How long an open that ran out of descriptors waits for the closes of
+/// dropped handles (`Closer::settle`).
+const SETTLE_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// `Ok(<file>)` or the open failure.
 fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
@@ -737,13 +741,25 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         ));
     }
     let job = p.clone();
+    let closer = t.closer();
     // A FIFO is opened on the run thread (`pipe.rs`, L11); `None` says so.
     let open = move || -> io::Result<Option<Io>> {
         let path = checked(&job)?;
         if pipe::is_fifo(path) {
             return Ok(None);
         }
-        file::open(path, mode, perm).map(Some)
+        match file::open(path, mode, perm) {
+            // Out of descriptors while dropped handles wait to be closed:
+            // wait for them, then try once more.
+            Err(e)
+                if matches!(e.raw_os_error(), Some(libc::EMFILE | libc::ENFILE))
+                    && closer.settle(SETTLE_LIMIT) =>
+            {
+                file::open(path, mode, perm)
+            }
+            r => r,
+        }
+        .map(Some)
     };
     crate::vm::offload_kind(t, Kind::Wait, open, move |t, r| match r {
         Ok(Some(io)) => Ok(Flow::Done(handle(t, p, io))),

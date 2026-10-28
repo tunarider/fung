@@ -242,6 +242,10 @@ pub(crate) fn close_checked(f: std::fs::File, path: &str) -> io::Result<()> {
     let _ = path;
     #[cfg(test)]
     seam::wait_if_held(path);
+    #[cfg(test)]
+    if seam::slow(path) {
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
     let fd = f.into_raw_fd();
     // SAFETY: `fd` came out of the `File`, which owned it; nothing else
     // closes it.
@@ -263,6 +267,13 @@ pub(crate) fn close_checked(f: std::fs::File, path: &str) -> io::Result<()> {
 #[cfg(test)]
 pub(crate) fn fail_close_of(path: &str) {
     seam::FAILING.lock().unwrap().push(path.to_string());
+}
+
+/// Makes every close of `path` take 2 ms (tests: a closer that falls
+/// behind the program dropping handles).
+#[cfg(test)]
+pub(crate) fn slow_close_of(path: &str) {
+    seam::SLOW.lock().unwrap().push(path.to_string());
 }
 
 /// Makes the close of `path` wait until `release_close_of` (tests: a
@@ -300,6 +311,13 @@ mod seam {
     /// The paths whose close is held, and whether one waits now.
     pub(super) static HELD: Mutex<Vec<(String, bool)>> = Mutex::new(Vec::new());
     pub(super) static LET_GO: Condvar = Condvar::new();
+
+    /// The paths whose close is slow (`slow_close_of`).
+    pub(super) static SLOW: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    pub(super) fn slow(path: &str) -> bool {
+        SLOW.lock().unwrap().iter().any(|p| p == path)
+    }
 
     pub(super) fn fails(path: &str) -> bool {
         FAILING.lock().unwrap().iter().any(|p| p == path)

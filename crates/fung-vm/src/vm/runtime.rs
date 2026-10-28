@@ -77,7 +77,9 @@ impl Runtime {
     /// Cancels every task below the root: an exit, an entry error, the end
     /// of a test run. Blocked tasks wake and unwind.
     pub fn cancel_all(&self) {
-        self.shared.cancel_all();
+        // On the run thread (a `Runtime` stays on its thread), between
+        // turns: no task runs while the tree is marked.
+        self.shared.root().cancel();
     }
 
     /// Delivers stop requests from another thread (the command's signal

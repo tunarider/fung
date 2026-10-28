@@ -58,6 +58,9 @@ pub(crate) enum Event {
     /// A stop request once a task waits on the stop signal (tests).
     #[cfg(test)]
     StopWhenWatched(i32),
+    /// Cancel every task (tests: `Shared::cancel_all`).
+    #[cfg(test)]
+    CancelAll,
 }
 
 /// The ready queue and the events, shared with other threads. When the
