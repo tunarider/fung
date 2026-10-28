@@ -305,13 +305,25 @@ impl Runtime {
     }
 }
 
+impl Runtime {
+    /// Drops every fung value the world holds, on the run thread, and
+    /// waits until the file handles that went with them are closed
+    /// (`closer.rs`): a close that fails is reported then (E0810) and
+    /// counts in `failed`. The command calls it before it settles the
+    /// exit code; the drop calls it again (it does nothing the second
+    /// time).
+    pub fn release(&self) {
+        self.world().release_values();
+        self.shared.closer.wait();
+    }
+}
+
 impl Drop for Runtime {
-    /// Drops every fung value the world holds, on the run thread (`Runtime`
-    /// is `!Send`). No task is left: every run ends only
-    /// once its tasks have. What stays for the `Arc` to drop afterwards
-    /// (streams, sources, arguments) holds no `Rc`.
+    /// Releases the world (`release`), on the run thread (`Runtime` is
+    /// `!Send`). No task is left: every run ends only once its tasks
+    /// have. What stays for the `Arc` to drop afterwards (streams,
+    /// sources, arguments) holds no `Rc`.
     fn drop(&mut self) {
-        let mut w = self.world();
-        w.release_values();
+        self.release();
     }
 }

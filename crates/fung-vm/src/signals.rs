@@ -17,16 +17,53 @@
 //! A child inherits the mask across `exec`, so a command fung runs
 //! would start with SIGINT and SIGTERM blocked: `process.rs` clears the
 //! child's mask between `fork` and `exec` ([`clear_mask_in_child`]).
+//!
+//! On Linux the thread takes SIGCHLD too: on a kernel without pidfd
+//! (before 5.3) nothing in the event loop says that a command ended, so a
+//! task waiting for one registers its waiter here ([`watch_children`]) and
+//! a SIGCHLD wakes them all to look (L11; the signal may stand for many
+//! children). Without the thread (fung embedded, or a test process) the
+//! task looks on a short timer instead.
 
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crate::vm::StopHandle;
+use crate::vm::{StopHandle, Waiter};
 
 /// What a signal does, called on the signal thread with its number.
 pub type Policy = Arc<dyn Fn(i32) + Send + Sync>;
 
 static POLICY: Mutex<Option<Policy>> = Mutex::new(None);
+
+/// Whether the signal thread takes SIGCHLD (Linux, once `init` ran).
+static CHILDREN: AtomicBool = AtomicBool::new(false);
+
+/// The tasks waiting for a command's end without pidfd: a SIGCHLD wakes
+/// them all, and each registers again if its command still runs.
+static CHILD_WAITERS: Mutex<Vec<Arc<Waiter>>> = Mutex::new(Vec::new());
+
+/// Wakes `w` at the next SIGCHLD; false when no thread takes SIGCHLD (the
+/// caller then looks on a timer). Register before looking at the child:
+/// an end between the look and the registration would be missed.
+pub(crate) fn watch_children(w: &Arc<Waiter>) -> bool {
+    if !CHILDREN.load(Ordering::SeqCst) {
+        return false;
+    }
+    let mut ws = CHILD_WAITERS.lock().unwrap_or_else(|e| e.into_inner());
+    if !ws.iter().any(|x| Arc::ptr_eq(x, w)) {
+        ws.push(w.clone());
+    }
+    true
+}
+
+/// A SIGCHLD came: every task that waits for a command looks.
+#[cfg(target_os = "linux")]
+fn children_changed() {
+    let ws = std::mem::take(&mut *CHILD_WAITERS.lock().unwrap_or_else(|e| e.into_inner()));
+    for w in ws {
+        w.wake();
+    }
+}
 
 /// The set of SIGINT, SIGTERM and SIGHUP (which ends the process at once,
 /// restoring a raw terminal first).
@@ -39,6 +76,8 @@ fn stop_set() -> libc::sigset_t {
         libc::sigaddset(&mut set, libc::SIGINT);
         libc::sigaddset(&mut set, libc::SIGTERM);
         libc::sigaddset(&mut set, libc::SIGHUP);
+        #[cfg(target_os = "linux")]
+        libc::sigaddset(&mut set, libc::SIGCHLD);
         set
     }
 }
@@ -64,6 +103,11 @@ pub fn init() {
                 if r != 0 {
                     continue;
                 }
+                #[cfg(target_os = "linux")]
+                if sig == libc::SIGCHLD {
+                    children_changed();
+                    continue;
+                }
                 // A hang-up ends the process as its default action would,
                 // whatever the command: the terminal is gone (08).
                 if sig == libc::SIGHUP {
@@ -78,7 +122,9 @@ pub fn init() {
         });
     // Without the thread the signals would stay blocked: unblock them so
     // the default action still ends the process.
-    if started.is_err() {
+    if started.is_ok() {
+        CHILDREN.store(cfg!(target_os = "linux"), Ordering::SeqCst);
+    } else {
         // SAFETY: as above.
         unsafe {
             libc::pthread_sigmask(libc::SIG_UNBLOCK, &set, std::ptr::null_mut());

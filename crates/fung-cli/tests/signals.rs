@@ -595,3 +595,36 @@ fn an_abandoned_command_group_is_killed_after_its_leader_exited() {
     let _ = std::fs::remove_dir_all(&dir);
     assert!(gone, "what the command left ({pid}) is still there");
 }
+
+/// L11 (D): without pidfd (`FUNG_NO_PIDFD` makes a newer kernel act as
+/// one before 5.3) the signal thread takes SIGCHLD and wakes the tasks
+/// waiting for commands. 70 commands at once, more than the pool's
+/// threads, all end promptly (no 10 ms polling, no pool thread each).
+#[cfg(target_os = "linux")]
+#[test]
+fn without_pidfd_sigchld_ends_the_command_waits() {
+    let start = Instant::now();
+    let out = common::output(
+        Command::new(fung_bin())
+            .env("FUNG_NO_PIDFD", "1")
+            .args([
+                "-e",
+                "codes = scope(s => map(1..=70, _ => spawn(s, () => sh(\"sleep 0.2\")!.code)) |> map(await))\nprint(sum(codes), len(codes))",
+            ])
+            .stdin(Stdio::null()),
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            String::from_utf8_lossy(&out.stdout).as_ref(),
+            String::from_utf8_lossy(&out.stderr).as_ref(),
+            out.status.code()
+        ),
+        ("0 70\n", "", Some(0))
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(10),
+        "{:?}",
+        start.elapsed()
+    );
+}

@@ -145,9 +145,15 @@ impl Sys {
     }
 
     /// A pidfd for `pid` (readable once it ended); `Unsupported` when
-    /// the kernel has none (`ENOSYS`, before Linux 5.3).
+    /// the kernel has none (`ENOSYS`, before Linux 5.3), or when
+    /// `FUNG_NO_PIDFD` is set (to try that path on a newer kernel: the
+    /// command's tests, L11).
     pub(super) fn exit_watch(&self, pid: libc::pid_t) -> io::Result<super::ExitWatch> {
         use std::os::fd::FromRawFd;
+        static NO_PIDFD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *NO_PIDFD.get_or_init(|| std::env::var_os("FUNG_NO_PIDFD").is_some()) {
+            return Ok(super::ExitWatch::Unsupported);
+        }
         // SAFETY: `pidfd_open` takes a pid and flags and returns a new
         // descriptor (close-on-exec by the kernel) or -1.
         let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };

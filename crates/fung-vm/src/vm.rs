@@ -18,6 +18,7 @@ mod channel_tests;
 mod cleanup;
 #[cfg(test)]
 mod cleanup_tests;
+mod closer;
 mod cont;
 #[cfg(test)]
 mod cont_tests;
@@ -101,6 +102,7 @@ pub(crate) use block::{
 pub use call::MAX_FRAMES;
 pub use channel::{Channel, Receiver, Sender};
 pub(crate) use cleanup::run_with;
+pub(crate) use closer::Closer;
 pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;

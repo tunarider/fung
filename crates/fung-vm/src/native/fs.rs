@@ -32,13 +32,15 @@ use fung_front::source::decode_lossy;
 
 use fung_front::diag::Arg;
 
-use super::file::{self, Fault, File, Mode};
+use super::file::{self, Fault, File, Io, Mode};
 use super::glob;
 use super::nat::{self, native_step, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, errno};
 use super::path;
+use super::pipe::{self, Pipe, Step};
 use crate::value::{Lit, MapBuilder, Module, Native, Value};
 use crate::vm::{Flow, Stop, Task};
+use crate::vm::{IoStep, Kind, park_io};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -185,7 +187,8 @@ fn octal(n: i64) -> String {
     }
 }
 
-/// Creates with `perm` (less the umask) or truncates, then writes.
+/// Creates with `perm` (less the umask) or truncates, then writes and
+/// closes, reporting the close (L11).
 fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
     let mut f = OpenOptions::new()
         .write(true)
@@ -193,21 +196,88 @@ fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
         .truncate(true)
         .mode(perm)
         .open(checked(p)?)?;
-    f.write_all(bytes)
+    f.write_all(bytes)?;
+    file::close_checked(f, p)
+}
+
+/// Opens with `o` (and `perm`), writes `text` and closes, reporting the
+/// close (L11): `fs.write` and `fs.append`.
+fn write_closed(o: &mut OpenOptions, p: &str, perm: Option<u32>, text: &[u8]) -> io::Result<()> {
+    let mut f = file::open_writing(o, checked(p)?, perm)?;
+    f.write_all(text)?;
+    file::close_checked(f, p)
 }
 
 fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_str("path", &a[0])?.to_string();
     let job = p.clone();
-    nat::offload_abandoning(
+    // A FIFO is read in the event loop (`pipe.rs`, L11); `None` says so.
+    let read = move || -> io::Result<Option<Vec<u8>>> {
+        let path = checked(&job)?;
+        if pipe::is_fifo(path) {
+            return Ok(None);
+        }
+        std::fs::read(path).map(Some)
+    };
+    crate::vm::offload_kind(t, Kind::Abandon, read, move |t, r| match r {
+        Ok(Some(bytes)) => Ok(Flow::Done(nat::ok(Value::str(&decode_lossy(&bytes))))),
+        Ok(None) => read_fifo(t, p),
+        Err(e) => Ok(Flow::Done(fs_err("read", &p, &e))),
+    })
+}
+
+/// `fs.read` of a FIFO: its read end, read to the end in the event loop.
+fn read_fifo(t: &mut Task<'_>, p: String) -> Result<Flow, Stop> {
+    let mut r = match Pipe::open_read(&p) {
+        Ok(r) => r,
+        Err(e) => return Ok(Flow::Done(fs_err("read", &p, &e))),
+    };
+    park_io(
         t,
-        move || std::fs::read(checked(&job)?),
-        move |_, r| {
-            Ok(match r {
-                Ok(bytes) => nat::ok(Value::str(&decode_lossy(&bytes))),
-                Err(e) => fs_err("read", &p, &e),
-            })
+        move |_, _| match r.read_to_end() {
+            Step::Ready(bytes) => IoStep::Done(Ok(nat::ok(Value::str(&decode_lossy(&bytes))))),
+            Step::Wait(fd, interest) => pipe::io_step(fd, interest),
+            Step::Fail(e) => IoStep::Done(Ok(fs_err("read", &p, &e))),
         },
+        |_| {},
+    )
+}
+
+/// `fs.write` and `fs.append` of a FIFO: once a reader has it open, the
+/// text is sent in the event loop and the write end closed.
+fn write_fifo(
+    t: &mut Task<'_>,
+    p: String,
+    text: Vec<u8>,
+    perm: Option<u32>,
+    verb: &'static str,
+) -> Result<Flow, Stop> {
+    let mut w: Option<Pipe> = None;
+    let mut text = Some(text);
+    park_io(
+        t,
+        move |_, _| {
+            if w.is_none() {
+                match Pipe::open_write(&p, perm) {
+                    Ok(Some(mut opened)) => {
+                        opened.queue(&text.take().expect("queued once"));
+                        w = Some(opened);
+                    }
+                    Ok(None) => return pipe::until_reader(),
+                    Err(e) => return IoStep::Done(Ok(fs_err(verb, &p, &e))),
+                }
+            }
+            let pending = w.as_mut().expect("opened");
+            match pending.flush() {
+                Step::Ready(()) => {
+                    let sent = w.take().expect("opened");
+                    IoStep::Done(Ok(done(verb, &p, sent.finish(&p))))
+                }
+                Step::Wait(fd, interest) => pipe::io_step(fd, interest),
+                Step::Fail(e) => IoStep::Done(Ok(fs_err(verb, &p, &e))),
+            }
+        },
+        |_| {},
     )
 }
 
@@ -216,15 +286,18 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let perm = perm_arg(&a[2])?;
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
     let job = p.clone();
-    nat::offload(
-        t,
-        move || {
-            let mut o = OpenOptions::new();
-            o.write(true).create(true).truncate(true);
-            file::open_writing(&mut o, checked(&job)?, perm)?.write_all(&text)
-        },
-        move |_, r| Ok(done("write", &p, r)),
-    )
+    let write = move || -> io::Result<Option<Vec<u8>>> {
+        if pipe::is_fifo(checked(&job)?) {
+            return Ok(Some(text));
+        }
+        let mut o = OpenOptions::new();
+        o.write(true).create(true).truncate(true);
+        write_closed(&mut o, &job, perm, &text).map(|()| None)
+    };
+    crate::vm::offload_kind(t, Kind::Wait, write, move |t, r| match r {
+        Ok(Some(text)) => write_fifo(t, p, text, perm, "write"),
+        r => Ok(Flow::Done(done("write", &p, r.map(|_| ())))),
+    })
 }
 
 fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
@@ -232,15 +305,18 @@ fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let perm = perm_arg(&a[2])?;
     let (p, text) = (p.to_string(), text.as_bytes().to_vec());
     let job = p.clone();
-    nat::offload(
-        t,
-        move || {
-            let mut o = OpenOptions::new();
-            o.append(true).create(true);
-            file::open_writing(&mut o, checked(&job)?, perm)?.write_all(&text)
-        },
-        move |_, r| Ok(done("append to", &p, r)),
-    )
+    let append = move || -> io::Result<Option<Vec<u8>>> {
+        if pipe::is_fifo(checked(&job)?) {
+            return Ok(Some(text));
+        }
+        let mut o = OpenOptions::new();
+        o.append(true).create(true);
+        write_closed(&mut o, &job, perm, &text).map(|()| None)
+    };
+    crate::vm::offload_kind(t, Kind::Wait, append, move |t, r| match r {
+        Ok(Some(text)) => write_fifo(t, p, text, perm, "append to"),
+        r => Ok(Flow::Done(done("append to", &p, r.map(|_| ())))),
+    })
 }
 
 /// A fung list of the strings `paths` holds (file names need not be
@@ -661,15 +737,43 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         ));
     }
     let job = p.clone();
-    nat::offload(
+    // A FIFO is opened on the run thread (`pipe.rs`, L11); `None` says so.
+    let open = move || -> io::Result<Option<Io>> {
+        let path = checked(&job)?;
+        if pipe::is_fifo(path) {
+            return Ok(None);
+        }
+        file::open(path, mode, perm).map(Some)
+    };
+    crate::vm::offload_kind(t, Kind::Wait, open, move |t, r| match r {
+        Ok(Some(io)) => Ok(Flow::Done(handle(t, p, io))),
+        Ok(None) => open_fifo(t, p, mode, perm),
+        Err(e) => Ok(Flow::Done(fs_err("open", &p, &e))),
+    })
+}
+
+/// `Ok(<file>)` for what `fs.open` opened.
+fn handle(t: &Task<'_>, p: String, io: Io) -> Value {
+    nat::ok(Value::File(Arc::new(File::new(p, io, t.closer()))))
+}
+
+/// `fs.open` of a FIFO: the read end opens at once; a write end waits
+/// (in the event loop) until a reader has the FIFO open.
+fn open_fifo(t: &mut Task<'_>, p: String, mode: Mode, perm: Option<u32>) -> Result<Flow, Stop> {
+    if let Mode::Read = mode {
+        return Ok(Flow::Done(match Pipe::open_read(&p) {
+            Ok(r) => handle(t, p, Io::Pipe(r)),
+            Err(e) => fs_err("open", &p, &e),
+        }));
+    }
+    park_io(
         t,
-        move || file::open(checked(&job)?, mode, perm),
-        move |_, r| {
-            Ok(match r {
-                Ok(io) => nat::ok(Value::File(Arc::new(File::new(p, io)))),
-                Err(e) => fs_err("open", &p, &e),
-            })
+        move |t, _| match Pipe::open_write(&p, perm) {
+            Ok(Some(w)) => IoStep::Done(Ok(handle(t, p.clone(), Io::Pipe(w)))),
+            Ok(None) => pipe::until_reader(),
+            Err(e) => IoStep::Done(Ok(fs_err("open", &p, &e))),
         },
+        |_| {},
     )
 }
 
@@ -704,6 +808,10 @@ pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
 /// `fs.close`. The flush and the close run on a pool thread.
 fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let f = need_file("f", &a[0])?.clone();
+    // Tasks waiting on a FIFO's descriptor wake and find it closed.
+    if let Some(fd) = f.pipe_fd() {
+        crate::vm::drop_io_waits(t, fd);
+    }
     let job = f.clone();
     nat::offload(
         t,
@@ -725,6 +833,9 @@ fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let mut bytes = Vec::with_capacity(line.len() + 1);
     bytes.extend_from_slice(line.as_bytes());
     bytes.push(b'\n');
+    if f.is_pipe() {
+        return write_pipe_line(t, f, &bytes);
+    }
     if let Some(r) = f.write_buffered_line(&bytes) {
         return Ok(Flow::Done(written_value(&f, r)));
     }
@@ -733,6 +844,25 @@ fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         t,
         move || job.write_line(&bytes),
         move |_, r| Ok(written_value(&f, r)),
+    )
+}
+
+/// `fs.write_line` on a FIFO: the line is queued, then sent in the event
+/// loop (`pipe.rs`). A cancelled send leaves the rest queued, to go
+/// before the next line or at the close.
+fn write_pipe_line(t: &mut Task<'_>, f: Arc<File>, line: &[u8]) -> Result<Flow, Stop> {
+    if let Err(e) = f.pipe_queue(line) {
+        return Ok(Flow::Done(written_value(&f, Err(e))));
+    }
+    park_io(
+        t,
+        move |_, _| match f.pipe_flush() {
+            Ok(Step::Ready(())) => IoStep::Done(Ok(written_value(&f, Ok(())))),
+            Ok(Step::Wait(fd, interest)) => pipe::io_step(fd, interest),
+            Ok(Step::Fail(e)) => IoStep::Done(Ok(written_value(&f, Err(Fault::Io(e))))),
+            Err(e) => IoStep::Done(Ok(written_value(&f, Err(e)))),
+        },
+        |_| {},
     )
 }
 

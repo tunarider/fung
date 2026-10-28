@@ -116,6 +116,9 @@ pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
         reported = true;
     }
     drop(result);
+    // The program's values go, and the file handles left open with them
+    // are closed (a failure there is reported now and counts below).
+    rt.release();
     let before = rt.exit_code();
     if let Some(n) = before {
         code = n;

@@ -1267,9 +1267,8 @@ fn bounded(src: String) -> (String, String, std::time::Duration) {
         .expect("the run did not end")
 }
 
-/// A read of a path only reads, so a deadline lets it go at once (spec
-/// 15): the job stays blocked on its pool thread and its result is
-/// dropped. The L2 limit (file waits not cut by a deadline) is closed.
+/// A read of a FIFO waits in the event loop (L11), so a deadline ends
+/// it at once and no thread stays blocked behind it.
 #[test]
 fn a_deadline_ends_a_read_of_a_fifo() {
     let (_d, f) = fifo("deadline-read");
@@ -1293,7 +1292,7 @@ fn a_deadline_ends_a_read_of_a_fifo() {
 fn a_cancel_ends_a_read_of_a_fifo() {
     let (_d, f) = fifo("cancel-read");
     let (out, err, took) = bounded(format!(
-        "{}import fs\nprint(scope(fn(s):\n  spawn(s, () => fs.read(\"{}\"))\n  until(() => pool_state()[0] - pool_state()[1] == 1)\n  cancel(s)\n;;))",
+        "{}import fs\nprint(scope(fn(s):\n  spawn(s, () => fs.read(\"{}\"))\n  until(() => waiting_io() == 1)\n  cancel(s)\n;;))",
         testutil::UNTIL,
         f.display()
     ));
@@ -1305,39 +1304,73 @@ fn a_cancel_ends_a_read_of_a_fifo() {
     assert!(took < std::time::Duration::from_secs(2), "{took:?}");
 }
 
-/// A write changes something, so once it runs it is waited for past the
-/// deadline: the write lands before the call gives up, never after. The
-/// write to a FIFO blocks in `open` until a reader comes; the reader
-/// comes only once the job runs (pool state) and the deadline has passed
-/// meanwhile.
+/// A write to a FIFO waits for a reader in the run loop (L11): a
+/// deadline ends the wait before anything is written, and no thread is
+/// left blocked in `open`.
 #[test]
-fn a_running_write_is_waited_for() {
-    let (_d, f) = fifo("running-write");
-    let s = testutil::setup(
-        &format!(
-            "import fs\nprint(timeout(100ms, () => fs.write(\"{}\", \"x\")))",
-            f.display()
-        ),
-        Opts::default(),
-    )
-    .unwrap_or_else(|e| panic!("{e:?}"));
-    let sh = s.rt.shared();
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let running = testutil::jobs::until(|| {
-            sh.pool.threads() == 1 && sh.pool.idle() == 0 && sh.pool.queued() == 0
-        });
-        // Not an order: only time for the deadline to pass.
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        let _ = tx.send((running, std::fs::read_to_string(f).unwrap()));
+fn a_write_to_a_fifo_without_a_reader_keeps_its_deadline() {
+    let (_d, f) = fifo("write-no-reader");
+    let (out, err, took) = bounded(format!(
+        "import fs\np = \"{}\"\nprint(timeout(100ms, () => fs.write(p, \"x\")))\nprint(timeout(100ms, () => fs.open(p, 'append)))\nprint(pool_state()[0] - pool_state()[1])",
+        f.display()
+    ));
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 100ms\"})\nErr({kind: 'timeout, message: \"timed out after 100ms\"})\n0\n",
+            ""
+        )
+    );
+    assert!(took < std::time::Duration::from_secs(2), "{took:?}");
+}
+
+/// L11 (C): a read of a FIFO handle waits in the event loop, so a
+/// deadline ends it, and what came before it stays for the next read: a
+/// cancelled `read_line` loses no byte. The writer sends half a line,
+/// waits for the program's mark after the deadline, then the rest.
+#[test]
+fn a_fifo_read_keeps_its_deadline_and_its_bytes() {
+    let (d, f) = fifo("read-keeps");
+    let mark = d.at("mark");
+    let (fw, mw) = (f.clone(), mark.clone());
+    let writer = std::thread::spawn(move || {
+        use std::io::Write;
+        let mut w = std::fs::OpenOptions::new().write(true).open(&fw).unwrap();
+        w.write_all(b"a").unwrap();
+        while !mw.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        w.write_all(b"b\nc").unwrap();
     });
-    s.rt.run().unwrap();
-    let (running, data) = rx
-        .recv_timeout(std::time::Duration::from_secs(10))
-        .expect("the reader never got the write");
-    assert!(running, "the write job never ran");
-    assert_eq!(data, "x");
-    assert_eq!(s.out.text(), "Ok(nil)\n");
+    let (out, err, took) = bounded(format!(
+        "import fs\nh = fs.open(\"{}\")!\nprint(timeout(100ms, () => read_line(h)))\nfs.write(\"{}\", \"\")!\nprint(read_line(h), read_line(h), read_line(h))",
+        f.display(),
+        mark.display()
+    ));
+    writer.join().unwrap();
+    assert_eq!(
+        (out.as_str(), err.as_str()),
+        (
+            "Err({kind: 'timeout, message: \"timed out after 100ms\"})\nOk(\"ab\") Ok(\"c\") Ok(nil)\n",
+            ""
+        )
+    );
+    assert!(took < std::time::Duration::from_secs(5), "{took:?}");
+}
+
+/// Reads of a FIFO given up on hold no pool thread: after 70 of them
+/// (more than the pool's 64 threads) a plain file is written and read at
+/// once.
+#[test]
+fn abandoned_fifo_reads_leave_the_pool_free() {
+    let (d, f) = fifo("abandoned");
+    let (out, err, took) = bounded(format!(
+        "import fs\nfor _ in 1..=70: _ = timeout(5ms, () => fs.read(\"{}\")) ;;\np = \"{}\"\nprint(timeout(1s, () => fs.write(p, \"ok\")), timeout(1s, () => fs.read(p)))",
+        f.display(),
+        d.at("plain.txt").display()
+    ));
+    assert_eq!((out.as_str(), err.as_str()), ("Ok(nil) Ok(\"ok\")\n", ""));
+    assert!(took < std::time::Duration::from_secs(5), "{took:?}");
 }
 
 // --- whole runs against their expected output ---
@@ -1420,7 +1453,7 @@ print(fs.with_open("${d}/sub/deep/f", read_lines, mode: 'read), fs.with_open("${
 print(fs.with_open("${d}/none", h => 1), fs.with_open("${d}/w.txt", h => read_line(h), 'append), fs.read_lines("${d}/w.txt"), fs.read_lines("${d}/none"))
 print(fs.write("${d}/crlf.txt", "a\r\nb\r\n\r\n\nc\r"), fs.with_open("${d}/crlf.txt", read_lines), fs.read_lines("${d}/crlf.txt"))
 fn lost(p) = fs.write_line(fs.open(p, 'write)!, "lost")
-print(lost("${d}/lost.txt"), fs.read("${d}/lost.txt"))
+print(lost("${d}/lost.txt"))
 k = fs.with_open("${d}/a.txt", h => h)
 print(k, read_line(k), fs.close(k), fs.write_line(k, ""))"#,
     r#"p = "${d}/big.txt"
@@ -1634,8 +1667,9 @@ fn walk_names_the_directory_it_cannot_read() {
     );
 }
 
-/// A handle dropped without `close` still writes what it was given, and a
-/// line longer than the buffer goes in whole.
+/// A handle dropped without `close` still writes what it was given (by
+/// the program's end: when is not said, L11), and a line longer than the
+/// buffer goes in whole.
 #[test]
 fn dropped_handle_keeps_what_was_written() {
     let d = Scratch::new("dropped-handle");
@@ -1645,15 +1679,19 @@ fn dropped_handle_keeps_what_was_written() {
   h = fs.open(p, 'write)!
   fs.write_line(h, "one")!
   fs.write_line(h, "two")!
+  nil
 ;;
 w("${d}/x.txt")
-print(fs.read("${d}/x.txt"))
 h = fs.open("${d}/long.txt", 'write)!
 fs.write_line(h, repeat("a", 70000))!
 fs.close(h)!
 print(fs.stat("${d}/long.txt")!.size)"#,
     );
-    assert_eq!(o.out, "Ok(\"one\\ntwo\\n\")\n70001\n", "{}", o.err);
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("70001\n", ""));
+    assert_eq!(
+        std::fs::read_to_string(d.at("x.txt")).unwrap(),
+        "one\ntwo\n"
+    );
 }
 
 /// `remove_all` removes only what it names: a link given with a trailing
@@ -1831,4 +1869,101 @@ print(scope(fn(s):
             ""
         )
     );
+}
+
+/// L11 (A): what `close(2)` says is reported. NFS reports a write that
+/// failed only when the file is closed; a seam makes the close of the
+/// marked paths fail with EIO, as such a file system would.
+#[test]
+fn a_failing_close_is_reported() {
+    let d = Scratch::new("close-fails");
+    for name in ["w.txt", "a.txt", "c.txt", "h.txt"] {
+        super::file::fail_close_of(d.at(name).to_str().unwrap());
+    }
+    std::fs::write(d.at("src.txt"), "x").unwrap();
+    let o = run_in(
+        &d,
+        r#"print(fs.write("${d}/w.txt", "x"))
+print(fs.append("${d}/a.txt", "x"))
+print(fs.copy("${d}/src.txt", "${d}/c.txt"))
+h = fs.open("${d}/h.txt", 'write)!
+fs.write_line(h, "x")!
+print(fs.close(h))"#,
+    );
+    let io = |verb: &str, name: &str| {
+        format!(
+            "Err({{kind: 'io, message: \"cannot {verb} `{}/{name}`: input/output error\"}})",
+            d.text()
+        )
+    };
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            format!(
+                "{}\n{}\n{}\n{}\n",
+                io("write", "w.txt"),
+                io("append to", "a.txt"),
+                io("copy to", "c.txt"),
+                io("close", "h.txt")
+            )
+            .as_str(),
+            ""
+        )
+    );
+}
+
+/// L11 (B): a handle dropped without `fs.close` is flushed and closed on
+/// a thread of its own, so a close that hangs (NFS) does not stop the
+/// run thread: the program goes on to its next file job while the close
+/// is held. The runtime's end waits for the close, so nothing is lost.
+#[test]
+fn a_dropped_handle_closes_off_the_run_thread() {
+    let d = Scratch::new("drop-held");
+    let held = d.at("held.txt");
+    let held = held.to_str().unwrap().to_string();
+    super::file::hold_close_of(&held);
+    let src = format!(
+        "import fs\nd = \"{}\"\nfn w():\n  h = fs.open(\"${{d}}/held.txt\", 'write)!\n  fs.write_line(h, \"kept\")!\n  nil\n;;\nw()\nfs.write(\"${{d}}/after.txt\", \"ran\")!\nprint(\"done\")",
+        d.text()
+    );
+    let run = std::thread::spawn(move || exec(&src, Opts::default()));
+    // The close has started and is held, and the program got past it.
+    let start = std::time::Instant::now();
+    while !(super::file::close_is_held(&held) && d.at("after.txt").exists()) {
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(10),
+            "stuck"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!run.is_finished(), "the end waits for the held close");
+    super::file::release_close_of(&held);
+    let o = run.join().unwrap();
+    assert_eq!((o.out.as_str(), o.err.as_str(), o.exit), ("done\n", "", 0));
+    assert_eq!(std::fs::read_to_string(d.at("held.txt")).unwrap(), "kept\n");
+}
+
+/// A dropped handle whose flush or close fails is reported on standard
+/// error (E0810), and the exit code is 1: written data is never lost
+/// without a word.
+#[test]
+fn a_dropped_handles_failure_is_reported() {
+    let d = Scratch::new("drop-fails");
+    super::file::fail_close_of(d.at("lost.txt").to_str().unwrap());
+    let o = run_in(
+        &d,
+        r#"h = fs.open("${d}/lost.txt", 'write)!
+fs.write_line(h, "x")!
+print("end")"#,
+    );
+    assert_eq!(o.out, "end\n");
+    assert!(
+        o.err.starts_with(&format!(
+            "error[E0810]: a file dropped without `fs.close` failed: cannot close `{}/lost.txt`: ",
+            d.text()
+        )),
+        "{}",
+        o.err
+    );
+    assert_eq!(o.exit, 1);
 }

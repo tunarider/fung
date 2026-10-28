@@ -13,7 +13,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -183,8 +182,8 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Flow,
 /// How long a command has to end after SIGTERM before SIGKILL.
 const TERM_GRACE: Duration = Duration::from_secs(2);
 
-/// How often a command is looked at when nothing can tell its end (no
-/// pidfd, and the pool could not take the wait).
+/// How often a command is looked at when nothing can tell its end: no
+/// pidfd, and no signal thread takes SIGCHLD (`signals::watch_children`).
 const POLL_EXIT: Duration = Duration::from_millis(10);
 
 /// Set by tests: every command gets a group of its own, whether or not
@@ -254,7 +253,7 @@ struct Input {
 }
 
 /// A task waiting for a command (R4b): its end (`ExitWatch`: kqueue's
-/// `EVFILT_PROC`, a pidfd, or a pool job's `waitid` without pidfd) and its
+/// `EVFILT_PROC`, a pidfd, or without pidfd a SIGCHLD, L11) and its
 /// three pipes (non-blocking: output and error read, input written as the
 /// command takes it) are registered on the event loop together, so a
 /// command that fills both outputs while it reads its input never stops.
@@ -276,8 +275,8 @@ struct CommandWait {
     own: bool,
     name: String,
     exit: ExitWatch,
-    /// Without pidfd: set by the pool job that waits for the end.
-    exited: Option<Arc<AtomicBool>>,
+    /// Without pidfd: no SIGCHLD wakes the task, so it looks on a timer.
+    poll_exit: bool,
     status: Option<std::process::ExitStatus>,
     out: Option<std::process::ChildStdout>,
     err: Option<std::process::ChildStderr>,
@@ -367,7 +366,7 @@ impl CommandWait {
             own,
             name,
             exit,
-            exited: None,
+            poll_exit: false,
             status: None,
             out,
             err,
@@ -380,53 +379,11 @@ impl CommandWait {
             regs: IoRegs::default(),
             pool: t.pool(),
         };
-        if matches!(w.exit, ExitWatch::Unsupported) {
-            w.wait_on_the_pool(t);
-        }
         t.waiter_handle().take_woken();
         match w.look_or_end(t)? {
             Next::Done(v) => Ok(Flow::Done(v)),
             Next::Park(wake) => Ok(Flow::Park(Box::new(w), wake)),
             Next::Call(..) => unreachable!("a command's wait calls nothing"),
-        }
-    }
-
-    /// Without pidfd: a pool job waits for the end (`waitid` with
-    /// `WNOWAIT`, so that `try_wait` still reaps it) and wakes the task.
-    /// When the pool cannot take it, each look ends by `POLL_EXIT` and
-    /// `try_wait` looks again.
-    fn wait_on_the_pool(&mut self, t: &mut Task<'_>) {
-        let flag = Arc::new(AtomicBool::new(false));
-        let (f, me) = (flag.clone(), t.waiter_handle());
-        let pid = self.child.as_ref().map_or(0, |c| c.id()) as libc::id_t;
-        #[cfg(all(test, target_os = "linux"))]
-        let reap_first = t.shared_poller().reaps_first();
-        let submitted = self.pool.submit_with(
-            crate::vm::Ticket::new(),
-            Box::new(move || {
-                // SAFETY: an all-zero `siginfo_t` is a valid value to fill
-                // in; WNOWAIT leaves the child for `try_wait`.
-                unsafe {
-                    #[cfg(all(test, target_os = "linux"))]
-                    if reap_first {
-                        libc::waitpid(pid as libc::pid_t, std::ptr::null_mut(), 0);
-                    }
-                    let mut info: libc::siginfo_t = std::mem::zeroed();
-                    // Again on EINTR; any other failure (ECHILD: it was
-                    // reaped already) ends the wait too, and `try_wait`
-                    // tells what happened.
-                    while libc::waitid(libc::P_PID, pid, &mut info, libc::WEXITED | libc::WNOWAIT)
-                        == -1
-                        && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted
-                    {
-                    }
-                }
-                f.store(true, Ordering::SeqCst);
-                me.wake();
-            }),
-        );
-        if submitted.is_ok() {
-            self.exited = Some(flag);
         }
     }
 
@@ -556,10 +513,19 @@ impl CommandWait {
             }
             if self.status.is_none() {
                 let ended = match &self.exit {
-                    ExitWatch::Unsupported => self
-                        .exited
-                        .as_ref()
-                        .is_some_and(|f| f.load(Ordering::SeqCst)),
+                    // Registered first, then looked at: an end in between
+                    // still wakes the task.
+                    ExitWatch::Unsupported => {
+                        self.poll_exit = !crate::signals::watch_children(&t.waiter_handle());
+                        match self.child.as_mut().map(|c| c.try_wait()) {
+                            Some(Ok(Some(st))) => {
+                                self.status = Some(st);
+                                true
+                            }
+                            Some(Err(e)) => return self.finish(t, Err(reason(&e))),
+                            _ => false,
+                        }
+                    }
                     w => !self.regs.exit(t, w)?,
                 };
                 if ended {
@@ -582,7 +548,7 @@ impl CommandWait {
             };
             if self.status.is_none()
                 && matches!(self.exit, ExitWatch::Unsupported)
-                && self.exited.is_none()
+                && self.poll_exit
             {
                 let poll = now + POLL_EXIT;
                 until = Some(until.map_or(poll, |u| u.min(poll)));

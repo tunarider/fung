@@ -251,6 +251,9 @@ pub(crate) enum IoStep {
     /// Wait for a wake only: the waiter is registered elsewhere (a
     /// connection's turn, `net.rs`).
     Park,
+    /// Look again at this time: no event says when (a FIFO's write end
+    /// waiting for a reader, `pipe.rs`).
+    Until(Instant),
 }
 
 /// The look of a wait on a descriptor.
@@ -436,6 +439,10 @@ impl IoWait {
                 self.register(t, fd, interest)?;
                 Ok(Look::Park(super::Wake { until, timed: true }))
             }
+            IoStep::Until(at) => Ok(Look::Park(super::Wake {
+                until: Some(at),
+                timed: true,
+            })),
         }
     }
 
@@ -533,6 +540,11 @@ impl Task<'_> {
     /// The runtime's thread pool (a native's `Drop` that hands work off).
     pub(crate) fn pool(&self) -> super::pool::Pool {
         self.shared.pool.clone()
+    }
+
+    /// The runtime's closer, for a file handle dropped open (`closer.rs`).
+    pub(crate) fn closer(&self) -> super::Closer {
+        self.shared.closer.clone()
     }
 
     /// This task's cancellation node, for a native that waits off the

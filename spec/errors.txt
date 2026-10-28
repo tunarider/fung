@@ -97,6 +97,7 @@ E0806	too many %s (limit %d)
 E0807	assertion failed: %s		
 E0808	`%s` has no value: the statement that assigned it failed		
 E0809	`%s` is read before its assignment ran		a top-level fn that reads it was called while the file was starting, above the assignment; move the assignment up or the call down
+E0810	a file dropped without `fs.close` failed: %s		close it with `fs.close` (or use `fs.with_open`) to handle the error where it happens
 W0101	unused import `%s`		
 W0102	unused variable `%s`		prefix it with `_` if it is intentional
 W0103	`%s` shadows a prelude function		

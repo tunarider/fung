@@ -799,6 +799,8 @@ print(fs.copy("dir", "dir2"))
 
 `mode`에 따라 읽기, 새로 쓰기, 덧붙이기로 연다. 출력하면 `<file "경로">`, `type_of`는 `'file`이다. 다 쓴 핸들은 [`fs.close`](#fn-fs-close)로 닫는다. 대부분은 [`fs.with_open`](#fn-fs-with_open)이 더 안전하다.
 
+**FIFO**(`mkfifo`로 만든 이름 있는 파이프)는 기다림을 이벤트 루프에서 한다. 그래서 [`timeout`](../prelude/concurrency.html#fn-timeout)과 취소가 곧바로 끊고, 끊긴 [`read_line`](../prelude/io.html#fn-read_line)이 받은 바이트는 다음 읽기에 남는다. 읽기로 열면 곧바로 열리고 첫 읽기가 쓰는 쪽을 기다린다. 쓰기로 열면 읽는 쪽이 열 때까지 기다린다. FIFO에 쓴 줄은 버퍼에 모으지 않고 곧바로 보낸다.
+
 <table>
   <thead><tr><th><code>mode</code></th><th>뜻</th></tr></thead>
   <tbody>
@@ -867,7 +869,9 @@ fs.open("servers.txt", 'readwrite)
 
 #### 설명
 
-버퍼에 남은 쓰기를 디스크에 비우고 핸들을 닫는다. 닫힌 핸들로 읽고 쓰면 `Err({kind: 'closed})`이고, 한 번 더 닫아도 같다. 닫지 않은 핸들은 그 값의 마지막 사본이 사라질 때 닫히고 버퍼도 비우지만, 그때 쓰기가 실패하면 아무도 알 수 없다. 그래서 쓴 핸들은 직접 닫거나 [`fs.with_open`](#fn-fs-with_open)을 쓴다.
+버퍼에 남은 쓰기를 디스크에 비우고 핸들을 닫는다. 비우기나 닫기가 실패하면 그 에러를 돌려준다(NFS처럼 닫을 때에야 쓰기를 보내는 파일 시스템에서는 디스크 가득 참이 여기서 나온다). 닫힌 핸들로 읽고 쓰면 `Err({kind: 'closed})`이고, 한 번 더 닫아도 같다.
+
+닫지 않은 핸들은 그 값의 마지막 사본이 사라지면 런타임의 닫기 스레드가 비우고 닫는다. 그래서 데이터가 파일에 닿는 때는 정해져 있지 않다(버린 바로 뒤의 `fs.read`가 그 줄을 못 볼 수 있다). 프로그램이 끝날 때는 모두 닫힌 뒤에 끝나므로 데이터를 잃지는 않는다. 그 비우기나 닫기가 실패하면 돌려받을 곳이 없으므로 표준 에러에 [E0810](../errors.html#E0810)을 쓰고 종료 코드가 1이 된다. 그래서 쓴 핸들은 직접 닫거나 [`fs.with_open`](#fn-fs-with_open)을 쓴다.
 
 prelude의 [`close`](../prelude/concurrency.html#fn-close)(채널 닫기)와는 다른 함수다.
 

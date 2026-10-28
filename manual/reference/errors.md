@@ -2049,6 +2049,22 @@ print(x)
 
 :::
 
+:::error E0810
+
+`fs.close` 없이 버린 파일 핸들을 비우거나 닫다가 실패했다. 핸들의 마지막 사본이 사라지면 런타임의 닫기 스레드가 남은 버퍼를 비우고 파일을 닫는데, 그때 난 에러는 돌려줄 값이 없으므로 표준 에러에 이 번호로 알리고 종료 코드를 1로 한다. 실행은 멈추지 않는다(그 사이에 프로그램은 이미 다음 일을 하고 있다). NFS처럼 닫을 때 쓰기를 보내는 파일 시스템에서 할당량 초과·디스크 가득 참이 이렇게 드러난다.
+
+고치는 법: 쓴 핸들은 [`fs.close`](modules/fs.html#fn-fs-close)로 닫아 그 자리에서 에러를 받거나, [`fs.with_open`](modules/fs.html#fn-fs-with_open)으로 열어 끝나면 닫히게 한다.
+
+```fung run
+import fs
+r = fs.with_open("report.txt", fn(h):
+  fs.write_line(h, "saved")
+;;, mode: 'write)
+print(r)
+```
+
+:::
+
 ## W01xx: 경고 {#w01}
 
 경고는 틀렸다고 단정할 수는 없지만 실수일 가능성이 큰 코드를 알려 준다. 프로그램을 멈추지 않고 종료 코드도 바꾸지 않는다. 경고는 `fung check`와 `fung test`가 찍는다. `fung run`은 경고를 찍지 않고 그대로 실행한다. 그래서 아래 예의 출력은 `fung check example.fung`을 실제로 돌려 옮겨 적었다.

@@ -62,9 +62,6 @@ pub(crate) struct Poller {
     /// pidfd is as if missing (tests).
     #[cfg(test)]
     no_pidfd: std::sync::atomic::AtomicBool,
-    /// A command's pool wait reaps it first (tests).
-    #[cfg(all(test, target_os = "linux"))]
-    reap_first: std::sync::atomic::AtomicBool,
 }
 
 /// Wakes a `Poller`'s wait from any thread.
@@ -81,8 +78,6 @@ impl Poller {
             fail_at: std::sync::atomic::AtomicUsize::new(0),
             #[cfg(test)]
             no_pidfd: std::sync::atomic::AtomicBool::new(false),
-            #[cfg(all(test, target_os = "linux"))]
-            reap_first: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -145,24 +140,11 @@ impl Poller {
         }
     }
 
-    /// Makes pidfd look missing (tests: the pool's wait for a command).
+    /// Makes pidfd look missing (tests: a command's end without it).
     #[cfg(all(test, target_os = "linux"))]
     pub(crate) fn disable_pidfd(&self) {
         self.no_pidfd
             .store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    /// Makes a command's pool wait reap it first (tests: without pidfd,
-    /// `waitid` meets a child someone else reaped).
-    #[cfg(all(test, target_os = "linux"))]
-    pub(crate) fn reap_before_waitid(&self) {
-        self.reap_first
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-
-    #[cfg(all(test, target_os = "linux"))]
-    pub(crate) fn reaps_first(&self) -> bool {
-        self.reap_first.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Makes the next registration fail with `ENOSPC` (tests).

@@ -324,6 +324,12 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "a top-level fn that reads it was called while the file was starting, above the assignment; move the assignment up or the call down",
     ],
+    [
+        "E0810",
+        "a file dropped without `fs.close` failed: %s",
+        "",
+        "close it with `fs.close` (or use `fs.with_open`) to handle the error where it happens",
+    ],
     ["W0101", "unused import `%s`", "", ""],
     [
         "W0102",

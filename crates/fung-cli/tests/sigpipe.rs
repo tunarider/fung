@@ -267,12 +267,15 @@ fn a_file_handle_on_a_closed_fifo_gives_error_values() {
     );
 }
 
+/// A line written to a FIFO goes at once (L11: a FIFO is written through
+/// the event loop, not a buffer), so even a small one fails where it is
+/// written once the reader has left, and the close has nothing to send.
 #[test]
-fn a_buffered_write_to_a_closed_fifo_fails_at_close() {
+fn a_small_fifo_line_fails_where_it_is_written() {
     fifo_case(
         "flush",
-        "import fs\nh = fs.open(args[0], 'append)!\nprint(fs.write_line(h, \"small\"))\nprint(\"opened\")\nread_line()\nprint(fs.close(h))\nprint(\"alive\")",
-        "Ok(nil)\nopened\nErr({kind: 'io, message: \"cannot close `D/f`: broken pipe\"})\nalive\n",
+        "import fs\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, \"small\"))\nprint(fs.close(h))\nprint(\"alive\")",
+        "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nOk(nil)\nalive\n",
     );
 }
 

@@ -1,6 +1,12 @@
 # L11. 파일 닫기의 에러와 끝나지 않는 파일·명령 기다림
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-10-27)**. 정할 것 1~5 모두 추천대로(사용자 결정 2026-10-27). 목록: [README](README.md). 설명 `docs/notes/L11-files-close-and-blocking.md`.
+
+결과: (A) `file::close_checked`(EINTR은 닫힌 것), `finish`. (B) `vm/closer.rs`(풀 밖, 일이 있을 때만 도는 스레드), `Runtime::release`(CLI·`fung test`·시험 도구가 종료 코드를 정하기 전에 부름), E0810.
+(C) `native/pipe.rs`: FIFO는 `O_NONBLOCK`, 실행 스레드에서 시도하고 `park_io`(`IoStep::Until` 추가). 계획과 다른 점: FIFO의 읽기 열기는 풀의 버릴 수 있는 열기가 아니라 비차단으로 곧바로 연다(풀 스레드를 쥐지 않으려고; 쓰는 쪽은 첫 읽기가 기다림). 그래서 이 문서 (C)의 둘째 재현은 `'timeout`이 아니라 곧바로 `Ok(<file>)`다.
+macOS는 FIFO의 쓰는 쪽이 닫혀도 kqueue·poll이 알리지 않아(Docker의 Linux와 견줘 확인) 50ms마다 다시 본다. 문자 장치·소켓 파일은 풀에 남겼다(open-questions).
+(D) SIGCHLD를 신호 스레드가 받아 `signals::watch_children`에 건 태스크를 깨운다. 신호 스레드가 없으면 10ms마다 본다. `wait_on_the_pool`·`reap_before_waitid` 삭제. `FUNG_NO_PIDFD`로 새 커널에서도 이 길을 시험한다.
+Linux 시험은 Docker(`rust:1.94-slim`)에서 돌렸다.
 
 ## 문제
 

@@ -332,6 +332,8 @@ pub(crate) struct Shared {
     pub(super) stop_requested: AtomicBool,
     /// Failures nobody handled (`failure.rs`).
     pub(super) failures: Arc<Failures>,
+    /// Closes what dropped file handles leave (`closer.rs`).
+    pub(crate) closer: super::Closer,
     /// The threads offload jobs run on (`pool.rs`).
     pub(crate) pool: Pool,
     /// The event loop the run thread sleeps in (`poller.rs`, `sched.rs`).
@@ -376,6 +378,7 @@ impl Shared {
             ready: Arc::new(Ready::new(poller.waker())),
             next_fiber: AtomicU64::new(1),
             stop_requested: AtomicBool::new(false),
+            closer: super::Closer::new(failures.clone()),
             failures,
             pool: Pool::new(POOL_MAX, POOL_IDLE),
             poller,

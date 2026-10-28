@@ -214,13 +214,13 @@ fn a_pool_wait_ends_a_command_without_pidfd() {
     );
 }
 
-/// Without pidfd, a pool that cannot take the wait (no thread could be
-/// made) does not leave the command unseen: the task looks again on a
-/// short timer until the command has ended (here it closes its output
-/// first, so no pipe wakes the task when it ends).
+/// Without pidfd and without a signal thread to take SIGCHLD (a test
+/// process), the task looks on a short timer until the command has ended
+/// (here it closes its output first, so no pipe wakes the task when it
+/// ends). No pool thread waits for it (L11).
 #[cfg(target_os = "linux")]
 #[test]
-fn without_pidfd_a_full_pool_still_sees_the_end() {
+fn without_pidfd_a_timer_still_sees_the_end() {
     let o = crate::testutil::exec_prepared(
         "print(timeout(5s, () => sh(\"exec >/dev/null 2>&1; sleep 0.1\")!.code))",
         crate::testutil::Opts::default(),
@@ -232,21 +232,21 @@ fn without_pidfd_a_full_pool_still_sees_the_end() {
     assert_eq!((o.out.as_str(), o.err.as_str()), ("0\n", ""));
 }
 
-/// Without pidfd, a child already reaped when the pool job waits for it
-/// (`waitid` gives ECHILD) still wakes the task: the call ends with
-/// what `try_wait` says, not at the deadline.
+/// Without pidfd, many commands at once end without a pool thread each:
+/// 70 commands (more than the pool's 64 threads) all end, and the pool
+/// made no thread (L11 D: the pool's `waitid` per command is gone).
 #[cfg(target_os = "linux")]
 #[test]
-fn without_pidfd_an_already_reaped_child_wakes_the_task() {
+fn without_pidfd_commands_take_no_pool_thread() {
     let o = crate::testutil::exec_prepared(
-        "r = timeout(5s, () => sh(\"exec >/dev/null 2>&1; sleep 0.1\"))\nprint(match r:\n  Err({kind: 'timeout}) => \"timeout\"\n  _ => \"ended\"\n;;)",
-        crate::testutil::Opts::default(),
-        |rt| {
-            rt.shared().poller.disable_pidfd();
-            rt.shared().poller.reap_before_waitid();
+        "codes = scope(s => map(1..=70, _ => spawn(s, () => sh(\"sleep 0.05\")!.code)) |> map(await))\nprint(sum(codes), len(codes), pool_state()[0])",
+        crate::testutil::Opts {
+            extra: crate::testutil::jobs::job_natives,
+            ..crate::testutil::Opts::default()
         },
+        |rt| rt.shared().poller.disable_pidfd(),
     );
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("ended\n", ""));
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("0 70 0\n", ""));
 }
 
 /// A cancel while what the command left ignores SIGTERM and holds its

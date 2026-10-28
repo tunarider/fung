@@ -4,11 +4,14 @@
 
 use fung_front::source::decode_lossy;
 
+use std::sync::Arc;
+
 use crate::native::file::{Fault, File};
 use crate::native::fs::fault_value;
 use crate::native::nat::{self, opt, param};
+use crate::native::pipe::{self, Step};
 use crate::value::{Lit, Native, Value, format};
-use crate::vm::{Flow, Stop, Task, Wake, park_until_then};
+use crate::vm::{Flow, IoStep, Stop, Task, Wake, park_io, park_until_then};
 
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds through
 /// every `with`'s release, then the process ends with the code.
@@ -70,6 +73,7 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
             STDIN_WAKE,
             |t| t.stdin_leave(),
         ),
+        Value::File(h) if h.is_pipe() => pipe_lines(t, h.clone(), true),
         Value::File(h) => {
             if let Some(r) = h.read_buffered_line() {
                 return Ok(Flow::Done(file_line_value(h, r)));
@@ -84,6 +88,42 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
         }
         f => Err(nat::wrong_arg("f", "file | nil", f)),
     }
+}
+
+/// `read_line` (`one`) or `read_lines` on a FIFO handle: read on the run
+/// thread, parking in the event loop when nothing is there (`pipe.rs`,
+/// L11). The lines read so far stay in the closure: a stop loses none of
+/// the bytes, which stay in the handle's buffer.
+fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
+    let mut got: Vec<String> = Vec::new();
+    park_io(
+        t,
+        move |_, _| loop {
+            match h.pipe_read_line() {
+                Ok(Step::Ready(Some(l))) if one => {
+                    return IoStep::Done(Ok(line_value(Some(decode_lossy(&l)))));
+                }
+                Ok(Step::Ready(Some(l))) => got.push(decode_lossy(&l)),
+                Ok(Step::Ready(None)) if one => return IoStep::Done(Ok(line_value(None))),
+                Ok(Step::Ready(None)) => {
+                    return IoStep::Done(Ok(lines_value(std::mem::take(&mut got))));
+                }
+                Ok(Step::Wait(fd, interest)) => return pipe::io_step(fd, interest),
+                Ok(Step::Fail(e)) => {
+                    return IoStep::Done(Ok(fault_value(&h, "read", Fault::Io(e))));
+                }
+                Err(e) => return IoStep::Done(Ok(fault_value(&h, "read", e))),
+            }
+        },
+        |_| {},
+    )
+}
+
+/// `Ok([...])` of the lines `read_lines` read, each without its ending.
+fn lines_value(ls: Vec<String>) -> Value {
+    nat::ok(nat::list(
+        ls.iter().map(|l| Value::str(trim_line(l))).collect(),
+    ))
 }
 
 /// How a wait for standard input parks: the world outside wakes it (the
@@ -111,11 +151,7 @@ fn line_value(l: Option<String>) -> Value {
 /// parks whenever no line is queued; a handle is read on a pool thread
 /// in one go (locked for each line).
 pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let lines = |ls: Vec<String>| {
-        nat::ok(nat::list(
-            ls.iter().map(|l| Value::str(trim_line(l))).collect(),
-        ))
-    };
+    let lines = lines_value;
     match &a[0] {
         Value::Nil => {
             // A line at a time, parking whenever none is queued.
@@ -133,6 +169,7 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Sto
                 |t| t.stdin_leave(),
             )
         }
+        Value::File(h) if h.is_pipe() => pipe_lines(t, h.clone(), false),
         Value::File(h) => {
             let h = h.clone();
             let job = h.clone();

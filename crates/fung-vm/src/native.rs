@@ -9,6 +9,7 @@ pub mod nat;
 pub mod net;
 pub(crate) mod oserr;
 pub mod path;
+pub(crate) mod pipe;
 pub mod process;
 pub mod range;
 pub mod regex;

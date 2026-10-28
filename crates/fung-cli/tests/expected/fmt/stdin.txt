@@ -5498,11 +5498,20 @@
 ==== manual reference/errors.md:179
 -- stdout
 | import fs
+| r = fs.with_open("report.txt", fn(h):
+|   fs.write_line(h, "saved")
+| ;;, mode: 'write)
+| print(r)
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:180
+-- stdout
+| import fs
 | import path
 | print(path.join("a", "b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:180
+==== manual reference/errors.md:181
 -- stdout
 | fn total(xs):
 |   count = len(xs)
@@ -5511,7 +5520,7 @@
 | print(total([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:181
+==== manual reference/errors.md:182
 -- stdout
 | fn summary(xs):
 |   max = 0

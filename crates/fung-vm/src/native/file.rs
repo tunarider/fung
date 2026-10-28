@@ -12,12 +12,16 @@
 //! The handle holds no fung value (only its path and the open file), so
 //! it may be used and dropped on any thread: an
 //! offloaded job owns a clone of the handle's `Arc`. When the last
-//! copy of the handle goes, the buffer is flushed and the file closed
-//! (reference counting makes that exact); only `close` reports an error
-//! from that flush.
+//! copy of the handle goes open, the runtime's closer flushes the buffer
+//! and closes the file on a thread of its own (`vm/closer.rs`, L11): when
+//! that happens is not said, and a failure there is reported on standard
+//! error. `close` flushes and closes at once and gives the error.
 
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::sync::{Mutex, MutexGuard, TryLockError};
+
+use super::pipe::{Pipe, Step};
+use crate::vm::Closer;
 
 /// The read and write buffer of a handle: what decides when written lines
 /// reach the file before `close`.
@@ -29,12 +33,28 @@ pub struct File {
     pub path: String,
     /// `None` once closed.
     state: Mutex<Option<Io>>,
+    /// Where an open handle goes when its last copy drops (L11 B).
+    closer: Closer,
+}
+
+/// A handle dropped open: its runtime's closer flushes and closes it off
+/// the run thread (`vm/closer.rs`).
+impl Drop for File {
+    fn drop(&mut self) {
+        let state = self.state.get_mut().unwrap_or_else(|e| e.into_inner());
+        if let Some(io) = state.take() {
+            self.closer.submit(std::mem::take(&mut self.path), io);
+        }
+    }
 }
 
 /// What a handle was opened for.
 pub(crate) enum Io {
     Read(BufReader<std::fs::File>),
     Write(BufWriter<std::fs::File>),
+    /// A FIFO, read and written on the run thread through the event loop
+    /// (`pipe.rs`, L11).
+    Pipe(Pipe),
 }
 
 /// Why a handle operation failed: the `Err` value is made on the run thread
@@ -54,10 +74,11 @@ impl std::fmt::Debug for File {
 }
 
 impl File {
-    pub(crate) fn new(path: String, io: Io) -> File {
+    pub(crate) fn new(path: String, io: Io, closer: Closer) -> File {
         File {
             path,
             state: Mutex::new(Some(io)),
+            closer,
         }
     }
 
@@ -73,6 +94,7 @@ impl File {
             None => Err(Fault::Closed),
             Some(Io::Read(_)) => Err(Fault::NotWriting),
             Some(Io::Write(w)) => w.write_all(line).map_err(Fault::Io),
+            Some(Io::Pipe(_)) => unreachable!("a FIFO is written on the run thread"),
         }
     }
 
@@ -83,6 +105,7 @@ impl File {
         match &mut *self.lock() {
             None => Err(Fault::Closed),
             Some(Io::Write(_)) => Err(Fault::NotReading),
+            Some(Io::Pipe(_)) => unreachable!("a FIFO is read on the run thread"),
             Some(Io::Read(r)) => {
                 let mut line = Vec::new();
                 match r.read_until(b'\n', &mut line) {
@@ -113,6 +136,7 @@ impl File {
         match &mut *self.try_lock()? {
             None => Some(Err(Fault::Closed)),
             Some(Io::Write(_)) => Some(Err(Fault::NotReading)),
+            Some(Io::Pipe(_)) => None,
             Some(Io::Read(r)) => {
                 let buf = r.buffer();
                 let n = buf.iter().position(|&b| b == b'\n')? + 1;
@@ -134,26 +158,158 @@ impl File {
             Some(Io::Write(w)) if line.len() < w.capacity() - w.buffer().len() => {
                 Some(w.write_all(line).map_err(Fault::Io))
             }
-            Some(Io::Write(_)) => None,
+            Some(Io::Write(_) | Io::Pipe(_)) => None,
+        }
+    }
+
+    /// Whether the handle is a FIFO (read and written on the run thread).
+    pub(crate) fn is_pipe(&self) -> bool {
+        matches!(&*self.lock(), Some(Io::Pipe(_)))
+    }
+
+    /// A FIFO's next line (`pipe.rs`), on the run thread.
+    pub(crate) fn pipe_read_line(&self) -> Result<Step<Option<Vec<u8>>>, Fault> {
+        match &mut *self.lock() {
+            None => Err(Fault::Closed),
+            Some(Io::Pipe(p)) if !p.writes => Ok(p.read_line()),
+            Some(_) => Err(Fault::NotReading),
+        }
+    }
+
+    /// Queues a line on a FIFO's write end (`pipe_flush` sends it).
+    pub(crate) fn pipe_queue(&self, line: &[u8]) -> Result<(), Fault> {
+        match &mut *self.lock() {
+            None => Err(Fault::Closed),
+            Some(Io::Pipe(p)) if p.writes => {
+                p.queue(line);
+                Ok(())
+            }
+            Some(_) => Err(Fault::NotWriting),
+        }
+    }
+
+    /// Sends what is queued on a FIFO's write end, on the run thread.
+    pub(crate) fn pipe_flush(&self) -> Result<Step<()>, Fault> {
+        match &mut *self.lock() {
+            None => Err(Fault::Closed),
+            Some(Io::Pipe(p)) => Ok(p.flush()),
+            Some(_) => Err(Fault::NotWriting),
+        }
+    }
+
+    /// The FIFO's descriptor, if the handle is an open FIFO: the waits on
+    /// it are dropped before it closes (`vm::drop_io_waits`).
+    pub(crate) fn pipe_fd(&self) -> Option<std::os::fd::RawFd> {
+        match &*self.lock() {
+            Some(Io::Pipe(p)) => Some(p.fd()),
+            _ => None,
         }
     }
 
     /// Marks the handle closed, flushes what was written and closes the
-    /// file. A second close is `Closed`.
+    /// file, reporting the first failure of the two. A second close is
+    /// `Closed`.
     pub(crate) fn close(&self) -> Result<(), Fault> {
-        let mut st = self.lock();
-        match st.take() {
-            None => Err(Fault::Closed),
-            Some(Io::Read(r)) => {
-                drop(r);
-                Ok(())
-            }
-            Some(Io::Write(mut w)) => {
-                let r = w.flush();
-                // Closes the file without flushing again.
-                drop(w.into_parts());
-                r.map_err(Fault::Io)
-            }
+        let io = self.lock().take().ok_or(Fault::Closed)?;
+        finish(io, &self.path).map_err(Fault::Io)
+    }
+}
+
+/// Flushes what `io` holds and closes its file: the first failure of the
+/// two (L11).
+pub(crate) fn finish(io: Io, path: &str) -> io::Result<()> {
+    match io {
+        Io::Read(r) => close_checked(r.into_inner(), path),
+        Io::Write(mut w) => {
+            let flushed = w.flush();
+            // Closes the file without flushing again.
+            let closed = close_checked(w.into_parts().0, path);
+            flushed.and(closed)
+        }
+        Io::Pipe(p) => p.finish(path),
+    }
+}
+
+/// Closes `f` and says what `close(2)` said (L11): Rust's `File` drops
+/// that, and a file system that writes on close (NFS) reports a failed
+/// write only there. EINTR counts as closed: on Linux the descriptor is
+/// gone already, and closing it again could close another file's.
+pub(crate) fn close_checked(f: std::fs::File, path: &str) -> io::Result<()> {
+    use std::os::fd::IntoRawFd;
+    #[cfg(test)]
+    let failing = seam::fails(path);
+    #[cfg(not(test))]
+    let _ = path;
+    #[cfg(test)]
+    seam::wait_if_held(path);
+    let fd = f.into_raw_fd();
+    // SAFETY: `fd` came out of the `File`, which owned it; nothing else
+    // closes it.
+    let r = unsafe { libc::close(fd) };
+    #[cfg(test)]
+    if failing {
+        return Err(io::Error::from_raw_os_error(libc::EIO));
+    }
+    if r == 0 {
+        return Ok(());
+    }
+    match io::Error::last_os_error() {
+        e if e.raw_os_error() == Some(libc::EINTR) => Ok(()),
+        e => Err(e),
+    }
+}
+
+/// Makes the close of `path` fail with EIO, as NFS may (tests).
+#[cfg(test)]
+pub(crate) fn fail_close_of(path: &str) {
+    seam::FAILING.lock().unwrap().push(path.to_string());
+}
+
+/// Makes the close of `path` wait until `release_close_of` (tests: a
+/// close that hangs, as on NFS).
+#[cfg(test)]
+pub(crate) fn hold_close_of(path: &str) {
+    seam::HELD.lock().unwrap().push((path.to_string(), false));
+}
+
+/// Whether a close of `path` waits in `hold_close_of` now (tests).
+#[cfg(test)]
+pub(crate) fn close_is_held(path: &str) -> bool {
+    seam::HELD
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(p, waiting)| p == path && *waiting)
+}
+
+/// Lets the held close of `path` go on (tests).
+#[cfg(test)]
+pub(crate) fn release_close_of(path: &str) {
+    seam::HELD.lock().unwrap().retain(|(p, _)| p != path);
+    seam::LET_GO.notify_all();
+}
+
+#[cfg(test)]
+mod seam {
+    use std::sync::{Condvar, Mutex};
+
+    /// The paths whose close fails (`fail_close_of`). Paths, not a flag:
+    /// tests run side by side, each in its own directory.
+    pub(super) static FAILING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    /// The paths whose close is held, and whether one waits now.
+    pub(super) static HELD: Mutex<Vec<(String, bool)>> = Mutex::new(Vec::new());
+    pub(super) static LET_GO: Condvar = Condvar::new();
+
+    pub(super) fn fails(path: &str) -> bool {
+        FAILING.lock().unwrap().iter().any(|p| p == path)
+    }
+
+    pub(super) fn wait_if_held(path: &str) {
+        let mut held = HELD.lock().unwrap();
+        while let Some(h) = held.iter_mut().find(|(p, _)| p == path) {
+            h.1 = true;
+            held = LET_GO.wait(held).unwrap();
         }
     }
 }

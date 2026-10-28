@@ -429,6 +429,9 @@ fn finish(setup: Result<Setup, (String, String)>) -> Outcome {
         }
     }
     let reported = o.exit == diag::EXIT_RUNTIME;
+    // Dropped file handles are closed before the exit code is settled, as
+    // the command does.
+    rt.release();
     let before = rt.exit_code();
     if let Some(n) = before {
         o.exit = status(n);

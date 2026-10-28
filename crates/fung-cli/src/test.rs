@@ -272,10 +272,13 @@ fn test_file(
         }
     }
     // The file is done: cancel what its code left running and wait for
-    // it (unwinding through its releases). A task failure nobody handled
-    // (a cancelled `supervise`'s queue) fails the file (05).
+    // it (unwinding through its releases), then close the file handles
+    // its values held. A task failure nobody handled (a cancelled
+    // `supervise`'s queue) or a dropped handle's failed close (E0810)
+    // fails the file (05).
     rt.cancel_all();
     rt.wait();
+    rt.release();
     if rt.failed() {
         let _ = stdout.write_all(
             &[

@@ -81,7 +81,7 @@
 | Ok(["x"]) Ok(nil) Ok("w\n")
 | Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'invalid, message: "file `$D/w.txt` is not open for reading"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
 | Ok(nil) Ok(["a", "b", "", "", "c"]) Ok(["a", "b", "", "", "c"])
-| Ok(nil) Ok("lost\n")
+| Ok(nil)
 | <file "$D/a.txt"> Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"})
 -- stderr
 -- exit: 0
