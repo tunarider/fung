@@ -35,6 +35,7 @@ fn build(n: &Node) -> Result<Pattern, Diag> {
                 Lit::Int(i) => Const::Int(*i),
                 Lit::Float(f) => Const::Float(*f),
                 Lit::Str(s) => Const::Str(s.clone()),
+                Lit::Bytes(b) => Const::Bytes(b.clone()),
                 Lit::Bool(b) => Const::Bool(*b),
                 Lit::Dur(d) => Const::Dur(*d),
                 _ => return Err(internal(n.pos, "compiler: unknown pattern literal".into())),

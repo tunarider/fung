@@ -126,9 +126,14 @@ Python과 같으며 시작 시간(6ms)은 Python(22ms)보다 빠르다. fung 쪽
 - [x] **태그 전에 릴리스 워크플로 시험 실행** (2026-10-18, 0.2.0 전): `gh workflow run release.yml -f version=0.0.0-dryrun`. 두 가지가 CI에서만 드러났다:
   macOS 러너의 `sort`가 UTF-8 로캘이라 묶음 내용 비교가 어긋났고(`LC_ALL=C sort`로 고정), Ubuntu의 `file`은 Mach-O를 `x86_64 executable` 순서로 적는다
   (두 문구 모두 받음). `publish`(증명·게시)는 첫 실제 태그에서 처음 돈다.
+- [x] **rustls 공지 4건 해제** (2026-11-07, 0.5.0 전): RUSTSEC-2026-0346~0349는 fung 설정에 닿지 않아 2주 규칙대로 무시했다가, `rustls`를 0.23.46으로 올리고
+  `deny.toml`·`.cargo/audit.toml`의 무시 목록을 비웠다. 같은 때에 2주 미만이라 고정했던 `libc` 0.2.191·`rustls-native-certs` 0.8.5·`zeroize` 1.9.1·`cc` 1.10.0(`find-msvc-tools` 0.1.15)도 올렸다. 새로 따라온 크레이트는 없다.
 
 ## 알려진 한계 (닫은 것)
 
+  - (닫힘, L4 2026-11-07) 문자열이 UTF-8이라 비UTF-8 프로세스 출력·환경 변수·파일 내용·`read_line`·HTTP 본문·파일 이름·`args`가 잘못된 부분마다
+    U+FFFD로 바뀌던 것. 문자열을 바이트 열로 바꾸고(글자 연산은 UTF-8로 읽고, 잘못된 바이트 하나가 한 글자), 리터럴 `\xHH`, 표시 `\xff`,
+    바이트 함수 넷(`byte_len`·`bytes`·`from_bytes`·`valid_utf8`), 글이 필요한 곳의 E0518, UTF-8이 아닌 소스의 거절(E0312)을 더했다. 노트 `docs/notes/L4-strings-and-bytes.md`.
   - (닫힘, R1b 2026-10-19) 태스크마다 운영체제 스레드 하나라 스레드 한도가 천장이던 것: 이제 실행 스레드 하나가 모든 태스크를 돈다. 기다리는 태스크 2만 개가 돈다(`bench/wait.fung`).
     파일·이름 조회·정규식 컴파일은 풀(최대 64)에서, 소켓·TLS는 이벤트 루프에서 기다린다(R4a, 스레드 없음). 외부 명령도 루프에서 기다린다(R4b).
   - (닫힘, L6) 자식 프로세스 기다림: 취소되면 SIGTERM, 2초 뒤 SIGKILL(터미널이 없으면 프로세스 그룹 전체에).

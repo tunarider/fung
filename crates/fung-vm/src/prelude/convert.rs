@@ -112,7 +112,7 @@ fn int_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
             }
         }
         Value::Str(s) => {
-            if let Some(n) = parse_int(s) {
+            if let Some(n) = s.as_str().and_then(parse_int) {
                 return Ok(Value::Int(n));
             }
         }
@@ -126,7 +126,7 @@ fn float_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         Value::Int(n) => return Ok(Value::Float(*n as f64)),
         Value::Float(f) => return Ok(Value::Float(*f)),
         Value::Str(s) => {
-            if let Some(f) = parse_float(s) {
+            if let Some(f) = s.as_str().and_then(parse_float) {
                 return Ok(Value::Float(f));
             }
         }
@@ -154,25 +154,33 @@ fn is_name(s: &str) -> bool {
 
 fn sym_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     match &a[0] {
-        Value::Str(s) if is_name(&nfc(s)) => Ok(Value::Sym(intern(&nfc(s)))),
+        Value::Str(s) if s.as_str().is_some_and(|s| is_name(&nfc(s))) => {
+            Ok(Value::Sym(intern(&nfc(s.as_str().expect("checked")))))
+        }
         Value::Sym(x) => Ok(Value::Sym(*x)),
         v => Err(cannot_convert(v, "sym")),
     }
 }
 
+/// The `parse_*` functions read text from outside: bytes that are not
+/// UTF-8 are no number either, an `Err` like any other (L4).
 fn parse_int_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
-    Ok(match parse_int(s) {
+    let s = nat::need_text("s", &a[0])?;
+    Ok(match s.as_str().and_then(parse_int) {
         Some(n) => nat::ok(Value::Int(n)),
-        None => nat::err_value("parse", &format!("not an integer: {s}"), Vec::new()),
+        None => nat::err_value(
+            "parse",
+            &format!("not an integer: {}", s.lossy()),
+            Vec::new(),
+        ),
     })
 }
 
 fn parse_float_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
-    Ok(match parse_float(s) {
+    let s = nat::need_text("s", &a[0])?;
+    Ok(match s.as_str().and_then(parse_float) {
         Some(f) => nat::ok(Value::Float(f)),
-        None => nat::err_value("parse", &format!("not a number: {s}"), Vec::new()),
+        None => nat::err_value("parse", &format!("not a number: {}", s.lossy()), Vec::new()),
     })
 }
 
@@ -180,10 +188,17 @@ fn parse_float_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// 500ms, -5s), the way `parse_int` reads an int: Ok/Err for untrusted
 /// text.
 fn parse_dur_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
-    Ok(match parse_dur(s.trim_matches(char::is_whitespace)) {
+    let s = nat::need_text("s", &a[0])?;
+    let d = s
+        .as_str()
+        .and_then(|s| parse_dur(s.trim_matches(char::is_whitespace)));
+    Ok(match d {
         Some(d) => nat::ok(Value::Dur(d)),
-        None => nat::err_value("parse", &format!("not a duration: {s}"), Vec::new()),
+        None => nat::err_value(
+            "parse",
+            &format!("not a duration: {}", s.lossy()),
+            Vec::new(),
+        ),
     })
 }
 

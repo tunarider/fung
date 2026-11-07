@@ -509,7 +509,7 @@ fn failures_give_exact_messages() {
         (
             "read",
             vec![s(&at("bad.txt"))],
-            "Ok(\"a\u{FFFD}b\u{FFFD}\")".into(),
+            r#"Ok("a\xffb\xc3")"#.into(),
         ),
         (
             "write",
@@ -883,12 +883,13 @@ fn temp_dir_is_made_under_tmpdir() {
         let Value::Str(dir) = &t.args[0] else {
             panic!("not a string")
         };
+        let dir = dir.as_str().expect("a UTF-8 temporary directory");
         let rest = dir.strip_prefix(&prefix).unwrap_or_else(|| panic!("{dir}"));
         assert!(
             !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()),
             "{dir}"
         );
-        let meta = std::fs::metadata(dir.as_str()).unwrap();
+        let meta = std::fs::metadata(dir).unwrap();
         assert!(meta.is_dir());
         assert_eq!(meta.permissions().mode() & 0o777, 0o700);
         seen.push(dir.to_string());

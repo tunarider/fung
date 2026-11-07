@@ -76,6 +76,7 @@ pub(super) fn constant(c: &Const, prelude: &Prelude) -> Value {
         Const::Bool(b) => Value::Bool(*b),
         Const::Nil => Value::Nil,
         Const::Str(s) => Value::str(s),
+        Const::Bytes(b) => Value::bytes(b.clone()),
         Const::Sym(s) => Value::Sym(intern(s)),
         Const::Dur(d) => Value::Dur(*d),
         Const::Builtin(name) => match prelude.0.get(name) {

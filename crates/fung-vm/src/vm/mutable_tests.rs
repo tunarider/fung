@@ -20,8 +20,8 @@ fn ints(n: i64) -> Vec<Value> {
     (0..n).map(Value::Int).collect()
 }
 
-fn key(i: usize) -> Rc<String> {
-    Rc::new(format!("k{i}"))
+fn key(i: usize) -> Rc<crate::value::Text> {
+    crate::value::key(&format!("k{i}"))
 }
 
 fn big_map(n: usize, with: Option<(usize, Value)>) -> Map {

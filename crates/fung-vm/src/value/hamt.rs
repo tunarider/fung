@@ -14,6 +14,8 @@ use std::hash::{BuildHasher, RandomState};
 use std::rc::Rc;
 use std::sync::OnceLock;
 
+use super::Text;
+
 const BITS: u32 = 5;
 const MASK: u32 = (1 << BITS) - 1;
 /// Levels use shifts 0, 5, ..., 30; beyond that, collision nodes.
@@ -26,7 +28,7 @@ fn hasher() -> &'static RandomState {
 
 /// A replacement hash for tests.
 #[cfg(test)]
-type TestHash = Option<fn(&str) -> u32>;
+type TestHash = Option<fn(&[u8]) -> u32>;
 
 #[cfg(test)]
 thread_local! {
@@ -44,7 +46,8 @@ pub(super) fn set_test_hash(f: TestHash) {
 
 /// The 32-bit hash of a key. Iteration order never depends on it (the
 /// map iterates its entry vector), so a per-process random seed is fine.
-pub(super) fn hash_key(s: &str) -> u32 {
+pub(super) fn hash_key<K: AsRef<[u8]> + ?Sized>(s: &K) -> u32 {
+    let s = s.as_ref();
     #[cfg(test)]
     if let Some(f) = TEST_HASH.with(|h| h.get()) {
         return f(s);
@@ -55,7 +58,7 @@ pub(super) fn hash_key(s: &str) -> u32 {
 
 #[derive(Clone)]
 struct Leaf {
-    key: Rc<String>,
+    key: Rc<Text>,
     hash: u32,
     pos: usize,
 }
@@ -97,19 +100,20 @@ impl Hamt {
         self.root.is_none()
     }
 
-    pub(super) fn get(&self, h: u32, key: &str) -> Option<usize> {
+    pub(super) fn get<K: AsRef<[u8]> + ?Sized>(&self, h: u32, key: &K) -> Option<usize> {
+        let key = key.as_ref();
         let mut n = self.root.as_deref()?;
         let mut shift = 0;
         loop {
             match n {
-                Node::Coll(c) => return c.iter().find(|l| *l.key == key).map(|l| l.pos),
+                Node::Coll(c) => return c.iter().find(|l| l.key.as_bytes() == key).map(|l| l.pos),
                 Node::Bits { bitmap, slots } => {
                     let bit = bit_at(shift, h);
                     if bitmap & bit == 0 {
                         return None;
                     }
                     match &slots[slot_index(*bitmap, bit)] {
-                        Slot::Leaf(l) => return (*l.key == key).then_some(l.pos),
+                        Slot::Leaf(l) => return (l.key.as_bytes() == key).then_some(l.pos),
                         Slot::Sub(sub) => n = sub,
                     }
                 }
@@ -119,7 +123,7 @@ impl Hamt {
     }
 
     /// Maps `key` to `pos`, replacing an existing position.
-    pub(super) fn set(&mut self, h: u32, key: Rc<String>, pos: usize) {
+    pub(super) fn set(&mut self, h: u32, key: Rc<Text>, pos: usize) {
         let leaf = Leaf { key, hash: h, pos };
         match &mut self.root {
             None => {
@@ -134,7 +138,8 @@ impl Hamt {
 
     /// Removes `key`; returns whether it was there. Nothing is copied when
     /// the key is absent.
-    pub(super) fn del(&mut self, h: u32, key: &str) -> bool {
+    pub(super) fn del<K: AsRef<[u8]> + ?Sized>(&mut self, h: u32, key: &K) -> bool {
+        let key = key.as_ref();
         if self.get(h, key).is_none() {
             return false;
         }
@@ -198,10 +203,10 @@ fn pair(shift: u32, a: Leaf, b: Leaf) -> Node {
 }
 
 /// Removes a key known to be in `n`; returns whether `n` became empty.
-fn del_in(n: &mut Node, shift: u32, h: u32, key: &str) -> bool {
+fn del_in(n: &mut Node, shift: u32, h: u32, key: &[u8]) -> bool {
     match n {
         Node::Coll(c) => {
-            c.retain(|l| *l.key != key);
+            c.retain(|l| l.key.as_bytes() != key);
             c.is_empty()
         }
         Node::Bits { bitmap, slots } => {

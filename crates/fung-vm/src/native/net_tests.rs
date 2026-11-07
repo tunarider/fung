@@ -232,7 +232,7 @@ fn a_long_write_goes_out_whole() {
         got
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port})!\ns = repeat(\"한ab\", 600000)\nprint(net.byte_len(s), net.write(c, s), net.close(c))"
+        "c = net.connect(\"127.0.0.1\", {port})!\ns = repeat(\"한ab\", 600000)\nprint(byte_len(s), net.write(c, s), net.close(c))"
     ));
     let got = h.join().unwrap();
     assert_eq!(out(&o), ("3000000 Ok(nil) Ok(nil)\n", "", 0));
@@ -335,7 +335,7 @@ fn read_bytes_needs_all_of_them_and_read_all_reads_to_the_end() {
 }
 
 #[test]
-fn bytes_that_are_not_utf8_read_as_replacement_characters() {
+fn bytes_that_are_not_utf8_read_as_they_are() {
     let _g = serial();
     let (port, h) = peer(|mut s| s.write_all(b"a\xffb\xe2\x82\nz\xc3").unwrap());
     let o = run(&format!(
@@ -344,25 +344,8 @@ fn bytes_that_are_not_utf8_read_as_replacement_characters() {
     h.join().unwrap();
     assert_eq!(
         out(&o),
-        ("Ok(\"a\u{fffd}b\u{fffd}\") Ok(\"z\u{fffd}\")\n", "", 0)
+        ("Ok(\"a\\xffb\\xe2\\x82\") Ok(\"z\\xc3\")\n", "", 0)
     );
-}
-
-#[test]
-fn byte_len_counts_utf8_bytes() {
-    let _g = serial();
-    let o = run("print(net.byte_len(\"한a\"), net.byte_len(\"\"))");
-    assert_eq!(out(&o), ("4 0\n", "", 0));
-}
-
-/// `utf8_bytes` gives what `write` would send, one int per byte (the
-/// `http` module percent-encodes URL paths with it).
-#[test]
-fn utf8_bytes_lists_the_bytes() {
-    let _g = serial();
-    let o =
-        run("print(net.utf8_bytes(\"한a\"), net.utf8_bytes(\"\"), net.utf8_bytes(\"\\u{0}~\"))");
-    assert_eq!(out(&o), ("[237, 149, 156, 97] [] [0, 126]\n", "", 0));
 }
 
 /// `need_str_map(name, m)` is the check of a header map: nil when every
@@ -882,8 +865,6 @@ fn wrong_arguments_are_e0403() {
             "net.set_deadline(1, 1s)",
             "argument `c` must be conn, got int",
         ),
-        ("net.byte_len(1)", "argument `s` must be str, got int"),
-        ("net.utf8_bytes(1)", "argument `s` must be str, got int"),
         (
             "net.need_str_map(1, {})",
             "argument `name` must be str, got int",
@@ -946,42 +927,16 @@ fn reads_and_writes_stop_on_cancel_without_waiting() {
     assert_eq!(probe::sockets(), 0);
 }
 
-/// Wrong arguments of `utf8_string` and `listen` are E0403.
+/// A wrong `reuse_port` of `listen` is E0403.
 #[test]
-fn utf8_string_and_listen_check_their_arguments() {
+fn listen_checks_its_arguments() {
     let _g = serial();
-    for (src, want) in [
-        (
-            "net.listen(\"127.0.0.1:0\", 1)",
-            "argument `reuse_port` must be bool, got int",
-        ),
-        ("net.utf8_string(1)", "argument `bs` must be list, got int"),
-        (
-            "net.utf8_string([1, 256])",
-            "argument `bs` must be a list of bytes (ints from 0 to 255), got int",
-        ),
-    ] {
-        let o = run(src);
-        assert!(
-            o.err.starts_with(&format!("error[E0403]: {want}")),
-            "{src}: {}",
-            o.err
-        );
-    }
-}
-
-/// `utf8_string(bs)` is `utf8_bytes` backwards: the text of the bytes, a
-/// byte that is not UTF-8 becoming U+FFFD (the `http` server decodes
-/// percent-escapes with it).
-#[test]
-fn utf8_string_decodes_bytes() {
-    let _g = serial();
-    let o = run(
-        "print([net.utf8_string([237, 149, 156, 97]), net.utf8_string([]), net.utf8_string([97, 255, 98]), net.utf8_string(net.utf8_bytes(\"é~\"))])",
-    );
-    assert_eq!(
-        out(&o),
-        ("[\"한a\", \"\", \"a\u{fffd}b\", \"é~\"]\n", "", 0)
+    let o = run("net.listen(\"127.0.0.1:0\", 1)");
+    assert!(
+        o.err
+            .starts_with("error[E0403]: argument `reuse_port` must be bool, got int"),
+        "{}",
+        o.err
     );
 }
 

@@ -197,6 +197,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/bytes.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/cancel.fung
 -- stdout
 -- stderr

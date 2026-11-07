@@ -312,7 +312,7 @@ fn every_builtin_is_classified() {
 #[test]
 fn pure_helpers_run_inside_a_swap() {
     let o = exec(
-        "import _native.net as net\na = atom(0)\nprint(swap(a, x => x + net.byte_len(\"é\")))",
+        "import _native.net as net\na = atom(0)\nprint(swap(a, x => x + len([net.need_str_map(\"h\", {})]) + 1))",
         crate::testutil::Opts {
             internal: true,
             ..crate::testutil::Opts::default()

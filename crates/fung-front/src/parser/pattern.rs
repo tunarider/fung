@@ -74,14 +74,10 @@ impl Parser<'_> {
             }
             Kind::String => {
                 self.next();
-                let mut text = String::new();
-                for part in &t.parts {
-                    if part.is_code {
-                        return Err(err("E0110", t.pos, vec![s("interpolation in a pattern")]));
-                    }
-                    text.push_str(&part.text);
-                }
-                leaf(Head::Plit, Lit::Str(text))
+                let Some(text) = t.plain() else {
+                    return Err(err("E0110", t.pos, vec![s("interpolation in a pattern")]));
+                };
+                leaf(Head::Plit, super::str_lit(text))
             }
             Kind::RawString => {
                 self.next();

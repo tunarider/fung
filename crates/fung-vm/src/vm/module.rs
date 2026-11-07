@@ -122,7 +122,7 @@ impl Task<'_> {
     /// a continuation waits for it and pushes the module (`cont.rs`).
     pub(super) fn exec_import(&mut self, fi: usize, arg: usize, pos: Pos) -> Result<(), Stop> {
         let key = match &self.frames[fi].proto.consts[arg] {
-            Value::Str(s) => s.clone(),
+            Value::Str(s) => s.lossy().into_owned(),
             v => panic!("IMPORT of a non-string constant {v:?}"),
         };
         let depth = self.frames.len();

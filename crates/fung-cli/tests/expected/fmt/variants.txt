@@ -777,6 +777,22 @@
 | in/tests~lang~atoms@tight.fung
 | in/tests~lang~atoms@trailing.fung
 | in/tests~lang~atoms@wide4.fung
+| in/tests~lang~bytes@bom.fung
+| in/tests~lang~bytes@cglued.fung
+| in/tests~lang~bytes@contsplit.fung
+| in/tests~lang~bytes@cpushed.fung
+| in/tests~lang~bytes@crlf.fung
+| in/tests~lang~bytes@dedent.fung
+| in/tests~lang~bytes@moreblank.fung
+| in/tests~lang~bytes@nofinal.fung
+| in/tests~lang~bytes@odd3.fung
+| in/tests~lang~bytes@opsplit.fung
+| in/tests~lang~bytes@spaced.fung
+| in/tests~lang~bytes@split.fung
+| in/tests~lang~bytes@tabs.fung
+| in/tests~lang~bytes@tight.fung
+| in/tests~lang~bytes@trailing.fung
+| in/tests~lang~bytes@wide4.fung
 | in/tests~lang~cancel@bom.fung
 | in/tests~lang~cancel@cglued.fung
 | in/tests~lang~cancel@cpushed.fung
@@ -3333,11 +3349,11 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `else` after then, found end of file
-|   --> in/extras~http@halfbytes.fung:954:37
+| error[E0110]: unexpected end of file
+|   --> in/extras~http@halfbytes.fung:954:22
 |     |
-| 954 |   first = len(cls) > 0 then _trim_sp
-|     |                                     ^
+| 954 |   first = len(cls) > 
+|     |                      ^
 |     |
 | error[E0110]: unexpected end of file
 |   --> in/extras~http@halflines.fung:979:1
@@ -3459,6 +3475,12 @@
 | 2 | swap(a, x => x 
 |   |                ^
 |   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~bytes@halfbytes.fung:21:62
+|    |
+| 21 | print(split("a\xffb\xff", "\xff"), split("x\xff", ""), lines("a\xff\nb
+|    |                                                              ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~cancel@halfbytes.fung:7:46
 |   |
@@ -6724,6 +6746,22 @@
 | in/tests~lang~atoms@tight.fung
 | in/tests~lang~atoms@trailing.fung
 | in/tests~lang~atoms@wide4.fung
+| in/tests~lang~bytes@bom.fung
+| in/tests~lang~bytes@cglued.fung
+| in/tests~lang~bytes@contsplit.fung
+| in/tests~lang~bytes@cpushed.fung
+| in/tests~lang~bytes@crlf.fung
+| in/tests~lang~bytes@dedent.fung
+| in/tests~lang~bytes@moreblank.fung
+| in/tests~lang~bytes@nofinal.fung
+| in/tests~lang~bytes@odd3.fung
+| in/tests~lang~bytes@opsplit.fung
+| in/tests~lang~bytes@spaced.fung
+| in/tests~lang~bytes@split.fung
+| in/tests~lang~bytes@tabs.fung
+| in/tests~lang~bytes@tight.fung
+| in/tests~lang~bytes@trailing.fung
+| in/tests~lang~bytes@wide4.fung
 | in/tests~lang~cancel@bom.fung
 | in/tests~lang~cancel@cglued.fung
 | in/tests~lang~cancel@cpushed.fung
@@ -9280,11 +9318,11 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0112]: expected `else` after then, found end of file
-|   --> in/extras~http@halfbytes.fung:954:37
+| error[E0110]: unexpected end of file
+|   --> in/extras~http@halfbytes.fung:954:22
 |     |
-| 954 |   first = len(cls) > 0 then _trim_sp
-|     |                                     ^
+| 954 |   first = len(cls) > 
+|     |                      ^
 |     |
 | error[E0110]: unexpected end of file
 |   --> in/extras~http@halflines.fung:979:1
@@ -9406,6 +9444,12 @@
 | 2 | swap(a, x => x 
 |   |                ^
 |   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~bytes@halfbytes.fung:21:62
+|    |
+| 21 | print(split("a\xffb\xff", "\xff"), split("x\xff", ""), lines("a\xff\nb
+|    |                                                              ^
+|    |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~cancel@halfbytes.fung:7:46
 |   |
@@ -12889,27 +12933,27 @@
 | extras~fs@trailing.fung 1726 b6224080c511fa8a
 | extras~fs@wide4.fung 1726 b6224080c511fa8a
 | extras~http.fung unchanged
-| extras~http@bom.fung 69317 2762bb9745186a51
-| extras~http@cglued.fung 69317 2762bb9745186a51
+| extras~http@bom.fung 69196 48609e935c06a926
+| extras~http@cglued.fung 69196 48609e935c06a926
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 69317 2762bb9745186a51
-| extras~http@crlf.fung 69317 2762bb9745186a51
-| extras~http@dedent.fung 69317 2762bb9745186a51
+| extras~http@cpushed.fung 69196 48609e935c06a926
+| extras~http@crlf.fung 69196 48609e935c06a926
+| extras~http@dedent.fung 69196 48609e935c06a926
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 69735 4eb3561a3fe0f857
+| extras~http@moreblank.fung 69614 670efff06b8cc86c
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 69317 2762bb9745186a51
-| extras~http@odd3.fung 69317 2762bb9745186a51
+| extras~http@nofinal.fung 69196 48609e935c06a926
+| extras~http@odd3.fung 69196 48609e935c06a926
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 69317 2762bb9745186a51
-| extras~http@split.fung 90306 01af23ceccde872f
-| extras~http@tabs.fung 69317 2762bb9745186a51
-| extras~http@tight.fung 69317 2762bb9745186a51
-| extras~http@trailing.fung 69317 2762bb9745186a51
-| extras~http@wide4.fung 69317 2762bb9745186a51
+| extras~http@spaced.fung 69196 48609e935c06a926
+| extras~http@split.fung 90185 8242b208e1e633d4
+| extras~http@tabs.fung 69196 48609e935c06a926
+| extras~http@tight.fung 69196 48609e935c06a926
+| extras~http@trailing.fung 69196 48609e935c06a926
+| extras~http@wide4.fung 69196 48609e935c06a926
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1
@@ -13262,6 +13306,28 @@
 | tests~lang~atoms@tight.fung 1213 ef6a9319abad59bc
 | tests~lang~atoms@trailing.fung 1213 ef6a9319abad59bc
 | tests~lang~atoms@wide4.fung 1213 ef6a9319abad59bc
+| tests~lang~bytes.fung unchanged
+| tests~lang~bytes@bom.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@cglued.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@cnospace.fung unchanged
+| tests~lang~bytes@contsplit.fung 1869 e959431d7b90e035
+| tests~lang~bytes@cpushed.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@crlf.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@dedent.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@halfbytes.fung unchanged
+| tests~lang~bytes@halflines.fung unchanged
+| tests~lang~bytes@joined.fung unchanged
+| tests~lang~bytes@moreblank.fung 1885 33dc8231eb3b0849
+| tests~lang~bytes@noblank.fung unchanged
+| tests~lang~bytes@nofinal.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@odd3.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@opsplit.fung 1906 c420f9ce2389569b
+| tests~lang~bytes@spaced.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@split.fung 2316 023bc2828aef082d
+| tests~lang~bytes@tabs.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@tight.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@trailing.fung 1851 b8d3acc625f8cee3
+| tests~lang~bytes@wide4.fung 1851 b8d3acc625f8cee3
 | tests~lang~cancel.fung unchanged
 | tests~lang~cancel@bom.fung 430 323fd47bfa016efb
 | tests~lang~cancel@cglued.fung 430 323fd47bfa016efb

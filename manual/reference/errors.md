@@ -99,7 +99,7 @@ print(retries)
 
 :::error E0103
 
-문자열 `"…"` 안의 `\` 뒤에 fung이 모르는 글자가 왔다. 아는 이스케이프는 `\n` `\t` `\r` `\\` `\"` `\$` `\u{…}`뿐이고, 나머지는 실수로 보고 에러로 막는다.
+문자열 `"…"` 안의 `\` 뒤에 fung이 모르는 글자가 왔다. 아는 이스케이프는 `\n` `\t` `\r` `\\` `\"` `\$` `\u{…}` `\xHH`뿐이고, 나머지는 실수로 보고 에러로 막는다. `\x` 뒤에는 16진 숫자가 꼭 둘 와야 한다(`\x4` 다음에 숫자가 아닌 글자가 오면 이 에러다).
 
 흔한 원인: Windows 경로나 정규식을 보통 문자열에 그대로 썼다.
 
@@ -1138,6 +1138,20 @@ print(load("missing.txt"))
 
 :::
 
+:::error E0312
+
+가져온 모듈 파일이 UTF-8이 아니다. fung 소스는 UTF-8 글이어야 한다. 잘못된 바이트를 U+FFFD(`�`)로 바꿔 읽으면 프로그램에 아무도 쓰지 않은 글자가 말없이 끼어들므로, 읽지 않고 멈춘다. 메시지가 처음 잘못된 바이트의 줄과 칸을 알려 준다: ``cannot read module `lib.fung`: not valid UTF-8 at line 3, column 7``. 실행하는 파일 자체나 `fung -e`의 코드가 UTF-8이 아니면 같은 이유로 ``error: cannot read `x.fung`: not valid UTF-8 at line 1, column 5``(종료 코드 3)다.
+
+흔한 원인: 다른 인코딩(EUC-KR, Latin-1)으로 저장한 파일.
+
+고치는 법: 파일을 UTF-8로 다시 저장한다(`iconv -f euc-kr -t utf-8`). 바이트 값 자체가 필요하면 문자열 안에 `\xHH`로 쓴다.
+
+```fung run
+print(["caf\xe9", "caf\u{e9}"])
+```
+
+:::
+
 ## E04xx: 호출과 타입 표기 {#e04}
 
 함수를 부를 때 인자가 맞지 않거나, 인자와 반환값이 적어 둔 타입과 다르면 E04xx다. fung은 동적 타입 언어라서 이것들은 실행 중에, 그 호출이 실제로 일어날 때 검사한다. 그래서 `fung check`로는 찾지 못하고, 종료 코드는 1이다. 메시지의 호출 경로가 어느 호출에서 났는지 알려 준다. 규칙은 [함수](language.html#functions)와 [타입 표기](language.html#types)에 있다.
@@ -1562,6 +1576,25 @@ print(back.status == 'ok)
 import json
 back = json.parse(`{"status": "ok"}`)!
 print(sym(back.status) == 'ok, back.status == "ok")
+```
+
+:::
+
+:::error E0518
+
+글(UTF-8 텍스트)이 꼭 필요한 곳에 UTF-8이 아닌 바이트가 든 문자열이 왔다. fung 문자열은 어떤 바이트든 담고, 파일·명령 출력·환경 변수·인자를 바이트 그대로 돌려준다. 대부분의 문자열 함수는 그런 바이트를 그대로 둔다. 그러나 JSON 텍스트, 정규식 패턴, 시간 형식, 호스트 이름처럼 형식 자체가 글을 요구하는 곳에서는 그 바이트를 어떻게 바꿀지 정할 수 없으므로 멈춘다.
+
+```fung run exit=1 error=E0518
+import json
+print(json.stringify({name: "caf\xe9"}))
+```
+
+고치는 법: 바이트가 어디서 왔는지 확인한다. 다른 인코딩이면 바꾸고, 바이트를 그대로 옮겨야 하면 숫자 리스트([`bytes`](prelude/strings.html#fn-bytes))로 보낸다. 미리 알아보려면 [`valid_utf8`](prelude/strings.html#fn-valid_utf8)을 쓴다.
+
+```fung run
+import json
+s = "caf\xe9"
+print(valid_utf8(s), json.stringify({name: valid_utf8(s) then s else bytes(s)}))
 ```
 
 :::

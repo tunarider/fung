@@ -281,7 +281,7 @@ fn format_map_keys_follow_the_name_rule() {
         .into_iter()
         .enumerate()
     {
-        m.put(Rc::new(k.to_string()), Value::Int(i as i64 + 1));
+        m.put(crate::value::key(k), Value::Int(i as i64 + 1));
     }
     assert_eq!(
         format(&Value::Map(Rc::new(m))),
@@ -1297,7 +1297,7 @@ fn in_tuple(v: Value) -> Value {
 
 fn in_map(v: Value) -> Value {
     let mut b = MapBuilder::default();
-    b.set(Rc::new("k".to_string()), v);
+    b.set(crate::value::key("k"), v);
     Value::Map(Rc::new(b.finish()))
 }
 
@@ -1387,7 +1387,7 @@ fn the_walks_keep_their_rules() {
     let map = |kv: &[(&str, i64)]| {
         let mut b = MapBuilder::default();
         for (k, v) in kv {
-            b.set(Rc::new(k.to_string()), Value::Int(*v));
+            b.set(crate::value::key(k), Value::Int(*v));
         }
         Value::Map(Rc::new(b.finish()))
     };

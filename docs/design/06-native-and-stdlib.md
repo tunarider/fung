@@ -92,7 +92,8 @@ match fs.read(p):
 - 컬렉션: `len`, `is_empty`, `map`, `try_map`, `filter`, `fold`, `each`, `sum`, `min`, `max`, `sort`, `sort_by`, `reverse`, `range`, `zip`, `first`, `last`, `take`, `drop`, `find`, `any`, `all`, `contains`, `unique`, `flatten`, `group_by`, `keys`, `values`, `pairs`, `get`, `put`, `merge`, `remove`, `chars`
   - `each(xs, f)`: 부수효과용 순회, `nil` 반환 (`for`는 리스트를 만든다).
   - `chars(s)`, `pairs(m)`, `keys(m)`, `values(m)`: 문자열과 맵을 순회 가능한 리스트로 (02).
-- 문자열: `split`, `join`, `trim`, `upper`, `lower`, `replace`, `starts_with`, `ends_with`, `pad_left`, `pad_right`, `repeat`, `lines`
+- 문자열: `split`, `join`, `trim`, `upper`, `lower`, `replace`, `starts_with`, `ends_with`, `pad_left`, `pad_right`, `repeat`, `lines`,
+  바이트(L4): `byte_len`, `bytes`, `from_bytes`, `valid_utf8`
   - `upper`·`lower`: 유니코드 기본 대소문자 변환(전체 매핑). 길이가 바뀔 수 있고(`ß` → `SS`) 단어 끝 시그마는 `ς`.
   - `lines(s)`: 텍스트를 줄 리스트로 — `read_lines`와 같은 규칙(`\n` 구분, 줄 끝 `\r` 제거, 끝의 줄바꿈은 빈 줄을 만들지 않음).
     `split(s, "\n")`은 끝에 빈 조각을 남기므로 줄 나누기에는 `lines`를 쓴다.
@@ -135,19 +136,22 @@ match fs.read(p):
 ## JSON
 
 - `parse`: object → 맵(**키 순서 유지**), array → 리스트, 소수점·지수 없는 숫자 → int(int64를 넘으면 `Err 'parse`), 그 외 숫자 → float,
-  `null` → `nil`. 입력 뒤에 쓰레기가 남아도 `Err`. `line`·`col`은 1부터(열은 글자 단위, BOM도 한 글자).
+  `null` → `nil`. 입력 뒤에 쓰레기가 남아도 `Err`. UTF-8이 아닌 입력은 그 바이트 자리의 `Err`(`invalid UTF-8`, L4). `line`·`col`은 1부터(열은 글자 단위, BOM도 한 글자).
   RFC 8259 그대로 읽고(6c-3), 엄격하다: 같은 키가 두 번 나오면(``duplicate key "a"``), 짝 없는 서로게이트(`\ud800`)도 `Err`. 공백은 스페이스·탭·LF·CR뿐.
   깊이는 10,000까지. 에러 위치는 문제가 있는 그 글자이고, 문구는 `unexpected character ']'`, `unexpected end of input`,
   `unexpected text after the value`, ``expected `,` or `]` ``, `invalid escape`, `control character in a string`, `invalid number`,
   `number out of range`, `nesting too deep (limit 10000)` 등.
 - `stringify`: 맵·리스트·문자열·int·float·bool·nil은 그대로, 튜플 → array, 심볼 → string, time → ISO 8601 string. 기간·함수·태그·범위
-  등은 **런타임 에러** E0513(`cannot convert dur to JSON`, 코드 오류). `indent`는 `nil`(한 줄) 또는 들여쓰기 칸 수. 문자열은 RFC 8259에 필요한 것만 이스케이프한다(`"`, `\`, U+0020 미만; 6c-3).
+  등은 **런타임 에러** E0513(`cannot convert dur to JSON`, 코드 오류). UTF-8이 아닌 문자열(값·키)은 E0518(JSON 텍스트는 UTF-8, L4). `indent`는 `nil`(한 줄) 또는 들여쓰기 칸 수. 문자열은 RFC 8259에 필요한 것만 이스케이프한다(`"`, `\`, U+0020 미만; 6c-3).
   결과가 1억 글자를 넘으면 E0806.
 
 ## 정규식
 
 - 문법은 Rust `regex` 크레이트의 것(RE2 계열, 6c-4): 역참조·전후방 탐색 없음, 대신 항상 선형 시간. `\d`·`\w`·`\s`·`\b`는 유니코드를 알아본다
   (Python 3와 같음, ASCII만이면 `(?-u:\d)`). 그룹 이름은 ASCII 글자·숫자·`_`이고 겹치면 안 된다.
+- 대상 문자열은 바이트로 읽는다(L4, `regex::bytes`, 유니코드 모드). `.`과 유니코드 클래스는 유효한 UTF-8에만 맞고, UTF-8이 아닌 바이트에는
+  맞지 않는다(02의 "바이트 하나 = 한 글자"의 예외). 그런 바이트를 찾으려면 `(?-u:\xff)`. 빈 매치는 글자 경계에서만 센다(UTF-8 글자 한가운데의 빈 매치는 버린다).
+  패턴은 글이어야 한다(아니면 E0518).
 - 매치 맵 `{text, start, end, groups, named}`. `start`·`end`는 **글자(룬) 인덱스**(02의 문자열 규칙; `s[start..end]`가 맞는다).
   `groups`는 캡처 그룹 리스트(전체 매치 제외, 안 잡힌 그룹은 `nil`), `named`는 이름 있는 그룹 맵.
 - `find_all`·`replace`는 앞 매치 바로 뒤의 빈 매치를 세지 않는다. `replace`의 `repl`은 `$1`·`${name}`·`$$`(`$1a`는 이름 `1a`, 그래서 `${1}a`).
@@ -210,7 +214,8 @@ match fs.read(p):
 - 런타임 연동: 서버 루프는 fung 코드다(범위, `stop_signal`, `with`). 연결마다 태스크 하나이고, M:1 스케줄러(R1b) 뒤로 `spawn`이 실패하지 않아 내부 함수가 따로 없다.
 - 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙는다. 응답 본문은 언제나 `Content-Length`로 보낸다.
 
-**약속 밖**(지원하지 않는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축, 바이너리 본문(UTF-8이 아니면 U+FFFD).
+**약속 밖**(지원하지 않는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축. 본문은 바이트 그대로 오간다(L4: 바이너리 본문도 된다).
+URL 경로의 UTF-8이 아닌 바이트는 퍼센트 인코딩해 보내고, 받은 경로·쿼리의 퍼센트 이스케이프는 바이트로 푼다. 헤더 값도 바이트 그대로다(HTTP/1.1의 obs-text).
 
 ## 파일 핸들
 

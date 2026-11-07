@@ -9,7 +9,7 @@ use fung_front::diag::{Arg, Diag};
 
 use crate::native::nat::{self, def, def_step, fail, opt, param};
 use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
-use crate::value::{ListBuilder, Lit, MapBuilder, Value, compare, eq, hash_value, type_name};
+use crate::value::{ListBuilder, Lit, MapBuilder, Text, Value, compare, eq, hash_value, type_name};
 use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -353,8 +353,8 @@ fn group_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     #[derive(Default)]
     struct Group {
         x: Option<Value>,
-        groups: Vec<(Rc<String>, ListBuilder)>,
-        at: HashMap<Rc<String>, usize>,
+        groups: Vec<(Rc<Text>, ListBuilder)>,
+        at: HashMap<Rc<Text>, usize>,
     }
     impl PerItem for Group {
         fn args(&mut self, t: &mut Task<'_>, x: Value) -> usize {
@@ -416,7 +416,7 @@ fn get_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
             ],
         ));
     };
-    match m.get(k) {
+    match m.get(&***k) {
         Some(v) => Ok(v.clone()),
         None => Ok(a.pop().expect("default")),
     }
@@ -443,8 +443,8 @@ fn remove_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     nat::need_map("remove from", &a[0])?;
     let k = nat::need_key("index", &a[1])?.clone();
     let mut m = take_map(&mut a, 0);
-    if m.get(&k).is_some() {
-        Rc::make_mut(&mut m).remove(&k);
+    if m.get(&*k).is_some() {
+        Rc::make_mut(&mut m).remove(&*k);
     }
     Ok(Value::Map(m))
 }
@@ -457,9 +457,8 @@ fn chars_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         ));
     };
     let mut out = ListBuilder::default();
-    let mut b = [0; 4];
-    for c in s.chars() {
-        out.push(Value::str(c.encode_utf8(&mut b)));
+    for (at, u) in fung_front::text::units(s) {
+        out.push(Value::bytes(s[at..at + u.byte_len()].to_vec()));
     }
     Ok(Value::List(Rc::new(out.finish())))
 }

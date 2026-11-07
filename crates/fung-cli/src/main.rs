@@ -16,7 +16,7 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use fung_front::bytecode::disassemble;
 use fung_front::diag::{self, EXIT_COMPILE, EXIT_OK, EXIT_USAGE};
 use fung_front::loader::{Loader, Stage};
-use fung_front::source::decode_lossy;
+use fung_front::source::{decode_lossy, decode_source};
 
 /// The usage text (`fung help`, and after a usage error).
 pub(crate) const USAGE: &str = "usage:
@@ -101,14 +101,16 @@ fn start(sizes: &[usize], raw: Vec<Vec<u8>>) -> Out {
 
 /// `raw` are the arguments as the OS gave them. They are decoded (one
 /// U+FFFD for each invalid UTF-8 sequence) for matching and as source
-/// code, and echoed unchanged in messages.
+/// code, echoed unchanged in messages, and given to the script as they
+/// are (`args`, L4).
 fn run(raw: &[Vec<u8>]) -> Out {
     let args: Vec<String> = raw.iter().map(|a| decode_lossy(a)).collect();
     match args.first().map(String::as_str) {
         Some("dump") => run_dump(&args[1..], &raw[1..]),
         Some("run") => run_file(&args[1..], &raw[1..]),
-        Some("-e") => match args.get(1) {
-            Some(code) => executed(run::execute("-e", code, args[2..].to_vec())),
+        Some("-e") => match raw.get(1).map(|c| code_arg(c)) {
+            Some(Ok(code)) => executed(run::execute("-e", &code, raw[2..].to_vec())),
+            Some(Err(out)) => out,
             None => usage_error(b"-e needs code"),
         },
         Some("version") => Out {
@@ -170,7 +172,7 @@ fn run_file(args: &[String], raw: &[Vec<u8>]) -> Out {
         return usage_error(b"run needs a script path");
     };
     match read_file(path) {
-        Ok(src) => executed(run::execute(&args[0], &src, args[1..].to_vec())),
+        Ok(src) => executed(run::execute(&args[0], &src, raw[1..].to_vec())),
         Err(msg) => read_error(path, &msg),
     }
 }
@@ -207,7 +209,10 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
     };
     match &args[1..] {
         [e, rest @ ..] if e == "-e" => match rest.first() {
-            Some(code) => dump(up_to, b"-e", code),
+            Some(_) => match code_arg(&raw[2]) {
+                Ok(code) => dump(up_to, b"-e", &code),
+                Err(out) => out,
+            },
             None => usage_error(b"-e needs code"),
         },
         [_] => {
@@ -221,11 +226,18 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
     }
 }
 
-/// Reads a script and decodes it (U+FFFD for what is not UTF-8). A
-/// failure is the reason alone (`no such file or directory`), as the `fs`
-/// module words it; [`cannot_read`] makes the message.
+/// Reads a script, which must be UTF-8 (L4). A failure is the reason
+/// alone (`no such file or directory`, `not valid UTF-8 at line 2,
+/// column 5`), as the `fs` module words it; [`cannot_read`] makes the
+/// message.
 pub(crate) fn read_file(path: &[u8]) -> Result<String, Vec<u8>> {
-    read_bytes(path).map(|b| decode_lossy(&b))
+    read_bytes(path).and_then(|b| decode_source(b).map_err(String::into_bytes))
+}
+
+/// The code of `-e`, which is source text like a file's: not UTF-8 is
+/// refused as [`read_file`] refuses it (L4).
+pub(crate) fn code_arg(raw: &[u8]) -> Result<String, Out> {
+    decode_source(raw.to_vec()).map_err(|why| read_error(b"-e", why.as_bytes()))
 }
 
 /// Reads a file's bytes; a failure is [`read_file`]'s reason.
@@ -305,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_arguments_are_decoded_and_echoed() {
+    fn non_utf8_arguments_are_echoed_and_non_utf8_code_refused() {
         let out = run(&[b"dump".to_vec(), b"n\xff".to_vec()]);
         assert_eq!(out.code, EXIT_USAGE);
         assert!(
@@ -318,10 +330,11 @@ mod tests {
             b"-e".to_vec(),
             b"print(\"\xff\")".to_vec(),
         ]);
-        assert_eq!(out.code, EXIT_OK);
+        // The code is source text: not UTF-8 is refused (L4).
+        assert_eq!(out.code, EXIT_USAGE);
         assert_eq!(
-            out.stdout,
-            "(do (call (prelude print) \"\u{fffd}\"))\n".as_bytes()
+            out.stderr,
+            b"error: cannot read `-e`: not valid UTF-8 at line 1, column 8\n"
         );
     }
 

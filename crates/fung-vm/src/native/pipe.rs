@@ -34,6 +34,7 @@ use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::time::{Duration, Instant};
 
+use super::file::os_path;
 use crate::vm::Interest;
 
 /// How often a wait no event ends looks again: a write end waiting for a
@@ -69,16 +70,17 @@ pub(crate) enum Step<T> {
 
 /// Whether `path` names a FIFO to read and write through the event loop.
 /// Follows symbolic links, as `open` does.
-pub(crate) fn is_fifo(path: &str) -> bool {
-    !is_shared_alias(path) && std::fs::metadata(path).is_ok_and(|m| m.file_type().is_fifo())
+pub(crate) fn is_fifo(path: &[u8]) -> bool {
+    !is_shared_alias(path)
+        && std::fs::metadata(os_path(path)).is_ok_and(|m| m.file_type().is_fifo())
 }
 
 /// A path that opens an open file of this process again rather than a
 /// new one (macOS): see the module doc.
-fn is_shared_alias(path: &str) -> bool {
+fn is_shared_alias(path: &[u8]) -> bool {
     cfg!(target_os = "macos")
-        && (path.starts_with("/dev/fd/")
-            || matches!(path, "/dev/stdin" | "/dev/stdout" | "/dev/stderr"))
+        && (path.starts_with(b"/dev/fd/")
+            || matches!(path, b"/dev/stdin" | b"/dev/stdout" | b"/dev/stderr"))
 }
 
 impl Pipe {
@@ -95,23 +97,23 @@ impl Pipe {
     }
 
     /// The read end of the FIFO `path`; it opens at once.
-    pub(crate) fn open_read(path: &str) -> io::Result<Pipe> {
+    pub(crate) fn open_read(path: &[u8]) -> io::Result<Pipe> {
         let f = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NONBLOCK)
-            .open(path)?;
+            .open(os_path(path))?;
         Ok(Pipe::of(f, false))
     }
 
     /// The write end of the FIFO `path` (appending or not makes no
     /// difference to a FIFO), with `perm` as `file::open_writing` gives
     /// it; `None` while no reader has it open.
-    pub(crate) fn open_write(path: &str, perm: Option<u32>) -> io::Result<Option<Pipe>> {
+    pub(crate) fn open_write(path: &[u8], perm: Option<u32>) -> io::Result<Option<Pipe>> {
         use std::os::unix::fs::PermissionsExt;
         let r = OpenOptions::new()
             .write(true)
             .custom_flags(libc::O_NONBLOCK)
-            .open(path);
+            .open(os_path(path));
         match r {
             Ok(f) => {
                 if let Some(p) = perm {
@@ -217,7 +219,7 @@ impl Pipe {
     /// Sends what is still queued, waiting if it must, and closes the
     /// FIFO, reporting the close (`file::finish`: `fs.close` and a
     /// dropped handle, on a thread that may block).
-    pub(crate) fn finish(self, path: &str) -> io::Result<()> {
+    pub(crate) fn finish(self, path: &[u8]) -> io::Result<()> {
         let Pipe { mut file, wbuf, .. } = self;
         let sent = if wbuf.is_empty() {
             Ok(())

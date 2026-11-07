@@ -78,13 +78,14 @@ fn too_many_chars() -> Diag {
 /// Whether strings of these parts together stay within the string limit.
 /// Bytes bound the characters from above, so the characters are counted
 /// only past it.
-fn chars_fit(parts: &[&str]) -> bool {
+fn chars_fit(parts: &[&[u8]]) -> bool {
     let fits = |n: usize| n as u64 <= MAX_CHARS as u64;
-    fits(parts.iter().map(|p| p.len()).sum()) || fits(parts.iter().map(|p| p.chars().count()).sum())
+    fits(parts.iter().map(|p| p.len()).sum())
+        || fits(parts.iter().map(|p| fung_front::text::char_count(p)).sum())
 }
 
 /// E0806 for a string the VM built past the string limit (interpolation).
-pub(crate) fn check_chars(s: &str) -> Result<(), Diag> {
+pub(crate) fn check_chars(s: &[u8]) -> Result<(), Diag> {
     if chars_fit(&[s]) {
         Ok(())
     } else {
@@ -98,10 +99,10 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             if !chars_fit(&[x, y]) {
                 return Err(too_many_chars());
             }
-            let mut s = String::with_capacity(x.len() + y.len());
-            s.push_str(x);
-            s.push_str(y);
-            return Ok(Value::Str(s.into()));
+            let mut s = Vec::with_capacity(x.len() + y.len());
+            s.extend_from_slice(x);
+            s.extend_from_slice(y);
+            return Ok(Value::bytes(s));
         }
         (Value::Dur(x), Value::Dur(y)) => return add_dur(*x, *y),
         (Value::Time(t), Value::Dur(d)) | (Value::Dur(d), Value::Time(t)) => {

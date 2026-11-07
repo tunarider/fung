@@ -146,20 +146,20 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
     | `regex-syntax` | 0.8.11 (2026-06-09) | MIT OR Apache-2.0 | `fung-vm` 직접(`std`·`unicode`) + `regex`·`regex-automata`가 끌고 옴 | 잘못된 패턴의 에러 종류를 한 줄로 쓰려고 패턴을 먼저 파싱한다(`native/regex.rs`). 어차피 `regex`가 끌고 오는 크레이트라 새 코드가 늘지 않는다 | 없음 |
     | `regex-automata` | 0.4.18 (2026-08-04) | MIT OR Apache-2.0 | `regex`가 끌고 옴 | `regex`의 실제 엔진들 | `aho-corasick`, `memchr`, `regex-syntax` |
     | `aho-corasick` | 1.1.5 (2026-08-03) | Unlicense OR MIT | `regex`·`regex-automata`가 끌고 옴 | 여러 글자열 동시 찾기(패턴의 고정 글자열을 먼저 찾는 가속) | `memchr` |
-    | `memchr` | 2.8.3 (2026-07-08) | Unlicense OR MIT | `regex`·`regex-automata`·`aho-corasick`가 끌고 옴 | 빠른 바이트 찾기 | 없음 |
-    | `libc` | 0.2.189 (2026-07-21; 0.2.190은 2주 미만이라 고정) | MIT OR Apache-2.0 | `fung-vm` 직접, 유닉스 대상만 | `signal`·`raise`·`pthread_sigmask`(SIGPIPE로 죽기)는 표준 라이브러리에 없고, `sigset_t` 배치가 운영체제마다 달라 손으로 선언하면 틀리기 쉽다. 소켓(`native/sock.rs`: 비차단·close-on-exec·`SO_NOSIGPIPE`·`poll`·`getaddrinfo`)에도 쓴다 | 없음 |
-    | `rustls` | 0.23.45 (2026-09-14; 공지 아래 참고) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접, 기본 기능 끄고 `ring`·`std`·`tls12` (+ `fung-cli` dev-dependency, 테스트 TLS 서버 `tests/common/tls_server.rs`) | TLS(암호와 프로토콜 상태 기계)는 직접 짜면 위험하다(의존성 정책). 소켓을 만지지 않는 상태 기계라 비차단 소켓과 이벤트 루프(`vm/poller.rs`) 위에서 돈다 | `ring`, `rustls-pki-types`, `rustls-webpki`, `subtle`, `zeroize`, `once_cell` |
-    | `rustls-native-certs` | 0.8.4 (2026-06-01; 0.8.5는 2주 미만) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접 | 운영체제 루트 인증서(macOS 키체인, Linux 인증서 파일)와 `SSL_CERT_FILE`·`SSL_CERT_DIR`을 읽는다. 운영체제마다 다른 저장소를 직접 읽는 것은 플랫폼 코드다 | `rustls-pki-types`, `openssl-probe`(macOS 밖 유닉스), `security-framework`(macOS), `schannel`(Windows) |
+    | `memchr` | 2.8.3 (2026-07-08) | Unlicense OR MIT | `regex`·`regex-automata`·`aho-corasick`가 끌고 옴, 그리고 `fung-vm` 직접(L4: 문자열이 바이트가 되어 `split`·`replace`·`in`의 부분 열 찾기를 `memmem`으로) | 빠른 바이트 찾기 | 없음 |
+    | `libc` | 0.2.191 (2026-10-16) | MIT OR Apache-2.0 | `fung-vm` 직접, 유닉스 대상만 | `signal`·`raise`·`pthread_sigmask`(SIGPIPE로 죽기)는 표준 라이브러리에 없고, `sigset_t` 배치가 운영체제마다 달라 손으로 선언하면 틀리기 쉽다. 소켓(`native/sock.rs`: 비차단·close-on-exec·`SO_NOSIGPIPE`·`poll`·`getaddrinfo`)에도 쓴다 | 없음 |
+    | `rustls` | 0.23.46 (2026-10-14) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접, 기본 기능 끄고 `ring`·`std`·`tls12` (+ `fung-cli` dev-dependency, 테스트 TLS 서버 `tests/common/tls_server.rs`) | TLS(암호와 프로토콜 상태 기계)는 직접 짜면 위험하다(의존성 정책). 소켓을 만지지 않는 상태 기계라 비차단 소켓과 이벤트 루프(`vm/poller.rs`) 위에서 돈다 | `ring`, `rustls-pki-types`, `rustls-webpki`, `subtle`, `zeroize`, `once_cell` |
+    | `rustls-native-certs` | 0.8.5 (2026-10-13) | Apache-2.0 OR ISC OR MIT | `fung-vm` 직접 | 운영체제 루트 인증서(macOS 키체인, Linux 인증서 파일)와 `SSL_CERT_FILE`·`SSL_CERT_DIR`을 읽는다. 운영체제마다 다른 저장소를 직접 읽는 것은 플랫폼 코드다 | `rustls-pki-types`, `openssl-probe`(macOS 밖 유닉스), `security-framework`(macOS), `schannel`(Windows) |
     | `rustls-pki-types` | 1.15.1 (2026-07-23) | MIT OR Apache-2.0 | `rustls`·`rustls-webpki`·`rustls-native-certs`가 끌고 옴 | 인증서·키·서버 이름 타입 | `zeroize` |
     | `rustls-webpki` | 0.103.16 (2026-10-20; 공지 RUSTSEC-2026-0382가 닿아 2주 규칙의 예외로 바로 올림, 아래 보안 공지 정책) | ISC | `rustls`가 끌고 옴 | 인증서 사슬·이름 검증(rustls의 WebPKI 검증기, `native/tls.rs`) | `ring`, `rustls-pki-types`, `untrusted` |
     | `ring` | 0.17.14 (2025-03-11) | Apache-2.0 AND ISC | `rustls`가 끌고 옴(암호 공급자로 고름) | 암호 기본 연산. C·어셈블리를 빌드하므로 C 컴파일러가 필요하다(CI 러너에 있음) | `cc`·`find-msvc-tools`·`shlex`(빌드 때만), `cfg-if`, `getrandom`, `untrusted`, `windows-sys`(Windows) |
     | `untrusted` | 0.9.0 (2021-07-13) | ISC | `ring`·`rustls-webpki`가 끌고 옴 | 믿을 수 없는 입력을 안전하게 읽는 도우미 | 없음 |
     | `subtle` | 2.6.1 (2024-06-24) | BSD-3-Clause | `rustls`가 끌고 옴 | 상수 시간 비교 | 없음 |
-    | `zeroize` | 1.9.0 (2026-06-12; 1.9.1은 2주 미만) | Apache-2.0 OR MIT | `rustls`·`rustls-pki-types`가 끌고 옴 | 비밀 값을 메모리에서 지우기 | 없음 |
+    | `zeroize` | 1.9.1 (2026-10-06) | Apache-2.0 OR MIT | `rustls`·`rustls-pki-types`가 끌고 옴 | 비밀 값을 메모리에서 지우기 | 없음 |
     | `once_cell` | 1.21.4 (2026-03-12) | MIT OR Apache-2.0 | `rustls`가 끌고 옴 | 한 번만 초기화하는 칸 | 없음 |
     | `getrandom` | 0.2.17 (2026-01-11) | MIT OR Apache-2.0 | `ring`이 끌고 옴 | 운영체제 난수 | `cfg-if`, `libc`, `wasi`(wasm) |
     | `cfg-if` | 1.0.5 (2026-09-16) | MIT OR Apache-2.0 | `ring`·`getrandom`이 끌고 옴 | 조건부 컴파일 매크로 | 없음 |
-    | `cc`, `find-msvc-tools`, `shlex` | 1.5.1 (2026-09-25; 1.8.0은 2주 미만), 0.1.14 (2026-09-25), 2.0.1 (2026-05-17) | 모두 MIT OR Apache-2.0 | `ring`의 빌드 스크립트 | `ring`의 C·어셈블리 빌드(실행 파일에는 들어가지 않음) | 서로 |
+    | `cc`, `find-msvc-tools`, `shlex` | 1.10.0 (2026-10-23), 0.1.15 (2026-10-19), 2.0.1 (2026-05-17) | 모두 MIT OR Apache-2.0 | `ring`의 빌드 스크립트 | `ring`의 C·어셈블리 빌드(실행 파일에는 들어가지 않음) | 서로 |
     | `openssl-probe` | 0.2.1 (2026-01-20) | MIT OR Apache-2.0 | `rustls-native-certs`, macOS 밖 유닉스 | Linux 등에서 인증서 파일·디렉터리 위치 찾기 | 없음 |
     | `security-framework`, `security-framework-sys`, `core-foundation`, `core-foundation-sys`, `bitflags` | 3.7.0 (2026-02-20), 2.17.0 (2026-02-20), 0.10.1 (2025-05-26), 0.8.7 (2024-08-11), 2.13.2 (2026-09-10) | 모두 MIT OR Apache-2.0 | `rustls-native-certs`, macOS | macOS 키체인의 루트 인증서 읽기 | 서로, `libc` |
     | `schannel`, `wasi`, `windows-sys`, `windows-targets`, `windows_*` 8개 | 0.1.23 (2023-12-27; `windows-sys` 0.52 하나로 맞추려고 낮춤), 0.11.1, 0.52.0 / 0.52.6 | MIT / Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT / MIT OR Apache-2.0 | Windows·wasm 대상만 | `Cargo.lock`에는 있지만 fung의 대상(Linux·macOS)에서는 빌드하지 않는다 | — |
@@ -188,11 +188,6 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
 
 ### 남은 일
 
-- [ ] **다음 릴리스 0.4.1: rustls 공지 4건 해제, 2026-10-28 이후.** RUSTSEC-2026-0346(사용자 세션 저장소의 `Debug` 출력), -0347(ECH 거절 뒤 바깥 서버로 보낸 데이터),
-  -0348(brotli 인증서 압축 풀기), -0349(서버 이름별 키 공유 예측). 2026-10-14에 0.23.46의 수정과 함께 나왔고, 넷 다 fung 설정에 닿지 않는다
-  (세션 재개 끔, ECH 안 켬, `brotli` 기능 끔, `ring`에 하이브리드(ML-KEM) 그룹이 없음). 2026-10-28 이후 `cargo update -p rustls --precise 0.23.46`으로 올리고
-  `deny.toml`의 `ignore` 네 줄과 `.cargo/audit.toml`을 지운다. 그때 새로 따라오는 크레이트가 있으면 위 표와 2주 규칙을 다시 확인한다.
-  같은 때에 위 표에서 "2주 미만이라 고정"한 것들(`libc` 0.2.190, `rustls-native-certs` 0.8.5, `zeroize` 1.9.1, `cc` 1.8.0)도 2주가 지났으니 올릴지 본다. 릴리스 태그와 시험 실행은 사용자 확인 뒤.
 - [ ] **매뉴얼을 쓰며 찾은 문제 (`docs/plans/2026-10-20-manual-findings.md`)**. 항목의 재현과 선택지는 그 문서에 있다.
   2026-10-24 보수 작업에서 F-1~F-4·F-6~F-10·F-13·D-1·D-4와 3절의 설계 문서 차이를 닫았다(CHANGELOG `[Unreleased]`). 남은 것:
   - F-5(`http.serve`가 정상 종료 때 `Ok(nil)`)와 F-11(`fs.move`가 기본 거절, `overwrite: true`)은 2026-10-24 사용자 결정으로 닫았다(CHANGELOG 호환 깨짐).
@@ -242,9 +237,9 @@ fung은 Rust로 구현한다. 문법과 사용자에게 보이는 동작이 핵�
     중첩 한도(E0115)에 세지 않는데 뒤 단계가 고리마다 재귀해, 넘치면 종료 코드 134로 죽는다. 고리 하나에 릴리스에서 약 1 KiB:
     64 MiB 약 6.8만, 256 MiB 약 27만, 4 GiB 400만 고리 통과. 디버그 빌드는 4 GiB에서 45만은 되고 60만에서 넘친다(2026-10-28 측정, L9 결정: 사람이 쓰지 않는 길이라 문서로 둠).
     고친다면 앞단 전 단계(변환·resolve·컴파일러·포매터·`Drop`)를 반복으로 바꾼다. 4 GiB 예약을 줄이면 이 한도가 함께 내려간다.
-- 문자열과 바이트 (02·06; R2·R4a 노트)
-  - 문자열은 UTF-8이라 바이트를 그대로 품지 않는다. 비UTF-8 프로세스 출력·환경 변수 값·파일 내용(`fs.read`·`read_lines`·`read_line`)·HTTP 바이너리 본문·경로·시간대 약어는
-    잘못된 부분마다 U+FFFD 하나로 바뀐다(원래 바이트 보존 없음). 비UTF-8 디렉터리 아래 모듈 경로도 U+FFFD로 표시된다. 문자열을 바이트 기반으로 바꿀 때 다시 본다.
+- 문자열과 바이트 (02·06; L4 노트)
+  - 문자열은 바이트를 그대로 담는다(L4, 2026-11-07). 글로 다루는 몇 자리만 아직 U+FFFD로 읽는다: REPL에 직접 친 줄(파일과 `:load`는 UTF-8이 아니면 거절),
+    UTF-8이 아닌 디렉터리 아래의 모듈 경로(모듈 키·위치가 글이다), 시간대 이름(`TZ`, 표준상 ASCII). 셋 다 값이 되는 바깥 데이터가 아니다.
   - `exec`·`sh`의 `env`는 물려받은 환경에 더해지고, 자식이 보는 환경은 이름순으로 정렬된다. (이름에 `=`가 든 키와 빈 이름은 2026-10-26부터 E0403.)
 - 파일 (06 `fs`; R4a 노트, L11)
   - 문자 장치·소켓 파일의 읽기는 아직 풀에서 한다. 끝나지 않는 장치 읽기는 기한에 버려져도 풀 스레드를 쥔다(FIFO는 L11에서 이벤트 루프로 옮김).

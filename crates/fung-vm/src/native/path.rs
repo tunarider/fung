@@ -35,82 +35,101 @@ pub fn module() -> Rc<Module> {
 
 fn join_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let parts = nat::str_list("parts", &a[0])?;
-    Ok(Value::str(&join(&parts)))
+    Ok(Value::bytes(join(&parts)))
 }
 
 fn base_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    Ok(Value::str(&base(nat::need_str("p", &a[0])?)))
+    Ok(Value::bytes(base(nat::need_bytes("p", &a[0])?)))
 }
 
 fn dir_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    Ok(Value::str(&dir(nat::need_str("p", &a[0])?)))
+    Ok(Value::bytes(dir(nat::need_bytes("p", &a[0])?)))
 }
 
 fn ext_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    Ok(Value::str(ext(nat::need_str("p", &a[0])?)))
+    Ok(Value::bytes(ext(nat::need_bytes("p", &a[0])?).to_vec()))
 }
 
 fn stem_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let p = nat::need_str("p", &a[0])?;
+    let p = nat::need_bytes("p", &a[0])?;
     let b = base(p);
-    let e = ext(&b);
-    Ok(Value::str(&b[..b.len() - e.len()]))
+    let e = ext(&b).len();
+    Ok(Value::bytes(b[..b.len() - e].to_vec()))
 }
 
 fn abs_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    Ok(Value::str(&abs(nat::need_str("p", &a[0])?)))
+    Ok(Value::bytes(abs(nat::need_bytes("p", &a[0])?)))
 }
 
 /// A relative path joined onto the working directory (`$PWD` when it
-/// names the same directory).
-pub(crate) fn abs(p: &str) -> String {
-    fung_front::loader::abs_path(p)
+/// names the same directory). Paths are bytes (L4).
+pub(crate) fn abs(p: &[u8]) -> Vec<u8> {
+    if p.starts_with(b"/") {
+        return clean_bytes(p);
+    }
+    match cwd() {
+        Some(wd) => join_bytes(&wd, p),
+        None => clean_bytes(p),
+    }
+}
+
+/// The working directory: `$PWD` when it names the same directory.
+fn cwd() -> Option<Vec<u8>> {
+    use std::os::unix::ffi::OsStrExt;
+    let real = std::env::current_dir().ok()?;
+    if let Some(pwd) = std::env::var_os("PWD")
+        && pwd.as_bytes().starts_with(b"/")
+        && std::fs::canonicalize(&pwd).ok() == std::fs::canonicalize(&real).ok()
+    {
+        return Some(pwd.as_bytes().to_vec());
+    }
+    Some(real.as_os_str().as_bytes().to_vec())
 }
 
 /// `join`: empty elements are dropped, the rest joined with
 /// `/` and cleaned; no non-empty element gives `""`.
-pub(crate) fn join(parts: &[String]) -> String {
+pub(crate) fn join(parts: &[Vec<u8>]) -> Vec<u8> {
     match parts.iter().position(|e| !e.is_empty()) {
-        Some(i) => clean(&parts[i..].join("/")),
-        None => String::new(),
+        Some(i) => clean_bytes(&parts[i..].join(&b'/')),
+        None => Vec::new(),
     }
 }
 
 /// The last element (`.` for `""`, `/` for a root).
-pub(crate) fn base(p: &str) -> String {
+pub(crate) fn base(p: &[u8]) -> Vec<u8> {
     if p.is_empty() {
-        return ".".into();
+        return b".".to_vec();
     }
-    let p = p.trim_end_matches('/');
-    let p = match p.rfind('/') {
+    let end = p.iter().rposition(|&b| b != b'/').map_or(0, |i| i + 1);
+    let p = &p[..end];
+    let p = match p.iter().rposition(|&b| b == b'/') {
         Some(i) => &p[i + 1..],
         None => p,
     };
-    if p.is_empty() { "/".into() } else { p.into() }
+    if p.is_empty() {
+        b"/".to_vec()
+    } else {
+        p.to_vec()
+    }
 }
 
 /// Everything but the last element, cleaned.
-pub(crate) fn dir(p: &str) -> String {
-    let i = p.rfind('/').map_or(0, |i| i + 1);
-    clean(&p[..i])
+pub(crate) fn dir(p: &[u8]) -> Vec<u8> {
+    let i = p.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
+    clean_bytes(&p[..i])
 }
 
 /// From the last `.` of the last element, or `""`; dots that start the
 /// element are not an extension.
-pub(crate) fn ext(p: &str) -> &str {
-    let name_at = p.rfind('/').map_or(0, |i| i + 1);
+pub(crate) fn ext(p: &[u8]) -> &[u8] {
+    let name_at = p.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
     // Dots that start the name are part of it (`.hidden`, `..`).
-    let body_at = name_at + p[name_at..].len() - p[name_at..].trim_start_matches('.').len();
-    match p[body_at..].rfind('.') {
+    let dots = p[name_at..].iter().take_while(|&&b| b == b'.').count();
+    let body_at = name_at + dots;
+    match p[body_at..].iter().rposition(|&b| b == b'.') {
         Some(i) => &p[body_at + i..],
-        None => "",
+        None => b"",
     }
-}
-
-/// The shortest equivalent path by lexical processing alone.
-pub(crate) fn clean(path: &str) -> String {
-    // Only ASCII bytes are dropped or added around whole characters.
-    String::from_utf8(clean_bytes(path.as_bytes())).expect("clean keeps UTF-8")
 }
 
 /// `join` of two parts over bytes (file names need not be
@@ -131,7 +150,7 @@ pub fn join_bytes(dir: &[u8], name: &[u8]) -> Vec<u8> {
     clean_bytes(&p)
 }
 
-/// [`clean`] over bytes.
+/// The shortest equivalent path by lexical processing alone.
 pub(crate) fn clean_bytes(p: &[u8]) -> Vec<u8> {
     if p.is_empty() {
         return b".".to_vec();
@@ -184,6 +203,31 @@ pub(crate) fn clean_bytes(p: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
 
+    fn clean(p: &str) -> String {
+        String::from_utf8(clean_bytes(p.as_bytes())).unwrap()
+    }
+
+    fn join(parts: &[&str]) -> String {
+        let parts: Vec<Vec<u8>> = parts.iter().map(|p| p.as_bytes().to_vec()).collect();
+        String::from_utf8(super::join(&parts)).unwrap()
+    }
+
+    fn base(p: &str) -> String {
+        String::from_utf8(super::base(p.as_bytes())).unwrap()
+    }
+
+    fn dir(p: &str) -> String {
+        String::from_utf8(super::dir(p.as_bytes())).unwrap()
+    }
+
+    fn ext(p: &str) -> &str {
+        std::str::from_utf8(super::ext(p.as_bytes())).unwrap()
+    }
+
+    fn abs(p: &str) -> String {
+        String::from_utf8(super::abs(p.as_bytes())).unwrap()
+    }
+
     #[test]
     fn clean_resolves_dots_and_slashes() {
         let cases = [
@@ -213,11 +257,13 @@ mod tests {
     #[test]
     fn join_base_dir_ext_stem() {
         assert_eq!(join(&[]), "");
-        assert_eq!(join(&["".into(), "".into()]), "");
-        assert_eq!(join(&["a//b".into(), "../c/".into()]), "a/c");
-        assert_eq!(join(&["".into(), "a".into()]), "a");
-        assert_eq!(join(&["/".into(), "".into()]), "/");
-        assert_eq!(join(&["a".into(), "..".into()]), ".");
+        assert_eq!(join(&["", ""]), "");
+        assert_eq!(join(&["a//b", "../c/"]), "a/c");
+        assert_eq!(join(&["", "a"]), "a");
+        assert_eq!(join(&["/", ""]), "/");
+        assert_eq!(join(&["a", ".."]), ".");
+        assert_eq!(super::base(b"a/\xff"), b"\xff");
+        assert_eq!(super::ext(b"x.\xfe"), b".\xfe");
         assert_eq!(join_bytes(b"", b""), b"");
         assert_eq!(join_bytes(b"", b"./a"), b"a");
         assert_eq!(join_bytes(b"/", b"a"), b"/a");

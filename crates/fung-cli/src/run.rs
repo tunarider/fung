@@ -62,7 +62,7 @@ pub fn status(code: i64) -> i32 {
 /// exit code: 0, 1 for a runtime error, 2 for a compile error, or the
 /// code of exit(n). Every value the run made is dropped before it
 /// returns, so it runs on the big stack together with its caller.
-pub fn execute(file: &str, src: &str, args: Vec<String>) -> i64 {
+pub fn execute(file: &str, src: &str, args: Vec<Vec<u8>>) -> i64 {
     // Standard error is unbuffered; the runtime and the reports below
     // write to it through separate handles, in order.
     let stdout = Box::new(ProcessOut::stdout());

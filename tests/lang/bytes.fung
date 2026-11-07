@@ -1,0 +1,44 @@
+# Strings are bytes; the character operations read them as UTF-8, and a
+# byte outside valid UTF-8 is a character of its own (02, L4).
+import regex
+
+s = "a\xffb\xe2\x82c"
+print(len(s), byte_len(s), valid_utf8(s), valid_utf8("é"))
+# expect: 6 6 false true
+print([s, s[1], s[3..5], s[-1]])
+# expect: ["a\xffb\xe2\x82c", "\xff", "\xe2\x82", "c"]
+print(chars("a\xff\u{e9}"))
+# expect: ["a", "\xff", "é"]
+print(s[..3] + s[3..] == s, join(chars(s)) == s)
+# expect: true true
+# \xHH is one byte: a valid sequence is the character it spells
+print("\xc3\xa9" == "é", "\x41", len("\xc3\xa9"), "\x00" == "\u{0}")
+# expect: true A 1 true
+print(bytes("a\xff\u{e9}"), [from_bytes([104, 105, 255])])
+# expect: [97, 255, 195, 169] ["hi\xff"]
+print([upper("a\xffb"), lower("\xffQ"), trim(" \xff "), repeat("\xfe", 2)])
+# expect: ["A\xffB", "\xffq", "\xff", "\xfe\xfe"]
+print(split("a\xffb\xff", "\xff"), split("x\xff", ""), lines("a\xff\nb"))
+# expect: ["a", "b", ""] ["x", "\xff"] ["a\xff", "b"]
+print([replace("a\xffb", "\xff", "-"), "\xff" in s, starts_with(s, "a\xff"), ends_with(s, "\x82c")])
+# expect: ["a-b", true, true, true]
+# bytes compare as bytes: valid text keeps code point order
+print("\xfe" < "\xff", "\x7f" < "\xc2\x80", "z" < "\xff")
+# expect: true true true
+m = {"\xff": 1, k: 2}
+print(m, m["\xff"], keys(m))
+# expect: {"\xff": 1, k: 2} 1 ["\xff", "k"]
+r = match "\xff":
+  "\xfe" => 1
+  "\xff" => 2
+  _      => 3
+;;
+print(r)
+# expect: 2
+print("${s}" == s, ["x${"\xff"}y"], str("\xff") == "\xff")
+# expect: true ["x\xffy"] true
+print([pad_left("\xff", 3, "."), pad_right("\xff", 2)])
+# expect: ["..\xff", "\xff "]
+# patterns match bytes: `.` only valid UTF-8, an empty match only between characters
+print(regex.is_match("a\xff", `(?-u:\xff)`), regex.find("\xffa", `.`).start, [regex.replace("가\xff", "x*", "-")])
+# expect: true 1 ["-가-\xff-"]

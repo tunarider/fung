@@ -200,6 +200,9 @@ impl Kind {
 pub struct Part {
     pub is_code: bool,
     pub text: String,
+    /// Literal text that is not valid UTF-8 (`\xff`, L4); `text` is
+    /// then empty.
+    pub bytes: Option<Vec<u8>>,
     pub pos: Pos,
     /// Byte offset of `text` in the whole source (`lex_at` adds `base`).
     pub off: usize,
@@ -230,6 +233,27 @@ impl Token {
     /// The text a name stands for as a map key: as written (01).
     pub fn key(&self) -> &str {
         self.raw.as_deref().unwrap_or(&self.text)
+    }
+
+    /// The value of a `"..."` token with no interpolation: its text, or
+    /// its bytes when they are not UTF-8 (L4). `None` when it
+    /// interpolates.
+    pub fn plain(&self) -> Option<Result<String, Vec<u8>>> {
+        let mut bytes = Vec::new();
+        for part in &self.parts {
+            if part.is_code {
+                return None;
+            }
+            bytes.extend_from_slice(part.bytes());
+        }
+        Some(String::from_utf8(bytes).map_err(|e| e.into_bytes()))
+    }
+}
+
+impl Part {
+    /// A literal part's bytes.
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes.as_deref().unwrap_or(self.text.as_bytes())
     }
 }
 

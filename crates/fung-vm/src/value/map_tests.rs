@@ -9,8 +9,8 @@ use super::index;
 use super::testutil::Rng;
 use super::*;
 
-fn key(s: &str) -> Rc<String> {
-    Rc::new(s.to_string())
+fn key(s: &str) -> Rc<crate::value::Text> {
+    crate::value::key(s)
 }
 
 fn s(x: &str) -> Value {
@@ -153,7 +153,10 @@ fn same_map(what: &str, m: &Map, r: &RefMap) {
     for k in &r.keys {
         assert_eq!(m.get(k).map(int_of), Some(r.vals[k]), "{what}: get({k})");
     }
-    let got: Vec<(&str, i64)> = m.iter().map(|(k, v)| (k, int_of(v))).collect();
+    let got: Vec<(&str, i64)> = m
+        .iter()
+        .map(|(k, v)| (k.as_str().unwrap(), int_of(v)))
+        .collect();
     let want: Vec<(&str, i64)> = r.keys.iter().map(|k| (k.as_str(), r.vals[k])).collect();
     assert_eq!(got, want, "{what}: iter");
     assert!(m.get("absent-key").is_none(), "{what}: absent key found");
@@ -188,7 +191,7 @@ fn check_map_model(seed: u64) {
                 }
                 let o = b.finish();
                 for (kk, v) in o.iter() {
-                    cur.1.put(kk, int_of(v));
+                    cur.1.put(kk.as_str().unwrap(), int_of(v));
                 }
                 cur.0 = cur.0.merge(&o);
             }
@@ -225,7 +228,7 @@ fn map_matches_reference_with_collisions() {
     let _g = HashGuard;
     set_test_hash(Some(|s| (s.len() as u32).wrapping_mul(0x9e37_79b9)));
     check_map_model(11);
-    set_test_hash(Some(|s| s.bytes().last().unwrap_or(0) as u32 & 3));
+    set_test_hash(Some(|s| s.last().copied().unwrap_or(0) as u32 & 3));
     check_map_model(12);
 }
 
@@ -239,7 +242,7 @@ fn map_put_existing_keeps_position() {
     m.put(key("k0"), Value::Int(-1));
     let first = m.iter().next().unwrap();
     assert_eq!(
-        (first.0, int_of(first.1)),
+        (first.0.as_str().unwrap(), int_of(first.1)),
         ("k0", -1),
         "put on an existing key moved it"
     );
@@ -328,10 +331,10 @@ fn derivations_from_a_shared_base_stay_apart() {
 fn put_on_a_shared_map_keeps_the_original() {
     let mut a = Map::new();
     for i in 0..100 {
-        a.put(Rc::new(format!("k{i}")), Value::Int(i));
+        a.put(crate::value::key(&format!("k{i}")), Value::Int(i));
     }
     let b = a.clone();
-    a.put(Rc::new("k0".to_string()), Value::Int(-1));
+    a.put(crate::value::key("k0"), Value::Int(-1));
     assert!(matches!(b.get("k0"), Some(Value::Int(0))));
     assert_eq!(a.iter().next().unwrap().0, "k0"); // existing key keeps its place
 }
@@ -367,7 +370,7 @@ fn shared_maps_are_never_changed() {
     assert_eq!(removed.len(), SMALL_MAP_MAX + 1);
     assert!(removed.get("k3").is_none() && removed.get("y").is_some());
     assert_eq!(big.len(), SMALL_MAP_MAX - 1);
-    let order: Vec<&str> = big.iter().map(|(k, _)| k).collect();
+    let order: Vec<&str> = big.iter().map(|(k, _)| k.as_str().unwrap()).collect();
     assert_eq!(order[..4], ["k0", "k1", "k2", "k4"]);
 }
 
@@ -378,7 +381,7 @@ fn dropping_a_huge_map_does_not_overflow() {
         .spawn(|| {
             let mut m = Map::new();
             for i in 0..200_000 {
-                m.put(Rc::new(format!("k{i}")), Value::Int(i));
+                m.put(crate::value::key(&format!("k{i}")), Value::Int(i));
             }
             drop(m);
         })

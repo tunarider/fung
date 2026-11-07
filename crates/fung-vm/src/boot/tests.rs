@@ -135,7 +135,7 @@ fn booted_prelude_has_every_spec_name_and_spec_parameters() {
             assert_eq!(format(&p.0["args"]), "[\"a\", \"b c\"]");
             assert_eq!(format(&p.0["take"]), "<fn take>");
         });
-        assert_eq!(rt.args(), ["a", "b c"]);
+        assert_eq!(rt.args(), [b"a".to_vec(), b"b c".to_vec()]);
     });
 }
 

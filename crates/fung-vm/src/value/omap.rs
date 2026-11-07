@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use super::hamt::{Hamt, hash_key};
 use super::pvec::{MASK, Pvec};
-use super::{Probe, Probed, Value};
+use super::{Probe, Probed, Text, Value};
 
 #[derive(Clone)]
 pub(super) struct Entry {
-    pub(super) key: Rc<String>,
+    pub(super) key: Rc<Text>,
     pub(super) val: Value,
 }
 
@@ -37,10 +37,10 @@ impl Omap {
     }
 
     /// A map of distinct keys in the given order.
-    pub(super) fn of(entries: Vec<(Rc<String>, Value)>) -> Omap {
+    pub(super) fn of(entries: Vec<(Rc<Text>, Value)>) -> Omap {
         let mut idx = Hamt::default();
         for (i, (k, _)) in entries.iter().enumerate() {
-            idx.set(hash_key(k), k.clone(), i);
+            idx.set(hash_key(k.as_bytes()), k.clone(), i);
         }
         let live = entries.len();
         let ents = entries
@@ -59,15 +59,15 @@ impl Omap {
         self.live
     }
 
-    pub(super) fn get(&self, k: &str) -> Option<&Value> {
+    pub(super) fn get(&self, k: &[u8]) -> Option<&Value> {
         let pos = self.idx.get(hash_key(k), k)?;
         self.ents.at(pos).as_ref().map(|e| &e.val)
     }
 
     /// Sets `k`; an existing key keeps its position.
-    pub(super) fn put(&mut self, key: Rc<String>, val: Value) {
-        let h = hash_key(&key);
-        match self.idx.get(h, &key) {
+    pub(super) fn put(&mut self, key: Rc<Text>, val: Value) {
+        let h = hash_key(key.as_bytes());
+        match self.idx.get(h, key.as_bytes()) {
             Some(pos) => self.ents.set(pos, Some(Entry { key, val })),
             None => {
                 let pos = self.ents.len();
@@ -79,7 +79,7 @@ impl Omap {
     }
 
     /// Removes `k`; returns whether it was there.
-    pub(super) fn remove(&mut self, k: &str) -> bool {
+    pub(super) fn remove(&mut self, k: &[u8]) -> bool {
         let h = hash_key(k);
         let Some(pos) = self.idx.get(h, k) else {
             return false;
@@ -95,7 +95,7 @@ impl Omap {
     }
 
     /// The live entries in order, copied out.
-    pub(super) fn entries(&self) -> Vec<(Rc<String>, Value)> {
+    pub(super) fn entries(&self) -> Vec<(Rc<Text>, Value)> {
         let mut out = Vec::with_capacity(self.live);
         out.extend(self.iter().map(|e| (e.key.clone(), e.val.clone())));
         out

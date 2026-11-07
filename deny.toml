@@ -17,22 +17,7 @@ all-features = true
 version = 2
 # Each ignored advisory says why fung is not affected; .cargo/audit.toml
 # lists the same ids for cargo-audit.
-ignore = [
-    # rustls 0.23.45: four advisories published 2026-10-14 with 0.23.46,
-    # which is not two weeks old yet. None reaches fung's configuration
-    # (native/tls.rs): move to 0.23.46 after 2026-10-28 and drop them.
-    # Debug output of session values in a custom session store: fung has
-    # no session store (resumption disabled).
-    { id = "RUSTSEC-2026-0346", reason = "no session store: resumption disabled" },
-    # Data sent to the outer server after an ECH rejection: fung does not
-    # enable ECH.
-    { id = "RUSTSEC-2026-0347", reason = "ECH not enabled" },
-    # Brotli certificate decompression: the `brotli` feature is off.
-    { id = "RUSTSEC-2026-0348", reason = "brotli feature off" },
-    # Key share prediction remembered per server name in the session
-    # store: resumption disabled, and ring has no hybrid group to lose.
-    { id = "RUSTSEC-2026-0349", reason = "resumption disabled; ring has no hybrid key exchange" },
-]
+ignore = []
 
 [licenses]
 version = 2

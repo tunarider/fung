@@ -15,5 +15,6 @@ pub mod loader;
 pub mod parser;
 pub mod resolve;
 pub mod source;
+pub mod text;
 pub mod tree;
 pub mod unicode;

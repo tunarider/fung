@@ -3,6 +3,7 @@
 use super::{Kind, Lexer, Part, is_hex_digit, is_ident_part, is_ident_start};
 use crate::diag::Diag;
 use crate::source::Pos;
+use crate::text::Unit;
 
 impl Lexer<'_> {
     /// Lexes a `"..."` string into text and `${code}` parts. Escapes are a
@@ -13,12 +14,18 @@ impl Lexer<'_> {
         let start = self.off;
         self.advance(); // opening quote
         let mut parts: Vec<Part> = Vec::new();
-        let mut text = String::new();
-        let flush = |parts: &mut Vec<Part>, text: &mut String| {
+        // Bytes, not chars: `\xHH` may spell a string that is not UTF-8.
+        let mut text: Vec<u8> = Vec::new();
+        let flush = |parts: &mut Vec<Part>, text: &mut Vec<u8>| {
             if !text.is_empty() {
+                let (text, bytes) = match String::from_utf8(std::mem::take(text)) {
+                    Ok(s) => (s, None),
+                    Err(e) => (String::new(), Some(e.into_bytes())),
+                };
                 parts.push(Part {
                     is_code: false,
-                    text: std::mem::take(text),
+                    text,
+                    bytes,
                     pos: Pos {
                         file: p.file,
                         line: 0,
@@ -41,7 +48,10 @@ impl Lexer<'_> {
                     self.toks.push(tok);
                     return Ok(());
                 }
-                Some('\\') => text.push(self.escape()?),
+                Some('\\') => match self.escape()? {
+                    Unit::Char(c) => text.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes()),
+                    Unit::Byte(b) => text.push(b),
+                },
                 Some('$') if self.peek_at(1) == Some('{') => {
                     self.advance();
                     self.advance();
@@ -52,11 +62,15 @@ impl Lexer<'_> {
                     parts.push(Part {
                         is_code: true,
                         text: self.src[code_start..self.off - 1].to_string(),
+                        bytes: None,
                         pos: code_pos,
                         off: self.base + code_start,
                     });
                 }
-                Some(_) => text.push(self.advance()),
+                Some(_) => {
+                    let c = self.advance();
+                    text.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes());
+                }
             }
         }
     }
@@ -65,18 +79,29 @@ impl Lexer<'_> {
         crate::diag::error(code, pos, Vec::new())
     }
 
-    /// Decodes one backslash escape; `off` is at the backslash.
-    fn escape(&mut self) -> Result<char, Diag> {
+    /// Decodes one backslash escape; `off` is at the backslash. `\xHH`
+    /// is one byte, whatever it spells (L4).
+    fn escape(&mut self) -> Result<Unit, Diag> {
         let p = self.pos();
         self.advance(); // backslash
         let c = self.advance();
+        let ch = |c| Ok(Unit::Char(c));
         match c {
-            'n' => return Ok('\n'),
-            't' => return Ok('\t'),
-            'r' => return Ok('\r'),
-            '\\' => return Ok('\\'),
-            '"' => return Ok('"'),
-            '$' => return Ok('$'),
+            'n' => return ch('\n'),
+            't' => return ch('\t'),
+            'r' => return ch('\r'),
+            '\\' => return ch('\\'),
+            '"' => return ch('"'),
+            '$' => return ch('$'),
+            'x' => {
+                let hex: String = (0..2)
+                    .map_while(|_| is_hex_digit(self.peek()).then(|| self.advance()))
+                    .collect();
+                return match u8::from_str_radix(&hex, 16) {
+                    Ok(b) if hex.len() == 2 => Ok(Unit::Byte(b)),
+                    _ => Err(self.err("E0103", p, &format!("x{hex}"))),
+                };
+            }
             'u' => {
                 if self.peek() != Some('{') {
                     return Err(self.err("E0103", p, "u"));
@@ -95,6 +120,7 @@ impl Lexer<'_> {
                 return u32::from_str_radix(&hex, 16)
                     .ok()
                     .and_then(char::from_u32)
+                    .map(Unit::Char)
                     .ok_or_else(|| self.err("E0103", p, &format!("u{{{hex}}}")));
             }
             _ => {}

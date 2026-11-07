@@ -357,11 +357,8 @@ impl Drop for TaskState {
 /// program can print `e.message` whatever failed.
 pub(crate) fn err_kind(kind: &str, message: &str) -> Value {
     let mut m = MapBuilder::default();
-    m.set(Rc::new("kind".to_string()), Value::Sym(intern(kind)));
-    m.set(
-        Rc::new("message".to_string()),
-        Value::Str(Rc::new(message.to_string())),
-    );
+    m.set(crate::value::key("kind"), Value::Sym(intern(kind)));
+    m.set(crate::value::key("message"), Value::str(message));
     nat::tag("Err", vec![Value::Map(Rc::new(m.finish()))])
 }
 
@@ -383,17 +380,17 @@ pub(super) fn outcome(r: &Result<Value, Stop>, world: Option<&World>) -> Value {
 /// error has a place.
 pub(super) fn failure_value(d: &Diag, world: Option<&World>) -> Value {
     let mut m = MapBuilder::default();
-    m.set(Rc::new("kind".to_string()), Value::Sym(intern("error")));
-    m.set(Rc::new("code".to_string()), Value::str(&d.code));
+    m.set(crate::value::key("kind"), Value::Sym(intern("error")));
+    m.set(crate::value::key("code"), Value::str(&d.code));
     m.set(
-        Rc::new("message".to_string()),
+        crate::value::key("message"),
         Value::str(&fung_front::diag::message(&d.code, &d.args)),
     );
     if let Some(w) = world
         && !d.pos.is_zero()
     {
         let at = format!("{}:{}", w.file_name(d.pos.file), d.pos.line);
-        m.set(Rc::new("at".to_string()), Value::str(&at));
+        m.set(crate::value::key("at"), Value::str(&at));
     }
     Value::Map(Rc::new(m.finish()))
 }

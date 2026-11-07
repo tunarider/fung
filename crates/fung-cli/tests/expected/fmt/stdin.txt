@@ -2010,6 +2010,12 @@
 -- exit: 0
 ==== manual learn/06-strings.md:13
 -- stdout
+| s = "a\xffb"
+| print([s, s[1]], len(s), byte_len("가"), valid_utf8(s))
+-- stderr
+-- exit: 0
+==== manual learn/06-strings.md:14
+-- stdout
 | line = "2026-10-20T03:12:09Z web-1 ERROR disk /var is 91% full"
 | parts = split(line, " ")
 | stamp = parts[0]
@@ -2019,7 +2025,7 @@
 | print("[${parts[2]}] ${parts[1]} ${date} ${clock}: ${message}")
 -- stderr
 -- exit: 0
-==== manual learn/06-strings.md:14
+==== manual learn/06-strings.md:15
 -- stdout
 | names = ["Access Log 2026.TXT", "error log.txt"]
 | fn tidy(name) = name |> lower |> replace(" ", "-") |> replace(".txt", ".log")
@@ -4974,270 +4980,288 @@
 -- exit: 0
 ==== manual reference/errors.md:99
 -- stdout
+| print(["caf\xe9", "caf\u{e9}"])
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:100
+-- stdout
 | name = "deploy"
 | print(name())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:100
+==== manual reference/errors.md:101
 -- stdout
 | fn deploy() = "deploying"
 | print(deploy())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:101
--- stdout
-| fn connect(host, port) = "${host}:${port}"
-| print(connect("db1", 5432, 10s))
--- stderr
--- exit: 0
 ==== manual reference/errors.md:102
 -- stdout
-| fn connect(host, port, wait = 5s) = "${host}:${port} (${wait})"
+| fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:103
 -- stdout
-| fn backoff(n: int) = n * 2
-| print(backoff("3"))
+| fn connect(host, port, wait = 5s) = "${host}:${port} (${wait})"
+| print(connect("db1", 5432, 10s))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:104
 -- stdout
 | fn backoff(n: int) = n * 2
-| print(backoff(parse_int("3")!))
+| print(backoff("3"))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:105
+-- stdout
+| fn backoff(n: int) = n * 2
+| print(backoff(parse_int("3")!))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:106
 -- stdout
 | fn port_of(url) -> int = split(url, ":")[-1]
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:106
+==== manual reference/errors.md:107
 -- stdout
 | fn port_of(url) -> int = parse_int(split(url, ":")[-1])!
 | print(port_of("db1:5432"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:107
+==== manual reference/errors.md:108
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", host: "db2"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:108
+==== manual reference/errors.md:109
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1", port: 5432))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:109
+==== manual reference/errors.md:110
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", prot: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:110
+==== manual reference/errors.md:111
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1", port: 2222))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:111
+==== manual reference/errors.md:112
 -- stdout
 | fn connect(host, port) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:112
+==== manual reference/errors.md:113
 -- stdout
 | fn connect(host, port = 22) = "${host}:${port}"
 | print(connect("db1"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:113
+==== manual reference/errors.md:114
 -- stdout
 | count = 3
 | print("found " + count + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:114
+==== manual reference/errors.md:115
 -- stdout
 | count = 3
 | print("found ${count} files")
 | print("found " + str(count) + " files")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:115
+==== manual reference/errors.md:116
 -- stdout
 | fn average(xs) = sum(xs) / len(xs)
 | print(average([]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:116
+==== manual reference/errors.md:117
 -- stdout
 | fn average(xs) = len(xs) == 0 then 0 else sum(xs) / len(xs)
 | print(average([]), average([2, 4]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:117
+==== manual reference/errors.md:118
 -- stdout
 | print(9223372036854775807 + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:118
+==== manual reference/errors.md:119
 -- stdout
 | fn add_safe(a, b) = a > 9223372036854775807 - b then Err("too big") else Ok(a + b)
 | print(add_safe(9223372036854775807, 1))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:119
--- stdout
-| print(1e308 * 10)
--- stderr
--- exit: 0
 ==== manual reference/errors.md:120
 -- stdout
-| xs = [1, 2]
-| if len(xs): print("not empty") ;;
+| print(1e308 * 10)
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:121
 -- stdout
 | xs = [1, 2]
-| if len(xs) > 0: print("not empty") ;;
+| if len(xs): print("not empty") ;;
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:122
 -- stdout
-| print(-"5")
+| xs = [1, 2]
+| if len(xs) > 0: print("not empty") ;;
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:123
+-- stdout
+| print(-"5")
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:124
 -- stdout
 | print(-parse_int("5")!)
 | print(first(chars("abc")))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:124
+==== manual reference/errors.md:125
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:125
+==== manual reference/errors.md:126
 -- stdout
 | hosts = ["web1", "web2"]
 | print(hosts[-1], len(hosts) > 2 then hosts[2] else "none")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:126
+==== manual reference/errors.md:127
 -- stdout
 | cfg = {host: "db1"}
 | print(cfg.port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:127
+==== manual reference/errors.md:128
 -- stdout
 | cfg = {host: "db1"}
 | print(get(cfg, "port", 5432), get(cfg, "port") ?? 5432, "port" in cfg)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:128
+==== manual reference/errors.md:129
 -- stdout
 | pair = ("db1", 5432)
 | print(pair[0])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:129
+==== manual reference/errors.md:130
 -- stdout
 | pair = ("db1", 5432)
 | (host, port) = pair
 | print(host, port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:130
+==== manual reference/errors.md:131
 -- stdout
 | print((1, 2, 3)[0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:131
+==== manual reference/errors.md:132
 -- stdout
 | print([1, 2, 3][0..2])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:132
+==== manual reference/errors.md:133
 -- stdout
 | print(3 in 10)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:133
+==== manual reference/errors.md:134
 -- stdout
 | print(3 in 0..10, 3 in [1, 2, 3])
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:134
+==== manual reference/errors.md:135
 -- stdout
 | print(int("8080x"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:135
+==== manual reference/errors.md:136
 -- stdout
 | import json
 | print(parse_int("8080x"))
 | print(json.stringify({wait: str(5s)}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:136
+==== manual reference/errors.md:137
 -- stdout
 | print(group_by([1, 2, 3, 4], x => x % 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:137
--- stdout
-| print(group_by([1, 2, 3, 4], x => str(x % 2)))
--- stderr
--- exit: 0
 ==== manual reference/errors.md:138
 -- stdout
-| import regex
-| print(regex.is_match("a(b", "(b"))
+| print(group_by([1, 2, 3, 4], x => str(x % 2)))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:139
 -- stdout
 | import regex
-| print(regex.is_match("a(b", `\(b`))
+| print(regex.is_match("a(b", "(b"))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:140
 -- stdout
-| xs = [1, 2, 3, 4]
-| print(xs[3..1])
+| import regex
+| print(regex.is_match("a(b", `\(b`))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:141
 -- stdout
 | xs = [1, 2, 3, 4]
-| print(xs[1..3], take(drop(xs, 2), 10))
+| print(xs[3..1])
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:142
 -- stdout
-| import json
-| back = json.parse(`{"status": "ok"}`)!
-| print(back.status == 'ok)
+| xs = [1, 2, 3, 4]
+| print(xs[1..3], take(drop(xs, 2), 10))
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:143
 -- stdout
 | import json
 | back = json.parse(`{"status": "ok"}`)!
-| print(sym(back.status) == 'ok, back.status == "ok")
+| print(back.status == 'ok)
 -- stderr
 -- exit: 0
 ==== manual reference/errors.md:144
+-- stdout
+| import json
+| back = json.parse(`{"status": "ok"}`)!
+| print(sym(back.status) == 'ok, back.status == "ok")
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:145
+-- stdout
+| import json
+| print(json.stringify({name: "caf\xe9"}))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:146
+-- stdout
+| import json
+| s = "caf\xe9"
+| print(valid_utf8(s), json.stringify({name: valid_utf8(s) then s else bytes(s)}))
+-- stderr
+-- exit: 0
+==== manual reference/errors.md:147
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -5246,7 +5270,7 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:145
+==== manual reference/errors.md:148
 -- stdout
 | fn status_text(code) = match code:
 |   200 => "ok"
@@ -5256,26 +5280,26 @@
 | print(status_text(500))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:146
+==== manual reference/errors.md:149
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, role] = split(line, " ")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:147
+==== manual reference/errors.md:150
 -- stdout
 | line = "web1 10.0.0.1"
 | [name, addr, ...rest] = split(line, " ")
 | print(name, addr, rest)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:148
+==== manual reference/errors.md:151
 -- stdout
 | import fs
 | text = fs.read("config.json")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:149
+==== manual reference/errors.md:152
 -- stdout
 | import fs
 | text = match fs.read("config.json"):
@@ -5286,37 +5310,37 @@
 | print(text)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:150
+==== manual reference/errors.md:153
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port")!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:151
+==== manual reference/errors.md:154
 -- stdout
 | cfg = {host: "db1"}
 | port = get(cfg, "port") ?? 5432
 | print(port)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:152
+==== manual reference/errors.md:155
 -- stdout
 | print(try_map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:153
+==== manual reference/errors.md:156
 -- stdout
 | print(try_map(["1", "2"], parse_int), map([1, 2], x => x * 2))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:154
+==== manual reference/errors.md:157
 -- stdout
 | import fs
 | fs.write("missing/out.txt", "data")
 | print("saved")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:155
+==== manual reference/errors.md:158
 -- stdout
 | import fs
 | match fs.write("missing/out.txt", "data"):
@@ -5327,14 +5351,14 @@
 | print("done")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:156
+==== manual reference/errors.md:159
 -- stdout
 | import fs
 | scope(s => spawn(s, () => fs.write("missing/out.txt", "data")))
 | print("saved")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:157
+==== manual reference/errors.md:160
 -- stdout
 | import fs
 | scope(fn(s):
@@ -5350,13 +5374,13 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:158
+==== manual reference/errors.md:161
 -- stdout
 | (tx, rx) = channel()
 | print(recv(rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:159
+==== manual reference/errors.md:162
 -- stdout
 | (tx, rx) = channel()
 | send(tx, "job")!
@@ -5364,7 +5388,7 @@
 | for job in rx: print(job) ;;
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:160
+==== manual reference/errors.md:163
 -- stdout
 | fn collect() = scope(fn(s):
 |   (tx, rx) = channel()
@@ -5377,13 +5401,13 @@
 | print(collect())
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:161
+==== manual reference/errors.md:164
 -- stdout
 | (tx, rx) = channel(1)
 | send(tx, rx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:162
+==== manual reference/errors.md:165
 -- stdout
 | (tx, rx) = channel(1)
 | (reply_tx, reply_rx) = channel(1)
@@ -5392,46 +5416,46 @@
 | print(recv(reply_rx))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:163
+==== manual reference/errors.md:166
 -- stdout
 | s = scope(s => s)
 | spawn(s, () => print("late"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:164
+==== manual reference/errors.md:167
 -- stdout
 | scope(fn(s):
 |   spawn(s, () => print("inside"))
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:165
+==== manual reference/errors.md:168
 -- stdout
 | hits = atom(0)
 | swap(hits, n => dbg(n) + 1)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:166
+==== manual reference/errors.md:169
 -- stdout
 | hits = atom(0)
 | new = swap(hits, n => n + 1)
 | print("hits:", new)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:167
+==== manual reference/errors.md:170
 -- stdout
 | (tx, rx) = channel()
 | latest = atom(tx)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:168
+==== manual reference/errors.md:171
 -- stdout
 | latest = atom({host: "web1", up: true})
 | swap(latest, m => put(m, "up", false))
 | print(deref(latest))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:169
+==== manual reference/errors.md:172
 -- stdout
 | (ta, ra) = channel(1)
 | (tb, rb) = channel(1)
@@ -5439,7 +5463,7 @@
 | send(tb, ra)!
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:170
+==== manual reference/errors.md:173
 -- stdout
 | (req_tx, req_rx) = channel(4)
 | scope(fn(s):
@@ -5454,55 +5478,55 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:171
+==== manual reference/errors.md:174
 -- stdout
 | fn port_of(cfg) = cfg.port ?? fail("config.port is required")
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:172
+==== manual reference/errors.md:175
 -- stdout
 | fn port_of(cfg) = cfg.port ?? 8080
 | print(port_of({port: nil}))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:173
+==== manual reference/errors.md:176
 -- stdout
 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:174
+==== manual reference/errors.md:177
 -- stdout
 | fn depth(n, acc = 0) = n == 0 then acc else depth(n - 1, acc + 1)
 | print(depth(200_000))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:175
+==== manual reference/errors.md:178
 -- stdout
 | line = repeat("=", 200_000_000)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:176
+==== manual reference/errors.md:179
 -- stdout
 | line = repeat("=", 20)
 | print(line)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:177
+==== manual reference/errors.md:180
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 3
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:178
+==== manual reference/errors.md:181
 -- stdout
 | fn half(n) = n // 2
 | assert half(5) == 2
 | print("ok")
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:179
+==== manual reference/errors.md:182
 -- stdout
 | x = twice()
 | limit = 10
@@ -5510,7 +5534,7 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:180
+==== manual reference/errors.md:183
 -- stdout
 | limit = 10
 | fn twice() = limit * 2
@@ -5518,7 +5542,7 @@
 | print(x)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:181
+==== manual reference/errors.md:184
 -- stdout
 | import fs
 | r = fs.with_open("report.txt", fn(h):
@@ -5527,14 +5551,14 @@
 | print(r)
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:182
+==== manual reference/errors.md:185
 -- stdout
 | import fs
 | import path
 | print(path.join("a", "b"))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:183
+==== manual reference/errors.md:186
 -- stdout
 | fn total(xs):
 |   count = len(xs)
@@ -5543,7 +5567,7 @@
 | print(total([1, 2]))
 -- stderr
 -- exit: 0
-==== manual reference/errors.md:184
+==== manual reference/errors.md:187
 -- stdout
 | fn summary(xs):
 |   max = 0
@@ -8463,6 +8487,40 @@
 | print(pad_right("name", 8, ".") + "value")
 -- stderr
 -- exit: 0
+==== manual reference/prelude/strings.md:27
+-- stdout
+| s = "a\xffb"
+| print([s, s[1], s + "!"], len(s), byte_len(s), valid_utf8(s))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/strings.md:28
+-- stdout
+| print(len("참치"), byte_len("참치"), byte_len("ab"), byte_len("\xff"))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/strings.md:29
+-- stdout
+| print(bytes("A가"), bytes(""), bytes("\xff"))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/strings.md:30
+-- stdout
+| print(bytes("hello") |> sum |> (n => n % 256))
+-- stderr
+-- exit: 0
+==== manual reference/prelude/strings.md:31
+-- stdout
+| print(from_bytes([237, 149, 156]), [from_bytes([104, 105, 255])])
+| print(from_bytes(bytes("참치")) == "참치")
+-- stderr
+-- exit: 0
+==== manual reference/prelude/strings.md:32
+-- stdout
+| for s in ["café", "caf\xe9", ""]:
+|   print(valid_utf8(s))
+| ;;
+-- stderr
+-- exit: 0
 ==== manual vm/01-how-programs-run.md:1
 -- stdout
 | fn double(x) = x * 2
@@ -10355,7 +10413,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (69317 bytes, fnv1a64 2762bb9745186a51)
+-- stdout (69196 bytes, fnv1a64 48609e935c06a926)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -10556,6 +10614,54 @@
 |
 | with(() => nil, _ => nil, _ => print("released", deref(counter)))
 | # expect: released 400
+-- stderr
+-- exit: 0
+==== tests/lang/bytes.fung
+-- stdout
+| # Strings are bytes; the character operations read them as UTF-8, and a
+| # byte outside valid UTF-8 is a character of its own (02, L4).
+| import regex
+|
+| s = "a\xffb\xe2\x82c"
+| print(len(s), byte_len(s), valid_utf8(s), valid_utf8("é"))
+| # expect: 6 6 false true
+| print([s, s[1], s[3..5], s[-1]])
+| # expect: ["a\xffb\xe2\x82c", "\xff", "\xe2\x82", "c"]
+| print(chars("a\xff\u{e9}"))
+| # expect: ["a", "\xff", "é"]
+| print(s[..3] + s[3..] == s, join(chars(s)) == s)
+| # expect: true true
+| # \xHH is one byte: a valid sequence is the character it spells
+| print("\xc3\xa9" == "é", "\x41", len("\xc3\xa9"), "\x00" == "\u{0}")
+| # expect: true A 1 true
+| print(bytes("a\xff\u{e9}"), [from_bytes([104, 105, 255])])
+| # expect: [97, 255, 195, 169] ["hi\xff"]
+| print([upper("a\xffb"), lower("\xffQ"), trim(" \xff "), repeat("\xfe", 2)])
+| # expect: ["A\xffB", "\xffq", "\xff", "\xfe\xfe"]
+| print(split("a\xffb\xff", "\xff"), split("x\xff", ""), lines("a\xff\nb"))
+| # expect: ["a", "b", ""] ["x", "\xff"] ["a\xff", "b"]
+| print([replace("a\xffb", "\xff", "-"), "\xff" in s, starts_with(s, "a\xff"), ends_with(s, "\x82c")])
+| # expect: ["a-b", true, true, true]
+| # bytes compare as bytes: valid text keeps code point order
+| print("\xfe" < "\xff", "\x7f" < "\xc2\x80", "z" < "\xff")
+| # expect: true true true
+| m = {"\xff": 1, k: 2}
+| print(m, m["\xff"], keys(m))
+| # expect: {"\xff": 1, k: 2} 1 ["\xff", "k"]
+| r = match "\xff":
+|   "\xfe" => 1
+|   "\xff" => 2
+|   _      => 3
+| ;;
+| print(r)
+| # expect: 2
+| print("${s}" == s, ["x${"\xff"}y"], str("\xff") == "\xff")
+| # expect: true ["x\xffy"] true
+| print([pad_left("\xff", 3, "."), pad_right("\xff", 2)])
+| # expect: ["..\xff", "\xff "]
+| # patterns match bytes: `.` only valid UTF-8, an empty match only between characters
+| print(regex.is_match("a\xff", `(?-u:\xff)`), regex.find("\xffa", `.`).start, [regex.replace("가\xff", "x*", "-")])
+| # expect: true 1 ["-가-\xff-"]
 -- stderr
 -- exit: 0
 ==== tests/lang/cancel.fung

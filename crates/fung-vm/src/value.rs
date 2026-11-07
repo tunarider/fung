@@ -14,6 +14,7 @@ mod omap;
 mod pvec;
 mod release;
 mod sym;
+mod text;
 mod time;
 mod types;
 
@@ -27,11 +28,19 @@ use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHa
 pub(crate) use arith::check_chars;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub use compare::{compare, eq, equal, hash_value};
-pub use format::{format, format_for_print, type_name};
+#[cfg(test)]
+pub use format::format_for_print;
+pub use format::{format, type_name, write_for_print};
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
 pub(crate) use release::{drop_children, keep};
 pub use sym::{Sym, intern};
+pub use text::Text;
+
+/// A map key of text.
+pub fn key(s: &str) -> Rc<Text> {
+    Rc::new(Text::from(s))
+}
 pub use time::Time;
 pub(crate) use time::{Loc, MAX_UNIX, MIN_UNIX, civil_from_days, days_from_civil, offset_text};
 pub use types::{TypeSet, matches_type};
@@ -69,7 +78,7 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     Nil,
-    Str(Rc<String>),
+    Str(Rc<Text>),
     Sym(Sym),
     /// Nanoseconds.
     Dur(i64),
@@ -194,7 +203,17 @@ impl Value {
 
     /// A string value.
     pub fn str(s: &str) -> Value {
-        Value::Str(Rc::new(s.to_string()))
+        Value::Str(Rc::new(Text::from(s)))
+    }
+
+    /// A string value of text already built.
+    pub fn string(s: String) -> Value {
+        Value::Str(Rc::new(Text::from(s)))
+    }
+
+    /// A string value of bytes, UTF-8 or not (L4).
+    pub fn bytes(b: Vec<u8>) -> Value {
+        Value::Str(Rc::new(Text::new(b)))
     }
 
     /// A tuple value.

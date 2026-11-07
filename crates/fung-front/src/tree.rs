@@ -9,7 +9,7 @@ use std::fmt::{self, Write};
 
 pub use fn_info::{Capture, CaptureKind, FnInfo, Import, Param, TypeAlias};
 
-use crate::consts::{format_dur, format_float, quote_str};
+use crate::consts::{format_dur, format_float, quote_bytes, quote_str};
 use crate::source::Pos;
 
 /// Every node head the front end uses.
@@ -172,6 +172,8 @@ pub enum Lit {
     Float(f64),
     Bool(bool),
     Str(String),
+    /// A string literal that is not valid UTF-8 (`"\xff"`, L4).
+    Bytes(Vec<u8>),
     /// Nanoseconds.
     Dur(i64),
     Fn(Box<FnInfo>),
@@ -229,6 +231,7 @@ impl Node {
             Lit::Int(i) => i.to_string(),
             Lit::Bool(b) => b.to_string(),
             Lit::None => String::new(),
+            Lit::Bytes(b) => quote_bytes(b),
             Lit::Str(s) => match self.head {
                 // A resolved import holds its module key.
                 Head::String | Head::Plit | Head::Import | Head::Test => quote_str(s),

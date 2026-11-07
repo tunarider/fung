@@ -42,7 +42,7 @@ fn parse(s: &str) -> String {
 
 fn stringify(v: Value, indent: Value) -> String {
     match call("stringify", vec![v, indent]) {
-        Ok(Value::Str(s)) => s.to_string(),
+        Ok(Value::Str(s)) => s.lossy().into_owned(),
         r => shown(r),
     }
 }
@@ -58,7 +58,7 @@ fn list(items: Vec<Value>) -> Value {
 fn map(entries: Vec<(&str, Value)>) -> Value {
     let mut m = MapBuilder::default();
     for (k, v) in entries {
-        m.set(Rc::new(k.to_string()), v);
+        m.set(crate::value::key(k), v);
     }
     Value::Map(Rc::new(m.finish()))
 }

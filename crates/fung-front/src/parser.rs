@@ -19,7 +19,7 @@ mod tests;
 use crate::diag::{Arg, Diag, error};
 use crate::lexer::{Kind, Token};
 use crate::source::Pos;
-use crate::tree::{Head, Node};
+use crate::tree::{Head, Lit, Node};
 
 /// Bounds expression and pattern nesting.
 pub const MAX_DEPTH: usize = 10_000;
@@ -59,6 +59,11 @@ fn err(code: &str, pos: Pos, args: Vec<Arg>) -> Box<Diag> {
 /// shorthand (01: 대문자로 시작하는 이름은 태그 전용).
 fn tag_as_name(t: &Token) -> Box<Diag> {
     Box::new(error("E0225", t.pos, vec![s(t.text.clone())]).span(t.text.chars().count()))
+}
+
+/// A string literal's payload: text, or bytes that are not UTF-8 (L4).
+fn str_lit(v: Result<String, Vec<u8>>) -> Lit {
+    v.map_or_else(Lit::Bytes, Lit::Str)
 }
 
 fn s(text: impl Into<String>) -> Arg {

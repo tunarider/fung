@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use super::{MAX_DEPTH, PResult, Parser, describe, err, s};
+use super::{MAX_DEPTH, PResult, Parser, describe, err, s, str_lit};
 use crate::diag::Arg;
 use crate::lexer::{Kind, Token, lex_at};
 use crate::tree::{Head, Lit, Node};
@@ -448,15 +448,17 @@ impl<'a> Parser<'a> {
     /// Turns a "..." token into a string leaf or an (interp ...) node whose
     /// code parts are parsed with positions in the enclosing file.
     fn string_literal(&mut self, t: &'a Token) -> PResult<Node> {
-        if !t.parts.iter().any(|p| p.is_code) {
-            let text: String = t.parts.iter().map(|p| p.text.as_str()).collect();
-            return Ok(Node::leaf(Head::String, t.pos, Lit::Str(text)));
+        if let Some(text) = t.plain() {
+            return Ok(Node::leaf(Head::String, t.pos, str_lit(text)));
         }
         let mut n = Node::new(Head::Interp, t.pos, Vec::new());
         for part in &t.parts {
             if !part.is_code {
-                n.kids
-                    .push(Node::leaf(Head::String, t.pos, Lit::Str(part.text.clone())));
+                let lit = match &part.bytes {
+                    Some(b) => Lit::Bytes(b.clone()),
+                    None => Lit::Str(part.text.clone()),
+                };
+                n.kids.push(Node::leaf(Head::String, t.pos, lit));
                 continue;
             }
             let (toks, _) =

@@ -94,17 +94,17 @@ fn fail_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let msg = if items.is_empty() {
         "fail".to_string()
     } else {
-        nat::join_for_print(items.iter())
+        // A message: bytes outside UTF-8 show as U+FFFD.
+        fung_front::text::lossy(&nat::join_for_print(items.iter())).into_owned()
     };
     Err(fail("E0803", vec![Arg::Str(msg)]))
 }
 
 /// `print(...)` joins its arguments with spaces and writes one line (06).
 fn print_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let line = nat::join_for_print(rest_items(&a[0]).iter()) + "\n";
-    t.stdout()
-        .write_all(line.as_bytes())
-        .map_err(nat::write_err)?;
+    let mut line = nat::join_for_print(rest_items(&a[0]).iter());
+    line.push(b'\n');
+    t.stdout().write_all(&line).map_err(nat::write_err)?;
     Ok(Value::Nil)
 }
 

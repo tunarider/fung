@@ -1,5 +1,4 @@
-use fung_front::consts::{format_dur, format_float, quote_str};
-use fung_front::diag::quote;
+use fung_front::consts::{format_dur, format_float, quote_bytes};
 use fung_front::unicode::{is_name_continue, is_name_start};
 
 use super::Value;
@@ -94,10 +93,9 @@ pub(crate) fn write(v: &Value, out: &mut String) {
                     if !std::mem::take(first) {
                         out.push_str(", ");
                     }
-                    if is_plain_key(k) {
-                        out.push_str(k);
-                    } else {
-                        out.push_str(&quote_str(k));
+                    match k.as_str().filter(|k| is_plain_key(k)) {
+                        Some(k) => out.push_str(k),
+                        None => out.push_str(&quote_bytes(k)),
                     }
                     out.push_str(": ");
                     next = Some(x);
@@ -162,7 +160,7 @@ fn leaf_text(v: &Value) -> String {
         Value::Float(f) => format_float(*f),
         Value::Bool(b) => b.to_string(),
         Value::Nil => "nil".into(),
-        Value::Str(s) => quote_str(s),
+        Value::Str(s) => quote_bytes(s),
         Value::Sym(s) => format!("'{}", s.name()),
         Value::Dur(d) => format_dur(*d),
         Value::Time(t) => t.iso(),
@@ -180,7 +178,7 @@ fn leaf_text(v: &Value) -> String {
         Value::Atom(_) => "<atom>".into(),
         Value::Sender(_) => "<sender>".into(),
         Value::Receiver(_) => "<receiver>".into(),
-        Value::File(f) => format!("<file {}>", quote(&f.path)),
+        Value::File(f) => format!("<file {}>", quote_bytes(&f.path)),
         Value::Conn(_) => "<conn>".into(),
         Value::Listener(_) => "<listener>".into(),
         Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_) => {
@@ -199,12 +197,21 @@ fn is_plain_key(k: &str) -> bool {
     (first == '_' || is_name_start(first)) && cs.all(is_name_continue)
 }
 
-/// What `print` and `${}` use: strings bare, the rest in literal form.
-pub fn format_for_print(v: &Value) -> String {
+/// What `print` and `${}` use, at the end of `out`: strings bare (their
+/// bytes as they are, L4), the rest in literal form.
+pub fn write_for_print(v: &Value, out: &mut Vec<u8>) {
     match v {
-        Value::Str(s) => s.to_string(),
-        _ => format(v),
+        Value::Str(s) => out.extend_from_slice(s),
+        _ => out.extend_from_slice(format(v).as_bytes()),
     }
+}
+
+/// `write_for_print` as text, bytes outside UTF-8 as U+FFFD (tests).
+#[cfg(test)]
+pub fn format_for_print(v: &Value) -> String {
+    let mut out = Vec::new();
+    write_for_print(v, &mut out);
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// The name `type_of` reports; a tagged value is its tag name.

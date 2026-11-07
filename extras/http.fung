@@ -140,7 +140,7 @@ fn _basic(user):
 ;;
 
 # The bytes of a checked URL part with its %XX escapes decoded.
-fn _unescape_bytes(s) = _unescape_from(_net.utf8_bytes(s), 0, [])
+fn _unescape_bytes(s) = _unescape_from(bytes(s), 0, [])
 
 fn _unescape_from(bs, i, out) = if i >= len(bs):
   out
@@ -660,7 +660,7 @@ fn _connect_answer(c) = match _net.read_line(c, _header_limit):
 
 fn _connect_head(c, line) = match _status_line(line):
   Err(why)         => Err(_err(why))
-  Ok((_, _, code)) => match _fields(c, _header_limit - _net.byte_len(line) - 2, "", nil, []):
+  Ok((_, _, code)) => match _fields(c, _header_limit - byte_len(line) - 2, "", nil, []):
     Err(e) => Err(e)
     Ok(_)  => Ok((code, _reason(line)))
   ;;
@@ -695,7 +695,7 @@ fn _start_tls(c, host, ctx):
 # (06). Through a proxy (`via`) the request names the whole URL and ends
 # with the proxy's own Proxy-Authorization.
 fn _request_text(method, u, body, hs, via):
-  n = body == nil then 0 else _net.byte_len(body)
+  n = body == nil then 0 else byte_len(body)
   ua = "User-Agent" in hs then _trim_ows(hs["User-Agent"]) else _net.user_agent()
   target = via != nil and u.opaque == "" then "${u.scheme}://${_host_header(u.host)}${_request_uri(u)}" else _request_uri(u)
   own = "Host" in hs then _trim_ows(hs["Host"]) else ""
@@ -757,7 +757,7 @@ fn _head_line(c, budget) = budget < 0 then Err({kind: 'limit, message: ""}) else
 
 fn _read_response(c, method, ctx) = match _net.read_line(c, _header_limit):
   Ok(nil)  => Err(_err(ctx + "connection closed before a response"))
-  Ok(line) => _read_head(c, method, ctx, line, _header_limit - _net.byte_len(line) - 2)
+  Ok(line) => _read_head(c, method, ctx, line, _header_limit - byte_len(line) - 2)
   Err(e)   => Err(e.kind == 'limit then _head_err(e, ctx) else {kind: e.kind, message: ctx + e.message})
 ;;
 
@@ -777,7 +777,7 @@ fn _read_head(c, method, ctx, line, budget):
 
 fn _next_head(c, method, ctx, budget) = match _head_line(c, budget):
   Ok(nil)  => Err(_at('network, ctx, _head_cut))
-  Ok(line) => _read_head(c, method, ctx, line, budget - _net.byte_len(line) - 2)
+  Ok(line) => _read_head(c, method, ctx, line, budget - byte_len(line) - 2)
   Err(e)   => Err(_head_err(e, ctx))
 ;;
 
@@ -791,7 +791,7 @@ fn _status_line(line):
   code_text = _before(status, " ")
   code = _atoi(code_text)
   version = _version(proto)
-  if _net.byte_len(code_text) != 3 or code == nil or code < 0:
+  if byte_len(code_text) != 3 or code == nil or code < 0:
     Err("invalid status code `${code_text}`")
   else if version == nil:
     Err("invalid HTTP version `${proto}`")
@@ -813,7 +813,7 @@ fn _version(v):
     (1, 1)
   else if v == "HTTP/1.0":
     (1, 0)
-  else if starts_with(v, "HTTP/") and len(v) == 8 and _net.byte_len(v) == 8 and v[6] == "." and v[5] in "0123456789" and v[7] in "0123456789":
+  else if starts_with(v, "HTTP/") and len(v) == 8 and byte_len(v) == 8 and v[6] == "." and v[5] in "0123456789" and v[7] in "0123456789":
     (parse_int(v[5])!, parse_int(v[7])!)
   else:
     nil
@@ -829,7 +829,7 @@ fn _version(v):
 fn _fields(c, left, ctx, pending, acc) = match _head_line(c, left):
   Err(e)   => Err(_head_err(e, ctx))
   Ok(nil)  => _fields_eof(pending, acc, ctx)
-  Ok(line) => _fields_next(c, left - _net.byte_len(line) - 2, ctx, _field_step(pending, acc, line))
+  Ok(line) => _fields_next(c, left - byte_len(line) - 2, ctx, _field_step(pending, acc, line))
 ;;
 
 fn _fields_next(c, left, ctx, step) = match step:
@@ -1045,7 +1045,7 @@ fn _until_close(c) = match _net.read_all(c, _body_cap):
 
 fn _chunked(c, excess, cap) = match _chunk_line(c):
   Err(e)   => _drop(c, e)
-  Ok(line) => _chunk(c, excess + _net.byte_len(line) + 2, line, cap)
+  Ok(line) => _chunk(c, excess + byte_len(line) + 2, line, cap)
 ;;
 
 fn _chunk(c, excess, line, cap) = match _hex(_before(_trim_right_ows(line), ";")):
@@ -1141,7 +1141,7 @@ fn _digit(ch) = match ch:
 fn _trailer(c) = match _net.read_line(c, 4096):
   Ok(nil)  => _drop(c, _err("connection closed in the trailer"))
   Ok("")   => Ok(_net.take_body(c))
-  Ok(line) => _trailer_lines(c, 4096 - _net.byte_len(line) - 2, [line])
+  Ok(line) => _trailer_lines(c, 4096 - byte_len(line) - 2, [line])
   Err(e)   => _drop(c, _trailer_err(e))
 ;;
 
@@ -1150,7 +1150,7 @@ fn _trailer_err(e) = e.kind == 'limit then _err("trailer longer than 4096 bytes"
 fn _trailer_lines(c, left, lines) = match _head_line(c, left):
   Ok(nil)  => _drop(c, _err("trailer longer than 4096 bytes"))
   Ok("")   => _trailer_end(c, _fields_of(lines, nil, []))
-  Ok(line) => _trailer_lines(c, left - _net.byte_len(line) - 2, lines + [line])
+  Ok(line) => _trailer_lines(c, left - byte_len(line) - 2, lines + [line])
   Err(e)   => _drop(c, _trailer_err(e))
 ;;
 
@@ -1327,7 +1327,7 @@ fn _host_char(ch) = ch >= "\u{80}" or _is_alnum(ch) or ch in "!\$&'()*+,;=:[]<>\
 # The path as written when it is validly encoded,
 # else re-encoded byte by byte.
 fn _escaped_path(p) = all(chars(p), ch => _is_alnum(ch) or ch in "-_.~\$&+,/:;=@!'()*[]%")
-  then p else _encode_path(_net.utf8_bytes(p), 0, [])
+  then p else _encode_path(bytes(p), 0, [])
 
 fn _encode_path(bs, i, out) = if i >= len(bs):
   join(out, "")
@@ -1377,7 +1377,7 @@ fn _unescape_ascii(s):
 ;;
 
 fn _ascii_at(p):
-  n = _hex_value(_net.utf8_bytes(p[0])[0]) * 16 + _hex_value(_net.utf8_bytes(p[1])[0])
+  n = _hex_value(bytes(p[0])[0]) * 16 + _hex_value(bytes(p[1])[0])
   (n >= 32 and n <= 126 then _printable[n - 32] else "%" + p[..2]) + p[2..]
 ;;
 
@@ -1579,7 +1579,7 @@ fn _drained(c):
 
 fn _read_request(c) = match _net.read_line(c, _max_head):
   Ok(nil)  => Err(nil)
-  Ok(line) => _request_head(c, line, _max_head - _net.byte_len(line) - 2)
+  Ok(line) => _request_head(c, line, _max_head - byte_len(line) - 2)
   Err(e)   => Err(e.kind == 'limit then _too_large else nil)
 ;;
 
@@ -1631,7 +1631,7 @@ fn _request_head(c, line, budget):
 fn _req_fields(c, left, pending, acc) = match _head_line(c, left):
   Err(e)   => Err(e.kind == 'limit then _too_large else nil)
   Ok(nil)  => Err(_bad_request)
-  Ok(line) => _req_field(c, left - _net.byte_len(line) - 2, _field_step(pending, acc, line))
+  Ok(line) => _req_field(c, left - byte_len(line) - 2, _field_step(pending, acc, line))
 ;;
 
 fn _req_field(c, left, step) = match step:
@@ -1707,7 +1707,7 @@ fn _unescape(s, plus):
   if any(drop(split(s, "%"), 1), p => len(p) < 2 or not _is_hex(p[0]) or not _is_hex(p[1])):
     return nil
   ;;
-  _net.utf8_string(_decode(_net.utf8_bytes(s), 0, [], plus))
+  from_bytes(_decode(bytes(s), 0, [], plus))
 ;;
 
 fn _decode(bs, i, out, plus) = if i >= len(bs):
@@ -1865,7 +1865,7 @@ fn _reply(rq, status, hs, body):
   closes = _has_token("Connection" in hs then hs["Connection"] else "", "close")
   head = rq.method == "HEAD"
   date = "Date" in hs then "" else "Date: ${_http_date()}\r\n"
-  length = allowed and "Content-Length" not in hs and (not head or body != "") then "Content-Length: ${_net.byte_len(body)}\r\n" else ""
+  length = allowed and "Content-Length" not in hs and (not head or body != "") then "Content-Length: ${byte_len(body)}\r\n" else ""
   connection = not closes and is11 then "Connection: close\r\n" else ""
   lines = _header_lines(hs, closes then suppressed else suppressed + ["Connection"])
   _reply_line(is11, status) + lines + date + length + connection + "\r\n" + (allowed and not head then body else "")

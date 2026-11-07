@@ -83,7 +83,7 @@ use std::sync::Arc;
 
 use fung_front::bytecode::Op;
 use fung_front::diag::{Arg, CallSite, Diag, error};
-use fung_front::source::{FileId, Pos, decode_lossy};
+use fung_front::source::{FileId, Pos};
 use fung_front::tree::CaptureKind;
 
 pub use crate::value::{Closure, Globals, Native, NativeBody, NativeFn, NativeParam, StepFn};
@@ -180,10 +180,6 @@ fn discarded_stop(pos: Pos, v: &Value) -> Option<Stop> {
 /// An E0801 internal error without a position.
 pub(crate) fn internal(args: Vec<Arg>) -> Stop {
     err("E0801", no_pos(), args)
-}
-
-fn stdin_line(line: Option<Vec<u8>>) -> Option<String> {
-    line.map(|b| decode_lossy(&b))
 }
 
 /// A task between its turns (`sched.rs`): what `Task` holds of it while
@@ -401,11 +397,10 @@ impl<'rt> Task<'rt> {
     /// One line of standard input with its line ending if one is queued
     /// (`Some(None)` at the end of the input); otherwise this task is put
     /// on the reader's waiting list and `None`: park until woken
-    /// (`stdin.rs`). Bytes that are not UTF-8 become U+FFFD one by one,
-    /// like source text.
-    pub(crate) fn stdin_poll(&mut self) -> Option<Option<String>> {
+    /// (`stdin.rs`). The line is bytes, as read (L4).
+    pub(crate) fn stdin_poll(&mut self) -> Option<Option<Vec<u8>>> {
         let me = self.waiter.clone();
-        self.world.stdin.poll(&me).map(stdin_line)
+        self.world.stdin.poll(&me)
     }
 
     /// A wait for a line that ended without one leaves the waiting list.
@@ -438,7 +433,7 @@ impl<'rt> Task<'rt> {
     }
 
     /// The script arguments.
-    pub fn args(&self) -> &[String] {
+    pub fn args(&self) -> &[Vec<u8>] {
         &self.world.args
     }
 
@@ -981,14 +976,15 @@ impl<'rt> Task<'rt> {
                 }
                 Op::Concat => {
                     let start = self.stack.len() - arg;
-                    let mut s = String::new();
+                    let mut s = Vec::new();
                     for part in self.stack.drain(start..) {
-                        s.push_str(&value::format_for_print(
+                        value::write_for_print(
                             part.as_ref().expect("CONCAT of an unassigned slot"),
-                        ));
+                            &mut s,
+                        );
                     }
                     value::check_chars(&s).map_err(|d| at(d, pos))?;
-                    self.push(Value::Str(Rc::new(s)));
+                    self.push(Value::bytes(s));
                 }
                 Op::List
                 | Op::Map

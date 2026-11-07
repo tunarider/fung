@@ -42,14 +42,14 @@ fn prelude_key(name: &str) -> String {
 
 /// The prelude's native values: the core natives, the concurrency natives
 /// and `args` (the script's arguments).
-pub(crate) fn native_prelude(args: &[String]) -> Prelude {
+pub(crate) fn native_prelude(args: &[Vec<u8>]) -> Prelude {
     let mut p = Prelude::default();
     for (name, v) in prelude::core() {
         p.0.insert(name.to_string(), v);
     }
     p.0.insert(
         "args".to_string(),
-        nat::list(args.iter().map(|a| Value::str(a)).collect()),
+        nat::list(args.iter().map(|a| Value::bytes(a.clone())).collect()),
     );
     for (name, v) in conc::natives() {
         p.0.insert(name.to_string(), v);
@@ -66,7 +66,7 @@ pub(crate) fn native_prelude(args: &[String]) -> Prelude {
 /// with positions in the runtime's sources. Booting the embedded file does
 /// not fail in practice; a runtime whose boot failed should not be reused
 /// (a module whose body failed stays "loading").
-pub(crate) fn boot(t: &mut Task<'_>, args: Vec<String>) -> Result<Prelude, Vec<Diag>> {
+pub(crate) fn boot(t: &mut Task<'_>, args: Vec<Vec<u8>>) -> Result<Prelude, Vec<Diag>> {
     let mut p = native_prelude(&args);
     t.world().args = args;
     for (name, src) in extras::PRELUDE_FILES {

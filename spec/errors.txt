@@ -50,6 +50,7 @@ E0308	cannot shadow module `%s`		import it under another name: `import fs as m`
 E0309	name `%s` is already bound to a module		
 E0310	`%s` is internal; %s		
 E0311	import must be at the top level		
+E0312	cannot read module `%s`: %s		fung source is UTF-8 text
 E0401	cannot call a value of type %s		
 E0402	%s takes %d argument(s), got %d		
 E0403	argument `%s` must be %s, got %s		
@@ -73,6 +74,7 @@ E0514	cannot use a value of type %s as a map key		map keys are strings: convert 
 E0515	invalid pattern %s		
 E0516	slice start %d is after its end %d (length %d)		
 E0517	cannot compare a symbol with a string: %s and %s		they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+E0518	%s is not valid UTF-8: %s		a string can hold any bytes, but this needs text; check where the bytes came from, or test them with `valid_utf8(s)`
 E0601	no pattern matched %s		
 E0602	value %s does not match the pattern		
 E0603	unhandled Err: %s		

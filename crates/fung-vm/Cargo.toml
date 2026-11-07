@@ -13,12 +13,15 @@ fung-front = { path = "../fung-front" }
 # first to name what is wrong with it.
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
 regex-syntax = { version = "0.8", default-features = false, features = ["std", "unicode"] }
+# Substring search over string bytes (`split`, `replace`, `in`, L4): the
+# same crate the regex engines search with.
+memchr = { version = "2", default-features = false, features = ["std"] }
 # TLS client connections (`_native.net` `connect(tls: true)`, 4d spec,
 # section 1): ring for the cryptography, no logging. The operating
 # system's roots (or SSL_CERT_FILE / SSL_CERT_DIR) through
 # rustls-native-certs.
-rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
-rustls-native-certs = "0.8.4"
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8.5"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -61,6 +61,25 @@
 | released 400
 -- stderr
 -- exit: 0
+==== tests/lang/bytes.fung
+-- stdout
+| 6 6 false true
+| ["a\xffb\xe2\x82c", "\xff", "\xe2\x82", "c"]
+| ["a", "\xff", "é"]
+| true true
+| true A 1 true
+| [97, 255, 195, 169] ["hi\xff"]
+| ["A\xffB", "\xffq", "\xff", "\xfe\xfe"]
+| ["a", "b", ""] ["x", "\xff"] ["a\xff", "b"]
+| ["a-b", true, true, true]
+| true true true
+| {"\xff": 1, k: 2} 1 ["\xff", "k"]
+| 2
+| true ["x\xffy"] true
+| ["..\xff", "\xff "]
+| true 1 ["-가-\xff-"]
+-- stderr
+-- exit: 0
 ==== tests/lang/cancel.fung
 -- stdout
 | Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'timeout, message: "timed out after 10ms"}) Err({kind: 'timeout, message: "timed out after 5ms"})

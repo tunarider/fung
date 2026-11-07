@@ -7,9 +7,9 @@
 use std::fmt;
 use std::rc::Rc;
 
-use super::Value;
 use super::omap::{self, Omap};
 use super::release::{drop_children, keep};
+use super::{Text, Value};
 
 /// The largest map kept as a plain vector.
 pub const SMALL_MAP_MAX: usize = 16;
@@ -21,7 +21,7 @@ pub struct Map {
 
 #[derive(Clone)]
 enum Repr {
-    Flat(Vec<(Rc<String>, Value)>),
+    Flat(Vec<(Rc<Text>, Value)>),
     Big(Omap),
 }
 
@@ -41,7 +41,7 @@ impl Map {
     /// Whether a value in the map holds a mutable one.
     /// The entries of a small map (`Value::holds_mutable` walks them);
     /// `None` for a big one, which answers from its memo.
-    pub(crate) fn flat(&self) -> Option<&[(Rc<String>, Value)]> {
+    pub(crate) fn flat(&self) -> Option<&[(Rc<Text>, Value)]> {
         match &self.repr {
             Repr::Flat(v) => Some(v),
             Repr::Big(_) => None,
@@ -66,16 +66,20 @@ impl Map {
         self.len() == 0
     }
 
-    pub fn get(&self, k: &str) -> Option<&Value> {
+    pub fn get<K: AsRef<[u8]> + ?Sized>(&self, k: &K) -> Option<&Value> {
+        let k = k.as_ref();
         match &self.repr {
-            Repr::Flat(es) => es.iter().find(|(key, _)| **key == k).map(|(_, v)| v),
+            Repr::Flat(es) => es
+                .iter()
+                .find(|(key, _)| key.as_bytes() == k)
+                .map(|(_, v)| v),
             Repr::Big(o) => o.get(k),
         }
     }
 
     /// Sets `k`; an existing key keeps its place. Nodes shared with other
     /// maps are copied, never written through.
-    pub fn put(&mut self, k: Rc<String>, v: Value) {
+    pub fn put(&mut self, k: Rc<Text>, v: Value) {
         match &mut self.repr {
             Repr::Flat(es) => {
                 if let Some(e) = es.iter_mut().find(|(key, _)| *key == k) {
@@ -94,9 +98,10 @@ impl Map {
 
     /// Removes `k`; returns whether it was there (the map is unchanged
     /// otherwise). A removed key put again comes back at the end.
-    pub fn remove(&mut self, k: &str) -> bool {
+    pub fn remove<K: AsRef<[u8]> + ?Sized>(&mut self, k: &K) -> bool {
+        let k = k.as_ref();
         match &mut self.repr {
-            Repr::Flat(es) => match es.iter().position(|(key, _)| **key == k) {
+            Repr::Flat(es) => match es.iter().position(|(key, _)| key.as_bytes() == k) {
                 Some(i) => {
                     es.remove(i);
                     true
@@ -136,7 +141,7 @@ impl Map {
     }
 
     /// Like `iter`, with the shared key strings.
-    pub fn entries(&self) -> impl Iterator<Item = (&Rc<String>, &Value)> {
+    pub fn entries(&self) -> impl Iterator<Item = (&Rc<Text>, &Value)> {
         let (flat, big) = match &self.repr {
             Repr::Flat(es) => (Some(es.iter().map(|(k, v)| (k, v))), None),
             Repr::Big(o) => (None, Some(o.iter().map(|e| (&e.key, &e.val)))),
@@ -173,17 +178,17 @@ pub struct Iter<'a> {
 }
 
 enum IterRepr<'a> {
-    Flat(std::slice::Iter<'a, (Rc<String>, Value)>),
+    Flat(std::slice::Iter<'a, (Rc<Text>, Value)>),
     Big(omap::Iter<'a>),
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = (&'a str, &'a Value);
+    type Item = (&'a Text, &'a Value);
 
-    fn next(&mut self) -> Option<(&'a str, &'a Value)> {
+    fn next(&mut self) -> Option<(&'a Text, &'a Value)> {
         match &mut self.inner {
-            IterRepr::Flat(it) => it.next().map(|(k, v)| (k.as_str(), v)),
-            IterRepr::Big(it) => it.next().map(|e| (e.key.as_str(), &e.val)),
+            IterRepr::Flat(it) => it.next().map(|(k, v)| (&**k, v)),
+            IterRepr::Big(it) => it.next().map(|e| (&*e.key, &e.val)),
         }
     }
 }
@@ -205,7 +210,7 @@ impl MapBuilder {
     }
 
     /// Sets `k`; a repeated key keeps its first place.
-    pub fn set(&mut self, k: Rc<String>, v: Value) {
+    pub fn set(&mut self, k: Rc<Text>, v: Value) {
         self.m.put(k, v);
     }
 

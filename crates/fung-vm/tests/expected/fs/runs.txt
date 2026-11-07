@@ -4,7 +4,7 @@
 -- stdout
 | Err({kind: 'not_found, message: "cannot read `/nonexistent-fung-test/x`: no such file or directory"})
 | Err({kind: 'io, message: "cannot read `$D`: is a directory"})
-| Ok("a�b�")
+| Ok("a\xffb\xc3")
 | Err({kind: 'permission, message: "cannot read `$D/locked`: permission denied"})
 | Err({kind: 'permission, message: "cannot write `$D/locked`: permission denied"})
 | Err({kind: 'permission, message: "cannot write `$D/ro/x`: permission denied"})
@@ -77,7 +77,7 @@
 | Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) true
 | Err({kind: 'permission, message: "cannot open `$D/ro/x`: permission denied"}) Err({kind: 'io, message: "cannot open `$D`: is a directory"}) Err({kind: 'io, message: "cannot open `$D`: is a directory"}) Err({kind: 'io, message: "cannot open `$D/a.txt/x`: not a directory"})
 | Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"})
-| Ok([]) Ok(["a�b�"]) [Ok("hi"), Ok(nil)]
+| Ok([]) Ok(["a\xffb\xc3"]) [Ok("hi"), Ok(nil)]
 | Ok(["x"]) Ok(nil) Ok("w\n")
 | Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'invalid, message: "file `$D/w.txt` is not open for reading"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
 | Ok(nil) Ok(["a", "b", "", "", "c"]) Ok(["a", "b", "", "", "c"])

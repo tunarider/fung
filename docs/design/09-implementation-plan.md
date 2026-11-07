@@ -102,7 +102,7 @@ desugar는 겉 문법 트리를 **같은 형태의 더 작은 트리**로 바꾼
 
 ### 값의 Rust 표현
 
-- `enum Value`(종류 태그 + 값 칸, 16바이트): `Int(i64)`, `Float(f64)`, `Bool`, `Nil`, `Str(Rc<String>)`, `Sym`(전역 인턴 표), `Dur(i64)`, `Time`,
+- `enum Value`(종류 태그 + 값 칸, 16바이트): `Int(i64)`, `Float(f64)`, `Bool`, `Nil`, `Str(Rc<Text>)`(유효한 UTF-8이면 `String`, 아니면 바이트 열, 그리고 ASCII인지, L4), `Sym`(전역 인턴 표), `Dur(i64)`, `Time`,
   `List`(작으면 평평한 배열, 크면 영속 벡터 위의 보기), `Map`(작으면 넣은 순서의 쌍 배열, 크면 항목 벡터 + HAMT), `Tuple`, `Tag{이름, 인자들}`, `Range`,
   `Closure{원형, 붙잡은 값}`, `Native`, `Module`, `Task`, `Scope`, `Sender`, `Receiver`, `Atom`, `File`, `Conn`, `Listener`. 상자가 필요한 것은 `Rc`로 공유하고 참조 계수로 회수한다
   (긴 구조의 연쇄 해제는 재귀가 아니라 반복).

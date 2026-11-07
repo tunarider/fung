@@ -75,9 +75,32 @@ pub fn decode_lossy(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+/// Source text: bytes that are not UTF-8 are refused, not decoded (L4:
+/// a U+FFFD would slip into the program unseen), with where they start
+/// as the reason: `not valid UTF-8 at line 3, column 7`.
+pub fn decode_source(bytes: Vec<u8>) -> Result<String, String> {
+    String::from_utf8(bytes).map_err(|e| {
+        let b = e.as_bytes();
+        let ok = &b[..e.utf8_error().valid_up_to()];
+        let line = ok.iter().filter(|&&c| c == b'\n').count() + 1;
+        let start = ok.iter().rposition(|&c| c == b'\n').map_or(0, |i| i + 1);
+        let col = std::str::from_utf8(&ok[start..]).map_or(0, |s| s.chars().count()) + 1;
+        format!("not valid UTF-8 at line {line}, column {col}")
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::decode_lossy;
+    #[test]
+    fn source_text_must_be_utf8() {
+        assert_eq!(decode_source(b"a\n".to_vec()), Ok("a\n".to_string()));
+        assert_eq!(
+            decode_source([&b"x\n"[..], "가 ".as_bytes(), b"\xff"].concat()).unwrap_err(),
+            "not valid UTF-8 at line 2, column 3"
+        );
+    }
+
+    use super::{decode_lossy, decode_source};
 
     /// Each maximal invalid subsequence becomes one U+FFFD (the Unicode
     /// recommendation): a cut-off character is one, two stray bytes two.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>문자열 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right.">
+<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, valid_utf8.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -37,7 +37,7 @@
 <li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
 <li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
 <li><a href="../../reference/prelude/maps.html">맵</a></li>
-<li><a href="../../reference/prelude/strings.html" aria-current="page">문자열</a><ol class="toc2"><li><a href="#concepts">문자열이란</a></li><li><a href="#split-join">나누기와 잇기</a></li><li><a href="#clean">다듬기와 바꾸기</a></li><li><a href="#test-build">검사와 만들기</a></li></ol></li>
+<li><a href="../../reference/prelude/strings.html" aria-current="page">문자열</a><ol class="toc2"><li><a href="#concepts">문자열이란</a></li><li><a href="#split-join">나누기와 잇기</a></li><li><a href="#clean">다듬기와 바꾸기</a></li><li><a href="#test-build">검사와 만들기</a></li><li><a href="#bytes">바이트</a></li></ol></li>
 <li><a href="../../reference/prelude/results.html">결과값</a></li>
 <li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
 <li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
@@ -63,13 +63,14 @@
 <main><div class="col">
 <nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">prelude</span></nav>
 <h1>문자열</h1>
-<p class="lede">글자를 나누고, 잇고, 다듬고, 바꾼다. 문자열은 불변이고, 인덱스와 길이는 바이트가 아니라 글자 단위다.</p>
+<p class="lede">글자를 나누고, 잇고, 다듬고, 바꾼다. 문자열은 불변인 바이트 열이고, 인덱스와 길이는 바이트가 아니라 글자 단위다.</p>
 <h2 id="concepts">문자열이란</h2>
 <p><strong>문자열</strong>(string)은 글자를 순서대로 늘어놓은 값이다. 큰따옴표로 쓴다: <code>&quot;web-1&quot;</code>. 스크립트가 다루는 데이터의 대부분, 곧 파일 내용, 명령 출력, 로그 줄, 환경 변수, HTTP 응답은 처음에 문자열로 들어온다. 그래서 문자열을 쪼개고 다듬는 일이 스크립트의 절반쯤 된다.</p>
-<p>fung의 문자열에 대해 알아 둘 것은 넷이다.</p>
+<p>fung의 문자열에 대해 알아 둘 것은 다섯이다.</p>
 <ul>
 <li><strong>불변</strong>이다. <code>upper(s)</code>는 <code>s</code>를 바꾸지 않고 대문자로 된 새 문자열을 돌려준다.</li>
 <li><strong>글자 단위</strong>다. 문자열은 UTF-8로 저장되지만 <code>len</code>, 인덱스 <code>s[0]</code>, 슬라이스 <code>s[1..3]</code>은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 <code>&quot;참치&quot;[0]</code>은 <code>&quot;참&quot;</code>이고 <code>len(&quot;참치&quot;)</code>는 2다.</li>
+<li><strong>어떤 바이트든 담는다</strong>. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 <code>&quot;a\xff&quot;</code>처럼 <code>\xHH</code>로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다(<a href="#bytes">바이트</a>).</li>
 <li><strong>잇기는 <code>+</code>, 끼워 넣기는 보간</strong>이다. <code>&quot;a&quot; + &quot;b&quot;</code>는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 <code>&quot;${name}: ${count}&quot;</code>처럼 쓴다. 보간은 어떤 값이든 <a href="convert.html#fn-str"><code>str</code></a>과 같은 규칙으로 바꿔 넣는다.</li>
 <li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>는 에러다. 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
 </ul>
@@ -177,7 +178,7 @@ for (i, host) in zip(1..100, lines(out)):
 <p>문자열을 글자 하나짜리 문자열의 리스트로 나눈다.</p>
 <div class="sig"><code>chars(s)</code></div>
 <h4>설명</h4>
-<p>글자는 유니코드 코드 포인트 하나다. 그래서 결합 문자로 쓴 <code>&quot;e\u{301}&quot;</code>(é)나 피부색이 붙은 이모지는 둘로 나뉜다. 글자 리스트를 얻으면 컬렉션 함수(<code>map</code>, <code>filter</code>, <code>reverse</code>, <code>unique</code> …)를 모두 쓸 수 있고, 다 고친 뒤 <code>join</code>으로 다시 잇는다.</p>
+<p>글자는 유니코드 코드 포인트 하나다. 그래서 결합 문자로 쓴 <code>&quot;e\u{301}&quot;</code>(é)나 피부색이 붙은 이모지는 둘로 나뉜다. UTF-8에 속하지 않는 바이트는 그 바이트 하나짜리 문자열 한 글자다(<code>chars(&quot;a\xff&quot;)</code>는 <code>[&quot;a&quot;, &quot;\xff&quot;]</code>). 글자 리스트를 얻으면 컬렉션 함수(<code>map</code>, <code>filter</code>, <code>reverse</code>, <code>unique</code> …)를 모두 쓸 수 있고, 다 고친 뒤 <code>join</code>으로 다시 잇는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -230,7 +231,7 @@ print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <p>대문자로 바꾼 문자열을 돌려준다.</p>
 <div class="sig"><code>upper(s)</code></div>
 <h4>설명</h4>
-<p>유니코드 기본 대소문자 변환(전체 매핑)을 쓴다. 그래서 글자 수가 바뀔 수 있다: <code>upper(&quot;straße&quot;)</code>는 <code>&quot;STRASSE&quot;</code>. 한글처럼 대소문자가 없는 글자는 그대로다.</p>
+<p>유니코드 기본 대소문자 변환(전체 매핑)을 쓴다. 그래서 글자 수가 바뀔 수 있다: <code>upper(&quot;straße&quot;)</code>는 <code>&quot;STRASSE&quot;</code>. 한글처럼 대소문자가 없는 글자는 그대로다. UTF-8에 속하지 않는 바이트도 글자가 아니므로 그대로 둔다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -250,7 +251,7 @@ print(count + 1)</code></pre><pre class="out plain"><code>43</code></pre></div>
 <p>소문자로 바꾼 문자열을 돌려준다.</p>
 <div class="sig"><code>lower(s)</code></div>
 <h4>설명</h4>
-<p>전체 매핑이고, 그리스어 시그마는 단어 끝에서 <code>ς</code>가 된다: <code>lower(&quot;ΟΔΟΣ&quot;)</code>는 <code>&quot;οδος&quot;</code>. 대소문자를 무시하고 비교하려면 양쪽을 <code>lower</code>해서 비교한다.</p>
+<p>전체 매핑이고, 그리스어 시그마는 단어 끝에서 <code>ς</code>가 된다: <code>lower(&quot;ΟΔΟΣ&quot;)</code>는 <code>&quot;οδος&quot;</code>. 대소문자를 무시하고 비교하려면 양쪽을 <code>lower</code>해서 비교한다. UTF-8에 속하지 않는 바이트는 그대로 둔다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -433,6 +434,100 @@ print(pad_right(&quot;name&quot;, 8, &quot;.&quot;) + &quot;value&quot;)</code><
 name....value</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-pad_left"><code>pad_left</code></a></p>
+</section>
+<h2 id="bytes">바이트</h2>
+<p>fung 문자열은 바이트 열이다. 바깥에서 들어온 값(파일, 명령 출력, <code>env</code>, <code>args</code>, 표준 입력, 소켓)은 UTF-8이 아니어도 <strong>바이트 그대로</strong> 들어오고, 그대로 쓰면 그대로 나간다. 그래서 fung으로 읽고 쓰기만 하는 스크립트가 파일을 바꾸지 않는다.</p>
+<p>글자 연산(<code>len</code>, <code>s[i]</code>, <code>chars</code>, 슬라이스)은 바이트를 UTF-8로 읽고, UTF-8에 속하지 않는 바이트는 그 하나가 한 글자다. 자르고 다시 이어도 바이트가 그대로 남는다. 값으로 보일 때(리스트 안, REPL, <code>dbg</code>)는 그런 바이트가 <code>\xff</code>처럼 보이고, 리터럴에도 <code>&quot;\xff&quot;</code>로 쓴다. <code>\xHH</code>는 <strong>바이트 하나</strong>다: <code>&quot;\xc3\xa9&quot;</code>는 UTF-8로 <code>é</code>이고, <code>&quot;\xe9&quot;</code>는 <code>é</code>가 아니라 바이트 0xE9 하나다(글자 <code>é</code>는 <code>&quot;\u{e9}&quot;</code>).</p>
+<p>대부분의 함수는 그런 바이트를 그대로 둔다: 비교(바이트 순, UTF-8이면 코드 포인트 순과 같다), <code>+</code>, <code>split</code>, <code>replace</code>, <code>trim</code>, <code>upper</code>·<code>lower</code>, 정규식. 형식 자체가 글을 요구하는 곳만 에러 <a href="../errors.html#E0518">E0518</a>로 멈춘다: <a href="../modules/json.html#fn-json-stringify"><code>json.stringify</code></a>, 정규식 패턴, 시간 형식, 호스트 이름. 바깥에서 온 값을 읽는 <a href="convert.html#fn-parse_int"><code>parse_int</code></a> 같은 함수에는 그런 바이트가 읽을 수 없는 입력일 뿐이라 <code>Err</code>다.</p>
+<div class="run"><pre><code>s = &quot;a\xffb&quot;
+print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), valid_utf8(s))</code></pre><pre class="out plain"><code>[&quot;a\xffb&quot;, &quot;\xff&quot;, &quot;a\xffb!&quot;] 3 3 false</code></pre></div>
+<section class="entry" id="fn-byte_len">
+<h3>byte_len</h3>
+<p>문자열의 바이트 수.</p>
+<div class="sig"><code>byte_len(s)</code></div>
+<h4>설명</h4>
+<p><code>len</code>은 글자를, <code>byte_len</code>은 바이트를 센다. 둘은 ASCII 문자열에서만 같다. 파일 크기, 네트워크로 보낼 길이(<code>Content-Length</code>), 바이트 한도를 다룰 때 쓴다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>정수.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>글자와 바이트</strong></p>
+<div class="run"><pre><code>print(len(&quot;참치&quot;), byte_len(&quot;참치&quot;), byte_len(&quot;ab&quot;), byte_len(&quot;\xff&quot;))</code></pre><pre class="out plain"><code>2 6 2 1</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="collections.html#fn-len"><code>len</code></a>, <a href="#fn-bytes"><code>bytes</code></a></p>
+</section>
+<section class="entry" id="fn-bytes">
+<h3>bytes</h3>
+<p>문자열의 바이트를 0부터 255까지의 정수 리스트로 돌려준다.</p>
+<div class="sig"><code>bytes(s)</code></div>
+<h4>설명</h4>
+<p>바이트 하나하나를 수로 다뤄야 할 때 쓴다: 퍼센트 인코딩, 체크섬, 이진 형식 읽기. JSON처럼 글만 받는 곳에 바이트를 옮길 때도 쓴다. <a href="#fn-from_bytes"><code>from_bytes</code></a>가 거꾸로다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>정수 리스트.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>UTF-8 바이트 보기</strong></p>
+<div class="run"><pre><code>print(bytes(&quot;A가&quot;), bytes(&quot;&quot;), bytes(&quot;\xff&quot;))</code></pre><pre class="out plain"><code>[65, 234, 176, 128] [] [255]</code></pre></div>
+<p><strong>간단한 체크섬</strong></p>
+<div class="run"><pre><code>print(bytes(&quot;hello&quot;) |&gt; sum |&gt; (n =&gt; n % 256))</code></pre><pre class="out plain"><code>20</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-from_bytes"><code>from_bytes</code></a>, <a href="#fn-byte_len"><code>byte_len</code></a></p>
+</section>
+<section class="entry" id="fn-from_bytes">
+<h3>from_bytes</h3>
+<p>0부터 255까지의 정수 리스트를 그 바이트로 된 문자열로 만든다.</p>
+<div class="sig"><code>from_bytes(xs)</code></div>
+<h4>설명</h4>
+<p><a href="#fn-bytes"><code>bytes</code></a>의 반대다. 바이트가 UTF-8이 아니어도 그대로 문자열이 된다. 값을 바꾸지 않으므로 <code>from_bytes(bytes(s)) == s</code>다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>xs</code>: 0부터 255까지의 정수 리스트.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p><code>xs</code>가 리스트가 아니거나, 0부터 255까지의 정수가 아닌 원소가 있으면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>바이트에서 문자열로</strong></p>
+<div class="run"><pre><code>print(from_bytes([237, 149, 156]), [from_bytes([104, 105, 255])])
+print(from_bytes(bytes(&quot;참치&quot;)) == &quot;참치&quot;)</code></pre><pre class="out plain"><code>한 [&quot;hi\xff&quot;]
+true</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-bytes"><code>bytes</code></a>, <a href="#fn-valid_utf8"><code>valid_utf8</code></a></p>
+</section>
+<section class="entry" id="fn-valid_utf8">
+<h3>valid_utf8</h3>
+<p>문자열이 올바른 UTF-8 글인지.</p>
+<div class="sig"><code>valid_utf8(s)</code></div>
+<h4>설명</h4>
+<p>글이 필요한 곳(JSON, 정규식 패턴, 시간 형식, 호스트 이름)에 넘기기 전에 확인할 때 쓴다. 그런 곳에 UTF-8이 아닌 문자열을 넘기면 에러 <a href="../errors.html#E0518">E0518</a>이다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 문자열.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>불.</p>
+<h4>에러</h4>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<h4>예제</h4>
+<p><strong>바깥에서 온 값 확인</strong></p>
+<div class="run"><pre><code>for s in [&quot;café&quot;, &quot;caf\xe9&quot;, &quot;&quot;]:
+  print(valid_utf8(s))
+;;</code></pre><pre class="out plain"><code>true
+false
+true</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-bytes"><code>bytes</code></a>, <a href="#fn-from_bytes"><code>from_bytes</code></a></p>
 </section>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/maps.html"><small>이전</small>맵</a><a class="next" href="../../reference/prelude/results.html"><small>다음</small>결과값</a></nav>
 </div></main>

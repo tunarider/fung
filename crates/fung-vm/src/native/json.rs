@@ -13,7 +13,7 @@ use fung_front::diag::{Arg, quote};
 use super::nat::{self, native, opt, param};
 use crate::prelude::{MAX_CHARS, too_many_chars};
 use crate::value::{
-    ListBuilder, ListIter, Lit, MapBuilder, MapIter, Module, Native, Value, format, type_name,
+    ListBuilder, ListIter, Lit, MapBuilder, MapIter, Module, Native, Text, Value, format, type_name,
 };
 use crate::vm::{Stop, Task};
 
@@ -43,8 +43,22 @@ pub fn module() -> Rc<Module> {
 }
 
 fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
-    Ok(match decode(s) {
+    let t = nat::need_bytes("s", &a[0])?;
+    // JSON text is UTF-8 (RFC 8259): other bytes are a parse failure where
+    // they start, like any other bad input.
+    let r = match std::str::from_utf8(t) {
+        Ok(s) => decode(s),
+        Err(e) => {
+            let ok = std::str::from_utf8(&t[..e.valid_up_to()]).expect("the valid prefix");
+            let (line, col) = line_col(ok, ok.len());
+            Err(JsonError {
+                line,
+                col,
+                msg: "invalid UTF-8".into(),
+            })
+        }
+    };
+    Ok(match r {
         Ok(v) => nat::ok(v),
         Err(e) => nat::err_value(
             "parse",
@@ -88,8 +102,8 @@ enum Open {
     List(ListBuilder),
     Map {
         map: MapBuilder,
-        seen: HashSet<Rc<String>>,
-        key: Option<Rc<String>>,
+        seen: HashSet<Rc<Text>>,
+        key: Option<Rc<Text>>,
     },
 }
 
@@ -269,7 +283,7 @@ impl<'a> Parser<'a> {
     }
 
     /// An object key and its `:`, the key's quote at `self.i`.
-    fn key(&mut self, seen: &mut HashSet<Rc<String>>) -> Result<Rc<String>, JsonError> {
+    fn key(&mut self, seen: &mut HashSet<Rc<Text>>) -> Result<Rc<Text>, JsonError> {
         let at = self.i;
         if self.peek() != Some(b'"') {
             return Err(match self.peek() {
@@ -277,9 +291,9 @@ impl<'a> Parser<'a> {
                 Some(_) => self.err(at, "expected a string for an object key"),
             });
         }
-        let k = Rc::new(self.string()?);
+        let k = Rc::new(Text::from(self.string()?));
         if !seen.insert(k.clone()) {
-            return Err(self.err(at, format!("duplicate key {}", quote(&k))));
+            return Err(self.err(at, format!("duplicate key {}", quote(&k.lossy()))));
         }
         self.skip_ws();
         match self.peek() {
@@ -409,11 +423,18 @@ fn stringify_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     if out.len() as i64 > MAX_CHARS && out.chars().count() as i64 > MAX_CHARS {
         return Err(too_many_chars());
     }
-    Ok(Value::Str(Rc::new(out)))
+    Ok(Value::string(out))
+}
+
+/// A string as JSON text, which must be UTF-8 (RFC 8259): other bytes
+/// are E0518 (L4).
+fn json_text(t: &Text) -> Result<&str, Stop> {
+    t.as_str()
+        .ok_or_else(|| nat::not_utf8("a string in JSON", t))
 }
 
 /// A JSON string (RFC 8259): only `"`, `\` and characters below U+0020
-/// are escaped; a fung string is valid UTF-8, so nothing needs replacing.
+/// are escaped.
 fn quote_json(out: &mut String, s: &str) {
     out.push('"');
     for c in s.chars() {
@@ -486,7 +507,7 @@ fn encode(out: &mut String, v: &Value, indent: i64) -> Result<(), Stop> {
                     None
                 }
                 Value::Str(s) => {
-                    quote_json(out, s);
+                    quote_json(out, json_text(s)?);
                     None
                 }
                 Value::Sym(s) => {
@@ -548,7 +569,7 @@ fn encode(out: &mut String, v: &Value, indent: i64) -> Result<(), Stop> {
                 top.first = false;
                 newline(out, indent, depth + 1)?;
                 if let Some(k) = key {
-                    quote_json(out, k);
+                    quote_json(out, json_text(k)?);
                     out.push_str(colon);
                 }
                 next = Some((item, depth + 1));

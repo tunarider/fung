@@ -38,7 +38,7 @@ struct Inner {
 #[derive(Default)]
 struct State {
     /// The dropped handles' paths and what they left, oldest first.
-    queue: VecDeque<(String, Io)>,
+    queue: VecDeque<(Vec<u8>, Io)>,
     /// Jobs queued or running.
     pending: usize,
     /// Whether the thread runs.
@@ -56,7 +56,7 @@ impl Closer {
 
     /// Flushes and closes what the dropped handle of `path` left, on the
     /// closer's thread; here if no thread can be made.
-    pub(crate) fn submit(&self, path: String, io: Io) {
+    pub(crate) fn submit(&self, path: Vec<u8>, io: Io) {
         let mut s = self.0.state();
         s.pending += 1;
         s.queue.push_back((path, io));
@@ -139,8 +139,12 @@ impl Inner {
     }
 
     /// E0810 on standard error; the exit code becomes 1.
-    fn report(&self, path: &str, e: &std::io::Error) {
-        let why = format!("cannot close `{path}`: {}", crate::native::oserr::reason(e));
+    fn report(&self, path: &[u8], e: &std::io::Error) {
+        let why = format!(
+            "cannot close `{}`: {}",
+            fung_front::text::lossy(path),
+            crate::native::oserr::reason(e)
+        );
         let d = error("E0810", super::no_pos(), vec![Arg::Str(why)]);
         self.failures
             .report_now(&diag::format(&d, &SourceMap::default()));

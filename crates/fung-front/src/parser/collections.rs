@@ -40,28 +40,28 @@ impl Parser<'_> {
     }
 
     fn map_entries(&mut self, mut n: Node) -> PResult<Node> {
-        let mut seen: HashSet<String> = HashSet::new();
+        let mut seen: HashSet<Vec<u8>> = HashSet::new();
         while !self.at(Kind::RBrace) {
             let t = self.peek();
             let key = if self.at_name_like() {
                 // An identifier-shaped key is a string whatever its case
                 // (02), as written (not NFC); keywords are plain names
                 // here (01).
-                t.key().to_string()
+                Ok(t.key().to_string())
             } else if t.kind == Kind::String {
-                let mut text = String::new();
-                for part in &t.parts {
-                    if part.is_code {
-                        return Err(err("E0110", t.pos, vec![s("interpolation in a map key")]));
-                    }
-                    text.push_str(&part.text);
-                }
+                let Some(text) = t.plain() else {
+                    return Err(err("E0110", t.pos, vec![s("interpolation in a map key")]));
+                };
                 text
             } else {
                 return Err(err("E0112", t.pos, vec![s("a map key"), s(describe(t))]));
             };
-            if !seen.insert(key.clone()) {
-                return Err(err("E0113", t.pos, vec![s(key)]));
+            let bytes = match &key {
+                Ok(k) => k.as_bytes(),
+                Err(b) => b,
+            };
+            if !seen.insert(bytes.to_vec()) {
+                return Err(err("E0113", t.pos, vec![s(crate::text::lossy(bytes))]));
             }
             self.next();
             let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
@@ -76,8 +76,12 @@ impl Parser<'_> {
                 self.expect_desc(Kind::Colon, "`:` after the map key")?;
                 self.expr(0)?
             };
-            n.kids
-                .push(Node::with_lit(Head::Entry, t.pos, Lit::Str(key), vec![v]));
+            n.kids.push(Node::with_lit(
+                Head::Entry,
+                t.pos,
+                super::str_lit(key),
+                vec![v],
+            ));
             if self.at(Kind::Comma) {
                 self.next();
             } else if !self.at(Kind::RBrace) {

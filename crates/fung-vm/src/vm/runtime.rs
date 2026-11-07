@@ -139,7 +139,7 @@ impl Runtime {
     }
 
     /// The script arguments (the prelude's `args`).
-    pub fn args(&self) -> Vec<String> {
+    pub fn args(&self) -> Vec<Vec<u8>> {
         self.world().args.clone()
     }
 
@@ -150,7 +150,7 @@ impl Runtime {
     /// The errors are prelude.fung's compile errors or the error of its
     /// body. Booting the embedded file does not fail in practice; a
     /// runtime whose boot failed should not be reused.
-    pub fn boot(&self, args: Vec<String>) -> Result<(), Vec<Diag>> {
+    pub fn boot(&self, args: Vec<Vec<u8>>) -> Result<(), Vec<Diag>> {
         let mut t = self.task();
         let p = crate::boot::boot(&mut t, args)?;
         t.world.prelude = p;

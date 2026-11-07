@@ -937,7 +937,7 @@ fn the_public_api_runs_a_program_without_handing_out_values() {
         let text = rt.with_sources(|s| fung_front::diag::format(&d, s));
         assert!(text.contains("-e:1"), "{text}");
         assert_eq!(rt.exit_code(), None);
-        assert_eq!(rt.args(), ["a"]);
+        assert_eq!(rt.args(), [b"a".to_vec()]);
         assert_eq!(out.text(), "[\"a\"]\nbye\n");
     });
 }

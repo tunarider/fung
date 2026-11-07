@@ -13,9 +13,17 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 - `http`의 에러 문구가 URL의 비밀번호를 그대로 보이던 것: ``cannot request `http://user:secret@host/`: …``. 에러는 로그에 남으므로 이제 언제나 `user:***@`로 가린다(전에는 리다이렉트 뒤의 문구만 가렸다). 해석하지 못한 URL도 같다.
 - TLS 인증서 검증의 `rustls-webpki`를 0.103.16으로 올렸다(RUSTSEC-2026-0382). 그 전 판은 개인 키가 알려진 emSign(eMudhra) 중간 인증서를 거친 사슬을 믿을 수 있어서,
   운영체제의 인증서 저장소에 emSign 루트가 있으면 `http.get` 등이 위조된 인증서를 받아들일 수 있었다.
+- TLS의 `rustls`를 0.23.46으로 올렸다(RUSTSEC-2026-0346~0349). 넷 다 fung이 켜지 않은 기능(세션 재개, ECH, brotli 인증서 압축, 하이브리드 키 교환)에만 닿아 fung은 영향을 받지 않았다.
 
 ### 바뀜(호환 깨짐)
 
+- **문자열은 바이트 열이다**(02, L4): 파일 내용, `read_line`·`read_lines`, 명령의 `out`·`err`, `env`, `args`, 소켓·HTTP 본문, 파일 이름이
+  UTF-8이 아니어도 바이트 그대로 들어온다(전에는 잘못된 부분마다 U+FFFD로 바뀌어, 읽고 쓰기만 해도 파일이 달라졌다). 글자 연산은 UTF-8로 읽고 잘못된 바이트 하나를 한 글자로 센다.
+  그런 바이트는 값으로 보일 때 `"a\xff"`처럼 보인다. `upper`·`lower`·`trim`·`split`·`replace`·정규식은 그 바이트를 그대로 둔다.
+- **글이 필요한 곳에 UTF-8이 아닌 문자열을 주면 E0518이다**: `json.stringify`, 정규식 패턴, `time.format`·`time.parse`의 형식, 호스트 이름·주소.
+  `json.parse`·`parse_int`·`parse_float`·`parse_dur`·`time.parse`에는 읽지 못하는 입력이라 `Err`다.
+- **UTF-8이 아닌 소스 파일(과 `-e`의 코드)은 실행하지 않는다**: ``cannot read `x.fung`: not valid UTF-8 at line 1, column 5``(종료 코드 3), 가져온 모듈은 E0312. 전에는 U+FFFD로 바꿔 읽었다.
+- `_native.net`의 `byte_len`·`utf8_bytes`·`utf8_string`이 prelude의 `byte_len`·`bytes`·`from_bytes`가 되었다(내부 모듈이라 사용자 코드에는 영향 없음).
 - **`fung test`는 함께 띄우거나 깨어난 태스크의 순서를 섞는다**(08): 언어가 약속하지 않는 순서에 기대는 시험을 드러낸다. 씨앗은 `FUNG_SCHED_SEED`, 없으면 실행마다 고르고 실패할 때 알린다. `fung run`은 그대로다.
 - **다른 채널이나 태스크를 거쳐 고리를 닫는 값은 E0709다**(05): 서로의 받는 끝을 버퍼에 담은 두 채널, 채널로 받은 자기 핸들을 결과로 돌려주는 태스크(그 태스크가 실패한다).
   참조 계수로는 해제되지 않아 메모리가 끝없이 샜다(10만 번에 60~86 MB). 보내는 끝만으로 된 고리도 막는다. 응답 채널을 요청과 함께 보내는 것은 된다.
@@ -49,6 +57,7 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ### 더함
 
+- 문자열 리터럴의 `\xHH`: 바이트 하나(`"\xe9"`는 `é`가 아니라 바이트 0xE9, `é`는 `"\u{e9}"`). 바이트 함수 `byte_len(s)`, `bytes(s)`(0~255 정수 리스트), `from_bytes(xs)`, `valid_utf8(s)`(L4).
 - `time.monotonic()`: 거꾸로 가지 않는 시계의 값(`dur`). 걸린 시간은 `time.monotonic() - t0`로 잰다. 벽시계인 `time.now()`의 차는 그사이 시스템 시각이 바뀌면(NTP 보정) 틀리거나 음수가 될 수 있었다(06). 매뉴얼과 예제의 시간 재기를 모두 바꿨다.
 - 채널을 기다리지 않고 한 번 보는 `try_recv(rx)`·`try_send(tx, v)`와, 닫힐 때까지만 기다리는 `wait_closed(rx)`(05).
   `try_recv`는 받을 값이 없으면 `Err({kind: 'empty})`, `try_send`는 기다려야 하면 `Err({kind: 'full})`이다. 정지 요청을 기다리는 `_ = recv(stop)`은 이제 `wait_closed(stop)`으로 쓴다.

@@ -7,8 +7,8 @@ use std::rc::Rc;
 use fung_front::diag::{Arg, error};
 
 use crate::value::{
-    ListBuilder, Lit, MapBuilder, Native, NativeFn, NativeParam, StepFn, Tag, Value,
-    format_for_print, intern, type_name,
+    ListBuilder, Lit, MapBuilder, Native, NativeFn, NativeParam, StepFn, Tag, Text, Value, intern,
+    key, type_name, write_for_print,
 };
 use crate::vm::{Flow, Kind, Stop, Task, no_pos};
 
@@ -138,11 +138,11 @@ pub fn ok(v: Value) -> Value {
 /// the situation's fields first, the message last.
 pub fn err_value(kind: &str, message: &str, extra: Vec<(&str, Value)>) -> Value {
     let mut m = MapBuilder::default();
-    m.set(Rc::new("kind".to_string()), Value::Sym(intern(kind)));
+    m.set(key("kind"), Value::Sym(intern(kind)));
     for (k, v) in extra {
-        m.set(Rc::new(k.to_string()), v);
+        m.set(key(k), v);
     }
-    m.set(Rc::new("message".to_string()), Value::str(message));
+    m.set(key("message"), Value::str(message));
     tag("Err", vec![Value::Map(Rc::new(m.finish()))])
 }
 
@@ -155,14 +155,15 @@ pub fn list(items: Vec<Value>) -> Value {
     Value::List(Rc::new(b.finish()))
 }
 
-/// Renders values the way print shows them, space-separated.
-pub fn join_for_print<'a>(items: impl Iterator<Item = &'a Value>) -> String {
-    let mut out = String::new();
+/// Renders values the way print shows them, space-separated: bytes,
+/// since a string's are written as they are (L4).
+pub fn join_for_print<'a>(items: impl Iterator<Item = &'a Value>) -> Vec<u8> {
+    let mut out = Vec::new();
     for (i, v) in items.enumerate() {
         if i > 0 {
-            out.push(' ');
+            out.push(b' ');
         }
-        out.push_str(&format_for_print(v));
+        write_for_print(v, &mut out);
     }
     out
 }
@@ -269,7 +270,7 @@ pub fn need_map<'a>(verb: &str, v: &'a Value) -> Result<&'a Rc<crate::value::Map
 }
 
 /// A map key argument, or E0501 (`cannot <verb> map and <type>`).
-pub fn need_key<'a>(verb: &str, v: &'a Value) -> Result<&'a Rc<String>, Stop> {
+pub fn need_key<'a>(verb: &str, v: &'a Value) -> Result<&'a Rc<Text>, Stop> {
     match v {
         Value::Str(k) => Ok(k),
         _ => Err(fail(
@@ -286,14 +287,40 @@ pub fn need_int(name: &str, v: &Value) -> Result<i64, Stop> {
     }
 }
 
+/// A string argument as text: valid UTF-8, or E0518. For an argument
+/// that only makes sense as text (a pattern, a format, a URL); the rest
+/// take [`need_bytes`] (L4).
 pub fn need_str<'a>(name: &str, v: &'a Value) -> Result<&'a str, Stop> {
+    let t = need_text(name, v)?;
+    t.as_str()
+        .ok_or_else(|| not_utf8(&format!("argument `{name}`"), t))
+}
+
+/// E0518: `what` needs text, and `t` is not valid UTF-8.
+pub fn not_utf8(what: &str, t: &Text) -> Stop {
+    fail(
+        "E0518",
+        vec![
+            s(what),
+            Arg::Str(crate::value::format(&Value::Str(Rc::new(t.clone())))),
+        ],
+    )
+}
+
+/// A string argument, whatever its bytes.
+pub fn need_text<'a>(name: &str, v: &'a Value) -> Result<&'a Rc<Text>, Stop> {
     match v {
         Value::Str(x) => Ok(x),
         _ => Err(wrong_arg(name, "str", v)),
     }
 }
 
-/// Checks that every named argument is a string, in order.
+/// A string argument's bytes.
+pub fn need_bytes<'a>(name: &str, v: &'a Value) -> Result<&'a [u8], Stop> {
+    Ok(need_text(name, v)?.as_bytes())
+}
+
+/// Checks that every named argument is a string of text, in order.
 pub fn str_args<'a, const N: usize>(
     args: &'a [Value],
     names: [&str; N],
@@ -305,23 +332,44 @@ pub fn str_args<'a, const N: usize>(
     Ok(out)
 }
 
-/// A `str | nil` argument.
+/// Checks that every named argument is a string, in order: its bytes.
+pub fn bytes_args<'a, const N: usize>(
+    args: &'a [Value],
+    names: [&str; N],
+) -> Result<[&'a [u8]; N], Stop> {
+    let mut out: [&[u8]; N] = [&[]; N];
+    for (i, n) in names.iter().enumerate() {
+        out[i] = need_bytes(n, &args[i])?;
+    }
+    Ok(out)
+}
+
+/// A `str | nil` argument of text.
 pub fn opt_str<'a>(name: &str, v: &'a Value) -> Result<Option<&'a str>, Stop> {
     match v {
         Value::Nil => Ok(None),
-        Value::Str(x) => Ok(Some(x)),
+        Value::Str(_) => need_str(name, v).map(Some),
         _ => Err(wrong_arg(name, "str | nil", v)),
     }
 }
 
-/// A list of strings argument.
-pub fn str_list(name: &str, v: &Value) -> Result<Vec<String>, Stop> {
+/// A `str | nil` argument's bytes.
+pub fn opt_bytes<'a>(name: &str, v: &'a Value) -> Result<Option<&'a [u8]>, Stop> {
+    match v {
+        Value::Nil => Ok(None),
+        Value::Str(x) => Ok(Some(x.as_bytes())),
+        _ => Err(wrong_arg(name, "str | nil", v)),
+    }
+}
+
+/// A list of strings argument: each one's bytes.
+pub fn str_list(name: &str, v: &Value) -> Result<Vec<Vec<u8>>, Stop> {
     let Value::List(l) = v else {
         return Err(wrong_arg(name, "a list of strings", v));
     };
     l.iter()
         .map(|item| match item {
-            Value::Str(x) => Ok(x.to_string()),
+            Value::Str(x) => Ok(x.to_vec()),
             _ => Err(fail(
                 "E0403",
                 vec![

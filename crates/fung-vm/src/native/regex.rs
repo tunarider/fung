@@ -1,17 +1,19 @@
 //! `_native.regex` (06): regular expressions over fung strings. fung's
 //! pattern syntax is the `regex` crate's, with Unicode classes; match
 //! positions are character indexes (02: 문자열은 글자 단위), not byte
-//! offsets.
+//! offsets. The subject is bytes (L4, `regex::bytes`): in Unicode mode
+//! `.` and the classes match only valid UTF-8, and `(?-u:\xff)` matches
+//! the byte itself.
 
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock};
 
 use fung_front::diag::Arg;
-use regex::{Captures, Regex, RegexBuilder};
+use regex::bytes::{Captures, Regex, RegexBuilder};
 
 use super::nat::{self, native_step, param};
-use crate::value::{MapBuilder, Module, Native, Value};
+use crate::value::{MapBuilder, Module, Native, Text, Value, key};
 use crate::vm::{Flow, Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -58,6 +60,9 @@ pub fn module() -> Rc<Module> {
 struct Compiled {
     re: Regex,
     names: Vec<String>,
+    /// Whether a match can be empty: only then can one fall inside a
+    /// character (`at_boundary`).
+    empty: bool,
 }
 
 /// The most memory one compiled pattern may take (the crate's own default
@@ -79,6 +84,10 @@ fn cache() -> MutexGuard<'static, HashMap<String, Arc<Compiled>>> {
     CACHE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// What a regex native does once its pattern is compiled: given the
+/// arguments, the subject's bytes, the pattern text and the pattern.
+type Body = fn(&[Value], &[u8], &str, &Compiled) -> Result<Value, Stop>;
+
 /// Runs `body` with the arguments, the subject, the pattern text and the
 /// compiled pattern, cached. A bad pattern is a code error (E0515):
 /// patterns are written in the script. Only good patterns are cached.
@@ -97,13 +106,9 @@ fn cache() -> MutexGuard<'static, HashMap<String, Arc<Compiled>>> {
 ///   `Compiled` (both `Send`, as an offload job requires);
 /// - so while this task waits for the job it holds neither the cache
 ///   mutex nor an `Arc<Compiled>` from the cache.
-fn with_pattern(
-    t: &mut Task<'_>,
-    a: Vec<Value>,
-    body: fn(&[Value], &str, &str, &Compiled) -> Result<Value, Stop>,
-) -> Result<Flow, Stop> {
-    // The subject is checked first, then the pattern.
-    let s = nat::need_str("s", &a[0])?;
+fn with_pattern(t: &mut Task<'_>, a: Vec<Value>, body: Body) -> Result<Flow, Stop> {
+    // The subject is checked first, then the pattern, which is text.
+    let s = nat::need_bytes("s", &a[0])?;
     let pat = nat::need_str("pat", &a[1])?;
     // The guard is a temporary: it is dropped at the end of the statement.
     let hit = cache().get(pat).cloned();
@@ -116,6 +121,7 @@ fn with_pattern(
         let (Value::Str(s), Value::Str(pat)) = (&a[0], &a[1]) else {
             unreachable!("checked before the compile")
         };
+        let pat = pat.as_str().expect("checked before the compile");
         let c = remember(&mut cache(), pat, Arc::new(compiled));
         body(&a, s, pat, &c)
     };
@@ -142,14 +148,24 @@ fn compile_pattern(pat: &str) -> Arc<Compiled> {
 /// (E0515's argument). Runs on a pool thread: plain Rust values in
 /// and out.
 fn compile(pat: String) -> Result<Compiled, String> {
-    if let Err(e) = regex_syntax::Parser::new().parse(&pat) {
-        let reason = match &e {
-            regex_syntax::Error::Parse(e) => e.kind().to_string(),
-            regex_syntax::Error::Translate(e) => e.kind().to_string(),
-            _ => "invalid pattern".to_string(),
-        };
-        return Err(format!("`{pat}`: {reason}"));
-    }
+    // The subject is bytes: a pattern may match bytes outside UTF-8
+    // (`(?-u:\xff)`), as `regex::bytes` allows.
+    let parsed = regex_syntax::ParserBuilder::new()
+        .utf8(false)
+        .build()
+        .parse(&pat);
+    let hir = match parsed {
+        Ok(hir) => hir,
+        Err(e) => {
+            let reason = match &e {
+                regex_syntax::Error::Parse(e) => e.kind().to_string(),
+                regex_syntax::Error::Translate(e) => e.kind().to_string(),
+                _ => "invalid pattern".to_string(),
+            };
+            return Err(format!("`{pat}`: {reason}"));
+        }
+    };
+    let empty = hir.properties().minimum_len().is_none_or(|n| n == 0);
     let re = match RegexBuilder::new(&pat).size_limit(COMPILE_LIMIT).build() {
         Ok(re) => re,
         Err(regex::Error::CompiledTooBig(_)) => return Err(format!("`{pat}`: pattern too large")),
@@ -161,7 +177,7 @@ fn compile(pat: String) -> Result<Compiled, String> {
         .capture_names()
         .map(|n| n.unwrap_or_default().to_string())
         .collect();
-    Ok(Compiled { names, re })
+    Ok(Compiled { names, re, empty })
 }
 
 /// Adds `c` to `cache` as `pat` and returns what the cache holds for
@@ -186,7 +202,7 @@ fn remember(
 /// that arrive in non-decreasing order (match after match) cost only the
 /// text between them, so `find_all` stays linear in the subject.
 struct RuneCursor<'a> {
-    s: &'a str,
+    s: &'a [u8],
     /// Bytes counted so far.
     b: usize,
     /// Runes in `s[..b]`.
@@ -194,7 +210,7 @@ struct RuneCursor<'a> {
 }
 
 impl<'a> RuneCursor<'a> {
-    fn new(s: &'a str) -> Self {
+    fn new(s: &'a [u8]) -> Self {
         RuneCursor { s, b: 0, r: 0 }
     }
 
@@ -202,7 +218,7 @@ impl<'a> RuneCursor<'a> {
         if byte_off < self.b {
             (self.b, self.r) = (0, 0);
         }
-        self.r += self.s[self.b..byte_off].chars().count();
+        self.r += fung_front::text::char_count(&self.s[self.b..byte_off]);
         self.b = byte_off;
         self.r as i64
     }
@@ -212,17 +228,16 @@ impl<'a> RuneCursor<'a> {
 /// made once per run thread and shared by every match (P11: a match was
 /// a dozen allocations, most of them these).
 struct Shared {
-    text: Rc<String>,
-    start: Rc<String>,
-    end: Rc<String>,
-    groups: Rc<String>,
-    named: Rc<String>,
+    text: Rc<Text>,
+    start: Rc<Text>,
+    end: Rc<Text>,
+    groups: Rc<Text>,
+    named: Rc<Text>,
     no_names: Value,
 }
 
 thread_local! {
     static SHARED: Shared = {
-        let key = |k: &str| Rc::new(k.to_string());
         Shared {
             text: key("text"),
             start: key("start"),
@@ -240,17 +255,19 @@ fn match_value(c: &Compiled, caps: &Captures, cur: &mut RuneCursor) -> Value {
     SHARED.with(|k| {
         let whole = caps.get(0).expect("the whole match");
         let mut m = MapBuilder::with_capacity(5);
-        m.set(k.text.clone(), Value::str(whole.as_str()));
+        m.set(k.text.clone(), Value::bytes(whole.as_bytes().to_vec()));
         m.set(k.start.clone(), Value::Int(cur.index(whole.start())));
         m.set(k.end.clone(), Value::Int(cur.index(whole.end())));
         let mut groups = Vec::with_capacity(caps.len().saturating_sub(1));
         let mut named = None;
         for i in 1..caps.len() {
-            let g = caps.get(i).map_or(Value::Nil, |g| Value::str(g.as_str()));
+            let g = caps
+                .get(i)
+                .map_or(Value::Nil, |g| Value::bytes(g.as_bytes().to_vec()));
             if !c.names[i].is_empty() {
                 named
                     .get_or_insert_with(MapBuilder::default)
-                    .set(Rc::new(c.names[i].clone()), g.clone());
+                    .set(key(&c.names[i]), g.clone());
             }
             groups.push(g);
         }
@@ -264,13 +281,60 @@ fn match_value(c: &Compiled, caps: &Captures, cur: &mut RuneCursor) -> Value {
     })
 }
 
+/// Whether byte offset `p` of `s` starts a character (02, L4): the
+/// crate's byte matcher can find an empty match inside a UTF-8 sequence,
+/// which fung's character rule has no place for.
+fn at_boundary(s: &[u8], p: usize) -> bool {
+    if p == 0 || p >= s.len() || s[p] & 0xC0 != 0x80 {
+        return true;
+    }
+    // A continuation byte: inside the character that starts before it,
+    // unless that one is not valid UTF-8 (then the byte stands alone).
+    let start = (p.saturating_sub(3)..p)
+        .rev()
+        .find(|&q| s[q] & 0xC0 != 0x80);
+    match start.and_then(|q| fung_front::text::first(&s[q..]).map(|u| (q, u))) {
+        Some((q, u @ fung_front::text::Unit::Char(_))) => q + u.byte_len() <= p,
+        _ => true,
+    }
+}
+
+/// The matches of `c` in `s` left to right, but an empty one inside a
+/// character.
+fn matches<'s>(c: &'s Compiled, s: &'s [u8]) -> impl Iterator<Item = Captures<'s>> {
+    c.re.captures_iter(s).filter(|caps| {
+        let m = caps.get(0).expect("the whole match");
+        !m.is_empty() || at_boundary(s, m.start())
+    })
+}
+
+/// The first match of `c` in `s` (`matches`, with the plain search when
+/// no match can be empty).
+fn first<'s>(c: &'s Compiled, s: &'s [u8]) -> Option<Captures<'s>> {
+    if c.empty {
+        matches(c, s).next()
+    } else {
+        c.re.captures(s)
+    }
+}
+
 fn is_match_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    with_pattern(t, a, |_, s, _, c| Ok(Value::Bool(c.re.is_match(s))))
+    with_pattern(t, a, |_, s, _, c| {
+        if !c.empty {
+            return Ok(Value::Bool(c.re.is_match(s)));
+        }
+        let found = c.re.find_iter(s);
+        Ok(Value::Bool(
+            found
+                .into_iter()
+                .any(|m| !m.is_empty() || at_boundary(s, m.start())),
+        ))
+    })
 }
 
 fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     with_pattern(t, a, |_, s, _, c| {
-        Ok(match c.re.captures(s) {
+        Ok(match first(c, s) {
             Some(caps) => match_value(c, &caps, &mut RuneCursor::new(s)),
             None => Value::Nil,
         })
@@ -282,10 +346,9 @@ fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     with_pattern(t, a, |_, s, _, c| {
         let mut cur = RuneCursor::new(s);
-        let out =
-            c.re.captures_iter(s)
-                .map(|caps| match_value(c, &caps, &mut cur))
-                .collect();
+        let out = matches(c, s)
+            .map(|caps| match_value(c, &caps, &mut cur))
+            .collect();
         Ok(nat::list(out))
     })
 }
@@ -294,8 +357,17 @@ fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// groups (`$1a` is the group named "1a"; a missing group is empty).
 fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     with_pattern(t, a, |a, s, _, c| {
-        let repl = nat::need_str("repl", &a[2])?;
-        Ok(Value::str(&c.re.replace_all(s, repl)))
+        let repl = nat::need_bytes("repl", &a[2])?;
+        let mut out = Vec::with_capacity(s.len());
+        let mut last = 0;
+        for caps in matches(c, s) {
+            let m = caps.get(0).expect("the whole match");
+            out.extend_from_slice(&s[last..m.start()]);
+            caps.expand(repl, &mut out);
+            last = m.end();
+        }
+        out.extend_from_slice(&s[last..]);
+        Ok(Value::bytes(out))
     })
 }
 
@@ -310,14 +382,15 @@ fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         }
         let mut out = Vec::new();
         let mut beg = 0;
-        for m in c.re.find_iter(s) {
+        for caps in matches(c, s) {
+            let m = caps.get(0).expect("the whole match");
             if m.is_empty() && (m.start() == 0 || m.start() == s.len()) {
                 continue;
             }
-            out.push(Value::str(&s[beg..m.start()]));
+            out.push(Value::bytes(s[beg..m.start()].to_vec()));
             beg = m.end();
         }
-        out.push(Value::str(&s[beg..]));
+        out.push(Value::bytes(s[beg..].to_vec()));
         Ok(nat::list(out))
     })
 }

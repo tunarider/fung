@@ -55,7 +55,7 @@ pub(crate) struct World {
     /// `exit`: `Runtime::recover_deadlock` keeps it.
     exit_after_deadlock: Option<i64>,
     /// The script arguments (the prelude's `args`).
-    pub(crate) args: Vec<String>,
+    pub(crate) args: Vec<Vec<u8>>,
     /// Every global table the runtime made. A closure stored in a global
     /// holds its table, an `Rc` cycle; dropping the runtime empties the
     /// tables to break it.

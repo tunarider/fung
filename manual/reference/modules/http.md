@@ -24,7 +24,7 @@ description: fung 모듈 http — HTTP 요청 보내기(get, post, request)와 H
 - 클라이언트 함수는 응답을 `Ok({status, headers, body})`로 준다. **응답을 받았으면 상태 코드가 무엇이든 `Ok`**다. "서버가 404라고 답했다"와 "요청이 가지 못했다"는 다른 일이기 때문이다. 상태 코드는 직접 검사한다.
 - 요청이 가지 못하면(연결 거부, 없는 호스트, 인증서 오류 등) `Err({kind: 'network, message})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout, message})`다. `message`는 ``cannot request `URL`: 이유`` 꼴이고, 이유는 `connection refused`, `no such host`, ``unsupported scheme `ftp` ``, `invalid URL: …`, `unknown certificate authority`, ``certificate is not valid for `host` ``, `certificate has expired (valid until …)`, `too many redirects (limit 10)` 같은 짧은 문구다. 시간 초과의 문구는 ``request to `URL` timed out``이다. 문구 속 URL의 비밀번호는 언제나 `***`로 가린다(`http://ann:***@host/`): 에러는 로그에 남기 때문이다.
 - 응답 `headers`는 맵이고 **키는 소문자**다(`r.headers["content-type"]`). 같은 이름의 헤더가 여럿이면 `", "`로 이어 하나로 준다.
-- 본문은 문자열이다. JSON이면 [`json.parse`](json.html#fn-json-parse)로 읽는다. UTF-8이 아닌 바이트는 U+FFFD로 바뀌므로 이미지 같은 바이너리 본문은 그대로 받을 수 없다.
+- 본문은 문자열이다. JSON이면 [`json.parse`](json.html#fn-json-parse)로 읽는다. 문자열은 바이트를 그대로 담으므로 이미지 같은 바이너리 본문도 바뀌지 않는다([바이트](../prelude/strings.html#bytes)). URL 경로의 UTF-8이 아닌 바이트는 `%FF`처럼 퍼센트 인코딩해 보낸다.
 - 태스크가 취소되면(바깥의 `timeout`, `cancel`) 요청도 멈춘다(E0701).
 
 이 페이지의 예제는 네트워크나 열린 포트가 필요해서 실행하지 않고 검사만 한다. 출력 칸은 실제로 돌렸을 때의 예다.
@@ -410,8 +410,8 @@ stopped
   <li><b>프록시</b>: 환경 변수 <code>HTTP_PROXY</code>(http용), <code>HTTPS_PROXY</code>(https용), <code>NO_PROXY</code>(이름·하위 도메인·IP·CIDR, 포트 선택)를 따르고 소문자 이름도 읽는다. <code>localhost</code>와 루프백 주소는 프록시를 거치지 않는다. CGI 프로그램(<code>REQUEST_METHOD</code>가 있음) 안에서는 <code>HTTP_PROXY</code>를 쓰지 않는다. https는 <code>CONNECT</code> 터널로 간다. SOCKS 프록시와 https 프록시 너머의 https는 지원하지 않는다(<code>Err({kind: 'network})</code>).</li>
   <li><b>https</b>: 운영체제의 루트 인증서(<code>SSL_CERT_FILE</code>·<code>SSL_CERT_DIR</code>이 있으면 그것)로 검증하고 SNI를 보낸다. 인증서 오류는 <code>Err({kind: 'network})</code>다.</li>
   <li><b>응답 본문 상한 64 MiB</b>. 넘으면 <code>Err({kind: 'network})</code>.</li>
-  <li><b>본문은 문자열</b>이다. UTF-8이 아닌 바이트는 잘못된 부분마다 U+FFFD 하나로 바뀐다.</li>
-  <li><b>없는 것</b>: 연결 재사용(keep-alive)과 파이프라이닝, HTTP/2, 압축, 바이너리 본문. 서버는 연결마다 요청 하나만 받는다.</li>
+  <li><b>본문은 문자열</b>이다. 바이트를 그대로 담으므로 UTF-8이 아닌 본문(바이너리)도 바뀌지 않고 오간다. 요청 경로와 쿼리의 퍼센트 이스케이프도 바이트로 풀린다.</li>
+  <li><b>없는 것</b>: 연결 재사용(keep-alive)과 파이프라이닝, HTTP/2, 압축. 서버는 연결마다 요청 하나만 받는다.</li>
 </ul>
 
 배우는 순서로는 [13장 JSON과 HTTP](../../learn/13-json-and-http.html)를 본다.

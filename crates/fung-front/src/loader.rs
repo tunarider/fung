@@ -13,7 +13,7 @@ use crate::diag::{Arg, Diag, error};
 use crate::lexer::lex;
 use crate::parser::parse;
 use crate::resolve::{self, ModuleInfo};
-use crate::source::{FileId, Pos, SourceMap, decode_lossy};
+use crate::source::{FileId, Pos, SourceMap, decode_source};
 use crate::tree::{Head, Import, Lit, Node};
 use crate::unicode;
 
@@ -58,8 +58,8 @@ pub struct Build {
 
 /// Compiles an entry file and everything it imports.
 pub struct Loader {
-    /// Reads an imported file. By default it reads the bytes and decodes
-    /// them (one U+FFFD per invalid sequence, see `decode_lossy`).
+    /// Reads an imported file. By default it reads the bytes, which must
+    /// be UTF-8 (`decode_source`, L4).
     pub read_file: fn(&str) -> std::io::Result<String>,
     /// Keep test blocks of the entry (`fung test` / `check`), see 08.
     pub tests: bool,
@@ -86,7 +86,12 @@ pub struct Loader {
 impl Default for Loader {
     fn default() -> Loader {
         Loader {
-            read_file: |p| std::fs::read(p).map(|b| decode_lossy(&b)),
+            read_file: |p| {
+                std::fs::read(p).and_then(|b| {
+                    decode_source(b)
+                        .map_err(|why| std::io::Error::new(std::io::ErrorKind::InvalidData, why))
+                })
+            },
             tests: false,
             internal: false,
             extra_prelude: Vec::new(),
@@ -376,8 +381,17 @@ impl State<'_> {
             path.push(file);
             return Err(vec![error("E0302", pos, vec![Arg::Str(path.join(" → "))])]);
         }
-        let Ok(src) = read() else {
-            return Err(vec![error("E0301", pos, vec![Arg::Str(key.to_string())])]);
+        let src = match read() {
+            Ok(src) => src,
+            // Found, but not source text (L4).
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                return Err(vec![error(
+                    "E0312",
+                    pos,
+                    vec![Arg::Str(file.to_string()), Arg::Str(e.to_string())],
+                )]);
+            }
+            Err(_) => return Err(vec![error("E0301", pos, vec![Arg::Str(key.to_string())])]),
         };
         let id = self.sources.add(file, &src);
         self.loading.insert(key.to_string());
@@ -610,16 +624,20 @@ mod tests {
         assert!(b.modules.iter().any(|m| m.name == "mcaf\u{e9}"));
     }
 
+    /// A module that is not UTF-8 is refused where it is imported (L4),
+    /// not read with U+FFFD in it.
     #[test]
-    fn default_reader_decodes_invalid_utf8() {
+    fn default_reader_refuses_invalid_utf8() {
         let dir = Scratch::new("utf8");
         std::fs::write(dir.0.join("m.fung"), b"x = \"\xeb\x8b\"\n").unwrap();
         let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
-        let (b, errs) = Loader::default().compile(&entry, "import \"./m\"\nprint(m.x)", Stage::All);
-        assert!(errs.is_empty(), "{errs:?}");
-        assert!(b.modules.iter().any(|m| m.name == "m"));
-        let m = dir.0.join("m.fung").to_string_lossy().into_owned();
-        assert!(has_source(&b, &m, Some("x = \"\u{fffd}\"\n")));
+        let (_, errs) = Loader::default().compile(&entry, "import \"./m\"\nprint(m.x)", Stage::All);
+        assert_eq!(codes(&errs), ["E0312"]);
+        let msg = crate::diag::message(&errs[0].code, &errs[0].args);
+        assert!(
+            msg.ends_with("m.fung`: not valid UTF-8 at line 1, column 6"),
+            "{msg}"
+        );
     }
 
     /// The REPL (08) compiles each input after the files the runtime

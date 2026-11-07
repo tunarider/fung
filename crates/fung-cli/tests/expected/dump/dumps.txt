@@ -3809,7 +3809,7 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (78225 bytes, fnv1a64 395a0e10841b12b9)
+-- stdout (77952 bytes, fnv1a64 c8abc0ee40cdff07)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
@@ -4808,6 +4808,260 @@
 | 0007  37:55 CALL         1    ; 1 positional, 0 named
 | 0008  37:37 TAILCALL     2    ; 2 positional, 0 named
 | 0009  37:29 RETURN
+-- stderr
+-- exit: 0
+==== dump ast tests/lang/bytes.fung
+-- stdout
+| (program (import regex) (assign s "a\xffb\xe2\x82c") (call print (call len s) (call byte_len s) (call valid_utf8 s) (call valid_utf8 "é")) (call print (list s (index s 1) (slice s 3 5) (index s (unary - 1)))) (call print (call chars "a\xffé")) (call print (binary == (binary + (slice s (nil) 3) (slice s 3 (nil))) s) (binary == (call join (call chars s)) s)) (call print (binary == "é" "é") "A" (call len "é") (binary == "\u{0}" "\u{0}")) (call print (call bytes "a\xffé") (list (call from_bytes (list 104 105 255)))) (call print (list (call upper "a\xffb") (call lower "\xffQ") (call trim " \xff ") (call repeat "\xfe" 2))) (call print (call split "a\xffb\xff" "\xff") (call split "x\xff" "") (call lines "a\xff\nb")) (call print (list (call replace "a\xffb" "\xff" "-") (binary in "\xff" s) (call starts_with s "a\xff") (call ends_with s "\x82c"))) (call print (binary < "\xfe" "\xff") (binary < "\u{7F}" "\u{80}") (binary < "z" "\xff")) (assign m (map (entry "\xff" 1) (entry k 2))) (call print m (index m "\xff") (call keys m)) (assign r (match "\xff" (arm (plit "\xfe") (nil) (block 1)) (arm (plit "\xff") (nil) (block 2)) (arm (pwild) (nil) (block 3)))) (call print r) (call print (binary == (interp s) s) (list (interp "x" "\xff" "y")) (binary == (call str "\xff") "\xff")) (call print (list (call pad_left "\xff" 3 ".") (call pad_right "\xff" 2))) (call print (call (field is_match regex) "a\xff" "(?-u:\\xff)") (field start (call (field find regex) "\xffa" ".")) (list (call (field replace regex) "가\xff" "x*" "-"))))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/bytes.fung
+-- stdout
+| (do (import "regex" (global 0)) (let (global 1) "a\xffb\xe2\x82c") (call (prelude print) (call (prelude len) (global 1)) (call (prelude byte_len) (global 1)) (call (prelude valid_utf8) (global 1)) (call (prelude valid_utf8) "é")) (call (prelude print) (list (global 1) (index (global 1) 1) (slice (global 1) 3 5) (index (global 1) (op - 1)))) (call (prelude print) (call (prelude chars) "a\xffé")) (call (prelude print) (op == (op + (slice (global 1) (nil) 3) (slice (global 1) 3 (nil))) (global 1)) (op == (call (prelude join) (call (prelude chars) (global 1))) (global 1))) (call (prelude print) (op == "é" "é") "A" (call (prelude len) "é") (op == "\u{0}" "\u{0}")) (call (prelude print) (call (prelude bytes) "a\xffé") (list (call (prelude from_bytes) (list 104 105 255)))) (call (prelude print) (list (call (prelude upper) "a\xffb") (call (prelude lower) "\xffQ") (call (prelude trim) " \xff ") (call (prelude repeat) "\xfe" 2))) (call (prelude print) (call (prelude split) "a\xffb\xff" "\xff") (call (prelude split) "x\xff" "") (call (prelude lines) "a\xff\nb")) (call (prelude print) (list (call (prelude replace) "a\xffb" "\xff" "-") (op in "\xff" (global 1)) (call (prelude starts_with) (global 1) "a\xff") (call (prelude ends_with) (global 1) "\x82c"))) (call (prelude print) (op < "\xfe" "\xff") (op < "\u{7F}" "\u{80}") (op < "z" "\xff")) (let (global 2) (map (entry "\xff" 1) (entry k 2))) (call (prelude print) (global 2) (index (global 2) "\xff") (call (prelude keys) (global 2))) (let (global 3) (do (let (local 0) "\xff") (match (local 0) (arm (plit "\xfe") (nil) (do 1)) (arm (plit "\xff") (nil) (do 2)) (arm (pwild) (nil) (do 3))))) (call (prelude print) (global 3)) (call (prelude print) (op == (concat (global 1)) (global 1)) (list (concat "x" "\xff" "y")) (op == (call (prelude str) "\xff") "\xff")) (call (prelude print) (list (call (prelude pad_left) "\xff" 3 ".") (call (prelude pad_right) "\xff" 2))) (call (prelude print) (call (field is_match (global 0)) "a\xff" "(?-u:\\xff)") (field start (call (field find (global 0)) "\xffa" ".")) (list (call (field replace (global 0)) "가\xff" "x*" "-"))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/bytes.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   IMPORT       0    ; regex
+| 0001  3:1   STOREGLOBAL  0    ; regex
+| 0002  5:5   CONST        1    ; "a\xffb\xe2\x82c"
+| 0003  5:1   STOREGLOBAL  1    ; s
+| 0004  6:1   CONST        2    ; <fn print>
+| 0005  6:7   CONST        3    ; <fn len>
+| 0006  6:11  LOADGLOBAL   1    ; s
+| 0007  6:10  CALL         1    ; 1 positional, 0 named
+| 0008  6:15  CONST        4    ; <fn byte_len>
+| 0009  6:24  LOADGLOBAL   1    ; s
+| 0010  6:23  CALL         1    ; 1 positional, 0 named
+| 0011  6:28  CONST        5    ; <fn valid_utf8>
+| 0012  6:39  LOADGLOBAL   1    ; s
+| 0013  6:38  CALL         1    ; 1 positional, 0 named
+| 0014  6:43  CONST        5    ; <fn valid_utf8>
+| 0015  6:54  CONST        6    ; "é"
+| 0016  6:53  CALL         1    ; 1 positional, 0 named
+| 0017  6:6   CALL         4    ; 4 positional, 0 named
+| 0018  6:1   POP
+| 0019  8:1   CONST        2    ; <fn print>
+| 0020  8:8   LOADGLOBAL   1    ; s
+| 0021  8:11  LOADGLOBAL   1    ; s
+| 0022  8:13  CONST        7    ; 1
+| 0023  8:12  INDEX
+| 0024  8:17  LOADGLOBAL   1    ; s
+| 0025  8:19  CONST        8    ; 3
+| 0026  8:22  CONST        9    ; 5
+| 0027  8:18  SLICE        3    ; start, end
+| 0028  8:26  LOADGLOBAL   1    ; s
+| 0029  8:29  CONST        7    ; 1
+| 0030  8:28  NEG
+| 0031  8:27  INDEX
+| 0032  8:7   LIST         4
+| 0033  8:6   CALL         1    ; 1 positional, 0 named
+| 0034  8:1   POP
+| 0035  10:1  CONST        2    ; <fn print>
+| 0036  10:7  CONST        10    ; <fn chars>
+| 0037  10:13 CONST        11    ; "a\xffé"
+| 0038  10:12 CALL         1    ; 1 positional, 0 named
+| 0039  10:6  CALL         1    ; 1 positional, 0 named
+| 0040  10:1  POP
+| 0041  12:1  CONST        2    ; <fn print>
+| 0042  12:7  LOADGLOBAL   1    ; s
+| 0043  12:11 CONST        8    ; 3
+| 0044  12:8  SLICE        2    ; end
+| 0045  12:16 LOADGLOBAL   1    ; s
+| 0046  12:18 CONST        8    ; 3
+| 0047  12:17 SLICE        1    ; start
+| 0048  12:14 ADD
+| 0049  12:26 LOADGLOBAL   1    ; s
+| 0050  12:23 EQ
+| 0051  12:29 CONST        12    ; <fn join>
+| 0052  12:34 CONST        10    ; <fn chars>
+| 0053  12:40 LOADGLOBAL   1    ; s
+| 0054  12:39 CALL         1    ; 1 positional, 0 named
+| 0055  12:33 CALL         1    ; 1 positional, 0 named
+| 0056  12:47 LOADGLOBAL   1    ; s
+| 0057  12:44 EQ
+| 0058  12:6  CALL         2    ; 2 positional, 0 named
+| 0059  12:1  POP
+| 0060  15:1  CONST        2    ; <fn print>
+| 0061  15:7  CONST        6    ; "é"
+| 0062  15:21 CONST        6    ; "é"
+| 0063  15:18 EQ
+| 0064  15:26 CONST        13    ; "A"
+| 0065  15:34 CONST        3    ; <fn len>
+| 0066  15:38 CONST        6    ; "é"
+| 0067  15:37 CALL         1    ; 1 positional, 0 named
+| 0068  15:51 CONST        14    ; "\u{0}"
+| 0069  15:61 CONST        14    ; "\u{0}"
+| 0070  15:58 EQ
+| 0071  15:6  CALL         4    ; 4 positional, 0 named
+| 0072  15:1  POP
+| 0073  17:1  CONST        2    ; <fn print>
+| 0074  17:7  CONST        15    ; <fn bytes>
+| 0075  17:13 CONST        11    ; "a\xffé"
+| 0076  17:12 CALL         1    ; 1 positional, 0 named
+| 0077  17:30 CONST        16    ; <fn from_bytes>
+| 0078  17:41 CONST        17    ; [104, 105, 255]
+| 0079  17:40 CALL         1    ; 1 positional, 0 named
+| 0080  17:29 LIST         1
+| 0081  17:6  CALL         2    ; 2 positional, 0 named
+| 0082  17:1  POP
+| 0083  19:1  CONST        2    ; <fn print>
+| 0084  19:8  CONST        18    ; <fn upper>
+| 0085  19:14 CONST        19    ; "a\xffb"
+| 0086  19:13 CALL         1    ; 1 positional, 0 named
+| 0087  19:25 CONST        20    ; <fn lower>
+| 0088  19:31 CONST        21    ; "\xffQ"
+| 0089  19:30 CALL         1    ; 1 positional, 0 named
+| 0090  19:41 CONST        22    ; <fn trim>
+| 0091  19:46 CONST        23    ; " \xff "
+| 0092  19:45 CALL         1    ; 1 positional, 0 named
+| 0093  19:57 CONST        24    ; <fn repeat>
+| 0094  19:64 CONST        25    ; "\xfe"
+| 0095  19:72 CONST        26    ; 2
+| 0096  19:63 CALL         2    ; 2 positional, 0 named
+| 0097  19:7  LIST         4
+| 0098  19:6  CALL         1    ; 1 positional, 0 named
+| 0099  19:1  POP
+| 0100  21:1  CONST        2    ; <fn print>
+| 0101  21:7  CONST        27    ; <fn split>
+| 0102  21:13 CONST        28    ; "a\xffb\xff"
+| 0103  21:27 CONST        29    ; "\xff"
+| 0104  21:12 CALL         2    ; 2 positional, 0 named
+| 0105  21:36 CONST        27    ; <fn split>
+| 0106  21:42 CONST        30    ; "x\xff"
+| 0107  21:51 CONST        31    ; ""
+| 0108  21:41 CALL         2    ; 2 positional, 0 named
+| 0109  21:56 CONST        32    ; <fn lines>
+| 0110  21:62 CONST        33    ; "a\xff\nb"
+| 0111  21:61 CALL         1    ; 1 positional, 0 named
+| 0112  21:6  CALL         3    ; 3 positional, 0 named
+| 0113  21:1  POP
+| 0114  23:1  CONST        2    ; <fn print>
+| 0115  23:8  CONST        34    ; <fn replace>
+| 0116  23:16 CONST        19    ; "a\xffb"
+| 0117  23:26 CONST        29    ; "\xff"
+| 0118  23:34 CONST        35    ; "-"
+| 0119  23:15 CALL         3    ; 3 positional, 0 named
+| 0120  23:40 CONST        29    ; "\xff"
+| 0121  23:50 LOADGLOBAL   1    ; s
+| 0122  23:47 IN
+| 0123  23:53 CONST        36    ; <fn starts_with>
+| 0124  23:65 LOADGLOBAL   1    ; s
+| 0125  23:68 CONST        37    ; "a\xff"
+| 0126  23:64 CALL         2    ; 2 positional, 0 named
+| 0127  23:78 CONST        38    ; <fn ends_with>
+| 0128  23:88 LOADGLOBAL   1    ; s
+| 0129  23:91 CONST        39    ; "\x82c"
+| 0130  23:87 CALL         2    ; 2 positional, 0 named
+| 0131  23:7  LIST         4
+| 0132  23:6  CALL         1    ; 1 positional, 0 named
+| 0133  23:1  POP
+| 0134  26:1  CONST        2    ; <fn print>
+| 0135  26:7  CONST        25    ; "\xfe"
+| 0136  26:16 CONST        29    ; "\xff"
+| 0137  26:14 LT
+| 0138  26:24 CONST        40    ; "\u{7F}"
+| 0139  26:33 CONST        41    ; "\u{80}"
+| 0140  26:31 LT
+| 0141  26:45 CONST        42    ; "z"
+| 0142  26:51 CONST        29    ; "\xff"
+| 0143  26:49 LT
+| 0144  26:6  CALL         3    ; 3 positional, 0 named
+| 0145  26:1  POP
+| 0146  28:6  CONST        29    ; "\xff"
+| 0147  28:14 CONST        7    ; 1
+| 0148  28:17 CONST        43    ; "k"
+| 0149  28:20 CONST        26    ; 2
+| 0150  28:5  MAP          2
+| 0151  28:1  STOREGLOBAL  2    ; m
+| 0152  29:1  CONST        2    ; <fn print>
+| 0153  29:7  LOADGLOBAL   2    ; m
+| 0154  29:10 LOADGLOBAL   2    ; m
+| 0155  29:12 CONST        29    ; "\xff"
+| 0156  29:11 INDEX
+| 0157  29:21 CONST        44    ; <fn keys>
+| 0158  29:26 LOADGLOBAL   2    ; m
+| 0159  29:25 CALL         1    ; 1 positional, 0 named
+| 0160  29:6  CALL         3    ; 3 positional, 0 named
+| 0161  29:1  POP
+| 0162  31:11 CONST        29    ; "\xff"
+| 0163  31:5  STORELOCAL   0
+| 0164  31:5  LOADLOCAL    0
+| 0165  32:3  MATCH        0    ; "\xfe"
+| 0166  32:3  JUMPIFFALSE  169
+| 0167  32:13 CONST        7    ; 1
+| 0168  32:3  JUMP         181
+| 0169  31:5  LOADLOCAL    0
+| 0170  33:3  MATCH        1    ; "\xff"
+| 0171  33:3  JUMPIFFALSE  174
+| 0172  33:13 CONST        26    ; 2
+| 0173  33:3  JUMP         181
+| 0174  31:5  LOADLOCAL    0
+| 0175  34:3  MATCH        2    ; _
+| 0176  34:3  JUMPIFFALSE  179
+| 0177  34:13 CONST        8    ; 3
+| 0178  34:3  JUMP         181
+| 0179  31:5  LOADLOCAL    0
+| 0180  31:5  NOMATCH
+| 0181  31:1  STOREGLOBAL  3    ; r
+| 0182  36:1  CONST        2    ; <fn print>
+| 0183  36:7  LOADGLOBAL   3    ; r
+| 0184  36:6  CALL         1    ; 1 positional, 0 named
+| 0185  36:1  POP
+| 0186  38:1  CONST        2    ; <fn print>
+| 0187  38:10 LOADGLOBAL   1    ; s
+| 0188  38:7  CONCAT       1
+| 0189  38:17 LOADGLOBAL   1    ; s
+| 0190  38:14 EQ
+| 0191  38:21 CONST        45    ; "x"
+| 0192  38:25 CONST        29    ; "\xff"
+| 0193  38:21 CONST        46    ; "y"
+| 0194  38:21 CONCAT       3
+| 0195  38:20 LIST         1
+| 0196  38:37 CONST        47    ; <fn str>
+| 0197  38:41 CONST        29    ; "\xff"
+| 0198  38:40 CALL         1    ; 1 positional, 0 named
+| 0199  38:52 CONST        29    ; "\xff"
+| 0200  38:49 EQ
+| 0201  38:6  CALL         3    ; 3 positional, 0 named
+| 0202  38:1  POP
+| 0203  40:1  CONST        2    ; <fn print>
+| 0204  40:8  CONST        48    ; <fn pad_left>
+| 0205  40:17 CONST        29    ; "\xff"
+| 0206  40:25 CONST        8    ; 3
+| 0207  40:28 CONST        49    ; "."
+| 0208  40:16 CALL         3    ; 3 positional, 0 named
+| 0209  40:34 CONST        50    ; <fn pad_right>
+| 0210  40:44 CONST        29    ; "\xff"
+| 0211  40:52 CONST        26    ; 2
+| 0212  40:43 CALL         2    ; 2 positional, 0 named
+| 0213  40:7  LIST         2
+| 0214  40:6  CALL         1    ; 1 positional, 0 named
+| 0215  40:1  POP
+| 0216  43:1  CONST        2    ; <fn print>
+| 0217  43:7  LOADGLOBAL   0    ; regex
+| 0218  43:12 FIELD        51    ; is_match
+| 0219  43:22 CONST        37    ; "a\xff"
+| 0220  43:31 CONST        52    ; "(?-u:\\xff)"
+| 0221  43:21 CALL         2    ; 2 positional, 0 named
+| 0222  43:46 LOADGLOBAL   0    ; regex
+| 0223  43:51 FIELD        53    ; find
+| 0224  43:57 CONST        54    ; "\xffa"
+| 0225  43:66 CONST        49    ; "."
+| 0226  43:56 CALL         2    ; 2 positional, 0 named
+| 0227  43:70 FIELD        55    ; start
+| 0228  43:79 LOADGLOBAL   0    ; regex
+| 0229  43:84 FIELD        56    ; replace
+| 0230  43:93 CONST        57    ; "가\xff"
+| 0231  43:102 CONST        58    ; "x*"
+| 0232  43:108 CONST        35    ; "-"
+| 0233  43:92 CALL         3    ; 3 positional, 0 named
+| 0234  43:78 LIST         1
+| 0235  43:6  CALL         3    ; 3 positional, 0 named
+| 0236  43:1  POP
+| 0237  43:1  CONST        59    ; nil
+| 0238  1:72  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/cancel.fung
@@ -15291,9 +15545,9 @@
 -- exit: 2
 ==== dump core -e print("�")
 -- stdout
-| (do (call (prelude print) "�"))
 -- stderr
--- exit: 0
+| error: cannot read `-e`: not valid UTF-8 at line 1, column 8
+-- exit: 3
 ==== dump core $TMP/�.fung
 -- stdout
 -- stderr (escaped)
@@ -15379,124 +15633,79 @@
 -- exit: 2
 ==== dump ast $TMP/bad_utf8_string.fung
 -- stdout
-| (program (assign x "a�b") (call print x))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_string.fung`: not valid UTF-8 at line 1, column 7
+-- exit: 3
 ==== dump core $TMP/bad_utf8_string.fung
 -- stdout
-| (do (let (global 0) "a�b") (call (prelude print) (global 0)))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_string.fung`: not valid UTF-8 at line 1, column 7
+-- exit: 3
 ==== dump bytecode $TMP/bad_utf8_string.fung
 -- stdout
-| == <main> ==
-| 0000  1:5   CONST        0    ; "a�b"
-| 0001  1:1   STOREGLOBAL  0    ; x
-| 0002  2:1   CONST        1    ; <fn print>
-| 0003  2:7   LOADGLOBAL   0    ; x
-| 0004  2:6   CALL         1    ; 1 positional, 0 named
-| 0005  2:1   POP
-| 0006  2:1   CONST        2    ; nil
-| 0007  1:1   RETURN
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_string.fung`: not valid UTF-8 at line 1, column 7
+-- exit: 3
 ==== dump ast $TMP/bad_utf8_code.fung
 -- stdout
 -- stderr
-| error[E0101]: unexpected character "�"
-|   --> $TMP/bad_utf8_code.fung:2:1
-|   |
-| 2 | �
-|   | ^
-|   |
--- exit: 2
+| error: cannot read `$TMP/bad_utf8_code.fung`: not valid UTF-8 at line 2, column 1
+-- exit: 3
 ==== dump core $TMP/bad_utf8_code.fung
 -- stdout
 -- stderr
-| error[E0101]: unexpected character "�"
-|   --> $TMP/bad_utf8_code.fung:2:1
-|   |
-| 2 | �
-|   | ^
-|   |
--- exit: 2
+| error: cannot read `$TMP/bad_utf8_code.fung`: not valid UTF-8 at line 2, column 1
+-- exit: 3
 ==== dump bytecode $TMP/bad_utf8_code.fung
 -- stdout
 -- stderr
-| error[E0101]: unexpected character "�"
-|   --> $TMP/bad_utf8_code.fung:2:1
-|   |
-| 2 | �
-|   | ^
-|   |
--- exit: 2
+| error: cannot read `$TMP/bad_utf8_code.fung`: not valid UTF-8 at line 2, column 1
+-- exit: 3
 ==== dump ast $TMP/bad_utf8_run.fung
 -- stdout
-| (program (assign x (binary + "�" nope)))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_run.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump core $TMP/bad_utf8_run.fung
 -- stdout
 -- stderr
-| error[E0204]: undefined name `nope`
-|   --> $TMP/bad_utf8_run.fung:1:11
-|   |
-| 1 | x = "�" + nope
-|   |           ^^^^ not found in this scope
-|   |
--- exit: 2
+| error: cannot read `$TMP/bad_utf8_run.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump bytecode $TMP/bad_utf8_run.fung
 -- stdout
 -- stderr
-| error[E0204]: undefined name `nope`
-|   --> $TMP/bad_utf8_run.fung:1:11
-|   |
-| 1 | x = "�" + nope
-|   |           ^^^^ not found in this scope
-|   |
--- exit: 2
+| error: cannot read `$TMP/bad_utf8_run.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump ast $TMP/bad_utf8_ok.fung
 -- stdout
-| (program (assign x "�") (call print x))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_ok.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump core $TMP/bad_utf8_ok.fung
 -- stdout
-| (do (let (global 0) "�") (call (prelude print) (global 0)))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_ok.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump bytecode $TMP/bad_utf8_ok.fung
 -- stdout
-| == <main> ==
-| 0000  1:5   CONST        0    ; "�"
-| 0001  1:1   STOREGLOBAL  0    ; x
-| 0002  2:1   CONST        1    ; <fn print>
-| 0003  2:7   LOADGLOBAL   0    ; x
-| 0004  2:6   CALL         1    ; 1 positional, 0 named
-| 0005  2:1   POP
-| 0006  2:1   CONST        2    ; nil
-| 0007  1:1   RETURN
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/bad_utf8_ok.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump ast $TMP/badmod.fung
 -- stdout
-| (program (assign x "�"))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/badmod.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump core $TMP/badmod.fung
 -- stdout
-| (do (let (global 0) "�"))
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/badmod.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump bytecode $TMP/badmod.fung
 -- stdout
-| == <main> ==
-| 0000  1:5   CONST        0    ; "�"
-| 0001  1:1   STOREGLOBAL  0    ; x
-| 0002  1:1   CONST        1    ; nil
-| 0003  1:1   RETURN
 -- stderr
--- exit: 0
+| error: cannot read `$TMP/badmod.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 3
 ==== dump ast $TMP/uses_badmod.fung
 -- stdout
 | (program (import "./badmod") (call print (field x badmod)))
@@ -15504,23 +15713,26 @@
 -- exit: 0
 ==== dump core $TMP/uses_badmod.fung
 -- stdout
-| (do (import "$TMP/badmod.fung" (global 0)) (call (prelude print) (field x (global 0))))
 -- stderr
--- exit: 0
+| error[E0312]: cannot read module `$TMP/badmod.fung`: not valid UTF-8 at line 1, column 6
+|   --> $TMP/uses_badmod.fung:1:1
+|   |
+| 1 | import "./badmod"
+|   | ^
+|   |
+|  help: fung source is UTF-8 text
+-- exit: 2
 ==== dump bytecode $TMP/uses_badmod.fung
 -- stdout
-| == <main> ==
-| 0000  1:1   IMPORT       0    ; $TMP/badmod.fung
-| 0001  1:1   STOREGLOBAL  0    ; badmod
-| 0002  2:1   CONST        1    ; <fn print>
-| 0003  2:7   LOADGLOBAL   0    ; badmod
-| 0004  2:13  FIELD        2    ; x
-| 0005  2:6   CALL         1    ; 1 positional, 0 named
-| 0006  2:1   POP
-| 0007  2:1   CONST        3    ; nil
-| 0008  1:1   RETURN
 -- stderr
--- exit: 0
+| error[E0312]: cannot read module `$TMP/badmod.fung`: not valid UTF-8 at line 1, column 6
+|   --> $TMP/uses_badmod.fung:1:1
+|   |
+| 1 | import "./badmod"
+|   | ^
+|   |
+|  help: fung source is UTF-8 text
+-- exit: 2
 ==== dump ast $TMP/mⓐ.fung
 -- stdout
 | (program (assign v 1))

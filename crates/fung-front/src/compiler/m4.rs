@@ -1,6 +1,6 @@
 //! Collections, `!` `?` `??`, and `match`.
 
-use super::{Compiler, lit_str};
+use super::{Compiler, lit_str, str_const};
 use crate::bytecode::Op;
 use crate::consts::Const;
 use crate::diag::Diag;
@@ -31,7 +31,7 @@ impl Compiler<'_> {
             }
             Head::Map => {
                 for entry in &n.kids {
-                    self.emit_const(Const::Str(lit_str(entry).to_string()), entry.pos);
+                    self.emit_const(str_const(entry), entry.pos);
                     self.expr(&entry.kids[0], false)?;
                 }
                 self.proto.emit(Op::Map, n.kids.len(), pos);
@@ -183,6 +183,7 @@ fn constant_list(n: &Node) -> Option<Const> {
             (Head::Bool, Lit::Bool(b)) => Const::Bool(*b),
             (Head::Nil, _) => Const::Nil,
             (Head::String, Lit::Str(s)) => Const::Str(s.clone()),
+            (Head::String, Lit::Bytes(b)) => Const::Bytes(b.clone()),
             (Head::Symbol, Lit::Str(s)) => Const::Sym(s.clone()),
             (Head::Duration, Lit::Dur(d)) => Const::Dur(*d),
             (Head::List, _) => constant_list(k)?,

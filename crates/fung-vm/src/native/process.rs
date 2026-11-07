@@ -8,7 +8,7 @@
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
@@ -17,12 +17,12 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use fung_front::diag::Arg;
-use fung_front::loader::abs_path;
-use fung_front::source::decode_lossy;
+use fung_front::text::lossy as show;
 
+use super::file::os_path;
 use super::nat::{self, native, opt, param};
 use super::oserr::reason;
-use crate::value::{Lit, MapBuilder, Module, Native, Value, type_name};
+use crate::value::{Lit, MapBuilder, Module, Native, Text, Value, type_name};
 use crate::vm::poller::{ExitWatch, Interest};
 use crate::vm::{CancelNode, Cont, Flow, IoRegs, Next, Pool, Stop, Task, Wake};
 
@@ -71,29 +71,30 @@ fn exec_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `sh(cmd, cwd, env, stdin)`: `/bin/sh -c cmd`.
 fn sh_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let cmd = nat::need_str("cmd", &a[0])?;
-    run_command(t, vec!["/bin/sh".into(), "-c".into(), cmd.to_string()], &a)
+    let cmd = nat::need_bytes("cmd", &a[0])?;
+    run_command(
+        t,
+        vec![b"/bin/sh".to_vec(), b"-c".to_vec(), cmd.to_vec()],
+        &a,
+    )
 }
 
 /// `env(name = nil)`: one variable (nil when unset), or all of them as a
-/// map in the environment's order.
+/// map in the environment's order. Names and values are bytes (L4).
 fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    if let Some(name) = nat::opt_str("name", &a[0])? {
+    if let Some(name) = nat::opt_bytes("name", &a[0])? {
         // No entry can have such a name.
-        if name.is_empty() || name.contains(['=', '\0']) {
+        if name.is_empty() || name.contains(&b'=') || name.contains(&0) {
             return Ok(Value::Nil);
         }
-        return Ok(match std::env::var_os(name) {
-            Some(v) => Value::str(&decode_lossy(v.as_bytes())),
+        return Ok(match std::env::var_os(os_path(name)) {
+            Some(v) => Value::bytes(v.into_vec()),
             None => Value::Nil,
         });
     }
     let mut m = MapBuilder::default();
     for (k, v) in std::env::vars_os() {
-        m.set(
-            Rc::new(decode_lossy(k.as_bytes())),
-            Value::str(&decode_lossy(v.as_bytes())),
-        );
+        m.set(Rc::new(Text::new(k.into_vec())), Value::bytes(v.into_vec()));
     }
     Ok(Value::Map(Rc::new(m.finish())))
 }
@@ -113,10 +114,10 @@ fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// What `env` must be (E0403).
 const ENV_WANT: &str = "a map of variable names (not empty, no `=`) to strings";
 
-fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Flow, Stop> {
-    let cwd = nat::opt_str("cwd", &a[1])?
+fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow, Stop> {
+    let cwd = nat::opt_bytes("cwd", &a[1])?
         .filter(|d| !d.is_empty())
-        .map(str::to_string);
+        .map(<[u8]>::to_vec);
     let env = match &a[2] {
         Value::Nil => None,
         Value::Map(m) => {
@@ -135,24 +136,24 @@ fn run_command(t: &mut Task<'_>, argv: Vec<String>, a: &[Value]) -> Result<Flow,
                 // The system reads a name up to its first `=`: such a name
                 // would set another one. (NUL is the system's refusal, an
                 // `Err`, as in a value or `cwd`.)
-                if k.is_empty() || k.contains('=') {
+                if k.is_empty() || k.contains(&b'=') {
                     return Err(nat::fail(
                         "E0403",
                         vec![
                             nat::s("env"),
                             nat::s(ENV_WANT),
-                            Arg::Str(format!("the name {}", fung_front::diag::quote(k))),
+                            Arg::Str(format!("the name {}", fung_front::consts::quote_bytes(k))),
                         ],
                     ));
                 }
-                vars.push((k.to_string(), s.to_string()));
+                vars.push((k.to_vec(), s.to_vec()));
             }
             Some(vars)
         }
         v => return Err(nat::wrong_arg("env", "map | nil", v)),
     };
-    let stdin = nat::opt_str("stdin", &a[3])?.map(|s| s.as_bytes().to_vec());
-    let name = argv[0].clone();
+    let stdin = nat::opt_bytes("stdin", &a[3])?.map(<[u8]>::to_vec);
+    let name = show(&argv[0]).into_owned();
     let own = own_group();
     let spawned = prepare(&argv, cwd.as_deref(), env, own).and_then(|mut cmd| {
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -585,13 +586,13 @@ impl CommandWait {
                 std::mem::take(&mut self.err_buf),
             )
         };
-        let out = Value::str(&decode_lossy(&o));
-        let err = Value::str(&decode_lossy(&e));
+        let out = Value::bytes(o);
+        let err = Value::bytes(e);
         if status.success() {
             let mut m = MapBuilder::default();
-            m.set(Rc::new("out".into()), out);
-            m.set(Rc::new("err".into()), err);
-            m.set(Rc::new("code".into()), Value::Int(0));
+            m.set(crate::value::key("out"), out);
+            m.set(crate::value::key("err"), err);
+            m.set(crate::value::key("code"), Value::Int(0));
             return Ok(Next::Done(nat::ok(Value::Map(Rc::new(m.finish())))));
         }
         let code = status.code().map_or(-1, i64::from);
@@ -669,59 +670,58 @@ impl Drop for CommandWait {
 /// directory, the environment (with `PWD` set to the absolute `cwd` when
 /// no `env` is given), and last whether the kernel can execute the file.
 fn prepare(
-    argv: &[String],
-    cwd: Option<&str>,
-    env: Option<Vec<(String, String)>>,
+    argv: &[Vec<u8>],
+    cwd: Option<&[u8]>,
+    env: Option<Vec<(Vec<u8>, Vec<u8>)>>,
     own: bool,
 ) -> Result<Command, String> {
     let name = &argv[0];
     if name.is_empty() {
         return Err("empty command name".into());
     }
-    if argv.iter().any(|x| x.contains('\0')) {
+    if argv.iter().any(|x| x.contains(&0)) {
         return Err("argument contains a NUL byte".into());
     }
-    let path = if name.contains('/') {
+    let path = if name.contains(&b'/') {
         name.clone()
     } else {
         look_path(name)?
     };
     if let Some(dir) = cwd {
-        if dir.contains('\0') {
+        if dir.contains(&0) {
             return Err("working directory contains a NUL byte".into());
         }
-        if let Err(e) = std::fs::metadata(dir) {
+        if let Err(e) = std::fs::metadata(os_path(dir)) {
             return Err(reason(&e));
         }
     }
     if let Some(vars) = &env
-        && vars
-            .iter()
-            .any(|(k, v)| k.contains('\0') || v.contains('\0'))
+        && vars.iter().any(|(k, v)| k.contains(&0) || v.contains(&0))
     {
         return Err("environment variable contains a NUL byte".into());
     }
     let vars = match (env, cwd) {
         (Some(vars), _) => vars,
-        (None, Some(dir)) => vec![("PWD".to_string(), abs_path(dir))],
+        (None, Some(dir)) => vec![(b"PWD".to_vec(), super::path::abs(dir))],
         (None, None) => Vec::new(),
     };
     // A file the kernel cannot execute (ENOEXEC) is refused rather than
     // handed to `/bin/sh`, which the standard library's `execvp` would do:
     // shell scripts go through `sh()`.
     let target = match cwd {
-        Some(dir) if !path.starts_with('/') => format!("{dir}/{path}"),
+        Some(dir) if !path.starts_with(b"/") => [dir, b"/", &path].concat(),
         _ => path.clone(),
     };
     if !kernel_can_run(&target) {
         return Err("not an executable file (run scripts with sh)".into());
     }
-    let mut cmd = Command::new(&path);
-    cmd.arg0(name).args(&argv[1..]);
+    let mut cmd = Command::new(os_path(&path));
+    cmd.arg0(os_path(name))
+        .args(argv[1..].iter().map(|a| os_path(a)));
     if let Some(dir) = cwd {
-        cmd.current_dir(dir);
+        cmd.current_dir(os_path(dir));
     }
-    cmd.envs(vars);
+    cmd.envs(vars.iter().map(|(k, v)| (os_path(k), os_path(v))));
     // A group of its own (`own_group`): a cancellation terminates what
     // the command started too (`terminate`).
     if own {
@@ -747,17 +747,14 @@ fn prepare(
 /// holding an executable file named `name`. A command found only through
 /// a relative entry is refused: which program runs would then depend on
 /// the working directory.
-fn look_path(name: &str) -> Result<String, String> {
+fn look_path(name: &[u8]) -> Result<Vec<u8>, String> {
     let path = std::env::var_os("PATH").unwrap_or_default();
     if !path.is_empty() {
         for dir in path.as_bytes().split(|b| *b == b':') {
-            let dir = match decode_lossy(dir) {
-                d if d.is_empty() => ".".to_string(),
-                d => d,
-            };
-            let candidate = format!("{dir}/{name}");
+            let dir: &[u8] = if dir.is_empty() { b"." } else { dir };
+            let candidate = [dir, b"/", name].concat();
             if is_executable(&candidate) {
-                if !candidate.starts_with('/') {
+                if !candidate.starts_with(b"/") {
                     return Err("command found only in a relative PATH entry".into());
                 }
                 return Ok(candidate);
@@ -772,12 +769,12 @@ fn look_path(name: &str) -> Result<String, String> {
 /// Mach-O, universal Mach-O). Anything that is not an executable regular
 /// file we can read is left to the start itself, which gives the OS error
 /// (EACCES for a directory or a file without an execute bit, ...).
-fn kernel_can_run(path: &str) -> bool {
+fn kernel_can_run(path: &[u8]) -> bool {
     use std::io::Read;
     if !is_executable(path) {
         return true;
     }
-    let Ok(f) = std::fs::File::open(path) else {
+    let Ok(f) = std::fs::File::open(os_path(path)) else {
         return true;
     };
     let mut head = Vec::with_capacity(4);
@@ -798,8 +795,9 @@ fn kernel_can_run(path: &str) -> bool {
 }
 
 /// A file (not a directory) with an execute bit set.
-fn is_executable(path: &str) -> bool {
-    std::fs::metadata(path).is_ok_and(|m| !m.is_dir() && m.permissions().mode() & 0o111 != 0)
+fn is_executable(path: &[u8]) -> bool {
+    std::fs::metadata(os_path(path))
+        .is_ok_and(|m| !m.is_dir() && m.permissions().mode() & 0o111 != 0)
 }
 
 #[cfg(test)]

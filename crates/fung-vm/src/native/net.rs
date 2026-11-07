@@ -39,9 +39,8 @@
 //! and the `http` module says what was being done (`cannot request
 //! `url`: <reason>`).
 //!
-//! **Strings.** What is read is decoded as UTF-8, a byte that is not
-//! UTF-8 becoming U+FFFD (as for files); `byte_len` gives the UTF-8 size
-//! a string is sent with.
+//! **Strings.** What is read and written is bytes, as they are (L4);
+//! host names, addresses and headers are text.
 
 use std::cell::Cell;
 use std::io::{self, Read, Write};
@@ -53,8 +52,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
-
-use fung_front::source::decode_lossy;
 
 use super::nat::{self, native, native_step, opt, param};
 use super::oserr;
@@ -143,10 +140,6 @@ pub fn module() -> Rc<Module> {
                 ),
             ),
             (
-                "byte_len",
-                native("byte_len", byte_len_fn, vec![param("s")]),
-            ),
-            (
                 "read_bytes_into",
                 native_step(
                     "read_bytes_into",
@@ -159,10 +152,6 @@ pub fn module() -> Rc<Module> {
                 native_step("take_body", take_body_fn, vec![param("c")]),
             ),
             (
-                "utf8_bytes",
-                native("utf8_bytes", utf8_bytes_fn, vec![param("s")]),
-            ),
-            (
                 "start_tls",
                 native_step("start_tls", start_tls_fn, vec![param("c"), param("host")]),
             ),
@@ -173,10 +162,6 @@ pub fn module() -> Rc<Module> {
                     need_str_map_fn,
                     vec![param("name"), param("m")],
                 ),
-            ),
-            (
-                "utf8_string",
-                native("utf8_string", utf8_string_fn, vec![param("bs")]),
             ),
             ("user_agent", native("user_agent", user_agent_fn, vec![])),
         ]
@@ -1189,8 +1174,9 @@ fn need_count(name: &str, v: &Value) -> Result<usize, Stop> {
     }
 }
 
+/// What was read, byte for byte (L4).
 fn text(b: &[u8]) -> Value {
-    Value::str(&decode_lossy(b))
+    Value::bytes(b.to_vec())
 }
 
 /// `connect(host, port, tls = false)`: `Ok(<conn>)`. With `tls`, the
@@ -1376,7 +1362,7 @@ fn take_body_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// `write(c, s)`: `Ok(nil)` once all of `s` is written.
 fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    let bytes = nat::need_str("s", &a[1])?.as_bytes().to_vec();
+    let bytes = nat::need_bytes("s", &a[1])?.to_vec();
     let mut off = 0;
     let c2 = c.clone();
     run_io(
@@ -1419,22 +1405,6 @@ fn set_deadline_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(result(c.set_deadline(d).map(|()| Value::Nil)))
 }
 
-/// `byte_len(s)`: the UTF-8 size of `s` in bytes.
-fn byte_len_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
-    Ok(Value::Int(s.len() as i64))
-}
-
-/// `utf8_bytes(s)`: the bytes `write` would send for `s`, as ints. fung
-/// sees strings as characters only; the `http` module needs the bytes to
-/// percent-encode a URL path.
-fn utf8_bytes_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
-    Ok(nat::list(
-        s.bytes().map(|b| Value::Int(i64::from(b))).collect(),
-    ))
-}
-
 /// `need_str_map(name, m)`: `nil`, or E0403 when `m` is not a map or a
 /// value of it is not a str (the first one, in the map's order): the
 /// `http` module's check of a header map, which fung code cannot raise
@@ -1455,30 +1425,6 @@ fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         ));
     }
     Ok(Value::Nil)
-}
-
-/// `utf8_string(bs)`: the text of a list of bytes (ints from 0 to 255),
-/// decoded as everything read is (U+FFFD for what is not UTF-8): what
-/// `utf8_bytes` gives, backwards. The `http` server decodes the
-/// percent-escapes of a request's path and query with it.
-fn utf8_string_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let Value::List(items) = &a[0] else {
-        return Err(nat::wrong_arg("bs", "list", &a[0]));
-    };
-    let mut bytes = Vec::with_capacity(items.len());
-    for v in items.iter() {
-        match v {
-            Value::Int(n) if (0..=255).contains(n) => bytes.push(*n as u8),
-            v => {
-                return Err(nat::wrong_arg(
-                    "bs",
-                    "a list of bytes (ints from 0 to 255)",
-                    v,
-                ));
-            }
-        }
-    }
-    Ok(text(&bytes))
 }
 
 /// `user_agent()`: what the `http` client sends as `User-Agent` unless

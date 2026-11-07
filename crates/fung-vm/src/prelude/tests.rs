@@ -199,7 +199,7 @@ fn st(s: &str) -> Value {
 #[test]
 fn map_functions_copy() {
     let mut b = MapBuilder::default();
-    b.set(std::rc::Rc::new("a".into()), Value::Int(1));
+    b.set(crate::value::key("a"), Value::Int(1));
     let m = Value::Map(std::rc::Rc::new(b.finish()));
     let put = call("put", vec![m.clone(), st("b"), Value::Int(2)]).unwrap();
     let removed = call("remove", vec![m.clone(), st("a")]).unwrap();
@@ -393,6 +393,26 @@ fn string_functions() {
         ("ends_with", vec![st("abc"), st("ab")], "false"),
         ("repeat", vec![st("ab"), Value::Int(2)], "\"abab\""),
         ("repeat", vec![st("ab"), Value::Int(-1)], "\"\""),
+        ("byte_len", vec![st("한a")], "4"),
+        ("byte_len", vec![Value::bytes(b"a\xff".to_vec())], "2"),
+        ("bytes", vec![st("한a")], "[237, 149, 156, 97]"),
+        ("bytes", vec![st("")], "[]"),
+        (
+            "from_bytes",
+            vec![list(vec![
+                Value::Int(237),
+                Value::Int(149),
+                Value::Int(156),
+            ])],
+            "\"한\"",
+        ),
+        (
+            "from_bytes",
+            vec![list(vec![Value::Int(97), Value::Int(255)])],
+            "\"a\\xff\"",
+        ),
+        ("valid_utf8", vec![st("é")], "true"),
+        ("valid_utf8", vec![Value::bytes(b"\xc3".to_vec())], "false"),
     ];
     for (name, args, want) in cases {
         let shown = format(&list(args.clone()));
@@ -402,6 +422,10 @@ fn string_functions() {
         }
     }
     assert_eq!(code(&call("upper", vec![Value::Int(1)])), "E0403");
+    assert_eq!(code(&call("byte_len", vec![Value::Int(1)])), "E0403");
+    assert_eq!(code(&call("from_bytes", vec![Value::Int(1)])), "E0403");
+    let bad = list(vec![Value::Int(1), Value::Int(256)]);
+    assert_eq!(code(&call("from_bytes", vec![bad])), "E0403");
     assert_eq!(code(&call("join", vec![Value::Int(1), st("")])), "E0506");
 }
 

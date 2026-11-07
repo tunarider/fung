@@ -102,10 +102,11 @@ print(event.type, event.match)</code></pre><pre class="out plain"><code>deploy a
 </table>
 <h3>문자열</h3>
 <ul>
-  <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. 실제 줄바꿈은 넣을 수 없다.</li>
+  <li><code>"…"</code>: 이스케이프와 보간 <code>${식}</code>. 이스케이프는 <code>\n</code> <code>\t</code> <code>\r</code> <code>\\</code> <code>\"</code> <code>\$</code> <code>\u{1F600}</code> <code>\xHH</code>뿐이고, 모르는 이스케이프(<code>"C:\data"</code>)는 컴파일 에러다. <code>\xHH</code>는 바이트 하나다(<code>"\xe9"</code>는 글자 <code>é</code>가 아니라 바이트 0xE9, 글자는 <code>"\u{e9}"</code>). 실제 줄바꿈은 넣을 수 없다.</li>
   <li><code>`…`</code>: 원시 문자열. 이스케이프도 보간도 없고, 여러 줄이 된다. 정규식과 Windows 경로에 쓴다.</li>
   <li>보간 안에는 어떤 식이든 온다: <code>"${m["k"]}"</code>.</li>
   <li>길이와 인덱스는 글자(유니코드 코드 포인트) 단위다. <code>len("참치") == 2</code>, <code>"참치"[0] == "참"</code>. 따로 문자 타입은 없다.</li>
+  <li>문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. UTF-8에 속하지 않는 바이트는 그 하나가 한 글자이고, 값으로 보일 때는 <code>"\xff"</code>처럼 보인다(<a href="prelude/strings.html#bytes">바이트</a>). 소스 파일은 UTF-8이어야 한다(<a href="errors.html#E0312">E0312</a>).</li>
 </ul>
 <div class="run"><pre><code>name = &quot;fung&quot;
 print(&quot;hello, ${name}! ${1 + 2}&quot;)
@@ -156,7 +157,7 @@ print(logs, ok)</code></pre><pre class="out plain"><code>[&quot;b.log&quot;, &qu
   <tbody>
     <tr><td><code>int</code></td><td><code>42</code></td><td>64비트 정수. 넘치면 에러.</td></tr>
     <tr><td><code>float</code></td><td><code>3.14</code></td><td>64비트 실수. <code>NaN</code>·<code>Inf</code>가 되면 에러.</td></tr>
-    <tr><td><code>str</code></td><td><code>"a"</code></td><td>불변 UTF-8, 글자 단위 인덱스.</td></tr>
+    <tr><td><code>str</code></td><td><code>"a"</code></td><td>불변 바이트 열, UTF-8로 읽는 글자 단위 인덱스.</td></tr>
     <tr><td><code>bool</code></td><td><code>true</code></td><td>조건 자리에는 bool만 온다.</td></tr>
     <tr><td><code>nil</code></td><td><code>nil</code></td><td>"없음"이라는 정상 값. <code>==</code>, <code>??</code>, 출력, 컬렉션에 담기 외의 연산은 에러.</td></tr>
     <tr><td><code>sym</code></td><td><code>'ok</code></td><td>이름만 있는 값.</td></tr>
@@ -186,7 +187,7 @@ print(logs, ok)</code></pre><pre class="out plain"><code>[&quot;b.log&quot;, &qu
   <thead><tr><th>타입</th><th><code>==</code></th><th><code>&lt;</code> 등</th></tr></thead>
   <tbody>
     <tr><td>int, float</td><td>값. 섞여도 숫자로 비교(<code>1 == 1.0</code>), 2<sup>53</sup>을 넘는 정수도 정확히</td><td>값</td></tr>
-    <tr><td>str</td><td>내용</td><td>코드 포인트 순</td></tr>
+    <tr><td>str</td><td>내용(바이트)</td><td>바이트 순(UTF-8이면 코드 포인트 순과 같다)</td></tr>
     <tr><td>dur, time</td><td>값(time은 같은 순간이면 시간대 무관)</td><td>값</td></tr>
     <tr><td>list, tuple</td><td>원소가 차례로 같음</td><td>앞 원소부터 사전식</td></tr>
     <tr><td>map</td><td>키 집합과 값이 같음(순서 무시)</td><td>에러</td></tr>

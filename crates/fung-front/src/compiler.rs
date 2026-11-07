@@ -137,6 +137,14 @@ fn internal(pos: Pos, msg: String) -> Diag {
     error("E0801", pos, vec![Arg::Str(msg)])
 }
 
+/// The constant of a string literal: text, or bytes (L4).
+fn str_const(n: &Node) -> Const {
+    match &n.lit {
+        Lit::Bytes(b) => Const::Bytes(b.clone()),
+        _ => Const::Str(lit_str(n).to_string()),
+    }
+}
+
 fn lit_str(n: &Node) -> &str {
     match &n.lit {
         Lit::Str(s) => s,
@@ -356,7 +364,7 @@ impl Compiler<'_> {
                 };
                 self.emit_const(c, pos);
             }
-            Head::String => self.emit_const(Const::Str(lit_str(n).to_string()), pos),
+            Head::String => self.emit_const(str_const(n), pos),
             Head::Symbol => self.emit_const(Const::Sym(lit_str(n).to_string()), pos),
             Head::Duration => {
                 let ns = if let Lit::Dur(d) = n.lit { d } else { 0 };

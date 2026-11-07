@@ -48,7 +48,7 @@ fn err_message(e: &Value) -> String {
     if let Value::Map(m) = v
         && let Some(Value::Str(s)) = m.get("message")
     {
-        return s.to_string();
+        return s.lossy().into_owned();
     }
     format(v)
 }

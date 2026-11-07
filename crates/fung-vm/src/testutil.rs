@@ -237,7 +237,7 @@ fn setup_with(
     match given {
         Some(p) => rt.set_prelude(p),
         None => {
-            let args = opts.args.iter().map(|a| a.to_string()).collect();
+            let args = opts.args.iter().map(|a| a.as_bytes().to_vec()).collect();
             rt.boot(args).unwrap_or_else(|errs| {
                 let text: String =
                     rt.with_sources(|s| errs.iter().map(|e| diag::format(e, s)).collect());
@@ -464,7 +464,8 @@ pub fn pad() -> Vec<Value> {
                 return Err(nat::fail("E0801", vec![nat::s("pad: bad arguments")]));
             };
             Ok(Value::str(&format!(
-                "{s}{}{}",
+                "{}{}{}",
+                s.lossy(),
                 "*".repeat(*n as usize),
                 format(&a[2])
             )))
@@ -729,7 +730,7 @@ pub mod jobs {
         let Value::Str(s) = &a[0] else {
             panic!("a name")
         };
-        s.to_string()
+        s.lossy().into_owned()
     }
 
     fn thread_name() -> String {
@@ -867,7 +868,7 @@ pub mod jobs {
                 let Value::Str(s) = &a[1] else {
                     panic!("a string")
                 };
-                pipe_write(&name(&a), s);
+                pipe_write(&name(&a), &s.lossy());
                 Ok(Value::Nil)
             },
         )));

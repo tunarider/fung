@@ -28,11 +28,10 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsE
 use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 
-use fung_front::source::decode_lossy;
-
 use fung_front::diag::Arg;
+use fung_front::text::lossy as show;
 
-use super::file::{self, Fault, File, Io, Mode};
+use super::file::{self, Fault, File, Io, Mode, os_path};
 use super::glob;
 use super::nat::{self, native_step, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, errno};
@@ -134,16 +133,16 @@ pub fn module() -> Rc<Module> {
 }
 
 /// `Err({kind, message})` with ``cannot <verb> `<path>`: <reason>``.
-pub(super) fn fs_err(verb: &str, path: &str, e: &io::Error) -> Value {
+pub(super) fn fs_err(verb: &str, path: &[u8], e: &io::Error) -> Value {
     nat::err_value(
         oserr::kind(e),
-        &format!("cannot {verb} `{path}`: {}", oserr::reason(e)),
+        &format!("cannot {verb} `{}`: {}", show(path), oserr::reason(e)),
         Vec::new(),
     )
 }
 
 /// `Ok(nil)`, or the failure as `fs_err` reports it.
-fn done(verb: &str, path: &str, r: io::Result<()>) -> Value {
+fn done(verb: &str, path: &[u8], r: io::Result<()>) -> Value {
     match r {
         Ok(()) => nat::ok(Value::Nil),
         Err(e) => fs_err(verb, path, &e),
@@ -152,11 +151,11 @@ fn done(verb: &str, path: &str, r: io::Result<()>) -> Value {
 
 /// A path holding a NUL byte is refused with EINVAL before any system
 /// call (the standard library's own error for it has no errno).
-fn checked(p: &str) -> io::Result<&str> {
-    if p.contains('\0') {
+fn checked(p: &[u8]) -> io::Result<&std::ffi::OsStr> {
+    if p.contains(&0) {
         Err(errno(EINVAL))
     } else {
-        Ok(p)
+        Ok(os_path(p))
     }
 }
 
@@ -189,7 +188,7 @@ fn octal(n: i64) -> String {
 
 /// Creates with `perm` (less the umask) or truncates, then writes and
 /// closes, reporting the close (L11).
-fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
+fn write_file(p: &[u8], bytes: &[u8], perm: u32) -> io::Result<()> {
     let mut f = OpenOptions::new()
         .write(true)
         .create(true)
@@ -202,32 +201,32 @@ fn write_file(p: &str, bytes: &[u8], perm: u32) -> io::Result<()> {
 
 /// Opens with `o` (and `perm`), writes `text` and closes, reporting the
 /// close (L11): `fs.write` and `fs.append`.
-fn write_closed(o: &mut OpenOptions, p: &str, perm: Option<u32>, text: &[u8]) -> io::Result<()> {
+fn write_closed(o: &mut OpenOptions, p: &[u8], perm: Option<u32>, text: &[u8]) -> io::Result<()> {
     let mut f = file::open_writing(o, checked(p)?, perm)?;
     f.write_all(text)?;
     file::close_checked(f, p)
 }
 
 fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     // A FIFO is read in the event loop (`pipe.rs`, L11); `None` says so.
     let read = move || -> io::Result<Option<Vec<u8>>> {
         let path = checked(&job)?;
-        if pipe::is_fifo(path) {
+        if pipe::is_fifo(&job) {
             return Ok(None);
         }
         std::fs::read(path).map(Some)
     };
     crate::vm::offload_kind(t, Kind::Abandon, read, move |t, r| match r {
-        Ok(Some(bytes)) => Ok(Flow::Done(nat::ok(Value::str(&decode_lossy(&bytes))))),
+        Ok(Some(bytes)) => Ok(Flow::Done(nat::ok(Value::bytes(bytes)))),
         Ok(None) => read_fifo(t, p),
         Err(e) => Ok(Flow::Done(fs_err("read", &p, &e))),
     })
 }
 
 /// `fs.read` of a FIFO: its read end, read to the end in the event loop.
-fn read_fifo(t: &mut Task<'_>, p: String) -> Result<Flow, Stop> {
+fn read_fifo(t: &mut Task<'_>, p: Vec<u8>) -> Result<Flow, Stop> {
     let mut r = match Pipe::open_read(&p) {
         Ok(r) => r,
         Err(e) => return Ok(Flow::Done(fs_err("read", &p, &e))),
@@ -235,7 +234,7 @@ fn read_fifo(t: &mut Task<'_>, p: String) -> Result<Flow, Stop> {
     park_io(
         t,
         move |_, _| match r.read_to_end() {
-            Step::Ready(bytes) => IoStep::Done(Ok(nat::ok(Value::str(&decode_lossy(&bytes))))),
+            Step::Ready(bytes) => IoStep::Done(Ok(nat::ok(Value::bytes(bytes)))),
             Step::Wait(fd, interest) => pipe::io_step(fd, interest),
             Step::Fail(e) => IoStep::Done(Ok(fs_err("read", &p, &e))),
         },
@@ -247,7 +246,7 @@ fn read_fifo(t: &mut Task<'_>, p: String) -> Result<Flow, Stop> {
 /// text is sent in the event loop and the write end closed.
 fn write_fifo(
     t: &mut Task<'_>,
-    p: String,
+    p: Vec<u8>,
     text: Vec<u8>,
     perm: Option<u32>,
     verb: &'static str,
@@ -282,12 +281,13 @@ fn write_fifo(
 }
 
 fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let [p, text] = nat::str_args(&a, ["path", "text"])?;
+    let [p, text] = nat::bytes_args(&a, ["path", "text"])?;
     let perm = perm_arg(&a[2])?;
-    let (p, text) = (p.to_string(), text.as_bytes().to_vec());
+    let (p, text) = (p.to_vec(), text.to_vec());
     let job = p.clone();
     let write = move || -> io::Result<Option<Vec<u8>>> {
-        if pipe::is_fifo(checked(&job)?) {
+        checked(&job)?;
+        if pipe::is_fifo(&job) {
             return Ok(Some(text));
         }
         let mut o = OpenOptions::new();
@@ -301,12 +301,13 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let [p, text] = nat::str_args(&a, ["path", "text"])?;
+    let [p, text] = nat::bytes_args(&a, ["path", "text"])?;
     let perm = perm_arg(&a[2])?;
-    let (p, text) = (p.to_string(), text.as_bytes().to_vec());
+    let (p, text) = (p.to_vec(), text.to_vec());
     let job = p.clone();
     let append = move || -> io::Result<Option<Vec<u8>>> {
-        if pipe::is_fifo(checked(&job)?) {
+        checked(&job)?;
+        if pipe::is_fifo(&job) {
             return Ok(Some(text));
         }
         let mut o = OpenOptions::new();
@@ -319,14 +320,10 @@ fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     })
 }
 
-/// A fung list of the strings `paths` holds (file names need not be
-/// UTF-8; a bad byte reads as U+FFFD).
+/// A fung list of the strings `paths` holds, byte for byte (file names
+/// need not be UTF-8, L4).
 fn str_list(paths: &[Vec<u8>]) -> Value {
-    nat::list(paths.iter().map(|p| Value::str(&decode_lossy(p))).collect())
-}
-
-fn os_path(p: &[u8]) -> &std::ffi::OsStr {
-    std::ffi::OsStr::from_bytes(p)
+    nat::list(paths.iter().map(|p| Value::bytes(p.clone())).collect())
 }
 
 /// The directory's entries in byte order of their
@@ -348,7 +345,7 @@ fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
 }
 
 fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let dir = nat::need_str("dir", &a[0])?.to_string();
+    let dir = nat::need_bytes("dir", &a[0])?.to_vec();
     let Value::Bool(full) = a[1] else {
         return Err(nat::wrong_arg("full", "bool", &a[1]));
     };
@@ -359,7 +356,7 @@ fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             let names = read_dir(checked(&job)?.as_bytes())?.into_iter();
             Ok::<_, io::Error>(if full {
                 names
-                    .map(|(n, _)| path::join_bytes(job.as_bytes(), &n))
+                    .map(|(n, _)| path::join_bytes(&job, &n))
                     .collect::<Vec<_>>()
             } else {
                 names.map(|(n, _)| n).collect()
@@ -375,11 +372,11 @@ fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let pattern = nat::need_str("pattern", &a[0])?.to_string();
+    let pattern = nat::need_bytes("pattern", &a[0])?.to_vec();
     let job = pattern.clone();
     nat::offload_abandoning(
         t,
-        move || glob::glob(job.as_bytes()),
+        move || glob::glob(&job),
         move |_, r| {
             Ok(match r {
                 Ok(mut found) => {
@@ -389,7 +386,10 @@ fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 }
                 Err(glob::BadPattern) => nat::err_value(
                     "invalid",
-                    &format!("bad glob pattern `{pattern}`: syntax error in pattern"),
+                    &format!(
+                        "bad glob pattern `{}`: syntax error in pattern",
+                        show(&pattern)
+                    ),
                     Vec::new(),
                 ),
             })
@@ -398,17 +398,17 @@ fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 fn walk_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let dir = nat::need_str("dir", &a[0])?.to_string();
+    let dir = nat::need_bytes("dir", &a[0])?.to_vec();
     nat::offload_abandoning(
         t,
         move || match checked(&dir) {
             Ok(d) => walk(d.as_bytes()),
-            Err(e) => Err((dir.into_bytes(), e)),
+            Err(e) => Err((dir, e)),
         },
         |_, r| {
             Ok(match r {
                 Ok(files) => nat::ok(str_list(&files)),
-                Err((at, e)) => fs_err("walk", &String::from_utf8_lossy(&at), &e),
+                Err((at, e)) => fs_err("walk", &at, &e),
             })
         },
     )
@@ -442,7 +442,7 @@ fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> Result<(), (Vec<u8>, io::Er
 }
 
 fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     nat::offload_short(
         t,
         move || checked(&p).and_then(std::fs::metadata).is_ok(),
@@ -451,7 +451,7 @@ fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload_short(
         t,
@@ -465,19 +465,19 @@ fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             };
             // The name is the last element of the path asked for.
             let mut m = MapBuilder::default();
-            m.set(Rc::new("name".into()), Value::str(&path::base(&p)));
-            m.set(Rc::new("size".into()), Value::Int(size as i64));
-            m.set(Rc::new("is_dir".into()), Value::Bool(is_dir));
+            m.set(crate::value::key("name"), Value::bytes(path::base(&p)));
+            m.set(crate::value::key("size"), Value::Int(size as i64));
+            m.set(crate::value::key("is_dir"), Value::Bool(is_dir));
             // nil where the system keeps no time, or one past year 9999
             let mtime = modified.and_then(super::time::from_system);
-            m.set(Rc::new("mtime".into()), mtime.unwrap_or(Value::Nil));
+            m.set(crate::value::key("mtime"), mtime.unwrap_or(Value::Nil));
             Ok(nat::ok(Value::Map(Rc::new(m.finish()))))
         },
     )
 }
 
 fn mkdir_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload(
         t,
@@ -489,7 +489,7 @@ fn mkdir_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// A directory and the missing ones above it; one already there is
 /// success, a file there is "file exists", and a file above it is "not a
 /// directory". The empty path names nothing.
-fn mkdir_all(p: &str, perm: u32) -> io::Result<()> {
+fn mkdir_all(p: &std::ffi::OsStr, perm: u32) -> io::Result<()> {
     if p.is_empty() {
         return Err(io::Error::from(io::ErrorKind::NotFound));
     }
@@ -497,7 +497,7 @@ fn mkdir_all(p: &str, perm: u32) -> io::Result<()> {
 }
 
 fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload(
         t,
@@ -507,7 +507,7 @@ fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// A file, a link or an empty directory.
-fn remove(p: &str) -> io::Result<()> {
+fn remove(p: &std::ffi::OsStr) -> io::Result<()> {
     if std::fs::symlink_metadata(p)?.is_dir() {
         std::fs::remove_dir(p)
     } else {
@@ -516,7 +516,7 @@ fn remove(p: &str) -> io::Result<()> {
 }
 
 fn remove_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload(
         t,
@@ -529,15 +529,17 @@ fn remove_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// path; a root, or a path whose last part is `.` or `..`, is refused (it
 /// would name more than the path says). A link is removed itself, also
 /// when given with a trailing `/`.
-fn remove_all(p: &str) -> io::Result<()> {
+fn remove_all(p: &std::ffi::OsStr) -> io::Result<()> {
     if p.is_empty() {
         return Ok(());
     }
-    let p = p.trim_end_matches('/');
-    let last = p.rsplit('/').next().unwrap_or("");
-    if p.is_empty() || last == "." || last == ".." {
+    let p = p.as_bytes();
+    let p = &p[..p.iter().rposition(|&b| b != b'/').map_or(0, |i| i + 1)];
+    let last = p.rsplit(|&b| b == b'/').next().unwrap_or(b"");
+    if p.is_empty() || last == b"." || last == b".." {
         return Err(errno(EINVAL));
     }
+    let p = os_path(p);
     match std::fs::symlink_metadata(p) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
@@ -550,11 +552,11 @@ fn remove_all(p: &str) -> io::Result<()> {
 }
 
 fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let [from, to] = nat::str_args(&a, ["from", "to"])?;
+    let [from, to] = nat::bytes_args(&a, ["from", "to"])?;
     let Value::Bool(overwrite) = a[2] else {
         return Err(nat::wrong_arg("overwrite", "bool", &a[2]));
     };
-    let (from, to) = (from.to_string(), to.to_string());
+    let (from, to) = (from.to_vec(), to.to_vec());
     let job = (from.clone(), to.clone());
     nat::offload(
         t,
@@ -564,7 +566,12 @@ fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 // The target is the path that exists: name both.
                 Err(e) if e.raw_os_error() == Some(EEXIST) => nat::err_value(
                     oserr::kind(&e),
-                    &format!("cannot move `{from}` to `{to}`: {}", oserr::reason(&e)),
+                    &format!(
+                        "cannot move `{}` to `{}`: {}",
+                        show(&from),
+                        show(&to),
+                        oserr::reason(&e)
+                    ),
                     Vec::new(),
                 ),
                 r => done("move", &from, r),
@@ -580,7 +587,7 @@ fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// a file made between a check and the move is not lost either. The same
 /// file under another name (a case-only rename on a case-blind file
 /// system) is no replacement.
-fn rename(from: &str, to: &str, overwrite: bool) -> io::Result<()> {
+fn rename(from: &std::ffi::OsStr, to: &std::ffi::OsStr, overwrite: bool) -> io::Result<()> {
     if let Ok(target) = std::fs::symlink_metadata(to) {
         let source = std::fs::symlink_metadata(from)?;
         let same = source.dev() == target.dev() && source.ino() == target.ino();
@@ -602,7 +609,7 @@ fn rename(from: &str, to: &str, overwrite: bool) -> io::Result<()> {
 /// system in one step. A file system without it (EINVAL, ENOTSUP, or no
 /// such call) falls back to a hard link, which fails the same way, and
 /// last to a check before the rename (the one step that can race).
-fn rename_noreplace(from: &str, to: &str) -> io::Result<()> {
+fn rename_noreplace(from: &std::ffi::OsStr, to: &std::ffi::OsStr) -> io::Result<()> {
     match noreplace_call(from, to) {
         Some(Err(e)) if is_unsupported(&e) => {}
         Some(r) => return r,
@@ -634,7 +641,7 @@ fn is_unsupported(e: &io::Error) -> bool {
 /// (glibc has had it since 2.28), while every kernel since 3.15 has the
 /// call; an older kernel answers ENOSYS and the fallback runs.
 #[cfg(target_os = "linux")]
-fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
+fn noreplace_call(from: &std::ffi::OsStr, to: &std::ffi::OsStr) -> Option<io::Result<()>> {
     let (from, to) = (c_path(from), c_path(to));
     // SAFETY: renameat2(2) takes two directory descriptors, two
     // NUL-terminated paths that live across the call and the flags;
@@ -657,7 +664,7 @@ fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
 }
 
 #[cfg(target_os = "macos")]
-fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
+fn noreplace_call(from: &std::ffi::OsStr, to: &std::ffi::OsStr) -> Option<io::Result<()>> {
     let (from, to) = (c_path(from), c_path(to));
     // SAFETY: two NUL-terminated paths that live across the call.
     let rc = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
@@ -669,19 +676,19 @@ fn noreplace_call(from: &str, to: &str) -> Option<io::Result<()>> {
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn noreplace_call(_: &str, _: &str) -> Option<io::Result<()>> {
+fn noreplace_call(_: &std::ffi::OsStr, _: &std::ffi::OsStr) -> Option<io::Result<()>> {
     None
 }
 
 /// A path for a system call (`checked` refused a NUL already).
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn c_path(p: &str) -> std::ffi::CString {
-    std::ffi::CString::new(p).expect("checked: no NUL")
+fn c_path(p: &std::ffi::OsStr) -> std::ffi::CString {
+    std::ffi::CString::new(p.as_bytes()).expect("checked: no NUL")
 }
 
 fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let [from, to] = nat::str_args(&a, ["from", "to"])?;
-    let (from, to) = (from.to_string(), to.to_string());
+    let [from, to] = nat::bytes_args(&a, ["from", "to"])?;
+    let (from, to) = (from.to_vec(), to.to_vec());
     let job = (from.clone(), to.clone());
     nat::offload(
         t,
@@ -698,7 +705,7 @@ fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// The source's permission bits, its bytes, then a write.
 /// The error says which side failed (`true` for the source).
-fn copy(from: &str, to: &str) -> Result<(), (bool, io::Error)> {
+fn copy(from: &[u8], to: &[u8]) -> Result<(), (bool, io::Error)> {
     let src = |e| (true, e);
     let from = checked(from).map_err(src)?;
     let perm = std::fs::metadata(from).map_err(src)?.permissions().mode() & 0o777;
@@ -714,7 +721,7 @@ const SETTLE_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// `Ok(<file>)` or the open failure.
 fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let p = nat::need_str("path", &a[0])?.to_string();
+    let p = nat::need_bytes("path", &a[0])?.to_vec();
     let Value::Sym(mode) = a[1] else {
         return Err(nat::wrong_arg("mode", MODES, &a[1]));
     };
@@ -744,18 +751,18 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let closer = t.closer();
     // A FIFO is opened on the run thread (`pipe.rs`, L11); `None` says so.
     let open = move || -> io::Result<Option<Io>> {
-        let path = checked(&job)?;
-        if pipe::is_fifo(path) {
+        checked(&job)?;
+        if pipe::is_fifo(&job) {
             return Ok(None);
         }
-        match file::open(path, mode, perm) {
+        match file::open(&job, mode, perm) {
             // Out of descriptors while dropped handles wait to be closed:
             // wait for them, then try once more.
             Err(e)
                 if matches!(e.raw_os_error(), Some(libc::EMFILE | libc::ENFILE))
                     && closer.settle(SETTLE_LIMIT) =>
             {
-                file::open(path, mode, perm)
+                file::open(&job, mode, perm)
             }
             r => r,
         }
@@ -769,13 +776,13 @@ fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `Ok(<file>)` for what `fs.open` opened.
-fn handle(t: &Task<'_>, p: String, io: Io) -> Value {
+fn handle(t: &Task<'_>, p: Vec<u8>, io: Io) -> Value {
     nat::ok(Value::File(Arc::new(File::new(p, io, t.closer()))))
 }
 
 /// `fs.open` of a FIFO: the read end opens at once; a write end waits
 /// (in the event loop) until a reader has the FIFO open.
-fn open_fifo(t: &mut Task<'_>, p: String, mode: Mode, perm: Option<u32>) -> Result<Flow, Stop> {
+fn open_fifo(t: &mut Task<'_>, p: Vec<u8>, mode: Mode, perm: Option<u32>) -> Result<Flow, Stop> {
     if let Mode::Read = mode {
         return Ok(Flow::Done(match Pipe::open_read(&p) {
             Ok(r) => handle(t, p, Io::Pipe(r)),
@@ -804,7 +811,7 @@ pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a Arc<File>, S
 /// The `Err` of a failed handle operation: closed, the `'invalid`
 /// direction errors, or the OS error with `verb`.
 pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
-    let p = &f.path;
+    let p = show(&f.path);
     match e {
         Fault::Closed => nat::err_value("closed", &format!("file `{p}` is closed"), Vec::new()),
         Fault::NotReading => nat::err_value(
@@ -817,7 +824,7 @@ pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
             &format!("file `{p}` is not open for writing"),
             Vec::new(),
         ),
-        Fault::Io(e) => fs_err(verb, p, &e),
+        Fault::Io(e) => fs_err(verb, &f.path, &e),
     }
 }
 
@@ -845,9 +852,9 @@ fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// lock: here when they fit in the write buffer, else on a pool thread.
 fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let f = need_file("f", &a[0])?.clone();
-    let line = nat::need_str("line", &a[1])?;
+    let line = nat::need_bytes("line", &a[1])?;
     let mut bytes = Vec::with_capacity(line.len() + 1);
-    bytes.extend_from_slice(line.as_bytes());
+    bytes.extend_from_slice(line);
     bytes.push(b'\n');
     if f.is_pipe() {
         return write_pipe_line(t, f, &bytes);
@@ -898,7 +905,7 @@ fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
         move || make_temp_dir_in(&job),
         move |_, made| {
             Ok(match made {
-                Ok(dir) => nat::ok(Value::str(&decode_lossy(&dir))),
+                Ok(dir) => nat::ok(Value::bytes(dir)),
                 Err(e) => temp_dir_failure(e, &base),
             })
         },
@@ -914,12 +921,11 @@ pub(super) enum TempDirError {
 /// The `Err` for a temporary directory not made in `base`.
 pub(super) fn temp_dir_failure(e: TempDirError, base: &[u8]) -> Value {
     let verb = "create temporary directory in";
-    let base = String::from_utf8_lossy(base);
     match e {
-        TempDirError::Os(e) => fs_err(verb, &base, &e),
+        TempDirError::Os(e) => fs_err(verb, base, &e),
         TempDirError::Taken => nat::err_value(
             "exists",
-            &format!("cannot {verb} `{base}`: every name tried exists"),
+            &format!("cannot {verb} `{}`: every name tried exists", show(base)),
             Vec::new(),
         ),
     }

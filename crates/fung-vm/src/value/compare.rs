@@ -275,8 +275,8 @@ fn compare_leaf(a: &Value, b: &Value) -> Result<Ordering, Diag> {
         (Value::Int(x), Value::Float(y)) => Ok(cmp_int_float(*x, *y)),
         (Value::Float(x), Value::Int(y)) => Ok(cmp_int_float(*y, *x).reverse()),
         (Value::Float(x), Value::Float(y)) => Ok(cmp_floats(*x, *y)),
-        // Rust compares UTF-8 bytes, which orders the same as code points.
-        (Value::Str(x), Value::Str(y)) => Ok(x.as_str().cmp(y.as_str())),
+        // Bytes: for valid UTF-8 the same order as code points (L4).
+        (Value::Str(x), Value::Str(y)) => Ok(x.as_bytes().cmp(y.as_bytes())),
         (Value::Dur(x), Value::Dur(y)) => Ok(x.cmp(y)),
         (Value::Time(x), Value::Time(y)) => Ok(x.cmp_instant(y)),
         _ => Err(compare_error(a, b)),
@@ -422,8 +422,8 @@ fn hash_leaf(v: &Value, h: &mut DefaultHasher) {
         }
         Value::Bool(b) => (2u8, *b).hash(h),
         Value::Nil => 3u8.hash(h),
-        Value::Str(s) => (4u8, s.as_str()).hash(h),
-        Value::Sym(s) => (4u8, s.name()).hash(h),
+        Value::Str(s) => (4u8, s.as_bytes()).hash(h),
+        Value::Sym(s) => (4u8, s.name().as_bytes()).hash(h),
         Value::Dur(d) => (5u8, *d).hash(h),
         Value::Time(t) => (6u8, t.instant()).hash(h),
         Value::Range(r) => (10u8, r.start, r.end, r.inclusive).hash(h),

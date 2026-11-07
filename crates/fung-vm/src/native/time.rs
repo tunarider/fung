@@ -107,17 +107,19 @@ fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
 }
 
 fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_str("s", &a[0])?;
+    let t = nat::need_text("s", &a[0])?;
     let layout = nat::opt_str("format", &a[1])?;
-    let r = match layout {
-        Some(layout) => parse_time(s, layout, tz::local()),
-        None => parse_rfc3339(s),
+    // Bytes that are not UTF-8 are no time: an `Err` like any (L4).
+    let r = match (t.as_str(), layout) {
+        (None, _) => Err("not valid UTF-8".to_string()),
+        (Some(s), Some(layout)) => parse_time(s, layout, tz::local()),
+        (Some(s), None) => parse_rfc3339(s),
     };
     Ok(match r {
         Ok(t) => nat::ok(time(t)),
         Err(e) => nat::err_value(
             "parse",
-            &format!("cannot parse `{s}` as a time: {e}"),
+            &format!("cannot parse `{}` as a time: {e}", t.lossy()),
             vec![],
         ),
     })
@@ -173,10 +175,10 @@ fn parts_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         ("minute", minute),
         ("second", second),
     ] {
-        m.set(Rc::new(k.to_string()), Value::Int(v));
+        m.set(crate::value::key(k), Value::Int(v));
     }
     m.set(
-        Rc::new("weekday".to_string()),
+        crate::value::key("weekday"),
         Value::Sym(intern(WEEKDAYS[t.weekday() as usize])),
     );
     Ok(Value::Map(Rc::new(m.finish())))

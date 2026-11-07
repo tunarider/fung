@@ -193,6 +193,7 @@ fn a_full_cache_is_emptied() {
         Arc::new(Compiled {
             re: Regex::new("x").unwrap(),
             names: vec![String::new()],
+            empty: false,
         })
     };
     for i in 0..MAX_CACHED_PATTERNS {

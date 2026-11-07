@@ -7,6 +7,8 @@ use std::rc::Rc;
 use fung_front::diag::{Arg, Diag, error};
 
 use super::arith::{no_pos, overflow};
+use fung_front::text;
+
 use super::{List, Value, type_name};
 
 fn err(code: &str, args: Vec<Arg>) -> Diag {
@@ -40,7 +42,7 @@ fn out_of_range(what: &str, i: i64, n: usize) -> Diag {
 /// Runes of a string or elements of a collection (02).
 pub fn len(x: &Value) -> Result<i64, Diag> {
     Ok(match x {
-        Value::Str(s) => s.chars().count() as i64,
+        Value::Str(s) => s.char_len() as i64,
         Value::List(l) => l.len() as i64,
         Value::Tuple(t) => t.len() as i64,
         Value::Map(m) => m.len() as i64,
@@ -79,21 +81,18 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
             let Value::Int(n) = i else {
                 return Err(type_error("index", x, i));
             };
-            let idx = norm_index(*n, char_len(s))?;
-            let at = byte_at(s, idx);
-            let ch = s[at..]
-                .chars()
-                .next()
-                .expect("index checked against the length");
-            Ok(Value::Str(Rc::new(ch.to_string())))
+            let idx = norm_index(*n, s.char_len())?;
+            let at = s.byte_at(0, idx);
+            let ch = text::first(&s[at..]).expect("index checked against the length");
+            Ok(Value::bytes(s[at..at + ch.byte_len()].to_vec()))
         }
         Value::Map(m) => {
             let Value::Str(k) = i else {
                 return Err(type_error("index", x, i));
             };
-            match m.get(k) {
+            match m.get(&***k) {
                 Some(v) => Ok(v.clone()),
-                None => Err(err("E0508", vec![Arg::Str(k.to_string())])),
+                None => Err(err("E0508", vec![Arg::Str(key_text(k))])),
             }
         }
         Value::Module(m) => {
@@ -101,6 +100,12 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
                 return Err(type_error("index", x, i));
             };
             // A member is a name: found in NFC however it was written (01).
+            let Some(k) = k.as_str() else {
+                return Err(err(
+                    "E0303",
+                    vec![Arg::Str(m.name.clone()), Arg::Str(key_text(k))],
+                ));
+            };
             let k = &*fung_front::unicode::nfc(k);
             if k.starts_with('_') {
                 return Err(err(
@@ -200,10 +205,13 @@ pub fn slice(
             Ok(Value::List(Rc::new(List::slice(l, lo, hi))))
         }
         Value::Str(s) => {
-            let (lo, hi) = slice_bounds(start, end, char_len(s), inclusive)?;
-            let from = byte_at(s, lo);
-            let to = from + byte_at(&s[from..], hi - lo);
-            Ok(Value::Str(Rc::new(s[from..to].to_string())))
+            let (lo, hi) = slice_bounds(start, end, s.char_len(), inclusive)?;
+            let from = s.byte_at(0, lo);
+            let to = s.byte_at(from, hi - lo);
+            if from == 0 && to == s.len() {
+                return Ok(x.clone());
+            }
+            Ok(Value::bytes(s[from..to].to_vec()))
         }
         _ => Err(err("E0511", vec![Arg::Str(type_name(x))])),
     }
@@ -223,11 +231,11 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
             Ok(false)
         }
         Value::Str(s) => match x {
-            Value::Str(sub) => Ok(s.contains(sub.as_str())),
+            Value::Str(sub) => Ok(find(s, sub).is_some()),
             _ => Err(type_error("search", c, x)),
         },
         Value::Map(m) => match x {
-            Value::Str(k) => Ok(m.get(k).is_some()),
+            Value::Str(k) => Ok(m.get(&***k).is_some()),
             _ => Err(type_error("search", c, x)),
         },
         Value::Range(r) => match x {
@@ -246,20 +254,15 @@ fn whole_int(f: f64) -> Option<i64> {
     (in_range && f.fract() == 0.0).then_some(f as i64)
 }
 
-/// A string's length in characters (02), without a copy (P4). An ASCII
-/// string is its byte count.
-fn char_len(s: &str) -> usize {
-    if s.is_ascii() {
-        s.len()
-    } else {
-        s.chars().count()
+/// A map key in a message: its literal form when it is not text.
+fn key_text(k: &super::Text) -> String {
+    match k.as_str() {
+        Some(k) => k.to_string(),
+        None => fung_front::consts::quote_bytes(k),
     }
 }
 
-/// The byte offset of character `i` of `s` (`s.len()` past the end).
-fn byte_at(s: &str, i: usize) -> usize {
-    if s.is_ascii() {
-        return i.min(s.len());
-    }
-    s.char_indices().nth(i).map_or(s.len(), |(b, _)| b)
+/// Where `needle` first occurs in `hay`, by bytes; the empty needle is at 0.
+pub fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    memchr::memmem::find(hay, needle)
 }

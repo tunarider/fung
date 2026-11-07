@@ -15,7 +15,10 @@ use crate::{Out, read_error, read_file, restore_name, usage_error};
 /// file: `check` does not walk directories).
 pub fn run_check(args: &[String], raw: &[Vec<u8>]) -> Out {
     match args {
-        [e, code] if e == "-e" => check(b"-e", code),
+        [e, _] if e == "-e" => match crate::code_arg(&raw[1]) {
+            Ok(code) => check(b"-e", &code),
+            Err(out) => out,
+        },
         [e, _, _, ..] if e == "-e" => usage_error(b"check -e takes the code and nothing after it"),
         [p] if p != "-e" => match read_file(&raw[0]) {
             Ok(src) => check(&raw[0], &src),

@@ -9,6 +9,8 @@ pub enum Const {
     Bool(bool),
     Nil,
     Str(String),
+    /// A string that is not valid UTF-8 (`"\xff"`, L4).
+    Bytes(Vec<u8>),
     Sym(String),
     /// Nanoseconds.
     Dur(i64),
@@ -29,6 +31,7 @@ impl PartialEq for Const {
             (Const::Bool(a), Const::Bool(b)) => a == b,
             (Const::Nil, Const::Nil) => true,
             (Const::Str(a), Const::Str(b)) => a == b,
+            (Const::Bytes(a), Const::Bytes(b)) => a == b,
             (Const::Sym(a), Const::Sym(b)) => a == b,
             (Const::Dur(a), Const::Dur(b)) => a == b,
             (Const::Builtin(a), Const::Builtin(b)) => a == b,
@@ -47,6 +50,7 @@ pub fn format(c: &Const) -> String {
         Const::Bool(false) => "false".into(),
         Const::Nil => "nil".into(),
         Const::Str(s) => quote_str(s),
+        Const::Bytes(b) => quote_bytes(b),
         Const::Sym(s) => format!("'{s}"),
         Const::Dur(ns) => format_dur(*ns),
         Const::Builtin(n) => format!("<fn {n}>"),
@@ -123,16 +127,30 @@ pub fn format_dur(ns: i64) -> String {
 /// A string as a fung literal using only the escapes the lexer allows.
 /// `$` is escaped only where it would start an interpolation.
 pub fn quote_str(s: &str) -> String {
-    let chars: Vec<char> = s.chars().collect();
+    quote_bytes(s.as_bytes())
+}
+
+/// A string in fung literal form: a byte outside valid UTF-8 shows as
+/// `\xff`, so the text reads back as the same bytes (L4).
+pub fn quote_bytes(b: &[u8]) -> String {
+    use crate::text::{Unit, units};
+    let us: Vec<Unit> = units(b).map(|(_, u)| u).collect();
     let mut out = String::from("\"");
-    for (i, &c) in chars.iter().enumerate() {
+    for (i, &u) in us.iter().enumerate() {
+        let c = match u {
+            Unit::Byte(x) => {
+                out.push_str(&format!("\\x{x:02x}"));
+                continue;
+            }
+            Unit::Char(c) => c,
+        };
         match c {
             '\n' => out.push_str("\\n"),
             '\t' => out.push_str("\\t"),
             '\r' => out.push_str("\\r"),
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
-            '$' if chars.get(i + 1) == Some(&'{') => out.push_str("\\$"),
+            '$' if us.get(i + 1) == Some(&Unit::Char('{')) => out.push_str("\\$"),
             c if c != ' ' && !crate::unicode::is_print(c) => {
                 out.push_str(&format!("\\u{{{:X}}}", c as u32))
             }

@@ -1,6 +1,6 @@
 # L4. 문자열이 바이트를 품지 못해 비UTF-8 입력이 U+FFFD로 바뀐다
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-11-07)**. 목록: [README](README.md). 결과는 아래 "결과", 설명은 `docs/notes/L4-strings-and-bytes.md`.
 
 ## 문제
 
@@ -81,6 +81,20 @@ fung은 "쉘 스크립트로 짜던 소소한 작업"을 하는 언어다(backgr
 6. 소스 파일이 UTF-8이 아니면. 추천: 소스는 지금처럼 텍스트로 읽되 잘못된 바이트를 컴파일 에러로 한다(소스에 U+FFFD를 말없이 넣지 않음, 원칙 1).
 7. 표현: `Rc<String>`을 `Rc<[u8]>`·`Rc<Vec<u8>>` 중 무엇으로, "유효한 UTF-8인가"·"ASCII인가"를 기억하는 칸을 두는가. 추천: 만들 때 한 번 재서 기억한다(`len`·`s[i]`의 빠른 길과 3번의 검사가 O(1)).
 
+## 결정 (2026-11-07, 사용자: 추천대로)
+
+방향은 **(나)**: 문자열은 바이트 열이고, 글자 연산은 UTF-8로 읽는다.
+
+1. 잘못된 바이트 하나는 한 글자다. 그 글자는 그 바이트 하나짜리 문자열이다(`len`·`s[i]`·`chars`·슬라이스·`glob` 모두).
+2. `"…"`에 `\x00`~`\xff`를 더한다. `\xHH`는 **바이트 하나**다(`\xe9`는 `é`가 아니다. 글자는 `\u{e9}`). 잘못된 UTF-8도 만들 수 있다. `str`·REPL은 잘못된 바이트를 같은 모양 `\xff`로 보여 다시 읽힌다.
+3. (문서의 처음 추천을 고침) 바이트를 그대로 둘 수 있는 연산은 그대로 둔다: `upper`·`lower`·`trim`·`split`·`replace`·`contains`·비교·해시·`+`는 잘못된 바이트를 바꾸지 않는다(손실이 없으므로 원칙 1에 걸리지 않는다).
+   **출력 형식이 유니코드를 요구하는 곳만** 새 에러 번호로 실패한다: `json.stringify`, NFC 정규화(모듈 멤버 이름), HTTP 헤더·URL 같은 바깥 형식.
+4. 정규식은 `regex::bytes`로, 유니코드 모드를 유지한다. 그 모드의 `.`는 잘못된 바이트에 맞지 않는다(1의 예외로 02에 적는다). 바이트에 맞추려면 `(?-u:\xff)`.
+5. 바이트 함수를 prelude로 올린다: `byte_len(s)`·`bytes(s)`(정수 리스트)·`from_bytes(xs)`, 새로 `valid_utf8(s)`.
+6. UTF-8이 아닌 소스 파일은 컴파일 에러다.
+7. 표현은 바이트 열이고, 만들 때 "ASCII인가"·"유효한 UTF-8인가"를 재서 기억한다.
+8. (새 항목) 잘못된 바이트의 표시 너비는 1이다(터미널이 보통 `�` 한 칸으로 그린다). 글자 묶음 너비는 L17.
+
 ## 할 일
 
 1. 시험 먼저: 위 재현을 골든 테스트(`tests/lang/`)와 `crates/fung-cli/tests/expected/`의 기대 출력으로 만든다. 읽고 쓰기 왕복(`fs.read`→`fs.write`, `exec`의 `out`, `read_line`, `env`, `args`)이 바이트를 보존하는지,
@@ -99,3 +113,18 @@ fung은 "쉘 스크립트로 짜던 소소한 작업"을 하는 언어다(backgr
 - `str`·REPL이 잘못된 바이트를 `\xff`로 보이고 그 글이 리터럴로 다시 읽힌다. 3번의 연산은 에러 번호로 실패한다.
 - 코드에 `from_utf8_lossy`·`to_string_lossy`·`decode_lossy`가 값을 만드는 데 쓰이지 않는다(에러 메시지·시험 도우미만).
 - open-questions에 "문자열과 바이트" 한계가 없고, 커밋 전 검사(CLAUDE.md)가 Linux·macOS에서 통과한다.
+
+## 결과 (2026-11-07)
+
+- 표현: `Value::Str(Rc<Text>)`(`value/text.rs`: 유효한 UTF-8은 `String`, 아니면 `Vec<u8>`, 그리고 ASCII 표시). 맵 키도 `Rc<Text>`. 글자 규칙은 `fung_front::text`(`units`·`char_count`·`byte_at`·`quote_bytes`).
+- 바깥 경계: 파일(`fs.*`, 경로도 바이트), `read_line`·`read_lines`(파일·FIFO·표준 입력), `exec`·`sh`의 `out`·`err`·`argv`·`cwd`·`env`, `env()`, `args`, 소켓 읽기·쓰기,
+  `path` 모듈이 모두 바이트 그대로다. `decode_lossy`는 값을 만드는 데 쓰이지 않는다(파일 이름의 메시지 표시, REPL 입력, 포매터 안에만 남음).
+- 결정 3의 HTTP는 멈추지 않는다(URL 경로는 퍼센트 인코딩, 헤더 값은 obs-text로 HTTP/1.1이 허용). 파싱 함수(`json.parse`·`parse_*`·`time.parse`)는 E0518이 아니라 `Err`.
+- 결정 6은 "컴파일 에러"가 아니라 읽기 거절이 되었다: 진입 파일은 ``cannot read `x.fung`: not valid UTF-8 at line L, column C``(종료 코드 3), 가져온 모듈은 E0312.
+  포매터는 원래 바이트를 되쓰도록 짜여 있어 그런 파일도 받는다.
+- 정규식은 `regex::bytes`(패턴 검사도 `utf8(false)`). 빈 매치가 UTF-8 글자 한가운데에 생기는 것을 글자 경계에서만 받도록 거른다(`at_boundary`, 빈 매치가 될 수 있는 패턴만).
+- 부분 열 찾기는 `memchr::memmem`(이미 의존성 트리에 있던 크레이트를 `fung-vm`이 직접 씀).
+- 새 에러: E0518(글이 필요한 곳의 비UTF-8), E0312(UTF-8이 아닌 모듈). E0103에 `\xHH`.
+- 시험: `tests/lang/bytes.fung`, `crates/fung-cli/tests/bytes.rs`(비UTF-8 파일 이름은 Linux만), 단위 시험(`text.rs`, `value/text.rs`, prelude 바이트 함수, 정규식의 빈 매치).
+- 성능: `bench/compare` 13개 작업 모두 ±5% 안(`docs/notes/bench-languages.md` 4.2절).
+- 남긴 한계(open-questions "알려진 한계"): REPL에 직접 친 줄, 비UTF-8 디렉터리 아래의 모듈 경로, 시간대 이름은 아직 U+FFFD로 읽는다.

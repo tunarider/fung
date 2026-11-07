@@ -2,8 +2,6 @@
 //! `read_lines`. `f` is nil (standard input) or a file handle from
 //! `fs.open`, read on a pool thread.
 
-use fung_front::source::decode_lossy;
-
 use std::sync::Arc;
 
 use crate::native::file::{Fault, File};
@@ -35,29 +33,34 @@ pub fn dbg() -> &'static Native {
 }
 
 fn dbg_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
-    let line = match (&a[1], &a[2]) {
-        (Value::Str(text), Value::Str(w)) => format!("[{w}] {text} = {}", format(&a[0])),
-        (Value::Str(text), _) => format!("{text} = {}", format(&a[0])),
-        _ => format!("dbg = {}", format(&a[0])),
-    };
-    t.stderr()
-        .write_all((line + "\n").as_bytes())
-        .map_err(nat::write_err)?;
+    let mut line = Vec::new();
+    if let Value::Str(w) = &a[2]
+        && let Value::Str(_) = &a[1]
+    {
+        line.push(b'[');
+        line.extend_from_slice(w);
+        line.extend_from_slice(b"] ");
+    }
+    match &a[1] {
+        Value::Str(text) => line.extend_from_slice(text),
+        _ => line.extend_from_slice(b"dbg"),
+    }
+    line.extend_from_slice(format!(" = {}\n", format(&a[0])).as_bytes());
+    t.stderr().write_all(&line).map_err(nat::write_err)?;
     Ok(a.swap_remove(0))
 }
 
 /// `eprint(...)` is print to standard error.
 pub(super) fn eprint_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let line = nat::join_for_print(super::rest_items(&a[0]).iter()) + "\n";
-    t.stderr()
-        .write_all(line.as_bytes())
-        .map_err(nat::write_err)?;
+    let mut line = nat::join_for_print(super::rest_items(&a[0]).iter());
+    line.push(b'\n');
+    t.stderr().write_all(&line).map_err(nat::write_err)?;
     Ok(Value::Nil)
 }
 
-fn trim_line(line: &str) -> &str {
-    let line = line.strip_suffix('\n').unwrap_or(line);
-    line.strip_suffix('\r').unwrap_or(line)
+fn trim_line(line: &[u8]) -> &[u8] {
+    let line = line.strip_suffix(b"\n").unwrap_or(line);
+    line.strip_suffix(b"\r").unwrap_or(line)
 }
 
 /// `read_line(f = nil)`: Ok(line), Ok(nil) at the end. A handle that
@@ -95,15 +98,15 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
 /// L11). The lines read so far stay in the closure: a stop loses none of
 /// the bytes, which stay in the handle's buffer.
 fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
-    let mut got: Vec<String> = Vec::new();
+    let mut got: Vec<Vec<u8>> = Vec::new();
     park_io(
         t,
         move |_, _| loop {
             match h.pipe_read_line() {
                 Ok(Step::Ready(Some(l))) if one => {
-                    return IoStep::Done(Ok(line_value(Some(decode_lossy(&l)))));
+                    return IoStep::Done(Ok(line_value(Some(l))));
                 }
-                Ok(Step::Ready(Some(l))) => got.push(decode_lossy(&l)),
+                Ok(Step::Ready(Some(l))) => got.push(l),
                 Ok(Step::Ready(None)) if one => return IoStep::Done(Ok(line_value(None))),
                 Ok(Step::Ready(None)) => {
                     return IoStep::Done(Ok(lines_value(std::mem::take(&mut got))));
@@ -120,9 +123,11 @@ fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
 }
 
 /// `Ok([...])` of the lines `read_lines` read, each without its ending.
-fn lines_value(ls: Vec<String>) -> Value {
+fn lines_value(ls: Vec<Vec<u8>>) -> Value {
     nat::ok(nat::list(
-        ls.iter().map(|l| Value::str(trim_line(l))).collect(),
+        ls.iter()
+            .map(|l| Value::bytes(trim_line(l).to_vec()))
+            .collect(),
     ))
 }
 
@@ -136,15 +141,15 @@ const STDIN_WAKE: Wake = Wake {
 /// A handle's line read (or its fault) as `read_line` gives it.
 fn file_line_value(h: &File, r: Result<Option<Vec<u8>>, Fault>) -> Value {
     match r {
-        Ok(l) => line_value(l.map(|l| decode_lossy(&l))),
+        Ok(l) => line_value(l),
         Err(e) => fault_value(h, "read", e),
     }
 }
 
 /// A line read (with its ending, or `None` at the end) as `read_line`
 /// gives it.
-fn line_value(l: Option<String>) -> Value {
-    nat::ok(l.map_or(Value::Nil, |l| Value::str(trim_line(&l))))
+fn line_value(l: Option<Vec<u8>>) -> Value {
+    nat::ok(l.map_or(Value::Nil, |l| Value::bytes(trim_line(&l).to_vec())))
 }
 
 /// `read_lines(f = nil)`: every remaining line in a list. Standard input
@@ -176,7 +181,7 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Sto
             let read_all = move || {
                 let mut ls = Vec::new();
                 while let Some(l) = job.read_line()? {
-                    ls.push(decode_lossy(&l));
+                    ls.push(l);
                 }
                 Ok(ls)
             };

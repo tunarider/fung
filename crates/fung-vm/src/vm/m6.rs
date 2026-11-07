@@ -99,7 +99,7 @@ impl Task<'_> {
                     panic!("TEST with a name that is not a string");
                 };
                 self.world.tests.push(TestCase {
-                    name: name.to_string(),
+                    name: name.lossy().into_owned(),
                     func,
                     pos,
                 });

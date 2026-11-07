@@ -29,8 +29,9 @@ const BUF_SIZE: usize = 64 * 1024;
 
 /// An open (or closed) file handle.
 pub struct File {
-    /// The path as the program gave it (shown in messages and the text).
-    pub path: String,
+    /// The path as the program gave it (shown in messages and the text):
+    /// bytes, like every path (L4).
+    pub path: Vec<u8>,
     /// `None` once closed.
     state: Mutex<Option<Io>>,
     /// Where an open handle goes when its last copy drops (L11 B).
@@ -74,7 +75,7 @@ impl std::fmt::Debug for File {
 }
 
 impl File {
-    pub(crate) fn new(path: String, io: Io, closer: Closer) -> File {
+    pub(crate) fn new(path: Vec<u8>, io: Io, closer: Closer) -> File {
         File {
             path,
             state: Mutex::new(Some(io)),
@@ -217,7 +218,7 @@ impl File {
 
 /// Flushes what `io` holds and closes its file: the first failure of the
 /// two (L11).
-pub(crate) fn finish(io: Io, path: &str) -> io::Result<()> {
+pub(crate) fn finish(io: Io, path: &[u8]) -> io::Result<()> {
     match io {
         Io::Read(r) => close_checked(r.into_inner(), path),
         Io::Write(mut w) => {
@@ -234,7 +235,7 @@ pub(crate) fn finish(io: Io, path: &str) -> io::Result<()> {
 /// that, and a file system that writes on close (NFS) reports a failed
 /// write only there. EINTR counts as closed: on Linux the descriptor is
 /// gone already, and closing it again could close another file's.
-pub(crate) fn close_checked(f: std::fs::File, path: &str) -> io::Result<()> {
+pub(crate) fn close_checked(f: std::fs::File, path: &[u8]) -> io::Result<()> {
     use std::os::fd::IntoRawFd;
     #[cfg(test)]
     let failing = seam::fails(path);
@@ -266,21 +267,21 @@ pub(crate) fn close_checked(f: std::fs::File, path: &str) -> io::Result<()> {
 /// Makes the close of `path` fail with EIO, as NFS may (tests).
 #[cfg(test)]
 pub(crate) fn fail_close_of(path: &str) {
-    seam::FAILING.lock().unwrap().push(path.to_string());
+    seam::FAILING.lock().unwrap().push(path.into());
 }
 
 /// Makes every close of `path` take 2 ms (tests: a closer that falls
 /// behind the program dropping handles).
 #[cfg(test)]
 pub(crate) fn slow_close_of(path: &str) {
-    seam::SLOW.lock().unwrap().push(path.to_string());
+    seam::SLOW.lock().unwrap().push(path.into());
 }
 
 /// Makes the close of `path` wait until `release_close_of` (tests: a
 /// close that hangs, as on NFS).
 #[cfg(test)]
 pub(crate) fn hold_close_of(path: &str) {
-    seam::HELD.lock().unwrap().push((path.to_string(), false));
+    seam::HELD.lock().unwrap().push((path.into(), false));
 }
 
 /// Whether a close of `path` waits in `hold_close_of` now (tests).
@@ -290,13 +291,16 @@ pub(crate) fn close_is_held(path: &str) -> bool {
         .lock()
         .unwrap()
         .iter()
-        .any(|(p, waiting)| p == path && *waiting)
+        .any(|(p, waiting)| p.as_slice() == path.as_bytes() && *waiting)
 }
 
 /// Lets the held close of `path` go on (tests).
 #[cfg(test)]
 pub(crate) fn release_close_of(path: &str) {
-    seam::HELD.lock().unwrap().retain(|(p, _)| p != path);
+    seam::HELD
+        .lock()
+        .unwrap()
+        .retain(|(p, _)| p.as_slice() != path.as_bytes());
     seam::LET_GO.notify_all();
 }
 
@@ -306,30 +310,36 @@ mod seam {
 
     /// The paths whose close fails (`fail_close_of`). Paths, not a flag:
     /// tests run side by side, each in its own directory.
-    pub(super) static FAILING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(super) static FAILING: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
     /// The paths whose close is held, and whether one waits now.
-    pub(super) static HELD: Mutex<Vec<(String, bool)>> = Mutex::new(Vec::new());
+    pub(super) static HELD: Mutex<Vec<(Vec<u8>, bool)>> = Mutex::new(Vec::new());
     pub(super) static LET_GO: Condvar = Condvar::new();
 
     /// The paths whose close is slow (`slow_close_of`).
-    pub(super) static SLOW: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    pub(super) static SLOW: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
-    pub(super) fn slow(path: &str) -> bool {
+    pub(super) fn slow(path: &[u8]) -> bool {
         SLOW.lock().unwrap().iter().any(|p| p == path)
     }
 
-    pub(super) fn fails(path: &str) -> bool {
+    pub(super) fn fails(path: &[u8]) -> bool {
         FAILING.lock().unwrap().iter().any(|p| p == path)
     }
 
-    pub(super) fn wait_if_held(path: &str) {
+    pub(super) fn wait_if_held(path: &[u8]) {
         let mut held = HELD.lock().unwrap();
         while let Some(h) = held.iter_mut().find(|(p, _)| p == path) {
             h.1 = true;
             held = LET_GO.wait(held).unwrap();
         }
     }
+}
+
+/// A path's bytes as the system takes them.
+pub(crate) fn os_path(p: &[u8]) -> &std::ffi::OsStr {
+    use std::os::unix::ffi::OsStrExt;
+    std::ffi::OsStr::from_bytes(p)
 }
 
 /// The mode a file `fs` creates gets before the umask: 0666, as the
@@ -339,7 +349,8 @@ pub(crate) const NEW_FILE_MODE: u32 = 0o666;
 /// Opens `path` for `fs.open`: read only; write (read and write,
 /// truncated); or append (write only). The file is written with `perm`
 /// as [`open_writing`] does.
-pub(crate) fn open(path: &str, mode: Mode, perm: Option<u32>) -> io::Result<Io> {
+pub(crate) fn open(path: &[u8], mode: Mode, perm: Option<u32>) -> io::Result<Io> {
+    let path = os_path(path);
     let mut o = std::fs::OpenOptions::new();
     match mode {
         Mode::Read => {
@@ -361,7 +372,7 @@ pub(crate) fn open(path: &str, mode: Mode, perm: Option<u32>) -> io::Result<Io> 
 /// new file is never wider than `perm` in between.
 pub(crate) fn open_writing(
     o: &mut std::fs::OpenOptions,
-    path: &str,
+    path: &std::ffi::OsStr,
     perm: Option<u32>,
 ) -> io::Result<std::fs::File> {
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};

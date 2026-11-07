@@ -92,7 +92,7 @@ match fs.read(&quot;config.txt&quot;):
   Err({kind: 'not_found}) =&gt; print(&quot;no config, using defaults&quot;)
   Err(e)                  =&gt; print(e.message)
 ;;</code></pre><pre class="out plain"><code>no config, using defaults</code></pre></div>
-<p>파일 내용은 문자열로 읽는다. fung의 문자열은 UTF-8 텍스트이므로, UTF-8이 아닌 바이트는 잘못된 부분마다 U+FFFD(<code>&quot;\u{FFFD}&quot;</code>) 하나로 바뀐다. 이미지 같은 바이너리 파일은 그대로 다룰 수 없다.</p>
+<p>파일 내용은 문자열로 읽는다. fung의 문자열은 어떤 바이트든 담으므로 UTF-8이 아닌 파일도 바이트 그대로 읽히고, 그대로 쓰면 같은 파일이 된다. 파일 이름도 바이트 그대로다. 그런 바이트가 글자로 어떻게 세어지는지는 <a href="../prelude/strings.html#bytes">바이트</a>에 있다.</p>
 <div class="box mistake"><b>이름이 같은 다른 함수</b>
 <p><code>fs.remove</code>·<code>fs.close</code>는 prelude의 <code>remove</code>(맵에서 키 빼기)·<code>close</code>(채널 닫기)와 이름만 같은 다른 함수다. 파일에는 반드시 <code>fs.</code>를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 런타임 에러가 난다.</p>
 </div>
