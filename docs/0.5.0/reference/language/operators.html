@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>연산자 · fung 매뉴얼</title>
+<meta name="description" content="산술·비교·논리 연산자, 파이프 |&gt;, 우선순위.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">연산자</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.5.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.5.0"><option value="0.5.0">0.5.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html" aria-current="page">연산자</a><ol class="toc2"><li><a href="#edges">경계 사례와 에러</a></li></ol></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html">함수</a></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">언어 명세</span></nav>
+<h1>연산자</h1>
+<p class="lede">산술·비교·논리 연산자, 파이프 <code>|&gt;</code>, 우선순위.</p>
+<h3>산술</h3>
+<ul>
+  <li><code>+ - *</code>, <code>/</code>는 항상 실수 결과(<code>7 / 2 == 3.5</code>), <code>//</code>는 내림 나눗셈(<code>7 // 2 == 3</code>), <code>%</code>는 <code>//</code>와 짝인 나머지(<code>-7 % 3 == 2</code>, 실수도 정확한 나머지라 나누는 수보다 작다), <code>**</code>는 거듭제곱(<code>2 ** 10 == 1024</code>, <code>2 ** -1 == 0.5</code>).</li>
+  <li>정수와 실수를 섞으면 실수. 0으로 나누기, 정수 오버플로, <code>NaN</code>·<code>Inf</code>는 에러.</li>
+  <li><code>+</code>는 문자열·리스트를 이어 붙인다. <code>"a" + 1</code>은 에러, 반복은 <code>repeat(s, n)</code>. 문자열은 1억 글자를 넘으면 E0806(보간도 같다).</li>
+</ul>
+<h3>비교·논리·포함</h3>
+<ul>
+  <li><code>==</code>와 <code>!=</code>는 값 비교. 비교는 연쇄하지 않는다: <code>a &lt; b &lt; c</code>는 문법 에러(<code>a &lt; b and b &lt; c</code>).</li>
+  <li><code>and</code> <code>or</code> <code>not</code>은 bool만 받고 단락 평가한다. 빈 리스트나 0을 거짓으로 보지 않는다.</li>
+  <li><code>x in c</code> / <code>x not in c</code>: 리스트는 원소, 맵은 키, 문자열은 부분 문자열, 범위는 정수 포함 여부.</li>
+</ul>
+<h3>범위</h3>
+<p><code>a..b</code>는 <code>b</code>를 빼고, <code>a..=b</code>는 넣는다. 정수만 된다.</p>
+<h3 id="pipe">파이프</h3>
+<p><code>|&gt;</code>는 실행 중의 연산이 아니라 컴파일할 때 평범한 호출로 바뀌는 문법 설탕이다. 규칙은 둘뿐이다.</p>
+<ul>
+  <li><code>x |&gt; f(a, b)</code>는 <code>f(x, a, b)</code>: 오른쪽이 호출이면 왼쪽 값을 <strong>맨 앞 인자로</strong> 넣는다.</li>
+  <li><code>x |&gt; f</code>는 <code>f(x)</code>: 오른쪽이 이름뿐이면 그것으로 부른다.</li>
+</ul>
+<p>태그도 같다. <code>x |&gt; Ok</code>는 <code>Ok(x)</code>, <code>x |&gt; Pair(2)</code>는 <code>Pair(x, 2)</code>다(태그의 <code>Ok(x)</code>는 호출 형태이므로).</p>
+<p>이어 쓰면 안쪽부터 감싸는 호출이 된다. <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 바이트코드까지 같다. 비용은 없고, 데이터가 흐르는 순서대로 읽힌다는 것이 전부다. 이름 인자도 그대로 따라간다: <code>xs |&gt; conc.pmap(f, limit: 2)</code>는 <code>conc.pmap(xs, f, limit: 2)</code>.</p>
+<p>그래서 내장 함수는 모두 <strong>다루는 대상을 첫 번째 매개변수</strong>에 둔다: 리스트 함수는 리스트가(<code>filter(xs, f)</code>), 문자열 함수는 문자열이(<code>split(s, sep)</code>), 맵 함수는 맵이(<code>put(m, k, v)</code>) 먼저다. Python의 <code>map(f, xs)</code>나 데이터를 마지막에 두는 Haskell·OCaml과 달리 Elixir와 같은 쪽이다. 직접 만드는 함수도 이렇게 두면 파이프에 그대로 이어진다.</p>
+<div class="run"><pre><code>line = &quot; ERROR,disk full &quot;
+fields = line |&gt; trim |&gt; lower |&gt; split(&quot;,&quot;)
+cfg = {host: &quot;localhost&quot;} |&gt; put(&quot;port&quot;, 8080) |&gt; merge({debug: false})
+print(fields, cfg |&gt; keys)</code></pre><pre class="out plain"><code>[&quot;error&quot;, &quot;disk full&quot;] [&quot;host&quot;, &quot;port&quot;, &quot;debug&quot;]</code></pre></div>
+<p>대상이 첫 자리가 아닌 함수에는 람다로 넘긴다: <code>5 |&gt; (n =&gt; scale(2, n))</code>.</p>
+<div class="aside">
+<p><strong>파이프 오른쪽 호출의 인자에 <code>_</code>를 쓰면 컴파일 에러 E0227이다.</strong> 파이프 값은 늘 첫 인자로 들어가므로 <code>"a.txt" |&gt; path.join("/tmp", _)</code>는 <code>path.join("a.txt", "/tmp", _)</code>, 곧 함수가 되어 버리던 함정이다. 다른 자리에 넣으려면 람다를 쓴다. 더 안쪽 호출의 <code>_</code>는 그대로 부분 적용이다.</p>
+<p><strong>파이프 오른쪽 끝의 후위 <code>?</code>·<code>!</code>도 컴파일 에러 E0229다.</strong> 후위 연산자가 <code>|&gt;</code>보다 먼저 묶여 <code>xs |&gt; try_map(f)?</code>는 <code>try_map(f)?</code>를 파이프에 넘기는 것이 되기 때문이다. 파이프 전체의 결과를 꺼내려면 <code>(xs |&gt; try_map(f))?</code>로 감싼다.</p>
+</div>
+<pre class="frag"><code>&quot;a.txt&quot; |&gt; path.join(&quot;/tmp&quot;, _)            # E0227
+&quot;a.txt&quot; |&gt; (f =&gt; path.join(&quot;/tmp&quot;, f))     # &quot;/tmp/a.txt&quot;
+files |&gt; map(path.join(&quot;/tmp&quot;, _))         # _의 올바른 쓰임: map에 넘길 함수를 만든다</code></pre>
+<h3 id="precedence">우선순위</h3>
+<p>낮은 것부터 높은 것 순서.</p>
+<table>
+  <thead><tr><th>순위</th><th>연산자</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>then … else</code></td></tr>
+    <tr><td>2</td><td><code>or</code></td></tr>
+    <tr><td>3</td><td><code>and</code></td></tr>
+    <tr><td>4</td><td><code>not</code></td></tr>
+    <tr><td>5</td><td><code>==</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code> <code>&lt;=</code> <code>&gt;=</code> <code>in</code> <code>not in</code></td></tr>
+    <tr><td>6</td><td><code>|&gt;</code></td></tr>
+    <tr><td>7</td><td><code>??</code></td></tr>
+    <tr><td>8</td><td><code>..</code> <code>..=</code></td></tr>
+    <tr><td>9</td><td><code>+</code> <code>-</code></td></tr>
+    <tr><td>10</td><td><code>*</code> <code>/</code> <code>//</code> <code>%</code></td></tr>
+    <tr><td>11</td><td>단항 <code>-</code></td></tr>
+    <tr><td>12</td><td><code>**</code>(오른쪽 결합)</td></tr>
+    <tr><td>13</td><td>후위 <code>!</code> <code>?</code>, 호출 <code>()</code>, 인덱스 <code>[]</code>, 필드 <code>.</code></td></tr>
+  </tbody>
+</table>
+<div class="run"><pre><code>import json
+
+name = &quot;a.log&quot;
+size = 3
+files = [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;]
+print(name |&gt; ends_with(&quot;.log&quot;) and size &gt; 0)  # (name |&gt; ends_with(&quot;.log&quot;)) and (size &gt; 0)
+print(files |&gt; len &gt; 3)                        # (files |&gt; len) &gt; 3
+print(Err(&quot;none&quot;) ?? &quot;{}&quot; |&gt; json.parse)       # (Err(&quot;none&quot;) ?? &quot;{}&quot;) |&gt; json.parse
+print(-2 ** 2)                                 # -(2 ** 2) == -4</code></pre><pre class="out plain"><code>true
+true
+Ok({})
+-4</code></pre></div>
+<p><code>not</code>은 비교보다 낮으므로 그보다 높은 연산자의 피연산자가 될 수 없다. <code>a == not b</code>, <code>1 + not c</code>는 에러이고 괄호로 <code>a == (not b)</code>라고 쓴다. <code>not a == b</code>는 <code>not (a == b)</code>다.</p>
+<h2 id="edges">경계 사례와 에러</h2>
+<p>비교 연산자는 잇지 않는다(<code>a &lt; b &lt; c</code>는 수학과 다르게 읽히기 쉽다).</p>
+<div class="run"><pre><code>a = 1
+b = 2
+c = 3
+print(a &lt; b and b &lt; c)
+print(a &lt; b &lt; c)</code></pre><pre class="out err plain" data-code="2"><code>error[E0111]: comparison operators cannot be chained
+  --&gt; example.fung:5:13
+  |
+5 | print(a &lt; b &lt; c)
+  |             ^
+  |
+ help: split it with `and`: a &lt; b and b &lt; c</code></pre></div>
+<p><code>+</code>는 같은 종류끼리만이다. 문자열과 정수를 더하지 않는다(보간을 쓴다).</p>
+<div class="run"><pre><code>n = 3
+print(&quot;n = ${n}&quot;)
+print(&quot;n = &quot; + n)</code></pre><pre class="out err plain" data-code="1"><code>n = 3
+error[E0501]: cannot add str and int
+  --&gt; example.fung:3:14
+  |
+3 | print(&quot;n = &quot; + n)
+  |              ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>파이프의 값은 언제나 첫 인자다. 오른쪽 호출에 <code>_</code>를 쓰면 에러다.</p>
+<div class="run"><pre><code>print([3, 1, 2] |&gt; sort)
+print([1, 2] |&gt; map(_, x =&gt; x))</code></pre><pre class="out err plain" data-code="2"><code>error[E0227]: `_` in a call on the right of `|&gt;`
+  --&gt; example.fung:2:21
+  |
+2 | print([1, 2] |&gt; map(_, x =&gt; x))
+  |                     ^
+  |
+ help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |&gt; (v =&gt; f(1, v))`</code></pre></div>
+<p><code>/</code>는 언제나 실수, <code>//</code>는 정수 나눗셈이다. 0으로 나누면 에러다.</p>
+<div class="run"><pre><code>print(7 / 2, 7 // 2, 7 % 2)
+print(1 // 0)</code></pre><pre class="out err plain" data-code="1"><code>3.5 3 1
+error[E0502]: division by zero
+  --&gt; example.fung:2:9
+  |
+2 | print(1 // 0)
+  |         ^
+  |
+ call path (innermost first):
+   example.fung:2 &lt;entry&gt;</code></pre></div>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/language/values.html"><small>이전</small>값과 타입</a><a class="next" href="../../reference/language/access.html"><small>다음</small>인덱스·슬라이스·필드</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>모든 함수 · fung 매뉴얼</title>
+<meta name="description" content="fung의 prelude 함수와 표준 모듈(fs, path, cli, json, time, regex, http, conc) 참조.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="icon" href="../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">모든 함수</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">0.5.0</span><span class="ver-tag" id="ver-tag" hidden></span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="0.5.0"><option value="0.5.0">0.5.0</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../reference/language.html">문법</a></li>
+<li><a href="../reference/functions.html" aria-current="page">모든 함수</a><ol class="toc2"><li><a href="#reading">읽는 법</a></li><li><a href="#list">목록</a></li></ol></li>
+<li class="sub">언어 명세</li>
+<li><a href="../reference/language/lexical.html">어휘</a></li>
+<li><a href="../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../reference/language/values.html">값과 타입</a></li>
+<li><a href="../reference/language/operators.html">연산자</a></li>
+<li><a href="../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../reference/language/functions.html">함수</a></li>
+<li><a href="../reference/language/conditions.html">조건</a></li>
+<li><a href="../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../reference/language/for.html">for</a></li>
+<li><a href="../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../reference/language/modules.html">모듈</a></li>
+<li><a href="../reference/language/types.html">타입 표기</a></li>
+<li><a href="../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../reference/language/grammar.html">형식 문법</a></li>
+<li class="sub">prelude</li>
+<li><a href="../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../reference/prelude/maps.html">맵</a></li>
+<li><a href="../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../reference/prelude/results.html">결과값</a></li>
+<li><a href="../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../reference/language.html"><span class="glyph">§</span>레퍼런스</a></nav>
+<h1>모든 함수</h1>
+<p class="lede">import 없이 쓰는 prelude와, 이름으로 가져오는 표준 모듈. 모든 서명은 런타임의 실제 매개변수 표와 맞춰 본다(테스트가 지킨다).</p>
+<h2 id="reading">읽는 법</h2>
+<ul>
+  <li><code>f(a, b = 1, ...rest)</code>: <code>b</code>는 기본값이 있고 <code>rest</code>는 남는 위치 인자를 리스트로 받는다. 내장 함수도 이름 붙인 인자를 받는다: <code>exec(cmd, cwd: "/tmp")</code>.</li>
+  <li>모든 함수는 "대상이 첫 번째 인자"라서 파이프로 이어진다: <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같다(<a href="language/operators.html#pipe">파이프</a>).</li>
+  <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code>.</li>
+  <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러(E0403)다.</li>
+  <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="../vm/internals.html#layers">네 층</a>).</li>
+</ul>
+<p>import 없이 쓴다. 같은 이름의 변수나 함수를 만들면 경고(W0103)가 난다.</p>
+<h2 id="list">목록</h2>
+<div class="filter">
+<label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
+<input id="fn-search" type="search" placeholder="예: split, 정렬, Err" autocomplete="off">
+<p id="fn-count">143개 함수</p>
+</div>
+<div class="fn-list">
+<section class="group"><h3><a href="../reference/prelude/io.html">출력과 입력</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/io.html#fn-print"><code>print</code></a> 인자들을 공백 하나로 이어 한 줄로 표준 출력에 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/io.html#fn-eprint"><code>eprint</code></a> print와 같은 모양으로 표준 에러에 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/io.html#fn-read_line"><code>read_line</code></a> 한 줄을 읽어 Ok(줄)을, 더 읽을 것이 없으면 Ok(nil)을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/io.html#fn-read_lines"><code>read_lines</code></a> 남은 줄을 모두 읽어 Ok(리스트)로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/io.html#fn-dbg"><code>dbg</code></a> [파일:줄] 식 = 값을 표준 에러에 찍고 x를 그대로 돌려준다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/convert.html">타입과 변환</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-type_of"><code>type_of</code></a> 값의 타입 이름을 심볼로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-int"><code>int</code></a> 문자열이나 실수를 정수로 바꾼다. 변환할 수 없으면 E0513.</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-float"><code>float</code></a> 정수나 문자열을 실수로 바꾼다. 변환할 수 없으면 E0513.</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-str"><code>str</code></a> 값을 문자열로 바꾼다. 문자열이면 그대로, 아니면 리터럴 모양의 문자열.</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-sym"><code>sym</code></a> 이름 모양의 문자열을 심볼로 바꾼다(sym(&quot;ok&quot;) == 'ok).</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-parse_int"><code>parse_int</code></a> 문자열을 정수로 읽어 Ok(정수) 또는 Err({kind: 'parse, message})를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-parse_float"><code>parse_float</code></a> 문자열을 실수로 읽어 Ok(실수) 또는 Err({kind: 'parse, message})를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a> 기간 리터럴 문법의 문자열(&quot;1h30m&quot;, &quot;500ms&quot;)을 Ok(dur) 또는 Err({kind: 'parse, message})로 읽는다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/collections.html">컬렉션</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-len"><code>len</code></a> 문자열의 글자 수, 리스트·맵·튜플·범위의 원소 수를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-is_empty"><code>is_empty</code></a> 비었으면 true. len(x) == 0과 같다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-first"><code>first</code></a> 첫 원소를, 비었으면 nil을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-last"><code>last</code></a> 마지막 원소를, 비었으면 nil을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-take"><code>take</code></a> 앞에서 최대 n개를 리스트로 돌려준다. 문자열이면 앞의 n글자를 문자열로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-drop"><code>drop</code></a> 앞의 n개를 뺀 나머지를 리스트로 돌려준다. 문자열이면 앞의 n글자를 뺀 문자열을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-range"><code>range</code></a> 범위 값을 만든다. range(n)은 0..n, range(a, b)는 a..b.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-contains"><code>contains</code></a> x in c와 같다: 리스트의 원소인지, 맵의 키인지, 부분 문자열인지.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-map"><code>map</code></a> 각 원소에 f를 부른 결과를 모아 새 리스트로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-try_map"><code>try_map</code></a> f가 돌려준 결과값을 모아, 모두 Ok면 Ok(리스트), 아니면 처음 나온 Err를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-filter"><code>filter</code></a> f(x)가 true인 원소만 모은 새 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-fold"><code>fold</code></a> init에서 시작해 원소를 하나씩 f로 합쳐 값 하나로 접는다: f(f(init, x1), x2)….</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-each"><code>each</code></a> 각 원소에 f를 부르고 결과는 버린다. 출력이나 전송처럼 부수효과만 필요할 때 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-find"><code>find</code></a> f(x)가 true인 첫 원소를, 없으면 nil을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-any"><code>any</code></a> f(x)가 true인 원소가 하나라도 있으면 true.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-all"><code>all</code></a> 모든 원소에서 f(x)가 true면 true. 빈 컬렉션은 true.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-sort"><code>sort</code></a> 작은 것부터 정렬한 새 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-sort_by"><code>sort_by</code></a> f(x)를 키로 삼아 안정 정렬한 새 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-reverse"><code>reverse</code></a> 순서를 거꾸로 뒤집은 새 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-unique"><code>unique</code></a> 처음 나온 순서를 지키며 중복을 뺀 새 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-flatten"><code>flatten</code></a> 리스트의 리스트를 한 단계만 펼친다: [[1, [2]], 3] → [1, [2], 3].</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-group_by"><code>group_by</code></a> f(x)를 키로 원소를 묶은 맵을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-zip"><code>zip</code></a> 두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-sum"><code>sum</code></a> 수의 합을 돌려준다. 빈 리스트는 0.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-min"><code>min</code></a> 가장 작은 원소를, 비었으면 nil을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-max"><code>max</code></a> 가장 큰 원소를, 비었으면 nil을 돌려준다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/maps.html">맵</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-get"><code>get</code></a> 키 k가 있으면 그 값을, 없으면 default를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-put"><code>put</code></a> 키 k를 값 v로 둔 새 맵을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-merge"><code>merge</code></a> 두 맵을 합친 새 맵을 돌려준다. 같은 키는 b의 값이 이긴다.</li>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-remove"><code>remove</code></a> 키 k를 뺀 새 맵을 돌려준다. 없는 키면 그대로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-keys"><code>keys</code></a> 키의 리스트를 넣은 순서대로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-values"><code>values</code></a> 값의 리스트를 키의 순서대로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/maps.html#fn-pairs"><code>pairs</code></a> (키, 값) 튜플의 리스트를 넣은 순서대로 돌려준다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/strings.html">문자열</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-split"><code>split</code></a> s를 구분자 sep로 나눈 문자열의 리스트를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-join"><code>join</code></a> 리스트의 원소를 sep로 이어 문자열 하나로 만든다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-lines"><code>lines</code></a> 글을 줄의 리스트로 나눈다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-chars"><code>chars</code></a> 문자열을 글자 하나짜리 문자열의 리스트로 나눈다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-trim"><code>trim</code></a> 양 끝의 공백을 지운다. cut을 주면 그 글자들을 지운다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-upper"><code>upper</code></a> 대문자로 바꾼 문자열을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-lower"><code>lower</code></a> 소문자로 바꾼 문자열을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-replace"><code>replace</code></a> s 안의 모든 old를 new로 바꾼 문자열을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-starts_with"><code>starts_with</code></a> s가 prefix로 시작하면 true.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-ends_with"><code>ends_with</code></a> s가 suffix로 끝나면 true.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-repeat"><code>repeat</code></a> s를 n번 이어 붙인 문자열을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-pad_left"><code>pad_left</code></a> 왼쪽을 pad로 채워 n글자로 만든다. 이미 n글자 이상이면 그대로.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-pad_right"><code>pad_right</code></a> 오른쪽을 pad로 채워 n글자로 만든다. 이미 n글자 이상이면 그대로.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-byte_len"><code>byte_len</code></a> 문자열의 바이트 수.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-bytes"><code>bytes</code></a> 문자열의 바이트를 0부터 255까지의 정수 리스트로 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-from_bytes"><code>from_bytes</code></a> 0부터 255까지의 정수 리스트를 그 바이트로 된 문자열로 만든다.</li>
+<li class="fn"><a href="../reference/prelude/strings.html#fn-valid_utf8"><code>valid_utf8</code></a> 문자열이 올바른 UTF-8 글인지.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/results.html">결과값</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/results.html#fn-is_ok"><code>is_ok</code></a> Ok(…)이면 true.</li>
+<li class="fn"><a href="../reference/prelude/results.html#fn-is_err"><code>is_err</code></a> Err(…)이면 true.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/loops.html">반복 패턴</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/loops.html#fn-until"><code>until</code></a> pred(x)가 참이 될 때까지 x = f(x)를 되풀이하고, 그때의 x를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/loops.html#fn-iterate"><code>iterate</code></a> f를 x에 n번 거듭 적용한 값을 돌려준다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/program.html">에러와 종료</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/program.html#fn-fail"><code>fail</code></a> 인자를 print처럼 이은 메시지로 런타임 에러(E0803)를 내고 멈춘다.</li>
+<li class="fn"><a href="../reference/prelude/program.html#fn-with"><code>with</code></a> acquire()로 얻은 것을 use에 넘기고, use가 어떻게 끝나든 release를 부른다.</li>
+<li class="fn"><a href="../reference/prelude/program.html#fn-exit"><code>exit</code></a> 프로그램을 끝내고 종료 코드 code를 남긴다.</li>
+<li class="fn"><a href="../reference/prelude/program.html#fn-args"><code>args</code></a> 스크립트 경로 뒤의 명령행 인자를 담은 문자열 리스트. 함수가 아니라 값이다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/process.html">프로세스와 환경</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/process.html#fn-exec"><code>exec</code></a> 명령을 쉘 없이 실행하고 끝나기를 기다려 Ok({out, err, code})를 돌려준다. 0이 아닌 종료는 Err.</li>
+<li class="fn"><a href="../reference/prelude/process.html#fn-sh"><code>sh</code></a> 문자열 cmd를 /bin/sh -c cmd로 실행한다. 파이프나 글로브 같은 쉘 기능이 필요할 때만 쓴다.</li>
+<li class="fn"><a href="../reference/prelude/process.html#fn-env"><code>env</code></a> 환경 변수 name의 값(문자열)을, 없으면 nil을 돌려준다. 인자가 없으면 전체를 맵으로.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/prelude/concurrency.html">동시성</a></h3><ul>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-scope"><code>scope</code></a> 태스크 범위를 열고 f(s)를 부른다. 본문과 그 안의 태스크가 모두 끝나면 본문의 결과를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-supervise"><code>supervise</code></a> scope와 같지만 태스크의 런타임 에러가 다른 태스크나 본문에 번지지 않고 on_fail(e)로 간다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-spawn"><code>spawn</code></a> 태스크 범위 s 안에서 f()를 새 태스크로 띄우고 태스크 핸들을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-await"><code>await</code></a> 태스크가 끝나기를 기다려 그 결과를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-timeout"><code>timeout</code></a> f()를 부르되, d가 지나면 f 안의 모든 것을 취소하고 Err({kind: 'timeout})을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-cancel"><code>cancel</code></a> 태스크나 태스크 범위를 취소한다. 그 아래의 태스크에도 전파된다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-channel"><code>channel</code></a> 채널을 만들고 두 끝 (tx, rx), 곧 보내는 끝과 받는 끝을 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-send"><code>send</code></a> 보내는 끝 tx로 값 v를 보낸다. Ok(nil), 닫혔으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-recv"><code>recv</code></a> 받는 끝 rx에서 값 하나를 받는다. Ok(v), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-try_recv"><code>try_recv</code></a> 기다리지 않고 받는 끝 rx를 한 번 본다. 받을 값이 있으면 Ok(v), 없으면 Err({kind: 'empty}), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-try_send"><code>try_send</code></a> 기다리지 않고 보내는 끝 tx로 v를 보낸다. 넘겼으면 Ok(nil), 기다려야 하면 Err({kind: 'full}), 닫혔으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-wait_closed"><code>wait_closed</code></a> 받는 끝 rx의 채널이 닫힐 때까지 기다린다. 값은 꺼내지 않는다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-close"><code>close</code></a> 보내는 끝 tx의 채널을 지금 닫는다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-stop_signal"><code>stop_signal</code></a> 정지 요청을 받는 끝(receiver)을 돌려준다. 정지 요청이 오면 이 끝이 닫힌다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-request_stop"><code>request_stop</code></a> 코드에서 정지 요청을 보낸다. 첫 신호(SIGINT·SIGTERM)와 똑같이 동작한다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-atom"><code>atom</code></a> 값 v를 담은 칸(atom)을 만든다. 태스크 사이에 나누는 바뀌는 상태는 이것으로 둔다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-swap"><code>swap</code></a> f(지금 값)으로 atom의 값을 바꾸고 새 값을 돌려준다. 여러 태스크가 동시에 바꿔도 갱신이 사라지지 않는다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-reset"><code>reset</code></a> atom의 값을 v로 바꾸고 v를 돌려준다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-deref"><code>deref</code></a> atom의 지금 값을 돌려준다. 기다리지 않는다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-sleep"><code>sleep</code></a> 기간 d만큼 기다린다. 그동안 다른 태스크가 돈다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/fs.html">fs — 파일과 디렉터리</a></h3><ul>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-read"><code>fs.read</code></a> 파일 전체를 문자열 하나로 읽는다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-read_lines"><code>fs.read_lines</code></a> 파일을 줄 리스트로 읽는다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-write"><code>fs.write</code></a> 파일에 문자열을 쓴다. 있던 내용은 지운다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-append"><code>fs.append</code></a> 파일 끝에 문자열을 덧붙인다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-list"><code>fs.list</code></a> 디렉터리 바로 안의 이름들을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-glob"><code>fs.glob</code></a> 와일드카드 패턴에 맞는 경로들을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-walk"><code>fs.walk</code></a> 디렉터리 아래의 모든 파일 경로를 하위 디렉터리까지 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-exists"><code>fs.exists</code></a> 경로에 무엇이 있는지 true/false로 알려 준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-stat"><code>fs.stat</code></a> 경로의 이름, 크기, 디렉터리 여부, 고친 시각을 알려 준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-mkdir"><code>fs.mkdir</code></a> 디렉터리를 만든다. 위의 디렉터리도 없으면 함께 만든다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-remove"><code>fs.remove</code></a> 파일 하나나 빈 디렉터리 하나를 지운다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-remove_all"><code>fs.remove_all</code></a> 디렉터리를 안의 것까지 통째로 지운다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a> 파일이나 디렉터리의 이름을 바꾸거나 다른 곳으로 옮긴다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-copy"><code>fs.copy</code></a> 파일 하나를 복사한다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-open"><code>fs.open</code></a> 파일을 열어 핸들을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-close"><code>fs.close</code></a> 파일 핸들을 닫는다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-write_line"><code>fs.write_line</code></a> 핸들에 한 줄을 쓴다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a> 파일을 열어 함수에 넘기고, 끝나면 무슨 일이 있어도 닫는다.</li>
+<li class="fn"><a href="../reference/modules/fs.html#fn-fs-with_temp_dir"><code>fs.with_temp_dir</code></a> 임시 디렉터리를 만들어 함수에 넘기고, 끝나면 통째로 지운다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/path.html">path — 경로 계산</a></h3><ul>
+<li class="fn"><a href="../reference/modules/path.html#fn-path-join"><code>path.join</code></a> 경로 조각들을 이어 붙이고 정리한다.</li>
+<li class="fn"><a href="../reference/modules/path.html#fn-path-base"><code>path.base</code></a> 경로의 마지막 요소(파일 이름)를 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/path.html#fn-path-dir"><code>path.dir</code></a> 마지막 요소를 뺀 나머지(들어 있는 디렉터리)를 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/path.html#fn-path-ext"><code>path.ext</code></a> 확장자를 점까지 포함해 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/path.html#fn-path-stem"><code>path.stem</code></a> 마지막 요소에서 확장자를 뺀 이름을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/path.html#fn-path-abs"><code>path.abs</code></a> 현재 디렉터리를 기준으로 한 절대 경로를 돌려준다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/cli.html">cli — 명령줄 옵션</a></h3><ul>
+<li class="fn"><a href="../reference/modules/cli.html#fn-cli-parse"><code>cli.parse</code></a> 명령줄 인자를 옵션 맵과 나머지 리스트로 나눈다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/json.html">json — JSON</a></h3><ul>
+<li class="fn"><a href="../reference/modules/json.html#fn-json-parse"><code>json.parse</code></a> JSON 텍스트를 fung 값으로 읽는다.</li>
+<li class="fn"><a href="../reference/modules/json.html#fn-json-stringify"><code>json.stringify</code></a> fung 값을 JSON 텍스트로 쓴다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/time.html">time — 시각</a></h3><ul>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-now"><code>time.now</code></a> 지금 시각을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-monotonic"><code>time.monotonic</code></a> 거꾸로 가지 않는 시계의 지금 값을 기간(dur)으로 돌려준다. 걸린 시간을 잴 때 쓴다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-parse"><code>time.parse</code></a> 글자로 적은 시각을 읽어 시각 값으로 바꾼다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-format"><code>time.format</code></a> 시각을 문자열로 쓴다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-utc"><code>time.utc</code></a> 같은 순간을 UTC 시간대로 바꾼다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-local"><code>time.local</code></a> 같은 순간을 로컬 시간대로 바꾼다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-unix"><code>time.unix</code></a> 시각을 유닉스 시간(초)으로 바꾼다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-from_unix"><code>time.from_unix</code></a> 유닉스 시간(초)을 시각으로 바꾼다.</li>
+<li class="fn"><a href="../reference/modules/time.html#fn-time-parts"><code>time.parts</code></a> 시각을 연·월·일·시·분·초·요일로 나눈다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/regex.html">regex — 정규식</a></h3><ul>
+<li class="fn"><a href="../reference/modules/regex.html#fn-regex-is_match"><code>regex.is_match</code></a> s의 어딘가에 패턴이 맞는지 알려 준다.</li>
+<li class="fn"><a href="../reference/modules/regex.html#fn-regex-find"><code>regex.find</code></a> 처음 맞는 곳을 찾아 매치 맵으로 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/regex.html#fn-regex-find_all"><code>regex.find_all</code></a> 겹치지 않는 모든 매치를 리스트로 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/regex.html#fn-regex-replace"><code>regex.replace</code></a> 맞는 곳을 모두 바꾼 문자열을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/regex.html#fn-regex-split"><code>regex.split</code></a> 맞는 곳을 경계로 문자열을 나눈다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/http.html">http — HTTP</a></h3><ul>
+<li class="fn"><a href="../reference/modules/http.html#fn-http-get"><code>http.get</code></a> URL에 GET 요청을 보내고 응답을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/http.html#fn-http-post"><code>http.post</code></a> URL에 POST 요청으로 본문을 보내고 응답을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/http.html#fn-http-request"><code>http.request</code></a> 아무 메서드로나 요청을 보낸다.</li>
+<li class="fn"><a href="../reference/modules/http.html#fn-http-serve"><code>http.serve</code></a> 주소에서 HTTP 요청을 받아 handler로 답한다. 멈출 때까지 돌아오지 않는다.</li>
+</ul></section>
+<section class="group"><h3><a href="../reference/modules/conc.html">conc — 동시성 도우미</a></h3><ul>
+<li class="fn"><a href="../reference/modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a> 리스트의 원소마다 f를 동시에 돌리고, 결과를 입력 순서대로 모은다.</li>
+<li class="fn"><a href="../reference/modules/conc.html#fn-conc-fan_in"><code>conc.fan_in</code></a> 여러 받는 끝(receiver)을 하나로 합친 받는 끝을 돌려준다.</li>
+<li class="fn"><a href="../reference/modules/conc.html#fn-conc-retry"><code>conc.retry</code></a> f()가 Err가 아닌 값을 돌려줄 때까지 몇 번 다시 부른다.</li>
+</ul></section>
+</div>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../reference/language.html"><small>이전</small>문법</a><a class="next" href="../reference/language/lexical.html"><small>다음</small>어휘</a></nav>
+</div></main>
+</div>
+<script src="../../versions.js"></script>
+<script src="../assets/manual.js"></script>
+</body>
+</html>
