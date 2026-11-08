@@ -493,29 +493,31 @@ fn waiters_left_after_cancellations_wake_in_order() {
     );
 }
 
-/// A long native copies a big list's items a piece at a time too (L6),
+/// A long native copies a big list's items a step at a time too (L6),
 /// and gives its turn between the copy and its work: the copy of half a
-/// million items alone is over a millisecond. 262,145 items: 4 pieces of
-/// copying and the turn after them, then 33 pieces of `unique`'s work,
-/// the last of which gives the result (32 parks).
+/// million items alone is over a millisecond. In the unit tests every
+/// step is a piece (`pieces.rs`). 262,145 items: 33 steps of copying,
+/// each giving the turn (the last one too), then 257 steps of `unique`'s
+/// work, the last of which gives the result (256 parks).
 #[test]
 fn a_big_lists_items_are_copied_a_piece_at_a_time() {
     assert_eq!(
         out("xs = map(0..262145, i => i)\np = parks()\nn = len(unique(xs))\nprint(n, parks() - p)"),
-        ("262145 37\n".into(), "".into())
+        ("262145 289\n".into(), "".into())
     );
 }
 
-/// `sort` builds its result on what is left of a piece's budget (L6): the
+/// `sort` builds its result on what is left of a step's budget (L6): the
 /// last merge and the result's first items were one piece and a half
-/// (1.9 ms for half a million items). Counted by a model of the merge:
-/// 60,000 items park 6 times; 1,000 are one piece.
+/// (1.9 ms for half a million items). Counted by a model of the merge
+/// (every step a piece in the unit tests): 60,000 items park 54 times,
+/// after 8 parks of copying them; 1,000 are one step.
 #[test]
 fn sort_builds_its_result_on_the_pieces_budget() {
     assert_eq!(
         out(
             "fn sorted(n):\n  xs = map(0..n, i => (i * 7919) % 1000003)\n  p = parks()\n  ys = sort(xs)\n  (len(ys), parks() - p)\n;;\nprint(sorted(60000), sorted(1000))"
         ),
-        ("(60000, 6) (1000, 0)\n".into(), "".into())
+        ("(60000, 62) (1000, 0)\n".into(), "".into())
     );
 }

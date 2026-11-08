@@ -12,7 +12,7 @@ use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
 use crate::value::{
     List, ListBuilder, Lit, MapBuilder, Text, Value, compare, eq, hash_value, type_name,
 };
-use crate::vm::pieces::{self, PIECE_COMPARES, PIECE_ITEMS, Work};
+use crate::vm::pieces::{self, STEP_COMPARES, STEP_ITEMS, Work};
 use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -180,7 +180,7 @@ impl Sort {
 impl Work for Sort {
     fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
         let n = self.src.len();
-        let mut budget = PIECE_COMPARES;
+        let mut budget = STEP_COMPARES;
         let keys = self.keys.as_deref().unwrap_or(&self.xs);
         while self.width < n {
             let mid = (self.lo + self.width).min(n);
@@ -291,7 +291,7 @@ fn unique_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     }
     impl Work for Unique {
         fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
-            for x in self.xs.by_ref().take(PIECE_ITEMS) {
+            for x in self.xs.by_ref().take(STEP_ITEMS) {
                 let mut h = std::hash::DefaultHasher::new();
                 hash_value(&x, &mut h);
                 let h = std::hash::Hasher::finish(&h);

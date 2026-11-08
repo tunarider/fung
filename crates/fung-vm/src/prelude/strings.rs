@@ -11,7 +11,7 @@ use fung_front::text::{Unit, char_count, units};
 use std::rc::Rc;
 
 use crate::value::{List, Lit, Text, Value, write_for_print};
-use crate::vm::pieces::{self, PIECE_ITEMS, PIECE_SCAN, Work};
+use crate::vm::pieces::{self, STEP_ITEMS, STEP_SCAN, Work};
 use crate::vm::{Flow, Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -61,7 +61,7 @@ fn bytes_of(v: &Value) -> &[u8] {
 
 /// A walk over a string's occurrences of a separator (not empty), a
 /// piece at a time (L6, `vm/pieces.rs`): it hands on the parts between
-/// them, looking at about `PIECE_SCAN` bytes or `PIECE_ITEMS` parts each
+/// them, looking at about `STEP_SCAN` bytes or `STEP_ITEMS` parts each
 /// time. The search window reaches past the piece by the separator's
 /// length less one, so an occurrence across the line is found once.
 struct Cuts {
@@ -91,8 +91,8 @@ impl Cuts {
         let s = &bytes_of(&self.s)[..self.end];
         let sep = self.finder.needle().len();
         let mut parts = 0;
-        while parts < PIECE_ITEMS {
-            let stop = (self.at + PIECE_SCAN).min(s.len());
+        while parts < STEP_ITEMS {
+            let stop = (self.at + STEP_SCAN).min(s.len());
             let window = (stop + sep - 1).min(s.len());
             match self.finder.find(&s[self.at..window]) {
                 Some(i) => {
@@ -119,7 +119,7 @@ impl Cuts {
 /// The characters of a string from `at`, a piece at a time (an empty
 /// separator, `split` and `replace`).
 fn chars_from(s: &[u8], at: &mut usize, mut f: impl FnMut(&[u8])) -> bool {
-    for _ in 0..PIECE_ITEMS {
+    for _ in 0..STEP_ITEMS {
         let Some(u) = fung_front::text::first(&s[*at..]) else {
             return true;
         };
@@ -430,7 +430,7 @@ fn repeat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     }
     impl Work for Repeat {
         fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
-            let per = (PIECE_SCAN / self.s.len().max(1)).max(1);
+            let per = (STEP_SCAN / self.s.len().max(1)).max(1);
             let k = per.min(self.left);
             for _ in 0..k {
                 self.out.extend_from_slice(&self.s);

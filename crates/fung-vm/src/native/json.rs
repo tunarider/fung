@@ -13,7 +13,7 @@ use fung_front::diag::{Arg, quote};
 use super::nat::{self, native_step, opt, param};
 use crate::prelude::{MAX_CHARS, too_many_chars};
 use crate::value::{ListBuilder, Lit, MapBuilder, Module, Native, Text, Value, format, type_name};
-use crate::vm::pieces::{self, PIECE_BYTES, Work};
+use crate::vm::pieces::{self, STEP_BYTES, Work};
 use crate::vm::{Flow, Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -69,7 +69,7 @@ fn parse_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 unreachable!("checked as a string")
             };
             let s = t.as_str().expect("checked as UTF-8");
-            Ok(match self.d.run(s, PIECE_BYTES) {
+            Ok(match self.d.run(s, STEP_BYTES) {
                 Ok(None) => None,
                 r => Some(parse_result(r.map(|v| v.expect("a value")))),
             })
@@ -687,7 +687,7 @@ impl Encoder {
 
 impl Work for Encoder {
     fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
-        if !self.run(PIECE_BYTES)? {
+        if !self.run(STEP_BYTES)? {
             return Ok(None);
         }
         let out = std::mem::take(&mut self.out);

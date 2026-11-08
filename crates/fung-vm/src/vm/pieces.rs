@@ -18,41 +18,66 @@
 //! cannot park (`atom.rs`), the pieces run one after another.
 
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use super::cont::{Cont, Flow, Next, Wake};
 use super::{Stop, Task};
 use crate::value::{List, Value};
 
-/// About a millisecond of work for the natives below, by what they count:
-/// bytes read or written, items, comparisons. Measured on an Apple M-series
-/// release build (L6 note): JSON reads about 75 MB/s and writes about
-/// 150 MB/s, scanning a string for a separator well over 1 GB/s, a merge
-/// step about 5 ns.
-pub(crate) const PIECE_BYTES: usize = 64 * 1024;
-pub(crate) const PIECE_SCAN: usize = 1024 * 1024;
-pub(crate) const PIECE_ITEMS: usize = 8 * 1024;
-pub(crate) const PIECE_COMPARES: usize = 128 * 1024;
-/// Items copied out of a list (a reference count bumped each): copying
-/// half a million took 1.7 ms.
-pub(crate) const PIECE_COPIES: usize = 64 * 1024;
+/// How long a piece runs before the task gives its turn: steps are done
+/// one after another until this much time has passed. A count alone
+/// (L6's first take) made pieces as long as the machine was slow: the
+/// counts were measured here, and a CI runner took three to four times as
+/// long a step (the L6 note, 6).
+#[cfg(not(test))]
+const PIECE_TIME: Duration = Duration::from_millis(1);
+/// In the unit tests every step is a piece, so the parks they count do
+/// not hang on the machine's speed.
+#[cfg(test)]
+const PIECE_TIME: Duration = Duration::ZERO;
+
+/// About an eighth of a millisecond of work for a step of the natives
+/// below, by what they count: bytes read or written, items, comparisons,
+/// items copied. Measured on an Apple M-series release build (L6 note):
+/// JSON reads about 75 MB/s and writes about 150 MB/s, scanning a string
+/// for a separator well over 1 GB/s, a merge step about 5 ns, a copy
+/// about 3 ns. Slower machines take longer steps but not longer pieces.
+pub(crate) const STEP_BYTES: usize = 8 * 1024;
+pub(crate) const STEP_SCAN: usize = 128 * 1024;
+pub(crate) const STEP_ITEMS: usize = 1024;
+pub(crate) const STEP_COMPARES: usize = 16 * 1024;
+const STEP_COPIES: usize = 8 * 1024;
 
 /// A long native's work.
 pub(crate) trait Work: 'static {
-    /// Does about one piece; the native's result once it is all done.
+    /// Does about one step; the native's result once it is all done.
     fn step(&mut self, t: &mut Task<'_>) -> Result<Option<Value>, Stop>;
 }
 
 /// Runs `w` as a native's body: its result if it ends in the first piece,
 /// else a park that gives the turn and goes on in a box.
 pub(crate) fn run(t: &mut Task<'_>, mut w: impl Work) -> Result<Flow, Stop> {
+    let mut piece = Instant::now();
     loop {
         if let Some(v) = w.step(t)? {
             return Ok(Flow::Done(v));
         }
-        if t.piece_done() {
+        if over(&mut piece) && t.piece_done() {
             return Ok(Flow::Park(Box::new(Pieces(w)), Wake::soon()));
         }
     }
+}
+
+/// Whether the piece that started at `piece` has had its time; if so,
+/// the next one starts now (in a swap's function, which cannot give its
+/// turn, the pieces follow one another).
+pub(crate) fn over(piece: &mut Instant) -> bool {
+    let now = Instant::now();
+    if now.duration_since(*piece) < PIECE_TIME {
+        return false;
+    }
+    *piece = now;
+    true
 }
 
 /// [`run`]'s box between pieces.
@@ -61,11 +86,12 @@ struct Pieces<W>(W);
 impl<W: Work> Cont for Pieces<W> {
     fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
         t.check_cancelled()?;
+        let mut piece = Instant::now();
         loop {
             if let Some(v) = self.0.step(t)? {
                 return Ok(Next::Done(v));
             }
-            if t.piece_done() {
+            if over(&mut piece) && t.piece_done() {
                 return Ok(Next::Park(Wake::soon()));
             }
         }
@@ -79,7 +105,7 @@ pub(crate) fn with_items<F>(t: &mut Task<'_>, list: &Rc<List>, then: F) -> Resul
 where
     F: FnOnce(&mut Task<'_>, Vec<Value>) -> Result<Flow, Stop> + 'static,
 {
-    if list.len() <= PIECE_COPIES {
+    if list.len() <= STEP_COPIES {
         return then(t, list.to_vec());
     }
     let mut c = Copying {
@@ -88,9 +114,10 @@ where
         then: Some(then),
         next: None,
     };
+    let mut piece = Instant::now();
     loop {
         let done = c.copy();
-        if t.piece_done() {
+        if (done || over(&mut piece)) && t.piece_done() {
             return Ok(Flow::Park(Box::new(c), Wake::soon()));
         }
         // In a swap's function: no turn to give, so on at once.
@@ -112,9 +139,9 @@ impl<F> Copying<F>
 where
     F: FnOnce(&mut Task<'_>, Vec<Value>) -> Result<Flow, Stop>,
 {
-    /// Copies about a piece; whether all is copied.
+    /// Copies about a step; whether all is copied.
     fn copy(&mut self) -> bool {
-        let end = (self.xs.len() + PIECE_COPIES).min(self.list.len());
+        let end = (self.xs.len() + STEP_COPIES).min(self.list.len());
         while self.xs.len() < end {
             let run = self.list.run_from(self.xs.len());
             let take = run.len().min(end - self.xs.len());
@@ -139,9 +166,10 @@ where
         }
         t.check_cancelled()?;
         if self.xs.len() < self.list.len() {
+            let mut piece = Instant::now();
             loop {
                 let done = self.copy();
-                if t.piece_done() {
+                if (done || over(&mut piece)) && t.piece_done() {
                     return Ok(Next::Park(Wake::soon()));
                 }
                 if done {
