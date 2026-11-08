@@ -216,10 +216,11 @@ impl Work for Sort {
             self.j = (self.lo + self.width).min(n);
             self.k = self.lo;
         }
-        // The result, a piece at a time too.
+        // The result, a piece at a time too, on what is left of this
+        // piece's budget: an item costs about two comparisons.
         let out = self.out.get_or_insert_with(|| List::new(Vec::new()));
         let from = out.len();
-        for &i in self.src.iter().skip(from).take(8 * PIECE_ITEMS) {
+        for &i in self.src.iter().skip(from).take(budget / 2) {
             out.push(self.xs[i].clone());
         }
         if out.len() < n {
@@ -230,8 +231,9 @@ impl Work for Sort {
     }
 }
 
-/// The elements of `v` handed to `then` all at once: at once for a list
-/// or range, as they arrive for a receiving end (the walk parks).
+/// The elements of `v` handed to `then` all at once: at once for a range,
+/// a piece at a time for a long list (`pieces::with_items`), as they
+/// arrive for a receiving end (the walk parks).
 fn all_items(
     t: &mut Task<'_>,
     v: &Value,
@@ -260,6 +262,7 @@ fn all_items(
                 then,
             },
         ),
+        Value::List(l) => pieces::with_items(t, l, then),
         _ => then(t, nat::items(v, "sort")?),
     }
 }

@@ -294,7 +294,7 @@ fn a_park_ends_the_turn_it_ended_on() {
 }
 
 /// The probes plus `this_thread()`, `job_thread()` (the thread an
-/// offloaded job runs on) and `slow_job()` (a job that sleeps 50 ms).
+/// offloaded job runs on).
 fn offload_natives() -> Vec<crate::value::Value> {
     use crate::native::nat;
     use crate::value::{Native, Value};
@@ -304,13 +304,6 @@ fn offload_natives() -> Vec<crate::value::Value> {
     }
     fn job_thread(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
         nat::offload(t, id, |_, s| Ok(Value::str(&s)))
-    }
-    fn slow_job(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
-        nat::offload(
-            t,
-            || std::thread::sleep(Duration::from_millis(50)),
-            |_, ()| Ok(Value::Nil),
-        )
     }
     let mut v = crate::testutil::probes();
     v.push(Value::Native(Native::leak(
@@ -322,11 +315,6 @@ fn offload_natives() -> Vec<crate::value::Value> {
         "job_thread",
         vec![],
         job_thread,
-    )));
-    v.push(Value::Native(Native::leak_step(
-        "slow_job",
-        vec![],
-        slow_job,
     )));
     v
 }
@@ -404,24 +392,33 @@ fn a_panic_in_a_pool_job_is_e0801() {
 /// A deadline does not cut a running job that is waited for short (spec
 /// 15: only jobs that read are abandoned): the job runs to its end, then
 /// the deadline is enforced.
+/// The job waits on a latch that a sibling opens only once the job runs
+/// (a job still queued at the deadline is dropped, so a timed job made
+/// this racy on a busy machine) and the deadline has passed.
 /// Here the body returns right after the job, with no call left to see
 /// the expired deadline, so `timeout` gives the body's value, as it did
-/// before the job left the task's thread.
+/// before the job left the task's thread. With a call after the job,
+/// that call unwinds on the deadline.
 #[test]
 fn an_offload_wait_is_not_cut_by_a_cancel() {
-    let start = Instant::now();
-    let o = with_offload_natives("print(timeout(10ms, () => slow_job()))");
-    assert_eq!((o.out.as_str(), o.err.as_str()), ("nil\n", ""));
-    assert!(start.elapsed() >= Duration::from_millis(50));
-    // With a call after the job, that call unwinds on the deadline.
-    let o = with_offload_natives("print(timeout(10ms, fn(): slow_job(); len(\"x\") ;;))");
-    assert_eq!(
-        (o.out.as_str(), o.err.as_str()),
+    for (latch, body, want) in [
+        ("nc1", "() => block_job(\"nc1\")", "done"),
         (
-            "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
-            ""
-        )
-    );
+            "nc2",
+            "fn(): block_job(\"nc2\"); len(\"x\") ;;",
+            "Err({kind: 'timeout, message: \"timed out after 10ms\"})",
+        ),
+    ] {
+        let o = with_job_natives(&format!(
+            "{}print(scope(fn(s):\n  spawn(s, fn():\n    until(() => pool_state() == [1, 0, 0])\n    sleep(20ms)\n    open_latch(\"{latch}\")\n  ;;)\n  print(timeout(10ms, {body}))\n;;))",
+            crate::testutil::UNTIL
+        ));
+        assert_eq!(
+            (o.out.as_str(), o.err.as_str()),
+            (format!("{want}\nnil\n").as_str(), ""),
+            "{latch}"
+        );
+    }
 }
 
 /// An abandoned job's late wake reaches its task while it waits on
@@ -493,5 +490,32 @@ fn waiters_left_after_cancellations_wake_in_order() {
             "left 14\n0\n3\n6\n9\n12\n15\n18\n21\n24\n27\n30\n33\n36\n39\n".into(),
             "".into()
         )
+    );
+}
+
+/// A long native copies a big list's items a piece at a time too (L6),
+/// and gives its turn between the copy and its work: the copy of half a
+/// million items alone is over a millisecond. 262,145 items: 4 pieces of
+/// copying and the turn after them, then 33 pieces of `unique`'s work,
+/// the last of which gives the result (32 parks).
+#[test]
+fn a_big_lists_items_are_copied_a_piece_at_a_time() {
+    assert_eq!(
+        out("xs = map(0..262145, i => i)\np = parks()\nn = len(unique(xs))\nprint(n, parks() - p)"),
+        ("262145 37\n".into(), "".into())
+    );
+}
+
+/// `sort` builds its result on what is left of a piece's budget (L6): the
+/// last merge and the result's first items were one piece and a half
+/// (1.9 ms for half a million items). Counted by a model of the merge:
+/// 60,000 items park 6 times; 1,000 are one piece.
+#[test]
+fn sort_builds_its_result_on_the_pieces_budget() {
+    assert_eq!(
+        out(
+            "fn sorted(n):\n  xs = map(0..n, i => (i * 7919) % 1000003)\n  p = parks()\n  ys = sort(xs)\n  (len(ys), parks() - p)\n;;\nprint(sorted(60000), sorted(1000))"
+        ),
+        ("(60000, 6) (1000, 0)\n".into(), "".into())
     );
 }

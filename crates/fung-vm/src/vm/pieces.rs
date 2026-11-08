@@ -17,9 +17,11 @@
 //! no box and no trip through the scheduler. In a swap's function, which
 //! cannot park (`atom.rs`), the pieces run one after another.
 
+use std::rc::Rc;
+
 use super::cont::{Cont, Flow, Next, Wake};
 use super::{Stop, Task};
-use crate::value::Value;
+use crate::value::{List, Value};
 
 /// About a millisecond of work for the natives below, by what they count:
 /// bytes read or written, items, comparisons. Measured on an Apple M-series
@@ -30,6 +32,9 @@ pub(crate) const PIECE_BYTES: usize = 64 * 1024;
 pub(crate) const PIECE_SCAN: usize = 1024 * 1024;
 pub(crate) const PIECE_ITEMS: usize = 8 * 1024;
 pub(crate) const PIECE_COMPARES: usize = 128 * 1024;
+/// Items copied out of a list (a reference count bumped each): copying
+/// half a million took 1.7 ms.
+pub(crate) const PIECE_COPIES: usize = 64 * 1024;
 
 /// A long native's work.
 pub(crate) trait Work: 'static {
@@ -64,5 +69,115 @@ impl<W: Work> Cont for Pieces<W> {
                 return Ok(Next::Park(Wake::soon()));
             }
         }
+    }
+}
+
+/// Hands `then` the items of `list` as a vector. A long list's are copied
+/// a piece at a time, and the turn is given once more after the copy, so
+/// that the copy's last piece and `then`'s first are not one long turn.
+pub(crate) fn with_items<F>(t: &mut Task<'_>, list: &Rc<List>, then: F) -> Result<Flow, Stop>
+where
+    F: FnOnce(&mut Task<'_>, Vec<Value>) -> Result<Flow, Stop> + 'static,
+{
+    if list.len() <= PIECE_COPIES {
+        return then(t, list.to_vec());
+    }
+    let mut c = Copying {
+        list: list.clone(),
+        xs: Vec::with_capacity(list.len()),
+        then: Some(then),
+        next: None,
+    };
+    loop {
+        let done = c.copy();
+        if t.piece_done() {
+            return Ok(Flow::Park(Box::new(c), Wake::soon()));
+        }
+        // In a swap's function: no turn to give, so on at once.
+        if done {
+            return c.hand_over(t);
+        }
+    }
+}
+
+/// [`with_items`]'s box: the copy, then what `then` went on with.
+struct Copying<F> {
+    list: Rc<List>,
+    xs: Vec<Value>,
+    then: Option<F>,
+    next: Option<Box<dyn Cont>>,
+}
+
+impl<F> Copying<F>
+where
+    F: FnOnce(&mut Task<'_>, Vec<Value>) -> Result<Flow, Stop>,
+{
+    /// Copies about a piece; whether all is copied.
+    fn copy(&mut self) -> bool {
+        let end = (self.xs.len() + PIECE_COPIES).min(self.list.len());
+        while self.xs.len() < end {
+            let run = self.list.run_from(self.xs.len());
+            let take = run.len().min(end - self.xs.len());
+            self.xs.extend_from_slice(&run[..take]);
+        }
+        self.xs.len() == self.list.len()
+    }
+
+    fn hand_over(&mut self, t: &mut Task<'_>) -> Result<Flow, Stop> {
+        let then = self.then.take().expect("handed over once");
+        then(t, std::mem::take(&mut self.xs))
+    }
+}
+
+impl<F> Cont for Copying<F>
+where
+    F: FnOnce(&mut Task<'_>, Vec<Value>) -> Result<Flow, Stop>,
+{
+    fn resume(&mut self, t: &mut Task<'_>, v: Value) -> Result<Next, Stop> {
+        if let Some(k) = &mut self.next {
+            return k.resume(t, v);
+        }
+        t.check_cancelled()?;
+        if self.xs.len() < self.list.len() {
+            loop {
+                let done = self.copy();
+                if t.piece_done() {
+                    return Ok(Next::Park(Wake::soon()));
+                }
+                if done {
+                    break;
+                }
+            }
+        }
+        Ok(match self.hand_over(t)? {
+            Flow::Done(v) => Next::Done(v),
+            Flow::Call(k, f, n) => {
+                self.next = Some(k);
+                Next::Call(f, n)
+            }
+            Flow::Park(k, wake) => {
+                self.next = Some(k);
+                Next::Park(wake)
+            }
+        })
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        match &mut self.next {
+            Some(k) => k.unwind(t, stop),
+            None => Err(stop),
+        }
+    }
+
+    fn waits_for(&self) -> Option<&'static str> {
+        self.next.as_ref().and_then(|k| k.waits_for())
+    }
+
+    fn receives_on(&self) -> Option<&Rc<super::Receiver>> {
+        self.next.as_ref().and_then(|k| k.receives_on())
+    }
+
+    fn releasing(&self) -> bool {
+        self.next.as_ref().is_some_and(|k| k.releasing())
     }
 }

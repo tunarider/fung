@@ -450,18 +450,23 @@ fn a_light_request_beside_a_heavy_parse() {
 /// A long native gives its turn about every millisecond (L6): beside a
 /// big `json.parse`, `json.stringify`, `sort`, `unique` or `split`, a task
 /// that ticks every millisecond is never kept waiting long (before L6:
-/// 78 ms beside a 6 MB parse, the whole native).
+/// 78 ms beside a 6 MB parse, the whole native). A busy machine only
+/// makes a gap longer (a CI runner once took 13 ms where this one takes
+/// 2.4), so the best of three runs counts: a native that holds the run
+/// thread is long in all three.
 #[test]
 fn long_natives_give_their_turn() {
     let _serial = serial();
     for (what, work) in LONG_WORK {
         let src = format!("{LONG_SETUP}{GAP}work = () => {work}\nprint(gap(work))");
-        run_file("gap", &src);
-        let (out, _) = run_file("gap", &src);
-        let ms: f64 = out
-            .trim()
-            .parse()
-            .unwrap_or_else(|_| panic!("{what}: {out}"));
+        let ms = (0..3)
+            .map(|_| {
+                let (out, _) = run_file("gap", &src);
+                out.trim()
+                    .parse::<f64>()
+                    .unwrap_or_else(|_| panic!("{what}: {out}"))
+            })
+            .fold(f64::INFINITY, f64::min);
         eprintln!("worst gap beside {what}: {ms} ms");
         assert!(ms < 10.0, "{what}: a 1 ms ticker waited {ms} ms");
     }
