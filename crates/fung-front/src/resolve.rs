@@ -260,6 +260,13 @@ impl Resolver<'_> {
         self.cur_mut().blocks.last_mut().expect("block stack")
     }
 
+    /// Binds name in the innermost block of the current function.
+    fn bind_in_block(&mut self, name: &str, b: Binding) {
+        let f = self.cur_mut();
+        let i = f.blocks.len() - 1;
+        f.bind(i, name, b);
+    }
+
     /// The file scope.
     fn root_scope(&mut self) -> &mut Scope {
         &mut self.fns[0].blocks[0]
@@ -283,9 +290,8 @@ impl Resolver<'_> {
                 index: i,
                 ..Binding::default()
             };
-            let sc = self.root_scope();
-            sc.names.insert(g.clone(), b);
-            sc.used.insert(g.clone());
+            self.fns[0].bind(0, g, b);
+            self.root_scope().used.insert(g.clone());
             self.globals.push(g.clone());
         }
         self.declare_aliases(n);
@@ -313,7 +319,7 @@ impl Resolver<'_> {
                         constant: true,
                         ..b
                     };
-                    self.root_scope().names.insert(name.to_string(), b);
+                    self.fns[0].bind(0, name, b);
                     fns.push(k);
                     continue;
                 }
@@ -332,7 +338,7 @@ impl Resolver<'_> {
                 constant: true,
                 module: false,
             };
-            self.root_scope().names.insert(name.to_string(), b);
+            self.fns[0].bind(0, name, b);
             self.root_scope().pos.insert(name.to_string(), k.pos);
             self.globals.push(name.to_string());
             fns.push(k);
@@ -426,7 +432,7 @@ impl Resolver<'_> {
     /// are released for reuse (03).
     fn pop_block(&mut self, file: bool) {
         let f = self.cur_mut();
-        let sc = f.blocks.pop().expect("block stack");
+        let sc = f.pop_scope();
         f.later.pop();
         if !file {
             f.next_slot = sc.base;
@@ -568,7 +574,7 @@ impl Resolver<'_> {
                     index: b.index,
                     ..Binding::default()
                 };
-                self.cur_block().names.insert(name.to_string(), b);
+                self.bind_in_block(name, b);
                 self.module_names.remove(name);
                 return Some(b);
             }
@@ -608,9 +614,8 @@ impl Resolver<'_> {
                 ..Binding::default()
             }
         };
-        let sc = self.cur_block();
-        sc.names.insert(name.to_string(), b);
-        sc.pos.insert(name.to_string(), pos);
+        self.bind_in_block(name, b);
+        self.cur_block().pos.insert(name.to_string(), pos);
         b
     }
 
@@ -622,8 +627,9 @@ impl Resolver<'_> {
         let last = self.fns.len() - 1;
         self.fns.iter().enumerate().rev().any(|(i, f)| {
             let skip = usize::from(i == last);
-            let outer = &f.blocks[..f.blocks.len().saturating_sub(skip)];
-            outer.iter().any(|b| b.names.contains_key(name)) || f.self_name == name
+            let outer = f.blocks.len().saturating_sub(skip);
+            let first = f.bound_in.get(name).and_then(|at| at.first());
+            first.is_some_and(|&b| b < outer) || f.self_name == name
         })
     }
 
@@ -716,12 +722,8 @@ impl Resolver<'_> {
     /// variable is copied like any other captured value (03).
     fn lookup(&mut self, name: &str, pos: Pos) -> Option<Node> {
         let f = self.cur_mut();
-        if let Some(sc) = f
-            .blocks
-            .iter_mut()
-            .rev()
-            .find(|b| b.names.contains_key(name))
-        {
+        if let Some(i) = f.innermost(name) {
+            let sc = &mut f.blocks[i];
             sc.used.insert(name.to_string());
             return Some(ref_node(pos, sc.names[name]));
         }
@@ -748,10 +750,10 @@ impl Resolver<'_> {
         let repl_top = self.opts.redefine && pi == 0 && self.in_top_fn();
         let p = &mut self.fns[pi];
         let mut src = None;
-        let found = p.blocks.iter_mut().rev().find_map(|sc| {
-            let b = *sc.names.get(name)?;
+        let found = p.innermost(name).map(|i| {
+            let sc = &mut p.blocks[i];
             sc.used.insert(name.to_string());
-            Some(b)
+            sc.names[name]
         });
         if let Some(b) = found {
             if b.global && (b.constant || repl_top) {

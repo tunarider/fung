@@ -60,8 +60,8 @@ impl Resolver<'_> {
                 index: i,
                 ..Binding::default()
             };
+            self.bind_in_block(&prm.name, b);
             let sc = self.cur_block();
-            sc.names.insert(prm.name.clone(), b);
             sc.pos.insert(prm.name.clone(), prm.pos);
             sc.param.insert(prm.name.clone());
             self.cur_mut().next_slot = i + 1;

@@ -337,6 +337,11 @@ print(http.request("GET", URL, "x"))"#,
         ),
         case(r#"print(http.get(URL + "/a%20b/%41%zz"))"#, ok(simple)),
         case(r#"print(http.get(URL + "/a%2Fb/c(d)!*'~"))"#, ok(simple)),
+        // re-encoding a path keeps the escapes it already has
+        case(
+            r#"print(http.get(URL + "/a b/%2F%41%e2%82%ac"))"#,
+            ok(simple),
+        ),
         case(r#"print(http.get("HTTP://127.0.0.1:PORT?"))"#, ok(simple)),
         // userinfo becomes Basic authorization unless the user set one
         case(
@@ -758,7 +763,7 @@ fn run_env(bin: &Path, src: &str, env: &[(String, String)]) -> Out {
 }
 
 /// The number of cases of each kind (a case left out by mistake fails).
-const CLIENT_CASES: usize = 64;
+const CLIENT_CASES: usize = 65;
 const NO_SERVER_CASES: usize = 30;
 const ARG_ERROR_CASES: usize = 13;
 const PLAIN_CASES: usize = 2;

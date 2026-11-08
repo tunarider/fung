@@ -1185,3 +1185,29 @@ fn question_in_a_lambda_given_to_pmap() {
     );
     assert_eq!(arg0(&errs[0]), "conc.pmap", "{errs:?}");
 }
+
+/// Finding a name does not walk every enclosing block: deeply nested
+/// blocks that each bind a name resolve in linear time (FE16).
+#[test]
+fn deep_blocks_resolve_in_linear_time() {
+    let n = 9_000;
+    let mut src = String::from("fn f(x):\n  match x:\n");
+    for i in 0..n {
+        src.push_str(&format!("  v{i} => match x:\n"));
+    }
+    src.push_str("  _ => x\n");
+    src.push_str(&";;\n".repeat(n + 2));
+    let elapsed = std::thread::Builder::new()
+        .stack_size(512 << 20)
+        .spawn(move || {
+            let core = core_of(&src);
+            let t = std::time::Instant::now();
+            let r = resolve(&core, &names(&["print"]), &Options::default());
+            assert!(r.is_ok());
+            t.elapsed()
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    assert!(elapsed < std::time::Duration::from_secs(1), "{elapsed:?}");
+}

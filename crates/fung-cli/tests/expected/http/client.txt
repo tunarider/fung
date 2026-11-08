@@ -301,6 +301,17 @@
 | User-Agent: fung/$VERSION\r
 | \r
 ==== server 22
+-- program: print(http.get(URL + "/a b/%2F%41%e2%82%ac"))
+-- stdout
+| Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET /a%20b/%2F%41%e2%82%ac HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: fung/$VERSION\r
+| \r
+==== server 23
 -- program: print(http.get("HTTP://127.0.0.1:PORT?"))
 -- stdout
 | Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
@@ -311,7 +322,7 @@
 | Host: 127.0.0.1:$PORT\r
 | User-Agent: fung/$VERSION\r
 | \r
-==== server 23
+==== server 24
 -- program
 | print(http.get("http://user:pass@127.0.0.1:PORT/a"))
 | print(http.get("http://us%20er@127.0.0.1:PORT/b"))
@@ -373,27 +384,16 @@
 | User-Agent: fung/$VERSION\r
 | Authorization: Basic 7ZWcOuq4gA==\r
 | \r
-==== server 24
+==== server 25
 -- program: print(http.get("http://127.0.0.1:/x"))
 -- stdout
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:/x`: connection refused"})
 -- stderr
 -- exit: 0
-==== server 25
--- program: print(http.get(URL))
--- stdout
-| Ok({status: 200, headers: {}, body: "ab"})
--- stderr
--- exit: 0
--- request 0.0 (escaped)
-| GET / HTTP/1.1\r
-| Host: 127.0.0.1:$PORT\r
-| User-Agent: fung/$VERSION\r
-| \r
 ==== server 26
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size too large"})
+| Ok({status: 200, headers: {}, body: "ab"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -404,7 +404,7 @@
 ==== server 27
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: header line without a colon `bad trailer`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size too large"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -415,7 +415,7 @@
 ==== server 28
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: continuation line without a header ` folded: x`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: header line without a colon `bad trailer`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -426,7 +426,7 @@
 ==== server 29
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the trailer"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: continuation line without a header ` folded: x`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -437,7 +437,7 @@
 ==== server 30
 -- program: print(http.get(URL))
 -- stdout
-| Ok({status: 200, headers: {"content-length": "0", "x-fold": "a b c"}, body: ""})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the trailer"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -448,7 +448,7 @@
 ==== server 31
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid status line `garbage`"})
+| Ok({status: 200, headers: {"content-length": "0", "x-fold": "a b c"}, body: ""})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -459,7 +459,7 @@
 ==== server 32
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid status code `abc`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid status line `garbage`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -470,7 +470,7 @@
 ==== server 33
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid status code `20`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid status code `abc`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -481,7 +481,7 @@
 ==== server 34
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid HTTP version `HTP/1.1`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid status code `20`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -492,7 +492,7 @@
 ==== server 35
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed before a response"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid HTTP version `HTP/1.1`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -503,7 +503,7 @@
 ==== server 36
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the response head"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed before a response"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -514,7 +514,7 @@
 ==== server 37
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: header line without a colon `Bad header`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the response head"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -525,7 +525,7 @@
 ==== server 38
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: continuation line without a header ` Folded: x`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: header line without a colon `Bad header`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -536,7 +536,7 @@
 ==== server 39
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: conflicting Content-Length headers (1, 2)"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: continuation line without a header ` Folded: x`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -547,7 +547,7 @@
 ==== server 40
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid Content-Length `abc`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: conflicting Content-Length headers (1, 2)"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -558,7 +558,7 @@
 ==== server 41
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid Content-Length `+2`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid Content-Length `abc`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -569,7 +569,7 @@
 ==== server 42
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unsupported transfer encoding `gzip`"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid Content-Length `+2`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -580,7 +580,7 @@
 ==== server 43
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid chunk size"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: unsupported transfer encoding `gzip`"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -591,7 +591,7 @@
 ==== server 44
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: empty chunk size"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: invalid chunk size"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -602,7 +602,7 @@
 ==== server 45
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size too large"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: empty chunk size"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -613,7 +613,7 @@
 ==== server 46
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk data not followed by CRLF"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size too large"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -624,7 +624,7 @@
 ==== server 47
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size line ends with a bare LF"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk data not followed by CRLF"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -635,7 +635,7 @@
 ==== server 48
 -- program: print(http.get(URL))
 -- stdout
-| Ok({status: 200, headers: {}, body: "ab"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size line ends with a bare LF"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -646,7 +646,7 @@
 ==== server 49
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size line longer than 4096 bytes"})
+| Ok({status: 200, headers: {}, body: "ab"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -657,7 +657,7 @@
 ==== server 50
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size line longer than 4096 bytes"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -668,7 +668,7 @@
 ==== server 51
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed after 2 of 5 bytes"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -679,7 +679,7 @@
 ==== server 52
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed after 2 of 5 bytes"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -690,7 +690,7 @@
 ==== server 53
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the trailer"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -701,7 +701,7 @@
 ==== server 54
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed after 3 of 10 bytes"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the trailer"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -712,7 +712,7 @@
 ==== server 55
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed after 3 of 10 bytes"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -723,7 +723,7 @@
 ==== server 56
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: response head longer than 10485760 bytes"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -734,7 +734,7 @@
 ==== server 57
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size line longer than 4096 bytes"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: response head longer than 10485760 bytes"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -743,9 +743,9 @@
 | User-Agent: fung/$VERSION\r
 | \r
 ==== server 58
--- program: print(http.get(URL, timeout: 300ms))
+-- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT` timed out"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: chunk size line longer than 4096 bytes"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -776,6 +776,17 @@
 | User-Agent: fung/$VERSION\r
 | \r
 ==== server 61
+-- program: print(http.get(URL, timeout: 300ms))
+-- stdout
+| Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT` timed out"})
+-- stderr
+-- exit: 0
+-- request 0.0 (escaped)
+| GET / HTTP/1.1\r
+| Host: 127.0.0.1:$PORT\r
+| User-Agent: fung/$VERSION\r
+| \r
+==== server 62
 -- program: print(http.get(URL, timeout: nil))
 -- stdout
 | Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
@@ -786,7 +797,7 @@
 | Host: 127.0.0.1:$PORT\r
 | User-Agent: fung/$VERSION\r
 | \r
-==== server 62
+==== server 63
 -- program
 | scope(fn(s):
 |   t = spawn(s, () => http.get(URL))
@@ -814,7 +825,7 @@
 | Host: 127.0.0.1:$PORT\r
 | User-Agent: fung/$VERSION\r
 | \r
-==== server 63
+==== server 64
 -- program
 | print(http.request("GE T", URL))
 | print(http.get(URL, headers: {"a b": "x"}))

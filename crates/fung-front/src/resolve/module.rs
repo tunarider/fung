@@ -103,7 +103,7 @@ impl Resolver<'_> {
                     module: true,
                     ..b
                 };
-                self.root_scope().names.insert(name.to_string(), b);
+                self.fns[0].bind(0, name, b);
                 self.module_names.insert(name.to_string(), info.clone());
                 self.import_bound.insert(name.to_string(), len);
                 return Some(b);
@@ -153,7 +153,7 @@ impl Resolver<'_> {
 
     fn bind_import(&mut self, name: &str, pos: Pos, len: usize, b: Binding) {
         self.globals.push(name.to_string());
-        self.root_scope().names.insert(name.to_string(), b);
+        self.fns[0].bind(0, name, b);
         self.root_scope().pos.insert(name.to_string(), pos);
         self.import_bound.insert(name.to_string(), len);
     }

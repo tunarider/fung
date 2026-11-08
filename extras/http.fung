@@ -1286,15 +1286,16 @@ fn _scan_escape(cs, i, mode):
 # A character a host may hold as written.
 fn _host_char(ch) = ch >= "\u{80}" or _is_alnum(ch) or ch in "!\$&'()*+,;=:[]<>\"-_.~"
 
-# The path as written when it is validly encoded,
-# else re-encoded byte by byte.
+# The path as written when it is validly encoded, else re-encoded byte
+# by byte. An escape already there stays as written: decoding %2F would
+# turn it into a separator.
 fn _escaped_path(p) = all(chars(p), ch => _is_alnum(ch) or ch in "-_.~\$&+,/:;=@!'()*[]%")
   then p else _encode_path(bytes(p), 0, [])
 
 fn _encode_path(bs, i, out) = if i >= len(bs):
   join(out, "")
 else if bs[i] == 37:
-  _encode_path(bs, i + 3, out + [_encode_byte(_hex_value(bs[i + 1]) * 16 + _hex_value(bs[i + 2]))])
+  _encode_path(bs, i + 3, out + ["%", _printable[bs[i + 1] - 32], _printable[bs[i + 2] - 32]])
 else:
   _encode_path(bs, i + 1, out + [_encode_byte(bs[i])])
 ;;

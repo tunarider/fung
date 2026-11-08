@@ -11093,7 +11093,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (72909 bytes, fnv1a64 715baf14e046b01d)
+-- stdout (72993 bytes, fnv1a64 a751ed306f932a6c)
 -- stderr
 -- exit: 0
 ==== extras/json.fung

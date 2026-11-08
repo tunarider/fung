@@ -3807,7 +3807,7 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (80240 bytes, fnv1a64 5aab00c1cfb61619)
+-- stdout (80229 bytes, fnv1a64 2a9b1203e7198129)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung

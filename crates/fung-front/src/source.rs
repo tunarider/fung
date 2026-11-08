@@ -7,11 +7,20 @@ use std::sync::Arc;
 pub struct FileId(pub u32);
 
 /// Owns the names and texts of every source file seen by a run. The
-/// texts are shared (`Arc<str>`): a map that takes a file from another
+/// files are shared (`Arc`): a map that takes a file from another
 /// (`add_from`, the REPL's runtime) holds no copy of it.
 #[derive(Clone, Default, Debug)]
 pub struct SourceMap {
-    files: Vec<(Arc<str>, Arc<str>)>,
+    files: Vec<Arc<File>>,
+}
+
+#[derive(Debug)]
+struct File {
+    name: Box<str>,
+    text: Box<str>,
+    /// The byte offset where each line starts: a diagnostic finds its
+    /// line without reading the file from the start (FE16).
+    starts: Box<[usize]>,
 }
 
 impl SourceMap {
@@ -20,7 +29,14 @@ impl SourceMap {
     }
 
     pub fn add(&mut self, name: &str, text: &str) -> FileId {
-        self.files.push((name.into(), text.into()));
+        let starts = std::iter::once(0)
+            .chain(text.match_indices('\n').map(|(i, _)| i + 1))
+            .collect();
+        self.files.push(Arc::new(File {
+            name: name.into(),
+            text: text.into(),
+            starts,
+        }));
         self.last_id()
     }
 
@@ -37,11 +53,20 @@ impl SourceMap {
     }
 
     pub fn name(&self, id: FileId) -> &str {
-        &self.files[id.0 as usize].0
+        &self.files[id.0 as usize].name
     }
 
     pub fn text(&self, id: FileId) -> &str {
-        &self.files[id.0 as usize].1
+        &self.files[id.0 as usize].text
+    }
+
+    /// Line `n` (1-based) of file `id`, without its `\n`.
+    pub fn line(&self, id: FileId, n: u32) -> Option<&str> {
+        let f = &self.files[id.0 as usize];
+        let i = (n as usize).checked_sub(1)?;
+        let start = *f.starts.get(i)?;
+        let end = f.starts.get(i + 1).map_or(f.text.len(), |e| e - 1);
+        Some(&f.text[start..end])
     }
 
     /// The number of files registered.

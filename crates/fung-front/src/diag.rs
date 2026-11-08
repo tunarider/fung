@@ -154,9 +154,10 @@ pub fn format(d: &Diag, sources: &SourceMap) -> String {
             d.pos.line,
             d.pos.col
         ));
-        let src = sources.text(d.pos.file);
-        if !src.is_empty() {
-            write_excerpt(&mut b, d, src);
+        if !sources.text(d.pos.file).is_empty()
+            && let Some(line) = sources.line(d.pos.file, d.pos.line)
+        {
+            write_excerpt(&mut b, d, line);
         }
     }
     for note in &d.notes {
@@ -217,11 +218,8 @@ const TAB_WIDTH: usize = 4;
 /// text before the caret and under it is measured by grapheme cluster
 /// (`unicode::display_width`), so the carets land under a wide character
 /// or an emoji sequence. `d.pos.col` and `d.len` count characters.
-fn write_excerpt(b: &mut String, d: &Diag, src: &str) {
+fn write_excerpt(b: &mut String, d: &Diag, raw: &str) {
     let line_no = d.pos.line as usize;
-    let Some(raw) = src.split('\n').nth(line_no - 1) else {
-        return;
-    };
     let line = raw.strip_suffix('\r').unwrap_or(raw);
     let num = line_no.to_string();
     let gutter = " ".repeat(num.len());
@@ -400,6 +398,27 @@ mod tests {
         assert!(got.contains("1 | s = \"\\u{1B}[2J\" + nope\n"), "{got}");
         let caret = format!("  | {}^^^^ ", " ".repeat(18));
         assert!(got.contains(&caret), "{got}");
+    }
+
+    /// Each excerpt finds its line without reading the file from the
+    /// start, so a file's many diagnostics show in linear time (FE16).
+    #[test]
+    fn many_excerpts_are_linear() {
+        let lines = 100_000;
+        let text = "x = 1 # a line of some length\n".repeat(lines);
+        let mut sm = SourceMap::new();
+        let file = sm.add("big.fung", &text);
+        let t = std::time::Instant::now();
+        for line in 1..=lines as u32 {
+            let pos = Pos { file, line, col: 1 };
+            let d = error("E0204", pos, vec![Arg::Str("x".into())]);
+            assert!(format(&d, &sm).contains("| x = 1 #"));
+        }
+        assert!(
+            t.elapsed() < std::time::Duration::from_secs(3),
+            "{:?}",
+            t.elapsed()
+        );
     }
 
     #[test]

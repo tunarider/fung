@@ -66,6 +66,9 @@ pub(super) struct FnScope {
     /// The names a top-level fn binds in its own code: its locals, which
     /// hide the file's constants of those names throughout it (03, L9).
     pub(super) own: HashSet<String>,
+    /// The blocks that bind each name, outermost first: a lookup takes
+    /// the last without walking every block (FE16).
+    pub(super) bound_in: HashMap<String, Vec<usize>>,
     /// Names defined in blocks of this fn that have ended (E0206).
     pub(super) closed: HashSet<String>,
     /// Per block: local fn names declared later in that block (E0208).
@@ -78,6 +81,38 @@ impl FnScope {
             self_name: self_name.to_string(),
             ..FnScope::default()
         }
+    }
+
+    /// Binds name in block `block`, or rebinds it there.
+    pub(super) fn bind(&mut self, block: usize, name: &str, b: Binding) {
+        if self.blocks[block]
+            .names
+            .insert(name.to_string(), b)
+            .is_none()
+        {
+            let at = self.bound_in.entry(name.to_string()).or_default();
+            let i = at.partition_point(|&x| x < block);
+            at.insert(i, block);
+        }
+    }
+
+    /// The innermost block that binds name.
+    pub(super) fn innermost(&self, name: &str) -> Option<usize> {
+        self.bound_in.get(name)?.last().copied()
+    }
+
+    /// Closes the innermost block, forgetting where its names were bound.
+    pub(super) fn pop_scope(&mut self) -> Scope {
+        let sc = self.blocks.pop().expect("block stack");
+        for name in sc.names.keys() {
+            if let Some(at) = self.bound_in.get_mut(name) {
+                at.pop();
+                if at.is_empty() {
+                    self.bound_in.remove(name);
+                }
+            }
+        }
+        sc
     }
 
     /// Takes the next free slot of this function.
