@@ -593,7 +593,25 @@ fn many_workers_share_a_receiver() {
 
 #[test]
 fn sending_an_end_into_its_own_channel_is_e0705() {
-    for v in ["tx", "rx", "[1, rx]", "() => tx", "(1, {k: rx})"] {
+    // the big ones (L5): an end deep in a vector's trie, in views of it
+    // that share its nodes, in its head, and in a big map
+    let big = "map(0..5000, i => i == 2500 then rx else i)";
+    let views = format!("map(0..300, i => ({big})[i..])");
+    let head = "[rx] + map(0..5000, i => i)";
+    let views_of_head = format!("map(0..300, i => ({head})[..5001 - i])");
+    let map = "fold(0..500, {}, (m, i) => put(m, str(i), i == 250 then rx else i))";
+    for v in [
+        "tx",
+        "rx",
+        "[1, rx]",
+        "() => tx",
+        "(1, {k: rx})",
+        big,
+        views.as_str(),
+        head,
+        views_of_head.as_str(),
+        map,
+    ] {
         let (_, err, code) = run(&format!("(tx, rx) = channel(1)\nsend(tx, {v})"));
         assert!(err.contains("error[E0705]"), "{v}: {err}");
         assert_eq!(code, 1, "{v}");

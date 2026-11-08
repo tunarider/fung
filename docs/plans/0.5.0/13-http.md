@@ -1,6 +1,6 @@
 # L13. HTTP 클라이언트·서버의 세부 한계
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-11-08)**. 결과는 끝의 "닫힘" 절. 목록: [README](README.md).
 
 출처: open-questions "알려진 한계"의 HTTP 절, 06 "HTTP"("fung HTTP 약속"), `docs/notes/R4d-net-http.md`.
 코드는 모두 `extras/http.fung`(클라이언트 `_request`·`_send`·`_exchange`·`_open`·`_tunnel`·`_parse_url`, 서버 `serve`·`_conn`·`_reply`·`_own_answer`)이고,
@@ -132,3 +132,19 @@ open-questions의 수치: 접히거나 끝없는 머리 40만 줄(10 MiB 예산)
 - H12는 전/후 수치가 R4d 노트(또는 `bench-languages.md`)에 있고, 결정대로 했거나 사용자가 미루기로 한 기록이 있다.
 - open-questions의 HTTP 절에는 0.5.0 밖의 기능만 "0.5.0 뒤"로 남고, 06·매뉴얼·CHANGELOG가 같은 말을 한다.
 - 커밋 전 검사가 Linux·macOS CI에서 통과한다.
+
+## 닫힘 (2026-11-08)
+
+결정(사용자, 2026-11-08 "추천대로", 6번 포함): 1~5 예, 6 머리 읽기를 네이티브로(측정 먼저), 7 남은 기한 그대로.
+
+- H1·H2·H3: `_parts`(중복 이름, 101)와 `_framing`(틀 헤더, `Content-Length`). `Connection`도 거절한다(서버가 늘 닫음). 서버 시험 사례 `/badlength`·`/te`·`/trailer`·`/twice`·`/headlength`(HEAD와 GET).
+- H4: `_own_answer`는 `{code, linger}`, 바이트는 보낼 때(`_own_text`, 날짜가 그때 것). 새 원시 기능 `_net.close_write`.
+- H5·H6·H9: `_exchange`가 쓰기 에러 뒤 답을 읽어 봄, `_open`의 스킴 검사, `_tunnel`이 2xx. 시험 `an_early_answer_is_read_after_a_failed_write`·`an_unknown_proxy_scheme_is_refused`·`any_2xx_answer_to_connect_is_the_tunnel`.
+- H7·H8: `_host`의 비ASCII 거절(`_high_decoded`로 보여 줌), `_ip_literal`이 `_parse_addr`로 검사, `_url_tail`의 조각 이스케이프, `_unescape_text`. 시험 `hosts_that_cannot_go_out_are_refused`.
+  ASCII 이스케이프(`%41`)는 전처럼 `invalid escape`다(호스트의 ASCII를 이스케이프할 까닭이 없음).
+- H10: `max_body`(내부 `_net.need_count`로 E0403). `_hex_from`의 "너무 큼" 표시는 가장 큰 정수로. 시험 `max_body_bounds_the_answer`.
+- H11: `ready: fn | nil`. H13: 서버 사례 `PRI * HTTP/2.0` → 505. H14: 확인하지 못함(open-questions에 그렇게 적음). H15: 매뉴얼의 서버 한도 문단에 옮김.
+- H12: `_net.read_fields(c, budget, max)`가 줄 나누기·접기·이름과 값 검사·이름 대소문자를 하고 `Host`·`Content-Length`·TE 같은 의미 검사는 fung에 남았다(06의 "fung으로 쓴 HTTP"는 프로토콜의 의미를 fung이 맡는다는 뜻으로 지킴).
+  측정(릴리스, 4개씩; 벤치 `bench/heads.fung`는 시험에서도 돌아 2개씩으로 줄임): 값 500개인 요청 4개 2.27 → 0.09초, 헤더 2만 줄인 응답 4개 2.96 → 1.31초. 남은 비용(헤더 맵 만들기·응답 머리 쓰기)은 open-questions.
+  처음 넣은 H2의 중복 검사가 이름마다 앞의 이름 목록을 훑어(n²) 2만 줄 응답에 몇 초가 걸렸다: 벤치가 잡았고, 맵의 크기로 판정하게 고쳤다.
+- 노트 `docs/notes/L13-http.md`.

@@ -277,7 +277,7 @@
 |   --> crates/fung-cli/tests/data/check/unused_vars.fung:43:3
 |    |
 | 43 |   이름 = 1
-|    |   ^^
+|    |   ^^^^
 |    |
 |  help: prefix it with `_` if it is intentional
 -- exit: 0

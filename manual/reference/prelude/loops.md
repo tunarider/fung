@@ -6,7 +6,7 @@ description: fung prelude 반복 패턴: until, iterate.
 
 ## while 없이 되풀이하기 {#concepts}
 
-**반복**(loop)은 같은 일을 여러 번 하는 것이다. fung에서 반복의 기본은 [`for`](../language.html#for)다. 리스트나 범위의 원소마다 몸을 돌고, 각 결과를 모은 리스트를 돌려준다. 정해진 묶음을 도는 일은 거의 다 `for`나 [`map`](collections.html#fn-map)·[`fold`](collections.html#fn-fold)로 된다.
+**반복**(loop)은 같은 일을 여러 번 하는 것이다. fung에서 반복의 기본은 [`for`](../language/for.html)다. 리스트나 범위의 원소마다 몸을 돌고, 각 결과를 모은 리스트를 돌려준다. 정해진 묶음을 도는 일은 거의 다 `for`나 [`map`](collections.html#fn-map)·[`fold`](collections.html#fn-fold)로 된다.
 
 몇 번 돌지 미리 모르는 반복도 있다. "재시도가 성공할 때까지", "값이 100을 넘을 때까지" 같은 것이다. 다른 언어는 이것을 `while` 반복문과 바뀌는 변수로 쓴다. fung의 값은 불변이고 블록 안에서 바깥 변수를 다시 대입할 수 없으므로(E0205) `while`이 없다. 대신 **재귀**(recursion), 곧 함수가 자기 자신을 다시 부르는 방법을 쓴다. 바뀌는 값은 변수가 아니라 다음 호출의 인자로 넘긴다.
 
@@ -77,7 +77,7 @@ print(delays)
 
 #### 같이 보기
 
-[`iterate`](#fn-iterate), [`fold`](collections.html#fn-fold), [`conc.retry`](../modules/conc.html#fn-conc-retry), [함수](../language.html#functions)
+[`iterate`](#fn-iterate), [`fold`](collections.html#fn-fold), [`conc.retry`](../modules/conc.html#fn-conc-retry), [함수](../language/functions.html)
 
 :::
 

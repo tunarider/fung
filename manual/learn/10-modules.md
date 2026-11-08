@@ -40,10 +40,6 @@ import path
 print(path, type_of(path))
 ```
 
-:::box tip 쓰지 않는 import
-가져오기만 하고 쓰지 않은 모듈은 `fung check`가 경고 W0101로 알려 준다(14장). 지우거나, 쓰는 코드를 마저 쓴다. 경고는 프로그램을 멈추지 않는다.
-:::
-
 ## prelude: import 없이 쓰는 함수 {#prelude}
 
 `print`, `len`, `map`, `split`, `parse_int`처럼 지금까지 import 없이 쓴 함수들은 **prelude**(전주곡이라는 뜻)에 들어 있다. prelude는 모든 파일에 미리 들어와 있는 기본 함수 묶음이다. 거의 모든 스크립트가 쓰는 함수만 prelude에 두고, 영역이 분명한 것은 모듈로 나눴다. 그래서 `pmap`(여러 일을 동시에 처리하는 `map`, 12장)은 prelude가 아니라 `conc` 모듈에 있다. prelude에 있는 줄 알고 그냥 쓰면, 에러 메시지의 도움말이 어느 모듈에 있는지 알려 준다.
@@ -103,10 +99,6 @@ print(slug("Hello World"))
 ```
 
 같은 모듈을 여러 번 import해도(여러 파일에서 가져와도) 그 파일은 처음 한 번만 읽어서 실행한다. 그 뒤로는 만들어 둔 모듈을 그대로 나눠 쓴다.
-
-:::box mistake 파일 이름에 -를 쓰면
-`my-lib.fung`처럼 이름 규칙(3장)에 맞지 않는 파일은 모듈 이름이 될 수 없어서 `import "./my-lib"`는 컴파일 에러 E0305다. `import "./my-lib" as my_lib`처럼 별칭을 붙인다. 처음부터 `my_lib.fung`으로 짓는 편이 낫다.
-:::
 
 ## 무엇이 공개되는가 {#public}
 
@@ -175,18 +167,6 @@ print(config.settings)
 print("port:", config.settings.port)
 ```
 
-:::box mistake 서로를 가져오는 두 파일
-`a.fung`이 `b.fung`을 가져오고 `b.fung`이 다시 `a.fung`을 가져오면 순환 import로 컴파일 에러 E0302이고, 메시지가 `a.fung → b.fung → a.fung`처럼 고리 전체를 보여 준다. 둘이 같이 쓰는 부분을 세 번째 파일로 옮겨 둘 다 그것을 가져오게 한다. 진입 파일을 다른 파일이 가져오는 것도 같은 이유로 막혀 있다.
-:::
-
-:::box mistake 모듈 이름을 변수로 쓰기
-`import path` 뒤에 `for path in files:`처럼 모듈과 같은 이름의 변수를 만들면 컴파일 에러 E0308이다. 모듈을 가리면 그 아래에서 `path.base`를 부를 수 없기 때문이다. 변수 이름을 바꾸거나 `import path as p`로 가져온다.
-:::
-
-:::box other 다른 언어는
-Python도 파일 하나가 모듈이고 `import os`, `from x import y`, `import x as y`가 fung의 `import`, `(이름)`, `as`에 해당한다. Python은 `_` 이름을 관례로만 숨기지만 fung은 컴파일러가 막는다. JavaScript의 ES 모듈은 `export`를 붙인 것만 공개하는 반대 방식이다. 쉘의 `source lib.sh`는 이름 공간 없이 모든 것을 한 곳에 섞는다.
-:::
-
 :::exercise 로그 요약을 둘로 나누기
 로그 줄 리스트를 받아 수준별 개수를 세는 함수 `count_levels(rows)`를 `logstat.fung`에 두고, `example.fung`에서 가져와 `{ERROR: 2, INFO: 1}`처럼 출력해 보자. 줄의 첫 낱말이 수준이다. 한 줄의 수준을 꺼내는 도우미는 비공개로 둔다. 힌트: `fold`로 맵에 개수를 쌓는다(7장).
 
@@ -210,6 +190,87 @@ print(logstat.count_levels(rows))
 :::
 :::
 
+## 짚고 넘어가기 {#notes}
+
+:::box tip 쓰지 않는 import
+가져오기만 하고 쓰지 않은 모듈은 `fung check`가 경고 W0101로 알려 준다(14장). 지우거나, 쓰는 코드를 마저 쓴다. 경고는 프로그램을 멈추지 않는다.
+:::
+
+:::box mistake 파일 이름에 -를 쓰면
+`my-lib.fung`처럼 이름 규칙(3장)에 맞지 않는 파일은 모듈 이름이 될 수 없어서 `import "./my-lib"`는 컴파일 에러 E0305다. `import "./my-lib" as my_lib`처럼 별칭을 붙인다. 처음부터 `my_lib.fung`으로 짓는 편이 낫다.
+:::
+
+:::box mistake 서로를 가져오는 두 파일
+`a.fung`이 `b.fung`을 가져오고 `b.fung`이 다시 `a.fung`을 가져오면 순환 import로 컴파일 에러 E0302이고, 메시지가 `a.fung → b.fung → a.fung`처럼 고리 전체를 보여 준다. 둘이 같이 쓰는 부분을 세 번째 파일로 옮겨 둘 다 그것을 가져오게 한다. 진입 파일을 다른 파일이 가져오는 것도 같은 이유로 막혀 있다.
+:::
+
+:::box mistake 모듈 이름을 변수로 쓰기
+`import path` 뒤에 `for path in files:`처럼 모듈과 같은 이름의 변수를 만들면 컴파일 에러 E0308이다. 모듈을 가리면 그 아래에서 `path.base`를 부를 수 없기 때문이다. 변수 이름을 바꾸거나 `import path as p`로 가져온다.
+:::
+
+:::box other 다른 언어는
+Python도 파일 하나가 모듈이고 `import os`, `from x import y`, `import x as y`가 fung의 `import`, `(이름)`, `as`에 해당한다. Python은 `_` 이름을 관례로만 숨기지만 fung은 컴파일러가 막는다. JavaScript의 ES 모듈은 `export`를 붙인 것만 공개하는 반대 방식이다. 쉘의 `source lib.sh`는 이름 공간 없이 모든 것을 한 곳에 섞는다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise 내 모듈 만들기
+
+`strutil.fung`에 공개 함수 `slug(s)`(소문자로 바꾸고 공백을 `-`로)와 비공개 도우미 `_clean(s)`(앞뒤 공백 자르기)를 두고, 다른 파일에서 `slug`만 써 보자.
+
+:::solution
+
+`_`로 시작하는 이름은 모듈 밖으로 나가지 않는다. 가져오는 쪽은 `strutil.slug`로 부른다.
+
+```file strutil.fung
+fn _clean(s) = trim(s)
+
+fn slug(s) = replace(lower(_clean(s)), " ", "-")
+```
+
+```fung run
+import "./strutil"
+print(strutil.slug("  Hello World  "))
+```
+
+:::
+
+:::
+
+:::exercise 이름만 가져오기
+
+같은 `strutil.fung`에서 `slug`만 이름째 가져와 `strutil.` 없이 불러 보자.
+
+:::solution
+
+```file strutil.fung
+fn slug(s) = replace(lower(trim(s)), " ", "-")
+```
+
+```fung run
+import "./strutil" (slug)
+print(map(["A B", "C D"], slug))
+```
+
+:::
+
+:::
+
+:::exercise 별칭
+
+표준 모듈 `path`를 `p`라는 이름으로 가져와 `"/var/log/app.log"`의 파일 이름과 확장자를 찍어 보자.
+
+:::solution
+
+```fung run
+import path as p
+print(p.base("/var/log/app.log"), p.ext("/var/log/app.log"))
+```
+
+:::
+
+:::
+
 ## 정리 {#summary}
 
 - 파일 하나가 모듈 하나이고, 모듈 이름은 파일 이름이다.
@@ -219,4 +280,4 @@ print(logstat.count_levels(rows))
 - 라이브러리 파일의 최상위에는 `import`·`fn`·`type`·`test`·`이름 = 식`만 온다(E0306). 처음 import될 때 한 번 실행된다.
 - 순환 import(E0302), 모듈 이름 가리기(E0308)는 컴파일 에러다.
 
-정확한 규칙은 레퍼런스의 [모듈](../reference/language.html#modules)에 있다. 표준 모듈마다의 함수는 [fs](../reference/modules/fs.html), [path](../reference/modules/path.html), [conc](../reference/modules/conc.html) 등 레퍼런스의 "표준 모듈"을 보라. 모듈을 어떻게 읽고 실행하는지는 VM 책의 [모듈](../vm/11-modules.html)에서 다룬다.
+정확한 규칙은 레퍼런스의 [모듈](../reference/language/modules.html)에 있다. 표준 모듈마다의 함수는 [fs](../reference/modules/fs.html), [path](../reference/modules/path.html), [conc](../reference/modules/conc.html) 등 레퍼런스의 "표준 모듈"을 보라. 모듈을 어떻게 읽고 실행하는지는 VM 책의 [모듈](../vm/11-modules.html)에서 다룬다.

@@ -12,6 +12,7 @@ use std::rc::Rc;
 
 use crate::value::{List, Range, Value};
 use crate::vm::channel::{self, Received, RecvWait, Try};
+use crate::vm::pieces::PIECE_ITEMS;
 use crate::vm::{Cont, Flow, Next, Receiver, Stop, Task, Wake};
 
 /// Where a walk over a list, a range or a receiving end is.
@@ -159,6 +160,13 @@ pub(crate) trait PerItem {
     fn got(&mut self, r: Value) -> Result<bool, Stop>;
     /// The native's result once the walk ended (`stopped`: by `got`).
     fn result(&mut self, stopped: bool) -> Result<Value, Stop>;
+    /// The native's next step once the walk ended: by default its
+    /// `result`; a native with more to do (`sort_by` sorts its keys, L6)
+    /// gives the box it goes on with.
+    fn finish(&mut self, t: &mut Task<'_>, stopped: bool) -> Result<Flow, Stop> {
+        let _ = t;
+        Ok(Flow::Done(self.result(stopped)?))
+    }
 }
 
 /// Calls `f` for every element `cur` gives, as `p` says.
@@ -172,7 +180,10 @@ pub(crate) fn walk<P: PerItem + 'static>(
         cur,
         f,
         p,
+        then: None,
         waiting: false,
+        count: 0,
+        pieced: false,
         pending: None,
     };
     Ok(match w.advance(t)? {
@@ -186,8 +197,15 @@ struct Walker<P> {
     cur: Cursor,
     f: Value,
     p: P,
+    /// What the native went on with after the walk (`PerItem::finish`),
+    /// when that was a call or a park: this box stands in for it.
+    then: Option<Box<dyn Cont>>,
     /// Parked on the cursor (a channel's next value).
     waiting: bool,
+    /// Elements called back with a plain native since the last piece,
+    /// and whether the walk now gives its turn between pieces (L6).
+    count: usize,
+    pieced: bool,
     /// An element received before a stop that came while waiting: it is
     /// called back first (the next call then sees the stop).
     pending: Option<Value>,
@@ -200,7 +218,7 @@ impl<P: PerItem> Walker<P> {
                 Some(x) => x,
                 None => match self.cur.next(t)? {
                     Step::Item(x) => x,
-                    Step::End => return Ok(Next::Done(self.p.result(false)?)),
+                    Step::End => return self.ended(t, false),
                     Step::Wait(wake) => {
                         self.waiting = true;
                         return Ok(Next::Park(wake));
@@ -212,7 +230,15 @@ impl<P: PerItem> Walker<P> {
             // (`map(xs, str)`): no trip through the run loop per element.
             if let Some(r) = t.call_plain(&self.f, n) {
                 if self.p.got(r?)? {
-                    return Ok(Next::Done(self.p.result(true)?));
+                    return self.ended(t, true);
+                }
+                self.count += 1;
+                if self.count == PIECE_ITEMS {
+                    self.count = 0;
+                    if t.piece_done() {
+                        self.pieced = true;
+                        return Ok(Next::Park(Wake::soon()));
+                    }
                 }
                 continue;
             }
@@ -221,18 +247,48 @@ impl<P: PerItem> Walker<P> {
     }
 }
 
+impl<P: PerItem> Walker<P> {
+    /// The walk ended: the native's result, or the box it goes on with.
+    fn ended(&mut self, t: &mut Task<'_>, stopped: bool) -> Result<Next, Stop> {
+        Ok(match self.p.finish(t, stopped)? {
+            Flow::Done(v) => Next::Done(v),
+            Flow::Call(k, f, n) => {
+                self.then = Some(k);
+                Next::Call(f, n)
+            }
+            Flow::Park(k, wake) => {
+                self.then = Some(k);
+                Next::Park(wake)
+            }
+        })
+    }
+}
+
 impl<P: PerItem> Cont for Walker<P> {
     fn resume(&mut self, t: &mut Task<'_>, v: Value) -> Result<Next, Stop> {
+        if let Some(k) = &mut self.then {
+            return k.resume(t, v);
+        }
+        if std::mem::take(&mut self.pieced) {
+            t.check_cancelled()?;
+            return self.advance(t);
+        }
         if std::mem::take(&mut self.waiting) {
             return self.advance(t);
         }
         if self.p.got(v)? {
-            return Ok(Next::Done(self.p.result(true)?));
+            return self.ended(t, true);
         }
         self.advance(t)
     }
 
     fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        if let Some(k) = &mut self.then {
+            return k.unwind(t, stop);
+        }
+        if std::mem::take(&mut self.pieced) {
+            return Err(stop);
+        }
         if !std::mem::take(&mut self.waiting) {
             return Err(stop);
         }
@@ -265,7 +321,13 @@ pub(crate) fn drain_with<P: Collect + 'static>(
     cur: Cursor,
     p: P,
 ) -> Result<Flow, Stop> {
-    let mut d = Drainer { cur, p, then: None };
+    let mut d = Drainer {
+        cur,
+        p,
+        then: None,
+        count: 0,
+        pieced: false,
+    };
     match d.advance(t)? {
         Drained::Wait(wake) => Ok(Flow::Park(Box::new(d), wake)),
         Drained::Ended => d.p.result(t),
@@ -283,6 +345,10 @@ struct Drainer<P> {
     /// What the native went on with after the walk, when that was a call
     /// or a park: this box stands in for it from then on.
     then: Option<Box<dyn Cont>>,
+    /// Elements taken since the last piece, and whether the walk now
+    /// gives its turn between pieces (L6).
+    count: usize,
+    pieced: bool,
 }
 
 impl<P: Collect> Drainer<P> {
@@ -292,6 +358,14 @@ impl<P: Collect> Drainer<P> {
                 Step::Item(x) => {
                     if self.p.item(x)? {
                         return Ok(Drained::Ended);
+                    }
+                    self.count += 1;
+                    if self.count == PIECE_ITEMS {
+                        self.count = 0;
+                        if t.piece_done() {
+                            self.pieced = true;
+                            return Ok(Drained::Wait(Wake::soon()));
+                        }
                     }
                 }
                 Step::End => return Ok(Drained::Ended),
@@ -321,6 +395,9 @@ impl<P: Collect> Cont for Drainer<P> {
         if let Some(k) = &mut self.then {
             return k.resume(t, v);
         }
+        if std::mem::take(&mut self.pieced) {
+            t.check_cancelled()?;
+        }
         match self.advance(t)? {
             Drained::Wait(wake) => Ok(Next::Park(wake)),
             Drained::Ended => self.ended(t),
@@ -330,6 +407,9 @@ impl<P: Collect> Cont for Drainer<P> {
     fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
         if let Some(k) = &mut self.then {
             return k.unwind(t, stop);
+        }
+        if std::mem::take(&mut self.pieced) {
+            return Err(stop);
         }
         // A value delivered before the stop is taken, as a receive does;
         // the walk then goes on until it would wait again.

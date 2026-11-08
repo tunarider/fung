@@ -424,7 +424,7 @@ fn errors_give_short_reasons() {
         ),
         (
             "net.listen(\"127.0.0.1:abc\")".into(),
-            "Err({kind: 'network, message: \"invalid port `abc`\"})".into(),
+            "Err({kind: 'network, message: \"invalid port `abc` (a port is a number)\"})".into(),
         ),
     ];
     let src: String = cases.iter().map(|(e, _)| format!("print({e})\n")).collect();
@@ -729,6 +729,23 @@ fn cancel_ends_a_blocked_connect() {
     );
 }
 
+/// Name lookups run on their own pool, at most eight at once (L12 D): a
+/// resolver that holds them all cannot keep a file read waiting in line
+/// (before, 64 held lookups took the whole pool).
+#[test]
+fn held_lookups_leave_the_file_jobs_their_pool() {
+    let _g = serial();
+    let gate = probe::hold_lookups();
+    let file = env!("CARGO_MANIFEST_PATH");
+    let o = run_then(
+        &format!(
+            "import fs\nscope(fn(s):\n  ts = map(0..70, _ => spawn(s, () => net.connect(\"gate.invalid\", 80)))\n  until(() => lookups() >= 8)\n  r = timeout(5s, () => len(fs.read(\"{file}\")!) > 0)\n  print(lookups(), r)\n  each(ts, cancel)\n;;)"
+        ),
+        move || drop(gate),
+    );
+    assert_eq!(out(&o), ("8 true\n", "", 0));
+}
+
 /// A lookup that outlives the deadline is a timeout: the `timeout`
 /// around `connect` covers the lookup.
 #[test]
@@ -805,6 +822,65 @@ fn a_second_reader_waits_for_the_first() {
         "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  r2 = spawn(sc, () => net.read_line(s, 10))\n  net.write(c, \"one\\ntwo\\n\")!\n  print(await(r1), await(r2))\n;;)"
     ));
     assert_eq!(out(&o), ("Ok(\"one\") Ok(\"two\")\n", "", 0));
+}
+
+/// `set_deadline` reaches a read that is blocked already (L12 A): another
+/// task shortens it, or sets one where there was none, and the read ends
+/// at the new deadline instead of waiting on.
+#[test]
+fn set_deadline_reaches_a_blocked_read() {
+    let _g = serial();
+    for first in ["1h", "0s"] {
+        let o = run(&format!(
+            "{PAIR}net.set_deadline(s, {first})!\nscope(fn(sc):\n  r = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  net.set_deadline(s, 20ms)!\n  print(await(r))\n;;)"
+        ));
+        assert_eq!(
+            out(&o),
+            ("Err({kind: 'timeout, message: \"timed out\"})\n", "", 0),
+            "first deadline {first}"
+        );
+    }
+}
+
+/// Addresses are raced (L12 B, RFC 8305): when the first address does
+/// not answer (its packets are dropped), the next one starts after the
+/// attempt delay, so the connect takes about 250 ms instead of the
+/// system's connect timeout (a minute or more).
+#[test]
+fn a_silent_first_address_does_not_hold_the_connect() {
+    let _g = serial();
+    let o = run(
+        "import time\nl = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nt0 = time.monotonic()\nr = timeout(10s, () => net.connect(\"eyeballs.invalid\", port))\nprint(r, time.monotonic() - t0 < 3s)",
+    );
+    assert_eq!(out(&o), ("Ok(<conn>) true\n", "", 0));
+}
+
+#[test]
+fn the_families_take_turns() {
+    let t = |s: &str| super::Target {
+        ip: s.parse().unwrap(),
+        scope: 0,
+    };
+    let ips = |v: Vec<super::Target>| v.iter().map(|t| t.ip.to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        ips(super::interleave(vec![
+            t("::1"),
+            t("::2"),
+            t("::3"),
+            t("1.1.1.1")
+        ])),
+        ["::1", "1.1.1.1", "::2", "::3"]
+    );
+    assert_eq!(
+        ips(super::interleave(vec![
+            t("1.1.1.1"),
+            t("2.2.2.2"),
+            t("::1"),
+            t("::2")
+        ])),
+        ["1.1.1.1", "::1", "2.2.2.2", "::2"]
+    );
+    assert!(super::interleave(Vec::new()).is_empty());
 }
 
 /// A body read in raw pieces is decoded once: a character split between

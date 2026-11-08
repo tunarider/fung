@@ -339,4 +339,4 @@ print(total(map(0..200000, i => 1), 0))
 - 최상위 `fn`은 끌어올려지고 최상위 변수를 복사할 수 없다. 한 번만 대입되는 이름만 `LOADGLOBAL`로 읽는다(비어 있으면 E0809).
 - 꼬리 위치의 호출은 `TAILCALL`이 되어 프레임을 다시 쓴다. 꼬리가 아닌 재귀는 100,000단계에서 E0804다.
 
-레퍼런스: [함수](../reference/language.html#functions), [변수와 스코프](../reference/language.html#scope). 배우기: [5장 함수](../learn/05-functions.html). 다음 장은 이 장에서 "값"이라고만 부른 것, 곧 `Value`가 메모리에 어떻게 놓이는지를 본다.
+레퍼런스: [함수](../reference/language/functions.html), [변수와 스코프](../reference/language/scope.html). 배우기: [5장 함수](../learn/05-functions.html). 다음 장은 이 장에서 "값"이라고만 부른 것, 곧 `Value`가 메모리에 어떻게 놓이는지를 본다.

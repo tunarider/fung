@@ -217,8 +217,20 @@ impl Sched {
     /// Runs until every task has ended; the root's result, and its fiber
     /// back.
     pub(super) fn run(mut self, t: &mut Task<'_>) -> (Result<Value, Stop>, Fiber) {
+        // Big values are freed a piece at a time between turns (L6).
+        crate::value::set_deferring(true);
+        let r = self.run_rounds(t);
+        crate::value::set_deferring(false);
+        while crate::value::release_piece() {}
+        r
+    }
+
+    fn run_rounds(&mut self, t: &mut Task<'_>) -> (Result<Value, Stop>, Fiber) {
         let mut root = None;
         loop {
+            if crate::value::pending() {
+                crate::value::release_piece();
+            }
             t.world.round += 1;
             self.events(t);
             if t.world.abandon {
@@ -265,6 +277,11 @@ impl Sched {
             if self.slots.is_empty() {
                 let r = self.result.take().expect("the root ended");
                 return (r, root.expect("the root's fiber"));
+            }
+            // Freeing put aside goes before waiting or judging a deadlock:
+            // it may close a channel a parked task waits on.
+            if crate::value::pending() {
+                continue;
             }
             // Every task is parked.
             #[cfg(test)]
@@ -356,7 +373,7 @@ impl Sched {
     /// here, on the run thread, and their waits leave the queues they
     /// stood in as they drop (`Drop` of a channel's wait, a socket wait's
     /// turn, a command, which is killed). The run ends cancelled.
-    fn abandon(mut self, t: &mut Task<'_>) -> (Result<Value, Stop>, Fiber) {
+    fn abandon(&mut self, t: &mut Task<'_>) -> (Result<Value, Stop>, Fiber) {
         t.world.abandon = false;
         t.world.abandoned = true;
         self.queue.clear();
@@ -505,6 +522,10 @@ impl Sched {
         f.cancel.watch(&f.waiter);
         let now = Instant::now();
         if f.cancel.is_cancelled() || until.is_some_and(|at| now >= at) {
+            // A park that is over at once is a turn given (a long native
+            // between pieces, L6): the loop is looked at as for a yield,
+            // or a socket another task waits on would wait for it.
+            self.poll_due = true;
             self.enqueue(id);
             return;
         }

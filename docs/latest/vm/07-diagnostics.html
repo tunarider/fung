@@ -130,7 +130,15 @@ print(double(&quot;21&quot;))</code></pre><pre class="out err plain" data-code="
    example.fung:2 &lt;entry&gt;</code></pre></div>
 <p>재미있는 점은 곱셈을 실제로 하는 함수(값 층의 <code>value::mul</code>)는 자기가 소스의 어디에서 불렸는지 모른다는 것이다. 그 함수는 "str과 int는 곱할 수 없다"는, 위치 없는 에러를 돌려준다. VM이 그것을 받아 방금 실행한 명령의 위치를 채운다. 값을 다루는 코드는 소스를 몰라도 되고, 위치는 한 곳(VM)에서만 붙인다.</p>
 <h3 id="span">칸과 밑줄</h3>
-<p>위치의 칸은 글자 단위다(3장). 밑줄의 길이는 에러를 만드는 쪽이 정한다. 이름 해석은 이름의 글자 수만큼 밑줄을 긋는다(<code>doubel</code>은 6칸). 길이를 주지 않으면 한 칸이다.</p>
+<p>위치의 칸(<code>--&gt;</code> 줄의 <code>2:9</code>)은 글자 단위다(3장): 편집기가 세는 번호와 같다. 밑줄의 길이도 에러를 만드는 쪽이 글자 수로 정한다. 이름 해석은 이름의 글자 수만큼 밑줄을 긋는다(<code>doubel</code>은 6글자). 길이를 주지 않으면 한 글자다.</p>
+<p>밑줄을 <strong>그릴 때</strong>는 화면의 칸으로 바꾼다. 밑줄 앞의 글과 밑줄 아래의 글을 글자 묶음마다 재서(15장의 포매터와 같은 함수), 한글 <code>없는</code>(두 글자) 아래에는 <code>^^^^</code>(네 칸)를 긋고, 앞에 넓은 글자나 이모지 묶음이 있으면 그만큼 밀어 긋는다. 그래서 터미널에서 밑줄이 이름 바로 아래에 온다.</p>
+<div class="run"><pre><code>greeting = &quot;안녕&quot;
+print(greeting + 없는)</code></pre><pre class="out err plain" data-code="2"><code>error[E0204]: undefined name `없는`
+  --&gt; example.fung:2:18
+  |
+2 | print(greeting + 없는)
+  |                  ^^^^ not found in this scope
+  |</code></pre></div>
 <p>발췌를 그릴 때는 탭을 공백 네 칸으로 펴서 보여 주고, 밑줄도 펴진 쪽에 맞춘다. 칸 번호 자체는 탭을 한 글자로 센다.</p>
 <pre class="plain"><code>error[E0204]: undefined name `y`
   --&gt; example.fung:2:9

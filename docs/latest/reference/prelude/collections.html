@@ -32,6 +32,22 @@
 <ol class="chapters">
 <li><a href="../../reference/language.html">문법</a></li>
 <li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html">연산자</a></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html">함수</a></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
 <li class="sub">prelude</li>
 <li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
 <li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
@@ -72,10 +88,10 @@
 </ul>
 <p>문자열은 컬렉션 함수에 넣지 않는다(<code>map(&quot;abc&quot;, f)</code>는 에러). 글자로 다루려면 <a href="strings.html#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다. 맵은 <a href="maps.html">맵</a> 함수로 다루고, 쌍의 리스트가 필요하면 <a href="maps.html#fn-pairs"><code>pairs</code></a>를 쓴다.</p>
 <h3 id="immutable">불변: 원본은 바뀌지 않는다</h3>
-<p>fung의 리스트는 <strong>불변</strong>(immutable)이다. 한 번 만든 리스트는 바뀌지 않는다. <code>sort(xs)</code>는 <code>xs</code>를 정렬하는 것이 아니라 정렬된 <strong>새</strong> 리스트를 돌려준다. 그래서 결과를 쓰려면 이름에 담는다: <code>sorted = sort(xs)</code>. 원본을 여러 곳이 같이 보고 있어도 한 곳의 작업이 다른 곳을 몰래 바꾸지 않으므로, 태스크 사이에 리스트를 그냥 넘겨도 안전하다. 사본은 원본과 구조를 나눠 쓰므로 <code>acc + [x]</code>로 하나씩 붙여 가도 매번 전체를 복사하지 않는다(<a href="../language.html#for">누적과 재귀의 비용</a>).</p>
+<p>fung의 리스트는 <strong>불변</strong>(immutable)이다. 한 번 만든 리스트는 바뀌지 않는다. <code>sort(xs)</code>는 <code>xs</code>를 정렬하는 것이 아니라 정렬된 <strong>새</strong> 리스트를 돌려준다. 그래서 결과를 쓰려면 이름에 담는다: <code>sorted = sort(xs)</code>. 원본을 여러 곳이 같이 보고 있어도 한 곳의 작업이 다른 곳을 몰래 바꾸지 않으므로, 태스크 사이에 리스트를 그냥 넘겨도 안전하다. 사본은 원본과 구조를 나눠 쓰므로 <code>acc + [x]</code>로 하나씩 붙여 가도 매번 전체를 복사하지 않는다(<a href="../language/for.html">누적과 재귀의 비용</a>).</p>
 <h3 id="higher-order">함수를 받는 함수</h3>
 <p><code>map</code>·<code>filter</code>·<code>fold</code>처럼 <strong>함수를 인자로 받는</strong> 함수를 고차 함수(higher-order function)라고 한다. 반복문을 직접 쓰는 대신 "각 원소에 무엇을 할지"만 함수로 건넨다. 보통 그 자리에서 람다(<code>x =&gt; x * 2</code>)를 쓰고, 이미 있는 함수 이름(<code>len</code>, <code>parse_int</code>)을 넘겨도 된다.</p>
-<p>모든 함수가 컬렉션을 첫 인자로 받으므로 파이프 <code>|&gt;</code>로 단계를 이을 수 있다. <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같고, 위에서 아래로 읽힌다(<a href="../language.html#pipe">파이프</a>).</p>
+<p>모든 함수가 컬렉션을 첫 인자로 받으므로 파이프 <code>|&gt;</code>로 단계를 이을 수 있다. <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같고, 위에서 아래로 읽힌다(<a href="../language/operators.html#pipe">파이프</a>).</p>
 <div class="run"><pre><code>hosts = [&quot;web-1&quot;, &quot;db-1&quot;, &quot;web-2&quot;, &quot;web-3&quot;]
 web = hosts |&gt; filter(h =&gt; starts_with(h, &quot;web&quot;)) |&gt; map(upper)
 print(web, len(web))
@@ -141,7 +157,7 @@ false true false</code></pre></div>
 <div class="run"><pre><code>failed = []
 print(is_empty(failed) then &quot;all ok&quot; else &quot;${len(failed)} failed&quot;)</code></pre><pre class="out plain"><code>all ok</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-len"><code>len</code></a>, <a href="../language.html#conditions">조건</a></p>
+<p><a href="#fn-len"><code>len</code></a>, <a href="../language/conditions.html">조건</a></p>
 </section>
 <section class="entry" id="fn-first">
 <h3>first<span class="by">fung으로 작성</span></h3>
@@ -223,7 +239,7 @@ print(take(rx, 2))</code></pre><pre class="out plain"><code>[1, 2]
 [3, 4]</code></pre></div>
 <p>두 번째 <code>take</code>는 남아 있던 값에서 이어 받는다.</p>
 <h4>같이 보기</h4>
-<p><a href="#fn-drop"><code>drop</code></a>, <a href="#fn-first"><code>first</code></a>, <a href="../language.html#access">슬라이스</a></p>
+<p><a href="#fn-drop"><code>drop</code></a>, <a href="#fn-first"><code>first</code></a>, <a href="../language/access.html">슬라이스</a></p>
 </section>
 <section class="entry" id="fn-drop">
 <h3>drop<span class="by">fung으로 작성</span></h3>
@@ -249,7 +265,7 @@ print(drop(&quot;v1.2.3&quot;, 1))</code></pre><pre class="out plain"><code>[2, 
 <div class="run"><pre><code>rows = [&quot;name,size&quot;, &quot;a.log,120&quot;, &quot;b.log,900&quot;]
 print(drop(rows, 1))</code></pre><pre class="out plain"><code>[&quot;a.log,120&quot;, &quot;b.log,900&quot;]</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-take"><code>take</code></a>, <a href="../language.html#access">슬라이스</a></p>
+<p><a href="#fn-take"><code>take</code></a>, <a href="../language/access.html">슬라이스</a></p>
 </section>
 <section class="entry" id="fn-range">
 <h3>range<span class="by">fung으로 작성</span></h3>
@@ -277,7 +293,7 @@ for i in range(len(names)):
 2 db
 3 cache</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="../language.html#values">범위</a>, <a href="#fn-zip"><code>zip</code></a>, <a href="../language.html#for">for</a></p>
+<p><a href="../language/values.html">범위</a>, <a href="#fn-zip"><code>zip</code></a>, <a href="../language/for.html">for</a></p>
 </section>
 <section class="entry" id="fn-contains">
 <h3>contains<span class="by">fung으로 작성</span></h3>
@@ -315,7 +331,7 @@ for target in [&quot;prod&quot;, &quot;dev&quot;]:
 ;;</code></pre><pre class="out plain"><code>prod ok
 dev refused</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-find"><code>find</code></a>, <a href="#fn-any"><code>any</code></a>, <a href="strings.html#fn-starts_with"><code>starts_with</code></a>, <a href="../language.html#values">비교와 동일성</a></p>
+<p><a href="#fn-find"><code>find</code></a>, <a href="#fn-any"><code>any</code></a>, <a href="strings.html#fn-starts_with"><code>starts_with</code></a>, <a href="../language/values.html">비교와 동일성</a></p>
 </section>
 <h2 id="transform">바꾸기와 고르기</h2>
 <section class="entry" id="fn-map">
@@ -367,7 +383,7 @@ print(pairs(ports) |&gt; map(((k, v)) =&gt; &quot;${k}=${v}&quot;))</code></pre>
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <p><code>map(chars(&quot;abc&quot;), upper)</code>로 쓴다.</p>
 <h4>같이 보기</h4>
-<p><a href="#fn-try_map"><code>try_map</code></a>, <a href="#fn-filter"><code>filter</code></a>, <a href="#fn-each"><code>each</code></a>, <a href="../language.html#for">for</a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>(병렬)</p>
+<p><a href="#fn-try_map"><code>try_map</code></a>, <a href="#fn-filter"><code>filter</code></a>, <a href="#fn-each"><code>each</code></a>, <a href="../language/for.html">for</a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>(병렬)</p>
 </section>
 <section class="entry" id="fn-try_map">
 <h3>try_map</h3>
@@ -377,7 +393,7 @@ print(pairs(ports) |&gt; map(((k, v)) =&gt; &quot;${k}=${v}&quot;))</code></pre>
 <p><code>f</code>는 원소마다 <code>Ok(v)</code>나 <code>Err(e)</code>를 돌려주는 함수다(<code>parse_int</code> 같은). 모두 <code>Ok(v)</code>면 <code>Ok([v, …])</code>를 돌려준다. 처음 <code>Err</code>가 나오면 그 <code>Err</code>를 그대로 돌려주고 남은 원소에는 <code>f</code>를 부르지 않는다. 그래서 "하나라도 틀리면 전체가 실패"인 변환에 쓴다. 결과는 보통 <code>!</code>나 <code>?</code>로 푼다.</p>
 <p>이미 결과값의 리스트를 가지고 있으면 <code>try_map(rs, r =&gt; r)</code>로 하나로 모은다. 실패한 것만 건너뛰고 싶으면 <code>try_map</code> 대신 <code>map</code>과 <a href="results.html#fn-is_ok"><code>filter(is_ok)</code></a>를 쓴다.</p>
 <div class="box mistake"><b>파이프 끝의 ? 와 ! 는 괄호로 감싼다</b>
-<p>후위 <code>?</code>·<code>!</code>는 <code>|&gt;</code>보다 단단히 붙는다(<a href="../language.html#precedence">우선순위</a>). 그래서 <code>xs |&gt; try_map(f)?</code>는 <code>xs |&gt; (try_map(f)?)</code>로 읽혀 <code>try_map</code>이 인자 하나로 불린다(E0407 <code>missing argument</code>). 파이프 전체를 괄호로 감싸 <code>(xs |&gt; try_map(f))?</code>로 쓰거나, 파이프 없이 <code>try_map(xs, f)?</code>로 쓴다.</p>
+<p>후위 <code>?</code>·<code>!</code>는 <code>|&gt;</code>보다 단단히 붙는다(<a href="../language/operators.html#precedence">우선순위</a>). 그래서 <code>xs |&gt; try_map(f)?</code>는 <code>xs |&gt; (try_map(f)?)</code>로 읽혀 <code>try_map</code>이 인자 하나로 불린다(E0407 <code>missing argument</code>). 파이프 전체를 괄호로 감싸 <code>(xs |&gt; try_map(f))?</code>로 쓰거나, 파이프 없이 <code>try_map(xs, f)?</code>로 쓴다.</p>
 </div>
 <h4>매개변수</h4>
 <ul>
@@ -406,7 +422,7 @@ Err({kind: 'parse, message: &quot;not an integer: http&quot;})</code></pre></div
 <div class="run"><pre><code>rs = [Ok(1), Ok(2), Ok(3)]
 print(try_map(rs, r =&gt; r))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-map"><code>map</code></a>, <a href="../language.html#results">결과값과 에러</a>, <a href="../errors.html#E0226">E0226</a></p>
+<p><a href="#fn-map"><code>map</code></a>, <a href="../language/results.html">결과값과 에러</a>, <a href="../errors.html#E0226">E0226</a></p>
 </section>
 <section class="entry" id="fn-filter">
 <h3>filter</h3>
@@ -488,7 +504,7 @@ print(fold(durations, 0s, (acc, d) =&gt; acc + d))</code></pre><pre class="out p
 <div class="run"><pre><code>evens = fold(1..=6, [], (acc, x) =&gt; x % 2 == 0 then acc + [x * x] else acc)
 print(evens)</code></pre><pre class="out plain"><code>[4, 16, 36]</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-sum"><code>sum</code></a>, <a href="#fn-map"><code>map</code></a>, <a href="#fn-group_by"><code>group_by</code></a>, <a href="loops.html#fn-until"><code>until</code></a>, <a href="../language.html#for">for</a></p>
+<p><a href="#fn-sum"><code>sum</code></a>, <a href="#fn-map"><code>map</code></a>, <a href="#fn-group_by"><code>group_by</code></a>, <a href="loops.html#fn-until"><code>until</code></a>, <a href="../language/for.html">for</a></p>
 </section>
 <section class="entry" id="fn-each">
 <h3>each</h3>
@@ -496,7 +512,7 @@ print(evens)</code></pre><pre class="out plain"><code>[4, 16, 36]</code></pre></
 <div class="sig"><code>each(xs, f)</code></div>
 <h4>설명</h4>
 <p><code>map</code>과 같은 순서로 <code>f</code>를 부르지만 결과를 모으지 않고 <code>nil</code>을 돌려준다. <code>for</code> 문장도 같은 일을 하지만 <code>for</code>는 식이라 결과 리스트를 만든다. 값을 모을 필요가 없는 일(찍기, 채널에 보내기, 파일에 쓰기)에 <code>each</code>를 쓴다.</p>
-<p><code>f</code>의 결과를 버리므로, <code>f</code>가 <code>Err</code>를 돌려주면 그 자리에서 E0606(버려지는 <code>Err</code>)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버린다: <code>fn(x): _ = 식 ;;</code>(람다 <code>x =&gt; …</code>의 몸에는 대입을 쓸 수 없다)(<a href="../language.html#results">버려지는 <code>Err</code></a>).</p>
+<p><code>f</code>의 결과를 버리므로, <code>f</code>가 <code>Err</code>를 돌려주면 그 자리에서 E0606(버려지는 <code>Err</code>)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버린다: <code>fn(x): _ = 식 ;;</code>(람다 <code>x =&gt; …</code>의 몸에는 대입을 쓸 수 없다)(<a href="../language/results.html">버려지는 <code>Err</code></a>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -527,7 +543,7 @@ print(map(rx, x =&gt; x))</code></pre><pre class="out plain"><code>[100, 200, 30
    example.fung:1 &lt;entry&gt;
  help: handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-map"><code>map</code></a>, <a href="../language.html#for">for</a>, <a href="../errors.html#E0606">E0606</a></p>
+<p><a href="#fn-map"><code>map</code></a>, <a href="../language/for.html">for</a>, <a href="../errors.html#E0606">E0606</a></p>
 </section>
 <section class="entry" id="fn-find">
 <h3>find</h3>
@@ -618,7 +634,7 @@ print(checks |&gt; filter(c =&gt; not c.ok) |&gt; map(c =&gt; c.name))</code></p
 <p>작은 것부터 정렬한 새 리스트를 돌려준다.</p>
 <div class="sig"><code>sort(xs)</code></div>
 <h4>설명</h4>
-<p>순서는 <a href="../language.html#values">비교와 동일성</a> 표의 <code>&lt;</code>를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(<code>&quot;B&quot; &lt; &quot;a&quot;</code>). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.</p>
+<p>순서는 <a href="../language/values.html">비교와 동일성</a> 표의 <code>&lt;</code>를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(<code>&quot;B&quot; &lt; &quot;a&quot;</code>). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.</p>
 <p><strong>안정 정렬</strong>(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, <code>bool</code>, 심볼, 태그처럼 <code>&lt;</code>가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이 섞이면 처음 실패한 비교에서 에러가 난다. 큰 것부터는 <code>sort(xs) |&gt; reverse</code>, 다른 기준은 <a href="#fn-sort_by"><code>sort_by</code></a>.</p>
 <h4>매개변수</h4>
 <ul>
@@ -834,7 +850,7 @@ db-1   10.0.0.9</code></pre></div>
 2. test
 3. deploy</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-range"><code>range</code></a>, <a href="../language.html#values">튜플</a>, <a href="../language.html#for">for</a></p>
+<p><a href="#fn-range"><code>range</code></a>, <a href="../language/values.html">튜플</a>, <a href="../language/for.html">for</a></p>
 </section>
 <h2 id="numbers">수 모으기</h2>
 <section class="entry" id="fn-sum">

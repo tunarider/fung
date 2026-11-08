@@ -1,5 +1,4 @@
-use fung_front::consts::{format_dur, format_float, quote_bytes};
-use fung_front::unicode::{is_name_continue, is_name_start};
+use fung_front::consts::{format_dur, format_float, is_plain_key, quote_bytes};
 
 use super::Value;
 
@@ -185,16 +184,6 @@ fn leaf_text(v: &Value) -> String {
             unreachable!("collections are written by `write`")
         }
     }
-}
-
-/// Whether a map key can be written without quotes: it reads as a name
-/// or a tag (01).
-fn is_plain_key(k: &str) -> bool {
-    let mut cs = k.chars();
-    let Some(first) = cs.next() else {
-        return false;
-    };
-    (first == '_' || is_name_start(first)) && cs.all(is_name_continue)
 }
 
 /// What `print` and `${}` use, at the end of `out`: strings bare (their

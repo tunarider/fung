@@ -89,8 +89,14 @@ ok = fs.exists(p)
   첫 글자가 **유니코드 대문자**(일반 범주 Lu)면 태그 (02. 값과 타입), 그 밖은 이름.
 - 유니코드 글자를 허용한다. `파일목록 = fs.list(".")`, `हिंदी = 1`(모음 기호 같은 결합 문자가 이어짐). 한글은 대소문자가 없으므로 항상 이름이다.
 - 판정 표는 `spec/unicode.txt`(Unicode 17.0.0)다. 유니코드 문자 데이터베이스의 `UnicodeData.txt`·`DerivedCoreProperties.txt`가 있는 디렉터리를 주고
-  `FUNG_UPDATE_SPEC=1 FUNG_UCD=<디렉터리> cargo test -p fung-front unicode_spec_file`로 다시 만든다(정규화 데이터 `spec/unicode_nfc.txt`도 같은 명령, `CompositionExclusions.txt`·`EastAsianWidth.txt`가 더 필요). 같은 표의 "보이는 글자"(L·M·N·P·S와 U+0020)가
-  문자열을 보일 때 이스케이프하지 않는 글자이고, 표시 너비(`wide`: East Asian Width W·F는 2칸, `zero`: Mn·Me·Cf(U+00AD 빼고), 한글 중성·종성 자모 U+1160~U+11FF·U+D7B0~U+D7FF, 이모지 피부색 수식 U+1F3FB~U+1F3FF는 0칸)는 포매터의 정렬이 쓴다(08).
+  `FUNG_UPDATE_SPEC=1 FUNG_UCD=<디렉터리> cargo test -p fung-front unicode_spec_file`로 다시 만든다(정규화 데이터 `spec/unicode_nfc.txt`도 같은 명령, `CompositionExclusions.txt`·`EastAsianWidth.txt`, 글자 묶음 표에는 `GraphemeBreakProperty.txt`·`emoji-data.txt`, 시험에는 `GraphemeBreakTest.txt`가 더 필요; 모두 한 디렉터리에). 같은 표의 "보이는 글자"(L·M·N·P·S와 U+0020)가
+  문자열을 보일 때 이스케이프하지 않는 글자다.
+- **화면의 칸**(L17, 2026-11-08): fung이 칸을 세는 곳(포매터의 정렬, 진단의 밑줄, REPL의 커서)은 모두 **글자 묶음**(grapheme cluster, UAX #29의 확장 묶음) 단위로,
+  같은 함수 하나(`fung_front::unicode::cluster_width`)로 센다. 묶음 하나의 너비: VS16(U+FE0F)이 있거나 첫 글자가 `Emoji_Presentation`이거나 국기(지역 표시 글자 쌍)면 2칸,
+  VS15(U+FE0E)가 있으면 1칸, 그 밖에는 첫 글자의 UAX #11 너비(`wide`: East Asian Width W·F는 2칸; `zero`: Mn·Me·Cf(U+00AD 빼고), 한글 중성·종성 자모, 피부색 수식은 0칸, 그 밖은 1칸).
+  그래서 ZWJ로 이은 가족 이모지는 2칸, `❤️`는 2칸, `é`(분해형)는 1칸, 한글 자모 조합은 2칸이다. 잘못된 UTF-8 부분은 1칸.
+  묶음 단위로 그리는 요즘 터미널(iTerm2·WezTerm·kitty·Ghostty 등)과 맞고, 코드 포인트 단위(`wcwidth`)로 그리는 터미널과는 이모지에서 다르다(그것은 한계로 둔다).
+  `len`·`s[i]`·`chars`는 묶음이 아니라 글자(코드 포인트, L4의 규칙)다: 표시와 별개의 언어 규칙이다.
 - 렉서는 첫 글자만 본다. `myVar` 같은 camelCase는 문법 에러가 아니고 포맷터·경고 몫이다.
 
 ### 숫자

@@ -68,7 +68,7 @@ print(check_port(70000))
 
 #### 같이 보기
 
-[`exit`](#fn-exit), [`eprint`](io.html#fn-eprint), [결과값과 에러](../language.html#results), [E0803](../errors.html#E0803)
+[`exit`](#fn-exit), [`eprint`](io.html#fn-eprint), [결과값과 에러](../language/results.html), [E0803](../errors.html#E0803)
 
 :::
 

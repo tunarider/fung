@@ -70,6 +70,18 @@ pub struct Wake {
     pub timed: bool,
 }
 
+impl Wake {
+    /// A park that is over at once: the task only gives its turn and is
+    /// queued again behind the ready ones (a long native between pieces,
+    /// `pieces.rs`).
+    pub fn soon() -> Wake {
+        Wake {
+            until: Some(Instant::now()),
+            timed: true,
+        }
+    }
+}
+
 /// The state of a step native between the calls it makes.
 pub trait Cont {
     /// The call the native asked for returned `v`, or, after a park, the

@@ -248,6 +248,12 @@ pub(crate) enum IoStep {
     /// Wait until the descriptor is ready for the interest (or the
     /// deadline passes).
     Wait(std::os::fd::RawFd, super::poller::Interest, Option<Instant>),
+    /// Wait until any of the descriptors is ready for its interest, or
+    /// the time passes (connects raced to several addresses, L12).
+    WaitAny(
+        Vec<(std::os::fd::RawFd, super::poller::Interest)>,
+        Option<Instant>,
+    ),
     /// Wait for a wake only: the waiter is registered elsewhere (a
     /// connection's turn, `net.rs`).
     Park,
@@ -439,6 +445,12 @@ impl IoWait {
                 self.register(t, fd, interest)?;
                 Ok(Look::Park(super::Wake { until, timed: true }))
             }
+            IoStep::WaitAny(fds, until) => {
+                for (fd, interest) in fds {
+                    self.register(t, fd, interest)?;
+                }
+                Ok(Look::Park(super::Wake { until, timed: true }))
+            }
             IoStep::Until(at) => Ok(Look::Park(super::Wake {
                 until: Some(at),
                 timed: true,
@@ -560,6 +572,26 @@ impl Task<'_> {
             return Err(self.unwound());
         }
         Ok(())
+    }
+
+    /// A long native finished a piece of about a turn's work
+    /// (`pieces.rs`): its deadline is looked at as at a turn's end, and it
+    /// should give its turn now, unless it runs in a swap's function,
+    /// which cannot park (then the events other threads posted are made
+    /// here, as `end_turn` does there).
+    pub(crate) fn piece_done(&mut self) -> bool {
+        self.budget = YIELD_EVERY;
+        if let Some(at) = self.cancel.deadline_at() {
+            let now = Instant::now();
+            if now >= at {
+                self.cancel.expire_due(now);
+            }
+        }
+        if self.pure > 0 {
+            super::stop::apply_in_swap(&mut self.world, self.shared);
+            return false;
+        }
+        true
     }
 
     /// The check at every call and backward jump: unwinds a cancelled

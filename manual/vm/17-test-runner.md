@@ -244,4 +244,4 @@ ok   fixed.fung: trims
 - 실행기는 파일마다 새 런타임에서 최상위를 먼저 돌리고, 블록을 차례로 각자의 실행으로 돌린다. 테스트가 없는 파일은 실행하지 않는다.
 - `exit`나 교착 뒤에는 그 파일의 나머지를 건너뛰되 그것을 실패로 센다. 조용히 끝나는 테스트 실행은 없다.
 
-레퍼런스: [테스트와 디버깅](../reference/language.html#testing), [명령줄 도구](../reference/cli.html#test). 배우기: [14장 테스트](../learn/14-testing.html). 이것으로 책을 마친다. 전체를 한눈에 보는 요약은 부록 [내부 구조](internals.html)에 있다.
+레퍼런스: [테스트와 디버깅](../reference/language/testing.html), [명령줄 도구](../reference/cli.html#test). 배우기: [14장 테스트](../learn/14-testing.html). 이것으로 책을 마친다. 전체를 한눈에 보는 요약은 부록 [내부 구조](internals.html)에 있다.

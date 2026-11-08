@@ -1,0 +1,17 @@
+# HTTP heads read by fung (L13 H12): two requests with a full head (500
+# values, about 1 MB) for the server, and two answers of 20,000 header lines
+# for the client.
+import http
+
+big = repeat("x", 2000)
+full = fold(0..500, {}, (m, i) => put(m, "x-h${i}", big))
+many = fold(0..20000, {}, (m, i) => put(m, "x-r${i}", "v"))
+fn answer(req) = req.path == "/many" then {headers: many} else "ok"
+(port_tx, port) = channel(1)
+supervise(fn(sc):
+  s = spawn(sc, () => http.serve("127.0.0.1:0", answer, ready: a => send(port_tx, a)))
+  addr = recv(port)!
+  each(0..2, _ => http.get("http://${addr}/", headers: full)!)
+  each(0..2, _ => http.get("http://${addr}/many")!)
+  cancel(s)
+;;, e => nil)

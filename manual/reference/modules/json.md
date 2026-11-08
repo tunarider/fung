@@ -27,7 +27,7 @@ JSON 텍스트는 그냥 문자열이다. 문자열인 채로는 `"port"` 값을
   </tbody>
 </table>
 
-외부에서 오는 JSON은 깨져 있을 수 있으므로 `json.parse`는 결과값(`Ok`/`Err`)을 돌려준다. 반대로 `json.stringify`가 실패하는 것은 JSON에 없는 값(함수, 기간 등)을 넘긴 프로그램의 잘못이라 런타임 에러로 멈춘다([에러 규칙](../language.html#results)).
+외부에서 오는 JSON은 깨져 있을 수 있으므로 `json.parse`는 결과값(`Ok`/`Err`)을 돌려준다. 반대로 `json.stringify`가 실패하는 것은 JSON에 없는 값(함수, 기간 등)을 넘긴 프로그램의 잘못이라 런타임 에러로 멈춘다([에러 규칙](../language/results.html)).
 
 :::fn json.parse(s)
 

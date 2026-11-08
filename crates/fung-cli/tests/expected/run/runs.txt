@@ -1809,6 +1809,19 @@
 | a/c a .
 -- stderr
 -- exit: 0
+==== tests/lang/pieces.fung
+-- stdout
+| 100000 true true
+| 1000 [0, 919, 838]
+| 300000 2 4
+| 50001 150000 20000
+| a 20000 40001
+| 2000000 true
+| 588889
+| true true
+| 'Err 'Ok
+-- stderr
+-- exit: 0
 ==== tests/lang/pipe_tags.fung
 -- stdout
 | Ok(1) Pair(1, 2) Some("x")
@@ -2123,6 +2136,10 @@
 ==== bench/fs.fung
 -- stdout
 | 50000
+-- stderr
+-- exit: 0
+==== bench/heads.fung
+-- stdout
 -- stderr
 -- exit: 0
 ==== bench/list.fung

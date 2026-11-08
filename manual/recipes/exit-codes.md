@@ -108,4 +108,4 @@ fung 자신의 종료 코드는 0(정상), 1(실행 중 실패), 2(문법 같은
 - **사용법 오류는 2**: 일반 명령줄 도구에서는 잘못 쓴 인자에 2를 쓰는 관례가 있다. [명령줄 옵션과 도움말](cli-options.html).
 - **실패한 서버만**: 여러 대를 점검해 하나라도 실패하면 1로 끝내는 모양은 [실패·무응답 서버만 알리기](unreachable-servers.html).
 
-배우기: [9장 에러](../learn/09-errors.html), [11장 파일과 외부 명령](../learn/11-files-and-commands.html). 레퍼런스: [`exit`](../reference/prelude/program.html#fn-exit), [`eprint`](../reference/prelude/io.html#fn-eprint), [`exec`](../reference/prelude/process.html#fn-exec), [`fs.read_lines`](../reference/modules/fs.html#fn-fs-read_lines), [에러와 종료 코드](../reference/cli.html#errors), [결과값과 에러](../reference/language.html#results).
+배우기: [9장 에러](../learn/09-errors.html), [11장 파일과 외부 명령](../learn/11-files-and-commands.html). 레퍼런스: [`exit`](../reference/prelude/program.html#fn-exit), [`eprint`](../reference/prelude/io.html#fn-eprint), [`exec`](../reference/prelude/process.html#fn-exec), [`fs.read_lines`](../reference/modules/fs.html#fn-fs-read_lines), [에러와 종료 코드](../reference/cli.html#errors), [결과값과 에러](../reference/language/results.html).

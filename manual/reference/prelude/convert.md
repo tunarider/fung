@@ -6,7 +6,7 @@ description: fung prelude 타입과 변환: type_of, int, float, str, sym, parse
 
 ## 타입과 변환이란 {#types}
 
-모든 값에는 **타입**(type)이 있다. `42`는 정수(`int`), `"42"`는 문자열(`str`), `'ok`는 심볼(`sym`)이다. 타입은 그 값으로 무엇을 할 수 있는지 정한다. 정수끼리는 더할 수 있지만 문자열 `"42"`에 1을 더할 수는 없다(`"42" + 1`은 런타임 에러다). fung은 타입을 몰래 바꿔 주지 않는다. 바꾸려면 변환 함수를 직접 부른다. 타입 목록과 각 타입의 연산은 [값과 타입](../language.html#values)에 있다.
+모든 값에는 **타입**(type)이 있다. `42`는 정수(`int`), `"42"`는 문자열(`str`), `'ok`는 심볼(`sym`)이다. 타입은 그 값으로 무엇을 할 수 있는지 정한다. 정수끼리는 더할 수 있지만 문자열 `"42"`에 1을 더할 수는 없다(`"42" + 1`은 런타임 에러다). fung은 타입을 몰래 바꿔 주지 않는다. 바꾸려면 변환 함수를 직접 부른다. 타입 목록과 각 타입의 연산은 [값과 타입](../language/values.html)에 있다.
 
 변환이 필요한 가장 흔한 경우는 **바깥에서 온 글자**다. 명령줄 인자, 환경 변수, 파일 내용, 외부 명령의 출력은 모두 문자열로 들어온다. 포트 번호 `"8080"`을 수로 쓰려면 정수로 바꿔야 한다.
 
@@ -23,7 +23,7 @@ description: fung prelude 타입과 변환: type_of, int, float, str, sym, parse
 
 #### 설명
 
-돌려주는 심볼은 [값과 타입](../language.html#values) 표의 이름이다: `'int` `'float` `'str` `'bool` `'nil` `'sym` `'dur` `'time` `'list` `'map` `'tuple` `'range` `'fn` `'module` `'file` `'task` `'scope` `'sender` `'receiver` `'atom`. 내장 함수와 람다는 모두 `'fn`이다.
+돌려주는 심볼은 [값과 타입](../language/values.html) 표의 이름이다: `'int` `'float` `'str` `'bool` `'nil` `'sym` `'dur` `'time` `'list` `'map` `'tuple` `'range` `'fn` `'module` `'file` `'task` `'scope` `'sender` `'receiver` `'atom`. 내장 함수와 람다는 모두 `'fn`이다.
 
 태그 값(`Ok(1)`, `Circle(3)`)은 태그 이름 자체가 타입이라 `'Ok`, `'Circle`을 돌려준다. 그래서 결과값인지 가리는 [`is_ok`](results.html#fn-is_ok)는 `type_of(x) == 'Ok`로 쓰여 있다.
 
@@ -71,7 +71,7 @@ print(port_of(1.5))
 
 #### 같이 보기
 
-[값과 타입](../language.html#values), [`is_ok`](results.html#fn-is_ok), [match와 패턴](../language.html#match)
+[값과 타입](../language/values.html), [`is_ok`](results.html#fn-is_ok), [match와 패턴](../language/match.html)
 
 :::
 
@@ -271,7 +271,7 @@ print(sym("not-found"))
 
 #### 같이 보기
 
-[비교와 동일성](../language.html#values), [E0517](../errors.html#E0517), [`str`](#fn-str)
+[비교와 동일성](../language/values.html), [E0517](../errors.html#E0517), [`str`](#fn-str)
 
 :::
 
@@ -323,7 +323,7 @@ print(["1", "two", "3"] |> try_map(parse_int))
 
 #### 같이 보기
 
-[`int`](#fn-int), [`try_map`](collections.html#fn-try_map), [결과값과 에러](../language.html#results)
+[`int`](#fn-int), [`try_map`](collections.html#fn-try_map), [결과값과 에러](../language/results.html)
 
 :::
 
@@ -380,7 +380,7 @@ print(ratio("high"))
 
 #### 설명
 
-`--timeout 30s` 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 [기간 리터럴](../language.html#lexical)과 같다: 단위는 `h` `m` `s` `ms` 넷이고 큰 것부터 붙여 쓰며(`"1h30m"`), 앞에 `-`를 붙일 수 있고, 소수도 된다(`"1.5s"`는 `1s500ms`). 앞뒤 공백은 허용한다. 사이의 공백(`"1h 30m"`), 작은 단위를 먼저 쓴 것(`"1m1h"`), 모르는 단위(`"2d"`, `"2us"`)는 거부한다.
+`--timeout 30s` 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 [기간 리터럴](../language/lexical.html)과 같다: 단위는 `h` `m` `s` `ms` 넷이고 큰 것부터 붙여 쓰며(`"1h30m"`), 앞에 `-`를 붙일 수 있고, 소수도 된다(`"1.5s"`는 `1s500ms`). 앞뒤 공백은 허용한다. 사이의 공백(`"1h 30m"`), 작은 단위를 먼저 쓴 것(`"1m1h"`), 모르는 단위(`"2d"`, `"2us"`)는 거부한다.
 
 얻은 기간은 [`sleep`](concurrency.html#fn-sleep), [`timeout`](concurrency.html#fn-timeout), 시각 계산에 그대로 쓴다. 기간끼리는 비교할 수 있다.
 
@@ -415,6 +415,6 @@ print(limit > 30m then "too long, using 30m" else "using ${limit}")
 
 #### 같이 보기
 
-[값과 타입](../language.html#values), [`timeout`](concurrency.html#fn-timeout), [`sleep`](concurrency.html#fn-sleep), [`cli` 모듈](../modules/cli.html)
+[값과 타입](../language/values.html), [`timeout`](concurrency.html#fn-timeout), [`sleep`](concurrency.html#fn-sleep), [`cli` 모듈](../modules/cli.html)
 
 :::

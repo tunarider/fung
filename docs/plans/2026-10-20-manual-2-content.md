@@ -46,7 +46,8 @@
 ## 4. 각 부분의 모양
 
 ### 배우기 장 (`learn/*.md`)
-- 순서: `:::goals` → 본문(일반 개념 → fung 문법 → 실행 예제와 출력) → `:::box learn …`(일반 개념, 이미 아는 사람은 건너뜀) → `:::box mistake …`(에러 번호와 이유) → `:::box other …`(필요할 때만) → `:::exercise …`(1~2개, `:::solution` 안에 실행되는 풀이) → `## 정리 {#summary}` → 마지막 문단에 레퍼런스·VM 링크.
+- 순서: `:::goals` → 본문(일반 개념 → fung 문법 → 실행 예제와 출력) → `## 짚고 넘어가기 {#notes}`(상자를 본문 사이에 흩지 않고 여기에 모은다: `:::box learn …` 일반 개념, `:::box mistake …` 에러 번호와 이유, `:::box tip …`, `:::box other …` 필요할 때만) → `## 해 보기 {#exercises}`(`:::exercise 제목` 2~4개, 문제 한 문단, `:::solution` 안에 풀이 설명 한두 문장과 실행되는 `fung run`; 준비물은 `file` 펜스, 서버·동시성은 같은 프로그램 안에서 상태로 순서를 정해 두 번 돌려도 같은 출력) → `## 정리 {#summary}` → 마지막 문단에 레퍼런스·VM 링크. 14장 모두 이 끝을 지킨다(L18).
+- 앞 장에서 배우지 않은 문법을 쓰지 않는다. 쓸 수밖에 없으면 그 자리에서 한 단락으로 소개하고 자세한 장을 가리킨다(4장의 람다).
 - 앞 장만 알면 읽힌다. 뒤 장 개념은 쓰지 않거나 "n장에서 다룬다"로 미룬다.
 - 분량: 장당 대략 2,500~5,000자 본문, 예제 6~15개. 장마다 실무 맛이 나는 예(로그, 파일, 서버 목록 등)를 섞는다(독자는 SRE/DevOps 일을 한다).
 - 1장은 "프로그래밍이 무엇인가, 왜 fung인가, 이 책을 읽는 법"(코드는 짧게), 2장은 설치·`fung` 실행·REPL·첫 스크립트·`fung check`·에러 메시지 읽는 법.
@@ -70,7 +71,7 @@
 - 장 맨 위(목표 앞)에 단계 띠: `<ol class="stages"><li>소스</li><li>토큰</li><li>트리</li><li>코어</li><li class="on">바이트코드</li><li>실행</li></ol>` (해당 단계에 `class="on"`, 단계와 무관한 장은 생략).
 - fung이 쓰지 않는 방식(가비지 컬렉터, 레지스터 머신, JIT, 1:1 스레드 등)도 비교로 짧게.
 - 한 장 20~30분 분량. 4부(런타임)는 두툼하게.
-- 원재료: `manual/vm/internals.md`(부록으로 남는다, 고치지 않는다), `docs/design/*`, `docs/notes/*`(특히 `R1-front-end`, `R2-vm`, `R7-scheduler`, `R7-language`, `M9-formatter`, `M10-persistent-collections`), 소스 `crates/`.
+- 원재료: `manual/vm/internals.md`(부록으로 남는다; 그 dump도 검사되는 `dump` 펜스다, L16), `docs/design/*`, `docs/notes/*`(특히 `R1-front-end`, `R2-vm`, `R7-scheduler`, `R7-language`, `M9-formatter`, `M10-persistent-collections`), 소스 `crates/`.
 
 ## 5. 작업 방법 (작성자 공통)
 

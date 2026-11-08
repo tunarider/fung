@@ -294,6 +294,6 @@ print(top)
 
 #### 같이 보기
 
-[`eprint`](#fn-eprint), [테스트와 디버깅](../language.html#testing)
+[`eprint`](#fn-eprint), [테스트와 디버깅](../language/testing.html)
 
 :::

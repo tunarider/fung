@@ -165,7 +165,7 @@ print(&quot;free:&quot;, free, &quot;GB&quot;)</code></pre><pre class="out plain
 <li>소문자나 <code>_</code>로 시작한다. 이어지는 글자는 글자, 숫자, <code>_</code>다. 한글 이름도 된다(<code>파일수 = 3</code>).</li>
 <li>단어는 <code>_</code>로 잇는 것이 관례다(snake_case): <code>disk_used_gb</code>.</li>
 <li><strong>대문자로 시작하는 이름은 변수가 될 수 없다.</strong> 대문자로 시작하는 것은 태그라는 다른 값이다(8장). <code>MAX_RETRIES = 3</code>은 E0225 에러다.</li>
-<li><code>if</code>, <code>for</code>, <code>fn</code> 같은 <strong>예약어(keyword)</strong>는 이름으로 쓸 수 없다. 목록은 <a href="../reference/language.html#lexical">레퍼런스</a>에 있다.</li>
+<li><code>if</code>, <code>for</code>, <code>fn</code> 같은 <strong>예약어(keyword)</strong>는 이름으로 쓸 수 없다. 목록은 <a href="../reference/language/lexical.html">레퍼런스</a>에 있다.</li>
 <li>이름은 <strong>쓰기 전에</strong> 대입해야 한다. 아래 줄에서 대입할 이름을 위에서 읽으면 E0204다.</li>
 </ul>
 <p>같은 이름에 다시 대입할 수도 있다. 그러면 그 이름은 새 값을 가리킨다.</p>
@@ -262,7 +262,7 @@ print(a, b)</code></pre><pre class="out plain"><code>[1, 2, 9] [1, 2, 3]</code><
 <li>값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.</li>
 <li>블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/language.html#values">값과 타입</a>, <a href="../reference/language.html#operators">연산자</a>, <a href="../reference/language.html#scope">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0517">E0517</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/operators.html">연산자</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/prelude/convert.html">변환 함수</a>, <a href="../reference/errors.html#E0205">E0205</a>, <a href="../reference/errors.html#E0517">E0517</a>. 값이 메모리에서 어떻게 사는지는 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/02-first-program.html"><small>이전 장</small>2. 설치와 첫 프로그램</a><a class="next" href="../learn/04-conditions-and-loops.html"><small>다음 장</small>4. 조건과 반복</a></nav>
 </div></main>
 </div>

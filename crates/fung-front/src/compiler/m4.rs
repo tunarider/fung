@@ -18,14 +18,16 @@ impl Compiler<'_> {
     /// Compiles list/map/tuple/tag/range/index/slice/field forms.
     pub(super) fn collection(&mut self, n: &Node) -> Result<(), Diag> {
         let pos = n.pos;
+        // A list, map, tuple or tag value of constants is one constant
+        // (P7, L5): values are immutable, so every evaluation can share it.
+        if matches!(n.head, Head::List | Head::Map | Head::Tuple | Head::Tag)
+            && let Some(c) = constant(n)
+        {
+            self.emit_const(c, pos);
+            return Ok(());
+        }
         match n.head {
             Head::List => {
-                // A list of constants is one constant (P7): values are
-                // immutable, so every evaluation can share it.
-                if let Some(c) = constant_list(n) {
-                    self.emit_const(c, pos);
-                    return Ok(());
-                }
                 self.kids(n)?;
                 self.proto.emit(Op::List, n.kids.len(), pos);
             }
@@ -171,24 +173,30 @@ impl Compiler<'_> {
 /// The constant a non-empty list literal of constants stands for (P7).
 /// An empty list is left to LIST: the runtime reads an empty list
 /// constant as the prelude's `args` (`fung_vm::vm::link`).
-fn constant_list(n: &Node) -> Option<Const> {
-    if n.head != Head::List || n.kids.is_empty() {
-        return None;
-    }
-    let mut items = Vec::with_capacity(n.kids.len());
-    for k in &n.kids {
-        items.push(match (k.head, &k.lit) {
-            (Head::Int, Lit::Int(i)) => Const::Int(*i),
-            (Head::Float, Lit::Float(f)) => Const::Float(*f),
-            (Head::Bool, Lit::Bool(b)) => Const::Bool(*b),
-            (Head::Nil, _) => Const::Nil,
-            (Head::String, Lit::Str(s)) => Const::Str(s.clone()),
-            (Head::String, Lit::Bytes(b)) => Const::Bytes(b.clone()),
-            (Head::Symbol, Lit::Str(s)) => Const::Sym(s.clone()),
-            (Head::Duration, Lit::Dur(d)) => Const::Dur(*d),
-            (Head::List, _) => constant_list(k)?,
-            _ => return None,
-        });
-    }
-    Some(Const::List(items))
+/// The value of a literal whose parts are all constants (L5): a scalar,
+/// or a list, map, tuple or tag value of such literals, folded into one
+/// constant so the VM loads it instead of building it each time.
+/// `None` for anything else (names, calls, spreads, interpolation).
+fn constant(n: &Node) -> Option<Const> {
+    let all = |kids: &[Node]| kids.iter().map(constant).collect::<Option<Vec<_>>>();
+    Some(match (n.head, &n.lit) {
+        (Head::Int, Lit::Int(i)) => Const::Int(*i),
+        (Head::Float, Lit::Float(f)) => Const::Float(*f),
+        (Head::Bool, Lit::Bool(b)) => Const::Bool(*b),
+        (Head::Nil, _) => Const::Nil,
+        (Head::String, Lit::Str(s)) => Const::Str(s.clone()),
+        (Head::String, Lit::Bytes(b)) => Const::Bytes(b.clone()),
+        (Head::Symbol, Lit::Str(s)) => Const::Sym(s.clone()),
+        (Head::Duration, Lit::Dur(d)) => Const::Dur(*d),
+        (Head::List, _) => Const::List(all(&n.kids)?),
+        (Head::Tuple, _) => Const::Tuple(all(&n.kids)?),
+        (Head::Tag, Lit::Str(name)) => Const::Tag(name.clone(), all(&n.kids)?),
+        (Head::Map, _) => Const::Map(
+            n.kids
+                .iter()
+                .map(|e| Some((str_const(e), constant(&e.kids[0])?)))
+                .collect::<Option<_>>()?,
+        ),
+        _ => return None,
+    })
 }

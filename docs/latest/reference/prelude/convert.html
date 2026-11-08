@@ -32,6 +32,22 @@
 <ol class="chapters">
 <li><a href="../../reference/language.html">문법</a></li>
 <li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html">연산자</a></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html">함수</a></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
 <li class="sub">prelude</li>
 <li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
 <li><a href="../../reference/prelude/convert.html" aria-current="page">타입과 변환</a><ol class="toc2"><li><a href="#types">타입과 변환이란</a></li><li><a href="#functions">함수</a></li></ol></li>
@@ -65,7 +81,7 @@
 <h1>타입과 변환</h1>
 <p class="lede">값의 타입을 알아보고, 한 타입의 값을 다른 타입으로 바꾼다. <code>int</code>·<code>float</code>·<code>str</code>·<code>sym</code>은 잘못된 입력에 런타임 에러를 낸다(코드가 틀린 것으로 본다). 믿을 수 없는 입력은 <code>parse_*</code>로 검사한다.</p>
 <h2 id="types">타입과 변환이란</h2>
-<p>모든 값에는 <strong>타입</strong>(type)이 있다. <code>42</code>는 정수(<code>int</code>), <code>&quot;42&quot;</code>는 문자열(<code>str</code>), <code>'ok</code>는 심볼(<code>sym</code>)이다. 타입은 그 값으로 무엇을 할 수 있는지 정한다. 정수끼리는 더할 수 있지만 문자열 <code>&quot;42&quot;</code>에 1을 더할 수는 없다(<code>&quot;42&quot; + 1</code>은 런타임 에러다). fung은 타입을 몰래 바꿔 주지 않는다. 바꾸려면 변환 함수를 직접 부른다. 타입 목록과 각 타입의 연산은 <a href="../language.html#values">값과 타입</a>에 있다.</p>
+<p>모든 값에는 <strong>타입</strong>(type)이 있다. <code>42</code>는 정수(<code>int</code>), <code>&quot;42&quot;</code>는 문자열(<code>str</code>), <code>'ok</code>는 심볼(<code>sym</code>)이다. 타입은 그 값으로 무엇을 할 수 있는지 정한다. 정수끼리는 더할 수 있지만 문자열 <code>&quot;42&quot;</code>에 1을 더할 수는 없다(<code>&quot;42&quot; + 1</code>은 런타임 에러다). fung은 타입을 몰래 바꿔 주지 않는다. 바꾸려면 변환 함수를 직접 부른다. 타입 목록과 각 타입의 연산은 <a href="../language/values.html">값과 타입</a>에 있다.</p>
 <p>변환이 필요한 가장 흔한 경우는 <strong>바깥에서 온 글자</strong>다. 명령줄 인자, 환경 변수, 파일 내용, 외부 명령의 출력은 모두 문자열로 들어온다. 포트 번호 <code>&quot;8080&quot;</code>을 수로 쓰려면 정수로 바꿔야 한다.</p>
 <p>변환 함수는 두 무리로 나뉜다. 둘 중 무엇을 쓸지는 "실패하면 누구 잘못인가"로 정한다.</p>
 <ul>
@@ -78,7 +94,7 @@
 <p>값의 타입 이름을 심볼로 돌려준다.</p>
 <div class="sig"><code>type_of(x)</code></div>
 <h4>설명</h4>
-<p>돌려주는 심볼은 <a href="../language.html#values">값과 타입</a> 표의 이름이다: <code>'int</code> <code>'float</code> <code>'str</code> <code>'bool</code> <code>'nil</code> <code>'sym</code> <code>'dur</code> <code>'time</code> <code>'list</code> <code>'map</code> <code>'tuple</code> <code>'range</code> <code>'fn</code> <code>'module</code> <code>'file</code> <code>'task</code> <code>'scope</code> <code>'sender</code> <code>'receiver</code> <code>'atom</code>. 내장 함수와 람다는 모두 <code>'fn</code>이다.</p>
+<p>돌려주는 심볼은 <a href="../language/values.html">값과 타입</a> 표의 이름이다: <code>'int</code> <code>'float</code> <code>'str</code> <code>'bool</code> <code>'nil</code> <code>'sym</code> <code>'dur</code> <code>'time</code> <code>'list</code> <code>'map</code> <code>'tuple</code> <code>'range</code> <code>'fn</code> <code>'module</code> <code>'file</code> <code>'task</code> <code>'scope</code> <code>'sender</code> <code>'receiver</code> <code>'atom</code>. 내장 함수와 람다는 모두 <code>'fn</code>이다.</p>
 <p>태그 값(<code>Ok(1)</code>, <code>Circle(3)</code>)은 태그 이름 자체가 타입이라 <code>'Ok</code>, <code>'Circle</code>을 돌려준다. 그래서 결과값인지 가리는 <a href="results.html#fn-is_ok"><code>is_ok</code></a>는 <code>type_of(x) == 'Ok</code>로 쓰여 있다.</p>
 <p>값의 모양에 따라 갈라지는 코드는 보통 <code>match</code>가 더 읽기 좋다. <code>type_of</code>는 에러 메시지에 타입을 보여 주거나, 여러 타입을 받는 함수의 입구에서 검사할 때 쓴다.</p>
 <h4>매개변수</h4>
@@ -115,7 +131,7 @@ error[E0803]: port must be int or str, got 'float
    example.fung:4 port_of
    example.fung:8 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="../language.html#values">값과 타입</a>, <a href="results.html#fn-is_ok"><code>is_ok</code></a>, <a href="../language.html#match">match와 패턴</a></p>
+<p><a href="../language/values.html">값과 타입</a>, <a href="results.html#fn-is_ok"><code>is_ok</code></a>, <a href="../language/match.html">match와 패턴</a></p>
 </section>
 <section class="entry" id="fn-int">
 <h3>int</h3>
@@ -258,7 +274,7 @@ print(handle(&quot;start&quot;), handle(&quot;stop&quot;))</code></pre><pre clas
  call path (innermost first):
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="../language.html#values">비교와 동일성</a>, <a href="../errors.html#E0517">E0517</a>, <a href="#fn-str"><code>str</code></a></p>
+<p><a href="../language/values.html">비교와 동일성</a>, <a href="../errors.html#E0517">E0517</a>, <a href="#fn-str"><code>str</code></a></p>
 </section>
 <section class="entry" id="fn-parse_int">
 <h3>parse_int</h3>
@@ -290,7 +306,7 @@ print(port)</code></pre><pre class="out plain"><code>8080</code></pre></div>
 print([&quot;1&quot;, &quot;two&quot;, &quot;3&quot;] |&gt; try_map(parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])
 Err({kind: 'parse, message: &quot;not an integer: two&quot;})</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-int"><code>int</code></a>, <a href="collections.html#fn-try_map"><code>try_map</code></a>, <a href="../language.html#results">결과값과 에러</a></p>
+<p><a href="#fn-int"><code>int</code></a>, <a href="collections.html#fn-try_map"><code>try_map</code></a>, <a href="../language/results.html">결과값과 에러</a></p>
 </section>
 <section class="entry" id="fn-parse_float">
 <h3>parse_float</h3>
@@ -328,7 +344,7 @@ skip: not a number: high</code></pre></div>
 <p>기간 리터럴 문법의 문자열(<code>&quot;1h30m&quot;</code>, <code>&quot;500ms&quot;</code>)을 <code>Ok(dur)</code> 또는 <code>Err({kind: 'parse, message})</code>로 읽는다.</p>
 <div class="sig"><code>parse_dur(s)</code></div>
 <h4>설명</h4>
-<p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language.html#lexical">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 <code>-</code>를 붙일 수 있고, 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). 앞뒤 공백은 허용한다. 사이의 공백(<code>&quot;1h 30m&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
+<p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language/lexical.html">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 <code>-</code>를 붙일 수 있고, 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). 앞뒤 공백은 허용한다. 사이의 공백(<code>&quot;1h 30m&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
 <p>얻은 기간은 <a href="concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, 시각 계산에 그대로 쓴다. 기간끼리는 비교할 수 있다.</p>
 <h4>매개변수</h4>
 <ul>
@@ -352,7 +368,7 @@ Err({kind: 'parse, message: &quot;not a duration: 1h 30m&quot;})</code></pre></d
 <div class="run"><pre><code>limit = parse_dur(args[0])!
 print(limit &gt; 30m then &quot;too long, using 30m&quot; else &quot;using ${limit}&quot;)</code></pre><pre class="out plain"><code>too long, using 30m</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="../language.html#values">값과 타입</a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, <a href="concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="../modules/cli.html"><code>cli</code> 모듈</a></p>
+<p><a href="../language/values.html">값과 타입</a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, <a href="concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="../modules/cli.html"><code>cli</code> 모듈</a></p>
 </section>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/io.html"><small>이전</small>출력과 입력</a><a class="next" href="../../reference/prelude/collections.html"><small>다음</small>컬렉션</a></nav>
 </div></main>

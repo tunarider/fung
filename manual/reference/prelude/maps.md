@@ -13,7 +13,7 @@ server = {host: "web-1", port: 22, tags: ["prod"]}
 print(server.host, server["port"], len(server))
 ```
 
-fung의 맵에는 규칙이 셋 있다([값과 타입](../language.html#values)).
+fung의 맵에는 규칙이 셋 있다([값과 타입](../language/values.html)).
 
 - **키는 언제나 문자열이다.** `{host: "a"}`는 `{"host": "a"}`의 축약이다. 수나 심볼은 키가 될 수 없으므로 `str`로 바꿔 쓴다. 값은 아무 타입이나 된다.
 - **넣은 순서를 지킨다.** 출력, `keys`, `pairs`, `for`가 모두 넣은 순서대로 나온다. `==`는 순서를 보지 않는다(키와 값이 같으면 같다).
@@ -74,7 +74,7 @@ print(cfg.port)
 
 #### 같이 보기
 
-[`contains`](collections.html#fn-contains), [`??`](../language.html#results), [인덱스·필드](../language.html#access)
+[`contains`](collections.html#fn-contains), [`??`](../language/results.html), [인덱스·필드](../language/access.html)
 
 :::
 
@@ -355,6 +355,6 @@ for k in {a: 1}:
 
 #### 같이 보기
 
-[`keys`](#fn-keys), [`values`](#fn-values), [`sort_by`](collections.html#fn-sort_by), [for](../language.html#for)
+[`keys`](#fn-keys), [`values`](#fn-values), [`sort_by`](collections.html#fn-sort_by), [for](../language/for.html)
 
 :::

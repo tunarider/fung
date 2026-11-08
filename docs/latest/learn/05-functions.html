@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>함수 · fung 매뉴얼</title>
-<meta name="description" content="함수를 정의하고 부르는 법, 짧은 형태 fn f(x) = …, 람다, 기본값·이름·나머지 인자, 값으로서의 함수, 만들어질 때 보이는 값을 복사하는 클로저, 파이프 |&gt;.">
+<meta name="description" content="함수를 정의하고 부르는 법, 짧은 형태 fn f(x) = …, 람다, 기본값·이름·나머지 인자, 값으로서의 함수, 만들어질 때 보이는 값을 복사하는 클로저, 파이프 |&gt;, 재귀와 꼬리 재귀.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
 <li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
 <li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
 <li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
-<li><a href="../learn/05-functions.html" aria-current="page">5. 함수</a><ol class="toc2"><li><a href="#what">함수란</a></li><li><a href="#define">함수 정의하기</a></li><li><a href="#arguments">인자</a></li><li><a href="#values">함수는 값이다</a></li><li><a href="#closures">클로저: 만들어질 때 보이는 값을 복사한다</a></li><li><a href="#pipe">파이프</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/05-functions.html" aria-current="page">5. 함수</a><ol class="toc2"><li><a href="#what">함수란</a></li><li><a href="#define">함수 정의하기</a></li><li><a href="#arguments">인자</a></li><li><a href="#values">함수는 값이다</a></li><li><a href="#closures">클로저: 만들어질 때 보이는 값을 복사한다</a></li><li><a href="#pipe">파이프</a></li><li><a href="#recursion">재귀: 자기를 부르는 함수</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
 <li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
 <li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
 <li><a href="../learn/08-patterns.html">8. 패턴과 match</a></li>
@@ -62,6 +62,7 @@
 <li>클로저: 함수는 만들어질 때 보이는 값을 복사한다</li>
 <li>최상위 함수가 볼 수 있는 이름</li>
 <li>파이프 <code>|&gt;</code>와 부분 적용 <code>_</code></li>
+<li>재귀와 꼬리 재귀: <code>while</code> 없이 "될 때까지" 되풀이하는 법</li>
 </ul>
 </div>
 <h2 id="what">함수란</h2>
@@ -208,7 +209,31 @@ print(5 |&gt; (n =&gt; scale(2, n)))</code></pre><pre class="out plain"><code>10
 <p>호출의 인자 자리에 <code>_</code>를 쓰면, 그 자리를 비워 둔 새 함수가 만들어진다. <code>scale(10, _)</code>는 <code>n =&gt; scale(10, n)</code>과 같다. <code>map</code>에 넘길 함수를 짧게 만들 때 쓴다.</p>
 <div class="run"><pre><code>fn scale(factor, n) = factor * n
 print([1, 2, 3] |&gt; map(scale(10, _)))</code></pre><pre class="out plain"><code>[10, 20, 30]</code></pre></div>
+<h2 id="recursion">재귀: 자기를 부르는 함수</h2>
+<p>4장에서 fung에는 <code>while</code>이 없고, 목록 없이 "될 때까지" 되풀이하는 반복은 <strong>재귀(recursion)</strong>, 곧 함수가 자기 자신을 부르는 것으로 쓴다고 했다. 이제 함수를 알았으니 그 모양을 보자. 아래는 8080번부터 시작해 이미 쓰는 포트를 건너뛰고 비어 있는 첫 포트를 찾는다. "쓰는 중이면 다음 번호로 같은 일을 다시 하고, 아니면 그 번호가 답"이다.</p>
+<div class="run"><pre><code>fn next_free(port, used) = port in used then next_free(port + 1, used) else port
+print(next_free(8080, [8080, 8081, 8083]))</code></pre><pre class="out plain"><code>8082</code></pre></div>
+<p><code>while</code>에서 바뀌던 변수(<code>port</code>)가 여기서는 <strong>다음 호출의 인자</strong>가 된다. 바뀌는 것이 없으니 3장의 규칙과 부딪히지 않는다.</p>
+<p>이렇게 함수가 하는 마지막 일이 자기 호출인 것을 <strong>꼬리 재귀(tail recursion)</strong>라고 한다. fung은 꼬리 호출을 할 때 새 자리를 쌓지 않고 지금 자리를 다시 쓰므로, 백만 번을 돌아도 문제가 없다. 결과를 모아 가려면 모은 값을 인자로 넘긴다. 아래는 1초에서 시작해 두 배씩 늘리는 재시도 간격을 30초까지 모은다.</p>
+<div class="run"><pre><code>fn backoff(delay, limit, acc) = delay &gt; limit then acc else backoff(delay * 2, limit, acc + [delay])
+print(backoff(1s, 30s, []))</code></pre><pre class="out plain"><code>[1s, 2s, 4s, 8s, 16s]</code></pre></div>
+<p>4장의 <code>until</code>·<code>iterate</code>도 이렇게 꼬리 재귀로 쓴 함수다.</p>
 <h2 id="notes">짚고 넘어가기</h2>
+<div class="box learn"><b>반복과 재귀</b>
+<p>재귀는 "문제를 한 걸음 줄인 같은 문제로 바꾸는 것"이다. 3부터 0까지 세는 일은 "3을 찍고, 2부터 0까지 세는 일"이다. 줄이다 보면 더 줄일 수 없는 경우(0)에 닿고, 거기서 멈춘다. 이 멈추는 경우를 빠뜨리면 끝나지 않는다. 재귀 함수를 쓸 때는 늘 "언제 멈추는가"부터 쓴다.</p>
+<div class="run"><pre><code>fn countdown(n):
+  if n == 0:
+    print(&quot;liftoff&quot;)
+  else:
+    print(n)
+    countdown(n - 1)
+  ;;
+;;
+countdown(3)</code></pre><pre class="out plain"><code>3
+2
+1
+liftoff</code></pre></div>
+</div>
 <div class="box learn"><b>매개변수와 인자, 정의와 호출</b>
 <p><strong>정의</strong>는 "이런 계산이 있다"고 적어 두는 것이고, <strong>호출</strong>은 그 계산을 실제로 하는 것이다. <code>fn percent(used, total) = …</code>의 <code>used</code>와 <code>total</code>이 매개변수(빈칸의 이름)이고, <code>percent(45, 50)</code>의 <code>45</code>와 <code>50</code>이 인자(빈칸에 넣은 값)다. 정의만 하고 부르지 않으면 아무 일도 일어나지 않는다.</p>
 </div>
@@ -255,8 +280,9 @@ print(usages |&gt; filter(over(95)))</code></pre><pre class="out plain"><code>[9
 <li>함수는 값이다. 람다 <code>x =&gt; …</code>로 그 자리에서 만들고, 인자로 넘기고, 돌려준다.</li>
 <li>함수는 만들어질 때 보이는 변수의 값을 복사한다. 최상위 <code>fn</code>은 상수만 읽을 수 있다.</li>
 <li><code>x |&gt; f(a)</code>는 <code>f(x, a)</code>. 대상이 첫 인자라는 규칙 덕분에 파이프가 이어진다. <code>f(a, _)</code>는 부분 적용.</li>
+<li>목록 없는 반복은 재귀로 쓴다. 마지막 일이 자기 호출인 꼬리 재귀는 몇 번을 돌아도 스택을 쓰지 않는다. 언제 멈추는지부터 쓴다.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/language.html#functions">함수</a>, <a href="../reference/language.html#scope">변수와 스코프</a>, <a href="../reference/language.html#pipe">파이프</a>, <a href="../reference/language.html#types">타입 표기</a>(인자와 반환값의 타입을 적어 검사하는 법), <a href="../reference/errors.html#E0204">E0204</a>, <a href="../reference/errors.html#E0227">E0227</a>. 클로저가 값을 복사하는 방법은 <a href="../vm/09-closures.html">함수와 클로저</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/language/functions.html">함수</a>, <a href="../reference/language/scope.html">변수와 스코프</a>, <a href="../reference/language/operators.html#pipe">파이프</a>, <a href="../reference/language/types.html">타입 표기</a>(인자와 반환값의 타입을 적어 검사하는 법), <a href="../reference/errors.html#E0204">E0204</a>, <a href="../reference/errors.html#E0227">E0227</a>. 클로저가 값을 복사하는 방법과 꼬리 호출이 프레임을 다시 쓰는 방법은 <a href="../vm/09-closures.html">함수와 클로저</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/04-conditions-and-loops.html"><small>이전 장</small>4. 조건과 반복</a><a class="next" href="../learn/06-strings.html"><small>다음 장</small>6. 문자열 다루기</a></nav>
 </div></main>
 </div>

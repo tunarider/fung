@@ -27,6 +27,11 @@ use std::time::Duration;
 /// The most threads the pool runs at once.
 pub(crate) const POOL_MAX: usize = 64;
 
+/// The most name lookups that run at once (their own pool, L12): a
+/// lookup cannot be cut short, so a silent resolver holds its thread until
+/// it answers; eight of them leave the file jobs their pool.
+pub(crate) const LOOKUPS_MAX: usize = 8;
+
 /// How long a thread with nothing to do lives.
 pub(crate) const POOL_IDLE: Duration = Duration::from_secs(10);
 

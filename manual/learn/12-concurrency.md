@@ -94,10 +94,6 @@ scope(fn(s):
 print("after scope")
 ```
 
-:::box learn 구조적 동시성
-태스크의 수명을 코드 블록에 묶는 방식을 **구조적 동시성**(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 태스크 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.
-:::
-
 ## 실패하는 태스크 {#failure}
 
 태스크 하나가 런타임 에러로 죽으면 어떻게 될까? 태스크 범위는 나머지 태스크를 **취소**(cancel, 하던 일을 그 자리에서 그만두게 함)하고, 그 에러를 `scope(`를 연 곳에서 다시 낸다. 실패는 사라지지 않고 늘 범위를 연 코드에 닿는다. 아래에서 1초를 자는 태스크는 `never`를 찍지 못한다.
@@ -245,21 +241,6 @@ print(try_send(tx, "a"), try_send(tx, "b"))
 print(try_recv(rx))
 ```
 
-:::box mistake 보내는 끝을 쥔 채 기다리기
-채널을 최상위나 받는 함수 안에서 만들고 그 함수가 보내는 끝을 계속 쥐고 있으면, 채널은 닫히지 않는다. 받는 `for`는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(`deadlock: all tasks are waiting`, 교착)로 멈추고 누가 보내는 끝을 쥐었는지 도움말로 알려 준다. 보내는 끝은 생산하는 쪽에만 넘기거나, 다 보냈으면 `close(tx)`로 직접 닫는다.
-
-```fung run exit=1 error=E0702
-(tx, rx) = channel()
-scope(fn(s):
-  spawn(s, () => each(["a", "b"], x => send(tx, x)!))
-  for x in rx:
-    print(x)
-  ;;
-;;)
-```
-
-:::
-
 ## 함께 쓰는 값: atom {#atom}
 
 여러 태스크가 한 값을 함께 고쳐야 할 때가 있다(처리한 요청 수, 캐시). fung의 리스트와 맵은 한 번 만들면 바뀌지 않으므로(7장), 바뀌는 칸이 따로 필요하다. **atom**이 그 칸이다. `atom(처음 값)`으로 만들고, `deref(a)`로 지금 값을 읽고, `swap(a, 함수)`로 "지금 값을 받아 새 값을 돌려주는 함수"를 적용해 바꾼다. 여러 태스크가 동시에 `swap`해도 바꿈이 사라지지 않는다.
@@ -282,10 +263,6 @@ swap(hits, fn(n):
   n + 1
 ;;)
 ```
-
-:::box other 다른 언어는
-Python의 `threading`·`asyncio`, JavaScript의 `Promise`·`async/await`, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 태스크 범위는 Python Trio의 nursery, Kotlin의 `coroutineScope`, Java 21의 `StructuredTaskScope`와 같은 구조적 동시성이다. `atom`과 `swap`은 Clojure의 atom에서, 실패를 격리하는 `supervise`는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 `cmd &`와 `wait`도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.
-:::
 
 :::exercise 서버 상태 표
 서버 이름 리스트를 받아, 서버마다 동시에 확인하고 `web1  up` / `db1   TIMEOUT`처럼 한 줄씩 출력해 보자. 확인 함수 `probe(host)`는 이미 있다고 하자(아래 풀이는 `sleep`으로 흉내 낸다). 한 서버에 0.5초 넘게 걸리면 `TIMEOUT`이다. 마지막에 실패한 서버가 있으면 종료 코드 1로 끝낸다.
@@ -336,6 +313,90 @@ print(total)
 ```
 
 :::
+:::
+
+## 짚고 넘어가기 {#notes}
+
+:::box learn 구조적 동시성
+태스크의 수명을 코드 블록에 묶는 방식을 **구조적 동시성**(structured concurrency)이라고 한다. 함수 호출이 "부르면 끝나고 돌아온다"를 보장하듯, 태스크 범위는 "열면 그 안의 동시 작업이 다 끝나고 돌아온다"를 보장한다. 아무도 기다리지 않는 태스크가 실패를 삼키거나, 프로그램이 끝난 줄 알았는데 무언가 계속 도는 문제가 생기지 않는다.
+:::
+
+:::box mistake 보내는 끝을 쥔 채 기다리기
+채널을 최상위나 받는 함수 안에서 만들고 그 함수가 보내는 끝을 계속 쥐고 있으면, 채널은 닫히지 않는다. 받는 `for`는 영원히 기다리고, 다른 태스크도 모두 기다리는 중이면 fung은 E0702(`deadlock: all tasks are waiting`, 교착)로 멈추고 누가 보내는 끝을 쥐었는지 도움말로 알려 준다. 보내는 끝은 생산하는 쪽에만 넘기거나, 다 보냈으면 `close(tx)`로 직접 닫는다.
+
+```fung run exit=1 error=E0702
+(tx, rx) = channel()
+scope(fn(s):
+  spawn(s, () => each(["a", "b"], x => send(tx, x)!))
+  for x in rx:
+    print(x)
+  ;;
+;;)
+```
+
+:::
+
+:::box other 다른 언어는
+Python의 `threading`·`asyncio`, JavaScript의 `Promise`·`async/await`, Java의 스레드는 태스크를 아무 데서나 띄울 수 있다. fung의 태스크 범위는 Python Trio의 nursery, Kotlin의 `coroutineScope`, Java 21의 `StructuredTaskScope`와 같은 구조적 동시성이다. `atom`과 `swap`은 Clojure의 atom에서, 실패를 격리하는 `supervise`는 Erlang의 supervisor에서 생각을 빌렸다. 쉘의 `cmd &`와 `wait`도 동시성이지만, 실패한 작업의 종료 코드를 모으는 일은 손으로 해야 한다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise 한꺼번에 세기
+
+`conc.pmap`으로 `["a.txt", "bb.txt", "ccc.txt"]`의 이름 길이를 동시에 재 보자. 결과가 입력 순서대로인지 본다.
+
+:::solution
+
+```fung run
+import conc
+print(conc.pmap(["a.txt", "bb.txt", "ccc.txt"], len, limit: 2))
+```
+
+:::
+
+:::
+
+:::exercise 태스크 셋의 합
+
+태스크 범위 안에서 1~3을 각각 제곱하는 태스크 셋을 띄우고, 모두 기다려 합을 찍어 보자.
+
+:::solution
+
+```fung run
+total = scope(fn(s):
+  ts = map(1..=3, n => spawn(s, () => n * n))
+  fold(ts, 0, (acc, t) => acc + await(t))
+;;)
+print(total)
+```
+
+:::
+
+:::
+
+:::exercise 채널로 넘기기
+
+한 태스크가 1~5를 채널로 보내고 닫으면, 받는 쪽이 `for`로 받아 합을 찍게 해 보자. 보내는 끝을 닫는 것을 잊지 않는다.
+
+:::solution
+
+받는 쪽의 `for`는 채널이 닫혀야 끝난다. 보내는 태스크가 다 보낸 뒤 `close(tx)`를 부른다.
+
+```fung run
+(tx, rx) = channel()
+result = scope(fn(s):
+  spawn(s, fn():
+    each(1..=5, n => send(tx, n)!)
+    close(tx)
+  ;;)
+  fold(rx, 0, (acc, n) => acc + n)
+;;)
+print(result)
+```
+
+:::
+
 :::
 
 ## 정리 {#summary}

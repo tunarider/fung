@@ -43,6 +43,21 @@ const CASES: &[(&str, &str, &str)] = &[
         "20000\n",
     ),
     (
+        "list prepend",
+        "xs = fold(0..40000, [], (acc, i) => [i] + acc)\nprint(len(xs), xs[0], xs[-1])",
+        "40000 39999 0\n",
+    ),
+    (
+        "prepend a pair to a slice",
+        "base = map(0..20000, x => x)\nxs = fold(0..20000, base, (acc, i) => [i, i] + acc[1..])\nprint(len(xs), xs[0])",
+        "40000 19999\n",
+    ),
+    (
+        "send many views of one vector",
+        "(tx, rx) = channel(1)\n(t2, r2) = channel(1)\nbig = map(0..200000, i => i) + [t2]\nvs = map(0..4000, i => big[i..])\nsend(tx, vs)\nprint(len(recv(rx)!))",
+        "4000\n",
+    ),
+    (
         "rest pattern",
         "fn count(xs, acc) = match xs:\n  [] => acc\n  [_, ...rest] => count(rest, acc + 1)\n;;\nprint(count(map(0..20000, x => x), 0))",
         "20000\n",
@@ -432,4 +447,57 @@ fn a_light_request_beside_a_heavy_parse() {
     }
 }
 
-const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(20s, () => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 1s)\n  if heavy: print(\"heavy\", await(hv)) else: nil ;;\n  cancel(s)\n;;, e => nil)))\n";
+/// A long native gives its turn about every millisecond (L6): beside a
+/// big `json.parse`, `json.stringify`, `sort`, `unique` or `split`, a task
+/// that ticks every millisecond is never kept waiting long (before L6:
+/// 78 ms beside a 6 MB parse, the whole native).
+#[test]
+fn long_natives_give_their_turn() {
+    let _serial = serial();
+    for (what, work) in LONG_WORK {
+        let src = format!("{LONG_SETUP}{GAP}work = () => {work}\nprint(gap(work))");
+        run_file("gap", &src);
+        let (out, _) = run_file("gap", &src);
+        let ms: f64 = out
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("{what}: {out}"));
+        eprintln!("worst gap beside {what}: {ms} ms");
+        assert!(ms < 10.0, "{what}: a 1 ms ticker waited {ms} ms");
+    }
+}
+
+/// A deadline cuts a long native short (L6): before, `timeout(5ms, …)`
+/// around a big `json.parse` or `sort` gave its value 75 ms late.
+#[test]
+fn deadlines_cut_long_natives() {
+    let _serial = serial();
+    for (what, work) in LONG_WORK {
+        let src = format!(
+            "{LONG_SETUP}import time\nt0 = time.monotonic()\nr = timeout(5ms, () => {work})\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
+        );
+        let (out, _) = run_file("deadline", &src);
+        assert_eq!(out, "timeout true\n", "{what}");
+    }
+}
+
+/// Inputs that take about 50 to 300 ms each in one go (release build).
+const LONG_SETUP: &str = "import json\nrows = map(0..200000, i => {a: i, b: \"xxxxxxxx\"})\nbig = json.stringify(rows)\nxs = map(0..500000, i => (i * 7919) % 1000003)\ntext = repeat(\"word \", 1000000)\n";
+
+const LONG_WORK: &[(&str, &str)] = &[
+    ("json.parse", "len(json.parse(big)!)"),
+    ("json.stringify", "len(json.stringify(rows))"),
+    ("sort", "len(sort(xs))"),
+    ("sort_by", "len(sort_by(xs, x => x))"),
+    ("unique", "len(unique(xs))"),
+    ("split", "len(split(text, \" \"))"),
+    ("join", "len(join(xs, \",\"))"),
+    ("replace", "len(replace(text, \"o\", \"00\"))"),
+];
+
+/// `gap(work)`: runs `work` beside a task that sleeps 1 ms at a time and
+/// gives the longest wait between its wake-ups, in milliseconds. The
+/// ticker has started before the work does (a state, not a sleep).
+const GAP: &str = "import time\nfn gap(work) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(last, worst, first):\n    if first: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - last])\n    match try_recv(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  work()\n  send(done_tx, true)\n  ms(await(w))\n;;)\nfn ms(d) = d / 1ms\n";
+
+const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(20s, () => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)) else: nil ;;\n  cancel(s)\n;;, e => nil)))\n";

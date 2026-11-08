@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 210;
-const BENCH_CASES: usize = 10;
-const ALL_CASES: usize = 270;
+const LANG_CASES: usize = 211;
+const BENCH_CASES: usize = 11;
+const ALL_CASES: usize = 272;
 
 #[test]
 fn every_case_is_counted() {

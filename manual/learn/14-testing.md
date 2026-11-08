@@ -101,10 +101,6 @@ FAIL example.fung: count_level counts matching rows
 
 이 테스트에서 틀린 쪽은 코드가 아니라 기대(`warn` 줄은 없으니 0이 맞다)다. 마지막 `assert`를 `== 0`으로 고치면 `2 passed, 0 failed`가 된다.
 
-:::box learn 태스크의 순서는 약속되지 않는다
-`fung test`는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 일부러 섞는다. 언어가 그 순서를 약속하지 않으므로, 우연히 맞던 순서에 기대는 시험이 언젠가 드러나게 하려는 것이다. 실패하면 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N …` 한 줄이 나온다. `FUNG_SCHED_SEED=N fung test …`로 같은 순서를 다시 돌려 고친다. 결과의 순서가 중요하면 태스크마다 `await`로 차례대로 받거나 정렬한다.
-:::
-
 ## 테스트하기 좋은 코드 {#design}
 
 테스트하기 쉬운 함수는 **입력을 받아 값을 돌려주기만 하는** 함수다. 파일을 읽고, 계산하고, 출력하는 일을 한 함수에 몰면 테스트에 파일과 출력이 필요해진다. 읽기·쓰기는 얇게 두고 계산을 따로 떼어 내면, 계산은 문자열과 리스트만으로 테스트할 수 있다.
@@ -166,14 +162,6 @@ test "rotate renames each log":
 ok   example.fung: rotate renames each log
 1 passed, 0 failed
 ```
-
-:::box mistake 테스트 블록을 함수 안에 쓰기
-`test` 블록은 최상위에만 둔다. 함수나 다른 블록 안에 쓰면 컴파일 에러 E0114(`test must be at the top level`)다. 여러 경우를 반복해서 확인하고 싶으면 블록 안에서 `for`를 쓴다: `for (input, want) in cases: assert slug(input) == want ;;`.
-:::
-
-:::box tip 결과값 테스트하기
-`Ok`·`Err`도 값이라 `==`로 비교할 수 있다. `assert parse_int("42") == Ok(42)`, `assert is_err(parse_int("x"))`처럼 쓴다. 성공해야 하는 호출은 `assert f()! == 기대값`처럼 `!`를 붙이면, 실패했을 때 그 `Err`의 이유가 메시지에 나온다.
-:::
 
 ## dbg로 중간 값 보기 {#dbg}
 
@@ -275,14 +263,6 @@ warning[W0103]: `lines` shadows a prelude function
 
 `lines`를 가린 것은 지금은 문제가 없지만, 같은 함수 안에서 나중에 prelude의 `lines(문자열)`을 부르려 하면 함수가 아니라 그 리스트를 부르게 되어 에러가 난다. `rows_text`처럼 다른 이름을 짓는다.
 
-:::box tip 커밋 전에 세 가지
-스크립트를 저장소에 올리기 전에 `fung fmt`, `fung check`, `fung test`를 차례로 돌리는 습관을 들이면 좋다. 셋 다 디렉터리를 받으므로 `fung fmt --check . && fung test .`처럼 CI에 그대로 넣을 수 있다.
-:::
-
-:::box other 다른 언어는
-Python의 `pytest`는 `test_`로 시작하는 함수를, Rust는 `#[test]`를 붙인 함수를 테스트로 모은다. fung은 Rust처럼 테스트를 같은 파일에 두는 쪽이고, 테스트 이름을 문자열로 쓴다. `fung fmt`는 Python의 `black`, Rust의 `rustfmt`처럼 설정 없는 포맷터다. 쉘 스크립트에서는 `shellcheck`가 `fung check`와 비슷한 일을 한다.
-:::
-
 :::exercise 크기 표시 함수 테스트
 바이트 수를 `"512 B"`, `"1.5 KiB"`, `"3.0 MiB"`처럼 바꾸는 함수 `human(n)`을 쓰고, 경계(1023, 1024, 1048576)를 확인하는 테스트 블록을 붙여 보자. 1024 미만은 `B`, 1024² 미만은 `KiB`, 그 이상은 `MiB`다. 소수 첫째 자리까지만 보이려면 `int(x * 10) / 10`처럼 자른다.
 
@@ -320,6 +300,82 @@ ok   example.fung: bytes, KiB and MiB
 :::
 :::
 
+## 짚고 넘어가기 {#notes}
+
+:::box learn 태스크의 순서는 약속되지 않는다
+`fung test`는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 일부러 섞는다. 언어가 그 순서를 약속하지 않으므로, 우연히 맞던 순서에 기대는 시험이 언젠가 드러나게 하려는 것이다. 실패하면 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N …` 한 줄이 나온다. `FUNG_SCHED_SEED=N fung test …`로 같은 순서를 다시 돌려 고친다. 결과의 순서가 중요하면 태스크마다 `await`로 차례대로 받거나 정렬한다.
+:::
+
+:::box mistake 테스트 블록을 함수 안에 쓰기
+`test` 블록은 최상위에만 둔다. 함수나 다른 블록 안에 쓰면 컴파일 에러 E0114(`test must be at the top level`)다. 여러 경우를 반복해서 확인하고 싶으면 블록 안에서 `for`를 쓴다: `for (input, want) in cases: assert slug(input) == want ;;`.
+:::
+
+:::box tip 결과값 테스트하기
+`Ok`·`Err`도 값이라 `==`로 비교할 수 있다. `assert parse_int("42") == Ok(42)`, `assert is_err(parse_int("x"))`처럼 쓴다. 성공해야 하는 호출은 `assert f()! == 기대값`처럼 `!`를 붙이면, 실패했을 때 그 `Err`의 이유가 메시지에 나온다.
+:::
+
+:::box tip 커밋 전에 세 가지
+스크립트를 저장소에 올리기 전에 `fung fmt`, `fung check`, `fung test`를 차례로 돌리는 습관을 들이면 좋다. 셋 다 디렉터리를 받으므로 `fung fmt --check . && fung test .`처럼 CI에 그대로 넣을 수 있다.
+:::
+
+:::box other 다른 언어는
+Python의 `pytest`는 `test_`로 시작하는 함수를, Rust는 `#[test]`를 붙인 함수를 테스트로 모은다. fung은 Rust처럼 테스트를 같은 파일에 두는 쪽이고, 테스트 이름을 문자열로 쓴다. `fung fmt`는 Python의 `black`, Rust의 `rustfmt`처럼 설정 없는 포맷터다. 쉘 스크립트에서는 `shellcheck`가 `fung check`와 비슷한 일을 한다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise 함수와 단언
+
+문자열의 앞뒤 공백을 자르고 소문자로 바꾸는 `normalize`를 쓰고, `assert` 셋으로 확인해 보자. 모두 맞으면 `"all good"`을 찍는다.
+
+:::solution
+
+```fung run
+fn normalize(s) = lower(trim(s))
+assert normalize("  Web-1 ") == "web-1"
+assert normalize("") == ""
+assert normalize("DB") == "db"
+print("all good")
+```
+
+:::
+
+:::
+
+:::exercise 입출력과 계산 나누기
+
+로그 줄 목록을 받아 `ERROR`로 시작하는 줄 수를 돌려주는 순수한 함수를 쓰고, 파일 없이 리스트로 시험해 보자.
+
+:::solution
+
+파일을 읽는 일과 세는 일을 나누면 세는 함수는 파일 없이 시험할 수 있다.
+
+```fung run
+fn errors(lines) = lines |> filter(l => starts_with(l, "ERROR")) |> len
+assert errors(["ERROR a", "INFO b", "ERROR c"]) == 2
+assert errors([]) == 0
+print(errors(["ERROR x"]))
+```
+
+:::
+
+:::
+
+:::exercise dbg로 중간 값 보기
+
+`[3, 1, 2] |> sort |> map(x => x * 10)`의 정렬 직후 값을 `dbg`로 보자. `dbg`는 값을 그대로 돌려주므로 파이프 가운데에 끼울 수 있다.
+
+:::solution
+
+```fung run
+r = [3, 1, 2] |> sort |> dbg |> map(x => x * 10)
+print(r)
+```
+
+:::
+
+:::
+
 ## 정리 {#summary}
 
 - `assert 조건`은 거짓이면 E0807로 멈추고, 비교의 실제 값을 보여 준다.
@@ -329,4 +385,4 @@ ok   example.fung: bytes, KiB and MiB
 - `fung fmt`는 공백·들여쓰기·정렬을 하나의 스타일로 고친다(줄바꿈은 그대로). `--check`는 CI용.
 - `fung check`는 실행 없이 검사하고 W0101·W0102·W0103 경고를 보여 준다.
 
-정확한 규칙은 레퍼런스의 [테스트와 디버깅](../reference/language.html#testing)과 [명령줄 도구](../reference/cli.html#test)에 있다. 포맷터와 테스트 실행기가 어떻게 만들어졌는지는 VM 책의 [포맷터](../vm/15-formatter.html)와 [테스트 실행기](../vm/17-test-runner.html)에서 다룬다. 여기까지 왔다면 fung으로 쓸 수 있는 스크립트의 재료는 모두 갖췄다. 예제 모음의 레시피에서 실제 작업에 맞춰 조합해 보자.
+정확한 규칙은 레퍼런스의 [테스트와 디버깅](../reference/language/testing.html)과 [명령줄 도구](../reference/cli.html#test)에 있다. 포맷터와 테스트 실행기가 어떻게 만들어졌는지는 VM 책의 [포맷터](../vm/15-formatter.html)와 [테스트 실행기](../vm/17-test-runner.html)에서 다룬다. 여기까지 왔다면 fung으로 쓸 수 있는 스크립트의 재료는 모두 갖췄다. 예제 모음의 레시피에서 실제 작업에 맞춰 조합해 보자.

@@ -335,36 +335,55 @@ fn check_type_carries_the_parameter_position() {
 #[test]
 fn compile_collections_and_ops() {
     let cases = [
-        // A list of constants is one constant (P7); one with a variable,
-        // or an empty one, is built.
+        // A list, map, tuple or tag value of constants is one constant
+        // (P7, L5), empty ones and nested ones too; one with a variable
+        // is built.
         ("[1, 2]", "CONST(0) RETURN"),
         (
             "x = 1\n[x, 2]",
             "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) LIST(2) RETURN",
         ),
-        ("[[]]", "LIST(0) LIST(1) RETURN"),
-        ("{a: 1}", "CONST(0) CONST(1) MAP(1) RETURN"),
-        ("(1,)", "CONST(0) TUPLE(1) RETURN"),
-        ("Ok(1)", "CONST(0) CONST(1) TAG(1) RETURN"),
+        ("[[]]", "CONST(0) RETURN"),
+        ("[]", "CONST(0) RETURN"),
+        ("{a: 1}", "CONST(0) RETURN"),
+        ("{}", "CONST(0) RETURN"),
+        ("(1,)", "CONST(0) RETURN"),
+        ("Ok(1)", "CONST(0) RETURN"),
+        ("{k: [1, (2, 'a)], \"j k\": Some({})}", "CONST(0) RETURN"),
+        (
+            "x = 1
+{a: x}",
+            "CONST(0) STOREGLOBAL(0) CONST(1) LOADGLOBAL(0) MAP(1) RETURN",
+        ),
+        (
+            "x = 1
+(1, x)",
+            "CONST(0) STOREGLOBAL(0) CONST(0) LOADGLOBAL(0) TUPLE(2) RETURN",
+        ),
+        (
+            "x = 1
+Ok([x])",
+            "CONST(0) STOREGLOBAL(0) CONST(1) LOADGLOBAL(0) LIST(1) TAG(1) RETURN",
+        ),
         ("0..=3", "CONST(0) CONST(1) RANGE(1) RETURN"),
         (
             "xs = []\nxs[0]",
-            "LIST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(0) INDEX RETURN",
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) INDEX RETURN",
         ),
         (
             "xs = []\nxs[1..]",
-            "LIST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(0) SLICE(1) RETURN",
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) SLICE(1) RETURN",
         ),
         (
             "xs = []\nxs[..2]",
-            "LIST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(0) SLICE(2) RETURN",
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) SLICE(2) RETURN",
         ),
         (
             "m = {}\nm.k",
-            "MAP(0) STOREGLOBAL(0) LOADGLOBAL(0) FIELD(0) RETURN",
+            "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) FIELD(1) RETURN",
         ),
         ("1 in [1]", "CONST(0) CONST(1) IN RETURN"),
-        ("Ok(1)!", "CONST(0) CONST(1) TAG(1) UNWRAPABORT RETURN"),
+        ("Ok(1)!", "CONST(0) UNWRAPABORT RETURN"),
         ("nil ?? 1", "CONST(0) COALESCE(3) JUMP(4) CONST(1) RETURN"),
     ];
     for (src, want) in cases {
@@ -405,10 +424,7 @@ fn compile_match_and_destructuring() {
     assert_eq!(p.patterns[1].to_string(), "$1");
     assert_eq!(p.patterns[0].to_string(), "0");
     let p = comp("(a, b) = (1, 2)");
-    assert_eq!(
-        ops(&p),
-        "CONST(0) CONST(1) TUPLE(2) MATCHORFAIL(0) CONST(2) RETURN"
-    );
+    assert_eq!(ops(&p), "CONST(0) MATCHORFAIL(0) CONST(1) RETURN");
     assert_eq!(p.patterns[0].to_string(), "(@0, @1)");
 }
 
@@ -745,17 +761,17 @@ dbg(1)";
 }
 
 /// `args` is the prelude's one plain value: the program's argument list,
-/// empty when compiling for a dump: it prints as `[]`.
+/// which the VM fills in, so it has a constant of its own (L5).
 #[test]
-fn prelude_args_is_an_empty_list() {
+fn prelude_args_is_a_constant_of_its_own() {
     assert_eq!(
         bytecode("args; take; args"),
         "== <main> ==\n\
-         0000  1:1   CONST        0    ; []\n\
+         0000  1:1   CONST        0    ; args\n\
          0001  1:1   POP\n\
          0002  1:7   CONST        1    ; <fn take>\n\
          0003  1:7   POP\n\
-         0004  1:13  CONST        0    ; []\n\
+         0004  1:13  CONST        0    ; args\n\
          0005  1:1   RETURN\n"
     );
 }

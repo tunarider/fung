@@ -170,7 +170,7 @@ sizes = fs.list(dir)!
 for (name, size) in sizes:
   print(pad_left(str(size), 10), name)
 ;;</code></pre><pre class="out plain"><code>       424 example.fung</code></pre></div>
-<p class="note">최상위 <code>fn</code>은 프로그램 시작 전에 만들어지므로 정의보다 앞에서 불러도 된다. 최상위에서 한 번만 대입되는 이름(상수)은 부를 때 읽고, 두 번 이상 대입되는 변수는 볼 수 없어서 인자로 넘긴다(<a href="reference/language.html#scope">스코프</a>).</p>
+<p class="note">최상위 <code>fn</code>은 프로그램 시작 전에 만들어지므로 정의보다 앞에서 불러도 된다. 최상위에서 한 번만 대입되는 이름(상수)은 부를 때 읽고, 두 번 이상 대입되는 변수는 볼 수 없어서 인자로 넘긴다(<a href="reference/language/scope.html">스코프</a>).</p>
 <h3>테스트를 같은 파일에</h3>
 <pre><code>fn slug(s) = lower(s) |&gt; split(&quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;) |&gt; join(&quot;-&quot;)
 

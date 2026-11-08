@@ -76,8 +76,8 @@ pub struct Proto {
 
 /// A constant as a hash key, under the pool's equality (`Const`'s
 /// `PartialEq`): the type and the value, floats by their bits with -0.0
-/// as 0.0. A NaN equals nothing and a list is rare (only `args`), so
-/// neither has a key; they are compared one by one.
+/// as 0.0, folded collections item by item. A NaN equals nothing, so a
+/// constant holding one has no key and is compared one by one.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum ConstKey {
     Int(i64),
@@ -89,6 +89,11 @@ pub(crate) enum ConstKey {
     Sym(String),
     Dur(i64),
     Builtin(String),
+    Args,
+    List(Vec<ConstKey>),
+    Map(Vec<(ConstKey, ConstKey)>),
+    Tuple(Vec<ConstKey>),
+    Tag(String, Vec<ConstKey>),
 }
 
 impl ConstKey {
@@ -108,8 +113,20 @@ impl ConstKey {
             Const::Sym(t) => ConstKey::Sym(t.clone()),
             Const::Dur(d) => ConstKey::Dur(*d),
             Const::Builtin(t) => ConstKey::Builtin(t.clone()),
-            Const::List(_) => return None,
+            Const::Args => ConstKey::Args,
+            Const::List(xs) => ConstKey::List(ConstKey::all(xs)?),
+            Const::Tuple(xs) => ConstKey::Tuple(ConstKey::all(xs)?),
+            Const::Tag(n, xs) => ConstKey::Tag(n.clone(), ConstKey::all(xs)?),
+            Const::Map(es) => ConstKey::Map(
+                es.iter()
+                    .map(|(k, v)| Some((ConstKey::of(k)?, ConstKey::of(v)?)))
+                    .collect::<Option<_>>()?,
+            ),
         })
+    }
+
+    fn all(xs: &[Const]) -> Option<Vec<ConstKey>> {
+        xs.iter().map(ConstKey::of).collect()
     }
 }
 

@@ -50,6 +50,7 @@ mod mutable_tests;
 mod offload;
 #[cfg(test)]
 mod park_tests;
+pub(crate) mod pieces;
 pub(crate) mod poller;
 #[cfg(test)]
 mod poller_tests;

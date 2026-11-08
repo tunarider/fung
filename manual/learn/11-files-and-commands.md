@@ -81,10 +81,6 @@ fs.write("out/2026/report.txt", "x")!
 print(fs.exists("out/2026/report.txt"))
 ```
 
-:::box tip 큰 파일과 핸들
-`fs.read`는 파일을 통째로 메모리에 읽는다. 아주 큰 파일을 한 줄씩 다루거나 많은 줄을 차례로 쓸 때는 파일 **핸들**(handle, 열린 파일을 가리키는 값)을 연다. `fs.with_open(경로, f, mode: 'write)`는 파일을 열어 `f(핸들)`을 부르고, `f`가 어떻게 끝나든 닫아 준다. 핸들에는 `read_line(h)`·`fs.write_line(h, 줄)`을 쓴다. 자세한 것은 [fs 레퍼런스](../reference/modules/fs.html#fn-fs-with_open)에 있다.
-:::
-
 ## 디렉터리 돌기 {#dirs}
 
 `fs.list(디렉터리)`는 바로 안의 이름들을, `fs.walk(디렉터리)`는 아래의 모든 파일 경로를 하위 디렉터리까지 내려가며 돌려준다(디렉터리 자신은 빼고). `fs.stat(경로)`는 `{name, size, is_dir}`을 돌려준다. `size`는 바이트 수다. 셋을 합치면 "로그 디렉터리에서 큰 `.log` 파일 찾기"가 된다.
@@ -141,10 +137,6 @@ for p in fs.glob("*.log")!:
 ;;
 ```
 
-:::box mistake 블록 안에서 바깥 변수 늘리기
-쉘에서는 `total=$((total + size))`를 반복문 안에서 쓴다. fung에서 `for` 본문 안에 `total = total + size`를 쓰면 컴파일 에러 E0205다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: `sizes |> map(((_, s)) => s) |> sum`, 또는 `fold`.
-:::
-
 ## 외부 명령 실행 {#exec}
 
 fung으로 하기 어려운 일, 이미 있는 도구가 잘하는 일은 외부 명령(`git`, `kubectl`, `ssh` …)에 맡긴다. `exec`는 명령을 **문자열 리스트**로 받는다. 첫 원소가 실행할 프로그램이고 나머지가 인자다. 쉘을 거치지 않으므로 인자에 공백이나 `*`가 있어도 쪼개지거나 펼쳐지지 않는다.
@@ -175,10 +167,6 @@ print(trim(greeting.out))
 sorted = exec(["sort"], stdin: "pear\napple\nfig\n")!
 print(lines(sorted.out))
 ```
-
-:::box mistake 명령을 문자열 하나로 주기
-`exec("ls -l")`은 런타임 에러 E0403(`argument `cmd` must be a list of strings`)이다. `exec`는 쉘처럼 문자열을 쪼개 주지 않는다. `exec(["ls", "-l"])`로 나눠 쓰거나, 쉘 문법이 필요하면 `sh("ls -l | head")`를 쓴다. 바깥에서 온 값(파일 이름, 사용자 입력)을 `sh`의 문자열에 끼워 넣으면 쉘이 그것을 명령으로 해석할 수 있으니, 그런 값은 `exec`의 리스트 원소로 넘긴다.
-:::
 
 ## 명령줄 인자 {#args}
 
@@ -247,10 +235,6 @@ print("all config present")
 
 파일 첫 줄에 `#!/usr/bin/env fung`을 쓰고 실행 권한을 주면(`chmod +x check.fung`) `./check.fung`으로 바로 실행할 수 있다. fung에게 그 줄은 그냥 주석이다.
 
-:::box other 쉘과 비교하면
-쉘 스크립트는 명령을 잇는 데 강하지만, 변수가 모두 문자열이고 공백이 든 파일 이름에서 자주 깨지며, 실패를 놓치기 쉽다(`set -euo pipefail`을 잊으면). fung은 값에 타입이 있고, `exec`가 인자를 쪼개지 않으며, 실패가 결과값이라 무시하면 E0606으로 멈춘다. 그 대신 짧은 한 줄짜리 일에는 쉘이 더 간결하다. 둘은 경쟁이 아니라, 파이프 한 줄은 `sh`에 맡기고 나머지 논리는 fung으로 쓰는 식으로 섞어 쓴다.
-:::
-
 :::exercise 큰 로그 찾기
 `--dir 디렉터리`와 `--min 바이트`를 받아, 그 디렉터리 아래에서 크기가 `min` 이상인 `.log` 파일을 큰 순서로 출력하는 스크립트를 써 보자. 하나도 없으면 표준 에러에 `no log files over N bytes`를 쓰고 종료 코드 1로 끝낸다. `--dir`의 기본값은 `.`, `--min`의 기본값은 `0`이다.
 
@@ -298,6 +282,80 @@ for (p, size) in found:
 ```
 
 :::
+:::
+
+## 짚고 넘어가기 {#notes}
+
+:::box tip 큰 파일과 핸들
+`fs.read`는 파일을 통째로 메모리에 읽는다. 아주 큰 파일을 한 줄씩 다루거나 많은 줄을 차례로 쓸 때는 파일 **핸들**(handle, 열린 파일을 가리키는 값)을 연다. `fs.with_open(경로, f, mode: 'write)`는 파일을 열어 `f(핸들)`을 부르고, `f`가 어떻게 끝나든 닫아 준다. 핸들에는 `read_line(h)`·`fs.write_line(h, 줄)`을 쓴다. 자세한 것은 [fs 레퍼런스](../reference/modules/fs.html#fn-fs-with_open)에 있다.
+:::
+
+:::box mistake 블록 안에서 바깥 변수 늘리기
+쉘에서는 `total=$((total + size))`를 반복문 안에서 쓴다. fung에서 `for` 본문 안에 `total = total + size`를 쓰면 컴파일 에러 E0205다. 블록 안에서는 바깥 변수에 다시 대입할 수 없기 때문이다(3장). 합계는 반복이 만든 리스트로 계산한다: `sizes |> map(((_, s)) => s) |> sum`, 또는 `fold`.
+:::
+
+:::box mistake 명령을 문자열 하나로 주기
+`exec("ls -l")`은 런타임 에러 E0403(`argument `cmd` must be a list of strings`)이다. `exec`는 쉘처럼 문자열을 쪼개 주지 않는다. `exec(["ls", "-l"])`로 나눠 쓰거나, 쉘 문법이 필요하면 `sh("ls -l | head")`를 쓴다. 바깥에서 온 값(파일 이름, 사용자 입력)을 `sh`의 문자열에 끼워 넣으면 쉘이 그것을 명령으로 해석할 수 있으니, 그런 값은 `exec`의 리스트 원소로 넘긴다.
+:::
+
+:::box other 쉘과 비교하면
+쉘 스크립트는 명령을 잇는 데 강하지만, 변수가 모두 문자열이고 공백이 든 파일 이름에서 자주 깨지며, 실패를 놓치기 쉽다(`set -euo pipefail`을 잊으면). fung은 값에 타입이 있고, `exec`가 인자를 쪼개지 않으며, 실패가 결과값이라 무시하면 E0606으로 멈춘다. 그 대신 짧은 한 줄짜리 일에는 쉘이 더 간결하다. 둘은 경쟁이 아니라, 파이프 한 줄은 `sh`에 맡기고 나머지 논리는 fung으로 쓰는 식으로 섞어 쓴다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise 가장 긴 줄
+
+`app.log`를 줄 목록으로 읽어 줄 수와 가장 긴 줄을 찍어 보자.
+
+:::solution
+
+```file app.log
+start
+connected to db-1
+ready
+```
+
+```fung run
+import fs
+lines = fs.read_lines("app.log")!
+longest = fold(lines, "", (best, l) => len(l) > len(best) then l else best)
+print(len(lines), longest)
+```
+
+:::
+
+:::
+
+:::exercise 보고서 쓰고 다시 읽기
+
+`report.txt`에 `"ok: 3\nfail: 1\n"`을 쓰고, 다시 읽어 `fail` 줄만 찍어 보자.
+
+:::solution
+
+```fung run
+import fs
+fs.write("report.txt", "ok: 3\nfail: 1\n")!
+print(fs.read_lines("report.txt")! |> filter(l => starts_with(l, "fail")))
+```
+
+:::
+
+:::
+
+:::exercise 명령의 출력
+
+`exec`로 `["echo", "hello"]`를 돌려 출력과 종료 코드를 찍어 보자. 출력 끝의 줄바꿈은 `trim`으로 뗀다.
+
+:::solution
+
+```fung run
+r = exec(["echo", "hello"])!
+print(trim(r.out), r.code)
+```
+
+:::
+
 :::
 
 ## 정리 {#summary}

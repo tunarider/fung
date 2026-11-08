@@ -2478,6 +2478,19 @@
 | in/tests~lang~path_rules@split.fung
 | in/tests~lang~path_rules@tight.fung
 | in/tests~lang~path_rules@trailing.fung
+| in/tests~lang~pieces@bom.fung
+| in/tests~lang~pieces@cglued.fung
+| in/tests~lang~pieces@contsplit.fung
+| in/tests~lang~pieces@cpushed.fung
+| in/tests~lang~pieces@crlf.fung
+| in/tests~lang~pieces@halfbytes.fung
+| in/tests~lang~pieces@moreblank.fung
+| in/tests~lang~pieces@nofinal.fung
+| in/tests~lang~pieces@opsplit.fung
+| in/tests~lang~pieces@spaced.fung
+| in/tests~lang~pieces@split.fung
+| in/tests~lang~pieces@tight.fung
+| in/tests~lang~pieces@trailing.fung
 | in/tests~lang~pipe_tags@bom.fung
 | in/tests~lang~pipe_tags@cglued.fung
 | in/tests~lang~pipe_tags@contsplit.fung
@@ -3349,22 +3362,22 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0110]: unexpected end of file
-|   --> in/extras~http@halfbytes.fung:954:22
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~http@halfbytes.fung:983:58
 |     |
-| 954 |   first = len(cls) > 
-|     |                      ^
+| 983 |   names = h["Trailer"] |> map(v => split(v, ",")) |> flat
+|     |                                                          ^
 |     |
-| error[E0110]: unexpected end of file
-|   --> in/extras~http@halflines.fung:979:1
-|     |
-| 979 | 
-|     | ^
-|     |
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/extras~http@halflines.fung:1007:1
+|      |
+| 1007 | 
+|      | ^
+|      |
 | error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:223:5
+|   --> in/extras~http@opsplit.fung:220:5
 |     |
-| 223 | else
+| 220 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected `.`
@@ -8447,6 +8460,19 @@
 | in/tests~lang~path_rules@split.fung
 | in/tests~lang~path_rules@tight.fung
 | in/tests~lang~path_rules@trailing.fung
+| in/tests~lang~pieces@bom.fung
+| in/tests~lang~pieces@cglued.fung
+| in/tests~lang~pieces@contsplit.fung
+| in/tests~lang~pieces@cpushed.fung
+| in/tests~lang~pieces@crlf.fung
+| in/tests~lang~pieces@halfbytes.fung
+| in/tests~lang~pieces@moreblank.fung
+| in/tests~lang~pieces@nofinal.fung
+| in/tests~lang~pieces@opsplit.fung
+| in/tests~lang~pieces@spaced.fung
+| in/tests~lang~pieces@split.fung
+| in/tests~lang~pieces@tight.fung
+| in/tests~lang~pieces@trailing.fung
 | in/tests~lang~pipe_tags@bom.fung
 | in/tests~lang~pipe_tags@cglued.fung
 | in/tests~lang~pipe_tags@contsplit.fung
@@ -9318,22 +9344,22 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0110]: unexpected end of file
-|   --> in/extras~http@halfbytes.fung:954:22
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~http@halfbytes.fung:983:58
 |     |
-| 954 |   first = len(cls) > 
-|     |                      ^
+| 983 |   names = h["Trailer"] |> map(v => split(v, ",")) |> flat
+|     |                                                          ^
 |     |
-| error[E0110]: unexpected end of file
-|   --> in/extras~http@halflines.fung:979:1
-|     |
-| 979 | 
-|     | ^
-|     |
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/extras~http@halflines.fung:1007:1
+|      |
+| 1007 | 
+|      | ^
+|      |
 | error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:223:5
+|   --> in/extras~http@opsplit.fung:220:5
 |     |
-| 223 | else
+| 220 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected `.`
@@ -12933,27 +12959,27 @@
 | extras~fs@trailing.fung 1726 b6224080c511fa8a
 | extras~fs@wide4.fung 1726 b6224080c511fa8a
 | extras~http.fung unchanged
-| extras~http@bom.fung 69196 48609e935c06a926
-| extras~http@cglued.fung 69196 48609e935c06a926
+| extras~http@bom.fung 72250 f86c76e22662ab97
+| extras~http@cglued.fung 72250 f86c76e22662ab97
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 69196 48609e935c06a926
-| extras~http@crlf.fung 69196 48609e935c06a926
-| extras~http@dedent.fung 69196 48609e935c06a926
+| extras~http@cpushed.fung 72250 f86c76e22662ab97
+| extras~http@crlf.fung 72250 f86c76e22662ab97
+| extras~http@dedent.fung 72250 f86c76e22662ab97
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 69614 670efff06b8cc86c
+| extras~http@moreblank.fung 72679 85bccea4b9cf7a6f
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 69196 48609e935c06a926
-| extras~http@odd3.fung 69196 48609e935c06a926
+| extras~http@nofinal.fung 72250 f86c76e22662ab97
+| extras~http@odd3.fung 72250 f86c76e22662ab97
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 69196 48609e935c06a926
-| extras~http@split.fung 90185 8242b208e1e633d4
-| extras~http@tabs.fung 69196 48609e935c06a926
-| extras~http@tight.fung 69196 48609e935c06a926
-| extras~http@trailing.fung 69196 48609e935c06a926
-| extras~http@wide4.fung 69196 48609e935c06a926
+| extras~http@spaced.fung 72250 f86c76e22662ab97
+| extras~http@split.fung 93687 f3b1faac89f931a3
+| extras~http@tabs.fung 72250 f86c76e22662ab97
+| extras~http@tight.fung 72250 f86c76e22662ab97
+| extras~http@trailing.fung 72250 f86c76e22662ab97
+| extras~http@wide4.fung 72250 f86c76e22662ab97
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1
@@ -16808,6 +16834,28 @@
 | tests~lang~path_rules@tight.fung 310 b41433f147fb0170
 | tests~lang~path_rules@trailing.fung 310 b41433f147fb0170
 | tests~lang~path_rules@wide4.fung unchanged
+| tests~lang~pieces.fung unchanged
+| tests~lang~pieces@bom.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@cglued.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@cnospace.fung unchanged
+| tests~lang~pieces@contsplit.fung 1682 42488d4403a0192b
+| tests~lang~pieces@cpushed.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@crlf.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@dedent.fung unchanged
+| tests~lang~pieces@halfbytes.fung 817 9608dc38c3ffe833
+| tests~lang~pieces@halflines.fung unchanged
+| tests~lang~pieces@joined.fung unchanged
+| tests~lang~pieces@moreblank.fung 1660 9cef64db740ece85
+| tests~lang~pieces@noblank.fung unchanged
+| tests~lang~pieces@nofinal.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@odd3.fung unchanged
+| tests~lang~pieces@opsplit.fung 1770 df895db8a7481797
+| tests~lang~pieces@spaced.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@split.fung 2431 bb1000499a462a7b
+| tests~lang~pieces@tabs.fung unchanged
+| tests~lang~pieces@tight.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@trailing.fung 1632 fc57f2461a5d9225
+| tests~lang~pieces@wide4.fung unchanged
 | tests~lang~pipe_tags.fung unchanged
 | tests~lang~pipe_tags@bom.fung 440 42803efb2e019cf5
 | tests~lang~pipe_tags@cglued.fung 440 42803efb2e019cf5

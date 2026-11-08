@@ -35,7 +35,7 @@
 <li><a href="../learn/05-functions.html">5. 함수</a></li>
 <li><a href="../learn/06-strings.html">6. 문자열 다루기</a></li>
 <li><a href="../learn/07-collections.html">7. 리스트·맵·튜플</a></li>
-<li><a href="../learn/08-patterns.html" aria-current="page">8. 패턴과 match</a><ol class="toc2"><li><a href="#shape">모양으로 나누기</a></li><li><a href="#literals">리터럴 패턴</a></li><li><a href="#lists">리스트 패턴</a></li><li><a href="#maps">맵 패턴</a></li><li><a href="#tuples">튜플 패턴</a></li><li><a href="#guards">조건 붙이기: when</a></li><li><a href="#destructuring">구조 분해 대입</a></li><li><a href="#tags">태그: 나만의 값 종류</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/08-patterns.html" aria-current="page">8. 패턴과 match</a><ol class="toc2"><li><a href="#shape">모양으로 나누기</a></li><li><a href="#literals">리터럴 패턴</a></li><li><a href="#lists">리스트 패턴</a></li><li><a href="#maps">맵 패턴</a></li><li><a href="#tuples">튜플 패턴</a></li><li><a href="#guards">조건 붙이기: when</a></li><li><a href="#destructuring">구조 분해 대입</a></li><li><a href="#tags">태그: 나만의 값 종류</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
 <li><a href="../learn/09-errors.html">9. 에러는 값이다</a></li>
 <li><a href="../learn/10-modules.html">10. 모듈로 나누기</a></li>
 <li><a href="../learn/11-files-and-commands.html">11. 파일·외부 명령·CLI</a></li>
@@ -79,9 +79,6 @@ print(status_text(418))</code></pre><pre class="out plain"><code>OK
 Not Found
 status 418</code></pre></div>
 <p>마지막 절의 <code>_</code>는 "무엇이든"을 뜻하는 패턴이다. 위의 패턴이 하나도 맞지 않을 때 받아 주는 자리로 흔히 끝에 둔다. <code>match</code>도 <code>if</code>처럼 식이라서 값을 돌려준다. 위 함수는 <code>match</code>의 값을 그대로 돌려준다.</p>
-<div class="box learn"><b>절은 위에서부터 본다</b>
-<p><code>match</code>는 첫 번째로 맞는 절 하나만 실행한다. 그래서 좁은 패턴을 위에, 넓은 패턴을 아래에 둔다. <code>_</code>를 맨 위에 두면 그 아래 절은 영영 실행되지 않는다. 시험 문제의 채점표를 위에서부터 읽어 내려가다 처음 해당하는 줄에서 멈추는 것과 같다.</p>
-</div>
 <p>아무 절도 맞지 않으면 프로그램은 E0601로 멈춘다. 처리하지 못한 경우를 조용히 지나치지 않게 하려는 것이다.</p>
 <div class="run"><pre><code>fn level(code) = match code:
   200 =&gt; &quot;ok&quot;
@@ -200,17 +197,6 @@ print(classify({name: &quot;api&quot;, port: 8080}))
 print(classify({name: &quot;tmp&quot;, port: 60000}))</code></pre><pre class="out plain"><code>ssh: system port
 api: registered port 8080
 tmp: dynamic port</code></pre></div>
-<div class="box mistake"><b>패턴의 이름은 늘 새 변수다</b>
-<p>패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 <strong>새 이름을 묶는다</strong>. 아래에서 <code>wanted</code> 절은 "값이 <code>wanted</code>와 같으면"이 아니라 "무엇이든 받아서 <code>wanted</code>라고 부른다"는 뜻이라 늘 맞는다. 에러도 나지 않으니 찾기 어려운 버그가 된다.</p>
-<div class="run"><pre><code>wanted = &quot;db&quot;
-
-fn pick(name) = match name:
-  wanted =&gt; &quot;matched ${wanted}&quot;
-;;
-
-print(pick(&quot;web&quot;))</code></pre><pre class="out plain"><code>matched web</code></pre></div>
-<p>바깥 값과 비교하려면 가드를 쓴다: <code>n when n == wanted =&gt; …</code>.</p>
-</div>
 <h2 id="destructuring">구조 분해 대입</h2>
 <p>패턴은 <code>match</code>에만 쓰는 것이 아니다. 대입 <code>=</code>의 왼쪽에도 패턴을 쓸 수 있다. 이것을 <strong>구조 분해 대입</strong>(destructuring assignment)이라고 한다. 값의 각 부분을 한 줄에 여러 이름으로 꺼낸다.</p>
 <div class="run"><pre><code>(quotient, remainder) = (17 // 5, 17 % 5)
@@ -271,12 +257,6 @@ print(type_of(Rect(2, 5)), Circle(1) == Circle(1))</code></pre><pre class="out p
 print(hex(Red), hex(Blue))
 print(Red == 'Red, type_of(Red))</code></pre><pre class="out plain"><code>#ff0000 #0000ff
 true 'sym</code></pre></div>
-<div class="box tip"><b>함수에 받을 종류를 적어 두기</b>
-<p><code>type</code>으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: <code>type color = Red | Green | Blue</code>, <code>fn hex(c: color) = …</code>. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이고 런타임에 검사한다. 규칙은 <a href="../reference/language.html#types">타입 표기</a>에 있다.</p>
-</div>
-<div class="box other"><b>다른 언어는</b>
-<p>태그와 <code>match</code>는 Rust의 <code>enum</code>과 <code>match</code>, OCaml·Haskell의 대수적 데이터 타입과 같은 생각이다. 다만 fung은 태그를 미리 선언하지 않는다. Python 3.10의 <code>match</code>와도 모양이 비슷하다. 쉘의 <code>case &quot;$x&quot; in start) … ;; esac</code>는 문자열 리터럴만 나눌 수 있지만, 패턴은 리스트·맵의 안쪽까지 본다.</p>
-</div>
 <div class="exercise"><b>로그 줄 나누기</b>
 <p><code>&quot;ERROR disk full&quot;</code>, <code>&quot;WARN slow&quot;</code>, <code>&quot;INFO started&quot;</code> 같은 로그 줄을 받아, 수준(<code>ERROR</code>·<code>WARN</code>·그 밖)에 따라 다른 문자열을 돌려주는 함수 <code>triage(line)</code>를 써 보자. <code>ERROR</code>면 <code>&quot;page: &lt;나머지&gt;&quot;</code>, <code>WARN</code>이면 <code>&quot;ticket: &lt;나머지&gt;&quot;</code>, 그 밖이면 <code>&quot;skip&quot;</code>이다. 빈 줄도 <code>&quot;skip&quot;</code>이다. 힌트: <code>split(line, &quot; &quot;)</code>의 결과를 리스트 패턴으로 나눈다.</p>
 <details><summary>풀이 보기</summary>
@@ -310,6 +290,78 @@ cron: single
 old: stopped</code></pre></div>
 </details>
 </div>
+<h2 id="notes">짚고 넘어가기</h2>
+<div class="box learn"><b>절은 위에서부터 본다</b>
+<p><code>match</code>는 첫 번째로 맞는 절 하나만 실행한다. 그래서 좁은 패턴을 위에, 넓은 패턴을 아래에 둔다. <code>_</code>를 맨 위에 두면 그 아래 절은 영영 실행되지 않는다. 시험 문제의 채점표를 위에서부터 읽어 내려가다 처음 해당하는 줄에서 멈추는 것과 같다.</p>
+</div>
+<div class="box mistake"><b>패턴의 이름은 늘 새 변수다</b>
+<p>패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 <strong>새 이름을 묶는다</strong>. 아래에서 <code>wanted</code> 절은 "값이 <code>wanted</code>와 같으면"이 아니라 "무엇이든 받아서 <code>wanted</code>라고 부른다"는 뜻이라 늘 맞는다. 에러도 나지 않으니 찾기 어려운 버그가 된다.</p>
+<div class="run"><pre><code>wanted = &quot;db&quot;
+
+fn pick(name) = match name:
+  wanted =&gt; &quot;matched ${wanted}&quot;
+;;
+
+print(pick(&quot;web&quot;))</code></pre><pre class="out plain"><code>matched web</code></pre></div>
+<p>바깥 값과 비교하려면 가드를 쓴다: <code>n when n == wanted =&gt; …</code>.</p>
+</div>
+<div class="box tip"><b>함수에 받을 종류를 적어 두기</b>
+<p><code>type</code>으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: <code>type color = Red | Green | Blue</code>, <code>fn hex(c: color) = …</code>. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이고 런타임에 검사한다. 규칙은 <a href="../reference/language/types.html">타입 표기</a>에 있다.</p>
+</div>
+<div class="box other"><b>다른 언어는</b>
+<p>태그와 <code>match</code>는 Rust의 <code>enum</code>과 <code>match</code>, OCaml·Haskell의 대수적 데이터 타입과 같은 생각이다. 다만 fung은 태그를 미리 선언하지 않는다. Python 3.10의 <code>match</code>와도 모양이 비슷하다. 쉘의 <code>case &quot;$x&quot; in start) … ;; esac</code>는 문자열 리터럴만 나눌 수 있지만, 패턴은 리스트·맵의 안쪽까지 본다.</p>
+</div>
+<h2 id="exercises">해 보기</h2>
+<div class="exercise"><b>HTTP 상태 나누기</b>
+<p>상태 코드를 받아 2xx는 <code>&quot;ok&quot;</code>, 3xx는 <code>&quot;redirect&quot;</code>, 404는 <code>&quot;missing&quot;</code>, 그 밖의 4xx는 <code>&quot;client error&quot;</code>, 나머지는 <code>&quot;server error&quot;</code>를 돌려주는 함수를 <code>match</code>와 <code>when</code>으로 써 보자. <code>[200, 301, 404, 403, 503]</code>에 대해 찍는다.</p>
+<details><summary>풀이 보기</summary>
+<p><code>404</code>처럼 콕 집는 절을 범위 절보다 위에 둔다. 절은 위에서부터 본다.</p>
+<div class="run"><pre><code>fn kind(code) = match code:
+  c when c &gt;= 200 and c &lt; 300 =&gt; &quot;ok&quot;
+  c when c &gt;= 300 and c &lt; 400 =&gt; &quot;redirect&quot;
+  404                         =&gt; &quot;missing&quot;
+  c when c &gt;= 400 and c &lt; 500 =&gt; &quot;client error&quot;
+  _                           =&gt; &quot;server error&quot;
+;;
+print(map([200, 301, 404, 403, 503], kind))</code></pre><pre class="out plain"><code>[&quot;ok&quot;, &quot;redirect&quot;, &quot;missing&quot;, &quot;client error&quot;, &quot;server error&quot;]</code></pre></div>
+</details>
+</div>
+<div class="exercise"><b>명령줄 나누기</b>
+<p><code>[&quot;deploy&quot;, &quot;prod&quot;]</code>, <code>[&quot;rollback&quot;, &quot;prod&quot;, &quot;v12&quot;]</code>, <code>[]</code>, <code>[&quot;oops&quot;]</code>처럼 들어오는 명령어 리스트를 리스트 패턴으로 나눠, 각각 <code>&quot;deploy to prod&quot;</code>, <code>&quot;rollback prod to v12&quot;</code>, <code>&quot;usage: deploy|rollback&quot;</code>, <code>&quot;unknown command oops&quot;</code>를 돌려주는 함수를 써 보자.</p>
+<details><summary>풀이 보기</summary>
+<div class="run"><pre><code>fn describe(cmd) = match cmd:
+  [&quot;deploy&quot;, env]        =&gt; &quot;deploy to ${env}&quot;
+  [&quot;rollback&quot;, env, ver] =&gt; &quot;rollback ${env} to ${ver}&quot;
+  []                     =&gt; &quot;usage: deploy|rollback&quot;
+  [other, ...]           =&gt; &quot;unknown command ${other}&quot;
+;;
+for cmd in [[&quot;deploy&quot;, &quot;prod&quot;], [&quot;rollback&quot;, &quot;prod&quot;, &quot;v12&quot;], [], [&quot;oops&quot;]]:
+  print(describe(cmd))
+;;</code></pre><pre class="out plain"><code>deploy to prod
+rollback prod to v12
+usage: deploy|rollback
+unknown command oops</code></pre></div>
+</details>
+</div>
+<div class="exercise"><b>검사 결과를 태그로</b>
+<p>서버 검사 결과를 <code>Up(ms)</code>와 <code>Down(why)</code> 태그로 나타내고, <code>[Up(12), Down(&quot;timeout&quot;), Up(340)]</code>에서 살아 있는 서버의 평균 응답 시간과 죽은 서버의 이유 목록을 찍어 보자.</p>
+<details><summary>풀이 보기</summary>
+<p><code>match</code>로 태그를 풀고, <code>filter</code>·<code>map</code>으로 고른다.</p>
+<div class="run"><pre><code>checks = [Up(12), Down(&quot;timeout&quot;), Up(340)]
+fn ms(c) = match c:
+  Up(t) =&gt; t
+  _     =&gt; nil
+;;
+fn why(c) = match c:
+  Down(w) =&gt; w
+  _       =&gt; nil
+;;
+up = checks |&gt; map(ms) |&gt; filter(t =&gt; t != nil)
+print(sum(up) / len(up))
+print(checks |&gt; map(why) |&gt; filter(w =&gt; w != nil))</code></pre><pre class="out plain"><code>176.0
+[&quot;timeout&quot;]</code></pre></div>
+</details>
+</div>
 <h2 id="summary">정리</h2>
 <ul>
 <li>패턴은 값의 모양을 확인하고 동시에 안의 값을 꺼낸다.</li>
@@ -319,7 +371,7 @@ old: stopped</code></pre></div>
 <li>대입·매개변수·<code>for</code>의 왼쪽에도 패턴을 쓴다. 맞지 않으면 E0602다.</li>
 <li>대문자 이름은 태그다. 선언 없이 만들고 <code>match</code>로 나눈다.</li>
 </ul>
-<p>정확한 규칙은 레퍼런스의 <a href="../reference/language.html#match">match와 패턴</a>과 <a href="../reference/language.html#types">타입 표기</a>에 있다. 에러는 <a href="../reference/errors.html#E0601">E0601</a>, <a href="../reference/errors.html#E0602">E0602</a>를 보라. 다음 장에서는 태그 <code>Ok</code>·<code>Err</code>로 실패를 다루는 법을 배운다.</p>
+<p>정확한 규칙은 레퍼런스의 <a href="../reference/language/match.html">match와 패턴</a>과 <a href="../reference/language/types.html">타입 표기</a>에 있다. 에러는 <a href="../reference/errors.html#E0601">E0601</a>, <a href="../reference/errors.html#E0602">E0602</a>를 보라. 다음 장에서는 태그 <code>Ok</code>·<code>Err</code>로 실패를 다루는 법을 배운다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/07-collections.html"><small>이전 장</small>7. 리스트·맵·튜플</a><a class="next" href="../learn/09-errors.html"><small>다음 장</small>9. 에러는 값이다</a></nav>
 </div></main>
 </div>

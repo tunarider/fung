@@ -15,13 +15,13 @@ description: fung prelude 컬렉션: len, map, filter, fold, sort_by, group_by, 
 
 ### 불변: 원본은 바뀌지 않는다 {#immutable}
 
-fung의 리스트는 **불변**(immutable)이다. 한 번 만든 리스트는 바뀌지 않는다. `sort(xs)`는 `xs`를 정렬하는 것이 아니라 정렬된 **새** 리스트를 돌려준다. 그래서 결과를 쓰려면 이름에 담는다: `sorted = sort(xs)`. 원본을 여러 곳이 같이 보고 있어도 한 곳의 작업이 다른 곳을 몰래 바꾸지 않으므로, 태스크 사이에 리스트를 그냥 넘겨도 안전하다. 사본은 원본과 구조를 나눠 쓰므로 `acc + [x]`로 하나씩 붙여 가도 매번 전체를 복사하지 않는다([누적과 재귀의 비용](../language.html#for)).
+fung의 리스트는 **불변**(immutable)이다. 한 번 만든 리스트는 바뀌지 않는다. `sort(xs)`는 `xs`를 정렬하는 것이 아니라 정렬된 **새** 리스트를 돌려준다. 그래서 결과를 쓰려면 이름에 담는다: `sorted = sort(xs)`. 원본을 여러 곳이 같이 보고 있어도 한 곳의 작업이 다른 곳을 몰래 바꾸지 않으므로, 태스크 사이에 리스트를 그냥 넘겨도 안전하다. 사본은 원본과 구조를 나눠 쓰므로 `acc + [x]`로 하나씩 붙여 가도 매번 전체를 복사하지 않는다([누적과 재귀의 비용](../language/for.html)).
 
 ### 함수를 받는 함수 {#higher-order}
 
 `map`·`filter`·`fold`처럼 **함수를 인자로 받는** 함수를 고차 함수(higher-order function)라고 한다. 반복문을 직접 쓰는 대신 "각 원소에 무엇을 할지"만 함수로 건넨다. 보통 그 자리에서 람다(`x => x * 2`)를 쓰고, 이미 있는 함수 이름(`len`, `parse_int`)을 넘겨도 된다.
 
-모든 함수가 컬렉션을 첫 인자로 받으므로 파이프 `|>`로 단계를 이을 수 있다. `xs |> filter(f) |> map(g)`는 `map(filter(xs, f), g)`와 같고, 위에서 아래로 읽힌다([파이프](../language.html#pipe)).
+모든 함수가 컬렉션을 첫 인자로 받으므로 파이프 `|>`로 단계를 이을 수 있다. `xs |> filter(f) |> map(g)`는 `map(filter(xs, f), g)`와 같고, 위에서 아래로 읽힌다([파이프](../language/operators.html#pipe)).
 
 ```fung run
 hosts = ["web-1", "db-1", "web-2", "web-3"]
@@ -121,7 +121,7 @@ print(is_empty(failed) then "all ok" else "${len(failed)} failed")
 
 #### 같이 보기
 
-[`len`](#fn-len), [조건](../language.html#conditions)
+[`len`](#fn-len), [조건](../language/conditions.html)
 
 :::
 
@@ -266,7 +266,7 @@ print(take(rx, 2))
 
 #### 같이 보기
 
-[`drop`](#fn-drop), [`first`](#fn-first), [슬라이스](../language.html#access)
+[`drop`](#fn-drop), [`first`](#fn-first), [슬라이스](../language/access.html)
 
 :::
 
@@ -309,7 +309,7 @@ print(drop(rows, 1))
 
 #### 같이 보기
 
-[`take`](#fn-take), [슬라이스](../language.html#access)
+[`take`](#fn-take), [슬라이스](../language/access.html)
 
 :::
 
@@ -353,7 +353,7 @@ for i in range(len(names)):
 
 #### 같이 보기
 
-[범위](../language.html#values), [`zip`](#fn-zip), [for](../language.html#for)
+[범위](../language/values.html), [`zip`](#fn-zip), [for](../language/for.html)
 
 :::
 
@@ -405,7 +405,7 @@ for target in ["prod", "dev"]:
 
 #### 같이 보기
 
-[`find`](#fn-find), [`any`](#fn-any), [`starts_with`](strings.html#fn-starts_with), [비교와 동일성](../language.html#values)
+[`find`](#fn-find), [`any`](#fn-any), [`starts_with`](strings.html#fn-starts_with), [비교와 동일성](../language/values.html)
 
 :::
 
@@ -482,7 +482,7 @@ print(map("abc", upper))
 
 #### 같이 보기
 
-[`try_map`](#fn-try_map), [`filter`](#fn-filter), [`each`](#fn-each), [for](../language.html#for), [`conc.pmap`](../modules/conc.html#fn-conc-pmap)(병렬)
+[`try_map`](#fn-try_map), [`filter`](#fn-filter), [`each`](#fn-each), [for](../language/for.html), [`conc.pmap`](../modules/conc.html#fn-conc-pmap)(병렬)
 
 :::
 
@@ -498,7 +498,7 @@ print(map("abc", upper))
 
 :::box mistake 파이프 끝의 ? 와 ! 는 괄호로 감싼다
 
-후위 `?`·`!`는 `|>`보다 단단히 붙는다([우선순위](../language.html#precedence)). 그래서 `xs |> try_map(f)?`는 `xs |> (try_map(f)?)`로 읽혀 `try_map`이 인자 하나로 불린다(E0407 `missing argument`). 파이프 전체를 괄호로 감싸 `(xs |> try_map(f))?`로 쓰거나, 파이프 없이 `try_map(xs, f)?`로 쓴다.
+후위 `?`·`!`는 `|>`보다 단단히 붙는다([우선순위](../language/operators.html#precedence)). 그래서 `xs |> try_map(f)?`는 `xs |> (try_map(f)?)`로 읽혀 `try_map`이 인자 하나로 불린다(E0407 `missing argument`). 파이프 전체를 괄호로 감싸 `(xs |> try_map(f))?`로 쓰거나, 파이프 없이 `try_map(xs, f)?`로 쓴다.
 
 :::
 
@@ -545,7 +545,7 @@ print(try_map(rs, r => r))
 
 #### 같이 보기
 
-[`map`](#fn-map), [결과값과 에러](../language.html#results), [E0226](../errors.html#E0226)
+[`map`](#fn-map), [결과값과 에러](../language/results.html), [E0226](../errors.html#E0226)
 
 :::
 
@@ -672,7 +672,7 @@ print(evens)
 
 #### 같이 보기
 
-[`sum`](#fn-sum), [`map`](#fn-map), [`group_by`](#fn-group_by), [`until`](loops.html#fn-until), [for](../language.html#for)
+[`sum`](#fn-sum), [`map`](#fn-map), [`group_by`](#fn-group_by), [`until`](loops.html#fn-until), [for](../language/for.html)
 
 :::
 
@@ -684,7 +684,7 @@ print(evens)
 
 `map`과 같은 순서로 `f`를 부르지만 결과를 모으지 않고 `nil`을 돌려준다. `for` 문장도 같은 일을 하지만 `for`는 식이라 결과 리스트를 만든다. 값을 모을 필요가 없는 일(찍기, 채널에 보내기, 파일에 쓰기)에 `each`를 쓴다.
 
-`f`의 결과를 버리므로, `f`가 `Err`를 돌려주면 그 자리에서 E0606(버려지는 `Err`)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버린다: `fn(x): _ = 식 ;;`(람다 `x => …`의 몸에는 대입을 쓸 수 없다)([버려지는 `Err`](../language.html#results)).
+`f`의 결과를 버리므로, `f`가 `Err`를 돌려주면 그 자리에서 E0606(버려지는 `Err`)으로 멈춘다. 실패를 조용히 넘기지 않기 위해서다. 실패해도 상관없으면 블록 함수 안에서 일부러 버린다: `fn(x): _ = 식 ;;`(람다 `x => …`의 몸에는 대입을 쓸 수 없다)([버려지는 `Err`](../language/results.html)).
 
 #### 매개변수
 
@@ -726,7 +726,7 @@ each(["8080", "http"], s => parse_int(s))
 
 #### 같이 보기
 
-[`map`](#fn-map), [for](../language.html#for), [E0606](../errors.html#E0606)
+[`map`](#fn-map), [for](../language/for.html), [E0606](../errors.html#E0606)
 
 :::
 
@@ -872,7 +872,7 @@ print(checks |> filter(c => not c.ok) |> map(c => c.name))
 
 #### 설명
 
-순서는 [비교와 동일성](../language.html#values) 표의 `<`를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(`"B" < "a"`). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.
+순서는 [비교와 동일성](../language/values.html) 표의 `<`를 따른다. 수는 크기 순이고 정수와 실수를 섞어도 된다. 문자열은 코드 포인트 순이라 대문자가 소문자보다 앞선다(`"B" < "a"`). 리스트와 튜플은 앞 원소부터 사전식으로 비교한다.
 
 **안정 정렬**(stable sort)이라 같은 값끼리는 원래 순서를 지킨다. 맵, `bool`, 심볼, 태그처럼 `<`가 없는 값이 있거나, 서로 비교할 수 없는 타입(수와 문자열)이 섞이면 처음 실패한 비교에서 에러가 난다. 큰 것부터는 `sort(xs) |> reverse`, 다른 기준은 [`sort_by`](#fn-sort_by).
 
@@ -1213,7 +1213,7 @@ for (i, step) in zip(1..100, ["build", "test", "deploy"]):
 
 #### 같이 보기
 
-[`range`](#fn-range), [튜플](../language.html#values), [for](../language.html#for)
+[`range`](#fn-range), [튜플](../language/values.html), [for](../language/for.html)
 
 :::
 

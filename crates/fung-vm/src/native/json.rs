@@ -10,12 +10,11 @@ use std::sync::OnceLock;
 
 use fung_front::diag::{Arg, quote};
 
-use super::nat::{self, native, opt, param};
+use super::nat::{self, native_step, opt, param};
 use crate::prelude::{MAX_CHARS, too_many_chars};
-use crate::value::{
-    ListBuilder, ListIter, Lit, MapBuilder, MapIter, Module, Native, Text, Value, format, type_name,
-};
-use crate::vm::{Stop, Task};
+use crate::value::{ListBuilder, Lit, MapBuilder, Module, Native, Text, Value, format, type_name};
+use crate::vm::pieces::{self, PIECE_BYTES, Work};
+use crate::vm::{Flow, Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -24,10 +23,10 @@ static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new()
 pub fn module() -> Rc<Module> {
     let natives = NATIVES.get_or_init(|| {
         vec![
-            ("parse", native("parse", parse_fn, vec![param("s")])),
+            ("parse", native_step("parse", parse_fn, vec![param("s")])),
             (
                 "stringify",
-                native(
+                native_step(
                     "stringify",
                     stringify_fn,
                     vec![param("v"), opt("indent", Lit::Nil)],
@@ -42,23 +41,52 @@ pub fn module() -> Rc<Module> {
     Rc::new(m)
 }
 
-fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let t = nat::need_bytes("s", &a[0])?;
+/// `json.parse(s)`, read a piece at a time (L6, `vm/pieces.rs`).
+fn parse_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let text = nat::need_bytes("s", &a[0])?;
     // JSON text is UTF-8 (RFC 8259): other bytes are a parse failure where
     // they start, like any other bad input.
-    let r = match std::str::from_utf8(t) {
-        Ok(s) => decode(s),
-        Err(e) => {
-            let ok = std::str::from_utf8(&t[..e.valid_up_to()]).expect("the valid prefix");
-            let (line, col) = line_col(ok, ok.len());
-            Err(JsonError {
-                line,
-                col,
-                msg: "invalid UTF-8".into(),
+    let Value::Str(whole) = &a[0] else {
+        unreachable!("checked as a string")
+    };
+    if !whole.is_utf8() {
+        let e = std::str::from_utf8(text).expect_err("not UTF-8");
+        let ok = std::str::from_utf8(&text[..e.valid_up_to()]).expect("the valid prefix");
+        let (line, col) = line_col(ok, ok.len());
+        return Ok(Flow::Done(parse_result(Err(JsonError {
+            line,
+            col,
+            msg: "invalid UTF-8".into(),
+        }))));
+    }
+    struct Parse {
+        text: Value,
+        d: Decoder,
+    }
+    impl Work for Parse {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let Value::Str(t) = &self.text else {
+                unreachable!("checked as a string")
+            };
+            let s = t.as_str().expect("checked as UTF-8");
+            Ok(match self.d.run(s, PIECE_BYTES) {
+                Ok(None) => None,
+                r => Some(parse_result(r.map(|v| v.expect("a value")))),
             })
         }
-    };
-    Ok(match r {
+    }
+    pieces::run(
+        t,
+        Parse {
+            text: a[0].clone(),
+            d: Decoder::new(),
+        },
+    )
+}
+
+/// `parse`'s result: `Ok(v)`, or the `Err` of a failure.
+fn parse_result(r: Result<Value, JsonError>) -> Value {
+    match r {
         Ok(v) => nat::ok(v),
         Err(e) => nat::err_value(
             "parse",
@@ -71,7 +99,7 @@ fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
                 ("col", Value::Int(e.col as i64)),
             ],
         ),
-    })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -306,16 +334,64 @@ impl<'a> Parser<'a> {
     }
 }
 
-/// `s` as one JSON value.
+/// `s` as one JSON value, in one go.
+#[cfg(test)]
 fn decode(s: &str) -> Result<Value, JsonError> {
-    let mut p = Parser {
-        s,
-        b: s.as_bytes(),
-        i: 0,
-    };
-    let mut open: Vec<Open> = Vec::new();
-    p.skip_ws();
+    let mut d = Decoder::new();
     loop {
+        if let Some(v) = d.run(s, usize::MAX)? {
+            return Ok(v);
+        }
+    }
+}
+
+/// A parse in progress (L6): where it is in the text and the containers
+/// open there, so that it can stop between two values and go on later.
+struct Decoder {
+    i: usize,
+    started: bool,
+    open: Vec<Open>,
+}
+
+impl Decoder {
+    fn new() -> Decoder {
+        Decoder {
+            i: 0,
+            started: false,
+            open: Vec::new(),
+        }
+    }
+
+    /// Reads on from where it stopped for about `piece` bytes: the value
+    /// once the text is all read, `None` to go on later.
+    fn run(&mut self, s: &str, piece: usize) -> Result<Option<Value>, JsonError> {
+        let mut p = Parser {
+            s,
+            b: s.as_bytes(),
+            i: self.i,
+        };
+        if !std::mem::replace(&mut self.started, true) {
+            p.skip_ws();
+        }
+        let stop_at = p.i.saturating_add(piece);
+        let r = read(&mut p, &mut self.open, stop_at);
+        self.i = p.i;
+        r
+    }
+}
+
+/// The body of `Decoder::run`: reads values until the text ends or `p.i`
+/// passes `stop_at` where a value starts.
+fn read(
+    p: &mut Parser<'_>,
+    open: &mut Vec<Open>,
+    stop_at: usize,
+) -> Result<Option<Value>, JsonError> {
+    let s = p.s;
+    loop {
+        if p.i >= stop_at {
+            return Ok(None);
+        }
         // A value starts here: a scalar, or a container that may be empty.
         let at = p.i;
         let mut done = match p.peek() {
@@ -364,7 +440,7 @@ fn decode(s: &str) -> Result<Value, JsonError> {
                 if p.i < s.len() {
                     return Err(p.err(p.i, "unexpected text after the value"));
                 }
-                return Ok(done);
+                return Ok(Some(done));
             };
             let (close, expect) = match top {
                 Open::List(b) => {
@@ -402,7 +478,8 @@ fn decode(s: &str) -> Result<Value, JsonError> {
 // ---------------------------------------------------------------------------
 // stringify
 
-fn stringify_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// `json.stringify(v, indent)`, written a piece at a time (L6).
+fn stringify_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let indent = match &a[1] {
         Value::Nil => 0,
         Value::Int(n) if *n < 0 => {
@@ -418,12 +495,7 @@ fn stringify_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         Value::Int(n) => *n,
         v => return Err(nat::wrong_arg("indent", "int | nil", v)),
     };
-    let mut out = String::new();
-    encode(&mut out, &a[0], indent)?;
-    if out.len() as i64 > MAX_CHARS && out.chars().count() as i64 > MAX_CHARS {
-        return Err(too_many_chars());
-    }
-    Ok(Value::string(out))
+    pieces::run(t, Encoder::new(a[0].clone(), indent))
 }
 
 /// A string as JSON text, which must be UTF-8 (RFC 8259): other bytes
@@ -475,116 +547,154 @@ pub(super) fn newline(out: &mut String, indent: i64, depth: i64) -> Result<(), S
     Ok(())
 }
 
-/// A container being written.
-enum Items<'a> {
-    List(ListIter<'a>),
-    Tuple(std::slice::Iter<'a, Value>),
-    Map(MapIter<'a>),
-}
-
-struct Level<'a> {
-    items: Items<'a>,
+/// A container being written: it, the slot of its next item, and its
+/// depth. It holds no borrow, so the writing can stop between items (L6).
+struct Level {
+    v: Value,
+    at: usize,
     depth: i64,
     first: bool,
 }
 
-/// `stringify` (06: stringify 대응표) with an explicit stack: maps
-/// keep their order; indent 0 is one line, otherwise nested values go on
-/// their own lines.
-fn encode(out: &mut String, v: &Value, indent: i64) -> Result<(), Stop> {
-    let colon = if indent > 0 { ": " } else { ":" };
-    let mut stack: Vec<Level<'_>> = Vec::new();
-    let mut next = Some((v, 0i64));
-    loop {
-        if let Some((v, depth)) = next.take() {
-            let opened = match v {
-                Value::Nil => {
-                    out.push_str("null");
-                    None
-                }
-                Value::Bool(_) | Value::Int(_) | Value::Float(_) => {
-                    out.push_str(&format(v));
-                    None
-                }
-                Value::Str(s) => {
-                    quote_json(out, json_text(s)?);
-                    None
-                }
-                Value::Sym(s) => {
-                    quote_json(out, s.name());
-                    None
-                }
-                Value::Time(t) => {
-                    quote_json(out, &t.iso());
-                    None
-                }
-                Value::List(l) if l.is_empty() => {
-                    out.push_str("[]");
-                    None
-                }
-                Value::List(l) => Some((b'[', Items::List(l.iter()))),
-                Value::Tuple(t) if t.is_empty() => {
-                    out.push_str("[]");
-                    None
-                }
-                Value::Tuple(t) => Some((b'[', Items::Tuple(t.iter()))),
-                Value::Map(m) if m.is_empty() => {
-                    out.push_str("{}");
-                    None
-                }
-                Value::Map(m) => Some((b'{', Items::Map(m.iter()))),
-                _ => {
-                    return Err(nat::fail(
-                        "E0513",
-                        vec![Arg::Str(type_name(v)), nat::s("JSON")],
-                    ));
-                }
-            };
-            if let Some((open, items)) = opened {
-                out.push(open as char);
-                stack.push(Level {
-                    items,
-                    depth,
-                    first: true,
-                });
-            }
+/// The next item of a container at slot `at` or after it: its key (in a
+/// map), the item, and the slot after it.
+fn item_from(v: &Value, at: usize) -> Option<(Option<Rc<Text>>, Value, usize)> {
+    match v {
+        Value::List(l) => l.at(at).map(|x| (None, x.clone(), at + 1)),
+        Value::Tuple(t) => t.get(at).map(|x| (None, x.clone(), at + 1)),
+        Value::Map(m) => m
+            .entry_from(at)
+            .map(|(i, k, x)| (Some(k.clone()), x.clone(), i + 1)),
+        _ => None,
+    }
+}
+
+/// A `stringify` in progress (06: stringify 대응표) with an explicit
+/// stack: maps keep their order; indent 0 is one line, otherwise nested
+/// values go on their own lines.
+struct Encoder {
+    out: String,
+    stack: Vec<Level>,
+    next: Option<(Value, i64)>,
+    indent: i64,
+}
+
+impl Encoder {
+    fn new(v: Value, indent: i64) -> Encoder {
+        Encoder {
+            out: String::new(),
+            stack: Vec::new(),
+            next: Some((v, 0)),
+            indent,
         }
-        let Some(top) = stack.last_mut() else {
-            return Ok(());
-        };
-        let (key, item) = match &mut top.items {
-            Items::List(it) => (None, it.next()),
-            Items::Tuple(it) => (None, it.next()),
-            Items::Map(it) => match it.next() {
-                Some((k, v)) => (Some(k), Some(v)),
-                None => (None, None),
-            },
-        };
-        let depth = top.depth;
-        match item {
-            Some(item) => {
-                if !top.first {
-                    out.push(',');
-                }
-                top.first = false;
-                newline(out, indent, depth + 1)?;
-                if let Some(k) = key {
-                    quote_json(out, json_text(k)?);
-                    out.push_str(colon);
-                }
-                next = Some((item, depth + 1));
-            }
-            None => {
-                let close = if matches!(top.items, Items::Map(_)) {
-                    '}'
-                } else {
-                    ']'
+    }
+
+    /// Writes on for about `piece` bytes: true once it is all written.
+    fn run(&mut self, piece: usize) -> Result<bool, Stop> {
+        let indent = self.indent;
+        let colon = if indent > 0 { ": " } else { ":" };
+        let stop_at = self.out.len().saturating_add(piece);
+        let out = &mut self.out;
+        loop {
+            if let Some((v, depth)) = self.next.take() {
+                let open = match &v {
+                    Value::Nil => {
+                        out.push_str("null");
+                        None
+                    }
+                    Value::Bool(_) | Value::Int(_) | Value::Float(_) => {
+                        out.push_str(&format(&v));
+                        None
+                    }
+                    Value::Str(s) => {
+                        quote_json(out, json_text(s)?);
+                        None
+                    }
+                    Value::Sym(s) => {
+                        quote_json(out, s.name());
+                        None
+                    }
+                    Value::Time(t) => {
+                        quote_json(out, &t.iso());
+                        None
+                    }
+                    Value::List(l) if l.is_empty() => {
+                        out.push_str("[]");
+                        None
+                    }
+                    Value::Tuple(t) if t.is_empty() => {
+                        out.push_str("[]");
+                        None
+                    }
+                    Value::List(_) | Value::Tuple(_) => Some('['),
+                    Value::Map(m) if m.is_empty() => {
+                        out.push_str("{}");
+                        None
+                    }
+                    Value::Map(_) => Some('{'),
+                    _ => {
+                        return Err(nat::fail(
+                            "E0513",
+                            vec![Arg::Str(type_name(&v)), nat::s("JSON")],
+                        ));
+                    }
                 };
-                stack.pop();
-                newline(out, indent, depth)?;
-                out.push(close);
+                if let Some(open) = open {
+                    out.push(open);
+                    self.stack.push(Level {
+                        v,
+                        at: 0,
+                        depth,
+                        first: true,
+                    });
+                }
+            }
+            if out.len() >= stop_at {
+                return Ok(false);
+            }
+            let Some(top) = self.stack.last_mut() else {
+                return Ok(true);
+            };
+            let depth = top.depth;
+            match item_from(&top.v, top.at) {
+                Some((key, item, at)) => {
+                    top.at = at;
+                    if !top.first {
+                        out.push(',');
+                    }
+                    top.first = false;
+                    newline(out, indent, depth + 1)?;
+                    if let Some(k) = key {
+                        quote_json(out, json_text(&k)?);
+                        out.push_str(colon);
+                    }
+                    self.next = Some((item, depth + 1));
+                }
+                None => {
+                    let close = if matches!(top.v, Value::Map(_)) {
+                        '}'
+                    } else {
+                        ']'
+                    };
+                    self.stack.pop();
+                    newline(out, indent, depth)?;
+                    out.push(close);
+                }
             }
         }
+    }
+}
+
+impl Work for Encoder {
+    fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+        if !self.run(PIECE_BYTES)? {
+            return Ok(None);
+        }
+        let out = std::mem::take(&mut self.out);
+        if out.len() as i64 > MAX_CHARS && out.chars().count() as i64 > MAX_CHARS {
+            return Err(too_many_chars());
+        }
+        Ok(Some(Value::string(out)))
     }
 }
 

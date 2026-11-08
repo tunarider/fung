@@ -268,4 +268,4 @@ print(names |> map(tidy))
 - 나누기 `split`·`lines`, 잇기 `join`, 다듬기 `trim`·`upper`·`lower`·`replace`, 묻기 `starts_with`·`ends_with`·`in`, 채우기 `repeat`·`pad_left`·`pad_right`.
 - 글자 수와 화면 너비는 다를 수 있다. 한글은 두 칸이다.
 
-레퍼런스: [문자열 함수](../reference/prelude/strings.html), [`split`](../reference/prelude/strings.html#fn-split), [`join`](../reference/prelude/strings.html#fn-join), [`trim`](../reference/prelude/strings.html#fn-trim), [`replace`](../reference/prelude/strings.html#fn-replace), [문자열 리터럴](../reference/language.html#lexical), [인덱스·슬라이스](../reference/language.html#access), [E0103](../reference/errors.html#E0103). 패턴으로 찾고 바꾸기는 [`regex`](../reference/modules/regex.html) 모듈에 있다.
+레퍼런스: [문자열 함수](../reference/prelude/strings.html), [`split`](../reference/prelude/strings.html#fn-split), [`join`](../reference/prelude/strings.html#fn-join), [`trim`](../reference/prelude/strings.html#fn-trim), [`replace`](../reference/prelude/strings.html#fn-replace), [문자열 리터럴](../reference/language/lexical.html), [인덱스·슬라이스](../reference/language/access.html), [E0103](../reference/errors.html#E0103). 패턴으로 찾고 바꾸기는 [`regex`](../reference/modules/regex.html) 모듈에 있다.

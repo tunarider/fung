@@ -158,14 +158,22 @@ impl Records {
 const INSIDE_A_RECORD: &str = "connection closed inside a TLS record";
 
 /// A TLS client session for `host`, its handshake not begun.
-pub(super) fn start(host: &str) -> Result<Session, Fail> {
+/// A client session for `host`, offering the protocols `alpn` (ALPN, RFC
+/// 7301; none offers nothing). A server that picks one not offered fails
+/// the handshake.
+pub(super) fn start(host: &str, alpn: &[Vec<u8>]) -> Result<Session, Fail> {
     if host.is_empty() {
         // there is no name to verify the certificate against
         return Err(Fail::Network("TLS needs a host name".into()));
     }
     let name = ServerName::try_from(host.to_string())
         .map_err(|_| Fail::Network(format!("invalid TLS server name `{host}`")))?;
-    let conn = ClientConnection::new(config(), name).map_err(|e| Fail::Network(reason(&e)))?;
+    let cfg = if alpn.is_empty() {
+        config()
+    } else {
+        with_alpn(alpn)
+    };
+    let conn = ClientConnection::new(cfg, name).map_err(|e| Fail::Network(reason(&e)))?;
     Ok(Session {
         conn,
         rec: Records::default(),
@@ -326,11 +334,45 @@ pub(super) fn write(
 }
 
 /// Sends close_notify as far as the socket takes it now (a full send
-/// buffer drops it: `close` does not wait).
+/// buffer drops it): for a connection dropped without `close`, which
+/// cannot wait.
 pub(super) fn close_notify(t: &Mutex<Session>, s: &TcpStream) {
     let mut st = lock(t);
     st.conn.send_close_notify();
     st.flush_quietly(s);
+}
+
+/// Queues close_notify (`close`, which then waits for it to go out with
+/// `flush_close`).
+pub(super) fn queue_close_notify(t: &Mutex<Session>) {
+    lock(t).conn.send_close_notify();
+}
+
+/// Writes what is left to send, close_notify last, waiting for the socket
+/// until `until` (L12: `close` waits at most a second for it, as a full
+/// send buffer would drop it). A failed write ends it: the peer is gone.
+pub(super) fn flush_close(
+    a: &mut Attempt,
+    t: &Mutex<Session>,
+    s: &TcpStream,
+    until: Instant,
+) -> Result<(), Fail> {
+    let mut st = lock(t);
+    while st.conn.wants_write() {
+        match st.conn.write_tls(&mut &*s) {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= until {
+                    break;
+                }
+                return Err(wait_io(a, s.as_raw_fd(), Interest::Write, Some(until)));
+            }
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => break,
+        }
+    }
+    Ok(())
 }
 
 /// The process's client configuration: roots read once (the test probe
@@ -346,13 +388,79 @@ fn config() -> Arc<ClientConfig> {
             #[cfg(test)]
             probe::LOADS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             // Errors (an unreadable file among several) leave out what
-            // they name; what was read is used.
+            // they name; what was read is used, and the first error is
+            // told when a certificate is not trusted (`ROOTS_NOTE`).
             let found = rustls_native_certs::load_native_certs();
+            let first = found.errors.first().map(read_error);
             let mut roots = RootCertStore::empty();
             roots.add_parsable_certificates(found.certs);
+            let note = match (roots.is_empty(), first) {
+                (true, Some(e)) => Some(format!("no root certificates found ({e})")),
+                (true, None) => {
+                    let set: Vec<&str> = ["SSL_CERT_FILE", "SSL_CERT_DIR"]
+                        .into_iter()
+                        .filter(|v| std::env::var_os(v).is_some())
+                        .collect();
+                    Some(if set.is_empty() {
+                        "no root certificates found (set SSL_CERT_FILE)".into()
+                    } else {
+                        format!("no root certificates found (none in {})", set.join(" or "))
+                    })
+                }
+                (false, Some(e)) => Some(format!("unknown certificate authority ({e})")),
+                (false, None) => None,
+            };
+            let _ = ROOTS_NOTE.set(note);
             client_config(roots)
         })
         .clone()
+}
+
+/// What to say for a certificate no root vouches for, when reading the
+/// roots went wrong (L12): none were found (a `scratch` container without
+/// a CA file), or a file the certificate variables name could not be read.
+static ROOTS_NOTE: OnceLock<Option<String>> = OnceLock::new();
+
+/// An error reading the roots, as fung says it: the variable whose file
+/// it was, when one was set.
+fn read_error(e: &rustls_native_certs::Error) -> String {
+    use rustls_native_certs::ErrorKind;
+    let named = |path: &std::path::Path| {
+        for var in ["SSL_CERT_FILE", "SSL_CERT_DIR"] {
+            if let Some(v) = std::env::var_os(var)
+                && std::env::split_paths(&v).any(|p| path.starts_with(&p))
+            {
+                return format!("{var} `{}`", path.display());
+            }
+        }
+        format!("`{}`", path.display())
+    };
+    match &e.kind {
+        ErrorKind::Io { inner, path } => {
+            format!("cannot read {}: {}", named(path), oserr::reason(inner))
+        }
+        ErrorKind::Pem(p) => {
+            let set: Vec<&str> = ["SSL_CERT_FILE", "SSL_CERT_DIR"]
+                .into_iter()
+                .filter(|v| std::env::var_os(v).is_some())
+                .collect();
+            if set.is_empty() {
+                format!("a broken PEM block: {p}")
+            } else {
+                format!("a broken PEM block in {}: {p}", set.join(" or "))
+            }
+        }
+        ErrorKind::Os(o) => format!("cannot read the system's certificates: {o}"),
+        _ => format!("cannot read the certificates: {e}"),
+    }
+}
+
+/// The client configuration offering `alpn`: the one with the roots,
+/// copied (cheap beside a handshake; the roots are shared).
+fn with_alpn(alpn: &[Vec<u8>]) -> Arc<ClientConfig> {
+    let mut c = (*config()).clone();
+    c.alpn_protocols = alpn.to_vec();
+    Arc::new(c)
 }
 
 fn client_config(roots: RootCertStore) -> Arc<ClientConfig> {
@@ -378,7 +486,13 @@ pub(super) fn reason(e: &TlsError) -> String {
 /// The text for a certificate the verifier refused.
 fn certificate(e: &CertificateError) -> String {
     match e {
-        CertificateError::UnknownIssuer => "unknown certificate authority".into(),
+        CertificateError::UnknownIssuer => match ROOTS_NOTE.get() {
+            // the test probe's roots are not the process's
+            #[cfg(test)]
+            _ if lock(&probe::TRUST).is_some() => "unknown certificate authority".into(),
+            Some(Some(note)) => note.clone(),
+            _ => "unknown certificate authority".into(),
+        },
         CertificateError::NotValidForNameContext { expected, .. } => {
             let host = match expected {
                 ServerName::IpAddress(ip) => IpAddr::from(*ip).to_string(),

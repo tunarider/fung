@@ -78,7 +78,7 @@ docs/
 | `fung run` | check·fmt --check·실행, 출력 칸 채움. 속성: `args="a b"`, `stdin=파일`, `env="K=V K2=V2"`, `exit=N`(기본 0, 다르면 에러), `hide-output` |
 | `fung check` | check·fmt --check만. 바로 뒤의 `expect` 펜스가 있으면 "검사하지 않은 예상 출력"으로 보임 |
 | `fung frag` | 검사 없음 |
-| `dump ast\|core\|bytecode` | 내용은 fung 소스, `fung dump <단계>` 결과를 출력 칸에 |
+| `dump ast\|core\|bytecode [fn=NAME]` | 내용은 fung 소스, `fung dump <단계>` 결과를 출력 칸에. `fn=NAME`이면 그 함수의 `== NAME ==` 덩어리만(없으면 에러, L16). dump 모양(`== 이름 ==` 줄과 `0000  1:1` 줄)을 품은 `plain`·`core` 펜스는 에러다: 손으로 적은 dump가 검사 밖에서 낡지 않게 |
 | `shell`, `plain`, `core` | 검사 없음(`shell`은 bash 표시, `core`는 코어 트리 색) |
 | `file 이름` | 다음 `run`/`check` 예제의 준비물 파일(여러 개 가능). 페이지에는 그 예제 위의 접힌 "준비물" 상자로 |
 | `expect` | 바로 앞 `check`의 예상 출력(다른 명령의 출력, 검사하지 않음) |

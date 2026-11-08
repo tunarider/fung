@@ -33,7 +33,7 @@ pub use format::format_for_print;
 pub use format::{format, type_name, write_for_print};
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
-pub(crate) use release::{drop_children, keep};
+pub(crate) use release::{drop_children, keep, pending, release_piece, set_deferring};
 pub use sym::{Sym, intern};
 pub use text::Text;
 

@@ -1,5 +1,5 @@
 ---
-description: 함수를 정의하고 부르는 법, 짧은 형태 fn f(x) = …, 람다, 기본값·이름·나머지 인자, 값으로서의 함수, 만들어질 때 보이는 값을 복사하는 클로저, 파이프 |>.
+description: 함수를 정의하고 부르는 법, 짧은 형태 fn f(x) = …, 람다, 기본값·이름·나머지 인자, 값으로서의 함수, 만들어질 때 보이는 값을 복사하는 클로저, 파이프 |>, 재귀와 꼬리 재귀.
 lede: 계산에 이름을 붙여 다시 쓰는 법. fung에서 함수는 숫자나 문자열과 똑같은 값이다.
 ---
 # 함수
@@ -13,6 +13,7 @@ lede: 계산에 이름을 붙여 다시 쓰는 법. fung에서 함수는 숫자�
 - 클로저: 함수는 만들어질 때 보이는 값을 복사한다
 - 최상위 함수가 볼 수 있는 이름
 - 파이프 `|>`와 부분 적용 `_`
+- 재귀와 꼬리 재귀: `while` 없이 "될 때까지" 되풀이하는 법
 
 :::
 
@@ -222,7 +223,45 @@ fn scale(factor, n) = factor * n
 print([1, 2, 3] |> map(scale(10, _)))
 ```
 
+## 재귀: 자기를 부르는 함수 {#recursion}
+
+4장에서 fung에는 `while`이 없고, 목록 없이 "될 때까지" 되풀이하는 반복은 **재귀(recursion)**, 곧 함수가 자기 자신을 부르는 것으로 쓴다고 했다. 이제 함수를 알았으니 그 모양을 보자. 아래는 8080번부터 시작해 이미 쓰는 포트를 건너뛰고 비어 있는 첫 포트를 찾는다. "쓰는 중이면 다음 번호로 같은 일을 다시 하고, 아니면 그 번호가 답"이다.
+
+```fung run
+fn next_free(port, used) = port in used then next_free(port + 1, used) else port
+print(next_free(8080, [8080, 8081, 8083]))
+```
+
+`while`에서 바뀌던 변수(`port`)가 여기서는 **다음 호출의 인자**가 된다. 바뀌는 것이 없으니 3장의 규칙과 부딪히지 않는다.
+
+이렇게 함수가 하는 마지막 일이 자기 호출인 것을 **꼬리 재귀(tail recursion)**라고 한다. fung은 꼬리 호출을 할 때 새 자리를 쌓지 않고 지금 자리를 다시 쓰므로, 백만 번을 돌아도 문제가 없다. 결과를 모아 가려면 모은 값을 인자로 넘긴다. 아래는 1초에서 시작해 두 배씩 늘리는 재시도 간격을 30초까지 모은다.
+
+```fung run
+fn backoff(delay, limit, acc) = delay > limit then acc else backoff(delay * 2, limit, acc + [delay])
+print(backoff(1s, 30s, []))
+```
+
+4장의 `until`·`iterate`도 이렇게 꼬리 재귀로 쓴 함수다.
+
 ## 짚고 넘어가기 {#notes}
+
+:::box learn 반복과 재귀
+
+재귀는 "문제를 한 걸음 줄인 같은 문제로 바꾸는 것"이다. 3부터 0까지 세는 일은 "3을 찍고, 2부터 0까지 세는 일"이다. 줄이다 보면 더 줄일 수 없는 경우(0)에 닿고, 거기서 멈춘다. 이 멈추는 경우를 빠뜨리면 끝나지 않는다. 재귀 함수를 쓸 때는 늘 "언제 멈추는가"부터 쓴다.
+
+```fung run
+fn countdown(n):
+  if n == 0:
+    print("liftoff")
+  else:
+    print(n)
+    countdown(n - 1)
+  ;;
+;;
+countdown(3)
+```
+
+:::
 
 :::box learn 매개변수와 인자, 정의와 호출
 
@@ -301,5 +340,6 @@ print(usages |> filter(over(95)))
 - 함수는 값이다. 람다 `x => …`로 그 자리에서 만들고, 인자로 넘기고, 돌려준다.
 - 함수는 만들어질 때 보이는 변수의 값을 복사한다. 최상위 `fn`은 상수만 읽을 수 있다.
 - `x |> f(a)`는 `f(x, a)`. 대상이 첫 인자라는 규칙 덕분에 파이프가 이어진다. `f(a, _)`는 부분 적용.
+- 목록 없는 반복은 재귀로 쓴다. 마지막 일이 자기 호출인 꼬리 재귀는 몇 번을 돌아도 스택을 쓰지 않는다. 언제 멈추는지부터 쓴다.
 
-레퍼런스: [함수](../reference/language.html#functions), [변수와 스코프](../reference/language.html#scope), [파이프](../reference/language.html#pipe), [타입 표기](../reference/language.html#types)(인자와 반환값의 타입을 적어 검사하는 법), [E0204](../reference/errors.html#E0204), [E0227](../reference/errors.html#E0227). 클로저가 값을 복사하는 방법은 [함수와 클로저](../vm/09-closures.html)에서 다룬다.
+레퍼런스: [함수](../reference/language/functions.html), [변수와 스코프](../reference/language/scope.html), [파이프](../reference/language/operators.html#pipe), [타입 표기](../reference/language/types.html)(인자와 반환값의 타입을 적어 검사하는 법), [E0204](../reference/errors.html#E0204), [E0227](../reference/errors.html#E0227). 클로저가 값을 복사하는 방법과 꼬리 호출이 프레임을 다시 쓰는 방법은 [함수와 클로저](../vm/09-closures.html)에서 다룬다.

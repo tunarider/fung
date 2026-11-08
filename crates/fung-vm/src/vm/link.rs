@@ -14,7 +14,7 @@ use fung_front::tree::Capture;
 
 use super::matcher::{RtPattern, link_pattern};
 use super::{Stop, Task, internal};
-use crate::value::{List, Native, NativeParam, TypeSet, Value, intern};
+use crate::value::{List, MapBuilder, Native, NativeParam, Tag, TypeSet, Value, intern};
 
 /// The prelude table: every name a program can use without importing
 /// (06), mapped to its value.
@@ -83,15 +83,32 @@ pub(super) fn constant(c: &Const, prelude: &Prelude) -> Value {
             Some(v) => v.clone(),
             None => missing(name),
         },
-        // The compiler makes a list constant only for the prelude's `args`
-        // (empty at compile time); the run's value is the prelude's.
-        Const::List(items) => match prelude.0.get("args") {
-            Some(v @ Value::List(_)) if items.is_empty() => v.clone(),
-            _ => Value::List(Rc::new(List::new(
-                items.iter().map(|c| constant(c, prelude)).collect(),
-            ))),
+        // the run's arguments, which the prelude holds
+        Const::Args => match prelude.0.get("args") {
+            Some(v) => v.clone(),
+            None => Value::List(Rc::new(List::new(Vec::new()))),
         },
+        Const::List(items) => Value::List(Rc::new(List::new(all(items, prelude)))),
+        Const::Tuple(items) => Value::tuple(all(items, prelude)),
+        Const::Tag(name, args) => Value::Tag(Rc::new(Tag {
+            name: intern(name),
+            args: all(args, prelude),
+        })),
+        Const::Map(entries) => {
+            let mut m = MapBuilder::default();
+            for (k, v) in entries {
+                let Value::Str(k) = constant(k, prelude) else {
+                    panic!("a map constant with a key that is not a string");
+                };
+                m.set(k, constant(v, prelude));
+            }
+            Value::Map(Rc::new(m.finish()))
+        }
     }
+}
+
+fn all(items: &[Const], prelude: &Prelude) -> Vec<Value> {
+    items.iter().map(|c| constant(c, prelude)).collect()
 }
 
 /// A prelude name the runtime has no value for (a declared native with no

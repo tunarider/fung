@@ -29,7 +29,7 @@ use fung_front::source::{FileId, SourceMap};
 use super::failure::Failures;
 use super::module::ModuleState;
 use super::poller::Poller;
-use super::pool::{POOL_IDLE, POOL_MAX, Pool};
+use super::pool::{LOOKUPS_MAX, POOL_IDLE, POOL_MAX, Pool};
 use super::sched::{FiberId, Ready};
 use super::stdin::Stdin;
 use super::task::CancelNode;
@@ -355,6 +355,9 @@ pub(crate) struct Shared {
     pub(crate) closer: super::Closer,
     /// The threads offload jobs run on (`pool.rs`).
     pub(crate) pool: Pool,
+    /// The threads name lookups run on (`offload::Kind::Lookup`), at most
+    /// `LOOKUPS_MAX` at once.
+    pub(crate) lookups: Pool,
     /// The event loop the run thread sleeps in (`poller.rs`, `sched.rs`).
     pub(crate) poller: Poller,
     /// Tokens for registrations in the loop, a fresh one per park.
@@ -400,6 +403,7 @@ impl Shared {
             closer: super::Closer::new(failures.clone()),
             failures,
             pool: Pool::new(POOL_MAX, POOL_IDLE),
+            lookups: Pool::new(LOOKUPS_MAX, POOL_IDLE),
             poller,
             next_token: AtomicU64::new(1),
             #[cfg(test)]

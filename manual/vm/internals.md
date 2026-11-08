@@ -18,55 +18,38 @@ print(sum(xs))
 ```
 
 <h3>겉 트리 (<code>fung dump ast</code>)</h3>
-<p>파서가 만든 트리. 문법의 모양을 그대로 담는다: 파이프는 <code>pipe</code>, 블록은 <code>block</code>, 이름은 아직 이름이다.</p>
+<p>파서가 만든 트리. 문법의 모양을 그대로 담는다: 파이프는 <code>pipe</code>, 블록은 <code>block</code>, 이름은 아직 이름이다. <code>dump</code>는 트리를 한 줄로 찍는다.</p>
 
-```core
-(program
-  (fn sq(x) (block (binary * x x)))
-  (assign xs (pipe (list 1 2 3) (call map sq)))
-  (call print (call sum xs)))
+```dump ast
+fn sq(x) = x * x
+xs = [1, 2, 3] |> map(sq)
+print(sum(xs))
 ```
 
 <h3>코어 트리 (<code>fung dump core</code>)</h3>
 <p>desugar와 resolve를 거친 트리. 파이프가 평범한 호출이 되었고, 모든 이름이 자리 번호로 바뀌었다: 함수의 지역 슬롯 <code>(local n)</code>, 모듈 전역 칸 <code>(global n)</code>, prelude 값 <code>(prelude name)</code>.</p>
 
-```core
-(do
-  (let (global 0) (fn sq(x) (do (op * (local 0) (local 0)))))
-  (let (global 1) (call (prelude map) (list 1 2 3) (global 0)))
-  (call (prelude print) (call (prelude sum) (global 1))))
+```dump core
+fn sq(x) = x * x
+xs = [1, 2, 3] |> map(sq)
+print(sum(xs))
 ```
 
 <h3>바이트코드 (<code>fung dump bytecode</code>)</h3>
 <p>컴파일러가 함수마다 하나씩 만든 명령열. 왼쪽 열은 명령 번호와 그 명령의 소스 위치(줄:칸)다. prelude 함수는 상수로 직접 들어가고, 지역 변수는 슬롯 번호로 읽는다.</p>
 
-```plain
-== <main> ==
-0000  1:1   CLOSURE      0    ; sq
-0001  1:1   STOREGLOBAL  0    ; sq
-0002  2:19  CONST        0    ; <fn map>
-0003  2:7   CONST        1    ; 1
-0004  2:10  CONST        2    ; 2
-0005  2:13  CONST        3    ; 3
-0006  2:6   LIST         3
-0007  2:23  LOADGLOBAL   0    ; sq
-0008  2:22  CALL         2    ; 2 positional, 0 named
-0009  2:1   STOREGLOBAL  1    ; xs
-0010  3:1   CONST        4    ; <fn print>
-0011  3:7   CONST        5    ; <fn sum>
-0012  3:11  LOADGLOBAL   1    ; xs
-0013  3:10  CALL         1    ; 1 positional, 0 named
-0014  3:6   CALL         1    ; 1 positional, 0 named
-0015  1:1   RETURN
-
-== sq ==
-0000  1:12  LOADLOCAL    0
-0001  1:16  LOADLOCAL    0
-0002  1:14  MUL
-0003  1:10  RETURN
+```dump bytecode
+fn sq(x) = x * x
+xs = [1, 2, 3] |> map(sq)
+print(sum(xs))
 ```
 
-<p>VM은 <code>&lt;main&gt;</code>을 실행한다. 스택 기계라서 <code>CONST</code>와 <code>LOAD*</code>가 값을 쌓고, <code>MUL</code>·<code>LIST</code>·<code>CALL</code>이 쌓인 값을 꺼내 결과를 올린다.</p>
+<p>VM은 <code>&lt;main&gt;</code>을 실행한다. 스택 기계라서 <code>CONST</code>와 <code>LOAD*</code>가 값을 쌓고, <code>MUL</code>·<code>CALL</code>이 쌓인 값을 꺼내 결과를 올린다. 눈여겨볼 것 셋:</p>
+<ul>
+  <li><code>[1, 2, 3]</code>은 <code>CONST</code> 하나다. 원소가 모두 상수인 리터럴(리스트·맵·튜플·태그 값)은 컴파일 때 값 하나가 된다(상수 접기).</li>
+  <li><code>sq</code>의 두 번째 <code>x</code>는 <code>MOVELOCAL</code>이다. 마지막 읽기는 값을 복사하지 않고 넘기고 칸을 비운다(그래서 혼자 쥔 리스트·맵은 제자리에서 바뀐다).</li>
+  <li>진입 파일의 마지막 식도 <code>POP</code>으로 버리고 <code>nil</code>을 돌려준다. 버리는 값이 <code>Err</code>면 <code>POP</code>이 E0606을 낸다.</li>
+</ul>
 
 ## 렉서 {#lexer}
 
@@ -80,7 +63,7 @@ print(sum(xs))
 
 ## 파서와 균일 트리 {#parser}
 
-<p>문장은 재귀 하강으로, 식은 <strong>Pratt 파서</strong>로 읽는다. Pratt 파서는 연산자마다 "왼쪽 결합력"을 숫자로 두고, 그 숫자 비교 하나로 모든 이항·단항·후위 연산의 우선순위와 결합 방향을 처리한다. <a href="../reference/language.html#precedence">우선순위 표</a>를 숫자로 옮긴 것이 곧 파서다.</p>
+<p>문장은 재귀 하강으로, 식은 <strong>Pratt 파서</strong>로 읽는다. Pratt 파서는 연산자마다 "왼쪽 결합력"을 숫자로 두고, 그 숫자 비교 하나로 모든 이항·단항·후위 연산의 우선순위와 결합 방향을 처리한다. <a href="../reference/language/operators.html#precedence">우선순위 표</a>를 숫자로 옮긴 것이 곧 파서다.</p>
 <p>두 곳에서 <strong>되돌리기</strong>를 쓴다. 앞을 조금 읽어 보고 아니면 원래 자리로 돌아가는 방식이다.</p>
 <ul>
   <li>문장 시작의 <code>패턴 =</code>(구조 분해 대입인가, 식인가, <code>try_destructure</code>)</li>
@@ -155,7 +138,7 @@ print(sum(xs))
 <p>모든 연산이 새 값을 만든다. 리스트와 맵은 사본이 원본과 구조를 공유하는 영속 자료구조라, 누적과 꼬리 재귀도 선형이다(<a href="#collections">컬렉션의 내부</a>). 값 층 밖의 코드는 <code>Len</code>·<code>At</code>·<code>All</code>·<code>Slice</code>·<code>Put</code> 같은 메서드와 빌더로만 리스트·맵을 다룬다.</p>
 <p>스택 칸은 <code>Option&lt;Value&gt;</code>다. <code>None</code>은 "슬롯이 아직 비어 있음"이고, fung의 <code>nil</code>은 별도 값 <code>Value::Nil</code>이다. 이 구분이 기본값 처리를 공짜로 만든다(아래).</p>
 <h3>태스크, 스택, 프레임</h3>
-<p>실행 단위는 <strong>태스크</strong>다. 태스크마다 피연산자 스택 하나를 갖고, 호출마다 프레임 <code>{Proto, ip, 슬롯 시작 위치, 클로저, 전역 표}</code>을 쌓는다. 지역 변수는 그 프레임의 슬롯 시작 위치 + 번호로 스택에서 바로 읽는다. 전역 상태는 없다: 여러 태스크가 서로 다른 운영체제 스레드에서 같은 바이트코드를 번갈아 실행한다(<a href="#concurrency">동시성 런타임</a>).</p>
+<p>실행 단위는 <strong>태스크</strong>다. 태스크마다 피연산자 스택 하나를 갖고, 호출마다 프레임 <code>{Proto, ip, 슬롯 시작 위치, 클로저, 전역 표}</code>을 쌓는다. 지역 변수는 그 프레임의 슬롯 시작 위치 + 번호로 스택에서 바로 읽는다. 전역 상태는 없다: 실행 스레드 하나가 태스크들을 차례로 돌리며(M:1) 같은 바이트코드를 번갈아 실행한다(<a href="#concurrency">동시성 런타임</a>).</p>
 <p>프레임 깊이가 100,000을 넘으면 E0804 "stack overflow"와 "꼬리 재귀나 fold를 쓰세요"라는 힌트가 나온다. 프레임이 작은 구조체라 그 깊이도 수십 MB 수준이다.</p>
 <h3>호출 규약</h3>
 <p>스택에는 <code>[함수, 위치 인자…, (이름 심볼, 값)…]</code>이 놓인다. VM이 원형의 인자 표를 보고 새 프레임 슬롯에 묶는다: 위치 인자는 차례로, 이름 인자는 표에서 찾아, 남는 위치 인자는 <code>...rest</code> 리스트로. 맞지 않으면 E04xx. 내장 함수도 같은 인자 표를 선언하므로 같은 검사를 같은 곳에서 받는다. 그래서 <code>exec(cmd, cwd: d)</code>가 된다.</p>
@@ -163,92 +146,45 @@ print(sum(xs))
 <p><strong>이어 가기 프레임</strong>: 람다를 부르는 내장 함수(<code>map</code>·<code>fold</code>·<code>with</code>·<code>timeout</code>·<code>scope</code>·<code>swap</code> 등)는 함수를 직접 부르지 않는다. "이 함수를 이 인자로 불러 달라, 끝나면 이 상태로 이어 달라"를 돌려주고(Lua 5.2의 <code>lua_callk</code>와 같은 생각), VM이 그 상태 상자를 프레임 옆의 이어 가기 줄에 두고 같은 실행 루프에서 부른다. 부른 함수가 돌아오면 상자가 결과를 받고, 에러·취소·<code>exit</code>가 지나가면 상자가 되감기를 본다(<code>with</code>가 <code>release</code>를 부르는 자리). 그래서 태스크 하나에는 실행 루프가 하나뿐이고, 태스크의 모든 상태(프레임, 값, 상자)가 힙에 있다. 그린 스레드 스케줄러가 태스크를 주차하려면 이것이 필요하다. 처음 가져오는 모듈의 본문도 같은 방식으로 돈다. 콜백이 보통 내장 함수면(<code>map(xs, str)</code>) 되부를 일이 없으므로 그 자리에서 바로 부른다.</p>
 <p><strong>기본값은 함수 서두(prologue)에 컴파일된다</strong>: "슬롯이 비었으면 기본값 식을 실행해 채운다". 호출할 때마다 평가되고 앞 인자를 참조할 수 있는 이유다.</p>
 
-```plain
+```dump bytecode fn=greet
 fn greet(name, greeting = "hello") = "${greeting}, ${name}"
-
-== greet ==
-0000  1:1   LOADLOCAL    1
-0001  1:1   JUMPIFSET    4          ; 슬롯 1이 차 있으면 기본값 건너뛰기
-0002  1:27  CONST        0    ; "hello"
-0003  1:1   STORELOCAL   1
-0004  1:41  LOADLOCAL    1
-0005  1:38  CONST        1    ; ", "
-0006  1:54  LOADLOCAL    0
-0007  1:38  CONCAT       3          ; 보간 조각 셋을 잇는다
-0008  1:36  RETURN
 ```
+
+<p>0001의 <code>JUMPIFSET 4</code>는 "슬롯 1(<code>greeting</code>)이 차 있으면 기본값을 건너뛴다"이고, 0002~0003이 기본값을 채운다. 0007의 <code>CONCAT 3</code>은 보간 조각 셋을 잇는다.</p>
 
 <p>타입 표기는 서두의 <code>CHECKTYPE</code>, 반환 타입은 <code>RETURN</code> 직전의 <code>CHECKRETURN</code>이 검사한다.</p>
 <h3>클로저: 복사, 상자 없음</h3>
 <p><code>CLOSURE n</code>은 원형 n의 "붙잡을 값 목록"(현재 프레임의 슬롯 또는 현재 클로저가 붙잡은 값)을 <strong>복사</strong>해 새 클로저를 만든다. 대부분의 언어는 바깥 변수가 나중에 바뀌는 것을 보여 주려고 변수를 상자(upvalue)에 담아 공유하지만, fung은 "함수는 만들어질 때 보이는 변수의 값을 복사한다"는 규칙 하나로 정했기 때문에 상자가 필요 없다.</p>
 
-```plain
+```dump bytecode
 fn adder(n) = x => x + n
-
-== adder ==
-0000  2:15  CLOSURE      0    ; <lambda>      n을 복사해 넣는다
-0001  2:13  RETURN
-
-== <lambda> ==
-0000  2:20  LOADLOCAL    0                   x
-0001  2:24  LOADCAPTURED 0                   복사해 둔 n
-0002  2:22  ADD
-0003  2:17  RETURN
 ```
+
+<p><code>adder</code>의 <code>CLOSURE 0</code>이 <code>n</code>을 복사해 람다에 넣는다. 람다 안에서 <code>x</code>는 자기 슬롯 0(<code>MOVELOCAL 0</code>), 복사해 둔 <code>n</code>은 <code>LOADCAPTURED 0</code>이다.</p>
 
 <p>블록 안 이름 있는 <code>fn</code>의 자기 참조는 <code>LOADSELF</code> 한 명령이다(실행 중인 클로저를 올린다).</p>
 <h3>모듈 전역과 끌어올리기</h3>
-<p>모듈마다 전역 표(<code>Vec&lt;Option&lt;Value&gt;&gt;</code>)가 있고 이름→번호는 컴파일 때 정해진다. 최상위 <code>fn</code> 칸은 모듈 본문을 실행하기 전에 채운다(끌어올리기). 그래서 순서와 상관없이 서로 부른다. 변수 칸은 본문이 진행되며 채워진다. 함수는 전역 변수를 실행 중에 조회하지 않고 만들어질 때 복사하는데, 최상위 <code>fn</code>은 변수가 생기기 전에 만들어지므로 복사할 것이 없다. 대신 최상위에서 한 번만 대입되는 이름은 바뀌지 않으므로, 이름 해석이 그 전역 칸을 미리 잡아 두고 최상위 <code>fn</code>이 부를 때 <code>LOADGLOBAL</code>로 읽는다(비어 있으면 E0809). 두 번 이상 대입되는 이름은 보이지 않는다. 이것이 <a href="../reference/language.html#scope">스코프 규칙</a>의 구현상 이유다.</p>
+<p>모듈마다 전역 표(<code>Vec&lt;Option&lt;Value&gt;&gt;</code>)가 있고 이름→번호는 컴파일 때 정해진다. 최상위 <code>fn</code> 칸은 모듈 본문을 실행하기 전에 채운다(끌어올리기). 그래서 순서와 상관없이 서로 부른다. 변수 칸은 본문이 진행되며 채워진다. 함수는 전역 변수를 실행 중에 조회하지 않고 만들어질 때 복사하는데, 최상위 <code>fn</code>은 변수가 생기기 전에 만들어지므로 복사할 것이 없다. 대신 최상위에서 한 번만 대입되는 이름은 바뀌지 않으므로, 이름 해석이 그 전역 칸을 미리 잡아 두고 최상위 <code>fn</code>이 부를 때 <code>LOADGLOBAL</code>로 읽는다(비어 있으면 E0809). 두 번 이상 대입되는 이름은 보이지 않는다. 이것이 <a href="../reference/language/scope.html">스코프 규칙</a>의 구현상 이유다.</p>
 <h3>꼬리 호출</h3>
 <p>컴파일러가 꼬리 위치의 호출을 <code>TAILCALL</code>로 낸다. VM은 새 프레임을 쌓지 않고 인자를 현재 프레임 슬롯에 다시 묶은 뒤 <code>ip</code>를 0으로 돌린다. 그래서 꼬리 재귀는 스택을 쓰지 않는다.</p>
 
-```plain
+```dump bytecode fn=count
 fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
-
-== count ==
-0000  1:20  LOADLOCAL    0
-0001  1:25  CONST        0    ; 0
-0002  1:22  EQ
-0003  1:22  JUMPIFFALSE  6
-0004  1:32  LOADLOCAL    1
-0005  1:27  JUMP         14
-0006  1:41  LOADSELF
-0007  1:47  LOADLOCAL    0
-0008  1:51  CONST        1    ; 1
-0009  1:49  SUB
-0010  1:54  LOADLOCAL    1
-0011  1:60  CONST        1    ; 1
-0012  1:58  ADD
-0013  1:46  TAILCALL     2    ; 2 positional, 0 named
-0014  1:18  RETURN
 ```
 
 <p>반환 타입을 적은 함수는 반환값을 검사해야 하므로, 다른 함수로의 꼬리 호출은 프레임을 남기는 보통 호출(<code>CALL</code>)이 된다. 자기 자신으로의 꼬리 호출은 같은 검사를 다시 하게 되므로 <code>TAILCALL</code>로 남는다.</p>
 <h3>패턴 매칭</h3>
 <p>패턴은 명령열로 펼치지 않고 원형의 <strong>패턴 트리</strong>로 둔다. <code>MATCH n</code> 한 명령이 실행 중에 트리를 해석해 맞으면 이름들을 슬롯에 묶고 <code>true</code>를 올린다. 패턴의 의미가 Rust 함수 하나(<code>vm/matcher.rs</code>)에 모여 있어 이해하고 고치기 쉽다. guard는 그 뒤의 평범한 비교와 <code>JUMPIFFALSE</code>이고, 아무 절도 맞지 않으면 <code>NOMATCH</code>가 E0601을 낸다. 구조 분해 대입은 <code>MATCHORFAIL</code>이다.</p>
 
-```plain
-match v:
-  0 => print("zero")
-  n when n > 2 => print("big", n)
-  _ => print("small")
+```dump bytecode fn=size
+fn size(v) = match v:
+  0            => "zero"
+  n when n > 2 => "big ${n}"
+  _            => "small"
 ;;
-
-0011  3:1   LOADLOCAL    0
-0012  4:3   MATCH        0    ; 0
-0013  4:3   JUMPIFFALSE  18
-  …                                    첫 절 본문
-0018  3:1   LOADLOCAL    0
-0019  5:3   MATCH        1    ; $1     n을 슬롯 1에 묶는다
-0020  5:3   JUMPIFFALSE  30
-0021  5:10  LOADLOCAL    1             guard: n > 2
-0022  5:14  CONST        5    ; 2
-0023  5:12  GT
-0024  5:12  JUMPIFFALSE  30
-  …
-0037  3:1   LOADLOCAL    0
-0038  3:1   NOMATCH
 ```
+
+<p>절마다 <code>LOADLOCAL 0</code>(맞춰 볼 값)과 <code>MATCH n</code>(원형의 패턴 트리 n번)이 짝이다. 둘째 절의 패턴 <code>$1</code>은 "슬롯 1에 묶는다"(<code>n</code>)이고, 그 뒤의 <code>GT</code>·<code>JUMPIFFALSE</code>가 guard <code>n &gt; 2</code>다. 셋째 절 <code>_</code>은 언제나 맞으므로 그 뒤의 <code>NOMATCH</code>(E0601)에는 닿지 않는다.</p>
 
 <h3>결과값 축약</h3>
 <ul>
@@ -277,7 +213,7 @@ match v:
   </tbody>
 </table>
 <p><code>crates/fung-cli/tests/perf.rs</code>(릴리스 빌드)가 이 다섯과 뒤에 더한 것들(스택처럼 쓰기, <code>unique</code>, 긴 문자열의 글자 인덱스, 자기 자신과의 <code>==</code>)을 0.3초 기준으로 지키므로 n²로 돌아가면 테스트가 실패한다.</p>
-<p>2026-10-20 검토에서 더 고친 것: <code>unique</code>는 <code>==</code>와 맞는 해시로 선형이다(정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시, 심볼은 그 이름의 문자열과 같은 해시라 E0517이 그대로 난다). 문자열의 <code>s[i]</code>·<code>s[a..b]</code>는 글자 배열을 만들지 않는다(ASCII는 바이트 위치 그대로). 같은 리스트·맵·튜플·태그끼리의 <code>==</code>는 바로 참이다. 원소가 모두 상수인 리스트 리터럴은 컴파일 때 상수 하나가 된다(빈 리스트를 품은 것은 제외).</p>
+<p>2026-10-20 검토에서 더 고친 것: <code>unique</code>는 <code>==</code>와 맞는 해시로 선형이다(정수와 같은 값의 실수는 같은 해시, 맵은 순서와 무관한 해시, 심볼은 그 이름의 문자열과 같은 해시라 E0517이 그대로 난다). 문자열의 <code>s[i]</code>·<code>s[a..b]</code>는 글자 배열을 만들지 않는다(ASCII는 바이트 위치 그대로). 같은 리스트·맵·튜플·태그끼리의 <code>==</code>는 바로 참이다. 원소가 모두 상수인 리스트 리터럴은 컴파일 때 상수 하나가 된다. L5에서 맵·튜플·태그 값과 빈 것, 그런 것을 품은 것까지 넓혔다(<code>args</code>는 전용 상수 <code>Const::Args</code>).</p>
 <h3>구조 공유와 길 복사</h3>
 <p>값을 평평한 배열 대신 <strong>가지가 32개인 얕은 트리</strong>에 담는다. 하나를 바꾸면 그 값까지 내려가는 길의 노드만 새로 만들고, 나머지 가지는 원본의 노드를 그대로 가리킨다. 원본은 하나도 바뀌지 않는다.</p>
 
@@ -294,7 +230,7 @@ match v:
 <p>Rust에서는 길의 노드마다 <code>Rc::make_mut</code>를 부른다. 그 노드를 아무도 공유하지 않으면(혼자 쓰는 누적값, 빌더) 제자리에서 고치고, 누가 옛 버전을 들고 있으면 위처럼 길만 복사한다. 같은 코드가 두 경우를 다 처리한다.</p>
 <h3>리스트: 영속 벡터와 보기</h3>
 <ul>
-  <li><strong>영속 벡터</strong>(Clojure의 PersistentVector): 인덱스 <code>i</code>를 5비트씩 끊어 트리를 내려간다. 마지막 32개는 따로 둔 <code>tail</code> 배열에 있어서, 끝에 붙이기는 <code>tail</code>만 복사한다. <code>tail</code>이 차면 트리에 잎으로 끼우며 그 길만 복사한다.</li>
+  <li><strong>영속 벡터</strong>(Clojure의 PersistentVector를 앞으로도 자라게 한 것): 인덱스 <code>i</code>를 5비트씩 끊어 트리를 내려간다. 마지막 32개는 따로 둔 <code>tail</code> 배열에, 처음 32개 이하는 <code>head</code> 배열에 있어서, 끝이나 앞에 붙이기는 그 배열만 복사한다. 배열이 차면 트리에 잎으로 끼우며 그 길만 복사한다. 앞에 끼울 자리를 위해 트리의 위치는 0이 아니라 <code>org</code>에서 시작하고, 그 앞의 칸은 빈 자리표다. 앞자리가 다 차면 트리가 앞으로 한 층 자란다(옛 뿌리가 새 뿌리의 둘째 자식이 된다). 그래서 앞·뒤 모두 상각 O(1)이고 색인은 그대로 O(log₃₂ n)이다(L5).</li>
   <li><strong>보기</strong>: 큰 리스트는 <code>{벡터, 시작, 끝}</code>이다. <code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code>는 같은 벡터를 가리키며 위치만 다른 보기를 만든다(상수 시간). 끝이 벡터의 끝인 보기에 덧붙이면 벡터를 이어서 키운다. 앞쪽 조각이 벡터의 대부분이면 벡터를 그 끝에서 자르고(마지막 잎이 <code>tail</code>이 되고 그 길만 복사, O(log n)) 이어서 키우므로, 스택처럼 쓰는 <code>s[..-1] + [x]</code>도 선형이다. 작은 앞쪽 조각은 새 벡터로 떼어 낸 뒤 붙인다. 원본은 어느 쪽이든 그대로다.</li>
   <li><strong>메모리 규칙</strong>: 잘라 낸 결과가 바탕 벡터의 1/4보다 작으면 복사해서 떼어 낸다. 작은 조각이 큰 원본을 붙잡아 메모리에 남기지 않게 하려는 것이다.</li>
 </ul>
@@ -327,8 +263,8 @@ match v:
     <tr><td><code>xs[i]</code>, <code>len</code></td><td>O(1)</td><td>O(log₃₂ n), O(1)</td></tr>
     <tr><td><code>xs + [x]</code></td><td>O(n), n ≤ 32</td><td>거의 O(1)</td></tr>
     <tr><td><code>xs[a..b]</code>, <code>drop</code>, <code>...rest</code></td><td>O(b−a)</td><td>O(1) 보기(작아지면 복사)</td></tr>
-    <tr><td><code>xs + ys</code></td><td colspan="2">오른쪽 길이에 비례</td></tr>
-    <tr><td><code>[x] + xs</code>(앞에 붙이기)</td><td colspan="2">O(n): 피한다</td></tr>
+    <tr><td><code>[x] + xs</code>(앞에 붙이기)</td><td>O(n), n ≤ 32</td><td>거의 O(1)</td></tr>
+    <tr><td><code>xs + ys</code></td><td colspan="2">짧은 쪽 길이에 비례(짧은 쪽을 긴 쪽의 끝에 붙인다)</td></tr>
     <tr><td><code>m[k]</code>, <code>k in m</code>, <code>get</code></td><td>O(1)</td><td>O(log₃₂ n)</td></tr>
     <tr><td><code>put</code>, <code>remove</code></td><td>O(n), n ≤ 16</td><td>거의 O(1)</td></tr>
     <tr><td><code>merge(a, b)</code></td><td colspan="2"><code>b</code>의 크기에 비례</td></tr>
@@ -364,11 +300,11 @@ match v:
 
 <ul>
   <li><strong>실행 스레드 하나가 모든 태스크를 돈다(M:1).</strong> 태스크는 운영체제 스레드가 아니라 데이터다(<code>Fiber</code>: 스택, 프레임, 이어 가기 상자, 취소 노드, 깨움 표시). 명령을 부른 스레드가 실행 스레드이고, 실행 대기열 맨 앞의 태스크를 자기 <code>Task</code>에 맞바꿔 넣어 돌린 뒤 다시 치워 둔다(<code>vm/sched.rs</code>). 그래서 <code>spawn(s, f)</code>는 스레드를 만들지 않고(태스크 하나 약 1 µs) 실패하지 않으며, 기다리는 태스크 수만 개가 돈다. 값은 원자적이지 않은 <code>Rc</code>로 공유한다. 값을 만지는 스레드가 실행 스레드 하나뿐이기 때문이다. 다른 스레드(신호, 표준 입력 읽기, offload의 일)는 값을 만지지 않고, 실행 대기열에 태스크 번호를 넣거나 받은 편지함에 사건을 넣는다. 여러 코어는 여러 프로세스로 쓴다(<code>reuse_port</code>).</li>
-  <li><strong>막히는 곳은 하나.</strong> <code>await</code>·<code>sleep</code>·<code>send</code>·<code>recv</code>, 받는 끝 순회, 태스크 범위가 자식을 기다리는 것은 모두 실행 루프에 <strong>주차 요청</strong>을 돌려준다(이어 가기의 한 갈래, <code>Next::Park</code>). 기다리는 것에 자기 깨움 표시를 등록한 상자가 줄 맨 위에 남고, 실행 루프는 스케줄러로 돌아간다. 깨우면(<code>Waiter::wake</code>: 실행 대기열에 넣음) 상자가 조건을 다시 보고, 취소·기한은 상자의 되감기로 간다(이미 건너온 값은 취소보다 먼저). <strong>소켓과 TLS는 이벤트 루프 위에서 기다린다</strong>(<code>vm/poller.rs</code>: macOS kqueue, Linux epoll, 준비 상태 기반 one-shot 등록). 소켓 연산은 기다리지 않고 한 번 해 보고, 막힐 자리면 어느 fd를 무엇 때문에 기다리는지 말한다. 태스크는 그 fd를 새 토큰으로 루프에 등록하고 주차했다가, 준비되면 처음부터 다시 해 본다(<code>park_io</code>). 그때까지 한 일은 연결(읽어 둔 버퍼, rustls 상태)이나 내장 함수(쓴 바이트 수, 연결 단계)에 남아 있다. 할 일이 없으면 실행 스레드가 그 루프에서 자고, 다른 스레드는 루프의 깨우개를 당긴다. 입출력을 기다리는 태스크가 있으면 차례마다 루프를 시간 제한 0으로 본다. 연결의 읽는 쪽과 쓰는 쪽은 각각 한 연산이 차지하고, 다음 연산은 차례 줄에서 주차한다. FIFO도 소켓처럼 이벤트 루프 위에서 읽고 쓴다(<code>native/pipe.rs</code>). 그 밖에 운영체제를 기다리는 일(정규 파일, 이름 조회, 정규식 컴파일)은 <code>offload(일, 마무리)</code>로 넘긴다. 일은 fung 값이 아닌 평범한 데이터만 가지고 다른 스레드에서 돌고, 그동안 태스크는 주차한다. 파일, 이름 조회, 정규식 컴파일은 <strong>스레드 풀</strong>(<code>vm/pool.rs</code>: 필요할 때 만들고 최대 64개, 10초 놀면 끝남, 꽉 차면 FIFO 줄)에서 돈다. <strong>외부 명령도 이벤트 루프 위에서 기다린다</strong>(R4b): 명령의 끝(macOS <code>EVFILT_PROC</code>, Linux pidfd, pidfd가 없으면 신호 스레드가 받는 SIGCHLD)과 파이프 셋(출력·에러 읽기, 입력 쓰기, 모두 블로킹하지 않는 모드)을 한 상자(<code>CommandWait</code>)가 함께 등록하므로, 두 출력을 채우면서 입력을 받는 명령도 멈추지 않는다. 운영체제를 기다리는 스레드는 표준 입력 읽기 스레드, 신호 스레드, 풀, 그리고 <code>close</code> 없이 버린 파일 핸들을 비우고 닫는 닫기 스레드(<code>vm/closer.rs</code>, 일이 있을 때만)뿐이다. 표준 입력은 읽기 스레드가 줄을 넣고 기다리는 태스크를 깨운다. 계산만 하는 태스크는 호출 1,000번마다 차례를 넘긴다(<code>YIELD_EVERY</code>).</li>
+  <li><strong>막히는 곳은 하나.</strong> <code>await</code>·<code>sleep</code>·<code>send</code>·<code>recv</code>, 받는 끝 순회, 태스크 범위가 자식을 기다리는 것은 모두 실행 루프에 <strong>주차 요청</strong>을 돌려준다(이어 가기의 한 갈래, <code>Next::Park</code>). 기다리는 것에 자기 깨움 표시를 등록한 상자가 줄 맨 위에 남고, 실행 루프는 스케줄러로 돌아간다. 깨우면(<code>Waiter::wake</code>: 실행 대기열에 넣음) 상자가 조건을 다시 보고, 취소·기한은 상자의 되감기로 간다(이미 건너온 값은 취소보다 먼저). <strong>소켓과 TLS는 이벤트 루프 위에서 기다린다</strong>(<code>vm/poller.rs</code>: macOS kqueue, Linux epoll, 준비 상태 기반 one-shot 등록). 소켓 연산은 기다리지 않고 한 번 해 보고, 막힐 자리면 어느 fd를 무엇 때문에 기다리는지 말한다. 태스크는 그 fd를 새 토큰으로 루프에 등록하고 주차했다가, 준비되면 처음부터 다시 해 본다(<code>park_io</code>). 그때까지 한 일은 연결(읽어 둔 버퍼, rustls 상태)이나 내장 함수(쓴 바이트 수, 연결 단계)에 남아 있다. 할 일이 없으면 실행 스레드가 그 루프에서 자고, 다른 스레드는 루프의 깨우개를 당긴다. 입출력을 기다리는 태스크가 있으면 차례마다 루프를 시간 제한 0으로 본다. 연결의 읽는 쪽과 쓰는 쪽은 각각 한 연산이 차지하고, 다음 연산은 차례 줄에서 주차한다. FIFO도 소켓처럼 이벤트 루프 위에서 읽고 쓴다(<code>native/pipe.rs</code>). 그 밖에 운영체제를 기다리는 일(정규 파일, 이름 조회, 정규식 컴파일)은 <code>offload(일, 마무리)</code>로 넘긴다. 일은 fung 값이 아닌 평범한 데이터만 가지고 다른 스레드에서 돌고, 그동안 태스크는 주차한다. 파일, 이름 조회, 정규식 컴파일은 <strong>스레드 풀</strong>(<code>vm/pool.rs</code>: 필요할 때 만들고 최대 64개, 10초 놀면 끝남, 꽉 차면 FIFO 줄)에서 돈다. <strong>외부 명령도 이벤트 루프 위에서 기다린다</strong>(R4b): 명령의 끝(macOS <code>EVFILT_PROC</code>, Linux pidfd, pidfd가 없으면 신호 스레드가 받는 SIGCHLD)과 파이프 셋(출력·에러 읽기, 입력 쓰기, 모두 블로킹하지 않는 모드)을 한 상자(<code>CommandWait</code>)가 함께 등록하므로, 두 출력을 채우면서 입력을 받는 명령도 멈추지 않는다. 운영체제를 기다리는 스레드는 표준 입력 읽기 스레드, 신호 스레드, 풀, 그리고 <code>close</code> 없이 버린 파일 핸들을 비우고 닫는 닫기 스레드(<code>vm/closer.rs</code>, 일이 있을 때만)뿐이다. 표준 입력은 읽기 스레드가 줄을 넣고 기다리는 태스크를 깨운다. 계산만 하는 태스크는 호출 1,000번마다 차례를 넘긴다(<code>YIELD_EVERY</code>). 입력 크기에 비례하는 내장 함수(<code>json.parse</code>·<code>json.stringify</code>·<code>sort</code>·<code>sort_by</code>·<code>unique</code>·<code>split</code>·<code>lines</code>·<code>replace</code>·<code>repeat</code>, 그리고 원소를 하나씩 도는 걸음)는 약 1 ms 분량의 조각(<code>vm/pieces.rs</code>의 <code>Work</code>)마다 기한을 보고, 곧바로 끝나는 주차(<code>Wake::soon</code>)로 차례를 넘긴다. 큰 값의 해제도 조각(8K 컨테이너)마다 나머지를 미뤄 두었다가 스케줄러가 차례 사이에 마저 한다(L6).</li>
   <li><strong>기한은 노드에.</strong> <code>timeout(d, f)</code>는 기한이 실린 취소 노드를 만들고, 그 아래에 생기는 노드(태스크 범위, 그 안의 태스크)가 기한을 물려받는다(<code>vm/deadline.rs</code>). 타이머 스레드는 없다. 주차한 태스크의 기한은 스케줄러의 타이머 힙에 들어가고, 스케줄러는 가장 이른 기한까지만 잔다. 계산하는 태스크는 차례를 넘길 때 시계를 본다. 처음 본 쪽이 기한의 주인 노드를 만료시켜 아래를 모두 취소한다. 운영체제 스레드는 도중에 멈출 수 없으므로, 기한이나 취소가 오면 offload의 일을 <strong>버리거나 기다린다</strong>. 줄에서 아직 시작하지 않은 일은 언제나 버린다. 경로만 읽는 일(파일 읽기, 목록, <code>stat</code>, 정규식 컴파일)은 돌던 중이어도 태스크가 곧바로 되감고, 일의 결과는 그 스레드에서 버린다. 무엇을 바꾸는 일(쓰기, 지우기, 핸들)은 시작했으면 끝날 때까지 기다린 뒤 기한을 확인한다. 취소된 쓰기가 나중에 일어나지 않게 하려는 것이다.</li>
   <li><strong>취소는 트리.</strong> 태스크마다 취소 노드가 있고 부모가 자식을 강하게 든다. 취소되면 원자적 표시가 서고, VM은 <code>CALL</code>·<code>TAILCALL</code>마다 이 표시를 읽는다. 노드에 등록된 잠든 태스크는 곧바로 깬다(소켓을 기다리는 태스크도 같다: 이벤트 루프의 등록은 그 기다림이 끝날 때 지운다).</li>
   <li><strong>교착은 바로 판정한다.</strong> 모든 태스크는 도는 중이거나, 실행 대기열에 있거나, 스케줄러에 주차해 있다. 이 수는 실행 스레드에서만 바뀐다. 그래서 대기열이 비었을 때 주차한 태스크 중 타이머나 바깥(<code>sleep</code>, 기한, offload, 표준 입력, 정지 채널)이 깨울 것이 하나도 없으면 그것이 정확히 교착이다. 원자 변수도 유예 시간도 없이 E0702를 보고하고 루트를 취소하며 종료 코드 1로 끝낸다. 깨워졌지만 아직 돌지 않은 태스크는 대기열에 있으므로 막힌 것으로 세지 않는다. 주차한 태스크는 모두 힙에 있으므로(프레임, 이어 가기 상자) 보고는 태스크마다 맨 위 상자가 어느 내장 함수의 기다림이고 어디서 불렸는지 읽는다. 실행 루트는 런타임 에러처럼 위치와 호출 경로로, 나머지는 같은 종류·위치끼리 묶은 줄(<code>recv at f.fung:3:12 (worker) ×1000</code>)로 10줄까지 보인다.</li>
-  <li><strong>채널</strong>은 기다리는 쪽의 줄을 직접 둔 구조이고, fung 코드는 두 끝(<code>Sender</code>·<code>Receiver</code>, 각각 <code>Rc</code> 하나)으로만 만진다. 끝을 복사하면 그 <code>Rc</code>가 복사되므로, 참조 계수가 0이 되는 <code>Drop</code>이 곧 마지막 사본이 사라진 순간이다. 보내는 끝은 그때 채널을 닫고, 받는 끝은 닫고 버퍼를 버린다(버퍼는 명시적 스택으로 해제). 닫힌 채널에 보내면 <code>Err({kind: 'closed})</code>(채널을 닫는 것은 다른 태스크, 곧 외부 요인). 채널에 그 채널의 끝을 보내면 E0705다. 자기를 가리키는 고리는 참조 계수로 해제할 수 없으므로 <code>send</code>가 보내는 값을 훑어 막는다. 바뀌는 것을 품지 않은 값은 건너뛴다(큰 리스트·맵은 노드의 기억으로 O(1), 작은 것은 공유된 부분을 한 번씩 훑는다).</li>
+  <li><strong>채널</strong>은 기다리는 쪽의 줄을 직접 둔 구조이고, fung 코드는 두 끝(<code>Sender</code>·<code>Receiver</code>, 각각 <code>Rc</code> 하나)으로만 만진다. 끝을 복사하면 그 <code>Rc</code>가 복사되므로, 참조 계수가 0이 되는 <code>Drop</code>이 곧 마지막 사본이 사라진 순간이다. 보내는 끝은 그때 채널을 닫고, 받는 끝은 닫고 버퍼를 버린다(버퍼는 명시적 스택으로 해제). 닫힌 채널에 보내면 <code>Err({kind: 'closed})</code>(채널을 닫는 것은 다른 태스크, 곧 외부 요인). 채널에 그 채널의 끝을 보내면 E0705다. 자기를 가리키는 고리는 참조 계수로 해제할 수 없으므로 <code>send</code>가 보내는 값을 훑어 막는다. 바뀌는 것을 품지 않은 값은 건너뛴다(큰 리스트·맵은 노드의 기억으로 O(1), 작은 것은 공유된 부분을 한 번씩 훑는다). 품은 큰 리스트·맵은 원소가 아니라 노드 단위로 훑는다: 품지 않은 하위 트리는 건너뛰고 공유된 노드는 한 번만 본다. 그래서 한 벡터의 보기 여럿을 보내도 보기마다 잘린 잎만큼만 든다(L5).</li>
   <li><strong>atom</strong>은 불변 값 하나를 가리키는 칸과 판 번호다(<code>vm/atom.rs</code>, Clojure의 atom과 같은 의미). <code>swap</code>은 비교 후 교체라서 <code>f</code> 도중에 다른 태스크가 바꿨으면 <code>f</code>를 다시 돌린다. 그래서 <code>f</code>는 순수해야 하고, VM은 <code>f</code>를 도는 동안(태스크의 <code>pure</code> 깊이) 효과 표에 있는 내장 함수를 부르면 E0707을 낸다. 표는 내장 함수의 주소 집합으로, 처음 쓸 때 한 번 만든다. atom에 담는 값은 변하는 것을 품으면 안 된다(E0708). 이 검사는 영속 벡터의 노드마다 "품었는지"를 기억해 두는 덕에 O(1)이다. 바뀐 노드는 <code>make_mut</code>을 지나며 기억을 잊으므로 복사된 경로만 다시 본다. 0.1의 atom을 3b에서 상태를 쥔 배경 태스크(에이전트)로 바꿨다가 동시성 v2 L5에서 되돌렸다. 순환과 재진입은 위의 두 규칙이 막는다.</li>
   <li><strong>태스크 범위(구조적 동시성)</strong>: 태스크는 <code>scope</code>·<code>supervise</code>가 연 범위 안에서만 띄운다(<code>vm/scope.rs</code>). 범위마다 취소 노드가 하나 있어 본문과 자식이 그 아래에서 돌고, 범위는 살아 있는 자식 수와 첫 실패를 든다. 자식 핸들은 쥐지 않으므로 자식이 범위 핸들을 붙잡아도 참조 계수 순환이 생기지 않는다. 본문이 끝나면 새 루트 노드 아래에서 자식이 0이 되기를 기다린다. 그래서 바깥 취소가 와도 자식이 다 끝난 뒤에야 되감고, 그 기다림은 교착 판정에 든다. <code>supervise</code>는 처리기 태스크를 따로 띄우지 않고, 처리하는 쪽이 없을 때 실패한 자식이 처리기가 되어 대기열을 비운다. 범위 밖에 사는 태스크가 없으므로 "아무도 확인하지 않은 실패"를 추적하는 장치가 없다.</li>
   <li><strong>신호와 정지 요청</strong>: 명령은 시작하자마자 SIGINT·SIGTERM을 모든 스레드에서 막고, 전용 스레드가 <code>sigwait</code>로 받는다(<code>fung-vm/src/signals.rs</code>). 신호 처리기가 아무 스레드의 아무 지점에 끼어들지 않으므로, 신호는 보통 코드로 처리된다: 사건을 실행 대기열에 게시할 뿐 아무것도 기다리지 않는다. 첫 신호는 정지 요청이다(<code>vm/stop.rs</code>). 런타임은 정지 채널의 보내는 끝을 쥐고 받는 끝은 약한 참조로만 기억해서, 그 참조가 살아 있으면(누가 <code>stop_signal()</code>의 끝을 쥐고 있으면) 채널을 닫기만 하고, 아니면 <code>exit</code>처럼 루트를 취소한다. 두 번째 신호는 곧바로 끝낸다. 외부 프로세스는 신호 마스크를 비우고 띄운다(<code>pre_exec</code>).</li>

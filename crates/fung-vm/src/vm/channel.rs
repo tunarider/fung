@@ -496,7 +496,10 @@ impl Place<'_> {
 /// channels it looks into are not held borrowed. A value that holds
 /// nothing mutable (`Value::holds_mutable`, O(1) for the big collections)
 /// is not walked; a container reached through a shared `Rc`, a channel or
-/// a task is looked at once.
+/// a task is looked at once. A big list or map is walked a node at a time
+/// (L5): subtrees holding nothing mutable are passed by and a shared node
+/// is looked at once, so many views on one vector cost their cut leaves,
+/// not their lengths.
 pub(crate) fn cycle_to(place: Place<'_>, v: &Value) -> Cycle {
     if !v.holds_mutable() {
         return Cycle::No;
@@ -554,8 +557,8 @@ fn walk(place: &Place<'_>, v: &Value, deep: bool) -> Cycle {
             }
         };
         match &x {
-            Value::List(l) => l.iter().for_each(|y| push(y, through)),
-            Value::Map(m) => m.iter().for_each(|(_, y)| push(y, through)),
+            Value::List(l) => l.each_mutable(&mut |p| seen.insert(p), &mut |y| push(y, through)),
+            Value::Map(m) => m.each_mutable(&mut |p| seen.insert(p), &mut |y| push(y, through)),
             Value::Tuple(t) => t.iter().for_each(|y| push(y, through)),
             Value::Tag(t) => t.args.iter().for_each(|y| push(y, through)),
             Value::Closure(f) => f.captured.iter().for_each(|y| push(y, through)),

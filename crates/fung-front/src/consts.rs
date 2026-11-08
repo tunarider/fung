@@ -1,7 +1,10 @@
 //! Constant values and fung literal formatting (08 "출력 형식"): the
 //! scalar parts the VM's value printing shares.
 
-/// A compile-time constant (the scalar kinds the front end can produce).
+use crate::unicode::{is_name_continue, is_name_start};
+
+/// A compile-time constant: a scalar, or a literal list, map, tuple or
+/// tag value whose items are all constants (folded by the compiler, L5).
 #[derive(Clone, Debug)]
 pub enum Const {
     Int(i64),
@@ -15,9 +18,15 @@ pub enum Const {
     /// Nanoseconds.
     Dur(i64),
     Builtin(String),
-    /// A list value. The only one the front end makes is the prelude's
-    /// `args`, which is empty at compile time.
+    /// The prelude's `args`: the run's argument list, which the VM fills
+    /// in (empty when compiling).
+    Args,
     List(Vec<Const>),
+    /// Keys are `Str` or `Bytes`, distinct, in the literal's order.
+    Map(Vec<(Const, Const)>),
+    Tuple(Vec<Const>),
+    /// A tag value: its name and arguments (`Ok(1)`).
+    Tag(String, Vec<Const>),
 }
 
 /// Constant-pool equality: same type and equal
@@ -35,7 +44,10 @@ impl PartialEq for Const {
             (Const::Sym(a), Const::Sym(b)) => a == b,
             (Const::Dur(a), Const::Dur(b)) => a == b,
             (Const::Builtin(a), Const::Builtin(b)) => a == b,
-            (Const::List(a), Const::List(b)) => a == b,
+            (Const::Args, Const::Args) => true,
+            (Const::List(a), Const::List(b)) | (Const::Tuple(a), Const::Tuple(b)) => a == b,
+            (Const::Map(a), Const::Map(b)) => a == b,
+            (Const::Tag(n, a), Const::Tag(m, b)) => n == m && a == b,
             _ => false,
         }
     }
@@ -54,11 +66,39 @@ pub fn format(c: &Const) -> String {
         Const::Sym(s) => format!("'{s}"),
         Const::Dur(ns) => format_dur(*ns),
         Const::Builtin(n) => format!("<fn {n}>"),
-        Const::List(items) => {
-            let items: Vec<String> = items.iter().map(format).collect();
-            format!("[{}]", items.join(", "))
+        Const::Args => "args".into(),
+        Const::List(items) => format!("[{}]", format_items(items)),
+        Const::Tuple(items) if items.len() == 1 => format!("({},)", format(&items[0])),
+        Const::Tuple(items) => format!("({})", format_items(items)),
+        Const::Tag(name, args) => format!("{name}({})", format_items(args)),
+        Const::Map(entries) => {
+            let entries: Vec<String> = entries
+                .iter()
+                .map(|(k, v)| {
+                    let k = match k {
+                        Const::Str(s) if is_plain_key(s) => s.clone(),
+                        k => format(k),
+                    };
+                    format!("{k}: {}", format(v))
+                })
+                .collect();
+            format!("{{{}}}", entries.join(", "))
         }
     }
+}
+
+fn format_items(items: &[Const]) -> String {
+    items.iter().map(format).collect::<Vec<_>>().join(", ")
+}
+
+/// Whether a map key can be written without quotes: it reads as a name
+/// or a tag (01).
+pub fn is_plain_key(k: &str) -> bool {
+    let mut cs = k.chars();
+    let Some(first) = cs.next() else {
+        return false;
+    };
+    (first == '_' || is_name_start(first)) && cs.all(is_name_continue)
 }
 
 /// What `print()` and `${}` use: strings bare, the rest in literal form.

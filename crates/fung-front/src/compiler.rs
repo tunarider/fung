@@ -56,7 +56,7 @@ struct Compiler<'a> {
 }
 
 /// Produces the `<main>` proto for a resolved program. Prelude names
-/// become `Const::Builtin(name)` (`args` an empty `Const::List`). The main
+/// become `Const::Builtin(name)` (`args` is `Const::Args`). The main
 /// body never uses tail calls: it is the entry frame.
 pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Result<Proto, Diag> {
     let lines = line_starts(&opts.source);
@@ -164,7 +164,7 @@ fn lit_index(n: &Node) -> usize {
 /// argument list, which is empty when compiling (`fung dump` passes none).
 fn prelude_const(name: &str) -> Const {
     if name == "args" {
-        return Const::List(Vec::new());
+        return Const::Args;
     }
     Const::Builtin(name.to_string())
 }

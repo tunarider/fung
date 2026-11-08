@@ -194,8 +194,10 @@ pub(crate) const EFFECTS: &[(&str, &[&str])] = &[
             "read_all",
             "write",
             "close",
+            "close_write",
             "set_deadline",
             "read_bytes_into",
+            "read_fields",
             "take_body",
             "start_tls",
         ],
@@ -263,7 +265,10 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "stop_signal",
         ],
     ),
-    ("_native.net", &["local_addr", "need_str_map", "user_agent"]),
+    (
+        "_native.net",
+        &["local_addr", "need_count", "need_str_map", "user_agent"],
+    ),
     ("_native.json", &["parse", "stringify"]),
     (
         "_native.path",

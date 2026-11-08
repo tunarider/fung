@@ -324,7 +324,7 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 0016  1:1   RETURN</code></pre></div>
 <p>몇 가지가 보인다.</p>
 <ul>
-<li><code>&lt;main&gt;</code>의 <code>CONST 1 ; [3, 4, 5]</code>: 원소가 모두 상수인 리스트는 컴파일할 때 상수 하나가 된다.</li>
+<li><code>&lt;main&gt;</code>의 <code>CONST 1 ; [3, 4, 5]</code>: 원소가 모두 상수인 리스트는 컴파일할 때 상수 하나가 된다. 맵·튜플·태그 값(<code>{a: 1}</code>, <code>(1, &quot;x&quot;)</code>, <code>Ok(1)</code>)과 그런 것을 품은 것도 같다.</li>
 <li><code>STORELOCAL 1</code>, <code>STORELOCAL 2</code>: <code>total</code>과 <code>avg</code>의 슬롯(6장에서 정한 번호 그대로).</li>
 <li><code>CLEARLOCAL 0</code>: <code>xs</code>(슬롯 0)는 3줄 뒤로 다시 읽히지 않는다. 컴파일러가 그것을 보고 그 칸을 비운다. 큰 리스트가 함수가 끝날 때까지 메모리에 남지 않게 하려는 것이다(10장).</li>
 <li><code>CONCAT 4</code>: 보간 조각 넷을 꺼내 하나의 문자열로 잇는다(5장의 <code>concat</code>).</li>

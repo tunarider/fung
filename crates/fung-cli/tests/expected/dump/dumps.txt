@@ -487,11 +487,11 @@
 | 0003  2:10  CONST        2    ; 0
 | 0004  2:13  LOADGLOBAL   0    ; n
 | 0005  2:11  RANGE        0
-| 0006  2:16  MAP          0
+| 0006  2:16  CONST        3    ; {}
 | 0007  2:20  CLOSURE      0    ; <lambda>
 | 0008  2:9   CALL         3    ; 3 positional, 0 named
 | 0009  2:1   STOREGLOBAL  1    ; m
-| 0010  3:1   CONST        3    ; <fn print>
+| 0010  3:1   CONST        4    ; <fn print>
 | 0011  3:7   CONST        1    ; <fn fold>
 | 0012  3:12  CONST        2    ; 0
 | 0013  3:15  LOADGLOBAL   0    ; n
@@ -501,7 +501,7 @@
 | 0017  3:11  CALL         3    ; 3 positional, 0 named
 | 0018  3:6   CALL         1    ; 1 positional, 0 named
 | 0019  3:1   POP
-| 0020  3:1   CONST        4    ; nil
+| 0020  3:1   CONST        5    ; nil
 | 0021  1:1   RETURN
 |
 | == <lambda> ==
@@ -722,27 +722,25 @@
 | 0009  9:35  CALL         1    ; 1 positional, 0 named
 | 0010  9:52  UNWRAPABORT
 | 0011  9:27  CALL         1    ; 1 positional, 0 named
-| 0012  9:57  MAP          0
-| 0013  9:61  CONST        5    ; 0
-| 0014  9:56  TUPLE        2
-| 0015  9:65  LOADGLOBAL   1    ; step
-| 0016  9:21  CALL         3    ; 3 positional, 0 named
-| 0017  9:1   MATCHORFAIL  0    ; (@2, @3)
-| 0018  10:1  CONST        6    ; <fn each>
-| 0019  10:6  CONST        7    ; <fn sort>
-| 0020  10:11 CONST        8    ; <fn keys>
-| 0021  10:16 LOADGLOBAL   2    ; counts
-| 0022  10:15 CALL         1    ; 1 positional, 0 named
-| 0023  10:10 CALL         1    ; 1 positional, 0 named
-| 0024  10:26 CLOSURE      1    ; <lambda>
-| 0025  10:5  CALL         2    ; 2 positional, 0 named
-| 0026  10:1  POP
-| 0027  11:1  CONST        9    ; <fn print>
-| 0028  11:7  LOADGLOBAL   3    ; err
-| 0029  11:6  CALL         1    ; 1 positional, 0 named
-| 0030  11:1  POP
-| 0031  11:1  CONST        10    ; nil
-| 0032  1:1   RETURN
+| 0012  9:56  CONST        5    ; ({}, 0)
+| 0013  9:65  LOADGLOBAL   1    ; step
+| 0014  9:21  CALL         3    ; 3 positional, 0 named
+| 0015  9:1   MATCHORFAIL  0    ; (@2, @3)
+| 0016  10:1  CONST        6    ; <fn each>
+| 0017  10:6  CONST        7    ; <fn sort>
+| 0018  10:11 CONST        8    ; <fn keys>
+| 0019  10:16 LOADGLOBAL   2    ; counts
+| 0020  10:15 CALL         1    ; 1 positional, 0 named
+| 0021  10:10 CALL         1    ; 1 positional, 0 named
+| 0022  10:26 CLOSURE      1    ; <lambda>
+| 0023  10:5  CALL         2    ; 2 positional, 0 named
+| 0024  10:1  POP
+| 0025  11:1  CONST        9    ; <fn print>
+| 0026  11:7  LOADGLOBAL   3    ; err
+| 0027  11:6  CALL         1    ; 1 positional, 0 named
+| 0028  11:1  POP
+| 0029  11:1  CONST        10    ; nil
+| 0030  1:1   RETURN
 |
 | == step ==
 | 0000  3:19  MOVELOCAL    0
@@ -947,6 +945,173 @@
 | 0003  4:67  RETURN
 -- stderr
 -- exit: 0
+==== dump ast bench/heads.fung
+-- stdout
+| (program (import http) (assign big (call repeat "x" 2000)) (assign full (call fold (range .. 0 500) (map) (fn (m, i) (block (call put m (interp "x-h" i) big))))) (assign many (call fold (range .. 0 20000) (map) (fn (m, i) (block (call put m (interp "x-r" i) "v"))))) (fn answer(req) (block (then (binary == (field path req) "/many") (map (entry headers many)) "ok"))) (assign (ptuple (pbind port_tx) (pbind port)) (call channel 1)) (call supervise (fn (sc) (block (assign s (call spawn sc (fn () (block (call (field serve http) "127.0.0.1:0" answer (named ready (fn (a) (block (call send port_tx a))))))))) (assign addr (unwrap ! (call recv port))) (call each (range .. 0 2) (fn ((pwild)) (block (unwrap ! (call (field get http) (interp "http://" addr "/") (named headers full)))))) (call each (range .. 0 2) (fn ((pwild)) (block (unwrap ! (call (field get http) (interp "http://" addr "/many")))))) (call cancel s))) (fn (e) (block (nil)))))
+-- stderr
+-- exit: 0
+==== dump core bench/heads.fung
+-- stdout
+| (do (import "http" (global 0)) (let (global 1) (fn answer(req) (do (if (op == (field path (local 0)) "/many") (map (entry headers (global 4))) "ok")))) (let (global 2) (call (prelude repeat) "x" 2000)) (let (global 3) (call (prelude fold) (range .. 0 500) (map) (fn (m, i) (do (call (prelude put) (local 0) (concat "x-h" (local 1)) (captured 0)))))) (let (global 4) (call (prelude fold) (range .. 0 20000) (map) (fn (m, i) (do (call (prelude put) (local 0) (concat "x-r" (local 1)) "v"))))) (let (ptuple (pbind (global 5)) (pbind (global 6))) (call (prelude channel) 1)) (call (prelude supervise) (fn (sc) (do (let (local 1) (call (prelude spawn) (local 0) (fn () (do (call (field serve (global 0)) "127.0.0.1:0" (global 1) (named ready (fn (a) (do (call (prelude send) (captured 0) (local 0)))))))))) (let (local 2) (unwrap ! (call (prelude recv) (captured 1)))) (call (prelude each) (range .. 0 2) (fn ($a0) (do (let (pwild) (local 0)) (unwrap ! (call (field get (global 0)) (concat "http://" (captured 0) "/") (named headers (captured 1))))))) (call (prelude each) (range .. 0 2) (fn ($a1) (do (let (pwild) (local 0)) (unwrap ! (call (field get (global 0)) (concat "http://" (captured 0) "/many")))))) (call (prelude cancel) (local 1)))) (fn (e) (do (nil)))))
+-- stderr
+-- exit: 0
+==== dump bytecode bench/heads.fung
+-- stdout
+| == <main> ==
+| 0000  4:1   IMPORT       0    ; http
+| 0001  4:1   STOREGLOBAL  0    ; http
+| 0002  9:1   CLOSURE      0    ; answer
+| 0003  9:1   STOREGLOBAL  1    ; answer
+| 0004  6:7   CONST        1    ; <fn repeat>
+| 0005  6:14  CONST        2    ; "x"
+| 0006  6:19  CONST        3    ; 2000
+| 0007  6:13  CALL         2    ; 2 positional, 0 named
+| 0008  6:1   STOREGLOBAL  2    ; big
+| 0009  7:8   CONST        4    ; <fn fold>
+| 0010  7:13  CONST        5    ; 0
+| 0011  7:16  CONST        6    ; 500
+| 0012  7:14  RANGE        0
+| 0013  7:21  CONST        7    ; {}
+| 0014  7:25  CLOSURE      1    ; <lambda>
+| 0015  7:12  CALL         3    ; 3 positional, 0 named
+| 0016  7:1   STOREGLOBAL  3    ; full
+| 0017  8:8   CONST        4    ; <fn fold>
+| 0018  8:13  CONST        5    ; 0
+| 0019  8:16  CONST        8    ; 20000
+| 0020  8:14  RANGE        0
+| 0021  8:23  CONST        7    ; {}
+| 0022  8:27  CLOSURE      2    ; <lambda>
+| 0023  8:12  CALL         3    ; 3 positional, 0 named
+| 0024  8:1   STOREGLOBAL  4    ; many
+| 0025  10:19 CONST        9    ; <fn channel>
+| 0026  10:27 CONST        10    ; 1
+| 0027  10:26 CALL         1    ; 1 positional, 0 named
+| 0028  10:1  MATCHORFAIL  0    ; (@5, @6)
+| 0029  11:1  CONST        11    ; <fn supervise>
+| 0030  11:11 CLOSURE      3    ; <lambda>
+| 0031  17:5  CLOSURE      4    ; <lambda>
+| 0032  11:10 CALL         2    ; 2 positional, 0 named
+| 0033  11:1  POP
+| 0034  11:1  CONST        12    ; nil
+| 0035  1:72  RETURN
+|
+| == answer ==
+| 0000  9:18  MOVELOCAL    0
+| 0001  9:21  FIELD        0    ; path
+| 0002  9:30  CONST        1    ; "/many"
+| 0003  9:27  EQ
+| 0004  9:27  JUMPIFFALSE  9
+| 0005  9:44  CONST        2    ; "headers"
+| 0006  9:53  LOADGLOBAL   4
+| 0007  9:43  MAP          1
+| 0008  9:38  JUMP         10
+| 0009  9:64  CONST        3    ; "ok"
+| 0010  9:16  RETURN
+|
+| == <lambda> ==
+| 0000  7:35  CONST        0    ; <fn put>
+| 0001  7:39  MOVELOCAL    0
+| 0002  7:42  CONST        1    ; "x-h"
+| 0003  7:48  MOVELOCAL    1
+| 0004  7:42  CONCAT       2
+| 0005  7:53  LOADCAPTURED 0
+| 0006  7:38  TAILCALL     3    ; 3 positional, 0 named
+| 0007  7:32  RETURN
+|
+| == <lambda> ==
+| 0000  8:37  CONST        0    ; <fn put>
+| 0001  8:41  MOVELOCAL    0
+| 0002  8:44  CONST        1    ; "x-r"
+| 0003  8:50  MOVELOCAL    1
+| 0004  8:44  CONCAT       2
+| 0005  8:55  CONST        2    ; "v"
+| 0006  8:40  TAILCALL     3    ; 3 positional, 0 named
+| 0007  8:34  RETURN
+|
+| == <lambda> ==
+| 0000  12:7  CONST        0    ; <fn spawn>
+| 0001  12:13 MOVELOCAL    0
+| 0002  12:17 CLOSURE      0    ; <lambda>
+| 0003  12:12 CALL         2    ; 2 positional, 0 named
+| 0004  12:3  STORELOCAL   1
+| 0005  12:3  CLEARLOCAL   0
+| 0006  13:10 CONST        1    ; <fn recv>
+| 0007  13:15 LOADCAPTURED 1
+| 0008  13:14 CALL         1    ; 1 positional, 0 named
+| 0009  13:20 UNWRAPABORT
+| 0010  13:3  STORELOCAL   2
+| 0011  14:3  CONST        2    ; <fn each>
+| 0012  14:8  CONST        3    ; 0
+| 0013  14:11 CONST        4    ; 2
+| 0014  14:9  RANGE        0
+| 0015  14:14 CLOSURE      1    ; <lambda>
+| 0016  14:7  CALL         2    ; 2 positional, 0 named
+| 0017  14:3  POP
+| 0018  15:3  CONST        2    ; <fn each>
+| 0019  15:8  CONST        3    ; 0
+| 0020  15:11 CONST        4    ; 2
+| 0021  15:9  RANGE        0
+| 0022  15:14 CLOSURE      2    ; <lambda>
+| 0023  15:7  CALL         2    ; 2 positional, 0 named
+| 0024  15:3  POP
+| 0025  15:3  CLEARLOCAL   2
+| 0026  16:3  CONST        5    ; <fn cancel>
+| 0027  16:10 MOVELOCAL    1
+| 0028  16:9  TAILCALL     1    ; 1 positional, 0 named
+| 0029  11:11 RETURN
+|
+| == <lambda> ==
+| 0000  12:23 LOADGLOBAL   0
+| 0001  12:27 FIELD        0    ; serve
+| 0002  12:34 CONST        1    ; "127.0.0.1:0"
+| 0003  12:49 LOADGLOBAL   1
+| 0004  12:57 CONST        2    ; 'ready
+| 0005  12:64 CLOSURE      0    ; <lambda>
+| 0006  12:33 TAILCALL     4098    ; 2 positional, 1 named
+| 0007  12:20 RETURN
+|
+| == <lambda> ==
+| 0000  12:69 CONST        0    ; <fn send>
+| 0001  12:74 LOADCAPTURED 0
+| 0002  12:83 MOVELOCAL    0
+| 0003  12:73 TAILCALL     2    ; 2 positional, 0 named
+| 0004  12:66 RETURN
+|
+| == <lambda> ==
+| 0000  14:14 MOVELOCAL    0
+| 0001  14:14 MATCHORFAIL  0    ; _
+| 0002  14:14 CLEARLOCAL   0
+| 0003  14:19 LOADGLOBAL   0
+| 0004  14:23 FIELD        0    ; get
+| 0005  14:28 CONST        1    ; "http://"
+| 0006  14:38 LOADCAPTURED 0
+| 0007  14:28 CONST        2    ; "/"
+| 0008  14:28 CONCAT       3
+| 0009  14:47 CONST        3    ; 'headers
+| 0010  14:56 LOADCAPTURED 1
+| 0011  14:27 CALL         4097    ; 1 positional, 1 named
+| 0012  14:61 UNWRAPABORT
+| 0013  14:16 RETURN
+|
+| == <lambda> ==
+| 0000  15:14 MOVELOCAL    0
+| 0001  15:14 MATCHORFAIL  0    ; _
+| 0002  15:14 CLEARLOCAL   0
+| 0003  15:19 LOADGLOBAL   0
+| 0004  15:23 FIELD        0    ; get
+| 0005  15:28 CONST        1    ; "http://"
+| 0006  15:38 LOADCAPTURED 0
+| 0007  15:28 CONST        2    ; "/many"
+| 0008  15:28 CONCAT       3
+| 0009  15:27 CALL         1    ; 1 positional, 0 named
+| 0010  15:50 UNWRAPABORT
+| 0011  15:16 RETURN
+|
+| == <lambda> ==
+| 0000  17:10 CONST        0    ; nil
+| 0001  17:7  RETURN
+-- stderr
+-- exit: 0
 ==== dump ast bench/list.fung
 -- stdout
 | (program (assign xs (call map (range .. 0 500000) (fn (i) (block (binary % (binary * i 7) 1000))))) (assign ys (call filter (call map xs (fn (x) (block (binary + x 1)))) (fn (x) (block (binary == (binary % x 2) 0))))) (assign total (call atom 0)) (call each ys (fn (y) (block (call swap total (fn (t) (block (binary + t y))))))) (assign hit (call find xs (fn (x) (block (binary == x 999))))) (assign zs (call sort_by xs (fn (x) (block (unary - x))))) (call print (binary + (binary + (binary + (call deref total) hit) (index zs 0)) (call len ys))))
@@ -1116,11 +1281,11 @@
 | 0003  2:10  CONST        2    ; 0
 | 0004  2:13  LOADGLOBAL   0    ; n
 | 0005  2:11  RANGE        0
-| 0006  2:16  MAP          0
+| 0006  2:16  CONST        3    ; {}
 | 0007  2:20  CLOSURE      0    ; <lambda>
 | 0008  2:9   CALL         3    ; 3 positional, 0 named
 | 0009  2:1   STOREGLOBAL  1    ; m
-| 0010  3:1   CONST        3    ; <fn print>
+| 0010  3:1   CONST        4    ; <fn print>
 | 0011  3:7   CONST        1    ; <fn fold>
 | 0012  3:12  CONST        2    ; 0
 | 0013  3:15  LOADGLOBAL   0    ; n
@@ -1130,7 +1295,7 @@
 | 0017  3:11  CALL         3    ; 3 positional, 0 named
 | 0018  3:6   CALL         1    ; 1 positional, 0 named
 | 0019  3:1   POP
-| 0020  3:1   CONST        4    ; nil
+| 0020  3:1   CONST        5    ; nil
 | 0021  1:1   RETURN
 |
 | == <lambda> ==
@@ -1378,16 +1543,14 @@
 | 0000  8:4   CONST        0    ; "status"
 | 0001  8:4   MOVELOCAL    0
 | 0002  8:12  CONST        1    ; "headers"
-| 0003  8:22  CONST        2    ; "content-type"
-| 0004  8:38  CONST        3    ; "application/json"
-| 0005  8:21  MAP          1
-| 0006  8:59  CONST        4    ; "body"
-| 0007  8:65  LOADGLOBAL   1
-| 0008  8:69  FIELD        5    ; stringify
-| 0009  8:80  MOVELOCAL    1
-| 0010  8:79  CALL         1    ; 1 positional, 0 named
-| 0011  8:3   MAP          3
-| 0012  7:32  RETURN
+| 0003  8:21  CONST        2    ; {"content-type": "application/json"}
+| 0004  8:59  CONST        3    ; "body"
+| 0005  8:65  LOADGLOBAL   1
+| 0006  8:69  FIELD        4    ; stringify
+| 0007  8:80  MOVELOCAL    1
+| 0008  8:79  CALL         1    ; 1 positional, 0 named
+| 0009  8:3   MAP          3
+| 0010  7:32  RETURN
 |
 | == health ==
 | 0000  11:3  LOADGLOBAL   3
@@ -1560,9 +1723,9 @@
 | 0005  8:44  CALL         1    ; 1 positional, 0 named
 | 0006  8:48  COALESCE     8
 | 0007  8:48  JUMP         9
-| 0008  8:51  MAP          0
-| 0009  8:55  CONST        2    ; "size"
-| 0010  8:63  CONST        3    ; 0
+| 0008  8:51  CONST        2    ; {}
+| 0009  8:55  CONST        3    ; "size"
+| 0010  8:63  CONST        4    ; 0
 | 0011  8:36  CALL         3    ; 3 positional, 0 named
 | 0012  8:29  TUPLE        2
 | 0013  8:26  RETURN
@@ -1641,7 +1804,7 @@
 | 0006  6:29  FIELD        3    ; report
 | 0007  6:29  STOREGLOBAL  2    ; report
 | 0008  8:4   CONST        4    ; <fn is_empty>
-| 0009  8:13  CONST        5    ; []
+| 0009  8:13  CONST        5    ; args
 | 0010  8:12  CALL         1    ; 1 positional, 0 named
 | 0011  8:12  JUMPIFFALSE  16
 | 0012  8:20  CONST        6    ; <fn fail>
@@ -1652,7 +1815,7 @@
 | 0017  8:1   POP
 | 0018  9:11  LOADGLOBAL   0    ; conc
 | 0019  9:15  FIELD        9    ; pmap
-| 0020  9:21  CONST        5    ; []
+| 0020  9:21  CONST        5    ; args
 | 0021  9:27  CLOSURE      0    ; <lambda>
 | 0022  9:42  CONST        10    ; 'limit
 | 0023  9:49  CONST        11    ; 8
@@ -1715,7 +1878,7 @@
 | 0010  6:3   CLEARLOCAL   0
 | 0011  7:3   CONST        4    ; <fn fold>
 | 0012  7:8   MOVELOCAL    1
-| 0013  7:14  MAP          0
+| 0013  7:14  CONST        5    ; {}
 | 0014  7:18  CLOSURE      1    ; <lambda>
 | 0015  7:7   TAILCALL     3    ; 3 positional, 0 named
 | 0016  5:1   RETURN
@@ -1901,7 +2064,7 @@
 | 0009  6:27  STOREGLOBAL  3    ; problems
 | 0010  8:8   LOADGLOBAL   1    ; cli
 | 0011  8:11  FIELD        3    ; parse
-| 0012  8:18  CONST        5    ; []
+| 0012  8:18  CONST        5    ; args
 | 0013  8:17  CALL         1    ; 1 positional, 0 named
 | 0014  8:1   STOREGLOBAL  4    ; opts
 | 0015  9:8   CONST        6    ; <fn first>
@@ -2170,7 +2333,7 @@
 | 0002  19:55 CONST        1    ; <fn get>
 | 0003  19:59 LOADCAPTURED 0
 | 0004  19:67 MOVELOCAL    0
-| 0005  19:74 LIST         0
+| 0005  19:74 CONST        2    ; []
 | 0006  19:58 CALL         3    ; 3 positional, 0 named
 | 0007  19:54 CALL         1    ; 1 positional, 0 named
 | 0008  19:43 TUPLE        2
@@ -2275,7 +2438,7 @@
 | 0013  9:1   CLOSURE      1    ; report
 | 0014  9:1   STOREGLOBAL  5    ; report
 | 0015  27:10 CONST        5    ; <fn first>
-| 0016  27:16 CONST        6    ; []
+| 0016  27:16 CONST        6    ; args
 | 0017  27:15 CALL         1    ; 1 positional, 0 named
 | 0018  27:22 COALESCE     20
 | 0019  27:22 JUMP         23
@@ -2284,13 +2447,13 @@
 | 0022  27:29 CALL         1    ; 1 positional, 0 named
 | 0023  27:1  STOREGLOBAL  6    ; source
 | 0024  28:7  CONST        9    ; <fn len>
-| 0025  28:11 CONST        6    ; []
+| 0025  28:11 CONST        6    ; args
 | 0026  28:10 CALL         1    ; 1 positional, 0 named
 | 0027  28:19 CONST        10    ; 1
 | 0028  28:17 GT
 | 0029  28:17 JUMPIFFALSE  36
 | 0030  28:26 CONST        11    ; <fn int>
-| 0031  28:30 CONST        6    ; []
+| 0031  28:30 CONST        6    ; args
 | 0032  28:35 CONST        10    ; 1
 | 0033  28:34 INDEX
 | 0034  28:29 CALL         1    ; 1 positional, 0 named
@@ -2431,7 +2594,7 @@
 | 0010  10:1  STOREGLOBAL  4    ; rename_all
 | 0011  21:8  LOADGLOBAL   2    ; cli
 | 0012  21:11 FIELD        5    ; parse
-| 0013  21:18 CONST        6    ; []
+| 0013  21:18 CONST        6    ; args
 | 0014  21:24 CONST        7    ; 'bools
 | 0015  21:31 CONST        8    ; ["dry-run"]
 | 0016  21:17 CALL         4097    ; 1 positional, 1 named
@@ -2537,7 +2700,7 @@
 | 0008  7:17  STOREGLOBAL  3    ; handler
 | 0009  9:8   LOADGLOBAL   2    ; cli
 | 0010  9:11  FIELD        5    ; parse
-| 0011  9:18  CONST        6    ; []
+| 0011  9:18  CONST        6    ; args
 | 0012  9:17  CALL         1    ; 1 positional, 0 named
 | 0013  9:1   STOREGLOBAL  4    ; opts
 | 0014  10:8  CONST        7    ; <fn get>
@@ -2596,7 +2759,7 @@
 | 0006  6:25  STOREGLOBAL  2    ; handler
 | 0007  8:8   LOADGLOBAL   1    ; cli
 | 0008  8:11  FIELD        4    ; parse
-| 0009  8:18  CONST        5    ; []
+| 0009  8:18  CONST        5    ; args
 | 0010  8:17  CALL         1    ; 1 positional, 0 named
 | 0011  8:1   STOREGLOBAL  3    ; opts
 | 0012  9:8   CONST        6    ; <fn first>
@@ -2884,45 +3047,37 @@
 | 0009  41:43 CHECKBOOL
 | 0010  41:28 JUMP         12
 | 0011  41:28 CONST        3    ; false
-| 0012  41:28 JUMPIFFALSE  20
-| 0013  42:15 CONST        4    ; "status"
-| 0014  42:23 CONST        5    ; 405
-| 0015  42:28 CONST        6    ; "body"
-| 0016  42:34 CONST        7    ; "method not allowed"
-| 0017  42:14 MAP          2
-| 0018  42:7  RETURN
-| 0019  41:5  JUMP         21
-| 0020  41:5  CONST        8    ; nil
-| 0021  41:5  POP
-| 0022  44:11 LOADGLOBAL   2
-| 0023  44:19 LOADCAPTURED 0
-| 0024  44:25 LOADLOCAL    0
-| 0025  44:28 FIELD        9    ; path
-| 0026  44:18 CALL         2    ; 2 positional, 0 named
-| 0027  44:5  STORELOCAL   1
-| 0028  44:5  LOADLOCAL    1
-| 0029  45:7  MATCH        0    ; nil
-| 0030  45:7  JUMPIFFALSE  37
-| 0031  45:18 CONST        4    ; "status"
-| 0032  45:26 CONST        10    ; 403
-| 0033  45:31 CONST        6    ; "body"
-| 0034  45:37 CONST        11    ; "forbidden"
-| 0035  45:17 MAP          2
-| 0036  45:7  JUMP         50
-| 0037  44:5  LOADLOCAL    1
-| 0038  46:7  MATCH        1    ; $2
-| 0039  46:7  JUMPIFFALSE  48
-| 0040  46:17 LOADGLOBAL   5
-| 0041  46:29 LOADGLOBAL   4
-| 0042  46:39 MOVELOCAL    2
-| 0043  46:38 CALL         1    ; 1 positional, 0 named
-| 0044  46:48 MOVELOCAL    0
-| 0045  46:51 FIELD        9    ; path
-| 0046  46:28 TAILCALL     2    ; 2 positional, 0 named
-| 0047  46:7  JUMP         50
-| 0048  44:5  LOADLOCAL    1
-| 0049  44:5  NOMATCH
-| 0050  40:3  RETURN
+| 0012  41:28 JUMPIFFALSE  16
+| 0013  42:14 CONST        4    ; {status: 405, body: "method not allowed"}
+| 0014  42:7  RETURN
+| 0015  41:5  JUMP         17
+| 0016  41:5  CONST        5    ; nil
+| 0017  41:5  POP
+| 0018  44:11 LOADGLOBAL   2
+| 0019  44:19 LOADCAPTURED 0
+| 0020  44:25 LOADLOCAL    0
+| 0021  44:28 FIELD        6    ; path
+| 0022  44:18 CALL         2    ; 2 positional, 0 named
+| 0023  44:5  STORELOCAL   1
+| 0024  44:5  LOADLOCAL    1
+| 0025  45:7  MATCH        0    ; nil
+| 0026  45:7  JUMPIFFALSE  29
+| 0027  45:17 CONST        7    ; {status: 403, body: "forbidden"}
+| 0028  45:7  JUMP         42
+| 0029  44:5  LOADLOCAL    1
+| 0030  46:7  MATCH        1    ; $2
+| 0031  46:7  JUMPIFFALSE  40
+| 0032  46:17 LOADGLOBAL   5
+| 0033  46:29 LOADGLOBAL   4
+| 0034  46:39 MOVELOCAL    2
+| 0035  46:38 CALL         1    ; 1 positional, 0 named
+| 0036  46:48 MOVELOCAL    0
+| 0037  46:51 FIELD        6    ; path
+| 0038  46:28 TAILCALL     2    ; 2 positional, 0 named
+| 0039  46:7  JUMP         42
+| 0040  44:5  LOADLOCAL    1
+| 0041  44:5  NOMATCH
+| 0042  40:3  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast examples/tidy.fung
@@ -2952,7 +3107,7 @@
 | 0011  7:31  STOREGLOBAL  4    ; human
 | 0012  9:8   LOADGLOBAL   2    ; cli
 | 0013  9:11  FIELD        6    ; parse
-| 0014  9:18  CONST        7    ; []
+| 0014  9:18  CONST        7    ; args
 | 0015  9:17  CALL         1    ; 1 positional, 0 named
 | 0016  9:1   STOREGLOBAL  5    ; opts
 | 0017  10:7  CONST        8    ; <fn first>
@@ -3086,35 +3241,35 @@
 | 0011  11:24 CALL         2    ; 2 positional, 0 named
 | 0012  11:6  NOT
 | 0013  11:6  JUMPIFFALSE  17
-| 0014  11:58 LIST         0
+| 0014  11:58 CONST        6    ; []
 | 0015  11:51 RETURN
 | 0016  11:3  JUMP         18
-| 0017  11:3  CONST        6    ; nil
+| 0017  11:3  CONST        7    ; nil
 | 0018  11:3  POP
 | 0019  11:3  CLEARLOCAL   1
 | 0020  12:9  LOADGLOBAL   1
-| 0021  12:13 FIELD        7    ; parse
+| 0021  12:13 FIELD        8    ; parse
 | 0022  12:20 MOVELOCAL    0
-| 0023  12:24 FIELD        8    ; body
+| 0023  12:24 FIELD        9    ; body
 | 0024  12:19 CALL         1    ; 1 positional, 0 named
 | 0025  12:3  STORELOCAL   2
 | 0026  12:3  LOADLOCAL    2
 | 0027  13:5  MATCH        0    ; Ok($3)
 | 0028  13:5  JUMPIFFALSE  39
-| 0029  13:16 CONST        9    ; <fn type_of>
+| 0029  13:16 CONST        10    ; <fn type_of>
 | 0030  13:24 LOADLOCAL    3
 | 0031  13:23 CALL         1    ; 1 positional, 0 named
-| 0032  13:30 CONST        10    ; 'map
+| 0032  13:30 CONST        11    ; 'map
 | 0033  13:27 EQ
 | 0034  13:27 JUMPIFFALSE  39
-| 0035  13:38 CONST        11    ; <fn keys>
+| 0035  13:38 CONST        12    ; <fn keys>
 | 0036  13:43 MOVELOCAL    3
 | 0037  13:42 TAILCALL     1    ; 1 positional, 0 named
 | 0038  13:5  JUMP         46
 | 0039  12:3  LOADLOCAL    2
 | 0040  14:5  MATCH        1    ; _
 | 0041  14:5  JUMPIFFALSE  44
-| 0042  14:38 LIST         0
+| 0042  14:38 CONST        6    ; []
 | 0043  14:5  JUMP         46
 | 0044  12:3  LOADLOCAL    2
 | 0045  12:3  NOMATCH
@@ -3180,7 +3335,7 @@
 | 0056  24:50 CONST        8    ; "took"
 | 0057  24:50 MOVELOCAL    4
 | 0058  24:56 CONST        9    ; "keys"
-| 0059  24:62 LIST         0
+| 0059  24:62 CONST        12    ; []
 | 0060  24:17 MAP          5
 | 0061  24:5  JUMP         64
 | 0062  22:3  LOADLOCAL    5
@@ -3254,18 +3409,14 @@
 | == parse ==
 | 0000  11:1  LOADLOCAL    1
 | 0001  11:1  JUMPIFSET    4
-| 0002  11:24 LIST         0
+| 0002  11:24 CONST        0    ; []
 | 0003  11:1  STORELOCAL   1
 | 0004  11:30 LOADGLOBAL   1
 | 0005  11:37 MOVELOCAL    0
 | 0006  11:43 MOVELOCAL    1
-| 0007  11:51 CONST        0    ; "flags"
-| 0008  11:58 MAP          0
-| 0009  11:62 CONST        1    ; "rest"
-| 0010  11:68 LIST         0
-| 0011  11:50 MAP          2
-| 0012  11:36 TAILCALL     3    ; 3 positional, 0 named
-| 0013  11:28 RETURN
+| 0007  11:50 CONST        1    ; {flags: {}, rest: []}
+| 0008  11:36 TAILCALL     3    ; 3 positional, 0 named
+| 0009  11:28 RETURN
 |
 | == _parse ==
 | 0000  13:37 MOVELOCAL    0
@@ -3682,7 +3833,7 @@
 | 0001  51:63 LOADCAPTURED 0
 | 0002  51:70 LOADCAPTURED 1
 | 0003  51:73 LOADCAPTURED 2
-| 0004  51:79 LIST         0
+| 0004  51:79 CONST        0    ; []
 | 0005  51:62 TAILCALL     4    ; 4 positional, 0 named
 | 0006  51:54 RETURN
 |
@@ -3809,7 +3960,7 @@
 |   |
 -- exit: 2
 ==== dump ast extras/http.fung
--- stdout (77952 bytes, fnv1a64 c8abc0ee40cdff07)
+-- stdout (80366 bytes, fnv1a64 ffdbc8f745d4df79)
 -- stderr
 -- exit: 0
 ==== dump core extras/http.fung
@@ -4179,9 +4330,9 @@
 -- stdout
 | == <main> ==
 | 0000  2:1   CONST        0    ; <fn print>
-| 0001  2:7   CONST        1    ; []
+| 0001  2:7   CONST        1    ; args
 | 0002  2:13  CONST        2    ; <fn len>
-| 0003  2:17  CONST        1    ; []
+| 0003  2:17  CONST        1    ; args
 | 0004  2:16  CALL         1    ; 1 positional, 0 named
 | 0005  2:6   CALL         2    ; 2 positional, 0 named
 | 0006  2:1   POP
@@ -4969,99 +5120,95 @@
 | 0143  26:49 LT
 | 0144  26:6  CALL         3    ; 3 positional, 0 named
 | 0145  26:1  POP
-| 0146  28:6  CONST        29    ; "\xff"
-| 0147  28:14 CONST        7    ; 1
-| 0148  28:17 CONST        43    ; "k"
-| 0149  28:20 CONST        26    ; 2
-| 0150  28:5  MAP          2
-| 0151  28:1  STOREGLOBAL  2    ; m
-| 0152  29:1  CONST        2    ; <fn print>
-| 0153  29:7  LOADGLOBAL   2    ; m
-| 0154  29:10 LOADGLOBAL   2    ; m
-| 0155  29:12 CONST        29    ; "\xff"
-| 0156  29:11 INDEX
-| 0157  29:21 CONST        44    ; <fn keys>
-| 0158  29:26 LOADGLOBAL   2    ; m
-| 0159  29:25 CALL         1    ; 1 positional, 0 named
-| 0160  29:6  CALL         3    ; 3 positional, 0 named
-| 0161  29:1  POP
-| 0162  31:11 CONST        29    ; "\xff"
-| 0163  31:5  STORELOCAL   0
-| 0164  31:5  LOADLOCAL    0
-| 0165  32:3  MATCH        0    ; "\xfe"
-| 0166  32:3  JUMPIFFALSE  169
-| 0167  32:13 CONST        7    ; 1
-| 0168  32:3  JUMP         181
-| 0169  31:5  LOADLOCAL    0
-| 0170  33:3  MATCH        1    ; "\xff"
-| 0171  33:3  JUMPIFFALSE  174
-| 0172  33:13 CONST        26    ; 2
-| 0173  33:3  JUMP         181
-| 0174  31:5  LOADLOCAL    0
-| 0175  34:3  MATCH        2    ; _
-| 0176  34:3  JUMPIFFALSE  179
-| 0177  34:13 CONST        8    ; 3
-| 0178  34:3  JUMP         181
-| 0179  31:5  LOADLOCAL    0
-| 0180  31:5  NOMATCH
-| 0181  31:1  STOREGLOBAL  3    ; r
-| 0182  36:1  CONST        2    ; <fn print>
-| 0183  36:7  LOADGLOBAL   3    ; r
-| 0184  36:6  CALL         1    ; 1 positional, 0 named
-| 0185  36:1  POP
-| 0186  38:1  CONST        2    ; <fn print>
-| 0187  38:10 LOADGLOBAL   1    ; s
-| 0188  38:7  CONCAT       1
-| 0189  38:17 LOADGLOBAL   1    ; s
-| 0190  38:14 EQ
-| 0191  38:21 CONST        45    ; "x"
-| 0192  38:25 CONST        29    ; "\xff"
-| 0193  38:21 CONST        46    ; "y"
-| 0194  38:21 CONCAT       3
-| 0195  38:20 LIST         1
-| 0196  38:37 CONST        47    ; <fn str>
-| 0197  38:41 CONST        29    ; "\xff"
-| 0198  38:40 CALL         1    ; 1 positional, 0 named
-| 0199  38:52 CONST        29    ; "\xff"
-| 0200  38:49 EQ
-| 0201  38:6  CALL         3    ; 3 positional, 0 named
-| 0202  38:1  POP
-| 0203  40:1  CONST        2    ; <fn print>
-| 0204  40:8  CONST        48    ; <fn pad_left>
-| 0205  40:17 CONST        29    ; "\xff"
-| 0206  40:25 CONST        8    ; 3
-| 0207  40:28 CONST        49    ; "."
-| 0208  40:16 CALL         3    ; 3 positional, 0 named
-| 0209  40:34 CONST        50    ; <fn pad_right>
-| 0210  40:44 CONST        29    ; "\xff"
-| 0211  40:52 CONST        26    ; 2
-| 0212  40:43 CALL         2    ; 2 positional, 0 named
-| 0213  40:7  LIST         2
-| 0214  40:6  CALL         1    ; 1 positional, 0 named
-| 0215  40:1  POP
-| 0216  43:1  CONST        2    ; <fn print>
-| 0217  43:7  LOADGLOBAL   0    ; regex
-| 0218  43:12 FIELD        51    ; is_match
-| 0219  43:22 CONST        37    ; "a\xff"
-| 0220  43:31 CONST        52    ; "(?-u:\\xff)"
-| 0221  43:21 CALL         2    ; 2 positional, 0 named
-| 0222  43:46 LOADGLOBAL   0    ; regex
-| 0223  43:51 FIELD        53    ; find
-| 0224  43:57 CONST        54    ; "\xffa"
-| 0225  43:66 CONST        49    ; "."
-| 0226  43:56 CALL         2    ; 2 positional, 0 named
-| 0227  43:70 FIELD        55    ; start
-| 0228  43:79 LOADGLOBAL   0    ; regex
-| 0229  43:84 FIELD        56    ; replace
-| 0230  43:93 CONST        57    ; "가\xff"
-| 0231  43:102 CONST        58    ; "x*"
-| 0232  43:108 CONST        35    ; "-"
-| 0233  43:92 CALL         3    ; 3 positional, 0 named
-| 0234  43:78 LIST         1
-| 0235  43:6  CALL         3    ; 3 positional, 0 named
-| 0236  43:1  POP
-| 0237  43:1  CONST        59    ; nil
-| 0238  1:72  RETURN
+| 0146  28:5  CONST        43    ; {"\xff": 1, k: 2}
+| 0147  28:1  STOREGLOBAL  2    ; m
+| 0148  29:1  CONST        2    ; <fn print>
+| 0149  29:7  LOADGLOBAL   2    ; m
+| 0150  29:10 LOADGLOBAL   2    ; m
+| 0151  29:12 CONST        29    ; "\xff"
+| 0152  29:11 INDEX
+| 0153  29:21 CONST        44    ; <fn keys>
+| 0154  29:26 LOADGLOBAL   2    ; m
+| 0155  29:25 CALL         1    ; 1 positional, 0 named
+| 0156  29:6  CALL         3    ; 3 positional, 0 named
+| 0157  29:1  POP
+| 0158  31:11 CONST        29    ; "\xff"
+| 0159  31:5  STORELOCAL   0
+| 0160  31:5  LOADLOCAL    0
+| 0161  32:3  MATCH        0    ; "\xfe"
+| 0162  32:3  JUMPIFFALSE  165
+| 0163  32:13 CONST        7    ; 1
+| 0164  32:3  JUMP         177
+| 0165  31:5  LOADLOCAL    0
+| 0166  33:3  MATCH        1    ; "\xff"
+| 0167  33:3  JUMPIFFALSE  170
+| 0168  33:13 CONST        26    ; 2
+| 0169  33:3  JUMP         177
+| 0170  31:5  LOADLOCAL    0
+| 0171  34:3  MATCH        2    ; _
+| 0172  34:3  JUMPIFFALSE  175
+| 0173  34:13 CONST        8    ; 3
+| 0174  34:3  JUMP         177
+| 0175  31:5  LOADLOCAL    0
+| 0176  31:5  NOMATCH
+| 0177  31:1  STOREGLOBAL  3    ; r
+| 0178  36:1  CONST        2    ; <fn print>
+| 0179  36:7  LOADGLOBAL   3    ; r
+| 0180  36:6  CALL         1    ; 1 positional, 0 named
+| 0181  36:1  POP
+| 0182  38:1  CONST        2    ; <fn print>
+| 0183  38:10 LOADGLOBAL   1    ; s
+| 0184  38:7  CONCAT       1
+| 0185  38:17 LOADGLOBAL   1    ; s
+| 0186  38:14 EQ
+| 0187  38:21 CONST        45    ; "x"
+| 0188  38:25 CONST        29    ; "\xff"
+| 0189  38:21 CONST        46    ; "y"
+| 0190  38:21 CONCAT       3
+| 0191  38:20 LIST         1
+| 0192  38:37 CONST        47    ; <fn str>
+| 0193  38:41 CONST        29    ; "\xff"
+| 0194  38:40 CALL         1    ; 1 positional, 0 named
+| 0195  38:52 CONST        29    ; "\xff"
+| 0196  38:49 EQ
+| 0197  38:6  CALL         3    ; 3 positional, 0 named
+| 0198  38:1  POP
+| 0199  40:1  CONST        2    ; <fn print>
+| 0200  40:8  CONST        48    ; <fn pad_left>
+| 0201  40:17 CONST        29    ; "\xff"
+| 0202  40:25 CONST        8    ; 3
+| 0203  40:28 CONST        49    ; "."
+| 0204  40:16 CALL         3    ; 3 positional, 0 named
+| 0205  40:34 CONST        50    ; <fn pad_right>
+| 0206  40:44 CONST        29    ; "\xff"
+| 0207  40:52 CONST        26    ; 2
+| 0208  40:43 CALL         2    ; 2 positional, 0 named
+| 0209  40:7  LIST         2
+| 0210  40:6  CALL         1    ; 1 positional, 0 named
+| 0211  40:1  POP
+| 0212  43:1  CONST        2    ; <fn print>
+| 0213  43:7  LOADGLOBAL   0    ; regex
+| 0214  43:12 FIELD        51    ; is_match
+| 0215  43:22 CONST        37    ; "a\xff"
+| 0216  43:31 CONST        52    ; "(?-u:\\xff)"
+| 0217  43:21 CALL         2    ; 2 positional, 0 named
+| 0218  43:46 LOADGLOBAL   0    ; regex
+| 0219  43:51 FIELD        53    ; find
+| 0220  43:57 CONST        54    ; "\xffa"
+| 0221  43:66 CONST        49    ; "."
+| 0222  43:56 CALL         2    ; 2 positional, 0 named
+| 0223  43:70 FIELD        55    ; start
+| 0224  43:79 LOADGLOBAL   0    ; regex
+| 0225  43:84 FIELD        56    ; replace
+| 0226  43:93 CONST        57    ; "가\xff"
+| 0227  43:102 CONST        58    ; "x*"
+| 0228  43:108 CONST        35    ; "-"
+| 0229  43:92 CALL         3    ; 3 positional, 0 named
+| 0230  43:78 LIST         1
+| 0231  43:6  CALL         3    ; 3 positional, 0 named
+| 0232  43:1  POP
+| 0233  43:1  CONST        59    ; nil
+| 0234  1:72  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/cancel.fung
@@ -5721,74 +5868,72 @@
 | 0027  3:43  CONST        11    ; 2
 | 0028  3:31  CALL         2    ; 2 positional, 0 named
 | 0029  3:47  CONST        13    ; <fn first>
-| 0030  3:53  LIST         0
+| 0030  3:53  CONST        14    ; []
 | 0031  3:52  CALL         1    ; 1 positional, 0 named
-| 0032  3:58  CONST        14    ; <fn zip>
-| 0033  3:62  CONST        15    ; [1]
-| 0034  3:67  CONST        16    ; ["a"]
+| 0032  3:58  CONST        15    ; <fn zip>
+| 0033  3:62  CONST        16    ; [1]
+| 0034  3:67  CONST        17    ; ["a"]
 | 0035  3:61  CALL         2    ; 2 positional, 0 named
-| 0036  3:75  CONST        17    ; <fn unique>
-| 0037  3:82  CONST        18    ; [1, 1]
+| 0036  3:75  CONST        18    ; <fn unique>
+| 0037  3:82  CONST        19    ; [1, 1]
 | 0038  3:81  CALL         1    ; 1 positional, 0 named
-| 0039  3:91  CONST        19    ; <fn flatten>
-| 0040  3:99  CONST        20    ; [[1], [2]]
+| 0039  3:91  CONST        20    ; <fn flatten>
+| 0040  3:99  CONST        21    ; [[1], [2]]
 | 0041  3:98  CALL         1    ; 1 positional, 0 named
 | 0042  3:6   CALL         6    ; 6 positional, 0 named
 | 0043  3:1   POP
 | 0044  5:1   CONST        0    ; <fn print>
 | 0045  5:8   CONST        10    ; <fn take>
-| 0046  5:13  CONST        21    ; "héllo"
+| 0046  5:13  CONST        22    ; "héllo"
 | 0047  5:22  CONST        11    ; 2
 | 0048  5:12  CALL         2    ; 2 positional, 0 named
 | 0049  5:26  CONST        12    ; <fn drop>
-| 0050  5:31  CONST        21    ; "héllo"
-| 0051  5:40  CONST        22    ; 3
+| 0050  5:31  CONST        22    ; "héllo"
+| 0051  5:40  CONST        23    ; 3
 | 0052  5:30  CALL         2    ; 2 positional, 0 named
 | 0053  5:44  CONST        10    ; <fn take>
-| 0054  5:49  CONST        23    ; "ab"
-| 0055  5:55  CONST        24    ; 5
+| 0054  5:49  CONST        24    ; "ab"
+| 0055  5:55  CONST        25    ; 5
 | 0056  5:48  CALL         2    ; 2 positional, 0 named
 | 0057  5:59  CONST        12    ; <fn drop>
-| 0058  5:64  CONST        23    ; "ab"
+| 0058  5:64  CONST        24    ; "ab"
 | 0059  5:71  CONST        7    ; 1
 | 0060  5:70  NEG
 | 0061  5:63  CALL         2    ; 2 positional, 0 named
 | 0062  5:75  CONST        10    ; <fn take>
-| 0063  5:80  CONST        25    ; ""
+| 0063  5:80  CONST        26    ; ""
 | 0064  5:84  CONST        7    ; 1
 | 0065  5:79  CALL         2    ; 2 positional, 0 named
 | 0066  5:7   LIST         5
 | 0067  5:6   CALL         1    ; 1 positional, 0 named
 | 0068  5:1   POP
 | 0069  7:1   CONST        0    ; <fn print>
-| 0070  7:7   CONST        26    ; <fn group_by>
-| 0071  7:16  CONST        27    ; ["aa", "b", "cc"]
+| 0070  7:7   CONST        27    ; <fn group_by>
+| 0071  7:16  CONST        28    ; ["aa", "b", "cc"]
 | 0072  7:35  CLOSURE      3    ; <lambda>
 | 0073  7:15  CALL         2    ; 2 positional, 0 named
-| 0074  7:54  CONST        28    ; <fn pairs>
-| 0075  7:61  CONST        29    ; "a"
-| 0076  7:64  CONST        7    ; 1
-| 0077  7:60  MAP          1
-| 0078  7:59  CALL         1    ; 1 positional, 0 named
-| 0079  7:69  CONST        30    ; <fn get>
-| 0080  7:73  MAP          0
-| 0081  7:77  CONST        31    ; "x"
-| 0082  7:82  CONST        9    ; 0
-| 0083  7:72  CALL         3    ; 3 positional, 0 named
-| 0084  7:86  CONST        32    ; <fn put>
-| 0085  7:90  MAP          0
-| 0086  7:94  CONST        33    ; "k"
-| 0087  7:99  CONST        7    ; 1
-| 0088  7:89  CALL         3    ; 3 positional, 0 named
-| 0089  7:6   CALL         4    ; 4 positional, 0 named
-| 0090  7:1   POP
-| 0091  9:1   CONST        34    ; <fn each>
-| 0092  9:6   CONST        35    ; [1, 2]
-| 0093  9:14  CLOSURE      4    ; <lambda>
-| 0094  9:5   CALL         2    ; 2 positional, 0 named
-| 0095  9:1   POP
-| 0096  9:1   CONST        36    ; nil
-| 0097  1:1   RETURN
+| 0074  7:54  CONST        29    ; <fn pairs>
+| 0075  7:60  CONST        30    ; {a: 1}
+| 0076  7:59  CALL         1    ; 1 positional, 0 named
+| 0077  7:69  CONST        31    ; <fn get>
+| 0078  7:73  CONST        32    ; {}
+| 0079  7:77  CONST        33    ; "x"
+| 0080  7:82  CONST        9    ; 0
+| 0081  7:72  CALL         3    ; 3 positional, 0 named
+| 0082  7:86  CONST        34    ; <fn put>
+| 0083  7:90  CONST        32    ; {}
+| 0084  7:94  CONST        35    ; "k"
+| 0085  7:99  CONST        7    ; 1
+| 0086  7:89  CALL         3    ; 3 positional, 0 named
+| 0087  7:6   CALL         4    ; 4 positional, 0 named
+| 0088  7:1   POP
+| 0089  9:1   CONST        36    ; <fn each>
+| 0090  9:6   CONST        37    ; [1, 2]
+| 0091  9:14  CLOSURE      4    ; <lambda>
+| 0092  9:5   CALL         2    ; 2 positional, 0 named
+| 0093  9:1   POP
+| 0094  9:1   CONST        38    ; nil
+| 0095  1:1   RETURN
 |
 | == <lambda> ==
 | 0000  1:51  MOVELOCAL    0
@@ -5984,7 +6129,7 @@
 | 0040  10:75 CALL         4098    ; 2 positional, 1 named
 | 0041  10:110 LOADGLOBAL   0    ; conc
 | 0042  10:114 FIELD        10    ; pmap
-| 0043  10:120 LIST         0
+| 0043  10:120 CONST        13    ; []
 | 0044  10:124 CLOSURE      4    ; <lambda>
 | 0045  10:119 CALL         2    ; 2 positional, 0 named
 | 0046  10:6  CALL         3    ; 3 positional, 0 named
@@ -5998,7 +6143,7 @@
 | 0054  12:6  CALL         1    ; 1 positional, 0 named
 | 0055  12:1  POP
 | 0056  16:15 CONST        1    ; <fn channel>
-| 0057  16:23 CONST        13    ; 1
+| 0057  16:23 CONST        14    ; 1
 | 0058  16:22 CALL         1    ; 1 positional, 0 named
 | 0059  16:1  MATCHORFAIL  2    ; (@6, @7)
 | 0060  17:9  CLOSURE      6    ; <lambda>
@@ -6006,7 +6151,7 @@
 | 0062  22:1  CONST        8    ; <fn print>
 | 0063  22:7  LOADGLOBAL   0    ; conc
 | 0064  22:11 FIELD        10    ; pmap
-| 0065  22:17 CONST        14    ; [0, 1, 2, 3]
+| 0065  22:17 CONST        15    ; [0, 1, 2, 3]
 | 0066  22:31 LOADGLOBAL   8    ; waits
 | 0067  22:38 CONST        12    ; 'limit
 | 0068  22:45 CONST        2    ; 2
@@ -6015,9 +6160,9 @@
 | 0071  22:1  POP
 | 0072  24:1  CONST        8    ; <fn print>
 | 0073  24:7  LOADGLOBAL   0    ; conc
-| 0074  24:11 FIELD        15    ; retry
+| 0074  24:11 FIELD        16    ; retry
 | 0075  24:18 CLOSURE      7    ; <lambda>
-| 0076  24:38 CONST        16    ; 'times
+| 0076  24:38 CONST        17    ; 'times
 | 0077  24:45 CONST        2    ; 2
 | 0078  24:17 CALL         4097    ; 1 positional, 1 named
 | 0079  24:6  CALL         1    ; 1 positional, 0 named
@@ -6028,7 +6173,7 @@
 | 0084  35:12 CALL         1    ; 1 positional, 0 named
 | 0085  35:6  CALL         1    ; 1 positional, 0 named
 | 0086  35:1  POP
-| 0087  35:1  CONST        17    ; nil
+| 0087  35:1  CONST        18    ; nil
 | 0088  1:52  RETURN
 |
 | == numbers ==
@@ -6105,13 +6250,11 @@
 | 0000  12:30 LOADLOCAL    0
 | 0001  12:35 CONST        0    ; 1
 | 0002  12:32 EQ
-| 0003  12:32 JUMPIFFALSE  8
-| 0004  12:42 CONST        1    ; 'Err
-| 0005  12:46 CONST        2    ; 'no
-| 0006  12:42 TAG          1    ; 1 args
-| 0007  12:37 JUMP         9
-| 0008  12:56 MOVELOCAL    0
-| 0009  12:27 RETURN
+| 0003  12:32 JUMPIFFALSE  6
+| 0004  12:42 CONST        1    ; Err('no)
+| 0005  12:37 JUMP         7
+| 0006  12:56 MOVELOCAL    0
+| 0007  12:27 RETURN
 |
 | == <lambda> ==
 | 0000  18:6  LOADLOCAL    0
@@ -6145,10 +6288,8 @@
 | 0028  17:9  RETURN
 |
 | == <lambda> ==
-| 0000  24:24 CONST        0    ; 'Err
-| 0001  24:28 CONST        1    ; "never"
-| 0002  24:24 TAG          1    ; 1 args
-| 0003  24:21 RETURN
+| 0000  24:24 CONST        0    ; Err("never")
+| 0001  24:21 RETURN
 |
 | == <lambda> ==
 | 0000  35:90 CONST        0    ; <fn sort>
@@ -6279,24 +6420,18 @@
 | 0040  3:1   POP
 | 0041  5:1   CONST        0    ; <fn print>
 | 0042  5:7   CONST        18    ; <fn is_ok>
-| 0043  5:13  CONST        19    ; 'Ok
-| 0044  5:16  CONST        3    ; 1
-| 0045  5:13  TAG          1    ; 1 args
-| 0046  5:12  CALL         1    ; 1 positional, 0 named
-| 0047  5:21  CONST        20    ; <fn is_err>
-| 0048  5:28  CONST        19    ; 'Ok
-| 0049  5:31  CONST        3    ; 1
-| 0050  5:28  TAG          1    ; 1 args
-| 0051  5:27  CALL         1    ; 1 positional, 0 named
-| 0052  5:36  CONST        20    ; <fn is_err>
-| 0053  5:43  CONST        21    ; 'Err
-| 0054  5:47  CONST        3    ; 1
-| 0055  5:43  TAG          1    ; 1 args
-| 0056  5:42  CALL         1    ; 1 positional, 0 named
-| 0057  5:6   CALL         3    ; 3 positional, 0 named
-| 0058  5:1   POP
-| 0059  5:1   CONST        22    ; nil
-| 0060  1:1   RETURN
+| 0043  5:13  CONST        19    ; Ok(1)
+| 0044  5:12  CALL         1    ; 1 positional, 0 named
+| 0045  5:21  CONST        20    ; <fn is_err>
+| 0046  5:28  CONST        19    ; Ok(1)
+| 0047  5:27  CALL         1    ; 1 positional, 0 named
+| 0048  5:36  CONST        20    ; <fn is_err>
+| 0049  5:43  CONST        21    ; Err(1)
+| 0050  5:42  CALL         1    ; 1 positional, 0 named
+| 0051  5:6   CALL         3    ; 3 positional, 0 named
+| 0052  5:1   POP
+| 0053  5:1   CONST        22    ; nil
+| 0054  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/destructure.fung
@@ -6314,25 +6449,19 @@
 | == <main> ==
 | 0000  1:20  CONST        0    ; [1, 2, 3]
 | 0001  1:1   MATCHORFAIL  0    ; [@0, ...@1]
-| 0002  2:14  CONST        1    ; "name"
-| 0003  2:20  CONST        2    ; "a"
-| 0004  2:25  CONST        3    ; "x"
-| 0005  2:28  CONST        4    ; 1
-| 0006  2:13  MAP          2
-| 0007  2:1   MATCHORFAIL  1    ; {name: @2}
-| 0008  3:12  CONST        5    ; 'Ok
-| 0009  3:15  CONST        6    ; "hi"
-| 0010  3:12  TAG          1    ; 1 args
-| 0011  3:1   MATCHORFAIL  2    ; Ok(@3)
-| 0012  4:1   CONST        7    ; <fn print>
-| 0013  4:7   LOADGLOBAL   0    ; first
-| 0014  4:14  LOADGLOBAL   1    ; rest
-| 0015  4:20  LOADGLOBAL   2    ; n
-| 0016  4:23  LOADGLOBAL   3    ; text
-| 0017  4:6   CALL         4    ; 4 positional, 0 named
-| 0018  4:1   POP
-| 0019  4:1   CONST        8    ; nil
-| 0020  1:1   RETURN
+| 0002  2:13  CONST        1    ; {name: "a", x: 1}
+| 0003  2:1   MATCHORFAIL  1    ; {name: @2}
+| 0004  3:12  CONST        2    ; Ok("hi")
+| 0005  3:1   MATCHORFAIL  2    ; Ok(@3)
+| 0006  4:1   CONST        3    ; <fn print>
+| 0007  4:7   LOADGLOBAL   0    ; first
+| 0008  4:14  LOADGLOBAL   1    ; rest
+| 0009  4:20  LOADGLOBAL   2    ; n
+| 0010  4:23  LOADGLOBAL   3    ; text
+| 0011  4:6   CALL         4    ; 4 positional, 0 named
+| 0012  4:1   POP
+| 0013  4:1   CONST        4    ; nil
+| 0014  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/discard.fung
@@ -6352,109 +6481,83 @@
 | 0001  11:1  STOREGLOBAL  0    ; fails
 | 0002  37:1  CLOSURE      1    ; names
 | 0003  37:1  STOREGLOBAL  1    ; names
-| 0004  4:5   CONST        0    ; 'Err
-| 0005  4:9   CONST        1    ; "ignored"
-| 0006  4:5   TAG          1    ; 1 args
-| 0007  4:1   MATCHORFAIL  0    ; _
-| 0008  5:5   CONST        2    ; <fn exec>
-| 0009  5:10  CONST        3    ; ["false"]
-| 0010  5:9   CALL         1    ; 1 positional, 0 named
-| 0011  5:1   MATCHORFAIL  1    ; _
-| 0012  8:5   CONST        0    ; 'Err
-| 0013  8:9   CONST        4    ; "kept"
-| 0014  8:5   TAG          1    ; 1 args
-| 0015  8:1   STOREGLOBAL  2    ; r
-| 0016  9:1   CONST        5    ; <fn print>
-| 0017  9:7   LOADGLOBAL   2    ; r
-| 0018  9:6   CALL         1    ; 1 positional, 0 named
-| 0019  9:1   POP
-| 0020  12:1  CONST        5    ; <fn print>
-| 0021  12:7  LOADGLOBAL   0    ; fails
-| 0022  12:12 CALL         0    ; 0 positional, 0 named
-| 0023  12:6  CALL         1    ; 1 positional, 0 named
-| 0024  12:1  POP
-| 0025  14:1  CONST        5    ; <fn print>
-| 0026  14:7  CONST        6    ; <fn is_err>
-| 0027  14:14 CONST        2    ; <fn exec>
-| 0028  14:19 CONST        3    ; ["false"]
-| 0029  14:18 CALL         1    ; 1 positional, 0 named
-| 0030  14:13 CALL         1    ; 1 positional, 0 named
-| 0031  14:6  CALL         1    ; 1 positional, 0 named
-| 0032  14:1  POP
-| 0033  18:6  CONST        7    ; <fn map>
-| 0034  18:15 CONST        8    ; [1, 2]
-| 0035  18:6  CLOSURE      2    ; <lambda>
-| 0036  18:6  CALL         2    ; 2 positional, 0 named
-| 0037  18:1  STOREGLOBAL  3    ; xs
-| 0038  19:1  CONST        5    ; <fn print>
-| 0039  19:7  LOADGLOBAL   3    ; xs
-| 0040  19:6  CALL         1    ; 1 positional, 0 named
-| 0041  19:1  POP
-| 0042  23:1  CONST        9    ; <fn each>
-| 0043  23:10 CONST        8    ; [1, 2]
-| 0044  23:1  CLOSURE      3    ; <lambda>
-| 0045  23:1  CALL         2    ; 2 positional, 0 named
-| 0046  23:1  POP
-| 0047  32:1  CONST        10    ; 'Ok
-| 0048  32:4  CONST        11    ; 1
-| 0049  32:1  TAG          1    ; 1 args
-| 0050  32:1  POP
-| 0051  33:1  CONST        12    ; nil
-| 0052  33:1  POP
-| 0053  34:2  CONST        10    ; 'Ok
-| 0054  34:5  CONST        11    ; 1
-| 0055  34:2  TAG          1    ; 1 args
-| 0056  34:9  CONST        13    ; 2
-| 0057  34:1  LIST         2
-| 0058  34:1  POP
-| 0059  35:1  CONST        7    ; <fn map>
-| 0060  35:5  CONST        8    ; [1, 2]
-| 0061  35:13 CLOSURE      4    ; <lambda>
-| 0062  35:4  CALL         2    ; 2 positional, 0 named
-| 0063  35:1  POP
-| 0064  36:1  CONST        9    ; <fn each>
-| 0065  36:6  CONST        14    ; [1]
-| 0066  36:11 CLOSURE      5    ; <lambda>
-| 0067  36:5  CALL         2    ; 2 positional, 0 named
-| 0068  36:1  POP
-| 0069  38:1  CONST        5    ; <fn print>
-| 0070  38:7  LOADGLOBAL   1    ; names
-| 0071  38:13 CONST        8    ; [1, 2]
-| 0072  38:12 CALL         1    ; 1 positional, 0 named
-| 0073  38:6  CALL         1    ; 1 positional, 0 named
-| 0074  38:1  POP
-| 0075  43:3  CONST        0    ; 'Err
-| 0076  43:7  CONST        11    ; 1
-| 0077  43:3  TAG          1    ; 1 args
-| 0078  43:2  LIST         1
-| 0079  43:1  LIST         1
-| 0080  43:1  POP
-| 0081  44:3  CONST        0    ; 'Err
-| 0082  44:7  CONST        11    ; 1
-| 0083  44:3  TAG          1    ; 1 args
-| 0084  44:11 CONST        13    ; 2
-| 0085  44:2  TUPLE        2
-| 0086  44:1  LIST         1
-| 0087  44:1  POP
-| 0088  45:3  CONST        15    ; "e"
-| 0089  45:6  CONST        0    ; 'Err
-| 0090  45:10 CONST        11    ; 1
-| 0091  45:6  TAG          1    ; 1 args
-| 0092  45:2  MAP          1
-| 0093  45:1  LIST         1
-| 0094  45:1  POP
-| 0095  46:1  CONST        5    ; <fn print>
-| 0096  46:7  CONST        16    ; "done"
-| 0097  46:6  CALL         1    ; 1 positional, 0 named
-| 0098  46:1  POP
-| 0099  46:1  CONST        12    ; nil
-| 0100  1:42  RETURN
+| 0004  4:5   CONST        0    ; Err("ignored")
+| 0005  4:1   MATCHORFAIL  0    ; _
+| 0006  5:5   CONST        1    ; <fn exec>
+| 0007  5:10  CONST        2    ; ["false"]
+| 0008  5:9   CALL         1    ; 1 positional, 0 named
+| 0009  5:1   MATCHORFAIL  1    ; _
+| 0010  8:5   CONST        3    ; Err("kept")
+| 0011  8:1   STOREGLOBAL  2    ; r
+| 0012  9:1   CONST        4    ; <fn print>
+| 0013  9:7   LOADGLOBAL   2    ; r
+| 0014  9:6   CALL         1    ; 1 positional, 0 named
+| 0015  9:1   POP
+| 0016  12:1  CONST        4    ; <fn print>
+| 0017  12:7  LOADGLOBAL   0    ; fails
+| 0018  12:12 CALL         0    ; 0 positional, 0 named
+| 0019  12:6  CALL         1    ; 1 positional, 0 named
+| 0020  12:1  POP
+| 0021  14:1  CONST        4    ; <fn print>
+| 0022  14:7  CONST        5    ; <fn is_err>
+| 0023  14:14 CONST        1    ; <fn exec>
+| 0024  14:19 CONST        2    ; ["false"]
+| 0025  14:18 CALL         1    ; 1 positional, 0 named
+| 0026  14:13 CALL         1    ; 1 positional, 0 named
+| 0027  14:6  CALL         1    ; 1 positional, 0 named
+| 0028  14:1  POP
+| 0029  18:6  CONST        6    ; <fn map>
+| 0030  18:15 CONST        7    ; [1, 2]
+| 0031  18:6  CLOSURE      2    ; <lambda>
+| 0032  18:6  CALL         2    ; 2 positional, 0 named
+| 0033  18:1  STOREGLOBAL  3    ; xs
+| 0034  19:1  CONST        4    ; <fn print>
+| 0035  19:7  LOADGLOBAL   3    ; xs
+| 0036  19:6  CALL         1    ; 1 positional, 0 named
+| 0037  19:1  POP
+| 0038  23:1  CONST        8    ; <fn each>
+| 0039  23:10 CONST        7    ; [1, 2]
+| 0040  23:1  CLOSURE      3    ; <lambda>
+| 0041  23:1  CALL         2    ; 2 positional, 0 named
+| 0042  23:1  POP
+| 0043  32:1  CONST        9    ; Ok(1)
+| 0044  32:1  POP
+| 0045  33:1  CONST        10    ; nil
+| 0046  33:1  POP
+| 0047  34:1  CONST        11    ; [Ok(1), 2]
+| 0048  34:1  POP
+| 0049  35:1  CONST        6    ; <fn map>
+| 0050  35:5  CONST        7    ; [1, 2]
+| 0051  35:13 CLOSURE      4    ; <lambda>
+| 0052  35:4  CALL         2    ; 2 positional, 0 named
+| 0053  35:1  POP
+| 0054  36:1  CONST        8    ; <fn each>
+| 0055  36:6  CONST        12    ; [1]
+| 0056  36:11 CLOSURE      5    ; <lambda>
+| 0057  36:5  CALL         2    ; 2 positional, 0 named
+| 0058  36:1  POP
+| 0059  38:1  CONST        4    ; <fn print>
+| 0060  38:7  LOADGLOBAL   1    ; names
+| 0061  38:13 CONST        7    ; [1, 2]
+| 0062  38:12 CALL         1    ; 1 positional, 0 named
+| 0063  38:6  CALL         1    ; 1 positional, 0 named
+| 0064  38:1  POP
+| 0065  43:1  CONST        13    ; [[Err(1)]]
+| 0066  43:1  POP
+| 0067  44:1  CONST        14    ; [(Err(1), 2)]
+| 0068  44:1  POP
+| 0069  45:1  CONST        15    ; [{e: Err(1)}]
+| 0070  45:1  POP
+| 0071  46:1  CONST        4    ; <fn print>
+| 0072  46:7  CONST        16    ; "done"
+| 0073  46:6  CALL         1    ; 1 positional, 0 named
+| 0074  46:1  POP
+| 0075  46:1  CONST        10    ; nil
+| 0076  1:42  RETURN
 |
 | == fails ==
-| 0000  11:14 CONST        0    ; 'Err
-| 0001  11:18 CONST        1    ; "returned"
-| 0002  11:14 TAG          1    ; 1 args
-| 0003  11:12 RETURN
+| 0000  11:14 CONST        0    ; Err("returned")
+| 0001  11:12 RETURN
 |
 | == names ==
 | 0000  37:15 CONST        0    ; <fn map>
@@ -6559,10 +6662,8 @@
 | 0000  2:21  MOVELOCAL    0
 | 0001  2:21  MATCHORFAIL  0    ; _
 | 0002  2:21  CLEARLOCAL   0
-| 0003  2:26  CONST        0    ; 'Err
-| 0004  2:30  CONST        1    ; "use"
-| 0005  2:26  TAG          1    ; 1 args
-| 0006  2:23  RETURN
+| 0003  2:26  CONST        0    ; Err("use")
+| 0004  2:23  RETURN
 |
 | == <lambda> ==
 | 0000  2:38  MOVELOCAL    0
@@ -6614,10 +6715,8 @@
 | 0000  10:57 MOVELOCAL    0
 | 0001  10:57 MATCHORFAIL  0    ; _
 | 0002  10:57 CLEARLOCAL   0
-| 0003  10:62 CONST        0    ; 'Err
-| 0004  10:66 CONST        1    ; "in release"
-| 0005  10:62 TAG          1    ; 1 args
-| 0006  10:59 RETURN
+| 0003  10:62 CONST        0    ; Err("in release")
+| 0004  10:59 RETURN
 |
 | == <lambda> ==
 | 0000  12:10 CONST        0    ; nil
@@ -7330,13 +7429,10 @@
 ==== dump bytecode tests/lang/err_destructure.fung
 -- stdout
 | == <main> ==
-| 0000  1:11  CONST        0    ; 1
-| 0001  1:14  CONST        1    ; 2
-| 0002  1:17  CONST        2    ; 3
-| 0003  1:10  TUPLE        3
-| 0004  1:1   MATCHORFAIL  0    ; (@0, @1)
-| 0005  1:1   CONST        3    ; nil
-| 0006  1:1   RETURN
+| 0000  1:10  CONST        0    ; (1, 2, 3)
+| 0001  1:1   MATCHORFAIL  0    ; (@0, @1)
+| 0002  1:1   CONST        1    ; nil
+| 0003  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_branch.fung
@@ -7353,19 +7449,17 @@
 -- stdout
 | == <main> ==
 | 0000  2:4   CONST        0    ; true
-| 0001  2:4   JUMPIFFALSE  6
-| 0002  3:3   CONST        1    ; 'Err
-| 0003  3:7   CONST        2    ; "in a branch"
-| 0004  3:3   TAG          1    ; 1 args
-| 0005  2:1   JUMP         7
-| 0006  2:1   CONST        3    ; nil
-| 0007  2:1   POP
-| 0008  6:1   CONST        4    ; <fn print>
-| 0009  6:7   CONST        5    ; "not reached"
-| 0010  6:6   CALL         1    ; 1 positional, 0 named
-| 0011  6:1   POP
-| 0012  6:1   CONST        3    ; nil
-| 0013  1:68  RETURN
+| 0001  2:4   JUMPIFFALSE  4
+| 0002  3:3   CONST        1    ; Err("in a branch")
+| 0003  2:1   JUMP         5
+| 0004  2:1   CONST        2    ; nil
+| 0005  2:1   POP
+| 0006  6:1   CONST        3    ; <fn print>
+| 0007  6:7   CONST        4    ; "not reached"
+| 0008  6:6   CALL         1    ; 1 positional, 0 named
+| 0009  6:1   POP
+| 0010  6:1   CONST        2    ; nil
+| 0011  1:68  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_each.fung
@@ -7426,16 +7520,10 @@
 | 0001  2:7   CONST        1    ; "before"
 | 0002  2:6   CALL         1    ; 1 positional, 0 named
 | 0003  2:1   POP
-| 0004  4:1   CONST        2    ; 'Err
-| 0005  4:6   CONST        3    ; "kind"
-| 0006  4:12  CONST        4    ; 'oops
-| 0007  4:19  CONST        5    ; "message"
-| 0008  4:28  CONST        6    ; "at the end"
-| 0009  4:5   MAP          2
-| 0010  4:1   TAG          1    ; 1 args
-| 0011  4:1   POP
-| 0012  4:1   CONST        7    ; nil
-| 0013  1:50  RETURN
+| 0004  4:1   CONST        2    ; Err({kind: 'oops, message: "at the end"})
+| 0005  4:1   POP
+| 0006  4:1   CONST        3    ; nil
+| 0007  1:50  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_for.fung
@@ -7471,15 +7559,13 @@
 | 0004  4:3   LOADLOCAL    0
 | 0005  4:8   CONST        1    ; 2
 | 0006  4:5   EQ
-| 0007  4:5   JUMPIFFALSE  12
-| 0008  4:15  CONST        2    ; 'Err
-| 0009  4:19  CONST        3    ; "two"
-| 0010  4:15  TAG          1    ; 1 args
-| 0011  4:10  JUMP         15
-| 0012  4:31  CONST        4    ; 'Ok
-| 0013  4:34  MOVELOCAL    0
-| 0014  4:31  TAG          1    ; 1 args
-| 0015  2:1   RETURN
+| 0007  4:5   JUMPIFFALSE  10
+| 0008  4:15  CONST        2    ; Err("two")
+| 0009  4:10  JUMP         13
+| 0010  4:31  CONST        3    ; 'Ok
+| 0011  4:34  MOVELOCAL    0
+| 0012  4:31  TAG          1    ; 1 args
+| 0013  2:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_list_each.fung
@@ -7511,11 +7597,9 @@
 | 0000  2:17  CONST        0    ; 'Ok
 | 0001  2:20  MOVELOCAL    0
 | 0002  2:17  TAG          1    ; 1 args
-| 0003  2:24  CONST        1    ; 'Err
-| 0004  2:28  CONST        2    ; "in a list"
-| 0005  2:24  TAG          1    ; 1 args
-| 0006  2:16  LIST         2
-| 0007  2:13  RETURN
+| 0003  2:24  CONST        1    ; Err("in a list")
+| 0004  2:16  LIST         2
+| 0005  2:13  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_list_end.fung
@@ -7595,15 +7679,13 @@
 | 0000  2:21  LOADLOCAL    0
 | 0001  2:26  CONST        0    ; 2
 | 0002  2:23  EQ
-| 0003  2:23  JUMPIFFALSE  8
-| 0004  2:33  CONST        1    ; 'Err
-| 0005  2:37  CONST        2    ; "two"
-| 0006  2:33  TAG          1    ; 1 args
-| 0007  2:28  JUMP         11
-| 0008  2:49  CONST        3    ; 'Ok
-| 0009  2:52  MOVELOCAL    0
-| 0010  2:49  TAG          1    ; 1 args
-| 0011  2:18  RETURN
+| 0003  2:23  JUMPIFFALSE  6
+| 0004  2:33  CONST        1    ; Err("two")
+| 0005  2:28  JUMP         9
+| 0006  2:49  CONST        2    ; 'Ok
+| 0007  2:52  MOVELOCAL    0
+| 0008  2:49  TAG          1    ; 1 args
+| 0009  2:18  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_on_fail.fung
@@ -7693,10 +7775,8 @@
 | 0000  2:31  MOVELOCAL    0
 | 0001  2:31  MATCHORFAIL  0    ; _
 | 0002  2:31  CLEARLOCAL   0
-| 0003  2:36  CONST        0    ; 'Err
-| 0004  2:40  CONST        1    ; "cannot release"
-| 0005  2:36  TAG          1    ; 1 args
-| 0006  2:33  RETURN
+| 0003  2:36  CONST        0    ; Err("cannot release")
+| 0004  2:33  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_discard_stmt.fung
@@ -8292,15 +8372,13 @@
 -- stdout
 | == <main> ==
 | 0000  1:1   CONST        0    ; <fn print>
-| 0001  1:8   CONST        1    ; 1
-| 0002  1:11  CONST        2    ; 2
-| 0003  1:7   TUPLE        2
-| 0004  1:14  CONST        3    ; 0
-| 0005  1:13  INDEX
-| 0006  1:6   CALL         1    ; 1 positional, 0 named
-| 0007  1:1   POP
-| 0008  1:1   CONST        4    ; nil
-| 0009  1:1   RETURN
+| 0001  1:7   CONST        1    ; (1, 2)
+| 0002  1:14  CONST        2    ; 0
+| 0003  1:13  INDEX
+| 0004  1:6   CALL         1    ; 1 positional, 0 named
+| 0005  1:1   POP
+| 0006  1:1   CONST        3    ; nil
+| 0007  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_interp.fung
@@ -8351,14 +8429,12 @@
 | 0002  2:1   CONST        1    ; <fn print>
 | 0003  2:7   LOADGLOBAL   0    ; json
 | 0004  2:11  FIELD        2    ; stringify
-| 0005  2:23  CONST        3    ; "d"
-| 0006  2:26  CONST        4    ; 5s
-| 0007  2:22  MAP          1
-| 0008  2:21  CALL         1    ; 1 positional, 0 named
-| 0009  2:6   CALL         1    ; 1 positional, 0 named
-| 0010  2:1   POP
-| 0011  2:1   CONST        5    ; nil
-| 0012  1:1   RETURN
+| 0005  2:22  CONST        3    ; {d: 5s}
+| 0006  2:21  CALL         1    ; 1 positional, 0 named
+| 0007  2:6   CALL         1    ; 1 positional, 0 named
+| 0008  2:1   POP
+| 0009  2:1   CONST        4    ; nil
+| 0010  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_key.fung
@@ -8375,14 +8451,12 @@
 -- stdout
 | == <main> ==
 | 0000  1:1   CONST        0    ; <fn print>
-| 0001  1:8   CONST        1    ; "a"
-| 0002  1:11  CONST        2    ; 1
-| 0003  1:7   MAP          1
-| 0004  1:13  FIELD        3    ; b
-| 0005  1:6   CALL         1    ; 1 positional, 0 named
-| 0006  1:1   POP
-| 0007  1:1   CONST        4    ; nil
-| 0008  1:1   RETURN
+| 0001  1:7   CONST        1    ; {a: 1}
+| 0002  1:13  FIELD        2    ; b
+| 0003  1:6   CALL         1    ; 1 positional, 0 named
+| 0004  1:1   POP
+| 0005  1:1   CONST        3    ; nil
+| 0006  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_local_fn_later.fung
@@ -9199,15 +9273,14 @@
 -- stdout
 | == <main> ==
 | 0000  1:1   CONST        0    ; <fn print>
-| 0001  1:8   CONST        1    ; 1
-| 0002  1:7   TUPLE        1
-| 0003  1:12  CONST        2    ; 0
-| 0004  1:15  CONST        1    ; 1
-| 0005  1:11  SLICE        3    ; start, end
-| 0006  1:6   CALL         1    ; 1 positional, 0 named
-| 0007  1:1   POP
-| 0008  1:1   CONST        3    ; nil
-| 0009  1:1   RETURN
+| 0001  1:7   CONST        1    ; (1,)
+| 0002  1:12  CONST        2    ; 0
+| 0003  1:15  CONST        3    ; 1
+| 0004  1:11  SLICE        3    ; start, end
+| 0005  1:6   CALL         1    ; 1 positional, 0 named
+| 0006  1:1   POP
+| 0007  1:1   CONST        4    ; nil
+| 0008  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_spawn_closed_scope.fung
@@ -9375,22 +9448,20 @@
 | 0003  3:12  FIELD        1    ; parse
 | 0004  3:19  LOADGLOBAL   0    ; json
 | 0005  3:23  FIELD        2    ; stringify
-| 0006  3:35  CONST        3    ; "kind"
-| 0007  3:41  CONST        4    ; 'not_found
-| 0008  3:34  MAP          1
-| 0009  3:33  CALL         1    ; 1 positional, 0 named
-| 0010  3:18  CALL         1    ; 1 positional, 0 named
-| 0011  3:54  UNWRAPABORT
-| 0012  3:1   STOREGLOBAL  1    ; back
-| 0013  4:1   CONST        5    ; <fn print>
-| 0014  4:7   LOADGLOBAL   1    ; back
-| 0015  4:11  FIELD        3    ; kind
-| 0016  4:20  CONST        4    ; 'not_found
-| 0017  4:17  EQ
-| 0018  4:6   CALL         1    ; 1 positional, 0 named
-| 0019  4:1   POP
-| 0020  4:1   CONST        6    ; nil
-| 0021  1:52  RETURN
+| 0006  3:34  CONST        3    ; {kind: 'not_found}
+| 0007  3:33  CALL         1    ; 1 positional, 0 named
+| 0008  3:18  CALL         1    ; 1 positional, 0 named
+| 0009  3:54  UNWRAPABORT
+| 0010  3:1   STOREGLOBAL  1    ; back
+| 0011  4:1   CONST        4    ; <fn print>
+| 0012  4:7   LOADGLOBAL   1    ; back
+| 0013  4:11  FIELD        5    ; kind
+| 0014  4:20  CONST        6    ; 'not_found
+| 0015  4:17  EQ
+| 0016  4:6   CALL         1    ; 1 positional, 0 named
+| 0017  4:1   POP
+| 0018  4:1   CONST        7    ; nil
+| 0019  1:52  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_sym_str_nested.fung
@@ -9702,10 +9773,8 @@
 | 0004  3:13  RETURN
 |
 | == <lambda> ==
-| 0000  3:31  CONST        0    ; 'Err
-| 0001  3:35  CONST        1    ; "late"
-| 0002  3:31  TAG          1    ; 1 args
-| 0003  3:25  RETURN
+| 0000  3:31  CONST        0    ; Err("late")
+| 0001  3:25  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_task_failed.fung
@@ -10134,13 +10203,11 @@
 | 0001  1:7   CONST        1    ; 1
 | 0002  1:6   CALL         1    ; 1 positional, 0 named
 | 0003  1:1   POP
-| 0004  3:1   CONST        2    ; 'Err
-| 0005  3:5   CONST        3    ; "boom"
-| 0006  3:1   TAG          1    ; 1 args
-| 0007  3:12  UNWRAPABORT
-| 0008  3:1   POP
-| 0009  3:1   CONST        4    ; nil
-| 0010  1:1   RETURN
+| 0004  3:1   CONST        2    ; Err("boom")
+| 0005  3:12  UNWRAPABORT
+| 0006  3:1   POP
+| 0007  3:1   CONST        3    ; nil
+| 0008  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/err_unknown_named.fung
@@ -10707,55 +10774,49 @@
 | 0007  8:3   STORELOCAL   1
 | 0008  8:3   LOADLOCAL    1
 | 0009  9:5   MATCH        0    ; "/health"
-| 0010  9:5   JUMPIFFALSE  30
+| 0010  9:5   JUMPIFFALSE  28
 | 0011  9:19  CONST        2    ; "status"
 | 0012  9:27  CONST        3    ; 200
 | 0013  9:32  CONST        4    ; "headers"
-| 0014  9:42  CONST        5    ; "content-type"
-| 0015  9:58  CONST        6    ; "application/json"
-| 0016  9:41  MAP          1
-| 0017  9:79  CONST        7    ; "body"
-| 0018  9:85  LOADGLOBAL   1
-| 0019  9:89  FIELD        8    ; stringify
-| 0020  9:101 CONST        9    ; "ok"
-| 0021  9:105 CONST        10    ; true
-| 0022  9:111 CONST        11    ; "n"
-| 0023  9:114 CONST        12    ; <fn deref>
-| 0024  9:120 LOADCAPTURED 0
-| 0025  9:119 CALL         1    ; 1 positional, 0 named
-| 0026  9:100 MAP          2
-| 0027  9:99  CALL         1    ; 1 positional, 0 named
-| 0028  9:18  MAP          3
-| 0029  9:5   JUMP         58
-| 0030  8:3   LOADLOCAL    1
-| 0031  10:5  MATCH        1    ; "/echo"
-| 0032  10:5  JUMPIFFALSE  47
-| 0033  10:21 LOADLOCAL    0
-| 0034  10:24 FIELD        13    ; method
-| 0035  10:18 CONST        14    ; " "
-| 0036  10:35 LOADLOCAL    0
-| 0037  10:38 FIELD        7    ; body
-| 0038  10:18 CONST        14    ; " "
-| 0039  10:47 CONST        15    ; <fn get>
-| 0040  10:51 MOVELOCAL    0
-| 0041  10:54 FIELD        16    ; query
-| 0042  10:62 CONST        17    ; "x"
-| 0043  10:67 CONST        18    ; "-"
-| 0044  10:50 CALL         3    ; 3 positional, 0 named
-| 0045  10:18 CONCAT       5
-| 0046  10:5  JUMP         58
-| 0047  8:3   LOADLOCAL    1
-| 0048  11:5  MATCH        2    ; _
-| 0049  11:5  JUMPIFFALSE  56
-| 0050  11:19 CONST        2    ; "status"
-| 0051  11:27 CONST        19    ; 404
-| 0052  11:32 CONST        7    ; "body"
-| 0053  11:38 CONST        20    ; "no such page"
-| 0054  11:18 MAP          2
-| 0055  11:5  JUMP         58
-| 0056  8:3   LOADLOCAL    1
-| 0057  8:3   NOMATCH
-| 0058  6:10  RETURN
+| 0014  9:41  CONST        5    ; {"content-type": "application/json"}
+| 0015  9:79  CONST        6    ; "body"
+| 0016  9:85  LOADGLOBAL   1
+| 0017  9:89  FIELD        7    ; stringify
+| 0018  9:101 CONST        8    ; "ok"
+| 0019  9:105 CONST        9    ; true
+| 0020  9:111 CONST        10    ; "n"
+| 0021  9:114 CONST        11    ; <fn deref>
+| 0022  9:120 LOADCAPTURED 0
+| 0023  9:119 CALL         1    ; 1 positional, 0 named
+| 0024  9:100 MAP          2
+| 0025  9:99  CALL         1    ; 1 positional, 0 named
+| 0026  9:18  MAP          3
+| 0027  9:5   JUMP         52
+| 0028  8:3   LOADLOCAL    1
+| 0029  10:5  MATCH        1    ; "/echo"
+| 0030  10:5  JUMPIFFALSE  45
+| 0031  10:21 LOADLOCAL    0
+| 0032  10:24 FIELD        12    ; method
+| 0033  10:18 CONST        13    ; " "
+| 0034  10:35 LOADLOCAL    0
+| 0035  10:38 FIELD        6    ; body
+| 0036  10:18 CONST        13    ; " "
+| 0037  10:47 CONST        14    ; <fn get>
+| 0038  10:51 MOVELOCAL    0
+| 0039  10:54 FIELD        15    ; query
+| 0040  10:62 CONST        16    ; "x"
+| 0041  10:67 CONST        17    ; "-"
+| 0042  10:50 CALL         3    ; 3 positional, 0 named
+| 0043  10:18 CONCAT       5
+| 0044  10:5  JUMP         52
+| 0045  8:3   LOADLOCAL    1
+| 0046  11:5  MATCH        2    ; _
+| 0047  11:5  JUMPIFFALSE  50
+| 0048  11:18 CONST        18    ; {status: 404, body: "no such page"}
+| 0049  11:5  JUMP         52
+| 0050  8:3   LOADLOCAL    1
+| 0051  8:3   NOMATCH
+| 0052  6:10  RETURN
 |
 | == <lambda> ==
 | 0000  7:19  MOVELOCAL    0
@@ -11136,48 +11197,38 @@
 | 0034  8:1   CONST        3    ; <fn print>
 | 0035  8:7   LOADGLOBAL   0    ; json
 | 0036  8:11  FIELD        11    ; stringify
-| 0037  8:23  CONST        12    ; "a"
-| 0038  8:27  CONST        7    ; 1
-| 0039  8:31  CONST        13    ; "b"
-| 0040  8:34  CONST        14    ; 'sym
-| 0041  8:30  MAP          1
-| 0042  8:26  LIST         2
-| 0043  8:42  CONST        15    ; "t"
-| 0044  8:46  CONST        7    ; 1
-| 0045  8:49  CONST        16    ; 2
-| 0046  8:45  TUPLE        2
-| 0047  8:22  MAP          2
-| 0048  8:54  CONST        17    ; 'indent
-| 0049  8:62  CONST        16    ; 2
-| 0050  8:21  CALL         4097    ; 1 positional, 1 named
-| 0051  8:6   CALL         1    ; 1 positional, 0 named
-| 0052  8:1   POP
-| 0053  21:7  LOADGLOBAL   0    ; json
-| 0054  21:11 FIELD        2    ; parse
-| 0055  21:18 CONST        18    ; "{bad}"
-| 0056  21:17 CALL         1    ; 1 positional, 0 named
-| 0057  21:1  STORELOCAL   0
-| 0058  21:1  LOADLOCAL    0
-| 0059  22:3  MATCH        0    ; Err({kind: 'parse, line: $1, col: $2})
-| 0060  22:3  JUMPIFFALSE  67
-| 0061  22:43 CONST        3    ; <fn print>
-| 0062  22:49 CONST        19    ; "parse error at"
-| 0063  22:67 LOADLOCAL    1
-| 0064  22:70 LOADLOCAL    2
-| 0065  22:48 CALL         3    ; 3 positional, 0 named
-| 0066  22:3  JUMP         69
-| 0067  21:1  LOADLOCAL    0
-| 0068  21:1  NOMATCH
-| 0069  21:1  POP
-| 0070  25:1  CONST        3    ; <fn print>
-| 0071  25:7  LOADGLOBAL   0    ; json
-| 0072  25:11 FIELD        2    ; parse
-| 0073  25:18 CONST        20    ; "12345678901234567890"
-| 0074  25:17 CALL         1    ; 1 positional, 0 named
-| 0075  25:6  CALL         1    ; 1 positional, 0 named
-| 0076  25:1  POP
-| 0077  25:1  CONST        21    ; nil
-| 0078  1:1   RETURN
+| 0037  8:22  CONST        12    ; {a: [1, {b: 'sym}], t: (1, 2)}
+| 0038  8:54  CONST        13    ; 'indent
+| 0039  8:62  CONST        14    ; 2
+| 0040  8:21  CALL         4097    ; 1 positional, 1 named
+| 0041  8:6   CALL         1    ; 1 positional, 0 named
+| 0042  8:1   POP
+| 0043  21:7  LOADGLOBAL   0    ; json
+| 0044  21:11 FIELD        2    ; parse
+| 0045  21:18 CONST        15    ; "{bad}"
+| 0046  21:17 CALL         1    ; 1 positional, 0 named
+| 0047  21:1  STORELOCAL   0
+| 0048  21:1  LOADLOCAL    0
+| 0049  22:3  MATCH        0    ; Err({kind: 'parse, line: $1, col: $2})
+| 0050  22:3  JUMPIFFALSE  57
+| 0051  22:43 CONST        3    ; <fn print>
+| 0052  22:49 CONST        16    ; "parse error at"
+| 0053  22:67 LOADLOCAL    1
+| 0054  22:70 LOADLOCAL    2
+| 0055  22:48 CALL         3    ; 3 positional, 0 named
+| 0056  22:3  JUMP         59
+| 0057  21:1  LOADLOCAL    0
+| 0058  21:1  NOMATCH
+| 0059  21:1  POP
+| 0060  25:1  CONST        3    ; <fn print>
+| 0061  25:7  LOADGLOBAL   0    ; json
+| 0062  25:11 FIELD        2    ; parse
+| 0063  25:18 CONST        17    ; "12345678901234567890"
+| 0064  25:17 CALL         1    ; 1 positional, 0 named
+| 0065  25:6  CALL         1    ; 1 positional, 0 named
+| 0066  25:1  POP
+| 0067  25:1  CONST        18    ; nil
+| 0068  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/keyword_names.fung
@@ -11211,39 +11262,33 @@
 | 0015  3:37  FIELD        7    ; for
 | 0016  3:6   CALL         3    ; 3 positional, 0 named
 | 0017  3:1   POP
-| 0018  5:6   CONST        4    ; "type"
-| 0019  5:12  CONST        8    ; "x"
-| 0020  5:17  CONST        9    ; "test"
-| 0021  5:23  CONST        10    ; 2
-| 0022  5:26  CONST        11    ; "nil"
-| 0023  5:31  CONST        12    ; 3
-| 0024  5:5   MAP          3
-| 0025  5:1   STOREGLOBAL  2    ; m
-| 0026  6:1   CONST        3    ; <fn print>
-| 0027  6:7   LOADGLOBAL   2    ; m
-| 0028  6:8   FIELD        4    ; type
-| 0029  6:15  LOADGLOBAL   2    ; m
-| 0030  6:17  CONST        9    ; "test"
-| 0031  6:16  INDEX
-| 0032  6:26  LOADGLOBAL   2    ; m
-| 0033  6:27  FIELD        11    ; nil
-| 0034  6:6   CALL         3    ; 3 positional, 0 named
-| 0035  6:1   POP
-| 0036  8:7   LOADGLOBAL   2    ; m
-| 0037  8:1   STORELOCAL   0
-| 0038  8:1   LOADLOCAL    0
-| 0039  9:3   MATCH        0    ; {type: $1, test: $2}
-| 0040  9:3   JUMPIFFALSE  46
-| 0041  9:25  CONST        3    ; <fn print>
-| 0042  9:31  LOADLOCAL    1
-| 0043  9:34  LOADLOCAL    2
-| 0044  9:30  CALL         2    ; 2 positional, 0 named
-| 0045  9:3   JUMP         48
-| 0046  8:1   LOADLOCAL    0
-| 0047  8:1   NOMATCH
-| 0048  8:1   POP
-| 0049  8:1   CONST        13    ; nil
-| 0050  1:1   RETURN
+| 0018  5:5   CONST        8    ; {type: "x", test: 2, nil: 3}
+| 0019  5:1   STOREGLOBAL  2    ; m
+| 0020  6:1   CONST        3    ; <fn print>
+| 0021  6:7   LOADGLOBAL   2    ; m
+| 0022  6:8   FIELD        4    ; type
+| 0023  6:15  LOADGLOBAL   2    ; m
+| 0024  6:17  CONST        9    ; "test"
+| 0025  6:16  INDEX
+| 0026  6:26  LOADGLOBAL   2    ; m
+| 0027  6:27  FIELD        10    ; nil
+| 0028  6:6   CALL         3    ; 3 positional, 0 named
+| 0029  6:1   POP
+| 0030  8:7   LOADGLOBAL   2    ; m
+| 0031  8:1   STORELOCAL   0
+| 0032  8:1   LOADLOCAL    0
+| 0033  9:3   MATCH        0    ; {type: $1, test: $2}
+| 0034  9:3   JUMPIFFALSE  40
+| 0035  9:25  CONST        3    ; <fn print>
+| 0036  9:31  LOADLOCAL    1
+| 0037  9:34  LOADLOCAL    2
+| 0038  9:30  CALL         2    ; 2 positional, 0 named
+| 0039  9:3   JUMP         42
+| 0040  8:1   LOADLOCAL    0
+| 0041  8:1   NOMATCH
+| 0042  8:1   POP
+| 0043  8:1   CONST        11    ; nil
+| 0044  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/lines.fung
@@ -11321,32 +11366,32 @@
 | 0028  4:7   CONST        7    ; [1]
 | 0029  4:13  CONST        8    ; [2, 3]
 | 0030  4:11  ADD
-| 0031  4:21  LIST         0
-| 0032  4:27  LIST         0
+| 0031  4:21  CONST        9    ; []
+| 0032  4:27  CONST        9    ; []
 | 0033  4:24  EQ
-| 0034  4:31  CONST        9    ; [1, 2]
-| 0035  4:40  CONST        10    ; [1, 3]
+| 0034  4:31  CONST        10    ; [1, 2]
+| 0035  4:40  CONST        11    ; [1, 3]
 | 0036  4:38  LT
 | 0037  4:48  CONST        5    ; 2
 | 0038  4:53  LOADGLOBAL   0    ; xs
 | 0039  4:50  IN
-| 0040  4:57  CONST        11    ; 20
+| 0040  4:57  CONST        12    ; 20
 | 0041  4:63  LOADGLOBAL   0    ; xs
 | 0042  4:60  IN
 | 0043  4:6   CALL         5    ; 5 positional, 0 named
 | 0044  4:1   POP
 | 0045  6:1   CONST        1    ; <fn print>
-| 0046  6:13  CONST        12    ; <fn map>
+| 0046  6:13  CONST        13    ; <fn map>
 | 0047  6:7   LOADGLOBAL   0    ; xs
 | 0048  6:17  CLOSURE      0    ; <lambda>
 | 0049  6:16  CALL         2    ; 2 positional, 0 named
-| 0050  6:32  CONST        12    ; <fn map>
+| 0050  6:32  CONST        13    ; <fn map>
 | 0051  6:41  LOADGLOBAL   0    ; xs
 | 0052  6:32  CLOSURE      1    ; <lambda>
 | 0053  6:32  CALL         2    ; 2 positional, 0 named
 | 0054  6:6   CALL         2    ; 2 positional, 0 named
 | 0055  6:1   POP
-| 0056  6:1   CONST        13    ; nil
+| 0056  6:1   CONST        14    ; nil
 | 0057  1:1   RETURN
 |
 | == <lambda> ==
@@ -11604,25 +11649,21 @@
 | 0020  7:10  LOADGLOBAL   1    ; port
 | 0021  7:6   CALL         2    ; 2 positional, 0 named
 | 0022  7:1   POP
-| 0023  9:8   CONST        7    ; "kind"
-| 0024  9:14  CONST        8    ; 'parse
-| 0025  9:22  CONST        9    ; "line"
-| 0026  9:28  CONST        10    ; 3
-| 0027  9:7   MAP          2
-| 0028  9:1   STORELOCAL   0
-| 0029  9:1   LOADLOCAL    0
-| 0030  10:3  MATCH        1    ; {kind: $1, line: $2}
-| 0031  10:3  JUMPIFFALSE  37
-| 0032  10:19 CONST        6    ; <fn print>
-| 0033  10:25 LOADLOCAL    1
-| 0034  10:31 LOADLOCAL    2
-| 0035  10:24 CALL         2    ; 2 positional, 0 named
-| 0036  10:3  JUMP         39
-| 0037  9:1   LOADLOCAL    0
-| 0038  9:1   NOMATCH
-| 0039  9:1   POP
-| 0040  9:1   CONST        11    ; nil
-| 0041  1:1   RETURN
+| 0023  9:7   CONST        7    ; {kind: 'parse, line: 3}
+| 0024  9:1   STORELOCAL   0
+| 0025  9:1   LOADLOCAL    0
+| 0026  10:3  MATCH        1    ; {kind: $1, line: $2}
+| 0027  10:3  JUMPIFFALSE  33
+| 0028  10:19 CONST        6    ; <fn print>
+| 0029  10:25 LOADLOCAL    1
+| 0030  10:31 LOADLOCAL    2
+| 0031  10:24 CALL         2    ; 2 positional, 0 named
+| 0032  10:3  JUMP         35
+| 0033  9:1   LOADLOCAL    0
+| 0034  9:1   NOMATCH
+| 0035  9:1   POP
+| 0036  9:1   CONST        8    ; nil
+| 0037  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/map_upper_keys.fung
@@ -11638,29 +11679,25 @@
 ==== dump bytecode tests/lang/map_upper_keys.fung
 -- stdout
 | == <main> ==
-| 0000  1:6   CONST        0    ; "DB_HOST"
-| 0001  1:15  CONST        1    ; "localhost"
-| 0002  1:28  CONST        2    ; "Port"
-| 0003  1:34  CONST        3    ; 80
-| 0004  1:5   MAP          2
-| 0005  1:1   STOREGLOBAL  0    ; m
-| 0006  2:1   CONST        4    ; <fn print>
-| 0007  2:7   LOADGLOBAL   0    ; m
-| 0008  2:10  LOADGLOBAL   0    ; m
-| 0009  2:11  FIELD        0    ; DB_HOST
-| 0010  2:21  LOADGLOBAL   0    ; m
-| 0011  2:23  CONST        2    ; "Port"
-| 0012  2:22  INDEX
-| 0013  2:6   CALL         3    ; 3 positional, 0 named
-| 0014  2:1   POP
-| 0015  4:16  LOADGLOBAL   0    ; m
-| 0016  4:1   MATCHORFAIL  0    ; {DB_HOST: @1}
-| 0017  5:1   CONST        4    ; <fn print>
-| 0018  5:7   LOADGLOBAL   1    ; h
-| 0019  5:6   CALL         1    ; 1 positional, 0 named
-| 0020  5:1   POP
-| 0021  5:1   CONST        5    ; nil
-| 0022  1:1   RETURN
+| 0000  1:5   CONST        0    ; {DB_HOST: "localhost", Port: 80}
+| 0001  1:1   STOREGLOBAL  0    ; m
+| 0002  2:1   CONST        1    ; <fn print>
+| 0003  2:7   LOADGLOBAL   0    ; m
+| 0004  2:10  LOADGLOBAL   0    ; m
+| 0005  2:11  FIELD        2    ; DB_HOST
+| 0006  2:21  LOADGLOBAL   0    ; m
+| 0007  2:23  CONST        3    ; "Port"
+| 0008  2:22  INDEX
+| 0009  2:6   CALL         3    ; 3 positional, 0 named
+| 0010  2:1   POP
+| 0011  4:16  LOADGLOBAL   0    ; m
+| 0012  4:1   MATCHORFAIL  0    ; {DB_HOST: @1}
+| 0013  5:1   CONST        1    ; <fn print>
+| 0014  5:7   LOADGLOBAL   1    ; h
+| 0015  5:6   CALL         1    ; 1 positional, 0 named
+| 0016  5:1   POP
+| 0017  5:1   CONST        4    ; nil
+| 0018  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/maps.fung
@@ -11676,48 +11713,34 @@
 ==== dump bytecode tests/lang/maps.fung
 -- stdout
 | == <main> ==
-| 0000  1:6   CONST        0    ; "name"
-| 0001  1:12  CONST        1    ; "fung"
-| 0002  1:20  CONST        2    ; "port"
-| 0003  1:26  CONST        3    ; 8080
-| 0004  1:32  CONST        4    ; "a b"
-| 0005  1:39  CONST        5    ; 1
-| 0006  1:5   MAP          3
-| 0007  1:1   STOREGLOBAL  0    ; m
-| 0008  2:1   CONST        6    ; <fn print>
-| 0009  2:7   LOADGLOBAL   0    ; m
-| 0010  2:10  LOADGLOBAL   0    ; m
-| 0011  2:11  FIELD        0    ; name
-| 0012  2:18  LOADGLOBAL   0    ; m
-| 0013  2:20  CONST        2    ; "port"
-| 0014  2:19  INDEX
-| 0015  2:29  CONST        7    ; <fn len>
-| 0016  2:33  LOADGLOBAL   0    ; m
-| 0017  2:32  CALL         1    ; 1 positional, 0 named
-| 0018  2:37  CONST        0    ; "name"
-| 0019  2:47  LOADGLOBAL   0    ; m
-| 0020  2:44  IN
-| 0021  2:50  CONST        8    ; "x"
-| 0022  2:57  LOADGLOBAL   0    ; m
-| 0023  2:54  IN
-| 0024  2:6   CALL         6    ; 6 positional, 0 named
-| 0025  2:1   POP
-| 0026  4:1   CONST        6    ; <fn print>
-| 0027  4:8   CONST        9    ; "a"
-| 0028  4:11  CONST        5    ; 1
-| 0029  4:14  CONST        10    ; "b"
-| 0030  4:17  CONST        11    ; 2
-| 0031  4:7   MAP          2
-| 0032  4:24  CONST        10    ; "b"
-| 0033  4:27  CONST        11    ; 2
-| 0034  4:30  CONST        9    ; "a"
-| 0035  4:33  CONST        5    ; 1
-| 0036  4:23  MAP          2
-| 0037  4:20  EQ
-| 0038  4:6   CALL         1    ; 1 positional, 0 named
-| 0039  4:1   POP
-| 0040  4:1   CONST        12    ; nil
-| 0041  1:1   RETURN
+| 0000  1:5   CONST        0    ; {name: "fung", port: 8080, "a b": 1}
+| 0001  1:1   STOREGLOBAL  0    ; m
+| 0002  2:1   CONST        1    ; <fn print>
+| 0003  2:7   LOADGLOBAL   0    ; m
+| 0004  2:10  LOADGLOBAL   0    ; m
+| 0005  2:11  FIELD        2    ; name
+| 0006  2:18  LOADGLOBAL   0    ; m
+| 0007  2:20  CONST        3    ; "port"
+| 0008  2:19  INDEX
+| 0009  2:29  CONST        4    ; <fn len>
+| 0010  2:33  LOADGLOBAL   0    ; m
+| 0011  2:32  CALL         1    ; 1 positional, 0 named
+| 0012  2:37  CONST        2    ; "name"
+| 0013  2:47  LOADGLOBAL   0    ; m
+| 0014  2:44  IN
+| 0015  2:50  CONST        5    ; "x"
+| 0016  2:57  LOADGLOBAL   0    ; m
+| 0017  2:54  IN
+| 0018  2:6   CALL         6    ; 6 positional, 0 named
+| 0019  2:1   POP
+| 0020  4:1   CONST        1    ; <fn print>
+| 0021  4:7   CONST        6    ; {a: 1, b: 2}
+| 0022  4:23  CONST        7    ; {b: 2, a: 1}
+| 0023  4:20  EQ
+| 0024  4:6   CALL         1    ; 1 positional, 0 named
+| 0025  4:1   POP
+| 0026  4:1   CONST        8    ; nil
+| 0027  1:1   RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/match.fung
@@ -11758,39 +11781,33 @@
 | 0022  14:1  POP
 | 0023  16:1  CONST        0    ; <fn print>
 | 0024  16:7  LOADGLOBAL   0    ; describe
-| 0025  16:16 CONST        6    ; 'Ok
-| 0026  16:19 CONST        7    ; 9
-| 0027  16:16 TAG          1    ; 1 args
-| 0028  16:15 CALL         1    ; 1 positional, 0 named
-| 0029  16:24 LOADGLOBAL   0    ; describe
-| 0030  16:34 CONST        8    ; 4
-| 0031  16:37 CONST        1    ; 0
-| 0032  16:33 TUPLE        2
-| 0033  16:32 CALL         1    ; 1 positional, 0 named
-| 0034  16:42 LOADGLOBAL   0    ; describe
-| 0035  16:51 LIST         0
-| 0036  16:50 CALL         1    ; 1 positional, 0 named
-| 0037  16:56 LOADGLOBAL   0    ; describe
-| 0038  16:65 CONST        9    ; [7, 8]
-| 0039  16:64 CALL         1    ; 1 positional, 0 named
-| 0040  16:74 LOADGLOBAL   0    ; describe
-| 0041  16:84 CONST        10    ; "name"
-| 0042  16:90 CONST        11    ; "z"
-| 0043  16:83 MAP          1
-| 0044  16:82 CALL         1    ; 1 positional, 0 named
-| 0045  16:97 LOADGLOBAL   0    ; describe
-| 0046  16:106 CONST        12    ; 3.5
-| 0047  16:105 CALL         1    ; 1 positional, 0 named
-| 0048  16:6  CALL         6    ; 6 positional, 0 named
-| 0049  16:1  POP
-| 0050  22:1  CONST        0    ; <fn print>
-| 0051  22:7  LOADGLOBAL   1    ; len2
-| 0052  22:12 CONST        13    ; [1, 2, 3]
-| 0053  22:11 CALL         1    ; 1 positional, 0 named
-| 0054  22:6  CALL         1    ; 1 positional, 0 named
-| 0055  22:1  POP
-| 0056  22:1  CONST        14    ; nil
-| 0057  1:1   RETURN
+| 0025  16:16 CONST        6    ; Ok(9)
+| 0026  16:15 CALL         1    ; 1 positional, 0 named
+| 0027  16:24 LOADGLOBAL   0    ; describe
+| 0028  16:33 CONST        7    ; (4, 0)
+| 0029  16:32 CALL         1    ; 1 positional, 0 named
+| 0030  16:42 LOADGLOBAL   0    ; describe
+| 0031  16:51 CONST        8    ; []
+| 0032  16:50 CALL         1    ; 1 positional, 0 named
+| 0033  16:56 LOADGLOBAL   0    ; describe
+| 0034  16:65 CONST        9    ; [7, 8]
+| 0035  16:64 CALL         1    ; 1 positional, 0 named
+| 0036  16:74 LOADGLOBAL   0    ; describe
+| 0037  16:83 CONST        10    ; {name: "z"}
+| 0038  16:82 CALL         1    ; 1 positional, 0 named
+| 0039  16:97 LOADGLOBAL   0    ; describe
+| 0040  16:106 CONST        11    ; 3.5
+| 0041  16:105 CALL         1    ; 1 positional, 0 named
+| 0042  16:6  CALL         6    ; 6 positional, 0 named
+| 0043  16:1  POP
+| 0044  22:1  CONST        0    ; <fn print>
+| 0045  22:7  LOADGLOBAL   1    ; len2
+| 0046  22:12 CONST        12    ; [1, 2, 3]
+| 0047  22:11 CALL         1    ; 1 positional, 0 named
+| 0048  22:6  CALL         1    ; 1 positional, 0 named
+| 0049  22:1  POP
+| 0050  22:1  CONST        13    ; nil
+| 0051  1:1   RETURN
 |
 | == describe ==
 | 0000  1:24  MOVELOCAL    0
@@ -11928,77 +11945,61 @@
 ==== dump bytecode tests/lang/nfc_keys.fung
 -- stdout
 | == <main> ==
-| 0000  3:6   CONST        0    ; "café"
-| 0001  3:15  CONST        1    ; 1
-| 0002  3:5   MAP          1
-| 0003  3:1   STOREGLOBAL  0    ; m
-| 0004  4:1   CONST        2    ; <fn print>
-| 0005  4:7   LOADGLOBAL   0    ; m
-| 0006  4:9   CONST        0    ; "café"
-| 0007  4:8   INDEX
-| 0008  4:19  LOADGLOBAL   0    ; m
-| 0009  4:20  FIELD        0    ; café
-| 0010  4:6   CALL         2    ; 2 positional, 0 named
-| 0011  4:1   POP
-| 0012  6:1   CONST        2    ; <fn print>
-| 0013  6:8   CONST        0    ; "café"
-| 0014  6:15  CONST        1    ; 1
-| 0015  6:7   MAP          1
-| 0016  6:22  CONST        0    ; "café"
-| 0017  6:31  CONST        1    ; 1
-| 0018  6:21  MAP          1
-| 0019  6:18  EQ
-| 0020  6:36  CONST        3    ; "café"
-| 0021  6:42  CONST        1    ; 1
-| 0022  6:35  MAP          1
-| 0023  6:49  CONST        0    ; "café"
-| 0024  6:58  CONST        1    ; 1
-| 0025  6:48  MAP          1
-| 0026  6:45  EQ
-| 0027  6:6   CALL         2    ; 2 positional, 0 named
-| 0028  6:1   POP
-| 0029  10:1  CONST        2    ; <fn print>
-| 0030  10:8  CONST        4    ; "é"
-| 0031  10:14 CONST        1    ; 1
-| 0032  10:7  MAP          1
-| 0033  10:6  CALL         1    ; 1 positional, 0 named
-| 0034  10:1  POP
-| 0035  12:1  CONST        2    ; <fn print>
-| 0036  12:8  CONST        4    ; "é"
-| 0037  12:12 CONST        1    ; 1
-| 0038  12:7  MAP          1
-| 0039  12:19 CONST        4    ; "é"
-| 0040  12:25 CONST        1    ; 1
-| 0041  12:18 MAP          1
-| 0042  12:15 EQ
-| 0043  12:6  CALL         1    ; 1 positional, 0 named
-| 0044  12:1  POP
-| 0045  16:9  CONST        5    ; 5
-| 0046  16:1  STOREGLOBAL  1    ; café
-| 0047  17:6  CONST        0    ; "café"
-| 0048  17:6  LOADGLOBAL   1    ; café
-| 0049  17:5  MAP          1
-| 0050  17:1  STOREGLOBAL  2    ; k
-| 0051  18:1  CONST        2    ; <fn print>
-| 0052  18:7  LOADGLOBAL   2    ; k
-| 0053  18:9  CONST        0    ; "café"
-| 0054  18:8  INDEX
-| 0055  18:19 LOADGLOBAL   1    ; café
-| 0056  18:25 CONST        6    ; <fn get>
-| 0057  18:29 LOADGLOBAL   2    ; k
-| 0058  18:32 CONST        3    ; "café"
-| 0059  18:40 CONST        7    ; "none"
-| 0060  18:28 CALL         3    ; 3 positional, 0 named
-| 0061  18:6  CALL         3    ; 3 positional, 0 named
-| 0062  18:1  POP
-| 0063  20:14 LOADGLOBAL   2    ; k
-| 0064  20:1  MATCHORFAIL  0    ; {café: @3}
-| 0065  21:1  CONST        2    ; <fn print>
-| 0066  21:7  LOADGLOBAL   3    ; v
-| 0067  21:6  CALL         1    ; 1 positional, 0 named
-| 0068  21:1  POP
-| 0069  21:1  CONST        8    ; nil
-| 0070  1:70  RETURN
+| 0000  3:5   CONST        0    ; {café: 1}
+| 0001  3:1   STOREGLOBAL  0    ; m
+| 0002  4:1   CONST        1    ; <fn print>
+| 0003  4:7   LOADGLOBAL   0    ; m
+| 0004  4:9   CONST        2    ; "café"
+| 0005  4:8   INDEX
+| 0006  4:19  LOADGLOBAL   0    ; m
+| 0007  4:20  FIELD        2    ; café
+| 0008  4:6   CALL         2    ; 2 positional, 0 named
+| 0009  4:1   POP
+| 0010  6:1   CONST        1    ; <fn print>
+| 0011  6:7   CONST        0    ; {café: 1}
+| 0012  6:21  CONST        0    ; {café: 1}
+| 0013  6:18  EQ
+| 0014  6:35  CONST        3    ; {café: 1}
+| 0015  6:48  CONST        0    ; {café: 1}
+| 0016  6:45  EQ
+| 0017  6:6   CALL         2    ; 2 positional, 0 named
+| 0018  6:1   POP
+| 0019  10:1  CONST        1    ; <fn print>
+| 0020  10:7  CONST        4    ; {é: 1}
+| 0021  10:6  CALL         1    ; 1 positional, 0 named
+| 0022  10:1  POP
+| 0023  12:1  CONST        1    ; <fn print>
+| 0024  12:7  CONST        4    ; {é: 1}
+| 0025  12:18 CONST        4    ; {é: 1}
+| 0026  12:15 EQ
+| 0027  12:6  CALL         1    ; 1 positional, 0 named
+| 0028  12:1  POP
+| 0029  16:9  CONST        5    ; 5
+| 0030  16:1  STOREGLOBAL  1    ; café
+| 0031  17:6  CONST        2    ; "café"
+| 0032  17:6  LOADGLOBAL   1    ; café
+| 0033  17:5  MAP          1
+| 0034  17:1  STOREGLOBAL  2    ; k
+| 0035  18:1  CONST        1    ; <fn print>
+| 0036  18:7  LOADGLOBAL   2    ; k
+| 0037  18:9  CONST        2    ; "café"
+| 0038  18:8  INDEX
+| 0039  18:19 LOADGLOBAL   1    ; café
+| 0040  18:25 CONST        6    ; <fn get>
+| 0041  18:29 LOADGLOBAL   2    ; k
+| 0042  18:32 CONST        7    ; "café"
+| 0043  18:40 CONST        8    ; "none"
+| 0044  18:28 CALL         3    ; 3 positional, 0 named
+| 0045  18:6  CALL         3    ; 3 positional, 0 named
+| 0046  18:1  POP
+| 0047  20:14 LOADGLOBAL   2    ; k
+| 0048  20:1  MATCHORFAIL  0    ; {café: @3}
+| 0049  21:1  CONST        1    ; <fn print>
+| 0050  21:7  LOADGLOBAL   3    ; v
+| 0051  21:6  CALL         1    ; 1 positional, 0 named
+| 0052  21:1  POP
+| 0053  21:1  CONST        9    ; nil
+| 0054  1:70  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/nil.fung
@@ -12178,37 +12179,23 @@
 | 0001  3:1   STOREGLOBAL  0    ; area
 | 0002  1:1   CONST        0    ; <fn print>
 | 0003  1:7   CONST        1    ; <fn map>
-| 0004  1:13  CONST        2    ; 1
-| 0005  1:16  CONST        3    ; "a"
-| 0006  1:12  TUPLE        2
-| 0007  1:23  CONST        4    ; 2
-| 0008  1:26  CONST        5    ; "b"
-| 0009  1:22  TUPLE        2
-| 0010  1:11  LIST         2
-| 0011  1:33  CLOSURE      1    ; <lambda>
-| 0012  1:10  CALL         2    ; 2 positional, 0 named
-| 0013  1:6   CALL         1    ; 1 positional, 0 named
-| 0014  1:1   POP
-| 0015  4:1   CONST        0    ; <fn print>
-| 0016  4:7   LOADGLOBAL   0    ; area
-| 0017  4:13  CONST        4    ; 2
-| 0018  4:16  CONST        6    ; 3
-| 0019  4:12  TUPLE        2
-| 0020  4:11  CALL         1    ; 1 positional, 0 named
-| 0021  4:21  CONST        1    ; <fn map>
-| 0022  4:27  CONST        7    ; "x"
-| 0023  4:30  CONST        2    ; 1
-| 0024  4:26  MAP          1
-| 0025  4:35  CONST        7    ; "x"
-| 0026  4:38  CONST        4    ; 2
-| 0027  4:34  MAP          1
-| 0028  4:25  LIST         2
-| 0029  4:43  CLOSURE      2    ; <lambda>
-| 0030  4:24  CALL         2    ; 2 positional, 0 named
-| 0031  4:6   CALL         2    ; 2 positional, 0 named
-| 0032  4:1   POP
-| 0033  4:1   CONST        8    ; nil
-| 0034  1:1   RETURN
+| 0004  1:11  CONST        2    ; [(1, "a"), (2, "b")]
+| 0005  1:33  CLOSURE      1    ; <lambda>
+| 0006  1:10  CALL         2    ; 2 positional, 0 named
+| 0007  1:6   CALL         1    ; 1 positional, 0 named
+| 0008  1:1   POP
+| 0009  4:1   CONST        0    ; <fn print>
+| 0010  4:7   LOADGLOBAL   0    ; area
+| 0011  4:12  CONST        3    ; (2, 3)
+| 0012  4:11  CALL         1    ; 1 positional, 0 named
+| 0013  4:21  CONST        1    ; <fn map>
+| 0014  4:25  CONST        4    ; [{x: 1}, {x: 2}]
+| 0015  4:43  CLOSURE      2    ; <lambda>
+| 0016  4:24  CALL         2    ; 2 positional, 0 named
+| 0017  4:6   CALL         2    ; 2 positional, 0 named
+| 0018  4:1   POP
+| 0019  4:1   CONST        5    ; nil
+| 0020  1:1   RETURN
 |
 | == area ==
 | 0000  3:9   MOVELOCAL    0
@@ -12297,6 +12284,355 @@
 | 0045  1:56  RETURN
 -- stderr
 -- exit: 0
+==== dump ast tests/lang/pieces.fung
+-- stdout
+| (program (import json) (assign n 100000) (assign ks (call map (range .. 0 n) (fn (i) (block (binary % (binary * i 7919) 1000))))) (assign by (call sort_by (range .. 0 n) (fn (i) (block (index ks i))))) (fn ordered(i, ok) (block (then (binary == i n) ok (call ordered (binary + i 1) (binary and ok (binary or (binary < (index ks (index by (binary - i 1))) (index ks (index by i))) (binary and (binary == (index ks (index by (binary - i 1))) (index ks (index by i))) (binary < (index by (binary - i 1)) (index by i))))))))) (call print (call len by) (call ordered 1 true) (binary == (call sort ks) (call map by (fn (i) (block (index ks i)))))) (call print (call len (call unique ks)) (call take (call unique ks) 3)) (assign long (call repeat "abcdefgh" 300000)) (call print (call len (call split long "ha")) (call len (call split (binary + long ",") ",")) (call len (call split "a,b,,c" ","))) (assign csv (call repeat "x," 50000)) (call print (call len (call split csv ",")) (call len (call replace csv "," ";;")) (call len (call lines (call repeat "l\r\n" 20000)))) (call print (index (call lines (call repeat "a\r\n" 3)) 2) (call len (call split (call repeat "é" 20000) "")) (call len (call replace (call repeat "é" 20000) "" "-"))) (call print (call len (call repeat "ab" 1000000)) (binary == (call repeat "" 1000000000) "")) (call print (call len (call join (call map (range .. 0 100000) (fn (i) (block i))) ","))) (assign rows (call map (range .. 0 20000) (fn (i) (block (map (entry id i) (entry name (interp "n" i)) (entry tags (list "a" "b")) (entry ok (binary == (binary % i 2) 0))))))) (assign back (unwrap ! (call (field parse json) (call (field stringify json) rows)))) (call print (binary == back rows) (binary > (call len (call (field stringify json) rows (named indent 2))) (call len (call (field stringify json) rows)))) (call print (pipe (call (field parse json) "[1, 2") type_of) (pipe (call (field parse json) (binary + (call repeat "[" 20) (call repeat "]" 20))) type_of)))
+-- stderr
+-- exit: 0
+==== dump core tests/lang/pieces.fung
+-- stdout
+| (do (import "json" (global 0)) (let (global 1) (fn ordered(i, ok) (do (if (op == (local 0) (global 2)) (local 1) (call (self) (op + (local 0) 1) (if (local 1) (op bool (if (op < (index (global 3) (index (global 4) (op - (local 0) 1))) (index (global 3) (index (global 4) (local 0)))) true (op bool (if (op == (index (global 3) (index (global 4) (op - (local 0) 1))) (index (global 3) (index (global 4) (local 0)))) (op bool (op < (index (global 4) (op - (local 0) 1)) (index (global 4) (local 0)))) false)))) false)))))) (let (global 2) 100000) (let (global 3) (call (prelude map) (range .. 0 (global 2)) (fn (i) (do (op % (op * (local 0) 7919) 1000))))) (let (global 4) (call (prelude sort_by) (range .. 0 (global 2)) (fn (i) (do (index (captured 0) (local 0)))))) (call (prelude print) (call (prelude len) (global 4)) (call (global 1) 1 true) (op == (call (prelude sort) (global 3)) (call (prelude map) (global 4) (fn (i) (do (index (captured 0) (local 0))))))) (call (prelude print) (call (prelude len) (call (prelude unique) (global 3))) (call (prelude take) (call (prelude unique) (global 3)) 3)) (let (global 5) (call (prelude repeat) "abcdefgh" 300000)) (call (prelude print) (call (prelude len) (call (prelude split) (global 5) "ha")) (call (prelude len) (call (prelude split) (op + (global 5) ",") ",")) (call (prelude len) (call (prelude split) "a,b,,c" ","))) (let (global 6) (call (prelude repeat) "x," 50000)) (call (prelude print) (call (prelude len) (call (prelude split) (global 6) ",")) (call (prelude len) (call (prelude replace) (global 6) "," ";;")) (call (prelude len) (call (prelude lines) (call (prelude repeat) "l\r\n" 20000)))) (call (prelude print) (index (call (prelude lines) (call (prelude repeat) "a\r\n" 3)) 2) (call (prelude len) (call (prelude split) (call (prelude repeat) "é" 20000) "")) (call (prelude len) (call (prelude replace) (call (prelude repeat) "é" 20000) "" "-"))) (call (prelude print) (call (prelude len) (call (prelude repeat) "ab" 1000000)) (op == (call (prelude repeat) "" 1000000000) "")) (call (prelude print) (call (prelude len) (call (prelude join) (call (prelude map) (range .. 0 100000) (fn (i) (do (local 0)))) ","))) (let (global 7) (call (prelude map) (range .. 0 20000) (fn (i) (do (map (entry id (local 0)) (entry name (concat "n" (local 0))) (entry tags (list "a" "b")) (entry ok (op == (op % (local 0) 2) 0))))))) (let (global 8) (unwrap ! (call (field parse (global 0)) (call (field stringify (global 0)) (global 7))))) (call (prelude print) (op == (global 8) (global 7)) (op > (call (prelude len) (call (field stringify (global 0)) (global 7) (named indent 2))) (call (prelude len) (call (field stringify (global 0)) (global 7))))) (call (prelude print) (call (prelude type_of) (call (field parse (global 0)) "[1, 2")) (call (prelude type_of) (call (field parse (global 0)) (op + (call (prelude repeat) "[" 20) (call (prelude repeat) "]" 20))))))
+-- stderr
+-- exit: 0
+==== dump bytecode tests/lang/pieces.fung
+-- stdout
+| == <main> ==
+| 0000  3:1   IMPORT       0    ; json
+| 0001  3:1   STOREGLOBAL  0    ; json
+| 0002  9:1   CLOSURE      0    ; ordered
+| 0003  9:1   STOREGLOBAL  1    ; ordered
+| 0004  6:5   CONST        1    ; 100000
+| 0005  6:1   STOREGLOBAL  2    ; n
+| 0006  7:6   CONST        2    ; <fn map>
+| 0007  7:10  CONST        3    ; 0
+| 0008  7:13  LOADGLOBAL   2    ; n
+| 0009  7:11  RANGE        0
+| 0010  7:16  CLOSURE      1    ; <lambda>
+| 0011  7:9   CALL         2    ; 2 positional, 0 named
+| 0012  7:1   STOREGLOBAL  3    ; ks
+| 0013  8:6   CONST        4    ; <fn sort_by>
+| 0014  8:14  CONST        3    ; 0
+| 0015  8:17  LOADGLOBAL   2    ; n
+| 0016  8:15  RANGE        0
+| 0017  8:20  CLOSURE      2    ; <lambda>
+| 0018  8:13  CALL         2    ; 2 positional, 0 named
+| 0019  8:1   STOREGLOBAL  4    ; by
+| 0020  10:1  CONST        5    ; <fn print>
+| 0021  10:7  CONST        6    ; <fn len>
+| 0022  10:11 LOADGLOBAL   4    ; by
+| 0023  10:10 CALL         1    ; 1 positional, 0 named
+| 0024  10:16 LOADGLOBAL   1    ; ordered
+| 0025  10:24 CONST        7    ; 1
+| 0026  10:27 CONST        8    ; true
+| 0027  10:23 CALL         2    ; 2 positional, 0 named
+| 0028  10:34 CONST        9    ; <fn sort>
+| 0029  10:39 LOADGLOBAL   3    ; ks
+| 0030  10:38 CALL         1    ; 1 positional, 0 named
+| 0031  10:46 CONST        2    ; <fn map>
+| 0032  10:50 LOADGLOBAL   4    ; by
+| 0033  10:54 CLOSURE      3    ; <lambda>
+| 0034  10:49 CALL         2    ; 2 positional, 0 named
+| 0035  10:43 EQ
+| 0036  10:6  CALL         3    ; 3 positional, 0 named
+| 0037  10:1  POP
+| 0038  12:1  CONST        5    ; <fn print>
+| 0039  12:7  CONST        6    ; <fn len>
+| 0040  12:11 CONST        10    ; <fn unique>
+| 0041  12:18 LOADGLOBAL   3    ; ks
+| 0042  12:17 CALL         1    ; 1 positional, 0 named
+| 0043  12:10 CALL         1    ; 1 positional, 0 named
+| 0044  12:24 CONST        11    ; <fn take>
+| 0045  12:29 CONST        10    ; <fn unique>
+| 0046  12:36 LOADGLOBAL   3    ; ks
+| 0047  12:35 CALL         1    ; 1 positional, 0 named
+| 0048  12:41 CONST        12    ; 3
+| 0049  12:28 CALL         2    ; 2 positional, 0 named
+| 0050  12:6  CALL         2    ; 2 positional, 0 named
+| 0051  12:1  POP
+| 0052  16:8  CONST        13    ; <fn repeat>
+| 0053  16:15 CONST        14    ; "abcdefgh"
+| 0054  16:27 CONST        15    ; 300000
+| 0055  16:14 CALL         2    ; 2 positional, 0 named
+| 0056  16:1  STOREGLOBAL  5    ; long
+| 0057  17:1  CONST        5    ; <fn print>
+| 0058  17:7  CONST        6    ; <fn len>
+| 0059  17:11 CONST        16    ; <fn split>
+| 0060  17:17 LOADGLOBAL   5    ; long
+| 0061  17:23 CONST        17    ; "ha"
+| 0062  17:16 CALL         2    ; 2 positional, 0 named
+| 0063  17:10 CALL         1    ; 1 positional, 0 named
+| 0064  17:31 CONST        6    ; <fn len>
+| 0065  17:35 CONST        16    ; <fn split>
+| 0066  17:41 LOADGLOBAL   5    ; long
+| 0067  17:48 CONST        18    ; ","
+| 0068  17:46 ADD
+| 0069  17:53 CONST        18    ; ","
+| 0070  17:40 CALL         2    ; 2 positional, 0 named
+| 0071  17:34 CALL         1    ; 1 positional, 0 named
+| 0072  17:60 CONST        6    ; <fn len>
+| 0073  17:64 CONST        16    ; <fn split>
+| 0074  17:70 CONST        19    ; "a,b,,c"
+| 0075  17:80 CONST        18    ; ","
+| 0076  17:69 CALL         2    ; 2 positional, 0 named
+| 0077  17:63 CALL         1    ; 1 positional, 0 named
+| 0078  17:6  CALL         3    ; 3 positional, 0 named
+| 0079  17:1  POP
+| 0080  19:7  CONST        13    ; <fn repeat>
+| 0081  19:14 CONST        20    ; "x,"
+| 0082  19:20 CONST        21    ; 50000
+| 0083  19:13 CALL         2    ; 2 positional, 0 named
+| 0084  19:1  STOREGLOBAL  6    ; csv
+| 0085  20:1  CONST        5    ; <fn print>
+| 0086  20:7  CONST        6    ; <fn len>
+| 0087  20:11 CONST        16    ; <fn split>
+| 0088  20:17 LOADGLOBAL   6    ; csv
+| 0089  20:22 CONST        18    ; ","
+| 0090  20:16 CALL         2    ; 2 positional, 0 named
+| 0091  20:10 CALL         1    ; 1 positional, 0 named
+| 0092  20:29 CONST        6    ; <fn len>
+| 0093  20:33 CONST        22    ; <fn replace>
+| 0094  20:41 LOADGLOBAL   6    ; csv
+| 0095  20:46 CONST        18    ; ","
+| 0096  20:51 CONST        23    ; ";;"
+| 0097  20:40 CALL         3    ; 3 positional, 0 named
+| 0098  20:32 CALL         1    ; 1 positional, 0 named
+| 0099  20:59 CONST        6    ; <fn len>
+| 0100  20:63 CONST        24    ; <fn lines>
+| 0101  20:69 CONST        13    ; <fn repeat>
+| 0102  20:76 CONST        25    ; "l\r\n"
+| 0103  20:85 CONST        26    ; 20000
+| 0104  20:75 CALL         2    ; 2 positional, 0 named
+| 0105  20:68 CALL         1    ; 1 positional, 0 named
+| 0106  20:62 CALL         1    ; 1 positional, 0 named
+| 0107  20:6  CALL         3    ; 3 positional, 0 named
+| 0108  20:1  POP
+| 0109  22:1  CONST        5    ; <fn print>
+| 0110  22:7  CONST        24    ; <fn lines>
+| 0111  22:13 CONST        13    ; <fn repeat>
+| 0112  22:20 CONST        27    ; "a\r\n"
+| 0113  22:29 CONST        12    ; 3
+| 0114  22:19 CALL         2    ; 2 positional, 0 named
+| 0115  22:12 CALL         1    ; 1 positional, 0 named
+| 0116  22:33 CONST        28    ; 2
+| 0117  22:32 INDEX
+| 0118  22:37 CONST        6    ; <fn len>
+| 0119  22:41 CONST        16    ; <fn split>
+| 0120  22:47 CONST        13    ; <fn repeat>
+| 0121  22:54 CONST        29    ; "é"
+| 0122  22:59 CONST        26    ; 20000
+| 0123  22:53 CALL         2    ; 2 positional, 0 named
+| 0124  22:67 CONST        30    ; ""
+| 0125  22:46 CALL         2    ; 2 positional, 0 named
+| 0126  22:40 CALL         1    ; 1 positional, 0 named
+| 0127  22:73 CONST        6    ; <fn len>
+| 0128  22:77 CONST        22    ; <fn replace>
+| 0129  22:85 CONST        13    ; <fn repeat>
+| 0130  22:92 CONST        29    ; "é"
+| 0131  22:97 CONST        26    ; 20000
+| 0132  22:91 CALL         2    ; 2 positional, 0 named
+| 0133  22:105 CONST        30    ; ""
+| 0134  22:109 CONST        31    ; "-"
+| 0135  22:84 CALL         3    ; 3 positional, 0 named
+| 0136  22:76 CALL         1    ; 1 positional, 0 named
+| 0137  22:6  CALL         3    ; 3 positional, 0 named
+| 0138  22:1  POP
+| 0139  24:1  CONST        5    ; <fn print>
+| 0140  24:7  CONST        6    ; <fn len>
+| 0141  24:11 CONST        13    ; <fn repeat>
+| 0142  24:18 CONST        32    ; "ab"
+| 0143  24:24 CONST        33    ; 1000000
+| 0144  24:17 CALL         2    ; 2 positional, 0 named
+| 0145  24:10 CALL         1    ; 1 positional, 0 named
+| 0146  24:35 CONST        13    ; <fn repeat>
+| 0147  24:42 CONST        30    ; ""
+| 0148  24:46 CONST        34    ; 1000000000
+| 0149  24:41 CALL         2    ; 2 positional, 0 named
+| 0150  24:61 CONST        30    ; ""
+| 0151  24:58 EQ
+| 0152  24:6  CALL         2    ; 2 positional, 0 named
+| 0153  24:1  POP
+| 0154  26:1  CONST        5    ; <fn print>
+| 0155  26:7  CONST        6    ; <fn len>
+| 0156  26:11 CONST        35    ; <fn join>
+| 0157  26:16 CONST        2    ; <fn map>
+| 0158  26:20 CONST        3    ; 0
+| 0159  26:23 CONST        1    ; 100000
+| 0160  26:21 RANGE        0
+| 0161  26:31 CLOSURE      4    ; <lambda>
+| 0162  26:19 CALL         2    ; 2 positional, 0 named
+| 0163  26:40 CONST        18    ; ","
+| 0164  26:15 CALL         2    ; 2 positional, 0 named
+| 0165  26:10 CALL         1    ; 1 positional, 0 named
+| 0166  26:6  CALL         1    ; 1 positional, 0 named
+| 0167  26:1  POP
+| 0168  30:8  CONST        2    ; <fn map>
+| 0169  30:12 CONST        3    ; 0
+| 0170  30:15 CONST        26    ; 20000
+| 0171  30:13 RANGE        0
+| 0172  30:22 CLOSURE      5    ; <lambda>
+| 0173  30:11 CALL         2    ; 2 positional, 0 named
+| 0174  30:1  STOREGLOBAL  7    ; rows
+| 0175  31:8  LOADGLOBAL   0    ; json
+| 0176  31:12 FIELD        36    ; parse
+| 0177  31:19 LOADGLOBAL   0    ; json
+| 0178  31:23 FIELD        37    ; stringify
+| 0179  31:34 LOADGLOBAL   7    ; rows
+| 0180  31:33 CALL         1    ; 1 positional, 0 named
+| 0181  31:18 CALL         1    ; 1 positional, 0 named
+| 0182  31:40 UNWRAPABORT
+| 0183  31:1  STOREGLOBAL  8    ; back
+| 0184  32:1  CONST        5    ; <fn print>
+| 0185  32:7  LOADGLOBAL   8    ; back
+| 0186  32:15 LOADGLOBAL   7    ; rows
+| 0187  32:12 EQ
+| 0188  32:21 CONST        6    ; <fn len>
+| 0189  32:25 LOADGLOBAL   0    ; json
+| 0190  32:29 FIELD        37    ; stringify
+| 0191  32:40 LOADGLOBAL   7    ; rows
+| 0192  32:46 CONST        38    ; 'indent
+| 0193  32:54 CONST        28    ; 2
+| 0194  32:39 CALL         4097    ; 1 positional, 1 named
+| 0195  32:24 CALL         1    ; 1 positional, 0 named
+| 0196  32:60 CONST        6    ; <fn len>
+| 0197  32:64 LOADGLOBAL   0    ; json
+| 0198  32:68 FIELD        37    ; stringify
+| 0199  32:79 LOADGLOBAL   7    ; rows
+| 0200  32:78 CALL         1    ; 1 positional, 0 named
+| 0201  32:63 CALL         1    ; 1 positional, 0 named
+| 0202  32:58 GT
+| 0203  32:6  CALL         2    ; 2 positional, 0 named
+| 0204  32:1  POP
+| 0205  34:1  CONST        5    ; <fn print>
+| 0206  34:30 CONST        39    ; <fn type_of>
+| 0207  34:7  LOADGLOBAL   0    ; json
+| 0208  34:11 FIELD        36    ; parse
+| 0209  34:18 CONST        40    ; "[1, 2"
+| 0210  34:17 CALL         1    ; 1 positional, 0 named
+| 0211  34:27 CALL         1    ; 1 positional, 0 named
+| 0212  34:88 CONST        39    ; <fn type_of>
+| 0213  34:39 LOADGLOBAL   0    ; json
+| 0214  34:43 FIELD        36    ; parse
+| 0215  34:50 CONST        13    ; <fn repeat>
+| 0216  34:57 CONST        41    ; "["
+| 0217  34:62 CONST        42    ; 20
+| 0218  34:56 CALL         2    ; 2 positional, 0 named
+| 0219  34:68 CONST        13    ; <fn repeat>
+| 0220  34:75 CONST        43    ; "]"
+| 0221  34:80 CONST        42    ; 20
+| 0222  34:74 CALL         2    ; 2 positional, 0 named
+| 0223  34:66 ADD
+| 0224  34:49 CALL         1    ; 1 positional, 0 named
+| 0225  34:85 CALL         1    ; 1 positional, 0 named
+| 0226  34:6  CALL         2    ; 2 positional, 0 named
+| 0227  34:1  POP
+| 0228  34:1  CONST        44    ; nil
+| 0229  1:75  RETURN
+|
+| == ordered ==
+| 0000  9:21  LOADLOCAL    0
+| 0001  9:26  LOADGLOBAL   2
+| 0002  9:23  EQ
+| 0003  9:23  JUMPIFFALSE  6
+| 0004  9:33  MOVELOCAL    1
+| 0005  9:28  JUMP         59
+| 0006  9:41  LOADSELF
+| 0007  9:49  LOADLOCAL    0
+| 0008  9:53  CONST        0    ; 1
+| 0009  9:51  ADD
+| 0010  9:56  MOVELOCAL    1
+| 0011  9:56  JUMPIFFALSE  57
+| 0012  9:64  LOADGLOBAL   3
+| 0013  9:67  LOADGLOBAL   4
+| 0014  9:70  LOADLOCAL    0
+| 0015  9:74  CONST        0    ; 1
+| 0016  9:72  SUB
+| 0017  9:69  INDEX
+| 0018  9:66  INDEX
+| 0019  9:80  LOADGLOBAL   3
+| 0020  9:83  LOADGLOBAL   4
+| 0021  9:86  LOADLOCAL    0
+| 0022  9:85  INDEX
+| 0023  9:82  INDEX
+| 0024  9:78  LT
+| 0025  9:78  JUMPIFFALSE  28
+| 0026  9:90  CONST        1    ; true
+| 0027  9:90  JUMP         55
+| 0028  9:94  LOADGLOBAL   3
+| 0029  9:97  LOADGLOBAL   4
+| 0030  9:100 LOADLOCAL    0
+| 0031  9:104 CONST        0    ; 1
+| 0032  9:102 SUB
+| 0033  9:99  INDEX
+| 0034  9:96  INDEX
+| 0035  9:111 LOADGLOBAL   3
+| 0036  9:114 LOADGLOBAL   4
+| 0037  9:117 LOADLOCAL    0
+| 0038  9:116 INDEX
+| 0039  9:113 INDEX
+| 0040  9:108 EQ
+| 0041  9:108 JUMPIFFALSE  53
+| 0042  9:125 LOADGLOBAL   4
+| 0043  9:128 LOADLOCAL    0
+| 0044  9:132 CONST        0    ; 1
+| 0045  9:130 SUB
+| 0046  9:127 INDEX
+| 0047  9:137 LOADGLOBAL   4
+| 0048  9:140 MOVELOCAL    0
+| 0049  9:139 INDEX
+| 0050  9:135 LT
+| 0051  9:135 CHECKBOOL
+| 0052  9:121 JUMP         54
+| 0053  9:121 CONST        2    ; false
+| 0054  9:121 CHECKBOOL
+| 0055  9:90  CHECKBOOL
+| 0056  9:59  JUMP         58
+| 0057  9:59  CONST        2    ; false
+| 0058  9:48  TAILCALL     2    ; 2 positional, 0 named
+| 0059  9:19  RETURN
+|
+| == <lambda> ==
+| 0000  7:22  MOVELOCAL    0
+| 0001  7:26  CONST        0    ; 7919
+| 0002  7:24  MUL
+| 0003  7:34  CONST        1    ; 1000
+| 0004  7:32  MOD
+| 0005  7:18  RETURN
+|
+| == <lambda> ==
+| 0000  8:25  LOADCAPTURED 0
+| 0001  8:28  MOVELOCAL    0
+| 0002  8:27  INDEX
+| 0003  8:22  RETURN
+|
+| == <lambda> ==
+| 0000  10:59 LOADCAPTURED 0
+| 0001  10:62 MOVELOCAL    0
+| 0002  10:61 INDEX
+| 0003  10:56 RETURN
+|
+| == <lambda> ==
+| 0000  26:36 MOVELOCAL    0
+| 0001  26:33 RETURN
+|
+| == <lambda> ==
+| 0000  30:28 CONST        0    ; "id"
+| 0001  30:32 LOADLOCAL    0
+| 0002  30:35 CONST        1    ; "name"
+| 0003  30:41 CONST        2    ; "n"
+| 0004  30:45 LOADLOCAL    0
+| 0005  30:41 CONCAT       2
+| 0006  30:50 CONST        3    ; "tags"
+| 0007  30:56 CONST        4    ; ["a", "b"]
+| 0008  30:68 CONST        5    ; "ok"
+| 0009  30:72 MOVELOCAL    0
+| 0010  30:76 CONST        6    ; 2
+| 0011  30:74 MOD
+| 0012  30:81 CONST        7    ; 0
+| 0013  30:78 EQ
+| 0014  30:27 MAP          4
+| 0015  30:24 RETURN
+-- stderr
+-- exit: 0
 ==== dump ast tests/lang/pipe_tags.fung
 -- stdout
 | (program (call print (pipe 1 'Ok) (pipe 1 (tag Pair 2)) (pipe "x" 'Some)) (call print (pipe (pipe (pipe " 7 " trim) parse_int) 'Wrapped)) (fn join(a, b) (block (interp a "/" b))) (call print (pipe (list "x" "y") (call map (call join "d" (hole))))) (fn h(a, b) (block (binary - a b))) (call print (pipe 3 (fn (v) (block (call h 10 v))))))
@@ -12315,47 +12651,40 @@
 | 0002  11:1  CLOSURE      1    ; h
 | 0003  11:1  STOREGLOBAL  1    ; h
 | 0004  2:1   CONST        0    ; <fn print>
-| 0005  2:12  CONST        1    ; 'Ok
-| 0006  2:7   CONST        2    ; 1
-| 0007  2:12  TAG          1    ; 1 args
-| 0008  2:21  CONST        3    ; 'Pair
-| 0009  2:16  CONST        2    ; 1
-| 0010  2:26  CONST        4    ; 2
-| 0011  2:21  TAG          2    ; 2 args
-| 0012  2:37  CONST        5    ; 'Some
-| 0013  2:30  CONST        6    ; "x"
-| 0014  2:37  TAG          1    ; 1 args
-| 0015  2:6   CALL         3    ; 3 positional, 0 named
-| 0016  2:1   POP
-| 0017  4:1   CONST        0    ; <fn print>
-| 0018  4:37  CONST        7    ; 'Wrapped
-| 0019  4:24  CONST        8    ; <fn parse_int>
-| 0020  4:16  CONST        9    ; <fn trim>
-| 0021  4:7   CONST        10    ; " 7 "
-| 0022  4:13  CALL         1    ; 1 positional, 0 named
-| 0023  4:21  CALL         1    ; 1 positional, 0 named
-| 0024  4:37  TAG          1    ; 1 args
-| 0025  4:6   CALL         1    ; 1 positional, 0 named
-| 0026  4:1   POP
-| 0027  9:1   CONST        0    ; <fn print>
-| 0028  9:21  CONST        11    ; <fn map>
-| 0029  9:7   CONST        12    ; ["x", "y"]
-| 0030  9:25  LOADGLOBAL   0    ; join
-| 0031  9:25  STORELOCAL   0
-| 0032  9:30  CONST        13    ; "d"
-| 0033  9:30  STORELOCAL   1
-| 0034  9:29  CLOSURE      2    ; <lambda>
-| 0035  9:24  CALL         2    ; 2 positional, 0 named
-| 0036  9:6   CALL         1    ; 1 positional, 0 named
-| 0037  9:1   POP
-| 0038  12:1  CONST        0    ; <fn print>
-| 0039  12:13 CLOSURE      3    ; <lambda>
-| 0040  12:7  CONST        14    ; 3
-| 0041  12:9  CALL         1    ; 1 positional, 0 named
-| 0042  12:6  CALL         1    ; 1 positional, 0 named
-| 0043  12:1  POP
-| 0044  12:1  CONST        15    ; nil
-| 0045  1:71  RETURN
+| 0005  2:12  CONST        1    ; Ok(1)
+| 0006  2:21  CONST        2    ; Pair(1, 2)
+| 0007  2:37  CONST        3    ; Some("x")
+| 0008  2:6   CALL         3    ; 3 positional, 0 named
+| 0009  2:1   POP
+| 0010  4:1   CONST        0    ; <fn print>
+| 0011  4:37  CONST        4    ; 'Wrapped
+| 0012  4:24  CONST        5    ; <fn parse_int>
+| 0013  4:16  CONST        6    ; <fn trim>
+| 0014  4:7   CONST        7    ; " 7 "
+| 0015  4:13  CALL         1    ; 1 positional, 0 named
+| 0016  4:21  CALL         1    ; 1 positional, 0 named
+| 0017  4:37  TAG          1    ; 1 args
+| 0018  4:6   CALL         1    ; 1 positional, 0 named
+| 0019  4:1   POP
+| 0020  9:1   CONST        0    ; <fn print>
+| 0021  9:21  CONST        8    ; <fn map>
+| 0022  9:7   CONST        9    ; ["x", "y"]
+| 0023  9:25  LOADGLOBAL   0    ; join
+| 0024  9:25  STORELOCAL   0
+| 0025  9:30  CONST        10    ; "d"
+| 0026  9:30  STORELOCAL   1
+| 0027  9:29  CLOSURE      2    ; <lambda>
+| 0028  9:24  CALL         2    ; 2 positional, 0 named
+| 0029  9:6   CALL         1    ; 1 positional, 0 named
+| 0030  9:1   POP
+| 0031  12:1  CONST        0    ; <fn print>
+| 0032  12:13 CLOSURE      3    ; <lambda>
+| 0033  12:7  CONST        11    ; 3
+| 0034  12:9  CALL         1    ; 1 positional, 0 named
+| 0035  12:6  CALL         1    ; 1 positional, 0 named
+| 0036  12:1  POP
+| 0037  12:1  CONST        12    ; nil
+| 0038  1:71  RETURN
 |
 | == join ==
 | 0000  8:20  MOVELOCAL    0
@@ -12767,20 +13096,15 @@
 | 0022  3:1   POP
 | 0023  7:1   CONST        0    ; <fn print>
 | 0024  7:7   LOADGLOBAL   2    ; area
-| 0025  7:12  CONST        4    ; 'Circle
-| 0026  7:19  CONST        2    ; 2
-| 0027  7:12  TAG          1    ; 1 args
-| 0028  7:11  CALL         1    ; 1 positional, 0 named
-| 0029  7:24  LOADGLOBAL   2    ; area
-| 0030  7:29  CONST        5    ; 'Rect
-| 0031  7:34  CONST        2    ; 2
-| 0032  7:37  CONST        6    ; 5
-| 0033  7:29  TAG          2    ; 2 args
-| 0034  7:28  CALL         1    ; 1 positional, 0 named
-| 0035  7:6   CALL         2    ; 2 positional, 0 named
-| 0036  7:1   POP
-| 0037  7:1   CONST        7    ; nil
-| 0038  1:1   RETURN
+| 0025  7:12  CONST        4    ; Circle(2)
+| 0026  7:11  CALL         1    ; 1 positional, 0 named
+| 0027  7:24  LOADGLOBAL   2    ; area
+| 0028  7:29  CONST        5    ; Rect(2, 5)
+| 0029  7:28  CALL         1    ; 1 positional, 0 named
+| 0030  7:6   CALL         2    ; 2 positional, 0 named
+| 0031  7:1   POP
+| 0032  7:1   CONST        6    ; nil
+| 0033  1:1   RETURN
 |
 | == count ==
 | 0000  1:19  CONST        0    ; <fn len>
@@ -12866,21 +13190,19 @@
 | 0000  1:15  LOADLOCAL    0
 | 0001  1:20  CONST        0    ; "1"
 | 0002  1:17  EQ
-| 0003  1:17  JUMPIFFALSE  8
-| 0004  1:29  CONST        1    ; 'Ok
-| 0005  1:32  CONST        2    ; 1
-| 0006  1:29  TAG          1    ; 1 args
-| 0007  1:24  JUMP         17
-| 0008  1:40  CONST        3    ; 'Err
-| 0009  1:45  CONST        4    ; "kind"
-| 0010  1:51  CONST        5    ; 'parse
-| 0011  1:59  CONST        6    ; "message"
-| 0012  1:68  CONST        7    ; "not a number: "
-| 0013  1:85  MOVELOCAL    0
-| 0014  1:68  CONCAT       2
-| 0015  1:44  MAP          2
-| 0016  1:40  TAG          1    ; 1 args
-| 0017  1:13  RETURN
+| 0003  1:17  JUMPIFFALSE  6
+| 0004  1:29  CONST        1    ; Ok(1)
+| 0005  1:24  JUMP         15
+| 0006  1:40  CONST        2    ; 'Err
+| 0007  1:45  CONST        3    ; "kind"
+| 0008  1:51  CONST        4    ; 'parse
+| 0009  1:59  CONST        5    ; "message"
+| 0010  1:68  CONST        6    ; "not a number: "
+| 0011  1:85  MOVELOCAL    0
+| 0012  1:68  CONCAT       2
+| 0013  1:44  MAP          2
+| 0014  1:40  TAG          1    ; 1 args
+| 0015  1:13  RETURN
 |
 | == twice ==
 | 0000  2:15  CONST        0    ; 'Ok
@@ -13111,10 +13433,8 @@
 | 0001  4:19  RETURN
 |
 | == <lambda> ==
-| 0000  5:22  CONST        0    ; 'Err
-| 0001  5:26  CONST        1    ; 'e
-| 0002  5:22  TAG          1    ; 1 args
-| 0003  5:19  RETURN
+| 0000  5:22  CONST        0    ; Err('e)
+| 0001  5:19  RETURN
 |
 | == <lambda> ==
 | 0000  10:12 CONST        0    ; <fn spawn>
@@ -13567,63 +13887,62 @@
 | 0005  3:24  CONST        4    ; 0
 | 0006  3:21  EQ
 | 0007  3:27  CONST        5    ; [1]
-| 0008  3:35  CONST        1    ; 1
-| 0009  3:34  TUPLE        1
-| 0010  3:31  EQ
-| 0011  3:40  CONST        6    ; 'a
-| 0012  3:46  CONST        6    ; 'a
-| 0013  3:43  EQ
-| 0014  3:50  CONST        7    ; "a"
-| 0015  3:57  CONST        7    ; "a"
-| 0016  3:54  EQ
-| 0017  3:62  CONST        1    ; 1
-| 0018  3:67  CONST        8    ; 1.0
-| 0019  3:64  EQ
-| 0020  3:6   CALL         6    ; 6 positional, 0 named
-| 0021  3:1   POP
-| 0022  5:1   CONST        0    ; <fn print>
-| 0023  5:7   CONST        6    ; 'a
-| 0024  5:13  CONST        9    ; ['a, 'b]
-| 0025  5:10  IN
-| 0026  5:23  CONST        10    ; "x"
-| 0027  5:30  CONST        11    ; ["x"]
-| 0028  5:27  IN
-| 0029  5:37  CONST        12    ; 2
-| 0030  5:42  CONST        13    ; [1, "2"]
-| 0031  5:39  IN
-| 0032  5:6   CALL         3    ; 3 positional, 0 named
-| 0033  5:1   POP
-| 0034  7:8   CONST        14    ; "not_found"
-| 0035  7:1   STOREGLOBAL  0    ; kind
-| 0036  8:11  LOADGLOBAL   0    ; kind
-| 0037  8:5   STORELOCAL   0
-| 0038  8:5   LOADLOCAL    0
-| 0039  9:3   MATCH        0    ; 'not_found
-| 0040  9:3   JUMPIFFALSE  43
-| 0041  9:18  CONST        15    ; "symbol"
-| 0042  9:3   JUMP         50
-| 0043  8:5   LOADLOCAL    0
-| 0044  10:3  MATCH        1    ; "not_found"
-| 0045  10:3  JUMPIFFALSE  48
-| 0046  10:18 CONST        16    ; "string"
-| 0047  10:3  JUMP         50
-| 0048  8:5   LOADLOCAL    0
-| 0049  8:5   NOMATCH
-| 0050  8:1   STOREGLOBAL  1    ; r
-| 0051  12:1  CONST        0    ; <fn print>
-| 0052  12:7  LOADGLOBAL   1    ; r
-| 0053  12:6  CALL         1    ; 1 positional, 0 named
-| 0054  12:1  POP
-| 0055  14:1  CONST        0    ; <fn print>
-| 0056  14:7  CONST        17    ; <fn sym>
-| 0057  14:11 LOADGLOBAL   0    ; kind
-| 0058  14:10 CALL         1    ; 1 positional, 0 named
-| 0059  14:20 CONST        18    ; 'not_found
-| 0060  14:17 EQ
-| 0061  14:6  CALL         1    ; 1 positional, 0 named
-| 0062  14:1  POP
-| 0063  14:1  CONST        3    ; nil
-| 0064  1:73  RETURN
+| 0008  3:34  CONST        6    ; (1,)
+| 0009  3:31  EQ
+| 0010  3:40  CONST        7    ; 'a
+| 0011  3:46  CONST        7    ; 'a
+| 0012  3:43  EQ
+| 0013  3:50  CONST        8    ; "a"
+| 0014  3:57  CONST        8    ; "a"
+| 0015  3:54  EQ
+| 0016  3:62  CONST        1    ; 1
+| 0017  3:67  CONST        9    ; 1.0
+| 0018  3:64  EQ
+| 0019  3:6   CALL         6    ; 6 positional, 0 named
+| 0020  3:1   POP
+| 0021  5:1   CONST        0    ; <fn print>
+| 0022  5:7   CONST        7    ; 'a
+| 0023  5:13  CONST        10    ; ['a, 'b]
+| 0024  5:10  IN
+| 0025  5:23  CONST        11    ; "x"
+| 0026  5:30  CONST        12    ; ["x"]
+| 0027  5:27  IN
+| 0028  5:37  CONST        13    ; 2
+| 0029  5:42  CONST        14    ; [1, "2"]
+| 0030  5:39  IN
+| 0031  5:6   CALL         3    ; 3 positional, 0 named
+| 0032  5:1   POP
+| 0033  7:8   CONST        15    ; "not_found"
+| 0034  7:1   STOREGLOBAL  0    ; kind
+| 0035  8:11  LOADGLOBAL   0    ; kind
+| 0036  8:5   STORELOCAL   0
+| 0037  8:5   LOADLOCAL    0
+| 0038  9:3   MATCH        0    ; 'not_found
+| 0039  9:3   JUMPIFFALSE  42
+| 0040  9:18  CONST        16    ; "symbol"
+| 0041  9:3   JUMP         49
+| 0042  8:5   LOADLOCAL    0
+| 0043  10:3  MATCH        1    ; "not_found"
+| 0044  10:3  JUMPIFFALSE  47
+| 0045  10:18 CONST        17    ; "string"
+| 0046  10:3  JUMP         49
+| 0047  8:5   LOADLOCAL    0
+| 0048  8:5   NOMATCH
+| 0049  8:1   STOREGLOBAL  1    ; r
+| 0050  12:1  CONST        0    ; <fn print>
+| 0051  12:7  LOADGLOBAL   1    ; r
+| 0052  12:6  CALL         1    ; 1 positional, 0 named
+| 0053  12:1  POP
+| 0054  14:1  CONST        0    ; <fn print>
+| 0055  14:7  CONST        18    ; <fn sym>
+| 0056  14:11 LOADGLOBAL   0    ; kind
+| 0057  14:10 CALL         1    ; 1 positional, 0 named
+| 0058  14:20 CONST        19    ; 'not_found
+| 0059  14:17 EQ
+| 0060  14:6  CALL         1    ; 1 positional, 0 named
+| 0061  14:1  POP
+| 0062  14:1  CONST        3    ; nil
+| 0063  1:73  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/symbols.fung
@@ -13668,45 +13987,35 @@
 ==== dump bytecode tests/lang/tag_keys.fung
 -- stdout
 | == <main> ==
-| 0000  2:8   CONST        0    ; "HOME"
-| 0001  2:14  CONST        1    ; "/home/me"
-| 0002  2:26  CONST        2    ; "PORT"
-| 0003  2:32  CONST        3    ; 8080
-| 0004  2:7   MAP          2
-| 0005  2:1   STOREGLOBAL  0    ; cfg
-| 0006  3:28  LOADGLOBAL   0    ; cfg
-| 0007  3:1   MATCHORFAIL  0    ; {HOME: @1, PORT: @2}
-| 0008  4:1   CONST        4    ; <fn print>
-| 0009  4:7   LOADGLOBAL   1    ; home
-| 0010  4:13  LOADGLOBAL   2    ; port
-| 0011  4:19  LOADGLOBAL   0    ; cfg
-| 0012  4:22  FIELD        0    ; HOME
-| 0013  4:6   CALL         3    ; 3 positional, 0 named
-| 0014  4:1   POP
-| 0015  6:13  CONST        5    ; 'Red
-| 0016  6:18  CONST        6    ; 1
-| 0017  6:12  TUPLE        2
-| 0018  6:1   MATCHORFAIL  1    ; ('Red, @3)
-| 0019  7:1   CONST        4    ; <fn print>
-| 0020  7:7   LOADGLOBAL   3    ; n
-| 0021  7:6   CALL         1    ; 1 positional, 0 named
-| 0022  7:1   POP
-| 0023  9:9   CONST        7    ; 'Ok
-| 0024  9:12  CONST        8    ; 2
-| 0025  9:9   TAG          1    ; 1 args
-| 0026  9:1   MATCHORFAIL  2    ; Ok(@4)
-| 0027  10:1  CONST        4    ; <fn print>
-| 0028  10:7  LOADGLOBAL   4    ; v
-| 0029  10:6  CALL         1    ; 1 positional, 0 named
-| 0030  10:1  POP
-| 0031  12:1  CONST        4    ; <fn print>
-| 0032  12:8  CONST        0    ; "HOME"
-| 0033  12:14 CONST        5    ; 'Red
-| 0034  12:7  MAP          1
-| 0035  12:6  CALL         1    ; 1 positional, 0 named
-| 0036  12:1  POP
-| 0037  12:1  CONST        9    ; nil
-| 0038  1:72  RETURN
+| 0000  2:7   CONST        0    ; {HOME: "/home/me", PORT: 8080}
+| 0001  2:1   STOREGLOBAL  0    ; cfg
+| 0002  3:28  LOADGLOBAL   0    ; cfg
+| 0003  3:1   MATCHORFAIL  0    ; {HOME: @1, PORT: @2}
+| 0004  4:1   CONST        1    ; <fn print>
+| 0005  4:7   LOADGLOBAL   1    ; home
+| 0006  4:13  LOADGLOBAL   2    ; port
+| 0007  4:19  LOADGLOBAL   0    ; cfg
+| 0008  4:22  FIELD        2    ; HOME
+| 0009  4:6   CALL         3    ; 3 positional, 0 named
+| 0010  4:1   POP
+| 0011  6:12  CONST        3    ; ('Red, 1)
+| 0012  6:1   MATCHORFAIL  1    ; ('Red, @3)
+| 0013  7:1   CONST        1    ; <fn print>
+| 0014  7:7   LOADGLOBAL   3    ; n
+| 0015  7:6   CALL         1    ; 1 positional, 0 named
+| 0016  7:1   POP
+| 0017  9:9   CONST        4    ; Ok(2)
+| 0018  9:1   MATCHORFAIL  2    ; Ok(@4)
+| 0019  10:1  CONST        1    ; <fn print>
+| 0020  10:7  LOADGLOBAL   4    ; v
+| 0021  10:6  CALL         1    ; 1 positional, 0 named
+| 0022  10:1  POP
+| 0023  12:1  CONST        1    ; <fn print>
+| 0024  12:7  CONST        5    ; {HOME: 'Red}
+| 0025  12:6  CALL         1    ; 1 positional, 0 named
+| 0026  12:1  POP
+| 0027  12:1  CONST        6    ; nil
+| 0028  1:72  RETURN
 -- stderr
 -- exit: 0
 ==== dump ast tests/lang/task_err.fung
@@ -13766,10 +14075,8 @@
 | 0009  2:11  RETURN
 |
 | == <lambda> ==
-| 0000  3:22  CONST        0    ; 'Err
-| 0001  3:26  CONST        1    ; "no"
-| 0002  3:22  TAG          1    ; 1 args
-| 0003  3:16  RETURN
+| 0000  3:22  CONST        0    ; Err("no")
+| 0001  3:16  RETURN
 |
 | == <lambda> ==
 | 0000  11:3  CONST        0    ; <fn spawn>
@@ -13779,12 +14086,10 @@
 | 0004  10:7  RETURN
 |
 | == <lambda> ==
-| 0000  12:9  CONST        0    ; 'Err
-| 0001  12:13 CONST        1    ; "ignored"
-| 0002  12:9  TAG          1    ; 1 args
-| 0003  12:5  MATCHORFAIL  0    ; _
-| 0004  13:5  CONST        2    ; nil
-| 0005  11:12 RETURN
+| 0000  12:9  CONST        0    ; Err("ignored")
+| 0001  12:5  MATCHORFAIL  0    ; _
+| 0002  13:5  CONST        1    ; nil
+| 0003  11:12 RETURN
 |
 | == <lambda> ==
 | 0000  20:7  CONST        0    ; <fn spawn>
@@ -13812,10 +14117,8 @@
 | 0004  25:13 RETURN
 |
 | == <lambda> ==
-| 0000  25:31 CONST        0    ; 'Err
-| 0001  25:35 CONST        1    ; "lost"
-| 0002  25:31 TAG          1    ; 1 args
-| 0003  25:25 RETURN
+| 0000  25:31 CONST        0    ; Err("lost")
+| 0001  25:25 RETURN
 |
 | == <lambda> ==
 | 0000  25:53 CONST        0    ; <fn print>
@@ -13892,10 +14195,8 @@
 | 0003  2:36  RETURN
 |
 | == <lambda> ==
-| 0000  3:48  CONST        0    ; 'Err
-| 0001  3:52  CONST        1    ; 'e
-| 0002  3:48  TAG          1    ; 1 args
-| 0003  3:45  RETURN
+| 0000  3:48  CONST        0    ; Err('e)
+| 0001  3:45  RETURN
 |
 | == <lambda> ==
 | 0000  3:80  CONST        0    ; 1
@@ -14484,21 +14785,19 @@
 | 0040  14:12 CALL         1    ; 1 positional, 0 named
 | 0041  14:6  CALL         1    ; 1 positional, 0 named
 | 0042  14:1  POP
-| 0043  16:13 CONST        8    ; 1
-| 0044  16:16 CONST        9    ; 9
-| 0045  16:12 TUPLE        2
-| 0046  16:1  MATCHORFAIL  0    ; (@8, @9)
-| 0047  18:1  CONST        4    ; <fn print>
-| 0048  18:7  LOADGLOBAL   4    ; within
-| 0049  18:14 CONST        10    ; 5
-| 0050  18:13 CALL         1    ; 1 positional, 0 named
-| 0051  18:18 LOADGLOBAL   4    ; within
-| 0052  18:25 CONST        11    ; 10
-| 0053  18:24 CALL         1    ; 1 positional, 0 named
-| 0054  18:6  CALL         2    ; 2 positional, 0 named
-| 0055  18:1  POP
-| 0056  18:1  CONST        12    ; nil
-| 0057  1:69  RETURN
+| 0043  16:12 CONST        8    ; (1, 9)
+| 0044  16:1  MATCHORFAIL  0    ; (@8, @9)
+| 0045  18:1  CONST        4    ; <fn print>
+| 0046  18:7  LOADGLOBAL   4    ; within
+| 0047  18:14 CONST        9    ; 5
+| 0048  18:13 CALL         1    ; 1 positional, 0 named
+| 0049  18:18 LOADGLOBAL   4    ; within
+| 0050  18:25 CONST        10    ; 10
+| 0051  18:24 CALL         1    ; 1 positional, 0 named
+| 0052  18:6  CALL         2    ; 2 positional, 0 named
+| 0053  18:1  POP
+| 0054  18:1  CONST        11    ; nil
+| 0055  1:69  RETURN
 |
 | == ok ==
 | 0000  6:12  MOVELOCAL    0
@@ -14597,12 +14896,12 @@
 | 0029  11:1  POP
 | 0030  13:1  CONST        0    ; <fn print>
 | 0031  13:7  CONST        1    ; <fn try_map>
-| 0032  13:15 LIST         0
+| 0032  13:15 CONST        7    ; []
 | 0033  13:19 LOADGLOBAL   3    ; parse
 | 0034  13:14 CALL         2    ; 2 positional, 0 named
 | 0035  13:27 CONST        1    ; <fn try_map>
-| 0036  13:35 CONST        7    ; 1
-| 0037  13:39 CONST        8    ; 2
+| 0036  13:35 CONST        8    ; 1
+| 0037  13:39 CONST        9    ; 2
 | 0038  13:36 RANGE        1    ; inclusive
 | 0039  13:42 CLOSURE      4    ; <lambda>
 | 0040  13:34 CALL         2    ; 2 positional, 0 named
@@ -14610,43 +14909,37 @@
 | 0042  13:1  POP
 | 0043  18:1  CONST        0    ; <fn print>
 | 0044  18:7  LOADGLOBAL   0    ; total
-| 0045  18:13 CONST        9    ; ["4", "5"]
+| 0045  18:13 CONST        10    ; ["4", "5"]
 | 0046  18:12 CALL         1    ; 1 positional, 0 named
 | 0047  18:26 LOADGLOBAL   0    ; total
-| 0048  18:32 CONST        10    ; ["4", "y"]
+| 0048  18:32 CONST        11    ; ["4", "y"]
 | 0049  18:31 CALL         1    ; 1 positional, 0 named
 | 0050  18:6  CALL         2    ; 2 positional, 0 named
 | 0051  18:1  POP
 | 0052  22:1  CONST        0    ; <fn print>
 | 0053  22:7  CONST        1    ; <fn try_map>
-| 0054  22:16 CONST        11    ; 'Ok
-| 0055  22:19 CONST        7    ; 1
-| 0056  22:16 TAG          1    ; 1 args
-| 0057  22:23 CONST        11    ; 'Ok
-| 0058  22:26 CONST        8    ; 2
-| 0059  22:23 TAG          1    ; 1 args
-| 0060  22:15 LIST         2
-| 0061  22:31 CLOSURE      5    ; <lambda>
-| 0062  22:14 CALL         2    ; 2 positional, 0 named
-| 0063  22:6  CALL         1    ; 1 positional, 0 named
-| 0064  22:1  POP
-| 0065  27:1  CONST        0    ; <fn print>
-| 0066  27:7  CONST        12    ; <fn map>
-| 0067  27:11 CONST        13    ; ["1", "x"]
-| 0068  27:23 LOADGLOBAL   1    ; twice
-| 0069  27:10 CALL         2    ; 2 positional, 0 named
-| 0070  27:6  CALL         1    ; 1 positional, 0 named
-| 0071  27:1  POP
-| 0072  29:1  CONST        0    ; <fn print>
-| 0073  29:7  CONST        14    ; <fn with>
-| 0074  29:12 CLOSURE      6    ; <lambda>
-| 0075  29:23 CLOSURE      7    ; <lambda>
-| 0076  29:47 CLOSURE      8    ; <lambda>
-| 0077  29:11 CALL         3    ; 3 positional, 0 named
-| 0078  29:6  CALL         1    ; 1 positional, 0 named
-| 0079  29:1  POP
-| 0080  29:1  CONST        15    ; nil
-| 0081  1:39  RETURN
+| 0054  22:15 CONST        12    ; [Ok(1), Ok(2)]
+| 0055  22:31 CLOSURE      5    ; <lambda>
+| 0056  22:14 CALL         2    ; 2 positional, 0 named
+| 0057  22:6  CALL         1    ; 1 positional, 0 named
+| 0058  22:1  POP
+| 0059  27:1  CONST        0    ; <fn print>
+| 0060  27:7  CONST        13    ; <fn map>
+| 0061  27:11 CONST        14    ; ["1", "x"]
+| 0062  27:23 LOADGLOBAL   1    ; twice
+| 0063  27:10 CALL         2    ; 2 positional, 0 named
+| 0064  27:6  CALL         1    ; 1 positional, 0 named
+| 0065  27:1  POP
+| 0066  29:1  CONST        0    ; <fn print>
+| 0067  29:7  CONST        15    ; <fn with>
+| 0068  29:12 CLOSURE      6    ; <lambda>
+| 0069  29:23 CLOSURE      7    ; <lambda>
+| 0070  29:47 CLOSURE      8    ; <lambda>
+| 0071  29:11 CALL         3    ; 3 positional, 0 named
+| 0072  29:6  CALL         1    ; 1 positional, 0 named
+| 0073  29:1  POP
+| 0074  29:1  CONST        16    ; nil
+| 0075  1:39  RETURN
 |
 | == total ==
 | 0000  17:16 CONST        0    ; 'Ok
@@ -14833,46 +15126,30 @@
 | 0007  3:1   CONST        2    ; <fn print>
 | 0008  3:7   LOADGLOBAL   1    ; q
 | 0009  3:10  LOADGLOBAL   2    ; r
-| 0010  3:14  CONST        3    ; 1
-| 0011  3:13  TUPLE        1
-| 0012  3:19  TUPLE        0
-| 0013  3:24  CONST        3    ; 1
-| 0014  3:27  CONST        1    ; 2
-| 0015  3:23  TUPLE        2
-| 0016  3:34  CONST        3    ; 1
-| 0017  3:37  CONST        1    ; 2
-| 0018  3:33  TUPLE        2
-| 0019  3:30  EQ
-| 0020  3:6   CALL         5    ; 5 positional, 0 named
-| 0021  3:1   POP
-| 0022  5:1   CONST        2    ; <fn print>
-| 0023  5:7   CONST        4    ; 'Circle
-| 0024  5:14  CONST        5    ; 3
-| 0025  5:7   TAG          1    ; 1 args
-| 0026  5:18  CONST        6    ; 'Rect
-| 0027  5:23  CONST        1    ; 2
-| 0028  5:26  CONST        7    ; 5
-| 0029  5:18  TAG          2    ; 2 args
-| 0030  5:30  CONST        8    ; 'Red
-| 0031  5:35  CONST        9    ; 'Ok
-| 0032  5:38  CONST        3    ; 1
-| 0033  5:35  TAG          1    ; 1 args
-| 0034  5:44  CONST        9    ; 'Ok
-| 0035  5:47  CONST        3    ; 1
-| 0036  5:44  TAG          1    ; 1 args
-| 0037  5:41  EQ
-| 0038  5:51  CONST        10    ; <fn type_of>
-| 0039  5:59  CONST        4    ; 'Circle
-| 0040  5:66  CONST        5    ; 3
-| 0041  5:59  TAG          1    ; 1 args
-| 0042  5:58  CALL         1    ; 1 positional, 0 named
-| 0043  5:71  CONST        10    ; <fn type_of>
-| 0044  5:79  CONST        8    ; 'Red
-| 0045  5:78  CALL         1    ; 1 positional, 0 named
-| 0046  5:6   CALL         6    ; 6 positional, 0 named
-| 0047  5:1   POP
-| 0048  5:1   CONST        11    ; nil
-| 0049  1:1   RETURN
+| 0010  3:13  CONST        3    ; (1,)
+| 0011  3:19  CONST        4    ; ()
+| 0012  3:23  CONST        5    ; (1, 2)
+| 0013  3:33  CONST        5    ; (1, 2)
+| 0014  3:30  EQ
+| 0015  3:6   CALL         5    ; 5 positional, 0 named
+| 0016  3:1   POP
+| 0017  5:1   CONST        2    ; <fn print>
+| 0018  5:7   CONST        6    ; Circle(3)
+| 0019  5:18  CONST        7    ; Rect(2, 5)
+| 0020  5:30  CONST        8    ; 'Red
+| 0021  5:35  CONST        9    ; Ok(1)
+| 0022  5:44  CONST        9    ; Ok(1)
+| 0023  5:41  EQ
+| 0024  5:51  CONST        10    ; <fn type_of>
+| 0025  5:59  CONST        6    ; Circle(3)
+| 0026  5:58  CALL         1    ; 1 positional, 0 named
+| 0027  5:71  CONST        10    ; <fn type_of>
+| 0028  5:79  CONST        8    ; 'Red
+| 0029  5:78  CALL         1    ; 1 positional, 0 named
+| 0030  5:6   CALL         6    ; 6 positional, 0 named
+| 0031  5:1   POP
+| 0032  5:1   CONST        11    ; nil
+| 0033  1:1   RETURN
 |
 | == divmod ==
 | 0000  1:20  LOADLOCAL    0
@@ -14989,25 +15266,21 @@
 | 0012  8:1   POP
 | 0013  14:1  CONST        0    ; <fn print>
 | 0014  14:7  LOADGLOBAL   1    ; area
-| 0015  14:12 CONST        3    ; 'Circle
-| 0016  14:19 CONST        4    ; 1
-| 0017  14:12 TAG          1    ; 1 args
-| 0018  14:11 CALL         1    ; 1 positional, 0 named
-| 0019  14:24 LOADGLOBAL   1    ; area
-| 0020  14:29 CONST        5    ; 'Square
-| 0021  14:36 CONST        6    ; 2
-| 0022  14:29 TAG          1    ; 1 args
-| 0023  14:28 CALL         1    ; 1 positional, 0 named
-| 0024  14:6  CALL         2    ; 2 positional, 0 named
-| 0025  14:1  POP
-| 0026  16:1  CONST        0    ; <fn print>
-| 0027  16:7  CONST        7    ; <fn type_of>
-| 0028  16:15 CONST        8    ; 'Red
-| 0029  16:14 CALL         1    ; 1 positional, 0 named
-| 0030  16:6  CALL         1    ; 1 positional, 0 named
-| 0031  16:1  POP
-| 0032  16:1  CONST        9    ; nil
-| 0033  1:71  RETURN
+| 0015  14:12 CONST        3    ; Circle(1)
+| 0016  14:11 CALL         1    ; 1 positional, 0 named
+| 0017  14:24 LOADGLOBAL   1    ; area
+| 0018  14:29 CONST        4    ; Square(2)
+| 0019  14:28 CALL         1    ; 1 positional, 0 named
+| 0020  14:6  CALL         2    ; 2 positional, 0 named
+| 0021  14:1  POP
+| 0022  16:1  CONST        0    ; <fn print>
+| 0023  16:7  CONST        5    ; <fn type_of>
+| 0024  16:15 CONST        6    ; 'Red
+| 0025  16:14 CALL         1    ; 1 positional, 0 named
+| 0026  16:6  CALL         1    ; 1 positional, 0 named
+| 0027  16:1  POP
+| 0028  16:1  CONST        7    ; nil
+| 0029  1:71  RETURN
 |
 | == hex ==
 | 0000  3:8   CHECKTYPE    0    ; c: Red | Green | Blue
@@ -15369,10 +15642,8 @@
 | 0001  3:15  RETURN
 |
 | == <lambda> ==
-| 0000  3:26  CONST        0    ; 'Err
-| 0001  3:30  CONST        1    ; 'x
-| 0002  3:26  TAG          1    ; 1 args
-| 0003  3:23  RETURN
+| 0000  3:26  CONST        0    ; Err('x)
+| 0001  3:23  RETURN
 |
 | == <lambda> ==
 | 0000  3:40  CONST        0    ; <fn print>
@@ -15875,7 +16146,7 @@
 |   --> -e:1:7
 |   |
 | 1 | print(없는)
-|   |       ^^ not found in this scope
+|   |       ^^^^ not found in this scope
 |   |
 -- exit: 2
 ==== dump core -e \tprint(nope)
@@ -16051,7 +16322,7 @@
 -- stderr
 -- exit: 0
 ==== dump bytecode -e x = {a: 1}\ny = x.a.a.a.a.a.a.a.a.a.a.a.a.a.… (40033 bytes, 88f697182dcb2397)
--- stdout (724781 bytes, fnv1a64 e4ee3f9e5ee946a9)
+-- stdout (724721 bytes, fnv1a64 c62159a41fca9653)
 -- stderr
 -- exit: 0
 ==== dump ast -e fn f() = f\ny = f()()()()()()()()()()()()()()()()… (40028 bytes, d8568d0dcd64a105)
@@ -16195,7 +16466,7 @@
 -- stderr
 -- exit: 0
 ==== dump bytecode $TMP/deep_13.fung
--- stdout (7634792 bytes, fnv1a64 7d3dc268912f027e)
+-- stdout (7634730 bytes, fnv1a64 3a3aba3071e85700)
 -- stderr
 -- exit: 0
 ==== dump ast $TMP/deep_14.fung

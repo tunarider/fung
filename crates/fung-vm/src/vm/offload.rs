@@ -42,6 +42,10 @@ use fung_front::diag::Arg;
 pub(crate) enum Kind {
     Wait,
     Abandon,
+    /// A name lookup (`getaddrinfo`): abandoned like `Abandon`, and run on
+    /// the lookups' own pool (`Shared::lookups`, L12), so that lookups
+    /// a silent resolver holds cannot keep file jobs waiting in line.
+    Lookup,
 }
 
 /// The job's result, once its thread has stored it.
@@ -93,7 +97,11 @@ pub(crate) fn offload_kind<R: Send + 'static>(
             me.wake();
         }
     };
-    let started = t.shared.pool.submit_with(ticket.clone(), Box::new(work));
+    let pool = match kind {
+        Kind::Lookup => &t.shared.lookups,
+        _ => &t.shared.pool,
+    };
+    let started = pool.submit_with(ticket.clone(), Box::new(work));
     if let Err(e) = started {
         return Err(nat::fail(
             "E0801",
@@ -189,7 +197,7 @@ impl<R: 'static> Cont for Job<R> {
             return k.unwind(t, stop);
         }
         match self.kind {
-            Kind::Abandon => {
+            Kind::Abandon | Kind::Lookup => {
                 self.ticket.abandon_running();
                 Err(stop)
             }

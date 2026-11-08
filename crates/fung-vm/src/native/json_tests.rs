@@ -22,9 +22,34 @@ fn call(name: &str, args: Vec<Value>) -> Result<Value, Stop> {
         Box::new(Cursor::new(Vec::new())),
         SourceMap::default(),
     );
-    let r = (n.plain())(&mut rt.task(), args);
+    let r = {
+        let mut t = rt.task();
+        run_step(&mut t, n, args)
+    };
     drop(rt);
     r
+}
+
+/// Runs a step native that only parks between pieces (L6) to its end.
+fn run_step(
+    t: &mut crate::vm::Task<'_>,
+    n: &crate::vm::Native,
+    args: Vec<Value>,
+) -> Result<Value, Stop> {
+    let crate::vm::NativeBody::Step(step) = n.body else {
+        return (n.plain())(t, args);
+    };
+    match step(t, args)? {
+        crate::vm::Flow::Done(v) => Ok(v),
+        crate::vm::Flow::Park(mut k, _) => loop {
+            match k.resume(t, Value::Nil)? {
+                crate::vm::Next::Done(v) => return Ok(v),
+                crate::vm::Next::Park(_) => {}
+                crate::vm::Next::Call(..) => panic!("a JSON native called back"),
+            }
+        },
+        crate::vm::Flow::Call(..) => panic!("a JSON native called back"),
+    }
 }
 
 /// The result in fung form, or the error code.
@@ -403,4 +428,42 @@ fn indentation_counts_toward_the_limit_as_it_grows() {
     assert_eq!(out.len(), 99_999_995);
     let mut small = String::new();
     assert!(super::newline(&mut small, 10, 1).is_ok());
+}
+
+/// Stopping after any byte and going on (L6) reads and writes exactly
+/// what one go does, errors and their positions included.
+#[test]
+fn pieces_of_any_size_give_the_same_result() {
+    let texts = [
+        r#"  {"a": [1, 2.5, "x\n", true, null, {"b": []}], "c": {}}  "#,
+        r#"[[[[["deep"]]]], -0, 1e3, "é"]"#,
+        r#"{"a": 1, "a": 2}"#,
+        r#"[1, 2,]"#,
+        r#"[1] x"#,
+        "\"unterminated",
+    ];
+    for text in texts {
+        let whole = super::decode(text).map(|v| format(&v));
+        for piece in [1, 2, 7] {
+            let mut d = super::Decoder::new();
+            let got = loop {
+                match d.run(text, piece) {
+                    Ok(None) => {}
+                    Ok(Some(v)) => break Ok(format(&v)),
+                    Err(e) => break Err(e),
+                }
+            };
+            assert_eq!(got, whole, "{text:?} in pieces of {piece}");
+        }
+        let Ok(v) = super::decode(text) else {
+            continue;
+        };
+        for indent in [0, 2] {
+            let mut e = super::Encoder::new(v.clone(), indent);
+            assert!(e.run(usize::MAX).unwrap());
+            let mut p = super::Encoder::new(v.clone(), indent);
+            while !p.run(1).unwrap() {}
+            assert_eq!(p.out, e.out, "{text:?} written in pieces");
+        }
+    }
 }

@@ -106,7 +106,7 @@ print(take(more, 2), drop(more, 1), take(more, 10))
 print(more |&gt; map(upper), more |&gt; filter(s =&gt; starts_with(s, &quot;web&quot;)))</code></pre><pre class="out plain"><code>[&quot;web-1&quot;, &quot;web-2&quot;] [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
 [&quot;web-1&quot;, &quot;web-2&quot;] [&quot;web-2&quot;, &quot;db-1&quot;] [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
 [&quot;WEB-1&quot;, &quot;WEB-2&quot;, &quot;DB-1&quot;] [&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
-<p><code>servers</code>는 그대로다. 그래서 같은 리스트를 여러 곳에 넘겨도 안전하다. 새 리스트를 만든다고 원소 전체를 복사하는 것은 아니다. 새 리스트는 원래 리스트와 구조를 나눠 쓰므로, <code>acc + [x]</code>로 하나씩 쌓아도 빠르다.</p>
+<p><code>servers</code>는 그대로다. 그래서 같은 리스트를 여러 곳에 넘겨도 안전하다. 새 리스트를 만든다고 원소 전체를 복사하는 것은 아니다. 새 리스트는 원래 리스트와 구조를 나눠 쓰므로, 뒤에(<code>acc + [x]</code>) 붙이든 앞에(<code>[x] + acc</code>) 붙이든 하나씩 쌓아도 빠르다.</p>
 <h3 id="list-functions">리스트 함수</h3>
 <p>자주 쓰는 것들이다. 모두 새 값을 돌려준다.</p>
 <div class="run"><pre><code>nums = [340, 12, 7, 12, 98]
@@ -228,9 +228,6 @@ print(by_role.web)</code></pre><pre class="out plain"><code>{web: [&quot;web-1&q
 <div class="box mistake"><b>튜플을 인덱스로 읽기 (E0509)</b>
 <p><code>pair[0]</code>은 <code>cannot index a value of type tuple</code> 에러다. 튜플은 <code>(a, b) = pair</code>처럼 풀어서 받는다. 원소가 많아져 순서를 헷갈릴 정도면 튜플 대신 이름 붙은 키가 있는 맵을 쓴다.</p>
 </div>
-<div class="box mistake"><b>앞에 붙이기</b>
-<p><code>[x] + acc</code>로 리스트의 <strong>앞</strong>에 하나씩 붙이면 매번 전체를 복사해서 원소가 많으면 느려진다. 뒤에 붙인 뒤(<code>acc + [x]</code>) 마지막에 <code>reverse</code>한다.</p>
-</div>
 <div class="box other"><b>다른 언어는</b>
 <p>fung의 리스트는 Python의 list나 JavaScript의 배열, 맵은 Python의 dict나 JavaScript의 객체, 튜플은 Python의 tuple과 비슷하다. 다른 점은 셋 다 고칠 수 없다는 것이다(<code>append</code>, <code>xs[0] = …</code>, <code>d[&quot;k&quot;] = …</code>가 없다). Python의 dict와 달리 키는 문자열뿐이고, 없는 키를 읽으면 JavaScript처럼 <code>undefined</code>가 아니라 에러다. <code>jq '.items[0].name'</code>은 fung에서 <code>data.items[0].name</code>이다(JSON은 13장).</p>
 </div>
@@ -270,7 +267,7 @@ print(slow)</code></pre><pre class="out plain"><code>[&quot;web-2&quot;, &quot;w
 <li>튜플은 <code>(a, b) = t</code>처럼 풀어서 받는다. <code>pairs</code>, <code>zip</code>, <code>for (a, b) in …</code>이 튜플을 쓴다.</li>
 <li>세기는 <code>fold</code>와 <code>put</code>/<code>get</code>, 묶기는 <code>group_by</code>, 정렬은 <code>sort</code>·<code>sort_by</code>.</li>
 </ul>
-<p>레퍼런스: <a href="../reference/prelude/collections.html">리스트 함수</a>, <a href="../reference/prelude/maps.html">맵 함수</a>, <a href="../reference/prelude/maps.html#fn-get"><code>get</code></a>, <a href="../reference/prelude/maps.html#fn-put"><code>put</code></a>, <a href="../reference/prelude/collections.html#fn-group_by"><code>group_by</code></a>, <a href="../reference/language.html#values">값과 타입</a>, <a href="../reference/language.html#access">인덱스·슬라이스·필드</a>, <a href="../reference/errors.html#E0508">E0508</a>. 새 리스트가 구조를 나눠 쓰는 방법은 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
+<p>레퍼런스: <a href="../reference/prelude/collections.html">리스트 함수</a>, <a href="../reference/prelude/maps.html">맵 함수</a>, <a href="../reference/prelude/maps.html#fn-get"><code>get</code></a>, <a href="../reference/prelude/maps.html#fn-put"><code>put</code></a>, <a href="../reference/prelude/collections.html#fn-group_by"><code>group_by</code></a>, <a href="../reference/language/values.html">값과 타입</a>, <a href="../reference/language/access.html">인덱스·슬라이스·필드</a>, <a href="../reference/errors.html#E0508">E0508</a>. 새 리스트가 구조를 나눠 쓰는 방법은 <a href="../vm/10-values-and-memory.html">값과 메모리</a>에서 다룬다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../learn/06-strings.html"><small>이전 장</small>6. 문자열 다루기</a><a class="next" href="../learn/08-patterns.html"><small>다음 장</small>8. 패턴과 match</a></nav>
 </div></main>
 </div>

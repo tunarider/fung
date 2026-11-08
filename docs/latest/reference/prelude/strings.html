@@ -32,6 +32,22 @@
 <ol class="chapters">
 <li><a href="../../reference/language.html">문법</a></li>
 <li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html">연산자</a></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html">함수</a></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
 <li class="sub">prelude</li>
 <li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
 <li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
@@ -79,7 +95,7 @@ clean = trim(s)
 print(&quot;[${clean}]&quot;, len(clean), clean[0..5], lower(clean))
 print(s == &quot;  ERROR disk full  &quot;)</code></pre><pre class="out plain"><code>[ERROR disk full] 15 ERROR error disk full
 true</code></pre></div>
-<p>리터럴의 이스케이프(<code>\n</code>, <code>\t</code>, <code>\u{301}</code>), 여러 줄 문자열, 원시 문자열은 <a href="../language.html#lexical">어휘</a>에, 패턴으로 찾고 바꾸는 일은 <a href="../modules/regex.html"><code>regex</code> 모듈</a>에 있다.</p>
+<p>리터럴의 이스케이프(<code>\n</code>, <code>\t</code>, <code>\u{301}</code>), 여러 줄 문자열, 원시 문자열은 <a href="../language/lexical.html">어휘</a>에, 패턴으로 찾고 바꾸는 일은 <a href="../modules/regex.html"><code>regex</code> 모듈</a>에 있다.</p>
 <h2 id="split-join">나누기와 잇기</h2>
 <section class="entry" id="fn-split">
 <h3>split</h3>

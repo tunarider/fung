@@ -8,12 +8,15 @@ use crate::native::nat::{self, def, def_step, fail, opt, param};
 use crate::native::walk::{Collect, Cursor, drain_with};
 use fung_front::text::{Unit, char_count, units};
 
-use crate::value::{Lit, Text, Value, write_for_print};
+use std::rc::Rc;
+
+use crate::value::{List, Lit, Text, Value, write_for_print};
+use crate::vm::pieces::{self, PIECE_ITEMS, PIECE_SCAN, Work};
 use crate::vm::{Flow, Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
-    add(def("split", split_fn, vec![param("s"), param("sep")]));
-    add(def("lines", lines_fn, vec![param("s")]));
+    add(def_step("split", split_fn, vec![param("s"), param("sep")]));
+    add(def_step("lines", lines_fn, vec![param("s")]));
     add(def_step(
         "join",
         join_fn,
@@ -22,7 +25,7 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("trim", trim_fn, vec![param("s"), opt("cut", Lit::Nil)]));
     add(def("upper", upper_fn, vec![param("s")]));
     add(def("lower", lower_fn, vec![param("s")]));
-    add(def(
+    add(def_step(
         "replace",
         replace_fn,
         vec![param("s"), param("old"), param("new")],
@@ -37,7 +40,7 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
         ends_with_fn,
         vec![param("s"), param("suffix")],
     ));
-    add(def("repeat", repeat_fn, vec![param("s"), param("n")]));
+    add(def_step("repeat", repeat_fn, vec![param("s"), param("n")]));
     add(def("byte_len", byte_len_fn, vec![param("s")]));
     add(def("bytes", bytes_fn, vec![param("s")]));
     add(def("from_bytes", from_bytes_fn, vec![param("xs")]));
@@ -48,50 +51,161 @@ fn string(s: Vec<u8>) -> Value {
     Value::bytes(s)
 }
 
-/// `split(s, sep)`: an empty separator splits into characters, and splitting
-/// the empty string by it gives no parts.
-fn split_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let [s, sep] = nat::bytes_args(&a, ["s", "sep"])?;
-    let parts: Vec<Value> = if sep.is_empty() {
-        units(s)
-            .map(|(at, u)| string(s[at..at + u.byte_len()].to_vec()))
-            .collect()
-    } else {
-        split_bytes(s, sep)
-            .into_iter()
-            .map(|p| string(p.to_vec()))
-            .collect()
-    };
-    Ok(nat::list(parts))
+/// The bytes of a string value (checked as one before).
+fn bytes_of(v: &Value) -> &[u8] {
+    match v {
+        Value::Str(t) => t,
+        _ => unreachable!("checked as a string"),
+    }
 }
 
-/// The pieces of `s` between the occurrences of `sep` (not empty).
-fn split_bytes<'a>(s: &'a [u8], sep: &[u8]) -> Vec<&'a [u8]> {
-    let mut out = Vec::new();
-    let mut from = 0;
-    for at in memchr::memmem::find_iter(s, sep) {
-        // find_iter does not overlap matches.
-        out.push(&s[from..at]);
-        from = at + sep.len();
+/// A walk over a string's occurrences of a separator (not empty), a
+/// piece at a time (L6, `vm/pieces.rs`): it hands on the parts between
+/// them, looking at about `PIECE_SCAN` bytes or `PIECE_ITEMS` parts each
+/// time. The search window reaches past the piece by the separator's
+/// length less one, so an occurrence across the line is found once.
+struct Cuts {
+    s: Value,
+    /// Only `s[..end]` is cut (`lines` leaves a final newline out).
+    end: usize,
+    finder: memchr::memmem::Finder<'static>,
+    /// The part being found starts at `from`; the search goes on at `at`.
+    from: usize,
+    at: usize,
+}
+
+impl Cuts {
+    fn new(s: Value, end: usize, sep: &[u8]) -> Cuts {
+        Cuts {
+            s,
+            end,
+            finder: memchr::memmem::Finder::new(sep).into_owned(),
+            from: 0,
+            at: 0,
+        }
     }
-    out.push(&s[from..]);
-    out
+
+    /// Hands `f` the next parts, the last with `true`; true once the last
+    /// one was handed on.
+    fn run(&mut self, mut f: impl FnMut(&[u8], bool)) -> bool {
+        let s = &bytes_of(&self.s)[..self.end];
+        let sep = self.finder.needle().len();
+        let mut parts = 0;
+        while parts < PIECE_ITEMS {
+            let stop = (self.at + PIECE_SCAN).min(s.len());
+            let window = (stop + sep - 1).min(s.len());
+            match self.finder.find(&s[self.at..window]) {
+                Some(i) => {
+                    let m = self.at + i;
+                    f(&s[self.from..m], false);
+                    self.from = m + sep;
+                    self.at = self.from;
+                    parts += 1;
+                }
+                None if window == s.len() => {
+                    f(&s[self.from..], true);
+                    return true;
+                }
+                None => {
+                    self.at = stop;
+                    return false;
+                }
+            }
+        }
+        false
+    }
+}
+
+/// The characters of a string from `at`, a piece at a time (an empty
+/// separator, `split` and `replace`).
+fn chars_from(s: &[u8], at: &mut usize, mut f: impl FnMut(&[u8])) -> bool {
+    for _ in 0..PIECE_ITEMS {
+        let Some(u) = fung_front::text::first(&s[*at..]) else {
+            return true;
+        };
+        let n = u.byte_len();
+        f(&s[*at..*at + n]);
+        *at += n;
+    }
+    *at == s.len()
+}
+
+/// `split(s, sep)`: an empty separator splits into characters, and splitting
+/// the empty string by it gives no parts.
+fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let [s, sep] = nat::bytes_args(&a, ["s", "sep"])?;
+    if sep.is_empty() {
+        struct Chars {
+            s: Value,
+            at: usize,
+            out: List,
+        }
+        impl Work for Chars {
+            fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+                let out = &mut self.out;
+                if !chars_from(bytes_of(&self.s), &mut self.at, |c| {
+                    out.push(string(c.to_vec()))
+                }) {
+                    return Ok(None);
+                }
+                let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
+                Ok(Some(Value::List(Rc::new(out))))
+            }
+        }
+        return pieces::run(
+            t,
+            Chars {
+                s: a[0].clone(),
+                at: 0,
+                out: List::new(Vec::new()),
+            },
+        );
+    }
+    let cuts = Cuts::new(a[0].clone(), s.len(), sep);
+    pieces::run(t, Parts::new(cuts, |p| p))
+}
+
+/// The parts of a `Cuts` walk as a list, each mapped by `part`.
+struct Parts {
+    cuts: Cuts,
+    part: fn(&[u8]) -> &[u8],
+    /// Grown in place: a vector made into a list at the end would be one
+    /// long step.
+    out: List,
+}
+
+impl Parts {
+    fn new(cuts: Cuts, part: fn(&[u8]) -> &[u8]) -> Parts {
+        Parts {
+            cuts,
+            part,
+            out: List::new(Vec::new()),
+        }
+    }
+}
+
+impl Work for Parts {
+    fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+        let (out, part) = (&mut self.out, self.part);
+        if !self.cuts.run(|p, _| out.push(string(part(p).to_vec()))) {
+            return Ok(None);
+        }
+        let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
+        Ok(Some(Value::List(Rc::new(out))))
+    }
 }
 
 /// `lines(s)`: `s` split on `\n`, one `\r` that ends a line dropped, and
 /// no empty line after a final newline; the empty string has no lines (06,
 /// the rule of `read_lines`).
-fn lines_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let s = nat::need_bytes("s", &a[0])?;
     if s.is_empty() {
-        return Ok(nat::list(Vec::new()));
+        return Ok(Flow::Done(nat::list(Vec::new())));
     }
-    let body = s.strip_suffix(b"\n").unwrap_or(s);
-    let parts = body
-        .split(|&b| b == b'\n')
-        .map(|l| string(l.strip_suffix(b"\r").unwrap_or(l).to_vec()))
-        .collect();
-    Ok(nat::list(parts))
+    let end = s.len() - usize::from(s.ends_with(b"\n"));
+    let cuts = Cuts::new(a[0].clone(), end, b"\n");
+    pieces::run(t, Parts::new(cuts, |l| l.strip_suffix(b"\r").unwrap_or(l)))
 }
 
 /// `join(xs, sep = "")` renders elements as print would (06): strings
@@ -192,29 +306,65 @@ fn map_text(s: &Text, f: fn(&str) -> String) -> Vec<u8> {
 
 /// `replace(s, old, new)`: every occurrence; an empty `old` matches before
 /// every character and at the end. A result past `MAX_CHARS` characters is
-/// E0806 before anything is built (02).
-fn replace_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// E0806 before anything is built (02). Built a piece at a time (L6).
+fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [s, old, new] = nat::bytes_args(&a, ["s", "old", "new"])?;
     if !replace_fits(s, old, new) {
         return Err(too_many_chars());
     }
-    let mut out = Vec::with_capacity(s.len());
+    let new = new.to_vec();
+    let out = Vec::with_capacity(s.len());
     if old.is_empty() {
-        for (at, u) in units(s) {
-            out.extend_from_slice(new);
-            out.extend_from_slice(&s[at..at + u.byte_len()]);
+        struct Between {
+            s: Value,
+            new: Vec<u8>,
+            at: usize,
+            out: Vec<u8>,
         }
-        out.extend_from_slice(new);
-    } else {
-        let parts = split_bytes(s, old);
-        for (i, p) in parts.iter().enumerate() {
-            if i > 0 {
-                out.extend_from_slice(new);
+        impl Work for Between {
+            fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+                let (out, new) = (&mut self.out, &self.new);
+                if !chars_from(bytes_of(&self.s), &mut self.at, |c| {
+                    out.extend_from_slice(new);
+                    out.extend_from_slice(c);
+                }) {
+                    return Ok(None);
+                }
+                self.out.extend_from_slice(&self.new);
+                Ok(Some(string(std::mem::take(&mut self.out))))
             }
-            out.extend_from_slice(p);
+        }
+        return pieces::run(
+            t,
+            Between {
+                s: a[0].clone(),
+                new,
+                at: 0,
+                out,
+            },
+        );
+    }
+    struct Replace {
+        cuts: Cuts,
+        new: Vec<u8>,
+        out: Vec<u8>,
+    }
+    impl Work for Replace {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let (out, new) = (&mut self.out, &self.new);
+            if !self.cuts.run(|p, last| {
+                out.extend_from_slice(p);
+                if !last {
+                    out.extend_from_slice(new);
+                }
+            }) {
+                return Ok(None);
+            }
+            Ok(Some(string(std::mem::take(&mut self.out))))
         }
     }
-    Ok(string(out))
+    let cuts = Cuts::new(a[0].clone(), s.len(), old);
+    pieces::run(t, Replace { cuts, new, out })
 }
 
 /// Whether `replace(s, old, new)` stays within `MAX_CHARS`. The size of
@@ -263,8 +413,8 @@ pub(crate) fn too_many_chars() -> Stop {
 }
 
 /// `repeat(s, n)`; a negative `n` is 0. A result past `MAX_CHARS`
-/// characters is E0806 (02).
-fn repeat_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// characters is E0806 (02). Written a piece at a time (L6).
+fn repeat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let s = nat::need_bytes("s", &a[0])?;
     let n = nat::need_int("n", &a[1])?.max(0);
     if (char_count(s) as i64)
@@ -273,7 +423,37 @@ fn repeat_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     {
         return Err(too_many_chars());
     }
-    Ok(string(s.repeat(n as usize)))
+    struct Repeat {
+        s: Vec<u8>,
+        left: usize,
+        out: Vec<u8>,
+    }
+    impl Work for Repeat {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let per = (PIECE_SCAN / self.s.len().max(1)).max(1);
+            let k = per.min(self.left);
+            for _ in 0..k {
+                self.out.extend_from_slice(&self.s);
+            }
+            self.left -= k;
+            if self.left > 0 {
+                return Ok(None);
+            }
+            Ok(Some(string(std::mem::take(&mut self.out))))
+        }
+    }
+    if s.is_empty() || n == 0 {
+        return Ok(Flow::Done(string(Vec::new())));
+    }
+    let n = n as usize;
+    pieces::run(
+        t,
+        Repeat {
+            out: Vec::with_capacity(s.len() * n),
+            s: s.to_vec(),
+            left: n,
+        },
+    )
 }
 
 /// `byte_len(s)`: the number of bytes in `s` (L4).

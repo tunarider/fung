@@ -473,3 +473,14 @@ fn windows_line_endings() {
         "x = 1\nfn f():\n  y  # c\n;;\n",
     );
 }
+
+/// Trailing comments line up in terminal columns, counted by grapheme
+/// cluster (L17): a ZWJ emoji family and `❤️` are one cluster of two
+/// columns each, Hangul two columns a syllable.
+#[test]
+fn aligns_by_grapheme_clusters() {
+    check(
+        "a = \"한한\"  # k\nb = \"\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\"  # zwj\nc = \"\u{2764}\u{FE0F}\"  # vs16\nd = \"abcd\"  # ascii\n",
+        "a = \"한한\"  # k\nb = \"\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\"    # zwj\nc = \"\u{2764}\u{FE0F}\"    # vs16\nd = \"abcd\"  # ascii\n",
+    );
+}

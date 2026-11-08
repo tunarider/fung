@@ -98,7 +98,7 @@ call     = &quot;(&quot; [ arg { &quot;,&quot; arg } [ &quot;,&quot; ] ] &quot;)
 <li><code>a | b</code>는 a 또는 b, <code>[ a ]</code>는 a가 있어도 되고 없어도 된다, <code>{ a }</code>는 a가 0번 이상 반복된다.</li>
 </ul>
 <p>그러면 <code>fn_def</code>는 "<code>fn</code> 토큰, 이름, <code>(</code>, 매개변수(없어도 됨), <code>)</code>, 그리고 <code>=</code>과 식 또는 블록"이다. <code>fn double(x) = x * 2</code>가 정확히 이 모양이다. <code>add</code>는 "<code>mul</code> 하나, 그 뒤에 <code>+</code>나 <code>-</code>와 <code>mul</code>이 0번 이상"이므로 <code>1 + 2 - 3</code>도 <code>add</code>다.</p>
-<p>규칙이 다른 규칙을 부르고, 결국 자기 자신을 부를 수도 있다(식 안에 괄호 식이 있고, 그 안에 또 식이 있다). 이렇게 재귀하는 규칙 덕분에 유한한 규칙 몇십 개로 무한히 많은 프로그램을 적을 수 있다. fung의 전체 문법은 <a href="../reference/language.html#grammar">언어 레퍼런스의 형식 문법</a>에 있다.</p>
+<p>규칙이 다른 규칙을 부르고, 결국 자기 자신을 부를 수도 있다(식 안에 괄호 식이 있고, 그 안에 또 식이 있다). 이렇게 재귀하는 규칙 덕분에 유한한 규칙 몇십 개로 무한히 많은 프로그램을 적을 수 있다. fung의 전체 문법은 <a href="../reference/language/grammar.html">언어 레퍼런스의 형식 문법</a>에 있다.</p>
 <h2 id="recursive-descent">재귀 하강 파서</h2>
 <p>문법을 적었으면 그대로 코드로 옮길 수 있다. 가장 직접적인 방법이 <strong>재귀 하강</strong>(recursive descent) 파서다. 규칙 하나를 함수 하나로 만든다. 규칙의 "순서대로"는 코드의 순서대로, <code>|</code>는 <code>if</code>, <code>{ }</code>는 반복문, 다른 규칙은 함수 호출이 된다. <code>add</code>와 <code>mul</code>을 옮기면 이렇다.</p>
 <pre class="plain"><code>add():
@@ -288,7 +288,7 @@ print(a or b and not c == d)</code></pre><pre class="out plain"><code>true</code
 <li>줄바꿈은 괄호 깊이, 줄 끝 연산자, 이어짐 전용 토큰의 세 규칙으로 파서가 판단한다.</li>
 <li>fung의 트리는 머리·위치·리터럴·자식만 있는 균일 트리다. 문법 에러는 첫 번째만 보고한다.</li>
 </ul>
-<p>다음 장에서는 이 트리를 더 작은 코어 언어로 풀어내는 desugar를 본다. 우선순위 표 전체는 <a href="../reference/language.html#precedence">언어 레퍼런스</a>에 있다.</p>
+<p>다음 장에서는 이 트리를 더 작은 코어 언어로 풀어내는 desugar를 본다. 우선순위 표 전체는 <a href="../reference/language/operators.html#precedence">언어 레퍼런스</a>에 있다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/03-lexer.html"><small>이전 장</small>3. 렉서: 글자를 토큰으로</a><a class="next" href="../vm/05-desugar.html"><small>다음 장</small>5. desugar와 코어 언어</a></nav>
 </div></main>
 </div>

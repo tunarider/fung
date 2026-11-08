@@ -98,6 +98,9 @@ pub struct Code {
     /// when the page is built (`expect check`).
     pub expect: Option<String>,
     pub expect_checked: bool,
+    /// A `dump` fence's one function (`fn=NAME`): only its `== NAME ==`
+    /// block of the output is shown.
+    pub pick: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -110,6 +113,22 @@ pub enum Kind {
     Shell,
     Plain,
     Core,
+}
+
+/// Whether lines are `fung dump bytecode` output: a `== NAME ==` line and
+/// an instruction line (`0000  1:16  LOADLOCAL …`).
+fn looks_like_a_dump(body: &[&str]) -> bool {
+    let header = body
+        .iter()
+        .any(|l| l.starts_with("== ") && l.ends_with(" =="));
+    let instr = body.iter().any(|l| {
+        let b = l.as_bytes();
+        b.len() > 6
+            && b[..4].iter().all(u8::is_ascii_digit)
+            && &b[4..6] == b"  "
+            && b[6].is_ascii_digit()
+    });
+    header && instr
 }
 
 /// HTML-escapes text.
@@ -382,12 +401,25 @@ impl Parser<'_> {
             ["fung", "run", rest @ ..] => (Kind::Run, rest),
             ["fung", "check"] => (Kind::Check, &[][..]),
             ["fung", "frag"] => (Kind::Frag, &[][..]),
-            ["dump", stage] if ["ast", "core", "bytecode"].contains(stage) => {
-                (Kind::Dump(stage.to_string()), &[][..])
+            ["dump", stage, rest @ ..] if ["ast", "core", "bytecode"].contains(stage) => {
+                (Kind::Dump(stage.to_string()), rest)
             }
             ["shell"] => (Kind::Shell, &[][..]),
-            ["plain"] => (Kind::Plain, &[][..]),
-            ["core"] => (Kind::Core, &[][..]),
+            ["plain"] | ["core"] => {
+                if looks_like_a_dump(&body) {
+                    return Err(at(
+                        "dump output written by hand: use a `dump` fence (`fn=NAME` shows one function), so that it is checked".into(),
+                    ));
+                }
+                (
+                    if w[0] == "plain" {
+                        Kind::Plain
+                    } else {
+                        Kind::Core
+                    },
+                    &[][..],
+                )
+            }
             ["file", name] => {
                 let mut contents = src;
                 contents.push('\n');
@@ -426,9 +458,13 @@ impl Parser<'_> {
             files: Vec::new(),
             expect: None,
             expect_checked: false,
+            pick: None,
         };
+        let dump = matches!(code.kind, Kind::Dump(_));
         for a in attrs {
             match a.split_once('=') {
+                Some(("fn", v)) if dump => code.pick = Some(v.to_string()),
+                _ if dump => return Err(at(format!("unknown attribute `{a}`"))),
                 Some(("args", v)) => code.args = v.split_whitespace().map(String::from).collect(),
                 Some(("stdin", v)) => code.stdin = Some(v.to_string()),
                 Some(("env", v)) => {
@@ -715,6 +751,33 @@ mod tests {
         assert_eq!(c[0].src, "print(1)");
         assert_eq!(c[0].line, 5);
         assert_eq!(p.blocks[2], Block::Html("</div>".into()));
+    }
+
+    /// A `dump` fence may show one function's block (`fn=NAME`, L16); a
+    /// `plain` or `core` fence that holds dump output by hand is an error,
+    /// so no dump goes unchecked.
+    #[test]
+    fn dump_fences_pick_a_function_and_hand_dumps_are_refused() {
+        let p = parse(
+            "p.md",
+            "# T\n\n```dump bytecode fn=greet\nfn greet() = 1\n```\n",
+        )
+        .unwrap();
+        let c = codes(&p);
+        assert_eq!(c[0].kind, Kind::Dump("bytecode".into()));
+        assert_eq!(c[0].pick.as_deref(), Some("greet"));
+        let e = parse("p.md", "# T\n\n```dump bytecode exit=1\nx\n```\n").unwrap_err();
+        assert!(e.contains("unknown attribute `exit=1`"), "{e}");
+        for fence in ["plain", "core"] {
+            let e = parse(
+                "p.md",
+                &format!("# T\n\n```{fence}\n== sq ==\n0000  1:16  LOADLOCAL    0\n```\n"),
+            )
+            .unwrap_err();
+            assert!(e.contains("p.md:3:") && e.contains("`dump` fence"), "{e}");
+        }
+        // a plain fence that only mentions the shape is fine
+        assert!(parse("p.md", "# T\n\n```plain\n== a heading ==\n```\n").is_ok());
     }
 
     #[test]

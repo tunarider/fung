@@ -1432,6 +1432,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/pieces.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/pipe_tags.fung
 -- stdout
 | 0 passed, 0 failed

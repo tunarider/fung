@@ -5,11 +5,14 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use fung_front::diag::{Arg, Diag};
+use fung_front::diag::Arg;
 
 use crate::native::nat::{self, def, def_step, fail, opt, param};
 use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
-use crate::value::{ListBuilder, Lit, MapBuilder, Text, Value, compare, eq, hash_value, type_name};
+use crate::value::{
+    List, ListBuilder, Lit, MapBuilder, Text, Value, compare, eq, hash_value, type_name,
+};
+use crate::vm::pieces::{self, PIECE_COMPARES, PIECE_ITEMS, Work};
 use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -129,44 +132,102 @@ fn each_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     walk(t, Cursor::new(&a[0]), a[1].clone(), Each)
 }
 
-/// `xs` ordered by `keys` (02: stable, by `<`). A top-down merge sort on
-/// indices: comparisons can fail (`1 < "a"`), and the first failure ends
-/// the sort with its error. (The standard library's sort is not used: it
-/// may panic when the order it is given is not total.)
-fn sorted_by(xs: Vec<Value>, keys: &[Value]) -> Result<Value, Stop> {
-    fn merge_sort(idx: &mut [usize], tmp: &mut [usize], keys: &[Value]) -> Result<(), Diag> {
-        let n = idx.len();
-        if n < 2 {
-            return Ok(());
+/// `xs` ordered by `keys` (02: stable, by `<`): a merge sort on indices.
+/// Comparisons can fail (`1 < "a"`), and the first failure ends the sort
+/// with its error. (The standard library's sort is not used: it may panic
+/// when the order it is given is not total, and it cannot stop midway.)
+///
+/// It is bottom-up so that it can stop after any comparison and go on
+/// later (L6, `vm/pieces.rs`): runs of `width` are merged pairwise from
+/// `src` into `dst`, then the two swap and `width` doubles. The left run
+/// wins ties, so equal keys keep their order.
+struct Sort {
+    xs: Vec<Value>,
+    /// The keys, or none when the items are their own keys (`sort`).
+    keys: Option<Vec<Value>>,
+    src: Vec<usize>,
+    dst: Vec<usize>,
+    width: usize,
+    /// The pair being merged starts at `lo`; its runs are read at `i` and
+    /// `j` and written at `k`.
+    lo: usize,
+    i: usize,
+    j: usize,
+    k: usize,
+    /// Once sorted: the result so far, grown in place (a builder would
+    /// make its vector in one go at the end).
+    out: Option<List>,
+}
+
+impl Sort {
+    fn new(xs: Vec<Value>, keys: Option<Vec<Value>>) -> Sort {
+        let n = xs.len();
+        Sort {
+            xs,
+            keys,
+            src: (0..n).collect(),
+            dst: vec![0; n],
+            width: 1,
+            lo: 0,
+            i: 0,
+            j: 1.min(n),
+            k: 0,
+            out: None,
         }
-        let mid = n / 2;
-        merge_sort(&mut idx[..mid], &mut tmp[..mid], keys)?;
-        merge_sort(&mut idx[mid..], &mut tmp[mid..], keys)?;
-        tmp[..n].copy_from_slice(idx);
-        let (mut i, mut j) = (0, mid);
-        for slot in idx.iter_mut() {
-            // The right element goes first only when it is smaller: equal
-            // keys keep their order.
-            let right = j < n && (i == mid || compare(&keys[tmp[j]], &keys[tmp[i]])?.is_lt());
-            if right {
-                *slot = tmp[j];
-                j += 1;
-            } else {
-                *slot = tmp[i];
-                i += 1;
+    }
+}
+
+impl Work for Sort {
+    fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+        let n = self.src.len();
+        let mut budget = PIECE_COMPARES;
+        let keys = self.keys.as_deref().unwrap_or(&self.xs);
+        while self.width < n {
+            let mid = (self.lo + self.width).min(n);
+            let hi = (self.lo + 2 * self.width).min(n);
+            // the merge on locals: the state goes back to `self` at a pause
+            let (src, dst) = (&self.src[..], &mut self.dst[..]);
+            let (mut i, mut j, mut k) = (self.i, self.j, self.k);
+            while i < mid && j < hi {
+                if budget == 0 {
+                    (self.i, self.j, self.k) = (i, j, k);
+                    return Ok(None);
+                }
+                budget -= 1;
+                if compare(&keys[src[j]], &keys[src[i]])?.is_lt() {
+                    dst[k] = src[j];
+                    j += 1;
+                } else {
+                    dst[k] = src[i];
+                    i += 1;
+                }
+                k += 1;
             }
+            // one run is used up: the rest of the other follows as it is
+            let rest = if i < mid { &src[i..mid] } else { &src[j..hi] };
+            dst[k..hi].copy_from_slice(rest);
+            self.lo = hi;
+            if self.lo >= n {
+                std::mem::swap(&mut self.src, &mut self.dst);
+                self.width *= 2;
+                self.lo = 0;
+            }
+            self.i = self.lo;
+            self.j = (self.lo + self.width).min(n);
+            self.k = self.lo;
         }
-        Ok(())
+        // The result, a piece at a time too.
+        let out = self.out.get_or_insert_with(|| List::new(Vec::new()));
+        let from = out.len();
+        for &i in self.src.iter().skip(from).take(8 * PIECE_ITEMS) {
+            out.push(self.xs[i].clone());
+        }
+        if out.len() < n {
+            return Ok(None);
+        }
+        let out = self.out.take().expect("built");
+        Ok(Some(Value::List(Rc::new(out))))
     }
-    let mut idx: Vec<usize> = (0..xs.len()).collect();
-    let mut tmp = vec![0; xs.len()];
-    merge_sort(&mut idx, &mut tmp, keys)?;
-    let mut slots: Vec<Option<Value>> = xs.into_iter().map(Some).collect();
-    let mut out = ListBuilder::with_capacity(slots.len());
-    for i in idx {
-        out.push(slots[i].take().expect("each index once"));
-    }
-    Ok(Value::List(Rc::new(out.finish())))
 }
 
 /// The elements of `v` handed to `then` all at once: at once for a list
@@ -205,10 +266,7 @@ fn all_items(
 
 fn sort_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "sort")?;
-    all_items(t, &a[0], |_, xs| {
-        let keys = xs.clone();
-        sorted_by(xs, &keys).map(Flow::Done)
-    })
+    all_items(t, &a[0], |t, xs| pieces::run(t, Sort::new(xs, None)))
 }
 
 /// `unique(xs)`: the elements without the later ones `==` an earlier one,
@@ -217,26 +275,60 @@ fn sort_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// E0517 as with `in`.
 fn unique_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "unique")?;
-    all_items(t, &a[0], |_, xs| {
-        let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
-        let mut out: Vec<Value> = Vec::new();
-        for x in xs {
-            let mut h = std::hash::DefaultHasher::new();
-            hash_value(&x, &mut h);
-            let b = buckets.entry(std::hash::Hasher::finish(&h)).or_default();
-            let mut seen = false;
-            for &i in b.iter() {
-                if eq(&out[i], &x)? {
-                    seen = true;
-                    break;
+    /// The kept elements, and for each hash the first kept element with
+    /// it, the others chained through `next`: one table and two vectors,
+    /// not a vector per hash, so freeing them is quick too (L6).
+    struct Unique {
+        xs: std::vec::IntoIter<Value>,
+        first: HashMap<u64, usize>,
+        next: Vec<usize>,
+        /// The kept elements, and the same grown as the result.
+        out: Vec<Value>,
+        list: List,
+    }
+    impl Work for Unique {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            for x in self.xs.by_ref().take(PIECE_ITEMS) {
+                let mut h = std::hash::DefaultHasher::new();
+                hash_value(&x, &mut h);
+                let h = std::hash::Hasher::finish(&h);
+                let mut at = self.first.get(&h).copied().unwrap_or(usize::MAX);
+                let mut seen = false;
+                while at != usize::MAX {
+                    if eq(&self.out[at], &x)? {
+                        seen = true;
+                        break;
+                    }
+                    at = self.next[at];
+                }
+                if !seen {
+                    let i = self.out.len();
+                    self.next
+                        .push(self.first.insert(h, i).unwrap_or(usize::MAX));
+                    self.list.push(x.clone());
+                    self.out.push(x);
                 }
             }
-            if !seen {
-                b.push(out.len());
-                out.push(x);
+            if self.xs.len() > 0 {
+                return Ok(None);
             }
+            let list = std::mem::replace(&mut self.list, List::new(Vec::new()));
+            Ok(Some(Value::List(Rc::new(list))))
         }
-        Ok(Flow::Done(nat::list(out)))
+    }
+    all_items(t, &a[0], |t, xs| {
+        pieces::run(
+            t,
+            // Sized up front: a table that grows rehashes all it holds at
+            // once, which would undo the pieces (L6).
+            Unique {
+                first: HashMap::with_capacity(xs.len()),
+                next: Vec::with_capacity(xs.len()),
+                out: Vec::with_capacity(xs.len()),
+                list: List::new(Vec::new()),
+                xs: xs.into_iter(),
+            },
+        )
     })
 }
 
@@ -257,7 +349,12 @@ fn sort_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             Ok(false)
         }
         fn result(&mut self, _: bool) -> Result<Value, Stop> {
-            sorted_by(std::mem::take(&mut self.xs), &self.keys)
+            unreachable!("sort_by ends with `finish`")
+        }
+        fn finish(&mut self, t: &mut Task<'_>, _: bool) -> Result<Flow, Stop> {
+            let xs = std::mem::take(&mut self.xs);
+            let keys = std::mem::take(&mut self.keys);
+            pieces::run(t, Sort::new(xs, Some(keys)))
         }
     }
     let f = a[1].clone();

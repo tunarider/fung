@@ -1,6 +1,6 @@
 # L12. 소켓·TLS의 세부 한계
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-11-08)**. 결과는 끝의 "닫힘" 절. 목록: [README](README.md).
 
 출처: open-questions "알려진 한계"의 "소켓·TLS", 06 "HTTP"의 https, `docs/notes/R4d-net-http.md`(2·3절; 쓰레드 시절의 설명이라 기다림 부분은 R4a 이벤트 루프로 바뀌었다).
 코드: `crates/fung-vm/src/native/net.rs`(`_native.net`), `sock.rs`(소켓·`getaddrinfo`), `tls.rs`(rustls), `vm/block.rs`(`park_io`·`IoWait`), `vm/pool.rs`(`POOL_MAX` 64), `extras/http.fung`.
@@ -146,3 +146,16 @@ Go는 기본으로 넣지 않고 따로 고르는 `x509roots/fallback` 꾸러미
 - 위 시험이 모두 있고 고치기 전 실패를 확인했다. 커밋 전 검사(fmt·clippy·`cargo test` 두 프로필·deny·audit)가 통과한다.
 - open-questions "알려진 한계"의 "소켓·TLS" 항목이 모두 고쳐졌거나 06의 규칙으로 옮겨졌다. 남는 한계(이름 조회를 끊을 수 없음)는 왜 남는지 한 줄로 적혀 있다.
 - 매뉴얼과 CHANGELOG가 바뀐 동작을 말한다.
+
+## 닫힘 (2026-11-08)
+
+결정(사용자, 2026-11-08 "추천대로"): A 나, B 다, C 가, D 나, E 가, F 나, G 나, H 가, I 가. 상한 1초(F), 간격 250 ms(B), 조회 8(D), 읽기 실패를 문구에(I 정할 것 4). 6은 S18로 이미 끝.
+
+- A: `set_deadline`이 `drop_io_waits`로 기다림을 깨운다. 시험 `set_deadline_reaches_a_blocked_read`(전에는 멈춤).
+- B: `Dial`이 계열을 번갈아 놓고(`interleave`) 250 ms마다 다음 시도를 함께 시작, 먼저 된 것을 쓴다. 여러 fd 기다림 `IoStep::WaitAny`. 시험 `a_silent_first_address_does_not_hold_the_connect`(시험 이름 `eyeballs.invalid` → 192.0.2.1, 127.0.0.1)·`the_families_take_turns`.
+- C·E·H: 06에 규칙. E의 문구 ``invalid port `http` (a port is a number)``.
+- D: 조회만의 풀 `Shared::lookups`(`LOOKUPS_MAX` 8, `offload::Kind::Lookup`). 시험 `held_lookups_leave_the_file_jobs_their_pool`(전에는 64개가 풀을 다 잡아 파일 읽기가 시간 초과). **추천과 다른 점**: 같은 이름의 동시 조회를 합치지 않았다(풀 밖에 이름별 줄이 필요; open-questions에 적음).
+- F: TLS `close`가 `run_io` 연산이 되어 close_notify를 최대 1초 기다린다(`tls::flush_close`). 시험 `close_waits_for_close_notify`(전에는 상대가 `UnexpectedEof`).
+- G: `connect`·`start_tls`의 `alpn` 인자, `http.fung`이 `["http/1.1"]`. 시험 `alpn_offers_the_protocols_given`.
+- I: `ROOTS_NOTE`: 루트 0개면 `no root certificates found (set SSL_CERT_FILE)`(변수가 있으면 ``(none in SSL_CERT_FILE)``), 변수의 파일을 못 읽으면 그 까닭. 시험 `crates/fung-cli/tests/http.rs`의 `missing_roots_are_named`. 시험의 자식 프로세스는 인증서 변수를 물려받지 않는다(`PROXY_VARS`).
+- 노트 `docs/notes/L12-sockets-tls.md`.

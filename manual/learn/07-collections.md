@@ -64,7 +64,7 @@ print(take(more, 2), drop(more, 1), take(more, 10))
 print(more |> map(upper), more |> filter(s => starts_with(s, "web")))
 ```
 
-`servers`는 그대로다. 그래서 같은 리스트를 여러 곳에 넘겨도 안전하다. 새 리스트를 만든다고 원소 전체를 복사하는 것은 아니다. 새 리스트는 원래 리스트와 구조를 나눠 쓰므로, `acc + [x]`로 하나씩 쌓아도 빠르다.
+`servers`는 그대로다. 그래서 같은 리스트를 여러 곳에 넘겨도 안전하다. 새 리스트를 만든다고 원소 전체를 복사하는 것은 아니다. 새 리스트는 원래 리스트와 구조를 나눠 쓰므로, 뒤에(`acc + [x]`) 붙이든 앞에(`[x] + acc`) 붙이든 하나씩 쌓아도 빠르다.
 
 ### 리스트 함수 {#list-functions}
 
@@ -232,12 +232,6 @@ JSON이나 설정에서 온 맵의 키는 있을 수도 없을 수도 있다. `c
 
 :::
 
-:::box mistake 앞에 붙이기
-
-`[x] + acc`로 리스트의 **앞**에 하나씩 붙이면 매번 전체를 복사해서 원소가 많으면 느려진다. 뒤에 붙인 뒤(`acc + [x]`) 마지막에 `reverse`한다.
-
-:::
-
 :::box other 다른 언어는
 
 fung의 리스트는 Python의 list나 JavaScript의 배열, 맵은 Python의 dict나 JavaScript의 객체, 튜플은 Python의 tuple과 비슷하다. 다른 점은 셋 다 고칠 수 없다는 것이다(`append`, `xs[0] = …`, `d["k"] = …`가 없다). Python의 dict와 달리 키는 문자열뿐이고, 없는 키를 읽으면 JavaScript처럼 `undefined`가 아니라 에러다. `jq '.items[0].name'`은 fung에서 `data.items[0].name`이다(JSON은 13장).
@@ -297,4 +291,4 @@ print(slow)
 - 튜플은 `(a, b) = t`처럼 풀어서 받는다. `pairs`, `zip`, `for (a, b) in …`이 튜플을 쓴다.
 - 세기는 `fold`와 `put`/`get`, 묶기는 `group_by`, 정렬은 `sort`·`sort_by`.
 
-레퍼런스: [리스트 함수](../reference/prelude/collections.html), [맵 함수](../reference/prelude/maps.html), [`get`](../reference/prelude/maps.html#fn-get), [`put`](../reference/prelude/maps.html#fn-put), [`group_by`](../reference/prelude/collections.html#fn-group_by), [값과 타입](../reference/language.html#values), [인덱스·슬라이스·필드](../reference/language.html#access), [E0508](../reference/errors.html#E0508). 새 리스트가 구조를 나눠 쓰는 방법은 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.
+레퍼런스: [리스트 함수](../reference/prelude/collections.html), [맵 함수](../reference/prelude/maps.html), [`get`](../reference/prelude/maps.html#fn-get), [`put`](../reference/prelude/maps.html#fn-put), [`group_by`](../reference/prelude/collections.html#fn-group_by), [값과 타입](../reference/language/values.html), [인덱스·슬라이스·필드](../reference/language/access.html), [E0508](../reference/errors.html#E0508). 새 리스트가 구조를 나눠 쓰는 방법은 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.

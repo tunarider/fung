@@ -81,18 +81,6 @@ for svc in services:
 ;;
 ```
 
-:::box mistake JSON의 문자열과 심볼을 비교하기
-JSON에서 온 값은 늘 문자열이다. `svc.status == 'down`처럼 심볼과 비교하면 조용히 거짓이 되는 대신 런타임 에러 E0517로 멈춘다. 가장 흔한 함정이라서 일부러 에러로 만들었다. 문자열과 비교하거나(`svc.status == "down"`), `sym(svc.status) == 'down`으로 바꿔 비교한다. 패턴 `{status: "down"}`도 문자열로 쓴다.
-
-```fung run exit=1 error=E0517
-import json
-
-svc = json.parse(`{"status": "down"}`)!
-print(svc.status == 'down)
-```
-
-:::
-
 ## JSON 쓰기 {#stringify}
 
 `json.stringify(값)`은 fung 값을 JSON 문자열로 바꾼다. `indent:`에 칸 수를 주면 사람이 읽기 좋게 줄을 나눈다. 튜플은 배열, 심볼은 문자열, 시각은 ISO 8601 문자열이 된다. JSON에 없는 값(기간, 함수, 태그 등)은 런타임 에러 E0513이므로 `str(d)`처럼 먼저 바꿔 둔다.
@@ -187,7 +175,7 @@ print(r.status, json.parse(r.body)!.json)
 
 `http.serve(주소, 처리기)`는 주소(`":8080"`, `"127.0.0.1:8080"`)에서 요청을 기다리는 서버를 띄운다. 요청이 올 때마다 새 태스크(12장)에서 `처리기(req)`를 부른다. `req`는 `{method, path, query, headers, body}` 맵이다. 처리기는 문자열(상태 200의 텍스트) 또는 `{status, headers, body}` 맵을 돌려준다. 처리기가 런타임 에러를 내면 그 요청에만 500으로 답하고 서버는 계속 돈다. `ready:`에 함수를 주면 서버가 듣기 시작한 직후 실제 주소로 한 번 부른다.
 
-서버는 멈추지 않고 계속 돌기 때문에 이 예제도 매뉴얼에서는 실행하지 않는다. Ctrl-C(SIGINT)나 SIGTERM을 받으면 새 연결을 그만 받고 처리 중인 요청을 마친 뒤 `nil`을 돌려주며 끝난다. 주소를 열지 못하면(이미 쓰는 포트 등) `Err`를 돌려주므로, 아래처럼 문장으로 두면 그 `Err`가 버려져 E0606으로 멈춘다(9장). `nil`에 `!`를 붙이면 에러(E0604)이므로 여기에는 `!`를 붙이지 않는다.
+서버는 멈추지 않고 계속 돌기 때문에 이 예제도 매뉴얼에서는 실행하지 않는다. Ctrl-C(SIGINT)나 SIGTERM을 받으면 새 연결을 그만 받고 처리 중인 요청을 마친 뒤 `Ok(nil)`을 돌려주며 끝난다. 주소를 열지 못하면(이미 쓰는 포트 등) `Err`를 돌려주므로, 아래처럼 문장으로 두면 그 `Err`가 버려져 E0606으로 멈춘다(9장). `http.serve(…)!`로 써도 된다: 정상 종료는 `Ok(nil)`이라 `!`가 통과한다.
 
 ```fung check
 import http
@@ -261,10 +249,6 @@ sleep(50ms)
 print("took about", (time.monotonic() - start) // 10ms * 10, "ms")
 ```
 
-:::box other 다른 언어는
-쉘에서는 `curl`로 받고 `jq`로 JSON을 다루고 `date`로 시각을 계산하며, 세 도구의 문법이 저마다 다르다. fung에서는 셋이 같은 값(맵·리스트·시각) 위에서 이어진다. Python의 `json`·`urllib`·`datetime`이나 JavaScript의 `JSON.parse`·`fetch`·`Date`와 하는 일이 같다.
-:::
-
 :::exercise 내려간 서비스 알리기
 `services.json`(위와 같은 모양)을 읽어 `status`가 `"down"`인 서비스 이름을 쉼표로 이어 출력하고, 하나라도 있으면 종료 코드 1로 끝내 보자. 없으면 `all services up`을 출력한다.
 
@@ -313,6 +297,81 @@ print(json.stringify(summarize([("web1", 120ms), ("web2", 2s)])))
 ```
 
 :::
+:::
+
+## 짚고 넘어가기 {#notes}
+
+:::box mistake JSON의 문자열과 심볼을 비교하기
+JSON에서 온 값은 늘 문자열이다. `svc.status == 'down`처럼 심볼과 비교하면 조용히 거짓이 되는 대신 런타임 에러 E0517로 멈춘다. 가장 흔한 함정이라서 일부러 에러로 만들었다. 문자열과 비교하거나(`svc.status == "down"`), `sym(svc.status) == 'down`으로 바꿔 비교한다. 패턴 `{status: "down"}`도 문자열로 쓴다.
+
+```fung run exit=1 error=E0517
+import json
+
+svc = json.parse(`{"status": "down"}`)!
+print(svc.status == 'down)
+```
+
+:::
+
+:::box other 다른 언어는
+쉘에서는 `curl`로 받고 `jq`로 JSON을 다루고 `date`로 시각을 계산하며, 세 도구의 문법이 저마다 다르다. fung에서는 셋이 같은 값(맵·리스트·시각) 위에서 이어진다. Python의 `json`·`urllib`·`datetime`이나 JavaScript의 `JSON.parse`·`fetch`·`Date`와 하는 일이 같다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise JSON에서 필드 꺼내기
+
+`{"service": "api", "replicas": 3, "ports": [80, 443]}`를 읽어 서비스 이름과 두 번째 포트를 찍어 보자.
+
+:::solution
+
+```fung run
+import json
+data = json.parse("{\"service\": \"api\", \"replicas\": 3, \"ports\": [80, 443]}")!
+print(data.service, data.ports[1])
+```
+
+:::
+
+:::
+
+:::exercise 들여쓴 JSON 쓰기
+
+`{name: "web-1", up: true, ms: 12}`를 두 칸 들여쓴 JSON으로 찍어 보자.
+
+:::solution
+
+```fung run
+import json
+print(json.stringify({name: "web-1", up: true, ms: 12}, indent: 2))
+```
+
+:::
+
+:::
+
+:::exercise 내 서버에 물어보기
+
+같은 프로그램 안에서 `/health`에 `"ok"`로 답하는 서버를 띄우고, 그 주소로 `http.get`을 보내 상태와 본문을 찍은 뒤 서버를 멈춰 보자. 서버의 주소는 `ready:`로 받는다.
+
+:::solution
+
+서버는 멈출 때까지 돌므로 태스크 범위 안에 띄우고, 다 쓰면 `cancel`로 멈춘다. 주소는 포트 `0`(남는 포트)으로 열고 채널로 받는다.
+
+```fung run
+import http
+(addr_tx, addr_rx) = channel(1)
+scope(fn(s):
+  server = spawn(s, () => http.serve("127.0.0.1:0", req => "ok", ready: a => send(addr_tx, a)!))
+  addr = recv(addr_rx)!
+  r = http.get("http://${addr}/health")!
+  print(r.status, r.body)
+  cancel(server)
+;;)
+```
+
+:::
+
 :::
 
 ## 정리 {#summary}

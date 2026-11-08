@@ -6,7 +6,7 @@
 use std::rc::Rc;
 
 use super::hamt::{Hamt, hash_key};
-use super::pvec::{MASK, Pvec};
+use super::pvec::Pvec;
 use super::{Probe, Probed, Text, Value};
 
 #[derive(Clone)]
@@ -34,6 +34,33 @@ impl Omap {
     /// Whether a live entry's value holds a mutable one.
     pub(super) fn holds_mutable(&self) -> bool {
         self.ents.holds(Probe::Mutable)
+    }
+
+    /// Hands `f` each live value that holds a mutable one, a node at a
+    /// time (`Pvec::each_holding`).
+    pub(super) fn each_mutable(
+        &self,
+        seen: &mut dyn FnMut(*const ()) -> bool,
+        f: &mut dyn FnMut(&Value),
+    ) {
+        let n = self.ents.len();
+        self.ents
+            .each_holding(0, n, Probe::Mutable, seen, &mut |e: &Option<Entry>| {
+                if let Some(e) = e {
+                    f(&e.val);
+                }
+            });
+    }
+
+    /// The first live entry at slot `at` or after it, with its slot.
+    pub(super) fn entry_from(&self, mut at: usize) -> Option<(usize, &Entry)> {
+        while at < self.ents.len() {
+            if let Some(e) = self.ents.at(at) {
+                return Some((at, e));
+            }
+            at += 1;
+        }
+        None
     }
 
     /// A map of distinct keys in the given order.
@@ -139,8 +166,7 @@ impl<'a> Iterator for Iter<'a> {
             if self.next >= self.vec.len() {
                 return None;
             }
-            let leaf = self.vec.leaf_for(self.next);
-            let start = self.next & MASK;
+            let (leaf, start) = self.vec.leaf_for(self.next);
             let end = leaf.len().min(start + (self.vec.len() - self.next));
             self.cur = leaf[start..end].iter();
             self.next += end - start;

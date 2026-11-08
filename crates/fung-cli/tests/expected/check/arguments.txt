@@ -84,7 +84,7 @@
 |   --> -e:2:3
 |   |
 | 2 |   이름 = 1
-|   |   ^^
+|   |   ^^^^
 |   |
 |  help: prefix it with `_` if it is intentional
 -- exit: 0

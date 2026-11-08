@@ -23,10 +23,6 @@ print(parse_int("42"))
 print(parse_int("마흔둘"))
 ```
 
-:::box learn "값"이라는 말
-숫자 `42`나 문자열 `"hi"`처럼, 변수에 담고 함수에 넘기고 돌려받을 수 있는 것을 **값**이라고 한다(3장). "에러가 값이다"는 에러도 변수에 담고, 함수에 넘기고, 리스트에 모을 수 있다는 뜻이다. 던지고 잡는 특별한 무엇이 아니다.
-:::
-
 `Ok`와 `Err`는 8장에서 본 태그다. 표준 라이브러리가 돌려주는 `Err` 안에는 맵이 들어 있다. `kind`는 실패의 종류를 나타내는 심볼이고, `message`는 사람이 읽을 설명이다. 파일 읽기가 실패하면 이렇게 생겼다.
 
 ```fung run
@@ -89,16 +85,6 @@ n = parse_int("x")?
 print(n)
 ```
 
-:::box mistake map의 람다 안에서 ?
-`xs |> map(x => parse_int(x)?)`는 컴파일 에러 E0226이다. `?`는 람다에서 돌아갈 뿐 바깥 함수에서 돌아가지 않으므로, 실패가 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 `try_map`을 쓴다. 모두 성공하면 `Ok(리스트)`, 아니면 처음 `Err`다.
-
-```fung run
-print(try_map(["1", "2", "3"], parse_int))
-print(try_map(["1", "b", "c"], parse_int))
-```
-
-:::
-
 ## !로 멈추기 {#bang}
 
 짧은 스크립트에서는 "실패하면 그냥 멈추면 된다"인 경우가 많다. 설정 파일이 없으면 더 할 일이 없다. 이때 `!`를 붙인다. `Ok(v)`면 `v`를 꺼내고, `Err`면 프로그램을 종료 코드 1로 멈추며 이유를 보여 준다(E0603).
@@ -122,10 +108,6 @@ port = env("PORT") ?? "8080"
 print(retries, port)
 ```
 
-:::box mistake ??는 모든 실패를 덮는다
-`fs.read(p) ?? "{}"`는 파일이 없을 때만이 아니라 권한이 없을 때도 `"{}"`다. 정말 문제인 실패까지 조용히 덮을 수 있다. 특정한 실패만 기본값으로 바꾸려면 위의 `load_config`처럼 `match`로 `kind`를 가린다.
-:::
-
 ## 버리면 안 된다 {#discard}
 
 결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 첫 줄은 `parse_int`의 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 `Err`면 fung은 거기서 멈춘다(E0606).
@@ -145,12 +127,6 @@ import fs
 _ = fs.remove("tmp-work.txt")
 print("cleaned up")
 ```
-
-:::box learn 값을 쓰는 자리와 버리는 자리
-블록에서 마지막이 아닌 식, 문장으로 쓴 함수 호출, 값을 버리는 `for`의 본문이 "버리는 자리"다. 함수의 마지막 식은 반환값이므로 버려지지 않는다. 그래서 `fn f() = parse_int("x")`는 괜찮고, `f()`를 부른 쪽이 그 `Err`를 다뤄야 한다.
-
-버려지는 값이 리스트면 fung은 그 원소도 본다. `for`로 끝나는 함수는 리스트를 돌려주는데, 그 함수를 문장으로 불러도 안의 `Err`가 사라지지 않는다.
-:::
 
 ```fung run exit=1 error=E0606
 fn parse_all(texts):
@@ -199,10 +175,6 @@ fn require_port(cfg) = get(cfg, "port", nil) ?? fail("config.port is required")
 print(require_port({port: 8080}))
 print(require_port({}))
 ```
-
-:::box other 다른 언어는
-Python·Java·JavaScript는 예외를 던지고 `try`로 잡는다. Rust는 fung과 같은 `Result`와 `?`를 쓰고, 버그에는 `panic!`을 쓴다. fung의 결과값과 `?`는 Rust에서 왔고, `fail`이 `panic!`에 해당한다. 쉘은 종료 코드로 실패를 알리고 `set -e`·`||`로 다룬다.
-:::
 
 :::exercise 두 인자 더하기
 명령줄 인자 두 개(`args`, 2장)를 정수로 바꿔 더해 출력하는 스크립트를 써 보자. 인자가 두 개가 아니거나 숫자가 아니면 표준 에러에 이유를 쓰고(`eprint`) 종료 코드 1로 끝낸다(`exit(1)`). 계산은 결과값을 돌려주는 함수로 만들고, 맨 위에서 한 번 `match`한다.
@@ -264,6 +236,98 @@ print(parse_all(["port=8080", "broken", "debug=true"]))
 :::
 :::
 
+## 짚고 넘어가기 {#notes}
+
+:::box learn "값"이라는 말
+숫자 `42`나 문자열 `"hi"`처럼, 변수에 담고 함수에 넘기고 돌려받을 수 있는 것을 **값**이라고 한다(3장). "에러가 값이다"는 에러도 변수에 담고, 함수에 넘기고, 리스트에 모을 수 있다는 뜻이다. 던지고 잡는 특별한 무엇이 아니다.
+:::
+
+:::box mistake map의 람다 안에서 ?
+`xs |> map(x => parse_int(x)?)`는 컴파일 에러 E0226이다. `?`는 람다에서 돌아갈 뿐 바깥 함수에서 돌아가지 않으므로, 실패가 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 `try_map`을 쓴다. 모두 성공하면 `Ok(리스트)`, 아니면 처음 `Err`다.
+
+```fung run
+print(try_map(["1", "2", "3"], parse_int))
+print(try_map(["1", "b", "c"], parse_int))
+```
+
+:::
+
+:::box mistake ??는 모든 실패를 덮는다
+`fs.read(p) ?? "{}"`는 파일이 없을 때만이 아니라 권한이 없을 때도 `"{}"`다. 정말 문제인 실패까지 조용히 덮을 수 있다. 특정한 실패만 기본값으로 바꾸려면 위의 `load_config`처럼 `match`로 `kind`를 가린다.
+:::
+
+:::box learn 값을 쓰는 자리와 버리는 자리
+블록에서 마지막이 아닌 식, 문장으로 쓴 함수 호출, 값을 버리는 `for`의 본문이 "버리는 자리"다. 함수의 마지막 식은 반환값이므로 버려지지 않는다. 그래서 `fn f() = parse_int("x")`는 괜찮고, `f()`를 부른 쪽이 그 `Err`를 다뤄야 한다.
+
+버려지는 값이 리스트면 fung은 그 원소도 본다. `for`로 끝나는 함수는 리스트를 돌려주는데, 그 함수를 문장으로 불러도 안의 `Err`가 사라지지 않는다.
+:::
+
+:::box other 다른 언어는
+Python·Java·JavaScript는 예외를 던지고 `try`로 잡는다. Rust는 fung과 같은 `Result`와 `?`를 쓰고, 버그에는 `panic!`을 쓴다. fung의 결과값과 `?`는 Rust에서 왔고, `fail`이 `panic!`에 해당한다. 쉘은 종료 코드로 실패를 알리고 `set -e`·`||`로 다룬다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise 포트 읽기
+
+문자열을 받아 1~65535의 포트면 `Ok(정수)`, 숫자가 아니면 `Err("not a number: …")`, 범위 밖이면 `Err("out of range: …")`를 돌려주는 함수를 `?`로 써 보자. `"8080"`, `"http"`, `"70000"`에 대해 찍는다.
+
+:::solution
+
+```fung run
+fn port(s):
+  n = match parse_int(s):
+    Ok(n)  => n
+    Err(_) => return Err("not a number: ${s}")
+  ;;
+  n >= 1 and n <= 65535 then Ok(n) else Err("out of range: ${s}")
+;;
+for s in ["8080", "http", "70000"]:
+  print(port(s))
+;;
+```
+
+:::
+
+:::
+
+:::exercise 기본값 붙이기
+
+설정 맵 `{timeout: "30", retries: "x"}`에서 `timeout`과 `retries`를 정수로 읽되, 없거나 숫자가 아니면 각각 10과 3을 쓰자. `??`를 쓴다.
+
+:::solution
+
+`get`으로 없는 키를 `nil`로 받고, `parse_int`의 `Err`도 `??`가 기본값으로 바꾼다. `??`는 모든 실패를 덮는다는 점을 기억한다.
+
+```fung run
+cfg = {timeout: "30", retries: "x"}
+fn int_or(m, key, d) = parse_int(get(m, key, "")) ?? d
+print(int_or(cfg, "timeout", 10), int_or(cfg, "retries", 3), int_or(cfg, "delay", 5))
+```
+
+:::
+
+:::
+
+:::exercise 맞는 것만 더하기
+
+`["10", "x", "25", "", "7"]`에서 정수로 읽히는 것만 더하고, 읽히지 않은 줄 수도 함께 찍어 보자. 실패를 버리지 말고 `match`로 센다.
+
+:::solution
+
+```fung run
+lines = ["10", "x", "25", "", "7"]
+(total, bad) = fold(lines, (0, 0), ((t, b), s) => match parse_int(s):
+  Ok(n)  => (t + n, b)
+  Err(_) => (t, b + 1)
+;;)
+print(total, bad)
+```
+
+:::
+
+:::
+
 ## 정리 {#summary}
 
 - 실패할 수 있는 함수는 `Ok(값)` 또는 `Err(이유)`를 돌려준다. 표준 라이브러리의 이유는 `{kind, message}` 맵이다.
@@ -273,4 +337,4 @@ print(parse_all(["port=8080", "broken", "debug=true"]))
 - 리스트를 바꾸다 처음 실패에서 멈추려면 `try_map`.
 - 버그는 결과값이 아니라 런타임 에러다. `fail(메시지)`로 직접 낼 수 있다.
 
-정확한 규칙은 레퍼런스의 [결과값과 에러](../reference/language.html#results), 함수는 [결과값](../reference/prelude/results.html)과 [`try_map`](../reference/prelude/collections.html#fn-try_map), [`fail`](../reference/prelude/program.html#fn-fail)에 있다. 에러 번호는 [E0603](../reference/errors.html#E0603), [E0606](../reference/errors.html#E0606), [E0214](../reference/errors.html#E0214), [E0226](../reference/errors.html#E0226)을 보라.
+정확한 규칙은 레퍼런스의 [결과값과 에러](../reference/language/results.html), 함수는 [결과값](../reference/prelude/results.html)과 [`try_map`](../reference/prelude/collections.html#fn-try_map), [`fail`](../reference/prelude/program.html#fn-fail)에 있다. 에러 번호는 [E0603](../reference/errors.html#E0603), [E0606](../reference/errors.html#E0606), [E0214](../reference/errors.html#E0214), [E0226](../reference/errors.html#E0226)을 보라.

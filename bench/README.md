@@ -14,11 +14,14 @@ fung 인터프리터 속도를 재는 스크립트. 테스트가 아니라 측�
 | `wait.fung` | 태스크 2만 개가 저마다의 채널에서 함께 기다리기: 기다리는 태스크의 비용 |
 | `fs.fung` | `fs.exists`·`fs.stat` 5만 번을 차례로: 스레드 풀에 맡기는 일의 비용 |
 | `exec.fung` | `exec(["true"])` 500번을 차례로: 외부 명령을 띄우고 끝과 파이프를 기다리는 비용 |
+| `heads.fung` | HTTP 머리: 값 500개(약 1 MB)인 요청 2개와 헤더 2만 줄인 응답 2개 (L13) |
 
 ```
 cargo build --release --locked -p fung-cli
 time target/release/fung bench/fib.fung
 ```
+
+Linux 판(glibc·musl)을 macOS에서 재는 방법(Docker arm64)은 `docs/notes/bench-languages.md` 4.4절에 있다. 부하가 높은 기계에서는 바이너리를 번갈아 돌려 같은 때의 중앙값만 견준다.
 
 `scripts/bench.sh <바이너리>...`는 아래 기록의 방법(파일마다 바이너리마다 준비 1회 + 9회 중앙값)으로 모든 파일을 재서 표로 찍는다.
 두 바이너리를 주면 같은 기계에서 나란히 비교한다(예: `scripts/bench.sh /tmp/fung-base target/release/fung`).

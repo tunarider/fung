@@ -161,7 +161,7 @@ print("free:", free, "GB")
 - 소문자나 `_`로 시작한다. 이어지는 글자는 글자, 숫자, `_`다. 한글 이름도 된다(`파일수 = 3`).
 - 단어는 `_`로 잇는 것이 관례다(snake_case): `disk_used_gb`.
 - **대문자로 시작하는 이름은 변수가 될 수 없다.** 대문자로 시작하는 것은 태그라는 다른 값이다(8장). `MAX_RETRIES = 3`은 E0225 에러다.
-- `if`, `for`, `fn` 같은 **예약어(keyword)**는 이름으로 쓸 수 없다. 목록은 [레퍼런스](../reference/language.html#lexical)에 있다.
+- `if`, `for`, `fn` 같은 **예약어(keyword)**는 이름으로 쓸 수 없다. 목록은 [레퍼런스](../reference/language/lexical.html)에 있다.
 - 이름은 **쓰기 전에** 대입해야 한다. 아래 줄에서 대입할 이름을 위에서 읽으면 E0204다.
 
 같은 이름에 다시 대입할 수도 있다. 그러면 그 이름은 새 값을 가리킨다.
@@ -313,4 +313,4 @@ print(a, b)
 - 값은 바뀌지 않는다. 대입은 이름표를 옮길 뿐이다.
 - 블록 안에서는 바깥 이름에 대입할 수 없다(E0205). 블록이 낸 값을 대입한다.
 
-레퍼런스: [값과 타입](../reference/language.html#values), [연산자](../reference/language.html#operators), [변수와 스코프](../reference/language.html#scope), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0517](../reference/errors.html#E0517). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.
+레퍼런스: [값과 타입](../reference/language/values.html), [연산자](../reference/language/operators.html), [변수와 스코프](../reference/language/scope.html), [변환 함수](../reference/prelude/convert.html), [E0205](../reference/errors.html#E0205), [E0517](../reference/errors.html#E0517). 값이 메모리에서 어떻게 사는지는 [값과 메모리](../vm/10-values-and-memory.html)에서 다룬다.

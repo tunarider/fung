@@ -1,5 +1,5 @@
 ---
-description: 비교 연산자, 값을 내는 if·else와 한 줄 조건 then … else, for로 목록 돌기, map·filter·fold, while 대신 꼬리 재귀.
+description: 비교 연산자, 값을 내는 if·else와 한 줄 조건 then … else, for로 목록 돌기, map·filter·fold와 람다, while 대신 until·iterate.
 lede: 프로그램이 경우에 따라 다른 일을 하고, 같은 일을 여러 번 하게 만드는 법.
 ---
 # 조건과 반복
@@ -11,7 +11,8 @@ lede: 프로그램이 경우에 따라 다른 일을 하고, 같은 일을 여�
 - 한 줄 조건 `c then a else b`
 - `for`로 목록과 범위를 도는 법, `for`가 리스트를 만든다는 것
 - `map`·`filter`·`fold`로 목록을 바꾸고 고르고 모으는 법
-- `while`이 없는 이유와, 대신 쓰는 꼬리 재귀
+- 람다 `x => …`를 `map`·`filter`·`fold`에 넘기는 법
+- `while`이 없는 이유와, 대신 쓰는 `until`·`iterate`
 
 :::
 
@@ -132,7 +133,7 @@ print(levels)
 - **고르기** `filter(xs, f)`: `f`가 참인 원소만 남긴 새 리스트.
 - **모으기** `fold(xs, init, f)`: 처음 값 `init`에서 시작해, 원소마다 "지금까지 모은 값"과 그 원소로 다음 값을 만든다. 합계, 개수, 가장 큰 값 같은 것.
 
-`f` 자리에는 함수를 준다. `u => u >= 90`은 "`u`를 받아 `u >= 90`을 돌려주는 함수"를 짧게 쓴 것이다(5장에서 자세히 배운다).
+`f` 자리에는 **이름 없는 작은 함수**를 준다. `u => u >= 90`은 "`u`를 받아 `u >= 90`을 돌려준다"는 뜻이다. 화살표 왼쪽이 받는 값의 이름, 오른쪽이 돌려줄 값이다. 받는 값이 둘이면 `(total, u) => total + u`처럼 괄호로 묶는다. 이런 함수를 **람다**라고 부르는데, 여기서는 이 모양 하나만 알면 된다. 함수를 만들고 이름 붙이는 법은 5장에서 배운다.
 
 ```fung run
 usages = [45, 91, 78, 99]
@@ -156,50 +157,16 @@ print(critical, "disk(s) over 90%")
 많은 언어에는 "조건이 참인 동안 되풀이한다"는 `while`이 있다. fung에는 없다. `while`은 반복할 때마다 바깥 변수를 고쳐야 끝날 수 있는데, fung에서는 값이 바뀌지 않고 블록이 바깥 변수를 고칠 수 없기 때문이다(3장). 대신 두 가지를 쓴다.
 
 1. 목록이 있는 반복은 앞에서 본 `for`, `map`, `filter`, `fold`.
-2. 목록 없이 "될 때까지" 되풀이하는 반복(재시도, 대기, 누적)은 **재귀(recursion)**, 곧 함수가 자기 자신을 부르는 것.
-
-함수는 5장에서 배우지만, 모양은 간단하다. 아래는 8080번부터 시작해 이미 쓰는 포트를 건너뛰고 비어 있는 첫 포트를 찾는다. "쓰는 중이면 다음 번호로 같은 일을 다시 하고, 아니면 그 번호가 답"이다.
-
-```fung run
-fn next_free(port, used) = port in used then next_free(port + 1, used) else port
-print(next_free(8080, [8080, 8081, 8083]))
-```
-
-`while`에서 바뀌던 변수(`port`)가 여기서는 **다음 호출의 인자**가 된다. 바뀌는 것이 없으니 3장의 규칙과 부딪히지 않는다.
-
-이렇게 함수가 하는 마지막 일이 자기 호출인 것을 **꼬리 재귀(tail recursion)**라고 한다. fung은 꼬리 호출을 할 때 새 자리를 쌓지 않고 지금 자리를 다시 쓰므로, 백만 번을 돌아도 문제가 없다. 결과를 모아 가려면 모은 값을 인자로 넘긴다. 아래는 1초에서 시작해 두 배씩 늘리는 재시도 간격을 30초까지 모은다.
-
-```fung run
-fn backoff(delay, limit, acc) = delay > limit then acc else backoff(delay * 2, limit, acc + [delay])
-print(backoff(1s, 30s, []))
-```
-
-자주 쓰는 모양은 함수로 준비되어 있다. `until(x, f, pred)`는 `pred`가 참이 될 때까지 `x`에 `f`를 되풀이하고, `iterate(x, f, n)`은 `f`를 `n`번 적용한다.
+2. 목록 없이 "될 때까지" 되풀이하는 반복(재시도, 대기, 누적)은 흔한 모양이 함수로 준비되어 있다. `until(x, f, pred)`는 `pred`가 참이 될 때까지 `x`에 `f`를 되풀이하고, `iterate(x, f, n)`은 `f`를 `n`번 적용한다. 아래는 1에서 두 배씩 늘려 100을 넘는 첫 수, 그리고 1초를 네 번 두 배로 늘린 기간이다.
 
 ```fung run
 print(until(1, n => n * 2, n => n > 100))
 print(iterate(1s, d => d * 2, 4))
 ```
 
+이 둘로 안 되는 반복은 **재귀**(함수가 자기 자신을 부르는 것)로 쓴다. 함수를 알아야 하므로 5장에서 본다.
+
 ## 짚고 넘어가기 {#notes}
-
-:::box learn 반복과 재귀
-
-재귀는 "문제를 한 걸음 줄인 같은 문제로 바꾸는 것"이다. 3부터 0까지 세는 일은 "3을 찍고, 2부터 0까지 세는 일"이다. 줄이다 보면 더 줄일 수 없는 경우(0)에 닿고, 거기서 멈춘다. 이 멈추는 경우를 빠뜨리면 끝나지 않는다. 재귀 함수를 쓸 때는 늘 "언제 멈추는가"부터 쓴다.
-
-```fung run
-fn countdown(n):
-  if n == 0:
-    print("liftoff")
-  else:
-    print(n)
-    countdown(n - 1)
-  ;;
-;;
-countdown(3)
-```
-
-:::
 
 :::box mistake 값으로 쓰는 if에 else가 없음 (E0223)
 
@@ -227,7 +194,7 @@ print(label)
 
 :::box other 다른 언어는
 
-Python의 `x if c else y`, JavaScript의 `c ? x : y`가 fung의 `c then x else y`다. Python의 리스트 내포 `[f(x) for x in xs]`가 fung의 `for x in xs: f(x) ;;`와 같다. 쉘의 `while read line`처럼 줄을 읽는 반복은 fung에서 줄 목록을 받아 `for`로 돈다(11장). Python과 JavaScript는 깊은 재귀에서 스택이 넘치지만, fung은 꼬리 재귀를 반복처럼 돌린다.
+Python의 `x if c else y`, JavaScript의 `c ? x : y`가 fung의 `c then x else y`다. Python의 리스트 내포 `[f(x) for x in xs]`가 fung의 `for x in xs: f(x) ;;`와 같다. 쉘의 `while read line`처럼 줄을 읽는 반복은 fung에서 줄 목록을 받아 `for`로 돈다(11장). 재귀로 쓰는 반복은 5장에서 본다.
 
 :::
 
@@ -277,6 +244,7 @@ print(max(usages))
 - 짧은 조건은 `c then a else b`.
 - `for x in xs: … ;;`는 원소마다 블록을 돌고, 그 값들로 새 리스트를 만든다.
 - 바꾸기는 `map`, 고르기는 `filter`, 모으기는 `fold`.
-- `while`은 없다. 목록이 없는 반복은 꼬리 재귀로 쓰고, `until`·`iterate`가 흔한 모양을 대신한다.
+- `f` 자리의 `x => …`는 이름 없는 작은 함수(람다)다.
+- `while`은 없다. 목록이 없는 반복은 `until`·`iterate`로 쓰고, 그것으로 안 되면 재귀로 쓴다(5장).
 
-레퍼런스: [조건](../reference/language.html#conditions), [for](../reference/language.html#for), [꼬리 호출](../reference/language.html#functions), [`map`](../reference/prelude/collections.html#fn-map), [`filter`](../reference/prelude/collections.html#fn-filter), [`fold`](../reference/prelude/collections.html#fn-fold), [반복 패턴](../reference/prelude/loops.html), [E0223](../reference/errors.html#E0223). 꼬리 호출이 프레임을 다시 쓰는 방법은 [함수와 클로저](../vm/09-closures.html)에서 다룬다.
+레퍼런스: [조건](../reference/language/conditions.html), [for](../reference/language/for.html), [`map`](../reference/prelude/collections.html#fn-map), [`filter`](../reference/prelude/collections.html#fn-filter), [`fold`](../reference/prelude/collections.html#fn-fold), [반복 패턴](../reference/prelude/loops.html), [E0223](../reference/errors.html#E0223).

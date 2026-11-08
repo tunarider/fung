@@ -179,7 +179,16 @@ match fs.read(p):
 - **프록시**(대부분의 HTTP 클라이언트가 읽는 환경 변수): `HTTP_PROXY`/`http_proxy`(http용), `HTTPS_PROXY`/`https_proxy`(https용), `NO_PROXY`/`no_proxy`(이름·하위 도메인·IP·CIDR, 포트 선택).
   `localhost`·루프백 주소는 거치지 않는다. CGI 프로그램(`REQUEST_METHOD`가 있음)에서는 `HTTP_PROXY`를 쓰지 않는다(요청의 `Proxy` 헤더에서 올 수 있다, "httpoxy").
   http는 절대 URL 요청, https는 `CONNECT` 터널(같은 `User-Agent`) 뒤 TLS.
-- **https**: 운영체제 루트 인증서(`SSL_CERT_FILE`·`SSL_CERT_DIR`이 있으면 그것), SNI, rustls의 검증(사슬 다음 이름). 인증서 오류는 `Err 'network`.
+- **https**: 운영체제 루트 인증서, SNI, ALPN `http/1.1`, rustls의 검증(사슬 다음 이름). 인증서 오류는 `Err 'network`.
+  `SSL_CERT_FILE`·`SSL_CERT_DIR`이 하나라도 있으면 **그 변수들이 가리키는 것만** 믿는다(운영체제 저장소 대신; L12, 두 운영체제에서 같은 뜻, "이 묶음만 믿어라").
+  변수가 가리키는 곳을 읽지 못하면 이유가 그것을 말한다(``cannot read SSL_CERT_FILE `/x`: …``). 믿을 루트가 하나도 없으면
+  `no root certificates found (set SSL_CERT_FILE)`이다(`scratch` 같은 작은 컨테이너; 루트를 실행 파일에 넣지 않는다, 신뢰 목록의 주인은 운영체제나 사용자).
+- **연결**(L12): 이름의 주소가 여럿이면 두 계열(IPv6·IPv4)을 번갈아 놓고, 앞 시도가 250 ms 안에 되지 않으면 다음 주소도 시작해 먼저 된 연결을 쓴다(RFC 8305의 연결 부분,
+  "Happy Eyeballs"). IPv6 경로가 막힌 곳에서 IPv4로 가 보지도 못하고 시간이 다 되지 않게 한다. 모두 실패하면 첫 에러. 이름 조회는 `getaddrinfo`라 중간에 끊을 수 없다:
+  취소되면 바로 돌아오지만 조회 스레드는 해석기가 답할 때까지 남는다. 조회는 파일 일과 다른 줄에서 한 번에 8개까지 돈다(응답 없는 DNS가 파일 일을 세우지 않음).
+- TLS 연결을 `close`하면 close_notify를 다 보낼 때까지 최대 1초 기다린다(바깥 기한·취소를 따름). `close` 없이 버린 연결은 보내지 않는다.
+- 한 연결의 읽기와 쓰기는 각각 한 번에 하나다. 두 번째 읽는 쪽(쓰는 쪽)은 앞의 것이 끝나기를 줄에서 기다린다(줄 단위 읽기가 서로의 줄을 깨지 않게; 취소·기한에는 끊긴다).
+  `set_deadline`은 이미 막혀 기다리는 읽기·쓰기에도 닿는다(기다리던 쪽이 깨어 새 기한으로 다시 본다).
 - **`timeout`**: 기간, 연결·TLS 핸드셰이크·`CONNECT`·리다이렉트를 포함한 요청 전체 하나(따로 짧은 한도가 없다). `0s`면 제한 없음.
   안에서 `timeout` 범위(05)로 구현하므로 실제 기한은 바깥 기한과의 이른 쪽이다: `timeout(1s, () => http.get(url))`은 1초에 바깥의 `Err({kind: 'timeout})`.
   `_native.net`의 `connect`·`start_tls`에는 기한 인자가 없다(범위의 기한이 이름 조회·연결·핸드셰이크를 끊는다).
@@ -188,23 +197,31 @@ match fs.read(p):
   ``invalid Location header `…`: …``, ``proxy `host:port`: …``(프록시에서 난 것), ``redirected to `url`: …``(리다이렉트 뒤의 요청에서 난 것).
 - 압축을 요청하지 않는다: 본문은 언제나 서버가 보낸 그대로다.
 - 취소되면 E0701.
-- 응답 본문 상한 **64 MiB**(넘으면 `Err 'network`; 2026-10-16 사용자 결정, 더 큰 응답은 나중에 요청별 옵션으로).
-  SOCKS 프록시와 https 프록시 너머의 https는 지원하지 않는다(`Err 'network`).
+- 응답 본문 상한은 요청별 `max_body`(바이트, 기본 **64 MiB**, L13; 넘으면 `Err 'network` ``response body longer than N bytes``). "제한 없음" 값은 없다(메모리를 끝없이 쓰지 않음).
+  SOCKS 프록시와 https 프록시 너머의 https는 지원하지 않는다(`Err 'network`). `http`·`https` 밖의 스킴인 프록시는 ``unsupported proxy scheme `foo` ``다(L13).
+- **URL의 호스트**는 ASCII로 나간다(RFC 9110 7.2): 비ASCII 이름(그대로 쓴 것도 `%XX`로 쓴 것도)은 ``non-ASCII host `例え.jp` (write it in punycode, `xn--…`)``로 거절한다(IDNA는 하지 않음, L13).
+  괄호 안은 IPv6 주소여야 한다(``invalid IP address `1:2` ``). 에러 문구의 URL은 조각(fragment)을 경로처럼 이스케이프하고, 사용자 이름의 UTF-8 이스케이프는 풀어 보인다.
+- 서버가 요청을 다 받기 전에 답하고 닫아 쓰기가 실패해도, 답이 왔으면 그 답을 `Ok`로 준다(RFC 9112 9.6, 이른 413; L13). `CONNECT`의 답은 2xx면 모두 터널이다(RFC 9110 9.3.6).
 
-**서버** `serve(addr, handler, ready = nil, drain = 10s, reuse_port = false)`
+**서버** `serve(addr, handler, ready: fn | nil = nil, drain = 10s, reuse_port = false)`
 - 바인드 실패 `Err 'network`, 되면 **막힌 채로** 요청을 받는다. 끝나는 길은 둘이다 (L6).
   - **정지 요청**(05 "정지 요청과 신호": 첫 SIGINT·SIGTERM, `request_stop()`): 리스너를 닫아 새 연결을 그만 받고, 처리 중인 요청을 `drain`까지 마친 뒤
     남은 것은 취소하고(503으로 답함) `Ok(nil)`을 돌려준다. 정상 종료다(2026-10-24, 전에는 `nil`이라 `serve(…)!`가 정상 종료에 E0604였다).
   - **취소**(바깥 범위, `timeout`, `exit`): 기다리지 않고 곧바로 멈춘다.
 - 안에서 범위를 연다. 연결마다 `supervise`의 태스크이고, 핸들러는 연결 안에서 다시 자기 태스크로 돈다. 그래서 `serve`가 돌아오면 남는 태스크가 없다.
+- `addr`의 포트는 십진수다(`":8080"`). 이름 붙은 포트(`":http"`)는 풀지 않는다(``invalid port `http` (a port is a number)``): `/etc/services`가 없는 작은 컨테이너에서
+  같은 스크립트가 달라지지 않게(L12). URL의 포트도 숫자뿐이다(RFC 3986).
 - `reuse_port`는 바인드 전에 `SO_REUSEPORT`를 켠다. 같은 호스트에서 프로세스 여럿이 한 포트를 받을 때 쓴다(여러 코어를 쓰는 방법, 05). Linux는 연결을 나눠 주고, macOS는 받게만 한다.
   `ready`가 함수면 리스닝 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다(`":0"`의 포트를 아는 길).
 - 핸들러 `req => resp`. `req = {method, path, query, headers, body}`(`query`는 이름마다 첫 값, `+`는 공백, 잘못된 `%` 이스케이프가 든 쌍은 빠짐, `headers`는 소문자 키).
   `resp`는 맵 `{status = 200, headers = {}, body = ""}` 또는 문자열(200, `text/plain; charset=utf-8`). 응답 헤더에 `Date`(IMF-fixdate, RFC 9110 5.6.7)와
   `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`.
-- 핸들러가 런타임 에러를 내면 500을 답하고 stderr에 한 줄(`http: handler failed: …`), 다른 타입을 돌려주면 500과 `http: bad handler response: …`를 찍고 서버는 계속 돈다(종료 코드 무관).
+- 답의 틀은 서버가 정한다(L13, RFC 9112 6): 핸들러가 `Transfer-Encoding`·`Trailer`·`Connection`을 넣거나, 본문 바이트 수와 다른 `Content-Length`를 넣으면
+  잘못된 답이다(본문이 없는 답 — `HEAD`·204·304 — 의 `Content-Length`는 GET의 길이로 받는다). 이름이 대소문자만 다른 헤더 둘(`X-A`와 `x-a`)도, 상태 101(연결 넘겨주기를 하지 않음)도 잘못된 답이다.
+- 핸들러가 런타임 에러를 내면 500을 답하고 stderr에 한 줄(`http: handler failed: …`), 잘못된 답(다른 타입, 위의 틀 규칙)을 돌려주면 500과 `http: bad handler response: …`를 찍고 서버는 계속 돈다(종료 코드 무관).
   핸들러 안의 `exit`, 취소, `drain`을 넘긴 정지는 503이며 보고하지 않는다.
-- 서버가 스스로 내는 답(형식 오류 400, 한도 413·431, 501, 505, 핸들러 실패 500, 503)은 표준 상태 줄과 본문 `<코드> <이유 문구>\n`이다.
+- 서버가 스스로 내는 답(형식 오류 400, 한도 413·431, 501, 505, 핸들러 실패 500, 503)은 표준 상태 줄, `Date`·`Content-Length`, 본문 `<코드> <이유 문구>\n`이다.
+  431 뒤에는 쓰기 쪽을 닫고(`close_write`) 잠시 읽어 버린다: 클라이언트가 아직 보내는 중에도 답의 끝을 본다. HTTP/2 머리말(`PRI * HTTP/2.0`)에는 505다.
   이유 문구는 IANA HTTP 상태 코드 레지스트리의 것이고(418은 "(Unused)"라 빈 문구), 표에 없는 코드(`599`)는 빈 이유 문구(`HTTP/1.1 599 `)로 보낸다.
 - 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `atom`). 라우팅은 없고 `match req.path:`로 쓴다.
   예: `examples/api.fung`·`serve.fung`.

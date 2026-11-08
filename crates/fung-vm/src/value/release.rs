@@ -7,14 +7,54 @@
 //! `release`, which frees them with an explicit stack. A shell whose
 //! children were moved out drops in constant stack.
 //!
+//! A big value is freed a piece at a time (L6): while the scheduler runs,
+//! a release that has unwrapped `RELEASE_PIECE` containers puts the rest
+//! of its stack aside (`LATER`), and the scheduler frees a piece of that
+//! between turns (`release_piece`), so dropping a parsed JSON document of
+//! a million values does not keep the other tasks waiting until it is all
+//! freed. What a drop does besides freeing (a sender's last copy closes
+//! its channel, a task handle reports an unread failure) then happens
+//! there, before the next task's turn or before the scheduler waits.
+//!
 //! A file handle (`Value::File`) holds no values, only its path and the
 //! open file: dropping it closes the file and never goes deep, so it is
 //! not handed to `release`. Nor are connections and listeners
 //! (`Value::Conn`, `Value::Listener`), for the same reason.
 
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use super::Value;
+
+/// About a millisecond of freeing: containers unwrapped by one piece.
+pub(crate) const RELEASE_PIECE: usize = 8 * 1024;
+
+thread_local! {
+    /// Whether releases may put work aside: on while a scheduler runs on
+    /// this thread, which frees what is put aside.
+    static DEFER: Cell<bool> = const { Cell::new(false) };
+    /// The values whose freeing was put aside.
+    static LATER: RefCell<Vec<Value>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Lets releases on this thread put work aside (`on`), or stops that.
+pub(crate) fn set_deferring(on: bool) {
+    DEFER.with(|d| d.set(on));
+}
+
+/// Whether freeing was put aside.
+pub(crate) fn pending() -> bool {
+    LATER.with(|l| !l.borrow().is_empty())
+}
+
+/// Frees a piece of what was put aside; true if some is still left.
+pub(crate) fn release_piece() -> bool {
+    let stack = LATER.with(|l| std::mem::take(&mut *l.borrow_mut()));
+    if !stack.is_empty() {
+        release(stack);
+    }
+    pending()
+}
 
 /// Whether dropping `v` could go deep: a container (or closure) this is the last
 /// reference to. Anything else only decrements a count or holds no values.
@@ -45,10 +85,25 @@ pub(crate) fn keep(stack: &mut Vec<Value>, v: Value) {
 /// recursion: each container is unwrapped, its children moved onto the
 /// stack, and the emptied shell dropped.
 pub(super) fn release(mut stack: Vec<Value>) {
+    let defer = DEFER.with(Cell::get);
+    let mut done = 0usize;
     while let Some(v) = stack.pop() {
+        done += 1;
+        if defer && done == RELEASE_PIECE {
+            stack.push(v);
+            LATER.with(|l| l.borrow_mut().append(&mut stack));
+            return;
+        }
         match v {
             Value::List(rc) => {
                 if let Ok(mut l) = Rc::try_unwrap(rc) {
+                    if defer && l.long_to_free() {
+                        // a piece off its end now, the rest in later pieces
+                        l.shed(RELEASE_PIECE, &mut stack);
+                        stack.push(Value::List(Rc::new(l)));
+                        done = RELEASE_PIECE - 1;
+                        continue;
+                    }
                     l.spill(&mut stack);
                 }
             }

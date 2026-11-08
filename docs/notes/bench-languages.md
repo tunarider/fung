@@ -395,6 +395,48 @@ Ruby는 Homebrew Ruby 4.0.9에 `--yjit`(`RUBY="ruby --yjit" python3 -I bench/com
 - **`regex`**(+5~9%): 빈 매치를 거르려고 `is_match`를 `find_iter`로 바꿨는데, `is_match`는 매치의 끝을 찾지 않아 훨씬 싸다. 패턴이 빈 문자열에 맞을 수 없으면
   (`regex_syntax`의 `minimum_len`) 거를 일이 없으므로 원래의 빠른 호출을 쓴다.
 
+## 4.3 LTO를 다시 잰 것 (2026-11-08, L15 P12b)
+
+L15의 결정 규칙: 통합 시험을 한 실행 파일로 모은 뒤 `cargo test --release --no-run`의 증가가 15초 이하면 fat LTO를 `[profile.release]`에 넣고, 넘으면 기각으로 닫는다.
+먼저 어디서 시간이 드는지 쟀다(macOS, `vm.rs`를 `touch`한 뒤, 시험 실행 파일 28개).
+
+| 빌드 | LTO 없음 | fat LTO |
+|---|---|---|
+| `cargo test --release --no-run` 전체 | 22초 | 78초 |
+| `cargo build --release`(실행 파일 하나) | — | 35초 |
+| `cargo test --release --no-run -p fung-vm`(단위 시험 실행 파일 하나) | — | 64초 |
+
+`fung-vm`의 단위 시험 실행 파일 **하나**가 LTO로 64초다. 그래서 `fung-cli`의 통합 시험을 모아도 증가는 40초를 넘는다(통합 시험은 대부분 `fung`을 자식으로 띄울 뿐이라
+모을 몫이 작다). 규칙대로 **기각**하고 시험 모으기도 하지 않았다(그것만으로 줄일 몫이 기준에 못 미침).
+
+같은 때 잰 실행 이득(`scripts/bench.sh`, 9회 중앙값, 초): `fib` 0.218 → 0.208(−5%), `loop` 0.210 → 0.188(−10%), `str` 0.084 → 0.079, `map` 0.195 → 0.186,
+`list` 0.231 → 0.218, `heads` 0.736 → 0.675, 실행 파일 6.8 → 5.3 MB. 3.4.1절의 값과 같은 크기다.
+다시 볼 길: 배포 판만 LTO로 빌드하는 프로필(`[profile.dist]`, 사용자가 2026-10-24에 두지 않기로 함), 또는 해석 루프의 속도가 급해질 때.
+
+## 4.4 glibc 판이 느린 이유 (2026-11-08, L15 P14)
+
+**재현 조건.** macOS의 Docker Desktop(arm64 VM)에서 이미지 `fung-bench-linux`(Ubuntu 26.04, Rust 1.94.1, `musl-gcc`)에 저장소를 읽기 전용으로 붙이고
+(`-v $PWD:/src:ro`, 크레이트는 `-v ~/.cargo/registry:/home/runner/.cargo/registry:ro`로 `--offline`), 같은 소스를 두 대상으로 빌드했다:
+`cargo build --release --locked --offline -p fung-cli --target aarch64-unknown-linux-gnu`와, `rustup target add aarch64-unknown-linux-musl` 뒤
+`CC_aarch64_unknown_linux_musl=musl-gcc`로 `--target aarch64-unknown-linux-musl`. Mac의 부하 평균이 4~6이라 절대값이 흔들려, 바이너리들을 라운드마다 번갈아 11~15번 돌린 중앙값만 견줬다.
+
+| 실험(같은 컨테이너, 번갈아) | `fib` | `loop` | 결론 |
+|---|---|---|---|
+| glibc(동적 PIE) / 정적 glibc(`+crt-static`) / 비PIE | 0.330 / 0.356 / 0.328 | 0.444 / 0.444 / 0.443 | 링크 방식(PLT)은 원인 아님 |
+| glibc / musl | 0.332 / 0.227 | 0.447 / 0.281 | 재현됨 |
+| glibc LTO / musl LTO | 0.304 / 0.216 | 0.382 / 0.220 | 우리 코드의 배치만의 문제가 아님 |
+| glibc + 단순한 `memcpy`·`memmove`(`LD_PRELOAD`) | 0.331 | 0.442 | 작은 복사의 ifunc는 원인 아님 |
+| 실행 스레드 스택 64 MiB(4 GiB 대신) | 0.327 | 0.447 | 스택 예약은 원인 아님 |
+| `GLIBC_TUNABLES=glibc.malloc.arena_max=1` | 0.323 | **0.284** | **`loop`의 원인** |
+
+**찾은 것: glibc malloc의 아레나.** glibc는 주 스레드가 아닌 스레드에 malloc 아레나를 따로 주는데, fung은 모든 일을 실행 스레드(주 스레드가 아님)에서 한다.
+그 아레나에서의 할당이 여기서는 눈에 띄게 느렸다(할당이 많은 `loop`가 0.447초, 아레나 하나로는 0.284초). 그래서 `fung_vm::stack`이 실행 스레드를 띄우기 전에
+`mallopt(M_ARENA_MAX, 1)`을 한 번 부른다(Linux glibc만). 그 뒤 같은 조건에서 glibc 판은 `loop` 0.287(musl 0.280)이고, `list`·`map`·`str`·`chan`·`wait`·`fs`는 musl보다 빠르다
+(musl의 할당기가 느린 것은 원래 알려진 대로).
+
+**못 찾은 것: `fib`.** 0.327 대 0.225로 남는다. 할당·`memcpy`·스택·링크 방식·LTO 어느 것도 아니다. 남은 후보는 표준 라이브러리 쪽에서 호출마다 지나는 무엇(스레드 지역 변수의 접근 방식 같은 것)인데,
+가리려면 `perf`로 두 판의 표본을 견줘야 한다. 계획의 상한(하루)에 따라 여기서 닫는다. 배포 판은 musl이라 사용자에게 닿지 않고, `cargo install`로 glibc 판을 쓰는 사람만 함수 호출 위주의 계산에서 느리다.
+
 ## 5. 다시 잴 때
 
 - 같은 기계에서 다른 무거운 작업 없이 돌린다. 결과는 기계마다 다르므로 표의 절대값보다 언어 사이의 비율을 본다.

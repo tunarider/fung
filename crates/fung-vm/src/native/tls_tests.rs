@@ -58,6 +58,16 @@ fn server_config(cert: &str) -> Arc<ServerConfig> {
 
 type Tls = StreamOwned<ServerConnection, TcpStream>;
 
+/// [`tls_peer`] for a server that speaks only `alpn` (ALPN).
+fn alpn_peer<T: Send + 'static>(
+    alpn: &[&str],
+    serve: impl FnOnce(Tls) -> T + Send + 'static,
+) -> (u16, JoinHandle<T>) {
+    let mut cfg = (*server_config("localhost")).clone();
+    cfg.alpn_protocols = alpn.iter().map(|p| p.as_bytes().to_vec()).collect();
+    peer_with(Arc::new(cfg), serve)
+}
+
 /// A TLS server on 127.0.0.1 presenting `cert`: the port and the thread
 /// running `serve` on the first connection (the handshake happens on its
 /// first read or write, or `handshake`).
@@ -65,7 +75,14 @@ fn tls_peer<T: Send + 'static>(
     cert: &str,
     serve: impl FnOnce(Tls) -> T + Send + 'static,
 ) -> (u16, JoinHandle<T>) {
-    let cfg = server_config(cert);
+    peer_with(server_config(cert), serve)
+}
+
+/// [`tls_peer`] with a server configuration.
+fn peer_with<T: Send + 'static>(
+    cfg: Arc<ServerConfig>,
+    serve: impl FnOnce(Tls) -> T + Send + 'static,
+) -> (u16, JoinHandle<T>) {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();
     l.set_nonblocking(true).unwrap();
@@ -515,6 +532,63 @@ fn the_last_copy_closes_a_tls_connection() {
     ));
     assert_eq!(out(&o), ("1\n", "", 0));
     assert_eq!(h.join().unwrap(), Err(std::io::ErrorKind::UnexpectedEof));
+}
+
+/// `close` waits for close_notify to go out (L12 F): a peer that is slow
+/// to read, so the send buffer is full when `close` is called, still gets
+/// it after what was sent before, and sees the connection end cleanly.
+#[test]
+fn close_waits_for_close_notify() {
+    let _g = serial();
+    let _t = trust_ca();
+    let (port, h) = tls_peer("localhost", |mut s| {
+        handshake(&mut s).unwrap();
+        // slow to read: the client's writes fill the buffers meanwhile
+        std::thread::sleep(Duration::from_millis(300));
+        let mut rest = Vec::new();
+        s.read_to_end(&mut rest)
+            .map(|_| rest.len())
+            .map_err(|e| e.kind())
+    });
+    let o = run(&format!(
+        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nscope(fn(sc):\n  w = spawn(sc, () => net.write(c, repeat(\"x\", 4000000)))\n  until(() => net_waiting() == 1)\n  print(net.close(c))\n  _ = await(w)\n  nil\n;;)\nprint(sockets())"
+    ));
+    assert_eq!(out(&o), ("Ok(nil)\n0\n", "", 0));
+    let got = h.join().unwrap();
+    assert!(got.is_ok(), "the peer saw {got:?}");
+}
+
+/// ALPN (L12 G): the protocols given are offered, and the server's pick
+/// is one of them; a server that speaks none of them ends the handshake
+/// with an alert, which is named. Without `alpn` nothing is offered.
+#[test]
+fn alpn_offers_the_protocols_given() {
+    let _g = serial();
+    let _t = trust_ca();
+    let picked = |mut s: Tls| {
+        handshake(&mut s).map(|()| {
+            s.conn
+                .alpn_protocol()
+                .map(|p| String::from_utf8_lossy(p).into_owned())
+        })
+    };
+    let (p1, h1) = alpn_peer(&["h2", "http/1.1"], picked);
+    let (p2, h2) = alpn_peer(&["h2"], picked);
+    let (p3, h3) = alpn_peer(&["h2"], picked);
+    let o = run(&format!(
+        "print(msg(net.connect(\"localhost\", {p1}, tls: true, alpn: [\"http/1.1\"])))\nprint(msg(net.connect(\"localhost\", {p2}, tls: true, alpn: [\"http/1.1\"])))\nprint(msg(net.connect(\"localhost\", {p3}, tls: true)))"
+    ));
+    assert_eq!(
+        out(&o),
+        (
+            "Ok(<conn>)\nTLS alert: no application protocol\nOk(<conn>)\n",
+            "",
+            0
+        )
+    );
+    assert_eq!(h1.join().unwrap(), Ok(Some("http/1.1".into())));
+    assert!(h2.join().unwrap().is_err());
+    assert_eq!(h3.join().unwrap(), Ok(None));
 }
 
 /// The real root store comes from `SSL_CERT_FILE` (rustls-native-certs)

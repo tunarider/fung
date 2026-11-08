@@ -32,6 +32,22 @@
 <ol class="chapters">
 <li><a href="../../reference/language.html">문법</a></li>
 <li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html">연산자</a></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html">함수</a></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
 <li class="sub">prelude</li>
 <li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
 <li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
@@ -68,7 +84,7 @@
 <p><strong>맵</strong>(map)은 <strong>키</strong>(key)와 <strong>값</strong>(value)의 짝을 모은 값이다. 리스트가 원소를 0, 1, 2 같은 자리 번호로 찾는다면, 맵은 <code>&quot;host&quot;</code>, <code>&quot;port&quot;</code> 같은 이름으로 찾는다. 설정, JSON 객체, 서버 한 대의 정보처럼 "이름 붙은 칸들"을 담기에 알맞다. 다른 언어에서는 사전(dictionary), 해시(hash), 객체(object)라고도 부른다.</p>
 <div class="run"><pre><code>server = {host: &quot;web-1&quot;, port: 22, tags: [&quot;prod&quot;]}
 print(server.host, server[&quot;port&quot;], len(server))</code></pre><pre class="out plain"><code>web-1 22 3</code></pre></div>
-<p>fung의 맵에는 규칙이 셋 있다(<a href="../language.html#values">값과 타입</a>).</p>
+<p>fung의 맵에는 규칙이 셋 있다(<a href="../language/values.html">값과 타입</a>).</p>
 <ul>
 <li><strong>키는 언제나 문자열이다.</strong> <code>{host: &quot;a&quot;}</code>는 <code>{&quot;host&quot;: &quot;a&quot;}</code>의 축약이다. 수나 심볼은 키가 될 수 없으므로 <code>str</code>로 바꿔 쓴다. 값은 아무 타입이나 된다.</li>
 <li><strong>넣은 순서를 지킨다.</strong> 출력, <code>keys</code>, <code>pairs</code>, <code>for</code>가 모두 넣은 순서대로 나온다. <code>==</code>는 순서를 보지 않는다(키와 값이 같으면 같다).</li>
@@ -115,7 +131,7 @@ print(cfg.port)</code></pre><pre class="out err plain" data-code="1"><code>error
    example.fung:2 &lt;entry&gt;
  help: use get(m, key, default) for a default</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="collections.html#fn-contains"><code>contains</code></a>, <a href="../language.html#results"><code>??</code></a>, <a href="../language.html#access">인덱스·필드</a></p>
+<p><a href="collections.html#fn-contains"><code>contains</code></a>, <a href="../language/results.html"><code>??</code></a>, <a href="../language/access.html">인덱스·필드</a></p>
 </section>
 <section class="entry" id="fn-put">
 <h3>put</h3>
@@ -296,7 +312,7 @@ print(fold(full, {}, (acc, (k, v)) =&gt; put(acc, k, v)))</code></pre><pre class
  call path (innermost first):
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-keys"><code>keys</code></a>, <a href="#fn-values"><code>values</code></a>, <a href="collections.html#fn-sort_by"><code>sort_by</code></a>, <a href="../language.html#for">for</a></p>
+<p><a href="#fn-keys"><code>keys</code></a>, <a href="#fn-values"><code>values</code></a>, <a href="collections.html#fn-sort_by"><code>sort_by</code></a>, <a href="../language/for.html">for</a></p>
 </section>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/collections.html"><small>이전</small>컬렉션</a><a class="next" href="../../reference/prelude/strings.html"><small>다음</small>문자열</a></nav>
 </div></main>

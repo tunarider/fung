@@ -1,6 +1,6 @@
 # L6. Rust로 쓴 긴 내장 함수가 차례를 넘기지 않는다
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-11-08)**. 결과는 끝의 "닫힘" 절. 목록: [README](README.md).
 
 ## 문제
 
@@ -103,3 +103,21 @@ R6이 HTTP로 같은 것을 쟀다(`crates/fung-cli/tests/perf.rs`의 `a_light_r
 - `timeout(5ms, …)` 안의 큰 `json.parse`·`sort`가 `Err({kind: 'timeout, …})`이다.
 - 계산 위주 벤치마크가 기준선보다 5% 넘게 느려지지 않는다(기록을 노트에).
 - open-questions에 이 한계가 없고, 커밋 전 검사가 통과한다.
+
+## 닫힘 (2026-11-08)
+
+결정(사용자, 2026-11-08 "추천대로"): (나) 연료와 이어 가기. 정할 것 1: 약 1 ms(재서 정함), 2: 아래 목록, 3: VM 연산은 이번에 하지 않음, 4: 05에 약속을 적음.
+
+- 장치: `vm/pieces.rs`의 `Work`(한 조각을 하고 끝났으면 값)와 `run`(첫 조각에 끝나면 바로 값, 아니면 상자). 조각 사이에 `Task::piece_done`이 기한을 보고(`end_turn`과 같은 만료),
+  `Wake::soon`(이미 지난 기한의 주차)으로 대기열 뒤에 선다. 새 `Next`·`Flow` 갈래는 만들지 않았다(주차의 한 모양). `swap`의 함수 안에서는 주차할 수 없어 조각을 이어서 돈다.
+  스케줄러는 곧바로 끝나는 주차를 양보처럼 보고 이벤트 루프를 본다(안 그러면 소켓이 `POLL_EVERY` 바퀴 늦음, 시험이 잡음).
+- 조각으로 나눈 것: `json.parse`(디코더 상태 `Decoder`, 값이 시작하는 자리에서 멈춤), `json.stringify`(빌림 없는 스택, 맵은 `Map::entry_from`), `sort`·`sort_by`(아래에서 위로 가는 병합 정렬,
+  비교 128K마다; `sort_by`는 걸음이 끝난 뒤 `PerItem::finish`로 이어 감), `unique`(해시마다 첫 원소 + 사슬 배열; 해시마다 벡터를 두면 끝의 해제가 한 번에 수십 ms),
+  `split`·`lines`·`replace`(`Cuts`: 1 MiB 창 또는 부분 8K개), `repeat`, 원소를 하나씩 도는 `Walker`(내장 함수 콜백)·`Drainer`(`join`, `flatten` 등) 8K개마다.
+  결과 리스트는 끝에 한 번에 만들지 않고 조각마다 키운다(200만 원소 벡터를 리스트로 바꾸는 것만 약 4 ms).
+- 해제: `release`가 컨테이너 8K개를 넘으면 나머지를 `LATER`로 미루고, 스케줄러가 바퀴마다 한 조각, 기다리기 전에는 다 할 때까지 한다. 큰 리스트는 끝에서 8K개씩 떼어 낸다(`List::shed`).
+  채널 닫힘처럼 해제에 딸린 일도 그때 일어나므로, 교착 판정과 잠들기 전에 미룬 해제를 먼저 마친다.
+- `fs.read`의 풀기는 L4 뒤로 바이트 그대로라 UTF-8 검사 한 번(10 GB/s 안팎)뿐이라 두었다. 정규식 찾기·바꾸기는 `captures_iter`를 중간에서 이어 갈 수 없어(빈 매치 규칙을 다시 짜야 함) 두었다.
+- 측정(릴리스, 1 ms 간격 태스크의 최악 간격, 50만 원소·6 MB JSON): `json.parse` 84 → 2.3 ms, `sort` 212 → 3.7, `split` 286 → 1.7, `unique` 300 → 3.6, `join` 86 → 1.7, `replace` 53 → 1.1 ms.
+  가벼운 HTTP 요청 76 → 7 ms. `timeout(5ms, …)`이 모두 30 ms 안에 `Err 'timeout`. 시험 `perf.rs`의 `long_natives_give_their_turn`·`deadlines_cut_long_natives`·`a_light_request_beside_a_heavy_parse`(30 ms).
+- 남긴 것: 조각으로 나누지 않은 한 번짜리 연산(open-questions "알려진 한계"). 노트 `docs/notes/L6-long-natives.md`.

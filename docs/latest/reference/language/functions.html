@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("js")</script>
+<title>함수 · fung 매뉴얼</title>
+<meta name="description" content="fn, 람다, 인자 규약, 기본값, 클로저, 꼬리 호출.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<link rel="icon" href="../../../assets/logo/icon-light.svg" type="image/svg+xml">
+<link rel="icon" href="../../../assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="../../../assets/logo/apple-touch-icon.png">
+</head>
+<body class="reference">
+<div class="banner" role="note"><span class="banner-mark" aria-hidden="true"></span><p><b>latest</b>는 아직 릴리스되지 않은 main의 문서입니다. 설치한 fung보다 앞선 내용이 있을 수 있습니다.</p></div>
+<header class="mbar">
+<button class="mbar-open" type="button" aria-controls="side" aria-expanded="false"><span class="glyph">§</span><span class="mbar-where"><span class="mbar-title">함수</span><span class="mbar-sec" aria-hidden="true"></span></span><svg class="menu" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="sr">목차 열기</span></button>
+</header>
+<div class="scrim" hidden></div>
+<div class="frame">
+<aside class="side" id="side" aria-label="목차">
+<button class="side-close" type="button" aria-label="목차 닫기"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<a class="brand" href="../../index.html"><svg class="wordmark" viewBox="0 0 2851 952" role="img" aria-label="fung;;"><path fill="currentColor" d="M10 652L175 652L175 312L0 312L0 224L175 224L175 131Q175 73 207 36.5Q239 0 307 0L481 0L481 88L284 88L284 224L481 224L481 312L284 312L284 652L458 652L458 740L10 740L10 652ZM899 652L894 652Q886 672 873.5 690.5Q861 709 843 722.5Q825 736 801 744Q777 752 745 752Q667 752 619 701Q571 650 571 556L571 224L680 224L680 540Q680 663 787 663Q808 663 828 657.5Q848 652 864 641Q880 630 889.5 613.5Q899 597 899 574L899 224L1008 224L1008 740L899 740L899 652ZM1136 740L1136 224L1245 224L1245 312L1250 312Q1258 292 1270.5 273.5Q1283 255 1301 241.5Q1319 228 1343 220Q1367 212 1399 212Q1477 212 1525 263Q1573 314 1573 408L1573 740L1464 740L1464 424Q1464 301 1357 301Q1336 301 1316 306.5Q1296 312 1280 323Q1264 334 1254.5 351Q1245 368 1245 390L1245 740L1136 740ZM2182 796Q2182 876 2115 914Q2048 952 1911 952Q1844 952 1798.5 943.5Q1753 935 1724.5 919Q1696 903 1683.5 880Q1671 857 1671 828Q1671 786 1694.5 762.5Q1718 739 1761 728L1761 718Q1735 708 1719.5 690Q1704 672 1704 643Q1704 605 1730 585.5Q1756 566 1797 556L1797 551Q1750 529 1724 489Q1698 449 1698 393Q1698 352 1713 318.5Q1728 285 1755.5 261.5Q1783 238 1821.5 225Q1860 212 1908 212Q1962 212 2005 229L2005 212Q2005 182 2022 162Q2039 142 2074 142L2168 142L2168 228L2048 228L2048 252Q2082 275 2100 310.5Q2118 346 2118 393Q2118 434 2103 467.5Q2088 501 2060.5 524.5Q2033 548 1994.5 560.5Q1956 573 1908 573Q1874 573 1844 567Q1826 572 1808 584Q1790 596 1790 617Q1790 641 1813 647Q1836 653 1870 653L1986 653Q2090 653 2136 692.5Q2182 732 2182 796ZM2080 803Q2080 777 2059 761.5Q2038 746 1983 746L1804 746Q1766 764 1766 804Q1766 833 1790.5 854Q1815 875 1872 875L1953 875Q2015 875 2047.5 856.5Q2080 838 2080 803ZM1908 498Q1961 498 1986 473Q2011 448 2011 406L2011 379Q2011 337 1986 312Q1961 287 1908 287Q1855 287 1830 312Q1805 337 1805 379L1805 406Q1805 448 1830 473Q1855 498 1908 498Z"/><path fill="#198f7b" d="M2416 588L2571 588L2447 885L2362 885L2416 588ZM2472 378Q2424 378 2404.5 358Q2385 338 2385 309L2385 283Q2385 254 2404.5 234Q2424 214 2472 214Q2520 214 2539.5 234Q2559 254 2559 283L2559 309Q2559 338 2539.5 358Q2520 378 2472 378ZM2696 588L2851 588L2727 885L2642 885L2696 588ZM2752 378Q2704 378 2684.5 358Q2665 338 2665 309L2665 283Q2665 254 2684.5 234Q2704 214 2752 214Q2800 214 2819.5 234Q2839 254 2839 283L2839 309Q2839 338 2819.5 358Q2800 378 2752 378Z"/></svg></a>
+<div class="ver"><span class="ver-label" id="ver-label">버전</span><div class="ver-box"><span class="ver-name" id="ver-name">latest</span><span class="ver-tag" id="ver-tag">unreleased</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><select id="ver" aria-labelledby="ver-label" data-current="latest"><option value="latest">latest (unreleased)</option></select></div></div>
+<nav aria-label="매뉴얼"><ol class="parts-nav">
+<li class="learn"><a href="../../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a></li>
+<li class="recipes"><a href="../../recipes/rename.html"><span class="glyph">R</span><span>예제 모음<small>자주 하는 작업별 레시피</small></span></a></li>
+<li class="reference"><a href="../../reference/language.html"><span class="glyph">§</span><span>레퍼런스<small>찾아보는 곳 · 언어 명세</small></span></a>
+<ol class="chapters">
+<li><a href="../../reference/language.html">문법</a></li>
+<li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html">연산자</a></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html" aria-current="page">함수</a><ol class="toc2"><li><a href="#edges">경계 사례와 에러</a></li></ol></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
+<li class="sub">prelude</li>
+<li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
+<li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
+<li><a href="../../reference/prelude/collections.html">컬렉션</a></li>
+<li><a href="../../reference/prelude/maps.html">맵</a></li>
+<li><a href="../../reference/prelude/strings.html">문자열</a></li>
+<li><a href="../../reference/prelude/results.html">결과값</a></li>
+<li><a href="../../reference/prelude/loops.html">반복 패턴</a></li>
+<li><a href="../../reference/prelude/program.html">에러와 종료</a></li>
+<li><a href="../../reference/prelude/process.html">프로세스와 환경</a></li>
+<li><a href="../../reference/prelude/concurrency.html">동시성</a></li>
+<li class="sub">표준 모듈</li>
+<li><a href="../../reference/modules/fs.html">fs — 파일과 디렉터리</a></li>
+<li><a href="../../reference/modules/path.html">path — 경로 계산</a></li>
+<li><a href="../../reference/modules/cli.html">cli — 명령줄 옵션</a></li>
+<li><a href="../../reference/modules/json.html">json — JSON</a></li>
+<li><a href="../../reference/modules/time.html">time — 시각</a></li>
+<li><a href="../../reference/modules/regex.html">regex — 정규식</a></li>
+<li><a href="../../reference/modules/http.html">http — HTTP</a></li>
+<li><a href="../../reference/modules/conc.html">conc — 동시성 도우미</a></li>
+<li class="sub">도구</li>
+<li><a href="../../reference/errors.html">에러 카탈로그</a></li>
+<li><a href="../../reference/cli.html">명령줄 도구</a></li>
+</ol>
+</li>
+<li class="vm"><a href="../../vm/01-how-programs-run.html"><span class="glyph">VM</span><span>fung VM<small>언어는 어떻게 만들어지나</small></span></a></li>
+</ol></nav>
+</aside>
+<main><div class="col">
+<nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">언어 명세</span></nav>
+<h1>함수</h1>
+<p class="lede"><code>fn</code>, 람다, 인자 규약, 기본값, 클로저, 꼬리 호출.</p>
+<div class="run"><pre><code># 식 하나짜리
+fn add(a, b) = a + b
+
+# 블록 본문: 마지막 식이 반환값
+fn report(dir):
+  n = len(dir)
+  &quot;${dir}: ${n}&quot;
+;;
+
+# 람다: 본문은 식 하나
+double = x =&gt; x * 2
+both = (a, b) =&gt; a + b
+later = () =&gt; print(&quot;run&quot;)
+
+# 익명 함수: 여러 문장이 필요할 때
+shout = fn(s):
+  t = upper(s)
+  t + &quot;!&quot;
+;;
+
+print(add(1, 2), report(&quot;logs&quot;), double(4), both(1, 2), shout(&quot;hi&quot;))
+later()</code></pre><pre class="out plain"><code>3 logs: 4 8 3 HI!
+run</code></pre></div>
+<h3>인자</h3>
+<ul>
+  <li>순서는 필수 → 기본값 있는 것 → 마지막에 <code>...rest</code> 하나(남는 위치 인자를 리스트로 받음).</li>
+  <li>기본값은 호출할 때마다 왼쪽부터 평가되고, 앞 인자를 참조할 수 있다. 기본값과 <code>...rest</code>는 <code>fn</code>과 익명 <code>fn(…):</code>에서 쓴다(람다 <code>=&gt;</code>에는 없다).</li>
+  <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수도 똑같다.</li>
+  <li>인자 개수가 맞지 않거나, 같은 인자를 두 번 주거나, 모르는 이름이면 런타임 에러.</li>
+  <li>매개변수 자리에 패턴을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>.</li>
+</ul>
+<div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;, ...extra) = &quot;${greeting}, ${name}${join(extra)}&quot;
+print(greet(&quot;fung&quot;), greet(&quot;fung&quot;, greeting: &quot;hi&quot;), greet(&quot;fung&quot;, &quot;yo&quot;, &quot;!&quot;, &quot;?&quot;))</code></pre><pre class="out plain"><code>hello, fung hi, fung yo, fung!?</code></pre></div>
+<h3>반환</h3>
+<p>마지막 식의 값을 돌려준다. 일찍 빠져나갈 때는 <code>return 식</code>(값 없으면 <code>nil</code>). <code>return</code>은 감싸는 함수나 람다에서 돌아오고, <code>for</code> 본문과 진입 파일 최상위에서는 쓸 수 없다(최상위에서는 <code>exit()</code>).</p>
+<h3>부분 적용</h3>
+<p>호출 인자의 <code>_</code>는 그 자리를 비운 새 함수를 만든다. <code>f(a, _)</code>는 <code>x =&gt; f(a, x)</code>이고, <code>a</code>는 그 자리에서 한 번 평가된다. 자동 커링은 없다. 파이프 오른쪽 호출의 인자로는 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</p>
+<div class="run"><pre><code>import path
+files = [&quot;a.txt&quot;, &quot;b.txt&quot;]
+print(files |&gt; map(path.join(&quot;/tmp&quot;, _)))</code></pre><pre class="out plain"><code>[&quot;/tmp/a.txt&quot;, &quot;/tmp/b.txt&quot;]</code></pre></div>
+<h3>꼬리 호출</h3>
+<p>함수 본문의 마지막 식, 꼬리 위치에 있는 <code>if</code>·<code>match</code>·<code>then … else</code>의 각 가지, 꼬리 위치의 <code>x |&gt; f(a)</code>에 있는 호출은 프레임을 재사용한다. 상태가 있는 반복은 이렇게 쓴다. 자기 재귀뿐 아니라 모든 꼬리 호출이 대상이다.</p>
+<div class="run"><pre><code>fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
+print(count(1_000_000, 0))</code></pre><pre class="out plain"><code>1000000</code></pre></div>
+<p>꼬리가 아닌 것: 연산자의 피연산자(<code>1 + f()</code>), <code>f()!</code>·<code>f()?</code>·<code>f() ?? b</code>, 다른 호출의 인자, <code>and</code>·<code>or</code>의 오른쪽. 반환 타입을 적은 함수는 자기 자신으로의 꼬리 호출만 프레임을 재사용한다(반환값 검사는 끝에 한 번). 꼬리가 아닌 재귀는 깊이 100,000에서 "stack overflow" 에러다.</p>
+<h2 id="edges">경계 사례와 에러</h2>
+<p>인자 수가 틀리거나 없는 이름 인자를 주면 호출 자리에서 멈춘다.</p>
+<div class="run"><pre><code>fn add(a, b) = a + b
+print(add(1, 2))
+print(add(1))</code></pre><pre class="out err plain" data-code="1"><code>3
+error[E0407]: missing argument `b`
+  --&gt; example.fung:3:10
+  |
+3 | print(add(1))
+  |          ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
+<p>같은 이름 인자를 두 번 주면 컴파일할 때 잡는다.</p>
+<div class="run"><pre><code>fn f(a) = a
+print(f(a: 1, a: 2))</code></pre><pre class="out err plain" data-code="2"><code>error[E0116]: argument `a` given twice
+  --&gt; example.fung:2:15
+  |
+2 | print(f(a: 1, a: 2))
+  |               ^
+  |</code></pre></div>
+<p>꼬리가 아닌 재귀는 깊이 100,000에서 멈춘다. 꼬리 재귀나 <code>fold</code>로 쓴다.</p>
+<div class="run"><pre><code>fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
+print(depth(1000))
+print(depth(200000))</code></pre><pre class="out err plain" data-code="1"><code>1000
+error[E0804]: stack overflow: call depth exceeded 100000
+  --&gt; example.fung:1:43
+  |
+1 | fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
+  |                                           ^
+  |
+ call path (innermost first):
+   example.fung:1 depth
+   example.fung:1 depth
+   example.fung:1 depth
+   example.fung:1 depth
+   example.fung:1 depth
+   example.fung:1 depth
+   example.fung:1 depth
+   example.fung:1 depth
+   … 99990 more
+   example.fung:1 depth
+   example.fung:3 &lt;entry&gt;
+ help: make the recursion a tail call or use `fold`</code></pre></div>
+<nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/language/scope.html"><small>이전</small>변수와 스코프</a><a class="next" href="../../reference/language/conditions.html"><small>다음</small>조건</a></nav>
+</div></main>
+</div>
+<script src="../../../versions.js"></script>
+<script src="../../assets/manual.js"></script>
+</body>
+</html>

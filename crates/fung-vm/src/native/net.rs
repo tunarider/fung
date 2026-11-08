@@ -90,7 +90,12 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "connect",
                     connect_fn,
-                    vec![param("host"), param("port"), opt("tls", Lit::Bool(false))],
+                    vec![
+                        param("host"),
+                        param("port"),
+                        opt("tls", Lit::Bool(false)),
+                        opt("alpn", Lit::Nil),
+                    ],
                 ),
             ),
             (
@@ -130,7 +135,11 @@ pub fn module() -> Rc<Module> {
                 "write",
                 native_step("write", write_fn, vec![param("c"), param("s")]),
             ),
-            ("close", native("close", close_fn, vec![param("x")])),
+            ("close", native_step("close", close_fn, vec![param("x")])),
+            (
+                "close_write",
+                native("close_write", close_write_fn, vec![param("c")]),
+            ),
             (
                 "set_deadline",
                 native(
@@ -153,7 +162,11 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "start_tls",
-                native_step("start_tls", start_tls_fn, vec![param("c"), param("host")]),
+                native_step(
+                    "start_tls",
+                    start_tls_fn,
+                    vec![param("c"), param("host"), opt("alpn", Lit::Nil)],
+                ),
             ),
             (
                 "need_str_map",
@@ -162,6 +175,18 @@ pub fn module() -> Rc<Module> {
                     need_str_map_fn,
                     vec![param("name"), param("m")],
                 ),
+            ),
+            (
+                "read_fields",
+                native_step(
+                    "read_fields",
+                    read_fields_fn,
+                    vec![param("c"), param("budget"), param("max")],
+                ),
+            ),
+            (
+                "need_count",
+                native("need_count", need_count_fn, vec![param("name"), param("n")]),
             ),
             ("user_agent", native("user_agent", user_agent_fn, vec![])),
         ]
@@ -909,7 +934,8 @@ fn split_host_port(hostport: &str) -> Result<(&str, &str), String> {
     Ok((host, &hostport[i + 1..]))
 }
 
-/// A decimal port (a sign allowed) in 0..=65535, or ``invalid port `x` ``.
+/// A decimal port (a sign allowed) in 0..=65535, or ``invalid port `x` ``
+/// (with ``(a port is a number)`` for one that is not).
 /// Service names (`http`) are not looked up.
 fn parse_port(service: &str) -> Result<u16, String> {
     if service.is_empty() {
@@ -920,8 +946,11 @@ fn parse_port(service: &str) -> Result<u16, String> {
         b'-' => (true, &service[1..]),
         _ => (false, service),
     };
+    // A named port (`http`) is not looked up in /etc/services, which small
+    // containers lack: the same address would mean another thing there
+    // (L12).
     if !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(format!("invalid port `{service}`"));
+        return Err(format!("invalid port `{service}` (a port is a number)"));
     }
     // more digits than any port: out of range whatever they are
     let n: u64 = digits.parse().unwrap_or(u64::MAX);
@@ -988,6 +1017,14 @@ fn lookup_targets(host: &str) -> Result<Vec<Target>, Fail> {
 
 /// `sock::lookup`, held by the test gate for the name `gate.invalid`.
 fn lookup(host: &str) -> Result<Vec<(IpAddr, u32)>, String> {
+    // an address no one answers (TEST-NET-1, RFC 5737), then the loopback
+    #[cfg(test)]
+    if host == "eyeballs.invalid" {
+        return Ok(vec![
+            (IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), 0),
+            (IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
+        ]);
+    }
     #[cfg(test)]
     if host == "gate.invalid" {
         probe::gate();
@@ -1012,32 +1049,62 @@ fn writable_now(s: &TcpStream) -> bool {
     n > 0
 }
 
-/// A connect between tries: the addresses in order, the first that
-/// connects, else the first error (no racing of the second family,
-/// "Happy Eyeballs": the addresses are tried one by one), then the TLS
-/// handshake if asked for.
+/// How long a connect has to succeed before the next address is tried
+/// beside it (RFC 8305: 250 ms).
+const ATTEMPT_DELAY: Duration = Duration::from_millis(250);
+
+/// The addresses with the two families taking turns, the first address's
+/// family first (RFC 8305 4): a family whose route is down then costs one
+/// attempt delay, not every address of it.
+fn interleave(targets: Vec<Target>) -> Vec<Target> {
+    let Some(first) = targets.first().map(|t| t.ip.is_ipv6()) else {
+        return targets;
+    };
+    let (mut same, mut other): (Vec<_>, Vec<_>) =
+        targets.into_iter().partition(|t| t.ip.is_ipv6() == first);
+    let mut out = Vec::with_capacity(same.len() + other.len());
+    same.reverse();
+    other.reverse();
+    loop {
+        match (same.pop(), other.pop()) {
+            (None, None) => return out,
+            (a, b) => out.extend(a.into_iter().chain(b)),
+        }
+    }
+}
+
+/// A connect between tries, racing the addresses ("Happy Eyeballs", RFC
+/// 8305 5, L12): the first starts at once and each next one when the
+/// ones before have not connected within `ATTEMPT_DELAY` (or all failed);
+/// the first to connect wins and the others are closed. When all fail,
+/// the first error. Then the TLS handshake if asked for.
 struct Dial {
     targets: Vec<Target>,
     port: u16,
     next: usize,
-    /// A connect in progress to this address.
-    pending: Option<(TcpStream, SocketAddr)>,
+    /// Connects in progress, and when the next address may start.
+    pending: Vec<(TcpStream, SocketAddr)>,
+    next_at: Option<Instant>,
     first: Option<Fail>,
     /// The connection made, and its handshake in progress (TLS).
     conn: Option<Conn>,
     tls: Option<(String, Option<tls::Session>)>,
+    /// The protocols offered in the handshake (ALPN).
+    alpn: Vec<Vec<u8>>,
 }
 
 impl Dial {
     fn new(targets: Vec<Target>, port: u16, tls: Option<String>) -> Dial {
         Dial {
-            targets,
+            targets: interleave(targets),
             port,
             next: 0,
-            pending: None,
+            pending: Vec::new(),
+            next_at: None,
             first: None,
             conn: None,
             tls: tls.map(|h| (h, None)),
+            alpn: Vec::new(),
         }
     }
 
@@ -1055,45 +1122,69 @@ impl Dial {
                 return Err(Fail::Cancelled);
             }
             if let Some(c) = &mut self.conn {
+                // the race is over: the others close as they drop
+                self.pending.clear();
                 if let Some((host, session)) = &mut self.tls {
                     let st = match session {
                         Some(st) => st,
-                        None => session.insert(tls::start(host)?),
+                        None => session.insert(tls::start(host, &self.alpn)?),
                     };
                     tls::handshake(a, c, st)?;
                     c.tls = session.take().map(Mutex::new);
                 }
                 return Ok(self.conn.take().expect("the connection"));
             }
-            if let Some((s, addr)) = self.pending.take() {
-                if !writable_now(&s) {
-                    let fd = s.as_raw_fd();
-                    self.pending = Some((s, addr));
-                    return Err(wait_io(a, fd, Interest::Write, None));
+            // the connects that have ended: the first that made it wins
+            let mut i = 0;
+            while i < self.pending.len() {
+                if !writable_now(&self.pending[i].0) {
+                    i += 1;
+                    continue;
                 }
+                let (s, addr) = self.pending.swap_remove(i);
                 match sock::finish_connect(&s) {
-                    Ok(()) => self.conn = Some(Conn::new(s, addr)),
+                    Ok(()) => {
+                        self.conn = Some(Conn::new(s, addr));
+                        break;
+                    }
+                    Err(e) => {
+                        self.first.get_or_insert(Fail::Network(oserr::reason(&e)));
+                    }
+                }
+            }
+            if self.conn.is_some() {
+                continue;
+            }
+            let more = self.next < self.targets.len();
+            let due = self.next_at.is_none_or(|at| Instant::now() >= at);
+            if more && (self.pending.is_empty() || due) {
+                let addr = self.targets[self.next].socket(self.port);
+                self.next += 1;
+                match sock::start_connect(&addr) {
+                    Ok((s, true)) => self.conn = Some(Conn::new(s, addr)),
+                    Ok((s, false)) => {
+                        self.pending.push((s, addr));
+                        self.next_at = Some(Instant::now() + ATTEMPT_DELAY);
+                    }
                     Err(e) => {
                         self.first.get_or_insert(Fail::Network(oserr::reason(&e)));
                     }
                 }
                 continue;
             }
-            let Some(ip) = self.targets.get(self.next) else {
+            if self.pending.is_empty() {
                 return Err(self
                     .first
                     .take()
                     .unwrap_or_else(|| Fail::Network("no such host".into())));
-            };
-            self.next += 1;
-            let addr = ip.socket(self.port);
-            match sock::start_connect(&addr) {
-                Ok((s, true)) => self.conn = Some(Conn::new(s, addr)),
-                Ok((s, false)) => self.pending = Some((s, addr)),
-                Err(e) => {
-                    self.first.get_or_insert(Fail::Network(oserr::reason(&e)));
-                }
             }
+            let fds = self
+                .pending
+                .iter()
+                .map(|(s, _)| (s.as_raw_fd(), Interest::Write))
+                .collect();
+            a.blocked = Some(IoStep::WaitAny(fds, self.next_at.filter(|_| more)));
+            return Err(Fail::Block);
         }
     }
 }
@@ -1105,8 +1196,31 @@ fn dial(
     targets: Vec<Target>,
     port: u16,
     tls: Option<String>,
+    alpn: Vec<Vec<u8>>,
 ) -> Result<Flow, Stop> {
-    run_dial(t, Dial::new(targets, port, tls))
+    run_dial(
+        t,
+        Dial {
+            alpn,
+            ..Dial::new(targets, port, tls)
+        },
+    )
+}
+
+/// The `alpn` argument: nil or a list of protocol names (strings), each
+/// 1 to 255 bytes (RFC 7301).
+fn need_alpn(v: &Value) -> Result<Vec<Vec<u8>>, Stop> {
+    match v {
+        Value::Nil => Ok(Vec::new()),
+        Value::List(l) => l
+            .iter()
+            .map(|x| match x {
+                Value::Str(s) if !s.is_empty() && s.len() <= 255 => Ok(s.to_vec()),
+                _ => Err(nat::wrong_arg("alpn", "list of protocol names", v)),
+            })
+            .collect(),
+        _ => Err(nat::wrong_arg("alpn", "list of protocol names", v)),
+    }
 }
 
 fn run_dial(t: &mut Task<'_>, mut d: Dial) -> Result<Flow, Stop> {
@@ -1188,6 +1302,7 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let Value::Bool(tls) = a[2] else {
         return Err(nat::wrong_arg("tls", "bool", &a[2]));
     };
+    let alpn = need_alpn(&a[3])?;
     let Ok(port) = u16::try_from(port) else {
         return Ok(Flow::Done(fail_value(Fail::Network(format!(
             "invalid port `{port}`"
@@ -1197,14 +1312,14 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     // lookup, the connection and the handshake (`vm/deadline.rs`).
     let tls = tls.then(|| host.clone());
     if let Some(targets) = literal(&host) {
-        return dial(t, targets, port, tls);
+        return dial(t, targets, port, tls, alpn);
     }
     crate::vm::offload_kind(
         t,
-        Kind::Abandon,
+        Kind::Lookup,
         move || lookup_targets(&host),
         move |t, r| match r {
-            Ok(targets) => dial(t, targets, port, tls),
+            Ok(targets) => dial(t, targets, port, tls, alpn),
             Err(f) => Ok(Flow::Done(fail_value(f))),
         },
     )
@@ -1218,11 +1333,18 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?;
     let host = nat::need_str("host", &a[1])?.to_string();
+    let alpn = need_alpn(&a[2])?;
     let plain = match c.take_over() {
         Ok(p) => p,
         Err(f) => return Ok(Flow::Done(fail_value(f))),
     };
-    run_dial(t, Dial::over(plain, host))
+    run_dial(
+        t,
+        Dial {
+            alpn,
+            ..Dial::over(plain, host)
+        },
+    )
 }
 
 /// `listen(addr)`: `Ok(<listener>)`. A name is looked up on the pool
@@ -1239,10 +1361,15 @@ fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         // run thread, which also starts the commands. Made on a pool thread
         // it could be inherited by a command started meanwhile (macOS sets
         // close-on-exec after making a socket), which would hold the port.
-        Ok(h) if !h.is_empty() && literal(&h).is_none() => nat::offload_abandoning(
+        Ok(h) if !h.is_empty() && literal(&h).is_none() => crate::vm::offload_kind(
             t,
+            Kind::Lookup,
             move || lookup_targets(&h),
-            move |_, r| Ok(wrap(r.and_then(|ips| listen(&addr, reuse_port, Some(ips))))),
+            move |_, r| {
+                Ok(Flow::Done(wrap(
+                    r.and_then(|ips| listen(&addr, reuse_port, Some(ips))),
+                )))
+            },
         ),
         _ => Ok(Flow::Done(wrap(listen(&addr, reuse_port, None)))),
     }
@@ -1292,6 +1419,186 @@ fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         c,
         move |c, a| c.read_line(a, limit),
         |r| result(r.map(|l| l.map_or(Value::Nil, |l| text(&l)))),
+    )
+}
+
+/// A head's header lines being read (`read_fields`): the fields so far,
+/// the one being gathered (its pieces, from folded lines), and the bytes
+/// the head may still take.
+struct Fields {
+    out: Vec<(Vec<u8>, Vec<u8>)>,
+    pending: Option<Vec<Vec<u8>>>,
+    left: i64,
+    max: usize,
+}
+
+/// How a `read_fields` ended, besides the stream's own failures.
+enum FieldsEnd {
+    /// The blank line: the fields and the budget left.
+    Done(Vec<(Vec<u8>, Vec<u8>)>, i64),
+    /// A line that is no header line, and why.
+    Invalid(String),
+    /// The stream ended before the blank line.
+    Eof,
+}
+
+/// A token character (RFC 9110 5.6.2).
+fn tchar(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b)
+}
+
+/// Without spaces and tabs at either end.
+fn trim_ows(b: &[u8]) -> &[u8] {
+    let start = b
+        .iter()
+        .position(|&c| c != b' ' && c != b'\t')
+        .unwrap_or(b.len());
+    let end = b
+        .iter()
+        .rposition(|&c| c != b' ' && c != b'\t')
+        .map_or(start, |i| i + 1);
+    &b[start..end]
+}
+
+/// A header name in its usual case (`content-type` → `Content-Type`);
+/// one with a character that is no token character stays as written.
+fn canonical(k: &[u8]) -> Vec<u8> {
+    if k.is_empty() || !k.iter().all(|&b| tchar(b)) {
+        return k.to_vec();
+    }
+    let mut up = true;
+    k.iter()
+        .map(|&b| {
+            let c = if up {
+                b.to_ascii_uppercase()
+            } else {
+                b.to_ascii_lowercase()
+            };
+            up = b == b'-';
+            c
+        })
+        .collect()
+}
+
+impl Fields {
+    /// The gathered field into `out`: a key of token characters (a space
+    /// keeps it as written), a value without control characters but tab,
+    /// the value without leading blanks (the rules of `http.fung`).
+    fn flush(&mut self) -> Result<(), String> {
+        let Some(pieces) = self.pending.take() else {
+            return Ok(());
+        };
+        let kv = pieces.join(&b' ');
+        let colon = kv
+            .iter()
+            .position(|&b| b == b':')
+            .expect("a line with a colon");
+        let (k, v) = (&kv[..colon], &kv[colon + 1..]);
+        let ok = !k.is_empty()
+            && k.iter().all(|&b| b == b' ' || tchar(b))
+            && !v.iter().any(|&b| (b < 32 && b != b'\t') || b == 127);
+        if !ok {
+            return Err(format!(
+                "invalid header line `{}`",
+                String::from_utf8_lossy(&kv)
+            ));
+        }
+        let start = v
+            .iter()
+            .position(|&b| b != b' ' && b != b'\t')
+            .unwrap_or(v.len());
+        self.out.push((canonical(k), v[start..].to_vec()));
+        Ok(())
+    }
+
+    /// Reads lines on until the blank one (or a stop): a line that starts
+    /// with a space or tab continues the one before (obsolete folding,
+    /// RFC 9112 5.2). Past the budget, or past `max` fields (0: no
+    /// bound), it is a `'limit`.
+    fn read(&mut self, c: &Conn, a: &mut Attempt) -> Result<FieldsEnd, Fail> {
+        let too_long = || Fail::Limit("head too long".into());
+        loop {
+            if self.left < 0 {
+                return Err(too_long());
+            }
+            let Some(line) = c.read_line(a, self.left as usize)? else {
+                return Ok(match self.flush() {
+                    Err(why) => FieldsEnd::Invalid(why),
+                    Ok(()) => FieldsEnd::Eof,
+                });
+            };
+            self.left -= line.len() as i64 + 2;
+            let folded = line.first().is_some_and(|&b| b == b' ' || b == b'\t');
+            if folded {
+                match &mut self.pending {
+                    None => {
+                        return Ok(FieldsEnd::Invalid(format!(
+                            "continuation line without a header `{}`",
+                            String::from_utf8_lossy(&line)
+                        )));
+                    }
+                    Some(p) => p.push(trim_ows(&line).to_vec()),
+                }
+            } else {
+                if let Err(why) = self.flush() {
+                    return Ok(FieldsEnd::Invalid(why));
+                }
+                if line.is_empty() {
+                    if self.left < 0 {
+                        return Err(too_long());
+                    }
+                    return Ok(FieldsEnd::Done(std::mem::take(&mut self.out), self.left));
+                }
+                if !line.contains(&b':') {
+                    return Ok(FieldsEnd::Invalid(format!(
+                        "header line without a colon `{}`",
+                        String::from_utf8_lossy(&line)
+                    )));
+                }
+                self.pending = Some(vec![trim_ows(&line).to_vec()]);
+            }
+            if self.max > 0 && self.out.len() > self.max {
+                return Err(Fail::Limit("too many header lines".into()));
+            }
+        }
+    }
+}
+
+/// `read_fields(c, budget, max)`: a head's header lines up to the blank
+/// one, read here rather than line by line in fung (L13: a head of
+/// thousands of lines cost the run thread hundreds of milliseconds).
+/// `Ok((fields, budget left))` with `fields` a list of `(name, value)`,
+/// names in their usual case; `Err` of kind `'limit` past the budget or
+/// `max` fields (0: none), `'invalid` for a line that is no header line,
+/// `'eof` when the stream ends first, else the stream's own.
+fn read_fields_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    let c = need_conn("c", &a[0])?.clone();
+    let Value::Int(budget) = a[1] else {
+        return Err(nat::wrong_arg("budget", "int", &a[1]));
+    };
+    let max = need_count("max", &a[2])?;
+    let mut st = Fields {
+        out: Vec::new(),
+        pending: None,
+        left: budget,
+        max,
+    };
+    read_op(
+        t,
+        c,
+        move |c, a| st.read(c, a),
+        |r| match r {
+            Ok(FieldsEnd::Done(fields, left)) => {
+                let list = fields
+                    .into_iter()
+                    .map(|(k, v)| Value::tuple(vec![text(&k), text(&v)]))
+                    .collect();
+                nat::ok(Value::tuple(vec![nat::list(list), Value::Int(left)]))
+            }
+            Ok(FieldsEnd::Invalid(why)) => nat::err_value("invalid", &why, vec![]),
+            Ok(FieldsEnd::Eof) => nat::err_value("eof", "connection closed in the head", vec![]),
+            Err(f) => fail_value(f),
+        },
     )
 }
 
@@ -1373,11 +1680,56 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
+/// `close_write(c)`: ends the sending side only (`shutdown(SHUT_WR)`,
+/// after close_notify on TLS): the peer reads the end of what was sent
+/// while the connection still reads what it sends (the server after 431,
+/// L13). `Ok(nil)`.
+fn close_write_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let c = need_conn("c", &a[0])?;
+    let r = c.sock().map(|s| {
+        if let Some(t) = &c.tls {
+            tls::close_notify(t, &s.0);
+        }
+        let _ = s.0.shutdown(Shutdown::Write);
+        Value::Nil
+    });
+    Ok(result(r))
+}
+
+/// How long `close` waits for a TLS connection's close_notify to go out.
+const CLOSE_NOTIFY_WAIT: Duration = Duration::from_secs(1);
+
 /// `close(x)`: closes a connection or a listener; `Ok(nil)`, an error
 /// the second time (it was closed already: a likely bug of the caller).
-/// The tasks waiting on it are woken first and see it closed.
-fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// The tasks waiting on it are woken first and see it closed. A TLS
+/// connection sends close_notify first, waiting at most
+/// `CLOSE_NOTIFY_WAIT` for the socket to take it (and the task's own
+/// deadline and cancellation; L12).
+fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let r = match &a[0] {
+        Value::Conn(c) if c.tls.is_some() => {
+            if let Some(fd) = c.fd() {
+                crate::vm::drop_io_waits(t, fd);
+            }
+            let s = match lock(&c.sock).take() {
+                Some(s) => s,
+                None => return Ok(Flow::Done(fail_value(c.closed()))),
+            };
+            let c = c.clone();
+            tls::queue_close_notify(c.tls.as_ref().expect("a TLS connection"));
+            let until = Instant::now() + CLOSE_NOTIFY_WAIT;
+            return run_io(
+                t,
+                None,
+                move |a| {
+                    let st = c.tls.as_ref().expect("a TLS connection");
+                    tls::flush_close(a, st, &s.0, until)?;
+                    let _ = s.0.shutdown(Shutdown::Both);
+                    Ok(())
+                },
+                |r| result(r.map(|()| Value::Nil)),
+            );
+        }
         Value::Conn(c) => {
             if let Some(fd) = c.fd() {
                 crate::vm::drop_io_waits(t, fd);
@@ -1392,17 +1744,32 @@ fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
         }
         v => return Err(nat::wrong_arg("x", "conn | listener", v)),
     };
-    Ok(result(r.map(|()| Value::Nil)))
+    Ok(Flow::Done(result(r.map(|()| Value::Nil))))
 }
 
 /// `set_deadline(c, d)`: reads and writes on `c` from `d` after now time
-/// out (`'timeout`); `0s` removes the deadline.
-fn set_deadline_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// out (`'timeout`); `0s` removes the deadline. It reaches the reads and
+/// writes waiting already (L12): they are woken and look again under the
+/// new deadline.
+fn set_deadline_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let c = need_conn("c", &a[0])?;
     let Value::Dur(d) = a[1] else {
         return Err(nat::wrong_arg("d", "dur", &a[1]));
     };
-    Ok(result(c.set_deadline(d).map(|()| Value::Nil)))
+    let r = c.set_deadline(d);
+    if r.is_ok()
+        && let Some(fd) = c.fd()
+    {
+        crate::vm::drop_io_waits(t, fd);
+    }
+    Ok(result(r.map(|()| Value::Nil)))
+}
+
+/// `need_count(name, n)`: `nil`, or E0403 when `n` is not an int from 0
+/// (`http`'s `max_body`, which fung code cannot raise itself).
+fn need_count_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    let name = nat::need_str("name", &a[0])?;
+    need_count(name, &a[1]).map(|_| Value::Nil)
 }
 
 /// `need_str_map(name, m)`: `nil`, or E0403 when `m` is not a map or a

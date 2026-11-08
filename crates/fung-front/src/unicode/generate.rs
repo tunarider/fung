@@ -5,8 +5,11 @@
 //! The files are fixed data the front end reads; this test regenerates or
 //! checks them when `FUNG_UCD` names a directory holding the UCD files
 //! `UnicodeData.txt`, `DerivedCoreProperties.txt`,
-//! `CompositionExclusions.txt` and `EastAsianWidth.txt` (Unicode 17.0.0,
-//! <https://www.unicode.org/Public/17.0.0/ucd/>). Without `FUNG_UCD` it
+//! `CompositionExclusions.txt`, `EastAsianWidth.txt`, and for the
+//! grapheme clusters (L17) `GraphemeBreakProperty.txt` (in `auxiliary/`),
+//! `emoji-data.txt` (in `emoji/`) and the test file
+//! `GraphemeBreakTest.txt` (in `auxiliary/`), all in one directory
+//! (Unicode 17.0.0, <https://www.unicode.org/Public/17.0.0/ucd/>). Without `FUNG_UCD` it
 //! does nothing. `FUNG_UPDATE_SPEC=1` rewrites the files instead of
 //! comparing.
 
@@ -25,7 +28,12 @@ fn unicode_spec_file() {
     let files = [
         (
             "unicode.txt",
-            spec(&data, &derived, &read("EastAsianWidth.txt")),
+            spec(&data, &derived, &read("EastAsianWidth.txt"))
+                + &cluster_spec(
+                    &read("GraphemeBreakProperty.txt"),
+                    &read("emoji-data.txt"),
+                    &derived,
+                ),
         ),
         (
             "unicode_nfc.txt",
@@ -107,6 +115,80 @@ fn nfc_spec(unicode_data: &str, exclusions: &str, derived: &str) -> String {
         if composable {
             out.push_str(&format!("compose {:04X} {:04X} {cp:04X}\n", to[0], to[1]));
         }
+    }
+    out
+}
+
+/// The grapheme cluster classes (UAX #29, L17), in file order: the
+/// `Grapheme_Cluster_Break` values, `Extended_Pictographic`,
+/// `Emoji_Presentation`, and the `Indic_Conjunct_Break` values.
+fn cluster_spec(gcb: &str, emoji: &str, derived: &str) -> String {
+    // (file text, property field index of the value, the value, class)
+    let mut out = String::from(
+        "# grapheme clusters (UAX #29): gcb_* Grapheme_Cluster_Break, ext_pict Extended_Pictographic, emoji_pres Emoji_Presentation, incb_* Indic_Conjunct_Break\n",
+    );
+    let runs = |text: &str, want: &dyn Fn(&[&str]) -> bool| -> Vec<(u32, u32)> {
+        let mut v: Vec<(u32, u32)> = Vec::new();
+        for line in text.lines() {
+            let body = line.split('#').next().unwrap().trim();
+            let f: Vec<&str> = body.split(';').map(str::trim).collect();
+            if f.len() < 2 || !want(&f[1..]) {
+                continue;
+            }
+            let (lo, hi) = f[0].split_once("..").unwrap_or((f[0], f[0]));
+            let lo = u32::from_str_radix(lo, 16).unwrap();
+            let hi = u32::from_str_radix(hi, 16).unwrap();
+            v.push((lo, hi));
+        }
+        v.sort_unstable();
+        // join touching runs
+        let mut joined: Vec<(u32, u32)> = Vec::new();
+        for (lo, hi) in v {
+            match joined.last_mut() {
+                Some(last) if lo <= last.1 + 1 => last.1 = last.1.max(hi),
+                _ => joined.push((lo, hi)),
+            }
+        }
+        joined
+    };
+    let mut put = |class: &str, rs: Vec<(u32, u32)>| {
+        for (lo, hi) in rs {
+            out.push_str(&format!("{class} {lo:04X} {hi:04X}\n"));
+        }
+    };
+    for (value, class) in [
+        ("CR", "gcb_cr"),
+        ("LF", "gcb_lf"),
+        ("Control", "gcb_control"),
+        ("Extend", "gcb_extend"),
+        ("ZWJ", "gcb_zwj"),
+        ("Regional_Indicator", "gcb_ri"),
+        ("Prepend", "gcb_prepend"),
+        ("SpacingMark", "gcb_spacingmark"),
+        ("L", "gcb_l"),
+        ("V", "gcb_v"),
+        ("T", "gcb_t"),
+        ("LV", "gcb_lv"),
+        ("LVT", "gcb_lvt"),
+    ] {
+        put(class, runs(gcb, &|f| f[0] == value));
+    }
+    put(
+        "ext_pict",
+        runs(emoji, &|f| f[0] == "Extended_Pictographic"),
+    );
+    put("emoji_pres", runs(emoji, &|f| f[0] == "Emoji_Presentation"));
+    for (value, class) in [
+        ("Consonant", "incb_consonant"),
+        ("Extend", "incb_extend"),
+        ("Linker", "incb_linker"),
+    ] {
+        put(
+            class,
+            runs(derived, &|f| {
+                f.len() >= 2 && f[0] == "InCB" && f[1] == value
+            }),
+        );
     }
     out
 }

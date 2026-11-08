@@ -31,7 +31,7 @@ description: fung 모듈 http — HTTP 요청 보내기(get, post, request)와 H
 
 ## 클라이언트 {#client}
 
-:::fn http.get(url, headers = {}, timeout = 30s) fung
+:::fn http.get(url, headers = {}, timeout = 30s, max_body = 67108864) fung
 
 URL에 `GET` 요청을 보내고 응답을 돌려준다.
 
@@ -46,6 +46,7 @@ URL에 `GET` 요청을 보내고 응답을 돌려준다.
 - `url`: `http://`나 `https://`로 시작하는 URL.
 - `headers`: 보낼 헤더 맵(`{"Authorization": "Bearer ${token}"}`). 맵 순서대로 보낸다.
 - `timeout`: 요청 전체의 한도(기간).
+- `max_body`: 읽을 응답 본문의 최대 바이트 수(기본 64 MiB). 넘으면 `Err({kind: 'network})`(`response body longer than N bytes`). 큰 파일을 받을 때 늘린다. 제한 없음은 없다.
 
 #### 돌려주는 값
 
@@ -53,7 +54,7 @@ URL에 `GET` 요청을 보내고 응답을 돌려준다.
 
 #### 에러
 
-- `Err({kind: 'network, message})`: 연결·이름 조회·TLS·URL·리다이렉트 실패, 응답 본문이 64 MiB를 넘음.
+- `Err({kind: 'network, message})`: 연결·이름 조회·TLS·URL·리다이렉트 실패, 응답 본문이 `max_body`를 넘음.
 - `Err({kind: 'timeout, message})`: `timeout` 안에 끝나지 않았다.
 - 런타임 에러 E0403: 인자의 타입이 틀렸다(`url`이 문자열이 아님 등).
 
@@ -125,7 +126,7 @@ down: cannot request `https://expired.badssl.com/`: certificate has expired (val
 
 :::
 
-:::fn http.post(url, body, headers = {}, timeout = 30s) fung
+:::fn http.post(url, body, headers = {}, timeout = 30s, max_body = 67108864) fung
 
 URL에 `POST` 요청으로 본문을 보내고 응답을 돌려준다.
 
@@ -139,6 +140,7 @@ URL에 `POST` 요청으로 본문을 보내고 응답을 돌려준다.
 - `body`: 보낼 문자열 또는 `nil`.
 - `headers`: 보낼 헤더 맵.
 - `timeout`: 요청 전체의 한도.
+- `max_body`: 읽을 응답 본문의 최대 바이트 수.
 
 #### 돌려주는 값
 
@@ -193,7 +195,7 @@ sent
 
 :::
 
-:::fn http.request(method, url, body = nil, headers = {}, timeout = 30s) fung
+:::fn http.request(method, url, body = nil, headers = {}, timeout = 30s, max_body = 67108864) fung
 
 아무 메서드로나 요청을 보낸다.
 
@@ -208,6 +210,7 @@ sent
 - `body`: 보낼 문자열 또는 `nil`.
 - `headers`: 보낼 헤더 맵.
 - `timeout`: 요청 전체의 한도.
+- `max_body`: 읽을 응답 본문의 최대 바이트 수.
 
 #### 돌려주는 값
 
@@ -278,7 +281,9 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 핸들러는 **문자열**(상태 200, `text/plain; charset=utf-8`)이나 **맵** `{status = 200, headers = {}, body = ""}`(빠진 키는 기본값)을 돌려준다. 응답에는 `Date`와 `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`이 붙는다. 연결마다 요청 하나만 받으므로 응답에는 늘 `Connection: close`가 붙는다.
 
-핸들러가 런타임 에러를 내면 500으로 답하고 표준 에러에 `http: handler failed: …` 한 줄을 쓴다. 문자열·맵이 아닌 것을 돌려주면 500과 `http: bad handler response: …`다. 어느 쪽이든 서버는 계속 돈다.
+답의 틀은 서버가 정한다. 그래서 핸들러가 `Transfer-Encoding`·`Trailer`·`Connection` 헤더를 넣거나, 본문 길이와 다른 `Content-Length`를 넣으면 잘못된 답이다(본문이 없는 `HEAD`·204·304의 `Content-Length`는 GET의 길이로 받는다). 대소문자만 다른 같은 이름의 헤더 둘(`X-A`와 `x-a`)과 상태 101(연결 넘겨주기는 하지 않음)도 잘못된 답이다.
+
+핸들러가 런타임 에러를 내면 500으로 답하고 표준 에러에 `http: handler failed: …` 한 줄을 쓴다. 문자열·맵이 아닌 것이나 잘못된 답을 돌려주면 500과 `http: bad handler response: …`(이유)다. 어느 쪽이든 서버는 계속 돈다.
 
 **끝나는 길은 둘이다.**
 
@@ -287,11 +292,11 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 `ready`를 주면 듣기 시작한 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다. 포트 `0`으로 띄운 서버의 포트를 아는 길이고, 시험에서 서버가 준비된 뒤에 요청을 보내는 데 쓴다. `reuse_port: true`는 `SO_REUSEPORT`를 켜서 프로세스 여럿이 한 포트에서 받게 한다(Linux는 연결을 나눠 주고, macOS는 받게만 한다). 여러 코어를 쓰는 방법이다.
 
-서버의 한도: 헤더는 10초 안에 와야 하고(아니면 끊음), 요청 머리는 1 MiB·헤더 줄 500개까지(넘으면 431), 본문은 16 MiB까지(넘으면 413, 핸들러를 부르지 않음), 형식이 틀리면 400이다. 서버가 스스로 내는 답의 본문은 `<코드> <이유 문구>`다(`500 Internal Server Error`). 표준 이유 문구가 없는 코드(`599`)는 빈 문구로 보낸다.
+서버의 한도: 헤더는 10초 안에 와야 하고(아니면 끊음), 요청 머리는 1 MiB·헤더 줄 500개까지(넘으면 431), 본문은 16 MiB까지(넘으면 413, 핸들러를 부르지 않음), 형식이 틀리면 400이다. 서버가 스스로 내는 답에는 `Date`·`Content-Length`가 붙고, 본문은 `<코드> <이유 문구>`다(`500 Internal Server Error`). 표준 이유 문구가 없는 코드(`599`)는 빈 문구로 보낸다. macOS는 받기 전 대기 줄(`kern.ipc.somaxconn`, 기본 128)이 차면 새 연결을 끊으므로, 한꺼번에 그보다 많이 몰려오는 접속은 그만큼 실패한다(Linux 기본값은 4096).
 
 #### 매개변수
 
-- `addr`: 들을 주소(`":8080"`, `"127.0.0.1:0"`).
+- `addr`: 들을 주소(`":8080"`, `"127.0.0.1:0"`). 포트는 숫자다. `":http"` 같은 이름은 풀지 않는다(``invalid port `http` (a port is a number)``): 작은 컨테이너에는 이름표(`/etc/services`)가 없어 같은 스크립트가 달라지기 때문이다.
 - `handler`: `req`를 받아 문자열이나 응답 맵을 돌려주는 함수.
 - `ready`: 실제 주소를 받는 함수 또는 `nil`.
 - `drain`: 정지 요청 뒤 처리 중인 요청을 기다릴 최대 기간.
@@ -408,8 +413,12 @@ stopped
   <li><b>클라이언트 헤더</b>: 요청에 <code>Host</code>, <code>User-Agent: fung/&lt;버전&gt;</code>, 본문이 있으면 <code>Content-Length</code>가 붙는다. 사용자 헤더는 이름을 표준 대소문자로 바꿔 맵 순서대로 보내고, 같은 이름이면 사용자 것이 이긴다(빈 <code>User-Agent</code>는 보내지 않는다). 비어 있지 않은 사용자 <code>Host</code>도 자동 값을 대신하고, 리다이렉트가 다른 호스트로 가면 그 요청부터 버린다. <code>Content-Length</code>·<code>Transfer-Encoding</code>·<code>Trailer</code>는 본문의 끝을 정하므로 언제나 클라이언트가 쓴다. URL의 <code>user:pass@</code>는 사용자 <code>Authorization</code>이 없을 때 <code>Authorization: Basic</code>이 된다. 응답 본문은 <code>Content-Length</code>, 조각 전송(chunked), 연결 닫힘 중 하나로 읽는다. 압축을 요청하지 않으므로 본문은 서버가 보낸 그대로다.</li>
   <li><b>리다이렉트</b>: 301·302·303은 <code>GET</code>으로 바꿔(원래 <code>HEAD</code>면 <code>HEAD</code>) 본문 없이, 307·308은 메서드와 본문을 지켜 따라간다. 10번까지 따라가고 11번째는 <code>Err({kind: 'network})</code>(<code>too many redirects (limit 10)</code>). 리다이렉트 응답의 본문은 읽지 않는다. 첫 요청의 호스트나 그 하위 도메인이 아닌 곳으로 넘어가면 <code>Authorization</code>·<code>Cookie</code> 같은 민감한 헤더를 버린다. 다음 요청에는 <code>Referer</code>가 붙는다(사용자 정보 없이, https에서 http로 갈 때는 없음).</li>
   <li><b>프록시</b>: 환경 변수 <code>HTTP_PROXY</code>(http용), <code>HTTPS_PROXY</code>(https용), <code>NO_PROXY</code>(이름·하위 도메인·IP·CIDR, 포트 선택)를 따르고 소문자 이름도 읽는다. <code>localhost</code>와 루프백 주소는 프록시를 거치지 않는다. CGI 프로그램(<code>REQUEST_METHOD</code>가 있음) 안에서는 <code>HTTP_PROXY</code>를 쓰지 않는다. https는 <code>CONNECT</code> 터널로 간다. SOCKS 프록시와 https 프록시 너머의 https는 지원하지 않는다(<code>Err({kind: 'network})</code>).</li>
-  <li><b>https</b>: 운영체제의 루트 인증서(<code>SSL_CERT_FILE</code>·<code>SSL_CERT_DIR</code>이 있으면 그것)로 검증하고 SNI를 보낸다. 인증서 오류는 <code>Err({kind: 'network})</code>다.</li>
-  <li><b>응답 본문 상한 64 MiB</b>. 넘으면 <code>Err({kind: 'network})</code>.</li>
+  <li><b>https</b>: 운영체제의 루트 인증서로 검증하고 SNI와 ALPN <code>http/1.1</code>을 보낸다. <code>SSL_CERT_FILE</code>·<code>SSL_CERT_DIR</code>이 하나라도 있으면 <b>그 변수들이 가리키는 것만</b> 믿는다(사내 CA 묶음처럼 "이것만 믿어라"). 인증서 오류는 <code>Err({kind: 'network})</code>다. 믿을 루트가 하나도 없으면 <code>no root certificates found (set SSL_CERT_FILE)</code>, 변수가 가리키는 파일을 읽지 못하면 그 까닭(<code>cannot read SSL_CERT_FILE `/x`: no such file or directory</code>)이 붙는다.
+    <b>컨테이너</b>: fung의 Linux 바이너리는 정적이라 어디서나 돌지만, 루트 인증서는 실행 중에 시스템 파일에서 읽는다. <code>scratch</code>·distroless처럼 CA 파일이 없는 이미지에서는 <code>ca-certificates</code> 묶음을 복사하고(<code>COPY --from=… /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/</code>) 필요하면 <code>SSL_CERT_FILE</code>로 가리킨다.</li>
+  <li><b>연결</b>: 이름의 주소가 여럿이면 IPv6와 IPv4를 번갈아 놓고, 앞 주소가 250 ms 안에 연결되지 않으면 다음 주소도 시작해 먼저 된 것을 쓴다(RFC 8305 "Happy Eyeballs"). IPv6 경로가 막힌 망에서도 IPv4로 곧 넘어간다. 이름 조회는 중간에 끊을 수 없어서, 취소되면 요청은 바로 돌아오지만 조회는 해석기가 답할 때까지 뒤에서 남는다(한 번에 8개까지, 파일 일과 따로).</li>
+  <li><b>응답 본문 상한</b>은 요청의 <code>max_body</code>(기본 64 MiB). 넘으면 <code>Err({kind: 'network})</code>.</li>
+  <li><b>호스트는 ASCII</b>로 보낸다. 비ASCII 이름(<code>例え.jp</code>, <code>ex%C3%A9.com</code>)은 퓨니코드(<code>xn--…</code>)로 쓰라는 에러다. 괄호 안은 IPv6 주소여야 한다.</li>
+  <li><b>이른 답</b>: 서버가 요청을 다 받기 전에 답하고 닫으면(이른 413) 그 답을 준다. 프록시의 <code>CONNECT</code> 답은 2xx면 모두 터널이다. <code>http</code>·<code>https</code> 밖의 스킴인 프록시는 에러다.</li>
   <li><b>본문은 문자열</b>이다. 바이트를 그대로 담으므로 UTF-8이 아닌 본문(바이너리)도 바뀌지 않고 오간다. 요청 경로와 쿼리의 퍼센트 이스케이프도 바이트로 풀린다.</li>
   <li><b>없는 것</b>: 연결 재사용(keep-alive)과 파이프라이닝, HTTP/2, 압축. 서버는 연결마다 요청 하나만 받는다.</li>
 </ul>

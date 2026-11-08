@@ -23,7 +23,7 @@ print("[${clean}]", len(clean), clean[0..5], lower(clean))
 print(s == "  ERROR disk full  ")
 ```
 
-리터럴의 이스케이프(`\n`, `\t`, `\u{301}`), 여러 줄 문자열, 원시 문자열은 [어휘](../language.html#lexical)에, 패턴으로 찾고 바꾸는 일은 [`regex` 모듈](../modules/regex.html)에 있다.
+리터럴의 이스케이프(`\n`, `\t`, `\u{301}`), 여러 줄 문자열, 원시 문자열은 [어휘](../language/lexical.html)에, 패턴으로 찾고 바꾸는 일은 [`regex` 모듈](../modules/regex.html)에 있다.
 
 ## 나누기와 잇기 {#split-join}
 

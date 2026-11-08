@@ -233,6 +233,6 @@ print(app)
 
 #### 같이 보기
 
-[`exec`](#fn-exec), [`args`](program.html#fn-args), [`??`](../language.html#results)
+[`exec`](#fn-exec), [`args`](program.html#fn-args), [`??`](../language/results.html)
 
 :::

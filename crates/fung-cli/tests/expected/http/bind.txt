@@ -22,7 +22,7 @@
 ==== bind 3
 -- program: print(http.serve("127.0.0.1:x", r => r, ready: a => print("ready", a)))
 -- stdout
-| Err({kind: 'network, message: "cannot listen on `127.0.0.1:x`: invalid port `x`"})
+| Err({kind: 'network, message: "cannot listen on `127.0.0.1:x`: invalid port `x` (a port is a number)"})
 -- stderr
 -- exit: 0
 ==== bind 4

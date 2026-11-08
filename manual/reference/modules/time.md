@@ -9,7 +9,7 @@ description: fung 모듈 time — 시각 값 만들기, 읽고 쓰기, 시간대
 시간을 다루는 값은 두 가지다. 둘을 구분하는 것이 시간 계산의 첫걸음이다.
 
 - **시각**(instant, `time` 타입): "2026년 10월 4일 9시 5분"처럼 시간 위의 한 **점**이다. `time.now()`나 `time.parse`로 만든다.
-- **기간**(duration, `dur` 타입): "90분"처럼 두 점 사이의 **길이**다. 리터럴로 바로 쓴다: `500ms`, `30s`, `1h30m`([기간 리터럴](../language.html#lexical)).
+- **기간**(duration, `dur` 타입): "90분"처럼 두 점 사이의 **길이**다. 리터럴로 바로 쓴다: `500ms`, `30s`, `1h30m`([기간 리터럴](../language/lexical.html)).
 
 시각에 기간을 더하거나 빼면 시각이고, 시각에서 시각을 빼면 기간이다. 시각끼리는 `==`·`<`로 비교한다.
 
@@ -429,4 +429,4 @@ print(is_weekend(time.parse("2026-10-04T12:00:00Z")!), is_weekend(time.parse("20
 
 :::
 
-기간 값 자체(리터럴, 나누기, `parse_dur`)는 [언어 명세](../language.html#lexical)와 [`parse_dur`](../prelude/convert.html#fn-parse_dur)에 있다. 시간 제한은 prelude의 [`timeout`](../prelude/concurrency.html#fn-timeout)을 본다.
+기간 값 자체(리터럴, 나누기, `parse_dur`)는 [언어 명세](../language/lexical.html)와 [`parse_dur`](../prelude/convert.html#fn-parse_dur)에 있다. 시간 제한은 prelude의 [`timeout`](../prelude/concurrency.html#fn-timeout)을 본다.

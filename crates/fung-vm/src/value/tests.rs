@@ -728,6 +728,148 @@ fn pvec_truncate_matches_the_model() {
     }
 }
 
+/// A negative item answers `Probe::Err` (the memo tests below).
+impl Probed for i64 {
+    fn has(&self, p: Probe) -> bool {
+        matches!(p, Probe::Err) && *self < 0
+    }
+}
+
+/// Both ends (L5): `push_front` and `drop_front` mixed with `push`,
+/// `truncate` and `set` keep the model's items, every older version stays
+/// as it was, and the nodes' memos answer `holds`/`holds_in` as the model
+/// does after changes at either end.
+#[test]
+fn pvec_both_ends_match_the_model() {
+    let mut r = Rng::new(0x5eed_f00d_0ddb_a110);
+    let mut cur: (Pvec<i64>, Vec<i64>) = (Pvec::of(vec![]), vec![]);
+    let mut history = vec![cur.clone()];
+    let mut next = 0i64;
+    for step in 0..60000 {
+        next += 1;
+        // mostly positive; a rare negative item is what `holds` looks for
+        let x = if r.int_n(500) == 0 { -next } else { next };
+        match r.int_n(20) {
+            0 if !cur.1.is_empty() => {
+                let n = r.int_n(cur.1.len() + 1);
+                cur.0.truncate(n);
+                cur.1.truncate(n);
+            }
+            1 if !cur.1.is_empty() => {
+                let k = r.int_n(cur.1.len().min(100) + 1);
+                cur.0.drop_front(k);
+                cur.1.drain(..k);
+            }
+            2 if !cur.1.is_empty() => {
+                let i = r.int_n(cur.1.len());
+                cur.0.set(i, x);
+                cur.1[i] = x;
+            }
+            3 if !cur.1.is_empty() => {
+                // a queue: off the front, onto the back
+                cur.0.drop_front(1);
+                cur.1.remove(0);
+                cur.0.push(x);
+                cur.1.push(x);
+            }
+            4..=11 => {
+                cur.0.push_front(x);
+                cur.1.insert(0, x);
+            }
+            _ => {
+                cur.0.push(x);
+                cur.1.push(x);
+            }
+        }
+        if step % 1999 == 0 {
+            history.push(cur.clone());
+            // fork an old version at both ends: its parent must not change
+            let old = &history[r.int_n(history.len())];
+            let mut f = old.0.clone();
+            f.push_front(0);
+            f.push(0);
+            if f.len() > 2 {
+                f.drop_front(1);
+            }
+            assert_eq!(old.0.len(), old.1.len(), "fork changed its parent");
+        }
+    }
+    history.push(cur);
+    for (v, want) in &history {
+        assert_eq!(v.len(), want.len());
+        for (i, x) in want.iter().enumerate() {
+            assert_eq!(v.at(i), x, "at({i}) len {}", want.len());
+        }
+        let n = want.len();
+        assert_eq!(v.holds(Probe::Err), want.iter().any(|&x| x < 0), "holds");
+        for (lo, hi) in [(0, n), (n / 3, n), (0, n / 2), (n / 4, n - n / 4)] {
+            assert_eq!(
+                v.holds_in(lo, hi, Probe::Err),
+                want[lo..hi].iter().any(|&x| x < 0),
+                "holds_in({lo}, {hi}) len {n}"
+            );
+        }
+    }
+}
+
+/// Prepending only, from empty and from every boundary length, across
+/// several front growths of the trie.
+#[test]
+fn pvec_push_front_boundaries() {
+    for n in [0, 1, 31, 32, 33, 1024, 1056, 33000] {
+        let v = Pvec::of((0..n as i64).collect());
+        let mut w = v.clone();
+        for k in 1..=40000 {
+            w.push_front(-k);
+        }
+        assert_eq!(w.len(), n + 40000);
+        for k in 0..40000 {
+            assert_eq!(*w.at(k), k as i64 - 40000, "n={n} front {k}");
+        }
+        for i in 0..n {
+            assert_eq!(*w.at(40000 + i), i as i64, "n={n} at {i}");
+            assert_eq!(*v.at(i), i as i64, "n={n} the original changed");
+        }
+        // and the back still grows
+        w.push(7);
+        assert_eq!(*w.at(n + 40000), 7);
+    }
+}
+
+/// `a + b` (L5) for small lists, big ones and views of either size, both
+/// ways round: the shorter side is added to the longer, and neither
+/// operand changes.
+#[test]
+fn list_concat_matches_the_model() {
+    let mut shapes: Vec<(List, Vec<i64>)> = Vec::new();
+    for n in [0usize, 1, 5, 32, 33, 100, 1100, 5000] {
+        let xs: Vec<i64> = (0..n as i64).map(|i| i * 10 + n as i64).collect();
+        let l = List::new(ints(&xs));
+        shapes.push((l.clone(), xs.clone()));
+        if n > 4 {
+            for (lo, hi) in [(1, n), (0, n - 1), (n / 4, n - n / 4), (n - 2, n)] {
+                shapes.push((l.slice(lo, hi), xs[lo..hi].to_vec()));
+            }
+        }
+    }
+    for (a, aw) in &shapes {
+        for (b, bw) in &shapes {
+            let c = a.concat(b);
+            let want: Vec<i64> = aw.iter().chain(bw).copied().collect();
+            same_list("concat", &c, &want);
+            // and on: the result grows at both ends as any list does
+            let mut d = List::new(ints(&[-1, -2])).concat(&c);
+            d.push(Value::Int(-3));
+            let mut dw = vec![-1, -2];
+            dw.extend(&want);
+            dw.push(-3);
+            same_list("grown", &d, &dw);
+            same_list("left operand", a, aw);
+            same_list("right operand", b, bw);
+        }
+    }
+}
+
 // TestPvecOfBoundaries
 #[test]
 fn pvec_of_boundaries() {

@@ -1,0 +1,35 @@
+# Long natives work a piece at a time and give their turn in between (L6):
+# inputs that take many pieces give what one go would.
+import json
+
+# Sorting keeps equal ks in order across many merge pieces.
+n = 100000
+ks = map(0..n, i => (i * 7919) % 1000)
+by = sort_by(0..n, i => ks[i])
+fn ordered(i, ok) = i == n then ok else ordered(i + 1, ok and (ks[by[i - 1]] < ks[by[i]] or (ks[by[i - 1]] == ks[by[i]] and by[i - 1] < by[i])))
+print(len(by), ordered(1, true), sort(ks) == map(by, i => ks[i]))
+# expect: 100000 true true
+print(len(unique(ks)), take(unique(ks), 3))
+# expect: 1000 [0, 919, 838]
+
+# Strings with separators across the scanning windows, and many parts.
+long = repeat("abcdefgh", 300000)
+print(len(split(long, "ha")), len(split(long + ",", ",")), len(split("a,b,,c", ",")))
+# expect: 300000 2 4
+csv = repeat("x,", 50000)
+print(len(split(csv, ",")), len(replace(csv, ",", ";;")), len(lines(repeat("l\r\n", 20000))))
+# expect: 50001 150000 20000
+print(lines(repeat("a\r\n", 3))[2], len(split(repeat("é", 20000), "")), len(replace(repeat("é", 20000), "", "-")))
+# expect: a 20000 40001
+print(len(repeat("ab", 1000000)), repeat("", 1000000000) == "")
+# expect: 2000000 true
+print(len(join(map(0..100000, i => i), ",")))
+# expect: 588889
+
+# JSON across many pieces, both ways
+rows = map(0..20000, i => {id: i, name: "n${i}", tags: ["a", "b"], ok: i % 2 == 0})
+back = json.parse(json.stringify(rows))!
+print(back == rows, len(json.stringify(rows, indent: 2)) > len(json.stringify(rows)))
+# expect: true true
+print(json.parse("[1, 2") |> type_of, json.parse(repeat("[", 20) + repeat("]", 20)) |> type_of)
+# expect: 'Err 'Ok

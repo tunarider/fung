@@ -614,7 +614,7 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
         "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", \"x\", 1)\n  |             ^\n  |\n",
         "   extras/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
     ),
-    // `serve` (Task 5): `ready` may be nil, so a helper checks it
+    // `serve` (Task 5); `ready` is `fn | nil`, checked at the call (L13)
     (
         "http.serve(1, r => r)",
         "error[E0403]: argument `addr` must be str, got int\n  --> -e:2:11\n  |\n2 | http.serve(1, r => r)\n  |           ^\n  |\n",
@@ -627,8 +627,8 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
     ),
     (
         "http.serve(\"a\", r => r, ready: 1)",
-        "error[E0403]: argument `ready` must be fn, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
-        "   extras/http.fung:@fn _ready_check(@ _ready_check\n   extras/http.fung:@    _ready_check(ready)@ serve\n   -e:2       <entry>\n",
+        "error[E0403]: argument `ready` must be fn | nil, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
+        "   extras/http.fung:@fn serve(@ serve\n   -e:2       <entry>\n",
     ),
     // the call itself is wrong: no frame of http.fung yet
     (
@@ -695,6 +695,10 @@ const PROXY_VARS: &[&str] = &[
     "NO_PROXY",
     "no_proxy",
     "REQUEST_METHOD",
+    // and the ones that choose the trusted roots (a run trusts the
+    // system's unless it is given them)
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
 ];
 
 /// `run` with environment variables set on the child alone.
@@ -2144,6 +2148,218 @@ fn tls_server(cert: &str) -> u16 {
     )
 }
 
+/// What https says when the roots are missing or unreadable (L12 H, I):
+/// the certificate variables replace the system's store, and a store with
+/// no roots (a `scratch` container) or a variable naming a file that
+/// cannot be read is said so, not as an unknown authority.
+#[test]
+fn missing_roots_are_named() {
+    let tmp = std::env::temp_dir().join(format!("fung-http-roots-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("empty")).unwrap();
+    std::fs::create_dir_all(tmp.join("certs")).unwrap();
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
+    std::fs::copy(data.join("ca.pem"), tmp.join("certs/ca.pem")).unwrap();
+    std::fs::write(tmp.join("garbage.pem"), "not a certificate\n").unwrap();
+    let port = tls_server("localhost");
+    let src = format!(
+        "import http\nprint(match http.get(\"https://localhost:{port}/\"):\n  Ok(v) => v.status\n  Err(e) => e.message\n;;)"
+    );
+    let at = |p: &str| tmp.join(p).to_string_lossy().into_owned();
+    let cases: Vec<(&str, String, String)> = vec![
+        (
+            "SSL_CERT_FILE",
+            at("missing.pem"),
+            format!(
+                "no root certificates found (cannot read SSL_CERT_FILE `{}`: no such file or directory)",
+                at("missing.pem")
+            ),
+        ),
+        (
+            "SSL_CERT_FILE",
+            at("garbage.pem"),
+            "no root certificates found (none in SSL_CERT_FILE)".into(),
+        ),
+        (
+            "SSL_CERT_DIR",
+            at("empty"),
+            "no root certificates found (none in SSL_CERT_DIR)".into(),
+        ),
+        ("SSL_CERT_DIR", at("certs"), "200".into()),
+        (
+            "SSL_CERT_FILE",
+            data.join("other-ca.pem").to_string_lossy().into_owned(),
+            "unknown certificate authority".into(),
+        ),
+    ];
+    for (var, value, want) in cases {
+        let o = run_env(&fung_bin(), &src, &[(var.to_string(), value.clone())]);
+        let want = format!("cannot request `https://localhost:{port}/`: {want}\n");
+        let want = if want.ends_with(": 200\n") {
+            "200\n".to_string()
+        } else {
+            want
+        };
+        assert_eq!(o.0, want, "{var}={value}: {}", o.1);
+    }
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// The client's message for `src`'s request (the `Err`'s message, or
+/// the status), run with `env`.
+fn client_says(src_url_call: &str, env: &[(String, String)]) -> String {
+    let src = format!(
+        "import http\nprint(match {src_url_call}:\n  Ok(v) => v.status\n  Err(e) => e.message\n;;)"
+    );
+    let o = run_env(&fung_bin(), &src, env);
+    assert_eq!(o.1, "", "{src_url_call}");
+    o.0.trim_end().to_string()
+}
+
+/// A host goes out in ASCII (L13 H7): a non-ASCII name, written or
+/// escaped, is refused with the way out (punycode) instead of sent in
+/// other bytes, and a bracketed address that is no IPv6 address is
+/// refused before any lookup. Shown URLs escape their fragment and show a
+/// UTF-8 user name decoded (H8).
+#[test]
+fn hosts_that_cannot_go_out_are_refused() {
+    let cases = [
+        (
+            "http.get(\"http://例え.jp/\")",
+            "cannot request `http://例え.jp/`: invalid URL: non-ASCII host `例え.jp` (write it in punycode, `xn--…`)",
+        ),
+        (
+            "http.get(\"http://ex%C3%A9.com/\")",
+            "cannot request `http://ex%C3%A9.com/`: invalid URL: non-ASCII host `exé.com` (write it in punycode, `xn--…`)",
+        ),
+        (
+            "http.get(\"http://[1:2]:1/\")",
+            "cannot request `http://[1:2]:1/`: invalid URL: invalid IP address `1:2`",
+        ),
+        (
+            "http.get(\"http://u%C3%A9:pw@127.0.0.1:1/#a b\")",
+            "cannot request `http://ué:***@127.0.0.1:1/#a%20b`: connection refused",
+        ),
+    ];
+    for (call, want) in cases {
+        assert_eq!(client_says(call, &[]), want);
+    }
+}
+
+/// A proxy of a scheme the client does not speak is refused (L13 H6),
+/// not taken for an http proxy on port 80.
+#[test]
+fn an_unknown_proxy_scheme_is_refused() {
+    assert_eq!(
+        client_says(
+            "http.get(\"http://example.test/\")",
+            &[("HTTP_PROXY".into(), "foo://127.0.0.1".into())]
+        ),
+        "cannot request `http://example.test/`: proxy `127.0.0.1`: unsupported proxy scheme `foo`"
+    );
+}
+
+/// `max_body` bounds the answer a request reads (L13 H10); it is a count.
+#[test]
+fn max_body_bounds_the_answer() {
+    let f = Fake::start(ok(
+        "HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n01234567890123456789",
+    ));
+    let url = format!("http://127.0.0.1:{}/", f.port);
+    assert_eq!(
+        client_says(&format!("http.get(\"{url}\", max_body: 20)"), &[]),
+        "200"
+    );
+    let f = Fake::start(ok(
+        "HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n01234567890123456789",
+    ));
+    let url = format!("http://127.0.0.1:{}/", f.port);
+    assert_eq!(
+        client_says(&format!("http.get(\"{url}\", max_body: 19)"), &[]),
+        format!("cannot request `{url}`: response body longer than 19 bytes")
+    );
+    let o = run(
+        &fung_bin(),
+        "import http\nhttp.get(\"http://x/\", max_body: -1)",
+    );
+    assert!(
+        o.1.starts_with("error[E0403]: argument `max_body` must be a non-negative int"),
+        "{}",
+        o.1
+    );
+}
+
+/// A CONNECT answered with any 2xx is the tunnel (L13 H9, RFC 9110
+/// 9.3.6), its framing headers ignored.
+#[test]
+fn any_2xx_answer_to_connect_is_the_tunnel() {
+    let target = tls_server("localhost");
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let proxy = l.local_addr().unwrap().port();
+    // the proxy's thread carries bytes until the TLS server closes; it
+    // is not waited for (as the fake proxy's are not)
+    std::thread::spawn(move || {
+        let (mut s, _) = l.accept().unwrap();
+        let mut head = Vec::new();
+        let mut b = [0u8; 1];
+        while !head.ends_with(b"\r\n\r\n") && s.read(&mut b).unwrap() == 1 {
+            head.push(b[0]);
+        }
+        s.write_all(b"HTTP/1.1 204 Tunnel\r\nContent-Length: 5\r\n\r\n")
+            .unwrap();
+        let up = TcpStream::connect(("127.0.0.1", target)).unwrap();
+        let (mut a, mut bb) = (s.try_clone().unwrap(), up.try_clone().unwrap());
+        let t = std::thread::spawn(move || {
+            let _ = std::io::copy(&mut a, &mut bb);
+            let _ = bb.shutdown(Shutdown::Write);
+        });
+        let (mut up, mut down) = (up, s);
+        let _ = std::io::copy(&mut up, &mut down);
+        let _ = down.shutdown(Shutdown::Write);
+        let _ = t.join();
+    });
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
+    let got = client_says(
+        &format!("http.get(\"https://localhost:{target}/\")"),
+        &[
+            ("HTTPS_PROXY".into(), format!("http://127.0.0.1:{proxy}")),
+            (
+                "SSL_CERT_FILE".into(),
+                data.join("ca.pem").to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    assert_eq!(got, "200");
+}
+
+/// A server may answer before the request is all sent and close (RFC
+/// 9112 9.6): the answer is read although the write failed (L13 H5).
+/// The server reads the head, answers 413, then closes with the body
+/// unread, which resets the connection under the client's write.
+#[test]
+fn an_early_answer_is_read_after_a_failed_write() {
+    let l = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let h = std::thread::spawn(move || {
+        let (mut s, _) = l.accept().unwrap();
+        let mut head = Vec::new();
+        let mut b = [0u8; 1];
+        while !head.ends_with(b"\r\n\r\n") && s.read(&mut b).unwrap() == 1 {
+            head.push(b[0]);
+        }
+        s.write_all(b"HTTP/1.1 413 Content Too Large\r\nContent-Length: 4\r\nConnection: close\r\n\r\nbig\n")
+            .unwrap();
+        // the answer is on its way before the close resets the rest
+        std::thread::sleep(Duration::from_millis(100));
+    });
+    let got = client_says(
+        &format!("http.post(\"http://127.0.0.1:{port}/\", repeat(\"x\", 64000000))"),
+        &[],
+    );
+    h.join().unwrap();
+    assert_eq!(got, "413");
+}
+
 const TUNNEL_CASES: usize = 3;
 
 /// https through a proxy's CONNECT tunnel: the fake proxy records the
@@ -2270,6 +2486,11 @@ fn handle(req) = match req.path:
   "/range"     => {status: 600}
   "/badbody"   => {body: 1}
   "/badheader" => {headers: {"x-a": 1}}
+  "/badlength" => {headers: {"content-length": "3"}, body: "hello"}
+  "/te"        => {headers: {"transfer-encoding": "chunked"}, body: "hello"}
+  "/trailer"   => {headers: {trailer: "x-t"}, body: "t"}
+  "/twice"     => {headers: {"X-A": "1", "x-a": "2"}}
+  "/headlength" => {headers: {"content-length": "5"}}
   "/headers"   => {headers: {"x-nl": "a\nb\r c", "x-sp": "  d  ", "bad key": "v", "date": "Mon, 01 Jan 2001 00:00:00 GMT"}, body: "h"}
   "/close"     => {headers: {connection: "close"}, body: "c"}
   "/keep"      => {headers: {connection: "keep-alive"}, body: "k"}
@@ -2547,6 +2768,16 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         (get("/range"), false),
         (get("/badbody"), false),
         (get("/badheader"), false),
+        // the server frames the answer (L13): a length that is not the
+        // body's, a transfer coding, a trailer or a connection option
+        // of the handler's is a bad answer, as is a name given twice
+        // (case aside); a length without a body is the GET's for HEAD
+        (get("/badlength"), false),
+        (get("/te"), false),
+        (get("/trailer"), false),
+        (get("/twice"), false),
+        raw("HEAD /headlength HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+        (get("/headlength"), false),
         raw("HEAD /fail HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
         // malformed requests: the server's own answers, the handler not
         // called
@@ -2556,6 +2787,9 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         raw("G(T /count HTTP/1.1\r\nHost: x\r\n\r\n"),
         raw("GET /count HTTP/1.x\r\nHost: x\r\n\r\n"),
         raw("GET /count HTTP/2.0\r\nHost: x\r\n\r\n"),
+        // the HTTP/2 connection preface: an HTTP/1.1 server's answer is
+        // 505 (L13 H13)
+        raw("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"),
         raw("GET /count HTTP/0.9\r\nHost: x\r\n\r\n"),
         raw("GET count HTTP/1.1\r\nHost: x\r\n\r\n"),
         raw("GET /count%zz HTTP/1.1\r\nHost: x\r\n\r\n"),
@@ -2684,7 +2918,7 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
     v
 }
 
-const SERVER_REQUESTS: usize = 88;
+const SERVER_REQUESTS: usize = 95;
 
 const SERVER_HEADER: &str =
     "The `http` server's answers to raw requests (crates/fung-cli/tests/http.rs,

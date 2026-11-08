@@ -52,22 +52,16 @@ impl Editor {
                 return Some(line);
             }
             Key::Backspace => {
-                if self.cur > 0 {
-                    self.buf.remove(self.cur - 1);
-                    self.cur -= 1;
-                }
+                let from = self.prev_boundary();
+                self.buf.drain(from..self.cur);
+                self.cur = from;
             }
             Key::Delete | Key::CtrlD => {
-                if self.cur < self.buf.len() {
-                    self.buf.remove(self.cur);
-                }
+                let to = self.next_boundary();
+                self.buf.drain(self.cur..to);
             }
-            Key::Left => self.cur = self.cur.saturating_sub(1),
-            Key::Right => {
-                if self.cur < self.buf.len() {
-                    self.cur += 1;
-                }
-            }
+            Key::Left => self.cur = self.prev_boundary(),
+            Key::Right => self.cur = self.next_boundary(),
             Key::Home => self.cur = 0,
             Key::End => self.cur = self.buf.len(),
             Key::Up => {
@@ -114,6 +108,23 @@ impl Editor {
     }
 
     /// The line text and the cursor position in runes.
+    /// The start of the grapheme cluster before the cursor (the cursor
+    /// itself at the start): arrows and deletion step by cluster, as a
+    /// terminal draws them (L17).
+    fn prev_boundary(&self) -> usize {
+        let b = fung_front::unicode::char_boundaries(&self.buf);
+        b.iter().rev().copied().find(|&i| i < self.cur).unwrap_or(0)
+    }
+
+    /// The end of the grapheme cluster after the cursor.
+    fn next_boundary(&self) -> usize {
+        let b = fung_front::unicode::char_boundaries(&self.buf);
+        b.iter()
+            .copied()
+            .find(|&i| i > self.cur)
+            .unwrap_or(self.buf.len())
+    }
+
     pub fn render(&self) -> (String, usize) {
         (self.buf.iter().collect(), self.cur)
     }
@@ -152,6 +163,27 @@ mod tests {
         e.key(Key::Backspace);
         e.key(Key::Delete);
         assert_eq!(e.render(), (String::new(), 0), "edge moves");
+    }
+
+    /// The cursor moves and deletes a grapheme cluster at a time (L17): an
+    /// emoji family joined by ZWJ is one step and one Backspace, and
+    /// typing goes in between clusters.
+    #[test]
+    fn clusters_move_and_delete_whole() {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        let mut e = Editor::default();
+        type_keys(&mut e, &format!("a{family}\u{2764}\u{FE0F}b"));
+        e.key(Key::Left); // before b
+        e.key(Key::Left); // before ❤️
+        e.key(Key::Left); // before the family
+        type_keys(&mut e, "x");
+        assert_eq!(e.render(), (format!("ax{family}\u{2764}\u{FE0F}b"), 2));
+        e.key(Key::Right); // after the family
+        assert_eq!(e.render().1, 7);
+        e.key(Key::Backspace);
+        assert_eq!(e.render(), ("ax\u{2764}\u{FE0F}b".to_string(), 2));
+        e.key(Key::Delete);
+        assert_eq!(e.render(), ("axb".to_string(), 2));
     }
 
     #[test]

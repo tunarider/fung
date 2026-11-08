@@ -129,7 +129,31 @@ fn one(bin: &Path, code: &Code) -> Result<Outcome, String> {
             ));
         }
     }
-    Ok(first)
+    match &code.pick {
+        Some(name) => Ok(Outcome {
+            output: pick_block(&first.output, name)?,
+            code: first.code,
+        }),
+        None => Ok(first),
+    }
+}
+
+/// The `== NAME ==` block of a dump: its header line up to the next
+/// header or the end, without the blank line that ends it.
+pub fn pick_block(out: &str, name: &str) -> Result<String, String> {
+    let header = format!("== {name} ==");
+    let mut lines = out.lines().skip_while(|l| *l != header);
+    let Some(first) = lines.next() else {
+        return Err(format!(
+            "the dump has no `{header}` block (`fn={name}`)\n{out}"
+        ));
+    };
+    let mut block = vec![first];
+    block.extend(lines.take_while(|l| !l.starts_with("== ")));
+    while block.last().is_some_and(|l| l.trim().is_empty()) {
+        block.pop();
+    }
+    Ok(block.join("\n") + "\n")
 }
 
 /// A fresh scratch directory with the example and its fixtures.

@@ -43,6 +43,22 @@ page recipes/webhook-server.md
 part reference § 레퍼런스 | 찾아보는 곳 · 언어 명세 | 정확한 규칙을 찾는 사람
 page reference/language.md
 page reference/functions.md
+group 언어 명세
+page reference/language/lexical.md
+page reference/language/blocks.md
+page reference/language/values.md
+page reference/language/operators.md
+page reference/language/access.md
+page reference/language/scope.md
+page reference/language/functions.md
+page reference/language/conditions.md
+page reference/language/match.md
+page reference/language/for.md
+page reference/language/results.md
+page reference/language/modules.md
+page reference/language/types.md
+page reference/language/testing.md
+page reference/language/grammar.md
 group prelude
 page reference/prelude/io.md
 page reference/prelude/convert.md

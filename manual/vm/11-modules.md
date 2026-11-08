@@ -249,4 +249,4 @@ each([512, 1536, 5242880], b => print(units.human(b)))
 - 라이브러리는 core·native·extras(내장)·extras(프로젝트)의 네 층이다. `_native.*`는 숨겨져 있고(E0310), 내장 fung 소스는 실행 파일 안에 있다. prelude는 시작할 때 `boot`가 만든다.
 - 앞단은 prelude 이름을 자리 표시로 남기고 VM의 링크가 값을 채운다. 내장 코드 안의 에러는 사용자 코드의 호출 자리를 가리킨다.
 
-레퍼런스: [모듈](../reference/language.html#modules), [표준 모듈](../reference/modules/fs.html). 배우기: [10장 모듈](../learn/10-modules.html). 3부는 여기까지다. 4부는 이 VM 위에서 여러 일을 동시에 돌리는 런타임을 본다.
+레퍼런스: [모듈](../reference/language/modules.html), [표준 모듈](../reference/modules/fs.html). 배우기: [10장 모듈](../learn/10-modules.html). 3부는 여기까지다. 4부는 이 VM 위에서 여러 일을 동시에 돌리는 런타임을 본다.

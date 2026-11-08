@@ -32,6 +32,22 @@
 <ol class="chapters">
 <li><a href="../../reference/language.html">문법</a></li>
 <li><a href="../../reference/functions.html">모든 함수</a></li>
+<li class="sub">언어 명세</li>
+<li><a href="../../reference/language/lexical.html">어휘</a></li>
+<li><a href="../../reference/language/blocks.html">문장과 블록</a></li>
+<li><a href="../../reference/language/values.html">값과 타입</a></li>
+<li><a href="../../reference/language/operators.html">연산자</a></li>
+<li><a href="../../reference/language/access.html">인덱스·슬라이스·필드</a></li>
+<li><a href="../../reference/language/scope.html">변수와 스코프</a></li>
+<li><a href="../../reference/language/functions.html">함수</a></li>
+<li><a href="../../reference/language/conditions.html">조건</a></li>
+<li><a href="../../reference/language/match.html">match와 패턴</a></li>
+<li><a href="../../reference/language/for.html">for</a></li>
+<li><a href="../../reference/language/results.html">결과값과 에러</a></li>
+<li><a href="../../reference/language/modules.html">모듈</a></li>
+<li><a href="../../reference/language/types.html">타입 표기</a></li>
+<li><a href="../../reference/language/testing.html">테스트와 디버깅</a></li>
+<li><a href="../../reference/language/grammar.html">형식 문법</a></li>
 <li class="sub">prelude</li>
 <li><a href="../../reference/prelude/io.html">출력과 입력</a></li>
 <li><a href="../../reference/prelude/convert.html">타입과 변환</a></li>
@@ -219,7 +235,7 @@ nil</code></pre></div>
 <div class="run"><pre><code>app = pairs(env()) |&gt; filter(((k, _)) =&gt; starts_with(k, &quot;APP_&quot;)) |&gt; sort_by(((k, _)) =&gt; k)
 print(app)</code></pre><pre class="out plain"><code>[(&quot;APP_DEBUG&quot;, &quot;1&quot;), (&quot;APP_NAME&quot;, &quot;api&quot;)]</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-exec"><code>exec</code></a>, <a href="program.html#fn-args"><code>args</code></a>, <a href="../language.html#results"><code>??</code></a></p>
+<p><a href="#fn-exec"><code>exec</code></a>, <a href="program.html#fn-args"><code>args</code></a>, <a href="../language/results.html"><code>??</code></a></p>
 </section>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/program.html"><small>이전</small>에러와 종료</a><a class="next" href="../../reference/prelude/concurrency.html"><small>다음</small>동시성</a></nav>
 </div></main>

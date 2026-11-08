@@ -158,7 +158,7 @@ print( h,status(200) )
 <li><strong>블록은 어디서 열리나.</strong> <code>:</code>은 맵 키, 이름 인자, 타입 표기에도 쓰인다. 그래서 <code>:</code>을 볼 때마다 블록을 열지 않는다. 블록 키워드를 보면 "<strong>같은 괄호 깊이의 다음 <code>:</code></strong>을 기다린다"고 적어 둔다(<code>Pending</code>). <code>fn f(x: int) -&gt; int:</code>에서 <code>x: int</code>의 <code>:</code>은 괄호 안이라 걸리지 않고, <code>-&gt;</code> 뒤의 <code>:</code>이 블록을 연다.</li>
 <li><strong><code>else</code>의 두 뜻.</strong> <code>if</code> 사슬의 <code>else</code>인가, <code>c then a else b</code>의 일부인가. 짝이 없는 <code>then</code>을 괄호마다 세어 두고(<code>thens</code>), 짝이 있으면 식이 이어지는 것, 없으면 <code>if</code> 사슬로 본다.</li>
 <li><strong><code>match</code> 절.</strong> 괄호 밖에 <code>=&gt;</code>가 있으면 절이다. <code>xs |&gt; map(x =&gt; x)</code>의 <code>=&gt;</code>는 괄호 안이라 절이 아니다.</li>
-<li><strong>이어지는 줄.</strong> 다음 줄이 <code>|&gt;</code>·<code>.</code>·<code>??</code>·<code>and</code>·<code>or</code>·<code>then</code>·<code>else</code>로 시작하거나, 앞 줄이 식을 끝낼 수 없는 토큰(이항 연산자, <code>=</code>, <code>=&gt;</code>)으로 끝났으면 그 문장보다 한 단계 더 들인다. 언어의 <a href="../reference/language.html#continuation">줄 이어짐</a> 규칙과 같다.</li>
+<li><strong>이어지는 줄.</strong> 다음 줄이 <code>|&gt;</code>·<code>.</code>·<code>??</code>·<code>and</code>·<code>or</code>·<code>then</code>·<code>else</code>로 시작하거나, 앞 줄이 식을 끝낼 수 없는 토큰(이항 연산자, <code>=</code>, <code>=&gt;</code>)으로 끝났으면 그 문장보다 한 단계 더 들인다. 언어의 <a href="../reference/language/blocks.html#continuation">줄 이어짐</a> 규칙과 같다.</li>
 </ul>
 <h2 id="spacing">공백 표</h2>
 <p>토큰 사이의 공백은 인접한 토큰 쌍마다 0칸인지 1칸인지 정하는 함수 하나(<code>gap</code>)가 정한다. 까다로운 것은 같은 토큰이 자리에 따라 다르게 쓰이는 경우다.</p>
@@ -170,7 +170,7 @@ print( h,status(200) )
 <h2 id="align">빈 줄과 정렬</h2>
 <p>빈 줄은 연속을 하나로 줄이고, 블록을 여는 줄 바로 뒤, <code>;;</code> 바로 앞, 파일의 처음과 끝에서 지운다(<code>tidy_blank</code>). 파일 끝은 줄바꿈 하나다.</p>
 <p>정렬은 두 가지를 <strong>같은 장치 하나</strong>로 한다(<code>align</code>). 연속한 줄 묶음에서 최대 너비를 재고 거기에 맞춰 채운다. <code>match</code> 절의 <code>=&gt;</code>는 패턴의 최대 너비 + 1칸에, 꼬리 주석은 코드의 최대 너비 + 2칸에 맞춘다. 빈 줄, 주석만 있는 줄, 들여쓰기가 다른 줄이 묶음을 끊는다. 다만 절 본문이 다음 줄로 넘어가 더 깊이 들어간 줄은 <code>=&gt;</code> 묶음을 끊지 않는다. <code>=&gt;</code>를 먼저, 주석을 나중에 맞춘다. 반대로 하면 <code>=&gt;</code>를 채운 뒤 주석 열이 틀어진다.</p>
-<p>너비는 글자 수가 아니라 <strong>화면의 칸 수</strong>다(유니코드 UAX #11). 한글·한자 같은 넓은 글자는 2칸, 결합 문자는 0칸이다(표는 <code>spec/unicode.txt</code>). 그래서 한글이 섞인 줄도 열이 맞는다.</p>
+<p>너비는 글자 수가 아니라 <strong>화면의 칸 수</strong>다. 터미널은 글자 하나가 아니라 <strong>글자 묶음</strong>(grapheme cluster, 유니코드 UAX #29)을 한 덩어리로 그린다: <code>e</code>와 결합 악센트, ZWJ로 이은 가족 이모지 👨‍👩‍👧, 국기. 그래서 fung도 묶음마다 칸을 센다. 한글·한자·이모지는 2칸, 결합 문자는 앞 글자에 붙어 늘지 않고, 이모지 묶음과 <code>❤️</code>(VS16이 붙은 하트)도 2칸이다(표는 <code>spec/unicode.txt</code>, 함수 <code>unicode::cluster_width</code>). 진단의 밑줄과 REPL의 커서도 같은 함수로 센다. 그래서 한글이나 이모지가 섞인 줄도 열이 맞는다.</p>
 <div class="run"><pre><code>fn label(code) = match code:
   200 =&gt; &quot;정상&quot;     # 한글은 두 칸
   503 =&gt; &quot;점검 중&quot;  # 화면 칸으로 맞춘다

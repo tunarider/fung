@@ -170,7 +170,7 @@ error[E0702]: deadlock: all tasks are waiting
 <li><strong>터미널일 때만.</strong> 표준 입력에 터미널 설정이 있으면(<code>term::is_terminal</code>: <code>tcgetattr</code>가 성공) 줄 편집기(<code>TermReader</code>)를 쓰고, 아니면(파이프, 파일, <code>/dev/null</code>) 평범한 줄 읽기(<code>PlainReader</code>)를 쓴다. 그래서 <code>echo 'print(1)' | fung</code>이 된다.</li>
 <li><strong>raw 모드는 한 줄을 읽는 동안만.</strong> <code>read_line</code>이 시작할 때 raw 모드를 켜는 가드(<code>RawMode</code>)를 만들고, 돌아오거나 패닉으로 되감길 때 <code>Drop</code>이 원래 설정을 되돌린다. 그래서 입력을 <strong>실행하는</strong> 동안 터미널은 늘 원래 모드다. <code>exit(n)</code>이나 내부 오류가 나도 터미널이 raw로 남지 않는다.</li>
 <li><strong>키.</strong> raw 모드에서는 ISIG가 꺼져 있어 Ctrl-C가 신호가 아니라 키로 온다. 줄을 읽는 중의 Ctrl-C는 그 줄을 지운다(<code>^C</code>). Ctrl-D는 빈 줄에서 세션을 끝낸다. 좌우 이동, Home/End, Backspace/Delete, 위아래 기록, Ctrl-L(화면 지우기)이 있다.</li>
-<li><strong>편집 상태</strong>(<code>Editor</code>)는 터미널과 떨어진 순수한 자료구조다. 글자 배열, 커서, 기록, 기록을 넘기는 중의 위치. 그래서 키 순서만으로 시험할 수 있다. 화면은 <code>\r</code> + 프롬프트 + 글 + 줄 끝 지우기(<code>\x1b[K</code>) + 커서 되돌리기로 다시 그린다. 커서는 <strong>화면 칸 수</strong>로 옮긴다(한글은 2칸, 15장의 포맷터와 같은 표).</li>
+<li><strong>편집 상태</strong>(<code>Editor</code>)는 터미널과 떨어진 순수한 자료구조다. 글자 배열, 커서, 기록, 기록을 넘기는 중의 위치. 그래서 키 순서만으로 시험할 수 있다. 화면은 <code>\r</code> + 프롬프트 + 글 + 줄 끝 지우기(<code>\x1b[K</code>) + 커서 되돌리기로 다시 그린다. 커서는 <strong>글자 묶음</strong> 단위로 움직이고 지운다: 화살표 한 번, Backspace 한 번이 묶음 하나다(ZWJ로 이은 가족 이모지 👨‍👩‍👧는 글자 다섯이지만 한 번에 지워진다). 화면에서 되돌릴 칸 수도 묶음의 너비로 센다(15장의 포맷터와 같은 함수).</li>
 <li><strong>기록 파일.</strong> <code>~/.fung_history</code>에 받아들인 줄을 하나씩 덧붙이고, 시작할 때 읽고, 최근 1,000줄만 남긴다(<code>MAX_HISTORY</code>). 빈 줄과 바로 앞과 같은 줄은 저장하지 않는다. 쓸 수 없으면 조용히 끈다. 기록은 편의 기능이라 REPL을 멈추게 해서는 안 된다.</li>
 </ul>
 <p>명령은 셋뿐이다. <code>:help</code>, <code>:quit</code>, <code>:load 파일</code>. <code>:load</code>는 파일을 세션의 입력으로 실행하므로 그 정의가 세션에 남는다.</p>

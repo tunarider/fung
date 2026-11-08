@@ -28,7 +28,7 @@
 <nav aria-label="매뉴얼"><ol class="parts-nav">
 <li class="learn"><a href="../learn/01-programming.html"><span class="glyph">L</span><span>fung 배우기<small>처음부터 순서대로 읽는 책</small></span></a>
 <ol class="chapters">
-<li><a href="../learn/01-programming.html" aria-current="page">1. 프로그래밍과 fung</a><ol class="toc2"><li><a href="#program">프로그램이란</a></li><li><a href="#language">프로그래밍 언어</a></li><li><a href="#interpreter">스크립트와 인터프리터</a></li><li><a href="#fung">fung은 어떤 언어인가</a></li><li><a href="#principles">fung의 원칙</a></li><li><a href="#how-to-read">이 매뉴얼을 읽는 법</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
+<li><a href="../learn/01-programming.html" aria-current="page">1. 프로그래밍과 fung</a><ol class="toc2"><li><a href="#program">프로그램이란</a></li><li><a href="#language">프로그래밍 언어</a></li><li><a href="#interpreter">스크립트와 인터프리터</a></li><li><a href="#fung">fung은 어떤 언어인가</a></li><li><a href="#principles">fung의 원칙</a></li><li><a href="#how-to-read">이 매뉴얼을 읽는 법</a></li><li><a href="#notes">짚고 넘어가기</a></li><li><a href="#exercises">해 보기</a></li><li><a href="#summary">정리</a></li></ol></li>
 <li><a href="../learn/02-first-program.html">2. 설치와 첫 프로그램</a></li>
 <li><a href="../learn/03-values-and-names.html">3. 값과 이름</a></li>
 <li><a href="../learn/04-conditions-and-loops.html">4. 조건과 반복</a></li>
@@ -135,6 +135,13 @@ count: 2</code></pre></div>
 </div>
 <div class="box other"><b>다른 언어는</b>
 <p>이런 상자는 다른 언어(Python, JavaScript, 쉘 등)를 아는 사람을 위해 무엇이 같고 다른지 짚는다. 다른 언어를 모르면 건너뛰어도 된다.</p>
+</div>
+<h2 id="notes">짚고 넘어가기</h2>
+<div class="box learn"><b>컴퓨터는 시킨 대로만 한다</b>
+<p>프로그램이 뜻대로 돌지 않을 때, 컴퓨터는 "알아서" 틀린 것이 아니라 적힌 대로 한 것이다. 그래서 에러 메시지는 탓이 아니라 단서다: 어느 줄의 무엇이 기대와 달랐는지 말해 준다. fung의 에러는 번호(<code>E0204</code> 같은)와 위치, 대개 고치는 방법까지 함께 보여 준다. 이 매뉴얼의 <a href="../reference/errors.html">에러 목록</a>에서 번호로 찾아볼 수 있다.</p>
+</div>
+<div class="box other"><b>스크립트 언어를 써 봤다면</b>
+<p>쉘 스크립트나 Python을 써 봤다면 fung의 많은 것이 익숙할 것이다. 다른 점은 셋이다. 값이 바뀌지 않고, 실패가 예외가 아니라 값(<code>Ok</code>·<code>Err</code>)이며, 블록이 들여쓰기가 아니라 <code>:</code>와 <code>;;</code>로 정해진다. 장마다 끝의 "다른 언어는" 상자가 차이를 짚는다.</p>
 </div>
 <h2 id="exercises">해 보기</h2>
 <div class="exercise"><b>컴퓨터에게 계산 시키기</b>

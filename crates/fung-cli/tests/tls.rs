@@ -104,9 +104,8 @@ fn tls_gets_match_the_expected_output() {
 
 /// Where the roots come from when the variables are odd, set on the
 /// child alone: a root file whose only block is a broken PEM loads no
-/// root (the server is then of an unknown authority; a distinct error for
-/// "no roots" is part of `docs/plans/0.5.0/12-sockets-tls.md`), a broken
-/// block before a good one skips only itself, and `SSL_CERT_DIR` alone
+/// root, which the error says with the reason (L12), a broken block
+/// before a good one skips only itself, and `SSL_CERT_DIR` alone
 /// (a directory holding the test CA, no `SSL_CERT_FILE`) is enough.
 #[test]
 fn odd_root_variables() {
@@ -146,7 +145,7 @@ fn odd_root_variables() {
     };
     assert_eq!(
         get("SSL_CERT_FILE", tmp.join("broken.pem")),
-        "cannot request `https://localhost:$PORT/`: unknown certificate authority"
+        "cannot request `https://localhost:$PORT/`: no root certificates found (a broken PEM block in SSL_CERT_FILE: base64 decode error: InvalidCharacter(33))"
     );
     assert_eq!(
         get("SSL_CERT_FILE", tmp.join("broken-then-good.pem")),

@@ -55,6 +55,33 @@ impl Map {
         }
     }
 
+    /// Hands `f` each value that holds a mutable one, a node at a time
+    /// for a big map (`seen` as in `Pvec::each_holding`).
+    pub(crate) fn each_mutable(
+        &self,
+        seen: &mut dyn FnMut(*const ()) -> bool,
+        f: &mut dyn FnMut(&Value),
+    ) {
+        match &self.repr {
+            Repr::Flat(v) => v
+                .iter()
+                .map(|(_, x)| x)
+                .filter(|x| x.holds_mutable())
+                .for_each(f),
+            Repr::Big(o) => o.each_mutable(seen, f),
+        }
+    }
+
+    /// The first entry at slot `at` or after it, in order, and its slot:
+    /// a cursor that holds no borrow, for work that stops between entries
+    /// (`json.stringify`, L6). Slots count removed entries of a big map.
+    pub(crate) fn entry_from(&self, at: usize) -> Option<(usize, &Rc<Text>, &Value)> {
+        match &self.repr {
+            Repr::Flat(es) => es.get(at).map(|(k, v)| (at, k, v)),
+            Repr::Big(o) => o.entry_from(at).map(|(i, e)| (i, &e.key, &e.val)),
+        }
+    }
+
     pub fn len(&self) -> usize {
         match &self.repr {
             Repr::Flat(es) => es.len(),

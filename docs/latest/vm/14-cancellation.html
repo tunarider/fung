@@ -207,7 +207,7 @@ Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></
 <p><strong>타이머 스레드는 없다.</strong> 처음 떠오르는 구현은 타이머 스레드가 기한에 노드를 취소하는 것이지만, 스레드가 하나 더 늘고 교착 판정이 그 스레드를 모르게 된다(노트 R7-language의 L2). 대신 <strong>노드 아래에 있는 쪽이 스스로 기한을 본다.</strong></p>
 <ul>
 <li>주차하는 태스크는 기한까지만 잔다. 스케줄러가 주차할 때 노드의 기한을 기다림의 기한과 합쳐 타이머 힙에 넣는다(<code>Sched::park</code>). 기한이 있는 기다림은 "타이머가 끝낼 기다림"이라 교착으로 몰리지 않는다.</li>
-<li>계산하는 태스크는 차례를 넘길 때(호출 1,000번마다, <code>end_turn</code>) 시계를 본다. 그 사이 수천 번의 호출에는 비용이 없다.</li>
+<li>계산하는 태스크는 차례를 넘길 때(호출 1,000번마다, <code>end_turn</code>) 시계를 본다. 그 사이 수천 번의 호출에는 비용이 없다. 긴 내장 함수는 조각을 마칠 때마다(약 1 ms, <code>piece_done</code>) 본다. 그래서 <code>timeout(5ms, () =&gt; json.parse(big))</code>은 수십 ms 늦지 않고 제때 <code>Err({kind: 'timeout})</code>이 된다(L6).</li>
 <li>기한이 지난 것을 처음 본 쪽이 주인 노드를 <strong>만료</strong>시킨다(<code>expire</code>). 만료는 "기한으로 취소됨" 표시를 세우고 취소하는 일이다. 그러면 아래가 모두 취소된다.</li>
 </ul>
 <p><code>timeout</code>이 끝날 때의 규칙은 태스크 범위와 같은 모양이다(<code>crates/fung-vm/src/vm/deadline.rs</code>의 <code>Timeout</code>).</p>

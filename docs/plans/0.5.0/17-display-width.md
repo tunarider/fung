@@ -1,6 +1,6 @@
 # L17. 표시 너비가 글자 단위라 ZWJ 이모지·VS16에서 터미널과 다르다
 
-상태: 열림 (2026-10-26). 0.5.0 전에 고친다. 목록: [README](README.md).
+상태: **닫힘 (2026-11-08)**. 결과는 끝의 "닫힘" 절. 목록: [README](README.md).
 
 ## 문제
 
@@ -87,3 +87,14 @@ REPL 줄 편집기는 커서를 칸 수로 옮기지만(08 "REPL") 버퍼가 코
 - REPL에서 가족 이모지 하나가 Backspace 한 번에 지워지고, 화살표가 묶음 가운데로 들어가지 않는다.
 - 포매터·진단·REPL이 같은 함수 하나로 칸을 센다(코드에서 `unicode::width`를 직접 부르는 곳이 그 함수 안뿐).
 - `GraphemeBreakTest.txt` 사례가 통과하고, open-questions에 이 한계가 없으며, 커밋 전 검사가 통과한다.
+
+## 닫힘 (2026-11-08)
+
+결정(사용자, 2026-11-08 "추천대로"): (다) 묶음 단위 너비 하나. 정할 것 1~5 모두 추천대로(너비 규칙, `-->`는 글자 단위·밑줄만 칸, REPL은 묶음 단위, `len` 등은 그대로, 표는 UCD 17.0.0에서).
+
+- 표: `spec/unicode.txt`에 `gcb_*`(13값)·`ext_pict`·`emoji_pres`·`incb_*`(3값). `generate.rs`가 `GraphemeBreakProperty.txt`·`emoji-data.txt`·`DerivedCoreProperties.txt`에서 만든다(기존 표는 같은 파일에서 그대로 나옴을 확인).
+- `unicode/mod.rs`: `clusters`(GB3~GB999, GB9c의 InCB, GB11의 이모지 ZWJ, GB12·13의 국기 쌍), `char_boundaries`(REPL의 글자 배열용), `cluster_width`, `display_width`.
+  `width`는 `char_width`로 이름을 바꿔 감췄다: 칸을 세는 곳은 `cluster_width`를 거친다. 시험: `GraphemeBreakTest.txt`의 모든 사례(`FUNG_UCD`가 있을 때), 묶음 너비 단위 시험.
+- 포매터의 `display_width`, 진단의 `write_excerpt`(앞 글과 밑줄 아래 글을 칸으로; 탭은 4칸), REPL의 `Editor`(이동·삭제가 묶음 단위)와 `redraw`가 그것을 쓴다.
+  고쳐진 기대: `diag.rs`의 `없는` 밑줄 `^^` → `^^^^`, 기대 출력의 넓은 글자 뒤 밑줄. 렉서가 칸을 BOM 뒤부터 세므로 발췌도 앞의 BOM을 빼고 잰다(포매터의 `@bom` 변형이 잡음).
+- 노트 `docs/notes/L17-display-width.md`.

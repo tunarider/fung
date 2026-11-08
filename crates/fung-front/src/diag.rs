@@ -212,8 +212,11 @@ fn write_call_path(b: &mut String, path: &[CallSite]) {
 
 const TAB_WIDTH: usize = 4;
 
-/// Appends the gutter, the source line, and the caret line. Tabs are
-/// expanded so the caret lands under the right character.
+/// Appends the gutter, the source line, and the caret line. The caret
+/// line is drawn in terminal columns (L17): tabs are expanded, and the
+/// text before the caret and under it is measured by grapheme cluster
+/// (`unicode::display_width`), so the carets land under a wide character
+/// or an emoji sequence. `d.pos.col` and `d.len` count characters.
 fn write_excerpt(b: &mut String, d: &Diag, src: &str) {
     let line_no = d.pos.line as usize;
     let Some(raw) = src.split('\n').nth(line_no - 1) else {
@@ -223,23 +226,23 @@ fn write_excerpt(b: &mut String, d: &Diag, src: &str) {
     let num = line_no.to_string();
     let gutter = " ".repeat(num.len());
 
-    let mut shown = String::new();
-    let mut shown_chars = 0;
-    let mut col: Option<usize> = None;
-    for (i, r) in line.chars().enumerate() {
-        if i + 1 == d.pos.col as usize {
-            col = Some(shown_chars);
-        }
-        if r == '\t' {
-            shown.push_str(&" ".repeat(TAB_WIDTH));
-            shown_chars += TAB_WIDTH;
-        } else {
-            shown.push(r);
-            shown_chars += 1;
-        }
-    }
-    let col = col.unwrap_or(shown_chars);
-    let n = d.len.max(1);
+    let tabs = |s: &str| s.replace('\t', &" ".repeat(TAB_WIDTH));
+    let width = |s: &str| crate::unicode::display_width(&tabs(s));
+    let shown = tabs(line);
+    // the lexer counts columns after a leading BOM (zero columns on screen)
+    let chars: Vec<char> = line
+        .strip_prefix('\u{feff}')
+        .unwrap_or(line)
+        .chars()
+        .collect();
+    let at = (d.pos.col as usize).saturating_sub(1).min(chars.len());
+    let len = d.len.max(1);
+    let end = (at + len).min(chars.len());
+    let before: String = chars[..at].iter().collect();
+    let under: String = chars[at..end].iter().collect();
+    let col = width(&before);
+    // past the line's end (an end of input) the carets count characters
+    let n = (width(&under) + (at + len - end)).max(1);
     b.push_str(&format!("{gutter} |\n"));
     b.push_str(&format!("{num} | {shown}\n"));
     b.push_str(&format!("{gutter} | {}{}", " ".repeat(col), "^".repeat(n)));
@@ -328,15 +331,39 @@ mod tests {
         );
     }
 
+    /// The `-->` column counts characters (an editor's column), but the
+    /// caret line is drawn in terminal columns (L17): a wide character
+    /// takes two, a ZWJ emoji sequence or `❤️` is one cluster of two.
     #[test]
-    fn columns_and_underline_count_chars() {
+    fn the_underline_is_drawn_in_columns() {
         let mut sm = SourceMap::new();
         let pos = at(&mut sm, "k.fung", "s = \"한글\"\nprint(없는)\n", 2, 7);
         let d = error("E0204", pos, vec![Arg::Str("없는".into())]).span(2);
         assert_eq!(
             format(&d, &sm),
-            "error[E0204]: undefined name `없는`\n  --> k.fung:2:7\n  |\n2 | print(없는)\n  |       ^^ not found in this scope\n  |\n"
+            "error[E0204]: undefined name `없는`\n  --> k.fung:2:7\n  |\n2 | print(없는)\n  |       ^^^^ not found in this scope\n  |\n"
         );
+        for (line, col, spaces) in [
+            ("x = \"한글\" + nope", 12, 13),
+            (
+                "x = \"\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\" + nope",
+                15,
+                11,
+            ),
+            ("x = \"\u{2764}\u{FE0F}\" + nope", 12, 11),
+            ("\tx = nope", 6, 8),
+        ] {
+            let mut sm = SourceMap::new();
+            let pos = at(&mut sm, "e.fung", &format!("{line}\n"), 1, col);
+            let d = error("E0204", pos, vec![Arg::Str("nope".into())]).span(4);
+            let got = format(&d, &sm);
+            let caret = got.lines().nth(4).unwrap();
+            assert_eq!(
+                caret,
+                format!("  | {}^^^^ not found in this scope", " ".repeat(spaces)),
+                "{line}"
+            );
+        }
     }
 
     #[test]

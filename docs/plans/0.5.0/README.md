@@ -51,20 +51,20 @@
 | L2 | [02-trailing-if-for.md](02-trailing-if-for.md) | ~~함수 본문 끝의 `if`·`for`가 값 자리에서 조용히 `nil`·리스트가 된다~~ **닫힘 2026-10-27** |
 | L3 | [03-channel-wait-api.md](03-channel-wait-api.md) | ~~정지 신호만 기다리는 `_ = recv(stop)`, 기다리지 않고 보기(`try_recv`)가 없음~~ **닫힘 2026-10-27** |
 | L4 | [04-strings-and-bytes.md](04-strings-and-bytes.md) | ~~문자열이 바이트를 품지 못해 비UTF-8 입력이 U+FFFD로 바뀐다~~ **닫힘 2026-11-07** |
-| L5 | [05-collections.md](05-collections.md) | 앞에 붙이기의 n², 맵·튜플 상수 접기 없음, 변하는 것을 품은 값의 `send` 비용 |
-| L6 | [06-long-natives.md](06-long-natives.md) | Rust로 쓴 긴 내장 함수(큰 `json.parse`, 콜백 없는 정렬)가 차례를 넘기지 않는다 |
+| L5 | [05-collections.md](05-collections.md) | ~~앞에 붙이기의 n², 맵·튜플 상수 접기 없음, 변하는 것을 품은 값의 `send` 비용~~ **닫힘 2026-11-08** |
+| L6 | [06-long-natives.md](06-long-natives.md) | ~~Rust로 쓴 긴 내장 함수(큰 `json.parse`, 콜백 없는 정렬)가 차례를 넘기지 않는다~~ **닫힘 2026-11-08** |
 | L7 | [07-rc-cycles.md](07-rc-cycles.md) | ~~회수되지 않는 `Rc` 순환, E0705가 훑지 않는 곳~~ **닫힘 2026-10-28** |
 | L8 | [08-tail-call-errors.md](08-tail-call-errors.md) | ~~라이브러리 함수의 꼬리 호출이 에러 위치와 호출 경로를 흐린다~~ **닫힘 2026-10-27** |
 | L9 | [09-deep-values-and-stacks.md](09-deep-values-and-stacks.md) | ~~재귀인 값 출력과 깊은 네이티브 재귀의 스택 한도~~ **닫힘 2026-10-28** |
 | L10 | [10-monotonic-clock.md](10-monotonic-clock.md) | ~~`now()`뿐이라 경과 시간이 시스템 시각 변경에 흔들린다~~ **닫힘 2026-10-27** |
 | L11 | [11-files-close-and-blocking.md](11-files-close-and-blocking.md) | ~~`close(2)` 에러를 보고하지 않음, 실행 스레드의 `Drop` 닫기, 끝없는 파일 읽기가 풀 스레드를 붙잡음~~ **닫힘 2026-10-27** |
-| L12 | [12-sockets-tls.md](12-sockets-tls.md) | 막힌 호출에 닿지 않는 `set_deadline`, 주소 계열 경주 없음, 이름 붙은 포트, TLS 세부 |
-| L13 | [13-http.md](13-http.md) | HTTP 클라이언트·서버의 세부 한계(연결 재사용, 본문 상한, 프록시, URL, 서버 헤더) |
+| L12 | [12-sockets-tls.md](12-sockets-tls.md) | ~~막힌 호출에 닿지 않는 `set_deadline`, 주소 계열 경주 없음, 이름 붙은 포트, TLS 세부~~ **닫힘 2026-11-08** |
+| L13 | [13-http.md](13-http.md) | ~~HTTP 클라이언트·서버의 세부 한계(연결 재사용, 본문 상한, 프록시, URL, 서버 헤더)~~ **닫힘 2026-11-08** |
 | L14 | [14-scheduling.md](14-scheduling.md) | ~~형제 태스크의 시작 순서, 띄운 태스크가 바로 돌지 않음, 공정성, REPL Ctrl-C 두 번~~ **닫힘 2026-10-28** |
-| L15 | [15-performance.md](15-performance.md) | P14(glibc 판의 계산 속도), P12b(LTO), 레지스터 VM·인라인 캐시 판단 |
-| L16 | [16-manual-depth.md](16-manual-depth.md) | 언어 명세를 레퍼런스 깊이로, VM 부록의 손으로 적은 `dump`를 검사되는 펜스로 |
-| L17 | [17-display-width.md](17-display-width.md) | 표시 너비가 글자 단위라 ZWJ 이모지·VS16에서 터미널과 다르다 |
-| L18 | [18-learn-chapters.md](18-learn-chapters.md) | 배우기 8~14장에 짚고 넘어가기·해 보기가 없음, 4장이 아직 배우지 않은 람다·재귀를 씀 (S15에서 옮김) |
+| L15 | [15-performance.md](15-performance.md) | ~~P14(glibc 판의 계산 속도), P12b(LTO), 레지스터 VM·인라인 캐시 판단~~ **닫힘 2026-11-08** |
+| L16 | [16-manual-depth.md](16-manual-depth.md) | ~~언어 명세를 레퍼런스 깊이로, VM 부록의 손으로 적은 `dump`를 검사되는 펜스로~~ **닫힘 2026-11-08** |
+| L17 | [17-display-width.md](17-display-width.md) | ~~표시 너비가 글자 단위라 ZWJ 이모지·VS16에서 터미널과 다르다~~ **닫힘 2026-11-08** |
+| L18 | [18-learn-chapters.md](18-learn-chapters.md) | ~~배우기 8~14장에 짚고 넘어가기·해 보기가 없음, 4장이 아직 배우지 않은 람다·재귀를 씀 (S15에서 옮김)~~ **닫힘 2026-11-08** |
 
 ## 3. 0.5.0 뒤 (새 기능·장기 과제)
 

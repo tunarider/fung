@@ -10,7 +10,7 @@
 |   --> <repl>:1:1\r
 |   |\r
 | 1 | 치\r
-|   | ^ not found in this scope\r
+|   | ^^ not found in this scope\r
 |   |\r
 | \r> \x1b[K\r> \x1b[K\r> \x1b[K\r> \x1b[K\r> \x1b[K\r> \x1b[K\r> \x1b[K\r> \x1b[K\r> 1\x1b[K\r
 | 1\r

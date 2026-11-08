@@ -5,8 +5,8 @@
 
 use std::fmt;
 
-use super::pvec::{MASK, Pvec};
-use super::release::{drop_children, keep};
+use super::pvec::Pvec;
+use super::release::{RELEASE_PIECE, drop_children, keep};
 use super::{Probe, Probed, Value};
 
 /// The largest list kept as a plain vector; 32 is one
@@ -73,6 +73,19 @@ impl List {
         }
     }
 
+    /// Hands `f` each item that holds a mutable value, a node at a time
+    /// for a big list (`Pvec::each_holding`; `seen` as there).
+    pub(crate) fn each_mutable(
+        &self,
+        seen: &mut dyn FnMut(*const ()) -> bool,
+        f: &mut dyn FnMut(&Value),
+    ) {
+        match &self.repr {
+            Repr::Flat(v) => v.iter().filter(|x| x.holds_mutable()).for_each(f),
+            Repr::Big { vec, lo, hi } => vec.each_holding(*lo, *hi, Probe::Mutable, seen, f),
+        }
+    }
+
     pub fn len(&self) -> usize {
         match &self.repr {
             Repr::Flat(items) => items.len(),
@@ -102,8 +115,7 @@ impl List {
                 if at >= *hi {
                     return &[];
                 }
-                let leaf = vec.leaf_for(at);
-                let start = at & MASK;
+                let (leaf, start) = vec.leaf_for(at);
                 let end = leaf.len().min(start + (hi - at));
                 &leaf[start..end]
             }
@@ -189,8 +201,10 @@ impl List {
         }
     }
 
-    /// `self` followed by `other`. Its cost follows `other`'s length when
-    /// `self` is big, both lengths otherwise.
+    /// `self` followed by `other`. The shorter side is added to the longer
+    /// one at its end, so the cost follows the shorter length (L5): a
+    /// small list put before a long one (`[x] + acc`) is as cheap as one
+    /// put after it.
     pub fn concat(&self, other: &List) -> List {
         if other.is_empty() {
             return self.clone();
@@ -199,6 +213,18 @@ impl List {
             return other.clone();
         }
         let total = self.len() + other.len();
+        if other.len() > self.len()
+            && let Some(mut out) = other.extendable_front()
+        {
+            let items = self.to_vec();
+            if let Repr::Big { vec, hi, .. } = &mut out.repr {
+                for v in items.into_iter().rev() {
+                    vec.push_front(v);
+                    *hi += 1;
+                }
+            }
+            return out;
+        }
         if matches!(self.repr, Repr::Flat(_)) || total <= SMALL_MAX {
             let mut items = Vec::with_capacity(total);
             items.extend(self.iter().cloned());
@@ -210,6 +236,30 @@ impl List {
             out.push(v.clone());
         }
         out
+    }
+
+    /// A big list equal to `self` whose view starts at its vector's
+    /// front, so items can be put before it: a view is cut down to its
+    /// own items in O(log n) (the nodes stay shared). `None` for a small
+    /// list, or a view much smaller than its vector (copying it is cheap,
+    /// and keeps the vector from being held for a few items).
+    fn extendable_front(&self) -> Option<List> {
+        let Repr::Big { vec, lo, hi } = &self.repr else {
+            return None;
+        };
+        if *lo == 0 {
+            return Some(self.clone());
+        }
+        if (hi - lo) * 4 < vec.len() {
+            return None;
+        }
+        let mut vec = vec.clone();
+        vec.truncate(*hi);
+        vec.drop_front(*lo);
+        let hi = vec.len();
+        Some(List {
+            repr: Repr::Big { vec, lo: 0, hi },
+        })
     }
 
     /// The items copied into a new vector.
@@ -225,6 +275,32 @@ impl List {
 
 impl List {
     /// Moves the items out for `release`, leaving the list empty.
+    /// Whether freeing this list is long work, to do a piece at a time
+    /// (L6): a big list that owns its vector. A view of a vector others
+    /// share only lets go of nodes, which is quick.
+    pub(super) fn long_to_free(&self) -> bool {
+        match &self.repr {
+            Repr::Big { vec, .. } => self.len() > RELEASE_PIECE && vec.owns_nodes(),
+            Repr::Flat(_) => false,
+        }
+    }
+
+    /// Takes the last `n` items off (`n < len`) for `release`: a big
+    /// list is freed a piece at a time (L6). The items go on the stack if
+    /// they could go deep, and drop otherwise.
+    pub(super) fn shed(&mut self, n: usize, stack: &mut Vec<Value>) {
+        let len = self.len();
+        let cut: Vec<Value> = self.range(len - n, len).cloned().collect();
+        match &mut self.repr {
+            Repr::Flat(items) => items.truncate(len - n),
+            Repr::Big { vec, hi, .. } => {
+                *hi -= n;
+                vec.truncate(*hi);
+            }
+        }
+        cut.into_iter().for_each(|v| keep(stack, v));
+    }
+
     pub(super) fn spill(&mut self, stack: &mut Vec<Value>) {
         match self.take_repr() {
             Repr::Flat(items) => items.into_iter().for_each(|v| keep(stack, v)),
@@ -239,7 +315,16 @@ impl List {
 /// (`Pvec::drain`, `Node`'s `Drop`).
 impl Drop for List {
     fn drop(&mut self) {
-        drop_children(|stack| self.spill(stack));
+        drop_children(|stack| {
+            if self.long_to_free() {
+                // a big list goes to `release` whole, which frees it a
+                // piece at a time while a scheduler runs (L6)
+                let repr = self.take_repr();
+                stack.push(Value::List(std::rc::Rc::new(List { repr })));
+            } else {
+                self.spill(stack);
+            }
+        });
     }
 }
 
@@ -269,8 +354,7 @@ impl<'a> Iterator for Iter<'a> {
         if self.next >= self.hi {
             return None;
         }
-        let leaf = vec.leaf_for(self.next);
-        let start = self.next & MASK;
+        let (leaf, start) = vec.leaf_for(self.next);
         let end = leaf.len().min(start + (self.hi - self.next));
         self.cur = leaf[start..end].iter();
         self.next += end - start;

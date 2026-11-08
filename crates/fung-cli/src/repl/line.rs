@@ -113,10 +113,12 @@ impl<R: Read> Keys<R> {
 
 /// What repaints a line: back to column 0, the prompt and the text, the
 /// rest of the screen line cleared, and the cursor moved back over what
-/// follows character `cur`, by display columns (a wide character takes
-/// two, a combining one none).
+/// follows character `cur`, by display columns counted by grapheme
+/// cluster (`unicode::display_width`, L17: a wide character takes two, a
+/// combining one none, a ZWJ emoji sequence two).
 fn redraw(prompt: &str, text: &str, cur: usize) -> String {
-    let back: usize = text.chars().skip(cur).map(fung_front::unicode::width).sum();
+    let after: String = text.chars().skip(cur).collect();
+    let back = fung_front::unicode::display_width(&after);
     let mut s = format!("\r{prompt}{text}\x1b[K");
     if back > 0 {
         s.push_str(&format!("\x1b[{back}D"));
@@ -382,6 +384,12 @@ mod tests {
         assert_eq!(redraw("> ", "ab", 2), "\r> ab\x1b[K");
         // a combining mark takes no column
         assert_eq!(redraw("> ", "e\u{301}x", 0), "\r> e\u{301}x\x1b[K\x1b[2D");
+        // a ZWJ family and `❤️` are one cluster of two columns each (L17)
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        assert_eq!(
+            redraw("> ", &format!("{family}\u{2764}\u{FE0F}a"), 0),
+            format!("\r> {family}\u{2764}\u{FE0F}a\x1b[K\x1b[5D")
+        );
     }
 
     #[test]

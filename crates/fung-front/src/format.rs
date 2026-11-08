@@ -157,22 +157,16 @@ fn decode(body: &[u8]) -> (String, Option<Vec<usize>>) {
     (text, Some(map))
 }
 
-/// Each character of `s` as (its byte length, its display width); an
-/// invalid UTF-8 sequence is one U+FFFD, one column wide.
-fn units(s: &[u8]) -> impl Iterator<Item = (usize, usize)> + '_ {
-    s.utf8_chunks().flat_map(|chunk| {
-        let valid = chunk
-            .valid()
-            .chars()
-            .map(|c| (c.len_utf8(), crate::unicode::width(c)));
-        let bad = (!chunk.invalid().is_empty()).then(|| (chunk.invalid().len(), 1));
-        valid.chain(bad)
-    })
-}
-
-/// The columns `s` takes on screen.
+/// The columns `s` takes on screen: its grapheme clusters' widths
+/// (`unicode::display_width`, L17); an invalid UTF-8 sequence (a maximal
+/// invalid part, as `utf8_chunks` gives it) is one column, as a terminal
+/// shows one U+FFFD for it.
 pub(crate) fn display_width(s: &[u8]) -> usize {
-    units(s).map(|(_, w)| w).sum()
+    s.utf8_chunks()
+        .map(|chunk| {
+            crate::unicode::display_width(chunk.valid()) + usize::from(!chunk.invalid().is_empty())
+        })
+        .sum()
 }
 
 /// Renders a line's tokens with the spacing table, and the byte offset

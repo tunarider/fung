@@ -35,10 +35,6 @@ print(status_text(418))
 
 마지막 절의 `_`는 "무엇이든"을 뜻하는 패턴이다. 위의 패턴이 하나도 맞지 않을 때 받아 주는 자리로 흔히 끝에 둔다. `match`도 `if`처럼 식이라서 값을 돌려준다. 위 함수는 `match`의 값을 그대로 돌려준다.
 
-:::box learn 절은 위에서부터 본다
-`match`는 첫 번째로 맞는 절 하나만 실행한다. 그래서 좁은 패턴을 위에, 넓은 패턴을 아래에 둔다. `_`를 맨 위에 두면 그 아래 절은 영영 실행되지 않는다. 시험 문제의 채점표를 위에서부터 읽어 내려가다 처음 해당하는 줄에서 멈추는 것과 같다.
-:::
-
 아무 절도 맞지 않으면 프로그램은 E0601로 멈춘다. 처리하지 못한 경우를 조용히 지나치지 않게 하려는 것이다.
 
 ```fung run exit=1 error=E0601
@@ -171,22 +167,6 @@ print(classify({name: "api", port: 8080}))
 print(classify({name: "tmp", port: 60000}))
 ```
 
-:::box mistake 패턴의 이름은 늘 새 변수다
-패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 **새 이름을 묶는다**. 아래에서 `wanted` 절은 "값이 `wanted`와 같으면"이 아니라 "무엇이든 받아서 `wanted`라고 부른다"는 뜻이라 늘 맞는다. 에러도 나지 않으니 찾기 어려운 버그가 된다.
-
-```fung run
-wanted = "db"
-
-fn pick(name) = match name:
-  wanted => "matched ${wanted}"
-;;
-
-print(pick("web"))
-```
-
-바깥 값과 비교하려면 가드를 쓴다: `n when n == wanted => …`.
-:::
-
 ## 구조 분해 대입 {#destructuring}
 
 패턴은 `match`에만 쓰는 것이 아니다. 대입 `=`의 왼쪽에도 패턴을 쓸 수 있다. 이것을 **구조 분해 대입**(destructuring assignment)이라고 한다. 값의 각 부분을 한 줄에 여러 이름으로 꺼낸다.
@@ -255,14 +235,6 @@ print(hex(Red), hex(Blue))
 print(Red == 'Red, type_of(Red))
 ```
 
-:::box tip 함수에 받을 종류를 적어 두기
-`type`으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: `type color = Red | Green | Blue`, `fn hex(c: color) = …`. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이고 런타임에 검사한다. 규칙은 [타입 표기](../reference/language.html#types)에 있다.
-:::
-
-:::box other 다른 언어는
-태그와 `match`는 Rust의 `enum`과 `match`, OCaml·Haskell의 대수적 데이터 타입과 같은 생각이다. 다만 fung은 태그를 미리 선언하지 않는다. Python 3.10의 `match`와도 모양이 비슷하다. 쉘의 `case "$x" in start) … ;; esac`는 문자열 리터럴만 나눌 수 있지만, 패턴은 리스트·맵의 안쪽까지 본다.
-:::
-
 :::exercise 로그 줄 나누기
 `"ERROR disk full"`, `"WARN slow"`, `"INFO started"` 같은 로그 줄을 받아, 수준(`ERROR`·`WARN`·그 밖)에 따라 다른 문자열을 돌려주는 함수 `triage(line)`를 써 보자. `ERROR`면 `"page: <나머지>"`, `WARN`이면 `"ticket: <나머지>"`, 그 밖이면 `"skip"`이다. 빈 줄도 `"skip"`이다. 힌트: `split(line, " ")`의 결과를 리스트 패턴으로 나눈다.
 
@@ -303,6 +275,110 @@ print(replicas_text({name: "old", replicas: 0}))
 :::
 :::
 
+## 짚고 넘어가기 {#notes}
+
+:::box learn 절은 위에서부터 본다
+`match`는 첫 번째로 맞는 절 하나만 실행한다. 그래서 좁은 패턴을 위에, 넓은 패턴을 아래에 둔다. `_`를 맨 위에 두면 그 아래 절은 영영 실행되지 않는다. 시험 문제의 채점표를 위에서부터 읽어 내려가다 처음 해당하는 줄에서 멈추는 것과 같다.
+:::
+
+:::box mistake 패턴의 이름은 늘 새 변수다
+패턴에 쓴 이름은 바깥 변수와 비교하지 않는다. 언제나 **새 이름을 묶는다**. 아래에서 `wanted` 절은 "값이 `wanted`와 같으면"이 아니라 "무엇이든 받아서 `wanted`라고 부른다"는 뜻이라 늘 맞는다. 에러도 나지 않으니 찾기 어려운 버그가 된다.
+
+```fung run
+wanted = "db"
+
+fn pick(name) = match name:
+  wanted => "matched ${wanted}"
+;;
+
+print(pick("web"))
+```
+
+바깥 값과 비교하려면 가드를 쓴다: `n when n == wanted => …`.
+:::
+
+:::box tip 함수에 받을 종류를 적어 두기
+`type`으로 종류의 목록에 이름을 붙이고 매개변수에 적을 수 있다: `type color = Red | Green | Blue`, `fn hex(c: color) = …`. 다른 값을 넘기면 함수에 들어가기 전에 E0403으로 멈춘다. 타입 표기는 선택이고 런타임에 검사한다. 규칙은 [타입 표기](../reference/language/types.html)에 있다.
+:::
+
+:::box other 다른 언어는
+태그와 `match`는 Rust의 `enum`과 `match`, OCaml·Haskell의 대수적 데이터 타입과 같은 생각이다. 다만 fung은 태그를 미리 선언하지 않는다. Python 3.10의 `match`와도 모양이 비슷하다. 쉘의 `case "$x" in start) … ;; esac`는 문자열 리터럴만 나눌 수 있지만, 패턴은 리스트·맵의 안쪽까지 본다.
+:::
+
+## 해 보기 {#exercises}
+
+:::exercise HTTP 상태 나누기
+
+상태 코드를 받아 2xx는 `"ok"`, 3xx는 `"redirect"`, 404는 `"missing"`, 그 밖의 4xx는 `"client error"`, 나머지는 `"server error"`를 돌려주는 함수를 `match`와 `when`으로 써 보자. `[200, 301, 404, 403, 503]`에 대해 찍는다.
+
+:::solution
+
+`404`처럼 콕 집는 절을 범위 절보다 위에 둔다. 절은 위에서부터 본다.
+
+```fung run
+fn kind(code) = match code:
+  c when c >= 200 and c < 300 => "ok"
+  c when c >= 300 and c < 400 => "redirect"
+  404                         => "missing"
+  c when c >= 400 and c < 500 => "client error"
+  _                           => "server error"
+;;
+print(map([200, 301, 404, 403, 503], kind))
+```
+
+:::
+
+:::
+
+:::exercise 명령줄 나누기
+
+`["deploy", "prod"]`, `["rollback", "prod", "v12"]`, `[]`, `["oops"]`처럼 들어오는 명령어 리스트를 리스트 패턴으로 나눠, 각각 `"deploy to prod"`, `"rollback prod to v12"`, `"usage: deploy|rollback"`, `"unknown command oops"`를 돌려주는 함수를 써 보자.
+
+:::solution
+
+```fung run
+fn describe(cmd) = match cmd:
+  ["deploy", env]        => "deploy to ${env}"
+  ["rollback", env, ver] => "rollback ${env} to ${ver}"
+  []                     => "usage: deploy|rollback"
+  [other, ...]           => "unknown command ${other}"
+;;
+for cmd in [["deploy", "prod"], ["rollback", "prod", "v12"], [], ["oops"]]:
+  print(describe(cmd))
+;;
+```
+
+:::
+
+:::
+
+:::exercise 검사 결과를 태그로
+
+서버 검사 결과를 `Up(ms)`와 `Down(why)` 태그로 나타내고, `[Up(12), Down("timeout"), Up(340)]`에서 살아 있는 서버의 평균 응답 시간과 죽은 서버의 이유 목록을 찍어 보자.
+
+:::solution
+
+`match`로 태그를 풀고, `filter`·`map`으로 고른다.
+
+```fung run
+checks = [Up(12), Down("timeout"), Up(340)]
+fn ms(c) = match c:
+  Up(t) => t
+  _     => nil
+;;
+fn why(c) = match c:
+  Down(w) => w
+  _       => nil
+;;
+up = checks |> map(ms) |> filter(t => t != nil)
+print(sum(up) / len(up))
+print(checks |> map(why) |> filter(w => w != nil))
+```
+
+:::
+
+:::
+
 ## 정리 {#summary}
 
 - 패턴은 값의 모양을 확인하고 동시에 안의 값을 꺼낸다.
@@ -312,4 +388,4 @@ print(replicas_text({name: "old", replicas: 0}))
 - 대입·매개변수·`for`의 왼쪽에도 패턴을 쓴다. 맞지 않으면 E0602다.
 - 대문자 이름은 태그다. 선언 없이 만들고 `match`로 나눈다.
 
-정확한 규칙은 레퍼런스의 [match와 패턴](../reference/language.html#match)과 [타입 표기](../reference/language.html#types)에 있다. 에러는 [E0601](../reference/errors.html#E0601), [E0602](../reference/errors.html#E0602)를 보라. 다음 장에서는 태그 `Ok`·`Err`로 실패를 다루는 법을 배운다.
+정확한 규칙은 레퍼런스의 [match와 패턴](../reference/language/match.html)과 [타입 표기](../reference/language/types.html)에 있다. 에러는 [E0601](../reference/errors.html#E0601), [E0602](../reference/errors.html#E0602)를 보라. 다음 장에서는 태그 `Ok`·`Err`로 실패를 다루는 법을 배운다.

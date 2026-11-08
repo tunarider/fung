@@ -18,6 +18,27 @@ use std::thread::{Builder, JoinHandle};
 /// continuations live on the heap), nor do the walks of values (L9).
 pub const ENTRY_STACKS: &[usize] = &[4 << 30, 1 << 30, 256 << 20, 64 << 20];
 
+/// Makes glibc's malloc keep one arena (L15 P14). glibc gives a thread
+/// other than the main one an arena of its own, and fung runs all its
+/// work on such a thread (the run thread): in a Docker arm64 VM an
+/// allocation-heavy loop (`bench/loop.fung`) took 0.447 s that way and
+/// 0.284 s with one arena, as the musl build does (0.281 s). Set once,
+/// before the first thread starts. Other C libraries have no arenas.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+fn one_malloc_arena() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        // SAFETY: mallopt only changes the allocator's settings; it is
+        // called before this process starts its other threads.
+        unsafe {
+            libc::mallopt(libc::M_ARENA_MAX, 1);
+        }
+    });
+}
+
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+fn one_malloc_arena() {}
+
 /// Starts `body(payload)` on a thread made by `builder` with the first
 /// stack size in `sizes` the operating system accepts. `Builder::spawn`
 /// drops its closure when it fails, so the payload waits in a shared
@@ -30,6 +51,7 @@ pub fn spawn_sized<P: Send + 'static, T: Send + 'static>(
     payload: P,
     body: fn(P) -> T,
 ) -> Result<JoinHandle<T>, (io::Error, P)> {
+    one_malloc_arena();
     let slot = Arc::new(Mutex::new(Some(payload)));
     let mut last = io::Error::other("no stack size to try");
     for &size in sizes {

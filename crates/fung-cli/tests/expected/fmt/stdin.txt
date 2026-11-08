@@ -1685,43 +1685,18 @@
 -- exit: 0
 ==== manual learn/04-conditions-and-loops.md:10
 -- stdout
-| fn next_free(port, used) = port in used then next_free(port + 1, used) else port
-| print(next_free(8080, [8080, 8081, 8083]))
--- stderr
--- exit: 0
-==== manual learn/04-conditions-and-loops.md:11
--- stdout
-| fn backoff(delay, limit, acc) = delay > limit then acc else backoff(delay * 2, limit, acc + [delay])
-| print(backoff(1s, 30s, []))
--- stderr
--- exit: 0
-==== manual learn/04-conditions-and-loops.md:12
--- stdout
 | print(until(1, n => n * 2, n => n > 100))
 | print(iterate(1s, d => d * 2, 4))
 -- stderr
 -- exit: 0
-==== manual learn/04-conditions-and-loops.md:13
--- stdout
-| fn countdown(n):
-|   if n == 0:
-|     print("liftoff")
-|   else:
-|     print(n)
-|     countdown(n - 1)
-|   ;;
-| ;;
-| countdown(3)
--- stderr
--- exit: 0
-==== manual learn/04-conditions-and-loops.md:14
+==== manual learn/04-conditions-and-loops.md:11
 -- stdout
 | ok = false
 | label = if ok: "up" ;;
 | print(label)
 -- stderr
 -- exit: 0
-==== manual learn/04-conditions-and-loops.md:15
+==== manual learn/04-conditions-and-loops.md:12
 -- stdout
 | usages = [45, 91, 78, 99, 82]
 | levels = for u in usages:
@@ -1731,7 +1706,7 @@
 | print(levels |> filter(l => l == "critical") |> len)
 -- stderr
 -- exit: 0
-==== manual learn/04-conditions-and-loops.md:16
+==== manual learn/04-conditions-and-loops.md:13
 -- stdout
 | usages = [45, 91, 78, 99, 82]
 | print(fold(usages, usages[0], (best, u) => u > best then u else best))
@@ -1893,13 +1868,38 @@
 -- exit: 0
 ==== manual learn/05-functions.md:18
 -- stdout
+| fn next_free(port, used) = port in used then next_free(port + 1, used) else port
+| print(next_free(8080, [8080, 8081, 8083]))
+-- stderr
+-- exit: 0
+==== manual learn/05-functions.md:19
+-- stdout
+| fn backoff(delay, limit, acc) = delay > limit then acc else backoff(delay * 2, limit, acc + [delay])
+| print(backoff(1s, 30s, []))
+-- stderr
+-- exit: 0
+==== manual learn/05-functions.md:20
+-- stdout
+| fn countdown(n):
+|   if n == 0:
+|     print("liftoff")
+|   else:
+|     print(n)
+|     countdown(n - 1)
+|   ;;
+| ;;
+| countdown(3)
+-- stderr
+-- exit: 0
+==== manual learn/05-functions.md:21
+-- stdout
 | fn ssh_target(host, user = "deploy", port = 22) = "${user}@${host}:${port}"
 |
 | print(["web-1", "web-2"] |> map(ssh_target))
 | print(ssh_target("db-1", user: "root", port: 2222))
 -- stderr
 -- exit: 0
-==== manual learn/05-functions.md:19
+==== manual learn/05-functions.md:22
 -- stdout
 | fn over(limit) = n => n > limit
 |
@@ -2310,17 +2310,6 @@
 -- exit: 0
 ==== manual learn/08-patterns.md:10
 -- stdout
-| wanted = "db"
-|
-| fn pick(name) = match name:
-|   wanted => "matched ${wanted}"
-| ;;
-|
-| print(pick("web"))
--- stderr
--- exit: 0
-==== manual learn/08-patterns.md:11
--- stdout
 | (quotient, remainder) = (17 // 5, 17 % 5)
 | [host, port] = split("db.internal:5432", ":")
 | {name, replicas: n} = {name: "api", replicas: 3, image: "api:1.4"}
@@ -2332,13 +2321,13 @@
 | print(top, rest)
 -- stderr
 -- exit: 0
-==== manual learn/08-patterns.md:12
+==== manual learn/08-patterns.md:11
 -- stdout
 | [host, port] = split("db.internal", ":")
 | print(host, port)
 -- stderr
 -- exit: 0
-==== manual learn/08-patterns.md:13
+==== manual learn/08-patterns.md:12
 -- stdout
 | fn distance((x1, y1), (x2, y2)) = (x2 - x1) ** 2 + (y2 - y1) ** 2
 |
@@ -2350,7 +2339,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual learn/08-patterns.md:14
+==== manual learn/08-patterns.md:13
 -- stdout
 | fn area(shape) = match shape:
 |   Circle(r)  => 3.14 * r * r
@@ -2364,7 +2353,7 @@
 | print(type_of(Rect(2, 5)), Circle(1) == Circle(1))
 -- stderr
 -- exit: 0
-==== manual learn/08-patterns.md:15
+==== manual learn/08-patterns.md:14
 -- stdout
 | fn hex(color) = match color:
 |   Red   => "#ff0000"
@@ -2376,7 +2365,7 @@
 | print(Red == 'Red, type_of(Red))
 -- stderr
 -- exit: 0
-==== manual learn/08-patterns.md:16
+==== manual learn/08-patterns.md:15
 -- stdout
 | fn triage(line) = match split(line, " "):
 |   ["ERROR", ...words] => "page: ${join(words, " ")}"
@@ -2389,7 +2378,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual learn/08-patterns.md:17
+==== manual learn/08-patterns.md:16
 -- stdout
 | fn replicas_text(cfg) = match cfg:
 |   {name, replicas: 0}                 => "${name}: stopped"
@@ -2400,6 +2389,58 @@
 | print(replicas_text({name: "api", replicas: 3}))
 | print(replicas_text({name: "cron", replicas: 1}))
 | print(replicas_text({name: "old", replicas: 0}))
+-- stderr
+-- exit: 0
+==== manual learn/08-patterns.md:17
+-- stdout
+| wanted = "db"
+|
+| fn pick(name) = match name:
+|   wanted => "matched ${wanted}"
+| ;;
+|
+| print(pick("web"))
+-- stderr
+-- exit: 0
+==== manual learn/08-patterns.md:18
+-- stdout
+| fn kind(code) = match code:
+|   c when c >= 200 and c < 300 => "ok"
+|   c when c >= 300 and c < 400 => "redirect"
+|   404                         => "missing"
+|   c when c >= 400 and c < 500 => "client error"
+|   _                           => "server error"
+| ;;
+| print(map([200, 301, 404, 403, 503], kind))
+-- stderr
+-- exit: 0
+==== manual learn/08-patterns.md:19
+-- stdout
+| fn describe(cmd) = match cmd:
+|   ["deploy", env]        => "deploy to ${env}"
+|   ["rollback", env, ver] => "rollback ${env} to ${ver}"
+|   []                     => "usage: deploy|rollback"
+|   [other, ...]           => "unknown command ${other}"
+| ;;
+| for cmd in [["deploy", "prod"], ["rollback", "prod", "v12"], [], ["oops"]]:
+|   print(describe(cmd))
+| ;;
+-- stderr
+-- exit: 0
+==== manual learn/08-patterns.md:20
+-- stdout
+| checks = [Up(12), Down("timeout"), Up(340)]
+| fn ms(c) = match c:
+|   Up(t) => t
+|   _     => nil
+| ;;
+| fn why(c) = match c:
+|   Down(w) => w
+|   _       => nil
+| ;;
+| up = checks |> map(ms) |> filter(t => t != nil)
+| print(sum(up) / len(up))
+| print(checks |> map(why) |> filter(w => w != nil))
 -- stderr
 -- exit: 0
 ==== manual learn/09-errors.md:1
@@ -2459,32 +2500,26 @@
 -- exit: 0
 ==== manual learn/09-errors.md:7
 -- stdout
-| print(try_map(["1", "2", "3"], parse_int))
-| print(try_map(["1", "b", "c"], parse_int))
--- stderr
--- exit: 0
-==== manual learn/09-errors.md:8
--- stdout
 | port = parse_int("8080")!
 | print("port:", port)
 | retries = parse_int("three")!
 | print("never printed")
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:9
+==== manual learn/09-errors.md:8
 -- stdout
 | retries = parse_int("three") ?? 3
 | port = env("PORT") ?? "8080"
 | print(retries, port)
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:10
+==== manual learn/09-errors.md:9
 -- stdout
 | parse_int("abc")
 | print("여기까지 오지 않는다")
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:11
+==== manual learn/09-errors.md:10
 -- stdout
 | import fs
 |
@@ -2492,7 +2527,7 @@
 | print("cleaned up")
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:12
+==== manual learn/09-errors.md:11
 -- stdout
 | fn parse_all(texts):
 |   for t in texts: parse_int(t) ;;
@@ -2502,7 +2537,7 @@
 | print("not reached")
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:13
+==== manual learn/09-errors.md:12
 -- stdout
 | fn check_port(p):
 |   if p < 1 or p > 65535:
@@ -2516,18 +2551,33 @@
 | print(check_port(0) ?? 8080)
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:14
+==== manual learn/09-errors.md:13
 -- stdout
 | limits = {cpu: "500m"}
 | print(limits.memory)
 -- stderr
 -- exit: 0
-==== manual learn/09-errors.md:15
+==== manual learn/09-errors.md:14
 -- stdout
 | fn require_port(cfg) = get(cfg, "port", nil) ?? fail("config.port is required")
 |
 | print(require_port({port: 8080}))
 | print(require_port({}))
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:15
+-- stdout
+| fn add_args(xs) = match xs:
+|   [a, b] => Ok(parse_int(a)? + parse_int(b)?)
+|   _      => Err({kind: 'usage, message: "usage: add.fung A B"})
+| ;;
+|
+| match add_args(args):
+|   Ok(total) => print(total)
+|   Err(e)    =>
+|     eprint("error:", e.message)
+|     exit(1)
+| ;;
 -- stderr
 -- exit: 0
 ==== manual learn/09-errors.md:16
@@ -2547,21 +2597,6 @@
 -- exit: 0
 ==== manual learn/09-errors.md:17
 -- stdout
-| fn add_args(xs) = match xs:
-|   [a, b] => Ok(parse_int(a)? + parse_int(b)?)
-|   _      => Err({kind: 'usage, message: "usage: add.fung A B"})
-| ;;
-|
-| match add_args(args):
-|   Ok(total) => print(total)
-|   Err(e)    =>
-|     eprint("error:", e.message)
-|     exit(1)
-| ;;
--- stderr
--- exit: 0
-==== manual learn/09-errors.md:18
--- stdout
 | fn parse_kv(line) = match split(line, "="):
 |   [k, v] => Ok((k, v))
 |   _      => Err({kind: 'syntax, message: "not key=value: ${line}"})
@@ -2571,6 +2606,43 @@
 |
 | print(parse_all(["port=8080", "host=db"]))
 | print(parse_all(["port=8080", "broken", "debug=true"]))
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:18
+-- stdout
+| print(try_map(["1", "2", "3"], parse_int))
+| print(try_map(["1", "b", "c"], parse_int))
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:19
+-- stdout
+| fn port(s):
+|   n = match parse_int(s):
+|     Ok(n)  => n
+|     Err(_) => return Err("not a number: ${s}")
+|   ;;
+|   n >= 1 and n <= 65535 then Ok(n) else Err("out of range: ${s}")
+| ;;
+| for s in ["8080", "http", "70000"]:
+|   print(port(s))
+| ;;
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:20
+-- stdout
+| cfg = {timeout: "30", retries: "x"}
+| fn int_or(m, key, d) = parse_int(get(m, key, "")) ?? d
+| print(int_or(cfg, "timeout", 10), int_or(cfg, "retries", 3), int_or(cfg, "delay", 5))
+-- stderr
+-- exit: 0
+==== manual learn/09-errors.md:21
+-- stdout
+| lines = ["10", "x", "25", "", "7"]
+| (total, bad) = fold(lines, (0, 0), ((t, b), s) => match parse_int(s):
+|   Ok(n)  => (t + n, b)
+|   Err(_) => (t, b + 1)
+| ;;)
+| print(total, bad)
 -- stderr
 -- exit: 0
 ==== manual learn/10-modules.md:1
@@ -2649,6 +2721,24 @@
 |
 | rows = ["ERROR disk full", "INFO started", "ERROR timeout"]
 | print(logstat.count_levels(rows))
+-- stderr
+-- exit: 0
+==== manual learn/10-modules.md:11
+-- stdout
+| import "./strutil"
+| print(strutil.slug("  Hello World  "))
+-- stderr
+-- exit: 0
+==== manual learn/10-modules.md:12
+-- stdout
+| import "./strutil" (slug)
+| print(map(["A B", "C D"], slug))
+-- stderr
+-- exit: 0
+==== manual learn/10-modules.md:13
+-- stdout
+| import path as p
+| print(p.base("/var/log/app.log"), p.ext("/var/log/app.log"))
 -- stderr
 -- exit: 0
 ==== manual learn/11-files-and-commands.md:1
@@ -2815,6 +2905,27 @@
 | for (p, size) in found:
 |   print(size, p)
 | ;;
+-- stderr
+-- exit: 0
+==== manual learn/11-files-and-commands.md:15
+-- stdout
+| import fs
+| lines = fs.read_lines("app.log")!
+| longest = fold(lines, "", (best, l) => len(l) > len(best) then l else best)
+| print(len(lines), longest)
+-- stderr
+-- exit: 0
+==== manual learn/11-files-and-commands.md:16
+-- stdout
+| import fs
+| fs.write("report.txt", "ok: 3\nfail: 1\n")!
+| print(fs.read_lines("report.txt")! |> filter(l => starts_with(l, "fail")))
+-- stderr
+-- exit: 0
+==== manual learn/11-files-and-commands.md:17
+-- stdout
+| r = exec(["echo", "hello"])!
+| print(trim(r.out), r.code)
 -- stderr
 -- exit: 0
 ==== manual learn/12-concurrency.md:1
@@ -3006,17 +3117,6 @@
 -- exit: 0
 ==== manual learn/12-concurrency.md:15
 -- stdout
-| (tx, rx) = channel()
-| scope(fn(s):
-|   spawn(s, () => each(["a", "b"], x => send(tx, x)!))
-|   for x in rx:
-|     print(x)
-|   ;;
-| ;;)
--- stderr
--- exit: 0
-==== manual learn/12-concurrency.md:16
--- stdout
 | done = atom(0)
 |
 | scope(fn(s):
@@ -3025,7 +3125,7 @@
 | print(deref(done), done)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:17
+==== manual learn/12-concurrency.md:16
 -- stdout
 | hits = atom(0)
 | swap(hits, fn(n):
@@ -3034,7 +3134,7 @@
 | ;;)
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:18
+==== manual learn/12-concurrency.md:17
 -- stdout
 | import conc
 |
@@ -3057,7 +3157,7 @@
 | if any(results, is_err): exit(1) ;;
 -- stderr
 -- exit: 0
-==== manual learn/12-concurrency.md:19
+==== manual learn/12-concurrency.md:18
 -- stdout
 | fn count_chars(rx) = fold(rx, 0, (acc, row) => acc + len(row))
 |
@@ -3069,6 +3169,45 @@
 |   await(counter)
 | ;;)
 | print(total)
+-- stderr
+-- exit: 0
+==== manual learn/12-concurrency.md:19
+-- stdout
+| (tx, rx) = channel()
+| scope(fn(s):
+|   spawn(s, () => each(["a", "b"], x => send(tx, x)!))
+|   for x in rx:
+|     print(x)
+|   ;;
+| ;;)
+-- stderr
+-- exit: 0
+==== manual learn/12-concurrency.md:20
+-- stdout
+| import conc
+| print(conc.pmap(["a.txt", "bb.txt", "ccc.txt"], len, limit: 2))
+-- stderr
+-- exit: 0
+==== manual learn/12-concurrency.md:21
+-- stdout
+| total = scope(fn(s):
+|   ts = map(1..=3, n => spawn(s, () => n * n))
+|   fold(ts, 0, (acc, t) => acc + await(t))
+| ;;)
+| print(total)
+-- stderr
+-- exit: 0
+==== manual learn/12-concurrency.md:22
+-- stdout
+| (tx, rx) = channel()
+| result = scope(fn(s):
+|   spawn(s, fn():
+|     each(1..=5, n => send(tx, n)!)
+|     close(tx)
+|   ;;)
+|   fold(rx, 0, (acc, n) => acc + n)
+| ;;)
+| print(result)
 -- stderr
 -- exit: 0
 ==== manual learn/13-json-and-http.md:1
@@ -3108,20 +3247,12 @@
 -- stdout
 | import json
 |
-| svc = json.parse(`{"status": "down"}`)!
-| print(svc.status == 'down)
--- stderr
--- exit: 0
-==== manual learn/13-json-and-http.md:5
--- stdout
-| import json
-|
 | report = {host: "web1", status: 'ok, load: (0.5, 0.7), checked_in: str(1m30s)}
 | print(json.stringify(report))
 | print(json.stringify({services: ["api", "cron"], healthy: true}, indent: 2))
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:6
+==== manual learn/13-json-and-http.md:5
 -- stdout
 | import fs
 | import json
@@ -3132,7 +3263,7 @@
 | print(fs.read("deploy.json")!)
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:7
+==== manual learn/13-json-and-http.md:6
 -- stdout
 | import http
 |
@@ -3142,7 +3273,7 @@
 | print(http.get("http://127.0.0.1:1/"))
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:8
+==== manual learn/13-json-and-http.md:7
 -- stdout
 | import http
 | import json
@@ -3160,7 +3291,7 @@
 | print(get_json("https://api.github.com/repos/tunarider/no-such-repo-xyz"))
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:9
+==== manual learn/13-json-and-http.md:8
 -- stdout
 | import http
 | import json
@@ -3170,7 +3301,7 @@
 | print(r.status, json.parse(r.body)!.json)
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:10
+==== manual learn/13-json-and-http.md:9
 -- stdout
 | import http
 | import json
@@ -3190,7 +3321,7 @@
 | http.serve("127.0.0.1:8080", handle, ready: addr => print("listening on", addr))
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:11
+==== manual learn/13-json-and-http.md:10
 -- stdout
 | d = 90s
 | print(d, d / 1s, d // 1m)
@@ -3198,7 +3329,7 @@
 | print(parse_dur("2m30s"))
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:12
+==== manual learn/13-json-and-http.md:11
 -- stdout
 | import time
 |
@@ -3211,7 +3342,7 @@
 | print(time.parse("20/10/2026 18:00", format: "DD/MM/YYYY HH:mm"))
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:13
+==== manual learn/13-json-and-http.md:12
 -- stdout
 | import time
 |
@@ -3221,7 +3352,7 @@
 | print("took about", (time.monotonic() - start) // 10ms * 10, "ms")
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:14
+==== manual learn/13-json-and-http.md:13
 -- stdout
 | import fs
 | import json
@@ -3236,7 +3367,7 @@
 | ;;
 -- stderr
 -- exit: 0
-==== manual learn/13-json-and-http.md:15
+==== manual learn/13-json-and-http.md:14
 -- stdout
 | import json
 |
@@ -3247,6 +3378,40 @@
 | }
 |
 | print(json.stringify(summarize([("web1", 120ms), ("web2", 2s)])))
+-- stderr
+-- exit: 0
+==== manual learn/13-json-and-http.md:15
+-- stdout
+| import json
+|
+| svc = json.parse(`{"status": "down"}`)!
+| print(svc.status == 'down)
+-- stderr
+-- exit: 0
+==== manual learn/13-json-and-http.md:16
+-- stdout
+| import json
+| data = json.parse("{\"service\": \"api\", \"replicas\": 3, \"ports\": [80, 443]}")!
+| print(data.service, data.ports[1])
+-- stderr
+-- exit: 0
+==== manual learn/13-json-and-http.md:17
+-- stdout
+| import json
+| print(json.stringify({name: "web-1", up: true, ms: 12}, indent: 2))
+-- stderr
+-- exit: 0
+==== manual learn/13-json-and-http.md:18
+-- stdout
+| import http
+| (addr_tx, addr_rx) = channel(1)
+| scope(fn(s):
+|   server = spawn(s, () => http.serve("127.0.0.1:0", req => "ok", ready: a => send(addr_tx, a)!))
+|   addr = recv(addr_rx)!
+|   r = http.get("http://${addr}/health")!
+|   print(r.status, r.body)
+|   cancel(server)
+| ;;)
 -- stderr
 -- exit: 0
 ==== manual learn/14-testing.md:1
@@ -3390,6 +3555,29 @@
 |   assert human(1536) == "1.5 KiB"
 |   assert human(1048576) == "1.0 MiB"
 | ;;
+-- stderr
+-- exit: 0
+==== manual learn/14-testing.md:10
+-- stdout
+| fn normalize(s) = lower(trim(s))
+| assert normalize("  Web-1 ") == "web-1"
+| assert normalize("") == ""
+| assert normalize("DB") == "db"
+| print("all good")
+-- stderr
+-- exit: 0
+==== manual learn/14-testing.md:11
+-- stdout
+| fn errors(lines) = lines |> filter(l => starts_with(l, "ERROR")) |> len
+| assert errors(["ERROR a", "INFO b", "ERROR c"]) == 2
+| assert errors([]) == 0
+| print(errors(["ERROR x"]))
+-- stderr
+-- exit: 0
+==== manual learn/14-testing.md:12
+-- stdout
+| r = [3, 1, 2] |> sort |> dbg |> map(x => x * 10)
+| print(r)
 -- stderr
 -- exit: 0
 ==== manual recipes/check-urls.md:1
@@ -5576,42 +5764,34 @@
 | print(summary([1]))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:1
+==== manual reference/language/access.md:1
 -- stdout
-| # 한눈에 보는 fung
-| import fs
-|
-| fn total_size(dir):
-|   fs.list(dir)!
-|     |> map(f => fs.stat("${dir}/${f}")!.size)
-|     |> fold(0, (acc, n) => acc + n)
-| ;;
-|
-| size = total_size(".")
-| label = size > 1_000_000 then "big" else "small"
-| print("${size} bytes (${label})")
+| xs = [10, 20, 30, 40]
+| print(xs[-1], xs[1..3], xs[..2], "참치김밥"[1..3])
 -- stderr
 -- exit: 0
-==== manual reference/language.md:2
+==== manual reference/language/access.md:2
 -- stdout
-| event = {type: "deploy", match: "api-*"}
-| print(event.type, event.match)
+| xs = [10, 20, 30]
+| print(xs[-1], take(xs, 5), drop(xs, 1))
+| print(xs[3])
 -- stderr
 -- exit: 0
-==== manual reference/language.md:3
+==== manual reference/language/access.md:3
 -- stdout
-| name = "fung"
-| print("hello, ${name}! ${1 + 2}")
-| pattern = `^\d{4}-\d{2}$`
+| xs = [1, 2, 3]
+| print(xs[1..])
+| print(xs[2..1])
 -- stderr
 -- exit: 0
-==== manual reference/language.md:4
+==== manual reference/language/access.md:4
 -- stdout
-| elapsed = 1m30s
-| print(elapsed / 1ms, elapsed // 1m, elapsed % 1m)
+| m = {name: "a"}
+| print(get(m, "age", 0))
+| print(m.age)
 -- stderr
 -- exit: 0
-==== manual reference/language.md:5
+==== manual reference/language/blocks.md:1
 -- stdout
 | fn classify(n):
 |   if n < 0:
@@ -5626,7 +5806,7 @@
 | fn classify_short(n) = if n < 0: "negative" else if n == 0: "zero" else: "positive" ;;
 -- stderr
 -- exit: 0
-==== manual reference/language.md:6
+==== manual reference/language/blocks.md:2
 -- stdout
 | names = ["b.log", "a.txt", "c.log"]
 | logs = names
@@ -5637,21 +5817,80 @@
 | print(logs, ok)
 -- stderr
 -- exit: 0
-==== manual reference/language.md:7
+==== manual reference/language/blocks.md:3
 -- stdout
-| line = " ERROR,disk full "
-| fields = line |> trim |> lower |> split(",")
-| cfg = {host: "localhost"} |> put("port", 8080) |> merge({debug: false})
-| print(fields, cfg |> keys)
+-- stderr
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> <stdin>:3:12
+|   |
+| 3 | print(f(1))
+|   |            ^
+|   |
+-- exit: 2
+==== manual reference/language/blocks.md:4
+-- stdout
+| fn f(x):
+|   y = x + 1
+| ;;
+| print(f(1))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:8
+==== manual reference/language/conditions.md:1
 -- stdout
-| xs = [10, 20, 30, 40]
-| print(xs[-1], xs[1..3], xs[..2], "참치김밥"[1..3])
+| fn sign(n):
+|   if n > 0:
+|     "+"
+|   else if n < 0:
+|     "-"
+|   else:
+|     "0"
+|   ;;
+| ;;
+| print(sign(5), 3 > 2 then "yes" else "no")
 -- stderr
 -- exit: 0
-==== manual reference/language.md:9
+==== manual reference/language/conditions.md:2
+-- stdout
+| x = 5
+| label = if x > 3: "big" else: "small" ;;
+| print(label)
+| bad = if x > 3: "big" ;;
+-- stderr
+-- exit: 0
+==== manual reference/language/conditions.md:3
+-- stdout
+| n = 0
+| print(n == 0 then "zero" else "some")
+| print(n then "yes" else "no")
+-- stderr
+-- exit: 0
+==== manual reference/language/for.md:1
+-- stdout
+| squares = for x in 1..=3: x * x ;;
+| for (k, v) in pairs({a: 1, b: 2}):
+|   print("${k} = ${v}")
+| ;;
+| print(squares)
+-- stderr
+-- exit: 0
+==== manual reference/language/for.md:2
+-- stdout
+| fn first_big(xs):
+|   for x in xs:
+|     if x > 2: return x else: nil ;;
+|   ;;
+| ;;
+| print(first_big([1, 3]))
+-- stderr
+-- exit: 0
+==== manual reference/language/for.md:3
+-- stdout
+| m = {a: 1}
+| for (k, v) in pairs(m): print(k, v) ;;
+| for ch in "ab": print(ch) ;;
+-- stderr
+-- exit: 0
+==== manual reference/language/functions.md:1
 -- stdout
 | # 식 하나짜리
 | fn add(a, b) = a + b
@@ -5677,40 +5916,99 @@
 | later()
 -- stderr
 -- exit: 0
-==== manual reference/language.md:10
+==== manual reference/language/functions.md:2
 -- stdout
 | fn greet(name, greeting = "hello", ...extra) = "${greeting}, ${name}${join(extra)}"
 | print(greet("fung"), greet("fung", greeting: "hi"), greet("fung", "yo", "!", "?"))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:11
+==== manual reference/language/functions.md:3
 -- stdout
 | import path
 | files = ["a.txt", "b.txt"]
 | print(files |> map(path.join("/tmp", _)))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:12
+==== manual reference/language/functions.md:4
 -- stdout
 | fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 | print(count(1_000_000, 0))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:13
+==== manual reference/language/functions.md:5
 -- stdout
-| fn sign(n):
-|   if n > 0:
-|     "+"
-|   else if n < 0:
-|     "-"
-|   else:
-|     "0"
-|   ;;
-| ;;
-| print(sign(5), 3 > 2 then "yes" else "no")
+| fn add(a, b) = a + b
+| print(add(1, 2))
+| print(add(1))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:14
+==== manual reference/language/functions.md:6
+-- stdout
+-- stderr
+| error[E0116]: argument `a` given twice
+|   --> <stdin>:2:15
+|   |
+| 2 | print(f(a: 1, a: 2))
+|   |               ^
+|   |
+-- exit: 2
+==== manual reference/language/functions.md:7
+-- stdout
+| fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
+| print(depth(1000))
+| print(depth(200000))
+-- stderr
+-- exit: 0
+==== manual reference/language/lexical.md:1
+-- stdout
+| event = {type: "deploy", match: "api-*"}
+| print(event.type, event.match)
+-- stderr
+-- exit: 0
+==== manual reference/language/lexical.md:2
+-- stdout
+| name = "fung"
+| print("hello, ${name}! ${1 + 2}")
+| pattern = `^\d{4}-\d{2}$`
+-- stderr
+-- exit: 0
+==== manual reference/language/lexical.md:3
+-- stdout
+| elapsed = 1m30s
+| print(elapsed / 1ms, elapsed // 1m, elapsed % 1m)
+-- stderr
+-- exit: 0
+==== manual reference/language/lexical.md:4
+-- stdout
+-- stderr
+| error[E0102]: malformed number "1_"
+|   --> <stdin>:2:7
+|   |
+| 2 | print(1__0)
+|   |       ^
+|   |
+-- exit: 2
+==== manual reference/language/lexical.md:5
+-- stdout
+-- stderr
+| error[E0105]: malformed duration "30m1h"
+|   --> <stdin>:2:7
+|   |
+| 2 | print(30m1h)
+|   |       ^
+|   |
+-- exit: 2
+==== manual reference/language/lexical.md:6
+-- stdout
+-- stderr
+| error[E0103]: unknown escape \q in string
+|   --> <stdin>:2:8
+|   |
+| 2 | print("\q")
+|   |        ^
+|   |
+-- exit: 2
+==== manual reference/language/match.md:1
 -- stdout
 | (q, r) = (7 // 2, 7 % 2)
 | [top, ...rest] = ["a", "b", "c"]
@@ -5718,16 +6016,150 @@
 | print(q, r, top, rest, name, p)
 -- stderr
 -- exit: 0
-==== manual reference/language.md:15
+==== manual reference/language/match.md:2
 -- stdout
-| squares = for x in 1..=3: x * x ;;
-| for (k, v) in pairs({a: 1, b: 2}):
-|   print("${k} = ${v}")
+| fn sign(n) = match n:
+|   0            => "zero"
+|   n when n > 0 => "plus"
 | ;;
-| print(squares)
+| print(sign(1))
+| print(sign(-1))
 -- stderr
 -- exit: 0
-==== manual reference/language.md:16
+==== manual reference/language/match.md:3
+-- stdout
+| (a, b) = (1, 2)
+| print(a + b)
+| [x, y] = [1, 2, 3]
+-- stderr
+-- exit: 0
+==== manual reference/language/match.md:4
+-- stdout
+| fn f(v) = match v:
+|   (a, 0) | (0, b) => 1
+|   _               => 0
+| ;;
+| print(f((1, 0)))
+-- stderr
+-- exit: 0
+==== manual reference/language/modules.md:1
+-- stdout
+| import fs
+| print(type_of(fs.exists))
+| import nosuch
+-- stderr
+-- exit: 0
+==== manual reference/language/modules.md:2
+-- stdout
+| import json
+| print(json._x)
+-- stderr
+-- exit: 0
+==== manual reference/language/operators.md:1
+-- stdout
+| line = " ERROR,disk full "
+| fields = line |> trim |> lower |> split(",")
+| cfg = {host: "localhost"} |> put("port", 8080) |> merge({debug: false})
+| print(fields, cfg |> keys)
+-- stderr
+-- exit: 0
+==== manual reference/language/operators.md:2
+-- stdout
+| import json
+|
+| name = "a.log"
+| size = 3
+| files = ["a", "b", "c", "d"]
+| print(name |> ends_with(".log") and size > 0)  # (name |> ends_with(".log")) and (size > 0)
+| print(files |> len > 3)                        # (files |> len) > 3
+| print(Err("none") ?? "{}" |> json.parse)       # (Err("none") ?? "{}") |> json.parse
+| print(-2 ** 2)                                 # -(2 ** 2) == -4
+-- stderr
+-- exit: 0
+==== manual reference/language/operators.md:3
+-- stdout
+-- stderr
+| error[E0111]: comparison operators cannot be chained
+|   --> <stdin>:5:13
+|   |
+| 5 | print(a < b < c)
+|   |             ^
+|   |
+|  help: split it with `and`: a < b and b < c
+-- exit: 2
+==== manual reference/language/operators.md:4
+-- stdout
+| n = 3
+| print("n = ${n}")
+| print("n = " + n)
+-- stderr
+-- exit: 0
+==== manual reference/language/operators.md:5
+-- stdout
+| print([3, 1, 2] |> sort)
+| print([1, 2] |> map(_, x => x))
+-- stderr
+-- exit: 0
+==== manual reference/language/operators.md:6
+-- stdout
+| print(7 / 2, 7 // 2, 7 % 2)
+| print(1 // 0)
+-- stderr
+-- exit: 0
+==== manual reference/language/results.md:1
+-- stdout
+| print(parse_int("42")!)
+| print(parse_int("x")!)
+-- stderr
+-- exit: 0
+==== manual reference/language/results.md:2
+-- stdout
+| _ = parse_int("x")
+| parse_int("y")
+-- stderr
+-- exit: 0
+==== manual reference/language/results.md:3
+-- stdout
+| n = parse_int("1")?
+| print(n)
+-- stderr
+-- exit: 0
+==== manual reference/language/scope.md:1
+-- stdout
+| print(x)
+| x = 1
+-- stderr
+-- exit: 0
+==== manual reference/language/scope.md:2
+-- stdout
+| total = 0
+| for x in [1, 2]:
+|   total = total + x
+| ;;
+| print(total)
+-- stderr
+-- exit: 0
+==== manual reference/language/scope.md:3
+-- stdout
+| if true:
+|   inner = 1
+|   inner
+| ;;
+| print(inner)
+-- stderr
+-- exit: 0
+==== manual reference/language/scope.md:4
+-- stdout
+-- stderr
+| error[E0225]: `Count` starts with an uppercase letter, so it is a tag and cannot name a variable
+|   --> <stdin>:1:1
+|   |
+| 1 | Count = 1
+|   | ^^^^^ this is a tag
+|   |
+|  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
+-- exit: 2
+==== manual reference/language/testing.md:1
 -- stdout
 | fn half(n) = n // 2
 |
@@ -5739,6 +6171,86 @@
 | # [파일:줄] half(10) = 5 를 표준 에러로 찍고 값을 돌려준다
 | x = dbg(half(10)) + 1
 | print(x)
+-- stderr
+-- exit: 0
+==== manual reference/language/testing.md:2
+-- stdout
+| xs = [1, 2]
+| assert len(xs) == 2
+| assert len(xs) == 3
+-- stderr
+-- exit: 0
+==== manual reference/language/testing.md:3
+-- stdout
+-- stderr
+| error[E0114]: test must be at the top level
+|   --> <stdin>:2:3
+|   |
+| 2 |   test "inner": assert true ;;
+|   |   ^
+|   |
+-- exit: 2
+==== manual reference/language/types.md:1
+-- stdout
+| type shape = Circle | Rect  # 별칭: 같은 모듈 안에서만
+|
+| fn area(s: shape) -> num = match s:
+|   Circle(r)  => 3 * r * r
+|   Rect(w, h) => w * h
+| ;;
+| fn find_user(id: int) -> map | nil = id == 1 then {name: "ann"} else nil
+| fn load(p: str) -> Ok | Err = p == "" then Err("empty path") else Ok(p)
+|
+| print(area(Circle(2)), area(Rect(2, 3)))
+| print(find_user(1), find_user(2))
+| print(load("a.txt"), load(""))
+-- stderr
+-- exit: 0
+==== manual reference/language/types.md:2
+-- stdout
+| fn twice(n: int) -> int = n * 2
+| print(twice(4))
+| print(twice("4"))
+-- stderr
+-- exit: 0
+==== manual reference/language/types.md:3
+-- stdout
+| fn half(n: int) -> int = n / 2
+| print(half(4))
+-- stderr
+-- exit: 0
+==== manual reference/language/values.md:1
+-- stdout
+| print(group_by(["ab", "c"], s => "${len(s)}"))
+| print(group_by(["ab", "c"], s => len(s)))
+-- stderr
+-- exit: 0
+==== manual reference/language/values.md:2
+-- stdout
+| print('ok == 'ok)
+| print('ok == "ok")
+-- stderr
+-- exit: 0
+==== manual reference/language/values.md:3
+-- stdout
+| print(9223372036854775807)
+| print(9223372036854775807 + 1)
+-- stderr
+-- exit: 0
+==== manual reference/language.md:1
+-- stdout
+| # 한눈에 보는 fung
+| import fs
+|
+| fn total_size(dir):
+|   fs.list(dir)!
+|     |> map(f => fs.stat("${dir}/${f}")!.size)
+|     |> fold(0, (acc, n) => acc + n)
+| ;;
+|
+| size = total_size(".")
+| label = size > 1_000_000 then "big" else "small"
+| print("${size} bytes (${label})")
 -- stderr
 -- exit: 0
 ==== manual reference/modules/cli.md:1
@@ -8596,7 +9108,7 @@
 |   --> <stdin>:2:9
 |   |
 | 2 | 참치 = ab @ 2
-|   |         ^
+|   |           ^
 |   |
 -- exit: 2
 ==== manual vm/03-lexer.md:5
@@ -8728,18 +9240,24 @@
 -- exit: 0
 ==== manual vm/07-diagnostics.md:3
 -- stdout
+| greeting = "안녕"
+| print(greeting + 없는)
+-- stderr
+-- exit: 0
+==== manual vm/07-diagnostics.md:4
+-- stdout
 | fn half(x) = x / 0
 | fn twice(x) = half(x) + 1
 | print(twice(21))
 -- stderr
 -- exit: 0
-==== manual vm/07-diagnostics.md:4
+==== manual vm/07-diagnostics.md:5
 -- stdout
 | fn countdown(n) = n == 0 then 10 / n else countdown(n - 1)
 | print(countdown(5))
 -- stderr
 -- exit: 0
-==== manual vm/07-diagnostics.md:5
+==== manual vm/07-diagnostics.md:6
 -- stdout
 | fn firsts(xs):
 |   take(xs, "two")
@@ -8753,7 +9271,7 @@
 | main()
 -- stderr
 -- exit: 0
-==== manual vm/07-diagnostics.md:6
+==== manual vm/07-diagnostics.md:7
 -- stdout
 | fn f():
 |   unused = 1
@@ -8763,7 +9281,7 @@
 | print(f())
 -- stderr
 -- exit: 0
-==== manual vm/07-diagnostics.md:7
+==== manual vm/07-diagnostics.md:8
 -- stdout
 | fn avg(xs) = sum(xs) // len(xs)
 | fn report(name, xs) = "${name}: ${avg(xs)}"
@@ -8973,10 +9491,10 @@
 | entries = map(0..30000, i => levels[i % 5])
 |
 | counts = fold(entries, {}, (acc, lv) => put(acc, lv, get(acc, lv, 0) + 1))
-| newest_first = reverse(fold(0..30000, [], (acc, i) => acc + [i]))
+| newest_first = fold(0..30000, [], (acc, i) => [i] + acc)
 |
 | print(counts)
-| print(take(newest_first, 3))
+| print(take(newest_first, 3), newest_first == reverse(fold(0..30000, [], (acc, i) => acc + [i])))
 -- stderr
 -- exit: 0
 ==== manual vm/11-modules.md:1
@@ -10413,7 +10931,7 @@
 -- stderr
 -- exit: 0
 ==== extras/http.fung
--- stdout (69196 bytes, fnv1a64 48609e935c06a926)
+-- stdout (72250 bytes, fnv1a64 f86c76e22662ab97)
 -- stderr
 -- exit: 0
 ==== extras/json.fung
@@ -12393,6 +12911,45 @@
 | # expect: true .hidden .gz a.tar .b
 | print(path.join("a", "/c"), path.join("a/./b/", ".."), path.base(""))
 | # expect: a/c a .
+-- stderr
+-- exit: 0
+==== tests/lang/pieces.fung
+-- stdout
+| # Long natives work a piece at a time and give their turn in between (L6):
+| # inputs that take many pieces give what one go would.
+| import json
+|
+| # Sorting keeps equal ks in order across many merge pieces.
+| n = 100000
+| ks = map(0..n, i => (i * 7919) % 1000)
+| by = sort_by(0..n, i => ks[i])
+| fn ordered(i, ok) = i == n then ok else ordered(i + 1, ok and (ks[by[i - 1]] < ks[by[i]] or (ks[by[i - 1]] == ks[by[i]] and by[i - 1] < by[i])))
+| print(len(by), ordered(1, true), sort(ks) == map(by, i => ks[i]))
+| # expect: 100000 true true
+| print(len(unique(ks)), take(unique(ks), 3))
+| # expect: 1000 [0, 919, 838]
+|
+| # Strings with separators across the scanning windows, and many parts.
+| long = repeat("abcdefgh", 300000)
+| print(len(split(long, "ha")), len(split(long + ",", ",")), len(split("a,b,,c", ",")))
+| # expect: 300000 2 4
+| csv = repeat("x,", 50000)
+| print(len(split(csv, ",")), len(replace(csv, ",", ";;")), len(lines(repeat("l\r\n", 20000))))
+| # expect: 50001 150000 20000
+| print(lines(repeat("a\r\n", 3))[2], len(split(repeat("é", 20000), "")), len(replace(repeat("é", 20000), "", "-")))
+| # expect: a 20000 40001
+| print(len(repeat("ab", 1000000)), repeat("", 1000000000) == "")
+| # expect: 2000000 true
+| print(len(join(map(0..100000, i => i), ",")))
+| # expect: 588889
+|
+| # JSON across many pieces, both ways
+| rows = map(0..20000, i => {id: i, name: "n${i}", tags: ["a", "b"], ok: i % 2 == 0})
+| back = json.parse(json.stringify(rows))!
+| print(back == rows, len(json.stringify(rows, indent: 2)) > len(json.stringify(rows)))
+| # expect: true true
+| print(json.parse("[1, 2") |> type_of, json.parse(repeat("[", 20) + repeat("]", 20)) |> type_of)
+| # expect: 'Err 'Ok
 -- stderr
 -- exit: 0
 ==== tests/lang/pipe_tags.fung

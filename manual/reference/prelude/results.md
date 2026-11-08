@@ -1,5 +1,5 @@
 ---
-lede: 실패할 수 있는 함수는 <code>Ok(값)</code>이나 <code>Err(내용)</code>을 돌려준다. <code>Ok</code>·<code>Err</code>는 평범한 태그다. 풀 때는 주로 <code>!</code> <code>?</code> <code>??</code>나 <code>match</code>를 쓰고(<a href="../language.html#results">문법</a>), 이 페이지의 두 함수는 결과값을 가릴 때 쓴다.
+lede: 실패할 수 있는 함수는 <code>Ok(값)</code>이나 <code>Err(내용)</code>을 돌려준다. <code>Ok</code>·<code>Err</code>는 평범한 태그다. 풀 때는 주로 <code>!</code> <code>?</code> <code>??</code>나 <code>match</code>를 쓰고(<a href="../language/results.html">문법</a>), 이 페이지의 두 함수는 결과값을 가릴 때 쓴다.
 description: fung prelude 결과값: Ok와 Err, is_ok, is_err.
 ---
 # 결과값
@@ -8,7 +8,7 @@ description: fung prelude 결과값: Ok와 Err, is_ok, is_err.
 
 파일 읽기, 수 읽기, 외부 명령 실행처럼 **실패할 수 있는 일**이 있다. 파일이 없을 수도 있고, 사용자가 `"abc"`를 포트 번호로 줄 수도 있다. 많은 언어는 이런 실패를 **예외**(exception)로 다룬다. 실패가 일어나면 지금 하던 일을 멈추고 어딘가의 `try`/`catch`로 튀어 간다. 어디서 튈지 함수 모양만 보고는 알 수 없다는 것이 단점이다.
 
-fung은 실패를 **값**으로 돌려준다. 실패할 수 있는 함수는 성공하면 `Ok(값)`을, 실패하면 `Err(내용)`을 돌려준다. 이 둘을 **결과값**(result)이라고 부른다. 결과값은 평범한 [태그](../language.html#values) 값이라 변수에 담고, 리스트에 넣고, 함수에 넘길 수 있다. 받은 쪽은 결과를 꺼내기 전에 성공인지 실패인지 정해야 하므로 실패를 모르는 사이에 지나치지 않는다.
+fung은 실패를 **값**으로 돌려준다. 실패할 수 있는 함수는 성공하면 `Ok(값)`을, 실패하면 `Err(내용)`을 돌려준다. 이 둘을 **결과값**(result)이라고 부른다. 결과값은 평범한 [태그](../language/values.html) 값이라 변수에 담고, 리스트에 넣고, 함수에 넘길 수 있다. 받은 쪽은 결과를 꺼내기 전에 성공인지 실패인지 정해야 하므로 실패를 모르는 사이에 지나치지 않는다.
 
 표준 라이브러리의 `Err` 내용은 `{kind: 심볼, message: 문자열, …}` 맵이다. `kind`로 종류를 가리고(`'not_found`, `'parse`, `'timeout` …), `message`를 사람에게 보여 준다.
 
@@ -17,7 +17,7 @@ print(parse_int("42"))
 print(parse_int("abc"))
 ```
 
-결과값을 푸는 방법은 넷이다. 자세한 규칙은 [결과값과 에러](../language.html#results)에 있다.
+결과값을 푸는 방법은 넷이다. 자세한 규칙은 [결과값과 에러](../language/results.html)에 있다.
 
 <table>
   <thead><tr><th>쓰는 법</th><th>뜻</th><th>어울리는 자리</th></tr></thead>
@@ -130,6 +130,6 @@ print(len(bad), "failed:", bad)
 
 #### 같이 보기
 
-[`is_ok`](#fn-is_ok), [`match`와 패턴](../language.html#match)
+[`is_ok`](#fn-is_ok), [`match`와 패턴](../language/match.html)
 
 :::
