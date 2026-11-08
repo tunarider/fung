@@ -7,7 +7,7 @@ lede: 산술·비교·논리 연산자, 파이프 <code>|&gt;</code>, 우선순�
 <h3>산술</h3>
 <ul>
   <li><code>+ - *</code>, <code>/</code>는 항상 실수 결과(<code>7 / 2 == 3.5</code>), <code>//</code>는 내림 나눗셈(<code>7 // 2 == 3</code>), <code>%</code>는 <code>//</code>와 짝인 나머지(<code>-7 % 3 == 2</code>, 실수도 정확한 나머지라 나누는 수보다 작다), <code>**</code>는 거듭제곱(<code>2 ** 10 == 1024</code>, <code>2 ** -1 == 0.5</code>).</li>
-  <li>정수와 실수를 섞으면 실수. 0으로 나누기, 정수 오버플로, <code>NaN</code>·<code>Inf</code>는 에러.</li>
+  <li>정수와 실수를 섞으면 실수. 0으로 나누기(0의 음수 거듭제곱 <code>0 ** -1</code>도), 정수 오버플로, <code>NaN</code>·<code>Inf</code>는 에러.</li>
   <li><code>+</code>는 문자열·리스트를 이어 붙인다. <code>"a" + 1</code>은 에러, 반복은 <code>repeat(s, n)</code>. 문자열은 1억 글자를 넘으면 E0806(보간도 같다).</li>
 </ul>
 <h3>비교·논리·포함</h3>
@@ -26,7 +26,7 @@ lede: 산술·비교·논리 연산자, 파이프 <code>|&gt;</code>, 우선순�
   <li><code>x |&gt; f(a, b)</code>는 <code>f(x, a, b)</code>: 오른쪽이 호출이면 왼쪽 값을 <strong>맨 앞 인자로</strong> 넣는다.</li>
   <li><code>x |&gt; f</code>는 <code>f(x)</code>: 오른쪽이 이름뿐이면 그것으로 부른다.</li>
 </ul>
-<p>태그도 같다. <code>x |&gt; Ok</code>는 <code>Ok(x)</code>, <code>x |&gt; Pair(2)</code>는 <code>Pair(x, 2)</code>다(태그의 <code>Ok(x)</code>는 호출 형태이므로).</p>
+<p>태그도 같다. <code>x |&gt; Ok</code>는 <code>Ok(x)</code>, <code>x |&gt; Pair(2)</code>는 <code>Pair(x, 2)</code>다(태그의 <code>Ok(x)</code>는 호출 형태이므로). 따옴표 심볼 <code>'Ok</code>는 태그가 아니라 값이라 <code>x |&gt; 'Ok</code>는 심볼을 부르는 에러다.</p>
 <p>이어 쓰면 안쪽부터 감싸는 호출이 된다. <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 바이트코드까지 같다. 비용은 없고, 데이터가 흐르는 순서대로 읽힌다는 것이 전부다. 이름 인자도 그대로 따라간다: <code>xs |&gt; conc.pmap(f, limit: 2)</code>는 <code>conc.pmap(xs, f, limit: 2)</code>.</p>
 <p>그래서 내장 함수는 모두 <strong>다루는 대상을 첫 번째 매개변수</strong>에 둔다: 리스트 함수는 리스트가(<code>filter(xs, f)</code>), 문자열 함수는 문자열이(<code>split(s, sep)</code>), 맵 함수는 맵이(<code>put(m, k, v)</code>) 먼저다. Python의 <code>map(f, xs)</code>나 데이터를 마지막에 두는 Haskell·OCaml과 달리 Elixir와 같은 쪽이다. 직접 만드는 함수도 이렇게 두면 파이프에 그대로 이어진다.</p>
 

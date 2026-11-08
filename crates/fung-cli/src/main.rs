@@ -24,9 +24,11 @@ pub(crate) const USAGE: &str = "usage:
   fung                                    start the REPL
   fung -e '<code>'                        run one line of code
   fung check <script.fung>                check syntax and names without running
+  fung check -e '<code>'                  the same for one line of code
   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
   fung test [path]                        run tests
   fung dump ast|core|bytecode <script>    print an internal stage
+  fung dump ast|core|bytecode -e '<code>' the same for one line of code
   fung version                            print the version
   fung help                               print this text
 ";
@@ -113,10 +115,12 @@ fn run(raw: &[Vec<u8>]) -> Out {
             Some(Err(out)) => out,
             None => usage_error(b"-e needs code"),
         },
+        Some("version") if args.len() > 1 => usage_error(b"version takes no arguments"),
         Some("version") => Out {
             stdout: format!("fung {}\n", fung_vm::version::version()).into_bytes(),
             ..Out::default()
         },
+        Some("help" | "-h" | "--help") if args.len() > 1 => usage_error(b"help takes no arguments"),
         Some("help" | "-h" | "--help") => Out {
             stdout: USAGE.as_bytes().to_vec(),
             ..Out::default()
@@ -208,12 +212,11 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
         }
     };
     match &args[1..] {
-        [e, rest @ ..] if e == "-e" => match rest.first() {
-            Some(_) => match code_arg(&raw[2]) {
-                Ok(code) => dump(up_to, b"-e", &code),
-                Err(out) => out,
-            },
-            None => usage_error(b"-e needs code"),
+        [] => usage_error(b"dump needs a script path or -e code"),
+        [e] if e == "-e" => usage_error(b"-e needs code"),
+        [e, _] if e == "-e" => match code_arg(&raw[2]) {
+            Ok(code) => dump(up_to, b"-e", &code),
+            Err(out) => out,
         },
         [_] => {
             let path = &raw[1];
@@ -222,7 +225,9 @@ fn run_dump(args: &[String], raw: &[Vec<u8>]) -> Out {
                 Err(msg) => read_error(path, &msg),
             }
         }
-        _ => usage_error(b"dump needs a script path or -e code"),
+        // Nothing runs: arguments after the code or the path have no use
+        // (TL4).
+        _ => usage_error(b"dump takes one script path or -e code, nothing more"),
     }
 }
 
@@ -336,6 +341,50 @@ mod tests {
             out.stderr,
             b"error: cannot read `-e`: not valid UTF-8 at line 1, column 8\n"
         );
+    }
+
+    /// Arguments a command has no use for are a usage error everywhere
+    /// (TL4), with a message that says what the command takes.
+    #[test]
+    fn extra_arguments_are_usage_errors() {
+        let cases: &[(&[&str], &str)] = &[
+            (&["version", "x"], "version takes no arguments"),
+            (&["help", "x"], "help takes no arguments"),
+            (&["--help", "x"], "help takes no arguments"),
+            (
+                &["dump", "core", "-e", "1", "x"],
+                "dump takes one script path or -e code, nothing more",
+            ),
+            (
+                &["dump", "core", "a.fung", "x"],
+                "dump takes one script path or -e code, nothing more",
+            ),
+            (&["dump", "core"], "dump needs a script path or -e code"),
+            (&["dump", "core", "-e"], "-e needs code"),
+            (
+                &["check", "a.fung", "x"],
+                "check takes one script path or -e code, nothing more",
+            ),
+            (
+                &["check", "-e", "1", "x"],
+                "check takes one script path or -e code, nothing more",
+            ),
+            (&["check"], "check needs a script path or -e code"),
+            (&["check", "-e"], "-e needs code"),
+        ];
+        for (argv, msg) in cases {
+            let raw: Vec<Vec<u8>> = argv.iter().map(|a| a.as_bytes().to_vec()).collect();
+            let out = run(&raw);
+            assert_eq!(out.code, EXIT_USAGE, "{argv:?}");
+            let err = String::from_utf8_lossy(&out.stderr);
+            assert!(
+                err.starts_with(&format!("error: {msg}\n\nusage:")),
+                "{argv:?}: {err}"
+            );
+        }
+        // The usage names `-e` for check and dump.
+        assert!(USAGE.contains("fung check -e '<code>'"));
+        assert!(USAGE.contains("fung dump ast|core|bytecode -e '<code>'"));
     }
 
     /// More than any 64-bit host maps: every system refuses it.

@@ -349,6 +349,19 @@
 |    tests/lang/err_atom_reentry.fung:2 <lambda>
 |    tests/lang/err_atom_reentry.fung:2 <entry>
 -- exit: 1
+==== tests/lang/err_atom_stop_signal.fung
+-- stdout
+-- stderr
+| error[E0707]: `stop_signal` has an effect, which a swap's function must not have
+|   --> tests/lang/err_atom_stop_signal.fung:1:37
+|   |
+| 1 | swap(atom(1), fn(x): _ = stop_signal(); x ;;)
+|   |                                     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_atom_stop_signal.fung:1 <lambda>
+|    tests/lang/err_atom_stop_signal.fung:1 <entry>
+-- exit: 1
 ==== tests/lang/err_bang_nil.fung
 -- stdout
 -- stderr
@@ -446,6 +459,17 @@
 |    extras/cli.fung:19 _parse (1 tail calls elided)
 |    tests/lang/err_cli_empty_flag.fung:3 <entry>
 -- exit: 1
+==== tests/lang/err_closed_name_in_lambda.fung
+-- stdout
+-- stderr
+| error[E0206]: `lines` is not visible here: it was defined inside a block
+|   --> tests/lang/err_closed_name_in_lambda.fung:6:11
+|   |
+| 6 | g = () => lines
+|   |           ^^^^^
+|   |
+|  help: assign the block's value instead: `lines = if … ;;`
+-- exit: 2
 ==== tests/lang/err_cond_not_bool.fung
 -- stdout
 -- stderr
@@ -738,7 +762,7 @@
 ==== tests/lang/err_escape.fung
 -- stdout
 -- stderr
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> tests/lang/err_escape.fung:1:10
 |   |
 | 1 | print("C:\path")
@@ -1062,6 +1086,17 @@
 |    tests/lang/err_local_never_read.fung:9 <entry>
 |  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `<lambda>`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
 -- exit: 1
+==== tests/lang/err_map_named_f_question.fung
+-- stdout
+-- stderr
+| error[E0226]: `?` inside a lambda given to map
+|   --> tests/lang/err_map_named_f_question.fung:3:44
+|   |
+| 3 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
+|   |                                            ^
+|   |
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+-- exit: 2
 ==== tests/lang/err_map_pattern_dup_key.fung
 -- stdout
 -- stderr
@@ -1081,7 +1116,7 @@
 | 2 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
 |   |                                             ^
 |   |
-|  help: map keeps the Err as an element; use `try_map`, which stops at the first Err
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
 -- exit: 2
 ==== tests/lang/err_missing_arg.fung
 -- stdout
@@ -1171,6 +1206,16 @@
 |   |        ^
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+-- exit: 2
+==== tests/lang/err_number_trailing_dot.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "1."
+|   --> tests/lang/err_number_trailing_dot.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
 -- exit: 2
 ==== tests/lang/err_ok_two_values.fung
 -- stdout
@@ -1262,6 +1307,19 @@
 |   |
 |  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 -- exit: 2
+==== tests/lang/err_pipe_quoted_symbol.fung
+-- stdout
+| Red(1)
+-- stderr
+| error[E0401]: cannot call a value of type sym
+|   --> tests/lang/err_pipe_quoted_symbol.fung:5:9
+|   |
+| 5 | print(1 |> 'Red)
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_pipe_quoted_symbol.fung:5 <entry>
+-- exit: 1
 ==== tests/lang/err_pipe_tag_hole.fung
 -- stdout
 -- stderr
@@ -1286,6 +1344,17 @@
 |  call path (innermost first):
 |    tests/lang/err_pmap_failed.fung:3 <lambda>
 -- exit: 1
+==== tests/lang/err_pmap_question.fung
+-- stdout
+-- stderr
+| error[E0226]: `?` inside a lambda given to conc.pmap
+|   --> tests/lang/err_pmap_question.fung:5:47
+|   |
+| 5 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
+|   |                                               ^
+|   |
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+-- exit: 2
 ==== tests/lang/err_question_in_for.fung
 -- stdout
 -- stderr
@@ -1307,6 +1376,17 @@
 |   |      ^
 |   |
 |  help: use `!` to stop the script on Err
+-- exit: 2
+==== tests/lang/err_range_chain.fung
+-- stdout
+-- stderr
+| error[E0118]: a range cannot be an operand of another range
+|   --> tests/lang/err_range_chain.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
 -- exit: 2
 ==== tests/lang/err_reassign_fn.fung
 -- stdout
@@ -1413,6 +1493,19 @@
 |   |
 |  help: import it under another name: `import fs as m`
 -- exit: 2
+==== tests/lang/err_slice_nil_end.fung
+-- stdout
+| [2, 3]
+-- stderr
+| error[E0501]: cannot slice with int and nil
+|   --> tests/lang/err_slice_nil_end.fung:5:9
+|   |
+| 5 | print(xs[1..nil])
+|   |         ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_slice_nil_end.fung:5 <entry>
+-- exit: 1
 ==== tests/lang/err_slice_tuple.fung
 -- stdout
 -- stderr
@@ -1483,7 +1576,18 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_str_int.fung:1 <entry>
+|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
+==== tests/lang/err_string_backslash_at_line_end.fung
+-- stdout
+-- stderr
+| error[E0104]: unterminated string
+|   --> tests/lang/err_string_backslash_at_line_end.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+-- exit: 2
 ==== tests/lang/err_sym_name.fung
 -- stdout
 -- stderr
@@ -1536,12 +1640,13 @@
 ==== tests/lang/err_tag_named.fung
 -- stdout
 -- stderr
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+| error[E0121]: a tag takes its values by position, not by name
 |   --> tests/lang/err_tag_named.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
 -- exit: 2
 ==== tests/lang/err_tag_shorthand_map.fung
 -- stdout
@@ -1575,8 +1680,8 @@
 |   |       ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:81 _clamp
-|    extras/prelude.fung:90 take
+|    extras/prelude.fung:100 _clamp
+|    extras/prelude.fung:109 take
 |    tests/lang/err_tail_library.fung:4 firsts
 |    tests/lang/err_tail_library.fung:8 main
 |    tests/lang/err_tail_library.fung:12 <entry>
@@ -1979,6 +2084,17 @@
 | x 2
 -- stderr
 -- exit: 0
+==== tests/lang/line_continuations_more.fung
+-- stdout
+| 2
+| 5.0
+| 3
+| [2, 3]
+| true
+| 4
+| end
+-- stderr
+-- exit: 0
 ==== tests/lang/lines.fung
 -- stdout
 | ["a", "b"] [] 3
@@ -2086,6 +2202,7 @@
 -- stdout
 | true .hidden .gz a.tar .b
 | a/c a .
+| a b .d dir
 -- stderr
 -- exit: 0
 ==== tests/lang/pieces.fung
@@ -2129,6 +2246,14 @@
 | false 9223372036854775807 [-9223372036854775808, -9223372036854775807] [9223372036854775807]
 -- stderr
 -- exit: 0
+==== tests/lang/recv_now.fung
+-- stdout
+| Err({kind: 'empty, message: "channel empty"})
+| Ok(nil) Err({kind: 'full, message: "channel full"})
+| got job
+| Err({kind: 'closed, message: "channel closed"})
+-- stderr
+-- exit: 0
 ==== tests/lang/regex.fung
 -- stdout
 | 나다 1 3 나다 ["다"]
@@ -2147,6 +2272,13 @@
 -- stdout
 | 0 2 (1, []) (1, [2, 3])
 | 12 10
+-- stderr
+-- exit: 0
+==== tests/lang/rest_wildcard.fung
+-- stdout
+| 4
+| 1 3
+| 5
 -- stderr
 -- exit: 0
 ==== tests/lang/result_arity.fung
@@ -2328,7 +2460,7 @@
 | Err({kind: 'parse, message: "cannot parse `2026-13-01T00:00:00Z` as a time: month out of range"})
 | Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
 | +09:00
-| Err({kind: 'parse, message: "cannot parse `Foo 1` as a time: expected a month name like Oct"})
+| Err({kind: 'parse, message: "cannot parse `Foo 1 2026` as a time: expected a month name like Oct"})
 -- stderr
 -- exit: 0
 ==== tests/lang/time_values.fung
@@ -2369,14 +2501,6 @@
 | Ok([1, 2])
 | [Ok(2), Err({kind: 'parse, message: "not an integer: x"})]
 | Ok(7)
--- stderr
--- exit: 0
-==== tests/lang/try_recv.fung
--- stdout
-| Err({kind: 'empty, message: "channel empty"})
-| Ok(nil) Err({kind: 'full, message: "channel full"})
-| got job
-| Err({kind: 'closed, message: "channel closed"})
 -- stderr
 -- exit: 0
 ==== tests/lang/tuples_tags.fung
@@ -2742,7 +2866,7 @@
 | 2 Err({kind: 'error, code: "E0502", message: "division by zero", at: "-e:2"}) [1, 4, 9]
 -- stderr
 -- exit: 0
-==== -e "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(1ms, () => await(u)))\n  cancel(u)\n;;)"
+==== -e "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(() => await(u), 1ms))\n  cancel(u)\n;;)"
 -- stdout
 | Err({kind: 'cancelled, message: "cancelled"}) Err({kind: 'timeout, message: "timed out after 1ms"})
 -- stderr
@@ -2762,7 +2886,7 @@
 | 15
 -- stderr
 -- exit: 0
-==== -e "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(5ms, () => recv(never)))"
+==== -e "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(() => recv(never), 5ms))"
 -- stdout
 | Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Err({kind: 'timeout, message: "timed out after 5ms"})
 -- stderr
@@ -2881,9 +3005,11 @@
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
@@ -2897,9 +3023,11 @@
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
@@ -2923,9 +3051,11 @@
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3

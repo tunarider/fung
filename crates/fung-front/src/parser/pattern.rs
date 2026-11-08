@@ -15,6 +15,8 @@ impl Parser<'_> {
         let mut alt = Node::new(Head::Palt, first.pos, vec![first]);
         while self.at(Kind::Bar) {
             self.next();
+            // a line ending in `|` continues (01 rule 1, FE7)
+            self.skip_newlines_after_operator();
             let term = self.pat_term()?;
             alt.kids.push(term);
         }
@@ -75,7 +77,7 @@ impl Parser<'_> {
             Kind::String => {
                 self.next();
                 let Some(text) = t.plain() else {
-                    return Err(err("E0110", t.pos, vec![s("interpolation in a pattern")]));
+                    return Err(err("E0122", t.pos, vec![s("a pattern")]));
                 };
                 leaf(Head::Plit, super::str_lit(text))
             }
@@ -149,11 +151,16 @@ impl Parser<'_> {
         let first = self.pattern()?;
         if !self.at(Kind::Comma) {
             let p = self.peek();
-            let what = format!(
-                "`{}` (a parenthesized pattern is not a pattern; write (p,) for a tuple)",
-                describe(p)
-            );
-            return Err(err("E0110", p.pos, vec![s(what)]));
+            return Err(err(
+                "E0112",
+                p.pos,
+                vec![
+                    s(
+                        "`,` in a tuple pattern (a parenthesized pattern is not a pattern; write `(p,)` for a one-item tuple)",
+                    ),
+                    s(describe(p)),
+                ],
+            ));
         }
         self.next();
         self.pat_list(Node::new(Head::Ptuple, pos, vec![first]), Kind::RParen)
@@ -167,7 +174,11 @@ impl Parser<'_> {
                 self.next();
                 let mut rest = Node::new(Head::Prest, n.pos, Vec::new());
                 if self.at(Kind::Name) {
-                    rest.lit = Lit::Str(self.next().text.clone());
+                    // `..._` is `...`: `_` binds nothing (FE11)
+                    let name = self.next();
+                    if name.text != "_" {
+                        rest.lit = Lit::Str(name.text.clone());
+                    }
                 }
                 n.kids.push(rest);
                 if self.at(Kind::Comma) {
@@ -209,7 +220,7 @@ impl Parser<'_> {
                             vec![s("a map key that is text"), s(describe(p))],
                         ));
                     }
-                    None => return Err(err("E0110", p.pos, vec![s("interpolation in a map key")])),
+                    None => return Err(err("E0122", p.pos, vec![s("a map pattern's key")])),
                 }
             } else {
                 return Err(err("E0112", p.pos, vec![s("a map key"), s(describe(p))]));
@@ -331,26 +342,27 @@ impl Parser<'_> {
 
     fn match_arms(&mut self, mut n: Node) -> PResult<Node> {
         self.skip_seps();
-        let mut next = if self.at(Kind::DoubleSemi) {
-            None
-        } else {
-            Some(self.first_arm_head()?)
-        };
+        if self.at(Kind::DoubleSemi) {
+            let p = self.peek();
+            return Err(err("E0112", p.pos, vec![s("a match arm"), s(describe(p))]));
+        }
+        let mut next = Some(self.first_arm_head()?);
         while let Some((pat, guard)) = next {
             let arrow = self.next(); // =>
             let (body, following) = self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()))?;
             if body.kids.is_empty() {
-                let pos = self.peek().pos;
-                return Err(err("E0110", pos, vec![s("an empty match arm")]));
+                let p = self.peek();
+                return Err(err(
+                    "E0112",
+                    p.pos,
+                    vec![s("the arm's body after `=>`"), s(describe(p))],
+                ));
             }
             n.kids
                 .push(Node::new(Head::Arm, pat.pos, vec![pat, guard, body]));
             next = following;
         }
         self.next(); // ;;
-        if n.kids.len() == 1 {
-            return Err(err("E0110", n.pos, vec![s("a match without arms")]));
-        }
         Ok(n)
     }
 
@@ -396,6 +408,8 @@ impl Parser<'_> {
         let t = self.next(); // for
         let pat = self.pattern()?;
         self.expect_desc(Kind::KwIn, "`in` after the for pattern")?;
+        // a line ending in `in` continues (01 rule 1, FE7)
+        self.skip_newlines_after_operator();
         let iter = self.expr(0)?;
         self.expect_desc(Kind::Colon, "`:` after the for header")?;
         let body = self.body(t.pos)?;

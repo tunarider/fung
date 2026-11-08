@@ -29,7 +29,7 @@ fn natives() -> Vec<Value> {
         }
     }
     fn wake_early(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
-        let me = t.waiter.clone();
+        let me = t.fiber.waiter.clone();
         me.take_woken();
         let flag = Arc::new(AtomicBool::new(false));
         let f = flag.clone();
@@ -103,7 +103,7 @@ fn deadlock_is_judged_by_the_scheduler() {
     assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
     for src in [
         // A sleeper: a timer ends it.
-        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  _ = timeout(40ms, () => recv(rx))\n  nil\n;;)\nprint(\"ok\")",
+        "(_tx, rx) = channel()\nscope(fn(s):\n  spawn(s, () => sleep(20ms))\n  _ = timeout(() => recv(rx), 40ms)\n  nil\n;;)\nprint(\"ok\")",
         // An offload's job: the world outside ends it.
         "scope(fn(s):\n  t = spawn(s, () => slow_job())\n  await(t)\n;;)\nprint(\"ok\")",
     ] {
@@ -134,7 +134,7 @@ fn a_stop_while_idle_is_kept_for_the_next_run() {
 fn a_stale_deadline_does_not_delay_a_deadlock() {
     let start = Instant::now();
     let o = run(
-        "(tx, rx) = channel()\nr = scope(fn(s):\n  spawn(s, () => send(tx, 1))\n  timeout(1h, () => recv(rx))\n;;)\nprint(r)\n(_tx2, rx2) = channel()\nrecv(rx2)",
+        "(tx, rx) = channel()\nr = scope(fn(s):\n  spawn(s, () => send(tx, 1))\n  timeout(() => recv(rx), 1h)\n;;)\nprint(r)\n(_tx2, rx2) = channel()\nrecv(rx2)",
     );
     assert_eq!(o.out, "Ok(1)\n");
     assert!(o.err.starts_with(DEADLOCK), "{}", o.err);
@@ -145,7 +145,7 @@ fn a_stale_deadline_does_not_delay_a_deadlock() {
 #[test]
 fn stale_deadlines_do_not_pile_up() {
     let s = setup(
-        "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn():\n    for i in 0..5000: send(tx, i) ;;\n  ;;)\n  for i in 0..5000: timeout(1h, () => recv(rx)) ;;\n;;)\n(_tx2, rx2) = channel()\nrecv(rx2)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn():\n    for i in 0..5000: send(tx, i) ;;\n  ;;)\n  for i in 0..5000: timeout(() => recv(rx), 1h) ;;\n;;)\n(_tx2, rx2) = channel()\nrecv(rx2)",
         Opts::default(),
     )
     .unwrap_or_else(|e| panic!("{e:?}"));
@@ -159,7 +159,7 @@ fn stale_deadlines_do_not_pile_up() {
 #[test]
 fn a_long_swap_is_not_starved() {
     let o = run(
-        "a = atom(0)\ndone = atom(false)\nfn slow(n, k):\n  if k == 0: n else: slow(n, k - 1) ;;\n;;\nr = timeout(5s, () => scope(fn(s):\n  spawn(s, fn():\n    fn loop(i):\n      swap(a, n => n + 1)\n      if deref(done): i else: loop(i + 1) ;;\n    ;;\n    loop(0)\n  ;;)\n  swap(a, n => slow(n, 5000))\n  reset(done, true)\n  \"slow done\"\n;;))\nprint(r)",
+        "a = atom(0)\ndone = atom(false)\nfn slow(n, k):\n  if k == 0: n else: slow(n, k - 1) ;;\n;;\nr = timeout(() => scope(fn(s):\n  spawn(s, fn():\n    fn loop(i):\n      swap(a, n => n + 1)\n      if deref(done): i else: loop(i + 1) ;;\n    ;;\n    loop(0)\n  ;;)\n  swap(a, n => slow(n, 5000))\n  reset(done, true)\n  \"slow done\"\n;;), 5s)\nprint(r)",
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("slow done\n", ""));
 }
@@ -202,7 +202,7 @@ fn a_task_waiting_in_the_pool_queue_is_not_deadlocked() {
 fn a_queued_wait_job_is_dropped_on_cancel() {
     let s = setup(
         &format!(
-            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"q2\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(20ms, () => count_job(\"q2c\"))\n  open_latch(\"q2\")\n  r\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"q2\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(() => count_job(\"q2c\"), 20ms)\n  open_latch(\"q2\")\n  r\n;;))",
             crate::testutil::UNTIL
         ),
         job_opts(),
@@ -364,7 +364,7 @@ fn a_push_while_the_scheduler_sleeps_wakes_it() {
 #[test]
 fn a_stale_token_is_ignored() {
     let o = run_jobs(
-        "fd = pipe_pair(\"st\")\nprint(timeout(10ms, () => pipe_read(fd)))\nprint(waiting_io())\npipe_put(\"st\", \"y\")\nprint(pipe_read(fd))",
+        "fd = pipe_pair(\"st\")\nprint(timeout(() => pipe_read(fd), 10ms))\nprint(waiting_io())\npipe_put(\"st\", \"y\")\nprint(pipe_read(fd))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),

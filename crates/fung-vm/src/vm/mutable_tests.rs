@@ -53,7 +53,7 @@ fn a_channel_anywhere_is_found() {
         assert!(Value::Tuple(Rc::new(Tuple::new(vec![Value::Int(1), ch()]))).holds_mutable());
         let tag = Tag {
             name: intern("Ok"),
-            args: vec![ch()],
+            args: vec![ch()].into(),
         };
         assert!(Value::Tag(Rc::new(tag)).holds_mutable());
         let inner = Value::Tuple(Rc::new(Tuple::new(vec![ch()])));

@@ -507,16 +507,16 @@ print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
                 "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n",
             )),
         ),
-        case(r#"print(http.get(URL, timeout: 0s))"#, ok(simple)),
+        case(r#"print(http.get(URL, timeout: nil))"#, ok(simple)),
         // a task blocked in a request is cancelled; exit ends a blocked one
         case(
             r#"scope(fn(s):
   t = spawn(s, () => http.get(URL))
-  print(timeout(200ms, () => await(t)))
+  print(timeout(() => await(t), 200ms))
   cancel(t)
   print(await(t))
-  t2 = spawn(s, () => http.get(URL, timeout: 0s))
-  print(timeout(100ms, () => await(t2)))
+  t2 = spawn(s, () => http.get(URL, timeout: nil))
+  print(timeout(() => await(t2), 100ms))
   exit(3)
 ;;)"#,
             Reply::Hold(Vec::new()),
@@ -587,7 +587,7 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
     (
         "http.get(\"http://x\", headers: {a: 1})",
         "error[E0403]: argument `headers` must be a map of strings, got a map holding int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: {a: 1})\n  |         ^\n  |\n",
-        "   extras/http.fung:@need_str_map(\"headers\"@ _attempt (1 tail calls elided)\n   extras/http.fung:@fn _within(@ _within\n   extras/http.fung:@then _within(@ _request (1 tail calls elided)\n   -e:2       <entry>\n",
+        "   extras/http.fung:@need_str_map(\"headers\"@ _attempt (1 tail calls elided)\n   extras/http.fung:@fn _within(@ _within\n   extras/http.fung:@else _within(@ _request (1 tail calls elided)\n   -e:2       <entry>\n",
     ),
     (
         "http.get(\"http://x\", headers: 1)",
@@ -596,7 +596,7 @@ const ARG_ERRORS: &[(&str, &str, &str)] = &[
     ),
     (
         "http.get(\"http://x\", timeout: 1)",
-        "error[E0403]: argument `timeout` must be dur, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", timeout: 1)\n  |         ^\n  |\n",
+        "error[E0403]: argument `timeout` must be dur | nil, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", timeout: 1)\n  |         ^\n  |\n",
         "   extras/http.fung:@fn get(@ get\n   -e:2       <entry>\n",
     ),
     (
@@ -1123,7 +1123,7 @@ fn an_outer_timeout_is_shorter_than_the_requests() {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();
     let src = format!(
-        "import http\nprint(timeout(100ms, () => http.get(\"http://127.0.0.1:{port}/\", timeout: 10s)))"
+        "import http\nprint(timeout(() => http.get(\"http://127.0.0.1:{port}/\", timeout: 10s), 100ms))"
     );
     let start = std::time::Instant::now();
     let r = run(&fung_bin(), &src);
@@ -2551,7 +2551,7 @@ fn handle(req) = match req.path:
   "/trailer"   => {headers: {trailer: "x-t"}, body: "t"}
   "/twice"     => {headers: {"X-A": "1", "x-a": "2"}}
   "/headlength" => {headers: {"content-length": "5"}}
-  "/headers"   => {headers: {"x-nl": "a\nb\r c", "x-sp": "  d  ", "bad key": "v", "date": "Mon, 01 Jan 2001 00:00:00 GMT"}, body: "h"}
+  "/headers"   => {headers: {"x-sp": "  d  ", "date": "Mon, 01 Jan 2001 00:00:00 GMT"}, body: "h"}
   "/close"     => {headers: {connection: "close"}, body: "c"}
   "/keep"      => {headers: {connection: "keep-alive"}, body: "k"}
   "/length"    => {headers: {"content-length": "1"}, body: "l"}
@@ -2749,7 +2749,7 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         b.extend_from_slice(b"0\r\n\r\n");
         b
     };
-    // 9999 `&`: 10000 pairs (the server's limit), then 10001
+    // 9999 `&`: 10000 pairs (the server's limit), then 10001 (400, LB22)
     let many = "a=1&".repeat(9999);
     let raw = |s: &str| (s.as_bytes().to_vec(), false);
     let mut v: Vec<(Vec<u8>, bool)> = vec![
@@ -3307,4 +3307,162 @@ fn a_panicking_test_leaves_no_server_behind() {
     .unwrap()
     .success();
     assert!(!alive, "the server {pid} is still running");
+}
+
+/// The query goes out escaped as the path does (LB1, RFC 3986 3.4,
+/// RFC 9112 3.2): the characters a query may hold and valid `%XX` as
+/// written, any other byte (a space, UTF-8, a stray `%`) as `%XX`.
+#[test]
+fn the_query_is_escaped_in_the_request_line() {
+    let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
+    let src = format!(
+        "import http\nu = \"http://127.0.0.1:{}\"\nprint(http.get(u + \"/a b?x=1 HTTP/1.0 2\")!.status)\nprint(http.get(u + \"/p?q=한글&r=%41%zz%&s=a/b?c:d@e!$'()*+,;=-._~[]\")!.status)\nprint(http.get(u + \"/p?\")!.status)",
+        fake.port
+    );
+    assert_eq!(
+        run(&fung_bin(), &src),
+        ("200\n200\n200\n".into(), String::new(), Some(0))
+    );
+    let lines: Vec<String> = fake
+        .take()
+        .iter()
+        .map(|r| {
+            String::from_utf8_lossy(r)
+                .lines()
+                .next()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            "GET /a%20b?x=1%20HTTP/1.0%202 HTTP/1.1",
+            "GET /p?q=%ED%95%9C%EA%B8%80&r=%41%25zz%25&s=a/b?c:d@e!$'()*+,;=-._~%5B%5D HTTP/1.1",
+            "GET /p? HTTP/1.1",
+        ]
+    );
+}
+
+/// `timeout` follows the prelude's `timeout` (LB5): `0s` or less times
+/// out at once, `nil` sets no limit of the request's own.
+#[test]
+fn a_timeout_of_zero_or_less_times_out_at_once() {
+    let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    let src = format!(
+        "import http\nu = \"http://127.0.0.1:{}/\"\nprint(http.get(u, timeout: 0s))\nprint(http.get(u, timeout: -1s))\nprint(http.get(u, timeout: nil)!.body)",
+        fake.port
+    );
+    let want = format!(
+        "Err({{kind: 'timeout, message: \"request to `http://127.0.0.1:{p}/` timed out\"}})\n",
+        p = fake.port
+    );
+    assert_eq!(
+        run(&fung_bin(), &src),
+        (format!("{want}{want}ok\n"), String::new(), Some(0))
+    );
+    // nothing was sent for the two that timed out
+    assert_eq!(fake.take().len(), 1);
+}
+
+/// A status line is `HTTP/1.x`, a space and three digits from 100 to 599
+/// (LB14, RFC 9112 4, RFC 9110 15).
+#[test]
+fn status_lines_need_three_digits_and_http_1() {
+    for (line, why) in [
+        ("HTTP/1.1 +20 OK", "invalid status code `+20`"),
+        ("HTTP/1.1 999 X", "invalid status code `999`"),
+        ("HTTP/1.1 099 X", "invalid status code `099`"),
+        ("HTTP/1.1 2x0 X", "invalid status code `2x0`"),
+        ("HTTP/2.0 200 OK", "invalid HTTP version `HTTP/2.0`"),
+        ("HTTP/0.9 200 OK", "invalid HTTP version `HTTP/0.9`"),
+    ] {
+        let fake = Fake::start(ok(&format!("{line}\r\nContent-Length: 0\r\n\r\n")));
+        let src = format!(
+            "import http\nprint(http.get(\"http://127.0.0.1:{}/\"))",
+            fake.port
+        );
+        let want = format!(
+            "Err({{kind: 'network, message: \"cannot request `http://127.0.0.1:{}/`: {why}\"}})\n",
+            fake.port
+        );
+        assert_eq!(
+            run(&fung_bin(), &src),
+            (want, String::new(), Some(0)),
+            "{line}"
+        );
+    }
+}
+
+/// The server's checks of 2026-11-08: a handler's header name that is no
+/// token or a value with a control character is a bad answer (LB3), as
+/// is a 1xx status (LB12); the handler sees `host` (LB4); an HTTP/1.0
+/// request with Transfer-Encoding is 400 (LB13); a body too large is 413
+/// before any `100 Continue`, and HTTP/1.0's Expect is ignored (LB16); a
+/// query of more than 10000 pairs is 400 (LB22).
+#[test]
+fn the_server_checks_answers_and_requests() {
+    let src = r#"import http
+import json
+fn handle(req) = match req.path:
+  "/badname"  => {headers: {"X Bad": "1", "X-Ok": "2"}}
+  "/badvalue" => {headers: {"X-A": "a\r\nSet-Cookie: evil=1"}}
+  "/nul"      => {headers: {"X-N": "n\u{0}ul"}}
+  "/early"    => {status: 103, headers: {link: "</a>"}, body: "x"}
+  "/host"     => json.stringify(req.headers)
+  _           => "body ${byte_len(req.body)}"
+;;
+print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))"#;
+    let srv = serve(&fung_bin(), src);
+    let status = |req: &[u8], half: bool| {
+        let got = String::from_utf8_lossy(&exchange(&srv.addr, req.to_vec(), half)).into_owned();
+        got.lines().next().unwrap_or("").to_string()
+    };
+    for path in ["/badname", "/badvalue", "/nul", "/early"] {
+        assert_eq!(
+            status(&get(path), false),
+            "HTTP/1.1 500 Internal Server Error",
+            "{path}"
+        );
+    }
+    let host = String::from_utf8(exchange(&srv.addr, get("/host"), false)).unwrap();
+    assert!(
+        host.ends_with(r#"{"connection":"close","host":"x"}"#),
+        "{host}"
+    );
+    assert_eq!(
+        status(
+            b"POST /te HTTP/1.0\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+            false
+        ),
+        "HTTP/1.1 400 Bad Request"
+    );
+    let big = String::from_utf8(exchange(
+        &srv.addr,
+        b"POST /big HTTP/1.1\r\nHost: x\r\nExpect: 100-continue\r\nContent-Length: 20000000\r\n\r\n".to_vec(),
+        true,
+    ))
+    .unwrap();
+    assert!(big.starts_with("HTTP/1.1 413 "), "{big}");
+    assert_eq!(
+        status(
+            b"POST /x HTTP/1.0\r\nExpect: something\r\nContent-Length: 2\r\n\r\nhi",
+            false
+        ),
+        "HTTP/1.0 200 OK"
+    );
+    let many = format!("/q?{}b=2", "a=1&".repeat(10000));
+    assert_eq!(status(&get(&many), false), "HTTP/1.1 400 Bad Request");
+    let (_, err) = srv.kill();
+    for why in [
+        "header name `X Bad` is not a token",
+        "header `X-A` has a control character in its value",
+        "header `X-N` has a control character in its value",
+        "`status` must be between 200 and 599, got 103",
+    ] {
+        assert!(
+            err.contains(&format!("http: bad handler response: {why}\n")),
+            "{why}: {err}"
+        );
+    }
 }

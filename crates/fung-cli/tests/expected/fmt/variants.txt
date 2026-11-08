@@ -635,7 +635,6 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
-| in/extras~prelude@halflines.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -1150,6 +1149,16 @@
 | in/tests~lang~err_atom_reentry@split.fung
 | in/tests~lang~err_atom_reentry@tight.fung
 | in/tests~lang~err_atom_reentry@trailing.fung
+| in/tests~lang~err_atom_stop_signal@bom.fung
+| in/tests~lang~err_atom_stop_signal@cpushed.fung
+| in/tests~lang~err_atom_stop_signal@crlf.fung
+| in/tests~lang~err_atom_stop_signal@moreblank.fung
+| in/tests~lang~err_atom_stop_signal@nofinal.fung
+| in/tests~lang~err_atom_stop_signal@opsplit.fung
+| in/tests~lang~err_atom_stop_signal@spaced.fung
+| in/tests~lang~err_atom_stop_signal@split.fung
+| in/tests~lang~err_atom_stop_signal@tight.fung
+| in/tests~lang~err_atom_stop_signal@trailing.fung
 | in/tests~lang~err_bang_nil@bom.fung
 | in/tests~lang~err_bang_nil@cpushed.fung
 | in/tests~lang~err_bang_nil@crlf.fung
@@ -1220,6 +1229,22 @@
 | in/tests~lang~err_cli_empty_flag@spaced.fung
 | in/tests~lang~err_cli_empty_flag@split.fung
 | in/tests~lang~err_cli_empty_flag@trailing.fung
+| in/tests~lang~err_closed_name_in_lambda@bom.fung
+| in/tests~lang~err_closed_name_in_lambda@cglued.fung
+| in/tests~lang~err_closed_name_in_lambda@cpushed.fung
+| in/tests~lang~err_closed_name_in_lambda@crlf.fung
+| in/tests~lang~err_closed_name_in_lambda@dedent.fung
+| in/tests~lang~err_closed_name_in_lambda@halfbytes.fung
+| in/tests~lang~err_closed_name_in_lambda@moreblank.fung
+| in/tests~lang~err_closed_name_in_lambda@nofinal.fung
+| in/tests~lang~err_closed_name_in_lambda@odd3.fung
+| in/tests~lang~err_closed_name_in_lambda@opsplit.fung
+| in/tests~lang~err_closed_name_in_lambda@spaced.fung
+| in/tests~lang~err_closed_name_in_lambda@split.fung
+| in/tests~lang~err_closed_name_in_lambda@tabs.fung
+| in/tests~lang~err_closed_name_in_lambda@tight.fung
+| in/tests~lang~err_closed_name_in_lambda@trailing.fung
+| in/tests~lang~err_closed_name_in_lambda@wide4.fung
 | in/tests~lang~err_cond_not_bool@bom.fung
 | in/tests~lang~err_cond_not_bool@cpushed.fung
 | in/tests~lang~err_cond_not_bool@crlf.fung
@@ -1722,6 +1747,18 @@
 | in/tests~lang~err_local_never_read@tight.fung
 | in/tests~lang~err_local_never_read@trailing.fung
 | in/tests~lang~err_local_never_read@wide4.fung
+| in/tests~lang~err_map_named_f_question@bom.fung
+| in/tests~lang~err_map_named_f_question@cglued.fung
+| in/tests~lang~err_map_named_f_question@cpushed.fung
+| in/tests~lang~err_map_named_f_question@crlf.fung
+| in/tests~lang~err_map_named_f_question@halfbytes.fung
+| in/tests~lang~err_map_named_f_question@moreblank.fung
+| in/tests~lang~err_map_named_f_question@nofinal.fung
+| in/tests~lang~err_map_named_f_question@opsplit.fung
+| in/tests~lang~err_map_named_f_question@spaced.fung
+| in/tests~lang~err_map_named_f_question@split.fung
+| in/tests~lang~err_map_named_f_question@tight.fung
+| in/tests~lang~err_map_named_f_question@trailing.fung
 | in/tests~lang~err_map_question@bom.fung
 | in/tests~lang~err_map_question@cglued.fung
 | in/tests~lang~err_map_question@contsplit.fung
@@ -1786,6 +1823,7 @@
 | in/tests~lang~err_nonfinite@tight.fung
 | in/tests~lang~err_nonfinite@trailing.fung
 | in/tests~lang~err_number_leading_zero@halfbytes.fung
+| in/tests~lang~err_number_trailing_dot@halfbytes.fung
 | in/tests~lang~err_ok_two_values@bom.fung
 | in/tests~lang~err_ok_two_values@cglued.fung
 | in/tests~lang~err_ok_two_values@cpushed.fung
@@ -1887,6 +1925,19 @@
 | in/tests~lang~err_pipe_hole@split.fung
 | in/tests~lang~err_pipe_hole@tight.fung
 | in/tests~lang~err_pipe_hole@trailing.fung
+| in/tests~lang~err_pipe_quoted_symbol@bom.fung
+| in/tests~lang~err_pipe_quoted_symbol@cglued.fung
+| in/tests~lang~err_pipe_quoted_symbol@contsplit.fung
+| in/tests~lang~err_pipe_quoted_symbol@cpushed.fung
+| in/tests~lang~err_pipe_quoted_symbol@crlf.fung
+| in/tests~lang~err_pipe_quoted_symbol@halfbytes.fung
+| in/tests~lang~err_pipe_quoted_symbol@moreblank.fung
+| in/tests~lang~err_pipe_quoted_symbol@nofinal.fung
+| in/tests~lang~err_pipe_quoted_symbol@opsplit.fung
+| in/tests~lang~err_pipe_quoted_symbol@spaced.fung
+| in/tests~lang~err_pipe_quoted_symbol@split.fung
+| in/tests~lang~err_pipe_quoted_symbol@tight.fung
+| in/tests~lang~err_pipe_quoted_symbol@trailing.fung
 | in/tests~lang~err_pipe_tag_hole@bom.fung
 | in/tests~lang~err_pipe_tag_hole@cglued.fung
 | in/tests~lang~err_pipe_tag_hole@contsplit.fung
@@ -1912,6 +1963,19 @@
 | in/tests~lang~err_pmap_failed@split.fung
 | in/tests~lang~err_pmap_failed@tight.fung
 | in/tests~lang~err_pmap_failed@trailing.fung
+| in/tests~lang~err_pmap_question@bom.fung
+| in/tests~lang~err_pmap_question@cglued.fung
+| in/tests~lang~err_pmap_question@contsplit.fung
+| in/tests~lang~err_pmap_question@cpushed.fung
+| in/tests~lang~err_pmap_question@crlf.fung
+| in/tests~lang~err_pmap_question@halfbytes.fung
+| in/tests~lang~err_pmap_question@moreblank.fung
+| in/tests~lang~err_pmap_question@nofinal.fung
+| in/tests~lang~err_pmap_question@opsplit.fung
+| in/tests~lang~err_pmap_question@spaced.fung
+| in/tests~lang~err_pmap_question@split.fung
+| in/tests~lang~err_pmap_question@tight.fung
+| in/tests~lang~err_pmap_question@trailing.fung
 | in/tests~lang~err_question_in_for@bom.fung
 | in/tests~lang~err_question_in_for@cpushed.fung
 | in/tests~lang~err_question_in_for@crlf.fung
@@ -1931,6 +1995,7 @@
 | in/tests~lang~err_question_top@spaced.fung
 | in/tests~lang~err_question_top@split.fung
 | in/tests~lang~err_question_top@trailing.fung
+| in/tests~lang~err_range_chain@halfbytes.fung
 | in/tests~lang~err_reassign_fn@bom.fung
 | in/tests~lang~err_reassign_fn@cpushed.fung
 | in/tests~lang~err_reassign_fn@crlf.fung
@@ -2022,6 +2087,18 @@
 | in/tests~lang~err_shadow_module@opsplit.fung
 | in/tests~lang~err_shadow_module@tight.fung
 | in/tests~lang~err_shadow_module@trailing.fung
+| in/tests~lang~err_slice_nil_end@bom.fung
+| in/tests~lang~err_slice_nil_end@cglued.fung
+| in/tests~lang~err_slice_nil_end@cpushed.fung
+| in/tests~lang~err_slice_nil_end@crlf.fung
+| in/tests~lang~err_slice_nil_end@halfbytes.fung
+| in/tests~lang~err_slice_nil_end@moreblank.fung
+| in/tests~lang~err_slice_nil_end@nofinal.fung
+| in/tests~lang~err_slice_nil_end@opsplit.fung
+| in/tests~lang~err_slice_nil_end@spaced.fung
+| in/tests~lang~err_slice_nil_end@split.fung
+| in/tests~lang~err_slice_nil_end@tight.fung
+| in/tests~lang~err_slice_nil_end@trailing.fung
 | in/tests~lang~err_slice_tuple@bom.fung
 | in/tests~lang~err_slice_tuple@cpushed.fung
 | in/tests~lang~err_slice_tuple@crlf.fung
@@ -2074,6 +2151,7 @@
 | in/tests~lang~err_str_int@split.fung
 | in/tests~lang~err_str_int@tight.fung
 | in/tests~lang~err_str_int@trailing.fung
+| in/tests~lang~err_string_backslash_at_line_end@halfbytes.fung
 | in/tests~lang~err_sym_name@bom.fung
 | in/tests~lang~err_sym_name@cpushed.fung
 | in/tests~lang~err_sym_name@crlf.fung
@@ -2568,6 +2646,21 @@
 | in/tests~lang~keyword_names@tight.fung
 | in/tests~lang~keyword_names@trailing.fung
 | in/tests~lang~keyword_names@wide4.fung
+| in/tests~lang~line_continuations_more@bom.fung
+| in/tests~lang~line_continuations_more@cglued.fung
+| in/tests~lang~line_continuations_more@cpushed.fung
+| in/tests~lang~line_continuations_more@crlf.fung
+| in/tests~lang~line_continuations_more@dedent.fung
+| in/tests~lang~line_continuations_more@moreblank.fung
+| in/tests~lang~line_continuations_more@nofinal.fung
+| in/tests~lang~line_continuations_more@odd3.fung
+| in/tests~lang~line_continuations_more@opsplit.fung
+| in/tests~lang~line_continuations_more@spaced.fung
+| in/tests~lang~line_continuations_more@split.fung
+| in/tests~lang~line_continuations_more@tabs.fung
+| in/tests~lang~line_continuations_more@tight.fung
+| in/tests~lang~line_continuations_more@trailing.fung
+| in/tests~lang~line_continuations_more@wide4.fung
 | in/tests~lang~lines@bom.fung
 | in/tests~lang~lines@cpushed.fung
 | in/tests~lang~lines@crlf.fung
@@ -2820,6 +2913,22 @@
 | in/tests~lang~ranges@split.fung
 | in/tests~lang~ranges@tight.fung
 | in/tests~lang~ranges@trailing.fung
+| in/tests~lang~recv_now@bom.fung
+| in/tests~lang~recv_now@cglued.fung
+| in/tests~lang~recv_now@cpushed.fung
+| in/tests~lang~recv_now@crlf.fung
+| in/tests~lang~recv_now@dedent.fung
+| in/tests~lang~recv_now@halfbytes.fung
+| in/tests~lang~recv_now@moreblank.fung
+| in/tests~lang~recv_now@nofinal.fung
+| in/tests~lang~recv_now@odd3.fung
+| in/tests~lang~recv_now@opsplit.fung
+| in/tests~lang~recv_now@spaced.fung
+| in/tests~lang~recv_now@split.fung
+| in/tests~lang~recv_now@tabs.fung
+| in/tests~lang~recv_now@tight.fung
+| in/tests~lang~recv_now@trailing.fung
+| in/tests~lang~recv_now@wide4.fung
 | in/tests~lang~regex@bom.fung
 | in/tests~lang~regex@cglued.fung
 | in/tests~lang~regex@contsplit.fung
@@ -2855,6 +2964,21 @@
 | in/tests~lang~rest_and_alias@split.fung
 | in/tests~lang~rest_and_alias@tight.fung
 | in/tests~lang~rest_and_alias@trailing.fung
+| in/tests~lang~rest_wildcard@bom.fung
+| in/tests~lang~rest_wildcard@cglued.fung
+| in/tests~lang~rest_wildcard@cpushed.fung
+| in/tests~lang~rest_wildcard@crlf.fung
+| in/tests~lang~rest_wildcard@dedent.fung
+| in/tests~lang~rest_wildcard@moreblank.fung
+| in/tests~lang~rest_wildcard@nofinal.fung
+| in/tests~lang~rest_wildcard@odd3.fung
+| in/tests~lang~rest_wildcard@opsplit.fung
+| in/tests~lang~rest_wildcard@spaced.fung
+| in/tests~lang~rest_wildcard@split.fung
+| in/tests~lang~rest_wildcard@tabs.fung
+| in/tests~lang~rest_wildcard@tight.fung
+| in/tests~lang~rest_wildcard@trailing.fung
+| in/tests~lang~rest_wildcard@wide4.fung
 | in/tests~lang~result_arity@bom.fung
 | in/tests~lang~result_arity@cglued.fung
 | in/tests~lang~result_arity@contsplit.fung
@@ -3269,22 +3393,6 @@
 | in/tests~lang~try_map@tight.fung
 | in/tests~lang~try_map@trailing.fung
 | in/tests~lang~try_map@wide4.fung
-| in/tests~lang~try_recv@bom.fung
-| in/tests~lang~try_recv@cglued.fung
-| in/tests~lang~try_recv@cpushed.fung
-| in/tests~lang~try_recv@crlf.fung
-| in/tests~lang~try_recv@dedent.fung
-| in/tests~lang~try_recv@halfbytes.fung
-| in/tests~lang~try_recv@moreblank.fung
-| in/tests~lang~try_recv@nofinal.fung
-| in/tests~lang~try_recv@odd3.fung
-| in/tests~lang~try_recv@opsplit.fung
-| in/tests~lang~try_recv@spaced.fung
-| in/tests~lang~try_recv@split.fung
-| in/tests~lang~try_recv@tabs.fung
-| in/tests~lang~try_recv@tight.fung
-| in/tests~lang~try_recv@trailing.fung
-| in/tests~lang~try_recv@wide4.fung
 | in/tests~lang~tuples_tags@bom.fung
 | in/tests~lang~tuples_tags@cglued.fung
 | in/tests~lang~tuples_tags@cpushed.fung
@@ -3731,16 +3839,16 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0104]: unterminated string
-|   --> in/extras~http@halfbytes.fung:984:21
+| error[E0112]: expected `:` after the if condition, found end of file
+|   --> in/extras~http@halfbytes.fung:985:11
 |     |
-| 984 |       Err(_) => Err("invalid Content-Length `${cl}`
-|     |                     ^
+| 985 |   if n > c
+|     |           ^
 |     |
 | error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:220:5
+|   --> in/extras~http@opsplit.fung:222:5
 |     |
-| 220 | else
+| 222 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected `.`
@@ -3767,11 +3875,17 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0112]: expected `(` after fn, found end of file
-|   --> in/extras~prelude@halfbytes.fung:65:3
+| error[E0110]: unexpected end of file
+|   --> in/extras~prelude@halfbytes.fung:70:14
 |    |
-| 65 | fn
-|    |   ^
+| 70 | fn range(a, b
+|    |              ^
+|    |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~prelude@halflines.fung:75:1
+|    |
+| 75 | 
+|    | ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -3860,7 +3974,7 @@
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~cancel@halfbytes.fung:7:46
 |   |
-| 7 |   print(await(t), timeout(10ms, () => await(u
+| 7 |   print(await(t), timeout(() => await(u), 10m
 |   |                                              ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
@@ -3994,6 +4108,12 @@
 |   |
 | 2 | swap(a, x => swap(a,
 |   |                     ^
+|   |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~err_atom_stop_signal@halfbytes.fung:1:35
+|   |
+| 1 | swap(atom(1), fn(x): _ = stop_sign
+|   |                                   ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~err_block_leak@halfbytes.fung:2:7
@@ -4160,6 +4280,12 @@
 |   |
 | 2 | send(tx
 |   |        ^
+|   |
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/tests~lang~err_closed_name_in_lambda@halflines.fung:5:1
+|   |
+| 5 | 
+|   | ^
 |   |
 | error[E0112]: expected `:` after the if condition, found end of file
 |   --> in/tests~lang~err_discard_branch@halfbytes.fung:2:5
@@ -4365,79 +4491,79 @@
 | 1 | x = {a: 1, a: 2}
 |   |            ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@bom.fung:1:10
 |   |
 | 1 | ﻿print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@crlf.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@dedent.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@halfbytes.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@halflines.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@moreblank.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@noblank.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@nofinal.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@odd3.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@tabs.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@trailing.fung:1:10
 |   |
 | 1 | print("C:\path")      
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@wide4.fung:1:10
 |   |
 | 1 | print("C:\path")
@@ -5198,6 +5324,72 @@
 |   |        ^
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@bom.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@crlf.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@dedent.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@moreblank.fung:7:5
+|   |
+| 7 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@noblank.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@nofinal.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@odd3.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@tabs.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@trailing.fung:3:5
+|   |
+| 3 | x = 1.      
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@wide4.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~err_open_if_chain@halfbytes.fung:2:14
 |   |
@@ -5258,6 +5450,146 @@
 | 1 | fn f(xs) = for x in xs: x?
 |   |                           ^
 |   |
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@bom.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@cglued.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@cnospace.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@contsplit.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@cpushed.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@crlf.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@dedent.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@joined.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@moreblank.fung:7:11
+|   |
+| 7 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@noblank.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@nofinal.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@odd3.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@opsplit.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@spaced.fung:3:16
+|   |
+| 3 | print ( 1 .. 2 .. 3 )
+|   |                ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@split.fung:4:5
+|   |
+| 4 | 1..2..3)
+|   |     ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@tabs.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@tight.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@trailing.fung:3:11
+|   |
+| 3 | print(1..2..3)      
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@wide4.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
 | error[E0112]: expected `;;` to close the if, found end of file
 |   --> in/tests~lang~err_reassign_outer@halfbytes.fung:2:22
 |   |
@@ -5287,6 +5619,72 @@
 |   |
 | 1 | fn f(n) = n == 0 then 0 else 1 + f(n - 1
 |   |                                         ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@bom.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@crlf.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@dedent.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@moreblank.fung:7:7
+|   |
+| 7 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@noblank.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@nofinal.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@odd3.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@tabs.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0103]: unknown escape "\\ " in string
+|   --> in/tests~lang~err_string_backslash_at_line_end@trailing.fung:3:9
+|   |
+| 3 | print("a\      
+|   |         ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@wide4.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~err_sym_str_eq@halfbytes.fung:3:23
@@ -5441,138 +5839,160 @@
 |   | ^^^^^^^^^^^ this is a tag
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@bom.fung:1:10
 |   |
 | 1 | ﻿print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@cglued.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@cnospace.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@contsplit.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@cpushed.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@crlf.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@dedent.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@halfbytes.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@halflines.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@joined.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@moreblank.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@noblank.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@nofinal.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@odd3.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@opsplit.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@spaced.fung:1:14
 |   |
 | 1 | print ( Ok ( a : 1 ) )
 |   |              ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@split.fung:3:1
 |   |
 | 3 | a: 1))
 |   | ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@tabs.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@tight.fung:1:10
 |   |
 | 1 | print(Ok(a:1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@trailing.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))      
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@wide4.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
 | error[E0225]: `Red` starts with an uppercase letter, so it is a tag and cannot name a variable
 |   --> in/tests~lang~err_tag_shorthand_map.fung:2:8
 |   |
@@ -6292,6 +6712,12 @@
 |   |                       ^
 |   |
 | error[E0110]: unexpected end of file
+|   --> in/tests~lang~line_continuations_more@halfbytes.fung:10:6
+|    |
+| 10 |   [1,
+|    |      ^
+|    |
+| error[E0110]: unexpected end of file
 |   --> in/tests~lang~lines@halfbytes.fung:1:42
 |   |
 | 1 | print(lines("a\nb\n"), lines(""), len(lin
@@ -6363,17 +6789,17 @@
 | 20 |   if s != "": print(s) else
 |    |                            ^
 |    |
-| error[E0110]: unexpected `end of file` (a parenthesized pattern is not a pattern; write (p,) for a tuple)
+| error[E0112]: expected `,` in a tuple pattern (a parenthesized pattern is not a pattern; write `(p,)` for a one-item tuple), found end of file
 |   --> in/tests~lang~param_patterns@halfbytes.fung:3:11
 |   |
 | 3 | fn area((w
 |   |           ^
 |   |
-| error[E0110]: unexpected end of file
-|   --> in/tests~lang~path_rules@halfbytes.fung:3:88
+| error[E0104]: unterminated string
+|   --> in/tests~lang~path_rules@halfbytes.fung:5:39
 |   |
-| 3 | print(path.ext(".hidden") == "", path.stem(".hidden"), path.ext("a.tar.gz"), path.stem(
-|   |                                                                                        ^
+| 5 | print(path.join("a", "/c"), path.join("
+|   |                                       ^
 |   |
 | error[E0112]: expected a parameter name, found end of file
 |   --> in/tests~lang~pipes_partial@halfbytes.fung:5:13
@@ -6394,6 +6820,12 @@
 |    | ^
 |    |
 | error[E0110]: unexpected end of file
+|   --> in/tests~lang~recv_now@halflines.fung:8:1
+|   |
+| 8 | 
+|   | ^
+|   |
+| error[E0110]: unexpected end of file
 |   --> in/tests~lang~regex@halfbytes.fung:8:48
 |   |
 | 8 | print(regex.find_all("a1 b22", `\d+`) |> map(m 
@@ -6404,6 +6836,12 @@
 |   |
 | 5 | type sha
 |   |         ^
+|   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~rest_wildcard@halfbytes.fung:4:11
+|   |
+| 4 | print(firs
+|   |           ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~result_arity@halfbytes.fung:3:23
@@ -6591,12 +7029,6 @@
 | 17 | fn total(xs) = Ok(sum(try_map
 |    |                              ^
 |    |
-| error[E0110]: unexpected end of file
-|   --> in/tests~lang~try_recv@halflines.fung:8:1
-|   |
-| 8 | 
-|   | ^
-|   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~tuples_tags@halfbytes.fung:5:8
 |   |
@@ -7297,7 +7729,6 @@
 | in/extras~prelude@cpushed.fung
 | in/extras~prelude@crlf.fung
 | in/extras~prelude@dedent.fung
-| in/extras~prelude@halflines.fung
 | in/extras~prelude@moreblank.fung
 | in/extras~prelude@nofinal.fung
 | in/extras~prelude@odd3.fung
@@ -7812,6 +8243,16 @@
 | in/tests~lang~err_atom_reentry@split.fung
 | in/tests~lang~err_atom_reentry@tight.fung
 | in/tests~lang~err_atom_reentry@trailing.fung
+| in/tests~lang~err_atom_stop_signal@bom.fung
+| in/tests~lang~err_atom_stop_signal@cpushed.fung
+| in/tests~lang~err_atom_stop_signal@crlf.fung
+| in/tests~lang~err_atom_stop_signal@moreblank.fung
+| in/tests~lang~err_atom_stop_signal@nofinal.fung
+| in/tests~lang~err_atom_stop_signal@opsplit.fung
+| in/tests~lang~err_atom_stop_signal@spaced.fung
+| in/tests~lang~err_atom_stop_signal@split.fung
+| in/tests~lang~err_atom_stop_signal@tight.fung
+| in/tests~lang~err_atom_stop_signal@trailing.fung
 | in/tests~lang~err_bang_nil@bom.fung
 | in/tests~lang~err_bang_nil@cpushed.fung
 | in/tests~lang~err_bang_nil@crlf.fung
@@ -7882,6 +8323,22 @@
 | in/tests~lang~err_cli_empty_flag@spaced.fung
 | in/tests~lang~err_cli_empty_flag@split.fung
 | in/tests~lang~err_cli_empty_flag@trailing.fung
+| in/tests~lang~err_closed_name_in_lambda@bom.fung
+| in/tests~lang~err_closed_name_in_lambda@cglued.fung
+| in/tests~lang~err_closed_name_in_lambda@cpushed.fung
+| in/tests~lang~err_closed_name_in_lambda@crlf.fung
+| in/tests~lang~err_closed_name_in_lambda@dedent.fung
+| in/tests~lang~err_closed_name_in_lambda@halfbytes.fung
+| in/tests~lang~err_closed_name_in_lambda@moreblank.fung
+| in/tests~lang~err_closed_name_in_lambda@nofinal.fung
+| in/tests~lang~err_closed_name_in_lambda@odd3.fung
+| in/tests~lang~err_closed_name_in_lambda@opsplit.fung
+| in/tests~lang~err_closed_name_in_lambda@spaced.fung
+| in/tests~lang~err_closed_name_in_lambda@split.fung
+| in/tests~lang~err_closed_name_in_lambda@tabs.fung
+| in/tests~lang~err_closed_name_in_lambda@tight.fung
+| in/tests~lang~err_closed_name_in_lambda@trailing.fung
+| in/tests~lang~err_closed_name_in_lambda@wide4.fung
 | in/tests~lang~err_cond_not_bool@bom.fung
 | in/tests~lang~err_cond_not_bool@cpushed.fung
 | in/tests~lang~err_cond_not_bool@crlf.fung
@@ -8384,6 +8841,18 @@
 | in/tests~lang~err_local_never_read@tight.fung
 | in/tests~lang~err_local_never_read@trailing.fung
 | in/tests~lang~err_local_never_read@wide4.fung
+| in/tests~lang~err_map_named_f_question@bom.fung
+| in/tests~lang~err_map_named_f_question@cglued.fung
+| in/tests~lang~err_map_named_f_question@cpushed.fung
+| in/tests~lang~err_map_named_f_question@crlf.fung
+| in/tests~lang~err_map_named_f_question@halfbytes.fung
+| in/tests~lang~err_map_named_f_question@moreblank.fung
+| in/tests~lang~err_map_named_f_question@nofinal.fung
+| in/tests~lang~err_map_named_f_question@opsplit.fung
+| in/tests~lang~err_map_named_f_question@spaced.fung
+| in/tests~lang~err_map_named_f_question@split.fung
+| in/tests~lang~err_map_named_f_question@tight.fung
+| in/tests~lang~err_map_named_f_question@trailing.fung
 | in/tests~lang~err_map_question@bom.fung
 | in/tests~lang~err_map_question@cglued.fung
 | in/tests~lang~err_map_question@contsplit.fung
@@ -8448,6 +8917,7 @@
 | in/tests~lang~err_nonfinite@tight.fung
 | in/tests~lang~err_nonfinite@trailing.fung
 | in/tests~lang~err_number_leading_zero@halfbytes.fung
+| in/tests~lang~err_number_trailing_dot@halfbytes.fung
 | in/tests~lang~err_ok_two_values@bom.fung
 | in/tests~lang~err_ok_two_values@cglued.fung
 | in/tests~lang~err_ok_two_values@cpushed.fung
@@ -8549,6 +9019,19 @@
 | in/tests~lang~err_pipe_hole@split.fung
 | in/tests~lang~err_pipe_hole@tight.fung
 | in/tests~lang~err_pipe_hole@trailing.fung
+| in/tests~lang~err_pipe_quoted_symbol@bom.fung
+| in/tests~lang~err_pipe_quoted_symbol@cglued.fung
+| in/tests~lang~err_pipe_quoted_symbol@contsplit.fung
+| in/tests~lang~err_pipe_quoted_symbol@cpushed.fung
+| in/tests~lang~err_pipe_quoted_symbol@crlf.fung
+| in/tests~lang~err_pipe_quoted_symbol@halfbytes.fung
+| in/tests~lang~err_pipe_quoted_symbol@moreblank.fung
+| in/tests~lang~err_pipe_quoted_symbol@nofinal.fung
+| in/tests~lang~err_pipe_quoted_symbol@opsplit.fung
+| in/tests~lang~err_pipe_quoted_symbol@spaced.fung
+| in/tests~lang~err_pipe_quoted_symbol@split.fung
+| in/tests~lang~err_pipe_quoted_symbol@tight.fung
+| in/tests~lang~err_pipe_quoted_symbol@trailing.fung
 | in/tests~lang~err_pipe_tag_hole@bom.fung
 | in/tests~lang~err_pipe_tag_hole@cglued.fung
 | in/tests~lang~err_pipe_tag_hole@contsplit.fung
@@ -8574,6 +9057,19 @@
 | in/tests~lang~err_pmap_failed@split.fung
 | in/tests~lang~err_pmap_failed@tight.fung
 | in/tests~lang~err_pmap_failed@trailing.fung
+| in/tests~lang~err_pmap_question@bom.fung
+| in/tests~lang~err_pmap_question@cglued.fung
+| in/tests~lang~err_pmap_question@contsplit.fung
+| in/tests~lang~err_pmap_question@cpushed.fung
+| in/tests~lang~err_pmap_question@crlf.fung
+| in/tests~lang~err_pmap_question@halfbytes.fung
+| in/tests~lang~err_pmap_question@moreblank.fung
+| in/tests~lang~err_pmap_question@nofinal.fung
+| in/tests~lang~err_pmap_question@opsplit.fung
+| in/tests~lang~err_pmap_question@spaced.fung
+| in/tests~lang~err_pmap_question@split.fung
+| in/tests~lang~err_pmap_question@tight.fung
+| in/tests~lang~err_pmap_question@trailing.fung
 | in/tests~lang~err_question_in_for@bom.fung
 | in/tests~lang~err_question_in_for@cpushed.fung
 | in/tests~lang~err_question_in_for@crlf.fung
@@ -8593,6 +9089,7 @@
 | in/tests~lang~err_question_top@spaced.fung
 | in/tests~lang~err_question_top@split.fung
 | in/tests~lang~err_question_top@trailing.fung
+| in/tests~lang~err_range_chain@halfbytes.fung
 | in/tests~lang~err_reassign_fn@bom.fung
 | in/tests~lang~err_reassign_fn@cpushed.fung
 | in/tests~lang~err_reassign_fn@crlf.fung
@@ -8684,6 +9181,18 @@
 | in/tests~lang~err_shadow_module@opsplit.fung
 | in/tests~lang~err_shadow_module@tight.fung
 | in/tests~lang~err_shadow_module@trailing.fung
+| in/tests~lang~err_slice_nil_end@bom.fung
+| in/tests~lang~err_slice_nil_end@cglued.fung
+| in/tests~lang~err_slice_nil_end@cpushed.fung
+| in/tests~lang~err_slice_nil_end@crlf.fung
+| in/tests~lang~err_slice_nil_end@halfbytes.fung
+| in/tests~lang~err_slice_nil_end@moreblank.fung
+| in/tests~lang~err_slice_nil_end@nofinal.fung
+| in/tests~lang~err_slice_nil_end@opsplit.fung
+| in/tests~lang~err_slice_nil_end@spaced.fung
+| in/tests~lang~err_slice_nil_end@split.fung
+| in/tests~lang~err_slice_nil_end@tight.fung
+| in/tests~lang~err_slice_nil_end@trailing.fung
 | in/tests~lang~err_slice_tuple@bom.fung
 | in/tests~lang~err_slice_tuple@cpushed.fung
 | in/tests~lang~err_slice_tuple@crlf.fung
@@ -8736,6 +9245,7 @@
 | in/tests~lang~err_str_int@split.fung
 | in/tests~lang~err_str_int@tight.fung
 | in/tests~lang~err_str_int@trailing.fung
+| in/tests~lang~err_string_backslash_at_line_end@halfbytes.fung
 | in/tests~lang~err_sym_name@bom.fung
 | in/tests~lang~err_sym_name@cpushed.fung
 | in/tests~lang~err_sym_name@crlf.fung
@@ -9230,6 +9740,21 @@
 | in/tests~lang~keyword_names@tight.fung
 | in/tests~lang~keyword_names@trailing.fung
 | in/tests~lang~keyword_names@wide4.fung
+| in/tests~lang~line_continuations_more@bom.fung
+| in/tests~lang~line_continuations_more@cglued.fung
+| in/tests~lang~line_continuations_more@cpushed.fung
+| in/tests~lang~line_continuations_more@crlf.fung
+| in/tests~lang~line_continuations_more@dedent.fung
+| in/tests~lang~line_continuations_more@moreblank.fung
+| in/tests~lang~line_continuations_more@nofinal.fung
+| in/tests~lang~line_continuations_more@odd3.fung
+| in/tests~lang~line_continuations_more@opsplit.fung
+| in/tests~lang~line_continuations_more@spaced.fung
+| in/tests~lang~line_continuations_more@split.fung
+| in/tests~lang~line_continuations_more@tabs.fung
+| in/tests~lang~line_continuations_more@tight.fung
+| in/tests~lang~line_continuations_more@trailing.fung
+| in/tests~lang~line_continuations_more@wide4.fung
 | in/tests~lang~lines@bom.fung
 | in/tests~lang~lines@cpushed.fung
 | in/tests~lang~lines@crlf.fung
@@ -9482,6 +10007,22 @@
 | in/tests~lang~ranges@split.fung
 | in/tests~lang~ranges@tight.fung
 | in/tests~lang~ranges@trailing.fung
+| in/tests~lang~recv_now@bom.fung
+| in/tests~lang~recv_now@cglued.fung
+| in/tests~lang~recv_now@cpushed.fung
+| in/tests~lang~recv_now@crlf.fung
+| in/tests~lang~recv_now@dedent.fung
+| in/tests~lang~recv_now@halfbytes.fung
+| in/tests~lang~recv_now@moreblank.fung
+| in/tests~lang~recv_now@nofinal.fung
+| in/tests~lang~recv_now@odd3.fung
+| in/tests~lang~recv_now@opsplit.fung
+| in/tests~lang~recv_now@spaced.fung
+| in/tests~lang~recv_now@split.fung
+| in/tests~lang~recv_now@tabs.fung
+| in/tests~lang~recv_now@tight.fung
+| in/tests~lang~recv_now@trailing.fung
+| in/tests~lang~recv_now@wide4.fung
 | in/tests~lang~regex@bom.fung
 | in/tests~lang~regex@cglued.fung
 | in/tests~lang~regex@contsplit.fung
@@ -9517,6 +10058,21 @@
 | in/tests~lang~rest_and_alias@split.fung
 | in/tests~lang~rest_and_alias@tight.fung
 | in/tests~lang~rest_and_alias@trailing.fung
+| in/tests~lang~rest_wildcard@bom.fung
+| in/tests~lang~rest_wildcard@cglued.fung
+| in/tests~lang~rest_wildcard@cpushed.fung
+| in/tests~lang~rest_wildcard@crlf.fung
+| in/tests~lang~rest_wildcard@dedent.fung
+| in/tests~lang~rest_wildcard@moreblank.fung
+| in/tests~lang~rest_wildcard@nofinal.fung
+| in/tests~lang~rest_wildcard@odd3.fung
+| in/tests~lang~rest_wildcard@opsplit.fung
+| in/tests~lang~rest_wildcard@spaced.fung
+| in/tests~lang~rest_wildcard@split.fung
+| in/tests~lang~rest_wildcard@tabs.fung
+| in/tests~lang~rest_wildcard@tight.fung
+| in/tests~lang~rest_wildcard@trailing.fung
+| in/tests~lang~rest_wildcard@wide4.fung
 | in/tests~lang~result_arity@bom.fung
 | in/tests~lang~result_arity@cglued.fung
 | in/tests~lang~result_arity@contsplit.fung
@@ -9931,22 +10487,6 @@
 | in/tests~lang~try_map@tight.fung
 | in/tests~lang~try_map@trailing.fung
 | in/tests~lang~try_map@wide4.fung
-| in/tests~lang~try_recv@bom.fung
-| in/tests~lang~try_recv@cglued.fung
-| in/tests~lang~try_recv@cpushed.fung
-| in/tests~lang~try_recv@crlf.fung
-| in/tests~lang~try_recv@dedent.fung
-| in/tests~lang~try_recv@halfbytes.fung
-| in/tests~lang~try_recv@moreblank.fung
-| in/tests~lang~try_recv@nofinal.fung
-| in/tests~lang~try_recv@odd3.fung
-| in/tests~lang~try_recv@opsplit.fung
-| in/tests~lang~try_recv@spaced.fung
-| in/tests~lang~try_recv@split.fung
-| in/tests~lang~try_recv@tabs.fung
-| in/tests~lang~try_recv@tight.fung
-| in/tests~lang~try_recv@trailing.fung
-| in/tests~lang~try_recv@wide4.fung
 | in/tests~lang~tuples_tags@bom.fung
 | in/tests~lang~tuples_tags@cglued.fung
 | in/tests~lang~tuples_tags@cpushed.fung
@@ -10393,16 +10933,16 @@
 | 20 | .net as _net
 |    | ^
 |    |
-| error[E0104]: unterminated string
-|   --> in/extras~http@halfbytes.fung:984:21
+| error[E0112]: expected `:` after the if condition, found end of file
+|   --> in/extras~http@halfbytes.fung:985:11
 |     |
-| 984 |       Err(_) => Err("invalid Content-Length `${cl}`
-|     |                     ^
+| 985 |   if n > c
+|     |           ^
 |     |
 | error[E0112]: expected `:` or `if` after else, found newline
-|   --> in/extras~http@opsplit.fung:220:5
+|   --> in/extras~http@opsplit.fung:222:5
 |     |
-| 220 | else
+| 222 | else
 |     |     ^
 |     |
 | error[E0110]: unexpected `.`
@@ -10429,11 +10969,17 @@
 | 7 | .process as _p
 |   | ^
 |   |
-| error[E0112]: expected `(` after fn, found end of file
-|   --> in/extras~prelude@halfbytes.fung:65:3
+| error[E0110]: unexpected end of file
+|   --> in/extras~prelude@halfbytes.fung:70:14
 |    |
-| 65 | fn
-|    |   ^
+| 70 | fn range(a, b
+|    |              ^
+|    |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/extras~prelude@halflines.fung:75:1
+|    |
+| 75 | 
+|    | ^
 |    |
 | error[E0110]: unexpected `.`
 |   --> in/extras~regex@contsplit.fung:3:1
@@ -10522,7 +11068,7 @@
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~cancel@halfbytes.fung:7:46
 |   |
-| 7 |   print(await(t), timeout(10ms, () => await(u
+| 7 |   print(await(t), timeout(() => await(u), 10m
 |   |                                              ^
 |   |
 | error[E0112]: expected `;;` to close the function, found end of file
@@ -10656,6 +11202,12 @@
 |   |
 | 2 | swap(a, x => swap(a,
 |   |                     ^
+|   |
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> in/tests~lang~err_atom_stop_signal@halfbytes.fung:1:35
+|   |
+| 1 | swap(atom(1), fn(x): _ = stop_sign
+|   |                                   ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~err_block_leak@halfbytes.fung:2:7
@@ -10822,6 +11374,12 @@
 |   |
 | 2 | send(tx
 |   |        ^
+|   |
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> in/tests~lang~err_closed_name_in_lambda@halflines.fung:5:1
+|   |
+| 5 | 
+|   | ^
 |   |
 | error[E0112]: expected `:` after the if condition, found end of file
 |   --> in/tests~lang~err_discard_branch@halfbytes.fung:2:5
@@ -11027,79 +11585,79 @@
 | 1 | x = {a: 1, a: 2}
 |   |            ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@bom.fung:1:10
 |   |
 | 1 | ﻿print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@crlf.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@dedent.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@halfbytes.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@halflines.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@moreblank.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@noblank.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@nofinal.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@odd3.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@tabs.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@trailing.fung:1:10
 |   |
 | 1 | print("C:\path")      
 |   |          ^
 |   |
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> in/tests~lang~err_escape@wide4.fung:1:10
 |   |
 | 1 | print("C:\path")
@@ -11860,6 +12418,72 @@
 |   |        ^
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@bom.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@crlf.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@dedent.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@moreblank.fung:7:5
+|   |
+| 7 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@noblank.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@nofinal.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@odd3.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@tabs.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@trailing.fung:3:5
+|   |
+| 3 | x = 1.      
+|   |     ^
+|   |
+| error[E0102]: malformed number "1."
+|   --> in/tests~lang~err_number_trailing_dot@wide4.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~err_open_if_chain@halfbytes.fung:2:14
 |   |
@@ -11920,6 +12544,146 @@
 | 1 | fn f(xs) = for x in xs: x?
 |   |                           ^
 |   |
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@bom.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@cglued.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@cnospace.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@contsplit.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@cpushed.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@crlf.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@dedent.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@joined.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@moreblank.fung:7:11
+|   |
+| 7 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@noblank.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@nofinal.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@odd3.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@opsplit.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@spaced.fung:3:16
+|   |
+| 3 | print ( 1 .. 2 .. 3 )
+|   |                ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@split.fung:4:5
+|   |
+| 4 | 1..2..3)
+|   |     ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@tabs.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@tight.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@trailing.fung:3:11
+|   |
+| 3 | print(1..2..3)      
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+| error[E0118]: a range cannot be an operand of another range
+|   --> in/tests~lang~err_range_chain@wide4.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
 | error[E0112]: expected `;;` to close the if, found end of file
 |   --> in/tests~lang~err_reassign_outer@halfbytes.fung:2:22
 |   |
@@ -11949,6 +12713,72 @@
 |   |
 | 1 | fn f(n) = n == 0 then 0 else 1 + f(n - 1
 |   |                                         ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@bom.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@crlf.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@dedent.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@moreblank.fung:7:7
+|   |
+| 7 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@noblank.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@nofinal.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@odd3.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@tabs.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+| error[E0103]: unknown escape "\\ " in string
+|   --> in/tests~lang~err_string_backslash_at_line_end@trailing.fung:3:9
+|   |
+| 3 | print("a\      
+|   |         ^
+|   |
+| error[E0104]: unterminated string
+|   --> in/tests~lang~err_string_backslash_at_line_end@wide4.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~err_sym_str_eq@halfbytes.fung:3:23
@@ -12103,138 +12933,160 @@
 |   | ^^^^^^^^^^^ this is a tag
 |   |
 |  help: name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@bom.fung:1:10
 |   |
 | 1 | ﻿print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@cglued.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@cnospace.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@contsplit.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@cpushed.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@crlf.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@dedent.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@halfbytes.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@halflines.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@joined.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@moreblank.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@noblank.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@nofinal.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@odd3.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@opsplit.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@spaced.fung:1:14
 |   |
 | 1 | print ( Ok ( a : 1 ) )
 |   |              ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@split.fung:3:1
 |   |
 | 3 | a: 1))
 |   | ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@tabs.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@tight.fung:1:10
 |   |
 | 1 | print(Ok(a:1))
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@trailing.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))      
 |   |          ^
 |   |
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+| error[E0121]: a tag takes its values by position, not by name
 |   --> in/tests~lang~err_tag_named@wide4.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
 | error[E0225]: `Red` starts with an uppercase letter, so it is a tag and cannot name a variable
 |   --> in/tests~lang~err_tag_shorthand_map.fung:2:8
 |   |
@@ -12954,6 +13806,12 @@
 |   |                       ^
 |   |
 | error[E0110]: unexpected end of file
+|   --> in/tests~lang~line_continuations_more@halfbytes.fung:10:6
+|    |
+| 10 |   [1,
+|    |      ^
+|    |
+| error[E0110]: unexpected end of file
 |   --> in/tests~lang~lines@halfbytes.fung:1:42
 |   |
 | 1 | print(lines("a\nb\n"), lines(""), len(lin
@@ -13025,17 +13883,17 @@
 | 20 |   if s != "": print(s) else
 |    |                            ^
 |    |
-| error[E0110]: unexpected `end of file` (a parenthesized pattern is not a pattern; write (p,) for a tuple)
+| error[E0112]: expected `,` in a tuple pattern (a parenthesized pattern is not a pattern; write `(p,)` for a one-item tuple), found end of file
 |   --> in/tests~lang~param_patterns@halfbytes.fung:3:11
 |   |
 | 3 | fn area((w
 |   |           ^
 |   |
-| error[E0110]: unexpected end of file
-|   --> in/tests~lang~path_rules@halfbytes.fung:3:88
+| error[E0104]: unterminated string
+|   --> in/tests~lang~path_rules@halfbytes.fung:5:39
 |   |
-| 3 | print(path.ext(".hidden") == "", path.stem(".hidden"), path.ext("a.tar.gz"), path.stem(
-|   |                                                                                        ^
+| 5 | print(path.join("a", "/c"), path.join("
+|   |                                       ^
 |   |
 | error[E0112]: expected a parameter name, found end of file
 |   --> in/tests~lang~pipes_partial@halfbytes.fung:5:13
@@ -13056,6 +13914,12 @@
 |    | ^
 |    |
 | error[E0110]: unexpected end of file
+|   --> in/tests~lang~recv_now@halflines.fung:8:1
+|   |
+| 8 | 
+|   | ^
+|   |
+| error[E0110]: unexpected end of file
 |   --> in/tests~lang~regex@halfbytes.fung:8:48
 |   |
 | 8 | print(regex.find_all("a1 b22", `\d+`) |> map(m 
@@ -13066,6 +13930,12 @@
 |   |
 | 5 | type sha
 |   |         ^
+|   |
+| error[E0110]: unexpected end of file
+|   --> in/tests~lang~rest_wildcard@halfbytes.fung:4:11
+|   |
+| 4 | print(firs
+|   |           ^
 |   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~result_arity@halfbytes.fung:3:23
@@ -13253,12 +14123,6 @@
 | 17 | fn total(xs) = Ok(sum(try_map
 |    |                              ^
 |    |
-| error[E0110]: unexpected end of file
-|   --> in/tests~lang~try_recv@halflines.fung:8:1
-|   |
-| 8 | 
-|   | ^
-|   |
 | error[E0110]: unexpected end of file
 |   --> in/tests~lang~tuples_tags@halfbytes.fung:5:8
 |   |
@@ -14297,49 +15161,49 @@
 | extras~conc@trailing.fung 2570 ce9a62f4b03c00fd
 | extras~conc@wide4.fung 2570 ce9a62f4b03c00fd
 | extras~fs.fung unchanged
-| extras~fs@bom.fung 1726 b6224080c511fa8a
-| extras~fs@cglued.fung 1726 b6224080c511fa8a
+| extras~fs@bom.fung 1709 c33363e80ce8f5ec
+| extras~fs@cglued.fung 1709 c33363e80ce8f5ec
 | extras~fs@cnospace.fung unchanged
 | extras~fs@contsplit.fung unchanged
-| extras~fs@cpushed.fung 1726 b6224080c511fa8a
-| extras~fs@crlf.fung 1726 b6224080c511fa8a
-| extras~fs@dedent.fung 1726 b6224080c511fa8a
-| extras~fs@halfbytes.fung 864 be94a34111fd68e1
+| extras~fs@cpushed.fung 1709 c33363e80ce8f5ec
+| extras~fs@crlf.fung 1709 c33363e80ce8f5ec
+| extras~fs@dedent.fung 1709 c33363e80ce8f5ec
+| extras~fs@halfbytes.fung 855 33db80a6464678f8
 | extras~fs@halflines.fung unchanged
 | extras~fs@joined.fung unchanged
-| extras~fs@moreblank.fung 1720 33ededd96ecdf512
+| extras~fs@moreblank.fung 1702 8c73d270c673e0e0
 | extras~fs@noblank.fung unchanged
-| extras~fs@nofinal.fung 1726 b6224080c511fa8a
-| extras~fs@odd3.fung 1726 b6224080c511fa8a
-| extras~fs@opsplit.fung 1868 3b4a4913bb6e3ad0
-| extras~fs@spaced.fung 1726 b6224080c511fa8a
-| extras~fs@split.fung 1952 d6cecb1358f66a14
-| extras~fs@tabs.fung 1726 b6224080c511fa8a
-| extras~fs@tight.fung 1726 b6224080c511fa8a
-| extras~fs@trailing.fung 1726 b6224080c511fa8a
-| extras~fs@wide4.fung 1726 b6224080c511fa8a
+| extras~fs@nofinal.fung 1709 c33363e80ce8f5ec
+| extras~fs@odd3.fung 1709 c33363e80ce8f5ec
+| extras~fs@opsplit.fung 1849 4f50dd0d9896aff8
+| extras~fs@spaced.fung 1709 c33363e80ce8f5ec
+| extras~fs@split.fung 1935 cfbf6f04c34f7d2e
+| extras~fs@tabs.fung 1709 c33363e80ce8f5ec
+| extras~fs@tight.fung 1709 c33363e80ce8f5ec
+| extras~fs@trailing.fung 1709 c33363e80ce8f5ec
+| extras~fs@wide4.fung 1709 c33363e80ce8f5ec
 | extras~http.fung unchanged
-| extras~http@bom.fung 72885 5b2c3057b4636b11
-| extras~http@cglued.fung 72885 5b2c3057b4636b11
+| extras~http@bom.fung 72909 715baf14e046b01d
+| extras~http@cglued.fung 72909 715baf14e046b01d
 | extras~http@cnospace.fung unchanged
 | extras~http@contsplit.fung unchanged
-| extras~http@cpushed.fung 72885 5b2c3057b4636b11
-| extras~http@crlf.fung 72885 5b2c3057b4636b11
-| extras~http@dedent.fung 72885 5b2c3057b4636b11
+| extras~http@cpushed.fung 72909 715baf14e046b01d
+| extras~http@crlf.fung 72909 715baf14e046b01d
+| extras~http@dedent.fung 72909 715baf14e046b01d
 | extras~http@halfbytes.fung unchanged
 | extras~http@halflines.fung unchanged
 | extras~http@joined.fung unchanged
-| extras~http@moreblank.fung 73322 f14a64090107b713
+| extras~http@moreblank.fung 73266 745ecaf3e79a480d
 | extras~http@noblank.fung unchanged
-| extras~http@nofinal.fung 72885 5b2c3057b4636b11
-| extras~http@odd3.fung 72885 5b2c3057b4636b11
+| extras~http@nofinal.fung 72909 715baf14e046b01d
+| extras~http@odd3.fung 72909 715baf14e046b01d
 | extras~http@opsplit.fung unchanged
-| extras~http@spaced.fung 72885 5b2c3057b4636b11
-| extras~http@split.fung 94377 06b26133d0820943
-| extras~http@tabs.fung 72885 5b2c3057b4636b11
-| extras~http@tight.fung 72885 5b2c3057b4636b11
-| extras~http@trailing.fung 72885 5b2c3057b4636b11
-| extras~http@wide4.fung 72885 5b2c3057b4636b11
+| extras~http@spaced.fung 72909 715baf14e046b01d
+| extras~http@split.fung 93761 835f6520d29fe163
+| extras~http@tabs.fung 72909 715baf14e046b01d
+| extras~http@tight.fung 72909 715baf14e046b01d
+| extras~http@trailing.fung 72909 715baf14e046b01d
+| extras~http@wide4.fung 72909 715baf14e046b01d
 | extras~json.fung unchanged
 | extras~json@bom.fung 221 493d4e8aa5d1f5e1
 | extras~json@cglued.fung 221 493d4e8aa5d1f5e1
@@ -14385,27 +15249,27 @@
 | extras~path@trailing.fung 153 585962f5f75e35cf
 | extras~path@wide4.fung unchanged
 | extras~prelude.fung unchanged
-| extras~prelude@bom.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@cglued.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@bom.fung 5476 1675af7fa7b0b918
+| extras~prelude@cglued.fung 5476 1675af7fa7b0b918
 | extras~prelude@cnospace.fung unchanged
 | extras~prelude@contsplit.fung unchanged
-| extras~prelude@cpushed.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@crlf.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@dedent.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@cpushed.fung 5476 1675af7fa7b0b918
+| extras~prelude@crlf.fung 5476 1675af7fa7b0b918
+| extras~prelude@dedent.fung 5476 1675af7fa7b0b918
 | extras~prelude@halfbytes.fung unchanged
-| extras~prelude@halflines.fung 2221 a9edfe03048b0c57
+| extras~prelude@halflines.fung unchanged
 | extras~prelude@joined.fung unchanged
-| extras~prelude@moreblank.fung 4458 e8ef512ced96d911
+| extras~prelude@moreblank.fung 5541 d0b4d322e74ea570
 | extras~prelude@noblank.fung unchanged
-| extras~prelude@nofinal.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@odd3.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@opsplit.fung 4855 e9019979eab7ed97
-| extras~prelude@spaced.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@split.fung 5685 713652547e6ed821
-| extras~prelude@tabs.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@tight.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@trailing.fung 4448 f7e9d6a6c417ef87
-| extras~prelude@wide4.fung 4448 f7e9d6a6c417ef87
+| extras~prelude@nofinal.fung 5476 1675af7fa7b0b918
+| extras~prelude@odd3.fung 5476 1675af7fa7b0b918
+| extras~prelude@opsplit.fung 5959 879d89ff1bdf986e
+| extras~prelude@spaced.fung 5476 1675af7fa7b0b918
+| extras~prelude@split.fung 6952 63a9978c9af93f06
+| extras~prelude@tabs.fung 5476 1675af7fa7b0b918
+| extras~prelude@tight.fung 5476 1675af7fa7b0b918
+| extras~prelude@trailing.fung 5476 1675af7fa7b0b918
+| extras~prelude@wide4.fung 5476 1675af7fa7b0b918
 | extras~regex.fung unchanged
 | extras~regex@bom.fung 213 b042b42db3e3ed81
 | extras~regex@cglued.fung unchanged
@@ -14715,27 +15579,27 @@
 | tests~lang~bytes@trailing.fung 1851 b8d3acc625f8cee3
 | tests~lang~bytes@wide4.fung 1851 b8d3acc625f8cee3
 | tests~lang~cancel.fung unchanged
-| tests~lang~cancel@bom.fung 430 323fd47bfa016efb
-| tests~lang~cancel@cglued.fung 430 323fd47bfa016efb
+| tests~lang~cancel@bom.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@cglued.fung 430 e98ad3fddfec7c71
 | tests~lang~cancel@cnospace.fung unchanged
 | tests~lang~cancel@contsplit.fung unchanged
-| tests~lang~cancel@cpushed.fung 430 323fd47bfa016efb
-| tests~lang~cancel@crlf.fung 430 323fd47bfa016efb
-| tests~lang~cancel@dedent.fung 430 323fd47bfa016efb
+| tests~lang~cancel@cpushed.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@crlf.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@dedent.fung 430 e98ad3fddfec7c71
 | tests~lang~cancel@halfbytes.fung unchanged
 | tests~lang~cancel@halflines.fung unchanged
 | tests~lang~cancel@joined.fung unchanged
-| tests~lang~cancel@moreblank.fung 437 cb78bd15762413bd
+| tests~lang~cancel@moreblank.fung 437 a32596bee83aa45b
 | tests~lang~cancel@noblank.fung unchanged
-| tests~lang~cancel@nofinal.fung 430 323fd47bfa016efb
-| tests~lang~cancel@odd3.fung 430 323fd47bfa016efb
-| tests~lang~cancel@opsplit.fung 464 3930fed526bf3d69
-| tests~lang~cancel@spaced.fung 430 323fd47bfa016efb
-| tests~lang~cancel@split.fung 650 f179464ed27864c9
-| tests~lang~cancel@tabs.fung 430 323fd47bfa016efb
-| tests~lang~cancel@tight.fung 430 323fd47bfa016efb
-| tests~lang~cancel@trailing.fung 430 323fd47bfa016efb
-| tests~lang~cancel@wide4.fung 430 323fd47bfa016efb
+| tests~lang~cancel@nofinal.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@odd3.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@opsplit.fung 464 9041a3f5ac0e3e3f
+| tests~lang~cancel@spaced.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@split.fung 650 59d05a732aafdd53
+| tests~lang~cancel@tabs.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@tight.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@trailing.fung 430 e98ad3fddfec7c71
+| tests~lang~cancel@wide4.fung 430 e98ad3fddfec7c71
 | tests~lang~channel_stream.fung unchanged
 | tests~lang~channel_stream@bom.fung 989 e288ba61ef3a6cd9
 | tests~lang~channel_stream@cglued.fung 989 e288ba61ef3a6cd9
@@ -15352,6 +16216,28 @@
 | tests~lang~err_atom_reentry@tight.fung 64 405de01fe77316cb
 | tests~lang~err_atom_reentry@trailing.fung 64 405de01fe77316cb
 | tests~lang~err_atom_reentry@wide4.fung unchanged
+| tests~lang~err_atom_stop_signal.fung unchanged
+| tests~lang~err_atom_stop_signal@bom.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@cglued.fung unchanged
+| tests~lang~err_atom_stop_signal@cnospace.fung unchanged
+| tests~lang~err_atom_stop_signal@contsplit.fung unchanged
+| tests~lang~err_atom_stop_signal@cpushed.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@crlf.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@dedent.fung unchanged
+| tests~lang~err_atom_stop_signal@halfbytes.fung unchanged
+| tests~lang~err_atom_stop_signal@halflines.fung unchanged
+| tests~lang~err_atom_stop_signal@joined.fung unchanged
+| tests~lang~err_atom_stop_signal@moreblank.fung 69 f74a651f0bcbe11c
+| tests~lang~err_atom_stop_signal@noblank.fung unchanged
+| tests~lang~err_atom_stop_signal@nofinal.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@odd3.fung unchanged
+| tests~lang~err_atom_stop_signal@opsplit.fung 76 f9af6e0185c80d24
+| tests~lang~err_atom_stop_signal@spaced.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@split.fung 92 51aea6035fe10c26
+| tests~lang~err_atom_stop_signal@tabs.fung unchanged
+| tests~lang~err_atom_stop_signal@tight.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@trailing.fung 68 f4584eccafad04ee
+| tests~lang~err_atom_stop_signal@wide4.fung unchanged
 | tests~lang~err_bang_nil.fung unchanged
 | tests~lang~err_bang_nil@bom.fung 27 0b906fdeac6ac109
 | tests~lang~err_bang_nil@cglued.fung unchanged
@@ -15528,6 +16414,28 @@
 | tests~lang~err_cli_empty_flag@tight.fung unchanged
 | tests~lang~err_cli_empty_flag@trailing.fung 130 33629544ca755822
 | tests~lang~err_cli_empty_flag@wide4.fung unchanged
+| tests~lang~err_closed_name_in_lambda.fung unchanged
+| tests~lang~err_closed_name_in_lambda@bom.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@cglued.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@cnospace.fung unchanged
+| tests~lang~err_closed_name_in_lambda@contsplit.fung unchanged
+| tests~lang~err_closed_name_in_lambda@cpushed.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@crlf.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@dedent.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@halfbytes.fung 109 4f6ac8ff7c15f9f1
+| tests~lang~err_closed_name_in_lambda@halflines.fung unchanged
+| tests~lang~err_closed_name_in_lambda@joined.fung unchanged
+| tests~lang~err_closed_name_in_lambda@moreblank.fung 222 f46ec12b052ebbe2
+| tests~lang~err_closed_name_in_lambda@noblank.fung unchanged
+| tests~lang~err_closed_name_in_lambda@nofinal.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@odd3.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@opsplit.fung 225 50805014454d82b0
+| tests~lang~err_closed_name_in_lambda@spaced.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@split.fung 231 82b80fa02648fa08
+| tests~lang~err_closed_name_in_lambda@tabs.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@tight.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@trailing.fung 217 6c6c698104477892
+| tests~lang~err_closed_name_in_lambda@wide4.fung 217 6c6c698104477892
 | tests~lang~err_cond_not_bool.fung unchanged
 | tests~lang~err_cond_not_bool@bom.fung 33 a609151637d3bbcb
 | tests~lang~err_cond_not_bool@cglued.fung unchanged
@@ -16641,6 +17549,28 @@
 | tests~lang~err_local_never_read@tight.fung 283 845c150dc5fe11a0
 | tests~lang~err_local_never_read@trailing.fung 283 845c150dc5fe11a0
 | tests~lang~err_local_never_read@wide4.fung 283 845c150dc5fe11a0
+| tests~lang~err_map_named_f_question.fung unchanged
+| tests~lang~err_map_named_f_question@bom.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@cglued.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@cnospace.fung unchanged
+| tests~lang~err_map_named_f_question@contsplit.fung unchanged
+| tests~lang~err_map_named_f_question@cpushed.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@crlf.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@dedent.fung unchanged
+| tests~lang~err_map_named_f_question@halfbytes.fung 110 aac36eb3b8b2043b
+| tests~lang~err_map_named_f_question@halflines.fung unchanged
+| tests~lang~err_map_named_f_question@joined.fung unchanged
+| tests~lang~err_map_named_f_question@moreblank.fung 223 0481fc1a388251df
+| tests~lang~err_map_named_f_question@noblank.fung unchanged
+| tests~lang~err_map_named_f_question@nofinal.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@odd3.fung unchanged
+| tests~lang~err_map_named_f_question@opsplit.fung 225 0596ef54a42d3ef9
+| tests~lang~err_map_named_f_question@spaced.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@split.fung 265 b8be5835e7dae1ef
+| tests~lang~err_map_named_f_question@tabs.fung unchanged
+| tests~lang~err_map_named_f_question@tight.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@trailing.fung 219 0ede5380923bd5dd
+| tests~lang~err_map_named_f_question@wide4.fung unchanged
 | tests~lang~err_map_pattern_dup_key.fung unchanged
 | tests~lang~err_map_pattern_dup_key@bom.fung unchanged
 | tests~lang~err_map_pattern_dup_key@cglued.fung unchanged
@@ -16843,6 +17773,19 @@
 | tests~lang~err_number_leading_zero@tabs.fung unchanged
 | tests~lang~err_number_leading_zero@trailing.fung unchanged
 | tests~lang~err_number_leading_zero@wide4.fung unchanged
+| tests~lang~err_number_trailing_dot.fung unchanged
+| tests~lang~err_number_trailing_dot@bom.fung unchanged
+| tests~lang~err_number_trailing_dot@crlf.fung unchanged
+| tests~lang~err_number_trailing_dot@dedent.fung unchanged
+| tests~lang~err_number_trailing_dot@halfbytes.fung 79 12fde58525b57859
+| tests~lang~err_number_trailing_dot@halflines.fung unchanged
+| tests~lang~err_number_trailing_dot@moreblank.fung unchanged
+| tests~lang~err_number_trailing_dot@noblank.fung unchanged
+| tests~lang~err_number_trailing_dot@nofinal.fung unchanged
+| tests~lang~err_number_trailing_dot@odd3.fung unchanged
+| tests~lang~err_number_trailing_dot@tabs.fung unchanged
+| tests~lang~err_number_trailing_dot@trailing.fung unchanged
+| tests~lang~err_number_trailing_dot@wide4.fung unchanged
 | tests~lang~err_ok_two_values.fung unchanged
 | tests~lang~err_ok_two_values@bom.fung 165 4d08759afd53fbbf
 | tests~lang~err_ok_two_values@cglued.fung 165 4d08759afd53fbbf
@@ -17019,6 +17962,28 @@
 | tests~lang~err_pipe_hole@tight.fung 136 87d2633248a650d7
 | tests~lang~err_pipe_hole@trailing.fung 136 87d2633248a650d7
 | tests~lang~err_pipe_hole@wide4.fung unchanged
+| tests~lang~err_pipe_quoted_symbol.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@bom.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@cglued.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@cnospace.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@contsplit.fung 253 6f187d422ee406ce
+| tests~lang~err_pipe_quoted_symbol@cpushed.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@crlf.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@dedent.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@halfbytes.fung 123 a9780519dfa18262
+| tests~lang~err_pipe_quoted_symbol@halflines.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@joined.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@moreblank.fung 251 73b4fd77ff9f77b0
+| tests~lang~err_pipe_quoted_symbol@noblank.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@nofinal.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@odd3.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@opsplit.fung 253 534bd49d7012460e
+| tests~lang~err_pipe_quoted_symbol@spaced.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@split.fung 255 65c059e57058fa86
+| tests~lang~err_pipe_quoted_symbol@tabs.fung unchanged
+| tests~lang~err_pipe_quoted_symbol@tight.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@trailing.fung 245 f333dca18ba774ce
+| tests~lang~err_pipe_quoted_symbol@wide4.fung unchanged
 | tests~lang~err_pipe_tag_hole.fung unchanged
 | tests~lang~err_pipe_tag_hole@bom.fung 152 997a775a90c49174
 | tests~lang~err_pipe_tag_hole@cglued.fung 152 997a775a90c49174
@@ -17063,6 +18028,28 @@
 | tests~lang~err_pmap_failed@tight.fung 92 dd047a35c49c1257
 | tests~lang~err_pmap_failed@trailing.fung 92 dd047a35c49c1257
 | tests~lang~err_pmap_failed@wide4.fung unchanged
+| tests~lang~err_pmap_question.fung unchanged
+| tests~lang~err_pmap_question@bom.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@cglued.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@cnospace.fung unchanged
+| tests~lang~err_pmap_question@contsplit.fung 202 fc161e9603875eb0
+| tests~lang~err_pmap_question@cpushed.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@crlf.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@dedent.fung unchanged
+| tests~lang~err_pmap_question@halfbytes.fung 100 492ba5243a93dde9
+| tests~lang~err_pmap_question@halflines.fung unchanged
+| tests~lang~err_pmap_question@joined.fung unchanged
+| tests~lang~err_pmap_question@moreblank.fung 203 21d1159095baaae4
+| tests~lang~err_pmap_question@noblank.fung unchanged
+| tests~lang~err_pmap_question@nofinal.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@odd3.fung unchanged
+| tests~lang~err_pmap_question@opsplit.fung 205 6b4be687b5546f1a
+| tests~lang~err_pmap_question@spaced.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@split.fung 245 ca71540993d05e5a
+| tests~lang~err_pmap_question@tabs.fung unchanged
+| tests~lang~err_pmap_question@tight.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@trailing.fung 199 9a4c70cdba90f212
+| tests~lang~err_pmap_question@wide4.fung unchanged
 | tests~lang~err_question_in_for.fung unchanged
 | tests~lang~err_question_in_for@bom.fung 52 655718acca48666c
 | tests~lang~err_question_in_for@cglued.fung unchanged
@@ -17107,6 +18094,28 @@
 | tests~lang~err_question_top@tight.fung unchanged
 | tests~lang~err_question_top@trailing.fung 29 686537e148ebdd03
 | tests~lang~err_question_top@wide4.fung unchanged
+| tests~lang~err_range_chain.fung unchanged
+| tests~lang~err_range_chain@bom.fung unchanged
+| tests~lang~err_range_chain@cglued.fung unchanged
+| tests~lang~err_range_chain@cnospace.fung unchanged
+| tests~lang~err_range_chain@contsplit.fung unchanged
+| tests~lang~err_range_chain@cpushed.fung unchanged
+| tests~lang~err_range_chain@crlf.fung unchanged
+| tests~lang~err_range_chain@dedent.fung unchanged
+| tests~lang~err_range_chain@halfbytes.fung 69 a2cc47bbfe3ceb83
+| tests~lang~err_range_chain@halflines.fung unchanged
+| tests~lang~err_range_chain@joined.fung unchanged
+| tests~lang~err_range_chain@moreblank.fung unchanged
+| tests~lang~err_range_chain@noblank.fung unchanged
+| tests~lang~err_range_chain@nofinal.fung unchanged
+| tests~lang~err_range_chain@odd3.fung unchanged
+| tests~lang~err_range_chain@opsplit.fung unchanged
+| tests~lang~err_range_chain@spaced.fung unchanged
+| tests~lang~err_range_chain@split.fung unchanged
+| tests~lang~err_range_chain@tabs.fung unchanged
+| tests~lang~err_range_chain@tight.fung unchanged
+| tests~lang~err_range_chain@trailing.fung unchanged
+| tests~lang~err_range_chain@wide4.fung unchanged
 | tests~lang~err_reassign_fn.fung unchanged
 | tests~lang~err_reassign_fn@bom.fung 39 57ef68d4fae58602
 | tests~lang~err_reassign_fn@cglued.fung unchanged
@@ -17305,6 +18314,28 @@
 | tests~lang~err_shadow_module@tight.fung 39 bce397e75ddcef8d
 | tests~lang~err_shadow_module@trailing.fung 39 bce397e75ddcef8d
 | tests~lang~err_shadow_module@wide4.fung unchanged
+| tests~lang~err_slice_nil_end.fung unchanged
+| tests~lang~err_slice_nil_end@bom.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@cglued.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@cnospace.fung unchanged
+| tests~lang~err_slice_nil_end@contsplit.fung unchanged
+| tests~lang~err_slice_nil_end@cpushed.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@crlf.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@dedent.fung unchanged
+| tests~lang~err_slice_nil_end@halfbytes.fung 113 202e0da9ab61a5db
+| tests~lang~err_slice_nil_end@halflines.fung unchanged
+| tests~lang~err_slice_nil_end@joined.fung unchanged
+| tests~lang~err_slice_nil_end@moreblank.fung 231 57b2c66436bc946c
+| tests~lang~err_slice_nil_end@noblank.fung unchanged
+| tests~lang~err_slice_nil_end@nofinal.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@odd3.fung unchanged
+| tests~lang~err_slice_nil_end@opsplit.fung 227 0ae93d52eb520f74
+| tests~lang~err_slice_nil_end@spaced.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@split.fung 256 7cdf9ed36b04f2b2
+| tests~lang~err_slice_nil_end@tabs.fung unchanged
+| tests~lang~err_slice_nil_end@tight.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@trailing.fung 225 ed2ca90a4f204e5e
+| tests~lang~err_slice_nil_end@wide4.fung unchanged
 | tests~lang~err_slice_tuple.fung unchanged
 | tests~lang~err_slice_tuple@bom.fung 40 2fc819d79c8157e5
 | tests~lang~err_slice_tuple@cglued.fung unchanged
@@ -17415,6 +18446,19 @@
 | tests~lang~err_str_int@tight.fung 37 cabe820c7d0da00c
 | tests~lang~err_str_int@trailing.fung 37 cabe820c7d0da00c
 | tests~lang~err_str_int@wide4.fung unchanged
+| tests~lang~err_string_backslash_at_line_end.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@bom.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@crlf.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@dedent.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@halfbytes.fung 82 b88bfd729b02afd0
+| tests~lang~err_string_backslash_at_line_end@halflines.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@moreblank.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@noblank.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@nofinal.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@odd3.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@tabs.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@trailing.fung unchanged
+| tests~lang~err_string_backslash_at_line_end@wide4.fung unchanged
 | tests~lang~err_sym_name.fung unchanged
 | tests~lang~err_sym_name@bom.fung 40 845dc7a10855e045
 | tests~lang~err_sym_name@cglued.fung unchanged
@@ -18405,6 +19449,28 @@
 | tests~lang~keyword_names@tight.fung 289 9df1d9ef11283c1c
 | tests~lang~keyword_names@trailing.fung 289 9df1d9ef11283c1c
 | tests~lang~keyword_names@wide4.fung 289 9df1d9ef11283c1c
+| tests~lang~line_continuations_more.fung unchanged
+| tests~lang~line_continuations_more@bom.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@cglued.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@cnospace.fung unchanged
+| tests~lang~line_continuations_more@contsplit.fung unchanged
+| tests~lang~line_continuations_more@cpushed.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@crlf.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@dedent.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@halfbytes.fung unchanged
+| tests~lang~line_continuations_more@halflines.fung unchanged
+| tests~lang~line_continuations_more@joined.fung unchanged
+| tests~lang~line_continuations_more@moreblank.fung 589 947bad4b2e504951
+| tests~lang~line_continuations_more@noblank.fung unchanged
+| tests~lang~line_continuations_more@nofinal.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@odd3.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@opsplit.fung 584 7c6f24c50a279baf
+| tests~lang~line_continuations_more@spaced.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@split.fung 674 73fe03c7be7ad56d
+| tests~lang~line_continuations_more@tabs.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@tight.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@trailing.fung 566 08608e9ec8cbd523
+| tests~lang~line_continuations_more@wide4.fung 566 08608e9ec8cbd523
 | tests~lang~lines.fung unchanged
 | tests~lang~lines@bom.fung 82 5b3385a994729e63
 | tests~lang~lines@cglued.fung unchanged
@@ -18472,27 +19538,27 @@
 | tests~lang~literals@trailing.fung 249 f27acb0c6737a706
 | tests~lang~literals@wide4.fung unchanged
 | tests~lang~local_lifetime.fung unchanged
-| tests~lang~local_lifetime@bom.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@cglued.fung 2877 53bb23ec6ff342bb
+| tests~lang~local_lifetime@bom.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@cglued.fung 2877 0541e592124f6aa2
 | tests~lang~local_lifetime@cnospace.fung unchanged
 | tests~lang~local_lifetime@contsplit.fung unchanged
-| tests~lang~local_lifetime@cpushed.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@crlf.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@dedent.fung 2877 53bb23ec6ff342bb
+| tests~lang~local_lifetime@cpushed.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@crlf.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@dedent.fung 2877 0541e592124f6aa2
 | tests~lang~local_lifetime@halfbytes.fung unchanged
 | tests~lang~local_lifetime@halflines.fung 1484 f483a84441efe079
 | tests~lang~local_lifetime@joined.fung unchanged
-| tests~lang~local_lifetime@moreblank.fung 2946 f4c998e093d2c91d
+| tests~lang~local_lifetime@moreblank.fung 2946 ce57e8e5d56101b6
 | tests~lang~local_lifetime@noblank.fung unchanged
-| tests~lang~local_lifetime@nofinal.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@odd3.fung 2877 53bb23ec6ff342bb
+| tests~lang~local_lifetime@nofinal.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@odd3.fung 2877 0541e592124f6aa2
 | tests~lang~local_lifetime@opsplit.fung unchanged
-| tests~lang~local_lifetime@spaced.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@split.fung 3683 5aa6b70e1ec7a885
-| tests~lang~local_lifetime@tabs.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@tight.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@trailing.fung 2877 53bb23ec6ff342bb
-| tests~lang~local_lifetime@wide4.fung 2877 53bb23ec6ff342bb
+| tests~lang~local_lifetime@spaced.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@split.fung 3683 0e4e503ec0fff1d0
+| tests~lang~local_lifetime@tabs.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@tight.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@trailing.fung 2877 0541e592124f6aa2
+| tests~lang~local_lifetime@wide4.fung 2877 0541e592124f6aa2
 | tests~lang~map_pattern_string_keys.fung unchanged
 | tests~lang~map_pattern_string_keys@bom.fung 390 8db252f47fbd8f17
 | tests~lang~map_pattern_string_keys@cglued.fung 390 8db252f47fbd8f17
@@ -18714,26 +19780,26 @@
 | tests~lang~param_patterns@trailing.fung 181 4511d5040bcb7d60
 | tests~lang~param_patterns@wide4.fung unchanged
 | tests~lang~path_rules.fung unchanged
-| tests~lang~path_rules@bom.fung 310 b41433f147fb0170
-| tests~lang~path_rules@cglued.fung 310 b41433f147fb0170
+| tests~lang~path_rules@bom.fung 522 579ea5fd94c62e2c
+| tests~lang~path_rules@cglued.fung 522 579ea5fd94c62e2c
 | tests~lang~path_rules@cnospace.fung unchanged
-| tests~lang~path_rules@contsplit.fung 336 1fa68b4d6041eab8
-| tests~lang~path_rules@cpushed.fung 310 b41433f147fb0170
-| tests~lang~path_rules@crlf.fung 310 b41433f147fb0170
+| tests~lang~path_rules@contsplit.fung 560 50829221e3ff90d6
+| tests~lang~path_rules@cpushed.fung 522 579ea5fd94c62e2c
+| tests~lang~path_rules@crlf.fung 522 579ea5fd94c62e2c
 | tests~lang~path_rules@dedent.fung unchanged
 | tests~lang~path_rules@halfbytes.fung unchanged
 | tests~lang~path_rules@halflines.fung unchanged
 | tests~lang~path_rules@joined.fung unchanged
-| tests~lang~path_rules@moreblank.fung 315 e8993b342044a568
+| tests~lang~path_rules@moreblank.fung 531 bbc31e915d479b72
 | tests~lang~path_rules@noblank.fung unchanged
-| tests~lang~path_rules@nofinal.fung 310 b41433f147fb0170
+| tests~lang~path_rules@nofinal.fung 522 579ea5fd94c62e2c
 | tests~lang~path_rules@odd3.fung unchanged
-| tests~lang~path_rules@opsplit.fung 312 a011fee7b0071992
-| tests~lang~path_rules@spaced.fung 310 b41433f147fb0170
-| tests~lang~path_rules@split.fung 380 e2be21a9eef31782
+| tests~lang~path_rules@opsplit.fung 524 221512784425b796
+| tests~lang~path_rules@spaced.fung 522 579ea5fd94c62e2c
+| tests~lang~path_rules@split.fung 621 749f6ec4b462e032
 | tests~lang~path_rules@tabs.fung unchanged
-| tests~lang~path_rules@tight.fung 310 b41433f147fb0170
-| tests~lang~path_rules@trailing.fung 310 b41433f147fb0170
+| tests~lang~path_rules@tight.fung 522 579ea5fd94c62e2c
+| tests~lang~path_rules@trailing.fung 522 579ea5fd94c62e2c
 | tests~lang~path_rules@wide4.fung unchanged
 | tests~lang~pieces.fung unchanged
 | tests~lang~pieces@bom.fung 1632 fc57f2461a5d9225
@@ -18845,6 +19911,28 @@
 | tests~lang~ranges@tight.fung 532 35a0ec8c6290d7fd
 | tests~lang~ranges@trailing.fung 532 35a0ec8c6290d7fd
 | tests~lang~ranges@wide4.fung unchanged
+| tests~lang~recv_now.fung unchanged
+| tests~lang~recv_now@bom.fung 524 7329899fa2d46497
+| tests~lang~recv_now@cglued.fung 524 7329899fa2d46497
+| tests~lang~recv_now@cnospace.fung unchanged
+| tests~lang~recv_now@contsplit.fung unchanged
+| tests~lang~recv_now@cpushed.fung 524 7329899fa2d46497
+| tests~lang~recv_now@crlf.fung 524 7329899fa2d46497
+| tests~lang~recv_now@dedent.fung 524 7329899fa2d46497
+| tests~lang~recv_now@halfbytes.fung 263 34210c16e7be8d17
+| tests~lang~recv_now@halflines.fung unchanged
+| tests~lang~recv_now@joined.fung unchanged
+| tests~lang~recv_now@moreblank.fung 520 3d00174b076370b9
+| tests~lang~recv_now@noblank.fung unchanged
+| tests~lang~recv_now@nofinal.fung 524 7329899fa2d46497
+| tests~lang~recv_now@odd3.fung 524 7329899fa2d46497
+| tests~lang~recv_now@opsplit.fung 538 ccb218c9a34616ef
+| tests~lang~recv_now@spaced.fung 524 7329899fa2d46497
+| tests~lang~recv_now@split.fung 651 f30bd3879615a49b
+| tests~lang~recv_now@tabs.fung 524 7329899fa2d46497
+| tests~lang~recv_now@tight.fung 524 7329899fa2d46497
+| tests~lang~recv_now@trailing.fung 524 7329899fa2d46497
+| tests~lang~recv_now@wide4.fung 524 7329899fa2d46497
 | tests~lang~regex.fung unchanged
 | tests~lang~regex@bom.fung 588 03cdb99b36f6ae1b
 | tests~lang~regex@cglued.fung 588 03cdb99b36f6ae1b
@@ -18911,6 +19999,28 @@
 | tests~lang~rest_and_alias@tight.fung 304 d7bf788a10a3fb0c
 | tests~lang~rest_and_alias@trailing.fung 304 d7bf788a10a3fb0c
 | tests~lang~rest_and_alias@wide4.fung unchanged
+| tests~lang~rest_wildcard.fung unchanged
+| tests~lang~rest_wildcard@bom.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@cglued.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@cnospace.fung unchanged
+| tests~lang~rest_wildcard@contsplit.fung unchanged
+| tests~lang~rest_wildcard@cpushed.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@crlf.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@dedent.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@halfbytes.fung unchanged
+| tests~lang~rest_wildcard@halflines.fung unchanged
+| tests~lang~rest_wildcard@joined.fung unchanged
+| tests~lang~rest_wildcard@moreblank.fung 327 16d5d1233d97b2da
+| tests~lang~rest_wildcard@noblank.fung unchanged
+| tests~lang~rest_wildcard@nofinal.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@odd3.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@opsplit.fung 328 918532ba426b77e2
+| tests~lang~rest_wildcard@spaced.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@split.fung 494 ad01e4ee63ed55fa
+| tests~lang~rest_wildcard@tabs.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@tight.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@trailing.fung 318 9eeaa3e438d99d06
+| tests~lang~rest_wildcard@wide4.fung 318 9eeaa3e438d99d06
 | tests~lang~result_arity.fung unchanged
 | tests~lang~result_arity@bom.fung 294 9e95a67a67b00061
 | tests~lang~result_arity@cglued.fung 294 9e95a67a67b00061
@@ -19506,26 +20616,26 @@
 | tests~lang~time_monotonic@trailing.fung 294 f400847b08eee703
 | tests~lang~time_monotonic@wide4.fung unchanged
 | tests~lang~time_rules.fung unchanged
-| tests~lang~time_rules@bom.fung 1074 566894bbabe10f3d
-| tests~lang~time_rules@cglued.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@bom.fung 1090 2e3d2ebace41074b
+| tests~lang~time_rules@cglued.fung 1090 2e3d2ebace41074b
 | tests~lang~time_rules@cnospace.fung unchanged
-| tests~lang~time_rules@contsplit.fung 1109 7ac050075c3365b5
-| tests~lang~time_rules@cpushed.fung 1074 566894bbabe10f3d
-| tests~lang~time_rules@crlf.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@contsplit.fung 1125 19389974e2721b03
+| tests~lang~time_rules@cpushed.fung 1090 2e3d2ebace41074b
+| tests~lang~time_rules@crlf.fung 1090 2e3d2ebace41074b
 | tests~lang~time_rules@dedent.fung unchanged
-| tests~lang~time_rules@halfbytes.fung 538 4cd108b12f52efbb
+| tests~lang~time_rules@halfbytes.fung 546 5d72d0895aa5f590
 | tests~lang~time_rules@halflines.fung unchanged
 | tests~lang~time_rules@joined.fung unchanged
-| tests~lang~time_rules@moreblank.fung 1088 43c7309d34fa05a9
+| tests~lang~time_rules@moreblank.fung 1104 6b99a41136a0148f
 | tests~lang~time_rules@noblank.fung unchanged
-| tests~lang~time_rules@nofinal.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@nofinal.fung 1090 2e3d2ebace41074b
 | tests~lang~time_rules@odd3.fung unchanged
-| tests~lang~time_rules@opsplit.fung 1082 fe49a59cc160b1f3
-| tests~lang~time_rules@spaced.fung 1074 566894bbabe10f3d
-| tests~lang~time_rules@split.fung 1182 0e3be923ee6c664d
+| tests~lang~time_rules@opsplit.fung 1098 2492f4145b74c911
+| tests~lang~time_rules@spaced.fung 1090 2e3d2ebace41074b
+| tests~lang~time_rules@split.fung 1198 5ec8516c94fe64f3
 | tests~lang~time_rules@tabs.fung unchanged
-| tests~lang~time_rules@tight.fung 1074 566894bbabe10f3d
-| tests~lang~time_rules@trailing.fung 1074 566894bbabe10f3d
+| tests~lang~time_rules@tight.fung 1090 2e3d2ebace41074b
+| tests~lang~time_rules@trailing.fung 1090 2e3d2ebace41074b
 | tests~lang~time_rules@wide4.fung unchanged
 | tests~lang~time_values.fung unchanged
 | tests~lang~time_values@bom.fung 340 a69fff52d8e7624b
@@ -19550,26 +20660,26 @@
 | tests~lang~time_values@trailing.fung 340 a69fff52d8e7624b
 | tests~lang~time_values@wide4.fung unchanged
 | tests~lang~timeouts.fung unchanged
-| tests~lang~timeouts@bom.fung 386 a4de2d687c646ee1
-| tests~lang~timeouts@cglued.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@bom.fung 386 fbadacf92366007f
+| tests~lang~timeouts@cglued.fung 386 fbadacf92366007f
 | tests~lang~timeouts@cnospace.fung unchanged
 | tests~lang~timeouts@contsplit.fung unchanged
-| tests~lang~timeouts@cpushed.fung 386 a4de2d687c646ee1
-| tests~lang~timeouts@crlf.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@cpushed.fung 386 fbadacf92366007f
+| tests~lang~timeouts@crlf.fung 386 fbadacf92366007f
 | tests~lang~timeouts@dedent.fung unchanged
 | tests~lang~timeouts@halfbytes.fung unchanged
 | tests~lang~timeouts@halflines.fung unchanged
 | tests~lang~timeouts@joined.fung unchanged
-| tests~lang~timeouts@moreblank.fung 394 e221d28bb427fee5
+| tests~lang~timeouts@moreblank.fung 394 36cf95a15f07eab3
 | tests~lang~timeouts@noblank.fung unchanged
-| tests~lang~timeouts@nofinal.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@nofinal.fung 386 fbadacf92366007f
 | tests~lang~timeouts@odd3.fung unchanged
-| tests~lang~timeouts@opsplit.fung 402 014d3f01bdbc7397
-| tests~lang~timeouts@spaced.fung 386 a4de2d687c646ee1
-| tests~lang~timeouts@split.fung 464 61b4f061602934f7
+| tests~lang~timeouts@opsplit.fung 402 a88a475503454d81
+| tests~lang~timeouts@spaced.fung 386 fbadacf92366007f
+| tests~lang~timeouts@split.fung 464 c794dd8f1b4f330f
 | tests~lang~timeouts@tabs.fung unchanged
-| tests~lang~timeouts@tight.fung 386 a4de2d687c646ee1
-| tests~lang~timeouts@trailing.fung 386 a4de2d687c646ee1
+| tests~lang~timeouts@tight.fung 386 fbadacf92366007f
+| tests~lang~timeouts@trailing.fung 386 fbadacf92366007f
 | tests~lang~timeouts@wide4.fung unchanged
 | tests~lang~top_constants.fung unchanged
 | tests~lang~top_constants@bom.fung 488 de567efc4ad65311
@@ -19615,28 +20725,6 @@
 | tests~lang~try_map@tight.fung 1011 e16bcad931569f95
 | tests~lang~try_map@trailing.fung 1011 e16bcad931569f95
 | tests~lang~try_map@wide4.fung 1011 e16bcad931569f95
-| tests~lang~try_recv.fung unchanged
-| tests~lang~try_recv@bom.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@cglued.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@cnospace.fung unchanged
-| tests~lang~try_recv@contsplit.fung unchanged
-| tests~lang~try_recv@cpushed.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@crlf.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@dedent.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@halfbytes.fung 263 fb93477e372bea86
-| tests~lang~try_recv@halflines.fung unchanged
-| tests~lang~try_recv@joined.fung unchanged
-| tests~lang~try_recv@moreblank.fung 520 21e5e494ce2f9ce4
-| tests~lang~try_recv@noblank.fung unchanged
-| tests~lang~try_recv@nofinal.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@odd3.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@opsplit.fung 538 c7440567d9eb0124
-| tests~lang~try_recv@spaced.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@split.fung 651 000f769848760918
-| tests~lang~try_recv@tabs.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@tight.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@trailing.fung 524 4ae8cfe8bfec5dc4
-| tests~lang~try_recv@wide4.fung 524 4ae8cfe8bfec5dc4
 | tests~lang~tuples_tags.fung unchanged
 | tests~lang~tuples_tags@bom.fung 261 87b735f5dc0fcdb3
 | tests~lang~tuples_tags@cglued.fung 261 87b735f5dc0fcdb3

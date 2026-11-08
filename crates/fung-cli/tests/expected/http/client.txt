@@ -279,7 +279,7 @@
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
-| GET /%EA%B2%80%EC%83%89/a%20b?q=한글&r=a b HTTP/1.1\r
+| GET /%EA%B2%80%EC%83%89/a%20b?q=%ED%95%9C%EA%B8%80&r=a%20b HTTP/1.1\r
 | Host: 127.0.0.1:$PORT\r
 | User-Agent: fung/$VERSION\r
 | \r
@@ -426,7 +426,7 @@
 ==== server 29
 -- program: print(http.get(URL))
 -- stdout
-| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: trailer longer than 4096 bytes"})
+| Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT`: connection closed in the trailer"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -776,7 +776,7 @@
 | User-Agent: fung/$VERSION\r
 | \r
 ==== server 61
--- program: print(http.get(URL, timeout: 0s))
+-- program: print(http.get(URL, timeout: nil))
 -- stdout
 | Ok({status: 200, headers: {"content-length": "2"}, body: "ok"})
 -- stderr
@@ -790,11 +790,11 @@
 -- program
 | scope(fn(s):
 |   t = spawn(s, () => http.get(URL))
-|   print(timeout(200ms, () => await(t)))
+|   print(timeout(() => await(t), 200ms))
 |   cancel(t)
 |   print(await(t))
-|   t2 = spawn(s, () => http.get(URL, timeout: 0s))
-|   print(timeout(100ms, () => await(t2)))
+|   t2 = spawn(s, () => http.get(URL, timeout: nil))
+|   print(timeout(() => await(t2), 100ms))
 |   exit(3)
 | ;;)
 \ no newline

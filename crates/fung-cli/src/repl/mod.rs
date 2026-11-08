@@ -85,7 +85,7 @@ pub fn start() -> Out {
             }
             Box::new(r)
         }
-        None => Box::new(PlainReader::new(raw_stdin(), ProcessOut::stdout())),
+        None => Box::new(PlainReader::new(raw_stdin())),
     };
     // Ctrl-C during an evaluation cancels it (`Session::eval`).
     fung_vm::signals::set(Some(fung_vm::signals::repl(rt.stop_handle())));
@@ -119,6 +119,9 @@ struct Session {
     known: SourceMap,
     /// The entry globals defined so far, in index order.
     globals: Vec<String>,
+    /// An error was reported (TL3): the session ends with 1, unless
+    /// `exit(n)` names its code.
+    failed: bool,
 }
 
 /// Surface forms whose value is not printed (08).
@@ -140,26 +143,28 @@ impl Session {
             rt,
             known,
             globals: Vec::new(),
+            failed: false,
         }
     }
 
     /// Reads inputs until `:quit`, the end of input or `exit(n)`, and
-    /// returns the exit code: 0, or n for exit(n).
+    /// returns the exit code: n for exit(n); otherwise 1 if an error was
+    /// reported (TL3: a session fed from a pipe fails as a script does),
+    /// else 0.
     fn run(mut self) -> i64 {
         loop {
             // A task an earlier input spawned called exit(n): the session
             // ends as for exit(n) typed at the prompt (decided 2026-10-17).
             if let Some(n) = self.rt.exit_code() {
-                return self.finish(n);
+                return self.finish(Some(n));
             }
             let Some(line) = self.input.read_line("> ") else {
-                let _ = self.out.write_all(b"\n");
-                return self.finish(0);
+                return self.end_of_input();
             };
             // Or it came while the line was read: the line does not run,
             // a command neither.
             if let Some(n) = self.rt.exit_code() {
-                return self.finish(n);
+                return self.finish(Some(n));
             }
             if line.trim().starts_with(':') {
                 if let Some(code) = self.command(line.trim()) {
@@ -172,55 +177,76 @@ impl Session {
             let mut src = line;
             while needs_more(&src) {
                 let Some(more) = self.input.read_line(". ") else {
-                    let _ = self.out.write_all(b"\n");
-                    return self.finish(0);
+                    // The input ended inside a form: it is compiled
+                    // anyway, so its error is reported, not dropped.
+                    if let Some(code) = self.eval("<repl>", &src) {
+                        return self.finish(Some(code));
+                    }
+                    return self.end_of_input();
                 };
                 src.push('\n');
                 src.push_str(&more);
             }
             if let Some(n) = self.rt.exit_code() {
-                return self.finish(n); // it came while the rest was read
+                return self.finish(Some(n)); // it came while the rest was read
             }
             if let Some(code) = self.eval("<repl>", &src) {
-                return self.finish(code);
+                return self.finish(Some(code));
             }
         }
     }
 
-    /// Ends the session: the tasks still running do not keep it open
-    /// (05).
-    fn finish(self, code: i64) -> i64 {
-        self.rt.cancel_all();
-        self.rt.wait();
-        self.rt.exit_code().unwrap_or(code)
+    /// The input ended: a terminal's prompt line is closed.
+    fn end_of_input(mut self) -> i64 {
+        if self.input.interactive() {
+            let _ = self.out.write_all(b"\n");
+        }
+        self.finish(None)
     }
 
-    /// The `:` commands (08: `:help`, `:quit` and `:load` only). Returns
-    /// the exit code when the session ends.
-    fn command(&mut self, line: &str) -> Option<i64> {
+    /// Ends the session: the tasks still running do not keep it open
+    /// (05). Without `exit(n)`, an error reported in the session (here,
+    /// or a task failure the runtime reported) makes the code 1.
+    fn finish(self, exit: Option<i64>) -> i64 {
+        self.rt.cancel_all();
+        self.rt.wait();
+        match self.rt.exit_code().or(exit) {
+            Some(n) => n,
+            None if self.failed || self.rt.failed() => 1,
+            None => 0,
+        }
+    }
+
+    /// The `:` commands (08: `:help`, `:quit` and `:load` only). `Some`
+    /// when the session ends: `Some(None)` for `:quit`, `Some(Some(n))`
+    /// for an `exit(n)` in a loaded file.
+    fn command(&mut self, line: &str) -> Option<Option<i64>> {
         let (name, arg) = line.split_once(' ').unwrap_or((line, ""));
         match name {
             ":help" => {
                 let _ = self.out.write_all(HELP.as_bytes());
             }
-            ":quit" => return Some(0),
+            ":quit" => return Some(None),
             ":load" => {
                 let arg = arg.trim();
                 if arg.is_empty() {
                     let _ = self.err.write_all(b":load needs a file path\n");
+                    self.failed = true;
                     return None;
                 }
                 match crate::read_file(arg.as_bytes()) {
-                    Ok(src) => return self.eval(arg, &src),
+                    Ok(src) => return self.eval(arg, &src).map(Some),
                     Err(msg) => {
                         let _ = self.err.write_all(
                             &[&crate::cannot_read(arg.as_bytes(), &msg)[..], b"\n"].concat(),
                         );
+                        self.failed = true;
                     }
                 }
             }
             _ => {
                 let _ = writeln!(self.err, "unknown command {name}");
+                self.failed = true;
             }
         }
         None
@@ -284,6 +310,9 @@ impl Session {
                 if !(exited || told) {
                     self.report(std::slice::from_ref(&*d));
                 }
+                if !exited {
+                    self.failed = true;
+                }
             }
         }
         if deadlocked {
@@ -296,7 +325,8 @@ impl Session {
     }
 
     /// Prints errors, each excerpted from the input its position names.
-    fn report(&self, errs: &[Diag]) {
+    fn report(&mut self, errs: &[Diag]) {
+        self.failed = true;
         let mut err = ProcessOut::stderr();
         for e in errs {
             let _ = err.write_all(diag::format(e, &self.known).as_bytes());
@@ -305,13 +335,24 @@ impl Session {
 }
 
 /// Whether the text so far ends before its syntax is complete: the
-/// parser failed exactly at the end of the input.
+/// parser failed exactly at the end of the input, or a raw string is
+/// still open there (TL2: it may span lines, 01). A raw string is what
+/// is open when closing one at the end ends the unterminated string.
 fn needs_more(src: &str) -> bool {
     if src.trim().is_empty() {
         return false;
     }
-    let Ok((toks, _)) = lex(FileId(0), src) else {
-        return false;
+    let toks = match lex(FileId(0), src) {
+        Ok((toks, _)) => toks,
+        // Open at the end: a raw string goes on on the next line (TL2); a
+        // plain string cannot, so one still open once a closing backtick
+        // is added (outside, or around an interpolation) is the error.
+        Err(e) if e.code == "E0104" => {
+            return lex(FileId(0), &format!("{src}`"))
+                .err()
+                .is_none_or(|e2| e2.code != "E0104");
+        }
+        Err(_) => return false,
     };
     let Err(e) = parse(&toks) else {
         return false;
@@ -328,7 +369,21 @@ mod tests {
         for src in ["fn f():", "1 +", "[1,", "if x:\n  1", "f(", "\"a\" +"] {
             assert!(needs_more(src), "{src:?}");
         }
-        for src in ["", "  ", "1", "x = )", "fn f() = 1", "\"open", "1 +\n2"] {
+        // A raw string open at the end goes on on the next line (TL2).
+        for src in ["x = `a", "x = `a\nb", "`a` + `b"] {
+            assert!(needs_more(src), "{src:?}");
+        }
+        for src in [
+            "",
+            "  ",
+            "1",
+            "x = )",
+            "fn f() = 1",
+            "\"open",
+            "1 +\n2",
+            "x = `a\nb`",
+            "\"a${`x",
+        ] {
             assert!(!needs_more(src), "{src:?}");
         }
     }

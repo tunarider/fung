@@ -305,19 +305,17 @@ print(numbers(5))</code></pre><pre class="out plain"><code>10</code></pre></div>
 print(m)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
 == &lt;main&gt; ==
 0000  1:5   CONST        0    ; &lt;fn fold&gt;
-0001  1:10  CONST        1    ; 0
-0002  1:13  CONST        2    ; 3
-0003  1:11  RANGE        0
-0004  1:16  CONST        3    ; {}
-0005  1:20  CLOSURE      0    ; &lt;lambda&gt;
-0006  1:9   CALL         3    ; 3 positional, 0 named
-0007  1:1   STOREGLOBAL  0    ; m
-0008  2:1   CONST        4    ; &lt;fn print&gt;
-0009  2:7   LOADGLOBAL   0    ; m
-0010  2:6   CALL         1    ; 1 positional, 0 named
-0011  2:1   POP
-0012  2:1   CONST        5    ; nil
-0013  1:1   RETURN
+0001  1:11  CONST        1    ; 0..3
+0002  1:16  CONST        2    ; {}
+0003  1:20  CLOSURE      0    ; &lt;lambda&gt;
+0004  1:9   CALL         3    ; 3 positional, 0 named
+0005  1:1   STOREGLOBAL  0    ; m
+0006  2:1   CONST        3    ; &lt;fn print&gt;
+0007  2:7   LOADGLOBAL   0    ; m
+0008  2:6   CALL         1    ; 1 positional, 0 named
+0009  2:1   POP
+0010  2:1   CONST        4    ; nil
+0011  1:1   RETURN
 
 == &lt;lambda&gt; ==
 0000  1:30  CONST        0    ; &lt;fn put&gt;

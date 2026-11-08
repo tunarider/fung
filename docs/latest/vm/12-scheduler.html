@@ -406,7 +406,7 @@ all workers finished</code></pre></div>
 <li>계산하는 태스크는 호출 1,000번마다 차례를 넘긴다. <code>swap</code>의 함수 안은 예외다.</li>
 <li>입력 크기에 비례하는 내장 함수(<code>json.parse</code>, <code>sort</code>, <code>split</code> 등)는 약 1 ms 분량의 조각마다 차례를 넘긴다. 조각은 개수가 아니라 시간으로 잰다: 작은 걸음을 이어 하다가 1 ms가 지나면 넘기므로, 느린 기계에서도 조각이 길어지지 않는다. 조각 사이의 상태는 상자에 담고, "곧바로 끝나는 주차"(<code>Wake::soon</code>)로 대기열 뒤에 선다(<code>vm/pieces.rs</code>). 큰 값의 해제도 조각으로 나눠 차례 사이에 한다(<code>value/release.rs</code>).</li>
 <li>모든 상태가 실행 스레드에서만 바뀌므로 교착을 유예 없이 정확히 판정하고, 기다리는 자리를 보여 준다.</li>
-<li>대가: 계산은 코어 하나. 조각으로 나누지 않은 한 번짜리 연산(큰 리스트의 <code>str</code>·<code>==</code>·<code>reverse</code>, 정규식 찾기 등)은 끝날 때까지 차례를 넘기지 않는다.</li>
+<li>대가: 계산은 코어 하나. 조각으로 나누지 않은 한 번짜리 연산(큰 리스트의 <code>str</code>·<code>==</code>·<code>in</code>, <code>upper</code>·<code>lower</code>, 정규식 찾기 등)은 끝날 때까지 차례를 넘기지 않는다.</li>
 </ul>
 <p>레퍼런스: <a href="../reference/prelude/concurrency.html">동시성 함수</a>, <a href="../reference/errors.html#E0702">E0702</a>. 다음 장은 "운영체제를 기다리는 일"(소켓, 외부 명령, 파일)을 이 스레드 하나 위에서 어떻게 기다리는지 본다.</p>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../vm/11-modules.html"><small>이전 장</small>11. 모듈 적재와 prelude</a><a class="next" href="../vm/13-event-loop.html"><small>다음 장</small>13. 이벤트 루프와 스레드 풀</a></nav>

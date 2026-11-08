@@ -259,6 +259,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: 이름 인자 노드면 그 값 노드를 보고 판정한다(이름이 `f`일 때만). `conc.pmap`은 결정이다.
   - (가) **추천**: `conc.pmap`의 `f` 자리도 같은 검사를 한다. `pmap`은 `map`의 병렬판이라 규칙이 "map 계열의 f" 한 줄로 남는다.
   - (나) 03에 "`pmap`은 해당 없음"을 적는다.
+- **처리(2026-11-08, 사용자 결정 (가))**: `resolve.rs` `Head::Call`이 이름 인자 `f:`의 값도 보고, `map_like`가 prelude `map`과 `conc.pmap`(모듈 이름·별칭, `import conc (pmap)`의 전역 `pmap_globals`)을 가린다. E0226 문구에 함수 이름(`%s`). 시험 `resolve::tests::for_body_return_and_question_outside_fn`·`question_in_a_lambda_given_to_pmap`, `tests/lang/err_map_named_f_question.fung`·`err_pmap_question.fung`, 문서 03·`for.md`·`collections.md`·`conc.md`·`errors.md`.
 
 ### SP2. 보간·`join`이 `Ok`/`Err`(와 `nil`)를 말없이 글자로 넣는다 — 결정, 중간
 - **처리(2026-11-08, 사용자 결정 (가))**: 새 번호 E0519. 보간(`Op::Concat`)과 `join`이 맨 값의 `Ok`·`Err`를 거절한다(`value::result_tag`). 시험 `tests/lang/err_interp_result.fung`·`err_join_result.fung`·`result_text.fung`, 문서 02·`results.md`·`convert.md`·`strings.md`·`errors.md`·CHANGELOG.
@@ -332,12 +333,14 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: 위 문장들을 `values.md`·`results.md`·`collections.md`·실제 값과 같게 고친다.
   - 결정 하나를 함께 묻는다. 설계 문서와 매뉴얼 언어 명세 중 **어느 쪽이 규범인지** 정한다(1절 셋째 단락).
   - **추천**: 매뉴얼 언어 명세를 규범으로 둔다. 생성기가 펜스를 실행해 지키기 때문이다. 설계 문서는 "결정과 이유의 기록"으로 두고, 규칙을 옮겨 적은 문장은 매뉴얼로 링크한다.
+- **처리(2026-11-08, 사용자 결정: 매뉴얼 언어 명세가 규범)**: 02(심볼 E0517·nil의 `?`·바이트 순·받는 끝·`10**18`)·05(`'error` 결과 모양·효과 목록·취소 문장 자리)·07(`int(실수)` E0513·E0517)을 실제와 맞춤. `docs/design/README.md`에 "규범은 매뉴얼, 설계 문서는 결정의 기록". `stop_signal`은 근거를 적는 대신 효과로 옮김(`vm/atom.rs`, `tests/lang/err_atom_stop_signal.fung`).
 
 ### SP6. 07·06이 없는 `math` 모듈을 가리킨다; 비트 연산·`abs`·`round`가 아예 없다 — 문서(+결정), 낮음
 - 재현: `$F -e 'import math'` → E0301 cannot find module `math`. prelude에도 `abs`·`floor`·`round`·`sqrt`·비트 연산이 없다(`spec/builtins.txt`).
 - 명세 근거: 07:82-84 "비트 연산: 연산자 없음. `math.band` … 등 함수로"(있는 것처럼 씀), 06:123 "`math`, `random` (M8 이후)". open-questions에 항목이 없다.
 - 고치는 법: 07을 "아직 없음, 06의 `math` 후보"로 고치고, open-questions "알파에서 써 보며 조정할 것"에 `math`(abs·floor·ceil·round·비트)를 올린다.
   지금은 `int(x)`(0 쪽 버림)만 있어 `round`·`floor`를 직접 짜야 한다. SRE 스크립트(퍼센트·반올림·권한 비트)에서 자주 부딪힐 것이다.
+- **처리(2026-11-08)**: 07 비트 연산을 "아직 없음, `math` 후보"로, 06 표의 `math`·`random` 줄, open-questions "알파에서 써 보며 조정할 것"에 `math` 항목.
 
 ### SP7. 08의 에러 예시가 없는 번호 E0510과 나오지 않는 도움말을 보인다 — 문서, 낮음
 - 재현: `printf 'fn f(size) = size // 1024 + "kb"\nprint(f(3))\n' > e.fung; $F e.fung` → `error[E0501]: cannot add int and str`, 도움말 없음.
@@ -345,6 +348,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: 예시와 표를 실제 출력(E0501)으로 바꾼다. 도움말은 결정이다.
   - **추천**: `str + 비str`일 때만 `help: use "${…}" or str(…)`을 붙인다. 흔한 실수이고 `operators.md` 경계 사례가 바로 이 예다.
   - 원인 위치는 `crates/fung-front/src/diag/catalog.rs`의 E0501, 또는 VM의 `+` 타입 에러를 만드는 자리다.
+- **처리(2026-11-08)**: `value/arith.rs` `add_error`가 한쪽만 글인 `+`의 E0501에 도움말을 붙임(시험 `adding_text_and_another_value_has_a_help`), 08의 예를 실제 출력(E0501)으로, 표의 `E0510`을 `E0501`로.
 
 ### SP8. 두 벌의 EBNF(01·`grammar.md`)가 서로 다르고 파서와도 어긋난다 — 문서, 낮음
 - 파서가 EBNF보다 넓게 받는 것(모두 실행해 확인):
@@ -367,6 +371,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: 구현을 정답으로 두 EBNF를 같게 고친다. 끝 쉼표는 어디서나 허용으로 통일하고(`import` 목록 포함), `[..=b]`·`nil`·`fn` 타입·보간 금지 자리를 적는다.
   빈 `match`·빈 절은 FE15에서 전용 문구로 막고 EBNF를 `arm { arm }`으로 고친다.
   - 다시 어긋나지 않게(결정): **추천**은 EBNF를 매뉴얼 한 곳에만 두고 01은 그곳을 링크하는 것이다. 다른 길은 두 벌이 같음을 시험으로 지키는 것이다.
+- **처리(2026-11-08, 사용자 결정: EBNF는 매뉴얼 한 곳)**: `manual/reference/language/grammar.md`를 파서에 맞게 다시 씀(끝 쉼표, `[..=b]`, `nil`·`fn` 타입, `PLAIN_STRING` 자리, 절 하나 이상·빈 본문 없음, 범위 비결합, `...`의 자리, 우선순위 표 링크). 01의 EBNF는 링크로. 파서는 `import` 목록 끝 쉼표를 받고(`parser/stmt.rs`), 람다 매개변수를 `fn`과 같게(`parser/fn_.rs`; 시험 `lambda_and_fn_parameters_take_the_same_patterns`·`an_import_list_takes_a_trailing_comma`). `blocks.md` 이어짐 규칙 1에 `then`·`else`, `lexical.md` 이스케이프 목록에 `\r`.
 
 ### SP9. `kind` 어휘에 `'empty`·`'full`이 없고 "인자 타입 에러는 E0403"이 틀렸다 — 문서, 낮음
 - 재현:
@@ -378,6 +383,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   ```
 - 명세 근거: `manual/reference/functions.md:12`와 06:71-72의 `kind` 어휘 12개에 `'empty`·`'full`(L3)이 없다. `functions.md:13`은 "인자 타입이 틀린 것은 코드 오류라 런타임 에러(E0403)다"라고 하는데, 컬렉션 함수들은 E0506이고 일부는 E0501이다.
 - 고치는 법: 어휘에 둘을 더한다. 13줄은 "E0403(매개변수 표의 타입), 여러 타입을 받는 함수는 E0506"처럼 실제를 적는다. 번호는 불변 규칙이 있으니 문서 쪽을 고친다.
+- **처리(2026-11-08)**: 06과 `functions.md`의 `kind` 어휘에 `'empty`·`'full`, `functions.md`의 인자 타입 에러 문장을 "매개변수 표의 타입은 E0403, 여러 타입을 받는 함수는 E0506"으로.
 
 ### SP10. `try_`가 두 뜻이고, 기간·대상 인자 자리가 함수마다 다르다 — 결정, 낮음
 - 내용(`spec/builtins.txt`):
@@ -391,6 +397,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - (나) **추천**: 그대로 두고 함수 레퍼런스 "읽는 법"에 두 뜻을 적는다. `timeout`의 인자 순서만 결정에 올린다.
     `timeout(1s, () => …)`는 Trio·Go의 읽는 순서와 같아서, 파이프 규칙의 예외로 문서에 적는 편이 비용이 작다.
     하위 호환을 따지지 않는 지금이 바꿀 때라는 점은 (가)의 근거다.
+- **처리(2026-11-08, 사용자 결정)**: `timeout(f, d)`, `send_now`·`recv_now`, `close(x)` 하나(`conc.rs`, `native/fs.rs` `close_fn`, `extras/fs.fung`에서 `close` 뺌), 매뉴얼·예제·시험의 모든 호출, `tests/lang/try_recv.fung` → `recv_now.fung`.
 
 ### SP11. `dbg`의 숨은 매개변수 `text`·`where`를 사용자가 줄 수 있다 — 정리, 낮음
 - 재현:
@@ -401,6 +408,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: `testing.md`·`io.md` `dbg(x)` "식의 소스 텍스트와 값을 찍는다". `functions.md` "모든 서명은 런타임의 실제 매개변수 표와 맞춰 본다(테스트가 지킨다)"인데, `crates/fung-cli/tests/manual.rs:220-224`가 `dbg`만 서명을 바꿔 끼운다.
 - 원인 위치: `crates/fung-vm/src/prelude/io.rs:29`, 컴파일러의 채우기 `crates/fung-front/src/compiler/m6.rs`.
 - 고치는 법: 컴파일러가 채우는 값을 이름 인자가 아니라 숨은 경로로 넘긴다(전용 명령이나, 사용자가 이름으로 줄 수 없는 매개변수 이름). 값으로 쓴 `dbg`의 출력 모양을 `io.md`에 적는다.
+- **처리(2026-11-08)**: prelude `dbg`는 `dbg(x)`, 직접 부른 `dbg(e)`는 컴파일러가 새 상수 `Const::Dbg`(dump에는 `<fn dbg>`)로 숨은 3인자 내장 함수(`prelude::dbg_at`)를 부른다. `atom.rs`의 효과 표에 `dbg_at`도(E0707). `crates/fung-cli/tests/manual.rs`의 `dbg` 서명 바꿔 끼우기 삭제. 시험 `prelude/run_cases.rs`(숨은 인자 두 사례: E0402·E0406), `atom_tests.rs`(`dbg`가 swap 안에서 E0707), 기대 출력 bless. 문서 `manual/reference/prelude/io.md`(값으로 넘긴 `dbg`의 출력 모양과 예제), 설계 08, `spec/builtins.txt`.
 
 ## 5. 앞단 (FE) — 렉서·파서·이름 해석·로더·포매터·진단
 
@@ -433,6 +441,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 "숫자"(`.5`, `1.` 불허), `lexical.md` 숫자 표("`1.`은 안 됨").
 - 원인 위치: `lexer/number.rs:39`(`.` 뒤가 숫자가 아니면 정수로 끝냄) + `parser/expr.rs:237` `field`(`.` 뒤 줄바꿈을 건너뜀).
 - 고치는 법: 렉서에서 10진 정수 바로 뒤의 `.`가 숫자도 `.`(범위 `..`)도 아니면 E0102(`1.`, `1.e5`, `1.foo`). 정수에는 필드가 없으므로 잃는 것이 없다.
+- **처리(2026-11-08)**: `lexer/number.rs` `Lexer::number`가 10진 정수 뒤의 `.`(숫자·`.`가 아닌 것이 뒤따르면)를 E0102로. 시험 `lexer::number::tests::malformed_numbers`·`malformed_number_error_shows_the_whole_token`, `tests/lang/err_number_trailing_dot.fung`, 문서 01·`lexical.md`·`errors.md`.
 
 ### FE3. 람다·안쪽 함수에서는 블록 밖으로 나간 이름이 조용히 prelude 함수가 된다 — 버그, 중간
 - 재현(지난 검토 F1의 고침이 불완전하다):
@@ -450,6 +459,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 03 "스코프와 클로저" 규칙 4, 지난 검토 F1.
 - 원인 위치: `crates/fung-front/src/resolve.rs:629` `Resolver::name`. `closed`를 `self.cur()`(지금 함수)에서만 본다. 바로 아래 E0208의 `later`는 모든 `fns`를 본다.
 - 고치는 법: `self.fns.iter().any(|f| f.closed.contains(name))`로 바깥 함수의 닫힌 이름도 본다. 최상위 `fn`은 파일 변수보다 먼저 만들어지므로 그 시점의 `fns[0].closed`는 비어 있어 결과가 바뀌지 않는다.
+- **처리(2026-11-08)**: `resolve.rs` `Resolver::name`이 모든 `fns`의 `closed`를 본다. 시험 `resolve::tests::a_closed_name_is_not_read_as_the_prelude`, `tests/lang/err_closed_name_in_lambda.fung`.
 
 ### FE4. 값 자리의 빈 블록·`fn` 정의·`assert`로 끝나는 블록이 조용히 `nil` — 결정, 중간
 - **처리(2026-11-08, 사용자 결정 (가))**: `resolve/value.rs`. 대입은 지금처럼 E0224(번호의 뜻을 넓히지 않으려고), 빈 블록·`assert`·`fn` 정의로 끝나는 블록은 새 번호 E0231. 숨은 대입은 세지 않는다. 걸린 예제 둘(`bigfiles`·`staticfiles`의 `with_temp_dir` 콜백)과 배우기 14장에 `nil`. 문서 01·`blocks.md`·`errors.md`·CHANGELOG.
@@ -494,6 +504,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 04 "모듈은 처음 import될 때 한 번 … 실행하고 캐시한다", "진입 파일을 다른 파일에서 import하면 에러. 판단 기준은 같은 경로인가".
 - 원인 위치: `crates/fung-front/src/loader.rs:322-350` `load_file`, `:497` `abs_key`(쓴 그대로의 경로를 키로 씀), `:337` E0307 비교.
 - 고치는 법: 키를 `fs::canonicalize`(파일이 있으면)나 (장치, inode)로 정하고, 보이는 경로(`display_path`)는 지금처럼 쓴 대로 둔다. 읽기 함수를 바꿔 끼우는 시험(`read_file`)을 위해 정규화도 갈아 끼울 수 있게 한다.
+- **처리(2026-11-08)**: `loader.rs`에 `Loader::file_id`(기본 (장치, inode))와 `State::keys`(정체 → 처음 닿은 키). 보이는 경로·묶는 이름은 쓴 그대로, 링크 너머의 상대 import는 처음 닿은 경로의 디렉터리에서. 시험 `loader::tests::one_file_under_several_paths_is_one_module`(심볼릭 링크, 대소문자 무시 파일 시스템이면 대소문자, 링크로 진입 파일 E0307), 문서 04·`modules.md`.
 
 ### FE6. 괄호 안 줄바꿈 규칙의 남은 위반: `..` `]`, `not` `in`, 이름 `:` — 버그, 낮음
 - 재현(지난 검토 F4가 불완전하다):
@@ -510,6 +521,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 "줄 이어짐 규칙" 3("`( ) [ ] { }` 안: 줄바꿈은 공백").
 - 원인 위치: `crates/fung-front/src/parser.rs:147` `kind_after`(줄바꿈을 건너뛰지 않는 날 토큰)를 쓰는 곳: `parser/expr.rs:176`(`..]` 판정), `:179`(`not in`), `:399`(이름 붙인 인자), `:514`(`..]`).
 - 고치는 법: 이 네 곳을 `self.kind_from(self.i + 1)`(nest > 0이면 줄바꿈을 건너뜀)로 바꾼다. `stmt.rs`의 `kind_after`는 nest가 0인 문장 시작이라 그대로 맞다.
+- **처리(2026-11-08)**: `parser/expr.rs`의 `..]`·`not in`·이름 인자·`at_hole`·`[a..]`이 `kind_from(self.i + 1)`. 시험 `parser::tests::newlines_inside_brackets_around_two_token_forms`, `tests/lang/line_continuations_more.fung`, 문서 01·`blocks.md`.
 
 ### FE7. 줄 끝의 `in`(for 머리)과 `|`(패턴 대안·타입 유니온)에서 줄이 이어지지 않는다 — 버그, 낮음
 - 재현:
@@ -530,6 +542,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 "줄 이어짐 규칙" 1(모든 이항 연산자 … `in` …로 끝나는 줄은 이어짐).
 - 원인 위치: `parser/pattern.rs:372` `for_expr`, `parser/pattern.rs:16` `pattern`, `parser/fn_.rs:218` `type_spec`(`in`·`|` 뒤에 `skip_newlines_after_operator`가 없음).
 - 고치는 법: 세 곳에서 `skip_newlines_after_operator()`를 부른다. 01의 규칙 1 목록에 `|`(패턴·타입)를 명시한다.
+- **처리(2026-11-08)**: `parser/pattern.rs` `pattern`·`for_expr`, `parser/fn_.rs` `type_spec`이 `skip_newlines_after_operator`. 포매터 `format/layout.rs` `split_arm_head`(줄 끝 `|`의 절 머리는 절). 시험 `parser::tests::a_line_ending_in_in_or_bar_continues`·`format::tests::an_arm_head_split_after_a_bar`, `tests/lang/line_continuations_more.fung`, 문서 01·`blocks.md`.
 
 ### FE8. 비결합인 범위 `..`가 `1..2..3`을 받는다 — 버그, 낮음
 - 재현:
@@ -541,6 +554,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 EBNF `range = add [ ( ".." | "..=" ) add ]`(한 번만). 비교의 연쇄는 E0111로 막는다.
 - 원인 위치: `parser/expr.rs:56-57` `infix`(`..`의 왼쪽 결합력이 그대로라 다시 받음). `infix_loop`에 비교처럼 막는 판정이 없다.
 - 고치는 법: `infix_loop`에서 직전 연산이 범위면 다음 범위 연산자를 문법 에러로 한다(E0111과 같은 꼴의 새 번호, 도움말 "괄호로").
+- **처리(2026-11-08)**: `parser/expr.rs` `infix_loop`의 `last_was_range`, 새 번호 E0118. 시험 `parser::tests::a_range_is_not_an_operand_of_a_range`, `tests/lang/err_range_chain.fung`, 문서 07·`errors.md`.
 
 ### FE9. 최소 정수 리터럴의 접기가 `**`·후위 연산보다 먼저 일어난다 — 버그, 낮음
 - 재현:
@@ -551,6 +565,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   `-a ** b = -(a ** b)`(01·07)라면 `9223372036854775808 ** 1`의 크기가 범위 밖이므로 E0102여야 한다. 지금은 `(MIN) ** 1`로 읽는다.
 - 원인 위치: `parser/expr.rs:358-366` `negation`(다음 토큰이 그 크기면 곧바로 리터럴로 접고 `**`·`.`·`[`를 그 리터럴에 붙인다).
 - 고치는 법: 접은 뒤 다음 토큰이 `**`·`.`·`[`·`(`·`!`·`?`이면 E0102. 또는 `unary`가 피연산자를 다 읽은 뒤, 피연산자가 그 리터럴 하나일 때만 접는다.
+- **처리(2026-11-08)**: `parser/expr.rs` `negation`이 접은 뒤 `**`·`.`·`[`·`(`·`!`·`?`가 오면 E0102(`.`는 FE2로 렉서가 먼저 막음). 시험 `parser::tests::least_int_folds_only_as_a_whole_operand`.
 
 ### FE10. 비UTF-8 바이트가 든 `test` 이름·`import` 경로가 조용히 빈 문자열이 된다 — 버그, 낮음
 - 재현:
@@ -562,6 +577,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 원인 위치: `crates/fung-front/src/parser/stmt.rs:9-18` `plain_text`. `Part.text`만 이어 붙이는데, 비UTF-8 부분은 `text`가 비고 바이트가 `Part.bytes`에 있다(`lexer.rs:203`).
   같은 일을 바르게 하는 `Token::plain`(`lexer.rs:241`)이 이미 있다(중복 코드).
 - 고치는 법: `plain_text`를 지우고 `Token::plain`을 쓴다. 결과가 `Err(bytes)`면 test 이름·import 경로는 글이어야 하므로 컴파일 에러(E0518 또는 E0112)로 한다.
+- **처리(2026-11-08)**: `parser/stmt.rs` `plain_text`가 `Token::plain` 위의 얇은 함수가 되어(중복 제거), UTF-8이 아니면 E0112 "expected a plain test name that is text (valid UTF-8), found string \"a\xffb\"". 시험 `parser::tests::test_names_and_import_paths_are_text`, 문서 `errors.md`(E0112).
 
 ### FE11. `..._`가 `_`라는 이름을 묶어 거짓 에러를 낸다 — 버그, 낮음
 - 재현:
@@ -573,6 +589,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 EBNF `"..." [ NAME ]`, 03(패턴의 `_`는 아무거나). `...`와 `..._`가 같은 뜻이어야 한다.
 - 원인 위치: `parser/pattern.rs:169-171` `plist`(`_`도 이름으로 `rest.lit`에 넣음). 그 뒤 `parser/fn_.rs:31` `pattern_names`와 `resolve/pattern.rs:21` `binds`가 이름으로 센다.
 - 고치는 법: `plist`에서 `_`이면 이름 없는 `Prest`로 둔다. 매개변수 `fn f(..._)`도 같게 한다.
+- **처리(2026-11-08)**: `parser/pattern.rs` `plist`가 `..._`를 이름 없는 `prest`로. 매개변수 `fn f(..._)`는 전에도 `_`를 묶지 않았다(확인). 시험 `parser::tests::rest_wildcard_binds_nothing`, `tests/lang/rest_wildcard.fung`, 문서 03.
 
 ### FE12. 맵 패턴의 중복 키를 받는다(맵 리터럴은 E0113) — 버그, 낮음
 - **처리(2026-11-08)**: SP3과 같은 커밋(`pmap`의 키 집합). E0113 문구를 "in a map literal or pattern"으로. 시험 `tests/lang/err_map_pattern_dup_key.fung`.
@@ -597,6 +614,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 "주석"(`#`부터 줄 끝까지), 원칙 1.
 - 원인 위치: `lexer.rs:442` `comment`(`\r`에서 멈춤), `lexer.rs:420` `run`(홀로 선 `\r`은 공백), `diag.rs` `write_excerpt`(줄을 그대로 찍음).
 - 고치는 법: **추천**은 `\r\n` 밖의 `\r`을 E0101로 하는 것이다(문자열·원시 문자열 안은 그대로). 주석은 `\n`(또는 `\r\n`)에서만 끝난다. 발췌는 제어 문자를 `quote`처럼 보이게 한다.
+- **처리(2026-11-08, 사용자 결정)**: `lexer.rs` `step`(홀로 선 `\r`은 공백이 아니라 E0101), `comment`(`\n`·`\r\n`에서만 끝나고 그 사이의 CR은 E0101), `diag.rs` `visible`(발췌의 제어 문자를 이스케이프로, 밑줄 칸도 그에 맞춤). 시험 `lexer::tests::lone_carriage_return_is_e0101`·`diag::tests::excerpt_shows_control_characters`, 기대 출력 `fmt/stdin.txt`의 CR 사례, 문서 01·`lexical.md`·`errors.md`(E0101).
 
 ### FE14. 문자열 끝의 `\`가 줄바꿈·파일 끝에서 깨진 E0103 문구를 낸다 — 버그, 낮음
 - 재현:
@@ -607,6 +625,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   ```
 - 원인 위치: `lexer/string.rs:84-128` `escape`(`advance`가 줄바꿈이나 끝의 U+FFFD를 이스케이프 글자로 돌려줌). 카탈로그 E0103 `\%s`(따옴표 없음).
 - 고치는 법: `\` 뒤가 줄바꿈·끝이면 E0104(unterminated string). E0103의 인자는 `%q`처럼 보이게 한다.
+- **처리(2026-11-08)**: `lexer/string.rs` `escape`가 `\` 뒤 줄 끝·파일 끝이면 문자열 시작 위치의 E0104, 보간 안의 중첩 문자열도. E0103 문구를 `unknown escape %q in string`(인자는 쓴 그대로 `\p`). 시험 `lexer::string::tests::backslash_at_line_or_input_end`·`escape_error_arguments`, `tests/lang/err_string_backslash_at_line_end.fung`, 문서 01·`errors.md`.
 
 ### FE15. E0110 "unexpected %s"에 문장을 넣어 깨진 문구가 여러 곳 — 정리, 낮음
 - 재현:
@@ -625,6 +644,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 원인 위치: `parser/fn_.rs:49·146·180`, `parser/pattern.rs:78·156·321·329`, `parser/collections.rs:53·147`, `parser/expr.rs:408`.
 - 고치는 법: 문법상 받지만 금지하는 것들(중복 매개변수, 필수 뒤 선택 매개변수, 절 없는 match, 빈 절, 익명 `fn(x) = …` 등)에 새 번호를 붙이거나 E0112 "expected …"로 옮긴다.
   익명 `fn`에는 도움말 "anonymous functions take a block: `fn(x): … ;;`, or write a lambda `x => …`"를 단다. 중복 매개변수는 E0116 "given twice"의 짝이 된다.
+- **처리(2026-11-08, 사용자 결정)**: 새 번호 E0119(중복 매개변수, E0116의 짝)·E0120(기본값 뒤 필수)·E0121(태그의 이름 인자)·E0122(맵 키·패턴의 보간)·E0123(이름 인자의 `_`)·E0124(익명 `fn … =`, 도움말), 절 없는 match·빈 절·괄호 패턴은 E0112. `parser/fn_.rs`·`pattern.rs`·`collections.rs`·`expr.rs`. 시험 `parser::tests::refused_forms_have_their_own_codes`와 바뀐 기존 사례, `tests/lang/err_tag_named.fung`(E0121), 문서 03·`errors.md`(새 항목 일곱과 E0110·E0112 설명).
 
 ### FE16. 깊은 괄호·보간 중첩이 이차 시간이라 E0115에 닿기 전에 수십 초 — 성능, 낮음
 - 재현(`python3 -I -c "print('x = ' + '('*n + '1' + ')'*n)" > p.fung; time $F check p.fung`):
@@ -634,6 +654,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - `check`·`fmt`·`run`(그리고 나중의 LSP)이 프로그램이 만든 입력이나 잘린 파일 하나에 멈춘다.
 - 원인 위치: `parser/fn_.rs:241` `lambda_params_ahead`(식 자리의 `(`마다 짝 괄호까지 훑음: 깊이 × 길이), `parser/expr.rs:450` `string_literal`(보간 한 겹마다 안쪽 글을 `lex_at`으로 다시 렉싱), `lexer/string.rs:135` `skip_interpolation`(깊이 검사 없는 재귀).
 - 고치는 법: 렉싱 직후 괄호 짝 표를 O(n)에 한 번 만들고, `lambda_params_ahead`가 짝 위치를 바로 본다. 보간은 렉서가 안쪽 토큰을 한 번만 만들어 `Part`에 담거나, 렉서에도 `MAX_DEPTH` 검사를 둔다.
+- **처리(2026-11-08)**: `parser.rs` `bracket_pairs`(괄호 짝 표, `lambda_params_ahead`가 O(1)), `lexer/string.rs` `interpolation`(보간 코드를 문자열과 함께 한 번 렉싱해 `Part::toks`에 담음, 깊이 한도 E0115, 긴 보간 문자열 토큰의 글은 짧게), `parser/expr.rs` `string_literal`이 `lex_at` 대신 그 토큰을 씀. 측정(릴리스, `fung check`): 괄호 10만 겹 6.66 s → 0.08 s, 보간 10만 겹 39.5 s → 0.06 s, 괄호 8천 겹 0.01 s, 보간 8천 겹 1.17 s → 0.07 s. 시험 `parser::tests::deep_parentheses_and_interpolations_are_linear`.
 
 ### FE17. 원소 타입 표기를 검사하지 않는다(`list[lsit]`, `int[str]`, `Ok[int]`) — 결정, 낮음
 - **처리(2026-11-08, 사용자 결정 (가))**: 파서가 `list[str]`를 쓴 그대로 남기고, `resolve/alias.rs` `expand`가 안쪽 이름을 검사(펼치지 않음, 재귀 표기 허용)하고 바깥만 남긴다. 새 번호 E0232. SP5의 같은 항목도 이것으로 닫힘. 시험 `err_element_type_unknown`·`err_element_type_on_scalar`·`element_types`, 문서 07·`types.md`·`errors.md`·CHANGELOG.
@@ -670,6 +691,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 01 "식별자"(첫 글자가 일반 범주 Lu면 태그).
 - 원인 위치: `desugar.rs:303-307` `pipe`(맨 태그 `Red`와 심볼 `'Red`가 같은 `Head::Symbol`이라 글자로 다시 판정). 렉서는 `unicode::is_upper`(`lexer.rs:466`)를 쓴다.
 - 고치는 법: 최소한 `crate::unicode::is_upper`를 쓴다. 더 낫게는 파서가 맨 태그를 표시해(`Head::Tag` + 인자 0, 또는 lit에 표시) 추측을 없앤다.
+- **처리(2026-11-08)**: 파서가 맨 태그를 `Head::BareTag`(`bare_tag`, dump ast에서는 `Red`로 보임)로 표시하고, `desugar.rs` `pipe`는 그것과 `Head::Tag`만 태그 호출로 만든다. 그 밖에서는 desugar가 심볼로 바꾼다. 시험 `desugar::tests::pipe_into_tags`, `tests/lang/err_pipe_quoted_symbol.fung`, 문서 01·`operators.md`.
 
 ### FE20. 같은 이름(과 빈 이름)의 `test` 블록을 받는다 — 결정, 낮음
 - **처리(2026-11-08, 사용자 결정 (가))**: `resolve.rs` `check_test_names`, 새 번호 E0233. TL5의 같은 이름 부분도 이것으로 닫힘. 시험 `err_test_name_twice`·`err_test_name_empty`, 문서 08·`testing.md`·`errors.md`·CHANGELOG.
@@ -682,6 +704,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - `docs/design/01-syntax.md:100` "camelCase는 문법 에러가 아니고 포맷터·경고 몫이다": 포매터는 이름을 건드리지 않고, 그런 경고(W01xx)도 없다.
   문장을 "검사하지 않는다(규약)"로 고치거나, 경고를 정한다(결정이지만 작다).
 - `crates/fung-front/src/format.rs:5-7` 머리 주석 "the lexer reads the source decoded (one U+FFFD …, as everywhere in fung)": L4 뒤로 소스는 UTF-8이 아니면 거절한다(포매터만 받는다). 주석을 고친다.
+- **처리(2026-11-08)**: 01의 camelCase 문장을 "검사하지 않는다(snake_case는 규약)"로, `format.rs` 머리 주석을 L4 뒤의 사실로.
 
 ### FE22. 같은 판정이 여러 벌 — 정리, 낮음
 - 포매터(`format/layout.rs`)가 문법을 토큰 휴리스틱으로 다시 판정한다: `ends_open`(줄 끝 이어짐), `is_continuation`, `pattern_start`·`top_arrow`(절 머리), `fn_head`, `then`/`else` 짝 세기.
@@ -690,6 +713,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 패턴 이름 모으기가 네 벌이다: `parser/fn_.rs:31` `pattern_names`, `resolve.rs:783` `pattern_names`(`Head::Name` 포함), `resolve/pattern.rs:26` `pattern_names`(정렬), `desugar.rs:535` `names_in`.
   FE11이 셋 모두에 같은 실수를 남긴 예다. 하나로 모은다.
 - 문자열 토큰의 평문 꺼내기가 두 벌이다(`Token::plain`, `stmt.rs` `plain_text`): FE10에서 함께 정리한다.
+- **처리(2026-11-08)**: 패턴 이름 모으기 셋(`parser/fn_.rs`, `resolve.rs`, `resolve/pattern.rs`)을 `Node::bound_names` 하나로(`desugar.rs` `names_in`은 읽는 이름을 모으는 다른 일이라 그대로). 이어짐 토큰 목록을 `Kind::starts_continuation`(파서·포매터)·`Kind::ends_open`(포매터, 파서 시험이 맞춤)로. `plain_text` 중복은 FE10. 시험 `parser::tests::the_parser_continues_after_every_open_line_end`. 포매터를 파서 출력 기반으로 바꾸는 일은 하지 않음.
 
 ## 6. 컴파일러·바이트코드·VM 실행 핵심 (VM)
 
@@ -766,6 +790,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 카탈로그 E0808("an input declared the name, then failed before storing it"), `vm.rs` 머리 주석 "any other read of an empty slot is a VM bug".
 - 원인 위치: `crates/fung-vm/src/vm.rs` `Task::make_closure`, `CaptureKind::Global => … .expect("captured an unassigned global")`.
 - 고치는 법: `make_closure`가 `Result<Value, Stop>`를 돌려주고, 빈 전역이면 이미 있는 `unset_global(fi, c.index, pos)`(E0808/E0809)로 에러를 낸다. 스크립트에서는 resolve가 E0204로 막으므로 REPL에만 있는 길이다. REPL 시험을 하나 더한다.
+- **처리(2026-11-08)**: `vm.rs` `Task::make_closure`가 `Result`를 돌려주고 빈 전역은 `unset_global`(E0808/E0809). 시험 `vm/repl_tests.rs` `capturing_a_failed_global_is_e0808`.
 
 ### VM4. 인자가 둘 이상인 `Ok`에 `!`·`?`·`??`는 튜플을 꺼내지만 패턴 `Ok(x)`는 맞지 않는다 — 결정, 낮음
 - **처리(2026-11-08, 사용자 결정 (가))**: `vm/m4.rs` `result_kind`와 `prelude.rs` `try_map`이 인자 하나인 `Ok`·`Err`만 결과값으로 본다. E0605 문구를 고침(`not_result`). 시험 `err_ok_two_values`·`result_arity`·`m4_tests`, 문서 02·`results.md`·`errors.md`·CHANGELOG.
@@ -794,6 +819,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: fung 빠른 길 바로 뒤에 다음 조건의 길을 둔다: `nnamed == 0`, `Value::Native`, `NativeBody::Plain`, 매개변수 수가 정확, 나머지 매개변수 없음.
   피호출자 칸을 빼고 `call_plain`과 같은 길(인자 Vec 하나, `bind_args` 없음)로 부르고, 에러에 `pos`를 붙인다.
   `step_loop`가 이미 `tick`을 했으므로, 이 길에서는 `call_plain`의 `tick`을 빼야 예산이 두 번 줄지 않는다.
+- **처리(2026-11-08)**: `vm/call.rs` `Task::call_op`에 Plain 내장 함수의 빠른 길(이름 인자 없음·개수 정확·rest 없음; 이미 tick한 호출이라 다시 tick하지 않음, `check_effect`는 함). 측정(CPU 시간, 중앙값 5회): `vm5_native`(점검 문서의 `len` 루프) 2.198 → 1.176초(−46%, 점검 문서 실험판 1.50 → 1.12), 같은 모양의 `len` 없는 루프 0.725 → 0.572(VM9 몫). 문서 `manual/vm/internals.md` "호출 규약". 의미 시험은 기존 시험 전부.
 
 ### VM6. 기본값·이름 인자·`...rest`가 끼는 호출은 호출마다 Vec 셋과 심볼 잠금 — 성능, 중간
 - 재현(천만 번 호출):
@@ -807,6 +833,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - 피호출자 칸 자리부터 프레임을 잡는다. 위치 인자는 이미 그 자리에 있으니 그대로 둔다.
   - 남는 위치 인자는 rest 리스트로 모으고, 이름 인자는 위쪽에서 꺼내 해당 칸에 쓴다.
   - 링크 때 `RtProto`에 매개변수 이름의 `Sym` 목록을 두면 이름 찾기가 `u32` 비교가 된다. 내장 함수는 `NativeParam`에 같은 표를 둔다.
+- **처리(2026-11-08)**: `vm/call.rs` `Task::bind_in_place`(먼저 모두 검사 → 이름 인자를 위에서 꺼내 태스크의 재사용 버퍼 `Fiber::named`에 → rest 리스트 → 칸 채우기), `RtProto::param_syms`(링크 때 매개변수 이름의 `Sym`), `call_op`와 내장 함수 콜백(`start_call`)이 사용. 내장 함수의 이름 인자·기본값은 예전 `bind_args` 그대로(`Sym::name`이 VM7로 잠금 없음). 측정: 기본값 `add(acc)` 1.901 → 1.234초, 이름 인자 `add(acc, b: 1)` 2.542 → 1.362초, 위치 인자 1.238 → 1.081초(점검 문서 1.78·2.29·1.11초 기준 측정과 같은 모양). 시험 `vm/tests.rs` `arguments_bind_in_place`. 문서 `internals.md` "호출 규약".
 
 ### VM7. `Sym::name()`이 전역 `Mutex`를 잡는다 — 성능, 낮음
 - 재현: `fn f(i) = Ok(g(i)? + 1)`을 `f(i)!`로 천만 번 부르면 3.15초다. `result_kind`·`may_hold_err`가 미리 만든 심볼과 `u32`로 비교하는 실험 판은 2.99초(−5%)였다.
@@ -814,6 +841,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: `internals.md` "값의 표현"(Sym은 "전역 인턴 표의 번호라 비교가 정수 비교").
 - 원인 위치: `crates/fung-vm/src/value/sym.rs` `Sym::name`(`table().lock()`). 쓰는 곳은 `vm/m4.rs` `result_kind`·`may_hold_err`, `vm/call.rs` `bind_args`, `value/compare.rs` 태그 해시, 그리고 `try_map`·`Probe::Err`·`is_ok` 류(`tag.name.name() == "Ok"`).
 - 고치는 법: `Ok`·`Err`를 시작할 때 한 번 intern해 두고(`OnceLock`이나 미리 예약한 상수 번호) id로 비교한다. `name()` 자체는 이름이 추가만 되므로 잠금 없는 표(실행 스레드 전용 `thread_local`이나 조각 배열)로 바꿀 수 있다.
+- **처리(2026-11-08)**: `value/sym.rs` `Ok`·`Err`를 고정 번호(`Sym::OK`·`Sym::ERR`, `intern`이 표 없이 돌려줌), `Sym::name`은 실행 스레드마다의 이름 사본(`thread_local`, 표가 늘기만 하므로 사본이 맞고, 모르는 번호에서만 잠금). `vm/m4.rs` `result_kind`·`may_hold_err`·`not_result`, `value.rs` `Probe::Err`, `prelude.rs` `try_map`, `value/format.rs` `result_tag`가 번호 비교. 측정: `f(i)!`·`Ok(g(i)? + 1)` 루프 3.706 → 3.514초(−5%, 점검 문서 실험 3.15 → 2.99와 같은 비율). 시험 `value/sym.rs` `reserved_ids_and_names_on_every_thread`.
 
 ### VM8. 태그 값(과 튜플·클로저)이 할당 두 번이다: `Rc<Tag>` + `Vec<Value>` — 성능, 중간
 - 재현: VM7의 프로그램 표본에서 `malloc`·`free`·`Vec::from_iter`가 약 28%다. `f(Ok(i))`를 `match`로 푸는 천만 번 루프는 2.07초로, 같은 모양의 일반 호출 1.11초의 거의 두 배다.
@@ -823,6 +851,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - 인자가 하나인 태그를 할당 한 번으로 둔다. 예: `enum Args { One(Value), Many(Box<[Value]>) }`로 `Ok(x)`·`Err(e)`는 `Rc` 하나. `unsafe` 없이 된다.
   - 튜플은 길이 2~3이 흔하므로 같은 작은 배열 표현을 쓰거나 `Rc<[Value]>`로 바꾼다.
   - 측정은 위 두 프로그램과 `bench/compare`로 한다.
+- **처리(2026-11-08)**: `value/items.rs` `Items`(값 1·2개는 안에, 그 이상은 `Box<[Value]>`; `Deref<Target=[Value]>`, `From<Vec<Value>>`, `FromIterator`, 소유 `IntoIterator`). `Tag::args`, `Tuple`, `Closure::captured`가 사용. `TAG`·`TUPLE`·`CLOSURE`가 스택에서 바로 모으고 `nat::ok`가 `Vec` 없이 만든다. 바뀐 생성 지점: `nat::tag`(`args.into()`), `prelude.rs` 하나, `link.rs`, `m4.rs`, 시험의 구조체 리터럴 몇. 측정: `f(Ok(i))`+`match` 2.012 → 1.798초, 튜플 `f((i, 1))` 2.277 → 2.110초, VM7 루프 3.220 → 2.766초. 시험 `value/items.rs` `items_of_every_length`.
 
 ### VM9. 해석 루프·호출의 작은 고정 비용 셋 — 성능, 낮음
 - 재현(각각 따로 바꾼 실험 판, 천만 번 루프):
@@ -833,6 +862,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   3. **`EQ`·`NE`·`FLOORDIV`·`MOD`에 정수 빠른 길이 없다.** `EQ`는 정수끼리도 `value::eq → equal → equal_leaf`를 지난다(표본 약 6%). `ADD`·`LT`처럼 정수 갈래를 두면 된다.
 - 원인 위치: `vm/call.rs` `reuse_frame`·`push_frame`, `vm.rs` `Task::binary`·`Task::compare`·`Op::Eq | Op::Ne`, `vm/frame.rs` `Frame`.
 - 고치는 법: 위 각 실험 그대로이고, 셋 다 `unsafe` 없이 된다. `scripts/bench.sh`의 `fib`·`loop`로 잰다. `Instr::op`의 `#[inline]`은 이미 시험했으므로(`bench-languages.md` 3.4.1) 다시 하지 않는다.
+- **처리(2026-11-08)**: (1) `vm/call.rs` `reuse_frame`이 같은 클로저면 `tail_calls += 1; ip = 0`만. (2) `vm.rs` `top_ints`·`put_over_ints`: 두 정수를 스택 위에서 보고 결과를 제자리에(꺼낸 정수는 `mem::forget`; `unsafe` 없음). (3) `EQ`·`NE`·`FLOORDIV`·`MOD`의 정수 갈래(`value::floor_div_i64`·`rem_i64` 재사용, 0과 넘침은 값 층으로). 프레임의 `proto`·`globals` 따로 쥐기는 그대로(main 프레임은 클로저가 없어 합치면 실행 루프에 간접 참조가 하나 는다). 측정: `vm9_loop` 0.918 → 0.685초, `bench/fib` 0.242 → 0.216초, `bench/loop` 0.294 → 0.253초(VM5·VM6과 같은 커밋이라 셋을 함께 잰 값; 각 벤치는 주로 한 항목만 지난다). 시험 `vm/tests.rs` `int_operators_agree_with_the_value_layer`.
 
 ### VM10. 코드 생성의 군더더기 — 성능·정리, 낮음
 - **처리(부분, 2026-11-08)**: (a)는 VM1과 같은 커밋에서 고쳤다(넘긴 칸은 그 길에서 비었다고 세어 다시 비우지 않는다). (b)~(g)는 남았다.
@@ -852,6 +882,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - 정수·실수 산술은 넘침·0 나누기면 접지 않고 그대로 두면, 에러 시점도 같다.
 - 원인 위치: `crates/fung-front/src/compiler.rs`(`block`·`if_expr`·`op`), `compiler/m4.rs`(`match_expr`·`unwrap`·`collection`의 `constant`), desugar의 `match` 주제 처리.
 - 고치는 법: 위 각 항목. (b)(c)(d)는 컴파일러만 고치면 되고, (a)는 `moves`의 결과로 `clear_unread`를 거른다(VM1과 함께). dump 기대 출력이 바뀌므로 한 번에 묶어 bless한다.
+- (b)~(g) **처리(2026-11-09)**: (b) `desugar.rs` `match_expr`가 이름인 대상은 숨은 변수 없이 쓰되, 어느 절의 패턴이 그 이름을 묶으면 숨은 변수(부분 실패한 패턴이 슬롯을 쓸 수 있음). 함수를 부르는 본문을 가진 절은 뒤에서 읽지 않는 대상 슬롯을 놓는다(`compiler/m4.rs` `subject_done`, 03 허용 방향). (c) `always_matches`: `_`·이름 절은 `MATCH`·`JUMPIFFALSE` 없이, 뒤 절과 `NOMATCH` 생략(이름이면 `MOVELOCAL`/`LOADLOCAL` + 저장). (d) `compiler.rs` `cond`·`logic`·`makes_bool`: 조건 자리의 `and`·`or`는 점프 코드, 이미 불인 값의 `CHECKBOOL` 생략, 에러 위치는 같음. (e) `if_stmt`: 문장 자리의 `else` 없는 `if`. (f) `end_branch`·`emit_return`·`ret_pos`: 꼬리 자리 가지는 `[CHECKRETURN] RETURN`(위치는 함수 본문·`return`의 자리 그대로), `?`는 `emit_stubs`로 함수 끝 뒤에 반환 조각. (g) `compiler/fold.rs`: 정수 `+ - * // %`(넘침·0이면 안 접음), 실수 `+ - * /`(유한하고 −0.0이 아닐 때), 단항 `-`; `Const::Range`(끝이 정수 상수인 범위), 리터럴 모음 안에서도. dump 명령 수 10861 → 10596: JUMP −148, CONST −86, RANGE −43, LOADLOCAL −43, STORELOCAL −16, CHECKBOOL −18, MATCH −18, NOMATCH −18, JUMPIFFALSE −18, NEG −15, MOVELOCAL −12, ADD −11, MUL·SUB −4, DIV·FLOORDIV·MOD −2, RETURN +107(가지의 반환), CLEARLOCAL +74(절의 대상 놓기), CHECKRETURN +9, LOADGLOBAL +3, STOREGLOBAL +2. 측정(VM8 커밋 대비, 같은 날 다른 회): `vm8_tag` 1.758 → 1.633초, `vm8_tuple` 1.861 → 1.738초, `bench/fib` 0.199 → 0.195초, 나머지는 측정 오차 안. 시험 `compiler/tests.rs`(갱신·추가), `desugar.rs` `desugar_m4`(두 사례 추가), `vm/tests.rs` `leaner_code_keeps_its_meaning`, dump 기대 출력 bless. 문서 `manual/vm/01`·`02`(예제를 `a = 2; print(1 + a * 3)`로, 상수 접기 언급)·`03`(`-3`)·`05`(`match` 숨은 변수 예와 이름 대상)·`08`(스택 표, 상수 접기 단락, 꼬리 자리 `RETURN`, `and`·`or` 점프, 연습 문제)·`internals.md`(`size` 예의 산문, 호출 규약).
 
 ### VM11. 24비트를 넘는 피연산자를 조용히 자른다 — 버그(조용한 실패), 낮음
 - 재현 안 함(코드 읽기). 한 원형에 상수나 명령이 1,600만 개 넘게 필요하다.
@@ -859,6 +890,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 원인 위치: `crates/fung-front/src/bytecode/op.rs` `Instr::new`(`(arg as u32) & ARG_MASK`), `bytecode.rs` `Proto::emit`·`Proto::patch`.
   상수 번호·점프 위치·`LIST`/`TUPLE`/`CONCAT` 개수·슬롯 번호·패턴·원형 번호가 모두 검사 없이 잘린다. 생성한 스크립트(큰 데이터 표를 코드로)라면 닿을 수 있고, 그러면 엉뚱한 상수·점프로 돈다.
 - 고치는 법: `emit`·`patch`에서 `arg > ARG_MASK`면 E0230("constants in a function"·"instructions in a function" 등, limit 16777215)을 낸다. `emit`을 `Result`로 바꾸기 번거로우면, `Compiler`에 넘침 표시를 두고 끝에서 한 번 확인한다.
+- **처리(2026-11-08)**: `bytecode.rs` `Proto::emit`·`patch`가 24비트를 넘는 첫 피연산자를 기억하고(`overflow`), `Proto::check_operands`가 E0230(`constants in a function`·`instructions in a function` 등, 한도 16777215). `compile`·`function`이 원형마다 부른다. `MAX_OPERAND`. 시험 `bytecode/tests.rs` `an_operand_past_24_bits_is_e0230`. 문서 `errors.md` E0230, `manual/vm/08-bytecode.md`, 설계 09.
 
 ### VM12. `Task`와 `Fiber`가 같은 필드 열여섯 개를 따로 두고, `stop`·`floor`는 늘 0이다 — 정리, 낮음
 - 재현: 코드 읽기. `stop`·`floor`에 0 말고 다른 값을 쓰는 곳이 없다(`vm.rs` 초기화와 `exchange`의 `swap`뿐). `cont.rs` 머리 주석도 "`floor` is always 0: it is a guard"라고 적는다.
@@ -866,6 +898,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: `Task { fiber: Fiber, shared, world }`로 두고 `exchange`를 `mem::swap(&mut self.fiber, f)` 한 줄로 줄인다. `stop`은 지우고 `frames.is_empty()`를 쓴다. `floor`는 지우거나 `debug_assert`로 둔다.
   지금 구조는 새 필드를 하나 더할 때마다 두 곳과 `exchange`를 함께 고쳐야 해서 빠뜨리기 쉽다.
   `Op::Jump`의 뒤로 가는 점프 갈래는 컴파일러가 내지 않는 경로다. 지우기보다 `debug_assert`와 주석으로 둔다.
+- **처리(2026-11-08)**: `vm.rs` `Task { fiber: Fiber, shared, world }`, `exchange`는 `mem::swap` 한 줄, `stop`·`floor` 삭제(`frames.is_empty()`, `conts.is_empty()`), 뒤로 가는 `JUMP`는 `debug_assert`와 주석. `Task::in_pure` 추가(정규식). `cont.rs` 머리 주석. 동작 변화 없음(전체 시험).
 
 ### VM13. VM 설명 문서가 구현과 다른 곳 — 문서, 낮음
 - `manual/vm/08-bytecode.md`:
@@ -882,6 +915,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - `crates/fung-front/src/compiler/m4.rs` `constant()` 위 doc 주석 첫 단락 "An empty list is left to LIST: the runtime reads an empty list constant as the prelude's `args`" → 지금은 `[]`도 `CONST`이고 `args`는 `Const::Args`다(주석 두 개가 겹쳐 있다).
 - `fung dump bytecode`의 `SLICE` 설명이 포함 비트(4)를 보이지 않는다. `xs[0..=1]`(`SLICE 7`)과 `xs[0..1]`(`SLICE 3`)이 모두 `; start, end`다. `bytecode/disasm.rs` `comment`의 `Op::Slice`에 `inclusive`를 더한다(`RANGE`는 이미 `; inclusive`).
 - 고치는 법: 위 각 줄을 구현에 맞추고 매뉴얼을 다시 만든다. dump 설명이 바뀌는 `SLICE`는 기대 출력을 bless한다.
+- **처리(2026-11-08)**: `08-bytecode.md` 53 → 54가지, 09의 명령 이름(`CHECKTYPE`·`CHECKRETURN`·`TAILCALL`·`LOADSELF`·`UNWRAPABORT`·`UNWRAPTEST`)과 T4 뒤의 TCO 문장·`COALESCE` + `JUMP`, `compiler/m4.rs`의 낡은 doc 주석, `disasm.rs`의 `SLICE`에 `inclusive`(`compiler/testdata/data.txt`). `internals.md`의 패턴 매칭 산문과 `08-bytecode.md`의 `MOVELOCAL` 설명은 VM 묶음 뒤에 이미 맞았다.
 
 ## 7. 값 층과 prelude (VA)
 
@@ -906,6 +940,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
     공유된 판은 묘비를 남기고, 더 큰 상한(`dead > 4·live + 64`)에서만 압축한다. 고치는 범위가 `remove` 하나이고, 흔한 한 줄 사용의 비용은 그대로다.
   - (나) 삽입 번호를 키로 하는 영속 트리(B+트리)로 순서를 지켜 묘비 자체를 없앤다. 근본적이지만 omap 전체를 다시 짜야 한다.
   - (다) 한계로 적기만 한다. 조용한 O(n²)라 비추천.
+- **처리(2026-11-08, 사용자 결정 (가) 공유되지 않은 맵만 압축)**: `prelude/collections.rs` `remove_fn`이 `Rc::strong_count`로 소유를 보고, 공유된 판은 `Map::remove_shared` → `Omap::remove(k, shared)`가 `dead > 4·live + 64`에서만 다시 만든다. 시험 `value::map_tests::only_a_map_held_alone_is_compacted_early`. 재현(`fresh`/`half`) half 10618.7 ms → 15.3 ms(fresh 15.8 → 14.7 ms), 20만 개 넣고 모두 빼기 309 → 245 ms. 문서 매뉴얼 `vm/internals.md`, `omap.rs` 머리 주석.
 
 ### VA2. 포함 끝 슬라이스 `xs[..=-(len+1)]`이 범위 밖인데 빈 결과를 낸다 — 버그, 중간
 - 재현:
@@ -922,6 +957,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 원인 위치: `crates/fung-vm/src/value/index.rs:169` `slice_bounds`. `hi = resolve(e) + inclusive`로 먼저 1을 더한 뒤 `0..=len`을 검사한다. `-4 + 3 = -1`에 1을 더해 0이 되어 통과한다.
 - 고치는 법: 포함 끝은 더하기 전에, 실제 원소의 인덱스인지(`0..len`, 음수는 `-len..=-1`) 본다. 그러면 `xs[..=-4]`는 E0507 `slice end -4`다.
   빈 리스트의 `[][..=-1]`(지금은 `[]`, 같은 원인)도 이 규칙이면 E0507이 된다. `xs[..=-1]`을 "전부"로 쓰는 코드가 빈 리스트에서 깨지지 않게 하려면, "`..=-1`만 빈 리스트에서 허용"을 따로 정해야 한다(결정 한 줄).
+- **처리(2026-11-08, 사용자 결정: 특별 허용 없음)**: `value/index.rs` `slice_bounds`가 포함 끝을 1 더하기 전에 `0..len`(음수 `-len..=-1`)인지 본다. 시험 `value::tests::an_inclusive_end_must_be_an_element`, `slice_errors_name_the_index_as_written`에 사례 추가. 문서 02, 매뉴얼 `language/access.md`.
 
 ### VA3. 슬라이스 끝에 리터럴 `nil`을 쓰면 열린 끝이 된다 — 버그, 낮음
 - 재현:
@@ -935,6 +971,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 02 리스트 "끝에 nil이 오면 nil 인덱스처럼 E0501이다(`find`가 못 찾은 nil이 조용히 끝까지 자르지 않게)". `value/index.rs:133` `bound`의 주석도 "nil is not an open end"다.
 - 원인 위치: 파서가 빠진 끝을 `Head::Nil` 노드로 둔다(`fung dump ast` → `(slice xs 1 (nil))`). `crates/fung-front/src/compiler/m4.rs:59` `Head::Slice`는 `head != Head::Nil`로 끝의 유무를 판정해, 사용자가 쓴 `nil`과 구분하지 못한다.
 - 고치는 법: 빠진 끝을 별도 표시(`Head::Missing` 또는 슬라이스 노드의 플래그)로 파싱하고, 컴파일러는 그 표시만 본다. 포매터도 같은 표시를 쓰므로 `xs[1..nil]`이 그대로 남는지 시험한다.
+- **처리(2026-11-08)**: 파서가 빠진 슬라이스 끝을 `Head::Missing`(`missing`)으로, `compiler/m4.rs` `Head::Slice`가 그것만 열린 끝으로 본다. 포매터는 토큰 기반이라 `xs[1..nil]`을 그대로 둔다. 시험 `parser::tests::newlines_inside_brackets_around_two_token_forms`(`xs[1..nil]` → `(slice xs 1 (nil))`), `tests/lang/err_slice_nil_end.fung`, 문서 07(`access.md`는 이미 그렇게 적혀 있었음).
 
 ### VA4. `min`·`max`·`zip`이 범위를 리스트로 펼쳐, 큰 범위에서 E0806과 수 초가 든다 — 버그, 중간
 - 재현:
@@ -948,17 +985,20 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   에러 문구도 사용자가 부른 함수가 아니라 안쪽 `map`의 것이다(F-4의 규칙).
 - 원인 위치: `extras/prelude.fung:40-62` `min`·`max`·`zip`이 `_list(xs, …)`(= `map(_r.items(xs), x => x)`)로 범위를 펼친다.
 - 고치는 법: 범위는 펼치지 않고 바로 답한다. `min(r)`은 비었으면 nil, 아니면 시작이다. `max(r)`은 `_r.last(r)`다. `zip`은 짧은 쪽 길이만큼 `_r.slice`로 잘라 펼친다.
+- **처리(2026-11-08)**: `extras/prelude.fung` `min`(범위는 `_start`)·`max`(`_r.last`)·`zip`(범위는 다른 쪽 길이만큼 `_r.slice`로 잘라 `_upto`). 시험 `prelude::tests::prelude_in_fung_checks_like_a_native`. `min`+`max(0..5천만)` 15583.8 ms(1.78 GB) → 0.09 ms, `zip(0..5천만, [1, 2])` 2364.0 → 0.02 ms. 문서 매뉴얼 `prelude/collections.md`(zip·min·max).
 
 ### VA5. `trim`이 문자열 전체의 글자 표를 만든다(50 MB에 900 MB, 0.5초) — 성능, 중간
 - 재현: `s = repeat("a", 50_000_000); t = trim(s)` → 0.51초, 최대 상주 메모리 911 MB(`s`만 만들면 0.10초, 59 MB).
 - 원인 위치: `crates/fung-vm/src/prelude/strings.rs:271` `trim_fn`. `let us: Vec<(usize, Unit)> = units(s).collect();`(글자마다 16바이트)로 양 끝을 찾는다.
 - 고치는 법: 앞에서는 `units(s)`로 첫 남길 글자를, 뒤에서는 끝에서 거꾸로 한 글자씩(UTF-8 뒤에서 읽기, 잘못된 바이트는 한 바이트) 찾는다. 메모리는 O(1)이고 시간은 잘라 낼 부분에 비례한다. 유효한 UTF-8이면 `str::trim_matches`로 바로 된다.
+- **처리(2026-11-08)**: `prelude/strings.rs` `trim_fn`이 앞에서 `units`로, 뒤에서 새 `fung_front::text::last`(끝에서 거꾸로 한 글자, 앞에서 자른 것과 같음)로 찾고, 자를 것이 없으면 같은 값을 돌려준다. 시험 `text::tests::the_last_character_agrees_with_the_units`, `prelude::tests::trim_cuts_whole_characters_from_both_ends`. 50 MB: 406.1 → 0.003 ms, 앞뒤 공백 408.2 → 4.7 ms, 끝 `\xff  ` 428.4 → 24.7 ms; 프로그램 최대 상주 2.71 GB → 260 MB.
 
 ### VA6. `parse_dur`가 주석과 `-` 뒤의 공백을 받는다 — 버그, 낮음
 - 재현: `$F -e 'print(parse_dur("5s # hi"), parse_dur("- 5s"), parse_dur("5s\n\n"))'` → `Ok(5s) Ok(-5s) Ok(5s)`.
 - 명세 근거: 06 prelude "`parse_dur(s)`: 기간 리터럴 문법(`1h30m`, `500ms`, `-5s`, 앞뒤 공백 허용)". 주석·부호 뒤 공백은 리터럴 하나가 아니다. 같은 성격의 `parse_int(" 5")`는 `Err`다.
 - 원인 위치: `crates/fung-vm/src/prelude/convert.rs:206` `parse_dur`. 남은 글을 렉서에 통째로 넣고 `Eof`/`Newline`이 아닌 토큰만 거부한다. 렉서는 주석과 공백을 버리므로 통과한다.
 - 고치는 법: 다듬은 문자열의 첫 바이트가 숫자(부호 바로 뒤 숫자)인지 보고, 토큰이 `Duration` 하나이며 그 끝이 문자열 끝인지 본다. 렉서를 거치지 않고 앞단의 기간 리터럴 해석기를 함께 쓰는 편이 더 깔끔하다.
+- **처리(2026-11-08)**: `prelude/convert.rs` `parse_dur`가 부호 바로 뒤 숫자를 요구하고, 기간 토큰 하나가 문자열 끝까지(`off == 0 && end == len`)인지 본다. 시험 `prelude::convert::tests::duration_is_one_literal`, `prelude/runs.txt` bless(`"- 5s"`가 `Err`). 문서 매뉴얼 `prelude/convert.md`.
 
 ### VA7. fung으로 쓴 prelude 몇이 인자를 검사하지 않아 내부 에러가 샌다 — 버그(+결정), 낮음
 - 재현:
@@ -981,6 +1021,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   `sum`은 결정이다.
   - (가) **추천**: 빈 리스트면 0, 아니면 첫 원소부터 접는다. 기간 합계가 된다(`sum(durations)`는 흔하다).
   - (나) 숫자만 받는다고 문서에 적는다.
+- **처리(2026-11-08, 사용자 결정 `sum` (가), 빈 `pad`는 E0403)**: `extras/prelude.fung` `pad_left`·`pad_right`(`s: str, n: int, pad: str`)·`iterate`(`f: fn, n: int`)·`until`(`f: fn, pred: fn`) 타입 표기, 빈 `pad`는 새 다리 `_native.range`의 `pad`(E0403 `argument `pad` must be a non-empty str`), `sum`은 `_r.items` 검사 뒤 첫 원소부터 접기(범위는 0부터). 시험 `prelude::tests::prelude_in_fung_checks_like_a_native`, `boot::tests::fung_prelude_functions`(E0803 → E0403). 문서 06("extras는 `fail`" 문장), 매뉴얼 `prelude/strings.md`·`collections.md`(sum)·`loops.md`·`errors.md`(E0803), `spec/builtins.txt`.
 
 ### VA8. 심볼과 문자열의 E0517 판정이 연산마다 다르다 — 결정, 낮음
 - **처리(2026-11-08, 사용자 결정 (가))**: `value/compare.rs` `sym_meets_str`가 `equal`처럼 첫 차이에서 멈춘다. 시험 `eq_sym_str_pairs`·`err_eq_sym_str_compared`, 문서 02·`values.md`·CHANGELOG.
@@ -1028,12 +1069,14 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: open-questions "알려진 한계 – 태스크"의 "한 번에 도는 연산" 목록에 `chars`·`bytes`·`from_bytes`·`pairs`·`keys`·`values`·`merge`·`group_by`의 결과 맵 만들기가 빠졌다. 특히 `merge`는 0.65초 동안 모든 태스크를 세운다.
 - 원인 위치: `prelude/collections.rs:552` `chars_fn`, `:488` `pairs_fn`, `:536` `merge_fn`(`value/map.rs` `Map::merge`), `prelude/strings.rs:465` `bytes_fn`, `:474` `from_bytes_fn`.
 - 고치는 법: `chars`·`bytes`·`from_bytes`·`pairs`는 `Parts`처럼 `Work`로 바꾸기 쉽다(출력 `List`를 제자리로 키우는 패턴이 이미 있다). `merge`는 `put` 루프를 `Work`로 바꾼다. 당장 하지 않을 것은 목록에 더한다.
+- **처리(2026-11-08)**: `chars`(`strings::chars_of`, `split(s, "")`과 같은 `Work`)·`bytes`·`from_bytes`·`pairs`·`merge`(첫 인자를 혼자 쥐면 제자리)·`trim`·`group_by`의 결과 맵(`PerItem::finish`)을 `Work`로. 시험 `vm::park_tests::more_long_natives_give_their_turn`. `timeout(2ms)`이 끊기까지(전 → 뒤): chars 357.6 → 2.1 ms, bytes 55.9 → 2.3, from_bytes 8.1 → 2.1, pairs 32.0 → 2.2, keys·values 30 → 2.3, merge 664.3 → 4.7, trim(9 MB 공백) 76.3 → 2.6, trim(cut) 102.0 → 2.7 ms. 문서 open-questions "알려진 한계 – 태스크"의 목록(남은 것: 큰 리스트의 `==`·`in`·`+`·`str`, `flatten`의 긴 원소, 정규식, `upper`·`lower`, 큰 맵의 해제, 문자열 전체를 한 번 읽는 연산), 매뉴얼 `vm/12-scheduler.md`.
 
 ### VA11. 한 글자 문자열마다 할당해 `chars`·`split(s, "")`·`s[i]`가 무겁다 — 성능, 낮음
 - 재현: `s = repeat("a", 50_000_000); t = chars(s)` → 4.07초, 최대 상주 메모리 4.64 GB(글자당 약 90바이트).
 - 명세 근거: 02 "글자를 훑을 때는 `chars(s)`로 리스트를 만든다". 권하는 길이 가장 비싸다.
 - 원인 위치: `prelude/collections.rs:552` `chars_fn`, `prelude/strings.rs` `split_fn`의 `Chars`, `value/index.rs:80` `index`(Str). 모두 `Value::bytes(…to_vec())`로 `Rc<Text>`+`Vec`을 새로 만든다.
 - 고치는 법: 바이트 하나짜리 문자열 256개(ASCII 128개 + 잘못된 바이트 128개)를 스레드 지역 표로 미리 만들어 `Rc`를 나눠 준다. 리스트 칸 16바이트만 남아 메모리가 약 1/5이 되고, 할당이 사라진다.
+- **처리(2026-11-08)**: `Value::char_str`가 한 바이트 문자열 256개를 스레드 지역 표에서 나눠 준다(`chars`·`split(s, "")`·`s[i]`). 시험 `value::tests::one_byte_characters_are_shared`. 5천만 글자 `chars` 1914.9 ms·5.78 GB → 526.6 ms·1.77 GB.
 
 ### VA12. `s[i]`가 늘 전체 글자 수를 먼저 세고, UTF-8이 아닌 문자열에서는 15~80배 느리다 — 성능, 낮음
 - 재현(200만 글자 한글, 6 MB):
@@ -1045,17 +1088,20 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - 음이 아닌 `i`는 `byte_at`으로 바로 찾고, 끝을 넘으면 그때만 길이를 센다.
   - `Text`가 만들 때 글자 수를 재 두면(이미 UTF-8 검사로 한 번 훑는다) `len`도 O(1)이 된다.
   - 잘못된 바이트가 섞인 경우의 `byte_at`·`char_count`는 `utf8_chunks`로 덩어리마다 건너뛴다.
+- **처리(2026-11-08)**: `value/text.rs` `Text`가 글자 수를 처음 셀 때 기억(`Cell`), `byte_at`은 UTF-8이면 64바이트 덩어리로 세어 건너뛰는 `text::utf8_offset`, 아니면 4 KB 창마다 검사하는 `text::byte_at`; `index`(Str)는 음이 아닌 `i`를 바로 찾고 음수는 끝에서(`text::back`·`utf8_back`), 범위 밖일 때만 길이를 센다. 시험 `text::tests::offsets_agree_with_the_units`, `value::tests::string_index_reads_up_to_the_character`. 한글 200만 자(100번 평균): `len(s)` 0.243 → 0.003 ms, `s[10]` 0.327 → 0.0007, `s[1_999_990]` 7.55 → 0.99, `len(b)`(끝에 `\xff`) 4.63 → 0.035, `b[10]` 4.48 → 0.0025, `b[1_999_990]` 23.0 → 5.4, `b[-1]` 36.1 → 0.0003 ms. 문서 02.
 
 ### VA13. 문자열 리스트의 `str`이 정수 리스트보다 12배 느리다 — 성능, 낮음
 - 재현: 11글자 문자열 200만 개의 `str`은 429.6 ms, 정수 200만 개는 35.3 ms다. `str([repeat("a", 50_000_000)])`은 0.56초에 최대 메모리 561 MB다(문자열은 50 MB).
 - 원인 위치: `crates/fung-front/src/consts.rs:175` `quote_bytes`. 문자열마다 (`$` 다음 `{`를 보려고) `Vec<Unit>`을 모으고 새 `String`을 만든다. 그것을 `value/format.rs` `leaf_text`가 다시 복사한다. ASCII 빠른 길이 없다.
 - 고치는 법: `quote_bytes`를 `&mut String`에 쓰는 형태로 바꾸고, 다음 글자는 앞질러 보기(peekable)로 본다. 이스케이프가 필요 없는 ASCII 구간은 한 번에 `push_str`한다.
+- **처리(2026-11-08)**: `fung_front::consts::write_quoted`가 `&mut String`에 쓰고 이스케이프 없는 ASCII 구간을 한 번에 옮긴다(`quote_bytes`는 그 위에). `value/format.rs`가 문자열·맵 키를 출력 버퍼에 바로 쓴다. 시험 `consts::tests::quoting_writes_what_it_did_a_character_at_a_time`(옛 구현과 같은 글). 11글자 문자열 200만 개 `str` 463.6~492.1 → 97.4~155.0 ms, `str([5천만 글자])` 466.4~470.8 → 72.9~173.9 ms, 최대 상주 755 → 355 MB, 사용자 CPU 1.2 → 0.42 s.
 
 ### VA14. `0 ** -1`이 0으로 나누기(E0502)가 아니라 E0504다 — 결정, 낮음
 - 재현: `$F -e 'print(0 ** -1)'` → `E0504 result is not a finite number`. `0.0 ** -1`도 같다. `1 / 0`은 E0502다.
 - 명세 근거: 07 "0으로 나누면 런타임 에러", "`2 ** -1 == 0.5`"(음수 지수는 역수). 음수 지수의 0은 사실상 0으로 나누기다. Python도 `ZeroDivisionError`를 낸다.
 - 원인 위치: `value/arith.rs:299` `pow`.
 - 고치는 법(결정): **추천**은 밑이 0이고 지수가 음수면 E0502를 내는 것이다(사용자가 보는 원인이 맞다). 다른 길은 그대로 두고 07에 적는 것이다.
+- **처리(2026-11-08, 사용자 결정: E0502)**: `value/arith.rs` `pow`가 밑 0·음수 지수를 `divzero()`로. 시험 `value::tests::pow_cases`. 문서 07, 매뉴얼 `language/operators.md`.
 
 ### VA15. `max([nil])`이 `nil`이라 빈 입력과 구별되지 않는다 — 결정, 낮음
 - 재현: `max([nil])` → `nil`, `min([])` → `nil`, `sort([nil])` → `[nil]`, `sort([nil, nil])` → E0501.
@@ -1063,16 +1109,19 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법(결정):
   - (가) 원소가 하나여도 그 원소가 순서를 가진 타입(`num`·`str`·`dur`·`time`·`list`·`tuple`)인지 확인한다.
   - (나) **추천**: 그대로 두고 매뉴얼에 "빈 입력과 `[nil]`을 가리려면 `is_empty`"를 적는다. 비용이 없고 드문 경우다.
+- **처리(2026-11-08, 사용자 결정 (가))**: `extras/prelude.fung` `_ordered`가 첫 원소의 타입을 보고, 순서가 없는 타입이면 `x < x`로 `<`와 같은 E0501을 낸다. 시험 `prelude::tests::prelude_in_fung_checks_like_a_native`(`max([nil])`·`min([{}])`·`max([true])`). 문서 매뉴얼 `prelude/collections.md`(min).
 
 ### VA16. 02의 "자르기는 O(1)"이 구현과 다르다 — 문서, 낮음
 - 재현 안 함(코드 읽기). `value/list.rs:157` `List::slice`는 결과가 벡터의 1/4보다 작거나 32개 이하이면 원소를 **복사**한다(큰 벡터를 붙잡지 않으려고).
   되풀이 자르기의 합은 등비라 선형으로 남는다(큐·덱 모양 2만 번이 8 ms이고 길이와 무관함을 측정으로 확인).
 - 고치는 법: 02 "`len`·자르기(`xs[a..b]`, `...rest`)는 O(1)"을 "자르기는 O(1)이거나, 결과가 원래 벡터의 1/4보다 작으면 결과 길이에 비례하는 복사"로 고친다.
+- **처리(2026-11-08)**: 02의 비용 약속을 "자르기는 O(1)이거나, 결과가 원래의 1/4보다 작거나 32개 이하면 결과 길이에 비례하는 복사"로.
 
 ### VA17. VM의 타입 이름 표에 앞단이 거절하는 `conn`·`listener`가 있다 — 정리, 낮음
 - 재현: `$F -e 'fn f(x: conn) = 1'` → `E0212 unknown type conn`. 그런데 `value/types.rs:44-45` `kind_of_name`은 두 이름에 비트를 준다(닿지 않는 코드).
 - 명세 근거: 07 "`_native.net` 안쪽 값(`conn`·`listener`)은 표기에 두지 않는다".
 - 고치는 법: 두 줄을 지운다. 또는 `kind_of_name`을 앞단의 내장 타입 이름 표와 한 곳(`fung_front`)에서 만들어 어긋나지 않게 한다.
+- **처리(2026-11-08)**: `value/types.rs` `kind_of_name`에서 `conn`·`listener` 삭제, 앞단 표 `fung_front::resolve::BUILTIN_TYPES`를 공개해 시험 `type_names_match_the_front_end`가 둘이 어긋나지 않게 지킴.
 
 ## 8. 동시성 런타임 (CC)
 
@@ -1128,6 +1177,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법: `ended`에서 `own`을 되돌린 경우(`Kind::Wait`가 되감기 중이었음), `finish`를 돌린 뒤 결과를 버리고 `t.check_cancelled()`의 E0701로 되감는다. `finish`를 먼저 돌리는 이유는 열린 핸들 같은 것이 값으로 만들어져야 버려지며 닫히기 때문이다. `CommandWait::finish`와 같은 규칙이다.
   - 시험: 위 두 재현. 취소된 태스크는 `Err({kind: 'cancelled})`, `timeout`은 `'timeout`이어야 한다.
   - `fs.open`처럼 `finish`가 핸들을 만드는 일에서, 되감기와 함께 핸들이 닫히는지(닫기 스레드로 가는지)도 확인한다.
+- **처리(2026-11-08)**: `vm/offload.rs` `Job::ended`가 되감기 중이던 `Kind::Wait`면 `restore_cancel_node` 뒤 `finish`를 돌리고(만든 핸들이 값이 되어 버려지며 닫기 스레드로 감) 결과를 버린 채 `check_cancelled`의 E0701로 되감는다. 시험 `park_tests.rs` `a_deadline_while_a_job_runs_wins_once_it_ends`(옛 `an_offload_wait_is_not_cut_by_a_cancel`의 nc1 기대를 `'timeout`으로), `a_cancel_while_a_job_runs_drops_its_value`(`block_job`과 `/dev/null`을 여는 `block_open_job`; 핸들이 놓였는지 `handle_alive`로 확인, testutil에 두 탐침 추가). 문서 05(풀 일 줄), 매뉴얼 `reference/prelude/concurrency.md`("그 일의 결과는 버린다").
 
 ### CC3. `fs.copy`가 FIFO에서 풀 스레드로 막혀 기한·취소를 영영 무시한다 — 버그, 중간
 - **처리(2026-11-08)**: LB7과 같은 커밋(정규 파일이 아니면 `Err 'invalid`).
@@ -1176,6 +1226,8 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법:
   - (가) **추천**: `prepare`와 `spawn`을 풀 일(`Kind::Wait`, 시작 전 취소면 버림)로 넘기고, `Child`(Send)를 받아 `CommandWait::start`로 잇는다. 실행 스레드는 멈추지 않고 `fork`도 풀 스레드에서 일어난다.
   - (나) `pre_exec`를 없애 `posix_spawn`을 쓰게 한다. 시그널 마스크는 `posix_spawnattr_setsigmask`로 되지만, `RLIMIT_NOFILE` 되돌리기를 대신할 길이 없어 비추천이다.
+- **처리(2026-11-08, (가))**: `native/process.rs` `run_command`가 `own_group`·`prepare`·`spawn`을 풀 일로 넘기고(새 `offload::Kind::Start`: `Wait`처럼 기다리되 `Shared::starts` 풀, `pool.rs` `STARTS_MAX` 4), 받은 `Child`로 `CommandWait::start`. 일이 도는 중 취소가 오면 `finish`의 `check_cancelled`가 되감고, 시작된 명령은 `Started`의 `Drop`이 SIGKILL하고 풀에서 거둔다(REPL이 버린 경우도). 시험 `process_tests.rs` `exec_starts_on_the_pool_and_parks_on_the_loop`(offload 1번), Linux 전용 `without_pidfd_commands_take_no_pool_thread`는 그대로 통과(시작은 따로 풀이라 파일 풀 스레드 0), 릴리스 `perf.rs` `fifty_commands_at_once`(스레드 20개 미만)가 지킨다. 문서 05, 매뉴얼 `vm/internals.md`. 측정은 아래 "남은 것".
+- **후속 결정(2026-11-09, 사용자 결정: 지금대로)**: 큰 힙의 `fork` 멈춤(17~19 ms)은 `libc::posix_spawn`으로 바꾸지 않고 알려진 한계로 둔다(열린 파일 한도를 되돌리는 일을 지키고, Linux에서 재지 못한 변경을 넣지 않음). open-questions "알려진 한계".
 
 ### CC5. 두 번째 신호(와 SIGHUP)의 즉시 종료가 자기 그룹의 외부 명령을 고아로 남긴다 — 결정, 중간
 - **처리(2026-11-08, 사용자 결정 (가))**: `native/process.rs`의 그룹 등록부(`groups`, `kill_own_groups`)와 `signals::exit_now`. 시험 `signals.rs` `a_second_signal_ends_the_commands_it_started`, 문서 05·CHANGELOG.
@@ -1216,6 +1268,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - (가) **추천**: 판정은 그대로 둔다. 다만 정지 요청이 보는 쪽에 갔는데 그 순간 그 채널에서 기다리는(`recv`·`wait_closed`·순회) 태스크가 하나도 없으면, 표준 에러에 note 한 줄(`stop requested; press again to end now`)을 쓴다. 의미는 그대로 두고 침묵만 없앤다.
   - (나) "보는 쪽"을 "지금 기다리는 태스크가 있음"으로 좁힌다. 쥐고 있다가 나중에 보는 정상 프로그램(`drain` 중의 서버)이 취소당할 수 있어 비추천이다.
   - (다) 문서에 함정으로만 적는다.
+- **처리(2026-11-08, 사용자 결정 (가))**: `vm/stop.rs` `stop`이 닫기 전에 정지 채널에 기다리는 받는 쪽(`Channel::waited_on`: 막힌 `recv`·순회·`wait_closed`)이 있는지 보고, 보는 쪽은 있는데 기다리는 태스크가 없으면 표준 에러에 `note: stop requested; press again to end now`. 시험 `stop_tests.rs` `a_stop_nobody_waits_for_says_so`. 문서 05·08, 매뉴얼 `reference/prelude/concurrency.md`(`stop_signal`), `vm/14-cancellation.md`.
 
 ### CC7. 표준 입력 읽기 스레드를 못 띄우면 패닉하고 입력을 잃는다 — 버그, 낮음
 - 재현 안 함(코드 읽기).
@@ -1223,11 +1276,13 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 원인 위치: `crates/fung-vm/src/vm/stdin.rs` `Stdin::poll`. `s.source.take()`로 입력을 꺼낸 뒤 `.expect("start the standard input reader")`로 스레드를 띄운다.
   패닉 울타리가 E0801로 바꿔도 `source`는 이미 사라졌다. 그래서 다른 태스크의 다음 `read_line`은 대기 목록에 올라 바깥이 깨울 것으로 세어지고(교착으로 판정되지 않음) 영원히 기다린다.
 - 고치는 법: 스레드를 먼저 띄우고 성공했을 때만 `source`를 넘긴다(실패면 되돌려 놓음). 또는 실패를 `Err`/E0801로 돌려주는 경로를 둔다.
+- **처리(2026-11-08)**: `vm/stdin.rs` `Stdin::poll`이 스레드를 먼저 띄우고(스레드가 돌기 시작하면 `source`를 스스로 꺼냄), 실패하면 입력을 그대로 두고 에러를 돌려준다. `Task::stdin_poll`(vm.rs, 반환형만)·`prelude/io.rs`의 `read_line`·`read_lines`가 E0801 `cannot start a job: …`로. 시험 `park_tests.rs` `a_reader_that_cannot_start_is_e0801_and_keeps_the_input`(시험 전용 `fail_start_for_tests`).
 
 ### CC8. `TaskEnd`의 `scope: Option`은 늘 `Some`이다 — 정리, 낮음
 - 재현 안 함(코드 읽기): `TaskEnd::new`를 부르는 곳은 `Task::start` 하나이고, `start`를 부르는 곳은 `spawn_in` 하나(`Some(s.clone())`)다.
 - 원인 위치: `crates/fung-vm/src/vm/task.rs` `Task::start`, `TaskState::new`의 `unwrap_or_default`. `vm/scope.rs` `TaskEnd::body_ended`의 `let Some(s) = … else { return Ok(self.ended(t, r)) }` 가지에는 닿지 않는다.
 - 고치는 법: `start`를 `spawn_in`에 합치고, `TaskEnd`는 `Rc<ScopeState>`를 쥐게 한다(`Option`은 `ended`의 take 용도만). 범위 없는 태스크가 원리상 없다는 것(05 "태스크 범위 안에서만")이 타입에 드러난다.
+- **처리(2026-11-08)**: `vm/task.rs` `Task::start`를 `spawn_in`에 합침, `vm/scope.rs` `TaskEnd::new`가 `Rc<ScopeState>`를 받음(`Option`은 `ended`의 take 용도만), 닿지 않던 범위 없는 가지 삭제.
 
 ## 9. 표준 라이브러리 (LB)
 
@@ -1245,6 +1300,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: RFC 9112 3.2(request-target은 공백 없는 ASCII), RFC 3986 3.4. 06 "URL 경로의 UTF-8이 아닌 바이트는 퍼센트 인코딩해 보내고"는 경로만 말하고 쿼리는 말하지 않는다.
 - 원인 위치: `extras/http.fung:729` `_request_uri`(쿼리 `u.query`를 그대로 붙인다). 경로만 `_escaped_path`(1333)를 거친다.
 - 고치는 법: 쿼리에도 `_escaped_query`를 둔다. 쿼리에 쓸 수 있는 글자(RFC 3986 query = pchar / "/" / "?")와 `%XX`는 그대로 두고, 나머지 바이트는 `%XX`로 바꾼다. `_url_tail`(에러와 Referer)도 같이 바꾼다.
+- **처리(2026-11-08)**: `extras/http.fung` `_escaped_query`(`_request_uri`·`_url_tail`), `_percent`를 경로 인코딩과 함께 씀. 시험 `http.rs` `the_query_is_escaped_in_the_request_line`, 기대 출력 `http/client.txt`·`proxies.txt`(요청 줄), 문서 06 "약속 밖"·`http.md` 약속.
 
 ### LB2. 리다이렉트가 포트·스킴만 바뀌어도 Authorization·Cookie를 그대로 보낸다 — 결정(보안), 중간
 - **처리(2026-11-08, 사용자 결정 (가))**: `extras/http.fung` `_leaves_origin`·`_port_of`. https → http도 TLS 가짜 서버로 확인했다. 시험 `http.rs` `a_redirect_to_another_origin_drops_the_credentials`, 기대 출력 `http/redirects.txt`(포트가 바뀌는 세 사례), 문서 06·`http.md`·CHANGELOG "보안".
@@ -1273,12 +1329,14 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   클라이언트 쪽 `_bad_header`는 같은 경우를 에러로 거절하는데 서버 쪽만 다르다.
 - 원인 위치: `extras/http.fung:1939` `_header_lines`(토큰이 아닌 이름은 filter로 빼고, `\r`·`\n`만 공백으로 바꾼다). 1852 `_parts`는 이름과 값의 문법을 보지 않는다.
 - 고치는 법: `_parts`에서 이름이 `_is_token`이 아니거나 값이 `_valid_value`가 아니면 잘못된 답(500과 보고)으로 한다. 그러면 `_header_lines`의 바꾸기·거르기는 필요 없다. 매뉴얼의 잘못된 답 목록에도 더한다.
+- **처리(2026-11-08)**: `extras/http.fung` `_parts`가 토큰 아닌 이름·제어 문자 든 값을 잘못된 답으로, `_header_lines`는 거르기·바꾸기 없이 앞뒤 공백만 뗌. 시험 `http.rs` `the_server_checks_answers_and_requests`, `SERVER`의 `/headers`를 바른 헤더로, 기대 출력 `http/server.txt`, 문서 06·`http.md`.
 
 ### LB4. 서버의 `req.headers`에 `host`가 없다 — 결정·문서, 중간
 - 재현: `GET /hdr HTTP/1.1\r\nHost: example.org\r\nX-Y: 1` → 핸들러가 보는 `req.headers`는 `{"x-y": "1"}`이다.
 - 명세 근거: `manual/reference/modules/http.md` "서버" `headers: 소문자 키의 맵`. 06의 `req` 설명에도 Host를 뺀다는 말이 없다. 핸들러가 가상 호스트를 가를 길이 없다.
 - 원인 위치: `extras/http.fung:1648` `_request_head`(`_header_map(remove(h, "Host"))`).
 - 고치는 법: **추천**은 `host`를 그대로 두는 것이다. 검사는 이미 `_valid_host`에서 했고, 지울 까닭이 없으며, 다른 서버 라이브러리는 모두 보여 준다. 다른 길은 지금처럼 두고 매뉴얼에 적는 것이다.
+- **처리(2026-11-08, 사용자 결정)**: `extras/http.fung` `_request_head`가 `Host`를 지우지 않음. 시험 `the_server_checks_answers_and_requests`, 기대 출력 `http/server.txt`(echo의 `host`), 문서 06·`http.md`.
 
 ### LB5. `http.*`의 `timeout`에 음수를 주면 "제한 없음"이다 — 버그, 중간
 - 재현: 3초 뒤에야 답하는 서버에 `http.get(url, timeout: -1s)` → 3초를 기다려 `Ok`.
@@ -1287,6 +1345,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 원인 위치: `extras/http.fung:65` `_request`(`limit > 0s then … else _attempt(...)`).
 - 고치는 법: **추천**은 음수를 E0403으로 거절하는 것이다(`timeout`은 0 이상, `max_body`처럼). 다른 길은 prelude처럼 곧바로 시간 초과로 하는 것이다.
   "0이면 제한 없음"과 prelude의 "0이면 곧바로 시간 초과"가 다른 것도 매뉴얼에 나란히 적는다.
+- **처리(2026-11-08, 사용자 결정)**: `extras/http.fung` `get`·`post`·`request`의 `timeout: dur | nil`, `_request`가 `nil`이면 한도 없이, 아니면 늘 `_within`(prelude `timeout`). 시험 `http.rs` `a_timeout_of_zero_or_less_times_out_at_once`, `cases`·`ARG_ERRORS`의 `timeout: 0s`를 `nil`로, 문서 06·`http.md`.
 
 ### LB6. `fs.copy`가 파일 전체를 메모리에 읽는다 — 성능, 중간
 - **처리(2026-11-08)**: LB7과 같은 커밋(64 KiB 버퍼로 흘려 보냄).
@@ -1348,6 +1407,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: RFC 9110 15.2 "A server MUST NOT send a 1xx response to an HTTP/1.0 client". 매뉴얼과 06에는 1xx를 200으로 바꾼다는 말이 없고, 101만 잘못된 답으로 적혀 있다. 핸들러가 돌려준 상태가 말없이 200이 되는 것은 원칙 1과 맞지 않는다.
 - 원인 위치: `extras/http.fung:1913` `_reply`(1xx 갈래), 1866 `_parts`.
 - 고치는 법: **추천**은 101처럼 1xx 모두를 잘못된 답(500)으로 하는 것이다. 핸들러는 답을 하나만 돌려주므로 1xx를 보낼 길이 원래 없다.
+- **처리(2026-11-08)**: `extras/http.fung` `_parts`의 상태 범위를 200~599로(101 따로 두지 않음), `_reply`의 1xx 갈래 삭제. 시험 `the_server_checks_answers_and_requests`, 기대 출력 `http/server.txt`(`/early`·`/switch`), 문서 06·`http.md`.
 
 ### LB13. 서버가 HTTP/1.0 요청의 Transfer-Encoding을 무시해, 조각 전송 본문이 빈 본문이 된다 — 버그, 낮음
 - 재현:
@@ -1356,6 +1416,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: RFC 9112 6.1 "A server or client that receives an HTTP/1.0 message containing a Transfer-Encoding header field MUST treat the message as if the framing is faulty".
 - 원인 위치: `extras/http.fung:925` `_transfer_encoding`(1.1 미만이면 `Ok((rest, false))`). 서버(1626)와 클라이언트(888)가 함께 쓴다.
 - 고치는 법: 서버에서는 HTTP/1.0 + TE를 400으로 한다. 클라이언트는 연결 끝까지 읽기로 다루는 지금도 괜찮다(응답 하나 뒤에 닫으므로). 함수에 "요청인지" 인자를 두거나, 서버 쪽에서 먼저 검사한다.
+- **처리(2026-11-08)**: `extras/http.fung` `_request_head`에서 HTTP/1.0 + `Transfer-Encoding`은 400(클라이언트는 그대로). 시험 `the_server_checks_answers_and_requests`, 기대 출력 `http/server.txt`, 문서 06·`http.md`.
 
 ### LB14. 클라이언트가 `+20`·`999`·`HTTP/2.0` 상태 줄을 받아들인다 — 버그, 낮음
 - 재현: `canned.py`가 차례로 `HTTP/1.1 +20 OK`, `HTTP/1.1 999 X`, `HTTP/2.0 200 OK`로 답한다 → `Ok({status: 20, …})`, `Ok({status: 999, …})`, `Ok({status: 200, …})`.
@@ -1363,12 +1424,14 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: RFC 9112 4 `status-code = 3DIGIT`, RFC 9110 15 "Values outside the range 100..599 are invalid". HTTP/1.1 요청에 HTTP/2.0 상태 줄은 틀이 맞지 않는다.
 - 원인 위치: `extras/http.fung:788` `_status_line`. `_atoi`(808)가 부호를 받고, 3바이트 검사가 `+20`을 지나보내며, 범위 검사는 `code < 0`뿐이다. `_version`이 major 2를 받는다.
 - 고치는 법: 세 글자가 모두 숫자이고 100~599인지 본다. major가 1이 아니면 `invalid HTTP version`으로 거절한다.
+- **처리(2026-11-08)**: `extras/http.fung` `_status_line`이 세 자리 숫자 100~599와 `HTTP/1.`을 봄(`_atoi` 삭제). 시험 `http.rs` `status_lines_need_three_digits_and_http_1`, 문서 06·`http.md`.
 
 ### LB15. `_native.net.need_count`의 E0403이 값 대신 타입을 보인다 — 버그, 낮음
 - 재현: `http.get("http://127.0.0.1:1/", max_body: -1)` → `error[E0403]: argument `max_body` must be a non-negative int, got int`.
   json은 같은 경우에 `got -1`이라고 바르게 쓴다(`json.stringify([1], indent: -1)`).
 - 원인 위치: `crates/fung-vm/src/native/net.rs:1283` `need_count`(`nat::wrong_arg`가 `type_name`을 쓴다). 바른 꼴은 `json.rs:490`, `conc.rs:255`다.
 - 고치는 법: `nat::fail("E0403", [name, "a non-negative int", 값])`으로 쓴다. 이 셋을 `nat`의 도우미 하나로 모은다.
+- **처리(2026-11-08)**: `native/nat.rs` `not_count` 하나로 `net.rs` `need_count`·`json.rs` indent·`conc.rs` channel의 E0403을 모음(값을 보임). 시험 `net::tests::wrong_arguments_are_e0403`.
 
 ### LB16. 서버가 본문 한도를 보기 전에 `100 Continue`를 보내고, HTTP/1.0의 Expect에 417로 답한다 — 버그, 낮음
 - 재현 안 함(코드 읽기). `_respond`가 `Content-Length: 20000000` + `Expect: 100-continue`에 먼저 100을 보낸다. 그래서 클라이언트는 20 MB를 다 보낸 뒤에야 413을 받는다. 큰 본문을 보내기 전에 거절하려는 Expect의 목적에 어긋난다.
@@ -1376,16 +1439,19 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: RFC 9110 10.1.1 "a server MAY … send a final status code instead of 100 (Continue)", "A server that receives a 100-continue expectation in an HTTP/1.0 request MUST ignore that expectation".
 - 원인 위치: `extras/http.fung:1765` `_respond`, 1789 `_request_body`.
 - 고치는 법: 100을 보내기 전에 `rq.length > _max_body`면 곧바로 413을 보낸다. Expect 검사는 1.1 이상일 때만 한다.
+- **처리(2026-11-08)**: `extras/http.fung` `_respond`가 `Expect`를 HTTP/1.1 이상에서만 보고, `100-continue`인데 `Content-Length`가 16 MiB를 넘으면 100 없이 413. 시험 `the_server_checks_answers_and_requests`, 문서 06·`http.md`.
 
 ### LB17. `fs.write`는 그 자리에서 잘라 쓴다(원자적이지 않음) — 결정, 낮음
 - 재현 안 함(코드 읽기). `write_file`/`write_closed`는 `O_TRUNC` 다음에 `write_all`이다. 도중에 죽거나 디스크가 차면 설정 파일이 비거나 반만 남고, 동시에 읽는 쪽은 빈 파일을 볼 수 있다.
   `fung fmt`는 "옆에 임시 파일을 쓰고 이름을 바꿔 덮으므로 … 반만 남지 않는다"(`manual/reference/cli.md`)인데, 사용자에게는 같은 도구가 없다. LB8 때문에 임시 디렉터리를 거쳐 옮기는 방법도 막힐 수 있다.
 - 고치는 법(결정): **추천**은 `fs.write(path, text, perm = nil, atomic = false)`(같은 디렉터리의 임시 파일 + rename, `fmt`의 코드를 재사용)를 0.5.0 뒤 후보로 open-questions에 적는 것이다. 다른 길은 매뉴얼에 패턴만 적는 것이다.
+- **처리(2026-11-08, 사용자 결정)**: `native/fs.rs` `write_whole`(같은 디렉터리 임시 파일 `.<이름>.<pid>-<n>.tmp`, `fsync`, `close_checked`, `rename`; 실패하면 임시 파일을 지우고 원래 파일 그대로; 하드 링크 여럿·소유자 다름·정규 파일 아님·빈 링크·임시 파일을 못 만드는 디렉터리는 그 자리에)를 `fs.write`와 `fung fmt`(`fmt.rs` `write`)가 함께 씀. 시험 `fs::tests::write_replaces_a_regular_file_whole`, 문서 06·`fs.md`·`cli.md`.
 
 ### LB18. `fs.glob`은 읽지 못하는 디렉터리를 말없이 건너뛴다(`list`·`walk`는 에러) — 결정, 낮음
 - 재현: `chmod 000 d/nr` 뒤 `fs.glob("d/nr/*")` → `Ok([])`. `fs.list("d/nr")`와 `fs.walk("d")`는 `Err({kind: 'permission, …})`.
 - 명세 근거: `manual fs.md` 345 "읽지 못하는 디렉터리는 조용히 건너뛴다"(문서화돼 있다). 이것은 원칙 1, 그리고 06 "`walk`가 읽지 못한 디렉터리는 그 경로로 에러가 난다"와 다르다. 권한 문제로 정리 스크립트가 "지울 파일 없음"으로 끝날 수 있다.
 - 고치는 법(결정): **추천**은 패턴이 들어가는 디렉터리를 읽지 못하면 `walk`처럼 그 경로의 `Err`로 하는 것이다. 다른 길은 문서대로 두는 것이다(셸·Go의 `Glob`과 같음).
+- **처리(2026-11-08, 사용자 결정)**: `native/glob.rs` `glob`이 `Failure::{Pattern, Path}`를 돌려줌(읽지 못한 디렉터리·stat 실패는 그 경로, 없음·파일은 맞는 것 없음), `fs.rs` `glob_fn`이 `fs_err("glob", …)`. 시험 `fs::tests::listings_keep_gos_order`(잠긴 디렉터리 네 사례), 기대 출력 `fs/runs.txt`(잠긴 디렉터리를 지나는 패턴은 `[^l]*`·`ln*`로 나눔), 문서 06·`fs.md`.
 
 ### LB19. `path`의 끝 `/` 규칙이 함수마다 달라 `stem + ext != base`다 — 결정, 낮음
 - 재현:
@@ -1397,6 +1463,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: `manual path.md` `stem` "`path.base`에서 `path.ext`를 뗀 것"(`ext`가 `p`의 것인지 `base(p)`의 것인지 둘 다로 읽힌다). `base`는 "끝의 `/`는 무시", `dir`는 "끝에 `/`가 있으면 그 앞까지가 디렉터리"(Go와 같음). 원칙 7.
 - 원인 위치: `crates/fung-vm/src/native/path.rs` `stem_fn`(`ext(&base(p))`), `ext`(`p`를 그대로 본다).
 - 고치는 법(결정): **추천**은 적어도 `ext`를 `base(p)`에서 계산해 `stem + ext == base`가 늘 서게 하는 것이다. `dir`도 끝 `/`를 무시할지(셸 `dirname`처럼)는 함께 묻는다.
+- **처리(2026-11-08, 사용자 결정)**: `native/path.rs` `trimmed`로 `dir`·`ext`가 끝 `/`를 무시. 시험 `path::tests::join_base_dir_ext_stem`·`tests/lang/path_rules.fung`, 기대 출력 `prelude/runs.txt` 한 줄, 문서 06 표·`path.md`.
 
 ### LB20. `time`: 날짜 없는 형식이 지역 LMT 오프셋을 내고, 윤초·잘못된 `TZ`는 말없이 처리된다 — 결정·문서, 낮음
 - 재현:
@@ -1407,6 +1474,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - 형식에 날짜가 없으면 E0403 또는 `Err 'parse`로 하거나, 1970-01-01 UTC 같은 고정 기준을 쓴다.
   - 윤초는 매뉴얼에 "60은 받지 않음"을 적는다(이것은 꼭 한다).
   - `TZ`를 읽지 못하면 첫 사용 때 표준 에러에 경고 한 줄을 쓴다.
+- **처리(2026-11-08, 사용자 결정)**: `native/timefmt.rs` `names_a_date`, `time.rs` `parse_fn`의 E0403; `native/tz.rs` `resolve`(이름을 읽었는지)와 `local()`의 경고 한 줄; 윤초는 문서. 시험 `time::tests::parse_formats_need_a_date`, `tz::tests::a_tz_naming_no_zone_is_told`, `time_expected.rs`(날짜 없는 형식 사례를 날짜 있는 형식으로 바꾸고 E0403 사례 하나 더함, 사례 수 176·22; `No/Such_Zone`의 경고), `tests/lang/time_rules.fung`, 문서 06 "시간 형식"·`time.md`.
 
 ### LB21. 두 벌의 헤더 코드, 문구로 하는 판정, 낡은 주석 — 정리, 낮음
 - 헤더 줄 규칙이 Rust(`net.rs` `Fields::flush`/`read`)와 fung(`extras/http.fung:843` `_field_step`, 874 `_flush`, 862 `_fields_of`) 두 벌이다. fung 쪽은 이제 트레일러(`_trailer_lines` → `_fields_of`)만 쓴다.
@@ -1416,11 +1484,13 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 낡은 주석이 둘 있다.
   - `crates/fung-vm/src/native/time.rs:4` "runs under the execution right": 실행권 런타임(3a)은 R5에서 지웠다.
   - `crates/fung-cli/src/test.rs`의 `/// Compiles one file with its tests and runs it.`가 `sched_seed` 위에 붙어 있다. `test_file`의 문서 주석이 자리를 잃었다.
+- **처리(2026-11-08)**: 트레일러를 `_net.read_fields`로 읽고 `extras/http.fung`의 `_field_step`·`_fields_of`·`_flush`·`_trailer_lines`·`_trailer_end`·`_trailer_err` 삭제, 머리 주석 고침; `net.rs` `Fail::Closed`(`kind: 'closed`, 닫힌 연결·리스너)와 `_accept`의 kind 판정; `fung-cli/src/paths.rs`가 `native::path::base`·`native::fs::read_dir`를 씀; `time.rs` 머리 주석(실행권), `fung-cli/src/test.rs`의 `test_file` 문서 주석 제자리. 시험 `net::tests::close_wakes_a_task_blocked_on_the_same_handle`·`the_fd_index_empties_with_the_table`(kind), 기대 출력 `http/client.txt` 한 줄.
 
 ### LB22. 06 표의 http 서명이 늦고, 쿼리 규칙이 매뉴얼에 없다 — 문서, 낮음
 - 06 "모듈" 표의 `http` 줄은 `get(url, headers = {}, timeout = 30s)`이고 `max_body`(L13)가 없다. `serve(addr, handler, ready = nil)`에도 `drain`·`reuse_port`가 없다(아래 "서버" 절에는 있다).
 - 서버의 `query`는 `;`가 든 쌍을 버리고(`http.fung:1708` `_query_pair`), 1만 쌍을 넘으면 통째로 `{}`다. `manual http.md` "서버"에는 "잘못된 `%` 이스케이프가 든 쌍은 빠진다"만 있다.
   1만 쌍 넘는 쿼리를 말없이 비우는 것은 원칙 1에도 걸린다. 400이 더 맞다(이 부분은 결정).
+- **처리(2026-11-08, 사용자 결정)**: 06 표의 `http` 서명(`max_body`, `timeout: dur | nil`, `serve`의 `drain`·`reuse_port`), `extras/http.fung` `_query`가 1만 쌍을 넘으면 `nil` → 400. 시험 `the_server_checks_answers_and_requests`, 기대 출력 `http/server.txt`, 문서 06·`http.md`(`&`·`;`·잘못된 이스케이프·1만 쌍).
 
 ## 10. CLI 도구 (TL)
 
@@ -1440,6 +1510,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 08 "REPL" "블록이 열려 있거나 … 줄이 이어짐 토큰으로 끝나면 다음 줄을 이어 받는다". 01이 허용하는 여러 줄 리터럴을 REPL만 못 받는다.
 - 원인 위치: `crates/fung-cli/src/repl/mod.rs` `needs_more`(렉서 에러면 `false`).
 - 고치는 법: 렉서의 "닫히지 않은 문자열" 에러가 입력 끝에서 났으면 `true`로 한다.
+- **처리(2026-11-08)**: `crates/fung-cli/src/repl/mod.rs` `needs_more`가 E0104일 때 끝에 `` ` ``를 붙여 다시 렉싱해 그 에러가 사라지면(열린 원시 문자열) 이어 받는다. 입력이 형식 중간에서 끝나면 모은 입력을 컴파일해 문법 에러를 보인다. 시험 `needs_more_when_the_parser_stops_at_the_end`에 사례, `repl/sessions.txt`에 "a raw string over lines". 문서 08 REPL, 매뉴얼 `reference/cli.md`.
 
 ### TL3. 표준 입력이 파이프인 REPL: 프롬프트와 `nil`이 표준 출력에 섞이고, 에러가 나도 종료 코드는 0이다 — 결정, 낮음
 - 재현: `printf '1/0\nprint("after")\n' | $F; echo $?` → 표준 출력 `> > after\nnil\n> \n`, 표준 에러에 E0502, 종료 코드 `0`.
@@ -1448,6 +1519,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 고치는 법(결정):
   - (가) **추천**: 터미널이 아니면 프롬프트를 쓰지 않고, 에러가 한 번이라도 났으면 1로 끝낸다.
   - (나) 터미널이 아니면 표준 입력 전체를 스크립트로 실행한다(`node`·`sh`처럼). 그러면 `read_line`과 입력을 나눠 쓰는 지금의 쓰임이 깨진다.
+- **처리(2026-11-08, 사용자 결정 (가))**: `repl/line.rs` `PlainReader`가 프롬프트를 쓰지 않고 `LineReader::interactive`가 false, `repl/mod.rs` `Session`이 에러마다 `failed`를 세우고 `finish`가 `exit(n)` 아니면 에러 시 1(런타임의 `failed()`도 봄). 시험 `tools_expected.rs` `repl/sessions.txt`(다시 씀, "exit after an error" 추가, `REPL_CASES` 32), `repl_*` 개별 시험들, `repl_tty.rs` `a_pipe_never_sets_raw_mode`·`repl/tty.txt`. 문서 08(REPL·종료 코드 표), 매뉴얼 `reference/cli.md`(REPL·종료 코드 표).
 
 ### TL4. 남는 명령줄 인자를 명령마다 다르게 다룬다 — 버그, 낮음
 - 재현:
@@ -1456,11 +1528,13 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
 - 명세 근거: 08 종료 코드 3 "잘못된 인자". 08 `check`는 남는 인자를 사용 오류로 한다고 정했다.
 - 원인 위치: `crates/fung-cli/src/main.rs` `run`(version/help), `run_dump`(`[e, rest @ ..]`), `check.rs`의 문구.
 - 고치는 법: 남는 인자는 모두 `usage_error`로 한다(``dump takes one path or -e CODE``). `check`의 문구를 경우마다 나눈다. `USAGE`에 `check -e`·`dump … -e`를 더한다.
+- **처리(2026-11-08)**: `main.rs` `run`(version/help 남는 인자), `run_dump`·`check.rs` `run_check`의 경우 나누기와 문구, `USAGE`에 `check -e`·`dump … -e`. 시험 `main.rs` `extra_arguments_are_usage_errors`, `check.rs` `arguments`, 기대 출력 `cli/help.txt`(`version extra` 추가, `HELP_CASES` 9)·`cli/version.txt`·`check/arguments.txt`·`dump/dumps.txt` 등 사용법 바뀐 곳. 문서 08, 매뉴얼 `reference/cli.md`(사용법·남는 인자).
 
 ### TL5. `fung test`가 시험 0개에도 성공하고, 잘못된 `FUNG_SCHED_SEED`를 말없이 무시한다 — 결정, 낮음
 - 재현: `fung test empty_dir` → `0 passed, 0 failed`, 종료 0(경로 오타나 빈 디렉터리가 CI에서 통과한다). `FUNG_SCHED_SEED=abc`나 `-1`이면 아무 말 없이 무작위 씨앗을 쓴다(`test.rs` `sched_seed`, `parse().ok()`).
   같은 이름의 시험은 FE20에서 다룬다.
 - 고치는 법(결정): **추천**은 시험 0개에 경고 한 줄(또는 pytest처럼 다른 종료 코드), 잘못된 씨앗에 사용 오류(3)를 내는 것이다.
+- **처리(2026-11-08, 사용자 결정)**: `test.rs` `run_test`가 시험 0개면 `no tests found`(표준 에러)와 1, `sched_seed`가 `Result`로 숫자만의 u64가 아니면 ``error: FUNG_SCHED_SEED must be a whole number from 0 to 18446744073709551615, not `abc` ``와 3(파일을 돌기 전). 시험 `tools_expected.rs` `test_without_tests_fails`·`test_refuses_a_bad_scheduler_seed`, 기대 출력 `test/repository.txt`(시험 없는 파일 170개가 1)·`test/fixtures.txt`(`no_tests.fung`). 문서 08, 매뉴얼 `reference/cli.md`.
 
 ## 11. 확인했고 문제없던 것 (다시 검사하지 않아도 됨)
 

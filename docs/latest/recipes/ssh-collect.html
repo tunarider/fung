@@ -88,7 +88,7 @@ fn split_args(xs, before) = match xs:
 # Ok(output) of cmd on one host, or Err(why).
 fn run_on(host, cmd):
   ssh = [&quot;ssh&quot;, &quot;-o&quot;, &quot;BatchMode=yes&quot;, &quot;-o&quot;, &quot;ConnectTimeout=5&quot;, host]
-  match timeout(30s, () =&gt; exec(ssh + cmd)):
+  match timeout(() =&gt; exec(ssh + cmd), 30s):
     Ok(res)                       =&gt; Ok(res.out)
     Err({kind: 'timeout})         =&gt; Err(&quot;no answer in 30s&quot;)
     Err({kind: 'exit, code, err}) =&gt; Err(&quot;exit ${code}: ${trim(err)}&quot;)
@@ -123,7 +123,7 @@ $ echo $?
 <li><code>split_args</code>: 인자 리스트를 <code>--</code> 앞과 뒤로 나눈다. 리스트 패턴 <code>[&quot;--&quot;, ...cmd]</code>는 "첫 원소가 <code>--</code>이고 나머지가 <code>cmd</code>"다. 앞쪽은 <code>before + [x]</code>로 하나씩 쌓으며 자기 자신을 다시 부른다(꼬리 호출이라 길어도 된다). <code>--</code> 뒤는 원격 명령이므로 <code>-h</code> 같은 옵션도 그대로 넘어간다.</li>
 <li><code>ssh</code> 리스트: <code>BatchMode=yes</code>는 비밀번호를 묻지 않고 바로 실패하게 한다. 동시에 수십 대에서 비밀번호 프롬프트가 뜨면 어느 서버의 것인지 알 수 없기 때문이다. <code>ConnectTimeout=5</code>는 접속 단계에서만 5초를 기다린다.</li>
 <li><code>exec(ssh + cmd)</code>: 명령을 문자열이 아니라 리스트로 넘기므로 이쪽 쉘이 끼어들지 않는다. 서버 이름에 무엇이 들어 있어도 따옴표 걱정이 없다. 끝나면 <code>Ok({out, err, code})</code>, 종료 코드가 0이 아니면 <code>Err({kind: 'exit, code, out, err, message})</code>다.</li>
-<li><code>timeout(30s, () =&gt; …)</code>: 30초 안에 끝나지 않으면 <code>ssh</code>를 끝내고 <code>Err({kind: 'timeout})</code>을 준다. 접속은 됐지만 명령이 멈춘 서버(NFS가 걸린 <code>df</code> 등)도 여기서 끊긴다. 이 <code>Err</code>에는 <code>message</code>가 없으므로 따로 맞춘다.</li>
+<li><code>timeout(() =&gt; …, 30s)</code>: 30초 안에 끝나지 않으면 <code>ssh</code>를 끝내고 <code>Err({kind: 'timeout})</code>을 준다. 접속은 됐지만 명령이 멈춘 서버(NFS가 걸린 <code>df</code> 등)도 여기서 끊긴다. 이 <code>Err</code>에는 <code>message</code>가 없으므로 따로 맞춘다.</li>
 <li><code>match</code>의 맵 패턴: <code>Err({kind: 'exit, code, err})</code>는 "<code>kind</code>가 <code>'exit</code>인 맵"에만 맞고 <code>code</code>와 <code>err</code>를 꺼낸다. 위에서 아래로 처음 맞는 가지 하나만 돈다.</li>
 <li><code>conc.pmap(hosts, …, limit: 8)</code>: <code>map</code>처럼 서버마다 함수를 부르되 여러 개를 동시에 돌린다. <code>limit: 8</code>이면 8대씩 묶어서 돌고, 결과 리스트는 끝난 순서가 아니라 <strong>입력 순서</strong> 그대로다. 그래서 <code>zip(hosts, results)</code>로 서버와 결과를 바로 짝지을 수 있다.</li>
 <li>실패는 런타임 에러가 아니라 <code>Err</code> 값으로 결과 리스트에 남는다. 한 대가 실패해도 나머지는 끝까지 돈다.</li>

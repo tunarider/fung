@@ -20,11 +20,10 @@
 //! **Where a box sits.** `depth` is the frame count when the native was
 //! called: the box is due when the frames are back to that count. Two
 //! boxes can sit at one depth (a step native that is itself the callback
-//! of another, `map(fs, scope)`); the later one is due first. A run loop
-//! only serves the boxes put on the list after it started (`floor`).
-//! Today a task has one run loop at a time and entry points start on an
-//! empty list (`Task::call_root` asserts it), so `floor` is always 0: it
-//! is a guard, so that a second loop could never resume a box of another.
+//! of another, `map(fs, scope)`); the later one is due first. A task has
+//! one run loop at a time and entry points start on an empty list
+//! (`Task::call_root` asserts it), so the loop serves every box on the
+//! list and returns when the frames are gone (VM12).
 //!
 //! The first import of a module waits the same way for the module's body
 //! (`module.rs`), with no native.

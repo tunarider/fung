@@ -408,25 +408,15 @@ impl<'rt> Task<'rt> {
         if !s.is_open() {
             return Err(nat::fail("E0706", Vec::new()));
         }
+        // Every task has a scope (05 "태스크 범위 안에서만", CC8).
         let node = s.node.child();
-        self.start(f, node, Some(s.clone()))
-    }
-
-    fn start(
-        &mut self,
-        f: Value,
-        node: Arc<CancelNode>,
-        scope: Option<Rc<ScopeState>>,
-    ) -> Result<Value, Stop> {
         let at = self.user_pos().unwrap_or_else(super::no_pos);
-        let state = TaskState::new(at, scope.as_ref());
+        let state = TaskState::new(at, Some(s));
         let handle = Rc::new(TaskHandle {
             state: state.clone(),
             cancel: node.clone(),
         });
-        if let Some(s) = &scope {
-            s.child_started();
-        }
+        s.child_started();
         // The new task is a fiber the scheduler takes in after this turn
         // (`sched.rs`): no thread, so starting one cannot fail. Its end
         // waits below its function (`scope::TaskEnd`).
@@ -437,7 +427,7 @@ impl<'rt> Task<'rt> {
             pos: super::no_pos(),
             native: None,
             tail: false,
-            k: Box::new(super::scope::TaskEnd::new(state, scope, node)),
+            k: Box::new(super::scope::TaskEnd::new(state, s.clone(), node)),
         });
         fiber.todo = Some(super::Todo::Start(f, 0));
         self.world.new_fibers.push(fiber);
@@ -446,6 +436,6 @@ impl<'rt> Task<'rt> {
 
     /// Whether this task was cancelled, for natives that wait outside fung.
     pub fn cancelled(&self) -> bool {
-        self.cancel.is_cancelled()
+        self.fiber.cancel.is_cancelled()
     }
 }

@@ -6,6 +6,7 @@ lede: 토큰의 규칙: 이름, 숫자, 문자열, 기간, 주석, 예약어.
 
 <h3>주석</h3>
 <p><code>#</code>부터 줄 끝까지. 다른 주석 형식은 없다(<code>//</code>는 정수 나눗셈이다). 파일 첫 줄의 <code>#!/usr/bin/env fung</code>도 그냥 주석이다.</p>
+<p>줄 끝은 <code>\n</code>이나 <code>\r\n</code>이다. 홀로 선 CR(<code>\r</code>)은 문자열 안이 아니면 주석 안에서도 E0101이다. 터미널과 편집기가 CR을 서로 다르게 그려서, 주석처럼 보이는 코드가 실행되는 일을 막는다.</p>
 <h3>이름과 태그</h3>
 <ul>
   <li>소문자, <code>_</code>, 또는 대소문자가 없는 글자(한글 등)로 시작하면 <strong>이름</strong>: <code>file_list</code>, <code>_cache</code>, <code>파일목록</code>.</li>
@@ -28,7 +29,7 @@ print(event.type, event.match)
   <tbody>
     <tr><td>정수</td><td><code>42</code> <code>1_000_000</code></td><td>64비트. <code>_</code>는 숫자 사이에만. 두 자리 이상이면 <code>0</code>으로 시작하지 않는다(<code>0755</code>는 E0102, 8진수는 <code>0o755</code>).</td></tr>
     <tr><td>진법</td><td><code>0xff</code> <code>0o17</code> <code>0b1010</code></td><td>정수. 범위는 10진 정수와 같은 64비트다.</td></tr>
-    <tr><td>실수</td><td><code>3.14</code> <code>2.5e-3</code> <code>1e9</code></td><td>소수점 양쪽에 숫자가 필요하다(<code>.5</code>, <code>1.</code>은 안 됨). 지수가 있으면 실수.</td></tr>
+    <tr><td>실수</td><td><code>3.14</code> <code>2.5e-3</code> <code>1e9</code></td><td>소수점 양쪽에 숫자가 필요하다(<code>.5</code>, <code>1.</code>은 안 됨, E0102). 정수 바로 뒤의 <code>.</code>는 소수부나 범위 <code>..</code>만 될 수 있다(<code>1.foo</code>도 E0102). 지수가 있으면 실수.</td></tr>
   </tbody>
 </table>
 <h3>문자열</h3>
@@ -73,7 +74,7 @@ print(1h30m, 90s)
 print(30m1h)
 ```
 
-문자열의 이스케이프는 정해진 것뿐이다(`\n`, `\t`, `\\`, `\"`, `\$`, `\u{…}`, `\xHH`).
+문자열의 이스케이프는 정해진 것뿐이다(`\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\u{…}`, `\xHH`).
 
 ```fung run exit=2 error=E0103
 print("a\tb")

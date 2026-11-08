@@ -50,7 +50,7 @@ fn parse_facts(text) = lines(text)
 
 # One server → its row: the facts, or dashes and why it failed.
 fn row(host):
-  r = timeout(20s, () => exec(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, probe]))
+  r = timeout(() => exec(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, probe]), 20s)
   match r:
     Ok(res) =>
       facts = parse_facts(res.out)

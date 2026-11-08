@@ -43,7 +43,7 @@ import json
 # One try: Ok(nil) when the server ran `true`, else Err(why).
 fn try_once(host):
   cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host, "true"]
-  match timeout(10s, () => exec(cmd)):
+  match timeout(() => exec(cmd), 10s):
     Ok(_)                   => Ok(nil)
     Err({kind: 'timeout})   => Err("no answer in 10s")
     Err({kind: 'exit, err}) => Err(trim(err))
@@ -85,7 +85,7 @@ $ echo $?
 ## 줄별 설명 {#how}
 
 - `try_once`: 접속해서 아무 일도 하지 않는 명령 `true`를 돌린다. 접속과 로그인과 명령 실행이 모두 되어야 성공이다. 결과를 `Ok(nil)`이나 `Err(이유 문자열)` 둘로만 줄인다. `timeout`의 `Err`에는 `message`가 없어서 따로 맞춘다.
-- `timeout(10s, …)`과 `ConnectTimeout=5`: `ConnectTimeout`은 접속 단계만 지킨다. 접속은 됐는데 로그인 뒤에 멈추는 서버(디스크가 걸린 서버의 셸 초기화 등)는 `timeout`이 10초에서 `ssh`를 끝낸다.
+- `timeout(…, 10s)`과 `ConnectTimeout=5`: `ConnectTimeout`은 접속 단계만 지킨다. 접속은 됐는데 로그인 뒤에 멈추는 서버(디스크가 걸린 서버의 셸 초기화 등)는 `timeout`이 10초에서 `ssh`를 끝낸다.
 - `conc.retry(f, times: 3, delay: 2s)`: `f()`가 `Err`를 돌려주면 2초 쉬고 다시 부른다. 세 번 모두 실패하면 마지막 `Err`를 돌려준다. `f`는 인자 없는 함수여야 하므로 `() => try_once(host)`로 감싼다.
 - `conc.pmap(hosts, check, limit: 20)`: 20대씩 동시에 점검한다. 죽은 서버가 몇 대든 점검 시간은 대략 "한 대가 세 번 실패하는 시간"(10초 × 3 + 쉼 2초 × 2)으로 묶인다.
 - `zip` 뒤의 두 줄: `(서버, 결과)` 짝에서 실패만 남기고, 람다의 매개변수 패턴 `((host, Err(why)))`로 튜플과 그 안의 `Err`를 한 번에 풀어 맵을 만든다. 앞 줄에서 `Err`만 남겼으므로 이 패턴은 늘 맞는다.

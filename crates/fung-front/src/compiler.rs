@@ -7,6 +7,7 @@
 //! large stack (see `parser`).
 
 mod fn_;
+mod fold;
 mod m4;
 mod m6;
 mod moves;
@@ -60,6 +61,13 @@ struct Compiler<'a> {
     /// 값의 수명). A move empties its slot; a value never read is never
     /// held, so it lives on. Each branch starts from what was held before.
     held: BTreeSet<usize>,
+    /// The UNWRAPTESTs of `?` and their places, whose returns go after
+    /// the function's end (`emit_stubs`).
+    stubs: Vec<(usize, Pos)>,
+    /// Where a value in tail position is returned: the function body's
+    /// place, or a `return`'s. A branch that returns by itself (VM10 f)
+    /// checks the return type there, as the function's end would.
+    ret_pos: Pos,
 }
 
 /// Produces the `<main>` proto for a resolved program. Prelude names
@@ -83,6 +91,8 @@ pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Re
         after: HashMap::new(),
         stored_live: HashMap::new(),
         held: BTreeSet::new(),
+        stubs: Vec::new(),
+        ret_pos: res.core.pos,
     };
     c.take_lives(moves::last_reads(&res.core));
     c.block(&res.core, false)?;
@@ -95,6 +105,8 @@ pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Re
         c.emit_const(Const::Nil, pos);
     }
     c.proto.emit(Op::Return, 0, res.core.pos);
+    c.emit_stubs();
+    c.proto.check_operands()?;
     Ok(c.proto)
 }
 
@@ -140,6 +152,51 @@ fn local_reads(n: &Node, out: &mut BTreeSet<usize>) {
 /// The items `Compiler::block` compiles as statements (no value).
 fn is_statement(n: &Node) -> bool {
     matches!(n.head, Head::Let | Head::Import | Head::Assert | Head::Test)
+}
+
+/// An `if` without `else`: desugared with a `nil` else branch.
+fn is_if_without_else(n: &Node) -> bool {
+    n.head == Head::If && n.kids[2].head == Head::Nil
+}
+
+/// `a and b` or `a or b` as desugar writes them: `(if a (bool b) false)`
+/// and `(if a true (bool b))`, with `b` the right side, still checked.
+enum Logic<'a> {
+    And(&'a Node, &'a Node),
+    Or(&'a Node, &'a Node),
+}
+
+fn logic(n: &Node) -> Option<Logic<'_>> {
+    if n.head != Head::If {
+        return None;
+    }
+    let is_bool =
+        |k: &Node, b: bool| k.head == Head::Bool && matches!(k.lit, Lit::Bool(x) if x == b);
+    let checked = |k: &Node| k.head == Head::Op && lit_str(k) == "bool";
+    let [a, then, other] = &n.kids[..] else {
+        return None;
+    };
+    if checked(then) && is_bool(other, false) {
+        return Some(Logic::And(a, then));
+    }
+    if is_bool(then, true) && checked(other) {
+        return Some(Logic::Or(a, other));
+    }
+    None
+}
+
+/// Whether `n` always makes a bool, or fails: a comparison, `in`, `not`,
+/// `and`, `or` or a bool literal. CHECKBOOL after one is left out (VM10 d).
+fn makes_bool(n: &Node) -> bool {
+    match n.head {
+        Head::Bool => true,
+        Head::Op => matches!(
+            lit_str(n),
+            "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "not" | "bool"
+        ),
+        Head::If => logic(n).is_some(),
+        _ => false,
+    }
 }
 
 /// An E0801 internal error.
@@ -258,6 +315,11 @@ impl Compiler<'_> {
                 } else {
                     self.let_go(k);
                 }
+                continue;
+            }
+            if !last && is_if_without_else(k) {
+                self.if_stmt(k)?;
+                self.let_go(k);
                 continue;
             }
             self.expr(k, tail && last)?;
@@ -443,7 +505,13 @@ impl Compiler<'_> {
                 }
                 self.emit_const(prelude_const(name), pos);
             }
-            Head::Op => return self.op(n),
+            Head::Op => {
+                if let Some(c) = fold::fold(n) {
+                    self.emit_const(c, pos);
+                } else {
+                    return self.op(n);
+                }
+            }
             Head::If => return self.if_expr(n, tail),
             Head::Concat => {
                 self.kids(n)?;
@@ -483,8 +551,12 @@ impl Compiler<'_> {
     /// entry must be an error, not a wrong opcode: later milestones add
     /// operators to the parser first.
     fn op(&mut self, n: &Node) -> Result<(), Diag> {
-        self.kids(n)?;
         let name = lit_str(n);
+        // A value that is a bool already needs no check (VM10 d).
+        if name == "bool" && makes_bool(&n.kids[0]) {
+            return self.expr(&n.kids[0], false);
+        }
+        self.kids(n)?;
         if name == "in" {
             self.proto.emit(Op::In, 0, n.pos);
             return Ok(());
@@ -505,32 +577,124 @@ impl Compiler<'_> {
     }
 
     fn if_expr(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
-        self.expr(&n.kids[0], false)?;
-        // The jump carries the condition's position so a non-bool
-        // condition is reported where the condition is.
-        let to_else = self.proto.emit(Op::JumpIfFalse, 0, n.kids[0].pos);
-        let mut to_end = 0;
+        let mut to_else = Vec::new();
+        self.cond(&n.kids[0], &mut to_else)?;
+        let mut to_end = None;
         self.branches(2, |c, i| {
             if i == 0 {
                 c.expr(&n.kids[1], tail)?;
-                to_end = c.proto.emit(Op::Jump, 0, n.pos);
-                c.proto.patch(to_else, c.proto.code.len());
+                to_end = c.end_branch(tail, n.pos);
+                c.patch_all(&to_else);
             } else {
                 c.expr(&n.kids[2], tail)?;
             }
             Ok(())
         })?;
-        self.proto.patch(to_end, self.proto.code.len());
+        if let Some(j) = to_end {
+            self.proto.patch(j, self.proto.code.len());
+        }
         Ok(())
     }
 
-    fn return_expr(&mut self, n: &Node) -> Result<(), Diag> {
-        self.expr(&n.kids[0], true)?;
+    /// A statement `if` without `else` (VM10 e): its value is discarded,
+    /// so the branch taken discards its own value and the other makes
+    /// none. The discard reports an Err where the statement starts, as a
+    /// statement's POP does.
+    fn if_stmt(&mut self, k: &Node) -> Result<(), Diag> {
+        let mut to_end = Vec::new();
+        self.cond(&k.kids[0], &mut to_end)?;
+        let pos = self.start_pos(k);
+        self.branches(2, |c, i| {
+            if i == 0 {
+                c.expr(&k.kids[1], false)?;
+                c.proto.emit(Op::Pop, 0, pos);
+            }
+            Ok(())
+        })?;
+        self.patch_all(&to_end);
+        Ok(())
+    }
+
+    /// Compiles condition `n` as jumps (VM10 d): it falls through when
+    /// true, and each jump it pushes on `fails` goes where false goes. An
+    /// `and` or `or` jumps straight to its target instead of making a
+    /// bool to test again; JUMPIFFALSE checks the type as CHECKBOOL would,
+    /// at the same place.
+    fn cond(&mut self, n: &Node, fails: &mut Vec<usize>) -> Result<(), Diag> {
+        match logic(n) {
+            Some(Logic::And(a, b)) => {
+                self.cond(a, fails)?;
+                // b runs on one path only: what it lets go is still held
+                // on the other (`branches`).
+                let before = self.held.clone();
+                self.cond(b, fails)?;
+                self.held.extend(before);
+            }
+            Some(Logic::Or(a, b)) => {
+                let mut to_b = Vec::new();
+                self.cond(a, &mut to_b)?;
+                let to_true = self.proto.emit(Op::Jump, 0, n.pos);
+                self.patch_all(&to_b);
+                let before = self.held.clone();
+                self.cond(b, fails)?;
+                self.held.extend(before);
+                self.proto.patch(to_true, self.proto.code.len());
+            }
+            None if n.head == Head::Op && lit_str(n) == "bool" => self.cond(&n.kids[0], fails)?,
+            None => {
+                self.expr(n, false)?;
+                // The jump carries the condition's position so a non-bool
+                // condition is reported where the condition is.
+                fails.push(self.proto.emit(Op::JumpIfFalse, 0, n.pos));
+            }
+        }
+        Ok(())
+    }
+
+    /// Points every jump in `jumps` here.
+    pub(super) fn patch_all(&mut self, jumps: &[usize]) {
+        let here = self.proto.code.len();
+        for &j in jumps {
+            self.proto.patch(j, here);
+        }
+    }
+
+    /// Ends a branch whose value is the expression's. In tail position the
+    /// value is what the function returns, so the branch returns there
+    /// (VM10 f); otherwise it jumps past the other branches: that jump is
+    /// returned for patching.
+    pub(super) fn end_branch(&mut self, tail: bool, pos: Pos) -> Option<usize> {
+        if tail {
+            self.emit_return(self.ret_pos);
+            return None;
+        }
+        Some(self.proto.emit(Op::Jump, 0, pos))
+    }
+
+    /// Returns the value on the stack, checked against the return type.
+    pub(super) fn emit_return(&mut self, pos: Pos) {
         if self.has_ret && self.proto.return_type >= 0 {
             let rt = self.proto.return_type as usize;
-            self.proto.emit(Op::CheckReturn, rt, n.pos);
+            self.proto.emit(Op::CheckReturn, rt, pos);
         }
-        self.proto.emit(Op::Return, 0, n.pos);
+        self.proto.emit(Op::Return, 0, pos);
+    }
+
+    /// The returns of `?` (VM10 f): UNWRAPTEST jumps to these after the
+    /// function's own end, so its success path goes straight on. Each has
+    /// its `?`'s place.
+    fn emit_stubs(&mut self) {
+        for (at, pos) in std::mem::take(&mut self.stubs) {
+            self.proto.patch(at, self.proto.code.len());
+            self.emit_return(pos);
+        }
+    }
+
+    fn return_expr(&mut self, n: &Node) -> Result<(), Diag> {
+        let outer = std::mem::replace(&mut self.ret_pos, n.pos);
+        self.expr(&n.kids[0], true)?;
+        self.ret_pos = outer;
+        self.emit_return(n.pos);
         Ok(())
     }
 }

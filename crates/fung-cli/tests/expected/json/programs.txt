@@ -315,7 +315,7 @@
 |   |
 |  call path (innermost first):
 |    -e:4       <lambda>
-|    extras/fs.fung:33 with_open
+|    extras/fs.fung:32 with_open
 |    -e:4       <entry>
 -- exit: 1
 ==== "import json\nimport time\ns = `{\"z\":1,\"y\":{\"b\":2,\"a\… (269 bytes, d2c3f1e21bc07d15)

@@ -195,7 +195,8 @@ error[E0501]: cannot add str and int
   |            ^
   |
  call path (innermost first):
-   example.fung:3 &lt;entry&gt;</code></pre></div>
+   example.fung:3 &lt;entry&gt;
+ help: put the value into the text with `&quot;${…}&quot;`, or convert it with `str(…)`</code></pre></div>
 <p>런타임 에러에는 <code>call path</code>(호출 경로)가 더 붙는다. 함수 안에서 에러가 나면, 어느 함수를 어디서 불러서 거기까지 갔는지 안쪽부터 차례로 보여 준다. 아래에서 에러는 <code>percent</code> 함수 안(1줄)에서 났고, <code>percent</code>는 파일의 3줄에서 불렸다. <code>&lt;entry&gt;</code>는 "파일 최상위"라는 뜻이다.</p>
 <div class="run"><pre><code>fn percent(used, total) = used * 100 // total
 print(percent(45, 50))

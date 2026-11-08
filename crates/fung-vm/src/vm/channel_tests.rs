@@ -17,7 +17,7 @@ fn a_native_blocked_inside_a_lambda_still_works() {
 #[test]
 fn closed_and_buffered_channels() {
     let (out, _, code) = run(
-        "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_never_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(5ms, () => recv(never)))",
+        "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_never_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(() => recv(never), 5ms))",
     );
     assert_eq!(
         (out.as_str(), code),
@@ -51,7 +51,7 @@ fn channels_send_receive_and_close() {
             "Ok(1) Ok(2) Err({kind: 'closed, message: \"channel closed\"}) Err({kind: 'closed, message: \"channel closed\"})\n",
         ),
         (
-            "(_tx, rx) = channel()\nprint(timeout(10ms, () => recv(rx)))",
+            "(_tx, rx) = channel()\nprint(timeout(() => recv(rx), 10ms))",
             "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
         ),
         (
@@ -152,11 +152,11 @@ fn a_channel_prints_compares_and_types() {
 fn a_send_waits_for_a_receiver_or_for_room() {
     let cases = [
         (
-            "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  print(timeout(20ms, () => await(t)))\n  print(recv(rx), await(t))\n;;)",
+            "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  print(timeout(() => await(t), 20ms))\n  print(recv(rx), await(t))\n;;)",
             "Err({kind: 'timeout, message: \"timed out after 20ms\"})\nOk(1) Ok(nil)\n",
         ),
         (
-            "(tx, rx) = channel(1)\nscope(fn(s):\n  print(send(tx, 1))\n  t = spawn(s, () => send(tx, 2))\n  print(timeout(20ms, () => await(t)), recv(rx), await(t), recv(rx))\n;;)",
+            "(tx, rx) = channel(1)\nscope(fn(s):\n  print(send(tx, 1))\n  t = spawn(s, () => send(tx, 2))\n  print(timeout(() => await(t), 20ms), recv(rx), await(t), recv(rx))\n;;)",
             "Ok(nil)\nErr({kind: 'timeout, message: \"timed out after 20ms\"}) Ok(1) Ok(nil) Ok(2)\n",
         ),
         (
@@ -213,11 +213,11 @@ fn a_delivered_value_wins_over_a_later_cancel() {
             "Ok(nil) Ok(1)\n",
         ),
         (
-            "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => timeout(10s, () => recv(rx)))\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
+            "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => timeout(() => recv(rx), 10s))\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
             "Ok(nil) Ok(1)\n",
         ),
         (
-            "(_tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  cancel(t)\n  print(await(t))\n  t2 = spawn(s, () => timeout(10s, () => recv(rx)))\n  blocked(rx, 1)\n  cancel(t2)\n  print(await(t2))\n;;)",
+            "(_tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(rx))\n  cancel(t)\n  print(await(t))\n  t2 = spawn(s, () => timeout(() => recv(rx), 10s))\n  blocked(rx, 1)\n  cancel(t2)\n  print(await(t2))\n;;)",
             "Err({kind: 'cancelled, message: \"cancelled\"})\nErr({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
     ];
@@ -236,7 +236,7 @@ fn a_delivered_value_wins_over_a_later_cancel() {
             "Ok(nil) Ok(1)\n",
         ),
         (
-            "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => timeout(10s, () => recv(rx)))\n  blocked(rx, 1)\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
+            "(tx, rx) = channel()\nscope(fn(sc):\n  t = spawn(sc, () => timeout(() => recv(rx), 10s))\n  blocked(rx, 1)\n  s = send(tx, 1)\n  cancel(t)\n  print(s, await(t))\n;;)",
             "Ok(nil) Ok(1)\n",
         ),
         (
@@ -258,7 +258,7 @@ fn a_delivered_value_wins_over_a_later_cancel() {
 fn a_cancelled_sender_takes_its_value_back() {
     let start = Instant::now();
     let o = exec_waiting(
-        "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(await(t), timeout(20ms, () => recv(rx)))\n;;)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(await(t), timeout(() => recv(rx), 20ms))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.exit),
@@ -350,7 +350,7 @@ fn a_cancelled_waiter_is_never_paired() {
         ),
         // A cancelled sender delivers nothing.
         (
-            "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(timeout(20ms, () => recv(rx)), await(t))\n;;)",
+            "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(timeout(() => recv(rx), 20ms), await(t))\n;;)",
             "Err({kind: 'timeout, message: \"timed out after 20ms\"}) Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
         (
@@ -360,7 +360,7 @@ fn a_cancelled_waiter_is_never_paired() {
         // The same with a full buffer: the cancelled sender's value does
         // not move into the freed place.
         (
-            "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 0)\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(recv(rx), timeout(20ms, () => recv(rx)), await(t))\n;;)",
+            "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 0)\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  cancel(t)\n  print(recv(rx), timeout(() => recv(rx), 20ms), await(t))\n;;)",
             "Ok(0) Err({kind: 'timeout, message: \"timed out after 20ms\"}) Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
     ];
@@ -378,7 +378,7 @@ fn a_timed_out_receiver_is_never_paired() {
     // r is blocked (or already timed out, under heavy load) before r2
     // exists, so only r can be the first queued receiver.
     let o = exec_waiting(
-        "(tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, () => timeout(30ms, () => recv(rx)))\n  until(() => queued(rx) >= 1 or finished(r))\n  r2 = spawn(s, () => recv(rx))\n  hold(60)\n  print(send(tx, 1), await(r), await(r2))\n;;)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, () => timeout(() => recv(rx), 30ms))\n  until(() => queued(rx) >= 1 or finished(r))\n  r2 = spawn(s, () => recv(rx))\n  hold(60)\n  print(send(tx, 1), await(r), await(r2))\n;;)",
     );
     assert_eq!(
         (o.code.as_str(), o.out.as_str()),
@@ -397,7 +397,7 @@ fn a_timed_out_receiver_is_never_paired() {
 #[test]
 fn a_sender_cancelled_before_it_runs_sends_nothing() {
     let (out, _, code) = run(
-        "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 0)\n  t = spawn(s, () => send(tx, 1))\n  r = recv(rx)\n  cancel(t)\n  print(r, await(t), timeout(50ms, () => recv(rx)))\n;;)",
+        "(tx, rx) = channel(1)\nscope(fn(s):\n  send(tx, 0)\n  t = spawn(s, () => send(tx, 1))\n  r = recv(rx)\n  cancel(t)\n  print(r, await(t), timeout(() => recv(rx), 50ms))\n;;)",
     );
     assert_eq!(
         (out.as_str(), code),
@@ -495,7 +495,7 @@ fn the_wrong_end_is_a_type_error() {
         ),
         (
             "(tx, rx) = channel(1)\nclose(rx)",
-            "argument `tx` must be sender",
+            "argument `x` must be sender | file",
         ),
         ("(tx, rx) = channel(1)\nfor x in tx:\n  x\n;;", "E0506"),
     ] {
@@ -695,7 +695,7 @@ fn iterating_a_sender_says_to_use_the_receiving_end() {
 fn fan_in_stops_when_its_output_is_gone() {
     let (out, err, code) = run("import conc\n\
          fn ticker(s, name):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped ${name}\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
-         print(timeout(10s, () => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s, \"a\"), ticker(s, \"b\")])\n  len(take(out, 2))\n;;)))");
+         print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s, \"a\"), ticker(s, \"b\")])\n  len(take(out, 2))\n;;), 10s))");
     let mut lines: Vec<&str> = out.lines().collect();
     lines.sort();
     assert_eq!(
@@ -711,7 +711,7 @@ fn fan_in_stops_when_its_output_is_gone() {
 fn fan_in_lets_an_idle_input_go_when_its_output_is_gone() {
     let (out, err, code) = run("import conc\n(_idle_tx, idle) = channel()\n\
          fn ticker(s):\n  (tx, rx) = channel()\n  fn go(i) = match send(tx, i):\n    Ok(_) => go(i + 1)\n    Err(_) => print(\"stopped\")\n  ;;\n  spawn(s, () => go(0))\n  rx\n;;\n\
-         print(timeout(10s, () => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s), idle])\n  len(take(out, 2))\n;;)))");
+         print(timeout(() => scope(fn(s):\n  out = conc.fan_in(s, [ticker(s), idle])\n  len(take(out, 2))\n;;), 10s))");
     assert_eq!((out.as_str(), err.as_str(), code), ("stopped\n2\n", "", 0));
 }
 
@@ -761,12 +761,12 @@ fn a_cancelled_send_drops_its_value_at_once() {
     );
 }
 
-/// L3: `try_recv` takes a value without waiting: the oldest buffered one,
+/// L3: `recv_now` takes a value without waiting: the oldest buffered one,
 /// or an empty or closed channel's Err.
 #[test]
-fn try_recv_looks_once() {
+fn recv_now_looks_once() {
     let (out, err, code) = run(
-        "(tx, rx) = channel(2)\nprint(try_recv(rx))\nsend(tx, 5)!\nprint(try_recv(rx))\nsend(tx, 6)!\nclose(tx)\nprint(try_recv(rx), try_recv(rx))",
+        "(tx, rx) = channel(2)\nprint(recv_now(rx))\nsend(tx, 5)!\nprint(recv_now(rx))\nsend(tx, 6)!\nclose(tx)\nprint(recv_now(rx), recv_now(rx))",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),
@@ -778,12 +778,12 @@ fn try_recv_looks_once() {
     );
 }
 
-/// On a rendezvous channel `try_recv` takes a blocked sender's value, and
+/// On a rendezvous channel `recv_now` takes a blocked sender's value, and
 /// it never parks: the task does not give up its turn.
 #[test]
-fn try_recv_takes_from_a_blocked_sender_without_parking() {
+fn recv_now_takes_from_a_blocked_sender_without_parking() {
     let o = exec_waiting(
-        "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  n = parks()\n  print(try_recv(rx), try_recv(rx), parks() == n)\n  print(await(t))\n;;)",
+        "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => send(tx, 1))\n  blocked(rx, 1)\n  n = parks()\n  print(recv_now(rx), recv_now(rx), parks() == n)\n  print(await(t))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -795,12 +795,12 @@ fn try_recv_takes_from_a_blocked_sender_without_parking() {
     );
 }
 
-/// `try_send` hands a value over without waiting: to a waiting receiver or
+/// `send_now` hands a value over without waiting: to a waiting receiver or
 /// the buffer, else a full channel's Err; a closed channel's as `send`.
 #[test]
-fn try_send_gives_up_on_a_full_channel() {
+fn send_now_gives_up_on_a_full_channel() {
     let o = exec_waiting(
-        "(tx, rx) = channel(1)\nprint(try_send(tx, 1), try_send(tx, 2), recv(rx))\n(rtx, rrx) = channel()\nprint(try_send(rtx, 1))\nscope(fn(s):\n  t = spawn(s, () => recv(rrx))\n  blocked(rrx, 1)\n  print(try_send(rtx, 2), await(t))\n;;)\nclose(tx)\nprint(try_send(tx, 3))",
+        "(tx, rx) = channel(1)\nprint(send_now(tx, 1), send_now(tx, 2), recv(rx))\n(rtx, rrx) = channel()\nprint(send_now(rtx, 1))\nscope(fn(s):\n  t = spawn(s, () => recv(rrx))\n  blocked(rrx, 1)\n  print(send_now(rtx, 2), await(t))\n;;)\nclose(tx)\nprint(send_now(tx, 3))",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -817,7 +817,7 @@ fn try_send_gives_up_on_a_full_channel() {
 #[test]
 fn wait_closed_waits_for_the_close_only() {
     let o = exec_waiting(
-        "(tx, rx) = channel(2)\nscope(fn(s):\n  w = spawn(s, () => wait_closed(rx))\n  blocked(rx, 1)\n  send(tx, 1)!\n  print(finished(w))\n  close(tx)\n  print(await(w), recv(rx))\n;;)\nprint(wait_closed(rx))\n(_tx2, rx2) = channel()\nprint(timeout(5ms, () => wait_closed(rx2)))\nscope(fn(s):\n  w = spawn(s, () => wait_closed(rx2))\n  blocked(rx2, 1)\n  cancel(w)\n  print(await(w))\n;;)",
+        "(tx, rx) = channel(2)\nscope(fn(s):\n  w = spawn(s, () => wait_closed(rx))\n  blocked(rx, 1)\n  send(tx, 1)!\n  print(finished(w))\n  close(tx)\n  print(await(w), recv(rx))\n;;)\nprint(wait_closed(rx))\n(_tx2, rx2) = channel()\nprint(timeout(() => wait_closed(rx2), 5ms))\nscope(fn(s):\n  w = spawn(s, () => wait_closed(rx2))\n  blocked(rx2, 1)\n  cancel(w)\n  print(await(w))\n;;)",
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
@@ -868,8 +868,8 @@ fn a_cycle_through_channels_is_e0709() {
             "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\nsend(ta, (1, [rb]))!\nsend(tb, {r: ra})!",
         ),
         (
-            "try_send",
-            "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\ntry_send(ta, rb)!\ntry_send(tb, ra)!",
+            "send_now",
+            "(ta, ra) = channel(1)\n(tb, rb) = channel(1)\nsend_now(ta, rb)!\nsend_now(tb, ra)!",
         ),
     ] {
         let (out, err, code) = run(src);

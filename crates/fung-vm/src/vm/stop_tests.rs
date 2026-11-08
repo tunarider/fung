@@ -114,6 +114,23 @@ fn without_a_watcher_a_stop_cancels_the_program() {
     assert_eq!(exec_signals("deliver_soon(15)\nsleep(10s)").2, 143);
 }
 
+/// A signal's stop request that reaches a held stop signal no task waits
+/// on says so on standard error (review CC6, user decision): the first
+/// Ctrl-C is not swallowed in silence. The program goes on, as a watched
+/// stop does. `request_stop()` comes from the program itself: no note
+/// (`after_a_stop_the_signal_is_closed`).
+#[test]
+fn a_stop_nobody_waits_for_says_so() {
+    assert_eq!(
+        exec_signals("stop = stop_signal()\npost_stop(2)\nsleep(1ms)\nprint(recv_now(stop))"),
+        (
+            "Err({kind: 'closed, message: \"channel closed\"})\n".into(),
+            "note: stop requested; press again to end now\n".into(),
+            0
+        )
+    );
+}
+
 /// A watcher that is gone does not count.
 #[test]
 fn a_dropped_watcher_is_no_watcher() {
@@ -213,7 +230,7 @@ fn an_interrupt_reaches_a_function_running_in_swap() {
 fn wait_closed_waits_for_the_stop() {
     assert_eq!(
         exec_signals(
-            "scope(fn(s):\n  stop = stop_signal()\n  t = spawn(s, fn():\n    wait_closed(stop)\n    \"stopped\"\n  ;;)\n  blocked(stop, 1)\n  request_stop()\n  print(await(t), try_recv(stop))\n;;)"
+            "scope(fn(s):\n  stop = stop_signal()\n  t = spawn(s, fn():\n    wait_closed(stop)\n    \"stopped\"\n  ;;)\n  blocked(stop, 1)\n  request_stop()\n  print(await(t), recv_now(stop))\n;;)"
         ),
         (
             "stopped Err({kind: 'closed, message: \"channel closed\"})\n".into(),

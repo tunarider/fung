@@ -80,11 +80,12 @@
 <nav class="crumbs" aria-label="위치"><a class="crumb-part" href="../../reference/language.html"><span class="glyph">§</span>레퍼런스</a><svg class="sep" viewBox="0 0 8 12" aria-hidden="true"><path d="M2.5 2l3.5 4-3.5 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="crumb-group">언어 명세</span></nav>
 <h1>형식 문법</h1>
 <p class="lede">fung의 EBNF.</p>
-<p>파서가 그대로 옮긴 EBNF다. 식의 층은 위 우선순위 표와 같다.</p>
+<p>파서가 그대로 옮긴 EBNF다. 언어의 형식 문법은 이 한 곳에만 있다. 식의 층은 <a href="operators.html#precedence">우선순위 표</a>와 같다.</p>
 <details>
 <summary>EBNF 펼치기</summary>
 <pre class="plain"><code>(* 토큰: NAME(소문자·_·대소문자 없는 글자로 시작) TAG(대문자 시작) INT FLOAT DURATION
-         STRING(보간 조각 포함) RAW_STRING SYMBOL NEWLINE, 예약어, 연산자 *)
+         STRING(보간 조각 포함) PLAIN_STRING(보간 없는 STRING) RAW_STRING SYMBOL NEWLINE, 예약어, 연산자.
+   쉼표로 나눈 목록은 모두 끝 쉼표를 받는다. *)
 
 program     = body .
 body        = { sep } { stmt { sep } } .
@@ -95,16 +96,19 @@ stmt        = fn_def | import | type_alias | test_block | assert | assign | expr
 fn_def      = &quot;fn&quot; NAME &quot;(&quot; [ params ] &quot;)&quot; [ &quot;-&gt;&quot; type ] fn_body .
 fn_body     = &quot;=&quot; expr | block .
 params      = param { &quot;,&quot; param } [ &quot;,&quot; ] .
-param       = [ &quot;...&quot; ] NAME [ &quot;:&quot; type ] [ &quot;=&quot; expr ] | pattern .
-import      = &quot;import&quot; ( NAME | STRING ) [ &quot;as&quot; NAME ] [ &quot;(&quot; NAME { &quot;,&quot; NAME } &quot;)&quot; ] .
+param       = [ &quot;...&quot; ] NAME [ &quot;:&quot; type ] [ &quot;=&quot; expr ] | param_pat .
+param_pat   = pattern .                             (* 첫 토큰이 _ ( [ { TAG 인 것: 구조 분해만, 리터럴 없음 *)
+import      = &quot;import&quot; ( NAME { &quot;.&quot; NAME } | PLAIN_STRING ) [ &quot;as&quot; NAME ]
+              [ &quot;(&quot; NAME { &quot;,&quot; NAME } [ &quot;,&quot; ] &quot;)&quot; ] .
 type_alias  = &quot;type&quot; NAME &quot;=&quot; type .
-test_block  = &quot;test&quot; STRING block .
+test_block  = &quot;test&quot; PLAIN_STRING block .
 assert      = &quot;assert&quot; expr .
-assign      = pattern &quot;=&quot; expr .                   (* 문장 시작에서 `pattern =`를 먼저 시도 *)
+assign      = pattern &quot;=&quot; expr .                    (* 문장 시작에서 `pattern =`를 먼저 시도 *)
 
 expr        = lambda | then_expr .
-lambda      = ( NAME | &quot;_&quot; | &quot;(&quot; [ pattern { &quot;,&quot; pattern } ] &quot;)&quot; ) &quot;=&gt;&quot; expr .
-then_expr   = or_expr [ &quot;then&quot; expr &quot;else&quot; expr ] .
+lambda      = ( NAME | &quot;_&quot; | &quot;(&quot; [ lparam { &quot;,&quot; lparam } [ &quot;,&quot; ] ] &quot;)&quot; ) &quot;=&gt;&quot; expr .
+lparam      = NAME | param_pat .                    (* fn의 매개변수와 같은 패턴, 기본값·타입·...rest 없음 *)
+then_expr   = or_expr [ &quot;then&quot; expr &quot;else&quot; expr ] . (* else는 필수, 오른쪽 결합 *)
 or_expr     = and_expr { &quot;or&quot; and_expr } .
 and_expr    = not_expr { &quot;and&quot; not_expr } .
 not_expr    = &quot;not&quot; not_expr | cmp_expr .
@@ -112,43 +116,47 @@ cmp_expr    = pipe_expr [ cmp_op pipe_expr ] .      (* 연쇄 없음 *)
 cmp_op      = &quot;==&quot; | &quot;!=&quot; | &quot;&lt;&quot; | &quot;&gt;&quot; | &quot;&lt;=&quot; | &quot;&gt;=&quot; | &quot;in&quot; | &quot;not&quot; &quot;in&quot; .
 pipe_expr   = coalesce { &quot;|&gt;&quot; coalesce } .
 coalesce    = range { &quot;??&quot; range } .
-range       = add [ ( &quot;..&quot; | &quot;..=&quot; ) add ] .
+range       = add [ ( &quot;..&quot; | &quot;..=&quot; ) add ] .        (* 범위는 범위의 피연산자가 아니다: E0118 *)
 add         = mul { ( &quot;+&quot; | &quot;-&quot; ) mul } .
 mul         = unary { ( &quot;*&quot; | &quot;/&quot; | &quot;//&quot; | &quot;%&quot; ) unary } .
 unary       = &quot;-&quot; unary | pow .
-pow         = postfix [ &quot;**&quot; unary ] .              (* 오른쪽 결합 *)
+pow         = postfix [ &quot;**&quot; unary ] .              (* 오른쪽 결합, -2 ** 2 = -(2 ** 2) *)
 postfix     = primary { call | index | &quot;.&quot; key_name | &quot;!&quot; | &quot;?&quot; } .
 key_name    = NAME | TAG | KEYWORD .                (* 이름 자리에서는 예약어도 이름 *)
 call        = &quot;(&quot; [ arg { &quot;,&quot; arg } [ &quot;,&quot; ] ] &quot;)&quot; .
-arg         = [ NAME &quot;:&quot; ] expr | &quot;_&quot; .
-index       = &quot;[&quot; ( expr | [ expr ] &quot;..&quot; [ expr ] | expr &quot;..=&quot; expr ) &quot;]&quot; .
+arg         = NAME &quot;:&quot; expr | expr | &quot;_&quot; .          (* 이름 붙인 인자, 부분 적용 자리(이름 인자에는 없음) *)
+index       = &quot;[&quot; ( expr | [ expr ] &quot;..&quot; [ expr ] | [ expr ] &quot;..=&quot; expr ) &quot;]&quot; .
+                                                    (* 시작 자리는 `..`보다 약한 식도 된다: xs[a ?? 0..] *)
 
 primary     = INT | FLOAT | STRING | RAW_STRING | DURATION | SYMBOL
             | &quot;true&quot; | &quot;false&quot; | &quot;nil&quot; | NAME | TAG
             | &quot;(&quot; expr &quot;)&quot; | tuple | list | map
             | if_expr | match_expr | for_expr
             | &quot;return&quot; [ expr ]
-            | &quot;fn&quot; &quot;(&quot; [ params ] &quot;)&quot; [ &quot;-&gt;&quot; type ] block .
+            | &quot;fn&quot; &quot;(&quot; [ params ] &quot;)&quot; [ &quot;-&gt;&quot; type ] block .  (* 익명 함수는 블록 형태만 *)
 tuple       = &quot;(&quot; &quot;)&quot; | &quot;(&quot; expr &quot;,&quot; [ expr { &quot;,&quot; expr } [ &quot;,&quot; ] ] &quot;)&quot; .
 list        = &quot;[&quot; [ expr { &quot;,&quot; expr } [ &quot;,&quot; ] ] &quot;]&quot; .
 map         = &quot;{&quot; [ entry { &quot;,&quot; entry } [ &quot;,&quot; ] ] &quot;}&quot; .
-entry       = ( key_name | STRING ) &quot;:&quot; expr | NAME | TAG .
+entry       = ( key_name | PLAIN_STRING ) &quot;:&quot; expr
+            | NAME .                                (* {a, b} = {a: a, b: b}; 대문자 축약은 E0225 *)
 if_expr     = &quot;if&quot; expr &quot;:&quot; body { &quot;else&quot; &quot;if&quot; expr &quot;:&quot; body } [ &quot;else&quot; &quot;:&quot; body ] &quot;;;&quot; .
-match_expr  = &quot;match&quot; expr &quot;:&quot; { sep } { arm } &quot;;;&quot; .
-arm         = pattern [ &quot;when&quot; expr ] &quot;=&gt;&quot; body .
+match_expr  = &quot;match&quot; expr &quot;:&quot; { sep } arm { arm } &quot;;;&quot; .
+arm         = pattern [ &quot;when&quot; expr ] &quot;=&gt;&quot; { sep } stmt { sep } { stmt { sep } } .
+                                                    (* 절은 하나 이상, 절의 본문은 비지 않는다 *)
 for_expr    = &quot;for&quot; pattern &quot;in&quot; expr &quot;:&quot; body &quot;;;&quot; .
 
 pattern     = pat_term { &quot;|&quot; pat_term } .
-pat_term    = &quot;_&quot; | NAME | [ &quot;-&quot; ] ( INT | FLOAT ) | STRING | SYMBOL | DURATION
+pat_term    = &quot;_&quot; | NAME | [ &quot;-&quot; ] ( INT | FLOAT ) | PLAIN_STRING | SYMBOL | DURATION
             | &quot;true&quot; | &quot;false&quot; | &quot;nil&quot;
-            | TAG [ &quot;(&quot; [ pattern { &quot;,&quot; pattern } ] &quot;)&quot; ]
+            | TAG [ &quot;(&quot; pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] &quot;)&quot; ]          (* Red()는 E0117 *)
             | &quot;(&quot; &quot;)&quot; | &quot;(&quot; pattern &quot;,&quot; [ pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] ] &quot;)&quot;
-            | &quot;[&quot; [ pattern { &quot;,&quot; pattern } ] [ [ &quot;,&quot; ] &quot;...&quot; [ NAME ] ] &quot;]&quot;
-            | &quot;{&quot; [ pat_entry { &quot;,&quot; pat_entry } ] &quot;}&quot; .
-pat_entry   = (key_name | STRING) &quot;:&quot; pattern | NAME | TAG .
+            | &quot;[&quot; [ pat_item { &quot;,&quot; pat_item } [ &quot;,&quot; ] ] &quot;]&quot;
+            | &quot;{&quot; [ pat_entry { &quot;,&quot; pat_entry } [ &quot;,&quot; ] ] &quot;}&quot; .
+pat_item    = pattern | &quot;...&quot; [ NAME | &quot;_&quot; ] .       (* ...는 맨 끝에만 *)
+pat_entry   = ( key_name | PLAIN_STRING ) &quot;:&quot; pattern | NAME .   (* {line, col}; 대문자 축약은 E0225 *)
 
 type        = type_term { &quot;|&quot; type_term } .
-type_term   = NAME [ &quot;[&quot; type &quot;]&quot; ] | TAG .</code></pre>
+type_term   = ( NAME | &quot;nil&quot; | &quot;fn&quot; ) [ &quot;[&quot; type &quot;]&quot; ] | TAG .</code></pre>
 </details>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/language/testing.html"><small>이전</small>테스트와 디버깅</a><a class="next" href="../../reference/prelude/io.html"><small>다음</small>출력과 입력</a></nav>
 </div></main>

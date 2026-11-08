@@ -347,6 +347,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_atom_stop_signal.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_bang_nil.fung
 -- stdout
 -- stderr
@@ -393,6 +397,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_closed_name_in_lambda.fung
+-- stdout
+-- stderr
+| error[E0206]: `lines` is not visible here: it was defined inside a block
+|   --> tests/lang/err_closed_name_in_lambda.fung:6:11
+|   |
+| 6 | g = () => lines
+|   |           ^^^^^
+|   |
+|  help: assign the block's value instead: `lines = if … ;;`
+-- exit: 2
 ==== check tests/lang/err_cond_not_bool.fung
 -- stdout
 -- stderr
@@ -520,7 +535,7 @@
 ==== check tests/lang/err_escape.fung
 -- stdout
 -- stderr
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> tests/lang/err_escape.fung:1:10
 |   |
 | 1 | print("C:\path")
@@ -713,6 +728,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_map_named_f_question.fung
+-- stdout
+-- stderr
+| error[E0226]: `?` inside a lambda given to map
+|   --> tests/lang/err_map_named_f_question.fung:3:44
+|   |
+| 3 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
+|   |                                            ^
+|   |
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+-- exit: 2
 ==== check tests/lang/err_map_pattern_dup_key.fung
 -- stdout
 -- stderr
@@ -732,7 +758,7 @@
 | 2 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
 |   |                                             ^
 |   |
-|  help: map keeps the Err as an element; use `try_map`, which stops at the first Err
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
 -- exit: 2
 ==== check tests/lang/err_missing_arg.fung
 -- stdout
@@ -790,6 +816,16 @@
 |   |        ^
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+-- exit: 2
+==== check tests/lang/err_number_trailing_dot.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "1."
+|   --> tests/lang/err_number_trailing_dot.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
 -- exit: 2
 ==== check tests/lang/err_ok_two_values.fung
 -- stdout
@@ -865,6 +901,10 @@
 |   |
 |  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 -- exit: 2
+==== check tests/lang/err_pipe_quoted_symbol.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_pipe_tag_hole.fung
 -- stdout
 -- stderr
@@ -880,6 +920,17 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_pmap_question.fung
+-- stdout
+-- stderr
+| error[E0226]: `?` inside a lambda given to conc.pmap
+|   --> tests/lang/err_pmap_question.fung:5:47
+|   |
+| 5 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
+|   |                                               ^
+|   |
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+-- exit: 2
 ==== check tests/lang/err_question_in_for.fung
 -- stdout
 -- stderr
@@ -901,6 +952,17 @@
 |   |      ^
 |   |
 |  help: use `!` to stop the script on Err
+-- exit: 2
+==== check tests/lang/err_range_chain.fung
+-- stdout
+-- stderr
+| error[E0118]: a range cannot be an operand of another range
+|   --> tests/lang/err_range_chain.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
 -- exit: 2
 ==== check tests/lang/err_reassign_fn.fung
 -- stdout
@@ -972,6 +1034,10 @@
 |   |
 |  help: import it under another name: `import fs as m`
 -- exit: 2
+==== check tests/lang/err_slice_nil_end.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/err_slice_tuple.fung
 -- stdout
 -- stderr
@@ -992,6 +1058,16 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/err_string_backslash_at_line_end.fung
+-- stdout
+-- stderr
+| error[E0104]: unterminated string
+|   --> tests/lang/err_string_backslash_at_line_end.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+-- exit: 2
 ==== check tests/lang/err_sym_name.fung
 -- stdout
 -- stderr
@@ -1018,12 +1094,13 @@
 ==== check tests/lang/err_tag_named.fung
 -- stdout
 -- stderr
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+| error[E0121]: a tag takes its values by position, not by name
 |   --> tests/lang/err_tag_named.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
 -- exit: 2
 ==== check tests/lang/err_tag_shorthand_map.fung
 -- stdout
@@ -1298,6 +1375,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/line_continuations_more.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/lines.fung
 -- stdout
 -- stderr
@@ -1390,6 +1471,10 @@
 -- stdout
 -- stderr
 -- exit: 0
+==== check tests/lang/recv_now.fung
+-- stdout
+-- stderr
+-- exit: 0
 ==== check tests/lang/regex.fung
 -- stdout
 -- stderr
@@ -1399,6 +1484,10 @@
 -- stderr
 -- exit: 0
 ==== check tests/lang/rest_and_alias.fung
+-- stdout
+-- stderr
+-- exit: 0
+==== check tests/lang/rest_wildcard.fung
 -- stdout
 -- stderr
 -- exit: 0
@@ -1533,10 +1622,6 @@
 |   |
 -- exit: 0
 ==== check tests/lang/try_map.fung
--- stdout
--- stderr
--- exit: 0
-==== check tests/lang/try_recv.fung
 -- stdout
 -- stderr
 -- exit: 0

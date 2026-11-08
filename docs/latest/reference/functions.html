@@ -84,8 +84,8 @@
 <ul>
   <li><code>f(a, b = 1, ...rest)</code>: <code>b</code>는 기본값이 있고 <code>rest</code>는 남는 위치 인자를 리스트로 받는다. 내장 함수도 이름 붙인 인자를 받는다: <code>exec(cmd, cwd: "/tmp")</code>.</li>
   <li>모든 함수는 "대상이 첫 번째 인자"라서 파이프로 이어진다: <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 같다(<a href="language/operators.html#pipe">파이프</a>).</li>
-  <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code>.</li>
-  <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러(E0403)다.</li>
+  <li>외부 요인으로 실패할 수 있는 함수는 <code>Ok(값)</code>/<code>Err({kind, message, …})</code>를 돌려준다. <code>kind</code>는 심볼이다: <code>'not_found</code> <code>'exists</code> <code>'permission</code> <code>'io</code> <code>'parse</code> <code>'invalid</code> <code>'timeout</code> <code>'closed</code> <code>'cancelled</code> <code>'error</code> <code>'exit</code> <code>'network</code> <code>'empty</code> <code>'full</code>(<code>'empty</code>·<code>'full</code>은 <a href="prelude/concurrency.html#fn-recv_now"><code>recv_now</code></a>·<a href="prelude/concurrency.html#fn-send_now"><code>send_now</code></a>).</li>
+  <li>인자 타입이 틀린 것은 코드 오류라 런타임 에러다: 매개변수 표에 적은 타입이 틀리면 E0403, 여러 타입을 받는 함수(<code>len</code>·<code>get</code>·<code>put</code> 등)가 받지 못하는 값이면 E0506.</li>
   <li><span class="by" style="margin-left:0">fung으로 작성</span> 표시는 fung 코드로 쓴 함수다. 나머지는 Rust로 구현했다(<a href="../vm/internals.html#layers">네 층</a>).</li>
 </ul>
 <p>import 없이 쓴다. 같은 이름의 변수나 함수를 만들면 경고(W0103)가 난다.</p>
@@ -93,7 +93,7 @@
 <div class="filter">
 <label for="fn-search" class="note">이름이나 설명으로 찾기</label><br>
 <input id="fn-search" type="search" placeholder="예: split, 정렬, Err" autocomplete="off">
-<p id="fn-count">143개 함수</p>
+<p id="fn-count">142개 함수</p>
 </div>
 <div class="fn-list">
 <section class="group"><h3><a href="../reference/prelude/io.html">출력과 입력</a></h3><ul>
@@ -137,7 +137,7 @@
 <li class="fn"><a href="../reference/prelude/collections.html#fn-flatten"><code>flatten</code></a> 리스트의 리스트를 한 단계만 펼친다: [[1, [2]], 3] → [1, [2], 3].</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-group_by"><code>group_by</code></a> f(x)를 키로 원소를 묶은 맵을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-zip"><code>zip</code></a> 두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</li>
-<li class="fn"><a href="../reference/prelude/collections.html#fn-sum"><code>sum</code></a> 수의 합을 돌려준다. 빈 리스트는 0.</li>
+<li class="fn"><a href="../reference/prelude/collections.html#fn-sum"><code>sum</code></a> 원소의 합을 돌려준다. 빈 리스트는 0.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-min"><code>min</code></a> 가장 작은 원소를, 비었으면 nil을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/collections.html#fn-max"><code>max</code></a> 가장 큰 원소를, 비었으면 nil을 돌려준다.</li>
 </ul></section>
@@ -198,10 +198,10 @@
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-channel"><code>channel</code></a> 채널을 만들고 두 끝 (tx, rx), 곧 보내는 끝과 받는 끝을 돌려준다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-send"><code>send</code></a> 보내는 끝 tx로 값 v를 보낸다. Ok(nil), 닫혔으면 Err({kind: 'closed}).</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-recv"><code>recv</code></a> 받는 끝 rx에서 값 하나를 받는다. Ok(v), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-try_recv"><code>try_recv</code></a> 기다리지 않고 받는 끝 rx를 한 번 본다. 받을 값이 있으면 Ok(v), 없으면 Err({kind: 'empty}), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-try_send"><code>try_send</code></a> 기다리지 않고 보내는 끝 tx로 v를 보낸다. 넘겼으면 Ok(nil), 기다려야 하면 Err({kind: 'full}), 닫혔으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-recv_now"><code>recv_now</code></a> 기다리지 않고 받는 끝 rx를 한 번 본다. 받을 값이 있으면 Ok(v), 없으면 Err({kind: 'empty}), 닫혔고 남은 값이 없으면 Err({kind: 'closed}).</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-send_now"><code>send_now</code></a> 기다리지 않고 보내는 끝 tx로 v를 보낸다. 넘겼으면 Ok(nil), 기다려야 하면 Err({kind: 'full}), 닫혔으면 Err({kind: 'closed}).</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-wait_closed"><code>wait_closed</code></a> 받는 끝 rx의 채널이 닫힐 때까지 기다린다. 값은 꺼내지 않는다.</li>
-<li class="fn"><a href="../reference/prelude/concurrency.html#fn-close"><code>close</code></a> 보내는 끝 tx의 채널을 지금 닫는다.</li>
+<li class="fn"><a href="../reference/prelude/concurrency.html#fn-close"><code>close</code></a> 보내는 끝의 채널이나 파일 핸들을 지금 닫는다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-stop_signal"><code>stop_signal</code></a> 정지 요청을 받는 끝(receiver)을 돌려준다. 정지 요청이 오면 이 끝이 닫힌다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-request_stop"><code>request_stop</code></a> 코드에서 정지 요청을 보낸다. 첫 신호(SIGINT·SIGTERM)와 똑같이 동작한다.</li>
 <li class="fn"><a href="../reference/prelude/concurrency.html#fn-atom"><code>atom</code></a> 값 v를 담은 칸(atom)을 만든다. 태스크 사이에 나누는 바뀌는 상태는 이것으로 둔다.</li>
@@ -226,7 +226,6 @@
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-move"><code>fs.move</code></a> 파일이나 디렉터리의 이름을 바꾸거나 다른 곳으로 옮긴다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-copy"><code>fs.copy</code></a> 파일 하나를 복사한다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-open"><code>fs.open</code></a> 파일을 열어 핸들을 돌려준다.</li>
-<li class="fn"><a href="../reference/modules/fs.html#fn-fs-close"><code>fs.close</code></a> 파일 핸들을 닫는다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-write_line"><code>fs.write_line</code></a> 핸들에 한 줄을 쓴다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a> 파일을 열어 함수에 넘기고, 끝나면 무슨 일이 있어도 닫는다.</li>
 <li class="fn"><a href="../reference/modules/fs.html#fn-fs-with_temp_dir"><code>fs.with_temp_dir</code></a> 임시 디렉터리를 만들어 함수에 넘기고, 끝나면 통째로 지운다.</li>

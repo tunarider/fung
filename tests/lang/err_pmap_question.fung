@@ -1,0 +1,7 @@
+# `conc.pmap` is map's parallel form: `?` in the lambda given to it is
+# E0226 too (SP1).
+import conc
+
+fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
+print(ports(["1", "x"]))
+# expect-error: E0226

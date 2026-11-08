@@ -1,0 +1,32 @@
+# More places where a line goes on (01): a line ending in `in` (a for
+# head) or `|` (pattern alternatives, a type union) continues (FE7), and
+# inside brackets a newline is whitespace in two-token forms (FE6).
+type amount = int |
+  float
+
+fn twice(x: amount) = x * 2
+
+for x in
+  [1, 2.5]:
+  print(twice(x))
+;;
+match Err(3):
+  Ok(x) |
+    Err(x) => print(x)
+;;
+xs = [1, 2, 3]
+print(xs[1..
+])
+print(4 not
+  in xs)
+f = (a, b) => a - b
+print(f(b
+  : 1, a: 5))
+print("end")
+# expect: 2
+# expect: 5.0
+# expect: 3
+# expect: [2, 3]
+# expect: true
+# expect: 4
+# expect: end

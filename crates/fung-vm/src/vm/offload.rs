@@ -13,9 +13,11 @@
 //!   unwinds at once. One that comes while it runs is not let through:
 //!   the task waits on under a fresh root node, as a scope waiting for
 //!   its children does, until the job ends; then the task's node comes
-//!   back, a deadline that passed meanwhile is enforced, and `finish`
-//!   runs. A job that changes something (a file written) thus never
-//!   lands after the call has given up.
+//!   back, `finish` runs (so that what the job made, an open handle, is
+//!   dropped and closed) and its value is dropped, and the task unwinds
+//!   with the stop. A job that changes something (a file written) thus
+//!   never lands after the call has given up, and the call's value
+//!   never outlives the stop (review CC2).
 //! - **`Abandon`** runs on the pool and is let go at a stop: the task
 //!   unwinds at once and the job, which only reads, runs to its end on
 //!   its thread, which drops the result. Its late wake finds a task that
@@ -27,7 +29,6 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Instant;
 
 use super::cont::{Cont, Flow, Next, Wake};
 use super::pool::Ticket;
@@ -46,6 +47,9 @@ pub(crate) enum Kind {
     /// the lookups' own pool (`Shared::lookups`, L12), so that lookups
     /// a silent resolver holds cannot keep file jobs waiting in line.
     Lookup,
+    /// A command's start (`$PATH` lookup and `fork`, CC4): waited for
+    /// like `Wait`, on the starts' own pool (`Shared::starts`).
+    Start,
 }
 
 /// The job's result, once its thread has stored it.
@@ -66,9 +70,9 @@ const JOB_WAKE: Wake = Wake {
 pub(crate) fn alone(t: &Task<'_>) -> bool {
     !t.world.others_waiting
         && t.world.new_fibers.is_empty()
-        && t.cancel.deadline_at().is_none()
-        && !t.cancel.is_cancelled()
-        && !t.shared.ready.has_others(t.waiter.id())
+        && t.fiber.cancel.deadline_at().is_none()
+        && !t.fiber.cancel.is_cancelled()
+        && !t.shared.ready.has_others(t.fiber.waiter.id())
 }
 
 /// Runs `job` as `kind` says and parks until it ends; then `finish`.
@@ -80,10 +84,10 @@ pub(crate) fn offload_kind<R: Send + 'static>(
 ) -> Result<Flow, Stop> {
     #[cfg(test)]
     {
-        t.offloads += 1;
+        t.fiber.offloads += 1;
     }
     let slot: Slot<R> = Arc::default();
-    let me = t.waiter.clone();
+    let me = t.fiber.waiter.clone();
     me.take_woken();
     let ticket = Ticket::new();
     let work = {
@@ -99,6 +103,7 @@ pub(crate) fn offload_kind<R: Send + 'static>(
     };
     let pool = match kind {
         Kind::Lookup => &t.shared.lookups,
+        Kind::Start => &t.shared.starts,
         _ => &t.shared.pool,
     };
     let started = pool.submit_with(ticket.clone(), Box::new(work));
@@ -141,23 +146,29 @@ struct Job<R> {
 
 impl<R> Job<R> {
     /// The job has ended: the task's node comes back (a deadline that
-    /// passed meanwhile is enforced), and `finish` runs.
+    /// passed meanwhile is enforced), and `finish` runs. When a stop came
+    /// while the job ran, the stop wins (review CC2, as for a command,
+    /// `CommandWait::finish`): `finish` still runs, so that what the job
+    /// made (an open handle) becomes a value and is dropped (closed), and
+    /// then the task unwinds.
     fn ended(&mut self, t: &mut Task<'_>, r: std::thread::Result<R>) -> Result<Next, Stop> {
-        if let Some(own) = self.own.take() {
-            t.cancel = own;
-            if let Some(at) = t.cancel.deadline_at() {
-                let now = Instant::now();
-                if now >= at {
-                    t.cancel.expire_due(now);
-                }
+        let stopped = match self.own.take() {
+            Some(own) => {
+                t.restore_cancel_node(own);
+                true
             }
-        }
+            None => false,
+        };
         let r = match r {
             Ok(r) => r,
             Err(p) => resume_unwind(p),
         };
         let finish = self.finish.take().expect("finish runs once");
-        Ok(match finish(t, r)? {
+        let flow = finish(t, r);
+        if stopped {
+            t.check_cancelled()?;
+        }
+        Ok(match flow? {
             Flow::Done(v) => Next::Done(v),
             Flow::Call(k, f, n) => {
                 self.then = Some(k);
@@ -202,15 +213,15 @@ impl<R: 'static> Cont for Job<R> {
                 Err(stop)
             }
             // Still in the queue: dropped, it never runs.
-            Kind::Wait if self.ticket.abandon() => Err(stop),
+            Kind::Wait | Kind::Start if self.ticket.abandon() => Err(stop),
             // Running: wait for it under a fresh root (the stop comes back
             // through the task's node once the job has ended).
-            Kind::Wait => {
+            Kind::Wait | Kind::Start => {
                 debug_assert!(self.own.is_none(), "one stop reaches a job's wait");
-                self.own = Some(std::mem::replace(&mut t.cancel, CancelNode::root()));
+                self.own = Some(std::mem::replace(&mut t.fiber.cancel, CancelNode::root()));
                 // Take, then look (`park_until`): the job may have ended
                 // and woken the task before this.
-                t.waiter.take_woken();
+                t.fiber.waiter.take_woken();
                 match take(&self.slot) {
                     Some(r) => self.ended(t, r),
                     None => Ok(Next::Park(JOB_WAKE)),

@@ -125,13 +125,16 @@ pub fn write_err(e: std::io::Error) -> Stop {
 pub fn tag(name: &str, args: Vec<Value>) -> Value {
     Value::Tag(Rc::new(Tag {
         name: intern(name),
-        args,
+        args: args.into(),
     }))
 }
 
 /// `Ok(v)`.
 pub fn ok(v: Value) -> Value {
-    tag("Ok", vec![v])
+    Value::Tag(Rc::new(Tag {
+        name: crate::value::Sym::OK,
+        args: crate::value::Items::One([v]),
+    }))
 }
 
 /// `Err({kind, extra…, message})` (06: 표준 라이브러리 Err의 내용은 맵):
@@ -259,6 +262,19 @@ pub fn need_fn(name: &str, v: &Value) -> Result<(), Stop> {
 /// E0403: argument `name` must be `want`.
 pub fn wrong_arg(name: &str, want: &str, v: &Value) -> Stop {
     fail("E0403", vec![s(name), s(want), Arg::Str(type_name(v))])
+}
+
+/// E0403: argument `name` must be a non-negative int, showing the value
+/// given (a negative int, or a value of another kind).
+pub fn not_count(name: &str, v: &Value) -> Stop {
+    fail(
+        "E0403",
+        vec![
+            s(name),
+            s("a non-negative int"),
+            Arg::Str(crate::value::format(v)),
+        ],
+    )
 }
 
 /// The map argument, or E0506 with `verb`.

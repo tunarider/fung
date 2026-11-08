@@ -143,7 +143,8 @@ print(used + 1)</code></pre><pre class="out err plain" data-code="1"><code>error
   |            ^
   |
  call path (innermost first):
-   example.fung:2 &lt;entry&gt;</code></pre></div>
+   example.fung:2 &lt;entry&gt;
+ help: put the value into the text with `&quot;${…}&quot;`, or convert it with `str(…)`</code></pre></div>
 <p>바꾸는 함수는 타입 이름과 같다.</p>
 <div class="run"><pre><code>print(int(&quot;91&quot;) + 1, float(&quot;2.5&quot;) * 2)
 print(str(42) + &quot; servers&quot;, int(3.9), float(2))</code></pre><pre class="out plain"><code>92 5.0

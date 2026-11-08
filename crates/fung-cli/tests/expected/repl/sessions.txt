@@ -3,26 +3,23 @@
 # Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test tools_expected
 ==== values
 -- stdout
-| > > 2
-| > > 5
-| > [1, "a"]
-| > nil
-| > 
+| 2
+| 5
+| [1, "a"]
+| nil
 -- stderr
 -- exit: 0
 ==== redefinition and continued lines
 -- stdout
-| > > > > 2
-| > . . > 2
-| > . 3
-| > > > true
-| > 
+| 2
+| 2
+| 3
+| true
 -- stderr
 -- exit: 0
 ==== errors go on
 -- stdout
-| > > > 2
-| > 
+| 2
 -- stderr
 | error[E0204]: undefined name `y`
 |   --> <repl>:1:7
@@ -38,10 +35,9 @@
 |   |
 |  call path (innermost first):
 |    <repl>:1   <entry>
--- exit: 0
+-- exit: 1
 ==== syntax error not at the end
 -- stdout
-| > > 
 -- stderr
 | error[E0110]: unexpected `)`
 |   --> <repl>:1:5
@@ -49,10 +45,9 @@
 | 1 | x = )
 |   |     ^
 |   |
--- exit: 0
+-- exit: 1
 ==== failed assignment
 -- stdout
-| > > > 
 -- stderr
 | error[E0502]: division by zero
 |   --> <repl>:1:7
@@ -70,38 +65,39 @@
 |   |
 |  call path (innermost first):
 |    <repl>:1   <entry>
--- exit: 0
+-- exit: 1
 ==== unfinished block at the end
 -- stdout
-| > . 
 -- stderr
--- exit: 0
+| error[E0112]: expected `;;` to close the function, found end of file
+|   --> <repl>:1:8
+|   |
+| 1 | fn f():
+|   |        ^
+|   |
+-- exit: 1
 ==== commands
 -- stdout
-| > commands:
+| commands:
 |   :help            show this text
 |   :quit            leave (Ctrl-D does the same)
 |   :load file.fung  run a file in this session; its definitions stay
-| > > 
-\ no newline
 -- stderr
 | unknown command :bogus
--- exit: 0
+-- exit: 1
 ==== with and exit
 -- stdout
-| > bye
+| bye
 -- stderr
 -- exit: 4
 ==== load
 -- stdout
-| > > 20
-| > 
+| 20
 -- stderr
 -- exit: 0
 ==== load errors
 -- stdout
-| > > > > > > 10
-| > 
+| 10
 -- stderr
 | :load needs a file path
 | cannot read `nope.fung`: no such file or directory
@@ -112,74 +108,66 @@
 |   |     ^
 |   |
 | cannot read `.`: is a directory
--- exit: 0
+-- exit: 1
 ==== quit with code
 -- stdout
-| > > 
-\ no newline
 -- stderr
 -- exit: 0
 ==== exit codes
 -- stdout
-| > 
-\ no newline
 -- stderr
 -- exit: 44
 ==== exit inside a block
 -- stdout
-| > . . > 
-\ no newline
 -- stderr
 -- exit: 2
 ==== empty lines
 -- stdout
-| > > > > 1
-| > > 
+| 1
 -- stderr
 -- exit: 0
 ==== no input
 -- stdout
-| > 
 -- stderr
 -- exit: 0
 ==== no final newline
 -- stdout
-| > 3
-| > 
+| 3
 -- stderr
 -- exit: 0
 ==== unfinished at the end without newline
 -- stdout
-| > . . 
 -- stderr
--- exit: 0
+| error[E0112]: expected `;;` to close the if, found end of file
+|   --> <repl>:2:4
+|   |
+| 2 |   1
+|   |    ^
+|   |
+-- exit: 1
 ==== crlf
 -- stdout
-| > 2
-| > . [1, 2]
-| > 
+| 2
+| [1, 2]
 -- stderr
 -- exit: 0
 ==== invalid utf-8
 -- stdout
-| > ÿ
+| ÿ
 | nil
-| > 
 -- stderr
 -- exit: 0
 ==== dbg
 -- stdout
-| > > 6
-| > > 1
-| > 
+| 6
+| 1
 -- stderr
 | [<repl>:1] x * 3 = 6
 | dbg = 1
 -- exit: 0
 ==== statements print nothing
 -- stdout
-| > > . . > > > > > > 3
-| > 
+| 3
 -- stderr
 | error[E0807]: assertion failed: z == 4
 |   --> <repl>:1:1
@@ -190,19 +178,17 @@
 |   z = 3
 |  call path (innermost first):
 |    <repl>:1   <entry>
--- exit: 0
+-- exit: 1
 ==== multi-line forms
 -- stdout
-| > . . . > "many"
-| > . . . . "yes"
-| > . . . [1, 2]
-| > . "ab"
-| > 
+| "many"
+| "yes"
+| [1, 2]
+| "ab"
 -- stderr
 -- exit: 0
 ==== excerpts come from the input that defined the code
 -- stdout
-| > . . > . . > > > 
 -- stderr
 | error[E0502]: division by zero
 |   --> <repl>:2:5
@@ -230,11 +216,11 @@
 |   |
 |  call path (innermost first):
 |    <repl>:1   <entry>
--- exit: 0
+|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
+-- exit: 1
 ==== an imported module's error
 -- stdout
-| > > > 1
-| > > 
+| 1
 -- stderr
 | error[E0502]: division by zero
 |   --> m.fung:1:16
@@ -254,53 +240,68 @@
 |  call path (innermost first):
 |    m.fung:1   boom
 |    <repl>:1   <entry>
--- exit: 0
+-- exit: 1
 ==== redefining modules and names
 -- stdout
-| > > > 1
-| > > true
-| > > 2
-| > 
+| 1
+| true
+| 2
 -- stderr
 -- exit: 0
 ==== releases in order after exit
 -- stdout
-| > release 2
+| release 2
 | release 1
 -- stderr
 -- exit: 7
 ==== help text
 -- stdout
-| > commands:
+| commands:
 |   :help            show this text
 |   :quit            leave (Ctrl-D does the same)
 |   :load file.fung  run a file in this session; its definitions stay
-| > 
 -- stderr
 -- exit: 0
 ==== colon inside code
 -- stdout
-| > > 1
-| > 
+| 1
 -- stderr
 -- exit: 0
 ==== a value of a call
 -- stdout
-| > 1
+| 1
 | nil
-| > 2
-| > (1, 2)
-| > 'sym
-| > 1.5
-| > "s"
-| > 
+| 2
+| (1, 2)
+| 'sym
+| 1.5
+| "s"
 -- stderr
+-- exit: 0
+==== a raw string over lines
+-- stdout
+| a
+| b
+| nil
+| "c\n\nd"
+-- stderr
+-- exit: 0
+==== exit after an error
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> <repl>:1:3
+|   |
+| 1 | 1 / 0
+|   |   ^
+|   |
+|  call path (innermost first):
+|    <repl>:1   <entry>
 -- exit: 0
 ==== invalid bytes
 -- stdout
-| > ��
+| ��
 | nil
-| > "�"
-| > 
+| "�"
 -- stderr
 -- exit: 0

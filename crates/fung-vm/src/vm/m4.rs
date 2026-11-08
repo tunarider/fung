@@ -9,7 +9,9 @@ use fung_front::source::Pos;
 
 use super::matcher::Binder;
 use super::{Stop, Task, at, err, no_pos};
-use crate::value::{List, MapBuilder, Range, Tag, Value, format, index, type_name};
+use crate::value::{
+    Items, List, MapBuilder, Range, Sym, Tag, Tuple, Value, format, index, type_name,
+};
 
 /// How `!`, `?` and `??` see a value (02): an Ok payload, an Err, nil, or
 /// something else. `!` rejects nil (E0604), `?` lets it through, `??`
@@ -26,9 +28,9 @@ fn result_kind(v: &Value) -> ResultKind {
         // A result holds one value (VM4): Ok(1, 2) is a plain tag, which
         // `!` and `?` refuse and `??` keeps, as a pattern Ok(x) does not
         // match it either.
-        Value::Tag(t) if t.args.len() == 1 => match t.name.name() {
-            "Ok" => ResultKind::Ok(t.args[0].clone()),
-            "Err" => ResultKind::Err,
+        Value::Tag(t) if t.args.len() == 1 => match t.name {
+            Sym::OK => ResultKind::Ok(t.args[0].clone()),
+            Sym::ERR => ResultKind::Err,
             _ => ResultKind::Other,
         },
         Value::Nil => ResultKind::Nil,
@@ -40,7 +42,7 @@ fn result_kind(v: &Value) -> ResultKind {
 /// or Err with other than one value by that count (VM4).
 pub(crate) fn not_result(v: &Value) -> String {
     match v {
-        Value::Tag(t) if matches!(t.name.name(), "Ok" | "Err") => {
+        Value::Tag(t) if matches!(t.name, Sym::OK | Sym::ERR) => {
             format!("an {} with {} values", t.name.name(), t.args.len())
         }
         _ => format!("a value of type {}", type_name(v)),
@@ -86,7 +88,7 @@ fn shown(mut text: String) -> Arg {
 /// Whether a discarded `v` may hold an Err: the cheap test the run loop
 /// makes on every discarded value, before the cold path looks closer.
 pub(crate) fn may_hold_err(v: &Value) -> bool {
-    matches!(v, Value::List(_)) || matches!(v, Value::Tag(t) if t.name.name() == "Err")
+    matches!(v, Value::List(_)) || matches!(v, Value::Tag(t) if t.name == Sym::ERR)
 }
 
 /// E0606 (without a position) when a discarded place drops an Err (02:
@@ -131,8 +133,20 @@ pub(crate) fn discarded(r: Result<Value, Stop>) -> Result<Value, Stop> {
 impl Task<'_> {
     /// Pops the top `n` operands in push order.
     fn pop_n(&mut self, n: usize) -> Vec<Value> {
-        let start = self.stack.len() - n;
-        self.stack
+        let start = self.fiber.stack.len() - n;
+        self.fiber
+            .stack
+            .drain(start..)
+            .map(|v| v.expect("VM read an unassigned slot"))
+            .collect()
+    }
+
+    /// Pops the top `n` operands in push order as a tag's or a tuple's
+    /// values: one or two need no buffer of their own (VM8).
+    fn pop_items(&mut self, n: usize) -> Items {
+        let start = self.fiber.stack.len() - n;
+        self.fiber
+            .stack
             .drain(start..)
             .map(|v| v.expect("VM read an unassigned slot"))
             .collect()
@@ -146,8 +160,8 @@ impl Task<'_> {
                 self.push(Value::List(Rc::new(List::new(items))));
             }
             Op::Tuple => {
-                let items = self.pop_n(arg);
-                self.push(Value::tuple(items));
+                let items = self.pop_items(arg);
+                self.push(Value::Tuple(Rc::new(Tuple::of(items))));
             }
             Op::Map => {
                 let mut m = MapBuilder::default();
@@ -161,7 +175,7 @@ impl Task<'_> {
                 self.push(Value::Map(Rc::new(m.finish())));
             }
             Op::Tag => {
-                let args = self.pop_n(arg);
+                let args = self.pop_items(arg);
                 let Value::Sym(name) = self.pop() else {
                     panic!("TAG with a name that is not a symbol");
                 };
@@ -205,7 +219,7 @@ impl Task<'_> {
                 let v = self.pop();
                 // `index` answers for a module too: its member, E0303
                 // for no such member, E0304 for a private one.
-                let name = &self.frames[fi].proto.consts[arg];
+                let name = &self.fiber.frames[fi].proto.consts[arg];
                 let r = index::index(&v, name).map_err(|d| at(d, pos))?;
                 self.push(r);
             }
@@ -231,7 +245,7 @@ impl Task<'_> {
             Op::UnwrapTest => match result_kind(self.top()) {
                 ResultKind::Ok(payload) => self.replace_top(payload),
                 // The Err stays on the stack for RETURN.
-                ResultKind::Err => self.frames[fi].ip = arg,
+                ResultKind::Err => self.fiber.frames[fi].ip = arg,
                 // nil is a value, not a failure: `?` only looks at Err (02).
                 ResultKind::Nil => {}
                 ResultKind::Other => {
@@ -243,7 +257,7 @@ impl Task<'_> {
                 ResultKind::Ok(payload) => self.replace_top(payload),
                 ResultKind::Err | ResultKind::Nil => {
                     self.pop();
-                    self.frames[fi].ip = arg;
+                    self.fiber.frames[fi].ip = arg;
                 }
                 ResultKind::Other => {}
             },
@@ -268,16 +282,16 @@ impl Task<'_> {
     }
 
     fn replace_top(&mut self, v: Value) {
-        let top = self.stack.last_mut().expect("VM stack underflow");
+        let top = self.fiber.stack.last_mut().expect("VM stack underflow");
         *top = Some(v);
     }
 
     /// Matches `v` against pattern `pi` of frame `fi`, binding into the
     /// frame's slots and, only if the whole pattern matched, its globals.
     fn match_pattern(&mut self, fi: usize, v: &Value, pi: usize) -> bool {
-        let f = &self.frames[fi];
+        let f = &self.fiber.frames[fi];
         let mut b = Binder {
-            stack: &mut self.stack,
+            stack: &mut self.fiber.stack,
             base: f.base,
             globals: &f.globals,
             pending: Vec::new(),

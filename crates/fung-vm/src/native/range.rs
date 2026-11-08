@@ -2,8 +2,8 @@
 //! beyond walking it. A range may hold more numbers than an int counts
 //! (`-9223372036854775808..=9223372036854775807`, 02), so `len` fails on
 //! it; these count in i128 and never do. `extras/prelude.fung` builds
-//! `last`, `take` and `drop` of a range from them. `items` and `count`
-//! check the prelude's arguments as a native would (F-4): the error names
+//! `last`, `take` and `drop` of a range from them. `items`, `count` and
+//! `pad` check the prelude's arguments as a native would (F-4): the error names
 //! the function the user called, not the `map` or `fail` inside it.
 
 use std::rc::Rc;
@@ -26,6 +26,7 @@ pub fn module() -> Rc<Module> {
                 native("items", items_fn, vec![param("xs"), param("verb")]),
             ),
             ("count", native("count", count_fn, vec![param("n")])),
+            ("pad", native("pad", pad_fn, vec![param("pad")])),
             (
                 "slice",
                 native(
@@ -62,6 +63,15 @@ fn items_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 fn count_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     nat::need_int("n", &a[0])?;
     Ok(a[0].clone())
+}
+
+/// `pad(pad)`: `pad` when it is a non-empty string; otherwise E0403 for
+/// the argument `pad` of `pad_left` and `pad_right` (VA7).
+fn pad_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+    match &a[0] {
+        Value::Str(s) if !s.is_empty() => Ok(a[0].clone()),
+        v => Err(nat::wrong_arg("pad", "a non-empty str", v)),
+    }
 }
 
 /// `last(r)`: the last number, nil for an empty range.

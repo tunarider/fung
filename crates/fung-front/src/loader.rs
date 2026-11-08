@@ -61,6 +61,12 @@ pub struct Loader {
     /// Reads an imported file. By default it reads the bytes, which must
     /// be UTF-8 (`decode_source`, L4).
     pub read_file: fn(&str) -> std::io::Result<String>,
+    /// Which file a path names, when the path's text cannot tell: by
+    /// default the (device, inode) of the file it leads to, so a symbolic
+    /// link, other letter case on a file system that ignores it, or a
+    /// name in another Unicode form is the same module (04, FE5). `None`
+    /// (no such file) leaves the path itself as the identity.
+    pub file_id: fn(&str) -> Option<String>,
     /// Keep test blocks of the entry (`fung test` / `check`), see 08.
     pub tests: bool,
     /// The entry is an embedded extras file: it may import `_native.*`.
@@ -92,6 +98,12 @@ impl Default for Loader {
                         .map_err(|why| std::io::Error::new(std::io::ErrorKind::InvalidData, why))
                 })
             },
+            file_id: |p| {
+                use std::os::unix::fs::MetadataExt;
+                std::fs::metadata(p)
+                    .ok()
+                    .map(|m| format!("{}:{}", m.dev(), m.ino()))
+            },
             tests: false,
             internal: false,
             extra_prelude: Vec::new(),
@@ -106,6 +118,9 @@ impl Default for Loader {
 struct State<'a> {
     l: &'a Loader,
     entry_key: String,
+    /// The key of each file loaded so far, by its identity
+    /// (`Loader::file_id`): the first path that reached it.
+    keys: HashMap<String, String>,
     done: HashMap<String, usize>,
     loading: HashSet<String>,
     /// The DFS path (key, shown path), for E0302 messages.
@@ -152,9 +167,17 @@ impl Loader {
         } else {
             abs_key(file)
         };
+        let mut keys = HashMap::new();
+        if file != "-e" {
+            keys.insert(
+                (self.file_id)(&key).unwrap_or_else(|| key.clone()),
+                key.clone(),
+            );
+        }
         let mut st = State {
             l: self,
             entry_key: key.clone(),
+            keys,
             done: HashMap::new(),
             loading: HashSet::new(),
             stack: vec![(key.clone(), file.to_string())],
@@ -334,11 +357,16 @@ impl State<'_> {
             };
             abs_key(&format!("{dir}/{path}"))
         };
+        // The binding is a name, so it is NFC like the names that use it;
+        // it comes from the path as written here.
+        let name = crate::unicode::nfc(&module_stem(&key)).into_owned();
+        // One file is one module, whatever path reaches it (FE5): a file
+        // seen before keeps the key it was first loaded under.
+        let id = (self.l.file_id)(&key).unwrap_or_else(|| key.clone());
+        let key = self.keys.entry(id).or_insert(key).clone();
         if key == self.entry_key && from_key != key {
             return Err(vec![error("E0307", pos, vec![])]);
         }
-        // The binding is a name, so it is NFC like the names that use it.
-        let name = crate::unicode::nfc(&module_stem(&key)).into_owned();
         if !is_name(&name) && im.alias.is_empty() {
             return Err(vec![error("E0305", pos, vec![Arg::Str(name)])]);
         }
@@ -638,6 +666,50 @@ mod tests {
             msg.ends_with("m.fung`: not valid UTF-8 at line 1, column 6"),
             "{msg}"
         );
+    }
+
+    /// A module is one file, however a path names it (04, FE5): through
+    /// a symbolic link, or with other letter case on a file system that
+    /// ignores it, it is loaded once and shares its state. Each import
+    /// keeps the name its own path gives.
+    #[test]
+    fn one_file_under_several_paths_is_one_module() {
+        let dir = Scratch::new("same-file");
+        std::fs::write(dir.0.join("lib.fung"), "n = 1\n").unwrap();
+        std::os::unix::fs::symlink("lib.fung", dir.0.join("lib2.fung")).unwrap();
+        let folds_case = dir.0.join("LIB.fung").exists();
+        let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
+        let mut src = String::from("import \"./lib\"\nimport \"./lib2\"\n");
+        if folds_case {
+            src.push_str("import \"./Lib\" as l3\n");
+        }
+        src.push_str("print(lib.n, lib2.n)\n");
+        let (b, errs) = Loader::default().compile(&entry, &src, Stage::All);
+        assert!(errs.is_empty(), "{:?}", codes(&errs));
+        let users: Vec<_> = b
+            .modules
+            .iter()
+            .filter(|m| m.key.starts_with('/'))
+            .collect();
+        assert_eq!(
+            users.len(),
+            1,
+            "{:?}",
+            b.modules.iter().map(|m| &m.key).collect::<Vec<_>>()
+        );
+        let p = b.proto.unwrap();
+        assert!(
+            p.global_names.iter().any(|g| g == "lib2"),
+            "{:?}",
+            p.global_names
+        );
+        // The entry file through a link is still the entry (E0307).
+        std::fs::write(dir.0.join("main.fung"), &src).unwrap();
+        std::os::unix::fs::symlink("main.fung", dir.0.join("again.fung")).unwrap();
+        std::fs::write(dir.0.join("other.fung"), "import \"./again\"\n").unwrap();
+        let (_, errs) =
+            Loader::default().compile(&entry, "import \"./other\"\nprint(other)", Stage::All);
+        assert_eq!(codes(&errs), ["E0307"]);
     }
 
     /// The REPL (08) compiles each input after the files the runtime

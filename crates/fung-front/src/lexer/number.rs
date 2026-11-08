@@ -46,6 +46,15 @@ impl Lexer<'_> {
                 "a decimal number does not start with 0: write `0o755` for octal, or drop the zeros",
             ));
         }
+        // `1.` is not a number (01), and an integer has no fields: a `.`
+        // right after the digits that starts neither a fraction nor a
+        // range is refused here, so `x = 1.` cannot swallow the next
+        // line's name as a field (FE2).
+        if self.peek() == Some('.') && !matches!(self.peek_at(1), Some('0'..='9' | '.')) {
+            self.advance();
+            self.ident_text();
+            return Err(self.err("E0102", p, &self.src[start..self.off]));
+        }
         let mut is_float = false;
         if self.peek() == Some('.') && is_digit(self.peek_at(1)) {
             self.advance();
@@ -352,6 +361,11 @@ mod tests {
             ("0xf__f", "E0102"),
             ("1h30.5_m", "E0105"),
             ("1.5_s", "E0102"),
+            // an integer has no fields: `1.` is not a number (01, FE2)
+            ("1.", "E0102"),
+            ("1.\nprint(x)", "E0102"),
+            ("1.e5", "E0102"),
+            ("1.foo", "E0102"),
         ];
         for (src, want) in cases {
             match lex_src(src) {
@@ -366,6 +380,8 @@ mod tests {
         use crate::diag::Arg;
         let d = lex_src("30abc").unwrap_err();
         assert_eq!(d.args, vec![Arg::Str("30abc".to_string())]);
+        let d = lex_src("1.e5").unwrap_err();
+        assert_eq!(d.args, vec![Arg::Str("1.e5".to_string())]);
         let d = lex_src("1h30").unwrap_err();
         assert_eq!(d.args, vec![Arg::Str("1h30".to_string())]);
     }

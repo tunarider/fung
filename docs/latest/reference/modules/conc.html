@@ -97,7 +97,7 @@
 <li><code>f</code>가 <strong>런타임 에러</strong>를 내면(버그, <code>!</code>가 <code>Err</code>를 만남, <code>fail</code>) 그 태스크 범위의 다른 태스크를 취소하고 <code>pmap</code> 전체가 그 에러로 실패한다.</li>
 <li><code>f</code>가 <strong><code>Err</code> 값을 돌려주면</strong> 그것은 그냥 결과 하나다. 다른 원소는 계속되고, 결과 리스트에 <code>Err</code>가 그대로 들어간다.</li>
 </ul>
-<p>그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 <code>f</code> 안에서 <code>!</code> 대신 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 <code>f</code> 안에서 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a>을 쓴다.</p>
+<p>그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 <code>f</code> 안에서 <code>!</code> 대신 결과값을 그대로 돌려준다. <code>map</code>처럼, <code>f</code>로 바로 쓴 람다 안의 <code>?</code>는 컴파일 에러 <a href="../errors.html#E0226">E0226</a>이다(<code>Err</code>가 말없이 결과의 원소가 되므로). <code>Err</code>를 결과로 모으려면 <code>match</code>나 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 <code>f</code> 안에서 <a href="../prelude/concurrency.html#fn-timeout"><code>timeout</code></a>을 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트(또는 <code>range</code> 같은, <code>map</code>할 수 있는 값).</li>
@@ -144,13 +144,13 @@ fn check(host):
   &quot;${host} ok&quot;
 ;;
 
-print(conc.pmap([&quot;a&quot;, &quot;slow&quot;, &quot;b&quot;], h =&gt; timeout(1s, () =&gt; check(h))))</code></pre><pre class="out plain"><code>[&quot;a ok&quot;, Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), &quot;b ok&quot;]</code></pre></div>
+print(conc.pmap([&quot;a&quot;, &quot;slow&quot;, &quot;b&quot;], h =&gt; timeout(() =&gt; check(h), 1s)))</code></pre><pre class="out plain"><code>[&quot;a ok&quot;, Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), &quot;b ok&quot;]</code></pre></div>
 <p><strong>서버 여러 대에 명령 보내기</strong></p>
 <p>실제 서버가 필요해서 이 예는 검사만 한다.</p>
 <pre><code>import conc
 
 hosts = [&quot;web-1&quot;, &quot;web-2&quot;, &quot;db-1&quot;]
-results = conc.pmap(hosts, h =&gt; timeout(5s, () =&gt; exec([&quot;ssh&quot;, h, &quot;uptime&quot;])), limit: 10)
+results = conc.pmap(hosts, h =&gt; timeout(() =&gt; exec([&quot;ssh&quot;, h, &quot;uptime&quot;]), 5s), limit: 10)
 for (h, r) in zip(hosts, results):
   match r:
     Ok(out) =&gt; print(h, trim(out.out))

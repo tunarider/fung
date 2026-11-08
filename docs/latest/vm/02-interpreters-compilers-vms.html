@@ -97,19 +97,22 @@
 </ul>
 <h2 id="bytecode-vm">바이트코드 VM</h2>
 <p>많은 언어는 중간 길을 간다. 먼저 <strong>컴파일러</strong>가 트리를 <strong>바이트코드</strong>라는 평평한 명령 목록으로 옮긴다. 그리고 그 명령 목록을 실행하는 작은 <strong>인터프리터</strong>를 둔다. 이 인터프리터는 실제 CPU처럼 명령을 하나씩 읽어 수행하기 때문에 <strong>가상 기계</strong>(virtual machine), 줄여서 <strong>VM</strong>이라고 부른다. 바이트코드는 이 가상 CPU의 기계어인 셈이다.</p>
-<p><code>1 + 2 * 3</code>을 fung의 바이트코드로 옮기면 이렇다.</p>
-<div class="run"><pre><code>print(1 + 2 * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+<p><code>1 + 2 * 3</code>을 fung의 바이트코드로 옮기면 이렇다. 수만 쓰면 컴파일러가 미리 7로 계산해 버리므로(상수 접기, 8장) <code>2</code>를 변수 <code>a</code>에 담았다.</p>
+<div class="run"><pre><code>a = 2
+print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
 == &lt;main&gt; ==
-0000  1:1   CONST        0    ; &lt;fn print&gt;
-0001  1:7   CONST        1    ; 1
-0002  1:11  CONST        2    ; 2
-0003  1:15  CONST        3    ; 3
-0004  1:13  MUL
-0005  1:9   ADD
-0006  1:6   CALL         1    ; 1 positional, 0 named
-0007  1:1   POP
-0008  1:1   CONST        4    ; nil
-0009  1:1   RETURN</code></pre></div>
+0000  1:5   CONST        0    ; 2
+0001  1:1   STOREGLOBAL  0    ; a
+0002  2:1   CONST        1    ; &lt;fn print&gt;
+0003  2:7   CONST        2    ; 1
+0004  2:11  LOADGLOBAL   0    ; a
+0005  2:15  CONST        3    ; 3
+0006  2:13  MUL
+0007  2:9   ADD
+0008  2:6   CALL         1    ; 1 positional, 0 named
+0009  2:1   POP
+0010  2:1   CONST        4    ; nil
+0011  1:1   RETURN</code></pre></div>
 <p>트리 대신 위에서 아래로 읽는 목록이다. VM은 반복문 하나로 이 목록을 돈다. "명령을 하나 읽는다 → 종류에 따라 할 일을 한다 → 다음 명령으로"의 반복이다. 이것을 <strong>디스패치 루프</strong>(dispatch loop), 또는 실행 루프라고 한다.</p>
 <p>트리 순회와 비교하면 이렇게 달라진다.</p>
 <ul>
@@ -235,7 +238,7 @@ print(sum_to(200000))</code></pre><pre class="out dump plain"><code>$ fung dump 
 0006  1:27  EQ
 0007  1:27  JUMPIFFALSE  10
 0008  1:37  MOVELOCAL    1
-0009  1:32  JUMP         18
+0009  1:23  RETURN
 0010  1:46  LOADSELF
 0011  1:53  LOADLOCAL    0
 0012  1:57  CONST        1    ; 1

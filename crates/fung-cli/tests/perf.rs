@@ -322,7 +322,7 @@ fn fifty_commands_at_once() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let src = format!(
-        "import fs\nfn until(f) = f() then nil else fn(): sleep(5ms); until(f) ;;()\nd = \"{}\"\nprint(timeout(20s, () => scope(fn(s):\n  ts = map(0..50, i => spawn(s, () => sh(\"touch {}/$$; sleep 1\")!.code))\n  until(() => len(fs.list(d)!) == 50)\n  print(\"ready\")\n  read_line()\n  fold(ts, 0, (a, t) => a + await(t))\n;;)))",
+        "import fs\nfn until(f) = f() then nil else fn(): sleep(5ms); until(f) ;;()\nd = \"{}\"\nprint(timeout(() => scope(fn(s):\n  ts = map(0..50, i => spawn(s, () => sh(\"touch {}/$$; sleep 1\")!.code))\n  until(() => len(fs.list(d)!) == 50)\n  print(\"ready\")\n  read_line()\n  fold(ts, 0, (a, t) => a + await(t))\n;;), 20s))",
         dir.display(),
         dir.display()
     );
@@ -369,7 +369,7 @@ fn many_receivers_on_one_channel() {
 #[test]
 fn many_awaits_on_one_task() {
     let _serial = serial();
-    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, fn(): _ = timeout(1ms, () => await(t)); nil ;;)))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
+    let src = "(go_tx, go) = channel()\nprint(scope(fn(s):\n  t = spawn(s, () => recv(go))\n  scope(c => each(0..50000, _ => spawn(c, fn(): _ = timeout(() => await(t), 1ms); nil ;;)))\n  ws = map(0..50000, _ => spawn(s, () => await(t)))\n  close(go_tx)\n  fold(ws, 0, (a, w) => a + (is_err(await(w)) then 1 else 0))\n;;))";
     let (out, took) = run(src);
     eprintln!("100,000 awaits on one task {took:?}");
     assert_eq!(out, "50000\n");
@@ -472,14 +472,14 @@ fn long_natives_give_their_turn() {
     }
 }
 
-/// A deadline cuts a long native short (L6): before, `timeout(5ms, …)`
+/// A deadline cuts a long native short (L6): before, `timeout(…, 5ms)`
 /// around a big `json.parse` or `sort` gave its value 75 ms late.
 #[test]
 fn deadlines_cut_long_natives() {
     let _serial = serial();
     for (what, work) in LONG_WORK {
         let src = format!(
-            "{LONG_SETUP}import time\nt0 = time.monotonic()\nr = timeout(5ms, () => {work})\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
+            "{LONG_SETUP}import time\nt0 = time.monotonic()\nr = timeout(() => {work}, 5ms)\ntook = time.monotonic() - t0\nprint(match r:\n  Err({{kind: 'timeout}}) => \"timeout\"\n  _ => \"value\"\n;;, took < 30ms)"
         );
         let (out, _) = run_file("deadline", &src);
         assert_eq!(out, "timeout true\n", "{what}");
@@ -503,6 +503,6 @@ const LONG_WORK: &[(&str, &str)] = &[
 /// `gap(work)`: runs `work` beside a task that sleeps 1 ms at a time and
 /// gives the longest wait between its wake-ups, in milliseconds. The
 /// ticker has started before the work does (a state, not a sleep).
-const GAP: &str = "import time\nfn gap(work) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(last, worst, first):\n    if first: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - last])\n    match try_recv(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  work()\n  send(done_tx, true)\n  ms(await(w))\n;;)\nfn ms(d) = d / 1ms\n";
+const GAP: &str = "import time\nfn gap(work) = scope(fn(s):\n  (started_tx, started) = channel(1)\n  (done_tx, done) = channel(1)\n  fn tick(last, worst, first):\n    if first: send(started_tx, true) else: nil ;;\n    sleep(1ms)\n    now = time.monotonic()\n    worst2 = max([worst, now - last])\n    match recv_now(done):\n      Ok(_) => worst2\n      _ => tick(now, worst2, false)\n    ;;\n  ;;\n  w = spawn(s, () => tick(time.monotonic(), 0ms, true))\n  recv(started)!\n  work()\n  send(done_tx, true)\n  ms(await(w))\n;;)\nfn ms(d) = d / 1ms\n";
 
-const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(20s, () => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)) else: nil ;;\n  cancel(s)\n;;, e => nil)))\n";
+const LATENCY: &str = "import http\nimport json\nimport time\nbig = json.stringify(map(0..100000, i => {id: i, name: \"item\", tags: [\"a\", \"b\"]}))\n(go_tx, go) = channel(1)\n(in_tx, arrived) = channel(1)\nh = fn(req):\n  if req.path == \"/heavy\":\n    send(in_tx, true)\n    recv(go)\n    len(json.parse(big)!)\n    \"heavy\"\n  else:\n    \"ok\"\n  ;;\n;;\nprint(timeout(() => supervise(fn(sc):\n  (port_tx, port) = channel(1)\n  s = spawn(sc, () => http.serve(\"127.0.0.1:0\", h, ready: a => send(port_tx, a)))\n  addr = recv(port)!\n  heavy = args[0] == \"heavy\"\n  hv = heavy then spawn(sc, fn():\n    t0 = time.now()\n    http.get(\"http://\" + addr + \"/heavy\")!\n    time.now() - t0\n  ;;) else nil\n  if heavy: recv(arrived) else: nil ;;\n  t0 = time.now()\n  if heavy: send(go_tx, true) else: nil ;;\n  http.get(\"http://\" + addr + \"/light\")!\n  took = time.now() - t0\n  print(\"light\", took, took < 30ms)\n  if heavy: print(\"heavy\", await(hv)) else: nil ;;\n  cancel(s)\n;;, e => nil), 20s))\n";

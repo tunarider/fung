@@ -18,6 +18,10 @@ pub enum Head {
     Arm,
     Assert,
     Assign,
+    /// A tag written without arguments, `Red` (parser only): desugar
+    /// makes it the symbol `'Red`, or the tag call on a pipe's right
+    /// (FE19).
+    BareTag,
     Binary,
     Block,
     Bool,
@@ -45,6 +49,8 @@ pub enum Head {
     Map,
     Match,
     Member,
+    /// A slice's missing end, `xs[1..]` (VA3): not the value `nil`.
+    Missing,
     Name,
     Named,
     Nil,
@@ -84,6 +90,7 @@ impl Head {
     pub fn as_str(self) -> &'static str {
         match self {
             Head::Arm => "arm",
+            Head::BareTag => "bare_tag",
             Head::Assert => "assert",
             Head::Assign => "assign",
             Head::Binary => "binary",
@@ -113,6 +120,7 @@ impl Head {
             Head::Map => "map",
             Head::Match => "match",
             Head::Member => "member",
+            Head::Missing => "missing",
             Head::Name => "name",
             Head::Named => "named",
             Head::Nil => "nil",
@@ -156,6 +164,7 @@ impl Head {
             Head::Int
                 | Head::Float
                 | Head::Bool
+                | Head::BareTag
                 | Head::Name
                 | Head::String
                 | Head::Symbol
@@ -194,6 +203,23 @@ pub struct Node {
 }
 
 impl Node {
+    /// Calls `f` with every name a pattern binds, in order and with where
+    /// it is bound: `(pbind x)`, a named `...rest`, and a plain name as an
+    /// assignment's target. `..._` and `_` bind nothing (FE11). The
+    /// parser, desugar and resolve all count names with this (FE22).
+    pub fn bound_names(&self, f: &mut dyn FnMut(&str, Pos)) {
+        if matches!(self.head, Head::Name | Head::Pbind | Head::Prest)
+            && let Lit::Str(name) = &self.lit
+            && !name.is_empty()
+            && name != "_"
+        {
+            f(name, self.pos);
+        }
+        for k in &self.kids {
+            k.bound_names(f);
+        }
+    }
+
     pub fn new(head: Head, pos: Pos, kids: Vec<Node>) -> Node {
         Node::with_lit(head, pos, Lit::None, kids)
     }

@@ -145,14 +145,14 @@ print("server still up")
 
 0.2.0까지 기한은 연산마다 따로 있었다(`await(t, timeout: d)`, `recv(ch, timeout: d)`). 연산 하나라면 충분하지만 웹서비스의 기한은 대개 **요청 하나 전체**에 걸린다. 연산마다의 기한으로는 남은 시간을 계산해 다음 연산에 넘겨야 하고, 그 안에서 띄운 태스크에는 기한이 닿지 않으며, 바깥 함수가 정한 기한을 안쪽 함수가 모른다.
 
-Trio의 글 "Timeouts and cancellation for humans"(2018)가 이 문제를 정리했다. 기한을 연산이 아니라 **코드 블록**에 건다. 그러면 기한이 합쳐지고(바깥과 안쪽 중 이른 쪽), 그 안의 모든 연산과 태스크가 따른다. fung은 이미 태스크 범위를 들였으므로 `timeout(d, f)`는 "타이머가 취소하는 범위"로 같은 자리에 들어갔다(노트 R7-language의 L2).
+Trio의 글 "Timeouts and cancellation for humans"(2018)가 이 문제를 정리했다. 기한을 연산이 아니라 **코드 블록**에 건다. 그러면 기한이 합쳐지고(바깥과 안쪽 중 이른 쪽), 그 안의 모든 연산과 태스크가 따른다. fung은 이미 태스크 범위를 들였으므로 `timeout(f, d)`는 "타이머가 취소하는 범위"로 같은 자리에 들어갔다(노트 R7-language의 L2).
 
 ```fung run
-print(timeout(100ms, () => sleep(10s)))
-print(timeout(1s, () => "fast"))
-print(timeout(1s, () => ["inner answered", timeout(50ms, () => sleep(10s))]))
-print(timeout(50ms, () => ["inner answered", timeout(1s, () => sleep(10s))]))
-print(timeout(200ms, () => exec(["sleep", "5"])))
+print(timeout(() => sleep(10s), 100ms))
+print(timeout(() => "fast", 1s))
+print(timeout(() => ["inner answered", timeout(() => sleep(10s), 50ms)], 1s))
+print(timeout(() => ["inner answered", timeout(() => sleep(10s), 1s)], 50ms))
+print(timeout(() => exec(["sleep", "5"]), 200ms))
 ```
 
 세 번째 줄은 안쪽 기한이 먼저라 안쪽 `timeout`이 답했고 바깥은 그 값을 받았다. 네 번째 줄은 바깥 기한이 먼저라 안쪽은 값을 내지 못하고 되감겼고, 바깥 `timeout`이 답했다. 마지막 줄은 외부 명령 `sleep 5`가 200 ms에 끝났다(아래 "외부 명령").
@@ -164,7 +164,7 @@ print(timeout(200ms, () => exec(["sleep", "5"])))
 **타이머 스레드는 없다.** 처음 떠오르는 구현은 타이머 스레드가 기한에 노드를 취소하는 것이지만, 스레드가 하나 더 늘고 교착 판정이 그 스레드를 모르게 된다(노트 R7-language의 L2). 대신 **노드 아래에 있는 쪽이 스스로 기한을 본다.**
 
 - 주차하는 태스크는 기한까지만 잔다. 스케줄러가 주차할 때 노드의 기한을 기다림의 기한과 합쳐 타이머 힙에 넣는다(`Sched::park`). 기한이 있는 기다림은 "타이머가 끝낼 기다림"이라 교착으로 몰리지 않는다.
-- 계산하는 태스크는 차례를 넘길 때(호출 1,000번마다, `end_turn`) 시계를 본다. 그 사이 수천 번의 호출에는 비용이 없다. 긴 내장 함수는 조각을 마칠 때마다(약 1 ms, `piece_done`) 본다. 그래서 `timeout(5ms, () => json.parse(big))`은 수십 ms 늦지 않고 제때 `Err({kind: 'timeout})`이 된다(L6).
+- 계산하는 태스크는 차례를 넘길 때(호출 1,000번마다, `end_turn`) 시계를 본다. 그 사이 수천 번의 호출에는 비용이 없다. 긴 내장 함수는 조각을 마칠 때마다(약 1 ms, `piece_done`) 본다. 그래서 `timeout(() => json.parse(big), 5ms)`은 수십 ms 늦지 않고 제때 `Err({kind: 'timeout})`이 된다(L6).
 - 기한이 지난 것을 처음 본 쪽이 주인 노드를 **만료**시킨다(`expire`). 만료는 "기한으로 취소됨" 표시를 세우고 취소하는 일이다. 그러면 아래가 모두 취소된다.
 
 `timeout`이 끝날 때의 규칙은 태스크 범위와 같은 모양이다(`crates/fung-vm/src/vm/deadline.rs`의 `Timeout`).
@@ -173,13 +173,13 @@ print(timeout(200ms, () => exec(["sleep", "5"])))
 - 본문이 취소로 되감겼고, 이 노드가 **자기 기한으로** 만료됐고, 바깥은 취소되지 않았으면 `Err({kind: 'timeout})`이다.
 - 나머지는 그대로 올라간다. 바깥 기한이 먼저면 바깥 `timeout`이 답하는 이유다.
 
-`timeout(0s, f)`는 이미 지난 기한이라 `f`가 첫 호출에서 되감긴다. 예외 규칙 없이 일관되지만 "기다리지 않고 한 번 보기"로는 쓸 수 없다.
+`timeout(f, 0s)`는 이미 지난 기한이라 `f`가 첫 호출에서 되감긴다. 예외 규칙 없이 일관되지만 "기다리지 않고 한 번 보기"로는 쓸 수 없다.
 
 ```fung run
 fn double(x) = x * 2
 
-print(timeout(0s, () => double(21)))
-print(timeout(1s, () => double(21)))
+print(timeout(() => double(21), 0s))
+print(timeout(() => double(21), 1s))
 ```
 
 ### 운영체제를 기다리던 중이었다면 {#os-waits}
@@ -214,7 +214,7 @@ fn conn(name) = with(
   _ => print("close", name),
 )
 
-r = timeout(100ms, () => conn("db"))
+r = timeout(() => conn("db"), 100ms)
 print(r)
 ```
 
@@ -264,7 +264,7 @@ with(() => "db", c => 1 / 0, close_conn)
 
 **보는 쪽이 있는지는 참조 수로 안다**(`crates/fung-vm/src/vm/stop.rs`). 런타임은 정지 채널의 보내는 끝을 쥐고, 받는 끝은 약한 참조(`Weak`)로만 기억한다. 받는 끝의 사본이 하나라도 살아 있으면 약한 참조가 되살아난다. 그것이 "보는 쪽이 있다"다. 정지 요청이 오면,
 
-- 보는 쪽이 있으면: 런타임이 보내는 끝을 놓는다. 채널이 닫히고(마지막 사본이 사라졌으므로) 기다리던 쪽이 모두 깨어난다. 새 장치가 필요 없었다. 프로그램은 스스로 끝날 때 끝나고, 종료 코드는 0이다.
+- 보는 쪽이 있으면: 런타임이 보내는 끝을 놓는다. 채널이 닫히고(마지막 사본이 사라졌으므로) 기다리던 쪽이 모두 깨어난다. 새 장치가 필요 없었다. 프로그램은 스스로 끝날 때 끝나고, 종료 코드는 0이다. 신호가 왔을 때 그 채널에서 기다리는 태스크가 없으면(최상위 이름이 끝을 쥐고만 있으면) 표준 에러에 `note: stop requested; press again to end now`를 쓴다. 판정을 바꾸면 쥐고 있다가 나중에 보는 정상 프로그램이 취소당하므로, 판정은 두고 침묵만 없앴다.
 - 보는 쪽이 없으면: `exit`처럼 루트를 취소한다. 종료 코드는 128 + 신호 번호(SIGINT 130, SIGTERM 143), `request_stop()`이면 0이다.
 
 ```fung run
@@ -352,20 +352,20 @@ print("not reached")
 아래 다섯 줄이 무엇을 찍을지 먼저 적어 보고 실행해 확인하자. 셋째 줄과 넷째 줄은 어느 `timeout`이 답하는가? 마지막 줄에서 `sleep 5` 명령은 언제 어떻게 끝나는가?
 
 ```fung frag
-print(timeout(100ms, () => sleep(10s)))
-print(timeout(1s, () => "fast"))
-print(timeout(1s, () => ["inner answered", timeout(50ms, () => sleep(10s))]))
-print(timeout(50ms, () => ["inner answered", timeout(1s, () => sleep(10s))]))
-print(timeout(200ms, () => exec(["sleep", "5"])))
+print(timeout(() => sleep(10s), 100ms))
+print(timeout(() => "fast", 1s))
+print(timeout(() => ["inner answered", timeout(() => sleep(10s), 50ms)], 1s))
+print(timeout(() => ["inner answered", timeout(() => sleep(10s), 1s)], 50ms))
+print(timeout(() => exec(["sleep", "5"]), 200ms))
 ```
 
 :::solution
 ```fung run
-print(timeout(100ms, () => sleep(10s)))
-print(timeout(1s, () => "fast"))
-print(timeout(1s, () => ["inner answered", timeout(50ms, () => sleep(10s))]))
-print(timeout(50ms, () => ["inner answered", timeout(1s, () => sleep(10s))]))
-print(timeout(200ms, () => exec(["sleep", "5"])))
+print(timeout(() => sleep(10s), 100ms))
+print(timeout(() => "fast", 1s))
+print(timeout(() => ["inner answered", timeout(() => sleep(10s), 50ms)], 1s))
+print(timeout(() => ["inner answered", timeout(() => sleep(10s), 1s)], 50ms))
+print(timeout(() => exec(["sleep", "5"]), 200ms))
 ```
 
 셋째 줄은 안쪽 기한(50 ms)이 먼저 지나 안쪽 노드가 **자기 기한으로** 만료되므로 안쪽 `timeout`이 `Err({kind: 'timeout})`을 내고, 바깥은 그 값이 든 리스트를 받는다. 넷째 줄은 안쪽 노드가 바깥 기한(50 ms)을 물려받았다. 만료되는 것은 바깥 노드이고, 안쪽은 "자기 기한이 아닌 취소"라 그대로 되감긴다. 그래서 리스트가 만들어지지 않고 바깥 `timeout`이 답한다. 마지막 줄은 200 ms에 명령에 SIGTERM이 가고, `sleep`이 그 신호로 끝나서 2초를 기다리지 않는다.

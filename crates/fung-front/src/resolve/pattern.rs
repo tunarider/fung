@@ -22,18 +22,10 @@ fn binds(n: &Node) -> bool {
     matches!(n.head, Head::Pbind | Head::Prest) && matches!(n.lit, Lit::Str(_))
 }
 
-/// The names a pattern binds, sorted.
+/// The names a pattern binds, sorted (`Node::bound_names`).
 fn pattern_names(n: &Node) -> Vec<String> {
-    fn walk(n: &Node, names: &mut Vec<String>) {
-        if binds(n) {
-            names.push(lit_str(n).to_string());
-        }
-        for k in &n.kids {
-            walk(k, names);
-        }
-    }
     let mut names = Vec::new();
-    walk(n, &mut names);
+    n.bound_names(&mut |name, _| names.push(name.to_string()));
     names.sort();
     names
 }

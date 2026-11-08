@@ -96,7 +96,7 @@ pub(crate) fn join(parts: &[Vec<u8>]) -> Vec<u8> {
 }
 
 /// The last element (`.` for `""`, `/` for a root).
-pub(crate) fn base(p: &[u8]) -> Vec<u8> {
+pub fn base(p: &[u8]) -> Vec<u8> {
     if p.is_empty() {
         return b".".to_vec();
     }
@@ -113,15 +113,29 @@ pub(crate) fn base(p: &[u8]) -> Vec<u8> {
     }
 }
 
-/// Everything but the last element, cleaned.
-pub(crate) fn dir(p: &[u8]) -> Vec<u8> {
-    let i = p.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
-    clean_bytes(&p[..i])
+/// `p` without its trailing `/`s (every function here ignores them, as
+/// `base` does: LB19); `""` for a root.
+fn trimmed(p: &[u8]) -> &[u8] {
+    &p[..p.iter().rposition(|&b| b != b'/').map_or(0, |i| i + 1)]
 }
 
-/// From the last `.` of the last element, or `""`; dots that start the
-/// element are not an extension.
+/// Everything but the last element, cleaned; a trailing `/` is ignored
+/// (`dir("a/b/")` is `a`, as the shell's `dirname`).
+pub(crate) fn dir(p: &[u8]) -> Vec<u8> {
+    let t = trimmed(p);
+    if t.is_empty() {
+        // "" or a root
+        return clean_bytes(p);
+    }
+    let i = t.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
+    clean_bytes(&t[..i])
+}
+
+/// From the last `.` of the last element (the one `base` gives, so
+/// `stem + ext == base`), or `""`; dots that start the element are not an
+/// extension.
 pub(crate) fn ext(p: &[u8]) -> &[u8] {
+    let p = trimmed(p);
     let name_at = p.iter().rposition(|&b| b == b'/').map_or(0, |i| i + 1);
     // Dots that start the name are part of it (`.hidden`, `..`).
     let dots = p[name_at..].iter().take_while(|&&b| b == b'.').count();
@@ -278,7 +292,13 @@ mod tests {
         assert_eq!(dir("/"), "/");
         assert_eq!(dir("a"), ".");
         assert_eq!(dir("/a"), "/");
-        assert_eq!(dir("a/b/"), "a/b");
+        // a trailing `/` is ignored, as in `base` and the shell's
+        // `dirname` (LB19)
+        assert_eq!(dir("a/b/"), "a");
+        assert_eq!(dir("a/b//"), "a");
+        assert_eq!(dir("/a/"), "/");
+        assert_eq!(dir("a/"), ".");
+        assert_eq!(dir("///"), "/");
         assert_eq!(dir("a//b/../c/d"), "a/c");
         assert_eq!(dir(".."), ".");
         assert_eq!(ext(".hidden"), "");
@@ -288,7 +308,14 @@ mod tests {
         assert_eq!(ext("a.b/c"), "");
         assert_eq!(ext("a."), ".");
         assert_eq!(ext(""), "");
-        assert_eq!(ext("dir.d/"), "");
+        // the extension of `base(p)`: `stem + ext == base` (LB19)
+        assert_eq!(ext("dir.d/"), ".d");
+        assert_eq!(ext("a/.b//"), "");
+        assert_eq!(ext("/"), "");
+        for p in ["dir.d/", "a/b.c//", "x", ".hidden/", "a.b/c.d.e", "/", ""] {
+            let (b, e) = (base(p), ext(p));
+            assert!(b.ends_with(e), "{p:?}: base {b:?}, ext {e:?}");
+        }
     }
 
     #[test]

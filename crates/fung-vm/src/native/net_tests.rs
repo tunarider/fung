@@ -172,7 +172,7 @@ fn net_natives_park_on_the_loop() {
 fn a_second_reader_can_be_cancelled_while_it_waits() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  print(timeout(20ms, () => net.read_line(s, 10)))\n  net.write(c, \"a\\n\")!\n  print(await(r1))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}scope(fn(sc):\n  r1 = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  print(timeout(() => net.read_line(s, 10), 20ms))\n  net.write(c, \"a\\n\")!\n  print(await(r1))\n;;)\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
     assert_eq!(
         out(&o),
@@ -650,12 +650,12 @@ fn the_last_copy_closes_the_connection() {
 fn close_wakes_a_task_blocked_on_the_same_handle() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}name = net.local_addr(s) + \"->\" + net.local_addr(c)\nscope(fn(sc):\n  lname = net.local_addr(l)\n  r = spawn(sc, () => net.read_line(s, 10))\n  a = spawn(sc, () => net.accept(l))\n  until(() => net_waiting() == 2)\n  net.close(s)!\n  net.close(l)!\n  print(replace(msg(await(r)), name, \"A->B\"))\n  print(replace(msg(await(a)), lname, \"A\"))\n  print(replace(msg(net.close(l)), lname, \"A\"))\n;;)"
+        "{PAIR}name = net.local_addr(s) + \"->\" + net.local_addr(c)\nscope(fn(sc):\n  lname = net.local_addr(l)\n  r = spawn(sc, () => net.read_line(s, 10))\n  a = spawn(sc, () => net.accept(l))\n  until(() => net_waiting() == 2)\n  net.close(s)!\n  net.close(l)!\n  print(replace(msg(await(r)), name, \"A->B\"))\n  print(replace(msg(await(a)), lname, \"A\"))\n  print(replace(msg(net.close(l)), lname, \"A\"))\n  print(kind(net.accept(l)), kind(net.read_line(s, 1)))\n;;)"
     ));
     assert_eq!(
         out(&o),
         (
-            "connection is closed\nlistener is closed\nlistener is closed\n",
+            "connection is closed\nlistener is closed\nlistener is closed\n'closed 'closed\n",
             "",
             0
         )
@@ -739,7 +739,7 @@ fn held_lookups_leave_the_file_jobs_their_pool() {
     let file = env!("CARGO_MANIFEST_PATH");
     let o = run_then(
         &format!(
-            "import fs\nscope(fn(s):\n  ts = map(0..70, _ => spawn(s, () => net.connect(\"gate.invalid\", 80)))\n  until(() => lookups() >= 8)\n  r = timeout(5s, () => len(fs.read(\"{file}\")!) > 0)\n  print(lookups(), r)\n  each(ts, cancel)\n;;)"
+            "import fs\nscope(fn(s):\n  ts = map(0..70, _ => spawn(s, () => net.connect(\"gate.invalid\", 80)))\n  until(() => lookups() >= 8)\n  r = timeout(() => len(fs.read(\"{file}\")!) > 0, 5s)\n  print(lookups(), r)\n  each(ts, cancel)\n;;)"
         ),
         move || drop(gate),
     );
@@ -753,7 +753,7 @@ fn a_connect_timeout_covers_the_lookup() {
     let _g = serial();
     let gate = probe::hold_lookups();
     let o = run_then(
-        "print(timeout(30ms, () => net.connect(\"gate.invalid\", 80)))",
+        "print(timeout(() => net.connect(\"gate.invalid\", 80), 30ms))",
         move || drop(gate),
     );
     assert_eq!(
@@ -850,7 +850,7 @@ fn set_deadline_reaches_a_blocked_read() {
 fn a_silent_first_address_does_not_hold_the_connect() {
     let _g = serial();
     let o = run(
-        "import time\nl = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nt0 = time.monotonic()\nr = timeout(10s, () => net.connect(\"eyeballs.invalid\", port))\nprint(r, time.monotonic() - t0 < 3s)",
+        "import time\nl = net.listen(\"127.0.0.1:0\")!\nport = parse_int(split(net.local_addr(l), \":\")[1])!\nt0 = time.monotonic()\nr = timeout(() => net.connect(\"eyeballs.invalid\", port), 10s)\nprint(r, time.monotonic() - t0 < 3s)",
     );
     assert_eq!(out(&o), ("Ok(<conn>) true\n", "", 0));
 }
@@ -965,7 +965,7 @@ fn wrong_arguments_are_e0403() {
     let o = run(&format!("{PAIR}net.read_bytes(c, -1)"));
     assert!(
         o.err
-            .starts_with("error[E0403]: argument `n` must be a non-negative int"),
+            .starts_with("error[E0403]: argument `n` must be a non-negative int, got -1"),
         "{}",
         o.err
     );
@@ -1323,7 +1323,7 @@ fn a_read_is_cut_at_the_deadline() {
     let _g = serial();
     let start = Instant::now();
     let o = run(&format!(
-        "{PAIR}print(timeout(100ms, () => net.read_line(c, 100)))"
+        "{PAIR}print(timeout(() => net.read_line(c, 100), 100ms))"
     ));
     assert_eq!(
         out(&o),
@@ -1356,7 +1356,7 @@ fn connect_has_no_timeout_parameter() {
 fn a_failed_registration_releases_the_turn() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}supervise(fn(sc):\n  fail_next_register()\n  t = spawn(sc, () => net.read_line(s, 10))\n  print(kind(await(t)))\n;;, e => nil)\nnet.write(c, \"a\\n\")!\nprint(timeout(5s, () => net.read_line(s, 10)))\nprint(net_waiting())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}supervise(fn(sc):\n  fail_next_register()\n  t = spawn(sc, () => net.read_line(s, 10))\n  print(kind(await(t)))\n;;, e => nil)\nnet.write(c, \"a\\n\")!\nprint(timeout(() => net.read_line(s, 10), 5s))\nprint(net_waiting())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
     assert_eq!(out(&o), ("'error\nOk(\"a\")\n0\n", "", 0));
 }
@@ -1397,12 +1397,12 @@ fn a_dropped_io_wait_releases_its_state() {
 fn the_fd_index_empties_with_the_table() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}l2 = net.listen(\"127.0.0.1:0\")!\nscope(fn(sc):\n  a = spawn(sc, () => net.read_line(s, 10))\n  b = spawn(sc, () => net.accept(l2))\n  until(() => net_waiting() == 2)\n  print(io_table())\n  net.write(c, \"x\\n\")!\n  print(await(a))\n  net.close(l2)!\n  print(kind(await(b)))\n  print(timeout(10ms, () => net.read_line(s, 10)))\n;;)\nprint(io_table())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
+        "{PAIR}l2 = net.listen(\"127.0.0.1:0\")!\nscope(fn(sc):\n  a = spawn(sc, () => net.read_line(s, 10))\n  b = spawn(sc, () => net.accept(l2))\n  until(() => net_waiting() == 2)\n  print(io_table())\n  net.write(c, \"x\\n\")!\n  print(await(a))\n  net.close(l2)!\n  print(kind(await(b)))\n  print(timeout(() => net.read_line(s, 10), 10ms))\n;;)\nprint(io_table())\nnet.close(c)!\nnet.close(s)!\nnet.close(l)!"
     ));
     assert_eq!(
         out(&o),
         (
-            "2 2\nOk(\"x\")\n'network\nErr({kind: 'timeout, message: \"timed out after 10ms\"})\n0 0\n",
+            "2 2\nOk(\"x\")\n'closed\nErr({kind: 'timeout, message: \"timed out after 10ms\"})\n0 0\n",
             "",
             0
         )

@@ -30,14 +30,16 @@ usage:
   fung                                    start the REPL
   fung -e '<code>'                        run one line of code
   fung check <script.fung>                check syntax and names without running
+  fung check -e '<code>'                  the same for one line of code
   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
   fung test [path]                        run tests
   fung dump ast|core|bytecode <script>    print an internal stage
+  fung dump ast|core|bytecode -e '<code>' the same for one line of code
   fung version                            print the version
   fung help                               print this text
 ```
 
-모르는 명령이나 빠진 인자는 `error: …` 한 줄과 이 사용법을 표준 에러에 쓰고 종료 코드 3으로 끝난다.
+모르는 명령이나 빠진 인자, 쓸 데 없는 남는 인자(`fung version x`, `fung check a.fung b`)는 `error: …` 한 줄과 이 사용법을 표준 에러에 쓰고 종료 코드 3으로 끝난다.
 
 ```plain
 $ fung bogus
@@ -124,17 +126,17 @@ error[E0204]: undefined name `nope`
 > :quit
 ```
 
-- 프롬프트는 `> `이다. 입력이 블록이나 괄호 중간에서 끝나면 `. ` 프롬프트로 이어서 받는다.
+- 프롬프트는 `> `이다. 입력이 블록이나 괄호 중간에서 끝나거나 원시 문자열(`` `…` ``)이 열린 채 끝나면 `. ` 프롬프트로 이어서 받는다. 입력이 그 중간에서 끝나면(Ctrl-D, 파일의 끝) 받은 데까지를 실행하지 않고 그 문법 에러를 보인다.
 - 식을 입력하면 그 값을 리터럴 꼴로 보인다(문자열은 따옴표와 함께). 대입, `fn`, `import`, `test`, `assert`는 값을 보이지 않는다. `print(…)`는 출력한 뒤 자신의 값 `nil`을 보인다.
 - 정의(변수, 함수, `import`)는 세션 동안 남는다. 같은 이름을 다시 정의할 수 있고, 앞서 만든 함수도 새 정의를 본다.
-- 에러는 그 입력만 실패시키고 세션은 계속된다. 에러 위치는 `<repl>:줄:열`이고, 앞 입력에서 정의한 함수 안의 에러는 그 입력의 줄을 보인다. 한 입력 안에서 생긴 교착(deadlock, 모든 태스크가 서로를 기다림)도 그 입력만 실패시킨다. 다음 입력을 기다리는 동안 살아 있는 태스크는 교착으로 보지 않는다.
+- 에러는 그 입력만 실패시키고 세션은 계속된다. 에러 위치는 `<repl>:줄:열`이고, 앞 입력에서 정의한 함수 안의 에러는 그 입력의 줄을 보인다. 한 입력 안에서 생긴 교착(deadlock, 모든 태스크가 서로를 기다림)도 그 입력만 실패시킨다. 다음 입력을 기다리는 동안 살아 있는 태스크는 교착으로 보지 않는다. 에러(모르는 `:` 명령, 읽지 못한 `:load` 포함)가 한 번이라도 났으면 세션의 종료 코드는 1이다.
 - `exit(n)`(띄운 태스크에서 부른 것도)은 세션을 코드 n으로 끝낸다. [`request_stop()`](prelude/concurrency.html#fn-request_stop)은 보는 쪽이 없으면 `exit(0)`처럼 끝낸다. 세션이 끝나면 남은 태스크는 취소된다(`with`의 정리는 돈다).
 
 <table>
   <thead><tr><th>REPL 명령</th><th>하는 일</th></tr></thead>
   <tbody>
     <tr><td><code>:help</code></td><td>명령 목록을 보인다.</td></tr>
-    <tr><td><code>:quit</code></td><td>끝낸다(빈 줄에서 Ctrl-D도 같다). 종료 코드 0.</td></tr>
+    <tr><td><code>:quit</code></td><td>끝낸다(빈 줄에서 Ctrl-D도 같다). 종료 코드는 에러가 없었으면 0, 있었으면 1.</td></tr>
     <tr><td><code>:load file.fung</code></td><td>파일을 이 세션에서 실행한다. 그 파일의 정의가 세션에 남는다.</td></tr>
   </tbody>
 </table>
@@ -143,7 +145,7 @@ error[E0204]: undefined name `nope`
 
 터미널에서 띄우면 줄 편집이 된다: ←→로 커서 이동, Home·End(Ctrl-A·Ctrl-E), Backspace·Delete, ↑↓로 이전 입력, Ctrl-L로 화면 지우기, Ctrl-C로 지금 줄 버리기. 입력 기록은 `~/.fung_history`(`HOME`이 없으면 메모리에만)에 최근 1,000줄까지 남는다. 실행 중의 Ctrl-C는 그 입력을 취소하고 프롬프트로 돌아온다. 정리가 끝나지 않을 때 한 번 더 누르면 그 입력의 태스크를 버린다.
 
-표준 입력이 터미널이 아니면(파이프, 파일) 줄 편집 없이 한 줄씩 읽는다. 그래서 `fung < inputs.txt`로 입력을 차례로 넣어 볼 수 있다.
+표준 입력이 터미널이 아니면(파이프, 파일) 줄 편집 없이 한 줄씩 읽고 프롬프트를 쓰지 않는다. 그래서 `fung < inputs.txt`로 입력을 차례로 넣어 볼 수 있고, 표준 출력에는 입력이 출력한 것과 식의 값만 남는다. 에러가 나면 종료 코드가 1이므로 `set -e`도 실패를 본다.
 
 ## 검사: `check` {#check}
 
@@ -179,7 +181,7 @@ $ echo $?
 - 블록마다 `ok   파일: 이름`이나 `FAIL 파일: 이름`과 그 에러를 쓰고, 끝에 `N passed, M failed`를 쓴다.
 - 읽지 못한 파일, 컴파일하지 못한 파일은 `FAIL 파일: <load>`로 실패 하나로 센다.
 - 파일 안에서 `exit(n)`이 불리거나(띄운 태스크에서도) 교착이 생기면 그 파일의 나머지 블록을 건너뛰고 실패 하나로 센다. 그 `n`은 명령의 종료 코드가 되지 않는다.
-- **태스크의 순서를 섞는다.** 언어는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 약속하지 않는다. 그래서 `fung test`는 그 순서를 씨앗에서 뽑아 섞어, 순서에 기대는 시험이 언젠가 드러나게 한다(`fung run`은 섞지 않는다). 씨앗은 환경 변수 `FUNG_SCHED_SEED`(정수)를 주면 그것을 쓰고, 없으면 실행마다 고른다. 고른 씨앗은 실패가 있을 때만 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N runs the tasks in the same order again`으로 알린다. 같은 씨앗을 주면 같은 순서로 다시 돈다.
+- **태스크의 순서를 섞는다.** 언어는 함께 띄우거나 함께 깨어난 태스크가 도는 순서를 약속하지 않는다. 그래서 `fung test`는 그 순서를 씨앗에서 뽑아 섞어, 순서에 기대는 시험이 언젠가 드러나게 한다(`fung run`은 섞지 않는다). 씨앗은 환경 변수 `FUNG_SCHED_SEED`(0부터 2<sup>64</sup> − 1까지의 정수, 숫자만)를 주면 그것을 쓰고, 없으면 실행마다 고른다. 정수가 아닌 값(`abc`, `-1`, 빈 값)은 사용 오류(종료 코드 3)다. 고른 씨앗은 실패가 있을 때만 표준 에러에 `scheduler seed N: FUNG_SCHED_SEED=N runs the tasks in the same order again`으로 알린다. 같은 씨앗을 주면 같은 순서로 다시 돈다.
 
 ```shell
 $ fung test
@@ -200,7 +202,7 @@ $ echo $?
 1
 ```
 
-`assert`가 실패하면 식과 함께 그 안의 하위 식의 값(`shout("a") = "A!"`)을 보인다. 종료 코드는 컴파일하지 못한 파일이 있으면 2, 아니면 실패한 테스트가 있으면 1, 모두 통과하면 0이다. 인자가 둘 이상이거나 경로가 없으면 3이다. 도중에 신호가 오면 그때 돌던 파일에 정지 요청을 보내고, 다음 파일은 돌리지 않고 128 + 신호 번호로 끝난다.
+`assert`가 실패하면 식과 함께 그 안의 하위 식의 값(`shout("a") = "A!"`)을 보인다. 종료 코드는 컴파일하지 못한 파일이 있으면 2, 아니면 실패한 테스트가 있으면 1, 모두 통과하면 0이다. 테스트를 하나도 찾지 못하면(경로 오타, 테스트 없는 디렉터리) `0 passed, 0 failed` 뒤에 표준 에러로 `no tests found`를 쓰고 1로 끝난다. CI가 아무것도 돌리지 않고 통과하지 않게 하려는 것이다. 인자가 둘 이상이거나 경로가 없으면 3이다. 도중에 신호가 오면 그때 돌던 파일에 정지 요청을 보내고, 다음 파일은 돌리지 않고 128 + 신호 번호로 끝난다.
 
 ## 포맷: `fmt` {#fmt}
 
@@ -220,7 +222,7 @@ print(f(x, 2))
 ```
 
 - 파일을 그 자리에서 고치고, 고친 파일의 경로를 한 줄씩 쓴다. 이미 맞는 파일은 건드리지도 쓰지도 않는다.
-- 고칠 때는 옆에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 죽거나 디스크가 차도 파일이 반만 남지 않는다. 권한은 그대로이고, 링크는 링크로 남는다(가리키는 파일을 고친다). 하드 링크가 여럿이거나 남의 파일이면 그 자리에 바로 쓴다.
+- 고칠 때는 [`fs.write`](modules/fs.html#fn-fs-write)처럼 옆에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 죽거나 디스크가 차도 파일이 반만 남지 않는다. 권한은 그대로이고, 링크는 링크로 남는다(가리키는 파일을 고친다). 하드 링크가 여럿이거나 남의 파일이면 그 자리에 바로 쓴다.
 - 디렉터리를 주면 [`test`와 같은 규칙](#test)으로 그 아래의 `.fung` 파일을 모두 고친다: `fung fmt .`
 - `--check`는 고치지 않고 고쳐야 할 파일만 쓴다. 하나라도 있으면 종료 코드 1이라 CI에서 쓴다.
 - `-`는 표준 입력을 읽어 고친 결과를 표준 출력에 쓴다(편집기 연동용). `--check -`는 고칠 게 있으면 `<stdin>`을 쓰고 1, 없으면 아무것도 쓰지 않고 0이다.
@@ -321,7 +323,7 @@ $ echo $?
   <thead><tr><th>종료 코드</th><th>뜻</th></tr></thead>
   <tbody>
     <tr><td><code>0</code></td><td>정상 종료(정지 요청을 받아 스스로 정리하고 끝난 경우도)</td></tr>
-    <tr><td><code>1</code></td><td>실행 중 실패: 런타임 에러, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>, 끝내 아무도 확인하지 않은 태스크의 실패, 테스트 실패, <code>fmt --check</code>에서 고칠 파일이 있음</td></tr>
+    <tr><td><code>1</code></td><td>실행 중 실패: 런타임 에러, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>, 끝내 아무도 확인하지 않은 태스크의 실패, 테스트 실패, <code>fmt --check</code>에서 고칠 파일이 있음, 에러가 난 REPL 세션</td></tr>
     <tr><td><code>2</code></td><td>컴파일 실패: 문법·이름·import 에러</td></tr>
     <tr><td><code>3</code></td><td><code>fung</code> 명령을 잘못 씀: 모르는 명령·옵션, 빠진 인자, 읽을 수 없는 스크립트 파일</td></tr>
     <tr><td><code>n</code></td><td>스크립트가 <code>exit(n)</code>을 부름. <code>n</code>은 0~255다. 운영체제는 아래 8비트만 전하므로, 그 밖의 수는 받지 않고 런타임 에러 E0403(종료 코드 1)이다</td></tr>

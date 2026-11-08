@@ -70,7 +70,7 @@ for n in [1774746000 - 1, 1774746000, 1792890000 - 1, 1792890000]:
   r = time.parse(p[0], p[1])
   print(r, r |> is_ok then time.parts(r!) else nil)
 ;;"#,
-    r#"for p in [["2026-02-30", "YYYY-MM-DD"], ["2026-13-01", "YYYY-MM-DD"], ["2026-00-01", "YYYY-MM-DD"], ["2026-10-00", "YYYY-MM-DD"], ["2026-04-31", "YYYY-MM-DD"], ["2026-1-5", "YYYY-MM-DD"], ["2026-10-04x", "YYYY-MM-DD"], ["2026-10-04", "YYYY-MM-DD HH:mm"], ["09:60", "HH:mm"], ["24:00", "HH:mm"], ["00:00:60", "HH:mm:ss"], ["2026-10-04T09:05:07+9:00", "YYYY-MM-DDTHH:mm:ssZ"], ["2026-10-04T09:05:07+09-00", "YYYY-MM-DDTHH:mm:ssZ"], ["2026-10-04T09:05:07 0900", "YYYY-MM-DDTHH:mm:ssZZ"], ["2026-10-04T09:05:07+09", "YYYY-MM-DDTHH:mm:ssZZ"], ["Foo 04", "MMM DD"], ["Xyz, 04", "ddd, DD"], ["abé", "MMM"], ["é", "MMM"], ["ab", "ddd"], ["2026년10월", "YYYY년MM일"], ["2026\t10", "YYYY MM"], ["x", ""], ["", ""]]:
+    r#"for p in [["2026-02-30", "YYYY-MM-DD"], ["2026-13-01", "YYYY-MM-DD"], ["2026-00-01", "YYYY-MM-DD"], ["2026-10-00", "YYYY-MM-DD"], ["2026-04-31", "YYYY-MM-DD"], ["2026-1-5", "YYYY-MM-DD"], ["2026-10-04x", "YYYY-MM-DD"], ["2026-10-04", "YYYY-MM-DD HH:mm"], ["2026-10-04 09:60", "YYYY-MM-DD HH:mm"], ["2026-10-04 24:00", "YYYY-MM-DD HH:mm"], ["2026-10-04 00:00:60", "YYYY-MM-DD HH:mm:ss"], ["2026-10-04T09:05:07+9:00", "YYYY-MM-DDTHH:mm:ssZ"], ["2026-10-04T09:05:07+09-00", "YYYY-MM-DDTHH:mm:ssZ"], ["2026-10-04T09:05:07 0900", "YYYY-MM-DDTHH:mm:ssZZ"], ["2026-10-04T09:05:07+09", "YYYY-MM-DDTHH:mm:ssZZ"], ["2026 Foo 04", "YYYY MMM DD"], ["Xyz, 2026-10-04", "ddd, YYYY-MM-DD"], ["2026 abé 04", "YYYY MMM DD"], ["2026 é 04", "YYYY MMM DD"], ["ab 2026-10-04", "ddd YYYY-MM-DD"], ["2026년10월04", "YYYY년MM일DD"], ["2026\t10 04", "YYYY MM DD"], ["2026-10-04", "YYYY-MM-DD"]]:
   print(time.parse(p[0], p[1]))
 ;;"#,
     r#"t = time.parse("2026-10-04T09:05:07.123+09:00")!
@@ -79,6 +79,8 @@ print(time.format(time.utc(t), "Z ZZ"), time.format(time.local(t), "YYYY-MM-DD H
     r#"print(time.format(1))"#,
     r#"print(time.format(time.from_unix(0), 1))"#,
     r#"print(time.parse("x", 1))"#,
+    // a format without the whole date is a code error (LB20)
+    r#"print(time.parse("12:30", "HH:mm"))"#,
     r#"print(time.parse(1))"#,
     r#"print(time.utc(1))"#,
     r#"print(time.local("x"))"#,
@@ -108,8 +110,8 @@ fn run(bin: &std::path::Path, src: &str, tz: Option<&str>) -> (String, String, O
 
 /// How many zone and program pairs have a fixed expected output, and
 /// how many programs run with `TZ` unset.
-const ZONE_CASES: usize = 168;
-const UNSET_CASES: usize = 21;
+const ZONE_CASES: usize = 176;
+const UNSET_CASES: usize = 22;
 
 fn entries(bin: &std::path::Path) -> Vec<Entry> {
     let mut pairs = Vec::new();

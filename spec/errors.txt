@@ -2,7 +2,7 @@
 # code<TAB>message template<TAB>underline label<TAB>help
 E0101	unexpected character %q		
 E0102	malformed number %q		
-E0103	unknown escape \%s in string		
+E0103	unknown escape %q in string		
 E0104	unterminated string		
 E0105	malformed duration %q		
 E0110	unexpected %s		
@@ -13,6 +13,13 @@ E0114	test must be at the top level
 E0115	expression nesting too deep (limit %d)		
 E0116	argument `%s` given twice		
 E0117	`%s()` has no arguments		a tag without arguments is a symbol: write it without the parentheses
+E0118	a range cannot be an operand of another range		`..` does not chain: put the inner range in parentheses if you mean it
+E0119	parameter `%s` is bound twice		
+E0120	a required parameter cannot follow an optional one		move the parameters with a default to the end, or give this one a default too
+E0121	a tag takes its values by position, not by name		write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
+E0122	a string with `${…}` cannot be %s		only a constant string fits here: drop the interpolation
+E0123	`_` cannot be a named argument		`_` fills a position; for a named one write a lambda: `x => f(a: x)`
+E0124	an anonymous function cannot be written with `=`		anonymous functions take a block: `fn(x): … ;;`, or write a lambda `x => …`
 E0204	undefined name `%s`	not found in this scope	
 E0205	cannot reassign `%s` here: it was defined outside this block		a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 E0206	`%s` is not visible here: it was defined inside a block		assign the block's value instead: `x = if … ;;`
@@ -34,7 +41,7 @@ E0222	`%s` is a built-in type and cannot be a type alias		give the alias another
 E0223	`if` without `else` used as a value: it is nil when the condition is false	this if has no else	add an `else:` branch; write `else: nil` if nil is meant (a function that returns nothing ends in `else: nil` or `nil`)
 E0224	`%s` is assigned as the last statement of a block used as a value, so the value is nil		put the value last: end the block with an expression, e.g. the assigned name on its own line
 E0225	`%s` starts with an uppercase letter, so it is a tag and cannot name a variable	this is a tag	name variables in lowercase: `{HOME: home} = cfg`, `max_retries = 3`
-E0226	`?` inside a lambda given to map		map keeps the Err as an element; use `try_map`, which stops at the first Err
+E0226	`?` inside a lambda given to %s		the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
 E0227	`_` in a call on the right of `|>`		the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 E0228	the rest parameter `...%s` is always a list		annotate it `list` (or not at all); `list[int]` names the elements without checking them
 E0229	`%s` on the right of `|>` applies to the call, not to the pipe		put the pipe in parentheses: `(xs |> try_map(f))?`
@@ -106,7 +113,7 @@ E0806	too many %s (limit %d)
 E0807	assertion failed: %s		
 E0808	`%s` has no value: the statement that assigned it failed		
 E0809	`%s` is read before its assignment ran		a top-level fn that reads it was called while the file was starting, above the assignment; move the assignment up or the call down
-E0810	a file dropped without `fs.close` failed: %s		close it with `fs.close` (or use `fs.with_open`) to handle the error where it happens
+E0810	a file dropped without `close` failed: %s		close it with `close` (or use `fs.with_open`) to handle the error where it happens
 W0101	unused import `%s`		
 W0102	unused variable `%s`		prefix it with `_` if it is intentional
 W0103	`%s` shadows a prelude function		

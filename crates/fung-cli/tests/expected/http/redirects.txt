@@ -804,7 +804,7 @@
 | User-Agent: fung/$VERSION\r
 | \r
 -- request 0.19 (escaped)
-| GET /a%20b/%EA%B2%80%EC%83%89?q=한 글 HTTP/1.1\r
+| GET /a%20b/%EA%B2%80%EC%83%89?q=%ED%95%9C%20%EA%B8%80 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Referer: http://127.0.0.1:$PORT0/a/b/s9?k=v\r

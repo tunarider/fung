@@ -17,7 +17,10 @@ fn toks_of(src: &str) -> Vec<Token> {
 fn ast(src: &str) -> String {
     let mut sm = SourceMap::new();
     let f = sm.add("-e", src);
-    let (toks, _) = lex(f, src).unwrap();
+    let toks = match lex(f, src) {
+        Ok((toks, _)) => toks,
+        Err(d) => return format!("{} {}:{}", d.code, d.pos.line, d.pos.col),
+    };
     parse(&toks)
         .map(|n| n.to_string())
         .unwrap_or_else(|d| format!("{} {}:{}", d.code, d.pos.line, d.pos.col))
@@ -438,10 +441,10 @@ fn return_and_named_args() {
     ]);
     check_errs(&[
         ("f(a: 1, 2)", "E0110"),
-        ("fn (a) = a", "E0110"),
-        ("fn f(a = 1, b) = a", "E0110"),
+        ("fn (a) = a", "E0124"),
+        ("fn f(a = 1, b) = a", "E0120"),
         ("fn f(a: ) = a", "E0110"),
-        ("fn f(a, a) = a", "E0110"),
+        ("fn f(a, a) = a", "E0119"),
         ("x =>", "E0110"),
         ("fn f() -> = 1", "E0110"),
         ("fn f(...a, b) = a", "E0110"),
@@ -496,11 +499,11 @@ fn duplicate_names_across_parameters() {
     // A name bound by two parameters, plain or inside a pattern, is the
     // same error as `fn f(a, a)`.
     check_errs(&[
-        ("(a, a) => a", "E0110"),
-        ("fn g(a, (a, b)) = a", "E0110"),
-        ("fn g((a, b), (a, c)) = a", "E0110"),
-        ("fn g([x, ...r], r) = x", "E0110"),
-        ("((a, b), [b]) => a", "E0110"),
+        ("(a, a) => a", "E0119"),
+        ("fn g(a, (a, b)) = a", "E0119"),
+        ("fn g((a, b), (a, c)) = a", "E0119"),
+        ("fn g([x, ...r], r) = x", "E0119"),
+        ("((a, b), [b]) => a", "E0119"),
     ]);
     // One pattern binding a name twice is the resolver's E0221.
     p("((a, a)) => a");
@@ -527,7 +530,7 @@ fn collection_literals() {
         ("(1)", "(program 1)"),
         ("Circle(3)", "(program (tag Circle 3))"),
         ("Rect(2, 5)", "(program (tag Rect 2 5))"),
-        ("Red", "(program 'Red)"),
+        ("Red", "(program Red)"),
         ("Ok(x) + 1", "(program (binary + (tag Ok x) 1))"),
     ]);
 }
@@ -574,7 +577,7 @@ fn newlines_inside_brackets_are_whitespace_everywhere() {
         p("import fs (read, write)")
     );
     // At the top level a newline still ends the tag: `Ok` alone is a value.
-    check(&[("x = Ok\n(1)", "(program (assign x 'Ok) 1)")]);
+    check(&[("x = Ok\n(1)", "(program (assign x Ok) 1)")]);
 }
 
 #[test]
@@ -602,7 +605,10 @@ fn nested_indexing_parses_in_linear_time() {
     );
     // The forms the second parse used to cover still read the same.
     check(&[
-        ("xs[a + 1..]", "(program (slice xs (binary + a 1) (nil)))"),
+        (
+            "xs[a + 1..]",
+            "(program (slice xs (binary + a 1) (missing)))",
+        ),
         ("xs[a..b + 1]", "(program (slice xs a (binary + b 1)))"),
         (
             "xs[a..b ?? c]",
@@ -611,7 +617,7 @@ fn nested_indexing_parses_in_linear_time() {
         ("xs[a ?? 0]", "(program (index xs (coalesce a 0)))"),
         (
             "xs[f(x)[0]..]",
-            "(program (slice xs (index (call f x) 0) (nil)))",
+            "(program (slice xs (index (call f x) 0) (missing)))",
         ),
     ]);
 }
@@ -665,25 +671,28 @@ fn postfix_and_new_infix() {
         ("xs[0]", "(program (index xs 0))"),
         ("xs[-1]", "(program (index xs (unary - 1)))"),
         ("xs[1..3]", "(program (slice xs 1 3))"),
-        ("xs[..3]", "(program (slice xs (nil) 3))"),
-        ("xs[-4..]", "(program (slice xs (unary - 4) (nil)))"),
+        ("xs[..3]", "(program (slice xs (missing) 3))"),
+        ("xs[-4..]", "(program (slice xs (unary - 4) (missing)))"),
         ("xs[1..=3]", "(program (slice ..= xs 1 3))"),
         ("xs[i ?? 0]", "(program (index xs (coalesce i 0)))"),
         ("xs[c then 0 else 1]", "(program (index xs (then c 0 1)))"),
         (
             "xs[(i ?? 0)..]",
-            "(program (slice xs (coalesce i 0) (nil)))",
+            "(program (slice xs (coalesce i 0) (missing)))",
         ),
         // the start of an open slice is any expression (01 EBNF
         // `[ expr ] ".."`), looser operators than `..` included
-        ("xs[i ?? 0..]", "(program (slice xs (coalesce i 0) (nil)))"),
+        (
+            "xs[i ?? 0..]",
+            "(program (slice xs (coalesce i 0) (missing)))",
+        ),
         (
             "xs[n |> half..]",
-            "(program (slice xs (pipe n half) (nil)))",
+            "(program (slice xs (pipe n half) (missing)))",
         ),
         (
             "xs[c then 1 else 2..]",
-            "(program (slice xs (then c 1 2) (nil)))",
+            "(program (slice xs (then c 1 2) (missing)))",
         ),
         ("m.name.first", "(program (field first (field name m)))"),
         ("f(1)!", "(program (unwrap ! (call f 1)))"),
@@ -724,7 +733,7 @@ fn postfix_and_new_infix() {
         matches!(&n.kids[0].lit, Lit::Str(s) if s == "?"),
         "unwrap lit"
     );
-    for src in ["x in xs in ys", "a < b in c", "f(a: _)"] {
+    for src in ["x in xs in ys", "a < b in c"] {
         let got = perr(src);
         assert!(got == "E0111" || got == "E0110", "{src:?}: {got}");
     }
@@ -779,11 +788,11 @@ fn patterns_and_match() {
         ),
     ]);
     check_errs(&[
-        ("match v: (x) => 1 ;;", "E0110"),
+        ("match v: (x) => 1 ;;", "E0112"),
         ("match v: [...a, b] => 1 ;;", "E0110"),
         ("match v: 1 + 2 => 1 ;;", "E0110"),
-        ("match v: ;;", "E0110"),
-        ("match v: x => ;;", "E0110"),
+        ("match v: ;;", "E0112"),
+        ("match v: x => ;;", "E0112"),
     ]);
 }
 
@@ -832,7 +841,7 @@ fn for_type_and_destructuring() {
 
 #[test]
 fn tag_rejects_named_args() {
-    assert_eq!(perr("Ok(a: 1)"), "E0110");
+    assert_eq!(perr("Ok(a: 1)"), "E0121");
 }
 
 #[test]
@@ -885,7 +894,6 @@ fn import_statement() {
         ("import 1", "E0112"),
         ("import fs as", "E0112"),
         ("import fs ()", "E0112"),
-        ("import fs (a,)", "E0112"),
         ("import \"x\" as Fs", "E0112"),
         ("import \"${x}\"", "E0112"),
     ]);
@@ -898,7 +906,7 @@ fn import_statement() {
 fn a_tag_pattern_with_empty_parentheses_is_an_error() {
     assert_eq!(perr("match x: Red() => 1 ;;"), "E0117");
     assert_eq!(perr("match x: Ok(Red()) => 1 ;;"), "E0117");
-    assert_eq!(p("x = Red"), "(program (assign x 'Red))");
+    assert_eq!(p("x = Red"), "(program (assign x Red))");
 }
 
 /// A name given twice in one call is caught before running, as a map
@@ -1027,7 +1035,7 @@ fn parameter_patterns() {
     check_errs(&[
         ("fn f((a, b) = 1) = a", "E0110"),
         ("fn f((a, b): int) = a", "E0110"),
-        ("(1 + 2) => 3", "E0110"),
+        ("(1 + 2) => 3", "E0112"),
     ]);
 }
 
@@ -1094,4 +1102,221 @@ fn map_shorthand() {
     ] {
         assert_eq!(perr(src), "E0225", "{src}");
     }
+}
+
+// --- the 2026-11-08 review (FE6–FE11, FE15) ---
+
+/// Inside brackets a newline is whitespace before `]` after an open
+/// slice's `..`, between `not` and `in`, and between a named argument's
+/// name and its `:` (01, FE6).
+#[test]
+fn newlines_inside_brackets_around_two_token_forms() {
+    check(&[
+        ("xs[1..\n]", "(program (slice xs 1 (missing)))"),
+        (
+            "print(1 not\n in xs)",
+            "(program (call print (binary not_in 1 xs)))",
+        ),
+        ("f(a\n : 1)", "(program (call f (named a 1)))"),
+    ]);
+}
+
+/// A line ending in `in` (a for head) or `|` (pattern alternatives, a
+/// type union) continues (01 rule 1, FE7).
+#[test]
+fn a_line_ending_in_in_or_bar_continues() {
+    check(&[
+        (
+            "for x in\n  xs:\n  x\n;;",
+            "(program (for (pbind x) xs (block x)))",
+        ),
+        ("type t = int |\n  str", "(program (typealias t))"),
+        (
+            "match r:\n  Ok(x) |\n  Err(x) => x\n;;",
+            "(program (match r (arm (palt (ptag Ok (pbind x)) (ptag Err (pbind x))) (nil) (block x))))",
+        ),
+        (
+            "fn f(x: int |\n str) = x",
+            "(program (fn f(x:int|str) (block x)))",
+        ),
+    ]);
+}
+
+/// `..` is not associative (01 EBNF, FE8).
+#[test]
+fn a_range_is_not_an_operand_of_a_range() {
+    check_errs(&[
+        ("x = 1..2..3", "E0118"),
+        ("x = 1..2..=3", "E0118"),
+        ("x = xs[0..1..]", "E0118"),
+        ("x = xs[0..1..2]", "E0118"),
+    ]);
+    p("x = (1..2)");
+    p("x = xs[0..1]");
+}
+
+/// The least int folds only when the literal is the whole operand of the
+/// minus: `-a ** b` is `-(a ** b)` (01, FE9).
+#[test]
+fn least_int_folds_only_as_a_whole_operand() {
+    for src in [
+        "-9223372036854775808 ** 1",
+        "-9223372036854775808[0]",
+        "-9223372036854775808(1)",
+        "-9223372036854775808!",
+        "-9223372036854775808?",
+    ] {
+        assert_eq!(perr(src), "E0102", "{src:?}");
+    }
+    assert_eq!(
+        p("-9223372036854775808 + 1"),
+        "(program (binary + -9223372036854775808 1))"
+    );
+}
+
+/// A test name and an import path are text: bytes that are not UTF-8
+/// are refused, not dropped (FE10).
+#[test]
+fn test_names_and_import_paths_are_text() {
+    assert_eq!(ast("test \"a\\xffb\": assert true ;;"), "E0112 1:6");
+    assert_eq!(ast("import \"./x\\xff\""), "E0112 1:8");
+    assert_eq!(
+        p("test \"caf\\xc3\\xa9\": assert true ;;"),
+        "(program (test \"café\" (block (assert true))))"
+    );
+}
+
+/// `..._` is the same as `...`: it binds no name (FE11).
+#[test]
+fn rest_wildcard_binds_nothing() {
+    check(&[
+        (
+            "[a, ..._] = xs",
+            "(program (assign (plist (pbind a) (prest)) xs))",
+        ),
+        (
+            "fn f([a, ..._], [b, ..._]) = a",
+            "(program (fn f((plist (pbind a) (prest)), (plist (pbind b) (prest))) (block a)))",
+        ),
+    ]);
+}
+
+/// Forms the grammar reads and then refuses carry their own codes, not
+/// "unexpected <sentence>" (FE15).
+#[test]
+fn refused_forms_have_their_own_codes() {
+    check_errs(&[
+        ("x = {\"${1}\": 2}", "E0122"),
+        ("match s: \"${x}\" => 1 ;;", "E0122"),
+        ("{\"${k}\": v} = m", "E0122"),
+        ("f(a: _)", "E0123"),
+        ("f = fn(x) = x", "E0124"),
+        ("fn f(a = 1, (b, c)) = a", "E0120"),
+    ]);
+}
+
+/// Deep nesting reaches E0115 in time linear in the input (FE16): the
+/// lambda look-ahead uses a table of bracket pairs, and the code of a
+/// `${…}` is lexed once, with the string, not again per level.
+#[test]
+fn deep_parentheses_and_interpolations_are_linear() {
+    let parens = format!("x = {}1{}", "(".repeat(100_000), ")".repeat(100_000));
+    let mut interp = "1".to_string();
+    for _ in 0..100_000 {
+        interp = format!("\"${{{interp}}}\"");
+    }
+    let interp = format!("x = {interp}");
+    for src in [parens, interp] {
+        let t = std::time::Instant::now();
+        let got = big_stack(move || ast(&src));
+        assert!(got.starts_with("E0115 "), "{got}");
+        assert!(
+            t.elapsed() < std::time::Duration::from_secs(3),
+            "{:?}",
+            t.elapsed()
+        );
+    }
+    // Below the limit the interpolations still nest.
+    assert_eq!(
+        p("x = \"a${\"b${1}\"}\""),
+        "(program (assign x (interp \"a\" (interp \"b\" 1))))"
+    );
+}
+
+/// The parser continues a line after every token of the one list the
+/// formatter also reads (`Kind::ends_open`, 01 rule 1, FE22).
+#[test]
+fn the_parser_continues_after_every_open_line_end() {
+    let cases: &[(Kind, &str)] = &[
+        (Kind::Plus, "x = 1 +\n2"),
+        (Kind::Minus, "x = 1 -\n2"),
+        (Kind::Star, "x = 1 *\n2"),
+        (Kind::Slash, "x = 1 /\n2"),
+        (Kind::SlashSlash, "x = 1 //\n2"),
+        (Kind::Percent, "x = 1 %\n2"),
+        (Kind::StarStar, "x = 1 **\n2"),
+        (Kind::Eq, "x = 1 ==\n2"),
+        (Kind::Ne, "x = 1 !=\n2"),
+        (Kind::Lt, "x = 1 <\n2"),
+        (Kind::Gt, "x = 1 >\n2"),
+        (Kind::Le, "x = 1 <=\n2"),
+        (Kind::Ge, "x = 1 >=\n2"),
+        (Kind::KwIn, "for x in\nxs: x ;;"),
+        (Kind::Coalesce, "x = a ??\n2"),
+        (Kind::Pipe, "x = a |>\nf"),
+        (Kind::DotDot, "x = 1..\n2"),
+        (Kind::DotDotEq, "x = 1..=\n2"),
+        (Kind::KwAnd, "x = a and\nb"),
+        (Kind::KwOr, "x = a or\nb"),
+        (Kind::KwNot, "x = not\nb"),
+        (Kind::Assign, "x =\n2"),
+        (Kind::FatArrow, "f = x =>\nx"),
+        (Kind::Arrow, "fn f() ->\nint = 1"),
+        (Kind::Dot, "x = m.\na"),
+        (Kind::KwThen, "x = c then\n1 else 2"),
+        (Kind::KwElse, "x = c then 1 else\n2"),
+        (Kind::Bar, "type t = int |\nstr"),
+    ];
+    for (k, src) in cases {
+        assert!(k.ends_open(), "{k:?}");
+        let toks = toks_of(src);
+        let got = parse(&toks).map(|n| n.kids.len());
+        assert_eq!(got.ok(), Some(1), "{src:?}");
+    }
+    for k in [
+        Kind::Name,
+        Kind::Int,
+        Kind::RParen,
+        Kind::DoubleSemi,
+        Kind::Comma,
+    ] {
+        assert!(!k.ends_open(), "{k:?}");
+    }
+}
+
+#[test]
+fn lambda_and_fn_parameters_take_the_same_patterns() {
+    // SP8: a parameter is a name or a destructuring pattern (`_`, tuple,
+    // list, map, tag) in both `fn` and a lambda; a literal is not.
+    for src in [
+        "f = (1) => 0",
+        "f = ('a) => 0",
+        "f = (\"a\") => 0",
+        "f = (-1) => 0",
+    ] {
+        assert_eq!(perr(src), "E0112", "{src}");
+    }
+    for src in ["fn f(1) = 0", "fn f('a) = 0"] {
+        assert_eq!(perr(src), "E0112", "{src}");
+    }
+    p("f = (_, [a], {b}, (c, d), Ok(e), x) => x");
+    p("fn f(_, [a], {b}, (c, d), Ok(e), x) = x");
+}
+
+#[test]
+fn an_import_list_takes_a_trailing_comma() {
+    // SP8: every comma-separated list takes a trailing comma.
+    p("import path (base,)");
+    p("import path (\n  base,\n  ext,\n)");
+    assert_eq!(perr("import path ()"), "E0112");
 }

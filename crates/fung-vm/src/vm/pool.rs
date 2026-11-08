@@ -32,6 +32,12 @@ pub(crate) const POOL_MAX: usize = 64;
 /// it answers; eight of them leave the file jobs their pool.
 pub(crate) const LOOKUPS_MAX: usize = 8;
 
+/// The most commands that start at once (their own pool, CC4): a start
+/// (`fork`) holds the process's memory map, so more threads would only
+/// wait on each other, and fifty commands started together do not make
+/// fifty threads.
+pub(crate) const STARTS_MAX: usize = 4;
+
 /// How long a thread with nothing to do lives.
 pub(crate) const POOL_IDLE: Duration = Duration::from_secs(10);
 

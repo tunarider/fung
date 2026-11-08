@@ -483,14 +483,7 @@ fn stringify_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let indent = match &a[1] {
         Value::Nil => 0,
         Value::Int(n) if *n < 0 => {
-            return Err(nat::fail(
-                "E0403",
-                vec![
-                    nat::s("indent"),
-                    nat::s("a non-negative int"),
-                    Arg::Str(format(&a[1])),
-                ],
-            ));
+            return Err(nat::not_count("indent", &a[1]));
         }
         Value::Int(n) => *n,
         v => return Err(nat::wrong_arg("indent", "int | nil", v)),

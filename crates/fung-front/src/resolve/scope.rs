@@ -56,9 +56,10 @@ pub(super) struct FnScope {
     pub(super) self_name: String,
     /// The synthetic lambda of a `for`: return inside is E0213.
     pub(super) for_body: bool,
-    /// A lambda written as an argument of the prelude's map: `?` inside
-    /// is E0226, the trap of a for body (03).
-    pub(super) map_body: bool,
+    /// A lambda written as the `f` of the prelude's map or of `conc.pmap`
+    /// (the name the error shows): `?` inside is E0226, the trap of a for
+    /// body (03, SP1).
+    pub(super) map_body: Option<&'static str>,
     /// A hoisted top-level fn: it and the functions inside it see the
     /// file's constants when called (03, L9).
     pub(super) top: bool,

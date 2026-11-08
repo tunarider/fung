@@ -1,7 +1,8 @@
 //! `_native.time` (06): instants and the
 //! token formats. The `time` type itself is core (`crate::value::Time`);
 //! this module only makes and renders values. Times are pure values, so
-//! everything here runs under the execution right like any computation.
+//! everything here runs on the run thread like any computation (no pool
+//! job; the local zone is read once, on first use).
 
 use std::rc::Rc;
 use std::sync::OnceLock;
@@ -9,7 +10,7 @@ use std::sync::OnceLock;
 use fung_front::diag::Arg;
 
 use super::nat::{self, native, opt, param};
-use super::timefmt::{format_time, parse_rfc3339, parse_time};
+use super::timefmt::{format_time, names_a_date, parse_rfc3339, parse_time};
 use super::tz;
 use crate::value::{Lit, Loc, MapBuilder, Module, Native, Time, Value, format, intern};
 use crate::vm::{Stop, Task};
@@ -109,6 +110,18 @@ fn now_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
 fn parse_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     let t = nat::need_text("s", &a[0])?;
     let layout = nat::opt_str("format", &a[1])?;
+    if let Some(l) = layout
+        && !names_a_date(l)
+    {
+        return Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("format"),
+                nat::s("a format with the year, month and day"),
+                Arg::Str(format(&a[1])),
+            ],
+        ));
+    }
     // Bytes that are not UTF-8 are no time: an `Err` like any (L4).
     let r = match (t.as_str(), layout) {
         (None, _) => Err("not valid UTF-8".to_string()),

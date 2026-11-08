@@ -100,7 +100,7 @@ print(siblings())
 fn kept(flag):
   if flag:
     (_tx, rx) = channel(1)
-    try_recv(rx)
+    recv_now(rx)
   else:
     nil
   ;;

@@ -4,10 +4,7 @@
 //! (`--check -` names `<stdin>` instead, exit 1, if it needs formatting).
 //! A file with a syntax error is reported and left alone (exit 2).
 
-use std::ffi::OsStr;
-use std::io::{Read, Write};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::io::Read;
 
 use fung_front::diag::{self, Diag, EXIT_COMPILE, EXIT_RUNTIME, EXIT_USAGE};
 use fung_front::format::format_bytes;
@@ -151,69 +148,11 @@ fn refused(e: &Diag, name: &str, raw: &[u8], src: &[u8]) -> (Vec<u8>, i32) {
     (restore_name(&text, name, raw), EXIT_COMPILE)
 }
 
-/// Rewrites a file: into a temporary file beside it, renamed over it, so
-/// a crash or a full disk never leaves half a file. A symbolic link is
-/// followed (the file it names is rewritten, the link stays). Where a new
-/// file would not be the same file to its users, it is rewritten in place
-/// instead (truncated, with the old mode): several hard links (the other
-/// names would keep the old text), or an owner or group the new file
-/// would not get (someone else's file we may write). A file we may not
-/// write is refused as before, not replaced. A failure is the
-/// reason alone, as the `fs` module words it.
+/// Rewrites a file whole or not at all, as `fs.write` does
+/// (`fung_vm::native::fs::write_whole`: a temporary file beside it renamed
+/// over it, a link followed, the mode kept). A failure is the reason
+/// alone, as the `fs` module words it.
 fn write(path: &[u8], data: &[u8]) -> Result<(), Vec<u8>> {
-    use std::os::unix::fs::MetadataExt;
-    let err = |e: std::io::Error| fung_vm::native::os_error_text(&e).into_bytes();
-    let p = OsStr::from_bytes(path);
-    let target = std::fs::canonicalize(p).unwrap_or_else(|_| p.into());
-    let meta = std::fs::metadata(&target).ok();
-    let mode = meta
-        .as_ref()
-        .map_or(0o644, |m| m.permissions().mode() & 0o777);
-    // A file we may not write is not replaced either (a rename would
-    // ignore its mode): the open below reports it.
-    let writable = std::fs::OpenOptions::new()
-        .write(true)
-        .open(&target)
-        .is_ok();
-    if let Some(m) = &meta
-        && writable
-        && m.nlink() == 1
-        && let Some(dir) = target.parent()
-        && let Some(name) = target.file_name()
-    {
-        let mut tmp_name = std::ffi::OsString::from(".");
-        tmp_name.push(name);
-        tmp_name.push(format!(".fmt-{}", std::process::id()));
-        let tmp = dir.join(tmp_name);
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(mode)
-            .open(&tmp)
-        {
-            let same_owner = f
-                .metadata()
-                .is_ok_and(|t| t.uid() == m.uid() && t.gid() == m.gid());
-            let done = same_owner
-                && f.set_permissions(std::fs::Permissions::from_mode(mode))
-                    .is_ok()
-                && f.write_all(data).is_ok()
-                && f.sync_all().is_ok()
-                && std::fs::rename(&tmp, &target).is_ok();
-            if done {
-                return Ok(());
-            }
-            // Not the same owner, or the write or rename failed: in
-            // place below (which then reports a failure of its own).
-            let _ = std::fs::remove_file(&tmp);
-        }
-    }
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(mode)
-        .open(&target)
-        .map_err(err)?;
-    f.write_all(data).map_err(err)
+    fung_vm::native::fs::write_whole(path, data, None)
+        .map_err(|e| fung_vm::native::os_error_text(&e).into_bytes())
 }

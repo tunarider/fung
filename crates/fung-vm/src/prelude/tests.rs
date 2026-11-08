@@ -21,8 +21,8 @@ const CONCURRENCY: &[&str] = &[
     "channel",
     "send",
     "recv",
-    "try_send",
-    "try_recv",
+    "send_now",
+    "recv_now",
     "wait_closed",
     "close",
     "stop_signal",
@@ -90,7 +90,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 357;
+const RUN_CASE_COUNT: usize = 358;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -577,6 +577,114 @@ fn collection_functions_with_the_fung_prelude() {
     ];
     for (src, want) in errs {
         assert_eq!(exec(src, Opts::default()).code, *want, "{src}");
+    }
+}
+
+/// `trim` from both ends cuts what cutting the string into characters
+/// would: invalid bytes are characters of their own, cut only when `cut`
+/// holds them (VA5 finds the end from the back).
+#[test]
+fn trim_cuts_whole_characters_from_both_ends() {
+    use fung_front::text::{Unit, units};
+    let reference = |s: &[u8], cut: Option<&[u8]>| -> Vec<u8> {
+        let cut: Vec<Unit> = cut.map_or(Vec::new(), |c| units(c).map(|(_, u)| u).collect());
+        let gone = |u: Unit| match u {
+            Unit::Char(c) if cut.is_empty() => c.is_whitespace(),
+            u => cut.contains(&u),
+        };
+        let us: Vec<(usize, Unit)> = units(s).collect();
+        let Some(lo) = us.iter().position(|&(_, u)| !gone(u)) else {
+            return Vec::new();
+        };
+        let hi = us.iter().rposition(|&(_, u)| !gone(u)).unwrap();
+        s[us[lo].0..us[hi].0 + us[hi].1.byte_len()].to_vec()
+    };
+    let strings: [&[u8]; 9] = [
+        b"",
+        b"  a b  ",
+        b"\xe2\x82 a \xe2\x82",
+        b"\x82\xe2\x82\xac x \xe2\x82\xac\x82",
+        "\u{3000}가\u{2003}".as_bytes(),
+        b"\xff\xff",
+        b"xx\xffxx",
+        "€€a€".as_bytes(),
+        b"\xf0\x9f a \xf0\x9f",
+    ];
+    let cuts: [Option<&[u8]>; 5] = [
+        None,
+        Some(b"\xe2\x82"),
+        Some(b"\x82"),
+        Some("€".as_bytes()),
+        Some(b"x\xff"),
+    ];
+    for s in strings {
+        for cut in cuts {
+            let arg = cut.map_or(Value::Nil, |c| Value::bytes(c.to_vec()));
+            let got = call("trim", vec![Value::bytes(s.to_vec()), arg]).unwrap();
+            let want = Value::bytes(reference(s, cut));
+            assert_eq!(format(&got), format(&want), "trim({s:?}, {cut:?})");
+        }
+    }
+}
+
+/// The prelude written in fung answers a range without spreading it out
+/// (VA4), checks its arguments as a native does with E0403 naming the
+/// argument (VA7), sums any values `+` adds (VA7), and a lone element of
+/// `min`/`max` must have an order too (VA15).
+#[test]
+fn prelude_in_fung_checks_like_a_native() {
+    let cases: &[(&str, &str)] = &[
+        (
+            "print(min(0..200_000_000), max(0..200_000_000), min(5..1), max(5..1), max(3..=7))",
+            "0 199999999 nil nil 7\n",
+        ),
+        (
+            "print(zip(0..200_000_000, [\"a\", \"b\"]), zip([1], 5..9), zip(0..3, 10..12))",
+            "[(0, \"a\"), (1, \"b\")] [(1, 5)] [(0, 10), (1, 11)]\n",
+        ),
+        (
+            "print(sum([1s, 2s]), sum([]), sum([\"a\", \"b\"]), sum(1..=4), sum([[1], [2]]))",
+            "3s 0 ab 10 [1, 2]\n",
+        ),
+        (
+            "print(max([1]), min([\"a\"]), max([[nil]]), min([2s]), pad_left(\"ab\", 4), pad_right(\"ab\", 4, \"xy\"))",
+            "1 a [nil] 2s   ab abxy\n",
+        ),
+        (
+            "print(iterate(1, x => x * 2, 3), until(1, x => x + 1, x => x > 3))",
+            "8 4\n",
+        ),
+    ];
+    for (src, want) in cases {
+        let o = exec(src, Opts::default());
+        assert_eq!((o.code.as_str(), o.out.as_str()), ("", *want), "{src}");
+    }
+    let errs: &[(&str, &str, &str)] = &[
+        ("pad_right(\"ab\", 5, [\"x\"])", "E0403", "`pad`"),
+        ("pad_left(\"ab\", 5, 1)", "E0403", "`pad`"),
+        ("pad_left(\"a\", 3.5)", "E0403", "`n`"),
+        ("pad_left(\"a\", \"3\")", "E0403", "`n`"),
+        ("pad_left(1, 3)", "E0403", "`s`"),
+        ("pad_left(\"a\", 3, \"\")", "E0403", "`pad`"),
+        ("iterate(1, x => x * 2, 3.5)", "E0403", "`n`"),
+        ("iterate(1, x => x, \"n\")", "E0403", "`n`"),
+        ("iterate(1, 2, 3)", "E0403", "`f`"),
+        ("until(1, x => x + 1, 3)", "E0403", "`pred`"),
+        ("sum(5)", "E0506", "sum"),
+        ("sum([1, 2s])", "E0501", "add"),
+        ("max([nil])", "E0501", "nil"),
+        ("min([{}])", "E0501", "map"),
+        ("max([true])", "E0501", "bool"),
+        ("zip(1, [1])", "E0506", "zip"),
+    ];
+    for (src, want, says) in errs {
+        let o = exec(src, Opts::default());
+        let said = o
+            .error
+            .as_ref()
+            .map_or(String::new(), |e| e.headline.clone());
+        assert_eq!(o.code, *want, "{src}: {said}");
+        assert!(said.contains(says), "{src}: {said}");
     }
 }
 

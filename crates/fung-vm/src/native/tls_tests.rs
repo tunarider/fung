@@ -395,7 +395,7 @@ fn a_timeout_ends_a_handshake() {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();
     let o = run(&format!(
-        "print(timeout(50ms, () => net.connect(\"127.0.0.1\", {port}, tls: true)))"
+        "print(timeout(() => net.connect(\"127.0.0.1\", {port}, tls: true), 50ms))"
     ));
     drop(l);
     assert_eq!(

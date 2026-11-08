@@ -77,6 +77,9 @@ fn comment(p: &Proto, op: Op, arg: usize, b: &mut String) {
             if arg & 2 != 0 {
                 parts.push("end");
             }
+            if arg & 4 != 0 {
+                parts.push("inclusive");
+            }
             parts.join(", ")
         }
         Op::Field | Op::Import => format_for_print(&p.consts[arg]),

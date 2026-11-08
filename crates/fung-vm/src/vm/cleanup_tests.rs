@@ -83,7 +83,7 @@ fn a_failing_sibling_still_lets_release_run() {
 fn a_deadline_does_not_cut_release() {
     assert_eq!(
         run(
-            "(_tx, never) = channel()\nprint(timeout(20ms, () => with(() => 1, r => recv(never), fn(r): sleep(50ms); print(\"released\") ;;)))"
+            "(_tx, never) = channel()\nprint(timeout(() => with(() => 1, r => recv(never), fn(r): sleep(50ms); print(\"released\") ;;), 20ms))"
         ),
         (
             "released\nErr({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),

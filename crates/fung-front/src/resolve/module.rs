@@ -68,6 +68,9 @@ impl Resolver<'_> {
             }
             // A constant global, like a hoisted fn.
             if let Some(b) = self.bind_const(name, pos) {
+                if info.key == "conc" && name == "pmap" {
+                    self.pmap_globals.insert(b.index);
+                }
                 kids.push(Node::with_lit(
                     Head::Member,
                     pos,

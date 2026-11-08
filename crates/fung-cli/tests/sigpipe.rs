@@ -260,7 +260,7 @@ fn fs_write_to_a_closed_fifo_is_an_error_value() {
 fn a_file_handle_on_a_closed_fifo_gives_error_values() {
     fifo_case(
         "handle",
-        "import fs\nbig = join(map(0..100000, (i) => \"abcdefghij\"), \"\")\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, big))\nprint(fs.write_line(h, big))\nprint(fs.close(h))\nprint(\"alive\")",
+        "import fs\nbig = join(map(0..100000, (i) => \"abcdefghij\"), \"\")\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, big))\nprint(fs.write_line(h, big))\nprint(close(h))\nprint(\"alive\")",
         // Each failed write reports its error; close has nothing left to
         // flush.
         "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nOk(nil)\nalive\n",
@@ -274,7 +274,7 @@ fn a_file_handle_on_a_closed_fifo_gives_error_values() {
 fn a_small_fifo_line_fails_where_it_is_written() {
     fifo_case(
         "flush",
-        "import fs\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, \"small\"))\nprint(fs.close(h))\nprint(\"alive\")",
+        "import fs\nh = fs.open(args[0], 'append)!\nprint(\"opened\")\nread_line()\nprint(fs.write_line(h, \"small\"))\nprint(close(h))\nprint(\"alive\")",
         "opened\nErr({kind: 'io, message: \"cannot write `D/f`: broken pipe\"})\nOk(nil)\nalive\n",
     );
 }

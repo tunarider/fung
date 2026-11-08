@@ -217,11 +217,6 @@ fn expected() -> BTreeMap<String, Entry> {
         };
         out.insert(name.to_string(), Entry { sig, fung: false });
     }
-    // `dbg`'s `text` and `where` are filled in by the compiler (M6): a
-    // program calls `dbg(x)`.
-    let dbg = out.get_mut("dbg").unwrap();
-    assert_eq!(dbg.sig, "dbg(x, text = nil, where = nil)");
-    dbg.sig = "dbg(x)".to_string();
     for (_, src) in extras::PRELUDE_FILES {
         out.extend(fung_entries(src));
     }

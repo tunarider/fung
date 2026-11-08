@@ -16,7 +16,6 @@ remove_all = _n.remove_all
 move = _n.move
 copy = _n.copy
 open = _n.open
-close = _n.close
 write_line = _n.write_line
 
 # Reads a whole file as a list of lines (the same rule as read_lines).

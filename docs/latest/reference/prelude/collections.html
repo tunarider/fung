@@ -342,7 +342,7 @@ dev refused</code></pre></div>
 <p><code>map([a, b, c], f)</code>는 <code>[f(a), f(b), f(c)]</code>다. 원소 수는 그대로이고 순서도 지킨다. 원본은 바뀌지 않는다. <code>for x in xs: 식 ;;</code>도 리스트를 만들지만, 이미 있는 함수를 넘기거나 파이프로 이을 때는 <code>map</code>이 짧다.</p>
 <p><code>f</code>는 인자 하나를 받는 함수다. 범위를 주면 리스트가 된다(<code>map(0..3, x =&gt; x)</code>는 <code>[0, 1, 2]</code>). 받는 끝을 주면 값이 올 때마다 <code>f</code>를 부르고 채널이 닫히면 끝난다.</p>
 <div class="box mistake"><b>map 안의 ? 는 컴파일 에러다 (E0226)</b>
-<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 <code>map</code>에 바로 쓴 람다 안의 <code>?</code>는 컴파일 에러 E0226이다. <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버리기 때문이다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
+<p><code>map(xs, s =&gt; parse_int(s)?)</code>처럼 <code>map</code>에 바로 쓴 람다 안의 <code>?</code>는 컴파일 에러 E0226이다(<code>f:</code>로 이름 붙여 줘도, 병렬판 <code>conc.pmap</code>에서도 같다). <code>?</code>는 람다에서 돌아올 뿐이라, <code>Err</code>가 바깥 함수로 가지 않고 결과 리스트의 원소가 되어 버리기 때문이다. 실패할 수 있는 변환은 <a href="#fn-try_map"><code>try_map</code></a>을 쓴다. 처음 나온 <code>Err</code>에서 멈추고 그것을 돌려준다.</p>
 </div>
 <h4>매개변수</h4>
 <ul>
@@ -824,7 +824,7 @@ print(pairs(counts) |&gt; map(((code, xs)) =&gt; &quot;${code}: ${len(xs)}&quot;
 <p>두 컬렉션의 원소를 차례로 짝지은 튜플의 리스트를 돌려준다.</p>
 <div class="sig"><code>zip(xs, ys)</code></div>
 <h4>설명</h4>
-<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
+<p><code>zip([a, b], [x, y])</code>는 <code>[(a, x), (b, y)]</code>다. 길이가 다르면 짧은 쪽에 맞추고 남는 원소는 버린다. 범위는 짧은 쪽 길이만큼만 리스트로 만드므로 아주 큰 범위와 짝지어도 된다. 튜플은 패턴으로 꺼낸다: <code>for (name, ip) in zip(names, ips):</code>. 번호를 붙일 때는 범위와 짝짓는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>, <code>ys</code>: 리스트, 범위, 받는 끝.</li>
@@ -855,21 +855,21 @@ db-1   10.0.0.9</code></pre></div>
 <h2 id="numbers">수 모으기</h2>
 <section class="entry" id="fn-sum">
 <h3>sum<span class="by">fung으로 작성</span></h3>
-<p>수의 합을 돌려준다. 빈 리스트는 0.</p>
+<p>원소의 합을 돌려준다. 빈 리스트는 0.</p>
 <div class="sig"><code>sum(xs)</code></div>
 <h4>설명</h4>
-<p><code>fold(xs, 0, (acc, x) =&gt; acc + x)</code>와 같다. 정수와 실수를 섞으면 실수가 된다. 0(정수)에서 시작하므로 기간(<code>dur</code>)의 리스트는 더할 수 없다. 기간은 <code>fold(ds, 0s, (acc, d) =&gt; acc + d)</code>로 더한다.</p>
+<p>첫 원소에서 시작해 나머지를 <code>+</code>로 더한다. 그래서 수뿐 아니라 <code>+</code>로 더할 수 있는 값이면 다 된다: 기간(<code>dur</code>)의 합은 기간이고(<code>sum([1s, 500ms])</code>는 <code>1s500ms</code>), 문자열·리스트는 이어 붙인다. 정수와 실수를 섞으면 실수가 된다. 비었을 때만 0이다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>xs</code>: 수의 리스트, 범위, 받는 끝.</li>
+<li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p>수.</p>
+<p>원소의 합, 비었으면 0.</p>
 <h4>에러</h4>
-<p>수가 아닌 원소가 있으면 런타임 에러 E0501(<code>cannot add int and str</code>).</p>
+<p>더할 수 없는 원소가 섞이면 런타임 에러 E0501(<code>cannot add int and str</code>). 리스트·범위·받는 끝이 아니면 E0506(<code>cannot sum int</code>).</p>
 <h4>예제</h4>
 <p><strong>합계</strong></p>
-<div class="run"><pre><code>print(sum([1, 2, 3]), sum([]), sum([1.5, 2]), sum(1..=100))</code></pre><pre class="out plain"><code>6 0 3.5 5050</code></pre></div>
+<div class="run"><pre><code>print(sum([1, 2, 3]), sum([]), sum([1.5, 2]), sum(1..=100), sum([1s, 500ms]))</code></pre><pre class="out plain"><code>6 0 3.5 5050 1s500ms</code></pre></div>
 <p><strong>필드의 합</strong></p>
 <div class="run"><pre><code>files = [{name: &quot;a.log&quot;, size: 120}, {name: &quot;b.log&quot;, size: 900}]
 print(files |&gt; map(f =&gt; f.size) |&gt; sum)</code></pre><pre class="out plain"><code>1020</code></pre></div>
@@ -881,7 +881,7 @@ print(files |&gt; map(f =&gt; f.size) |&gt; sum)</code></pre><pre class="out pla
 <p>가장 작은 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
 <div class="sig"><code>min(xs)</code></div>
 <h4>설명</h4>
-<p>비교는 <code>&lt;</code>로 한다(<a href="#fn-sort"><code>sort</code></a>와 같은 규칙). 그래서 수뿐 아니라 문자열이나 리스트에도 쓸 수 있다. <code>nil</code>이 원소로 섞여 있으면 건너뛰지 않고 에러를 낸다. 필드 기준의 최솟값은 <code>sort_by(xs, f) |&gt; first</code>로 원소째 얻는다.</p>
+<p>비교는 <code>&lt;</code>로 한다(<a href="#fn-sort"><code>sort</code></a>와 같은 규칙). 그래서 수뿐 아니라 문자열이나 리스트에도 쓸 수 있다. <code>nil</code>이 원소로 섞여 있으면 건너뛰지 않고 에러를 낸다. 원소가 하나여도 순서가 있는 값(수·문자열·기간·시각·리스트·튜플)이어야 해서 <code>min([nil])</code>은 <code>nil</code>이 아니라 에러다. 범위는 펼치지 않고 시작에서 답한다. 필드 기준의 최솟값은 <code>sort_by(xs, f) |&gt; first</code>로 원소째 얻는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>
@@ -904,7 +904,7 @@ print(min(map(servers, s =&gt; s.cpu)), first(sort_by(servers, s =&gt; s.cpu)).n
 <p>가장 큰 원소를, 비었으면 <code>nil</code>을 돌려준다.</p>
 <div class="sig"><code>max(xs)</code></div>
 <h4>설명</h4>
-<p><a href="#fn-min"><code>min</code></a>의 반대다. 같은 규칙으로 비교하고, 빈 컬렉션은 <code>nil</code>이다.</p>
+<p><a href="#fn-min"><code>min</code></a>의 반대다. 같은 규칙으로 비교하고, 빈 컬렉션은 <code>nil</code>이다. 범위는 펼치지 않고 마지막 수로 답한다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>xs</code>: 리스트, 범위, 받는 끝.</li>

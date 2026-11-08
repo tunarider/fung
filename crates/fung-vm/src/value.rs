@@ -8,6 +8,7 @@ mod dur;
 mod format;
 mod hamt;
 pub mod index;
+mod items;
 mod list;
 mod map;
 mod omap;
@@ -26,11 +27,12 @@ pub use crate::native::net::{Conn, Listener};
 use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHandle};
 
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
-pub(crate) use arith::{check_chars, check_returned};
+pub(crate) use arith::{check_chars, check_returned, floor_div_i64, rem_i64};
 pub use compare::{compare, eq, equal, hash_value};
 #[cfg(test)]
 pub use format::format_for_print;
 pub use format::{format, result_tag, type_name, write_for_print};
+pub use items::Items;
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
 pub(crate) use release::{drop_children, keep, pending, release_piece, set_deferring};
@@ -66,7 +68,7 @@ impl Probed for Value {
     fn has(&self, p: Probe) -> bool {
         match p {
             Probe::Mutable => self.holds_mutable(),
-            Probe::Err => matches!(self, Value::Tag(t) if t.name.name() == "Err"),
+            Probe::Err => matches!(self, Value::Tag(t) if t.name == Sym::ERR),
         }
     }
 }
@@ -216,6 +218,21 @@ impl Value {
         Value::Str(Rc::new(Text::new(b)))
     }
 
+    /// A string of one character's bytes (`chars`, `s[i]`). A one-byte
+    /// one, an ASCII character or a byte outside UTF-8, is shared from a
+    /// table made once per thread: a list of characters holds no string
+    /// of its own for each (VA11).
+    pub fn char_str(b: &[u8]) -> Value {
+        thread_local! {
+            static ONE_BYTE: [Rc<Text>; 256] =
+                std::array::from_fn(|i| Rc::new(Text::new(vec![i as u8])));
+        }
+        match b {
+            [byte] => ONE_BYTE.with(|t| Value::Str(t[usize::from(*byte)].clone())),
+            _ => Value::bytes(b.to_vec()),
+        }
+    }
+
     /// A tuple value.
     pub fn tuple(items: Vec<Value>) -> Value {
         Value::Tuple(Rc::new(Tuple::new(items)))
@@ -226,7 +243,7 @@ impl Value {
 /// was made (03, model C) and the globals of the module it was made in (04).
 pub struct Closure {
     pub proto: Rc<RtProto>,
-    pub captured: Vec<Value>,
+    pub captured: Items,
     /// The module's globals; `None` is a slot not assigned yet.
     pub globals: Globals,
 }
@@ -314,10 +331,15 @@ impl Drop for Module {
 
 /// A fixed-size group of values (02). It reads as a slice of its items.
 #[derive(Debug)]
-pub struct Tuple(Vec<Value>);
+pub struct Tuple(Items);
 
 impl Tuple {
     pub fn new(items: Vec<Value>) -> Tuple {
+        Tuple(items.into())
+    }
+
+    /// A tuple of values already gathered (VM8).
+    pub fn of(items: Items) -> Tuple {
         Tuple(items)
     }
 
@@ -349,7 +371,8 @@ impl Drop for Tuple {
 #[derive(Debug)]
 pub struct Tag {
     pub name: Sym,
-    pub args: Vec<Value>,
+    /// Reads as a slice; made from a `Vec` with `into()` (VM8).
+    pub args: Items,
 }
 
 /// Frees nested values without recursion (`release`).

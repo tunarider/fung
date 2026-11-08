@@ -33,7 +33,7 @@
 - 원소를 도는 함수(`map` `filter` `fold` `each` `sort` `find`…)와 문자열·변환 원시는 안쪽 루프라 core(Rust)에 둔다. 그 위의 조합
   (`take` `drop` `first` `sum` `min` `lines` `pad_*` `is_ok`…)은 fung extras다. 경계는 측정해서 옮길 수 있고 의미는 바뀌지 않는다(골든).
   측정으로 돌아온 예: `flatten`은 fung에서 리스트를 누적하면(`acc + x`) 제곱 시간이라 core에 남았다(M7.5 노트).
-- fung extras의 인자 검사는 `fail`(E0803)로 한다. E0403 같은 호출 규약 에러는 Rust 원시만 낸다.
+- fung extras의 인자 검사도 원시와 같은 에러를 낸다(F-4, 2026-11-08 VA7): 타입은 매개변수의 타입 표기(`n: int`)나 `_native.range`의 검사(`count`·`items`·`pad`)로 E0403·E0506이고, 에러는 사용자가 부른 함수의 인자를 말한다. `fail`(E0803)은 쓰지 않는다.
 - 내장 extras 안에서 난 런타임 에러의 위치는 **사용자 코드의 가장 가까운 프레임**이다(사용자는 내장 파일을 열 수 없다). 호출 경로에는
   내장 프레임이 그대로 보인다. 로더가 내장 파일의 `Proto`에 `Builtin`을 표시하고 VM이 그것을 본다.
   사용자 코드가 꼬리 위치에서 부른 경우도 같다: 사라진 사용자 프레임을 내장 프레임이 기억한다(03 "꼬리 호출 최적화", L8). 교착 보고와 태스크의 `spawn` 자리도 이 위치를 쓴다.
@@ -70,7 +70,7 @@
 - 표준 라이브러리 `Err`의 내용은 맵으로 통일한다: `kind`(심볼), `message`(사람이 읽는 문장), 그 외 상황별 필드.
   시간 초과·취소·닫힌 채널도 같다(2026-10-24, 전에는 `kind`뿐). 이 문서의 `Err 'k`는 `Err({kind: 'k, message: …})`의 줄임이다.
 - `kind` 어휘 (처음 목록, 알파에서 추가):
-  `'not_found` `'exists` `'permission` `'io` `'parse` `'invalid` `'timeout` `'closed` `'cancelled` `'error` `'exit` `'network`
+  `'not_found` `'exists` `'permission` `'io` `'parse` `'invalid` `'timeout` `'closed` `'cancelled` `'error` `'exit` `'network` `'empty` `'full`(`recv_now`·`send_now`, L3)
 
 ```
 match fs.read(p):
@@ -114,14 +114,14 @@ match fs.read(p):
 | 모듈 | 내용 |
 |------|------|
 | `fs` | read, read_lines, write, append, list(`dir, full = false` — `full`이면 `dir`을 붙인 경로), glob, walk, exists, stat(`{name, size, is_dir, mtime}`, `mtime`은 지역 시간대의 `time`이나 `nil`; 2026-10-26 F-12), mkdir, remove, remove_all, move, copy, open, close, write_line, with_open, with_temp_dir |
-| `path` | join(이어 붙이고 정리, 뒤의 절대 경로가 앞을 지우지 않음), base, dir, ext(점으로 시작하는 이름은 확장자 없음), stem, abs |
+| `path` | join(이어 붙이고 정리, 뒤의 절대 경로가 앞을 지우지 않음), base, dir, ext(점으로 시작하는 이름은 확장자 없음), stem, abs. 모두 끝의 `/`를 무시한다: `dir("a/b/")`는 `a`(셸 `dirname`), `ext`는 `base`의 것이라 `stem + ext == base`(2026-11-08 LB19) |
 | `cli` | `parse(argv, bools = [])` → `{flags, rest}`. `--name value`·`--name=value`·`--name`(true, `bools`에 있으면 값을 먹지 않음), `--` 뒤는 전부 rest, 이름의 `-`는 `_`로. 검사·변환은 보통 코드로 (fung으로 작성) |
 | `json` | `parse(s)` → `Ok(값)` / `Err({kind: 'parse, line, col, message})`, `stringify(v, indent = nil)`. 아래 "JSON" 참고 (`_native.json`, M8) |
-| `http` | `get(url, headers = {}, timeout = 30s)`, `post(url, body, headers = {}, timeout = 30s)`, `request(method, url, body = nil, headers = {}, timeout = 30s)`, `serve(addr, handler, ready = nil)`. 아래 "HTTP" 참고 (`_native.net` 위의 fung, `extras/http.fung`) |
+| `http` | `get(url, headers = {}, timeout = 30s, max_body = 64 MiB)`, `post(url, body, headers = {}, timeout = 30s, max_body = 64 MiB)`, `request(method, url, body = nil, headers = {}, timeout = 30s, max_body = 64 MiB)`(`timeout`은 `dur | nil`), `serve(addr, handler, ready = nil, drain = 10s, reuse_port = false)`. 아래 "HTTP" 참고 (`_native.net` 위의 fung, `extras/http.fung`) |
 | `conc` | `fan_in(s, rxs)`, `pmap(xs, f, limit = 0)`, `retry(f, times = 3, delay = 0ms)` (05, fung으로 작성) |
 | `time` | `now()`, `monotonic()`, `parse(s, format = nil)` → `Ok`/`Err 'parse`, `format(t, format = nil)`, `utc(t)`, `local(t)`, `unix(t)`, `from_unix(n)`, `parts(t)`. `now()`는 `time` 타입 값 (02·07): `==`, `<`, `+ dur`, `time - time → dur`. 벽시계라 시스템 시각이 바뀌면 그 차도 바뀐다. `monotonic()`은 거꾸로 가지 않는 시계의 값을 `dur`로 준다: 기준점은 정하지 않고(지금은 프로세스 시작 무렵) 차만 뜻이 있으며, `sleep`·기한과 같은 시계라 잠든 시간은 세지 않는다. 경과 시간은 `monotonic()`의 차로 잰다(L10, 2026-10-27; 기각: `time` 값에 단조 값을 숨겨 싣기, 같은 순간의 `==`가 두 갈래가 된다). 아래 "시간 형식" 참고 (`_native.time`, M8) |
 | `regex` | `is_match(s, pat)` → bool, `find(s, pat)` → 매치 맵 또는 `nil`, `find_all(s, pat)`, `replace(s, pat, repl)`, `split(s, pat)`. 아래 "정규식" 참고 (`_native.regex`, M8) |
-| `math`, `random` | (M8 이후) |
+| `math`, `random` | 아직 없음. `math` 후보: `abs`·`floor`·`ceil`·`round`·비트 연산(open-questions) |
 
 - 파일·명령·네트워크 함수의 `Err({kind, message})`에서 운영체제가 말한 이유는 소문자 짧은 문장이다(6c-2). 흔한 것(`no such file or directory`,
   `permission denied`, `operation not permitted`, `file exists`, `not a directory`, `is a directory`, `directory not empty`, `invalid argument`,
@@ -132,7 +132,7 @@ match fs.read(p):
   `move(from, to, overwrite = false)`는 이미 있는 것을 덮지 않는다(`Err 'exists`, 2026-10-24 F-11: 이름 충돌로 파일을 말없이 잃던 것). 확인과 옮기기는 운영체제의 no-replace 이름 바꾸기 하나로 하고(Linux `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`, 못 쓰는 파일 시스템이면 하드 링크, 그다음 확인 후 이름 바꾸기), `overwrite: true`면 파일을 바꾼다(원자적 바꿔치기). 디렉터리는 어느 쪽이든 덮지 않는다(같은 디렉터리의 대소문자만 바꾸는 이름 바꾸기는 된다).
   다른 파일 시스템(EXDEV)이면 파일은 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(LB8, 2026-11-08, 사용자 결정; 셸 `mv`와 같다). 디렉터리·링크는 거절한다.
   `copy(from, to, overwrite = false)`도 같은 규칙이다(LB7, 2026-11-08, 사용자 결정: 말없이 파일을 잃는 이유가 `move`와 같다). 정규 파일만 복사하고(FIFO는 기한을 지킬 수 없어 거절, CC3), 내용은 흘려 보낸다(LB6). `list`·`walk`는 이름의 바이트 순서이고,
-  `walk`가 읽지 못한 디렉터리는 그 경로로 에러가 난다.
+  `walk`가 읽지 못한 디렉터리는 그 경로로 에러가 난다. `glob`도 패턴이 들어가는 디렉터리를 읽지 못하면 그 경로로 에러다(LB18, 2026-11-08, 사용자 결정; 전에는 말없이 건너뛰었다). 없는 디렉터리는 맞는 것이 없을 뿐이다.
 
 추후 후보: `csv`, `hash`, `base64`, `gui`
 
@@ -175,6 +175,7 @@ match fs.read(p):
   사용자 헤더는 이름을 표준 대소문자로 바꾼 뒤 **맵 순서 그대로** 보낸다. 같은 이름이면 사용자 것이고, 비어 있지 않은 사용자 `Host`도 자동 값을 대신한다(다른 백엔드·가상 호스트 고르기; 리다이렉트가 다른 `host:port`로 가면 그 요청부터 버림).
   `Content-Length`·`Transfer-Encoding`·`Trailer`는 본문의 끝을 정하므로 언제나 클라이언트가 쓴다. URL에 사용자 정보(`user:pass@`)가 있고 `Authorization`이 없으면 `Authorization: Basic …`. 에러 문구의 URL은 비밀번호를 `***`로 가린다(해석하지 못한 URL도; 2026-10-26).
 - 응답 본문은 `Content-Length`, `Transfer-Encoding: chunked`, 연결 닫힘까지 중 하나로 읽는다. `HEAD` 응답과 1xx·204·304는 본문 없음.
+  상태 줄은 `HTTP/1.x`와 100~599의 세 자리 숫자다(RFC 9112 4, RFC 9110 15; 2026-11-08 LB14: 전에는 `+20`·`999`·`HTTP/2.0`도 받았다). 아니면 `Err 'network`.
 - **리다이렉트**(RFC 9110 15.4): 301·302·303 → `GET`(원래 `HEAD`면 `HEAD`), 본문 버림. 307·308 → 메서드·본문 유지.
   리다이렉트는 10번까지 따라가고 11번째는 `Err 'network`(`too many redirects (limit 10)`). 리다이렉트 응답의 본문은 읽지 않고 연결을 닫는다.
   첫 요청의 origin을 떠나면 `Authorization`·`Cookie` 같은 민감한 헤더를 그 뒤로 내내 버린다(LB2, 2026-11-08, 사용자 결정): 첫 요청의 호스트나 그 하위 도메인이 아닌 곳,
@@ -194,8 +195,9 @@ match fs.read(p):
 - TLS 연결을 `close`하면 close_notify를 다 보낼 때까지 최대 1초 기다린다(바깥 기한·취소를 따름). `close` 없이 버린 연결은 보내지 않는다.
 - 한 연결의 읽기와 쓰기는 각각 한 번에 하나다. 두 번째 읽는 쪽(쓰는 쪽)은 앞의 것이 끝나기를 줄에서 기다린다(줄 단위 읽기가 서로의 줄을 깨지 않게; 취소·기한에는 끊긴다).
   `set_deadline`은 이미 막혀 기다리는 읽기·쓰기에도 닿는다(기다리던 쪽이 깨어 새 기한으로 다시 본다).
-- **`timeout`**: 기간, 연결·TLS 핸드셰이크·`CONNECT`·리다이렉트를 포함한 요청 전체 하나(따로 짧은 한도가 없다). `0s`면 제한 없음.
-  안에서 `timeout` 범위(05)로 구현하므로 실제 기한은 바깥 기한과의 이른 쪽이다: `timeout(1s, () => http.get(url))`은 1초에 바깥의 `Err({kind: 'timeout})`.
+- **`timeout`**: 기간, 연결·TLS 핸드셰이크·`CONNECT`·리다이렉트를 포함한 요청 전체 하나(따로 짧은 한도가 없다). prelude `timeout`과 같은 규칙으로 `d <= 0`이면 곧바로 시간 초과,
+  요청 자신의 한도를 두지 않으려면 `timeout: nil`(2026-11-08 LB5, 사용자 결정: 전에는 `0s`와 음수가 "제한 없음"이라 같은 이름의 인자가 함수마다 반대 뜻이었다).
+  안에서 `timeout` 범위(05)로 구현하므로 실제 기한은 바깥 기한과의 이른 쪽이다: `timeout(() => http.get(url), 1s)`은 1초에 바깥의 `Err({kind: 'timeout})`.
   `_native.net`의 `connect`·`start_tls`에는 기한 인자가 없다(범위의 기한이 이름 조회·연결·핸드셰이크를 끊는다).
 - **에러 문구**: `cannot request `<url>`: <이유>`. 이유는 짧은 문구다: `connection refused`, `no such host`, `invalid URL: …`, ``unsupported scheme `ftp` ``,
   ``certificate is not valid for `host` ``, `unknown certificate authority`, `certificate has expired (valid until <시각>)`, `too many redirects (limit 10)`,
@@ -218,11 +220,13 @@ match fs.read(p):
   같은 스크립트가 달라지지 않게(L12). URL의 포트도 숫자뿐이다(RFC 3986).
 - `reuse_port`는 바인드 전에 `SO_REUSEPORT`를 켠다. 같은 호스트에서 프로세스 여럿이 한 포트를 받을 때 쓴다(여러 코어를 쓰는 방법, 05). Linux는 연결을 나눠 주고, macOS는 받게만 한다.
   `ready`가 함수면 리스닝 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다(`":0"`의 포트를 아는 길).
-- 핸들러 `req => resp`. `req = {method, path, query, headers, body}`(`query`는 이름마다 첫 값, `+`는 공백, 잘못된 `%` 이스케이프가 든 쌍은 빠짐, `headers`는 소문자 키).
+- 핸들러 `req => resp`. `req = {method, path, query, headers, body}`(`query`는 `&`로 나눈 쌍의 이름마다 첫 값, `+`는 공백, 잘못된 `%` 이스케이프나 `;`가 든 쌍은 빠짐,
+  쌍이 1만 개를 넘으면 400(2026-11-08 LB22, 사용자 결정: 전에는 말없이 `{}`), `headers`는 소문자 키이고 `host`도 있음(2026-11-08 LB4, 사용자 결정: 가상 호스트를 가르게)).
   `resp`는 맵 `{status = 200, headers = {}, body = ""}` 또는 문자열(200, `text/plain; charset=utf-8`). 응답 헤더에 `Date`(IMF-fixdate, RFC 9110 5.6.7)와
   `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`.
 - 답의 틀은 서버가 정한다(L13, RFC 9112 6): 핸들러가 `Transfer-Encoding`·`Trailer`·`Connection`을 넣거나, 본문 바이트 수와 다른 `Content-Length`를 넣으면
-  잘못된 답이다(본문이 없는 답 — `HEAD`·204·304 — 의 `Content-Length`는 GET의 길이로 받는다). 이름이 대소문자만 다른 헤더 둘(`X-A`와 `x-a`)도, 상태 101(연결 넘겨주기를 하지 않음)도 잘못된 답이다.
+  잘못된 답이다(본문이 없는 답 — `HEAD`·204·304 — 의 `Content-Length`는 GET의 길이로 받는다). 이름이 대소문자만 다른 헤더 둘(`X-A`와 `x-a`)도, 토큰이 아닌 이름과 제어 문자(탭 밖)가 든 값도(2026-11-08 LB3: 전에는 말없이 빼거나 공백으로 바꿨고 NUL은 그대로 보냈다) 잘못된 답이다.
+  상태는 200~599다: 핸들러는 마지막 답 하나라 1xx는 잘못된 답(2026-11-08 LB12: 전에는 1xx 뒤에 200을 붙였고 HTTP/1.0에도 1xx를 보냈다; 101은 연결 넘겨주기를 하지 않아서).
 - 핸들러가 런타임 에러를 내면 500을 답하고 stderr에 한 줄(`http: handler failed: …`), 잘못된 답(다른 타입, 위의 틀 규칙)을 돌려주면 500과 `http: bad handler response: …`를 찍고 서버는 계속 돈다(종료 코드 무관).
   핸들러 안의 `exit`, 취소, `drain`을 넘긴 정지는 503이며 보고하지 않는다.
 - 서버가 스스로 내는 답(형식 오류 400, 한도 413·431, 501, 505, 핸들러 실패 500, 503)은 표준 상태 줄, `Date`·`Content-Length`, 본문 `<코드> <이유 문구>\n`이다.
@@ -231,18 +235,20 @@ match fs.read(p):
 - 요청마다 **새 fung 태스크**에서 핸들러가 돈다(동시에 돌 수 있다; 공유 상태는 `atom`). 라우팅은 없고 `match req.path:`로 쓴다.
   예: `examples/api.fung`·`serve.fung`.
 - 한도 (2026-10-14, 고정값; 2026-10-18 머리 한도 정리): 헤더를 10초 안에 보내지 않는 연결은 끊고, 요청 머리는 1 MiB(줄과 CRLF, 빈 줄 포함)·헤더 줄 500개까지(넘으면 431),
-  요청 본문은 16 MiB까지(넘으면 413, 핸들러는 불리지 않음), 형식 오류는 400.
+  요청 본문은 16 MiB까지(넘으면 413, 핸들러는 불리지 않음; `Expect: 100-continue`면 `100 Continue` 전에 413, LB16), 형식 오류는 400.
+  `Transfer-Encoding`이 든 HTTP/1.0 요청은 틀이 깨진 것으로 400(RFC 9112 6.1, LB13), HTTP/1.0 요청의 `Expect`는 무시한다(RFC 9110 10.1.1, LB16).
   조각 전송 요청 본문도 받는다.
 - 런타임 연동: 서버 루프는 fung 코드다(범위, `stop_signal`, `with`). 연결마다 태스크 하나이고, M:1 스케줄러(R1b) 뒤로 `spawn`이 실패하지 않아 내부 함수가 따로 없다.
 - 연결마다 요청 하나라서 HTTP/1.1 응답에 늘 `Connection: close`가 붙는다. 응답 본문은 언제나 `Content-Length`로 보낸다.
 
 **약속 밖**(지원하지 않는 것): 연결 재사용(keep-alive)·파이프라이닝, HTTP/2, 압축. 본문은 바이트 그대로 오간다(L4: 바이너리 본문도 된다).
-URL 경로의 UTF-8이 아닌 바이트는 퍼센트 인코딩해 보내고, 받은 경로·쿼리의 퍼센트 이스케이프는 바이트로 푼다. 헤더 값도 바이트 그대로다(HTTP/1.1의 obs-text).
+URL의 경로와 쿼리는 요청 줄에 쓸 수 있는 글자(RFC 3986)와 올바른 `%XX`만 그대로, 나머지 바이트(공백·UTF-8·홀로 선 `%`)는 퍼센트 인코딩해 보내고(쿼리는 2026-11-08 LB1), 받은 경로·쿼리의 퍼센트 이스케이프는 바이트로 푼다. 헤더 값도 바이트 그대로다(HTTP/1.1의 obs-text).
 
 ## 파일 핸들
 
-- `fs.open(path, mode = 'read, perm = nil)` → `Ok(file)` / `Err`. `mode`는 `'read` `'write` `'append`. `fs.close(f)` → `Ok(nil)`, 이미 닫힌 핸들이면 `Err 'closed`(두 번째 `close`도).
+- `fs.open(path, mode = 'read, perm = nil)` → `Ok(file)` / `Err`. `mode`는 `'read` `'write` `'append`. `close(f)` → `Ok(nil)`, 이미 닫힌 핸들이면 `Err 'closed`(두 번째 `close`도).
 - 새로 만드는 파일(`fs.write`·`fs.append`·`fs.open`의 `'write`·`'append`)의 권한은 0666에서 umask를 뺀 것이다(셸의 `>`·`>>`와 같음; 2026-10-18).
+- `fs.write`는 정규 파일을 통째로 바꾼다(LB17, 2026-11-08, 사용자 결정): 같은 디렉터리의 임시 파일(`.<이름>.<pid>-<n>.tmp`)에 쓰고 `fsync`, 닫기 에러까지 본 뒤(L11) `rename`으로 덮는다. 실패하면 임시 파일을 지우고 원래 파일은 그대로다. `perm`이 없으면 있던 파일의 권한을 지키고, 링크는 가리키는 파일을 바꾼다(링크는 남음). 새 파일이 사용자에게 같은 파일이 아닌 경우(하드 링크가 여럿, 소유자·그룹이 다름, 정규 파일이 아님, 아직 아무것도 가리키지 않는 링크, 임시 파일을 만들 수 없는 디렉터리)는 그 자리에 쓴다. FIFO는 전처럼 직접, `fs.append`는 그 자리에. 옵션은 없다. `fung fmt`도 같은 함수(`native::fs::write_whole`)를 쓴다.
 - 그 셋에 `perm = nil`(0부터 `0o777`까지의 정수, `'read`에는 E0403)을 주면 파일은 정확히 그 권한이 된다(2026-10-26 F-14, `install -m`과 같음):
   `perm`(umask를 뺀 것)으로 만들고, 쓰기 전에 연 파일에 `fchmod`한다. umask를 빼지 않고 이미 있는 파일도 바꾼다(지난 실행이 남긴 0644 임시 파일에 비밀값을 쓰지 않게).
   바꿀 수 없으면(남의 파일) 쓰지 않고 `Err 'permission`. 한계: 바꾸기 전에 다른 프로세스가 열어 둔 핸들은 막지 못한다. `fs.with_open`도 `perm`을 넘긴다.
@@ -250,7 +256,7 @@ URL 경로의 UTF-8이 아닌 바이트는 퍼센트 인코딩해 보내고, 받
   람다 안의 `?`는 람다에서 `Err`를 돌려주는 것이므로 그대로 닫히고 전달된다.
 - `read_line(f)` `read_lines(f)`(prelude), `fs.write_line(f, s)` → `Ok(nil)` / `Err`.
 - 핸들의 읽기·쓰기 버퍼는 64 KiB다. 쓴 줄은 버퍼가 차거나 `close`할 때 파일에 닿는다.
-- **닫기의 에러를 보고한다** (L11, 2026-10-27): `fs.close`·`write`·`append`·`copy`는 `close(2)`의 결과까지 본다. NFS처럼 닫을 때 쓰기를 보내는 파일 시스템에서
+- **닫기의 에러를 보고한다** (L11, 2026-10-27): `close`·`write`·`append`·`copy`는 `close(2)`의 결과까지 본다. NFS처럼 닫을 때 쓰기를 보내는 파일 시스템에서
   할당량 초과·디스크 가득 참이 거기서야 나온다. `fsync`는 하지 않는다(전원이 나가도 남는다는 약속은 0.5.0 뒤의 옵션 후보). `close(2)`가 EINTR이면 닫힌 것으로 본다(다시 닫으면 남의 fd를 닫는다).
 - **`close` 없이 버린 핸들**은 런타임의 닫기 스레드가 비우고 닫는다(`vm/closer.rs`). 실행 스레드가 멈춘 닫기(NFS)를 기다리지 않게 하려는 것이다.
   그래서 데이터가 파일에 닿는 때는 **정하지 않는다**: 버린 바로 뒤의 `fs.read`가 그 줄을 못 볼 수 있다. 프로그램이 끝날 때는 모든 닫기를 기다린다(데이터를 잃지 않음).
@@ -274,14 +280,17 @@ URL 경로의 UTF-8이 아닌 바이트는 퍼센트 인코딩해 보내고, 받
 - 형식을 지정하지 않으면 ISO 8601 (`2026-10-12T22:45:00+09:00`). `print`·`str`도 같은 형식(소수 초는 0이 아닐 때만).
   `parse(s)`(형식 없음)는 RFC 3339를 엄격하게 읽는다(6c-3): `YYYY-MM-DDThh:mm:ss`, 소수는 `.`와 1~9자리, 끝은 `Z`나 `±hh:mm`(초가 있으면 `±hh:mm:ss`),
   `T`·`Z`는 대소문자 무시, 공백 구분과 한 자리 필드는 받지 않는다. 에러는 ``cannot parse `x` as a time: <이유>``(`month out of range`,
-  `expected 2 digits for the hour`, `expected a month name like Oct` 등).
+  `expected 2 digits for the hour`, `expected a month name like Oct` 등). 초는 0~59다: 윤초 `:60`은 RFC 3339가 허용하지만 받지 않는다(`second out of range`; 2026-11-08 LB20, 문서화).
 - 기본 시간대는 컴퓨터의 로컬 시간대. 값은 시간대를 보존한다(`utc(t)`로 바꾼 값은 UTC로 찍힌다).
 - 로컬 시간대는 C 라이브러리처럼 찾는다(6c-3): `TZ`가 없으면 `/etc/localtime`, `""`·`UTC`면 UTC, 앞의 `:`는 뗀다. 절대 경로는 그 파일, 상대 이름은
-  `$TZDIR`(없으면 `/usr/share/zoneinfo`) 아래에서 찾고, 파일이 없으면 POSIX 시간대 문자열(`KST-9`, `EST5EDT,M3.2.0,M11.1.0`)로 읽는다. 다 실패하면 UTC.
+  `$TZDIR`(없으면 `/usr/share/zoneinfo`) 아래에서 찾고, 파일이 없으면 POSIX 시간대 문자열(`KST-9`, `EST5EDT,M3.2.0,M11.1.0`)로 읽는다. 다 실패하면 UTC이고,
+  처음 쓸 때 표준 에러에 한 줄(``warning: TZ `garbage!!` names no time zone; times are in UTC``)을 쓴다(2026-11-08 LB20, 사용자 결정: 오타 하나가 시각을 말없이 바꾸지 않게).
 - 토큰 (2026-10-14 확정): `YYYY` `YY`(파싱은 2000~2099) `MM` `MMM`(영문 월 약자 `Oct`) `DD` `ddd`(영문 요일 약자 `Sun`) `HH`(24시간) `mm` `ss`
   `SSS`(밀리초) `Z`(`+09:00`) `ZZ`(`+0900`). 파싱에서 영문 이름은 대소문자를 가리지 않고, `ddd`는 이름만 검사하며 날짜와 대조하지 않는다.
   목록에 없는 글자는 그대로 출력·그대로 기대한다. 긴 토큰부터 맞춘다. `parse`는 같은 토큰으로 자리수를 정확히 맞추고, 시간대 토큰이
   없으면 로컬로 해석한다. 12시간제·이스케이프는 보류.
+  `parse`의 형식에는 연(`YYYY`·`YY`)·월(`MM`·`MMM`)·일(`DD`)이 모두 있어야 한다. 없으면 런타임 에러 E0403(2026-11-08 LB20, 사용자 결정: 시각은 한 순간이라 날짜가
+  필요하다. 전에는 0000-01-01로 채워 지역 시간대의 지방 평균시 오프셋 `+08:27:52`가 붙었다). 시각 필드는 없으면 0이다.
 - `parts(t)` → `{year, month, day, hour, minute, second, weekday}`, `weekday`는 `'mon`…`'sun`.
 - 범위와 오프셋(6c-3): 시각은 UTC로 0000~9999년. `from_unix`가 범위 밖이면 E0403, 산술이 넘으면 E0503. 오프셋에 초가 있으면(1883년 전 뉴욕의 `-04:56:02` 같은
   지방 평균시) ISO 출력과 `Z`·`ZZ`가 초까지 쓴다. 숫자 오프셋으로 읽은 값은 쓴 그대로의 고정 오프셋이다.

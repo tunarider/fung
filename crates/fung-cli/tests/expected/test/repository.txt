@@ -18,7 +18,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/dotenv.fung
 -- stdout
 | ok   examples/dotenv.fung: parse handles comments, export and quotes
@@ -30,7 +31,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/kebab.fung
 -- stdout
 | ok   examples/kebab.fung: kebab squeezes and trims
@@ -49,22 +51,26 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/rename.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/serve.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/static.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/staticfiles.fung
 -- stdout
 | ok   examples/staticfiles.fung: a directory serves its index.html, files get their type
@@ -76,7 +82,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test examples/urlcheck.fung
 -- stdout
 | ok   examples/urlcheck.fung: check reports status and json keys
@@ -93,7 +100,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test extras/fs.fung
 -- stdout
 | FAIL extras/fs.fung: <load>
@@ -206,142 +214,170 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/_lib/noisy.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/args.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/args_and_exit.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/arith.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/assert_pass.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/assign.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/atom_errors.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/atoms.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/bytes.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/cancel.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/channel_stream.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/channels.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/cli_bools_names.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/closures.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/collections.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/compare_exact.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/compare_logic.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/conc_helpers.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/continuation.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/convert.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/destructure.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/discard.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/discard_callbacks.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/dur_numbers.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/durations.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/element_types.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/eq_sym_str_pairs.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_alias_cycle.fung
 -- stdout
 | FAIL tests/lang/err_alias_cycle.fung: <load>
@@ -394,47 +430,62 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_arg_type.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_arg_type_tag.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_assert.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_atom_effect.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_atom_holds.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_atom_reentry.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/err_atom_stop_signal.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_bang_nil.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_bang_value.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_block_leak.fung
 -- stdout
 | FAIL tests/lang/err_block_leak.fung: <load>
@@ -452,7 +503,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_chain.fung
 -- stdout
 | FAIL tests/lang/err_chain.fung: <load>
@@ -470,92 +522,123 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_channel_self.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_cli_empty_flag.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/err_closed_name_in_lambda.fung
+-- stdout
+| FAIL tests/lang/err_closed_name_in_lambda.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0206]: `lines` is not visible here: it was defined inside a block
+|   --> tests/lang/err_closed_name_in_lambda.fung:6:11
+|   |
+| 6 | g = () => lines
+|   |           ^^^^^
+|   |
+|  help: assign the block's value instead: `lines = if … ;;`
+-- exit: 2
 ==== test tests/lang/err_cond_not_bool.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_convert.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_deadlock.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_destructure.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_branch.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_each.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_end.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_for.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_list_each.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_list_end.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_list_map.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_on_fail.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_release.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_discard_stmt.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_div_zero.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_dup_fn.fung
 -- stdout
 | FAIL tests/lang/err_dup_fn.fung: <load>
@@ -597,12 +680,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_dur_floor_div_int.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_element_type_on_scalar.fung
 -- stdout
 | FAIL tests/lang/err_element_type_on_scalar.fung: <load>
@@ -632,13 +717,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_escape.fung
 -- stdout
 | FAIL tests/lang/err_escape.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0103]: unknown escape \p in string
+| error[E0103]: unknown escape "\\p" in string
 |   --> tests/lang/err_escape.fung:1:10
 |   |
 | 1 | print("C:\path")
@@ -649,12 +735,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_exit_range.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_expected_colon.fung
 -- stdout
 | FAIL tests/lang/err_expected_colon.fung: <load>
@@ -671,12 +759,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_file_wrong_mode.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_fn_empty_body.fung
 -- stdout
 | FAIL tests/lang/err_fn_empty_body.fung: <load>
@@ -694,12 +784,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_global_before_assign.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_global_from_fn.fung
 -- stdout
 | FAIL tests/lang/err_global_from_fn.fung: <load>
@@ -717,7 +809,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_hole.fung
 -- stdout
 | FAIL tests/lang/err_hole.fung: <load>
@@ -809,17 +902,20 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_index_range.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_index_tuple.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_interp.fung
 -- stdout
 | FAIL tests/lang/err_interp.fung: <load>
@@ -836,22 +932,26 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_join_result.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_json_stringify.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_key.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_local_fn_later.fung
 -- stdout
 | FAIL tests/lang/err_local_fn_later.fung: <load>
@@ -869,7 +969,21 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/err_map_named_f_question.fung
+-- stdout
+| FAIL tests/lang/err_map_named_f_question.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0226]: `?` inside a lambda given to map
+|   --> tests/lang/err_map_named_f_question.fung:3:44
+|   |
+| 3 | fn ports(xs) = map(xs, f: s => parse_int(s)?)
+|   |                                            ^
+|   |
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+-- exit: 2
 ==== test tests/lang/err_map_pattern_dup_key.fung
 -- stdout
 | FAIL tests/lang/err_map_pattern_dup_key.fung: <load>
@@ -893,13 +1007,14 @@
 | 2 | fn ints(xs) = Ok(xs |> map(s => parse_int(s)?))
 |   |                                             ^
 |   |
-|  help: map keeps the Err as an element; use `try_map`, which stops at the first Err
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
 -- exit: 2
 ==== test tests/lang/err_missing_arg.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_missing_end.fung
 -- stdout
 | FAIL tests/lang/err_missing_end.fung: <load>
@@ -928,17 +1043,20 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_no_match.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_nonfinite.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_number.fung
 -- stdout
 | FAIL tests/lang/err_number.fung: <load>
@@ -964,11 +1082,24 @@
 |   |
 |  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
 -- exit: 2
+==== test tests/lang/err_number_trailing_dot.fung
+-- stdout
+| FAIL tests/lang/err_number_trailing_dot.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0102]: malformed number "1."
+|   --> tests/lang/err_number_trailing_dot.fung:3:5
+|   |
+| 3 | x = 1.
+|   |     ^
+|   |
+-- exit: 2
 ==== test tests/lang/err_ok_two_values.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_open_if_assign.fung
 -- stdout
 | FAIL tests/lang/err_open_if_assign.fung: <load>
@@ -1038,7 +1169,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_pipe_hole.fung
 -- stdout
 | FAIL tests/lang/err_pipe_hole.fung: <load>
@@ -1052,6 +1184,12 @@
 |   |
 |  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 -- exit: 2
+==== test tests/lang/err_pipe_quoted_symbol.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_pipe_tag_hole.fung
 -- stdout
 | FAIL tests/lang/err_pipe_tag_hole.fung: <load>
@@ -1069,7 +1207,21 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/err_pmap_question.fung
+-- stdout
+| FAIL tests/lang/err_pmap_question.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0226]: `?` inside a lambda given to conc.pmap
+|   --> tests/lang/err_pmap_question.fung:5:47
+|   |
+| 5 | fn ports(xs) = conc.pmap(xs, s => parse_int(s)?)
+|   |                                               ^
+|   |
+|  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
+-- exit: 2
 ==== test tests/lang/err_question_in_for.fung
 -- stdout
 | FAIL tests/lang/err_question_in_for.fung: <load>
@@ -1095,6 +1247,19 @@
 |   |      ^
 |   |
 |  help: use `!` to stop the script on Err
+-- exit: 2
+==== test tests/lang/err_range_chain.fung
+-- stdout
+| FAIL tests/lang/err_range_chain.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0118]: a range cannot be an operand of another range
+|   --> tests/lang/err_range_chain.fung:3:11
+|   |
+| 3 | print(1..2..3)
+|   |           ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
 -- exit: 2
 ==== test tests/lang/err_reassign_fn.fung
 -- stdout
@@ -1125,12 +1290,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_regex_replace_group.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_rest_type.fung
 -- stdout
 | FAIL tests/lang/err_rest_type.fung: <load>
@@ -1161,12 +1328,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_scope_failed.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_shadow_module.fung
 -- stdout
 | FAIL tests/lang/err_shadow_module.fung: <load>
@@ -1180,46 +1349,72 @@
 |   |
 |  help: import it under another name: `import fs as m`
 -- exit: 2
+==== test tests/lang/err_slice_nil_end.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_slice_tuple.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_spawn_closed_scope.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_spawn_without_scope.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_stack_overflow.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_str_int.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/err_string_backslash_at_line_end.fung
+-- stdout
+| FAIL tests/lang/err_string_backslash_at_line_end.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0104]: unterminated string
+|   --> tests/lang/err_string_backslash_at_line_end.fung:3:7
+|   |
+| 3 | print("a\
+|   |       ^
+|   |
+-- exit: 2
 ==== test tests/lang/err_sym_name.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_sym_str_eq.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_sym_str_nested.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_tag_assign.fung
 -- stdout
 | FAIL tests/lang/err_tag_assign.fung: <load>
@@ -1238,12 +1433,13 @@
 | FAIL tests/lang/err_tag_named.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0110]: unexpected named argument in a tag (tags take values by position)
+| error[E0121]: a tag takes its values by position, not by name
 |   --> tests/lang/err_tag_named.fung:1:10
 |   |
 | 1 | print(Ok(a: 1))
 |   |          ^
 |   |
+|  help: write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`
 -- exit: 2
 ==== test tests/lang/err_tag_shorthand_map.fung
 -- stdout
@@ -1275,32 +1471,38 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_tail_return_type.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_task_err_dropped.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_task_err_escaped.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_task_failed.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_task_self_result.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_test_name_empty.fung
 -- stdout
 | FAIL tests/lang/err_test_name_empty.fung: <load>
@@ -1343,7 +1545,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_top_assigned_twice.fung
 -- stdout
 | FAIL tests/lang/err_top_assigned_twice.fung: <load>
@@ -1361,7 +1564,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_top_lambda_before.fung
 -- stdout
 | FAIL tests/lang/err_top_lambda_before.fung: <load>
@@ -1392,17 +1596,20 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_type.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_types_enum.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_undefined.fung
 -- stdout
 | FAIL tests/lang/err_undefined.fung: <load>
@@ -1431,12 +1638,14 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_unknown_named.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_unknown_type.fung
 -- stdout
 | FAIL tests/lang/err_unknown_type.fung: <load>
@@ -1517,287 +1726,362 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/failure_value.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/fn_basics.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/fs_and_path.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/http_serve.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/ident_unicode.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/if_blocks.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/import_basic.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/import_names.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/json.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/keyword_names.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/line_continuations_more.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/lines.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/lists.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/literals.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/local_lifetime.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/map_pattern_string_keys.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/map_shorthand.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/map_upper_keys.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/maps.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/match.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/minint.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/nfc_keys.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/nil.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/open_if.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/param_patterns.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/path_rules.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/pieces.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/pipe_tags.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/pipes_partial.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/process.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/ranges.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/recv_now.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/regex.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/regex_replace_groups.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/rest_and_alias.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
+==== test tests/lang/rest_wildcard.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/result_arity.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/result_text.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/results.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/results_fns.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/return.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/scopes.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/slices_inclusive.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/stdin.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/stdlib_fns.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/strict_conversions.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/string_fns.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/strings.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/strings_case.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/supervise.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/supervise_lost_err_now.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/sym_str_compare.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/sym_tag_names.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/symbols.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/tag_keys.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/tag_partial.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/task_err.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/tasks.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/tco.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/test_blocks_ignored.fung
 -- stdout
 | 1
@@ -1818,97 +2102,110 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/time_module.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/time_monotonic.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/time_rules.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/time_values.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/timeouts.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/top_constants.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/try_map.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
-==== test tests/lang/try_recv.fung
--- stdout
-| 0 passed, 0 failed
--- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/tuples_tags.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/types.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/types_enum.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/types_more.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/underscore_assign.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/unused_var_silent_in_run.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/value_statement_blocks.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/wait_closed.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/with.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test tests/lang/with_exit.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test $DIR/examples
 -- stdout
 | ok   $DIR/examples/api.fung: health, echo and 404

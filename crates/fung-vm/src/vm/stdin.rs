@@ -51,6 +51,8 @@ struct Pump {
 struct PumpState {
     /// The input until the reader thread takes it.
     source: Option<Box<dyn BufRead + Send>>,
+    /// The reader thread was started.
+    started: bool,
     /// Lines read, each with its line ending; `None` is the end of the
     /// input (or a read error).
     lines: VecDeque<Option<Vec<u8>>>,
@@ -68,6 +70,18 @@ impl PumpState {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Set by a test: the reader thread cannot start (on this run thread).
+    static FAIL_START: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Makes the reader thread's start fail or not (tests, on the run thread).
+#[cfg(test)]
+pub(crate) fn fail_start_for_tests(on: bool) {
+    FAIL_START.set(on);
+}
+
 fn lock(m: &Mutex<PumpState>) -> MutexGuard<'_, PumpState> {
     // The state is plain containers that no panic leaves half-changed.
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -78,6 +92,7 @@ impl Stdin {
         Stdin(Arc::new(Pump {
             state: Mutex::new(PumpState {
                 source: Some(source),
+                started: false,
                 lines: VecDeque::new(),
                 waiting: WaitList::default(),
                 closed: false,
@@ -90,24 +105,42 @@ impl Stdin {
     /// input), taken off for `me`; otherwise `me` is put on the waiting
     /// list, the reader thread is asked for a read, and `None`: the task
     /// parks until the reader thread wakes it (`read_on_demand`). Starts
-    /// the reader thread the first time.
-    pub(crate) fn poll(&self, me: &Arc<Waiter>) -> Option<Option<Vec<u8>>> {
+    /// the reader thread the first time; when no thread can be made, the
+    /// error (E0801 for the caller), and the input stays for a later read
+    /// (review CC7).
+    pub(crate) fn poll(&self, me: &Arc<Waiter>) -> std::io::Result<Option<Option<Vec<u8>>>> {
         let mut s = lock(&self.0.state);
-        if let Some(source) = s.source.take() {
-            let pump = self.0.clone();
-            std::thread::Builder::new()
-                .name("fung-stdin".into())
-                .spawn(move || pump.read_on_demand(source))
-                .expect("start the standard input reader");
+        if !s.started {
+            self.start()?;
+            s.started = true;
         }
         if let Some(line) = s.lines.pop_front() {
             s.waiting.remove(me);
-            return Some(line);
+            return Ok(Some(line));
         }
         if s.waiting.add(me) {
             self.0.demand.notify_one();
         }
-        None
+        Ok(None)
+    }
+
+    /// Starts the reader thread, which takes the input once it runs: a
+    /// thread that cannot be made leaves the input where it was.
+    fn start(&self) -> std::io::Result<()> {
+        #[cfg(test)]
+        if FAIL_START.get() {
+            return Err(std::io::Error::other("no thread (test)"));
+        }
+        let pump = self.0.clone();
+        std::thread::Builder::new()
+            .name("fung-stdin".into())
+            .spawn(move || {
+                let source = lock(&pump.state).source.take();
+                if let Some(source) = source {
+                    pump.read_on_demand(source);
+                }
+            })
+            .map(drop)
     }
 
     /// A wait that ended without a line (cancelled, or past its

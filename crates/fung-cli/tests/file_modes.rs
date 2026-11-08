@@ -14,7 +14,7 @@ fn new_files_take_0666_less_the_umask() {
     std::fs::create_dir_all(&dir).unwrap();
     let d = dir.to_string_lossy().into_owned();
     let program = format!(
-        "fs.write(\"{d}/w\", \"x\")!\nfs.append(\"{d}/a\", \"x\")!\nfs.close(fs.open(\"{d}/ow\", 'write)!)!\nfs.close(fs.open(\"{d}/oa\", 'append)!)!"
+        "fs.write(\"{d}/w\", \"x\")!\nfs.append(\"{d}/a\", \"x\")!\nclose(fs.open(\"{d}/ow\", 'write)!)!\nclose(fs.open(\"{d}/oa\", 'append)!)!"
     );
     let fung = common::fung_bin();
     let o = std::process::Command::new("sh")

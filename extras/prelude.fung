@@ -16,7 +16,14 @@ env = _p.env
 # A range is not counted: it may hold more numbers than len can (02).
 fn is_empty(x) = type_of(x) == 'range then _r.last(x) == nil else len(x) == 0
 
-fn sum(xs) = fold(xs, 0, (acc, x) => acc + x)
+# 0 for an empty collection; otherwise `+` folds from the first element,
+# so durations, strings and lists sum too.
+fn sum(xs):
+  _r.items(xs, "sum")
+  if type_of(xs) == 'range: return fold(xs, 0, (acc, x) => acc + x) ;;
+  ys = _list(xs, "sum")
+  is_empty(ys) then 0 else fold(ys[1..], ys[0], (acc, x) => acc + x)
+;;
 
 # Positional access needs a list: ranges (and receiving ends, received
 # until closed) become one. Anything else is E0506 with `verb`, the
@@ -36,16 +43,23 @@ fn _receive(rx, n, acc) = n <= 0 then acc else match recv(rx):
 ;;
 
 # min/max: nil for an empty collection; the first element seeds the fold
-# so a nil element fails as `<` does instead of being skipped.
+# so a nil element fails as `<` does instead of being skipped. A lone
+# element must have an order too (_ordered), so `max([nil])` is not nil.
+# A range is answered from its ends, not spread out.
 fn min(xs):
+  if type_of(xs) == 'range: return _start(xs) ;;
   ys = _list(xs, "take the min of")
-  is_empty(ys) then nil else fold(ys[1..], ys[0], (best, x) => x < best then x else best)
+  is_empty(ys) then nil else fold(ys[1..], _ordered(ys[0]), (best, x) => x < best then x else best)
 ;;
 
 fn max(xs):
+  if type_of(xs) == 'range: return _r.last(xs) ;;
   ys = _list(xs, "take the max of")
-  is_empty(ys) then nil else fold(ys[1..], ys[0], (best, x) => x > best then x else best)
+  is_empty(ys) then nil else fold(ys[1..], _ordered(ys[0]), (best, x) => x > best then x else best)
 ;;
+
+# x when its type has an order; otherwise the error `<` gives it.
+fn _ordered(x) = type_of(x) in ['int, 'float, 'str, 'dur, 'time, 'list, 'tuple] then x else (x < x then x else x)
 
 fn reverse(xs):
   ys = _list(xs, "reverse")
@@ -55,12 +69,17 @@ fn reverse(xs):
 
 fn range(a, b = nil) = b == nil then 0..a else a..b
 
+# A range is cut to the other side's length before it becomes a list.
 fn zip(xs, ys):
-  left = _list(xs, "zip")
-  right = _list(ys, "zip")
-  n = min([len(left), len(right)])
-  for i in 0..n: (left[i], right[i]) ;;
+  left = type_of(xs) == 'range then xs else _list(xs, "zip")
+  right = type_of(ys) == 'range then _upto(ys, len(left)) else _list(ys, "zip")
+  cut = _upto(left, len(right))
+  n = min([len(cut), len(right)])
+  for i in 0..n: (cut[i], right[i]) ;;
 ;;
+
+# A range's first n numbers as a list; anything else as it is.
+fn _upto(xs, n) = type_of(xs) == 'range then map(_r.slice(xs, 0, n), x => x) else xs
 
 fn first(xs):
   if type_of(xs) == 'range: return _start(xs) ;;
@@ -106,14 +125,15 @@ fn values(m) = pairs(m) |> map(((_, v)) => v)
 
 # The padding that brings s up to n characters, cycling pad. repeat
 # builds just enough copies (never more than missing + len(pad) chars).
-fn _padding(s, n, pad) = match (pad, n - len(s)):
-  ("", _)                        => fail("pad must be a non-empty string")
-  (_, missing) when missing <= 0 => ""
-  (_, missing)                   => repeat(pad, int(missing / len(pad)) + 1)[..missing]
+# An empty pad is E0403, as for a native (_r.pad).
+fn _padding(s, n, pad):
+  _r.pad(pad)
+  missing = n - len(s)
+  missing <= 0 then "" else repeat(pad, int(missing / len(pad)) + 1)[..missing]
 ;;
 
-fn pad_left(s, n, pad = " ") = _padding(s, n, pad) + s
-fn pad_right(s, n, pad = " ") = s + _padding(s, n, pad)
+fn pad_left(s: str, n: int, pad: str = " ") = _padding(s, n, pad) + s
+fn pad_right(s: str, n: int, pad: str = " ") = s + _padding(s, n, pad)
 
 # ---- Results --------------------------------------------------------
 
@@ -123,7 +143,7 @@ fn is_err(x) = type_of(x) == 'Err
 # ---- Iteration ------------------------------------------------------
 
 # Applies f until pred holds.
-fn until(x, f, pred) = pred(x) then x else until(f(x), f, pred)
+fn until(x, f: fn, pred: fn) = pred(x) then x else until(f(x), f, pred)
 
 # Applies f n times.
-fn iterate(x, f, n) = n <= 0 then x else iterate(f(x), f, n - 1)
+fn iterate(x, f: fn, n: int) = n <= 0 then x else iterate(f(x), f, n - 1)

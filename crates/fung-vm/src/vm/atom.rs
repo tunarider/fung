@@ -91,7 +91,7 @@ pub(crate) fn reset(a: &Atom, v: Value) -> Result<Value, Stop> {
 /// run loop calls `f` (`cont.rs`).
 pub(crate) fn run_swap(t: &mut Task<'_>, a: Rc<Atom>, f: Value) -> Flow {
     let version = a.version.get();
-    t.pure += 1;
+    t.fiber.pure += 1;
     t.push_arg(read(&a));
     Flow::Call(
         Box::new(Swap {
@@ -113,20 +113,20 @@ struct Swap {
 
 impl Cont for Swap {
     fn resume(&mut self, t: &mut Task<'_>, new: Value) -> Result<Next, Stop> {
-        t.pure -= 1;
+        t.fiber.pure -= 1;
         need_holdable(&new)?;
         if self.a.version.get() == self.version {
             self.a.set(new.clone());
             return Ok(Next::Done(new));
         }
         self.version = self.a.version.get();
-        t.pure += 1;
+        t.fiber.pure += 1;
         t.push_arg(read(&self.a));
         Ok(Next::Call(self.f.clone(), 1))
     }
 
     fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
-        t.pure -= 1;
+        t.fiber.pure -= 1;
         Err(stop)
     }
 }
@@ -150,14 +150,16 @@ pub(crate) const EFFECTS: &[(&str, &[&str])] = &[
             "cancel",
             "send",
             "recv",
-            "try_send",
-            "try_recv",
+            "send_now",
+            "recv_now",
             "wait_closed",
             "close",
             "sleep",
             "swap",
             "reset",
             "request_stop",
+            // It makes the caller the one that sees a stop request (CC6).
+            "stop_signal",
         ],
     ),
     (
@@ -262,7 +264,6 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "with",
             "supervise",
             "channel",
-            "stop_signal",
         ],
     ),
     (
@@ -275,7 +276,7 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
         &["join", "base", "dir", "ext", "stem", "abs"],
     ),
     ("_native.process", &["env"]),
-    ("_native.range", &["count", "items", "last", "slice"]),
+    ("_native.range", &["count", "items", "last", "pad", "slice"]),
     (
         "_native.regex",
         &["is_match", "find", "find_all", "replace", "split"],
@@ -321,6 +322,8 @@ fn effects() -> &'static HashSet<usize> {
         {
             add("prelude", name, &v);
         }
+        // The dbg a direct `dbg(e)` calls is the prelude's dbg (SP11).
+        add("prelude", "dbg", &Value::Native(crate::prelude::dbg_at()));
         for (key, make) in crate::boot::NATIVE_MODULES {
             let m = make();
             for name in m.names() {
@@ -365,7 +368,7 @@ impl Task<'_> {
     /// E0707 if `n` is an effect and this task runs a swap's function.
     #[inline]
     pub(crate) fn check_effect(&self, n: &'static Native) -> Result<(), Stop> {
-        if self.pure > 0 && is_effect(n) {
+        if self.fiber.pure > 0 && is_effect(n) {
             let name = self
                 .user_callee()
                 .or_else(|| self.world.public_name(n))

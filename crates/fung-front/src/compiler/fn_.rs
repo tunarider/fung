@@ -24,10 +24,10 @@ impl Compiler<'_> {
     /// then each named argument as its symbol followed by its value, then
     /// CALL — or TAILCALL in tail position.
     pub(super) fn call(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
-        self.expr(&n.kids[0], false)?;
         if self.is_dbg_call(n) {
             return self.dbg_args(n);
         }
+        self.expr(&n.kids[0], false)?;
         let (mut positional, mut named) = (0, 0);
         for k in &n.kids[1..] {
             if k.head == Head::Named {
@@ -51,8 +51,10 @@ impl Compiler<'_> {
         Ok(())
     }
 
-    /// `dbg(e)` also receives e's source text and place (08).
+    /// `dbg(e)` calls the `dbg` that also takes e's source text and place
+    /// (08), which a program cannot pass itself (SP11).
     fn dbg_args(&mut self, n: &Node) -> Result<(), Diag> {
+        self.emit_const(Const::Dbg, n.kids[0].pos);
         let arg = &n.kids[1];
         self.expr(arg, false)?;
         self.emit_const(Const::Str(arg.text(&self.opts.source).to_string()), arg.pos);
@@ -105,6 +107,8 @@ impl Compiler<'_> {
             after: HashMap::new(),
             stored_live: HashMap::new(),
             held: BTreeSet::new(),
+            stubs: Vec::new(),
+            ret_pos: n.kids.last().expect("fn has a body").pos,
         };
         cc.take_lives(super::moves::last_reads(
             n.kids.last().expect("fn has a body"),
@@ -138,6 +142,8 @@ impl Compiler<'_> {
             cc.proto.emit(Op::CheckReturn, rt, body.pos);
         }
         cc.proto.emit(Op::Return, 0, body.pos);
+        cc.emit_stubs();
+        cc.proto.check_operands()?;
         self.proto.protos.push(cc.proto);
         Ok(self.proto.protos.len() - 1)
     }

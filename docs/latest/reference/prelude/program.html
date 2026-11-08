@@ -188,13 +188,13 @@ error[E0803]: disk full
    example.fung:3 &lt;lambda&gt;
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <p><strong>exit와 기한에도 정리는 돈다</strong></p>
-<div class="run"><pre><code>r = timeout(20ms, () =&gt; with(() =&gt; &quot;lock&quot;, fn(c):
+<div class="run"><pre><code>r = timeout(() =&gt; with(() =&gt; &quot;lock&quot;, fn(c):
   sleep(1s)
   &quot;done&quot;
 ;;, fn(c):
   sleep(30ms)
   print(&quot;released&quot;, c)
-;;))
+;;), 20ms)
 print(r)</code></pre><pre class="out plain"><code>released lock
 Err({kind: 'timeout, message: &quot;timed out after 20ms&quot;})</code></pre></div>
 <p><code>release</code>의 <code>sleep(30ms)</code>는 이미 지난 기한에 끊기지 않고 끝까지 돈다.</p>

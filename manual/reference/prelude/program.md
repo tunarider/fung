@@ -128,13 +128,13 @@ with(() => "/tmp/lock", fn(lock):
 **exit와 기한에도 정리는 돈다**
 
 ```fung run
-r = timeout(20ms, () => with(() => "lock", fn(c):
+r = timeout(() => with(() => "lock", fn(c):
   sleep(1s)
   "done"
 ;;, fn(c):
   sleep(30ms)
   print("released", c)
-;;))
+;;), 20ms)
 print(r)
 ```
 

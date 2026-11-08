@@ -20,8 +20,10 @@ impl Compiler<'_> {
         let pos = n.pos;
         // A list, map, tuple or tag value of constants is one constant
         // (P7, L5): values are immutable, so every evaluation can share it.
-        if matches!(n.head, Head::List | Head::Map | Head::Tuple | Head::Tag)
-            && let Some(c) = constant(n)
+        if matches!(
+            n.head,
+            Head::List | Head::Map | Head::Tuple | Head::Tag | Head::Range
+        ) && let Some(c) = constant(n)
         {
             self.emit_const(c, pos);
             return Ok(());
@@ -56,14 +58,16 @@ impl Compiler<'_> {
                 self.kids(n)?;
                 self.proto.emit(Op::Index, 0, pos);
             }
+            // A missing end (parsed as `missing`, not `nil`) is open; a
+            // written `nil` is compiled as a value (VA3).
             Head::Slice => {
                 self.expr(&n.kids[0], false)?;
                 let mut flags = 0;
-                if n.kids[1].head != Head::Nil {
+                if n.kids[1].head != Head::Missing {
                     flags |= 1;
                     self.expr(&n.kids[1], false)?;
                 }
-                if n.kids[2].head != Head::Nil {
+                if n.kids[2].head != Head::Missing {
                     flags |= 2;
                     self.expr(&n.kids[2], false)?;
                 }
@@ -82,24 +86,17 @@ impl Compiler<'_> {
         Ok(())
     }
 
-    /// Compiles `!` and `?` (02). `?` shares the function's return path:
-    /// UNWRAPTEST leaves the Err on the stack and jumps to a RETURN.
+    /// Compiles `!` and `?` (02). On an Err, `?`'s UNWRAPTEST leaves it on
+    /// the stack and jumps to a RETURN after the function's end
+    /// (`emit_stubs`, VM10 f): the success path goes straight on.
     pub(super) fn unwrap(&mut self, n: &Node) -> Result<(), Diag> {
         self.expr(&n.kids[0], false)?;
-        let p = &mut self.proto;
         if lit_str(n) == "!" {
-            p.emit(Op::UnwrapAbort, 0, n.pos);
+            self.proto.emit(Op::UnwrapAbort, 0, n.pos);
             return Ok(());
         }
-        let to_return = p.emit(Op::UnwrapTest, 0, n.pos);
-        let to_cont = p.emit(Op::Jump, 0, n.pos);
-        p.patch(to_return, p.code.len());
-        if self.has_ret && p.return_type >= 0 {
-            let rt = p.return_type as usize;
-            p.emit(Op::CheckReturn, rt, n.pos);
-        }
-        p.emit(Op::Return, 0, n.pos);
-        p.patch(to_cont, p.code.len());
+        let to_return = self.proto.emit(Op::UnwrapTest, 0, n.pos);
+        self.stubs.push((to_return, n.pos));
         Ok(())
     }
 
@@ -107,7 +104,7 @@ impl Compiler<'_> {
     pub(super) fn coalesce(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
         self.expr(&n.kids[0], false)?;
         let to_rhs = self.proto.emit(Op::Coalesce, 0, n.pos);
-        let to_end = self.proto.emit(Op::Jump, 0, n.pos);
+        let to_end = self.end_branch(tail, n.pos);
         self.proto.patch(to_rhs, self.proto.code.len());
         // The right side may not run: what it lets go is still held after.
         self.branches(2, |c, i| {
@@ -117,7 +114,9 @@ impl Compiler<'_> {
                 c.expr(&n.kids[1], tail)
             }
         })?;
-        self.proto.patch(to_end, self.proto.code.len());
+        if let Some(j) = to_end {
+            self.proto.patch(j, self.proto.code.len());
+        }
         Ok(())
     }
 
@@ -126,25 +125,32 @@ impl Compiler<'_> {
     /// tail position; falling off the end is E0601 (09). A guarded arm
     /// with alternatives tries the pattern and the guard once per
     /// alternative (`pattern::alternatives`, 03) before the next arm; its
-    /// body is compiled once.
+    /// body is compiled once. An arm that always matches (`_` or a name,
+    /// no guard) needs no test, and nothing after it can run: the arms
+    /// after it and the E0601 are left out (VM10 c).
     pub(super) fn match_expr(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
         let subject = &n.kids[0];
-        let mut ends = Vec::new();
         let arms = &n.kids[1..];
-        self.branches(arms.len(), |c, a| {
+        let last = arms.iter().position(always_matches);
+        let count = last.map_or(arms.len(), |i| i + 1);
+        let mut ends = Vec::new();
+        self.branches(count, |c, a| {
             c.match_arm(subject, &arms[a], tail, &mut ends)
         })?;
-        self.expr(subject, false)?;
-        self.proto.emit(Op::NoMatch, 0, n.pos);
-        let here = self.proto.code.len();
-        for e in ends {
-            self.proto.patch(e, here);
+        if last.is_none() {
+            self.expr(subject, false)?;
+            self.proto.emit(Op::NoMatch, 0, n.pos);
         }
+        self.patch_all(&ends);
         Ok(())
     }
 
     /// One arm of `match_expr`: its tries, its body, and the jump past the
-    /// other arms (pushed on `ends`).
+    /// other arms (pushed on `ends`), or its return in tail position. Once
+    /// the arm is taken, a subject in a local that nothing reads after is
+    /// let go before a body that calls a function (03: 값의 수명): what the
+    /// pattern bound is then the only holder of the value, which a callee
+    /// may change in place.
     fn match_arm(
         &mut self,
         subject: &Node,
@@ -153,6 +159,29 @@ impl Compiler<'_> {
         ends: &mut Vec<usize>,
     ) -> Result<(), Diag> {
         let (pat, guard, body) = (&arm.kids[0], &arm.kids[1], &arm.kids[2]);
+        let done = self.subject_done(subject, pat);
+        if always_matches(arm) {
+            if pat.head == Head::Pbind {
+                match done {
+                    Some(slot) => {
+                        self.held.remove(&slot);
+                        self.proto.emit(Op::MoveLocal, slot, subject.pos);
+                    }
+                    None => self.expr(subject, false)?,
+                }
+                self.store_ref(&pat.kids[0])?;
+            } else if let Some(slot) = done
+                && has_call(body)
+            {
+                self.held.remove(&slot);
+                self.proto.emit(Op::ClearLocal, slot, arm.pos);
+            }
+            self.stored(pat, pat);
+            // Nothing follows this arm in the match: the body's value is
+            // the match's, and a body in tail position returns by itself
+            // where the match ends.
+            return self.expr(body, tail);
+        }
         let tries = if guard.head == Head::Nil {
             vec![pat.clone()]
         } else {
@@ -161,40 +190,64 @@ impl Compiler<'_> {
         let mut fails = Vec::new();
         let mut taken = Vec::new();
         for (i, alt) in tries.iter().enumerate() {
-            let here = self.proto.code.len();
-            for f in fails.drain(..) {
-                self.proto.patch(f, here);
-            }
+            self.patch_all(&fails);
+            fails.clear();
             self.expr(subject, false)?;
             let idx = self.add_pattern(alt)?;
             self.proto.emit(Op::Match, idx, alt.pos);
             self.stored(pat, alt);
             fails.push(self.proto.emit(Op::JumpIfFalse, 0, alt.pos));
             if guard.head != Head::Nil {
-                self.expr(guard, false)?;
-                fails.push(self.proto.emit(Op::JumpIfFalse, 0, guard.pos));
+                self.cond(guard, &mut fails)?;
             }
             if i + 1 < tries.len() {
                 taken.push(self.proto.emit(Op::Jump, 0, arm.pos));
             }
         }
-        let start = self.proto.code.len();
-        for t in taken {
-            self.proto.patch(t, start);
+        self.patch_all(&taken);
+        if let Some(slot) = done
+            && has_call(body)
+        {
+            self.held.remove(&slot);
+            self.proto.emit(Op::ClearLocal, slot, arm.pos);
         }
         self.expr(body, tail)?;
-        ends.push(self.proto.emit(Op::Jump, 0, arm.pos));
-        let here = self.proto.code.len();
-        for f in fails {
-            self.proto.patch(f, here);
+        if let Some(e) = self.end_branch(tail, arm.pos) {
+            ends.push(e);
         }
+        self.patch_all(&fails);
         Ok(())
+    }
+
+    /// The subject's slot when it is a local held now that nothing reads
+    /// once arm pattern `pat` has matched: the arm lets go of it.
+    fn subject_done(&self, subject: &Node, pat: &Node) -> Option<usize> {
+        if subject.head != Head::Local {
+            return None;
+        }
+        let slot = super::lit_index(subject);
+        let later = self.stored_live.get(&(pat as *const Node))?;
+        (self.held.contains(&slot) && !later.contains(&slot)).then_some(slot)
     }
 }
 
-/// The constant a non-empty list literal of constants stands for (P7).
-/// An empty list is left to LIST: the runtime reads an empty list
-/// constant as the prelude's `args` (`fung_vm::vm::link`).
+/// Whether running `n` calls a function: only a call can make use of
+/// the subject being let go (a callee changing a value in place, a wait
+/// on a channel the subject holds), so a body without one does not let
+/// it go before it runs.
+fn has_call(n: &Node) -> bool {
+    match n.head {
+        Head::Call => true,
+        Head::Fn => false,
+        _ => n.kids.iter().any(has_call),
+    }
+}
+
+/// An arm that matches every value: `_` or a name, without a guard.
+fn always_matches(arm: &Node) -> bool {
+    arm.kids[1].head == Head::Nil && matches!(arm.kids[0].head, Head::Pwild | Head::Pbind)
+}
+
 /// The value of a literal whose parts are all constants (L5): a scalar,
 /// or a list, map, tuple or tag value of such literals, folded into one
 /// constant so the VM loads it instead of building it each time.
@@ -213,6 +266,11 @@ fn constant(n: &Node) -> Option<Const> {
         (Head::List, _) => Const::List(all(&n.kids)?),
         (Head::Tuple, _) => Const::Tuple(all(&n.kids)?),
         (Head::Tag, Lit::Str(name)) => Const::Tag(name.clone(), all(&n.kids)?),
+        (Head::Op, _) => super::fold::fold(n)?,
+        (Head::Range, _) => match (constant(&n.kids[0])?, constant(&n.kids[1])?) {
+            (Const::Int(a), Const::Int(b)) => Const::Range(a, b, lit_str(n) == "..="),
+            _ => return None,
+        },
         (Head::Map, _) => Const::Map(
             n.kids
                 .iter()

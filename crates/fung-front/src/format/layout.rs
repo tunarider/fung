@@ -36,46 +36,11 @@ struct Layouter {
     cont_next: bool,
 }
 
-/// A line-final token after which the statement goes on (01: 줄 이어짐
-/// 규칙 1), brackets and block colons aside — those indent through the
-/// opener stack.
-fn ends_open(k: Kind) -> bool {
-    use Kind::*;
-    matches!(
-        k,
-        Plus | Minus
-            | Star
-            | Slash
-            | SlashSlash
-            | Percent
-            | StarStar
-            | Eq
-            | Ne
-            | Lt
-            | Gt
-            | Le
-            | Ge
-            | KwIn
-            | Coalesce
-            | Pipe
-            | DotDot
-            | DotDotEq
-            | KwAnd
-            | KwOr
-            | KwNot
-            | Assign
-            | FatArrow
-            | Arrow
-            | Dot
-            | KwThen
-            | KwElse
-            | Bar
-    )
-}
-
+/// A line that starts with a continuation token (01 rule 2,
+/// `Kind::starts_continuation`); `else` is the `then`'s only when one is
+/// open (`Layouter::continues`).
 fn is_continuation(k: Kind) -> bool {
-    use Kind::*;
-    matches!(k, Pipe | Dot | Coalesce | KwAnd | KwOr | KwThen)
+    k != Kind::KwElse && k.starts_continuation()
 }
 
 fn block_keyword(k: Kind) -> bool {
@@ -139,6 +104,14 @@ fn top_arrow(toks: &[Tok]) -> Option<usize> {
         }
     }
     None
+}
+
+/// Whether the line is the start of an arm head that goes on after a
+/// line-final `|` (01, FE7): `Ok(x) |` / `Err(x) => …`.
+fn split_arm_head(toks: &[Tok]) -> bool {
+    toks.first().is_some_and(|t| pattern_start(t.kind))
+        && toks.last().is_some_and(|t| t.kind == Kind::Bar)
+        && !toks.iter().any(|t| t.kind == Kind::Assign)
 }
 
 /// Decides every code line's indent, then gives comment lines the indent
@@ -227,7 +200,9 @@ impl Layouter {
         }
         // Inside a match block a line that is not an arm belongs to the
         // previous arm's body.
-        if inn.is_some_and(|o| o.block && o.kind == Kind::KwMatch) && top_arrow(&ln.toks).is_none()
+        if inn.is_some_and(|o| o.block && o.kind == Kind::KwMatch)
+            && top_arrow(&ln.toks).is_none()
+            && !split_arm_head(&ln.toks)
         {
             return indent + 1;
         }
@@ -324,7 +299,7 @@ impl Layouter {
 
     /// Records whether the next line continues this one.
     fn end_line(&mut self, ln: &Line) {
-        self.cont_next = ends_open(ln.toks[ln.toks.len() - 1].kind);
+        self.cont_next = ln.toks[ln.toks.len() - 1].kind.ends_open();
     }
 
     fn pop_bracket(&mut self) {

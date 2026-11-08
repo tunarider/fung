@@ -32,8 +32,8 @@
 //! socket).
 //!
 //! **Errors** are `Err({kind, message})`: `'timeout` when a deadline
-//! passed, `'limit` when a read went past its limit, `'network` for the
-//! rest. Messages are short reasons (`connection refused`, `no such
+//! passed, `'limit` when a read went past its limit, `'closed` for a
+//! connection or listener closed here, `'network` for the rest. Messages are short reasons (`connection refused`, `no such
 //! host`, `timed out`, `connection is closed`, `connection closed after 3
 //! of 10 bytes`), errno wording from `oserr`; `_native.net` is internal,
 //! and the `http` module says what was being done (`cannot request
@@ -214,6 +214,9 @@ static WRITE_WAITS: AtomicUsize = AtomicUsize::new(0);
 #[derive(Debug)]
 enum Fail {
     Network(String),
+    /// The connection or listener was closed by this program (`'closed`:
+    /// the server's accept loop ends on it).
+    Closed(String),
     Timeout(String),
     Limit(String),
     /// The task was cancelled between two tries: it unwinds instead.
@@ -225,6 +228,7 @@ enum Fail {
 fn fail_value(f: Fail) -> Value {
     let (kind, msg) = match f {
         Fail::Network(m) => ("network", m),
+        Fail::Closed(m) => ("closed", m),
         Fail::Timeout(m) => ("timeout", m),
         Fail::Limit(m) => ("limit", m),
         // Never seen: `run_io` unwinds, or parks and tries again.
@@ -554,7 +558,7 @@ impl Conn {
     }
 
     fn closed(&self) -> Fail {
-        Fail::Network(CLOSED.into())
+        Fail::Closed(CLOSED.into())
     }
 
     fn timed_out(&self) -> Fail {
@@ -820,7 +824,7 @@ impl Conn {
     /// removes the deadline, a negative `d` is already past.
     fn set_deadline(&self, d: i64) -> Result<(), Fail> {
         if self.is_closed() {
-            return Err(Fail::Network(CLOSED.into()));
+            return Err(Fail::Closed(CLOSED.into()));
         }
         let now = Instant::now();
         *lock(&self.deadline) = match d {
@@ -850,7 +854,7 @@ impl std::fmt::Debug for Listener {
 
 impl Listener {
     fn closed(&self) -> Fail {
-        Fail::Network(LISTENER_CLOSED.into())
+        Fail::Closed(LISTENER_CLOSED.into())
     }
 
     fn fd(&self) -> Option<RawFd> {
@@ -1283,7 +1287,7 @@ fn need_conn<'a>(name: &str, v: &'a Value) -> Result<&'a Arc<Conn>, Stop> {
 fn need_count(name: &str, v: &Value) -> Result<usize, Stop> {
     match v {
         Value::Int(n) if *n >= 0 => Ok(*n as usize),
-        Value::Int(_) => Err(nat::wrong_arg(name, "a non-negative int", v)),
+        Value::Int(_) => Err(nat::not_count(name, v)),
         _ => Err(nat::wrong_arg(name, "int", v)),
     }
 }

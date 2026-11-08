@@ -85,10 +85,22 @@ fn bare(core: Node) -> Resolved {
 
 #[test]
 fn compile_arithmetic() {
+    // Arithmetic on number literals is one constant (VM10 g).
     let p = comp("1 + 2 * 3");
-    assert_eq!(ops(&p), "CONST(0) CONST(1) CONST(2) MUL ADD RETURN");
-    assert_eq!(p.consts.len(), 3);
-    assert_eq!(p.consts[2], Const::Int(3));
+    assert_eq!(ops(&p), "CONST(0) RETURN");
+    assert_eq!(p.consts, [Const::Int(7)]);
+    let p = comp("7 // -2 - 1.5 / 3");
+    assert_eq!(p.consts, [Const::Float(-4.5)]);
+    // What would fail is left to the VM, which fails at the same place.
+    for src in [
+        "9223372036854775807 + 1",
+        "1 // 0",
+        "1 % 0",
+        "1.0 / 0",
+        "-0.0",
+    ] {
+        assert_ne!(ops(&comp(src)), "CONST(0) RETURN", "{src}");
+    }
 }
 
 #[test]
@@ -112,25 +124,40 @@ fn compile_call_and_prelude() {
 
 #[test]
 fn compile_if_with_jumps() {
-    // (if true (op bool false) false)
+    // (if true (op bool false) false): a literal needs no CHECKBOOL.
     assert_eq!(
         ops(&comp("true and false")),
-        "CONST(0) JUMPIFFALSE(5) CONST(1) CHECKBOOL JUMP(6) CONST(1) RETURN"
+        "CONST(0) JUMPIFFALSE(4) CONST(1) JUMP(5) CONST(1) RETURN"
+    );
+    // As a condition, `and` and `or` jump to the branch (VM10 d).
+    assert_eq!(
+        ops(&comp("a = true\nif a and a: 1 else: 2 ;;")),
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) JUMPIFFALSE(8) LOADGLOBAL(0) \
+         JUMPIFFALSE(8) CONST(1) JUMP(9) CONST(2) RETURN"
+    );
+    assert_eq!(
+        ops(&comp("a = true\nif a or a: 1 else: 2 ;;")),
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) JUMPIFFALSE(5) JUMP(7) LOADGLOBAL(0) \
+         JUMPIFFALSE(9) CONST(1) JUMP(10) CONST(2) RETURN"
     );
 }
 
 #[test]
 fn compile_unary_and_comparison() {
     assert_eq!(ops(&comp("not (1 < 2)")), "CONST(0) CONST(1) LT NOT RETURN");
-    assert_eq!(ops(&comp("-1")), "CONST(0) NEG RETURN");
+    assert_eq!(ops(&comp("-1")), "CONST(0) RETURN");
+    assert_eq!(
+        ops(&comp("a = 1\n-a")),
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) NEG RETURN"
+    );
 }
 
 #[test]
 fn compile_records_positions() {
-    let p = comp("1 + 2");
-    // CONST 1 at col 1, CONST 2 at col 5, ADD at col 3 (the operator)
+    let p = comp("1 == 2");
+    // CONST 1 at col 1, CONST 2 at col 6, EQ at col 3 (the operator)
     let cols: Vec<u32> = p.pos.iter().take(3).map(|p| p.col).collect();
-    assert_eq!(cols, [1, 5, 3]);
+    assert_eq!(cols, [1, 6, 3]);
 }
 
 #[test]
@@ -365,7 +392,11 @@ fn compile_collections_and_ops() {
 Ok([x])",
             "CONST(0) STOREGLOBAL(0) CONST(1) LOADGLOBAL(0) LIST(1) TAG(1) RETURN",
         ),
-        ("0..=3", "CONST(0) CONST(1) RANGE(1) RETURN"),
+        ("0..=3", "CONST(0) RETURN"),
+        (
+            "a = 3\n0..=a",
+            "CONST(0) STOREGLOBAL(0) CONST(1) LOADGLOBAL(0) RANGE(1) RETURN",
+        ),
         (
             "xs = []\nxs[0]",
             "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) CONST(1) INDEX RETURN",
@@ -394,15 +425,16 @@ Ok([x])",
 #[test]
 fn compile_question_inside_function() {
     let p = comp("fn f(r) = r? + 1");
-    // r; UNWRAPTEST L1; JUMP L2; L1: RETURN; L2: CONST 1; ADD; RETURN
+    // r; UNWRAPTEST L1; CONST 1; ADD; RETURN; L1: RETURN -- the Err's return
+    // is after the function's end, so success goes straight on (VM10 f).
     assert_eq!(
         ops(&p.protos[0]),
-        "MOVELOCAL(0) UNWRAPTEST(3) JUMP(4) RETURN CONST(0) ADD RETURN"
+        "MOVELOCAL(0) UNWRAPTEST(5) CONST(0) ADD RETURN RETURN"
     );
     let got = ops(&comp("fn f(r) -> int = r?").protos[0]);
-    assert!(
-        got.contains("UNWRAPTEST(3) JUMP(5) CHECKRETURN(0) RETURN"),
-        "annotated: {got}"
+    assert_eq!(
+        got, "MOVELOCAL(0) UNWRAPTEST(4) CHECKRETURN(0) RETURN CHECKRETURN(0) RETURN",
+        "annotated"
     );
 }
 
@@ -411,16 +443,19 @@ fn compile_match_and_destructuring() {
     let p = comp("match 1:\n  0 => \"zero\"\n  n when n > 0 => \"pos\"\n  _ => \"other\"\n;;");
     let got = ops(&p);
     // Shape: subject stored; each arm loads it, matches, jumps on failure.
+    // The last arm `_` always matches: no test, and no NOMATCH after it
+    // (VM10 c). No body calls a function, so none lets the subject go.
     for frag in [
-        "CONST(0) STORELOCAL(0) LOADLOCAL(0) MATCH(0) JUMPIFFALSE(",
+        "CONST(0) STORELOCAL(0) LOADLOCAL(0) MATCH(0) JUMPIFFALSE(7) CONST(1) JUMP(17)",
         "LOADLOCAL(0) MATCH(1) JUMPIFFALSE(",
         "LOADLOCAL(1) CONST(2) GT JUMPIFFALSE(",
-        "LOADLOCAL(0) NOMATCH",
+        "JUMP(17) CONST(4) RETURN",
     ] {
         assert!(got.contains(frag), "missing {frag:?} in {got}");
     }
-    assert_eq!(got.matches("JUMP(").count(), 3, "{got}");
-    assert_eq!(p.patterns.len(), 3);
+    assert!(!got.contains("NOMATCH"), "{got}");
+    assert_eq!(got.matches("JUMP(").count(), 2, "{got}");
+    assert_eq!(p.patterns.len(), 2);
     assert_eq!(p.patterns[1].to_string(), "$1");
     assert_eq!(p.patterns[0].to_string(), "0");
     let p = comp("(a, b) = (1, 2)");
@@ -578,14 +613,10 @@ fn dump_outputs() {
     assert_eq!(
         bytecode("x = 1 + 2 * 3"),
         "== <main> ==\n\
-         0000  1:5   CONST        0    ; 1\n\
-         0001  1:9   CONST        1    ; 2\n\
-         0002  1:13  CONST        2    ; 3\n\
-         0003  1:11  MUL\n\
-         0004  1:7   ADD\n\
-         0005  1:1   STOREGLOBAL  0    ; x\n\
-         0006  1:1   CONST        3    ; nil\n\
-         0007  1:1   RETURN\n"
+         0000  1:7   CONST        0    ; 7\n\
+         0001  1:1   STOREGLOBAL  0    ; x\n\
+         0002  1:1   CONST        1    ; nil\n\
+         0003  1:1   RETURN\n"
     );
 }
 
@@ -638,15 +669,13 @@ fn locals_are_cleared_after_their_last_read() {
             "CONST 0",
             "MOVELOCAL 0",
             "CALL 1",
-            "JUMP 9",
-            "CONST 1",
             "POP",
             "CLEARLOCAL 0",
             "CLOSURE 0",
             "STORELOCAL 4",
             "CLEARLOCAL 1",
             "CONST 0",
-            "CONST 2",
+            "CONST 1",
             "CALL 1",
             "POP",
             "MOVELOCAL 4",
@@ -694,16 +723,9 @@ fn the_last_read_of_a_local_moves_it() {
         ),
         (
             "fn f(x) = match x:\n  [a] when a > 0 => a\n  _ => len(x)\n;;",
-            // The subject is first stored in slot 1; `a` is slot 2.
-            &[
-                "LOADLOCAL 0",
-                "LOADLOCAL 1",
-                "LOADLOCAL 2",
-                "MOVELOCAL 2",
-                "LOADLOCAL 1",
-                "MOVELOCAL 0",
-                "LOADLOCAL 1",
-            ],
+            // The subject, a local, is read where it is (VM10 b); `a` is
+            // slot 1. The last arm always matches: no test (VM10 c).
+            &["LOADLOCAL 0", "LOADLOCAL 1", "MOVELOCAL 1", "MOVELOCAL 0"],
         ),
         (
             "fn f(x):\n  g = () => x\n  [g, x]\n;;",
@@ -736,7 +758,8 @@ assert h(Ok(1)) == 2
 assert true
 test \"t\": assert 1 < 2 ;;
 not (1 < 2) and -1 > 0 or false
-\"x\" == \"x\"; 2.0 / 1; 7 // 2; 7 % 2; 2 ** 3; 1 != 2; 1 <= 2; 1 >= 2";
+n = 2
+\"x\" == \"x\"; 2.0 / n; 7 // n; 7 % n; n ** 3; 1 != n; 1 <= n; 1 >= n; 1 + 2 * 3";
     assert_eq!(bytecode(src), include_str!("testdata/functions.txt"));
 }
 

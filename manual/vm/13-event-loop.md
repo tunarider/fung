@@ -160,7 +160,7 @@ fs.with_temp_dir(fn(dir):
 
 ### 버리는 일과 기다리는 일 {#abandon}
 
-운영체제 스레드는 시스템 호출 도중에 멈출 수 없다. 그래서 기한이 지나거나 취소가 오면 "일을 끊는다"는 것은 **태스크만 놓아준다**는 뜻이다. 그런데 모든 일을 그렇게 놓아 버리면, `timeout(1s, () => fs.write(p, x))`가 시간 초과를 돌려준 **뒤에** 파일이 써질 수 있다. 재시도나 정리 코드와 경쟁하게 된다. 그래서 일을 둘로 나눴다(스펙 15절, 노트 R7-scheduler의 R3).
+운영체제 스레드는 시스템 호출 도중에 멈출 수 없다. 그래서 기한이 지나거나 취소가 오면 "일을 끊는다"는 것은 **태스크만 놓아준다**는 뜻이다. 그런데 모든 일을 그렇게 놓아 버리면, `timeout(() => fs.write(p, x), 1s)`가 시간 초과를 돌려준 **뒤에** 파일이 써질 수 있다. 재시도나 정리 코드와 경쟁하게 된다. 그래서 일을 둘로 나눴다(스펙 15절, 노트 R7-scheduler의 R3).
 
 <table>
   <thead><tr><th>종류</th><th>예</th><th>취소·기한이 오면</th></tr></thead>
@@ -273,8 +273,8 @@ hosts = ["web1", "web2", "web3"]
 
 fn check(h) = trim(exec(["sh", "-c", "sleep 0.5; echo ${h} ok"])!.out)
 
-print(timeout(1200ms, () => conc.pmap(hosts, check)))
-print(timeout(1200ms, () => map(hosts, check)))
+print(timeout(() => conc.pmap(hosts, check), 1200ms))
+print(timeout(() => map(hosts, check), 1200ms))
 ```
 
 `conc.pmap`은 원소마다 태스크를 띄운다. 각 태스크는 명령을 띄우고 그 끝과 출력 파이프를 이벤트 루프에 등록한 뒤 주차한다. 명령 셋이 동시에 돌아도 기다리는 데 스레드가 더 들지 않는다. 기다림은 실행 스레드 하나가 이벤트 루프에서 한꺼번에 한다. 하나씩 부르는 `map`은 1.2초 기한에 걸려 `Err({kind: 'timeout})`이 되고, 기한이 왔을 때 돌던 명령은 SIGTERM을 받아 끝난다(14장).

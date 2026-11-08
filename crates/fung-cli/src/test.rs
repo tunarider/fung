@@ -10,7 +10,9 @@
 //! So nothing a file starts reaches the next one.
 //!
 //! Exit codes: 2 if any file failed to compile, else 1 if any test
-//! failed, else 0. An `exit(n)` inside a test file is a failure and skips
+//! failed or none was found (`no tests found`, TL5), else 0; 3 for a
+//! usage error (arguments, a path that cannot be read, a bad
+//! `FUNG_SCHED_SEED`). An `exit(n)` inside a test file is a failure and skips
 //! the rest of that file; its code is not the command's. So does an exit
 //! a spawned task asks for, or a deadlock; when
 //! that skip follows a block that passed, it is a failure of its own
@@ -51,6 +53,16 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
             };
         }
     };
+    let (seed, chosen) = match sched_seed() {
+        Ok(s) => s,
+        Err(msg) => {
+            return Out {
+                stderr: [b"error: ", &msg[..], b"\n"].concat(),
+                code: EXIT_USAGE,
+                ..Out::default()
+            };
+        }
+    };
     let files = match paths::test_files(root) {
         Ok(f) => f,
         Err(e) => {
@@ -68,7 +80,6 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
     // then; no file runs after it, and the run ends with 128 + n.
     let first = std::sync::Arc::new(std::sync::atomic::AtomicI32::new(0));
     fung_vm::signals::set(Some(fung_vm::signals::between_runs(first.clone())));
-    let (seed, chosen) = sched_seed();
     for path in &files {
         let t = test_file(path, &mut seen, &first, seed);
         total.passed += t.passed;
@@ -94,11 +105,17 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
             "scheduler seed {seed}: FUNG_SCHED_SEED={seed} runs the tasks in the same order again"
         );
     }
+    // A run that found no test (a path with a typo, an empty directory)
+    // is no success (TL5): CI would pass on nothing.
+    let none = total.passed + total.failed == 0;
+    if none && sig == 0 {
+        let _ = writeln!(ProcessOut::stderr(), "no tests found");
+    }
     let code = if sig != 0 {
         128 + sig
     } else if total.compile_failed {
         EXIT_COMPILE
-    } else if total.failed > 0 {
+    } else if total.failed > 0 || none {
         EXIT_RUNTIME
     } else {
         EXIT_OK
@@ -109,16 +126,33 @@ pub fn run_test(raw: &[Vec<u8>]) -> Out {
     }
 }
 
-/// Compiles one file with its tests and runs it.
 /// The seed of the order tasks run in (`Runtime::shuffle_schedule`):
 /// `FUNG_SCHED_SEED`, or one drawn from the clock and the process (then
-/// `true`: it is shown when a test fails).
-fn sched_seed() -> (u64, bool) {
-    if let Some(s) = std::env::var("FUNG_SCHED_SEED")
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-    {
-        return (s, false);
+/// `true`: it is shown when a test fails). A variable that is set but is
+/// not a whole number from 0 to 2^64 - 1, written plainly, is the
+/// message of a usage error (TL5): a mistyped seed would otherwise run
+/// another order without a word.
+fn sched_seed() -> Result<(u64, bool), Vec<u8>> {
+    if let Some(v) = std::env::var_os("FUNG_SCHED_SEED") {
+        let b = v.as_encoded_bytes();
+        let plain = !b.is_empty() && b.iter().all(u8::is_ascii_digit);
+        return match std::str::from_utf8(b)
+            .ok()
+            .filter(|_| plain)
+            .map(str::parse)
+        {
+            Some(Ok(s)) => Ok((s, false)),
+            _ => Err([
+                &format!(
+                    "FUNG_SCHED_SEED must be a whole number from 0 to {}, not `",
+                    u64::MAX
+                )
+                .into_bytes()[..],
+                b,
+                b"`",
+            ]
+            .concat()),
+        };
     }
     use std::hash::{BuildHasher, Hasher};
     let mut h = std::collections::hash_map::RandomState::new().build_hasher();
@@ -128,9 +162,10 @@ fn sched_seed() -> (u64, bool) {
             .map_or(0, |d| d.as_nanos()),
     );
     h.write_u32(std::process::id());
-    (h.finish() % 1_000_000, true)
+    Ok((h.finish() % 1_000_000, true))
 }
 
+/// Compiles one file with its tests and runs it.
 fn test_file(
     path: &[u8],
     seen: &mut HashSet<String>,

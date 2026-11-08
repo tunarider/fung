@@ -190,7 +190,7 @@ f = fs.open("app.log")!
 print(read_line(f))
 print(read_line(f))
 print(read_line(f))
-fs.close(f)!
+close(f)!
 print(read_line(f))
 ```
 
@@ -261,6 +261,8 @@ print(read_lines())
 
 디버깅용이다. 값을 돌려주기 때문에 식 한가운데에 끼워 넣어도 프로그램의 동작이 바뀌지 않는다: `total = dbg(a + b) * 2`. 파이프 중간에도 넣을 수 있다: `xs |> dbg |> sort`. 찍히는 **식**은 소스에 쓴 글자 그대로이고, 컴파일러가 부른 자리의 파일·줄과 함께 채워 넣는다. 그래서 `dbg`를 여러 군데 넣어도 어느 것이 찍었는지 바로 안다.
 
+식과 자리는 `dbg(식)`처럼 **직접 부를 때만** 채워진다. `dbg`를 값으로 넘기면(`map(xs, dbg)`, `d = dbg`) 식을 알 수 없으므로 `dbg = 값`만 찍는다. 식의 글자와 자리는 컴파일러만 넘길 수 있고, 프로그램이 인자로 줄 수는 없다(`dbg(x, "글")`은 E0402).
+
 표준 에러에 쓰므로 결과 출력을 더럽히지 않는다. 다 고친 뒤에는 지운다.
 
 #### 매개변수
@@ -290,6 +292,13 @@ print(total)
 ```fung run
 top = [3, 9, 1] |> dbg |> sort |> reverse
 print(top)
+```
+
+**값으로 넘기면 식이 없다**
+
+```fung run
+xs = map([1, 2], dbg)
+print(xs)
 ```
 
 #### 같이 보기

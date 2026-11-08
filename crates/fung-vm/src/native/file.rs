@@ -1,4 +1,4 @@
-//! File handles: `fs.open` makes one, `fs.write_line`, `fs.close`,
+//! File handles: `fs.open` makes one, `fs.write_line`, `close`,
 //! `read_line` and `read_lines` use it.
 //!
 //! A handle is shared by every task that holds a copy, and its input and

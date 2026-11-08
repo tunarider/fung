@@ -202,6 +202,121 @@ fn write_closed(o: &mut OpenOptions, p: &[u8], perm: Option<u32>, text: &[u8]) -
     file::close_checked(f, p)
 }
 
+/// Writes `text` to the regular file `path` whole or not at all (LB17;
+/// `fs.write` and `fung fmt`): into a temporary file beside it, renamed
+/// over it, so a crash, a full disk or a failing close never leaves half
+/// a file and a reader sees the old text or the new. A link is followed
+/// (the file it names is replaced, the link stays). Without `perm` an
+/// existing file keeps its permission bits and a new one gets the
+/// default less the umask; with it, exactly `perm` (F-14).
+///
+/// Where a new file would not be the same file to its users, it is
+/// written in place instead (truncated, as `write_closed`): another hard
+/// link (the other names would keep the old text), an owner or group the
+/// new file would not get (someone else's file we may write), a file that
+/// is not regular (a device; a FIFO never gets here), a link that names
+/// nothing yet, or a directory where no temporary file can be made. A
+/// file we may not write is refused as before, not replaced. Once the
+/// temporary file is made, a failure is reported and the file is left as
+/// it was.
+pub fn write_whole(path: &[u8], text: &[u8], perm: Option<u32>) -> io::Result<()> {
+    let p = checked(path)?;
+    let in_place = || {
+        let mut o = OpenOptions::new();
+        o.write(true).create(true).truncate(true);
+        write_closed(&mut o, path, perm, text)
+    };
+    let (target, existing) = match std::fs::canonicalize(p) {
+        Ok(t) => {
+            let m = std::fs::metadata(&t)?;
+            let writable = OpenOptions::new().write(true).open(&t).is_ok();
+            if !m.is_file() || m.nlink() != 1 || !writable {
+                return in_place();
+            }
+            (t, Some(m))
+        }
+        // a link to nothing yet: the open creates the file it names
+        Err(_) if std::fs::symlink_metadata(p).is_ok() => return in_place(),
+        Err(_) => (std::path::PathBuf::from(p), None),
+    };
+    let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
+        return in_place();
+    };
+    let mode = perm.or(existing.as_ref().map(|m| m.permissions().mode() & 0o777));
+    let (tmp, f) = match temp_beside(dir, name, mode.unwrap_or(file::NEW_FILE_MODE)) {
+        Some(made) => made,
+        None => return in_place(),
+    };
+    if let Some(m) = &existing
+        && !f
+            .metadata()
+            .is_ok_and(|t| t.uid() == m.uid() && t.gid() == m.gid())
+    {
+        drop(f);
+        let _ = std::fs::remove_file(&tmp);
+        return in_place();
+    }
+    let written = (|| {
+        let mut f = f;
+        if let Some(mode) = mode {
+            f.set_permissions(std::fs::Permissions::from_mode(mode))?;
+        }
+        f.write_all(text)?;
+        sync(&f)?;
+        file::close_checked(f, path)?;
+        std::fs::rename(&tmp, &target)
+    })();
+    if written.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    written
+}
+
+/// `fsync(2)`: the new text is on the disk before the rename makes it
+/// the file's, so a power cut cannot leave the new name with lost text.
+/// The plain system call, also on macOS (where the standard library's
+/// `sync_all` asks the drive to empty its cache too, `F_FULLFSYNC`, at
+/// about 10 ms a file).
+fn sync(f: &std::fs::File) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    // SAFETY: `f` owns an open descriptor for the whole call.
+    if unsafe { libc::fsync(f.as_raw_fd()) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+/// A new temporary file `.<name>.<pid>-<n>.tmp` in `dir`, made with
+/// `mode` (less the umask), or `None` when none can be made there.
+fn temp_beside(
+    dir: &std::path::Path,
+    name: &std::ffi::OsStr,
+    mode: u32,
+) -> Option<(std::path::PathBuf, std::fs::File)> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    // a name a crashed run left behind is passed over
+    for _ in 0..16 {
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        let mut tmp_name = std::ffi::OsString::from(".");
+        tmp_name.push(name);
+        tmp_name.push(format!(".{}-{n}.tmp", std::process::id()));
+        let tmp = dir.join(tmp_name);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode)
+            .open(&tmp)
+        {
+            Ok(f) => return Some((tmp, f)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return None,
+        }
+    }
+    None
+}
+
 fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
@@ -285,9 +400,7 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         if pipe::is_fifo(&job) {
             return Ok(Some(text));
         }
-        let mut o = OpenOptions::new();
-        o.write(true).create(true).truncate(true);
-        write_closed(&mut o, &job, perm, &text).map(|()| None)
+        write_whole(&job, &text, perm).map(|()| None)
     };
     crate::vm::offload_kind(t, Kind::Wait, write, move |t, r| match r {
         Ok(Some(text)) => write_fifo(t, p, text, perm, "write"),
@@ -323,7 +436,9 @@ fn str_list(paths: &[Vec<u8>]) -> Value {
 
 /// The directory's entries in byte order of their
 /// names, each with whether it is a directory itself (a link is not).
-fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
+/// An entry gone before its type could be read is no entry. `fs.list`,
+/// `fs.walk` and the files `fung test`·`fung fmt` choose.
+pub fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
     let mut out = Vec::new();
     for e in std::fs::read_dir(os_path(dir))? {
         let e = e?;
@@ -381,7 +496,8 @@ fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 }
                 // A pattern is code: a bad one is a code error (LB9), as
                 // a bad regex pattern is.
-                Err(glob::BadPattern) => {
+                Err(glob::Failure::Path(at, e)) => fs_err("glob", &at, &e),
+                Err(glob::Failure::Pattern) => {
                     return Err(nat::fail(
                         "E0515",
                         vec![Arg::Str(format!(
@@ -933,8 +1049,8 @@ pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Result<Value, Stop>
     })
 }
 
-/// `fs.close`. The flush and the close run on a pool thread.
-fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+/// `close`. The flush and the close run on a pool thread.
+pub(crate) fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let f = need_file("f", &a[0])?.clone();
     // Tasks waiting on a FIFO's descriptor wake and find it closed.
     if let Some(fd) = f.pipe_fd() {

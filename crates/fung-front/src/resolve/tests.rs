@@ -512,6 +512,17 @@ fn a_closed_name_is_not_read_as_the_prelude() {
     // The prelude stays visible where nothing of that name was closed.
     let (_, errs) = resolve_with("fn f(s) = lines(s)", &["lines"], &opts);
     assert!(errs.is_empty(), "{errs:?}");
+    // A lambda or an inner fn reading a name closed in an enclosing
+    // function is the same error, not the builtin (FE3).
+    for src in [
+        "if true: lines = [1] ;;\ng = () => lines",
+        "if true: lines = [1] ;;\nprint(map([1], _ => lines))",
+        "fn f():\n  if true: lines = [1] ;;\n  fn g() = lines\n  g\n;;",
+        "if true: x = 1 ;;\ng = () => x",
+    ] {
+        let (_, errs) = resolve_with(src, &["print", "lines", "map"], &opts);
+        assert_eq!(codes(&errs), vec!["E0206"], "{src:?}");
+    }
 }
 
 #[test]
@@ -601,11 +612,15 @@ fn for_body_return_and_question_outside_fn() {
         ("fn f(xs) = map(xs, x => x?)", "E0226"),
         ("fn f(xs) = xs |> map(x => g(x?))", "E0226"),
         ("fn f(xs) = map(xs, fn(x): x? ;;)", "E0226"),
+        // by the name `f` too (SP1)
+        ("fn f(xs) = map(xs, f: x => x?)", "E0226"),
+        ("fn f(xs) = xs |> map(f: x => g(x?))", "E0226"),
+        ("fn f(xs) = map(xs, g: x => x?)", ""), // not map's f
         ("fn f(xs) = map(xs, x => (() => x?)())", ""), // a nested fn may return
-        ("fn h(x) = x?\nfn f(xs) = map(xs, h)", ""),   // a named fn may
-        ("fn f(xs) = filter(xs, x => x?)", ""),        // not silent (03)
-        ("fn f(map, xs) = map(xs, x => x?)", ""),      // not the prelude's map
-        ("a = 1\nfor (a, b) in xs: a ;;", ""),         // for variables shadow (03)
+        ("fn h(x) = x?\nfn f(xs) = map(xs, h)", ""), // a named fn may
+        ("fn f(xs) = filter(xs, x => x?)", ""), // not silent (03)
+        ("fn f(map, xs) = map(xs, x => x?)", ""), // not the prelude's map
+        ("a = 1\nfor (a, b) in xs: a ;;", ""),  // for variables shadow (03)
         ("a = 1\nfor a in xs: a ;;", ""),
         ("f()?", "E0214"),
         ("fn g() = f()?", ""),
@@ -1127,4 +1142,46 @@ fn errors_that_always_have_a_help_line_have_its_default_in_the_catalog() {
         help(&errs[0]),
         "import it under another name: `import fs as m`"
     );
+}
+
+/// `conc.pmap` is map's parallel form: a lambda given to it as `f`, by
+/// position or by name, through the module or imported by name, may not
+/// use `?` either (SP1).
+#[test]
+fn question_in_a_lambda_given_to_pmap() {
+    let mut imports = BTreeMap::new();
+    imports.insert(
+        "conc".to_string(),
+        ModuleInfo {
+            key: "conc".into(),
+            name: "conc".into(),
+            exports: names(&["pmap", "race"]),
+        },
+    );
+    let opts = Options {
+        imports,
+        ..Options::default()
+    };
+    for (src, want) in [
+        ("import conc\nfn f(xs) = conc.pmap(xs, x => x?)", "E0226"),
+        (
+            "import conc as c\nfn f(xs) = c.pmap(xs, f: x => x?)",
+            "E0226",
+        ),
+        ("import conc (pmap)\nfn f(xs) = pmap(xs, x => x?)", "E0226"),
+        ("import conc\nfn f(xs) = conc.race([() => g()?])", ""),
+        (
+            "import conc\nfn f(xs) = conc.pmap(xs, x => (() => x?)())",
+            "",
+        ),
+    ] {
+        let (_, errs) = resolve_with(src, M4_PRELUDE, &opts);
+        assert_eq!(first_code(&errs), want, "{src:?}: {errs:?}");
+    }
+    let (_, errs) = resolve_with(
+        "import conc\nfn f(xs) = conc.pmap(xs, x => x?)",
+        M4_PRELUDE,
+        &opts,
+    );
+    assert_eq!(arg0(&errs[0]), "conc.pmap", "{errs:?}");
 }

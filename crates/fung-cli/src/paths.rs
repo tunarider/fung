@@ -16,7 +16,7 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 
 use fung_vm::native::os_error_text;
-use fung_vm::native::path::join_bytes;
+use fung_vm::native::path::{base, join_bytes};
 
 /// The files `fung test [root]` runs: those [`fung_files`] chooses for
 /// the one root.
@@ -65,19 +65,6 @@ fn stat(p: &[u8]) -> Result<std::fs::Metadata, Vec<u8>> {
     std::fs::metadata(os(p)).map_err(|e| path_error(p, &e))
 }
 
-/// The last element of a path, trailing slashes dropped.
-fn base(p: &[u8]) -> &[u8] {
-    let end = p.iter().rposition(|&c| c != b'/').map_or(0, |i| i + 1);
-    if end == 0 {
-        return if p.is_empty() { b"." } else { b"/" };
-    }
-    let start = p[..end]
-        .iter()
-        .rposition(|&c| c == b'/')
-        .map_or(0, |i| i + 1);
-    &p[start..end]
-}
-
 /// Walks `root`: a directory below it whose name `skip` accepts is not
 /// entered, a file (any entry that is not a directory) ending in `.fung`
 /// is collected, and the first error ends the walk.
@@ -87,7 +74,7 @@ fn walk(
     skip: &dyn Fn(&[u8]) -> bool,
 ) -> Result<(), Vec<u8>> {
     let info = std::fs::symlink_metadata(os(root)).map_err(|e| path_error(root, &e))?;
-    walk_entry(root, root, base(root), info.is_dir(), files, skip)
+    walk_entry(root, root, &base(root), info.is_dir(), files, skip)
 }
 
 fn walk_entry(
@@ -118,20 +105,7 @@ fn walk_entry(
 }
 
 /// A directory's entries sorted by name, each with whether it is a
-/// directory (links are not followed).
+/// directory (links are not followed): the `fs` module's listing.
 fn read_dir(dir: &[u8]) -> Result<Vec<(Vec<u8>, bool)>, Vec<u8>> {
-    let fail = |e: io::Error| path_error(dir, &e);
-    let mut out = Vec::new();
-    for e in std::fs::read_dir(os(dir)).map_err(fail)? {
-        let e = e.map_err(fail)?;
-        let is_dir = match e.file_type() {
-            Ok(t) => t.is_dir(),
-            // an entry gone before its type could be read is no entry
-            Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
-            Err(err) => return Err(fail(err)),
-        };
-        out.push((e.file_name().as_bytes().to_vec(), is_dir));
-    }
-    out.sort_unstable();
-    Ok(out)
+    fung_vm::native::fs::read_dir(dir).map_err(|e| path_error(dir, &e))
 }

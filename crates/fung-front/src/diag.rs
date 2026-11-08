@@ -226,9 +226,8 @@ fn write_excerpt(b: &mut String, d: &Diag, src: &str) {
     let num = line_no.to_string();
     let gutter = " ".repeat(num.len());
 
-    let tabs = |s: &str| s.replace('\t', &" ".repeat(TAB_WIDTH));
-    let width = |s: &str| crate::unicode::display_width(&tabs(s));
-    let shown = tabs(line);
+    let width = |s: &str| crate::unicode::display_width(&visible(s));
+    let shown = visible(line);
     // the lexer counts columns after a leading BOM (zero columns on screen)
     let chars: Vec<char> = line
         .strip_prefix('\u{feff}')
@@ -254,6 +253,23 @@ fn write_excerpt(b: &mut String, d: &Diag, src: &str) {
     }
     b.push('\n');
     b.push_str(&format!("{gutter} |\n"));
+}
+
+/// A source line as the excerpt draws it: tabs expanded, and a control
+/// character as its escape (`\r`, `\u{1B}`), so the line cannot move the
+/// terminal's cursor or change its state (FE13).
+fn visible(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\t' => out.push_str(&" ".repeat(TAB_WIDTH)),
+            '\r' => out.push_str("\\r"),
+            '\n' => out.push_str("\\n"),
+            c if c.is_control() => out.push_str(&format!("\\u{{{:X}}}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// Whether a code belongs to the compile-time categories (syntax E01xx,
@@ -324,10 +340,10 @@ mod tests {
     fn excerpt_expands_tabs() {
         let mut sm = SourceMap::new();
         let pos = at(&mut sm, "-e", "\tx = \"\\q\"", 1, 7);
-        let d = error("E0103", pos, vec![Arg::Str("q".into())]);
+        let d = error("E0103", pos, vec![Arg::Str("\\q".into())]);
         assert_eq!(
             format(&d, &sm),
-            "error[E0103]: unknown escape \\q in string\n  --> -e:1:7\n  |\n1 |     x = \"\\q\"\n  |          ^\n  |\n"
+            "error[E0103]: unknown escape \"\\\\q\" in string\n  --> -e:1:7\n  |\n1 |     x = \"\\q\"\n  |          ^\n  |\n"
         );
     }
 
@@ -364,6 +380,26 @@ mod tests {
                 "{line}"
             );
         }
+    }
+
+    /// A control character in the shown line is drawn as its escape, so
+    /// a carriage return or an escape sequence cannot redraw the terminal
+    /// (FE13); the caret counts the escape's columns.
+    #[test]
+    fn excerpt_shows_control_characters() {
+        let mut sm = SourceMap::new();
+        let pos = at(&mut sm, "cr.fung", "x = 1\ry = )\n", 1, 6);
+        let d = error("E0101", pos, vec![Arg::Str("\r".into())]);
+        assert_eq!(
+            format(&d, &sm),
+            "error[E0101]: unexpected character \"\\r\"\n  --> cr.fung:1:6\n  |\n1 | x = 1\\ry = )\n  |      ^^\n  |\n"
+        );
+        let pos = at(&mut sm, "esc.fung", "s = \"\u{1b}[2J\" + nope\n", 1, 14);
+        let d = error("E0204", pos, vec![Arg::Str("nope".into())]).span(4);
+        let got = format(&d, &sm);
+        assert!(got.contains("1 | s = \"\\u{1B}[2J\" + nope\n"), "{got}");
+        let caret = format!("  | {}^^^^ ", " ".repeat(18));
+        assert!(got.contains(&caret), "{got}");
     }
 
     #[test]

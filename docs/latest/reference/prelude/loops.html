@@ -112,7 +112,7 @@ liftoff</code></pre></div>
 <h4>돌려주는 값</h4>
 <p><code>pred</code>를 처음 만족한 값.</p>
 <h4>에러</h4>
-<p><code>pred</code>가 <code>bool</code>이 아닌 값을 돌려주면 런타임 에러 E0505.</p>
+<p><code>f</code>·<code>pred</code>가 함수가 아니면 런타임 에러 E0403. <code>pred</code>가 <code>bool</code>이 아닌 값을 돌려주면 E0505.</p>
 <h4>예제</h4>
 <p><strong>두 배씩 늘려 100을 넘을 때까지</strong></p>
 <div class="run"><pre><code>print(until(1, x =&gt; x * 2, x =&gt; x &gt; 100))
@@ -143,7 +143,7 @@ print(delays)</code></pre><pre class="out plain"><code>[100ms, 200ms, 400ms, 800
 <h4>돌려주는 값</h4>
 <p><code>n</code>번 적용한 값.</p>
 <h4>에러</h4>
-<p><code>f</code> 안의 에러가 그대로 난다.</p>
+<p><code>f</code>가 함수가 아니거나 <code>n</code>이 정수가 아니면 런타임 에러 E0403. <code>f</code> 안의 에러는 그대로 난다.</p>
 <h4>예제</h4>
 <p><strong>거듭 적용</strong></p>
 <div class="run"><pre><code>print(iterate(1, x =&gt; x * 2, 10), iterate(&quot;a&quot;, s =&gt; s + &quot;!&quot;, 3), iterate(5, x =&gt; x + 1, 0))</code></pre><pre class="out plain"><code>1024 a!!! 5</code></pre></div>

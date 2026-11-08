@@ -229,11 +229,14 @@ impl Desugarer {
             | Head::Coalesce
             | Head::Arm
             | Head::Hole => self.map_kids(n.head, n),
+            // Elsewhere a tag without arguments is its symbol (02).
+            Head::BareTag => Ok(Node::leaf(Head::Symbol, n.pos, n.lit.clone())),
             Head::Int
             | Head::Float
             | Head::Bool
             | Head::Name
             | Head::Nil
+            | Head::Missing
             | Head::String
             | Head::Symbol
             | Head::Duration
@@ -309,8 +312,7 @@ impl Desugarer {
         }
         // A tag takes the value first too: `x |> Ok` is `Ok(x)` (01).
         let tag_name = match rhs.head {
-            Head::Symbol if lit_str(rhs).starts_with(|c: char| c.is_uppercase()) => Some(rhs),
-            Head::Tag => Some(rhs),
+            Head::BareTag | Head::Tag => Some(rhs),
             _ => None,
         };
         if let Some(t) = tag_name {
@@ -518,10 +520,22 @@ impl Desugarer {
     ///
     /// `(do (let $m0 e) (match $m0 (arm pat guard body)...))`
     /// A discarded match discards its arms' bodies.
+    ///
+    /// A subject that is a name already is read where it is, with no copy
+    /// (VM10 b), unless an arm's pattern binds that name: a pattern that
+    /// fails part way may have written it, and the next arm must see the
+    /// subject.
     fn match_expr(&mut self, n: &Node, discard: bool) -> R {
         let subject = self.walk(&n.kids[0])?;
-        let tmp = self.hidden("m");
-        let mut kids = vec![name_leaf(n.pos, &tmp)];
+        let direct = subject.head == Head::Name && {
+            let name = lit_str(&subject);
+            !n.kids[1..].iter().any(|arm| binds(&arm.kids[0], &name))
+        };
+        let tmp = (!direct).then(|| self.hidden("m"));
+        let mut kids = vec![match &tmp {
+            Some(t) => name_leaf(n.pos, t),
+            None => subject.clone(),
+        }];
         for arm in &n.kids[1..] {
             let pat = self.walk(&arm.kids[0])?;
             let guard = self.walk(&arm.kids[1])?;
@@ -538,6 +552,9 @@ impl Desugarer {
             ));
         }
         let m = Node::new(Head::Match, n.pos, kids);
+        let Some(tmp) = tmp else {
+            return Ok(m);
+        };
         Ok(Node::new(
             Head::Do,
             n.pos,
@@ -560,6 +577,12 @@ fn names_in(n: &Node, out: &mut Vec<String>) {
     for k in &n.kids {
         names_in(k, out);
     }
+}
+
+/// Whether pattern `p` binds `name` anywhere.
+fn binds(p: &Node, name: &str) -> bool {
+    (matches!(p.head, Head::Pbind | Head::Prest) && matches!(&p.lit, Lit::Str(s) if s == name))
+        || p.kids.iter().any(|k| binds(k, name))
 }
 
 /// A copy of a pattern where the names `drop` says are `_` (a rest keeps
@@ -632,6 +655,11 @@ mod tests {
             ("x |> Pair(2)", "(do (tag Pair x 2))"),
             ("x |> f |> Ok", "(do (tag Ok (call f x)))"),
             ("x |> Ok()", "(do (tag Ok x))"),
+            // A tag is what the parser read as one, not a guess from the
+            // first letter (FE19): a quoted symbol is a value to call.
+            ("x |> 'Ok", "(do (call 'Ok x))"),
+            ("x |> 'ok", "(do (call 'ok x))"),
+            ("y = Ok", "(do (let y 'Ok))"),
         ]);
     }
 
@@ -773,7 +801,17 @@ mod tests {
             ),
             (
                 "match v: 0 => a; _ => b ;;",
-                "(do (do (let $m0 v) (match $m0 (arm (plit 0) (nil) (do a)) (arm (pwild) (nil) (do b)))))",
+                "(do (match v (arm (plit 0) (nil) (do a)) (arm (pwild) (nil) (do b))))",
+            ),
+            // A pattern that binds the subject's name, or a subject that is
+            // not a name, goes through a hidden copy (VM10 b).
+            (
+                "match v: [v] => v; _ => b ;;",
+                "(do (do (let $m0 v) (match $m0 (arm (plist (pbind v)) (nil) (do v)) (arm (pwild) (nil) (do b)))))",
+            ),
+            (
+                "match f(v): 0 => a ;;",
+                "(do (do (let $m0 (call f v)) (match $m0 (arm (plit 0) (nil) (do a)))))",
             ),
             (
                 "f(a, _)",
@@ -803,7 +841,7 @@ mod tests {
             ),
             (
                 "match v: _ => for x in xs: x ;; ;;\n1",
-                "(do (do (let $m0 v) (match $m0 (arm (pwild) (nil) (do (call (prelude each) xs (fn (x) (do x))))))) 1)",
+                "(do (match v (arm (pwild) (nil) (do (call (prelude each) xs (fn (x) (do x)))))) 1)",
             ),
             (
                 "for x in xs: for y in x: y ;; ;;\n1",

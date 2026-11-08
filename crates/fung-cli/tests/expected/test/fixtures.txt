@@ -151,7 +151,8 @@
 -- stdout
 | 0 passed, 0 failed
 -- stderr
--- exit: 0
+| no tests found
+-- exit: 1
 ==== test crates/fung-cli/tests/data/test/own_error.fung
 -- stdout
 | FAIL crates/fung-cli/tests/data/test/own_error.fung: <load>
@@ -682,9 +683,11 @@
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
@@ -708,9 +711,11 @@
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3

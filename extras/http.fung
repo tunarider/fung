@@ -13,24 +13,24 @@
 # the environment variables most HTTP clients read.
 #
 # The server (`serve`, "The server" below) is written the same way over
-# `_native.net`, reusing the client's head and body readers
-# (`_field_step`, `_group`, `_header_map`, `_transfer_encoding`,
-# `_length`, `_chunked`).
+# `_native.net`, reusing the client's head and body readers (header
+# lines and trailers by `_net.read_fields`, then `_group`, `_header_map`,
+# `_transfer_encoding`, `_length`, `_chunked`).
 import _native.net as _net
 import _native.process as _proc
 import _native.time as _time
 
 # The prelude's `timeout`: the public functions' parameter of that name
 # hides it inside them.
-fn _within(d, f) = timeout(d, f)
+fn _within(d, f) = timeout(f, d)
 
 # ---- The public functions (06) -----------------------------------------
 
-fn get(url: str, headers: map = {}, timeout: dur = 30s, max_body: int = 67108864) = _request("GET", url, nil, headers, timeout, max_body)
+fn get(url: str, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864) = _request("GET", url, nil, headers, timeout, max_body)
 
-fn post(url: str, body: str | nil, headers: map = {}, timeout: dur = 30s, max_body: int = 67108864) = _request("POST", url, body, headers, timeout, max_body)
+fn post(url: str, body: str | nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864) = _request("POST", url, body, headers, timeout, max_body)
 
-fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur = 30s, max_body: int = 67108864) = _request(upper(method), url, body, headers, timeout, max_body)
+fn request(method: str, url: str, body: str | nil = nil, headers: map = {}, timeout: dur | nil = 30s, max_body: int = 67108864) = _request(upper(method), url, body, headers, timeout, max_body)
 
 # Binds `addr`, tells `ready` the address, and serves until a stop
 # request (05 "정지 요청": the first SIGINT or SIGTERM, or
@@ -59,12 +59,13 @@ fn serve(addr: str, handler: fn, ready: fn | nil = nil, drain: dur = 10s, reuse_
 # The request's `limit` is one deadline over the whole request (a
 # `timeout` scope, 05): the lookup, the connection, the handshake, a
 # proxy's CONNECT, the redirects and the bodies. A shorter deadline
-# around the call wins; `0s` is no limit of the request's own.
+# around the call wins. As in the prelude's `timeout`, `0s` or less
+# times out at once (LB5); `nil` is no limit of the request's own.
 fn _request(method, url, body, headers, limit, cap):
   _net.need_count("max_body", cap)
-  r = limit > 0s
-    then _within(limit, () => _attempt(method, url, body, headers, cap))
-    else _attempt(method, url, body, headers, cap)
+  r = limit == nil
+    then _attempt(method, url, body, headers, cap)
+    else _within(limit, () => _attempt(method, url, body, headers, cap))
   match r:
     Ok(res) => Ok(res)
     Err(e)  => _failed(url, e)
@@ -747,7 +748,7 @@ fn _request_uri(u):
     p = _escaped_path(u.path)
     p == "" then "/" else p
   ;;
-  u.force_query or u.query != "" then "${base}?${u.query}" else base
+  u.force_query or u.query != "" then "${base}?${_escaped_query(u.query)}" else base
 ;;
 
 # ---- The response -----------------------------------------------------
@@ -798,7 +799,9 @@ fn _next_head(c, method, ctx, budget, cap) = match _head_line(c, budget):
   Err(e)   => Err(_head_err(e, ctx))
 ;;
 
-# The status line (RFC 9112 4): "HTTP/1.1 200 OK" → Ok((1, 1, 200)).
+# The status line (RFC 9112 4): "HTTP/1.1 200 OK" → Ok((1, 1, 200)). The
+# code is three digits from 100 to 599 (RFC 9110 15), the version 1.x
+# (LB14).
 fn _status_line(line):
   if " " not in line:
     return Err("invalid status line `${line}`")
@@ -806,22 +809,17 @@ fn _status_line(line):
   (proto, rest) = _cut(line, " ")
   status = _trim_left(rest, " ")
   code_text = _before(status, " ")
-  code = _atoi(code_text)
   version = _version(proto)
-  if byte_len(code_text) != 3 or code == nil or code < 0:
+  digits = byte_len(code_text) == 3 and all(chars(code_text), ch => ch in "0123456789")
+  code = digits then parse_int(code_text)! else 0
+  if code < 100 or code > 599:
     Err("invalid status code `${code_text}`")
-  else if version == nil:
+  else if version == nil or not starts_with(proto, "HTTP/1."):
     Err("invalid HTTP version `${proto}`")
   else:
     (major, minor) = version
     Ok((major, minor, code))
   ;;
-;;
-
-# An optional sign, then digits.
-fn _atoi(s):
-  digits = starts_with(s, "+") or starts_with(s, "-") then s[1..] else s
-  digits != "" and all(chars(digits), ch => ch in "0123456789") then parse_int(s) ?? nil else nil
 ;;
 
 # HTTP/<digit>.<digit> (RFC 9112 2.3).
@@ -839,10 +837,11 @@ fn _version(v):
 
 # Header lines up to the blank one, a line starting with a space or a
 # tab continuing the one before (obsolete line folding, RFC 9112 5.2),
-# read by `_net.read_fields` (the rules of `_field_step` and `_flush`
-# below, done natively: a head of thousands of lines read here in fung
-# held the run thread for long, L13). Ok((fields as (key, value), budget
-# left)).
+# read by `_net.read_fields` (natively: a head of thousands of lines read
+# here in fung held the run thread for long, L13). A key is of token
+# characters (a space keeps it as written), a value has no control
+# characters but tab and loses its leading blanks. Ok((fields as (key,
+# value), budget left)).
 fn _fields(c, left, ctx) = match _net.read_fields(c, left, 0):
   Ok(x)                          => Ok(x)
   Err({kind: 'limit})            => Err(_at('network, ctx, _exceeded))
@@ -852,48 +851,6 @@ fn _fields(c, left, ctx) = match _net.read_fields(c, left, 0):
 ;;
 
 _head_cut = "connection closed in the response head"
-
-# One header line into the state: Ok((pending, acc, done)) or Err(why).
-fn _field_step(pending, acc, line):
-  folded = starts_with(line, " ") or starts_with(line, "\t")
-  if folded and pending == nil:
-    Err("continuation line without a header `${line}`")
-  else if folded:
-    Ok((pending + [_trim_ows(line)], acc, false))
-  else:
-    match _flush(pending, acc):
-      Err(why)                 => Err(why)
-      Ok(more) when line == "" => Ok((nil, more, true))
-      Ok(more)                 => ":" in line
-        then Ok(([_trim_ows(line)], more, false))
-        else Err("header line without a colon `${line}`")
-    ;;
-  ;;
-;;
-
-# Header lines already read (a trailer), up to the blank one: Ok(fields)
-# or Err(why).
-fn _fields_of(lines, pending, acc) = match lines:
-  []              => _flush(pending, acc)
-  [line, ...rest] => match _field_step(pending, acc, line):
-    Err(why)            => Err(why)
-    Ok((_, more, true)) => Ok(more)
-    Ok((p, more, _))    => _fields_of(rest, p, more)
-  ;;
-;;
-
-# Adds the gathered field to acc: a key of token characters (a space
-# keeps it as written), a value without control characters but tabs,
-# the value without leading blanks.
-fn _flush(pending, acc):
-  if pending == nil:
-    return Ok(acc)
-  ;;
-  kv = join(pending, " ")
-  (k, v) = _cut(kv, ":")
-  ok = k != "" and all(chars(k), ch => ch == " " or _is_tchar(ch)) and _valid_value(v)
-  ok then Ok(acc + [(_canonical(k), _trim_left(v, " \t"))]) else Err("invalid header line `${kv}`")
-;;
 
 # The headers that frame the body (RFC 9112 6), how the body ends, and
 # reading it. A redirect's body is left unread.
@@ -1142,27 +1099,14 @@ fn _digit(ch) = match ch:
 ;;
 
 # After the last chunk, either CRLF, or trailer lines whose blank end
-# comes within 4096 bytes, checked as header lines and dropped (RFC 9112
-# 7.1.2).
-fn _trailer(c) = match _net.read_line(c, 4096):
-  Ok(nil)  => _drop(c, _err("connection closed in the trailer"))
-  Ok("")   => Ok(_net.take_body(c))
-  Ok(line) => _trailer_lines(c, 4096 - byte_len(line) - 2, [line])
-  Err(e)   => _drop(c, _trailer_err(e))
-;;
-
-fn _trailer_err(e) = e.kind == 'limit then _err("trailer longer than 4096 bytes") else e
-
-fn _trailer_lines(c, left, lines) = match _head_line(c, left):
-  Ok(nil)  => _drop(c, _err("trailer longer than 4096 bytes"))
-  Ok("")   => _trailer_end(c, _fields_of(lines, nil, []))
-  Ok(line) => _trailer_lines(c, left - byte_len(line) - 2, lines + [line])
-  Err(e)   => _drop(c, _trailer_err(e))
-;;
-
-fn _trailer_end(c, fields) = match fields:
-  Ok(_)    => Ok(_net.take_body(c))
-  Err(why) => _drop(c, _err(why))
+# comes within 4096 bytes, read by `_net.read_fields` as header lines
+# and dropped (RFC 9112 7.1.2).
+fn _trailer(c) = match _net.read_fields(c, 4096, 0):
+  Ok(_)                          => Ok(_net.take_body(c))
+  Err({kind: 'limit})            => _drop(c, _err("trailer longer than 4096 bytes"))
+  Err({kind: 'eof})              => _drop(c, _err("connection closed in the trailer"))
+  Err({kind: 'invalid, message}) => _drop(c, _err(message))
+  Err(e)                         => _drop(c, e)
 ;;
 
 # ---- URLs (RFC 3986) -------------------------------------------------
@@ -1355,7 +1299,7 @@ else:
   _encode_path(bs, i + 1, out + [_encode_byte(bs[i])])
 ;;
 
-fn _encode_byte(b) = _path_safe(b) then _printable[b - 32] else "%" + "0123456789ABCDEF"[b // 16] + "0123456789ABCDEF"[b % 16]
+fn _encode_byte(b) = _path_safe(b) then _printable[b - 32] else _percent(b)
 
 fn _path_safe(b) = (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
   or b in [45, 95, 46, 126, 36, 38, 43, 44, 47, 58, 59, 61, 64]
@@ -1384,7 +1328,29 @@ fn _url_string(u):
   start + sep + dot + path + _url_tail(u)
 ;;
 
-fn _url_tail(u) = (u.force_query or u.query != "" then "?${u.query}" else "") + (u.fragment != "" then "#${_escaped_path(u.fragment)}" else "")
+fn _url_tail(u) = (u.force_query or u.query != "" then "?${_escaped_query(u.query)}" else "") + (u.fragment != "" then "#${_escaped_path(u.fragment)}" else "")
+
+# The query as it goes out (RFC 3986 3.4, RFC 9112 3.2: no space, ASCII
+# only): as written when it holds only the characters a query may hold,
+# else byte by byte with a valid %XX kept and any other byte (a space,
+# UTF-8, a stray %) escaped (LB1).
+fn _escaped_query(q) = all(chars(q), ch => _is_alnum(ch) or ch in "-._~!\$&'()*+,;=:@/?")
+  then q else _encode_query(bytes(q), 0, [])
+
+fn _encode_query(bs, i, out) = if i >= len(bs):
+  join(out, "")
+else if bs[i] == 37 and i + 2 < len(bs) and _hex_byte(bs[i + 1]) and _hex_byte(bs[i + 2]):
+  _encode_query(bs, i + 3, out + [from_bytes(bs[i..i + 3])])
+else:
+  _encode_query(bs, i + 1, out + [_query_safe(bs[i]) then _printable[bs[i] - 32] else _percent(bs[i])])
+;;
+
+fn _query_safe(b) = (b >= 48 and b <= 57) or (b >= 65 and b <= 90) or (b >= 97 and b <= 122)
+  or b in [45, 46, 95, 126, 33, 36, 38, 39, 40, 41, 42, 43, 44, 59, 61, 58, 64, 47, 63]
+
+fn _hex_byte(b) = (b >= 48 and b <= 57) or (b >= 65 and b <= 70) or (b >= 97 and b <= 102)
+
+fn _percent(b) = "%" + "0123456789ABCDEF"[b // 16] + "0123456789ABCDEF"[b % 16]
 
 # The user name as such a URL shows it: the escapes of non-ASCII bytes
 # decoded when they spell UTF-8 (L13), then those of printable ASCII.
@@ -1524,13 +1490,13 @@ fn _stopper(l, stop, drain, top):
   cancel(top)
 ;;
 
-# Accepts until the listener is closed. An accept that failed (for want
-# of file descriptors, say) is tried again after 5 ms, doubling up to
-# 1 s, so a short shortage does not end the server.
+# Accepts until the listener is closed (kind 'closed). An accept that
+# failed (for want of file descriptors, say) is tried again after 5 ms,
+# doubling up to 1 s, so a short shortage does not end the server.
 fn _accept(l, handler, conns, delay) = match _net.accept(l):
-  Ok(c)  => _accept(l, handler, conns, _spawn_conn(c, handler, conns))
-  Err(e) => e.message == "listener is closed"
-    then nil else _accept(l, handler, conns, _backoff(delay))
+  Ok(c)                => _accept(l, handler, conns, _spawn_conn(c, handler, conns))
+  Err({kind: 'closed}) => nil
+  Err(_)               => _accept(l, handler, conns, _backoff(delay))
 ;;
 
 # A connection's task. Starting one cannot fail (a task is no thread,
@@ -1636,6 +1602,10 @@ fn _request_head(c, line, budget):
   h0 = _fix_pragma(_group(fields))
   if "Host" in h0 and len(h0["Host"]) > 1:
     return Err(_bad_request)
+  else if "Transfer-Encoding" in h0 and major == 1 and minor == 0:
+    # an HTTP/1.0 message with a transfer coding has broken framing
+    # (RFC 9112 6.1, LB13)
+    return Err(_bad_request)
   ;;
   (h1, chunked) = match _transfer_encoding(h0, major, minor):
     Ok(x)  => x
@@ -1658,8 +1628,12 @@ fn _request_head(c, line, budget):
   else if any(keys(h), k => not _is_token(k)):
     return Err(_bad_request)
   ;;
+  query = match _query(u.query):
+    nil => return Err(_bad_request)
+    q   => q
+  ;;
   length = chunked then -1 else max([n, 0])
-  Ok({method, target, major, minor, path: u.path, query: _query(u.query), headers: _header_map(remove(h, "Host")), h, length, chunked})
+  Ok({method, target, major, minor, path: u.path, query, headers: _header_map(h), h, length, chunked})
 ;;
 
 # The header lines within the head's budget, at most `_max_values`:
@@ -1707,12 +1681,14 @@ fn _after_authority(a):
 ;;
 
 # The query as a map: the first value of each key,
-# keys sorted; a pair with a bad escape or a ";" is left out, and so is
-# the whole query past 10000 pairs.
+# keys sorted; a pair with a bad escape or a ";" is left out. More than
+# 10000 pairs is nil: the request is answered 400 (LB22).
 fn _query(raw):
   pieces = split(raw, "&")
-  if raw == "" or len(pieces) > 10000:
+  if raw == "":
     return {}
+  else if len(pieces) > 10000:
+    return nil
   ;;
   m = fold(pieces, {}, _query_pair)
   fold(sort(keys(m)), {}, (acc, k) => put(acc, k, m[k]))
@@ -1776,14 +1752,19 @@ _unsupported_te = _own_answer(501, false)
 
 # ---- Answering -----------------------------------------------------------
 
+# An expectation is HTTP/1.1's: an HTTP/1.0 request's is ignored (RFC 9110
+# 10.1.1). A body known to be too large is refused before `100 Continue`,
+# so the client need not send it (LB16).
 fn _respond(c, rq, handler, state):
   _net.set_deadline(c, 0s)
-  expect = "Expect" in rq.h then rq.h["Expect"][0] else ""
+  expect = "Expect" in rq.h and _at_least_11(rq.major, rq.minor) then rq.h["Expect"][0] else ""
   continues = _has_token(expect, "100-continue")
   if not continues and expect != "":
     return _write_reply(c, rq, 417, {Connection: "close"}, "")
+  else if continues and rq.length > _max_body:
+    return _linger(_http_error(c, rq, 413))
   ;;
-  if continues and _at_least_11(rq.major, rq.minor) and rq.length != 0:
+  if continues and rq.length != 0:
     _ = _net.write(c, "HTTP/1.1 100 Continue\r\n\r\n")
   ;;
   # `OPTIONS *` asks about the server, not a resource (RFC 9110 9.3.7):
@@ -1875,12 +1856,11 @@ fn _parts(res):
   hs = "headers" in res then res["headers"] else {}
   if _type_name(status) != "int":
     return Err("`status` must be int, got ${_type_name(status)}")
-  else if status < 100 or status > 599:
-    return Err("`status` must be between 100 and 599, got ${status}")
-  else if status == 101:
-    # switching protocols needs the connection handed over, which the
-    # server does not do (L13)
-    return Err("status 101 is not supported")
+  else if status < 200 or status > 599:
+    # the handler gives the one final answer: no interim 1xx (one would
+    # need a final answer after it), no 101 (switching protocols hands
+    # the connection over, which the server does not do; L13, LB12)
+    return Err("`status` must be between 200 and 599, got ${status}")
   else if _type_name(body) != "str":
     return Err("`body` must be str, got ${_type_name(body)}")
   else if _type_name(hs) != "map":
@@ -1889,6 +1869,13 @@ fn _parts(res):
   match find(pairs(hs), ((_, v)) => _type_name(v) != "str"):
     (k, v) => return Err("header `${k}` must be str, got ${_type_name(v)}")
     nil    => nil
+  ;;
+  # a name of token characters, a value without control characters but
+  # tab (RFC 9110 5.1, 5.5; LB3): nothing is changed or left out
+  match find(pairs(hs), ((k, v)) => not _is_token(k) or not _valid_value(v)):
+    (k, _) when not _is_token(k) => return Err("header name `${k}` is not a token")
+    (k, _)                       => return Err("header `${k}` has a control character in its value")
+    nil                          => nil
   ;;
   # names that differ in case only: one would be lost (L13)
   out = fold(pairs(hs), {}, (m, (k, v)) => put(m, _canonical(k), v))
@@ -1920,16 +1907,9 @@ fn _write_reply(c, rq, status, hs, body):
 ;;
 
 # An answer written whole once the handler is done: the status line, the
-# handler's headers sorted, then Date, Content-Length and Connection. An
-# interim status (1xx but 101) goes out first on its own, then the answer
-# as 200: the handler gave one answer, and the client needs a final one
-# (RFC 9110 15.2).
+# handler's headers sorted, then Date, Content-Length and Connection.
 fn _reply(rq, status, hs, body):
   is11 = _at_least_11(rq.major, rq.minor)
-  if status >= 100 and status <= 199 and status != 101:
-    early = _reply_line(is11, status) + _header_lines(hs, ["Content-Length", "Transfer-Encoding"]) + "\r\n"
-    return early + _reply(rq, 200, hs, body)
-  ;;
   allowed = _body_allowed(status)
   suppressed = status == 304 then ["Content-Type", "Content-Length", "Transfer-Encoding"] else (allowed then [] else ["Content-Length", "Transfer-Encoding"])
   closes = _has_token("Connection" in hs then hs["Connection"] else "", "close")
@@ -1948,11 +1928,11 @@ fn _reply_line(is11, status):
   "${version} ${status} ${_status_text(status)}\r\n"
 ;;
 
-# The header lines: sorted, names that are not tokens left out,
-# line breaks in values made spaces, values trimmed.
+# The header lines: sorted, values without blanks at either end (`_parts`
+# has checked the names and values).
 fn _header_lines(hs, excluded) = sort(keys(hs))
-  |> filter(k => k not in excluded and _is_token(k))
-  |> map(k => "${k}: ${trim(replace(replace(hs[k], "\n", " "), "\r", " "), " \t\r\n")}\r\n")
+  |> filter(k => k not in excluded)
+  |> map(k => "${k}: ${_trim_ows(hs[k])}\r\n")
   |> join("")
 
 # Now as an IMF-fixdate (RFC 9110 5.6.7), in UTC.

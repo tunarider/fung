@@ -1,6 +1,6 @@
 //! Closing what dropped file handles leave (L11 B; 06 `fs`).
 //!
-//! When the last copy of a handle goes without `fs.close`, its buffer
+//! When the last copy of a handle goes without `close`, its buffer
 //! must still be flushed and its file closed. Doing that where the handle
 //! drops (most often the run thread) would stop every task while a file
 //! system that hangs on close (NFS) waits. So the handle gives its

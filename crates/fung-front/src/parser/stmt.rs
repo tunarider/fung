@@ -5,16 +5,26 @@ use crate::lexer::{Kind, Token};
 use crate::source::Pos;
 use crate::tree::{Head, Import, Lit, Node, TypeAlias};
 
-/// The text of a plain "..." token, or None when it interpolates.
-fn plain_text(t: &Token) -> Option<String> {
-    let mut text = String::new();
-    for part in &t.parts {
-        if part.is_code {
-            return None;
-        }
-        text.push_str(&part.text);
+/// The text of a `"..."` token where a name or a path is written: no
+/// interpolation, and valid UTF-8 (L4, FE10). `what` names the place for
+/// E0112.
+fn plain_text(t: &Token, what: &str) -> PResult<String> {
+    match t.plain() {
+        Some(Ok(text)) => Ok(text),
+        Some(Err(bytes)) => Err(err(
+            "E0112",
+            t.pos,
+            vec![
+                s(format!("{what} that is text (valid UTF-8)")),
+                s(format!("string {}", crate::consts::quote_bytes(&bytes))),
+            ],
+        )),
+        None => Err(err(
+            "E0112",
+            t.pos,
+            vec![s(what), s("a string with interpolation")],
+        )),
     }
-    Some(text)
 }
 
 impl<'a> Parser<'a> {
@@ -180,13 +190,7 @@ impl<'a> Parser<'a> {
             ));
         }
         let st = self.next();
-        let Some(name) = plain_text(st) else {
-            return Err(err(
-                "E0112",
-                st.pos,
-                vec![s("a plain test name"), s("a string with interpolation")],
-            ));
-        };
+        let name = plain_text(st, "a plain test name")?;
         self.expect_desc(Kind::Colon, "`:` after the test name")?;
         let body = self.body(t.pos)?;
         self.expect_desc(Kind::DoubleSemi, "`;;` to close the test")?;
@@ -226,16 +230,7 @@ impl<'a> Parser<'a> {
             }
             Kind::String => {
                 let st = self.next();
-                let Some(text) = plain_text(st) else {
-                    return Err(err(
-                        "E0112",
-                        st.pos,
-                        vec![
-                            s("a plain path string after `import`"),
-                            s("a string with interpolation"),
-                        ],
-                    ));
-                };
+                let text = plain_text(st, "a plain path string after `import`")?;
                 im.bind_pos = st.pos;
                 im.bind_len = crate::diag::quote(&text).chars().count();
                 im.spec = text;
@@ -285,6 +280,10 @@ impl<'a> Parser<'a> {
                 break;
             }
             self.next();
+            // a trailing comma, as in every comma-separated list (SP8)
+            if self.at(Kind::RParen) {
+                break;
+            }
         }
         im.names = Some(names);
         self.expect_desc(Kind::RParen, "`)`")?;

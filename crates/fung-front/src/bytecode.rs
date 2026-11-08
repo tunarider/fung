@@ -9,7 +9,7 @@ mod pattern;
 mod tests;
 
 pub use disasm::disassemble;
-pub use op::{Instr, Op, decode_call, encode_call};
+pub use op::{Instr, MAX_OPERAND, Op, decode_call, encode_call};
 pub use pattern::{PatKind, Pattern};
 
 use std::collections::HashMap;
@@ -72,6 +72,9 @@ pub struct Proto {
     /// Where each constant with a hashable key sits in `consts`, so that
     /// `add_const` finds an equal one without comparing with all of them.
     pub(crate) const_index: HashMap<ConstKey, usize>,
+    /// The first instruction whose operand did not fit in 24 bits
+    /// (`check_operands`).
+    pub(crate) overflow: Option<(Op, Pos)>,
 }
 
 /// A constant as a hash key, under the pool's equality (`Const`'s
@@ -90,10 +93,12 @@ pub(crate) enum ConstKey {
     Dur(i64),
     Builtin(String),
     Args,
+    Dbg,
     List(Vec<ConstKey>),
     Map(Vec<(ConstKey, ConstKey)>),
     Tuple(Vec<ConstKey>),
     Tag(String, Vec<ConstKey>),
+    Range(i64, i64, bool),
 }
 
 impl ConstKey {
@@ -114,9 +119,11 @@ impl ConstKey {
             Const::Dur(d) => ConstKey::Dur(*d),
             Const::Builtin(t) => ConstKey::Builtin(t.clone()),
             Const::Args => ConstKey::Args,
+            Const::Dbg => ConstKey::Dbg,
             Const::List(xs) => ConstKey::List(ConstKey::all(xs)?),
             Const::Tuple(xs) => ConstKey::Tuple(ConstKey::all(xs)?),
             Const::Tag(n, xs) => ConstKey::Tag(n.clone(), ConstKey::all(xs)?),
+            Const::Range(a, b, i) => ConstKey::Range(*a, *b, *i),
             Const::Map(es) => ConstKey::Map(
                 es.iter()
                     .map(|(k, v)| Some((ConstKey::of(k)?, ConstKey::of(v)?)))
@@ -149,6 +156,7 @@ impl Default for Proto {
             asserts: Vec::new(),
             builtin: false,
             const_index: HashMap::new(),
+            overflow: None,
         }
     }
 }
@@ -160,8 +168,12 @@ impl Proto {
         self.types.len() - 1
     }
 
-    /// Appends an instruction and returns its index (for `patch`).
+    /// Appends an instruction and returns its index (for `patch`). An
+    /// operand past 24 bits is remembered for `check_operands`.
     pub fn emit(&mut self, op: Op, arg: usize, pos: Pos) -> usize {
+        if arg > MAX_OPERAND {
+            self.overflow.get_or_insert((op, pos));
+        }
         self.code.push(Instr::new(op, arg));
         self.pos.push(pos);
         self.code.len() - 1
@@ -169,7 +181,43 @@ impl Proto {
 
     /// Rewrites the operand of an earlier instruction (jump targets).
     pub fn patch(&mut self, at: usize, arg: usize) {
-        self.code[at] = Instr::new(self.code[at].op(), arg);
+        let op = self.code[at].op();
+        if arg > MAX_OPERAND {
+            self.overflow.get_or_insert((op, self.pos[at]));
+        }
+        self.code[at] = Instr::new(op, arg);
+    }
+
+    /// E0230 when an instruction's operand did not fit in its 24 bits
+    /// (VM11: a constant, jump or slot number cut short would run the
+    /// wrong code), at the first one, naming what there were too many of.
+    pub fn check_operands(&self) -> Result<(), crate::diag::Diag> {
+        let Some((op, pos)) = self.overflow else {
+            return Ok(());
+        };
+        let what = match op {
+            Op::Const | Op::Field | Op::Import | Op::Test => "constants in a function",
+            Op::List | Op::Tuple | Op::Map | Op::Tag => "items in one literal",
+            Op::Concat => "parts in one string",
+            Op::LoadLocal | Op::StoreLocal | Op::ClearLocal | Op::MoveLocal => {
+                "local variables in a function"
+            }
+            Op::LoadGlobal | Op::StoreGlobal => "names in a file",
+            Op::Closure => "functions in a function",
+            Op::LoadCaptured => "captured values in a function",
+            Op::Match | Op::MatchOrFail => "patterns in a function",
+            Op::CheckReturn | Op::CheckType => "type annotations in a function",
+            Op::Assert => "asserts in a function",
+            _ => "instructions in a function",
+        };
+        Err(crate::diag::error(
+            "E0230",
+            pos,
+            vec![
+                crate::diag::Arg::Str(what.into()),
+                crate::diag::Arg::Int(MAX_OPERAND as i64),
+            ],
+        ))
     }
 
     /// Adds a constant, reusing an existing equal one of the same type.

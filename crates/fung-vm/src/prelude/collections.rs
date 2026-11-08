@@ -12,7 +12,7 @@ use crate::native::walk::{Collect, Cursor, PerItem, drain_with, walk};
 use crate::value::{
     List, ListBuilder, Lit, MapBuilder, Text, Value, compare, eq, hash_value, type_name,
 };
-use crate::vm::pieces::{self, STEP_COMPARES, STEP_ITEMS, Work};
+use crate::vm::pieces::{self, STEP_COMPARES, STEP_COPIES, STEP_ITEMS, Work};
 use crate::vm::{Flow, Stop, Task, discarded_err};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -39,16 +39,16 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
         group_by_fn,
         vec![param("xs"), param("f")],
     ));
-    add(def("pairs", pairs_fn, vec![param("m")]));
+    add(def_step("pairs", pairs_fn, vec![param("m")]));
     add(def(
         "get",
         get_fn,
         vec![param("m"), param("k"), opt("default", Lit::Nil)],
     ));
     add(def("put", put_fn, vec![param("m"), param("k"), param("v")]));
-    add(def("merge", merge_fn, vec![param("a"), param("b")]));
+    add(def_step("merge", merge_fn, vec![param("a"), param("b")]));
     add(def("remove", remove_fn, vec![param("m"), param("k")]));
-    add(def("chars", chars_fn, vec![param("s")]));
+    add(def_step("chars", chars_fn, vec![param("s")]));
 }
 
 /// The collection `a[0]`, then the function `a[f_at]`, in argument order.
@@ -475,23 +475,76 @@ fn group_by_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             Ok(false)
         }
         fn result(&mut self, _: bool) -> Result<Value, Stop> {
-            let mut out = MapBuilder::default();
-            for (k, items) in self.groups.drain(..) {
-                out.set(k, Value::List(Rc::new(items.finish())));
+            unreachable!("group_by's result is built by `finish`")
+        }
+        /// The result map is built a piece at a time too (VA10): each
+        /// group's list is made of its items, and the map of the groups.
+        fn finish(&mut self, t: &mut Task<'_>, _: bool) -> Result<Flow, Stop> {
+            struct Build {
+                groups: std::vec::IntoIter<(Rc<Text>, ListBuilder)>,
+                out: MapBuilder,
             }
-            Ok(Value::Map(Rc::new(out.finish())))
+            impl Work for Build {
+                fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+                    let mut done = 0;
+                    while done < STEP_COPIES {
+                        let Some((k, items)) = self.groups.next() else {
+                            let out = std::mem::take(&mut self.out).finish();
+                            return Ok(Some(Value::Map(Rc::new(out))));
+                        };
+                        done += 1 + items.len();
+                        self.out.set(k, Value::List(Rc::new(items.finish())));
+                    }
+                    Ok(None)
+                }
+            }
+            let groups = std::mem::take(&mut self.groups).into_iter();
+            pieces::run(
+                t,
+                Build {
+                    groups,
+                    out: MapBuilder::default(),
+                },
+            )
         }
     }
     walk(t, Cursor::new(&a[0]), a[1].clone(), Group::default())
 }
 
-fn pairs_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let m = nat::need_map("list the pairs of", &a[0])?;
-    let mut out = ListBuilder::with_capacity(m.len());
-    for (k, v) in m.entries() {
-        out.push(Value::tuple(vec![Value::Str(k.clone()), v.clone()]));
+/// `pairs(m)`, a piece at a time (VA10): the list grows in place, and
+/// the map is read by a cursor that holds no borrow.
+fn pairs_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    nat::need_map("list the pairs of", &a[0])?;
+    struct Pairs {
+        m: Value,
+        at: usize,
+        out: List,
     }
-    Ok(Value::List(Rc::new(out.finish())))
+    impl Work for Pairs {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let Value::Map(m) = &self.m else {
+                unreachable!("checked by need_map")
+            };
+            for _ in 0..STEP_ITEMS {
+                let Some((i, k, v)) = m.entry_from(self.at) else {
+                    let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
+                    return Ok(Some(Value::List(Rc::new(out))));
+                };
+                self.out
+                    .push(Value::tuple(vec![Value::Str(k.clone()), v.clone()]));
+                self.at = i + 1;
+            }
+            Ok(None)
+        }
+    }
+    pieces::run(
+        t,
+        Pairs {
+            m: a[0].clone(),
+            at: 0,
+            out: List::new(Vec::new()),
+        },
+    )
 }
 
 /// The map argument by move: changed in place when nothing else holds it.
@@ -533,10 +586,35 @@ fn put_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Map(m))
 }
 
-fn merge_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let x = nat::need_map("merge", &a[0])?;
-    let y = nat::need_map("merge", &a[1])?;
-    Ok(Value::Map(Rc::new(x.merge(y))))
+/// `merge(a, b)`: `b`'s entries put into `a` in `b`'s order, a piece at
+/// a time (VA10). `a` is changed in place when nothing else holds it.
+fn merge_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Flow, Stop> {
+    nat::need_map("merge", &a[0])?;
+    nat::need_map("merge", &a[1])?;
+    struct Merge {
+        out: crate::value::Map,
+        b: Value,
+        at: usize,
+    }
+    impl Work for Merge {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let Value::Map(b) = &self.b else {
+                unreachable!("checked by need_map")
+            };
+            for _ in 0..STEP_ITEMS {
+                let Some((i, k, v)) = b.entry_from(self.at) else {
+                    let out = std::mem::take(&mut self.out);
+                    return Ok(Some(Value::Map(Rc::new(out))));
+                };
+                self.out.put(k.clone(), v.clone());
+                self.at = i + 1;
+            }
+            Ok(None)
+        }
+    }
+    let b = a.pop().expect("b");
+    let out = Rc::try_unwrap(take_map(&mut a, 0)).unwrap_or_else(|m| (*m).clone());
+    pieces::run(t, Merge { out, b, at: 0 })
 }
 
 fn remove_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
@@ -544,21 +622,23 @@ fn remove_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     let k = nat::need_key("index", &a[1])?.clone();
     let mut m = take_map(&mut a, 0);
     if m.get(&*k).is_some() {
-        Rc::make_mut(&mut m).remove(&*k);
+        // A version something else holds is copied, and its copy keeps
+        // its removed entries longer (VA1).
+        if Rc::strong_count(&m) == 1 {
+            Rc::make_mut(&mut m).remove(&*k);
+        } else {
+            Rc::make_mut(&mut m).remove_shared(&*k);
+        }
     }
     Ok(Value::Map(m))
 }
 
-fn chars_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let Value::Str(s) = &a[0] else {
+fn chars_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    if !matches!(a[0], Value::Str(_)) {
         return Err(fail(
             "E0506",
             vec![nat::s("list the characters of"), Arg::Str(type_name(&a[0]))],
         ));
-    };
-    let mut out = ListBuilder::default();
-    for (at, u) in fung_front::text::units(s) {
-        out.push(Value::bytes(s[at..at + u.byte_len()].to_vec()));
     }
-    Ok(Value::List(Rc::new(out.finish())))
+    super::strings::chars_of(t, a[0].clone())
 }

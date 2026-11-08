@@ -45,7 +45,7 @@ match fs.read("config.txt"):
 
 :::box mistake 이름이 같은 다른 함수
 
-`fs.remove`·`fs.close`는 prelude의 `remove`(맵에서 키 빼기)·`close`(채널 닫기)와 이름만 같은 다른 함수다. 파일에는 반드시 `fs.`를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 런타임 에러가 난다.
+`fs.remove`·`close`는 prelude의 `remove`(맵에서 키 빼기)·`close`(채널 닫기)와 이름만 같은 다른 함수다. 파일에는 반드시 `fs.`를 붙인다. 붙이지 않으면 prelude 함수가 불려 인자가 모자라거나(E0407) 타입이 맞지 않는(E0403) 런타임 에러가 난다.
 
 :::
 
@@ -168,6 +168,8 @@ print(fs.read_lines("crlf.txt")!)
 #### 설명
 
 `path`에 `text`를 쓴다. 파일이 없으면 새로 만들고, 있으면 **내용을 모두 지우고** 덮어쓴다(셸의 `>`와 같다). 새 파일의 권한은 0666에서 umask를 뺀 것이다(셸과 같다). `perm`을 주면 파일은 정확히 그 권한이 된다(아래). 위의 디렉터리는 만들지 않으므로, 필요하면 먼저 [`fs.mkdir`](#fn-fs-mkdir)를 부른다. 줄바꿈은 자동으로 붙지 않는다.
+
+정규 파일은 **통째로 바꾼다**: 같은 디렉터리에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 프로그램이 죽거나 디스크가 차도 파일이 반만 남지 않고, 동시에 읽는 쪽은 옛 내용이나 새 내용 하나만 본다. 실패하면 파일은 옛 내용 그대로다. 있던 파일의 권한은 그대로 남고(`perm`이 없을 때), 심볼릭 링크는 링크로 남는다(가리키는 파일을 바꾼다). 하드 링크가 여럿인 파일, 남의 파일(쓸 권한은 있는), 정규 파일이 아닌 것(`/dev/null` 같은 장치)은 그 자리에 쓴다. FIFO는 읽는 쪽에 그대로 보낸다. [`fs.append`](#fn-fs-append)는 그 자리에 덧붙인다(통째로 바꿀 수 없다).
 
 #### 매개변수
 
@@ -342,7 +344,7 @@ print(dirs)
   </tbody>
 </table>
 
-셸과 다른 점이 셋 있다. `*`는 `.`으로 시작하는 숨은 파일에도 맞는다. `**`는 특별하지 않아서 `*`와 같다(하위 디렉터리까지 찾으려면 [`fs.walk`](#fn-fs-walk)와 `filter`를 쓴다). `!`는 보통 글자다(여집합은 `[^…]`). 읽지 못하는 디렉터리는 조용히 건너뛴다.
+셸과 다른 점이 셋 있다. `*`는 `.`으로 시작하는 숨은 파일에도 맞는다. `**`는 특별하지 않아서 `*`와 같다(하위 디렉터리까지 찾으려면 [`fs.walk`](#fn-fs-walk)와 `filter`를 쓴다). `!`는 보통 글자다(여집합은 `[^…]`).
 
 #### 매개변수
 
@@ -355,6 +357,7 @@ print(dirs)
 #### 에러
 
 - 패턴이 잘못되면 런타임 에러 E0515(``invalid pattern `[a`: a glob syntax error``)다. 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.
+- 패턴이 들어가는 디렉터리를 읽지 못하면(권한이 없는 디렉터리 등) [`fs.walk`](#fn-fs-walk)처럼 그 경로의 `Err`다(``cannot glob `logs/old`: permission denied``, `kind`는 `'permission`). 와일드카드가 고른 디렉터리도 마찬가지다. 없는 디렉터리나 파일은 맞는 것이 없을 뿐이다.
 
 #### 예제
 
@@ -800,7 +803,7 @@ print(fs.copy("dir", "dir2"))
 
 #### 설명
 
-`mode`에 따라 읽기, 새로 쓰기, 덧붙이기로 연다. 출력하면 `<file "경로">`, `type_of`는 `'file`이다. 다 쓴 핸들은 [`fs.close`](#fn-fs-close)로 닫는다. 대부분은 [`fs.with_open`](#fn-fs-with_open)이 더 안전하다.
+`mode`에 따라 읽기, 새로 쓰기, 덧붙이기로 연다. 출력하면 `<file "경로">`, `type_of`는 `'file`이다. 다 쓴 핸들은 [`close`](../prelude/concurrency.html#fn-close)로 닫는다. 대부분은 [`fs.with_open`](#fn-fs-with_open)이 더 안전하다.
 
 **FIFO**(`mkfifo`로 만든 이름 있는 파이프)는 기다림을 이벤트 루프에서 한다. 그래서 [`timeout`](../prelude/concurrency.html#fn-timeout)과 취소가 곧바로 끊고, 끊긴 [`read_line`](../prelude/io.html#fn-read_line)이 받은 바이트는 다음 읽기에 남는다. 읽기로 열면 곧바로 열리고 첫 읽기가 쓰는 쪽을 기다린다. 쓰기로 열면 읽는 쪽이 열 때까지 기다린다. FIFO에 쓴 줄은 버퍼에 모으지 않고 곧바로 보낸다.
 
@@ -847,7 +850,7 @@ print(h, type_of(h))
 print(read_line(h)!, read_line(h)!)
 print(read_lines(h)!)
 print(read_line(h))
-fs.close(h)!
+close(h)!
 ```
 
 파일 끝에서 `read_line`은 `Ok(nil)`이다.
@@ -862,50 +865,7 @@ fs.open("servers.txt", 'readwrite)
 
 #### 같이 보기
 
-[`fs.with_open`](#fn-fs-with_open), [`fs.close`](#fn-fs-close), [`read_line`](../prelude/io.html#fn-read_line)
-
-:::
-
-:::fn fs.close(f)
-
-파일 핸들을 닫는다.
-
-#### 설명
-
-버퍼에 남은 쓰기를 디스크에 비우고 핸들을 닫는다. 비우기나 닫기가 실패하면 그 에러를 돌려준다(NFS처럼 닫을 때에야 쓰기를 보내는 파일 시스템에서는 디스크 가득 참이 여기서 나온다). 닫힌 핸들로 읽고 쓰면 `Err({kind: 'closed})`이고, 한 번 더 닫아도 같다.
-
-닫지 않은 핸들은 그 값의 마지막 사본이 사라지면 런타임의 닫기 스레드가 비우고 닫는다. 그래서 데이터가 파일에 닿는 때는 정해져 있지 않다(버린 바로 뒤의 `fs.read`가 그 줄을 못 볼 수 있다). 프로그램이 끝날 때는 모두 닫힌 뒤에 끝나므로 데이터를 잃지는 않는다. 그 비우기나 닫기가 실패하면 돌려받을 곳이 없으므로 표준 에러에 [E0810](../errors.html#E0810)을 쓰고 종료 코드가 1이 된다. 그래서 쓴 핸들은 직접 닫거나 [`fs.with_open`](#fn-fs-with_open)을 쓴다.
-
-prelude의 [`close`](../prelude/concurrency.html#fn-close)(채널 닫기)와는 다른 함수다.
-
-#### 매개변수
-
-- `f`: `fs.open`이 준 핸들.
-
-#### 돌려주는 값
-
-`Ok(nil)`.
-
-#### 에러
-
-- `Err({kind: 'closed})`: 이미 닫혔다.
-- `Err({kind: 'io})`: 버퍼를 비우다 실패했다(디스크가 참 등).
-
-#### 예제
-
-```fung run
-import fs
-
-h = fs.open("out.txt", 'write)!
-fs.write_line(h, "one")!
-print(fs.close(h))
-print(fs.close(h))
-print(fs.write_line(h, "two"))
-```
-
-#### 같이 보기
-
-[`fs.open`](#fn-fs-open), [`fs.with_open`](#fn-fs-with_open)
+[`fs.with_open`](#fn-fs-with_open), [`close`](../prelude/concurrency.html#fn-close), [`read_line`](../prelude/io.html#fn-read_line)
 
 :::
 

@@ -1,0 +1,2 @@
+swap(atom(1), fn(x): _ = stop_signal(); x ;;)
+# expect-error: E0707

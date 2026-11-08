@@ -1091,7 +1091,7 @@
 -- exit: 1
 ==== "print(parse_dur(\"1h30m\"), parse_dur(\" 500ms \"), parse_d… (194 bytes, f890c6d8ca52bd73)
 -- stdout
-| Ok(1h30m) Ok(500ms) Ok(-5s) Err({kind: 'parse, message: "not a duration: 30"}) Err({kind: 'parse, message: "not a duration: 1h x"}) Err({kind: 'parse, message: "not a duration: 30m1h"}) Err({kind: 'parse, message: "not a duration: "}) Ok(1s500ms) Ok(-5s)
+| Ok(1h30m) Ok(500ms) Ok(-5s) Err({kind: 'parse, message: "not a duration: 30"}) Err({kind: 'parse, message: "not a duration: 1h x"}) Err({kind: 'parse, message: "not a duration: 30m1h"}) Err({kind: 'parse, message: "not a duration: "}) Ok(1s500ms) Err({kind: 'parse, message: "not a duration: - 5s"})
 -- stderr
 -- exit: 0
 ==== "print(parse_dur(5))"
@@ -1274,14 +1274,30 @@
 -- stderr
 | [-e:2] x * 2 = 10
 -- exit: 0
-==== "print(dbg(1, \"t\"), dbg(2, \"t\", \"w\"), dbg(3, where: \"w\"))"
+==== "x = dbg(1, \"t\", \"w\")"
 -- stdout
-| 1 2 3
 -- stderr
-| t = 1
-| [w] t = 2
-| dbg = 3
--- exit: 0
+| error[E0402]: dbg takes 1 argument(s), got 3
+|   --> -e:1:8
+|   |
+| 1 | x = dbg(1, "t", "w")
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "x = dbg(3, text: \"t\", where: \"w\")"
+-- stdout
+-- stderr
+| error[E0406]: dbg has no argument named `text`
+|   --> -e:1:8
+|   |
+| 1 | x = dbg(3, text: "t", where: "w")
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(args)"
 -- stdout
 | []
@@ -1761,8 +1777,8 @@
 |   |     ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:81 _clamp
-|    extras/prelude.fung:90 take
+|    extras/prelude.fung:100 _clamp
+|    extras/prelude.fung:109 take
 |    -e:2       <entry>
 -- exit: 1
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
@@ -1775,8 +1791,8 @@
 |   |               ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:81 _clamp
-|    extras/prelude.fung:90 take
+|    extras/prelude.fung:100 _clamp
+|    extras/prelude.fung:109 take
 |    -e:1       f
 |    -e:2       <entry>
 -- exit: 1
@@ -1790,9 +1806,10 @@
 |   |    ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:19 <lambda>
-|    extras/prelude.fung:19 sum
+|    extras/prelude.fung:25 <lambda>
+|    extras/prelude.fung:25 sum
 |    -e:1       <entry>
+|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
 ==== "map([[1, \"a\"]], sum)"
 -- stdout
@@ -1804,22 +1821,23 @@
 |   |    ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:19 <lambda>
-|    extras/prelude.fung:19 sum
+|    extras/prelude.fung:25 <lambda>
+|    extras/prelude.fung:25 sum
 |    -e:1       <entry>
+|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
 ==== "pad_left(\"a\", 3, \"\")"
 -- stdout
 -- stderr
-| error[E0803]: pad must be a non-empty string
+| error[E0403]: argument `pad` must be a non-empty str, got str
 |   --> -e:1:9
 |   |
 | 1 | pad_left("a", 3, "")
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:110 _padding
-|    extras/prelude.fung:115 pad_left
+|    extras/prelude.fung:130 _padding
+|    extras/prelude.fung:135 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1832,8 +1850,8 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:112 _padding
-|    extras/prelude.fung:115 pad_left
+|    extras/prelude.fung:132 _padding
+|    extras/prelude.fung:135 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1847,8 +1865,9 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:126 until
+|    extras/prelude.fung:146 until
 |    -e:1       <entry>
+|  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
 ==== "fn r(n) = iterate(n, x => x / 0, 1)\nr(1)"
 -- stdout
@@ -1861,7 +1880,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:129 iterate
+|    extras/prelude.fung:149 iterate
 |    -e:1       r
 |    -e:2       <entry>
 -- exit: 1
@@ -1899,7 +1918,7 @@
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:102 keys
+|    extras/prelude.fung:121 keys
 |    -e:1       <entry>
 -- exit: 1
 ==== "print(take([1]))"
@@ -2245,7 +2264,7 @@
 ==== "close(1)"
 -- stdout
 -- stderr
-| error[E0403]: argument `tx` must be sender, got int
+| error[E0403]: argument `x` must be sender | file, got int
 |   --> -e:1:6
 |   |
 | 1 | close(1)
@@ -2254,12 +2273,12 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (227 bytes, f4e7d618d9e17ea9)
+==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (227 bytes, b9a1820d87953769)
 -- stdout
 | Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Ok(nil) Err({kind: 'timeout, message: "timed out after 1ms"}) Err({kind: 'timeout, message: "timed out after 0s"})
 -- stderr
 -- exit: 0
-==== "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => se… (136 bytes, 8a9047378ebca5e6)
+==== "(tx, rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => se… (136 bytes, 170d3b82b0a82afa)
 -- stdout
 | Err({kind: 'timeout, message: "timed out after 10ms"}) Ok(1) Ok(nil)
 -- stderr
@@ -2632,7 +2651,7 @@
 -- exit: 0
 ==== "import path\nprint([\"\", \"/\", \"//\", \"a/\", \"a//b/\",… (201 bytes, d92c2adfd005f4ec)
 -- stdout
-| [[".", ".", "", "."], ["/", "/", "", "/"], ["/", "/", "", "/"], ["a", "a", "", "a"], ["b", "a/b", "", "b"], [".hidden", ".", "", ".hidden"], ["a.b.c", ".", ".c", "a.b"], ["..", ".", "", ".."], ["..", "/", "", ".."], ["c", "a/b.d", "", "c"], ["글.txt", "한", ".txt", "글"]]
+| [[".", ".", "", "."], ["/", "/", "", "/"], ["/", "/", "", "/"], ["a", ".", "", "a"], ["b", "a", "", "b"], [".hidden", ".", "", ".hidden"], ["a.b.c", ".", ".c", "a.b"], ["..", ".", "", ".."], ["..", "/", "", ".."], ["c", "a/b.d", "", "c"], ["글.txt", "한", ".txt", "글"]]
 -- stderr
 -- exit: 0
 ==== "import path\nprint(path.abs(\"a/../b/./c\"), path.abs(\"/x/../y/\"), path.abs(\"\"))"
@@ -2705,13 +2724,13 @@
 | <module fs> <fn open> <fn with_open> ["[package]"]
 -- stderr
 -- exit: 0
-==== "import fs\nh = fs.open(\"/dev/null\")!\nprint(h, type_of(h)… (188 bytes, 2dfd0134617d49e9)
+==== "import fs\nh = fs.open(\"/dev/null\")!\nprint(h, type_of(h)… (182 bytes, b21e052c8a8aa4fd)
 -- stdout
 | <file "/dev/null"> 'file true false {a: <file "/dev/null">}
 | Ok(nil) Ok([]) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"}) Err({kind: 'closed, message: "file `/dev/null` is closed"})
 -- stderr
 -- exit: 0
-==== "import fs\nw = fs.open(path: \"/dev/null\", mode: 'append)!… (131 bytes, 93402a9c1eb7f13b)
+==== "import fs\nw = fs.open(path: \"/dev/null\", mode: 'append)!… (128 bytes, 1359a92a65bc7508)
 -- stdout
 | Ok(nil) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"})
 -- stderr
@@ -2914,26 +2933,26 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== "import fs\nprint(fs.close(1))"
+==== "import fs\nprint(close(1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be file, got int
-|   --> -e:2:15
+| error[E0403]: argument `x` must be sender | file, got int
+|   --> -e:2:12
 |   |
-| 2 | print(fs.close(1))
-|   |               ^
+| 2 | print(close(1))
+|   |            ^
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== "import fs\nprint(fs.close())"
+==== "import fs\nprint(close())"
 -- stdout
 -- stderr
-| error[E0407]: missing argument `f`
-|   --> -e:2:15
+| error[E0407]: missing argument `x`
+|   --> -e:2:12
 |   |
-| 2 | print(fs.close())
-|   |               ^
+| 2 | print(close())
+|   |            ^
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
@@ -3008,8 +3027,8 @@
 |   |                   ^
 |   |
 |  call path (innermost first):
-|    extras/fs.fung:42 _with_ok (1 tail calls elided)
-|    extras/fs.fung:33 with_open
+|    extras/fs.fung:41 _with_ok (1 tail calls elided)
+|    extras/fs.fung:32 with_open
 |    -e:2       <entry>
 -- exit: 1
 ==== "import fs\nfn g(h: str) = h\nprint(fs.with_open(\"/dev/null\", g))"
@@ -3023,7 +3042,7 @@
 |   |
 |  call path (innermost first):
 |    -e:2       g
-|    extras/fs.fung:33 with_open
+|    extras/fs.fung:32 with_open
 |    -e:3       <entry>
 -- exit: 1
 ==== "print(sort(0..100000000000000000))"

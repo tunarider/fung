@@ -190,7 +190,19 @@ fn stop(w: &mut World, shared: &Shared, sig: i32) {
     if sig != 0 && w.stop.requested {
         crate::signals::exit_now(sig);
     }
-    if !request(w, shared) {
+    // Looked at before the close wakes the waiters.
+    let waited_on = w.stop.rx.upgrade().is_some_and(|rx| rx.0.waited_on());
+    if request(w, shared) {
+        // A held stop signal no task waits on now (review CC6): the
+        // request stands, but the one who pressed Ctrl-C is told, rather
+        // than seeing nothing happen. `request_stop()` comes from the
+        // program itself, which knows.
+        if sig != 0 && !waited_on {
+            let e = w.stderr();
+            let _ = e.write_all(b"note: stop requested; press again to end now\n");
+            let _ = e.flush();
+        }
+    } else {
         let code = if sig == 0 { 0 } else { 128 + i64::from(sig) };
         w.request_exit(code);
         shared.root().cancel();

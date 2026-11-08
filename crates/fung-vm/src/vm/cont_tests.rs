@@ -273,7 +273,7 @@ fn cleanup_natives_call_back_in_one_loop() {
             "with(() => loop_depth(), r => r + loop_depth(), r => print(loop_depth()))",
             "1\n2\n",
         ),
-        ("timeout(1s, () => loop_depth())", "1\n"),
+        ("timeout(() => loop_depth(), 1s)", "1\n"),
         ("swap(atom(0), x => x + loop_depth())", "1\n"),
     ];
     for (src, want) in cases {

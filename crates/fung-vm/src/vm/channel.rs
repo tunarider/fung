@@ -23,7 +23,7 @@
 //! - `close` sets the flag, empties both queues and wakes their tasks,
 //!   which see `closed` (a sender's value is never delivered), and the
 //!   tasks waiting for the close only (`wait_closed`);
-//! - `try_recv` and `try_send` (L3) do what `recv` and `send` do without
+//! - `recv_now` and `send_now` (L3) do what `recv` and `send` do without
 //!   queueing: when they would wait they say so instead.
 //!
 //! A blocked task waits through `block`; its slot holds its `Waiter`, so
@@ -154,7 +154,6 @@ impl Line {
     }
 
     /// How many slots still wait.
-    #[cfg(test)]
     fn len(&self) -> usize {
         self.q.len() - self.left
     }
@@ -185,8 +184,8 @@ impl Slot {
             value: RefCell::new(value),
             done: Cell::new(false),
             queued: Cell::new(false),
-            waiter: t.waiter.clone(),
-            cancel: t.cancel.clone(),
+            waiter: t.fiber.waiter.clone(),
+            cancel: t.fiber.cancel.clone(),
         })
     }
 
@@ -237,7 +236,7 @@ impl Channel {
 
     /// Hands `v` to a waiting receiver or the buffer; gives it back when
     /// neither can take it.
-    fn try_send(&self, v: Value) -> Result<(), Value> {
+    fn send_now(&self, v: Value) -> Result<(), Value> {
         let mut c = self.inner.borrow_mut();
         if let Some(r) = c.receivers.first_live() {
             *r.value.borrow_mut() = Some(v);
@@ -254,7 +253,7 @@ impl Channel {
 
     /// The oldest buffered value (the first waiting sender's value moves
     /// into the freed place), or a waiting sender's value.
-    fn try_recv(&self) -> Option<Value> {
+    fn recv_now(&self) -> Option<Value> {
         let mut c = self.inner.borrow_mut();
         if let Some(v) = c.buf.pop_front() {
             c.buf_mutable -= usize::from(v.holds_mutable());
@@ -317,6 +316,13 @@ impl Channel {
         for v in buf {
             keep(stack, v);
         }
+    }
+
+    /// Whether a task waits on the channel for a value or for its close
+    /// (a blocked receive, a loop over the receiving end, `wait_closed`).
+    pub(crate) fn waited_on(&self) -> bool {
+        let c = self.inner.borrow();
+        c.receivers.len() + c.closing.len() > 0
     }
 
     /// How many blocked sends, receives and waits for the close wait on
@@ -667,13 +673,13 @@ pub(crate) fn begin_send(t: &mut Task<'_>, end: &Rc<Sender>, v: Value) -> Try<bo
     if ch.closed() {
         return Try::Ready(false);
     }
-    let v = match ch.try_send(v) {
+    let v = match ch.send_now(v) {
         Ok(()) => return Try::Ready(true),
         Err(v) => v,
     };
     // The woken flag is taken before the slot is queued: a wake that
     // comes after it is seen (`block.rs`).
-    t.waiter.take_woken();
+    t.fiber.waiter.take_woken();
     let slot = Slot::new(t, Some(v));
     ch.inner.borrow_mut().senders.push(slot.clone());
     Try::Wait(SendWait {
@@ -724,19 +730,19 @@ pub(crate) fn begin_recv(
     // Receiving takes a value out (and may wait): an effect inside a
     // swap's function however it is reached — `recv`, a `for` over the
     // channel, `map` or `fold` of it (`atom.rs`).
-    if t.pure > 0 {
+    if t.fiber.pure > 0 {
         return Err(crate::native::nat::fail(
             "E0707",
             vec![fung_front::diag::Arg::Str("recv".into())],
         ));
     }
-    if let Some(v) = ch.try_recv() {
+    if let Some(v) = ch.recv_now() {
         return Ok(Try::Ready(Received::Value(v)));
     }
     if ch.closed() {
         return Ok(Try::Ready(Received::Closed));
     }
-    t.waiter.take_woken();
+    t.fiber.waiter.take_woken();
     let slot = Slot::new(t, None);
     ch.inner.borrow_mut().receivers.push(slot.clone());
     Ok(Try::Wait(RecvWait {
@@ -766,11 +772,11 @@ impl Receiver {
         Rc::ptr_eq(&self.0, &tx.0)
     }
 
-    /// `try_recv(rx)`: what `recv` would take now, or `None` if it would
+    /// `recv_now(rx)`: what `recv` would take now, or `None` if it would
     /// wait (the channel is open and nothing can be taken).
     pub(crate) fn recv_now(&self) -> Option<Received> {
         let ch = &self.0;
-        if let Some(v) = ch.try_recv() {
+        if let Some(v) = ch.recv_now() {
             return Some(Received::Value(v));
         }
         ch.closed().then_some(Received::Closed)
@@ -799,14 +805,14 @@ impl Receiver {
 }
 
 impl Sender {
-    /// `try_send(tx, v)`: `Ok` once handed to a waiting receiver or the
+    /// `send_now(tx, v)`: `Ok` once handed to a waiting receiver or the
     /// buffer; otherwise whether the channel was closed (`true`) or full.
     pub(crate) fn send_now(&self, v: Value) -> Result<(), bool> {
         let ch = &self.0;
         if ch.closed() {
             return Err(true);
         }
-        ch.try_send(v).map_err(|_| false)
+        ch.send_now(v).map_err(|_| false)
     }
 }
 
@@ -828,7 +834,7 @@ impl RecvWait {
             // A waiting receiver means the buffer was empty and nothing
             // can be sent after the close, but look again.
             ch.leave(&self.slot);
-            return Some(ch.try_recv().map_or(Received::Closed, Received::Value));
+            return Some(ch.recv_now().map_or(Received::Closed, Received::Value));
         }
         None
     }

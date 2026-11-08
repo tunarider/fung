@@ -344,7 +344,7 @@ skip: not a number: high</code></pre></div>
 <p>기간 리터럴 문법의 문자열(<code>&quot;1h30m&quot;</code>, <code>&quot;500ms&quot;</code>)을 <code>Ok(dur)</code> 또는 <code>Err({kind: 'parse, message})</code>로 읽는다.</p>
 <div class="sig"><code>parse_dur(s)</code></div>
 <h4>설명</h4>
-<p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language/lexical.html">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 <code>-</code>를 붙일 수 있고, 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). 앞뒤 공백은 허용한다. 사이의 공백(<code>&quot;1h 30m&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
+<p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language/lexical.html">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 <code>-</code>를 바로 붙일 수 있고, 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). 앞뒤 공백은 허용한다. 사이의 공백(<code>&quot;1h 30m&quot;</code>, <code>&quot;- 5s&quot;</code>), 뒤의 주석(<code>&quot;5s # x&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
 <p>얻은 기간은 <a href="concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, 시각 계산에 그대로 쓴다. 기간끼리는 비교할 수 있다.</p>
 <h4>매개변수</h4>
 <ul>

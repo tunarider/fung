@@ -136,7 +136,7 @@
 -- stdout
 | Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub", "$D/t/é.txt"])
 | Ok(["$D/t/.hdir", "$D/t/.hidden"])
-| Ok(["$D/t/.hdir/x", "$D/t/Z/z.md", "$D/t/ln_dir/.g", "$D/t/ln_dir/A", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep", "$D/t/sub/.g", "$D/t/sub/A", "$D/t/sub/b.md", "$D/t/sub/deep"])
+| Err({kind: 'permission, message: "cannot glob `$D/t/locked_d`: permission denied"})
 | Ok(["$D/t/B.md", "$D/t/a.md"])
 | Ok(["$D/t/a b.txt", "$D/t/a.md", "$D/t/dangling", "$D/t/emptyd", "$D/t/ln_dir", "$D/t/ln_file", "$D/t/locked_d", "$D/t/sub"])
 | Ok(["$D/t/.hdir", "$D/t/.hidden", "$D/t/10.txt", "$D/t/9.txt", "$D/t/B.md", "$D/t/Z", "$D/t/_u", "$D/t/é.txt"])
@@ -146,14 +146,14 @@
 | Ok(["$D/t/B.md", "$D/t/a.md"]) Ok(["$D/t/9.txt", "$D/t/é.txt"]) Ok(["$D/t/10.txt"])
 | Ok(["$D/t/B.md", "$D/t/a.md"])
 | Ok([])
-| Ok(["$D/t/ln_dir/deep", "$D/t/sub/deep"])
+| Ok(["$D/t/sub/deep"]) Ok(["$D/t/ln_dir/deep"])
 | Ok(["$D/t/a.md"]) Ok([]) Ok(["$D/t/dangling"]) Ok([])
 | Ok(["$D/t/a.md"]) Ok(["$D/t/a b.txt"]) Ok([])
-| Ok([]) Ok(["$D/t/locked_d"])
+| Err({kind: 'permission, message: "cannot glob `$D/t/locked_d`: permission denied"}) Ok(["$D/t/locked_d"])
 | Ok(["$D/t/ln_dir/.g", "$D/t/ln_dir/A", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep"])
-| Ok(["$D/t/ln_dir/A/c.md", "$D/t/sub/A/c.md"])
+| Ok(["$D/t/sub/A/c.md"]) Ok(["$D/t/ln_dir/A/c.md"])
 | Ok([]) Ok(["Cargo.toml"]) Ok(["src/native/glob.rs"]) Ok(["Cargo.toml"])
-| Ok([]) Ok([])
+| Ok([]) Err({kind: 'io, message: "cannot glob `a\u{0}b`: invalid argument"})
 -- stderr
 -- exit: 0
 ==== program 7

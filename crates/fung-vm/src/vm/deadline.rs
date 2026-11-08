@@ -1,4 +1,4 @@
-//! Deadlines (concurrency v2, L2; 05 "타임아웃·취소"): `timeout(d, f)`.
+//! Deadlines (concurrency v2, L2; 05 "타임아웃·취소"): `timeout(f, d)`.
 //!
 //! **A deadline lives on a cancellation node.** `timeout` makes a node
 //! whose deadline is `d` from now (or the deadline it inherits, if that
@@ -54,7 +54,7 @@ impl Deadline {
     }
 }
 
-/// `timeout(d, f)`: runs `f()` under a node with a deadline `d` from now
+/// `timeout(f, d)`: runs `f()` under a node with a deadline `d` from now
 /// and gives its value, or `Err({kind: 'timeout, message})` once the deadline
 /// unwound it. A zero or negative `d` has passed already: `f` unwinds at
 /// its first call (as Trio's `move_on_after(0)`). The run loop calls `f`
@@ -65,8 +65,8 @@ pub(crate) fn run_timeout(t: &mut Task<'_>, d: i64, f: Value) -> Flow {
     } else {
         Instant::now().checked_add(Duration::from_nanos(d as u64))
     };
-    let node = t.cancel.with_deadline(at);
-    let outer = std::mem::replace(&mut t.cancel, node.clone());
+    let node = t.fiber.cancel.with_deadline(at);
+    let outer = std::mem::replace(&mut t.fiber.cancel, node.clone());
     Flow::Call(
         Box::new(Timeout {
             node,
@@ -89,12 +89,14 @@ struct Timeout {
 
 impl Timeout {
     fn end(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
-        t.cancel = self.outer.take().expect("the outer node");
+        t.fiber.cancel = self.outer.take().expect("the outer node");
         let timed_out = self.node.expired();
         // Out of the opener's node's list; `expired` stays as it was.
         self.node.cancel();
         match r {
-            Err(Stop::Error(ref e)) if is_cancel(e) && timed_out && !t.cancel.is_cancelled() => {
+            Err(Stop::Error(ref e))
+                if is_cancel(e) && timed_out && !t.fiber.cancel.is_cancelled() =>
+            {
                 let d = crate::value::format(&Value::Dur(self.d.max(0)));
                 Ok(Next::Done(err_kind(
                     "timeout",

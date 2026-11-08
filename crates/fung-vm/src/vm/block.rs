@@ -203,7 +203,7 @@ pub(crate) fn park_until(
     mut poll: impl FnMut(&mut Task<'_>, &Arc<Waiter>) -> Option<Result<Value, Stop>> + 'static,
     wake: super::Wake,
 ) -> Result<super::Flow, Stop> {
-    let me = t.waiter.clone();
+    let me = t.fiber.waiter.clone();
     me.take_woken();
     if let Some(r) = poll(t, &me) {
         return r.map(super::Flow::Done);
@@ -226,7 +226,7 @@ pub(crate) fn park_until_then(
     wake: super::Wake,
     on_stop: impl FnMut(&mut Task<'_>) + 'static,
 ) -> Result<super::Flow, Stop> {
-    let me = t.waiter.clone();
+    let me = t.fiber.waiter.clone();
     me.take_woken();
     if let Some(r) = poll(t, &me) {
         return r.map(super::Flow::Done);
@@ -282,7 +282,7 @@ pub(crate) fn park_io(
     poll: impl FnMut(&mut Task<'_>, &Arc<Waiter>) -> IoStep + 'static,
     on_stop: impl FnMut(&mut Task<'_>) + 'static,
 ) -> Result<super::Flow, Stop> {
-    let me = t.waiter.clone();
+    let me = t.fiber.waiter.clone();
     me.take_woken();
     let mut w = IoWait {
         regs: IoRegs::default(),
@@ -357,7 +357,7 @@ impl IoRegs {
         };
         match r {
             Ok(true) => {
-                let w = t.waiter.clone();
+                let w = t.fiber.waiter.clone();
                 t.world.add_io(token, w, key);
                 self.0.push((token, key));
                 Ok(true)
@@ -478,7 +478,7 @@ impl IoWait {
 impl super::Cont for IoWait {
     fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<super::Next, Stop> {
         self.leave(t);
-        let me = t.waiter.clone();
+        let me = t.fiber.waiter.clone();
         let step = (self.poll)(t, &me);
         Ok(match self.after_or_stop(t, step)? {
             Look::Done(v) => super::Next::Done(v),
@@ -505,7 +505,7 @@ struct Parked {
 
 impl super::Cont for Parked {
     fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<super::Next, Stop> {
-        let me = t.waiter.clone();
+        let me = t.fiber.waiter.clone();
         match (self.poll)(t, &me) {
             Some(r) => r.map(super::Next::Done),
             None => Ok(super::Next::Park(self.wake)),
@@ -528,23 +528,23 @@ impl Task<'_> {
 
     /// This task's waiter (a native that wakes it from a job).
     pub(crate) fn waiter_handle(&self) -> Arc<Waiter> {
-        self.waiter.clone()
+        self.fiber.waiter.clone()
     }
 
     /// Puts `fresh` root in place of this task's node and gives the node
     /// back (a wait that a stop must not cut, `process.rs`).
     pub(crate) fn swap_in_fresh_root(&mut self) -> Arc<CancelNode> {
-        std::mem::replace(&mut self.cancel, CancelNode::root())
+        std::mem::replace(&mut self.fiber.cancel, CancelNode::root())
     }
 
     /// Gives this task its node back after `swap_in_fresh_root`; a
     /// deadline that passed meanwhile is enforced.
     pub(crate) fn restore_cancel_node(&mut self, node: Arc<CancelNode>) {
-        self.cancel = node;
-        if let Some(at) = self.cancel.deadline_at() {
+        self.fiber.cancel = node;
+        if let Some(at) = self.fiber.cancel.deadline_at() {
             let now = Instant::now();
             if now >= at {
-                self.cancel.expire_due(now);
+                self.fiber.cancel.expire_due(now);
             }
         }
     }
@@ -562,13 +562,13 @@ impl Task<'_> {
     /// This task's cancellation node, for a native that waits off the
     /// run thread and must see its cancellation there (`process.rs`).
     pub(crate) fn cancel_node(&self) -> Arc<CancelNode> {
-        self.cancel.clone()
+        self.fiber.cancel.clone()
     }
 
     /// Unwinds a cancelled task (its deadline included, once it was
     /// expired): for a native whose wait the cancellation cut short.
     pub(crate) fn check_cancelled(&self) -> Result<(), Stop> {
-        if self.cancel.is_cancelled() {
+        if self.fiber.cancel.is_cancelled() {
             return Err(self.unwound());
         }
         Ok(())
@@ -580,14 +580,14 @@ impl Task<'_> {
     /// which cannot park (then the events other threads posted are made
     /// here, as `end_turn` does there).
     pub(crate) fn piece_done(&mut self) -> bool {
-        self.budget = YIELD_EVERY;
-        if let Some(at) = self.cancel.deadline_at() {
+        self.fiber.budget = YIELD_EVERY;
+        if let Some(at) = self.fiber.cancel.deadline_at() {
             let now = Instant::now();
             if now >= at {
-                self.cancel.expire_due(now);
+                self.fiber.cancel.expire_due(now);
             }
         }
-        if self.pure > 0 {
+        if self.fiber.pure > 0 {
             super::stop::apply_in_swap(&mut self.world, self.shared);
             return false;
         }
@@ -599,11 +599,11 @@ impl Task<'_> {
     /// so the other ready tasks run.
     #[inline(always)]
     pub(super) fn tick(&mut self, pos: Pos) -> Result<(), Stop> {
-        if self.cancel.is_cancelled() {
+        if self.fiber.cancel.is_cancelled() {
             return Err(cancelled(pos));
         }
-        self.budget -= 1;
-        if self.budget == 0 {
+        self.fiber.budget -= 1;
+        if self.fiber.budget == 0 {
             self.end_turn();
         }
         Ok(())
@@ -616,11 +616,11 @@ impl Task<'_> {
     #[cold]
     #[inline(never)]
     fn end_turn(&mut self) {
-        self.budget = YIELD_EVERY;
-        if let Some(at) = self.cancel.deadline_at() {
+        self.fiber.budget = YIELD_EVERY;
+        if let Some(at) = self.fiber.cancel.deadline_at() {
             let now = Instant::now();
             if now >= at {
-                self.cancel.expire_due(now);
+                self.fiber.cancel.expire_due(now);
             }
         }
         // A swap's function runs to its end in one turn: a task that swaps
@@ -632,10 +632,10 @@ impl Task<'_> {
         // after the function ends the turn. Refilled, a loop whose calls a
         // round divide `YIELD_EVERY` ended every turn inside its swap and
         // never gave one.
-        if self.pure == 0 {
-            self.turn_due = true;
+        if self.fiber.pure == 0 {
+            self.fiber.turn_due = true;
         } else {
-            self.budget = 1;
+            self.fiber.budget = 1;
             super::stop::apply_in_swap(&mut self.world, self.shared);
         }
     }

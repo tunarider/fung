@@ -24,7 +24,7 @@ use super::nat::{self, native, opt, param};
 use super::oserr::reason;
 use crate::value::{Lit, MapBuilder, Module, Native, Text, Value, type_name};
 use crate::vm::poller::{ExitWatch, Interest};
-use crate::vm::{CancelNode, Cont, Flow, IoRegs, Next, Pool, Stop, Task, Wake};
+use crate::vm::{CancelNode, Cont, Flow, IoRegs, Kind, Next, Pool, Stop, Task, Wake};
 
 /// Made once per process: natives are leaked (`Native::leak`).
 static NATIVES: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
@@ -154,30 +154,83 @@ fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow
     };
     let stdin = nat::opt_bytes("stdin", &a[3])?.map(<[u8]>::to_vec);
     let name = show(&argv[0]).into_owned();
-    let own = own_group();
-    let spawned = prepare(&argv, cwd.as_deref(), env, own).and_then(|mut cmd| {
+    let piped = stdin.is_some();
+    let pool = t.pool();
+    // The checks (`$PATH`, `cwd`, the file's first bytes) and the start
+    // itself run on the pool (review CC4): `fork` copies the page tables,
+    // which takes as long as fung's memory is large, and every task would
+    // wait meanwhile. A job that is waited for: a command that started is
+    // never lost, and one a stop came for while it started is killed
+    // (`Started`).
+    let start = move || -> Result<Started, String> {
+        let own = own_group();
+        let mut cmd = prepare(&argv, cwd.as_deref(), env, own)?;
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-        cmd.stdin(if stdin.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        });
+        cmd.stdin(if piped { Stdio::piped() } else { Stdio::null() });
         // Tests start commands from many threads at once (`testutil::child`).
         #[cfg(test)]
         let _held = crate::testutil::child::starting();
-        cmd.spawn().map_err(|e| reason(&e))
-    });
-    let child = match spawned {
-        Ok(c) => c,
-        Err(reason) => {
-            return Ok(Flow::Done(nat::err_value(
-                "not_found",
-                &format!("cannot run `{name}`: {reason}"),
-                Vec::new(),
-            )));
+        let child = cmd.spawn().map_err(|e| reason(&e))?;
+        // Its group is one a second signal ends from now on (CC5), also
+        // while it is on its way to its wait.
+        if own {
+            groups().insert(child.id() as libc::pid_t);
         }
+        Ok(Started {
+            child: Some(child),
+            own,
+            pool,
+        })
     };
-    CommandWait::start(t, child, own, name, stdin)
+    crate::vm::offload_kind(t, Kind::Start, start, move |t, r| match r {
+        Ok(mut s) => {
+            // A stop came while the command started: it goes (`Started`).
+            t.check_cancelled()?;
+            let child = s.child.take().expect("a started command");
+            CommandWait::start(t, child, s.own, name, stdin)
+        }
+        Err(reason) => Ok(Flow::Done(nat::err_value(
+            "not_found",
+            &format!("cannot run `{name}`: {reason}"),
+            Vec::new(),
+        ))),
+    })
+}
+
+/// A command the pool started, on its way to its wait (`CommandWait`).
+/// Dropped before it got there (a stop came while it started, or the
+/// REPL abandoned the task), it is killed and reaped on the pool: no
+/// orphan, no zombie (spec 15).
+struct Started {
+    child: Option<std::process::Child>,
+    own: bool,
+    pool: Pool,
+}
+
+impl Drop for Started {
+    fn drop(&mut self) {
+        let Some(mut c) = self.child.take() else {
+            return;
+        };
+        let id = c.id() as libc::pid_t;
+        if self.own {
+            groups().remove(&id);
+        }
+        // SAFETY: `killpg`/`kill` only send a signal; the command is not
+        // reaped yet, so the id names no other process or group.
+        unsafe {
+            if self.own {
+                libc::killpg(id, libc::SIGKILL);
+            } else {
+                libc::kill(id, libc::SIGKILL);
+            }
+        }
+        let reap = Box::new(move || {
+            let _ = c.wait();
+        });
+        // No pool thread at all: the zombie stays until fung ends.
+        let _ = self.pool.submit_with(crate::vm::Ticket::new(), reap);
+    }
 }
 
 /// How long a command has to end after SIGTERM before SIGKILL.

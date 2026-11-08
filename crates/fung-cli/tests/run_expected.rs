@@ -49,12 +49,12 @@ const MORE: &[&str] = &[
 const CONCURRENT: &[&str] = &[
     // Tasks.
     "import conc\nsupervise(s => print(await(spawn(s, () => 1 + 1)), await(spawn(s, () => 1 / 0)), conc.pmap([1, 2, 3], x => x * x, limit: 2)), _ => nil)",
-    "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(1ms, () => await(u)))\n  cancel(u)\n;;)",
+    "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(() => await(u), 1ms))\n  cancel(u)\n;;)",
     "(tx, rx) = channel(1)\nprint(scope(fn(s):\n  send(tx, spawn(s, () => sleep(10s)))\n  cancel(s)\n;;), await(recv(rx)!))",
     "import conc\nprint(conc.retry(() => Err(1), times: 2, delay: 1ms))",
     // Channels.
     "(tx, rx) = channel()\nscope(fn(s):\n  spawn(s, fn(): each(1..=5, x => send(tx, x)); close(tx) ;;)\n  print(fold(rx, 0, (a, x) => a + x))\n;;)",
-    "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(5ms, () => recv(never)))",
+    "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_tx)\n(_tx, never) = channel()\nprint(recv(buf), recv(buf), send(buf_tx, \"b\"), timeout(() => recv(never), 5ms))",
     "(tx, _rx) = channel()\nscope(fn(s):\n  t = spawn(s, () => each(1..=5, x => send(tx, x)))\n  cancel(t)\n  print(await(t))\n;;)",
     "print(channel(-1))",
     // Atoms: `tests/lang/atoms.fung`.
@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 243;
+const LANG_CASES: usize = 254;
 const BENCH_CASES: usize = 11;
-const ALL_CASES: usize = 304;
+const ALL_CASES: usize = 315;
 
 #[test]
 fn every_case_is_counted() {
@@ -284,7 +284,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 64;
+const CONCURRENT_CASES: usize = 66;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.

@@ -121,6 +121,52 @@ impl Kind {
         &KEYWORDS
     }
 
+    /// A token that may start a line continuing the statement before it
+    /// (01: 줄 이어짐 규칙 2): it cannot start a statement. The parser
+    /// and the formatter read this one list (FE22).
+    pub fn starts_continuation(self) -> bool {
+        use Kind::*;
+        matches!(self, Pipe | Dot | Coalesce | KwAnd | KwOr | KwThen | KwElse)
+    }
+
+    /// A line-final token after which the statement goes on (01: 줄
+    /// 이어짐 규칙 1), brackets, `,` and block colons aside, which the
+    /// formatter indents through its opener stack. The formatter's list;
+    /// a parser test holds the parser to it (FE22).
+    pub fn ends_open(self) -> bool {
+        use Kind::*;
+        matches!(
+            self,
+            Plus | Minus
+                | Star
+                | Slash
+                | SlashSlash
+                | Percent
+                | StarStar
+                | Eq
+                | Ne
+                | Lt
+                | Gt
+                | Le
+                | Ge
+                | KwIn
+                | Coalesce
+                | Pipe
+                | DotDot
+                | DotDotEq
+                | KwAnd
+                | KwOr
+                | KwNot
+                | Assign
+                | FatArrow
+                | Arrow
+                | Dot
+                | KwThen
+                | KwElse
+                | Bar
+        )
+    }
+
     /// How the kind reads in an error message.
     pub fn describe(self) -> &'static str {
         use Kind::*;
@@ -194,18 +240,25 @@ impl Kind {
     }
 }
 
-/// One piece of a `"..."` string: literal text, or the source of an
-/// interpolated `${...}` expression that the parser parses later.
+/// One piece of a `"..."` string: literal text, or the code of an
+/// interpolated `${...}` expression, lexed with the string (its tokens,
+/// ending in an `Eof` at the closing brace) for the parser to parse.
 #[derive(Clone, Debug)]
 pub struct Part {
     pub is_code: bool,
+    /// A literal part's text (empty for code).
     pub text: String,
     /// Literal text that is not valid UTF-8 (`\xff`, L4); `text` is
     /// then empty.
     pub bytes: Option<Vec<u8>>,
     pub pos: Pos,
-    /// Byte offset of `text` in the whole source (`lex_at` adds `base`).
+    /// Byte offsets of the code in the whole source: from just after `${`
+    /// to its closing `}` (`lex_at` adds `base`).
     pub off: usize,
+    pub end: usize,
+    /// A code part's tokens. The code is lexed once, with its string: a
+    /// nested interpolation is not lexed again per level (FE16).
+    pub toks: Vec<Token>,
 }
 
 /// One lexical unit. `text` is the source slice (for names, tags and symbols
@@ -302,6 +355,7 @@ pub fn lex_at(
         col: start.col,
         toks: Vec::new(),
         comments: Vec::new(),
+        interp_depth: 0,
     };
     lx.run()?;
     Ok((lx.toks, lx.comments))
@@ -321,6 +375,9 @@ struct Lexer<'a> {
     col: u32,
     toks: Vec<Token>,
     comments: Vec<Comment>,
+    /// How many `${…}` the lexer is inside, bounded by the parser's
+    /// `MAX_DEPTH` (E0115).
+    interp_depth: usize,
 }
 
 fn is_digit(c: Option<char>) -> bool {
@@ -402,51 +459,72 @@ impl<'a> Lexer<'a> {
 
     fn run(&mut self) -> Result<(), Diag> {
         loop {
-            let c = self.peek();
-            self.start = self.off;
-            match c {
-                None => {
-                    let p = self.pos();
-                    self.emit(Kind::Eof, "", p);
-                    return Ok(());
-                }
-                Some('\r') if self.peek_at(1) == Some('\n') => {
-                    // Windows line ending: one newline token at the \r.
-                    let p = self.pos();
-                    self.advance();
-                    self.advance();
-                    self.emit(Kind::Newline, "\n", p);
-                }
-                Some(' ' | '\t' | '\r') => {
-                    self.advance();
-                }
-                Some('\n') => {
-                    let p = self.pos();
-                    self.advance();
-                    self.emit(Kind::Newline, "\n", p);
-                }
-                Some('#') => self.comment(),
-                c if is_digit(c) => self.number()?,
-                Some('"') => self.str()?,
-                Some('`') => self.raw_str()?,
-                Some('\'') => self.symbol()?,
-                c if is_ident_start(c) => self.ident(),
-                _ => self.punct()?,
+            if self.peek().is_none() {
+                self.start = self.off;
+                let p = self.pos();
+                self.emit(Kind::Eof, "", p);
+                return Ok(());
             }
+            self.step()?;
         }
     }
 
-    fn comment(&mut self) {
+    /// Lexes what starts at the next char (not the end): one token, or
+    /// blanks, a newline, a comment.
+    pub(super) fn step(&mut self) -> Result<(), Diag> {
+        let c = self.peek();
+        self.start = self.off;
+        match c {
+            None => unreachable!("step at the end of input"),
+            Some('\r') if self.peek_at(1) == Some('\n') => {
+                // Windows line ending: one newline token at the \r.
+                let p = self.pos();
+                self.advance();
+                self.advance();
+                self.emit(Kind::Newline, "\n", p);
+            }
+            Some(' ' | '\t') => {
+                self.advance();
+            }
+            Some('\n') => {
+                let p = self.pos();
+                self.advance();
+                self.emit(Kind::Newline, "\n", p);
+            }
+            Some('#') => self.comment()?,
+            c if is_digit(c) => self.number()?,
+            Some('"') => self.str()?,
+            Some('`') => self.raw_str()?,
+            Some('\'') => self.symbol()?,
+            c if is_ident_start(c) => self.ident(),
+            _ => self.punct()?,
+        }
+        Ok(())
+    }
+
+    /// A comment runs to the end of the line: `\n` or `\r\n`. A carriage
+    /// return alone is not a line end, and not a character a comment may
+    /// hold either: a terminal would show the code after it over the
+    /// comment (FE13).
+    fn comment(&mut self) -> Result<(), Diag> {
         let p = self.pos();
         let start = self.off;
-        while !matches!(self.peek(), None | Some('\n' | '\r')) {
-            self.advance();
+        loop {
+            match self.peek() {
+                None | Some('\n') => break,
+                Some('\r') if self.peek_at(1) == Some('\n') => break,
+                Some('\r') => return Err(self.err("E0101", self.pos(), "\r")),
+                Some(_) => {
+                    self.advance();
+                }
+            }
         }
         self.comments.push(Comment {
             pos: p,
             text: self.src[start..self.off].to_string(),
             off: self.base + start,
         });
+        Ok(())
     }
 
     fn ident(&mut self) {
@@ -657,6 +735,24 @@ mod tests {
         assert_eq!((comments[1].pos.line, comments[1].pos.col), (4, 1));
     }
 
+    /// A carriage return is only a newline in `\r\n`; alone, outside a
+    /// string, it is an unexpected character, also in a comment, so a
+    /// terminal and an editor cannot show code the lexer reads otherwise
+    /// (FE13).
+    #[test]
+    fn lone_carriage_return_is_e0101() {
+        for (src, col) in [("x = 1\ry = 2", 6), ("# hello\rprint(1)", 8), ("x\r", 2)] {
+            let d = lex_src(src).unwrap_err();
+            assert_eq!((d.code.as_str(), d.pos.col), ("E0101", col), "{src:?}");
+            assert_eq!(d.args, vec![Arg::Str("\r".to_string())], "{src:?}");
+        }
+        // inside string literals it is a character like any other
+        let (toks, _) = lex_src("x = `a\rb` + \"c\rd\"").unwrap();
+        assert_eq!(toks[2].text, "a\rb");
+        let (_, comments) = lex_src("# a\r\nx").unwrap();
+        assert_eq!(comments[0].text, "# a");
+    }
+
     #[test]
     fn columns_count_chars_not_bytes() {
         let (toks, _) = lex_src("참치 x").unwrap();
@@ -675,7 +771,7 @@ mod tests {
     fn unknown_escape_is_e0103() {
         let d = lex_src("\tx = \"\\q\"").unwrap_err();
         assert_eq!((d.code.as_str(), d.pos.col), ("E0103", 7));
-        assert_eq!(d.args, vec![Arg::Str("q".to_string())]);
+        assert_eq!(d.args, vec![Arg::Str("\\q".to_string())]);
     }
 
     #[test]

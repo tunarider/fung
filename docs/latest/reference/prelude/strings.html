@@ -407,8 +407,8 @@ print(repeat(&quot;-&quot;, 20))</code></pre><pre class="out plain"><code>ababab
 <p>문자열.</p>
 <h4>에러</h4>
 <ul>
-<li><code>pad</code>가 <code>&quot;&quot;</code>면 런타임 에러 E0803(<code>pad must be a non-empty string</code>).</li>
-<li><code>s</code>가 문자열이 아니면 E0506.</li>
+<li><code>s</code>·<code>pad</code>가 문자열이 아니거나 <code>n</code>이 정수가 아니면 런타임 에러 E0403.</li>
+<li><code>pad</code>가 <code>&quot;&quot;</code>면 런타임 에러 E0403(<code>argument </code>pad<code> must be a non-empty str, got str</code>).</li>
 </ul>
 <h4>예제</h4>
 <p><strong>0 채우기, 오른쪽 맞춤</strong></p>

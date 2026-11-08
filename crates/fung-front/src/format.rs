@@ -2,10 +2,10 @@
 //! blank lines and alignment from the lexer's tokens and comments,
 //! keeping the user's line breaks.
 //!
-//! It works on bytes: the lexer reads the source decoded (one U+FFFD for
-//! each invalid UTF-8 sequence, as everywhere in fung), and every token
-//! and comment is written back as the bytes it came from, so such bytes
-//! survive unchanged. Alignment counts display columns (UAX #11: a wide
+//! It works on bytes: unlike `run` and `check`, which refuse a source
+//! that is not UTF-8 (E0312), the formatter accepts one, reading each
+//! invalid sequence as one U+FFFD, and writes every token and comment
+//! back as the bytes it came from, so such bytes survive unchanged. Alignment counts display columns (UAX #11: a wide
 //! character takes two, a combining one none; an invalid sequence one).
 
 use crate::diag::{Arg, Diag, error};

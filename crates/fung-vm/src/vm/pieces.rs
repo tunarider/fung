@@ -46,7 +46,7 @@ pub(crate) const STEP_BYTES: usize = 8 * 1024;
 pub(crate) const STEP_SCAN: usize = 128 * 1024;
 pub(crate) const STEP_ITEMS: usize = 1024;
 pub(crate) const STEP_COMPARES: usize = 16 * 1024;
-const STEP_COPIES: usize = 8 * 1024;
+pub(crate) const STEP_COPIES: usize = 8 * 1024;
 
 /// A long native's work.
 pub(crate) trait Work: 'static {

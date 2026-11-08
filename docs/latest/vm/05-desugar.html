@@ -189,13 +189,13 @@ print(inc(41))</code></pre><pre class="out dump plain"><code>$ fung dump core ex
 <p><code>(let (local 0) (global 0))</code>이 <code>add</code>를, <code>(let (local 1) 1)</code>이 인자 <code>1</code>을 미리 담는다. 람다 안에서는 그 둘이 <code>(captured 0)</code>, <code>(captured 1)</code>, 곧 람다가 붙잡은 값으로 보인다(9장).</p>
 <h3 id="match"><code>match</code>: 대상을 한 번만 계산</h3>
 <p><code>match</code>도 대상을 숨은 변수에 한 번 담은 뒤 절마다 그 변수를 비교한다. 절이 몇 개든 대상 식은 한 번만 실행된다.</p>
-<div class="run"><pre><code>r = Ok(3)
-match r:
+<div class="run"><pre><code>fn half(n) = n % 2 == 0 then Ok(n // 2) else Err(&quot;odd&quot;)
+match half(6):
   Ok(n) =&gt; print(n)
   Err(e) =&gt; print(e)
 ;;</code></pre><pre class="out dump plain"><code>$ fung dump core example.fung
-(do (let (global 0) (tag Ok 3)) (do (let (local 0) (global 0)) (match (local 0) (arm (ptag Ok (pbind (local 1))) (nil) (do (call (prelude print) (local 1)))) (arm (ptag Err (pbind (local 1))) (nil) (do (call (prelude print) (local 1)))))))</code></pre></div>
-<p>맨 앞의 <code>(let (local 0) (global 0))</code>이 숨은 변수(<code>$m0</code>)에 대상을 담는 부분이다. 패턴 매칭 자체(<code>MATCH</code> 명령과 패턴 트리)는 8장 이후에서 본다.</p>
+(do (let (global 0) (fn half(n) (do (if (op == (op % (local 0) 2) 0) (tag Ok (op // (local 0) 2)) (tag Err &quot;odd&quot;))))) (do (let (local 0) (call (global 0) 6)) (match (local 0) (arm (ptag Ok (pbind (local 1))) (nil) (do (call (prelude print) (local 1)))) (arm (ptag Err (pbind (local 1))) (nil) (do (call (prelude print) (local 1)))))))</code></pre></div>
+<p><code>(let (local 0) (call (global 0) 6))</code>이 숨은 변수(<code>$m0</code>)에 대상을 담는 부분이다. 대상이 처음부터 이름(<code>match r:</code>)이면 담지 않고 그 이름을 절마다 그대로 읽는다. 다시 계산할 것이 없기 때문이다. 다만 어느 절의 패턴이 그 이름을 다시 묶으면(<code>match r: [r] =&gt; …</code>) 숨은 변수에 담는다. 실패한 패턴이 이름을 이미 바꿔 놓았을 수 있어서 다음 절이 원래 대상을 봐야 한다. 패턴 매칭 자체(<code>MATCH</code> 명령과 패턴 트리)는 8장 이후에서 본다.</p>
 <div class="box learn"><b>같은 모양의 트리를 돌려준다</b>
 <p>desugar는 겉 트리를 <strong>읽기만</strong> 하고 새 트리를 만든다(1장). 입력과 출력이 같은 <code>Node</code> 모양이라 desugar는 커다란 <code>match</code> 하나다. "이 머리 단어면 이렇게 바꿔서 새 노드를 만들고, 자식들도 같은 함수로 바꾼다." 대부분의 머리 단어(<code>list</code>, <code>index</code>, <code>return</code> …)는 자식만 바꾸고 머리는 그대로 둔다. 변환이 필요한 것만 따로 갈래를 둔다.</p>
 </div>

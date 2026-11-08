@@ -299,7 +299,7 @@ fn fung_test_blocks_get_a_fresh_stop() {
     let file = dir.join("stop_test.fung");
     std::fs::write(
         &file,
-        "test \"stops\":\n  stop = stop_signal()\n  request_stop()\n  assert recv(stop) == Err({kind: 'closed, message: \"channel closed\"})\n;;\n\ntest \"not stopped\":\n  stop = stop_signal()\n  assert timeout(20ms, () => recv(stop)) == Err({kind: 'timeout, message: \"timed out after 20ms\"})\n;;\n",
+        "test \"stops\":\n  stop = stop_signal()\n  request_stop()\n  assert recv(stop) == Err({kind: 'closed, message: \"channel closed\"})\n;;\n\ntest \"not stopped\":\n  stop = stop_signal()\n  assert timeout(() => recv(stop), 20ms) == Err({kind: 'timeout, message: \"timed out after 20ms\"})\n;;\n",
     )
     .unwrap();
     let l = Live::start(&["test", file.to_str().unwrap()], Stdio::null());
@@ -430,7 +430,7 @@ fn fung_test_keeps_a_top_level_stop_and_names_a_signal() {
     let file = dir.join("top_test.fung");
     std::fs::write(
         &file,
-        "stop = stop_signal()\n\ntest \"open\":\n  assert timeout(20ms, () => recv(stop)) == Err({kind: 'timeout, message: \"timed out after 20ms\"})\n;;\n",
+        "stop = stop_signal()\n\ntest \"open\":\n  assert timeout(() => recv(stop), 20ms) == Err({kind: 'timeout, message: \"timed out after 20ms\"})\n;;\n",
     )
     .unwrap();
     let file2 = dir.join("slow_test.fung");
@@ -491,7 +491,7 @@ fn an_abandoned_evaluation_leaves_its_channel_usable() {
     let mut l = Live::start(&[], Stdio::piped());
     let mut input = l.child.stdin.take().unwrap();
     input
-        .write_all(b"(tx, rx) = channel()\nwith(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); timeout(60s, () => recv(rx)) ;;)\n")
+        .write_all(b"(tx, rx) = channel()\nwith(() => nil, fn(_): print(\"ready\"); sleep(60s) ;;, fn(_): print(\"releasing\"); timeout(() => recv(rx), 60s) ;;)\n")
         .unwrap();
     input.flush().unwrap();
     l.wait_for("ready");
@@ -523,7 +523,7 @@ fn an_abandoned_tasks_handle_in_a_later_input_is_cancelled() {
     l.wait_for("releasing");
     l.signal("INT");
     input
-        .write_all(b"print(\"got\", timeout(5s, () => await(recv(hrx)!)))\n")
+        .write_all(b"print(\"got\", timeout(() => await(recv(hrx)!), 5s))\n")
         .unwrap();
     drop(input);
     let (out, err, code) = l.finish();

@@ -112,7 +112,7 @@ print(path.base("/var/log/app.log"), path.base("backup/2026/"), path.base("/"), 
 
 #### 설명
 
-셸의 `dirname`과 비슷하다. 결과는 정리된 꼴이다. 디렉터리가 없는 이름(`"app.log"`)은 현재 디렉터리 `"."`, `"/x"`는 `"/"`이다. 끝에 `/`가 있으면 그 앞까지가 디렉터리로 남는다(`"a/b/"` → `"a/b"`).
+셸의 `dirname`과 같다. 결과는 정리된 꼴이다. 디렉터리가 없는 이름(`"app.log"`)은 현재 디렉터리 `"."`, `"/x"`는 `"/"`이다. [`path.base`](#fn-path-base)처럼 끝의 `/`는 무시한다(`"a/b/"` → `"a"`). 그래서 `path.join(path.dir(p), path.base(p))`는 늘 `p`를 정리한 꼴이다.
 
 #### 매개변수
 
@@ -153,7 +153,7 @@ print(path.join(path.dir(conf), "secrets.yaml"))
 
 #### 설명
 
-마지막 요소에서 마지막 `.`부터 끝까지다: `"a.tar.gz"` → `".gz"`. 확장자가 없으면 `""`. `.`으로 시작하는 숨은 파일 이름(`".bashrc"`)은 확장자가 없는 것으로 본다. 디렉터리 이름의 점은 보지 않는다(`"a/b.c/d"` → `""`).
+마지막 요소에서 마지막 `.`부터 끝까지다: `"a.tar.gz"` → `".gz"`. 확장자가 없으면 `""`. `.`으로 시작하는 숨은 파일 이름(`".bashrc"`)은 확장자가 없는 것으로 본다. 디렉터리 이름의 점은 보지 않는다(`"a/b.c/d"` → `""`). 끝의 `/`는 무시하므로 [`path.base`](#fn-path-base)가 주는 요소의 확장자다(`"dir.d/"` → `".d"`).
 
 #### 매개변수
 
@@ -194,7 +194,7 @@ print(path.ext("backup.tar.gz"), path.ext(".hidden"), path.ext("dir.d/file"))
 
 #### 설명
 
-[`path.base`](#fn-path-base)에서 [`path.ext`](#fn-path-ext)를 뗀 것이다. 디렉터리 부분은 남지 않는다(`"dir/report.csv"` → `"report"`). 확장자는 마지막 하나만 떼므로 `"a.tar.gz"`는 `"a.tar"`다. 숨은 파일 이름은 그대로다.
+[`path.base`](#fn-path-base)에서 [`path.ext`](#fn-path-ext)를 뗀 것이다. 늘 `path.stem(p) + path.ext(p) == path.base(p)`다. 디렉터리 부분은 남지 않는다(`"dir/report.csv"` → `"report"`). 확장자는 마지막 하나만 떼므로 `"a.tar.gz"`는 `"a.tar"`다. 숨은 파일 이름은 그대로다.
 
 #### 매개변수
 

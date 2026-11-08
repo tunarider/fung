@@ -1,0 +1,4 @@
+# `..` is not associative (01 EBNF, FE8): a range of a range is refused
+# before the program runs.
+print(1..2..3)
+# expect-error: E0118

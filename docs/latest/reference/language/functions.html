@@ -109,7 +109,7 @@ run</code></pre></div>
   <li>기본값은 호출할 때마다 왼쪽부터 평가되고, 앞 인자를 참조할 수 있다. 기본값과 <code>...rest</code>는 <code>fn</code>과 익명 <code>fn(…):</code>에서 쓴다(람다 <code>=&gt;</code>에는 없다).</li>
   <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수도 똑같다.</li>
   <li>인자 개수가 맞지 않거나, 같은 인자를 두 번 주거나, 모르는 이름이면 런타임 에러.</li>
-  <li>매개변수 자리에 패턴을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>.</li>
+  <li>매개변수 자리에 구조 분해 패턴(<code>_</code>, 튜플, 리스트, 맵, 태그)을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>. <code>fn</code>과 람다가 같고, 리터럴(<code>(1) =&gt; …</code>)은 매개변수가 될 수 없다(값으로 고르려면 <code>match</code>).</li>
 </ul>
 <div class="run"><pre><code>fn greet(name, greeting = &quot;hello&quot;, ...extra) = &quot;${greeting}, ${name}${join(extra)}&quot;
 print(greet(&quot;fung&quot;), greet(&quot;fung&quot;, greeting: &quot;hi&quot;), greet(&quot;fung&quot;, &quot;yo&quot;, &quot;!&quot;, &quot;?&quot;))</code></pre><pre class="out plain"><code>hello, fung hi, fung yo, fung!?</code></pre></div>

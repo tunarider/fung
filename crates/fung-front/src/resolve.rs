@@ -26,6 +26,8 @@ use crate::tree::{Capture, CaptureKind, FnInfo, Head, Lit, Node};
 
 use scope::{Binding, FnScope, Scope};
 
+pub use fn_::BUILTIN_TYPES;
+
 /// Former prelude names and the module that has them now (stage 6a): an
 /// undefined use of one gets a help line that names the module.
 pub const MOVED_TO_MODULE: &[(&str, &str)] =
@@ -90,7 +92,8 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         import_bound: HashMap::new(),
         errs: Vec::new(),
         warnings: Vec::new(),
-        map_arg: false,
+        map_arg: None,
+        pmap_globals: HashSet::new(),
         top_arg: false,
         consts: HashMap::new(),
         assigned: HashMap::new(),
@@ -148,9 +151,13 @@ struct Resolver<'a> {
     import_bound: HashMap<String, usize>,
     errs: Vec<Diag>,
     warnings: Vec<Diag>,
-    /// The fn about to be resolved is a lambda argument of the prelude's
-    /// map (`FnScope::map_body`); `function` takes it.
-    map_arg: bool,
+    /// The fn about to be resolved is the `f` of the prelude's map or of
+    /// `conc.pmap` (`FnScope::map_body`), named as the error names it;
+    /// `function` takes it.
+    map_arg: Option<&'static str>,
+    /// The globals an import bound to `conc`'s `pmap` (`import conc
+    /// (pmap)`): map's parallel form (SP1).
+    pmap_globals: HashSet<usize>,
     /// The fn about to be resolved is a hoisted top-level fn
     /// (`FnScope::top`); `function` takes it.
     top_arg: bool,
@@ -215,6 +222,31 @@ fn ref_node(pos: Pos, b: Binding) -> Node {
 }
 
 impl Resolver<'_> {
+    /// Whether a call's callee is the prelude's `map` or `conc.pmap`, its
+    /// parallel form ("map 계열의 f", SP1): `raw` as written, `callee`
+    /// resolved. Gives the name E0226 shows.
+    fn map_like(&self, raw: &Node, callee: &Node) -> Option<&'static str> {
+        match callee.head {
+            Head::Prelude if lit_str(callee) == "map" => Some("map"),
+            Head::Global if matches!(callee.lit, Lit::Int(i) if self.pmap_globals.contains(&(i as usize))) => {
+                Some("conc.pmap")
+            }
+            // A module name cannot be shadowed (04), so the name as
+            // written is the module.
+            Head::Field
+                if lit_str(raw) == "pmap"
+                    && raw.kids[0].head == Head::Name
+                    && self
+                        .module_names
+                        .get(lit_str(&raw.kids[0]))
+                        .is_some_and(|m| m.key == "conc") =>
+            {
+                Some("conc.pmap")
+            }
+            _ => None,
+        }
+    }
+
     fn cur(&self) -> &FnScope {
         self.fns.last().expect("function stack")
     }
@@ -455,19 +487,24 @@ impl Resolver<'_> {
                     // and drop an Err into the list: the silent bug E0213
                     // prevents.
                     self.errs.push(error("E0220", n.pos, vec![]));
-                } else if self.cur().map_body {
+                } else if let Some(callee) = self.cur().map_body {
                     // The same trap in a lambda given to map (03).
-                    self.errs.push(error("E0226", n.pos, vec![]));
+                    self.errs.push(error("E0226", n.pos, vec![str_arg(callee)]));
                 }
             }
             Head::Call => {
                 let callee = self.walk(&n.kids[0]);
-                let to_map = callee.head == Head::Prelude && lit_str(&callee) == "map";
+                let to_map = self.map_like(&n.kids[0], &callee);
                 let mut kids = vec![callee];
                 for k in &n.kids[1..] {
-                    self.map_arg = to_map && k.head == Head::Fn && !fn_info(k).for_body;
+                    // the `f`: a lambda written by position or as `f:` (SP1)
+                    let f = match k.head {
+                        Head::Named if lit_str(k) == "f" => &k.kids[0],
+                        _ => k,
+                    };
+                    self.map_arg = to_map.filter(|_| f.head == Head::Fn && !fn_info(f).for_body);
                     kids.push(self.walk(k));
-                    self.map_arg = false;
+                    self.map_arg = None;
                 }
                 return Node::with_lit(n.head, n.pos, n.lit.clone(), kids);
             }
@@ -627,7 +664,9 @@ impl Resolver<'_> {
         // A name that left its block or is defined later in it is an error
         // before it is the prelude's: reading the builtin of the same name
         // would hide the mistake (03, rule 4).
-        if self.cur().closed.contains(name) {
+        // Closed in this function or one around it: a lambda or an inner
+        // fn reads the same name the enclosing code would (FE3).
+        if self.fns.iter().any(|f| f.closed.contains(name)) {
             let e = name_error("E0206", n.pos, name).with_help(&format!(
                 "assign the block's value instead: `{name} = if … ;;`"
             ));
@@ -780,16 +819,9 @@ impl Resolver<'_> {
     }
 }
 
-/// The names a pattern binds (`(pbind x)`, a named `...rest`).
+/// The names an assignment's target binds (`Node::bound_names`).
 fn pattern_names(n: &Node, out: &mut Vec<String>) {
-    match n.head {
-        Head::Name | Head::Pbind => out.push(lit_str(n).to_string()),
-        Head::Prest if !lit_str(n).is_empty() => out.push(lit_str(n).to_string()),
-        _ => {}
-    }
-    for k in &n.kids {
-        pattern_names(k, out);
-    }
+    n.bound_names(&mut |name, _| out.push(name.to_string()));
 }
 
 /// The names a function's own code binds by assignment, in any of its

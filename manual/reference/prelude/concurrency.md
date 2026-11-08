@@ -1,6 +1,6 @@
 ---
 lede: 여러 일을 동시에 진행한다. 태스크는 태스크 범위(<code>scope</code>·<code>supervise</code>) 안에서만 띄우고, 범위는 안의 태스크가 모두 끝나야 돌아온다. 태스크 사이의 값은 채널로 주고받고, 나누는 상태는 <code>atom</code>에 둔다. 병렬 <code>map</code> 같은 도우미는 <a href="../modules/conc.html"><code>conc</code> 모듈</a>에 있다.
-description: fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, try_recv, try_send, wait_closed, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.
+description: fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, recv_now, send_now, wait_closed, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.
 ---
 # 동시성
 
@@ -46,7 +46,7 @@ fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. �
 이 페이지에서 `Err({kind: 'timeout})`처럼 `kind`만 적은 것은 패턴의 모양이다. 실제 값에는 다른 `Err`처럼 `message`도 있어서 `e.message`를 그대로 찍을 수 있다: 시간 초과는 `"timed out after 2s"`, 취소는 `"cancelled"`, 닫힌 채널은 `"channel closed"`. 맵 패턴은 적지 않은 키를 상관하지 않으므로 `Err({kind: 'timeout}) => …`으로 가른다.
 
 ```fung run
-r = timeout(10ms, () => sleep(1s))
+r = timeout(() => sleep(1s), 10ms)
 print(r)
 match r:
   Err({kind: 'timeout}) => print("slow")
@@ -308,7 +308,7 @@ r = scope(fn(s):
     sleep(1s)
     "late"
   ;;)
-  r = timeout(20ms, () => await(t))
+  r = timeout(() => await(t), 20ms)
   cancel(t)
   r
 ;;)
@@ -336,7 +336,7 @@ print(scope(fn(s):
 
 :::
 
-:::fn timeout(d, f)
+:::fn timeout(f, d)
 
 `f()`를 부르되, `d`가 지나면 `f` 안의 모든 것을 취소하고 `Err({kind: 'timeout})`을 돌려준다.
 
@@ -346,12 +346,12 @@ print(scope(fn(s):
 
 기한이 겹치면 이른 기한이 이긴다. 바깥 기한이 먼저 지나면 바깥 `timeout`이 답한다.
 
-**무엇이 끊기나**: `sleep`, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(`exec`·`sh`)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(`fs.read`·`read_lines`·`list`·`glob`·`walk`·`exists`·`stat`)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(`/dev/tty` 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(`read_line(f)` 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다([런타임](../../vm/internals.html#concurrency)).
+**무엇이 끊기나**: `sleep`, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(`exec`·`sh`)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(`fs.read`·`read_lines`·`list`·`glob`·`walk`·`exists`·`stat`)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(`/dev/tty` 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(`read_line(f)` 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 그 일의 결과는 버린다(연 핸들은 닫는다). 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다([런타임](../../vm/internals.html#concurrency)).
 
 #### 매개변수
 
-- `d`: 기간.
 - `f`: 인자 없는 함수.
+- `d`: 기간.
 
 #### 돌려주는 값
 
@@ -366,22 +366,22 @@ print(scope(fn(s):
 **제때 끝날 때와 아닐 때**
 
 ```fung run
-print(timeout(1s, () => 1 + 1))
+print(timeout(() => 1 + 1, 1s))
 (_tx, rx) = channel()
-print(timeout(10ms, () => recv(rx)))
+print(timeout(() => recv(rx), 10ms))
 ```
 
 **걸린 명령 끊기**
 
 ```fung run
-r = timeout(100ms, () => exec(["sleep", "10"]))
+r = timeout(() => exec(["sleep", "10"]), 100ms)
 print(r ?? "gave up")
 ```
 
 **안의 태스크 범위까지 취소된다**
 
 ```fung run
-r = timeout(20ms, fn():
+r = timeout(fn():
   scope(fn(s):
     spawn(s, fn():
       sleep(5s)
@@ -389,17 +389,17 @@ r = timeout(20ms, fn():
     ;;)
     "body"
   ;;)
-;;)
+;;, 20ms)
 print(r)
 ```
 
 **서버마다 기한 두기**
 
 ```fung run
-fn probe(host) = timeout(500ms, fn():
+fn probe(host) = timeout(fn():
   sleep(host == "slow-1" then 1s else 10ms)
   "${host} up"
-;;)
+;;, 500ms)
 
 print(scope(s => map(["web-1", "slow-1"], h => spawn(s, () => probe(h))) |> map(await)))
 ```
@@ -595,7 +595,7 @@ for x in rx:
 ```fung run
 (tx, rx) = channel(2)
 print(send(tx, 1), send(tx, 2))
-print(timeout(10ms, () => send(tx, 3)))
+print(timeout(() => send(tx, 3), 10ms))
 close(tx)
 print(send(tx, 4))
 ```
@@ -651,7 +651,7 @@ scope(fn(s):
 
 값이 올 때까지 기다린다. 채널이 닫혀도 버퍼에 남은 값은 먼저 다 준 뒤에 `Err({kind: 'closed})`를 준다. 그래서 닫힘은 "더 올 것이 없다"는 정상적인 끝이다. 받는 끝을 끝까지 돌 때는 `recv`를 되풀이하는 대신 `for x in rx:`를 쓴다.
 
-기다리는 시간은 [`timeout`](#fn-timeout)으로 정한다: `timeout(1s, () => recv(rx))`. 기한이 지나면 받지 않은 값은 채널에 그대로 남는다.
+기다리는 시간은 [`timeout`](#fn-timeout)으로 정한다: `timeout(() => recv(rx), 1s)`. 기한이 지나면 받지 않은 값은 채널에 그대로 남는다.
 
 #### 매개변수
 
@@ -690,17 +690,17 @@ print(recv(rx), recv(rx), recv(rx))
 
 ```fung run
 (tx, rx) = channel()
-print(timeout(10ms, () => recv(rx)) ?? "nothing yet")
+print(timeout(() => recv(rx), 10ms) ?? "nothing yet")
 close(tx)
 ```
 
 #### 같이 보기
 
-[`send`](#fn-send), [`try_recv`](#fn-try_recv), [`timeout`](#fn-timeout), [for](../language/for.html)
+[`send`](#fn-send), [`recv_now`](#fn-recv_now), [`timeout`](#fn-timeout), [for](../language/for.html)
 
 :::
 
-:::fn try_recv(rx)
+:::fn recv_now(rx)
 
 기다리지 않고 받는 끝 `rx`를 한 번 본다. 받을 값이 있으면 `Ok(v)`, 없으면 `Err({kind: 'empty})`, 닫혔고 남은 값이 없으면 `Err({kind: 'closed})`.
 
@@ -708,7 +708,7 @@ close(tx)
 
 [`recv`](#fn-recv)가 기다릴 자리에서 기다리는 대신 `Err({kind: 'empty, message: "channel empty"})`를 돌려준다. 받는 것은 `recv`와 같다: 버퍼의 맨 앞 값, 버퍼가 없는 채널(`channel()`)이면 이미 기다리고 있는 보내는 쪽의 값. 그래서 버퍼 없는 채널에서는 보내는 쪽이 먼저 `send`로 기다리고 있을 때만 받는다.
 
-일꾼이 다른 일 사이에 "쌓인 일이 있나", "정지 요청이 왔나"를 볼 때 쓴다(정지 신호면 `Err({kind: 'closed})`가 요청이 온 것이다). 값을 기다릴 때는 `recv`를 쓴다. `try_recv`를 `sleep` 없이 되풀이하면 기다리는 대신 차례만 먹는다.
+일꾼이 다른 일 사이에 "쌓인 일이 있나", "정지 요청이 왔나"를 볼 때 쓴다(정지 신호면 `Err({kind: 'closed})`가 요청이 온 것이다). 값을 기다릴 때는 `recv`를 쓴다. `recv_now`를 `sleep` 없이 되풀이하면 기다리는 대신 차례만 먹는다.
 
 #### 매개변수
 
@@ -730,7 +730,7 @@ close(tx)
 (tx, rx) = channel(2)
 send(tx, "job-1")!
 for _ in 1..=2:
-  match try_recv(rx):
+  match recv_now(rx):
     Ok(job)             => print("doing", job)
     Err({kind: 'empty}) => print("nothing queued")
     Err(_)              => print("closed")
@@ -742,18 +742,18 @@ for _ in 1..=2:
 
 ```fung run
 stop = stop_signal()
-print(try_recv(stop))
+print(recv_now(stop))
 request_stop()
-print(try_recv(stop))
+print(recv_now(stop))
 ```
 
 #### 같이 보기
 
-[`recv`](#fn-recv), [`try_send`](#fn-try_send), [`wait_closed`](#fn-wait_closed)
+[`recv`](#fn-recv), [`send_now`](#fn-send_now), [`wait_closed`](#fn-wait_closed)
 
 :::
 
-:::fn try_send(tx, v)
+:::fn send_now(tx, v)
 
 기다리지 않고 보내는 끝 `tx`로 `v`를 보낸다. 넘겼으면 `Ok(nil)`, 기다려야 하면 `Err({kind: 'full})`, 닫혔으면 `Err({kind: 'closed})`.
 
@@ -783,14 +783,14 @@ print(try_recv(stop))
 
 ```fung run
 (tx, rx) = channel(2)
-dropped = fold(1..=5, 0, (n, i) => is_ok(try_send(tx, "line ${i}")) then n else n + 1)
+dropped = fold(1..=5, 0, (n, i) => is_ok(send_now(tx, "line ${i}")) then n else n + 1)
 close(tx)
 print(map(rx, x => x), "dropped:", dropped)
 ```
 
 #### 같이 보기
 
-[`send`](#fn-send), [`try_recv`](#fn-try_recv)
+[`send`](#fn-send), [`recv_now`](#fn-recv_now)
 
 :::
 
@@ -850,31 +850,33 @@ scope(fn(s):
 
 #### 같이 보기
 
-[`stop_signal`](#fn-stop_signal), [`recv`](#fn-recv), [`try_recv`](#fn-try_recv)
+[`stop_signal`](#fn-stop_signal), [`recv`](#fn-recv), [`recv_now`](#fn-recv_now)
 
 :::
 
-:::fn close(tx)
+:::fn close(x)
 
-보내는 끝 `tx`의 채널을 지금 닫는다.
+보내는 끝의 채널이나 파일 핸들을 지금 닫는다.
 
 #### 설명
 
-그 끝의 다른 사본이 살아 있어도 지금 닫는다. 보통은 [자동 닫힘](#fn-channel)으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 `Err({kind: 'closed})`를 받고, 그 뒤의 `send`는 `Err({kind: 'closed})`다. 이미 닫힌 채널을 다시 닫아도 에러가 아니다.
+닫을 수 있는 것은 이 함수 하나로 닫는다.
 
-받는 끝은 닫을 수 없다(E0403). 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다). 파일 핸들은 [`fs.close`](../modules/fs.html#fn-fs-close)로 닫는다. 이름이 같지만 다른 함수다.
+- **보내는 끝**: 그 끝의 다른 사본이 살아 있어도 채널을 지금 닫는다. 보통은 [자동 닫힘](#fn-channel)으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 `Err({kind: 'closed})`를 받고, 그 뒤의 `send`는 `Err({kind: 'closed})`다. 이미 닫힌 채널을 다시 닫아도 `Ok(nil)`이다. 받는 끝은 닫을 수 없다: 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다).
+- **파일 핸들**([`fs.open`](../modules/fs.html#fn-fs-open)): 버퍼에 남은 쓰기를 디스크에 비우고 핸들을 닫는다. 비우기나 닫기가 실패하면 그 에러를 돌려준다(NFS처럼 닫을 때에야 쓰기를 보내는 파일 시스템에서는 디스크 가득 참이 여기서 나온다). 닫힌 핸들로 읽고 쓰면 `Err({kind: 'closed})`이고, 한 번 더 닫아도 같다. 닫지 않은 핸들은 그 값의 마지막 사본이 사라지면 런타임의 닫기 스레드가 비우고 닫는다. 그래서 데이터가 파일에 닿는 때는 정해져 있지 않고, 그 비우기나 닫기가 실패하면 표준 에러에 [E0810](../errors.html#E0810)을 쓰고 종료 코드가 1이 된다. 그래서 쓴 핸들은 직접 닫거나 [`fs.with_open`](../modules/fs.html#fn-fs-with_open)을 쓴다.
 
 #### 매개변수
 
-- `tx`: 보내는 끝.
+- `x`: 보내는 끝, 또는 파일 핸들.
 
 #### 돌려주는 값
 
-`nil`.
+`Ok(nil)`.
 
 #### 에러
 
-`tx`가 보내는 끝이 아니면 런타임 에러 E0403.
+- `x`가 보내는 끝도 파일 핸들도 아니면(받는 끝 포함) 런타임 에러 E0403.
+- 파일 핸들: `Err({kind: 'closed})`(이미 닫힘), `Err({kind: 'io})`(버퍼를 비우다 실패, 디스크가 참 등).
 
 #### 예제
 
@@ -889,6 +891,18 @@ for x in rx:
 ;;
 ```
 
+**파일 핸들 닫기**
+
+```fung run
+import fs
+
+h = fs.open("out.txt", 'write)!
+fs.write_line(h, "one")!
+print(close(h))
+print(close(h))
+print(fs.write_line(h, "two"))
+```
+
 **받는 끝은 닫지 못한다**
 
 ```fung run exit=1 error=E0403
@@ -898,7 +912,7 @@ close(rx)
 
 #### 같이 보기
 
-[`channel`](#fn-channel), [`send`](#fn-send), [`fs.close`](../modules/fs.html#fn-fs-close)
+[`channel`](#fn-channel), [`send`](#fn-send), [`fs.open`](../modules/fs.html#fn-fs-open), [`fs.with_open`](../modules/fs.html#fn-fs-with_open)
 
 :::
 
@@ -910,9 +924,9 @@ close(rx)
 
 #### 설명
 
-정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, `kill`, 컨테이너 종료)이나 [`request_stop`](#fn-request_stop)이 보낸다. 요청이 오면 이 끝이 닫히므로 `recv`는 `Err({kind: 'closed})`를 돌려주고, 이 끝을 도는 `for`는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 [`wait_closed(stop)`](#fn-wait_closed), 기다리지 않고 요청이 왔는지 볼 때는 [`try_recv(stop)`](#fn-try_recv)이 `Err({kind: 'closed})`인지 본다(문장으로 쓴 `recv(stop)`은 닫힘의 `Err`를 버리므로 E0606이다). 이것은 [취소](#fn-cancel)("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.
+정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, `kill`, 컨테이너 종료)이나 [`request_stop`](#fn-request_stop)이 보낸다. 요청이 오면 이 끝이 닫히므로 `recv`는 `Err({kind: 'closed})`를 돌려주고, 이 끝을 도는 `for`는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 [`wait_closed(stop)`](#fn-wait_closed), 기다리지 않고 요청이 왔는지 볼 때는 [`recv_now(stop)`](#fn-recv_now)이 `Err({kind: 'closed})`인지 본다(문장으로 쓴 `recv(stop)`은 닫힘의 `Err`를 버리므로 E0606이다). 이것은 [취소](#fn-cancel)("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.
 
-이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(`with`의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.
+이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 신호가 왔을 때 이 끝에서 기다리는 태스크가 없으면(끝을 쥐고만 있으면) 표준 에러에 `note: stop requested; press again to end now`를 쓴다. 판정은 같아서 프로그램은 이어 돌고, 곧바로 끝내려면 한 번 더 누른다. 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(`with`의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.
 
 [`http.serve`](../modules/http.html)는 이것으로 새 연결을 그만 받고 처리 중인 요청을 마무리한다.
 
@@ -1078,7 +1092,7 @@ registry = atom({main: tx})
 
 **비교 후 교체**(compare-and-swap)로 동작한다. 지금 값을 읽어 `f`로 새 값을 계산하고, 그사이 아무도 바꾸지 않았으면 바꾼다. 누가 먼저 바꿨으면 그 새 값으로 `f`를 다시 돌린다. 그래서 `deref`로 읽고 `reset`으로 쓰는 두 단계 사이에 다른 태스크가 끼어들어 갱신이 사라지는 일이 없다.
 
-`f`는 여러 번 돌 수 있으므로 **순수 계산만** 한다. 출력, 표준 입력, `exit`, 태스크·채널 연산, `sleep`, 다른 atom의 `swap`·`reset`, 파일·네트워크·외부 프로세스를 부르면 런타임 에러 E0707이다. 에러는 부른 함수의 이름을 댄다(`fs.with_open`, `http.get`, `print` 등). 읽기(`deref`, 시간, 환경 변수)는 된다. `f`가 실패하면 상태는 그대로다.
+`f`는 여러 번 돌 수 있으므로 **순수 계산만** 한다. 출력, 표준 입력, `exit`, 태스크·채널 연산, `sleep`, 정지 요청(`stop_signal`·`request_stop`), 다른 atom의 `swap`·`reset`, 파일·네트워크·외부 프로세스를 부르면 런타임 에러 E0707이다. 에러는 부른 함수의 이름을 댄다(`fs.with_open`, `http.get`, `print` 등). 읽기(`deref`, 시간, 환경 변수)는 된다. `f`가 실패하면 상태는 그대로다.
 
 #### 매개변수
 
@@ -1248,7 +1262,7 @@ print(before, deref(a))
 
 ```fung run
 print(sleep(10ms))
-print(timeout(10ms, () => sleep(1s)))
+print(timeout(() => sleep(1s), 10ms))
 ```
 
 **주기적으로 하기**

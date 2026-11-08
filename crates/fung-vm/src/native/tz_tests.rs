@@ -5,7 +5,7 @@
 
 use std::ffi::OsStr;
 
-use super::{Zone, from_tzdata, load, resolve_local};
+use super::{Zone, from_tzdata, load, resolve, resolve_local};
 
 fn system(name: &str) -> Option<Zone> {
     if !std::path::Path::new("/usr/share/zoneinfo")
@@ -809,4 +809,17 @@ fn posix_rule_in_leap_years() {
     // 2028-03-01T00:00:00Z
     assert_eq!(j.lookup(1_835_481_600), ("BBB", 3600));
     assert_eq!(j.lookup(1_835_481_600 - 1), ("AAA", 0));
+}
+
+/// A `TZ` that names no zone is UTC, and `resolve` says so (LB20: the
+/// warning); unset, empty, `UTC`, a name and a POSIX string name one.
+#[test]
+fn a_tz_naming_no_zone_is_told() {
+    for tz in ["garbage!!", "Asia/Seoul ", "/no/such/file", "Nope/Nowhere"] {
+        let (z, named) = resolve(Some(OsStr::new(tz)), None);
+        assert_eq!((z.name.as_str(), named), ("UTC", false), "{tz:?}");
+    }
+    for tz in [Some(""), Some("UTC"), Some(":UTC"), Some("KST-9"), None] {
+        assert!(resolve(tz.map(OsStr::new), None).1, "{tz:?}");
+    }
 }

@@ -1,9 +1,11 @@
 //! A string value (02, L4): bytes, read as UTF-8 by the character
 //! operations (`fung_front::text`). Whether the bytes are ASCII or valid
-//! UTF-8 is known from when the string is made, so `len`, `s[i]` and the
-//! checks of the operations that need text cost nothing more.
+//! UTF-8 is known from when the string is made, so the checks of the
+//! operations that need text cost nothing more. The number of characters
+//! is counted the first time `len` asks; `s[i]` reads only up to `i`.
 
 use std::borrow::Borrow;
+use std::cell::Cell;
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -24,7 +26,12 @@ enum Repr {
 pub struct Text {
     repr: Repr,
     ascii: bool,
+    /// The number of characters once counted (`UNCOUNTED` before): a
+    /// string is never changed, so `len` counts it once (VA12).
+    chars: Cell<usize>,
 }
+
+const UNCOUNTED: usize = usize::MAX;
 
 impl Text {
     pub fn new(bytes: Vec<u8>) -> Text {
@@ -33,6 +40,7 @@ impl Text {
             Err(e) => Text {
                 repr: Repr::Bytes(e.into_bytes()),
                 ascii: false,
+                chars: Cell::new(UNCOUNTED),
             },
         }
     }
@@ -67,25 +75,40 @@ impl Text {
         matches!(self.repr, Repr::Utf8(_))
     }
 
-    /// The number of characters.
+    /// The number of characters, counted the first time it is asked.
     pub fn char_len(&self) -> usize {
-        match &self.repr {
-            _ if self.ascii => self.as_bytes().len(),
-            Repr::Utf8(s) => s.chars().count(),
-            Repr::Bytes(b) => text::char_count(b),
+        if self.ascii {
+            return self.as_bytes().len();
         }
+        if self.chars.get() == UNCOUNTED {
+            self.chars.set(match &self.repr {
+                Repr::Utf8(s) => s.chars().count(),
+                Repr::Bytes(b) => text::char_count(b),
+            });
+        }
+        self.chars.get()
     }
 
     /// The byte offset of the `n`th character from byte `from` (a
-    /// character boundary), or the length past the end.
+    /// character boundary), or the length past the end. Only the part
+    /// up to it is read.
     pub fn byte_at(&self, from: usize, n: usize) -> usize {
         match &self.repr {
-            _ if self.ascii => (from + n).min(self.as_bytes().len()),
-            Repr::Utf8(s) => s[from..]
-                .char_indices()
-                .nth(n)
-                .map_or(s.len(), |(b, _)| from + b),
+            _ if self.ascii => from.saturating_add(n).min(self.as_bytes().len()),
+            Repr::Utf8(s) => {
+                from + text::utf8_offset(&s.as_bytes()[from..], n).unwrap_or(s.len() - from)
+            }
             Repr::Bytes(b) => from + text::byte_at(&b[from..], n),
+        }
+    }
+
+    /// Where the `k`th character from the end starts (`k` ≥ 1), or
+    /// `None` when there are fewer: only the part after it is read.
+    pub fn byte_back(&self, k: usize) -> Option<usize> {
+        match &self.repr {
+            _ if self.ascii => self.as_bytes().len().checked_sub(k),
+            Repr::Utf8(s) => text::utf8_back(s.as_bytes(), k),
+            Repr::Bytes(b) => text::back(b, k),
         }
     }
 
@@ -100,6 +123,7 @@ impl From<String> for Text {
         Text {
             ascii: s.is_ascii(),
             repr: Repr::Utf8(s),
+            chars: Cell::new(UNCOUNTED),
         }
     }
 }

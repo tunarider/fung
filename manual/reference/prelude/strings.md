@@ -532,8 +532,8 @@ print(repeat("-", 20))
 
 #### 에러
 
-- `pad`가 `""`면 런타임 에러 E0803(`pad must be a non-empty string`).
-- `s`가 문자열이 아니면 E0506.
+- `s`·`pad`가 문자열이 아니거나 `n`이 정수가 아니면 런타임 에러 E0403.
+- `pad`가 `""`면 런타임 에러 E0403(`argument `pad` must be a non-empty str, got str`).
 
 #### 예제
 

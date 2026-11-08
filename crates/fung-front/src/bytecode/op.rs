@@ -247,14 +247,19 @@ impl Op {
     }
 }
 
-const ARG_MASK: u32 = (1 << 24) - 1;
+/// The largest operand an instruction holds: 24 bits (09). The compiler
+/// refuses a larger one (E0230, `Proto::check_operands`).
+pub const MAX_OPERAND: usize = (1 << 24) - 1;
+
+const ARG_MASK: u32 = MAX_OPERAND as u32;
 
 /// One instruction word: opcode in the top 8 bits, operand below.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Instr(pub u32);
 
 impl Instr {
-    /// Encodes an instruction; the operand is truncated to 24 bits.
+    /// Encodes an instruction; the operand is cut to 24 bits (`emit`
+    /// remembers one that does not fit, `Proto::check_operands`).
     pub fn new(op: Op, arg: usize) -> Instr {
         Instr((op as u32) << 24 | (arg as u32) & ARG_MASK)
     }

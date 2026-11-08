@@ -11,5 +11,5 @@ print(time.parse("2026-02-30T00:00:00Z"))
 # expect: Err({kind: 'parse, message: "cannot parse `2026-02-30T00:00:00Z` as a time: day out of range"})
 print(time.format(time.parse("2026-10-17T10:02:03+09:00")!, "Z"))
 # expect: +09:00
-print(time.parse("Foo 1", "MMM D"))
-# expect: Err({kind: 'parse, message: "cannot parse `Foo 1` as a time: expected a month name like Oct"})
+print(time.parse("Foo 1 2026", "MMM DD YYYY"))
+# expect: Err({kind: 'parse, message: "cannot parse `Foo 1 2026` as a time: expected a month name like Oct"})

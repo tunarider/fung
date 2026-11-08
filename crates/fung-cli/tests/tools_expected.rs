@@ -176,20 +176,20 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 270;
+const CHECK_REPOSITORY_CASES: usize = 281;
 const CHECK_WARNING_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 25;
-const HELP_CASES: usize = 8;
+const HELP_CASES: usize = 9;
 const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
-const TEST_REPOSITORY_CASES: usize = 271;
-const FMT_INPUTS: usize = 6529;
-const FMT_STDIN_CASES: usize = 1415;
+const TEST_REPOSITORY_CASES: usize = 282;
+const FMT_INPUTS: usize = 6753;
+const FMT_STDIN_CASES: usize = 1441;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
-const REPL_CASES: usize = 30;
+const REPL_CASES: usize = 32;
 
 #[test]
 fn check_matches_the_expected_output_on_the_repository() {
@@ -353,6 +353,7 @@ fn help_and_unknown_commands_match_the_expected_output() {
         &["-h"],
         &["--help"],
         &["help", "check"],
+        &["version", "extra"],
         &["frobnicate"],
         &["Check"],
         &["--version"],
@@ -791,6 +792,66 @@ fn test_counts_an_unreadable_file() {
     );
     assert_eq!(status, "ExitStatus(unix_wait_status(512))");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A run that found no test (a path with a typo, an empty directory)
+/// fails (TL5, user decision): it says so and exits 1, so CI does not
+/// pass on nothing.
+#[test]
+fn test_without_tests_fails() {
+    let dir = scratch("test-none");
+    std::fs::write(dir.join("plain.fung"), "x = 1\n").unwrap();
+    let arg = dir.to_string_lossy().into_owned();
+    let (out, err, status) = run(&fung_bin(), &os_args(&["test", &arg]));
+    assert_eq!(
+        (
+            String::from_utf8_lossy(&out).as_ref(),
+            String::from_utf8_lossy(&err).as_ref(),
+            status.as_str()
+        ),
+        (
+            "0 passed, 0 failed\n",
+            "no tests found\n",
+            "ExitStatus(unix_wait_status(256))"
+        )
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A `FUNG_SCHED_SEED` that is not a whole number from 0 to 2^64 - 1 is
+/// a usage error (TL5, user decision), not silently a random seed.
+#[test]
+fn test_refuses_a_bad_scheduler_seed() {
+    for seed in ["abc", "-1", "", " 1", "18446744073709551616"] {
+        let mut cmd = std::process::Command::new(fung_bin());
+        cmd.args(["test", TEST_DATA])
+            .current_dir(repo())
+            .env("FUNG_SCHED_SEED", seed)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        // `common::spawn` would set the seed: start it under its lock.
+        let child = {
+            let _held = common::starting();
+            cmd.spawn().unwrap()
+        };
+        let o = common::Reaped::new(child).output().unwrap();
+        assert_eq!(
+            (
+                String::from_utf8_lossy(&o.stdout).as_ref(),
+                String::from_utf8_lossy(&o.stderr).into_owned(),
+                o.status.code()
+            ),
+            (
+                "",
+                format!(
+                    "error: FUNG_SCHED_SEED must be a whole number from 0 to 18446744073709551615, not `{seed}`\n"
+                ),
+                Some(3)
+            ),
+            "{seed:?}"
+        );
+    }
 }
 
 /// `fung test` with no path walks the working directory.
@@ -1905,6 +1966,13 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             "a value of a call",
             "print(1)\nlen([1, 2])\n(1, 2)\n'sym\n1.5\n\"s\"\n",
         ),
+        // TL2: a raw string may span lines, as in a file.
+        (
+            "a raw string over lines",
+            "x = `a\nb`\nprint(x)\n`c\n\nd`\n",
+        ),
+        // TL3: an explicit exit(n) names the code even after an error.
+        ("exit after an error", "1 / 0\nexit(0)\n"),
     ];
     let dir = repl_dir("piped");
     let owned = subs(&[(&dir, "$DIR")]);
@@ -1948,10 +2016,7 @@ fn repl_atoms_stay_across_inputs() {
     let _ = std::fs::remove_dir_all(&dir);
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
     assert_eq!(String::from_utf8_lossy(&err), "");
-    assert_eq!(
-        String::from_utf8_lossy(&out),
-        "> > 2\n> 2\n> 5\n> 20\n> 20\nnil\n> \n"
-    );
+    assert_eq!(String::from_utf8_lossy(&out), "2\n2\n5\n20\n20\nnil\n");
     assert_eq!(status, "ExitStatus(unix_wait_status(0))");
 }
 
@@ -1988,7 +2053,8 @@ fn repl_session(tag: &str, input: &str) -> (String, String, Option<i32>) {
 }
 
 /// Standard input from `/dev/null` (a character device, not a terminal)
-/// is read as plain lines: no line editor, so no history file.
+/// is read as plain lines: no line editor, so no history file, and no
+/// prompt (TL3).
 #[test]
 fn repl_reads_a_device_that_is_no_terminal_plainly() {
     let dir = repl_dir("devnull");
@@ -2004,7 +2070,7 @@ fn repl_reads_a_device_that_is_no_terminal_plainly() {
     .unwrap()
     .wait_with_output()
     .unwrap();
-    assert_eq!(String::from_utf8_lossy(&o.stdout), "> \n");
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "");
     assert!(o.status.success());
     assert!(
         !dir.join(".fung_history").exists(),
@@ -2014,7 +2080,8 @@ fn repl_reads_a_device_that_is_no_terminal_plainly() {
 }
 
 /// An error in code an earlier input defined is excerpted from that
-/// input, and so is a failing child that a scope re-raises.
+/// input, and so is a failing child that a scope re-raises. The session
+/// went on after them, and ends with 1 (TL3).
 #[test]
 fn repl_excerpts_the_input_that_defined_the_code() {
     let (_, err, code) = repl_session(
@@ -2029,7 +2096,7 @@ fn repl_excerpts_the_input_that_defined_the_code() {
         err.contains("2 |   spawn(s, () => [1][5])\n"),
         "the child failure's line: {err}"
     );
-    assert_eq!(code, Some(0));
+    assert_eq!(code, Some(1));
 }
 
 /// The session's globals have no fixed limit: an input defining 65,537
@@ -2043,7 +2110,7 @@ fn repl_globals_have_no_fixed_limit() {
     );
     let (out, err, code) = repl_session("globals", &input);
     assert_eq!(err, "");
-    assert!(out.ends_with("> 65537\n> \n"), "{out}");
+    assert!(out.ends_with("\n65537\n") || out == "65537\n", "{out}");
     assert_eq!(code, Some(0));
 }
 
@@ -2051,20 +2118,20 @@ fn repl_globals_have_no_fixed_limit() {
 /// happened in, with the deadlock report (here a scope's body and its
 /// blocked child; the report shows where both wait, so the input's
 /// error is not printed again); the session goes on on a fresh run root,
-/// globals and atoms stay, later inputs can spawn again, and the
-/// recovered deadlock does not set the exit code.
+/// globals and atoms stay, and later inputs can spawn again. The
+/// deadlock was an error, so the session ends with 1 (TL3).
 #[test]
 fn repl_recovers_after_a_deadlock() {
     let (out, err, code) = repl_session(
         "deadlock",
         "a = atom(1)\n(_tx, c) = channel()\nscope(fn(s):\n  t = spawn(s, () => recv(c))\n  recv(c)\n;;)\nprint(\"after\")\nscope(s => await(spawn(s, () => 40 + 2)))\nswap(a, (n) => n + 1)\n",
     );
-    assert_eq!(out, "> > > . . . > after\nnil\n> 42\n> 2\n> \n");
+    assert_eq!(out, "after\nnil\n42\n2\n");
     assert_eq!(
         err,
         "error[E0702]: deadlock: all tasks are waiting\n  --> <repl>:3:7\n  |\n3 |   recv(c)\n  |       ^\n  |\n call path (innermost first):\n   <repl>:3   <lambda>\n   <repl>:1   <entry>\n help: this task waits to receive, but it still holds that channel's sending end itself (the global `_tx`), so the channel cannot close: close it with `close(_tx)` first, or leave the sending end to the producers only\n 1 other task is waiting:\n   recv at <repl>:2:26 (<lambda>, holds its own sending end)\n"
     );
-    assert_eq!(code, Some(0));
+    assert_eq!(code, Some(1));
 }
 
 /// Decided 2026-10-17: a spawned task's `exit(n)` ends the
@@ -2077,7 +2144,7 @@ fn repl_ends_on_a_spawned_exit() {
         "spawned-exit",
         "(tx, c) = channel()\nwith(() => nil, _ => scope(fn(s):\n  t = spawn(s, fn():\n    recv(c)\n    exit(3)\n  ;;)\n  [send(tx, 1), await(t)]\n;;), _ => print(\"bye\"))\nprint(\"never\")\n",
     );
-    assert_eq!(out, "> > . . . . . . bye\n");
+    assert_eq!(out, "bye\n");
     assert_eq!(err, "");
     assert_eq!(code, Some(3));
 }

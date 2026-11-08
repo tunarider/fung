@@ -48,7 +48,7 @@
 | User-Agent: fung/$VERSION\r
 | \r
 -- request 0.4 (escaped)
-| GET http://example.test/%EA%B2%80%EC%83%89?q=a b HTTP/1.1\r
+| GET http://example.test/%EA%B2%80%EC%83%89?q=a%20b HTTP/1.1\r
 | Host: example.test\r
 | User-Agent: fung/$VERSION\r
 | \r
@@ -100,7 +100,7 @@
 | Proxy-Authorization: Basic cHU6cCB3\r
 | \r
 -- request 0.4 (escaped)
-| GET http://example.test/%EA%B2%80%EC%83%89?q=a b HTTP/1.1\r
+| GET http://example.test/%EA%B2%80%EC%83%89?q=a%20b HTTP/1.1\r
 | Host: example.test\r
 | User-Agent: fung/$VERSION\r
 | Proxy-Authorization: Basic cHU6cCB3\r

@@ -197,13 +197,13 @@ impl Task<'_> {
     /// call of that function; the wait's name; the function the place is
     /// in; and whether it is inside a release.
     fn wait_site(&self) -> (Pos, String, String, bool) {
-        let c = self.conts.last();
+        let c = self.fiber.conts.last();
         let wait = c
             .and_then(|c| c.k.waits_for().or(c.native.map(|n| n.name)))
             .unwrap_or("wait");
         let mut pos = c.map_or(no_pos(), |c| c.pos);
         let mut kind = wait.to_string();
-        if self.frames.last().is_some_and(|f| f.proto.builtin) {
+        if self.fiber.frames.last().is_some_and(|f| f.proto.builtin) {
             if let Some(p) = self.user_pos() {
                 pos = p;
             }
@@ -214,6 +214,7 @@ impl Task<'_> {
         // The innermost function of user code, or the one whose frame a
         // tail call into a built-in function replaced (L8).
         let func = self
+            .fiber
             .frames
             .iter()
             .rev()
@@ -222,9 +223,9 @@ impl Task<'_> {
                 Some(t) => Some(proto_name(&t.proto)),
                 None => None,
             })
-            .or_else(|| self.frames.last().map(func_name))
+            .or_else(|| self.fiber.frames.last().map(func_name))
             .unwrap_or_else(|| "<entry>".to_string());
-        let release = self.conts.iter().any(|c| c.k.releasing());
+        let release = self.fiber.conts.iter().any(|c| c.k.releasing());
         (pos, kind, func, release)
     }
 
@@ -233,7 +234,7 @@ impl Task<'_> {
     /// gave its frame to it. Named as `user_callee` names one. A task the
     /// module spawned on a lambda of its own names the module alone.
     fn outer_callee(&self) -> Option<String> {
-        let p = self.frames.first()?.entry.clone()?;
+        let p = self.fiber.frames.first()?.entry.clone()?;
         let at = p.pos.first()?;
         let file = self.world.file_name(at.file);
         let module = std::path::Path::new(file).file_stem()?.to_str()?;
@@ -250,15 +251,15 @@ impl Task<'_> {
     /// (a function's variables), its frames' captured values, or a
     /// global, which every task holds. `None` if it does not.
     fn own_sender(&self) -> Option<(String, Option<String>)> {
-        let rx = self.conts.last()?.k.receives_on()?;
+        let rx = self.fiber.conts.last()?.k.receives_on()?;
         let held = |v: &Value| matches!(v, Value::Sender(tx) if rx.pairs_with(tx));
-        for (i, v) in self.stack.iter().enumerate() {
+        for (i, v) in self.fiber.stack.iter().enumerate() {
             if v.as_ref().is_some_and(held) {
-                let f = self.frames.iter().rev().find(|f| f.base <= i)?;
+                let f = self.fiber.frames.iter().rev().find(|f| f.base <= i)?;
                 return Some((format!("a variable of `{}`", func_name(f)), None));
             }
         }
-        for f in self.frames.iter().rev() {
+        for f in self.fiber.frames.iter().rev() {
             if f.closure
                 .as_ref()
                 .is_some_and(|c| c.captured.iter().any(held))
@@ -266,7 +267,7 @@ impl Task<'_> {
                 return Some((format!("a value `{}` captured", func_name(f)), None));
             }
         }
-        for f in &self.frames {
+        for f in &self.fiber.frames {
             let g = f.globals.borrow();
             if let Some(i) = g.iter().position(|v| v.as_ref().is_some_and(held)) {
                 // A function's proto has no names of its module's globals;

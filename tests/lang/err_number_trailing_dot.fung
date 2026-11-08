@@ -1,0 +1,5 @@
+# `1.` is not a number (FE2), and an integer has no fields: the dot
+# does not join the next line's name as `1.print`.
+x = 1.
+print(x)
+# expect-error: E0102

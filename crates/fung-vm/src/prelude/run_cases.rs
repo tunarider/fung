@@ -247,10 +247,8 @@ print("out")"#,
 dbg(x * 2)"#,
         "",
     ),
-    (
-        r#"print(dbg(1, "t"), dbg(2, "t", "w"), dbg(3, where: "w"))"#,
-        "",
-    ),
+    (r#"x = dbg(1, "t", "w")"#, ""),
+    (r#"x = dbg(3, text: "t", where: "w")"#, ""),
     (r#"print(args)"#, ""),
     (r#"print(len(1, 2))"#, ""),
     (r#"print(map(xs: [1], f: x => x + 1))"#, ""),
@@ -522,14 +520,14 @@ print(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)"#,
 send(buf_tx, "a")
 close(buf_tx)
 (_never_tx, never) = channel()
-print(recv(buf), recv(buf), send(buf_tx, "b"), close(buf_tx), timeout(1ms, () => recv(never)), timeout(-1s, () => recv(never)))"#,
+print(recv(buf), recv(buf), send(buf_tx, "b"), close(buf_tx), timeout(() => recv(never), 1ms), timeout(() => recv(never), -1s))"#,
         "",
     ),
     (
         r#"(tx, rx) = channel()
 scope(fn(s):
   t = spawn(s, () => send(tx, 1))
-  print(timeout(10ms, () => await(t)), recv(rx), await(t))
+  print(timeout(() => await(t), 10ms), recv(rx), await(t))
 ;;)"#,
         "",
     ),
@@ -720,13 +718,13 @@ print(fs, fs.open, fs.with_open, fs.read_lines("Cargo.toml")! |> take(1))"#,
         r#"import fs
 h = fs.open("/dev/null")!
 print(h, type_of(h), [h] == [h], h == fs.open("/dev/null")!, {a: h})
-print(read_line(h), read_lines(h), fs.close(h), fs.close(h), read_line(h))"#,
+print(read_line(h), read_lines(h), close(h), close(h), read_line(h))"#,
         "",
     ),
     (
         r#"import fs
 w = fs.open(path: "/dev/null", mode: 'append)!
-print(fs.write_line(w, "x"), fs.close(w), fs.write_line(w, "y"))"#,
+print(fs.write_line(w, "x"), close(w), fs.write_line(w, "y"))"#,
         "",
     ),
     (
@@ -817,12 +815,12 @@ print(fs.open("/dev/null", 'read, nil, 1))"#,
     ),
     (
         r#"import fs
-print(fs.close(1))"#,
+print(close(1))"#,
         "",
     ),
     (
         r#"import fs
-print(fs.close())"#,
+print(close())"#,
         "",
     ),
     (

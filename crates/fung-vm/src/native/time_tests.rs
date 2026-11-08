@@ -148,3 +148,22 @@ fn monotonic_is_a_growing_dur() {
     let c = dur(ok("monotonic", vec![]));
     assert!(c - b >= 20_000_000, "{b} {c}");
 }
+
+/// A time is one instant, so a format must name the whole date: year,
+/// month and day (LB20). Without one, E0403 before anything is read.
+#[test]
+fn parse_formats_need_a_date() {
+    for layout in ["HH:mm", "MM-DD HH:mm", "YYYY-MM", "YYYY DD", "ddd HH", ""] {
+        let r = call("parse", vec![Value::str("x"), Value::str(layout)]);
+        let Err(Stop::Error(d)) = r else {
+            panic!("{layout:?}: {}", code(r))
+        };
+        assert_eq!(d.code, "E0403", "{layout:?}");
+        let args = format!("{:?}", d.args);
+        assert!(args.contains("year, month and day"), "{args}");
+    }
+    for layout in ["YYYY-MM-DD", "YY/MMM/DD HH:mm", "DD.MM.YYYY"] {
+        let r = call("parse", vec![Value::str("x"), Value::str(layout)]);
+        assert!(code(r).starts_with("Err("), "{layout:?}");
+    }
+}

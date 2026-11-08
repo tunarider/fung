@@ -41,7 +41,7 @@ fn split_args(xs, before) = match xs:
 # Ok(output) of cmd on one host, or Err(why).
 fn run_on(host, cmd):
   ssh = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", host]
-  match timeout(30s, () => exec(ssh + cmd)):
+  match timeout(() => exec(ssh + cmd), 30s):
     Ok(res)                       => Ok(res.out)
     Err({kind: 'timeout})         => Err("no answer in 30s")
     Err({kind: 'exit, code, err}) => Err("exit ${code}: ${trim(err)}")
@@ -80,7 +80,7 @@ $ echo $?
 - `split_args`: 인자 리스트를 `--` 앞과 뒤로 나눈다. 리스트 패턴 `["--", ...cmd]`는 "첫 원소가 `--`이고 나머지가 `cmd`"다. 앞쪽은 `before + [x]`로 하나씩 쌓으며 자기 자신을 다시 부른다(꼬리 호출이라 길어도 된다). `--` 뒤는 원격 명령이므로 `-h` 같은 옵션도 그대로 넘어간다.
 - `ssh` 리스트: `BatchMode=yes`는 비밀번호를 묻지 않고 바로 실패하게 한다. 동시에 수십 대에서 비밀번호 프롬프트가 뜨면 어느 서버의 것인지 알 수 없기 때문이다. `ConnectTimeout=5`는 접속 단계에서만 5초를 기다린다.
 - `exec(ssh + cmd)`: 명령을 문자열이 아니라 리스트로 넘기므로 이쪽 쉘이 끼어들지 않는다. 서버 이름에 무엇이 들어 있어도 따옴표 걱정이 없다. 끝나면 `Ok({out, err, code})`, 종료 코드가 0이 아니면 `Err({kind: 'exit, code, out, err, message})`다.
-- `timeout(30s, () => …)`: 30초 안에 끝나지 않으면 `ssh`를 끝내고 `Err({kind: 'timeout})`을 준다. 접속은 됐지만 명령이 멈춘 서버(NFS가 걸린 `df` 등)도 여기서 끊긴다. 이 `Err`에는 `message`가 없으므로 따로 맞춘다.
+- `timeout(() => …, 30s)`: 30초 안에 끝나지 않으면 `ssh`를 끝내고 `Err({kind: 'timeout})`을 준다. 접속은 됐지만 명령이 멈춘 서버(NFS가 걸린 `df` 등)도 여기서 끊긴다. 이 `Err`에는 `message`가 없으므로 따로 맞춘다.
 - `match`의 맵 패턴: `Err({kind: 'exit, code, err})`는 "`kind`가 `'exit`인 맵"에만 맞고 `code`와 `err`를 꺼낸다. 위에서 아래로 처음 맞는 가지 하나만 돈다.
 - `conc.pmap(hosts, …, limit: 8)`: `map`처럼 서버마다 함수를 부르되 여러 개를 동시에 돌린다. `limit: 8`이면 8대씩 묶어서 돌고, 결과 리스트는 끝난 순서가 아니라 **입력 순서** 그대로다. 그래서 `zip(hosts, results)`로 서버와 결과를 바로 짝지을 수 있다.
 - 실패는 런타임 에러가 아니라 `Err` 값으로 결과 리스트에 남는다. 한 대가 실패해도 나머지는 끝까지 돈다.

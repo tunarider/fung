@@ -76,7 +76,7 @@ impl With {
         t.world
             .shields
             .insert(shield_key(&shield), Arc::downgrade(&shield));
-        let outer = std::mem::replace(&mut t.cancel, shield.clone());
+        let outer = std::mem::replace(&mut t.fiber.cancel, shield.clone());
         self.phase = Phase::Release {
             r_use,
             shield,
@@ -97,7 +97,7 @@ impl With {
         else {
             unreachable!("released outside the release phase")
         };
-        t.cancel = outer;
+        t.fiber.cancel = outer;
         t.world.shields.remove(&shield_key(&shield));
         let r_rel = discarded(r_rel);
         let failed = |r: &Result<Value, Stop>| matches!(r, Err(Stop::Error(d)) if !is_cancel(d));

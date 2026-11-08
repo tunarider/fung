@@ -484,3 +484,17 @@ fn aligns_by_grapheme_clusters() {
         "a = \"한한\"  # k\nb = \"\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\"    # zwj\nc = \"\u{2764}\u{FE0F}\"    # vs16\nd = \"abcd\"  # ascii\n",
     );
 }
+
+/// An arm head split after `|` is an arm, not the previous arm's body;
+/// its next line is a continuation (FE7).
+#[test]
+fn an_arm_head_split_after_a_bar() {
+    check(
+        "match r:\n  Ok(x) |\n  Err(x) => x\n  _ => 1\n;;\n",
+        "match r:\n  Ok(x) |\n    Err(x) => x\n  _ => 1\n;;\n",
+    );
+    check(
+        "for x in\n[1, 2]:\nx\n;;\n",
+        "for x in\n  [1, 2]:\n  x\n;;\n",
+    );
+}

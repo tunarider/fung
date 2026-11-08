@@ -35,7 +35,7 @@ fn a_cancelled_command_is_terminated() {
     own_group();
     let start = Instant::now();
     assert_eq!(
-        run("print(timeout(100ms, () => sh(\"sleep 5; echo no\")))"),
+        run("print(timeout(() => sh(\"sleep 5; echo no\"), 100ms))"),
         (
             "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n".into(),
             "".into(),
@@ -152,16 +152,18 @@ fn a_cancel_after_the_command_itself_ended_ends_what_it_left() {
     }
 }
 
-/// `exec` and `sh` hand the wait for the command off (R1a).
+/// `exec` and `sh` start the command in one pool job (review CC4: the
+/// `$PATH` lookup and the `fork`, which takes as long as fung's memory
+/// is large, stop no task), and wait for it on the event loop (R4b).
 #[test]
-fn exec_parks_on_the_loop() {
+fn exec_starts_on_the_pool_and_parks_on_the_loop() {
     for call in ["exec([\"true\"])", "sh(\"true\")"] {
         let o = crate::testutil::exec_waiting(&format!(
             "n = offloads()\nprint({call})\nprint(offloads() - n)"
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str()),
-            ("Ok({out: \"\", err: \"\", code: 0})\n0\n", ""),
+            ("Ok({out: \"\", err: \"\", code: 0})\n1\n", ""),
             "{call}"
         );
     }
@@ -222,7 +224,7 @@ fn a_pool_wait_ends_a_command_without_pidfd() {
 #[test]
 fn without_pidfd_a_timer_still_sees_the_end() {
     let o = crate::testutil::exec_prepared(
-        "print(timeout(5s, () => sh(\"exec >/dev/null 2>&1; sleep 0.1\")!.code))",
+        "print(timeout(() => sh(\"exec >/dev/null 2>&1; sleep 0.1\")!.code, 5s))",
         crate::testutil::Opts::default(),
         |rt| {
             rt.shared().poller.disable_pidfd();
@@ -234,7 +236,8 @@ fn without_pidfd_a_timer_still_sees_the_end() {
 
 /// Without pidfd, many commands at once end without a pool thread each:
 /// 70 commands (more than the pool's 64 threads) all end, and the pool
-/// made no thread (L11 D: the pool's `waitid` per command is gone).
+/// made no thread (L11 D: the pool's `waitid` per command is gone; the
+/// starts run on a pool of their own, CC4).
 #[cfg(target_os = "linux")]
 #[test]
 fn without_pidfd_commands_take_no_pool_thread() {
@@ -257,7 +260,7 @@ fn a_cancel_is_bounded_when_a_grandchild_ignores_term() {
     own_group();
     let start = Instant::now();
     assert_eq!(
-        run("print(timeout(300ms, () => sh(\"(trap '' TERM; exec sleep 8) & exec sleep 60\")))"),
+        run("print(timeout(() => sh(\"(trap '' TERM; exec sleep 8) & exec sleep 60\"), 300ms))"),
         (
             "Err({kind: 'timeout, message: \"timed out after 300ms\"})\n".into(),
             "".into(),
@@ -303,7 +306,7 @@ fn a_fast_command_does_not_starve_other_tasks() {
 fn a_failed_registration_after_a_cancel_leaves_nothing_registered() {
     own_group();
     let o = crate::testutil::exec(
-        "fn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nsupervise(fn(sc):\n  t = spawn(sc, fn():\n    fail_register_at(5)\n    timeout(100ms, () => sh(\"trap '' TERM; sleep 5\"))\n  ;;)\n  print(kind(await(t)))\n;;, e => nil)\nprint(waiting_io())",
+        "fn kind(r) = match r:\n  Err(e) => e.kind\n  v => v\n;;\nsupervise(fn(sc):\n  t = spawn(sc, fn():\n    fail_register_at(5)\n    timeout(() => sh(\"trap '' TERM; sleep 5\"), 100ms)\n  ;;)\n  print(kind(await(t)))\n;;, e => nil)\nprint(waiting_io())",
         crate::testutil::Opts {
             extra: crate::testutil::jobs::job_natives,
             ..crate::testutil::Opts::default()

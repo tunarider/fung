@@ -50,7 +50,7 @@ impl Parser<'_> {
                 Ok(t.key().to_string())
             } else if t.kind == Kind::String {
                 let Some(text) = t.plain() else {
-                    return Err(err("E0110", t.pos, vec![s("interpolation in a map key")]));
+                    return Err(err("E0122", t.pos, vec![s("a map key")]));
                 };
                 text
             } else {
@@ -134,7 +134,7 @@ impl Parser<'_> {
     pub(super) fn tag_expr(&mut self) -> PResult<Node> {
         let t = self.next();
         if !self.at(Kind::LParen) {
-            return Ok(Node::leaf(Head::Symbol, t.pos, Lit::Str(t.text.clone())));
+            return Ok(Node::leaf(Head::BareTag, t.pos, Lit::Str(t.text.clone())));
         }
         let n = self.call_args(Node::with_lit(
             Head::Tag,
@@ -143,11 +143,7 @@ impl Parser<'_> {
             Vec::new(),
         ))?;
         if let Some(k) = n.kids.iter().find(|k| k.head == Head::Named) {
-            return Err(err(
-                "E0110",
-                k.pos,
-                vec![s("named argument in a tag (tags take values by position)")],
-            ));
+            return Err(err("E0121", k.pos, Vec::new()));
         }
         Ok(n)
     }

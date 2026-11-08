@@ -82,7 +82,7 @@
 <p class="lede"><code>x[i]</code>, <code>x[a..b]</code>, <code>x.name</code>의 규칙과 범위 밖.</p>
 <ul>
   <li><code>xs[i]</code>: 음수는 뒤에서부터(<code>xs[-1]</code>). 범위를 벗어나면 에러.</li>
-  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고, 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다(리스트와 문자열 모두). 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
+  <li><code>xs[a..b]</code>, <code>xs[..b]</code>, <code>xs[a..]</code>, <code>xs[a..=b]</code>: 리스트와 문자열의 슬라이스. 범위를 벗어나거나 시작이 끝보다 뒤면 에러이고(<code>..=</code>의 끝은 실제 원소의 인덱스여야 해서 빈 리스트의 <code>xs[..=-1]</code>도 에러), 있는 만큼만 원하면 <code>take</code>·<code>drop</code>을 쓴다(리스트와 문자열 모두). 열린 끝은 비워 쓴다: 끝에 <code>nil</code>을 주면 에러다.</li>
   <li><code>m.name</code>은 <code>m["name"]</code>과 같다. 모듈의 <code>fs.read</code>도 같은 규칙이다.</li>
   <li>튜플은 인덱스로 꺼내지 않는다. 패턴으로 꺼낸다: <code>(a, b) = pair</code>.</li>
 </ul>

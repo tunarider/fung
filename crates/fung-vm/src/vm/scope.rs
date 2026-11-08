@@ -278,6 +278,8 @@ impl ScopeState {
 /// parks like any other wait.
 pub(super) struct TaskEnd {
     state: Rc<super::task::TaskState>,
+    /// The scope the task runs in: every task has one (CC8). `None` only
+    /// once the scope has learnt of the end (`ended`).
     scope: Option<Rc<ScopeState>>,
     node: Arc<CancelNode>,
     /// While handling: the body's result and the task's own node
@@ -294,12 +296,12 @@ struct Handling {
 impl TaskEnd {
     pub(super) fn new(
         state: Rc<super::task::TaskState>,
-        scope: Option<Rc<ScopeState>>,
+        scope: Rc<ScopeState>,
         node: Arc<CancelNode>,
     ) -> TaskEnd {
         TaskEnd {
             state,
-            scope,
+            scope: Some(scope),
             node,
             handling: None,
         }
@@ -335,9 +337,7 @@ impl TaskEnd {
         }
         *self.state.result.borrow_mut() = Some(super::task::outcome(&r, Some(&t.world)));
         self.state.waiters.borrow_mut().wake_all();
-        let Some(s) = self.scope.clone() else {
-            return Ok(self.ended(t, r));
-        };
+        let s = self.scope.clone().expect("a task's scope");
         // An Err the function returned must be read (L1). With no handle
         // left (this end holds the only reference) it never can be: the
         // task fails. Otherwise the scope keeps it until it is read.
@@ -361,7 +361,7 @@ impl TaskEnd {
             if !sv.handling.get() {
                 sv.handling.set(true);
                 let handler = s.node.child();
-                let own = std::mem::replace(&mut t.cancel, handler.clone());
+                let own = std::mem::replace(&mut t.fiber.cancel, handler.clone());
                 self.handling = Some(Handling { r, own, handler });
                 return Ok(self.next_failure(t, sv));
             }
@@ -371,7 +371,7 @@ impl TaskEnd {
 
     /// Calls `on_fail` for the next queued failure, or stops handling.
     fn next_failure(&mut self, t: &mut Task<'_>, sv: &Supervisor) -> Next {
-        if !t.cancel.is_cancelled()
+        if !t.fiber.cancel.is_cancelled()
             && let Some(f) = sv.on_fail.borrow().clone()
             && let Some((e, _)) = sv.queue.borrow_mut().pop_front()
         {
@@ -384,7 +384,7 @@ impl TaskEnd {
     /// Done handling: back under the task's own node, then the end.
     fn stop_handling(&mut self, t: &mut Task<'_>, sv: &Supervisor) -> Next {
         let h = self.handling.take().expect("handling");
-        t.cancel = h.own;
+        t.fiber.cancel = h.own;
         h.handler.cancel();
         sv.handling.set(false);
         self.ended(t, h.r)
@@ -510,7 +510,7 @@ pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> F
         .user_pos()
         .map(|p| format!("{}:{}", t.world.file_name(p.file), p.line))
         .unwrap_or_default();
-    let node = t.cancel.child();
+    let node = t.fiber.cancel.child();
     let state = match on_fail {
         None => ScopeState::fail_fast(node.clone()),
         Some(h) => ScopeState::supervise(node.clone(), h, t.world.handler_requests.clone()),
@@ -518,7 +518,7 @@ pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> F
     let handle = Value::Scope(Rc::new(ScopeHandle {
         state: state.clone(),
     }));
-    let outer = std::mem::replace(&mut t.cancel, node.clone());
+    let outer = std::mem::replace(&mut t.fiber.cancel, node.clone());
     t.push_arg(handle);
     Flow::Call(
         Box::new(Scope {
@@ -558,7 +558,7 @@ impl Scope {
     /// The body came to `r`: back under the opener's node, and the
     /// children are waited for.
     fn body_ended(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
-        t.cancel = self.outer.take().expect("the opener's node");
+        t.fiber.cancel = self.outer.take().expect("the opener's node");
         if r.is_err() {
             self.node.cancel();
         }
@@ -574,7 +574,7 @@ impl Scope {
         if self.state.live.get() == 0 {
             return self.closed(t, r);
         }
-        let own = std::mem::replace(&mut t.cancel, CancelNode::root());
+        let own = std::mem::replace(&mut t.fiber.cancel, CancelNode::root());
         self.watch(t);
         self.draining = Some(Draining { r, own });
         Ok(Next::Park(Wake::default()))
@@ -582,7 +582,7 @@ impl Scope {
 
     /// Registers the task to be woken when a child ends.
     fn watch(&self, t: &mut Task<'_>) {
-        let me = t.waiter.clone();
+        let me = t.fiber.waiter.clone();
         me.take_woken();
         self.state.waiters.borrow_mut().add(&me);
     }
@@ -603,7 +603,7 @@ impl Scope {
         }
         if let Policy::Supervise(sv) = &state.policy
             && !state.node.is_cancelled()
-            && !t.cancel.is_cancelled()
+            && !t.fiber.cancel.is_cancelled()
             && !sv.queue.borrow().is_empty()
         {
             self.handling = Some(r);
@@ -617,7 +617,7 @@ impl Scope {
         let Policy::Supervise(sv) = &self.state.policy else {
             unreachable!("handling outside a supervise scope")
         };
-        if !t.cancel.is_cancelled()
+        if !t.fiber.cancel.is_cancelled()
             && let Some(f) = sv.on_fail.borrow().clone()
             && let Some((e, _)) = sv.queue.borrow_mut().pop_front()
         {
@@ -660,7 +660,7 @@ impl Scope {
         }
         // Out of the opener's node's list: nothing runs below it any more.
         node.cancel();
-        let outer = t.cancel.is_cancelled().then(|| t.unwound());
+        let outer = t.fiber.cancel.is_cancelled().then(|| t.unwound());
         settle(state, r, &self.opened_at, outer).map(Next::Done)
     }
 }
@@ -679,7 +679,7 @@ impl Cont for Scope {
             self.draining = Some(d);
             return Ok(Next::Park(Wake::default()));
         }
-        t.cancel = d.own;
+        t.fiber.cancel = d.own;
         self.closed(t, d.r)
     }
 
@@ -691,7 +691,7 @@ impl Cont for Scope {
             return self.body_ended(t, Err(stop));
         };
         debug_assert!(false, "a scope's wait ended early");
-        t.cancel = d.own;
+        t.fiber.cancel = d.own;
         Err(stop)
     }
 }

@@ -9,10 +9,8 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use fung_front::diag::Arg;
-
 use crate::native::nat::{self, native, native_step, opt, param};
-use crate::value::{Lit, Native, NativeFn, StepFn, Value, format};
+use crate::value::{Lit, Native, NativeFn, StepFn, Value};
 use crate::vm::channel::{self, Channel, Received, RecvWait, SendWait, Try};
 use crate::vm::{Cont, Flow, Next, Stop, Task, Wake, err_kind, park_until, park_until_then};
 
@@ -27,7 +25,7 @@ fn all() -> Vec<(&'static str, Value)> {
             let tables: Vec<(&'static str, Vec<_>)> = vec![
                 ("sleep", vec![param("d")]),
                 ("scope", vec![param("f")]),
-                ("timeout", vec![param("d"), param("f")]),
+                ("timeout", vec![param("f"), param("d")]),
                 ("atom", vec![param("v")]),
                 ("deref", vec![param("a")]),
                 ("swap", vec![param("a"), param("f")]),
@@ -43,10 +41,10 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("channel", vec![opt("n", Lit::Int(0))]),
                 ("send", vec![param("tx"), param("v")]),
                 ("recv", vec![param("rx")]),
-                ("try_send", vec![param("tx"), param("v")]),
-                ("try_recv", vec![param("rx")]),
+                ("send_now", vec![param("tx"), param("v")]),
+                ("recv_now", vec![param("rx")]),
                 ("wait_closed", vec![param("rx")]),
-                ("close", vec![param("tx")]),
+                ("close", vec![param("x")]),
                 ("stop_signal", vec![]),
                 ("request_stop", vec![]),
             ];
@@ -64,6 +62,7 @@ fn all() -> Vec<(&'static str, Value)> {
                         "timeout" => Some(timeout),
                         "swap" => Some(swap),
                         "with" => Some(with),
+                        "close" => Some(close),
                         _ => None,
                     };
                     if let Some(step) = step {
@@ -76,9 +75,8 @@ fn all() -> Vec<(&'static str, Value)> {
                         "spawn" => spawn,
                         "cancel" => cancel,
                         "channel" => channel_fn,
-                        "close" => close,
-                        "try_send" => try_send,
-                        "try_recv" => try_recv,
+                        "send_now" => send_now,
+                        "recv_now" => recv_now,
                         "stop_signal" => crate::vm::stop::stop_signal,
                         "request_stop" => crate::vm::stop::request_stop,
                         _ => unreachable!("no native {name}"),
@@ -129,15 +127,18 @@ fn scope(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
     Ok(crate::vm::run_scope(t, f, None))
 }
 
-/// `timeout(d, f)`: runs `f()` with a deadline `d` from now
+/// `timeout(f, d)`: runs `f()` with a deadline `d` from now
 /// (`vm/deadline.rs`).
 fn timeout(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+    // The function comes first, the duration second, as every native puts
+    // what it works on first (SP10).
+    let d = args.pop().expect("d");
     let f = args.pop().expect("f");
-    let d = match args.pop().expect("d") {
+    nat::need_fn("f", &f)?;
+    let d = match d {
         Value::Dur(d) => d,
         v => return Err(nat::wrong_arg("d", "dur", &v)),
     };
-    nat::need_fn("f", &f)?;
     Ok(crate::vm::run_timeout(t, d, f))
 }
 
@@ -248,14 +249,7 @@ fn channel_fn(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
                 Value::Receiver(Rc::new(rx)),
             ]))
         }
-        v => Err(nat::fail(
-            "E0403",
-            vec![
-                nat::s("n"),
-                nat::s("a non-negative int"),
-                Arg::Str(format(v)),
-            ],
-        )),
+        v => Err(nat::not_count("n", v)),
     }
 }
 
@@ -373,10 +367,10 @@ impl Cont for RecvK {
     }
 }
 
-/// `try_recv(rx)` (L3): what `recv` would take without waiting: `Ok(v)`,
+/// `recv_now(rx)` (L3, SP10): what `recv` would take without waiting: `Ok(v)`,
 /// `Err({kind: 'empty, …})` while the channel is open with nothing to
 /// take, or `Err({kind: 'closed, …})` once it is closed and empty.
-fn try_recv(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn recv_now(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
     let Value::Receiver(end) = &args[0] else {
         return Err(nat::wrong_arg("rx", "receiver", &args[0]));
     };
@@ -385,11 +379,11 @@ fn try_recv(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
         .map_or_else(|| err_kind("empty", "channel empty"), received_value))
 }
 
-/// `try_send(tx, v)` (L3): what `send` would do without waiting:
+/// `send_now(tx, v)` (L3, SP10): what `send` would do without waiting:
 /// `Ok(nil)` once handed to a waiting receiver or the buffer,
 /// `Err({kind: 'full, …})` when it would wait, `Err({kind: 'closed, …})`
 /// on a closed channel. E0705 and E0709 as `send`.
-fn try_send(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn send_now(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
     let v = args.pop().expect("v");
     refuse_cycle(need_sender(&args[0])?, &v)?;
     let Value::Sender(end) = &args[0] else {
@@ -423,7 +417,15 @@ fn wait_closed(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `close(tx)`: `Ok(nil)`, also on a closed channel. It closes for every
 /// copy of the end.
-fn close(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
-    need_sender(&args[0])?.close();
-    Ok(nat::ok(Value::Nil))
+fn close(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+    // One `close` for what can be closed (SP10): a file handle closes on
+    // the pool, as `fs` did; a channel's sending end closes here.
+    match &args[0] {
+        Value::File(_) => crate::native::fs::close_fn(t, args),
+        Value::Sender(e) => {
+            e.0.close();
+            Ok(Flow::Done(nat::ok(Value::Nil)))
+        }
+        v => Err(nat::wrong_arg("x", "sender | file", v)),
+    }
 }

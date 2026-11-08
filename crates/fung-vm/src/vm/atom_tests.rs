@@ -60,8 +60,8 @@ fn blocking_spawning_and_other_atoms_are_effects() {
     for (body, name) in [
         ("sleep(1ms)", "sleep"),
         ("recv(rx)", "recv"),
-        ("try_recv(rx)", "try_recv"),
-        ("try_send(_tx, 1)", "try_send"),
+        ("recv_now(rx)", "recv_now"),
+        ("send_now(_tx, 1)", "send_now"),
         ("wait_closed(rx)", "wait_closed"),
         ("scope(s => spawn(s, () => 1))", "spawn"),
         ("swap(b, y => y)", "swap"),
@@ -69,6 +69,9 @@ fn blocking_spawning_and_other_atoms_are_effects() {
         ("exit(0)", "exit"),
         ("sh(\"true\")", "sh"),
         ("eprint(1)", "eprint"),
+        ("dbg(1)", "dbg"),
+        ("1 |> dbg", "dbg"),
+        ("[1] |> map(dbg)", "dbg"),
     ] {
         let src = format!(
             "(_tx, rx) = channel()\na = atom(1)\nb = atom(2)\nswap(a, fn(x): {body}; x ;;)"

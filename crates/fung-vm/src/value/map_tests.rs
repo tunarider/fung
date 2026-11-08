@@ -48,7 +48,7 @@ fn range(start: i64, end: i64, inclusive: bool) -> Value {
 fn tag(name: &str, args: Vec<Value>) -> Value {
     Value::Tag(Rc::new(Tag {
         name: intern(name),
-        args,
+        args: args.into(),
     }))
 }
 
@@ -927,4 +927,44 @@ fn contains_cases() {
             "cannot test membership in a value of type int".into()
         )
     );
+}
+
+/// A map only its holder sees is compacted once dead entries outnumber
+/// live ones (removal stays cheap along a line of versions). A shared one
+/// keeps its dead entries up to a much higher bound: compacting copies the
+/// whole map, and a version left at the bound would copy it again on
+/// every removal (VA1).
+#[test]
+fn only_a_map_held_alone_is_compacted_early() {
+    let mut m = Map::new();
+    for i in 0..40 {
+        m.put(key(&format!("k{i}")), Value::Int(i));
+    }
+    for i in 0..20 {
+        assert!(m.remove(&format!("k{i}")));
+    }
+    assert_eq!((m.len(), m.slots()), (20, 40));
+    // The next removal, by the holder alone, compacts.
+    let mut alone = m.clone();
+    assert!(alone.remove("k20"));
+    assert_eq!((alone.len(), alone.slots()), (19, 19));
+    // A shared version does not: each removal from it is cheap.
+    for i in 20..40 {
+        let mut shared = m.clone();
+        assert!(shared.remove_shared(&format!("k{i}")));
+        assert_eq!((shared.len(), shared.slots()), (19, 40));
+        assert!(shared.get(&format!("k{i}")).is_none());
+    }
+    // Far past the bound (dead > 4 * live + 64) a shared map compacts too.
+    let mut s = Map::new();
+    for i in 0..200 {
+        s.put(key(&format!("k{i}")), Value::Int(i));
+    }
+    for i in 0..180 {
+        assert!(s.remove_shared(&format!("k{i}")));
+    }
+    assert_eq!(s.len(), 20);
+    assert!(s.slots() < 200, "compacted: {}", s.slots());
+    let first = s.iter().next().map(|(k, _)| k.lossy().into_owned());
+    assert_eq!(first.as_deref(), Some("k180"));
 }

@@ -144,24 +144,27 @@ fung의 파이프라인은 "렉서 → 파서 → 균일 트리 → 코어 언�
 - 크레이트(Rust의 빌드 단위) 셋: `crates/fung-front`(앞단과 컴파일러, 외부 크레이트 0개), `crates/fung-vm`(값과 VM과 런타임), `crates/fung-cli`(실행 파일 `fung`).
 
 :::exercise 단계 하나씩 보기
-`print(1 + 2 * 3)` 한 줄을 파일에 저장하고 `fung dump ast`, `fung dump core`, `fung dump bytecode`로 세 단계를 찍어 보자. 트리 안에서 `*`가 `+`보다 안쪽에 있는가? 바이트코드에서 `MUL`과 `ADD` 중 어느 것이 먼저 나오는가?
+`a = 2`와 `print(1 + a * 3)` 두 줄을 파일에 저장하고 `fung dump ast`, `fung dump core`, `fung dump bytecode`로 세 단계를 찍어 보자. 트리 안에서 `*`가 `+`보다 안쪽에 있는가? 바이트코드에서 `MUL`과 `ADD` 중 어느 것이 먼저 나오는가?
 
 :::solution
 실행 결과는 7이다.
 
 ```fung run
-print(1 + 2 * 3)
+a = 2
+print(1 + a * 3)
 ```
 
 ```dump ast
-print(1 + 2 * 3)
+a = 2
+print(1 + a * 3)
 ```
 
 ```dump bytecode
-print(1 + 2 * 3)
+a = 2
+print(1 + a * 3)
 ```
 
-트리에서 `(binary * 2 3)`이 `(binary + 1 …)`의 자식이다. 곱셈이 먼저 묶였다는 뜻이다. 바이트코드도 `MUL`이 `ADD`보다 먼저 나온다. 트리의 안쪽부터 계산하기 때문이다. 이 순서가 어떻게 정해지는지는 4장(우선순위)과 8장(스택 머신)에서 본다.
+트리에서 `(binary * a 3)`이 `(binary + 1 …)`의 자식이다. 곱셈이 먼저 묶였다는 뜻이다. 바이트코드도 `MUL`이 `ADD`보다 먼저 나온다. 트리의 안쪽부터 계산하기 때문이다. `a` 대신 `2`를 쓰면 `MUL`도 `ADD`도 없이 `CONST`(7) 하나만 나온다. 컴파일러가 수로만 된 계산을 미리 해 두기 때문이다(상수 접기, 8장). 이 순서가 어떻게 정해지는지는 4장(우선순위)과 8장(스택 머신)에서 본다.
 :::
 
 :::

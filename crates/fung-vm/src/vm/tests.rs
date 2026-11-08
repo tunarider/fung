@@ -87,7 +87,7 @@ fn a_tail_call_into_the_library_keeps_the_callers_place() {
     );
     assert!(
         err.contains(
-            "   extras/prelude.fung:90 take\n   -e:2       firsts\n   -e:5       main\n   -e:8       <entry>\n"
+            "   extras/prelude.fung:109 take\n   -e:2       firsts\n   -e:5       main\n   -e:8       <entry>\n"
         ),
         "{err}"
     );
@@ -176,6 +176,159 @@ fn evaluates_expressions() {
             (o.code.as_str(), o.value.as_deref()),
             ("", Some(want)),
             "{src:?}"
+        );
+    }
+}
+
+/// The run loop's int paths (VM9) give what the value layer gives: the
+/// floor of a quotient and a remainder with the divisor's sign, and zero
+/// and overflow end in the same errors. The operands come from a call so
+/// no constant is folded.
+#[test]
+fn int_operators_agree_with_the_value_layer() {
+    let cases = [
+        ("a // b", 7, 2, "3"),
+        ("a // b", -7, 2, "-4"),
+        ("a // b", 7, -2, "-4"),
+        ("a // b", -7, -2, "3"),
+        ("a % b", -7, 2, "1"),
+        ("a % b", 7, -2, "-1"),
+        ("a % b", -7, -2, "-1"),
+        ("a % b", i64::MIN, -1, "0"),
+        ("a == b", 3, 3, "true"),
+        ("a != b", 3, 3, "false"),
+        ("a == b", 3, 4, "false"),
+        ("a < b", 3, 4, "true"),
+        ("a >= b", 3, 4, "false"),
+        ("a - b", 3, 4, "-1"),
+    ];
+    for (op, a, b, want) in cases {
+        let src = format!("fn f(a, b) = {op}\nf({a}, {b})");
+        let o = exec(&src, Opts::default());
+        assert_eq!(
+            (o.code.as_str(), o.value.as_deref()),
+            ("", Some(want)),
+            "{op} {a} {b}"
+        );
+    }
+    for (op, a, b, code) in [
+        ("a // b", 1, 0, "E0502"),
+        ("a % b", 1, 0, "E0502"),
+        ("a // b", i64::MIN, -1, "E0503"),
+        ("a + b", i64::MAX, 1, "E0503"),
+    ] {
+        let src = format!("fn f(a, b) = {op}\nf({a}, {b})");
+        assert_eq!(code_of(&src), code, "{op} {a} {b}");
+    }
+}
+
+/// Defaults, named arguments and a rest parameter bound where the
+/// arguments lie (VM6): in a call, a tail call and a native's callback,
+/// with the errors of the general binding.
+#[test]
+fn arguments_bind_in_place() {
+    let defs = "fn f(a, b = 10, c = a + b, ...r) = [a, b, c, r]\n\
+                fn t(n, acc = 0) = n == 0 then acc else t(n - 1, acc: acc + n)\n\
+                fn g(x, y = 1) = x * y\n";
+    let cases = [
+        ("f(1)", "[1, 10, 11, []]"),
+        ("f(1, 2)", "[1, 2, 3, []]"),
+        ("f(1, 2, 3, 4, 5)", "[1, 2, 3, [4, 5]]"),
+        ("f(1, c: 7)", "[1, 10, 7, []]"),
+        ("f(b: 2, a: 1)", "[1, 2, 3, []]"),
+        ("t(100)", "5050"),
+        ("t(3, acc: 1)", "7"),
+        ("map([1, 2], g)", "[1, 2]"),
+        ("fn h(...xs) = xs\nh(1, 2)", "[1, 2]"),
+        ("fn h(...xs) = xs\nh()", "[]"),
+    ];
+    for (src, want) in cases {
+        let o = exec(&format!("{defs}{src}"), Opts::default());
+        assert_eq!(
+            (o.code.as_str(), o.value.as_deref()),
+            ("", Some(want)),
+            "{src}"
+        );
+    }
+    for (src, code) in [
+        ("f()", "E0407"),
+        ("f(1, d: 2)", "E0406"),
+        ("f(1, a: 2)", "E0405"),
+        ("g(1, 2, 3)", "E0402"),
+        ("fn k(a, b) = a\nk(b: 1)", "E0407"),
+    ] {
+        assert_eq!(code_of(&format!("{defs}{src}")), code, "{src}");
+    }
+}
+
+/// The leaner code of VM10 means what it meant: a subject read in place,
+/// arms that always match, `and`/`or` as jumps (errors at the same
+/// places), a statement `if` without `else`, returns in tail branches and
+/// after `?`, and folded constants.
+#[test]
+fn leaner_code_keeps_its_meaning() {
+    let cases = [
+        // A pattern that fails part way after binding the subject's own
+        // name: the next arm still sees the subject.
+        (
+            "fn f(m) = match m:\n  [m] when m > 5 => \"big\"\n  [m] => \"small ${m}\"\n  _ => \"other\"\n;;\nf([3])",
+            "\"small 3\"",
+        ),
+        (
+            "fn f(x) = match x:\n  (1, y) => y\n  (a, b) => a + b\n;;\nf((2, 5))",
+            "7",
+        ),
+        (
+            "fn f(x) = match x:\n  0 => \"z\"\n  n => n * 2\n;;\nf(4)",
+            "8",
+        ),
+        ("fn f(x) = match x:\n  _ => 1\n  _ => 2\n;;\nf(4)", "1"),
+        (
+            "x = [1, 2]\nmatch x:\n  [a] => a\n  all => len(all)\n;;",
+            "2",
+        ),
+        ("a = 1\nb = 2\na < b and b < 3", "true"),
+        ("a = 1\nif a > 1 or a == 1: \"y\" else: \"n\" ;;", "\"y\""),
+        ("a = 1\nif a > 1 and 1 / 0 == 1: 1 else: 2 ;;", "2"),
+        ("a = 1\nif a == 1 or 1 / 0 == 1: 1 else: 2 ;;", "1"),
+        (
+            "fn f(r) = Ok(r? + 1)\n[f(Ok(1)), f(Err(2))]",
+            "[Ok(2), Err(2)]",
+        ),
+        ("fn f(c) = c then 1 else 2\nf(true) + f(false)", "3"),
+        ("fn f(x) = x ?? 9\n(f(nil), f(Ok(1)))", "(9, 1)"),
+        (
+            "[1 + 2 * 3, -4, 7 // -2, 0..=2, 1.5 * 2]",
+            "[7, -4, -4, 0..=2, 3.0]",
+        ),
+    ];
+    for (src, want) in cases {
+        let o = exec(src, Opts::default());
+        assert_eq!(
+            (o.code.as_str(), o.value.as_deref()),
+            ("", Some(want)),
+            "{src}"
+        );
+    }
+    for (src, code, at) in [
+        ("x = 5\nif x and true: 1 else: 2 ;;", "E0505", "-e:2:4"),
+        ("x = 5\nif true and x: 1 else: 2 ;;", "E0505", "-e:2:13"),
+        ("x = 5\nif false or x: 1 else: 2 ;;", "E0505", "-e:2:13"),
+        ("x = 5\ny = true and x", "E0505", "-e:2:14"),
+        ("fn f() = Err(1)\nif true: f() ;;\n1", "E0606", "-e:2:1"),
+        (
+            "fn f(c) -> int = c then 1 else \"s\"\nf(false)",
+            "E0404",
+            "-e:1:16",
+        ),
+        ("fn f(r) -> int = r? + 1\nf(Err(1))", "E0404", "-e:1:19"),
+        ("print(9223372036854775807 + 1)", "E0503", "-e:1:27"),
+        ("print(1 // 0)", "E0502", "-e:1:9"),
+    ] {
+        let (_, err, _) = run_src(src);
+        assert!(
+            err.starts_with(&format!("error[{code}]")) && err.contains(at),
+            "{src}: {err}"
         );
     }
 }
@@ -802,7 +955,7 @@ fn dropping_a_deep_closure_chain_does_not_overflow() {
             for _ in 0..1_000_000 {
                 v = Value::Closure(Rc::new(Closure {
                     proto: proto.clone(),
-                    captured: vec![v],
+                    captured: vec![v].into(),
                     globals: globals.clone(),
                 }));
             }
@@ -846,7 +999,7 @@ fn elided_tail_calls_count_past_u32() {
     );
     let mut t = rt.task();
     let globals = t.world.new_globals(0);
-    t.frames.push(super::frame::Frame {
+    t.fiber.frames.push(super::frame::Frame {
         proto: main,
         ip: 1,
         base: 0,
@@ -856,7 +1009,7 @@ fn elided_tail_calls_count_past_u32() {
         entry: None,
         tail_from: None,
     });
-    t.frames[0].tail_calls += 1;
+    t.fiber.frames[0].tail_calls += 1;
     let path = t.call_path();
     drop(t); // releases the world borrow for `rt.sources()`
     assert_eq!(path[0].elided, 4_294_967_296);

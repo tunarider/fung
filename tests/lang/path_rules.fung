@@ -4,3 +4,7 @@ print(path.ext(".hidden") == "", path.stem(".hidden"), path.ext("a.tar.gz"), pat
 # expect: true .hidden .gz a.tar .b
 print(path.join("a", "/c"), path.join("a/./b/", ".."), path.base(""))
 # expect: a/c a .
+# A trailing `/` is ignored everywhere: `stem + ext == base`, and `dir`
+# is the shell's `dirname` (LB19).
+print(path.dir("a/b/"), path.base("a/b/"), path.ext("dir.d/"), path.stem("dir.d/"))
+# expect: a b .d dir

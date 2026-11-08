@@ -195,25 +195,30 @@ error[E0501]: cannot multiply str and int
 <li>크레이트(Rust의 빌드 단위) 셋: <code>crates/fung-front</code>(앞단과 컴파일러, 외부 크레이트 0개), <code>crates/fung-vm</code>(값과 VM과 런타임), <code>crates/fung-cli</code>(실행 파일 <code>fung</code>).</li>
 </ul>
 <div class="exercise"><b>단계 하나씩 보기</b>
-<p><code>print(1 + 2 * 3)</code> 한 줄을 파일에 저장하고 <code>fung dump ast</code>, <code>fung dump core</code>, <code>fung dump bytecode</code>로 세 단계를 찍어 보자. 트리 안에서 <code>*</code>가 <code>+</code>보다 안쪽에 있는가? 바이트코드에서 <code>MUL</code>과 <code>ADD</code> 중 어느 것이 먼저 나오는가?</p>
+<p><code>a = 2</code>와 <code>print(1 + a * 3)</code> 두 줄을 파일에 저장하고 <code>fung dump ast</code>, <code>fung dump core</code>, <code>fung dump bytecode</code>로 세 단계를 찍어 보자. 트리 안에서 <code>*</code>가 <code>+</code>보다 안쪽에 있는가? 바이트코드에서 <code>MUL</code>과 <code>ADD</code> 중 어느 것이 먼저 나오는가?</p>
 <details><summary>풀이 보기</summary>
 <p>실행 결과는 7이다.</p>
-<div class="run"><pre><code>print(1 + 2 * 3)</code></pre><pre class="out plain"><code>7</code></pre></div>
-<div class="run"><pre><code>print(1 + 2 * 3)</code></pre><pre class="out dump plain"><code>$ fung dump ast example.fung
-(program (call print (binary + 1 (binary * 2 3))))</code></pre></div>
-<div class="run"><pre><code>print(1 + 2 * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
+<div class="run"><pre><code>a = 2
+print(1 + a * 3)</code></pre><pre class="out plain"><code>7</code></pre></div>
+<div class="run"><pre><code>a = 2
+print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump ast example.fung
+(program (assign a 2) (call print (binary + 1 (binary * a 3))))</code></pre></div>
+<div class="run"><pre><code>a = 2
+print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode example.fung
 == &lt;main&gt; ==
-0000  1:1   CONST        0    ; &lt;fn print&gt;
-0001  1:7   CONST        1    ; 1
-0002  1:11  CONST        2    ; 2
-0003  1:15  CONST        3    ; 3
-0004  1:13  MUL
-0005  1:9   ADD
-0006  1:6   CALL         1    ; 1 positional, 0 named
-0007  1:1   POP
-0008  1:1   CONST        4    ; nil
-0009  1:1   RETURN</code></pre></div>
-<p>트리에서 <code>(binary * 2 3)</code>이 <code>(binary + 1 …)</code>의 자식이다. 곱셈이 먼저 묶였다는 뜻이다. 바이트코드도 <code>MUL</code>이 <code>ADD</code>보다 먼저 나온다. 트리의 안쪽부터 계산하기 때문이다. 이 순서가 어떻게 정해지는지는 4장(우선순위)과 8장(스택 머신)에서 본다.</p>
+0000  1:5   CONST        0    ; 2
+0001  1:1   STOREGLOBAL  0    ; a
+0002  2:1   CONST        1    ; &lt;fn print&gt;
+0003  2:7   CONST        2    ; 1
+0004  2:11  LOADGLOBAL   0    ; a
+0005  2:15  CONST        3    ; 3
+0006  2:13  MUL
+0007  2:9   ADD
+0008  2:6   CALL         1    ; 1 positional, 0 named
+0009  2:1   POP
+0010  2:1   CONST        4    ; nil
+0011  1:1   RETURN</code></pre></div>
+<p>트리에서 <code>(binary * a 3)</code>이 <code>(binary + 1 …)</code>의 자식이다. 곱셈이 먼저 묶였다는 뜻이다. 바이트코드도 <code>MUL</code>이 <code>ADD</code>보다 먼저 나온다. 트리의 안쪽부터 계산하기 때문이다. <code>a</code> 대신 <code>2</code>를 쓰면 <code>MUL</code>도 <code>ADD</code>도 없이 <code>CONST</code>(7) 하나만 나온다. 컴파일러가 수로만 된 계산을 미리 해 두기 때문이다(상수 접기, 8장). 이 순서가 어떻게 정해지는지는 4장(우선순위)과 8장(스택 머신)에서 본다.</p>
 </details>
 </div>
 <h2 id="summary">정리</h2>

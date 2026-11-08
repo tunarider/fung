@@ -109,7 +109,6 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: Mon, 01 Jan 2001 00:00:00 GMT\r
-| X-Nl: a b  c\r
 | X-Sp: d\r
 | Content-Length: 1\r
 | Connection: close\r
@@ -198,19 +197,14 @@
 | \r
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 103 Early Hints\r
+| HTTP/1.1 500 Internal Server Error\r
 | Content-Type: text/plain; charset=utf-8\r
-| Link: </a>\r
-| \r
-| HTTP/1.1 200 OK\r
-| Content-Type: text/plain; charset=utf-8\r
-| Link: </a>\r
+| X-Content-Type-Options: nosniff\r
 | Date: <date>\r
-| Content-Length: 1\r
+| Content-Length: 26\r
 | Connection: close\r
 | \r
-| x
-\ no newline
+| 500 Internal Server Error
 ==== request 13
 -- request (escaped)
 | GET /switch HTTP/1.1\r
@@ -309,10 +303,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 136\r
+| Content-Length: 147\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{"A":"+","a":"1","b":"x y","e":"","f":"","한":"한"},"headers":{"connection":"close"},"body":""}
+| {"method":"GET","path":"/echo","query":{"A":"+","a":"1","b":"x y","e":"","f":"","한":"한"},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 20
 -- request (escaped)
@@ -325,10 +319,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 95\r
+| Content-Length: 106\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo x/한/a+b","query":{},"headers":{"connection":"close"},"body":""}
+| {"method":"GET","path":"/echo x/한/a+b","query":{},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 21
 -- request (escaped)
@@ -341,10 +335,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 85\r
+| Content-Length: 96\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close"},"body":""}
+| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 22
 -- request (40050 bytes, fnv1a64 61ada038dd3837db)
@@ -353,23 +347,22 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 100\r
+| Content-Length: 111\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{"a":"1","b":"2"},"headers":{"connection":"close"},"body":""}
+| {"method":"GET","path":"/echo","query":{"a":"1","b":"2"},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 23
 -- request (40054 bytes, fnv1a64 a13d22c1a4402c7a)
 -- half close: no
 -- answer (escaped)
-| HTTP/1.1 200 OK\r
+| HTTP/1.1 400 Bad Request\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 85\r
+| Content-Length: 16\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close"},"body":""}
-\ no newline
+| 400 Bad Request
 ==== request 24
 -- request (escaped)
 | GET /echo HTTP/1.1\r
@@ -387,10 +380,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 181\r
+| Content-Length: 192\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"cache-control":"no-cache","connection":"close","pragma":"no-cache","x-empty":"","x-folded":"one two","x-foo":"a, b"},"body":""}
+| {"method":"GET","path":"/echo","query":{},"headers":{"cache-control":"no-cache","connection":"close","host":"x","pragma":"no-cache","x-empty":"","x-folded":"one two","x-foo":"a, b"},"body":""}
 \ no newline
 ==== request 25
 -- request (escaped)
@@ -403,10 +396,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 96\r
+| Content-Length: 107\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo/abs","query":{"q":"1"},"headers":{"connection":"close"},"body":""}
+| {"method":"GET","path":"/echo/abs","query":{"q":"1"},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 26
 -- request (escaped)
@@ -446,10 +439,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 85\r
+| Content-Length: 96\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close"},"body":""}
+| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 29
 -- request (escaped)
@@ -465,10 +458,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 112\r
+| Content-Length: 123\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"5"},"body":"hello"}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"5","host":"x"},"body":"hello"}
 \ no newline
 ==== request 30
 -- request (escaped)
@@ -484,7 +477,7 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 109\r
+| Content-Length: 120\r
 | Connection: close\r
 | \r
 ==== request 31
@@ -499,10 +492,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 107\r
+| Content-Length: 118\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"0"},"body":""}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"0","host":"x"},"body":""}
 \ no newline
 ==== request 32
 -- request (escaped)
@@ -515,10 +508,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 86\r
+| Content-Length: 97\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close"},"body":""}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":""}
 \ no newline
 ==== request 33
 -- request (escaped)
@@ -544,10 +537,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 92\r
+| Content-Length: 103\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close"},"body":"ab한c"}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":"ab한c"}
 \ no newline
 ==== request 34
 -- request (escaped)
@@ -564,10 +557,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 110\r
+| Content-Length: 121\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"3"},"body":"abc"}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"3","host":"x"},"body":"abc"}
 \ no newline
 ==== request 35
 -- request (escaped)
@@ -586,10 +579,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 133\r
+| Content-Length: 144\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"2","expect":"100-continue"},"body":"hi"}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"2","expect":"100-continue","host":"x"},"body":"hi"}
 \ no newline
 ==== request 36
 -- request (escaped)
@@ -603,10 +596,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 113\r
+| Content-Length: 124\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","expect":"100-Continue, x"},"body":""}
+| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","expect":"100-Continue, x","host":"x"},"body":""}
 \ no newline
 ==== request 37
 -- request (escaped)
@@ -649,13 +642,13 @@
 \ no newline
 -- half close: no
 -- answer (escaped)
-| HTTP/1.0 200 OK\r
+| HTTP/1.1 400 Bad Request\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 88\r
+| Content-Length: 16\r
+| Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"content-length":"2"},"body":"hi"}
-\ no newline
+| 400 Bad Request
 ==== request 40
 -- request (escaped)
 | GET /fail HTTP/1.1\r
@@ -2481,11 +2474,12 @@
 -- stderr
 | http: bad handler response: header `Connection` is the server's to set
 | http: bad handler response: header `Connection` is the server's to set
-| http: bad handler response: status 101 is not supported
+| http: bad handler response: `status` must be between 200 and 599, got 103
+| http: bad handler response: `status` must be between 200 and 599, got 101
 | http: handler failed: error[E0803]: bug GET
 | http: bad handler response: handler returned int, expected a str or a map
 | http: bad handler response: `status` must be int, got str
-| http: bad handler response: `status` must be between 100 and 599, got 600
+| http: bad handler response: `status` must be between 200 and 599, got 600
 | http: bad handler response: `body` must be str, got int
 | http: bad handler response: header `x-a` must be str, got int
 | http: bad handler response: header `Content-Length` is 3, but the body is 5 bytes

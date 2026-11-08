@@ -135,13 +135,27 @@ pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
             return Ok(Value::List(Rc::new(x.concat(y))));
         }
         (Value::Str(_) | Value::Dur(_) | Value::List(_) | Value::Time(_), _) => {
-            return Err(type_error("add", &type_name(a), &type_name(b)));
+            return Err(add_error(
+                type_error("add", &type_name(a), &type_name(b)),
+                a,
+                b,
+            ));
         }
         _ => {}
     }
-    match numeric("add", a, b)? {
+    match numeric("add", a, b).map_err(|d| add_error(d, a, b))? {
         Num::Floats(x, y) => finite(x + y),
         Num::Ints(x, y) => x.checked_add(y).map(Value::Int).ok_or_else(overflow),
+    }
+}
+
+/// A `+` of text and another value says how to join them (SP7): there is
+/// no implicit conversion, and this is the type error met most often.
+fn add_error(d: Diag, a: &Value, b: &Value) -> Diag {
+    if matches!(a, Value::Str(_)) != matches!(b, Value::Str(_)) {
+        d.with_help("put the value into the text with `\"${…}\"`, or convert it with `str(…)`")
+    } else {
+        d
     }
 }
 
@@ -208,7 +222,7 @@ fn dur_ratio(x: i64, y: i64) -> Result<Value, Diag> {
 }
 
 /// `//` on ints, by the floor rule (07); `y` is not zero.
-fn floor_div_i64(x: i64, y: i64) -> Result<i64, Diag> {
+pub(crate) fn floor_div_i64(x: i64, y: i64) -> Result<i64, Diag> {
     if x == i64::MIN && y == -1 {
         return Err(overflow());
     }
@@ -220,7 +234,7 @@ fn floor_div_i64(x: i64, y: i64) -> Result<i64, Diag> {
 }
 
 /// `%` on ints, paired with `floor_div_i64`; `y` is not zero.
-fn rem_i64(x: i64, y: i64) -> i64 {
+pub(crate) fn rem_i64(x: i64, y: i64) -> i64 {
     if x == i64::MIN && y == -1 {
         return 0;
     }
@@ -309,8 +323,17 @@ fn float_divmod(x: f64, y: f64) -> (f64, f64) {
 }
 
 /// `**`: int ** non-negative int stays int (checked), otherwise float.
+/// Zero to a negative power is a division by zero (E0502, VA14).
 pub fn pow(a: &Value, b: &Value) -> Result<Value, Diag> {
-    match numeric("raise", a, b)? {
+    let n = numeric("raise", a, b)?;
+    let (base_zero, exp_negative) = match n {
+        Num::Floats(x, y) => (x == 0.0, y < 0.0),
+        Num::Ints(x, y) => (x == 0, y < 0),
+    };
+    if base_zero && exp_negative {
+        return Err(divzero());
+    }
+    match n {
         Num::Floats(x, y) => finite(x.powf(y)),
         Num::Ints(x, y) if y < 0 => finite((x as f64).powf(y as f64)),
         Num::Ints(base, exp) => {

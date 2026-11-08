@@ -126,7 +126,26 @@ impl Map {
     /// Removes `k`; returns whether it was there (the map is unchanged
     /// otherwise). A removed key put again comes back at the end.
     pub fn remove<K: AsRef<[u8]> + ?Sized>(&mut self, k: &K) -> bool {
-        let k = k.as_ref();
+        self.remove_from(k.as_ref(), false)
+    }
+
+    /// [`Map::remove`] on a copy of a version that something else still
+    /// holds: a big map keeps its removed entries much longer before it
+    /// is rebuilt (`Omap::remove`, VA1).
+    pub fn remove_shared<K: AsRef<[u8]> + ?Sized>(&mut self, k: &K) -> bool {
+        self.remove_from(k.as_ref(), true)
+    }
+
+    /// Entry slots of a big map, the removed ones included.
+    #[cfg(test)]
+    pub(crate) fn slots(&self) -> usize {
+        match &self.repr {
+            Repr::Flat(es) => es.len(),
+            Repr::Big(o) => o.slots(),
+        }
+    }
+
+    fn remove_from(&mut self, k: &[u8], shared: bool) -> bool {
         match &mut self.repr {
             Repr::Flat(es) => match es.iter().position(|(key, _)| key.as_bytes() == k) {
                 Some(i) => {
@@ -136,7 +155,7 @@ impl Map {
                 None => false,
             },
             Repr::Big(o) => {
-                if !o.remove(k) {
+                if !o.remove(k, shared) {
                     return false;
                 }
                 if o.len() <= SMALL_MAP_MAX {

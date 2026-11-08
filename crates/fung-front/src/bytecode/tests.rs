@@ -33,6 +33,37 @@ fn encode_round_trip() {
     }
 }
 
+/// An operand wider than 24 bits is E0230, not cut short (VM11): at the
+/// first such instruction, naming what there were too many of.
+#[test]
+fn an_operand_past_24_bits_is_e0230() {
+    let mut p = main_proto();
+    p.emit(Op::Const, MAX_OPERAND, pos(1, 1));
+    p.emit(Op::Jump, 0, pos(2, 1));
+    assert!(p.check_operands().is_ok());
+    p.emit(Op::Const, MAX_OPERAND + 1, pos(3, 4));
+    p.emit(Op::LoadLocal, MAX_OPERAND + 1, pos(4, 1));
+    let e = p.check_operands().unwrap_err();
+    assert_eq!(e.code, "E0230");
+    assert_eq!((e.pos.line, e.pos.col), (3, 4));
+    assert_eq!(
+        e.args,
+        [
+            crate::diag::Arg::Str("constants in a function".into()),
+            crate::diag::Arg::Int(MAX_OPERAND as i64)
+        ]
+    );
+    let mut p = main_proto();
+    let j = p.emit(Op::Jump, 0, pos(5, 2));
+    p.patch(j, MAX_OPERAND + 1);
+    let e = p.check_operands().unwrap_err();
+    assert_eq!((e.pos.line, e.pos.col), (5, 2));
+    assert_eq!(
+        e.args[0],
+        crate::diag::Arg::Str("instructions in a function".into())
+    );
+}
+
 #[test]
 fn proto_emit_patch_and_const_dedup() {
     let mut p = main_proto();

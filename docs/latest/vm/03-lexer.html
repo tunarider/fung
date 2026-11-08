@@ -152,7 +152,7 @@
   |         ^
   |</code></pre></div>
 <p>복합 기간은 큰 단위부터 써야 한다. <code>30m1h</code>는 <code>E0105</code>(malformed duration)다.</p>
-<p>음수는 토큰이 아니다. <code>-3</code>은 <code>-</code> 토큰과 <code>3</code> 토큰이고, 파서가 이것을 "3에 단항 마이너스"로 묶는다. 8장의 바이트코드에서 <code>CONST 3</code> 다음에 <code>NEG</code>가 나오는 것이 그 흔적이다. 예외는 가장 작은 정수 <code>-9223372036854775808</code> 하나다. 크기 <code>9223372036854775808</code>은 64비트 정수에 들어가지 않으므로, 렉서는 이 값만 특별히 표시해 두고 파서가 바로 앞의 <code>-</code>와 접어 허용한다.</p>
+<p>음수는 토큰이 아니다. <code>-3</code>은 <code>-</code> 토큰과 <code>3</code> 토큰이고, 파서가 이것을 "3에 단항 마이너스"로 묶는다. 변수에 붙인 <code>-x</code>가 8장의 바이트코드에서 <code>x</code>를 올린 뒤 <code>NEG</code>가 되는 것이 그 흔적이다(<code>-3</code>처럼 수에 붙으면 컴파일러가 미리 접어 상수 하나가 된다). 예외는 가장 작은 정수 <code>-9223372036854775808</code> 하나다. 크기 <code>9223372036854775808</code>은 64비트 정수에 들어가지 않으므로, 렉서는 이 값만 특별히 표시해 두고 파서가 바로 앞의 <code>-</code>와 접어 허용한다.</p>
 <h3 id="strings">문자열과 보간</h3>
 <p><code>&quot;</code>를 만나면 닫는 <code>&quot;</code>까지 읽으며 이스케이프(<code>\n</code>, <code>\t</code>, <code>\&quot;</code> …)를 해석한다. 모르는 이스케이프는 에러다. <code>&quot;C:\new&quot;</code> 같은 함정을 잡으려는 엄격한 규칙이다(설계 문서 01). 리터럴의 값은 글자가 아니라 바이트로 모은다. <code>\xHH</code>가 바이트 하나를 넣으므로 값이 UTF-8이 아닐 수 있기 때문이다(<code>&quot;\xff&quot;</code>). 그런 리터럴은 트리에서 <code>Lit::Bytes</code>, 상수표에서 <code>Const::Bytes</code>가 되고, 나머지는 지금처럼 텍스트다.</p>
 <p>보간 <code>${…}</code>이 까다롭다. <code>&quot;got ${m[&quot;k&quot;]}&quot;</code>에서 안쪽의 <code>&quot;</code>가 바깥 문자열을 끝내면 안 된다. 렉서는 <code>${</code>를 만나면 중괄호 깊이를 세며 코드 부분을 건너뛰고, 그 안에서 <code>&quot;</code>를 만나면 안쪽 문자열 하나를 통째로 건너뛴다. 그리고 문자열 토큰 하나에 <strong>조각들</strong>을 담는다. <code>&quot;host ${name}!&quot;</code>의 토큰에는 세 조각이 들어 있다.</p>

@@ -58,7 +58,7 @@ fn with_temp_dir_leaves_nothing_when_cut_right_after_acquiring() {
     let (out, err, code) = fung(
         &[
             "-e",
-            "import fs\nprint(timeout(1ms, fn(): s = repeat(\"x\", 100000000); fs.with_temp_dir(d => 1) ;;))",
+            "import fs\nprint(timeout(fn(): s = repeat(\"x\", 100000000); fs.with_temp_dir(d => 1) ;;, 1ms))",
         ],
         &tmp.0,
     );
@@ -106,7 +106,7 @@ fn exit_does_not_wait_for_an_abandoned_job() {
         &[
             "-e",
             &format!(
-                "import fs\nprint(timeout(50ms, () => fs.read(\"{}\")))",
+                "import fs\nprint(timeout(() => fs.read(\"{}\"), 50ms))",
                 f.display()
             ),
         ],

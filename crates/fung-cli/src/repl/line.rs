@@ -17,27 +17,34 @@ const BUFFER: usize = 4096;
 /// Supplies one line per call; `None` ends the session.
 pub trait LineReader {
     fn read_line(&mut self, prompt: &str) -> Option<String>;
+
+    /// Whether a person types the lines (a terminal): then the prompts
+    /// are shown and the session's end gets a newline.
+    fn interactive(&self) -> bool {
+        true
+    }
 }
 
-/// Lines without editing: pipes, files, tests (08). The prompt is
-/// echoed.
-pub struct PlainReader<R: Read, W: Write> {
+/// Lines without editing: pipes, files, tests (08). No prompt is
+/// written (TL3): standard output holds only what the inputs print.
+pub struct PlainReader<R: Read> {
     input: BufReader<R>,
-    out: W,
 }
 
-impl<R: Read, W: Write> PlainReader<R, W> {
-    pub fn new(input: R, out: W) -> Self {
+impl<R: Read> PlainReader<R> {
+    pub fn new(input: R) -> Self {
         PlainReader {
             input: BufReader::with_capacity(BUFFER, input),
-            out,
         }
     }
 }
 
-impl<R: Read, W: Write> LineReader for PlainReader<R, W> {
-    fn read_line(&mut self, prompt: &str) -> Option<String> {
-        let _ = self.out.write_all(prompt.as_bytes());
+impl<R: Read> LineReader for PlainReader<R> {
+    fn interactive(&self) -> bool {
+        false
+    }
+
+    fn read_line(&mut self, _prompt: &str) -> Option<String> {
         let mut line = Vec::new();
         // a read error ends the input like its end
         let _ = self.input.read_until(b'\n', &mut line);
@@ -313,11 +320,10 @@ mod tests {
 
     #[test]
     fn plain_reader_trims_one_line_ending() {
-        let mut out = Vec::new();
-        let mut r = PlainReader::new(&b"a\r\r\nb\n\nc"[..], &mut out);
+        let mut r = PlainReader::new(&b"a\r\r\nb\n\nc"[..]);
         let lines: Vec<_> = std::iter::from_fn(|| r.read_line("> ")).collect();
         assert_eq!(lines, ["a\r", "b", "", "c"]);
-        assert_eq!(out, b"> > > > > ");
+        assert!(!r.interactive());
     }
 
     #[test]

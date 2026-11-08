@@ -61,12 +61,13 @@ a = 1; v = 2; fn myfun(a, v): somefn(a); somefn(v); ;;
 
 1. **줄이 식을 끝낼 수 없는 토큰으로 끝날 때**: 모든 이항 연산자
    (`+ - * / // % ** == != < > <= >= in ?? |> .. ..= and or`), `not`, `,`, `=`, `=>`, `->`, `.`,
-   여는 괄호 `( [ {`, 블록 시작 `:`.
+   패턴 대안과 타입 유니온의 `|`, `for` 머리의 `in`, 여는 괄호 `( [ {`, 블록 시작 `:`(FE7, 2026-11-08: `in`·`|`가 빠져 있던 것을 고침).
 2. **다음 줄이 이어짐 전용 토큰으로 시작할 때**: `|>` `.` `??` `and` `or` `then` `else`.
    이 토큰들은 문장을 시작할 수 없으므로 모호함이 없다 (`.5` 같은 숫자를 불허한 이유).
 3. **`( ) [ ] { }` 안**: 줄바꿈은 공백. 단, 괄호 안에서 `fn(f):`처럼 블록이 열리면
    그 `;;`까지는 줄바꿈이 다시 문장 구분자다. 패턴의 괄호, 람다 매개변수 목록, `import m (a, b)`의 목록도 같다.
    괄호 안에서는 태그 뒤의 `(`가 다음 줄에 와도 태그의 인자다(`[Ok\n(1)]`); 괄호 밖에서는 줄바꿈이 태그를 끝낸다.
+   두 토큰으로 된 모양 사이도 같다(FE6): `xs[1..` 다음 줄 `]`, `not` 다음 줄 `in`, 이름 인자의 이름 다음 줄 `:`.
 
 ```
 sizes = fs.list("./logs")
@@ -101,7 +102,7 @@ ok = fs.exists(p)
   그래서 ZWJ로 이은 가족 이모지는 2칸, `❤️`는 2칸, `é`(분해형)는 1칸, 한글 자모 조합은 2칸이다. 잘못된 UTF-8 부분은 1칸.
   묶음 단위로 그리는 요즘 터미널(iTerm2·WezTerm·kitty·Ghostty 등)과 맞고, 코드 포인트 단위(`wcwidth`)로 그리는 터미널과는 이모지에서 다르다(그것은 한계로 둔다).
   `len`·`s[i]`·`chars`는 묶음이 아니라 글자(코드 포인트, L4의 규칙)다: 표시와 별개의 언어 규칙이다.
-- 렉서는 첫 글자만 본다. `myVar` 같은 camelCase는 문법 에러가 아니고 포맷터·경고 몫이다.
+- 렉서는 첫 글자만 본다. `myVar` 같은 camelCase는 문법 에러가 아니고 검사하지도 않는다(snake_case는 규약).
 
 ### 숫자
 
@@ -109,6 +110,9 @@ ok = fs.exists(p)
 |------|----|------|
 | 정수 | `42`, `1_000_000` | `_`는 숫자 사이에만 |
 | 실수 | `3.14`, `2.5e-3`, `1e9` | 소수점 양쪽에 숫자 필수 (`.5`, `1.` 불허). 지수가 있으면 항상 실수 |
+
+- 10진 정수 바로 뒤의 `.`가 소수부(숫자)도 범위(`..`)도 아니면 E0102다(FE2, 2026-11-08): `1.`, `1.e5`, `1.foo`. 정수에는 필드가 없고,
+  줄 끝의 `1.`이 다음 줄의 이름을 필드로 삼키지 않게 한다(`x = 1.` 다음 줄 `print(x)`가 `1.print(x)`로 읽히던 것).
 | 진법 | `0xff`, `0o17`, `0b1010` | 정수 |
 
 - 정수 리터럴의 범위는 64비트 부호 있는 정수. 넘으면 컴파일 에러. 진법 리터럴도 같다(`0xffffffffffffffff`, `-0x8000000000000000`은 에러).
@@ -121,6 +125,7 @@ ok = fs.exists(p)
 ### 문자열
 
 - `"…"`: 보간 `${…}`과 이스케이프 지원. 실제 줄바꿈은 에러 (여러 줄은 원시 문자열 또는 `\n`). `${…}` 안의 코드도 따옴표 안이므로 줄바꿈은 에러다.
+  줄 끝이나 파일 끝의 `\`는 아무것도 이스케이프하지 않으므로 닫히지 않은 문자열(E0104)이다(FE14).
 - 이스케이프는 `\n` `\t` `\r` `\\` `\"` `\$` `\u{1F600}` `\xHH` **만**. 모르는 이스케이프는 컴파일 에러
   (`"C:\new"` 같은 함정을 잡는다). `${`를 글자 그대로 쓰려면 `\$`.
 - `\xHH`(16진수 꼭 두 자리)는 **바이트 하나**다(L4, 2026-11-07): `"\xe9"`는 글자 `é`가 아니라 바이트 0xE9, `"\xc3\xa9"`가 UTF-8로 `é`다.
@@ -143,6 +148,9 @@ ok = fs.exists(p)
 - 심볼: `'ok`, `'not_found`, `'Red`. `'` 뒤에 식별자(이름 모양이든 태그 모양이든, 예약어도). `sym(s)`도 같은 글을 받는다(SP4, 2026-11-08, 사용자 결정):
   인자 없는 태그 `Red`는 심볼 `'Red`라서, 바깥 글 `"Red"`를 열거형 타입(07 T1)의 값으로 바꾸는 길이 `sym`이다.
 - 주석: `#`만. (`//`는 정수 나눗셈이고, 같은 일을 하는 방법은 하나로.) shebang `#!/usr/bin/env fung`은 자연히 주석이다.
+- 줄 끝은 `\n`이나 `\r\n`이다. 그 밖의 홀로 선 CR(`\r`)은 문자열·원시 문자열 안이 아니면 E0101이고, 주석 안에서도 그렇다(FE13, 2026-11-08, 사용자 결정).
+  터미널은 CR 뒤의 코드를 주석 위에 덮어 그리고 편집기는 두 줄로 그려서, 어느 쪽도 렉서의 읽기(같은 줄)와 맞지 않기 때문이다.
+  에러 발췌는 줄의 제어 문자를 이스케이프(`\r`, `\u{1B}`)로 보인다.
 
 ## 이름 표기
 
@@ -260,6 +268,7 @@ for (k, v) in pairs(config):
 
 - `x |> f(a)`는 `f(x, a)`. 파이프 대상은 **첫 번째 인자**로 들어간다 (Elixir 방식).
 - 오른쪽이 태그여도 같다(L6, 2026-10-20): `x |> Ok`는 `Ok(x)`, `x |> Pair(2)`는 `Pair(x, 2)`. 태그의 `Ok(x)`는 호출 형태이기 때문이다.
+  태그는 파서가 태그로 읽은 것(대문자 Lu로 시작하는 맨 이름)만이다. 따옴표 심볼 `'Ok`는 값이라 `x |> 'Ok`는 심볼을 부르는 실행 에러다(FE19, 2026-11-08: 전에는 첫 글자로 다시 짐작해 태그로 썼다).
 - 오른쪽 호출의 인자에 `_`(부분 적용)가 있으면 컴파일 에러 E0227이다(`3 |> h(_, 10)`은 `h(3, _, 10)`이라는 함수가 되던 함정).
   파이프 값은 늘 첫 인자다. 다른 자리에 넣으려면 `3 |> (v => h(10, v))`. 기각: 파이프 값이 첫 `_` 자리로 가기(규칙에 예외가 생긴다, 원칙 7).
   더 안쪽 호출의 `_`는 그대로 된다: `files |> map(path.join(dir, _))`.
@@ -278,77 +287,7 @@ for (k, v) in pairs(config):
 
 ## 형식 문법 (EBNF)
 
-파서는 이 문법을 그대로 옮긴다. 뒤 섹션의 결정이 바뀌면 여기도 같이 고친다.
-
-```
-(* 토큰: NAME(소문자·_·대소문자 없는 글자로 시작) TAG(대문자 시작) INT FLOAT DURATION
-         STRING(보간 조각 포함) RAW_STRING SYMBOL NEWLINE, 예약어, 연산자 *)
-
-program     = body .
-body        = { sep } { stmt { sep } } .
-sep         = NEWLINE | ";" .
-block       = ":" body ";;" .
-
-stmt        = fn_def | import | type_alias | test_block | assert | assign | expr .
-fn_def      = "fn" NAME "(" [ params ] ")" [ "->" type ] fn_body .
-fn_body     = "=" expr | block .
-params      = param { "," param } [ "," ] .
-param       = [ "..." ] NAME [ ":" type ] [ "=" expr ] | pattern .   (* 패턴 매개변수에는 타입·기본값 없음 *)
-import      = "import" ( NAME | STRING ) [ "as" NAME ] [ "(" NAME { "," NAME } ")" ] .
-type_alias  = "type" NAME "=" type .
-test_block  = "test" STRING block .
-assert      = "assert" expr .
-assign      = pattern "=" expr .                   (* 문장 시작에서 `pattern =`를 먼저 시도 *)
-
-expr        = lambda | then_expr .
-lambda      = ( NAME | "_" | "(" [ pattern { "," pattern } ] ")" ) "=>" expr .
-then_expr   = or_expr [ "then" expr "else" expr ] .          (* else는 필수, 오른쪽 결합 *)
-or_expr     = and_expr { "or" and_expr } .
-and_expr    = not_expr { "and" not_expr } .
-not_expr    = "not" not_expr | cmp_expr .
-cmp_expr    = pipe_expr [ cmp_op pipe_expr ] .               (* 연쇄 없음: a < b < c 는 문법 에러 *)
-cmp_op      = "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "not" "in" .
-pipe_expr   = coalesce { "|>" coalesce } .
-coalesce    = range { "??" range } .
-range       = add [ ( ".." | "..=" ) add ] .
-add         = mul { ( "+" | "-" ) mul } .
-mul         = unary { ( "*" | "/" | "//" | "%" ) unary } .
-unary       = "-" unary | pow .
-pow         = postfix [ "**" unary ] .                       (* 오른쪽 결합, -2 ** 2 = -(2 ** 2) *)
-postfix     = primary { call | index | "." key_name | "!" | "?" } .
-key_name    = NAME | TAG | KEYWORD .            (* 이름만 올 수 있는 자리: 예약어도 이름 *)
-call        = "(" [ arg { "," arg } [ "," ] ] ")" .
-arg         = [ NAME ":" ] expr | "_" .                      (* 이름 붙인 인자, 부분 적용 자리 *)
-index       = "[" ( expr | [ expr ] ".." [ expr ] | expr "..=" expr ) "]" .
-
-primary     = INT | FLOAT | STRING | RAW_STRING | DURATION | SYMBOL
-            | "true" | "false" | "nil" | NAME | TAG
-            | "(" expr ")" | tuple | list | map
-            | if_expr | match_expr | for_expr
-            | "return" [ expr ]
-            | "fn" "(" [ params ] ")" [ "->" type ] block .  (* 익명 함수는 블록 형태만 *)
-tuple       = "(" ")" | "(" expr "," [ expr { "," expr } [ "," ] ] ")" .
-list        = "[" [ expr { "," expr } [ "," ] ] "]" .
-map         = "{" [ entry { "," entry } [ "," ] ] "}" .
-entry       = ( key_name | STRING ) ":" expr
-            | NAME .                            (* {a, b} = {a: a, b: b}; 예약어·문자열·대문자(E0225)는 축약 없음 *)
-if_expr     = "if" expr ":" body { "else" "if" expr ":" body } [ "else" ":" body ] ";;" .
-match_expr  = "match" expr ":" { sep } { arm } ";;" .
-arm         = pattern [ "when" expr ] "=>" body .            (* 다음 arm 또는 ;; 까지 *)
-for_expr    = "for" pattern "in" expr ":" body ";;" .
-
-pattern     = pat_term { "|" pat_term } .
-pat_term    = "_" | NAME | [ "-" ] ( INT | FLOAT ) | STRING | SYMBOL | DURATION
-            | "true" | "false" | "nil"
-            | TAG [ "(" [ pattern { "," pattern } ] ")" ]
-            | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
-            | "[" [ pattern { "," pattern } ] [ [ "," ] "..." [ NAME ] ] "]"
-            | "{" [ pat_entry { "," pat_entry } ] "}" .
-pat_entry   = (key_name | STRING) ":" pattern | NAME .   (* {line, col} = {line: line, col: col}; {HOME}은 E0225; STRING은 보간 없이 *)
-
-type        = type_term { "|" type_term } .
-type_term   = NAME [ "[" type "]" ] | TAG .
-```
+형식 문법은 매뉴얼 [`grammar.md`](../../manual/reference/language/grammar.md) 한 곳에만 둔다(2026-11-08 SP8: 두 벌이 서로, 그리고 파서와 어긋났다). 파서는 그 문법을 그대로 옮긴다. 아래는 문법을 정할 때의 결정이다.
 
 문법에서 따라오는 것:
 

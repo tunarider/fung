@@ -41,8 +41,6 @@ fn kind_of_name(name: &str) -> Option<u32> {
         "sender" => bit(17),
         "receiver" => bit(18),
         "file" => bit(19),
-        "conn" => bit(20),
-        "listener" => bit(21),
         _ => None,
     }
 }
@@ -117,4 +115,22 @@ impl TypeSet {
 /// Whether `v` satisfies a union of type names; `None` means unchecked.
 pub fn matches_type(v: &Value, alts: Option<&[String]>) -> bool {
     alts.is_none_or(|a| TypeSet::new(a).matches(v))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kind_of_name;
+
+    /// The VM knows the type names the front end takes, and no others
+    /// (VA17: `conn` and `listener` stay out of annotations, 07).
+    #[test]
+    fn type_names_match_the_front_end() {
+        for name in fung_front::resolve::BUILTIN_TYPES {
+            let known = kind_of_name(name).is_some() || matches!(*name, "any" | "num");
+            assert!(known, "{name} has no kind bit");
+        }
+        for name in ["conn", "listener", "tag", "native"] {
+            assert!(kind_of_name(name).is_none(), "{name} is not a type name");
+        }
+    }
 }

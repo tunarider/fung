@@ -81,10 +81,20 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
             let Value::Int(n) = i else {
                 return Err(type_error("index", x, i));
             };
-            let idx = norm_index(*n, s.char_len())?;
-            let at = s.byte_at(0, idx);
+            // Only the characters up to `n` are read (from the end for a
+            // negative one); the length is counted for the message alone
+            // (VA12).
+            let at = if *n >= 0 {
+                let at = s.byte_at(0, *n as usize);
+                (at < s.len()).then_some(at)
+            } else {
+                s.byte_back(n.unsigned_abs() as usize)
+            };
+            let Some(at) = at else {
+                return Err(out_of_range("index", *n, s.char_len()));
+            };
             let ch = text::first(&s[at..]).expect("index checked against the length");
-            Ok(Value::bytes(s[at..at + ch.byte_len()].to_vec()))
+            Ok(Value::char_str(&s[at..at + ch.byte_len()]))
         }
         Value::Map(m) => {
             let Value::Str(k) = i else {
@@ -166,11 +176,23 @@ fn slice_bounds(
     let start = bound(start)?;
     let end = bound(end)?;
     let lo = start.map_or(0, resolve);
-    let hi = end.map_or(len, |e| resolve(e) + i128::from(inclusive));
     let written = |b: Option<i64>, dflt: i128| b.unwrap_or(dflt as i64);
     if !(0..=len).contains(&lo) {
         return Err(out_of_range("slice start", written(start, 0), n));
     }
+    // An inclusive end is an element's index (`0..len`, or `-len..=-1`
+    // from the end), checked before the one is added: `xs[..=-4]` of
+    // three, or `[][..=-1]`, is out of range rather than empty (VA2).
+    let hi = match end {
+        Some(e) if inclusive => {
+            let i = resolve(e);
+            if !(0..len).contains(&i) {
+                return Err(out_of_range("slice end", e, n));
+            }
+            i + 1
+        }
+        _ => end.map_or(len, resolve),
+    };
     if !(0..=len).contains(&hi) {
         return Err(out_of_range("slice end", written(end, len), n));
     }

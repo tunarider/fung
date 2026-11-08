@@ -177,17 +177,17 @@ print(r)</code></pre><pre class="out plain"><code>task failed: E0502 division by
 other task finished
 body finished</code></pre></div>
 <h2 id="timeout">기한: timeout</h2>
-<p>응답하지 않는 서버를 영원히 기다릴 수는 없다. <code>timeout(기간, 함수)</code>는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 기간 안에 끝나면 함수의 값을 그대로 돌려준다.</p>
+<p>응답하지 않는 서버를 영원히 기다릴 수는 없다. <code>timeout(함수, 기간)</code>는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 기간 안에 끝나면 함수의 값을 그대로 돌려준다.</p>
 <div class="run"><pre><code>fn answer(d):
   sleep(d)
   &quot;answered after ${d}&quot;
 ;;
 
-print(timeout(1s, () =&gt; answer(10ms)))
-print(timeout(1s, () =&gt; answer(5s)))</code></pre><pre class="out plain"><code>answered after 10ms
+print(timeout(() =&gt; answer(10ms), 1s))
+print(timeout(() =&gt; answer(5s), 1s))</code></pre><pre class="out plain"><code>answered after 10ms
 Err({kind: 'timeout, message: &quot;timed out after 1s&quot;})</code></pre></div>
 <p>기한은 그 안에서 띄운 태스크, 외부 명령, HTTP 요청(13장)까지 모두에 걸린다. 기한이 지났을 때 도는 외부 명령은 끝내 준다(먼저 SIGTERM, 2초 안에 안 끝나면 SIGKILL). 그래서 <code>ssh</code>가 걸려 버린 서버도 정해진 시간 안에 포기할 수 있다.</p>
-<div class="run"><pre><code>print(timeout(200ms, () =&gt; sh(&quot;sleep 10; echo finished&quot;)))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
+<div class="run"><pre><code>print(timeout(() =&gt; sh(&quot;sleep 10; echo finished&quot;), 200ms))</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 200ms&quot;})</code></pre></div>
 <p><code>pmap</code>과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 <code>Err</code>로 섞인다.</p>
 <div class="run"><pre><code>import conc
 
@@ -196,7 +196,7 @@ fn probe(host):
   Ok(&quot;${host} ok&quot;)
 ;;
 
-results = conc.pmap([&quot;web1&quot;, &quot;slow-db&quot;, &quot;web2&quot;], h =&gt; timeout(1s, () =&gt; probe(h)))
+results = conc.pmap([&quot;web1&quot;, &quot;slow-db&quot;, &quot;web2&quot;], h =&gt; timeout(() =&gt; probe(h), 1s))
 print(results)</code></pre><pre class="out plain"><code>[Ok(&quot;web1 ok&quot;), Err({kind: 'timeout, message: &quot;timed out after 1s&quot;}), Ok(&quot;web2 ok&quot;)]</code></pre></div>
 <h3 id="cancel">취소</h3>
 <p><code>cancel(태스크)</code>는 그 태스크를 취소하고, <code>cancel(태스크 범위)</code>는 그 범위의 본문과 모든 자식을 취소한다. 취소된 태스크를 <code>await</code>하면 <code>Err({kind: 'cancelled})</code>를 받는다. "결과를 하나 받았으니 나머지는 그만"처럼 쓴다.</p>
@@ -245,11 +245,11 @@ done = scope(fn(s):
   for r in res_rx: r ;;
 ;;)
 print(len(done), &quot;jobs done&quot;)</code></pre><pre class="out plain"><code>4 jobs done</code></pre></div>
-<p>기다리지 않고 한 번만 보고 싶을 때는 <code>try_recv(rx)</code>를 쓴다. 받을 값이 있으면 <code>Ok(v)</code>, 없으면 <code>Err({kind: 'empty})</code>를 곧바로 돌려준다. 보내는 쪽은 <code>try_send(tx, v)</code>이고, 가득 차서 기다려야 하면 <code>Err({kind: 'full})</code>이다. 반대로 값은 필요 없고 채널이 닫히기만 기다릴 때는 <code>wait_closed(rx)</code>를 쓴다. 정지 요청(Ctrl-C)을 기다리는 <code>wait_closed(stop_signal())</code>이 대표적인 쓰임이다.</p>
+<p>기다리지 않고 한 번만 보고 싶을 때는 <code>recv_now(rx)</code>를 쓴다. 받을 값이 있으면 <code>Ok(v)</code>, 없으면 <code>Err({kind: 'empty})</code>를 곧바로 돌려준다. 보내는 쪽은 <code>send_now(tx, v)</code>이고, 가득 차서 기다려야 하면 <code>Err({kind: 'full})</code>이다. 반대로 값은 필요 없고 채널이 닫히기만 기다릴 때는 <code>wait_closed(rx)</code>를 쓴다. 정지 요청(Ctrl-C)을 기다리는 <code>wait_closed(stop_signal())</code>이 대표적인 쓰임이다.</p>
 <div class="run"><pre><code>(tx, rx) = channel(1)
-print(try_recv(rx))
-print(try_send(tx, &quot;a&quot;), try_send(tx, &quot;b&quot;))
-print(try_recv(rx))</code></pre><pre class="out plain"><code>Err({kind: 'empty, message: &quot;channel empty&quot;})
+print(recv_now(rx))
+print(send_now(tx, &quot;a&quot;), send_now(tx, &quot;b&quot;))
+print(recv_now(rx))</code></pre><pre class="out plain"><code>Err({kind: 'empty, message: &quot;channel empty&quot;})
 Ok(nil) Err({kind: 'full, message: &quot;channel full&quot;})
 Ok(&quot;a&quot;)</code></pre></div>
 <h2 id="atom">함께 쓰는 값: atom</h2>
@@ -285,7 +285,7 @@ fn probe(host):
 ;;
 
 hosts = [&quot;web1&quot;, &quot;web2&quot;, &quot;db1&quot;]
-results = conc.pmap(hosts, h =&gt; timeout(500ms, () =&gt; probe(h)))
+results = conc.pmap(hosts, h =&gt; timeout(() =&gt; probe(h), 500ms))
 rows = zip(hosts, results)
 for (host, r) in rows:
   status = match r:
@@ -380,10 +380,10 @@ print(result)</code></pre><pre class="out plain"><code>15</code></pre></div>
 <ul>
 <li>동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.</li>
 <li>리스트의 일을 동시에 하려면 <code>conc.pmap(xs, f, limit: n)</code>. 결과는 입력 순서대로다.</li>
-<li>기다리지 않고 한 번 보기는 <code>try_recv</code>·<code>try_send</code>, 닫힘만 기다리기는 <code>wait_closed</code>.</li>
+<li>기다리지 않고 한 번 보기는 <code>recv_now</code>·<code>send_now</code>, 닫힘만 기다리기는 <code>wait_closed</code>.</li>
 <li>태스크는 <code>scope</code> 안에서 <code>spawn(s, f)</code>로 띄우고 <code>await</code>로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 <code>Err</code>를 아무도 읽지 않으면 E0607이다.</li>
 <li>태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 <code>supervise(f, on_fail)</code>.</li>
-<li><code>timeout(d, f)</code>는 기한이 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
+<li><code>timeout(f, d)</code>는 기한이 지나면 안의 일을 모두 취소하고 <code>Err({kind: 'timeout})</code>. <code>cancel</code>로 직접 취소한다.</li>
 <li>채널 <code>(tx, rx) = channel()</code>로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.</li>
 <li>함께 고치는 값은 <code>atom</code>·<code>deref</code>·<code>swap</code>. <code>swap</code>의 함수에는 효과를 쓸 수 없다(E0707).</li>
 </ul>

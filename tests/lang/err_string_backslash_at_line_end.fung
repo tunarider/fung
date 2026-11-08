@@ -1,0 +1,5 @@
+# A backslash at the end of a line escapes nothing (FE14): the string is
+# unterminated, not an unknown escape of the newline.
+print("a\
+")
+# expect-error: E0104

@@ -2,12 +2,39 @@
 //! matches any run of characters but `/`, `?` one character, `[...]` a
 //! class (`[^...]` its complement, `a-z` a range), and `\` escapes the
 //! next character; `!` is an ordinary character. A malformed pattern is
-//! an error before any directory is read. Directories that cannot be
-//! read are skipped, and each directory's matches come in byte order.
+//! an error before any directory is read. A directory the pattern
+//! enters that cannot be read is an error with its path, as in `walk`
+//! (LB18); one that is not there (or is a file) holds no match. Each
+//! directory's matches come in byte order.
+
+use std::io;
 
 /// A malformed pattern ("syntax error in pattern").
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct BadPattern;
+
+/// Why `glob` failed: a malformed pattern, or a path it had to look at
+/// (a directory to read, a name to stat) and could not.
+#[derive(Debug)]
+pub(crate) enum Failure {
+    Pattern,
+    Path(Vec<u8>, io::Error),
+}
+
+impl From<BadPattern> for Failure {
+    fn from(_: BadPattern) -> Failure {
+        Failure::Pattern
+    }
+}
+
+/// Whether a failed look at a path only says that nothing is there: the
+/// name is missing, or a part of it is a file.
+fn absent(e: &io::Error) -> bool {
+    matches!(
+        e.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+    )
+}
 
 /// U+FFFD, what an invalid byte reads as.
 const RUNE_ERROR: u32 = 0xFFFD;
@@ -193,21 +220,22 @@ pub(crate) fn validate(mut pattern: &[u8]) -> Result<(), BadPattern> {
 }
 
 /// The names of existing files matching `pattern`, each directory's
-/// matches in byte order. File system errors are ignored; only a
-/// malformed pattern fails.
+/// matches in byte order. A malformed pattern fails, and so does a path
+/// that cannot be looked at for another reason than its absence (a
+/// directory without read permission, say).
 ///
 /// The directory part may hold patterns too: this walks down the chain of
 /// directory parts first, then expands it upward.
-pub(crate) fn glob(pattern: &[u8]) -> Result<Vec<Vec<u8>>, BadPattern> {
+pub(crate) fn glob(pattern: &[u8]) -> Result<Vec<Vec<u8>>, Failure> {
     validate(pattern)?;
     let mut files = Vec::new();
     let mut p = pattern;
     let mut found = loop {
         if !has_meta(p) {
-            break if std::fs::symlink_metadata(os(p)).is_ok() {
-                vec![p.to_vec()]
-            } else {
-                Vec::new()
+            break match std::fs::symlink_metadata(os(p)) {
+                Ok(_) => vec![p.to_vec()],
+                Err(e) if absent(&e) => Vec::new(),
+                Err(e) => return Err(Failure::Path(p.to_vec(), e)),
             };
         }
         let (dir, file) = split(p);
@@ -217,7 +245,7 @@ pub(crate) fn glob(pattern: &[u8]) -> Result<Vec<Vec<u8>>, BadPattern> {
         }
         // A pattern that is its own directory would never end.
         if dir == p {
-            return Err(BadPattern);
+            return Err(Failure::Pattern);
         }
         files.push(file);
         p = dir;
@@ -253,23 +281,26 @@ fn clean_glob_path(p: &[u8]) -> &[u8] {
 }
 
 /// The names in `dir` matching
-/// `pattern`, joined onto `dir`, in byte order. A directory that cannot
-/// be read adds nothing; names read before a read error still count.
+/// `pattern`, joined onto `dir`, in byte order. A `dir` that is not there
+/// or is no directory adds nothing; one that cannot be read is an error
+/// with its path.
 fn read_matches(
     dir: &[u8],
     pattern: &[u8],
     mut out: Vec<Vec<u8>>,
-) -> Result<Vec<Vec<u8>>, BadPattern> {
-    if !std::fs::metadata(os(dir)).is_ok_and(|m| m.is_dir()) {
-        return Ok(out);
+) -> Result<Vec<Vec<u8>>, Failure> {
+    let failed = |e: io::Error| Failure::Path(dir.to_vec(), e);
+    match std::fs::metadata(os(dir)) {
+        Ok(m) if m.is_dir() => {}
+        Ok(_) => return Ok(out),
+        Err(e) if absent(&e) => return Ok(out),
+        Err(e) => return Err(failed(e)),
     }
-    let Ok(entries) = std::fs::read_dir(os(dir)) else {
-        return Ok(out);
-    };
-    let mut names: Vec<Vec<u8>> = entries
-        .map_while(Result::ok)
-        .map(|e| std::os::unix::ffi::OsStrExt::as_bytes(e.file_name().as_os_str()).to_vec())
-        .collect();
+    let mut names: Vec<Vec<u8>> = Vec::new();
+    for e in std::fs::read_dir(os(dir)).map_err(failed)? {
+        let name = e.map_err(failed)?.file_name();
+        names.push(std::os::unix::ffi::OsStrExt::as_bytes(name.as_os_str()).to_vec());
+    }
     names.sort_unstable();
     for name in names {
         if matches(pattern, &name)? {
@@ -281,7 +312,7 @@ fn read_matches(
 
 #[cfg(test)]
 mod tests {
-    use super::{BadPattern, glob, validate};
+    use super::{BadPattern, Failure, glob, validate};
 
     #[test]
     fn validate_checks_the_whole_pattern() {
@@ -311,7 +342,7 @@ mod tests {
         let pattern = format!("{}/a*[", dir.display());
         let got = glob(pattern.as_bytes());
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(got, Err(BadPattern));
+        assert!(matches!(got, Err(Failure::Pattern)), "{got:?}");
     }
 
     use super::*;
@@ -410,22 +441,23 @@ mod tests {
     fn glob_reads_the_file_system() {
         // Absolute patterns: independent of the working directory.
         let d = env!("CARGO_MANIFEST_DIR");
-        let one = |p: &str| glob(p.as_bytes());
-        let at = |rel: &str| Ok(vec![format!("{d}/{rel}").into_bytes()]);
+        let one = |p: &str| glob(p.as_bytes()).ok();
+        let at = |rel: &str| Some(vec![format!("{d}/{rel}").into_bytes()]);
         assert_eq!(one(&format!("{d}/*.toml")), at("Cargo.toml"));
         // A pattern with a wildcard has its directory part cleaned; one
         // without is returned as written.
         assert_eq!(one(&format!("{d}/./*.toml")), at("Cargo.toml"));
         assert_eq!(one(&format!("{d}/Cargo.toml")), at("Cargo.toml"));
         assert_eq!(one(&format!("{d}/./Cargo.toml")), at("./Cargo.toml"));
-        assert_eq!(one(&format!("{d}/no-such-file")), Ok(vec![]));
+        assert_eq!(one(&format!("{d}/no-such-file")), Some(vec![]));
+        assert_eq!(one(&format!("{d}/Cargo.toml/*")), Some(vec![]));
         assert_eq!(
             one(&format!("{d}/src/nat*/glob.r?")),
             at("src/native/glob.rs")
         );
         assert_eq!(one(&format!("{d}/src/*/glob.rs")), at("src/native/glob.rs"));
-        assert_eq!(glob(b"[").unwrap_err(), BadPattern);
-        assert_eq!(glob(b"src/[/x").unwrap_err(), BadPattern);
+        assert!(matches!(glob(b"["), Err(Failure::Pattern)));
+        assert!(matches!(glob(b"src/[/x"), Err(Failure::Pattern)));
         assert_eq!(glob(b"/").unwrap(), vec![b"/".to_vec()]);
     }
 }

@@ -125,6 +125,29 @@ fn parse_zone(s: &[u8], colon: bool) -> Result<(i32, &[u8]), String> {
     Ok((sign * (h as i32 * 3600 + m as i32 * 60 + sec as i32), rest))
 }
 
+/// Whether the token layout names a whole date: a year (`YYYY`, `YY`), a
+/// month (`MM`, `MMM`) and a day (`DD`). `time.parse` needs one (LB20): a
+/// time is one instant, and a date filled in (year 0) would read a time
+/// of day in the zone's history before standard time.
+pub(crate) fn names_a_date(mut layout: &str) -> bool {
+    let (mut year, mut month, mut day) = (false, false, false);
+    while let Some(c) = layout.chars().next() {
+        match next_token(layout) {
+            Some(tk) => {
+                match tk {
+                    "YYYY" | "YY" => year = true,
+                    "MM" | "MMM" => month = true,
+                    "DD" => day = true,
+                    _ => {}
+                }
+                layout = &layout[tk.len()..];
+            }
+            None => layout = &layout[c.len_utf8()..],
+        }
+    }
+    year && month && day
+}
+
 /// Reads `s` with the token layout. Fields the layout does not mention are
 /// zero (month and day one); without a zone token the time is in `local`.
 /// Out-of-range fields (month 13, Feb 30) are errors.

@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use super::{MAX_DEPTH, PResult, Parser, describe, err, s, str_lit};
 use crate::diag::Arg;
-use crate::lexer::{Kind, Token, lex_at};
+use crate::lexer::{Kind, Token};
 use crate::tree::{Head, Lit, Node};
 
 // Binding powers from 07. 우선순위 (낮음 → 높음), scaled by 10 so that
@@ -66,20 +66,6 @@ fn infix(k: Kind) -> Option<Infix> {
     })
 }
 
-/// Tokens that may start a continuation line (01).
-fn continues_line(k: Kind) -> bool {
-    matches!(
-        k,
-        Kind::Pipe
-            | Kind::Dot
-            | Kind::Coalesce
-            | Kind::KwAnd
-            | Kind::KwOr
-            | Kind::KwThen
-            | Kind::KwElse
-    )
-}
-
 /// Whether a token ends a call argument.
 fn is_arg_end(k: Kind) -> bool {
     matches!(k, Kind::Comma | Kind::RParen | Kind::Newline)
@@ -104,7 +90,7 @@ impl<'a> Parser<'a> {
         while toks[j].kind == Kind::Newline {
             j += 1;
         }
-        if continues_line(toks[j].kind) {
+        if toks[j].kind.starts_continuation() {
             self.i = j;
             return &toks[j];
         }
@@ -142,6 +128,9 @@ impl<'a> Parser<'a> {
     /// as tightly as `min_bp`.
     fn infix_loop(&mut self, mut lhs: Node, start: usize, min_bp: u32) -> PResult<Node> {
         let mut last_was_compare = false;
+        // `..` is not associative (01 EBNF): `1..2..3` and `xs[0..1..]`
+        // are refused rather than failing at run time (FE8).
+        let mut last_was_range = false;
         loop {
             self.span(&mut lhs, start);
             let t = self.peek_infix();
@@ -173,10 +162,13 @@ impl<'a> Parser<'a> {
             // `..]` ends an open slice (`xs[a ?? 0..]`): the `..` is the
             // slice's, not a range operator, so the whole expression before
             // it is the start (`index_or_slice`).
-            if t.kind == Kind::DotDot && self.kind_after() == Kind::RBracket {
+            if t.kind == Kind::DotDot && self.kind_from(self.i + 1) == Kind::RBracket {
+                if last_was_range {
+                    return Err(err("E0118", t.pos, Vec::new()));
+                }
                 return Ok(lhs);
             }
-            let not_in = t.kind == Kind::KwNot && self.kind_after() == Kind::KwIn;
+            let not_in = t.kind == Kind::KwNot && self.kind_from(self.i + 1) == Kind::KwIn;
             let info = if not_in {
                 Some(Infix {
                     left: BP_COMPARE,
@@ -192,6 +184,10 @@ impl<'a> Parser<'a> {
             };
             if info.compare && last_was_compare {
                 return Err(err("E0111", t.pos, Vec::new()));
+            }
+            let is_range = matches!(t.kind, Kind::DotDot | Kind::DotDotEq);
+            if is_range && last_was_range {
+                return Err(err("E0118", t.pos, Vec::new()));
             }
             self.next();
             if not_in {
@@ -216,6 +212,7 @@ impl<'a> Parser<'a> {
                 ),
             };
             last_was_compare = info.compare;
+            last_was_range = is_range;
         }
     }
 
@@ -358,10 +355,25 @@ impl<'a> Parser<'a> {
     fn negation(&mut self, t: &'a Token) -> PResult<Node> {
         // -9223372036854775808: the lexer cannot know a minus precedes the
         // magnitude, so the parser folds exactly this case (01).
+        // It folds only as the minus's whole operand: `-a ** b` is
+        // `-(a ** b)` and a postfix binds to the magnitude, which is out
+        // of range there (FE9).
         let nt = &self.toks[self.i + 1];
         if nt.kind == Kind::Int && is_min_int_magnitude(nt) {
             self.next();
             self.next();
+            let after = self.peek_infix().kind;
+            if matches!(
+                after,
+                Kind::StarStar
+                    | Kind::Dot
+                    | Kind::LBracket
+                    | Kind::LParen
+                    | Kind::Bang
+                    | Kind::Question
+            ) {
+                return Err(err("E0102", nt.pos, vec![s(nt.text.clone())]));
+            }
             return Ok(Node::leaf(Head::Int, t.pos, Lit::Int(i64::MIN)));
         }
         self.next();
@@ -396,7 +408,7 @@ impl<'a> Parser<'a> {
         let mut saw_named = false;
         let mut names: HashSet<&str> = HashSet::new();
         while !self.at(Kind::RParen) {
-            if self.at(Kind::Name) && self.kind_after() == Kind::Colon {
+            if self.at(Kind::Name) && self.kind_from(self.i + 1) == Kind::Colon {
                 // Named argument: positional ones must come first (03).
                 let name = self.next();
                 if !names.insert(&name.text) {
@@ -405,7 +417,7 @@ impl<'a> Parser<'a> {
                 self.next();
                 if self.at_hole() {
                     let pos = self.peek().pos;
-                    return Err(err("E0110", pos, vec![s("`_` in a named argument")]));
+                    return Err(err("E0123", pos, Vec::new()));
                 }
                 let e = self.expr(0)?;
                 node.kids.push(Node::with_lit(
@@ -442,7 +454,7 @@ impl<'a> Parser<'a> {
 
     /// A `_` that is a whole call argument.
     fn at_hole(&mut self) -> bool {
-        self.at(Kind::Name) && self.peek().text == "_" && is_arg_end(self.kind_after())
+        self.at(Kind::Name) && self.peek().text == "_" && is_arg_end(self.kind_from(self.i + 1))
     }
 
     /// Turns a "..." token into a string leaf or an (interp ...) node whose
@@ -461,9 +473,8 @@ impl<'a> Parser<'a> {
                 n.kids.push(Node::leaf(Head::String, t.pos, lit));
                 continue;
             }
-            let (toks, _) =
-                lex_at(part.pos.file, &part.text, part.pos, part.off).map_err(Box::new)?;
-            let mut sub = Parser::new(&toks, self.depth);
+            // the lexer read the code with the string (FE16)
+            let mut sub = Parser::new(&part.toks, self.depth);
             let e = sub.expr(0)?;
             sub.skip_seps();
             if !sub.at(Kind::Eof) {
@@ -487,7 +498,9 @@ impl<'a> Parser<'a> {
     }
 
     fn index_or_slice_inner(&mut self, x: Node, open: &'a Token) -> PResult<Node> {
-        let nil = || Node::new(Head::Nil, open.pos, Vec::new());
+        // A missing end is its own mark: a written `nil` is a value, and
+        // slicing with it is E0501 like any nil bound (02, VA3).
+        let nil = || Node::new(Head::Missing, open.pos, Vec::new());
         let slice = |lit: Lit, kids: Vec<Node>| Node::with_lit(Head::Slice, open.pos, lit, kids);
         if self.at(Kind::DotDot) {
             // [..b] and [..]
@@ -511,7 +524,7 @@ impl<'a> Parser<'a> {
         // follows, so whatever comes before it is the start, read once
         // (reading the contents twice made nested indexing exponential).
         let mut e = self.expr(0)?;
-        if self.at(Kind::DotDot) && self.kind_after() == Kind::RBracket {
+        if self.at(Kind::DotDot) && self.kind_from(self.i + 1) == Kind::RBracket {
             self.next();
             self.next();
             return Ok(slice(Lit::None, vec![x, e, nil()]));

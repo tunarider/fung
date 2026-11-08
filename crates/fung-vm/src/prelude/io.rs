@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use crate::native::file::{Fault, File};
 use crate::native::fs::fault_value;
-use crate::native::nat::{self, opt, param};
+use crate::native::nat::{self, param};
 use crate::native::pipe::{self, Step};
-use crate::value::{Lit, Native, Value, format};
+use crate::value::{Native, Value, format};
 use crate::vm::{Flow, IoStep, Stop, Task, Wake, park_io, park_until_then};
 
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds through
@@ -29,34 +29,44 @@ pub(super) fn exit_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     }
 }
 
-/// The `dbg` native: `dbg(x, text = nil, where = nil)`. It writes
-/// `[where] text = value` (or `dbg = value` without the text) to standard
-/// error and returns `x`. The compiler passes the source text and place
-/// for a direct `dbg(e)` call (08).
+/// The prelude's `dbg(x)`, the function as a value (`map(xs, dbg)`,
+/// `d = dbg`): it writes `dbg = value` to standard error and returns `x`.
 pub fn dbg() -> &'static Native {
+    static DBG: std::sync::OnceLock<&'static Native> = std::sync::OnceLock::new();
+    DBG.get_or_init(|| Native::leak("dbg", vec![param("x")], dbg_fn))
+}
+
+/// The `dbg` a direct `dbg(e)` calls (`Const::Dbg`): the compiler passes
+/// e's source text and place (08), and it writes `[where] text = value`.
+/// No program can name it, so a program cannot pass those itself (SP11).
+pub fn dbg_at() -> &'static Native {
     static DBG: std::sync::OnceLock<&'static Native> = std::sync::OnceLock::new();
     DBG.get_or_init(|| {
         Native::leak(
             "dbg",
-            vec![param("x"), opt("text", Lit::Nil), opt("where", Lit::Nil)],
-            dbg_fn,
+            vec![param("x"), param("text"), param("where")],
+            dbg_at_fn,
         )
     })
 }
 
 fn dbg_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    let line = format!("dbg = {}\n", format(&a[0]));
+    t.stderr()
+        .write_all(line.as_bytes())
+        .map_err(nat::write_err)?;
+    Ok(a.swap_remove(0))
+}
+
+fn dbg_at_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+    let (Value::Str(text), Value::Str(at)) = (&a[1], &a[2]) else {
+        unreachable!("the compiler passes dbg's text and place as strings")
+    };
     let mut line = Vec::new();
-    if let Value::Str(w) = &a[2]
-        && let Value::Str(_) = &a[1]
-    {
-        line.push(b'[');
-        line.extend_from_slice(w);
-        line.extend_from_slice(b"] ");
-    }
-    match &a[1] {
-        Value::Str(text) => line.extend_from_slice(text),
-        _ => line.extend_from_slice(b"dbg"),
-    }
+    line.push(b'[');
+    line.extend_from_slice(at);
+    line.extend_from_slice(b"] ");
+    line.extend_from_slice(text);
     line.extend_from_slice(format!(" = {}\n", format(&a[0])).as_bytes());
     t.stderr().write_all(&line).map_err(nat::write_err)?;
     Ok(a.swap_remove(0))
@@ -84,7 +94,10 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
     match &a[0] {
         Value::Nil => park_until_then(
             t,
-            |t, _| t.stdin_poll().map(|l| Ok(line_value(l))),
+            |t, _| match t.stdin_poll() {
+                Ok(l) => l.map(|l| Ok(line_value(l))),
+                Err(e) => Some(Err(no_reader(&e))),
+            },
             STDIN_WAKE,
             |t| t.stdin_leave(),
         ),
@@ -143,6 +156,17 @@ fn lines_value(ls: Vec<Vec<u8>>) -> Value {
     ))
 }
 
+/// E0801 when the standard input reader thread cannot start (spec 15,
+/// review CC7): the input stays for a later read.
+fn no_reader(e: &std::io::Error) -> Stop {
+    nat::fail(
+        "E0801",
+        vec![fung_front::diag::Arg::Str(format!(
+            "cannot start a job: {e}"
+        ))],
+    )
+}
+
 /// How a wait for standard input parks: the world outside wakes it (the
 /// reader thread), so it is no deadlock while it waits.
 const STDIN_WAKE: Wake = Wake {
@@ -177,9 +201,10 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Sto
                 t,
                 move |t, _| loop {
                     match t.stdin_poll() {
-                        Some(Some(l)) => got.push(l),
-                        Some(None) => return Some(Ok(lines(std::mem::take(&mut got)))),
-                        None => return None,
+                        Ok(Some(Some(l))) => got.push(l),
+                        Ok(Some(None)) => return Some(Ok(lines(std::mem::take(&mut got)))),
+                        Ok(None) => return None,
+                        Err(e) => return Some(Err(no_reader(&e))),
                     }
                 },
                 STDIN_WAKE,

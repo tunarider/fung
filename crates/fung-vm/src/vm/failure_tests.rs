@@ -114,7 +114,7 @@ fn a_deadlock_is_detected() {
     // instead of a false deadlock, and an unbuffered send meets its
     // receiver.
     let (out, err, code) = run_within(
-        "(_tx, ch) = channel()\nscope(fn(s):\n  t = spawn(s, () => sleep(30ms))\n  print(timeout(10ms, () => recv(ch)))\n  await(t)\n;;)",
+        "(_tx, ch) = channel()\nscope(fn(s):\n  t = spawn(s, () => sleep(30ms))\n  print(timeout(() => recv(ch), 10ms))\n  await(t)\n;;)",
     );
     assert_eq!(
         (out.as_str(), err.as_str(), code),

@@ -1,6 +1,6 @@
-use fung_front::consts::{format_dur, format_float, is_plain_key, quote_bytes};
+use fung_front::consts::{format_dur, format_float, is_plain_key, quote_bytes, write_quoted};
 
-use super::Value;
+use super::{Sym, Value};
 
 /// Renders a value in fung literal form.
 pub fn format(v: &Value) -> String {
@@ -94,7 +94,7 @@ pub(crate) fn write(v: &Value, out: &mut String) {
                     }
                     match k.as_str().filter(|k| is_plain_key(k)) {
                         Some(k) => out.push_str(k),
-                        None => out.push_str(&quote_bytes(k)),
+                        None => write_quoted(k, out),
                     }
                     out.push_str(": ");
                     next = Some(x);
@@ -145,6 +145,11 @@ fn write_head<'a>(v: &'a Value, out: &mut String) -> Option<Open<'a>> {
             let _ = write!(out, "{n}");
             None
         }
+        // Into the one buffer, not through a string of its own (VA13).
+        Value::Str(s) => {
+            write_quoted(s, out);
+            None
+        }
         v => {
             out.push_str(&leaf_text(v));
             None
@@ -191,9 +196,9 @@ fn leaf_text(v: &Value) -> String {
 /// text `Ok(...)` in a path or a URL. `str` and `print` still show it.
 pub fn result_tag(v: &Value) -> Option<&'static str> {
     match v {
-        Value::Tag(t) => match t.name.name() {
-            "Ok" => Some("Ok"),
-            "Err" => Some("Err"),
+        Value::Tag(t) => match t.name {
+            Sym::OK => Some("Ok"),
+            Sym::ERR => Some("Err"),
             _ => None,
         },
         _ => None,

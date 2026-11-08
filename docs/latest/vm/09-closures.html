@@ -302,7 +302,7 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0002  2:21  EQ
 0003  2:21  JUMPIFFALSE  6
 0004  2:31  MOVELOCAL    1
-0005  2:26  JUMP         15
+0005  2:17  RETURN
 0006  2:40  LOADSELF
 0007  2:43  LOADLOCAL    0
 0008  2:47  CONST        1    ; 1
@@ -422,7 +422,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0002  1:22  EQ
 0003  1:22  JUMPIFFALSE  6
 0004  1:32  MOVELOCAL    1
-0005  1:27  JUMP         14
+0005  1:18  RETURN
 0006  1:41  LOADSELF
 0007  1:47  MOVELOCAL    0
 0008  1:51  CONST        1    ; 1
@@ -439,7 +439,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0002  2:17  EQ
 0003  2:17  JUMPIFFALSE  6
 0004  2:27  CONST        0    ; 0
-0005  2:22  JUMP         13
+0005  2:13  RETURN
 0006  2:34  CONST        1    ; 1
 0007  2:38  LOADSELF
 0008  2:44  MOVELOCAL    0

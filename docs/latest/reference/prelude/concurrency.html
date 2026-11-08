@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>동시성 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, try_recv, try_send, wait_closed, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.">
+<meta name="description" content="fung prelude 동시성: scope, supervise, spawn, await, timeout, cancel, channel, send, recv, recv_now, send_now, wait_closed, close, stop_signal, request_stop, atom, swap, reset, deref, sleep.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -110,7 +110,7 @@ faster than one by one: true</code></pre></div>
 <p>fung의 값은 불변이라 태스크 사이에 그냥 넘겨도 안전하다. 태스크에 일을 줄 때는 람다가 붙잡은 값으로 주고, 결과는 <a href="#fn-await"><code>await</code></a>로 받는다. 태스크끼리 계속 값을 주고받아야 하면 <strong>채널</strong>(channel)을 쓴다. 한쪽 끝에서 <a href="#fn-send"><code>send</code></a>한 값을 다른 끝에서 <a href="#fn-recv"><code>recv</code></a>로 받는다. 여러 태스크가 함께 읽고 바꾸는 상태가 꼭 필요하면 <a href="#fn-atom"><code>atom</code></a>에 둔다.</p>
 <h3 id="errs">기다림의 실패</h3>
 <p>이 페이지에서 <code>Err({kind: 'timeout})</code>처럼 <code>kind</code>만 적은 것은 패턴의 모양이다. 실제 값에는 다른 <code>Err</code>처럼 <code>message</code>도 있어서 <code>e.message</code>를 그대로 찍을 수 있다: 시간 초과는 <code>&quot;timed out after 2s&quot;</code>, 취소는 <code>&quot;cancelled&quot;</code>, 닫힌 채널은 <code>&quot;channel closed&quot;</code>. 맵 패턴은 적지 않은 키를 상관하지 않으므로 <code>Err({kind: 'timeout}) =&gt; …</code>으로 가른다.</p>
-<div class="run"><pre><code>r = timeout(10ms, () =&gt; sleep(1s))
+<div class="run"><pre><code>r = timeout(() =&gt; sleep(1s), 10ms)
 print(r)
 match r:
   Err({kind: 'timeout}) =&gt; print(&quot;slow&quot;)
@@ -308,7 +308,7 @@ print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code=
     sleep(1s)
     &quot;late&quot;
   ;;)
-  r = timeout(20ms, () =&gt; await(t))
+  r = timeout(() =&gt; await(t), 20ms)
   cancel(t)
   r
 ;;)
@@ -329,15 +329,15 @@ print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: 
 <section class="entry" id="fn-timeout">
 <h3>timeout</h3>
 <p><code>f()</code>를 부르되, <code>d</code>가 지나면 <code>f</code> 안의 모든 것을 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다.</p>
-<div class="sig"><code>timeout(d, f)</code></div>
+<div class="sig"><code>timeout(f, d)</code></div>
 <h4>설명</h4>
 <p><code>d</code> 안에 끝나면 <code>f()</code>의 결과를 그대로 돌려준다(<code>f</code>가 돌려준 <code>Err</code>도 그대로다). 기한이 지나면 <code>f</code> 안에서 돌던 모든 것, 곧 그 안에서 연 태스크 범위의 태스크까지 취소하고 <code>Err({kind: 'timeout})</code>을 돌려준다. 취소되는 동안에도 <a href="program.html#fn-with"><code>with</code></a>의 <code>release</code>는 끝까지 돈다. <code>d</code>가 0 이하면 <code>f</code>를 부르지 않고 곧바로 <code>Err({kind: 'timeout})</code>이다.</p>
 <p>기한이 겹치면 이른 기한이 이긴다. 바깥 기한이 먼저 지나면 바깥 <code>timeout</code>이 답한다.</p>
-<p><strong>무엇이 끊기나</strong>: <code>sleep</code>, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(<code>exec</code>·<code>sh</code>)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(<code>fs.read</code>·<code>read_lines</code>·<code>list</code>·<code>glob</code>·<code>walk</code>·<code>exists</code>·<code>stat</code>)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(<code>/dev/tty</code> 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(<code>read_line(f)</code> 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다(<a href="../../vm/internals.html#concurrency">런타임</a>).</p>
+<p><strong>무엇이 끊기나</strong>: <code>sleep</code>, 채널 연산, 소켓은 곧바로 끊긴다. 외부 명령(<code>exec</code>·<code>sh</code>)은 SIGTERM으로 끝낸다(2초 뒤 SIGKILL). 경로만 읽는 파일 함수(<code>fs.read</code>·<code>read_lines</code>·<code>list</code>·<code>glob</code>·<code>walk</code>·<code>exists</code>·<code>stat</code>)와 정규식 컴파일도 곧바로 끊긴다. 다만 운영체제 스레드는 멈출 수 없어서 그 읽기는 뒤에서 끝까지 돈다. 장치(<code>/dev/tty</code> 등)를 읽던 것이면 나중에 온 바이트를 그 읽기가 가져가 버린다. FIFO는 다르다: 이벤트 루프에서 기다리므로 읽기·쓰기 모두 곧바로 끊기고 바이트를 잃지 않는다. 무엇을 바꾸는 파일 함수(쓰기, 지우기, 옮기기)와 정규 파일의 핸들 읽기·쓰기(<code>read_line(f)</code> 등)는 이미 시작했으면 끝날 때까지 끊기지 않고, 끝나는 즉시 끊긴다. 그 일의 결과는 버린다(연 핸들은 닫는다). 취소된 쓰기가 나중에 몰래 일어나지 않게 하려는 것이다(<a href="../../vm/internals.html#concurrency">런타임</a>).</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>d</code>: 기간.</li>
 <li><code>f</code>: 인자 없는 함수.</li>
+<li><code>d</code>: 기간.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p><code>f()</code>의 결과, 또는 <code>Err({kind: 'timeout})</code>.</p>
@@ -345,15 +345,15 @@ print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: 
 <p><code>f</code> 안의 런타임 에러는 그대로 난다.</p>
 <h4>예제</h4>
 <p><strong>제때 끝날 때와 아닐 때</strong></p>
-<div class="run"><pre><code>print(timeout(1s, () =&gt; 1 + 1))
+<div class="run"><pre><code>print(timeout(() =&gt; 1 + 1, 1s))
 (_tx, rx) = channel()
-print(timeout(10ms, () =&gt; recv(rx)))</code></pre><pre class="out plain"><code>2
+print(timeout(() =&gt; recv(rx), 10ms))</code></pre><pre class="out plain"><code>2
 Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})</code></pre></div>
 <p><strong>걸린 명령 끊기</strong></p>
-<div class="run"><pre><code>r = timeout(100ms, () =&gt; exec([&quot;sleep&quot;, &quot;10&quot;]))
+<div class="run"><pre><code>r = timeout(() =&gt; exec([&quot;sleep&quot;, &quot;10&quot;]), 100ms)
 print(r ?? &quot;gave up&quot;)</code></pre><pre class="out plain"><code>gave up</code></pre></div>
 <p><strong>안의 태스크 범위까지 취소된다</strong></p>
-<div class="run"><pre><code>r = timeout(20ms, fn():
+<div class="run"><pre><code>r = timeout(fn():
   scope(fn(s):
     spawn(s, fn():
       sleep(5s)
@@ -361,13 +361,13 @@ print(r ?? &quot;gave up&quot;)</code></pre><pre class="out plain"><code>gave up
     ;;)
     &quot;body&quot;
   ;;)
-;;)
+;;, 20ms)
 print(r)</code></pre><pre class="out plain"><code>Err({kind: 'timeout, message: &quot;timed out after 20ms&quot;})</code></pre></div>
 <p><strong>서버마다 기한 두기</strong></p>
-<div class="run"><pre><code>fn probe(host) = timeout(500ms, fn():
+<div class="run"><pre><code>fn probe(host) = timeout(fn():
   sleep(host == &quot;slow-1&quot; then 1s else 10ms)
   &quot;${host} up&quot;
-;;)
+;;, 500ms)
 
 print(scope(s =&gt; map([&quot;web-1&quot;, &quot;slow-1&quot;], h =&gt; spawn(s, () =&gt; probe(h))) |&gt; map(await)))</code></pre><pre class="out plain"><code>[&quot;web-1 up&quot;, Err({kind: 'timeout, message: &quot;timed out after 500ms&quot;})]</code></pre></div>
 <h4>같이 보기</h4>
@@ -511,7 +511,7 @@ for x in rx:
 <p><strong>버퍼와 닫힌 채널</strong></p>
 <div class="run"><pre><code>(tx, rx) = channel(2)
 print(send(tx, 1), send(tx, 2))
-print(timeout(10ms, () =&gt; send(tx, 3)))
+print(timeout(() =&gt; send(tx, 3), 10ms))
 close(tx)
 print(send(tx, 4))</code></pre><pre class="out plain"><code>Ok(nil) Ok(nil)
 Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})
@@ -553,7 +553,7 @@ receiver gone</code></pre></div>
 <div class="sig"><code>recv(rx)</code></div>
 <h4>설명</h4>
 <p>값이 올 때까지 기다린다. 채널이 닫혀도 버퍼에 남은 값은 먼저 다 준 뒤에 <code>Err({kind: 'closed})</code>를 준다. 그래서 닫힘은 "더 올 것이 없다"는 정상적인 끝이다. 받는 끝을 끝까지 돌 때는 <code>recv</code>를 되풀이하는 대신 <code>for x in rx:</code>를 쓴다.</p>
-<p>기다리는 시간은 <a href="#fn-timeout"><code>timeout</code></a>으로 정한다: <code>timeout(1s, () =&gt; recv(rx))</code>. 기한이 지나면 받지 않은 값은 채널에 그대로 남는다.</p>
+<p>기다리는 시간은 <a href="#fn-timeout"><code>timeout</code></a>으로 정한다: <code>timeout(() =&gt; recv(rx), 1s)</code>. 기한이 지나면 받지 않은 값은 채널에 그대로 남는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>rx</code>: 받는 끝.</li>
@@ -578,18 +578,18 @@ close(tx)
 print(recv(rx), recv(rx), recv(rx))</code></pre><pre class="out plain"><code>Ok(1) Ok(2) Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <p><strong>기한을 두고 받기</strong></p>
 <div class="run"><pre><code>(tx, rx) = channel()
-print(timeout(10ms, () =&gt; recv(rx)) ?? &quot;nothing yet&quot;)
+print(timeout(() =&gt; recv(rx), 10ms) ?? &quot;nothing yet&quot;)
 close(tx)</code></pre><pre class="out plain"><code>nothing yet</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-try_recv"><code>try_recv</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="../language/for.html">for</a></p>
+<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-recv_now"><code>recv_now</code></a>, <a href="#fn-timeout"><code>timeout</code></a>, <a href="../language/for.html">for</a></p>
 </section>
-<section class="entry" id="fn-try_recv">
-<h3>try_recv</h3>
+<section class="entry" id="fn-recv_now">
+<h3>recv_now</h3>
 <p>기다리지 않고 받는 끝 <code>rx</code>를 한 번 본다. 받을 값이 있으면 <code>Ok(v)</code>, 없으면 <code>Err({kind: 'empty})</code>, 닫혔고 남은 값이 없으면 <code>Err({kind: 'closed})</code>.</p>
-<div class="sig"><code>try_recv(rx)</code></div>
+<div class="sig"><code>recv_now(rx)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-recv"><code>recv</code></a>가 기다릴 자리에서 기다리는 대신 <code>Err({kind: 'empty, message: &quot;channel empty&quot;})</code>를 돌려준다. 받는 것은 <code>recv</code>와 같다: 버퍼의 맨 앞 값, 버퍼가 없는 채널(<code>channel()</code>)이면 이미 기다리고 있는 보내는 쪽의 값. 그래서 버퍼 없는 채널에서는 보내는 쪽이 먼저 <code>send</code>로 기다리고 있을 때만 받는다.</p>
-<p>일꾼이 다른 일 사이에 "쌓인 일이 있나", "정지 요청이 왔나"를 볼 때 쓴다(정지 신호면 <code>Err({kind: 'closed})</code>가 요청이 온 것이다). 값을 기다릴 때는 <code>recv</code>를 쓴다. <code>try_recv</code>를 <code>sleep</code> 없이 되풀이하면 기다리는 대신 차례만 먹는다.</p>
+<p>일꾼이 다른 일 사이에 "쌓인 일이 있나", "정지 요청이 왔나"를 볼 때 쓴다(정지 신호면 <code>Err({kind: 'closed})</code>가 요청이 온 것이다). 값을 기다릴 때는 <code>recv</code>를 쓴다. <code>recv_now</code>를 <code>sleep</code> 없이 되풀이하면 기다리는 대신 차례만 먹는다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>rx</code>: 받는 끝.</li>
@@ -603,7 +603,7 @@ close(tx)</code></pre><pre class="out plain"><code>nothing yet</code></pre></div
 <div class="run"><pre><code>(tx, rx) = channel(2)
 send(tx, &quot;job-1&quot;)!
 for _ in 1..=2:
-  match try_recv(rx):
+  match recv_now(rx):
     Ok(job)             =&gt; print(&quot;doing&quot;, job)
     Err({kind: 'empty}) =&gt; print(&quot;nothing queued&quot;)
     Err(_)              =&gt; print(&quot;closed&quot;)
@@ -612,17 +612,17 @@ for _ in 1..=2:
 nothing queued</code></pre></div>
 <p><strong>정지 요청이 왔는지 보기</strong></p>
 <div class="run"><pre><code>stop = stop_signal()
-print(try_recv(stop))
+print(recv_now(stop))
 request_stop()
-print(try_recv(stop))</code></pre><pre class="out plain"><code>Err({kind: 'empty, message: &quot;channel empty&quot;})
+print(recv_now(stop))</code></pre><pre class="out plain"><code>Err({kind: 'empty, message: &quot;channel empty&quot;})
 Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-recv"><code>recv</code></a>, <a href="#fn-try_send"><code>try_send</code></a>, <a href="#fn-wait_closed"><code>wait_closed</code></a></p>
+<p><a href="#fn-recv"><code>recv</code></a>, <a href="#fn-send_now"><code>send_now</code></a>, <a href="#fn-wait_closed"><code>wait_closed</code></a></p>
 </section>
-<section class="entry" id="fn-try_send">
-<h3>try_send</h3>
+<section class="entry" id="fn-send_now">
+<h3>send_now</h3>
 <p>기다리지 않고 보내는 끝 <code>tx</code>로 <code>v</code>를 보낸다. 넘겼으면 <code>Ok(nil)</code>, 기다려야 하면 <code>Err({kind: 'full})</code>, 닫혔으면 <code>Err({kind: 'closed})</code>.</p>
-<div class="sig"><code>try_send(tx, v)</code></div>
+<div class="sig"><code>send_now(tx, v)</code></div>
 <h4>설명</h4>
 <p><a href="#fn-send"><code>send</code></a>가 기다릴 자리에서 기다리는 대신 <code>Err({kind: 'full, message: &quot;channel full&quot;})</code>를 돌려준다. 값은 기다리는 받는 쪽에게 바로 가거나 버퍼의 빈자리에 들어간다. 버퍼 없는 채널이면 받는 쪽이 이미 <code>recv</code>로 기다리고 있을 때만 보낸다.</p>
 <p>받는 쪽이 따라오지 못할 때 기다리지 않고 버리는 일(로그·지표 전송의 역압)에 쓴다. 자기 채널의 끝을 담은 값은 <code>send</code>처럼 E0705다.</p>
@@ -641,11 +641,11 @@ Err({kind: 'closed, message: &quot;channel closed&quot;})</code></pre></div>
 <h4>예제</h4>
 <p><strong>가득 차면 버리기</strong></p>
 <div class="run"><pre><code>(tx, rx) = channel(2)
-dropped = fold(1..=5, 0, (n, i) =&gt; is_ok(try_send(tx, &quot;line ${i}&quot;)) then n else n + 1)
+dropped = fold(1..=5, 0, (n, i) =&gt; is_ok(send_now(tx, &quot;line ${i}&quot;)) then n else n + 1)
 close(tx)
 print(map(rx, x =&gt; x), &quot;dropped:&quot;, dropped)</code></pre><pre class="out plain"><code>[&quot;line 1&quot;, &quot;line 2&quot;] dropped: 3</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-try_recv"><code>try_recv</code></a></p>
+<p><a href="#fn-send"><code>send</code></a>, <a href="#fn-recv_now"><code>recv_now</code></a></p>
 </section>
 <section class="entry" id="fn-wait_closed">
 <h3>wait_closed</h3>
@@ -687,23 +687,29 @@ scope(fn(s):
   request_stop()
 ;;)</code></pre><pre class="out plain"><code>worker: stopping</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-stop_signal"><code>stop_signal</code></a>, <a href="#fn-recv"><code>recv</code></a>, <a href="#fn-try_recv"><code>try_recv</code></a></p>
+<p><a href="#fn-stop_signal"><code>stop_signal</code></a>, <a href="#fn-recv"><code>recv</code></a>, <a href="#fn-recv_now"><code>recv_now</code></a></p>
 </section>
 <section class="entry" id="fn-close">
 <h3>close</h3>
-<p>보내는 끝 <code>tx</code>의 채널을 지금 닫는다.</p>
-<div class="sig"><code>close(tx)</code></div>
+<p>보내는 끝의 채널이나 파일 핸들을 지금 닫는다.</p>
+<div class="sig"><code>close(x)</code></div>
 <h4>설명</h4>
-<p>그 끝의 다른 사본이 살아 있어도 지금 닫는다. 보통은 <a href="#fn-channel">자동 닫힘</a>으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 <code>Err({kind: 'closed})</code>를 받고, 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>다. 이미 닫힌 채널을 다시 닫아도 에러가 아니다.</p>
-<p>받는 끝은 닫을 수 없다(E0403). 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다). 파일 핸들은 <a href="../modules/fs.html#fn-fs-close"><code>fs.close</code></a>로 닫는다. 이름이 같지만 다른 함수다.</p>
+<p>닫을 수 있는 것은 이 함수 하나로 닫는다.</p>
+<ul>
+<li><strong>보내는 끝</strong>: 그 끝의 다른 사본이 살아 있어도 채널을 지금 닫는다. 보통은 <a href="#fn-channel">자동 닫힘</a>으로 충분하고, 최상위에서 만든 채널처럼 사본이 오래 사는 경우에 쓴다. 닫은 뒤 받는 쪽은 남은 값을 받은 뒤 <code>Err({kind: 'closed})</code>를 받고, 그 뒤의 <code>send</code>는 <code>Err({kind: 'closed})</code>다. 이미 닫힌 채널을 다시 닫아도 <code>Ok(nil)</code>이다. 받는 끝은 닫을 수 없다: 받기를 그만두려면 받는 끝을 버린다(마지막 사본이 사라지면 닫힌다).</li>
+<li><strong>파일 핸들</strong>(<a href="../modules/fs.html#fn-fs-open"><code>fs.open</code></a>): 버퍼에 남은 쓰기를 디스크에 비우고 핸들을 닫는다. 비우기나 닫기가 실패하면 그 에러를 돌려준다(NFS처럼 닫을 때에야 쓰기를 보내는 파일 시스템에서는 디스크 가득 참이 여기서 나온다). 닫힌 핸들로 읽고 쓰면 <code>Err({kind: 'closed})</code>이고, 한 번 더 닫아도 같다. 닫지 않은 핸들은 그 값의 마지막 사본이 사라지면 런타임의 닫기 스레드가 비우고 닫는다. 그래서 데이터가 파일에 닿는 때는 정해져 있지 않고, 그 비우기나 닫기가 실패하면 표준 에러에 <a href="../errors.html#E0810">E0810</a>을 쓰고 종료 코드가 1이 된다. 그래서 쓴 핸들은 직접 닫거나 <a href="../modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a>을 쓴다.</li>
+</ul>
 <h4>매개변수</h4>
 <ul>
-<li><code>tx</code>: 보내는 끝.</li>
+<li><code>x</code>: 보내는 끝, 또는 파일 핸들.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p><code>nil</code>.</p>
+<p><code>Ok(nil)</code>.</p>
 <h4>에러</h4>
-<p><code>tx</code>가 보내는 끝이 아니면 런타임 에러 E0403.</p>
+<ul>
+<li><code>x</code>가 보내는 끝도 파일 핸들도 아니면(받는 끝 포함) 런타임 에러 E0403.</li>
+<li>파일 핸들: <code>Err({kind: 'closed})</code>(이미 닫힘), <code>Err({kind: 'io})</code>(버퍼를 비우다 실패, 디스크가 참 등).</li>
+</ul>
 <h4>예제</h4>
 <p><strong>최상위 채널을 닫고 끝까지 받기</strong></p>
 <div class="run"><pre><code>(tx, rx) = channel(3)
@@ -714,9 +720,19 @@ for x in rx:
 ;;</code></pre><pre class="out plain"><code>a
 b
 c</code></pre></div>
+<p><strong>파일 핸들 닫기</strong></p>
+<div class="run"><pre><code>import fs
+
+h = fs.open(&quot;out.txt&quot;, 'write)!
+fs.write_line(h, &quot;one&quot;)!
+print(close(h))
+print(close(h))
+print(fs.write_line(h, &quot;two&quot;))</code></pre><pre class="out plain"><code>Ok(nil)
+Err({kind: 'closed, message: &quot;file `out.txt` is closed&quot;})
+Err({kind: 'closed, message: &quot;file `out.txt` is closed&quot;})</code></pre></div>
 <p><strong>받는 끝은 닫지 못한다</strong></p>
 <div class="run"><pre><code>(tx, rx) = channel()
-close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `tx` must be sender, got receiver
+close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `x` must be sender | file, got receiver
   --&gt; example.fung:2:6
   |
 2 | close(rx)
@@ -725,7 +741,7 @@ close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403
  call path (innermost first):
    example.fung:2 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-channel"><code>channel</code></a>, <a href="#fn-send"><code>send</code></a>, <a href="../modules/fs.html#fn-fs-close"><code>fs.close</code></a></p>
+<p><a href="#fn-channel"><code>channel</code></a>, <a href="#fn-send"><code>send</code></a>, <a href="../modules/fs.html#fn-fs-open"><code>fs.open</code></a>, <a href="../modules/fs.html#fn-fs-with_open"><code>fs.with_open</code></a></p>
 </section>
 <h2 id="stop">정지 요청</h2>
 <section class="entry" id="fn-stop_signal">
@@ -733,8 +749,8 @@ close(rx)</code></pre><pre class="out err plain" data-code="1"><code>error[E0403
 <p>정지 요청을 받는 끝(<code>receiver</code>)을 돌려준다. 정지 요청이 오면 이 끝이 닫힌다.</p>
 <div class="sig"><code>stop_signal()</code></div>
 <h4>설명</h4>
-<p>정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, <code>kill</code>, 컨테이너 종료)이나 <a href="#fn-request_stop"><code>request_stop</code></a>이 보낸다. 요청이 오면 이 끝이 닫히므로 <code>recv</code>는 <code>Err({kind: 'closed})</code>를 돌려주고, 이 끝을 도는 <code>for</code>는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 <a href="#fn-wait_closed"><code>wait_closed(stop)</code></a>, 기다리지 않고 요청이 왔는지 볼 때는 <a href="#fn-try_recv"><code>try_recv(stop)</code></a>이 <code>Err({kind: 'closed})</code>인지 본다(문장으로 쓴 <code>recv(stop)</code>은 닫힘의 <code>Err</code>를 버리므로 E0606이다). 이것은 <a href="#fn-cancel">취소</a>("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.</p>
-<p>이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(<code>with</code>의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.</p>
+<p>정지 요청은 "하던 일을 마치고 끝내라"이다. 첫 SIGINT·SIGTERM(터미널의 Ctrl-C, <code>kill</code>, 컨테이너 종료)이나 <a href="#fn-request_stop"><code>request_stop</code></a>이 보낸다. 요청이 오면 이 끝이 닫히므로 <code>recv</code>는 <code>Err({kind: 'closed})</code>를 돌려주고, 이 끝을 도는 <code>for</code>는 끝난다. 그때까지 이 끝으로 오는 값은 없다. 기다리기만 할 때는 <a href="#fn-wait_closed"><code>wait_closed(stop)</code></a>, 기다리지 않고 요청이 왔는지 볼 때는 <a href="#fn-recv_now"><code>recv_now(stop)</code></a>이 <code>Err({kind: 'closed})</code>인지 본다(문장으로 쓴 <code>recv(stop)</code>은 닫힘의 <code>Err</code>를 버리므로 E0606이다). 이것은 <a href="#fn-cancel">취소</a>("지금 멈춰라")와 다르다. 받은 쪽이 스스로 정리하고 끝낸다.</p>
+<p>이 끝의 사본이 하나라도 살아 있으면 "보는 쪽이 있다". 보는 쪽이 있으면 정지 요청은 이 끝을 닫기만 하고, 프로그램은 진입 파일이 끝날 때 끝난다(종료 코드 0). 신호가 왔을 때 이 끝에서 기다리는 태스크가 없으면(끝을 쥐고만 있으면) 표준 에러에 <code>note: stop requested; press again to end now</code>를 쓴다. 판정은 같아서 프로그램은 이어 돌고, 곧바로 끝내려면 한 번 더 누른다. 보는 쪽이 없으면 정지 요청은 프로그램을 취소한다(<code>with</code>의 해제는 돈다, 종료 코드 130·143). 그래서 정지 요청을 모르는 스크립트의 Ctrl-C는 바로 멈춘다. 두 번째 신호는 해제를 기다리지 않고 곧바로 끝낸다(128 + 신호 번호). 이 끝에서만 기다리는 것은 교착이 아니다(신호가 깨운다). 정지 요청이 이미 왔으면 닫힌 끝을 준다.</p>
 <p><a href="../modules/http.html"><code>http.serve</code></a>는 이것으로 새 연결을 그만 받고 처리 중인 요청을 마무리한다.</p>
 <h4>매개변수</h4>
 <p>없다.</p>
@@ -842,7 +858,7 @@ registry = atom({main: tx})</code></pre><pre class="out err plain" data-code="1"
 <div class="sig"><code>swap(a, f)</code></div>
 <h4>설명</h4>
 <p><strong>비교 후 교체</strong>(compare-and-swap)로 동작한다. 지금 값을 읽어 <code>f</code>로 새 값을 계산하고, 그사이 아무도 바꾸지 않았으면 바꾼다. 누가 먼저 바꿨으면 그 새 값으로 <code>f</code>를 다시 돌린다. 그래서 <code>deref</code>로 읽고 <code>reset</code>으로 쓰는 두 단계 사이에 다른 태스크가 끼어들어 갱신이 사라지는 일이 없다.</p>
-<p><code>f</code>는 여러 번 돌 수 있으므로 <strong>순수 계산만</strong> 한다. 출력, 표준 입력, <code>exit</code>, 태스크·채널 연산, <code>sleep</code>, 다른 atom의 <code>swap</code>·<code>reset</code>, 파일·네트워크·외부 프로세스를 부르면 런타임 에러 E0707이다. 에러는 부른 함수의 이름을 댄다(<code>fs.with_open</code>, <code>http.get</code>, <code>print</code> 등). 읽기(<code>deref</code>, 시간, 환경 변수)는 된다. <code>f</code>가 실패하면 상태는 그대로다.</p>
+<p><code>f</code>는 여러 번 돌 수 있으므로 <strong>순수 계산만</strong> 한다. 출력, 표준 입력, <code>exit</code>, 태스크·채널 연산, <code>sleep</code>, 정지 요청(<code>stop_signal</code>·<code>request_stop</code>), 다른 atom의 <code>swap</code>·<code>reset</code>, 파일·네트워크·외부 프로세스를 부르면 런타임 에러 E0707이다. 에러는 부른 함수의 이름을 댄다(<code>fs.with_open</code>, <code>http.get</code>, <code>print</code> 등). 읽기(<code>deref</code>, 시간, 환경 변수)는 된다. <code>f</code>가 실패하면 상태는 그대로다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>a</code>: atom.</li>
@@ -960,7 +976,7 @@ print(before, deref(a))</code></pre><pre class="out plain"><code>[1, 2] [1, 2, 3
 <h4>예제</h4>
 <p><strong>잠깐 기다리기와 기한</strong></p>
 <div class="run"><pre><code>print(sleep(10ms))
-print(timeout(10ms, () =&gt; sleep(1s)))</code></pre><pre class="out plain"><code>nil
+print(timeout(() =&gt; sleep(1s), 10ms))</code></pre><pre class="out plain"><code>nil
 Err({kind: 'timeout, message: &quot;timed out after 10ms&quot;})</code></pre></div>
 <p><strong>주기적으로 하기</strong></p>
 <div class="run"><pre><code>fn poll(n):

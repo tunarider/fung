@@ -141,7 +141,7 @@ fn a_scope_waiting_for_children_parks() {
 fn an_outer_cancel_waits_for_the_children_then_unwinds() {
     assert_eq!(
         out(
-            "(_tx, rx) = channel()\nprint(timeout(20ms, () => scope(fn(s):\n  spawn(s, () => with(() => 1, r => recv(rx), fn(r): sleep(50ms); print(\"released\") ;;))\n  recv(rx)\n;;)))"
+            "(_tx, rx) = channel()\nprint(timeout(() => scope(fn(s):\n  spawn(s, () => with(() => 1, r => recv(rx), fn(r): sleep(50ms); print(\"released\") ;;))\n  recv(rx)\n;;), 20ms))"
         ),
         (
             "released\nErr({kind: 'timeout, message: \"timed out after 20ms\"})\n".into(),
@@ -159,6 +159,38 @@ fn with_stdin(src: &str, stdin: &'static str) -> crate::testutil::Outcome {
             ..crate::testutil::Opts::default()
         },
     )
+}
+
+/// When the standard input reader cannot start (no thread can be made),
+/// the read is E0801 and the input stays for a later read (review CC7):
+/// it used to panic after taking the input, and later reads waited
+/// forever. `fail_stdin_start(b)` makes the next starts fail or not.
+#[test]
+fn a_reader_that_cannot_start_is_e0801_and_keeps_the_input() {
+    fn natives() -> Vec<crate::value::Value> {
+        let mut v = crate::testutil::probes();
+        v.push(crate::value::Value::Native(crate::value::Native::leak(
+            "fail_stdin_start",
+            vec![crate::native::nat::param("b")],
+            |_: &mut super::Task, a| {
+                super::stdin::fail_start_for_tests(matches!(a[0], crate::value::Value::Bool(true)));
+                Ok(crate::value::Value::Nil)
+            },
+        )));
+        v
+    }
+    let o = crate::testutil::exec(
+        "fail_stdin_start(true)\nsupervise(fn(s):\n  spawn(s, () => read_line())\n  nil\n;;, e => print(e.kind, e.code))\nfail_stdin_start(false)\nprint(read_line())",
+        crate::testutil::Opts {
+            stdin: "a\n",
+            extra: natives,
+            ..crate::testutil::Opts::default()
+        },
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        ("'error E0801\nOk(\"a\")\n", "")
+    );
 }
 
 #[test]
@@ -392,31 +424,52 @@ fn a_panic_in_a_pool_job_is_e0801() {
 /// A deadline does not cut a running job that is waited for short (spec
 /// 15: only jobs that read are abandoned): the job runs to its end, then
 /// the deadline is enforced.
-/// The job waits on a latch that a sibling opens only once the job runs
-/// (a job still queued at the deadline is dropped, so a timed job made
-/// this racy on a busy machine) and the deadline has passed.
-/// Here the body returns right after the job, with no call left to see
-/// the expired deadline, so `timeout` gives the body's value, as it did
-/// before the job left the task's thread. With a call after the job,
-/// that call unwinds on the deadline.
+/// A deadline that passes while a job that changes something runs does
+/// not cut the job short, but once the job has ended the deadline wins
+/// over its value (review CC2; 05 "끝나는 즉시 끊긴다"). The job waits on a
+/// latch that a sibling opens only once the job runs (a job still queued
+/// at the deadline is dropped, so a timed job made this racy on a busy
+/// machine) and the deadline has passed.
 #[test]
-fn an_offload_wait_is_not_cut_by_a_cancel() {
-    for (latch, body, want) in [
-        ("nc1", "() => block_job(\"nc1\")", "done"),
-        (
-            "nc2",
-            "fn(): block_job(\"nc2\"); len(\"x\") ;;",
-            "Err({kind: 'timeout, message: \"timed out after 10ms\"})",
-        ),
+fn a_deadline_while_a_job_runs_wins_once_it_ends() {
+    for (latch, body) in [
+        ("nc1", "() => block_job(\"nc1\")"),
+        ("nc2", "fn(): block_job(\"nc2\"); len(\"x\") ;;"),
     ] {
         let o = with_job_natives(&format!(
-            "{}print(scope(fn(s):\n  spawn(s, fn():\n    until(() => pool_state() == [1, 0, 0])\n    sleep(20ms)\n    open_latch(\"{latch}\")\n  ;;)\n  print(timeout(10ms, {body}))\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, fn():\n    until(() => pool_state() == [1, 0, 0])\n    sleep(20ms)\n    open_latch(\"{latch}\")\n  ;;)\n  print(timeout({body}, 10ms))\n;;))",
             crate::testutil::UNTIL
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str()),
-            (format!("{want}\nnil\n").as_str(), ""),
+            (
+                "Err({kind: 'timeout, message: \"timed out after 10ms\"})\nnil\n",
+                ""
+            ),
             "{latch}"
+        );
+    }
+}
+
+/// A task cancelled while its job runs waits for the job, then ends
+/// cancelled: the job's value is dropped, and a handle it made is
+/// closed with it (review CC2). A cancelled task is no failure, so the
+/// scope ends well.
+#[test]
+fn a_cancel_while_a_job_runs_drops_its_value() {
+    for (latch, job) in [("cj1", "block_job"), ("cj2", "block_open_job")] {
+        let o = with_job_natives(&format!(
+            "{}r = scope(fn(s):\n  t = spawn(s, () => {job}(\"{latch}\"))\n  until(() => pool_state() == [1, 0, 0])\n  cancel(t)\n  open_latch(\"{latch}\")\n  await(t)\n;;)\nprint(r)\nprint(handle_alive(\"{latch}\"))",
+            crate::testutil::UNTIL
+        ));
+        assert_eq!(
+            (o.out.as_str(), o.err.as_str(), o.exit),
+            (
+                "Err({kind: 'cancelled, message: \"cancelled\"})\nfalse\n",
+                "",
+                0
+            ),
+            "{job}"
         );
     }
 }
@@ -427,7 +480,7 @@ fn an_offload_wait_is_not_cut_by_a_cancel() {
 #[test]
 fn a_late_wake_from_an_abandoned_job_is_harmless() {
     let o = with_job_natives(&format!(
-        "{}(tx, rx) = channel()\nprint(timeout(10ms, () => abandoning_block_job(\"lw\")))\nprint(scope(fn(s):\n  spawn(s, fn():\n    open_latch(\"lw\")\n    until(() => pool_state()[1] == 1)\n    send(tx, 42)\n  ;;)\n  recv(rx)\n;;))",
+        "{}(tx, rx) = channel()\nprint(timeout(() => abandoning_block_job(\"lw\"), 10ms))\nprint(scope(fn(s):\n  spawn(s, fn():\n    open_latch(\"lw\")\n    until(() => pool_state()[1] == 1)\n    send(tx, 42)\n  ;;)\n  recv(rx)\n;;))",
         crate::testutil::UNTIL
     ));
     assert_eq!(
@@ -445,7 +498,7 @@ fn a_late_wake_from_an_abandoned_job_is_harmless() {
 fn a_queued_job_is_dropped_at_the_deadline() {
     let o = crate::testutil::exec_prepared(
         &format!(
-            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"qd\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(20ms, () => abandoning_block_job(\"qd2\"))\n  open_latch(\"qd\")\n  open_latch(\"qd2\")\n  r\n;;))",
+            "{}print(scope(fn(s):\n  spawn(s, () => block_job(\"qd\"))\n  until(() => pool_state() == [1, 0, 0])\n  r = timeout(() => abandoning_block_job(\"qd2\"), 20ms)\n  open_latch(\"qd\")\n  open_latch(\"qd2\")\n  r\n;;))",
             crate::testutil::UNTIL
         ),
         crate::testutil::Opts {
@@ -471,7 +524,7 @@ fn a_queued_job_is_dropped_at_the_deadline() {
 fn an_await_cut_short_leaves_the_waiting_list() {
     assert_eq!(
         out(
-            "scope(fn(s):\n  bg = spawn(s, () => sleep(1h))\n  scope(c => each(0..100, _ => spawn(c, fn(): _ = timeout(1ms, () => await(bg)); nil ;;)))\n  print(awaiters(bg))\n  cancel(bg)\n;;)"
+            "scope(fn(s):\n  bg = spawn(s, () => sleep(1h))\n  scope(c => each(0..100, _ => spawn(c, fn(): _ = timeout(() => await(bg), 1ms); nil ;;)))\n  print(awaiters(bg))\n  cancel(bg)\n;;)"
         ),
         ("0\n".into(), "".into())
     );
@@ -519,5 +572,22 @@ fn sort_builds_its_result_on_the_pieces_budget() {
             "fn sorted(n):\n  xs = map(0..n, i => (i * 7919) % 1000003)\n  p = parks()\n  ys = sort(xs)\n  (len(ys), parks() - p)\n;;\nprint(sorted(60000), sorted(1000))"
         ),
         ("(60000, 62) (1000, 0)\n".into(), "".into())
+    );
+}
+
+/// The natives that built their whole result in one go take pieces too
+/// (VA10): `chars`, `bytes`, `from_bytes`, `pairs` (and so `keys` and
+/// `values`), `merge` and `trim` give their turn on a big input, and none
+/// on a small one.
+#[test]
+fn more_long_natives_give_their_turn() {
+    assert_eq!(
+        out(
+            "s = repeat(\"ab가\", 20000)\nm1 = fold(0..5000, {}, (m, i) => put(m, \"a${i}\", i))\nm2 = fold(0..5000, {}, (m, i) => put(m, \"b${i}\", i))\nbs = map(0..20000, i => i % 256)\nws = repeat(\" \", 300000) + \"x\" + repeat(\" \", 300000)\nfn parked(f):\n  p = parks()\n  _ = f()\n  parks() - p > 0\n;;\nprint(parked(() => chars(s)), parked(() => bytes(s)), parked(() => from_bytes(bs)), parked(() => pairs(m1)), parked(() => merge(m1, m2)), parked(() => trim(ws)))\nprint(parked(() => chars(\"ab\")), parked(() => bytes(\"ab\")), parked(() => from_bytes([1])), parked(() => pairs({a: 1})), parked(() => merge({a: 1}, {b: 2})), parked(() => trim(\" a \")))"
+        ),
+        (
+            "true true true true true true\nfalse false false false false false\n".into(),
+            "".into()
+        )
     );
 }

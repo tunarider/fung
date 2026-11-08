@@ -5,8 +5,9 @@ use super::{Resolver, fn_info};
 use crate::source::Pos;
 use crate::tree::{FnInfo, Head, Lit, Node};
 
-/// The type names of 07; tag names (uppercase) are also accepted.
-const BUILTIN_TYPES: &[&str] = &[
+/// The type names of 07; tag names (uppercase) are also accepted. The
+/// VM's type checks know the same names (`fung_vm` `value/types.rs`).
+pub const BUILTIN_TYPES: &[&str] = &[
     "int", "float", "num", "str", "bool", "nil", "sym", "dur", "time", "list", "map", "tuple",
     "range", "fn", "module", "task", "scope", "atom", "sender", "receiver", "file", "any",
 ];

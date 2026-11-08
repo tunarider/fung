@@ -1,0 +1,5 @@
+# `?` in a lambda given to map is E0226 also when it is passed by name
+# as `f:` (SP1): map would keep the Err as an element.
+fn ports(xs) = map(xs, f: s => parse_int(s)?)
+print(ports(["1", "x"]))
+# expect-error: E0226

@@ -217,7 +217,7 @@ impl Pipe {
     }
 
     /// Sends what is still queued, waiting if it must, and closes the
-    /// FIFO, reporting the close (`file::finish`: `fs.close` and a
+    /// FIFO, reporting the close (`file::finish`: `close` and a
     /// dropped handle, on a thread that may block).
     pub(crate) fn finish(self, path: &[u8]) -> io::Result<()> {
         let Pipe { mut file, wbuf, .. } = self;

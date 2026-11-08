@@ -103,7 +103,9 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   (ID 접두사 SP·FE·VM·VA·CC·LB·TL, 항목마다 재현·명세 근거·원인 위치·고치는 법, 결정 항목은 선택지와 추천, 1절 총평·2절 추천 순서). **개별 세션에서 묶음 또는 항목 하나씩** 고친다.
   같은 날 결정 항목 33개 가운데 22개를 사용자 결정(전부 추천안)대로 고쳐 main에 스쿼시했다(미릴리스, 문서의 각 항목에 `처리:` 줄): VM1·VM2(모든 블록의 문장 뒤 놓기, 대입이 생존을 끊음),
   FE1 FE4(E0231) TL1 SP2(E0519) LB2, SP3 SP4 FE17(E0232) FE18 FE20(E0233) VM4 VA8 VA9 LB7 LB8 LB9(E0520) LB10(E0521) LB11 CC1 CC5, 함께 FE12 LB6 CC3 VM10(a).
-  남은 것: 결정 11개(SP10 VA14 VA15 CC6 LB4 LB17 LB18 LB19 LB20 TL3 TL5), 결정 없는 버그 묶음, 성능·정리·문서 항목.
+  이어서(2026-11-08~09, 작업 브랜치, 미릴리스) 나머지 76개를 모두 처리했다. **사용자 지침: 하위 호환 무시, 엄격함 우선, 예외·특수한 경우 최소화(매뉴얼이 간단해지는 쪽)**, 남은 결정 20개를 이 지침으로 다시 판단해 모두 새 추천안대로.
+  큰 것: `timeout(f, d)`·`send_now`·`recv_now`·`close(x)` 하나(`fs.close` 삭제, SP10), 매뉴얼 언어 명세가 규범이고 EBNF는 `grammar.md` 한 곳(SP5·SP8), 새 번호 E0118~E0124(FE15), 홀로 선 `\r`은 E0101(FE13),
+  `fs.write`는 원자적(LB17), 날짜 없는 `time.parse` 형식은 E0403(LB20), REPL·`fung test`의 종료 코드(TL3·TL5), 람다 매개변수는 `fn`과 같은 패턴만. 묶음마다 판단은 점검 문서의 `처리` 줄.
 - 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
   약점은 파일·텍스트 처리량. **다음 성능 작업**: P8~P11·P13은 2026-10-25에 끝(기록 `docs/notes/bench-languages.md` 4.1절). L15에서 P14·P12b·레지스터 VM을 닫았다(`docs/notes/bench-languages.md` 4.3·4.4절).
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).

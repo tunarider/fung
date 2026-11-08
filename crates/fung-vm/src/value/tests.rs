@@ -148,6 +148,13 @@ fn pow_cases() {
     ok(pow, Value::Float(2.0), Value::Int(2), Value::Float(4.0));
     ok(pow, Value::Int(4), Value::Float(0.5), Value::Float(2.0));
     fails(pow, Value::Int(2), Value::Bool(true), "E0501");
+    // Zero to a negative power divides by zero (VA14).
+    fails(pow, Value::Int(0), Value::Int(-1), "E0502");
+    fails(pow, Value::Float(0.0), Value::Int(-1), "E0502");
+    fails(pow, Value::Int(0), Value::Float(-0.5), "E0502");
+    fails(pow, Value::Float(-0.0), Value::Float(-2.0), "E0502");
+    ok(pow, Value::Int(0), Value::Int(0), Value::Int(1));
+    ok(pow, Value::Float(0.0), Value::Float(0.5), Value::Float(0.0));
 }
 
 #[test]
@@ -319,7 +326,7 @@ fn type_names() {
         (
             Value::Tag(Rc::new(Tag {
                 name: intern("Circle"),
-                args: vec![],
+                args: vec![].into(),
             })),
             "Circle",
         ),
@@ -335,7 +342,7 @@ fn tuple_tag_range_forms() {
     assert_eq!(format(&one), "(1,)");
     let ok2 = Value::Tag(Rc::new(Tag {
         name: intern("Ok"),
-        args: vec![Value::Int(2)],
+        args: vec![Value::Int(2)].into(),
     }));
     assert_eq!(format(&ok2), "Ok(2)");
     let r = |inclusive| {
@@ -362,7 +369,7 @@ fn matches_type_cases() {
     let alts = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     let red1 = Value::Tag(Rc::new(Tag {
         name: intern("Red"),
-        args: vec![Value::Int(1)],
+        args: vec![Value::Int(1)].into(),
     }));
     let cases = [
         (Value::Int(1), alts(&["int"]), true),
@@ -1352,6 +1359,86 @@ fn slice_errors_name_the_index_as_written() {
     assert_eq!(shown(Some(0), Some(5), true), Arg::Int(5));
     assert_eq!(shown(Some(0), Some(i64::MAX), true), Arg::Int(i64::MAX));
     assert_eq!(shown(Some(i64::MIN), None, false), Arg::Int(i64::MIN));
+    // An inclusive end is an element's index: -4 is not one of three.
+    assert_eq!(shown(None, Some(-4), true), Arg::Int(-4));
+    assert_eq!(shown(Some(0), Some(-4), true), Arg::Int(-4));
+}
+
+/// A one-byte string made by `chars`, `split(s, "")` or `s[i]` is shared,
+/// not allocated each time (VA11); longer characters are their own.
+#[test]
+fn one_byte_characters_are_shared() {
+    let ptr = |v: &Value| match v {
+        Value::Str(t) => Rc::as_ptr(t),
+        _ => panic!("not a string"),
+    };
+    let s = Value::bytes(b"ab\xffa\xff".to_vec());
+    let at = |i| super::index::index(&s, &Value::Int(i)).unwrap();
+    assert_eq!(ptr(&at(0)), ptr(&at(3)));
+    assert_eq!(ptr(&at(2)), ptr(&at(4)));
+    assert_ne!(ptr(&at(0)), ptr(&at(1)));
+    assert!(same(&at(2), &Value::bytes(b"\xff".to_vec())));
+    assert!(same(&Value::char_str(b"a"), &Value::str("a")));
+    assert_eq!(ptr(&Value::char_str(b"a")), ptr(&at(0)));
+    assert!(same(&Value::char_str("가".as_bytes()), &Value::str("가")));
+}
+
+/// `s[i]` reads only up to the character it gives, from the front or
+/// from the end, and still gives what cutting into characters does; out
+/// of range it reports the length (VA12).
+#[test]
+fn string_index_reads_up_to_the_character() {
+    use fung_front::text::units;
+    for b in [
+        &b""[..],
+        b"abc",
+        "가나다".as_bytes(),
+        b"a\xff\xe2\x82b\xe2\x82\xac",
+        &[&"가".repeat(100).into_bytes()[..], b"\xff", "나".as_bytes()].concat(),
+    ] {
+        let chars: Vec<Vec<u8>> = units(b)
+            .map(|(at, u)| b[at..at + u.byte_len()].to_vec())
+            .collect();
+        let n = chars.len() as i64;
+        let s = Value::bytes(b.to_vec());
+        for i in -n - 2..n + 2 {
+            let got = super::index::index(&s, &Value::Int(i));
+            let want = if i >= 0 {
+                chars.get(i as usize)
+            } else {
+                chars.get((n + i) as usize).filter(|_| n + i >= 0)
+            };
+            match want {
+                Some(c) => assert!(same(&got.unwrap(), &Value::bytes(c.clone())), "{b:?}[{i}]"),
+                None => {
+                    let e = got.unwrap_err();
+                    assert_eq!(
+                        (e.code.as_str(), e.args[2].clone()),
+                        ("E0507", fung_front::diag::Arg::Int(n)),
+                        "{b:?}[{i}]"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// An inclusive end names an element: an empty list or string has none,
+/// so `..=-1` is out of range there too (VA2).
+#[test]
+fn an_inclusive_end_must_be_an_element() {
+    let empty = Value::List(Rc::new(List::new(vec![])));
+    let e = super::index::slice(&empty, None, Some(&Value::Int(-1)), true).unwrap_err();
+    assert_eq!(e.code, "E0507");
+    let s = Value::str("abc");
+    let e = super::index::slice(&s, None, Some(&Value::Int(-4)), true).unwrap_err();
+    assert_eq!(e.code, "E0507");
+    let e = super::index::slice(&Value::str(""), None, Some(&Value::Int(-1)), true).unwrap_err();
+    assert_eq!(e.code, "E0507");
+    let all = super::index::slice(&s, None, Some(&Value::Int(-1)), true).unwrap();
+    assert!(same(&all, &Value::str("abc")));
+    let one = super::index::slice(&s, None, Some(&Value::Int(-3)), true).unwrap();
+    assert!(same(&one, &Value::str("a")));
 }
 
 /// A start after the end is not out of range: it has its own message,
@@ -1446,7 +1533,7 @@ fn in_map(v: Value) -> Value {
 fn in_tag(v: Value) -> Value {
     Value::Tag(Rc::new(Tag {
         name: intern("Ok"),
-        args: vec![v],
+        args: vec![v].into(),
     }))
 }
 
@@ -1571,4 +1658,22 @@ fn a_returned_string_keeps_to_the_limit() {
         super::check_returned(&Value::tuple(vec![over])).is_ok(),
         "tuples are not walked"
     );
+}
+
+/// Adding a string and another value says how to join them (SP7): the
+/// most common type error, `size // 1024 + "kb"`.
+#[test]
+fn adding_text_and_another_value_has_a_help() {
+    let text = Value::bytes(b"kb".to_vec());
+    for (a, b) in [(Value::Int(3), text.clone()), (text.clone(), Value::Int(3))] {
+        let d = super::arith::add(&a, &b).unwrap_err();
+        assert_eq!(d.code, "E0501");
+        assert!(
+            d.help.as_deref().is_some_and(|h| h.contains("str(")),
+            "{:?}",
+            d.help
+        );
+    }
+    let d = super::arith::add(&Value::Int(3), &Value::Bool(true)).unwrap_err();
+    assert_eq!(d.help, None);
 }

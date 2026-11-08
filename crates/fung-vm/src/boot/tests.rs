@@ -437,7 +437,7 @@ fn fung_prelude_functions() {
         assert_eq!((o.code.as_str(), o.out.as_str()), ("", *want), "{src}");
     }
     for (src, want) in [
-        ("pad_left(\"a\", 3, \"\")", "E0803"),
+        ("pad_left(\"a\", 3, \"\")", "E0403"),
         ("pad_left(\"a\", 200000000, \" \")", "E0806"),
         ("lines(1)", "E0403"),
         ("take(1, 2)", "E0506"),
@@ -534,8 +534,8 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |     ^
   |
  call path (innermost first):
-   extras/prelude.fung:81 _clamp
-   extras/prelude.fung:90 take
+   extras/prelude.fung:100 _clamp
+   extras/prelude.fung:109 take
    -e:2       <entry>
 "
     );
@@ -552,8 +552,9 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:126 until
+   extras/prelude.fung:146 until
    -e:1       <entry>
+ help: put the value into the text with `\"${…}\"`, or convert it with `str(…)`
 "
     );
 }
@@ -583,8 +584,8 @@ fn prelude_frames_and_imported_files_keep_their_names() {
   |                  ^
   |
  call path (innermost first):
-   extras/prelude.fung:81 _clamp
-   extras/prelude.fung:90 take
+   extras/prelude.fung:100 _clamp
+   extras/prelude.fung:109 take
    {d}/lib.fung:1 cut
    {d}/main.fung:3 <entry>
 "

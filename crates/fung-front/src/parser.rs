@@ -29,6 +29,11 @@ type PResult<T> = Result<T, Box<Diag>>;
 
 struct Parser<'a> {
     toks: &'a [Token],
+    /// For each opening bracket token, the index of the closer that
+    /// brings the depth back (any kind, as `lambda_params_ahead` counts);
+    /// `usize::MAX` when there is none. Built once, so looking ahead for
+    /// `( … ) =>` costs O(1) instead of a scan per `(` (FE16).
+    pairs: Vec<usize>,
     i: usize,
     /// Depth of `(` `[` `{`: newlines are whitespace inside.
     nest: usize,
@@ -86,10 +91,30 @@ fn describe(t: &Token) -> String {
     }
 }
 
+/// The closer of every opening bracket (`Parser::pairs`), with one stack
+/// pass. A closer with nothing open is skipped.
+fn bracket_pairs(toks: &[Token]) -> Vec<usize> {
+    let mut pairs = vec![usize::MAX; toks.len()];
+    let mut open = Vec::new();
+    for (j, t) in toks.iter().enumerate() {
+        match t.kind {
+            Kind::LParen | Kind::LBracket | Kind::LBrace => open.push(j),
+            Kind::RParen | Kind::RBracket | Kind::RBrace => {
+                if let Some(o) = open.pop() {
+                    pairs[o] = j;
+                }
+            }
+            _ => {}
+        }
+    }
+    pairs
+}
+
 impl<'a> Parser<'a> {
     fn new(toks: &'a [Token], depth: usize) -> Self {
         Parser {
             toks,
+            pairs: bracket_pairs(toks),
             i: 0,
             nest: 0,
             depth,

@@ -139,7 +139,7 @@ print(r)
 
 ## 기한: timeout {#timeout}
 
-응답하지 않는 서버를 영원히 기다릴 수는 없다. `timeout(기간, 함수)`는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 `Err({kind: 'timeout})`을 돌려준다. 기간 안에 끝나면 함수의 값을 그대로 돌려준다.
+응답하지 않는 서버를 영원히 기다릴 수는 없다. `timeout(함수, 기간)`는 함수를 실행하되, 기간이 지나면 그 안의 일을 모두 취소하고 `Err({kind: 'timeout})`을 돌려준다. 기간 안에 끝나면 함수의 값을 그대로 돌려준다.
 
 ```fung run
 fn answer(d):
@@ -147,14 +147,14 @@ fn answer(d):
   "answered after ${d}"
 ;;
 
-print(timeout(1s, () => answer(10ms)))
-print(timeout(1s, () => answer(5s)))
+print(timeout(() => answer(10ms), 1s))
+print(timeout(() => answer(5s), 1s))
 ```
 
 기한은 그 안에서 띄운 태스크, 외부 명령, HTTP 요청(13장)까지 모두에 걸린다. 기한이 지났을 때 도는 외부 명령은 끝내 준다(먼저 SIGTERM, 2초 안에 안 끝나면 SIGKILL). 그래서 `ssh`가 걸려 버린 서버도 정해진 시간 안에 포기할 수 있다.
 
 ```fung run
-print(timeout(200ms, () => sh("sleep 10; echo finished")))
+print(timeout(() => sh("sleep 10; echo finished"), 200ms))
 ```
 
 `pmap`과 함께 쓰면 "서버마다 2초씩만 기다린다"가 된다. 서버마다의 결과에 시간 초과가 `Err`로 섞인다.
@@ -167,7 +167,7 @@ fn probe(host):
   Ok("${host} ok")
 ;;
 
-results = conc.pmap(["web1", "slow-db", "web2"], h => timeout(1s, () => probe(h)))
+results = conc.pmap(["web1", "slow-db", "web2"], h => timeout(() => probe(h), 1s))
 print(results)
 ```
 
@@ -232,13 +232,13 @@ done = scope(fn(s):
 print(len(done), "jobs done")
 ```
 
-기다리지 않고 한 번만 보고 싶을 때는 `try_recv(rx)`를 쓴다. 받을 값이 있으면 `Ok(v)`, 없으면 `Err({kind: 'empty})`를 곧바로 돌려준다. 보내는 쪽은 `try_send(tx, v)`이고, 가득 차서 기다려야 하면 `Err({kind: 'full})`이다. 반대로 값은 필요 없고 채널이 닫히기만 기다릴 때는 `wait_closed(rx)`를 쓴다. 정지 요청(Ctrl-C)을 기다리는 `wait_closed(stop_signal())`이 대표적인 쓰임이다.
+기다리지 않고 한 번만 보고 싶을 때는 `recv_now(rx)`를 쓴다. 받을 값이 있으면 `Ok(v)`, 없으면 `Err({kind: 'empty})`를 곧바로 돌려준다. 보내는 쪽은 `send_now(tx, v)`이고, 가득 차서 기다려야 하면 `Err({kind: 'full})`이다. 반대로 값은 필요 없고 채널이 닫히기만 기다릴 때는 `wait_closed(rx)`를 쓴다. 정지 요청(Ctrl-C)을 기다리는 `wait_closed(stop_signal())`이 대표적인 쓰임이다.
 
 ```fung run
 (tx, rx) = channel(1)
-print(try_recv(rx))
-print(try_send(tx, "a"), try_send(tx, "b"))
-print(try_recv(rx))
+print(recv_now(rx))
+print(send_now(tx, "a"), send_now(tx, "b"))
+print(recv_now(rx))
 ```
 
 ## 함께 쓰는 값: atom {#atom}
@@ -278,7 +278,7 @@ fn probe(host):
 ;;
 
 hosts = ["web1", "web2", "db1"]
-results = conc.pmap(hosts, h => timeout(500ms, () => probe(h)))
+results = conc.pmap(hosts, h => timeout(() => probe(h), 500ms))
 rows = zip(hosts, results)
 for (host, r) in rows:
   status = match r:
@@ -403,10 +403,10 @@ print(result)
 
 - 동시성은 기다리는 시간을 겹치는 것이다. 네트워크·명령·파일처럼 기다림이 많은 일이 빨라진다.
 - 리스트의 일을 동시에 하려면 `conc.pmap(xs, f, limit: n)`. 결과는 입력 순서대로다.
-- 기다리지 않고 한 번 보기는 `try_recv`·`try_send`, 닫힘만 기다리기는 `wait_closed`.
+- 기다리지 않고 한 번 보기는 `recv_now`·`send_now`, 닫힘만 기다리기는 `wait_closed`.
 - 태스크는 `scope` 안에서 `spawn(s, f)`로 띄우고 `await`로 결과를 받는다. 태스크 범위는 모든 태스크가 끝나야 돌아온다. 태스크가 돌려준 `Err`를 아무도 읽지 않으면 E0607이다.
 - 태스크의 런타임 에러는 태스크 범위를 실패시키고 나머지를 취소한다. 격리하려면 `supervise(f, on_fail)`.
-- `timeout(d, f)`는 기한이 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.
+- `timeout(f, d)`는 기한이 지나면 안의 일을 모두 취소하고 `Err({kind: 'timeout})`. `cancel`로 직접 취소한다.
 - 채널 `(tx, rx) = channel()`로 값을 주고받는다. 보내는 끝이 모두 사라지면 닫힌다. 쥔 채 기다리면 E0702.
 - 함께 고치는 값은 `atom`·`deref`·`swap`. `swap`의 함수에는 효과를 쓸 수 없다(E0707).
 

@@ -27,28 +27,14 @@ fn pattern_param(pat: Node) -> Param {
     }
 }
 
-/// The names a parameter pattern binds, each once, with where it is bound.
-fn pattern_names(n: &Node, out: &mut Vec<(String, Pos)>) {
-    if matches!(n.head, Head::Pbind | Head::Prest)
-        && let Lit::Str(name) = &n.lit
-        && !out.iter().any(|(m, _)| m == name)
-    {
-        out.push((name.clone(), n.pos));
-    }
-    for k in &n.kids {
-        pattern_names(k, out);
-    }
-}
-
-/// E0110 when `name` is already bound by an earlier parameter, plain or
+/// E0119 when `name` is already bound by an earlier parameter, plain or
 /// inside a pattern (03); a pattern binding a name twice by itself is the
 /// resolver's E0221.
 fn note_param(seen: &mut HashSet<String>, name: &str, pos: Pos) -> PResult<()> {
     if !seen.insert(name.to_string()) {
-        return Err(err(
-            "E0110",
-            pos,
-            vec![s(format!("duplicate parameter `{name}`"))],
+        let n = name.chars().count();
+        return Err(Box::new(
+            crate::diag::error("E0119", pos, vec![s(name)]).span(n),
         ));
     }
     Ok(())
@@ -56,8 +42,13 @@ fn note_param(seen: &mut HashSet<String>, name: &str, pos: Pos) -> PResult<()> {
 
 /// Records every name a pattern parameter binds (`note_param`).
 fn note_pattern(seen: &mut HashSet<String>, pat: &Node) -> PResult<()> {
-    let mut names = Vec::new();
-    pattern_names(pat, &mut names);
+    // each name once: a pattern binding a name twice by itself is E0221
+    let mut names: Vec<(String, Pos)> = Vec::new();
+    pat.bound_names(&mut |name, pos| {
+        if !names.iter().any(|(m, _)| m == name) {
+            names.push((name.to_string(), pos));
+        }
+    });
     for (name, pos) in names {
         note_param(seen, &name, pos)?;
     }
@@ -99,6 +90,9 @@ impl<'a> Parser<'a> {
             let body = self.body(fn_tok.pos)?;
             self.expect_desc(Kind::DoubleSemi, "`;;` to close the function")?;
             body
+        } else if self.at(Kind::Assign) {
+            let pos = self.peek().pos;
+            return Err(err("E0124", pos, Vec::new()));
         } else {
             return Err(self.unexpected());
         };
@@ -142,11 +136,7 @@ impl<'a> Parser<'a> {
                     return Err(self.unexpected());
                 }
                 if saw_default {
-                    return Err(err(
-                        "E0110",
-                        pat.pos,
-                        vec![s("required parameter after an optional one")],
-                    ));
+                    return Err(err("E0120", pat.pos, Vec::new()));
                 }
                 note_pattern(&mut seen, &pat)?;
                 info.params.push(pattern_param(pat));
@@ -176,14 +166,7 @@ impl<'a> Parser<'a> {
                 prm.has_default = true;
                 saw_default = true;
             } else if saw_default && !prm.rest {
-                return Err(err(
-                    "E0110",
-                    name.pos,
-                    vec![s(format!(
-                        "required parameter `{}` after an optional one",
-                        name.text
-                    ))],
-                ));
+                return Err(err("E0120", name.pos, Vec::new()));
             }
             info.params.push(prm);
             if self.at(Kind::Comma) {
@@ -212,6 +195,8 @@ impl<'a> Parser<'a> {
                 return Ok(alts);
             }
             self.next();
+            // a line ending in `|` continues (01 rule 1, FE7)
+            self.skip_newlines_after_operator();
         }
     }
 
@@ -260,25 +245,13 @@ impl<'a> Parser<'a> {
     /// whitespace, and before `=>` too when the lambda itself sits inside
     /// brackets (01).
     pub(super) fn lambda_params_ahead(&self) -> bool {
-        let toks = self.toks;
-        if toks[self.i].kind != Kind::LParen {
+        if self.toks[self.i].kind != Kind::LParen {
             return false;
         }
-        let mut depth = 0usize;
-        for (j, t) in toks.iter().enumerate().skip(self.i) {
-            match t.kind {
-                Kind::LParen | Kind::LBracket | Kind::LBrace => depth += 1,
-                Kind::RParen | Kind::RBracket | Kind::RBrace => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return self.kind_from(j + 1) == Kind::FatArrow;
-                    }
-                }
-                Kind::Eof => return false,
-                _ => {}
-            }
+        match self.pairs[self.i] {
+            usize::MAX => false,
+            j => self.kind_from(j + 1) == Kind::FatArrow,
         }
-        false
     }
 
     /// Parses `NAME => expr` or `( patterns ) => expr`. The body is one
@@ -316,6 +289,11 @@ impl<'a> Parser<'a> {
     fn lambda_params(&mut self, info: &mut FnInfo) -> PResult<()> {
         let mut seen = HashSet::new();
         while !self.at(Kind::RParen) {
+            // The same parameters as `fn` (SP8): a name or a destructuring
+            // pattern, not a literal.
+            if !self.at(Kind::Name) && !self.pattern_param_ahead() {
+                self.expect_desc(Kind::Name, "a parameter name")?;
+            }
             let pat = self.pattern()?;
             note_pattern(&mut seen, &pat)?;
             if pat.head == Head::Pbind

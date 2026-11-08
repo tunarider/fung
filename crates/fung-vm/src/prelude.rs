@@ -23,7 +23,7 @@ use crate::native::walk::{Cursor, PerItem, walk};
 use crate::value::{ListBuilder, Lit, Native, Tag, Value, intern, type_name};
 use crate::vm::{Flow, Stop, Task};
 
-pub use io::dbg;
+pub use io::{dbg, dbg_at};
 pub(crate) use strings::{MAX_CHARS, too_many_chars};
 
 /// The natives are made once per process: they are leaked (`Native::leak`).
@@ -163,11 +163,11 @@ fn try_map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         fn got(&mut self, r: Value) -> Result<bool, Stop> {
             // A result holds one value (VM4), as for `?`.
             match &r {
-                Value::Tag(tag) if tag.args.len() == 1 && tag.name.name() == "Ok" => {
+                Value::Tag(tag) if tag.args.len() == 1 && tag.name == crate::value::Sym::OK => {
                     self.out.push(tag.args[0].clone());
                     Ok(false)
                 }
-                Value::Tag(tag) if tag.args.len() == 1 && tag.name.name() == "Err" => {
+                Value::Tag(tag) if tag.args.len() == 1 && tag.name == crate::value::Sym::ERR => {
                     self.err = Some(r);
                     Ok(true)
                 }
@@ -182,7 +182,7 @@ fn try_map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 Some(e) => e,
                 None => Value::Tag(Rc::new(Tag {
                     name: intern("Ok"),
-                    args: vec![Value::List(Rc::new(std::mem::take(&mut self.out).finish()))],
+                    args: vec![Value::List(Rc::new(std::mem::take(&mut self.out).finish()))].into(),
                 })),
             })
         }

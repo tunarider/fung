@@ -273,8 +273,8 @@ fn a_signal_from_outside_restores_the_terminal() {
 }
 
 /// Standard input that is not a terminal gets plain line reading: raw
-/// mode is never set (on the terminal the output goes to) and the line
-/// is not drawn with escape sequences.
+/// mode is never set (on the terminal the output goes to), the line is
+/// not drawn with escape sequences, and no prompt is written (TL3).
 #[test]
 fn a_pipe_never_sets_raw_mode() {
     let mut t = start("pipe", true);
@@ -288,7 +288,7 @@ fn a_pipe_never_sets_raw_mode() {
     assert_eq!(pty::lflag(t.terminal.as_raw_fd()).unwrap(), cooked);
     let text = t.text();
     assert!(!text.contains('\x1b'), "{text:?}");
-    assert_eq!(text, "> 2\r\n> \r\n");
+    assert_eq!(text, "2\r\n");
     assert!(
         !t.home.join(".fung_history").exists(),
         "no history without the editor"

@@ -120,6 +120,27 @@ fn failed_assignment_is_e0808_and_positions_name_their_input() {
     });
 }
 
+/// A lambda that captures a global whose assignment failed is E0808 too
+/// (VM3), not an internal error, at the lambda.
+#[test]
+fn capturing_a_failed_global_is_e0808() {
+    on_big_stack(|| {
+        let mut s = Session::new();
+        let first = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("x = fail(\"a\")"),
+            Outcome::Error("E0803".into(), first)
+        );
+        let second = FileId(s.known.len() as u32);
+        assert_eq!(
+            s.input("g = () => x"),
+            Outcome::Error("E0808".into(), second)
+        );
+        let third = FileId(s.known.len() as u32);
+        assert_eq!(s.input("x"), Outcome::Error("E0808".into(), third));
+    });
+}
+
 /// A destructuring that fails part way changes no global: the names it
 /// binds are written only once the whole pattern has matched, so the
 /// session goes on with the values it had (a new name stays unset).

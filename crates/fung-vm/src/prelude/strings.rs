@@ -11,7 +11,7 @@ use fung_front::text::{Unit, char_count, units};
 use std::rc::Rc;
 
 use crate::value::{List, Lit, Text, Value, write_for_print};
-use crate::vm::pieces::{self, STEP_ITEMS, STEP_SCAN, Work};
+use crate::vm::pieces::{self, STEP_BYTES, STEP_ITEMS, STEP_SCAN, Work};
 use crate::vm::{Flow, Stop, Task};
 
 pub(super) fn add(add: &mut impl FnMut(Value)) {
@@ -22,7 +22,11 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
         join_fn,
         vec![param("xs"), opt("sep", Lit::Str(""))],
     ));
-    add(def("trim", trim_fn, vec![param("s"), opt("cut", Lit::Nil)]));
+    add(def_step(
+        "trim",
+        trim_fn,
+        vec![param("s"), opt("cut", Lit::Nil)],
+    ));
     add(def("upper", upper_fn, vec![param("s")]));
     add(def("lower", lower_fn, vec![param("s")]));
     add(def_step(
@@ -42,8 +46,8 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     ));
     add(def_step("repeat", repeat_fn, vec![param("s"), param("n")]));
     add(def("byte_len", byte_len_fn, vec![param("s")]));
-    add(def("bytes", bytes_fn, vec![param("s")]));
-    add(def("from_bytes", from_bytes_fn, vec![param("xs")]));
+    add(def_step("bytes", bytes_fn, vec![param("s")]));
+    add(def_step("from_bytes", from_bytes_fn, vec![param("xs")]));
     add(def("valid_utf8", valid_utf8_fn, vec![param("s")]));
 }
 
@@ -135,34 +139,40 @@ fn chars_from(s: &[u8], at: &mut usize, mut f: impl FnMut(&[u8])) -> bool {
 fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [s, sep] = nat::bytes_args(&a, ["s", "sep"])?;
     if sep.is_empty() {
-        struct Chars {
-            s: Value,
-            at: usize,
-            out: List,
-        }
-        impl Work for Chars {
-            fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
-                let out = &mut self.out;
-                if !chars_from(bytes_of(&self.s), &mut self.at, |c| {
-                    out.push(string(c.to_vec()))
-                }) {
-                    return Ok(None);
-                }
-                let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
-                Ok(Some(Value::List(Rc::new(out))))
-            }
-        }
-        return pieces::run(
-            t,
-            Chars {
-                s: a[0].clone(),
-                at: 0,
-                out: List::new(Vec::new()),
-            },
-        );
+        return chars_of(t, a[0].clone());
     }
     let cuts = Cuts::new(a[0].clone(), s.len(), sep);
     pieces::run(t, Parts::new(cuts, |p| p))
+}
+
+/// The characters of the string `s` as a list (`chars`, and `split` by
+/// the empty separator), a piece at a time.
+pub(super) fn chars_of(t: &mut Task<'_>, s: Value) -> Result<Flow, Stop> {
+    struct Chars {
+        s: Value,
+        at: usize,
+        out: List,
+    }
+    impl Work for Chars {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let out = &mut self.out;
+            if !chars_from(bytes_of(&self.s), &mut self.at, |c| {
+                out.push(Value::char_str(c))
+            }) {
+                return Ok(None);
+            }
+            let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
+            Ok(Some(Value::List(Rc::new(out))))
+        }
+    }
+    pieces::run(
+        t,
+        Chars {
+            s,
+            at: 0,
+            out: List::new(Vec::new()),
+        },
+    )
 }
 
 /// The parts of a `Cuts` walk as a list, each mapped by `part`.
@@ -257,28 +267,81 @@ fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `trim(s, cut = nil)`: whitespace (the Unicode White_Space property),
 /// or the characters of `cut`, off both ends. A byte outside UTF-8 is cut
-/// only when `cut` holds it.
-fn trim_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_bytes("s", &a[0])?;
+/// only when `cut` holds it. From the front to the first kept character,
+/// then from the back to the last (VA5), a piece at a time (VA10): the
+/// time is what is cut off, and nothing is collected.
+fn trim_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    nat::need_bytes("s", &a[0])?;
     let cut: Vec<Unit> = match a[1] {
         Value::Nil => Vec::new(),
         _ => units(nat::need_bytes("cut", &a[1])?)
             .map(|(_, u)| u)
             .collect(),
     };
-    let space = matches!(a[1], Value::Nil);
-    let gone = |u: Unit| match u {
-        Unit::Char(c) if space => c.is_whitespace(),
-        u => cut.contains(&u),
-    };
-    let us: Vec<(usize, Unit)> = units(s).collect();
-    let lo = us.iter().position(|&(_, u)| !gone(u));
-    let Some(lo) = lo else {
-        return Ok(string(Vec::new()));
-    };
-    let hi = us.iter().rposition(|&(_, u)| !gone(u)).expect("lo is kept");
-    let (from, (at, last)) = (us[lo].0, us[hi]);
-    Ok(string(s[from..at + last.byte_len()].to_vec()))
+    struct Trim {
+        s: Value,
+        cut: Vec<Unit>,
+        space: bool,
+        /// The first kept character, once found; the search is at `at`.
+        from: Option<usize>,
+        at: usize,
+        /// The kept part ends before `to`.
+        to: usize,
+    }
+    impl Trim {
+        fn gone(&self, u: Unit) -> bool {
+            match u {
+                Unit::Char(c) if self.space => c.is_whitespace(),
+                u => self.cut.contains(&u),
+            }
+        }
+    }
+    impl Work for Trim {
+        fn step(&mut self, _t: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let s = bytes_of(&self.s);
+            let Some(from) = self.from else {
+                let stop = (self.at + STEP_BYTES).min(s.len());
+                while self.at < stop {
+                    let u = fung_front::text::first(&s[self.at..]).expect("not at the end");
+                    if !self.gone(u) {
+                        // On from the back in the same step: a short
+                        // string is one step.
+                        self.from = Some(self.at);
+                        return self.step(_t);
+                    }
+                    self.at += u.byte_len();
+                }
+                if self.at < s.len() {
+                    return Ok(None);
+                }
+                return Ok(Some(string(Vec::new())));
+            };
+            let stop = self.to.saturating_sub(STEP_BYTES).max(from);
+            while self.to > stop {
+                let u = fung_front::text::last(&s[from..self.to]).expect("from is kept");
+                if !self.gone(u) {
+                    if from == 0 && self.to == s.len() {
+                        return Ok(Some(self.s.clone()));
+                    }
+                    return Ok(Some(string(s[from..self.to].to_vec())));
+                }
+                self.to -= u.byte_len();
+            }
+            Ok(None)
+        }
+    }
+    let len = bytes_of(&a[0]).len();
+    pieces::run(
+        t,
+        Trim {
+            space: matches!(a[1], Value::Nil),
+            s: a[0].clone(),
+            cut,
+            from: None,
+            at: 0,
+            to: len,
+        },
+    )
 }
 
 /// `upper(s)` and `lower(s)`: the full Unicode case mapping (06), so the
@@ -464,48 +527,89 @@ fn byte_len_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(Value::Int(nat::need_bytes("s", &a[0])?.len() as i64))
 }
 
-/// `bytes(s)`: the bytes of `s` as ints from 0 to 255.
-fn bytes_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let s = nat::need_bytes("s", &a[0])?;
-    Ok(nat::list(
-        s.iter().map(|&b| Value::Int(i64::from(b))).collect(),
-    ))
+/// `bytes(s)`: the bytes of `s` as ints from 0 to 255, a piece at a
+/// time (VA10).
+fn bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+    nat::need_bytes("s", &a[0])?;
+    struct Bytes {
+        s: Value,
+        at: usize,
+        out: List,
+    }
+    impl Work for Bytes {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let s = bytes_of(&self.s);
+            let end = (self.at + STEP_BYTES).min(s.len());
+            for &b in &s[self.at..end] {
+                self.out.push(Value::Int(i64::from(b)));
+            }
+            self.at = end;
+            if end < s.len() {
+                return Ok(None);
+            }
+            let out = std::mem::replace(&mut self.out, List::new(Vec::new()));
+            Ok(Some(Value::List(Rc::new(out))))
+        }
+    }
+    pieces::run(
+        t,
+        Bytes {
+            s: a[0].clone(),
+            at: 0,
+            out: List::new(Vec::new()),
+        },
+    )
 }
 
 /// `from_bytes(xs)`: the string of a list of bytes (ints from 0 to 255),
-/// UTF-8 or not: `bytes` backwards.
-fn from_bytes_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// UTF-8 or not: `bytes` backwards. Read a piece at a time (VA10).
+fn from_bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     const WANT: &str = "a list of bytes (ints from 0 to 255)";
     let Value::List(items) = &a[0] else {
         return Err(nat::wrong_arg("xs", WANT, &a[0]));
     };
-    let mut out = Vec::with_capacity(items.len());
-    for v in items.iter() {
-        match v {
-            Value::Int(n @ 0..=255) => out.push(*n as u8),
-            Value::Int(n) => {
-                return Err(fail(
-                    "E0403",
-                    vec![
-                        nat::s("xs"),
-                        nat::s(WANT),
-                        Arg::Str(format!("a list holding {n}")),
-                    ],
-                ));
+    struct FromBytes {
+        items: Rc<List>,
+        out: Vec<u8>,
+    }
+    impl Work for FromBytes {
+        fn step(&mut self, _: &mut Task<'_>) -> Result<Option<Value>, Stop> {
+            let end = (self.out.len() + STEP_BYTES).min(self.items.len());
+            while self.out.len() < end {
+                let run = self.items.run_from(self.out.len());
+                let take = run.len().min(end - self.out.len());
+                for v in &run[..take] {
+                    let held = match v {
+                        Value::Int(n @ 0..=255) => {
+                            self.out.push(*n as u8);
+                            continue;
+                        }
+                        Value::Int(n) => n.to_string(),
+                        v => crate::value::type_name(v),
+                    };
+                    return Err(fail(
+                        "E0403",
+                        vec![
+                            nat::s("xs"),
+                            nat::s(WANT),
+                            Arg::Str(format!("a list holding {held}")),
+                        ],
+                    ));
+                }
             }
-            v => {
-                return Err(fail(
-                    "E0403",
-                    vec![
-                        nat::s("xs"),
-                        nat::s(WANT),
-                        Arg::Str(format!("a list holding {}", crate::value::type_name(v))),
-                    ],
-                ));
+            if self.out.len() < self.items.len() {
+                return Ok(None);
             }
+            Ok(Some(string(std::mem::take(&mut self.out))))
         }
     }
-    Ok(string(out))
+    pieces::run(
+        t,
+        FromBytes {
+            out: Vec::with_capacity(items.len()),
+            items: items.clone(),
+        },
+    )
 }
 
 /// `valid_utf8(s)`: whether `s` is valid UTF-8 text, as the operations

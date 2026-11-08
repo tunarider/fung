@@ -183,29 +183,48 @@ pub(crate) fn internal(args: Vec<Arg>) -> Stop {
     err("E0801", no_pos(), args)
 }
 
-/// A task between its turns (`sched.rs`): what `Task` holds of it while
-/// it runs. Fields as in `Task`.
+/// One task's own state: an operand stack (whose first slots are the
+/// entry frame's) and the call frames, with what the scheduler and the
+/// natives need of it. A `Task` holds the fiber that has the turn; the
+/// others wait in the scheduler (`sched.rs`).
 pub(crate) struct Fiber {
     stack: Vec<Option<Value>>,
     frames: Vec<Frame>,
+    /// Step natives waiting for a call they asked for (`cont.rs`). The
+    /// run loop serves all of them: it returns when the frames are gone.
     conts: Vec<ContFrame>,
-    stop: usize,
-    floor: usize,
+    /// How many run loops are running on this task (a test probe).
     #[cfg(test)]
-    loops: u32,
+    pub(crate) loops: u32,
+    /// How many times this task parked (a test probe).
     #[cfg(test)]
-    parks: u32,
+    pub(crate) parks: u32,
+    /// How many waits on the operating system it handed off (a test probe).
     #[cfg(test)]
-    offloads: u32,
+    pub(crate) offloads: u32,
+    /// How many times it gave its turn at a yield point (a test probe).
     #[cfg(test)]
-    yields: u32,
+    pub(crate) yields: u32,
+    /// The turn is over (`Task::tick`): the next yield point leaves the
+    /// run loop so the others get theirs.
     turn_due: bool,
+    /// The native being called, for natives that need their own name.
     native: Option<&'static Native>,
+    /// This task's node in the cancellation tree (`task.rs`).
     cancel: Arc<CancelNode>,
+    /// Ticks left before the next turn-handoff check (`block.rs`).
     budget: u32,
-    pure: u32,
+    /// How deep this task is in swaps' functions (`atom.rs`): while it is
+    /// above zero, calling an effect is E0707.
+    pub(crate) pure: u32,
+    /// What wakes this task when it parks (`block.rs`): it carries the
+    /// task's number in the scheduler (`sched.rs`).
     waiter: Arc<block::Waiter>,
+    /// Where the run loop goes on at the task's next turn.
     todo: Option<Todo>,
+    /// Room for a call's named arguments while they are bound
+    /// (`Task::bind_in_place`), kept from call to call (VM6).
+    named: Vec<(crate::value::Sym, Value)>,
 }
 
 impl Fiber {
@@ -216,8 +235,6 @@ impl Fiber {
             stack: Vec::new(),
             frames: Vec::new(),
             conts: Vec::new(),
-            stop: 0,
-            floor: 0,
             #[cfg(test)]
             loops: 0,
             #[cfg(test)]
@@ -233,6 +250,7 @@ impl Fiber {
             pure: 0,
             waiter: block::Waiter::new(shared.next_fiber(), shared.ready.clone()),
             todo: None,
+            named: Vec::new(),
         }
     }
 
@@ -279,44 +297,8 @@ pub(super) enum Turn {
 /// drop in declaration order) and `Drop` empties the stack and frames
 /// explicitly before it.
 pub struct Task<'rt> {
-    stack: Vec<Option<Value>>,
-    frames: Vec<Frame>,
-    /// Step natives waiting for a call they asked for (`cont.rs`).
-    conts: Vec<ContFrame>,
-    /// The frame count at which the innermost run loop returns.
-    stop: usize,
-    /// The continuations the innermost run loop serves: those from this
-    /// index on (`cont.rs`).
-    floor: usize,
-    /// How many run loops are running on this task (a test probe).
-    #[cfg(test)]
-    pub(crate) loops: u32,
-    /// How many times this task parked (a test probe).
-    #[cfg(test)]
-    pub(crate) parks: u32,
-    /// How many waits on the operating system it handed off (a test probe).
-    #[cfg(test)]
-    pub(crate) offloads: u32,
-    /// How many times it gave its turn at a yield point (a test probe).
-    #[cfg(test)]
-    pub(crate) yields: u32,
-    /// The turn is over (`Task::tick`): the next yield point leaves the
-    /// run loop so the others get theirs.
-    turn_due: bool,
-    /// The native being called, for natives that need their own name.
-    native: Option<&'static Native>,
-    /// This task's node in the cancellation tree (`task.rs`).
-    cancel: Arc<CancelNode>,
-    /// Ticks left before the next turn-handoff check (`block.rs`).
-    budget: u32,
-    /// How deep this task is in swaps' functions (`atom.rs`): while it is
-    /// above zero, calling an effect is E0707.
-    pub(crate) pure: u32,
-    /// What wakes this task when it parks (`block.rs`): it carries the
-    /// task's number in the scheduler (`sched.rs`).
-    waiter: Arc<block::Waiter>,
-    /// Where the run loop goes on at the task's next turn.
-    todo: Option<Todo>,
+    /// The task that has the turn (`Fiber`).
+    pub(crate) fiber: Fiber,
     /// The shared part's owner.
     shared: &'rt Arc<Shared>,
     /// The borrow of the shared part. Keep it last.
@@ -333,28 +315,8 @@ impl<'rt> Task<'rt> {
         cancel: Arc<CancelNode>,
     ) -> Task<'rt> {
         let world = world.borrow_mut();
-        let waiter = block::Waiter::new(shared.next_fiber(), shared.ready.clone());
         Task {
-            stack: Vec::new(),
-            frames: Vec::new(),
-            conts: Vec::new(),
-            stop: 0,
-            floor: 0,
-            #[cfg(test)]
-            loops: 0,
-            #[cfg(test)]
-            parks: 0,
-            #[cfg(test)]
-            offloads: 0,
-            #[cfg(test)]
-            yields: 0,
-            turn_due: false,
-            native: None,
-            cancel,
-            budget: YIELD_EVERY,
-            pure: 0,
-            waiter,
-            todo: None,
+            fiber: Fiber::new(shared, cancel),
             shared,
             world,
         }
@@ -363,26 +325,7 @@ impl<'rt> Task<'rt> {
     /// Swaps this task's state with `f`'s: the scheduler gives a task its
     /// turn by swapping its fiber in, and takes it out again after.
     pub(super) fn exchange(&mut self, f: &mut Fiber) {
-        use std::mem::swap;
-        swap(&mut self.stack, &mut f.stack);
-        swap(&mut self.frames, &mut f.frames);
-        swap(&mut self.conts, &mut f.conts);
-        swap(&mut self.stop, &mut f.stop);
-        swap(&mut self.floor, &mut f.floor);
-        #[cfg(test)]
-        {
-            swap(&mut self.loops, &mut f.loops);
-            swap(&mut self.parks, &mut f.parks);
-            swap(&mut self.offloads, &mut f.offloads);
-            swap(&mut self.yields, &mut f.yields);
-        }
-        swap(&mut self.turn_due, &mut f.turn_due);
-        swap(&mut self.native, &mut f.native);
-        swap(&mut self.cancel, &mut f.cancel);
-        swap(&mut self.budget, &mut f.budget);
-        swap(&mut self.pure, &mut f.pure);
-        swap(&mut self.waiter, &mut f.waiter);
-        swap(&mut self.todo, &mut f.todo);
+        std::mem::swap(&mut self.fiber, f);
     }
 
     /// Standard output (print).
@@ -398,15 +341,16 @@ impl<'rt> Task<'rt> {
     /// One line of standard input with its line ending if one is queued
     /// (`Some(None)` at the end of the input); otherwise this task is put
     /// on the reader's waiting list and `None`: park until woken
-    /// (`stdin.rs`). The line is bytes, as read (L4).
-    pub(crate) fn stdin_poll(&mut self) -> Option<Option<Vec<u8>>> {
-        let me = self.waiter.clone();
+    /// (`stdin.rs`). The line is bytes, as read (L4). The error: the
+    /// reader thread cannot start.
+    pub(crate) fn stdin_poll(&mut self) -> std::io::Result<Option<Option<Vec<u8>>>> {
+        let me = self.fiber.waiter.clone();
         self.world.stdin.poll(&me)
     }
 
     /// A wait for a line that ended without one leaves the waiting list.
     pub(crate) fn stdin_leave(&mut self) {
-        let me = self.waiter.clone();
+        let me = self.fiber.waiter.clone();
         self.world.stdin.leave(&me);
     }
 
@@ -419,7 +363,7 @@ impl<'rt> Task<'rt> {
     /// The ticks left before this task's next turn handoff (a test probe).
     #[cfg(test)]
     pub(crate) fn budget_left(&self) -> u32 {
-        self.budget
+        self.fiber.budget
     }
 
     /// exit(n) from any task (05 "종료"): records the
@@ -445,13 +389,19 @@ impl<'rt> Task<'rt> {
 
     /// The name of the native being called.
     pub fn calling_native(&self) -> Option<&'static str> {
-        self.native.map(|n| n.name)
+        self.fiber.native.map(|n| n.name)
+    }
+
+    /// Whether the task runs a swap's function (`atom.rs`): it must not
+    /// park there.
+    pub(crate) fn in_pure(&self) -> bool {
+        self.fiber.pure > 0
     }
 
     /// Runs `main` (a file body) as the entry frame, the root of a run.
     fn run_main(&mut self, main: Rc<RtProto>, globals: Globals) -> Result<Value, Stop> {
-        self.stack = vec![None; main.num_locals];
-        self.frames.push(Frame {
+        self.fiber.stack = vec![None; main.num_locals];
+        self.fiber.frames.push(Frame {
             proto: main,
             ip: 0,
             base: 0,
@@ -492,6 +442,7 @@ impl<'rt> Task<'rt> {
             "panic".to_string()
         };
         let pos = self
+            .fiber
             .frames
             .last()
             .and_then(Frame::current_pos)
@@ -505,20 +456,20 @@ impl<'rt> Task<'rt> {
     /// continuation; otherwise it looks again), then the run loop goes
     /// until the task is done, parks or gives its turn.
     pub(super) fn turn(&mut self) -> Turn {
-        if matches!(self.todo, Some(Todo::Resume)) {
-            self.todo = Some(match self.after_park() {
+        if matches!(self.fiber.todo, Some(Todo::Resume)) {
+            self.fiber.todo = Some(match self.after_park() {
                 Ok(()) => Todo::Resume,
                 Err(e) => Todo::Unwind(self.mark(e)),
             });
         }
         #[cfg(test)]
         {
-            self.loops += 1;
+            self.fiber.loops += 1;
         }
         let turn = self.drive();
         #[cfg(test)]
         {
-            self.loops -= 1;
+            self.fiber.loops -= 1;
         }
         turn
     }
@@ -532,7 +483,7 @@ impl<'rt> Task<'rt> {
     /// The task's waiter (tests that try a socket operation by hand).
     #[cfg(test)]
     pub(crate) fn waiter_for_tests(&self) -> Arc<block::Waiter> {
-        self.waiter.clone()
+        self.fiber.waiter.clone()
     }
 
     /// How many waits on descriptors are registered (test probes).
@@ -556,15 +507,17 @@ impl<'rt> Task<'rt> {
     /// unwinds; otherwise its waiter watches its node again, before the
     /// continuation looks.
     fn after_park(&mut self) -> Result<(), Stop> {
-        self.waiter.take_woken();
-        if self.cancel.is_cancelled() {
+        self.fiber.waiter.take_woken();
+        if self.fiber.cancel.is_cancelled() {
             return Err(self.unwound());
         }
         let now = std::time::Instant::now();
-        if self.cancel.deadline_at().is_some_and(|at| now >= at) && self.cancel.expire_due(now) {
+        if self.fiber.cancel.deadline_at().is_some_and(|at| now >= at)
+            && self.fiber.cancel.expire_due(now)
+        {
             return Err(self.unwound());
         }
-        self.cancel.watch(&self.waiter);
+        self.fiber.cancel.watch(&self.fiber.waiter);
         Ok(())
     }
 
@@ -576,7 +529,7 @@ impl<'rt> Task<'rt> {
     /// end of the turn (`cont.rs`, `Task::tick`) returns to the scheduler;
     /// where to go on is kept in `todo`.
     fn drive(&mut self) -> Turn {
-        let mut todo = self.todo.take().unwrap_or(Todo::Loop);
+        let mut todo = self.fiber.todo.take().unwrap_or(Todo::Loop);
         loop {
             let r = catch_unwind(AssertUnwindSafe(|| match todo {
                 Todo::Start(f, n) => self.issue(f, n),
@@ -590,10 +543,10 @@ impl<'rt> Task<'rt> {
                 Ok(Ok(Ran::Yielded(call))) => {
                     #[cfg(test)]
                     {
-                        self.yields += 1;
+                        self.fiber.yields += 1;
                     }
-                    self.turn_due = false;
-                    self.todo = Some(match call {
+                    self.fiber.turn_due = false;
+                    self.fiber.todo = Some(match call {
                         Some((f, n)) => Todo::Start(f, n),
                         None => Todo::Loop,
                     });
@@ -602,24 +555,24 @@ impl<'rt> Task<'rt> {
                 Ok(Ok(Ran::Parked(w))) => {
                     #[cfg(test)]
                     {
-                        self.parks += 1;
+                        self.fiber.parks += 1;
                     }
                     // A park gives the turn: one that ended on the call
                     // that parked is not owed again after the wake.
-                    self.turn_due = false;
-                    self.todo = Some(Todo::Resume);
+                    self.fiber.turn_due = false;
+                    self.fiber.todo = Some(Todo::Resume);
                     return Turn::Parked(w);
                 }
                 Ok(Err(e)) => {
                     let e = self.mark(e);
-                    if self.conts.len() <= self.floor {
+                    if self.fiber.conts.is_empty() {
                         return Turn::Done(Err(e));
                     }
                     Todo::Unwind(e)
                 }
                 Err(payload) => {
                     let e = self.panicked(payload);
-                    if self.conts.len() <= self.floor {
+                    if self.fiber.conts.is_empty() {
                         return Turn::Done(Err(e));
                     }
                     Todo::Unwind(e)
@@ -634,8 +587,7 @@ impl<'rt> Task<'rt> {
     fn mark(&self, e: Stop) -> Stop {
         match e {
             Stop::Error(mut d) => {
-                if let Some(c) = self.conts.last()
-                    && self.conts.len() > self.floor
+                if let Some(c) = self.fiber.conts.last()
                     && d.pos.is_zero()
                 {
                     d.pos = c.pos;
@@ -655,7 +607,7 @@ impl<'rt> Task<'rt> {
             return d;
         }
         d.call_path = self.call_path();
-        if self.frames.last().is_some_and(|f| f.proto.builtin)
+        if self.fiber.frames.last().is_some_and(|f| f.proto.builtin)
             && let Some(p) = self.user_pos()
         {
             d.pos = p;
@@ -666,7 +618,7 @@ impl<'rt> Task<'rt> {
     /// Where the innermost frame of user code is (its current call), for
     /// an error raised inside an embedded extras file (`attach`).
     pub(crate) fn user_pos(&self) -> Option<Pos> {
-        self.frames.iter().rev().find_map(|f| {
+        self.fiber.frames.iter().rev().find_map(|f| {
             if f.proto.builtin {
                 f.tail_from.as_ref().and_then(|t| t.pos)
             } else {
@@ -681,8 +633,8 @@ impl<'rt> Task<'rt> {
     /// it across the helpers it calls and tail-calls (`Frame::entry`).
     /// `None` when user code called the native itself.
     pub(crate) fn user_callee(&self) -> Option<String> {
-        let i = self.frames.iter().rposition(|f| !f.proto.builtin)?;
-        let p = self.frames.get(i + 1)?.entry.clone()?;
+        let i = self.fiber.frames.iter().rposition(|f| !f.proto.builtin)?;
+        let p = self.fiber.frames.get(i + 1)?.entry.clone()?;
         let file = p
             .pos
             .first()
@@ -702,8 +654,8 @@ impl<'rt> Task<'rt> {
     /// One line per frame, innermost first, and after a frame the frame
     /// of user code its tail call into a built-in function replaced (L8).
     fn call_path(&self) -> Vec<CallSite> {
-        let mut path = Vec::with_capacity(self.frames.len());
-        for f in self.frames.iter().rev() {
+        let mut path = Vec::with_capacity(self.fiber.frames.len());
+        for f in self.fiber.frames.iter().rev() {
             path.push(self.site(&f.proto, f.current_pos(), f.tail_calls));
             if let Some(t) = &f.tail_from {
                 path.push(self.site(&t.proto, t.pos, t.tail_calls));
@@ -732,12 +684,12 @@ impl<'rt> Task<'rt> {
     }
 
     fn push(&mut self, v: Value) {
-        self.stack.push(Some(v));
+        self.fiber.stack.push(Some(v));
     }
 
     /// Pops an operand. An empty slot here is a VM bug (see the module doc).
     fn pop(&mut self) -> Value {
-        match self.stack.pop() {
+        match self.fiber.stack.pop() {
             Some(Some(v)) => v,
             Some(None) => panic!("VM read an unassigned slot"),
             None => panic!("VM stack underflow"),
@@ -745,7 +697,7 @@ impl<'rt> Task<'rt> {
     }
 
     fn top(&self) -> &Value {
-        match self.stack.last() {
+        match self.fiber.stack.last() {
             Some(Some(v)) => v,
             _ => panic!("VM read an unassigned slot"),
         }
@@ -760,17 +712,39 @@ impl<'rt> Task<'rt> {
         int: impl Fn(i64, i64) -> Option<i64>,
         f: impl Fn(&Value, &Value) -> Result<Value, Diag>,
     ) -> Result<(), Stop> {
-        let b = self.pop();
-        let a = self.pop();
-        if let (Value::Int(x), Value::Int(y)) = (&a, &b)
-            && let Some(r) = int(*x, *y)
+        if let Some((x, y)) = self.top_ints()
+            && let Some(r) = int(x, y)
         {
-            self.push(Value::Int(r));
+            self.put_over_ints(Value::Int(r));
             return Ok(());
         }
+        let b = self.pop();
+        let a = self.pop();
         let r = f(&a, &b).map_err(|d| at(d, pos))?;
         self.push(r);
         Ok(())
+    }
+
+    /// The two operands on top of the stack when both are ints: the
+    /// operators look at them where they lie (VM9).
+    #[inline(always)]
+    fn top_ints(&self) -> Option<(i64, i64)> {
+        match self.fiber.stack.as_slice() {
+            [.., Some(Value::Int(x)), Some(Value::Int(y))] => Some((*x, *y)),
+            _ => None,
+        }
+    }
+
+    /// Replaces the two ints on top of the stack (`top_ints`) with `v`.
+    /// An int needs no drop, so they are forgotten rather than dropped:
+    /// the run loop does not call the drop of a whole `Value` per
+    /// operator (VM9).
+    #[inline(always)]
+    fn put_over_ints(&mut self, v: Value) {
+        let s = &mut self.fiber.stack;
+        std::mem::forget(s.pop());
+        let n = s.len();
+        std::mem::forget(s[n - 1].replace(v));
     }
 
     fn unary(&mut self, f: fn(&Value) -> Result<Value, Diag>, pos: Pos) -> Result<(), Stop> {
@@ -782,6 +756,10 @@ impl<'rt> Task<'rt> {
 
     #[inline(always)]
     fn compare(&mut self, pos: Pos, test: impl Fn(Ordering) -> bool) -> Result<(), Stop> {
+        if let Some((x, y)) = self.top_ints() {
+            self.put_over_ints(Value::Bool(test(x.cmp(&y))));
+            return Ok(());
+        }
         let b = self.pop();
         let a = self.pop();
         let c = match (&a, &b) {
@@ -794,11 +772,11 @@ impl<'rt> Task<'rt> {
 
     /// The run loop proper. Each iteration re-reads the current frame:
     /// calls and returns change it. It returns when the frame count drops
-    /// to `self.stop`.
+    /// to zero.
     fn step_loop(&mut self) -> Result<Ran, Stop> {
         loop {
-            let fi = self.frames.len() - 1;
-            let f = &mut self.frames[fi];
+            let fi = self.fiber.frames.len() - 1;
+            let f = &mut self.fiber.frames[fi];
             let ip = f.ip;
             let instr = f.proto.code[ip];
             let pos = f.proto.pos[ip];
@@ -807,12 +785,12 @@ impl<'rt> Task<'rt> {
             let arg = instr.arg();
             match instr.op() {
                 Op::Const => {
-                    let v = self.frames[fi].proto.consts[arg].clone();
+                    let v = self.fiber.frames[fi].proto.consts[arg].clone();
                     self.push(v);
                 }
                 // A statement's value is discarded: an Err is E0606 (02).
                 Op::Pop => {
-                    if let Some(Some(v)) = self.stack.pop()
+                    if let Some(Some(v)) = self.fiber.stack.pop()
                         && may_hold_err(&v)
                         && let Some(stop) = discarded_stop(pos, &v)
                     {
@@ -823,12 +801,31 @@ impl<'rt> Task<'rt> {
                 Op::Sub => self.binary(pos, i64::checked_sub, value::sub)?,
                 Op::Mul => self.binary(pos, i64::checked_mul, value::mul)?,
                 Op::Div => self.binary(pos, |_, _| None, value::div)?,
-                Op::FloorDiv => self.binary(pos, |_, _| None, value::floor_div)?,
-                Op::Mod => self.binary(pos, |_, _| None, value::rem)?,
+                // Zero and overflow take the value layer's way to the error.
+                Op::FloorDiv => self.binary(
+                    pos,
+                    |x, y| {
+                        if y == 0 {
+                            None
+                        } else {
+                            value::floor_div_i64(x, y).ok()
+                        }
+                    },
+                    value::floor_div,
+                )?,
+                Op::Mod => self.binary(
+                    pos,
+                    |x, y| (y != 0).then(|| value::rem_i64(x, y)),
+                    value::rem,
+                )?,
                 Op::Pow => self.binary(pos, |_, _| None, value::pow)?,
                 Op::Neg => self.unary(value::neg, pos)?,
                 Op::Not => self.unary(value::not, pos)?,
                 Op::Eq | Op::Ne => {
+                    if let Some((x, y)) = self.top_ints() {
+                        self.put_over_ints(Value::Bool((x == y) == (instr.op() == Op::Eq)));
+                        continue;
+                    }
                     let b = self.pop();
                     let a = self.pop();
                     let eq = value::eq(&a, &b).map_err(|d| at(d, pos))?;
@@ -848,20 +845,22 @@ impl<'rt> Task<'rt> {
                 Op::Jump => {
                     // The compiler emits forward jumps only today; a
                     // backward one would be a loop, which must stay
-                    // cancellable and give its turn like a call.
+                    // cancellable and give its turn like a call. Kept
+                    // for bytecode that might one day loop (VM12).
                     if arg <= ip {
+                        debug_assert!(false, "a backward JUMP");
                         self.tick(pos)?;
-                        if self.turn_due {
+                        if self.fiber.turn_due {
                             // Back at this jump after the others' turns.
-                            self.frames[fi].ip = ip;
+                            self.fiber.frames[fi].ip = ip;
                             return Ok(Ran::Yielded(None));
                         }
                     }
-                    self.frames[fi].ip = arg;
+                    self.fiber.frames[fi].ip = arg;
                 }
                 Op::JumpIfFalse => match self.pop() {
                     Value::Bool(true) => {}
-                    Value::Bool(false) => self.frames[fi].ip = arg,
+                    Value::Bool(false) => self.fiber.frames[fi].ip = arg,
                     v => {
                         let tn = value::type_name(&v);
                         return Err(err("E0505", pos, vec![Arg::Str(tn)]));
@@ -869,9 +868,9 @@ impl<'rt> Task<'rt> {
                 },
                 Op::Call | Op::TailCall => {
                     self.tick(pos)?;
-                    if self.turn_due {
+                    if self.fiber.turn_due {
                         // Back at this call after the others' turns.
-                        self.frames[fi].ip = ip;
+                        self.fiber.frames[fi].ip = ip;
                         return Ok(Ran::Yielded(None));
                     }
                     let tail = instr.op() == Op::TailCall;
@@ -891,11 +890,11 @@ impl<'rt> Task<'rt> {
                     }
                 }
                 Op::Closure => {
-                    let c = self.make_closure(fi, arg);
+                    let c = self.make_closure(fi, arg, pos)?;
                     self.push(c);
                 }
                 Op::LoadCaptured => {
-                    let v = self.frames[fi]
+                    let v = self.fiber.frames[fi]
                         .closure
                         .as_ref()
                         .expect("LOADCAPTURED outside a closure")
@@ -904,23 +903,23 @@ impl<'rt> Task<'rt> {
                     self.push(v);
                 }
                 Op::LoadSelf => {
-                    let c = self.frames[fi]
+                    let c = self.fiber.frames[fi]
                         .closure
                         .clone()
                         .expect("LOADSELF outside a closure");
                     self.push(Value::Closure(c));
                 }
                 Op::JumpIfSet => {
-                    if self.stack.pop().flatten().is_some() {
-                        self.frames[fi].ip = arg;
+                    if self.fiber.stack.pop().flatten().is_some() {
+                        self.fiber.frames[fi].ip = arg;
                     }
                 }
                 Op::CheckType => {
                     let (slot, ti) = (arg & 0xFFF, arg >> 12);
-                    let v = self.stack[base + slot]
+                    let v = self.fiber.stack[base + slot]
                         .as_ref()
                         .expect("CHECKTYPE on an unassigned slot");
-                    let p = &self.frames[fi].proto;
+                    let p = &self.fiber.frames[fi].proto;
                     if !p.types[ti].matches(v) {
                         return Err(err(
                             "E0403",
@@ -935,7 +934,7 @@ impl<'rt> Task<'rt> {
                 }
                 Op::CheckReturn => {
                     let v = self.top();
-                    let p = &self.frames[fi].proto;
+                    let p = &self.fiber.frames[fi].proto;
                     if !p.types[arg].matches(v) {
                         return Err(err(
                             "E0404",
@@ -949,21 +948,21 @@ impl<'rt> Task<'rt> {
                 }
                 Op::LoadLocal => {
                     // Copies an empty slot too: JUMPIFSET reads it.
-                    let v = self.stack[base + arg].clone();
-                    self.stack.push(v);
+                    let v = self.fiber.stack[base + arg].clone();
+                    self.fiber.stack.push(v);
                 }
                 Op::StoreLocal => {
-                    let v = self.stack.pop().expect("VM stack underflow");
-                    self.stack[base + arg] = v;
+                    let v = self.fiber.stack.pop().expect("VM stack underflow");
+                    self.fiber.stack[base + arg] = v;
                 }
                 // The slot is not read again: its value goes now (03).
-                Op::ClearLocal => self.stack[base + arg] = None,
+                Op::ClearLocal => self.fiber.stack[base + arg] = None,
                 Op::MoveLocal => {
-                    let v = self.stack[base + arg].take();
-                    self.stack.push(v);
+                    let v = self.fiber.stack[base + arg].take();
+                    self.fiber.stack.push(v);
                 }
                 Op::LoadGlobal => {
-                    let v = self.frames[fi].globals.borrow()[arg].clone();
+                    let v = self.fiber.frames[fi].globals.borrow()[arg].clone();
                     match v {
                         Some(v) => self.push(v),
                         None => return Err(self.unset_global(fi, arg, pos)),
@@ -972,13 +971,13 @@ impl<'rt> Task<'rt> {
                 Op::StoreGlobal => {
                     let v = self.pop();
                     // The old value drops after the table's borrow ends.
-                    let old = self.frames[fi].globals.borrow_mut()[arg].replace(v);
+                    let old = self.fiber.frames[fi].globals.borrow_mut()[arg].replace(v);
                     drop(old);
                 }
                 Op::Concat => {
-                    let start = self.stack.len() - arg;
+                    let start = self.fiber.stack.len() - arg;
                     let mut s = Vec::new();
-                    for part in self.stack.drain(start..) {
+                    for part in self.fiber.stack.drain(start..) {
                         let part = part.expect("CONCAT of an unassigned slot");
                         if let Some(tag) = value::result_tag(&part) {
                             let d = fung_front::diag::error(
@@ -1026,36 +1025,40 @@ impl<'rt> Task<'rt> {
     }
 
     /// CLOSURE: copies what the child captures from the creating frame
-    /// (03, model C).
-    fn make_closure(&self, fi: usize, child: usize) -> Value {
-        let f = &self.frames[fi];
+    /// (03, model C). A global with no value is E0808 in the REPL (VM3:
+    /// an input declared it, then failed); a script's resolve refuses it.
+    fn make_closure(&self, fi: usize, child: usize, pos: Pos) -> Result<Value, Stop> {
+        let f = &self.fiber.frames[fi];
         let proto = f.proto.protos[child].clone();
         let captured = proto
             .captures
             .iter()
-            .map(|c| match c.kind {
-                CaptureKind::Local => self.stack[f.base + c.index]
-                    .clone()
-                    .expect("captured an unassigned slot"),
-                CaptureKind::Captured => f
-                    .closure
-                    .as_ref()
-                    .expect("captured from outside a closure")
-                    .captured[c.index]
-                    .clone(),
-                CaptureKind::SelfFn => {
-                    Value::Closure(f.closure.clone().expect("captured self outside a closure"))
-                }
-                CaptureKind::Global => f.globals.borrow()[c.index]
-                    .clone()
-                    .expect("captured an unassigned global"),
+            .map(|c| {
+                Ok(match c.kind {
+                    CaptureKind::Local => self.fiber.stack[f.base + c.index]
+                        .clone()
+                        .expect("captured an unassigned slot"),
+                    CaptureKind::Captured => f
+                        .closure
+                        .as_ref()
+                        .expect("captured from outside a closure")
+                        .captured[c.index]
+                        .clone(),
+                    CaptureKind::SelfFn => {
+                        Value::Closure(f.closure.clone().expect("captured self outside a closure"))
+                    }
+                    CaptureKind::Global => match f.globals.borrow()[c.index].clone() {
+                        Some(v) => v,
+                        None => return Err(self.unset_global(fi, c.index, pos)),
+                    },
+                })
             })
-            .collect();
-        Value::Closure(Rc::new(Closure {
+            .collect::<Result<_, Stop>>()?;
+        Ok(Value::Closure(Rc::new(Closure {
             proto,
             captured,
             globals: f.globals.clone(),
-        }))
+        })))
     }
 }
 
@@ -1065,8 +1068,8 @@ impl Task<'_> {
     /// `<main>` frame does, and it is running when its constant is read
     /// too early (E0809).
     fn global_name(&self, fi: usize, i: usize) -> String {
-        let g = &self.frames[fi].globals;
-        self.frames[..=fi]
+        let g = &self.fiber.frames[fi].globals;
+        self.fiber.frames[..=fi]
             .iter()
             .rev()
             .filter(|f| Rc::ptr_eq(&f.globals, g))
@@ -1080,9 +1083,9 @@ impl Drop for Task<'_> {
     /// The end of a task is a value boundary (`Runtime` is `!Send`): the stack
     /// and frames drop here, on the run thread, before `world` releases it.
     fn drop(&mut self) {
-        self.native = None;
-        self.conts.clear();
-        self.frames.clear();
-        self.stack.clear();
+        self.fiber.native = None;
+        self.fiber.conts.clear();
+        self.fiber.frames.clear();
+        self.fiber.stack.clear();
     }
 }

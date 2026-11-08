@@ -25,7 +25,7 @@ fn cancel_reaches_a_sleeping_task_and_its_children() {
     // The scope waits for its children, so the sleeper the timed-out
     // await leaves is cancelled before the scope ends.
     let (out, _, code) = run(
-        "scope(fn(s):\n  t = spawn(s, () => scope(fn(c): spawn(c, () => sleep(10s)); sleep(10s) ;;))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(10ms, () => await(u)))\n  cancel(u)\n;;)",
+        "scope(fn(s):\n  t = spawn(s, () => scope(fn(c): spawn(c, () => sleep(10s)); sleep(10s) ;;))\n  cancel(t)\n  u = spawn(s, () => sleep(10s))\n  print(await(t), timeout(() => await(u), 10ms))\n  cancel(u)\n;;)",
     );
     assert_eq!(
         (out.as_str(), code),
@@ -96,7 +96,7 @@ fn spawn_await_and_results() {
             "Err({kind: 'cancelled, message: \"cancelled\"})\n",
         ),
         (
-            "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  print(timeout(10ms, () => await(t)))\n  cancel(t)\n;;)",
+            "scope(fn(s):\n  t = spawn(s, () => sleep(10s))\n  print(timeout(() => await(t), 10ms))\n  cancel(t)\n;;)",
             "Err({kind: 'timeout, message: \"timed out after 10ms\"})\n",
         ),
         (
@@ -166,7 +166,7 @@ fn a_task_that_cancels_itself_stops_at_its_next_call() {
 #[test]
 fn an_await_timeout_does_not_hide_a_later_failure() {
     let (out, _, code) = run(
-        "(go_tx, go) = channel()\nsupervise(fn(s):\n  t = spawn(s, fn(): recv(go); fail(\"later\") ;;)\n  print(timeout(1ms, () => await(t)))\n  send(go_tx, nil)\n  print(await(t))\n;;, e => nil)",
+        "(go_tx, go) = channel()\nsupervise(fn(s):\n  t = spawn(s, fn(): recv(go); fail(\"later\") ;;)\n  print(timeout(() => await(t), 1ms))\n  send(go_tx, nil)\n  print(await(t))\n;;, e => nil)",
     );
     assert_eq!(
         (out.as_str(), code),

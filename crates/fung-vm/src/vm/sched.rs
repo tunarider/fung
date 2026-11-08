@@ -582,7 +582,7 @@ impl Task<'_> {
         assert!(!self.world.in_run, "run_root during a run");
         self.world.in_run = true;
         self.shared.ready.clear_ids();
-        self.todo = Some(start);
+        self.fiber.todo = Some(start);
         let mut root = Fiber::empty(self.shared);
         self.exchange(&mut root);
         let ran = catch_unwind(AssertUnwindSafe(|| Sched::new(root).run(self)));

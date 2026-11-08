@@ -14,7 +14,9 @@ use fung_front::tree::Capture;
 
 use super::matcher::{RtPattern, link_pattern};
 use super::{Stop, Task, internal};
-use crate::value::{List, MapBuilder, Native, NativeParam, Tag, TypeSet, Value, intern};
+use crate::value::{
+    List, MapBuilder, Native, NativeParam, Range, Sym, Tag, TypeSet, Value, intern,
+};
 
 /// The prelude table: every name a program can use without importing
 /// (06), mapped to its value.
@@ -33,6 +35,9 @@ pub struct RtProto {
     pub num_locals: usize,
     pub global_names: Vec<String>,
     pub params: Vec<Param>,
+    /// The parameters' names as symbols: a named argument finds its
+    /// parameter by number (VM6).
+    pub param_syms: Vec<Sym>,
     pub protos: Vec<Rc<RtProto>>,
     pub captures: Vec<Capture>,
     pub types: Vec<TypeSet>,
@@ -54,6 +59,7 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         num_locals: p.num_locals,
         global_names: p.global_names.clone(),
         params: p.params.clone(),
+        param_syms: p.params.iter().map(|q| intern(&q.name)).collect(),
         protos: p.protos.iter().map(|c| link(c, prelude)).collect(),
         captures: p.captures.clone(),
         types: p.types.iter().map(|a| TypeSet::new(a)).collect(),
@@ -83,6 +89,8 @@ pub(super) fn constant(c: &Const, prelude: &Prelude) -> Value {
             Some(v) => v.clone(),
             None => missing(name),
         },
+        // the dbg a direct `dbg(e)` calls, with its text and place (SP11)
+        Const::Dbg => Value::Native(crate::prelude::dbg_at()),
         // the run's arguments, which the prelude holds
         Const::Args => match prelude.0.get("args") {
             Some(v) => v.clone(),
@@ -92,7 +100,12 @@ pub(super) fn constant(c: &Const, prelude: &Prelude) -> Value {
         Const::Tuple(items) => Value::tuple(all(items, prelude)),
         Const::Tag(name, args) => Value::Tag(Rc::new(Tag {
             name: intern(name),
-            args: all(args, prelude),
+            args: args.iter().map(|c| constant(c, prelude)).collect(),
+        })),
+        Const::Range(start, end, inclusive) => Value::Range(Rc::new(Range {
+            start: *start,
+            end: *end,
+            inclusive: *inclusive,
         })),
         Const::Map(entries) => {
             let mut m = MapBuilder::default();

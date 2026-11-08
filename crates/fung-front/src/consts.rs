@@ -21,12 +21,18 @@ pub enum Const {
     /// The prelude's `args`: the run's argument list, which the VM fills
     /// in (empty when compiling).
     Args,
+    /// The `dbg` a direct `dbg(e)` calls: it also takes the source text
+    /// and place the compiler passes (08), which a program cannot pass
+    /// itself (SP11). Shown as the prelude `dbg`.
+    Dbg,
     List(Vec<Const>),
     /// Keys are `Str` or `Bytes`, distinct, in the literal's order.
     Map(Vec<(Const, Const)>),
     Tuple(Vec<Const>),
     /// A tag value: its name and arguments (`Ok(1)`).
     Tag(String, Vec<Const>),
+    /// A range of constant ends: start, end, inclusive (VM10).
+    Range(i64, i64, bool),
 }
 
 /// Constant-pool equality: same type and equal
@@ -45,9 +51,11 @@ impl PartialEq for Const {
             (Const::Dur(a), Const::Dur(b)) => a == b,
             (Const::Builtin(a), Const::Builtin(b)) => a == b,
             (Const::Args, Const::Args) => true,
+            (Const::Dbg, Const::Dbg) => true,
             (Const::List(a), Const::List(b)) | (Const::Tuple(a), Const::Tuple(b)) => a == b,
             (Const::Map(a), Const::Map(b)) => a == b,
             (Const::Tag(n, a), Const::Tag(m, b)) => n == m && a == b,
+            (Const::Range(a, b, i), Const::Range(c, d, j)) => (a, b, i) == (c, d, j),
             _ => false,
         }
     }
@@ -66,11 +74,14 @@ pub fn format(c: &Const) -> String {
         Const::Sym(s) => format!("'{s}"),
         Const::Dur(ns) => format_dur(*ns),
         Const::Builtin(n) => format!("<fn {n}>"),
+        Const::Dbg => "<fn dbg>".into(),
         Const::Args => "args".into(),
         Const::List(items) => format!("[{}]", format_items(items)),
         Const::Tuple(items) if items.len() == 1 => format!("({},)", format(&items[0])),
         Const::Tuple(items) => format!("({})", format_items(items)),
         Const::Tag(name, args) => format!("{name}({})", format_items(args)),
+        Const::Range(a, b, true) => format!("{a}..={b}"),
+        Const::Range(a, b, false) => format!("{a}..{b}"),
         Const::Map(entries) => {
             let entries: Vec<String> = entries
                 .iter()
@@ -173,13 +184,34 @@ pub fn quote_str(s: &str) -> String {
 /// A string in fung literal form: a byte outside valid UTF-8 shows as
 /// `\xff`, so the text reads back as the same bytes (L4).
 pub fn quote_bytes(b: &[u8]) -> String {
-    use crate::text::{Unit, units};
-    let us: Vec<Unit> = units(b).map(|(_, u)| u).collect();
-    let mut out = String::from("\"");
-    for (i, &u) in us.iter().enumerate() {
+    let mut out = String::with_capacity(b.len() + 2);
+    write_quoted(b, &mut out);
+    out
+}
+
+/// [`quote_bytes`] at the end of `out`. A run of ASCII that needs no
+/// escape goes in at once; only the rest is read a character at a time
+/// (VA13).
+pub fn write_quoted(b: &[u8], out: &mut String) {
+    use crate::text::{Unit, first};
+    use std::fmt::Write;
+    // Printable ASCII but the three that may need a backslash.
+    let plain = |c: &u8| (b' '..=b'~').contains(c) && !matches!(c, b'"' | b'\\' | b'$');
+    out.reserve(b.len() + 2);
+    out.push('"');
+    let mut at = 0;
+    while at < b.len() {
+        let run = b[at..].iter().take_while(|c| plain(c)).count();
+        if run > 0 {
+            out.push_str(std::str::from_utf8(&b[at..at + run]).expect("ASCII"));
+            at += run;
+            continue;
+        }
+        let u = first(&b[at..]).expect("not at the end");
+        at += u.byte_len();
         let c = match u {
             Unit::Byte(x) => {
-                out.push_str(&format!("\\x{x:02x}"));
+                let _ = write!(out, "\\x{x:02x}");
                 continue;
             }
             Unit::Char(c) => c,
@@ -190,15 +222,14 @@ pub fn quote_bytes(b: &[u8]) -> String {
             '\r' => out.push_str("\\r"),
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
-            '$' if us.get(i + 1) == Some(&Unit::Char('{')) => out.push_str("\\$"),
+            '$' if b.get(at) == Some(&b'{') => out.push_str("\\$"),
             c if c != ' ' && !crate::unicode::is_print(c) => {
-                out.push_str(&format!("\\u{{{:X}}}", c as u32))
+                let _ = write!(out, "\\u{{{:X}}}", c as u32);
             }
             c => out.push(c),
         }
     }
     out.push('"');
-    out
 }
 
 /// Renders a union type for messages: `int | nil`.
@@ -209,6 +240,70 @@ pub fn type_text(alts: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The quoting as first written, a character at a time: the fast
+    /// writer must give the same text (VA13).
+    fn quote_slowly(b: &[u8]) -> String {
+        use crate::text::{Unit, units};
+        let us: Vec<Unit> = units(b).map(|(_, u)| u).collect();
+        let mut out = String::from("\"");
+        for (i, &u) in us.iter().enumerate() {
+            let c = match u {
+                Unit::Byte(x) => {
+                    out.push_str(&format!("\\x{x:02x}"));
+                    continue;
+                }
+                Unit::Char(c) => c,
+            };
+            match c {
+                '\n' => out.push_str("\\n"),
+                '\t' => out.push_str("\\t"),
+                '\r' => out.push_str("\\r"),
+                '\\' => out.push_str("\\\\"),
+                '"' => out.push_str("\\\""),
+                '$' if us.get(i + 1) == Some(&Unit::Char('{')) => out.push_str("\\$"),
+                c if c != ' ' && !crate::unicode::is_print(c) => {
+                    out.push_str(&format!("\\u{{{:X}}}", c as u32))
+                }
+                c => out.push(c),
+            }
+        }
+        out.push('"');
+        out
+    }
+
+    #[test]
+    fn quoting_writes_what_it_did_a_character_at_a_time() {
+        let pieces: [&[u8]; 16] = [
+            b"abc",
+            b"$",
+            b"{",
+            b"${",
+            b"\"",
+            b"\\",
+            b"\n\t\r",
+            b"\x00\x1f\x7f",
+            b" ",
+            b"\xff",
+            b"\xe2\x82",
+            "€가😀".as_bytes(),
+            "\u{200b}\u{0301}".as_bytes(),
+            b"~}",
+            "\u{a0}".as_bytes(),
+            b"$$",
+        ];
+        for x in pieces {
+            for y in pieces {
+                for z in pieces {
+                    let b = [x, y, z].concat();
+                    assert_eq!(quote_bytes(&b), quote_slowly(&b), "{b:?}");
+                    let mut out = String::from("[");
+                    write_quoted(&b, &mut out);
+                    assert_eq!(out, format!("[{}", quote_slowly(&b)));
+                }
+            }
+        }
+    }
 
     #[test]
     fn floats_print() {

@@ -203,20 +203,21 @@ fn parse_dur_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     })
 }
 
-/// Exactly one duration literal, optionally negated.
+/// Exactly one duration literal, optionally negated: the number right
+/// after the sign, and the literal's token reaching the end of `s` (the
+/// lexer would skip a comment or spaces after it, VA6).
 fn parse_dur(s: &str) -> Option<i64> {
     let (neg, s) = match s.strip_prefix('-') {
         Some(rest) => (true, rest),
         None => (false, s),
     };
-    let (toks, _) = lex(FileId(0), s).ok()?;
-    let first = toks.first().filter(|t| t.kind == Kind::Duration)?;
-    if toks[1..]
-        .iter()
-        .any(|t| t.kind != Kind::Eof && t.kind != Kind::Newline)
-    {
+    if !s.starts_with(|c: char| c.is_ascii_digit()) {
         return None;
     }
+    let (toks, _) = lex(FileId(0), s).ok()?;
+    let first = toks
+        .first()
+        .filter(|t| t.kind == Kind::Duration && t.off == 0 && t.end == s.len())?;
     Some(if neg {
         first.dur.wrapping_neg()
     } else {
@@ -226,7 +227,21 @@ fn parse_dur(s: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_float;
+    use super::{parse_dur, parse_float};
+
+    /// One literal and nothing else: no comment after it, no space
+    /// between the sign and the number (VA6). The caller trims the ends.
+    #[test]
+    fn duration_is_one_literal() {
+        assert_eq!(parse_dur("5s"), Some(5_000_000_000));
+        assert_eq!(parse_dur("-5s"), Some(-5_000_000_000));
+        assert_eq!(parse_dur("1h30m"), Some(5_400_000_000_000));
+        for s in [
+            "5s # hi", "- 5s", "5s\n# c", "5s\n", "+5s", "--5s", "5s;", "#5s", " 5s", "5s 1m",
+        ] {
+            assert_eq!(parse_dur(s), None, "{s:?}");
+        }
+    }
 
     #[test]
     fn float_literal_syntax() {

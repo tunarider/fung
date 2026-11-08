@@ -1,0 +1,3 @@
+# A string remembers its character count once counted (`Text::chars`, a
+# `Cell`); its hash and equality read only its bytes, so it is a sound key.
+ignore-interior-mutability = ["fung_vm::value::text::Text"]

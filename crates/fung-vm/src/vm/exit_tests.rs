@@ -342,7 +342,7 @@ fn stdin_is_read_only_on_demand() {
 #[test]
 fn a_stdin_read_is_cut_at_the_deadline() {
     let start = Instant::now();
-    let o = exec_on_silent_stdin("print(timeout(50ms, () => read_line()))\nprint(reading())");
+    let o = exec_on_silent_stdin("print(timeout(() => read_line(), 50ms))\nprint(reading())");
     assert_eq!(
         (o.out.as_str(), o.err.as_str(), o.exit),
         (

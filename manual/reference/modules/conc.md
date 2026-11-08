@@ -29,7 +29,7 @@ fung의 태스크는 실행 스레드 하나 위에서 번갈아 돈다. 그래�
 - `f`가 **런타임 에러**를 내면(버그, `!`가 `Err`를 만남, `fail`) 그 태스크 범위의 다른 태스크를 취소하고 `pmap` 전체가 그 에러로 실패한다.
 - `f`가 **`Err` 값을 돌려주면** 그것은 그냥 결과 하나다. 다른 원소는 계속되고, 결과 리스트에 `Err`가 그대로 들어간다.
 
-그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 `f` 안에서 `!` 대신 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 `f` 안에서 [`timeout`](../prelude/concurrency.html#fn-timeout)을 쓴다.
+그래서 "한 서버가 실패해도 나머지는 받고 싶다"면 `f` 안에서 `!` 대신 결과값을 그대로 돌려준다. `map`처럼, `f`로 바로 쓴 람다 안의 `?`는 컴파일 에러 [E0226](../errors.html#E0226)이다(`Err`가 말없이 결과의 원소가 되므로). `Err`를 결과로 모으려면 `match`나 결과값을 그대로 돌려준다. 원소마다 시간 제한을 두려면 `f` 안에서 [`timeout`](../prelude/concurrency.html#fn-timeout)을 쓴다.
 
 #### 매개변수
 
@@ -83,7 +83,7 @@ fn check(host):
   "${host} ok"
 ;;
 
-print(conc.pmap(["a", "slow", "b"], h => timeout(1s, () => check(h))))
+print(conc.pmap(["a", "slow", "b"], h => timeout(() => check(h), 1s)))
 ```
 
 **서버 여러 대에 명령 보내기**
@@ -94,7 +94,7 @@ print(conc.pmap(["a", "slow", "b"], h => timeout(1s, () => check(h))))
 import conc
 
 hosts = ["web-1", "web-2", "db-1"]
-results = conc.pmap(hosts, h => timeout(5s, () => exec(["ssh", h, "uptime"])), limit: 10)
+results = conc.pmap(hosts, h => timeout(() => exec(["ssh", h, "uptime"]), 5s), limit: 10)
 for (h, r) in zip(hosts, results):
   match r:
     Ok(out) => print(h, trim(out.out))

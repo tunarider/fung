@@ -15,16 +15,19 @@ use crate::{Out, read_error, read_file, restore_name, usage_error};
 /// file: `check` does not walk directories).
 pub fn run_check(args: &[String], raw: &[Vec<u8>]) -> Out {
     match args {
+        [] => usage_error(b"check needs a script path or -e code"),
+        [e] if e == "-e" => usage_error(b"-e needs code"),
         [e, _] if e == "-e" => match crate::code_arg(&raw[1]) {
             Ok(code) => check(b"-e", &code),
             Err(out) => out,
         },
-        [e, _, _, ..] if e == "-e" => usage_error(b"check -e takes the code and nothing after it"),
-        [p] if p != "-e" => match read_file(&raw[0]) {
+        [_] => match read_file(&raw[0]) {
             Ok(src) => check(&raw[0], &src),
             Err(msg) => read_error(&raw[0], &msg),
         },
-        _ => usage_error(b"check needs a script path or -e code"),
+        // Nothing runs: arguments after the code or the path have no use
+        // (TL4).
+        _ => usage_error(b"check takes one script path or -e code, nothing more"),
     }
 }
 
@@ -103,8 +106,9 @@ mod tests {
         let out = run_check(&extra, &raw);
         assert_eq!(out.code, EXIT_USAGE);
         assert!(
-            out.stderr
-                .starts_with(b"error: check -e takes the code and nothing after it\n\nusage:"),
+            out.stderr.starts_with(
+                b"error: check takes one script path or -e code, nothing more\n\nusage:"
+            ),
             "{}",
             String::from_utf8_lossy(&out.stderr)
         );

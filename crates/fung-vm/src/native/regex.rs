@@ -128,7 +128,7 @@ fn with_pattern(t: &mut Task<'_>, a: Vec<Value>, body: Body) -> Result<Flow, Sto
     // Inside a swap's function the compile runs here: the function must
     // not park, or another task could change the atom under it again and
     // again (`atom.rs`).
-    if t.pure > 0 {
+    if t.in_pure() {
         return finish(compile(owned)).map(Flow::Done);
     }
     nat::offload_abandoning(t, move || compile(owned), move |_, r| finish(r))

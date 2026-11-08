@@ -559,16 +559,16 @@ pub fn probes() -> Vec<Value> {
             },
         )),
         Value::Native(Native::leak("yields", vec![], |t: &mut Task, _| {
-            Ok(Value::Int(i64::from(t.yields)))
+            Ok(Value::Int(i64::from(t.fiber.yields)))
         })),
         Value::Native(Native::leak("offloads", vec![], |t: &mut Task, _| {
-            Ok(Value::Int(i64::from(t.offloads)))
+            Ok(Value::Int(i64::from(t.fiber.offloads)))
         })),
         Value::Native(Native::leak("parks", vec![], |t: &mut Task, _| {
-            Ok(Value::Int(i64::from(t.parks)))
+            Ok(Value::Int(i64::from(t.fiber.parks)))
         })),
         Value::Native(Native::leak("loop_depth", vec![], |t: &mut Task, _| {
-            Ok(Value::Int(i64::from(t.loops)))
+            Ok(Value::Int(i64::from(t.fiber.loops)))
         })),
         // Wakes the calling task's own waiter, as a stale wake would.
         Value::Native(Native::leak("wake_self", vec![], |t: &mut Task, _| {
@@ -648,6 +648,14 @@ pub mod jobs {
     fn state() -> &'static (Mutex<State>, Condvar) {
         static S: OnceLock<(Mutex<State>, Condvar)> = OnceLock::new();
         S.get_or_init(Default::default)
+    }
+
+    /// The handles `block_open_job(name)` made, by name.
+    type Handles = Mutex<HashMap<String, std::sync::Weak<crate::native::file::File>>>;
+
+    fn handles() -> &'static Handles {
+        static H: OnceLock<Handles> = OnceLock::new();
+        H.get_or_init(Default::default)
     }
 
     /// Lets the jobs waiting on latch `name` go.
@@ -743,6 +751,9 @@ pub mod jobs {
     /// - `count_job(name)`: a job that bumps counter `name`;
     /// - `pool_thread()`: the name of the thread a pool job runs on;
     /// - `panic_job()`: a job that panics;
+    /// - `block_open_job(name)`: a job that waits on latch `name`, then
+    ///   opens `/dev/null`; its value is `Ok(<file>)`;
+    /// - `handle_alive(name)`: whether that handle is still held;
     /// - `open_latch(name)`: `open(name)` from fung;
     /// - `settle_mark(name)`: `mark(name)`, and the scheduler's parked
     ///   count is reset so a test thread sees the next one;
@@ -887,6 +898,49 @@ pub mod jobs {
             "waiting_io",
             vec![],
             |t: &mut Task, _| Ok(Value::Int(t.io_waiting_for_tests() as i64)),
+        )));
+        v.push(Value::Native(Native::leak_step(
+            "block_open_job",
+            vec![nat::param("name")],
+            |t: &mut Task, a| {
+                let n = name(&a);
+                let job = n.clone();
+                crate::vm::offload_kind(
+                    t,
+                    crate::vm::Kind::Wait,
+                    move || {
+                        wait(&job);
+                        crate::native::file::open(
+                            b"/dev/null",
+                            crate::native::file::Mode::Read,
+                            None,
+                        )
+                        .expect("open /dev/null")
+                    },
+                    move |t, io| {
+                        let f = std::sync::Arc::new(crate::native::file::File::new(
+                            b"/dev/null".to_vec(),
+                            io,
+                            t.closer(),
+                        ));
+                        handles()
+                            .lock()
+                            .unwrap()
+                            .insert(n, std::sync::Arc::downgrade(&f));
+                        Ok(Flow::Done(nat::ok(Value::File(f))))
+                    },
+                )
+            },
+        )));
+        v.push(Value::Native(Native::leak(
+            "handle_alive",
+            vec![nat::param("name")],
+            |_: &mut Task, a| {
+                let h = handles().lock().unwrap();
+                Ok(Value::Bool(
+                    h.get(&name(&a)).is_some_and(|w| w.strong_count() > 0),
+                ))
+            },
         )));
         v.push(Value::Native(Native::leak(
             "pool_state",

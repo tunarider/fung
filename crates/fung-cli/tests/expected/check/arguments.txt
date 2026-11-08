@@ -136,73 +136,83 @@
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
 ==== check -e
 -- stdout
 -- stderr
-| error: check needs a script path or -e code
+| error: -e needs code
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
 ==== check -e print(1) ignored too
 -- stdout
 -- stderr
-| error: check -e takes the code and nothing after it
+| error: check takes one script path or -e code, nothing more
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
 ==== check a.fung b.fung
 -- stdout
 -- stderr
-| error: check needs a script path or -e code
+| error: check takes one script path or -e code, nothing more
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
 ==== check tests/lang tests/lang/arith.fung
 -- stdout
 -- stderr
-| error: check needs a script path or -e code
+| error: check takes one script path or -e code, nothing more
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
@@ -224,16 +234,18 @@
 ==== check tests/lang/arith.fung -e
 -- stdout
 -- stderr
-| error: check needs a script path or -e code
+| error: check takes one script path or -e code, nothing more
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
 |   fung                                    start the REPL
 |   fung -e '<code>'                        run one line of code
 |   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
 |   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
 |   fung test [path]                        run tests
 |   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3

@@ -39,13 +39,13 @@ URL에 `GET` 요청을 보내고 응답을 돌려준다.
 
 가장 흔한 요청이다. `curl URL`과 같다. 리다이렉트(3xx)는 10번까지 따라간다. 요청에는 `Host`, `User-Agent: fung/<버전>`이 자동으로 붙고, `headers`의 것이 같은 이름의 자동 헤더를 대신한다. URL에 `user:pass@`가 있으면 `Authorization: Basic …` 헤더가 된다. 프록시 환경 변수(`HTTPS_PROXY` 등)를 따른다. 자세한 규칙은 [약속](#promises)에 있다.
 
-`timeout`은 이름 조회·연결·TLS 핸드셰이크·리다이렉트를 모두 포함한 **요청 전체**의 한도 하나다. `0s`면 한도가 없다. 바깥에 더 짧은 [`timeout`](../prelude/concurrency.html#fn-timeout) 범위가 있으면 그쪽이 먼저 끊는다(그때는 바깥 `timeout`의 `Err({kind: 'timeout})`).
+`timeout`은 이름 조회·연결·TLS 핸드셰이크·리다이렉트를 모두 포함한 **요청 전체**의 한도 하나다. prelude의 [`timeout`](../prelude/concurrency.html#fn-timeout)과 같은 규칙이라 `0s` 이하면 곧바로 시간 초과이고, 요청 자신의 한도를 두지 않으려면 `timeout: nil`을 준다. 바깥에 더 짧은 [`timeout`](../prelude/concurrency.html#fn-timeout) 범위가 있으면 그쪽이 먼저 끊는다(그때는 바깥 `timeout`의 `Err({kind: 'timeout})`).
 
 #### 매개변수
 
 - `url`: `http://`나 `https://`로 시작하는 URL.
 - `headers`: 보낼 헤더 맵(`{"Authorization": "Bearer ${token}"}`). 맵 순서대로 보낸다.
-- `timeout`: 요청 전체의 한도(기간).
+- `timeout`: 요청 전체의 한도(기간), 또는 한도 없음 `nil`.
 - `max_body`: 읽을 응답 본문의 최대 바이트 수(기본 64 MiB). 넘으면 `Err({kind: 'network})`(`response body longer than N bytes`). 큰 파일을 받을 때 늘린다. 제한 없음은 없다.
 
 #### 돌려주는 값
@@ -275,13 +275,13 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 - `method`: `"GET"`, `"POST"` …
 - `path`: 쿼리를 뺀 경로(`"/health"`).
-- `query`: 쿼리의 맵. 같은 이름이 여럿이면 첫 값, `+`는 공백, `%20` 같은 이스케이프는 풀린다. 잘못된 `%` 이스케이프가 든 쌍은 빠진다.
-- `headers`: 소문자 키의 맵.
+- `query`: 쿼리의 맵. 쌍은 `&`로 나누고, 같은 이름이 여럿이면 첫 값, `+`는 공백, `%20` 같은 이스케이프는 풀린다. 잘못된 `%` 이스케이프나 `;`가 든 쌍은 빠진다. 쌍이 1만 개를 넘으면 핸들러를 부르지 않고 400으로 답한다.
+- `headers`: 소문자 키의 맵. `host`도 들어 있다(가상 호스트를 가를 때 쓴다).
 - `body`: 본문 문자열.
 
 핸들러는 **문자열**(상태 200, `text/plain; charset=utf-8`)이나 **맵** `{status = 200, headers = {}, body = ""}`(빠진 키는 기본값)을 돌려준다. 응답에는 `Date`와 `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`이 붙는다. 연결마다 요청 하나만 받으므로 응답에는 늘 `Connection: close`가 붙는다.
 
-답의 틀은 서버가 정한다. 그래서 핸들러가 `Transfer-Encoding`·`Trailer`·`Connection` 헤더를 넣거나, 본문 길이와 다른 `Content-Length`를 넣으면 잘못된 답이다(본문이 없는 `HEAD`·204·304의 `Content-Length`는 GET의 길이로 받는다). 대소문자만 다른 같은 이름의 헤더 둘(`X-A`와 `x-a`)과 상태 101(연결 넘겨주기는 하지 않음)도 잘못된 답이다.
+답의 틀은 서버가 정한다. 그래서 핸들러가 `Transfer-Encoding`·`Trailer`·`Connection` 헤더를 넣거나, 본문 길이와 다른 `Content-Length`를 넣으면 잘못된 답이다(본문이 없는 `HEAD`·204·304의 `Content-Length`는 GET의 길이로 받는다). 대소문자만 다른 같은 이름의 헤더 둘(`X-A`와 `x-a`), 토큰이 아닌 헤더 이름(`"X Bad"`), 제어 문자(줄바꿈·NUL 등, 탭은 됨)가 든 헤더 값도 잘못된 답이다. 서버는 헤더를 고치거나 빼지 않는다(값 앞뒤의 공백만 뗀다). 상태는 200~599다: 핸들러는 마지막 답 하나를 돌려주므로 1xx(중간 답, 연결 넘겨주기 101)는 잘못된 답이다.
 
 핸들러가 런타임 에러를 내면 500으로 답하고 표준 에러에 `http: handler failed: …` 한 줄을 쓴다. 문자열·맵이 아닌 것이나 잘못된 답을 돌려주면 500과 `http: bad handler response: …`(이유)다. 어느 쪽이든 서버는 계속 돈다.
 
@@ -292,7 +292,7 @@ print(r.status, r.headers["content-length"], r.body == "")
 
 `ready`를 주면 듣기 시작한 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다. 포트 `0`으로 띄운 서버의 포트를 아는 길이고, 시험에서 서버가 준비된 뒤에 요청을 보내는 데 쓴다. `reuse_port: true`는 `SO_REUSEPORT`를 켜서 프로세스 여럿이 한 포트에서 받게 한다(Linux는 연결을 나눠 주고, macOS는 받게만 한다). 여러 코어를 쓰는 방법이다.
 
-서버의 한도: 헤더는 10초 안에 와야 하고(아니면 끊음), 요청 머리는 1 MiB·헤더 줄 500개까지(넘으면 431), 본문은 16 MiB까지(넘으면 413, 핸들러를 부르지 않음), 형식이 틀리면 400이다. 서버가 스스로 내는 답에는 `Date`·`Content-Length`가 붙고, 본문은 `<코드> <이유 문구>`다(`500 Internal Server Error`). 표준 이유 문구가 없는 코드(`599`)는 빈 문구로 보낸다. macOS는 받기 전 대기 줄(`kern.ipc.somaxconn`, 기본 128)이 차면 새 연결을 끊으므로, 한꺼번에 그보다 많이 몰려오는 접속은 그만큼 실패한다(Linux 기본값은 4096).
+서버의 한도: 헤더는 10초 안에 와야 하고(아니면 끊음), 요청 머리는 1 MiB·헤더 줄 500개까지(넘으면 431), 본문은 16 MiB까지(넘으면 413, 핸들러를 부르지 않음; `Expect: 100-continue`면 `100 Continue`를 보내기 전에 413), 형식이 틀리면 400이다. `Transfer-Encoding`이 든 HTTP/1.0 요청은 본문의 끝을 알 수 없어 400이고, HTTP/1.0 요청의 `Expect`는 무시한다. 서버가 스스로 내는 답에는 `Date`·`Content-Length`가 붙고, 본문은 `<코드> <이유 문구>`다(`500 Internal Server Error`). 표준 이유 문구가 없는 코드(`599`)는 빈 문구로 보낸다. macOS는 받기 전 대기 줄(`kern.ipc.somaxconn`, 기본 128)이 차면 새 연결을 끊으므로, 한꺼번에 그보다 많이 몰려오는 접속은 그만큼 실패한다(Linux 기본값은 4096).
 
 #### 매개변수
 
@@ -420,6 +420,8 @@ stopped
   <li><b>호스트는 ASCII</b>로 보낸다. 비ASCII 이름(<code>例え.jp</code>, <code>ex%C3%A9.com</code>)은 퓨니코드(<code>xn--…</code>)로 쓰라는 에러다. 괄호 안은 IPv6 주소여야 한다.</li>
   <li><b>이른 답</b>: 서버가 요청을 다 받기 전에 답하고 닫으면(이른 413) 그 답을 준다. 프록시의 <code>CONNECT</code> 답은 2xx면 모두 터널이다. <code>http</code>·<code>https</code> 밖의 스킴인 프록시는 에러다.</li>
   <li><b>본문은 문자열</b>이다. 바이트를 그대로 담으므로 UTF-8이 아닌 본문(바이너리)도 바뀌지 않고 오간다. 요청 경로와 쿼리의 퍼센트 이스케이프도 바이트로 풀린다.</li>
+  <li><b>URL의 경로와 쿼리</b>는 요청 줄에 ASCII로 나간다: 거기 쓸 수 있는 글자와 올바른 <code>%XX</code>는 그대로, 나머지 바이트(공백, 한글 같은 UTF-8, 홀로 선 <code>%</code>)는 <code>%XX</code>로 바꿔 보낸다(<code>?q=한 글</code> → <code>?q=%ED%95%9C%20%EA%B8%80</code>).</li>
+  <li><b>응답의 상태 줄</b>은 <code>HTTP/1.x</code>와 100~599의 세 자리 숫자여야 한다. 아니면 <code>Err({kind: 'network})</code>(<code>invalid status code `999`</code>, <code>invalid HTTP version `HTTP/2.0`</code>).</li>
   <li><b>없는 것</b>: 연결 재사용(keep-alive)과 파이프라이닝, HTTP/2, 압축. 서버는 연결마다 요청 하나만 받는다.</li>
 </ul>
 

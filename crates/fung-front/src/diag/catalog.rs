@@ -16,7 +16,7 @@ pub struct Entry {
 const CATALOG: &[[&str; 4]] = &[
     ["E0101", "unexpected character %q", "", ""],
     ["E0102", "malformed number %q", "", ""],
-    ["E0103", r#"unknown escape \%s in string"#, "", ""],
+    ["E0103", "unknown escape %q in string", "", ""],
     ["E0104", "unterminated string", "", ""],
     ["E0105", "malformed duration %q", "", ""],
     ["E0110", "unexpected %s", "", ""],
@@ -41,6 +41,43 @@ const CATALOG: &[[&str; 4]] = &[
         "`%s()` has no arguments",
         "",
         "a tag without arguments is a symbol: write it without the parentheses",
+    ],
+    [
+        "E0118",
+        "a range cannot be an operand of another range",
+        "",
+        "`..` does not chain: put the inner range in parentheses if you mean it",
+    ],
+    ["E0119", "parameter `%s` is bound twice", "", ""],
+    [
+        "E0120",
+        "a required parameter cannot follow an optional one",
+        "",
+        "move the parameters with a default to the end, or give this one a default too",
+    ],
+    [
+        "E0121",
+        "a tag takes its values by position, not by name",
+        "",
+        "write `Tag(a, b)`; for named fields put a map in it: `Tag({a: 1})`",
+    ],
+    [
+        "E0122",
+        "a string with `${…}` cannot be %s",
+        "",
+        "only a constant string fits here: drop the interpolation",
+    ],
+    [
+        "E0123",
+        "`_` cannot be a named argument",
+        "",
+        "`_` fills a position; for a named one write a lambda: `x => f(a: x)`",
+    ],
+    [
+        "E0124",
+        "an anonymous function cannot be written with `=`",
+        "",
+        "anonymous functions take a block: `fn(x): … ;;`, or write a lambda `x => …`",
     ],
     [
         "E0204",
@@ -145,9 +182,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0226",
-        "`?` inside a lambda given to map",
+        "`?` inside a lambda given to %s",
         "",
-        "map keeps the Err as an element; use `try_map`, which stops at the first Err",
+        "the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results",
     ],
     [
         "E0227",
@@ -385,9 +422,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0810",
-        "a file dropped without `fs.close` failed: %s",
+        "a file dropped without `close` failed: %s",
         "",
-        "close it with `fs.close` (or use `fs.with_open`) to handle the error where it happens",
+        "close it with `close` (or use `fs.with_open`) to handle the error where it happens",
     ],
     ["W0101", "unused import `%s`", "", ""],
     [

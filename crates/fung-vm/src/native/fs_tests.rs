@@ -470,7 +470,7 @@ fn list_walk_glob() {
 
 /// Byte order (not locale order), hidden names, links not followed by
 /// `walk` and followed by `glob` and `list`, and an unreadable directory:
-/// `glob` passes over it, `walk` stops there.
+/// `glob` and `walk` stop there with its path (LB18).
 #[test]
 fn listings_keep_gos_order() {
     let d = Scratch::new("order");
@@ -506,8 +506,15 @@ fn listings_keep_gos_order() {
         show(call("glob", vec![s(&format!("{tt}/*"))])),
         quoted(&top, true)
     );
+    // `*/*` reads `locked_d` too: opened for this listing (LB18)
+    let mode = |m: u32| {
+        std::fs::set_permissions(t.join("locked_d"), std::fs::Permissions::from_mode(m)).unwrap()
+    };
+    mode(0o755);
+    let all = show(call("glob", vec![s(&format!("{tt}/*/*"))]));
+    mode(0o000);
     assert_eq!(
-        show(call("glob", vec![s(&format!("{tt}/*/*"))])),
+        all,
         quoted(
             &[
                 ".hdir/x",
@@ -516,6 +523,7 @@ fn listings_keep_gos_order() {
                 "ln_dir/A",
                 "ln_dir/b.md",
                 "ln_dir/deep",
+                "locked_d/inner",
                 "sub/.g",
                 "sub/A",
                 "sub/b.md",
@@ -557,10 +565,23 @@ fn listings_keep_gos_order() {
             "Err({{kind: 'permission, message: \"cannot list `{tt}/locked_d`: permission denied\"}})"
         )
     );
-    assert_eq!(
-        show(call("glob", vec![s(&format!("{tt}/locked_d/*"))])),
-        "Ok([])"
-    );
+    // a directory `glob` cannot read is an error with its path, as in
+    // `walk` (LB18), also when a wildcard reached it
+    // (a stat below it fails too: `locked_d/inner` cannot be looked at)
+    for (pattern, at) in [
+        ("locked_d/*", "locked_d"),
+        ("*/inner", "locked_d"),
+        ("locked_d/inner/*", "locked_d/inner"),
+        ("locked_d/inner", "locked_d/inner"),
+    ] {
+        assert_eq!(
+            show(call("glob", vec![s(&format!("{tt}/{pattern}"))])),
+            format!(
+                "Err({{kind: 'permission, message: \"cannot glob `{tt}/{at}`: permission denied\"}})"
+            ),
+            "{pattern}"
+        );
+    }
 }
 
 #[test]
@@ -859,9 +880,9 @@ fn perm_sets_the_permission_bits() {
     let o = run_in(
         &d,
         r#"h = fs.open("${d}/a", 'write, perm: 0o600)!
-print(fs.write_line(h, "w"), fs.close(h))
+print(fs.write_line(h, "w"), close(h))
 h2 = fs.open("${d}/b", 'append, perm: 0o640)!
-print(fs.close(h2), fs.write("${d}/c", "c", perm: 0o600), fs.append("${d}/c", "d", perm: 0o604))
+print(close(h2), fs.write("${d}/c", "c", perm: 0o600), fs.append("${d}/c", "d", perm: 0o604))
 print(fs.with_open("${d}/e", h => fs.write_line(h, "e"), 'write, perm: 0o600))"#,
     );
     assert_eq!(
@@ -1062,12 +1083,12 @@ fn handles_write_read_and_close() {
         &d,
         r#"h = fs.open("${d}/h.txt", 'write)!
 print(fs.write_line(h, "one"), fs.write_line(h, "two"), fs.read("${d}/h.txt"))
-print(fs.close(h), fs.close(h), fs.write_line(h, "x"), read_line(h))
+print(close(h), close(h), fs.write_line(h, "x"), read_line(h))
 r = fs.open("${d}/h.txt")!
 print(read_line(r), read_lines(r), read_line(r))
-print(fs.close(r), read_line(r), read_lines(r))
+print(close(r), read_line(r), read_lines(r))
 a = fs.open("${d}/h.txt", 'append)!
-print(fs.write_line(a, "three"), fs.close(a), fs.read("${d}/h.txt"))
+print(fs.write_line(a, "three"), close(a), fs.read("${d}/h.txt"))
 print(type_of(a), a == a, a == r, a != h)
 print(fs.with_open("${d}/h.txt", read_lines), fs.with_open("${d}/none", f => 1) |> is_err)"#,
     );
@@ -1160,7 +1181,7 @@ scope(fn(s):
   ts = for i in 0..8: spawn(s, () => each(0..200, j => fs.write_line(h, "task ${i} line ${j} ${pad}")!)) ;;
   each(ts, t => await(t))
 ;;)
-print(fs.close(h))"#,
+print(close(h))"#,
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("Ok(nil)\n", ""));
     let text = std::fs::read_to_string(d.at("out.txt")).unwrap();
@@ -1212,7 +1233,7 @@ w = fs.open("${d}/out.txt", 'write)!
 n2 = offloads()
 each(xs, x => fs.write_line(w, x)!)
 n3 = offloads()
-print(n3 - n2, fs.close(w), fs.read("${d}/out.txt")! == join(xs, "\n") + "\n")"#,
+print(n3 - n2, close(w), fs.read("${d}/out.txt")! == join(xs, "\n") + "\n")"#,
     );
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
@@ -1241,7 +1262,7 @@ fn lines_across_the_buffer_edge_read_whole() {
 print(len(xs), xs == lines(fs.read("${d}/in.txt")!))
 w = fs.open("${d}/out.txt", 'write)!
 each(xs, x => fs.write_line(w, x)!)
-fs.close(w)!
+close(w)!
 print(fs.read("${d}/out.txt")! == fs.read("${d}/in.txt")!)"#,
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("9001 true\ntrue\n", ""));
@@ -1349,7 +1370,7 @@ fn file_io_runs_without_the_run_token() {
         crate::testutil::child::status(std::process::Command::new("mkfifo").arg(&fifo)).unwrap();
     assert!(made.success());
     let src = format!(
-        "import fs\np = \"{}\"\nscope(fn(s):\n  r = spawn(s, () => fs.with_open(p, read_lines))\n  w = spawn(s, fn(): h = fs.open(p, 'append)!; each(0..3, i => fs.write_line(h, \"l${{i}}\")!); fs.close(h) ;;)\n  print(await(w), await(r))\n;;)",
+        "import fs\np = \"{}\"\nscope(fn(s):\n  r = spawn(s, () => fs.with_open(p, read_lines))\n  w = spawn(s, fn(): h = fs.open(p, 'append)!; each(0..3, i => fs.write_line(h, \"l${{i}}\")!); close(h) ;;)\n  print(await(w), await(r))\n;;)",
         fifo.display()
     );
     let (tx, rx) = std::sync::mpsc::channel();
@@ -1410,7 +1431,7 @@ fn bounded(src: String) -> (String, String, std::time::Duration) {
 fn a_deadline_ends_a_read_of_a_fifo() {
     let (_d, f) = fifo("deadline-read");
     let (out, err, took) = bounded(format!(
-        "import fs\nprint(timeout(50ms, () => fs.read(\"{}\")))",
+        "import fs\nprint(timeout(() => fs.read(\"{}\"), 50ms))",
         f.display()
     ));
     release_fifo(&f);
@@ -1448,7 +1469,7 @@ fn a_cancel_ends_a_read_of_a_fifo() {
 fn a_write_to_a_fifo_without_a_reader_keeps_its_deadline() {
     let (_d, f) = fifo("write-no-reader");
     let (out, err, took) = bounded(format!(
-        "import fs\np = \"{}\"\nprint(timeout(100ms, () => fs.write(p, \"x\")))\nprint(timeout(100ms, () => fs.open(p, 'append)))\nprint(pool_state()[0] - pool_state()[1])",
+        "import fs\np = \"{}\"\nprint(timeout(() => fs.write(p, \"x\"), 100ms))\nprint(timeout(() => fs.open(p, 'append), 100ms))\nprint(pool_state()[0] - pool_state()[1])",
         f.display()
     ));
     assert_eq!(
@@ -1480,7 +1501,7 @@ fn a_fifo_read_keeps_its_deadline_and_its_bytes() {
         w.write_all(b"b\nc").unwrap();
     });
     let (out, err, took) = bounded(format!(
-        "import fs\nh = fs.open(\"{}\")!\nprint(timeout(100ms, () => read_line(h)))\nfs.write(\"{}\", \"\")!\nprint(read_line(h), read_line(h), read_line(h))",
+        "import fs\nh = fs.open(\"{}\")!\nprint(timeout(() => read_line(h), 100ms))\nfs.write(\"{}\", \"\")!\nprint(read_line(h), read_line(h), read_line(h))",
         f.display(),
         mark.display()
     ));
@@ -1502,7 +1523,7 @@ fn a_fifo_read_keeps_its_deadline_and_its_bytes() {
 fn abandoned_fifo_reads_leave_the_pool_free() {
     let (d, f) = fifo("abandoned");
     let (out, err, took) = bounded(format!(
-        "import fs\nfor _ in 1..=70: _ = timeout(5ms, () => fs.read(\"{}\")) ;;\np = \"{}\"\nprint(timeout(1s, () => fs.write(p, \"ok\")), timeout(1s, () => fs.read(p)))",
+        "import fs\nfor _ in 1..=70: _ = timeout(() => fs.read(\"{}\"), 5ms) ;;\np = \"{}\"\nprint(timeout(() => fs.write(p, \"ok\"), 1s), timeout(() => fs.read(p), 1s))",
         f.display(),
         d.at("plain.txt").display()
     ));
@@ -1574,12 +1595,12 @@ print(fs.stat("${d}/./u.txt"), fs.stat("${d}/ro/.."))"#,
     r#"h = fs.open("${d}/h.txt", 'write)!
 print(h, type_of(h), h == h, h == fs.open("${d}/a.txt")!, [h] == [h])
 print(fs.write_line(h, "one"), fs.write_line(h, "two"), fs.read("${d}/h.txt"))
-print(fs.close(h), fs.close(h), fs.write_line(h, "x"), read_line(h), read_lines(h), fs.read("${d}/h.txt"))
+print(close(h), close(h), fs.write_line(h, "x"), read_line(h), read_lines(h), fs.read("${d}/h.txt"))
 r = fs.open("${d}/h.txt")!
 print(read_line(r), read_lines(r), read_line(r), read_lines(r))
-print(fs.close(r), read_line(r), read_lines(r), fs.write_line(r, "x"))
+print(close(r), read_line(r), read_lines(r), fs.write_line(r, "x"))
 a = fs.open("${d}/h.txt", 'append)!
-print(fs.write_line(a, "three"), fs.close(a), fs.read("${d}/h.txt"))
+print(fs.write_line(a, "three"), close(a), fs.read("${d}/h.txt"))
 print(fs.open("${d}/none"), fs.open("${d}/nope/x", 'write), fs.open("${d}/nope/x", 'append))
 print(fs.open("${d}/locked"), fs.open("${d}/locked", 'write), fs.open("${d}/locked", 'append))
 print(fs.open("${d}/wonly"), fs.open("${d}/wonly", 'write), fs.open("${d}/wonly", 'append) |> is_ok)
@@ -1592,7 +1613,7 @@ print(fs.write("${d}/crlf.txt", "a\r\nb\r\n\r\n\nc\r"), fs.with_open("${d}/crlf.
 fn lost(p) = fs.write_line(fs.open(p, 'write)!, "lost")
 print(lost("${d}/lost.txt"))
 k = fs.with_open("${d}/a.txt", h => h)
-print(k, read_line(k), fs.close(k), fs.write_line(k, ""))"#,
+print(k, read_line(k), close(k), fs.write_line(k, ""))"#,
     r#"p = "${d}/big.txt"
 w = fs.open(p, 'write)!
 fn size(p) = len(fs.read(p)!)
@@ -1602,11 +1623,11 @@ print(fs.write_line(w, repeat("c", 5000)), size(p))
 print(fs.write_line(w, repeat("d", 9000)), size(p))
 print(fs.write_line(w, repeat("e", 10000)), size(p))
 print(fs.write_line(w, ""), fs.write_line(w, "한글"), size(p))
-print(fs.close(w), size(p))
+print(close(w), size(p))
 r = fs.open(p)!
-print(fold(read_lines(r)!, "", (acc, l) => "${acc} ${len(l)}"), read_line(r), fs.close(r))
+print(fold(read_lines(r)!, "", (acc, l) => "${acc} ${len(l)}"), read_line(r), close(r))
 x = fs.open(p, 'append)!
-print(fs.write_line(x, repeat("f", 5000)), size(p), fs.close(x), size(p))"#,
+print(fs.write_line(x, repeat("f", 5000)), size(p), close(x), size(p))"#,
     r#"t = "${d}/t"
 print(fs.list(t))
 print(fs.list(t, full: true))
@@ -1648,12 +1669,12 @@ print(fs.glob("${t}/**"))
 print(fs.glob("${t}/?.md"), fs.glob("${t}/?.txt"), fs.glob("${t}/??.txt"))
 print(fs.glob("${t}//*.md"))
 print(fs.glob("${t}/s*/"))
-print(fs.glob("${t}/*/deep"))
+print(fs.glob("${t}/[^l]*/deep"), fs.glob("${t}/ln*/deep"))
 print(fs.glob("${t}/a.md"), fs.glob("${t}/none"), fs.glob("${t}/dangling"), fs.glob("${t}/a.md/"))
 print(fs.glob("${t}/\\a.md"), fs.glob("${t}/a\\ b.txt"), fs.glob("${t}/\\[a].md"))
 print(fs.glob("${t}/locked_d/*"), fs.glob("${t}/locked_d"))
 print(fs.glob("${t}/ln_*/*"))
-print(fs.glob("${t}/*/A/*"))
+print(fs.glob("${t}/[^l]*/A/*"), fs.glob("${t}/ln*/A/*"))
 print(fs.glob(""), fs.glob("*.toml"), fs.glob("src/nat*/glob.rs"), fs.glob("./*.toml"))
 print(fs.glob("a\u{0}*"), fs.glob("a\u{0}b"))"#,
     "print(fs.list(d, full: 1))",
@@ -1814,7 +1835,7 @@ fn dropped_handle_keeps_what_was_written() {
 w("${d}/x.txt")
 h = fs.open("${d}/long.txt", 'write)!
 fs.write_line(h, repeat("a", 70000))!
-fs.close(h)!
+close(h)!
 print(fs.stat("${d}/long.txt")!.size)"#,
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("70001\n", ""));
@@ -1912,7 +1933,7 @@ fn with_temp_dir_reports_a_failed_removal() {
 fn with_open_tolerates_a_handle_f_closed() {
     let d = Scratch::new("with-open-closed");
     let src = format!(
-        "import fs\nprint(fs.with_open(\"{}/f.txt\", h => fs.close(h), mode: 'write))",
+        "import fs\nprint(fs.with_open(\"{}/f.txt\", h => close(h), mode: 'write))",
         d.text()
     );
     let o = exec(&src, Opts::default());
@@ -1932,7 +1953,7 @@ fn fs_natives_offload() {
          print(count(() => fs.write(\"{0}/a.txt\", \"x\")!))\n\
          print(count(() => fs.read(\"{0}/a.txt\")!))\n\
          print(count(() => fs.glob(\"{0}/*.txt\")!))\n\
-         print(count(fn():\n  h = fs.open(\"{0}/b.txt\", 'write)!\n  fs.write_line(h, \"y\")!\n  fs.close(h)!\n;;))\n\
+         print(count(fn():\n  h = fs.open(\"{0}/b.txt\", 'write)!\n  fs.write_line(h, \"y\")!\n  close(h)!\n;;))\n\
          print(count(() => fs.with_temp_dir(d => d)))",
         d.text()
     );
@@ -1967,7 +1988,7 @@ fn exists_and_stat_of_a_task_alone_are_not_handed_off() {
 fn both() = [fs.exists("${d}/a.txt"), fs.stat("${d}/a.txt")!.size, fs.exists("${d}/none"), fs.stat("${d}/none")]
 fn one() = fs.exists("${d}/a.txt")
 print(count(both))
-print(timeout(10s, () => count(both)))
+print(timeout(() => count(both), 10s))
 (tx, rx) = channel()
 print(scope(fn(s):
   spawn(s, () => recv(rx))
@@ -2018,7 +2039,7 @@ print(fs.append("${d}/a.txt", "x"))
 print(fs.copy("${d}/src.txt", "${d}/c.txt"))
 h = fs.open("${d}/h.txt", 'write)!
 fs.write_line(h, "x")!
-print(fs.close(h))"#,
+print(close(h))"#,
     );
     let io = |verb: &str, name: &str| {
         format!(
@@ -2042,7 +2063,7 @@ print(fs.close(h))"#,
     );
 }
 
-/// L11 (B): a handle dropped without `fs.close` is flushed and closed on
+/// L11 (B): a handle dropped without `close` is flushed and closed on
 /// a thread of its own, so a close that hangs (NFS) does not stop the
 /// run thread: the program goes on to its next file job while the close
 /// is held. The runtime's end waits for the close, so nothing is lost.
@@ -2089,11 +2110,75 @@ print("end")"#,
     assert_eq!(o.out, "end\n");
     assert!(
         o.err.starts_with(&format!(
-            "error[E0810]: a file dropped without `fs.close` failed: cannot close `{}/lost.txt`: ",
+            "error[E0810]: a file dropped without `close` failed: cannot close `{}/lost.txt`: ",
             d.text()
         )),
         "{}",
         o.err
     );
     assert_eq!(o.exit, 1);
+}
+
+/// LB17: `fs.write` writes a regular file whole or not at all: a
+/// temporary file beside it, renamed over it (a new inode). The file
+/// keeps its permission bits without `perm`, a link stays a link (the
+/// file it names is written), a file with other hard links and a
+/// non-regular file are written in place, and a write that fails leaves
+/// the old text and no temporary file.
+#[test]
+fn write_replaces_a_regular_file_whole() {
+    use std::os::unix::fs::MetadataExt;
+    let d = Scratch::new("atomic");
+    let ino = |name: &str| std::fs::metadata(d.at(name)).unwrap().ino();
+    let mode = |name: &str| std::fs::metadata(d.at(name)).unwrap().permissions().mode() & 0o777;
+    std::fs::write(d.at("f"), "old").unwrap();
+    std::fs::set_permissions(d.at("f"), std::fs::Permissions::from_mode(0o640)).unwrap();
+    let before = ino("f");
+    std::fs::write(d.at("t"), "old").unwrap();
+    std::os::unix::fs::symlink("t", d.at("ln")).unwrap();
+    std::os::unix::fs::symlink("made", d.at("dangling")).unwrap();
+    std::fs::write(d.at("h1"), "old").unwrap();
+    std::fs::hard_link(d.at("h1"), d.at("h2")).unwrap();
+    let o = run_in(
+        &d,
+        r#"print(fs.write("${d}/f", "new"))
+print(fs.write("${d}/ln", "via link"))
+print(fs.write("${d}/dangling", "made"))
+print(fs.write("${d}/h1", "both"))
+print(fs.write("${d}/n", "fresh", perm: 0o600))
+print(fs.write("/dev/null", "x"))"#,
+    );
+    assert_eq!((o.err.as_str(), o.exit), ("", 0));
+    assert_eq!(o.out, "Ok(nil)\n".repeat(6));
+    let text = |name: &str| std::fs::read_to_string(d.at(name)).unwrap();
+    assert_eq!(text("f"), "new");
+    assert_ne!(ino("f"), before, "replaced, not rewritten in place");
+    assert_eq!(mode("f"), 0o640);
+    assert_eq!(text("t"), "via link");
+    assert!(std::fs::symlink_metadata(d.at("ln")).unwrap().is_symlink());
+    assert_eq!(text("made"), "made");
+    assert!(
+        std::fs::symlink_metadata(d.at("dangling"))
+            .unwrap()
+            .is_symlink()
+    );
+    assert_eq!((text("h1"), text("h2")), ("both".into(), "both".into()));
+    assert_eq!(mode("n"), 0o600);
+    // a failing close: the old text stays, and no temporary file
+    super::file::fail_close_of(d.at("f").to_str().unwrap());
+    let o = run_in(&d, r#"print(fs.write("${d}/f", "lost"))"#);
+    assert_eq!(
+        o.out,
+        format!(
+            "Err({{kind: 'io, message: \"cannot write `{}/f`: input/output error\"}})\n",
+            d.text()
+        )
+    );
+    assert_eq!(text("f"), "new");
+    let mut names: Vec<String> = std::fs::read_dir(&d.0)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["dangling", "f", "h1", "h2", "ln", "made", "n", "t"]);
 }

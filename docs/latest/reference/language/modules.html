@@ -87,7 +87,7 @@ import &quot;./lib/rename&quot; (slug, to_kebab) # 이름만 직접 가져오기
 <ul>
   <li>파일 하나가 모듈 하나다. 모듈 이름은 파일명이고, 이름 규칙에 맞지 않으면(<code>my-lib.fung</code>) <code>as</code>가 필요하다.</li>
   <li><code>_</code>로 시작하는 최상위 이름은 비공개. 나머지는 공개다. 가져온 이름은 다시 내보내지 않는다.</li>
-  <li>import된 파일의 최상위에는 <code>import</code>, <code>fn</code>, <code>type</code>, <code>test</code>, <code>이름 = 식</code>만 올 수 있다. 처음 import될 때 한 번 실행되고 캐시된다.</li>
+  <li>import된 파일의 최상위에는 <code>import</code>, <code>fn</code>, <code>type</code>, <code>test</code>, <code>이름 = 식</code>만 올 수 있다. 처음 import될 때 한 번 실행되고 캐시된다. 같은 파일을 심볼릭 링크나 대소문자만 다른 경로로 가져와도 같은 모듈 하나다(파일 자체로 가린다).</li>
   <li>순환 import는 컴파일 에러이고 순환 경로 전체를 보여 준다. 진입 파일을 import할 수도 없다.</li>
   <li>모듈은 값이다: 함수 인자로 넘길 수 있고 <code>type_of(fs) == 'module</code>.</li>
 </ul>

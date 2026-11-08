@@ -722,19 +722,28 @@ pub(crate) fn load(name: &str) -> Option<Zone> {
 /// - a value that names no zone file may be a POSIX zone string
 ///   (`KST-9`, `EST5EDT,M3.2.0,M11.1.0`), named by itself;
 /// - anything else: UTC.
+#[cfg(test)]
 pub(crate) fn resolve_local(tz: Option<&OsStr>, tzdir: Option<&OsStr>) -> Zone {
+    resolve(tz, tzdir).0
+}
+
+/// [`resolve_local`], and whether `TZ` named a zone: `false` when it is
+/// set to something that names none (a typo, `Asia/Seoul ` with a space),
+/// and UTC is used instead (LB20: said once on standard error).
+pub(crate) fn resolve(tz: Option<&OsStr>, tzdir: Option<&OsStr>) -> (Zone, bool) {
     let Some(tz) = tz.map(OsStr::as_bytes) else {
-        return match load_from(b"localtime", &["/etc"]) {
+        let zone = match load_from(b"localtime", &["/etc"]) {
             Some(mut z) => {
                 z.name = "Local".to_string();
                 z
             }
             None => Zone::utc(),
         };
+        return (zone, true);
     };
     let tz = tz.strip_prefix(b":").unwrap_or(tz);
     if tz.is_empty() || tz == b"UTC" {
-        return Zone::utc();
+        return (Zone::utc(), true);
     }
     let file = if tz.first() == Some(&b'/') {
         load_from(tz, &[""]).map(|mut z| {
@@ -752,17 +761,30 @@ pub(crate) fn resolve_local(tz: Option<&OsStr>, tzdir: Option<&OsStr>) -> Zone {
         );
         load_from(tz, &[dir.as_str()])
     };
-    file.or_else(|| Zone::posix(tz)).unwrap_or_else(Zone::utc)
+    match file.or_else(|| Zone::posix(tz)) {
+        Some(z) => (z, true),
+        None => (Zone::utc(), false),
+    }
 }
 
 /// The process's local zone, resolved from `TZ` and `TZDIR` on first use.
+/// A `TZ` that names no zone is said on standard error then, once: the
+/// times are in UTC, which a typo would otherwise change in silence.
 pub(crate) fn local() -> &'static Zone {
     static LOCAL: OnceLock<Zone> = OnceLock::new();
     LOCAL.get_or_init(|| {
-        resolve_local(
-            std::env::var_os("TZ").as_deref(),
-            std::env::var_os("TZDIR").as_deref(),
-        )
+        let tz = std::env::var_os("TZ");
+        let (zone, named) = resolve(tz.as_deref(), std::env::var_os("TZDIR").as_deref());
+        if !named {
+            use std::io::Write;
+            let shown = tz.as_deref().map(OsStr::as_bytes).unwrap_or_default();
+            let _ = writeln!(
+                std::io::stderr(),
+                "warning: TZ `{}` names no time zone; times are in UTC",
+                String::from_utf8_lossy(shown)
+            );
+        }
+        zone
     })
 }
 

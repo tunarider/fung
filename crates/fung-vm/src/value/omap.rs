@@ -1,7 +1,9 @@
 //! A big map: entries in insertion order in a persistent vector, and a
 //! HAMT from key to entry position. Removing a key leaves a dead entry
 //! behind; when dead entries outnumber live ones the map is rebuilt, so
-//! removal stays cheap on average.
+//! removal stays cheap on average. A version something else still holds
+//! is rebuilt only far later (`remove`): removing again and again from
+//! the same version must not rebuild it every time.
 
 use std::rc::Rc;
 
@@ -105,8 +107,13 @@ impl Omap {
         }
     }
 
-    /// Removes `k`; returns whether it was there.
-    pub(super) fn remove(&mut self, k: &[u8]) -> bool {
+    /// Removes `k`; returns whether it was there. The map is rebuilt
+    /// without its dead entries once they outnumber the live ones; when
+    /// the version removed from is `shared`, only far later (VA1). The
+    /// rebuild lands in the new version alone, and a shared version left
+    /// at the lower bound would pay it again on each of its removals: the
+    /// same version is changed again and again when values are immutable.
+    pub(super) fn remove(&mut self, k: &[u8], shared: bool) -> bool {
         let h = hash_key(k);
         let Some(pos) = self.idx.get(h, k) else {
             return false;
@@ -115,10 +122,21 @@ impl Omap {
         self.ents.set(pos, None);
         self.live -= 1;
         self.dead += 1;
-        if self.dead > self.live {
+        let bound = if shared {
+            4 * self.live + 64
+        } else {
+            self.live
+        };
+        if self.dead > bound {
             *self = Omap::of(self.entries());
         }
         true
+    }
+
+    /// Entry slots, the removed ones included.
+    #[cfg(test)]
+    pub(super) fn slots(&self) -> usize {
+        self.ents.len()
     }
 
     /// The live entries in order, copied out.
