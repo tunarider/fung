@@ -93,6 +93,22 @@ pub(crate) fn check_chars(s: &[u8]) -> Result<(), Diag> {
     }
 }
 
+/// What a native returns keeps to the string limit (VA9, 02 "크기 한도"):
+/// a string, or one a tag holds (`Ok(text)`), whoever made it, whether
+/// built (`str`, `upper`) or read from outside (`fs.read`). One length test
+/// for any string within the limit in bytes; maps and lists are not walked
+/// (a native that returns a map of outside text checks it itself).
+pub(crate) fn check_returned(v: &Value) -> Result<(), Diag> {
+    match v {
+        Value::Str(s) => check_chars(s.as_bytes()),
+        Value::Tag(t) => t.args.iter().try_for_each(|a| match a {
+            Value::Str(s) => check_chars(s.as_bytes()),
+            _ => Ok(()),
+        }),
+        _ => Ok(()),
+    }
+}
+
 pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
     match (a, b) {
         (Value::Str(x), Value::Str(y)) => {

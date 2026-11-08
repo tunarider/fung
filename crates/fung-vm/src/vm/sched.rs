@@ -433,8 +433,10 @@ impl Sched {
         }
     }
 
-    /// Takes in the tasks spawned during the last turn.
+    /// Takes in the tasks spawned during the last turn, and the handlers
+    /// of the `supervise` scopes that asked for one (CC1).
     fn adopt(&mut self, t: &mut Task<'_>) {
+        super::scope::start_handlers(t);
         let mut fibers: Vec<Fiber> = t.world.new_fibers.drain(..).collect();
         shuffle(&mut t.world.shuffle, &mut fibers);
         for f in fibers {

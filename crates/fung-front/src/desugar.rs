@@ -207,6 +207,11 @@ impl Desugarer {
                 let kids: Vec<&Node> = n.kids.iter().collect();
                 self.call(n.pos, &kids)
             }
+            // A tag is called like a function (01): `Ok(_)` is a function too.
+            Head::Tag if n.kids.iter().any(|k| k.head == Head::Hole) => {
+                let kids: Vec<&Node> = n.kids.iter().collect();
+                self.partial_with(n.pos, &kids, Some(n))
+            }
             Head::For => self.for_loop(n, discard),
             Head::Match => self.match_expr(n, discard),
             Head::Return
@@ -285,9 +290,12 @@ impl Desugarer {
         let rhs = &n.kids[1];
         // The piped value is the first argument; a hole beside it would
         // make a function of the rest instead (01: E0227).
-        if rhs.head == Head::Call
-            && let Some(h) = rhs.kids[1..].iter().find(|k| k.head == Head::Hole)
-        {
+        let args = match rhs.head {
+            Head::Call => &rhs.kids[1..],
+            Head::Tag => &rhs.kids[..],
+            _ => &[][..],
+        };
+        if let Some(h) = args.iter().find(|k| k.head == Head::Hole) {
             return Err(Box::new(error("E0227", h.pos, vec![])));
         }
         // A postfix `?`/`!` binds tighter than `|>`, so on the right it
@@ -332,6 +340,13 @@ impl Desugarer {
     ///
     /// `(do (let $p0 f) (let $p1 a) (let $p2 b) (fn (h0) (do (call $p0 $p1 h0 $p2))))`
     fn partial(&mut self, pos: Pos, kids: &[&Node]) -> R {
+        self.partial_with(pos, kids, None)
+    }
+
+    /// `partial` for a call (`kids` is the callee and the arguments) or,
+    /// with `tag`, for that tag's value (`kids` are its arguments): the
+    /// function's body builds the tag instead of calling (FE18).
+    fn partial_with(&mut self, pos: Pos, kids: &[&Node], tag: Option<&Node>) -> R {
         let mut block = Vec::new();
         let mut info = blank_info("");
         let mut call = Vec::new();
@@ -363,7 +378,11 @@ impl Desugarer {
                 }
             }
         }
-        let body = Node::new(Head::Do, pos, vec![Node::new(Head::Call, pos, call)]);
+        let made = match tag {
+            Some(t) => Node::with_lit(Head::Tag, pos, t.lit.clone(), call),
+            None => Node::new(Head::Call, pos, call),
+        };
+        let body = Node::new(Head::Do, pos, vec![made]);
         block.push(Node::with_lit(
             Head::Fn,
             pos,

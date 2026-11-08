@@ -32,3 +32,94 @@ fn closes_early() = scope(fn(s):
 ;;)
 print(closes_early())
 # expect: [nil, Err({kind: 'closed, message: "channel closed"})]
+
+# Inside a branch, a statement lets go of what it read last: the closure
+# that held the sending end is gone, so the loop ends (03).
+fn in_branch(flag):
+  if flag:
+    (tx, rx) = channel(1)
+    f = () => send(tx, 1)
+    f()!
+    for x in rx: x ;;
+  else:
+    []
+  ;;
+;;
+print(in_branch(true))
+# expect: [1]
+
+# A match arm is a block too.
+fn in_arm(v) = match v:
+  'go =>
+    (tx, rx) = channel(1)
+    f = () => send(tx, 2)
+    f()!
+    for x in rx: x ;;
+  _   => []
+;;
+print(in_arm('go))
+# expect: [2]
+
+# On a path that never reads it again, a local goes at the first statement
+# that ends there, though another branch still reads it.
+fn other_path(flag):
+  (tx, rx) = channel(2)
+  send(tx, 9)!
+  if flag:
+    send(tx, 1)!
+    []
+  else:
+    head = recv(rx)!
+    for x in rx: x + head ;;
+  ;;
+;;
+print(other_path(false))
+# expect: []
+
+# Sibling blocks reuse their slots: the second block's names do not keep
+# the first block's sending end alive.
+fn siblings():
+  if true:
+    (tx, rx) = channel(1)
+    drop_it(tx)
+    print("first:", recv(rx))
+  ;;
+  if true:
+    (tx, rx) = channel(1)
+    send(tx, 4)!
+    for x in rx: x ;;
+  else:
+    []
+  ;;
+;;
+print(siblings())
+# expect: first: Err({kind: 'closed, message: "channel closed"})
+# expect: [4]
+
+# A local never read lives on until the function returns, in a branch too.
+fn kept(flag):
+  if flag:
+    (_tx, rx) = channel(1)
+    try_recv(rx)
+  else:
+    nil
+  ;;
+;;
+print(kept(true))
+# expect: Err({kind: 'empty, message: "channel empty"})
+
+# The entry file's blocks follow the same rule: the last read hands the
+# value over, and the statement after it lets go.
+if true:
+  (tx, rx) = channel(1)
+  drop_it(tx)
+  print("top move:", recv(rx))
+;;
+# expect: top move: Err({kind: 'closed, message: "channel closed"})
+if true:
+  (tx, rx) = channel(1)
+  f = () => send(tx, 3)
+  f()!
+  print("top clear:", for x in rx: x ;;)
+;;
+# expect: top clear: [3]

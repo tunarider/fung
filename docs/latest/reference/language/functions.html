@@ -116,7 +116,7 @@ print(greet(&quot;fung&quot;), greet(&quot;fung&quot;, greeting: &quot;hi&quot;)
 <h3>반환</h3>
 <p>마지막 식의 값을 돌려준다. 일찍 빠져나갈 때는 <code>return 식</code>(값 없으면 <code>nil</code>). <code>return</code>은 감싸는 함수나 람다에서 돌아오고, <code>for</code> 본문과 진입 파일 최상위에서는 쓸 수 없다(최상위에서는 <code>exit()</code>).</p>
 <h3>부분 적용</h3>
-<p>호출 인자의 <code>_</code>는 그 자리를 비운 새 함수를 만든다. <code>f(a, _)</code>는 <code>x =&gt; f(a, x)</code>이고, <code>a</code>는 그 자리에서 한 번 평가된다. 자동 커링은 없다. 파이프 오른쪽 호출의 인자로는 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</p>
+<p>호출 인자의 <code>_</code>는 그 자리를 비운 새 함수를 만든다. <code>f(a, _)</code>는 <code>x =&gt; f(a, x)</code>이고, <code>a</code>는 그 자리에서 한 번 평가된다. 태그도 호출 형태라 같다: <code>map(xs, Ok(_))</code>. 자동 커링은 없다. 파이프 오른쪽 호출의 인자로는 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</p>
 <div class="run"><pre><code>import path
 files = [&quot;a.txt&quot;, &quot;b.txt&quot;]
 print(files |&gt; map(path.join(&quot;/tmp&quot;, _)))</code></pre><pre class="out plain"><code>[&quot;/tmp/a.txt&quot;, &quot;/tmp/b.txt&quot;]</code></pre></div>

@@ -272,7 +272,7 @@ impl Task<'_> {
                 let outer = self.native.replace(n);
                 match n.body {
                     NativeBody::Plain(func) => {
-                        let r = func(self, args);
+                        let r = func(self, args).and_then(returned);
                         self.native = outer;
                         match r {
                             Ok(v) => Ok(Entered::Value(v)),
@@ -283,7 +283,10 @@ impl Task<'_> {
                         let r = step(self, args);
                         self.native = outer;
                         match r {
-                            Ok(Flow::Done(v)) => Ok(Entered::Value(v)),
+                            Ok(Flow::Done(v)) => match returned(v) {
+                                Ok(v) => Ok(Entered::Value(v)),
+                                Err(e) => Err(self.raised(e, pos)),
+                            },
                             Ok(Flow::Call(k, f, nargs)) => {
                                 self.conts.push(ContFrame {
                                     depth: self.frames.len(),
@@ -472,7 +475,10 @@ impl Task<'_> {
                 let i = self.conts.len() - 1;
                 let mut k = std::mem::replace(&mut self.conts[i].k, Box::new(Hole));
                 let outer = std::mem::replace(&mut self.native, self.conts[i].native);
-                let r = k.resume(self, v);
+                let r = k.resume(self, v).and_then(|n| match n {
+                    Next::Done(w) => returned(w).map(Next::Done),
+                    n => Ok(n),
+                });
                 self.native = outer;
                 match r {
                     Ok(Next::Call(f, n)) => {
@@ -521,7 +527,10 @@ impl Task<'_> {
         self.frames.truncate(c.depth);
         self.stack.truncate(c.height);
         let outer = std::mem::replace(&mut self.native, c.native);
-        let r = c.k.unwind(self, stop);
+        let r = c.k.unwind(self, stop).and_then(|n| match n {
+            Next::Done(w) => returned(w).map(Next::Done),
+            n => Ok(n),
+        });
         self.native = outer;
         match r {
             Ok(Next::Call(f, n)) => {
@@ -625,7 +634,7 @@ impl Task<'_> {
         }
         let args = self.take_args(at);
         let outer = self.native.replace(nat);
-        let r = func(self, args);
+        let r = func(self, args).and_then(returned);
         self.native = outer;
         if let Err(Stop::Exit(code)) = r {
             self.request_exit(code);
@@ -679,5 +688,14 @@ impl Task<'_> {
             self.stack.truncate(height);
         }
         r
+    }
+}
+
+/// A native's value, once it is done, within the string limit (VA9).
+#[inline(always)]
+fn returned(v: Value) -> Result<Value, Stop> {
+    match crate::value::check_returned(&v) {
+        Ok(()) => Ok(v),
+        Err(d) => Err(Stop::Error(Box::new(d))),
     }
 }

@@ -1,5 +1,7 @@
 //! Calls and function bodies (09. 호출 규약).
 
+use std::collections::{BTreeSet, HashMap, HashSet};
+
 use super::{Compiler, lit_str};
 use crate::bytecode::{Op, Param, Proto, encode_call};
 use crate::consts::Const;
@@ -99,9 +101,14 @@ impl Compiler<'_> {
             prelude: self.prelude,
             opts: self.opts,
             lines: self.lines,
-            body_block: false,
-            moves: super::moves::last_reads(n.kids.last().expect("fn has a body")),
+            moves: HashSet::new(),
+            after: HashMap::new(),
+            stored_live: HashMap::new(),
+            held: BTreeSet::new(),
         };
+        cc.take_lives(super::moves::last_reads(
+            n.kids.last().expect("fn has a body"),
+        ));
 
         // Prologue: defaults, then type checks.
         let mut di = 0;
@@ -125,7 +132,6 @@ impl Compiler<'_> {
         }
 
         let body = n.kids.last().expect("fn has a body");
-        cc.body_block = true;
         cc.block(body, true)?;
         if cc.has_ret {
             let rt = cc.proto.return_type as usize;

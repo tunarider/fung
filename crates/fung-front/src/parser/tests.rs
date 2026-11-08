@@ -368,7 +368,7 @@ fn fn_definitions() {
         ),
         (
             "fn k(xs: list[int]) = xs",
-            "(program (fn k(xs:list) (block xs)))",
+            "(program (fn k(xs:list[int]) (block xs)))",
         ),
         (
             "fn v(...rest) = rest",

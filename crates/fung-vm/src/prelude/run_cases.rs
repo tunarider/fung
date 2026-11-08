@@ -720,13 +720,13 @@ print(fs, fs.open, fs.with_open, fs.read_lines("Cargo.toml")! |> take(1))"#,
         r#"import fs
 h = fs.open("/dev/null")!
 print(h, type_of(h), [h] == [h], h == fs.open("/dev/null")!, {a: h})
-print(read_line(h), read_lines(h), fs.write_line(h, "x"), fs.close(h), fs.close(h), read_line(h))"#,
+print(read_line(h), read_lines(h), fs.close(h), fs.close(h), read_line(h))"#,
         "",
     ),
     (
         r#"import fs
 w = fs.open(path: "/dev/null", mode: 'append)!
-print(fs.write_line(w, "x"), read_lines(w), fs.close(w), fs.write_line(w, "y"))"#,
+print(fs.write_line(w, "x"), fs.close(w), fs.write_line(w, "y"))"#,
         "",
     ),
     (

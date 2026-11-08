@@ -4,7 +4,7 @@
 # module <module> <name>(<params>)  member of a _native.x bridge, or public function of conc or http
 module _native.fs append(path, text, perm=?)
 module _native.fs close(f)
-module _native.fs copy(from, to)
+module _native.fs copy(from, to, overwrite=?)
 module _native.fs exists(path)
 module _native.fs glob(pattern)
 module _native.fs list(dir, full=?)

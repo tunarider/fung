@@ -1016,16 +1016,9 @@
 -- exit: 0
 ==== "print(sym(\"Ab\"))"
 -- stdout
+| 'Ab
 -- stderr
-| error[E0513]: cannot convert "Ab" to sym
-|   --> -e:1:10
-|   |
-| 1 | print(sym("Ab"))
-|   |          ^
-|   |
-|  call path (innermost first):
-|    -e:1       <entry>
--- exit: 1
+-- exit: 0
 ==== "print(sym(\"a b\"))"
 -- stdout
 -- stderr
@@ -2712,15 +2705,15 @@
 | <module fs> <fn open> <fn with_open> ["[package]"]
 -- stderr
 -- exit: 0
-==== "import fs\nh = fs.open(\"/dev/null\")!\nprint(h, type_of(h)… (213 bytes, 12c2feb432f970db)
+==== "import fs\nh = fs.open(\"/dev/null\")!\nprint(h, type_of(h)… (188 bytes, 2dfd0134617d49e9)
 -- stdout
 | <file "/dev/null"> 'file true false {a: <file "/dev/null">}
-| Ok(nil) Ok([]) Err({kind: 'invalid, message: "file `/dev/null` is not open for writing"}) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"}) Err({kind: 'closed, message: "file `/dev/null` is closed"})
+| Ok(nil) Ok([]) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"}) Err({kind: 'closed, message: "file `/dev/null` is closed"})
 -- stderr
 -- exit: 0
-==== "import fs\nw = fs.open(path: \"/dev/null\", mode: 'append)!… (146 bytes, ce1a666f2a4d224d)
+==== "import fs\nw = fs.open(path: \"/dev/null\", mode: 'append)!… (131 bytes, 93402a9c1eb7f13b)
 -- stdout
-| Ok(nil) Err({kind: 'invalid, message: "file `/dev/null` is not open for reading"}) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"})
+| Ok(nil) Ok(nil) Err({kind: 'closed, message: "file `/dev/null` is closed"})
 -- stderr
 -- exit: 0
 ==== "import fs\nprint(fs.open(\"/nonexistent-fung-test/x\"), fs.… (277 bytes, df1bcce60304e0f1)

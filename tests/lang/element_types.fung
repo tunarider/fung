@@ -1,0 +1,12 @@
+# Element types are checked for their names only (FE17); the runtime checks
+# the outer type. A type may name itself inside, as a recursive shape.
+type tree = list[tree] | int
+type rows = list[map[str | int]]
+fn depth(t: tree) -> int = match t:
+  []           => 1
+  [x, ...rest] => max([depth(x) + 1, depth(rest)])
+  _            => 0
+;;
+fn count(r: rows, ...extra: list[int]) -> int = len(r) + len(extra)
+print(depth([[1], 2]), count([{a: 1}], 1, 2))
+# expect: 2 3

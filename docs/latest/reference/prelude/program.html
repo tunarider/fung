@@ -216,7 +216,7 @@ print(r)</code></pre><pre class="out plain"><code>used ./no-such-file</code></pr
 <div class="sig"><code>exit(code = 0)</code></div>
 <h4>설명</h4>
 <p>어느 태스크에서 불러도 프로그램 전체를 끝낸다. 남은 태스크는 모두 취소되고, 되감기가 지나는 모든 <a href="#fn-with"><code>with</code></a>의 <code>release</code>가 돈 뒤 그 코드로 끝난다. 성공은 <code>exit()</code>이나 <code>exit(0)</code>, 실패는 보통 <code>exit(1)</code>이다. 진입 파일의 끝까지 가면 저절로 0으로 끝나므로 성공 때는 <code>exit</code>를 쓸 필요가 없다.</p>
-<p>종료 코드는 운영체제가 하위 8비트만 남기므로 0부터 255까지를 쓴다. 그 밖의 수는 256으로 나눈 나머지가 된다(<code>exit(256)</code>은 0, <code>exit(-1)</code>은 255).</p>
+<p>종료 코드는 0부터 255까지다. 운영체제가 하위 8비트만 남기므로, 그 밖의 수를 받으면 <code>exit(256)</code>이 성공(0)이 된다. 그래서 받지 않고 런타임 에러로 멈춘다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>code</code>: 정수. 기본은 0.</li>
@@ -224,7 +224,7 @@ print(r)</code></pre><pre class="out plain"><code>used ./no-such-file</code></pr
 <h4>돌려주는 값</h4>
 <p>돌아오지 않는다.</p>
 <h4>에러</h4>
-<p><code>code</code>가 정수가 아니면 런타임 에러 E0403.</p>
+<p><code>code</code>가 정수가 아니거나 0~255 밖이면 런타임 에러 E0403.</p>
 <h4>예제</h4>
 <p><strong>실패를 알리고 끝내기</strong></p>
 <div class="run"><pre><code>missing = [&quot;DB_HOST&quot;, &quot;DB_USER&quot;] |&gt; filter(k =&gt; env(k) == nil)

@@ -107,7 +107,7 @@ pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
-pub(crate) use m4::{discarded, discarded_err, may_hold_err};
+pub(crate) use m4::{discarded, discarded_err, may_hold_err, not_result};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub(crate) use offload::{Kind, alone, offload_kind};
@@ -979,10 +979,19 @@ impl<'rt> Task<'rt> {
                     let start = self.stack.len() - arg;
                     let mut s = Vec::new();
                     for part in self.stack.drain(start..) {
-                        value::write_for_print(
-                            part.as_ref().expect("CONCAT of an unassigned slot"),
-                            &mut s,
-                        );
+                        let part = part.expect("CONCAT of an unassigned slot");
+                        if let Some(tag) = value::result_tag(&part) {
+                            let d = fung_front::diag::error(
+                                "E0519",
+                                pos,
+                                vec![
+                                    Arg::Str(tag.into()),
+                                    Arg::Str("string interpolation".into()),
+                                ],
+                            );
+                            return Err(Stop::Error(Box::new(d)));
+                        }
+                        value::write_for_print(&part, &mut s);
                     }
                     value::check_chars(&s).map_err(|d| at(d, pos))?;
                     self.push(Value::bytes(s));

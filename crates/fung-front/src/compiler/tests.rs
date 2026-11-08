@@ -180,7 +180,7 @@ fn compile_let_and_loads() {
     let p = comp("x = 1\ny = x\nif true: a = y; a ;;");
     assert_eq!(
         ops(&p),
-        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) STOREGLOBAL(1) CONST(1) JUMPIFFALSE(10) LOADGLOBAL(1) STORELOCAL(0) LOADLOCAL(0) JUMP(11) CONST(2) RETURN"
+        "CONST(0) STOREGLOBAL(0) LOADGLOBAL(0) STOREGLOBAL(1) CONST(1) JUMPIFFALSE(10) LOADGLOBAL(1) STORELOCAL(0) MOVELOCAL(0) JUMP(11) CONST(2) RETURN"
     );
     assert_eq!(p.num_locals, 1);
     assert_eq!(p.global_names, ["x", "y"]);
@@ -590,7 +590,8 @@ fn dump_outputs() {
 }
 
 /// A local is let go after the statement that reads it last (03, L7):
-/// CLEARLOCAL follows that statement. One never read is kept.
+/// CLEARLOCAL follows that statement, unless the read moved the value out
+/// already. One never read is kept.
 #[test]
 fn locals_are_cleared_after_their_last_read() {
     let ops = |src: &str| -> Vec<String> {
@@ -615,15 +616,12 @@ fn locals_are_cleared_after_their_last_read() {
             "MOVELOCAL 0",
             "CALL 1",
             "POP",
-            "CLEARLOCAL 0",
             "MOVELOCAL 1",
             "STORELOCAL 2",
-            "CLEARLOCAL 1",
             "CONST 0",
             "MOVELOCAL 2",
             "CALL 1",
             "POP",
-            "CLEARLOCAL 2",
             "CONST 1",
             "RETURN"
         ]
@@ -635,13 +633,12 @@ fn locals_are_cleared_after_their_last_read() {
         [
             "MOVELOCAL 2",
             "STORELOCAL 3",
-            "CLEARLOCAL 2",
             "LOADLOCAL 1",
-            "JUMPIFFALSE 9",
+            "JUMPIFFALSE 8",
             "CONST 0",
             "MOVELOCAL 0",
             "CALL 1",
-            "JUMP 10",
+            "JUMP 9",
             "CONST 1",
             "POP",
             "CLEARLOCAL 0",

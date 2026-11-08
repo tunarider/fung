@@ -1553,3 +1553,22 @@ fn the_walks_keep_their_rules() {
         "[(1,), {\"a b\": 1}]"
     );
 }
+
+/// What a native returns keeps to the string limit (VA9): a string, or one
+/// a tag holds; within the limit in bytes is one length test.
+#[test]
+fn a_returned_string_keeps_to_the_limit() {
+    use crate::prelude::MAX_CHARS;
+    let over = Value::bytes(vec![b'a'; MAX_CHARS as usize + 1]);
+    let at = Value::bytes(vec![b'a'; MAX_CHARS as usize]);
+    // two bytes each, so past the limit in bytes but not in characters
+    let wide = Value::bytes("é".repeat(MAX_CHARS as usize / 2 + 1).into_bytes());
+    assert!(super::check_returned(&over).is_err());
+    assert!(super::check_returned(&crate::native::nat::ok(over.clone())).is_err());
+    assert!(super::check_returned(&at).is_ok());
+    assert!(super::check_returned(&wide).is_ok());
+    assert!(
+        super::check_returned(&Value::tuple(vec![over])).is_ok(),
+        "tuples are not walked"
+    );
+}

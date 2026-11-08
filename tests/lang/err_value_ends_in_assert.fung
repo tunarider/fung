@@ -1,0 +1,4 @@
+# A block used as a value that ends in assert has no value (FE4).
+x = if true: assert true else: 2 ;;
+print(x)
+# expect-error: E0231

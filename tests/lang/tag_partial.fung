@@ -1,0 +1,12 @@
+# A tag is called like a function, so `_` makes a function of it too
+# (FE18): `Ok(_)` is `x => Ok(x)`. The other arguments are evaluated once.
+print(map([1, 2], Ok(_)))
+# expect: [Ok(1), Ok(2)]
+fn n():
+  print("evaluated")
+  0
+;;
+pair = Pair(n(), _)
+print(pair(1), pair(2))
+# expect: evaluated
+# expect: Pair(0, 1) Pair(0, 2)

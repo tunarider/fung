@@ -156,9 +156,12 @@ pub fn set(policy: Option<Policy>) {
 
 /// Ends the process at once with 128 + `sig`, without unwinding or
 /// cleanup (a second signal; a command that runs no fung code). A
-/// terminal in the REPL's raw mode is put back first (`term::restore`).
+/// terminal in the REPL's raw mode is put back first (`term::restore`),
+/// and the commands running in a group of their own are killed, as no
+/// one would reap them after (CC5).
 pub fn exit_now(sig: i32) -> ! {
     crate::term::restore();
+    crate::native::process::kill_own_groups();
     std::process::exit(128 + sig)
 }
 

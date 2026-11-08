@@ -324,7 +324,7 @@ $ echo $?
     <tr><td><code>1</code></td><td>실행 중 실패: 런타임 에러, <code>!</code>가 <code>Err</code>를 만남, 버려진 <code>Err</code>, 끝내 아무도 확인하지 않은 태스크의 실패, 테스트 실패, <code>fmt --check</code>에서 고칠 파일이 있음</td></tr>
     <tr><td><code>2</code></td><td>컴파일 실패: 문법·이름·import 에러</td></tr>
     <tr><td><code>3</code></td><td><code>fung</code> 명령을 잘못 씀: 모르는 명령·옵션, 빠진 인자, 읽을 수 없는 스크립트 파일</td></tr>
-    <tr><td><code>n</code></td><td>스크립트가 <code>exit(n)</code>을 부름. 운영체제는 0~255만 전하므로 256으로 나눈 나머지가 된다(<code>exit(300)</code>은 44, <code>exit(-1)</code>은 255)</td></tr>
+    <tr><td><code>n</code></td><td>스크립트가 <code>exit(n)</code>을 부름. <code>n</code>은 0~255다. 운영체제는 아래 8비트만 전하므로, 그 밖의 수는 받지 않고 런타임 에러 E0403(종료 코드 1)이다</td></tr>
     <tr><td><code>130</code> <code>143</code></td><td>SIGINT·SIGTERM으로 취소됨(128 + 신호 번호). 두 번째 신호로 곧바로 끝난 경우도 같다</td></tr>
     <tr><td><code>141</code></td><td>출력을 읽는 쪽이 사라짐(SIGPIPE, 셸이 보이는 값)</td></tr>
   </tbody>

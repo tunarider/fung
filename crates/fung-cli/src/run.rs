@@ -53,7 +53,8 @@ impl<W: Write> Write for ProcessOut<W> {
 }
 
 /// The status the operating system keeps of a fung exit code: its low 8
-/// bits, as the system keeps it (exit(300) is 44, exit(-1) is 255).
+/// bits, as the system keeps it. `exit` takes only 0..=255 (TL1), so this
+/// changes nothing a script can ask for.
 pub fn status(code: i64) -> i32 {
     (code & 0xff) as i32
 }

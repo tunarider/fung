@@ -1,0 +1,4 @@
+# A flag needs a name (LB11): `--=x` is refused, not a flag named "".
+import cli
+print(cli.parse(["--=x"]))
+# expect-error: E0803

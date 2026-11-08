@@ -1,0 +1,3 @@
+# A negative exit code is refused too (TL1).
+exit(-1)
+# expect-error: E0403

@@ -14,7 +14,7 @@ mod pattern;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::bytecode::{Op, Proto};
 use crate::consts::Const;
@@ -45,14 +45,21 @@ struct Compiler<'a> {
     opts: &'a Options,
     /// Byte offsets where the source's lines start (`start_pos`).
     lines: &'a [usize],
-    /// The next block compiled is a function's body: its statements let
-    /// go of the locals not read again (`block`, 03: 값의 수명).
-    body_block: bool,
     /// A return type annotation disables tail calls (03).
     has_ret: bool,
     /// The reads of locals that are their last (`moves::last_reads`):
     /// they compile to MOVELOCAL.
     moves: HashSet<*const Node>,
+    /// The slots read after each statement of a block (`moves::Lives`).
+    after: HashMap<*const Node, moves::Live>,
+    /// For each store, the slots read after it (`moves::Lives::stored`).
+    stored_live: HashMap<*const Node, moves::Live>,
+    /// The locals that hold, on the path being compiled, a value read
+    /// somewhere after it was stored, and are not let go yet: a
+    /// statement's end lets go of those not read after it (`block`, 03:
+    /// 값의 수명). A move empties its slot; a value never read is never
+    /// held, so it lives on. Each branch starts from what was held before.
+    held: BTreeSet<usize>,
 }
 
 /// Produces the `<main>` proto for a resolved program. Prelude names
@@ -71,10 +78,13 @@ pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Re
         prelude,
         opts,
         lines: &lines,
-        body_block: false,
         has_ret: true,
         moves: HashSet::new(),
+        after: HashMap::new(),
+        stored_live: HashMap::new(),
+        held: BTreeSet::new(),
     };
+    c.take_lives(moves::last_reads(&res.core));
     c.block(&res.core, false)?;
     if !opts.keep_value
         && let Some(last) = res.core.kids.last()
@@ -224,33 +234,18 @@ impl Compiler<'_> {
     /// 블록이 문장으로 끝나면 nil). Only the last expression is in tail
     /// position.
     fn block(&mut self, n: &Node, tail: bool) -> Result<(), Diag> {
-        let body = std::mem::take(&mut self.body_block);
         if n.kids.is_empty() {
             self.emit_const(Const::Nil, n.pos);
             return Ok(());
         }
         let last_i = n.kids.len() - 1;
-        // A function body's statements let go of a local once it is not
-        // read again. Only there: a block inside an expression cannot see
-        // what the rest of that expression reads, so it keeps them all.
-        let read_later = if body {
-            let mut later = vec![BTreeSet::new(); n.kids.len()];
-            for i in (0..last_i).rev() {
-                later[i] = later[i + 1].clone();
-                local_reads(&n.kids[i + 1], &mut later[i]);
-            }
-            later
-        } else {
-            Vec::new()
-        };
-        let mut held = BTreeSet::new();
         for (i, k) in n.kids.iter().enumerate() {
             let last = i == last_i;
-            if body && !last {
-                local_reads(k, &mut held);
-            }
             let stmt = match k.head {
-                Head::Let => Some(self.let_stmt(k)),
+                Head::Let => Some(
+                    self.let_stmt(k)
+                        .map(|()| self.stored(&k.kids[0], &k.kids[0])),
+                ),
                 Head::Import => Some(self.import_stmt(k)),
                 Head::Assert => Some(self.assert_stmt(k)),
                 Head::Test => Some(self.test_stmt(k)),
@@ -260,9 +255,8 @@ impl Compiler<'_> {
                 r?;
                 if last {
                     self.emit_const(Const::Nil, k.pos);
-                } else if body {
-                    let pos = self.start_pos(k);
-                    self.clear_unread(&mut held, &read_later[i], pos);
+                } else {
+                    self.let_go(k);
                 }
                 continue;
             }
@@ -271,12 +265,66 @@ impl Compiler<'_> {
                 // A discarded Err is reported where the statement starts.
                 let pos = self.start_pos(k);
                 self.proto.emit(Op::Pop, 0, pos);
-            }
-            if body && !last {
-                let pos = self.start_pos(k);
-                self.clear_unread(&mut held, &read_later[i], pos);
+                self.let_go(k);
             }
         }
+        Ok(())
+    }
+
+    /// Ends statement `k` of a block: the locals held on this path and not
+    /// read after it are let go (03: 값의 수명). A statement the walk did
+    /// not record lets go of nothing.
+    fn let_go(&mut self, k: &Node) {
+        if let Some(later) = self.after.get(&(k as *const Node)) {
+            let later = later.clone();
+            let mut held = std::mem::take(&mut self.held);
+            let pos = self.start_pos(k);
+            self.clear_unread(&mut held, &later, pos);
+            self.held = held;
+        }
+    }
+
+    /// Takes what the walk learned about this frame (`moves::last_reads`):
+    /// the parameters read later hold values to let go.
+    pub(super) fn take_lives(&mut self, lives: moves::Lives) {
+        self.moves = lives.moves;
+        self.after = lives.after;
+        self.stored_live = lives.stored;
+        self.held = lives.entry;
+    }
+
+    /// Target or pattern `n` (as the walk saw it, `key`) stored into its
+    /// slots: a value read after the store is held; one never read is not,
+    /// so it lives on until the frame returns (03: 값의 수명).
+    pub(super) fn stored(&mut self, key: &Node, n: &Node) {
+        let live = self.stored_live.get(&(key as *const Node)).cloned();
+        let mut slots = BTreeSet::new();
+        moves::written_slots(n, &mut slots);
+        for slot in slots {
+            if live.as_ref().is_some_and(|l| l.contains(&slot)) {
+                self.held.insert(slot);
+            } else {
+                self.held.remove(&slot);
+            }
+        }
+    }
+
+    /// Compiles the branches of one choice (`if`, `??`, `match` arms) one
+    /// after another: each starts from the locals held before the choice,
+    /// and after it a local is held if some branch still holds it.
+    pub(super) fn branches(
+        &mut self,
+        count: usize,
+        mut each: impl FnMut(&mut Self, usize) -> Result<(), Diag>,
+    ) -> Result<(), Diag> {
+        let before = self.held.clone();
+        let mut joined = BTreeSet::new();
+        for i in 0..count {
+            self.held = before.clone();
+            each(self, i)?;
+            joined.append(&mut self.held);
+        }
+        self.held = joined;
         Ok(())
     }
 
@@ -371,12 +419,16 @@ impl Compiler<'_> {
                 self.emit_const(Const::Dur(ns), pos);
             }
             Head::Local => {
+                let slot = lit_index(n);
+                // A copy leaves the value held; a move empties the slot on
+                // this path, so nothing is left to let go.
                 let op = if self.moves.contains(&(n as *const Node)) {
+                    self.held.remove(&slot);
                     Op::MoveLocal
                 } else {
                     Op::LoadLocal
                 };
-                self.proto.emit(op, lit_index(n), pos);
+                self.proto.emit(op, slot, pos);
             }
             Head::Global => _ = self.proto.emit(Op::LoadGlobal, lit_index(n), pos),
             Head::Captured => _ = self.proto.emit(Op::LoadCaptured, lit_index(n), pos),
@@ -457,10 +509,17 @@ impl Compiler<'_> {
         // The jump carries the condition's position so a non-bool
         // condition is reported where the condition is.
         let to_else = self.proto.emit(Op::JumpIfFalse, 0, n.kids[0].pos);
-        self.expr(&n.kids[1], tail)?;
-        let to_end = self.proto.emit(Op::Jump, 0, n.pos);
-        self.proto.patch(to_else, self.proto.code.len());
-        self.expr(&n.kids[2], tail)?;
+        let mut to_end = 0;
+        self.branches(2, |c, i| {
+            if i == 0 {
+                c.expr(&n.kids[1], tail)?;
+                to_end = c.proto.emit(Op::Jump, 0, n.pos);
+                c.proto.patch(to_else, c.proto.code.len());
+            } else {
+                c.expr(&n.kids[2], tail)?;
+            }
+            Ok(())
+        })?;
         self.proto.patch(to_end, self.proto.code.len());
         Ok(())
     }

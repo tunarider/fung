@@ -181,11 +181,13 @@ test &quot;rotate renames each log&quot;:
     fs.write(path.join(d, &quot;b.txt&quot;), &quot;y&quot;)!
     assert rotate(d)! == 1
     assert fs.list(d)! == [&quot;a.log.1&quot;, &quot;b.txt&quot;]
+    nil
   ;;)
 ;;</code></pre>
 <p class="unchecked">검사만 하는 예제다. 아래 출력은 페이지를 만들 때 확인하지 않은 예상 출력이다.</p>
 <pre class="plain"><code>ok   example.fung: rotate renames each log
 1 passed, 0 failed</code></pre>
+<p><code>with_temp_dir</code>는 함수가 돌려준 값을 그대로 돌려주므로, 그 함수의 본문은 값을 쓰는 자리다. 블록이 <code>assert</code>로 끝나면 값이 없어 에러(E0231)이므로, 돌려줄 것이 없다는 뜻으로 끝에 <code>nil</code>을 쓴다.</p>
 <h2 id="dbg">dbg로 중간 값 보기</h2>
 <p>테스트가 실패했는데 이유를 모르겠으면 중간 값을 찍어 본다. <code>print</code>를 끼워 넣으면 식을 쪼개야 하지만, <code>dbg(식)</code>은 식을 감싸기만 하면 된다. 표준 에러에 <code>[파일:줄] 식의 글자 = 값</code>을 찍고, 값을 그대로 돌려준다. 파이프 끝에 <code>|&gt; dbg</code>로 붙일 수도 있다.</p>
 <div class="run"><pre><code>fn score(xs) = xs |&gt; filter(x =&gt; x &gt; 2) |&gt; len

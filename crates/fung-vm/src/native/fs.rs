@@ -103,7 +103,15 @@ pub fn module() -> Rc<Module> {
             ),
             (
                 "copy",
-                native_step("copy", copy_fn, vec![param("from"), param("to")]),
+                native_step(
+                    "copy",
+                    copy_fn,
+                    vec![
+                        param("from"),
+                        param("to"),
+                        opt("overwrite", Lit::Bool(false)),
+                    ],
+                ),
             ),
             (
                 "open",
@@ -184,19 +192,6 @@ fn octal(n: i64) -> String {
     } else {
         format!("0o{n:o}")
     }
-}
-
-/// Creates with `perm` (less the umask) or truncates, then writes and
-/// closes, reporting the close (L11).
-fn write_file(p: &[u8], bytes: &[u8], perm: u32) -> io::Result<()> {
-    let mut f = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(perm)
-        .open(checked(p)?)?;
-    f.write_all(bytes)?;
-    file::close_checked(f, p)
 }
 
 /// Opens with `o` (and `perm`), writes `text` and closes, reporting the
@@ -384,14 +379,17 @@ fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                     found.sort_unstable();
                     nat::ok(str_list(&found))
                 }
-                Err(glob::BadPattern) => nat::err_value(
-                    "invalid",
-                    &format!(
-                        "bad glob pattern `{}`: syntax error in pattern",
-                        show(&pattern)
-                    ),
-                    Vec::new(),
-                ),
+                // A pattern is code: a bad one is a code error (LB9), as
+                // a bad regex pattern is.
+                Err(glob::BadPattern) => {
+                    return Err(nat::fail(
+                        "E0515",
+                        vec![Arg::Str(format!(
+                            "`{}`: a glob syntax error",
+                            show(&pattern)
+                        ))],
+                    ));
+                }
             })
         },
     )
@@ -598,11 +596,34 @@ fn rename(from: &std::ffi::OsStr, to: &std::ffi::OsStr, overwrite: bool) -> io::
             return std::fs::rename(from, to);
         }
     }
-    if overwrite {
+    let r = if overwrite {
         std::fs::rename(from, to)
     } else {
         rename_noreplace(from, to)
+    };
+    match r {
+        Err(e) if e.raw_os_error() == Some(libc::EXDEV) => move_across(from, to, overwrite),
+        r => r,
     }
+}
+
+/// A move to another file system (EXDEV, LB8), where no rename reaches:
+/// a regular file is copied under the same replace rule and the source
+/// removed, as the shell's `mv` does. A directory or a link stays EXDEV.
+pub(super) fn move_across(
+    from: &std::ffi::OsStr,
+    to: &std::ffi::OsStr,
+    overwrite: bool,
+) -> io::Result<()> {
+    if !std::fs::symlink_metadata(from)?.is_file() {
+        return Err(errno(libc::EXDEV));
+    }
+    copy_paths(from, to, overwrite).map_err(|e| match e {
+        CopyError::Source(e) | CopyError::Target(e) => e,
+        CopyError::Exists => errno(EEXIST),
+        CopyError::NotRegular(_) => errno(libc::EXDEV),
+    })?;
+    std::fs::remove_file(from)
 }
 
 /// A rename that fails with EEXIST when `to` exists, decided by the
@@ -688,29 +709,119 @@ fn c_path(p: &std::ffi::OsStr) -> std::ffi::CString {
 
 fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     let [from, to] = nat::bytes_args(&a, ["from", "to"])?;
+    let Value::Bool(overwrite) = a[2] else {
+        return Err(nat::wrong_arg("overwrite", "bool", &a[2]));
+    };
     let (from, to) = (from.to_vec(), to.to_vec());
     let job = (from.clone(), to.clone());
     nat::offload(
         t,
-        move || copy(&job.0, &job.1),
+        move || copy(&job.0, &job.1, overwrite),
         move |_, r| {
             Ok(match r {
                 Ok(()) => nat::ok(Value::Nil),
-                Err((true, e)) => fs_err("copy", &from, &e),
-                Err((false, e)) => fs_err("copy to", &to, &e),
+                Err(CopyError::Source(e)) => fs_err("copy", &from, &e),
+                Err(CopyError::Target(e)) => fs_err("copy to", &to, &e),
+                // The target is the path that exists: name both, as move.
+                Err(CopyError::Exists) => nat::err_value(
+                    "exists",
+                    &format!(
+                        "cannot copy `{}` to `{}`: file exists",
+                        show(&from),
+                        show(&to)
+                    ),
+                    Vec::new(),
+                ),
+                Err(CopyError::NotRegular(source)) => nat::err_value(
+                    "invalid",
+                    &if source {
+                        format!("cannot copy `{}`: not a regular file", show(&from))
+                    } else {
+                        format!("cannot copy to `{}`: not a regular file", show(&to))
+                    },
+                    Vec::new(),
+                ),
             })
         },
     )
 }
 
-/// The source's permission bits, its bytes, then a write.
-/// The error says which side failed (`true` for the source).
-fn copy(from: &[u8], to: &[u8]) -> Result<(), (bool, io::Error)> {
-    let src = |e| (true, e);
-    let from = checked(from).map_err(src)?;
-    let perm = std::fs::metadata(from).map_err(src)?.permissions().mode() & 0o777;
-    let bytes = std::fs::read(from).map_err(src)?;
-    write_file(to, &bytes, perm).map_err(|e| (false, e))
+/// Why a copy failed, and on which side.
+enum CopyError {
+    Source(io::Error),
+    Target(io::Error),
+    /// The target exists and `overwrite` is false (LB7).
+    Exists,
+    /// A FIFO, device or socket: `true` for the source (CC3).
+    NotRegular(bool),
+}
+
+fn copy(from: &[u8], to: &[u8], overwrite: bool) -> Result<(), CopyError> {
+    let from = checked(from).map_err(CopyError::Source)?;
+    let to = checked(to).map_err(CopyError::Target)?;
+    copy_paths(from, to, overwrite)
+}
+
+/// Copies a regular file's bytes and permission bits. Nothing but a
+/// regular file is read or written: a FIFO would block the pool thread
+/// past any deadline or cancel (CC3). The target exists only with
+/// `overwrite` (as `move`, LB7); the bytes stream through a buffer, so a
+/// big file costs no memory of its size (LB6); a copy onto the same file
+/// leaves it as it is.
+fn copy_paths(
+    from: &std::ffi::OsStr,
+    to: &std::ffi::OsStr,
+    overwrite: bool,
+) -> Result<(), CopyError> {
+    use std::io::Read;
+    let meta = std::fs::metadata(from).map_err(CopyError::Source)?;
+    if meta.is_dir() {
+        return Err(CopyError::Source(errno(libc::EISDIR)));
+    }
+    if !meta.is_file() {
+        return Err(CopyError::NotRegular(true));
+    }
+    if let Ok(target) = std::fs::metadata(to) {
+        if target.is_dir() {
+            return Err(CopyError::Target(errno(libc::EISDIR)));
+        }
+        if !target.is_file() {
+            return Err(CopyError::NotRegular(false));
+        }
+        if !overwrite {
+            return Err(CopyError::Exists);
+        }
+        if target.dev() == meta.dev() && target.ino() == meta.ino() {
+            return Ok(());
+        }
+    }
+    let perm = meta.permissions().mode() & 0o777;
+    let mut src = std::fs::File::open(from).map_err(CopyError::Source)?;
+    let mut o = OpenOptions::new();
+    o.write(true).mode(perm);
+    if overwrite {
+        o.create(true).truncate(true);
+    } else {
+        o.create_new(true);
+    }
+    let mut dst = o.open(to).map_err(|e| {
+        if e.raw_os_error() == Some(EEXIST) {
+            CopyError::Exists
+        } else {
+            CopyError::Target(e)
+        }
+    })?;
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = match src.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(CopyError::Source(e)),
+        };
+        dst.write_all(&buf[..n]).map_err(CopyError::Target)?;
+    }
+    file::close_checked(dst, to.as_bytes()).map_err(CopyError::Target)
 }
 
 const MODES: &str = "'read | 'write | 'append";
@@ -808,24 +919,18 @@ pub(crate) fn need_file<'a>(name: &str, v: &'a Value) -> Result<&'a Arc<File>, S
     }
 }
 
-/// The `Err` of a failed handle operation: closed, the `'invalid`
-/// direction errors, or the OS error with `verb`.
-pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Value {
+/// The `Err` of a failed handle operation: closed, or the OS error with
+/// `verb`. A handle used against its mode (read from one opened for
+/// writing) is a code error, E0520, not a failure from outside (LB9).
+pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Result<Value, Stop> {
     let p = show(&f.path);
-    match e {
+    let wrong_mode = |dir: &str| nat::fail("E0520", vec![Arg::Str(p.to_string()), nat::s(dir)]);
+    Ok(match e {
         Fault::Closed => nat::err_value("closed", &format!("file `{p}` is closed"), Vec::new()),
-        Fault::NotReading => nat::err_value(
-            "invalid",
-            &format!("file `{p}` is not open for reading"),
-            Vec::new(),
-        ),
-        Fault::NotWriting => nat::err_value(
-            "invalid",
-            &format!("file `{p}` is not open for writing"),
-            Vec::new(),
-        ),
+        Fault::NotReading => return Err(wrong_mode("reading")),
+        Fault::NotWriting => return Err(wrong_mode("writing")),
         Fault::Io(e) => fs_err(verb, &f.path, &e),
-    }
+    })
 }
 
 /// `fs.close`. The flush and the close run on a pool thread.
@@ -839,11 +944,9 @@ fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     nat::offload(
         t,
         move || job.close(),
-        move |_, r| {
-            Ok(match r {
-                Ok(()) => nat::ok(Value::Nil),
-                Err(e) => fault_value(&f, "close", e),
-            })
+        move |_, r| match r {
+            Ok(()) => Ok(nat::ok(Value::Nil)),
+            Err(e) => fault_value(&f, "close", e),
         },
     )
 }
@@ -860,13 +963,13 @@ fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         return write_pipe_line(t, f, &bytes);
     }
     if let Some(r) = f.write_buffered_line(&bytes) {
-        return Ok(Flow::Done(written_value(&f, r)));
+        return written_value(&f, r).map(Flow::Done);
     }
     let job = f.clone();
     nat::offload(
         t,
         move || job.write_line(&bytes),
-        move |_, r| Ok(written_value(&f, r)),
+        move |_, r| written_value(&f, r),
     )
 }
 
@@ -875,24 +978,24 @@ fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// before the next line or at the close.
 fn write_pipe_line(t: &mut Task<'_>, f: Arc<File>, line: &[u8]) -> Result<Flow, Stop> {
     if let Err(e) = f.pipe_queue(line) {
-        return Ok(Flow::Done(written_value(&f, Err(e))));
+        return written_value(&f, Err(e)).map(Flow::Done);
     }
     park_io(
         t,
         move |_, _| match f.pipe_flush() {
-            Ok(Step::Ready(())) => IoStep::Done(Ok(written_value(&f, Ok(())))),
+            Ok(Step::Ready(())) => IoStep::Done(written_value(&f, Ok(()))),
             Ok(Step::Wait(fd, interest)) => pipe::io_step(fd, interest),
-            Ok(Step::Fail(e)) => IoStep::Done(Ok(written_value(&f, Err(Fault::Io(e))))),
-            Err(e) => IoStep::Done(Ok(written_value(&f, Err(e)))),
+            Ok(Step::Fail(e)) => IoStep::Done(written_value(&f, Err(Fault::Io(e)))),
+            Err(e) => IoStep::Done(written_value(&f, Err(e))),
         },
         |_| {},
     )
 }
 
 /// A handle's `write_line` result (or its fault) as `fs.write_line` gives it.
-fn written_value(f: &File, r: Result<(), Fault>) -> Value {
+fn written_value(f: &File, r: Result<(), Fault>) -> Result<Value, Stop> {
     match r {
-        Ok(()) => nat::ok(Value::Nil),
+        Ok(()) => Ok(nat::ok(Value::Nil)),
         Err(e) => fault_value(f, "write", e),
     }
 }

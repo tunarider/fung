@@ -179,6 +179,53 @@ fn a_second_signal_does_not_wait() {
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
+/// A second signal ends the process at once, and the commands it started
+/// in a group of their own go with it (CC5): no one would reap them after.
+#[test]
+fn a_second_signal_ends_the_commands_it_started() {
+    let dir = std::env::temp_dir().join(format!("fung-second-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("pid");
+    let mut l = run_e(&format!(
+        "stop = stop_signal()\nscope(fn(s):\n  t = spawn(s, () => sh(\"echo $$ > {}; exec sleep 60\"))\n  print(\"ready\")\n  wait_closed(stop)\n  print(\"draining\")\n  await(t)\n;;)",
+        f.display()
+    ));
+    l.wait_for("ready");
+    let start = Instant::now();
+    while std::fs::read_to_string(&f).map_or(true, |s| s.trim().is_empty())
+        && start.elapsed() < Duration::from_secs(5)
+    {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let pid = std::fs::read_to_string(&f).unwrap().trim().to_string();
+    l.signal("TERM");
+    l.wait_for("draining");
+    l.signal("TERM");
+    let (_, _, code) = l.finish();
+    assert_eq!(code, Some(143));
+    let start = Instant::now();
+    let gone = loop {
+        let alive = common::status(
+            Command::new("kill")
+                .args(["-0", &pid])
+                .stderr(Stdio::null()),
+        )
+        .unwrap()
+        .success();
+        if !alive {
+            break true;
+        }
+        if start.elapsed() > Duration::from_secs(5) {
+            let _ = common::status(Command::new("kill").args(["-KILL", &pid]));
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(gone, "the command {pid} outlived fung");
+}
+
 /// The block fung keeps on the two signals does not reach the commands
 /// it runs.
 #[test]

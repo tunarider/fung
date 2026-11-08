@@ -991,6 +991,65 @@ fn a_users_host_header_replaces_the_written_one() {
     );
 }
 
+/// Credentials belong to an origin, the scheme, host and port together
+/// (LB2): a redirect from https to http, or to another port of the same
+/// host, drops Authorization and Cookie, as curl does.
+#[test]
+fn a_redirect_to_another_origin_drops_the_credentials() {
+    let creds = |reqs: Vec<Vec<u8>>| -> Vec<bool> {
+        reqs.iter()
+            .map(|r| {
+                let r = String::from_utf8_lossy(r);
+                r.contains("\r\nAuthorization: ") || r.contains("\r\nCookie: ")
+            })
+            .collect()
+    };
+    let h = r#"{Authorization: "Bearer t", Cookie: "c=1"}"#;
+    // another port of the same host
+    let other = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    let first = Fake::start(Reply::Routes(Arc::new(vec![
+        ("/same".to_string(), redirect(302, "/end")),
+        (
+            "/port".to_string(),
+            redirect(302, &format!("http://127.0.0.1:{}/x", other.port)),
+        ),
+        ("*".to_string(), named("end")),
+    ])));
+    let src = format!(
+        "import http\nh = {h}\nprint(http.get(\"http://127.0.0.1:{p}/same\", headers: h)!.status)\nprint(http.get(\"http://127.0.0.1:{p}/port\", headers: h)!.status)",
+        p = first.port
+    );
+    assert_eq!(
+        run(&fung_bin(), &src),
+        ("200\n200\n".into(), String::new(), Some(0))
+    );
+    assert_eq!(
+        creds(first.take()),
+        [true, true, true],
+        "the same origin keeps them"
+    );
+    assert_eq!(creds(other.take()), [false], "another port drops them");
+    // from https down to http
+    let plain = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    let to = format!("http://localhost:{}/x", plain.port);
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
+    let port = common::tls_server::start(
+        &data.join("localhost.pem"),
+        &data.join("localhost.key"),
+        Arc::new(move |_: &[u8]| {
+            format!("HTTP/1.1 302 Found\r\nLocation: {to}\r\nContent-Length: 0\r\n\r\n")
+                .into_bytes()
+        }),
+    );
+    let src = format!(
+        "import http\nprint(http.get(\"https://localhost:{port}/a\", headers: {h})!.status)"
+    );
+    let ca = data.join("ca.pem").to_string_lossy().into_owned();
+    let o = run_env(&fung_bin(), &src, &[("SSL_CERT_FILE".to_string(), ca)]);
+    assert_eq!((o.0.as_str(), o.1.as_str()), ("200\n", ""));
+    assert_eq!(creds(plain.take()), [false], "https to http drops them");
+}
+
 /// A refused connection is its reason alone after the URL.
 #[test]
 fn a_refused_connection_gives_its_reason() {
@@ -1559,9 +1618,9 @@ print(http.get(URL + "/slow1", timeout: 5s))"#,
         ])],
         &[],
     ));
-    // Another port of the same host keeps the headers; another host
-    // (localhost is not 127.0.0.1) drops the sensitive ones, also when
-    // a later redirect comes back.
+    // Another port of the same host drops the sensitive headers, and so
+    // does another host (localhost is not 127.0.0.1), also when a later
+    // redirect comes back (LB2: they belong to the first URL's origin).
     v.push(multi(
         r#"h = {"authorization": "Bearer t", "cookie": "c=1", "cookie2": "x", "www-authenticate": "w", "proxy-authorization": "p", "proxy-authenticate": "pa", "x-other": "o"}
 print(http.get(URL + "/port", headers: h))
@@ -1579,8 +1638,9 @@ print(http.get(URL + "/host", headers: h))"#,
         ],
         &[],
     ));
-    // Host names through a proxy (it never resolves them): subdomains and
-    // ports keep the headers, case does not matter, other hosts drop them
+    // Host names through a proxy (it never resolves them): subdomains keep
+    // the headers, case does not matter, another port or host drops them
+    // (LB2: the credentials belong to the first URL's origin)
     let hs = r#"{"authorization": "Bearer t", "cookie": "c=1", "content-type": "text/plain", "x-other": "o"}"#;
     v.push(multi(
         &format!(

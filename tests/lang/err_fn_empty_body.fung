@@ -1,0 +1,5 @@
+# A function's body is its value (L2), so an empty one is E0231 (FE4),
+# even when its parameter is a pattern. Write `fn f((a, b)) = nil`.
+fn f((a, b)): ;;
+print(f((1, 2)))
+# expect-error: E0231

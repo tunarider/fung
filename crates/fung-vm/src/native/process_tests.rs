@@ -275,14 +275,15 @@ fn a_cancel_is_bounded_when_a_grandchild_ignores_term() {
 /// task reading it moves at most about `PUMP_BUDGET` bytes per look and
 /// parks again, so the other tasks get turns while the output is read.
 /// Judged by state, not time (a ticker on `sleep` was late on a busy CI
-/// runner): 300 MB moved at most 256 KiB plus one 16 KiB read at a time
-/// is at least about 1,077 parks, where a reader that drained the pipe
-/// until empty parked once or twice (Ubuntu 26.04's fast `head`). The
-/// ticker computes without sleeping and gets a turn at each of them.
+/// runner): 95 MB (under the string limit, VA9) moved at most 256 KiB
+/// plus one 16 KiB read at a time is at least about 341 parks, where a
+/// reader that drained the pipe until empty parked once or twice (Ubuntu
+/// 26.04's fast `head`). The ticker computes without sleeping and gets a
+/// turn at each of them.
 #[test]
 fn a_fast_command_does_not_starve_other_tasks() {
     let o = crate::testutil::exec_waiting(
-        "n = atom(0)\ndone = atom(false)\nparked = scope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  p0 = parks()\n  _ = sh(\"head -c 300000000 /dev/zero\")\n  p1 = parks()\n  reset(done, true)\n  p1 - p0\n;;)\nprint(parked, deref(n))",
+        "n = atom(0)\ndone = atom(false)\nparked = scope(fn(s):\n  spawn(s, fn():\n    fn lp() = if deref(done): nil else: fn(): swap(n, x => x + 1); lp() ;;() ;;\n    lp()\n  ;;)\n  p0 = parks()\n  _ = sh(\"head -c 95000000 /dev/zero\")\n  p1 = parks()\n  reset(done, true)\n  p1 - p0\n;;)\nprint(parked, deref(n))",
     );
     assert_eq!((o.err.as_str(), o.code.as_str()), ("", ""), "{}", o.out);
     let got: Vec<i64> = o
@@ -291,7 +292,7 @@ fn a_fast_command_does_not_starve_other_tasks() {
         .map(|w| w.parse().unwrap())
         .collect();
     let (parks, ticks) = (got[0], got[1]);
-    assert!(parks >= 1000, "{parks} parks while reading 300 MB");
+    assert!(parks >= 300, "{parks} parks while reading 95 MB");
     assert!(ticks >= parks, "{ticks} ticks over {parks} parks");
 }
 

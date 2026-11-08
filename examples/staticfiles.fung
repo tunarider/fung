@@ -62,6 +62,7 @@ test "a directory serves its index.html, files get their type":
     assert css.headers["content-type"] == "text/css; charset=utf-8"
     assert h({method: "GET", path: "/nope.html"}).status == 404
     assert h({method: "POST", path: "/"}).status == 405
+    nil
   ;;)
 ;;
 

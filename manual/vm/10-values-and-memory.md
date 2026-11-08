@@ -206,20 +206,24 @@ print(len(items), items[19999])
 
 참조 계수는 해제 시점이 정확하다. 그러면 "언제 마지막 손잡이가 사라지는가"가 곧 의미가 된다. 특히 채널은 보내는 끝의 마지막 사본이 사라질 때 **닫힌다**(14장). 그런데 지역 변수가 함수가 끝날 때까지 값을 쥐고 있으면, 그 함수 안에서 그 채널을 끝까지 읽는 코드는 영원히 기다린다.
 
-그래서 컴파일러는 함수 본문의 문장마다 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 그 문장 뒤에 칸을 비우는 명령 `CLEARLOCAL`을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 반복문이 없는 언어(반복은 재귀)라서 분석이 문장 단위로 끝난다. 클로저가 붙잡는 것도 읽기다.
+그래서 컴파일러는 문장마다 "이 지역 변수가 뒤에서 다시 읽히는가"를 보고, 아니면 그 문장 뒤에 칸을 비우는 명령 `CLEARLOCAL`을 넣는다(설계 03 "값의 수명", 2026-10-20 검토 L7). 함수 본문의 문장이든 `if`·`match` 가지 안의 문장이든, 진입 파일의 블록 안이든 같다(2026-11-08 점검 VM1·VM2).
+반복문이 없는 언어(반복은 재귀, `for` 본문은 함수)라서 한 프레임의 코드는 가지만 있는 한 방향 길이고, 뒤에서 앞으로 한 번 걸으면 모든 문장 뒤의 "살아 있는 칸"이 나온다(생존 분석). 클로저가 붙잡는 것도 읽기다.
+대입은 그 칸에 쓰므로, 쓰기 앞의 읽기는 뒤에서 읽히지 않는 것으로 친다. 옆 블록이 같은 칸 번호를 다시 써도 두 이름이 섞이지 않는 것은 이 덕분이다.
+대입한 값이 뒤에서 한 번도 읽히지 않으면 그 칸은 비우지 않는다(아래의 "한 번도 읽지 않는 변수"). 마지막 읽기가 값을 넘긴 칸(`MOVELOCAL`, 아래 절)은 이미 비었으므로 다시 비우지 않는다.
 
 ```dump bytecode
 fn total(path):
   lines = ["a", "bb", "ccc"]
-  sizes = map(lines, len)
+  sizes = () => map(lines, len)
   print(path)
-  sum(sizes)
+  sum(sizes())
 ;;
 
 print(total("x.log"))
 ```
 
-`total`의 0007번이 `lines`(슬롯 1)를, 0012번이 `path`(슬롯 0)를 비운다. 그 뒤로는 두 값이 이 프레임 때문에 살아 있지 않다. 채널 쪽에서 보면 이렇다.
+`total`의 0004번이 `lines`(슬롯 1)를 비운다. 람다가 `lines`를 붙잡은 것은 복사라 칸에 값이 남는데, 뒤에서 다시 읽히지 않으므로 그 문장 뒤에 놓는다.
+`path`(슬롯 0)와 `sizes`(슬롯 2)는 마지막 읽기가 `MOVELOCAL`(아래 절)이라 칸이 이미 비었으므로, 따로 비우지 않는다. 채널 쪽에서 보면 이렇다.
 
 ```fung run
 fn numbers(n) = scope(fn(s):
@@ -272,7 +276,7 @@ print(closes_early())
 - `crates/fung-vm/src/value/list.rs`: `List`(평평한 `Flat`과 보기 `Big`), `SMALL_MAX`, 빌더 `ListBuilder`.
 - `crates/fung-vm/src/value/map.rs`, `omap.rs`, `hamt.rs`: `Map`(`SMALL_MAP_MAX`), 항목 벡터와 색인을 짝지은 `Omap`, `Hamt`.
 - `crates/fung-vm/src/value/sym.rs`: 심볼 인턴 표 `intern`.
-- `crates/fung-front/src/compiler.rs`: 함수 본문의 문장마다 `CLEARLOCAL`을 넣는 `block`.
+- `crates/fung-front/src/compiler.rs`: 블록의 문장마다 `CLEARLOCAL`을 넣는 `block`·`let_go`, 가지마다 쥔 칸을 따로 드는 `branches`. 문장 뒤의 살아 있는 칸은 `compiler/moves.rs`의 `last_reads`가 센다.
 - `crates/fung-front/src/compiler/moves.rs`: 마지막 읽기를 찾는 `last_reads`(뒤에서 앞으로의 생존 분석, `MOVELOCAL`).
 
 :::exercise 로그 수준 세기

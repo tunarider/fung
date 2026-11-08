@@ -751,4 +751,21 @@ mod tests {
         let eof = toks.last().unwrap();
         assert_eq!((eof.off, eof.end), (src.len(), src.len()));
     }
+
+    /// A decimal number of two or more digits starting with 0 is E0102
+    /// (FE1): `0755` would read as 755, not the octal the shell means.
+    #[test]
+    fn leading_zero_is_e0102() {
+        for src in ["0755", "007", "00", "01.5", "05s", "0_1", "x = 0644"] {
+            let d = lex_src(src).unwrap_err();
+            assert_eq!(d.code, "E0102", "{src}");
+            let help = d.help.unwrap_or_default();
+            assert!(help.contains("0o"), "{src}: {help}");
+        }
+        for src in [
+            "0", "0.5", "0s", "0ms", "0e3", "0x1f", "0o755", "0b10", "10", "100s",
+        ] {
+            assert!(lex_src(src).is_ok(), "{src}");
+        }
+    }
 }

@@ -35,6 +35,17 @@ impl Lexer<'_> {
         if !self.digits() {
             return Err(self.err("E0102", p, &self.src[start..self.off]));
         }
+        // `0755` is not octal (FE1): a leading zero is refused rather than
+        // read as decimal, so a shell-style file mode cannot go wrong.
+        let whole = &self.src[start..self.off];
+        if whole.starts_with('0') && whole.bytes().filter(u8::is_ascii_digit).count() > 1 {
+            while is_digit(self.peek()) || is_ident_part(self.peek()) || self.peek() == Some('.') {
+                self.advance();
+            }
+            return Err(self.err("E0102", p, &self.src[start..self.off]).with_help(
+                "a decimal number does not start with 0: write `0o755` for octal, or drop the zeros",
+            ));
+        }
         let mut is_float = false;
         if self.peek() == Some('.') && is_digit(self.peek_at(1)) {
             self.advance();

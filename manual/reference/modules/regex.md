@@ -250,7 +250,7 @@ print(rows |> map(m => m.groups) |> filter(g => g[2] != "200"))
   </tbody>
 </table>
 
-`$` 뒤의 이름은 가능한 한 길게 읽는다. 그래서 `$1x`는 "이름이 `1x`인 그룹"이고, 그런 그룹이 없으면 빈 문자열이 된다. 그룹 뒤에 글자를 붙이려면 `${1}x`로 쓴다. `${…}`를 쓰는 `repl`은 보간을 피하려고 원시 문자열 `` `…` ``로 쓴다.
+`$` 뒤의 이름은 가능한 한 길게 읽는다. 그래서 `$1x`는 "이름이 `1x`인 그룹"이다. 패턴에 없는 그룹을 가리키면 런타임 에러 E0521이다(오타가 글을 말없이 지우지 않게). 패턴에 있지만 이번 매치에 잡히지 않은 그룹은 빈 문자열이다. 그룹 뒤에 글자를 붙이려면 `${1}x`로 쓴다. `${…}`를 쓰는 `repl`은 보간을 피하려고 원시 문자열 `` `…` ``로 쓴다.
 
 #### 매개변수
 
@@ -264,7 +264,7 @@ print(rows |> map(m => m.groups) |> filter(g => g[2] != "200"))
 
 #### 에러
 
-[`regex.is_match`](#fn-regex-is_match)와 같다.
+[`regex.is_match`](#fn-regex-is_match)와 같다. 더해서 `repl`이 패턴에 없는 그룹(`$9`, `${nope}`, `$1a`)을 가리키면 런타임 에러 E0521.
 
 #### 예제
 
@@ -290,9 +290,16 @@ print(regex.replace(line, `(?P<key>password|token)=\S+`, `${key}=***`))
 ```fung run
 import regex
 
-print(regex.replace("ab", `(a)`, "$1x"))
 print(regex.replace("ab", `(a)`, `${1}x`))
 print(regex.replace("cost 5", `(\d+)`, "$$$1"))
+```
+
+`$1x`는 이름이 `1x`인 그룹이라, 패턴에 없으므로 에러다.
+
+```fung run exit=1 error=E0521
+import regex
+
+print(regex.replace("ab", `(a)`, "$1x"))
 ```
 
 :::box mistake 보통 문자열에 `${name}`

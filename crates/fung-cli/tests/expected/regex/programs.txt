@@ -1,5 +1,26 @@
 # `regex` programs (crates/fung-cli/tests/regex_expected.rs), each run with `fung -e`.
 # Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test regex_expected
+==== "import regex\ns = \"2026-11-08 k=v\"\np = `(?<y>\\d+)-(?<m>… (315 bytes, ea574fa81892b0b8)
+-- stdout
+| $1 2026
+| ${1} 2026
+| ${1}a 2026a
+| $01 2026
+| ${01} 2026
+| $key k
+| ${key} k
+| $val! v!
+| $y/$m/$d 2026/11/08
+| ${d}.${m}.${y} 08.11.2026
+| $1$2$3 20261108
+| [$2|$1] [11|2026]
+| $$$1 $2026
+| $1² 2026²
+| $1Ⅳ 2026Ⅳ
+| $1½ 2026½
+| ${5}x vx
+-- stderr
+-- exit: 0
 ==== "import regex\ns = \"가나다 나다\"\nm = regex.find(s, \"나(다)\")\nprint(m.text, m.start, m.end, s[m.start..m.end], m.groups)"
 -- stdout
 | 나다 1 3 나다 ["다"]

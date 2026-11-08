@@ -126,11 +126,12 @@ fn review_fixes() {
     check_code(&[
         ("[1, 2, 3][1..=3]", "E0507"),
         ("Err()!", "E0117"),
-        ("Err(1, 2)!", "E0603"),
+        // A result holds one value (VM4): Err(1, 2) is not one.
+        ("Err(1, 2)!", "E0605"),
     ]);
     assert_eq!(
         headline("Err(1, 2)!"),
-        "error[E0603]: unhandled Err: Err(1, 2)"
+        "error[E0605]: `!` on an Err with 2 values, which is not a result (Ok(x) or Err(e))"
     );
 }
 
@@ -158,8 +159,8 @@ fn result_operators() {
         ),
         ("print(nil ?? Err(1) ?? 2)", "2\n"),
         ("fn f(r) = r?\nprint(f(nil))", "nil\n"),
-        // Ok with several payloads unwraps to a tuple (`Ok()` is E0117).
-        ("print(Ok(1, 2)!)", "(1, 2)\n"),
+        // Ok with several values is no result (VM4): `??` keeps it.
+        ("print(Ok(1, 2) ?? 0)", "Ok(1, 2)\n"),
     ]);
     check_code(&[
         ("Err({kind: 'x, message: \"boom\"})!", "E0603"),
@@ -211,11 +212,11 @@ fn m4_error_reports() {
         ("nil!", "error[E0604]: `!` on nil"),
         (
             "5!",
-            "error[E0605]: `!` on a value of type int (not Ok or Err)",
+            "error[E0605]: `!` on a value of type int, which is not a result (Ok(x) or Err(e))",
         ),
         (
             "fn f(r) = r?\nf(1)",
-            "error[E0605]: `?` on a value of type int (not Ok or Err)",
+            "error[E0605]: `?` on a value of type int, which is not a result (Ok(x) or Err(e))",
         ),
         (
             "[1, 2, 3][1..=3]",

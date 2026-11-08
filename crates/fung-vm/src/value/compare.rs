@@ -167,10 +167,10 @@ fn same_object(a: &Value, b: &Value) -> bool {
     }
 }
 
-/// E0517 where `equal` would compare a symbol with a string: the first
-/// such pair `equal` would meet, walked as `equal` walks (L9). Items of
-/// collections whose shapes differ are not looked at (`equal` does not
-/// compare them either).
+/// E0517 where `equal` compares a symbol with a string (VA8): walked as
+/// `equal` walks (L9), and stopped where `equal` stops, at the first pair
+/// that differs (shapes, a missing key, two leaves), since no pair after
+/// it is compared.
 fn sym_meets_str(a: &Value, b: &Value) -> Result<(), Diag> {
     if (!is_collection(a) || !is_collection(b))
         && !matches!(
@@ -188,7 +188,7 @@ fn sym_meets_str(a: &Value, b: &Value) -> Result<(), Diag> {
         {
             match kids(a, b) {
                 Kids::Pairs(p) => open.push(p),
-                Kids::Mismatch => {}
+                Kids::Mismatch => return Ok(()),
                 Kids::None => {
                     if let (Value::Sym(_), Value::Str(_)) | (Value::Str(_), Value::Sym(_)) = (a, b)
                     {
@@ -201,6 +201,9 @@ fn sym_meets_str(a: &Value, b: &Value) -> Result<(), Diag> {
                             ],
                         ));
                     }
+                    if !equal(a, b) {
+                        return Ok(());
+                    }
                 }
             }
         }
@@ -209,7 +212,7 @@ fn sym_meets_str(a: &Value, b: &Value) -> Result<(), Diag> {
         };
         match top.next() {
             Some((x, Some(y))) => next = Some((x, y)),
-            Some((_, None)) => {}
+            Some((_, None)) => return Ok(()),
             None => {
                 open.pop();
             }

@@ -1,0 +1,5 @@
+# A glob pattern is code, so a bad one is a runtime error (LB9), as a bad
+# regex pattern is (E0515).
+import fs
+print(fs.glob("d/["))
+# expect-error: E0515

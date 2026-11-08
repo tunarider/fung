@@ -102,7 +102,7 @@
 <p>명령줄 인자를 옵션 맵과 나머지 리스트로 나눈다.</p>
 <div class="sig"><code>cli.parse(argv, bools = [])</code></div>
 <h4>설명</h4>
-<p><code>argv</code>를 앞에서부터 읽으며 <a href="#concepts">위의 표</a>대로 나눈다. 값은 언제나 <strong>문자열</strong>(값 없는 옵션은 <code>true</code>)이므로 숫자나 기간이 필요하면 직접 바꾼다. <code>bools</code>에 적은 이름(앞의 <code>--</code> 없이, <code>-</code>는 그대로: <code>&quot;dry-run&quot;</code>)은 값을 받지 않는 스위치로 다룬다. 이것이 없으면 <code>--dry-run web-1</code>의 <code>web-1</code>이 <code>dry_run</code>의 값이 되어 버린다.</p>
+<p><code>argv</code>를 앞에서부터 읽으며 <a href="#concepts">위의 표</a>대로 나눈다. 값은 언제나 <strong>문자열</strong>(값 없는 옵션은 <code>true</code>)이므로 숫자나 기간이 필요하면 직접 바꾼다. <code>bools</code>에 적은 이름(앞의 <code>--</code> 없이)은 값을 받지 않는 스위치로 다룬다. 명령줄에 쓴 꼴(<code>&quot;dry-run&quot;</code>)로도 결과의 키 꼴(<code>&quot;dry_run&quot;</code>)로도 적을 수 있다. 이름이 없는 옵션(<code>--=x</code>)은 런타임 에러 E0803이다. 이것이 없으면 <code>--dry-run web-1</code>의 <code>web-1</code>이 <code>dry_run</code>의 값이 되어 버린다.</p>
 <p>없는 옵션을 <code>flags.port</code>로 읽으면 E0508(없는 키)이다. 선택 옵션은 <a href="../prelude/maps.html#fn-get"><code>get</code></a>의 기본값으로 읽는다(<code>get(opts.flags, &quot;port&quot;, &quot;8080&quot;)</code>). <code>opts.flags.port ?? &quot;8080&quot;</code>은 <code>??</code>에 닿기 전에 E0508로 멈춘다.</p>
 <h4>매개변수</h4>
 <ul>

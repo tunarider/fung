@@ -342,6 +342,9 @@ impl CommandWait {
         stdin: Option<Vec<u8>>,
     ) -> Result<Flow, Stop> {
         let pid = child.id() as libc::pid_t;
+        if own {
+            groups().insert(pid);
+        }
         let exit = t
             .shared_poller()
             .exit_watch(pid)
@@ -562,6 +565,7 @@ impl CommandWait {
     /// passed meanwhile is enforced), and a stop that came unwinds;
     /// otherwise its value.
     fn finish(&mut self, t: &mut Task<'_>, r: Result<(), String>) -> Result<Next, Stop> {
+        self.forget_group();
         self.regs.leave_all(t);
         if let Some(node) = self.node.take() {
             t.restore_cancel_node(node);
@@ -586,6 +590,11 @@ impl CommandWait {
                 std::mem::take(&mut self.err_buf),
             )
         };
+        // The output is text from outside, held in a map the return check
+        // does not walk: it keeps to the string limit here (VA9).
+        for b in [&o, &e] {
+            crate::value::check_chars(b).map_err(|d| Stop::Error(Box::new(d)))?;
+        }
         let out = Value::bytes(o);
         let err = Value::bytes(e);
         if status.success() {
@@ -635,6 +644,7 @@ impl Cont for CommandWait {
 
 impl Drop for CommandWait {
     fn drop(&mut self) {
+        self.forget_group();
         // Abandoned after it ended while what it left holds the output:
         // end that group (spec 15).
         if self.status.is_some() && (self.out.is_some() || self.err.is_some()) {
@@ -660,6 +670,40 @@ impl Drop for CommandWait {
             });
             // No pool thread at all: the zombie stays until fung ends.
             let _ = self.pool.submit_with(crate::vm::Ticket::new(), reap);
+        }
+    }
+}
+
+impl CommandWait {
+    /// The command's group is no longer one `exit_now` ends (CC5).
+    fn forget_group(&mut self) {
+        if self.own
+            && let Some(c) = &self.child
+        {
+            groups().remove(&(c.id() as libc::pid_t));
+        }
+    }
+}
+
+/// The process groups of the commands running in a group of their own
+/// (`own_group`). An end at once (a second signal, SIGHUP:
+/// `signals::exit_now`) runs no cleanup, so it ends them here: a command
+/// left behind would run on with no one to reap it (CC5). A group leaves
+/// the set when its command is done (`finish`) or abandoned (`Drop`).
+fn groups() -> std::sync::MutexGuard<'static, std::collections::BTreeSet<libc::pid_t>> {
+    static GROUPS: std::sync::Mutex<std::collections::BTreeSet<libc::pid_t>> =
+        std::sync::Mutex::new(std::collections::BTreeSet::new());
+    GROUPS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Sends SIGKILL to the groups of the commands still running in a group
+/// of their own: what `exit_now` does before it ends the process (CC5).
+pub(crate) fn kill_own_groups() {
+    for &g in groups().iter() {
+        // SAFETY: `killpg` only sends a signal. The group's command is
+        // not done (it leaves the set first), so the id names its group.
+        unsafe {
+            libc::killpg(g, libc::SIGKILL);
         }
     }
 }

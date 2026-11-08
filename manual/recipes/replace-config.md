@@ -95,10 +95,15 @@ import regex
 line = "port = 8080"
 print(replace(line, "port = .*", "port = 9090"))
 print(regex.replace(line, `=.*`, "= 9090"))
-print(regex.replace("price = 10", `\d+`, "$5"))
 ```
 
-마지막 줄의 `$5`는 "다섯째 조각"으로 읽혀 빈 문자열이 되었다.
+`repl` 안의 `$5`는 "다섯째 조각"으로 읽힌다. 패턴에 그런 조각이 없으면 런타임 에러 E0521로 멈춘다(0.5.0까지는 말없이 빈 문자열이 되어 값을 지웠다).
+
+```fung run exit=1 error=E0521
+import regex
+
+print(regex.replace("price = 10", `\d+`, "$5"))
+```
 
 :::
 

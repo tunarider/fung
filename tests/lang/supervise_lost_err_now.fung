@@ -1,0 +1,18 @@
+# In supervise, an Err nobody can read any more goes to on_fail at once
+# (CC1, 05: 버린 순간에 알린다), while the body still runs: here the body
+# waits for what on_fail sends, which a handler run only at the close
+# would never send.
+(tx, rx) = channel(1)
+r = supervise(fn(s):
+  t = spawn(s, () => Err("x"))
+  sleep(10ms)
+  print("dropping", type_of(t))
+  print("on_fail said", recv(rx)!)
+  "done"
+;;, fn(e):
+  send(tx, e.code)!
+;;)
+print(r)
+# expect: dropping 'task
+# expect: on_fail said E0607
+# expect: done

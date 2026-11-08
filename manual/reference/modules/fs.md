@@ -354,7 +354,7 @@ print(dirs)
 
 #### 에러
 
-- `Err({kind: 'invalid})`: 패턴이 잘못되었다(``bad glob pattern `[a`: syntax error in pattern``). 파일을 읽기 전에 검사한다.
+- 패턴이 잘못되면 런타임 에러 E0515(``invalid pattern `[a`: a glob syntax error``)다. 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.
 
 #### 예제
 
@@ -372,7 +372,7 @@ print(fs.glob("logs/[ab].*")!)
 
 **잘못된 패턴**
 
-```fung run
+```fung run exit=1 error=E0515
 import fs
 
 print(fs.glob("logs/[a"))
@@ -671,7 +671,7 @@ print(fs.remove_all("/"))
 
 #### 설명
 
-셸의 `mv`와 비슷하지만 **이미 있는 것을 덮어쓰지 않는다**: `to`가 있으면 `Err({kind: 'exists})`다(셸의 `mv -n`과 같고, 실패를 알린다). 파일을 덮어쓰려면 `overwrite: true`를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux `renameat2`, macOS `renamex_np`), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 **디렉터리**는 `overwrite`를 줘도 덮지 않는다(`mv a dir`처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: `fs.move("a.txt", "dir/a.txt")`. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다.
+셸의 `mv`와 비슷하지만 **이미 있는 것을 덮어쓰지 않는다**: `to`가 있으면 `Err({kind: 'exists})`다(셸의 `mv -n`과 같고, 실패를 알린다). 파일을 덮어쓰려면 `overwrite: true`를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux `renameat2`, macOS `renamex_np`), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 **디렉터리**는 `overwrite`를 줘도 덮지 않는다(`mv a dir`처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: `fs.move("a.txt", "dir/a.txt")`. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다. 다른 파일 시스템으로 옮길 때(Linux의 tmpfs `/tmp` 등)는 이름 바꾸기가 닿지 않으므로, 파일이면 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(셸의 `mv`와 같다; 이때는 한 번에 일어나지 않는다). 디렉터리와 심볼릭 링크는 다른 파일 시스템으로 옮기지 않는다(`Err`, ``cross-device link``).
 
 #### 매개변수
 
@@ -730,18 +730,19 @@ print(fs.move("a.log", path.join("archive", "a.log")), fs.list("archive")!)
 
 :::
 
-:::fn fs.copy(from, to)
+:::fn fs.copy(from, to, overwrite = false)
 
 파일 하나를 복사한다.
 
 #### 설명
 
-`from`의 내용과 권한(실행 권한 등)을 `to`에 복사한다. `to`에 파일이 있으면 덮어쓴다. **파일만** 복사한다: 디렉터리를 복사하거나 대상으로 디렉터리를 주면 `Err`다. 디렉터리 전체는 [`fs.walk`](#fn-fs-walk)로 돌며 하나씩 복사한다.
+`from`의 내용과 권한(실행 권한 등)을 `to`에 복사한다. [`fs.move`](#fn-fs-move)처럼 **이미 있는 것을 덮어쓰지 않는다**: `to`가 있으면 `Err({kind: 'exists})`이고, 덮어쓰려면 `overwrite: true`를 준다. 같은 파일에 `overwrite: true`로 복사하면 그대로 둔다. **정규 파일만** 복사한다: 디렉터리를 복사하거나 대상으로 디렉터리를 주면 `Err`이고, FIFO·장치처럼 정규 파일이 아닌 것은 원본이든 대상이든 `Err({kind: 'invalid})`다(FIFO는 상대가 올 때까지 막혀 기한을 지킬 수 없다; 읽고 쓰려면 `fs.read`·`fs.write`). 내용은 조금씩 흘려 보내므로 큰 파일도 그만큼의 메모리가 들지 않는다. 디렉터리 전체는 [`fs.walk`](#fn-fs-walk)로 돌며 하나씩 복사한다.
 
 #### 매개변수
 
 - `from`: 원본 파일.
 - `to`: 대상 파일 경로(이름까지).
+- `overwrite`: `true`면 `to`에 있는 파일을 바꾼다. 기본은 `false`.
 
 #### 돌려주는 값
 
@@ -750,7 +751,9 @@ print(fs.move("a.log", path.join("archive", "a.log")), fs.list("archive")!)
 #### 에러
 
 - `Err({kind: 'not_found})`: 원본이 없다.
+- `Err({kind: 'exists})`: `to`가 이미 있다(``cannot copy `a.txt` to `b.txt`: file exists``).
 - `Err({kind: 'io})`: 원본이나 대상이 디렉터리다(``is a directory``).
+- `Err({kind: 'invalid})`: 원본이나 대상이 정규 파일이 아니다(``not a regular file``).
 
 #### 예제
 
@@ -926,7 +929,7 @@ print(fs.write_line(h, "two"))
 #### 에러
 
 - `Err({kind: 'closed})`: 닫힌 핸들이다.
-- `Err({kind: 'invalid})`: `'read`로 연 핸들이다(``file `a.txt` is not open for writing``).
+- `'read`로 연 핸들이면 런타임 에러 E0520(``file `a.txt` is not open for writing``). 모드는 코드가 정하는 것이라 코드 오류다.
 - `line`이 문자열이 아니면 런타임 에러 E0403.
 
 #### 예제

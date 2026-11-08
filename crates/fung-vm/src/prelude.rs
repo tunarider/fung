@@ -161,22 +161,19 @@ fn try_map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             1
         }
         fn got(&mut self, r: Value) -> Result<bool, Stop> {
+            // A result holds one value (VM4), as for `?`.
             match &r {
-                Value::Tag(tag) if tag.name.name() == "Ok" => {
-                    // `Ok(a, b)` holds the tuple, as `?` unwraps it.
-                    self.out.push(match tag.args.as_slice() {
-                        [v] => v.clone(),
-                        vs => Value::tuple(vs.to_vec()),
-                    });
+                Value::Tag(tag) if tag.args.len() == 1 && tag.name.name() == "Ok" => {
+                    self.out.push(tag.args[0].clone());
                     Ok(false)
                 }
-                Value::Tag(tag) if tag.name.name() == "Err" => {
+                Value::Tag(tag) if tag.args.len() == 1 && tag.name.name() == "Err" => {
                     self.err = Some(r);
                     Ok(true)
                 }
                 _ => Err(fail(
                     "E0605",
-                    vec![nat::s("try_map"), Arg::Str(type_name(&r))],
+                    vec![nat::s("try_map"), Arg::Str(crate::vm::not_result(&r))],
                 )),
             }
         }

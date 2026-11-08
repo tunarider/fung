@@ -1,0 +1,6 @@
+# Reading a handle opened for writing is a code error (LB9), not a failure
+# from outside: a runtime error, as a bad regex pattern is (E0515).
+import fs
+f = fs.open("/dev/null", 'write)!
+read_line(f)
+# expect-error: E0520

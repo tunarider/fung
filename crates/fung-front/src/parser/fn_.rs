@@ -199,27 +199,48 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses `term { | term }` where term = NAME [ "[" type "]" ] | TAG.
-    /// Element types are parsed and dropped (07: 런타임은 바깥 타입만 검사).
+    /// A term with an element type stays as written, `list[str | int]`:
+    /// resolve checks the names inside and keeps the outer type, the one
+    /// the runtime checks (07, FE17).
     pub(super) fn type_spec(&mut self) -> PResult<Vec<String>> {
         let mut alts = Vec::new();
         loop {
-            let t = self.peek();
-            // `nil` and `fn` are keywords but also type names (07).
-            if !matches!(t.kind, Kind::Name | Kind::Tag | Kind::KwNil | Kind::KwFn) {
-                return Err(err("E0110", t.pos, vec![s(describe(t))]));
-            }
-            self.next();
-            alts.push(t.text.clone());
-            if self.at(Kind::LBracket) {
-                self.next();
-                self.type_spec()?;
-                self.expect_desc(Kind::RBracket, "`]`")?;
-            }
+            let mut text = String::new();
+            self.type_term(&mut text)?;
+            alts.push(text);
             if !self.at(Kind::Bar) {
                 return Ok(alts);
             }
             self.next();
         }
+    }
+
+    /// One term of a type, appended to `text` as written (`list[str|int]`):
+    /// the element type's text goes on the same string, so a deep one is
+    /// read in time linear in its length.
+    fn type_term(&mut self, text: &mut String) -> PResult<()> {
+        let t = self.peek();
+        // `nil` and `fn` are keywords but also type names (07).
+        if !matches!(t.kind, Kind::Name | Kind::Tag | Kind::KwNil | Kind::KwFn) {
+            return Err(err("E0110", t.pos, vec![s(describe(t))]));
+        }
+        self.next();
+        text.push_str(&t.text);
+        if self.at(Kind::LBracket) {
+            self.next();
+            text.push('[');
+            loop {
+                self.type_term(text)?;
+                if !self.at(Kind::Bar) {
+                    break;
+                }
+                self.next();
+                text.push('|');
+            }
+            self.expect_desc(Kind::RBracket, "`]`")?;
+            text.push(']');
+        }
+        Ok(())
     }
 
     /// Whether a parameter starts like a pattern rather than a name: a tuple,

@@ -85,49 +85,14 @@ const PATTERNS: &[&str] = &[
     "e\u{301}",
 ];
 
-/// Replacement strings: every form of `$` reference and the malformed ones
-/// kept as text.
+/// Replacement strings for every pair: the forms of `$` that are valid
+/// whatever groups the pattern has (the whole match, `$$`, and the
+/// malformed ones kept as text). A name of a group the pattern lacks is
+/// E0521 (LB10), so the named forms run against one pattern that has
+/// them all (`NAMED_PATTERN` in `PROGRAMS`), and the missing names are
+/// fung-vm's `regex_tests`.
 const REPLACEMENTS: &[&str] = &[
-    "-",
-    "",
-    "<$0>",
-    "$1",
-    "${1}",
-    "$1a",
-    "${1}a",
-    "$9",
-    "$$",
-    "$",
-    "${",
-    "${1",
-    "${}",
-    "$}",
-    "$01",
-    "${01}",
-    "$00",
-    "$key",
-    "${key}",
-    "$val!",
-    "$y/$m/$d",
-    "${d}.${m}.${y}",
-    "$x",
-    "$_",
-    "$한",
-    "${이름}",
-    "$a-b",
-    "$1$2$3",
-    "$10000000000",
-    "$99999999",
-    "$100000000",
-    "[$2|$1]",
-    "$$1",
-    "$$$1",
-    "$é",
-    // A group name is ASCII letters, digits and `_`: superscript two,
-    // Roman numeral four and one half end it, so these read group 1.
-    "$1²",
-    "$1Ⅳ",
-    "$1½",
+    "-", "", "<$0>", "$$", "$", "${", "${1", "${}", "$}", "$00", "${0}", "$한", "$é", "$$1",
 ];
 
 /// `bin -e src args…`: stdout, stderr, status.
@@ -149,7 +114,7 @@ fn run(bin: &std::path::Path, src: &str, args: &[&str]) -> (String, String, Opti
 
 /// How many subject and pattern pairs and programs there are.
 const PAIR_CASES: usize = 800;
-const PROGRAM_CASES: usize = 46;
+const PROGRAM_CASES: usize = 47;
 
 /// A run as an entry: standard output, standard error, exit code.
 fn entry(label: String, (out, err, code): (String, String, Option<i32>)) -> Entry {
@@ -207,6 +172,13 @@ fn regex_pairs_match_the_expected_output() {
 
 /// Programs whose output or error report is compared whole.
 const PROGRAMS: &[&str] = &[
+    // every named form of `$` against a pattern that has the groups
+    // (LB10): numbers, names, braces, the longest name, the end of a name
+    r#"s = "2026-11-08 k=v"
+p = `(?<y>\d+)-(?<m>\d+)-(?<d>\d+) (?<key>\w+)=(?<val>\w+)`
+for r in [`$1`, `${1}`, `${1}a`, `$01`, `${01}`, `$key`, `${key}`, `$val!`, `$y/$m/$d`, `${d}.${m}.${y}`, `$1$2$3`, `[$2|$1]`, `$$$1`, `$1²`, `$1Ⅳ`, `$1½`, `${5}x`]:
+  print(r, regex.replace(s, p, r))
+;;"#,
     // positions in multibyte text, and slicing with them
     r#"s = "가나다 나다"
 m = regex.find(s, "나(다)")

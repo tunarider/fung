@@ -1,0 +1,6 @@
+# A map pattern names a key once (FE12), as a map literal does (E0113).
+match {a: 1}:
+  {a: x, a: 2} => print(x)
+  _ => print("no")
+;;
+# expect-error: E0113

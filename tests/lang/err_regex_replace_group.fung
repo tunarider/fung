@@ -1,0 +1,5 @@
+# A replacement that names a group the pattern lacks would silently drop
+# text (LB10): it is a code error, E0521.
+import regex
+print(regex.replace("abc", "(?<mid>b)", `[${nope}]`))
+# expect-error: E0521

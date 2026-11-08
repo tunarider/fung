@@ -5,7 +5,7 @@
 use fung_front::diag::Arg;
 use fung_front::lexer::{Kind, lex};
 use fung_front::source::FileId;
-use fung_front::unicode::{is_name_continue, is_name_start, is_upper, nfc};
+use fung_front::unicode::{is_name_continue, is_name_start, nfc};
 
 use crate::native::nat::{self, def, fail, param};
 use crate::value::{Value, format, intern};
@@ -142,14 +142,15 @@ fn str_fn(_: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     }
 }
 
-/// A name (01): `_` or a name-start character that is not uppercase,
-/// then name-continue characters (UAX #31).
+/// What a symbol literal takes after `'` (01, SP4): `_` or a name-start
+/// character, then name-continue characters (UAX #31). A tag-shaped name
+/// is one too, so `sym("Red")` is the tag `Red` an enum type names.
 fn is_name(s: &str) -> bool {
     let mut cs = s.chars();
     let Some(first) = cs.next() else {
         return false;
     };
-    (first == '_' || (is_name_start(first) && !is_upper(first))) && cs.all(is_name_continue)
+    (first == '_' || is_name_start(first)) && cs.all(is_name_continue)
 }
 
 fn sym_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {

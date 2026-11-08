@@ -25,12 +25,12 @@ pub use crate::native::file::File;
 pub use crate::native::net::{Conn, Listener};
 use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHandle};
 
-pub(crate) use arith::check_chars;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
+pub(crate) use arith::{check_chars, check_returned};
 pub use compare::{compare, eq, equal, hash_value};
 #[cfg(test)]
 pub use format::format_for_print;
-pub use format::{format, type_name, write_for_print};
+pub use format::{format, result_tag, type_name, write_for_print};
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
 pub(crate) use release::{drop_children, keep, pending, release_piece, set_deferring};

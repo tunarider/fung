@@ -145,7 +145,7 @@ match parse_int(port):
 #### 에러
 
 - 닫힌 파일 핸들이면 `Err({kind: 'closed, message})`.
-- 쓰기용으로 연 핸들이면 `Err({kind: 'invalid, message})`(`file … is not open for reading`).
+- 쓰기용으로 연 핸들이면 런타임 에러 E0520(`file … is not open for reading`). 모드는 코드가 정하는 것이라 코드 오류다.
 - 그 밖의 읽기 실패는 [`fs`](../modules/fs.html)의 다른 함수와 같은 `Err`(`'io` 등).
 - `f`가 파일도 `nil`도 아니면 런타임 에러 E0403.
 

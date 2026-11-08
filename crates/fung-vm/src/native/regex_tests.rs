@@ -158,20 +158,24 @@ fn empty_matches() {
 
 /// `$` in a replacement (06): `$$`, numbers, names, braces; `$1a` is the
 /// name "1a" (write `${1}a`), a reference that is not one stays text, and
-/// a group that is not there gives nothing.
+/// a group the pattern lacks is E0521 (LB10): it would drop text silently.
 #[test]
 fn replacement_templates() {
+    let pat = r"(?P<key>\w+)=(?P<val>\w+)";
     assert_eq!(
         ok(
             "replace",
-            &[
-                "k=v",
-                r"(?P<key>\w+)=(?P<val>\w+)",
-                "$$|$1|${1}|$key|${val}|$9|$1a|${1}a|$|${1|$0|$01|$_|$한",
-            ]
+            &["k=v", pat, "$$|$1|${1}|$key|${val}|${1}a|$|${1|$0|$01|$한"]
         ),
-        r#""$|k|k|k|v|||ka|$|\${1|k=v|k||$한""#
+        r#""$|k|k|k|v|ka|$|\${1|k=v|k|$한""#
     );
+    for missing in ["$9", "$1a", "$_", "${nope}", "$3"] {
+        assert_eq!(
+            shown(call("replace", &["k=v", pat, missing])),
+            "E0521",
+            "{missing}"
+        );
+    }
 }
 
 #[test]

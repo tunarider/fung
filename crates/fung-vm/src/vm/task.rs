@@ -305,7 +305,7 @@ impl Unread {
 }
 
 impl TaskState {
-    fn new(at: Pos, scope: Option<&Rc<ScopeState>>) -> Rc<TaskState> {
+    pub(super) fn new(at: Pos, scope: Option<&Rc<ScopeState>>) -> Rc<TaskState> {
         Rc::new(TaskState {
             result: RefCell::new(None),
             waiters: RefCell::new(WaitList::default()),

@@ -186,6 +186,20 @@ fn leaf_text(v: &Value) -> String {
     }
 }
 
+/// `Ok` or `Err` when `v` is a result: interpolation and `join` refuse to
+/// put one into text (SP2), so a forgotten unwrap does not become the
+/// text `Ok(...)` in a path or a URL. `str` and `print` still show it.
+pub fn result_tag(v: &Value) -> Option<&'static str> {
+    match v {
+        Value::Tag(t) => match t.name.name() {
+            "Ok" => Some("Ok"),
+            "Err" => Some("Err"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 /// What `print` and `${}` use, at the end of `out`: strings bare (their
 /// bytes as they are, L4), the rest in literal form.
 pub fn write_for_print(v: &Value, out: &mut Vec<u8>) {

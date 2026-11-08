@@ -232,6 +232,9 @@ fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 self.out.extend_from_slice(&self.sep);
             }
             self.first = false;
+            if let Some(tag) = crate::value::result_tag(&x) {
+                return Err(nat::fail("E0519", vec![nat::s(tag), nat::s("`join`")]));
+            }
             write_for_print(&x, &mut self.out);
             self.chars += char_count(&self.out[before..]) as i64;
             if self.chars > MAX_CHARS {

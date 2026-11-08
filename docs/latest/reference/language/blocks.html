@@ -122,7 +122,7 @@ print(f(1))</code></pre><pre class="out err plain" data-code="2"><code>error[E01
 4 | 
   | ^
   |</code></pre></div>
-<p>블록의 값은 마지막 식이다. 마지막 문장이 대입이면 그 블록의 값은 <code>nil</code>이라, 값으로 쓰면 에러다.</p>
+<p>블록의 값은 마지막 식이다. 마지막 문장이 대입이면 그 블록의 값은 <code>nil</code>이라, 값으로 쓰면 에러다(E0224). 빈 블록이나 <code>assert</code>·<code>fn</code> 정의로 끝나는 블록도 값으로 쓰면 에러다(E0231). <code>nil</code>이 뜻이면 마지막 줄에 <code>nil</code>을 쓴다.</p>
 <div class="run"><pre><code>fn f(x):
   y = x + 1
 ;;

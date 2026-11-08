@@ -1,0 +1,13 @@
+# A result is put into text on purpose with str (SP2); print shows it as
+# it is, and a result inside a list or map is shown with the list.
+r = Ok(1)
+print("r is ${str(r)}")
+# expect: r is Ok(1)
+print(r, Err("x"))
+# expect: Ok(1) Err("x")
+print("all: ${[Ok(1), Err(2)]}")
+# expect: all: [Ok(1), Err(2)]
+print(join(map([Ok(1), Err(2)], str), " "))
+# expect: Ok(1) Err(2)
+print("tag: ${Red(1)}")
+# expect: tag: Red(1)

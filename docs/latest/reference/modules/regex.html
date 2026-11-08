@@ -257,7 +257,7 @@ print(rows |&gt; map(m =&gt; m.groups) |&gt; filter(g =&gt; g[2] != &quot;200&qu
     <tr><td><code>$$</code></td><td><code>$</code> 글자 하나</td></tr>
   </tbody>
 </table>
-<p><code>$</code> 뒤의 이름은 가능한 한 길게 읽는다. 그래서 <code>$1x</code>는 "이름이 <code>1x</code>인 그룹"이고, 그런 그룹이 없으면 빈 문자열이 된다. 그룹 뒤에 글자를 붙이려면 <code>${1}x</code>로 쓴다. <code>${…}</code>를 쓰는 <code>repl</code>은 보간을 피하려고 원시 문자열 <code></code> <code>…</code> <code></code>로 쓴다.</p>
+<p><code>$</code> 뒤의 이름은 가능한 한 길게 읽는다. 그래서 <code>$1x</code>는 "이름이 <code>1x</code>인 그룹"이다. 패턴에 없는 그룹을 가리키면 런타임 에러 E0521이다(오타가 글을 말없이 지우지 않게). 패턴에 있지만 이번 매치에 잡히지 않은 그룹은 빈 문자열이다. 그룹 뒤에 글자를 붙이려면 <code>${1}x</code>로 쓴다. <code>${…}</code>를 쓰는 <code>repl</code>은 보간을 피하려고 원시 문자열 <code></code> <code>…</code> <code></code>로 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 대상 문자열.</li>
@@ -267,7 +267,7 @@ print(rows |&gt; map(m =&gt; m.groups) |&gt; filter(g =&gt; g[2] != &quot;200&qu
 <h4>돌려주는 값</h4>
 <p>바꾼 문자열.</p>
 <h4>에러</h4>
-<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>와 같다.</p>
+<p><a href="#fn-regex-is_match"><code>regex.is_match</code></a>와 같다. 더해서 <code>repl</code>이 패턴에 없는 그룹(<code>$9</code>, <code>${nope}</code>, <code>$1a</code>)을 가리키면 런타임 에러 E0521.</p>
 <h4>예제</h4>
 <p><strong>날짜 꼴 바꾸기</strong></p>
 <div class="run"><pre><code>import regex
@@ -281,11 +281,21 @@ print(regex.replace(line, `(?P&lt;key&gt;password|token)=\S+`, `${key}=***`))</c
 <p><strong><code>$1x</code>와 <code>${1}x</code>, <code>$$</code></strong></p>
 <div class="run"><pre><code>import regex
 
-print(regex.replace(&quot;ab&quot;, `(a)`, &quot;$1x&quot;))
 print(regex.replace(&quot;ab&quot;, `(a)`, `${1}x`))
-print(regex.replace(&quot;cost 5&quot;, `(\d+)`, &quot;$$$1&quot;))</code></pre><pre class="out plain"><code>b
-axb
+print(regex.replace(&quot;cost 5&quot;, `(\d+)`, &quot;$$$1&quot;))</code></pre><pre class="out plain"><code>axb
 cost $5</code></pre></div>
+<p><code>$1x</code>는 이름이 <code>1x</code>인 그룹이라, 패턴에 없으므로 에러다.</p>
+<div class="run"><pre><code>import regex
+
+print(regex.replace(&quot;ab&quot;, `(a)`, &quot;$1x&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0521]: the replacement names group `1x`, which the pattern does not have
+  --&gt; example.fung:3:20
+  |
+3 | print(regex.replace(&quot;ab&quot;, `(a)`, &quot;$1x&quot;))
+  |                    ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;
+ help: name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`</code></pre></div>
 <div class="box mistake"><b>보통 문자열에 <code>${name}</code></b>
 <p><code>regex.replace(s, pat, &quot;&lt;${w}&gt;&quot;)</code>처럼 보통 문자열에 <code>${w}</code>를 쓰면 fung이 먼저 변수 <code>w</code>를 보간하려 해서 E0204(없는 이름)가 난다. 그룹을 가리키는 <code>${w}</code>는 원시 문자열 <code></code> <code>&lt;${w}&gt;</code> <code></code>에 쓴다.</p>
 </div>

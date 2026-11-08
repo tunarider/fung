@@ -384,7 +384,7 @@ pub fn run_file(path: &std::path::Path) -> (String, String, i32) {
 }
 
 /// The process exit status a shell sees for exit(n): the operating system
-/// keeps the low 8 bits (`exit(300)` gives 44).
+/// keeps the low 8 bits (`exit` itself takes only 0..=255, TL1).
 pub fn status(n: i64) -> i32 {
     (n & 0xff) as i32
 }

@@ -257,6 +257,7 @@ impl Resolver<'_> {
             self.globals.push(g.clone());
         }
         self.declare_aliases(n);
+        self.check_test_names(n);
         let mut kids = Vec::new();
         let mut fns: Vec<&Node> = Vec::new();
         let mut rest: Vec<&Node> = Vec::new();
@@ -807,6 +808,32 @@ pub(super) fn own_bindings(n: &Node, out: &mut HashSet<String>) {
             for k in &n.kids {
                 own_bindings(k, out);
             }
+        }
+    }
+}
+
+impl Resolver<'_> {
+    /// A test's name tells which one failed, so a file uses each once and
+    /// none is empty (FE20, E0233), as it does a top-level fn's (E0210).
+    fn check_test_names(&mut self, root: &Node) {
+        let mut seen = std::collections::HashSet::new();
+        for k in &root.kids {
+            if k.head != Head::Test {
+                continue;
+            }
+            let name = lit_str(k);
+            let why = if name.trim().is_empty() {
+                "is empty"
+            } else if !seen.insert(name.to_string()) {
+                "is used by another test in this file"
+            } else {
+                continue;
+            };
+            self.errs.push(error(
+                "E0233",
+                k.pos,
+                vec![Arg::Str(name.to_string()), Arg::Str(why.into())],
+            ));
         }
     }
 }

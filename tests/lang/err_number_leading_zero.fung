@@ -1,0 +1,4 @@
+# A decimal number does not start with 0 (FE1): `0755` would be 755,
+# not the octal the shell means. Octal is `0o755`.
+perm = 0755
+# expect-error: E0102

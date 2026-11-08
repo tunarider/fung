@@ -1,0 +1,5 @@
+# An element type names a type too (FE17): a typo there is E0212, not a
+# note that silently documents nothing.
+fn f(x: list[lsit]) = x
+print(f([1]))
+# expect-error: E0212

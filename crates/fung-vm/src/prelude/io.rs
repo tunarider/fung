@@ -14,7 +14,19 @@ use crate::vm::{Flow, IoStep, Stop, Task, Wake, park_io, park_until_then};
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds through
 /// every `with`'s release, then the process ends with the code.
 pub(super) fn exit_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    Err(Stop::Exit(nat::need_int("code", &a[0])?))
+    // The system keeps the low eight bits of a status, so a code outside
+    // 0..=255 would end as another one: exit(256) as success (TL1).
+    match nat::need_int("code", &a[0])? {
+        n @ 0..=255 => Err(Stop::Exit(n)),
+        n => Err(nat::fail(
+            "E0403",
+            vec![
+                nat::s("code"),
+                nat::s("an int from 0 to 255"),
+                fung_front::diag::Arg::Str(n.to_string()),
+            ],
+        )),
+    }
 }
 
 /// The `dbg` native: `dbg(x, text = nil, where = nil)`. It writes
@@ -79,14 +91,14 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
         Value::File(h) if h.is_pipe() => pipe_lines(t, h.clone(), true),
         Value::File(h) => {
             if let Some(r) = h.read_buffered_line() {
-                return Ok(Flow::Done(file_line_value(h, r)));
+                return file_line_value(h, r).map(Flow::Done);
             }
             let h = h.clone();
             let job = h.clone();
             nat::offload(
                 t,
                 move || job.read_line(),
-                move |_, r| Ok(file_line_value(&h, r)),
+                move |_, r| file_line_value(&h, r),
             )
         }
         f => Err(nat::wrong_arg("f", "file | nil", f)),
@@ -113,9 +125,9 @@ fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
                 }
                 Ok(Step::Wait(fd, interest)) => return pipe::io_step(fd, interest),
                 Ok(Step::Fail(e)) => {
-                    return IoStep::Done(Ok(fault_value(&h, "read", Fault::Io(e))));
+                    return IoStep::Done(fault_value(&h, "read", Fault::Io(e)));
                 }
-                Err(e) => return IoStep::Done(Ok(fault_value(&h, "read", e))),
+                Err(e) => return IoStep::Done(fault_value(&h, "read", e)),
             }
         },
         |_| {},
@@ -139,9 +151,9 @@ const STDIN_WAKE: Wake = Wake {
 };
 
 /// A handle's line read (or its fault) as `read_line` gives it.
-fn file_line_value(h: &File, r: Result<Option<Vec<u8>>, Fault>) -> Value {
+fn file_line_value(h: &File, r: Result<Option<Vec<u8>>, Fault>) -> Result<Value, Stop> {
     match r {
-        Ok(l) => line_value(l),
+        Ok(l) => Ok(line_value(l)),
         Err(e) => fault_value(h, "read", e),
     }
 }
@@ -185,11 +197,9 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Sto
                 }
                 Ok(ls)
             };
-            nat::offload(t, read_all, move |_, r| {
-                Ok(match r {
-                    Ok(ls) => lines(ls),
-                    Err(e) => fault_value(&h, "read", e),
-                })
+            nat::offload(t, read_all, move |_, r| match r {
+                Ok(ls) => Ok(lines(ls)),
+                Err(e) => fault_value(&h, "read", e),
             })
         }
         f => Err(nat::wrong_arg("f", "file | nil", f)),

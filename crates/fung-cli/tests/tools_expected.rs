@@ -176,7 +176,7 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 238;
+const CHECK_REPOSITORY_CASES: usize = 270;
 const CHECK_WARNING_CASES: usize = 9;
 const CHECK_ARGUMENT_CASES: usize = 25;
 const HELP_CASES: usize = 8;
@@ -184,9 +184,9 @@ const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
-const TEST_REPOSITORY_CASES: usize = 239;
-const FMT_INPUTS: usize = 5834;
-const FMT_STDIN_CASES: usize = 1371;
+const TEST_REPOSITORY_CASES: usize = 271;
+const FMT_INPUTS: usize = 6529;
+const FMT_STDIN_CASES: usize = 1415;
 const FMT_FORMAT_CASES: usize = 124;
 const FMT_ARGUMENT_CASES: usize = 33;
 const REPL_CASES: usize = 30;
@@ -1863,7 +1863,7 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             ":load\n:load nope.fung\n:load bad.fung\n:load .\n  :load   lib.fung  \nk\n",
         ),
         ("quit with code", "x = 1\n:quit now\nx\n"),
-        ("exit codes", "exit(300)\n"),
+        ("exit codes", "exit(44)\n"),
         (
             "exit inside a block",
             "fn f():\n  exit(2)\n;;\nf()\nprint(1)\n",

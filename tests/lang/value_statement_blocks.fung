@@ -1,0 +1,14 @@
+# Blocks whose value is not used may end in any statement (FE4): an if
+# statement, a test of a condition, a helper defined in a branch.
+fn check(x):
+  assert x > 0
+  nil
+;;
+check(1)
+if true: assert 1 == 1 ;;
+if true:
+  fn helper() = 2
+;;
+for x in [1]: assert x == 1 ;;
+print("ok")
+# expect: ok

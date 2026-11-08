@@ -1,0 +1,10 @@
+# A symbol meeting a string is E0517 only where == compares them (VA8):
+# == stops at the first difference, so a pair after it is never compared.
+print([1, 'a] == [2, "a"])
+# expect: false
+print(['a] == ["a", 1])
+# expect: false
+print({x: 'a} == {y: "a"})
+# expect: false
+print(Pair(1, 'a) == Other(1, "a"))
+# expect: false

@@ -23,7 +23,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
 use fung_front::diag::{self, Diag, headline};
@@ -72,7 +72,14 @@ pub(crate) struct ScopeState {
     sweep_at: Cell<usize>,
     /// What a child's failure does.
     policy: Policy,
+    /// The scope itself, for the handler request (`lose`, CC1).
+    me: Weak<ScopeState>,
 }
+
+/// The `supervise` scopes asking for a handler task (CC1): a failure queued
+/// where no task can start one (a handle's drop) is handled by a task the
+/// scheduler starts at once (`start_handlers`), not when the scope closes.
+pub(crate) type HandlerRequests = Rc<RefCell<Vec<Weak<ScopeState>>>>;
 
 /// The shortest `unread` list that is swept.
 const SWEEP_MIN: usize = 64;
@@ -89,10 +96,13 @@ pub(crate) enum Policy {
 
 /// A `supervise` scope's handler and the failures waiting for it.
 ///
-/// No handler task is spawned: the first child to fail while nobody
-/// handles becomes the handler. It stays a live child of the scope and
-/// runs `on_fail` for its own failure and every one queued meanwhile, so
-/// failures are handled in order and never two at a time.
+/// The first child to fail while nobody handles becomes the handler. It
+/// stays a live child of the scope and runs `on_fail` for its own failure
+/// and every one queued meanwhile, so failures are handled in order and
+/// never two at a time. A failure queued with no failing task at hand (an
+/// Err whose last handle dropped unread, E0607) asks the scheduler for a
+/// handler task of the same kind (CC1, `start_handlers`): it is handled
+/// at once, while the scope is open, as a failing child's is.
 pub(crate) struct Supervisor {
     /// Released when the scope closes.
     on_fail: RefCell<Option<Value>>,
@@ -100,6 +110,10 @@ pub(crate) struct Supervisor {
     /// the report written if it is never handled.
     queue: RefCell<VecDeque<(Value, String)>>,
     handling: Cell<bool>,
+    /// The scheduler's list a handler is asked on, and whether this scope
+    /// is on it.
+    requests: HandlerRequests,
+    requested: Cell<bool>,
 }
 
 impl ScopeState {
@@ -110,19 +124,26 @@ impl ScopeState {
 
     /// A scope that hands its children's failures to `on_fail`
     /// (`supervise`).
-    pub(crate) fn supervise(node: Arc<CancelNode>, on_fail: Value) -> Rc<ScopeState> {
+    pub(crate) fn supervise(
+        node: Arc<CancelNode>,
+        on_fail: Value,
+        requests: HandlerRequests,
+    ) -> Rc<ScopeState> {
         ScopeState::new(
             node,
             Policy::Supervise(Supervisor {
                 on_fail: RefCell::new(Some(on_fail)),
                 queue: RefCell::new(VecDeque::new()),
                 handling: Cell::new(false),
+                requests,
+                requested: Cell::new(false),
             }),
         )
     }
 
     fn new(node: Arc<CancelNode>, policy: Policy) -> Rc<ScopeState> {
-        Rc::new(ScopeState {
+        Rc::new_cyclic(|me| ScopeState {
+            me: me.clone(),
             node,
             open: Cell::new(true),
             live: Cell::new(0),
@@ -195,12 +216,17 @@ impl ScopeState {
     }
 
     /// An Err nobody can read fails the scope: `scope` raises it,
-    /// `supervise` queues it for `on_fail` (its next handler, or the
-    /// opener when the scope closes).
+    /// `supervise` queues it for `on_fail` and, when nobody handles,
+    /// asks the scheduler for a handler task (CC1).
     fn lose(&self, u: Unread) {
         match &self.policy {
             Policy::FailFast => self.fail(&u.diag),
-            Policy::Supervise(sv) => sv.queue.borrow_mut().push_back((u.value, u.text)),
+            Policy::Supervise(sv) => {
+                sv.queue.borrow_mut().push_back((u.value, u.text));
+                if !sv.handling.get() && !sv.requested.replace(true) {
+                    sv.requests.borrow_mut().push(self.me.clone());
+                }
+            }
         }
     }
 
@@ -276,6 +302,22 @@ impl TaskEnd {
             scope,
             node,
             handling: None,
+        }
+    }
+
+    /// The end of a handler task (CC1): it is handling from the start, so
+    /// once its function (which does nothing) returns, it runs `on_fail`
+    /// for the queued failures as a failed child does, then ends.
+    fn handler(state: Rc<TaskState>, scope: Rc<ScopeState>, node: Arc<CancelNode>) -> TaskEnd {
+        TaskEnd {
+            state,
+            scope: Some(scope),
+            handling: Some(Handling {
+                r: Ok(Value::Nil),
+                own: node.clone(),
+                handler: node.clone(),
+            }),
+            node,
         }
     }
 
@@ -407,6 +449,49 @@ impl Cont for TaskEnd {
     }
 }
 
+/// Starts a handler task in each `supervise` scope that asked for one
+/// (CC1, `ScopeState::lose`) and is still open with failures queued and
+/// nobody handling: a live child of the scope, so `on_fail` runs while the
+/// scope is open (it may spawn into it) and the scope waits for it. The
+/// task does nothing itself; its end runs `on_fail` (`TaskEnd::handler`).
+/// A scope that closed meanwhile, or whose failures a failing child took
+/// over, needs none: the closing scope or that child handles the queue.
+pub(super) fn start_handlers(t: &mut Task<'_>) {
+    let asked: Vec<Weak<ScopeState>> = std::mem::take(&mut *t.world.handler_requests.borrow_mut());
+    for s in asked.iter().filter_map(Weak::upgrade) {
+        let Policy::Supervise(sv) = &s.policy else {
+            continue;
+        };
+        sv.requested.set(false);
+        if !s.is_open() || sv.handling.get() || sv.queue.borrow().is_empty() {
+            continue;
+        }
+        sv.handling.set(true);
+        let node = s.node.child();
+        let state = TaskState::new(super::no_pos(), Some(&s));
+        *state.result.borrow_mut() = Some(Value::Nil);
+        s.child_started();
+        let mut fiber = super::Fiber::new(t.shared, node.clone());
+        fiber.conts.push(super::cont::ContFrame {
+            depth: 0,
+            height: 0,
+            pos: super::no_pos(),
+            native: None,
+            tail: false,
+            k: Box::new(TaskEnd::handler(state, s.clone(), node)),
+        });
+        fiber.todo = Some(super::Todo::Start(Value::Native(nothing()), 0));
+        t.world.new_fibers.push(fiber);
+    }
+}
+
+/// A native that does nothing: a handler task's function (CC1).
+fn nothing() -> &'static crate::value::Native {
+    static NOTHING: std::sync::OnceLock<&'static crate::value::Native> = std::sync::OnceLock::new();
+    NOTHING
+        .get_or_init(|| crate::value::Native::leak("supervise", Vec::new(), |_, _| Ok(Value::Nil)))
+}
+
 /// `scope(f)`: opens a scope, runs `f(s)`, waits for the scope's children
 /// and gives the result (05 "범위"), in this order:
 /// - a child's failure, raised here;
@@ -428,7 +513,7 @@ pub(crate) fn run_scope(t: &mut Task<'_>, f: Value, on_fail: Option<Value>) -> F
     let node = t.cancel.child();
     let state = match on_fail {
         None => ScopeState::fail_fast(node.clone()),
-        Some(h) => ScopeState::supervise(node.clone(), h),
+        Some(h) => ScopeState::supervise(node.clone(), h, t.world.handler_requests.clone()),
     };
     let handle = Value::Scope(Rc::new(ScopeHandle {
         state: state.clone(),

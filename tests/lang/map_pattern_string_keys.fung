@@ -1,0 +1,11 @@
+# A map pattern takes the keys a map literal takes (SP3): a quoted key
+# reaches one that is not identifier-shaped, like an HTTP header.
+headers = {"content-type": "text/plain", "x-id": "7"}
+match headers:
+  {"content-type": t, "x-id": id} => print(t, id)
+  _                               => print("no")
+;;
+# expect: text/plain 7
+{"a b": v, c} = {"a b": 1, c: 2}
+print(v, c)
+# expect: 1 2

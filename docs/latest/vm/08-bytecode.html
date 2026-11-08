@@ -315,18 +315,17 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 0007  3:20  CALL         1    ; 1 positional, 0 named
 0008  3:15  DIV
 0009  3:3   STORELOCAL   2
-0010  3:3   CLEARLOCAL   0
-0011  4:3   CONST        2    ; &quot;total &quot;
-0012  4:12  MOVELOCAL    1
-0013  4:3   CONST        3    ; &quot;, avg &quot;
-0014  4:26  MOVELOCAL    2
-0015  4:3   CONCAT       4
-0016  1:1   RETURN</code></pre></div>
+0010  4:3   CONST        2    ; &quot;total &quot;
+0011  4:12  MOVELOCAL    1
+0012  4:3   CONST        3    ; &quot;, avg &quot;
+0013  4:26  MOVELOCAL    2
+0014  4:3   CONCAT       4
+0015  1:1   RETURN</code></pre></div>
 <p>몇 가지가 보인다.</p>
 <ul>
 <li><code>&lt;main&gt;</code>의 <code>CONST 1 ; [3, 4, 5]</code>: 원소가 모두 상수인 리스트는 컴파일할 때 상수 하나가 된다. 맵·튜플·태그 값(<code>{a: 1}</code>, <code>(1, &quot;x&quot;)</code>, <code>Ok(1)</code>)과 그런 것을 품은 것도 같다.</li>
 <li><code>STORELOCAL 1</code>, <code>STORELOCAL 2</code>: <code>total</code>과 <code>avg</code>의 슬롯(6장에서 정한 번호 그대로).</li>
-<li><code>CLEARLOCAL 0</code>: <code>xs</code>(슬롯 0)는 3줄 뒤로 다시 읽히지 않는다. 컴파일러가 그것을 보고 그 칸을 비운다. 큰 리스트가 함수가 끝날 때까지 메모리에 남지 않게 하려는 것이다(10장).</li>
+<li><code>LOADLOCAL 0</code>과 <code>MOVELOCAL 0</code>: <code>xs</code>(슬롯 0)의 첫 읽기는 복사하고, 마지막 읽기(<code>len(xs)</code>)는 값을 넘기며 칸을 비운다. 그래서 큰 리스트가 함수가 끝날 때까지 메모리에 남지 않는다. 넘기지 않은 마지막 읽기라면 그 문장 뒤에 <code>CLEARLOCAL</code>이 칸을 비운다(10장).</li>
 <li><code>CONCAT 4</code>: 보간 조각 넷을 꺼내 하나의 문자열로 잇는다(5장의 <code>concat</code>).</li>
 <li>마지막 식은 <code>POP</code> 없이 <code>RETURN</code>이 된다. 함수의 값이기 때문이다.</li>
 </ul>

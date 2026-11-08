@@ -71,6 +71,9 @@ pub(crate) struct World {
     /// Tasks spawned during the current turn, which the scheduler takes
     /// in after it (`sched.rs`).
     pub(super) new_fibers: Vec<super::Fiber>,
+    /// The `supervise` scopes whose queue got a failure while nobody
+    /// handled it (CC1): the scheduler starts a handler task in each.
+    pub(super) handler_requests: super::scope::HandlerRequests,
     /// When the current turn began, another task was ready to run or
     /// parked on a timer or the world outside (`Sched::turn`).
     pub(super) others_waiting: bool,
@@ -187,6 +190,7 @@ impl World {
             prelude: Prelude::default(),
             main: None,
             new_fibers: Vec::new(),
+            handler_requests: Default::default(),
             others_waiting: false,
             in_run: false,
             io: std::collections::HashMap::new(),

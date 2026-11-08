@@ -8,7 +8,7 @@ E0105	malformed duration %q
 E0110	unexpected %s		
 E0111	comparison operators cannot be chained		split it with `and`: a < b and b < c
 E0112	expected %s, found %s		
-E0113	duplicate key `%s` in map literal		
+E0113	duplicate key `%s` in a map literal or pattern		
 E0114	test must be at the top level		
 E0115	expression nesting too deep (limit %d)		
 E0116	argument `%s` given twice		
@@ -39,6 +39,9 @@ E0227	`_` in a call on the right of `|>`		the piped value is always the first ar
 E0228	the rest parameter `...%s` is always a list		annotate it `list` (or not at all); `list[int]` names the elements without checking them
 E0229	`%s` on the right of `|>` applies to the call, not to the pipe		put the pipe in parentheses: `(xs |> try_map(f))?`
 E0230	too many %s (limit %d)		
+E0231	a block used as a value %s, so the value is nil		end the block with the value it stands for; write `nil` last if nil is meant
+E0232	`%s` takes no element type		only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
+E0233	the test name %q %s		give each test in a file its own name: the report names a failed test by it
 E0301	cannot find module `%s`		standard library modules are imported by name (`import fs`); your own files by path (`import "./lib/x"`)
 E0302	circular import: %s		
 E0303	module `%s` has no member `%s`		
@@ -75,11 +78,14 @@ E0515	invalid pattern %s
 E0516	slice start %d is after its end %d (length %d)		
 E0517	cannot compare a symbol with a string: %s and %s		they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
 E0518	%s is not valid UTF-8: %s		a string can hold any bytes, but this needs text; check where the bytes came from, or test them with `valid_utf8(s)`
+E0519	an `%s` value in %s: a result is not put into text silently		unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`
+E0520	file `%s` is not open for %s		open it with the mode the code needs: `fs.open(p, 'read)` to read, `'write` or `'append` to write
+E0521	the replacement names group `%s`, which the pattern does not have		name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`
 E0601	no pattern matched %s		
 E0602	value %s does not match the pattern		
 E0603	unhandled Err: %s		
 E0604	`%s` on nil		
-E0605	`%s` on a value of type %s (not Ok or Err)		
+E0605	`%s` on %s, which is not a result (Ok(x) or Err(e))		
 E0606	discarded Err: %s	this value is discarded	handle it with `!`, `?` or `match`, or discard it on purpose: `_ = ...`
 E0607	task's Err was never awaited: %s	this task's result is discarded	`await` it, or end the task's function with `nil`
 E0701	task cancelled		

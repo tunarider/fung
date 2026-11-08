@@ -267,6 +267,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/cli_bools_names.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/closures.fung
 -- stdout
 | 0 passed, 0 failed
@@ -323,6 +328,16 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/durations.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/element_types.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/eq_sym_str_pairs.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -461,6 +476,11 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_cli_empty_flag.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_cond_not_bool.fung
 -- stdout
 | 0 passed, 0 failed
@@ -553,7 +573,7 @@
 | FAIL tests/lang/err_dup_key.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0113]: duplicate key `a` in map literal
+| error[E0113]: duplicate key `a` in a map literal or pattern
 |   --> tests/lang/err_dup_key.fung:1:12
 |   |
 | 1 | x = {a: 1, a: 2}
@@ -583,6 +603,36 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_element_type_on_scalar.fung
+-- stdout
+| FAIL tests/lang/err_element_type_on_scalar.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0232]: `int` takes no element type
+|   --> tests/lang/err_element_type_on_scalar.fung:2:6
+|   |
+| 2 | fn f(x: int[str]) = x
+|   |      ^^^
+|   |
+|  help: only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
+-- exit: 2
+==== test tests/lang/err_element_type_unknown.fung
+-- stdout
+| FAIL tests/lang/err_element_type_unknown.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0212]: unknown type `lsit`
+|   --> tests/lang/err_element_type_unknown.fung:3:6
+|   |
+| 3 | fn f(x: list[lsit]) = x
+|   |      ^^^^
+|   |
+-- exit: 2
+==== test tests/lang/err_eq_sym_str_compared.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_escape.fung
 -- stdout
 | FAIL tests/lang/err_escape.fung: <load>
@@ -595,6 +645,16 @@
 |   |          ^
 |   |
 -- exit: 2
+==== test tests/lang/err_exit_negative.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_exit_range.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_expected_colon.fung
 -- stdout
 | FAIL tests/lang/err_expected_colon.fung: <load>
@@ -608,6 +668,29 @@
 |   |
 -- exit: 2
 ==== test tests/lang/err_fail.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_file_wrong_mode.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_fn_empty_body.fung
+-- stdout
+| FAIL tests/lang/err_fn_empty_body.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0231]: a block used as a value is empty, so the value is nil
+|   --> tests/lang/err_fn_empty_body.fung:3:1
+|   |
+| 3 | fn f((a, b)): ;;
+|   | ^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
+-- exit: 2
+==== test tests/lang/err_glob_pattern.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -749,6 +832,16 @@
 |   |             ^
 |   |
 -- exit: 2
+==== test tests/lang/err_interp_result.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_join_result.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_json_stringify.fung
 -- stdout
 | 0 passed, 0 failed
@@ -777,6 +870,18 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_map_pattern_dup_key.fung
+-- stdout
+| FAIL tests/lang/err_map_pattern_dup_key.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0113]: duplicate key `a` in a map literal or pattern
+|   --> tests/lang/err_map_pattern_dup_key.fung:3:10
+|   |
+| 3 |   {a: x, a: 2} => print(x)
+|   |          ^
+|   |
+-- exit: 2
 ==== test tests/lang/err_map_question.fung
 -- stdout
 | FAIL tests/lang/err_map_question.fung: <load>
@@ -846,6 +951,24 @@
 |   |       ^
 |   |
 -- exit: 2
+==== test tests/lang/err_number_leading_zero.fung
+-- stdout
+| FAIL tests/lang/err_number_leading_zero.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0102]: malformed number "0755"
+|   --> tests/lang/err_number_leading_zero.fung:3:8
+|   |
+| 3 | perm = 0755
+|   |        ^
+|   |
+|  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+-- exit: 2
+==== test tests/lang/err_ok_two_values.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/err_open_if_assign.fung
 -- stdout
 | FAIL tests/lang/err_open_if_assign.fung: <load>
@@ -929,6 +1052,19 @@
 |   |
 |  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 -- exit: 2
+==== test tests/lang/err_pipe_tag_hole.fung
+-- stdout
+| FAIL tests/lang/err_pipe_tag_hole.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0227]: `_` in a call on the right of `|>`
+|   --> tests/lang/err_pipe_tag_hole.fung:3:17
+|   |
+| 3 | print(1 |> Pair(_, 2))
+|   |                 ^
+|   |
+|  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
+-- exit: 2
 ==== test tests/lang/err_pmap_failed.fung
 -- stdout
 | 0 passed, 0 failed
@@ -986,6 +1122,11 @@
 |  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
 -- exit: 2
 ==== test tests/lang/err_regex.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/err_regex_replace_group.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1160,6 +1301,32 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/err_test_name_empty.fung
+-- stdout
+| FAIL tests/lang/err_test_name_empty.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0233]: the test name "" is empty
+|   --> tests/lang/err_test_name_empty.fung:2:1
+|   |
+| 2 | test "":
+|   | ^
+|   |
+|  help: give each test in a file its own name: the report names a failed test by it
+-- exit: 2
+==== test tests/lang/err_test_name_twice.fung
+-- stdout
+| FAIL tests/lang/err_test_name_twice.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0233]: the test name "parses" is used by another test in this file
+|   --> tests/lang/err_test_name_twice.fung:6:1
+|   |
+| 6 | test "parses":
+|   | ^
+|   |
+|  help: give each test in a file its own name: the report names a failed test by it
+-- exit: 2
 ==== test tests/lang/err_test_nested.fung
 -- stdout
 | FAIL tests/lang/err_test_nested.fung: <load>
@@ -1294,6 +1461,32 @@
 |   |       ^ not found in this scope
 |   |
 -- exit: 2
+==== test tests/lang/err_value_empty_block.fung
+-- stdout
+| FAIL tests/lang/err_value_empty_block.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0231]: a block used as a value is empty, so the value is nil
+|   --> tests/lang/err_value_empty_block.fung:3:17
+|   |
+| 3 | x = if false: 1 else: ;;
+|   |                 ^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
+-- exit: 2
+==== test tests/lang/err_value_ends_in_assert.fung
+-- stdout
+| FAIL tests/lang/err_value_ends_in_assert.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0231]: a block used as a value ends in `assert`, so the value is nil
+|   --> tests/lang/err_value_ends_in_assert.fung:2:14
+|   |
+| 2 | x = if true: assert true else: 2 ;;
+|   |              ^^^^^^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
+-- exit: 2
 ==== test tests/lang/err_value_ends_in_assign.fung
 -- stdout
 | FAIL tests/lang/err_value_ends_in_assign.fung: <load>
@@ -1306,6 +1499,19 @@
 |   |   ^^
 |   |
 |  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+-- exit: 2
+==== test tests/lang/err_value_ends_in_fn.fung
+-- stdout
+| FAIL tests/lang/err_value_ends_in_fn.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0231]: a block used as a value ends in the definition of `g`, so the value is nil
+|   --> tests/lang/err_value_ends_in_fn.fung:3:3
+|   |
+| 3 |   fn g() = 1
+|   |   ^^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
 -- exit: 2
 ==== test tests/lang/exit_from_task.fung
 -- stdout
@@ -1378,6 +1584,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/local_lifetime.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/map_pattern_string_keys.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1462,7 +1673,22 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/regex_replace_groups.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/rest_and_alias.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/result_arity.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/result_text.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1527,7 +1753,17 @@
 | 0 passed, 0 failed
 -- stderr
 -- exit: 0
+==== test tests/lang/supervise_lost_err_now.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
 ==== test tests/lang/sym_str_compare.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/sym_tag_names.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1538,6 +1774,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/tag_keys.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/tag_partial.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1644,6 +1885,11 @@
 -- stderr
 -- exit: 0
 ==== test tests/lang/unused_var_silent_in_run.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+-- exit: 0
+==== test tests/lang/value_statement_blocks.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

@@ -71,7 +71,7 @@ pat_term    = "_" | NAME | [ "-" ] ( INT | FLOAT ) | STRING | SYMBOL | DURATION
             | "(" ")" | "(" pattern "," [ pattern { "," pattern } [ "," ] ] ")"
             | "[" [ pattern { "," pattern } ] [ [ "," ] "..." [ NAME ] ] "]"
             | "{" [ pat_entry { "," pat_entry } ] "}" .
-pat_entry   = key_name ":" pattern | NAME | TAG .
+pat_entry   = (key_name | STRING) ":" pattern | NAME | TAG .
 
 type        = type_term { "|" type_term } .
 type_term   = NAME [ "[" type "]" ] | TAG .

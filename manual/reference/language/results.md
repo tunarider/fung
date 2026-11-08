@@ -35,7 +35,9 @@ _ = fs.remove(tmp)         # 실패해도 상관없다
 each(rxs, r => send(tx, r))   # 닫힌 tx면 E0606
 ```
 
+<p><code>Ok</code>·<code>Err</code>는 값을 하나 담을 때만 결과값이다. <code>Ok(1, 2)</code>는 같은 이름의 보통 태그라 <code>!</code>·<code>?</code>는 E0605이고 <code>??</code>는 그대로 둔다. 여러 값을 돌려주려면 <code>Ok((a, b))</code>처럼 튜플 하나에 담는다.</p>
 <p><code>??</code>는 <strong>모든</strong> <code>Err</code>를 기본값으로 바꾼다. <code>fs.read(p) ?? "{}"</code>는 파일이 없을 때만이 아니라 권한 오류일 때도 <code>"{}"</code>다. 종류를 가리려면 <code>match</code>로 <code>Err({kind: 'not_found}) =&gt; "{}"</code>처럼 쓰고 나머지는 <code>!</code>로 멈춘다.</p>
+<p><strong>결과값은 글에 말없이 넣지 않는다.</strong> 문자열 보간과 <code>join</code>에 <code>Ok</code>·<code>Err</code>가 들어가면 E0519다. 풀기를 잊은 <code>"http://${recv(rx)}/"</code>가 <code>http://Ok("…")/</code>라는 주소가 되지 않게 하려는 것이다. 결과 자체를 글로 쓰려면 <code>str(r)</code>로 바꾸고, <code>print(r)</code>은 그대로 보인다. 리스트·맵 안의 결과는 리스트의 모양 그대로 보인다.</p>
 <p>"여기 오면 버그"를 말할 때는 <code>fail(msg)</code>로 런타임 에러를 낸다. <code>x ?? fail("config.port is required")</code>처럼 <code>??</code>와 짝이 맞는다. 에러를 잡는 구문은 없고, 정리는 <code>with(acquire, use, release)</code>(와 그 위의 <code>fs.with_open</code>)로 한다.</p>
 
 ## 경계 사례와 에러 {#edges}

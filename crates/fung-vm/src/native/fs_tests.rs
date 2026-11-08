@@ -259,6 +259,81 @@ fn move_refuses_an_existing_target_unless_asked() {
     assert!(!names.contains(&"case.txt".to_string()), "{names:?}");
 }
 
+/// `copy` never replaces an existing path unless asked, as `move` (LB7);
+/// it streams the bytes (LB6); a source or target that is not a regular
+/// file (a FIFO would block the copy past any deadline) is refused (CC3);
+/// a copy onto the same file with `overwrite: true` keeps the bytes.
+#[test]
+fn copy_refuses_an_existing_target_unless_asked() {
+    let d = Scratch::new("copy-noreplace");
+    let (a, b) = (d.at("a.txt"), d.at("b.txt"));
+    std::fs::write(&a, "new").unwrap();
+    std::fs::write(&b, "old").unwrap();
+    assert_eq!(
+        show(call("copy", vec![p(&a), p(&b)])),
+        format!(
+            "Err({{kind: 'exists, message: \"cannot copy `{}` to `{}`: file exists\"}})",
+            a.display(),
+            b.display()
+        )
+    );
+    assert_eq!(std::fs::read_to_string(&b).unwrap(), "old");
+    assert_eq!(
+        show(call("copy", vec![p(&a), p(&b), Value::Bool(true)])),
+        "Ok(nil)"
+    );
+    assert_eq!(std::fs::read_to_string(&b).unwrap(), "new");
+    assert_eq!(
+        show(call("copy", vec![p(&a), p(&a), Value::Bool(true)])),
+        "Ok(nil)"
+    );
+    assert_eq!(std::fs::read_to_string(&a).unwrap(), "new");
+    let big = d.at("big");
+    std::fs::write(&big, vec![7u8; 300_000]).unwrap();
+    assert_eq!(
+        show(call("copy", vec![p(&big), p(&d.at("big2"))])),
+        "Ok(nil)"
+    );
+    assert_eq!(std::fs::read(d.at("big2")).unwrap(), vec![7u8; 300_000]);
+    let (_f, fifo) = fifo("copy-fifo");
+    assert_eq!(
+        show(call("copy", vec![p(&fifo), p(&d.at("c"))])),
+        format!(
+            "Err({{kind: 'invalid, message: \"cannot copy `{}`: not a regular file\"}})",
+            fifo.display()
+        )
+    );
+    assert_eq!(
+        show(call("copy", vec![p(&a), p(&fifo), Value::Bool(true)])),
+        format!(
+            "Err({{kind: 'invalid, message: \"cannot copy to `{}`: not a regular file\"}})",
+            fifo.display()
+        )
+    );
+}
+
+/// `move` across file systems (EXDEV) copies a file and removes the
+/// source, under the same replace rule (LB8); a directory is refused.
+#[test]
+fn a_move_across_file_systems_copies_a_file() {
+    let d = Scratch::new("move-xdev");
+    let (a, b) = (d.at("a.txt"), d.at("b.txt"));
+    std::fs::write(&a, "x").unwrap();
+    super::move_across(a.as_os_str(), b.as_os_str(), false).unwrap();
+    assert_eq!(std::fs::read_to_string(&b).unwrap(), "x");
+    assert!(!a.exists());
+    std::fs::write(&a, "y").unwrap();
+    let e = super::move_across(a.as_os_str(), b.as_os_str(), false).unwrap_err();
+    assert_eq!(e.raw_os_error(), Some(libc::EEXIST));
+    assert!(a.exists());
+    super::move_across(a.as_os_str(), b.as_os_str(), true).unwrap();
+    assert_eq!(std::fs::read_to_string(&b).unwrap(), "y");
+    let dir = d.at("dir");
+    std::fs::create_dir(&dir).unwrap();
+    let e = super::move_across(dir.as_os_str(), d.at("dir2").as_os_str(), false).unwrap_err();
+    assert_eq!(e.raw_os_error(), Some(libc::EXDEV));
+}
+
 /// Reading, writing, stat, copy, move and remove.
 #[test]
 fn read_write_stat_copy_move_remove() {
@@ -381,10 +456,12 @@ fn list_walk_glob() {
         format!(r#"Ok(["{}"])"#, a.display())
     );
     assert_eq!(show(call("glob", vec![p(&none)])), "Ok([])");
-    assert_eq!(
-        show(call("glob", vec![s("x/[")])),
-        "Err({kind: 'invalid, message: \"bad glob pattern `x/[`: syntax error in pattern\"})"
-    );
+    // A bad pattern is a code error (LB9), wherever it is wrong.
+    for bad in [
+        "x/[", "x/*/[", "x/*[", "x/[/*", "x/a[/*", "x/none/[", "x/\\",
+    ] {
+        assert_eq!(show(call("glob", vec![s(bad)])), "E0515", "{bad}");
+    }
     assert_eq!(show(call("list", vec![p(&d.0), Value::Int(1)])), "E0403");
     assert_eq!(show(call("list", vec![Value::Nil, no])), "E0403");
     assert_eq!(show(call("glob", vec![Value::Nil])), "E0403");
@@ -987,10 +1064,10 @@ fn handles_write_read_and_close() {
 print(fs.write_line(h, "one"), fs.write_line(h, "two"), fs.read("${d}/h.txt"))
 print(fs.close(h), fs.close(h), fs.write_line(h, "x"), read_line(h))
 r = fs.open("${d}/h.txt")!
-print(fs.write_line(r, "x"), read_line(r), read_lines(r), read_line(r))
+print(read_line(r), read_lines(r), read_line(r))
 print(fs.close(r), read_line(r), read_lines(r))
 a = fs.open("${d}/h.txt", 'append)!
-print(fs.write_line(a, "three"), read_line(a), fs.close(a), fs.read("${d}/h.txt"))
+print(fs.write_line(a, "three"), fs.close(a), fs.read("${d}/h.txt"))
 print(type_of(a), a == a, a == r, a != h)
 print(fs.with_open("${d}/h.txt", read_lines), fs.with_open("${d}/none", f => 1) |> is_err)"#,
     );
@@ -1001,9 +1078,9 @@ print(fs.with_open("${d}/h.txt", read_lines), fs.with_open("${d}/none", f => 1) 
         format!(
             "Ok(nil) Ok(nil) Ok(\"\")
 Ok(nil) Err({{kind: 'closed, message: \"file `{h}` is closed\"}}) Err({{kind: 'closed, message: \"file `{h}` is closed\"}}) Err({{kind: 'closed, message: \"file `{h}` is closed\"}})
-Err({{kind: 'invalid, message: \"file `{h}` is not open for writing\"}}) Ok(\"one\") Ok([\"two\"]) Ok(nil)
+Ok(\"one\") Ok([\"two\"]) Ok(nil)
 Ok(nil) Err({{kind: 'closed, message: \"file `{h}` is closed\"}}) Err({{kind: 'closed, message: \"file `{h}` is closed\"}})
-Ok(nil) Err({{kind: 'invalid, message: \"file `{h}` is not open for reading\"}}) Ok(nil) Ok(\"one\\ntwo\\nthree\\n\")
+Ok(nil) Ok(nil) Ok(\"one\\ntwo\\nthree\\n\")
 'file true false true
 Ok([\"one\", \"two\", \"three\"]) true
 "
@@ -1011,6 +1088,28 @@ Ok([\"one\", \"two\", \"three\"]) true
         "{}",
         o.err
     );
+    // A handle used against its mode is a code error (LB9).
+    for (prog, dir) in [
+        (
+            r#"r = fs.open("${d}/h.txt")!
+fs.write_line(r, "x")"#,
+            "writing",
+        ),
+        (
+            r#"a = fs.open("${d}/h.txt", 'append)!
+read_line(a)"#,
+            "reading",
+        ),
+    ] {
+        let o = run_in(&d, prog);
+        assert_eq!(o.code, "E0520", "{prog}");
+        assert!(
+            o.err
+                .starts_with(&format!("error[E0520]: file `{h}` is not open for {dir}\n")),
+            "{}",
+            o.err
+        );
+    }
     let o = run_in(&d, r#"print(fs.open("${d}/h.txt")!)"#);
     assert_eq!(o.out, format!("<file \"{h}\">\n"));
     let o = run_in(&d, r#"print(fs.open(d, 'rw))"#);
@@ -1477,10 +1576,10 @@ print(h, type_of(h), h == h, h == fs.open("${d}/a.txt")!, [h] == [h])
 print(fs.write_line(h, "one"), fs.write_line(h, "two"), fs.read("${d}/h.txt"))
 print(fs.close(h), fs.close(h), fs.write_line(h, "x"), read_line(h), read_lines(h), fs.read("${d}/h.txt"))
 r = fs.open("${d}/h.txt")!
-print(fs.write_line(r, "x"), read_line(r), read_lines(r), read_line(r), read_lines(r))
+print(read_line(r), read_lines(r), read_line(r), read_lines(r))
 print(fs.close(r), read_line(r), read_lines(r), fs.write_line(r, "x"))
 a = fs.open("${d}/h.txt", 'append)!
-print(fs.write_line(a, "three"), read_line(a), read_lines(a), fs.close(a), fs.read("${d}/h.txt"))
+print(fs.write_line(a, "three"), fs.close(a), fs.read("${d}/h.txt"))
 print(fs.open("${d}/none"), fs.open("${d}/nope/x", 'write), fs.open("${d}/nope/x", 'append))
 print(fs.open("${d}/locked"), fs.open("${d}/locked", 'write), fs.open("${d}/locked", 'append))
 print(fs.open("${d}/wonly"), fs.open("${d}/wonly", 'write), fs.open("${d}/wonly", 'append) |> is_ok)
@@ -1488,7 +1587,7 @@ print(fs.open("${d}/ro/x", 'write), fs.open(d, 'write), fs.open(d, 'append), fs.
 print(fs.open("a\u{0}b"), fs.open("a\u{0}b", 'write), fs.open(""), fs.open("", 'append))
 print(fs.with_open(d, read_lines), fs.with_open("${d}/bad.txt", read_lines), fs.with_open("${d}/a.txt", h => [read_line(h), read_line(h)]))
 print(fs.with_open("${d}/sub/deep/f", read_lines, mode: 'read), fs.with_open("${d}/w.txt", h => fs.write_line(h, "w"), mode: 'write), fs.read("${d}/w.txt"))
-print(fs.with_open("${d}/none", h => 1), fs.with_open("${d}/w.txt", h => read_line(h), 'append), fs.read_lines("${d}/w.txt"), fs.read_lines("${d}/none"))
+print(fs.with_open("${d}/none", h => 1), fs.read_lines("${d}/w.txt"), fs.read_lines("${d}/none"))
 print(fs.write("${d}/crlf.txt", "a\r\nb\r\n\r\n\nc\r"), fs.with_open("${d}/crlf.txt", read_lines), fs.read_lines("${d}/crlf.txt"))
 fn lost(p) = fs.write_line(fs.open(p, 'write)!, "lost")
 print(lost("${d}/lost.txt"))
@@ -1555,13 +1654,6 @@ print(fs.glob("${t}/\\a.md"), fs.glob("${t}/a\\ b.txt"), fs.glob("${t}/\\[a].md"
 print(fs.glob("${t}/locked_d/*"), fs.glob("${t}/locked_d"))
 print(fs.glob("${t}/ln_*/*"))
 print(fs.glob("${t}/*/A/*"))
-print(fs.glob("${t}/["))
-print(fs.glob("${t}/*/["))
-print(fs.glob("${t}/*["))
-print(fs.glob("${t}/[/*"))
-print(fs.glob("${t}/a[/*"))
-print(fs.glob("${t}/none/["))
-print(fs.glob("${t}/\\"))
 print(fs.glob(""), fs.glob("*.toml"), fs.glob("src/nat*/glob.rs"), fs.glob("./*.toml"))
 print(fs.glob("a\u{0}*"), fs.glob("a\u{0}b"))"#,
     "print(fs.list(d, full: 1))",

@@ -1,0 +1,5 @@
+# A block used as a value must end in an expression (FE4): an empty else
+# would make x a silent nil. Write `else: nil` if nil is meant.
+x = if false: 1 else: ;;
+print(x)
+# expect-error: E0231

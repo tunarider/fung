@@ -1,6 +1,9 @@
-//! Values that are used must not be a silent nil (01: 값을 쓰는 자리, L3):
-//! an if without else there is E0223, and a block, if branch or match arm
-//! there that ends in an assignment is E0224.
+//! Values that are used must not be a silent nil (01: 값을 쓰는 자리, L3,
+//! FE4): an if without else there is E0223, a block, if branch or match arm
+//! there that ends in an assignment is E0224, and one that is empty or ends
+//! in another statement (`assert`, a `fn` definition) is E0231. The hidden
+//! assignment that unpacks a pattern parameter is not a statement of the
+//! body.
 //!
 //! A pass over the desugared tree, before names are resolved. `used` says
 //! whether the node's value is used. A block's items before the last are
@@ -11,7 +14,7 @@
 //! discarded `for`). A test block's body is not: its value is discarded.
 
 use super::{lit_str, name_error};
-use crate::diag::{Diag, error};
+use crate::diag::{Arg, Diag, error};
 use crate::tree::{Head, Lit, Node};
 
 pub(super) fn check(n: &Node, used: bool, errs: &mut Vec<Diag>) {
@@ -19,7 +22,27 @@ pub(super) fn check(n: &Node, used: bool, errs: &mut Vec<Diag>) {
         Head::Do => {
             let last = n.kids.len().saturating_sub(1);
             for (i, k) in n.kids.iter().enumerate() {
-                check(k, used && i == last, errs);
+                check(k, used && i == last && !hidden(k), errs);
+            }
+            if used {
+                match n.kids.iter().rev().find(|k| !hidden(k)) {
+                    None => errs.push(error("E0231", n.pos, vec![Arg::Str("is empty".into())])),
+                    Some(k) if k.head == Head::Assert => errs.push(
+                        error("E0231", k.pos, vec![Arg::Str("ends in `assert`".into())]).span(6),
+                    ),
+                    Some(k) if k.head == Head::Fn && !fn_name(k).is_empty() => errs.push(
+                        error(
+                            "E0231",
+                            k.pos,
+                            vec![Arg::Str(format!(
+                                "ends in the definition of `{}`",
+                                fn_name(k)
+                            ))],
+                        )
+                        .span(2),
+                    ),
+                    Some(_) => {}
+                }
             }
         }
         Head::Let => {
@@ -85,4 +108,18 @@ fn function(n: &Node, body_used: bool, errs: &mut Vec<Diag>) {
 
 fn for_body(n: &Node) -> bool {
     matches!(&n.lit, Lit::Fn(info) if info.for_body)
+}
+
+/// The assignment that unpacks a pattern parameter at the top of a body
+/// (`desugar::fn_node`): its value is a hidden `$` name.
+fn hidden(n: &Node) -> bool {
+    n.head == Head::Let && n.kids[1].head == Head::Name && lit_str(&n.kids[1]).starts_with('$')
+}
+
+/// A named fn's name; empty for a lambda.
+fn fn_name(n: &Node) -> &str {
+    match &n.lit {
+        Lit::Fn(info) => &info.name,
+        _ => "",
+    }
 }

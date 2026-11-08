@@ -1,0 +1,4 @@
+# The piped value is the first argument of a tag too, so a hole beside
+# it is E0227, as in a call (FE18).
+print(1 |> Pair(_, 2))
+# expect-error: E0227

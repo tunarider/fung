@@ -1,0 +1,5 @@
+# Groups the pattern has may be named in a replacement (LB10); one that
+# exists but did not take part in the match is still empty.
+import regex
+print(regex.replace("a-b", "(\\w)-(\\w)", "$2-$1"), regex.replace("ab", "(?<x>a)(y)?b", `${x}[$2]$$`))
+# expect: b-a a[]$

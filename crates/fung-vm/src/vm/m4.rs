@@ -23,14 +23,27 @@ enum ResultKind {
 
 fn result_kind(v: &Value) -> ResultKind {
     match v {
-        Value::Tag(t) => match t.name.name() {
-            "Ok" if t.args.len() == 1 => ResultKind::Ok(t.args[0].clone()),
-            "Ok" => ResultKind::Ok(Value::tuple(t.args.clone())),
+        // A result holds one value (VM4): Ok(1, 2) is a plain tag, which
+        // `!` and `?` refuse and `??` keeps, as a pattern Ok(x) does not
+        // match it either.
+        Value::Tag(t) if t.args.len() == 1 => match t.name.name() {
+            "Ok" => ResultKind::Ok(t.args[0].clone()),
             "Err" => ResultKind::Err,
             _ => ResultKind::Other,
         },
         Value::Nil => ResultKind::Nil,
         _ => ResultKind::Other,
+    }
+}
+
+/// How E0605 names a value that is not a result: by its type, or an Ok
+/// or Err with other than one value by that count (VM4).
+pub(crate) fn not_result(v: &Value) -> String {
+    match v {
+        Value::Tag(t) if matches!(t.name.name(), "Ok" | "Err") => {
+            format!("an {} with {} values", t.name.name(), t.args.len())
+        }
+        _ => format!("a value of type {}", type_name(v)),
     }
 }
 
@@ -211,7 +224,7 @@ impl Task<'_> {
                     }
                     ResultKind::Nil => return Err(err("E0604", pos, vec![s("!")])),
                     ResultKind::Other => {
-                        return Err(err("E0605", pos, vec![s("!"), Arg::Str(type_name(&v))]));
+                        return Err(err("E0605", pos, vec![s("!"), Arg::Str(not_result(&v))]));
                     }
                 }
             }
@@ -222,7 +235,7 @@ impl Task<'_> {
                 // nil is a value, not a failure: `?` only looks at Err (02).
                 ResultKind::Nil => {}
                 ResultKind::Other => {
-                    let tn = type_name(self.top());
+                    let tn = not_result(self.top());
                     return Err(err("E0605", pos, vec![s("?"), Arg::Str(tn)]));
                 }
             },

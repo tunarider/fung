@@ -1,0 +1,4 @@
+# A result holds one value (VM4): Ok(1, 2) is a tag like any other, so `!`
+# refuses it as it refuses any non-result (E0605).
+print(Ok(1, 2)!)
+# expect-error: E0605

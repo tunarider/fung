@@ -1,0 +1,5 @@
+# A result in string interpolation is a runtime error (SP2): forgetting
+# to unwrap would put `Ok(...)` into a URL or a path.
+r = Ok("127.0.0.1:8080")
+print("http://${r}/")
+# expect-error: E0519

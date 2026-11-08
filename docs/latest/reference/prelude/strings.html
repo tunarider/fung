@@ -146,6 +146,7 @@ print(split(line, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;))</code>
 <ul>
 <li><code>xs</code>가 리스트 등이 아니면 런타임 에러 E0506(<code>cannot join str</code>).</li>
 <li><code>sep</code>가 문자열이 아니면 E0403.</li>
+<li>원소가 <code>Ok</code>·<code>Err</code>이면 E0519(결과값은 글에 말없이 넣지 않는다, 보간과 같다). 결과를 보이려면 <code>map(xs, str)</code>로 먼저 바꾼다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>잇기</strong></p>

@@ -324,7 +324,7 @@ print(dirs)</code></pre><pre class="out plain"><code>[&quot;site/assets&quot;]</
 <p><code>Ok(경로 리스트)</code>. 경로는 패턴과 같은 꼴(상대 패턴이면 상대 경로)이다.</p>
 <h4>에러</h4>
 <ul>
-<li><code>Err({kind: 'invalid})</code>: 패턴이 잘못되었다(<code></code>bad glob pattern <code>[a</code>: syntax error in pattern<code></code>). 파일을 읽기 전에 검사한다.</li>
+<li>패턴이 잘못되면 런타임 에러 E0515(<code></code>invalid pattern <code>[a</code>: a glob syntax error<code></code>)다. 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>확장자로 고르기</strong></p>
@@ -340,7 +340,14 @@ print(fs.glob(&quot;logs/[ab].*&quot;)!)</code></pre><pre class="out plain"><cod
 <p><strong>잘못된 패턴</strong></p>
 <div class="run"><pre><code>import fs
 
-print(fs.glob(&quot;logs/[a&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'invalid, message: &quot;bad glob pattern `logs/[a`: syntax error in pattern&quot;})</code></pre></div>
+print(fs.glob(&quot;logs/[a&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0515]: invalid pattern `logs/[a`: a glob syntax error
+  --&gt; example.fung:3:14
+  |
+3 | print(fs.glob(&quot;logs/[a&quot;))
+  |              ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-fs-walk"><code>fs.walk</code></a>, <a href="#fn-fs-list"><code>fs.list</code></a>, <a href="regex.html#fn-regex-is_match"><code>regex.is_match</code></a></p>
 </section>
@@ -547,7 +554,7 @@ Err({kind: 'io, message: &quot;cannot remove `/`: invalid argument&quot;})</code
 <p>파일이나 디렉터리의 이름을 바꾸거나 다른 곳으로 옮긴다.</p>
 <div class="sig"><code>fs.move(from, to, overwrite = false)</code></div>
 <h4>설명</h4>
-<p>셸의 <code>mv</code>와 비슷하지만 <strong>이미 있는 것을 덮어쓰지 않는다</strong>: <code>to</code>가 있으면 <code>Err({kind: 'exists})</code>다(셸의 <code>mv -n</code>과 같고, 실패를 알린다). 파일을 덮어쓰려면 <code>overwrite: true</code>를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux <code>renameat2</code>, macOS <code>renamex_np</code>), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 <strong>디렉터리</strong>는 <code>overwrite</code>를 줘도 덮지 않는다(<code>mv a dir</code>처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: <code>fs.move(&quot;a.txt&quot;, &quot;dir/a.txt&quot;)</code>. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다.</p>
+<p>셸의 <code>mv</code>와 비슷하지만 <strong>이미 있는 것을 덮어쓰지 않는다</strong>: <code>to</code>가 있으면 <code>Err({kind: 'exists})</code>다(셸의 <code>mv -n</code>과 같고, 실패를 알린다). 파일을 덮어쓰려면 <code>overwrite: true</code>를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux <code>renameat2</code>, macOS <code>renamex_np</code>), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 <strong>디렉터리</strong>는 <code>overwrite</code>를 줘도 덮지 않는다(<code>mv a dir</code>처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: <code>fs.move(&quot;a.txt&quot;, &quot;dir/a.txt&quot;)</code>. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다. 다른 파일 시스템으로 옮길 때(Linux의 tmpfs <code>/tmp</code> 등)는 이름 바꾸기가 닿지 않으므로, 파일이면 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(셸의 <code>mv</code>와 같다; 이때는 한 번에 일어나지 않는다). 디렉터리와 심볼릭 링크는 다른 파일 시스템으로 옮기지 않는다(<code>Err</code>, <code></code>cross-device link<code></code>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>from</code>: 옮길 경로.</li>
@@ -592,20 +599,23 @@ Ok(nil) [&quot;a.log&quot;]</code></pre></div>
 <section class="entry" id="fn-fs-copy">
 <h3>fs.copy</h3>
 <p>파일 하나를 복사한다.</p>
-<div class="sig"><code>fs.copy(from, to)</code></div>
+<div class="sig"><code>fs.copy(from, to, overwrite = false)</code></div>
 <h4>설명</h4>
-<p><code>from</code>의 내용과 권한(실행 권한 등)을 <code>to</code>에 복사한다. <code>to</code>에 파일이 있으면 덮어쓴다. <strong>파일만</strong> 복사한다: 디렉터리를 복사하거나 대상으로 디렉터리를 주면 <code>Err</code>다. 디렉터리 전체는 <a href="#fn-fs-walk"><code>fs.walk</code></a>로 돌며 하나씩 복사한다.</p>
+<p><code>from</code>의 내용과 권한(실행 권한 등)을 <code>to</code>에 복사한다. <a href="#fn-fs-move"><code>fs.move</code></a>처럼 <strong>이미 있는 것을 덮어쓰지 않는다</strong>: <code>to</code>가 있으면 <code>Err({kind: 'exists})</code>이고, 덮어쓰려면 <code>overwrite: true</code>를 준다. 같은 파일에 <code>overwrite: true</code>로 복사하면 그대로 둔다. <strong>정규 파일만</strong> 복사한다: 디렉터리를 복사하거나 대상으로 디렉터리를 주면 <code>Err</code>이고, FIFO·장치처럼 정규 파일이 아닌 것은 원본이든 대상이든 <code>Err({kind: 'invalid})</code>다(FIFO는 상대가 올 때까지 막혀 기한을 지킬 수 없다; 읽고 쓰려면 <code>fs.read</code>·<code>fs.write</code>). 내용은 조금씩 흘려 보내므로 큰 파일도 그만큼의 메모리가 들지 않는다. 디렉터리 전체는 <a href="#fn-fs-walk"><code>fs.walk</code></a>로 돌며 하나씩 복사한다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>from</code>: 원본 파일.</li>
 <li><code>to</code>: 대상 파일 경로(이름까지).</li>
+<li><code>overwrite</code>: <code>true</code>면 <code>to</code>에 있는 파일을 바꾼다. 기본은 <code>false</code>.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p><code>Ok(nil)</code>.</p>
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'not_found})</code>: 원본이 없다.</li>
+<li><code>Err({kind: 'exists})</code>: <code>to</code>가 이미 있다(<code></code>cannot copy <code>a.txt</code> to <code>b.txt</code>: file exists<code></code>).</li>
 <li><code>Err({kind: 'io})</code>: 원본이나 대상이 디렉터리다(<code></code>is a directory<code></code>).</li>
+<li><code>Err({kind: 'invalid})</code>: 원본이나 대상이 정규 파일이 아니다(<code></code>not a regular file<code></code>).</li>
 </ul>
 <h4>예제</h4>
 <p><strong>고치기 전에 백업</strong></p>
@@ -741,7 +751,7 @@ Err({kind: 'closed, message: &quot;file `out.txt` is closed&quot;})</code></pre>
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'closed})</code>: 닫힌 핸들이다.</li>
-<li><code>Err({kind: 'invalid})</code>: <code>'read</code>로 연 핸들이다(<code></code>file <code>a.txt</code> is not open for writing<code></code>).</li>
+<li><code>'read</code>로 연 핸들이면 런타임 에러 E0520(<code></code>file <code>a.txt</code> is not open for writing<code></code>). 모드는 코드가 정하는 것이라 코드 오류다.</li>
 <li><code>line</code>이 문자열이 아니면 런타임 에러 E0403.</li>
 </ul>
 <h4>예제</h4>

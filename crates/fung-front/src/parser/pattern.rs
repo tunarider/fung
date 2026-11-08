@@ -192,14 +192,37 @@ impl Parser<'_> {
 
     /// The entries of a `{…}` pattern after the `{`.
     fn pmap(&mut self, mut n: Node) -> PResult<Node> {
+        let mut seen = std::collections::HashSet::new();
         while !self.at(Kind::RBrace) {
-            if !self.at_name_like() {
-                let p = self.peek();
+            // The keys a map literal takes (SP3): identifier-shaped, or a
+            // string without interpolation (a pattern's keys are text).
+            let p = self.peek();
+            let text = if self.at_name_like() {
+                p.key().to_string()
+            } else if p.kind == Kind::String {
+                match p.plain() {
+                    Some(Ok(text)) => text,
+                    Some(Err(_)) => {
+                        return Err(err(
+                            "E0112",
+                            p.pos,
+                            vec![s("a map key that is text"), s(describe(p))],
+                        ));
+                    }
+                    None => return Err(err("E0110", p.pos, vec![s("interpolation in a map key")])),
+                }
+            } else {
                 return Err(err("E0112", p.pos, vec![s("a map key"), s(describe(p))]));
+            };
+            if !seen.insert(text.clone()) {
+                return Err(err("E0113", p.pos, vec![s(text)]));
             }
             let key = self.next();
             let shorthand = self.at(Kind::Comma) || self.at(Kind::RBrace);
-            let v = if key.kind == Kind::Tag && shorthand {
+            let v = if key.kind == Kind::String {
+                self.expect_desc(Kind::Colon, "`:` after the map key")?;
+                self.pattern()?
+            } else if key.kind == Kind::Tag && shorthand {
                 return Err(tag_as_name(key));
             } else if key.kind == Kind::Name && shorthand {
                 // {a, b} binds a and b (02); keywords take no shorthand.
@@ -212,7 +235,7 @@ impl Parser<'_> {
             n.kids.push(Node::with_lit(
                 Head::Pentry,
                 key.pos,
-                Lit::Str(key.key().to_string()),
+                Lit::Str(text),
                 vec![v],
             ));
             if self.at(Kind::Comma) {

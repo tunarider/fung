@@ -107,6 +107,12 @@
 | after the producer
 -- stderr
 -- exit: 0
+==== tests/lang/cli_bools_names.fung
+-- stdout
+| {flags: {dry_run: true}, rest: ["x"]}
+| {flags: {dry_run: true}, rest: ["x"]}
+-- stderr
+-- exit: 0
 ==== tests/lang/closures.fung
 -- stdout
 | 1
@@ -199,6 +205,19 @@
 | 1h30m 2s 1m 15s true 1.5ms -5s
 | 0s 30s
 | true 2562047h1ms 43800h7.000001ms 0.000004ms
+-- stderr
+-- exit: 0
+==== tests/lang/element_types.fung
+-- stdout
+| 2 3
+-- stderr
+-- exit: 0
+==== tests/lang/eq_sym_str_pairs.fung
+-- stdout
+| false
+| false
+| false
+| false
 -- stderr
 -- exit: 0
 ==== tests/lang/err_alias_cycle.fung
@@ -345,7 +364,7 @@
 ==== tests/lang/err_bang_value.fung
 -- stdout
 -- stderr
-| error[E0605]: `!` on a value of type int (not Ok or Err)
+| error[E0605]: `!` on a value of type int, which is not a result (Ok(x) or Err(e))
 |   --> tests/lang/err_bang_value.fung:1:2
 |   |
 | 1 | 5!
@@ -412,6 +431,20 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_channel_self.fung:2 <entry>
+-- exit: 1
+==== tests/lang/err_cli_empty_flag.fung
+-- stdout
+-- stderr
+| error[E0803]: cli.parse: a flag without a name: `--=x`
+|   --> tests/lang/err_cli_empty_flag.fung:3:16
+|   |
+| 3 | print(cli.parse(["--=x"]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    extras/cli.fung:26 _flag
+|    extras/cli.fung:19 _parse (1 tail calls elided)
+|    tests/lang/err_cli_empty_flag.fung:3 <entry>
 -- exit: 1
 ==== tests/lang/err_cond_not_bool.fung
 -- stdout
@@ -626,7 +659,7 @@
 ==== tests/lang/err_dup_key.fung
 -- stdout
 -- stderr
-| error[E0113]: duplicate key `a` in map literal
+| error[E0113]: duplicate key `a` in a map literal or pattern
 |   --> tests/lang/err_dup_key.fung:1:12
 |   |
 | 1 | x = {a: 1, a: 2}
@@ -668,6 +701,40 @@
 |  call path (innermost first):
 |    tests/lang/err_dur_floor_div_int.fung:2 <entry>
 -- exit: 1
+==== tests/lang/err_element_type_on_scalar.fung
+-- stdout
+-- stderr
+| error[E0232]: `int` takes no element type
+|   --> tests/lang/err_element_type_on_scalar.fung:2:6
+|   |
+| 2 | fn f(x: int[str]) = x
+|   |      ^^^
+|   |
+|  help: only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
+-- exit: 2
+==== tests/lang/err_element_type_unknown.fung
+-- stdout
+-- stderr
+| error[E0212]: unknown type `lsit`
+|   --> tests/lang/err_element_type_unknown.fung:3:6
+|   |
+| 3 | fn f(x: list[lsit]) = x
+|   |      ^^^^
+|   |
+-- exit: 2
+==== tests/lang/err_eq_sym_str_compared.fung
+-- stdout
+-- stderr
+| error[E0517]: cannot compare a symbol with a string: 'a and "a"
+|   --> tests/lang/err_eq_sym_str_compared.fung:2:15
+|   |
+| 2 | print([1, 'a] == [1, "a"])
+|   |               ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_eq_sym_str_compared.fung:2 <entry>
+|  help: they are never equal; a value from JSON, a file or a command is a string: convert it with `sym(s)`
+-- exit: 1
 ==== tests/lang/err_escape.fung
 -- stdout
 -- stderr
@@ -678,6 +745,30 @@
 |   |          ^
 |   |
 -- exit: 2
+==== tests/lang/err_exit_negative.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `code` must be an int from 0 to 255, got -1
+|   --> tests/lang/err_exit_negative.fung:2:5
+|   |
+| 2 | exit(-1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_exit_negative.fung:2 <entry>
+-- exit: 1
+==== tests/lang/err_exit_range.fung
+-- stdout
+-- stderr
+| error[E0403]: argument `code` must be an int from 0 to 255, got 256
+|   --> tests/lang/err_exit_range.fung:3:5
+|   |
+| 3 | exit(256)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_exit_range.fung:3 <entry>
+-- exit: 1
 ==== tests/lang/err_expected_colon.fung
 -- stdout
 -- stderr
@@ -700,6 +791,42 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_fail.fung:3 <entry>
+-- exit: 1
+==== tests/lang/err_file_wrong_mode.fung
+-- stdout
+-- stderr
+| error[E0520]: file `/dev/null` is not open for reading
+|   --> tests/lang/err_file_wrong_mode.fung:5:10
+|   |
+| 5 | read_line(f)
+|   |          ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_file_wrong_mode.fung:5 <entry>
+|  help: open it with the mode the code needs: `fs.open(p, 'read)` to read, `'write` or `'append` to write
+-- exit: 1
+==== tests/lang/err_fn_empty_body.fung
+-- stdout
+-- stderr
+| error[E0231]: a block used as a value is empty, so the value is nil
+|   --> tests/lang/err_fn_empty_body.fung:3:1
+|   |
+| 3 | fn f((a, b)): ;;
+|   | ^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
+-- exit: 2
+==== tests/lang/err_glob_pattern.fung
+-- stdout
+-- stderr
+| error[E0515]: invalid pattern `d/[`: a glob syntax error
+|   --> tests/lang/err_glob_pattern.fung:4:14
+|   |
+| 4 | print(fs.glob("d/["))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_glob_pattern.fung:4 <entry>
 -- exit: 1
 ==== tests/lang/err_global_before_assign.fung
 -- stdout
@@ -858,6 +985,32 @@
 |   |             ^
 |   |
 -- exit: 2
+==== tests/lang/err_interp_result.fung
+-- stdout
+-- stderr
+| error[E0519]: an `Ok` value in string interpolation: a result is not put into text silently
+|   --> tests/lang/err_interp_result.fung:4:7
+|   |
+| 4 | print("http://${r}/")
+|   |       ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_interp_result.fung:4 <entry>
+|  help: unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`
+-- exit: 1
+==== tests/lang/err_join_result.fung
+-- stdout
+-- stderr
+| error[E0519]: an `Err` value in `join`: a result is not put into text silently
+|   --> tests/lang/err_join_result.fung:3:11
+|   |
+| 3 | print(join(["a", Err("b")], ","))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_join_result.fung:3 <entry>
+|  help: unwrap it with `!` or `?` first; if the result itself is meant, write `str(x)`
+-- exit: 1
 ==== tests/lang/err_json_stringify.fung
 -- stdout
 -- stderr
@@ -909,6 +1062,16 @@
 |    tests/lang/err_local_never_read.fung:9 <entry>
 |  help: this task waits to receive, but it still holds that channel's sending end itself (a variable of `<lambda>`), so the channel cannot close: close it with `close` first, or leave the sending end to the producers only
 -- exit: 1
+==== tests/lang/err_map_pattern_dup_key.fung
+-- stdout
+-- stderr
+| error[E0113]: duplicate key `a` in a map literal or pattern
+|   --> tests/lang/err_map_pattern_dup_key.fung:3:10
+|   |
+| 3 |   {a: x, a: 2} => print(x)
+|   |          ^
+|   |
+-- exit: 2
 ==== tests/lang/err_map_question.fung
 -- stdout
 -- stderr
@@ -998,6 +1161,29 @@
 |   |       ^
 |   |
 -- exit: 2
+==== tests/lang/err_number_leading_zero.fung
+-- stdout
+-- stderr
+| error[E0102]: malformed number "0755"
+|   --> tests/lang/err_number_leading_zero.fung:3:8
+|   |
+| 3 | perm = 0755
+|   |        ^
+|   |
+|  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+-- exit: 2
+==== tests/lang/err_ok_two_values.fung
+-- stdout
+-- stderr
+| error[E0605]: `!` on an Ok with 2 values, which is not a result (Ok(x) or Err(e))
+|   --> tests/lang/err_ok_two_values.fung:3:15
+|   |
+| 3 | print(Ok(1, 2)!)
+|   |               ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_ok_two_values.fung:3 <entry>
+-- exit: 1
 ==== tests/lang/err_open_if_assign.fung
 -- stdout
 -- stderr
@@ -1076,6 +1262,17 @@
 |   |
 |  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
 -- exit: 2
+==== tests/lang/err_pipe_tag_hole.fung
+-- stdout
+-- stderr
+| error[E0227]: `_` in a call on the right of `|>`
+|   --> tests/lang/err_pipe_tag_hole.fung:3:17
+|   |
+| 3 | print(1 |> Pair(_, 2))
+|   |                 ^
+|   |
+|  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
+-- exit: 2
 ==== tests/lang/err_pmap_failed.fung
 -- stdout
 -- stderr
@@ -1143,6 +1340,19 @@
 |   |
 |  call path (innermost first):
 |    tests/lang/err_regex.fung:2 <entry>
+-- exit: 1
+==== tests/lang/err_regex_replace_group.fung
+-- stdout
+-- stderr
+| error[E0521]: the replacement names group `nope`, which the pattern does not have
+|   --> tests/lang/err_regex_replace_group.fung:4:20
+|   |
+| 4 | print(regex.replace("abc", "(?<mid>b)", `[${nope}]`))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    tests/lang/err_regex_replace_group.fung:4 <entry>
+|  help: name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`
 -- exit: 1
 ==== tests/lang/err_rest_type.fung
 -- stdout
@@ -1439,6 +1649,28 @@
 |    tests/lang/err_task_self_result.fung:4 <entry>
 |  help: send or return the data, not the channel end or task handle that leads back here
 -- exit: 1
+==== tests/lang/err_test_name_empty.fung
+-- stdout
+-- stderr
+| error[E0233]: the test name "" is empty
+|   --> tests/lang/err_test_name_empty.fung:2:1
+|   |
+| 2 | test "":
+|   | ^
+|   |
+|  help: give each test in a file its own name: the report names a failed test by it
+-- exit: 2
+==== tests/lang/err_test_name_twice.fung
+-- stdout
+-- stderr
+| error[E0233]: the test name "parses" is used by another test in this file
+|   --> tests/lang/err_test_name_twice.fung:6:1
+|   |
+| 6 | test "parses":
+|   | ^
+|   |
+|  help: give each test in a file its own name: the report names a failed test by it
+-- exit: 2
 ==== tests/lang/err_test_nested.fung
 -- stdout
 -- stderr
@@ -1511,7 +1743,7 @@
 ==== tests/lang/err_try_map_not_result.fung
 -- stdout
 -- stderr
-| error[E0605]: `try_map` on a value of type int (not Ok or Err)
+| error[E0605]: `try_map` on a value of type int, which is not a result (Ok(x) or Err(e))
 |   --> tests/lang/err_try_map_not_result.fung:2:14
 |   |
 | 2 | print(try_map([1], x => x + 1))
@@ -1610,6 +1842,28 @@
 |   |       ^ not found in this scope
 |   |
 -- exit: 2
+==== tests/lang/err_value_empty_block.fung
+-- stdout
+-- stderr
+| error[E0231]: a block used as a value is empty, so the value is nil
+|   --> tests/lang/err_value_empty_block.fung:3:17
+|   |
+| 3 | x = if false: 1 else: ;;
+|   |                 ^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
+-- exit: 2
+==== tests/lang/err_value_ends_in_assert.fung
+-- stdout
+-- stderr
+| error[E0231]: a block used as a value ends in `assert`, so the value is nil
+|   --> tests/lang/err_value_ends_in_assert.fung:2:14
+|   |
+| 2 | x = if true: assert true else: 2 ;;
+|   |              ^^^^^^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
+-- exit: 2
 ==== tests/lang/err_value_ends_in_assign.fung
 -- stdout
 -- stderr
@@ -1620,6 +1874,17 @@
 |   |   ^^
 |   |
 |  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+-- exit: 2
+==== tests/lang/err_value_ends_in_fn.fung
+-- stdout
+-- stderr
+| error[E0231]: a block used as a value ends in the definition of `g`, so the value is nil
+|   --> tests/lang/err_value_ends_in_fn.fung:3:3
+|   |
+| 3 |   fn g() = 1
+|   |   ^^
+|   |
+|  help: end the block with the value it stands for; write `nil` last if nil is meant
 -- exit: 2
 ==== tests/lang/exit_from_task.fung
 -- stdout
@@ -1739,6 +2004,20 @@
 | [0, 10, 20]
 | [1] [2]
 | [nil, Err({kind: 'closed, message: "channel closed"})]
+| [1]
+| [2]
+| []
+| first: Err({kind: 'closed, message: "channel closed"})
+| [4]
+| Err({kind: 'empty, message: "channel empty"})
+| top move: Err({kind: 'closed, message: "channel closed"})
+| top clear: [3]
+-- stderr
+-- exit: 0
+==== tests/lang/map_pattern_string_keys.fung
+-- stdout
+| text/plain 7
+| 1 2
 -- stderr
 -- exit: 0
 ==== tests/lang/map_shorthand.fung
@@ -1859,10 +2138,31 @@
 | port 8081
 -- stderr
 -- exit: 0
+==== tests/lang/regex_replace_groups.fung
+-- stdout
+| b-a a[]$
+-- stderr
+-- exit: 0
 ==== tests/lang/rest_and_alias.fung
 -- stdout
 | 0 2 (1, []) (1, [2, 3])
 | 12 10
+-- stderr
+-- exit: 0
+==== tests/lang/result_arity.fung
+-- stdout
+| Ok(1, 2) Err(1, 2)
+| 3
+| 1 0
+-- stderr
+-- exit: 0
+==== tests/lang/result_text.fung
+-- stdout
+| r is Ok(1)
+| Ok(1) Err("x")
+| all: [Ok(1), Err(2)]
+| Ok(1) Err(2)
+| tag: Red(1)
 -- stderr
 -- exit: 0
 ==== tests/lang/results.fung
@@ -1936,12 +2236,24 @@
 | [1, 3, true]
 -- stderr
 -- exit: 0
+==== tests/lang/supervise_lost_err_now.fung
+-- stdout
+| dropping 'task
+| on_fail said E0607
+| done
+-- stderr
+-- exit: 0
 ==== tests/lang/sym_str_compare.fung
 -- stdout
 | false false false true true true
 | true true false
 | string
 | true
+-- stderr
+-- exit: 0
+==== tests/lang/sym_tag_names.fung
+-- stdout
+| warm true true
 -- stderr
 -- exit: 0
 ==== tests/lang/symbols.fung
@@ -1955,6 +2267,13 @@
 | 1
 | 2
 | {HOME: 'Red}
+-- stderr
+-- exit: 0
+==== tests/lang/tag_partial.fung
+-- stdout
+| [Ok(1), Ok(2)]
+| evaluated
+| Pair(0, 1) Pair(0, 2)
 -- stderr
 -- exit: 0
 ==== tests/lang/task_err.fung
@@ -2094,6 +2413,11 @@
 ==== tests/lang/unused_var_silent_in_run.fung
 -- stdout
 | 2
+-- stderr
+-- exit: 0
+==== tests/lang/value_statement_blocks.fung
+-- stdout
+| ok
 -- stderr
 -- exit: 0
 ==== tests/lang/wait_closed.fung
@@ -2255,19 +2579,51 @@
 ==== -e "exit(300)"
 -- stdout
 -- stderr
--- exit: 44
+| error[E0403]: argument `code` must be an int from 0 to 255, got 300
+|   --> -e:1:5
+|   |
+| 1 | exit(300)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== -e "exit(-1)"
 -- stdout
 -- stderr
--- exit: 255
+| error[E0403]: argument `code` must be an int from 0 to 255, got -1
+|   --> -e:1:5
+|   |
+| 1 | exit(-1)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== -e "exit(1099511627777)"
 -- stdout
 -- stderr
+| error[E0403]: argument `code` must be an int from 0 to 255, got 1099511627777
+|   --> -e:1:5
+|   |
+| 1 | exit(1099511627777)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
 -- exit: 1
 ==== -e "exit(9223372036854775807)"
 -- stdout
 -- stderr
--- exit: 255
+| error[E0403]: argument `code` must be an int from 0 to 255, got 9223372036854775807
+|   --> -e:1:5
+|   |
+| 1 | exit(9223372036854775807)
+|   |     ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== -e "exit(0)"
 -- stdout
 -- stderr

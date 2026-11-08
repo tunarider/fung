@@ -145,7 +145,7 @@ pat_term    = &quot;_&quot; | NAME | [ &quot;-&quot; ] ( INT | FLOAT ) | STRING 
             | &quot;(&quot; &quot;)&quot; | &quot;(&quot; pattern &quot;,&quot; [ pattern { &quot;,&quot; pattern } [ &quot;,&quot; ] ] &quot;)&quot;
             | &quot;[&quot; [ pattern { &quot;,&quot; pattern } ] [ [ &quot;,&quot; ] &quot;...&quot; [ NAME ] ] &quot;]&quot;
             | &quot;{&quot; [ pat_entry { &quot;,&quot; pat_entry } ] &quot;}&quot; .
-pat_entry   = key_name &quot;:&quot; pattern | NAME | TAG .
+pat_entry   = (key_name | STRING) &quot;:&quot; pattern | NAME | TAG .
 
 type        = type_term { &quot;|&quot; type_term } .
 type_term   = NAME [ &quot;[&quot; type &quot;]&quot; ] | TAG .</code></pre>

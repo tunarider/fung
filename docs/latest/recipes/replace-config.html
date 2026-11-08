@@ -145,11 +145,20 @@ timeout=30s</code></pre></div>
 
 line = &quot;port = 8080&quot;
 print(replace(line, &quot;port = .*&quot;, &quot;port = 9090&quot;))
-print(regex.replace(line, `=.*`, &quot;= 9090&quot;))
-print(regex.replace(&quot;price = 10&quot;, `\d+`, &quot;$5&quot;))</code></pre><pre class="out plain"><code>port = 8080
-port = 9090
-price = </code></pre></div>
-<p>마지막 줄의 <code>$5</code>는 "다섯째 조각"으로 읽혀 빈 문자열이 되었다.</p>
+print(regex.replace(line, `=.*`, &quot;= 9090&quot;))</code></pre><pre class="out plain"><code>port = 8080
+port = 9090</code></pre></div>
+<p><code>repl</code> 안의 <code>$5</code>는 "다섯째 조각"으로 읽힌다. 패턴에 그런 조각이 없으면 런타임 에러 E0521로 멈춘다(0.5.0까지는 말없이 빈 문자열이 되어 값을 지웠다).</p>
+<div class="run"><pre><code>import regex
+
+print(regex.replace(&quot;price = 10&quot;, `\d+`, &quot;$5&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0521]: the replacement names group `5`, which the pattern does not have
+  --&gt; example.fung:3:20
+  |
+3 | print(regex.replace(&quot;price = 10&quot;, `\d+`, &quot;$5&quot;))
+  |                    ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;
+ help: name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`</code></pre></div>
 </div>
 <h2 id="vary">응용</h2>
 <ul>

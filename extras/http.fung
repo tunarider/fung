@@ -181,15 +181,29 @@ fn _hop(r, u, method, with_body, strip, prev, n):
   # one) without the body, and no later request has it.
   keep = res.status == 307 or res.status == 308
   m = keep or method == "GET" or method == "HEAD" then method else "GET"
-  away = strip or (next.host != r.first.host and not _same_site(r.first.host, next.host))
+  away = strip or _leaves_origin(r.first, next)
   _hop(r, next, m, with_body and keep, away, u, n + 1)
+;;
+
+# The credentials belong to the first URL's origin (LB2): a redirect that
+# goes down from https to http, to another port (the scheme's own when
+# none is written), or to a host that is not the first one or under it
+# leaves it, and the credentials stay behind for good (as curl does).
+fn _leaves_origin(first, next) = (first.scheme == "https" and next.scheme != "https")
+  or _port_of(first) != _port_of(next)
+  or (next.host != first.host and not _same_site(first.host, next.host))
+
+# The port a URL reaches: its own, else its scheme's (RFC 9110 4.2).
+fn _port_of(u):
+  (_, p) = _host_port(u.host)
+  p != "" then p else (u.scheme == "https" then "443" else "80")
 ;;
 
 # At most 10 redirects are followed: the 11th is an error.
 _redirect_limit = 10
 
 # The user's headers again for a redirect: without the credentials once
-# a request left the first host and its subdomains (for good), without
+# a request left the first URL's origin (`_leaves_origin`, for good), without
 # the body's once the body was dropped, with the URL before as Referer
 # (RFC 9110 10.1.3: without its userinfo, none from https to http; the
 # user's own wins). The user's Host names the first URL's server: it goes
@@ -210,8 +224,8 @@ _sensitive = ["Authorization", "Www-Authenticate", "Cookie", "Cookie2", "Proxy-A
 
 _body_headers = ["Content-Encoding", "Content-Language", "Content-Location", "Content-Type"]
 
-# Credentials go along to the first host (port and case aside) and its
-# subdomains only.
+# A host that is the first one or under it (case aside; the port is
+# `_leaves_origin`'s).
 fn _same_site(first, next):
   (parent, _) = _host_port(first)
   (sub, _) = _host_port(next)

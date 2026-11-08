@@ -358,6 +358,7 @@ fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     with_pattern(t, a, |a, s, _, c| {
         let repl = nat::need_bytes("repl", &a[2])?;
+        check_repl(&c.re, repl)?;
         let mut out = Vec::with_capacity(s.len());
         let mut last = 0;
         for caps in matches(c, s) {
@@ -369,6 +370,52 @@ fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
         out.extend_from_slice(&s[last..]);
         Ok(Value::bytes(out))
     })
+}
+
+/// Every group `repl` names exists in the pattern (LB10): one that does
+/// not would expand to nothing and drop text silently, so it is a code
+/// error, E0521. The names are read as `Captures::expand` reads them: `$$`
+/// is a `$`; `$name` takes the longest run of `[_0-9A-Za-z]` (so `$1a` is
+/// the name `1a`, write `${1}a`); `${name}` is braced; a name of digits is
+/// a group's number; a `$` before anything else is itself.
+fn check_repl(c: &Regex, repl: &[u8]) -> Result<(), Stop> {
+    let named = |n: &[u8]| {
+        let n = String::from_utf8_lossy(n);
+        match n.parse::<usize>() {
+            Ok(i) => i < c.captures_len(),
+            Err(_) => c.capture_names().flatten().any(|g| g == n),
+        }
+    };
+    let word = |b: u8| b == b'_' || b.is_ascii_alphanumeric();
+    let mut i = 0;
+    while i < repl.len() {
+        if repl[i] != b'$' {
+            i += 1;
+            continue;
+        }
+        let rest = &repl[i + 1..];
+        let (name, used) = if rest.first() == Some(&b'$') {
+            (None, 1)
+        } else if rest.first() == Some(&b'{') {
+            match rest.iter().position(|&b| b == b'}') {
+                Some(end) if end > 1 => (Some(&rest[1..end]), end + 1),
+                _ => (None, 0),
+            }
+        } else {
+            let n = rest.iter().take_while(|&&b| word(b)).count();
+            ((n > 0).then(|| &rest[..n]), n)
+        };
+        if let Some(name) = name
+            && !named(name)
+        {
+            return Err(nat::fail(
+                "E0521",
+                vec![Arg::Str(String::from_utf8_lossy(name).into_owned())],
+            ));
+        }
+        i += 1 + used;
+    }
+    Ok(())
 }
 
 /// The pieces between matches, empty ones kept, like `split(s, sep)`

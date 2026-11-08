@@ -170,7 +170,7 @@ match parse_int(port):
 <h4>에러</h4>
 <ul>
 <li>닫힌 파일 핸들이면 <code>Err({kind: 'closed, message})</code>.</li>
-<li>쓰기용으로 연 핸들이면 <code>Err({kind: 'invalid, message})</code>(<code>file … is not open for reading</code>).</li>
+<li>쓰기용으로 연 핸들이면 런타임 에러 E0520(<code>file … is not open for reading</code>). 모드는 코드가 정하는 것이라 코드 오류다.</li>
 <li>그 밖의 읽기 실패는 <a href="../modules/fs.html"><code>fs</code></a>의 다른 함수와 같은 <code>Err</code>(<code>'io</code> 등).</li>
 <li><code>f</code>가 파일도 <code>nil</code>도 아니면 런타임 에러 E0403.</li>
 </ul>

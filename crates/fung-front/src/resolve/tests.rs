@@ -503,7 +503,11 @@ fn a_closed_name_is_not_read_as_the_prelude() {
     let (_, errs) = resolve_with("fn f():\n  if true: max = 1 ;;\n  max\n;;", &["max"], &opts);
     assert_eq!(codes(&errs), vec!["E0206"]);
     // A local fn defined later in the block is E0208, not the builtin.
-    let (_, errs) = resolve_with("fn f():\n  max(1)\n  fn max(x) = x\n;;", &["max"], &opts);
+    let (_, errs) = resolve_with(
+        "fn f():\n  max(1)\n  fn max(x) = x\n  nil\n;;",
+        &["max"],
+        &opts,
+    );
     assert_eq!(codes(&errs), vec!["E0208"]);
     // The prelude stays visible where nothing of that name was closed.
     let (_, errs) = resolve_with("fn f(s) = lines(s)", &["lines"], &opts);

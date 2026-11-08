@@ -320,15 +320,18 @@ fn numeric_separators_are_strict() {
     assert!(matches!(call("float", vec![st("1_0.5")]), Ok(Value::Float(f)) if f == 10.5));
 }
 
-/// `sym` takes a name (01, UAX #31): letter numerals and combining marks
-/// may be part of one; superscripts and circled letters may not.
+/// `sym` takes what a symbol literal takes (01, UAX #31, SP4): a tag-shaped
+/// name too; letter numerals and combining marks may be part of one;
+/// superscripts and circled letters may not.
 #[test]
 fn sym_requires_a_name() {
-    for bad in ["", "a b", "Ab", "1a", "a-b", "x²", "ⓐ"] {
+    for bad in ["", "a b", "1a", "a-b", "x²", "ⓐ"] {
         assert_eq!(code(&call("sym", vec![st(bad)])), "E0513", "sym({bad:?})");
     }
     for good in [
         "ok",
+        "Ab",
+        "Red",
         "snake_case",
         "Ⅻ",
         "ⅻ",
@@ -579,24 +582,22 @@ fn collection_functions_with_the_fung_prelude() {
 
 // --- more behaviour ---
 
-/// exit keeps fung's whole int; the process status is its low 8 bits.
+/// exit keeps its code, and takes only 0..=255 (TL1): the system keeps
+/// the low 8 bits, so a wider code would end as another one.
 #[test]
-fn exit_keeps_the_whole_code() {
-    for (n, status) in [
-        (300i64, 44),
-        (-1, 255),
-        (1 << 40, 0),
-        ((1 << 40) + 3, 3),
-        (-256, 0),
-        (1 << 31, 0),
-    ] {
+fn exit_takes_a_code_from_0_to_255() {
+    for n in [0i64, 4, 255] {
         let r = call("exit", vec![Value::Int(n)]);
         assert!(
             matches!(r, Err(Stop::Exit(m)) if m == n),
             "exit({n}): {r:?}"
         );
         let o = exec(&format!("exit({n})"), Opts::default());
-        assert_eq!((o.code.as_str(), o.exit), ("exit", status), "exit({n})");
+        assert_eq!((o.code.as_str(), o.exit), ("exit", n as i32), "exit({n})");
+    }
+    for n in [256i64, 300, -1, -256, 1 << 40] {
+        let o = exec(&format!("exit({n})"), Opts::default());
+        assert_eq!(o.code, "E0403", "exit({n})");
     }
 }
 

@@ -49,7 +49,7 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
   </tbody>
 </table>
 <p><code>sort</code>, <code>unique</code>, <code>contains</code>, <code>in</code>은 모두 이 표를 따른다.</p>
-<p><strong>심볼과 문자열의 비교는 에러다.</strong> JSON·파일·명령 출력에서 온 값은 늘 문자열이라 <code>back.kind == 'not_found</code>가 조용히 거짓이 되는 것이 가장 흔한 함정이기 때문이다. 리스트·맵 안에서 맞붙어도, <code>in</code>도 같다. 문자열 쪽을 <code>sym(s)</code>로 바꾼다. 패턴(<code>'not_found =&gt;</code>)은 비교가 아니라서 그대로 맞지 않을 뿐이다.</p>
+<p><strong>심볼과 문자열의 비교는 에러다.</strong> JSON·파일·명령 출력에서 온 값은 늘 문자열이라 <code>back.kind == 'not_found</code>가 조용히 거짓이 되는 것이 가장 흔한 함정이기 때문이다. 리스트·맵 안에서 맞붙어도, <code>in</code>도 같다. 다만 <code>==</code>가 실제로 견주는 쌍만 본다. 첫 차이에서 멈추므로 <code>[1, 'a] == [2, "a"]</code>는 <code>false</code>다. 문자열 쪽을 <code>sym(s)</code>로 바꾼다. 패턴(<code>'not_found =&gt;</code>)은 비교가 아니라서 그대로 맞지 않을 뿐이다.</p>
 
 ## 경계 사례와 에러 {#edges}
 

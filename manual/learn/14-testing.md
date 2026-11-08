@@ -154,6 +154,7 @@ test "rotate renames each log":
     fs.write(path.join(d, "b.txt"), "y")!
     assert rotate(d)! == 1
     assert fs.list(d)! == ["a.log.1", "b.txt"]
+    nil
   ;;)
 ;;
 ```
@@ -162,6 +163,8 @@ test "rotate renames each log":
 ok   example.fung: rotate renames each log
 1 passed, 0 failed
 ```
+
+`with_temp_dir`는 함수가 돌려준 값을 그대로 돌려주므로, 그 함수의 본문은 값을 쓰는 자리다. 블록이 `assert`로 끝나면 값이 없어 에러(E0231)이므로, 돌려줄 것이 없다는 뜻으로 끝에 `nil`을 쓴다.
 
 ## dbg로 중간 값 보기 {#dbg}
 

@@ -1,0 +1,6 @@
+# sym takes what a symbol literal takes (SP4): a tag-shaped name too, so
+# an enum value read from outside becomes the tag it names.
+type color = Red | Green
+fn paint(c: color) = c == Red then "warm" else "cool"
+print(paint(sym("Red")), sym("Green") == Green, sym("Ok") == 'Ok)
+# expect: warm true true

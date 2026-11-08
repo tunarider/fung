@@ -1,0 +1,4 @@
+# Only list and map take an element type (FE17): int[str] means nothing.
+fn f(x: int[str]) = x
+print(f(1))
+# expect-error: E0232

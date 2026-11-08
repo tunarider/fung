@@ -52,7 +52,7 @@
 | Ok(nil) Ok("short")
 | Ok(nil) Ok(nil) Ok(nil) true Ok(nil)
 | Ok(nil) Ok({name: "c.txt", size: 5, is_dir: false, mtime: $TIME})
-| Ok(nil) Ok(nil)
+| Err({kind: 'exists, message: "cannot copy `$D/w.txt` to `$D/m/c.txt`: file exists"}) Err({kind: 'exists, message: "cannot copy `$D/w.txt` to `$D/w.txt`: file exists"})
 | Ok(nil) false Ok("short")
 | Ok(nil) Err({kind: 'exists, message: "cannot move `$D/m/n` to `$D/m/n`: file exists"})
 | Ok(nil) true
@@ -69,9 +69,9 @@
 | <file "$D/h.txt"> 'file true false true
 | Ok(nil) Ok(nil) Ok("")
 | Ok(nil) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Ok("one\ntwo\n")
-| Err({kind: 'invalid, message: "file `$D/h.txt` is not open for writing"}) Ok("one") Ok(["two"]) Ok(nil) Ok([])
+| Ok("one") Ok(["two"]) Ok(nil) Ok([])
 | Ok(nil) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"}) Err({kind: 'closed, message: "file `$D/h.txt` is closed"})
-| Ok(nil) Err({kind: 'invalid, message: "file `$D/h.txt` is not open for reading"}) Err({kind: 'invalid, message: "file `$D/h.txt` is not open for reading"}) Ok(nil) Ok("one\ntwo\nthree\n")
+| Ok(nil) Ok(nil) Ok("one\ntwo\nthree\n")
 | Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'not_found, message: "cannot open `$D/nope/x`: no such file or directory"}) Err({kind: 'not_found, message: "cannot open `$D/nope/x`: no such file or directory"})
 | Err({kind: 'permission, message: "cannot open `$D/locked`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/locked`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/locked`: permission denied"})
 | Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) true
@@ -79,7 +79,7 @@
 | Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"})
 | Ok([]) Ok(["a\xffb\xc3"]) [Ok("hi"), Ok(nil)]
 | Ok(["x"]) Ok(nil) Ok("w\n")
-| Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Err({kind: 'invalid, message: "file `$D/w.txt` is not open for reading"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
+| Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
 | Ok(nil) Ok(["a", "b", "", "", "c"]) Ok(["a", "b", "", "", "c"])
 | Ok(nil)
 | <file "$D/a.txt"> Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"}) Err({kind: 'closed, message: "file `$D/a.txt` is closed"})
@@ -152,13 +152,6 @@
 | Ok([]) Ok(["$D/t/locked_d"])
 | Ok(["$D/t/ln_dir/.g", "$D/t/ln_dir/A", "$D/t/ln_dir/b.md", "$D/t/ln_dir/deep"])
 | Ok(["$D/t/ln_dir/A/c.md", "$D/t/sub/A/c.md"])
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/[`: syntax error in pattern"})
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/*/[`: syntax error in pattern"})
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/*[`: syntax error in pattern"})
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/[/*`: syntax error in pattern"})
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/a[/*`: syntax error in pattern"})
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/none/[`: syntax error in pattern"})
-| Err({kind: 'invalid, message: "bad glob pattern `$D/t/\\`: syntax error in pattern"})
 | Ok([]) Ok(["Cargo.toml"]) Ok(["src/native/glob.rs"]) Ok(["Cargo.toml"])
 | Ok([]) Ok([])
 -- stderr

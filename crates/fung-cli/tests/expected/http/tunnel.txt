@@ -34,7 +34,6 @@
 |
 | 200 plain
 | 200 GET /y HTTP/1.1 host=wrong.example:8443
-| Authorization: a
 | Referer: https://wrong.example/r?to=https://wrong.example:8443/y
 | User-Agent: fung/$VERSION
 |

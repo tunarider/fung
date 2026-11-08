@@ -1,0 +1,5 @@
+# A test name is not empty (FE20): the report could not tell it apart.
+test "":
+  assert true
+;;
+# expect-error: E0233

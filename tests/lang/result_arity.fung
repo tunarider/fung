@@ -1,0 +1,8 @@
+# Only Ok(x) and Err(e) are results (VM4): another arity is a plain tag
+# value, which `??` keeps and a pattern takes apart.
+print(Ok(1, 2) ?? 0, Err(1, 2) ?? 0)
+# expect: Ok(1, 2) Err(1, 2)
+print(match Ok(1, 2): Ok(a, b) => a + b ;;)
+# expect: 3
+print(Ok(1) ?? 0, Err("x") ?? 0)
+# expect: 1 0

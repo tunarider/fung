@@ -21,7 +21,7 @@ const CASES: &[&str] = &[
     "scope(s => spawn(s, () => 1))",
 ];
 
-/// More `-e` programs: exit codes the OS cuts to 8 bits, the order of
+/// More `-e` programs: exit codes outside 0..=255, refused (TL1), the order of
 /// nested `with` releases, errors and exits inside releases, standard
 /// input and arguments.
 const MORE: &[&str] = &[
@@ -174,9 +174,9 @@ fn cases() -> Vec<Case> {
 
 /// How many cases there are, by kind (a case must not go missing
 /// unnoticed; change these together with the cases).
-const LANG_CASES: usize = 211;
+const LANG_CASES: usize = 243;
 const BENCH_CASES: usize = 11;
-const ALL_CASES: usize = 272;
+const ALL_CASES: usize = 304;
 
 #[test]
 fn every_case_is_counted() {
@@ -284,7 +284,7 @@ const REPEAT: usize = 50;
 
 /// How many concurrent cases there are.
 #[cfg(not(debug_assertions))]
-const CONCURRENT_CASES: usize = 63;
+const CONCURRENT_CASES: usize = 64;
 
 /// The concurrent cases: the `tests/lang` files that call a concurrency
 /// builtin, and `CONCURRENT`.
