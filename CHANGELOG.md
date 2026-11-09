@@ -8,6 +8,13 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-09
+
+0.5.0 뒤에 명세·앞단·VM·값·동시성·표준 라이브러리·CLI를 다시 점검해 찾은 98개 항목을 모두 고친 릴리스다. 지역 변수는 더 읽힐 수 없게 된
+첫 문장 뒤에 놓이고, 값 자리의 빈 블록(E0231)·결과의 보간(E0519)·`0`으로 시작하는 10진수(E0102) 같은 조용한 실수를 에러로 막는다.
+이름을 맞췄고(`timeout(f, d)`·`send_now`·`recv_now`·`close(x)`), `fs.write`는 원자적이며, HTTP 서버가 핸들러의 답을 더 엄격히 본다.
+매뉴얼의 언어 명세가 규범이 되었다. 아래 "바뀜(호환 깨짐)"을 따라 고쳐야 하는, 호환이 깨지는 릴리스다.
+
 ### 보안
 
 - `http`가 리다이렉트를 따라갈 때 `Authorization`·`Cookie` 같은 민감한 헤더를 같은 호스트의 **다른 포트**와 **https에서 http로 내려가는 곳**에도 보내던 것.
@@ -689,7 +696,8 @@ fung 실행 파일이 Go 구현에서 Rust 구현으로 바뀌었다. 언어와 
 - 설치 스크립트 `install.sh`, `go install github.com/tunarider/fung/cmd/fung@latest`.
 - HTML 매뉴얼(`docs/`, GitHub Pages).
 
-[Unreleased]: https://github.com/tunarider/fung/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/tunarider/fung/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/tunarider/fung/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tunarider/fung/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/tunarider/fung/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tunarider/fung/compare/v0.2.0...v0.3.0
