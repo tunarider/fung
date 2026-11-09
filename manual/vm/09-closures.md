@@ -56,11 +56,9 @@ fung의 프레임은 Rust 구조체 하나다(`crates/fung-vm/src/vm/frame.rs`�
 <table>
   <thead><tr><th>필드</th><th>뜻</th></tr></thead>
   <tbody>
-    <tr><td><code>proto</code></td><td>실행할 함수의 원형(8장): 명령열, 상수, 매개변수 표</td></tr>
+    <tr><td><code>closure</code></td><td>실행 중인 함수 값. 원형(8장: 명령열, 상수, 매개변수 표), 붙잡은 값(아래 클로저 절), 모듈의 전역 표(11장)를 여기서 읽는다. 진입 파일과 모듈의 본문도 붙잡은 값이 없는 클로저 하나로 돈다</td></tr>
     <tr><td><code>ip</code></td><td>다음에 실행할 명령의 번호. "돌아올 자리"는 부른 쪽 프레임의 이 값이다</td></tr>
     <tr><td><code>base</code></td><td>이 함수의 슬롯이 값 스택의 몇 번째 칸부터인가</td></tr>
-    <tr><td><code>closure</code></td><td>실행 중인 함수 값. 붙잡은 값(아래 클로저 절)을 여기서 읽는다</td></tr>
-    <tr><td><code>globals</code></td><td>이 함수가 속한 모듈의 전역 표(11장)</td></tr>
     <tr><td><code>tail_calls</code></td><td>꼬리 호출로 이 프레임을 몇 번 다시 썼나(아래 꼬리 호출 절)</td></tr>
   </tbody>
 </table>
@@ -81,7 +79,7 @@ print(greet("fung", greeting: "hi"))
 VM이 인자를 묶는 길은 둘이다(`crates/fung-vm/src/vm/call.rs`의 `call_op`).
 
 - **빠른 길.** fung 함수를 위치 인자만으로, 매개변수 개수만큼 정확히 부르면 스택에 놓인 인자가 그 자리에서 새 프레임의 첫 슬롯이 된다. 나머지 지역 변수 칸은 비워 둔 채 이어 붙인다. 힙 할당이 없다. `double(21)`이 이 길이다.
-- **일반 길.** 이름 인자, 기본값, `...rest`가 있거나 개수가 맞지 않으면 `bind_args`가 매개변수 표를 보고 칸을 새로 배치한다. 위치 인자는 차례로, 이름 인자는 표에서 찾아 넣고, 남는 위치 인자는 `...rest` 리스트로 모은다. 맞지 않으면 E0402(인자 수가 맞지 않음), E0405(같은 인자 두 번), E0406(없는 이름), E0407(빠진 인자)이다.
+- **일반 길.** 이름 인자, 기본값, `...rest`가 있거나 개수가 맞지 않으면 `bind_in_place`가 매개변수 표를 보고 인자가 놓인 그 자리에서 칸을 배치한다. 먼저 모두 검사한 뒤, 이름 인자는 매개변수 이름의 심볼 번호로 찾아 넣고, 남는 위치 인자는 `...rest` 리스트로 모은다. 맞지 않으면 E0402(인자 수가 맞지 않음), E0405(같은 인자 두 번), E0406(없는 이름), E0407(빠진 인자)이다.
 
 ```fung run exit=1 error=E0407
 fn f(a, b) = a + b
@@ -89,7 +87,7 @@ fn f(a, b) = a + b
 print(f(1))
 ```
 
-내장 함수도 같은 매개변수 표를 선언하므로(`NativeParam`) 같은 `bind_args`를 지난다. `exec(cmd, cwd: dir)`처럼 내장 함수에 이름 인자를 줄 수 있고, 에러 번호도 fung 함수와 같다.
+내장 함수도 같은 매개변수 표를 선언하므로(`NativeParam`) 같은 두 길을 지난다. 다른 점은 기본값뿐이다: 내장 함수의 기본값은 상수라 묶을 때 바로 채운다. `exec(cmd, cwd: dir)`처럼 내장 함수에 이름 인자를 줄 수 있고, 에러 번호도 fung 함수와 같다.
 
 ### 기본값은 함수 서두에서 {#defaults}
 
@@ -302,7 +300,7 @@ print(down(5))
 
 - `crates/fung-vm/src/vm/frame.rs`: `Frame` 구조체.
 - `crates/fung-vm/src/vm.rs`: 실행 루프 `step_loop`(`Op::Call`·`Op::TailCall`·`Op::Closure`·`Op::LoadCaptured`·`Op::LoadSelf`·`Op::JumpIfSet` 갈래), 클로저를 만드는 `make_closure`.
-- `crates/fung-vm/src/vm/call.rs`: 호출 규약. `call_op`(빠른 길), `enter`, `bind_args`, `push_frame`, 꼬리 호출의 `reuse_frame`, `ret_with`, 깊이 한도 `MAX_FRAMES`.
+- `crates/fung-vm/src/vm/call.rs`: 호출 규약. `call_op`(빠른 길), `bind_in_place`, `run_native`, `push_frame`, 꼬리 호출의 `reuse_frame`, `ret_with`, 깊이 한도 `MAX_FRAMES`.
 - `crates/fung-vm/src/value.rs`: 함수 값 `Closure{proto, captured, globals}`.
 - `crates/fung-front/src/tree/fn_info.rs`: 붙잡기 목록 `Capture`와 `CaptureKind`.
 - `crates/fung-front/src/compiler.rs`, `compiler/fn_.rs`: `tail` 표시, `call`(CALL·TAILCALL 고르기), `function`(서두와 자식 원형).
@@ -332,8 +330,8 @@ print(total(map(0..200000, i => 1), 0))
 
 ## 정리 {#summary}
 
-- 함수 호출은 프레임 하나를 쌓는다. 프레임은 원형, 다음 명령 번호(`ip`), 슬롯의 시작(`base`), 실행 중인 클로저, 모듈 전역을 든다. 프레임과 값 스택은 힙의 배열이라 fung의 재귀는 Rust의 재귀가 아니다.
-- `CALL n`의 피연산자는 위치 인자 수와 이름 인자 수를 담는다. 개수가 맞는 위치 인자는 그 자리에서 슬롯이 되고, 나머지는 `bind_args`가 배치한다. 내장 함수도 같은 규약을 쓴다.
+- 함수 호출은 프레임 하나를 쌓는다. 프레임은 실행 중인 클로저(원형과 모듈 전역을 든다), 다음 명령 번호(`ip`), 슬롯의 시작(`base`)을 든다. 프레임과 값 스택은 힙의 배열이라 fung의 재귀는 Rust의 재귀가 아니다.
+- `CALL n`의 피연산자는 위치 인자 수와 이름 인자 수를 담는다. 개수가 맞는 위치 인자는 그 자리에서 슬롯이 되고, 나머지도 `bind_in_place`가 그 자리에서 배치한다. 내장 함수도 같은 규약을 쓴다.
 - 기본값은 함수 서두의 `JUMPIFSET`이다. 빈 칸(`None`)과 `nil`은 다르다.
 - 클로저는 코드와 붙잡은 값의 묶음이다. fung은 만들어질 때 보이는 값을 **복사**하므로 upvalue 상자가 없다. 자기 참조는 `LOADSELF`다.
 - 최상위 `fn`은 끌어올려지고 최상위 변수를 복사할 수 없다. 한 번만 대입되는 이름만 `LOADGLOBAL`로 읽는다(비어 있으면 E0809).

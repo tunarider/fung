@@ -261,6 +261,60 @@ fn arguments_bind_in_place() {
     }
 }
 
+/// A native called with defaults, named arguments or a rest parameter
+/// binds where its arguments lie, as a fung function does, with the
+/// same errors: plain and step natives, in tail position too.
+#[test]
+fn native_arguments_bind_in_place() {
+    let cases = [
+        ("get({a: 1}, \"b\")", "nil"),
+        ("get({a: 1}, \"b\", default: 2)", "2"),
+        ("get(m: {a: 1}, k: \"a\")", "1"),
+        ("get({a: 1}, k: \"a\")", "1"),
+        ("join([\"a\", \"b\"])", "\"ab\""),
+        ("join([\"a\", \"b\"], sep: \"-\")", "\"a-b\""),
+        ("fn f(m) = get(m, \"a\", default: 0)\nf({})", "0"),
+        ("map(f: x => x + 1, xs: [1, 2])", "[2, 3]"),
+        ("fn f(xs) = map(xs, f: x => x * 2)\nf([1, 2])", "[2, 4]"),
+        ("import path\npath.join(\"a\", \"b\", \"c\")", "\"a/b/c\""),
+        ("import conc\nconc.retry(() => Ok(1), times: 2)", "Ok(1)"),
+    ];
+    for (src, want) in cases {
+        let o = exec(src, Opts::default());
+        assert_eq!(
+            (o.code.as_str(), o.value.as_deref()),
+            ("", Some(want)),
+            "{src}"
+        );
+    }
+    for (src, want) in [
+        (
+            "get({}, \"a\", x: 1)",
+            "error[E0406]: get has no argument named `x`",
+        ),
+        (
+            "get({}, \"a\", k: \"b\")",
+            "error[E0405]: argument `k` given twice",
+        ),
+        ("get({})", "error[E0407]: missing argument `k`"),
+        (
+            "get({}, 1, 2, 3)",
+            "error[E0402]: get takes 3 argument(s), got 4",
+        ),
+        (
+            "trim(\" a \", cut: 1)",
+            "error[E0403]: argument `cut` must be str, got int",
+        ),
+        (
+            "print(1, sep: 2)",
+            "error[E0406]: print has no argument named `sep`",
+        ),
+    ] {
+        let (_, err, _) = run_src(src);
+        assert_eq!(err.lines().next(), Some(want), "{src}");
+    }
+}
+
 /// The leaner code of VM10 means what it meant: a subject read in place,
 /// arms that always match, `and`/`or` as jumps (errors at the same
 /// places), a statement `if` without `else`, returns in tail branches and
@@ -999,16 +1053,10 @@ fn elided_tail_calls_count_past_u32() {
     );
     let mut t = rt.task();
     let globals = t.world.new_globals(0);
-    t.fiber.frames.push(super::frame::Frame {
-        proto: main,
-        ip: 1,
-        base: 0,
-        closure: None,
-        globals,
-        tail_calls: u32::MAX as u64,
-        entry: None,
-        tail_from: None,
-    });
+    let mut f = super::frame::Frame::body(main, globals, 0);
+    f.ip = 1;
+    f.tail_calls = u32::MAX as u64;
+    t.fiber.frames.push(f);
     t.fiber.frames[0].tail_calls += 1;
     let path = t.call_path();
     drop(t); // releases the world borrow for `rt.sources()`

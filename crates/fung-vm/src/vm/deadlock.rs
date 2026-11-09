@@ -95,7 +95,7 @@ impl Place {
 
 /// A frame's function as call paths name it.
 fn func_name(f: &Frame) -> String {
-    proto_name(&f.proto)
+    proto_name(f.proto())
 }
 
 fn proto_name(p: &RtProto) -> String {
@@ -203,7 +203,7 @@ impl Task<'_> {
             .unwrap_or("wait");
         let mut pos = c.map_or(no_pos(), |c| c.pos);
         let mut kind = wait.to_string();
-        if self.fiber.frames.last().is_some_and(|f| f.proto.builtin) {
+        if self.fiber.frames.last().is_some_and(|f| f.proto().builtin) {
             if let Some(p) = self.user_pos() {
                 pos = p;
             }
@@ -219,7 +219,7 @@ impl Task<'_> {
             .iter()
             .rev()
             .find_map(|f| match &f.tail_from {
-                _ if !f.proto.builtin => Some(func_name(f)),
+                _ if !f.proto().builtin => Some(func_name(f)),
                 Some(t) => Some(proto_name(&t.proto)),
                 None => None,
             })
@@ -260,20 +260,17 @@ impl Task<'_> {
             }
         }
         for f in self.fiber.frames.iter().rev() {
-            if f.closure
-                .as_ref()
-                .is_some_and(|c| c.captured.iter().any(held))
-            {
+            if f.closure.captured.iter().any(held) {
                 return Some((format!("a value `{}` captured", func_name(f)), None));
             }
         }
         for f in &self.fiber.frames {
-            let g = f.globals.borrow();
+            let g = f.globals().borrow();
             if let Some(i) = g.iter().position(|v| v.as_ref().is_some_and(held)) {
                 // A function's proto has no names of its module's globals;
                 // the entry's do, when these are the entry's (a test block).
                 let entry = self.world.main.as_ref().map(|m| &m.global_names);
-                let names = Some(&f.proto.global_names)
+                let names = Some(&f.proto().global_names)
                     .filter(|n| !n.is_empty())
                     .or(entry.filter(|n| n.len() == g.len()));
                 return Some(match names.and_then(|n| n.get(i)) {

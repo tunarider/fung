@@ -835,6 +835,7 @@ EBNF가 두 벌(01과 `grammar.md`)인데 서로 다르고 파서와도 어긋�
   - 남는 위치 인자는 rest 리스트로 모으고, 이름 인자는 위쪽에서 꺼내 해당 칸에 쓴다.
   - 링크 때 `RtProto`에 매개변수 이름의 `Sym` 목록을 두면 이름 찾기가 `u32` 비교가 된다. 내장 함수는 `NativeParam`에 같은 표를 둔다.
 - **처리(2026-11-08)**: `vm/call.rs` `Task::bind_in_place`(먼저 모두 검사 → 이름 인자를 위에서 꺼내 태스크의 재사용 버퍼 `Fiber::named`에 → rest 리스트 → 칸 채우기), `RtProto::param_syms`(링크 때 매개변수 이름의 `Sym`), `call_op`와 내장 함수 콜백(`start_call`)이 사용. 내장 함수의 이름 인자·기본값은 예전 `bind_args` 그대로(`Sym::name`이 VM7로 잠금 없음). 측정: 기본값 `add(acc)` 1.901 → 1.234초, 이름 인자 `add(acc, b: 1)` 2.542 → 1.362초, 위치 인자 1.238 → 1.081초(점검 문서 1.78·2.29·1.11초 기준 측정과 같은 모양). 시험 `vm/tests.rs` `arguments_bind_in_place`. 문서 `internals.md` "호출 규약".
+- **후속(2026-11-09)**: 내장 함수도 같은 `bind_in_place`로 묶는다(`Callee::Fung`·`Callee::Native`, 내장 함수의 기본값 상수는 묶을 때 채움, `Native::param_syms`는 만들 때 심볼로). `bind_args`·`enter`는 없어지고 내장 함수 실행은 `run_native` 하나(`call_op`·`start_call`이 씀). 측정(릴리스, `get` 500만 번): 기본값 생략 0.84 → 0.67초, 이름 인자 1.02 → 0.74초, 위치 인자 0.57 → 0.59초(잡음). 시험 `native_arguments_bind_in_place`. 같은 날 VM9의 남은 것인 프레임의 `proto`·`globals` 따로 쥐기도 없앰: `Frame`은 클로저 하나(`Frame::new`·`Frame::body`, 모듈 본문은 붙잡은 값 없는 클로저, `proto()`·`globals()`), `fib`·`loop`·위 벤치에서 차이 없음(잡음 안).
 
 ### VM7. `Sym::name()`이 전역 `Mutex`를 잡는다 — 성능, 낮음
 - 재현: `fn f(i) = Ok(g(i)? + 1)`을 `f(i)!`로 천만 번 부르면 3.15초다. `result_kind`·`may_hold_err`가 미리 만든 심볼과 `u32`로 비교하는 실험 판은 2.99초(−5%)였다.

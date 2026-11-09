@@ -67,7 +67,7 @@ fn compare_by(op: &str, l: &Value, r: &Value) -> Result<bool, Diag> {
 impl Task<'_> {
     /// Runs ASSERT or TEST of frame `fi`.
     pub(super) fn exec_m6(&mut self, fi: usize, op: Op, arg: usize, pos: Pos) -> Result<(), Stop> {
-        let proto = self.fiber.frames[fi].proto.clone();
+        let proto = self.fiber.frames[fi].proto().clone();
         match op {
             Op::Assert => {
                 let a = &proto.asserts[arg];

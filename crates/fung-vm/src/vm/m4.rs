@@ -219,7 +219,7 @@ impl Task<'_> {
                 let v = self.pop();
                 // `index` answers for a module too: its member, E0303
                 // for no such member, E0304 for a private one.
-                let name = &self.fiber.frames[fi].proto.consts[arg];
+                let name = &self.fiber.frames[fi].proto().consts[arg];
                 let r = index::index(&v, name).map_err(|d| at(d, pos))?;
                 self.push(r);
             }
@@ -293,10 +293,10 @@ impl Task<'_> {
         let mut b = Binder {
             stack: &mut self.fiber.stack,
             base: f.base,
-            globals: &f.globals,
+            globals: f.globals(),
             pending: Vec::new(),
         };
-        let ok = b.matches(v, &f.proto.patterns[pi]);
+        let ok = b.matches(v, &f.proto().patterns[pi]);
         if ok {
             b.commit();
         }

@@ -11,7 +11,7 @@ use fung_front::source::Pos;
 use super::cont::{Cont, ContFrame, Flow, Next, Wake};
 use super::frame::{Frame, TailFrom};
 use super::{RtProto, Stop, Task, at, err, no_pos};
-use crate::value::{Closure, List, NativeBody, NativeParam, Sym, Value, type_name};
+use crate::value::{Closure, List, Native, NativeBody, NativeParam, Sym, Value, type_name};
 
 /// Bounds non-tail recursion (09: 깊이 한도 100,000).
 pub const MAX_FRAMES: usize = 100_000;
@@ -74,71 +74,58 @@ fn arity(name: &str, fixed: usize, got: usize) -> Diag {
     )
 }
 
-/// Lays out a call's arguments in a fresh slot array: positionals in
-/// order, named by lookup, a trailing rest parameter collecting the
-/// surplus as a list (03). A slot left `None` means "use the default" (a
-/// fung prologue fills it; a native default is filled here); a required
-/// slot left empty is E0407.
-fn bind_args(
-    name: &str,
-    specs: Params<'_>,
-    num_slots: usize,
-    positional: Vec<Value>,
-    named: Vec<(Sym, Value)>,
-) -> Result<Vec<Option<Value>>, Diag> {
-    let mut fixed = specs.len();
-    let mut rest = None;
-    if fixed > 0 && specs.rest(fixed - 1) {
-        fixed -= 1;
-        rest = Some(fixed);
-    }
-    if positional.len() > fixed && rest.is_none() {
-        return Err(arity(name, fixed, positional.len()));
-    }
-    let mut slots = vec![None; num_slots.max(specs.len())];
-    let mut it = positional.into_iter();
-    for (i, v) in it.by_ref().take(fixed).enumerate() {
-        slots[i] = Some(v);
-    }
-    if let Some(r) = rest {
-        slots[r] = Some(Value::List(Rc::new(List::new(it.collect()))));
-    }
-    for (sym, v) in named {
-        let n = sym.name();
-        let Some(idx) = (0..fixed).find(|&i| specs.name(i) == n) else {
-            return Err(error(
-                "E0406",
-                no_pos(),
-                vec![Arg::Str(name.to_string()), Arg::Str(n.to_string())],
-            ));
-        };
-        if slots[idx].is_some() {
-            return Err(error("E0405", no_pos(), vec![Arg::Str(n.to_string())]));
-        }
-        slots[idx] = Some(v);
-    }
-    for (i, slot) in slots.iter_mut().enumerate().take(fixed) {
-        if slot.is_some() {
-            continue;
-        }
-        if !specs.has_default(i) {
-            return Err(error(
-                "E0407",
-                no_pos(),
-                vec![Arg::Str(specs.name(i).to_string())],
-            ));
-        }
-        *slot = specs.default(i);
-    }
-    Ok(slots)
-}
-
 /// Whether a call fills every parameter of `p` by position and nothing
 /// else: the arguments are then the first slots of the frame as they are,
 /// with no binding work (09: 호출 규약, fast path).
 fn exact_positional(p: &RtProto, npos: usize, nnamed: usize) -> bool {
     let n = p.params.len();
     nnamed == 0 && npos == n && (n == 0 || !p.params[n - 1].rest)
+}
+
+/// Whether a call fills every parameter of native `nat` by position and
+/// nothing else: its arguments are then its arguments as they lie (VM5).
+fn exact_native(nat: &Native, npos: usize, nnamed: usize) -> bool {
+    nnamed == 0 && nat.params.len() == npos && !nat.params.last().is_some_and(|p| p.rest)
+}
+
+/// What a call binds its arguments for.
+#[derive(Clone, Copy)]
+enum Callee<'a> {
+    Fung(&'a RtProto),
+    Native(&'static Native),
+}
+
+impl<'a> Callee<'a> {
+    fn params(self) -> Params<'a> {
+        match self {
+            Callee::Fung(p) => Params::Fung(&p.params),
+            Callee::Native(n) => Params::Native(&n.params),
+        }
+    }
+
+    /// The name errors give the callee.
+    fn name(self) -> &'a str {
+        match self {
+            Callee::Fung(p) if p.name.is_empty() => "the function",
+            Callee::Fung(p) => &p.name,
+            Callee::Native(n) => n.name,
+        }
+    }
+
+    fn num_locals(self) -> usize {
+        match self {
+            Callee::Fung(p) => p.num_locals,
+            Callee::Native(n) => n.params.len(),
+        }
+    }
+
+    /// The slot of the fixed parameter named `k`, if any.
+    fn slot_of(self, k: Sym, fixed: usize) -> Option<usize> {
+        match self {
+            Callee::Fung(p) => p.param_syms[..fixed].iter().position(|&s| s == k),
+            Callee::Native(n) => n.param_syms[..fixed].iter().position(|&s| s == k),
+        }
+    }
 }
 
 /// The stand-in for a continuation's box while it runs (`deliver`).
@@ -220,38 +207,13 @@ impl Task<'_> {
             self.push_frame(c, callee_at);
             return Ok(Entered::Frame);
         }
-        // Fast path: a plain native called with exactly its positional
-        // parameters (VM5). It runs on its arguments as they are, without
-        // binding, as `call_plain` does for a native's callback; the run
-        // loop already ticked for this call.
-        if nnamed == 0
-            && let Some(Value::Native(nat)) = &self.fiber.stack[callee_at]
-            && let NativeBody::Plain(func) = nat.body
-            && nat.params.len() == npos
-            && !nat.params.last().is_some_and(|p| p.rest)
-        {
-            let nat = *nat;
-            self.check_effect(nat).map_err(|e| match e {
-                Stop::Error(d) => at(*d, pos),
-                other => other,
-            })?;
-            let args = self.take_args(callee_at + 1);
-            self.fiber.stack.pop();
-            let outer = self.fiber.native.replace(nat);
-            let r = func(self, args).and_then(returned);
-            self.fiber.native = outer;
-            return match r {
-                Ok(v) => Ok(Entered::Value(v)),
-                Err(e) => Err(self.raised(e, pos)),
-            };
-        }
         // A fung function with defaults, named arguments or a rest
         // parameter: the arguments are bound where they lie (VM6).
         if let Some(Value::Closure(_)) = &self.fiber.stack[callee_at] {
             let Some(Value::Closure(c)) = self.fiber.stack[callee_at].take() else {
                 unreachable!()
             };
-            self.bind_in_place(&c.proto, callee_at + 1, npos, nnamed)
+            self.bind_in_place(Callee::Fung(&c.proto), callee_at + 1, npos, nnamed)
                 .map_err(|d| at(d, pos))?;
             if tail {
                 let base = self.fiber.frames.last().expect("a frame").base;
@@ -266,49 +228,42 @@ impl Task<'_> {
             self.push_frame(c, callee_at);
             return Ok(Entered::Frame);
         }
-        let named_start = top - 2 * nnamed;
-        let mut named = Vec::with_capacity(nnamed);
-        let mut ops = self.fiber.stack.drain(named_start..);
-        while let (Some(k), Some(v)) = (ops.next(), ops.next()) {
-            let Some(Value::Sym(k)) = k else {
-                panic!("named argument without a symbol name")
-            };
-            named.push((k, v.expect("named argument from an unassigned slot")));
+        // A native: it runs on its arguments, bound where they lie when
+        // the call is not exactly its positional parameters (VM5, VM6).
+        if let Some(Value::Native(nat)) = &self.fiber.stack[callee_at] {
+            let nat = *nat;
+            if !exact_native(nat, npos, nnamed) {
+                self.bind_in_place(Callee::Native(nat), callee_at + 1, npos, nnamed)
+                    .map_err(|d| at(d, pos))?;
+            }
+            let args = self.take_args(callee_at + 1);
+            self.fiber.stack.pop();
+            return self.run_native(nat, args, pos, tail);
         }
-        drop(ops);
-        let positional: Vec<Value> = self
-            .fiber
-            .stack
-            .drain(callee_at + 1..)
-            .map(|v| v.expect("argument from an unassigned slot"))
-            .collect();
-        let callee = self.pop();
-        self.enter(callee, positional, named, pos, tail)
+        let callee = self.fiber.stack[callee_at].take().expect("callee");
+        Err(err("E0401", pos, vec![Arg::Str(type_name(&callee))]))
     }
 
-    /// Binds a call of fung function `p` where its arguments lie (VM6, 09:
-    /// 호출 규약): from `at` the stack holds the `npos` positional
-    /// arguments, then each of the `nnamed` named ones as its symbol and
-    /// value. Afterwards the frame's slots start at `at`: positionals in
-    /// order, a trailing rest parameter collecting the surplus as a list,
-    /// each named value in its parameter's slot, and an empty slot for a
-    /// default the prologue fills (03). Everything is checked before the
-    /// stack changes, with the errors and in the order of `bind_args`.
+    /// Binds a call where its arguments lie (VM6, 09: 호출 규약), for fung
+    /// functions and natives alike: from `at` the stack holds the `npos`
+    /// positional arguments, then each of the `nnamed` named ones as its
+    /// symbol and value. Afterwards the slots start at `at`: positionals
+    /// in order, a trailing rest parameter collecting the surplus as a
+    /// list, each named value in its parameter's slot, and for a default
+    /// an empty slot the prologue fills (03), or a native's constant.
+    /// Everything is checked before the stack changes.
     fn bind_in_place(
         &mut self,
-        p: &RtProto,
+        callee: Callee<'_>,
         at: usize,
         npos: usize,
         nnamed: usize,
     ) -> Result<(), Diag> {
-        let n = p.params.len();
-        let rest = n > 0 && p.params[n - 1].rest;
+        let p = callee.params();
+        let n = p.len();
+        let rest = n > 0 && p.rest(n - 1);
         let fixed = if rest { n - 1 } else { n };
-        let name = if p.name.is_empty() {
-            "the function"
-        } else {
-            &p.name
-        };
+        let name = callee.name();
         if npos > fixed && !rest {
             return Err(arity(name, fixed, npos));
         }
@@ -318,7 +273,7 @@ impl Task<'_> {
             _ => panic!("named argument without a symbol name"),
         };
         let stack = &self.fiber.stack;
-        let slot_of = |k: Sym| p.param_syms[..fixed].iter().position(|&s| s == k);
+        let slot_of = |k: Sym| callee.slot_of(k, fixed);
         for j in 0..nnamed {
             let k = sym_at(stack, j);
             let Some(i) = slot_of(k) else {
@@ -337,12 +292,12 @@ impl Task<'_> {
             }
         }
         for i in npos.min(fixed)..fixed {
-            let named = (0..nnamed).any(|j| sym_at(stack, j) == p.param_syms[i]);
-            if !named && !p.params[i].has_default {
+            let named = (0..nnamed).any(|j| slot_of(sym_at(stack, j)) == Some(i));
+            if !named && !p.has_default(i) {
                 return Err(error(
                     "E0407",
                     no_pos(),
-                    vec![Arg::Str(p.params[i].name.clone())],
+                    vec![Arg::Str(p.name(i).to_string())],
                 ));
             }
         }
@@ -372,134 +327,81 @@ impl Task<'_> {
                 .stack
                 .push(Some(Value::List(Rc::new(List::new(surplus)))));
         }
-        self.pad_slots(at, p.num_locals.max(n));
+        self.pad_slots(at, callee.num_locals().max(n));
         for (k, v) in named.drain(..) {
             let i = slot_of(k).expect("checked above");
             self.fiber.stack[at + i] = Some(v);
         }
         self.fiber.named = named;
+        if let Callee::Native(_) = callee {
+            for i in npos.min(fixed)..fixed {
+                let slot = &mut self.fiber.stack[at + i];
+                if slot.is_none() {
+                    *slot = p.default(i);
+                }
+            }
+        }
         Ok(())
     }
 
-    /// Starts running `callee`. A plain native runs at once and its result
-    /// comes back; a closure gets a new frame (or reuses the current one
-    /// when `tail` is set); a step native either finishes at once or puts
-    /// its continuation on the list and makes its first call.
-    pub(super) fn enter(
+    /// Runs native `nat` on its bound arguments. A plain native runs at
+    /// once and its result comes back; a step native either finishes at
+    /// once or puts its continuation on the list and makes its first call
+    /// or waits.
+    fn run_native(
         &mut self,
-        callee: Value,
-        positional: Vec<Value>,
-        named: Vec<(Sym, Value)>,
+        nat: &'static Native,
+        args: Vec<Value>,
         pos: Pos,
         tail: bool,
     ) -> Result<Entered, Stop> {
-        match callee {
-            Value::Native(n) => {
-                let slots = bind_args(
-                    n.name,
-                    Params::Native(&n.params),
-                    n.params.len(),
-                    positional,
-                    named,
-                )
-                .map_err(|d| at(d, pos))?;
-                self.check_effect(n).map_err(|e| match e {
-                    Stop::Error(d) => at(*d, pos),
-                    other => other,
-                })?;
-                let args = slots
-                    .into_iter()
-                    .map(|s| s.expect("bound native argument"))
-                    .collect();
-                let outer = self.fiber.native.replace(n);
-                match n.body {
-                    NativeBody::Plain(func) => {
-                        let r = func(self, args).and_then(returned);
-                        self.fiber.native = outer;
-                        match r {
-                            Ok(v) => Ok(Entered::Value(v)),
-                            Err(e) => Err(self.raised(e, pos)),
-                        }
-                    }
-                    NativeBody::Step(step) => {
-                        let r = step(self, args);
-                        self.fiber.native = outer;
-                        match r {
-                            Ok(Flow::Done(v)) => match returned(v) {
-                                Ok(v) => Ok(Entered::Value(v)),
-                                Err(e) => Err(self.raised(e, pos)),
-                            },
-                            Ok(Flow::Call(k, f, nargs)) => {
-                                self.fiber.conts.push(ContFrame {
-                                    depth: self.fiber.frames.len(),
-                                    height: self.fiber.stack.len() - nargs,
-                                    pos,
-                                    native: Some(n),
-                                    tail,
-                                    k,
-                                });
-                                Ok(Entered::Call(f, nargs))
-                            }
-                            Ok(Flow::Park(k, w)) => {
-                                self.fiber.conts.push(ContFrame {
-                                    depth: self.fiber.frames.len(),
-                                    height: self.fiber.stack.len(),
-                                    pos,
-                                    native: Some(n),
-                                    tail,
-                                    k,
-                                });
-                                Ok(Entered::Park(w))
-                            }
-                            Err(e) => Err(self.raised(e, pos)),
-                        }
-                    }
+        self.check_effect(nat).map_err(|e| match e {
+            Stop::Error(d) => at(*d, pos),
+            other => other,
+        })?;
+        let outer = self.fiber.native.replace(nat);
+        match nat.body {
+            NativeBody::Plain(func) => {
+                let r = func(self, args).and_then(returned);
+                self.fiber.native = outer;
+                match r {
+                    Ok(v) => Ok(Entered::Value(v)),
+                    Err(e) => Err(self.raised(e, pos)),
                 }
             }
-            Value::Closure(c) => {
-                let base = if tail {
-                    self.fiber.frames.last().expect("a frame").base
-                } else {
-                    self.fiber.stack.len()
-                };
-                if exact_positional(&c.proto, positional.len(), named.len()) {
-                    if tail {
-                        self.fiber.stack.truncate(base);
+            NativeBody::Step(step) => {
+                let r = step(self, args);
+                self.fiber.native = outer;
+                match r {
+                    Ok(Flow::Done(v)) => match returned(v) {
+                        Ok(v) => Ok(Entered::Value(v)),
+                        Err(e) => Err(self.raised(e, pos)),
+                    },
+                    Ok(Flow::Call(k, f, nargs)) => {
+                        self.fiber.conts.push(ContFrame {
+                            depth: self.fiber.frames.len(),
+                            height: self.fiber.stack.len() - nargs,
+                            pos,
+                            native: Some(nat),
+                            tail,
+                            k,
+                        });
+                        Ok(Entered::Call(f, nargs))
                     }
-                    self.fiber.stack.extend(positional.into_iter().map(Some));
-                } else {
-                    let name = if c.proto.name.is_empty() {
-                        "the function"
-                    } else {
-                        &c.proto.name
-                    };
-                    // Defaults, a rest parameter, named arguments or an
-                    // arity error: lay the slots out the general way.
-                    let slots = bind_args(
-                        name,
-                        Params::Fung(&c.proto.params),
-                        c.proto.num_locals,
-                        positional,
-                        named,
-                    )
-                    .map_err(|d| at(d, pos))?;
-                    if tail {
-                        self.fiber.stack.truncate(base);
+                    Ok(Flow::Park(k, w)) => {
+                        self.fiber.conts.push(ContFrame {
+                            depth: self.fiber.frames.len(),
+                            height: self.fiber.stack.len(),
+                            pos,
+                            native: Some(nat),
+                            tail,
+                            k,
+                        });
+                        Ok(Entered::Park(w))
                     }
-                    self.fiber.stack.extend(slots);
+                    Err(e) => Err(self.raised(e, pos)),
                 }
-                if tail {
-                    self.reuse_frame(c);
-                    return Ok(Entered::Frame);
-                }
-                if self.fiber.frames.len() >= MAX_FRAMES {
-                    self.fiber.stack.truncate(base);
-                    return Err(err("E0804", pos, vec![Arg::Int(MAX_FRAMES as i64)]));
-                }
-                self.push_frame(c, base);
-                Ok(Entered::Frame)
             }
-            other => Err(err("E0401", pos, vec![Arg::Str(type_name(&other))])),
         }
     }
 
@@ -514,16 +416,7 @@ impl Task<'_> {
     fn push_frame(&mut self, c: Rc<Closure>, base: usize) {
         self.pad_slots(base, c.proto.num_locals);
         let entry = self.entry_for(&c.proto, self.fiber.frames.last());
-        self.fiber.frames.push(Frame {
-            proto: c.proto.clone(),
-            ip: 0,
-            base,
-            globals: c.globals.clone(),
-            closure: Some(c),
-            tail_calls: 0,
-            entry,
-            tail_from: None,
-        });
+        self.fiber.frames.push(Frame::new(c, base, entry));
     }
 
     /// The built-in function a frame for `proto` runs inside of, called
@@ -534,7 +427,7 @@ impl Task<'_> {
             return None;
         }
         match caller {
-            Some(f) if f.proto.builtin => f.entry.clone(),
+            Some(f) if f.proto().builtin => f.entry.clone(),
             _ => Some(proto.clone()),
         }
     }
@@ -547,7 +440,7 @@ impl Task<'_> {
         // A function calling itself (a loop): the frame already runs this
         // closure, with its proto, globals and entry (VM9).
         let f = self.fiber.frames.last_mut().expect("a frame");
-        if f.closure.as_ref().is_some_and(|x| Rc::ptr_eq(x, &c)) {
+        if Rc::ptr_eq(&f.closure, &c) {
             f.tail_calls += 1;
             f.ip = 0;
             return;
@@ -556,7 +449,7 @@ impl Task<'_> {
         // A tail call replaces the frame, not its caller: the entry is
         // the reused frame's own if it runs inside a built-in function,
         // the new one's if user code tail-calls into one.
-        let entry = if self.fiber.frames[n - 1].proto.builtin && c.proto.builtin {
+        let entry = if self.fiber.frames[n - 1].proto().builtin && c.proto.builtin {
             self.fiber.frames[n - 1].entry.clone()
         } else {
             let caller = n.checked_sub(2).map(|i| &self.fiber.frames[i]);
@@ -568,21 +461,19 @@ impl Task<'_> {
         // the count starts again (L8): user code going in leaves its frame
         // behind as `tail_from`; a callback coming out does not inherit
         // the library's tail calls.
-        if f.proto.builtin == c.proto.builtin {
+        if f.proto().builtin == c.proto.builtin {
             f.tail_calls += 1;
         } else {
-            if !f.proto.builtin {
+            if !f.proto().builtin {
                 f.tail_from = Some(Box::new(TailFrom {
-                    proto: f.proto.clone(),
+                    proto: f.proto().clone(),
                     pos: f.current_pos(),
                     tail_calls: f.tail_calls,
                 }));
             }
             f.tail_calls = 0;
         }
-        f.proto = c.proto.clone();
-        f.globals = c.globals.clone();
-        f.closure = Some(c);
+        f.closure = c;
         f.ip = 0;
     }
 
@@ -747,16 +638,26 @@ impl Task<'_> {
             Value::Closure(c) if self.fiber.frames.len() < MAX_FRAMES => {
                 // Defaults or a rest parameter: bound where they lie (VM6).
                 if !exact_positional(&c.proto, n, 0) {
-                    self.bind_in_place(&c.proto, at, n, 0)
+                    self.bind_in_place(Callee::Fung(&c.proto), at, n, 0)
                         .map_err(|d| super::at(d, no_pos()))?;
                 }
                 self.push_frame(c.clone(), at);
                 Ok(Entered::Frame)
             }
-            _ => {
-                let args = self.take_args(at);
-                self.enter(f, args, Vec::new(), no_pos(), false)
+            Value::Closure(_) => {
+                self.fiber.stack.truncate(at);
+                Err(err("E0804", no_pos(), vec![Arg::Int(MAX_FRAMES as i64)]))
             }
+            Value::Native(nat) => {
+                let nat = *nat;
+                if !exact_native(nat, n, 0) {
+                    self.bind_in_place(Callee::Native(nat), at, n, 0)
+                        .map_err(|d| super::at(d, no_pos()))?;
+                }
+                let args = self.take_args(at);
+                self.run_native(nat, args, no_pos(), false)
+            }
+            other => Err(err("E0401", no_pos(), vec![Arg::Str(type_name(other))])),
         }
     }
 
@@ -777,7 +678,7 @@ impl Task<'_> {
         let NativeBody::Plain(func) = nat.body else {
             return None;
         };
-        if nat.params.len() != n || nat.params.last().is_some_and(|p| p.rest) {
+        if !exact_native(nat, n, 0) {
             return None;
         }
         let at = self.fiber.stack.len() - n;

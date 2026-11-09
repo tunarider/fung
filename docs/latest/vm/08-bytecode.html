@@ -201,10 +201,10 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 </table>
 <p><code>CALL</code>은 피연산자를 보고 스택에서 "함수, 그 위의 인자들"을 찾는다. 인자가 하나니까 맨 위가 인자, 그 아래가 함수다. 호출할 함수가 fung 함수(<code>double</code>)면 VM은 새 <strong>프레임</strong>(frame)을 쌓는다. 프레임은 "지금 실행 중인 함수 하나"의 기록이다.</p>
 <pre class="plain"><code>Frame {
-  proto  실행할 원형(double)
-  ip     다음에 실행할 명령 번호(0부터)
-  base   이 함수의 슬롯이 스택의 몇째 칸부터 시작하나
-  …      클로저, 전역 표, 꼬리 호출 횟수
+  closure  실행할 함수 값(원형 double과 전역 표를 든다)
+  ip       다음에 실행할 명령 번호(0부터)
+  base     이 함수의 슬롯이 스택의 몇째 칸부터 시작하나
+  …        꼬리 호출 횟수 등
 }</code></pre>
 <p>fung 함수를 매개변수 수 그대로 부르는 흔한 경우, 스택에 이미 놓인 인자가 <strong>그 자리에서</strong> 새 프레임의 첫 슬롯이 된다. 인자를 따로 복사하지 않는다. <code>double</code>의 프레임은 <code>base</code>가 인자 21이 놓인 칸이고, 슬롯 0(<code>x</code>)이 곧 그 21이다.</p>
 <pre class="plain"><code>스택:  [ print | 21 ]
@@ -358,7 +358,7 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 <li><code>crates/fung-front/src/compiler.rs</code>: <code>compile</code>과 <code>Compiler::block</code>(문장, <code>POP</code>, <code>CLEARLOCAL</code>), <code>Compiler::expr</code>(코어 형태마다 명령 내기), <code>Compiler::op</code>, <code>Compiler::if_expr</code>(점프 둘), <code>Compiler::let_stmt</code>. 함수와 호출은 <code>crates/fung-front/src/compiler/fn_.rs</code>의 <code>Compiler::function</code>과 <code>Compiler::call</code>.</li>
 <li><code>crates/fung-vm/src/vm/link.rs</code>: 원형을 실행용 <code>RtProto</code>로 바꾸며 상수를 실제 값으로 채우는 <code>link</code>.</li>
 <li><code>crates/fung-vm/src/vm.rs</code>: <code>Task</code>(값 스택 <code>stack</code>과 프레임 목록 <code>frames</code>)와 실행 루프 <code>Task::step_loop</code>, 정수 빠른 길 <code>Task::binary</code>.</li>
-<li><code>crates/fung-vm/src/vm/frame.rs</code>: <code>Frame { proto, ip, base, closure, globals, tail_calls, … }</code>.</li>
+<li><code>crates/fung-vm/src/vm/frame.rs</code>: <code>Frame { closure, ip, base, tail_calls, … }</code>(원형은 <code>proto()</code>, 전역 표는 <code>globals()</code>로 클로저에서 읽는다).</li>
 <li><code>crates/fung-vm/src/vm/call.rs</code>: <code>Task::call_op</code>(인자가 그 자리에서 슬롯이 되는 빠른 길), <code>Task::enter</code>, <code>Task::push_frame</code>, <code>Task::ret_with</code>(<code>RETURN</code>).</li>
 </ul>
 <div class="exercise"><b>점프 따라가기</b>

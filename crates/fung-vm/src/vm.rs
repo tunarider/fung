@@ -401,16 +401,7 @@ impl<'rt> Task<'rt> {
     /// Runs `main` (a file body) as the entry frame, the root of a run.
     fn run_main(&mut self, main: Rc<RtProto>, globals: Globals) -> Result<Value, Stop> {
         self.fiber.stack = vec![None; main.num_locals];
-        self.fiber.frames.push(Frame {
-            proto: main,
-            ip: 0,
-            base: 0,
-            closure: None,
-            globals,
-            tail_calls: 0,
-            entry: None,
-            tail_from: None,
-        });
+        self.fiber.frames.push(Frame::body(main, globals, 0));
         self.run_root(Todo::Loop)
     }
 
@@ -607,7 +598,7 @@ impl<'rt> Task<'rt> {
             return d;
         }
         d.call_path = self.call_path();
-        if self.fiber.frames.last().is_some_and(|f| f.proto.builtin)
+        if self.fiber.frames.last().is_some_and(|f| f.proto().builtin)
             && let Some(p) = self.user_pos()
         {
             d.pos = p;
@@ -619,7 +610,7 @@ impl<'rt> Task<'rt> {
     /// an error raised inside an embedded extras file (`attach`).
     pub(crate) fn user_pos(&self) -> Option<Pos> {
         self.fiber.frames.iter().rev().find_map(|f| {
-            if f.proto.builtin {
+            if f.proto().builtin {
                 f.tail_from.as_ref().and_then(|t| t.pos)
             } else {
                 f.current_pos()
@@ -633,7 +624,7 @@ impl<'rt> Task<'rt> {
     /// it across the helpers it calls and tail-calls (`Frame::entry`).
     /// `None` when user code called the native itself.
     pub(crate) fn user_callee(&self) -> Option<String> {
-        let i = self.fiber.frames.iter().rposition(|f| !f.proto.builtin)?;
+        let i = self.fiber.frames.iter().rposition(|f| !f.proto().builtin)?;
         let p = self.fiber.frames.get(i + 1)?.entry.clone()?;
         let file = p
             .pos
@@ -656,7 +647,7 @@ impl<'rt> Task<'rt> {
     fn call_path(&self) -> Vec<CallSite> {
         let mut path = Vec::with_capacity(self.fiber.frames.len());
         for f in self.fiber.frames.iter().rev() {
-            path.push(self.site(&f.proto, f.current_pos(), f.tail_calls));
+            path.push(self.site(f.proto(), f.current_pos(), f.tail_calls));
             if let Some(t) = &f.tail_from {
                 path.push(self.site(&t.proto, t.pos, t.tail_calls));
             }
@@ -778,14 +769,14 @@ impl<'rt> Task<'rt> {
             let fi = self.fiber.frames.len() - 1;
             let f = &mut self.fiber.frames[fi];
             let ip = f.ip;
-            let instr = f.proto.code[ip];
-            let pos = f.proto.pos[ip];
+            let instr = f.proto().code[ip];
+            let pos = f.proto().pos[ip];
             f.ip = ip + 1;
             let base = f.base;
             let arg = instr.arg();
             match instr.op() {
                 Op::Const => {
-                    let v = self.fiber.frames[fi].proto.consts[arg].clone();
+                    let v = self.fiber.frames[fi].proto().consts[arg].clone();
                     self.push(v);
                 }
                 // A statement's value is discarded: an Err is E0606 (02).
@@ -894,19 +885,11 @@ impl<'rt> Task<'rt> {
                     self.push(c);
                 }
                 Op::LoadCaptured => {
-                    let v = self.fiber.frames[fi]
-                        .closure
-                        .as_ref()
-                        .expect("LOADCAPTURED outside a closure")
-                        .captured[arg]
-                        .clone();
+                    let v = self.fiber.frames[fi].closure.captured[arg].clone();
                     self.push(v);
                 }
                 Op::LoadSelf => {
-                    let c = self.fiber.frames[fi]
-                        .closure
-                        .clone()
-                        .expect("LOADSELF outside a closure");
+                    let c = self.fiber.frames[fi].closure.clone();
                     self.push(Value::Closure(c));
                 }
                 Op::JumpIfSet => {
@@ -919,7 +902,7 @@ impl<'rt> Task<'rt> {
                     let v = self.fiber.stack[base + slot]
                         .as_ref()
                         .expect("CHECKTYPE on an unassigned slot");
-                    let p = &self.fiber.frames[fi].proto;
+                    let p = &self.fiber.frames[fi].proto();
                     if !p.types[ti].matches(v) {
                         return Err(err(
                             "E0403",
@@ -934,7 +917,7 @@ impl<'rt> Task<'rt> {
                 }
                 Op::CheckReturn => {
                     let v = self.top();
-                    let p = &self.fiber.frames[fi].proto;
+                    let p = &self.fiber.frames[fi].proto();
                     if !p.types[arg].matches(v) {
                         return Err(err(
                             "E0404",
@@ -962,7 +945,7 @@ impl<'rt> Task<'rt> {
                     self.fiber.stack.push(v);
                 }
                 Op::LoadGlobal => {
-                    let v = self.fiber.frames[fi].globals.borrow()[arg].clone();
+                    let v = self.fiber.frames[fi].globals().borrow()[arg].clone();
                     match v {
                         Some(v) => self.push(v),
                         None => return Err(self.unset_global(fi, arg, pos)),
@@ -971,7 +954,7 @@ impl<'rt> Task<'rt> {
                 Op::StoreGlobal => {
                     let v = self.pop();
                     // The old value drops after the table's borrow ends.
-                    let old = self.fiber.frames[fi].globals.borrow_mut()[arg].replace(v);
+                    let old = self.fiber.frames[fi].globals().borrow_mut()[arg].replace(v);
                     drop(old);
                 }
                 Op::Concat => {
@@ -1029,7 +1012,7 @@ impl<'rt> Task<'rt> {
     /// an input declared it, then failed); a script's resolve refuses it.
     fn make_closure(&self, fi: usize, child: usize, pos: Pos) -> Result<Value, Stop> {
         let f = &self.fiber.frames[fi];
-        let proto = f.proto.protos[child].clone();
+        let proto = f.proto().protos[child].clone();
         let captured = proto
             .captures
             .iter()
@@ -1038,16 +1021,9 @@ impl<'rt> Task<'rt> {
                     CaptureKind::Local => self.fiber.stack[f.base + c.index]
                         .clone()
                         .expect("captured an unassigned slot"),
-                    CaptureKind::Captured => f
-                        .closure
-                        .as_ref()
-                        .expect("captured from outside a closure")
-                        .captured[c.index]
-                        .clone(),
-                    CaptureKind::SelfFn => {
-                        Value::Closure(f.closure.clone().expect("captured self outside a closure"))
-                    }
-                    CaptureKind::Global => match f.globals.borrow()[c.index].clone() {
+                    CaptureKind::Captured => f.closure.captured[c.index].clone(),
+                    CaptureKind::SelfFn => Value::Closure(f.closure.clone()),
+                    CaptureKind::Global => match f.globals().borrow()[c.index].clone() {
                         Some(v) => v,
                         None => return Err(self.unset_global(fi, c.index, pos)),
                     },
@@ -1057,7 +1033,7 @@ impl<'rt> Task<'rt> {
         Ok(Value::Closure(Rc::new(Closure {
             proto,
             captured,
-            globals: f.globals.clone(),
+            globals: f.globals().clone(),
         })))
     }
 }
@@ -1068,12 +1044,12 @@ impl Task<'_> {
     /// `<main>` frame does, and it is running when its constant is read
     /// too early (E0809).
     fn global_name(&self, fi: usize, i: usize) -> String {
-        let g = &self.fiber.frames[fi].globals;
+        let g = &self.fiber.frames[fi].globals();
         self.fiber.frames[..=fi]
             .iter()
             .rev()
-            .filter(|f| Rc::ptr_eq(&f.globals, g))
-            .find_map(|f| f.proto.global_names.get(i))
+            .filter(|f| Rc::ptr_eq(f.globals(), g))
+            .find_map(|f| f.proto().global_names.get(i))
             .cloned()
             .unwrap_or_else(|| "a global".to_string())
     }

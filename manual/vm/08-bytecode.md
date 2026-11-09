@@ -148,10 +148,10 @@ VM은 `<main>`의 0번 명령부터 시작한다. 스택은 비어 있다.
 
 ```plain
 Frame {
-  proto  실행할 원형(double)
-  ip     다음에 실행할 명령 번호(0부터)
-  base   이 함수의 슬롯이 스택의 몇째 칸부터 시작하나
-  …      클로저, 전역 표, 꼬리 호출 횟수
+  closure  실행할 함수 값(원형 double과 전역 표를 든다)
+  ip       다음에 실행할 명령 번호(0부터)
+  base     이 함수의 슬롯이 스택의 몇째 칸부터 시작하나
+  …        꼬리 호출 횟수 등
 }
 ```
 
@@ -282,7 +282,7 @@ print(report([3, 4, 5]))
 - `crates/fung-front/src/compiler.rs`: `compile`과 `Compiler::block`(문장, `POP`, `CLEARLOCAL`), `Compiler::expr`(코어 형태마다 명령 내기), `Compiler::op`, `Compiler::if_expr`(점프 둘), `Compiler::let_stmt`. 함수와 호출은 `crates/fung-front/src/compiler/fn_.rs`의 `Compiler::function`과 `Compiler::call`.
 - `crates/fung-vm/src/vm/link.rs`: 원형을 실행용 `RtProto`로 바꾸며 상수를 실제 값으로 채우는 `link`.
 - `crates/fung-vm/src/vm.rs`: `Task`(값 스택 `stack`과 프레임 목록 `frames`)와 실행 루프 `Task::step_loop`, 정수 빠른 길 `Task::binary`.
-- `crates/fung-vm/src/vm/frame.rs`: `Frame { proto, ip, base, closure, globals, tail_calls, … }`.
+- `crates/fung-vm/src/vm/frame.rs`: `Frame { closure, ip, base, tail_calls, … }`(원형은 `proto()`, 전역 표는 `globals()`로 클로저에서 읽는다).
 - `crates/fung-vm/src/vm/call.rs`: `Task::call_op`(인자가 그 자리에서 슬롯이 되는 빠른 길), `Task::enter`, `Task::push_frame`, `Task::ret_with`(`RETURN`).
 
 :::exercise 점프 따라가기

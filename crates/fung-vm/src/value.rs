@@ -477,6 +477,9 @@ pub enum NativeBody {
 pub struct Native {
     pub name: &'static str,
     pub params: Vec<NativeParam>,
+    /// Each parameter's name as a symbol: a named argument finds its
+    /// parameter by number (VM6).
+    pub param_syms: Vec<Sym>,
     pub body: NativeBody,
 }
 
@@ -484,11 +487,7 @@ impl Native {
     /// Leaks the native so values can hold a plain `&'static` reference.
     /// Natives live for the whole process, so nothing is lost.
     pub fn leak(name: &'static str, params: Vec<NativeParam>, func: NativeFn) -> &'static Native {
-        Box::leak(Box::new(Native {
-            name,
-            params,
-            body: NativeBody::Plain(func),
-        }))
+        Native::leak_body(name, params, NativeBody::Plain(func))
     }
 
     /// [`Native::leak`] for a step native.
@@ -497,10 +496,20 @@ impl Native {
         params: Vec<NativeParam>,
         step: StepFn,
     ) -> &'static Native {
+        Native::leak_body(name, params, NativeBody::Step(step))
+    }
+
+    fn leak_body(
+        name: &'static str,
+        params: Vec<NativeParam>,
+        body: NativeBody,
+    ) -> &'static Native {
+        let param_syms = params.iter().map(|p| sym::intern(p.name)).collect();
         Box::leak(Box::new(Native {
             name,
             params,
-            body: NativeBody::Step(step),
+            param_syms,
+            body,
         }))
     }
 

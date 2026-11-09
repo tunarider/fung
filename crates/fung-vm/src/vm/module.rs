@@ -121,7 +121,7 @@ impl Task<'_> {
     /// the first import the module's body runs first, in this run loop:
     /// a continuation waits for it and pushes the module (`cont.rs`).
     pub(super) fn exec_import(&mut self, fi: usize, arg: usize, pos: Pos) -> Result<(), Stop> {
-        let key = match &self.fiber.frames[fi].proto.consts[arg] {
+        let key = match &self.fiber.frames[fi].proto().consts[arg] {
             Value::Str(s) => s.lossy().into_owned(),
             v => panic!("IMPORT of a non-string constant {v:?}"),
         };
@@ -169,16 +169,9 @@ impl Task<'_> {
         let globals = self.world.new_globals(proto.global_names.len());
         let base = self.fiber.stack.len();
         self.fiber.stack.resize(base + proto.num_locals, None);
-        self.fiber.frames.push(Frame {
-            proto: proto.clone(),
-            ip: 0,
-            base,
-            closure: None,
-            globals: globals.clone(),
-            tail_calls: 0,
-            entry: None,
-            tail_from: None,
-        });
+        self.fiber
+            .frames
+            .push(Frame::body(proto.clone(), globals.clone(), base));
         Ok(Imported::Body(Body {
             key: key.to_string(),
             proto,

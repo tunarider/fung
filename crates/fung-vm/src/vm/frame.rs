@@ -1,6 +1,7 @@
-//! Call frames (09: 프레임). A frame is a running function: its proto, the
-//! next instruction, where its slots start on the task's value stack, the
-//! closure it runs (none for a module body) and its module's globals.
+//! Call frames (09: 프레임). A frame is a running function: the closure
+//! it runs (a module body runs one with nothing captured), which holds
+//! its proto and its module's globals, the next instruction and where
+//! its slots start on the task's value stack.
 
 use std::rc::Rc;
 
@@ -8,12 +9,10 @@ use super::RtProto;
 use crate::value::{Closure, Globals};
 
 pub(super) struct Frame {
-    pub proto: Rc<RtProto>,
+    pub closure: Rc<Closure>,
     pub ip: usize,
     /// Index into the task stack where this frame's slots start.
     pub base: usize,
-    pub closure: Option<Rc<Closure>>,
-    pub globals: Globals,
     /// How many tail calls reused this frame (shown in call paths).
     pub tail_calls: u64,
     /// The function of a built-in module that user code called and that
@@ -36,10 +35,40 @@ pub(super) struct TailFrom {
 }
 
 impl Frame {
+    /// A frame for `closure` whose slots start at `base`.
+    pub fn new(closure: Rc<Closure>, base: usize, entry: Option<Rc<RtProto>>) -> Frame {
+        Frame {
+            closure,
+            ip: 0,
+            base,
+            tail_calls: 0,
+            entry,
+            tail_from: None,
+        }
+    }
+
+    /// A frame for a module body `proto` with its `globals`.
+    pub fn body(proto: Rc<RtProto>, globals: Globals, base: usize) -> Frame {
+        let closure = Closure {
+            proto,
+            captured: Default::default(),
+            globals,
+        };
+        Frame::new(Rc::new(closure), base, None)
+    }
+
+    pub fn proto(&self) -> &Rc<RtProto> {
+        &self.closure.proto
+    }
+
+    pub fn globals(&self) -> &Globals {
+        &self.closure.globals
+    }
+
     /// The position of the instruction the frame is executing (the one
     /// before `ip`), if it has started.
     pub fn current_pos(&self) -> Option<fung_front::source::Pos> {
         let i = self.ip.checked_sub(1)?;
-        self.proto.pos.get(i).copied()
+        self.closure.proto.pos.get(i).copied()
     }
 }

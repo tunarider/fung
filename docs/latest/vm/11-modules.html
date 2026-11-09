@@ -222,7 +222,7 @@ print(m.exists(&quot;/nothing/here&quot;))</code></pre><pre class="out plain"><c
 false</code></pre></div>
 <h2 id="globals">모듈마다 전역 표</h2>
 <p><code>a.fung</code>의 <code>fn helper()</code>와 <code>b.fung</code>의 <code>fn helper()</code>는 둘 다 자기 파일의 전역 0번일 수 있다. <code>main.fung</code>이 <code>b.run()</code>을 부르고 <code>b.run</code>이 <code>helper()</code>를 부르면, 그것은 <strong>b의</strong> <code>helper</code>여야 한다. 지금 실행 중인 진입 파일의 전역 표를 쓰면 틀린다.</p>
-<p>fung의 답은 "<strong>함수 값이 자기 모듈의 전역 표를 들고 다닌다</strong>"이다. 모듈 본문을 실행할 때 그 모듈만의 전역 표(<code>Globals</code>, 곧 <code>Rc&lt;RefCell&lt;Vec&lt;Option&lt;Value&gt;&gt;&gt;&gt;</code>)를 새로 만든다. 그 안에서 만들어지는 클로저는 그 표를 함께 쥐고(<code>Closure::globals</code>), 호출하면 프레임이 그 표를 넘겨받는다(<code>Frame::globals</code>). <code>LOADGLOBAL</code>은 "지금 프레임의 전역 표"를 본다. 그래서 함수는 어디서 불리든 자기 모듈의 전역을 본다.</p>
+<p>fung의 답은 "<strong>함수 값이 자기 모듈의 전역 표를 들고 다닌다</strong>"이다. 모듈 본문을 실행할 때 그 모듈만의 전역 표(<code>Globals</code>, 곧 <code>Rc&lt;RefCell&lt;Vec&lt;Option&lt;Value&gt;&gt;&gt;&gt;</code>)를 새로 만든다. 그 안에서 만들어지는 클로저는 그 표를 함께 쥐고(<code>Closure::globals</code>), 호출하면 프레임이 그 클로저를 쥐어 같은 표를 본다(<code>Frame::globals()</code>). <code>LOADGLOBAL</code>은 "지금 프레임의 전역 표"를 본다. 그래서 함수는 어디서 불리든 자기 모듈의 전역을 본다.</p>
 <p>다른 길도 있었다. 전역 표를 프로그램에 하나만 두고 모듈마다 시작 번호를 주는 방식이다. 그러면 모듈을 적재하는 순서에 따라 번호가 바뀌어 따로 "링크" 단계가 필요하고, REPL처럼 전역이 계속 자라는 경우가 복잡해진다. 모듈마다 표 하나에는 그런 조정이 없다(노트 M5).</p>
 <p>전역 표는 그 모듈의 함수를 담고, 그 함수는 다시 전역 표를 든다. 참조 계수로는 풀리지 않는 고리다(10장). 그래서 런타임이 끝날 때 표를 비워 고리를 끊는다.</p>
 <h2 id="layers">prelude와 네 층</h2>
