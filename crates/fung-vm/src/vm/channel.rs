@@ -60,8 +60,10 @@
 //!
 //! A channel whose buffer holds one of its own ends would keep itself
 //! open forever: an `Rc` cycle that is never freed. So `send` refuses a
-//! value that contains an end of the same channel (E0705; `contains`).
-//! Two channels holding each other's ends are not caught.
+//! value that contains an end of the same channel, and one that
+//! reaches this channel through other channels' buffers or tasks'
+//! results, such as two channels holding each other's ends: both E0709
+//! (L7, SP24; `cycle_to`).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
@@ -439,11 +441,10 @@ impl Drop for Channel {
 pub(crate) enum Cycle {
     /// None: it leads to no end of the place.
     No,
-    /// It holds an end of the channel itself (E0705).
-    Itself,
-    /// It leads back through other channels' buffers or tasks' results
-    /// (E0709).
-    Through,
+    /// It holds an end of the channel itself, or leads back to the place
+    /// through other channels' buffers or tasks' results (E0709; the
+    /// direct case was E0705 until SP24).
+    Closes,
 }
 
 /// Where a value is about to be kept: a channel's buffer (`send`) or a
@@ -483,7 +484,7 @@ impl Place<'_> {
 ///
 /// First `v` itself is walked: the items of lists, the values of maps,
 /// tuples, tag arguments and the values a closure captured. An end of the
-/// place there is E0705 (a task's own handle, E0709). Every other end and
+/// place there is E0709. Every other end and
 /// handle met is marked kept, since `v` is about to be. Then, only if an
 /// end of the place has ever been kept (`Place::kept`), the walk goes on
 /// through what those ends lead to: from an end of another channel, its
@@ -518,8 +519,7 @@ pub(crate) fn cycle_to(place: Place<'_>, v: &Value) -> Cycle {
             Value::Sender(e) if !place.is(v) => &e.0.kept,
             Value::Receiver(e) if !place.is(v) => &e.0.kept,
             Value::Task(h) if !place.is(v) => &h.state.kept,
-            Value::Sender(_) | Value::Receiver(_) => return Cycle::Itself,
-            Value::Task(_) => return Cycle::Through,
+            Value::Sender(_) | Value::Receiver(_) | Value::Task(_) => return Cycle::Closes,
             _ => return walk(&place, v, deep),
         };
         kept.set(true);
@@ -547,12 +547,7 @@ fn walk(place: &Place<'_>, v: &Value, deep: bool) -> Cycle {
             _ => continue,
         };
         if place.is(&x) {
-            let direct = matches!(place, Place::Channel(_)) && !through;
-            return if direct {
-                Cycle::Itself
-            } else {
-                Cycle::Through
-            };
+            return Cycle::Closes;
         }
         if shared && !seen.insert(ptr) {
             continue;

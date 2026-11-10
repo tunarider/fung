@@ -16,9 +16,15 @@ pub struct Entry {
 const CATALOG: &[[&str; 4]] = &[
     ["E0101", "unexpected character %q", "", ""],
     ["E0102", "malformed number %q", "", ""],
-    ["E0103", "unknown escape %q in string", "", ""],
+    ["E0103", "unknown escape %s in string", "", ""],
     ["E0104", "unterminated string", "", ""],
     ["E0105", "malformed duration %q", "", ""],
+    [
+        "E0106",
+        "`\\u{%s}` is not a Unicode scalar value",
+        "",
+        "`\\u{…}` takes a code point up to 10FFFF that is not a surrogate (D800–DFFF); for a byte, write `\\xHH`",
+    ],
     ["E0110", "unexpected %s", "", ""],
     [
         "E0111",
@@ -80,6 +86,18 @@ const CATALOG: &[[&str; 4]] = &[
         "anonymous functions take a block: `fn(x): … ;;`, or write a lambda `x => …`",
     ],
     [
+        "E0125",
+        "`%s` binds looser than `..`, so it cannot be an end of a slice",
+        "",
+        "put the end in parentheses: `xs[(a or b)..]`",
+    ],
+    [
+        "E0126",
+        "a positional argument cannot follow a named one",
+        "",
+        "put the positional arguments first: `f(1, b: 2)`",
+    ],
+    [
         "E0204",
         "undefined name `%s`",
         "not found in this scope",
@@ -110,12 +128,7 @@ const CATALOG: &[[&str; 4]] = &[
         "",
     ],
     ["E0210", "function `%s` is defined twice", "", ""],
-    [
-        "E0211",
-        "return outside a function",
-        "",
-        "use `exit()` to stop a script early",
-    ],
+    ["E0211", "%s %s", "", "use `exit()` to stop a script early"],
     ["E0212", "unknown type `%s`", "", ""],
     [
         "E0213",
@@ -170,9 +183,9 @@ const CATALOG: &[[&str; 4]] = &[
     ],
     [
         "E0224",
-        "`%s` is assigned as the last statement of a block used as a value, so the value is nil",
+        "a block used as a value %s, so the value is nil",
         "",
-        "put the value last: end the block with an expression, e.g. the assigned name on its own line",
+        "end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant",
     ],
     [
         "E0225",
@@ -190,7 +203,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0227",
         "`_` in a call on the right of `|>`",
         "",
-        "the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`",
+        "the piped value is always the first argument; to put it elsewhere, call a parenthesised partial: `x |> (f(1, _))` (or a lambda: `x |> (v => f(1, v))`)",
     ],
     [
         "E0228",
@@ -205,11 +218,12 @@ const CATALOG: &[[&str; 4]] = &[
         "put the pipe in parentheses: `(xs |> try_map(f))?`",
     ],
     ["E0230", "too many %s (limit %d)", "", ""],
+    // not raised since it was merged into E0224 (SP24)
     [
         "E0231",
         "a block used as a value %s, so the value is nil",
         "",
-        "end the block with the value it stands for; write `nil` last if nil is meant",
+        "not used: merged into E0224",
     ],
     [
         "E0232",
@@ -222,6 +236,24 @@ const CATALOG: &[[&str; 4]] = &[
         "the test name %q %s",
         "",
         "give each test in a file its own name: the report names a failed test by it",
+    ],
+    [
+        "E0234",
+        "%s is computed and discarded",
+        "",
+        "use the value, or write `_ = …` to discard it on purpose",
+    ],
+    [
+        "E0235",
+        "this arm matches everything, so the arms after it never run",
+        "matches everything",
+        "move it last, or give it a guard: `n when n > 0 =>`",
+    ],
+    [
+        "E0236",
+        "`%s` takes exactly one value, found %d",
+        "",
+        "put several values in a tuple: `Ok((a, b))` or `Err((a, b))`",
     ],
     [
         "E0301",
@@ -254,12 +286,7 @@ const CATALOG: &[[&str; 4]] = &[
     ["E0309", "name `%s` is already bound to a module", "", ""],
     ["E0310", "`%s` is internal; %s", "", ""],
     ["E0311", "import must be at the top level", "", ""],
-    [
-        "E0312",
-        "cannot read module `%s`: %s",
-        "",
-        "fung source is UTF-8 text",
-    ],
+    ["E0312", "cannot read module `%s`: %s", "", ""],
     ["E0401", "cannot call a value of type %s", "", ""],
     ["E0402", "%s takes %d argument(s), got %d", "", ""],
     ["E0403", "argument `%s` must be %s, got %s", "", ""],
@@ -293,7 +320,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0514",
         "cannot use a value of type %s as a map key",
         "",
-        "map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`",
+        "map keys are strings: convert the key with `str(k)`",
     ],
     ["E0515", "invalid pattern %s", "", ""],
     [
@@ -312,7 +339,7 @@ const CATALOG: &[[&str; 4]] = &[
         "E0518",
         "%s is not valid UTF-8: %s",
         "",
-        "a string can hold any bytes, but this needs text; check where the bytes came from, or test them with `valid_utf8(s)`",
+        "a string can hold any bytes, but this needs text; check where the bytes came from, or test them with `is_utf8(s)`",
     ],
     [
         "E0519",
@@ -331,6 +358,12 @@ const CATALOG: &[[&str; 4]] = &[
         "the replacement names group `%s`, which the pattern does not have",
         "",
         "name a group the pattern has: `$1`, `${name}`; write `${1}a` for group 1 then `a` (`$1a` is the name `1a`), and `$$` for a `$`",
+    ],
+    [
+        "E0522",
+        "range start %d is after its end %d",
+        "",
+        "the empty ranges are `n..n` and `n..=n-1`; if the end may fall below the start, say so: `a..max(a, b)`",
     ],
     ["E0601", "no pattern matched %s", "", ""],
     ["E0602", "value %s does not match the pattern", "", ""],
@@ -370,7 +403,13 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "not used: agents became atoms, see E0707",
     ],
-    ["E0705", "channel sent into itself", "", ""],
+    // not raised since it was merged into E0709 (SP24)
+    [
+        "E0705",
+        "channel sent into itself",
+        "",
+        "not used: merged into E0709",
+    ],
     ["E0706", "spawn into a closed scope", "", ""],
     [
         "E0707",
@@ -405,7 +444,13 @@ const CATALOG: &[[&str; 4]] = &[
         "",
         "make the recursion a tail call or use `fold`",
     ],
-    ["E0805", "not supported yet: %s", "", ""],
+    // not raised since every builtin was implemented
+    [
+        "E0805",
+        "not supported yet: %s",
+        "",
+        "not used: every builtin is implemented",
+    ],
     ["E0806", "too many %s (limit %d)", "", ""],
     ["E0807", "assertion failed: %s", "", ""],
     [

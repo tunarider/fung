@@ -1,0 +1,5 @@
+# A parenthesised call on the right of |> is a value the pipe calls
+# (FE27, D7): `mk(10)` is a string, and calling it is an error.
+fn mk(a, b = 0) = "a=${a} b=${b}"
+print(1 |> (mk(10)))
+# expect-error: E0401

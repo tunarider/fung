@@ -123,7 +123,7 @@ print(1 + a * 3)</code></pre><pre class="out dump plain"><code>$ fung dump bytec
 │  (8비트)   │            (24비트)                │
 └────────────┴────────────────────────────────────┘
  CONST 5  =  명령 0번(CONST) | 피연산자 5</code></pre>
-<p>8비트면 명령을 256가지까지 둘 수 있고, fung은 지금 54가지를 쓴다. 24비트면 피연산자로 1,600만 남짓(16,777,215)까지 적을 수 있어서 상수 번호, 슬롯 번호, 점프할 명령 번호에 충분하다. 그래도 넘는 함수(프로그램이 만든 거대한 코드)는 잘라 담지 않고 컴파일 에러 E0230으로 멈춘다. 명령을 꺼낼 때는 비트 연산 둘(오른쪽으로 24칸 밀기, 아래 24비트 걸러내기)이면 된다.</p>
+<p>8비트면 명령을 256가지까지 둘 수 있고, fung은 지금 54가지를 쓴다. 24비트면 피연산자로 1,600만 남짓(16,777,215)까지 적을 수 있어서 상수 번호, 슬롯 번호, 점프할 명령 번호에 충분하다. 그래도 넘는 함수(프로그램이 만든 거대한 코드)는 잘라 담지 않고 컴파일 에러 E0230으로 멈춘다. 명령을 풀 때는 비트 연산 둘(오른쪽으로 24칸 밀기, 아래 24비트 걸러내기)이면 된다. 다만 VM은 실행할 때마다 풀지 않는다. 함수 원형을 VM에 들여올 때(링크, <code>vm/link.rs</code>) 명령 목록을 <code>{명령 종류, 피연산자}</code> 쌍의 배열로 한 번 풀어 두고, 실행 루프는 그 두 필드를 읽기만 한다.</p>
 <p>피연산자에 수 두 개가 필요한 명령은 24비트를 나눠 쓴다. <code>CALL</code>은 아래 12비트에 위치 인자 수, 그 위 12비트에 이름 인자 수를 담는다. 역어셈블 출력의 <code>; 1 positional, 0 named</code>가 그것을 풀어 보인 것이다.</p>
 <p>명령은 무리로 나눠 보면 다음과 같다.</p>
 <table>
@@ -204,12 +204,13 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
   closure  실행할 함수 값(원형 double과 전역 표를 든다)
   ip       다음에 실행할 명령 번호(0부터)
   base     이 함수의 슬롯이 스택의 몇째 칸부터 시작하나
+  floor    돌아갈 때 스택을 어디까지 자르나(base, CALL로 들어왔으면 base - 1)
   …        꼬리 호출 횟수 등
 }</code></pre>
-<p>fung 함수를 매개변수 수 그대로 부르는 흔한 경우, 스택에 이미 놓인 인자가 <strong>그 자리에서</strong> 새 프레임의 첫 슬롯이 된다. 인자를 따로 복사하지 않는다. <code>double</code>의 프레임은 <code>base</code>가 인자 21이 놓인 칸이고, 슬롯 0(<code>x</code>)이 곧 그 21이다.</p>
-<pre class="plain"><code>스택:  [ print | 21 ]
-              ↑
-          base(슬롯 0 = x)</code></pre>
+<p>fung 함수를 매개변수 수 그대로 부르는 흔한 경우, 스택에 이미 놓인 인자가 <strong>그 자리에서</strong> 새 프레임의 첫 슬롯이 된다. 인자를 따로 복사하지도, 한 칸 내리지도 않는다. 함수 값(<code>double</code>)이 있던 칸은 빈 칸으로 남고, <code>double</code>의 프레임은 <code>base</code>가 인자 21이 놓인 칸이다. 슬롯 0(<code>x</code>)이 곧 그 21이다.</p>
+<pre class="plain"><code>스택:  [ print | (빈 칸) | 21 ]
+                 ↑         ↑
+               floor     base(슬롯 0 = x)</code></pre>
 <p>이제 VM은 <code>double</code>의 0번 명령으로 간다.</p>
 <table>
   <thead><tr><th>번호</th><th>명령</th><th>하는 일</th><th>스택(<code>double</code>의 칸부터)</th></tr></thead>
@@ -217,17 +218,17 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
     <tr><td>0000</td><td><code>LOADLOCAL 0</code></td><td>슬롯 0(<code>x</code>)을 복사해 올린다. 실제 위치는 <code>base + 0</code></td><td><code>21 │ 21</code></td></tr>
     <tr><td>0001</td><td><code>CONST 0</code></td><td><code>double</code>의 상수 0번, 2를 올린다</td><td><code>21 │ 21 2</code></td></tr>
     <tr><td>0002</td><td><code>MUL</code></td><td>둘을 꺼내 곱한 42를 올린다</td><td><code>21 │ 42</code></td></tr>
-    <tr><td>0003</td><td><code>RETURN</code></td><td>맨 위 42를 꺼내고, 스택을 <code>base</code>까지 자르고, 프레임을 버리고, 부른 쪽 스택에 42를 올린다</td><td>→ <code>print 42</code></td></tr>
+    <tr><td>0003</td><td><code>RETURN</code></td><td>맨 위 42를 꺼내고, 스택을 <code>floor</code>(함수 값이 있던 빈 칸)까지 자르고, 프레임을 버리고, 부른 쪽 스택에 42를 올린다</td><td>→ <code>print 42</code></td></tr>
   </tbody>
 </table>
-<p>(<code>│</code> 왼쪽이 슬롯, 오른쪽이 계산 중인 값이다.) 슬롯과 계산 중인 값이 <strong>같은 스택 하나</strong>에 이어서 산다. 함수를 부를 때마다 그 위에 새 프레임의 칸이 이어 붙고, 돌아오면 잘려 나간다. <code>RETURN</code>이 <code>base</code>까지 잘라 내므로 함수가 남긴 임시 값이 새어 나가지 않는다.</p>
+<p>(<code>│</code> 왼쪽이 슬롯, 오른쪽이 계산 중인 값이다.) 슬롯과 계산 중인 값이 <strong>같은 스택 하나</strong>에 이어서 산다. 함수를 부를 때마다 그 위에 새 프레임의 칸이 이어 붙고, 돌아오면 잘려 나간다. <code>RETURN</code>이 <code>floor</code>까지 잘라 내므로 함수가 남긴 임시 값이 새어 나가지 않는다.</p>
 <p>상수 풀이 원형마다 따로라는 점도 보자. <code>&lt;main&gt;</code>의 <code>CONST 0</code>은 <code>print</code>, <code>double</code>의 <code>CONST 0</code>은 2다.</p>
 <p><code>print</code>는 Rust로 쓴 내장 함수라 프레임을 쌓지 않는다. VM은 인자를 꺼내 Rust 함수를 바로 부르고, 돌려준 값을 스택에 올린다.</p>
 <h2 id="loop">실행 루프</h2>
 <p>VM의 심장은 반복문 하나다.</p>
 <pre class="plain"><code>반복:
   f = 맨 위 프레임
-  명령 = f.proto.code[f.ip]
+  명령 = f.proto.code[f.ip]      (링크 때 풀어 둔 {종류, 피연산자})
   f.ip = f.ip + 1
   명령의 종류에 따라:
     CONST     → 상수 풀[피연산자]를 올린다
@@ -347,12 +348,12 @@ print(report([3, 4, 5]))</code></pre><pre class="out dump plain"><code>$ fung du
 <li><strong>스택 머신.</strong> 설계 문서 09의 구조 그대로 "스택 VM"이다. 레지스터 머신과 인라인 캐시(같은 자리의 이름 조회 결과를 기억하는 기법)는 "측정을 보고 정한다"로 미뤄 두었다(open-questions "성능"). 2026-10-14 측정에서는 호출의 빠른 길(인자가 그 자리에서 슬롯이 되기)과 범위를 리스트로 펼치지 않는 반복으로 함수 호출과 반복이 2.3~2.5배 빨라졌고, 남은 시간은 명령 해석 루프 자체라고 기록했다.</li>
 <li><strong>고정 폭 32비트 = 8비트 명령 + 24비트 피연산자.</strong> 디코딩과 점프 계산이 단순하고 역어셈블러가 쉽다. 24비트면 상수·슬롯·점프 위치에 충분하다. 가변 길이 바이트 열은 매 명령의 길이를 따져야 해서 택하지 않았다(설계 문서 09, 내부 구조 부록).</li>
 <li><strong>내장 함수는 상수로 직접.</strong> prelude 이름은 컴파일러가 함수 값을 상수 풀에 넣는다. 실행 중에 이름을 찾지 않는다(6장).</li>
-<li><strong>명령마다 소스 위치.</strong> 런타임 에러가 정확한 줄과 칸을 가리키는 이유다(7장).</li>
+<li><strong>명령마다 소스 위치.</strong> 런타임 에러가 정확한 줄과 칸을 가리키는 이유다(7장). 실행 루프는 명령마다 위치를 읽지 않는다. 에러가 나거나 위치를 남겨야 하는 명령(내장 함수 호출, <code>import</code>)일 때만 프레임의 <code>ip - 1</code>로 표에서 찾는다.</li>
 </ul>
 </div>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>
-<li><code>crates/fung-front/src/bytecode/op.rs</code>: 명령 종류 <code>Op</code>(번호가 고정된 <code>#[repr(u8)]</code> 열거형), 32비트 단어 <code>Instr</code>(<code>Instr::new</code>, <code>Instr::op</code>, <code>Instr::arg</code>), <code>CALL</code> 피연산자를 싸고 푸는 <code>encode_call</code>·<code>decode_call</code>, 이름 <code>Op::name</code>.</li>
+<li><code>crates/fung-front/src/bytecode/op.rs</code>: 명령 종류 <code>Op</code>(번호가 고정된 <code>#[repr(u8)]</code> 열거형), 32비트 단어 <code>Instr</code>(<code>Instr::new</code>, <code>Instr::op</code>, <code>Instr::arg</code>), <code>CALL</code> 피연산자를 싸고 푸는 <code>encode_call</code>·<code>decode_call</code>, 이름 <code>Op::name</code>. VM은 링크 때 <code>Instr</code>를 <code>vm/link.rs</code>의 <code>Code</code>(<code>op</code>·<code>arg</code> 필드)로 한 번 푼다.</li>
 <li><code>crates/fung-front/src/bytecode.rs</code>: 함수 원형 <code>Proto</code>와 <code>Proto::emit</code>(명령과 위치를 함께 넣는다), <code>Proto::patch</code>(점프를 나중에 채운다), <code>Proto::add_const</code>(같은 상수 다시 쓰기).</li>
 <li><code>crates/fung-front/src/bytecode/disasm.rs</code>: <code>disassemble</code>, 곧 <code>fung dump bytecode</code>의 출력.</li>
 <li><code>crates/fung-front/src/compiler.rs</code>: <code>compile</code>과 <code>Compiler::block</code>(문장, <code>POP</code>, <code>CLEARLOCAL</code>), <code>Compiler::expr</code>(코어 형태마다 명령 내기), <code>Compiler::op</code>, <code>Compiler::if_expr</code>(점프 둘), <code>Compiler::let_stmt</code>. 함수와 호출은 <code>crates/fung-front/src/compiler/fn_.rs</code>의 <code>Compiler::function</code>과 <code>Compiler::call</code>.</li>

@@ -1,6 +1,6 @@
 ---
 lede: 글자를 나누고, 잇고, 다듬고, 바꾼다. 문자열은 불변인 바이트 열이고, 인덱스와 길이는 바이트가 아니라 글자 단위다.
-description: fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, valid_utf8.
+description: fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, is_utf8.
 ---
 # 문자열
 
@@ -14,7 +14,7 @@ fung의 문자열에 대해 알아 둘 것은 다섯이다.
 - **글자 단위**다. 문자열은 UTF-8로 저장되지만 `len`, 인덱스 `s[0]`, 슬라이스 `s[1..3]`은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 `"참치"[0]`은 `"참"`이고 `len("참치")`는 2다.
 - **어떤 바이트든 담는다**. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 `"a\xff"`처럼 `\xHH`로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다([바이트](#bytes)).
 - **잇기는 `+`, 끼워 넣기는 보간**이다. `"a" + "b"`는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 `"${name}: ${count}"`처럼 쓴다. 보간은 어떤 값이든 [`str`](convert.html#fn-str)과 같은 규칙으로 바꿔 넣는다.
-- **문자열은 컬렉션 함수에 넣지 않는다.** `map("abc", f)`는 에러다. 글자 하나하나를 다루려면 [`chars`](#fn-chars)로 글자 리스트를 만든다.
+- **문자열은 컬렉션 함수에 넣지 않는다.** `map("abc", f)`도 `take("abc", 2)`·`first("abc")`도 에러다(E0506). 앞뒤를 자르려면 슬라이스(`s[..2]`, `s[1..]`, `s[-1]`)를, 글자 하나하나를 다루려면 [`chars`](#fn-chars)로 글자 리스트를 만든다.
 
 ```fung run
 s = "  ERROR disk full  "
@@ -33,14 +33,14 @@ print(s == "  ERROR disk full  ")
 
 #### 설명
 
-`sep`가 나올 때마다 자른다. 구분자가 연달아 있거나 맨 앞·맨 뒤에 있으면 그 사이의 **빈 조각도 남긴다**(`split("a,,b", ",")`는 `["a", "", "b"]`). 그래서 CSV처럼 칸 수가 중요한 데이터를 잘 다룬다. 구분자가 없으면 원래 문자열 하나짜리 리스트이고, 빈 문자열을 나누면 `[""]`이다. `sep`가 `""`면 글자 단위로 나눈다(`chars`와 같다).
+`sep`가 나올 때마다 자른다. 구분자가 연달아 있거나 맨 앞·맨 뒤에 있으면 그 사이의 **빈 조각도 남긴다**(`split("a,,b", ",")`는 `["a", "", "b"]`). 그래서 CSV처럼 칸 수가 중요한 데이터를 잘 다룬다. 구분자가 없으면 원래 문자열 하나짜리 리스트이고, 빈 문자열을 나누면 `[""]`이다. 그래서 원소 수는 언제나 구분자 수 + 1이고 `join(split(s, sep), sep) == s`다. `sep`는 빈 문자열일 수 없다(E0403). 글자 단위로 나누려면 [`chars`](#fn-chars)를 쓴다.
 
 공백이 여러 개 섞인 글을 낱말로 나눌 때는 빈 조각을 걸러 낸다: `split(s, " ") |> filter(w => w != "")`. 줄로 나눌 때는 `split(s, "\n")` 대신 [`lines`](#fn-lines)를 쓴다(마지막 줄바꿈과 `\r`을 처리해 준다). 정규식으로 나누려면 [`regex.split`](../modules/regex.html#fn-regex-split).
 
 #### 매개변수
 
 - `s`: 나눌 문자열.
-- `sep`: 구분자 문자열. 여러 글자여도 된다.
+- `sep`: 구분자 문자열. 여러 글자여도 되고, 비어 있으면 안 된다.
 
 #### 돌려주는 값
 
@@ -48,7 +48,7 @@ print(s == "  ERROR disk full  ")
 
 #### 에러
 
-`s`나 `sep`가 문자열이 아니면 런타임 에러 E0403.
+`s`나 `sep`가 문자열이 아니거나 `sep`가 빈 문자열이면 런타임 에러 E0403(``argument `sep` must be a non-empty str, got ""``).
 
 #### 예제
 
@@ -58,10 +58,10 @@ print(s == "  ERROR disk full  ")
 print(split("a,,b", ","), split(",a,", ","), split("abc", "x"), split("", ","))
 ```
 
-**여러 글자 구분자, 글자 단위**
+**여러 글자 구분자, 글자 단위는 chars**
 
 ```fung run
-print(split("a::b::c", "::"), split("abc", ""))
+print(split("a::b::c", "::"), chars("abc"))
 ```
 
 **`키=값` 줄 읽기**
@@ -202,7 +202,7 @@ for (i, host) in zip(1..100, lines(out)):
 
 #### 에러
 
-`s`가 문자열이 아니면 런타임 에러 E0506.
+`s`가 문자열이 아니면 런타임 에러 E0403(``argument `s` must be str, got int``). 다른 문자열 함수와 같다.
 
 #### 예제
 
@@ -481,7 +481,7 @@ print(filter(files, f => ends_with(lower(f), ".log")))
 
 #### 설명
 
-fung에는 `"a" * 3`이 없다(문자열과 수의 곱은 에러다). 구분선이나 들여쓰기를 만들 때 쓴다. `n`이 0 이하면 `""`이다.
+fung에는 `"a" * 3`이 없다(문자열과 수의 곱은 에러다). 구분선이나 들여쓰기를 만들 때 쓴다. `n`이 0이면 `""`이고, 음수면 E0403이다.
 
 #### 매개변수
 
@@ -523,7 +523,7 @@ print(repeat("-", 20))
 #### 매개변수
 
 - `s`: 문자열. 수는 먼저 `str`로 바꾼다.
-- `n`: 만들 글자 수.
+- `n`: 만들 글자 수. 음이 아닌 정수(음수면 E0403).
 - `pad`: 채울 문자열. 기본은 공백 하나.
 
 #### 돌려주는 값
@@ -533,7 +533,7 @@ print(repeat("-", 20))
 #### 에러
 
 - `s`·`pad`가 문자열이 아니거나 `n`이 정수가 아니면 런타임 에러 E0403.
-- `pad`가 `""`면 런타임 에러 E0403(`argument `pad` must be a non-empty str, got str`).
+- `pad`가 `""`면 런타임 에러 E0403(``argument `pad` must be a non-empty str, got ""``).
 
 #### 예제
 
@@ -572,7 +572,7 @@ for (host, cpu) in rows:
 #### 매개변수
 
 - `s`: 문자열.
-- `n`: 만들 글자 수.
+- `n`: 만들 글자 수. 음이 아닌 정수(음수면 E0403).
 - `pad`: 채울 문자열. 기본은 공백 하나.
 
 #### 돌려주는 값
@@ -608,7 +608,7 @@ fung 문자열은 바이트 열이다. 바깥에서 들어온 값(파일, 명령
 
 ```fung run
 s = "a\xffb"
-print([s, s[1], s + "!"], len(s), byte_len(s), valid_utf8(s))
+print([s, s[1], s + "!"], len(s), byte_len(s), is_utf8(s))
 ```
 
 :::fn byte_len(s)
@@ -716,11 +716,11 @@ print(from_bytes(bytes("참치")) == "참치")
 
 #### 같이 보기
 
-[`bytes`](#fn-bytes), [`valid_utf8`](#fn-valid_utf8)
+[`bytes`](#fn-bytes), [`is_utf8`](#fn-is_utf8)
 
 :::
 
-:::fn valid_utf8(s)
+:::fn is_utf8(s)
 
 문자열이 올바른 UTF-8 글인지.
 
@@ -746,7 +746,7 @@ print(from_bytes(bytes("참치")) == "참치")
 
 ```fung run
 for s in ["café", "caf\xe9", ""]:
-  print(valid_utf8(s))
+  print(is_utf8(s))
 ;;
 ```
 

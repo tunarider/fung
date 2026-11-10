@@ -5,7 +5,7 @@ use fung_front::source::{FileId, Pos};
 
 use super::dur::{add_dur, div_dur, scale_dur, sub_dur};
 use super::time::{add_time_dur, sub_time_dur, sub_times};
-use super::{Value, type_name};
+use super::{Text, Value, type_name};
 use crate::prelude::MAX_CHARS;
 
 /// A position-less location; the VM fills the real one in with `with_pos`.
@@ -84,6 +84,16 @@ fn chars_fit(parts: &[&[u8]]) -> bool {
         || fits(parts.iter().map(|p| fung_front::text::char_count(p)).sum())
 }
 
+/// E0806 for a text past the string limit: the remembered character
+/// count is used, so a text is counted once for good (VA26).
+pub(crate) fn check_text(s: &Text) -> Result<(), Diag> {
+    if s.as_bytes().len() as u64 <= MAX_CHARS as u64 || s.char_len() as u64 <= MAX_CHARS as u64 {
+        Ok(())
+    } else {
+        Err(too_many_chars())
+    }
+}
+
 /// E0806 for a string the VM built past the string limit (interpolation).
 pub(crate) fn check_chars(s: &[u8]) -> Result<(), Diag> {
     if chars_fit(&[s]) {
@@ -100,9 +110,9 @@ pub(crate) fn check_chars(s: &[u8]) -> Result<(), Diag> {
 /// (a native that returns a map of outside text checks it itself).
 pub(crate) fn check_returned(v: &Value) -> Result<(), Diag> {
     match v {
-        Value::Str(s) => check_chars(s.as_bytes()),
+        Value::Str(s) => check_text(s),
         Value::Tag(t) => t.args.iter().try_for_each(|a| match a {
-            Value::Str(s) => check_chars(s.as_bytes()),
+            Value::Str(s) => check_text(s),
             _ => Ok(()),
         }),
         _ => Ok(()),
@@ -112,13 +122,11 @@ pub(crate) fn check_returned(v: &Value) -> Result<(), Diag> {
 pub fn add(a: &Value, b: &Value) -> Result<Value, Diag> {
     match (a, b) {
         (Value::Str(x), Value::Str(y)) => {
-            if !chars_fit(&[x, y]) {
+            let bytes = x.as_bytes().len() as u64 + y.as_bytes().len() as u64;
+            if bytes > MAX_CHARS as u64 && (x.char_len() + y.char_len()) as u64 > MAX_CHARS as u64 {
                 return Err(too_many_chars());
             }
-            let mut s = Vec::with_capacity(x.len() + y.len());
-            s.extend_from_slice(x);
-            s.extend_from_slice(y);
-            return Ok(Value::bytes(s));
+            return Ok(Value::Str(Rc::new(Text::concat(x, y))));
         }
         (Value::Dur(x), Value::Dur(y)) => return add_dur(*x, *y),
         (Value::Time(t), Value::Dur(d)) | (Value::Dur(d), Value::Time(t)) => {

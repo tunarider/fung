@@ -7,7 +7,7 @@ mod fn_info;
 
 use std::fmt::{self, Write};
 
-pub use fn_info::{Capture, CaptureKind, FnInfo, Import, Param, TypeAlias};
+pub use fn_info::{Capture, CaptureKind, FnInfo, Import, Param, TypeAlias, TypeTerm};
 
 use crate::consts::{format_dur, format_float, quote_bytes, quote_str};
 use crate::source::Pos;
@@ -200,9 +200,31 @@ pub struct Node {
     /// statements. `end == 0` means unknown.
     pub off: usize,
     pub end: usize,
+    /// The expression was written in parentheses, `(e)` (FE27): the
+    /// parser marks it so a pipe calls `x |> (f(1))` as a value instead
+    /// of filling the call. The mark does not show in `fung dump`.
+    pub paren: bool,
 }
 
 impl Node {
+    /// Where the node's source text starts, as far as the tree knows: the
+    /// first position in it (a call's own position is its `(`, an
+    /// operator's the operator, so the start is a position inside). Text
+    /// before the first node, such as an opening parenthesis, is not
+    /// counted.
+    pub fn start_pos(&self) -> Pos {
+        let mut first = self.pos;
+        let mut todo: Vec<&Node> = vec![self];
+        while let Some(n) = todo.pop() {
+            let earlier = (n.pos.line, n.pos.col) < (first.line, first.col);
+            if !n.pos.is_zero() && (first.is_zero() || earlier) {
+                first = n.pos;
+            }
+            todo.extend(&n.kids);
+        }
+        first
+    }
+
     /// Calls `f` with every name a pattern binds, in order and with where
     /// it is bound: `(pbind x)`, a named `...rest`, and a plain name as an
     /// assignment's target. `..._` and `_` bind nothing (FE11). The
@@ -236,6 +258,7 @@ impl Node {
             kids,
             off: 0,
             end: 0,
+            paren: false,
         }
     }
 
@@ -439,11 +462,14 @@ mod tests {
         let mut b = param("b");
         b.has_default = true;
         let mut pp = param("p");
-        pp.types = Some(vec!["int".into(), "nil".into()]);
+        pp.types = Some(vec![
+            TypeTerm::plain("int", p()),
+            TypeTerm::plain("nil", p()),
+        ]);
         let mut xs = param("xs");
         xs.rest = true;
         let mut f = info("f", vec![pp]);
-        f.ret = Some(vec!["str".into()]);
+        f.ret = Some(vec![TypeTerm::plain("str", p())]);
         let cases = vec![
             (info("add", vec![param("a"), b]), "add(a, b=?)"),
             (info("", vec![param("x")]), "(x)"),
@@ -496,7 +522,7 @@ mod tests {
             TypeAlias {
                 name: "T".into(),
                 name_pos: p(),
-                alts: vec!["int".into()]
+                alts: vec![TypeTerm::plain("int", p())]
             }
             .to_string(),
             "T"

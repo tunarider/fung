@@ -67,7 +67,7 @@
 <p>fung은 다른 길을 택했다. 실패할 수 있는 함수는 <strong>결과값</strong>(result)을 돌려준다. 성공하면 <code>Ok(값)</code>, 실패하면 <code>Err(이유)</code>다. 문자열을 정수로 바꾸는 <code>parse_int</code>로 보자.</p>
 <div class="run"><pre><code>print(parse_int(&quot;42&quot;))
 print(parse_int(&quot;마흔둘&quot;))</code></pre><pre class="out plain"><code>Ok(42)
-Err({kind: 'parse, message: &quot;not an integer: 마흔둘&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not an integer: \&quot;마흔둘\&quot;&quot;})</code></pre></div>
 <p><code>Ok</code>와 <code>Err</code>는 8장에서 본 태그다. 표준 라이브러리가 돌려주는 <code>Err</code> 안에는 맵이 들어 있다. <code>kind</code>는 실패의 종류를 나타내는 심볼이고, <code>message</code>는 사람이 읽을 설명이다. 파일 읽기가 실패하면 이렇게 생겼다.</p>
 <div class="run"><pre><code>import fs
 
@@ -82,7 +82,7 @@ print(fs.read(&quot;missing.txt&quot;))</code></pre><pre class="out plain"><code
 
 print(double_text(&quot;21&quot;))
 print(double_text(&quot;abc&quot;))</code></pre><pre class="out plain"><code>두 배: 42
-숫자가 아니에요: not an integer: abc</code></pre></div>
+숫자가 아니에요: not an integer: &quot;abc&quot;</code></pre></div>
 <p>실패의 종류에 따라 하는 일이 다르면 <code>kind</code>까지 패턴에 쓴다. 설정 파일이 없을 때만 기본 설정을 쓰고, 권한 문제 같은 다른 실패는 멈추는 예다.</p>
 <div class="run"><pre><code>import fs
 
@@ -103,7 +103,7 @@ print(load_config(&quot;app.json&quot;))</code></pre><pre class="out plain"><cod
 
 print(add_texts(&quot;1&quot;, &quot;2&quot;))
 print(add_texts(&quot;1&quot;, &quot;둘&quot;))</code></pre><pre class="out plain"><code>Ok(3)
-Err({kind: 'parse, message: &quot;not an integer: 둘&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not an integer: \&quot;둘\&quot;&quot;})</code></pre></div>
 <p><code>add_texts</code>는 성공하면 <code>Ok(합)</code>, 실패하면 처음 실패한 <code>parse_int</code>의 <code>Err</code>를 돌려준다. 이런 함수를 부른 쪽도 다시 <code>match</code>나 <code>?</code>로 결과를 다룬다. 실패는 이렇게 호출을 거슬러 올라가며, 그것을 처리할 줄 아는 곳에서 처리된다.</p>
 <p><code>?</code>는 "함수에서 돌아간다"는 뜻이므로 함수 안에서만 쓴다. 스크립트 최상위에 쓰면 컴파일 에러 E0214이고, 프로그램은 한 줄도 실행되지 않은 채 종료 코드 2로 끝난다. 최상위에서는 다음 절의 <code>!</code>를 쓴다.</p>
 <div class="run"><pre><code>n = parse_int(&quot;x&quot;)?
@@ -120,7 +120,7 @@ print(n)</code></pre><pre class="out err plain" data-code="2"><code>error[E0214]
 print(&quot;port:&quot;, port)
 retries = parse_int(&quot;three&quot;)!
 print(&quot;never printed&quot;)</code></pre><pre class="out err plain" data-code="1"><code>port: 8080
-error[E0603]: unhandled Err: not an integer: three
+error[E0603]: unhandled Err: not an integer: &quot;three&quot;
   --&gt; example.fung:3:29
   |
 3 | retries = parse_int(&quot;three&quot;)!
@@ -137,7 +137,7 @@ print(retries, port)</code></pre><pre class="out plain"><code>3 8080</code></pre
 <h2 id="discard">버리면 안 된다</h2>
 <p>결과값을 아무 데도 쓰지 않으면 어떻게 될까? 아래 첫 줄은 <code>parse_int</code>의 결과를 변수에 담지도, 출력하지도 않는다. 값이 그냥 버려진다. 버려진 값이 <code>Err</code>면 fung은 거기서 멈춘다(E0606).</p>
 <div class="run"><pre><code>parse_int(&quot;abc&quot;)
-print(&quot;여기까지 오지 않는다&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: abc
+print(&quot;여기까지 오지 않는다&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: &quot;abc&quot;
   --&gt; example.fung:1:1
   |
 1 | parse_int(&quot;abc&quot;)
@@ -157,7 +157,7 @@ print(&quot;cleaned up&quot;)</code></pre><pre class="out plain"><code>cleaned u
 ;;
 
 parse_all([&quot;1&quot;, &quot;x&quot;])
-print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: x
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0606]: discarded Err: not an integer: &quot;x&quot;
   --&gt; example.fung:5:1
   |
 5 | parse_all([&quot;1&quot;, &quot;x&quot;])
@@ -241,7 +241,7 @@ match add_args(args):
   Err(e)    =&gt;
     eprint(&quot;error:&quot;, e.message)
     exit(1)
-;;</code></pre><pre class="out err plain" data-code="1"><code>error: not an integer: four</code></pre></div>
+;;</code></pre><pre class="out err plain" data-code="1"><code>error: not an integer: &quot;four&quot;</code></pre></div>
 </details>
 </div>
 <div class="exercise"><b>key=value 줄 읽기</b>
@@ -267,7 +267,7 @@ Err({kind: 'syntax, message: &quot;not key=value: broken&quot;})</code></pre></d
 <p><code>xs |&gt; map(x =&gt; parse_int(x)?)</code>는 컴파일 에러 E0226이다. <code>?</code>는 람다에서 돌아갈 뿐 바깥 함수에서 돌아가지 않으므로, 실패가 그냥 리스트의 원소가 되어 버리기 때문이다. 리스트의 원소를 하나씩 바꾸다 처음 실패에서 멈추려면 <code>try_map</code>을 쓴다. 모두 성공하면 <code>Ok(리스트)</code>, 아니면 처음 <code>Err</code>다.</p>
 <div class="run"><pre><code>print(try_map([&quot;1&quot;, &quot;2&quot;, &quot;3&quot;], parse_int))
 print(try_map([&quot;1&quot;, &quot;b&quot;, &quot;c&quot;], parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])
-Err({kind: 'parse, message: &quot;not an integer: b&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not an integer: \&quot;b\&quot;&quot;})</code></pre></div>
 </div>
 <div class="box mistake"><b>??는 모든 실패를 덮는다</b>
 <p><code>fs.read(p) ?? &quot;{}&quot;</code>는 파일이 없을 때만이 아니라 권한이 없을 때도 <code>&quot;{}&quot;</code>다. 정말 문제인 실패까지 조용히 덮을 수 있다. 특정한 실패만 기본값으로 바꾸려면 위의 <code>load_config</code>처럼 <code>match</code>로 <code>kind</code>를 가린다.</p>

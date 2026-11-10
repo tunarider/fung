@@ -56,7 +56,7 @@ total = 0
 top_level_unused = 1
 
 test "uses imports and globals":
-  assert fs.exists(".")
+  assert fs.exists(".")!
   assert j.stringify(1) == "1"
   assert ext("a.b") == ".b"
   assert total == 0

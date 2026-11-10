@@ -112,7 +112,7 @@ web2: ok</code></pre></div>
 print(fs.write(&quot;out/2026/report.txt&quot;, &quot;x&quot;))
 fs.mkdir(&quot;out/2026&quot;)!
 fs.write(&quot;out/2026/report.txt&quot;, &quot;x&quot;)!
-print(fs.exists(&quot;out/2026/report.txt&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'not_found, message: &quot;cannot write `out/2026/report.txt`: no such file or directory&quot;})
+print(fs.exists(&quot;out/2026/report.txt&quot;)!)</code></pre><pre class="out plain"><code>Err({kind: 'not_found, message: &quot;cannot write `out/2026/report.txt`: no such file or directory&quot;})
 true</code></pre></div>
 <h2 id="dirs">디렉터리 돌기</h2>
 <p><code>fs.list(디렉터리)</code>는 바로 안의 이름들을, <code>fs.walk(디렉터리)</code>는 아래의 모든 파일 경로를 하위 디렉터리까지 내려가며 돌려준다(디렉터리 자신은 빼고). <code>fs.stat(경로)</code>는 <code>{name, size, is_dir}</code>을 돌려준다. <code>size</code>는 바이트 수다. 셋을 합치면 "로그 디렉터리에서 큰 <code>.log</code> 파일 찾기"가 된다.</p>
@@ -162,11 +162,11 @@ worker.log -&gt; backup/worker.old</code></pre></div>
 <div class="run"><pre><code>r = exec([&quot;echo&quot;, &quot;hello&quot;, &quot;fung&quot;])
 print(r)
 out = exec([&quot;echo&quot;, &quot;hello&quot;, &quot;fung&quot;])!
-print(trim(out.out))</code></pre><pre class="out plain"><code>Ok({out: &quot;hello fung\n&quot;, err: &quot;&quot;, code: 0})
+print(trim(out.out))</code></pre><pre class="out plain"><code>Ok({out: &quot;hello fung\n&quot;, err: &quot;&quot;, code: 0, signal: nil})
 hello fung</code></pre></div>
-<p>결과는 <code>Ok({out, err, code})</code>다. <code>out</code>과 <code>err</code>는 명령이 표준 출력과 표준 에러에 쓴 글자다. 명령이 0이 아닌 종료 코드로 끝나면 <code>Err({kind: 'exit, code, out, err, message})</code>이고, 명령을 찾지 못하면 <code>Err({kind: 'not_found, …})</code>다. 그래서 <code>exec(…)!</code>는 쉘의 <code>set -e</code>처럼 "실패하면 멈춘다"가 된다.</p>
+<p>결과는 <code>Ok({out, err, code, signal})</code>다. <code>out</code>과 <code>err</code>는 명령이 표준 출력과 표준 에러에 쓴 글자다. 명령이 0이 아닌 종료 코드로 끝나면 <code>Err({kind: 'exit, code, signal, out, err, message})</code>이고(신호로 끝났으면 <code>code</code>는 <code>nil</code>, <code>signal</code>이 신호 번호), 명령을 찾지 못하면 <code>Err({kind: 'not_found, …})</code>다. 그래서 <code>exec(…)!</code>는 쉘의 <code>set -e</code>처럼 "실패하면 멈춘다"가 된다.</p>
 <div class="run"><pre><code>print(exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo partial; exit 3&quot;]))
-print(exec([&quot;no-such-tool&quot;, &quot;--version&quot;]))</code></pre><pre class="out plain"><code>Err({kind: 'exit, code: 3, out: &quot;partial\n&quot;, err: &quot;&quot;, message: &quot;`sh` exited with code 3&quot;})
+print(exec([&quot;no-such-tool&quot;, &quot;--version&quot;]))</code></pre><pre class="out plain"><code>Err({kind: 'exit, code: 3, signal: nil, out: &quot;partial\n&quot;, err: &quot;&quot;, message: &quot;`sh` exited with code 3&quot;})
 Err({kind: 'not_found, message: &quot;cannot run `no-such-tool`: command not found in PATH&quot;})</code></pre></div>
 <p>파이프(<code>|</code>), 리다이렉션(<code>&gt;</code>), 글로브처럼 쉘 기능이 꼭 필요하면 <code>sh(문자열)</code>을 쓴다. <code>/bin/sh -c 문자열</code>로 돌리고 결과의 모양은 <code>exec</code>와 같다. 둘 다 이름 붙인 인자 <code>cwd:</code>(실행할 디렉터리), <code>env:</code>(덧붙일 환경 변수 맵), <code>stdin:</code>(표준 입력으로 줄 문자열)을 받는다.</p>
 <div class="run"><pre><code>r = sh(&quot;printf 'a\\nERROR x\\nERROR y\\n' | grep -c ERROR&quot;)!
@@ -180,13 +180,13 @@ print(lines(sorted.out))</code></pre><pre class="out plain"><code>errors: 2
 hi ops
 [&quot;apple&quot;, &quot;fig&quot;, &quot;pear&quot;]</code></pre></div>
 <h2 id="args">명령줄 인자</h2>
-<p><code>fung script.fung a b c</code>로 실행하면 스크립트 이름 뒤의 인자가 <code>args</code>에 문자열 리스트로 들어온다(2장). <code>--dir logs</code> 같은 옵션을 받으려면 <code>cli</code> 모듈의 <code>cli.parse(args)</code>를 쓴다. 결과는 <code>{flags, rest}</code>다. <code>--이름 값</code>과 <code>--이름=값</code>은 <code>flags</code>에, 나머지는 순서대로 <code>rest</code>에 간다. 값 없는 <code>--이름</code>은 <code>true</code>이고, <code>bools:</code>에 적은 이름은 다음 인자를 값으로 먹지 않는다. 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>dry_run</code>).</p>
+<p><code>fung script.fung a b c</code>로 실행하면 스크립트 이름 뒤의 인자가 <code>args</code>에 문자열 리스트로 들어온다(2장). <code>--dir logs</code> 같은 옵션을 받으려면 <code>cli</code> 모듈의 <code>cli.parse(args)!</code>를 쓴다. 결과는 <code>Ok({flags, rest})</code>다(명령줄은 바깥 입력이라 잘못 친 명령줄, 예를 들어 같은 옵션을 두 번 준 것은 <code>Err</code>이고, <code>!</code>가 거기서 멈춘다). <code>--이름 값</code>과 <code>--이름=값</code>은 <code>flags</code>에, 나머지는 순서대로 <code>rest</code>에 간다. 값 없는 <code>--이름</code>은 <code>true</code>이고, <code>bools:</code>에 적은 이름은 다음 인자를 값으로 먹지 않는다. 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>dry_run</code>).</p>
 <details class="fixture"><summary>실행 방법</summary>
 <pre class="plain shell"><code>fung example.fung --dir logs --min 100 --dry-run a.log b.log</code></pre>
 </details>
 <div class="run"><pre><code>import cli
 
-opts = cli.parse(args, bools: [&quot;dry-run&quot;])
+opts = cli.parse(args, bools: [&quot;dry-run&quot;])!
 print(opts)
 
 dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
@@ -196,7 +196,7 @@ print(dir, min_size, dry_run, opts.rest)</code></pre><pre class="out plain"><cod
 logs 100 true [&quot;a.log&quot;, &quot;b.log&quot;]</code></pre></div>
 <p>옵션 값은 늘 문자열이라 숫자가 필요하면 직접 바꾼다. 주지 않았을 수도 있는 옵션은 <code>get</code>으로 기본값을 준다(<code>opts.flags.dir</code>은 옵션이 없으면 런타임 에러다, 9장).</p>
 <h2 id="env">환경 변수</h2>
-<p><strong>환경 변수</strong>(environment variable)는 프로그램을 띄운 쪽(쉘, systemd, 컨테이너)이 넘겨주는 이름-값 쌍이다. <code>env(&quot;이름&quot;)</code>은 값을 문자열로, 없으면 <code>nil</code>을 돌려준다. 그래서 <code>??</code>로 기본값을 붙이는 모양이 흔하다. <code>env()</code>는 전체를 맵으로 준다.</p>
+<p><strong>환경 변수</strong>(environment variable)는 프로그램을 띄운 쪽(쉘, systemd, 컨테이너)이 넘겨주는 이름-값 쌍이다. <code>env(&quot;이름&quot;)</code>은 값을 문자열로, 없으면 <code>nil</code>을 돌려준다. 그래서 <code>??</code>로 기본값을 붙이는 모양이 흔하다. 전체를 맵으로 받으려면 <code>env_all()</code>을 쓴다.</p>
 <details class="fixture"><summary>실행 방법</summary>
 <pre class="plain shell"><code>APP_ENV=staging fung example.fung</code></pre>
 </details>
@@ -224,7 +224,7 @@ print(&quot;failing:&quot;, join(bad, &quot;, &quot;))</code></pre><pre class="o
 <p>결과는 표준 출력(<code>print</code>)에, 사람에게 보이는 경고와 에러는 <strong>표준 에러</strong>(<code>eprint</code>)에 쓴다. 그래야 <code>fung check.fung &gt; result.txt</code>처럼 출력을 파일로 받아도 에러가 섞이지 않는다.</p>
 <div class="run"><pre><code>import fs
 
-missing = [&quot;app.conf&quot;, &quot;db.conf&quot;] |&gt; filter(f =&gt; not fs.exists(f))
+missing = [&quot;app.conf&quot;, &quot;db.conf&quot;] |&gt; filter(f =&gt; not fs.exists(f)!)
 if not is_empty(missing):
   eprint(&quot;missing config:&quot;, join(missing, &quot;, &quot;))
   exit(2)
@@ -251,7 +251,7 @@ GET /health 200</code></pre>
 import fs
 import path
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 dir = get(opts.flags, &quot;dir&quot;, &quot;.&quot;)
 min_size = int(get(opts.flags, &quot;min&quot;, &quot;0&quot;))
 
@@ -320,7 +320,7 @@ print(trim(r.out), r.code)</code></pre><pre class="out plain"><code>hello 0</cod
 <li><code>fs.read</code>·<code>fs.read_lines</code>로 읽고, <code>fs.write</code>·<code>fs.append</code>로 쓴다. 모두 결과값이라 스크립트에서는 <code>!</code>를 붙인다.</li>
 <li><code>fs.list</code>·<code>fs.walk</code>·<code>fs.glob</code>로 파일을 찾고, <code>fs.stat</code>로 크기를 본다. 경로 계산은 <code>path</code>.</li>
 <li><code>exec([프로그램, 인자…])</code>는 쉘 없이 명령을 돌리고 <code>Ok({out, err, code})</code>를 준다. 0이 아닌 종료는 <code>Err({kind: 'exit, …})</code>. 쉘 기능이 필요할 때만 <code>sh</code>.</li>
-<li>인자는 <code>args</code>, 옵션은 <code>cli.parse(args)</code>, 환경 변수는 <code>env(&quot;이름&quot;) ?? 기본값</code>, 표준 입력은 <code>read_lines()</code>.</li>
+<li>인자는 <code>args</code>, 옵션은 <code>cli.parse(args)!</code>, 환경 변수는 <code>env(&quot;이름&quot;) ?? 기본값</code>, 표준 입력은 <code>read_lines()</code>.</li>
 <li>결과는 <code>print</code>, 경고와 에러는 <code>eprint</code>, 끝내는 코드는 <code>exit(n)</code>.</li>
 </ul>
 <p>함수마다의 자세한 설명은 레퍼런스의 <a href="../reference/modules/fs.html">fs</a>, <a href="../reference/modules/path.html">path</a>, <a href="../reference/modules/cli.html">cli</a>, <a href="../reference/prelude/process.html">프로세스와 환경</a>, <a href="../reference/prelude/io.html">입출력</a>, <a href="../reference/prelude/program.html">에러와 종료</a>에 있다. 명령줄 도구의 종료 코드 표는 <a href="../reference/cli.html#exit-codes">명령줄 도구</a>에 있다. 실무 예는 예제 모음의 <a href="../recipes/find-big-files.html">큰 파일 찾기</a>, <a href="../recipes/exit-codes.html">종료 코드와 stderr</a>를 보라.</p>

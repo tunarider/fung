@@ -1,0 +1,6 @@
+# Zero literals stay zero, the last duration part may have a fraction,
+# and a subnormal float is not zero (FE31, D9).
+print(0s, 0.0ms, 0.000001ms, 1h0m, 1h30.5m)
+# expect: 0s 0s 0.000001ms 1h 1h30m30s
+print(0.0, 0e5, 5e-324)
+# expect: 0.0 0.0 5e-324

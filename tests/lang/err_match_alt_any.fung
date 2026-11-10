@@ -1,0 +1,8 @@
+# An alternative that matches everything makes the whole pattern match
+# everything, so the arms after it never run.
+fn f(x) = match x:
+  1 | _ => "any"
+  2     => "two"
+;;
+print(f(2))
+# expect-error: E0235

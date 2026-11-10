@@ -1,0 +1,4 @@
+# The piped value is the first value of the tag (01): `x |> Ok(2)` would be
+# `Ok(x, 2)`, and a result holds exactly one value (SP12).
+print(1 |> Ok(2))
+# expect-error: E0236

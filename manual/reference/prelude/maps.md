@@ -47,8 +47,8 @@ fung의 맵에는 규칙이 셋 있다([값과 타입](../language/values.html))
 
 #### 에러
 
-- `m`이 맵이 아니면 E0506(`cannot get from list`). 리스트는 인덱스로 읽는다.
-- `k`가 문자열이 아니면 E0501.
+- `m`이 맵이 아니면 E0506(`cannot get a key from list`). 리스트는 인덱스로 읽는다.
+- `k`가 문자열이 아니면 E0514(맵의 키는 문자열이다).
 
 #### 예제
 
@@ -100,7 +100,7 @@ print(cfg.port)
 
 #### 에러
 
-`k`가 문자열이 아니면 런타임 에러 E0501(`cannot index map and sym`). `m`이 맵이 아니면 E0506(`cannot put into list`).
+`k`가 문자열이 아니면 런타임 에러 E0514(`cannot use a value of type sym as a map key`, 심볼이면 `"retries"`로 쓰라는 도움말). `m`이 맵이 아니면 E0506(`cannot put into list`).
 
 #### 예제
 
@@ -127,7 +127,7 @@ print(ports)
 
 **키는 문자열**
 
-```fung run exit=1 error=E0501
+```fung run exit=1 error=E0514
 print(put({}, 'retries, 3))
 ```
 
@@ -203,7 +203,7 @@ print(merge({db: {host: "a", port: 1}}, {db: {port: 2}}))
 
 #### 에러
 
-`k`가 문자열이 아니면 런타임 에러 E0501.
+`k`가 문자열이 아니면 런타임 에러 E0514.
 
 #### 예제
 
@@ -226,7 +226,7 @@ print(cfg |> remove("password"))
 
 :::
 
-:::fn keys(m) fung
+:::fn keys(m)
 
 키의 리스트를 넣은 순서대로 돌려준다.
 
@@ -244,7 +244,7 @@ print(cfg |> remove("password"))
 
 #### 에러
 
-`m`이 맵이 아니면 런타임 에러 E0506.
+`m`이 맵이 아니면 런타임 에러 E0506(`cannot list the keys of list`).
 
 #### 예제
 
@@ -269,7 +269,7 @@ print(missing)
 
 :::
 
-:::fn values(m) fung
+:::fn values(m)
 
 값의 리스트를 키의 순서대로 돌려준다.
 
@@ -287,7 +287,7 @@ print(missing)
 
 #### 에러
 
-`m`이 맵이 아니면 런타임 에러 E0506.
+`m`이 맵이 아니면 런타임 에러 E0506(`cannot list the values of int`).
 
 #### 예제
 

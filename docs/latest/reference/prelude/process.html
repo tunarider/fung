@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>프로세스와 환경 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 프로세스와 환경: exec, sh, env.">
+<meta name="description" content="fung prelude 프로세스와 환경: exec, sh, env, env_all.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -81,54 +81,59 @@
 <h1>프로세스와 환경</h1>
 <p class="lede">외부 명령을 실행하고 환경 변수를 읽는다. 명령은 쉘을 거치지 않는 <code>exec</code>가 기본이다. 종료 코드가 0이 아니면 <code>Err</code>이므로 <code>exec(…)!</code>가 쉘의 <code>set -e</code>와 같다.</p>
 <h2 id="concepts">프로세스와 환경이란</h2>
-<p>실행 중인 프로그램 하나를 <strong>프로세스</strong>(process)라고 한다. fung 스크립트도 프로세스이고, 스크립트가 <code>git</code>이나 <code>ssh</code>, <code>kubectl</code>을 실행하면 그것은 <strong>자식 프로세스</strong>(child process)가 된다. 자식 프로세스는 세 가지를 남긴다: 표준 출력에 쓴 글(<code>out</code>), 표준 에러에 쓴 글(<code>err</code>), 종료 코드(<code>code</code>, 0이면 성공). <a href="#fn-exec"><code>exec</code></a>는 명령이 끝날 때까지 기다렸다가 이 셋을 맵으로 돌려준다. 출력은 터미널에 흘러나오지 않고 값으로 모인다.</p>
+<p>실행 중인 프로그램 하나를 <strong>프로세스</strong>(process)라고 한다. fung 스크립트도 프로세스이고, 스크립트가 <code>git</code>이나 <code>ssh</code>, <code>kubectl</code>을 실행하면 그것은 <strong>자식 프로세스</strong>(child process)가 된다. 자식 프로세스는 표준 출력에 쓴 글(<code>out</code>), 표준 에러에 쓴 글(<code>err</code>), 그리고 끝난 까닭을 남긴다. 끝난 까닭은 스스로 끝냈을 때의 종료 코드(<code>code</code>, 0이면 성공)이거나, 신호에 죽었을 때의 신호 번호(<code>signal</code>, 이때 <code>code</code>는 <code>nil</code>)다. <a href="#fn-exec"><code>exec</code></a>는 명령이 끝날 때까지 기다렸다가 이 넷을 맵으로 돌려준다(둘 중 쓰이지 않은 쪽은 <code>nil</code>). 출력은 터미널에 흘러나오지 않고 값으로 모인다.</p>
 <p>명령은 <strong>문자열의 리스트</strong>로 준다: <code>[&quot;git&quot;, &quot;commit&quot;, &quot;-m&quot;, msg]</code>. 첫 원소가 실행할 프로그램이고 나머지가 인자다. 쉘을 거치지 않으므로 <code>msg</code>에 공백, 따옴표, <code>$</code>, <code>;</code>가 들어 있어도 한 인자로 그대로 간다. 쉘의 따옴표 규칙을 신경 쓸 필요가 없고, 바깥에서 온 값이 명령을 바꿔 버리는 <strong>명령 주입</strong>(command injection)도 일어나지 않는다. 파이프(<code>|</code>)나 글로브(<code>*.log</code>) 같은 쉘 기능이 꼭 필요할 때만 <a href="#fn-sh"><code>sh</code></a>를 쓴다.</p>
 <p><strong>환경 변수</strong>(environment variable)는 프로세스가 부모에게서 물려받는 <code>이름=값</code> 목록이다. <code>HOME</code>, <code>PATH</code>, 그리고 <code>DB_HOST</code>처럼 설정을 넘기는 데 쓰는 것들이 있다. <a href="#fn-env"><code>env</code></a>로 읽고, 자식 프로세스에 더 넘길 것은 <code>exec</code>의 <code>env</code> 인자로 준다. fung에는 자기 환경을 바꾸는 함수가 없다.</p>
 <p>이 페이지의 세 함수는 fung으로 쓴 prelude가 네이티브 함수를 그대로 이름 붙인 것이다.</p>
 <h2 id="functions">함수</h2>
 <section class="entry" id="fn-exec">
 <h3>exec</h3>
-<p>명령을 쉘 없이 실행하고 끝나기를 기다려 <code>Ok({out, err, code})</code>를 돌려준다. 0이 아닌 종료는 <code>Err</code>.</p>
+<p>명령을 쉘 없이 실행하고 끝나기를 기다려 <code>Ok({out, err, code, signal})</code>를 돌려준다. 0이 아닌 종료와 신호로 끝난 것은 <code>Err</code>.</p>
 <div class="sig"><code>exec(cmd, cwd = nil, env = nil, stdin = nil)</code></div>
 <h4>설명</h4>
 <p><code>cmd</code>의 첫 원소를 <code>PATH</code>에서 찾아 나머지를 인자로 실행한다(<code>/</code>가 든 이름이면 그 경로를 쓴다). 명령이 끝나면 표준 출력과 표준 에러를 문자열로 모아 돌려준다. 출력 끝의 줄바꿈도 그대로 들어 있으므로 값 하나를 얻을 때는 <a href="strings.html#fn-trim"><code>trim</code></a>하고, 여러 줄이면 <a href="strings.html#fn-lines"><code>lines</code></a>로 나눈다.</p>
 <ul>
-<li><strong>성공</strong>(종료 코드 0): <code>Ok({out, err, code: 0})</code>.</li>
-<li><strong>0이 아닌 종료</strong>: <code>Err({kind: 'exit, code, out, err, message})</code>. 출력도 들어 있으므로 실패 이유를 <code>e.err</code>로 보여 줄 수 있다. <code>exec(…)!</code>로 쓰면 실패할 때 멈추므로 쉘의 <code>set -e</code>와 같고, 문장으로만 쓴 <code>exec(…)</code>도 <code>Err</code>를 버리면 E0606으로 멈춘다.</li>
-<li><strong>실행할 수 없음</strong>: 실행 파일이 없거나, 실행 권한이 없거나, <code>cwd</code>가 없으면 <code>Err({kind: 'not_found, message})</code>. 이유는 <code>command not found in PATH</code>, <code>permission denied</code> 등이다. 실행 권한이 없는 스크립트는 <code>[&quot;sh&quot;, &quot;script.sh&quot;]</code>로 돌린다.</li>
+<li><strong>성공</strong>(종료 코드 0): <code>Ok({out, err, code: 0, signal: nil})</code>.</li>
+<li><strong>0이 아닌 종료</strong>: <code>Err({kind: 'exit, code, signal: nil, out, err, message})</code>. 출력도 들어 있으므로 실패 이유를 <code>e.err</code>로 보여 줄 수 있다. <code>exec(…)!</code>로 쓰면 실패할 때 멈추므로 쉘의 <code>set -e</code>와 같고, 문장으로만 쓴 <code>exec(…)</code>도 <code>Err</code>를 버리면 E0606으로 멈춘다.</li>
+<li><strong>신호로 끝남</strong>: <code>Err({kind: 'exit, code: nil, signal: n, out, err, message})</code>. 종료 코드가 없으므로 <code>code</code>는 <code>nil</code>이고 <code>signal</code>이 신호 번호다(SIGKILL이면 9: 메모리가 모자라 운영체제가 끝낸 명령이 흔히 이렇다). 메시지는 <code>message: &quot;`/bin/sh` was killed by signal 9 (SIGKILL)&quot;</code>이다. 셸의 <code>$?</code>처럼 128 + n으로 바꾸지 않으므로, 실제로 137로 끝난 명령과 섞이지 않는다. 결과는 성공이든 실패든 늘 <code>code</code>와 <code>signal</code>을 둘 다 가진다.</li>
+<li><strong>실행할 수 없음</strong>: 실행 파일이 없거나, 실행 권한이 없거나, <code>cwd</code>를 쓸 수 없으면 <code>Err({kind: 'not_found, message})</code>. 이유는 <code>command not found in PATH</code>, <code>permission denied</code>, <code>working directory `/nope`: no such file or directory</code> 등이다. 실행 권한이 없는 스크립트는 <code>[&quot;sh&quot;, &quot;script.sh&quot;]</code>로 돌린다.</li>
+<li><strong>출력이 너무 김</strong>: 표준 출력이나 표준 에러가 문자열 한도(1억 글자)를 넘으면 그 자리에서 명령을 끝내고(취소처럼 SIGTERM, 2초 뒤 SIGKILL) <code>Err({kind: 'io, message})</code>를 돌려준다(<code>standard output of `yes` is longer than the string limit (100000000 characters)</code>). 읽은 출력은 버린다. 끝없이 쓰는 명령도 메모리를 한도 근처까지만 쓴다.</li>
 </ul>
-<p><code>cwd</code>를 주면 그 디렉터리에서 실행한다. <code>env</code>는 지금 환경에 <strong>덧붙일</strong> 맵이다(같은 이름은 덮어쓴다). <code>stdin</code>을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. <code>stdin</code>이 <code>nil</code>이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: <code>exec([&quot;make&quot;], cwd: &quot;/src&quot;, env: {CC: &quot;clang&quot;})</code>.</p>
+<p><code>cwd</code>를 주면 그 디렉터리에서 실행하고, 환경 변수 <code>PWD</code>도 그 절대 경로로 맞춘다(<code>env</code>를 줘도 그렇다; <code>env</code>에 <code>PWD</code>가 있으면 그 값). <code>env</code>는 지금 환경에 <strong>덧붙일</strong> 맵이다(같은 이름은 덮어쓴다). <code>stdin</code>을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. <code>stdin</code>이 <code>nil</code>이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: <code>exec([&quot;make&quot;], cwd: &quot;/src&quot;, env: {CC: &quot;clang&quot;})</code>.</p>
 <p><strong>취소</strong>: 부른 태스크가 취소되면(<code>timeout</code>, <code>exit</code>, 태스크 범위의 취소) 명령에 SIGTERM을 보내고, 2초 뒤에도 남아 있으면 SIGKILL을 보낸 뒤 취소로 되감긴다. 그래서 <code>timeout(() =&gt; exec(cmd), 30s)</code>는 걸린 명령을 남겨 두지 않는다.</p>
 <p><strong>터미널</strong>: fung이 터미널의 전경에서 돌면(사람이 터미널에서 실행했으면) 명령도 fung과 같은 프로세스 그룹이라 비밀번호 프롬프트처럼 터미널을 직접 쓸 수 있고, Ctrl-C도 셸에서처럼 명령에 간다. 이때 취소는 명령 하나에만 간다. 터미널이 없으면(서비스, 컨테이너, CI, cron) 명령은 자기 프로세스 그룹에서 돌고, 취소는 그룹 전체에 가서 셸이 띄운 손자 프로세스까지 끝난다.</p>
 <p>여러 명령을 동시에 돌리려면 태스크로 나눈다(<a href="concurrency.html#fn-scope"><code>scope</code></a>, <a href="../modules/conc.html#fn-conc-pmap"><code>conc.pmap</code></a>). 명령을 기다리는 동안에도 다른 태스크는 계속 돈다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>cmd</code>: 비지 않은 문자열 리스트. <code>[프로그램, 인자…]</code>.</li>
-<li><code>cwd</code>: 실행할 디렉터리, 또는 <code>nil</code>(지금 디렉터리).</li>
+<li><code>cwd</code>: 실행할 디렉터리, 또는 <code>nil</code>(지금 디렉터리). 빈 문자열은 E0403이다(지금 디렉터리는 <code>nil</code>이나 <code>&quot;.&quot;</code>).</li>
 <li><code>env</code>: 덧붙일 환경 변수(값이 문자열인 맵), 또는 <code>nil</code>. 이름은 비지 않고 <code>=</code>가 없어야 한다.</li>
 <li><code>stdin</code>: 표준 입력으로 넣을 문자열, 또는 <code>nil</code>.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p><code>Ok({out: 문자열, err: 문자열, code: 0})</code>, 또는 <code>Err({kind: 'exit, code, out, err, message})</code>, 또는 <code>Err({kind: 'not_found, message})</code>.</p>
+<p><code>Ok({out: 문자열, err: 문자열, code: 0, signal: nil})</code>, 또는 <code>Err({kind: 'exit, code, signal, out, err, message})</code>(종료 코드면 <code>signal: nil</code>, 신호면 <code>code: nil</code>), 또는 <code>Err({kind: 'not_found, message})</code>, 또는 <code>Err({kind: 'io, message})</code>(출력이 문자열 한도를 넘음).</p>
 <h4>에러</h4>
-<p>인자의 타입이 틀리면 런타임 에러 E0403: <code>cmd</code>가 문자열이거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 문자열이 아닌 원소가 있을 때, <code>env</code>의 값이 문자열이 아니거나 이름에 <code>=</code>가 있을 때 등.</p>
+<p>인자의 타입이 틀리면 런타임 에러 E0403: <code>cmd</code>가 문자열이거나(<code>exec(&quot;ls -l&quot;)</code>은 안 된다), 비었거나, 문자열이 아닌 원소가 있을 때, <code>cwd</code>가 빈 문자열일 때, <code>env</code>의 값이 문자열이 아니거나 이름에 <code>=</code>가 있을 때 등.</p>
 <h4>예제</h4>
 <p><strong>출력 얻기</strong></p>
 <div class="run"><pre><code>r = exec([&quot;echo&quot;, &quot;hi&quot;])!
 print(r)
-print(trim(r.out))</code></pre><pre class="out plain"><code>{out: &quot;hi\n&quot;, err: &quot;&quot;, code: 0}
+print(trim(r.out))</code></pre><pre class="out plain"><code>{out: &quot;hi\n&quot;, err: &quot;&quot;, code: 0, signal: nil}
 hi</code></pre></div>
 <p><strong>실패를 가르기</strong></p>
 <div class="run"><pre><code>fn run(cmd) = match exec(cmd):
-  Ok(r)                    =&gt; &quot;ok: ${trim(r.out)}&quot;
-  Err({kind: 'exit, code}) =&gt; &quot;exited with ${code}&quot;
-  Err({kind: 'not_found})  =&gt; &quot;no such command&quot;
+  Ok(r)                                 =&gt; &quot;ok: ${trim(r.out)}&quot;
+  Err({kind: 'exit, code: nil, signal}) =&gt; &quot;killed by signal ${signal}&quot;
+  Err({kind: 'exit, code})              =&gt; &quot;exited with ${code}&quot;
+  Err({kind: 'not_found})               =&gt; &quot;no such command&quot;
 ;;
 
 print(run([&quot;echo&quot;, &quot;fine&quot;]))
 print(run([&quot;sh&quot;, &quot;-c&quot;, &quot;exit 3&quot;]))
+print(run([&quot;sh&quot;, &quot;-c&quot;, &quot;kill -9 $$&quot;]))
 print(run([&quot;no-such-command-xyz&quot;]))</code></pre><pre class="out plain"><code>ok: fine
 exited with 3
+killed by signal 9
 no such command</code></pre></div>
 <p><strong>셸의 set -e처럼 멈추기</strong></p>
 <div class="run"><pre><code>exec([&quot;sh&quot;, &quot;-c&quot;, &quot;echo building; exit 2&quot;])!
@@ -198,25 +203,25 @@ ERROR three</code></pre>
 r = sh(&quot;echo \&quot;$P\&quot;&quot;, env: {P: pattern})!
 print(trim(r.out))</code></pre><pre class="out plain"><code>two; echo injected</code></pre></div>
 <p><strong>실패도 Err</strong></p>
-<div class="run"><pre><code>print(sh(&quot;exit 2&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'exit, code: 2, out: &quot;&quot;, err: &quot;&quot;, message: &quot;`/bin/sh` exited with code 2&quot;})</code></pre></div>
+<div class="run"><pre><code>print(sh(&quot;exit 2&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'exit, code: 2, signal: nil, out: &quot;&quot;, err: &quot;&quot;, message: &quot;`/bin/sh` exited with code 2&quot;})</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-exec"><code>exec</code></a>, <a href="../modules/fs.html#fn-fs-glob"><code>fs.glob</code></a>, <a href="../modules/regex.html"><code>regex</code></a></p>
 </section>
 <section class="entry" id="fn-env">
 <h3>env</h3>
-<p>환경 변수 <code>name</code>의 값(문자열)을, 없으면 <code>nil</code>을 돌려준다. 인자가 없으면 전체를 맵으로.</p>
-<div class="sig"><code>env(name = nil)</code></div>
+<p>환경 변수 <code>name</code>의 값(문자열)을, 없으면 <code>nil</code>을 돌려준다.</p>
+<div class="sig"><code>env(name)</code></div>
 <h4>설명</h4>
 <p>값은 언제나 문자열이다. 수가 필요하면 <a href="convert.html#fn-parse_int"><code>parse_int</code></a>로 바꾼다. 없는 변수는 에러가 아니라 <code>nil</code>이므로 <code>??</code>로 기본값을 붙이기 좋다: <code>env(&quot;PORT&quot;) ?? &quot;8080&quot;</code>. 꼭 있어야 하는 변수면 <code>env(&quot;DB_HOST&quot;) ?? fail(&quot;DB_HOST is required&quot;)</code>.</p>
-<p>인자 없이 부르면 모든 환경 변수를 <code>{이름: 값}</code> 맵으로 돌려준다.</p>
+<p>모든 환경 변수가 필요하면 <a href="#fn-env_all"><code>env_all</code></a>을 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>name</code>: 변수 이름(문자열), 또는 <code>nil</code>(전체).</li>
+<li><code>name</code>: 변수 이름(문자열).</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p>문자열 또는 <code>nil</code>. 인자가 없으면 맵.</p>
+<p>문자열 또는 <code>nil</code>.</p>
 <h4>에러</h4>
-<p><code>name</code>이 문자열도 <code>nil</code>도 아니면 런타임 에러 E0403.</p>
+<p><code>name</code>이 문자열이 아니면 런타임 에러 E0403.</p>
 <h4>예제</h4>
 <p><strong>기본값과 함께</strong></p>
 <div class="run"><pre><code>port = env(&quot;PORT&quot;) ?? &quot;8080&quot;
@@ -228,14 +233,30 @@ print(port)</code></pre><pre class="out plain"><code>8080</code></pre></div>
 <div class="run"><pre><code>print(env(&quot;DEPLOY_ENV&quot;), parse_int(env(&quot;RETRIES&quot;) ?? &quot;1&quot;)!)
 print(env(&quot;NOT_SET_ANYWHERE&quot;))</code></pre><pre class="out plain"><code>staging 3
 nil</code></pre></div>
-<p><strong>전체를 맵으로</strong></p>
+<h4>같이 보기</h4>
+<p><a href="#fn-env_all"><code>env_all</code></a>, <a href="#fn-exec"><code>exec</code></a>, <a href="program.html#fn-args"><code>args</code></a>, <a href="../language/results.html"><code>??</code></a></p>
+</section>
+<section class="entry" id="fn-env_all">
+<h3>env_all</h3>
+<p>모든 환경 변수를 <code>{이름: 값}</code> 맵으로 돌려준다.</p>
+<div class="sig"><code>env_all()</code></div>
+<h4>설명</h4>
+<p>값은 언제나 문자열이고, 맵의 순서는 운영 체제가 넘겨준 순서다. 변수 하나는 <a href="#fn-env"><code>env</code></a>로 읽는다.</p>
+<h4>매개변수</h4>
+<p>없음.</p>
+<h4>돌려주는 값</h4>
+<p>맵.</p>
+<h4>에러</h4>
+<p>없음.</p>
+<h4>예제</h4>
+<p><strong>이름이 <code>APP_</code>로 시작하는 것만</strong></p>
 <details class="fixture"><summary>실행 방법</summary>
 <pre class="plain shell"><code>APP_DEBUG=1 APP_NAME=api fung example.fung</code></pre>
 </details>
-<div class="run"><pre><code>app = pairs(env()) |&gt; filter(((k, _)) =&gt; starts_with(k, &quot;APP_&quot;)) |&gt; sort_by(((k, _)) =&gt; k)
+<div class="run"><pre><code>app = pairs(env_all()) |&gt; filter(((k, _)) =&gt; starts_with(k, &quot;APP_&quot;)) |&gt; sort_by(((k, _)) =&gt; k)
 print(app)</code></pre><pre class="out plain"><code>[(&quot;APP_DEBUG&quot;, &quot;1&quot;), (&quot;APP_NAME&quot;, &quot;api&quot;)]</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-exec"><code>exec</code></a>, <a href="program.html#fn-args"><code>args</code></a>, <a href="../language/results.html"><code>??</code></a></p>
+<p><a href="#fn-env"><code>env</code></a>, <a href="maps.html#fn-pairs"><code>pairs</code></a></p>
 </section>
 <nav class="pager" aria-label="이전과 다음"><a class="prev" href="../../reference/prelude/program.html"><small>이전</small>에러와 종료</a><a class="next" href="../../reference/prelude/concurrency.html"><small>다음</small>동시성</a></nav>
 </div></main>

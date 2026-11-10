@@ -1,0 +1,3 @@
+# Every duration part follows the leading-zero rule (FE31, D9).
+print(1h05m)
+# expect-error: E0105

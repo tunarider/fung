@@ -3,10 +3,10 @@
 
 use std::collections::HashSet;
 
-use super::{PResult, Parser, describe, err, s};
+use super::{MAX_DEPTH, PResult, Parser, describe, err, s};
 use crate::lexer::{Kind, Token};
 use crate::source::Pos;
-use crate::tree::{FnInfo, Head, Lit, Node, Param};
+use crate::tree::{FnInfo, Head, Lit, Node, Param, TypeTerm};
 
 fn param(name: String, pos: Pos) -> Param {
     Param {
@@ -109,31 +109,43 @@ impl<'a> Parser<'a> {
     /// returning the default expressions in parameter order (03: 필수 →
     /// 기본값 → 마지막에 ...rest 하나).
     fn params(&mut self, info: &mut FnInfo) -> PResult<Vec<Node>> {
+        let open = self.toks[self.last].pos; // the `(` just read
         self.nest += 1;
-        let r = self.params_inner(info);
+        let r = self.params_inner(info, open);
         self.nest -= 1;
         r
     }
 
-    fn params_inner(&mut self, info: &mut FnInfo) -> PResult<Vec<Node>> {
+    fn params_inner(&mut self, info: &mut FnInfo, open: Pos) -> PResult<Vec<Node>> {
         let mut defaults = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
-        let (mut saw_default, mut saw_rest) = (false, false);
+        let mut saw_default = false;
+        let mut rest_name: Option<&str> = None;
         while !self.at(Kind::RParen) {
-            if saw_rest {
-                return Err(self.unexpected());
+            if let Some(r) = rest_name {
+                let t = self.peek();
+                let mut e = err(
+                    "E0112",
+                    t.pos,
+                    vec![s("`)` after the rest parameter"), s(describe(t))],
+                );
+                e.help = Some(format!(
+                    "the rest parameter `...{r}` takes the surplus arguments, so it comes last"
+                ));
+                return Err(e);
             }
             let mut rest = false;
             if self.at(Kind::Ellipsis) {
                 self.next();
                 rest = true;
-                saw_rest = true;
             }
             if !rest && self.pattern_param_ahead() {
                 // A destructuring parameter (03): no type, no default.
-                let pat = self.pattern()?;
+                let pat = self.destructure()?;
                 if self.at(Kind::Colon) || self.at(Kind::Assign) {
-                    return Err(self.unexpected());
+                    let mut e = self.list_end(open, Kind::RParen);
+                    e.help = Some("a destructuring parameter takes no type and no default".into());
+                    return Err(e);
                 }
                 if saw_default {
                     return Err(err("E0120", pat.pos, Vec::new()));
@@ -145,11 +157,14 @@ impl<'a> Parser<'a> {
                     continue;
                 }
                 if !self.at(Kind::RParen) {
-                    return Err(self.unexpected());
+                    return Err(self.list_end(open, Kind::RParen));
                 }
                 continue;
             }
             let name = self.expect_desc(Kind::Name, "a parameter name")?;
+            if rest {
+                rest_name = Some(&name.text);
+            }
             note_param(&mut seen, &name.text, name.pos)?;
             let mut prm = param(name.text.clone(), name.pos);
             prm.rest = rest;
@@ -159,7 +174,12 @@ impl<'a> Parser<'a> {
             }
             if self.at(Kind::Assign) {
                 if prm.rest {
-                    return Err(self.unexpected());
+                    let mut e = self.list_end(open, Kind::RParen);
+                    e.help = Some(
+                        "a rest parameter takes no default: it is `[]` when no arguments are left"
+                            .into(),
+                    );
+                    return Err(e);
                 }
                 self.next();
                 defaults.push(self.expr(0)?);
@@ -174,7 +194,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if !self.at(Kind::RParen) {
-                return Err(self.unexpected());
+                return Err(self.list_end(open, Kind::RParen));
             }
         }
         self.next(); // )
@@ -182,15 +202,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses `term { | term }` where term = NAME [ "[" type "]" ] | TAG.
-    /// A term with an element type stays as written, `list[str | int]`:
-    /// resolve checks the names inside and keeps the outer type, the one
-    /// the runtime checks (07, FE17).
-    pub(super) fn type_spec(&mut self) -> PResult<Vec<String>> {
+    /// A term keeps its element type as a tree of the names the lexer
+    /// read, `list[str | int]`: resolve checks the names inside and keeps
+    /// the outer type, the one the runtime checks (07, FE17, FE34).
+    pub(super) fn type_spec(&mut self) -> PResult<Vec<TypeTerm>> {
         let mut alts = Vec::new();
         loop {
-            let mut text = String::new();
-            self.type_term(&mut text)?;
-            alts.push(text);
+            alts.push(self.type_term()?);
             if !self.at(Kind::Bar) {
                 return Ok(alts);
             }
@@ -200,32 +218,37 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// One term of a type, appended to `text` as written (`list[str|int]`):
-    /// the element type's text goes on the same string, so a deep one is
-    /// read in time linear in its length.
-    fn type_term(&mut self, text: &mut String) -> PResult<()> {
+    /// One term of a type with its element type, if any.
+    fn type_term(&mut self) -> PResult<TypeTerm> {
         let t = self.peek();
         // `nil` and `fn` are keywords but also type names (07).
         if !matches!(t.kind, Kind::Name | Kind::Tag | Kind::KwNil | Kind::KwFn) {
             return Err(err("E0110", t.pos, vec![s(describe(t))]));
         }
         self.next();
-        text.push_str(&t.text);
+        let mut term = TypeTerm::plain(&t.text, t.pos);
         if self.at(Kind::LBracket) {
             self.next();
-            text.push('[');
+            self.depth += 1;
+            if self.depth > MAX_DEPTH {
+                let pos = self.peek().pos;
+                return Err(err(
+                    "E0115",
+                    pos,
+                    vec![crate::diag::Arg::Int(MAX_DEPTH as i64)],
+                ));
+            }
             loop {
-                self.type_term(text)?;
+                term.elems.push(self.type_term()?);
                 if !self.at(Kind::Bar) {
                     break;
                 }
                 self.next();
-                text.push('|');
             }
+            self.depth -= 1;
             self.expect_desc(Kind::RBracket, "`]`")?;
-            text.push(']');
         }
-        Ok(())
+        Ok(term)
     }
 
     /// Whether a parameter starts like a pattern rather than a name: a tuple,
@@ -268,9 +291,9 @@ impl<'a> Parser<'a> {
                 info.params.push(param(start.text.clone(), start.pos));
             }
         } else {
-            self.next(); // (
+            let open = self.next().pos; // (
             self.nest += 1;
-            let r = self.lambda_params(&mut info);
+            let r = self.lambda_params(&mut info, open);
             self.nest -= 1;
             r?;
             self.next(); // )
@@ -286,15 +309,12 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn lambda_params(&mut self, info: &mut FnInfo) -> PResult<()> {
+    fn lambda_params(&mut self, info: &mut FnInfo, open: Pos) -> PResult<()> {
         let mut seen = HashSet::new();
         while !self.at(Kind::RParen) {
             // The same parameters as `fn` (SP8): a name or a destructuring
-            // pattern, not a literal.
-            if !self.at(Kind::Name) && !self.pattern_param_ahead() {
-                self.expect_desc(Kind::Name, "a parameter name")?;
-            }
-            let pat = self.pattern()?;
+            // pattern, not a literal (FE32).
+            let pat = self.destructure()?;
             note_pattern(&mut seen, &pat)?;
             if pat.head == Head::Pbind
                 && let Lit::Str(name) = &pat.lit
@@ -308,7 +328,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if !self.at(Kind::RParen) {
-                return Err(self.unexpected());
+                return Err(self.list_end(open, Kind::RParen));
             }
         }
         Ok(())

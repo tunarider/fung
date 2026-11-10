@@ -80,7 +80,7 @@ fn sleep_is_cut_at_the_deadline() {
 #[test]
 fn a_zero_timeout_always_times_out() {
     assert_eq!(
-        run("print(timeout(() => 1, 0s), timeout(() => 1, -1s))"),
+        run("print(timeout(() => 1, 0s), timeout(() => sleep(1s), 0s))"),
         (
             "Err({kind: 'timeout, message: \"timed out after 0s\"}) Err({kind: 'timeout, message: \"timed out after 0s\"})\n".into(),
             "".into(),

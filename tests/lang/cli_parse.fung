@@ -1,0 +1,25 @@
+# cli.parse: flags, values, and rest (06).
+import cli
+print(cli.parse(["a", "--trash", "dir", "b"])!)
+# expect: {flags: {trash: "dir"}, rest: ["a", "b"]}
+print(cli.parse(["--n=3", "--", "--not-a-flag", "-"])!)
+# expect: {flags: {n: "3"}, rest: ["--not-a-flag", "-"]}
+print(cli.parse(["--v"])!, cli.parse(["--a", "--b", "1"])!, cli.parse([])!)
+# expect: {flags: {v: true}, rest: []} {flags: {a: true, b: "1"}, rest: []} {flags: {}, rest: []}
+# bools takes a flag's name either way (LB11): as written on the command
+# line (`dry-run`) or as its key (`dry_run`), so a switch never eats the
+# next argument as its value.
+print(cli.parse(["--dry-run", "x"], bools: ["dry_run"])!)
+# expect: {flags: {dry_run: true}, rest: ["x"]}
+print(cli.parse(["--dry-run", "x"], bools: ["dry-run"])!)
+# expect: {flags: {dry_run: true}, rest: ["x"]}
+# A switch's `=value` is a bool (LB38): only `true` or `false`.
+print(cli.parse(["--dry-run=false", "x"], bools: ["dry-run"])!)
+# expect: {flags: {dry_run: false}, rest: ["x"]}
+# The command line is outside input (LB38): a mistake in it is an Err.
+print(cli.parse(["--dry-run=no"], bools: ["dry-run"]))
+# expect: Err({kind: 'invalid, message: "the switch `--dry-run` takes true or false, got `no`"})
+print(cli.parse(["--x", "1", "--x", "2"]))
+# expect: Err({kind: 'invalid, message: "the flag `--x` is given twice"})
+print(cli.parse(["--a-b", "1", "--a_b=2"]))
+# expect: Err({kind: 'invalid, message: "the flag `--a_b` is given twice"})

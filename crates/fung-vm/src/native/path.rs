@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::sync::OnceLock;
 
 use super::nat::{self, native, param, rest};
-use crate::value::{Module, Native, Value};
+use crate::value::{Args, Module, Native, Value};
 use crate::vm::{Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -33,31 +33,31 @@ pub fn module() -> Rc<Module> {
     Rc::new(m)
 }
 
-fn join_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn join_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let parts = nat::str_list("parts", &a[0])?;
     Ok(Value::bytes(join(&parts)))
 }
 
-fn base_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn base_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::bytes(base(nat::need_bytes("p", &a[0])?)))
 }
 
-fn dir_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn dir_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::bytes(dir(nat::need_bytes("p", &a[0])?)))
 }
 
-fn ext_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn ext_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::bytes(ext(nat::need_bytes("p", &a[0])?).to_vec()))
 }
 
-fn stem_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn stem_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let p = nat::need_bytes("p", &a[0])?;
     let b = base(p);
     let e = ext(&b).len();
     Ok(Value::bytes(b[..b.len() - e].to_vec()))
 }
 
-fn abs_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn abs_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::bytes(abs(nat::need_bytes("p", &a[0])?)))
 }
 

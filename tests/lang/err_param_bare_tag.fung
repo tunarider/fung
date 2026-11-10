@@ -1,0 +1,4 @@
+# A bare tag is a symbol literal, not a destructuring parameter (FE32).
+fn f(Red) = 1
+print(f(Red))
+# expect-error: E0112

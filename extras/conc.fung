@@ -5,13 +5,19 @@
 # every script needs. A program imports the module: `import conc`, then
 # `conc.pmap(...)`. Calling one of them without the module is E0204,
 # with a help line that names the module.
+#
+# Arguments are checked before anything runs (SP18): the type annotations,
+# and _native.arg for what an annotation cannot say (a positive count, a
+# duration from 0s), so the error names the user's argument.
+import _native.arg as _arg
 
 # Merges receiving ends into one (05): a forwarding task per input, in
 # scope `s`, sends to the output's sending end; the returned receiving
 # end closes when every input has closed. Once the returned end is gone
 # (a send gives Err), every forwarder stops and the inputs are let go,
 # so their producers' sends give Err in turn.
-fn fan_in(s, rxs):
+fn fan_in(s: scope, rxs: list):
+  _arg.list_of("rxs", rxs, "receiver")
   (tx, rx) = channel(len(rxs))
   spawn(s, fn():
     _ = scope(fn(inner):
@@ -29,12 +35,13 @@ fn _forward(r, tx) = match recv(r):
   _     => false
 ;;
 
-# Parallel map: at most `limit` tasks at once (0 = no limit), results in
-# input order, in a scope of its own: a runtime error in f fails pmap
-# (05), an Err that f returns is a result like any other.
-fn pmap(xs, f, limit = 0):
+# Parallel map: at most `limit` tasks at once (nil = no limit; D11),
+# results in input order, in a scope of its own: a runtime error in f
+# fails pmap (05), an Err that f returns is a result like any other.
+fn pmap(xs, f: fn, limit: int | nil = nil):
+  if limit != nil: _arg.positive("limit", limit) ;;
   items = xs |> map(x => x)
-  limit <= 0 or limit >= len(items)
+  limit == nil or limit >= len(items)
     then _pmap_all(items, f)
     else _pmap_workers(items, f, limit)
 ;;
@@ -57,14 +64,17 @@ fn _work(items, f, jobs, acc) = match recv(jobs):
   _     => acc
 ;;
 
-# Calls f until it returns a non-Err value, at most `times` tries,
-# sleeping `delay` between tries; the last Err is returned (06).
-fn retry(f, times = 3, delay = 0ms):
-  r = f()
-  times <= 1 or not is_err(r) then r else _retry_after(f, times - 1, delay)
+# Calls f until it returns a non-Err value, at most `times` tries (from
+# 1; D11), sleeping `delay` between tries; the last Err is returned (06).
+fn retry(f: fn, times: int = 3, delay: dur = 0ms):
+  _arg.positive("times", times)
+  _arg.dur("delay", delay)
+  _retry(f, times, delay)
 ;;
 
-fn _retry_after(f, times, delay):
+fn _retry(f, times, delay):
+  r = f()
+  if times == 1 or not is_err(r): return r ;;
   sleep(delay)
-  retry(f, times: times, delay: delay)
+  _retry(f, times - 1, delay)
 ;;

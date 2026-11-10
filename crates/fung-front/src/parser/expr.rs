@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use super::{MAX_DEPTH, PResult, Parser, describe, err, s, str_lit};
 use crate::diag::Arg;
 use crate::lexer::{Kind, Token};
+use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
 // Binding powers from 07. 우선순위 (낮음 → 높음), scaled by 10 so that
@@ -71,10 +72,32 @@ fn is_arg_end(k: Kind) -> bool {
     matches!(k, Kind::Comma | Kind::RParen | Kind::Newline)
 }
 
-/// Whether an Int token is the lexer's special 9223372036854775808 token,
-/// which only a preceding minus makes valid.
+/// Whether an Int token is the lexer's special magnitude of the least int
+/// (9223372036854775808, `0x8000000000000000`, …), which only a
+/// preceding minus makes valid.
 pub(super) fn is_min_int_magnitude(t: &Token) -> bool {
-    t.int == i64::MIN && t.text.replace('_', "") == "9223372036854775808"
+    // The lexer emits no other negative int, in any base (FE31).
+    t.int == i64::MIN
+}
+
+/// The operator at the top of a slice's end that binds looser than `??`
+/// and `|>` (a comparison, `in`, `not`, `and`/`or`, `then … else`), as the
+/// error names it. Elsewhere `..` would bind tighter than it, so reading
+/// it as the end would change the meaning silently (FE27).
+fn looser_than_a_slice(n: &Node) -> Option<String> {
+    if n.paren {
+        return None;
+    }
+    match (n.head, &n.lit) {
+        (Head::Then, _) => Some("then … else".into()),
+        (Head::Unary, Lit::Str(op)) if op == "not" => Some("not".into()),
+        (Head::Binary, Lit::Str(op)) => match op.as_str() {
+            "==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "and" | "or" => Some(op.clone()),
+            "not_in" => Some("not in".into()),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -159,13 +182,11 @@ impl<'a> Parser<'a> {
                 };
                 continue;
             }
-            // `..]` ends an open slice (`xs[a ?? 0..]`): the `..` is the
-            // slice's, not a range operator, so the whole expression before
-            // it is the start (`index_or_slice`).
-            if t.kind == Kind::DotDot && self.kind_from(self.i + 1) == Kind::RBracket {
-                if last_was_range {
-                    return Err(err("E0118", t.pos, Vec::new()));
-                }
+            // A `..` directly inside slice brackets is the slice's, not a
+            // range operator: the whole expression before it is the start
+            // (`xs[a ?? 0..b]`, FE27). No range can stand before it at this
+            // level: its own `..` would have stopped here first.
+            if matches!(t.kind, Kind::DotDot | Kind::DotDotEq) && self.slice == Some(self.nest) {
                 return Ok(lhs);
             }
             let not_in = t.kind == Kind::KwNot && self.kind_from(self.i + 1) == Kind::KwIn;
@@ -220,7 +241,9 @@ impl<'a> Parser<'a> {
     fn then_else(&mut self, cond: Node, t: &'a Token, start: usize) -> PResult<Node> {
         self.next();
         self.skip_newlines_after_operator();
-        let a = self.expr(0)?;
+        // `else` ends this branch, so a `..` in it is a range even inside
+        // slice brackets (FE27).
+        let a = self.outside_slice(|p| p.expr(0))?;
         self.peek_infix(); // an `else` on the next line continues the expression
         self.expect_desc(Kind::KwElse, "`else` after then")?;
         self.skip_newlines_after_operator();
@@ -397,14 +420,14 @@ impl<'a> Parser<'a> {
     /// application, 03), then named arguments. Inside the parentheses
     /// newlines are whitespace and a trailing comma is allowed.
     pub(super) fn call_args(&mut self, node: Node) -> PResult<Node> {
-        self.next(); // (
+        let open = self.next().pos; // (
         self.nest += 1;
-        let r = self.call_args_inner(node);
+        let r = self.call_args_inner(node, open);
         self.nest -= 1;
         r
     }
 
-    fn call_args_inner(&mut self, mut node: Node) -> PResult<Node> {
+    fn call_args_inner(&mut self, mut node: Node, open: Pos) -> PResult<Node> {
         let mut saw_named = false;
         let mut names: HashSet<&str> = HashSet::new();
         while !self.at(Kind::RParen) {
@@ -427,16 +450,14 @@ impl<'a> Parser<'a> {
                     vec![e],
                 ));
                 saw_named = true;
+            } else if saw_named {
+                // Positional arguments come first (03).
+                let pos = self.peek().pos;
+                return Err(err("E0126", pos, Vec::new()));
             } else if self.at_hole() {
-                if saw_named {
-                    return Err(self.unexpected());
-                }
                 let pos = self.next().pos;
                 node.kids.push(Node::new(Head::Hole, pos, Vec::new()));
             } else {
-                if saw_named {
-                    return Err(self.unexpected());
-                }
                 let arg = self.expr(0)?;
                 node.kids.push(arg);
             }
@@ -445,7 +466,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if !self.at(Kind::RParen) {
-                return Err(self.unexpected());
+                return Err(self.list_end(open, Kind::RParen));
             }
         }
         self.next(); // )
@@ -475,6 +496,14 @@ impl<'a> Parser<'a> {
             }
             // the lexer read the code with the string (FE16)
             let mut sub = Parser::new(&part.toks, self.depth);
+            if sub.at(Kind::Eof) {
+                let t = sub.peek();
+                return Err(err(
+                    "E0112",
+                    t.pos,
+                    vec![s("an expression inside `${…}`"), s(describe(t))],
+                ));
+            }
             let e = sub.expr(0)?;
             sub.skip_seps();
             if !sub.at(Kind::Eof) {
@@ -486,13 +515,16 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses `[e]`, `[a..b]`, `[a..=b]`, `[..b]`, `[a..]` after an
-    /// expression (01). The bracket holds a full expression; a range at its
-    /// top level means a slice, so `xs[i ?? 0]` indexes and `xs[1..=3]`
-    /// slices.
+    /// expression (01). A `..` or `..=` at the top level of the brackets
+    /// makes a slice, and each end is a full expression, so `xs[i ?? 0]`
+    /// indexes and `xs[a ?? 0..b ?? 2]` slices; a range in parentheses or
+    /// deeper is a range value used as an index (FE27).
     fn index_or_slice(&mut self, x: Node) -> PResult<Node> {
         let open = self.next(); // [
         self.nest += 1;
+        let saved = self.slice.replace(self.nest);
         let r = self.index_or_slice_inner(x, open);
+        self.slice = saved;
         self.nest -= 1;
         r
     }
@@ -500,47 +532,44 @@ impl<'a> Parser<'a> {
     fn index_or_slice_inner(&mut self, x: Node, open: &'a Token) -> PResult<Node> {
         // A missing end is its own mark: a written `nil` is a value, and
         // slicing with it is E0501 like any nil bound (02, VA3).
-        let nil = || Node::new(Head::Missing, open.pos, Vec::new());
-        let slice = |lit: Lit, kids: Vec<Node>| Node::with_lit(Head::Slice, open.pos, lit, kids);
-        if self.at(Kind::DotDot) {
-            // [..b] and [..]
-            self.next();
-            if self.at(Kind::RBracket) {
-                self.next();
-                return Ok(slice(Lit::None, vec![x, nil(), nil()]));
+        let missing = || Node::new(Head::Missing, open.pos, Vec::new());
+        let start = if matches!(self.peek().kind, Kind::DotDot | Kind::DotDotEq) {
+            missing()
+        } else {
+            let e = self.expr(0)?;
+            if !matches!(self.peek().kind, Kind::DotDot | Kind::DotDotEq) {
+                self.expect_desc(Kind::RBracket, "`]`")?;
+                return Ok(Node::new(Head::Index, open.pos, vec![x, e]));
             }
-            let end = self.expr(0)?;
-            self.expect_desc(Kind::RBracket, "`]`")?;
-            return Ok(slice(Lit::None, vec![x, nil(), end]));
-        }
-        if self.at(Kind::DotDotEq) {
-            // [..=b]
-            self.next();
-            let end = self.expr(0)?;
-            self.expect_desc(Kind::RBracket, "`]`")?;
-            return Ok(slice(Lit::Str("..=".into()), vec![x, nil(), end]));
-        }
-        // [a..]: the expression parser stops before a `..` that `]`
-        // follows, so whatever comes before it is the start, read once
-        // (reading the contents twice made nested indexing exponential).
-        let mut e = self.expr(0)?;
-        if self.at(Kind::DotDot) && self.kind_from(self.i + 1) == Kind::RBracket {
-            self.next();
-            self.next();
-            return Ok(slice(Lit::None, vec![x, e, nil()]));
+            e
+        };
+        let inclusive = self.next().kind == Kind::DotDotEq;
+        // [a..] and [..]: an open end; `..=` needs one.
+        let end = if !inclusive && self.at(Kind::RBracket) {
+            missing()
+        } else {
+            self.expr(0)?
+        };
+        let t = self.peek();
+        if matches!(t.kind, Kind::DotDot | Kind::DotDotEq) {
+            return Err(err("E0118", t.pos, Vec::new()));
         }
         self.expect_desc(Kind::RBracket, "`]`")?;
-        if e.head == Head::Range {
-            let inclusive = matches!(&e.lit, Lit::Str(op) if op == "..=");
-            let b = e.kids.pop().expect("range has two operands");
-            let a = e.kids.pop().expect("range has two operands");
-            let lit = if inclusive {
-                Lit::Str("..=".into())
-            } else {
-                Lit::None
-            };
-            return Ok(slice(lit, vec![x, a, b]));
+        for bound in [&start, &end] {
+            if let Some(op) = looser_than_a_slice(bound) {
+                return Err(err("E0125", bound.pos, vec![s(op)]));
+            }
         }
-        Ok(Node::new(Head::Index, open.pos, vec![x, e]))
+        let lit = if inclusive {
+            Lit::Str("..=".into())
+        } else {
+            Lit::None
+        };
+        Ok(Node::with_lit(
+            Head::Slice,
+            open.pos,
+            lit,
+            vec![x, start, end],
+        ))
     }
 }

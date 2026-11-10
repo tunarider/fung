@@ -9,19 +9,19 @@
 | print(http.get(URL + "/start"))
 | print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
 | print(http.request("HEAD", URL + "/start"))
-| print(http.request("put", URL + "/start", "b"))
+| print(http.request("PUT", URL + "/start", "b"))
 | print(http.request("DELETE", URL + "/start"))
 | print(http.request("POST", URL + "/start"))
 | print(http.request("GET", URL + "/start", "get body"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -33,7 +33,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.2 (escaped)
 | POST /start HTTP/1.1\r
@@ -53,7 +52,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | X-Keep: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.4 (escaped)
 | HEAD /start HTTP/1.1\r
@@ -64,7 +62,6 @@
 | HEAD /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.6 (escaped)
 | PUT /start HTTP/1.1\r
@@ -78,7 +75,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.8 (escaped)
 | DELETE /start HTTP/1.1\r
@@ -89,7 +85,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.10 (escaped)
 | POST /start HTTP/1.1\r
@@ -101,7 +96,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.12 (escaped)
 | GET /start HTTP/1.1\r
@@ -115,26 +109,25 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 ==== case 01
 -- program
 | print(http.get(URL + "/start"))
 | print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
 | print(http.request("HEAD", URL + "/start"))
-| print(http.request("put", URL + "/start", "b"))
+| print(http.request("PUT", URL + "/start", "b"))
 | print(http.request("DELETE", URL + "/start"))
 | print(http.request("POST", URL + "/start"))
 | print(http.request("GET", URL + "/start", "get body"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -146,7 +139,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.2 (escaped)
 | POST /start HTTP/1.1\r
@@ -166,7 +158,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | X-Keep: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.4 (escaped)
 | HEAD /start HTTP/1.1\r
@@ -177,7 +168,6 @@
 | HEAD /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.6 (escaped)
 | PUT /start HTTP/1.1\r
@@ -191,7 +181,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.8 (escaped)
 | DELETE /start HTTP/1.1\r
@@ -202,7 +191,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.10 (escaped)
 | POST /start HTTP/1.1\r
@@ -214,7 +202,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.12 (escaped)
 | GET /start HTTP/1.1\r
@@ -228,26 +215,25 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 ==== case 02
 -- program
 | print(http.get(URL + "/start"))
 | print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
 | print(http.request("HEAD", URL + "/start"))
-| print(http.request("put", URL + "/start", "b"))
+| print(http.request("PUT", URL + "/start", "b"))
 | print(http.request("DELETE", URL + "/start"))
 | print(http.request("POST", URL + "/start"))
 | print(http.request("GET", URL + "/start", "get body"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -259,7 +245,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.2 (escaped)
 | POST /start HTTP/1.1\r
@@ -279,7 +264,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | X-Keep: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.4 (escaped)
 | HEAD /start HTTP/1.1\r
@@ -290,7 +274,6 @@
 | HEAD /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.6 (escaped)
 | PUT /start HTTP/1.1\r
@@ -304,7 +287,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.8 (escaped)
 | DELETE /start HTTP/1.1\r
@@ -315,7 +297,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.10 (escaped)
 | POST /start HTTP/1.1\r
@@ -327,7 +308,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.12 (escaped)
 | GET /start HTTP/1.1\r
@@ -341,26 +321,25 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 ==== case 03
 -- program
 | print(http.get(URL + "/start"))
 | print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
 | print(http.request("HEAD", URL + "/start"))
-| print(http.request("put", URL + "/start", "b"))
+| print(http.request("PUT", URL + "/start", "b"))
 | print(http.request("DELETE", URL + "/start"))
 | print(http.request("POST", URL + "/start"))
 | print(http.request("GET", URL + "/start", "get body"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -372,7 +351,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.2 (escaped)
 | POST /start HTTP/1.1\r
@@ -397,7 +375,6 @@
 | Content-Encoding: identity\r
 | Content-Location: /x\r
 | X-Keep: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 | 한글 data
 \ no newline
@@ -410,7 +387,6 @@
 | HEAD /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.6 (escaped)
 | PUT /start HTTP/1.1\r
@@ -425,7 +401,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 | b
 \ no newline
@@ -438,7 +413,6 @@
 | DELETE /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.10 (escaped)
 | POST /start HTTP/1.1\r
@@ -451,7 +425,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 0\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.12 (escaped)
 | GET /start HTTP/1.1\r
@@ -466,7 +439,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 8\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 | get body
 \ no newline
@@ -475,19 +447,19 @@
 | print(http.get(URL + "/start"))
 | print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
 | print(http.request("HEAD", URL + "/start"))
-| print(http.request("put", URL + "/start", "b"))
+| print(http.request("PUT", URL + "/start", "b"))
 | print(http.request("DELETE", URL + "/start"))
 | print(http.request("POST", URL + "/start"))
 | print(http.request("GET", URL + "/start", "get body"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -499,7 +471,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.2 (escaped)
 | POST /start HTTP/1.1\r
@@ -524,7 +495,6 @@
 | Content-Encoding: identity\r
 | Content-Location: /x\r
 | X-Keep: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 | 한글 data
 \ no newline
@@ -537,7 +507,6 @@
 | HEAD /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.6 (escaped)
 | PUT /start HTTP/1.1\r
@@ -552,7 +521,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 | b
 \ no newline
@@ -565,7 +533,6 @@
 | DELETE /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.10 (escaped)
 | POST /start HTTP/1.1\r
@@ -578,7 +545,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 0\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 -- request 0.12 (escaped)
 | GET /start HTTP/1.1\r
@@ -593,7 +559,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 8\r
-| Referer: http://127.0.0.1:$PORT0/start\r
 | \r
 | get body
 \ no newline
@@ -609,14 +574,14 @@
 | print(http.request("HEAD", URL + "/none"))
 \ no newline
 -- stdout
-| Ok({status: 300, headers: {"content-length": "0", location: "/end"}, body: ""})
-| Ok({status: 304, headers: {"content-length": "0", location: "/end"}, body: ""})
-| Ok({status: 305, headers: {"content-length": "0", location: "/end"}, body: ""})
-| Ok({status: 306, headers: {"content-length": "0", location: "/end"}, body: ""})
-| Ok({status: 309, headers: {"content-length": "0", location: "/end"}, body: ""})
-| Ok({status: 302, headers: {"content-length": "5"}, body: "found"})
-| Ok({status: 301, headers: {"content-length": "2", location: "", x: "y"}, body: "no"})
-| Ok({status: 302, headers: {"content-length": "5"}, body: ""})
+| Ok({status: 300, headers: {connection: "close", "content-length": "0", location: "/end"}, header_lines: [("Location", "/end"), ("Connection", "close"), ("Content-Length", "0")], body: ""})
+| Ok({status: 304, headers: {connection: "close", "content-length": "0", location: "/end"}, header_lines: [("Location", "/end"), ("Connection", "close"), ("Content-Length", "0")], body: ""})
+| Ok({status: 305, headers: {connection: "close", "content-length": "0", location: "/end"}, header_lines: [("Location", "/end"), ("Connection", "close"), ("Content-Length", "0")], body: ""})
+| Ok({status: 306, headers: {connection: "close", "content-length": "0", location: "/end"}, header_lines: [("Location", "/end"), ("Connection", "close"), ("Content-Length", "0")], body: ""})
+| Ok({status: 309, headers: {connection: "close", "content-length": "0", location: "/end"}, header_lines: [("Location", "/end"), ("Connection", "close"), ("Content-Length", "0")], body: ""})
+| Ok({status: 302, headers: {connection: "close", "content-length": "5"}, header_lines: [("Connection", "close"), ("Content-Length", "5")], body: "found"})
+| Ok({status: 301, headers: {connection: "close", "content-length": "2", location: "", x: "y"}, header_lines: [("Location", ""), ("X", "y"), ("Connection", "close"), ("Content-Length", "2")], body: "no"})
+| Ok({status: 302, headers: {connection: "close", "content-length": "5"}, header_lines: [("Connection", "close"), ("Content-Length", "5")], body: ""})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -680,22 +645,22 @@
 | print(http.get(URL + "/a/b/s16?k=v"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/a/b/s16?k=v`: too many redirects (limit 10)"})
 -- stderr
 -- exit: 0
@@ -708,7 +673,6 @@
 | GET /a/b/end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s0?k=v\r
 | \r
 -- request 0.2 (escaped)
 | GET /a/b/s1?k=v HTTP/1.1\r
@@ -719,7 +683,6 @@
 | GET /a/x HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s1?k=v\r
 | \r
 -- request 0.4 (escaped)
 | GET /a/b/s2?k=v HTTP/1.1\r
@@ -730,7 +693,6 @@
 | GET /y HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s2?k=v\r
 | \r
 -- request 0.6 (escaped)
 | GET /a/b/s3?k=v HTTP/1.1\r
@@ -741,7 +703,6 @@
 | GET /a/b/z?q=1 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s3?k=v\r
 | \r
 -- request 0.8 (escaped)
 | GET /a/b/s4?k=v HTTP/1.1\r
@@ -752,7 +713,6 @@
 | GET /a/b/s4?only=query HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s4?k=v\r
 | \r
 -- request 0.10 (escaped)
 | GET /a/b/s5?k=v HTTP/1.1\r
@@ -763,7 +723,6 @@
 | GET /abs/q HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s5?k=v\r
 | \r
 -- request 0.12 (escaped)
 | GET /a/b/s6?k=v HTTP/1.1\r
@@ -774,7 +733,6 @@
 | GET /net HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s6?k=v\r
 | \r
 -- request 0.14 (escaped)
 | GET /a/b/s7?k=v HTTP/1.1\r
@@ -785,7 +743,6 @@
 | GET /full?a=b HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s7?k=v\r
 | \r
 -- request 0.16 (escaped)
 | GET /a/b/s8?k=v HTTP/1.1\r
@@ -796,7 +753,6 @@
 | GET /upper HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s8?k=v\r
 | \r
 -- request 0.18 (escaped)
 | GET /a/b/s9?k=v HTTP/1.1\r
@@ -807,7 +763,6 @@
 | GET /a%20b/%EA%B2%80%EC%83%89?q=%ED%95%9C%20%EA%B8%80 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s9?k=v\r
 | \r
 -- request 0.20 (escaped)
 | GET /a/b/s10?k=v HTTP/1.1\r
@@ -818,7 +773,6 @@
 | GET /a/b/ HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s10?k=v\r
 | \r
 -- request 0.22 (escaped)
 | GET /a/b/s11?k=v HTTP/1.1\r
@@ -829,7 +783,6 @@
 | GET /a/ HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s11?k=v\r
 | \r
 -- request 0.24 (escaped)
 | GET /a/b/s12?k=v HTTP/1.1\r
@@ -840,7 +793,6 @@
 | GET /x/ HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s12?k=v\r
 | \r
 -- request 0.26 (escaped)
 | GET /a/b/s13?k=v HTTP/1.1\r
@@ -851,7 +803,6 @@
 | GET /a/b/ HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s13?k=v\r
 | \r
 -- request 0.28 (escaped)
 | GET /a/b/s14?k=v HTTP/1.1\r
@@ -862,7 +813,6 @@
 | GET /%41%2F/ HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s14?k=v\r
 | \r
 -- request 0.30 (escaped)
 | GET /a/b/s15?k=v HTTP/1.1\r
@@ -873,7 +823,6 @@
 | GET /userinfo HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s15?k=v\r
 | Authorization: Basic dTpwIHc=\r
 | \r
 -- request 0.32 (escaped)
@@ -885,61 +834,51 @@
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v\r
 | \r
 -- request 0.34 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.35 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.36 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.37 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.38 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.39 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.40 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.41 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 -- request 0.42 (escaped)
 | GET /a/b/s16?k=v HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/a/b/s16?k=v#frag\r
 | \r
 ==== case 07
 -- program
@@ -990,7 +929,6 @@
 | GET /gone HTTP/1.1\r
 | Host: 127.0.0.1:$PORT1\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/bad5\r
 | \r
 ==== case 08
 -- program
@@ -999,9 +937,9 @@
 | print(http.get(URL + "/chunks"))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1013,7 +951,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/endless\r
 | \r
 -- request 0.2 (escaped)
 | GET /short HTTP/1.1\r
@@ -1024,7 +961,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/short\r
 | \r
 -- request 0.4 (escaped)
 | GET /chunks HTTP/1.1\r
@@ -1035,7 +971,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/chunks\r
 | \r
 ==== case 09
 -- program
@@ -1047,12 +982,12 @@
 | print(http.request("HEAD", URL + "/headchunks", timeout: 2s))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 | Err({kind: 'network, message: "cannot request `http://127.0.0.1:$PORT0/badhold`: invalid Location header `http://[::1`: missing `]` in host"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: ""})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: ""})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1064,7 +999,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/hold\r
 | \r
 -- request 0.2 (escaped)
 | GET /holdnolen HTTP/1.1\r
@@ -1075,7 +1009,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/holdnolen\r
 | \r
 -- request 0.4 (escaped)
 | GET /holdchunks HTTP/1.1\r
@@ -1086,7 +1019,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/holdchunks\r
 | \r
 -- request 0.6 (escaped)
 | GET /holdlong HTTP/1.1\r
@@ -1097,7 +1029,6 @@
 | GET /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/holdlong\r
 | \r
 -- request 0.8 (escaped)
 | GET /badhold HTTP/1.1\r
@@ -1113,12 +1044,11 @@
 | HEAD /end HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/headchunks\r
 | \r
 ==== case 10
 -- program: print(http.get(URL + "/r/0"))
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1130,61 +1060,51 @@
 | GET /r/1 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/0\r
 | \r
 -- request 0.2 (escaped)
 | GET /r/2 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/1\r
 | \r
 -- request 0.3 (escaped)
 | GET /r/3 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/2\r
 | \r
 -- request 0.4 (escaped)
 | GET /r/4 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/3\r
 | \r
 -- request 0.5 (escaped)
 | GET /r/5 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/4\r
 | \r
 -- request 0.6 (escaped)
 | GET /r/6 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/5\r
 | \r
 -- request 0.7 (escaped)
 | GET /r/7 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/6\r
 | \r
 -- request 0.8 (escaped)
 | GET /r/8 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/7\r
 | \r
 -- request 0.9 (escaped)
 | GET /r/9 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/8\r
 | \r
 -- request 0.10 (escaped)
 | GET /r/10 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/9\r
 | \r
 ==== case 11
 -- program: print(http.request("HEAD", URL + "/r/0"))
@@ -1201,61 +1121,51 @@
 | HEAD /r/1 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/0\r
 | \r
 -- request 0.2 (escaped)
 | HEAD /r/2 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/1\r
 | \r
 -- request 0.3 (escaped)
 | HEAD /r/3 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/2\r
 | \r
 -- request 0.4 (escaped)
 | HEAD /r/4 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/3\r
 | \r
 -- request 0.5 (escaped)
 | HEAD /r/5 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/4\r
 | \r
 -- request 0.6 (escaped)
 | HEAD /r/6 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/5\r
 | \r
 -- request 0.7 (escaped)
 | HEAD /r/7 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/6\r
 | \r
 -- request 0.8 (escaped)
 | HEAD /r/8 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/7\r
 | \r
 -- request 0.9 (escaped)
 | HEAD /r/9 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/8\r
 | \r
 -- request 0.10 (escaped)
 | HEAD /r/10 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/r/9\r
 | \r
 ==== case 12
 -- program: print(http.post(URL + "/loop", "x"))
@@ -1276,7 +1186,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1285,7 +1194,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1294,7 +1202,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1303,7 +1210,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1312,7 +1218,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1321,7 +1226,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1330,7 +1234,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1339,7 +1242,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1348,7 +1250,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1357,7 +1258,6 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | Content-Length: 1\r
-| Referer: http://127.0.0.1:$PORT0/loop\r
 | \r
 | x
 \ no newline
@@ -1368,9 +1268,9 @@
 | print(http.get(URL + "/start?q=1", headers: {"Referer": ""}))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1383,14 +1283,12 @@
 | GET /next HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start?q=1#frag\r
 | Authorization: Basic dTpw\r
 | \r
 -- request 0.2 (escaped)
 | GET /last HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/next\r
 | Authorization: Basic dTpw\r
 | \r
 -- request 0.3 (escaped)
@@ -1421,13 +1319,13 @@
 | GET /next HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/start?q=1\r
+| Referer: \r
 | \r
 -- request 0.8 (escaped)
 | GET /last HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/next\r
+| Referer: \r
 | \r
 ==== case 14
 -- program
@@ -1436,7 +1334,7 @@
 \ no newline
 -- stdout
 | Err({kind: 'timeout, message: "request to `http://127.0.0.1:$PORT0/slow1` timed out"})
-| Ok({status: 200, headers: {"content-length": "4"}, body: "late"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "4"}, header_lines: [("Connection", "close"), ("Content-Length", "4")], body: "late"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1448,7 +1346,6 @@
 | GET /slow2 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/slow1\r
 | \r
 -- request 0.2 (escaped)
 | GET /slow1 HTTP/1.1\r
@@ -1459,7 +1356,6 @@
 | GET /slow2 HTTP/1.1\r
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
-| Referer: http://127.0.0.1:$PORT0/slow1\r
 | \r
 ==== case 15
 -- program
@@ -1468,8 +1364,8 @@
 | print(http.get(URL + "/host", headers: h))
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "5"}, body: "other"})
-| Ok({status: 200, headers: {"content-length": "4"}, body: "back"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "5"}, header_lines: [("Connection", "close"), ("Content-Length", "5")], body: "other"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "4"}, header_lines: [("Connection", "close"), ("Content-Length", "4")], body: "back"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1480,7 +1376,6 @@
 | Cookie: c=1\r
 | Cookie2: x\r
 | Www-Authenticate: w\r
-| Proxy-Authorization: p\r
 | Proxy-Authenticate: pa\r
 | X-Other: o\r
 | \r
@@ -1492,7 +1387,6 @@
 | Cookie: c=1\r
 | Cookie2: x\r
 | Www-Authenticate: w\r
-| Proxy-Authorization: p\r
 | Proxy-Authenticate: pa\r
 | X-Other: o\r
 | \r
@@ -1501,21 +1395,18 @@
 | Host: 127.0.0.1:$PORT0\r
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
-| Referer: http://localhost:$PORT1/h\r
 | \r
 -- request 1.0 (escaped)
 | GET /p HTTP/1.1\r
 | Host: 127.0.0.1:$PORT1\r
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
-| Referer: http://127.0.0.1:$PORT0/port\r
 | \r
 -- request 1.1 (escaped)
 | GET /h HTTP/1.1\r
 | Host: localhost:$PORT1\r
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
-| Referer: http://127.0.0.1:$PORT0/host\r
 | \r
 ==== case 16
 -- program
@@ -1529,12 +1420,12 @@
 \ no newline
 -- env: HTTP_PROXY=http://127.0.0.1:PORT0
 -- stdout
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
-| Ok({status: 200, headers: {"content-length": "3"}, body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "3"}, header_lines: [("Connection", "close"), ("Content-Length", "3")], body: "end"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -1558,7 +1449,6 @@
 | Cookie: c=1\r
 | Content-Type: text/plain\r
 | X-Other: o\r
-| Referer: http://example.test/start\r
 | \r
 | body
 \ no newline
@@ -1569,7 +1459,6 @@
 | Content-Length: 4\r
 | Content-Type: text/plain\r
 | X-Other: o\r
-| Referer: http://sub.example.test/a\r
 | \r
 | body
 \ no newline
@@ -1580,7 +1469,6 @@
 | Content-Length: 4\r
 | Content-Type: text/plain\r
 | X-Other: o\r
-| Referer: http://example.test:8080/b\r
 | \r
 | body
 \ no newline
@@ -1591,7 +1479,6 @@
 | Content-Length: 4\r
 | Content-Type: text/plain\r
 | X-Other: o\r
-| Referer: http://other.test/c\r
 | \r
 | body
 \ no newline
@@ -1611,7 +1498,6 @@
 | Authorization: Bearer t\r
 | Cookie: c=1\r
 | X-Other: o\r
-| Referer: http://EXAMPLE.test/s2\r
 | \r
 -- request 0.7 (escaped)
 | GET http://example.test/s3 HTTP/1.1\r
@@ -1627,7 +1513,6 @@
 | Host: notexample.test\r
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
-| Referer: http://example.test/s3\r
 | \r
 -- request 0.9 (escaped)
 | GET http://example.test/s4 HTTP/1.1\r
@@ -1643,7 +1528,6 @@
 | Host: other.test\r
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
-| Referer: http://example.test/s4\r
 | Authorization: Basic dTI6cDI=\r
 | \r
 -- request 0.11 (escaped)
@@ -1660,7 +1544,6 @@
 | Host: 192.0.2.1:8080\r
 | User-Agent: fung/$VERSION\r
 | X-Other: o\r
-| Referer: http://192.0.2.1/s5\r
 | \r
 -- request 0.13 (escaped)
 | PUT http://example.test/s6 HTTP/1.1\r
@@ -1681,7 +1564,6 @@
 | Content-Length: 1\r
 | Content-Type: text/plain\r
 | X-Other: o\r
-| Referer: http://example.test/s6\r
 | \r
 | b
 \ no newline

@@ -1,0 +1,5 @@
+# A list stopped by something other than `,` or its closer says what it
+# expected, and a note shows where the bracket opened (FE26).
+ports = [80, 443
+print(ports)
+# expect-error: E0112

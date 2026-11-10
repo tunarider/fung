@@ -1,5 +1,7 @@
 # 06. 네이티브 연동 · 표준 라이브러리
 
+규범은 매뉴얼 언어 명세(`manual/reference/language/`)이고, 이 문서는 결정의 기록이다.
+
 ## 내장 함수 연결 방식
 
 - 내장 함수는 **손으로 감싼다.** fung 값 검사 → Rust 호출 → fung 값으로 변환.
@@ -17,8 +19,8 @@
 | 층 | 뜻 | 언어 | 예 |
 |------|------|------|------|
 | **core** | 언어의 의미와 런타임. 없으면 다른 언어가 된다. "언어가 보장하는 값 연산"을 포함한다 | Rust | 렉서~VM, 값·에러, 태스크·채널, `exit`, `print`, `map`·`filter`·`fold`·`sort`, `split`·`join`, `int`·`str` |
-| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.json`, `_native.regex`, `_native.time`, `_native.net`, `_native.range`(prelude의 범위 함수가 `len` 없이 끝을 알게) |
-| **extras (내장)** | core·native 위에 **fung으로** 쓴 것. 없어도 언어는 같지만 불편하다 | fung | `fs`·`path`·`cli`·`conc`·`http` 모듈, `with_open`, `take`·`drop`·`lines`, `until` |
+| **native** (`_native.*`) | 바깥세상과의 다리. fung으로 **쓸 수 없는** 것, 또는 쓸 수는 있지만 **안쪽 루프라 성능이 나오지 않는** 것. 숨김, 최소 | Rust | `_native.fs`, `_native.path`, `_native.process`, `_native.json`, `_native.regex`, `_native.time`, `_native.net`, `_native.range`(prelude의 범위 함수가 `len` 없이 끝을 알게), `_native.arg`(fung으로 쓴 모듈의 인자 검사) |
+| **extras (내장)** | core·native 위에 **fung으로** 쓴 것. 없어도 언어는 같지만 불편하다 | fung | `fs`·`path`·`cli`·`conc`·`http` 모듈, `fs.with_open`, `take`·`drop`·`zip`, `until` |
 | **extras (프로젝트)** | 사용자 패키지. 같은 메커니즘(맨 경로 import), 의존성 관리는 추후 | fung | — |
 
 - 기준: core는 "최소한 언어가 이 정도는 보장한다"; extras는 "core만으로 만들 수 있고(성능도 충분) 없으면 너무 불편해서 넣어 둔
@@ -31,9 +33,9 @@
   `fung_vm::boot::NATIVE_MODULES` 하나다. 크레이트 의존은 `fung-cli` → `fung-vm` → `fung-front` 한 방향이고 앞단은 외부 크레이트가 0개다
   (`crates/fung-cli/tests/deps.rs`가 확인한다).
 - 원소를 도는 함수(`map` `filter` `fold` `each` `sort` `find`…)와 문자열·변환 원시는 안쪽 루프라 core(Rust)에 둔다. 그 위의 조합
-  (`take` `drop` `first` `sum` `min` `lines` `pad_*` `is_ok`…)은 fung extras다. 경계는 측정해서 옮길 수 있고 의미는 바뀌지 않는다(골든).
+  (`take` `drop` `first` `zip` `pad_*` `is_ok`…)은 fung extras다(`sum`·`min`·`max`·`reverse`·`keys`·`values`는 2026-11-10 VA25에 비용 때문에 Rust로). 경계는 측정해서 옮길 수 있고 의미는 바뀌지 않는다(골든).
   측정으로 돌아온 예: `flatten`은 fung에서 리스트를 누적하면(`acc + x`) 제곱 시간이라 core에 남았다(M7.5 노트).
-- fung extras의 인자 검사도 원시와 같은 에러를 낸다(F-4, 2026-11-08 VA7): 타입은 매개변수의 타입 표기(`n: int`)나 `_native.range`의 검사(`count`·`items`·`pad`)로 E0403·E0506이고, 에러는 사용자가 부른 함수의 인자를 말한다. `fail`(E0803)은 쓰지 않는다.
+- fung extras의 인자 검사도 원시와 같은 에러를 낸다(F-4, 2026-11-08 VA7): 타입은 매개변수의 타입 표기(`n: int`)나 `_native.range`의 검사(`items`·`pad`), 개수와 모듈의 검사는 `_native.arg`(`count`·`positive`·`dur`·`list_of`·`str_map`·`token`·`headers`; 2026-11-10 SP18, prelude의 개수도 `_native.arg.count` 하나)로 E0403·E0506이고, 검사는 부작용 전에 한다(`with_open`은 열기 전에 `f`를 본다). 에러는 사용자가 부른 함수의 인자를 말한다. `fail`(E0803)은 쓰지 않는다.
 - 내장 extras 안에서 난 런타임 에러의 위치는 **사용자 코드의 가장 가까운 프레임**이다(사용자는 내장 파일을 열 수 없다). 호출 경로에는
   내장 프레임이 그대로 보인다. 로더가 내장 파일의 `Proto`에 `Builtin`을 표시하고 VM이 그것을 본다.
   사용자 코드가 꼬리 위치에서 부른 경우도 같다: 사라진 사용자 프레임을 내장 프레임이 기억한다(03 "꼬리 호출 최적화", L8). 교착 보고와 태스크의 `spawn` 자리도 이 위치를 쓴다.
@@ -59,8 +61,10 @@
 - **`sym(s)`로 만든 심볼은 해제되지 않는다**(전역 인턴 표, V10 2026-10-20). 외부 입력(요청 값 등)을 `sym`으로 바꾸면 메모리가 계속 는다(Erlang의 atom과 같다).
   바깥 값은 문자열 그대로 비교하거나, 정해진 몇 개의 이름만 `sym`으로 바꾼다.
   사용자 입력처럼 믿을 수 없는 문자열은 `parse_int(s)`·`parse_float(s)`가 `Ok`/`Err`로 돌려준다.
-  문자열의 문법은 리터럴과 같다(01, 앞의 부호 하나 허용): 정수는 10진, 실수는 소수점 양쪽 숫자·지수·숫자 사이 `_`이고 정수 꼴(`"42"`)도 받는다.
-  `.5`·`1.`·16진 실수·`inf`·`nan`은 거부한다.
+  문자열의 문법은 리터럴과 같다(01, 앞의 부호 `-`·`+` 하나 허용, 앞뒤 공백 거절; SP14, 2026-11-10 사용자 결정 D12): `int`·`float`·`parse_int`·`parse_float`·`parse_dur`가 한 규칙이다.
+  정수는 진법 접두사도 받고 앞의 0(`"01"`)은 리터럴처럼 거절한다(설정에서 읽은 `"0755"`가 말없이 10진이 되지 않게; 도움말 `0o`). 실수는 소수점 양쪽 숫자·지수·숫자 사이 `_`이고 정수 꼴(`"42"`)도 받는다.
+  `.5`·`1.`·16진 실수·`inf`·`nan`·0으로 반올림되는 0 아닌 수(`"1e-400"`, D9)는 거부한다. 구현은 렉서의 숫자 판정을 그대로 쓴다(`prelude/convert.rs` `literal`).
+  명령 출력처럼 끝에 줄바꿈이 붙을 수 있는 글은 먼저 `trim`한다. 에러 문구는 입력을 따옴표로 보인다(`not an integer: " 1"`).
   "이 문자열은 숫자여야 한다"(단언)와 "숫자인지 확인한다"(검사)를 이름으로 구분한다.
 - 사용자 코드가 "여기 오면 버그다"를 말할 때는 `fail(msg)`: 메시지와 함께 런타임 에러를 일으킨다.
   `x ?? fail("config.port is required")`처럼 `??`와 짝이 맞는다. (`panic`이라는 이름은 쓰지 않는다.)
@@ -84,27 +88,29 @@ match fs.read(p):
 
 - 입출력: `print`, `eprint`, `read_line`, `read_lines`, `dbg`
   - `print(a, b, …)`: 공백으로 이어서 한 줄에. 문자열은 따옴표 없이, 나머지는 리터럴 형태 (08).
-  - `read_line(f = nil)`·`read_lines(f = nil)`: `f`가 `nil`이면 표준 입력(`fung -e`에서도 같다), 파일 핸들이면 그 파일.
+  - `read_line(file = nil)`·`read_lines(file = nil)`: `file`이 `nil`이면 표준 입력(`fung -e`에서도 같다), 파일 핸들이면 그 파일.
     `read_line`은 `Ok(줄)`, 끝이면 `Ok(nil)`, 닫힌 핸들이면 `Err({kind: 'closed})`. `read_lines`는 남은 줄 전부를 `Ok(리스트)`로.
     표준 입력은 필요할 때만, 한 번에 최대 64 KiB(Linux 파이프 버퍼 크기)를 읽는다. 그래서 같은 입력을 이어 읽는 다른 프로세스
     (`{ fung a.fung; cat; } < file`의 `cat`)는 fung이 읽어 간 버퍼 뒤부터 받는다.
-- 타입·변환: `type_of`, `int`, `float`, `str`, `sym`, `parse_int`, `parse_float`, `parse_dur`
-  - `parse_dur(s)`: 기간 리터럴 문법(`1h30m`, `500ms`, `-5s`, 앞뒤 공백 허용)을 `Ok(dur)`/`Err 'parse`로 (2026-10-14). `--timeout 30s` 같은 옵션용.
-- 컬렉션: `len`, `is_empty`, `map`, `try_map`, `filter`, `fold`, `each`, `sum`, `min`, `max`, `sort`, `sort_by`, `reverse`, `range`, `zip`, `first`, `last`, `take`, `drop`, `find`, `any`, `all`, `contains`, `unique`, `flatten`, `group_by`, `keys`, `values`, `pairs`, `get`, `put`, `merge`, `remove`, `chars`
+- 타입·변환: `type_of`, `int`, `float`, `str`, `sym`, `sym_name`, `parse_int`, `parse_float`, `parse_dur`
+  - `sym_name(s)`: 심볼의 이름을 문자열로(`sym`의 반대, 2026-11-10 SP26·D15). `str('ok)`는 보이는 모양 `"'ok"`다.
+  - `parse_dur(s)`: 기간 리터럴 문법(`1h30m`, `500ms`, `-5s`, `+5s`)을 `Ok(dur)`/`Err 'parse`로 (2026-10-14). `--timeout 30s` 같은 옵션용. 앞뒤 공백은 다른 `parse_*`처럼 거절한다(SP14, 2026-11-10: 전에는 받았다).
+- 컬렉션: `len`, `is_empty`, `map`, `try_map`, `filter`, `fold`, `each`, `sum`, `min`, `max`, `sort`, `sort_by`, `reverse`, `zip`, `first`, `last`, `take`, `drop`, `find`, `any`, `all`, `contains`, `unique`, `flatten`, `group_by`, `keys`, `values`, `pairs`, `get`, `put`, `merge`, `remove`, `chars`
   - `each(xs, f)`: 부수효과용 순회, `nil` 반환 (`for`는 리스트를 만든다).
   - `chars(s)`, `pairs(m)`, `keys(m)`, `values(m)`: 문자열과 맵을 순회 가능한 리스트로 (02).
 - 문자열: `split`, `join`, `trim`, `upper`, `lower`, `replace`, `starts_with`, `ends_with`, `pad_left`, `pad_right`, `repeat`, `lines`,
-  바이트(L4): `byte_len`, `bytes`, `from_bytes`, `valid_utf8`
+  바이트(L4): `byte_len`, `bytes`, `from_bytes`, `is_utf8`
   - `upper`·`lower`: 유니코드 기본 대소문자 변환(전체 매핑). 길이가 바뀔 수 있고(`ß` → `SS`) 단어 끝 시그마는 `ς`.
   - `lines(s)`: 텍스트를 줄 리스트로 — `read_lines`와 같은 규칙(`\n` 구분, 줄 끝 `\r` 제거, 끝의 줄바꿈은 빈 줄을 만들지 않음).
     `split(s, "\n")`은 끝에 빈 조각을 남기므로 줄 나누기에는 `lines`를 쓴다.
+  - `split(s, sep)`: 원소 수는 언제나 구분자 수 + 1이고 `join(split(s, sep), sep) == s`다. 빈 `sep`는 E0403(`must be a non-empty str`; VA20, 2026-11-10 사용자 결정 D18). 글자로 나누기는 `chars` 하나다.
 - 결과값: `is_ok`, `is_err`
 - 반복 패턴 (fung 코드, 00의 "상태가 있는 반복은 재귀" 보완): `until(x, f, pred)`, `iterate(x, f, n)` (`retry`는 `conc` 모듈)
 - 에러·정리: `fail`, `with`(05·03)
-- 동시성: `scope`, `supervise`, `spawn`, `await`, `cancel`, `channel`, `send`, `recv`, `close`, `atom`, `deref`, `swap`, `reset`, `sleep` (05). `fan_in`·`pmap`·`retry`는 `conc` 모듈
-- 프로세스: `exec`, `sh`, `env`, `args`, `exit`
+- 동시성: `scope`, `supervise`, `spawn`, `await`, `cancel`, `timeout`, `channel`, `send`, `recv`, `send_now`, `recv_now`, `wait_closed`, `close`, `atom`, `deref`, `swap`, `reset`, `sleep`, `stop_signal`, `request_stop` (05). `fan_in`·`pmap`·`retry`는 `conc` 모듈
+- 프로세스: `exec`, `sh`, `env`, `env_all`, `args`, `exit`
   - `args`: 진입 스크립트 뒤의 인자만 담은 **문자열 리스트** (prelude 값).
-  - `env(name)`: 문자열 또는 `nil`. `env()`: 전체 맵.
+  - `env(name)`: 문자열 또는 `nil`. `env_all()`: 전체 맵(인자 수로 반환 타입이 바뀌지 않게 나눔, 2026-11-10 SP27·D32).
   - `exit(code = 0)`.
 
 `contains`는 리스트·문자열·맵 모두에 동작한다.
@@ -113,12 +119,12 @@ match fs.read(p):
 
 | 모듈 | 내용 |
 |------|------|
-| `fs` | read, read_lines, write, append, list(`dir, full = false` — `full`이면 `dir`을 붙인 경로), glob, walk, exists, stat(`{name, size, is_dir, mtime}`, `mtime`은 지역 시간대의 `time`이나 `nil`; 2026-10-26 F-12), mkdir, remove, remove_all, move, copy, open, close, write_line, with_open, with_temp_dir |
+| `fs` | read, read_lines, write, append, list(`dir, full = false` — `full`이면 `dir`을 붙인 경로), glob, walk, exists, stat(`{name, size, is_dir, mtime}`, `mtime`은 지역 시간대의 `time`이나 `nil`; 2026-10-26 F-12), mkdir, remove, remove_all, move, copy, open, write_line, with_open, with_temp_dir (핸들은 prelude `close`로 닫는다, SP10) |
 | `path` | join(이어 붙이고 정리, 뒤의 절대 경로가 앞을 지우지 않음), base, dir, ext(점으로 시작하는 이름은 확장자 없음), stem, abs. 모두 끝의 `/`를 무시한다: `dir("a/b/")`는 `a`(셸 `dirname`), `ext`는 `base`의 것이라 `stem + ext == base`(2026-11-08 LB19) |
-| `cli` | `parse(argv, bools = [])` → `{flags, rest}`. `--name value`·`--name=value`·`--name`(true, `bools`에 있으면 값을 먹지 않음), `--` 뒤는 전부 rest, 이름의 `-`는 `_`로. 검사·변환은 보통 코드로 (fung으로 작성) |
+| `cli` | `parse(argv, bools = [])` → `Ok({flags, rest})` / `Err({kind: 'invalid, message})`. `--name value`·`--name=value`·`--name`(true, `bools`에 있으면 값을 먹지 않고 `=값`은 `true`·`false`만), `--` 뒤는 전부 rest, 이름의 `-`는 `_`로. 명령줄은 바깥 입력이라 이름 없는 옵션·같은 옵션의 반복·스위치의 다른 값은 `Err`(2026-11-10 LB38, D29). 검사·변환은 보통 코드로 (fung으로 작성) |
 | `json` | `parse(s)` → `Ok(값)` / `Err({kind: 'parse, line, col, message})`, `stringify(v, indent = nil)`. 아래 "JSON" 참고 (`_native.json`, M8) |
 | `http` | `get(url, headers = {}, timeout = 30s, max_body = 64 MiB)`, `post(url, body, headers = {}, timeout = 30s, max_body = 64 MiB)`, `request(method, url, body = nil, headers = {}, timeout = 30s, max_body = 64 MiB)`(`timeout`은 `dur | nil`), `serve(addr, handler, ready = nil, drain = 10s, reuse_port = false)`. 아래 "HTTP" 참고 (`_native.net` 위의 fung, `extras/http.fung`) |
-| `conc` | `fan_in(s, rxs)`, `pmap(xs, f, limit = 0)`, `retry(f, times = 3, delay = 0ms)` (05, fung으로 작성) |
+| `conc` | `fan_in(s, rxs)`, `pmap(xs, f, limit = nil)`, `retry(f, times = 3, delay = 0ms)` (05, fung으로 작성) |
 | `time` | `now()`, `monotonic()`, `parse(s, format = nil)` → `Ok`/`Err 'parse`, `format(t, format = nil)`, `utc(t)`, `local(t)`, `unix(t)`, `from_unix(n)`, `parts(t)`. `now()`는 `time` 타입 값 (02·07): `==`, `<`, `+ dur`, `time - time → dur`. 벽시계라 시스템 시각이 바뀌면 그 차도 바뀐다. `monotonic()`은 거꾸로 가지 않는 시계의 값을 `dur`로 준다: 기준점은 정하지 않고(지금은 프로세스 시작 무렵) 차만 뜻이 있으며, `sleep`·기한과 같은 시계라 잠든 시간은 세지 않는다. 경과 시간은 `monotonic()`의 차로 잰다(L10, 2026-10-27; 기각: `time` 값에 단조 값을 숨겨 싣기, 같은 순간의 `==`가 두 갈래가 된다). 아래 "시간 형식" 참고 (`_native.time`, M8) |
 | `regex` | `is_match(s, pat)` → bool, `find(s, pat)` → 매치 맵 또는 `nil`, `find_all(s, pat)`, `replace(s, pat, repl)`, `split(s, pat)`. 아래 "정규식" 참고 (`_native.regex`, M8) |
 | `math`, `random` | 아직 없음. `math` 후보: `abs`·`floor`·`ceil`·`round`·비트 연산(open-questions) |
@@ -126,6 +132,7 @@ match fs.read(p):
 - 파일·명령·네트워크 함수의 `Err({kind, message})`에서 운영체제가 말한 이유는 소문자 짧은 문장이다(6c-2). 흔한 것(`no such file or directory`,
   `permission denied`, `operation not permitted`, `file exists`, `not a directory`, `is a directory`, `directory not empty`, `invalid argument`,
   `no space left on device`, `broken pipe`, `connection refused` 등)은 fung이 정해서 어느 플랫폼에서나 같고, 드문 것은 운영체제의 문구를 소문자로 시작해 쓴다.
+- `fs.exists(p)`는 `Ok(bool)`(SP16, 2026-11-10, 사용자 결정): 없을 때(`ENOENT`, 경로 중간이 파일인 `ENOTDIR`)만 `Ok(false)`, 그 밖의 실패(권한 등)는 `Err`. 볼 수 없는 경로를 "없음"으로 읽지 않게 한다. 링크는 따라간다(`stat`과 같은 기준, 가리키는 것이 없으면 `Ok(false)`).
 - `fs`의 규칙(6c-2): `mkdir`는 위의 없는 디렉터리까지 만들고, 이미 디렉터리가 있으면 성공, 다른 것이 있으면 `'exists`.
   `mkdir("")`은 `'not_found`. `remove`는 파일·링크·빈 디렉터리 하나. `remove_all`은 없는 경로와 `""`에 성공하고, 루트(`/`)와 마지막 성분이
   `.`·`..`인 경로는 거절한다(쓴 것보다 많이 지우게 되므로). 링크는 `link/`처럼 써도 링크만 지운다.
@@ -160,7 +167,7 @@ match fs.read(p):
 - `find_all`·`replace`는 앞 매치 바로 뒤의 빈 매치를 세지 않는다. `replace`의 `repl`은 `$1`·`${name}`·`$$`(`$1a`는 이름 `1a`, 그래서 `${1}a`).
   `split`은 `split(s, sep)`처럼 빈 조각을 남기고, 문자열 맨 앞·맨 끝의 빈 매치로는 자르지 않는다(`split("abc", "")` → `["a","b","c"]`).
 - 잘못된 패턴은 런타임 에러 E0515(코드 오류): ``invalid pattern `a(`: unclosed group``. 중첩은 250단계까지, 컴파일한 패턴은 128 MiB까지
-  (넘으면 `pattern too large`; `\w{400}`은 들어가고 `\pL{1000}{1000}`은 넘는다). 빈 패턴으로 빈 문자열을 나누면 `[]`(`split("", "")`과 같음). 컴파일한 패턴은 Rust 쪽에서 캐시한다. 별도 "컴파일된 regex 값" 타입은 없다.
+  (넘으면 `pattern too large`; `\w{400}`은 들어가고 `\pL{1000}{1000}`은 넘는다). 빈 패턴으로 빈 문자열을 나누면 `[]`(`chars("")`과 같음; prelude `split`의 빈 구분자는 E0403). 컴파일한 패턴은 Rust 쪽에서 캐시한다. 별도 "컴파일된 regex 값" 타입은 없다.
 
 ## HTTP
 
@@ -168,23 +175,39 @@ match fs.read(p):
 약속 밖의 세부는 open-questions "Rust 구현: 정한 것과 남은 일"의 알려진 한계(HTTP, 소켓·TLS)에 있다. 학습 노트 `docs/notes/R4d-net-http.md`.
 
 **클라이언트** (`get` `post` `request`)
-- 응답을 받으면 상태 코드와 무관하게 `Ok({status, headers, body})` (404도 `Ok` — "서버가 답했다"와 "요청이 실패했다"는 다른 일).
+- 응답을 받으면 상태 코드와 무관하게 `Ok({status, headers, header_lines, body})` (404도 `Ok` — "서버가 답했다"와 "요청이 실패했다"는 다른 일).
   전송 실패 `Err({kind: 'network, message})`, 시간 초과 `Err({kind: 'timeout, message: "request to `<url>` timed out"})`.
-  `body`는 문자열. 응답 `headers`의 키는 **소문자**, 같은 이름이 여럿이면 `", "`로 잇는다.
+  `body`는 문자열. 응답 `headers`의 키는 **소문자**, 같은 이름이 여럿이면 `", "`로 잇는다. 받은 헤더를 더하거나 빼지 않는다(2026-11-10 LB31: 전에는 `Pragma: no-cache`에서 `cache-control`을 지어냈고,
+  HTTP/1.1의 `close`가 든 `Connection`과 틀을 정하는 `Transfer-Encoding`·`Trailer`, 조각 전송의 `Content-Length`를 뺐다).
+  `header_lines`는 받은 헤더 줄을 받은 순서 그대로, 이름은 받은 대소문자 그대로 담은 `[(name, value)]`다(2026-11-10 LB26, 결정 D24, RFC 9110 5.3: `Set-Cookie`는 이으면 안 되는 헤더라
+  맵만으로는 되살릴 수 없다). 값은 앞뒤 공백을 뗀 것, 접힌 줄은 공백 하나로 이은 것이다(맵과 같음).
 - HTTP/1.1(RFC 9110·9112). 요청에 `Host`, `User-Agent: fung/<버전>`(사용자 값이 덮고, 빈 값이면 보내지 않음), 본문이 있으면 `Content-Length`.
-  사용자 헤더는 이름을 표준 대소문자로 바꾼 뒤 **맵 순서 그대로** 보낸다. 같은 이름이면 사용자 것이고, 비어 있지 않은 사용자 `Host`도 자동 값을 대신한다(다른 백엔드·가상 호스트 고르기; 리다이렉트가 다른 `host:port`로 가면 그 요청부터 버림).
+  메서드는 **쓴 그대로** 보낸다(RFC 9110 9.1: 대소문자를 가림). 토큰이 아닌 메서드(빈 문자열 포함)는 E0403이다(2026-11-10 LB34, 결정 D27: 전에는 대문자로 바꿨고 빈 메서드는 `GET`이었다).
+  토큰이 아닌 헤더 이름과 탭 밖의 제어 문자(CR·LF·NUL 등)가 든 헤더 값도 E0403이다(LB34, 스킴과 무관; 전에는 http(s)에서만 `Err 'network`): 값에 CR LF를 넣어 헤더 줄을 끼워 넣을 수 없다.
+  사용자 헤더는 이름을 표준 대소문자로 바꾼 뒤 **맵 순서 그대로** 보낸다. 대소문자만 다른 이름 둘(`"x-a"`와 `"X-A"`)은 한 헤더라 E0403이다(LB34: 전에는 하나를 말없이 버렸다; 서버의 "답의 틀"과 같은 규칙).
+  인자 검사(E0403)는 URL을 읽기 전, 무엇이든 보내기 전에 한다. 같은 이름이면 사용자 것이고, 비어 있지 않은 사용자 `Host`도 자동 값을 대신한다(다른 백엔드·가상 호스트 고르기; 리다이렉트가 다른 `host:port`로 가면 그 요청부터 버림).
   `Content-Length`·`Transfer-Encoding`·`Trailer`는 본문의 끝을 정하므로 언제나 클라이언트가 쓴다. URL에 사용자 정보(`user:pass@`)가 있고 `Authorization`이 없으면 `Authorization: Basic …`. 에러 문구의 URL은 비밀번호를 `***`로 가린다(해석하지 못한 URL도; 2026-10-26).
 - 응답 본문은 `Content-Length`, `Transfer-Encoding: chunked`, 연결 닫힘까지 중 하나로 읽는다. `HEAD` 응답과 1xx·204·304는 본문 없음.
+  HTTP/1.0 응답의 `Transfer-Encoding`은 틀이 깨진 것으로 `Err 'network`(``Transfer-Encoding in an HTTP/1.0 response``, RFC 9112 6.1; 2026-11-10 LB33: 전에는 그 헤더를 지우고 길이나 닫힘으로 읽었다; 서버의 400과 같은 규칙).
+  https에서 "연결 닫힘까지" 본문은 close_notify로 끝나야 한다: TCP 끝만 오면 ``connection closed without TLS close_notify``로 `Err 'network`(2026-11-10 LB23, RFC 8446 6.1·RFC 9112 9.8;
+  경로 위의 누구나 TCP 끝을 넣어 본문을 자를 수 있다). 길이를 아는 본문(`Content-Length`·chunked)은 레코드 사이의 TCP 끝도 끝으로 받는다(틀이 끝을 알려 준다).
   상태 줄은 `HTTP/1.x`와 100~599의 세 자리 숫자다(RFC 9112 4, RFC 9110 15; 2026-11-08 LB14: 전에는 `+20`·`999`·`HTTP/2.0`도 받았다). 아니면 `Err 'network`.
 - **리다이렉트**(RFC 9110 15.4): 301·302·303 → `GET`(원래 `HEAD`면 `HEAD`), 본문 버림. 307·308 → 메서드·본문 유지.
   리다이렉트는 10번까지 따라가고 11번째는 `Err 'network`(`too many redirects (limit 10)`). 리다이렉트 응답의 본문은 읽지 않고 연결을 닫는다.
   첫 요청의 origin을 떠나면 `Authorization`·`Cookie` 같은 민감한 헤더를 그 뒤로 내내 버린다(LB2, 2026-11-08, 사용자 결정): 첫 요청의 호스트나 그 하위 도메인이 아닌 곳,
   다른 포트(쓰지 않았으면 스킴의 기본 포트 80·443으로 견줌, 그래서 http → https도), https에서 http로 내려가는 곳이다.
   전에는 호스트만 견주어 같은 호스트의 다른 포트(다른 프로그램일 수 있다)와 평문 http로 비밀값이 갔다. 같은 규칙인 도구가 많다(curl CVE-2022-27774 뒤).
-  `Location`은 현재 URL 기준으로 푼다(RFC 3986 5.2). 다음 요청에 `Referer`(사용자 정보 없이, https → http면 없음).
+  `Location`은 현재 URL 기준으로 푼다(RFC 3986 5.2). `Referer`는 붙이지 않는다(2026-11-10 LB24, 결정 D23: 이전 URL의 쿼리·조각에 비밀값이 있을 수 있고,
+  클라이언트 라이브러리는 브라우저가 아니다; curl·Python requests와 같다). 필요하면 사용자가 헤더로 준다(다른 헤더처럼 그대로 간다).
 - **프록시**(대부분의 HTTP 클라이언트가 읽는 환경 변수): `HTTP_PROXY`/`http_proxy`(http용), `HTTPS_PROXY`/`https_proxy`(https용), `NO_PROXY`/`no_proxy`(이름·하위 도메인·IP·CIDR, 포트 선택).
   `localhost`·루프백 주소는 거치지 않는다. CGI 프로그램(`REQUEST_METHOD`가 있음)에서는 `HTTP_PROXY`를 쓰지 않는다(요청의 `Proxy` 헤더에서 올 수 있다, "httpoxy").
   http는 절대 URL 요청, https는 `CONNECT` 터널(같은 `User-Agent`) 뒤 TLS.
+  프록시 변수 값에 스킴이 없으면 http 프록시다(`http://`를 붙여 읽음). URL로 읽히지 않거나 호스트가 없는 값, 스킴 뒤에 `//`가 없는 값(`http:/proxy:3128`)은 그 프록시를 쓸 요청의 `Err 'network`
+  ``invalid HTTPS_PROXY `…`: <이유>``다(2026-11-10 LB25: 전에는 말없이 직접 연결하거나 엉뚱한 호스트로 읽었다). 문구 속 값은 에러 URL처럼 비밀번호를 `***`로 가린다(읽히지 않는 값도). `NO_PROXY`·루프백으로 프록시를 쓰지 않는 요청은 영향이 없다.
+  `Proxy-Authorization`은 프록시에만 간다(2026-11-10 LB30, RFC 9110 11.7.2): 사용자가 준 값(비어 있지 않으면)이 프록시 URL의 사용자 정보보다 앞서고(`Authorization`과 같은 규칙),
+  http 프록시면 요청에 한 번, https면 `CONNECT`에만 쓴다. 프록시를 거치지 않는 요청에는 보내지 않는다.
+  사용자 `Proxy-Authorization`도 다른 자격 증명처럼 리다이렉트가 첫 origin을 떠나면 그 뒤로 버린다(홉마다 프록시가 다를 수 있다: http와 https의 변수가 따로다). 그 뒤 요청은 프록시 URL의 사용자 정보를 쓰거나 보내지 않는다.
+  빈 프록시 변수는 없는 것과 같지만, `SSL_CERT_FILE=`(빈 값)은 "있음"이라 빈 경로를 읽으려다 실패한다(크레이트 rustls-native-certs가 변수를 읽고, 운영체제 저장소만 읽는 길을 공개하지 않는다).
 - **https**: 운영체제 루트 인증서, SNI, ALPN `http/1.1`, rustls의 검증(사슬 다음 이름). 인증서 오류는 `Err 'network`.
   `SSL_CERT_FILE`·`SSL_CERT_DIR`이 하나라도 있으면 **그 변수들이 가리키는 것만** 믿는다(운영체제 저장소 대신; L12, 두 운영체제에서 같은 뜻, "이 묶음만 믿어라").
   변수가 가리키는 곳을 읽지 못하면 이유가 그것을 말한다(``cannot read SSL_CERT_FILE `/x`: …``). 믿을 루트가 하나도 없으면
@@ -195,6 +218,7 @@ match fs.read(p):
 - TLS 연결을 `close`하면 close_notify를 다 보낼 때까지 최대 1초 기다린다(바깥 기한·취소를 따름). `close` 없이 버린 연결은 보내지 않는다.
 - 한 연결의 읽기와 쓰기는 각각 한 번에 하나다. 두 번째 읽는 쪽(쓰는 쪽)은 앞의 것이 끝나기를 줄에서 기다린다(줄 단위 읽기가 서로의 줄을 깨지 않게; 취소·기한에는 끊긴다).
   `set_deadline`은 이미 막혀 기다리는 읽기·쓰기에도 닿는다(기다리던 쪽이 깨어 새 기한으로 다시 본다).
+  `set_deadline(c, d: dur | nil)`: `nil`이 기한 없음, `0s`는 지금(곧바로 기한 지남), 음수는 E0403(2026-11-10 LB39: 전에는 `0s`가 "기한 없음"이라 공개 `timeout`과 뜻이 반대였다).
 - **`timeout`**: 기간, 연결·TLS 핸드셰이크·`CONNECT`·리다이렉트를 포함한 요청 전체 하나(따로 짧은 한도가 없다). prelude `timeout`과 같은 규칙으로 `d <= 0`이면 곧바로 시간 초과,
   요청 자신의 한도를 두지 않으려면 `timeout: nil`(2026-11-08 LB5, 사용자 결정: 전에는 `0s`와 음수가 "제한 없음"이라 같은 이름의 인자가 함수마다 반대 뜻이었다).
   안에서 `timeout` 범위(05)로 구현하므로 실제 기한은 바깥 기한과의 이른 쪽이다: `timeout(() => http.get(url), 1s)`은 1초에 바깥의 `Err({kind: 'timeout})`.
@@ -220,8 +244,17 @@ match fs.read(p):
   같은 스크립트가 달라지지 않게(L12). URL의 포트도 숫자뿐이다(RFC 3986).
 - `reuse_port`는 바인드 전에 `SO_REUSEPORT`를 켠다. 같은 호스트에서 프로세스 여럿이 한 포트를 받을 때 쓴다(여러 코어를 쓰는 방법, 05). Linux는 연결을 나눠 주고, macOS는 받게만 한다.
   `ready`가 함수면 리스닝 직후 실제 주소(`"127.0.0.1:53121"`)로 한 번 부른다(`":0"`의 포트를 아는 길).
-- 핸들러 `req => resp`. `req = {method, path, query, headers, body}`(`query`는 `&`로 나눈 쌍의 이름마다 첫 값, `+`는 공백, 잘못된 `%` 이스케이프나 `;`가 든 쌍은 빠짐,
-  쌍이 1만 개를 넘으면 400(2026-11-08 LB22, 사용자 결정: 전에는 말없이 `{}`), `headers`는 소문자 키이고 `host`도 있음(2026-11-08 LB4, 사용자 결정: 가상 호스트를 가르게)).
+- 핸들러 `req => resp`. `req = {method, target, host, path, query, query_pairs, headers, header_lines, body}`.
+  - `target`은 요청 줄의 요청 대상을 받은 그대로(이스케이프를 풀지 않음; 2026-11-10 LB27, 결정 D25: `%2F`와 `/`, 반복 키를 핸들러가 되살릴 길).
+  - `path`는 쿼리를 뺀 경로의 `%XX`를 바이트로 푼 것. absolute-form 대상의 빈 경로는 `"/"`(RFC 9110 4.2.3; LB32), `CONNECT`의 authority-form은 경로가 없어 `""`, `OPTIONS *`는 `"*"`.
+  - `host`는 absolute-form·authority-form이면 대상의 호스트(포트는 씀; RFC 9112 3.2.2: `Host` 헤더는 따르지 않음, 2026-11-10 LB32), 아니면 `Host` 헤더의 값, 둘 다 없으면 `nil`.
+    대상의 호스트가 비었거나(`GET http:///x`) 사용자 정보가 있으면(`http://u@other/x`) 400이다(RFC 9110 4.2.1·4.2.4).
+  - `query_pairs`는 쿼리를 `&`로 나눈 쌍 `[(name, value)]`를 받은 순서대로, 같은 이름도 모두(LB27, 결정 D25). 첫 `=` 앞이 이름(`=`가 없으면 값 `""`), `+`는 공백, `%XX`는 바이트로 푼다.
+    쌍은 `&`로만 나누고 `;`는 보통 글자다(WHATWG form-urlencoded와 같음: `z=1;2`는 `("z", "1;2")`; 전에는 `;`가 든 쌍을 말없이 뺐다). 빈 조각(`a=1&&b=2`의 가운데)은 쌍이 아니다. 잘못된 `%` 이스케이프는 경로처럼 400(LB27: 전에는 그 쌍만 말없이 빠짐),
+    쌍이 1만 개를 넘으면 400(2026-11-08 LB22, 사용자 결정: 전에는 말없이 `{}`).
+  - `query`는 `query_pairs`의 맵: 같은 이름이 여럿이면 **마지막 값**(결정 D25; 전에는 첫 값).
+  - `headers`는 소문자 키, 같은 이름은 `", "`로 이음, `host`도 있음(2026-11-08 LB4, 사용자 결정: 가상 호스트를 가르게). 받은 헤더를 더하거나 빼지 않는다(LB31).
+  - `header_lines`는 클라이언트 응답의 것과 같은 모양(LB26, 결정 D24): 여러 줄의 `Cookie`(구분자는 `"; "`)를 `", "`로 잇지 않고 읽는 길.
   `resp`는 맵 `{status = 200, headers = {}, body = ""}` 또는 문자열(200, `text/plain; charset=utf-8`). 응답 헤더에 `Date`(IMF-fixdate, RFC 9110 5.6.7)와
   `Content-Length`가 붙고, 본문이 있는데 `content-type`이 없으면 `text/plain; charset=utf-8`.
 - 답의 틀은 서버가 정한다(L13, RFC 9112 6): 핸들러가 `Transfer-Encoding`·`Trailer`·`Connection`을 넣거나, 본문 바이트 수와 다른 `Content-Length`를 넣으면
@@ -257,7 +290,8 @@ URL의 경로와 쿼리는 요청 줄에 쓸 수 있는 글자(RFC 3986)와 올�
 - `read_line(f)` `read_lines(f)`(prelude), `fs.write_line(f, s)` → `Ok(nil)` / `Err`.
 - 핸들의 읽기·쓰기 버퍼는 64 KiB다. 쓴 줄은 버퍼가 차거나 `close`할 때 파일에 닿는다.
 - **닫기의 에러를 보고한다** (L11, 2026-10-27): `close`·`write`·`append`·`copy`는 `close(2)`의 결과까지 본다. NFS처럼 닫을 때 쓰기를 보내는 파일 시스템에서
-  할당량 초과·디스크 가득 참이 거기서야 나온다. `fsync`는 하지 않는다(전원이 나가도 남는다는 약속은 0.5.0 뒤의 옵션 후보). `close(2)`가 EINTR이면 닫힌 것으로 본다(다시 닫으면 남의 fd를 닫는다).
+  할당량 초과·디스크 가득 참이 거기서야 나온다. `fsync`는 `fs.write`만 한다(위 LB17: 임시 파일을 `rename`하기 전에). `close`·`append`·`copy`는 하지 않는다(전원이 나가도 남는다는 약속은 옵션 후보).
+  그 값(SP22, 2026-11-11 측정): 같은 파일 50개에 번갈아 2000번 쓰면 `fs.write` 0.6초, `fs.append` 0.08초(macOS APFS, `F_FULLFSYNC`가 아닌 `fsync`라 싸다). 실제 디스크의 Linux ext4에서는 `fs.write`마다 ms 단위가 들 수 있다. `close(2)`가 EINTR이면 닫힌 것으로 본다(다시 닫으면 남의 fd를 닫는다).
 - **`close` 없이 버린 핸들**은 런타임의 닫기 스레드가 비우고 닫는다(`vm/closer.rs`). 실행 스레드가 멈춘 닫기(NFS)를 기다리지 않게 하려는 것이다.
   그래서 데이터가 파일에 닿는 때는 **정하지 않는다**: 버린 바로 뒤의 `fs.read`가 그 줄을 못 볼 수 있다. 프로그램이 끝날 때는 모든 닫기를 기다린다(데이터를 잃지 않음).
   그 비우기·닫기가 실패하면 돌려줄 값이 없으므로 표준 에러에 E0810을 쓰고 종료 코드를 1로 한다. 파일에 닿는 때와 에러를 다루려면 `close`나 `with_open`을 쓴다.
@@ -268,6 +302,9 @@ URL의 경로와 쿼리는 요청 줄에 쓸 수 있는 글자(RFC 3986)와 올�
   - FIFO에 쓴 줄은 곧바로 보낸다(버퍼에 모으지 않음). 읽는 쪽이 떠났으면 그 쓰기가 `'io`(broken pipe)다.
   - 읽기가 0바이트를 주는 것은 쓰는 쪽이 오기 전과 떠난 뒤가 같다. 쓰는 쪽을 본 뒤(데이터·EAGAIN, Linux는 epoll이 깨운 뒤)에만 끝으로 본다.
     macOS는 FIFO의 쓰는 쪽이 닫혀도 kqueue·poll 모두 알리지 않아 50ms마다 다시 본다. 그래서 macOS에서는 두 번 보는 사이에 열고 아무것도 쓰지 않고 닫은 쓰는 쪽을 보지 못하고 다음 쓰는 쪽을 기다린다.
+  - macOS는 FIFO의 버퍼(8 KiB)에 남은 자리보다 큰 쓰기 하나가 조각으로 들어갈 때, 둘째 조각부터 읽을 준비를 알리지 않는다(kqueue·poll 모두. 막힌 `read`는 깬다).
+    그래서 macOS에서 데이터를 받은 읽기는 이벤트 없이도 50 µs 뒤에 다시 보고, 아무것도 없을 때마다 그 간격을 배로 늘려 50ms에서 멈춘다(2026-11-11).
+    쉬지 않고 쓰는 쪽은 바짝 따라가고, 쉬는 쓰는 쪽에는 열 번 남짓 본 뒤 50ms마다 본다.
   - macOS의 `/dev/fd/N`·`/dev/stdin` 등은 같은 열린 파일을 다시 여는 것이라(비차단으로 바꾸면 fung의 표준 입력도 바뀜) 정규 파일처럼 풀에서 한다.
   - 문자 장치·소켓 파일은 지금처럼 풀에서 한다(이벤트 루프 등록이 OS마다 달라 시험하지 못함).
 - 닫힌 핸들에 읽고 쓰면 `Err({kind: 'closed})`. 핸들을 `with_open` 밖으로 돌려줘도 막지 않는다 — 쓰는 순간 `'closed`다.
@@ -286,13 +323,16 @@ URL의 경로와 쿼리는 요청 줄에 쓸 수 있는 글자(RFC 3986)와 올�
   `$TZDIR`(없으면 `/usr/share/zoneinfo`) 아래에서 찾고, 파일이 없으면 POSIX 시간대 문자열(`KST-9`, `EST5EDT,M3.2.0,M11.1.0`)로 읽는다. 다 실패하면 UTC이고,
   처음 쓸 때 표준 에러에 한 줄(``warning: TZ `garbage!!` names no time zone; times are in UTC``)을 쓴다(2026-11-08 LB20, 사용자 결정: 오타 하나가 시각을 말없이 바꾸지 않게).
 - 토큰 (2026-10-14 확정): `YYYY` `YY`(파싱은 2000~2099) `MM` `MMM`(영문 월 약자 `Oct`) `DD` `ddd`(영문 요일 약자 `Sun`) `HH`(24시간) `mm` `ss`
-  `SSS`(밀리초) `Z`(`+09:00`) `ZZ`(`+0900`). 파싱에서 영문 이름은 대소문자를 가리지 않고, `ddd`는 이름만 검사하며 날짜와 대조하지 않는다.
+  `SSS`(밀리초) `Z`(`+09:00`) `ZZ`(`+0900`). 파싱에서 영문 이름은 대소문자를 가리지 않고, `ddd`는 읽은 날짜의 요일과 다르면 `Err 'parse`(``weekday Mon does not match 2026-01-02 (Fri)``; LB36, 2026-11-10).
   목록에 없는 글자는 그대로 출력·그대로 기대한다. 긴 토큰부터 맞춘다. `parse`는 같은 토큰으로 자리수를 정확히 맞추고, 시간대 토큰이
   없으면 로컬로 해석한다. 12시간제·이스케이프는 보류.
   `parse`의 형식에는 연(`YYYY`·`YY`)·월(`MM`·`MMM`)·일(`DD`)이 모두 있어야 한다. 없으면 런타임 에러 E0403(2026-11-08 LB20, 사용자 결정: 시각은 한 순간이라 날짜가
   필요하다. 전에는 0000-01-01로 채워 지역 시간대의 지방 평균시 오프셋 `+08:27:52`가 붙었다). 시각 필드는 없으면 0이다.
+  같은 필드(연·월·일·요일·시·분·초·밀리초·오프셋)를 두 번 쓰는 형식(`MM`과 `MMM`, `HH` 둘)도 E0403이다(LB36, 2026-11-10, 사용자 결정 D28: 전에는 마지막 값이 말없이 이겼다).
+  `format`의 형식은 토큰이 하나 이상이고 `%`가 없어야 한다. 아니면 E0403(`%`면 도움말 "tokens are `YYYY`, …, not `%Y`")(SP25, 결정 D28: strftime 형식이나 `"hh:ii"`처럼 토큰 없는 형식이 말없이 그대로 찍혔다. `hh`는 토큰이 아니라 글자이므로 `"hh:mm"`은 받는다).
 - `parts(t)` → `{year, month, day, hour, minute, second, weekday}`, `weekday`는 `'mon`…`'sun`.
-- 범위와 오프셋(6c-3): 시각은 UTC로 0000~9999년. `from_unix`가 범위 밖이면 E0403, 산술이 넘으면 E0503. 오프셋에 초가 있으면(1883년 전 뉴욕의 `-04:56:02` 같은
+- 범위와 오프셋(6c-3): 시각이 **보이는 날짜**(그 시간대의 벽시계)가 0000~9999년이다(LB37, 2026-11-10: 전에는 UTC로만 지켜 지역 시간대로 `10000-01-01T08:59:59+09:00`처럼 `parse`가 다시 읽지 못하는 글이 찍혔다).
+  `from_unix`가 범위 밖이면 E0403, 산술이 넘으면 E0503, `utc(t)`·`local(t)`로 바꾼 시간대에서 범위 밖이면 E0403, 읽은 글이 범위 밖이면 `Err 'parse`(`time out of range`). 오프셋에 초가 있으면(1883년 전 뉴욕의 `-04:56:02` 같은
   지방 평균시) ISO 출력과 `Z`·`ZZ`가 초까지 쓴다. 숫자 오프셋으로 읽은 값은 쓴 그대로의 고정 오프셋이다.
 - 지역 시간으로 읽은 벽시계 시각이 서머타임 경계에 걸리면(6c-3): 없는 시각(시계를 앞으로 돌린 빈틈)은 빈틈만큼 뒤로 밀리고(`02:30` → `03:30`),
   두 번 있는 시각(되돌린 구간)은 이른 순간이다.
@@ -305,8 +345,12 @@ exec(cmd, cwd: dir, env: {...}, stdin: s)   # 옵션은 이름 붙인 인자
 sh("ls -la | grep .log")        # 쉘 기능이 필요할 때만 명시적으로
 ```
 
-- 종료 코드 0: `Ok({out, err, code})`
-- 그 외: `Err({kind: 'exit, code, out, err, message})`
+- 종료 코드 0: `Ok({out, err, code: 0, signal: nil})`
+- 그 외: `Err({kind: 'exit, code, signal, out, err, message})`. 신호로 끝나면 `code: nil`, `signal: n`, 메시지 ``message: "`/bin/sh` was killed by signal 9 (SIGKILL)"``이고,
+  종료 코드로 끝나면 `signal: nil`이다(LB28, 2026-11-10, 사용자 결정 D26: 전에는 `code: -1`과 "exited with code -1". 128 + n으로 바꾸지 않아 실제 종료 코드 137과 섞이지 않는다).
+- `cwd`를 주면 `PWD`도 그 절대 경로다(`env`를 줘도; `env`의 `PWD`가 이긴다). 빈 `cwd`는 E0403. 쓸 수 없는 `cwd`의 이유는 ``working directory `/nope`: no such file or directory``(LB35).
+- 출력(표준 출력·표준 에러)이 문자열 한도를 넘으면 읽는 중에 명령을 끝내고(취소와 같은 길) `Err({kind: 'io, message})`
+  (``standard output of `yes` is longer than the string limit (100000000 characters)``; LB29, 사용자 결정 D22).
 - `exec([...])!` 는 쉘의 `set -e`와 같은 효과.
 - 시작하지 못하면 `Err({kind: 'not_found, message: "cannot run `<이름>`: <이유>"})`(6c-2). 인자 순서대로 검사한다: 빈 이름(`empty command name`),
   NUL이 든 인자(`argument contains a NUL byte`), `$PATH`에 없음(`command not found in PATH`; 상대 경로 항목에서만 찾으면 거절,

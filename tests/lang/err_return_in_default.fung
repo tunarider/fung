@@ -1,0 +1,5 @@
+# A parameter default is computed for the call before the body runs:
+# `return` there is an error (FE38).
+fn f(a = return 5) = a
+print(f())
+# expect-error: E0211

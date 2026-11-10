@@ -44,6 +44,17 @@ fn a_turn_ending_inside_a_swap_is_given_after_it() {
     );
 }
 
+/// CC11: inside a swap's function a turn ends once a turn's work, as
+/// outside: not at every call once the first turn is over (a clock read
+/// and a lock each). The turn owed is given after the function.
+#[test]
+fn a_long_swap_ends_its_turns_once_a_turn() {
+    let o = crate::testutil::exec_waiting(
+        "a = atom(0)\nfn spin(n) = n == 0 then 0 else spin(n - 1)\nn = turn_ends()\nswap(a, x => spin(20000))\nprint(turn_ends() - n <= 30)",
+    );
+    assert_eq!((o.out.as_str(), o.err.as_str()), ("true\n", ""));
+}
+
 #[test]
 fn an_effect_in_f_is_e0707() {
     let (out, err, code) = run("swap(atom(1), fn(x): print(x); x ;;)");
@@ -260,7 +271,7 @@ fn atom_is_a_type_name() {
 #[test]
 fn iterating_a_channel_in_f_is_an_effect() {
     for body in [
-        "for y in ch:\n    y\n  ;;",
+        "for y in ch:\n    _ = y\n  ;;",
         "map(ch, y => y)",
         "fold(ch, 0, (acc, y) => acc + y)",
     ] {
@@ -315,7 +326,7 @@ fn every_builtin_is_classified() {
 #[test]
 fn pure_helpers_run_inside_a_swap() {
     let o = exec(
-        "import _native.net as net\na = atom(0)\nprint(swap(a, x => x + len([net.need_str_map(\"h\", {})]) + 1))",
+        "import _native.arg as arg\na = atom(0)\nprint(swap(a, x => x + len([arg.str_map(\"h\", {})]) + 1))",
         crate::testutil::Opts {
             internal: true,
             ..crate::testutil::Opts::default()

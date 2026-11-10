@@ -1,0 +1,5 @@
+# Like a tuple, a tag value of names and literals does nothing as a
+# statement, so here it is a compile error, not E0606 at run time.
+x = 1
+Err("lost ${x}")
+# expect-error: E0234

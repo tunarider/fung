@@ -1,5 +1,7 @@
 # 04. 모듈 체계
 
+규범은 매뉴얼 언어 명세(`manual/reference/language/`)이고, 이 문서는 결정의 기록이다.
+
 ## 단위
 
 - **파일 하나 = 모듈 하나.** `utils.fung`은 `utils` 모듈이다.

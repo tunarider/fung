@@ -239,7 +239,7 @@ fn hangul_chunks() -> Vec<u8> {
 }
 
 fn cases() -> Vec<Case> {
-    // `Connection: close` (dropped from the headers the client prints): a
+    // `Connection: close` (kept in the headers the client prints, LB31): a
     // `Bytes` reply ends the connection after answering
     let simple = "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nok";
     vec![
@@ -294,7 +294,7 @@ fn cases() -> Vec<Case> {
             ok("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n"),
         ),
         case(
-            r#"print(http.request("head", URL))"#,
+            r#"print(http.request("HEAD", URL))"#,
             ok("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"),
         ),
         case(
@@ -312,10 +312,10 @@ fn cases() -> Vec<Case> {
             ),
         ),
         // what the client writes: the user's Host and User-Agent over its
-        // own, its own Content-Length (bytes), the user's other headers in
-        // canonical form, in the map's order
+        // own, its own Content-Length (bytes; the user's is E0403), the
+        // user's other headers in canonical form, in the map's order
         case(
-            r#"print(http.post(URL + "/up", "한글 본문", headers: {"content-type": "text/plain; charset=utf-8", "user-agent": "fung-test", "x-b": "2", "X-A": " 1 ", "host": "evil.example", "content-length": "1", "x-yz_w": "u"}))"#,
+            r#"print(http.post(URL + "/up", "한글 본문", headers: {"content-type": "text/plain; charset=utf-8", "user-agent": "fung-test", "x-b": "2", "X-A": " 1 ", "host": "evil.example", "x-yz_w": "u"}))"#,
             ok(simple),
         ),
         case(
@@ -323,11 +323,11 @@ fn cases() -> Vec<Case> {
             ok(simple),
         ),
         case(
-            r#"print(http.request("put", URL + "/x", "body"))
+            r#"print(http.request("PUT", URL + "/x", "body"))
 print(http.request("DELETE", URL))
-print(http.request("patch", URL))
+print(http.request("PATCH", URL))
 print(http.request("PURGE", URL, "", headers: {"User-Agent": ""}))
-print(http.request("", URL, headers: {"accept-encoding": "identity"}))
+print(http.request("get", URL, headers: {"accept-encoding": "identity"}))
 print(http.request("GET", URL, "x"))"#,
             ok(simple),
         ),
@@ -526,12 +526,10 @@ print(http.get("http://%ED%95%9C:%EA%B8%80@127.0.0.1:PORT/g"))"#,
 ;;)"#,
             Reply::Hold(Vec::new()),
         ),
-        // the request is checked before anything is sent
+        // a tab in a header value is sent (a bad name or value is E0403:
+        // `the_method_and_headers_go_as_written`)
         case(
-            r#"print(http.request("GE T", URL))
-print(http.get(URL, headers: {"a b": "x"}))
-print(http.get(URL, headers: {"x": "a\r\nb"}))
-print(http.get(URL, headers: {"x": "tab\tok"}))"#,
+            r#"print(http.get(URL, headers: {"x": "tab\tok"}))"#,
             ok(simple),
         ),
     ]
@@ -575,65 +573,64 @@ const NO_SERVER: &[&str] = &[
 
 /// Argument errors: E0403 at the user's call (the URL is read before the
 /// headers' values). `(program, the error and excerpt, the call path)`.
-/// The `http` functions are fung functions whose frames stay visible,
-/// like every fung extras function's (06). In the call path `@needle@`
-/// stands for the line of `extras/http.fung` that holds `needle`.
+/// The `http` functions are fung functions, and their frames are left out
+/// of the call path like every built-in function's (VA19).
 const ARG_ERRORS: &[(&str, &str, &str)] = &[
     (
         "print(1)\nhttp.get(1)",
         "error[E0403]: argument `url` must be str, got int\n  --> -e:3:9\n  |\n3 | http.get(1)\n  |         ^\n  |\n",
-        "   extras/http.fung:@fn get(@ get\n   -e:3       <entry>\n",
+        "   -e:3       <entry>\n",
     ),
     (
         "fn f() = print(http.post(\"x\", 1))\nf()",
         "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:25\n  |\n2 | fn f() = print(http.post(\"x\", 1))\n  |                         ^\n  |\n",
-        "   extras/http.fung:@fn post(@ post\n   -e:2       f\n   -e:3       <entry>\n",
+        "   -e:2       f\n   -e:3       <entry>\n",
     ),
     (
         "http.get(\"http://x\", headers: {a: 1})",
         "error[E0403]: argument `headers` must be a map of strings, got a map holding int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: {a: 1})\n  |         ^\n  |\n",
-        "   extras/http.fung:@need_str_map(\"headers\"@ _attempt (1 tail calls elided)\n   extras/http.fung:@fn _within(@ _within\n   extras/http.fung:@else _within(@ _request (1 tail calls elided)\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.get(\"http://x\", headers: 1)",
         "error[E0403]: argument `headers` must be map, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", headers: 1)\n  |         ^\n  |\n",
-        "   extras/http.fung:@fn get(@ get\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.get(\"http://x\", timeout: 1)",
         "error[E0403]: argument `timeout` must be dur | nil, got int\n  --> -e:2:9\n  |\n2 | http.get(\"http://x\", timeout: 1)\n  |         ^\n  |\n",
-        "   extras/http.fung:@fn get(@ get\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.request(1, \"x\")",
         "error[E0403]: argument `method` must be str, got int\n  --> -e:2:13\n  |\n2 | http.request(1, \"x\")\n  |             ^\n  |\n",
-        "   extras/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.request(\"GET\", 1)",
         "error[E0403]: argument `url` must be str, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", 1)\n  |             ^\n  |\n",
-        "   extras/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.request(\"GET\", \"x\", 1)",
         "error[E0403]: argument `body` must be str | nil, got int\n  --> -e:2:13\n  |\n2 | http.request(\"GET\", \"x\", 1)\n  |             ^\n  |\n",
-        "   extras/http.fung:@fn request(@ request\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     // `serve` (Task 5); `ready` is `fn | nil`, checked at the call (L13)
     (
         "http.serve(1, r => r)",
         "error[E0403]: argument `addr` must be str, got int\n  --> -e:2:11\n  |\n2 | http.serve(1, r => r)\n  |           ^\n  |\n",
-        "   extras/http.fung:@fn serve(@ serve\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.serve(\"a\", 1)",
         "error[E0403]: argument `handler` must be fn, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", 1)\n  |           ^\n  |\n",
-        "   extras/http.fung:@fn serve(@ serve\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     (
         "http.serve(\"a\", r => r, ready: 1)",
         "error[E0403]: argument `ready` must be fn | nil, got int\n  --> -e:2:11\n  |\n2 | http.serve(\"a\", r => r, ready: 1)\n  |           ^\n  |\n",
-        "   extras/http.fung:@fn serve(@ serve\n   -e:2       <entry>\n",
+        "   -e:2       <entry>\n",
     ),
     // the call itself is wrong: no frame of http.fung yet
     (
@@ -653,24 +650,6 @@ const PLAIN: &[&str] = &[
     "http.get(\"::bad\", headers: {a: 1})",
     "print(http, http.get, http.post, http.request, type_of(http.get))",
 ];
-
-/// A call path with each `@needle@` replaced by its line number in
-/// `extras/http.fung`.
-fn call_path(template: &str) -> String {
-    let src = std::fs::read_to_string(common::repo().join("extras/http.fung")).unwrap();
-    let mut out = String::new();
-    let mut parts = template.split('@');
-    out.push_str(parts.next().unwrap());
-    while let (Some(needle), Some(rest)) = (parts.next(), parts.next()) {
-        let line = src
-            .lines()
-            .position(|l| l.contains(needle))
-            .unwrap_or_else(|| panic!("no `{needle}` in http.fung"));
-        out.push_str(&(line + 1).to_string());
-        out.push_str(rest);
-    }
-    out
-}
 
 type Out = (String, String, Option<i32>);
 
@@ -891,7 +870,7 @@ fn argument_errors_point_at_the_call() {
                 ""
             }
             .to_string(),
-            format!("{head}{path}{}", call_path(frames)),
+            format!("{head}{path}{frames}"),
             Some(1),
         );
         let r = run(&bin, &src);
@@ -905,9 +884,7 @@ fn argument_errors_point_at_the_call() {
     let src = "import http\nfn g(x) = http.get(x)\nfn h() = print(g(1))\nh()";
     let want = format!(
         "error[E0403]: argument `url` must be str, got int\n  --> -e:2:19\n  |\n2 | fn g(x) = http.get(x)\n  |                   ^\n  |\n call path (innermost first):\n{}",
-        call_path(
-            "   extras/http.fung:@fn get(@ get\n   -e:2       g\n   -e:3       h\n   -e:4       <entry>\n"
-        )
+        "   -e:2       g\n   -e:3       h\n   -e:4       <entry>\n"
     );
     let r = run(&bin, src);
     if r != (String::new(), want.clone(), Some(1)) {
@@ -1383,7 +1360,7 @@ fn report(failures: Vec<String>) {
 const METHODS: &str = r#"print(http.get(URL + "/start"))
 print(http.post(URL + "/start", "한글 data", headers: {"content-type": "text/plain", "content-language": "ko", "content-encoding": "identity", "content-location": "/x", "x-keep": "1"}))
 print(http.request("HEAD", URL + "/start"))
-print(http.request("put", URL + "/start", "b"))
+print(http.request("PUT", URL + "/start", "b"))
 print(http.request("DELETE", URL + "/start"))
 print(http.request("POST", URL + "/start"))
 print(http.request("GET", URL + "/start", "get body"))"#;
@@ -1592,9 +1569,9 @@ print(http.request("HEAD", URL + "/headchunks", timeout: 2s))"#,
         vec![routes(vec![("*", redirect(307, "/loop"))])],
         &[],
     ));
-    // Referer: the last URL without its userinfo (the fragment kept), a
-    // Referer the user set wins; userinfo becomes Basic authorization on
-    // every request whose URL holds it
+    // Referer: none is added (LB24), one the user set goes as given (an
+    // empty one too); userinfo becomes Basic authorization on every
+    // request whose URL holds it
     v.push(multi(
         r#"print(http.get("http://u:p@127.0.0.1:PORT0/start?q=1#frag"))
 print(http.get(URL + "/start?q=1", headers: {"referer": "mine"}))
@@ -1626,6 +1603,7 @@ print(http.get(URL + "/slow1", timeout: 5s))"#,
     // Another port of the same host drops the sensitive headers, and so
     // does another host (localhost is not 127.0.0.1), also when a later
     // redirect comes back (LB2: they belong to the first URL's origin).
+    // Proxy-Authorization goes to no server at all (LB30: no proxy here).
     v.push(multi(
         r#"h = {"authorization": "Bearer t", "cookie": "c=1", "cookie2": "x", "www-authenticate": "w", "proxy-authorization": "p", "proxy-authenticate": "pa", "x-other": "o"}
 print(http.get(URL + "/port", headers: h))
@@ -2324,6 +2302,285 @@ fn an_unknown_proxy_scheme_is_refused() {
     );
 }
 
+/// A proxy variable that does not read as a URL is an error for the
+/// requests that would use it (LB25), not a direct connection or a host
+/// read from the wrong part; requests that do not use the proxy (a
+/// loopback host here) are not affected. The message names the variable
+/// read.
+#[test]
+fn an_invalid_proxy_is_an_error() {
+    let direct = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    // (variable, value, the value as the error shows it, why)
+    for (var, value, shown, why) in [
+        (
+            "HTTP_PROXY",
+            "http://%zz",
+            "http://%zz",
+            "invalid escape `%zz`",
+        ),
+        (
+            "http_proxy",
+            "http://a b:3128",
+            "http://a b:3128",
+            "invalid character ` ` in host",
+        ),
+        (
+            "HTTP_PROXY",
+            "http://[::1:3128",
+            "http://[::1:3128",
+            "missing `]` in host",
+        ),
+        ("HTTP_PROXY", "http://", "http://", "no host"),
+        ("HTTP_PROXY", "http://:3128", "http://:3128", "no host"),
+        // a scheme without `//` is no host named `http:`
+        (
+            "HTTP_PROXY",
+            "http:/proxy:3128",
+            "http:/proxy:3128",
+            "missing `//` after `http:`",
+        ),
+        // the password is hidden, whether the value parses or not
+        (
+            "HTTP_PROXY",
+            "http://u:hunter2@%zz",
+            "http://u:***@%zz",
+            "invalid escape `%zz`",
+        ),
+        (
+            "HTTP_PROXY",
+            "u:hunter2@[::1:3128",
+            "u:***@[::1:3128",
+            "missing `]` in host",
+        ),
+        (
+            "HTTP_PROXY",
+            "http://u:hunter2@",
+            "http://u:***@",
+            "no host",
+        ),
+        (
+            "HTTP_PROXY",
+            "http://u:hunter2@:3128",
+            "http://u:***@:3128",
+            "no host",
+        ),
+        (
+            "HTTP_PROXY",
+            "http:/u:hunter2@proxy",
+            "http:/u:***@proxy",
+            "missing `//` after `http:`",
+        ),
+    ] {
+        let env = [(var.to_string(), value.to_string())];
+        let got = client_says("http.get(\"http://example.test/x\")", &env);
+        assert_eq!(
+            got,
+            format!("cannot request `http://example.test/x`: invalid {var} `{shown}`: {why}"),
+            "{var}={value}"
+        );
+        assert!(!got.contains("hunter2"), "{got}");
+        assert_eq!(
+            client_says(
+                &format!("http.get(\"http://127.0.0.1:{}/x\")", direct.port),
+                &env
+            ),
+            "200",
+            "{var}={value}"
+        );
+    }
+    assert_eq!(direct.take().len(), 11);
+    // a valid proxy's failure names its host alone
+    let got = client_says(
+        "http.get(\"http://example.test/x\")",
+        &[(
+            "HTTP_PROXY".to_string(),
+            format!("http://u:hunter2@127.0.0.1:{}", refused_port()),
+        )],
+    );
+    assert!(
+        got.ends_with(": connection refused") && !got.contains("hunter2"),
+        "{got}"
+    );
+    // HTTPS_PROXY likewise, for https requests only
+    let env = [
+        ("HTTPS_PROXY".to_string(), "http://%zz".to_string()),
+        ("HTTP_PROXY".to_string(), "127.0.0.1:1".to_string()),
+    ];
+    assert_eq!(
+        client_says("http.get(\"https://example.test/x\")", &env),
+        "cannot request `https://example.test/x`: invalid HTTPS_PROXY `http://%zz`: invalid escape `%zz`"
+    );
+}
+
+/// Redirects add no `Referer` (LB24, D23): the URL before can hold
+/// secrets (an OAuth `code`, a signed query) and a fragment, and a client
+/// library is no browser. A `Referer` the user sets goes as any header.
+#[test]
+fn redirects_add_no_referer() {
+    let end = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    let first = Fake::start(Reply::Routes(Arc::new(vec![
+        ("/same".to_string(), redirect(302, "/end")),
+        (
+            "/away?access_token=SECRET".to_string(),
+            redirect(302, &format!("http://127.0.0.1:{}/landing", end.port)),
+        ),
+        ("*".to_string(), named("end")),
+    ])));
+    let src = format!(
+        "import http\nprint(http.get(\"http://127.0.0.1:{p}/same#frag\")!.status)\nprint(http.get(\"http://127.0.0.1:{p}/away?access_token=SECRET#frag\")!.status)\nprint(http.get(\"http://127.0.0.1:{p}/same\", headers: {{Referer: \"mine\"}})!.status)",
+        p = first.port
+    );
+    assert_eq!(
+        run(&fung_bin(), &src),
+        ("200\n200\n200\n".into(), String::new(), Some(0))
+    );
+    let referers = |reqs: Vec<Vec<u8>>| -> Vec<Vec<String>> {
+        reqs.iter()
+            .map(|r| {
+                String::from_utf8_lossy(r)
+                    .split("\r\n")
+                    .filter_map(|l| l.strip_prefix("Referer: ").map(str::to_string))
+                    .collect()
+            })
+            .collect()
+    };
+    let none: Vec<String> = vec![];
+    assert_eq!(
+        referers(first.take()),
+        [
+            none.clone(),
+            none.clone(),
+            none.clone(),
+            vec!["mine".to_string()],
+            vec!["mine".to_string()]
+        ]
+    );
+    assert_eq!(referers(end.take()), [none]);
+}
+
+/// A user's `Proxy-Authorization` is for the proxy alone (LB30, RFC 9110
+/// 11.7.2): through an http proxy it goes once (the user's own, over the
+/// proxy URL's userinfo, as `Authorization` over the URL's), over a
+/// tunnel only on the CONNECT, and without a proxy nowhere.
+#[test]
+fn a_users_proxy_authorization_goes_to_the_proxy_alone() {
+    let lines = |r: &[u8]| -> Vec<String> {
+        String::from_utf8_lossy(r)
+            .split("\r\n")
+            .filter(|l| l.starts_with("Proxy-Authorization: "))
+            .map(str::to_string)
+            .collect()
+    };
+    let call =
+        "http.get(\"http://example.test/x\", headers: {\"Proxy-Authorization\": \"Basic USERS\"})";
+    for (proxy_user, want) in [("", "Basic USERS"), ("u:p@", "Basic USERS")] {
+        let proxy = Fake::start(proxy_named("via"));
+        let env = [(
+            "HTTP_PROXY".to_string(),
+            format!("http://{proxy_user}127.0.0.1:{}", proxy.port),
+        )];
+        assert_eq!(client_says(call, &env), "403", "{proxy_user}");
+        let got = proxy.take();
+        assert_eq!(got.len(), 1);
+        assert_eq!(
+            lines(&got[0]),
+            [format!("Proxy-Authorization: {want}")],
+            "{proxy_user}"
+        );
+    }
+    // the proxy URL's userinfo alone, as before
+    let proxy = Fake::start(proxy_named("via"));
+    let env = [(
+        "HTTP_PROXY".to_string(),
+        format!("http://u:p@127.0.0.1:{}", proxy.port),
+    )];
+    assert_eq!(
+        client_says("http.get(\"http://example.test/x\")", &env),
+        "403"
+    );
+    assert_eq!(lines(&proxy.take()[0]), ["Proxy-Authorization: Basic dTpw"]);
+    // no proxy: not sent
+    let direct = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
+    assert_eq!(
+        client_says(
+            &format!(
+                "http.get(\"http://127.0.0.1:{}/x\", headers: {{\"Proxy-Authorization\": \"Basic USERS\"}})",
+                direct.port
+            ),
+            &[]
+        ),
+        "200"
+    );
+    assert_eq!(lines(&direct.take()[0]), Vec::<String>::new());
+    // https: on the CONNECT, not inside the tunnel
+    let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tls");
+    let tunnel = Fake::start(Reply::Tunnel(tls_server("wrongname")));
+    let src = "import http\nr = http.get(\"https://wrong.example/x\", headers: {\"Proxy-Authorization\": \"Basic USERS\"})!\nprint(r.status)\nprint(\"Proxy-Authorization\" in r.body)";
+    let o = run_env(
+        &fung_bin(),
+        src,
+        &[
+            (
+                "HTTPS_PROXY".to_string(),
+                format!("http://u:p@127.0.0.1:{}", tunnel.port),
+            ),
+            (
+                "SSL_CERT_FILE".to_string(),
+                data.join("ca.pem").to_string_lossy().into_owned(),
+            ),
+        ],
+    );
+    assert_eq!((o.0.as_str(), o.1.as_str()), ("200\nfalse\n", ""));
+    let got = tunnel.take();
+    assert_eq!(lines(&got[0]), ["Proxy-Authorization: Basic USERS"]);
+}
+
+/// A user's `Proxy-Authorization` stays behind once a redirect leaves the
+/// first URL's origin, as the other credentials do (`_sensitive`): the
+/// proxy can differ from hop to hop (http and https have their own), so
+/// the next request falls back to the proxy URL's userinfo, or none. A
+/// redirect within the origin keeps it.
+#[test]
+fn a_users_proxy_authorization_stays_behind_on_another_origin() {
+    let proxy = Fake::start(routes(vec![
+        ("http://example.test/same", redirect(302, "/end")),
+        (
+            "http://example.test/away",
+            redirect(302, "http://other.test/end"),
+        ),
+        ("*", proxy_named("via")),
+    ]));
+    let sent = |reqs: Vec<Vec<u8>>| -> Vec<Vec<String>> {
+        reqs.iter()
+            .map(|r| {
+                String::from_utf8_lossy(r)
+                    .split("\r\n")
+                    .filter_map(|l| l.strip_prefix("Proxy-Authorization: ").map(str::to_string))
+                    .collect()
+            })
+            .collect()
+    };
+    let call = |path: &str| {
+        format!(
+            "http.get(\"http://example.test/{path}\", headers: {{\"Proxy-Authorization\": \"Basic USERS\"}})"
+        )
+    };
+    for (user, fallback) in [("", vec![]), ("u:p@", vec!["Basic dTpw".to_string()])] {
+        let env = [(
+            "HTTP_PROXY".to_string(),
+            format!("http://{user}127.0.0.1:{}", proxy.port),
+        )];
+        assert_eq!(client_says(&call("same"), &env), "403");
+        assert_eq!(client_says(&call("away"), &env), "403");
+        let users = vec!["Basic USERS".to_string()];
+        assert_eq!(
+            sent(proxy.take()),
+            [users.clone(), users.clone(), users, fallback],
+            "{user}"
+        );
+    }
+}
+
 /// `max_body` bounds the answer a request reads (L13 H10); it is a count.
 #[test]
 fn max_body_bounds_the_answer() {
@@ -2431,7 +2688,7 @@ const TUNNEL_CASES: usize = 3;
 /// CONNECT and carries the bytes to a TLS server for `wrong.example`
 /// (a name no one resolves: only the proxy's tunnel reaches it), trusted
 /// through `SSL_CERT_FILE`. What the server got comes back in the body.
-/// Also: redirects inside the tunnel (no Referer from https to http), a
+/// Also: redirects inside the tunnel (no Referer, LB24), a
 /// name the certificate does not hold, and an http request through an
 /// https proxy (a TLS server for localhost answering the absolute URL).
 #[test]
@@ -2780,9 +3037,11 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
         raw("GET /text HTTP/1.0\r\n\r\n"),
         // what the handler gets
         (
-            get("/echo?a=1&b=x+y&a=2&c=%41%zz&d;e=1&%ED%95%9C=%ED%95%9C&&e=&f&%41=%2B"),
+            get("/echo?a=1&b=x+y&a=2&c=%41&d;e=1&%ED%95%9C=%ED%95%9C&&e=&f&%41=%2B"),
             false,
         ),
+        // a bad escape in the query is 400, as in the path (LB27)
+        (get("/echo?a=1&c=%41%zz"), false),
         (get("/echo%20x/%ED%95%9C/a+b"), false),
         (get("/echo?"), false),
         (get(&format!("/echo?{many}b=2")), false),
@@ -2983,7 +3242,7 @@ fn server_requests() -> Vec<(Vec<u8>, bool)> {
     v
 }
 
-const SERVER_REQUESTS: usize = 95;
+const SERVER_REQUESTS: usize = 96;
 
 const SERVER_HEADER: &str =
     "The `http` server's answers to raw requests (crates/fung-cli/tests/http.rs,
@@ -3349,24 +3608,44 @@ fn the_query_is_escaped_in_the_request_line() {
     );
 }
 
-/// `timeout` follows the prelude's `timeout` (LB5): `0s` or less times
-/// out at once, `nil` sets no limit of the request's own.
+/// `timeout` follows the prelude's `timeout` (LB5): `0s` times out at
+/// once, a negative one is E0403 (SP15, D11), `nil` sets no limit of the
+/// request's own.
 #[test]
-fn a_timeout_of_zero_or_less_times_out_at_once() {
+fn a_timeout_of_zero_times_out_at_once() {
     let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"));
     let src = format!(
-        "import http\nu = \"http://127.0.0.1:{}/\"\nprint(http.get(u, timeout: 0s))\nprint(http.get(u, timeout: -1s))\nprint(http.get(u, timeout: nil)!.body)",
+        "import http\nu = \"http://127.0.0.1:{}/\"\nprint(http.get(u, timeout: 0s))\nprint(http.get(u, timeout: nil)!.body)\nhttp.get(u, timeout: -1s)",
         fake.port
     );
     let want = format!(
         "Err({{kind: 'timeout, message: \"request to `http://127.0.0.1:{p}/` timed out\"}})\n",
         p = fake.port
     );
+    let (out, err, code) = run(&fung_bin(), &src);
+    assert_eq!((out, code), (format!("{want}ok\n"), Some(1)));
+    assert!(
+        err.starts_with("error[E0403]: argument `timeout` must be a non-negative dur, got -1s\n"),
+        "{err}"
+    );
+    // nothing was sent for the one that timed out, or the negative one
+    assert_eq!(fake.take().len(), 1);
+}
+
+/// A port and a Content-Length may have leading zeros on the wire
+/// (RFC 3986 3.2.3, RFC 9110 8.6): `http` reads them as digits, not by
+/// `parse_int`'s literal rules, which refuse them (SP14, D12).
+#[test]
+fn wire_numbers_may_have_leading_zeros() {
+    let fake = Fake::start(ok("HTTP/1.1 200 OK\r\nContent-Length: 002\r\n\r\nok"));
+    let src = format!(
+        "import http\nprint(http.get(\"http://127.0.0.1:0{}/\")!.body)",
+        fake.port
+    );
     assert_eq!(
         run(&fung_bin(), &src),
-        (format!("{want}{want}ok\n"), String::new(), Some(0))
+        ("ok\n".to_string(), String::new(), Some(0))
     );
-    // nothing was sent for the two that timed out
     assert_eq!(fake.take().len(), 1);
 }
 
@@ -3468,6 +3747,220 @@ print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))"#;
         assert!(
             err.contains(&format!("http: bad handler response: {why}\n")),
             "{why}: {err}"
+        );
+    }
+}
+
+/// A response's headers are what came (LB31, LB26): `header_lines` keeps
+/// each line in order with its name as written, and the `headers` map
+/// joins them without adding (`Pragma` makes no `cache-control`) or
+/// taking out (`Connection`, `Transfer-Encoding`) any.
+#[test]
+fn a_response_keeps_its_headers_as_received() {
+    let bin = fung_bin();
+    let lines = Fake::start(ok(
+        "HTTP/1.1 200 OK\r\nSet-Cookie: a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT\r\nset-cookie: b=2\r\nPragma: no-cache\r\nConnection: close, Upgrade\r\nContent-Length: 0\r\n\r\n",
+    ));
+    let src = format!(
+        "import http\nr = http.get(\"http://127.0.0.1:{}/\")!\nprint(r.header_lines)\nprint(r.headers)",
+        lines.port
+    );
+    let want = concat!(
+        "[(\"Set-Cookie\", \"a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT\"), (\"set-cookie\", \"b=2\"), (\"Pragma\", \"no-cache\"), (\"Connection\", \"close, Upgrade\"), (\"Content-Length\", \"0\")]\n",
+        "{connection: \"close, Upgrade\", \"content-length\": \"0\", pragma: \"no-cache\", \"set-cookie\": \"a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT, b=2\"}\n",
+    );
+    assert_eq!(run(&bin, &src), (want.into(), String::new(), Some(0)));
+    let chunks = Fake::start(ok(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nTrailer: X-T\r\n\r\n2\r\nok\r\n0\r\nX-T: t\r\n\r\n",
+    ));
+    let src = format!(
+        "import http\nr = http.get(\"http://127.0.0.1:{}/\")!\nprint(r.headers, r.body)",
+        chunks.port
+    );
+    let want = "{trailer: \"X-T\", \"transfer-encoding\": \"chunked\"} ok\n";
+    assert_eq!(run(&bin, &src), (want.into(), String::new(), Some(0)));
+    // chunked with a Content-Length too: both stay in the map, and the body
+    // is framed by the chunks
+    let both = Fake::start(ok(
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: 99\r\n\r\n2\r\nok\r\n0\r\n\r\n",
+    ));
+    let src = format!(
+        "import http\nr = http.get(\"http://127.0.0.1:{}/\")!\nprint(r.headers, r.body)",
+        both.port
+    );
+    let want = "{\"content-length\": \"99\", \"transfer-encoding\": \"chunked\"} ok\n";
+    assert_eq!(run(&bin, &src), (want.into(), String::new(), Some(0)));
+}
+
+/// An HTTP/1.0 response with a transfer coding has broken framing (LB33,
+/// RFC 9112 6.1), as the server rules for a request.
+#[test]
+fn a_transfer_coding_in_an_http_1_0_response_is_an_error() {
+    let fake = Fake::start(ok(
+        "HTTP/1.0 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n2\r\nok\r\n0\r\n\r\n",
+    ));
+    let url = format!("http://127.0.0.1:{}/", fake.port);
+    let src = format!("import http\nprint(http.get(\"{url}\"))");
+    let want = format!(
+        "Err({{kind: 'network, message: \"cannot request `{url}`: Transfer-Encoding in an HTTP/1.0 response\"}})\n"
+    );
+    assert_eq!(run(&fung_bin(), &src), (want, String::new(), Some(0)));
+}
+
+/// The method goes as written (RFC 9110 9.1: it is case-sensitive); an
+/// empty one, a method that is no token, two header names that differ
+/// only in case, and a framing header (Content-Length, Transfer-Encoding,
+/// Trailer) are E0403 before anything is sent (LB34, D27).
+#[test]
+fn the_method_and_headers_go_as_written() {
+    let bin = fung_bin();
+    let fake = Fake::start(ok("HTTP/1.1 204 No Content\r\n\r\n"));
+    let url = format!("http://127.0.0.1:{}/", fake.port);
+    let src = format!("import http\nprint(http.request(\"propfind\", \"{url}\")!.status)");
+    assert_eq!(run(&bin, &src), ("204\n".into(), String::new(), Some(0)));
+    let req = String::from_utf8(fake.take().remove(0)).unwrap();
+    assert!(req.starts_with("propfind / HTTP/1.1\r\n"), "{req}");
+    for (call, why) in [
+        (
+            format!("http.request(\"\", \"{url}\")"),
+            "argument `method` must be a token (RFC 9110 5.6.2), got \"\"",
+        ),
+        (
+            format!("http.request(\"G T\", \"{url}\")"),
+            "argument `method` must be a token (RFC 9110 5.6.2), got \"G T\"",
+        ),
+        (
+            format!("http.get(\"{url}\", headers: {{\"x-a\": \"1\", \"X-A\": \"2\"}})"),
+            "argument `headers` must be a map without names that differ only in case, got `x-a` and `X-A`",
+        ),
+        (
+            format!("http.get(\"{url}\", headers: {{\"a b\": \"x\"}})"),
+            "argument `headers` must be a map whose names are tokens (RFC 9110 5.6.2), got the name \"a b\"",
+        ),
+        (
+            format!("http.get(\"{url}\", headers: {{\"\": \"x\"}})"),
+            "argument `headers` must be a map whose names are tokens (RFC 9110 5.6.2), got the name \"\"",
+        ),
+        // no header line can be smuggled in a value (CRLF injection)
+        (
+            format!("http.get(\"{url}\", headers: {{\"X\": \"a\\r\\nSet-Cookie: evil=1\"}})"),
+            "argument `headers` must be a map whose values have no control characters but tab, got \"a\\r\\nSet-Cookie: evil=1\" for `X`",
+        ),
+        (
+            format!("http.get(\"{url}\", headers: {{\"X\": \"n\\u{{0}}ul\"}})"),
+            "argument `headers` must be a map whose values have no control characters but tab, got \"n\\u{0}ul\" for `X`",
+        ),
+        // the client frames the body itself (LB34, D27): a framing header
+        // of the user's is no longer left out without a word
+        (
+            format!("http.post(\"{url}\", \"abc\", headers: {{\"content-length\": \"1\"}})"),
+            "argument `headers` must be a map without Content-Length, Transfer-Encoding or Trailer (the request frames its body itself), got `content-length`",
+        ),
+        (
+            format!(
+                "http.post(\"{url}\", \"abc\", headers: {{\"Transfer-Encoding\": \"chunked\"}})"
+            ),
+            "argument `headers` must be a map without Content-Length, Transfer-Encoding or Trailer (the request frames its body itself), got `Transfer-Encoding`",
+        ),
+        (
+            format!("http.get(\"{url}\", headers: {{\"trailer\": \"X\"}})"),
+            "argument `headers` must be a map without Content-Length, Transfer-Encoding or Trailer (the request frames its body itself), got `trailer`",
+        ),
+        // an argument, whatever the scheme
+        (
+            "http.get(\"ftp://x/\", headers: {\"a b\": \"x\"})".to_string(),
+            "argument `headers` must be a map whose names are tokens (RFC 9110 5.6.2), got the name \"a b\"",
+        ),
+    ] {
+        let (out, err, code) = run(&bin, &format!("import http\nprint({call})"));
+        assert_eq!((out.as_str(), code), ("", Some(1)), "{call}: {err}");
+        assert!(
+            err.starts_with(&format!("error[E0403]: {why}\n")),
+            "{call}: {err}"
+        );
+    }
+    assert!(fake.take().is_empty());
+}
+
+/// The handler's request holds what came (LB26, LB27, LB31, LB32): the
+/// target as written, the query's pairs in order with repeats, the header
+/// lines as written, a header map without additions, and the host of an
+/// absolute-form target in place of `Host`. A bad escape in the query is
+/// 400, as in the path.
+#[test]
+fn the_handler_gets_the_request_as_received() {
+    let src = r#"import http
+import json
+fn handle(req) = json.stringify({target: req.target, host: req.host, path: req.path, query: req.query, query_pairs: req.query_pairs, header_lines: req.header_lines, headers: req.headers})
+print(http.serve("127.0.0.1:0", handle, ready: a => print(a)))"#;
+    let srv = serve(&fung_bin(), src);
+    let body = |req: &[u8]| {
+        let got = String::from_utf8_lossy(&exchange(&srv.addr, req.to_vec(), false)).into_owned();
+        match got.split_once("\r\n\r\n") {
+            Some((head, body)) if head.starts_with("HTTP/1.1 200 ") => body.to_string(),
+            _ => got,
+        }
+    };
+    assert_eq!(
+        body(b"GET /a%2Fb?x=1&x=2&y=%41&z=1;2 HTTP/1.1\r\nHost: h\r\nCookie: a=1\r\ncookie: b=2\r\nPragma: no-cache\r\nConnection: close\r\n\r\n"),
+        concat!(
+            r#"{"target":"/a%2Fb?x=1&x=2&y=%41&z=1;2","host":"h","path":"/a/b","query":{"x":"2","y":"A","z":"1;2"},"#,
+            r#""query_pairs":[["x","1"],["x","2"],["y","A"],["z","1;2"]],"#,
+            r#""header_lines":[["Host","h"],["Cookie","a=1"],["cookie","b=2"],["Pragma","no-cache"],["Connection","close"]],"#,
+            r#""headers":{"connection":"close","cookie":"a=1, b=2","host":"h","pragma":"no-cache"}}"#
+        )
+    );
+    assert_eq!(
+        body(b"GET http://other:8080/x?q=1 HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n"),
+        concat!(
+            r#"{"target":"http://other:8080/x?q=1","host":"other:8080","path":"/x","query":{"q":"1"},"query_pairs":[["q","1"]],"#,
+            r#""header_lines":[["Host","h"],["Connection","close"]],"headers":{"connection":"close","host":"h"}}"#
+        )
+    );
+    // an authority form (CONNECT's) has no path
+    for (method, target, host, path) in [
+        ("GET", "http://other", "other", "/"),
+        ("GET", "http://other?q=1", "other", "/"),
+        ("CONNECT", "other:443", "other:443", ""),
+    ] {
+        let got = body(
+            format!("{method} {target} HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        );
+        assert!(
+            got.contains(&format!(r#""host":"{host}","path":"{path}""#)),
+            "{target}: {got}"
+        );
+    }
+    assert!(
+        body(b"GET /x HTTP/1.0\r\n\r\n").contains(r#""host":null,"#),
+        "no Host"
+    );
+    // a version other than 1.x is 505 before its framing is read
+    let v2 = String::from_utf8_lossy(&exchange(
+        &srv.addr,
+        b"GET / HTTP/0.9\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec(),
+        false,
+    ))
+    .into_owned();
+    assert!(v2.starts_with("HTTP/1.1 505 "), "{v2}");
+    let te = body(b"POST /x HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n2\r\nok\r\n0\r\n\r\n");
+    assert!(te.contains(r#""transfer-encoding":"chunked""#), "{te}");
+    // a bad escape in the query, and an absolute form with an empty host
+    // or with userinfo (RFC 9110 4.2.1, 4.2.4), are 400
+    for target in [
+        "/a?k=%zz&k=2",
+        "/a?%zz=1",
+        "/a?k=%2",
+        "http:///x",
+        "http://:80/x",
+        "http://u@other/x",
+        "http://u:p@other/x",
+    ] {
+        let got = String::from_utf8_lossy(&exchange(&srv.addr, get(target), false)).into_owned();
+        assert!(
+            got.starts_with("HTTP/1.1 400 Bad Request\r\n"),
+            "{target}: {got}"
         );
     }
 }

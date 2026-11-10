@@ -134,17 +134,18 @@
 <h3 id="cycles">순환이 생길 수 있는 자리</h3>
 <p>불변 값만으로는 고리가 생기지 않는다. 그런데 fung에도 <strong>바뀌는 것</strong>이 몇 있다. 채널(버퍼에 값이 쌓인다), atom(가리키는 값이 바뀐다), 모듈 전역 표가 그렇다. 이것들은 나중에 자기를 가리키게 될 수 있다. 그래서 고리가 생길 자리를 규칙으로 막았다.</p>
 <ul>
-<li>채널에 <strong>그 채널의 끝</strong>을 보내면 E0705다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. <code>send</code>가 보내는 값을 훑어 막는다.</li>
+<li>채널에 <strong>그 채널의 끝</strong>을 보내면 E0709다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. <code>send</code>가 보내는 값을 훑어 막는다.</li>
 </ul>
 <div class="run"><pre><code>(tx, rx) = channel(1)
-print(send(tx, [tx]))</code></pre><pre class="out err plain" data-code="1"><code>error[E0705]: channel sent into itself
+print(send(tx, [tx]))</code></pre><pre class="out err plain" data-code="1"><code>error[E0709]: this value would make a cycle through channels or tasks, which could never be freed
   --&gt; example.fung:2:11
   |
 2 | print(send(tx, [tx]))
   |           ^
   |
  call path (innermost first):
-   example.fung:2 &lt;entry&gt;</code></pre></div>
+   example.fung:2 &lt;entry&gt;
+ help: send or return the data, not the channel end or task handle that leads back here</code></pre></div>
 <ul>
 <li>atom에는 <strong>바뀌는 것을 품은 값</strong>(atom, 채널의 끝, 태스크, 태스크 범위, 파일, 소켓)을 넣지 못한다(E0708).</li>
 </ul>
@@ -279,14 +280,12 @@ print(total(&quot;x.log&quot;))</code></pre><pre class="out dump plain"><code>$ 
 0010  5:7   MOVELOCAL    2
 0011  5:12  CALL         0    ; 0 positional, 0 named
 0012  5:6   TAILCALL     1    ; 1 positional, 0 named
-0013  1:1   RETURN
 
 == &lt;lambda&gt; ==
 0000  3:17  CONST        0    ; &lt;fn map&gt;
 0001  3:21  LOADCAPTURED 0
 0002  3:28  CONST        1    ; &lt;fn len&gt;
-0003  3:20  TAILCALL     2    ; 2 positional, 0 named
-0004  3:14  RETURN</code></pre></div>
+0003  3:20  TAILCALL     2    ; 2 positional, 0 named</code></pre></div>
 <p><code>total</code>의 0004번이 <code>lines</code>(슬롯 1)를 비운다. 람다가 <code>lines</code>를 붙잡은 것은 복사라 칸에 값이 남는데, 뒤에서 다시 읽히지 않으므로 그 문장 뒤에 놓는다.
 <code>path</code>(슬롯 0)와 <code>sizes</code>(슬롯 2)는 마지막 읽기가 <code>MOVELOCAL</code>(아래 절)이라 칸이 이미 비었으므로, 따로 비우지 않는다. 채널 쪽에서 보면 이렇다.</p>
 <div class="run"><pre><code>fn numbers(n) = scope(fn(s):
@@ -324,8 +323,7 @@ print(m)</code></pre><pre class="out dump plain"><code>$ fung dump bytecode exam
 0003  1:41  LOADLOCAL    1
 0004  1:37  CONCAT       2
 0005  1:46  MOVELOCAL    1
-0006  1:33  TAILCALL     3    ; 3 positional, 0 named
-0007  1:27  RETURN</code></pre></div>
+0006  1:33  TAILCALL     3    ; 3 positional, 0 named</code></pre></div>
 <p><code>&lt;lambda&gt;</code>에서 <code>m</code>(슬롯 0)은 한 번 읽히니 <code>MOVELOCAL 0</code>이다. <code>i</code>(슬롯 1)는 두 번 읽히는데, 보간 안의 첫 읽기는 뒤에 또 읽히니 <code>LOADLOCAL 1</code>(복사), 인자로 가는 둘째가 <code>MOVELOCAL 1</code>이다. 가지(<code>if</code>·<code>??</code>)는 가지마다 따로 보고, <code>match</code>의 주제와 가드는 갈래마다 다시 읽힐 수 있어 넘기지 않는다. 클로저가 붙잡는 것은 복사다.</p>
 <p>넘겨준 값은 그 문장이 끝나기 전에도 놓일 수 있다. 받은 쪽이 놓으면 그만이기 때문이다.</p>
 <div class="run"><pre><code>fn drop_it(_x) = nil
@@ -341,7 +339,7 @@ print(closes_early())</code></pre><pre class="out plain"><code>[nil, Err({kind: 
 <ul>
 <li><code>crates/fung-vm/src/value.rs</code>: <code>Value</code> 열거형, 함수 값 <code>Closure</code>, 모듈 값 <code>Module</code>, 바뀌는 것을 품었는지 보는 <code>holds_mutable</code>.</li>
 <li><code>crates/fung-vm/src/value/release.rs</code>: 깊은 값을 명시적 스택으로 지우는 <code>release</code>, <code>keep</code>, <code>drop_children</code>.</li>
-<li><code>crates/fung-vm/src/value/format.rs</code>·<code>compare.rs</code>: 명시적 스택으로 값을 훑는 출력 <code>write</code>, <code>equal</code>·<code>sym_meets_str</code>(짝 반복자 <code>Pairs</code>), <code>compare</code>, <code>hash_value</code>.</li>
+<li><code>crates/fung-vm/src/value/format.rs</code>·<code>compare.rs</code>: 명시적 스택으로 값을 훑는 출력 <code>write</code>, <code>equal</code>·<code>eq</code>가 함께 쓰는 <code>walk</code>(짝 반복자 <code>Pairs</code>), <code>compare</code>, <code>hash_value</code>.</li>
 <li><code>crates/fung-vm/src/value/pvec.rs</code>: 영속 벡터 <code>Pvec</code>(가지 32개, <code>BITS</code>·<code>MASK</code>, 노드의 기억 <code>Memo</code>).</li>
 <li><code>crates/fung-vm/src/value/list.rs</code>: <code>List</code>(평평한 <code>Flat</code>과 보기 <code>Big</code>), <code>SMALL_MAX</code>, 빌더 <code>ListBuilder</code>.</li>
 <li><code>crates/fung-vm/src/value/map.rs</code>, <code>omap.rs</code>, <code>hamt.rs</code>: <code>Map</code>(<code>SMALL_MAP_MAX</code>), 항목 벡터와 색인을 짝지은 <code>Omap</code>, <code>Hamt</code>.</li>
@@ -367,7 +365,7 @@ print(take(newest_first, 3), newest_first == reverse(fold(0..30000, [], (acc, i)
 <h2 id="summary">정리</h2>
 <ul>
 <li>fung의 값은 16바이트 Rust 열거형 <code>Value</code>다. 정수·실수·불·기간은 칸에 바로 들어가고, 큰 값은 <code>Rc</code>로 힙의 객체를 가리킨다. 빈 칸은 <code>None</code>이라 <code>nil</code>과 다르다.</li>
-<li>메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0709·E0708이 막는다.</li>
+<li>메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0709·E0708이 막는다.</li>
 <li>깊은 값은 그릇마다의 <code>Drop</code>이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다. 출력·비교·해시도 명시적 스택으로 훑으므로 값이 아무리 깊어도 프로세스가 죽지 않고, 출력은 깊이에 선형이다.</li>
 <li>리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 <code>Rc::make_mut</code>로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.</li>
 <li>지역 변수의 마지막 읽기는 <code>MOVELOCAL</code>로 값을 넘기고, 읽힌 문장 뒤에는 <code>CLEARLOCAL</code>로 놓인다. 그래서 <code>fold</code>로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.</li>

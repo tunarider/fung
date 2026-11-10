@@ -1,6 +1,6 @@
 use fung_front::consts::{format_dur, format_float, is_plain_key, quote_bytes, write_quoted};
 
-use super::{Sym, Value};
+use super::Value;
 
 /// Renders a value in fung literal form.
 pub fn format(v: &Value) -> String {
@@ -188,20 +188,6 @@ fn leaf_text(v: &Value) -> String {
         Value::List(_) | Value::Map(_) | Value::Tuple(_) | Value::Tag(_) => {
             unreachable!("collections are written by `write`")
         }
-    }
-}
-
-/// `Ok` or `Err` when `v` is a result: interpolation and `join` refuse to
-/// put one into text (SP2), so a forgotten unwrap does not become the
-/// text `Ok(...)` in a path or a URL. `str` and `print` still show it.
-pub fn result_tag(v: &Value) -> Option<&'static str> {
-    match v {
-        Value::Tag(t) => match t.name {
-            Sym::OK => Some("Ok"),
-            Sym::ERR => Some("Err"),
-            _ => None,
-        },
-        _ => None,
     }
 }
 

@@ -73,8 +73,8 @@ fn atoms_run() {
 }
 
 /// The fung helpers built on the concurrency natives fail at the user's
-/// call (the extras frames are builtin), with the extras
-/// frames in the call path. (`pmap` and `fan_in` run since stage 3a: see
+/// call (the extras frames are builtin), and the extras frames are left
+/// out of the call path (VA19). (`pmap` and `fan_in` run since stage 3a: see
 /// `pmap_runs_its_tasks` and `fan_in_merges_its_channels`; since stage 6a
 /// they live in the module `conc`, `extras/conc.fung`.)
 #[test]
@@ -94,11 +94,15 @@ fn fung_helpers_over_concurrency_fail_at_the_user_call() {
         let e = o.error.unwrap_or_else(|| panic!("{src}: no error"));
         assert_eq!(
             (e.headline.as_str(), e.line, e.col),
-            ("error[E0506]: cannot take the length of int", line, col),
+            (
+                "error[E0403]: argument `rxs` must be list, got int",
+                line,
+                col
+            ),
             "{src}"
         );
         assert!(
-            e.path.iter().any(|c| c.file == "extras/conc.fung"),
+            e.path.iter().all(|c| !c.file.starts_with("extras/")),
             "{src}: {:?}",
             e.path
         );
@@ -295,11 +299,11 @@ fn process_functions() {
     let cases: &[(&str, &str)] = &[
         (
             "print(exec([\"echo\", \"hi there\"]))",
-            "Ok({out: \"hi there\\n\", err: \"\", code: 0})\n",
+            "Ok({out: \"hi there\\n\", err: \"\", code: 0, signal: nil})\n",
         ),
         (
             "print(sh(\"echo a; echo b >&2; exit 3\"))",
-            "Err({kind: 'exit, code: 3, out: \"a\\n\", err: \"b\\n\", message: \"`/bin/sh` exited with code 3\"})\n",
+            "Err({kind: 'exit, code: 3, signal: nil, out: \"a\\n\", err: \"b\\n\", message: \"`/bin/sh` exited with code 3\"})\n",
         ),
         ("print(exec([\"cat\"], stdin: \"x\")!.out)", "x\n"),
         (
@@ -312,7 +316,7 @@ fn process_functions() {
             "'not_found\n",
         ),
         (
-            "print(env(\"FUNG_TEST_UNSET_VAR\"), type_of(env()))",
+            "print(env(\"FUNG_TEST_UNSET_VAR\"), type_of(env_all()))",
             "nil 'map\n",
         ),
         ("print(args)", "[]\n"),
@@ -353,15 +357,15 @@ fn commands_that_cannot_run_are_not_found() {
         ),
         (
             "print(exec([\"ls\"], cwd: \"/nonexistent\"))",
-            "Err({kind: 'not_found, message: \"cannot run `ls`: no such file or directory\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run `ls`: working directory `/nonexistent`: no such file or directory\"})\n",
         ),
         (
             "print(exec([\"ls\"], cwd: \"/etc/hosts\"))",
-            "Err({kind: 'not_found, message: \"cannot run `ls`: not a directory\"})\n",
+            "Err({kind: 'not_found, message: \"cannot run `ls`: working directory `/etc/hosts`: not a directory\"})\n",
         ),
         (
             "print(sh(\"kill -9 $$\"))",
-            "Err({kind: 'exit, code: -1, out: \"\", err: \"\", message: \"`/bin/sh` exited with code -1\"})\n",
+            "Err({kind: 'exit, code: nil, signal: 9, out: \"\", err: \"\", message: \"`/bin/sh` was killed by signal 9 (SIGKILL)\"})\n",
         ),
         (
             "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]))",
@@ -400,7 +404,7 @@ fn fung_prelude_functions() {
             "2\n",
         ),
         (
-            "xs = [1, 2, 3]\nprint(take(xs, 2), take(xs, 9), take(xs, -1), drop(xs, 1), drop(xs, 9), drop(xs, -1), xs)",
+            "xs = [1, 2, 3]\nprint(take(xs, 2), take(xs, 9), take(xs, 0), drop(xs, 1), drop(xs, 9), drop(xs, 0), xs)",
             "[1, 2] [1, 2, 3] [] [2, 3] [] [1, 2, 3] [1, 2, 3]\n",
         ),
         (
@@ -416,16 +420,16 @@ fn fung_prelude_functions() {
             "[] [\"a\"] [\"a\"] [\"a\", \"\", \"b\"] [\"a\", \"b\"] [\"\"] [\"참치\", \"회\"]\n",
         ),
         (
-            "print(is_ok(Ok(1)), is_ok(Err(1)), is_ok(1), is_err(Err(1)), is_err(Err(1, 2)))",
-            "true false false true true\n",
+            "print(is_ok(Ok(1)), is_ok(Err(1)), is_ok(1), is_err(Err(1)))",
+            "true false false true\n",
         ),
         (
             "print(take(0..5, 2), drop(0..5, 4), first(1..3), last(1..3), reverse(0..3), zip(0..2, [\"a\"]))",
             "[0, 1] [4] 1 2 [2, 1, 0] [(0, \"a\")]\n",
         ),
         (
-            "print(min([]), max([]), sum(0..4), min([2.5, 1]), get({a: 1}, \"a\", default: 0), range(2), range(1, 2))",
-            "nil nil 6 1 1 0..2 1..2\n",
+            "print(min([]), max([]), sum(0..4), min([2.5, 1]), get({a: 1}, \"a\", default: 0))",
+            "nil nil 6 1 1\n",
         ),
         (
             "print(len(pad_left(\"a\", 34_000_000, \"abc\")), pad_left(\"x\", 5, \"ab\"))",
@@ -442,7 +446,10 @@ fn fung_prelude_functions() {
         ("lines(1)", "E0403"),
         ("take(1, 2)", "E0506"),
         ("first(\"abc\")", "E0506"),
-        ("get({}, 1)", "E0501"),
+        ("take(\"abc\", 1)", "E0506"),
+        ("drop(\"abc\", 1)", "E0506"),
+        ("get({}, 1)", "E0514"),
+        ("split(\"ab\", \"\")", "E0403"),
     ] {
         assert_eq!(exec(src, Opts::default()).code, want, "{src}");
     }
@@ -461,12 +468,12 @@ fn wide_ranges_need_no_length() {
         ),
         (
             format!(
-                "print(take({w}, 2), take({w}, -1), drop(0..=9223372036854775807, 9223372036854775807))"
+                "print(take({w}, 2), take({w}, 0), drop(0..=9223372036854775807, 9223372036854775807))"
             ),
             "[-9223372036854775808, -9223372036854775807] [] [9223372036854775807]\n",
         ),
         (
-            "print(is_empty(3..3), last(3..3), last(3..=3), last(-2..0), take(5..8, 10), drop(5..8, 1), drop(5..8, 9), drop(5..8, -1))"
+            "print(is_empty(3..3), last(3..3), last(3..=3), last(-2..0), take(5..8, 10), drop(5..8, 1), drop(5..8, 9), drop(5..8, 0))"
                 .to_string(),
             "true nil 3 -1 [5, 6, 7] [6, 7] [] [5, 6, 7]\n",
         ),
@@ -490,7 +497,6 @@ fn take_drop_check_their_count() {
         ("drop([1], \"x\")", "argument `n` must be int, got str"),
         ("take([1], 1.5)", "argument `n` must be int, got float"),
         ("drop(0..3, nil)", "argument `n` must be int, got nil"),
-        ("take(\"ab\", nil)", "argument `n` must be int, got nil"),
     ] {
         let e = exec(src, Opts::default()).error.expect(src);
         assert_eq!(e.code, "E0403", "{src}");
@@ -510,8 +516,8 @@ fn prelude_collection_errors_name_the_function() {
         ("min(5)", "cannot take the min of int"),
         ("max((1, 2))", "cannot take the max of tuple"),
         ("reverse(5)", "cannot reverse int"),
-        ("zip(5, [1])", "cannot zip int"),
-        ("zip([1], true)", "cannot zip bool"),
+        ("zip(5, [1])", "cannot zip the elements of int"),
+        ("zip([1], true)", "cannot zip the elements of bool"),
     ] {
         let e = exec(src, Opts::default()).error.expect(src);
         assert_eq!(e.code, "E0506", "{src}");
@@ -521,8 +527,10 @@ fn prelude_collection_errors_name_the_function() {
 
 // --- errors inside extras/prelude.fung (the whole text) ---
 
+/// An error inside the prelude written in fung looks like a native's:
+/// the call path shows only user frames, a callback's among them (VA19).
 #[test]
-fn errors_inside_the_fung_prelude_name_its_file() {
+fn errors_inside_the_fung_prelude_show_only_user_frames() {
     let (out, err, code) = run_booted("print(1)\ntake([1], \"x\")");
     assert_eq!(out, "1\n");
     assert_eq!(
@@ -534,8 +542,6 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |     ^
   |
  call path (innermost first):
-   extras/prelude.fung:100 _clamp
-   extras/prelude.fung:109 take
    -e:2       <entry>
 "
     );
@@ -552,7 +558,6 @@ fn errors_inside_the_fung_prelude_name_its_file() {
   |
  call path (innermost first):
    -e:1       <lambda>
-   extras/prelude.fung:146 until
    -e:1       <entry>
  help: put the value into the text with `\"${…}\"`, or convert it with `str(…)`
 "
@@ -560,10 +565,10 @@ fn errors_inside_the_fung_prelude_name_its_file() {
 }
 
 /// The user program has several files (ids 0 and 1); the prelude's file
-/// comes after them, so its frames and the imported file's frames each
-/// name their own file.
+/// comes after them, and the imported file's frames name their own file
+/// while the prelude's are left out.
 #[test]
-fn prelude_frames_and_imported_files_keep_their_names() {
+fn imported_files_keep_their_names_past_the_prelude() {
     let dir = temp_dir();
     std::fs::write(dir.join("lib.fung"), "fn cut(xs) = take(xs, \"x\") + []\n").unwrap();
     std::fs::write(
@@ -584,8 +589,6 @@ fn prelude_frames_and_imported_files_keep_their_names() {
   |                  ^
   |
  call path (innermost first):
-   extras/prelude.fung:100 _clamp
-   extras/prelude.fung:109 take
    {d}/lib.fung:1 cut
    {d}/main.fung:3 <entry>
 "

@@ -22,9 +22,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::diag::{Arg, Diag, error};
 use crate::source::Pos;
-use crate::tree::{Capture, CaptureKind, FnInfo, Head, Lit, Node};
+use crate::tree::{Capture, CaptureKind, FnInfo, Head, Lit, Node, TypeTerm};
 
-use scope::{Binding, FnScope, Scope};
+use scope::{Binding, FnScope, Made, Scope};
 
 pub use fn_::BUILTIN_TYPES;
 
@@ -54,6 +54,9 @@ pub struct Options {
     pub globals: Vec<String>,
     /// REPL: fns and imports may be defined again.
     pub redefine: bool,
+    /// The file's last expression is its value (the REPL prints it), as
+    /// `desugar`'s `keep_value`; otherwise that place is discarded.
+    pub keep_value: bool,
 }
 
 /// The resolved tree plus what the compiler needs to lay out storage.
@@ -97,11 +100,14 @@ pub fn resolve(core: &Node, prelude: &[String], opts: &Options) -> Result<Resolv
         top_arg: false,
         consts: HashMap::new(),
         assigned: HashMap::new(),
+        lambda_targets: Vec::new(),
+        similar_index: None,
+        similar_indexed: 0,
         slots: HashMap::new(),
     };
     let out = r.root_block(core);
     // The file's last item is discarded (01), or printed by the REPL.
-    value::check(core, false, &mut r.errs);
+    value::check_file(core, opts.keep_value, &mut r.errs);
     warn::sort_warnings(&mut r.warnings);
     if !r.errs.is_empty() {
         return Err(r.errs);
@@ -133,7 +139,7 @@ struct Resolver<'a> {
     /// visible when they are created; top-level fns are created before any
     /// variable exists).
     file_var_pos: HashMap<String, Pos>,
-    aliases: HashMap<String, Vec<String>>,
+    aliases: HashMap<String, Vec<TypeTerm>>,
     /// Alias names in declaration order.
     alias_order: Vec<String>,
     alias_pos: HashMap<String, Pos>,
@@ -167,6 +173,13 @@ struct Resolver<'a> {
     consts: HashMap<String, usize>,
     /// How many top-level statements bind each name (for E0204's help).
     assigned: HashMap<String, usize>,
+    /// The "similar name" index (FE36), made at the first undefined name,
+    /// and how many of the file's lasting names it holds.
+    similar_index: Option<similar::Index>,
+    similar_indexed: usize,
+    /// The names being assigned a lambda, innermost last: a read of one
+    /// inside its lambda is the lambda calling itself (E0204's help).
+    lambda_targets: Vec<String>,
     /// The global slot of every name a top-level statement binds, taken in
     /// the order the names first appear (as binding them in turn would).
     slots: HashMap<String, usize>,
@@ -359,7 +372,8 @@ impl Resolver<'_> {
         }
         for k in rest {
             if self.opts.library && k.head != Head::Let && k.head != Head::Test {
-                self.errs.push(error("E0306", k.pos, vec![]));
+                // At the statement's start, not a call's `(` (FE29).
+                self.errs.push(error("E0306", k.start_pos(), vec![]));
                 continue;
             }
             let w = self.walk(k);
@@ -437,7 +451,10 @@ impl Resolver<'_> {
         if !file {
             f.next_slot = sc.base;
             self.warn_unused(&sc);
-            self.cur_mut().closed.extend(sc.names.into_keys());
+            let f = self.cur_mut();
+            for name in sc.names.into_keys() {
+                f.close(name, sc.made);
+            }
         }
     }
 
@@ -480,7 +497,10 @@ impl Resolver<'_> {
             }
             Head::Return => {
                 if !self.in_function() {
-                    self.errs.push(error("E0211", n.pos, vec![]));
+                    let args = vec![str_arg("return"), str_arg("outside a function")];
+                    self.errs.push(error("E0211", n.pos, args));
+                } else if self.cur().in_default {
+                    self.errs.push(return_in_default("return", n.pos));
                 } else if self.cur().for_body {
                     self.errs.push(error("E0213", n.pos, vec![]));
                 }
@@ -488,6 +508,8 @@ impl Resolver<'_> {
             Head::Unwrap if lit_str(n) == "?" => {
                 if !self.in_function() {
                     self.errs.push(error("E0214", n.pos, vec![]));
+                } else if self.cur().in_default {
+                    self.errs.push(return_in_default("`?`", n.pos));
                 } else if self.cur().for_body {
                     // The for body is a lambda, so `?` would return from it
                     // and drop an Err into the list: the silent bug E0213
@@ -564,7 +586,18 @@ impl Resolver<'_> {
                 return None;
             }
             if b.constant && !self.opts.redefine {
-                self.errs.push(name_error("E0209", pos, name));
+                let mut e = name_error("E0209", pos, name);
+                // Imports are bound first (04): the assignment is refused
+                // even when it comes before the import (FE33).
+                if self.import_bound.contains_key(name)
+                    && let Some(at) = self.fns[0].blocks[0].pos.get(name)
+                {
+                    e.notes.push(format!(
+                        "note: `{name}` is imported on line {}, and imports are bound before the file's other statements",
+                        at.line
+                    ));
+                }
+                self.errs.push(e);
                 return None;
             }
             if b.constant || b.module {
@@ -584,7 +617,7 @@ impl Resolver<'_> {
             return None;
         }
         self.warn_shadow(name, pos);
-        if self.defined_outside(name) {
+        if self.defined_outside(name) || self.assigns_constant(name) {
             self.errs.push(name_error("E0205", pos, name));
             return None;
         }
@@ -633,12 +666,30 @@ impl Resolver<'_> {
         })
     }
 
+    /// Whether assigning name here would assign a file constant a
+    /// top-level fn sees (FE23). A name the fn's outermost block binds is
+    /// the fn's local throughout it and hides the constant (03, L9), so
+    /// assigning it follows the ordinary block rule instead.
+    fn assigns_constant(&self, name: &str) -> bool {
+        self.in_top_fn() && self.consts.contains_key(name) && !self.fns[1].own.contains(name)
+    }
+
     /// Resolves the right-hand side first (`x = x + 1` reads the old x),
     /// then binds the name — or, for destructuring, every name of the
     /// pattern under the same assignment rules (03).
     fn let_(&mut self, n: &Node) -> Node {
         let target = &n.kids[0];
+        // `f = n => … f(n - 1)`: the lambda cannot see `f` (E0204's help).
+        let lambda = target.head == Head::Name
+            && n.kids[1].head == Head::Fn
+            && fn_info(&n.kids[1]).name.is_empty();
+        if lambda {
+            self.lambda_targets.push(lit_str(target).to_string());
+        }
         let rhs = self.walk(&n.kids[1]);
+        if lambda {
+            self.lambda_targets.pop();
+        }
         if target.head != Head::Name {
             // Destructuring assignment binds like assignment; the destructure
             // desugar emits for a `for` pattern binds fresh names (03).
@@ -672,11 +723,18 @@ impl Resolver<'_> {
         // would hide the mistake (03, rule 4).
         // Closed in this function or one around it: a lambda or an inner
         // fn reads the same name the enclosing code would (FE3).
-        if self.fns.iter().any(|f| f.closed.contains(name)) {
-            let e = name_error("E0206", n.pos, name).with_help(&format!(
-                "assign the block's value instead: `{name} = if … ;;`"
-            ));
-            self.errs.push(e);
+        if let Some(made) = self.fns.iter().rev().find_map(|f| f.closed.get(name)) {
+            let help = match made {
+                Made::Block => format!("assign the block's value instead: `{name} = if … ;;`"),
+                Made::Arm => format!(
+                    "`{name}` is bound in a `match` arm, only there; use the match's value instead: `{name} = match … ;;`"
+                ),
+                Made::For => format!(
+                    "`{name}` is bound in a `for` body, only there; use the for's value instead: `xs = for … ;;`"
+                ),
+            };
+            self.errs
+                .push(name_error("E0206", n.pos, name).with_help(&help));
             return n.clone();
         }
         if self
@@ -691,7 +749,11 @@ impl Resolver<'_> {
             return Node::leaf(Head::Prelude, n.pos, Lit::Str(name.to_string()));
         }
         let mut e = name_error("E0204", n.pos, name);
-        if let (Some(p), true, true) = (
+        if self.lambda_targets.iter().any(|t| t == name) {
+            e = e.with_help(&format!(
+                "a lambda copies the names that exist when it is made, so it cannot call itself: define `{name}` with `fn {name}(n) = …`"
+            ));
+        } else if let (Some(p), true, true) = (
             self.file_var_pos.get(name),
             self.in_top_fn(),
             self.assigned.get(name).is_some_and(|&n| n > 1),
@@ -709,7 +771,7 @@ impl Resolver<'_> {
             e = e.with_help(&format!(
                 "moved to module {module}: import {module}, then {module}.{name}"
             ));
-        } else if let Some(s) = similar::similar(name, &self.visible()) {
+        } else if let Some(s) = self.similar_name(name) {
             e = e.with_help(&format!("a similar name exists: `{s}`"));
         }
         self.errs.push(e);
@@ -806,18 +868,32 @@ impl Resolver<'_> {
         Some(Found::Captured(idx))
     }
 
-    /// Every name that could have been meant: all blocks of all enclosing
-    /// functions, closed block names, and the prelude.
-    fn visible(&self) -> Vec<String> {
-        let mut names = Vec::new();
-        for f in self.fns.iter().rev() {
-            for sc in &f.blocks {
-                names.extend(sc.names.keys().cloned());
-            }
-            names.extend(f.closed.iter().cloned());
+    /// The visible name closest to `name` (`similar`): every block of every
+    /// enclosing function, the names closed in them, and the prelude. The
+    /// prelude and the file's lasting names are indexed once, as they come
+    /// (FE36); the open blocks and functions inside the file are few and
+    /// are measured one by one.
+    fn similar_name(&mut self, name: &str) -> Option<String> {
+        if similar::edit_budget(name.chars().count()) == 0 {
+            return None;
         }
-        names.extend(self.prelude_list.iter().cloned());
-        names
+        let index = self.similar_index.get_or_insert_with(|| {
+            let mut index = similar::Index::default();
+            for p in self.prelude_list {
+                index.add(p);
+            }
+            index
+        });
+        let lasting = &self.fns[0].lasting;
+        for n in &lasting[self.similar_indexed..] {
+            index.add(n);
+        }
+        self.similar_indexed = lasting.len();
+        let outer = self.fns[0].blocks.iter().skip(1);
+        let inner = self.fns[1..].iter().flat_map(|f| &f.blocks);
+        let open = outer.chain(inner).flat_map(|sc| sc.names.keys());
+        let closed = self.fns[1..].iter().flat_map(|f| f.closed.keys());
+        similar::similar(name, index, open.chain(closed).map(String::as_str))
     }
 }
 
@@ -826,21 +902,45 @@ fn pattern_names(n: &Node, out: &mut Vec<String>) {
     n.bound_names(&mut |name, _| out.push(name.to_string()));
 }
 
-/// The names a function's own code binds by assignment, in any of its
-/// blocks but not in the functions inside it (a top-level fn's locals,
-/// `FnScope::own`).
-pub(super) fn own_bindings(n: &Node, out: &mut HashSet<String>) {
+/// E0211 for `return` or `?` in a parameter default: the default is
+/// computed for the call before the body runs, so returning there would
+/// skip the body (FE38).
+fn return_in_default(what: &str, pos: Pos) -> Diag {
+    error(
+        "E0211",
+        pos,
+        vec![str_arg(what), str_arg("inside a parameter default")],
+    )
+    .with_help(
+        "compute the value in the body: give the parameter a `nil` default and test it there",
+    )
+}
+
+/// The names a top-level fn's body binds by assignment in its outermost
+/// block (`FnScope::own`): its locals, which hide the file's constants of
+/// those names throughout it. An inner block's assignment binds nothing
+/// here: it cannot assign a constant (FE23, E0205), as a block anywhere
+/// cannot assign an outer name.
+pub(super) fn own_bindings(body: &Node, out: &mut HashSet<String>) {
+    for k in &body.kids {
+        outer_bindings(k, out);
+    }
+}
+
+/// The assignments of one statement that are not inside a block or a
+/// function of their own.
+fn outer_bindings(n: &Node, out: &mut HashSet<String>) {
     match n.head {
-        Head::Fn => {}
+        Head::Fn | Head::Do | Head::Arm => {}
         Head::Let => {
             let mut names = Vec::new();
             pattern_names(&n.kids[0], &mut names);
             out.extend(names);
-            own_bindings(&n.kids[1], out);
+            outer_bindings(&n.kids[1], out);
         }
         _ => {
             for k in &n.kids {
-                own_bindings(k, out);
+                outer_bindings(k, out);
             }
         }
     }

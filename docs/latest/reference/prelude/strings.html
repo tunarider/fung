@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>문자열 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, valid_utf8.">
+<meta name="description" content="fung prelude 문자열: chars, split, join, lines, trim, upper, lower, replace, starts_with, ends_with, repeat, pad_left, pad_right, byte_len, bytes, from_bytes, is_utf8.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -88,7 +88,7 @@
 <li><strong>글자 단위</strong>다. 문자열은 UTF-8로 저장되지만 <code>len</code>, 인덱스 <code>s[0]</code>, 슬라이스 <code>s[1..3]</code>은 바이트가 아니라 글자(유니코드 코드 포인트)를 센다. 그래서 <code>&quot;참치&quot;[0]</code>은 <code>&quot;참&quot;</code>이고 <code>len(&quot;참치&quot;)</code>는 2다.</li>
 <li><strong>어떤 바이트든 담는다</strong>. 문자열은 바이트 열이고, 글자 연산이 그것을 UTF-8로 읽는다. 파일, 명령 출력, 환경 변수, 인자는 UTF-8이 아니어도 바이트 그대로 들어오고 그대로 나간다. UTF-8에 속하지 않는 바이트는 그 바이트 하나가 한 글자다. 값으로 보일 때는 <code>&quot;a\xff&quot;</code>처럼 <code>\xHH</code>로 보이고, 그 모양을 리터럴로 그대로 쓸 수 있다(<a href="#bytes">바이트</a>).</li>
 <li><strong>잇기는 <code>+</code>, 끼워 넣기는 보간</strong>이다. <code>&quot;a&quot; + &quot;b&quot;</code>는 양쪽이 문자열이어야 한다. 값을 끼워 넣을 때는 <code>&quot;${name}: ${count}&quot;</code>처럼 쓴다. 보간은 어떤 값이든 <a href="convert.html#fn-str"><code>str</code></a>과 같은 규칙으로 바꿔 넣는다.</li>
-<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>는 에러다. 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
+<li><strong>문자열은 컬렉션 함수에 넣지 않는다.</strong> <code>map(&quot;abc&quot;, f)</code>도 <code>take(&quot;abc&quot;, 2)</code>·<code>first(&quot;abc&quot;)</code>도 에러다(E0506). 앞뒤를 자르려면 슬라이스(<code>s[..2]</code>, <code>s[1..]</code>, <code>s[-1]</code>)를, 글자 하나하나를 다루려면 <a href="#fn-chars"><code>chars</code></a>로 글자 리스트를 만든다.</li>
 </ul>
 <div class="run"><pre><code>s = &quot;  ERROR disk full  &quot;
 clean = trim(s)
@@ -102,22 +102,22 @@ true</code></pre></div>
 <p><code>s</code>를 구분자 <code>sep</code>로 나눈 문자열의 리스트를 돌려준다.</p>
 <div class="sig"><code>split(s, sep)</code></div>
 <h4>설명</h4>
-<p><code>sep</code>가 나올 때마다 자른다. 구분자가 연달아 있거나 맨 앞·맨 뒤에 있으면 그 사이의 <strong>빈 조각도 남긴다</strong>(<code>split(&quot;a,,b&quot;, &quot;,&quot;)</code>는 <code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;]</code>). 그래서 CSV처럼 칸 수가 중요한 데이터를 잘 다룬다. 구분자가 없으면 원래 문자열 하나짜리 리스트이고, 빈 문자열을 나누면 <code>[&quot;&quot;]</code>이다. <code>sep</code>가 <code>&quot;&quot;</code>면 글자 단위로 나눈다(<code>chars</code>와 같다).</p>
+<p><code>sep</code>가 나올 때마다 자른다. 구분자가 연달아 있거나 맨 앞·맨 뒤에 있으면 그 사이의 <strong>빈 조각도 남긴다</strong>(<code>split(&quot;a,,b&quot;, &quot;,&quot;)</code>는 <code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;]</code>). 그래서 CSV처럼 칸 수가 중요한 데이터를 잘 다룬다. 구분자가 없으면 원래 문자열 하나짜리 리스트이고, 빈 문자열을 나누면 <code>[&quot;&quot;]</code>이다. 그래서 원소 수는 언제나 구분자 수 + 1이고 <code>join(split(s, sep), sep) == s</code>다. <code>sep</code>는 빈 문자열일 수 없다(E0403). 글자 단위로 나누려면 <a href="#fn-chars"><code>chars</code></a>를 쓴다.</p>
 <p>공백이 여러 개 섞인 글을 낱말로 나눌 때는 빈 조각을 걸러 낸다: <code>split(s, &quot; &quot;) |&gt; filter(w =&gt; w != &quot;&quot;)</code>. 줄로 나눌 때는 <code>split(s, &quot;\n&quot;)</code> 대신 <a href="#fn-lines"><code>lines</code></a>를 쓴다(마지막 줄바꿈과 <code>\r</code>을 처리해 준다). 정규식으로 나누려면 <a href="../modules/regex.html#fn-regex-split"><code>regex.split</code></a>.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 나눌 문자열.</li>
-<li><code>sep</code>: 구분자 문자열. 여러 글자여도 된다.</li>
+<li><code>sep</code>: 구분자 문자열. 여러 글자여도 되고, 비어 있으면 안 된다.</li>
 </ul>
 <h4>돌려주는 값</h4>
 <p>문자열의 리스트. 언제나 원소가 하나 이상이다.</p>
 <h4>에러</h4>
-<p><code>s</code>나 <code>sep</code>가 문자열이 아니면 런타임 에러 E0403.</p>
+<p><code>s</code>나 <code>sep</code>가 문자열이 아니거나 <code>sep</code>가 빈 문자열이면 런타임 에러 E0403(<code>argument `sep` must be a non-empty str, got &quot;&quot;</code>).</p>
 <h4>예제</h4>
 <p><strong>빈 조각도 남긴다</strong></p>
 <div class="run"><pre><code>print(split(&quot;a,,b&quot;, &quot;,&quot;), split(&quot;,a,&quot;, &quot;,&quot;), split(&quot;abc&quot;, &quot;x&quot;), split(&quot;&quot;, &quot;,&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;&quot;, &quot;b&quot;] [&quot;&quot;, &quot;a&quot;, &quot;&quot;] [&quot;abc&quot;] [&quot;&quot;]</code></pre></div>
-<p><strong>여러 글자 구분자, 글자 단위</strong></p>
-<div class="run"><pre><code>print(split(&quot;a::b::c&quot;, &quot;::&quot;), split(&quot;abc&quot;, &quot;&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre></div>
+<p><strong>여러 글자 구분자, 글자 단위는 chars</strong></p>
+<div class="run"><pre><code>print(split(&quot;a::b::c&quot;, &quot;::&quot;), chars(&quot;abc&quot;))</code></pre><pre class="out plain"><code>[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;] [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;]</code></pre></div>
 <p><strong><code>키=값</code> 줄 읽기</strong></p>
 <div class="run"><pre><code>line = &quot;DB_HOST=db-1.internal&quot;
 [key, value] = split(line, &quot;=&quot;)
@@ -203,7 +203,7 @@ for (i, host) in zip(1..100, lines(out)):
 <h4>돌려주는 값</h4>
 <p>문자열의 리스트.</p>
 <h4>에러</h4>
-<p><code>s</code>가 문자열이 아니면 런타임 에러 E0506.</p>
+<p><code>s</code>가 문자열이 아니면 런타임 에러 E0403(<code>argument `s` must be str, got int</code>). 다른 문자열 함수와 같다.</p>
 <h4>예제</h4>
 <p><strong>글자로 나누기</strong></p>
 <div class="run"><pre><code>print(chars(&quot;참치a&quot;), chars(&quot;&quot;), len(chars(&quot;e\u{301}&quot;)))</code></pre><pre class="out plain"><code>[&quot;참&quot;, &quot;치&quot;, &quot;a&quot;] [] 2</code></pre></div>
@@ -370,7 +370,7 @@ print(filter(files, f =&gt; ends_with(lower(f), &quot;.log&quot;)))</code></pre>
 <p><code>s</code>를 <code>n</code>번 이어 붙인 문자열을 돌려준다.</p>
 <div class="sig"><code>repeat(s, n)</code></div>
 <h4>설명</h4>
-<p>fung에는 <code>&quot;a&quot; * 3</code>이 없다(문자열과 수의 곱은 에러다). 구분선이나 들여쓰기를 만들 때 쓴다. <code>n</code>이 0 이하면 <code>&quot;&quot;</code>이다.</p>
+<p>fung에는 <code>&quot;a&quot; * 3</code>이 없다(문자열과 수의 곱은 에러다). 구분선이나 들여쓰기를 만들 때 쓴다. <code>n</code>이 0이면 <code>&quot;&quot;</code>이고, 음수면 E0403이다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -400,7 +400,7 @@ print(repeat(&quot;-&quot;, 20))</code></pre><pre class="out plain"><code>ababab
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열. 수는 먼저 <code>str</code>로 바꾼다.</li>
-<li><code>n</code>: 만들 글자 수.</li>
+<li><code>n</code>: 만들 글자 수. 음이 아닌 정수(음수면 E0403).</li>
 <li><code>pad</code>: 채울 문자열. 기본은 공백 하나.</li>
 </ul>
 <h4>돌려주는 값</h4>
@@ -408,7 +408,7 @@ print(repeat(&quot;-&quot;, 20))</code></pre><pre class="out plain"><code>ababab
 <h4>에러</h4>
 <ul>
 <li><code>s</code>·<code>pad</code>가 문자열이 아니거나 <code>n</code>이 정수가 아니면 런타임 에러 E0403.</li>
-<li><code>pad</code>가 <code>&quot;&quot;</code>면 런타임 에러 E0403(<code>argument </code>pad<code> must be a non-empty str, got str</code>).</li>
+<li><code>pad</code>가 <code>&quot;&quot;</code>면 런타임 에러 E0403(<code>argument `pad` must be a non-empty str, got &quot;&quot;</code>).</li>
 </ul>
 <h4>예제</h4>
 <p><strong>0 채우기, 오른쪽 맞춤</strong></p>
@@ -437,7 +437,7 @@ db-1       5%</code></pre></div>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
-<li><code>n</code>: 만들 글자 수.</li>
+<li><code>n</code>: 만들 글자 수. 음이 아닌 정수(음수면 E0403).</li>
 <li><code>pad</code>: 채울 문자열. 기본은 공백 하나.</li>
 </ul>
 <h4>돌려주는 값</h4>
@@ -457,7 +457,7 @@ name....value</code></pre></div>
 <p>글자 연산(<code>len</code>, <code>s[i]</code>, <code>chars</code>, 슬라이스)은 바이트를 UTF-8로 읽고, UTF-8에 속하지 않는 바이트는 그 하나가 한 글자다. 자르고 다시 이어도 바이트가 그대로 남는다. 값으로 보일 때(리스트 안, REPL, <code>dbg</code>)는 그런 바이트가 <code>\xff</code>처럼 보이고, 리터럴에도 <code>&quot;\xff&quot;</code>로 쓴다. <code>\xHH</code>는 <strong>바이트 하나</strong>다: <code>&quot;\xc3\xa9&quot;</code>는 UTF-8로 <code>é</code>이고, <code>&quot;\xe9&quot;</code>는 <code>é</code>가 아니라 바이트 0xE9 하나다(글자 <code>é</code>는 <code>&quot;\u{e9}&quot;</code>).</p>
 <p>대부분의 함수는 그런 바이트를 그대로 둔다: 비교(바이트 순, UTF-8이면 코드 포인트 순과 같다), <code>+</code>, <code>split</code>, <code>replace</code>, <code>trim</code>, <code>upper</code>·<code>lower</code>, 정규식. 형식 자체가 글을 요구하는 곳만 에러 <a href="../errors.html#E0518">E0518</a>로 멈춘다: <a href="../modules/json.html#fn-json-stringify"><code>json.stringify</code></a>, 정규식 패턴, 시간 형식, 호스트 이름. 바깥에서 온 값을 읽는 <a href="convert.html#fn-parse_int"><code>parse_int</code></a> 같은 함수에는 그런 바이트가 읽을 수 없는 입력일 뿐이라 <code>Err</code>다.</p>
 <div class="run"><pre><code>s = &quot;a\xffb&quot;
-print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), valid_utf8(s))</code></pre><pre class="out plain"><code>[&quot;a\xffb&quot;, &quot;\xff&quot;, &quot;a\xffb!&quot;] 3 3 false</code></pre></div>
+print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), is_utf8(s))</code></pre><pre class="out plain"><code>[&quot;a\xffb&quot;, &quot;\xff&quot;, &quot;a\xffb!&quot;] 3 3 false</code></pre></div>
 <section class="entry" id="fn-byte_len">
 <h3>byte_len</h3>
 <p>문자열의 바이트 수.</p>
@@ -520,12 +520,12 @@ print([s, s[1], s + &quot;!&quot;], len(s), byte_len(s), valid_utf8(s))</code></
 print(from_bytes(bytes(&quot;참치&quot;)) == &quot;참치&quot;)</code></pre><pre class="out plain"><code>한 [&quot;hi\xff&quot;]
 true</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="#fn-bytes"><code>bytes</code></a>, <a href="#fn-valid_utf8"><code>valid_utf8</code></a></p>
+<p><a href="#fn-bytes"><code>bytes</code></a>, <a href="#fn-is_utf8"><code>is_utf8</code></a></p>
 </section>
-<section class="entry" id="fn-valid_utf8">
-<h3>valid_utf8</h3>
+<section class="entry" id="fn-is_utf8">
+<h3>is_utf8</h3>
 <p>문자열이 올바른 UTF-8 글인지.</p>
-<div class="sig"><code>valid_utf8(s)</code></div>
+<div class="sig"><code>is_utf8(s)</code></div>
 <h4>설명</h4>
 <p>글이 필요한 곳(JSON, 정규식 패턴, 시간 형식, 호스트 이름)에 넘기기 전에 확인할 때 쓴다. 그런 곳에 UTF-8이 아닌 문자열을 넘기면 에러 <a href="../errors.html#E0518">E0518</a>이다.</p>
 <h4>매개변수</h4>
@@ -539,7 +539,7 @@ true</code></pre></div>
 <h4>예제</h4>
 <p><strong>바깥에서 온 값 확인</strong></p>
 <div class="run"><pre><code>for s in [&quot;café&quot;, &quot;caf\xe9&quot;, &quot;&quot;]:
-  print(valid_utf8(s))
+  print(is_utf8(s))
 ;;</code></pre><pre class="out plain"><code>true
 false
 true</code></pre></div>

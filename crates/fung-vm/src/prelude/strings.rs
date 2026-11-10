@@ -10,7 +10,7 @@ use fung_front::text::{Unit, char_count, units};
 
 use std::rc::Rc;
 
-use crate::value::{List, Lit, Text, Value, write_for_print};
+use crate::value::{Args, List, Lit, Text, Value, write_for_print};
 use crate::vm::pieces::{self, STEP_BYTES, STEP_ITEMS, STEP_SCAN, Work};
 use crate::vm::{Flow, Stop, Task};
 
@@ -48,7 +48,7 @@ pub(super) fn add(add: &mut impl FnMut(Value)) {
     add(def("byte_len", byte_len_fn, vec![param("s")]));
     add(def_step("bytes", bytes_fn, vec![param("s")]));
     add(def_step("from_bytes", from_bytes_fn, vec![param("xs")]));
-    add(def("valid_utf8", valid_utf8_fn, vec![param("s")]));
+    add(def("is_utf8", is_utf8_fn, vec![param("s")]));
 }
 
 fn string(s: Vec<u8>) -> Value {
@@ -134,19 +134,20 @@ fn chars_from(s: &[u8], at: &mut usize, mut f: impl FnMut(&[u8])) -> bool {
     *at == s.len()
 }
 
-/// `split(s, sep)`: an empty separator splits into characters, and splitting
-/// the empty string by it gives no parts.
-fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+/// `split(s, sep)`: the parts between the separators, one more than
+/// there are separators. An empty separator is E0403 (VA20, D18): the
+/// characters are `chars`.
+fn split_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [s, sep] = nat::bytes_args(&a, ["s", "sep"])?;
     if sep.is_empty() {
-        return chars_of(t, a[0].clone());
+        return Err(nat::not_nonempty("sep", &a[1]));
     }
     let cuts = Cuts::new(a[0].clone(), s.len(), sep);
     pieces::run(t, Parts::new(cuts, |p| p))
 }
 
-/// The characters of the string `s` as a list (`chars`, and `split` by
-/// the empty separator), a piece at a time.
+/// The characters of the string `s` as a list (`chars`), a piece at a
+/// time.
 pub(super) fn chars_of(t: &mut Task<'_>, s: Value) -> Result<Flow, Stop> {
     struct Chars {
         s: Value,
@@ -208,7 +209,7 @@ impl Work for Parts {
 /// `lines(s)`: `s` split on `\n`, one `\r` that ends a line dropped, and
 /// no empty line after a final newline; the empty string has no lines (06,
 /// the rule of `read_lines`).
-fn lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn lines_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let s = nat::need_bytes("s", &a[0])?;
     if s.is_empty() {
         return Ok(Flow::Done(nat::list(Vec::new())));
@@ -220,7 +221,7 @@ fn lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `join(xs, sep = "")` renders elements as print would (06): strings
 /// bare, the rest in literal form.
-fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn join_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "join")?;
     let sep = nat::need_bytes("sep", &a[1])?.to_vec();
     // Every element shows as one character at least.
@@ -242,7 +243,7 @@ fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
                 self.out.extend_from_slice(&self.sep);
             }
             self.first = false;
-            if let Some(tag) = crate::value::result_tag(&x) {
+            if let Some(tag) = crate::vm::result_kind(&x).result_name() {
                 return Err(nat::fail("E0519", vec![nat::s(tag), nat::s("`join`")]));
             }
             write_for_print(&x, &mut self.out);
@@ -270,7 +271,7 @@ fn join_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// only when `cut` holds it. From the front to the first kept character,
 /// then from the back to the last (VA5), a piece at a time (VA10): the
 /// time is what is cut off, and nothing is collected.
-fn trim_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn trim_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::need_bytes("s", &a[0])?;
     let cut: Vec<Unit> = match a[1] {
         Value::Nil => Vec::new(),
@@ -347,12 +348,12 @@ fn trim_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// `upper(s)` and `lower(s)`: the full Unicode case mapping (06), so the
 /// length may change (`ß` → `SS`) and a final sigma lowercases to `ς`.
 /// Bytes outside UTF-8 are no letters and stay as they are (L4).
-fn upper_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn upper_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let s = nat::need_text("s", &a[0])?;
     Ok(string(map_text(s, str::to_uppercase)))
 }
 
-fn lower_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn lower_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let s = nat::need_text("s", &a[0])?;
     Ok(string(map_text(s, str::to_lowercase)))
 }
@@ -373,7 +374,7 @@ fn map_text(s: &Text, f: fn(&str) -> String) -> Vec<u8> {
 /// `replace(s, old, new)`: every occurrence; an empty `old` matches before
 /// every character and at the end. A result past `MAX_CHARS` characters is
 /// E0806 before anything is built (02). Built a piece at a time (L6).
-fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn replace_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [s, old, new] = nat::bytes_args(&a, ["s", "old", "new"])?;
     if !replace_fits(s, old, new) {
         return Err(too_many_chars());
@@ -460,12 +461,12 @@ fn replace_fits(s: &[u8], old: &[u8], new: &[u8]) -> bool {
     chars(s) + n * (chars(new) - chars(old)) <= limit
 }
 
-fn starts_with_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn starts_with_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let [s, prefix] = nat::bytes_args(&a, ["s", "prefix"])?;
     Ok(Value::Bool(s.starts_with(prefix)))
 }
 
-fn ends_with_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn ends_with_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let [s, suffix] = nat::bytes_args(&a, ["s", "suffix"])?;
     Ok(Value::Bool(s.ends_with(suffix)))
 }
@@ -478,11 +479,11 @@ pub(crate) fn too_many_chars() -> Stop {
     fail("E0806", vec![nat::s("characters"), Arg::Int(MAX_CHARS)])
 }
 
-/// `repeat(s, n)`; a negative `n` is 0. A result past `MAX_CHARS`
+/// `repeat(s, n)`; a negative `n` is E0403 (SP15). A result past `MAX_CHARS`
 /// characters is E0806 (02). Written a piece at a time (L6).
-fn repeat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn repeat_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let s = nat::need_bytes("s", &a[0])?;
-    let n = nat::need_int("n", &a[1])?.max(0);
+    let n = nat::need_count("n", &a[1])? as i64;
     if (char_count(s) as i64)
         .checked_mul(n)
         .is_none_or(|c| c > MAX_CHARS)
@@ -523,13 +524,13 @@ fn repeat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `byte_len(s)`: the number of bytes in `s` (L4).
-fn byte_len_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn byte_len_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::Int(nat::need_bytes("s", &a[0])?.len() as i64))
 }
 
 /// `bytes(s)`: the bytes of `s` as ints from 0 to 255, a piece at a
 /// time (VA10).
-fn bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn bytes_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::need_bytes("s", &a[0])?;
     struct Bytes {
         s: Value,
@@ -563,7 +564,7 @@ fn bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `from_bytes(xs)`: the string of a list of bytes (ints from 0 to 255),
 /// UTF-8 or not: `bytes` backwards. Read a piece at a time (VA10).
-fn from_bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn from_bytes_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     const WANT: &str = "a list of bytes (ints from 0 to 255)";
     let Value::List(items) = &a[0] else {
         return Err(nat::wrong_arg("xs", WANT, &a[0]));
@@ -612,8 +613,8 @@ fn from_bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
-/// `valid_utf8(s)`: whether `s` is valid UTF-8 text, as the operations
+/// `is_utf8(s)`: whether `s` is valid UTF-8 text, as the operations
 /// that need text (JSON, patterns, URLs) require.
-fn valid_utf8_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn is_utf8_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::Bool(nat::need_text("s", &a[0])?.is_utf8()))
 }

@@ -4,63 +4,17 @@
 
 use std::rc::Rc;
 
-use fung_front::bytecode::{Param, decode_call};
+use fung_front::bytecode::decode_call;
 use fung_front::diag::{Arg, Diag, error};
 use fung_front::source::Pos;
 
 use super::cont::{Cont, ContFrame, Flow, Next, Wake};
 use super::frame::{Frame, TailFrom};
 use super::{RtProto, Stop, Task, at, err, no_pos};
-use crate::value::{Closure, List, Native, NativeBody, NativeParam, Sym, Value, type_name};
+use crate::value::{Args, Closure, List, Native, NativeBody, Sym, Value, type_name};
 
 /// Bounds non-tail recursion (09: 깊이 한도 100,000).
 pub const MAX_FRAMES: usize = 100_000;
-
-/// A function's parameters as binding sees them: fung parameters take
-/// their defaults from the prologue, natives' are constants filled here.
-#[derive(Clone, Copy)]
-enum Params<'a> {
-    Fung(&'a [Param]),
-    Native(&'a [NativeParam]),
-}
-
-impl Params<'_> {
-    fn len(self) -> usize {
-        match self {
-            Params::Fung(p) => p.len(),
-            Params::Native(p) => p.len(),
-        }
-    }
-
-    fn name(&self, i: usize) -> &str {
-        match self {
-            Params::Fung(p) => &p[i].name,
-            Params::Native(p) => p[i].name,
-        }
-    }
-
-    fn rest(self, i: usize) -> bool {
-        match self {
-            Params::Fung(p) => p[i].rest,
-            Params::Native(p) => p[i].rest,
-        }
-    }
-
-    fn has_default(self, i: usize) -> bool {
-        match self {
-            Params::Fung(p) => p[i].has_default,
-            Params::Native(p) => p[i].default.is_some(),
-        }
-    }
-
-    /// A native's default value; fung defaults are computed by the prologue.
-    fn default(self, i: usize) -> Option<Value> {
-        match self {
-            Params::Fung(_) => None,
-            Params::Native(p) => p[i].default.map(|l| l.to_value()),
-        }
-    }
-}
 
 fn arity(name: &str, fixed: usize, got: usize) -> Diag {
     error(
@@ -74,21 +28,9 @@ fn arity(name: &str, fixed: usize, got: usize) -> Diag {
     )
 }
 
-/// Whether a call fills every parameter of `p` by position and nothing
-/// else: the arguments are then the first slots of the frame as they are,
-/// with no binding work (09: 호출 규약, fast path).
-fn exact_positional(p: &RtProto, npos: usize, nnamed: usize) -> bool {
-    let n = p.params.len();
-    nnamed == 0 && npos == n && (n == 0 || !p.params[n - 1].rest)
-}
-
-/// Whether a call fills every parameter of native `nat` by position and
-/// nothing else: its arguments are then its arguments as they lie (VM5).
-fn exact_native(nat: &Native, npos: usize, nnamed: usize) -> bool {
-    nnamed == 0 && nat.params.len() == npos && !nat.params.last().is_some_and(|p| p.rest)
-}
-
-/// What a call binds its arguments for.
+/// What a call binds its arguments for: a fung function, whose defaults
+/// the prologue computes, or a native, whose defaults are constants
+/// filled here (06: 같은 호출 규약).
 #[derive(Clone, Copy)]
 enum Callee<'a> {
     Fung(&'a RtProto),
@@ -96,13 +38,6 @@ enum Callee<'a> {
 }
 
 impl<'a> Callee<'a> {
-    fn params(self) -> Params<'a> {
-        match self {
-            Callee::Fung(p) => Params::Fung(&p.params),
-            Callee::Native(n) => Params::Native(&n.params),
-        }
-    }
-
     /// The name errors give the callee.
     fn name(self) -> &'a str {
         match self {
@@ -110,6 +45,55 @@ impl<'a> Callee<'a> {
             Callee::Fung(p) => &p.name,
             Callee::Native(n) => n.name,
         }
+    }
+
+    /// How many parameters it has.
+    fn len(self) -> usize {
+        match self {
+            Callee::Fung(p) => p.params.len(),
+            Callee::Native(n) => n.params.len(),
+        }
+    }
+
+    /// The name of parameter `i`.
+    fn param_name(self, i: usize) -> &'a str {
+        match self {
+            Callee::Fung(p) => &p.params[i].name,
+            Callee::Native(n) => n.params[i].name,
+        }
+    }
+
+    /// Whether parameter `i` is a rest parameter.
+    fn rest(self, i: usize) -> bool {
+        match self {
+            Callee::Fung(p) => p.params[i].rest,
+            Callee::Native(n) => n.params[i].rest,
+        }
+    }
+
+    fn has_default(self, i: usize) -> bool {
+        match self {
+            Callee::Fung(p) => p.params[i].has_default,
+            Callee::Native(n) => n.params[i].default.is_some(),
+        }
+    }
+
+    /// A native's default value; fung defaults are computed by the prologue.
+    fn default(self, i: usize) -> Option<Value> {
+        match self {
+            Callee::Fung(_) => None,
+            Callee::Native(n) => n.params[i].default.map(|l| l.to_value()),
+        }
+    }
+
+    /// Whether a call fills every parameter by position and nothing else:
+    /// the arguments are then the first slots of the frame, or the
+    /// native's arguments, as they lie, with no binding work (09: 호출
+    /// 규약, VM5).
+    #[inline(always)]
+    fn exact(self, npos: usize, nnamed: usize) -> bool {
+        let n = self.len();
+        nnamed == 0 && npos == n && (n == 0 || !self.rest(n - 1))
     }
 
     fn num_locals(self) -> usize {
@@ -179,21 +163,28 @@ pub(super) enum Entered {
 
 impl Task<'_> {
     /// CALL / TAILCALL with the callee and its operands on the stack.
-    pub(super) fn call_op(&mut self, arg: usize, pos: Pos, tail: bool) -> Result<Entered, Stop> {
+    /// Frame `fi` (the top one) makes the call; its position is read only
+    /// for an error or a native's call (VM16).
+    pub(super) fn call_op(&mut self, arg: usize, fi: usize, tail: bool) -> Result<Entered, Stop> {
         let (npos, nnamed) = decode_call(arg);
         let top = self.fiber.stack.len();
         let callee_at = top - npos - 2 * nnamed - 1;
-        // Fast path: a fung function called with exactly its positional
-        // parameters. The arguments already sit on the stack in order, so
-        // they become the new frame's first slots where they are.
-        if let Some(Value::Closure(c)) = &self.fiber.stack[callee_at]
-            && exact_positional(&c.proto, npos, nnamed)
-        {
+        // A fung function: called with exactly its positional parameters,
+        // the arguments already sit on the stack in order and become the
+        // new frame's first slots where they are; otherwise (defaults,
+        // named arguments, a rest parameter) they are bound where they
+        // lie first (VM6).
+        if let Some(Value::Closure(_)) = &self.fiber.stack[callee_at] {
             let Some(Value::Closure(c)) = self.fiber.stack[callee_at].take() else {
                 unreachable!()
             };
+            let callee = Callee::Fung(&c.proto);
+            if !callee.exact(npos, nnamed) {
+                self.bind_in_place(callee, callee_at + 1, npos, nnamed)
+                    .map_err(|d| at(d, self.here(fi)))?;
+            }
             if tail {
-                let base = self.fiber.frames.last().expect("a frame").base;
+                let base = self.fiber.frames.last().expect("a frame").base();
                 // Drop the frame's slots, temporaries and the callee slot;
                 // the arguments slide down to the frame base.
                 self.fiber.stack.drain(base..=callee_at);
@@ -201,38 +192,23 @@ impl Task<'_> {
                 return Ok(Entered::Frame);
             }
             if self.fiber.frames.len() >= MAX_FRAMES {
-                return Err(err("E0804", pos, vec![Arg::Int(MAX_FRAMES as i64)]));
+                return Err(err(
+                    "E0804",
+                    self.here(fi),
+                    vec![Arg::Int(MAX_FRAMES as i64)],
+                ));
             }
-            self.fiber.stack.remove(callee_at);
-            self.push_frame(c, callee_at);
-            return Ok(Entered::Frame);
-        }
-        // A fung function with defaults, named arguments or a rest
-        // parameter: the arguments are bound where they lie (VM6).
-        if let Some(Value::Closure(_)) = &self.fiber.stack[callee_at] {
-            let Some(Value::Closure(c)) = self.fiber.stack[callee_at].take() else {
-                unreachable!()
-            };
-            self.bind_in_place(Callee::Fung(&c.proto), callee_at + 1, npos, nnamed)
-                .map_err(|d| at(d, pos))?;
-            if tail {
-                let base = self.fiber.frames.last().expect("a frame").base;
-                self.fiber.stack.drain(base..=callee_at);
-                self.reuse_frame(c);
-                return Ok(Entered::Frame);
-            }
-            if self.fiber.frames.len() >= MAX_FRAMES {
-                return Err(err("E0804", pos, vec![Arg::Int(MAX_FRAMES as i64)]));
-            }
-            self.fiber.stack.remove(callee_at);
-            self.push_frame(c, callee_at);
+            // The callee slot stays, empty, below the arguments: they
+            // become the new frame's first slots where they lie (VM16).
+            self.push_frame(c, callee_at + 1, callee_at);
             return Ok(Entered::Frame);
         }
         // A native: it runs on its arguments, bound where they lie when
         // the call is not exactly its positional parameters (VM5, VM6).
         if let Some(Value::Native(nat)) = &self.fiber.stack[callee_at] {
             let nat = *nat;
-            if !exact_native(nat, npos, nnamed) {
+            let pos = self.here(fi);
+            if !Callee::Native(nat).exact(npos, nnamed) {
                 self.bind_in_place(Callee::Native(nat), callee_at + 1, npos, nnamed)
                     .map_err(|d| at(d, pos))?;
             }
@@ -241,7 +217,11 @@ impl Task<'_> {
             return self.run_native(nat, args, pos, tail);
         }
         let callee = self.fiber.stack[callee_at].take().expect("callee");
-        Err(err("E0401", pos, vec![Arg::Str(type_name(&callee))]))
+        Err(err(
+            "E0401",
+            self.here(fi),
+            vec![Arg::Str(type_name(&callee))],
+        ))
     }
 
     /// Binds a call where its arguments lie (VM6, 09: 호출 규약), for fung
@@ -259,9 +239,8 @@ impl Task<'_> {
         npos: usize,
         nnamed: usize,
     ) -> Result<(), Diag> {
-        let p = callee.params();
-        let n = p.len();
-        let rest = n > 0 && p.rest(n - 1);
+        let n = callee.len();
+        let rest = n > 0 && callee.rest(n - 1);
         let fixed = if rest { n - 1 } else { n };
         let name = callee.name();
         if npos > fixed && !rest {
@@ -293,11 +272,11 @@ impl Task<'_> {
         }
         for i in npos.min(fixed)..fixed {
             let named = (0..nnamed).any(|j| slot_of(sym_at(stack, j)) == Some(i));
-            if !named && !p.has_default(i) {
+            if !named && !callee.has_default(i) {
                 return Err(error(
                     "E0407",
                     no_pos(),
-                    vec![Arg::Str(p.name(i).to_string())],
+                    vec![Arg::Str(callee.param_name(i).to_string())],
                 ));
             }
         }
@@ -337,7 +316,7 @@ impl Task<'_> {
             for i in npos.min(fixed)..fixed {
                 let slot = &mut self.fiber.stack[at + i];
                 if slot.is_none() {
-                    *slot = p.default(i);
+                    *slot = callee.default(i);
                 }
             }
         }
@@ -351,7 +330,7 @@ impl Task<'_> {
     fn run_native(
         &mut self,
         nat: &'static Native,
-        args: Vec<Value>,
+        args: Args,
         pos: Pos,
         tail: bool,
     ) -> Result<Entered, Stop> {
@@ -412,11 +391,12 @@ impl Task<'_> {
         }
     }
 
-    /// Pushes a frame for `c` whose arguments start at `base`.
-    fn push_frame(&mut self, c: Rc<Closure>, base: usize) {
+    /// Pushes a frame for `c` whose arguments start at `base` and that
+    /// cuts the stack back to `floor` when it returns.
+    fn push_frame(&mut self, c: Rc<Closure>, base: usize, floor: usize) {
         self.pad_slots(base, c.proto.num_locals);
         let entry = self.entry_for(&c.proto, self.fiber.frames.last());
-        self.fiber.frames.push(Frame::new(c, base, entry));
+        self.fiber.frames.push(Frame::new(c, base, floor, entry));
     }
 
     /// The built-in function a frame for `proto` runs inside of, called
@@ -435,7 +415,7 @@ impl Task<'_> {
     /// Makes the current frame run `c` (a tail call); the arguments are
     /// already at the frame base.
     fn reuse_frame(&mut self, c: Rc<Closure>) {
-        let base = self.fiber.frames.last().expect("a frame").base;
+        let base = self.fiber.frames.last().expect("a frame").base();
         self.pad_slots(base, c.proto.num_locals);
         // A function calling itself (a loop): the frame already runs this
         // closure, with its proto, globals and entry (VM9).
@@ -484,7 +464,7 @@ impl Task<'_> {
     #[inline(always)]
     pub(super) fn ret_with(&mut self, v: Value) -> Result<Ran, Stop> {
         let f = self.fiber.frames.pop().expect("a frame");
-        self.fiber.stack.truncate(f.base);
+        self.fiber.stack.truncate(f.floor());
         self.finish(v)
     }
 
@@ -535,7 +515,7 @@ impl Task<'_> {
                         v = self.done(&c, w);
                         if c.tail {
                             let f = self.fiber.frames.pop().expect("a frame");
-                            self.fiber.stack.truncate(f.base);
+                            self.fiber.stack.truncate(f.floor());
                         }
                     }
                     Err(e) => {
@@ -586,7 +566,7 @@ impl Task<'_> {
                 let w = self.done(&c, w);
                 if c.tail {
                     let f = self.fiber.frames.pop().expect("a frame");
-                    self.fiber.stack.truncate(f.base);
+                    self.fiber.stack.truncate(f.floor());
                 }
                 self.finish(w)
             }
@@ -637,11 +617,11 @@ impl Task<'_> {
         match &f {
             Value::Closure(c) if self.fiber.frames.len() < MAX_FRAMES => {
                 // Defaults or a rest parameter: bound where they lie (VM6).
-                if !exact_positional(&c.proto, n, 0) {
+                if !Callee::Fung(&c.proto).exact(n, 0) {
                     self.bind_in_place(Callee::Fung(&c.proto), at, n, 0)
                         .map_err(|d| super::at(d, no_pos()))?;
                 }
-                self.push_frame(c.clone(), at);
+                self.push_frame(c.clone(), at, at);
                 Ok(Entered::Frame)
             }
             Value::Closure(_) => {
@@ -650,7 +630,7 @@ impl Task<'_> {
             }
             Value::Native(nat) => {
                 let nat = *nat;
-                if !exact_native(nat, n, 0) {
+                if !Callee::Native(nat).exact(n, 0) {
                     self.bind_in_place(Callee::Native(nat), at, n, 0)
                         .map_err(|d| super::at(d, no_pos()))?;
                 }
@@ -678,7 +658,7 @@ impl Task<'_> {
         let NativeBody::Plain(func) = nat.body else {
             return None;
         };
-        if !exact_native(nat, n, 0) {
+        if !Callee::Native(nat).exact(n, 0) {
             return None;
         }
         let at = self.fiber.stack.len() - n;
@@ -696,12 +676,16 @@ impl Task<'_> {
         Some(r)
     }
 
-    fn take_args(&mut self, at: usize) -> Vec<Value> {
-        self.fiber
-            .stack
-            .drain(at..)
-            .map(|v| v.expect("argument from an unassigned slot"))
-            .collect()
+    /// The arguments from `at` to the top of the stack, taken off it: a
+    /// few are held inline, so a call allocates nothing for them (VM15).
+    #[inline(always)]
+    fn take_args(&mut self, at: usize) -> Args {
+        let n = self.fiber.stack.len() - at;
+        let mut args = Args::with_capacity(n);
+        for v in self.fiber.stack.drain(at..) {
+            args.push(v.expect("argument from an unassigned slot"));
+        }
+        args
     }
 
     /// A stop a native raised: an exit ends the whole program (05); an

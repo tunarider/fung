@@ -408,9 +408,10 @@ fn a_timeout_ends_a_handshake() {
     );
 }
 
-/// Reading until the server closes: close_notify ends the stream, and so
-/// does a TCP end between records (popular sites close that way); a TCP
-/// end inside a record is an error.
+/// Reading until the server closes: close_notify ends the stream; a TCP
+/// end without it is an error (LB23: anyone on the path can send a TCP
+/// end, so it would cut the text short unseen), between records or inside
+/// one.
 #[test]
 fn reading_until_close() {
     let _g = serial();
@@ -436,7 +437,14 @@ fn reading_until_close() {
     });
     let o = run(&program(port));
     h.join().unwrap();
-    assert_eq!(out(&o), ("Ok(\"a\\nb\")\nOk(\"\")\n", "", 0));
+    assert_eq!(
+        out(&o),
+        (
+            "Err({kind: 'network, message: \"connection closed without TLS close_notify\"})\nErr({kind: 'network, message: \"connection closed without TLS close_notify\"})\n",
+            "",
+            0
+        )
+    );
     // a TCP end inside a record
     let (port, h) = tls_peer("localhost", |mut s| {
         handshake(&mut s).unwrap();
@@ -460,6 +468,56 @@ fn reading_until_close() {
     );
 }
 
+/// An https answer whose body runs to the end of the connection (no
+/// length, not chunked) needs close_notify at its end (LB23, RFC 9112 9.8):
+/// a bare TCP end is an error; with close_notify, or with a length, the
+/// answer is whole.
+#[test]
+fn a_body_to_the_end_needs_close_notify() {
+    let _g = serial();
+    let _t = trust_ca();
+    let serve = |answer: &'static str, clean: bool| {
+        move |mut s: Tls| {
+            while !line(&mut s).trim_end_matches('\r').is_empty() {}
+            s.write_all(answer.as_bytes()).unwrap();
+            s.flush().unwrap();
+            if clean {
+                close_notify(&mut s);
+            }
+            s.sock.shutdown(Shutdown::Both).unwrap();
+        }
+    };
+    let program =
+        |port| format!("import http\nprint(http.get(\"https://127.0.0.1:{port}/\", timeout: 10s))");
+    for (answer, clean, want) in [
+        (
+            "HTTP/1.1 200 OK\r\n\r\npartial-body",
+            false,
+            "Err({kind: 'network, message: \"cannot request `https://127.0.0.1:PORT/`: connection closed without TLS close_notify\"})\n",
+        ),
+        (
+            "HTTP/1.1 200 OK\r\n\r\nwhole-body",
+            true,
+            "Ok({status: 200, headers: {}, header_lines: [], body: \"whole-body\"})\n",
+        ),
+        (
+            "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody",
+            false,
+            "Ok({status: 200, headers: {\"content-length\": \"4\"}, header_lines: [(\"Content-Length\", \"4\")], body: \"body\"})\n",
+        ),
+    ] {
+        let (port, h) = tls_peer("localhost", serve(answer, clean));
+        let o = run(&program(port));
+        h.join().unwrap();
+        let got = o.out.replace(&format!(":{port}/"), ":PORT/");
+        assert_eq!(
+            (got.as_str(), o.err.as_str(), o.exit),
+            (want, "", 0),
+            "{answer:?}"
+        );
+    }
+}
+
 /// The other primitives work the same over TLS: exact reads, raw body
 /// reads decoded once, deadlines, and `close` (which sends close_notify,
 /// so the server sees a clean end; a second close is an error).
@@ -479,13 +537,13 @@ fn the_primitives_work_over_tls() {
         (l, r)
     });
     let o = run(&format!(
-        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nprint(net.read_bytes(c, 3))\nprint(net.read_bytes_into(c, 3, 10), net.read_bytes_into(c, 3, 10), [net.take_body(c)])\nnet.set_deadline(c, 20ms)!\nprint(kind(net.read_line(c, 10)))\nnet.set_deadline(c, 0s)!\nprint(net.write(c, \"bye\\n\"), net.close(c))\nprint(msg(net.close(c)) == \"connection is closed\")"
+        "c = net.connect(\"127.0.0.1\", {port}, tls: true)!\nprint(net.read_bytes(c, 3))\nprint(net.read_bytes_into(c, 3, 10), net.read_bytes_into(c, 3, 10), [net.take_body(c)])\nnet.set_deadline(c, 20ms)!\nprint(kind(net.read_line(c, 10)))\nnet.set_deadline(c, nil)!\nprint(net.write(c, \"bye\\n\"), net.close(c))\nprint(msg(net.close(c)) == \"connection is closed\")"
     ));
     let (l, r) = h.join().unwrap();
     assert_eq!(
         out(&o),
         (
-            "Ok(\"123\")\nOk(nil) Ok(nil) [\"45한!\"]\n'timeout\nOk(nil) Ok(nil)\ntrue\n",
+            "Ok(\"123\")\nOk(nil) Ok(nil) [Ok(\"45한!\")]\n'timeout\nOk(nil) Ok(nil)\ntrue\n",
             "",
             0
         )

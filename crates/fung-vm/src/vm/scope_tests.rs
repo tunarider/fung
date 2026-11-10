@@ -563,3 +563,121 @@ fn supervise_hands_an_unawaited_err_to_on_fail() {
         assert_eq!((err.as_str(), code), ("", 0), "{src}");
     }
 }
+
+/// `src` after `UNTIL` with the probes, in the plain order and in three
+/// shuffled ones (`fung test`, L14): the outcomes, which must not depend
+/// on the order.
+fn in_every_order(src: &str) -> Vec<(String, String, i32)> {
+    fn seed_1(rt: &crate::vm::Runtime) {
+        rt.shuffle_schedule(1);
+    }
+    fn seed_2(rt: &crate::vm::Runtime) {
+        rt.shuffle_schedule(2);
+    }
+    fn seed_3(rt: &crate::vm::Runtime) {
+        rt.shuffle_schedule(3);
+    }
+    let src = format!("{}{src}", crate::testutil::UNTIL);
+    let opts = Opts {
+        extra: crate::testutil::probes,
+        ..Opts::default()
+    };
+    let prepares: [fn(&crate::vm::Runtime); 4] = [|_| {}, seed_1, seed_2, seed_3];
+    prepares
+        .into_iter()
+        .map(|p| {
+            let o = crate::testutil::exec_prepared(&src, opts, p);
+            (o.out, o.err, o.exit)
+        })
+        .collect()
+}
+
+/// D1 (CC9): an Err that becomes unreadable while its scope unwinds on a
+/// cancellation (`cancel(s)`, a deadline, one from outside, an exit) was
+/// given up on, not lost: it is no E0607, whatever the order the tasks ran
+/// in, and the scope gives what the cancellation gives.
+#[test]
+fn a_cancelled_scope_gives_up_its_unread_errs() {
+    for (what, src, want) in [
+        (
+            "timeout over scope",
+            "r = timeout(() => scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  sleep(1h)\n  await(t)\n;;), 100ms)\nprint(r)",
+            (
+                "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n",
+                "",
+                0,
+            ),
+        ),
+        (
+            "an Err that would come after the deadline",
+            "r = timeout(() => scope(fn(s):\n  t = spawn(s, fn(): sleep(1h); Err(\"bad\") ;;)\n  sleep(1h)\n  await(t)\n;;), 50ms)\nprint(r)",
+            (
+                "Err({kind: 'timeout, message: \"timed out after 50ms\"})\n",
+                "",
+                0,
+            ),
+        ),
+        (
+            "cancel(s)",
+            "r = scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  cancel(s)\n  await(t)\n;;)\nprint(r)",
+            ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0),
+        ),
+        (
+            "timeout over supervise",
+            "r = timeout(() => supervise(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  sleep(1h)\n  await(t)\n;;, e => print(\"on_fail\", e.code)), 100ms)\nprint(r)",
+            (
+                "Err({kind: 'timeout, message: \"timed out after 100ms\"})\n",
+                "",
+                0,
+            ),
+        ),
+        (
+            "a handle left in a cancelled scope",
+            "(tx, rx) = channel(1)\nr = scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  send(tx, t)!\n  until(() => finished(t))\n  cancel(s)\n;;)\nprint(r)",
+            ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0),
+        ),
+        (
+            "a cancelled scope's child ending with no handle",
+            "r = scope(fn(s):\n  spawn(s, fn(): cancel(s); Err(\"bad\") ;;)\n  sleep(1h)\n;;)\nprint(r)",
+            ("Err({kind: 'cancelled, message: \"cancelled\"})\n", "", 0),
+        ),
+        (
+            "exit",
+            "scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  exit(3)\n  await(t)\n;;)",
+            ("", "", 3),
+        ),
+    ] {
+        for (i, got) in in_every_order(src).into_iter().enumerate() {
+            assert_eq!(
+                (got.0.as_str(), got.1.as_str(), got.2),
+                want,
+                "{what} (order {i})"
+            );
+        }
+    }
+}
+
+/// D1 (CC9): what still is an E0607 under a cancellation: a reader cut
+/// off by `cancel(t)` alone (its scope runs on, so the Err really was
+/// dropped), and an Err dropped beside a child's failure, which cancelled
+/// the scope (a note).
+#[test]
+fn a_dropped_err_outside_a_cancelled_scope_is_still_e0607() {
+    let reader = "(_tx, rx) = channel()\nscope(fn(s):\n  r = spawn(s, fn():\n    t = spawn(s, () => Err(\"bad\"))\n    until(() => finished(t))\n    recv(rx)\n    await(t)\n  ;;)\n  until(() => queued(rx) > 0)\n  cancel(r)\n;;)\nprint(\"not here\")";
+    for (i, (out, err, code)) in in_every_order(reader).into_iter().enumerate() {
+        assert_eq!((out.as_str(), code), ("", 1), "order {i}: {err}");
+        assert!(
+            err.starts_with("error[E0607]: task's Err was never awaited: \"bad\"\n"),
+            "order {i}: {err}"
+        );
+    }
+    let beside = "scope(fn(s):\n  t = spawn(s, () => Err(\"bad\"))\n  until(() => finished(t))\n  spawn(s, () => 1 / 0)\n  sleep(1h)\n  await(t)\n;;)";
+    for (i, (out, err, code)) in in_every_order(beside).into_iter().enumerate() {
+        assert_eq!((out.as_str(), code), ("", 1), "order {i}: {err}");
+        assert!(err.starts_with("error[E0"), "order {i}: {err}");
+        assert!(
+            err.contains("note: also failed: ") && err.contains("never awaited"),
+            "order {i}: {err}"
+        );
+    }
+}

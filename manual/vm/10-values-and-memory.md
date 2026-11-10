@@ -81,9 +81,9 @@ enum Value {
 
 불변 값만으로는 고리가 생기지 않는다. 그런데 fung에도 **바뀌는 것**이 몇 있다. 채널(버퍼에 값이 쌓인다), atom(가리키는 값이 바뀐다), 모듈 전역 표가 그렇다. 이것들은 나중에 자기를 가리키게 될 수 있다. 그래서 고리가 생길 자리를 규칙으로 막았다.
 
-- 채널에 **그 채널의 끝**을 보내면 E0705다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. `send`가 보내는 값을 훑어 막는다.
+- 채널에 **그 채널의 끝**을 보내면 E0709다. 버퍼가 자기 보내는 끝을 쥐면 채널은 영원히 닫히지 않는다. `send`가 보내는 값을 훑어 막는다.
 
-```fung run exit=1 error=E0705
+```fung run exit=1 error=E0709
 (tx, rx) = channel(1)
 print(send(tx, [tx]))
 ```
@@ -271,7 +271,7 @@ print(closes_early())
 
 - `crates/fung-vm/src/value.rs`: `Value` 열거형, 함수 값 `Closure`, 모듈 값 `Module`, 바뀌는 것을 품었는지 보는 `holds_mutable`.
 - `crates/fung-vm/src/value/release.rs`: 깊은 값을 명시적 스택으로 지우는 `release`, `keep`, `drop_children`.
-- `crates/fung-vm/src/value/format.rs`·`compare.rs`: 명시적 스택으로 값을 훑는 출력 `write`, `equal`·`sym_meets_str`(짝 반복자 `Pairs`), `compare`, `hash_value`.
+- `crates/fung-vm/src/value/format.rs`·`compare.rs`: 명시적 스택으로 값을 훑는 출력 `write`, `equal`·`eq`가 함께 쓰는 `walk`(짝 반복자 `Pairs`), `compare`, `hash_value`.
 - `crates/fung-vm/src/value/pvec.rs`: 영속 벡터 `Pvec`(가지 32개, `BITS`·`MASK`, 노드의 기억 `Memo`).
 - `crates/fung-vm/src/value/list.rs`: `List`(평평한 `Flat`과 보기 `Big`), `SMALL_MAX`, 빌더 `ListBuilder`.
 - `crates/fung-vm/src/value/map.rs`, `omap.rs`, `hamt.rs`: `Map`(`SMALL_MAP_MAX`), 항목 벡터와 색인을 짝지은 `Omap`, `Hamt`.
@@ -301,7 +301,7 @@ print(take(newest_first, 3), newest_first == reverse(fold(0..30000, [], (acc, i)
 ## 정리 {#summary}
 
 - fung의 값은 16바이트 Rust 열거형 `Value`다. 정수·실수·불·기간은 칸에 바로 들어가고, 큰 값은 `Rc`로 힙의 객체를 가리킨다. 빈 칸은 `None`이라 `nil`과 다르다.
-- 메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0705·E0709·E0708이 막는다.
+- 메모리는 가비지 컬렉터가 아니라 참조 계수로 돌려받는다. 불변 값끼리는 고리가 없어서 회수가 완전하고, 바뀌는 것(채널, atom)이 고리를 만들 자리는 E0709·E0708이 막는다.
 - 깊은 값은 그릇마다의 `Drop`이 자식을 명시적 스택으로 옮겨 재귀 없이 지운다. 출력·비교·해시도 명시적 스택으로 훑으므로 값이 아무리 깊어도 프로세스가 죽지 않고, 출력은 깊이에 선형이다.
 - 리스트는 영속 벡터와 보기, 맵은 항목 벡터와 HAMT 색인이다. 바꿀 때 길의 노드만 새로 만들고, 혼자 쥔 노드는 `Rc::make_mut`로 제자리에서 고친다. 작은 컬렉션은 평평한 배열이다.
 - 지역 변수의 마지막 읽기는 `MOVELOCAL`로 값을 넘기고, 읽힌 문장 뒤에는 `CLEARLOCAL`로 놓인다. 그래서 `fold`로 쌓는 맵이 제자리에서 바뀌고, 채널의 끝이 제때 닫힌다.

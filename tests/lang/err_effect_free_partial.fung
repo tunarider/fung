@@ -1,0 +1,3 @@
+# A call with `_` makes a function; as a statement it is dropped unused.
+print(1, _)
+# expect-error: E0234

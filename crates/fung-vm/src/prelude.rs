@@ -20,8 +20,8 @@ use fung_front::diag::Arg;
 
 use crate::native::nat::{self, def, def_step, fail, opt, param, rest};
 use crate::native::walk::{Cursor, PerItem, walk};
-use crate::value::{ListBuilder, Lit, Native, Tag, Value, intern, type_name};
-use crate::vm::{Flow, Stop, Task};
+use crate::value::{Args, ListBuilder, Lit, Native, Tag, Value, intern, type_name};
+use crate::vm::{Flow, ResultKind, Stop, Task};
 
 pub use io::{dbg, dbg_at};
 pub(crate) use strings::{MAX_CHARS, too_many_chars};
@@ -29,17 +29,14 @@ pub(crate) use strings::{MAX_CHARS, too_many_chars};
 /// The natives are made once per process: they are leaked (`Native::leak`).
 static CORE: OnceLock<Vec<(&'static str, &'static Native)>> = OnceLock::new();
 
-/// The core prelude: the value operations the language guarantees (06),
-/// plus `args`, an empty list here (the runtime puts the script arguments
-/// in its place).
+/// The core prelude: the value operations the language guarantees (06).
+/// `args` is not here: `boot::native_prelude` adds it, the one place that
+/// knows the script's arguments.
 pub fn core() -> Vec<(&'static str, Value)> {
-    let mut p = vec![("args", nat::list(Vec::new()))];
-    p.extend(
-        CORE.get_or_init(build)
-            .iter()
-            .map(|(n, f)| (*n, Value::Native(f))),
-    );
-    p
+    CORE.get_or_init(build)
+        .iter()
+        .map(|(n, f)| (*n, Value::Native(f)))
+        .collect()
 }
 
 fn build() -> Vec<(&'static str, &'static Native)> {
@@ -65,12 +62,12 @@ fn build() -> Vec<(&'static str, &'static Native)> {
     add(def_step(
         "read_line",
         io::read_line_fn,
-        vec![opt("f", Lit::Nil)],
+        vec![opt("file", Lit::Nil)],
     ));
     add(def_step(
         "read_lines",
         io::read_lines_fn,
-        vec![opt("f", Lit::Nil)],
+        vec![opt("file", Lit::Nil)],
     ));
     add(Value::Native(dbg()));
     collections::add(&mut add);
@@ -89,7 +86,7 @@ fn rest_items(v: &Value) -> &crate::value::List {
 
 /// `fail(...)` raises E0803 with the joined arguments as the message
 /// (06: `x ?? fail("…")`). The VM fills in the position.
-fn fail_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn fail_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let items = rest_items(&a[0]);
     let msg = if items.is_empty() {
         "fail".to_string()
@@ -101,7 +98,7 @@ fn fail_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `print(...)` joins its arguments with spaces and writes one line (06).
-fn print_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn print_fn(t: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let mut line = nat::join_for_print(rest_items(&a[0]).iter());
     line.push(b'\n');
     t.stdout().write_all(&line).map_err(nat::write_err)?;
@@ -109,18 +106,18 @@ fn print_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `len(x)` counts runes or elements (02).
-fn len_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn len_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::Int(crate::value::index::len(&a[0])?))
 }
 
 /// `type_of(x)` is the type name as a symbol (07).
-fn type_of_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn type_of_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     Ok(Value::Sym(intern(&type_name(&a[0]))))
 }
 
 /// `map(xs, f)` applies `f` to every element of a list or range and
 /// collects the results (06). `for` lowers to this (03).
-fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "map over")?;
     nat::need_fn("f", &a[1])?;
     nat::limit_elements(&a[0])?;
@@ -147,7 +144,7 @@ fn map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// `try_map(xs, f)` (03): `Ok` of the values `f`'s `Ok`s hold, or the
 /// first `Err` it returns, after which no element is visited. A result of
 /// another kind is E0605, as for `!` and `?`.
-fn try_map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn try_map_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     nat::check_items(&a[0], "map over")?;
     nat::need_fn("f", &a[1])?;
     nat::limit_elements(&a[0])?;
@@ -161,17 +158,18 @@ fn try_map_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             1
         }
         fn got(&mut self, r: Value) -> Result<bool, Stop> {
-            // A result holds one value (VM4), as for `?`.
-            match &r {
-                Value::Tag(tag) if tag.args.len() == 1 && tag.name == crate::value::Sym::OK => {
-                    self.out.push(tag.args[0].clone());
+            // The same judgement as `?` (02, SP12, SP13).
+            match crate::vm::result_kind(&r) {
+                ResultKind::Ok(payload) => {
+                    self.out.push(payload);
                     Ok(false)
                 }
-                Value::Tag(tag) if tag.args.len() == 1 && tag.name == crate::value::Sym::ERR => {
+                ResultKind::Err => {
                     self.err = Some(r);
                     Ok(true)
                 }
-                _ => Err(fail(
+                ResultKind::Nil => Err(fail("E0604", vec![nat::s("try_map")])),
+                ResultKind::Other => Err(fail(
                     "E0605",
                     vec![nat::s("try_map"), Arg::Str(crate::vm::not_result(&r))],
                 )),

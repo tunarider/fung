@@ -9,6 +9,7 @@
 | 3 | print(json.stringify({b: 1, a: [true, nil, "x<y>&z", 2.0], t: (1, 2), s: 'ok', e: [], m: {}}))
 |   |                                                                             ^
 |   |
+|  help: strings use double quotes: `"text"`; a symbol is `'name`, with no closing quote
 -- exit: 2
 ==== "import json\nimport time\nprint(json.stringify(\"\\u{2028}<… (140 bytes, 0ec3d9277416a620)
 -- stdout (escaped)
@@ -252,7 +253,7 @@
 ==== "import json\nimport time\nprint(json.stringify())"
 -- stdout
 -- stderr
-| error[E0407]: missing argument `v`
+| error[E0407]: missing argument `x`
 |   --> -e:3:21
 |   |
 | 3 | print(json.stringify())
@@ -297,7 +298,7 @@
 |  call path (innermost first):
 |    -e:3       <entry>
 -- exit: 1
-==== "import json\nimport time\nprint(json.parse(s: \"[1]\"), json.stringify(v: [1], indent: 1))"
+==== "import json\nimport time\nprint(json.parse(s: \"[1]\"), json.stringify(x: [1], indent: 1))"
 -- stdout
 | Ok([1]) [
 |  1
@@ -315,7 +316,6 @@
 |   |
 |  call path (innermost first):
 |    -e:4       <lambda>
-|    extras/fs.fung:32 with_open
 |    -e:4       <entry>
 -- exit: 1
 ==== "import json\nimport time\ns = `{\"z\":1,\"y\":{\"b\":2,\"a\… (269 bytes, d2c3f1e21bc07d15)

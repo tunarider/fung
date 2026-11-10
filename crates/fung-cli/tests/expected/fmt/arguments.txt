@@ -40,7 +40,7 @@
 ==== fmt --check -x
 -- stdout
 -- stderr
-| error: unknown option -x
+| error: unknown option `-x`
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
@@ -58,7 +58,7 @@
 ==== fmt -x lone.fung
 -- stdout
 -- stderr
-| error: unknown option -x
+| error: unknown option `-x`
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
@@ -76,7 +76,7 @@
 ==== fmt --chek lone.fung
 -- stdout
 -- stderr
-| error: unknown option --chek
+| error: unknown option `--chek`
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
@@ -94,8 +94,65 @@
 ==== fmt - lone.fung
 -- stdout
 -- stderr
-| error: cannot read `-`: no such file or directory
+| error: fmt reads standard input only when `-` is the only path
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung version                            print the version
+|   fung help                               print this text
 -- exit: 3
+==== fmt - -
+-- stdout
+-- stderr
+| error: fmt reads standard input only when `-` is the only path
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== fmt --help
+-- stdout
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung version                            print the version
+|   fung help                               print this text
+-- stderr
+-- exit: 0
+==== fmt -- -x
+-- stdout
+-- stderr
+| error: cannot read `-x`: no such file or directory
+-- exit: 3
+==== fmt --check latin.fung
+-- stdout
+-- stderr
+| error: cannot read `latin.fung`: not valid UTF-8 at line 1, column 4
+-- exit: 2
 ==== fmt nope.fung
 -- stdout
 -- stderr
@@ -175,7 +232,7 @@
 | ro.fung
 -- stderr
 | error: cannot read `locked.fung`: permission denied
--- exit: 1
+-- exit: 2
 ==== fmt --check 넓은.fung lone.fung --check
 -- stdout
 | lone.fung
@@ -190,6 +247,7 @@
 | t/sub/b.fung
 | 넓은.fung
 -- stderr
+| error: cannot read `latin.fung`: not valid UTF-8 at line 1, column 4
 | error: cannot read `locked.fung`: permission denied
 | error[E0110]: unexpected `)`
 |   --> t/bad.fung:1:5
@@ -210,7 +268,7 @@
 -- stderr
 | error: cannot read `locked.fung`: permission denied
 | error: cannot write `ro.fung`: permission denied
--- exit: 1
+-- exit: 2
 ==== fmt t 넓은.fung
 -- stdout
 | t/a.fung
@@ -228,6 +286,7 @@
 -- stdout
 | ro.fung
 -- stderr
+| error: cannot read `latin.fung`: not valid UTF-8 at line 1, column 4
 | error: cannot read `locked.fung`: permission denied
 | error: cannot write `ro.fung`: permission denied
 | error[E0110]: unexpected `)`
@@ -268,5 +327,8 @@
 ==== file locked.fung
 -- text
 | l=1
+==== file latin.fung
+-- text (escaped)
+| x="\xff"
 ==== mode ro.fung
 -- mode: 100444

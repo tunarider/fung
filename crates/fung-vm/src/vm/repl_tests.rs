@@ -88,7 +88,7 @@ fn globals_survive_and_closures_see_redefinitions() {
         assert_eq!(s.input("fn k(n) = n * x\nk(5) + h"), value("8"));
         // A REPL fn reads a global when called (03, L9).
         assert_eq!(s.input("x = 10\nk(5)"), value("50"));
-        assert_eq!(s.input("import fs\nfs.exists(\"/\")"), value("true"));
+        assert_eq!(s.input("import fs\nfs.exists(\"/\")!"), value("true"));
         assert_eq!(s.input("import fs\nfs = 1\nfs + 1"), value("2"));
         assert_eq!(s.out.text(), "");
     });
@@ -192,7 +192,10 @@ fn an_input_prints_its_last_err_and_rejects_a_discarded_one() {
         assert_eq!(s.input("Err(1)"), value("Err(1)"));
         assert_eq!(s.input("for x in [1]: Err(x) ;;"), value("[Err(1)]"));
         let at = FileId(s.known.len() as u32);
-        assert_eq!(s.input("Err(1)\n2"), Outcome::Error("E0606".into(), at));
+        assert_eq!(
+            s.input("Err(len([1]))\n2"),
+            Outcome::Error("E0606".into(), at)
+        );
         assert_eq!(s.input("_ = Err(1)\n2"), value("2"));
     });
 }

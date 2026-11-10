@@ -1,0 +1,12 @@
+# A `pattern =>` line meant as a lambda in an arm's body starts a new arm
+# (`fung fmt` shows it at the arms' indentation): here `y`, which matches
+# everything, so the `_` arm never runs. Put a lambda that is the arm's
+# value in parentheses.
+fn pick(m) = match m:
+  1 =>
+    print("one")
+  y => y + 1
+  _ => (y => y)
+;;
+print(pick(1), pick(2))
+# expect-error: E0235

@@ -199,9 +199,9 @@ for name in [&quot;web-1&quot;, &quot;데이터베이스&quot;, &quot;캐시-1&q
 <h2 id="notes">짚고 넘어가기</h2>
 <div class="box learn"><b>글자는 어떻게 저장되나</b>
 <p>컴퓨터는 글자를 숫자로 저장한다. <strong>유니코드</strong>는 세상의 글자마다 번호를 붙인 표다(<code>A</code>는 65, <code>가</code>는 44032). 그 번호를 바이트로 적는 방법 중 가장 널리 쓰이는 것이 <strong>UTF-8</strong>이고, 영문은 1바이트, 한글은 3바이트를 쓴다. fung의 문자열은 UTF-8로 저장하지만, <code>len</code>과 인덱스는 바이트가 아니라 번호(코드 포인트) 단위라서 한글을 반 글자로 자르는 일이 없다.</p>
-<p>바깥에서 들어온 바이트가 UTF-8이 아닐 수도 있다(다른 인코딩으로 쓴 파일, 바이너리를 내는 명령). fung은 그런 바이트도 <strong>바꾸지 않고</strong> 문자열에 담는다. UTF-8에 속하지 않는 바이트는 그 하나가 한 글자로 세어지고, 값으로 보일 때는 <code>&quot;\xff&quot;</code>처럼 보인다. 그래서 읽은 것을 그대로 쓰면 원래 바이트가 그대로 나간다. <code>byte_len</code>이 바이트 수를, <code>valid_utf8</code>이 올바른 UTF-8인지를 알려 준다.</p>
+<p>바깥에서 들어온 바이트가 UTF-8이 아닐 수도 있다(다른 인코딩으로 쓴 파일, 바이너리를 내는 명령). fung은 그런 바이트도 <strong>바꾸지 않고</strong> 문자열에 담는다. UTF-8에 속하지 않는 바이트는 그 하나가 한 글자로 세어지고, 값으로 보일 때는 <code>&quot;\xff&quot;</code>처럼 보인다. 그래서 읽은 것을 그대로 쓰면 원래 바이트가 그대로 나간다. <code>byte_len</code>이 바이트 수를, <code>is_utf8</code>이 올바른 UTF-8인지를 알려 준다.</p>
 <div class="run"><pre><code>s = &quot;a\xffb&quot;
-print([s, s[1]], len(s), byte_len(&quot;가&quot;), valid_utf8(s))</code></pre><pre class="out plain"><code>[&quot;a\xffb&quot;, &quot;\xff&quot;] 3 3 false</code></pre></div>
+print([s, s[1]], len(s), byte_len(&quot;가&quot;), is_utf8(s))</code></pre><pre class="out plain"><code>[&quot;a\xffb&quot;, &quot;\xff&quot;] 3 3 false</code></pre></div>
 </div>
 <div class="box mistake"><b>윈도우 경로의 역슬래시 (E0103)</b>
 <p><code>&quot;C:\data\app&quot;</code>은 <code>\d</code>를 모르는 이스케이프로 보고 컴파일 에러를 낸다. 더 고약한 것은 <code>&quot;C:\new&quot;</code>인데, <code>\n</code>은 줄바꿈이라 에러 없이 엉뚱한 문자열이 된다. 역슬래시가 들어가는 문자열은 원시 문자열 <code>&#96;C:\data\app&#96;</code>으로 쓰거나 <code>\\</code>로 쓴다.</p>

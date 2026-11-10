@@ -1,0 +1,10 @@
+# The end of a branch in a discarded place is discarded too.
+fn pick(n):
+  match n:
+    1 => "one"
+    _ => print("other")
+  ;;
+  n
+;;
+print(pick(1))
+# expect-error: E0234

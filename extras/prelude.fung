@@ -3,6 +3,7 @@
 # functions of the native bridge, and two iteration helpers. The core
 # keeps the functions that walk elements natively (map, filter, fold, …).
 # The concurrency helpers (fan_in, pmap, retry) are the module `conc`.
+import _native.arg as _arg
 import _native.process as _p
 import _native.range as _r
 
@@ -10,24 +11,16 @@ import _native.range as _r
 exec = _p.exec
 sh = _p.sh
 env = _p.env
+env_all = _p.env_all
 
 # ---- Collections ----------------------------------------------------
 
 # A range is not counted: it may hold more numbers than len can (02).
 fn is_empty(x) = type_of(x) == 'range then _r.last(x) == nil else len(x) == 0
 
-# 0 for an empty collection; otherwise `+` folds from the first element,
-# so durations, strings and lists sum too.
-fn sum(xs):
-  _r.items(xs, "sum")
-  if type_of(xs) == 'range: return fold(xs, 0, (acc, x) => acc + x) ;;
-  ys = _list(xs, "sum")
-  is_empty(ys) then 0 else fold(ys[1..], ys[0], (acc, x) => acc + x)
-;;
-
 # Positional access needs a list: ranges (and receiving ends, received
 # until closed) become one. Anything else is E0506 with `verb`, the
-# function the user called ("cannot reverse int").
+# function the user called ("cannot zip the elements of int").
 fn _list(xs, verb) = type_of(xs) == 'list then xs else map(_r.items(xs, verb), x => x)
 
 # A range's first number. The range natives (_r) give the rest without
@@ -42,37 +35,10 @@ fn _receive(rx, n, acc) = n <= 0 then acc else match recv(rx):
   Err(_) => acc
 ;;
 
-# min/max: nil for an empty collection; the first element seeds the fold
-# so a nil element fails as `<` does instead of being skipped. A lone
-# element must have an order too (_ordered), so `max([nil])` is not nil.
-# A range is answered from its ends, not spread out.
-fn min(xs):
-  if type_of(xs) == 'range: return _start(xs) ;;
-  ys = _list(xs, "take the min of")
-  is_empty(ys) then nil else fold(ys[1..], _ordered(ys[0]), (best, x) => x < best then x else best)
-;;
-
-fn max(xs):
-  if type_of(xs) == 'range: return _r.last(xs) ;;
-  ys = _list(xs, "take the max of")
-  is_empty(ys) then nil else fold(ys[1..], _ordered(ys[0]), (best, x) => x > best then x else best)
-;;
-
-# x when its type has an order; otherwise the error `<` gives it.
-fn _ordered(x) = type_of(x) in ['int, 'float, 'str, 'dur, 'time, 'list, 'tuple] then x else (x < x then x else x)
-
-fn reverse(xs):
-  ys = _list(xs, "reverse")
-  n = len(ys)
-  for i in 0..n: ys[n - 1 - i] ;;
-;;
-
-fn range(a, b = nil) = b == nil then 0..a else a..b
-
 # A range is cut to the other side's length before it becomes a list.
 fn zip(xs, ys):
-  left = type_of(xs) == 'range then xs else _list(xs, "zip")
-  right = type_of(ys) == 'range then _upto(ys, len(left)) else _list(ys, "zip")
+  left = type_of(xs) == 'range then xs else _list(xs, "zip the elements of")
+  right = type_of(ys) == 'range then _upto(ys, len(left)) else _list(ys, "zip the elements of")
   cut = _upto(left, len(right))
   n = min([len(cut), len(right)])
   for i in 0..n: (cut[i], right[i]) ;;
@@ -93,40 +59,38 @@ fn last(xs):
   is_empty(ys) then nil else ys[-1]
 ;;
 
-# take/drop never fail on a count out of range (06): n is clamped into
-# 0..=len (by _r.slice for a range). A count not an int is E0403, as for
-# a native. A string is cut by characters, like its slices.
+# take/drop never fail on a count past the end (06): n is cut to len
+# (by _r.slice for a range). A count that is not a non-negative int is
+# E0403, as for a native (SP15). A string is no collection: it is cut
+# with slices (02).
 fn _clamp(n, size):
-  _r.count(n)
-  n < 0 then 0 else (n > size then size else n)
+  _arg.count("n", n)
+  n > size then size else n
 ;;
 
 fn take(xs, n):
   if type_of(xs) == 'receiver: return _receive(xs, _clamp(n, n), []) ;;
   if type_of(xs) == 'range: return map(_r.slice(xs, 0, _clamp(n, n)), x => x) ;;
-  if type_of(xs) == 'str: return xs[.._clamp(n, len(xs))] ;;
   ys = _list(xs, "take from")
   ys[.._clamp(n, len(ys))]
 ;;
 
 fn drop(xs, n):
   if type_of(xs) == 'range: return map(_r.slice(xs, _clamp(n, n)), x => x) ;;
-  if type_of(xs) == 'str: return xs[_clamp(n, len(xs))..] ;;
   ys = _list(xs, "drop from")
   ys[_clamp(n, len(ys))..]
 ;;
 
 fn contains(c, x) = x in c
 
-fn keys(m) = pairs(m) |> map(((k, _)) => k)
-fn values(m) = pairs(m) |> map(((_, v)) => v)
-
 # ---- Strings --------------------------------------------------------
 
 # The padding that brings s up to n characters, cycling pad. repeat
 # builds just enough copies (never more than missing + len(pad) chars).
-# An empty pad is E0403, as for a native (_r.pad).
+# An empty pad, or a width that is not a non-negative int, is E0403, as
+# for a native (_r.pad, _arg.count).
 fn _padding(s, n, pad):
+  _arg.count("n", n)
   _r.pad(pad)
   missing = n - len(s)
   missing <= 0 then "" else repeat(pad, int(missing / len(pad)) + 1)[..missing]
@@ -145,5 +109,6 @@ fn is_err(x) = type_of(x) == 'Err
 # Applies f until pred holds.
 fn until(x, f: fn, pred: fn) = pred(x) then x else until(f(x), f, pred)
 
-# Applies f n times.
-fn iterate(x, f: fn, n: int) = n <= 0 then x else iterate(f(x), f, n - 1)
+# Applies f n times; n is a non-negative int (E0403, SP15).
+fn iterate(x, f: fn, n: int) = _iterate(x, f, _arg.count("n", n))
+fn _iterate(x, f, n) = n == 0 then x else _iterate(f(x), f, n - 1)

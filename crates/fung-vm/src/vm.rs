@@ -107,7 +107,7 @@ pub use cont::{Cont, Flow, Next, Wake};
 pub(crate) use deadline::run_timeout;
 pub use link::RtProto;
 pub(crate) use link::{Prelude, link};
-pub(crate) use m4::{discarded, discarded_err, may_hold_err, not_result};
+pub(crate) use m4::{ResultKind, discarded, discarded_err, may_hold_err, not_result, result_kind};
 pub(crate) use m6::TestCase;
 pub use matcher::RtPattern;
 pub(crate) use offload::{Kind, alone, offload_kind};
@@ -117,7 +117,10 @@ pub use runtime::Runtime;
 pub(crate) use sched::FiberId;
 pub use scope::ScopeHandle;
 pub(crate) use scope::run_scope;
-pub use stdin::BUFFER as STDIN_BUFFER;
+pub(crate) use stdin::Input;
+#[cfg(test)]
+pub(crate) use stdin::NONBLOCKING_WAITS;
+pub use stdin::{BUFFER as STDIN_BUFFER, blocking_reads};
 pub use stop::StopHandle;
 #[cfg(test)]
 pub(crate) use task::CancelNode as CancelNodeForTests;
@@ -205,9 +208,15 @@ pub(crate) struct Fiber {
     /// How many times it gave its turn at a yield point (a test probe).
     #[cfg(test)]
     pub(crate) yields: u32,
+    /// How many turns ended (`Task::end_turn`, a test probe).
+    #[cfg(test)]
+    pub(crate) turn_ends: u32,
     /// The turn is over (`Task::tick`): the next yield point leaves the
     /// run loop so the others get theirs.
     turn_due: bool,
+    /// A turn ended inside a swap's function, which gives none: it is
+    /// given once the outermost function returns (`atom.rs`).
+    turn_owed: bool,
     /// The native being called, for natives that need their own name.
     native: Option<&'static Native>,
     /// This task's node in the cancellation tree (`task.rs`).
@@ -243,7 +252,10 @@ impl Fiber {
             offloads: 0,
             #[cfg(test)]
             yields: 0,
+            #[cfg(test)]
+            turn_ends: 0,
             turn_due: false,
+            turn_owed: false,
             native: None,
             cancel,
             budget: YIELD_EVERY,
@@ -338,12 +350,12 @@ impl<'rt> Task<'rt> {
         self.world.stderr()
     }
 
-    /// One line of standard input with its line ending if one is queued
-    /// (`Some(None)` at the end of the input); otherwise this task is put
-    /// on the reader's waiting list and `None`: park until woken
-    /// (`stdin.rs`). The line is bytes, as read (L4). The error: the
-    /// reader thread cannot start.
-    pub(crate) fn stdin_poll(&mut self) -> std::io::Result<Option<Option<Vec<u8>>>> {
+    /// What the next read of standard input brought if it is queued (a
+    /// line with its line ending, the end, or a read error); otherwise
+    /// this task is put on the reader's waiting list and `None`: park
+    /// until woken (`stdin.rs`). A line is bytes, as read (L4). The
+    /// error: the reader thread cannot start.
+    pub(crate) fn stdin_poll(&mut self) -> std::io::Result<Option<stdin::Input>> {
         let me = self.fiber.waiter.clone();
         self.world.stdin.poll(&me)
     }
@@ -591,8 +603,8 @@ impl<'rt> Task<'rt> {
 
     /// Records the call path once and, when the error arose inside an
     /// embedded extras file, moves its position to the nearest frame of
-    /// user code: the user cannot open extras/*.fung, and the extras frames
-    /// stay visible in the call path (06).
+    /// user code: the user cannot open extras/*.fung, so its frames are
+    /// left out of the call path too (06, VA19).
     fn attach(&self, mut d: Box<Diag>) -> Box<Diag> {
         if !d.call_path.is_empty() {
             return d;
@@ -642,12 +654,17 @@ impl<'rt> Task<'rt> {
     }
 
     /// The frames innermost first, for error reports (08).
-    /// One line per frame, innermost first, and after a frame the frame
-    /// of user code its tail call into a built-in function replaced (L8).
+    /// One line per frame of user code, innermost first, and after a
+    /// frame the frame of user code its tail call into a built-in function
+    /// replaced (L8). A frame of a built-in function written in fung
+    /// (extras) is left out, as a native's is: which functions are fung
+    /// and which Rust is not the user's concern (VA19, D17).
     fn call_path(&self) -> Vec<CallSite> {
         let mut path = Vec::with_capacity(self.fiber.frames.len());
         for f in self.fiber.frames.iter().rev() {
-            path.push(self.site(f.proto(), f.current_pos(), f.tail_calls));
+            if !f.proto().builtin {
+                path.push(self.site(f.proto(), f.current_pos(), f.tail_calls));
+            }
             if let Some(t) = &f.tail_from {
                 path.push(self.site(&t.proto, t.pos, t.tail_calls));
             }
@@ -694,12 +711,21 @@ impl<'rt> Task<'rt> {
         }
     }
 
+    /// The position of the instruction frame `fi` is running (the one
+    /// before its `ip`). The run loop does not read it per instruction:
+    /// only an error, or an instruction that keeps it (a native call, an
+    /// import), asks (VM16).
+    #[inline]
+    fn here(&self, fi: usize) -> Pos {
+        self.fiber.frames[fi].current_pos().unwrap_or_else(no_pos)
+    }
+
     /// A binary operator. Two ints take the inline path (`int`, `None` on
     /// overflow); anything else, and overflow, goes to the value layer.
     #[inline(always)]
     fn binary(
         &mut self,
-        pos: Pos,
+        fi: usize,
         int: impl Fn(i64, i64) -> Option<i64>,
         f: impl Fn(&Value, &Value) -> Result<Value, Diag>,
     ) -> Result<(), Stop> {
@@ -711,7 +737,7 @@ impl<'rt> Task<'rt> {
         }
         let b = self.pop();
         let a = self.pop();
-        let r = f(&a, &b).map_err(|d| at(d, pos))?;
+        let r = f(&a, &b).map_err(|d| at(d, self.here(fi)))?;
         self.push(r);
         Ok(())
     }
@@ -738,15 +764,15 @@ impl<'rt> Task<'rt> {
         std::mem::forget(s[n - 1].replace(v));
     }
 
-    fn unary(&mut self, f: fn(&Value) -> Result<Value, Diag>, pos: Pos) -> Result<(), Stop> {
+    fn unary(&mut self, f: fn(&Value) -> Result<Value, Diag>, fi: usize) -> Result<(), Stop> {
         let a = self.pop();
-        let r = f(&a).map_err(|d| at(d, pos))?;
+        let r = f(&a).map_err(|d| at(d, self.here(fi)))?;
         self.push(r);
         Ok(())
     }
 
     #[inline(always)]
-    fn compare(&mut self, pos: Pos, test: impl Fn(Ordering) -> bool) -> Result<(), Stop> {
+    fn compare(&mut self, fi: usize, test: impl Fn(Ordering) -> bool) -> Result<(), Stop> {
         if let Some((x, y)) = self.top_ints() {
             self.put_over_ints(Value::Bool(test(x.cmp(&y))));
             return Ok(());
@@ -755,7 +781,7 @@ impl<'rt> Task<'rt> {
         let a = self.pop();
         let c = match (&a, &b) {
             (Value::Int(x), Value::Int(y)) => x.cmp(y),
-            _ => value::compare(&a, &b).map_err(|d| at(d, pos))?,
+            _ => value::compare(&a, &b).map_err(|d| at(d, self.here(fi)))?,
         };
         self.push(Value::Bool(test(c)));
         Ok(())
@@ -769,12 +795,11 @@ impl<'rt> Task<'rt> {
             let fi = self.fiber.frames.len() - 1;
             let f = &mut self.fiber.frames[fi];
             let ip = f.ip;
-            let instr = f.proto().code[ip];
-            let pos = f.proto().pos[ip];
+            let code = f.proto().code[ip];
             f.ip = ip + 1;
-            let base = f.base;
-            let arg = instr.arg();
-            match instr.op() {
+            let base = f.base();
+            let (op, arg) = (code.op, code.arg as usize);
+            match op {
                 Op::Const => {
                     let v = self.fiber.frames[fi].proto().consts[arg].clone();
                     self.push(v);
@@ -783,18 +808,18 @@ impl<'rt> Task<'rt> {
                 Op::Pop => {
                     if let Some(Some(v)) = self.fiber.stack.pop()
                         && may_hold_err(&v)
-                        && let Some(stop) = discarded_stop(pos, &v)
+                        && let Some(stop) = discarded_stop(self.here(fi), &v)
                     {
                         return Err(stop);
                     }
                 }
-                Op::Add => self.binary(pos, i64::checked_add, value::add)?,
-                Op::Sub => self.binary(pos, i64::checked_sub, value::sub)?,
-                Op::Mul => self.binary(pos, i64::checked_mul, value::mul)?,
-                Op::Div => self.binary(pos, |_, _| None, value::div)?,
+                Op::Add => self.binary(fi, i64::checked_add, value::add)?,
+                Op::Sub => self.binary(fi, i64::checked_sub, value::sub)?,
+                Op::Mul => self.binary(fi, i64::checked_mul, value::mul)?,
+                Op::Div => self.binary(fi, |_, _| None, value::div)?,
                 // Zero and overflow take the value layer's way to the error.
                 Op::FloorDiv => self.binary(
-                    pos,
+                    fi,
                     |x, y| {
                         if y == 0 {
                             None
@@ -805,32 +830,32 @@ impl<'rt> Task<'rt> {
                     value::floor_div,
                 )?,
                 Op::Mod => self.binary(
-                    pos,
+                    fi,
                     |x, y| (y != 0).then(|| value::rem_i64(x, y)),
                     value::rem,
                 )?,
-                Op::Pow => self.binary(pos, |_, _| None, value::pow)?,
-                Op::Neg => self.unary(value::neg, pos)?,
-                Op::Not => self.unary(value::not, pos)?,
+                Op::Pow => self.binary(fi, |_, _| None, value::pow)?,
+                Op::Neg => self.unary(value::neg, fi)?,
+                Op::Not => self.unary(value::not, fi)?,
                 Op::Eq | Op::Ne => {
                     if let Some((x, y)) = self.top_ints() {
-                        self.put_over_ints(Value::Bool((x == y) == (instr.op() == Op::Eq)));
+                        self.put_over_ints(Value::Bool((x == y) == (op == Op::Eq)));
                         continue;
                     }
                     let b = self.pop();
                     let a = self.pop();
-                    let eq = value::eq(&a, &b).map_err(|d| at(d, pos))?;
-                    self.push(Value::Bool(eq == (instr.op() == Op::Eq)));
+                    let eq = value::eq(&a, &b).map_err(|d| at(d, self.here(fi)))?;
+                    self.push(Value::Bool(eq == (op == Op::Eq)));
                 }
-                Op::Lt => self.compare(pos, Ordering::is_lt)?,
-                Op::Gt => self.compare(pos, Ordering::is_gt)?,
-                Op::Le => self.compare(pos, Ordering::is_le)?,
-                Op::Ge => self.compare(pos, Ordering::is_ge)?,
+                Op::Lt => self.compare(fi, Ordering::is_lt)?,
+                Op::Gt => self.compare(fi, Ordering::is_gt)?,
+                Op::Le => self.compare(fi, Ordering::is_le)?,
+                Op::Ge => self.compare(fi, Ordering::is_ge)?,
                 Op::CheckBool => {
                     let top = self.top();
                     if !matches!(top, Value::Bool(_)) {
                         let tn = value::type_name(top);
-                        return Err(err("E0505", pos, vec![Arg::Str(tn)]));
+                        return Err(err("E0505", self.here(fi), vec![Arg::Str(tn)]));
                     }
                 }
                 Op::Jump => {
@@ -840,7 +865,7 @@ impl<'rt> Task<'rt> {
                     // for bytecode that might one day loop (VM12).
                     if arg <= ip {
                         debug_assert!(false, "a backward JUMP");
-                        self.tick(pos)?;
+                        self.tick_in(fi)?;
                         if self.fiber.turn_due {
                             // Back at this jump after the others' turns.
                             self.fiber.frames[fi].ip = ip;
@@ -854,18 +879,18 @@ impl<'rt> Task<'rt> {
                     Value::Bool(false) => self.fiber.frames[fi].ip = arg,
                     v => {
                         let tn = value::type_name(&v);
-                        return Err(err("E0505", pos, vec![Arg::Str(tn)]));
+                        return Err(err("E0505", self.here(fi), vec![Arg::Str(tn)]));
                     }
                 },
                 Op::Call | Op::TailCall => {
-                    self.tick(pos)?;
+                    self.tick_in(fi)?;
                     if self.fiber.turn_due {
                         // Back at this call after the others' turns.
                         self.fiber.frames[fi].ip = ip;
                         return Ok(Ran::Yielded(None));
                     }
-                    let tail = instr.op() == Op::TailCall;
-                    match self.call_op(arg, pos, tail)? {
+                    let tail = op == Op::TailCall;
+                    match self.call_op(arg, fi, tail)? {
                         Entered::Frame => {}
                         // A native ran to completion.
                         Entered::Value(r) if tail => match self.ret_with(r)? {
@@ -881,7 +906,7 @@ impl<'rt> Task<'rt> {
                     }
                 }
                 Op::Closure => {
-                    let c = self.make_closure(fi, arg, pos)?;
+                    let c = self.make_closure(fi, arg)?;
                     self.push(c);
                 }
                 Op::LoadCaptured => {
@@ -906,7 +931,7 @@ impl<'rt> Task<'rt> {
                     if !p.types[ti].matches(v) {
                         return Err(err(
                             "E0403",
-                            pos,
+                            self.here(fi),
                             vec![
                                 Arg::Str(p.params[slot].name.clone()),
                                 Arg::Str(p.types[ti].text().to_string()),
@@ -921,7 +946,7 @@ impl<'rt> Task<'rt> {
                     if !p.types[arg].matches(v) {
                         return Err(err(
                             "E0404",
-                            pos,
+                            self.here(fi),
                             vec![
                                 Arg::Str(p.types[arg].text().to_string()),
                                 Arg::Str(value::type_name(v)),
@@ -948,7 +973,7 @@ impl<'rt> Task<'rt> {
                     let v = self.fiber.frames[fi].globals().borrow()[arg].clone();
                     match v {
                         Some(v) => self.push(v),
-                        None => return Err(self.unset_global(fi, arg, pos)),
+                        None => return Err(self.unset_global(fi, arg, self.here(fi))),
                     }
                 }
                 Op::StoreGlobal => {
@@ -958,11 +983,12 @@ impl<'rt> Task<'rt> {
                     drop(old);
                 }
                 Op::Concat => {
+                    let pos = self.here(fi);
                     let start = self.fiber.stack.len() - arg;
                     let mut s = Vec::new();
                     for part in self.fiber.stack.drain(start..) {
                         let part = part.expect("CONCAT of an unassigned slot");
-                        if let Some(tag) = value::result_tag(&part) {
+                        if let Some(tag) = m4::result_kind(&part).result_name() {
                             let d = fung_front::diag::error(
                                 "E0519",
                                 pos,
@@ -992,9 +1018,18 @@ impl<'rt> Task<'rt> {
                 | Op::Coalesce
                 | Op::Match
                 | Op::MatchOrFail
-                | Op::NoMatch => self.exec_m4(fi, instr.op(), arg, pos)?,
-                Op::Import => self.exec_import(fi, arg, pos)?,
-                Op::Assert | Op::Test => self.exec_m6(fi, instr.op(), arg, pos)?,
+                | Op::NoMatch => {
+                    let pos = self.here(fi);
+                    self.exec_m4(fi, op, arg, pos)?
+                }
+                Op::Import => {
+                    let pos = self.here(fi);
+                    self.exec_import(fi, arg, pos)?
+                }
+                Op::Assert | Op::Test => {
+                    let pos = self.here(fi);
+                    self.exec_m6(fi, op, arg, pos)?
+                }
                 Op::Return => {
                     let v = self.pop();
                     match self.ret_with(v)? {
@@ -1010,7 +1045,7 @@ impl<'rt> Task<'rt> {
     /// CLOSURE: copies what the child captures from the creating frame
     /// (03, model C). A global with no value is E0808 in the REPL (VM3:
     /// an input declared it, then failed); a script's resolve refuses it.
-    fn make_closure(&self, fi: usize, child: usize, pos: Pos) -> Result<Value, Stop> {
+    fn make_closure(&self, fi: usize, child: usize) -> Result<Value, Stop> {
         let f = &self.fiber.frames[fi];
         let proto = f.proto().protos[child].clone();
         let captured = proto
@@ -1018,14 +1053,14 @@ impl<'rt> Task<'rt> {
             .iter()
             .map(|c| {
                 Ok(match c.kind {
-                    CaptureKind::Local => self.fiber.stack[f.base + c.index]
+                    CaptureKind::Local => self.fiber.stack[f.base() + c.index]
                         .clone()
                         .expect("captured an unassigned slot"),
                     CaptureKind::Captured => f.closure.captured[c.index].clone(),
                     CaptureKind::SelfFn => Value::Closure(f.closure.clone()),
                     CaptureKind::Global => match f.globals().borrow()[c.index].clone() {
                         Some(v) => v,
-                        None => return Err(self.unset_global(fi, c.index, pos)),
+                        None => return Err(self.unset_global(fi, c.index, self.here(fi))),
                     },
                 })
             })

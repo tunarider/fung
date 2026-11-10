@@ -581,13 +581,19 @@ pub fn inline(text: &str) -> String {
         held.push(html);
     };
     while let Some(c) = rest.chars().next() {
-        let code = (c == '`').then(|| rest[1..].find('`')).flatten();
-        if let Some(j) = code {
-            hold(
-                format!("<code>{}</code>", escape(&rest[1..1 + j])),
-                &mut prose,
-            );
-            rest = &rest[1 + j + 1..];
+        if c == '`' {
+            let n = rest.len() - rest.trim_start_matches('`').len();
+            match code_span(&rest[n..], n) {
+                Some((body, after)) => {
+                    hold(format!("<code>{}</code>", escape(body)), &mut prose);
+                    rest = after;
+                }
+                // An unclosed run is text (CommonMark).
+                None => {
+                    prose.push_str(&rest[..n]);
+                    rest = &rest[n..];
+                }
+            }
             continue;
         }
         let linked = (c == '[').then(|| link(rest)).flatten();
@@ -607,6 +613,34 @@ pub fn inline(text: &str) -> String {
         out = out.replacen(&format!("\u{E000}{i}\u{E001}"), h, 1);
     }
     out
+}
+
+/// The body of a code span opened by a run of `n` backticks, `s` being
+/// what follows the run, and the text after the closing run (CommonMark):
+/// it closes at the next run of exactly `n`, and one space on each side
+/// is stripped when both are there and the body is not all spaces, so
+/// ``` `` `x` `` ``` holds `` `x` ``.
+fn code_span(s: &str, n: usize) -> Option<(&str, &str)> {
+    let mut at = 0;
+    while let Some(i) = s[at..].find('`') {
+        let start = at + i;
+        let run = s[start..].len() - s[start..].trim_start_matches('`').len();
+        if run == n {
+            let body = &s[..start];
+            let padded = body.len() >= 2
+                && body.starts_with(' ')
+                && body.ends_with(' ')
+                && !body.chars().all(|c| c == ' ');
+            let body = if padded {
+                &body[1..body.len() - 1]
+            } else {
+                body
+            };
+            return Some((body, &s[start + run..]));
+        }
+        at = start + run;
+    }
+    None
 }
 
 /// `[label](href)` at the start of `s`: (label, href, the rest). The
@@ -864,6 +898,29 @@ mod tests {
         );
         // stars inside code stay
         assert_eq!(inline("`**x**`"), "<code>**x**</code>");
+    }
+
+    /// CommonMark code spans: a run of n backticks closes at the next run
+    /// of exactly n, one space of padding on both sides is stripped, so a
+    /// span can hold a backtick; an unclosed run is text.
+    #[test]
+    fn code_spans_of_several_backticks() {
+        assert_eq!(
+            inline("`` ends with `x` `` here"),
+            "<code>ends with `x`</code> here"
+        );
+        assert_eq!(inline("`` `a` ``"), "<code>`a`</code>");
+        // padding on one side only is kept
+        assert_eq!(inline("``a `b` ``"), "<code>a `b` </code>");
+        assert_eq!(inline("``a``b``"), "<code>a</code>b``");
+        assert_eq!(inline("``a`b``"), "<code>a`b</code>");
+        assert_eq!(inline("`` ``"), "<code> </code>");
+        assert_eq!(inline("``x"), "``x");
+        assert_eq!(inline("```a`` b```"), "<code>a`` b</code>");
+        assert_eq!(
+            inline("**`` a `b` ``** c"),
+            "<strong><code>a `b`</code></strong> c"
+        );
     }
 
     #[test]

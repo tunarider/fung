@@ -1,0 +1,9 @@
+# Parentheses are a group (FE27, D7): the pipe fills only a call or tag
+# written without them; any other right side is a value the pipe calls.
+fn adder(n) = x => x + n
+fn scale(k, n) = k * n
+print(1 |> (adder(10)), 5 |> (scale(2, _)), 3 |> (Ok(_)))
+# expect: 11 10 Ok(3)
+fn twice(f) = x => f(f(x))
+print(1 |> (twice(adder(3))), 4 |> (x => x * 2))
+# expect: 7 8

@@ -171,10 +171,10 @@ fn summary(xs) = &quot;${len(xs)} items&quot;</code></pre>
 <div class="run"><pre><code>import &quot;./report&quot;
 
 print(report.summary([&quot;a&quot;]))</code></pre><pre class="out err plain" data-code="2"><code>error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
-  --&gt; report.fung:1:6
+  --&gt; report.fung:1:1
   |
 1 | print(&quot;loading report&quot;)
-  |      ^
+  | ^
   |
  help: move the statement into a function, or into the entry file</code></pre></div>
 <p><code>이름 = 식</code>의 오른쪽에는 어떤 식이든 올 수 있다. 처음 import될 때 한 번 계산된다. 설정을 한 번 읽어 두는 모듈이 이렇게 생겼다.</p>
@@ -211,7 +211,7 @@ print(logstat.count_levels(rows))</code></pre><pre class="out plain"><code>{ERRO
 <p>가져오기만 하고 쓰지 않은 모듈은 <code>fung check</code>가 경고 W0101로 알려 준다(14장). 지우거나, 쓰는 코드를 마저 쓴다. 경고는 프로그램을 멈추지 않는다.</p>
 </div>
 <div class="box mistake"><b>파일 이름에 -를 쓰면</b>
-<p><code>my-lib.fung</code>처럼 이름 규칙(3장)에 맞지 않는 파일은 모듈 이름이 될 수 없어서 <code>import &quot;./my-lib&quot;</code>는 컴파일 에러 E0305다. <code>import &quot;./my-lib&quot; as my_lib</code>처럼 별칭을 붙인다. 처음부터 <code>my_lib.fung</code>으로 짓는 편이 낫다.</p>
+<p><code>my-lib.fung</code>처럼 이름 규칙(3장)에 맞지 않는 파일(예약어인 <code>if.fung</code>, 대문자로 시작하는 <code>Util.fung</code>도)은 모듈 이름이 될 수 없어서 <code>import &quot;./my-lib&quot;</code>는 컴파일 에러 E0305다. <code>import &quot;./my-lib&quot; as my_lib</code>처럼 별칭을 붙인다. 처음부터 <code>my_lib.fung</code>으로 짓는 편이 낫다.</p>
 </div>
 <div class="box mistake"><b>서로를 가져오는 두 파일</b>
 <p><code>a.fung</code>이 <code>b.fung</code>을 가져오고 <code>b.fung</code>이 다시 <code>a.fung</code>을 가져오면 순환 import로 컴파일 에러 E0302이고, 메시지가 <code>a.fung → b.fung → a.fung</code>처럼 고리 전체를 보여 준다. 둘이 같이 쓰는 부분을 세 번째 파일로 옮겨 둘 다 그것을 가져오게 한다. 진입 파일을 다른 파일이 가져오는 것도 같은 이유로 막혀 있다.</p>

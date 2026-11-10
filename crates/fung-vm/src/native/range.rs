@@ -2,15 +2,15 @@
 //! beyond walking it. A range may hold more numbers than an int counts
 //! (`-9223372036854775808..=9223372036854775807`, 02), so `len` fails on
 //! it; these count in i128 and never do. `extras/prelude.fung` builds
-//! `last`, `take` and `drop` of a range from them. `items`, `count` and
-//! `pad` check the prelude's arguments as a native would (F-4): the error names
+//! `last`, `take` and `drop` of a range from them. `items` and `pad`
+//! check the prelude's arguments as a native would (F-4): the error names
 //! the function the user called, not the `map` or `fail` inside it.
 
 use std::rc::Rc;
 use std::sync::OnceLock;
 
 use super::nat::{self, native, opt, param};
-use crate::value::{Lit, Module, Native, Range, Value};
+use crate::value::{Args, Lit, Module, Native, Range, Value};
 use crate::vm::{Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -25,7 +25,6 @@ pub fn module() -> Rc<Module> {
                 "items",
                 native("items", items_fn, vec![param("xs"), param("verb")]),
             ),
-            ("count", native("count", count_fn, vec![param("n")])),
             ("pad", native("pad", pad_fn, vec![param("pad")])),
             (
                 "slice",
@@ -53,29 +52,22 @@ fn need_range(v: &Value) -> Result<&Range, Stop> {
 
 /// `items(xs, verb)`: `xs` when it is a list, a range or a receiving end;
 /// otherwise E0506 `cannot <verb> <type>`.
-fn items_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn items_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     nat::check_items(&a[0], nat::need_str("verb", &a[1])?)?;
-    Ok(a[0].clone())
-}
-
-/// `count(n)`: `n` when it is an int; otherwise E0403 for the argument
-/// `n` of `take` and `drop`.
-fn count_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    nat::need_int("n", &a[0])?;
     Ok(a[0].clone())
 }
 
 /// `pad(pad)`: `pad` when it is a non-empty string; otherwise E0403 for
 /// the argument `pad` of `pad_left` and `pad_right` (VA7).
-fn pad_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn pad_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     match &a[0] {
         Value::Str(s) if !s.is_empty() => Ok(a[0].clone()),
-        v => Err(nat::wrong_arg("pad", "a non-empty str", v)),
+        v => Err(nat::not_nonempty("pad", v)),
     }
 }
 
 /// `last(r)`: the last number, nil for an empty range.
-fn last_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn last_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let r = need_range(&a[0])?;
     let last = i128::from(r.end) - i128::from(!r.inclusive);
     Ok(if last >= i128::from(r.start) {
@@ -89,7 +81,7 @@ fn last_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 /// including, `to` (nil is the end), as a range. Positions count from 0
 /// and are clamped into `0..=len(r)`, so the result is never more than
 /// `r` has.
-fn slice_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn slice_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let r = need_range(&a[0])?;
     let len = r.len();
     let at = |name: &str, v: &Value| -> Result<i128, Stop> {

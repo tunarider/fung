@@ -107,7 +107,7 @@ fn the_environment_is_fixed() {
 fn each_run_starts_from_the_fixtures() {
     // an example that writes a file is not "nondeterministic"
     let got = run_one(
-        "```fung run\nimport fs\n\nprint(fs.exists(\"out.txt\"))\nfs.write(\"out.txt\", \"x\")!\n```\n",
+        "```fung run\nimport fs\n\nprint(fs.exists(\"out.txt\")!)\nfs.write(\"out.txt\", \"x\")!\n```\n",
     );
     assert_eq!(got, Ok(ok("false\n")));
 }

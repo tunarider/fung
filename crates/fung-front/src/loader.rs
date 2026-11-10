@@ -15,7 +15,6 @@ use crate::parser::parse;
 use crate::resolve::{self, ModuleInfo};
 use crate::source::{FileId, Pos, SourceMap, decode_source};
 use crate::tree::{Head, Import, Lit, Node};
-use crate::unicode;
 
 /// How far `compile` should go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -220,9 +219,15 @@ impl State<'_> {
             Ok(n) => n,
             Err(e) => return (b, vec![e]),
         };
-        b.surface = Some(surface.clone());
+        // The trees are kept only for `dump`, and the surface for the
+        // REPL, which prints the value of an input that ends in an
+        // expression (FE39).
         if up_to == Stage::Ast {
+            b.surface = Some(surface);
             return (b, Vec::new());
+        }
+        if self.l.keep_value && key == self.entry_key {
+            b.surface = Some(surface.clone());
         }
         let mut imports = BTreeMap::new();
         for k in &surface.kids {
@@ -250,22 +255,23 @@ impl State<'_> {
         if key == self.entry_key {
             ropts.globals.clone_from(&self.l.globals);
             ropts.redefine = self.l.redefine;
+            ropts.keep_value = keep_value;
         }
         let mut res = match resolve::resolve(&core, &self.prelude, &ropts) {
             Ok(r) => r,
             Err(errs) => return (b, errs),
         };
-        b.core = Some(res.core.clone());
         if !is_stdlib {
             self.warnings.append(&mut res.warnings);
         }
         if up_to == Stage::Core {
+            b.core = Some(res.core);
             return (b, Vec::new());
         }
         // A library's tests run only when it is the entry (08).
         let copts = compiler::Options {
-            source: src.to_string(),
-            file: file.to_string(),
+            source: src,
+            file,
             tests: self.l.tests && key == self.entry_key,
             keep_value,
         };
@@ -310,6 +316,7 @@ impl State<'_> {
                 let hint = match public {
                     "net" => "import `http` instead".to_string(),
                     "process" | "range" => "its functions are in the prelude".to_string(),
+                    "arg" => "it checks the arguments of the built-in modules".to_string(),
                     m => format!("import `{m}` instead"),
                 };
                 return Err(e("E0310", vec![s(spec), s(&hint)]));
@@ -367,7 +374,7 @@ impl State<'_> {
         if key == self.entry_key && from_key != key {
             return Err(vec![error("E0307", pos, vec![])]);
         }
-        if !is_name(&name) && im.alias.is_empty() {
+        if !crate::lexer::is_name(&name) && im.alias.is_empty() {
             return Err(vec![error("E0305", pos, vec![Arg::Str(name)])]);
         }
         let read = self.l.read_file;
@@ -411,15 +418,7 @@ impl State<'_> {
         }
         let src = match read() {
             Ok(src) => src,
-            // Found, but not source text (L4).
-            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
-                return Err(vec![error(
-                    "E0312",
-                    pos,
-                    vec![Arg::Str(file.to_string()), Arg::Str(e.to_string())],
-                )]);
-            }
-            Err(_) => return Err(vec![error("E0301", pos, vec![Arg::Str(key.to_string())])]),
+            Err(e) => return Err(vec![read_error(&e, file, pos)]),
         };
         let id = self.sources.add(file, &src);
         self.loading.insert(key.to_string());
@@ -447,6 +446,20 @@ impl State<'_> {
     }
 }
 
+/// Why a module's file could not be read, its path shown as positions
+/// show it (FE29): E0301 when there is no such file, else E0312 with the
+/// reason. Text that is not UTF-8 (L4) gets the help that fung source is.
+fn read_error(e: &std::io::Error, file: &str, pos: Pos) -> Diag {
+    use std::io::ErrorKind as K;
+    let path = Arg::Str(file.to_string());
+    match e.kind() {
+        K::NotFound => error("E0301", pos, vec![path]),
+        K::InvalidData => error("E0312", pos, vec![path, Arg::Str(e.to_string())])
+            .with_help("fung source is UTF-8 text"),
+        _ => error("E0312", pos, vec![path, Arg::Str(crate::oserr::reason(e))]),
+    }
+}
+
 /// Flags a proto tree as compiled from an embedded extras file, so
 /// runtime errors inside it point at the user's call (06).
 fn mark_builtin(p: &mut Proto) {
@@ -454,17 +467,6 @@ fn mark_builtin(p: &mut Proto) {
     for child in &mut p.protos {
         mark_builtin(child);
     }
-}
-
-/// A name (01): `_` or a name-start character that is not uppercase,
-/// then name-continue characters (UAX #31).
-fn is_name(s: &str) -> bool {
-    let mut cs = s.chars();
-    match cs.next() {
-        Some(c) if c == '_' || (unicode::is_name_start(c) && !unicode::is_upper(c)) => {}
-        _ => return false,
-    }
-    cs.all(unicode::is_name_continue)
 }
 
 /// Lexical path cleaning (Unix): `.` and empty elements dropped, `..`
@@ -588,7 +590,7 @@ mod tests {
             f.borrow()
                 .get(path)
                 .cloned()
-                .ok_or_else(|| std::io::Error::other(format!("no file {path}")))
+                .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))
         })
     }
 
@@ -857,6 +859,92 @@ mod tests {
         }
     }
 
+    /// FE29: only a missing file is "cannot find"; one that is there but
+    /// cannot be read says why. Both show the path the way positions do.
+    #[test]
+    fn unreadable_module_says_why() {
+        let dir = Scratch::new("unreadable");
+        std::fs::create_dir(dir.0.join("dir.fung")).unwrap();
+        let noperm = dir.0.join("noperm.fung");
+        std::fs::write(&noperm, "x = 1\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&noperm, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let root_reads_anyway = std::fs::read(&noperm).is_ok();
+        let entry = dir.0.join("main.fung").to_string_lossy().into_owned();
+        let msg = |src: &str| {
+            let (_, errs) = Loader::default().compile(&entry, src, Stage::All);
+            assert_eq!(errs.len(), 1, "{src}: {errs:?}");
+            format!(
+                "{} {}",
+                errs[0].code,
+                diag::message(&errs[0].code, &errs[0].args)
+            )
+        };
+        let shown = display_path(&dir.0.to_string_lossy());
+        assert_eq!(
+            msg("import \"./dir\"\nprint(dir.x)"),
+            format!("E0312 cannot read module `{shown}/dir.fung`: is a directory")
+        );
+        if !root_reads_anyway {
+            assert_eq!(
+                msg("import \"./noperm\"\nprint(noperm.x)"),
+                format!("E0312 cannot read module `{shown}/noperm.fung`: permission denied")
+            );
+        }
+        let (_, errs) =
+            Loader::default().compile(&entry, "import \"./dir\"\nprint(dir.x)", Stage::All);
+        assert_eq!(
+            errs[0].help, None,
+            "the UTF-8 help is for text that is not UTF-8"
+        );
+        assert_eq!(
+            msg("import \"./nothing\"\nprint(nothing.x)"),
+            format!("E0301 cannot find module `{shown}/nothing.fung`")
+        );
+        // below the working directory, the path is relative like positions
+        let (b, errs) = Loader::default().compile("-e", "import \"./no_such_mod\"", Stage::All);
+        assert!(
+            first_msg(&b, &errs).starts_with("error[E0301]: cannot find module `no_such_mod.fung`"),
+            "{}",
+            first_msg(&b, &errs)
+        );
+    }
+
+    /// FE29: E0306 points at the start of the statement, not at a call's
+    /// `(`.
+    #[test]
+    fn library_statement_error_points_at_the_statement() {
+        set_files(&[("/p/lib_side.fung", "x = 1\nprint(\"side\")\n(print)(x)\n")]);
+        let (_, errs) = mem_loader().compile("/p/m.fung", "import \"./lib_side\"", Stage::All);
+        let at: Vec<(&str, u32, u32)> = errs
+            .iter()
+            .map(|e| (e.code.as_str(), e.pos.line, e.pos.col))
+            .collect();
+        assert_eq!(at, [("E0306", 2, 1), ("E0306", 3, 2)]);
+    }
+
+    /// FE30: a module name from a file name follows the lexer's rule for
+    /// a name: a reserved word or a tag needs `as`.
+    #[test]
+    fn module_name_from_a_file_is_a_name_the_lexer_reads() {
+        set_files(&[
+            ("/p/if.fung", "x = 1"),
+            ("/p/Big.fung", "x = 1"),
+            ("/p/nil.fung", "x = 1"),
+            ("/p/ok_1.fung", "x = 1"),
+        ]);
+        for (src, want) in [
+            ("import \"./if\"", vec!["E0305"]),
+            ("import \"./nil\"", vec!["E0305"]),
+            ("import \"./Big\"", vec!["E0305"]),
+            ("import \"./if\" as m\nprint(m.x)", vec![]),
+            ("import \"./ok_1\"\nprint(ok_1.x)", vec![]),
+        ] {
+            let (_, errs) = mem_loader().compile("/p/main.fung", src, Stage::All);
+            assert_eq!(codes(&errs), want, "{src}");
+        }
+    }
+
     #[test]
     fn load_errors() {
         set_files(&[
@@ -1052,7 +1140,9 @@ mod tests {
         assert_eq!(rel("/a/b", "/a/b/c/d.fung"), "c/d.fung");
         assert_eq!(rel("/a/b", "/a/x.fung"), "../x.fung");
         assert_eq!(module_stem("/p/q/x.fung"), "x");
+        use crate::lexer::is_name;
         assert!(is_name("x_1") && !is_name("bad-name") && !is_name("Up") && !is_name(""));
+        assert!(is_name("_") && !is_name("if") && !is_name("true") && is_name("iff"));
         // UAX #31: So and No are not name characters, Ll and Nd are.
         assert!(!is_name("mⓐ") && !is_name("x²") && is_name("ß1") && is_name("x٣"));
     }

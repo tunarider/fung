@@ -184,14 +184,15 @@ total = xs
   |&gt; map(x =&gt; x * 2)
   |&gt; sum
 print(total)</code></pre><pre class="out plain"><code>12</code></pre></div>
-<p>첫 규칙 때문에 생기는 에러 모양도 알아 두면 좋다. 닫는 괄호를 빠뜨리면 파서는 줄바꿈을 계속 공백으로 보며 괄호가 닫히기를 기다리다가 파일 끝에서야 포기한다. 에러가 문제의 줄이 아니라 파일 끝을 가리킨다.</p>
+<p>첫 규칙 때문에 생기는 에러 모양도 알아 두면 좋다. 닫는 괄호를 빠뜨리면 파서는 줄바꿈을 계속 공백으로 보며 괄호가 닫히기를 기다리다가 파일 끝에서야 포기한다. 에러가 문제의 줄이 아니라 파일 끝을 가리키므로, 괄호를 연 자리를 <code>note</code>로 덧붙인다.</p>
 <div class="run"><pre><code>fn double(x) = x * 2
-print(double(21)</code></pre><pre class="out err plain" data-code="2"><code>error[E0110]: unexpected end of file
+print(double(21)</code></pre><pre class="out err plain" data-code="2"><code>error[E0112]: expected `,` or `)`, found end of file
   --&gt; example.fung:3:1
   |
 3 | 
   | ^
-  |</code></pre></div>
+  |
+  note: the `(` opened at 2:6</code></pre></div>
 <p>반대로 호출 괄호 <code>(</code>는 <strong>같은 줄에서만</strong> 호출로 본다. <code>f</code> 다음 줄의 <code>(1)</code>은 호출이 아니라 새 문장이다. 줄을 넘는 호출을 허용하면 앞 줄의 끝이 우연히 이름일 때 다음 줄의 괄호 식이 호출로 붙어 버린다.</p>
 <h2 id="backtracking">되돌리기</h2>
 <p>재귀 하강 파서는 보통 앞의 토큰 한두 개만 보고 갈래를 정한다. 그런데 fung 문법에는 한참 읽어 봐야 알 수 있는 곳이 있다. 문장이 <code>(a, b)</code>로 시작하면, 그것은 튜플 식일 수도 있고 구조 분해 대입 <code>(a, b) = pair</code>의 왼쪽일 수도 있다. <code>=</code>를 만나야 안다.</p>
@@ -230,7 +231,8 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump ast 
 <p>파서의 에러도 <code>E01xx</code>이고 <strong>첫 번째 하나만</strong> 보고한다(설계 문서 08). 문법이 한 번 어긋나면 그 뒤를 어떻게 읽어야 할지 확실하지 않아서, 억지로 이어 읽으면 엉뚱한 에러가 줄줄이 따라 나오기 쉽다.</p>
 <ul>
 <li><code>E0110 unexpected …</code>: 이 자리에 올 수 없는 토큰.</li>
-<li><code>E0112 expected …, found …</code>: 특정 토큰이 와야 하는 자리(<code>then</code> 뒤의 <code>else</code> 등).</li>
+<li><code>E0112 expected …, found …</code>: 특정 토큰이 와야 하는 자리(<code>then</code> 뒤의 <code>else</code> 등). 괄호 안 목록에서 원소 뒤에 <code>,</code>도 닫는 괄호도 아닌 것이 오면 <code>expected `,` or `]` </code>이고, 괄호를 연 자리를 <code>note</code>가 짚는다. 가장 흔한 실수(빠뜨린 쉼표, 닫지 않은 괄호)가 "무엇을 기대했는지"를 말하게 하려는 것이다.</li>
+<li><code>E0126</code>: 이름 인자 뒤의 위치 인자. 그 밖에 문법은 맞게 읽었지만 금지하는 모양도 저마다 번호가 있다(E0116~E0125).</li>
 <li><code>E0111</code>: 비교 연쇄.</li>
 <li><code>E0115 expression nesting too deep (limit 10000)</code>: 식이나 패턴이 만 겹 넘게 중첩됨.</li>
 </ul>

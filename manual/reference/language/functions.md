@@ -33,9 +33,9 @@ later()
 <ul>
   <li>순서는 필수 → 기본값 있는 것 → 마지막에 <code>...rest</code> 하나(남는 위치 인자를 리스트로 받음).</li>
   <li>기본값은 호출할 때마다 왼쪽부터 평가되고, 앞 인자를 참조할 수 있다. 기본값과 <code>...rest</code>는 <code>fn</code>과 익명 <code>fn(…):</code>에서 쓴다(람다 <code>=&gt;</code>에는 없다).</li>
-  <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수도 똑같다.</li>
+  <li>호출할 때 위치 인자 뒤에 이름 붙인 인자를 쓴다: <code>exec(cmd, cwd: dir)</code>. 내장 함수와 람다도 똑같다(<code>f = (a, b) =&gt; a - b</code>이면 <code>f(b: 1, a: 10)</code>은 9).</li>
   <li>인자 개수가 맞지 않거나, 같은 인자를 두 번 주거나, 모르는 이름이면 런타임 에러.</li>
-  <li>매개변수 자리에 구조 분해 패턴(<code>_</code>, 튜플, 리스트, 맵, 태그)을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>. <code>fn</code>과 람다가 같고, 리터럴(<code>(1) =&gt; …</code>)은 매개변수가 될 수 없다(값으로 고르려면 <code>match</code>).</li>
+  <li>매개변수 자리에 구조 분해 패턴(<code>_</code>, 튜플, 리스트, 맵, 태그)을 쓸 수 있다: <code>fn dist((x, y)) = …</code>, <code>pairs(m) |&gt; map(((k, v)) =&gt; k)</code>. <code>fn</code>과 람다가 같고, 대입·<code>for</code>와 같은 <a href="match.html">구조 분해 패턴</a>이라 맨 바깥의 리터럴(<code>(1) =&gt; …</code>, 인자 없는 태그 <code>fn f(Red)</code>)은 매개변수가 될 수 없다(E0112, 값으로 고르려면 <code>match</code>).</li>
 </ul>
 
 ```fung run
@@ -43,10 +43,38 @@ fn greet(name, greeting = "hello", ...extra) = "${greeting}, ${name}${join(extra
 print(greet("fung"), greet("fung", greeting: "hi"), greet("fung", "yo", "!", "?"))
 ```
 
+<h3>평가 순서</h3>
+<p>언제나 <strong>왼쪽에서 오른쪽</strong>이다: 호출의 인자, 리스트·맵·튜플 리터럴의 원소, 이항 연산의 두 피연산자, 문자열 보간의 조각. <code>and</code>·<code>or</code>·<code>then … else</code>·<code>??</code>는 단락 평가라 오른쪽은 필요할 때만 평가한다.</p>
+
+```fung run
+fn say(x):
+  print(x)
+  x
+;;
+xs = [say(1), say(2)]
+n = say(3) + say(4)
+v = say(5) ?? say(6)
+w = false and say(7)
+print(xs, n, v, w)
+```
+
+<h3>람다의 본문</h3>
+<p>람다 <code>=&gt;</code>의 본문은 식 하나이고 <strong>가능한 한 길게</strong> 읽는다. <code>then … else</code>보다도 낮으므로 <code>x =&gt; x &gt; 0 then "pos" else "neg"</code>는 조건식 전체가 본문이다. 람다를 식의 한 조각으로 쓰려면 괄호로 감싼다.</p>
+
+```fung run
+f = x => x > 0 then "pos" else "neg"
+print(f(1), f(-1))
+```
+
 <h3>반환</h3>
-<p>마지막 식의 값을 돌려준다. 일찍 빠져나갈 때는 <code>return 식</code>(값 없으면 <code>nil</code>). <code>return</code>은 감싸는 함수나 람다에서 돌아오고, <code>for</code> 본문과 진입 파일 최상위에서는 쓸 수 없다(최상위에서는 <code>exit()</code>).</p>
+<p>마지막 식의 값을 돌려준다. 일찍 빠져나갈 때는 <code>return 식</code>(값 없으면 <code>nil</code>). <code>return</code>은 감싸는 함수나 람다에서 돌아오고, <code>for</code> 본문과 진입 파일 최상위, 매개변수 기본값 안에서는 쓸 수 없다(최상위에서는 <code>exit()</code>; 기본값은 본문보다 먼저 계산되므로 E0211). 함수에서 일찍 돌아가는 <code>?</code>도 기본값 안에서는 E0211이다.</p>
 <h3>부분 적용</h3>
-<p>호출 인자의 <code>_</code>는 그 자리를 비운 새 함수를 만든다. <code>f(a, _)</code>는 <code>x =&gt; f(a, x)</code>이고, <code>a</code>는 그 자리에서 한 번 평가된다. 태그도 호출 형태라 같다: <code>map(xs, Ok(_))</code>. 자동 커링은 없다. 파이프 오른쪽 호출의 인자로는 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</p>
+<p>호출 인자의 <code>_</code>는 그 자리를 비운 새 함수를 만든다. <code>f(a, _)</code>는 <code>x =&gt; f(a, x)</code>이고, <code>a</code>는 그 자리에서 한 번, 왼쪽부터 평가된다(새 함수를 부를 때마다가 아니다). 태그도 호출 형태라 같다: <code>map(xs, Ok(_))</code>. 자동 커링은 없다.</p>
+<ul>
+  <li><code>_</code>가 여럿이면 왼쪽부터 차례로 인자가 된다: <code>sub(_, _)</code>는 <code>(a, b) =&gt; sub(a, b)</code>.</li>
+  <li>겹친 호출에서 <code>_</code>는 <strong>가장 안쪽 호출</strong>에 속한다: <code>map(xss, len(_))</code>의 <code>len(_)</code>은 <code>x =&gt; len(x)</code>다.</li>
+  <li>이름 붙인 인자 자리(<code>f(a: _)</code>)에는 쓸 수 없다(E0123). 파이프 오른쪽 호출의 인자로도 쓸 수 없다(E0227, <a href="operators.html#pipe">파이프</a>).</li>
+</ul>
 
 ```fung run
 import path
@@ -87,4 +115,25 @@ print(f(a: 1, a: 2))
 fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 print(depth(1000))
 print(depth(200000))
+```
+
+부분 적용의 `_` 옆 인자는 새 함수를 만들 때 한 번 평가된다. `_`는 가장 안쪽 호출에 속한다.
+
+```fung run
+fn say(x):
+  print(x)
+  x
+;;
+fn sub(a, b) = a - b
+g = sub(say(10), _)
+print("made")
+print(g(3), g(4), sub(_, _)(10, 3))
+print(map([[1, 2], [3]], len(_)))
+```
+
+이름 붙인 인자 자리에는 `_`를 쓸 수 없다.
+
+```fung run exit=2 error=E0123
+fn f(a, b) = a - b
+g = f(1, b: _)
 ```

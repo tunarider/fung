@@ -299,7 +299,7 @@ fn a_closed_child_stdin_is_still_an_error_value() {
     // the error is ignored, and fung does not die.
     runs_with(
         "r = exec([\"true\"], stdin: join(map(0..200000, (i) => \"abcdefghij\"), \"\"))\nprint(r)",
-        "Ok({out: \"\", err: \"\", code: 0})\n",
+        "Ok({out: \"\", err: \"\", code: 0, signal: nil})\n",
     );
 }
 
@@ -309,6 +309,6 @@ fn a_child_starts_with_the_default_sigpipe_action() {
     // gone; with SIGPIPE ignored it would print an error and exit 1.
     runs_with(
         "print(exec([\"sh\", \"-c\", \"(yes; echo yes-exit $? >&2) | head -1\"]))",
-        "Ok({out: \"y\\n\", err: \"yes-exit 141\\n\", code: 0})\n",
+        "Ok({out: \"y\\n\", err: \"yes-exit 141\\n\", code: 0, signal: nil})\n",
     );
 }

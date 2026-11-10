@@ -8,6 +8,191 @@ GitHub 릴리스 노트로 쓰며, 절이 없으면 릴리스가 실패한다.
 
 ## [Unreleased]
 
+0.6.0 뒤에 명세·앞단·VM·값·동시성·표준 라이브러리·CLI를 두 번째로 점검해 찾은 74개 항목을 모두 고쳤다. 버려지는 효과 없는 식(E0234), 모두 맞는 절 뒤의 절(E0235),
+값이 하나가 아닌 `Ok`·`Err`(E0236), 거꾸로 된 범위(E0522), `nil?`(E0604) 같은 조용한 실수를 에러로 막고, 괄호는 트리에 남아 파이프와 슬라이스의 뜻을 정한다.
+바깥 글을 숫자로 읽는 규칙, 개수·기간 인자, 맵 키, 결과의 모양(`fs.exists`, `cli.parse`, 신호로 끝난 명령)이 하나로 모였고, HTTP는 받은 그대로를 보이고 보낸다.
+아래 "바뀜(호환 깨짐)"을 따라 고쳐야 하는, 호환이 깨지는 변경이다.
+
+### 보안
+
+- https 응답의 본문이 길이 없이 연결 닫힘까지 이어지면 TLS의 끝 알림(close_notify)이 있어야 `Ok`다 (LB23). TCP 연결만 끊기면 ``connection closed without TLS close_notify``로 `Err({kind: 'network})`다.
+  전에는 경로 위의 누구나 TCP 끝(FIN)을 넣어 본문을 잘라도 온전한 응답으로 받았다. `Content-Length`·청크 본문은 전처럼 틀이 끝을 알려 준다.
+- 리다이렉트의 다음 요청에 `Referer`를 붙이지 않는다 (LB24, 결정 D23). 전에는 이전 URL을 조각(`#…`)까지, 다른 origin에도 쿼리 전체(OAuth `code`·`access_token`, 서명된 URL)를 실었다. 필요하면 `headers`로 준다.
+- 사용자가 준 `Proxy-Authorization`은 프록시에만 간다 (LB30, RFC 9110 11.7.2): http 프록시면 요청에 한 번(사용자 값이 프록시 URL의 `user:pass@`보다 앞선다), https면 `CONNECT`에만, 프록시를 거치지 않으면 보내지 않는다.
+  전에는 http 프록시에 두 번 갔고, https 터널에서는 프록시 대신 목적지 서버로, 프록시가 없으면 서버로 갔다. 리다이렉트가 첫 origin을 떠나면 다른 자격 증명처럼 그 뒤로 버린다.
+- 읽지 못하는 프록시 환경 변수의 에러 문구는 값 속의 비밀번호를 `***`로 가린다 (LB25, 아래 "바뀜").
+
+### 더함
+
+- `http`의 응답과 서버의 `req`에 `header_lines`: 받은 헤더 줄을 받은 순서 그대로, 이름은 받은 대소문자 그대로 담은 `(이름, 값)` 리스트 (LB26, 결정 D24).
+  `headers` 맵은 같은 이름을 `", "`로 이어서 여러 `Set-Cookie`(값에 쉼표가 든다)나 여러 줄의 `Cookie`를 되살릴 수 없었다.
+- `http.serve`의 `req`에 `target`(요청 줄의 요청 대상을 받은 그대로, 이스케이프를 풀지 않음), `query_pairs`(쿼리의 `(이름, 값)`을 받은 순서대로, 같은 이름도 모두), `host`(가상 호스트를 가를 이름: 절대 URL 대상이면 그 호스트, 아니면 `Host` 헤더, 둘 다 없으면 `nil`) (LB27·LB32, 결정 D25).
+  전에는 `?tag=a&tag=b`의 둘째 값과 `%2F`·`/`의 구분을 핸들러가 알 길이 없었다.
+- 범위 값으로 색인한다: `xs[r]`·`s[r]`은 같은 끝을 쓴 슬라이스와 같다(E0516 포함) (SP19, 결정 D7). 괄호 친 `xs[(0..2)]`도 다시 된다.
+- `sym_name(s)`: 심볼의 이름을 문자열로 돌려준다(`sym_name('ok)`는 `"ok"`, 다른 타입은 E0403) (SP26, 결정 D15). `sym("ok")`의 짝이다. 전에는 `str(s)[1..]`나 JSON 왕복뿐이었다.
+
+### 바뀜(호환 깨짐)
+
+언어(컴파일 때 잡는 것):
+
+- 버려지는 자리(마지막이 아닌 문장, 그런 자리의 가지 끝, 파일의 마지막 식)의 효과 없는 식은 컴파일 에러 E0234다 (FE24, 결정 D5).
+  이름, 리터럴, 람다·익명 `fn`, 이름과 리터럴만 넘긴 부분 적용, 그것들만으로 된 연산자·필드·인덱스·튜플·리스트·맵·태그 값(`Ok(1)`, `Red`)이 해당한다. 괄호를 잊은 `cleanup`, `=` 대신 쓴 `x == 1`,
+  앞 줄을 이으려던 줄 앞의 `- 2`가 전에는 조용히 버려졌다. 문장으로 쓴 `Err("x")`도 실행 중 E0606 대신 컴파일 에러다.
+  `fung -e '1 + 2'`처럼 식만 쓴 `-e`도 E0234다(값을 보려면 `print`). 일부러 버리려면 `_ = 식`, 맨 `nil`(`_ => nil`)은 된다.
+- guard 없는 `match` 절의 패턴이 모든 값에 맞는데(`_`, 맨 이름, 그런 갈래가 하나라도 있는 `|` 대안, 예: `1 | _`) 뒤에 절이 있으면 컴파일 에러 E0235다 (FE25, 결정 D6).
+  바깥 변수와 비교하려던 `limit => …`, 절 본문의 `y => y + 1` 줄(새 절로 읽힘)이 전에는 뒤 절을 조용히 죽였다. 비교는 `v when v == limit =>`, 절의 값인 람다는 `(y => y + 1)`.
+- `Ok`·`Err`는 값을 정확히 하나 담는다 (SP12, 결정 D2). 식·패턴·파이프(`x |> Ok(2)`)에서 개수가 다르면 새 컴파일 에러 E0236이다. 여러 값은 `Ok((a, b))`.
+  타입 표기 `Ok`·`Err`는 값 하나를 담은 태그만 받는다: `fn load() -> Ok | Err = Ok`가 심볼 `'Ok`를 돌려주는 것은 E0404다.
+  그래서 이름이 `Ok`·`Err`인 태그는 모두 결과값이고 `!`·`?`·`??`·`try_map`·`is_ok`·`is_err`·보간·`join`이 같게 본다. E0605 메시지의 `an Ok with 2 values` 꼴은 없어졌다.
+- 최상위 `fn`의 안쪽 블록(`if`·`match` 가지, 람다)에서 파일 상수 이름에 대입하면 E0205다 (FE23, 결정 D4). 상수를 가리는 지역은 함수 본문의 맨 바깥 블록에서만 만든다(그렇게 묶은 이름은 안쪽 블록에서 보통 블록 규칙을 따른다).
+  전에는 안쪽 블록의 대입이 함수 전체에서 상수를 가려, 블록 앞에서 읽은 그 이름이 E0204(`not found in this scope`)였다.
+- 매개변수 기본값 안의 `return`과 `?`는 컴파일 에러 E0211(`return inside a parameter default`, `` `?` inside a parameter default ``)이다 (FE38, 결정 D8). 전에는 기본값을 계산하다 함수에서 돌아왔다. `test` 블록의 `return`은 된다(문서에 적음).
+- 괄호는 묶음이다 (FE27, 결정 D7). 파이프는 오른쪽이 괄호 없이 쓴 호출·태그일 때만 값을 맨 앞 인자로 끼워 넣고, 그 밖의 식은 값을 구해 부른다:
+  `x |> (mk(10))`은 `mk(10)(x)`, `5 |> (scale(2, _))`는 `scale(2, _)(5)`(E0227이 아님)다. 전에는 괄호가 사라져 괄호 친 호출에도 끼워 넣었다(기본값이 있으면 말없이 다른 값).
+- 슬라이스는 `[` 바로 안에 쓴 `..`·`..=`이고, 두 끝 모두 `??`·`|>` 같은 약한 연산자를 받는다 (FE27·SP19, 결정 D7): `xs[0..b ?? 2]`는 `xs[0..(b ?? 2)]`다(전에는 `(0..b) ?? 2`로 읽혀 E0501).
+  괄호 친 범위 `xs[(0..2)]`와 `if` 조건·`match` 대상·`for` 순회 대상·`then` 가지 안의 범위는 슬라이스 문법이 아니라 범위 값이다.
+  끝의 맨 위가 그보다 약한 연산자(비교, `in`, `not`, `and`·`or`, `then … else`)면 새 컴파일 에러 E0125다: `xs[c then 0 else 1..]`은 전에 `xs[(c then 0 else 1)..]`로 읽혔고, 이제 그렇게 괄호로 쓴다.
+- 대입·`for`·매개변수는 같은 구조 분해 패턴을 받는다 (FE32, 결정 D10): 이름, `_`, 튜플·리스트·맵, 값을 담은 태그, 그것들의 `|` 대안.
+  맨 바깥의 리터럴은 E0112다: `for 1 in xs`(전에는 둘째 원소에서 E0602), `fn f(Red)`(전에는 심볼에만 맞는 매개변수), `"a" | "b" = x`(전에는 E0110). 안쪽의 리터럴은 된다(`(1, y) = p`).
+- 숫자·기간 리터럴 (FE31 결정 D9, SP27 결정 D32):
+  - 숫자의 접두사와 지수는 소문자만이다: `0XFF`·`0O17`·`0B1`·`1E5`는 E0102이고 도움말이 `0xFF`·`1e5`를 보인다.
+  - 기간 리터럴은 모든 성분이 앞자리 0 규칙을 따르고(`1h05m`은 E0105), 소수점은 마지막 성분에만 온다(`1.5h30m`은 E0105, `1h30.5m`은 된다).
+  - 0이 아닌 리터럴이 0으로 반올림되면 에러다: `0.0000004ms`는 E0105, `1e-400`은 E0102(전에는 말없이 `0s`·`0.0`).
+- `for`의 변수와 `for` 본문에서 만든 이름은 `if`·`match`의 이름처럼 `for`가 끝난 뒤 E0206이다 (FE33). 전에는 E0204였고, 같은 이름의 prelude 함수가 있으면(`for len in xs` 뒤의 `len(…)`) 말없이 그 함수로 읽었다.
+- 예약어나 대문자로 시작하는 파일 이름(`if.fung`, `Util.fung`)은 `as` 없이 가져올 수 없다(E0305) (FE30). 전에는 받았지만 그 이름을 쓸 길이 없었다.
+- 이름 인자 뒤의 위치 인자는 새 번호 E0126이다(전에는 E0110) (FE26).
+- 에러 번호 둘을 합쳤다 (SP24, 결정 D33). 값으로 쓰는 블록이 비었거나 문장으로 끝나면 모두 E0224 ``a block used as a value … , so the value is nil``이다: `is empty`, ``ends with an assignment to `x` ``, `ends with an assignment to a pattern`, ``ends with `assert` ``, ``ends with the definition of `g` ``.
+  전에는 이름 대입만 E0224(`` `x` is assigned as the last statement … ``)이고 나머지는 E0231이었다. 채널에 그 채널의 끝을 보내는 것도 다른 채널·태스크를 거치는 고리와 같은 E0709다(전에는 E0705 `channel sent into itself`). E0231·E0705는 은퇴했고 번호는 다시 쓰지 않는다.
+
+값과 prelude:
+
+- `nil?`은 `nil!`과 같이 런타임 에러 E0604다 (SP13, 결정 D3). `!`·`?`는 결과값만 받는다. 전에는 `env`·`find`·`get`처럼 `nil`을 돌려주는 함수에 붙인 `?`가 `nil`을 그대로 넘겼다.
+  없을 때 호출자에게 넘기려면 `match`나 `if x == nil: return nil ;;`로 쓴다. `try_map`의 `f`가 `nil`을 돌려줘도 E0605가 아니라 E0604다.
+- 시작이 끝보다 뒤인 범위 값은 새 런타임 에러 E0522다 (SP19, 결정 D7): `a..b`는 `a > b`, `a..=b`는 `a > b + 1`일 때. 빈 범위는 `n..n`·`n..=n-1`뿐이다.
+  전에는 `5..0`이 말없이 빈 범위라 거꾸로 세려던 `for i in n..0`이 아무것도 하지 않았다. 끝이 작아질 수 있는 계산은 `a..max(a, b)`로 쓴다.
+- 범위의 `==`와 해시는 원소 열로 비교한다 (VA21, 결정 D19): `0..5 == 0..=4`이고 빈 범위끼리는 같다(`unique`도 같게 본다). 출력은 쓴 모양 그대로다.
+- 바깥 글을 숫자로 읽는 규칙이 하나다 (SP14, 결정 D12): `parse_int`·`parse_float`·`parse_dur`와 `int`·`float`의 문자열은 소스 리터럴의 문법에 앞의 부호 `-`·`+` 하나를 더한 것만 받는다.
+  앞의 0(`"007"`, `"01s"`)은 리터럴처럼 거절하고(E0513에는 `0o` 도움말), `parse_dur`도 앞뒤 공백(`" 5s"`, 명령 출력 끝의 `"5s\n"`)을 받지 않는다(먼저 `trim`). `parse_dur("+5s")`는 된다.
+  정수는 진법 접두사(`"0x1f"`)를 받고, 0이 아닌데 0으로 반올림되는 실수(`"1e-400"`)는 거절한다. `parse_*`의 `Err` 메시지는 입력을 따옴표로 보인다(`not an integer: " 1"`).
+- 개수·한도·기간 인자 (SP15·SP18, 결정 D11):
+  - 개수·한도는 음이 아닌 정수다: `take`·`drop`·`repeat`·`pad_left`·`pad_right`·`iterate`에 음수를 주면 ``E0403 argument `n` must be a non-negative int, got -1``이다. 전에는 말없이 0으로 보았다. 길이보다 큰 `n`은 그대로 있는 만큼이다.
+  - 음수 기간은 E0403이다: `sleep(-1s)`(전에는 곧바로 돌아옴), `timeout(f, -1s)`(전에는 곧바로 시간 초과), `http.get` 등의 `timeout`, `http.serve`의 `drain`. `0s`는 그대로 "곧바로"다. 계산한 기간이 음수일 수 있으면 `max(d, 0s)`로 쓴다.
+  - `conc.pmap`의 `limit` 기본값은 `nil`(제한 없음)이고, 주면 1 이상의 정수다(전에는 `0`과 음수가 "제한 없음"). `conc.retry`의 `times`는 1 이상의 정수(전에는 1 이하면 한 번), `delay`는 음이 아닌 기간이다.
+- 문자열이 아닌 맵 키는 어디서든 E0514다 (SP21, 결정 D13): `m[k]`, `k in m`, `get`·`put`·`remove`가 전에는 E0501(`cannot index map and int`)이었다. 심볼 키(`m['a]`)면 도움말이 ``write `"a"` for `'a` ``를 보인다.
+- `sum`·`min`·`max`·`sort`·`sort_by`는 원소가 하나뿐이어도 `+`·`<`의 검사를 받는다 (VA18, 결정 D16): `sum([nil])`은 `nil` 대신 ``E0501 cannot add nil and nil``, `min([[nil]])`·`sort([nil])`·`sort_by([1], x => nil)`은 ``cannot compare nil and nil``이다.
+- `take`·`drop`은 문자열을 받지 않는다(E0506 `cannot take from str`) (SP23, 결정 D14). 컬렉션 함수(`first`·`last`·`reverse`·`take`·`drop`)는 리스트·범위·받는 끝만 받는다. 문자열은 슬라이스(`s[..n]`, `s[n..]`)와 `chars`로 자른다.
+- `split`의 빈 구분자는 ``E0403 argument `sep` must be a non-empty str, got ""``이다 (VA20, 결정 D18). 글자로 나누기는 `chars` 하나다. 전에는 `split(s, "")`가 `chars(s)`였고 `split("", "")`만 `[]`라 "원소가 언제나 하나 이상"과 어긋났다.
+- 이름 정리 (SP27, 결정 D32): 술어 `valid_utf8`은 `is_utf8`이다. `env()`(전체 맵)는 `env_all()`이고 `env(name)`은 이름이 꼭 있어야 한다(없으면 E0407). `range()` 함수는 없어졌다: 범위는 리터럴 `a..b`·`a..=b`로 만든다.
+  매개변수 이름(이름 인자와 에러 문구)이 하나로 모였다: 파일 핸들은 `file`(`read_line`·`read_lines`·`fs.write_line`, 전에는 `f`), 정규식 패턴은 `pattern`(`regex.*`, 전에는 `pat`), 아무 값은 `x`(`atom`·`reset`·`send`·`send_now`·`json.stringify`, 전에는 `v`).
+- 내장 함수의 진단이 구현 언어를 드러내지 않는다 (VA19, 결정 D17). 런타임 에러의 호출 경로에 내장 함수의 프레임이 보이지 않는다: 전에는 fung으로 쓴 내장 함수(`take`, `http.get` …)의 `extras/prelude.fung:100 _clamp` 같은 줄이 섞였다. 사용자 콜백의 프레임은 그대로 보인다.
+  `chars`에 문자열이 아닌 값을 주면 다른 문자열 함수처럼 ``E0403 argument `s` must be str``이다(전에는 E0506).
+
+동시성과 입출력:
+
+- 범위가 취소(`cancel(s)`, 바깥의 취소, `timeout`의 기한, `exit`)로 되감기는 동안 읽을 수 없게 된 태스크의 `Err`는 E0607이 아니다 (CC9, 결정 D1).
+  전에는 기한 안에서 이미 `Err`로 끝난 태스크가 있으면 `timeout(() => conc.pmap(xs, f), d)`가 `Err timeout` 대신 E0607로 죽었고, 자식이 기한 전에 끝났는지에 따라 결과가 갈렸다.
+  읽을 태스크만 `cancel(t)`로 끊은 경우와 자식의 실패로 취소된 범위의 `note: also failed:`는 그대로다.
+- 표준 입력과 파일 핸들의 읽기 실패가 입력의 끝(`Ok(nil)`·`Ok([])`)이 아니라 `Err({kind: 'io, …})`다 (CC10). 표준 입력이면 메시지가 `cannot read standard input: …`이다.
+  실패 앞에서 읽은 줄 조각은 줄로 내주지 않고 남겨 다음 읽기가 다시 시도한다. `read_lines`는 도중에 실패하면 그 `Err`를 돌려준다.
+- 바깥에서 읽은 글이 문자열 한도(1억 글자)를 넘으면 런타임 에러 E0806이 아니라 그 함수의 `Err({kind: 'io, message: "… is longer than the string limit (100000000 characters)"})`다 (LB29, 결정 D22):
+  `fs.read`(4억 바이트보다 큰 파일은 읽지 않고, `/dev/zero` 같은 문자 장치처럼 크기를 모르는 파일은 한도를 넘는 순간 멈추고), `read_line`·`read_lines`의 줄(표준 입력과 파일 핸들), `exec`·`sh`의 출력, `http`의 본문.
+  `exec`는 읽는 중에 한도를 넘으면 명령을 끝내므로(취소처럼 SIGTERM, 2초 뒤 SIGKILL) 끝없이 쓰는 명령도 메모리를 한도 근처까지만 쓴다(전에는 다 읽은 뒤에 판정해 `head -c 300000000`에 312 MB).
+  줄 읽기(표준 입력·파일 핸들·FIFO)와 FIFO의 `fs.read`도 한도를 넘는 순간 멈춘다: 줄바꿈 없이 끝없이 오는 입력이 메모리를 다 쓰지 않는다. 넘은 줄의 읽은 조각은 버리고, 그 줄의 나머지는 다음 읽기가 이어 읽는다.
+  `http`의 본문은 길이를 준 것·청크·닫힘까지 모두 ``body is longer than the string limit (100000000 characters)``다.
+- `fs.exists`는 `Ok(true)`·`Ok(false)`를 돌려준다 (SP16, 결정 D21). `Ok(false)`는 없을 때(`ENOENT`, 경로 중간이 파일인 `ENOTDIR`)뿐이고, 권한이 없어 볼 수 없는 경로는 `Err({kind: 'permission})`(``cannot check whether `p` exists: permission denied``)다.
+  전에는 볼 수 없는 경로도 `false`라 `if not fs.exists(p): fs.write(p, init)!` 같은 줄이 권한 문제를 "없음"으로 읽었다. 스크립트는 `fs.exists(p)!`로 쓴다. 링크는 전처럼 따라간다.
+- fung으로 쓴 `cli`·`conc`·`fs` 모듈의 함수가 인자를 부작용 전에 검사하고 E0403이 그 인자의 이름을 말한다 (SP18):
+  `cli.parse("x")`(전에는 E0601), `cli.parse([], bools: [1])`(전에는 ``argument `s` ``), `conc.retry(f, delay: 5)`(전에는 첫 실패 뒤에 ``argument `d` ``), `conc.pmap(xs, f, limit: "a")`·`conc.retry(f, times: "2")`(전에는 E0501),
+  `conc.fan_in(s, 1)`(전에는 E0506), `fs.with_open(path, 1)`(전에는 파일을 연 뒤 E0401), `fs.with_temp_dir(1)`(전에는 디렉터리를 만든 뒤 E0401).
+- `cli.parse`는 `Ok({flags, rest})`나 `Err({kind: 'invalid, message})`를 돌려준다 (LB38, 결정 D29). 스크립트는 `cli.parse(args)!`로 쓰거나(잘못된 명령줄에 그대로 멈춤) `match`로 받아 사용자에게 안내한다.
+  잘못된 명령줄은 런타임 에러가 아니라 `Err`다: 이름 없는 옵션 `--=x`(전에는 E0803), 같은 옵션을 두 번(`--a-b`와 `--a_b`처럼 쓴 꼴만 달라도; 전에는 뒤의 것이 말없이 이김),
+  `bools`에 있는 스위치에 `true`·`false`가 아닌 `=값`(전에는 문자열 `"false"`가 그대로 값). `--dry-run=false`는 이제 불리언 `false`다.
+- `exec`·`sh`의 결과에 `signal`이 늘 있다 (LB28, 결정 D26): 성공은 `Ok({out, err, code: 0, signal: nil})`, 종료 코드로 끝나면 `signal: nil`,
+  신호로 끝나면 `code: nil`·`signal: 9`와 ``message: "`/bin/sh` was killed by signal 9 (SIGKILL)"``다. 전에는 `code: -1`과 "exited with code -1"이라 어느 신호(OOM의 SIGKILL, SIGSEGV)인지 알 수 없었다.
+- `exec`·`sh`의 `cwd` (LB35): 빈 문자열은 ``E0403 argument `cwd` must be a non-empty str, got ""``이다(전에는 지금 디렉터리). `env`를 줘도 `PWD`가 `cwd`의 절대 경로다(`env`의 `PWD`가 있으면 그것; 전에는 부모의 `PWD`).
+  쓸 수 없는 `cwd`는 ``cannot run `ls`: working directory `/nope`: no such file or directory``처럼 디렉터리를 말한다(전에는 명령이 없는 것처럼 읽혔다). 디렉터리가 아니면 ``not a directory``.
+- `time`의 형식 (LB36·SP25, 결정 D28):
+  - `time.parse`의 형식에 같은 필드가 두 번 있으면(`MM`과 `MMM`, `YYYY` 둘, `HH` 둘, `Z`와 `ZZ`) E0403이다(전에는 마지막 값이 이겼다). `ddd`는 날짜의 요일과 다르면 `Err 'parse`(``weekday Mon does not match 2026-01-02 (Fri)``)다.
+  - `time.format`의 형식에 토큰이 없거나 `%`가 있으면 E0403이다(`%`면 도움말이 토큰 목록을 보인다). 전에는 `"%Y-%m-%d"`·`"hh:ii"`가 그 글자 그대로 찍혔다(`hh`는 지금도 토큰이 아닌 글자다: `"hh:mm"`은 `mm`이 토큰이라 받는다).
+- 시각의 범위 0000~9999년은 그 시각이 보이는 날짜(시간대의 벽시계)의 것이다 (LB37). 전에는 UTC로만 지켜, 지역 시간대로 `10000-01-01T08:59:59+09:00`처럼 `time.parse`가 다시 읽지 못하는 글이 찍혔다.
+  이제 그런 시각은 만들 수 없고(`time.from_unix`는 E0403, 산술은 E0503), `time.utc`·`time.local`로 바꾼 시간대에서 범위를 벗어나면 E0403이다. 반대로 `9999-12-31T23:59:59-05:00`처럼 UTC로는 10000년이지만 그 오프셋으로 9999년인 글은 읽힌다.
+
+HTTP:
+
+- 위 "보안"의 셋도 동작이 바뀐다: close_notify 없이 끊긴 https 본문은 `Err` (LB23), 리다이렉트에 자동 `Referer`가 없음 (LB24, 결정 D23), 사용자 `Proxy-Authorization`은 프록시에만 (LB30).
+- 읽지 못하는 프록시 환경 변수(`HTTP_PROXY='http://%zz'`, `'http://a b:3128'`, 호스트 없는 값, `//`가 빠진 `'http:/proxy:3128'`)는 그 프록시를 쓸 요청의 `Err({kind: 'network})` ``invalid HTTP_PROXY `…`: <이유>``다(값의 비밀번호는 `***`) (LB25).
+  전에는 말없이 프록시를 건너뛰어 직접 연결하거나, `http://`를 한 번 더 붙여 읽어 호스트가 `http:`가 되었다. `NO_PROXY`·루프백으로 프록시를 쓰지 않는 요청은 영향이 없다.
+- `http`의 응답과 서버의 `req.headers`가 받은 헤더 그대로다 (LB31): `Pragma: no-cache`에서 `cache-control`을 지어내지 않고, HTTP/1.1 응답의 `Connection`(`close`가 든 것)과
+  `Transfer-Encoding`·`Trailer`, 조각 전송의 `Content-Length`도 빼지 않으며, 같은 `Content-Length` 여럿도 `", "`로 이어 둔다.
+- `http.request`의 메서드는 쓴 그대로 간다(RFC 9110 9.1: 대소문자를 가림) (LB34, 결정 D27). 전에는 대문자로 바꿨다(`"delete"` → `DELETE`).
+  빈 메서드(전에는 `GET`)와 토큰이 아닌 메서드(`"G T"`, 전에는 `Err({kind: 'network})`)는 E0403이다. `headers`의 이름 둘이 대소문자만 다르면(`"x-a"`와 `"X-A"`) 하나를 말없이 버리지 않고 E0403이다.
+  토큰이 아닌 헤더 이름(`"a b"`)과 탭 밖의 제어 문자가 든 헤더 값(`"a\r\nb"`)도 `Err({kind: 'network})`가 아니라 E0403이다(스킴과 무관).
+  본문의 끝을 정하는 `Content-Length`·`Transfer-Encoding`·`Trailer`를 `headers`에 주면(대소문자 무관) E0403이다. 틀은 클라이언트가 정하므로 전에는 그 헤더를 말없이 보내지 않았다.
+  인자 검사(E0403)는 URL을 읽기 전에, 무엇이든 보내기 전에 한다.
+- HTTP/1.0 응답의 `Transfer-Encoding`은 틀이 깨진 것으로 `Err({kind: 'network})`(``Transfer-Encoding in an HTTP/1.0 response``)다 (LB33, RFC 9112 6.1). 전에는 그 헤더를 지우고 `Content-Length`나 닫힘으로 읽었다. 서버가 같은 요청을 400으로 답하는 것과 같은 규칙이다.
+- `http.serve`의 요청 읽기 (LB27 결정 D25, LB32):
+  - 쿼리의 잘못된 `%` 이스케이프는 경로처럼 400이다. 전에는 그 쌍만 말없이 빠졌다. `req.query`는 같은 이름이 여럿이면 마지막 값이다(전에는 첫 값).
+    `;`는 보통 글자다(WHATWG form-urlencoded와 같음): `z=1;2`는 `z: "1;2"`(전에는 그 쌍을 말없이 뺐다).
+  - 요청 대상이 절대 URL(`GET http://other/x`)이면 `req.host`는 그 URL의 호스트이고(RFC 9112 3.2.2: `Host`는 따르지 않음), 빈 경로는 `""`가 아니라 `"/"`다.
+    호스트가 빈(`GET http:///x`) 또는 사용자 정보가 든(`http://u@other/x`) 절대 URL 대상은 400이다(RFC 9110 4.2.1·4.2.4).
+  - 1.x가 아닌 요청(`HTTP/0.9`, `HTTP/2.0`)은 머리의 다른 검사보다 먼저 505다(`Transfer-Encoding`이 있어도 501이 아님).
+
+도구:
+
+- 읽지 못한 파일의 종료 코드가 모든 명령에서 같다 (TL6, 결정 D30). 인자로 준 경로가 없거나 디렉터리를 훑다 실패하면 3, 있는 파일을 읽지 못하면(권한, UTF-8이 아님) 2다.
+  전에는 `run`·`check`·`dump`는 모두 3, `fmt`는 1, `fung -e`의 UTF-8이 아닌 코드는 3이었다. `fmt --check`의 1은 "고칠 파일이 있음" 하나다(CI가 읽기 실패를 "포맷 안 됨"으로 오해하지 않는다).
+- `fung fmt`도 소스를 UTF-8로만 읽는다 (TL8, 결정 D31). 전에는 UTF-8이 아닌 파일을 받아 통과시켰다(`run`·`check`는 거절). 이제 같은 읽기 에러(``cannot read `p`: not valid UTF-8 at line 1, column 6``, 종료 코드 2)이고 파일은 건드리지 않는다.
+- 모든 명령이 같은 옵션 파서를 쓴다 (TL7): `-h`·`--help`는 사용법(0), `--version`은 `version`, `--`는 옵션의 끝, 그 밖의 `-` 인자는 ``error: unknown option `--foo` ``(3)다. `--`는 `-e`도 옵션으로 읽지 않게 한다.
+  전에는 `check --foo`가 경로로 읽혀 `cannot read`, `fmt`만 `error: unknown option --foo`, `fung --version`은 모르는 명령이었다. `fmt - -`·`fmt - a.fung`은 사용 오류다.
+  REPL의 `:help x`·`:quit now`는 말없이 무시하지 않고 에러(`error: :quit takes no arguments`, 세션 종료 코드 1)이며, REPL의 에러 줄(`unknown command`, `cannot read`, `:load needs a file path`)에도 `error: ` 머리가 붙는다.
+
+### 고침
+
+- `fs.read`가 문자 장치(`/dev/zero`, `/dev/urandom`)처럼 크기를 모르는 파일을 끝없이 읽어 메모리를 다 쓰던 것 (LB29, 결정 D22). 이제 글이 문자열 한도를 넘는 순간 멈추고 ``file is longer than the string limit``의 `Err`다. `timeout`이 버린 읽기도 한도 근처에서 멈춘다.
+- 빈 문자열이라 틀린 인자의 E0403이 ``got str``이 아니라 값을 보인다: ``argument `pad` must be a non-empty str, got ""`` (`pad_left`·`pad_right`의 `pad`, `split`의 `sep`, `exec`·`sh`의 `cwd`). `exec([])`는 ``got []``다.
+- `match`에서 실패한 절의 패턴이 묶다 만 이름(가드가 거짓이거나 패턴이 중간에 어긋난 절)을 놓지 않아, 그 이름이 쥔 채널의 보내는 끝 때문에 교착(E0702)하던 것 (VM14).
+  이제 그 이름도 다른 지역 변수처럼 문장이 끝나면 놓인다.
+- 비차단(O_NONBLOCK)으로 넘어온 표준 입력을 `read_line`·`read_lines`가 빈 입력으로 보던 것 (CC10). 이제 올 것이 있을 때까지 기다린다.
+- `wait_closed(rx)`로 기다리는 태스크가 그 채널의 보내는 끝을 스스로 쥐어 교착이면, `recv`처럼 보고가 그 끝을 짚는다 (CC12):
+  ``help: this task waits for that channel to close, but it still holds its sending end itself (the global `tx`) …``, 다른 태스크 줄에는 `, holds its own sending end`.
+- 범위의 `sum`은 원소를 돌지 않고 계산하되 수의 리스트를 `+`로 접은 것과 같다 (VA25): 중간 합이 정수를 넘으면 리스트처럼 E0503이다(`sum(-9223372036854775807..=9223372036854775807)`도). 전에는 큰 범위에서 끝나지 않았다.
+- 가장 작은 정수를 진법으로도 쓸 수 있다: `-0x8000000000000000` (FE31). 전에는 10진 `-9223372036854775808`만 됐다.
+- `match`의 리터럴 패턴이 음수 기간을 받는다: `-1s => …` (FE32). 전에는 값 `-1s`는 되는데 패턴은 E0110이었다.
+- 가장 흔한 구문 에러가 무엇을 기대했는지 말한다 (FE26): 괄호 안 목록(리스트·맵·튜플·인자·매개변수·패턴)에서 빠뜨린 `,`나 닫지 않은 괄호는 ``E0112 expected `,` or `]`, found …``와 괄호를 연 자리의 `note`,
+  나머지 매개변수 뒤의 매개변수·구조 분해 매개변수의 기본값은 E0112와 도움말, `'hello'`의 E0101에는 큰따옴표 도움말, 빈 보간 `"${}"`은 ``expected an expression inside `${…}` ``(전에는 `unexpected end of file`), 보간 안에서 멈춘 식은 ``unexpected `}` ``.
+  E0103은 이스케이프를 쓴 그대로 보이고(``unknown escape `\q` ``), 글자가 아닌 `\u{d800}`·`\u{110000}`은 새 번호 E0106이다.
+- `1 => y => y + 1`의 E0112에 람다를 괄호로 감싸라는 도움말 (FE25).
+- 앞자리 0으로 시작하는 실수·기간 리터럴(`01.5`, `05s`)의 E0102 도움말이 8진수(`0o755`) 대신 "drop the leading zeros"다. 정수(`0755`)는 그대로 `0o`를 알려 준다. E0518의 도움말은 `valid_utf8` 대신 새 이름 `is_utf8(s)`를 가리킨다.
+- 값으로 쓰는 블록이 패턴 대입으로 끝나면 `` `this pattern` is assigned … `` 대신 ``… ends with an assignment to a pattern``(E0224)이고, 밑줄이 패턴의 자리다 (FE28).
+- 가져올 모듈 파일이 있는데 읽지 못하면(권한, 디렉터리) E0301 `cannot find`가 아니라 E0312 ``cannot read module `lib/x.fung`: permission denied``다 (FE29). 두 에러의 경로는 위치와 같은 모양이고, 모듈 최상위의 금지된 문장(E0306)은 호출의 `(`가 아니라 문장의 시작을 가리킨다.
+- E0206의 도움말이 블록을 만든 것(`if`·`match`·`for`)에 맞고, 자기를 부르는 람다(`f = n => … f(n - 1)`)의 E0204는 `fn f(n) = …`로 쓰라고 한다. import보다 앞의 대입이 E0209이면 import가 먼저 묶인다는 `note`가 붙는다 (FE33).
+- 원소 타입 안의 이름을 렉서가 읽은 이름 그대로 검사한다: 결합 부호가 든 이름(`list[q́x]`)이 E0212가 되던 것, 그 에러가 매개변수 자리를 가리키던 것 (FE34). 이제 E0212·E0232는 타입을 쓴 자리를 가리킨다.
+- 포매터가 `true`·`false`·`nil`과 블록을 닫는 `;;` 뒤의 `-`를 부호로 붙여 `[false -1]`로 쓰던 것 (FE35). 뺄셈이므로 `[false - 1]`이다. `;;` 뒤의 `;`는 한 칸 띄운다.
+- E0506이 함수마다 자기 동사로 말한다 (VA19·SP24, 결정 D33): `cannot list the keys of list`(`keys`·`values`, 전에는 `the pairs of`), `cannot take the unique elements of str`(전에는 `cannot unique str`),
+  `cannot zip the elements of int`(전에는 `cannot zip int`), `cannot get a key from list`(전에는 `cannot get from list`). 쓰지 않는 번호 E0805의 도움말이 그렇다고 말한다.
+- `fung dump bytecode`: 꼬리 호출(`TAILCALL`)이나 `return` 뒤의 닿지 않는 `RETURN`·`CHECKRETURN`을 내지 않고, 가드가 붙은 이름 하나·`_` 패턴의 절은 `MATCH` 없이 가드만 검사한다 (VM17).
+
+### 성능
+
+측정은 Apple Silicon Mac의 릴리스 빌드, CPU 시간이나 호출 앞뒤 시각의 중앙값이다. 표는 `docs/notes/bench-languages.md` 4.5~4.9절.
+
+- macOS에서 FIFO를 버퍼(8 KiB)보다 큰 조각으로 쓰는 쪽(`head -c … | cat > f`)에게서 읽는 것이 50ms에 한 버퍼(약 330 KB/s)였던 것.
+  macOS는 그런 쓰기의 둘째 조각부터 읽을 준비가 되었다고 알리지 않는다. 이제 데이터를 받은 읽기는 곧 다시 보고(50 µs부터 배로, 50ms까지),
+  `fs.read`가 4 MB에 12.2 → 0.025초다. Linux는 해당 없음.
+
+- 해석 루프와 호출의 고정 비용 셋 (VM16): 명령은 링크 때 한 번 풀어 두고, 꼬리가 아닌 호출이 인자를 한 칸씩 옮기지 않으며, 명령마다 소스 위치를 읽지 않는다(에러 때 찾는다). `fib(35)` 1.96 → 1.55초, 작은 함수를 천만 번 부르는 루프 0.91 → 0.73초(4.8절). 에러 위치와 호출 경로는 그대로다.
+- 내장 함수를 부를 때마다 인자 배열을 새로 할당하던 것 (VM15, 결정 D20). 네 개까지의 인자는 할당 없이 넘긴다(`len(xs)`를 3천만 번 부르는 루프 3.06 → 2.56초, VM16까지 2.25초).
+- `reverse`·`keys`·`values`·`sum`·`min`·`max`를 Rust로 옮겼다 (VA25): 원소마다 람다를 부르지 않는다. 200만 원소에서 `reverse` 171 → 21 ms, `max` 142 → 17 ms, `sum` 108 → 25 ms, 100만 키 맵의 `keys` 239 → 20 ms, 범위의 `sum`은 원소 수와 무관하게 바로(4.6절). 긴 입력은 다른 내장 함수처럼 조각으로 나눠 차례를 넘긴다.
+- `==`가 컬렉션을 두 번 훑던 것 (VA22): E0517 검사와 비교가 한 걸음이다(같은 문자열 200만 개 리스트 둘의 `==` 10번 370 → 149 ms). 동작은 그대로다.
+- `sort`가 이미 정렬된(또는 내림차순) 입력에서 n log n 비교를 하던 것 (VA23): 이어진 오름차순·엄격한 내림차순 달리기를 찾아 병합하고 짧은 달리기는 32개까지 삽입 정렬로 늘린다. 200만 정수에서 정렬된 입력 112 → 28 ms, 거의 정렬된 입력 119 → 77 ms, 무작위 214 → 170 ms, `sort_by(xs, x => x)` 218 → 134 ms(4.7절). 정렬은 여전히 안정적이다. 서로 비교할 수 없는 값이 섞였을 때 에러가 알리는 쌍이 달라질 수 있다.
+- `sort_by`가 원소 벡터를 한 번 더 복사하고 `unique`가 남긴 원소를 두 벌 쥐던 것 (VA24): 200만 정수에서 최대 상주 메모리 `sort_by` 201 → 156 MB, `unique` 290 → 258 MB.
+- 1억 바이트를 넘는 비ASCII 문자열을 돌려주는 내장 함수(`get`·`trim`·`str`…)가 호출마다 글자 수를 다시 세던 것 (VA26): 기억된 글자 수를 쓴다(한글 4천만 자에서 `trim` 20번 1340 ms → 0.007 ms). `+`는 두 쪽의 글자 수를 더해 한도를 보고 결과에 합을 기억시킨다.
+- `swap`의 함수가 한 차례 몫(호출 1,000번)보다 오래 돌면 그 뒤의 모든 호출이 시계를 읽고 잠금을 잡던 것 (CC11). 이제 몫마다 한 번이다(1,000만 번 꼬리 호출의 CPU 시간 중앙값이 476 ms → 407 ms, 기한 안이면 565 ms → 407 ms; 4.5절).
+- 긴 연산자 사슬(`x + x + … + x`)의 컴파일이 항 수의 제곱으로 느려지던 것 (VM18). 상수 접기가 연산자마다 한 번만 본다(16,000항 1.3 s → 0.03 s).
+- 정의되지 않은 이름의 "비슷한 이름" 찾기가 에러 수 × 이름 수였던 것 (FE36). 이름을 한 번 색인해 두고 쓴다(이름 8,000개·에러 8,000개의 `fung check` 26.2 s → 0.18 s).
+- 중첩 함수의 desugar가 함수마다 본문 전체를 훑던 것 (FE37). 패턴 매개변수와 기본값이 함께 있을 때만 훑는다(람다 8,000겹 0.50 s → 0.03 s).
+- 실행마다 모듈의 트리를 `dump`용으로 복사하고, 소스를 컴파일러에 복사하고, 연산자 토큰마다 문자열 셋을 만들던 것 (FE39). `-e 'import http'` 14.1 ms → 11.8 ms(FE37 포함).
+
 ## [0.6.0] - 2026-11-09
 
 0.5.0 뒤에 명세·앞단·VM·값·동시성·표준 라이브러리·CLI를 다시 점검해 찾은 98개 항목을 모두 고친 릴리스다. 지역 변수는 더 읽힐 수 없게 된

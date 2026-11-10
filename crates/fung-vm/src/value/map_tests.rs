@@ -728,8 +728,8 @@ fn index_cases() {
         (
             m.clone(),
             Value::Int(0),
-            "E0501",
-            "cannot index map and int",
+            "E0514",
+            "cannot use a value of type int as a map key",
         ),
         (s("a"), s("b"), "E0501", "cannot index str and str"),
     ];
@@ -918,7 +918,7 @@ fn contains_cases() {
         ("E0501", "cannot search str and int".into())
     );
     let e = index::contains(&m, &Value::Int(1)).unwrap_err();
-    assert_eq!(e.code, "E0501");
+    assert_eq!(e.code, "E0514");
     let e = index::contains(&Value::Int(1), &Value::Int(1)).unwrap_err();
     assert_eq!(
         (e.code.as_str(), msg(&e)),

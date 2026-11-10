@@ -67,8 +67,8 @@ pub(super) struct Place {
     func: String,
     /// Inside a `with`'s release.
     release: bool,
-    /// It waits to receive while it holds that channel's sending end
-    /// itself (`Task::own_sender`).
+    /// It waits to receive (or for the close) while it holds that
+    /// channel's sending end itself (`Task::own_sender`).
     holds_sender: bool,
 }
 
@@ -192,15 +192,22 @@ impl Task<'_> {
         b
     }
 
+    /// The name of the wait the task is parked in (`recv`, `await` …).
+    fn wait_name(&self) -> &'static str {
+        self.fiber
+            .conts
+            .last()
+            .and_then(|c| c.k.waits_for().or(c.native.map(|n| n.name)))
+            .unwrap_or("wait")
+    }
+
     /// Where this task, parked, waits: the call of the waiting native
     /// (its last box), or, inside a built-in module's function, the user's
     /// call of that function; the wait's name; the function the place is
     /// in; and whether it is inside a release.
     fn wait_site(&self) -> (Pos, String, String, bool) {
         let c = self.fiber.conts.last();
-        let wait = c
-            .and_then(|c| c.k.waits_for().or(c.native.map(|n| n.name)))
-            .unwrap_or("wait");
+        let wait = self.wait_name();
         let mut pos = c.map_or(no_pos(), |c| c.pos);
         let mut kind = wait.to_string();
         if self.fiber.frames.last().is_some_and(|f| f.proto().builtin) {
@@ -246,7 +253,8 @@ impl Task<'_> {
         })
     }
 
-    /// Where this task, parked receiving, holds that channel's sending end
+    /// Where this task, parked receiving (or waiting for the close,
+    /// `wait_closed`), holds that channel's sending end
     /// itself, so that the channel can never close (review L7): its stack
     /// (a function's variables), its frames' captured values, or a
     /// global, which every task holds. `None` if it does not.
@@ -255,7 +263,7 @@ impl Task<'_> {
         let held = |v: &Value| matches!(v, Value::Sender(tx) if rx.pairs_with(tx));
         for (i, v) in self.fiber.stack.iter().enumerate() {
             if v.as_ref().is_some_and(held) {
-                let f = self.fiber.frames.iter().rev().find(|f| f.base <= i)?;
+                let f = self.fiber.frames.iter().rev().find(|f| f.base() <= i)?;
                 return Some((format!("a variable of `{}`", func_name(f)), None));
             }
         }
@@ -293,8 +301,12 @@ impl Task<'_> {
                 Some(n) => format!("`close({n})`"),
                 None => "`close`".to_string(),
             };
+            let waits = match self.wait_name() {
+                "wait_closed" => "waits for that channel to close, but it still holds its",
+                _ => "waits to receive, but it still holds that channel's",
+            };
             d.help = Some(format!(
-                "this task waits to receive, but it still holds that channel's sending end itself ({at}), so the channel cannot close: close it with {close} first, or leave the sending end to the producers only"
+                "this task {waits} sending end itself ({at}), so the channel cannot close: close it with {close} first, or leave the sending end to the producers only"
             ));
         }
         d

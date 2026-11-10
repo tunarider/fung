@@ -310,14 +310,14 @@ fn iterating_natives_walk_a_channel() {
 
 /// A buffer of values: the values drop on the run thread, and
 /// dropping the runtime does not hang or panic. (A value holding an end
-/// of the channel itself cannot be buffered: `send` refuses it, E0705.)
+/// of the channel itself cannot be buffered: `send` refuses it, E0709 (once E0705).)
 #[test]
 fn values_in_a_buffer_drop_with_the_runtime() {
     let o = exec(
         "(t, c) = channel(3)\nsend(t, [1, [2, [3]]])\nsend(t, () => 1)\nsend(t, [c])",
         Opts::default(),
     );
-    assert!(o.err.starts_with("error[E0705]"), "{}", o.err);
+    assert!(o.err.starts_with("error[E0709]"), "{}", o.err);
     let o = exec(
         "(t, c) = channel(3)\nsend(t, [1, [2, [3]]])\nsend(t, () => 1)\nsend(t, {k: channel()})\nprint(recv(c))",
         Opts::default(),
@@ -411,7 +411,7 @@ fn a_sender_cancelled_before_it_runs_sends_nothing() {
 /// Stage 3b Task 5: a channel whose buffer held a value containing one of
 /// its own ends would never be freed (`Rc`), so `send` refuses it.
 #[test]
-fn a_channel_inside_what_is_sent_is_e0705() {
+fn a_channel_inside_what_is_sent_is_e0709() {
     for src in [
         "(tx, _rx) = channel(1)\nsend(tx, tx)",
         "(tx, rx) = channel(1)\nsend(tx, [1, {k: (2, rx)}])",
@@ -421,7 +421,9 @@ fn a_channel_inside_what_is_sent_is_e0705() {
     ] {
         let o = exec(src, Opts::default());
         assert!(
-            o.err.starts_with("error[E0705]: channel sent into itself"),
+            o.err.starts_with(
+                "error[E0709]: this value would make a cycle through channels or tasks"
+            ),
             "{src}: {}",
             o.err
         );
@@ -430,7 +432,7 @@ fn a_channel_inside_what_is_sent_is_e0705() {
 }
 
 #[test]
-fn e0705_is_reported_at_the_send_call() {
+fn a_channel_sent_into_itself_is_e0709_at_the_send_call() {
     let o = exec(
         "(tx, rx) = channel(1)\nx = 1\n  send(tx, [rx])",
         Opts::default(),
@@ -438,7 +440,7 @@ fn e0705_is_reported_at_the_send_call() {
     let e = o.error.expect("an error");
     assert_eq!(
         (e.code.as_str(), e.line, e.col),
-        ("E0705", 3, 7),
+        ("E0709", 3, 7),
         "{}",
         o.err
     );
@@ -463,7 +465,7 @@ fn shared_sub_values_are_scanned_once() {
         Opts::default(),
     );
     assert_eq!(o.out, "ok\n", "{}", o.err);
-    assert!(o.err.starts_with("error[E0705]"), "{}", o.err);
+    assert!(o.err.starts_with("error[E0709]"), "{}", o.err);
 }
 
 // --- L4: ends ---
@@ -592,7 +594,7 @@ fn many_workers_share_a_receiver() {
 }
 
 #[test]
-fn sending_an_end_into_its_own_channel_is_e0705() {
+fn sending_an_end_into_its_own_channel_is_e0709() {
     // the big ones (L5): an end deep in a vector's trie, in views of it
     // that share its nodes, in its head, and in a big map
     let big = "map(0..5000, i => i == 2500 then rx else i)";
@@ -613,7 +615,7 @@ fn sending_an_end_into_its_own_channel_is_e0705() {
         map,
     ] {
         let (_, err, code) = run(&format!("(tx, rx) = channel(1)\nsend(tx, {v})"));
-        assert!(err.contains("error[E0705]"), "{v}: {err}");
+        assert!(err.contains("error[E0709]"), "{v}: {err}");
         assert_eq!(code, 1, "{v}");
     }
 }

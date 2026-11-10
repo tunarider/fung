@@ -1,6 +1,12 @@
 print(int("42") + 1, int(3.9), float(2), str(1.5), sym("ok"), parse_int("x"), parse_int("7")!)
-# expect: 43 3 2.0 1.5 'ok Err({kind: 'parse, message: "not an integer: x"}) 7
+# expect: 43 3 2.0 1.5 'ok Err({kind: 'parse, message: "not an integer: \"x\""}) 7
 print(parse_dur("90s")!, parse_dur("1.5h")!, parse_dur("soon"))
-# expect: 1m30s 1h30m Err({kind: 'parse, message: "not a duration: soon"})
+# expect: 1m30s 1h30m Err({kind: 'parse, message: "not a duration: \"soon\""})
 print(is_ok(Ok(1)), is_err(Ok(1)), is_err(Err(1)))
 # expect: true false true
+# Text is read by the literal rules (SP14, D12): one leading sign, no
+# spaces at the ends, no leading zero; the message quotes the input.
+print(parse_int("+7"), parse_int("-0x10"), parse_dur("+1s"), parse_float("2.5e-1"), int("-0b11"))
+# expect: Ok(7) Ok(-16) Ok(1s) Ok(0.25) -3
+print(parse_int(" 1") |> is_err, parse_dur("1s\n") |> is_err, parse_int(trim(" 1\n")))
+# expect: true true Ok(1)

@@ -1,0 +1,5 @@
+# A pattern `Ok(a, b)` could never match: a result holds exactly one value
+# (SP12).
+r = Ok((1, 2))
+print(match r: Ok(a, b) => a + b; _ => 0 ;;)
+# expect-error: E0236

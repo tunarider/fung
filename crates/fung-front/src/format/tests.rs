@@ -69,6 +69,22 @@ fn spacing() {
         ("f(-1, - 2)", "f(-1, -2)\n"),
         ("x = - 5s", "x = -5s\n"),
         ("return - 1", "return -1\n"),
+        // a word that is a value, and a closed block, end an operand: the
+        // `-` after them subtracts (FE35)
+        ("y = [false - 1]", "y = [false - 1]\n"),
+        ("z = [nil-1, true -2]", "z = [nil - 1, true - 2]\n"),
+        (
+            "b = [if c: 1 else: 2 ;; -1]",
+            "b = [if c: 1 else: 2 ;; - 1]\n",
+        ),
+        (
+            "x = [1 and -1, not -1, a then -1 else -2]",
+            "x = [1 and -1, not -1, a then -1 else -2]\n",
+        ),
+        (
+            "w = if a: 1 else: 2 ;;; q = 3",
+            "w = if a: 1 else: 2 ;; ; q = 3\n",
+        ),
         ("not  x", "not x\n"),
         ("if(a==b): 1 ;;", "if (a == b): 1 ;;\n"),
         ("fn add(a,b)=a+b", "fn add(a, b) = a + b\n"),
@@ -386,7 +402,7 @@ fn keeps_what_the_code_means() {
 #[test]
 fn safeguard_refuses_a_changed_token_stream() {
     let src = b"x = 1 # c\ny = [1,\n2]\n";
-    let lexed = lex_bytes(FileId(0), src).unwrap();
+    let lexed = lex_str(FileId(0), std::str::from_utf8(src).unwrap()).unwrap();
     let good = b"x = 1  # c\ny = [1,\n  2]\n";
     assert!(same(FileId(0), src, &lexed, good));
     for bad in [
@@ -406,16 +422,14 @@ fn safeguard_refuses_a_changed_token_stream() {
     assert!(same(
         FileId(0),
         b"x # c  \n\n",
-        &lex_bytes(FileId(0), b"x # c  \n\n").unwrap(),
+        &lex_str(FileId(0), "x # c  \n\n").unwrap(),
         b"x # c\n"
     ));
 }
 
-/// The formatter works on bytes: an invalid UTF-8 sequence inside a
-/// string or a comment is written back unchanged (not as U+FFFD), and
-/// counts as one column when comments are aligned.
+/// Alignment counts display columns, not bytes or characters.
 #[test]
-fn keeps_bytes_that_are_not_utf8() {
+fn aligns_by_display_width() {
     // display width: a wide character takes two columns, so the comments
     // line up on screen
     check(
@@ -425,20 +439,6 @@ fn keeps_bytes_that_are_not_utf8() {
     check(
         "match v:\n\"한\" => 1\n\"abc\" => 2\n;;\n",
         "match v:\n  \"한\"  => 1\n  \"abc\" => 2\n;;\n",
-    );
-    // an invalid sequence is one U+FFFD, one column: `x = "?"` is 7
-    // columns (byte by byte it would be 8), padded to the 9 of the next
-    let got = format_bytes("t.fung", b"x=\"\xe2\x82\" # c\nxxxxx = 1 # d\n").unwrap();
-    assert_eq!(got, b"x = \"\xe2\x82\"    # c\nxxxxx = 1  # d\n".to_vec());
-    let got = format_bytes("t.fung", b"x=\"a\xffb\" # c\xfe\nlong_name = 1 # d\n").unwrap();
-    assert_eq!(
-        got,
-        b"x = \"a\xffb\"      # c\xfe\nlong_name = 1  # d\n".to_vec()
-    );
-    let got = format_bytes("t.fung", b"match v:\n\"\xff\" => 1\n\"ab\" => 2\n;;\n").unwrap();
-    assert_eq!(
-        got,
-        b"match v:\n  \"\xff\"  => 1\n  \"ab\" => 2\n;;\n".to_vec()
     );
 }
 
@@ -457,10 +457,6 @@ fn byte_order_mark() {
         let got = format("t.fung", src).unwrap_or_else(|e| panic!("{src:?}: {e:?}"));
         assert_eq!(got, want, "format {src:?}");
     }
-    assert_eq!(
-        format_bytes("t.fung", b"\xef\xbb\xbfx = \"a\xffb\"\n").unwrap(),
-        b"x = \"a\xffb\"\n".to_vec()
-    );
     let e = format("t.fung", "\u{feff}\u{feff}x = 1\n").unwrap_err();
     assert_eq!(e.code, "E0101");
 }
@@ -497,4 +493,15 @@ fn an_arm_head_split_after_a_bar() {
         "for x in\n[1, 2]:\nx\n;;\n",
         "for x in\n  [1, 2]:\n  x\n;;\n",
     );
+}
+
+#[test]
+fn parentheses_that_change_the_meaning_stay() {
+    // FE27: `x |> (f(1))` calls the value `f(1)`, and `xs[(0..2)]` indexes
+    // with a range value; dropping the parentheses would change both.
+    check_all(&[
+        ("y = x |> ( f(1) )", "y = x |> (f(1))\n"),
+        ("y = xs[ (0..2) ]", "y = xs[(0..2)]\n"),
+        ("y = xs[a ?? 0 .. b ?? 2]", "y = xs[a ?? 0..b ?? 2]\n"),
+    ]);
 }

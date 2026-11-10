@@ -1,0 +1,8 @@
+# A slice's end cannot be a comparison, `in`, `not`, `and`/`or` or
+# `then … else` without parentheses (FE27): `..` binds tighter than those
+# elsewhere, so reading them as the end would change the meaning.
+xs = [1, 2, 3]
+c = true
+print(xs[(c then 0 else 1)..2])
+print(xs[c then 0 else 1..2])
+# expect-error: E0125

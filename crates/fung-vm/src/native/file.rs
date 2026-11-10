@@ -51,11 +51,72 @@ impl Drop for File {
 
 /// What a handle was opened for.
 pub(crate) enum Io {
-    Read(BufReader<std::fs::File>),
+    Read(Reading),
     Write(BufWriter<std::fs::File>),
     /// A FIFO, read and written on the run thread through the event loop
     /// (`pipe.rs`, L11).
     Pipe(Pipe),
+}
+
+/// A handle open for reading: the file through its buffer, and the part
+/// of a line read before a read error, which waits for the rest (CC10).
+pub(crate) struct Reading {
+    r: BufReader<std::fs::File>,
+    part: Vec<u8>,
+    /// The characters of `part` (LB29).
+    count: super::nat::CharCount,
+}
+
+impl Reading {
+    /// The next line with its `\n`, `None` at the end. A read error is
+    /// given as it is: the part of a line read before it stays for the
+    /// next read, which tries again (CC10), and is the last line if the
+    /// end comes next.
+    ///
+    /// A line past the string limit stops being read as soon as it
+    /// passes (LB29, D22): what was gathered goes, the read gives its
+    /// error, and the line's rest is read on as the next line.
+    fn line(&mut self) -> io::Result<Option<Vec<u8>>> {
+        loop {
+            let buf = match self.r.fill_buf() {
+                Ok(b) => b,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            };
+            if buf.is_empty() {
+                break;
+            }
+            if let Some(i) = buf.iter().position(|&b| b == b'\n') {
+                self.part.extend_from_slice(&buf[..=i]);
+                self.r.consume(i + 1);
+                break;
+            }
+            let n = buf.len();
+            self.part.extend_from_slice(buf);
+            self.r.consume(n);
+            if !self.count.within(&self.part) {
+                self.part = Vec::new();
+                self.count = Default::default();
+                return Err(super::nat::too_long_error("line"));
+            }
+        }
+        self.count = Default::default();
+        if self.part.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(std::mem::take(&mut self.part)))
+    }
+
+    /// The next line if the buffer holds all of it (no system call).
+    fn buffered_line(&mut self) -> Option<Vec<u8>> {
+        let buf = self.r.buffer();
+        let n = buf.iter().position(|&b| b == b'\n')? + 1;
+        let mut line = std::mem::take(&mut self.part);
+        self.count = Default::default();
+        line.extend_from_slice(&buf[..n]);
+        self.r.consume(n);
+        Some(line)
+    }
 }
 
 /// Why a handle operation failed: the `Err` value is made on the run thread
@@ -100,22 +161,13 @@ impl File {
     }
 
     /// The next line with its `\n` (the caller trims it), `None` at the
-    /// end. A read error ends the input, after the part of a line read
-    /// before it.
+    /// end. A read error is a fault, not the end (`Reading::line`).
     pub(crate) fn read_line(&self) -> Result<Option<Vec<u8>>, Fault> {
         match &mut *self.lock() {
             None => Err(Fault::Closed),
             Some(Io::Write(_)) => Err(Fault::NotReading),
             Some(Io::Pipe(_)) => unreachable!("a FIFO is read on the run thread"),
-            Some(Io::Read(r)) => {
-                let mut line = Vec::new();
-                match r.read_until(b'\n', &mut line) {
-                    Ok(0) => Ok(None),
-                    Ok(_) => Ok(Some(line)),
-                    Err(_) if line.is_empty() => Ok(None),
-                    Err(_) => Ok(Some(line)),
-                }
-            }
+            Some(Io::Read(r)) => r.line().map_err(Fault::Io),
         }
     }
 
@@ -138,13 +190,7 @@ impl File {
             None => Some(Err(Fault::Closed)),
             Some(Io::Write(_)) => Some(Err(Fault::NotReading)),
             Some(Io::Pipe(_)) => None,
-            Some(Io::Read(r)) => {
-                let buf = r.buffer();
-                let n = buf.iter().position(|&b| b == b'\n')? + 1;
-                let line = buf[..n].to_vec();
-                r.consume(n);
-                Some(Ok(Some(line)))
-            }
+            Some(Io::Read(r)) => r.buffered_line().map(|l| Ok(Some(l))),
         }
     }
 
@@ -220,7 +266,7 @@ impl File {
 /// two (L11).
 pub(crate) fn finish(io: Io, path: &[u8]) -> io::Result<()> {
     match io {
-        Io::Read(r) => close_checked(r.into_inner(), path),
+        Io::Read(r) => close_checked(r.r.into_inner(), path),
         Io::Write(mut w) => {
             let flushed = w.flush();
             // Closes the file without flushing again.
@@ -355,7 +401,11 @@ pub(crate) fn open(path: &[u8], mode: Mode, perm: Option<u32>) -> io::Result<Io>
     match mode {
         Mode::Read => {
             let f = o.read(true).open(path)?;
-            return Ok(Io::Read(BufReader::with_capacity(BUF_SIZE, f)));
+            return Ok(Io::Read(Reading {
+                r: BufReader::with_capacity(BUF_SIZE, f),
+                part: Vec::new(),
+                count: Default::default(),
+            }));
         }
         Mode::Write => o.read(true).write(true).create(true).truncate(true),
         Mode::Append => o.append(true).create(true),
@@ -389,4 +439,50 @@ pub(crate) enum Mode {
     Read,
     Write,
     Append,
+}
+
+#[cfg(test)]
+mod reading_tests {
+    use super::*;
+
+    /// CC10: a read error in the middle of a line gives the error, not
+    /// the part as a line; the part waits for the rest of its line.
+    #[test]
+    fn a_read_error_keeps_the_part_of_a_line() {
+        let (r, mut w) = std::os::unix::net::UnixStream::pair().unwrap();
+        // A non-blocking descriptor with nothing to read fails with EAGAIN.
+        r.set_nonblocking(true).unwrap();
+        // The same open socket, to make it blocking again for the end.
+        let same = r.try_clone().unwrap();
+        let f = std::fs::File::from(std::os::fd::OwnedFd::from(r));
+        let mut r = Reading {
+            r: BufReader::with_capacity(BUF_SIZE, f),
+            part: Vec::new(),
+            count: Default::default(),
+        };
+        w.write_all(b"one\ntw").unwrap();
+        assert_eq!(r.line().unwrap(), Some(b"one\n".to_vec()));
+        let e = r.line().unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::WouldBlock);
+        w.write_all(b"o\nthree\n").unwrap();
+        assert_eq!(r.line().unwrap(), Some(b"two\n".to_vec()));
+        assert_eq!(r.buffered_line(), Some(b"three\n".to_vec()));
+        w.write_all(b"fo").unwrap();
+        assert!(r.line().is_err());
+        w.write_all(b"ur\nfive\n").unwrap();
+        assert_eq!(r.buffered_line(), None);
+        assert_eq!(r.line().unwrap(), Some(b"four\n".to_vec()));
+        assert_eq!(r.buffered_line(), Some(b"five\n".to_vec()));
+        // A part left by a failed read is the last line when the end
+        // comes next.
+        w.write_all(b"si").unwrap();
+        assert!(r.line().is_err());
+        w.write_all(b"x").unwrap();
+        assert!(r.line().is_err());
+        drop(w);
+        // The end may reach the reader a moment after the close: wait.
+        same.set_nonblocking(false).unwrap();
+        assert_eq!(r.line().unwrap(), Some(b"six".to_vec()));
+        assert_eq!(r.line().unwrap(), None);
+    }
 }

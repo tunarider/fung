@@ -23,7 +23,7 @@ use super::channel::{self, Receiver, Sender};
 use super::sched::Event;
 use super::world::{Shared, World};
 use super::{Stop, Task};
-use crate::value::Value;
+use crate::value::{Args, Value};
 
 /// What the runtime knows of the stop request.
 #[derive(Default)]
@@ -38,7 +38,7 @@ pub(crate) struct StopState {
 
 /// `stop_signal()`: the receiving end of the stop channel, closed once a
 /// stop was requested. Every call gives the same end while one lives.
-pub(crate) fn stop_signal(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+pub(crate) fn stop_signal(t: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     let s = &mut t.world.stop;
     if let Some(rx) = s.rx.upgrade() {
         return Ok(Value::Receiver(rx));
@@ -76,7 +76,7 @@ fn request(w: &mut World, shared: &Shared) -> bool {
 /// `request_stop()`: a stop request from the program, as the first
 /// signal would make. With nobody watching it ends the program as
 /// `exit(0)` does.
-pub(crate) fn request_stop(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+pub(crate) fn request_stop(t: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     if request(&mut t.world, t.shared) {
         Ok(Value::Nil)
     } else {

@@ -5,7 +5,7 @@ import fs
 import cli
 import "./dotenv" (parse, problems)
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 file = first(opts.rest) ?? fail("usage: envcheck.fung <file> KEY... [--ports A,B]")
 required = drop(opts.rest, 1)
 ports = split(get(opts.flags, "ports", ""), ",") |> filter(p => p != "")

@@ -75,6 +75,31 @@ impl Text {
         matches!(self.repr, Repr::Utf8(_))
     }
 
+    /// The number of characters when it is known without counting.
+    pub fn counted(&self) -> Option<usize> {
+        if self.ascii {
+            Some(self.as_bytes().len())
+        } else {
+            Some(self.chars.get()).filter(|&n| n != UNCOUNTED)
+        }
+    }
+
+    /// `x` followed by `y`. Two valid UTF-8 texts whose characters are
+    /// both counted already make a text whose count is the sum (VA26);
+    /// otherwise the count waits to be asked (bytes outside UTF-8 may
+    /// join into characters at the seam).
+    pub fn concat(x: &Text, y: &Text) -> Text {
+        let mut b = Vec::with_capacity(x.as_bytes().len() + y.as_bytes().len());
+        b.extend_from_slice(x.as_bytes());
+        b.extend_from_slice(y.as_bytes());
+        let t = Text::new(b);
+        if let (true, true, Some(m), Some(n)) = (x.is_utf8(), y.is_utf8(), x.counted(), y.counted())
+        {
+            t.chars.set(m + n);
+        }
+        t
+    }
+
     /// The number of characters, counted the first time it is asked.
     pub fn char_len(&self) -> usize {
         if self.ascii {

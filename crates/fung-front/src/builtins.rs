@@ -173,7 +173,8 @@ mod tests {
             b.module_signature("_native.process", "exec"),
             Some("cmd, cwd=?, env=?, stdin=?")
         );
-        assert_eq!(b.module_signature("_native.process", "env"), Some("name=?"));
+        assert_eq!(b.module_signature("_native.process", "env"), Some("name"));
+        assert_eq!(b.module_signature("_native.process", "env_all"), Some(""));
         assert_eq!(b.module_signature("_native.fs", "temp_dir"), Some(""));
         assert!(!b.modules.contains_key("_native.conc"), "gone with R1b");
         assert_eq!(b.module_signature("_native.process", "nope"), None);

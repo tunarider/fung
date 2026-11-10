@@ -24,7 +24,7 @@ description: fung 모듈 fs — 파일과 디렉터리를 읽고 쓰고 만들�
     <tr><td><code>'exists</code></td><td>이미 있다(<code>mkdir</code>할 자리에 파일이 있음, 비지 않은 디렉터리를 <code>remove</code>함, <code>move</code>할 자리에 이미 있음 등).</td></tr>
     <tr><td><code>'permission</code></td><td>권한이 없다.</td></tr>
     <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디렉터리를 파일처럼 읽음, 경로 중간이 파일임, 디스크가 참 등).</td></tr>
-    <tr><td><code>'invalid</code></td><td>잘못된 glob 패턴(<code>fs.glob</code>), 읽기로 열지 않은 핸들로 읽기(또는 그 반대).</td></tr>
+    <tr><td><code>'invalid</code></td><td>정규 파일이 아닌 것(FIFO·장치)을 복사(<code>fs.copy</code>). 잘못된 glob 패턴은 E0515, 읽기로 열지 않은 핸들로 읽기(또는 그 반대)는 E0520이다(코드의 잘못).</td></tr>
     <tr><td><code>'closed</code></td><td>닫힌 파일 핸들을 썼다(핸들 함수만).</td></tr>
   </tbody>
 </table>
@@ -72,7 +72,7 @@ match fs.read("config.txt"):
 #### 에러
 
 - `Err({kind: 'not_found})`: 파일이 없다. 빈 경로 `""`도 같다.
-- `Err({kind: 'io})`: 디렉터리를 읽으려 했다(``is a directory``) 등.
+- `Err({kind: 'io})`: 디렉터리를 읽으려 했다(``is a directory``) 등. 내용이 문자열 한도(1억 글자)를 넘어도 그렇다(``file is longer than the string limit (100000000 characters)``): 파일의 크기는 프로그램이 정하지 못하는 바깥 사정이라 런타임 에러가 아니다. 4억 바이트(한 글자는 4바이트 이하)보다 큰 파일은 읽지 않고 바로 거절한다.
 - `Err({kind: 'permission})`: 읽을 권한이 없다.
 - `path`가 문자열이 아니면 런타임 에러 E0403.
 
@@ -170,6 +170,8 @@ print(fs.read_lines("crlf.txt")!)
 `path`에 `text`를 쓴다. 파일이 없으면 새로 만들고, 있으면 **내용을 모두 지우고** 덮어쓴다(셸의 `>`와 같다). 새 파일의 권한은 0666에서 umask를 뺀 것이다(셸과 같다). `perm`을 주면 파일은 정확히 그 권한이 된다(아래). 위의 디렉터리는 만들지 않으므로, 필요하면 먼저 [`fs.mkdir`](#fn-fs-mkdir)를 부른다. 줄바꿈은 자동으로 붙지 않는다.
 
 정규 파일은 **통째로 바꾼다**: 같은 디렉터리에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 프로그램이 죽거나 디스크가 차도 파일이 반만 남지 않고, 동시에 읽는 쪽은 옛 내용이나 새 내용 하나만 본다. 실패하면 파일은 옛 내용 그대로다. 있던 파일의 권한은 그대로 남고(`perm`이 없을 때), 심볼릭 링크는 링크로 남는다(가리키는 파일을 바꾼다). 하드 링크가 여럿인 파일, 남의 파일(쓸 권한은 있는), 정규 파일이 아닌 것(`/dev/null` 같은 장치)은 그 자리에 쓴다. FIFO는 읽는 쪽에 그대로 보낸다. [`fs.append`](#fn-fs-append)는 그 자리에 덧붙인다(통째로 바꿀 수 없다).
+
+이름을 바꾸기 전에 임시 파일을 디스크에 내려 쓰므로(`fsync`) 쓰기 한 번마다 그만큼 든다. macOS에서 작은 파일 50개에 번갈아 2000번 쓰면 `fs.write`는 약 0.6초, `fs.append`는 약 0.08초이고, 실제 디스크의 Linux에서는 `fs.write` 한 번에 수 ms가 들 수 있다. 작은 파일을 아주 많이 고쳐 쓰는 스크립트는 내용을 모아 한 번에 쓰거나, 로그처럼 덧붙이기만 하면 `fs.append`나 핸들의 [`fs.write_line`](#fn-fs-write_line)을 쓴다.
 
 #### 매개변수
 
@@ -443,11 +445,11 @@ print(n, "fung files")
 
 :::fn fs.exists(path)
 
-경로에 무엇이 있는지 `true`/`false`로 알려 준다.
+경로에 무엇이 있는지 `Ok(true)`/`Ok(false)`로 알려 준다.
 
 #### 설명
 
-파일이든 디렉터리든 있으면 `true`. 결과값이 아니라 그냥 참거짓이므로 `!` 없이 쓴다. 이유(없는지, 권한이 없는지)가 필요하면 [`fs.stat`](#fn-fs-stat)을 쓴다.
+파일이든 디렉터리든 있으면 `Ok(true)`, **없을 때만** `Ok(false)`다. "없다"는 그 이름이 없거나(`ENOENT`) 경로 중간에 디렉터리가 아닌 파일이 있는 경우(`a.txt/x`, `ENOTDIR`)다. 권한이 없어 볼 수 없는 경로처럼 있는지 없는지 알 수 없으면 `Err`다: "없다"로 읽고 파일을 새로 만드는 일이 없게 한다. 그래서 보통 `fs.exists(p)!`로 쓴다. 심볼릭 링크는 따라가서 그 대상을 본다([`fs.stat`](#fn-fs-stat)과 같다): 가리키는 것이 없는 링크는 `Ok(false)`다.
 
 "있으면 읽는다"는 `fs.exists`로 먼저 묻기보다 [`fs.read`](#fn-fs-read)를 바로 부르고 `'not_found`를 `match`하는 편이 낫다. 묻고 읽는 사이에 다른 프로그램이 파일을 지울 수 있기 때문이다.
 
@@ -457,7 +459,8 @@ print(n, "fung files")
 
 #### 돌려주는 값
 
-`true` 또는 `false`. 빈 경로는 `false`.
+- `Ok(true)`: 있다. `Ok(false)`: 없다. 빈 경로는 `Ok(false)`.
+- `Err({kind: 'permission})`: 볼 권한이 없다(``cannot check whether `locked/x` exists: permission denied``). 그 밖의 실패도 `Err`다.
 
 #### 예제
 
@@ -465,7 +468,7 @@ print(n, "fung files")
 import fs
 
 fs.write("lock", "")!
-print(fs.exists("lock"), fs.exists("."), fs.exists("nope"))
+print(fs.exists("lock")!, fs.exists(".")!, fs.exists("nope")!, fs.exists("lock/x"))
 ```
 
 #### 같이 보기
@@ -610,7 +613,7 @@ fs.mkdir("tmp")!
 fs.write("tmp/a", "")!
 print(fs.remove("tmp"))
 print(fs.remove("tmp/a"), fs.remove("tmp"))
-print(fs.exists("tmp"))
+print(fs.exists("tmp")!)
 ```
 
 #### 같이 보기
@@ -649,7 +652,7 @@ import fs
 
 fs.mkdir("build/out")!
 fs.write("build/out/app", "")!
-print(fs.remove_all("build"), fs.exists("build"))
+print(fs.remove_all("build"), fs.exists("build")!)
 print(fs.remove_all("build"))
 ```
 
@@ -869,7 +872,7 @@ fs.open("servers.txt", 'readwrite)
 
 :::
 
-:::fn fs.write_line(f, line)
+:::fn fs.write_line(file, line)
 
 핸들에 한 줄을 쓴다.
 
@@ -879,7 +882,7 @@ fs.open("servers.txt", 'readwrite)
 
 #### 매개변수
 
-- `f`: `'write`나 `'append`로 연 핸들.
+- `file`: `'write`나 `'append`로 연 핸들.
 - `line`: 쓸 문자열(줄바꿈 없이).
 
 #### 돌려주는 값
@@ -900,7 +903,7 @@ fs.open("servers.txt", 'readwrite)
 import fs
 
 fs.with_open("squares.txt", fn(h):
-  each(range(1, 4), n => fs.write_line(h, "${n} ${n * n}")!)
+  each(1..4, n => fs.write_line(h, "${n} ${n * n}")!)
 ;;, mode: 'write)
 print(fs.read_lines("squares.txt")!)
 ```
@@ -1013,7 +1016,7 @@ kept = fs.with_temp_dir(fn(dir):
   print(fs.read(p)!)
   dir
 ;;)
-print(fs.exists(kept))
+print(fs.exists(kept)!)
 ```
 
 **경로는 실행마다 다르다**

@@ -1,2 +1,2 @@
-match 1: 0 => 1 ;;
+match 1: 0 => print(1) ;;
 # expect-error: E0601

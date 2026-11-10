@@ -19,7 +19,7 @@ use fung_front::diag::{Arg, Diag, error};
 use fung_front::extras;
 use fung_front::loader::{Loaded, Loader, Stage};
 
-use crate::native::{fs, json, nat, net, path, process, range, regex, time};
+use crate::native::{arg, fs, json, nat, net, path, process, range, regex, time};
 use crate::value::{Module, Value};
 use crate::vm::{Prelude, Stop, Task, World, link, no_pos};
 use crate::{conc, prelude};
@@ -143,6 +143,7 @@ pub type NativeModule = fn() -> Rc<Module>;
 /// command registers the ones a program imports (`register`), and
 /// `spec/builtins.txt` lists their members (generated from this table).
 pub const NATIVE_MODULES: &[(&str, NativeModule)] = &[
+    ("_native.arg", arg::module),
     ("_native.fs", fs::module),
     ("_native.json", json::module),
     ("_native.net", net::module),

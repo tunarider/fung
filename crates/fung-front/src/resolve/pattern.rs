@@ -2,9 +2,9 @@
 
 use std::collections::HashSet;
 
-use super::scope::Binding;
-use super::{Resolver, lit_str, name_error, ref_node};
-use crate::diag::error;
+use super::scope::{Binding, Made};
+use super::{Resolver, lit_str, name_error, ref_node, rune_len};
+use crate::diag::{Diag, error};
 use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
@@ -116,12 +116,23 @@ impl Resolver<'_> {
     /// Resolves `(match subject (arm pat guard body)…)`: each arm is its
     /// own block scope whose pattern names are fresh bindings. The body's
     /// statements share that block, so the arm may rebind its names like a
-    /// `for` body (03).
+    /// `for` body (03). An arm after one that matches everything without
+    /// a guard never runs: E0235 (FE25).
     pub(super) fn match_expr(&mut self, n: &Node) -> Node {
         let mut kids = vec![self.walk(&n.kids[0])];
-        for arm in &n.kids[1..] {
+        let arms = &n.kids[1..];
+        if let Some(i) = arms[..arms.len().saturating_sub(1)]
+            .iter()
+            .position(|a| a.kids[1].head == Head::Nil && matches_all(&a.kids[0]))
+        {
+            let prev = i.checked_sub(1).map(|j| &arms[j].kids[0]);
+            self.errs
+                .push(self.unreachable_after(&arms[i].kids[0], prev));
+        }
+        for arm in arms {
             let body = &arm.kids[2];
             self.push_block(body, false);
+            self.cur_block().made = Made::Arm;
             let pat = self.bind_pattern(&arm.kids[0], Mode::Fresh);
             let guard = self.walk(&arm.kids[1]);
             let body = if body.head == Head::Do {
@@ -137,5 +148,40 @@ impl Resolver<'_> {
             kids.push(Node::new(Head::Arm, arm.pos, vec![pat, guard, body]));
         }
         Node::new(Head::Match, n.pos, kids)
+    }
+
+    /// E0235 at the arm pattern that matches everything. Indented under
+    /// the arm before (`prev`), it was most likely a lambda statement in
+    /// that arm's body; a bare name that is also a visible variable was
+    /// most likely meant to compare with it.
+    fn unreachable_after(&self, pat: &Node, prev: Option<&Node>) -> Diag {
+        let name = lit_str(pat);
+        let e = error("E0235", pat.pos, vec![]).span(rune_len(name).max(1));
+        if prev.is_some_and(|p| pat.pos.line > p.pos.line && pat.pos.col > p.pos.col) {
+            return e.with_help(
+                "a line of the form `pattern =>` starts a new arm; a lambda as the value of the arm above goes in parentheses: `(y => y + 1)`",
+            );
+        }
+        if pat.head != Head::Pbind {
+            return e;
+        }
+        let visible = self.fns.iter().any(|f| f.innermost(name).is_some())
+            || self.file_var_pos.contains_key(name);
+        if !visible {
+            return e;
+        }
+        e.with_help(&format!(
+            "a name in a pattern binds a new name, so `{name}` here is not the variable; compare with a guard: `v when v == {name} =>`"
+        ))
+    }
+}
+
+/// A pattern that every value matches: `_`, a bare name, or alternatives
+/// one of which is such.
+fn matches_all(p: &Node) -> bool {
+    match p.head {
+        Head::Pwild | Head::Pbind => true,
+        Head::Palt => p.kids.iter().any(matches_all),
+        _ => false,
     }
 }

@@ -7,9 +7,18 @@
 //! Reads happen only on demand: the reader thread reads only while a task
 //! waits for a line and none is queued, one buffer (`BUFFER`, 64 KiB;
 //! `fung` gives the input that buffer) at a time, and queues every whole
-//! line in it. What the
-//! program never asked for stays in the input: a command after fung in
-//! a shell reads it, and keys typed ahead on a terminal are not taken.
+//! line in it. A read takes what the input has, up to the buffer, so the
+//! lines after the one asked for may be taken with it: a command after
+//! fung in a shell reads from where that buffer ended (06), not from the
+//! next line. Nothing is read before a task asks, so keys typed ahead on
+//! a terminal stay there until then.
+//!
+//! A read error is no end of the input (CC10): it is queued after the
+//! lines read before it and the read that takes it gives `Err`; the part
+//! of a line read before it waits for the rest, and the next read tries
+//! again. An input inherited non-blocking (O_NONBLOCK, which the
+//! descriptor shares with whoever passed it on) is read through
+//! [`blocking_reads`], which waits for it as a blocking read would.
 //!
 //! A task takes a queued line on the run thread, without waiting.
 //! When the queue is empty it puts its waiter on the waiting list and
@@ -28,7 +37,8 @@
 //! strings happens on the run thread.
 
 use std::collections::VecDeque;
-use std::io::BufRead;
+use std::io::{BufRead, Read};
+use std::os::fd::AsRawFd;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use super::block::{WaitList, Waiter};
@@ -37,6 +47,70 @@ use super::block::{WaitList, Waiter};
 /// most this much. 64 KiB is the pipe buffer size on Linux, so one read
 /// empties a full pipe.
 pub const BUFFER: usize = 64 * 1024;
+
+/// What a read of standard input brings a waiting task.
+#[derive(Debug)]
+pub(crate) enum Input {
+    /// A line, with its line ending (the last one may have none).
+    Line(Vec<u8>),
+    /// The end of the input.
+    End,
+    /// A read failed; the next read tries again.
+    Failed(std::io::Error),
+}
+
+/// A file read as standard input (`fung` gives it a duplicate of
+/// descriptor 0): a read that finds nothing there on a non-blocking
+/// descriptor waits until something is, with `poll(2)`, instead of
+/// failing with `EAGAIN`. The descriptor's flags are shared with the
+/// process that passed it on, so it is left non-blocking. Only the
+/// reader thread reads it, which may block (see the module notes).
+pub fn blocking_reads(f: std::fs::File) -> Box<dyn Read + Send> {
+    Box::new(BlockingReads(f))
+}
+
+struct BlockingReads(std::fs::File);
+
+/// How many reads of a `blocking_reads` input found nothing and waited
+/// (a test probe; only one test reads such an input).
+#[cfg(test)]
+pub(crate) static NONBLOCKING_WAITS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+impl Read for BlockingReads {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            match self.0.read(buf) {
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    #[cfg(test)]
+                    NONBLOCKING_WAITS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    wait_readable(self.0.as_raw_fd())?;
+                }
+                r => return r,
+            }
+        }
+    }
+}
+
+/// Waits until `fd` can be read (or is at its end, or fails: the read
+/// that follows says which).
+fn wait_readable(fd: std::os::fd::RawFd) -> std::io::Result<()> {
+    let mut p = libc::pollfd {
+        fd,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    loop {
+        // SAFETY: `p` is one valid `pollfd` for the call.
+        if unsafe { libc::poll(&mut p, 1, -1) } >= 0 {
+            return Ok(());
+        }
+        let e = std::io::Error::last_os_error();
+        if e.kind() != std::io::ErrorKind::Interrupted {
+            return Err(e);
+        }
+    }
+}
 
 /// The world's handle on standard input. Dropping it (with the world)
 /// tells the reader thread to stop.
@@ -53,9 +127,8 @@ struct PumpState {
     source: Option<Box<dyn BufRead + Send>>,
     /// The reader thread was started.
     started: bool,
-    /// Lines read, each with its line ending; `None` is the end of the
-    /// input (or a read error).
-    lines: VecDeque<Option<Vec<u8>>>,
+    /// What the reads brought, in order.
+    lines: VecDeque<Input>,
     /// Tasks waiting for a line, woken when one comes.
     waiting: WaitList,
     /// The runtime is gone: the reader thread stops.
@@ -101,14 +174,15 @@ impl Stdin {
         }))
     }
 
-    /// The next line if one is queued (`Some(None)` at the end of the
-    /// input), taken off for `me`; otherwise `me` is put on the waiting
-    /// list, the reader thread is asked for a read, and `None`: the task
-    /// parks until the reader thread wakes it (`read_on_demand`). Starts
+    /// What the next read brought if it is queued (a line, the end, or
+    /// a read error), taken off for `me`; otherwise `me` is put on the
+    /// waiting list, the reader thread is asked for a read, and `None`:
+    /// the task parks until the reader thread wakes it
+    /// (`read_on_demand`). Starts
     /// the reader thread the first time; when no thread can be made, the
     /// error (E0801 for the caller), and the input stays for a later read
     /// (review CC7).
-    pub(crate) fn poll(&self, me: &Arc<Waiter>) -> std::io::Result<Option<Option<Vec<u8>>>> {
+    pub(crate) fn poll(&self, me: &Arc<Waiter>) -> std::io::Result<Option<Input>> {
         let mut s = lock(&self.0.state);
         if !s.started {
             self.start()?;
@@ -169,9 +243,14 @@ impl Pump {
     /// buffer, waiting only when nothing is there), queues the whole
     /// lines in it and wakes the waiting tasks. A line split across reads
     /// waits in `part` for its end; the thread reads on while a task
-    /// still wants a line.
+    /// still wants a line. A read error is queued as it is, and `part`
+    /// keeps waiting.
     fn read_on_demand(&self, mut source: Box<dyn BufRead + Send>) {
         let mut part = Vec::new();
+        // A line past the string limit stops here (LB29, D22): what was
+        // gathered goes and the read gives its `Err`; the line's rest is
+        // read on as the next line.
+        let mut count = crate::native::nat::CharCount::default();
         loop {
             {
                 let mut s = lock(&self.state);
@@ -182,36 +261,40 @@ impl Pump {
                     s = self.demand.wait(s).unwrap_or_else(PoisonError::into_inner);
                 }
             }
-            let mut lines = Vec::new();
-            let end = match source.fill_buf() {
+            let mut got = Vec::new();
+            match source.fill_buf() {
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                // The end, or an error.
-                Err(_) => true,
-                Ok([]) => true,
+                Err(e) => got.push(Input::Failed(e)),
+                Ok([]) => {
+                    if !part.is_empty() {
+                        got.push(Input::Line(std::mem::take(&mut part)));
+                        count = Default::default();
+                    }
+                    got.push(Input::End);
+                }
                 Ok(chunk) => {
                     let n = chunk.len();
                     let mut rest = chunk;
                     while let Some(i) = rest.iter().position(|&b| b == b'\n') {
                         part.extend_from_slice(&rest[..=i]);
-                        lines.push(std::mem::take(&mut part));
+                        got.push(Input::Line(std::mem::take(&mut part)));
+                        count = Default::default();
                         rest = &rest[i + 1..];
                     }
                     part.extend_from_slice(rest);
                     source.consume(n);
-                    false
+                    if !count.within(&part) {
+                        part = Vec::new();
+                        count = Default::default();
+                        got.push(Input::Failed(crate::native::nat::too_long_error("line")));
+                    }
                 }
-            };
-            if end && !part.is_empty() {
-                lines.push(std::mem::take(&mut part));
             }
-            if lines.is_empty() && !end {
+            if got.is_empty() {
                 continue;
             }
             let mut s = lock(&self.state);
-            s.lines.extend(lines.into_iter().map(Some));
-            if end {
-                s.lines.push_back(None);
-            }
+            s.lines.extend(got);
             s.waiting.wake_all();
         }
     }

@@ -98,10 +98,13 @@ impl TypeSet {
         t
     }
 
+    /// A tag name also takes its symbol (07, T1), except `Ok` and `Err`:
+    /// they name a result, which is always a tag with one value (02, SP12).
     pub fn matches(&self, v: &Value) -> bool {
+        let result = |name: &Sym| matches!(*name, Sym::OK | Sym::ERR);
         match v {
             Value::Tag(tag) => self.kinds == ALL || self.tags.contains(&tag.name),
-            Value::Sym(s) => self.kinds & SYM != 0 || self.tags.contains(s),
+            Value::Sym(s) => self.kinds & SYM != 0 || (self.tags.contains(s) && !result(s)),
             _ => self.kinds & kind_of(v) != 0,
         }
     }
@@ -119,7 +122,39 @@ pub fn matches_type(v: &Value, alts: Option<&[String]>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::kind_of_name;
+    use super::{kind_of_name, matches_type};
+    use crate::value::{Sym, Tag, Value, intern};
+    use std::rc::Rc;
+
+    fn tag(name: Sym, args: Vec<Value>) -> Value {
+        Value::Tag(Rc::new(Tag {
+            name,
+            args: args.into(),
+        }))
+    }
+
+    /// The annotation `Ok`/`Err` names a result, not the symbol `'Ok`
+    /// (02, SP12). `sym` still takes the symbol, and another tag name
+    /// takes both forms (T1).
+    #[test]
+    fn result_annotations_take_only_results() {
+        let t = |names: &[&str]| names.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let ok1 = tag(Sym::OK, vec![Value::Int(1)]);
+        let err1 = tag(Sym::ERR, vec![Value::Int(1)]);
+        let ok_sym = Value::Sym(Sym::OK);
+        let res = t(&["Ok", "Err"]);
+        assert!(matches_type(&ok1, Some(&res)));
+        assert!(matches_type(&err1, Some(&res)));
+        assert!(!matches_type(&ok_sym, Some(&res)));
+        assert!(matches_type(&ok_sym, Some(&t(&["Ok", "sym"]))));
+        assert!(matches_type(&ok1, Some(&t(&["any"]))));
+        let red = intern("Red");
+        assert!(matches_type(&Value::Sym(red), Some(&t(&["Red"]))));
+        assert!(matches_type(
+            &tag(red, vec![Value::Int(1), Value::Int(2)]),
+            Some(&t(&["Red"]))
+        ));
+    }
 
     /// The VM knows the type names the front end takes, and no others
     /// (VA17: `conn` and `listener` stay out of annotations, 07).

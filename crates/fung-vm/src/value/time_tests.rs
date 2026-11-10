@@ -220,14 +220,14 @@ fn time_in_a_loaded_zone() {
         assert_eq!(t.zone(), zone);
         assert_eq!(t.date(), date);
         assert_eq!(t.weekday(), wd);
-        assert_eq!(t.utc().iso(), utc(sec, 0).iso());
-        assert!(t.utc().equal(&t));
+        assert_eq!(t.utc().unwrap().iso(), utc(sec, 0).iso());
+        assert!(t.utc().unwrap().equal(&t));
     }
 }
 
 #[test]
 fn time_local_uses_the_process_zone() {
-    let t = utc(1760400000, 0).local();
+    let t = utc(1760400000, 0).local().unwrap();
     assert_eq!(t.unix(), 1760400000);
     let (_, off) = tz::local().lookup(1760400000);
     assert_eq!(t.zone().1, off);
@@ -381,12 +381,21 @@ fn add_and_sub_stay_in_range() {
     assert_eq!(b.sub(&a), Some(-2_999_999_996));
 }
 
+/// LB37: the range is of the date shown, so an edge in UTC is past it in
+/// an offset that would show year -0001 or 10000.
 #[test]
-fn edges_show_in_any_offset() {
-    let first = Time::from_unix(MIN_UNIX, 0, Loc::Fixed(-18000)).unwrap();
-    assert_eq!(first.iso(), "-0001-12-31T19:00:00-05:00");
-    let last = Time::from_unix(MAX_UNIX, 0, Loc::Fixed(3600)).unwrap();
-    assert_eq!(last.iso(), "10000-01-01T00:59:59+01:00");
+fn edges_are_of_the_date_shown() {
+    assert!(Time::from_unix(MIN_UNIX, 0, Loc::Fixed(-18000)).is_none());
+    assert!(Time::from_unix(MAX_UNIX, 0, Loc::Fixed(3600)).is_none());
+    let first = Time::from_unix(MIN_UNIX + 18000, 0, Loc::Fixed(-18000)).unwrap();
+    assert_eq!(first.iso(), "0000-01-01T00:00:00-05:00");
+    let last = Time::from_unix(MAX_UNIX - 3600, 0, Loc::Fixed(3600)).unwrap();
+    assert_eq!(last.iso(), "9999-12-31T23:59:59+01:00");
+    // Past UTC's range, in range where it is shown: no UTC form.
+    let late = Time::from_unix(MAX_UNIX + 3600, 0, Loc::Fixed(-7200)).unwrap();
+    assert!(late.utc().is_none());
+    assert!(late.add(3_600_000_000_000).is_some());
+    assert!(late.add(7_200_000_000_000).is_none());
 }
 
 #[test]

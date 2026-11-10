@@ -92,16 +92,28 @@
 -- exit: 0
 ==== test extras/cli.fung
 -- stdout
-| ok   extras/cli.fung: flags, values, and rest
-| 1 passed, 0 failed
+| FAIL extras/cli.fung: <load>
+| 0 passed, 1 failed
 -- stderr
--- exit: 0
+| error[E0310]: `_native.arg` is internal; it checks the arguments of the built-in modules
+|   --> extras/cli.fung:19:1
+|    |
+| 19 | import _native.arg as _arg
+|    | ^
+|    |
+-- exit: 2
 ==== test extras/conc.fung
 -- stdout
-| 0 passed, 0 failed
+| FAIL extras/conc.fung: <load>
+| 0 passed, 1 failed
 -- stderr
-| no tests found
--- exit: 1
+| error[E0310]: `_native.arg` is internal; it checks the arguments of the built-in modules
+|   --> extras/conc.fung:12:1
+|    |
+| 12 | import _native.arg as _arg
+|    | ^
+|    |
+-- exit: 2
 ==== test extras/fs.fung
 -- stdout
 | FAIL extras/fs.fung: <load>
@@ -119,10 +131,10 @@
 | FAIL extras/http.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0310]: `_native.net` is internal; import `http` instead
-|   --> extras/http.fung:19:1
+| error[E0310]: `_native.arg` is internal; it checks the arguments of the built-in modules
+|   --> extras/http.fung:20:1
 |    |
-| 19 | import _native.net as _net
+| 20 | import _native.arg as _arg
 |    | ^
 |    |
 -- exit: 2
@@ -155,10 +167,10 @@
 | FAIL extras/prelude.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0310]: `_native.process` is internal; its functions are in the prelude
+| error[E0310]: `_native.arg` is internal; it checks the arguments of the built-in modules
 |   --> extras/prelude.fung:6:1
 |   |
-| 6 | import _native.process as _p
+| 6 | import _native.arg as _arg
 |   | ^
 |   |
 -- exit: 2
@@ -288,7 +300,7 @@
 -- stderr
 | no tests found
 -- exit: 1
-==== test tests/lang/cli_bools_names.fung
+==== test tests/lang/cli_parse.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -342,6 +354,12 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/destructure_rule.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/discard.fung
 -- stdout
 | 0 passed, 0 failed
@@ -361,6 +379,12 @@
 | no tests found
 -- exit: 1
 ==== test tests/lang/durations.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/effect_statements.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -422,7 +446,7 @@
 | error[E0216]: alternatives of a pattern must bind the same names
 |   --> tests/lang/err_alt_names.fung:1:18
 |   |
-| 1 | match 1: Ok(x) | Err(y) => 1 ;;
+| 1 | match 1: Ok(x) | Err(y) => print(1) ;;
 |   |                  ^
 |   |
 -- exit: 2
@@ -450,6 +474,18 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_assign_literal.fung
+-- stdout
+| FAIL tests/lang/err_assign_literal.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0112]: expected a name or a destructuring pattern, found string `"a"`
+|   --> tests/lang/err_assign_literal.fung:3:1
+|   |
+| 3 | "a" | "b" = "a"
+|   | ^
+|   |
+-- exit: 2
 ==== test tests/lang/err_atom_effect.fung
 -- stdout
 | 0 passed, 0 failed
@@ -486,6 +522,19 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_block_assign_const.fung
+-- stdout
+| FAIL tests/lang/err_block_assign_const.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0205]: cannot reassign `c` here: it was defined outside this block
+|   --> tests/lang/err_block_assign_const.fung:6:5
+|   |
+| 6 |     c = 2
+|   |     ^
+|   |
+|  help: a block cannot change an outer variable; build the value with an expression instead, e.g. `x = if … ;;` or `fold`
+-- exit: 2
 ==== test tests/lang/err_block_leak.fung
 -- stdout
 | FAIL tests/lang/err_block_leak.fung: <load>
@@ -556,6 +605,12 @@
 | no tests found
 -- exit: 1
 ==== test tests/lang/err_convert.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/err_convert_leading_zero.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -688,16 +743,185 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_duration_fraction_part.fung
+-- stdout
+| FAIL tests/lang/err_duration_fraction_part.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0105]: malformed duration "1.5h30m"
+|   --> tests/lang/err_duration_fraction_part.fung:2:7
+|   |
+| 2 | print(1.5h30m)
+|   |       ^
+|   |
+|  help: only the last part of a duration has a fraction: write `1h30.5m`, not `1.5h30m`
+-- exit: 2
+==== test tests/lang/err_duration_leading_zero.fung
+-- stdout
+| FAIL tests/lang/err_duration_leading_zero.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0105]: malformed duration "1h05m"
+|   --> tests/lang/err_duration_leading_zero.fung:2:7
+|   |
+| 2 | print(1h05m)
+|   |       ^
+|   |
+|  help: a duration part does not start with 0: drop the zeros
+-- exit: 2
+==== test tests/lang/err_duration_rounds_to_zero.fung
+-- stdout
+| FAIL tests/lang/err_duration_rounds_to_zero.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0105]: malformed duration "0.0000004ms"
+|   --> tests/lang/err_duration_rounds_to_zero.fung:2:7
+|   |
+| 2 | print(0.0000004ms)
+|   |       ^
+|   |
+|  help: a duration is counted in whole nanoseconds; this part rounds to 0
+-- exit: 2
+==== test tests/lang/err_effect_free_bare_tag.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_bare_tag.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: this value is computed and discarded
+|   --> tests/lang/err_effect_free_bare_tag.fung:3:1
+|   |
+| 3 | Red
+|   | ^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== test tests/lang/err_effect_free_branch.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_branch.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: this value is computed and discarded
+|   --> tests/lang/err_effect_free_branch.fung:4:10
+|   |
+| 4 |     1 => "one"
+|   |          ^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== test tests/lang/err_effect_free_compare.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_compare.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: the comparison `==` is computed and discarded
+|   --> tests/lang/err_effect_free_compare.fung:3:3
+|   |
+| 3 | x == 2
+|   |   ^^
+|   |
+|  help: did you mean `=`? `==` compares; `=` assigns
+-- exit: 2
+==== test tests/lang/err_effect_free_lambda.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_lambda.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: a lambda is computed and discarded
+|   --> tests/lang/err_effect_free_lambda.fung:2:1
+|   |
+| 2 | x => x + 1
+|   | ^
+|   |
+|  help: call it, or assign it to a name
+-- exit: 2
+==== test tests/lang/err_effect_free_minus.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_minus.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: the value of `a` is computed and discarded
+|   --> tests/lang/err_effect_free_minus.fung:4:3
+|   |
+| 4 |   a
+|   |   ^
+|   |
+|  help: the next line starts with `-`, so it is a new statement; to continue this expression, end this line with `-`
+-- exit: 2
+==== test tests/lang/err_effect_free_name.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_name.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: the value of `cleanup` is computed and discarded
+|   --> tests/lang/err_effect_free_name.fung:3:1
+|   |
+| 3 | cleanup
+|   | ^^^^^^^
+|   |
+|  help: to call it, add `()`: `cleanup()`; to discard it on purpose, write `_ = cleanup`
+-- exit: 2
+==== test tests/lang/err_effect_free_operator.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_operator.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: this value is computed and discarded
+|   --> tests/lang/err_effect_free_operator.fung:4:1
+|   |
+| 4 | [xs[0] + 1, {a: len}]
+|   | ^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
+==== test tests/lang/err_effect_free_partial.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_partial.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: a partial application is computed and discarded
+|   --> tests/lang/err_effect_free_partial.fung:2:6
+|   |
+| 2 | print(1, _)
+|   |      ^
+|   |
+|  help: a call with `_` makes a function without calling it; pass every argument to call it
+-- exit: 2
+==== test tests/lang/err_effect_free_partial_args.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_partial_args.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: a partial application is computed and discarded
+|   --> tests/lang/err_effect_free_partial_args.fung:4:6
+|   |
+| 4 | print(x, _)
+|   |      ^
+|   |
+|  help: a call with `_` makes a function without calling it; pass every argument to call it
+-- exit: 2
+==== test tests/lang/err_effect_free_tag.fung
+-- stdout
+| FAIL tests/lang/err_effect_free_tag.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0234]: the tag value `Err(…)` is computed and discarded
+|   --> tests/lang/err_effect_free_tag.fung:4:1
+|   |
+| 4 | Err("lost ${x}")
+|   | ^^^
+|   |
+|  help: use the value, or write `_ = …` to discard it on purpose
+-- exit: 2
 ==== test tests/lang/err_element_type_on_scalar.fung
 -- stdout
 | FAIL tests/lang/err_element_type_on_scalar.fung: <load>
 | 0 passed, 1 failed
 -- stderr
 | error[E0232]: `int` takes no element type
-|   --> tests/lang/err_element_type_on_scalar.fung:2:6
+|   --> tests/lang/err_element_type_on_scalar.fung:2:9
 |   |
 | 2 | fn f(x: int[str]) = x
-|   |      ^^^
+|   |         ^^^
 |   |
 |  help: only `list` and `map` hold elements: write `list[str]`, `map[int]`, or the type alone
 -- exit: 2
@@ -707,10 +931,10 @@
 | 0 passed, 1 failed
 -- stderr
 | error[E0212]: unknown type `lsit`
-|   --> tests/lang/err_element_type_unknown.fung:3:6
+|   --> tests/lang/err_element_type_unknown.fung:3:14
 |   |
 | 3 | fn f(x: list[lsit]) = x
-|   |      ^^^^
+|   |              ^^^^
 |   |
 -- exit: 2
 ==== test tests/lang/err_eq_sym_str_compared.fung
@@ -724,12 +948,25 @@
 | FAIL tests/lang/err_escape.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0103]: unknown escape "\\p" in string
+| error[E0103]: unknown escape `\p` in string
 |   --> tests/lang/err_escape.fung:1:10
 |   |
 | 1 | print("C:\path")
 |   |          ^
 |   |
+-- exit: 2
+==== test tests/lang/err_escape_not_scalar.fung
+-- stdout
+| FAIL tests/lang/err_escape_not_scalar.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0106]: `\u{d800}` is not a Unicode scalar value
+|   --> tests/lang/err_escape_not_scalar.fung:2:8
+|   |
+| 2 | print("\u{d800}")
+|   |        ^
+|   |
+|  help: `\u{…}` takes a code point up to 10FFFF that is not a surrogate (D800–DFFF); for a byte, write `\xHH`
 -- exit: 2
 ==== test tests/lang/err_exit_negative.fung
 -- stdout
@@ -767,18 +1004,56 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_float_underflow.fung
+-- stdout
+| FAIL tests/lang/err_float_underflow.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0102]: malformed number "1e-400"
+|   --> tests/lang/err_float_underflow.fung:2:7
+|   |
+| 2 | print(1e-400)
+|   |       ^
+|   |
+|  help: the number is too small for a float; write `0.0` for zero
+-- exit: 2
 ==== test tests/lang/err_fn_empty_body.fung
 -- stdout
 | FAIL tests/lang/err_fn_empty_body.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0231]: a block used as a value is empty, so the value is nil
+| error[E0224]: a block used as a value is empty, so the value is nil
 |   --> tests/lang/err_fn_empty_body.fung:3:1
 |   |
 | 3 | fn f((a, b)): ;;
 |   | ^
 |   |
-|  help: end the block with the value it stands for; write `nil` last if nil is meant
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
+-- exit: 2
+==== test tests/lang/err_for_literal.fung
+-- stdout
+| FAIL tests/lang/err_for_literal.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0112]: expected a name or a destructuring pattern, found integer `1`
+|   --> tests/lang/err_for_literal.fung:2:5
+|   |
+| 2 | for 1 in [1, 2]: print("x") ;;
+|   |     ^
+|   |
+-- exit: 2
+==== test tests/lang/err_for_var_after.fung
+-- stdout
+| FAIL tests/lang/err_for_var_after.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0206]: `len` is not visible here: it was defined inside a block
+|   --> tests/lang/err_for_var_after.fung:6:7
+|   |
+| 6 | print(len([1, 2]))
+|   |       ^^^
+|   |
+|  help: `len` is bound in a `for` body, only there; use the for's value instead: `xs = for … ;;`
 -- exit: 2
 ==== test tests/lang/err_glob_pattern.fung
 -- stdout
@@ -852,7 +1127,7 @@
 | FAIL tests/lang/err_import_missing.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0301]: cannot find module `$REPO/tests/lang/_lib/nothing.fung`
+| error[E0301]: cannot find module `tests/lang/_lib/nothing.fung`
 |   --> tests/lang/err_import_missing.fung:1:1
 |   |
 | 1 | import "./_lib/nothing"
@@ -879,10 +1154,10 @@
 | 0 passed, 1 failed
 -- stderr
 | error[E0306]: only import, fn, type, test, and assignment are allowed at the top level of an imported module
-|   --> tests/lang/_lib/noisy.fung:1:6
+|   --> tests/lang/_lib/noisy.fung:1:1
 |   |
 | 1 | print("side effect")
-|   |      ^
+|   | ^
 |   |
 |  help: move the statement into a function, or into the entry file
 -- exit: 2
@@ -921,7 +1196,7 @@
 | FAIL tests/lang/err_interp.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0110]: unexpected end of file
+| error[E0110]: unexpected `}`
 |   --> tests/lang/err_interp.fung:1:13
 |   |
 | 1 | print("${1 +}")
@@ -1009,12 +1284,90 @@
 |   |
 |  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
 -- exit: 2
+==== test tests/lang/err_match_after_all.fung
+-- stdout
+| FAIL tests/lang/err_match_after_all.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0235]: this arm matches everything, so the arms after it never run
+|   --> tests/lang/err_match_after_all.fung:3:3
+|   |
+| 3 |   _ => 1
+|   |   ^ matches everything
+|   |
+|  help: move it last, or give it a guard: `n when n > 0 =>`
+-- exit: 2
+==== test tests/lang/err_match_alt_all.fung
+-- stdout
+| FAIL tests/lang/err_match_alt_all.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0235]: this arm matches everything, so the arms after it never run
+|   --> tests/lang/err_match_alt_all.fung:3:3
+|   |
+| 3 |   n | n => print(n)
+|   |   ^ matches everything
+|   |
+|  help: move it last, or give it a guard: `n when n > 0 =>`
+-- exit: 2
+==== test tests/lang/err_match_alt_any.fung
+-- stdout
+| FAIL tests/lang/err_match_alt_any.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0235]: this arm matches everything, so the arms after it never run
+|   --> tests/lang/err_match_alt_any.fung:4:3
+|   |
+| 4 |   1 | _ => "any"
+|   |   ^ matches everything
+|   |
+|  help: move it last, or give it a guard: `n when n > 0 =>`
+-- exit: 2
+==== test tests/lang/err_match_lambda_stmt.fung
+-- stdout
+| FAIL tests/lang/err_match_lambda_stmt.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0235]: this arm matches everything, so the arms after it never run
+|   --> tests/lang/err_match_lambda_stmt.fung:8:3
+|   |
+| 8 |   y => y + 1
+|   |   ^ matches everything
+|   |
+|  help: move it last, or give it a guard: `n when n > 0 =>`
+-- exit: 2
+==== test tests/lang/err_match_name_compare.fung
+-- stdout
+| FAIL tests/lang/err_match_name_compare.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0235]: this arm matches everything, so the arms after it never run
+|   --> tests/lang/err_match_name_compare.fung:5:3
+|   |
+| 5 |   limit => "at limit"
+|   |   ^^^^^ matches everything
+|   |
+|  help: a name in a pattern binds a new name, so `limit` here is not the variable; compare with a guard: `v when v == limit =>`
+-- exit: 2
 ==== test tests/lang/err_missing_arg.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_missing_comma.fung
+-- stdout
+| FAIL tests/lang/err_missing_comma.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0112]: expected `,` or `]`, found name `print`
+|   --> tests/lang/err_missing_comma.fung:4:1
+|   |
+| 4 | print(ports)
+|   | ^
+|   |
+|   note: the `[` opened at 3:9
+-- exit: 2
 ==== test tests/lang/err_missing_end.fung
 -- stdout
 | FAIL tests/lang/err_missing_end.fung: <load>
@@ -1094,12 +1447,45 @@
 |   |     ^
 |   |
 -- exit: 2
+==== test tests/lang/err_number_upper_exp.fung
+-- stdout
+| FAIL tests/lang/err_number_upper_exp.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0102]: malformed number "1E5"
+|   --> tests/lang/err_number_upper_exp.fung:2:7
+|   |
+| 2 | print(1E5)
+|   |       ^
+|   |
+|  help: write the exponent with a lowercase `e`: `1e5`
+-- exit: 2
+==== test tests/lang/err_number_upper_prefix.fung
+-- stdout
+| FAIL tests/lang/err_number_upper_prefix.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0102]: malformed number "0XFF"
+|   --> tests/lang/err_number_upper_prefix.fung:2:7
+|   |
+| 2 | print(0XFF)
+|   |       ^
+|   |
+|  help: write the base prefix in lowercase: `0xFF`
+-- exit: 2
 ==== test tests/lang/err_ok_two_values.fung
 -- stdout
-| 0 passed, 0 failed
+| FAIL tests/lang/err_ok_two_values.fung: <load>
+| 0 passed, 1 failed
 -- stderr
-| no tests found
--- exit: 1
+| error[E0236]: `Ok` takes exactly one value, found 2
+|   --> tests/lang/err_ok_two_values.fung:3:7
+|   |
+| 3 | print(Ok(1, 2)!)
+|   |       ^
+|   |
+|  help: put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
+-- exit: 2
 ==== test tests/lang/err_open_if_assign.fung
 -- stdout
 | FAIL tests/lang/err_open_if_assign.fung: <load>
@@ -1171,6 +1557,18 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_param_bare_tag.fung
+-- stdout
+| FAIL tests/lang/err_param_bare_tag.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0112]: expected a name or a destructuring pattern, found tag `Red`
+|   --> tests/lang/err_param_bare_tag.fung:2:6
+|   |
+| 2 | fn f(Red) = 1
+|   |      ^
+|   |
+-- exit: 2
 ==== test tests/lang/err_pipe_hole.fung
 -- stdout
 | FAIL tests/lang/err_pipe_hole.fung: <load>
@@ -1182,8 +1580,14 @@
 | 3 | print(3 |> h(_, 10))
 |   |              ^
 |   |
-|  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
+|  help: the piped value is always the first argument; to put it elsewhere, call a parenthesised partial: `x |> (f(1, _))` (or a lambda: `x |> (v => f(1, v))`)
 -- exit: 2
+==== test tests/lang/err_pipe_paren_call.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_pipe_quoted_symbol.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1201,7 +1605,7 @@
 | 3 | print(1 |> Pair(_, 2))
 |   |                 ^
 |   |
-|  help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |> (v => f(1, v))`
+|  help: the piped value is always the first argument; to put it elsewhere, call a parenthesised partial: `x |> (f(1, _))` (or a lambda: `x |> (v => f(1, v))`)
 -- exit: 2
 ==== test tests/lang/err_pmap_failed.fung
 -- stdout
@@ -1222,6 +1626,19 @@
 |   |
 |  help: the result keeps the Err as an element; with map use `try_map`, which stops at the first Err; with conc.pmap return the Err and look for it in the results
 -- exit: 2
+==== test tests/lang/err_positional_after_named.fung
+-- stdout
+| FAIL tests/lang/err_positional_after_named.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0126]: a positional argument cannot follow a named one
+|   --> tests/lang/err_positional_after_named.fung:3:27
+|   |
+| 3 | print(connect(port: 8080, "example.com"))
+|   |                           ^
+|   |
+|  help: put the positional arguments first: `f(1, b: 2)`
+-- exit: 2
 ==== test tests/lang/err_question_in_for.fung
 -- stdout
 | FAIL tests/lang/err_question_in_for.fung: <load>
@@ -1235,6 +1652,12 @@
 |   |
 |  help: `for` builds a list and cannot return early; handle the Err with `match`, or use `try_map`/`all`/`any`/`fold`
 -- exit: 2
+==== test tests/lang/err_question_nil.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_question_top.fung
 -- stdout
 | FAIL tests/lang/err_question_top.fung: <load>
@@ -1261,6 +1684,18 @@
 |   |
 |  help: `..` does not chain: put the inner range in parentheses if you mean it
 -- exit: 2
+==== test tests/lang/err_range_index_reversed.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/err_range_reversed.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_reassign_fn.fung
 -- stdout
 | FAIL tests/lang/err_reassign_fn.fung: <load>
@@ -1311,6 +1746,51 @@
 |   |
 |  help: annotate it `list` (or not at all); `list[int]` names the elements without checking them
 -- exit: 2
+==== test tests/lang/err_result_arity_pattern.fung
+-- stdout
+| FAIL tests/lang/err_result_arity_pattern.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0236]: `Ok` takes exactly one value, found 2
+|   --> tests/lang/err_result_arity_pattern.fung:4:16
+|   |
+| 4 | print(match r: Ok(a, b) => a + b; _ => 0 ;;)
+|   |                ^
+|   |
+|  help: put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
+-- exit: 2
+==== test tests/lang/err_result_arity_pipe.fung
+-- stdout
+| FAIL tests/lang/err_result_arity_pipe.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0236]: `Ok` takes exactly one value, found 2
+|   --> tests/lang/err_result_arity_pipe.fung:3:12
+|   |
+| 3 | print(1 |> Ok(2))
+|   |            ^
+|   |
+|  help: put several values in a tuple: `Ok((a, b))` or `Err((a, b))`
+-- exit: 2
+==== test tests/lang/err_result_type_symbol.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/err_return_in_default.fung
+-- stdout
+| FAIL tests/lang/err_return_in_default.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0211]: return inside a parameter default
+|   --> tests/lang/err_return_in_default.fung:3:10
+|   |
+| 3 | fn f(a = return 5) = a
+|   |          ^
+|   |
+|  help: compute the value in the body: give the parameter a `nil` default and test it there
+-- exit: 2
 ==== test tests/lang/err_return_in_for.fung
 -- stdout
 | FAIL tests/lang/err_return_in_for.fung: <load>
@@ -1349,12 +1829,38 @@
 |   |
 |  help: import it under another name: `import fs as m`
 -- exit: 2
+==== test tests/lang/err_slice_loose_end.fung
+-- stdout
+| FAIL tests/lang/err_slice_loose_end.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0125]: `then … else` binds looser than `..`, so it cannot be an end of a slice
+|   --> tests/lang/err_slice_loose_end.fung:7:12
+|   |
+| 7 | print(xs[c then 0 else 1..2])
+|   |            ^
+|   |
+|  help: put the end in parentheses: `xs[(a or b)..]`
+-- exit: 2
 ==== test tests/lang/err_slice_nil_end.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/err_slice_range_chain.fung
+-- stdout
+| FAIL tests/lang/err_slice_range_chain.fung: <load>
+| 0 passed, 1 failed
+-- stderr
+| error[E0118]: a range cannot be an operand of another range
+|   --> tests/lang/err_slice_range_chain.fung:3:14
+|   |
+| 3 | print(xs[0..1..2])
+|   |              ^
+|   |
+|  help: `..` does not chain: put the inner range in parentheses if you mean it
+-- exit: 2
 ==== test tests/lang/err_slice_tuple.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1592,6 +2098,12 @@
 |   |
 |  help: use `exit()` to stop a script early
 -- exit: 2
+==== test tests/lang/err_try_map_nil.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/err_try_map_not_result.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1627,10 +2139,10 @@
 | FAIL tests/lang/err_unexpected.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0110]: unexpected integer `2`
+| error[E0110]: unexpected `,`
 |   --> tests/lang/err_unexpected.fung:1:9
 |   |
-| 1 | print(1 2)
+| 1 | print(1,, 2)
 |   |         ^
 |   |
 -- exit: 2
@@ -1652,10 +2164,10 @@
 | 0 passed, 1 failed
 -- stderr
 | error[E0212]: unknown type `integer`
-|   --> tests/lang/err_unknown_type.fung:1:6
+|   --> tests/lang/err_unknown_type.fung:1:9
 |   |
 | 1 | fn f(a: integer) = a
-|   |      ^^^^^^^
+|   |         ^^^^^^^
 |   |
 -- exit: 2
 ==== test tests/lang/err_use_before_assign.fung
@@ -1675,52 +2187,52 @@
 | FAIL tests/lang/err_value_empty_block.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0231]: a block used as a value is empty, so the value is nil
+| error[E0224]: a block used as a value is empty, so the value is nil
 |   --> tests/lang/err_value_empty_block.fung:3:17
 |   |
 | 3 | x = if false: 1 else: ;;
 |   |                 ^
 |   |
-|  help: end the block with the value it stands for; write `nil` last if nil is meant
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
 ==== test tests/lang/err_value_ends_in_assert.fung
 -- stdout
 | FAIL tests/lang/err_value_ends_in_assert.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0231]: a block used as a value ends in `assert`, so the value is nil
+| error[E0224]: a block used as a value ends with `assert`, so the value is nil
 |   --> tests/lang/err_value_ends_in_assert.fung:2:14
 |   |
 | 2 | x = if true: assert true else: 2 ;;
 |   |              ^^^^^^
 |   |
-|  help: end the block with the value it stands for; write `nil` last if nil is meant
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
 ==== test tests/lang/err_value_ends_in_assign.fung
 -- stdout
 | FAIL tests/lang/err_value_ends_in_assign.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0224]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
+| error[E0224]: a block used as a value ends with an assignment to `_y`, so the value is nil
 |   --> tests/lang/err_value_ends_in_assign.fung:3:3
 |   |
 | 3 |   _y = 1
 |   |   ^^
 |   |
-|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
 ==== test tests/lang/err_value_ends_in_fn.fung
 -- stdout
 | FAIL tests/lang/err_value_ends_in_fn.fung: <load>
 | 0 passed, 1 failed
 -- stderr
-| error[E0231]: a block used as a value ends in the definition of `g`, so the value is nil
+| error[E0224]: a block used as a value ends with the definition of `g`, so the value is nil
 |   --> tests/lang/err_value_ends_in_fn.fung:3:3
 |   |
 | 3 |   fn g() = 1
 |   |   ^^
 |   |
-|  help: end the block with the value it stands for; write `nil` last if nil is meant
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 -- exit: 2
 ==== test tests/lang/exit_from_task.fung
 -- stdout
@@ -1806,6 +2318,12 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/literal_edges.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/literals.fung
 -- stdout
 | 0 passed, 0 failed
@@ -1848,7 +2366,19 @@
 -- stderr
 | no tests found
 -- exit: 1
+==== test tests/lang/match_catch_all.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
 ==== test tests/lang/minint.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/minint_prefixed.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1885,6 +2415,12 @@
 | no tests found
 -- exit: 1
 ==== test tests/lang/pieces.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/pipe_parens.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr
@@ -1975,6 +2511,12 @@
 | no tests found
 -- exit: 1
 ==== test tests/lang/scopes.fung
+-- stdout
+| 0 passed, 0 failed
+-- stderr
+| no tests found
+-- exit: 1
+==== test tests/lang/slice_bounds.fung
 -- stdout
 | 0 passed, 0 failed
 -- stderr

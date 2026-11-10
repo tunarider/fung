@@ -146,11 +146,12 @@ pub fn execute(file: &str, src: &str, args: Vec<Vec<u8>>) -> i64 {
 /// Standard input without the standard library's own buffer (which
 /// would read 8 KiB at a time): the runtime reads it one `STDIN_BUFFER`
 /// at a time, so what fung leaves unread stays for the next reader of the
-/// same input.
+/// same input. A descriptor inherited non-blocking is waited for, not
+/// taken to be at its end (`blocking_reads`, CC10).
 pub(crate) fn raw_stdin() -> Box<dyn std::io::Read + Send> {
     use std::os::fd::AsFd;
     match std::io::stdin().as_fd().try_clone_to_owned() {
-        Ok(fd) => Box::new(std::fs::File::from(fd)),
+        Ok(fd) => fung_vm::vm::blocking_reads(std::fs::File::from(fd)),
         // No descriptor 0 to share: the buffered handle reads the same.
         Err(_) => Box::new(std::io::stdin()),
     }

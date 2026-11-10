@@ -1,2 +1,2 @@
-if 1: 2 ;;
+if 1: print(2) ;;
 # expect-error: E0505

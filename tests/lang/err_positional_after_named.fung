@@ -1,0 +1,4 @@
+# Positional arguments come first (FE26).
+fn connect(host, port = 80) = "${host}:${port}"
+print(connect(port: 8080, "example.com"))
+# expect-error: E0126

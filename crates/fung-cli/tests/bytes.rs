@@ -103,7 +103,7 @@ fn a_source_file_that_is_not_utf8_is_refused() {
     std::fs::write(&p, b"print(1)\nx = \"\xff\"\n").unwrap();
     let o = common::output(Command::new(fung_bin()).arg(&p)).unwrap();
     let err = String::from_utf8(o.stderr).unwrap();
-    assert_eq!(o.status.code(), Some(3), "{err}");
+    assert_eq!(o.status.code(), Some(2), "{err}");
     assert!(
         err.ends_with("x.fung`: not valid UTF-8 at line 2, column 6\n"),
         "{err}"
@@ -120,7 +120,7 @@ fn code_given_with_e_that_is_not_utf8_is_refused() {
             .arg(OsStr::from_bytes(b"print(\"\xff\")")),
     )
     .unwrap();
-    assert_eq!(o.status.code(), Some(3));
+    assert_eq!(o.status.code(), Some(2));
     assert_eq!(
         o.stderr,
         b"error: cannot read `-e`: not valid UTF-8 at line 1, column 8\n"

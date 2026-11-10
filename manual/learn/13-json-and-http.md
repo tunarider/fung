@@ -113,7 +113,7 @@ print(fs.read("deploy.json")!)
 
 **HTTP**는 웹에서 쓰는 주고받기 규칙이다. 한쪽(**클라이언트**)이 **요청**(request)을 보내면 다른 쪽(**서버**)이 **응답**(response)을 돌려준다. 요청에는 **메서드**(무엇을 할지: `GET`은 가져오기, `POST`는 보내기), **URL**(어디에), **헤더**(덧붙이는 정보), **본문**(보내는 내용)이 있다. 응답에는 **상태 코드**(200 성공, 404 없음, 500 서버 오류 …), 헤더, 본문이 있다.
 
-`http` 모듈의 `http.get(url)`은 GET 요청을 보내고 `Ok({status, headers, body})`를 준다. 응답을 받기만 했으면 상태 코드가 404여도 `Ok`다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 `Err({kind: 'network, …})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout})`이다. 시간 한도는 `timeout:`으로 주고 기본은 30초다. 응답 헤더의 이름은 소문자다.
+`http` 모듈의 `http.get(url)`은 GET 요청을 보내고 `Ok({status, headers, header_lines, body})`를 준다. 응답을 받기만 했으면 상태 코드가 404여도 `Ok`다. 상태 코드를 보는 것은 내 코드의 몫이다. 연결이 안 되거나 이름을 못 찾으면 `Err({kind: 'network, …})`, 시간 안에 끝나지 않으면 `Err({kind: 'timeout})`이다. 시간 한도는 `timeout:`으로 주고 기본은 30초다. `headers` 맵의 이름은 소문자다(같은 이름이 여럿이면 `", "`로 이음). 받은 헤더 줄을 순서대로 하나씩 보려면 `header_lines`(`(이름, 값)` 리스트)를 쓴다.
 
 네트워크 예제는 이 매뉴얼을 만들 때 실행하지 않는다. 아래 출력은 실제로 돌렸을 때의 모양이고, 날짜처럼 바뀌는 값은 다를 수 있다.
 
@@ -173,7 +173,7 @@ print(r.status, json.parse(r.body)!.json)
 
 ## 작은 HTTP 서버 {#serve}
 
-`http.serve(주소, 처리기)`는 주소(`":8080"`, `"127.0.0.1:8080"`)에서 요청을 기다리는 서버를 띄운다. 요청이 올 때마다 새 태스크(12장)에서 `처리기(req)`를 부른다. `req`는 `{method, path, query, headers, body}` 맵이다. 처리기는 문자열(상태 200의 텍스트) 또는 `{status, headers, body}` 맵을 돌려준다. 처리기가 런타임 에러를 내면 그 요청에만 500으로 답하고 서버는 계속 돈다. `ready:`에 함수를 주면 서버가 듣기 시작한 직후 실제 주소로 한 번 부른다.
+`http.serve(주소, 처리기)`는 주소(`":8080"`, `"127.0.0.1:8080"`)에서 요청을 기다리는 서버를 띄운다. 요청이 올 때마다 새 태스크(12장)에서 `처리기(req)`를 부른다. `req`는 `method`·`path`·`query`·`headers`·`body` 등이 든 맵이다(받은 그대로의 요청 대상 `target`, 같은 이름도 모두 담은 `query_pairs`·`header_lines` 같은 나머지는 [레퍼런스](../reference/modules/http.html#fn-http-serve)). 처리기는 문자열(상태 200의 텍스트) 또는 `{status, headers, body}` 맵을 돌려준다. 처리기가 런타임 에러를 내면 그 요청에만 500으로 답하고 서버는 계속 돈다. `ready:`에 함수를 주면 서버가 듣기 시작한 직후 실제 주소로 한 번 부른다.
 
 서버는 멈추지 않고 계속 돌기 때문에 이 예제도 매뉴얼에서는 실행하지 않는다. Ctrl-C(SIGINT)나 SIGTERM을 받으면 새 연결을 그만 받고 처리 중인 요청을 마친 뒤 `Ok(nil)`을 돌려주며 끝난다. 주소를 열지 못하면(이미 쓰는 포트 등) `Err`를 돌려주므로, 아래처럼 문장으로 두면 그 `Err`가 버려져 E0606으로 멈춘다(9장). `http.serve(…)!`로 써도 된다: 정상 종료는 `Ok(nil)`이라 `!`가 통과한다.
 
@@ -378,7 +378,7 @@ scope(fn(s):
 
 - `json.parse`는 JSON 문자열을 맵·리스트·문자열·숫자·`nil`로 바꿔 `Ok`를 주고, `json.stringify`는 그 반대다(`indent:`로 보기 좋게).
 - JSON에서 온 값은 문자열이다. 심볼과 비교하면 E0517이므로 문자열과 비교하거나 `sym`으로 바꾼다.
-- `http.get`·`http.post`는 응답을 받으면 상태 코드와 상관없이 `Ok({status, headers, body})`, 전송 실패는 `Err('network)`, 시간 초과는 `Err('timeout)`.
+- `http.get`·`http.post`는 응답을 받으면 상태 코드와 상관없이 `Ok({status, headers, header_lines, body})`, 전송 실패는 `Err('network)`, 시간 초과는 `Err('timeout)`.
 - `http.serve(주소, 처리기)`는 요청마다 태스크에서 처리기를 부른다. 처리기는 문자열이나 `{status, headers, body}`를 돌려준다.
 - 기간은 `90s`·`1h30m`처럼 쓰고, 시각은 `time.now`·`time.parse`·`time.format`으로 다룬다. 시각 ± 기간은 시각, 시각 − 시각은 기간이다.
 

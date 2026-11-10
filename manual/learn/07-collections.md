@@ -75,12 +75,12 @@ nums = [340, 12, 7, 12, 98]
 print(sort(nums), reverse(nums), unique(nums))
 print(sum(nums), min(nums), max(nums), 12 in nums)
 print(find(nums, n => n > 50), any(nums, n => n > 300), all(nums, n => n > 0))
-print([[1, 2], [3]] |> flatten, range(5), range(5) |> map(i => i * i))
+print([[1, 2], [3]] |> flatten, 0..5, 0..5 |> map(i => i * i))
 ```
 
 - `sort`는 작은 것부터, `reverse`는 순서를 뒤집는다. `unique`는 처음 나온 것만 남긴다.
 - `find(xs, f)`는 `f`가 참인 첫 원소(없으면 `nil`), `any`는 하나라도, `all`은 모두 참인지 묻는다.
-- `flatten`은 리스트의 리스트를 한 겹 편다. `range(n)`은 `0..n`이고, 범위도 리스트처럼 `map`할 수 있다.
+- `flatten`은 리스트의 리스트를 한 겹 편다. 범위 `0..5`도 리스트처럼 `map`할 수 있다.
 
 ## 맵 {#maps}
 

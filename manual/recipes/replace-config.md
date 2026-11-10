@@ -55,7 +55,7 @@ fn update(line, wanted):
   indent + key + sep + new
 ;;
 
-opts = cli.parse(args, bools: ["print"])
+opts = cli.parse(args, bools: ["print"])!
 file = first(opts.rest) ?? fail("usage: setconf.fung <file> KEY=VALUE... [--print]")
 wanted = drop(opts.rest, 1) |> map(pair) |> fold({}, (m, (k, v)) => put(m, k, v))
 

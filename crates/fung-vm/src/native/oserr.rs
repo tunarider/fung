@@ -1,7 +1,8 @@
 //! Operating-system errors in fung's words: the reason in an
 //! `Err({kind, message})` is a short lower-case text, the same on every
-//! platform for the common errors (`text_of`), and otherwise the system's
-//! own text without Rust's " (os error N)".
+//! platform for the common errors, and otherwise the system's own text
+//! without Rust's " (os error N)" (`fung_front::oserr`, which the loader
+//! shares).
 
 use std::io;
 
@@ -9,11 +10,11 @@ use std::io;
 /// and macOS, except `ENOTEMPTY`).
 #[cfg(test)]
 pub(crate) const ENOENT: i32 = 2;
-pub(crate) const EPERM: i32 = 1;
+#[cfg(test)]
+pub(crate) const EPERM: i32 = fung_front::oserr::EPERM;
 #[cfg(test)]
 pub(crate) const EACCES: i32 = 13;
 pub(crate) const EEXIST: i32 = 17;
-#[cfg(test)]
 pub(crate) const ENOTDIR: i32 = 20;
 pub(crate) const EINVAL: i32 = 22;
 #[cfg(all(test, target_os = "macos"))]
@@ -21,57 +22,10 @@ pub(crate) const ENOTEMPTY: i32 = 66;
 #[cfg(all(test, not(target_os = "macos")))]
 pub(crate) const ENOTEMPTY: i32 = 39;
 
-/// The reason text for an I/O error.
+/// The reason text for an I/O error (shared with the loader's "cannot
+/// read module", `fung_front::oserr`).
 pub(crate) fn reason(e: &io::Error) -> String {
-    // EPERM shares its kind with EACCES but means something else.
-    if e.raw_os_error() == Some(EPERM) {
-        return "operation not permitted".to_string();
-    }
-    if let Some(t) = text_of(e.kind()) {
-        return t.to_string();
-    }
-    let text = e.to_string();
-    let text = match text.find(" (os error ") {
-        Some(at) if text.ends_with(')') => &text[..at],
-        _ => &text,
-    };
-    let mut cs = text.chars();
-    match cs.next() {
-        Some(c) => c.to_lowercase().chain(cs).collect(),
-        None => String::new(),
-    }
-}
-
-/// fung's text for the common kinds of error.
-fn text_of(kind: io::ErrorKind) -> Option<&'static str> {
-    use io::ErrorKind as K;
-    Some(match kind {
-        K::NotFound => "no such file or directory",
-        K::PermissionDenied => "permission denied",
-        K::AlreadyExists => "file exists",
-        K::NotADirectory => "not a directory",
-        K::IsADirectory => "is a directory",
-        K::DirectoryNotEmpty => "directory not empty",
-        K::InvalidInput => "invalid argument",
-        K::ReadOnlyFilesystem => "read-only file system",
-        K::StorageFull => "no space left on device",
-        K::FileTooLarge => "file too large",
-        K::CrossesDevices => "invalid cross-device link",
-        K::InvalidFilename => "file name too long",
-        K::ExecutableFileBusy => "text file busy",
-        K::ArgumentListTooLong => "argument list too long",
-        K::BrokenPipe => "broken pipe",
-        K::ConnectionRefused => "connection refused",
-        K::ConnectionReset => "connection reset by peer",
-        K::TimedOut => "connection timed out",
-        K::AddrInUse => "address already in use",
-        K::AddrNotAvailable => "can't assign requested address",
-        K::HostUnreachable => "no route to host",
-        K::NetworkUnreachable => "network is unreachable",
-        K::Interrupted => "interrupted system call",
-        K::OutOfMemory => "cannot allocate memory",
-        _ => return None,
-    })
+    fung_front::oserr::reason(e)
 }
 
 /// The kind of the `Err` a file native gives for an error: `not_found`,

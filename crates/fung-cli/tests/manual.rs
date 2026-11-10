@@ -210,6 +210,7 @@ fn expected() -> BTreeMap<String, Entry> {
     for (name, v) in fung_vm::prelude::core()
         .into_iter()
         .chain(fung_vm::conc::natives())
+        .chain([("args", Value::Nil)])
     {
         let sig = match &v {
             Value::Native(n) => native_sig(name, n),

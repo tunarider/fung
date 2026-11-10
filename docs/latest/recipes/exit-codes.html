@@ -96,7 +96,7 @@ fn number(opts, name, default) = match parse_int(get(opts.flags, name, str(defau
   Err(_) =&gt; finish(3, &quot;--${name} is not a number&quot;)
 ;;
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 file = first(opts.rest) ?? finish(3, &quot;usage: check_errors.fung LOG [--warn N] [--crit N]&quot;)
 warn = number(opts, &quot;warn&quot;, 1)
 crit = number(opts, &quot;crit&quot;, 10)

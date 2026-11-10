@@ -36,6 +36,17 @@ description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기,
 
 **위치는 글자 단위다.** 매치의 `start`·`end`는 바이트가 아니라 글자(유니코드 코드 포인트) 인덱스이므로 `s[m.start..m.end]`가 그대로 맞는다.
 
+**UTF-8이 아닌 바이트는 유니코드 클래스에 맞지 않는다.** 문자열의 잘못된 바이트 하나는 `len`·`chars`에서 한 글자지만, 패턴의 클래스(`.`, 여집합인 `\W`·`\D`·`[^a]`까지)는 유니코드 글자만 맞는다. 그래서 그 바이트 자리에서는 매치가 성립하지 않는다: `^[^a]`처럼 그 자리에서 맞아야 하는 패턴의 `regex.is_match`는 `false`이고, `regex.find_all`·`regex.replace`는 그 바이트를 지나쳐 다음 글자부터 찾는다(바이트는 결과에 그대로 남는다). 그런 바이트를 잡으려면 유니코드 모드를 끈 `(?-u:[^a])`·`(?-u:.)`·`(?-u:\xff)`를 쓴다(이 모드의 클래스는 UTF-8 글자도 바이트 하나씩 맞는다).
+
+```fung run
+import regex
+s = "\xffab"
+print(len(s), regex.is_match(s, `^\W`), regex.is_match(s, `^\D`), regex.is_match(s, `^[^a]`))
+print(regex.find_all(s, `[^a]`) |> map(m => m.text))
+print(regex.replace(s, `[^a]`, "X") == "\xffaX")
+print(regex.find_all(s, `(?-u:[^a])`) |> map(m => m.text))
+```
+
 잘못된 패턴은 프로그램의 잘못이므로 런타임 에러 E0515다(``invalid pattern `a(`: unclosed group``). 패턴의 중첩은 250단계, 컴파일한 크기는 128 MiB까지다. 컴파일한 패턴은 캐시되므로, 같은 패턴을 반복문에서 여러 번 써도 다시 컴파일하지 않는다. 따로 "컴파일된 정규식" 값을 만들 필요가 없다.
 
 ### 매치 맵 {#match-map}
@@ -54,7 +65,7 @@ description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기,
 
 ## 함수 {#functions}
 
-:::fn regex.is_match(s, pat)
+:::fn regex.is_match(s, pattern)
 
 `s`의 어딘가에 패턴이 맞는지 알려 준다.
 
@@ -65,7 +76,7 @@ description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기,
 #### 매개변수
 
 - `s`: 검사할 문자열.
-- `pat`: 패턴.
+- `pattern`: 패턴.
 
 #### 돌려주는 값
 
@@ -74,7 +85,7 @@ description: fung 모듈 regex — 정규식으로 찾기, 꺼내기, 바꾸기,
 #### 에러
 
 - 런타임 에러 E0515: 패턴이 잘못되었다.
-- 런타임 에러 E0403: `s`나 `pat`이 문자열이 아니다.
+- 런타임 에러 E0403: `s`나 `pattern`이 문자열이 아니다.
 
 #### 예제
 
@@ -111,7 +122,7 @@ print(regex.is_match("a", `a(`))
 
 :::
 
-:::fn regex.find(s, pat)
+:::fn regex.find(s, pattern)
 
 처음 맞는 곳을 찾아 [매치 맵](#match-map)으로 돌려준다.
 
@@ -122,7 +133,7 @@ print(regex.is_match("a", `a(`))
 #### 매개변수
 
 - `s`: 찾을 대상 문자열.
-- `pat`: 패턴.
+- `pattern`: 패턴.
 
 #### 돌려주는 값
 
@@ -174,7 +185,7 @@ print("참치 42개"[m.start..m.end])
 
 :::
 
-:::fn regex.find_all(s, pat)
+:::fn regex.find_all(s, pattern)
 
 겹치지 않는 모든 매치를 리스트로 돌려준다.
 
@@ -185,7 +196,7 @@ print("참치 42개"[m.start..m.end])
 #### 매개변수
 
 - `s`: 찾을 대상 문자열.
-- `pat`: 패턴.
+- `pattern`: 패턴.
 
 #### 돌려주는 값
 
@@ -232,7 +243,7 @@ print(rows |> map(m => m.groups) |> filter(g => g[2] != "200"))
 
 :::
 
-:::fn regex.replace(s, pat, repl)
+:::fn regex.replace(s, pattern, repl)
 
 맞는 곳을 모두 바꾼 문자열을 돌려준다.
 
@@ -255,7 +266,7 @@ print(rows |> map(m => m.groups) |> filter(g => g[2] != "200"))
 #### 매개변수
 
 - `s`: 대상 문자열.
-- `pat`: 패턴.
+- `pattern`: 패턴.
 - `repl`: 바꿀 문자열.
 
 #### 돌려주는 값
@@ -314,18 +325,18 @@ print(regex.replace("ab", `(a)`, "$1x"))
 
 :::
 
-:::fn regex.split(s, pat)
+:::fn regex.split(s, pattern)
 
 맞는 곳을 경계로 문자열을 나눈다.
 
 #### 설명
 
-패턴이 맞는 곳마다 잘라 그 사이 조각들의 리스트를 돌려준다. prelude의 [`split`](../prelude/strings.html#fn-split)처럼 빈 조각도 남긴다(구분자가 맨 앞이나 맨 끝, 또는 연달아 있을 때). 문자열 맨 앞과 맨 끝의 **빈 매치**로는 자르지 않으므로 `regex.split("abc", "")`는 `["a", "b", "c"]`이고, 빈 문자열을 빈 패턴으로 나누면 `[]`다.
+패턴이 맞는 곳마다 잘라 그 사이 조각들의 리스트를 돌려준다. prelude의 [`split`](../prelude/strings.html#fn-split)처럼 빈 조각도 남긴다(구분자가 맨 앞이나 맨 끝, 또는 연달아 있을 때). 문자열 맨 앞과 맨 끝의 **빈 매치**로는 자르지 않으므로 `regex.split("abc", "")`는 `["a", "b", "c"]`이고, 빈 문자열을 빈 패턴으로 나누면 `[]`다(prelude의 `split`은 빈 구분자를 받지 않는다).
 
 #### 매개변수
 
 - `s`: 나눌 문자열.
-- `pat`: 구분자 패턴.
+- `pattern`: 구분자 패턴.
 
 #### 돌려주는 값
 

@@ -72,12 +72,17 @@ fn core_has_every_spec_native_but_concurrency() {
         .prelude_native
         .iter()
         .map(String::as_str)
-        .filter(|n| !CONCURRENCY.contains(n))
+        .filter(|n| !CONCURRENCY.contains(n) && *n != "args")
         .collect();
     let got: BTreeSet<&str> = core().iter().map(|(n, _)| *n).collect();
     assert_eq!(got, want);
-    let args = core().into_iter().find(|(n, _)| *n == "args").unwrap().1;
-    assert_eq!(format(&args), "[]");
+    // `args` has one definition, in the native prelude (VA27)
+    let p = crate::boot::native_prelude(&[b"x".to_vec()]);
+    assert_eq!(format(&p.0["args"]), "[\"x\"]");
+    assert_eq!(
+        crate::boot::native_prelude(&[]).0.len(),
+        core().len() + 1 + crate::conc::natives().len()
+    );
 }
 
 #[test]
@@ -90,7 +95,7 @@ fn fold_over_a_range_and_strings() {
 
 /// How many whole-run cases there are (a case must not go missing
 /// unnoticed).
-const RUN_CASE_COUNT: usize = 358;
+const RUN_CASE_COUNT: usize = 425;
 
 /// Every program in `run_cases.rs`, and the huge-range programs, give
 /// the standard output, standard error and exit code of
@@ -161,7 +166,7 @@ fn call_out(name: &str, args: Vec<Value>) -> (Result<Value, Stop>, String) {
         SourceMap::default(),
     );
     let r = match n.body {
-        crate::value::NativeBody::Plain(f) => f(&mut rt.task(), args),
+        crate::value::NativeBody::Plain(f) => f(&mut rt.task(), args.into()),
         // A step native needs the run loop (`vm/cont.rs`).
         crate::value::NativeBody::Step(_) => rt.task().call_root(&Value::Native(n), args),
     };
@@ -248,36 +253,36 @@ fn conversions() {
         (
             "parse_int",
             st("x"),
-            "Err({kind: 'parse, message: \"not an integer: x\"})",
+            "Err({kind: 'parse, message: \"not an integer: \\\"x\\\"\"})",
         ),
         ("parse_float", st("1.5"), "Ok(1.5)"),
         (
             "parse_float",
             st("x"),
-            "Err({kind: 'parse, message: \"not a number: x\"})",
+            "Err({kind: 'parse, message: \"not a number: \\\"x\\\"\"})",
         ),
         ("parse_dur", st("1h30m"), "Ok(1h30m)"),
-        ("parse_dur", st(" 500ms "), "Ok(500ms)"),
+        ("parse_dur", st("+500ms"), "Ok(500ms)"),
         ("parse_dur", st("-5s"), "Ok(-5s)"),
         (
             "parse_dur",
             st("30"),
-            "Err({kind: 'parse, message: \"not a duration: 30\"})",
+            "Err({kind: 'parse, message: \"not a duration: \\\"30\\\"\"})",
         ),
         (
             "parse_dur",
             st("1h x"),
-            "Err({kind: 'parse, message: \"not a duration: 1h x\"})",
+            "Err({kind: 'parse, message: \"not a duration: \\\"1h x\\\"\"})",
         ),
         (
             "parse_dur",
             st("30m1h"),
-            "Err({kind: 'parse, message: \"not a duration: 30m1h\"})",
+            "Err({kind: 'parse, message: \"not a duration: \\\"30m1h\\\"\"})",
         ),
         (
             "parse_dur",
             st(""),
-            "Err({kind: 'parse, message: \"not a duration: \"})",
+            "Err({kind: 'parse, message: \"not a duration: \\\"\\\"\"})",
         ),
     ];
     for (name, arg, want) in cases {
@@ -381,7 +386,7 @@ fn string_functions() {
             vec![st("a,b,,c"), st(",")],
             "[\"a\", \"b\", \"\", \"c\"]",
         ),
-        ("split", vec![st("참치"), st("")], "[\"참\", \"치\"]"),
+        ("chars", vec![st("참치")], "[\"참\", \"치\"]"),
         (
             "join",
             vec![list(vec![st("a"), Value::Int(1)]), st("-")],
@@ -395,7 +400,7 @@ fn string_functions() {
         ("starts_with", vec![st("abc"), st("ab")], "true"),
         ("ends_with", vec![st("abc"), st("ab")], "false"),
         ("repeat", vec![st("ab"), Value::Int(2)], "\"abab\""),
-        ("repeat", vec![st("ab"), Value::Int(-1)], "\"\""),
+        ("repeat", vec![st("ab"), Value::Int(0)], "\"\""),
         ("byte_len", vec![st("한a")], "4"),
         ("byte_len", vec![Value::bytes(b"a\xff".to_vec())], "2"),
         ("bytes", vec![st("한a")], "[237, 149, 156, 97]"),
@@ -414,8 +419,8 @@ fn string_functions() {
             vec![list(vec![Value::Int(97), Value::Int(255)])],
             "\"a\\xff\"",
         ),
-        ("valid_utf8", vec![st("é")], "true"),
-        ("valid_utf8", vec![Value::bytes(b"\xc3".to_vec())], "false"),
+        ("is_utf8", vec![st("é")], "true"),
+        ("is_utf8", vec![Value::bytes(b"\xc3".to_vec())], "false"),
     ];
     for (name, args, want) in cases {
         let shown = format(&list(args.clone()));
@@ -508,8 +513,8 @@ fn collection_functions() {
         ("group_by([1], x => x)", "E0514"),
         ("put(1, \"a\", 2)", "E0506"),
         ("get([1], 0)", "E0506"),
-        ("get({a: 1}, 1)", "E0501"),
-        ("chars(1)", "E0506"),
+        ("get({a: 1}, 1)", "E0514"),
+        ("chars(1)", "E0403"),
         ("each([1], 1)", "E0403"),
     ];
     for (src, want) in errs {
@@ -531,16 +536,13 @@ fn collection_functions_with_the_fung_prelude() {
             "print(sum([1, 2.5]), sum([]), min([3, 1, 2]), max([\"b\", \"a\"]), min([]))",
             "3.5 0 1 b nil\n",
         ),
-        (
-            "xs = [1, 2]\nprint(reverse(xs), xs, range(3), range(1, 3))",
-            "[2, 1] [1, 2] 0..3 1..3\n",
-        ),
+        ("xs = [1, 2]\nprint(reverse(xs), xs)", "[2, 1] [1, 2]\n"),
         (
             "print(zip([1, 2, 3], [\"a\", \"b\"]), first([]), first([1]), last([1, 2]))",
             "[(1, \"a\"), (2, \"b\")] nil 1 2\n",
         ),
         (
-            "print(take([1, 2, 3], 2), take([1], 5), drop([1, 2, 3], 1), drop([1], 5), take([1], -1))",
+            "print(take([1, 2, 3], 2), take([1], 5), drop([1, 2, 3], 1), drop([1], 5), take([1], 0))",
             "[1, 2] [1] [2, 3] [] []\n",
         ),
         (
@@ -568,7 +570,7 @@ fn collection_functions_with_the_fung_prelude() {
     let errs: &[(&str, &str)] = &[
         ("min([1, \"a\"])", "E0501"),
         ("keys([])", "E0506"),
-        ("get({}, 1)", "E0501"),
+        ("get({}, 1)", "E0514"),
         ("get([1], 0)", "E0506"),
         ("get([10, 20], 20)", "E0506"),
         ("min([nil, 1])", "E0501"),
@@ -635,7 +637,7 @@ fn trim_cuts_whole_characters_from_both_ends() {
 fn prelude_in_fung_checks_like_a_native() {
     let cases: &[(&str, &str)] = &[
         (
-            "print(min(0..200_000_000), max(0..200_000_000), min(5..1), max(5..1), max(3..=7))",
+            "print(min(0..200_000_000), max(0..200_000_000), min(5..5), max(5..=4), max(3..=7))",
             "0 199999999 nil nil 7\n",
         ),
         (
@@ -647,8 +649,8 @@ fn prelude_in_fung_checks_like_a_native() {
             "3s 0 ab 10 [1, 2]\n",
         ),
         (
-            "print(max([1]), min([\"a\"]), max([[nil]]), min([2s]), pad_left(\"ab\", 4), pad_right(\"ab\", 4, \"xy\"))",
-            "1 a [nil] 2s   ab abxy\n",
+            "print(max([1]), min([\"a\"]), max([[1]]), min([2s]), pad_left(\"ab\", 4), pad_right(\"ab\", 4, \"xy\"))",
+            "1 a [1] 2s   ab abxy\n",
         ),
         (
             "print(iterate(1, x => x * 2, 3), until(1, x => x + 1, x => x > 3))",
@@ -675,7 +677,17 @@ fn prelude_in_fung_checks_like_a_native() {
         ("max([nil])", "E0501", "nil"),
         ("min([{}])", "E0501", "map"),
         ("max([true])", "E0501", "bool"),
-        ("zip(1, [1])", "E0506", "zip"),
+        ("max([[nil]])", "E0501", "nil"),
+        ("sum([nil])", "E0501", "nil"),
+        // Each E0506 reads as a sentence (SP24).
+        ("zip(1, [1])", "E0506", "cannot zip the elements of int"),
+        ("zip([1], 1)", "E0506", "cannot zip the elements of int"),
+        ("get([1], 0)", "E0506", "cannot get a key from list"),
+        (
+            "unique(1)",
+            "E0506",
+            "cannot take the unique elements of int",
+        ),
     ];
     for (src, want, says) in errs {
         let o = exec(src, Opts::default());
@@ -930,7 +942,7 @@ fn resend_into_iterated_channel() {
 #[test]
 fn positional_functions_on_huge_ranges() {
     let (out, err, _) = run("r = 5..1000000000005\n\
-         print(first(r), last(r), take(r, 3), take(r, -1), first(0..0), last(0..0), take(0..0, 2))\n\
+         print(first(r), last(r), take(r, 3), take(r, 0), first(0..0), last(0..0), take(0..0, 2))\n\
          print(drop(5..=9, 3), drop(5..9, 10), take(5..=9, 99), last(1..=9223372036854775807), drop(9223372036854775805..=9223372036854775807, 1))");
     assert_eq!(
         out,
@@ -967,7 +979,7 @@ fn get_reads_a_key_or_the_default() {
     assert_eq!((o.code.as_str(), o.out.as_str()), ("", "1 nil 0\n"));
     let o = exec("fn f(x) = get(x, 0)\nprint(f([1]))", Opts::default());
     assert_eq!(o.code, "E0506");
-    assert!(o.err.contains("cannot get from list"), "{}", o.err);
+    assert!(o.err.contains("cannot get a key from list"), "{}", o.err);
     assert!(!o.err.contains("extras/prelude.fung"), "{}", o.err);
 }
 
@@ -996,4 +1008,55 @@ fn lines_splits_text_into_lines() {
         o.err
     );
     assert!(!o.err.contains("extras/prelude.fung"), "{}", o.err);
+}
+
+/// Natural merge sort (VA23): the order and the stability hold on every
+/// shape of input, and an already sorted input costs about n comparisons
+/// (a run of the whole input, no merging).
+#[test]
+fn sort_finds_runs_and_stays_stable() {
+    let (out, err, _) = run("fn ok(n, key):\n\
+           xs = map(0..n, i => [key(i, n), i])\n\
+           r = sort_by(xs, p => p[0])\n\
+           good = fold(0..(n - 1), true, (a, i) =>\n\
+             a and (r[i][0] < r[i + 1][0] or (r[i][0] == r[i + 1][0] and r[i][1] < r[i + 1][1])))\n\
+           good and len(r) == n and sum(map(r, p => p[1])) == sum(0..n)\n\
+         ;;\n\
+         shapes = [(i, n) => i, (i, n) => n - i, (i, n) => i % 3, (i, n) => (i * 7919) % (n + 1),\n\
+                   (i, n) => i % 17, (i, n) => (i / 5) % 2, (i, n) => 0, (i, n) => (i < n / 2) then i else n - i,\n\
+                   (i, n) => (i / 40) % 2 == 0 then i else -i, (i, n) => (i / 3) * ((i / 3) % 2 == 0 then 1 else -1)]\n\
+         sizes = [2, 3, 31, 32, 33, 63, 64, 65, 100, 1000, 2500]\n\
+         print(all(sizes, n => all(shapes, f => ok(n, f))))\n\
+         print(sort([3, 2, 2, 1]), sort([1, 2, 2, 3]), sort_by([[3, 'a], [2, 'b], [2, 'c], [1, 'd]], p => p[0]))");
+    assert_eq!(
+        out, "true\n[1, 2, 2, 3] [1, 2, 2, 3] [[1, 'd], [2, 'b], [2, 'c], [3, 'a]]\n",
+        "{err}"
+    );
+}
+
+#[test]
+fn sort_of_sorted_input_is_linear() {
+    use super::collections::Sort;
+    use crate::vm::pieces::STEP_COMPARES;
+    let n = 200_000i64;
+    for xs in [(0..n).collect::<Vec<_>>(), (0..n).rev().collect::<Vec<_>>()] {
+        let mut sort = Sort::new(
+            std::rc::Rc::new(xs.into_iter().map(Value::Int).collect()),
+            None,
+        );
+        let mut pieces = 0;
+        let out = loop {
+            pieces += 1;
+            match sort.run() {
+                Ok(Some(v)) => break v,
+                Ok(None) => {}
+                Err(_) => panic!("no error expected"),
+            }
+        };
+        let Value::List(l) = out else { panic!() };
+        assert_eq!(l.len(), n as usize);
+        // n comparisons, then the result at STEP_COMPARES / 2 items a piece
+        let limit = 7 * (n as usize) / (2 * STEP_COMPARES);
+        assert!(pieces <= limit, "{pieces} pieces, limit {limit}");
+    }
 }

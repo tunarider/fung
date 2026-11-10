@@ -52,7 +52,7 @@ fn dig(v, path) = match path:
   [k, ...rest] => type_of(v) == 'map then dig(get(v, k), rest) else nil
 ;;
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 text = match first(opts.rest):
   nil => join(read_lines()!, "\n")
   url => fetch(url)!
@@ -80,7 +80,7 @@ for [name, state, ready, team] in rows:
 - `json.parse(text)!`: JSON 텍스트를 fung 값으로 바꾼다. 객체는 맵, 배열은 리스트, 숫자는 정수나 실수, `null`은 `nil`이 된다. 잘못된 JSON이면 `Err({kind: 'parse, line, col, message})`이고, `!`가 줄과 칸을 알려 주며 멈춘다.
 - `dig`: jq의 `.status.replicas.ready`에 해당한다. 키 리스트를 따라 한 단계씩 들어가다가 중간에 맵이 아닌 것(없는 키의 `nil`, JSON의 `null`)을 만나면 `nil`을 돌려준다. `s.status.replicas.ready`처럼 바로 쓰면 없는 키에서 런타임 에러로 멈추므로, 있을 수도 없을 수도 있는 필드에는 `dig`나 `get(m, k, 기본값)`을 쓴다.
 - `?? "?"`, `?? 0`, `?? "-"`: `dig`가 `nil`이면 기본값을 쓴다. jq의 `//`와 같은 일이다.
-- `fetch`: `http.get`은 네트워크가 실패하면(이름 조회, 접속, 시간 초과) `Err`를, 서버가 대답하면 상태 코드와 상관없이 `Ok({status, headers, body})`를 준다. 그래서 `200`이 아니면 직접 `Err`를 만든다. `?`는 `Err`면 그것을 그대로 호출한 쪽으로 돌려보내고, 바깥의 `fetch(url)!`이 메시지를 찍고 멈춘다. `curl -f`를 잊는 실수가 생기지 않는다.
+- `fetch`: `http.get`은 네트워크가 실패하면(이름 조회, 접속, 시간 초과) `Err`를, 서버가 대답하면 상태 코드와 상관없이 `Ok({status, headers, header_lines, body})`를 준다. 그래서 `200`이 아니면 직접 `Err`를 만든다. `?`는 `Err`면 그것을 그대로 호출한 쪽으로 돌려보내고, 바깥의 `fetch(url)!`이 메시지를 찍고 멈춘다. `curl -f`를 잊는 실수가 생기지 않는다.
 - `text = match first(opts.rest): …`: 주소가 없으면(`nil`) 표준 입력 전부를, 있으면 HTTP로 받는다. `match`도 값을 돌려주는 식이라 결과를 바로 대입한다.
 - `map(s => [ … ])`: 서비스 하나를 문자열 네 칸의 리스트로 만든다. 괄호 안에서는 줄을 바꿔 써도 된다. 문자열 보간 `"${…}/${…}"` 안에는 어떤 식이든 쓸 수 있다.
 - `for [name, state, ready, team] in rows`: `for`의 변수 자리에도 패턴을 쓴다. 칸 네 개를 이름으로 받는다.

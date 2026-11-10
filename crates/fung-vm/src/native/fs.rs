@@ -37,7 +37,7 @@ use super::nat::{self, native_step, opt, param};
 use super::oserr::{self, EEXIST, EINVAL, errno};
 use super::path;
 use super::pipe::{self, Pipe, Step};
-use crate::value::{Lit, MapBuilder, Module, Native, Value};
+use crate::value::{Args, Lit, MapBuilder, Module, Native, Value};
 use crate::vm::{Flow, Stop, Task};
 use crate::vm::{IoStep, Kind, park_io};
 
@@ -125,10 +125,14 @@ pub fn module() -> Rc<Module> {
                     ],
                 ),
             ),
-            ("close", native_step("close", close_fn, vec![param("f")])),
+            ("close", native_step("close", close_fn, vec![param("file")])),
             (
                 "write_line",
-                native_step("write_line", write_line_fn, vec![param("f"), param("line")]),
+                native_step(
+                    "write_line",
+                    write_line_fn,
+                    vec![param("file"), param("line")],
+                ),
             ),
             ("temp_dir", native_step("temp_dir", temp_dir_fn, vec![])),
         ]
@@ -317,22 +321,81 @@ fn temp_beside(
     None
 }
 
-fn read_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
-    // A FIFO is read in the event loop (`pipe.rs`, L11); `None` says so.
-    let read = move || -> io::Result<Option<Vec<u8>>> {
+    // A FIFO is read in the event loop (`pipe.rs`, L11).
+    let read = move || -> io::Result<Whole> {
         let path = checked(&job)?;
         if pipe::is_fifo(&job) {
-            return Ok(None);
+            return Ok(Whole::Fifo);
         }
-        std::fs::read(path).map(Some)
+        // A character is four bytes at most: a file past four times the
+        // string limit is too long without reading it (LB29).
+        let max = 4 * crate::prelude::MAX_CHARS as u64;
+        if std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() > max) {
+            return Ok(Whole::TooLong);
+        }
+        read_within(path)
     };
     crate::vm::offload_kind(t, Kind::Abandon, read, move |t, r| match r {
-        Ok(Some(bytes)) => Ok(Flow::Done(nat::ok(Value::bytes(bytes)))),
-        Ok(None) => read_fifo(t, p),
+        Ok(Whole::Read(bytes)) => Ok(Flow::Done(read_text(&p, bytes))),
+        Ok(Whole::Fifo) => read_fifo(t, p),
+        Ok(Whole::TooLong) => Ok(Flow::Done(file_too_long(&p))),
         Err(e) => Ok(Flow::Done(fs_err("read", &p, &e))),
     })
+}
+
+/// A whole file read on the pool, stopping as soon as its text passes
+/// the string limit: a file with no size to check first (a character
+/// device such as `/dev/zero`) is cut while reading, so the read holds
+/// about the limit's bytes at most, even after a `timeout` gave up on it
+/// (LB29, D22).
+fn read_within(path: &std::ffi::OsStr) -> io::Result<Whole> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path)?;
+    let mut buf = Vec::new();
+    let mut count = nat::CharCount::default();
+    loop {
+        // a read's bytes go straight into the buffer's spare room
+        buf.reserve(64 * 1024);
+        let room = buf.capacity() - buf.len();
+        match (&mut f).take(room as u64).read_to_end(&mut buf) {
+            Ok(0) => return Ok(Whole::Read(buf)),
+            Ok(_) if !count.within(&buf) => return Ok(Whole::TooLong),
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// What `fs.read` found on the pool.
+enum Whole {
+    Read(Vec<u8>),
+    /// A FIFO: read in the event loop.
+    Fifo,
+    /// Larger than any text within the string limit.
+    TooLong,
+}
+
+/// `Ok(text)` of a whole file read, or its `Err` past the string limit
+/// (LB29, D22): a size from outside is a failure of the read, not of the
+/// program.
+fn read_text(p: &[u8], bytes: Vec<u8>) -> Value {
+    if nat::fits_limit(&bytes) {
+        nat::ok(Value::bytes(bytes))
+    } else {
+        file_too_long(p)
+    }
+}
+
+fn file_too_long(p: &[u8]) -> Value {
+    nat::err_value(
+        "io",
+        &format!("cannot read `{}`: {}", show(p), nat::too_long("file")),
+        Vec::new(),
+    )
 }
 
 /// `fs.read` of a FIFO: its read end, read to the end in the event loop.
@@ -344,8 +407,8 @@ fn read_fifo(t: &mut Task<'_>, p: Vec<u8>) -> Result<Flow, Stop> {
     park_io(
         t,
         move |_, _| match r.read_to_end() {
-            Step::Ready(bytes) => IoStep::Done(Ok(nat::ok(Value::bytes(bytes)))),
-            Step::Wait(fd, interest) => pipe::io_step(fd, interest),
+            Step::Ready(bytes) => IoStep::Done(Ok(read_text(&p, bytes))),
+            Step::Wait(fd, interest, at) => pipe::io_step(fd, interest, at),
             Step::Fail(e) => IoStep::Done(Ok(fs_err("read", &p, &e))),
         },
         |_| {},
@@ -382,7 +445,7 @@ fn write_fifo(
                     let sent = w.take().expect("opened");
                     IoStep::Done(Ok(done(verb, &p, sent.finish(&p))))
                 }
-                Step::Wait(fd, interest) => pipe::io_step(fd, interest),
+                Step::Wait(fd, interest, at) => pipe::io_step(fd, interest, at),
                 Step::Fail(e) => IoStep::Done(Ok(fs_err(verb, &p, &e))),
             }
         },
@@ -390,7 +453,7 @@ fn write_fifo(
     )
 }
 
-fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn write_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [p, text] = nat::bytes_args(&a, ["path", "text"])?;
     let perm = perm_arg(&a[2])?;
     let (p, text) = (p.to_vec(), text.to_vec());
@@ -408,7 +471,7 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     })
 }
 
-fn append_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn append_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [p, text] = nat::bytes_args(&a, ["path", "text"])?;
     let perm = perm_arg(&a[2])?;
     let (p, text) = (p.to_vec(), text.to_vec());
@@ -454,7 +517,7 @@ pub fn read_dir(dir: &[u8]) -> io::Result<Vec<(Vec<u8>, bool)>> {
     Ok(out)
 }
 
-fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn list_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let dir = nat::need_bytes("dir", &a[0])?.to_vec();
     let Value::Bool(full) = a[1] else {
         return Err(nat::wrong_arg("full", "bool", &a[1]));
@@ -481,7 +544,7 @@ fn list_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
-fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn glob_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let pattern = nat::need_bytes("pattern", &a[0])?.to_vec();
     let job = pattern.clone();
     nat::offload_abandoning(
@@ -511,7 +574,7 @@ fn glob_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
-fn walk_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn walk_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let dir = nat::need_bytes("dir", &a[0])?.to_vec();
     nat::offload_abandoning(
         t,
@@ -555,16 +618,41 @@ fn walk_dir(dir: &[u8], files: &mut Vec<Vec<u8>>) -> Result<(), (Vec<u8>, io::Er
     Ok(())
 }
 
-fn exists_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+/// `Ok(true)` when the path names something (a symbolic link is
+/// followed, as `stat`), `Ok(false)` only for "no such file" (ENOENT, or
+/// ENOTDIR: a file stands where a directory was named), any other
+/// failure (no permission to look, a NUL byte) its `Err` (SP16).
+fn exists_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
+    let job = p.clone();
     nat::offload_short(
         t,
-        move || checked(&p).and_then(std::fs::metadata).is_ok(),
-        |_, found| Ok(Value::Bool(found)),
+        move || checked(&job).and_then(std::fs::metadata).map(|_| ()),
+        move |_, r| {
+            Ok(match r {
+                Ok(()) => nat::ok(Value::Bool(true)),
+                Err(e)
+                    if e.kind() == io::ErrorKind::NotFound
+                        || e.raw_os_error() == Some(oserr::ENOTDIR) =>
+                {
+                    nat::ok(Value::Bool(false))
+                }
+                // its own verb, not the `stat` it asks (VA19, D17)
+                Err(e) => nat::err_value(
+                    oserr::kind(&e),
+                    &format!(
+                        "cannot check whether `{}` exists: {}",
+                        show(&p),
+                        oserr::reason(&e)
+                    ),
+                    Vec::new(),
+                ),
+            })
+        },
     )
 }
 
-fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn stat_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload_short(
@@ -590,7 +678,7 @@ fn stat_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
-fn mkdir_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn mkdir_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload(
@@ -610,7 +698,7 @@ fn mkdir_all(p: &std::ffi::OsStr, perm: u32) -> io::Result<()> {
     DirBuilder::new().recursive(true).mode(perm).create(p)
 }
 
-fn remove_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn remove_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload(
@@ -629,7 +717,7 @@ fn remove(p: &std::ffi::OsStr) -> io::Result<()> {
     }
 }
 
-fn remove_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn remove_all_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let job = p.clone();
     nat::offload(
@@ -665,7 +753,7 @@ fn remove_all(p: &std::ffi::OsStr) -> io::Result<()> {
     }
 }
 
-fn move_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn move_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [from, to] = nat::bytes_args(&a, ["from", "to"])?;
     let Value::Bool(overwrite) = a[2] else {
         return Err(nat::wrong_arg("overwrite", "bool", &a[2]));
@@ -823,7 +911,7 @@ fn c_path(p: &std::ffi::OsStr) -> std::ffi::CString {
     std::ffi::CString::new(p.as_bytes()).expect("checked: no NUL")
 }
 
-fn copy_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn copy_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let [from, to] = nat::bytes_args(&a, ["from", "to"])?;
     let Value::Bool(overwrite) = a[2] else {
         return Err(nat::wrong_arg("overwrite", "bool", &a[2]));
@@ -947,7 +1035,7 @@ const MODES: &str = "'read | 'write | 'append";
 const SETTLE_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// `Ok(<file>)` or the open failure.
-fn open_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn open_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let p = nat::need_bytes("path", &a[0])?.to_vec();
     let Value::Sym(mode) = a[1] else {
         return Err(nat::wrong_arg("mode", MODES, &a[1]));
@@ -1050,8 +1138,8 @@ pub(crate) fn fault_value(f: &File, verb: &str, e: Fault) -> Result<Value, Stop>
 }
 
 /// `close`. The flush and the close run on a pool thread.
-pub(crate) fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let f = need_file("f", &a[0])?.clone();
+pub(crate) fn close_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    let f = need_file("file", &a[0])?.clone();
     // Tasks waiting on a FIFO's descriptor wake and find it closed.
     if let Some(fd) = f.pipe_fd() {
         crate::vm::drop_io_waits(t, fd);
@@ -1069,8 +1157,8 @@ pub(crate) fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `fs.write_line`: the line and its `\n` go in under the handle's
 /// lock: here when they fit in the write buffer, else on a pool thread.
-fn write_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let f = need_file("f", &a[0])?.clone();
+fn write_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
+    let f = need_file("file", &a[0])?.clone();
     let line = nat::need_bytes("line", &a[1])?;
     let mut bytes = Vec::with_capacity(line.len() + 1);
     bytes.extend_from_slice(line);
@@ -1100,7 +1188,7 @@ fn write_pipe_line(t: &mut Task<'_>, f: Arc<File>, line: &[u8]) -> Result<Flow, 
         t,
         move |_, _| match f.pipe_flush() {
             Ok(Step::Ready(())) => IoStep::Done(written_value(&f, Ok(()))),
-            Ok(Step::Wait(fd, interest)) => pipe::io_step(fd, interest),
+            Ok(Step::Wait(fd, interest, at)) => pipe::io_step(fd, interest, at),
             Ok(Step::Fail(e)) => IoStep::Done(written_value(&f, Err(Fault::Io(e)))),
             Err(e) => IoStep::Done(written_value(&f, Err(e))),
         },
@@ -1116,7 +1204,7 @@ fn written_value(f: &File, r: Result<(), Fault>) -> Result<Value, Stop> {
     }
 }
 
-fn temp_dir_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+fn temp_dir_fn(t: &mut Task<'_>, _: Args) -> Result<Flow, Stop> {
     let base = temp_base();
     let job = base.clone();
     nat::offload(

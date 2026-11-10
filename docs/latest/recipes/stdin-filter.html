@@ -105,7 +105,7 @@ fn filter_lines(slow, seen, kept, bad):
   filter_lines(slow, seen + 1, kept + 1, bad)
 ;;
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 slow = parse_dur(get(opts.flags, &quot;slow&quot;, &quot;1s&quot;)) ?? fail(&quot;--slow takes a duration like 500ms&quot;)
 (seen, kept, bad) = filter_lines(slow, 0, 0, 0)
 eprint(&quot;kept ${kept} of ${seen} lines, ${bad} not understood&quot;)</code></pre><pre class="out plain"><code>20/Oct/2026:09:00:02 +0000	502	3004	POST	/api/orders

@@ -134,7 +134,7 @@ import fs
 
 m = fs
 print(m, type_of(m))
-print(m.exists("/nothing/here"))
+print(m.exists("/nothing/here")!)
 ```
 
 ## 모듈마다 전역 표 {#globals}
@@ -155,8 +155,8 @@ fung의 답은 "**함수 값이 자기 모듈의 전역 표를 들고 다닌다*
   <thead><tr><th>층</th><th>뜻</th><th>언어</th><th>예</th></tr></thead>
   <tbody>
     <tr><td>core</td><td>언어의 의미와 런타임, 언어가 보장하는 값 연산</td><td>Rust</td><td><code>print</code>, <code>map</code>·<code>filter</code>·<code>fold</code>, <code>split</code>, <code>int</code>, 태스크·채널</td></tr>
-    <tr><td>native <code>_native.*</code></td><td>바깥세상과의 다리, 또는 안쪽 루프라 Rust가 필요한 것. 숨겨져 있다</td><td>Rust</td><td><code>_native.fs</code>, <code>_native.process</code>, <code>_native.net</code>, <code>_native.json</code>, <code>_native.regex</code></td></tr>
-    <tr><td>extras(내장)</td><td>core와 native 위에 fung으로 쓴 것. 실행 파일 안에 들어 있다</td><td>fung</td><td><code>fs</code>·<code>cli</code>·<code>http</code>·<code>conc</code> 모듈, prelude의 <code>take</code>·<code>sum</code>·<code>exec</code></td></tr>
+    <tr><td>native <code>_native.*</code></td><td>바깥세상과의 다리, 또는 안쪽 루프라 Rust가 필요한 것. 숨겨져 있다</td><td>Rust</td><td><code>_native.fs</code>, <code>_native.process</code>, <code>_native.net</code>, <code>_native.json</code>, <code>_native.regex</code>, <code>_native.arg</code>(fung으로 쓴 모듈의 인자 검사)</td></tr>
+    <tr><td>extras(내장)</td><td>core와 native 위에 fung으로 쓴 것. 실행 파일 안에 들어 있다</td><td>fung</td><td><code>fs</code>·<code>cli</code>·<code>http</code>·<code>conc</code> 모듈, prelude의 <code>take</code>·<code>zip</code>·<code>exec</code></td></tr>
     <tr><td>extras(프로젝트)</td><td>사용자의 라이브러리</td><td>fung</td><td>상대 경로 <code>import</code></td></tr>
   </tbody>
 </table>
@@ -190,14 +190,14 @@ print(1)
 `fung`이 스크립트를 실행하기 전에 하는 일은 `crates/fung-vm/src/boot.rs`의 `boot`에 있다.
 
 1. Rust로 쓴 core 내장 함수(`prelude::core`)와 동시성 원시 연산(`conc::natives`), 그리고 스크립트 인자 `args`를 prelude 표에 넣는다.
-2. `extras/prelude.fung`를 컴파일한다. 이 파일은 내장 파일이라 `_native.process`와 `_native.range`를 가져올 수 있다.
-3. 그것을 모듈로 실행하고, 공개 이름들(`take`, `sum`, `exec` …)을 prelude 표에 더한다.
+2. `extras/prelude.fung`를 컴파일한다. 이 파일은 내장 파일이라 `_native.arg`·`_native.process`·`_native.range`를 가져올 수 있다.
+3. 그것을 모듈로 실행하고, 공개 이름들(`take`, `zip`, `exec` …)을 prelude 표에 더한다.
 
 앞단(`fung-front`)은 값을 모른다. 그래서 컴파일러는 prelude 이름을 `Const::Builtin(이름)`이라는 자리 표시로 남기고, VM의 **링크** 단계(`vm/link.rs`의 `link`)가 그 자리에 실제 함수 값을 채운다. 8장에서 `CONST 0 ; <fn print>`가 보인 이유다. 이름 해석은 prelude에 어떤 이름이 있는지만 알면 된다. 그래서 앞단은 `spec/builtins.txt`를 읽는다(`builtins.rs`). 이 파일은 VM의 실제 표에서 시험(`spec_file`)이 만들어 내는 것이라, 두 쪽이 어긋나면 시험이 실패한다.
 
 ### 내장 코드 안의 에러 {#builtin-errors}
 
-`take`는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 `extras/prelude.fung`를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 `builtin` 표시가 붙고(`loader.rs`의 `mark_builtin`), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에는 안쪽 프레임이 그대로 보인다.
+`take`는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 `extras/prelude.fung`를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 `builtin` 표시가 붙고(`loader.rs`의 `mark_builtin`), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에서도 같은 규칙으로 `builtin` 표시가 붙은 프레임을 뺀다(`vm.rs`의 `call_path`). 그래서 Rust로 쓴 내장 함수(`sort`)와 fung으로 쓴 내장 함수(`take`)의 에러가 같은 모양이고, 함수를 한 언어에서 다른 언어로 옮겨도 사용자가 보는 진단은 바뀌지 않는다. 내장 함수가 부른 사용자의 콜백 프레임은 그대로 보인다.
 
 ```fung run exit=1 error=E0506
 print(take(5, 2))

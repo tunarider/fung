@@ -1,0 +1,8 @@
+# A line that starts with `-` is a new statement: the value above is
+# computed and discarded, so this is an error, not `a - 2` (FE24).
+fn f(a):
+  a
+  -2
+;;
+print(f(5))
+# expect-error: E0234

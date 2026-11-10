@@ -115,7 +115,7 @@ fn by_mount(samples, name) = samples
   |&gt; filter(s =&gt; get(s.labels, &quot;fstype&quot;, &quot;&quot;) != &quot;tmpfs&quot;)
   |&gt; fold({}, (acc, s) =&gt; put(acc, s.labels.mountpoint, s.value))
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 max_pct = parse_int(get(opts.flags, &quot;max&quot;, &quot;90&quot;)) ?? fail(&quot;--max takes a whole percent&quot;)
 samples = read_lines()! |&gt; map(parse) |&gt; filter(s =&gt; s != nil)
 avail = by_mount(samples, &quot;node_filesystem_avail_bytes&quot;)
@@ -135,7 +135,7 @@ if any(rows, ((_, pct, _)) =&gt; pct &gt; max_pct): exit(1) ;;</code></pre><pre 
 <h2 id="how">줄별 설명</h2>
 <ul>
 <li><code>sample</code>: 지표 한 줄의 모양이다. <code>(?P&lt;name&gt;…)</code>처럼 이름 붙인 조각(named group)은 <code>m.named.name</code>으로 꺼낸다. 번호(<code>groups[0]</code>)보다 읽기 쉽고, 정규식 중간에 조각을 더해도 번호가 밀리지 않는다. 중괄호 부분 <code>(\{…\})?</code>는 없어도 되므로, <code>node_load1 0.42</code>처럼 라벨이 없는 줄에서는 <code>m.named.labels</code>가 <code>nil</code>이다.</li>
-<li><code>label</code>: 중괄호 안의 <code>key=&quot;value&quot;</code> 하나다. 값 부분 <code>(?:[^&quot;\\]|\\.)*</code>는 "따옴표나 백슬래시가 아닌 글자, 또는 백슬래시와 그다음 한 글자"의 반복이라 <code>\&quot;</code>가 든 값도 끝까지 잡는다. 원시 문자열 <code></code> <code>…</code> <code></code>이라 백슬래시를 정규식에 적힌 그대로 쓴다.</li>
+<li><code>label</code>: 중괄호 안의 <code>key=&quot;value&quot;</code> 하나다. 값 부분 <code>(?:[^&quot;\\]|\\.)*</code>는 "따옴표나 백슬래시가 아닌 글자, 또는 백슬래시와 그다음 한 글자"의 반복이라 <code>\&quot;</code>가 든 값도 끝까지 잡는다. 원시 문자열 <code>`…`</code>이라 백슬래시를 정규식에 적힌 그대로 쓴다.</li>
 <li><code>regex.find</code>와 <code>regex.find_all</code>: <code>find</code>는 처음 맞는 곳 하나(<code>{text, start, end, groups, named}</code>)나 <code>nil</code>, <code>find_all</code>은 맞는 곳 전부의 리스트를 준다. 라벨은 <code>find_all</code>로 모두 찾아 <code>fold</code>로 맵 하나에 모은다.</li>
 <li><code>parse_float(…)</code>: <code>1.6234029056e+10</code> 같은 지수 표기도 읽는다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없어서, Prometheus가 보내는 <code>NaN</code>·<code>+Inf</code>는 <code>Err</code>가 되고 그 줄을 버린다.</li>
 <li><code>by_mount</code>: 지표 하나를 "마운트 지점 → 값" 맵으로 만든다. 두 지표를 같은 키로 맞춰 놓으면 <code>avail[mp]</code>와 <code>size[mp]</code>로 바로 짝지어 계산할 수 있다(쉘의 <code>join</code>에 해당).</li>

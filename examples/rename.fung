@@ -18,6 +18,6 @@ fn rename_all(dir, dry):
   nil
 ;;
 
-opts = cli.parse(args, bools: ["dry-run"])
+opts = cli.parse(args, bools: ["dry-run"])!
 dir = first(opts.rest) ?? fail("usage: rename.fung <dir> [--dry-run]")
 rename_all(dir, get(opts.flags, "dry_run", false))

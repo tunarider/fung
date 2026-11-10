@@ -40,8 +40,9 @@
 | Err({kind: 'not_found, message: "cannot stat `$D/none`: no such file or directory"})
 | Err({kind: 'not_found, message: "cannot stat ``: no such file or directory"})
 | Err({kind: 'io, message: "cannot stat `$D/a.txt/x`: not a directory"})
-| true false false true
-| Err({kind: 'io, message: "cannot read `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot write `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot create directory `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot remove `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot stat `a\u{0}b`: invalid argument"}) false
+| Ok(true) Ok(false) Ok(false) Ok(true)
+| Ok(false) Ok(false) Ok(true) Err({kind: 'permission, message: "cannot check whether `$D/t/locked_d/inner` exists: permission denied"})
+| Err({kind: 'io, message: "cannot read `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot write `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot create directory `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot remove `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot stat `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot check whether `a\u{0}b` exists: invalid argument"})
 | Err({kind: 'io, message: "cannot move `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot copy to `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot remove `a\u{0}b`: invalid argument"})
 -- stderr
 -- exit: 0
@@ -50,15 +51,15 @@
 | Ok(nil) Ok(nil) Ok(nil)
 | Ok("hi\nthere\n") Ok("x")
 | Ok(nil) Ok("short")
-| Ok(nil) Ok(nil) Ok(nil) true Ok(nil)
+| Ok(nil) Ok(nil) Ok(nil) Ok(true) Ok(nil)
 | Ok(nil) Ok({name: "c.txt", size: 5, is_dir: false, mtime: $TIME})
 | Err({kind: 'exists, message: "cannot copy `$D/w.txt` to `$D/m/c.txt`: file exists"}) Err({kind: 'exists, message: "cannot copy `$D/w.txt` to `$D/w.txt`: file exists"})
-| Ok(nil) false Ok("short")
+| Ok(nil) Ok(false) Ok("short")
 | Ok(nil) Err({kind: 'exists, message: "cannot move `$D/m/n` to `$D/m/n`: file exists"})
-| Ok(nil) true
-| Ok(nil) Ok(nil) Ok(nil) false
-| Ok(nil) false
-| Ok(nil) false
+| Ok(nil) Ok(true)
+| Ok(nil) Ok(nil) Ok(nil) Ok(false)
+| Ok(nil) Ok(false)
+| Ok(nil) Ok(false)
 | Err({kind: 'io, message: "cannot stat `$D/new.txt/`: not a directory"}) Ok({name: "new.txt", size: 1, is_dir: false, mtime: $TIME})
 | Ok(nil) Ok("한글 ok") Ok({name: "u.txt", size: 9, is_dir: false, mtime: $TIME})
 | Ok({name: "u.txt", size: 9, is_dir: false, mtime: $TIME}) Ok({name: "..", size: $SIZE, is_dir: true, mtime: $TIME})
@@ -77,7 +78,7 @@
 | Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) Err({kind: 'permission, message: "cannot open `$D/wonly`: permission denied"}) true
 | Err({kind: 'permission, message: "cannot open `$D/ro/x`: permission denied"}) Err({kind: 'io, message: "cannot open `$D`: is a directory"}) Err({kind: 'io, message: "cannot open `$D`: is a directory"}) Err({kind: 'io, message: "cannot open `$D/a.txt/x`: not a directory"})
 | Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'io, message: "cannot open `a\u{0}b`: invalid argument"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"}) Err({kind: 'not_found, message: "cannot open ``: no such file or directory"})
-| Ok([]) Ok(["a\xffb\xc3"]) [Ok("hi"), Ok(nil)]
+| Err({kind: 'io, message: "cannot read `$D`: is a directory"}) Ok(["a\xffb\xc3"]) [Ok("hi"), Ok(nil)]
 | Ok(["x"]) Ok(nil) Ok("w\n")
 | Err({kind: 'not_found, message: "cannot open `$D/none`: no such file or directory"}) Ok(["w"]) Err({kind: 'not_found, message: "cannot read `$D/none`: no such file or directory"})
 | Ok(nil) Ok(["a", "b", "", "", "c"]) Ok(["a", "b", "", "", "c"])

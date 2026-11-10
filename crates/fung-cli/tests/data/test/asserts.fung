@@ -1,4 +1,5 @@
 fn slug(s) = lower(s)
+fn fails(m) = Err(m)
 
 test "compare shows both sides": assert slug("Hello World") == "hello-world" ;;
 test "pipeline on the left": assert [1, 2] |> len() > 5 ;;
@@ -23,8 +24,8 @@ test "an Err at the end is discarded":
   send(tx, 1)
 ;;
 test "a list of Errs at the end":
-  for x in [1]: Err("in a list") ;;
+  for x in [1]: fails("in a list") ;;
 ;;
 test "an if at the end":
-  if false: 1 ;;
+  if false: print(1) ;;
 ;;

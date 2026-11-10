@@ -1,6 +1,7 @@
 //! What the core prelude and the native bridges share, and the
 //! `_native.*` bridges themselves.
 
+pub mod arg;
 pub(crate) mod file;
 pub mod fs;
 pub(crate) mod glob;

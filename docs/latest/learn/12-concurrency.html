@@ -153,7 +153,7 @@ print(r)</code></pre><pre class="out err plain" data-code="1"><code>error[E0502]
 <div class="run"><pre><code>scope(fn(s):
   spawn(s, () =&gt; parse_int(&quot;x&quot;))
 ;;)
-print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0607]: task's Err was never awaited: not an integer: x
+print(&quot;not reached&quot;)</code></pre><pre class="out err plain" data-code="1"><code>error[E0607]: task's Err was never awaited: not an integer: &quot;x&quot;
   --&gt; example.fung:2:8
   |
 2 |   spawn(s, () =&gt; parse_int(&quot;x&quot;))

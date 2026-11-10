@@ -17,10 +17,24 @@ pub(super) struct Binding {
     pub(super) module: bool,
 }
 
+/// What made a block, for the help of E0206 when one of its names is
+/// read after it (FE33).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum Made {
+    /// An `if` branch, or a block desugar made.
+    #[default]
+    Block,
+    /// A `match` arm.
+    Arm,
+    /// A `for` body (its desugared function).
+    For,
+}
+
 /// One lexical block: the file (globals) or a block (slots).
 pub(super) struct Scope {
     pub(super) names: HashMap<String, Binding>,
     pub(super) file: bool,
+    pub(super) made: Made,
     /// First slot this block may use; restored on exit.
     pub(super) base: usize,
     /// For warnings (08): where each name was bound, which were read,
@@ -35,6 +49,7 @@ impl Scope {
         Scope {
             names: HashMap::new(),
             file,
+            made: Made::Block,
             base,
             pos: HashMap::new(),
             used: HashSet::new(),
@@ -60,6 +75,9 @@ pub(super) struct FnScope {
     /// (the name the error shows): `?` inside is E0226, the trap of a for
     /// body (03, SP1).
     pub(super) map_body: Option<&'static str>,
+    /// A parameter default is being resolved: `return` there is E0211
+    /// (FE38).
+    pub(super) in_default: bool,
     /// A hoisted top-level fn: it and the functions inside it see the
     /// file's constants when called (03, L9).
     pub(super) top: bool,
@@ -69,8 +87,14 @@ pub(super) struct FnScope {
     /// The blocks that bind each name, outermost first: a lookup takes
     /// the last without walking every block (FE16).
     pub(super) bound_in: HashMap<String, Vec<usize>>,
-    /// Names defined in blocks of this fn that have ended (E0206).
-    pub(super) closed: HashSet<String>,
+    /// Names defined in blocks of this fn that have ended (E0206), with
+    /// what made the block.
+    pub(super) closed: HashMap<String, Made>,
+    /// The names bound in the outermost block or closed, each once, in the
+    /// order they came: they stay visible as long as the function is
+    /// resolved, so the "similar name" index takes them as they come
+    /// (FE36).
+    pub(super) lasting: Vec<String>,
     /// Per block: local fn names declared later in that block (E0208).
     pub(super) later: Vec<HashSet<String>>,
 }
@@ -90,6 +114,9 @@ impl FnScope {
             .insert(name.to_string(), b)
             .is_none()
         {
+            if block == 0 && !self.closed.contains_key(name) {
+                self.lasting.push(name.to_string());
+            }
             let at = self.bound_in.entry(name.to_string()).or_default();
             let i = at.partition_point(|&x| x < block);
             at.insert(i, block);
@@ -113,6 +140,19 @@ impl FnScope {
             }
         }
         sc
+    }
+
+    /// Records a name of a block that ended (E0206).
+    pub(super) fn close(&mut self, name: String, made: Made) {
+        let lasting = !self.closed.contains_key(&name)
+            && !self
+                .blocks
+                .first()
+                .is_some_and(|b| b.names.contains_key(&name));
+        if lasting {
+            self.lasting.push(name.clone());
+        }
+        self.closed.insert(name, made);
     }
 
     /// Takes the next free slot of this function.

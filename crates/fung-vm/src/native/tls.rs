@@ -29,11 +29,15 @@
 //!
 //! **The end of the stream.** close_notify ends it; a TCP end without
 //! close_notify is an end too when it falls between records (popular
-//! sites close that way, and HTTP knows where its bodies end), and an
-//! error inside a record. rustls reports both as `UnexpectedEof`, so the
-//! record framing of the bytes read is followed here (`Records`) to tell
-//! them apart. `close` sends close_notify (best effort, without waiting);
-//! the last copy going away does not.
+//! sites close that way) for the reads that know their length (a line, a
+//! count of bytes: what follows tells whether the text was whole), and an
+//! error inside a record. `read_all`, whose only sign of the end is the
+//! end itself, needs close_notify (LB23: a TCP end can come from anyone
+//! on the path; RFC 8446 6.1, RFC 9112 9.8), so the session remembers
+//! which end it saw (`clean`). rustls reports both TCP ends as
+//! `UnexpectedEof`, so the record framing of the bytes read is followed
+//! here (`Records`) to tell them apart. `close` sends close_notify (best
+//! effort, without waiting); the last copy going away does not.
 //!
 //! **Checks and errors.** rustls's WebPKI verifier checks the chain (the
 //! leaf's dates first) and then the name. Its error kinds get short texts:
@@ -62,12 +66,15 @@ use crate::vm::Interest;
 pub(super) struct Session {
     conn: ClientConnection,
     rec: Records,
+    /// The stream ended with close_notify (false until it ends, and after
+    /// a TCP end without it).
+    clean: bool,
 }
 
 impl Session {
     /// `read_tls` from the socket, following the record framing.
     fn read_tls(&mut self, s: &TcpStream) -> io::Result<usize> {
-        let Session { conn, rec } = self;
+        let Session { conn, rec, .. } = self;
         conn.read_tls(&mut Tap { s, rec })
     }
 
@@ -157,6 +164,15 @@ impl Records {
 /// A TCP end inside a record.
 const INSIDE_A_RECORD: &str = "connection closed inside a TLS record";
 
+/// A TCP end without close_notify where only the end tells where the
+/// text ends (`read_all`).
+pub(super) const NO_CLOSE_NOTIFY: &str = "connection closed without TLS close_notify";
+
+/// Whether the stream ended with close_notify (once `fill` gave 0).
+pub(super) fn ended_cleanly(t: &Mutex<Session>) -> bool {
+    lock(t).clean
+}
+
 /// A TLS client session for `host`, its handshake not begun.
 /// A client session for `host`, offering the protocols `alpn` (ALPN, RFC
 /// 7301; none offers nothing). A server that picks one not offered fails
@@ -177,6 +193,7 @@ pub(super) fn start(host: &str, alpn: &[Vec<u8>]) -> Result<Session, Fail> {
     Ok(Session {
         conn,
         rec: Records::default(),
+        clean: false,
     })
 }
 
@@ -251,6 +268,9 @@ pub(super) fn fill(
         match st.conn.reader().read(&mut chunk) {
             // 0: close_notify came
             Ok(n) => {
+                if n == 0 {
+                    st.clean = true;
+                }
                 buf.extend_from_slice(&chunk[..n]);
                 return Ok(n);
             }

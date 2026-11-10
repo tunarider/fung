@@ -55,7 +55,7 @@ fn parse(line) = match split(line, " "):
 # are the same problem.
 fn shape(message) = regex.replace(message, `\b\d+\b`, "N")
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 pattern = first(opts.rest) ?? "*.log"
 top = parse_int(get(opts.flags, "top", "3")) ?? fail("--top must be a number")
 files = fs.glob(pattern)!

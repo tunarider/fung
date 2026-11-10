@@ -123,8 +123,13 @@
 -- exit: 3
 ==== --version
 -- stdout
+| fung 0.0.0-dev
 -- stderr
-| error: unknown command `--version`
+-- exit: 0
+==== -x
+-- stdout
+-- stderr
+| error: unknown option `-x`
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
@@ -139,10 +144,28 @@
 |   fung version                            print the version
 |   fung help                               print this text
 -- exit: 3
-==== -x
+==== --
 -- stdout
 -- stderr
-| error: unknown command `-x`
+| error: run needs a script path
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== --foo
+-- stdout
+-- stderr
+| error: unknown option `--foo`
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)

@@ -32,7 +32,7 @@ pub(super) fn serial() -> MutexGuard<'static, ()> {
 /// lookups running on the pool), `budget()` (the calling
 /// task's ticks left before its next turn handoff).
 pub(super) fn net_probes() -> Vec<Value> {
-    type F = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
+    type F = fn(&mut Task<'_>, crate::value::Args) -> Result<Value, Stop>;
     let natives: [(&'static str, F); 9] = [
         ("in_line", |_, _| Ok(Value::Int(probe::in_line() as i64))),
         ("io_table", |t, _| {
@@ -348,33 +348,6 @@ fn bytes_that_are_not_utf8_read_as_they_are() {
     );
 }
 
-/// `need_str_map(name, m)` is the check of a header map: nil when every
-/// value is a str, else E0403 naming the first value that is not (in the
-/// map's order), at the user's call.
-#[test]
-fn need_str_map_checks_every_value() {
-    let _g = serial();
-    let o = run(
-        "print(net.need_str_map(\"headers\", {}), net.need_str_map(\"headers\", {a: \"1\", b: \"2\"}))",
-    );
-    assert_eq!(out(&o), ("nil nil\n", "", 0));
-    let o = run("print(1)\nnet.need_str_map(\"headers\", {a: \"1\", b: 2, c: nil})");
-    assert!(
-        o.err.starts_with(
-            "error[E0403]: argument `headers` must be a map of strings, got a map holding int\n"
-        ),
-        "{}",
-        o.err
-    );
-    let o = run("net.need_str_map(\"headers\", 1)");
-    assert!(
-        o.err
-            .starts_with("error[E0403]: argument `headers` must be map, got int\n"),
-        "{}",
-        o.err
-    );
-}
-
 /// The short reasons (the errno wording is `oserr`'s): `connection
 /// refused`, `address already in use`, ``invalid port `x` ``,
 /// ``invalid address `a:b:c` (too many colons)``, ...
@@ -606,20 +579,27 @@ fn reset_and_closed_connections() {
     );
 }
 
-/// A deadline ends a read with `timed out`.
+/// A deadline ends a read with `timed out`; `nil` removes it, and `0s` is
+/// a deadline that has passed already (LB39: no special case for `0s`).
 #[test]
 fn a_deadline_ends_reads_with_a_timeout() {
     let _g = serial();
     let o = run(&format!(
-        "{PAIR}name = net.local_addr(c) + \"->\" + net.local_addr(l)\nprint(net.set_deadline(c, 30ms))\nr = net.read_line(c, 10)\nprint(kind(r), replace(msg(r), name, \"A->B\"))\nnet.set_deadline(c, 0s)!\nnet.write(s, \"late\\n\")!\nprint(net.read_line(c, 10))\nnet.set_deadline(c, -1s)!\nnet.write(s, \"x\\n\")!\nprint(kind(net.read_bytes(c, 2)))"
+        "{PAIR}name = net.local_addr(c) + \"->\" + net.local_addr(l)\nprint(net.set_deadline(c, 30ms))\nr = net.read_line(c, 10)\nprint(kind(r), replace(msg(r), name, \"A->B\"))\nnet.set_deadline(c, nil)!\nnet.write(s, \"late\\n\")!\nprint(net.read_line(c, 10))\nnet.set_deadline(c, 1ms)!\nprint(kind(net.read_bytes(c, 2)))\nnet.write(s, \"now\\n\")!\nnet.set_deadline(c, 0s)!\nprint(kind(net.read_line(c, 10)))\nnet.set_deadline(c, -1s)"
     ));
+    // A negative deadline is a code error (SP15, D11), not "now".
     assert_eq!(
-        out(&o),
+        (o.out.as_str(), o.exit),
         (
-            "Ok(nil)\n'timeout timed out\nOk(\"late\")\n'timeout\n",
-            "",
-            0
+            "Ok(nil)\n'timeout timed out\nOk(\"late\")\n'timeout\n'timeout\n",
+            1
         )
+    );
+    assert!(
+        o.err
+            .starts_with("error[E0403]: argument `d` must be a non-negative dur, got -1s\n"),
+        "{}",
+        o.err
     );
 }
 
@@ -830,7 +810,7 @@ fn a_second_reader_waits_for_the_first() {
 #[test]
 fn set_deadline_reaches_a_blocked_read() {
     let _g = serial();
-    for first in ["1h", "0s"] {
+    for first in ["1h", "nil"] {
         let o = run(&format!(
             "{PAIR}net.set_deadline(s, {first})!\nscope(fn(sc):\n  r = spawn(sc, () => net.read_line(s, 10))\n  until(() => net_waiting() == 1)\n  net.set_deadline(s, 20ms)!\n  print(await(r))\n;;)"
         ));
@@ -897,7 +877,7 @@ fn raw_reads_gather_a_body_decoded_once() {
     assert_eq!(
         out(&o),
         (
-            "Ok(nil) Ok(nil)\n[\"a한b한\", \"\"]\nErr({kind: 'limit, message: \"body longer than 0 bytes\"})\nOk(nil) Err({kind: 'network, message: \"connection closed\"})\n",
+            "Ok(nil) Ok(nil)\n[Ok(\"a한b한\"), Ok(\"\")]\nErr({kind: 'limit, message: \"body longer than 0 bytes\"})\nOk(nil) Err({kind: 'network, message: \"connection closed\"})\n",
             "",
             0
         )
@@ -915,7 +895,7 @@ fn a_raw_read_past_the_cap_reads_nothing() {
     assert_eq!(
         out(&o),
         (
-            "Ok(nil) Err({kind: 'limit, message: \"body longer than 5 bytes\"})\n[\"abcd\"] Ok(\"ef\")\nErr({kind: 'network, message: \"connection closed\"})\n",
+            "Ok(nil) Err({kind: 'limit, message: \"body longer than 5 bytes\"})\n[Ok(\"abcd\")] Ok(\"ef\")\nErr({kind: 'network, message: \"connection closed\"})\n",
             "",
             0
         )
@@ -940,10 +920,6 @@ fn wrong_arguments_are_e0403() {
         (
             "net.set_deadline(1, 1s)",
             "argument `c` must be conn, got int",
-        ),
-        (
-            "net.need_str_map(1, {})",
-            "argument `name` must be str, got int",
         ),
         ("net.take_body(1)", "argument `c` must be conn, got int"),
         (
@@ -1378,8 +1354,8 @@ fn a_dropped_io_wait_releases_its_state() {
     let setup = crate::testutil::setup("1", Opts::default()).unwrap_or_else(|e| panic!("{e:?}"));
     {
         let mut t = setup.rt.task();
-        let flow =
-            super::read_line_fn(&mut t, vec![Value::Conn(c.clone()), Value::Int(10)]).unwrap();
+        let flow = super::read_line_fn(&mut t, vec![Value::Conn(c.clone()), Value::Int(10)].into())
+            .unwrap();
         assert!(matches!(flow, crate::vm::Flow::Park(..)));
         assert!(c.rd_turn.is_busy());
         assert_eq!(probe::waiting(), base + 1);

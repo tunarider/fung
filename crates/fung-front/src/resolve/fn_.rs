@@ -1,6 +1,6 @@
 //! Functions: parameters, defaults, bodies and type annotations.
 
-use super::scope::{Binding, FnScope};
+use super::scope::{Binding, FnScope, Made};
 use super::{Resolver, fn_info};
 use crate::source::Pos;
 use crate::tree::{FnInfo, Head, Lit, Node};
@@ -46,11 +46,16 @@ impl Resolver<'_> {
         self.check_types(&mut info, n.pos);
         let body = n.kids.last().expect("fn body");
         self.push_block(body, false);
+        if decl.for_body {
+            self.cur_block().made = Made::For;
+        }
         let mut kids = Vec::new();
         let mut di = 0;
         for (i, prm) in decl.params.iter().enumerate() {
             if prm.has_default {
+                self.cur_mut().in_default = true;
                 let d = self.walk(&n.kids[di]);
+                self.cur_mut().in_default = false;
                 kids.push(d);
                 di += 1;
             }
@@ -72,6 +77,16 @@ impl Resolver<'_> {
         kids.push(Node::new(Head::Do, body.pos, stmts));
         self.pop_block(false);
         let f = self.fns.pop().expect("function stack");
+        if f.for_body {
+            // A `for` binds in the block it stands in, like `if` and
+            // `match`: its names are closed there after it (FE33).
+            let parent = self.cur_mut();
+            for (name, made) in f.closed {
+                if !name.starts_with('$') {
+                    parent.close(name, made);
+                }
+            }
+        }
         info.num_locals = f.max_slot;
         info.captures = f.captures;
         Node::with_lit(Head::Fn, n.pos, Lit::Fn(Box::new(info)), kids)
@@ -88,7 +103,7 @@ impl Resolver<'_> {
             // A rest parameter is always a list (07, T3).
             if p.rest
                 && let Some(t) = &p.types
-                && t.iter().any(|t| t != "list" && t != "any")
+                && t.iter().any(|t| t.name != "list" && t.name != "any")
             {
                 self.errs.push(super::name_error("E0228", p.pos, &p.name));
             }

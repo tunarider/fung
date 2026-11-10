@@ -45,13 +45,13 @@
 ==== check -e "print(if true: _y = 1 ;;)"
 -- stdout
 -- stderr
-| error[E0224]: `_y` is assigned as the last statement of a block used as a value, so the value is nil
+| error[E0224]: a block used as a value ends with an assignment to `_y`, so the value is nil
 |   --> -e:1:16
 |   |
 | 1 | print(if true: _y = 1 ;;)
 |   |                ^^
 |   |
-|  help: put the value last: end the block with an expression, e.g. the assigned name on its own line
+|  help: end the block with the value it stands for, e.g. the assigned name on its own line; write `nil` last if nil is meant
 | error[E0223]: `if` without `else` used as a value: it is nil when the condition is false
 |   --> -e:1:7
 |   |
@@ -220,7 +220,7 @@
 -- stdout
 -- stderr
 | error: cannot read `tests/lang`: is a directory
--- exit: 3
+-- exit: 2
 ==== check nope.fung
 -- stdout
 -- stderr
@@ -234,7 +234,7 @@
 ==== check tests/lang/arith.fung -e
 -- stdout
 -- stderr
-| error: check takes one script path or -e code, nothing more
+| error: -e needs code
 |
 | usage:
 |   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
@@ -255,8 +255,64 @@
 -- exit: 0
 ==== check --help
 -- stdout
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung version                            print the version
+|   fung help                               print this text
 -- stderr
-| error: cannot read `--help`: no such file or directory
+-- exit: 0
+==== check --foo
+-- stdout
+-- stderr
+| error: unknown option `--foo`
+|
+| usage:
+|   fung <script.fung> [args...]            run a script (same as: fung run <script.fung>)
+|   fung                                    start the REPL
+|   fung -e '<code>'                        run one line of code
+|   fung check <script.fung>                check syntax and names without running
+|   fung check -e '<code>'                  the same for one line of code
+|   fung fmt [--check] <path>...|-          format files in place (--check: list only; -: stdin)
+|   fung test [path]                        run tests
+|   fung dump ast|core|bytecode <script>    print an internal stage
+|   fung dump ast|core|bytecode -e '<code>' the same for one line of code
+|   fung version                            print the version
+|   fung help                               print this text
+-- exit: 3
+==== check -- --foo
+-- stdout
+-- stderr
+| error: cannot read `--foo`: no such file or directory
+-- exit: 3
+==== check -e --foo
+-- stdout
+-- stderr
+| error[E0204]: undefined name `foo`
+|   --> -e:1:3
+|   |
+| 1 | --foo
+|   |   ^^^ not found in this scope
+|   |
+| error[E0234]: the result of `-` is computed and discarded
+|   --> -e:1:1
+|   |
+| 1 | --foo
+|   | ^
+|   |
+|  help: a line that starts with `-` is a new statement; to continue the line above, end that line with `-`
+-- exit: 2
+==== check -- -e
+-- stdout
+-- stderr
+| error: cannot read `-e`: no such file or directory
 -- exit: 3
 ==== check non-UTF-8 name
 -- stdout
@@ -274,3 +330,8 @@
 |   |
 |  help: prefix it with `_` if it is intentional
 -- exit: 0
+==== check not UTF-8 source
+-- stdout
+-- stderr
+| error: cannot read `$DIR/latin.fung`: not valid UTF-8 at line 1, column 6
+-- exit: 2

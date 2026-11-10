@@ -1,8 +1,0 @@
-# bools takes a flag's name either way (LB11): as written on the command
-# line (`dry-run`) or as its key (`dry_run`), so a switch never eats the
-# next argument as its value.
-import cli
-print(cli.parse(["--dry-run", "x"], bools: ["dry_run"]))
-# expect: {flags: {dry_run: true}, rest: ["x"]}
-print(cli.parse(["--dry-run", "x"], bools: ["dry-run"]))
-# expect: {flags: {dry_run: true}, rest: ["x"]}

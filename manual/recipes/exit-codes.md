@@ -48,7 +48,7 @@ fn number(opts, name, default) = match parse_int(get(opts.flags, name, str(defau
   Err(_) => finish(3, "--${name} is not a number")
 ;;
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 file = first(opts.rest) ?? finish(3, "usage: check_errors.fung LOG [--warn N] [--crit N]")
 warn = number(opts, "warn", 1)
 crit = number(opts, "crit", 10)

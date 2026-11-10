@@ -87,13 +87,14 @@
   <thead><tr><th>인자</th><th>결과</th></tr></thead>
   <tbody>
     <tr><td><code>--name value</code></td><td><code>flags.name = "value"</code>(다음 인자가 <code>--</code>로 시작하지 않을 때)</td></tr>
-    <tr><td><code>--name=value</code></td><td><code>flags.name = "value"</code>(값에 <code>=</code>가 더 있어도 첫 <code>=</code>에서만 나눈다)</td></tr>
+    <tr><td><code>--name=value</code></td><td><code>flags.name = "value"</code>(값에 <code>=</code>가 더 있어도 첫 <code>=</code>에서만 나눈다). <code>bools</code>에 있는 이름이면 값은 <code>true</code>·<code>false</code>만 받아 불리언이 된다</td></tr>
     <tr><td><code>--name</code></td><td><code>flags.name = true</code>(다음 인자가 없거나 <code>--</code>로 시작할 때, 또는 <code>bools</code>에 있는 이름일 때)</td></tr>
     <tr><td><code>--</code></td><td>그 뒤는 <code>--</code>로 시작해도 모두 <code>rest</code></td></tr>
     <tr><td>그 밖(<code>file.txt</code>, <code>-v</code>, <code>-</code>)</td><td>순서대로 <code>rest</code></td></tr>
   </tbody>
 </table>
-<p>옵션 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>flags.dry_run</code>). <code>flags.dry_run</code>처럼 점으로 바로 읽을 수 있게 하려는 것이다. 같은 옵션이 두 번 나오면 뒤의 것이 이긴다. 한 글자 옵션(<code>-v</code>)과 묶음(<code>-xvf</code>)은 따로 해석하지 않고 <code>rest</code>에 둔다.</p>
+<p>옵션 이름의 <code>-</code>는 <code>_</code>로 바뀐다(<code>--dry-run</code> → <code>flags.dry_run</code>). <code>flags.dry_run</code>처럼 점으로 바로 읽을 수 있게 하려는 것이다. 같은 옵션이 두 번 나오면(<code>--a-b</code>와 <code>--a_b</code>처럼 쓴 꼴만 달라도) 실패다. 어느 값을 뜻했는지 말없이 고르지 않는다. 한 글자 옵션(<code>-v</code>)과 묶음(<code>-xvf</code>)은 따로 해석하지 않고 <code>rest</code>에 둔다.</p>
+<p>명령줄은 스크립트 바깥에서 오는 입력이라, 사용자가 잘못 친 명령줄은 런타임 에러가 아니라 <code>Err</code> 값이다. 그래서 <code>cli.parse</code>는 <code>Ok({flags, rest})</code>나 <code>Err({kind: 'invalid, message})</code>를 돌려준다. 잘못된 명령줄에 그냥 멈추려면 <code>cli.parse(args)!</code>, 사용자에게 안내를 보이려면 <code>match</code>로 <code>Err</code>를 받는다.</p>
 <div class="box choice"><b>왜 이렇게 작은가</b>
 <p><code>cli</code>는 도움말 생성, 필수 옵션 검사, 타입 변환을 하지 않는다. 그런 기능은 규칙이 많아 배울 것이 늘고, 스크립트마다 원하는 모양이 다르다. 대신 결과가 평범한 맵과 리스트이므로 <code>get(flags, &quot;port&quot;, &quot;8080&quot;)</code>, <code>int(...)</code>, <a href="../prelude/convert.html#fn-parse_dur"><code>parse_dur</code></a>, <code>match</code>로 필요한 만큼 직접 쓴다.</p>
 </div>
@@ -102,7 +103,7 @@
 <p>명령줄 인자를 옵션 맵과 나머지 리스트로 나눈다.</p>
 <div class="sig"><code>cli.parse(argv, bools = [])</code></div>
 <h4>설명</h4>
-<p><code>argv</code>를 앞에서부터 읽으며 <a href="#concepts">위의 표</a>대로 나눈다. 값은 언제나 <strong>문자열</strong>(값 없는 옵션은 <code>true</code>)이므로 숫자나 기간이 필요하면 직접 바꾼다. <code>bools</code>에 적은 이름(앞의 <code>--</code> 없이)은 값을 받지 않는 스위치로 다룬다. 명령줄에 쓴 꼴(<code>&quot;dry-run&quot;</code>)로도 결과의 키 꼴(<code>&quot;dry_run&quot;</code>)로도 적을 수 있다. 이름이 없는 옵션(<code>--=x</code>)은 런타임 에러 E0803이다. 이것이 없으면 <code>--dry-run web-1</code>의 <code>web-1</code>이 <code>dry_run</code>의 값이 되어 버린다.</p>
+<p><code>argv</code>를 앞에서부터 읽으며 <a href="#concepts">위의 표</a>대로 나눈다. 값은 언제나 <strong>문자열</strong>(값 없는 옵션은 <code>true</code>)이므로 숫자나 기간이 필요하면 직접 바꾼다. <code>bools</code>에 적은 이름(앞의 <code>--</code> 없이)은 값을 받지 않는 스위치로 다룬다. 명령줄에 쓴 꼴(<code>&quot;dry-run&quot;</code>)로도 결과의 키 꼴(<code>&quot;dry_run&quot;</code>)로도 적을 수 있다. <code>bools</code>가 없으면 <code>--dry-run web-1</code>의 <code>web-1</code>이 <code>dry_run</code>의 값이 되어 버린다. 스위치는 <code>--dry-run=false</code>처럼 <code>=true</code>·<code>=false</code>로 값을 줄 수 있고, 그 밖의 값은 실패다.</p>
 <p>없는 옵션을 <code>flags.port</code>로 읽으면 E0508(없는 키)이다. 선택 옵션은 <a href="../prelude/maps.html#fn-get"><code>get</code></a>의 기본값으로 읽는다(<code>get(opts.flags, &quot;port&quot;, &quot;8080&quot;)</code>). <code>opts.flags.port ?? &quot;8080&quot;</code>은 <code>??</code>에 닿기 전에 E0508로 멈춘다.</p>
 <h4>매개변수</h4>
 <ul>
@@ -110,10 +111,16 @@
 <li><code>bools</code>: 값을 받지 않는 옵션 이름의 리스트.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p><code>{flags, rest}</code> 맵. <code>flags</code>는 이름(문자열 키) → 문자열 또는 <code>true</code>, <code>rest</code>는 옵션이 아닌 인자의 리스트(순서 유지).</p>
+<p><code>Ok({flags, rest})</code>. <code>flags</code>는 이름(문자열 키) → 문자열 또는 불리언, <code>rest</code>는 옵션이 아닌 인자의 리스트(순서 유지).</p>
+<p>명령줄이 잘못되었으면 <code>Err({kind: 'invalid, message})</code>. <code>message</code>는 사용자에게 그대로 보여 줄 수 있는 문장이다.</p>
+<ul>
+<li>이름이 없는 옵션(<code>--=x</code>): <code>the flag `--=x` has no name</code></li>
+<li>같은 옵션이 두 번: <code>the flag `--x` is given twice</code></li>
+<li>스위치에 <code>true</code>·<code>false</code>가 아닌 값(<code>--dry-run=no</code>): <code>the switch `--dry-run` takes true or false, got `no` </code></li>
+</ul>
 <h4>에러</h4>
 <ul>
-<li><code>argv</code>가 리스트가 아니면 런타임 에러 E0601(맞는 패턴 없음).</li>
+<li><code>argv</code>나 <code>bools</code>가 문자열 리스트가 아니면 런타임 에러 E0403. 에러는 그 인자의 이름을 말한다. 이것은 스크립트의 잘못이라 <code>Err</code>가 아니다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>스크립트의 인자 나누기</strong></p>
@@ -122,15 +129,15 @@
 </details>
 <div class="run"><pre><code>import cli
 
-opts = cli.parse(args, bools: [&quot;dry-run&quot;])
+opts = cli.parse(args, bools: [&quot;dry-run&quot;])!
 print(opts)
 print(opts.flags.env, opts.rest)</code></pre><pre class="out plain"><code>{flags: {env: &quot;prod&quot;, dry_run: true}, rest: [&quot;web-1&quot;, &quot;web-2&quot;]}
 prod [&quot;web-1&quot;, &quot;web-2&quot;]</code></pre></div>
 <p><strong><code>bools</code>가 없으면</strong></p>
 <div class="run"><pre><code>import cli
 
-print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;]))
-print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;], bools: [&quot;dry-run&quot;]))</code></pre><pre class="out plain"><code>{flags: {dry_run: &quot;web-1&quot;}, rest: []}
+print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;])!)
+print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;], bools: [&quot;dry-run&quot;])!)</code></pre><pre class="out plain"><code>{flags: {dry_run: &quot;web-1&quot;}, rest: []}
 {flags: {dry_run: true}, rest: [&quot;web-1&quot;]}</code></pre></div>
 <p><strong>기본값과 변환</strong></p>
 <details class="fixture"><summary>실행 방법</summary>
@@ -138,7 +145,7 @@ print(cli.parse([&quot;--dry-run&quot;, &quot;web-1&quot;], bools: [&quot;dry-ru
 </details>
 <div class="run"><pre><code>import cli
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 retries = int(get(opts.flags, &quot;retries&quot;, &quot;3&quot;))
 wait = parse_dur(get(opts.flags, &quot;timeout&quot;, &quot;30s&quot;))!
 verbose = get(opts.flags, &quot;verbose&quot;, false)
@@ -146,7 +153,17 @@ print(retries + 1, wait, verbose, opts.rest)</code></pre><pre class="out plain">
 <p><strong><code>=</code>와 <code>--</code></strong></p>
 <div class="run"><pre><code>import cli
 
-print(cli.parse([&quot;--label=env=prod&quot;, &quot;--&quot;, &quot;--not-a-flag&quot;, &quot;-v&quot;]))</code></pre><pre class="out plain"><code>{flags: {label: &quot;env=prod&quot;}, rest: [&quot;--not-a-flag&quot;, &quot;-v&quot;]}</code></pre></div>
+print(cli.parse([&quot;--label=env=prod&quot;, &quot;--&quot;, &quot;--not-a-flag&quot;, &quot;-v&quot;])!)</code></pre><pre class="out plain"><code>{flags: {label: &quot;env=prod&quot;}, rest: [&quot;--not-a-flag&quot;, &quot;-v&quot;]}</code></pre></div>
+<p><strong>잘못된 명령줄 알리기</strong></p>
+<details class="fixture"><summary>실행 방법</summary>
+<pre class="plain shell"><code>fung example.fung --env prod --env dev</code></pre>
+</details>
+<div class="run"><pre><code>import cli
+
+match cli.parse(args):
+  Ok(opts) =&gt; print(opts.flags.env)
+  Err(e)   =&gt; print(&quot;usage error:&quot;, e.message)
+;;</code></pre><pre class="out plain"><code>usage error: the flag `--env` is given twice</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="../prelude/program.html#fn-args"><code>args</code></a>, <a href="../prelude/maps.html#fn-get"><code>get</code></a>, <a href="../prelude/convert.html#fn-parse_int"><code>parse_int</code></a>, <a href="../prelude/program.html#fn-exit"><code>exit</code></a>, <a href="../../recipes/cli-options.html">명령줄 옵션과 도움말</a></p>
 </section>

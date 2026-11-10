@@ -1,0 +1,9 @@
+# A range value whose start is after its end is an error, not an empty
+# range (D7): `for i in n..0` meant to count down, and `0..len(xs) - 1`
+# of an empty list, would otherwise do nothing silently. The empty
+# ranges are `n..n` and `n..=n-1`.
+n = 3
+print(0..n, 3..=2)
+print(n..1)
+# expect: 0..3 3..=2
+# expect-error: E0522

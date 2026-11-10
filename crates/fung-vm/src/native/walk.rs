@@ -33,7 +33,7 @@ pub(crate) enum Cursor {
         wait: Option<RecvWait>,
     },
     /// Items already collected (`sort_by`).
-    Items(Vec<Value>, usize),
+    Items(Rc<Vec<Value>>, usize),
 }
 
 impl Cursor {

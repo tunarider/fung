@@ -1,0 +1,4 @@
+# A name alone as a statement does nothing: the call's `()` is missing.
+fn cleanup() = print("cleaned")
+cleanup
+# expect-error: E0234

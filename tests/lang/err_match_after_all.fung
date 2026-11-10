@@ -1,0 +1,7 @@
+# An arm after one that matches everything never runs (FE25).
+fn f(x) = match x:
+  _ => 1
+  2 => 3
+;;
+print(f(2))
+# expect-error: E0235

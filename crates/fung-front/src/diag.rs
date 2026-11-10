@@ -338,10 +338,10 @@ mod tests {
     fn excerpt_expands_tabs() {
         let mut sm = SourceMap::new();
         let pos = at(&mut sm, "-e", "\tx = \"\\q\"", 1, 7);
-        let d = error("E0103", pos, vec![Arg::Str("\\q".into())]);
+        let d = error("E0103", pos, vec![Arg::Str("`\\q`".into())]);
         assert_eq!(
             format(&d, &sm),
-            "error[E0103]: unknown escape \"\\\\q\" in string\n  --> -e:1:7\n  |\n1 |     x = \"\\q\"\n  |          ^\n  |\n"
+            "error[E0103]: unknown escape `\\q` in string\n  --> -e:1:7\n  |\n1 |     x = \"\\q\"\n  |          ^\n  |\n"
         );
     }
 

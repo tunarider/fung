@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use fung_front::bytecode::{Assert, Instr, Param, Proto};
+use fung_front::bytecode::{Assert, Op, Param, Proto};
 use fung_front::consts::Const;
 use fung_front::diag::Arg;
 use fung_front::source::Pos;
@@ -15,7 +15,7 @@ use fung_front::tree::Capture;
 use super::matcher::{RtPattern, link_pattern};
 use super::{Stop, Task, internal};
 use crate::value::{
-    List, MapBuilder, Native, NativeParam, Range, Sym, Tag, TypeSet, Value, intern,
+    Args, List, MapBuilder, Native, NativeParam, Range, Sym, Tag, TypeSet, Value, intern,
 };
 
 /// The prelude table: every name a program can use without importing
@@ -23,13 +23,21 @@ use crate::value::{
 #[derive(Clone, Debug, Default)]
 pub struct Prelude(pub BTreeMap<String, Value>);
 
+/// An instruction decoded once, at link time: the run loop reads its
+/// opcode and operand as fields (VM16).
+#[derive(Clone, Copy, Debug)]
+pub struct Code {
+    pub op: Op,
+    pub arg: u32,
+}
+
 /// A compiled function ready to run: the front end's proto with its
 /// constants turned into values and its children linked too.
 #[derive(Debug)]
 pub struct RtProto {
     /// "" for lambdas and anonymous functions, `<main>` for a file body.
     pub name: String,
-    pub code: Vec<Instr>,
+    pub code: Vec<Code>,
     pub pos: Vec<Pos>,
     pub consts: Vec<Value>,
     pub num_locals: usize,
@@ -41,7 +49,6 @@ pub struct RtProto {
     pub protos: Vec<Rc<RtProto>>,
     pub captures: Vec<Capture>,
     pub types: Vec<TypeSet>,
-    pub return_type: i32,
     pub patterns: Vec<RtPattern>,
     pub exports: Vec<String>,
     pub asserts: Vec<Assert>,
@@ -53,7 +60,14 @@ pub struct RtProto {
 pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
     Rc::new(RtProto {
         name: p.name.clone(),
-        code: p.code.clone(),
+        code: p
+            .code
+            .iter()
+            .map(|i| Code {
+                op: i.op(),
+                arg: i.arg() as u32,
+            })
+            .collect(),
         pos: p.pos.clone(),
         consts: p.consts.iter().map(|c| constant(c, prelude)).collect(),
         num_locals: p.num_locals,
@@ -63,7 +77,6 @@ pub fn link(p: &Proto, prelude: &Prelude) -> Rc<RtProto> {
         protos: p.protos.iter().map(|c| link(c, prelude)).collect(),
         captures: p.captures.clone(),
         types: p.types.iter().map(|a| TypeSet::new(a)).collect(),
-        return_type: p.return_type,
         patterns: p
             .patterns
             .iter()
@@ -136,9 +149,27 @@ fn missing(name: &str) -> Value {
     Value::Native(Native::leak(name, vec![any], missing_fn))
 }
 
-fn missing_fn(t: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+fn missing_fn(t: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     let name = t.calling_native().unwrap_or("?");
     Err(internal(vec![Arg::Str(format!(
         "builtin `{name}` is not available"
     ))]))
+}
+
+#[cfg(test)]
+mod tests {
+    use fung_front::bytecode::{Instr, Op};
+
+    /// A decoded instruction is as small as the word it came from, plus
+    /// the opcode's byte rounded up: 8 bytes (VM16).
+    #[test]
+    fn a_decoded_instruction_is_8_bytes() {
+        assert_eq!(std::mem::size_of::<super::Code>(), 8);
+        let i = Instr::new(Op::Call, 4097);
+        let c = super::Code {
+            op: i.op(),
+            arg: i.arg() as u32,
+        };
+        assert_eq!((c.op, c.arg), (Op::Call, 4097));
+    }
 }

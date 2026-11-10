@@ -1,7 +1,8 @@
 //! Time values (02, `time`): an instant, seconds since 1970 UTC and
 //! nanoseconds, with the zone it is shown in. fung has no time literal;
-//! `_native.time` makes them. Instants run from year 0000 to 9999 (UTC);
-//! arithmetic past that is an overflow (E0503). A time carries no
+//! `_native.time` makes them. A time's date in its zone (what it shows)
+//! is in years 0000 to 9999 (LB37: so every time prints as text
+//! `time.parse` reads back); arithmetic past that is an overflow (E0503). A time carries no
 //! monotonic reading: two `now()` calls straddling a clock change differ
 //! by the change, so elapsed time is measured with `time.monotonic()`, a
 //! dur (L10).
@@ -38,7 +39,8 @@ pub(crate) enum Loc {
 /// An instant and its zone.
 #[derive(Clone, Debug)]
 pub struct Time {
-    /// Seconds since 1970-01-01T00:00:00Z, `MIN_UNIX..=MAX_UNIX`.
+    /// Seconds since 1970-01-01T00:00:00Z: on the wall clock of `loc`,
+    /// `MIN_UNIX..=MAX_UNIX`.
     unix: i64,
     /// Nanoseconds within the second, `0..1e9`.
     nsec: u32,
@@ -73,16 +75,26 @@ pub(crate) fn civil_from_days(days: i64) -> (i64, i64, i64) {
 
 impl Time {
     /// The instant `sec` seconds and `nsec` nanoseconds after 1970 UTC
-    /// (`nsec` outside `0..1e9` carries into the seconds), or `None`
-    /// outside years 0000 to 9999.
+    /// (`nsec` outside `0..1e9` carries into the seconds), or `None` when
+    /// its date in `loc` is outside years 0000 to 9999.
     pub(crate) fn from_unix(sec: i64, nsec: i64, loc: Loc) -> Option<Time> {
         let sec = sec.checked_add(nsec.div_euclid(NANOS_PER_SEC))?;
         let nsec = nsec.rem_euclid(NANOS_PER_SEC) as u32;
-        (MIN_UNIX..=MAX_UNIX).contains(&sec).then_some(Time {
+        // No offset is a day or more: past that the zone is not asked.
+        if !(MIN_UNIX - SECONDS_PER_DAY..=MAX_UNIX + SECONDS_PER_DAY).contains(&sec) {
+            return None;
+        }
+        Time {
             unix: sec,
             nsec,
             loc,
-        })
+        }
+        .shown()
+    }
+
+    /// `self`, when its date in its zone is in years 0000 to 9999.
+    fn shown(self) -> Option<Time> {
+        (MIN_UNIX..=MAX_UNIX).contains(&self.wall()).then_some(self)
     }
 
     /// The instant whose wall clock in `loc` reads the given fields (they
@@ -109,17 +121,18 @@ impl Time {
         Time::from_unix(unix, nsec, loc)
     }
 
-    /// The same instant shown in `loc`.
-    pub(crate) fn in_loc(&self, loc: Loc) -> Time {
-        Time { loc, ..*self }
+    /// The same instant shown in `loc`, or `None` when its date there is
+    /// outside years 0000 to 9999.
+    pub(crate) fn in_loc(&self, loc: Loc) -> Option<Time> {
+        Time { loc, ..*self }.shown()
     }
 
-    pub(crate) fn utc(&self) -> Time {
+    pub(crate) fn utc(&self) -> Option<Time> {
         self.in_loc(Loc::Utc)
     }
 
     /// The same instant in the process's local zone (`tz::local()`).
-    pub(crate) fn local(&self) -> Time {
+    pub(crate) fn local(&self) -> Option<Time> {
         self.in_loc(Loc::Zone(tz::local()))
     }
 
@@ -196,18 +209,13 @@ impl Time {
 
     /// RFC 3339 with fractional seconds only when they are not zero (06:
     /// 시간 형식). The offset is `Z`, `±hh:mm`, or `±hh:mm:ss` when it has
-    /// seconds; a year out of 0000..9999 (only at the range's edges, shown
-    /// in an offset) keeps its sign and digits.
+    /// seconds. The year has four digits: the date shown is in the range.
     pub fn iso(&self) -> String {
         let (year, month, day) = self.date();
         let (hour, min, sec) = self.clock();
         let mut b = String::with_capacity(35);
-        if year < 0 {
-            b.push('-');
-        }
         b.push_str(&format!(
-            "{:04}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}",
-            year.unsigned_abs()
+            "{year:04}-{month:02}-{day:02}T{hour:02}:{min:02}:{sec:02}"
         ));
         if self.nsec != 0 {
             let frac = format!("{:09}", self.nsec);

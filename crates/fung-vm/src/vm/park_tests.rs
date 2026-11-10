@@ -241,7 +241,7 @@ fn offload_errors_point_at_the_call() {
     let o = with_stdin("print(read_line(1))", "");
     assert_eq!(
         o.err,
-        "error[E0403]: argument `f` must be file | nil, got int\n  --> -e:1:16\n  |\n1 | print(read_line(1))\n  |                ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
+        "error[E0403]: argument `file` must be file | nil, got int\n  --> -e:1:16\n  |\n1 | print(read_line(1))\n  |                ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n"
     );
 }
 
@@ -334,7 +334,7 @@ fn offload_natives() -> Vec<crate::value::Value> {
     fn id() -> String {
         format!("{:?}", std::thread::current().id())
     }
-    fn job_thread(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+    fn job_thread(t: &mut Task<'_>, _: crate::value::Args) -> Result<Flow, Stop> {
         nat::offload(t, id, |_, s| Ok(Value::str(&s)))
     }
     let mut v = crate::testutil::probes();
@@ -562,16 +562,18 @@ fn a_big_lists_items_are_copied_a_piece_at_a_time() {
 
 /// `sort` builds its result on what is left of a step's budget (L6): the
 /// last merge and the result's first items were one piece and a half
-/// (1.9 ms for half a million items). Counted by a model of the merge
-/// (every step a piece in the unit tests): 60,000 items park 54 times,
-/// after 8 parks of copying them; 1,000 are one step.
+/// (1.9 ms for half a million items). Counted by running it (every step
+/// a piece in the unit tests): 60,000 items park 43 times, after 8 parks
+/// of copying them (the natural merge sort's run finding and insertion
+/// sorting need fewer comparisons than merging from pairs, VA23); 1,000
+/// are one step.
 #[test]
 fn sort_builds_its_result_on_the_pieces_budget() {
     assert_eq!(
         out(
             "fn sorted(n):\n  xs = map(0..n, i => (i * 7919) % 1000003)\n  p = parks()\n  ys = sort(xs)\n  (len(ys), parks() - p)\n;;\nprint(sorted(60000), sorted(1000))"
         ),
-        ("(60000, 62) (1000, 0)\n".into(), "".into())
+        ("(60000, 51) (1000, 0)\n".into(), "".into())
     );
 }
 

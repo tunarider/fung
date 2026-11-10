@@ -7,6 +7,7 @@ use fung_front::diag::{self, EXIT_COMPILE, EXIT_OK};
 use fung_front::loader::{Loader, Stage};
 use fung_front::source::decode_lossy;
 
+use crate::args::{Spec, parse};
 use crate::{Out, read_error, read_file, restore_name, usage_error};
 
 /// `args` are the arguments after `check`, decoded; `raw` their bytes.
@@ -14,19 +15,35 @@ use crate::{Out, read_error, read_file, restore_name, usage_error};
 /// no use for arguments), and a path must be the only argument (one
 /// file: `check` does not walk directories).
 pub fn run_check(args: &[String], raw: &[Vec<u8>]) -> Out {
-    match args {
+    const SPEC: Spec = Spec {
+        flags: &[],
+        code: true,
+        to_script: false,
+    };
+    let p = match parse(args, raw, &SPEC) {
+        Ok(p) => p,
+        Err(out) => return out,
+    };
+    let raw = &p.raw;
+    if p.code_flag {
+        return match (&p.code, raw.is_empty()) {
+            (None, _) => usage_error(b"-e needs code"),
+            // Nothing runs: arguments after the code have no use (TL4).
+            (Some(_), false) => {
+                usage_error(b"check takes one script path or -e code, nothing more")
+            }
+            (Some(code), true) => match crate::code_arg(code) {
+                Ok(code) => check(b"-e", &code),
+                Err(out) => out,
+            },
+        };
+    }
+    match &raw[..] {
         [] => usage_error(b"check needs a script path or -e code"),
-        [e] if e == "-e" => usage_error(b"-e needs code"),
-        [e, _] if e == "-e" => match crate::code_arg(&raw[1]) {
-            Ok(code) => check(b"-e", &code),
-            Err(out) => out,
+        [path] => match read_file(path) {
+            Ok(src) => check(path, &src),
+            Err(fail) => read_error(path, &fail),
         },
-        [_] => match read_file(&raw[0]) {
-            Ok(src) => check(&raw[0], &src),
-            Err(msg) => read_error(&raw[0], &msg),
-        },
-        // Nothing runs: arguments after the code or the path have no use
-        // (TL4).
         _ => usage_error(b"check takes one script path or -e code, nothing more"),
     }
 }

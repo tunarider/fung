@@ -29,12 +29,10 @@
 | User-Agent: fung/$VERSION
 | 한글
 | 200 GET /final HTTP/1.1 host=wrong.example
-| Referer: https://wrong.example/r?to=/final
 | User-Agent: fung/$VERSION
 |
 | 200 plain
 | 200 GET /y HTTP/1.1 host=wrong.example:8443
-| Referer: https://wrong.example/r?to=https://wrong.example:8443/y
 | User-Agent: fung/$VERSION
 |
 -- stderr

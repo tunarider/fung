@@ -100,7 +100,7 @@ fn parse(line) = match split(line, &quot; &quot;):
 # are the same problem.
 fn shape(message) = regex.replace(message, `\b\d+\b`, &quot;N&quot;)
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 pattern = first(opts.rest) ?? &quot;*.log&quot;
 top = parse_int(get(opts.flags, &quot;top&quot;, &quot;3&quot;)) ?? fail(&quot;--top must be a number&quot;)
 files = fs.glob(pattern)!
@@ -142,7 +142,7 @@ top errors:
 <li><code>levels</code>: 최상위에서 한 번만 대입한 이름은 상수라서 최상위 함수 <code>parse</code> 안에서도 읽을 수 있다.</li>
 <li><code>parse</code>: 줄을 공백으로 쪼갠 리스트를 <code>match</code>로 모양을 맞춰 본다. <code>[_, _, level, ...words]</code>는 "날짜, 시각, 레벨, 나머지 단어들"이고, <code>when level in levels</code>가 레벨이 셋 중 하나일 때만 맞게 한다. 맞지 않는 줄은 <code>nil</code>이 되고 나중에 <code>filter</code>로 버린다. 필드 번호 대신 이름(<code>level</code>, <code>words</code>)으로 읽으므로 형식이 바뀌어도 고칠 곳이 한 곳이다.</li>
 <li><code>{level, message: …}</code>: <code>{level: level}</code>의 축약이다.</li>
-<li><code>shape</code>: 정규식 <code>\b\d+\b</code>(단어 하나가 통째로 숫자인 것)를 <code>N</code>으로 바꾼다. 정규식은 백슬래시를 그대로 쓰도록 원시 문자열 <code></code> <code>…</code> <code></code>에 넣는다.</li>
+<li><code>shape</code>: 정규식 <code>\b\d+\b</code>(단어 하나가 통째로 숫자인 것)를 <code>N</code>으로 바꾼다. 정규식은 백슬래시를 그대로 쓰도록 원시 문자열 <code>`…`</code>에 넣는다.</li>
 <li><code>fs.glob(pattern)!</code>: 쉘이 아니라 fung이 <code>*.log</code>를 펼친다. 그래서 따옴표 없이 <code>fung logcount.fung</code> 하고 불러도, <code>&quot;/var/log/app/*.log&quot;</code>를 인자로 주어도 똑같이 돈다. 맞는 파일이 없으면 빈 리스트이므로 직접 확인한다.</li>
 <li><code>logs</code>: 파일마다 <code>(파일 이름, 항목 리스트)</code> 튜플을 만든다. 파일을 한 번만 읽고 표와 에러 집계가 함께 쓴다.</li>
 <li>표: <code>group_by</code>가 레벨을 키로 하는 맵 <code>{ERROR: [...], INFO: [...]}</code>를 만든다. 한 번도 안 나온 레벨은 키가 없으므로 <code>get(counts, l, [])</code>로 빈 리스트를 기본값으로 준다. <code>pad_left</code>·<code>pad_right</code>로 칸을 맞춘다.</li>

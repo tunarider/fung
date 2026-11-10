@@ -7,3 +7,16 @@ print(timeout(() => 1, 0s))
 # expect: 2
 # expect: Err({kind: 'timeout, message: "timed out after 20ms"})
 # expect: Err({kind: 'timeout, message: "timed out after 0s"})
+
+# An Err a task returned before the deadline is given up with the rest
+# of the timed-out work (D1): no E0607, whichever task ended first.
+import conc
+fn check(h):
+  if h == 1:
+    sleep(1s)
+    return Ok(h)
+  ;;
+  Err("down: ${h}")
+;;
+print(timeout(() => conc.pmap([1, 2, 3], check), 50ms))
+# expect: Err({kind: 'timeout, message: "timed out after 50ms"})

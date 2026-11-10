@@ -74,13 +74,24 @@ for n in [1774746000 - 1, 1774746000, 1792890000 - 1, 1792890000]:
   print(time.parse(p[0], p[1]))
 ;;"#,
     r#"t = time.parse("2026-10-04T09:05:07.123+09:00")!
-print(time.format(t, "literal text, YYYYMMDD, MMM MM, é\t ZZZ SSSS YYYYY"), time.format(t), time.format(t, ""), time.format(t, nil))
+print(time.format(t, "literal text, YYYYMMDD, MMM MM, é\t ZZZ SSSS YYYYY"), time.format(t), time.format(t, nil))
 print(time.format(time.utc(t), "Z ZZ"), time.format(time.local(t), "YYYY-MM-DD HH:mm Z"))"#,
     r#"print(time.format(1))"#,
     r#"print(time.format(time.from_unix(0), 1))"#,
     r#"print(time.parse("x", 1))"#,
     // a format without the whole date is a code error (LB20)
     r#"print(time.parse("12:30", "HH:mm"))"#,
+    // a format naming a field twice (LB36), a weekday that is not the
+    // date's, a format without tokens or with `%` (SP25)
+    r#"print(time.parse("x", "YYYY-MM-DD MMM"))"#,
+    r#"print(time.parse("2026-01-02 Mon", "YYYY-MM-DD ddd"), time.parse("2026-01-02 fri", "YYYY-MM-DD ddd"))"#,
+    r#"print(time.format(time.from_unix(0), "%Y-%m-%d"))"#,
+    // the range is of the date shown (LB37): what prints reads back
+    r#"t = time.from_unix(253402300799 - 50400)
+print(t, time.parse(str(t))! == t)
+late = time.parse("9999-12-31T23:59:59-05:00")!
+print(late)
+print(time.utc(late))"#,
     r#"print(time.parse(1))"#,
     r#"print(time.utc(1))"#,
     r#"print(time.local("x"))"#,
@@ -110,8 +121,8 @@ fn run(bin: &std::path::Path, src: &str, tz: Option<&str>) -> (String, String, O
 
 /// How many zone and program pairs have a fixed expected output, and
 /// how many programs run with `TZ` unset.
-const ZONE_CASES: usize = 176;
-const UNSET_CASES: usize = 22;
+const ZONE_CASES: usize = 208;
+const UNSET_CASES: usize = 26;
 
 fn entries(bin: &std::path::Path) -> Vec<Entry> {
     let mut pairs = Vec::new();

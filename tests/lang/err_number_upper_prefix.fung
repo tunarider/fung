@@ -1,0 +1,3 @@
+# Number prefixes and exponents are lowercase only (SP27, D32).
+print(0XFF)
+# expect-error: E0102

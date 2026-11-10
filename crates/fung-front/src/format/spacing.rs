@@ -25,17 +25,18 @@ fn is_callee(k: Kind) -> bool {
 }
 
 /// A token after which `-` is a sign, not a subtraction: operators,
-/// openers, separators, arrows, keywords.
+/// openers, separators, arrows, keywords. A keyword that is a value
+/// (`true` `false` `nil`) and the `;;` that closes a block end an
+/// operand, so a `-` after them subtracts (FE35).
 pub(super) fn prefix_context(k: Kind) -> bool {
     use Kind::*;
     is_opener(k)
-        || k.is_keyword()
+        || (k.is_keyword() && !matches!(k, KwTrue | KwFalse | KwNil))
         || matches!(
             k,
             Comma
                 | Colon
                 | Semi
-                | DoubleSemi
                 | FatArrow
                 | Arrow
                 | Assign
@@ -61,13 +62,15 @@ pub(super) fn prefix_context(k: Kind) -> bool {
 }
 
 /// Whether two tokens written without a space would read back as other
-/// tokens (`;` `;` as `;;`, `?` `?` as `??`, `;` `;;` as `;;` `;`).
+/// tokens (`;` `;` as `;;`, `?` `?` as `??`, `;` `;;` as `;;` `;`), or
+/// as a run that is hard to read (`;;` `;` as `;;;`).
 fn would_join(p: Kind, n: Kind) -> bool {
     use Kind::*;
     matches!(
         (p, n),
         (Semi, Semi)
             | (Semi, DoubleSemi)
+            | (DoubleSemi, Semi)
             | (Question, Question)
             | (Dot, Dot | DotDot | DotDotEq)
             | (DotDot, Dot | DotDot | DotDotEq)

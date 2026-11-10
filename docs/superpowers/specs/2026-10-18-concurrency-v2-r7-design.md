@@ -62,7 +62,7 @@ R7 항목은 `docs/design/open-questions.md`의 "Rust 구현: 정한 것과 남�
 | 태스크 생성 | 범위(`scope`·`supervise`) 안에서만. 자유로운 `spawn(f)`는 지운다 |
 | 실패 전파 | `scope`: 자식이 런타임 에러로 죽으면 형제와 주인 본문을 취소하고, 그 에러를 `scope(` 호출에서 다시 낸다. `supervise`: 자식 실패를 격리해서 처리기에 넘긴다 |
 | 꺼내지 않은 실패 보고 | 지운다(구조상 생기지 않음). `spawn_awaited`·배경 태스크도 지운다 |
-| 기한 | `timeout(d, f)` 범위 하나. `await`·`recv`의 `timeout:`은 지운다 |
+| 기한 | `timeout(f, d)` 범위 하나(처음엔 `timeout(d, f)`, SP10 2026-11-09에 인자 순서를 바꿈). `await`·`recv`의 `timeout:`은 지운다 |
 | 정리 | `with(acquire, use, release)`. `release`는 정상·`Err` 반환·런타임 에러·취소·`exit` 어느 경우에나 돈다 |
 | `at_exit` | 지운다 **(설계자 판단, 5.3절)** |
 | 채널 | `(tx, rx) = channel(n)`. 보내는 끝이 모두 사라지면 닫힘, 받는 끝이 모두 사라지면 `send`가 `Err` |
@@ -132,12 +132,14 @@ fn load(id) = scope(fn(s):
 - `spawn`은 범위 핸들이 있어야 하므로, 태스크를 쓰는 진입 파일은 스스로 `scope`를 연다. "진입 파일이 남은 태스크를 기다린다"는 규칙은 필요 없어진다.
 - `fung test`의 `test` 블록 본문과 모듈 초기화도 각각 루트처럼 감싼다. 태스크가 블록 밖으로 새지 않는다.
 
-## 4. 기한: `timeout(d, f)`
+## 4. 기한: `timeout(f, d)`
+
+> SP10(2026-11-09): 처음 정한 `timeout(d, f)`를 `timeout(f, d)`로 바꿨다. 이 절과 아래의 예는 바뀐 순서로 적는다.
 
 - `f()`를 돌려 그 결과를 준다. `d`가 지나면 `f` 안의 모든 것(자식 태스크 포함)을 취소하고, 정리가 끝난 뒤 `Err({kind: 'timeout})`을 준다.
 - 기한은 안쪽으로 물려진다. 실제 기한은 바깥과 안쪽 중 이른 쪽이다.
 - 바깥 기한이 먼저 지나서 안쪽이 취소되면 안쪽 `timeout`은 `Err`를 돌려주지 않고 그대로 취소된다. 바깥 `timeout`이 `Err`를 준다.
-- `await(t, timeout:)`·`recv(rx, timeout:)`은 지운다. `timeout(1s, () => recv(rx))`로 쓴다.
+- `await(t, timeout:)`·`recv(rx, timeout:)`은 지운다. `timeout(() => recv(rx), 1s)`로 쓴다.
 - **HTTP 클라이언트**(`get`·`post`·`request`)는 `timeout = 30s` 매개변수를 **남긴다 (설계자 판단)**.
   - 내부에서 같은 `timeout` 범위로 구현하므로, 실제 기한은 바깥 기한과의 이른 쪽이다.
   - 남기는 이유: 기본 기한이 없으면 죽은 서버를 영원히 기다리게 된다. 반대로 내부 기본값만 두면 바깥에서 더 긴 기한을 줄 수 없다.
@@ -294,7 +296,7 @@ fn load(id) = scope(fn(s):
 **L단계: 언어를 지금 런타임에서 먼저 바꾼다.** 단계마다 테스트(TDD), 골든과 기대 출력, 매뉴얼, CHANGELOG를 함께 고친다.
 
 1. 범위: `scope`·`supervise`·`spawn(s, g)`·`cancel(s)`. 자유로운 `spawn`, 꺼내지 않은 실패 보고, 진입 파일 대기 규칙을 지운다.
-2. 기한: `timeout(d, f)`. 연산마다의 `timeout:`을 지우고, HTTP 클라이언트를 다시 짠다.
+2. 기한: `timeout(f, d)`(SP10에서 인자 순서를 바꿈). 연산마다의 `timeout:`을 지우고, HTTP 클라이언트를 다시 짠다.
 3. 정리: `with`. `fs.with_open`·`with_temp_dir`를 다시 짜고 `at_exit`를 지운다.
 4. 채널 끝 나누기와 자동 닫힘
 5. `atom`. `agent`와 배경 태스크를 지운다.

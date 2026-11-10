@@ -67,7 +67,7 @@ fn by_mount(samples, name) = samples
   |> filter(s => get(s.labels, "fstype", "") != "tmpfs")
   |> fold({}, (acc, s) => put(acc, s.labels.mountpoint, s.value))
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 max_pct = parse_int(get(opts.flags, "max", "90")) ?? fail("--max takes a whole percent")
 samples = read_lines()! |> map(parse) |> filter(s => s != nil)
 avail = by_mount(samples, "node_filesystem_avail_bytes")

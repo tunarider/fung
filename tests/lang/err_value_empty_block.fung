@@ -2,4 +2,4 @@
 # would make x a silent nil. Write `else: nil` if nil is meant.
 x = if false: 1 else: ;;
 print(x)
-# expect-error: E0231
+# expect-error: E0224

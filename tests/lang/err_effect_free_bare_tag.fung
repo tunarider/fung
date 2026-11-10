@@ -1,0 +1,4 @@
+# A tag without arguments is a symbol: alone as a statement it does
+# nothing.
+Red
+# expect-error: E0234

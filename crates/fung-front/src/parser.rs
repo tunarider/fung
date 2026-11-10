@@ -48,6 +48,10 @@ struct Parser<'a> {
     /// `name =>` is the arm's arrow, not a lambda (lambdas need parentheses
     /// around them, as in a call argument, where nest > 0).
     guard: bool,
+    /// The `nest` of the slice brackets being read, `xs[ … ]`: a `..` at
+    /// exactly that nesting is the slice's, so it ends the expression
+    /// before it (FE27). Blocks clear it; a `..` deeper is a range.
+    slice: Option<usize>,
 }
 
 /// Returns the program as `(program stmt...)`. Only the first syntax error
@@ -75,9 +79,11 @@ fn s(text: impl Into<String>) -> Arg {
     Arg::Str(text.into())
 }
 
-/// How a token reads in an error message.
+/// How a token reads in an error message. The end of a `${…}`'s code is
+/// its closing brace (the lexer gives that end the text `}`).
 fn describe(t: &Token) -> String {
     match t.kind {
+        Kind::Eof if t.text == "}" => "`}`".to_string(),
         Kind::Eof | Kind::Newline => t.kind.describe().to_string(),
         Kind::Int
         | Kind::Float
@@ -121,7 +127,18 @@ impl<'a> Parser<'a> {
             last: 0,
             block_depth: 0,
             guard: false,
+            slice: None,
         }
+    }
+
+    /// Runs `f` on an expression nested in slice brackets that is not one
+    /// of the slice's ends (an `if` condition, a `match` subject, a `for`
+    /// iterable, a `then` branch): a `..` there is a range (FE27).
+    fn outside_slice<T>(&mut self, f: impl FnOnce(&mut Self) -> PResult<T>) -> PResult<T> {
+        let saved = self.slice.take();
+        let r = f(self);
+        self.slice = saved;
+        r
     }
 
     /// Whether `x => …` / `(x) => …` may start a lambda here (not at the top
@@ -193,6 +210,27 @@ impl<'a> Parser<'a> {
     fn unexpected(&mut self) -> Box<Diag> {
         let t = self.peek();
         err("E0110", t.pos, vec![s(describe(t))])
+    }
+
+    /// E0112 for a bracketed list stopped by something other than `,` or
+    /// its closer, with a note where the bracket opened (FE26).
+    fn list_end(&mut self, open: Pos, close: Kind) -> Box<Diag> {
+        let opener = match close {
+            Kind::RBracket => "[",
+            Kind::RBrace => "{",
+            _ => "(",
+        };
+        let t = self.peek();
+        let mut d = err(
+            "E0112",
+            t.pos,
+            vec![s(format!("`,` or `{}`", close.describe())), s(describe(t))],
+        );
+        d.notes.push(format!(
+            "note: the `{opener}` opened at {}:{}",
+            open.line, open.col
+        ));
+        d
     }
 
     /// `expect` with an E0112 "expected X, found Y" message.

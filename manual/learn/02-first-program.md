@@ -233,9 +233,9 @@ print(percent(45, 0))
 
 :::box mistake 닫는 따옴표나 ;;를 빠뜨림
 
-문자열의 닫는 `"`나 블록의 닫는 `;;`를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 **마지막 줄 다음**으로 찍힌다. `print("checking ${host}"`처럼 닫는 괄호를 빠뜨려도 `E0110 unexpected end of file`이다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다.
+문자열의 닫는 `"`나 블록의 닫는 `;;`를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 **마지막 줄 다음**으로 찍힌다. `print("checking ${host}"`처럼 닫는 괄호를 빠뜨리면 ``E0112 expected `,` or `)`, found end of file``이고, `note`가 괄호를 연 자리를 알려 준다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다.
 
-```fung run exit=2 error=E0110
+```fung run exit=2 error=E0112
 host = "web-1"
 print("checking ${host}"
 ```

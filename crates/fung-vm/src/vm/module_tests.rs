@@ -389,7 +389,10 @@ fn standard_modules_run() {
     assert_eq!((o.out.as_str(), o.code.as_str()), ("<fn get>\n", "E0403"));
     // `cli` is pure fung and runs.
     let o = run_files(
-        &[("/p/main.fung", "import cli\nprint(cli.parse([\"a\"]).rest)")],
+        &[(
+            "/p/main.fung",
+            "import cli\nprint(cli.parse([\"a\"])!.rest)",
+        )],
         "/p/main.fung",
     );
     assert_eq!((o.out.as_str(), o.code.as_str()), ("[\"a\"]\n", ""));

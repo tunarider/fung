@@ -1,0 +1,4 @@
+# `==` where `=` was meant: the comparison is computed and discarded.
+x = 1
+x == 2
+# expect-error: E0234

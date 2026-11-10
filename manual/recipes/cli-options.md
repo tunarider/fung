@@ -65,7 +65,10 @@ fn usage_error(msg):
   exit(2)
 ;;
 
-opts = cli.parse(args, bools: ["dry-run", "help"])
+opts = match cli.parse(args, bools: ["dry-run", "help"]):
+  Ok(o)  => o
+  Err(e) => usage_error(e.message)
+;;
 if get(opts.flags, "help", false) or "-h" in opts.rest:
   print(help)
   exit(0)
@@ -121,7 +124,7 @@ options:
 ## 줄별 설명 {#how}
 
 - `help`: 도움말은 여러 줄 원시 문자열 하나로 둔다. 따옴표나 `$`를 신경 쓰지 않고 화면에 보일 모양 그대로 쓴다. 맨 위에 `usage:` 한 줄, 그 아래 무엇을 하는지, 옵션 목록과 기본값. 이 순서가 대부분의 명령줄 도구가 따르는 관례다.
-- `cli.parse(args, bools: […])`: `--name value`와 `--name=value`를 `flags` 맵에, 나머지 인자를 `rest` 리스트에 순서대로 넣는다. 옵션 이름의 `-`는 `_`가 되어 `--dry-run`은 `flags.dry_run`이다. 옵션과 인자의 순서는 자유라 `prune.fung . --keep 3`도 된다. `--` 뒤의 인자는 모두 `rest`로 간다(`-`로 시작하는 파일 이름을 넘길 때).
+- `cli.parse(args, bools: […])`: `--name value`와 `--name=value`를 `flags` 맵에, 나머지 인자를 `rest` 리스트에 순서대로 넣어 `Ok`로 돌려준다. 같은 옵션을 두 번 주는 것처럼 잘못 친 명령줄은 `Err`라서, `match`로 받아 `usage_error`로 안내한다. 옵션 이름의 `-`는 `_`가 되어 `--dry-run`은 `flags.dry_run`이다. 옵션과 인자의 순서는 자유라 `prune.fung . --keep 3`도 된다. `--` 뒤의 인자는 모두 `rest`로 간다(`-`로 시작하는 파일 이름을 넘길 때).
 - `-h`: `cli.parse`는 `--`로 시작하는 것만 옵션으로 본다. 한 글자 옵션 `-h`는 `rest`에 들어오므로 직접 확인한다.
 - `known`·`unknown`: `cli.parse`는 모르는 옵션도 그대로 받아 준다. 오타(`--kep`)를 조용히 무시하면 기본값 7로 지워 버리므로, 아는 옵션 목록과 비교해서 막는다.
 - `usage_error`: 무엇이 틀렸는지 한 줄, 도움말 보는 법 한 줄을 표준 에러에 쓰고 종료 코드 2로 끝낸다. "사용법이 틀렸다"를 2로 알리는 것은 많은 명령의 관례다(`grep`, `ls` 등). `exit`는 돌아오지 않으므로 `match`의 가지에서 값 대신 불러도 된다.
@@ -137,8 +140,8 @@ options:
 ```fung run
 import cli
 
-print(cli.parse(["--dry-run", "/backups"]))
-print(cli.parse(["--dry-run", "/backups"], bools: ["dry-run"]))
+print(cli.parse(["--dry-run", "/backups"])!)
+print(cli.parse(["--dry-run", "/backups"], bools: ["dry-run"])!)
 ```
 
 :::
@@ -147,7 +150,7 @@ print(cli.parse(["--dry-run", "/backups"], bools: ["dry-run"]))
 
 - **환경 변수를 기본값으로**: `keep = get(opts.flags, "keep", env("PRUNE_KEEP") ?? "7")`. 명령줄 옵션이 환경 변수보다, 환경 변수가 코드의 기본값보다 우선한다.
 - **기간 옵션**: `--older-than 30d`처럼 받으려면 `parse_dur`를 쓴다. 단위는 `ms`·`s`·`m`·`h`뿐이라 30일은 `720h`로 쓴다.
-- **여러 번 쓰는 옵션**: `cli.parse`는 같은 옵션을 두 번 주면 마지막 값만 남긴다. 여러 값이 필요하면 `--hosts web1,web2`처럼 받아 `split(…, ",")`한다.
+- **여러 번 쓰는 옵션**: `cli.parse`는 같은 옵션을 두 번 주면 `Err`를 돌려준다(어느 값을 뜻했는지 말없이 고르지 않는다). 여러 값이 필요하면 `--hosts web1,web2`처럼 받아 `split(…, ",")`한다.
 - **종료 코드의 뜻 나누기**: 사용법 오류는 2, 작업 실패는 1처럼 나누는 방법은 [종료 코드와 표준 에러](exit-codes.html).
 - 저장소의 `examples/rename.fung`, `examples/tidy.fung`, `examples/envcheck.fung`도 `cli.parse`로 옵션을 받는다.
 

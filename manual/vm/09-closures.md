@@ -37,12 +37,12 @@ print(double(21))
 
 ```plain
 CALL 1 직전                 double의 프레임이 쌓인 뒤
-[2]  21
-[1]  <fn double>            [1]  21           ← double 프레임의 슬롯 0(x), base = 1
+[2]  21                     [2]  21           ← double 프레임의 슬롯 0(x), base = 2
+[1]  <fn double>            [1]  (빈 칸)      ← floor = 1
 [0]  <fn print>             [0]  <fn print>   (main이 계산 중인 값)
 ```
 
-VM은 함수 값이 있던 칸을 빼고, 그 자리부터를 새 프레임의 슬롯으로 삼는다. `double` 안의 `LOADLOCAL 0`은 "내 프레임의 슬롯 0"을 읽는다. 슬롯 0은 값 스택의 `base + 0`번 칸이고, 인자 `21`이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. `MUL`이 42를 올리고, `RETURN`이 42를 꺼낸 뒤 스택을 `base`까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 `<main>`의 `CALL 1`이 다시 `print`를 부른다.
+VM은 함수 값을 꺼내 그 칸을 비워 두고, 그 위의 인자부터를 새 프레임의 슬롯으로 삼는다. 인자를 한 칸씩 내려 함수 칸을 메우지 않으므로 인자가 몇 개든 움직이는 값이 없다. `double` 안의 `LOADLOCAL 0`은 "내 프레임의 슬롯 0"을 읽는다. 슬롯 0은 값 스택의 `base + 0`번 칸이고, 인자 `21`이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. `MUL`이 42를 올리고, `RETURN`이 42를 꺼낸 뒤 스택을 `floor`(빈 칸)까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 `<main>`의 `CALL 1`이 다시 `print`를 부른다.
 
 ```fung run
 fn double(x) = x * 2
@@ -59,6 +59,7 @@ fung의 프레임은 Rust 구조체 하나다(`crates/fung-vm/src/vm/frame.rs`�
     <tr><td><code>closure</code></td><td>실행 중인 함수 값. 원형(8장: 명령열, 상수, 매개변수 표), 붙잡은 값(아래 클로저 절), 모듈의 전역 표(11장)를 여기서 읽는다. 진입 파일과 모듈의 본문도 붙잡은 값이 없는 클로저 하나로 돈다</td></tr>
     <tr><td><code>ip</code></td><td>다음에 실행할 명령의 번호. "돌아올 자리"는 부른 쪽 프레임의 이 값이다</td></tr>
     <tr><td><code>base</code></td><td>이 함수의 슬롯이 값 스택의 몇 번째 칸부터인가</td></tr>
+    <tr><td><code>floor</code></td><td>돌아갈 때 값 스택을 어디까지 자르나. <code>CALL</code>로 들어온 프레임은 함수 값이 있던 빈 칸(<code>base - 1</code>), 내장 함수가 되부른 프레임과 모듈 본문은 <code>base</code></td></tr>
     <tr><td><code>tail_calls</code></td><td>꼬리 호출로 이 프레임을 몇 번 다시 썼나(아래 꼬리 호출 절)</td></tr>
   </tbody>
 </table>
@@ -267,7 +268,7 @@ fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)
 print(count(5, 0) + depth(5))
 ```
 
-`count`의 0013번은 `TAILCALL`이고, `depth`의 0011번은 그냥 `CALL`이다(`1 +`가 남아 있으므로). VM의 `TAILCALL`은 새 프레임을 쌓지 않는다. 지금 프레임의 슬롯을 지우고 새 인자를 `base` 자리로 옮긴 뒤, 프레임의 원형을 바꾸고 `ip`를 0으로 돌린다(`call.rs`의 `reuse_frame`). 그래서 `count(1000000, 0)`은 프레임 하나로 돈다.
+`count`의 0013번은 `TAILCALL`이고, `depth`의 0011번은 그냥 `CALL`이다(`1 +`가 남아 있으므로). VM의 `TAILCALL`은 새 프레임을 쌓지 않는다. 지금 프레임의 슬롯을 지우고 새 인자를 `base` 자리로 옮긴 뒤, 프레임의 원형을 바꾸고 `ip`를 0으로 돌린다(`call.rs`의 `reuse_frame`). 그래서 `count(1000000, 0)`은 프레임 하나로 돈다. `TAILCALL`은 이렇게 지금 프레임을 스스로 끝내므로 그 뒤에는 `RETURN`이 없다. `count`의 명령이 `TAILCALL`에서 끝나는 까닭이다.
 
 꼬리가 아닌 재귀는 프레임이 쌓인다. 쌓인 프레임이 100,000개를 넘으면 E0804다(`MAX_FRAMES`). 프레임은 힙의 작은 구조체라서 이 깊이도 메모리 수십 MB 수준이지만, 끝없는 재귀를 빨리 알리려고 한도를 둔다.
 

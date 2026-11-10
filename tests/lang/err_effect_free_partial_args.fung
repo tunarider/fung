@@ -1,0 +1,5 @@
+# A partial application of names and literals as a statement makes a
+# function and drops it.
+x = 1
+print(x, _)
+# expect-error: E0234

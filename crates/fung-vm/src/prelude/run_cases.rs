@@ -21,7 +21,7 @@ print(map([1], f))"#,
     ),
     (r#"print(map([1, 2], (a, b) => a))"#, ""),
     (
-        r#"print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..1, 0, (a, x) => a + 1))"#,
+        r#"print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..5, 0, (a, x) => a + 1))"#,
         "",
     ),
     (r#"print(fold(1, 0, 1))"#, ""),
@@ -50,7 +50,7 @@ print(fold([1, 2, 3], 0, g))"#,
     (r#"print(each({a: 1}, x => x))"#, ""),
     (r#"print(each([1], nil))"#, ""),
     (
-        r#"print(sort([3, 1, 2]), sort(["b", "a", "c"]), sort([]), sort(3..0), sort([2.5, 1, 3]), sort([[2], [1, 2], [1]]))"#,
+        r#"print(sort([3, 1, 2]), sort(["b", "a", "c"]), sort([]), sort(3..3), sort([2.5, 1, 3]), sort([[2], [1, 2], [1]]))"#,
         "",
     ),
     (r#"print(sort([1, "a"]))"#, ""),
@@ -117,7 +117,7 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
     (r#"print(chars("참치"), chars(""), chars("áb"))"#, ""),
     (r#"print(chars(1))"#, ""),
     (
-        r#"print(split("a,b,,c", ","), split("참치", ""), split("", ","), split("", ""), split("abc", "abc"))"#,
+        r#"print(split("a,b,,c", ","), chars("참치"), split("", ","), split("abc", "abc"))"#,
         "",
     ),
     (r#"print(split(1, ","))"#, ""),
@@ -154,7 +154,7 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
     (r#"print(starts_with(1, "a"))"#, ""),
     (r#"print(ends_with("a", 1))"#, ""),
     (
-        r#"print(repeat("ab", 3), repeat("참", 2), repeat("x", 0), repeat("x", -5), repeat("", 1000000000000))"#,
+        r#"print(repeat("ab", 3), repeat("참", 2), repeat("x", 0), repeat("", 1000000000000))"#,
         "",
     ),
     (r#"print(repeat("ab", 50000001))"#, ""),
@@ -210,7 +210,7 @@ print(put(m, "b", 2), put(m, "a", 3), m)"#,
     ),
     (r#"print(parse_dur(5))"#, ""),
     (
-        r#"print(len("참치"), len([1, 2]), len({a: 1}), len((1, 2)), len(0..10), len(5..1), len(""))"#,
+        r#"print(len("참치"), len([1, 2]), len({a: 1}), len((1, 2)), len(0..10), len(5..5), len(""))"#,
         "",
     ),
     (r#"print(len(1))"#, ""),
@@ -427,6 +427,110 @@ r(1)"#,
     (r#"print(get([1], 0))"#, ""),
     (r#"print(lines(1))"#, ""),
     (r#"print(keys([]))"#, ""),
+    // VA18 (D16): a lone element is checked as `+` and `<` check it.
+    (r#"print(sum([nil]))"#, ""),
+    (r#"print(sum([true]))"#, ""),
+    (r#"print(max([nil]))"#, ""),
+    (r#"print(min([[nil]]))"#, ""),
+    (r#"print(max([(nil,)]))"#, ""),
+    (r#"print(sort([nil]))"#, ""),
+    (r#"print(sort_by([1], x => nil))"#, ""),
+    // VA25: a range's sum is computed, not folded; past an int is E0503.
+    (
+        r#"print(sum(0..2_000_000_000), sum(-5..=5), sum(5..=4), sum(0..=0))"#,
+        "",
+    ),
+    (r#"print(sum(0..=9223372036854775807))"#, ""),
+    // A range sums as the list of its numbers would: `+` from the first,
+    // so a sum that overflows midway is E0503 even if the total fits.
+    (
+        r#"print(sum(-9223372036854775807..=9223372036854775807))"#,
+        "",
+    ),
+    (
+        r#"print(sum(-9223372036854775808..=-9223372036854775808), sum(9223372036854775807..=9223372036854775807), sum(-4611686018427387904..=-4611686018427387904), sum(-3..=2))"#,
+        "",
+    ),
+    (
+        r#"print(sum(-9223372036854775808..=-9223372036854775807))"#,
+        "",
+    ),
+    (
+        r#"print(sum(9223372036854775806..=9223372036854775807))"#,
+        "",
+    ),
+    (r#"print(sum(-5..=3), sum(map(-5..=3, x => x)))"#, ""),
+    (
+        r#"print(sum(-9223372036854775807..=9223372036854775806 - 9223372036854775806))"#,
+        "",
+    ),
+    (
+        r#"print(reverse(9223372036854775805..=9223372036854775807), reverse(-9223372036854775808..-9223372036854775805))"#,
+        "",
+    ),
+    (
+        r#"import time
+print(sum([time.now()]))"#,
+        "",
+    ),
+    (
+        r#"import conc
+print(conc.retry(() => 1 / 0))"#,
+        "",
+    ),
+    (
+        r#"(tx, rx) = channel(4)
+send(tx, 3)
+send(tx, 1)
+send(tx, 2)
+close(tx)
+print(reverse(rx))"#,
+        "",
+    ),
+    (
+        r#"(tx, rx) = channel(4)
+send(tx, 3)
+send(tx, 1)
+close(tx)
+print(sum(rx))"#,
+        "",
+    ),
+    // VA19 (D17): the call path leaves out the built-in frames, and each
+    // function speaks with its own name.
+    (
+        r#"fn top(xs) = reverse(xs)
+print(top("abc"))"#,
+        "",
+    ),
+    (r#"print(max([1, "a"]))"#, ""),
+    (r#"print(keys([1]))"#, ""),
+    (r#"print(values(1))"#, ""),
+    (r#"print(unique("aab"))"#, ""),
+    // SP23 (D14): the collection functions take no string; slices do.
+    (r#"print(take("abc", 1))"#, ""),
+    (r#"print(drop("abc", 1))"#, ""),
+    // SP26 (D15): a symbol's name as text.
+    (
+        r#"print([sym_name('ok), sym_name(Red), sym_name(sym("a"))])"#,
+        "",
+    ),
+    (r#"print(sym_name("ok"))"#, ""),
+    // SP27 (D32): one name for one thing.
+    (r#"print(is_utf8("é"), is_utf8("\xff"))"#, ""),
+    (
+        r#"print(type_of(env_all()), env("FUNG_SURELY_UNSET_NAME"))"#,
+        "",
+    ),
+    (r#"print(env())"#, ""),
+    (r#"print(range(3))"#, ""),
+    (r#"print(read_line(f: nil))"#, ""),
+    (r#"print(atom(v: 1))"#, ""),
+    (
+        r#"(tx, rx) = channel(1)
+send(tx, x: 1)
+print(recv(rx))"#,
+        "",
+    ),
     (r#"print(take([1]))"#, ""),
     (
         r#"import conc
@@ -447,7 +551,7 @@ print(conc.retry(() => Ok(1)), conc.retry(() => 2, times: 1), until(1, x => x * 
     (r#"swap(1)"#, ""),
     (r#"sleep(d: 1ms, d: 2ms)"#, ""),
     // Tasks, `sleep` and channels run for real (stage 3a).
-    (r#"print(sleep(1ms), sleep(0s), sleep(-1s))"#, ""),
+    (r#"print(sleep(1ms), sleep(0s))"#, ""),
     (r#"scope(s => spawn(s, 1))"#, ""),
     (r#"await(1)"#, ""),
     (r#"cancel(1)"#, ""),
@@ -520,7 +624,7 @@ print(t, c, [c], type_of(t), type_of(c), c == c, c == c2, c != 1)"#,
 send(buf_tx, "a")
 close(buf_tx)
 (_never_tx, never) = channel()
-print(recv(buf), recv(buf), send(buf_tx, "b"), close(buf_tx), timeout(() => recv(never), 1ms), timeout(() => recv(never), -1s))"#,
+print(recv(buf), recv(buf), send(buf_tx, "b"), close(buf_tx), timeout(() => recv(never), 1ms), timeout(() => recv(never), 0s))"#,
         "",
     ),
     (
@@ -635,7 +739,7 @@ map(c, 3)"#,
     (r#"print(exec(["true"], shell: 1))"#, ""),
     (r#"print(env(1))"#, ""),
     (
-        r#"print(env("FUNG_TEST_UNSET_VAR"), env(""), env("A=B"), type_of(env()), env("HOME") == env()["HOME"])"#,
+        r#"print(env("FUNG_TEST_UNSET_VAR"), env(""), env("A=B"), type_of(env_all()), env("HOME") == env_all()["HOME"])"#,
         "",
     ),
     (
@@ -849,6 +953,71 @@ print(fs.with_open("/dev/null", 1))"#,
         r#"import fs
 fn g(h: str) = h
 print(fs.with_open("/dev/null", g))"#,
+        "",
+    ),
+    (
+        r#"print(parse_int(" 1"), parse_int("1\n"), parse_int("01"), parse_int("+1"), parse_int("-0x10"), parse_int("0X1"))"#,
+        "",
+    ),
+    (
+        r#"print(parse_float(" 1.0"), parse_float("01.5"), parse_float("+1.5"), parse_float("1e-400"), parse_float("1E5"), parse_float("42"))"#,
+        "",
+    ),
+    (
+        r#"print(parse_dur(" 1s "), parse_dur("1s\n"), parse_dur("\u{a0}5s"), parse_dur("+1s"), parse_dur("01s"), parse_dur("-1h30m"))"#,
+        "",
+    ),
+    (
+        r#"print(int("-9223372036854775808"), int("+7"), int("0b11"), float("-0.5"), float("1_000"))"#,
+        "",
+    ),
+    (r#"print(int("007"))"#, ""),
+    (r#"print(int(" 5"))"#, ""),
+    (r#"print(float("1e-400"))"#, ""),
+    (r#"print(take([1], -1))"#, ""),
+    (r#"print(drop([1], -5))"#, ""),
+    (r#"print(take(0..3, -1))"#, ""),
+    (r#"print(repeat("a", -1))"#, ""),
+    (r#"print(pad_left("a", -3))"#, ""),
+    (r#"print(pad_right("a", -3, "-"))"#, ""),
+    (r#"print(iterate(1, x => x + 1, -3))"#, ""),
+    (
+        r#"print(iterate(1, x => x + 1, 0), iterate(1, x => x + 1, 3), take([1, 2], 0), repeat("a", 0), pad_left("a", 0))"#,
+        "",
+    ),
+    (r#"sleep(-1s)"#, ""),
+    (r#"print(timeout(() => 1, -1s))"#, ""),
+    (r#"print(timeout(() => sleep(1s), 0s), sleep(0s))"#, ""),
+    (
+        r#"print(sum([]), sum([1s, 2s]), fold([], 0s, (a, d) => a + d))"#,
+        "",
+    ),
+    (
+        r#"import http
+print(http.get("http://127.0.0.1:1/", timeout: -1s))"#,
+        "",
+    ),
+    (
+        r#"import http
+print(http.serve("127.0.0.1:0", r => r, drain: -1s))"#,
+        "",
+    ),
+    (r#"print(split("abc", ""))"#, ""),
+    (
+        r#"print(split("", ","), split("a,b", ","), chars("ab"))"#,
+        "",
+    ),
+    (r#"print({a: 1}[1])"#, ""),
+    (r#"print({a: 1}['a])"#, ""),
+    (r#"print(get({}, 1))"#, ""),
+    (r#"print(get({a: 1}, 'a))"#, ""),
+    (r#"print('a in {a: 1})"#, ""),
+    (r#"print(1 in {a: 1})"#, ""),
+    (r#"print(group_by([1], x => 'odd))"#, ""),
+    (
+        r#"m = {a: 1}
+k = 1
+print(m[k])"#,
         "",
     ),
 ];

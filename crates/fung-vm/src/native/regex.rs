@@ -13,7 +13,7 @@ use fung_front::diag::Arg;
 use regex::bytes::{Captures, Regex, RegexBuilder};
 
 use super::nat::{self, native_step, param};
-use crate::value::{MapBuilder, Module, Native, Text, Value, key};
+use crate::value::{Args, MapBuilder, Module, Native, Text, Value, key};
 use crate::vm::{Flow, Stop, Task};
 
 /// Made once per process: natives are leaked (`Native::leak`).
@@ -25,27 +25,27 @@ pub fn module() -> Rc<Module> {
         vec![
             (
                 "is_match",
-                native_step("is_match", is_match_fn, vec![param("s"), param("pat")]),
+                native_step("is_match", is_match_fn, vec![param("s"), param("pattern")]),
             ),
             (
                 "find",
-                native_step("find", find_fn, vec![param("s"), param("pat")]),
+                native_step("find", find_fn, vec![param("s"), param("pattern")]),
             ),
             (
                 "find_all",
-                native_step("find_all", find_all_fn, vec![param("s"), param("pat")]),
+                native_step("find_all", find_all_fn, vec![param("s"), param("pattern")]),
             ),
             (
                 "replace",
                 native_step(
                     "replace",
                     replace_fn,
-                    vec![param("s"), param("pat"), param("repl")],
+                    vec![param("s"), param("pattern"), param("repl")],
                 ),
             ),
             (
                 "split",
-                native_step("split", split_fn, vec![param("s"), param("pat")]),
+                native_step("split", split_fn, vec![param("s"), param("pattern")]),
             ),
         ]
     });
@@ -106,10 +106,10 @@ type Body = fn(&[Value], &[u8], &str, &Compiled) -> Result<Value, Stop>;
 ///   `Compiled` (both `Send`, as an offload job requires);
 /// - so while this task waits for the job it holds neither the cache
 ///   mutex nor an `Arc<Compiled>` from the cache.
-fn with_pattern(t: &mut Task<'_>, a: Vec<Value>, body: Body) -> Result<Flow, Stop> {
+fn with_pattern(t: &mut Task<'_>, a: Args, body: Body) -> Result<Flow, Stop> {
     // The subject is checked first, then the pattern, which is text.
     let s = nat::need_bytes("s", &a[0])?;
-    let pat = nat::need_str("pat", &a[1])?;
+    let pat = nat::need_str("pattern", &a[1])?;
     // The guard is a temporary: it is dropped at the end of the statement.
     let hit = cache().get(pat).cloned();
     if let Some(c) = hit {
@@ -318,7 +318,7 @@ fn first<'s>(c: &'s Compiled, s: &'s [u8]) -> Option<Captures<'s>> {
     }
 }
 
-fn is_match_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn is_match_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     with_pattern(t, a, |_, s, _, c| {
         if !c.empty {
             return Ok(Value::Bool(c.re.is_match(s)));
@@ -332,7 +332,7 @@ fn is_match_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     })
 }
 
-fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn find_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     with_pattern(t, a, |_, s, _, c| {
         Ok(match first(c, s) {
             Some(caps) => match_value(c, &caps, &mut RuneCursor::new(s)),
@@ -343,7 +343,7 @@ fn find_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// Every match left to right; an empty match right after the previous
 /// match is not one (06: 정규식).
-fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn find_all_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     with_pattern(t, a, |_, s, _, c| {
         let mut cur = RuneCursor::new(s);
         let out = matches(c, s)
@@ -355,7 +355,7 @@ fn find_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// Every match replaced by `repl`, where `$1`, `${name}` and `$$` refer to
 /// groups (`$1a` is the group named "1a"; a missing group is empty).
-fn replace_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn replace_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     with_pattern(t, a, |a, s, _, c| {
         let repl = nat::need_bytes("repl", &a[2])?;
         check_repl(&c.re, repl)?;
@@ -421,9 +421,9 @@ fn check_repl(c: &Regex, repl: &[u8]) -> Result<(), Stop> {
 /// The pieces between matches, empty ones kept, like `split(s, sep)`
 /// (06): an empty match at the very start or end of `s` cuts nothing, and
 /// the empty pattern on the empty string gives no pieces.
-fn split_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn split_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     with_pattern(t, a, |_, s, pat, c| {
-        // Nothing split by nothing is no pieces, as `split("", "")`.
+        // Nothing split by nothing is no pieces, as `chars("")`.
         if s.is_empty() && pat.is_empty() {
             return Ok(nat::list(Vec::new()));
         }

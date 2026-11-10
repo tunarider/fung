@@ -203,7 +203,7 @@ fn a_woken_task_that_has_not_run_is_not_blocked() {
 #[test]
 fn a_wait_outside_the_token_is_not_blocked() {
     fn natives() -> Vec<Value> {
-        fn os_sleep(t: &mut Task<'_>, _: Vec<Value>) -> Result<crate::vm::Flow, Stop> {
+        fn os_sleep(t: &mut Task<'_>, _: crate::value::Args) -> Result<crate::vm::Flow, Stop> {
             crate::native::nat::offload(
                 t,
                 || std::thread::sleep(Duration::from_millis(30)),

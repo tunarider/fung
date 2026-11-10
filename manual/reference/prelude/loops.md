@@ -87,7 +87,7 @@ print(delays)
 
 #### 설명
 
-`iterate(x, f, 3)`은 `f(f(f(x)))`다. `n`이 0 이하면 `x`를 그대로 돌려준다. 중간 값이 모두 필요하면 [`fold`](collections.html#fn-fold)로 리스트에 모으거나 `for`를 쓴다.
+`iterate(x, f, 3)`은 `f(f(f(x)))`다. `n`이 0이면 `x`를 그대로 돌려주고, 음수면 E0403이다. 중간 값이 모두 필요하면 [`fold`](collections.html#fn-fold)로 리스트에 모으거나 `for`를 쓴다.
 
 #### 매개변수
 

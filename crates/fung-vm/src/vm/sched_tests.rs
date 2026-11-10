@@ -28,7 +28,7 @@ fn natives() -> Vec<Value> {
             })
         }
     }
-    fn wake_early(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+    fn wake_early(t: &mut Task<'_>, _: crate::value::Args) -> Result<Flow, Stop> {
         let me = t.fiber.waiter.clone();
         me.take_woken();
         let flag = Arc::new(AtomicBool::new(false));
@@ -41,7 +41,7 @@ fn natives() -> Vec<Value> {
         .unwrap();
         Ok(Flow::Park(Box::new(Flag(flag)), Wake::default()))
     }
-    fn slow_job(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+    fn slow_job(t: &mut Task<'_>, _: crate::value::Args) -> Result<Flow, Stop> {
         nat::offload(
             t,
             || std::thread::sleep(Duration::from_millis(50)),
@@ -629,6 +629,31 @@ fn a_deadlock_report_names_a_sending_end_the_receiver_holds() {
         Opts::default(),
     );
     assert!(!o.err.contains("sending end"), "{}", o.err);
+}
+
+/// CC12: `wait_closed` waits for the close, so holding the sending end
+/// itself is what keeps it waiting: the report says so, for the root and
+/// for another task's line, as for a receive.
+#[test]
+fn a_deadlock_report_names_a_sending_end_wait_closed_holds() {
+    let o = exec("(tx, rx) = channel()\nwait_closed(rx)", Opts::default());
+    assert!(
+        o.err.contains(
+            " help: this task waits for that channel to close, but it still holds its sending end itself (the global `tx`), so the channel cannot close: close it with `close(tx)` first, or leave the sending end to the producers only\n"
+        ),
+        "{}",
+        o.err
+    );
+    let o = exec(
+        "scope(fn(s):\n  t = spawn(s, fn(): (_tx, rx) = channel(); wait_closed(rx) ;;)\n  await(t)\n;;)",
+        Opts::default(),
+    );
+    assert!(
+        o.err
+            .contains("   wait_closed at -e:2:56 (<lambda>, holds its own sending end)\n"),
+        "{}",
+        o.err
+    );
 }
 
 /// At most 10 lines; the tasks past them are counted.

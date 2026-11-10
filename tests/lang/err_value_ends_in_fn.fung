@@ -5,4 +5,4 @@ else:
   2
 ;;
 print(x)
-# expect-error: E0231
+# expect-error: E0224

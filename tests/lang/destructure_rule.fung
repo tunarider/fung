@@ -1,0 +1,14 @@
+# One destructuring rule for assignment, `for` and parameters (FE32, D10):
+# a name, `_`, tuple, list, map or tag with values, or alternatives of
+# them; literals may sit inside.
+Ok(x) | Err(x) = Err(5)
+(1, y) = (1, 2)
+print(x, y, for (k, 1) in [("a", 1)]: k ;;, ((Ok(v) | Err(v)) => v)(Ok(3)))
+# expect: 5 2 ["a"] 3
+fn neg(d) = match d:
+  -1s    => "minus one second"
+  -1m30s => "minus ninety seconds"
+  _      => "other"
+;;
+print(neg(-1s), neg(-90s), neg(1s))
+# expect: minus one second minus ninety seconds other

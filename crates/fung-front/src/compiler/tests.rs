@@ -25,13 +25,18 @@ fn resolved(src: &str, prelude: &[&str], ropts: &ROpts) -> Resolved {
     let (toks, _) = lex(f, src).unwrap();
     let core = desugar(&parse(&toks).unwrap(), true).unwrap();
     let names: Vec<String> = prelude.iter().map(|s| s.to_string()).collect();
-    resolve(&core, &names, ropts).unwrap()
+    // The last value is kept, as desugared.
+    let ropts = ROpts {
+        keep_value: true,
+        ..ropts.clone()
+    };
+    resolve(&core, &names, &ropts).unwrap()
 }
 
-fn opts(src: &str, tests: bool) -> Options {
+fn opts(src: &str, tests: bool) -> Options<'_> {
     Options {
-        source: src.into(),
-        file: "t.fung".into(),
+        source: src,
+        file: "t.fung",
         tests,
         keep_value: true,
     }
@@ -105,7 +110,10 @@ fn compile_arithmetic() {
 
 #[test]
 fn compile_statements_pop_all_but_last() {
-    assert_eq!(ops(&comp("1\n2")), "CONST(0) POP CONST(1) RETURN");
+    assert_eq!(
+        ops(&comp("print(1)\n2")),
+        "CONST(0) CONST(1) CALL(1) POP CONST(2) RETURN"
+    );
 }
 
 #[test]
@@ -309,6 +317,50 @@ fn compile_tail_calls() {
     assert_eq!(got.matches("TAILCALL(1)").count(), 2, "{got}");
 }
 
+/// Nothing follows a TAILCALL or RETURN that ends a tail position: the
+/// call ends the frame by itself, so a RETURN (or a CHECKRETURN) after it
+/// could never run (VM17).
+#[test]
+fn no_return_after_a_tail_call() {
+    for src in [
+        "fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)",
+        "fn f(n) = print(n)",
+        "fn f(n) -> int = n == 0 then 0 else f(n - 1)",
+        "fn f(n):\n  if n > 0: return f(n - 1) ;;\n  if n < 0: f(0) else: print(0) ;;\n;;",
+        "fn f(n) = match n:\n  0 => print(0)\n  _ => f(n - 1)\n;;",
+        "fn f(n) = n ?? print(0)",
+        "fn f(n):\n  return n\n;;",
+    ] {
+        let p = comp(src);
+        let got = ops(&p.protos[0]);
+        for dead in [
+            "TAILCALL(1) RETURN",
+            "TAILCALL(2) RETURN",
+            "TAILCALL(1) CHECKRETURN",
+        ] {
+            assert!(!got.contains(dead), "{src:?}: {got}");
+        }
+        assert!(!got.contains("RETURN RETURN"), "{src:?}: {got}");
+    }
+    // A function that does not end in a tail call still returns.
+    assert!(ops(&comp("fn f(n) = n + 1").protos[0]).ends_with("ADD RETURN"));
+}
+
+/// A guarded arm whose pattern is one name or `_` always matches its
+/// pattern: only the guard is tested, with no MATCH (VM17).
+#[test]
+fn a_guarded_name_arm_tests_only_its_guard() {
+    let got = ops(&comp(
+        "fn f(m) = match m:\n  m when m > 1 => 1\n  _ when m < 0 => 2\n  _ => 3\n;;",
+    )
+    .protos[0]);
+    assert!(!got.contains("MATCH"), "{got}");
+    assert!(
+        got.starts_with("LOADLOCAL(0) STORELOCAL(1) LOADLOCAL(1)"),
+        "{got}"
+    );
+}
+
 #[test]
 fn compile_captures_self_and_named_args() {
     let p = comp(
@@ -443,20 +495,19 @@ fn compile_match_and_destructuring() {
     let p = comp("match 1:\n  0 => \"zero\"\n  n when n > 0 => \"pos\"\n  _ => \"other\"\n;;");
     let got = ops(&p);
     // Shape: subject stored; each arm loads it, matches, jumps on failure.
+    // A guarded name stores the subject and tests only the guard (VM17).
     // The last arm `_` always matches: no test, and no NOMATCH after it
     // (VM10 c). No body calls a function, so none lets the subject go.
     for frag in [
-        "CONST(0) STORELOCAL(0) LOADLOCAL(0) MATCH(0) JUMPIFFALSE(7) CONST(1) JUMP(17)",
-        "LOADLOCAL(0) MATCH(1) JUMPIFFALSE(",
-        "LOADLOCAL(1) CONST(2) GT JUMPIFFALSE(",
-        "JUMP(17) CONST(4) RETURN",
+        "CONST(0) STORELOCAL(0) LOADLOCAL(0) MATCH(0) JUMPIFFALSE(7) CONST(1) JUMP(16)",
+        "LOADLOCAL(0) STORELOCAL(1) LOADLOCAL(1) CONST(2) GT JUMPIFFALSE(15)",
+        "JUMP(16) CONST(4) RETURN",
     ] {
         assert!(got.contains(frag), "missing {frag:?} in {got}");
     }
     assert!(!got.contains("NOMATCH"), "{got}");
     assert_eq!(got.matches("JUMP(").count(), 2, "{got}");
-    assert_eq!(p.patterns.len(), 2);
-    assert_eq!(p.patterns[1].to_string(), "$1");
+    assert_eq!(p.patterns.len(), 1);
     assert_eq!(p.patterns[0].to_string(), "0");
     let p = comp("(a, b) = (1, 2)");
     assert_eq!(ops(&p), "CONST(0) MATCHORFAIL(0) CONST(1) RETURN");
@@ -595,13 +646,16 @@ fn bytecode(src: &str) -> String {
     let r = resolve(
         &desugar(&parse(&toks).unwrap(), true).unwrap(),
         &names,
-        &ROpts::default(),
+        &ROpts {
+            keep_value: true,
+            ..ROpts::default()
+        },
     )
     .unwrap();
     let set = names.into_iter().collect();
     let o = Options {
-        source: src.into(),
-        file: "-e".into(),
+        source: src,
+        file: "-e",
         tests: false,
         keep_value: true,
     };
@@ -757,9 +811,9 @@ fn h(r) -> int = r? + 1
 assert h(Ok(1)) == 2
 assert true
 test \"t\": assert 1 < 2 ;;
-not (1 < 2) and -1 > 0 or false
+c = not (1 < 2) and -1 > 0 or false
 n = 2
-\"x\" == \"x\"; 2.0 / n; 7 // n; 7 % n; n ** 3; 1 != n; 1 <= n; 1 >= n; 1 + 2 * 3";
+print(\"x\" == \"x\", 2.0 / n, 7 // n, 7 % n, n ** 3, 1 != n, 1 <= n, 1 >= n); 1 + 2 * 3";
     assert_eq!(bytecode(src), include_str!("testdata/functions.txt"));
 }
 
@@ -767,7 +821,7 @@ n = 2
 fn dump_outputs_data_and_patterns() {
     let src = "fn f(a: int, b = 2) -> int = a + b
 xs = [1, 2]
-match xs:
+r = match xs:
   [h, ...t] => h
   {k: v} | {j: v} => v
   Ok(1.5) => \"s${f(1, b: 2)}\"
@@ -775,7 +829,7 @@ match xs:
   _ when true => nil
 ;;
 m = {a: 1}
-m.a; xs[1..]; xs[..=2]; xs[0]; 0..=3; 1 in xs; Ok(1)!; nil ?? 1; 'sym; 1h; print(1)
+print(m.a, xs[1..], xs[..=2], xs[0], 0..=3, 1 in xs, Ok(1)!, nil ?? 1, 'sym, 1h); print(1)
 dbg(1)";
     assert_eq!(bytecode(src), include_str!("testdata/data.txt"));
 }
@@ -785,14 +839,15 @@ dbg(1)";
 #[test]
 fn prelude_args_is_a_constant_of_its_own() {
     assert_eq!(
-        bytecode("args; take; args"),
+        bytecode("print(args, take); args"),
         "== <main> ==\n\
-         0000  1:1   CONST        0    ; args\n\
-         0001  1:1   POP\n\
-         0002  1:7   CONST        1    ; <fn take>\n\
-         0003  1:7   POP\n\
-         0004  1:13  CONST        0    ; args\n\
-         0005  1:1   RETURN\n"
+         0000  1:1   CONST        0    ; <fn print>\n\
+         0001  1:7   CONST        1    ; args\n\
+         0002  1:13  CONST        2    ; <fn take>\n\
+         0003  1:6   CALL         2    ; 2 positional, 0 named\n\
+         0004  1:1   POP\n\
+         0005  1:20  CONST        1    ; args\n\
+         0006  1:1   RETURN\n"
     );
 }
 

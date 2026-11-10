@@ -5,7 +5,7 @@ import http
 import cli
 import "./staticfiles" (handler)
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 root = first(opts.rest) ?? "."
 addr = get(opts.flags, "addr", "127.0.0.1:8000")
 serve = handler(root)

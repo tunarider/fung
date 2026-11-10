@@ -7,6 +7,8 @@
 //! The input is borrowed and never modified. Recursion follows tree depth,
 //! so callers with very deep trees need a large stack (see `parser`).
 
+use std::collections::HashSet;
+
 use crate::diag::{Arg, Diag, error};
 use crate::source::Pos;
 use crate::tree::{FnInfo, Head, Lit, Node, Param};
@@ -189,6 +191,9 @@ impl Desugarer {
                 n.pos,
                 vec![Arg::Str(lit_str(n).to_string())],
             ))),
+            Head::Tag if !holds_one_value(&lit_str(n), n.kids.len()) => {
+                Err(result_arity(&lit_str(n), n.kids.len(), n.pos))
+            }
             Head::Fn => self.fn_node(n),
             Head::Test => {
                 // A test block is a function made where it stands (08): it
@@ -288,9 +293,17 @@ impl Desugarer {
         Ok(Node::new(Head::Call, pos, out))
     }
 
-    /// Lowers `x |> f(a)` to `f(x, a)` and `x |> f` to `f(x)` (01).
+    /// Lowers `x |> f(a)` to `f(x, a)` and `x |> f` to `f(x)` (01). Only
+    /// a call or tag written without parentheses takes the value as its
+    /// first argument; any other right side, `(f(a))` included, is a
+    /// value the pipe calls (FE27).
     fn pipe(&mut self, n: &Node) -> R {
         let rhs = &n.kids[1];
+        if rhs.paren {
+            let x = self.walk(&n.kids[0])?;
+            let f = self.walk(rhs)?;
+            return Ok(Node::new(Head::Call, n.pos, vec![f, x]));
+        }
         // The piped value is the first argument; a hole beside it would
         // make a function of the rest instead (01: E0227).
         let args = match rhs.head {
@@ -319,6 +332,9 @@ impl Desugarer {
             let mut kids = vec![self.walk(&n.kids[0])?];
             for k in &t.kids {
                 kids.push(self.walk(k)?);
+            }
+            if !holds_one_value(&lit_str(t), kids.len()) {
+                return Err(result_arity(&lit_str(t), kids.len(), t.pos));
             }
             return Ok(Node::with_lit(Head::Tag, t.pos, s(&lit_str(t)), kids));
         }
@@ -457,22 +473,26 @@ impl Desugarer {
         let mut earlier: Vec<(Node, String)> = Vec::new();
         let mut default_ix = 0;
         // Names only defaults read are bound there, not again in the body
-        // (where the copy would be an unused variable, W0102).
-        let mut in_body = Vec::new();
-        names_in(kids.last().expect("fn has a body"), &mut in_body);
-        let mut in_defaults = Vec::new();
-        for d in &kids[..kids.len() - 1] {
-            names_in(d, &mut in_defaults);
+        // (where the copy would be an unused variable, W0102). Only a
+        // function with both a pattern parameter and a default reads its
+        // code for names, so nested functions stay linear (FE37).
+        let patterns = info.params.iter().any(|p| p.pattern.is_some());
+        let mut only_defaults = HashSet::new();
+        if patterns && info.params.iter().any(|p| p.has_default) {
+            let mut in_body = HashSet::new();
+            names_in(kids.last().expect("fn has a body"), &mut in_body);
+            for d in &kids[..kids.len() - 1] {
+                names_in(d, &mut only_defaults);
+            }
+            only_defaults.retain(|name| !in_body.contains(name));
         }
-        let only_defaults: Vec<String> = in_defaults
-            .into_iter()
-            .filter(|name| !in_body.contains(name))
-            .collect();
         for prm in info.params.iter_mut() {
-            if prm.has_default {
+            if prm.has_default && earlier.is_empty() {
+                default_ix += 1;
+            } else if prm.has_default {
                 let d = &mut kids[default_ix];
                 default_ix += 1;
-                let mut used = Vec::new();
+                let mut used = HashSet::new();
                 names_in(d, &mut used);
                 let lets: Vec<Node> = earlier
                     .iter()
@@ -568,11 +588,12 @@ impl Desugarer {
 
 /// The names an expression reads (any depth; a name shadowed inside it
 /// still counts, which only binds an unused copy).
-fn names_in(n: &Node, out: &mut Vec<String>) {
+fn names_in(n: &Node, out: &mut HashSet<String>) {
     if n.head == Head::Name
         && let Lit::Str(name) = &n.lit
+        && !out.contains(name)
     {
-        out.push(name.clone());
+        out.insert(name.clone());
     }
     for k in &n.kids {
         names_in(k, out);
@@ -606,15 +627,31 @@ fn strip_names(n: &Node, drop: &dyn Fn(&str) -> bool, kept: &mut bool) -> Node {
 
 /// A copy of a parameter pattern that binds only the names in `used`, or
 /// `None` when it binds none of them.
-fn keep_names(pat: &Node, used: &[String]) -> Option<Node> {
+fn keep_names(pat: &Node, used: &HashSet<String>) -> Option<Node> {
     let mut kept = false;
-    let copy = strip_names(pat, &|name| !used.iter().any(|u| u == name), &mut kept);
+    let copy = strip_names(pat, &|name| !used.contains(name), &mut kept);
     kept.then_some(copy)
 }
 
 /// A copy of a parameter pattern without the names in `gone`.
-fn without_names(pat: &Node, gone: &[String]) -> Node {
-    strip_names(pat, &|name| gone.iter().any(|g| g == name), &mut false)
+fn without_names(pat: &Node, gone: &HashSet<String>) -> Node {
+    strip_names(pat, &|name| gone.contains(name), &mut false)
+}
+
+/// Whether a tag of this name may have `count` values: `Ok` and `Err`
+/// take exactly one (02, SP12), counted after a pipe filled the first. The
+/// pattern is checked by the parser.
+fn holds_one_value(name: &str, count: usize) -> bool {
+    count == 1 || !matches!(name, "Ok" | "Err")
+}
+
+/// E0236 for an `Ok` or `Err` with `count` values.
+fn result_arity(name: &str, count: usize, pos: Pos) -> Box<Diag> {
+    Box::new(error(
+        "E0236",
+        pos,
+        vec![Arg::Str(name.to_string()), Arg::Int(count as i64)],
+    ))
 }
 
 #[cfg(test)]
@@ -673,6 +710,30 @@ mod tests {
             let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
             assert_eq!(e.code, "E0117", "{src}");
         }
+    }
+
+    /// `Ok` and `Err` take exactly one value (02, SP12), counted after a
+    /// pipe fills the first: another count is E0236.
+    #[test]
+    fn a_result_tag_takes_exactly_one_value() {
+        for (src, col) in [
+            ("x = Ok(1, 2)", 5),
+            ("print(Err(1, 2, 3))", 7),
+            ("x |> Ok(2)", 6),
+            ("x |> f |> Err(1, 2)", 11),
+            ("y = (x |> Ok(2)) + 1", 11),
+        ] {
+            let mut sm = SourceMap::new();
+            let fid = sm.add("t.fung", src);
+            let (toks, _) = lex(fid, src).unwrap();
+            let e = desugar(&parse(&toks).unwrap(), true).unwrap_err();
+            assert_eq!((e.code.as_str(), e.pos.col), ("E0236", col), "{src}");
+        }
+        check(&[
+            ("x |> Ok()", "(do (tag Ok x))"),
+            ("Pair(1, 2)", "(do (tag Pair 1 2))"),
+            ("x |> Pair(2)", "(do (tag Pair x 2))"),
+        ]);
     }
 
     #[test]

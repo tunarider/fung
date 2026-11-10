@@ -1,2 +1,2 @@
-match 1: Ok(x) | Err(y) => 1 ;;
+match 1: Ok(x) | Err(y) => print(1) ;;
 # expect-error: E0216

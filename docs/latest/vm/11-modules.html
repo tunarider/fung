@@ -218,7 +218,7 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 
 m = fs
 print(m, type_of(m))
-print(m.exists(&quot;/nothing/here&quot;))</code></pre><pre class="out plain"><code>&lt;module fs&gt; 'module
+print(m.exists(&quot;/nothing/here&quot;)!)</code></pre><pre class="out plain"><code>&lt;module fs&gt; 'module
 false</code></pre></div>
 <h2 id="globals">모듈마다 전역 표</h2>
 <p><code>a.fung</code>의 <code>fn helper()</code>와 <code>b.fung</code>의 <code>fn helper()</code>는 둘 다 자기 파일의 전역 0번일 수 있다. <code>main.fung</code>이 <code>b.run()</code>을 부르고 <code>b.run</code>이 <code>helper()</code>를 부르면, 그것은 <strong>b의</strong> <code>helper</code>여야 한다. 지금 실행 중인 진입 파일의 전역 표를 쓰면 틀린다.</p>
@@ -231,8 +231,8 @@ false</code></pre></div>
   <thead><tr><th>층</th><th>뜻</th><th>언어</th><th>예</th></tr></thead>
   <tbody>
     <tr><td>core</td><td>언어의 의미와 런타임, 언어가 보장하는 값 연산</td><td>Rust</td><td><code>print</code>, <code>map</code>·<code>filter</code>·<code>fold</code>, <code>split</code>, <code>int</code>, 태스크·채널</td></tr>
-    <tr><td>native <code>_native.*</code></td><td>바깥세상과의 다리, 또는 안쪽 루프라 Rust가 필요한 것. 숨겨져 있다</td><td>Rust</td><td><code>_native.fs</code>, <code>_native.process</code>, <code>_native.net</code>, <code>_native.json</code>, <code>_native.regex</code></td></tr>
-    <tr><td>extras(내장)</td><td>core와 native 위에 fung으로 쓴 것. 실행 파일 안에 들어 있다</td><td>fung</td><td><code>fs</code>·<code>cli</code>·<code>http</code>·<code>conc</code> 모듈, prelude의 <code>take</code>·<code>sum</code>·<code>exec</code></td></tr>
+    <tr><td>native <code>_native.*</code></td><td>바깥세상과의 다리, 또는 안쪽 루프라 Rust가 필요한 것. 숨겨져 있다</td><td>Rust</td><td><code>_native.fs</code>, <code>_native.process</code>, <code>_native.net</code>, <code>_native.json</code>, <code>_native.regex</code>, <code>_native.arg</code>(fung으로 쓴 모듈의 인자 검사)</td></tr>
+    <tr><td>extras(내장)</td><td>core와 native 위에 fung으로 쓴 것. 실행 파일 안에 들어 있다</td><td>fung</td><td><code>fs</code>·<code>cli</code>·<code>http</code>·<code>conc</code> 모듈, prelude의 <code>take</code>·<code>zip</code>·<code>exec</code></td></tr>
     <tr><td>extras(프로젝트)</td><td>사용자의 라이브러리</td><td>fung</td><td>상대 경로 <code>import</code></td></tr>
   </tbody>
 </table>
@@ -262,12 +262,12 @@ print(1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0310]
 <p><code>fung</code>이 스크립트를 실행하기 전에 하는 일은 <code>crates/fung-vm/src/boot.rs</code>의 <code>boot</code>에 있다.</p>
 <ol>
 <li>Rust로 쓴 core 내장 함수(<code>prelude::core</code>)와 동시성 원시 연산(<code>conc::natives</code>), 그리고 스크립트 인자 <code>args</code>를 prelude 표에 넣는다.</li>
-<li><code>extras/prelude.fung</code>를 컴파일한다. 이 파일은 내장 파일이라 <code>_native.process</code>와 <code>_native.range</code>를 가져올 수 있다.</li>
-<li>그것을 모듈로 실행하고, 공개 이름들(<code>take</code>, <code>sum</code>, <code>exec</code> …)을 prelude 표에 더한다.</li>
+<li><code>extras/prelude.fung</code>를 컴파일한다. 이 파일은 내장 파일이라 <code>_native.arg</code>·<code>_native.process</code>·<code>_native.range</code>를 가져올 수 있다.</li>
+<li>그것을 모듈로 실행하고, 공개 이름들(<code>take</code>, <code>zip</code>, <code>exec</code> …)을 prelude 표에 더한다.</li>
 </ol>
 <p>앞단(<code>fung-front</code>)은 값을 모른다. 그래서 컴파일러는 prelude 이름을 <code>Const::Builtin(이름)</code>이라는 자리 표시로 남기고, VM의 <strong>링크</strong> 단계(<code>vm/link.rs</code>의 <code>link</code>)가 그 자리에 실제 함수 값을 채운다. 8장에서 <code>CONST 0 ; &lt;fn print&gt;</code>가 보인 이유다. 이름 해석은 prelude에 어떤 이름이 있는지만 알면 된다. 그래서 앞단은 <code>spec/builtins.txt</code>를 읽는다(<code>builtins.rs</code>). 이 파일은 VM의 실제 표에서 시험(<code>spec_file</code>)이 만들어 내는 것이라, 두 쪽이 어긋나면 시험이 실패한다.</p>
 <h3 id="builtin-errors">내장 코드 안의 에러</h3>
-<p><code>take</code>는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 <code>extras/prelude.fung</code>를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 <code>builtin</code> 표시가 붙고(<code>loader.rs</code>의 <code>mark_builtin</code>), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에는 안쪽 프레임이 그대로 보인다.</p>
+<p><code>take</code>는 fung으로 쓴 prelude 함수다. 잘못된 인자를 주면 에러는 그 안쪽 깊은 곳에서 난다. 그런데 사용자는 <code>extras/prelude.fung</code>를 열어 볼 수 없다. 그래서 내장 파일에서 컴파일된 원형에는 <code>builtin</code> 표시가 붙고(<code>loader.rs</code>의 <code>mark_builtin</code>), VM은 에러의 위치를 사용자 코드의 가장 가까운 호출 자리로 옮긴다. 호출 경로에서도 같은 규칙으로 <code>builtin</code> 표시가 붙은 프레임을 뺀다(<code>vm.rs</code>의 <code>call_path</code>). 그래서 Rust로 쓴 내장 함수(<code>sort</code>)와 fung으로 쓴 내장 함수(<code>take</code>)의 에러가 같은 모양이고, 함수를 한 언어에서 다른 언어로 옮겨도 사용자가 보는 진단은 바뀌지 않는다. 내장 함수가 부른 사용자의 콜백 프레임은 그대로 보인다.</p>
 <div class="run"><pre><code>print(take(5, 2))</code></pre><pre class="out err plain" data-code="1"><code>error[E0506]: cannot take from int
   --&gt; example.fung:1:11
   |
@@ -275,8 +275,6 @@ print(1)</code></pre><pre class="out err plain" data-code="2"><code>error[E0310]
   |           ^
   |
  call path (innermost first):
-   extras/prelude.fung:31 _list
-   extras/prelude.fung:108 take
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <h2 id="source">코드에서 찾아보기</h2>
 <ul>

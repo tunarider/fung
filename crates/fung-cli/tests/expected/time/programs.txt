@@ -29,7 +29,7 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -62167219201
 |   --> -e:3:30
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
@@ -42,7 +42,7 @@
 ==== TZ="America/New_York" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -54,7 +54,7 @@
 ==== TZ="America/New_York" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -166,9 +166,9 @@
 | Ok(2026-10-04T00:00:00-04:00)
 -- stderr
 -- exit: 0
-==== TZ="America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-03 20:05 -04:00
 -- stderr
 -- exit: 0
@@ -219,6 +219,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="America/New_York" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="America/New_York" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00-05:00)
+-- stderr
+-- exit: 0
+==== TZ="America/New_York" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="America/New_York" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T04:59:59-05:00 true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="America/New_York" "print(time.parse(1))"
 -- stdout
@@ -314,7 +358,7 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -62167219201
 |   --> -e:3:30
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
@@ -327,7 +371,7 @@
 ==== TZ=":America/New_York" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -339,7 +383,7 @@
 ==== TZ=":America/New_York" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -451,9 +495,9 @@
 | Ok(2026-10-04T00:00:00-04:00)
 -- stderr
 -- exit: 0
-==== TZ=":America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ=":America/New_York" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-03 20:05 -04:00
 -- stderr
 -- exit: 0
@@ -504,6 +548,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ=":America/New_York" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ=":America/New_York" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00-05:00)
+-- stderr
+-- exit: 0
+==== TZ=":America/New_York" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ=":America/New_York" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T04:59:59-05:00 true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ=":America/New_York" "print(time.parse(1))"
 -- stdout
@@ -599,11 +687,11 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
-|   --> -e:3:30
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 0000-01-01T00:53:27+00:53:28
+|   --> -e:3:15
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
-|   |                              ^
+|   |               ^
 |   |
 |  call path (innermost first):
 |    -e:3       <lambda>
@@ -612,7 +700,7 @@
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -624,7 +712,7 @@
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -736,9 +824,9 @@
 | Ok(2026-10-04T00:00:00+02:00)
 -- stderr
 -- exit: 0
-==== TZ="/usr/share/zoneinfo/Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-04 02:05 +02:00
 -- stderr
 -- exit: 0
@@ -789,6 +877,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00+01:00)
+-- stderr
+-- exit: 0
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="/usr/share/zoneinfo/Europe/Berlin" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T10:59:59+01:00 true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="/usr/share/zoneinfo/Europe/Berlin" "print(time.parse(1))"
 -- stdout
@@ -884,11 +1016,11 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
-|   --> -e:3:30
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 0000-01-01T00:53:27+00:53:28
+|   --> -e:3:15
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
-|   |                              ^
+|   |               ^
 |   |
 |  call path (innermost first):
 |    -e:3       <lambda>
@@ -897,7 +1029,7 @@
 ==== TZ="Europe/Berlin" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -909,7 +1041,7 @@
 ==== TZ="Europe/Berlin" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1021,9 +1153,9 @@
 | Ok(2026-10-04T00:00:00+02:00)
 -- stderr
 -- exit: 0
-==== TZ="Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="Europe/Berlin" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-04 02:05 +02:00
 -- stderr
 -- exit: 0
@@ -1074,6 +1206,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="Europe/Berlin" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="Europe/Berlin" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00+01:00)
+-- stderr
+-- exit: 0
+==== TZ="Europe/Berlin" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="Europe/Berlin" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T10:59:59+01:00 true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="Europe/Berlin" "print(time.parse(1))"
 -- stdout
@@ -1169,11 +1345,11 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
-|   --> -e:3:30
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 0000-01-01T08:27:51+08:27:52
+|   --> -e:3:15
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
-|   |                              ^
+|   |               ^
 |   |
 |  call path (innermost first):
 |    -e:3       <lambda>
@@ -1182,7 +1358,7 @@
 ==== TZ="Asia/Seoul" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1194,7 +1370,7 @@
 ==== TZ="Asia/Seoul" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1306,9 +1482,9 @@
 | Ok(2026-10-04T00:00:00+09:00)
 -- stderr
 -- exit: 0
-==== TZ="Asia/Seoul" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="Asia/Seoul" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-04 09:05 +09:00
 -- stderr
 -- exit: 0
@@ -1359,6 +1535,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="Asia/Seoul" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="Asia/Seoul" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00+09:00)
+-- stderr
+-- exit: 0
+==== TZ="Asia/Seoul" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="Asia/Seoul" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T18:59:59+09:00 true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="Asia/Seoul" "print(time.parse(1))"
 -- stdout
@@ -1454,7 +1674,7 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -62167219201
 |   --> -e:3:30
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
@@ -1467,7 +1687,7 @@
 ==== TZ="UTC" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1479,7 +1699,7 @@
 ==== TZ="UTC" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1591,9 +1811,9 @@
 | Ok(2026-10-04T00:00:00Z)
 -- stderr
 -- exit: 0
-==== TZ="UTC" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="UTC" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-04 00:05 +00:00
 -- stderr
 -- exit: 0
@@ -1644,6 +1864,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="UTC" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="UTC" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00Z)
+-- stderr
+-- exit: 0
+==== TZ="UTC" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="UTC" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T09:59:59Z true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="UTC" "print(time.parse(1))"
 -- stdout
@@ -1739,7 +2003,7 @@
 | 0001-01-01T00:00:00Z 0001 01 01 01 00 00 00 Mon Jan {year: 1, month: 1, day: 1, hour: 0, minute: 0, second: 0, weekday: 'mon} -62135596800
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -62167219201
 |   --> -e:3:30
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
@@ -1752,7 +2016,7 @@
 ==== TZ="" "print(time.from_unix(4611686018427387904))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -1764,7 +2028,7 @@
 ==== TZ="" "print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))"
 -- stdout
 -- stderr
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -1876,9 +2140,9 @@
 | Ok(2026-10-04T00:00:00Z)
 -- stderr
 -- exit: 0
-==== TZ="" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-04 00:05 +00:00
 -- stderr
 -- exit: 0
@@ -1929,6 +2193,50 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00Z)
+-- stderr
+-- exit: 0
+==== TZ="" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T09:59:59Z true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="" "print(time.parse(1))"
 -- stdout
@@ -2026,7 +2334,7 @@
 | 0000-12-31T23:59:59Z 0000 00 12 31 23 59 59 Sun Dec {year: 0, month: 12, day: 31, hour: 23, minute: 59, second: 59, weekday: 'sun} -62135596801
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -62167219201
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -62167219201
 |   --> -e:3:30
 |   |
 | 3 |   t = time.utc(time.from_unix(n))
@@ -2040,7 +2348,7 @@
 -- stdout
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got 4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got 4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(4611686018427387904))
@@ -2053,7 +2361,7 @@
 -- stdout
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
-| error[E0403]: argument `n` must be a unix time from year 0000 to 9999, got -4611686018427387904
+| error[E0403]: argument `n` must be a unix time in years 0000 to 9999 in the local zone, got -4611686018427387904
 |   --> -e:2:21
 |   |
 | 2 | print(time.from_unix(-4611686018427387904), time.from_unix(-4611686018427387903))
@@ -2169,9 +2477,9 @@
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
 -- exit: 0
-==== TZ="No/Such_Zone" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (287 bytes, 95b246a44d60069e)
+==== TZ="No/Such_Zone" "t = time.parse(\"2026-10-04T09:05:07.123+09:00\")!\nprint(t… (265 bytes, 6374be8bf1828a2f)
 -- stdout
-| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00  2026-10-04T09:05:07.123+09:00
+| literal text, 20261004, Oct 10, é	 +0900+09:00 123S 2026Y 2026-10-04T09:05:07.123+09:00 2026-10-04T09:05:07.123+09:00
 | +00:00 +0000 2026-10-04 00:05 +00:00
 -- stderr
 | warning: TZ `No/Such_Zone` names no time zone; times are in UTC
@@ -2224,6 +2532,53 @@
 |   |
 |  call path (innermost first):
 |    -e:2       <entry>
+-- exit: 1
+==== TZ="No/Such_Zone" "print(time.parse(\"x\", \"YYYY-MM-DD MMM\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `format` must be a format naming each field once, got "YYYY-MM-DD MMM"
+|   --> -e:2:17
+|   |
+| 2 | print(time.parse("x", "YYYY-MM-DD MMM"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== TZ="No/Such_Zone" "print(time.parse(\"2026-01-02 Mon\", \"YYYY-MM-DD ddd\"), time.parse(\"2026-01-02 fri\", \"YYYY-MM-DD ddd\"))"
+-- stdout
+| Err({kind: 'parse, message: "cannot parse `2026-01-02 Mon` as a time: weekday Mon does not match 2026-01-02 (Fri)"}) Ok(2026-01-02T00:00:00Z)
+-- stderr
+| warning: TZ `No/Such_Zone` names no time zone; times are in UTC
+-- exit: 0
+==== TZ="No/Such_Zone" "print(time.format(time.from_unix(0), \"%Y-%m-%d\"))"
+-- stdout
+-- stderr
+| warning: TZ `No/Such_Zone` names no time zone; times are in UTC
+| error[E0403]: argument `format` must be a format with at least one token, got "%Y-%m-%d"
+|   --> -e:2:18
+|   |
+| 2 | print(time.format(time.from_unix(0), "%Y-%m-%d"))
+|   |                  ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+|  help: tokens are `YYYY`, `YY`, `MM`, `MMM`, `DD`, `ddd`, `HH`, `mm`, `ss`, `SSS`, `Z`, `ZZ`, not `%Y`
+-- exit: 1
+==== TZ="No/Such_Zone" "t = time.from_unix(253402300799 - 50400)\nprint(t, time.par… (165 bytes, fb80c15fe21614de)
+-- stdout
+| 9999-12-31T09:59:59Z true
+| 9999-12-31T23:59:59-05:00
+-- stderr
+| warning: TZ `No/Such_Zone` names no time zone; times are in UTC
+| error[E0403]: argument `t` must be a time in years 0000 to 9999 in UTC, got 9999-12-31T23:59:59-05:00
+|   --> -e:6:15
+|   |
+| 6 | print(time.utc(late))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:6       <entry>
 -- exit: 1
 ==== TZ="No/Such_Zone" "print(time.parse(1))"
 -- stdout

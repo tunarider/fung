@@ -1,0 +1,5 @@
+# Operators, fields, indexes, lists, maps and tuples of names and
+# literals do nothing as a statement either.
+xs = [1, 2]
+[xs[0] + 1, {a: len}]
+# expect-error: E0234

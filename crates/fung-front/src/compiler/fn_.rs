@@ -57,7 +57,7 @@ impl Compiler<'_> {
         self.emit_const(Const::Dbg, n.kids[0].pos);
         let arg = &n.kids[1];
         self.expr(arg, false)?;
-        self.emit_const(Const::Str(arg.text(&self.opts.source).to_string()), arg.pos);
+        self.emit_const(Const::Str(arg.text(self.opts.source).to_string()), arg.pos);
         let place = format!("{}:{}", self.opts.file, n.pos.line);
         self.emit_const(Const::Str(place), n.pos);
         self.proto.emit(Op::Call, encode_call(3, 0), n.pos);
@@ -84,7 +84,7 @@ impl Compiler<'_> {
         };
         for prm in &info.params {
             let ty = match &prm.types {
-                Some(t) => child.add_type(t.clone()) as i32,
+                Some(t) => child.add_type(type_names(t)) as i32,
                 None => -1,
             };
             child.params.push(Param {
@@ -95,7 +95,7 @@ impl Compiler<'_> {
             });
         }
         if let Some(r) = &info.ret {
-            child.return_type = child.add_type(r.clone()) as i32;
+            child.return_type = child.add_type(type_names(r)) as i32;
         }
         let mut cc = Compiler {
             has_ret: child.return_type >= 0,
@@ -103,6 +103,7 @@ impl Compiler<'_> {
             prelude: self.prelude,
             opts: self.opts,
             lines: self.lines,
+            folds: self.folds,
             moves: HashSet::new(),
             after: HashMap::new(),
             stored_live: HashMap::new(),
@@ -137,14 +138,16 @@ impl Compiler<'_> {
 
         let body = n.kids.last().expect("fn has a body");
         cc.block(body, true)?;
-        if cc.has_ret {
-            let rt = cc.proto.return_type as usize;
-            cc.proto.emit(Op::CheckReturn, rt, body.pos);
-        }
-        cc.proto.emit(Op::Return, 0, body.pos);
+        cc.end_tail(body.pos);
         cc.emit_stubs();
         cc.proto.check_operands()?;
         self.proto.protos.push(cc.proto);
         Ok(self.proto.protos.len() - 1)
     }
+}
+
+/// The names a resolved annotation checks (aliases expanded, element
+/// types dropped by resolve).
+fn type_names(t: &[crate::tree::TypeTerm]) -> Vec<String> {
+    t.iter().map(|t| t.name.clone()).collect()
 }

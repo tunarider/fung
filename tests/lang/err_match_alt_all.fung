@@ -1,0 +1,6 @@
+# Alternatives that all match everything match everything.
+match 1:
+  n | n => print(n)
+  2     => print(3)
+;;
+# expect-error: E0235

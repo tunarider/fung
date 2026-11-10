@@ -5,13 +5,59 @@ use std::fmt;
 use super::Node;
 use crate::source::Pos;
 
+/// One alternative of a type annotation (07) as the parser read it: a
+/// type name where it is written, with the alternatives of its element
+/// type, `list[str | int]` (FE34). After resolve, aliases are expanded
+/// and only the outer names are left, the ones the runtime checks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeTerm {
+    pub name: String,
+    pub pos: Pos,
+    pub elems: Vec<TypeTerm>,
+}
+
+impl TypeTerm {
+    /// A term without an element type.
+    pub fn plain(name: &str, pos: Pos) -> TypeTerm {
+        TypeTerm {
+            name: name.to_string(),
+            pos,
+            elems: Vec::new(),
+        }
+    }
+}
+
+/// `list[str|int]`, as dumps show a term.
+impl fmt::Display for TypeTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.name)?;
+        if !self.elems.is_empty() {
+            f.write_str("[")?;
+            write_union(f, &self.elems)?;
+            f.write_str("]")?;
+        }
+        Ok(())
+    }
+}
+
+/// Union alternatives joined by `|`.
+fn write_union(f: &mut fmt::Formatter<'_>, alts: &[TypeTerm]) -> fmt::Result {
+    for (i, t) in alts.iter().enumerate() {
+        if i > 0 {
+            f.write_str("|")?;
+        }
+        write!(f, "{t}")?;
+    }
+    Ok(())
+}
+
 /// One declared parameter of a function.
 #[derive(Clone, Debug)]
 pub struct Param {
     pub name: String,
     pub pos: Pos,
     /// Union alternatives; `None` means unchecked.
-    pub types: Option<Vec<String>>,
+    pub types: Option<Vec<TypeTerm>>,
     pub has_default: bool,
     /// `...name`: collects surplus positional arguments.
     pub rest: bool,
@@ -82,7 +128,7 @@ pub struct TypeAlias {
     pub name: String,
     /// Where the alias name is written, for errors about the name.
     pub name_pos: Pos,
-    pub alts: Vec<String>,
+    pub alts: Vec<TypeTerm>,
 }
 
 impl fmt::Display for TypeAlias {
@@ -99,7 +145,7 @@ pub struct FnInfo {
     pub name: String,
     pub params: Vec<Param>,
     /// `None` means unchecked.
-    pub ret: Option<Vec<String>>,
+    pub ret: Option<Vec<TypeTerm>>,
     /// The synthetic lambda of a `for`: `return` inside is E0213.
     pub for_body: bool,
     pub num_locals: usize,
@@ -123,7 +169,8 @@ impl fmt::Display for FnInfo {
             }
             f.write_str(&p.name)?;
             if let Some(t) = &p.types {
-                write!(f, ":{}", t.join("|"))?;
+                f.write_str(":")?;
+                write_union(f, t)?;
             }
             if p.has_default {
                 f.write_str("=?")?;
@@ -131,7 +178,8 @@ impl fmt::Display for FnInfo {
         }
         f.write_str(")")?;
         if let Some(r) = &self.ret {
-            write!(f, "->{}", r.join("|"))?;
+            f.write_str("->")?;
+            write_union(f, r)?;
         }
         Ok(())
     }

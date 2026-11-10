@@ -79,7 +79,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..1, 0, (a, x) => a + 1))"
+==== "print(fold(0..=4, 0, (a, x) => a + x), fold([], 7, (a, x) => a), fold(5..5, 0, (a, x) => a + 1))"
 -- stdout
 | 10 7 0
 -- stderr
@@ -219,7 +219,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(sort([3, 1, 2]), sort([\"b\", \"a\", \"c\"]), sort([]), sort(3..0), sort([2.5, 1, 3]), sort([[2], [1, 2], [1]]))"
+==== "print(sort([3, 1, 2]), sort([\"b\", \"a\", \"c\"]), sort([]), sort(3..3), sort([2.5, 1, 3]), sort([[2], [1, 2], [1]]))"
 -- stdout
 | [1, 2, 3] ["a", "b", "c"] [] [] [1, 2.5, 3] [[1], [1, 2], [2]]
 -- stderr
@@ -441,7 +441,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
-|  help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`
+|  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
 ==== "print(group_by([1], x => nil))"
 -- stdout
@@ -454,7 +454,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
-|  help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`
+|  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
 ==== "print(group_by(1, 1))"
 -- stdout
@@ -517,7 +517,7 @@
 ==== "print(put({}, 1, 2))"
 -- stdout
 -- stderr
-| error[E0501]: cannot index map and int
+| error[E0514]: cannot use a value of type int as a map key
 |   --> -e:1:10
 |   |
 | 1 | print(put({}, 1, 2))
@@ -525,11 +525,12 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
 ==== "print(put({}, nil, 2))"
 -- stdout
 -- stderr
-| error[E0501]: cannot index map and nil
+| error[E0514]: cannot use a value of type nil as a map key
 |   --> -e:1:10
 |   |
 | 1 | print(put({}, nil, 2))
@@ -537,6 +538,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
 ==== "print(merge({a: 1, b: 1}, {b: 2, c: 3}), merge({}, {}))"
 -- stdout
@@ -575,7 +577,7 @@
 ==== "print(remove({}, 1))"
 -- stdout
 -- stderr
-| error[E0501]: cannot index map and int
+| error[E0514]: cannot use a value of type int as a map key
 |   --> -e:1:13
 |   |
 | 1 | print(remove({}, 1))
@@ -583,6 +585,7 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
 ==== "print(remove([], \"a\"))"
 -- stdout
@@ -604,7 +607,7 @@
 ==== "print(chars(1))"
 -- stdout
 -- stderr
-| error[E0506]: cannot list the characters of int
+| error[E0403]: argument `s` must be str, got int
 |   --> -e:1:12
 |   |
 | 1 | print(chars(1))
@@ -613,9 +616,9 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(split(\"a,b,,c\", \",\"), split(\"참치\", \"\"), split(\"\", \",\"), split(\"\", \"\"), split(\"abc\", \"abc\"))"
+==== "print(split(\"a,b,,c\", \",\"), chars(\"참치\"), split(\"\", \",\"), split(\"abc\", \"abc\"))"
 -- stdout
-| ["a", "b", "", "c"] ["참", "치"] [""] [] ["", ""]
+| ["a", "b", "", "c"] ["참", "치"] [""] ["", ""]
 -- stderr
 -- exit: 0
 ==== "print(split(1, \",\"))"
@@ -792,9 +795,9 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(repeat(\"ab\", 3), repeat(\"참\", 2), repeat(\"x\", 0), repeat(\"x\", -5), repeat(\"\", 1000000000000))"
+==== "print(repeat(\"ab\", 3), repeat(\"참\", 2), repeat(\"x\", 0), repeat(\"\", 1000000000000))"
 -- stdout
-| ababab 참참   
+| ababab 참참  
 -- stderr
 -- exit: 0
 ==== "print(repeat(\"ab\", 50000001))"
@@ -1057,7 +1060,7 @@
 -- exit: 1
 ==== "print(parse_int(\"12\"), parse_int(\"x\"), parse_int(\" 1\"… (122 bytes, 696896cff831da33)
 -- stdout
-| Ok(12) Err({kind: 'parse, message: "not an integer: x"}) Err({kind: 'parse, message: "not an integer:  1"}) Ok(1000) Err({kind: 'parse, message: "not an integer: 99999999999999999999"})
+| Ok(12) Err({kind: 'parse, message: "not an integer: \"x\""}) Err({kind: 'parse, message: "not an integer: \" 1\""}) Ok(1000) Err({kind: 'parse, message: "not an integer: \"99999999999999999999\""})
 -- stderr
 -- exit: 0
 ==== "print(parse_int(1))"
@@ -1074,7 +1077,7 @@
 -- exit: 1
 ==== "print(parse_float(\"1.5\"), parse_float(\"x\"), parse_float(\"1e400\"), parse_float(\"nan\"))"
 -- stdout
-| Ok(1.5) Err({kind: 'parse, message: "not a number: x"}) Err({kind: 'parse, message: "not a number: 1e400"}) Err({kind: 'parse, message: "not a number: nan"})
+| Ok(1.5) Err({kind: 'parse, message: "not a number: \"x\""}) Err({kind: 'parse, message: "not a number: \"1e400\""}) Err({kind: 'parse, message: "not a number: \"nan\""})
 -- stderr
 -- exit: 0
 ==== "print(parse_float(nil))"
@@ -1091,7 +1094,7 @@
 -- exit: 1
 ==== "print(parse_dur(\"1h30m\"), parse_dur(\" 500ms \"), parse_d… (194 bytes, f890c6d8ca52bd73)
 -- stdout
-| Ok(1h30m) Ok(500ms) Ok(-5s) Err({kind: 'parse, message: "not a duration: 30"}) Err({kind: 'parse, message: "not a duration: 1h x"}) Err({kind: 'parse, message: "not a duration: 30m1h"}) Err({kind: 'parse, message: "not a duration: "}) Ok(1s500ms) Err({kind: 'parse, message: "not a duration: - 5s"})
+| Ok(1h30m) Err({kind: 'parse, message: "not a duration: \" 500ms \""}) Ok(-5s) Err({kind: 'parse, message: "not a duration: \"30\""}) Err({kind: 'parse, message: "not a duration: \"1h x\""}) Err({kind: 'parse, message: "not a duration: \"30m1h\""}) Err({kind: 'parse, message: "not a duration: \"\""}) Ok(1s500ms) Err({kind: 'parse, message: "not a duration: \"- 5s\""})
 -- stderr
 -- exit: 0
 ==== "print(parse_dur(5))"
@@ -1106,7 +1109,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(len(\"참치\"), len([1, 2]), len({a: 1}), len((1, 2)), len(0..10), len(5..1), len(\"\"))"
+==== "print(len(\"참치\"), len([1, 2]), len({a: 1}), len((1, 2)), len(0..10), len(5..5), len(\"\"))"
 -- stdout
 | 2 2 1 2 10 0 0
 -- stderr
@@ -1242,7 +1245,7 @@
 ==== "print(read_line(1))" stdin "line1\r\nline2\nlast"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be file | nil, got int
+| error[E0403]: argument `file` must be file | nil, got int
 |   --> -e:1:16
 |   |
 | 1 | print(read_line(1))
@@ -1254,7 +1257,7 @@
 ==== "print(read_lines(\"x\"))" stdin "line1\r\nline2\nlast"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be file | nil, got str
+| error[E0403]: argument `file` must be file | nil, got str
 |   --> -e:1:17
 |   |
 | 1 | print(read_lines("x"))
@@ -1777,8 +1780,6 @@
 |   |     ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:100 _clamp
-|    extras/prelude.fung:109 take
 |    -e:2       <entry>
 -- exit: 1
 ==== "fn f(x) = take(x, \"a\")\nf([1])"
@@ -1791,8 +1792,6 @@
 |   |               ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:100 _clamp
-|    extras/prelude.fung:109 take
 |    -e:1       f
 |    -e:2       <entry>
 -- exit: 1
@@ -1806,8 +1805,6 @@
 |   |    ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:25 <lambda>
-|    extras/prelude.fung:25 sum
 |    -e:1       <entry>
 |  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
@@ -1821,23 +1818,19 @@
 |   |    ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:25 <lambda>
-|    extras/prelude.fung:25 sum
 |    -e:1       <entry>
 |  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
 ==== "pad_left(\"a\", 3, \"\")"
 -- stdout
 -- stderr
-| error[E0403]: argument `pad` must be a non-empty str, got str
+| error[E0403]: argument `pad` must be a non-empty str, got ""
 |   --> -e:1:9
 |   |
 | 1 | pad_left("a", 3, "")
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:130 _padding
-|    extras/prelude.fung:135 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "pad_left(\"a\", 200000000, \" \")"
@@ -1850,8 +1843,6 @@
 |   |         ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:132 _padding
-|    extras/prelude.fung:135 pad_left
 |    -e:1       <entry>
 -- exit: 1
 ==== "until(1, x => x + \"a\", x => false)"
@@ -1865,7 +1856,6 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:146 until
 |    -e:1       <entry>
 |  help: put the value into the text with `"${…}"`, or convert it with `str(…)`
 -- exit: 1
@@ -1880,14 +1870,13 @@
 |   |
 |  call path (innermost first):
 |    -e:1       <lambda>
-|    extras/prelude.fung:149 iterate
 |    -e:1       r
 |    -e:2       <entry>
 -- exit: 1
 ==== "print(get([1], 0))"
 -- stdout
 -- stderr
-| error[E0506]: cannot get from list
+| error[E0506]: cannot get a key from list
 |   --> -e:1:10
 |   |
 | 1 | print(get([1], 0))
@@ -1911,16 +1900,377 @@
 ==== "print(keys([]))"
 -- stdout
 -- stderr
-| error[E0506]: cannot list the pairs of list
+| error[E0506]: cannot list the keys of list
 |   --> -e:1:11
 |   |
 | 1 | print(keys([]))
 |   |           ^
 |   |
 |  call path (innermost first):
-|    extras/prelude.fung:121 keys
 |    -e:1       <entry>
 -- exit: 1
+==== "print(sum([nil]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot add nil and nil
+|   --> -e:1:10
+|   |
+| 1 | print(sum([nil]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sum([true]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot add bool and bool
+|   --> -e:1:10
+|   |
+| 1 | print(sum([true]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(max([nil]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare nil and nil
+|   --> -e:1:10
+|   |
+| 1 | print(max([nil]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(min([[nil]]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare nil and nil
+|   --> -e:1:10
+|   |
+| 1 | print(min([[nil]]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(max([(nil,)]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare nil and nil
+|   --> -e:1:10
+|   |
+| 1 | print(max([(nil,)]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort([nil]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare nil and nil
+|   --> -e:1:11
+|   |
+| 1 | print(sort([nil]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sort_by([1], x => nil))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare nil and nil
+|   --> -e:1:14
+|   |
+| 1 | print(sort_by([1], x => nil))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sum(0..2_000_000_000), sum(-5..=5), sum(5..=4), sum(0..=0))"
+-- stdout
+| 1999999999000000000 0 0 0
+-- stderr
+-- exit: 0
+==== "print(sum(0..=9223372036854775807))"
+-- stdout
+-- stderr
+| error[E0503]: integer overflow
+|   --> -e:1:10
+|   |
+| 1 | print(sum(0..=9223372036854775807))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sum(-9223372036854775807..=9223372036854775807))"
+-- stdout
+-- stderr
+| error[E0503]: integer overflow
+|   --> -e:1:10
+|   |
+| 1 | print(sum(-9223372036854775807..=9223372036854775807))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sum(-9223372036854775808..=-9223372036854775808), sum… (168 bytes, 46eecb892afc3971)
+-- stdout
+| -9223372036854775808 9223372036854775807 -4611686018427387904 -3
+-- stderr
+-- exit: 0
+==== "print(sum(-9223372036854775808..=-9223372036854775807))"
+-- stdout
+-- stderr
+| error[E0503]: integer overflow
+|   --> -e:1:10
+|   |
+| 1 | print(sum(-9223372036854775808..=-9223372036854775807))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sum(9223372036854775806..=9223372036854775807))"
+-- stdout
+-- stderr
+| error[E0503]: integer overflow
+|   --> -e:1:10
+|   |
+| 1 | print(sum(9223372036854775806..=9223372036854775807))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(sum(-5..=3), sum(map(-5..=3, x => x)))"
+-- stdout
+| -9 -9
+-- stderr
+-- exit: 0
+==== "print(sum(-9223372036854775807..=9223372036854775806 - 9223372036854775806))"
+-- stdout
+-- stderr
+| error[E0503]: integer overflow
+|   --> -e:1:10
+|   |
+| 1 | print(sum(-9223372036854775807..=9223372036854775806 - 9223372036854775806))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(reverse(9223372036854775805..=9223372036854775807), reverse(-9223372036854775808..-9223372036854775805))"
+-- stdout
+| [9223372036854775807, 9223372036854775806, 9223372036854775805] [-9223372036854775806, -9223372036854775807, -9223372036854775808]
+-- stderr
+-- exit: 0
+==== "import time\nprint(sum([time.now()]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot add time and time
+|   --> -e:2:10
+|   |
+| 2 | print(sum([time.now()]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import conc\nprint(conc.retry(() => 1 / 0))"
+-- stdout
+-- stderr
+| error[E0502]: division by zero
+|   --> -e:2:26
+|   |
+| 2 | print(conc.retry(() => 1 / 0))
+|   |                          ^
+|   |
+|  call path (innermost first):
+|    -e:2       <lambda>
+|    -e:2       <entry>
+-- exit: 1
+==== "(tx, rx) = channel(4)\nsend(tx, 3)\nsend(tx, 1)\nsend(tx, 2)\nclose(tx)\nprint(reverse(rx))"
+-- stdout
+| [2, 1, 3]
+-- stderr
+-- exit: 0
+==== "(tx, rx) = channel(4)\nsend(tx, 3)\nsend(tx, 1)\nclose(tx)\nprint(sum(rx))"
+-- stdout
+| 4
+-- stderr
+-- exit: 0
+==== "fn top(xs) = reverse(xs)\nprint(top(\"abc\"))"
+-- stdout
+-- stderr
+| error[E0506]: cannot reverse str
+|   --> -e:1:21
+|   |
+| 1 | fn top(xs) = reverse(xs)
+|   |                     ^
+|   |
+|  call path (innermost first):
+|    -e:1       top
+|    -e:2       <entry>
+-- exit: 1
+==== "print(max([1, \"a\"]))"
+-- stdout
+-- stderr
+| error[E0501]: cannot compare str and int
+|   --> -e:1:10
+|   |
+| 1 | print(max([1, "a"]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(keys([1]))"
+-- stdout
+-- stderr
+| error[E0506]: cannot list the keys of list
+|   --> -e:1:11
+|   |
+| 1 | print(keys([1]))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(values(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot list the values of int
+|   --> -e:1:13
+|   |
+| 1 | print(values(1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(unique(\"aab\"))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the unique elements of str
+|   --> -e:1:13
+|   |
+| 1 | print(unique("aab"))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(take(\"abc\", 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take from str
+|   --> -e:1:11
+|   |
+| 1 | print(take("abc", 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(drop(\"abc\", 1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot drop from str
+|   --> -e:1:11
+|   |
+| 1 | print(drop("abc", 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print([sym_name('ok), sym_name(Red), sym_name(sym(\"a\"))])"
+-- stdout
+| ["ok", "Red", "a"]
+-- stderr
+-- exit: 0
+==== "print(sym_name(\"ok\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be sym, got str
+|   --> -e:1:15
+|   |
+| 1 | print(sym_name("ok"))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(is_utf8(\"é\"), is_utf8(\"\\xff\"))"
+-- stdout
+| true false
+-- stderr
+-- exit: 0
+==== "print(type_of(env_all()), env(\"FUNG_SURELY_UNSET_NAME\"))"
+-- stdout
+| 'map nil
+-- stderr
+-- exit: 0
+==== "print(env())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `name`
+|   --> -e:1:10
+|   |
+| 1 | print(env())
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(range(3))"
+-- stdout
+-- stderr
+| error[E0204]: undefined name `range`
+|   --> -e:1:7
+|   |
+| 1 | print(range(3))
+|   |       ^^^^^ not found in this scope
+|   |
+-- exit: 2
+==== "print(read_line(f: nil))"
+-- stdout
+-- stderr
+| error[E0406]: read_line has no argument named `f`
+|   --> -e:1:16
+|   |
+| 1 | print(read_line(f: nil))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(atom(v: 1))"
+-- stdout
+-- stderr
+| error[E0406]: atom has no argument named `v`
+|   --> -e:1:11
+|   |
+| 1 | print(atom(v: 1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "(tx, rx) = channel(1)\nsend(tx, x: 1)\nprint(recv(rx))"
+-- stdout
+| Ok(1)
+-- stderr
+-- exit: 0
 ==== "print(take([1]))"
 -- stdout
 -- stderr
@@ -2025,9 +2375,9 @@
 |   |               ^
 |   |
 -- exit: 2
-==== "print(sleep(1ms), sleep(0s), sleep(-1s))"
+==== "print(sleep(1ms), sleep(0s))"
 -- stdout
-| nil nil nil
+| nil nil
 -- stderr
 -- exit: 0
 ==== "scope(s => spawn(s, 1))"
@@ -2273,7 +2623,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (227 bytes, b9a1820d87953769)
+==== "(buf_tx, buf) = channel(2)\nsend(buf_tx, \"a\")\nclose(buf_… (226 bytes, f89af6beb2cc101f)
 -- stdout
 | Ok("a") Err({kind: 'closed, message: "channel closed"}) Err({kind: 'closed, message: "channel closed"}) Ok(nil) Err({kind: 'timeout, message: "timed out after 1ms"}) Err({kind: 'timeout, message: "timed out after 0s"})
 -- stderr
@@ -2312,47 +2662,47 @@
 -- exit: 1
 ==== "print(exec([\"echo\", \"hi there\"]))"
 -- stdout
-| Ok({out: "hi there\n", err: "", code: 0})
+| Ok({out: "hi there\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(sh(\"echo a; echo b >&2; exit 3\"))"
 -- stdout
-| Err({kind: 'exit, code: 3, out: "a\n", err: "b\n", message: "`/bin/sh` exited with code 3"})
+| Err({kind: 'exit, code: 3, signal: nil, out: "a\n", err: "b\n", message: "`/bin/sh` exited with code 3"})
 -- stderr
 -- exit: 0
 ==== "print(sh(\"exit 300\"))"
 -- stdout
-| Err({kind: 'exit, code: 44, out: "", err: "", message: "`/bin/sh` exited with code 44"})
+| Err({kind: 'exit, code: 44, signal: nil, out: "", err: "", message: "`/bin/sh` exited with code 44"})
 -- stderr
 -- exit: 0
 ==== "print(sh(\"kill -9 $$\"))"
 -- stdout
-| Err({kind: 'exit, code: -1, out: "", err: "", message: "`/bin/sh` exited with code -1"})
+| Err({kind: 'exit, code: nil, signal: 9, out: "", err: "", message: "`/bin/sh` was killed by signal 9 (SIGKILL)"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"cat\"], stdin: \"x\"))"
 -- stdout
-| Ok({out: "x", err: "", code: 0})
+| Ok({out: "x", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"sh\", \"-c\", \"cat; echo e >&2\"], stdin: \"in\"))"
 -- stdout
-| Ok({out: "in", err: "e\n", code: 0})
+| Ok({out: "in", err: "e\n", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(sh(\"cat\"), sh(\"true\", stdin: \"abc\"))"
 -- stdout
-| Ok({out: "", err: "", code: 0}) Ok({out: "", err: "", code: 0})
+| Ok({out: "", err: "", code: 0, signal: nil}) Ok({out: "", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"sh\", \"-c\", \"echo $A$B\"], env: {\"B\": \"2\", \"A\": \"1\"}))"
 -- stdout
-| Ok({out: "12\n", err: "", code: 0})
+| Ok({out: "12\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"sh\", \"-c\", \"echo \\\"$fung_x\\\"\"], env: {\"fung_x\": \"lo\"}))"
 -- stdout
-| Ok({out: "lo\n", err: "", code: 0})
+| Ok({out: "lo\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"pwd\"], cwd: \"/\")!.out, sh(\"pwd\", cwd: \"/usr/../\")!.out)"
@@ -2364,22 +2714,29 @@
 -- exit: 0
 ==== "print(sh(\"echo $PWD\", cwd: \"/tmp\"), sh(\"echo $PWD\", cwd: \"/usr/../tmp/\"))"
 -- stdout
-| Ok({out: "/tmp\n", err: "", code: 0}) Ok({out: "/tmp\n", err: "", code: 0})
+| Ok({out: "/tmp\n", err: "", code: 0, signal: nil}) Ok({out: "/tmp\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(sh(\"echo $PWD\", cwd: \"/tmp\", env: {\"X\": \"1\"}))"
 -- stdout
-| Ok({out: "/tmp\n", err: "", code: 0})
+| Ok({out: "/tmp\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(sh(\"echo $PWD\", cwd: \"\"))"
 -- stdout
-| Ok({out: "$CRATE\n", err: "", code: 0})
 -- stderr
--- exit: 0
+| error[E0403]: argument `cwd` must be a non-empty str, got ""
+|   --> -e:1:9
+|   |
+| 1 | print(sh("echo $PWD", cwd: ""))
+|   |         ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
 ==== "print(sh(\"echo \\\"$X\\\"\", env: {\"X\": \"a b=c\"}))"
 -- stdout
-| Ok({out: "a b=c\n", err: "", code: 0})
+| Ok({out: "a b=c\n", err: "", code: 0, signal: nil})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"definitely-not-a-command-xyz\"]))"
@@ -2394,7 +2751,7 @@
 -- exit: 0
 ==== "print(exec([\"ls\"], cwd: \"/nonexistent\"), exec([\"ls\"], cwd: \"/etc/hosts\"))"
 -- stdout
-| Err({kind: 'not_found, message: "cannot run `ls`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `ls`: not a directory"})
+| Err({kind: 'not_found, message: "cannot run `ls`: working directory `/nonexistent`: no such file or directory"}) Err({kind: 'not_found, message: "cannot run `ls`: working directory `/etc/hosts`: not a directory"})
 -- stderr
 -- exit: 0
 ==== "print(exec([\"sh\", \"-c\", \"echo\\u{0}\"]), exec([\"/bin/ls\\u{0}\"]), exec([\"x\\u{0}y\"]))"
@@ -2516,7 +2873,7 @@
 ==== "print(exec([]))"
 -- stdout
 -- stderr
-| error[E0403]: argument `cmd` must be a non-empty list of strings, got an empty list
+| error[E0403]: argument `cmd` must be a non-empty list of strings, got []
 |   --> -e:1:11
 |   |
 | 1 | print(exec([]))
@@ -2552,7 +2909,7 @@
 ==== "print(env(1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `name` must be str | nil, got int
+| error[E0403]: argument `name` must be str, got int
 |   --> -e:1:10
 |   |
 | 1 | print(env(1))
@@ -2561,7 +2918,7 @@
 |  call path (innermost first):
 |    -e:1       <entry>
 -- exit: 1
-==== "print(env(\"FUNG_TEST_UNSET_VAR\"), env(\"\"), env(\"A=B\"), type_of(env()), env(\"HOME\") == env()[\"HOME\"])"
+==== "print(env(\"FUNG_TEST_UNSET_VAR\"), env(\"\"), env(\"A=B\"), type_of(env_all()), env(\"HOME\") == env_all()[\"HOME\"])"
 -- stdout
 | nil nil nil 'map true
 -- stderr
@@ -2960,7 +3317,7 @@
 ==== "import fs\nprint(fs.write_line(\"x\", \"y\"))"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be file, got str
+| error[E0403]: argument `file` must be file, got str
 |   --> -e:2:20
 |   |
 | 2 | print(fs.write_line("x", "y"))
@@ -2996,7 +3353,7 @@
 ==== "print(read_line(1))"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be file | nil, got int
+| error[E0403]: argument `file` must be file | nil, got int
 |   --> -e:1:16
 |   |
 | 1 | print(read_line(1))
@@ -3008,7 +3365,7 @@
 ==== "print(read_lines(\"x\"))"
 -- stdout
 -- stderr
-| error[E0403]: argument `f` must be file | nil, got str
+| error[E0403]: argument `file` must be file | nil, got str
 |   --> -e:1:17
 |   |
 | 1 | print(read_lines("x"))
@@ -3020,15 +3377,13 @@
 ==== "import fs\nprint(fs.with_open(\"/dev/null\", 1))"
 -- stdout
 -- stderr
-| error[E0401]: cannot call a value of type int
+| error[E0403]: argument `f` must be fn, got int
 |   --> -e:2:19
 |   |
 | 2 | print(fs.with_open("/dev/null", 1))
 |   |                   ^
 |   |
 |  call path (innermost first):
-|    extras/fs.fung:41 _with_ok (1 tail calls elided)
-|    extras/fs.fung:32 with_open
 |    -e:2       <entry>
 -- exit: 1
 ==== "import fs\nfn g(h: str) = h\nprint(fs.with_open(\"/dev/null\", g))"
@@ -3042,8 +3397,333 @@
 |   |
 |  call path (innermost first):
 |    -e:2       g
-|    extras/fs.fung:32 with_open
 |    -e:3       <entry>
+-- exit: 1
+==== "print(parse_int(\" 1\"), parse_int(\"1\\n\"), parse_int(\"0… (127 bytes, d2acb33b5e7d344d)
+-- stdout
+| Err({kind: 'parse, message: "not an integer: \" 1\""}) Err({kind: 'parse, message: "not an integer: \"1\\n\""}) Err({kind: 'parse, message: "not an integer: \"01\" (a decimal number does not start with 0: write `0o755` for octal, or drop the zeros)"}) Ok(1) Ok(-16) Err({kind: 'parse, message: "not an integer: \"0X1\" (write the base prefix in lowercase: `0x1`)"})
+-- stderr
+-- exit: 0
+==== "print(parse_float(\" 1.0\"), parse_float(\"01.5\"), parse_f… (144 bytes, 81816804af4202d3)
+-- stdout
+| Err({kind: 'parse, message: "not a number: \" 1.0\""}) Err({kind: 'parse, message: "not a number: \"01.5\" (a number does not start with 0: drop the leading zeros)"}) Ok(1.5) Err({kind: 'parse, message: "not a number: \"1e-400\" (the number is too small for a float; write `0.0` for zero)"}) Err({kind: 'parse, message: "not a number: \"1E5\" (write the exponent with a lowercase `e`: `1e5`)"}) Ok(42.0)
+-- stderr
+-- exit: 0
+==== "print(parse_dur(\" 1s \"), parse_dur(\"1s\\n\"), parse_dur(… (139 bytes, d16231291ad7e134)
+-- stdout
+| Err({kind: 'parse, message: "not a duration: \" 1s \""}) Err({kind: 'parse, message: "not a duration: \"1s\\n\""}) Err({kind: 'parse, message: "not a duration: \"\\u{A0}5s\""}) Ok(1s) Err({kind: 'parse, message: "not a duration: \"01s\" (a number does not start with 0: drop the leading zeros)"}) Ok(-1h30m)
+-- stderr
+-- exit: 0
+==== "print(int(\"-9223372036854775808\"), int(\"+7\"), int(\"0b11\"), float(\"-0.5\"), float(\"1_000\"))"
+-- stdout
+| -9223372036854775808 7 3 -0.5 1000.0
+-- stderr
+-- exit: 0
+==== "print(int(\"007\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "007" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int("007"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: a decimal number does not start with 0: write `0o755` for octal, or drop the zeros
+-- exit: 1
+==== "print(int(\" 5\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert " 5" to int
+|   --> -e:1:10
+|   |
+| 1 | print(int(" 5"))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(float(\"1e-400\"))"
+-- stdout
+-- stderr
+| error[E0513]: cannot convert "1e-400" to float
+|   --> -e:1:12
+|   |
+| 1 | print(float("1e-400"))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: the number is too small for a float; write `0.0` for zero
+-- exit: 1
+==== "print(take([1], -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -1
+|   --> -e:1:11
+|   |
+| 1 | print(take([1], -1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(drop([1], -5))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -5
+|   --> -e:1:11
+|   |
+| 1 | print(drop([1], -5))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(take(0..3, -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -1
+|   --> -e:1:11
+|   |
+| 1 | print(take(0..3, -1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(repeat(\"a\", -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -1
+|   --> -e:1:13
+|   |
+| 1 | print(repeat("a", -1))
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(pad_left(\"a\", -3))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -3
+|   --> -e:1:15
+|   |
+| 1 | print(pad_left("a", -3))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(pad_right(\"a\", -3, \"-\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -3
+|   --> -e:1:16
+|   |
+| 1 | print(pad_right("a", -3, "-"))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(iterate(1, x => x + 1, -3))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -3
+|   --> -e:1:14
+|   |
+| 1 | print(iterate(1, x => x + 1, -3))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(iterate(1, x => x + 1, 0), iterate(1, x => x + 1, 3), take([1, 2], 0), repeat(\"a\", 0), pad_left(\"a\", 0))"
+-- stdout
+| 1 4 []  a
+-- stderr
+-- exit: 0
+==== "sleep(-1s)"
+-- stdout
+-- stderr
+| error[E0403]: argument `d` must be a non-negative dur, got -1s
+|   --> -e:1:6
+|   |
+| 1 | sleep(-1s)
+|   |      ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(timeout(() => 1, -1s))"
+-- stdout
+-- stderr
+| error[E0403]: argument `d` must be a non-negative dur, got -1s
+|   --> -e:1:14
+|   |
+| 1 | print(timeout(() => 1, -1s))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(timeout(() => sleep(1s), 0s), sleep(0s))"
+-- stdout
+| Err({kind: 'timeout, message: "timed out after 0s"}) nil
+-- stderr
+-- exit: 0
+==== "print(sum([]), sum([1s, 2s]), fold([], 0s, (a, d) => a + d))"
+-- stdout
+| 0 3s 0s
+-- stderr
+-- exit: 0
+==== "import http\nprint(http.get(\"http://127.0.0.1:1/\", timeout: -1s))"
+-- stdout
+-- stderr
+| error[E0403]: argument `timeout` must be a non-negative dur, got -1s
+|   --> -e:2:15
+|   |
+| 2 | print(http.get("http://127.0.0.1:1/", timeout: -1s))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "import http\nprint(http.serve(\"127.0.0.1:0\", r => r, drain: -1s))"
+-- stdout
+-- stderr
+| error[E0403]: argument `drain` must be a non-negative dur, got -1s
+|   --> -e:2:17
+|   |
+| 2 | print(http.serve("127.0.0.1:0", r => r, drain: -1s))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== "print(split(\"abc\", \"\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `sep` must be a non-empty str, got ""
+|   --> -e:1:12
+|   |
+| 1 | print(split("abc", ""))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== "print(split(\"\", \",\"), split(\"a,b\", \",\"), chars(\"ab\"))"
+-- stdout
+| [""] ["a", "b"] ["a", "b"]
+-- stderr
+-- exit: 0
+==== "print({a: 1}[1])"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type int as a map key
+|   --> -e:1:13
+|   |
+| 1 | print({a: 1}[1])
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
+-- exit: 1
+==== "print({a: 1}['a])"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type sym as a map key
+|   --> -e:1:13
+|   |
+| 1 | print({a: 1}['a])
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: write `"a"` for `'a`, or convert the key with `sym_name(k)`
+-- exit: 1
+==== "print(get({}, 1))"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type int as a map key
+|   --> -e:1:10
+|   |
+| 1 | print(get({}, 1))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
+-- exit: 1
+==== "print(get({a: 1}, 'a))"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type sym as a map key
+|   --> -e:1:10
+|   |
+| 1 | print(get({a: 1}, 'a))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: write `"a"` for `'a`, or convert the key with `sym_name(k)`
+-- exit: 1
+==== "print('a in {a: 1})"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type sym as a map key
+|   --> -e:1:10
+|   |
+| 1 | print('a in {a: 1})
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: write `"a"` for `'a`, or convert the key with `sym_name(k)`
+-- exit: 1
+==== "print(1 in {a: 1})"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type int as a map key
+|   --> -e:1:9
+|   |
+| 1 | print(1 in {a: 1})
+|   |         ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
+-- exit: 1
+==== "print(group_by([1], x => 'odd))"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type sym as a map key
+|   --> -e:1:15
+|   |
+| 1 | print(group_by([1], x => 'odd))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+|  help: map keys are strings: write `"odd"` for `'odd`, or convert the key with `sym_name(k)`
+-- exit: 1
+==== "m = {a: 1}\nk = 1\nprint(m[k])"
+-- stdout
+-- stderr
+| error[E0514]: cannot use a value of type int as a map key
+|   --> -e:3:8
+|   |
+| 3 | print(m[k])
+|   |        ^
+|   |
+|  call path (innermost first):
+|    -e:3       <entry>
+|  help: map keys are strings: convert the key with `str(k)`
 -- exit: 1
 ==== "print(sort(0..100000000000000000))"
 -- stdout

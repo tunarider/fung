@@ -13,22 +13,35 @@ use crate::value::{
     Items, List, MapBuilder, Range, Sym, Tag, Tuple, Value, format, index, type_name,
 };
 
-/// How `!`, `?` and `??` see a value (02): an Ok payload, an Err, nil, or
-/// something else. `!` rejects nil (E0604), `?` lets it through, `??`
-/// replaces it; anything else is E0605 for `!` and `?`.
-enum ResultKind {
+/// How `!`, `?`, `??`, interpolation and `join` see a value (02): an Ok
+/// payload, an Err, nil, or something else. `!` and `?` reject nil
+/// (E0604, SP13) and anything else (E0605); `??` replaces nil.
+pub(crate) enum ResultKind {
     Ok(Value),
     Err,
     Nil,
     Other,
 }
 
-fn result_kind(v: &Value) -> ResultKind {
+impl ResultKind {
+    /// `Ok` or `Err` for a result: interpolation and `join` refuse to put
+    /// one into text (SP2), so a forgotten unwrap does not become the text
+    /// `Ok(...)` in a path or a URL. `str` and `print` still show it.
+    pub(crate) fn result_name(&self) -> Option<&'static str> {
+        match self {
+            ResultKind::Ok(_) => Some("Ok"),
+            ResultKind::Err => Some("Err"),
+            ResultKind::Nil | ResultKind::Other => None,
+        }
+    }
+}
+
+/// The one judgement of what a result is (02, SP12). `Ok` and `Err` hold
+/// exactly one value: the compiler refuses another count (E0236) and the
+/// runtime builds them only with one, so the name decides.
+pub(crate) fn result_kind(v: &Value) -> ResultKind {
     match v {
-        // A result holds one value (VM4): Ok(1, 2) is a plain tag, which
-        // `!` and `?` refuse and `??` keeps, as a pattern Ok(x) does not
-        // match it either.
-        Value::Tag(t) if t.args.len() == 1 => match t.name {
+        Value::Tag(t) => match t.name {
             Sym::OK => ResultKind::Ok(t.args[0].clone()),
             Sym::ERR => ResultKind::Err,
             _ => ResultKind::Other,
@@ -38,27 +51,17 @@ fn result_kind(v: &Value) -> ResultKind {
     }
 }
 
-/// How E0605 names a value that is not a result: by its type, or an Ok
-/// or Err with other than one value by that count (VM4).
+/// How E0605 names a value that is not a result: by its type.
 pub(crate) fn not_result(v: &Value) -> String {
-    match v {
-        Value::Tag(t) if matches!(t.name, Sym::OK | Sym::ERR) => {
-            format!("an {} with {} values", t.name.name(), t.args.len())
-        }
-        _ => format!("a value of type {}", type_name(v)),
-    }
+    format!("a value of type {}", type_name(v))
 }
 
-/// Renders an Err for E0603 (02): a single payload that is a map with a
-/// string `message` shows that; a payload of another shape shows its
-/// literal form; an Err with zero or several payloads shows the whole tag.
+/// Renders an Err for E0603 (02): a payload that is a map with a string
+/// `message` shows that; a payload of another shape shows its literal form.
 fn err_message(e: &Value) -> String {
     let Value::Tag(t) = e else {
         return format(e);
     };
-    if t.args.len() != 1 {
-        return format(e);
-    }
     let v = &t.args[0];
     if let Value::Map(m) = v
         && let Some(Value::Str(s)) = m.get("message")
@@ -179,6 +182,10 @@ impl Task<'_> {
                 let Value::Sym(name) = self.pop() else {
                     panic!("TAG with a name that is not a symbol");
                 };
+                debug_assert!(
+                    !matches!(name, Sym::OK | Sym::ERR) || args.len() == 1,
+                    "the compiler gives Ok and Err exactly one value (E0236)"
+                );
                 self.push(Value::Tag(Rc::new(Tag { name, args })));
             }
             Op::Range => {
@@ -195,10 +202,14 @@ impl Task<'_> {
                         ],
                     ));
                 };
+                let inclusive = arg == 1;
+                if !Range::in_order(*s, *e, inclusive) {
+                    return Err(err("E0522", pos, vec![Arg::Int(*s), Arg::Int(*e)]));
+                }
                 self.push(Value::Range(Rc::new(Range {
                     start: *s,
                     end: *e,
-                    inclusive: arg == 1,
+                    inclusive,
                 })));
             }
             Op::Index => {
@@ -246,8 +257,7 @@ impl Task<'_> {
                 ResultKind::Ok(payload) => self.replace_top(payload),
                 // The Err stays on the stack for RETURN.
                 ResultKind::Err => self.fiber.frames[fi].ip = arg,
-                // nil is a value, not a failure: `?` only looks at Err (02).
-                ResultKind::Nil => {}
+                ResultKind::Nil => return Err(err("E0604", pos, vec![s("?")])),
                 ResultKind::Other => {
                     let tn = not_result(self.top());
                     return Err(err("E0605", pos, vec![s("?"), Arg::Str(tn)]));
@@ -292,7 +302,7 @@ impl Task<'_> {
         let f = &self.fiber.frames[fi];
         let mut b = Binder {
             stack: &mut self.fiber.stack,
-            base: f.base,
+            base: f.base(),
             globals: f.globals(),
             pending: Vec::new(),
         };

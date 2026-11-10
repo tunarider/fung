@@ -86,7 +86,7 @@
 <p>표준 라이브러리의 <code>Err</code> 내용은 <code>{kind: 심볼, message: 문자열, …}</code> 맵이다. <code>kind</code>로 종류를 가리고(<code>'not_found</code>, <code>'parse</code>, <code>'timeout</code> …), <code>message</code>를 사람에게 보여 준다.</p>
 <div class="run"><pre><code>print(parse_int(&quot;42&quot;))
 print(parse_int(&quot;abc&quot;))</code></pre><pre class="out plain"><code>Ok(42)
-Err({kind: 'parse, message: &quot;not an integer: abc&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not an integer: \&quot;abc\&quot;&quot;})</code></pre></div>
 <p>결과값을 푸는 방법은 넷이다. 자세한 규칙은 <a href="../language/results.html">결과값과 에러</a>에 있다.</p>
 <table>
   <thead><tr><th>쓰는 법</th><th>뜻</th><th>어울리는 자리</th></tr></thead>

@@ -221,31 +221,42 @@ impl Session {
     /// when the session ends: `Some(None)` for `:quit`, `Some(Some(n))`
     /// for an `exit(n)` in a loaded file.
     fn command(&mut self, line: &str) -> Option<Option<i64>> {
-        let (name, arg) = line.split_once(' ').unwrap_or((line, ""));
+        let (name, arg) = line.split_once(char::is_whitespace).unwrap_or((line, ""));
+        let arg = arg.trim();
+        // Leftover arguments are an error, as in every command (TL7).
+        if matches!(name, ":help" | ":quit") && !arg.is_empty() {
+            let _ = writeln!(self.err, "error: {name} takes no arguments");
+            self.failed = true;
+            return None;
+        }
         match name {
             ":help" => {
                 let _ = self.out.write_all(HELP.as_bytes());
             }
             ":quit" => return Some(None),
             ":load" => {
-                let arg = arg.trim();
                 if arg.is_empty() {
-                    let _ = self.err.write_all(b":load needs a file path\n");
+                    let _ = self.err.write_all(b"error: :load needs a file path\n");
                     self.failed = true;
                     return None;
                 }
                 match crate::read_file(arg.as_bytes()) {
                     Ok(src) => return self.eval(arg, &src).map(Some),
-                    Err(msg) => {
+                    Err(fail) => {
                         let _ = self.err.write_all(
-                            &[&crate::cannot_read(arg.as_bytes(), &msg)[..], b"\n"].concat(),
+                            &[
+                                b"error: ",
+                                &crate::cannot_read(arg.as_bytes(), &fail.reason)[..],
+                                b"\n",
+                            ]
+                            .concat(),
                         );
                         self.failed = true;
                     }
                 }
             }
             _ => {
-                let _ = writeln!(self.err, "unknown command {name}");
+                let _ = writeln!(self.err, "error: unknown command {name}");
                 self.failed = true;
             }
         }

@@ -9,9 +9,11 @@
 //! is dropped.
 //! So nothing a file starts reaches the next one.
 //!
-//! Exit codes: 2 if any file failed to compile, else 1 if any test
+//! Exit codes: 2 if any file failed to compile or could not be read
+//! (permission, not UTF-8; D30), else 1 if any test
 //! failed or none was found (`no tests found`, TL5), else 0; 3 for a
-//! usage error (arguments, a path that cannot be read, a bad
+//! usage error (arguments, a path that does not exist or a directory
+//! that cannot be walked, a bad
 //! `FUNG_SCHED_SEED`). An `exit(n)` inside a test file is a failure and skips
 //! the rest of that file; its code is not the command's. So does an exit
 //! a spawned task asks for, or a deadlock; when
@@ -27,8 +29,9 @@ use fung_front::loader::{Loader, Stage};
 use fung_front::source::{SourceMap, decode_lossy};
 use fung_vm::vm::{Runtime, Stop};
 
+use crate::args::{Spec, parse};
 use crate::run::ProcessOut;
-use crate::{Out, USAGE, paths, read_file, restore_name};
+use crate::{Out, paths, read_file, restore_name, usage_error};
 
 /// What one file added to the summary.
 #[derive(Default)]
@@ -42,16 +45,20 @@ struct Tally {
 /// the process streams as the files run (the files' own output among
 /// it); the returned `Out` carries only a usage error and the exit code.
 pub fn run_test(raw: &[Vec<u8>]) -> Out {
-    let root: &[u8] = match raw {
+    let args: Vec<String> = raw.iter().map(|a| decode_lossy(a)).collect();
+    const SPEC: Spec = Spec {
+        flags: &[],
+        code: false,
+        to_script: false,
+    };
+    let p = match parse(&args, raw, &SPEC) {
+        Ok(p) => p,
+        Err(out) => return out,
+    };
+    let root: &[u8] = match &p.raw[..] {
         [] => b".",
-        [p] => p,
-        _ => {
-            return Out {
-                stderr: [b"error: test takes at most one path\n\n", USAGE.as_bytes()].concat(),
-                code: EXIT_USAGE,
-                ..Out::default()
-            };
-        }
+        [path] => path,
+        _ => return usage_error(b"test takes at most one path"),
     };
     let (seed, chosen) = match sched_seed() {
         Ok(s) => s,
@@ -177,11 +184,17 @@ fn test_file(
     let stderr = &mut ProcessOut::stderr();
     let src = match read_file(path) {
         Ok(s) => s,
-        Err(msg) => {
+        Err(fail) => {
             // a file that cannot be read fails like one that cannot load
             let _ = stdout.write_all(&[b"FAIL ", path, b": <load>\n"].concat());
-            let _ = stderr
-                .write_all(&[b"error: ", &crate::cannot_read(path, &msg)[..], b"\n"].concat());
+            let _ = stderr.write_all(
+                &[
+                    b"error: ",
+                    &crate::cannot_read(path, &fail.reason)[..],
+                    b"\n",
+                ]
+                .concat(),
+            );
             t.compile_failed = true;
             t.failed += 1;
             return t;

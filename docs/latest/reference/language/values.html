@@ -87,7 +87,7 @@
     <tr><td><code>float</code></td><td><code>3.14</code></td><td>64비트 실수. <code>NaN</code>·<code>Inf</code>가 되면 에러.</td></tr>
     <tr><td><code>str</code></td><td><code>"a"</code></td><td>불변 바이트 열, UTF-8로 읽는 글자 단위 인덱스.</td></tr>
     <tr><td><code>bool</code></td><td><code>true</code></td><td>조건 자리에는 bool만 온다.</td></tr>
-    <tr><td><code>nil</code></td><td><code>nil</code></td><td>"없음"이라는 정상 값. <code>==</code>, <code>??</code>, 출력, 컬렉션에 담기 외의 연산은 에러.</td></tr>
+    <tr><td><code>nil</code></td><td><code>nil</code></td><td>"없음"이라는 정상 값. <code>==</code>, <code>??</code>, 출력, 컬렉션에 담기 외의 연산(<code>!</code>·<code>?</code> 포함)은 에러.</td></tr>
     <tr><td><code>sym</code></td><td><code>'ok</code></td><td>이름만 있는 값.</td></tr>
     <tr><td><code>dur</code></td><td><code>1h30m</code></td><td>기간. 기간끼리 <code>+ -</code>와 <code>/ // %</code>, 숫자와 <code>* /</code>, 순서 비교.</td></tr>
     <tr><td><code>time</code></td><td><code>time.now()</code></td><td>시각. 리터럴 없음. <code>± dur</code>, <code>time - time</code>은 기간, 순서 비교. 출력은 ISO 8601.</td></tr>
@@ -119,7 +119,8 @@
     <tr><td>dur, time</td><td>값(time은 같은 순간이면 시간대 무관)</td><td>값</td></tr>
     <tr><td>list, tuple</td><td>원소가 차례로 같음</td><td>앞 원소부터 사전식</td></tr>
     <tr><td>map</td><td>키 집합과 값이 같음(순서 무시)</td><td>에러</td></tr>
-    <tr><td>bool, nil, sym, 태그, range</td><td>값</td><td>에러</td></tr>
+    <tr><td>bool, nil, sym, 태그</td><td>값</td><td>에러</td></tr>
+    <tr><td>range</td><td>같은 정수 열(<code>0..5 == 0..=4</code>, 빈 범위끼리는 같음). 출력은 쓴 모양 그대로</td><td>에러</td></tr>
     <tr><td>fn, module, file, task, scope, sender, receiver, atom</td><td>같은 객체인가</td><td>에러</td></tr>
     <tr><td>타입이 다를 때</td><td><code>false</code>(숫자끼리 제외). 단 심볼과 문자열은 에러 E0517</td><td>에러</td></tr>
   </tbody>
@@ -127,7 +128,7 @@
 <p><code>sort</code>, <code>unique</code>, <code>contains</code>, <code>in</code>은 모두 이 표를 따른다.</p>
 <p><strong>심볼과 문자열의 비교는 에러다.</strong> JSON·파일·명령 출력에서 온 값은 늘 문자열이라 <code>back.kind == 'not_found</code>가 조용히 거짓이 되는 것이 가장 흔한 함정이기 때문이다. 리스트·맵 안에서 맞붙어도, <code>in</code>도 같다. 다만 <code>==</code>가 실제로 견주는 쌍만 본다. 첫 차이에서 멈추므로 <code>[1, 'a] == [2, "a"]</code>는 <code>false</code>다. 문자열 쪽을 <code>sym(s)</code>로 바꾼다. 패턴(<code>'not_found =&gt;</code>)은 비교가 아니라서 그대로 맞지 않을 뿐이다.</p>
 <h2 id="edges">경계 사례와 에러</h2>
-<p>맵의 키는 문자열이다. 다른 값을 키로 쓰면 바꾸라는 힌트와 함께 멈춘다(<code>group_by</code>의 키 함수도 문자열을 돌려줘야 한다).</p>
+<p>맵의 키는 문자열이다. 다른 값을 키로 쓰면 어느 자리에서든(<code>m[k]</code>, <code>k in m</code>, <code>get</code>·<code>put</code>·<code>remove</code>, <code>group_by</code>의 키 함수) 바꾸라는 힌트와 함께 E0514로 멈춘다. 심볼 키(<code>m['a]</code>)면 힌트가 문자열로 쓰는 법을 보인다.</p>
 <div class="run"><pre><code>print(group_by([&quot;ab&quot;, &quot;c&quot;], s =&gt; &quot;${len(s)}&quot;))
 print(group_by([&quot;ab&quot;, &quot;c&quot;], s =&gt; len(s)))</code></pre><pre class="out err plain" data-code="1"><code>{&quot;2&quot;: [&quot;ab&quot;], &quot;1&quot;: [&quot;c&quot;]}
 error[E0514]: cannot use a value of type int as a map key
@@ -138,7 +139,7 @@ error[E0514]: cannot use a value of type int as a map key
   |
  call path (innermost first):
    example.fung:2 &lt;entry&gt;
- help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x =&gt; str(x % 2))`</code></pre></div>
+ help: map keys are strings: convert the key with `str(k)`</code></pre></div>
 <p>심볼과 문자열은 다른 값이다. 둘을 견주면 언제나 거짓이 되므로 에러다.</p>
 <div class="run"><pre><code>print('ok == 'ok)
 print('ok == &quot;ok&quot;)</code></pre><pre class="out err plain" data-code="1"><code>true

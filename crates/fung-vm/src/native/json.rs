@@ -12,7 +12,9 @@ use fung_front::diag::{Arg, quote};
 
 use super::nat::{self, native_step, opt, param};
 use crate::prelude::{MAX_CHARS, too_many_chars};
-use crate::value::{ListBuilder, Lit, MapBuilder, Module, Native, Text, Value, format, type_name};
+use crate::value::{
+    Args, ListBuilder, Lit, MapBuilder, Module, Native, Text, Value, format, type_name,
+};
 use crate::vm::pieces::{self, STEP_BYTES, Work};
 use crate::vm::{Flow, Stop, Task};
 
@@ -29,7 +31,7 @@ pub fn module() -> Rc<Module> {
                 native_step(
                     "stringify",
                     stringify_fn,
-                    vec![param("v"), opt("indent", Lit::Nil)],
+                    vec![param("x"), opt("indent", Lit::Nil)],
                 ),
             ),
         ]
@@ -42,7 +44,7 @@ pub fn module() -> Rc<Module> {
 }
 
 /// `json.parse(s)`, read a piece at a time (L6, `vm/pieces.rs`).
-fn parse_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn parse_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let text = nat::need_bytes("s", &a[0])?;
     // JSON text is UTF-8 (RFC 8259): other bytes are a parse failure where
     // they start, like any other bad input.
@@ -479,7 +481,7 @@ fn read(
 // stringify
 
 /// `json.stringify(v, indent)`, written a piece at a time (L6).
-fn stringify_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn stringify_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let indent = match &a[1] {
         Value::Nil => 0,
         Value::Int(n) if *n < 0 => {

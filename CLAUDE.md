@@ -10,8 +10,10 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
 3. `docs/design/09-implementation-plan.md` — 구조, 마일스톤, 테스트 전략
 4. `docs/design/open-questions.md` — 아직 정하지 않은 세부 사항
 
-설계 문서가 기준이다. 구현 중 설계와 충돌하거나 문서에 없는 결정이 필요하면,
-임의로 정하지 말고 **선택지 + 추천 + 이유**로 사용자에게 묻고, 결정 후 해당 문서를 갱신한다.
+언어 규칙의 기준(규범)은 매뉴얼의 언어 명세(`manual/reference/language/`, 문법은 `grammar.md`)다. 생성기가 예제를 실행해 지키기 때문이다.
+설계 문서는 결정과 그 이유의 기록이고, 매뉴얼과 다르면 매뉴얼이 맞다(설계 문서를 고친다).
+구현 중 명세와 충돌하거나 어디에도 없는 결정이 필요하면, 임의로 정하지 말고 **선택지 + 추천 + 이유**로 사용자에게 묻고,
+결정 후 매뉴얼 명세와 해당 설계 문서(결정의 기록)를 함께 갱신한다.
 
 ## 사용자
 
@@ -52,7 +54,7 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
 - Cargo 작업 공간(`Cargo.toml`): `crates/fung-front`(앞단: 렉서·파서·desugar·resolve·컴파일러·포맷터·에러 카탈로그·로더),
   `crates/fung-vm`(값·VM·런타임·prelude·`_native.*` 다리), `crates/fung-cli`(실행 파일 `fung`: `run`·`-e`·`dump`·`check`·`test`·`fmt`·REPL·`version`·`help`).
   구조 설명은 `docs/design/09-implementation-plan.md`, 매뉴얼의 내부 구조(`manual/vm/internals.md`).
-- `extras/*.fung`: fung으로 쓴 내장 모듈(`prelude`·`agent`·`fs`·`path`·`cli`·`conc`·`json`·`time`·`regex`·`http`). `fung-front/src/extras.rs`가 `include_str!`로 넣는다.
+- `extras/*.fung`: fung으로 쓴 내장 모듈(`prelude`·`fs`·`path`·`cli`·`conc`·`json`·`time`·`regex`·`http`). `fung-front/src/extras.rs`가 `include_str!`로 넣는다.
 - `spec/builtins.txt`·`spec/errors.txt`: Rust 표(`fung_vm::boot`, `fung_front::diag::catalog`)에서 생성하고 테스트가 같은지 지킨다. 갱신은 `FUNG_UPDATE_SPEC=1 cargo test spec_file`.
   `spec/unicode.txt`(식별자·대문자·보이는 글자·표시 너비·글자 묶음)·`spec/unicode_nfc.txt`는 유니코드 문자 데이터베이스에서 생성한다(`FUNG_UPDATE_SPEC=1 FUNG_UCD=<dir> cargo test -p fung-front unicode_spec_file`, 01). 에러 번호는 `crates/fung-front/src/diag/catalog.rs`에서 할당하며 한 번 붙이면 바꾸지 않는다.
 - 골든 테스트: `tests/lang/*.fung`의 `# expect:`·`# expect-error:` 주석을 `crates/fung-cli/tests/golden.rs`가 실제 실행과 비교한다(`FUNG_GOLDEN_BIN`으로 다른 바이너리).
@@ -104,8 +106,14 @@ fung은 Rust로 구현한 개인용 실용적 함수형 스크립트 언어다 (
   같은 날 결정 항목 33개 가운데 22개를 사용자 결정(전부 추천안)대로 고쳐 main에 스쿼시했다(0.6.0에 포함, 문서의 각 항목에 `처리:` 줄): VM1·VM2(모든 블록의 문장 뒤 놓기, 대입이 생존을 끊음),
   FE1 FE4(E0231) TL1 SP2(E0519) LB2, SP3 SP4 FE17(E0232) FE18 FE20(E0233) VM4 VA8 VA9 LB7 LB8 LB9(E0520) LB10(E0521) LB11 CC1 CC5, 함께 FE12 LB6 CC3 VM10(a).
   이어서(2026-11-08~09, main에 스쿼시, 0.6.0 릴리스 2026-11-09) 나머지 76개를 모두 처리했다. **사용자 지침: 하위 호환 무시, 엄격함 우선, 예외·특수한 경우 최소화(매뉴얼이 간단해지는 쪽)**, 남은 결정 20개를 이 지침으로 다시 판단해 모두 새 추천안대로.
+- 두 번째 전체 점검 (2026-11-10, 0.6.0 뒤, 기준 `4fe5af3`): 고칠 항목 74개를 `docs/plans/2026-11-10-full-review.md`에 모았다(같은 형식, 번호는 지난 점검에 이어 SP12~·FE23~·VM14~·VA18~·CC9~·LB23~·TL6~, 지난 항목은 "11-08 VM4"처럼 적음).
+  높음은 CC9(취소·기한 중의 E0607). 1절 총평·2절 추천 순서를 보고 **개별 세션에서 묶음 또는 항목 하나씩** 고친다.
   큰 것: `timeout(f, d)`·`send_now`·`recv_now`·`close(x)` 하나(`fs.close` 삭제, SP10), 매뉴얼 언어 명세가 규범이고 EBNF는 `grammar.md` 한 곳(SP5·SP8), 새 번호 E0118~E0124(FE15), 홀로 선 `\r`은 E0101(FE13),
   `fs.write`는 원자적(LB17), 날짜 없는 `time.parse` 형식은 E0403(LB20), REPL·`fung test`의 종료 코드(TL3·TL5), 람다 매개변수는 `fn`과 같은 패턴만. 묶음마다 판단은 점검 문서의 `처리` 줄.
+- 두 번째 전체 점검 고침 (2026-11-10~11, main에 스쿼시, 미릴리스. macOS FIFO 읽기의 백오프 다시 보기도 함께, `docs/notes/bench-languages.md` 4.9절): 74개 모두 처리. 결정 D1~D34(사용자 "모두 추천대로", 엄격한 쪽 일곱 곳)와 작업 18개는 `docs/plans/2026-11-10-full-review-fixes.md`, 항목마다 `처리:` 줄.
+  큰 것: 버려지는 효과 없는 식 E0234, 모두 맞는 절 뒤의 절 E0235, `Ok`·`Err`는 값 하나(E0236), `nil?`은 E0604, 괄호가 트리에 남아 파이프·슬라이스를 정함(E0125), 거꾸로 된 범위 값 E0522, 개수·기간 인자는 음수 E0403,
+  `parse_*`는 리터럴 규칙, `fs.exists`는 `Ok(bool)`, `cli.parse`는 `Ok`/`Err`, 신호로 끝난 명령은 `signal`, 한도를 넘는 바깥 글은 `Err`, HTTP는 받은 그대로(`header_lines`·`target`·`query_pairs`)·자동 `Referer` 없음,
+  CLI 종료 코드 2/3과 옵션 파서 하나, E0231·E0705 은퇴, 이름 `is_utf8`·`env_all`·`sym_name`(`range()` 삭제), 성능 VM15·VM16(`fib` −21%). 측정 `docs/notes/bench-languages.md` 4.5~4.8절.
 - 다른 언어와의 성능 비교 (2026-10-21): Python·Lua·Ruby·Node와 13개 작업, 프로그램 `bench/compare/`(`python3 -I bench/compare/run.py target/release/fung`), 기록 `docs/notes/bench-languages.md`.
   약점은 파일·텍스트 처리량. **다음 성능 작업**: P8~P11·P13은 2026-10-25에 끝(기록 `docs/notes/bench-languages.md` 4.1절). L15에서 P14·P12b·레지스터 VM을 닫았다(`docs/notes/bench-languages.md` 4.3·4.4절).
 - 작업 흐름: 이식 단계는 작업 브랜치에 쌓고 사용자가 요청할 때 main에 스쿼시 머지한다. 스쿼시 머지 뒤에는 곧바로 브랜치를 main 위로 다시 올린다(`git rebase --onto`).

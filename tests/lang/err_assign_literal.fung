@@ -1,0 +1,4 @@
+# Assignment, `for` and parameters take one destructuring pattern (FE32,
+# D10): a literal cannot stand at its top level.
+"a" | "b" = "a"
+# expect-error: E0112

@@ -190,7 +190,7 @@ fn syntax_errors() {
         ("1 < 2 < 3", "E0111"),
         ("a == b == c", "E0111"),
         ("1 +", "E0110"),
-        ("(1", "E0110"),
+        ("(1", "E0112"),
         ("1 2", "E0110"),
         (")", "E0110"),
         ("print(1,,2)", "E0110"),
@@ -440,20 +440,20 @@ fn return_and_named_args() {
         ),
     ]);
     check_errs(&[
-        ("f(a: 1, 2)", "E0110"),
+        ("f(a: 1, 2)", "E0126"),
         ("fn (a) = a", "E0124"),
         ("fn f(a = 1, b) = a", "E0120"),
         ("fn f(a: ) = a", "E0110"),
         ("fn f(a, a) = a", "E0119"),
         ("x =>", "E0110"),
         ("fn f() -> = 1", "E0110"),
-        ("fn f(...a, b) = a", "E0110"),
+        ("fn f(...a, b) = a", "E0112"),
     ]);
 }
 
 #[test]
 fn lambda_params_require_commas() {
-    assert_eq!(perr("(a b) => a + b"), "E0110");
+    assert_eq!(perr("(a b) => a + b"), "E0112");
 }
 
 #[test]
@@ -610,16 +610,157 @@ fn nested_indexing_parses_in_linear_time() {
             "(program (slice xs (binary + a 1) (missing)))",
         ),
         ("xs[a..b + 1]", "(program (slice xs a (binary + b 1)))"),
-        (
-            "xs[a..b ?? c]",
-            "(program (index xs (coalesce (range .. a b) c)))",
-        ),
+        // both ends take looser operators than `..` (FE27, D7)
+        ("xs[a..b ?? c]", "(program (slice xs a (coalesce b c)))"),
         ("xs[a ?? 0]", "(program (index xs (coalesce a 0)))"),
         (
             "xs[f(x)[0]..]",
             "(program (slice xs (index (call f x) 0) (missing)))",
         ),
     ]);
+}
+
+#[test]
+fn a_slice_is_a_range_directly_inside_the_brackets() {
+    // FE27, D7: only a `..` at the top level of `[ ]` makes a slice, and
+    // both of its ends are full expressions; a range in parentheses or
+    // deeper is a range value used as an index.
+    check(&[
+        ("xs[(0..2)]", "(program (index xs (range .. 0 2)))"),
+        (
+            "xs[f(0..2)]",
+            "(program (index xs (call f (range .. 0 2))))",
+        ),
+        (
+            "xs[[0..2][0]]",
+            "(program (index xs (index (list (range .. 0 2)) 0)))",
+        ),
+        ("xs[a ?? 1..2]", "(program (slice xs (coalesce a 1) 2))"),
+        (
+            "xs[a ?? 1..=b ?? 2]",
+            "(program (slice ..= xs (coalesce a 1) (coalesce b 2)))",
+        ),
+        ("xs[..b |> f]", "(program (slice xs (missing) (pipe b f)))"),
+        (
+            "xs[..=b ?? 2]",
+            "(program (slice ..= xs (missing) (coalesce b 2)))",
+        ),
+        (
+            "xs[ys[0..1]..]",
+            "(program (slice xs (slice ys 0 1) (missing)))",
+        ),
+        (
+            "xs[match y: _ => f(0..2) ;;]",
+            "(program (index xs (match y (arm (pwild) (nil) (block (call f (range .. 0 2)))))))",
+        ),
+        (
+            "xs[match y: _ => 0..2 ;;]",
+            "(program (index xs (match y (arm (pwild) (nil) (block (range .. 0 2))))))",
+        ),
+    ]);
+    check_errs(&[
+        ("xs[0..1..2]", "E0118"),
+        ("xs[0..1..]", "E0118"),
+        ("xs[..1..2]", "E0118"),
+        ("xs[0..=1..2]", "E0118"),
+    ]);
+}
+
+#[test]
+fn only_a_dot_dot_directly_inside_the_brackets_is_the_slice() {
+    // An `if` condition, a `match` subject, a `for` iterable and the
+    // branch between `then` and `else` are nested expressions: their
+    // ranges stay ranges.
+    for src in [
+        "xs[if i in 0..3: 0 else: 1 ;;]",
+        "xs[match 0..2: _ => 1 ;;]",
+        "xs[for x in 0..2: x ;; |> len]",
+        "xs[c then 0..1 else 2]",
+    ] {
+        let n = parse(&toks_of(src)).unwrap_or_else(|d| panic!("{src}: {}", d.code));
+        assert_eq!(n.kids[0].head, Head::Index, "{src}: {n}");
+    }
+}
+
+#[test]
+fn a_slice_end_cannot_hide_a_looser_operator() {
+    // A comparison, `in`, `not`, `and`/`or` or `then … else` at the top of
+    // a slice's end binds looser than `..` would elsewhere; the meaning
+    // would change silently, so it needs parentheses (E0125).
+    check_errs(&[
+        ("xs[c then 0 else 1..2]", "E0125"),
+        ("xs[1 in 0..3 then 0 else 1]", "E0125"),
+        ("xs[a < b..]", "E0125"),
+        ("xs[..a or b]", "E0125"),
+        ("xs[0..=a and b]", "E0125"),
+        ("xs[not a..]", "E0125"),
+        ("xs[a not in b..]", "E0125"),
+    ]);
+    check(&[
+        (
+            "xs[(c then 0 else 1)..2]",
+            "(program (slice xs (then c 0 1) 2))",
+        ),
+        (
+            "xs[a ?? 0..b |> f]",
+            "(program (slice xs (coalesce a 0) (pipe b f)))",
+        ),
+    ]);
+}
+
+#[test]
+fn parentheses_stay_marked_in_the_tree() {
+    // FE27, D7: the pipe needs to tell `x |> f(1)` from `x |> (f(1))`.
+    for (src, paren) in [("(f(1))", true), ("f(1)", false), ("((x))", true)] {
+        let n = parse(&toks_of(src)).unwrap();
+        assert_eq!(n.kids[0].paren, paren, "{src}");
+    }
+    let n = parse(&toks_of("x |> (f(1))")).unwrap();
+    assert!(n.kids[0].kids[1].paren);
+    assert!(!n.kids[0].kids[0].paren);
+}
+
+#[test]
+fn assignment_for_and_parameters_take_one_destructuring_pattern() {
+    // FE32, D10: a name, `_`, tuple, list, map or tag with values, or
+    // alternatives of them; literals only inside.
+    check(&[
+        (
+            "Ok(x) | Err(x) = r",
+            "(program (assign (palt (ptag Ok (pbind x)) (ptag Err (pbind x))) r))",
+        ),
+        (
+            "(1, y) = p",
+            "(program (assign (ptuple (plit 1) (pbind y)) p))",
+        ),
+        (
+            "for (k, 1) in xs: k ;;",
+            "(program (for (ptuple (pbind k) (plit 1)) xs (block k)))",
+        ),
+    ]);
+    check_errs(&[
+        ("1 = 1", "E0112"),
+        ("'a = 'a", "E0112"),
+        ("nil = nil", "E0112"),
+        ("\"a\" | \"b\" = \"a\"", "E0112"),
+        ("Ok(x) | 1 = r", "E0112"),
+        ("-1 = x", "E0112"),
+        ("for 1 in xs: 1 ;;", "E0112"),
+        ("for Red in xs: 1 ;;", "E0112"),
+        ("for x | 1 in xs: 1 ;;", "E0112"),
+        ("fn f(Red) = 1", "E0112"),
+        ("fn f(Ok(x) | 2) = 1", "E0112"),
+        ("f = (1) => 1", "E0112"),
+        ("f = ('a) => 1", "E0112"),
+    ]);
+}
+
+#[test]
+fn match_takes_negative_durations() {
+    check(&[(
+        "match d: -1s => a; -1m30s => b ;;",
+        "(program (match d (arm (plit -1s) (nil) (block a)) (arm (plit -1m30s) (nil) (block b))))",
+    )]);
 }
 
 #[test]
@@ -652,7 +793,7 @@ fn arm_head_errors_point_at_the_mistake() {
         "E0110 3:13"
     );
     // A broken first pattern is reported inside the pattern.
-    assert_eq!(ast("x = match 3:\n  Ok(y => 1\n;;"), "E0110 2:8");
+    assert_eq!(ast("x = match 3:\n  Ok(y => 1\n;;"), "E0112 2:8");
 }
 
 #[test]
@@ -689,10 +830,6 @@ fn postfix_and_new_infix() {
         (
             "xs[n |> half..]",
             "(program (slice xs (pipe n half) (missing)))",
-        ),
-        (
-            "xs[c then 1 else 2..]",
-            "(program (slice xs (then c 1 2) (missing)))",
         ),
         ("m.name.first", "(program (field first (field name m)))"),
         ("f(1)!", "(program (unwrap ! (call f 1)))"),
@@ -909,6 +1046,17 @@ fn a_tag_pattern_with_empty_parentheses_is_an_error() {
     assert_eq!(p("x = Red"), "(program (assign x Red))");
 }
 
+/// A result holds exactly one value (02, SP12): `Ok`/`Err` patterns with
+/// another count could never match, so they are E0236.
+#[test]
+fn a_result_pattern_takes_exactly_one_value() {
+    assert_eq!(perr("match x: Ok(a, b) => 1 ;;"), "E0236");
+    assert_eq!(perr("match x: Err(a, b, c) => 1 ;;"), "E0236");
+    assert_eq!(perr("match x: Pair(Ok(a, _)) => 1 ;;"), "E0236");
+    assert_eq!(perr("Ok(a, b) = x"), "E0236");
+    assert!(p("match x: Ok(a) => 1; Pair(a, b) => 2 ;;").starts_with("(program"));
+}
+
 /// A name given twice in one call is caught before running, as a map
 /// literal's key is (E0116; a positional and a named argument for the same
 /// parameter is still E0405 at the call, which knows the parameters).
@@ -1033,8 +1181,8 @@ fn parameter_patterns() {
         ),
     ]);
     check_errs(&[
-        ("fn f((a, b) = 1) = a", "E0110"),
-        ("fn f((a, b): int) = a", "E0110"),
+        ("fn f((a, b) = 1) = a", "E0112"),
+        ("fn f((a, b): int) = a", "E0112"),
         ("(1 + 2) => 3", "E0112"),
     ]);
 }
@@ -1319,4 +1467,138 @@ fn an_import_list_takes_a_trailing_comma() {
     p("import path (base,)");
     p("import path (\n  base,\n  ext,\n)");
     assert_eq!(perr("import path ()"), "E0112");
+}
+
+/// A lex or parse error as `CODE line:col message`, its notes and its
+/// help, each on its own line.
+fn full_err(src: &str) -> String {
+    let mut sm = SourceMap::new();
+    let f = sm.add("t.fung", src);
+    let d = match lex(f, src) {
+        Ok((toks, _)) => match parse(&toks) {
+            Ok(n) => panic!("parse {src:?}: want error, got {n}"),
+            Err(d) => d,
+        },
+        Err(d) => d,
+    };
+    let mut out = format!(
+        "{} {}:{} {}",
+        d.code,
+        d.pos.line,
+        d.pos.col,
+        crate::diag::message(&d.code, &d.args)
+    );
+    for n in &d.notes {
+        out.push('\n');
+        out.push_str(n);
+    }
+    if let Some(h) = &d.help {
+        out.push_str("\nhelp: ");
+        out.push_str(h);
+    }
+    out
+}
+
+#[test]
+fn common_syntax_errors_say_what_was_expected() {
+    // FE26: a list stopped by something else than `,` or its closer says
+    // so, and where the bracket opened.
+    let cases = [
+        (
+            "x = [1, 2\nprint(x)",
+            "E0112 2:1 expected `,` or `]`, found name `print`\nnote: the `[` opened at 1:5",
+        ),
+        (
+            "x = [1, 2",
+            "E0112 1:10 expected `,` or `]`, found end of file\nnote: the `[` opened at 1:5",
+        ),
+        (
+            "x = {a: 1 b: 2}",
+            "E0112 1:11 expected `,` or `}`, found name `b`\nnote: the `{` opened at 1:5",
+        ),
+        (
+            "print(\"a\" \"b\")",
+            "E0112 1:11 expected `,` or `)`, found string `\"b\"`\nnote: the `(` opened at 1:6",
+        ),
+        (
+            "f(1, 2",
+            "E0112 1:7 expected `,` or `)`, found end of file\nnote: the `(` opened at 1:2",
+        ),
+        (
+            "x = (1, 2 3)",
+            "E0112 1:11 expected `,` or `)`, found integer `3`\nnote: the `(` opened at 1:5",
+        ),
+        (
+            "x = (1 2)",
+            "E0112 1:8 expected `,` or `)`, found integer `2`\nnote: the `(` opened at 1:5",
+        ),
+        (
+            "[a, b c] = xs",
+            "E0112 1:7 expected `,` or `]`, found name `c`\nnote: the `[` opened at 1:1",
+        ),
+        (
+            "f = (a b) => a",
+            "E0112 1:8 expected `,` or `)`, found name `b`\nnote: the `(` opened at 1:5",
+        ),
+        (
+            "fn f(a b) = a",
+            "E0112 1:8 expected `,` or `)`, found name `b`\nnote: the `(` opened at 1:5",
+        ),
+        // a positional argument after a named one has its own error
+        (
+            "f(b: 2, 1)",
+            "E0126 1:9 a positional argument cannot follow a named one",
+        ),
+        (
+            "f(b: 2, _)",
+            "E0126 1:9 a positional argument cannot follow a named one",
+        ),
+        (
+            "fn f(a, ...r, b = 1) = a",
+            "E0112 1:15 expected `)` after the rest parameter, found name `b`\nhelp: the rest parameter `...r` takes the surplus arguments, so it comes last",
+        ),
+        (
+            "fn f((a, b) = (1, 2)) = a",
+            "E0112 1:13 expected `,` or `)`, found `=`\nnote: the `(` opened at 1:5\nhelp: a destructuring parameter takes no type and no default",
+        ),
+        (
+            "fn f(...r = 1) = r",
+            "E0112 1:11 expected `,` or `)`, found `=`\nnote: the `(` opened at 1:5\nhelp: a rest parameter takes no default: it is `[]` when no arguments are left",
+        ),
+        // a string in single quotes
+        (
+            "x = 'hello'",
+            "E0101 1:11 unexpected character \"'\"\nhelp: strings use double quotes: `\"text\"`; a symbol is `'name`, with no closing quote",
+        ),
+        // the code of an interpolation ends at its `}`
+        (
+            "x = \"${}\"",
+            "E0112 1:8 expected an expression inside `${…}`, found `}`",
+        ),
+        ("x = \"${1 +}\"", "E0110 1:11 unexpected `}`"),
+        ("x = \"${1 2}\"", "E0110 1:10 unexpected integer `2`"),
+        // escapes: the escape as written, and a code point that is no
+        // character has its own error
+        ("x = \"\\q\"", "E0103 1:6 unknown escape `\\q` in string"),
+        (
+            "x = \"\\\t\"",
+            "E0103 1:6 unknown escape `\\` followed by U+0009 in string",
+        ),
+        (
+            "x = \"\\u{110000}\"",
+            "E0106 1:6 `\\u{110000}` is not a Unicode scalar value",
+        ),
+        (
+            "x = \"\\u{d800}\"",
+            "E0106 1:6 `\\u{d800}` is not a Unicode scalar value",
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (src, want) in cases {
+        let got = full_err(src);
+        if got != want {
+            bad.push(format!("{src:?}:\n got {got}\nwant {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }

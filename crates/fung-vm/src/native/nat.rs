@@ -149,6 +149,76 @@ pub fn err_value(kind: &str, message: &str, extra: Vec<(&str, Value)>) -> Value 
     tag("Err", vec![Value::Map(Rc::new(m.finish()))])
 }
 
+/// Whether text read from outside keeps to the string limit (LB29, D22):
+/// bytes bound the characters from above, so they are counted only past
+/// it.
+pub fn fits_limit(b: &[u8]) -> bool {
+    let max = crate::prelude::MAX_CHARS as usize;
+    b.len() <= max || fung_front::text::char_count(b) <= max
+}
+
+/// The reason a read gives for text past the string limit (D22):
+/// ``<what> is longer than the string limit (100000000 characters)``.
+pub fn too_long(what: &str) -> String {
+    format!(
+        "{what} is longer than the string limit ({} characters)",
+        crate::prelude::MAX_CHARS
+    )
+}
+
+/// The read error of text from outside past the string limit, for the
+/// readers that stop as soon as it passes (a line, a FIFO): its reason
+/// is ``<what> is longer than the string limit (…)`` (`oserr::reason`),
+/// its kind `'io`.
+pub fn too_long_error(what: &str) -> std::io::Error {
+    std::io::Error::other(too_long(what))
+}
+
+/// The characters of text that grows a piece at a time (a command's
+/// output), counted once each: a read can stop as soon as the text passes
+/// the string limit, before it holds all that comes (LB29).
+#[derive(Default)]
+pub struct CharCount {
+    /// The bytes counted so far: the buffer's start up to a byte no
+    /// character runs across.
+    counted: usize,
+    chars: usize,
+}
+
+impl CharCount {
+    /// Counts what `buf` gained since the last call; false once its
+    /// characters pass the string limit.
+    pub fn within(&mut self, buf: &[u8]) -> bool {
+        let max = crate::prelude::MAX_CHARS as usize;
+        buf.len() <= max || self.count(buf) <= max
+    }
+
+    /// The characters of `buf`, of which the part counted before is not
+    /// counted again.
+    pub fn count(&mut self, buf: &[u8]) -> usize {
+        // A character still coming may have begun in the last three
+        // bytes: the count stops before its first byte. Counted pieces
+        // then add up to the count of the whole (each starts at a byte
+        // no valid character runs across).
+        let mut end = buf.len();
+        for back in 1..=3 {
+            if end < back || end - back < self.counted {
+                break;
+            }
+            if buf[end - back] >= 0xC0 {
+                end -= back;
+                break;
+            }
+        }
+        if end > self.counted {
+            self.chars += fung_front::text::char_count(&buf[self.counted..end]);
+            self.counted = end;
+        }
+        // The uncounted rest is a few bytes at most.
+        self.chars + fung_front::text::char_count(&buf[self.counted..])
+    }
+}
+
 /// A list value from collected items.
 pub fn list(items: Vec<Value>) -> Value {
     let mut b = ListBuilder::with_capacity(items.len());
@@ -264,6 +334,17 @@ pub fn wrong_arg(name: &str, want: &str, v: &Value) -> Stop {
     fail("E0403", vec![s(name), s(want), Arg::Str(type_name(v))])
 }
 
+/// E0403: argument `name` must be a non-empty str, showing the value
+/// given when it is the empty string (`got ""`) and the type otherwise,
+/// as [`not_count`] shows a negative int.
+pub fn not_nonempty(name: &str, v: &Value) -> Stop {
+    let got = match v {
+        Value::Str(_) => crate::value::format(v),
+        _ => type_name(v),
+    };
+    fail("E0403", vec![s(name), s("a non-empty str"), Arg::Str(got)])
+}
+
 /// E0403: argument `name` must be a non-negative int, showing the value
 /// given (a negative int, or a value of another kind).
 pub fn not_count(name: &str, v: &Value) -> Stop {
@@ -285,14 +366,12 @@ pub fn need_map<'a>(verb: &str, v: &'a Value) -> Result<&'a Rc<crate::value::Map
     }
 }
 
-/// A map key argument, or E0501 (`cannot <verb> map and <type>`).
-pub fn need_key<'a>(verb: &str, v: &'a Value) -> Result<&'a Rc<Text>, Stop> {
+/// A map key argument, or E0514 (SP21, D13): the same error as `m[k]`
+/// and `k in m` give.
+pub fn need_key(v: &Value) -> Result<&Rc<Text>, Stop> {
     match v {
         Value::Str(k) => Ok(k),
-        _ => Err(fail(
-            "E0501",
-            vec![s(verb), s("map"), Arg::Str(type_name(v))],
-        )),
+        _ => Err(Stop::Error(Box::new(crate::value::index::not_a_key(v)))),
     }
 }
 
@@ -300,6 +379,34 @@ pub fn need_int(name: &str, v: &Value) -> Result<i64, Stop> {
     match v {
         Value::Int(n) => Ok(*n),
         _ => Err(wrong_arg(name, "int", v)),
+    }
+}
+
+/// A count or a limit: a non-negative int, else E0403 (`must be a
+/// non-negative int, got -1` for a negative one; SP15, D11).
+pub fn need_count(name: &str, v: &Value) -> Result<usize, Stop> {
+    match v {
+        Value::Int(n) if *n >= 0 => Ok(*n as usize),
+        Value::Int(_) => Err(not_count(name, v)),
+        _ => Err(wrong_arg(name, "int", v)),
+    }
+}
+
+/// A duration to wait or to allow: a non-negative dur, else E0403
+/// (`must be a non-negative dur, got -1s` for a negative one; SP15, D11).
+/// A wait that may come out negative says so with `max(d, 0s)`.
+pub fn need_dur(name: &str, v: &Value) -> Result<i64, Stop> {
+    match v {
+        Value::Dur(d) if *d >= 0 => Ok(*d),
+        Value::Dur(_) => Err(fail(
+            "E0403",
+            vec![
+                s(name),
+                s("a non-negative dur"),
+                Arg::Str(crate::value::format(v)),
+            ],
+        )),
+        _ => Err(wrong_arg(name, "dur", v)),
     }
 }
 
@@ -336,18 +443,6 @@ pub fn need_bytes<'a>(name: &str, v: &'a Value) -> Result<&'a [u8], Stop> {
     Ok(need_text(name, v)?.as_bytes())
 }
 
-/// Checks that every named argument is a string of text, in order.
-pub fn str_args<'a, const N: usize>(
-    args: &'a [Value],
-    names: [&str; N],
-) -> Result<[&'a str; N], Stop> {
-    let mut out = [""; N];
-    for (i, n) in names.iter().enumerate() {
-        out[i] = need_str(n, &args[i])?;
-    }
-    Ok(out)
-}
-
 /// Checks that every named argument is a string, in order: its bytes.
 pub fn bytes_args<'a, const N: usize>(
     args: &'a [Value],
@@ -358,6 +453,16 @@ pub fn bytes_args<'a, const N: usize>(
         out[i] = need_bytes(n, &args[i])?;
     }
     Ok(out)
+}
+
+/// A `dur | nil` argument: `None` for nil; a negative one is E0403 as
+/// for [`need_dur`].
+pub fn opt_dur(name: &str, v: &Value) -> Result<Option<i64>, Stop> {
+    match v {
+        Value::Nil => Ok(None),
+        Value::Dur(_) => need_dur(name, v).map(Some),
+        _ => Err(wrong_arg(name, "dur | nil", v)),
+    }
 }
 
 /// A `str | nil` argument of text.
@@ -402,6 +507,31 @@ pub fn str_list(name: &str, v: &Value) -> Result<Vec<Vec<u8>>, Stop> {
 mod tests {
     use super::*;
     use crate::value::Range;
+
+    /// LB29: text counted a piece at a time, cut anywhere (inside a
+    /// character, between invalid bytes), has the characters of the
+    /// whole.
+    #[test]
+    fn characters_counted_in_pieces_add_up() {
+        let text: Vec<u8> = [
+            "a\u{e9}\u{d55c}\u{1f600}".as_bytes(),
+            b"\xff\xe3\x82x\x80\x80\x80\x80\xf0\x9f",
+            "\u{1f600}\u{d55c}b".as_bytes(),
+            b"\xc3",
+        ]
+        .concat();
+        let whole = fung_front::text::char_count(&text);
+        for step in 1..=7 {
+            let mut c = CharCount::default();
+            let mut n = 0;
+            let mut end = 0;
+            while end < text.len() {
+                end = (end + step).min(text.len());
+                n = c.count(&text[..end]);
+            }
+            assert_eq!(n, whole, "pieces of {step}");
+        }
+    }
 
     fn range(n: i64) -> Value {
         Value::Range(Rc::new(Range {

@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use crate::native::nat::{self, native, native_step, opt, param};
-use crate::value::{Lit, Native, NativeFn, StepFn, Value};
+use crate::value::{Args, Lit, Native, NativeFn, StepFn, Value};
 use crate::vm::channel::{self, Channel, Received, RecvWait, SendWait, Try};
 use crate::vm::{Cont, Flow, Next, Stop, Task, Wake, err_kind, park_until, park_until_then};
 
@@ -26,10 +26,10 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("sleep", vec![param("d")]),
                 ("scope", vec![param("f")]),
                 ("timeout", vec![param("f"), param("d")]),
-                ("atom", vec![param("v")]),
+                ("atom", vec![param("x")]),
                 ("deref", vec![param("a")]),
                 ("swap", vec![param("a"), param("f")]),
-                ("reset", vec![param("a"), param("v")]),
+                ("reset", vec![param("a"), param("x")]),
                 (
                     "with",
                     vec![param("acquire"), param("use"), param("release")],
@@ -39,9 +39,9 @@ fn all() -> Vec<(&'static str, Value)> {
                 ("await", vec![param("t")]),
                 ("cancel", vec![param("t")]),
                 ("channel", vec![opt("n", Lit::Int(0))]),
-                ("send", vec![param("tx"), param("v")]),
+                ("send", vec![param("tx"), param("x")]),
                 ("recv", vec![param("rx")]),
-                ("send_now", vec![param("tx"), param("v")]),
+                ("send_now", vec![param("tx"), param("x")]),
                 ("recv_now", vec![param("rx")]),
                 ("wait_closed", vec![param("rx")]),
                 ("close", vec![param("x")]),
@@ -95,19 +95,17 @@ pub fn natives() -> Vec<(&'static str, Value)> {
     all()
 }
 
-/// A duration argument as a wait: zero for zero and negative ones.
+/// A duration argument (`nat::need_dur`: never negative) as a wait.
 fn wait_of(d: i64) -> Duration {
-    Duration::from_nanos(d.max(0) as u64)
+    Duration::from_nanos(d as u64)
 }
 
-/// `sleep(d)`: waits for `d`; zero and negative durations
-/// return at once. A cancelled task wakes and unwinds with E0701.
-fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
-    let d = match &args[0] {
-        Value::Dur(d) => *d,
-        v => return Err(nat::wrong_arg("d", "dur", v)),
-    };
-    if d <= 0 {
+/// `sleep(d)`: waits for `d`; `0s` returns at once and a negative
+/// duration is E0403 (SP15, D11). A cancelled task wakes and unwinds
+/// with E0701.
+fn sleep(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
+    let d = nat::need_dur("d", &args[0])?;
+    if d == 0 {
         return Ok(Flow::Done(Value::Nil));
     }
     // A deadline past what `Instant` can hold is no deadline, but the
@@ -121,7 +119,7 @@ fn sleep(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `scope(f)`: opens a scope and runs `f(s)` in it (`vm/scope.rs`).
-fn scope(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+fn scope(t: &mut Task<'_>, mut args: Args) -> Result<Flow, Stop> {
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
     Ok(crate::vm::run_scope(t, f, None))
@@ -129,21 +127,19 @@ fn scope(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `timeout(f, d)`: runs `f()` with a deadline `d` from now
 /// (`vm/deadline.rs`).
-fn timeout(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+fn timeout(t: &mut Task<'_>, mut args: Args) -> Result<Flow, Stop> {
     // The function comes first, the duration second, as every native puts
     // what it works on first (SP10).
     let d = args.pop().expect("d");
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
-    let d = match d {
-        Value::Dur(d) => d,
-        v => return Err(nat::wrong_arg("d", "dur", &v)),
-    };
+    // A negative duration is E0403 (SP15, D11), not "at once".
+    let d = nat::need_dur("d", &d)?;
     Ok(crate::vm::run_timeout(t, d, f))
 }
 
 /// `atom(v)`: a new atom holding `v` (`vm/atom.rs`).
-fn atom(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn atom(_: &mut Task<'_>, mut args: Args) -> Result<Value, Stop> {
     crate::vm::atom_make(args.pop().expect("v"))
 }
 
@@ -155,12 +151,12 @@ fn need_atom(v: &Value) -> Result<&Rc<crate::vm::Atom>, Stop> {
 }
 
 /// `deref(a)`: the atom's value, without waiting.
-fn deref(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn deref(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
     Ok(crate::vm::atom_read(need_atom(&args[0])?))
 }
 
 /// `swap(a, f)`: compare-and-set with `f` of the value; the new value.
-fn swap(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+fn swap(t: &mut Task<'_>, mut args: Args) -> Result<Flow, Stop> {
     let f = args.pop().expect("f");
     let a = need_atom(&args[0])?.clone();
     nat::need_fn("f", &f)?;
@@ -168,14 +164,14 @@ fn swap(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `reset(a, v)`: sets the value; the new value.
-fn reset(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn reset(_: &mut Task<'_>, mut args: Args) -> Result<Value, Stop> {
     let v = args.pop().expect("v");
     crate::vm::atom_reset(need_atom(&args[0])?, v)
 }
 
 /// `with(acquire, use, release)`: `use(acquire())`, then `release` of
 /// what `acquire` gave, whatever `use` did (`vm/cleanup.rs`).
-fn with(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+fn with(_: &mut Task<'_>, mut args: Args) -> Result<Flow, Stop> {
     let release = args.pop().expect("release");
     let use_ = args.pop().expect("use");
     let acquire = args.pop().expect("acquire");
@@ -187,7 +183,7 @@ fn with(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `supervise(f, on_fail)`: a scope whose children's failures go to
 /// `on_fail` instead of failing it (`vm/scope.rs`).
-fn supervise(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+fn supervise(t: &mut Task<'_>, mut args: Args) -> Result<Flow, Stop> {
     let on_fail = args.pop().expect("on_fail");
     let f = args.pop().expect("f");
     nat::need_fn("f", &f)?;
@@ -196,7 +192,7 @@ fn supervise(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `spawn(s, f)`: runs `f` on a new task in scope `s`.
-fn spawn(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+fn spawn(t: &mut Task<'_>, mut args: Args) -> Result<Value, Stop> {
     let f = args.pop().expect("f");
     let s = args.pop().expect("s");
     let Value::Scope(h) = &s else {
@@ -209,7 +205,7 @@ fn spawn(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
 /// `await(t)`: the task's result, kept for later calls. A deadline
 /// around the wait (`timeout`) ends the wait, not the task; the waiter
 /// then leaves the task's list.
-fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+fn await_fn(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     let Value::Task(h) = &args[0] else {
         return Err(nat::wrong_arg("t", "task", &args[0]));
     };
@@ -228,7 +224,7 @@ fn await_fn(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `cancel(t)`: cancels the task and every task below it, or the scope
 /// (`vm/scope.rs`); a finished task is left as it is.
-fn cancel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn cancel(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
     match &args[0] {
         Value::Task(h) => h.cancel.cancel(),
         Value::Scope(h) => h.state.cancel(),
@@ -240,7 +236,7 @@ fn cancel(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 /// `channel(n = 0)`: the ends `(tx, rx)` of a rendezvous channel, or of
 /// one that buffers `n` values. Nothing is allocated up front, so `n` has
 /// no upper limit.
-fn channel_fn(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn channel_fn(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
     match &args[0] {
         Value::Int(n) if *n >= 0 => {
             let (tx, rx) = channel::pair(*n as usize);
@@ -263,27 +259,26 @@ fn need_sender(v: &Value) -> Result<&Rc<Channel>, Stop> {
 
 /// `send(tx, v)`: `Ok(nil)` once delivered,
 /// `Err({kind: 'closed, …})` on a closed channel (closed, or no receiving
-/// end left). E0705 when `v` contains an end of the same channel, E0709
-/// when it leads back to one through other channels or tasks
-/// (`refuse_cycle`), checked before anything else happens, so the error
-/// is the same whether or not the channel is closed or full.
-fn send(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+/// end left). E0709 when `v` contains an end of the same channel or
+/// leads back to one through other channels or tasks (`refuse_cycle`),
+/// checked before anything else happens, so the error is the same
+/// whether or not the channel is closed or full.
+fn send(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     refuse_cycle(need_sender(&args[0])?, &args[1])?;
     deliver(t, args)
 }
 
-/// E0705 or E0709 when keeping `v` in `ch`'s buffer would close a cycle
+/// E0709 when keeping `v` in `ch`'s buffer would close a cycle
 /// counting could never free (`channel::cycle_to`, L7).
 fn refuse_cycle(ch: &Rc<Channel>, v: &Value) -> Result<(), Stop> {
     match channel::cycle_to(channel::Place::Channel(ch), v) {
         channel::Cycle::No => Ok(()),
-        channel::Cycle::Itself => Err(nat::fail("E0705", vec![])),
-        channel::Cycle::Through => Err(nat::fail("E0709", vec![])),
+        channel::Cycle::Closes => Err(nat::fail("E0709", vec![])),
     }
 }
 
 /// The delivery itself.
-fn deliver(t: &mut Task<'_>, mut args: Vec<Value>) -> Result<Flow, Stop> {
+fn deliver(t: &mut Task<'_>, mut args: Args) -> Result<Flow, Stop> {
     let v = args.pop().expect("v");
     let Value::Sender(end) = &args[0] else {
         return Err(nat::wrong_arg("tx", "sender", &args[0]));
@@ -325,7 +320,7 @@ impl Cont for SendK {
 
 /// `recv(rx)`: `Ok(v)`, or `Err({kind: 'closed, …})` once the channel is
 /// closed and empty.
-fn recv(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+fn recv(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     let Value::Receiver(end) = &args[0] else {
         return Err(nat::wrong_arg("rx", "receiver", &args[0]));
     };
@@ -370,7 +365,7 @@ impl Cont for RecvK {
 /// `recv_now(rx)` (L3, SP10): what `recv` would take without waiting: `Ok(v)`,
 /// `Err({kind: 'empty, …})` while the channel is open with nothing to
 /// take, or `Err({kind: 'closed, …})` once it is closed and empty.
-fn recv_now(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
+fn recv_now(_: &mut Task<'_>, args: Args) -> Result<Value, Stop> {
     let Value::Receiver(end) = &args[0] else {
         return Err(nat::wrong_arg("rx", "receiver", &args[0]));
     };
@@ -382,8 +377,8 @@ fn recv_now(_: &mut Task<'_>, args: Vec<Value>) -> Result<Value, Stop> {
 /// `send_now(tx, v)` (L3, SP10): what `send` would do without waiting:
 /// `Ok(nil)` once handed to a waiting receiver or the buffer,
 /// `Err({kind: 'full, …})` when it would wait, `Err({kind: 'closed, …})`
-/// on a closed channel. E0705 and E0709 as `send`.
-fn send_now(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
+/// on a closed channel. E0709 as `send`.
+fn send_now(_: &mut Task<'_>, mut args: Args) -> Result<Value, Stop> {
     let v = args.pop().expect("v");
     refuse_cycle(need_sender(&args[0])?, &v)?;
     let Value::Sender(end) = &args[0] else {
@@ -399,25 +394,48 @@ fn send_now(_: &mut Task<'_>, mut args: Vec<Value>) -> Result<Value, Stop> {
 /// `wait_closed(rx)` (L3): waits until the channel closes and gives nil,
 /// taking nothing out (what is buffered stays). The wait holds `rx`, so
 /// waiting on the stop signal watches it (`stop.rs`), and such a wait is
-/// woken from outside: not a deadlock.
-fn wait_closed(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+/// woken from outside: not a deadlock. A deadlock report looks for the
+/// channel's sending end in the waiting task, as for `recv` (CC12).
+fn wait_closed(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     let Value::Receiver(end) = &args[0] else {
         return Err(nat::wrong_arg("rx", "receiver", &args[0]));
     };
-    let end = end.clone();
+    let me = t.waiter_handle();
+    me.take_woken();
+    if end.closed_or_watch(&me) {
+        return Ok(Flow::Done(Value::Nil));
+    }
     let wake = Wake {
         until: None,
         timed: end.external(),
     };
-    let left = end.clone();
-    let ready = move |_: &mut Task<'_>, me: &_| end.closed_or_watch(me).then_some(Ok(Value::Nil));
-    let leave = move |t: &mut Task<'_>| left.unwatch(&t.waiter_handle());
-    park_until_then(t, ready, wake, leave)
+    Ok(Flow::Park(Box::new(ClosedWait(end.clone(), wake)), wake))
+}
+
+/// A `wait_closed` parked until its channel closes.
+struct ClosedWait(Rc<crate::vm::Receiver>, Wake);
+
+impl Cont for ClosedWait {
+    fn receives_on(&self) -> Option<&Rc<crate::vm::Receiver>> {
+        Some(&self.0)
+    }
+
+    fn resume(&mut self, t: &mut Task<'_>, _: Value) -> Result<Next, Stop> {
+        Ok(match self.0.closed_or_watch(&t.waiter_handle()) {
+            true => Next::Done(Value::Nil),
+            false => Next::Park(self.1),
+        })
+    }
+
+    fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
+        self.0.unwatch(&t.waiter_handle());
+        Err(stop)
+    }
 }
 
 /// `close(tx)`: `Ok(nil)`, also on a closed channel. It closes for every
 /// copy of the end.
-fn close(t: &mut Task<'_>, args: Vec<Value>) -> Result<Flow, Stop> {
+fn close(t: &mut Task<'_>, args: Args) -> Result<Flow, Stop> {
     // One `close` for what can be closed (SP10): a file handle closes on
     // the pool, as `fs` did; a channel's sending end closes here.
     match &args[0] {

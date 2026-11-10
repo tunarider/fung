@@ -2,11 +2,10 @@
 //! blank lines and alignment from the lexer's tokens and comments,
 //! keeping the user's line breaks.
 //!
-//! It works on bytes: unlike `run` and `check`, which refuse a source
-//! that is not UTF-8 (E0312), the formatter accepts one, reading each
-//! invalid sequence as one U+FFFD, and writes every token and comment
-//! back as the bytes it came from, so such bytes survive unchanged. Alignment counts display columns (UAX #11: a wide
-//! character takes two, a combining one none; an invalid sequence one).
+//! Its source is text, as for `run` and `check`: a file that is not
+//! UTF-8 is refused before it gets here (D31). Every token and comment
+//! is written back as the bytes it came from. Alignment counts display
+//! columns (UAX #11: a wide character takes two, a combining one none).
 
 use crate::diag::{Arg, Diag, error};
 use crate::lexer::{self, Kind, Token};
@@ -54,28 +53,19 @@ struct Lexed {
     comments: Vec<Cmt>,
 }
 
-const BOM: &[u8] = "\u{feff}".as_bytes();
-
 /// Rewrites `src` in the single fung style (08). A syntax error comes
 /// back as is and nothing is formatted; an output whose tokens differ
 /// from the input is an internal error (E0801), never returned as text.
 /// `name` is the file's name for that error; positions point into
-/// [`FILE`].
+/// [`FILE`]. The source is text like the compiler's (the command reads
+/// it with `decode_source`, so a file that is not UTF-8 never gets here,
+/// D31). A leading byte order mark is skipped like the lexer skips it and
+/// never written back; a second one is code the lexer refuses (E0101).
 pub fn format(name: &str, src: &str) -> Result<String, Diag> {
-    let out = format_bytes(name, src.as_bytes())?;
-    // The output is cut from `src` at token and comment boundaries, so it
-    // stays UTF-8.
-    Ok(String::from_utf8(out).unwrap_or_else(|e| crate::source::decode_lossy(e.as_bytes())))
-}
-
-/// [`format`] on bytes, as the command reads files. A leading byte order
-/// mark is skipped like the lexer skips it and never written back; a
-/// second one is code the lexer refuses (E0101).
-pub fn format_bytes(name: &str, src: &[u8]) -> Result<Vec<u8>, Diag> {
-    let lexed = lex_bytes(FILE, src)?;
+    let lexed = lex_str(FILE, src)?;
     parser::parse(&lexed.tokens)?;
     // The lexer's offsets point into the source without the mark.
-    let src = src.strip_prefix(BOM).unwrap_or(src);
+    let src = src.strip_prefix('\u{feff}').unwrap_or(src).as_bytes();
     let mut lines = split_lines(src, &lexed.toks, &lexed.comments);
     layout(&mut lines);
     let lines = tidy_blank(lines);
@@ -91,36 +81,34 @@ pub fn format_bytes(name: &str, src: &[u8]) -> Result<Vec<u8>, Diag> {
             vec![Arg::Str(format!("formatter changed the code of {name}"))],
         ));
     }
-    Ok(out)
+    // The output is cut from `src` at token and comment boundaries, so it
+    // stays UTF-8.
+    Ok(String::from_utf8(out).expect("the output is cut from UTF-8 text at token boundaries"))
 }
 
-/// Lexes bytes: a leading byte order mark is trimmed, and an invalid
-/// UTF-8 sequence reads as one U+FFFD. Offsets and comment texts are
-/// mapped back to the trimmed bytes.
-fn lex_bytes(file: FileId, src: &[u8]) -> Result<Lexed, Diag> {
-    let body = src.strip_prefix(BOM).unwrap_or(src);
-    let (text, map) = decode(body);
-    let at = |off: usize| map.as_ref().map_or(off, |m| m[off]);
+/// Lexes text; a leading byte order mark is trimmed.
+fn lex_str(file: FileId, src: &str) -> Result<Lexed, Diag> {
+    let body = src.strip_prefix('\u{feff}').unwrap_or(src);
     let start = Pos {
         file,
         line: 1,
         col: 1,
     };
-    let (tokens, comments) = lexer::lex_at(file, &text, start, 0)?;
+    let (tokens, comments) = lexer::lex_at(file, body, start, 0)?;
     let toks = tokens
         .iter()
         .map(|t| Tok {
             kind: t.kind,
             line: t.pos.line,
-            off: at(t.off),
-            end: at(t.end),
+            off: t.off,
+            end: t.end,
         })
         .collect();
     let comments = comments
         .iter()
         .map(|c| Cmt {
             line: c.pos.line,
-            text: body[at(c.off)..at(c.off + c.text.len())].to_vec(),
+            text: body.as_bytes()[c.off..c.off + c.text.len()].to_vec(),
         })
         .collect();
     Ok(Lexed {
@@ -130,43 +118,13 @@ fn lex_bytes(file: FileId, src: &[u8]) -> Result<Lexed, Diag> {
     })
 }
 
-/// Decodes bytes (one U+FFFD for each invalid UTF-8 sequence). For bytes
-/// that are not UTF-8 it also gives, for each offset in the text, the
-/// offset of the byte it came from.
-fn decode(body: &[u8]) -> (String, Option<Vec<usize>>) {
-    if let Ok(s) = std::str::from_utf8(body) {
-        return (s.to_string(), None);
-    }
-    let mut text = String::with_capacity(body.len() + 16);
-    let mut map = Vec::with_capacity(body.len() + 16);
-    let mut i = 0;
-    for chunk in body.utf8_chunks() {
-        for (k, _) in chunk.valid().char_indices() {
-            let len = chunk.valid()[k..].chars().next().map_or(0, char::len_utf8);
-            map.extend(std::iter::repeat_n(i + k, len));
-        }
-        text.push_str(chunk.valid());
-        i += chunk.valid().len();
-        if !chunk.invalid().is_empty() {
-            text.push('\u{fffd}');
-            map.extend(std::iter::repeat_n(i, '\u{fffd}'.len_utf8()));
-            i += chunk.invalid().len();
-        }
-    }
-    map.push(body.len());
-    (text, Some(map))
-}
-
 /// The columns `s` takes on screen: its grapheme clusters' widths
-/// (`unicode::display_width`, L17); an invalid UTF-8 sequence (a maximal
-/// invalid part, as `utf8_chunks` gives it) is one column, as a terminal
-/// shows one U+FFFD for it.
+/// (`unicode::display_width`, L17). `s` is a part of the source or of the
+/// output cut at token boundaries, so it is UTF-8.
 pub(crate) fn display_width(s: &[u8]) -> usize {
-    s.utf8_chunks()
-        .map(|chunk| {
-            crate::unicode::display_width(chunk.valid()) + usize::from(!chunk.invalid().is_empty())
-        })
-        .sum()
+    crate::unicode::display_width(
+        std::str::from_utf8(s).expect("a cut at token boundaries is UTF-8"),
+    )
 }
 
 /// Renders a line's tokens with the spacing table, and the byte offset
@@ -238,7 +196,10 @@ fn emit(src: &[u8], lines: &[Line]) -> Vec<u8> {
 /// The safety property: the output lexes to the same tokens and comments
 /// as the input, newlines aside.
 fn same(file: FileId, src: &[u8], a: &Lexed, out: &[u8]) -> bool {
-    let Ok(b) = lex_bytes(file, out) else {
+    let Ok(b) = std::str::from_utf8(out)
+        .map_err(drop)
+        .and_then(|t| lex_str(file, t).map_err(drop))
+    else {
         return false;
     };
     a.comments.len() == b.comments.len()

@@ -1,0 +1,5 @@
+# `?` takes only a result, as `!` does (SP13): a function that answers nil
+# (`env`, `find`, `get`) under `?` is a mistake, not a pass-through.
+fn home() = env("FUNG_NO_SUCH_VARIABLE")?
+print(home())
+# expect-error: E0604

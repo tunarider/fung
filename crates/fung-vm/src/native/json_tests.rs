@@ -37,9 +37,9 @@ fn run_step(
     args: Vec<Value>,
 ) -> Result<Value, Stop> {
     let crate::vm::NativeBody::Step(step) = n.body else {
-        return (n.plain())(t, args);
+        return (n.plain())(t, args.into());
     };
-    match step(t, args)? {
+    match step(t, args.into())? {
         crate::vm::Flow::Done(v) => Ok(v),
         crate::vm::Flow::Park(mut k, _) => loop {
             match k.resume(t, Value::Nil)? {

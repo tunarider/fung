@@ -64,6 +64,9 @@ pub(crate) struct ScopeState {
     /// Cancelled by `cancel(s)`: `scope(` then gives `Err({kind:
     /// 'cancelled})` instead of unwinding further.
     self_cancelled: Cell<bool>,
+    /// The body ended in a runtime error of its own (which cancels the
+    /// scope): a failure, not a cancellation (`given_up`).
+    body_failed: Cell<bool>,
     /// The ended children whose Err result is unread while a handle
     /// lives (L1): what is still unread when the scope closes fails it.
     unread: RefCell<Vec<std::rc::Weak<TaskState>>>,
@@ -151,6 +154,7 @@ impl ScopeState {
             failure: RefCell::new(None),
             also: RefCell::new(Vec::new()),
             self_cancelled: Cell::new(false),
+            body_failed: Cell::new(false),
             unread: RefCell::new(Vec::new()),
             sweep_at: Cell::new(SWEEP_MIN),
             policy,
@@ -190,6 +194,16 @@ impl ScopeState {
         self.node.cancel();
     }
 
+    /// Whether the scope unwinds on a cancellation that is no failure
+    /// (D1): `cancel(s)`, one from outside, a deadline or an exit, not a
+    /// child's failure or the body's own error. An Err that becomes
+    /// unreadable now was given up on with the rest of the scope, as a
+    /// cancelled task's is (05 "읽지 않은 `Err`"), so it is no failure:
+    /// whether the task ended before the cancellation does not matter.
+    pub(crate) fn given_up(&self) -> bool {
+        self.node.is_cancelled() && self.failure.borrow().is_none() && !self.body_failed.get()
+    }
+
     /// Whether tasks may still be spawned into it.
     pub(crate) fn is_open(&self) -> bool {
         self.open.get()
@@ -207,10 +221,11 @@ impl ScopeState {
     }
 
     /// The last handle of a child dropped its Err unread (`TaskHandle`'s
-    /// drop): a failure of the scope while it is open; once it has closed
-    /// the Err was reported already.
+    /// drop): a failure of the scope while it is open, unless the scope
+    /// is given up (`given_up`); once it has closed the Err was reported
+    /// already.
     pub(crate) fn unread_lost(&self, u: Unread) {
-        if self.is_open() {
+        if self.is_open() && !self.given_up() {
             self.lose(u);
         }
     }
@@ -340,8 +355,10 @@ impl TaskEnd {
         let s = self.scope.clone().expect("a task's scope");
         // An Err the function returned must be read (L1). With no handle
         // left (this end holds the only reference) it never can be: the
-        // task fails. Otherwise the scope keeps it until it is read.
+        // task fails. Otherwise the scope keeps it until it is read. A
+        // scope given up on a cancellation wants it no more (D1).
         if let Ok(v) = &r
+            && !s.given_up()
             && let Some(u) = Unread::of(v, self.state.at, &t.world)
         {
             if Rc::strong_count(&self.state) == 1 {
@@ -559,6 +576,11 @@ impl Scope {
     /// children are waited for.
     fn body_ended(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
         t.fiber.cancel = self.outer.take().expect("the opener's node");
+        if let Err(Stop::Error(d)) = &r
+            && !is_cancel(d)
+        {
+            self.state.body_failed.set(true);
+        }
         if r.is_err() {
             self.node.cancel();
         }
@@ -588,16 +610,20 @@ impl Scope {
     }
 
     /// Every child has ended: the scope closes. An Err still unread
-    /// fails it (L1); in a `supervise` scope that is not cancelled the
-    /// opener then runs `on_fail` for the failures nobody handled, in
-    /// order, before the scope settles.
+    /// fails it (L1), unless the scope was given up (D1); in a
+    /// `supervise` scope that is not cancelled the opener then runs
+    /// `on_fail` for the failures nobody handled, in order, before the
+    /// scope settles.
     fn closed(&mut self, t: &mut Task<'_>, r: Result<Value, Stop>) -> Result<Next, Stop> {
         let state = self.state.clone();
         state.open.set(false);
         let left: Vec<_> = state.unread.borrow_mut().drain(..).collect();
+        let given_up = state.given_up();
         for st in left.iter().filter_map(std::rc::Weak::upgrade) {
             let u = st.unread.borrow_mut().take();
-            if let Some(u) = u {
+            if let Some(u) = u
+                && !given_up
+            {
                 state.lose(u);
             }
         }

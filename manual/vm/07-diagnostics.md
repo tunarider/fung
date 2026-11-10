@@ -168,7 +168,7 @@ fn main():
 main()
 ```
 
-에러는 `firsts`의 2줄을 가리키고, 경로에는 `take` 다음에 `firsts`가 남는다.
+에러는 `firsts`의 2줄을 가리키고, 경로에는 `firsts`가 남는다. `take`의 프레임은 내장 함수의 것이라 경로에 보이지 않는다(내장 함수는 Rust로 썼든 fung으로 썼든 같다, [모듈](11-modules.html#builtin-errors)).
 
 ### 경고 {#warnings}
 

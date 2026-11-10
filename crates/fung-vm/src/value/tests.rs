@@ -37,7 +37,7 @@ fn fails(f: BinOp, a: Value, b: Value, code: &str) {
 }
 
 fn native(name: &'static str) -> Value {
-    fn never(_: &mut crate::vm::Task, _: Vec<Value>) -> Result<Value, crate::vm::Stop> {
+    fn never(_: &mut crate::vm::Task, _: crate::value::Args) -> Result<Value, crate::vm::Stop> {
         Ok(Value::Nil)
     }
     Value::Native(Native::leak(name, vec![], never))
@@ -1364,7 +1364,7 @@ fn slice_errors_name_the_index_as_written() {
     assert_eq!(shown(Some(0), Some(-4), true), Arg::Int(-4));
 }
 
-/// A one-byte string made by `chars`, `split(s, "")` or `s[i]` is shared,
+/// A one-byte string made by `chars` or `s[i]` is shared,
 /// not allocated each time (VA11); longer characters are their own.
 #[test]
 fn one_byte_characters_are_shared() {
@@ -1658,6 +1658,53 @@ fn a_returned_string_keeps_to_the_limit() {
         super::check_returned(&Value::tuple(vec![over])).is_ok(),
         "tuples are not walked"
     );
+}
+
+/// A string past the limit in bytes is counted once for good (VA26): the
+/// limit checks of what a native returns and of `+` use the remembered
+/// count, and the sum of two counted strings is the count of the result.
+#[test]
+fn a_wide_string_is_counted_once() {
+    use crate::prelude::MAX_CHARS;
+    let wide = Value::bytes("é".repeat(MAX_CHARS as usize / 2 + 1).into_bytes());
+    let Value::Str(w) = &wide else { panic!() };
+    assert_eq!(w.counted(), None);
+    super::check_returned(&wide).unwrap();
+    assert_eq!(w.counted(), Some(MAX_CHARS as usize / 2 + 1));
+    // a small counted string added to the counted wide one
+    let small = Value::bytes("é".repeat(100).into_bytes());
+    let Value::Str(sm) = &small else { panic!() };
+    sm.char_len();
+    let sum = super::arith::add(&wide, &small).unwrap();
+    let Value::Str(t) = &sum else { panic!() };
+    assert_eq!(t.counted(), Some(MAX_CHARS as usize / 2 + 1 + 100));
+    // the limit still holds
+    let over = Value::bytes(vec![b'a'; MAX_CHARS as usize]);
+    assert!(super::arith::add(&over, &Value::bytes(b"a".to_vec())).is_err());
+}
+
+/// `+` with a side that is not UTF-8 does not remember a count (bytes may
+/// join into a character at the seam), and `len` of the result is right.
+#[test]
+fn concatenating_non_utf8_text_remembers_no_count() {
+    let a = Value::bytes(vec![0xe2, 0x82]);
+    let b = Value::bytes(vec![0xac]);
+    let c = Value::bytes("é".as_bytes().to_vec());
+    for v in [&a, &b, &c] {
+        let Value::Str(t) = v else { panic!() };
+        t.char_len();
+    }
+    let Value::Str(x) = super::arith::add(&a, &b).unwrap() else {
+        panic!()
+    };
+    // E2 82 AC is one character, which neither half's count could know
+    assert_eq!(x.counted(), None);
+    assert_eq!(x.char_len(), 1);
+    let Value::Str(y) = super::arith::add(&c, &a).unwrap() else {
+        panic!()
+    };
+    assert_eq!(y.counted(), None);
+    assert_eq!(y.char_len(), 3); // é, then each stray byte
 }
 
 /// Adding a string and another value says how to join them (SP7): the

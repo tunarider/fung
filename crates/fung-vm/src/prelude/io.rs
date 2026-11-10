@@ -1,5 +1,5 @@
 //! Input and output natives: `exit`, `dbg`, `eprint`, `read_line`,
-//! `read_lines`. `f` is nil (standard input) or a file handle from
+//! `read_lines`. `file` is nil (standard input) or a file handle from
 //! `fs.open`, read on a pool thread.
 
 use std::sync::Arc;
@@ -7,13 +7,14 @@ use std::sync::Arc;
 use crate::native::file::{Fault, File};
 use crate::native::fs::fault_value;
 use crate::native::nat::{self, param};
+use crate::native::oserr;
 use crate::native::pipe::{self, Step};
-use crate::value::{Native, Value, format};
-use crate::vm::{Flow, IoStep, Stop, Task, Wake, park_io, park_until_then};
+use crate::value::{Args, Native, Value, format};
+use crate::vm::{Flow, Input, IoStep, Stop, Task, Wake, park_io, park_until_then};
 
 /// `exit(code = 0)` raises the exit signal (06): the VM unwinds through
 /// every `with`'s release, then the process ends with the code.
-pub(super) fn exit_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+pub(super) fn exit_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     // The system keeps the low eight bits of a status, so a code outside
     // 0..=255 would end as another one: exit(256) as success (TL1).
     match nat::need_int("code", &a[0])? {
@@ -50,7 +51,7 @@ pub fn dbg_at() -> &'static Native {
     })
 }
 
-fn dbg_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+fn dbg_fn(t: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
     let line = format!("dbg = {}\n", format(&a[0]));
     t.stderr()
         .write_all(line.as_bytes())
@@ -58,7 +59,7 @@ fn dbg_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
     Ok(a.swap_remove(0))
 }
 
-fn dbg_at_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
+fn dbg_at_fn(t: &mut Task<'_>, mut a: Args) -> Result<Value, Stop> {
     let (Value::Str(text), Value::Str(at)) = (&a[1], &a[2]) else {
         unreachable!("the compiler passes dbg's text and place as strings")
     };
@@ -73,7 +74,7 @@ fn dbg_at_fn(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `eprint(...)` is print to standard error.
-pub(super) fn eprint_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+pub(super) fn eprint_fn(t: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let mut line = nat::join_for_print(super::rest_items(&a[0]).iter());
     line.push(b'\n');
     t.stderr().write_all(&line).map_err(nat::write_err)?;
@@ -85,17 +86,20 @@ fn trim_line(line: &[u8]) -> &[u8] {
     line.strip_suffix(b"\r").unwrap_or(line)
 }
 
-/// `read_line(f = nil)`: Ok(line), Ok(nil) at the end. A handle that
+/// `read_line(file = nil)`: Ok(line), Ok(nil) at the end. A handle that
 /// cannot be read gives its `Err` value. A wait for standard input parks
 /// until its reader thread brings a line (`vm/stdin.rs`); a file's line
 /// already in its buffer is read here, and any other read is handed off
 /// (`nat::offload`).
-pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+pub(super) fn read_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     match &a[0] {
         Value::Nil => park_until_then(
             t,
             |t, _| match t.stdin_poll() {
-                Ok(l) => l.map(|l| Ok(line_value(l))),
+                Ok(None) => None,
+                Ok(Some(Input::Line(l))) => Some(Ok(line_value(STDIN, Some(l)))),
+                Ok(Some(Input::End)) => Some(Ok(line_value(STDIN, None))),
+                Ok(Some(Input::Failed(e))) => Some(Ok(stdin_err(&e))),
                 Err(e) => Some(Err(no_reader(&e))),
             },
             STDIN_WAKE,
@@ -114,7 +118,7 @@ pub(super) fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop
                 move |_, r| file_line_value(&h, r),
             )
         }
-        f => Err(nat::wrong_arg("f", "file | nil", f)),
+        f => Err(nat::wrong_arg("file", "file | nil", f)),
     }
 }
 
@@ -129,14 +133,14 @@ fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
         move |_, _| loop {
             match h.pipe_read_line() {
                 Ok(Step::Ready(Some(l))) if one => {
-                    return IoStep::Done(Ok(line_value(Some(l))));
+                    return IoStep::Done(Ok(line_value(&named(&h), Some(l))));
                 }
                 Ok(Step::Ready(Some(l))) => got.push(l),
-                Ok(Step::Ready(None)) if one => return IoStep::Done(Ok(line_value(None))),
+                Ok(Step::Ready(None)) if one => return IoStep::Done(Ok(line_value("", None))),
                 Ok(Step::Ready(None)) => {
-                    return IoStep::Done(Ok(lines_value(std::mem::take(&mut got))));
+                    return IoStep::Done(Ok(lines_value(&named(&h), std::mem::take(&mut got))));
                 }
-                Ok(Step::Wait(fd, interest)) => return pipe::io_step(fd, interest),
+                Ok(Step::Wait(fd, interest, at)) => return pipe::io_step(fd, interest, at),
                 Ok(Step::Fail(e)) => {
                     return IoStep::Done(fault_value(&h, "read", Fault::Io(e)));
                 }
@@ -147,13 +151,34 @@ fn pipe_lines(t: &mut Task<'_>, h: Arc<File>, one: bool) -> Result<Flow, Stop> {
     )
 }
 
-/// `Ok([...])` of the lines `read_lines` read, each without its ending.
-fn lines_value(ls: Vec<Vec<u8>>) -> Value {
+/// `Ok([...])` of the lines `read_lines` read from `who`, each without
+/// its ending, or the `Err` of a line past the string limit.
+fn lines_value(who: &str, ls: Vec<Vec<u8>>) -> Value {
+    if ls.iter().any(|l| !nat::fits_limit(trim_line(l))) {
+        return line_too_long(who);
+    }
     nat::ok(nat::list(
         ls.iter()
             .map(|l| Value::bytes(trim_line(l).to_vec()))
             .collect(),
     ))
+}
+
+/// What a read says it reads from: standard input, or a handle's path.
+const STDIN: &str = "standard input";
+
+fn named(h: &File) -> String {
+    format!("`{}`", fung_front::text::lossy(&h.path))
+}
+
+/// A line read from outside past the string limit is the read's `Err`
+/// (LB29, D22), as other failures of the input are.
+fn line_too_long(who: &str) -> Value {
+    nat::err_value(
+        "io",
+        &format!("cannot read {who}: {}", nat::too_long("line")),
+        Vec::new(),
+    )
 }
 
 /// E0801 when the standard input reader thread cannot start (spec 15,
@@ -167,6 +192,16 @@ fn no_reader(e: &std::io::Error) -> Stop {
     )
 }
 
+/// A read error of standard input as `read_line` and `read_lines` give
+/// it (CC10): the `Err` the other reads give (`fs`).
+fn stdin_err(e: &std::io::Error) -> Value {
+    nat::err_value(
+        oserr::kind(e),
+        &format!("cannot read standard input: {}", oserr::reason(e)),
+        Vec::new(),
+    )
+}
+
 /// How a wait for standard input parks: the world outside wakes it (the
 /// reader thread), so it is no deadlock while it waits.
 const STDIN_WAKE: Wake = Wake {
@@ -177,22 +212,24 @@ const STDIN_WAKE: Wake = Wake {
 /// A handle's line read (or its fault) as `read_line` gives it.
 fn file_line_value(h: &File, r: Result<Option<Vec<u8>>, Fault>) -> Result<Value, Stop> {
     match r {
-        Ok(l) => Ok(line_value(l)),
+        Ok(l) => Ok(line_value(&named(h), l)),
         Err(e) => fault_value(h, "read", e),
     }
 }
 
 /// A line read (with its ending, or `None` at the end) as `read_line`
 /// gives it.
-fn line_value(l: Option<Vec<u8>>) -> Value {
-    nat::ok(l.map_or(Value::Nil, |l| Value::bytes(trim_line(&l).to_vec())))
+fn line_value(who: &str, l: Option<Vec<u8>>) -> Value {
+    match l {
+        Some(l) if !nat::fits_limit(trim_line(&l)) => line_too_long(who),
+        l => nat::ok(l.map_or(Value::Nil, |l| Value::bytes(trim_line(&l).to_vec()))),
+    }
 }
 
 /// `read_lines(f = nil)`: every remaining line in a list. Standard input
 /// parks whenever no line is queued; a handle is read on a pool thread
 /// in one go (locked for each line).
-pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
-    let lines = lines_value;
+pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     match &a[0] {
         Value::Nil => {
             // A line at a time, parking whenever none is queued.
@@ -201,8 +238,12 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Sto
                 t,
                 move |t, _| loop {
                     match t.stdin_poll() {
-                        Ok(Some(Some(l))) => got.push(l),
-                        Ok(Some(None)) => return Some(Ok(lines(std::mem::take(&mut got)))),
+                        Ok(Some(Input::Line(l))) => got.push(l),
+                        Ok(Some(Input::End)) => {
+                            return Some(Ok(lines_value(STDIN, std::mem::take(&mut got))));
+                        }
+                        // The lines read before it went with the call.
+                        Ok(Some(Input::Failed(e))) => return Some(Ok(stdin_err(&e))),
                         Ok(None) => return None,
                         Err(e) => return Some(Err(no_reader(&e))),
                     }
@@ -223,10 +264,10 @@ pub(super) fn read_lines_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Sto
                 Ok(ls)
             };
             nat::offload(t, read_all, move |_, r| match r {
-                Ok(ls) => Ok(lines(ls)),
+                Ok(ls) => Ok(lines_value(&named(&h), ls)),
                 Err(e) => fault_value(&h, "read", e),
             })
         }
-        f => Err(nat::wrong_arg("f", "file | nil", f)),
+        f => Err(nat::wrong_arg("file", "file | nil", f)),
     }
 }

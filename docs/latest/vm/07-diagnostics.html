@@ -228,12 +228,10 @@ main()</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: 
   |       ^
   |
  call path (innermost first):
-   extras/prelude.fung:100 _clamp
-   extras/prelude.fung:109 take
    example.fung:2 firsts
    example.fung:6 main
    example.fung:10 &lt;entry&gt;</code></pre></div>
-<p>에러는 <code>firsts</code>의 2줄을 가리키고, 경로에는 <code>take</code> 다음에 <code>firsts</code>가 남는다.</p>
+<p>에러는 <code>firsts</code>의 2줄을 가리키고, 경로에는 <code>firsts</code>가 남는다. <code>take</code>의 프레임은 내장 함수의 것이라 경로에 보이지 않는다(내장 함수는 Rust로 썼든 fung으로 썼든 같다, <a href="11-modules.html#builtin-errors">모듈</a>).</p>
 <h3 id="warnings">경고</h3>
 <p>경고는 에러와 같은 모양으로 찍되 머리가 <code>warning[W0102]</code>이다. 프로그램은 그대로 실행된다.</p>
 <pre><code>fn f():

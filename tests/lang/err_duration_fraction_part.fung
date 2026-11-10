@@ -1,0 +1,3 @@
+# Only the last duration part has a fraction (FE31, D9).
+print(1.5h30m)
+# expect-error: E0105

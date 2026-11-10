@@ -26,10 +26,18 @@ impl Lexer<'_> {
         let p = self.pos();
         let start = self.off;
 
-        if self.peek() == Some('0')
-            && matches!(self.peek_at(1), Some('x' | 'X' | 'o' | 'O' | 'b' | 'B'))
-        {
+        if self.peek() == Some('0') && matches!(self.peek_at(1), Some('x' | 'o' | 'b')) {
             return self.prefixed_int(p, start);
+        }
+        // One way to write a number (SP27): `0XFF` and `0O17` (an `O` next
+        // to a `0`) are refused with the lowercase form as help.
+        if self.peek() == Some('0') && matches!(self.peek_at(1), Some('X' | 'O' | 'B')) {
+            self.advance();
+            self.ident_text();
+            let raw = &self.src[start..self.off];
+            let fixed = format!("0{}{}", raw[1..2].to_ascii_lowercase(), &raw[2..]);
+            let help = format!("write the base prefix in lowercase: `{fixed}`");
+            return Err(suggest(self.err("E0102", p, raw), &fixed, &help));
         }
 
         if !self.digits() {
@@ -42,9 +50,15 @@ impl Lexer<'_> {
             while is_digit(self.peek()) || is_ident_part(self.peek()) || self.peek() == Some('.') {
                 self.advance();
             }
-            return Err(self.err("E0102", p, &self.src[start..self.off]).with_help(
-                "a decimal number does not start with 0: write `0o755` for octal, or drop the zeros",
-            ));
+            // Only an integer has an octal form; a float or a duration
+            // (`01.5`, `05s`, `01e3`) just loses its zeros.
+            let written = &self.src[start..self.off];
+            let help = if written.bytes().all(|b| b.is_ascii_digit() || b == b'_') {
+                "a decimal number does not start with 0: write `0o755` for octal, or drop the zeros"
+            } else {
+                "a number does not start with 0: drop the leading zeros"
+            };
+            return Err(self.err("E0102", p, written).with_help(help));
         }
         // `1.` is not a number (01), and an integer has no fields: a `.`
         // right after the digits that starts neither a fraction nor a
@@ -64,19 +78,33 @@ impl Lexer<'_> {
             }
         }
         let mut has_exp = false;
-        if matches!(self.peek(), Some('e' | 'E')) {
-            let next = self.peek_at(1);
-            if is_digit(next) || (matches!(next, Some('+' | '-')) && is_digit(self.peek_at(2))) {
+        if self.peek() == Some('E') && self.exponent_ahead() {
+            let mant = self.off;
+            self.advance();
+            if matches!(self.peek(), Some('+' | '-')) {
                 self.advance();
-                if matches!(self.peek(), Some('+' | '-')) {
-                    self.advance();
-                }
-                if !self.digits() {
-                    return Err(self.err("E0102", p, &self.src[start..self.off]));
-                }
-                is_float = true;
-                has_exp = true;
             }
+            self.digits();
+            self.ident_text();
+            let raw = &self.src[start..self.off];
+            let fixed = format!(
+                "{}e{}",
+                &self.src[start..mant],
+                &self.src[mant + 1..self.off]
+            );
+            let help = format!("write the exponent with a lowercase `e`: `{fixed}`");
+            return Err(suggest(self.err("E0102", p, raw), &fixed, &help));
+        }
+        if self.peek() == Some('e') && self.exponent_ahead() {
+            self.advance();
+            if matches!(self.peek(), Some('+' | '-')) {
+                self.advance();
+            }
+            if !self.digits() {
+                return Err(self.err("E0102", p, &self.src[start..self.off]));
+            }
+            is_float = true;
+            has_exp = true;
         }
 
         // A letter right after the number means either a duration unit or junk.
@@ -93,6 +121,11 @@ impl Lexer<'_> {
         let text: String = raw.chars().filter(|&c| c != '_').collect();
         if is_float {
             return match text.parse::<f64>() {
+                // A literal that is not zero but reads as 0.0 lost its
+                // value (FE31): refused like an overflow.
+                Ok(f) if f == 0.0 && mantissa_is_nonzero(&text) => Err(self
+                    .err("E0102", p, raw)
+                    .with_help("the number is too small for a float; write `0.0` for zero")),
                 // an overflow parses as infinity, which is E0102 below
                 Ok(f) if f.is_finite() => {
                     let raw = raw.to_string();
@@ -117,6 +150,13 @@ impl Lexer<'_> {
             }
             Err(_) => Err(self.err("E0102", p, raw)),
         }
+    }
+
+    /// Whether the `e`/`E` at the cursor starts an exponent: a digit, or a
+    /// sign and a digit, follows.
+    fn exponent_ahead(&self) -> bool {
+        let next = self.peek_at(1);
+        is_digit(next) || (matches!(next, Some('+' | '-')) && is_digit(self.peek_at(2)))
     }
 
     /// Consumes `digit (digit | _ digit)*` and reports whether at least one
@@ -144,8 +184,8 @@ impl Lexer<'_> {
     fn prefixed_int(&mut self, p: Pos, start: usize) -> Result<(), Diag> {
         self.advance(); // 0
         let base = match self.advance() {
-            'o' | 'O' => 8,
-            'b' | 'B' => 2,
+            'o' => 8,
+            'b' => 2,
             _ => 16,
         };
         let dig_start = self.off;
@@ -163,13 +203,15 @@ impl Lexer<'_> {
             .chars()
             .filter(|&c| c != '_')
             .collect();
-        match i64::from_str_radix(&text, base) {
-            Ok(n) => {
+        // The magnitude of the least int is a token in every base, as in
+        // decimal: only a preceding minus makes it valid (FE31).
+        match u64::from_str_radix(&text, base) {
+            Ok(n) if n <= i64::MIN.unsigned_abs() => {
                 let raw = self.src[start..self.off].to_string();
-                self.emit(Kind::Int, &raw, p).int = n;
+                self.emit(Kind::Int, &raw, p).int = n as i64;
                 Ok(())
             }
-            Err(_) => Err(self.err("E0102", p, &self.src[start..self.off])),
+            _ => Err(self.err("E0102", p, &self.src[start..self.off])),
         }
     }
 
@@ -197,6 +239,15 @@ impl Lexer<'_> {
                 .chars()
                 .filter(|&c| c != '_')
                 .collect();
+            // Every part follows the integer rule (FE31): `1h05m` is
+            // refused like `05m`.
+            let whole = num_text.split('.').next().unwrap_or("");
+            if !first && whole.len() > 1 && whole.starts_with('0') {
+                return Err(self
+                    .bad_number("E0105", p, start)
+                    .with_help("a duration part does not start with 0: drop the zeros"));
+            }
+            let fraction = num_text.contains('.');
             let unit_start = self.off;
             while matches!(self.peek(), Some('a'..='z')) {
                 self.advance();
@@ -216,6 +267,12 @@ impl Lexer<'_> {
             // i64 duration cannot hold: an out-of-range float to int
             // conversion must never be relied on.
             let ns = (f * unit_ns as f64).round();
+            // A part that is not zero must not round to 0 ns (FE31).
+            if f != 0.0 && ns == 0.0 {
+                return Err(self.bad_number("E0105", p, start).with_help(
+                    "a duration is counted in whole nanoseconds; this part rounds to 0",
+                ));
+            }
             if ns >= I64_LIMIT || ns > (i64::MAX - total) as f64 {
                 return Err(self.bad_number("E0105", p, start));
             }
@@ -227,6 +284,13 @@ impl Lexer<'_> {
             first = false;
             if !is_digit(self.peek()) {
                 break;
+            }
+            // Only the last part has a fraction (FE31), so a part reads
+            // the same wherever it stands: `1.5h30m` is refused.
+            if fraction {
+                return Err(self
+                    .bad_number("E0105", p, start)
+                    .with_help("only the last part of a duration has a fraction: write `1h30.5m`, not `1.5h30m`"));
             }
             comp_start = self.off;
             if !self.digits() {
@@ -257,6 +321,22 @@ impl Lexer<'_> {
     }
 }
 
+/// Adds `help` to `d` only when `fixed`, the suggested spelling, lexes as
+/// one number: `0XG` gets no `0xG` to copy.
+fn suggest(d: Diag, fixed: &str, help: &str) -> Diag {
+    let lexes = super::lex(crate::source::FileId(0), fixed)
+        .is_ok_and(|(toks, _)| toks.len() == 2 && matches!(toks[0].kind, Kind::Int | Kind::Float));
+    if lexes { d.with_help(help) } else { d }
+}
+
+/// Whether a float literal's digits before any exponent hold a non-zero
+/// digit: such a literal is not zero even when it reads as 0.0.
+fn mantissa_is_nonzero(text: &str) -> bool {
+    text.split(['e', 'E'])
+        .next()
+        .is_some_and(|m| m.bytes().any(|b| matches!(b, b'1'..=b'9')))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::lexer::tests::lex_src;
@@ -280,12 +360,11 @@ mod tests {
 
     #[test]
     fn integer_literals() {
-        let cases: [(&str, i64); 9] = [
+        let cases: [(&str, i64); 8] = [
             ("0", 0),
             ("42", 42),
             ("1_000_000", 1000000),
             ("0xff", 255),
-            ("0XFF", 255),
             ("0o17", 15),
             ("0b1010", 10),
             ("0b1_0", 2),
@@ -303,7 +382,7 @@ mod tests {
             ("2.75", 2.75),
             ("1e9", 1e9),
             ("2.5e-3", 2.5e-3),
-            ("1E+2", 100.0),
+            ("1e+2", 100.0),
             ("1_0.5", 10.5),
             ("0.1", 0.1),
         ];
@@ -366,6 +445,22 @@ mod tests {
             ("1.\nprint(x)", "E0102"),
             ("1.e5", "E0102"),
             ("1.foo", "E0102"),
+            // lowercase prefixes and exponents only (SP27, D32)
+            ("0XFF", "E0102"),
+            ("0O17", "E0102"),
+            ("0B1", "E0102"),
+            ("1E5", "E0102"),
+            ("2.5E-3", "E0102"),
+            // every duration part follows the leading-zero rule, and only
+            // the last one has a fraction (FE31, D9)
+            ("1h05m", "E0105"),
+            ("1h007m", "E0105"),
+            ("1m00s", "E0105"),
+            ("1.5h30m", "E0105"),
+            // a non-zero literal that rounds to zero (FE31, D9)
+            ("0.0000004ms", "E0105"),
+            ("1e-400", "E0102"),
+            ("0.1e-330", "E0102"),
         ];
         for (src, want) in cases {
             match lex_src(src) {
@@ -384,6 +479,39 @@ mod tests {
         assert_eq!(d.args, vec![Arg::Str("1.e5".to_string())]);
         let d = lex_src("1h30").unwrap_err();
         assert_eq!(d.args, vec![Arg::Str("1h30".to_string())]);
+    }
+
+    #[test]
+    fn uppercase_prefixes_suggest_the_lowercase_form() {
+        for (src, help) in [
+            ("0XFF", "`0xFF`"),
+            ("0O17", "`0o17`"),
+            ("0B1", "`0b1`"),
+            ("1E5", "`1e5`"),
+        ] {
+            let d = lex_src(src).unwrap_err();
+            let h = d.help.clone().unwrap_or_default();
+            assert!(h.contains(help), "{src}: {h}");
+        }
+    }
+
+    #[test]
+    fn a_lowercase_form_that_would_not_lex_is_not_suggested() {
+        for src in ["0XG", "0Bz", "1E5x"] {
+            let d = lex_src(src).unwrap_err();
+            assert_eq!(d.code, "E0102", "{src}");
+            assert_eq!(d.help, None, "{src}");
+        }
+    }
+
+    #[test]
+    fn zero_literals_and_last_part_fractions_are_fine() {
+        assert_eq!(one("0.0ms").dur, 0);
+        assert_eq!(one("1h0m").dur, H);
+        assert_eq!(one("1h30.5m").dur, 90 * M + 30 * S);
+        assert_eq!(one("0.000001ms").dur, 1);
+        assert_eq!(one("0e5").float, 0.0);
+        assert_eq!(one("5e-324").float, 5e-324);
     }
 
     #[test]
@@ -413,5 +541,15 @@ mod tests {
         let t = one("9223372036854775808");
         assert_eq!((t.kind, t.int), (Kind::Int, i64::MIN));
         assert_eq!(lex_src("9223372036854775809").unwrap_err().code, "E0102");
+        // in any base (FE31, D9)
+        for src in [
+            "0x8000000000000000",
+            "0o1000000000000000000000",
+            "0x8000_0000_0000_0000",
+        ] {
+            let t = one(src);
+            assert_eq!((t.kind, t.int), (Kind::Int, i64::MIN), "{src}");
+        }
+        assert_eq!(lex_src("0x8000000000000001").unwrap_err().code, "E0102");
     }
 }

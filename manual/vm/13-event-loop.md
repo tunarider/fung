@@ -129,7 +129,9 @@ server drained
 
 FIFO(이름 있는 파이프)는 반대다. 쓰는 쪽이나 읽는 쪽을 끝없이 기다릴 수 있어서, 풀에서 하면 그 스레드가 멈춘 채 남는다. 기한이 지나도 운영체제 스레드는 멈출 수 없으니, 그런 읽기가 64개 쌓이면 풀이 가득 차 다른 파일 일이 줄에 선다. 그래서 FIFO는 소켓처럼 `O_NONBLOCK`으로 열고 실행 스레드에서 읽고 쓰며, 막히면 그 fd를 이벤트 루프에 등록하고 주차한다(`crates/fung-vm/src/native/pipe.rs`, 0.5.0 L11). 준비된 바이트만 가져오므로 취소된 읽기도 바이트를 잃지 않는다.
 
-운영체제의 차이가 하나 있다. 쓰는 쪽이 닫히면 Linux의 epoll은 `EPOLLHUP`을 알리지만, macOS는 kqueue도 `poll`도 아무것도 알리지 않는다(읽으면 0바이트, 곧 끝이다). 그래서 macOS에서는 FIFO를 기다릴 때 50ms마다 다시 본다. 또 0바이트 읽기는 "쓰는 쪽이 아직 안 옴"과 "떠남"이 같아서, 쓰는 쪽을 한 번 본 뒤에만(데이터나 EAGAIN이 온 뒤, Linux는 epoll이 깨운 뒤) 끝으로 본다.
+운영체제의 차이가 둘 있다. 쓰는 쪽이 닫히면 Linux의 epoll은 `EPOLLHUP`을 알리지만, macOS는 kqueue도 `poll`도 아무것도 알리지 않는다(읽으면 0바이트, 곧 끝이다). 그래서 macOS에서는 FIFO를 기다릴 때 이벤트가 없어도 다시 본다. 또 0바이트 읽기는 "쓰는 쪽이 아직 안 옴"과 "떠남"이 같아서, 쓰는 쪽을 한 번 본 뒤에만(데이터나 EAGAIN이 온 뒤, Linux는 epoll이 깨운 뒤) 끝으로 본다.
+
+둘째로, macOS는 FIFO의 버퍼(8 KiB)에 남은 자리보다 큰 쓰기 하나가 조각으로 들어갈 때 둘째 조각부터 읽을 준비를 알리지 않는다(`head -c 4000000 /dev/zero | cat > f`). 50ms마다만 다시 보면 그런 쓰는 쪽에게서 50ms에 버퍼 하나밖에 읽지 못한다(4 MB에 12초). 그래서 데이터를 받은 읽기는 50 µs 뒤에 다시 보고, 아무것도 없을 때마다 그 간격을 배로 늘려 50ms에서 멈춘다. 쉬지 않고 쓰는 쪽은 바짝 따라가고(4 MB에 0.03초), 쉬는 쓰는 쪽에는 열한 번 본 뒤 50ms마다 본다.
 
 처음(R1b)에는 일마다 스레드를 새로 만들었다. 스레드 하나를 만들고 거두는 데 십몇 µs가 들어서, `fs.exists`를 5만 번 부르는 반복이 2.6배 느려졌다. 그래서 스레드를 만들어 두고 다시 쓰는 **풀**(pool)을 두었다(`crates/fung-vm/src/vm/pool.rs`).
 
@@ -152,7 +154,7 @@ fs.with_temp_dir(fn(dir):
   fs.write(p, "21\n")!
   n = int(trim(fs.read(p)!))
   print(double(n))
-  print(fs.exists(p), fs.exists(path.join(dir, "nope")))
+  print(fs.exists(p)!, fs.exists(path.join(dir, "nope"))!)
 ;;)
 ```
 

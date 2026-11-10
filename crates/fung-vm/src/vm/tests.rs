@@ -49,10 +49,15 @@ fn tail_calls_do_not_grow_and_deep_recursion_is_e0804() {
 /// E0606 at the right element, also after the memo was filled.
 #[test]
 fn a_discarded_long_list_finds_its_err() {
-    let long = "xs = map(0..200, x => x == 70 then Err(x) else x)\n";
-    let quiet = format!("{long}xs[71..]\nxs[..70]\nxs[71..]\nprint(\"ok\")");
+    // `id(…)`: a slice alone as a statement does nothing (E0234).
+    let long = "fn id(v) = v\nxs = map(0..200, x => x == 70 then Err(x) else x)\n";
+    let quiet = format!("{long}id(xs[71..])\nid(xs[..70])\nid(xs[71..])\nprint(\"ok\")");
     assert_eq!(run_src(&quiet), ("ok\n".into(), "".into(), 0));
-    for tail in ["xs[60..90]", "xs[..70]\nxs[60..90]", "xs[71..]\nxs[60..90]"] {
+    for tail in [
+        "id(xs[60..90])",
+        "id(xs[..70])\nid(xs[60..90])",
+        "id(xs[71..])\nid(xs[60..90])",
+    ] {
         let (_, err, code) = run_src(&format!("{long}{tail}\nprint(1)"));
         assert!(
             err.starts_with("error[E0606]: discarded Err: 70\n"),
@@ -64,7 +69,7 @@ fn a_discarded_long_list_finds_its_err() {
         );
         assert_eq!(code, 1);
     }
-    let pushed = format!("{long}ys = xs[71..] + [Err(\"late\")]\nys[..10]\nys\nprint(1)");
+    let pushed = format!("{long}ys = xs[71..] + [Err(\"late\")]\nid(ys[..10])\nid(ys)\nprint(1)");
     let (_, err, _) = run_src(&pushed);
     assert!(
         err.contains("note: element 130 of the discarded list (of 130)"),
@@ -75,7 +80,8 @@ fn a_discarded_long_list_finds_its_err() {
 /// L8: user code that tail-calls a library function written in fung
 /// keeps its place: the error points at that call, and the call path
 /// shows the frame the tail call replaced, with the tail calls it had
-/// made before (the library's own are counted apart).
+/// made before (the library's own are counted apart and, like its
+/// frames, not shown: VA19).
 #[test]
 fn a_tail_call_into_the_library_keeps_the_callers_place() {
     let (_, err, code) = run_src(
@@ -87,7 +93,7 @@ fn a_tail_call_into_the_library_keeps_the_callers_place() {
     );
     assert!(
         err.contains(
-            "   extras/prelude.fung:109 take\n   -e:2       firsts\n   -e:5       main\n   -e:8       <entry>\n"
+            " call path (innermost first):\n   -e:2       firsts\n   -e:5       main\n   -e:8       <entry>\n"
         ),
         "{err}"
     );
@@ -167,7 +173,7 @@ fn evaluates_expressions() {
         ("not true", "false"),
         ("true and false", "false"),
         ("false or true", "true"),
-        ("1\n2", "2"),
+        ("x = 1\n2", "2"),
         ("", "nil"),
     ];
     for (src, want) in cases {
@@ -336,7 +342,10 @@ fn leaner_code_keeps_its_meaning() {
             "fn f(x) = match x:\n  0 => \"z\"\n  n => n * 2\n;;\nf(4)",
             "8",
         ),
-        ("fn f(x) = match x:\n  _ => 1\n  _ => 2\n;;\nf(4)", "1"),
+        (
+            "fn f(x) = match x:\n  n when n > 0 => 1\n  _ => 2\n;;\nf(4)",
+            "1",
+        ),
         (
             "x = [1, 2]\nmatch x:\n  [a] => a\n  all => len(all)\n;;",
             "2",
@@ -927,7 +936,7 @@ fn natives_call_closures_through_the_task() {
                 Ok(crate::vm::Next::Call(self.0.clone(), 1))
             }
         }
-        fn twice(t: &mut Task, args: Vec<Value>) -> Result<crate::vm::Flow, Stop> {
+        fn twice(t: &mut Task, args: crate::value::Args) -> Result<crate::vm::Flow, Stop> {
             t.push_arg(Value::Int(1));
             let f = args[0].clone();
             Ok(crate::vm::Flow::Call(
@@ -953,7 +962,8 @@ fn natives_call_closures_through_the_task() {
 }
 
 /// An error inside a function from an embedded extras file points at the
-/// nearest user frame, and the extras frame stays in the call path.
+/// nearest user frame, and the extras frame is left out of the call path
+/// (VA19).
 #[test]
 fn errors_in_builtin_code_point_at_the_user_call() {
     let o = exec(
@@ -966,7 +976,29 @@ fn errors_in_builtin_code_point_at_the_user_call() {
     let e = o.error.expect("an error");
     assert_eq!((e.code.as_str(), e.line, e.col), ("E0502", 2, 13));
     let path: Vec<(&str, u32)> = e.path.iter().map(|c| (c.func.as_str(), c.line)).collect();
-    assert_eq!(path, [("helper", 1), ("<main>", 2)]);
+    assert_eq!(path, [("<main>", 2)]);
+}
+
+/// When every frame is a built-in function's, the call path is empty and
+/// the report has no "call path" header (VA19).
+#[test]
+fn an_all_builtin_path_prints_no_header() {
+    fn mark(p: &mut fung_front::bytecode::Proto) {
+        p.builtin = true;
+        p.protos.iter_mut().for_each(mark);
+    }
+    let o = exec(
+        "fn helper(x) = x / 0\nprint(helper(1) + 0)",
+        Opts {
+            patch: mark,
+            ..Opts::default()
+        },
+    );
+    let e = o.error.expect("an error");
+    assert_eq!(e.code, "E0502");
+    assert!(e.path.is_empty(), "{:?}", e.path);
+    assert!(o.err.starts_with("error[E0502]"), "{}", o.err);
+    assert!(!o.err.contains("call path"), "{}", o.err);
 }
 
 #[test]
@@ -1042,7 +1074,7 @@ fn stack_slots_are_16_bytes() {
 fn elided_tail_calls_count_past_u32() {
     use fung_front::diag;
     use fung_front::loader::{Loader, Stage};
-    let (b, errs) = Loader::default().compile("-e", "1 / 0", Stage::All);
+    let (b, errs) = Loader::default().compile("-e", "print(1 / 0)", Stage::All);
     assert!(errs.is_empty());
     let main = link(b.proto.as_ref().unwrap(), &Prelude::default());
     let rt = Runtime::new(

@@ -125,27 +125,60 @@ fn parse_zone(s: &[u8], colon: bool) -> Result<(i32, &[u8]), String> {
     Ok((sign * (h as i32 * 3600 + m as i32 * 60 + sec as i32), rest))
 }
 
-/// Whether the token layout names a whole date: a year (`YYYY`, `YY`), a
-/// month (`MM`, `MMM`) and a day (`DD`). `time.parse` needs one (LB20): a
-/// time is one instant, and a date filled in (year 0) would read a time
-/// of day in the zone's history before standard time.
-pub(crate) fn names_a_date(mut layout: &str) -> bool {
-    let (mut year, mut month, mut day) = (false, false, false);
+/// The tokens of a layout, in order.
+fn tokens(mut layout: &str) -> Vec<&'static str> {
+    let mut found = Vec::new();
     while let Some(c) = layout.chars().next() {
         match next_token(layout) {
             Some(tk) => {
-                match tk {
-                    "YYYY" | "YY" => year = true,
-                    "MM" | "MMM" => month = true,
-                    "DD" => day = true,
-                    _ => {}
-                }
+                found.push(tk);
                 layout = &layout[tk.len()..];
             }
             None => layout = &layout[c.len_utf8()..],
         }
     }
-    year && month && day
+    found
+}
+
+/// The field a token reads or shows: two tokens of one field are two
+/// spellings of it (`MM`, `MMM`).
+fn field(tk: &str) -> &'static str {
+    match tk {
+        "YYYY" | "YY" => "year",
+        "MM" | "MMM" => "month",
+        "DD" => "day",
+        "ddd" => "weekday",
+        "HH" => "hour",
+        "mm" => "minute",
+        "ss" => "second",
+        "SSS" => "millisecond",
+        _ => "offset", // "Z", "ZZ"
+    }
+}
+
+/// Whether the token layout names a whole date: a year (`YYYY`, `YY`), a
+/// month (`MM`, `MMM`) and a day (`DD`). `time.parse` needs one (LB20): a
+/// time is one instant, and a date filled in (year 0) would read a time
+/// of day in the zone's history before standard time.
+pub(crate) fn names_a_date(layout: &str) -> bool {
+    let fields: Vec<_> = tokens(layout).into_iter().map(field).collect();
+    ["year", "month", "day"].iter().all(|f| fields.contains(f))
+}
+
+/// Whether the token layout names a field twice (`MM` and `MMM`, two
+/// `HH`): `time.parse` refuses it (LB36, D28), as the last would win.
+pub(crate) fn repeats_a_field(layout: &str) -> bool {
+    let fields: Vec<_> = tokens(layout).into_iter().map(field).collect();
+    fields
+        .iter()
+        .enumerate()
+        .any(|(i, f)| fields[..i].contains(f))
+}
+
+/// Whether `time.format` can use the layout (SP25, D28): one token at
+/// least, and no `%` (a strftime format would print itself).
+pub(crate) fn formats_something(layout: &str) -> bool {
+    !layout.contains('%') && !tokens(layout).is_empty()
 }
 
 /// Reads `s` with the token layout. Fields the layout does not mention are
@@ -155,6 +188,7 @@ pub(crate) fn parse_time(s: &str, layout: &str, local: &'static Zone) -> Result<
     let (mut year, mut month, mut day) = (0, 1, 1);
     let (mut hour, mut min, mut sec, mut ms) = (0, 0, 0, 0);
     let mut fixed: Option<i32> = None;
+    let mut weekday: Option<usize> = None;
     let mut s = s.as_bytes();
     let mut layout = layout;
     while let Some(c) = layout.chars().next() {
@@ -185,9 +219,12 @@ pub(crate) fn parse_time(s: &str, layout: &str, local: &'static Zone) -> Result<
                 month = i as i64 + 1;
                 r
             })?,
-            // The weekday is read and checked as a name only: the date
-            // decides the real weekday.
-            "ddd" => name(s, &WEEKDAY_NAMES, "weekday", "Sun")?.1,
+            // The weekday must be the date's (LB36): checked once the
+            // date is known.
+            "ddd" => name(s, &WEEKDAY_NAMES, "weekday", "Sun").map(|(i, r)| {
+                weekday = Some(i);
+                r
+            })?,
             "DD" => digits(s, 2, "the day").map(|(v, r)| {
                 day = v;
                 r
@@ -219,6 +256,16 @@ pub(crate) fn parse_time(s: &str, layout: &str, local: &'static Zone) -> Result<
         return Err("unexpected text after the time".into());
     }
     check_fields(year, month, day, hour, min, sec)?;
+    if let Some(w) = weekday {
+        // 1970-01-01 was a Thursday.
+        let real = (crate::value::days_from_civil(year, month, day) + 4).rem_euclid(7) as usize;
+        if w != real {
+            return Err(format!(
+                "weekday {} does not match {year:04}-{month:02}-{day:02} ({})",
+                WEEKDAY_NAMES[w], WEEKDAY_NAMES[real]
+            ));
+        }
+    }
     let loc = match fixed {
         Some(off) => Loc::Fixed(off),
         None => Loc::Zone(local),

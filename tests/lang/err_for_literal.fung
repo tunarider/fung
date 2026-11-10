@@ -1,0 +1,3 @@
+# `for` takes the same destructuring pattern as assignment (FE32, D10).
+for 1 in [1, 2]: print("x") ;;
+# expect-error: E0112

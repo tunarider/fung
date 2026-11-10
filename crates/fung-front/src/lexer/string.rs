@@ -124,12 +124,12 @@ impl Lexer<'_> {
                     .collect();
                 return match u8::from_str_radix(&hex, 16) {
                     Ok(b) if hex.len() == 2 => Ok(Unit::Byte(b)),
-                    _ => Err(self.err("E0103", p, &format!("\\x{hex}"))),
+                    _ => Err(self.err("E0103", p, &format!("`\\x{hex}`"))),
                 };
             }
             'u' => {
                 if self.peek() != Some('{') {
-                    return Err(self.err("E0103", p, "\\u"));
+                    return Err(self.err("E0103", p, "`\\u`"));
                 }
                 self.advance();
                 let hex_start = self.off;
@@ -138,19 +138,27 @@ impl Lexer<'_> {
                 }
                 let hex = self.src[hex_start..self.off].to_string();
                 if self.peek() != Some('}') || hex.is_empty() || hex.len() > 6 {
-                    return Err(self.err("E0103", p, &format!("\\u{{{hex}")));
+                    return Err(self.err("E0103", p, &format!("`\\u{{{hex}`")));
                 }
                 self.advance();
-                // char::from_u32 rejects values above 0x10FFFF and surrogates.
+                // char::from_u32 rejects values above 0x10FFFF and
+                // surrogates: a known escape, but no character (FE26).
                 return u32::from_str_radix(&hex, 16)
                     .ok()
                     .and_then(char::from_u32)
                     .map(Unit::Char)
-                    .ok_or_else(|| self.err("E0103", p, &format!("\\u{{{hex}}}")));
+                    .ok_or_else(|| self.err("E0106", p, &hex));
             }
             _ => {}
         }
-        Err(self.err("E0103", p, &format!("\\{c}")))
+        // The escape as written; a character that does not show (a tab)
+        // by its code point.
+        let shown = if crate::unicode::is_print(c) && !c.is_whitespace() {
+            format!("`\\{c}`")
+        } else {
+            format!("`\\` followed by U+{:04X}", c as u32)
+        };
+        Err(self.err("E0103", p, &shown))
     }
 
     /// Lexes the code of a `${...}` after the `${`, up to and including
@@ -187,7 +195,8 @@ impl Lexer<'_> {
                 Some('}') if depth == 0 => {
                     self.start = self.off;
                     let p = self.pos();
-                    self.emit(Kind::Eof, "", p).end = self.base + self.off;
+                    // The code ends at this brace: errors there name it (FE26).
+                    self.emit(Kind::Eof, "}", p).end = self.base + self.off;
                     self.advance();
                     return Ok(());
                 }
@@ -233,7 +242,10 @@ impl Lexer<'_> {
         let p = self.pos();
         self.advance();
         if !is_ident_start(self.peek()) {
-            return Err(self.err("E0101", p, "'"));
+            // `'text'`: the closing quote of what was meant as a string.
+            return Err(self.err("E0101", p, "'").with_help(
+                "strings use double quotes: `\"text\"`; a symbol is `'name`, with no closing quote",
+            ));
         }
         let start = self.off;
         while is_ident_part(self.peek()) {
@@ -359,15 +371,12 @@ mod tests {
     fn escape_error_arguments() {
         use crate::diag::Arg;
         let s = |x: &str| vec![Arg::Str(x.to_string())];
-        assert_eq!(lex_src(r#""\u{zz}""#).unwrap_err().args, s("\\u{"));
-        assert_eq!(lex_src(r#""\u""#).unwrap_err().args, s("\\u"));
-        assert_eq!(
-            lex_src(r#""\u{110000}""#).unwrap_err().args,
-            s("\\u{110000}")
-        );
+        assert_eq!(lex_src(r#""\u{zz}""#).unwrap_err().args, s("`\\u{`"));
+        assert_eq!(lex_src(r#""\u""#).unwrap_err().args, s("`\\u`"));
+        assert_eq!(lex_src(r#""\u{110000}""#).unwrap_err().args, s("110000"));
         assert_eq!(
             lex_src(r#""\u{1234567}""#).unwrap_err().args,
-            s("\\u{1234567")
+            s("`\\u{1234567`")
         );
     }
 
@@ -384,19 +393,19 @@ mod tests {
         assert_eq!(d.code, "E0103");
         assert_eq!(
             message(&d.code, &d.args),
-            "unknown escape \"\\\\\\t\" in string"
+            "unknown escape `\\` followed by U+0009 in string"
         );
         let d = lex_src(r#""\q""#).unwrap_err();
         assert_eq!(
             message(&d.code, &d.args),
-            r#"unknown escape "\\q" in string"#
+            r#"unknown escape `\q` in string"#
         );
     }
 
     #[test]
     fn surrogate_escape_is_rejected() {
         for src in [r#""\u{D800}""#, r#""\u{DFFF}""#] {
-            assert_eq!(lex_src(src).unwrap_err().code, "E0103", "{src}");
+            assert_eq!(lex_src(src).unwrap_err().code, "E0106", "{src}");
         }
         assert!(lex_src(r#""\u{E000}""#).is_ok());
     }

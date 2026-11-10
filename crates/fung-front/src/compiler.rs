@@ -26,12 +26,13 @@ use crate::tree::{CaptureKind, Head, Lit, Node};
 
 /// Configures compilation of one file.
 #[derive(Clone, Debug, Default)]
-pub struct Options {
-    /// The file's text, for assert and dbg source spans (08).
-    pub source: String,
+pub struct Options<'s> {
+    /// The file's text, for assert and dbg source spans (08), borrowed
+    /// from the loader (FE39).
+    pub source: &'s str,
     /// The file's name as positions print it (`-e`, `t.fung`): the place
     /// `dbg` reports.
-    pub file: String,
+    pub file: &'s str,
     /// Register test blocks (`fung test` / `check`); false drops them.
     pub tests: bool,
     /// The program's last expression is its value; otherwise it is
@@ -43,9 +44,11 @@ pub struct Options {
 struct Compiler<'a> {
     proto: Proto,
     prelude: &'a BTreeSet<String>,
-    opts: &'a Options,
+    opts: &'a Options<'a>,
     /// Byte offsets where the source's lines start (`start_pos`).
     lines: &'a [usize],
+    /// The operators that fold to a constant (`fold::constants`).
+    folds: &'a HashMap<*const Node, Const>,
     /// A return type annotation disables tail calls (03).
     has_ret: bool,
     /// The reads of locals that are their last (`moves::last_reads`):
@@ -73,8 +76,13 @@ struct Compiler<'a> {
 /// Produces the `<main>` proto for a resolved program. Prelude names
 /// become `Const::Builtin(name)` (`args` is `Const::Args`). The main
 /// body never uses tail calls: it is the entry frame.
-pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Result<Proto, Diag> {
-    let lines = line_starts(&opts.source);
+pub fn compile(
+    res: &Resolved,
+    prelude: &BTreeSet<String>,
+    opts: &Options<'_>,
+) -> Result<Proto, Diag> {
+    let lines = line_starts(opts.source);
+    let folds = fold::constants(&res.core);
     let mut c = Compiler {
         proto: Proto {
             name: "<main>".into(),
@@ -86,6 +94,7 @@ pub fn compile(res: &Resolved, prelude: &BTreeSet<String>, opts: &Options) -> Re
         prelude,
         opts,
         lines: &lines,
+        folds: &folds,
         has_ret: true,
         moves: HashSet::new(),
         after: HashMap::new(),
@@ -268,7 +277,7 @@ impl Compiler<'_> {
     /// Where `n`'s source text starts: a call's own position is its `(`,
     /// an operator's is the operator. Falls back to `n.pos` without a span.
     fn start_pos(&self, n: &Node) -> Pos {
-        let src = &self.opts.source;
+        let src = self.opts.source;
         if n.end == 0 || n.off > src.len() || !src.is_char_boundary(n.off) {
             return n.pos;
         }
@@ -506,8 +515,8 @@ impl Compiler<'_> {
                 self.emit_const(prelude_const(name), pos);
             }
             Head::Op => {
-                if let Some(c) = fold::fold(n) {
-                    self.emit_const(c, pos);
+                if let Some(c) = self.folds.get(&(n as *const Node)) {
+                    self.emit_const(c.clone(), pos);
                 } else {
                     return self.op(n);
                 }
@@ -665,10 +674,26 @@ impl Compiler<'_> {
     /// returned for patching.
     pub(super) fn end_branch(&mut self, tail: bool, pos: Pos) -> Option<usize> {
         if tail {
-            self.emit_return(self.ret_pos);
+            self.end_tail(self.ret_pos);
             return None;
         }
         Some(self.proto.emit(Op::Jump, 0, pos))
+    }
+
+    /// Ends code in tail position: returns its value, unless it ended in a
+    /// TAILCALL or RETURN already (VM17). Such a call ends the frame by
+    /// itself, and nothing in a tail position jumps to its end (every
+    /// branch of a choice there returns by itself), so nothing after it
+    /// could run.
+    pub(super) fn end_tail(&mut self, pos: Pos) {
+        let done = self
+            .proto
+            .code
+            .last()
+            .is_some_and(|i| matches!(i.op(), Op::TailCall | Op::Return));
+        if !done {
+            self.emit_return(pos);
+        }
     }
 
     /// Returns the value on the stack, checked against the return type.
@@ -694,7 +719,7 @@ impl Compiler<'_> {
         let outer = std::mem::replace(&mut self.ret_pos, n.pos);
         self.expr(&n.kids[0], true)?;
         self.ret_pos = outer;
-        self.emit_return(n.pos);
+        self.end_tail(n.pos);
         Ok(())
     }
 }

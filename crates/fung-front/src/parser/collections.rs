@@ -23,7 +23,7 @@ impl Parser<'_> {
             if self.at(Kind::Comma) {
                 self.next();
             } else if !self.at(Kind::RBracket) {
-                return Err(self.unexpected());
+                return Err(self.list_end(n.pos, Kind::RBracket));
             }
         }
         self.next();
@@ -85,7 +85,7 @@ impl Parser<'_> {
             if self.at(Kind::Comma) {
                 self.next();
             } else if !self.at(Kind::RBrace) {
-                return Err(self.unexpected());
+                return Err(self.list_end(n.pos, Kind::RBrace));
             }
         }
         self.next();
@@ -106,13 +106,14 @@ impl Parser<'_> {
             self.next();
             return Ok(Node::new(Head::Tuple, pos, Vec::new()));
         }
-        let first = self.expr(0)?;
+        let mut first = self.expr(0)?;
         if self.at(Kind::RParen) {
             self.next();
+            first.paren = true;
             return Ok(first);
         }
         if !self.at(Kind::Comma) {
-            return Err(self.unexpected());
+            return Err(self.list_end(pos, Kind::RParen));
         }
         let mut n = Node::new(Head::Tuple, pos, vec![first]);
         while self.at(Kind::Comma) {
@@ -123,7 +124,10 @@ impl Parser<'_> {
             let e = self.expr(0)?;
             n.kids.push(e);
         }
-        self.expect_desc(Kind::RParen, "`)`")?;
+        if !self.at(Kind::RParen) {
+            return Err(self.list_end(pos, Kind::RParen));
+        }
+        self.next();
         Ok(n)
     }
 

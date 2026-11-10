@@ -41,7 +41,7 @@
 | [{text: "aaa", start: 0, end: 3, groups: [], named: {}}] [{text: "", start: 0, end: 0, groups: [], named: {}}, {text: "aaa", start: 1, end: 4, groups: [], named: {}}, {text: "", start: 5, end: 5, groups: [], named: {}}]
 -- stderr
 -- exit: 0
-==== "import regex\nprint(regex.find(s: \"k=v\", pat: `(\\w)=(\\w… (129 bytes, 70406b324471589d)
+==== "import regex\nprint(regex.find(s: \"k=v\", pattern: `(\\w)=… (137 bytes, 72024d7e27e5d8d5)
 -- stdout
 | {text: "k=v", start: 0, end: 3, groups: ["k", "v"], named: {}} v=k
 -- stderr
@@ -71,7 +71,7 @@
 ==== "import regex\nprint(regex.find(\"x\", nil))"
 -- stdout
 -- stderr
-| error[E0403]: argument `pat` must be str, got nil
+| error[E0403]: argument `pattern` must be str, got nil
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x", nil))
@@ -95,7 +95,7 @@
 ==== "import regex\nprint(regex.split(\"x\", 1.5))"
 -- stdout
 -- stderr
-| error[E0403]: argument `pat` must be str, got float
+| error[E0403]: argument `pattern` must be str, got float
 |   --> -e:2:18
 |   |
 | 2 | print(regex.split("x", 1.5))
@@ -155,7 +155,7 @@
 ==== "import regex\nprint(regex.find(\"x\"))"
 -- stdout
 -- stderr
-| error[E0407]: missing argument `pat`
+| error[E0407]: missing argument `pattern`
 |   --> -e:2:17
 |   |
 | 2 | print(regex.find("x"))
@@ -176,13 +176,13 @@
 |  call path (innermost first):
 |    -e:2       <entry>
 -- exit: 1
-==== "import regex\nprint(regex.find(s: \"x\", pattern: \"x\"))"
+==== "import regex\nprint(regex.find(s: \"x\", pat: \"x\"))"
 -- stdout
 -- stderr
-| error[E0406]: find has no argument named `pattern`
+| error[E0406]: find has no argument named `pat`
 |   --> -e:2:17
 |   |
-| 2 | print(regex.find(s: "x", pattern: "x"))
+| 2 | print(regex.find(s: "x", pat: "x"))
 |   |                 ^
 |   |
 |  call path (innermost first):

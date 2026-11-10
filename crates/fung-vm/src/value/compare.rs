@@ -14,8 +14,17 @@ use super::format::{Items, is_collection};
 /// Rust stack does not grow with the values' depth. The walk stops at
 /// the first difference.
 pub fn equal(a: &Value, b: &Value) -> bool {
-    if !is_collection(a) || !is_collection(b) {
-        return equal_leaf(a, b);
+    // Without the symbol/string check the walk has no error to give.
+    walk(a, b, false).unwrap_or(false)
+}
+
+/// The one walk behind `equal` and `eq`. With `strict`, a symbol meeting a
+/// string at a pair the walk compares is E0517 (VA8, VA22): the check and
+/// the comparison are one step, so they stop at the same pair.
+fn walk(a: &Value, b: &Value, strict: bool) -> Result<bool, Diag> {
+    let walks = (is_collection(a) && is_collection(b)) || (strict && sym_str_pair(a, b));
+    if !walks {
+        return Ok(equal_leaf(a, b));
     }
     let mut open: Vec<Pairs<'_>> = Vec::new();
     let mut next = Some((a, b));
@@ -25,26 +34,43 @@ pub fn equal(a: &Value, b: &Value) -> bool {
         {
             match kids(a, b) {
                 Kids::Pairs(p) => open.push(p),
-                Kids::Mismatch => return false,
+                Kids::Mismatch => return Ok(false),
                 Kids::None => {
+                    if strict && sym_str_pair(a, b) {
+                        return Err(fung_front::diag::error(
+                            "E0517",
+                            super::arith::no_pos(),
+                            vec![
+                                fung_front::diag::Arg::Str(super::format(a)),
+                                fung_front::diag::Arg::Str(super::format(b)),
+                            ],
+                        ));
+                    }
                     if !equal_leaf(a, b) {
-                        return false;
+                        return Ok(false);
                     }
                 }
             }
         }
         let Some(top) = open.last_mut() else {
-            return true;
+            return Ok(true);
         };
         match top.next() {
             Some((x, Some(y))) => next = Some((x, y)),
             // a key of the left map that the right one lacks
-            Some((_, None)) => return false,
+            Some((_, None)) => return Ok(false),
             None => {
                 open.pop();
             }
         }
     }
+}
+
+fn sym_str_pair(a: &Value, b: &Value) -> bool {
+    matches!(
+        (a, b),
+        (Value::Sym(_), Value::Str(_)) | (Value::Str(_), Value::Sym(_))
+    )
 }
 
 /// `==` on two values that are not two collections of one kind.
@@ -78,7 +104,7 @@ fn equal_leaf(a: &Value, b: &Value) -> bool {
 }
 
 /// The items of two collections walked side by side (`equal`,
-/// `sym_meets_str`): two lists, tuples or tags item by item; two maps by
+/// `walk`): two lists, tuples or tags item by item; two maps by
 /// the left one's keys, with the right one's value under each (`None`
 /// where it has no such key; order does not matter).
 enum Pairs<'a> {
@@ -150,8 +176,7 @@ fn kids<'a>(a: &'a Value, b: &'a Value) -> Kids<'a> {
 /// tags and maps too) is E0517: never equal, and almost always a value
 /// that came back from JSON or a file (L10). Patterns keep `equal`.
 pub fn eq(a: &Value, b: &Value) -> Result<bool, Diag> {
-    sym_meets_str(a, b)?;
-    Ok(equal(a, b))
+    walk(a, b, true)
 }
 
 /// Whether `a` and `b` are the same shared collection (P5): such a value
@@ -164,59 +189,6 @@ fn same_object(a: &Value, b: &Value) -> bool {
         (Value::Tag(x), Value::Tag(y)) => Rc::ptr_eq(x, y),
         (Value::Str(x), Value::Str(y)) => Rc::ptr_eq(x, y),
         _ => false,
-    }
-}
-
-/// E0517 where `equal` compares a symbol with a string (VA8): walked as
-/// `equal` walks (L9), and stopped where `equal` stops, at the first pair
-/// that differs (shapes, a missing key, two leaves), since no pair after
-/// it is compared.
-fn sym_meets_str(a: &Value, b: &Value) -> Result<(), Diag> {
-    if (!is_collection(a) || !is_collection(b))
-        && !matches!(
-            (a, b),
-            (Value::Sym(_), Value::Str(_)) | (Value::Str(_), Value::Sym(_))
-        )
-    {
-        return Ok(());
-    }
-    let mut open: Vec<Pairs<'_>> = Vec::new();
-    let mut next = Some((a, b));
-    loop {
-        if let Some((a, b)) = next.take()
-            && !same_object(a, b)
-        {
-            match kids(a, b) {
-                Kids::Pairs(p) => open.push(p),
-                Kids::Mismatch => return Ok(()),
-                Kids::None => {
-                    if let (Value::Sym(_), Value::Str(_)) | (Value::Str(_), Value::Sym(_)) = (a, b)
-                    {
-                        return Err(fung_front::diag::error(
-                            "E0517",
-                            super::arith::no_pos(),
-                            vec![
-                                fung_front::diag::Arg::Str(super::format(a)),
-                                fung_front::diag::Arg::Str(super::format(b)),
-                            ],
-                        ));
-                    }
-                    if !equal(a, b) {
-                        return Ok(());
-                    }
-                }
-            }
-        }
-        let Some(top) = open.last_mut() else {
-            return Ok(());
-        };
-        match top.next() {
-            Some((x, Some(y))) => next = Some((x, y)),
-            Some((_, None)) => return Ok(()),
-            None => {
-                open.pop();
-            }
-        }
     }
 }
 
@@ -429,7 +401,8 @@ fn hash_leaf(v: &Value, h: &mut DefaultHasher) {
         Value::Sym(s) => (4u8, s.name().as_bytes()).hash(h),
         Value::Dur(d) => (5u8, *d).hash(h),
         Value::Time(t) => (6u8, t.instant()).hash(h),
-        Value::Range(r) => (10u8, r.start, r.end, r.inclusive).hash(h),
+        // By the numbers it holds, as `==` compares (D19).
+        Value::Range(r) => (10u8, r.ends()).hash(h),
         Value::Closure(x) => (12u8, Rc::as_ptr(x) as usize).hash(h),
         Value::Native(x) => (12u8, std::ptr::from_ref(*x) as usize).hash(h),
         Value::Module(x) => (12u8, Rc::as_ptr(x) as usize).hash(h),

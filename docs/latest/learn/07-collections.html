@@ -113,14 +113,14 @@ print(more |&gt; map(upper), more |&gt; filter(s =&gt; starts_with(s, &quot;web&
 print(sort(nums), reverse(nums), unique(nums))
 print(sum(nums), min(nums), max(nums), 12 in nums)
 print(find(nums, n =&gt; n &gt; 50), any(nums, n =&gt; n &gt; 300), all(nums, n =&gt; n &gt; 0))
-print([[1, 2], [3]] |&gt; flatten, range(5), range(5) |&gt; map(i =&gt; i * i))</code></pre><pre class="out plain"><code>[7, 12, 12, 98, 340] [98, 12, 7, 12, 340] [340, 12, 7, 98]
+print([[1, 2], [3]] |&gt; flatten, 0..5, 0..5 |&gt; map(i =&gt; i * i))</code></pre><pre class="out plain"><code>[7, 12, 12, 98, 340] [98, 12, 7, 12, 340] [340, 12, 7, 98]
 469 7 340 true
 340 true true
 [1, 2, 3] 0..5 [0, 1, 4, 9, 16]</code></pre></div>
 <ul>
 <li><code>sort</code>는 작은 것부터, <code>reverse</code>는 순서를 뒤집는다. <code>unique</code>는 처음 나온 것만 남긴다.</li>
 <li><code>find(xs, f)</code>는 <code>f</code>가 참인 첫 원소(없으면 <code>nil</code>), <code>any</code>는 하나라도, <code>all</code>은 모두 참인지 묻는다.</li>
-<li><code>flatten</code>은 리스트의 리스트를 한 겹 편다. <code>range(n)</code>은 <code>0..n</code>이고, 범위도 리스트처럼 <code>map</code>할 수 있다.</li>
+<li><code>flatten</code>은 리스트의 리스트를 한 겹 편다. 범위 <code>0..5</code>도 리스트처럼 <code>map</code>할 수 있다.</li>
 </ul>
 <h2 id="maps">맵</h2>
 <p><strong>맵(map)</strong>은 <strong>키(key)</strong>와 <strong>값(value)</strong>의 짝들이다. 리스트가 "몇 번째"로 찾는다면 맵은 "이름"으로 찾는다. 중괄호 안에 <code>키: 값</code>을 쓴다.</p>

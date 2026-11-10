@@ -56,11 +56,11 @@ impl Deadline {
 
 /// `timeout(f, d)`: runs `f()` under a node with a deadline `d` from now
 /// and gives its value, or `Err({kind: 'timeout, message})` once the deadline
-/// unwound it. A zero or negative `d` has passed already: `f` unwinds at
-/// its first call (as Trio's `move_on_after(0)`). The run loop calls `f`
+/// unwound it. `d` is never negative (`nat::need_dur`, SP15). A zero `d`
+/// has passed already: `f` unwinds at its first call (as Trio's `move_on_after(0)`). The run loop calls `f`
 /// (`cont.rs`).
 pub(crate) fn run_timeout(t: &mut Task<'_>, d: i64, f: Value) -> Flow {
-    let at = if d <= 0 {
+    let at = if d == 0 {
         Some(Instant::now())
     } else {
         Instant::now().checked_add(Duration::from_nanos(d as u64))
@@ -97,7 +97,7 @@ impl Timeout {
             Err(Stop::Error(ref e))
                 if is_cancel(e) && timed_out && !t.fiber.cancel.is_cancelled() =>
             {
-                let d = crate::value::format(&Value::Dur(self.d.max(0)));
+                let d = crate::value::format(&Value::Dur(self.d));
                 Ok(Next::Done(err_kind(
                     "timeout",
                     &format!("timed out after {d}"),

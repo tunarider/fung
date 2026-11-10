@@ -56,6 +56,20 @@ pub fn len(x: &Value) -> Result<i64, Diag> {
     })
 }
 
+/// E0514 for a map key that is not a string, wherever a map is looked
+/// up or changed by key (SP21, D13). A symbol, the usual slip (JSON and
+/// files give strings), is told how to write it.
+pub fn not_a_key(k: &Value) -> Diag {
+    let mut d = err("E0514", vec![Arg::Str(type_name(k))]);
+    if let Value::Sym(s) = k {
+        let name = s.name();
+        d.help = Some(format!(
+            "map keys are strings: write `\"{name}\"` for `'{name}`, or convert the key with `sym_name(k)`"
+        ));
+    }
+    d
+}
+
 /// A possibly negative index as a position, or E0507 naming `i`.
 fn norm_index(i: i64, n: usize) -> Result<usize, Diag> {
     let idx = if i < 0 { i + n as i64 } else { i };
@@ -65,10 +79,20 @@ fn norm_index(i: i64, n: usize) -> Result<usize, Diag> {
     Ok(idx as usize)
 }
 
-/// `x[i]` (02): lists and strings by position (negative from the end),
-/// maps by string key, modules by member name (04: a private name is
+/// `x[i]` (02): lists and strings by position (negative from the end)
+/// or by a range (a slice), maps by string key, modules by member name (04: a private name is
 /// E0304, a missing one E0303). Out of range is an error.
 pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
+    // A range value indexes a list or a string as the slice of the same
+    // ends does, E0516 included (D7): `xs[r]` is `xs[a..b]`.
+    if let (Value::List(_) | Value::Str(_), Value::Range(r)) = (x, i) {
+        return slice(
+            x,
+            Some(&Value::Int(r.start)),
+            Some(&Value::Int(r.end)),
+            r.inclusive,
+        );
+    }
     match x {
         Value::List(l) => {
             let Value::Int(n) = i else {
@@ -98,7 +122,7 @@ pub fn index(x: &Value, i: &Value) -> Result<Value, Diag> {
         }
         Value::Map(m) => {
             let Value::Str(k) = i else {
-                return Err(type_error("index", x, i));
+                return Err(not_a_key(i));
             };
             match m.get(&***k) {
                 Some(v) => Ok(v.clone()),
@@ -258,7 +282,7 @@ pub fn contains(c: &Value, x: &Value) -> Result<bool, Diag> {
         },
         Value::Map(m) => match x {
             Value::Str(k) => Ok(m.get(&***k).is_some()),
-            _ => Err(type_error("search", c, x)),
+            _ => Err(not_a_key(x)),
         },
         Value::Range(r) => match x {
             Value::Int(i) => Ok(r.contains(*i)),

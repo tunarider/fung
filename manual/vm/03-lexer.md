@@ -133,13 +133,15 @@ price = 30abc
 코드 조각은 렉서가 읽지 않고 **글자 그대로와 위치만** 보관한다. 파서가 나중에 그 조각을 다시 렉싱하고 파싱하는데, 이때 조각이 파일의 몇째 줄 몇째 칸에서 시작했는지(`lex_at`)를 넘겨주므로 조각 안의 에러도 파일 기준 위치로 나온다.
 
 ```plain
-error[E0110]: unexpected end of file
+error[E0110]: unexpected `}`
   --> example.fung:2:21
   |
 2 | print("host ${name +} up")
   |                     ^
   |
 ```
+
+조각의 코드는 닫는 `}`에서 끝나므로, 거기서 멈춘 에러는 "파일의 끝"이 아니라 `` `}` ``를 말한다.
 
 ## 줄바꿈과 주석 {#newline-comment}
 
@@ -177,6 +179,7 @@ ab = 1
     <tr><td><code>E0101</code></td><td>fung에 없는 글자</td><td><code>a @ b</code></td></tr>
     <tr><td><code>E0102</code></td><td>잘못된 수</td><td><code>30abc</code>, 64비트를 넘는 정수</td></tr>
     <tr><td><code>E0103</code></td><td>모르는 이스케이프</td><td><code>"a\qb"</code>, <code>"\x4"</code></td></tr>
+    <tr><td><code>E0106</code></td><td>글자가 아닌 <code>\u{…}</code></td><td><code>"\u{d800}"</code>, <code>"\u{110000}"</code></td></tr>
     <tr><td><code>E0104</code></td><td>닫히지 않은 문자열</td><td><code>"abc</code>, 문자열 안의 실제 줄바꿈</td></tr>
     <tr><td><code>E0105</code></td><td>잘못된 기간</td><td><code>30m1h</code></td></tr>
   </tbody>

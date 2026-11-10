@@ -64,12 +64,28 @@ impl<'a> Parser<'a> {
             return Err(tag_as_name(t));
         }
         // Destructuring: try `pattern =` first when the statement starts like
-        // a pattern (01: 문장 시작에서 패턴 =를 먼저 시도).
-        if matches!(
-            t.kind,
-            Kind::LParen | Kind::LBracket | Kind::LBrace | Kind::Tag
-        ) && let Some(n) = self.try_destructure()?
-        {
+        // a pattern (01: 문장 시작에서 패턴 =를 먼저 시도). A literal start
+        // is tried too, so `1 = x` is refused as a pattern (FE32), and a
+        // name before `|`, which no expression has.
+        let pattern_start = match t.kind {
+            Kind::LParen
+            | Kind::LBracket
+            | Kind::LBrace
+            | Kind::Tag
+            | Kind::Int
+            | Kind::Float
+            | Kind::Duration
+            | Kind::String
+            | Kind::RawString
+            | Kind::Symbol
+            | Kind::KwTrue
+            | Kind::KwFalse
+            | Kind::KwNil
+            | Kind::Minus => true,
+            Kind::Name => self.kind_after() == Kind::Bar,
+            _ => false,
+        };
+        if pattern_start && let Some(n) = self.try_destructure()? {
             return Ok(n);
         }
         if t.kind == Kind::KwFn && self.kind_after() == Kind::Name {
@@ -94,14 +110,16 @@ impl<'a> Parser<'a> {
     /// A block inside a match guard is ordinary code again: bare lambdas
     /// are allowed there (01).
     pub(super) fn body(&mut self, pos: Pos) -> PResult<Node> {
-        let (saved_nest, saved_guard) = (self.nest, self.guard);
+        let (saved_nest, saved_guard, saved_slice) = (self.nest, self.guard, self.slice);
         self.nest = 0;
         self.guard = false;
+        self.slice = None;
         self.block_depth += 1;
         let r = self.body_inner(pos);
         self.block_depth -= 1;
         self.nest = saved_nest;
         self.guard = saved_guard;
+        self.slice = saved_slice;
         r
     }
 
@@ -131,7 +149,7 @@ impl<'a> Parser<'a> {
     /// closing `;;` (the whole chain shares one).
     fn if_chain(&mut self) -> PResult<Node> {
         let t = self.next(); // if
-        let cond = self.expr(0)?;
+        let cond = self.outside_slice(|p| p.expr(0))?;
         self.expect_desc(Kind::Colon, "`:` after the if condition")?;
         let then_b = self.body(t.pos)?;
         let else_b = if self.at(Kind::KwElse) {
@@ -159,15 +177,21 @@ impl<'a> Parser<'a> {
     /// an assignment it restores the position and returns None.
     fn try_destructure(&mut self) -> PResult<Option<Node>> {
         let (save, save_nest, save_depth) = (self.i, self.nest, self.depth);
-        let pat = match self.pattern() {
-            Ok(pat) if self.at(Kind::Assign) => pat,
+        match self.pattern() {
+            Ok(_) if self.at(Kind::Assign) => {}
+            // `Ok(a, b)` is an error read as an expression too (E0236).
+            Err(e) if e.code == "E0236" => return Err(e),
             _ => {
                 self.i = save;
                 self.nest = save_nest;
                 self.depth = save_depth;
                 return Ok(None);
             }
-        };
+        }
+        // It is an assignment: read it again as one (FE32), which points
+        // at a literal the destructuring pattern does not take.
+        self.i = save;
+        let pat = self.destructure()?;
         self.next();
         self.skip_newlines_after_operator();
         let rhs = self.expr(0)?;

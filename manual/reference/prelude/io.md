@@ -122,13 +122,13 @@ match parse_int(port):
 
 :::
 
-:::fn read_line(f = nil)
+:::fn read_line(file = nil)
 
 한 줄을 읽어 `Ok(줄)`을, 더 읽을 것이 없으면 `Ok(nil)`을 돌려준다.
 
 #### 설명
 
-`f`가 `nil`(기본값)이면 표준 입력에서, [`fs.open`](../modules/fs.html#fn-fs-open)으로 연 파일 핸들이면 그 파일에서 읽는다. 읽은 줄의 끝에 붙은 `\n`과 그 앞의 `\r`(Windows식 줄 끝)은 떼고 돌려준다. 그래서 빈 줄은 `Ok("")`이고 끝은 `Ok(nil)`이라 둘이 구별된다.
+`file`이 `nil`(기본값)이면 표준 입력에서, [`fs.open`](../modules/fs.html#fn-fs-open)으로 연 파일 핸들이면 그 파일에서 읽는다. 읽은 줄의 끝에 붙은 `\n`과 그 앞의 `\r`(Windows식 줄 끝)은 떼고 돌려준다. 그래서 빈 줄은 `Ok("")`이고 끝은 `Ok(nil)`이라 둘이 구별된다.
 
 마지막 줄에 줄바꿈이 없어도 그 줄을 돌려준다. UTF-8이 아닌 바이트도 바꾸지 않고 그대로 담는다([바이트](strings.html#bytes)).
 
@@ -136,7 +136,7 @@ match parse_int(port):
 
 #### 매개변수
 
-- `f`: `nil`(표준 입력) 또는 파일 핸들.
+- `file`: `nil`(표준 입력) 또는 파일 핸들.
 
 #### 돌려주는 값
 
@@ -146,8 +146,9 @@ match parse_int(port):
 
 - 닫힌 파일 핸들이면 `Err({kind: 'closed, message})`.
 - 쓰기용으로 연 핸들이면 런타임 에러 E0520(`file … is not open for reading`). 모드는 코드가 정하는 것이라 코드 오류다.
-- 그 밖의 읽기 실패는 [`fs`](../modules/fs.html)의 다른 함수와 같은 `Err`(`'io` 등).
-- `f`가 파일도 `nil`도 아니면 런타임 에러 E0403.
+- 그 밖의 읽기 실패는 [`fs`](../modules/fs.html)의 다른 함수와 같은 `Err`(`'io` 등). 표준 입력이면 메시지가 `cannot read standard input: …`이다. 읽기 실패는 입력의 끝이 아니다: 실패 앞에서 읽은 줄 조각은 버리지 않고 남아 다음 읽기가 다시 시도한다.
+- 한 줄이 문자열 한도(1억 글자)를 넘으면 `Err({kind: 'io, message})`다(``cannot read standard input: line is longer than the string limit (100000000 characters)``). 이것만은 다르다: 줄을 끝까지 모으지 않고 한도를 넘는 순간 멈추며, 그때까지 읽은 조각은 **버린다**. 그 줄의 나머지는 남아 다음 읽기가 새 줄처럼 이어 읽는다(나머지도 한도를 넘으면 다시 `Err`). 그래서 줄바꿈 없이 끝없이 오는 입력도 메모리를 한도 근처까지만 쓴다. 표준 입력, 파일 핸들, FIFO 모두 같다. 표준 입력이 비차단(O_NONBLOCK)으로 넘어왔으면 아직 올 것이 없을 때 끝으로 보지 않고 기다린다.
+- `file`이 파일도 `nil`도 아니면 런타임 에러 E0403.
 
 #### 예제
 
@@ -200,7 +201,7 @@ print(read_line(f))
 
 :::
 
-:::fn read_lines(f = nil)
+:::fn read_lines(file = nil)
 
 남은 줄을 모두 읽어 `Ok(리스트)`로 돌려준다.
 
@@ -212,7 +213,7 @@ print(read_line(f))
 
 #### 매개변수
 
-- `f`: `nil`(표준 입력) 또는 파일 핸들.
+- `file`: `nil`(표준 입력) 또는 파일 핸들.
 
 #### 돌려주는 값
 
@@ -220,7 +221,7 @@ print(read_line(f))
 
 #### 에러
 
-[`read_line`](#fn-read_line)과 같다: 닫힌 핸들은 `Err({kind: 'closed, message})`, 쓰기용 핸들은 `Err({kind: 'invalid, message})`, 잘못된 인자는 E0403.
+[`read_line`](#fn-read_line)과 같다: 닫힌 핸들은 `Err({kind: 'closed, message})`, 쓰기용 핸들은 런타임 에러 E0520, 잘못된 인자는 E0403. 도중에 읽기가 실패하면 그 호출이 그때까지 모은 줄 대신 그 `Err`를 돌려준다. 문자열 한도를 넘는 줄도 그렇다: 그때까지 모은 줄과 그 줄의 읽은 조각은 버려지고, 다음 읽기는 그 줄의 나머지부터 읽는다.
 
 #### 예제
 

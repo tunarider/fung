@@ -24,7 +24,7 @@ impl Cont for Twice {
     }
 }
 
-fn twice(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn twice(t: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
     let f = a[0].clone();
     t.push_arg(Value::Int(1));
     Ok(Flow::Call(
@@ -46,7 +46,7 @@ impl Cont for Once {
     }
 }
 
-fn call_with(t: &mut Task<'_>, mut a: Vec<Value>) -> Result<Flow, Stop> {
+fn call_with(t: &mut Task<'_>, mut a: crate::value::Args) -> Result<Flow, Stop> {
     let x = a.pop().expect("x");
     let f = a.pop().expect("f");
     t.push_arg(x);
@@ -68,7 +68,7 @@ impl Cont for ProbeAfter {
     }
 }
 
-fn probe_after(_: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn probe_after(_: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
     Ok(Flow::Call(Box::new(ProbeAfter), a[0].clone(), 0))
 }
 
@@ -231,7 +231,7 @@ fn callback_errors_report_as_before() {
         ),
         (
             "print(group_by([1], x => 1))",
-            "error[E0514]: cannot use a value of type int as a map key\n  --> -e:1:15\n  |\n1 | print(group_by([1], x => 1))\n  |               ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: map keys are strings: convert the key with `str(...)`, e.g. `group_by(xs, x => str(x % 2))`\n",
+            "error[E0514]: cannot use a value of type int as a map key\n  --> -e:1:15\n  |\n1 | print(group_by([1], x => 1))\n  |               ^\n  |\n call path (innermost first):\n   -e:1       <entry>\n help: map keys are strings: convert the key with `str(k)`\n",
         ),
     ];
     for (src, want) in cases {

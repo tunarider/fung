@@ -197,7 +197,7 @@ print(logstat.count_levels(rows))
 :::
 
 :::box mistake 파일 이름에 -를 쓰면
-`my-lib.fung`처럼 이름 규칙(3장)에 맞지 않는 파일은 모듈 이름이 될 수 없어서 `import "./my-lib"`는 컴파일 에러 E0305다. `import "./my-lib" as my_lib`처럼 별칭을 붙인다. 처음부터 `my_lib.fung`으로 짓는 편이 낫다.
+`my-lib.fung`처럼 이름 규칙(3장)에 맞지 않는 파일(예약어인 `if.fung`, 대문자로 시작하는 `Util.fung`도)은 모듈 이름이 될 수 없어서 `import "./my-lib"`는 컴파일 에러 E0305다. `import "./my-lib" as my_lib`처럼 별칭을 붙인다. 처음부터 `my_lib.fung`으로 짓는 편이 낫다.
 :::
 
 :::box mistake 서로를 가져오는 두 파일

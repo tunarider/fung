@@ -2,6 +2,11 @@
 //! first signal is a stop request, the second ends the process at once.
 //! Each child is a `fung` held by `Reaped`; a signal is sent only after
 //! the program wrote the line the test waits for.
+//!
+//! The tests need SIGINT not inherited as ignored: `fung` keeps an
+//! inherited SIG_IGN (the POSIX rule for a background job), so `cargo
+//! test` started from a shell's background job (`cargo test &`) fails
+//! them. Run them in the foreground.
 
 mod common;
 
@@ -12,6 +17,25 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use common::{Reaped, fung_bin};
+
+/// A fresh directory `$TMPDIR/<name>-<pid>`, removed when dropped, also
+/// when the test panics.
+struct Scratch(std::path::PathBuf);
+
+impl Scratch {
+    fn new(name: &str) -> Scratch {
+        let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        Scratch(dir)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 /// A running `fung` whose standard output is read line by line.
 struct Live {
@@ -183,9 +207,8 @@ fn a_second_signal_does_not_wait() {
 /// in a group of their own go with it (CC5): no one would reap them after.
 #[test]
 fn a_second_signal_ends_the_commands_it_started() {
-    let dir = std::env::temp_dir().join(format!("fung-second-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("fung-second");
+    let dir = scratch.0.clone();
     let f = dir.join("pid");
     let mut l = run_e(&format!(
         "stop = stop_signal()\nscope(fn(s):\n  t = spawn(s, () => sh(\"echo $$ > {}; exec sleep 60\"))\n  print(\"ready\")\n  wait_closed(stop)\n  print(\"draining\")\n  await(t)\n;;)",
@@ -222,7 +245,7 @@ fn a_second_signal_ends_the_commands_it_started() {
         }
         std::thread::sleep(Duration::from_millis(10));
     };
-    let _ = std::fs::remove_dir_all(&dir);
+    drop(scratch);
     assert!(gone, "the command {pid} outlived fung");
 }
 
@@ -293,9 +316,8 @@ fn repl_ctrl_c_cancels_a_swap() {
 /// Each test block starts with no stop requested.
 #[test]
 fn fung_test_blocks_get_a_fresh_stop() {
-    let dir = std::env::temp_dir().join(format!("fung-signals-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("fung-signals");
+    let dir = scratch.0.clone();
     let file = dir.join("stop_test.fung");
     std::fs::write(
         &file,
@@ -304,7 +326,7 @@ fn fung_test_blocks_get_a_fresh_stop() {
     .unwrap();
     let l = Live::start(&["test", file.to_str().unwrap()], Stdio::null());
     let (out, err, code) = l.finish();
-    let _ = std::fs::remove_dir_all(&dir);
+    drop(scratch);
     assert!(
         out.contains("ok   ") && !out.contains("FAIL"),
         "{out}\n{err}"
@@ -350,9 +372,8 @@ fn a_server_drains_on_sigterm() {
 /// stopped by SIGTTIN. `script` gives the run a terminal.
 #[test]
 fn a_command_can_read_the_terminal() {
-    let dir = std::env::temp_dir().join(format!("fung-tty-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("fung-tty");
+    let dir = scratch.0.clone();
     let file = dir.join("tty.fung");
     std::fs::write(
         &file,
@@ -378,7 +399,7 @@ fn a_command_can_read_the_terminal() {
     );
     child.stdin.take().unwrap().write_all(b"hello\n").unwrap();
     let (o, killed) = child.output_within(Duration::from_secs(10)).unwrap();
-    let _ = std::fs::remove_dir_all(&dir);
+    drop(scratch);
     let out = String::from_utf8_lossy(&o.stdout);
     assert!(!killed, "the command stopped on the terminal: {out}");
     // what `read` gets (the line, or the end of input `script` passes
@@ -424,9 +445,8 @@ fn a_signal_after_request_stop_ends_at_once() {
 /// blocks; a signal that cuts a file short is named as one.
 #[test]
 fn fung_test_keeps_a_top_level_stop_and_names_a_signal() {
-    let dir = std::env::temp_dir().join(format!("fung-signals-top-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("fung-signals-top");
+    let dir = scratch.0.clone();
     let file = dir.join("top_test.fung");
     std::fs::write(
         &file,
@@ -450,7 +470,7 @@ fn fung_test_keeps_a_top_level_stop_and_names_a_signal() {
     l.wait_for("ready");
     l.signal("TERM");
     let (out, _, code) = l.finish();
-    let _ = std::fs::remove_dir_all(&dir);
+    drop(scratch);
     assert!(out.contains("SIGTERM stopped the run"), "{out}");
     assert!(!out.contains("exit(143)"), "{out}");
     assert_eq!(code, Some(143));
@@ -537,9 +557,8 @@ fn an_abandoned_tasks_handle_in_a_later_input_is_cancelled() {
 /// A command an abandoned input waited on is killed and reaped.
 #[test]
 fn an_abandoned_command_is_killed_and_reaped() {
-    let dir = std::env::temp_dir().join(format!("fung-abandon-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("fung-abandon");
+    let dir = scratch.0.clone();
     let f = dir.join("pid");
     let mut l = Live::start(&[], Stdio::piped());
     let mut input = l.child.stdin.take().unwrap();
@@ -585,7 +604,7 @@ fn an_abandoned_command_is_killed_and_reaped() {
     };
     drop(input);
     let _ = l.finish();
-    let _ = std::fs::remove_dir_all(&dir);
+    drop(scratch);
     assert!(gone, "the command {pid} is still there");
 }
 
@@ -593,9 +612,8 @@ fn an_abandoned_command_is_killed_and_reaped() {
 /// output: abandoning the wait kills that group too (spec 15).
 #[test]
 fn an_abandoned_command_group_is_killed_after_its_leader_exited() {
-    let dir = std::env::temp_dir().join(format!("fung-abandon-group-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("fung-abandon-group");
+    let dir = scratch.0.clone();
     let f = dir.join("pid");
     let mut l = Live::start(&[], Stdio::piped());
     let mut input = l.child.stdin.take().unwrap();
@@ -639,7 +657,7 @@ fn an_abandoned_command_group_is_killed_after_its_leader_exited() {
     };
     drop(input);
     let _ = l.finish();
-    let _ = std::fs::remove_dir_all(&dir);
+    drop(scratch);
     assert!(gone, "what the command left ({pid}) is still there");
 }
 

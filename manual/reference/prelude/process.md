@@ -1,12 +1,12 @@
 ---
 lede: 외부 명령을 실행하고 환경 변수를 읽는다. 명령은 쉘을 거치지 않는 <code>exec</code>가 기본이다. 종료 코드가 0이 아니면 <code>Err</code>이므로 <code>exec(…)!</code>가 쉘의 <code>set -e</code>와 같다.
-description: fung prelude 프로세스와 환경: exec, sh, env.
+description: fung prelude 프로세스와 환경: exec, sh, env, env_all.
 ---
 # 프로세스와 환경
 
 ## 프로세스와 환경이란 {#concepts}
 
-실행 중인 프로그램 하나를 **프로세스**(process)라고 한다. fung 스크립트도 프로세스이고, 스크립트가 `git`이나 `ssh`, `kubectl`을 실행하면 그것은 **자식 프로세스**(child process)가 된다. 자식 프로세스는 세 가지를 남긴다: 표준 출력에 쓴 글(`out`), 표준 에러에 쓴 글(`err`), 종료 코드(`code`, 0이면 성공). [`exec`](#fn-exec)는 명령이 끝날 때까지 기다렸다가 이 셋을 맵으로 돌려준다. 출력은 터미널에 흘러나오지 않고 값으로 모인다.
+실행 중인 프로그램 하나를 **프로세스**(process)라고 한다. fung 스크립트도 프로세스이고, 스크립트가 `git`이나 `ssh`, `kubectl`을 실행하면 그것은 **자식 프로세스**(child process)가 된다. 자식 프로세스는 표준 출력에 쓴 글(`out`), 표준 에러에 쓴 글(`err`), 그리고 끝난 까닭을 남긴다. 끝난 까닭은 스스로 끝냈을 때의 종료 코드(`code`, 0이면 성공)이거나, 신호에 죽었을 때의 신호 번호(`signal`, 이때 `code`는 `nil`)다. [`exec`](#fn-exec)는 명령이 끝날 때까지 기다렸다가 이 넷을 맵으로 돌려준다(둘 중 쓰이지 않은 쪽은 `nil`). 출력은 터미널에 흘러나오지 않고 값으로 모인다.
 
 명령은 **문자열의 리스트**로 준다: `["git", "commit", "-m", msg]`. 첫 원소가 실행할 프로그램이고 나머지가 인자다. 쉘을 거치지 않으므로 `msg`에 공백, 따옴표, `$`, `;`가 들어 있어도 한 인자로 그대로 간다. 쉘의 따옴표 규칙을 신경 쓸 필요가 없고, 바깥에서 온 값이 명령을 바꿔 버리는 **명령 주입**(command injection)도 일어나지 않는다. 파이프(`|`)나 글로브(`*.log`) 같은 쉘 기능이 꼭 필요할 때만 [`sh`](#fn-sh)를 쓴다.
 
@@ -18,17 +18,19 @@ description: fung prelude 프로세스와 환경: exec, sh, env.
 
 :::fn exec(cmd, cwd = nil, env = nil, stdin = nil)
 
-명령을 쉘 없이 실행하고 끝나기를 기다려 `Ok({out, err, code})`를 돌려준다. 0이 아닌 종료는 `Err`.
+명령을 쉘 없이 실행하고 끝나기를 기다려 `Ok({out, err, code, signal})`를 돌려준다. 0이 아닌 종료와 신호로 끝난 것은 `Err`.
 
 #### 설명
 
 `cmd`의 첫 원소를 `PATH`에서 찾아 나머지를 인자로 실행한다(`/`가 든 이름이면 그 경로를 쓴다). 명령이 끝나면 표준 출력과 표준 에러를 문자열로 모아 돌려준다. 출력 끝의 줄바꿈도 그대로 들어 있으므로 값 하나를 얻을 때는 [`trim`](strings.html#fn-trim)하고, 여러 줄이면 [`lines`](strings.html#fn-lines)로 나눈다.
 
-- **성공**(종료 코드 0): `Ok({out, err, code: 0})`.
-- **0이 아닌 종료**: `Err({kind: 'exit, code, out, err, message})`. 출력도 들어 있으므로 실패 이유를 `e.err`로 보여 줄 수 있다. `exec(…)!`로 쓰면 실패할 때 멈추므로 쉘의 `set -e`와 같고, 문장으로만 쓴 `exec(…)`도 `Err`를 버리면 E0606으로 멈춘다.
-- **실행할 수 없음**: 실행 파일이 없거나, 실행 권한이 없거나, `cwd`가 없으면 `Err({kind: 'not_found, message})`. 이유는 `command not found in PATH`, `permission denied` 등이다. 실행 권한이 없는 스크립트는 `["sh", "script.sh"]`로 돌린다.
+- **성공**(종료 코드 0): `Ok({out, err, code: 0, signal: nil})`.
+- **0이 아닌 종료**: `Err({kind: 'exit, code, signal: nil, out, err, message})`. 출력도 들어 있으므로 실패 이유를 `e.err`로 보여 줄 수 있다. `exec(…)!`로 쓰면 실패할 때 멈추므로 쉘의 `set -e`와 같고, 문장으로만 쓴 `exec(…)`도 `Err`를 버리면 E0606으로 멈춘다.
+- **신호로 끝남**: `Err({kind: 'exit, code: nil, signal: n, out, err, message})`. 종료 코드가 없으므로 `code`는 `nil`이고 `signal`이 신호 번호다(SIGKILL이면 9: 메모리가 모자라 운영체제가 끝낸 명령이 흔히 이렇다). 메시지는 ``message: "`/bin/sh` was killed by signal 9 (SIGKILL)"``이다. 셸의 `$?`처럼 128 + n으로 바꾸지 않으므로, 실제로 137로 끝난 명령과 섞이지 않는다. 결과는 성공이든 실패든 늘 `code`와 `signal`을 둘 다 가진다.
+- **실행할 수 없음**: 실행 파일이 없거나, 실행 권한이 없거나, `cwd`를 쓸 수 없으면 `Err({kind: 'not_found, message})`. 이유는 `command not found in PATH`, `permission denied`, ``working directory `/nope`: no such file or directory`` 등이다. 실행 권한이 없는 스크립트는 `["sh", "script.sh"]`로 돌린다.
+- **출력이 너무 김**: 표준 출력이나 표준 에러가 문자열 한도(1억 글자)를 넘으면 그 자리에서 명령을 끝내고(취소처럼 SIGTERM, 2초 뒤 SIGKILL) `Err({kind: 'io, message})`를 돌려준다(``standard output of `yes` is longer than the string limit (100000000 characters)``). 읽은 출력은 버린다. 끝없이 쓰는 명령도 메모리를 한도 근처까지만 쓴다.
 
-`cwd`를 주면 그 디렉터리에서 실행한다. `env`는 지금 환경에 **덧붙일** 맵이다(같은 이름은 덮어쓴다). `stdin`을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. `stdin`이 `nil`이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: `exec(["make"], cwd: "/src", env: {CC: "clang"})`.
+`cwd`를 주면 그 디렉터리에서 실행하고, 환경 변수 `PWD`도 그 절대 경로로 맞춘다(`env`를 줘도 그렇다; `env`에 `PWD`가 있으면 그 값). `env`는 지금 환경에 **덧붙일** 맵이다(같은 이름은 덮어쓴다). `stdin`을 주면 그 문자열을 명령의 표준 입력으로 넣고 닫는다. `stdin`이 `nil`이면 명령은 빈 입력을 받는다. fung이 받은 표준 입력을 명령에 넘기지 않는다. 이름 붙인 인자로 쓰면 읽기 좋다: `exec(["make"], cwd: "/src", env: {CC: "clang"})`.
 
 **취소**: 부른 태스크가 취소되면(`timeout`, `exit`, 태스크 범위의 취소) 명령에 SIGTERM을 보내고, 2초 뒤에도 남아 있으면 SIGKILL을 보낸 뒤 취소로 되감긴다. 그래서 `timeout(() => exec(cmd), 30s)`는 걸린 명령을 남겨 두지 않는다.
 
@@ -39,17 +41,17 @@ description: fung prelude 프로세스와 환경: exec, sh, env.
 #### 매개변수
 
 - `cmd`: 비지 않은 문자열 리스트. `[프로그램, 인자…]`.
-- `cwd`: 실행할 디렉터리, 또는 `nil`(지금 디렉터리).
+- `cwd`: 실행할 디렉터리, 또는 `nil`(지금 디렉터리). 빈 문자열은 E0403이다(지금 디렉터리는 `nil`이나 `"."`).
 - `env`: 덧붙일 환경 변수(값이 문자열인 맵), 또는 `nil`. 이름은 비지 않고 `=`가 없어야 한다.
 - `stdin`: 표준 입력으로 넣을 문자열, 또는 `nil`.
 
 #### 돌려주는 값
 
-`Ok({out: 문자열, err: 문자열, code: 0})`, 또는 `Err({kind: 'exit, code, out, err, message})`, 또는 `Err({kind: 'not_found, message})`.
+`Ok({out: 문자열, err: 문자열, code: 0, signal: nil})`, 또는 `Err({kind: 'exit, code, signal, out, err, message})`(종료 코드면 `signal: nil`, 신호면 `code: nil`), 또는 `Err({kind: 'not_found, message})`, 또는 `Err({kind: 'io, message})`(출력이 문자열 한도를 넘음).
 
 #### 에러
 
-인자의 타입이 틀리면 런타임 에러 E0403: `cmd`가 문자열이거나(`exec("ls -l")`은 안 된다), 비었거나, 문자열이 아닌 원소가 있을 때, `env`의 값이 문자열이 아니거나 이름에 `=`가 있을 때 등.
+인자의 타입이 틀리면 런타임 에러 E0403: `cmd`가 문자열이거나(`exec("ls -l")`은 안 된다), 비었거나, 문자열이 아닌 원소가 있을 때, `cwd`가 빈 문자열일 때, `env`의 값이 문자열이 아니거나 이름에 `=`가 있을 때 등.
 
 #### 예제
 
@@ -65,13 +67,15 @@ print(trim(r.out))
 
 ```fung run
 fn run(cmd) = match exec(cmd):
-  Ok(r)                    => "ok: ${trim(r.out)}"
-  Err({kind: 'exit, code}) => "exited with ${code}"
-  Err({kind: 'not_found})  => "no such command"
+  Ok(r)                                 => "ok: ${trim(r.out)}"
+  Err({kind: 'exit, code: nil, signal}) => "killed by signal ${signal}"
+  Err({kind: 'exit, code})              => "exited with ${code}"
+  Err({kind: 'not_found})               => "no such command"
 ;;
 
 print(run(["echo", "fine"]))
 print(run(["sh", "-c", "exit 3"]))
+print(run(["sh", "-c", "kill -9 $$"]))
 print(run(["no-such-command-xyz"]))
 ```
 
@@ -186,27 +190,27 @@ print(sh("exit 2"))
 
 :::
 
-:::fn env(name = nil)
+:::fn env(name)
 
-환경 변수 `name`의 값(문자열)을, 없으면 `nil`을 돌려준다. 인자가 없으면 전체를 맵으로.
+환경 변수 `name`의 값(문자열)을, 없으면 `nil`을 돌려준다.
 
 #### 설명
 
 값은 언제나 문자열이다. 수가 필요하면 [`parse_int`](convert.html#fn-parse_int)로 바꾼다. 없는 변수는 에러가 아니라 `nil`이므로 `??`로 기본값을 붙이기 좋다: `env("PORT") ?? "8080"`. 꼭 있어야 하는 변수면 `env("DB_HOST") ?? fail("DB_HOST is required")`.
 
-인자 없이 부르면 모든 환경 변수를 `{이름: 값}` 맵으로 돌려준다.
+모든 환경 변수가 필요하면 [`env_all`](#fn-env_all)을 쓴다.
 
 #### 매개변수
 
-- `name`: 변수 이름(문자열), 또는 `nil`(전체).
+- `name`: 변수 이름(문자열).
 
 #### 돌려주는 값
 
-문자열 또는 `nil`. 인자가 없으면 맵.
+문자열 또는 `nil`.
 
 #### 에러
 
-`name`이 문자열도 `nil`도 아니면 런타임 에러 E0403.
+`name`이 문자열이 아니면 런타임 에러 E0403.
 
 #### 예제
 
@@ -224,15 +228,43 @@ print(env("DEPLOY_ENV"), parse_int(env("RETRIES") ?? "1")!)
 print(env("NOT_SET_ANYWHERE"))
 ```
 
-**전체를 맵으로**
+#### 같이 보기
+
+[`env_all`](#fn-env_all), [`exec`](#fn-exec), [`args`](program.html#fn-args), [`??`](../language/results.html)
+
+:::
+
+:::fn env_all()
+
+모든 환경 변수를 `{이름: 값}` 맵으로 돌려준다.
+
+#### 설명
+
+값은 언제나 문자열이고, 맵의 순서는 운영 체제가 넘겨준 순서다. 변수 하나는 [`env`](#fn-env)로 읽는다.
+
+#### 매개변수
+
+없음.
+
+#### 돌려주는 값
+
+맵.
+
+#### 에러
+
+없음.
+
+#### 예제
+
+**이름이 `APP_`로 시작하는 것만**
 
 ```fung run env="APP_DEBUG=1 APP_NAME=api"
-app = pairs(env()) |> filter(((k, _)) => starts_with(k, "APP_")) |> sort_by(((k, _)) => k)
+app = pairs(env_all()) |> filter(((k, _)) => starts_with(k, "APP_")) |> sort_by(((k, _)) => k)
 print(app)
 ```
 
 #### 같이 보기
 
-[`exec`](#fn-exec), [`args`](program.html#fn-args), [`??`](../language/results.html)
+[`env`](#fn-env), [`pairs`](maps.html#fn-pairs)
 
 :::

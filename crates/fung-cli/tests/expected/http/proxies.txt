@@ -14,11 +14,11 @@
 \ no newline
 -- env: HTTP_PROXY=http://127.0.0.1:PORT0
 -- stdout
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -62,11 +62,11 @@
 \ no newline
 -- env: HTTP_PROXY=http://pu:p%20w@127.0.0.1:PORT0
 -- stdout
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -109,7 +109,7 @@
 -- program: print(http.get("http://example.test/a"))
 -- env: http_proxy=127.0.0.1:PORT0
 -- stdout
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -121,7 +121,7 @@
 -- program: print(http.get("http://example.test/a"))
 -- env: HTTP_PROXY=http://127.0.0.1:PORT0/ignored?x=1
 -- stdout
-| Ok({status: 200, headers: {"content-length": "9"}, body: "via proxy"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "9"}, header_lines: [("Connection", "close"), ("Content-Length", "9")], body: "via proxy"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -177,10 +177,10 @@
 | NO_PROXY=
 \ no newline
 -- stdout
-| Ok({status: 200, headers: {"content-length": "6"}, body: "direct"})
-| Ok({status: 200, headers: {"content-length": "6"}, body: "direct"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "6"}, header_lines: [("Connection", "close"), ("Content-Length", "6")], body: "direct"})
+| Ok({status: 200, headers: {connection: "close", "content-length": "6"}, header_lines: [("Connection", "close"), ("Content-Length", "6")], body: "direct"})
 | Err({kind: 'network, message: "cannot request `http://[::1]:$REFUSED/c`: connection refused"})
-| Ok({status: 403, headers: {"content-length": "5"}, body: "proxy"})
+| Ok({status: 403, headers: {connection: "close", "content-length": "5"}, header_lines: [("Connection", "close"), ("Content-Length", "5")], body: "proxy"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -207,7 +207,7 @@
 | https_proxy=http://127.0.0.1:PORT0
 \ no newline
 -- stdout
-| Ok({status: 403, headers: {"content-length": "1"}, body: "A"}) Err({kind: 'network, message: "cannot request `https://example.test/`: proxy `127.0.0.1:$PORT1`: CONNECT answered 403 B"})
+| Ok({status: 403, headers: {connection: "close", "content-length": "1"}, header_lines: [("Connection", "close"), ("Content-Length", "1")], body: "A"}) Err({kind: 'network, message: "cannot request `https://example.test/`: proxy `127.0.0.1:$PORT1`: CONNECT answered 403 B"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -228,7 +228,7 @@
 | https_proxy=http://127.0.0.1:PORT0
 \ no newline
 -- stdout
-| Ok({status: 403, headers: {"content-length": "1"}, body: "B"}) Err({kind: 'network, message: "cannot request `https://example.test/`: proxy `127.0.0.1:$PORT0`: CONNECT answered 403 A"})
+| Ok({status: 403, headers: {connection: "close", "content-length": "1"}, header_lines: [("Connection", "close"), ("Content-Length", "1")], body: "B"}) Err({kind: 'network, message: "cannot request `https://example.test/`: proxy `127.0.0.1:$PORT0`: CONNECT answered 403 A"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)
@@ -249,7 +249,7 @@
 | no_proxy=example.test
 \ no newline
 -- stdout
-| Ok({status: 403, headers: {"content-length": "1"}, body: "A"}) Ok({status: 403, headers: {"content-length": "1"}, body: "A"})
+| Ok({status: 403, headers: {connection: "close", "content-length": "1"}, header_lines: [("Connection", "close"), ("Content-Length", "1")], body: "A"}) Ok({status: 403, headers: {connection: "close", "content-length": "1"}, header_lines: [("Connection", "close"), ("Content-Length", "1")], body: "A"})
 -- stderr
 -- exit: 0
 -- request 0.0 (escaped)

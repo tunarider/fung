@@ -133,7 +133,7 @@ print(delays)</code></pre><pre class="out plain"><code>[100ms, 200ms, 400ms, 800
 <p><code>f</code>를 <code>x</code>에 <code>n</code>번 거듭 적용한 값을 돌려준다.</p>
 <div class="sig"><code>iterate(x, f, n)</code></div>
 <h4>설명</h4>
-<p><code>iterate(x, f, 3)</code>은 <code>f(f(f(x)))</code>다. <code>n</code>이 0 이하면 <code>x</code>를 그대로 돌려준다. 중간 값이 모두 필요하면 <a href="collections.html#fn-fold"><code>fold</code></a>로 리스트에 모으거나 <code>for</code>를 쓴다.</p>
+<p><code>iterate(x, f, 3)</code>은 <code>f(f(f(x)))</code>다. <code>n</code>이 0이면 <code>x</code>를 그대로 돌려주고, 음수면 E0403이다. 중간 값이 모두 필요하면 <a href="collections.html#fn-fold"><code>fold</code></a>로 리스트에 모으거나 <code>for</code>를 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>x</code>: 처음 값.</li>

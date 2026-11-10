@@ -1,0 +1,9 @@
+# A name in a pattern binds a new name: it does not compare with `limit`,
+# so it matches everything and the arms after it never run.
+limit = 5
+fn f(x) = match x:
+  limit => "at limit"
+  _     => "other"
+;;
+print(f(3), limit)
+# expect-error: E0235

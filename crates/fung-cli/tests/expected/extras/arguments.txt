@@ -1,0 +1,471 @@
+# One wrong argument for each public function written in fung (crates/fung-cli/tests/extras_arguments.rs), each run with `fung -e`.
+# Update: FUNG_EXPECTED=bless cargo test -p fung-cli --test extras_arguments
+==== cli.parse "import cli\nprint(cli.parse(\"x\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `argv` must be list, got str
+|   --> -e:2:16
+|   |
+| 2 | print(cli.parse("x"))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== cli.parse "import cli\nprint(cli.parse([1]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `argv` must be a list of str, got a list holding int
+|   --> -e:2:16
+|   |
+| 2 | print(cli.parse([1]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== cli.parse "import cli\nprint(cli.parse([], bools: [1]))"
+-- stdout
+-- stderr
+| error[E0403]: argument `bools` must be a list of str, got a list holding int
+|   --> -e:2:16
+|   |
+| 2 | print(cli.parse([], bools: [1]))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.fan_in "import conc\nscope(s => conc.fan_in(s, 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `rxs` must be list, got int
+|   --> -e:2:23
+|   |
+| 2 | scope(s => conc.fan_in(s, 1))
+|   |                       ^
+|   |
+|  call path (innermost first):
+|    -e:2       <lambda>
+|    -e:2       <entry>
+-- exit: 1
+==== conc.fan_in "import conc\nconc.fan_in(1, [])"
+-- stdout
+-- stderr
+| error[E0403]: argument `s` must be scope, got int
+|   --> -e:2:12
+|   |
+| 2 | conc.fan_in(1, [])
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.pmap "import conc\nprint(conc.pmap([1], x => print(x), limit: \"a\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `limit` must be int | nil, got str
+|   --> -e:2:16
+|   |
+| 2 | print(conc.pmap([1], x => print(x), limit: "a"))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.pmap "import conc\nprint(conc.pmap([1, 2, 3, 4], x => print(x), limit: 2.5))"
+-- stdout
+-- stderr
+| error[E0403]: argument `limit` must be int | nil, got float
+|   --> -e:2:16
+|   |
+| 2 | print(conc.pmap([1, 2, 3, 4], x => print(x), limit: 2.5))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.pmap "import conc\nprint(conc.pmap([1], x => print(x), limit: 0))"
+-- stdout
+-- stderr
+| error[E0403]: argument `limit` must be a positive int, got 0
+|   --> -e:2:16
+|   |
+| 2 | print(conc.pmap([1], x => print(x), limit: 0))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.pmap "import conc\nprint(conc.pmap([1], x => print(x), limit: -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `limit` must be a positive int, got -1
+|   --> -e:2:16
+|   |
+| 2 | print(conc.pmap([1], x => print(x), limit: -1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.pmap "import conc\nprint(conc.pmap([1], 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:2:16
+|   |
+| 2 | print(conc.pmap([1], 1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: \"2\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `times` must be int, got str
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(() => print(1), times: "2"))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: 0))"
+-- stdout
+-- stderr
+| error[E0403]: argument `times` must be a positive int, got 0
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(() => print(1), times: 0))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `times` must be a positive int, got -1
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(() => print(1), times: -1))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: 2, delay: 5))"
+-- stdout
+-- stderr
+| error[E0403]: argument `delay` must be dur, got int
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(() => print(1), times: 2, delay: 5))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.retry "import conc\nprint(conc.retry(() => print(1), times: 2, delay: -1s))"
+-- stdout
+-- stderr
+| error[E0403]: argument `delay` must be a non-negative dur, got -1s
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(() => print(1), times: 2, delay: -1s))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== conc.retry "import conc\nprint(conc.retry(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:2:17
+|   |
+| 2 | print(conc.retry(1))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== fs.read_lines "import fs\nprint(fs.read_lines(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `path` must be str, got int
+|   --> -e:2:20
+|   |
+| 2 | print(fs.read_lines(1))
+|   |                    ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", 1, mode: 'write))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:2:19
+|   |
+| 2 | print(fs.with_open("made.txt", 1, mode: 'write))
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== fs.with_open "import fs\nprint(fs.with_open(1, f => print(f)))"
+-- stdout
+-- stderr
+| error[E0403]: argument `path` must be str, got int
+|   --> -e:2:19
+|   |
+| 2 | print(fs.with_open(1, f => print(f)))
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", f => print(f), mode: \"write\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `mode` must be sym, got str
+|   --> -e:2:19
+|   |
+| 2 | print(fs.with_open("made.txt", f => print(f), mode: "write"))
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== fs.with_open "import fs\nprint(fs.with_open(\"made.txt\", f => print(f), mode: 'write, perm: \"644\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `perm` must be int | nil, got str
+|   --> -e:2:19
+|   |
+| 2 | print(fs.with_open("made.txt", f => print(f), mode: 'write, perm: "644"))
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== fs.with_temp_dir "import fs\nprint(fs.with_temp_dir(1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:2:23
+|   |
+| 2 | print(fs.with_temp_dir(1))
+|   |                       ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== http.get "import http\nprint(http.get(\"http://127.0.0.1:1/\", max_body: -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `max_body` must be a non-negative int, got -1
+|   --> -e:2:15
+|   |
+| 2 | print(http.get("http://127.0.0.1:1/", max_body: -1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== http.post "import http\nprint(http.post(\"http://127.0.0.1:1/\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `body` must be str | nil, got int
+|   --> -e:2:16
+|   |
+| 2 | print(http.post("http://127.0.0.1:1/", 1))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== http.request "import http\nprint(http.request(\"GET\", \"http://127.0.0.1:1/\", timeout: -1s))"
+-- stdout
+-- stderr
+| error[E0403]: argument `timeout` must be a non-negative dur, got -1s
+|   --> -e:2:19
+|   |
+| 2 | print(http.request("GET", "http://127.0.0.1:1/", timeout: -1s))
+|   |                   ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== http.serve "import http\nprint(http.serve(\"127.0.0.1:0\", 1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `handler` must be fn, got int
+|   --> -e:2:17
+|   |
+| 2 | print(http.serve("127.0.0.1:0", 1))
+|   |                 ^
+|   |
+|  call path (innermost first):
+|    -e:2       <entry>
+-- exit: 1
+==== prelude.is_empty "print(is_empty(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the length of int
+|   --> -e:1:15
+|   |
+| 1 | print(is_empty(1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.zip "print(zip(1, [1]))"
+-- stdout
+-- stderr
+| error[E0506]: cannot zip the elements of int
+|   --> -e:1:10
+|   |
+| 1 | print(zip(1, [1]))
+|   |          ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.first "print(first(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the first of int
+|   --> -e:1:12
+|   |
+| 1 | print(first(1))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.last "print(last(1))"
+-- stdout
+-- stderr
+| error[E0506]: cannot take the last of int
+|   --> -e:1:11
+|   |
+| 1 | print(last(1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.take "print(take([1], -1))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -1
+|   --> -e:1:11
+|   |
+| 1 | print(take([1], -1))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.drop "print(drop([1], \"1\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be int, got str
+|   --> -e:1:11
+|   |
+| 1 | print(drop([1], "1"))
+|   |           ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.contains "print(contains(1, 1))"
+-- stdout
+-- stderr
+| error[E0512]: cannot test membership in a value of type int
+|   --> -e:1:15
+|   |
+| 1 | print(contains(1, 1))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.pad_left "print(pad_left(\"a\", -3))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -3
+|   --> -e:1:15
+|   |
+| 1 | print(pad_left("a", -3))
+|   |               ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.pad_right "print(pad_right(\"a\", 3, \"\"))"
+-- stdout
+-- stderr
+| error[E0403]: argument `pad` must be a non-empty str, got ""
+|   --> -e:1:16
+|   |
+| 1 | print(pad_right("a", 3, ""))
+|   |                ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.is_ok "print(is_ok())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `x`
+|   --> -e:1:12
+|   |
+| 1 | print(is_ok())
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.is_err "print(is_err())"
+-- stdout
+-- stderr
+| error[E0407]: missing argument `x`
+|   --> -e:1:13
+|   |
+| 1 | print(is_err())
+|   |             ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.until "print(until(1, 2, x => true))"
+-- stdout
+-- stderr
+| error[E0403]: argument `f` must be fn, got int
+|   --> -e:1:12
+|   |
+| 1 | print(until(1, 2, x => true))
+|   |            ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1
+==== prelude.iterate "print(iterate(1, x => x, -3))"
+-- stdout
+-- stderr
+| error[E0403]: argument `n` must be a non-negative int, got -3
+|   --> -e:1:14
+|   |
+| 1 | print(iterate(1, x => x, -3))
+|   |              ^
+|   |
+|  call path (innermost first):
+|    -e:1       <entry>
+-- exit: 1

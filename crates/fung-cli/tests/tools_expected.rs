@@ -176,20 +176,20 @@ fn check(arg: &str) -> (String, Vec<OsString>) {
 
 /// How many cases each test has (a case must not go missing unnoticed;
 /// change these together with the cases).
-const CHECK_REPOSITORY_CASES: usize = 281;
+const CHECK_REPOSITORY_CASES: usize = 329;
 const CHECK_WARNING_CASES: usize = 9;
-const CHECK_ARGUMENT_CASES: usize = 25;
-const HELP_CASES: usize = 9;
+const CHECK_ARGUMENT_CASES: usize = 30;
+const HELP_CASES: usize = 11;
 const VERSION_CASES: usize = 2;
 const WALK_CASES: usize = 29;
 const WALK_UNREADABLE_CASES: usize = 2;
 const TEST_FIXTURE_CASES: usize = 24;
-const TEST_REPOSITORY_CASES: usize = 282;
-const FMT_INPUTS: usize = 6753;
-const FMT_STDIN_CASES: usize = 1441;
+const TEST_REPOSITORY_CASES: usize = 330;
+const FMT_INPUTS: usize = 7746;
+const FMT_STDIN_CASES: usize = 1538;
 const FMT_FORMAT_CASES: usize = 124;
-const FMT_ARGUMENT_CASES: usize = 33;
-const REPL_CASES: usize = 32;
+const FMT_ARGUMENT_CASES: usize = 38;
+const REPL_CASES: usize = 35;
 
 #[test]
 fn check_matches_the_expected_output_on_the_repository() {
@@ -260,6 +260,10 @@ fn check_matches_the_expected_output_on_inline_code_and_arguments() {
         &["check", "tests/lang/arith.fung", "-e"],
         &["check", "./tests/lang/../lang/arith.fung"],
         &["check", "--help"],
+        &["check", "--foo"],
+        &["check", "--", "--foo"],
+        &["check", "-e", "--foo"],
+        &["check", "--", "-e"],
     ];
     for a in arg_cases {
         cases.push((a.join(" "), os_args(a)));
@@ -276,6 +280,13 @@ fn check_matches_the_expected_output_on_inline_code_and_arguments() {
     cases.push((
         "check wide name".into(),
         vec!["check".into(), wide.into_os_string()],
+    ));
+    // A file that is not UTF-8 is read-failure, exit 2 (D30).
+    let latin = dir.join("latin.fung");
+    std::fs::write(&latin, b"x = \"\xff\"\n").unwrap();
+    cases.push((
+        "check not UTF-8 source".into(),
+        vec!["check".into(), latin.into_os_string()],
     ));
     assert_eq!(cases.len(), CHECK_ARGUMENT_CASES, "cases");
     verify_cases(
@@ -358,6 +369,8 @@ fn help_and_unknown_commands_match_the_expected_output() {
         &["Check"],
         &["--version"],
         &["-x"],
+        &["--"],
+        &["--foo"],
     ];
     let cases: Vec<_> = arg_cases
         .iter()
@@ -1639,6 +1652,8 @@ fn fmt_arguments_match_the_expected_output() {
         ] {
             std::fs::write(d.join(f), s).unwrap();
         }
+        // not UTF-8: refused, never rewritten (D31)
+        std::fs::write(d.join("latin.fung"), b"x=\"\xff\"\n").unwrap();
         symlink("sub", d.join("t/dirlink.fung")).unwrap();
         symlink("t", d.join("tlink")).unwrap();
         std::fs::set_permissions(d.join("ro.fung"), std::fs::Permissions::from_mode(0o444))
@@ -1656,6 +1671,10 @@ fn fmt_arguments_match_the_expected_output() {
         &["fmt", "-x", "lone.fung"],
         &["fmt", "--chek", "lone.fung"],
         &["fmt", "-", "lone.fung"],
+        &["fmt", "-", "-"],
+        &["fmt", "--help"],
+        &["fmt", "--", "-x"],
+        &["fmt", "--check", "latin.fung"],
         &["fmt", "nope.fung"],
         &["fmt", "lone.fung", "nope", "t"],
         &["fmt", ""],
@@ -1691,6 +1710,7 @@ fn fmt_arguments_match_the_expected_output() {
         "넓은.fung",
         "ro.fung",
         "locked.fung",
+        "latin.fung",
     ];
     // Every case in turn with `bin` in a fresh tree `d`, then the files
     // and the read-only file's mode (kept).
@@ -1923,7 +1943,9 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             "load errors",
             ":load\n:load nope.fung\n:load bad.fung\n:load .\n  :load   lib.fung  \nk\n",
         ),
-        ("quit with code", "x = 1\n:quit now\nx\n"),
+        ("quit with an argument is an error", "x = 1\n:quit now\nx\n"),
+        ("quit with a tab and an argument", "x = 1\n:quit\tnow\nx\n"),
+        ("quit alone", "x = 1\n:quit\nx\n"),
         ("exit codes", "exit(44)\n"),
         (
             "exit inside a block",
@@ -1938,7 +1960,7 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
         ("dbg", "x = 2\ndbg(x * 3)\nd = dbg\nd(1)\n"),
         (
             "statements print nothing",
-            "type t = int\ntest \"t\":\n  1\n;;\nassert 1 == 1\nimport fs as f\nfn q() = 1\nz = 3\nassert z == 4\nz\n",
+            "type t = int\ntest \"t\":\n  assert true\n;;\nassert 1 == 1\nimport fs as f\nfn q() = 1\nz = 3\nassert z == 4\nz\n",
         ),
         (
             "multi-line forms",
@@ -1960,7 +1982,8 @@ fn repl_matches_the_expected_output_on_piped_sessions() {
             "releases in order after exit",
             "with(() => 1, _ => with(() => 2, _ => exit(7), r => print(\"release\", r)), r => print(\"release\", r))\nprint(\"never\")\n",
         ),
-        ("help text", ":help extra\n"),
+        ("help text", ":help extra\n:help\n"),
+        ("unknown command and load without path", ":load\n:foo bar\n"),
         ("colon inside code", "x = {a: 1}\nx.a\n"),
         (
             "a value of a call",

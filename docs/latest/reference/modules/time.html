@@ -96,9 +96,9 @@ print(end, end - start, start &lt; end)
 print((end - start) / 1m, &quot;minutes&quot;)</code></pre><pre class="out plain"><code>2026-10-04T10:30:00Z 1h30m true
 90.0 minutes</code></pre></div>
 <p>같은 순간도 사는 곳에 따라 벽시계가 다르게 읽힌다. 런던에서 0시 5분일 때 서울은 9시 5분이다. 지역마다 정한 시계의 규칙이 <strong>시간대</strong>(time zone)이고, 기준이 되는 시계가 <strong>UTC</strong>(협정 세계시)다. 시간대는 UTC와의 차이인 <strong>오프셋</strong>(offset)으로 적는다: 서울은 <code>+09:00</code>, UTC 자체는 <code>Z</code>. 어떤 지역은 여름에 시계를 한 시간 앞당기는 <strong>서머타임</strong>(DST)이 있어서 오프셋이 철마다 바뀐다.</p>
-<p>fung의 시각 값은 순간과 함께 <strong>시간대를 기억</strong>한다. 출력하면 ISO 8601 꼴(<code>2026-10-04T09:05:07+09:00</code>, UTC면 <code>…Z</code>)로 그 시간대의 벽시계와 오프셋을 보인다. 시간대가 달라도 같은 순간이면 <code>==</code>는 참이다. 시간대를 정하지 않은 값은 컴퓨터의 <strong>로컬 시간대</strong>를 쓴다. 로컬 시간대는 환경 변수 <code>TZ</code>(없으면 <code>/etc/localtime</code>)로 정해진다. <code>TZ</code>는 <code>Asia/Seoul</code> 같은 이름(시간대 데이터베이스 <code>$TZDIR</code>나 <code>/usr/share/zoneinfo</code>에서 찾는다)이나 <code>KST-9</code> 같은 POSIX 시간대 문자열이고, <code>&quot;&quot;</code>·<code>UTC</code>면 UTC다. 어느 것으로도 읽지 못하면(오타, 끝의 공백) UTC를 쓰고, 처음 쓸 때 표준 에러에 <code></code>warning: TZ <code>Asia/Seol</code> names no time zone; times are in UTC<code></code>를 한 줄 쓴다. 이 매뉴얼의 예제는 <code>TZ=UTC</code>로 돈다.</p>
+<p>fung의 시각 값은 순간과 함께 <strong>시간대를 기억</strong>한다. 출력하면 ISO 8601 꼴(<code>2026-10-04T09:05:07+09:00</code>, UTC면 <code>…Z</code>)로 그 시간대의 벽시계와 오프셋을 보인다. 시간대가 달라도 같은 순간이면 <code>==</code>는 참이다. 시간대를 정하지 않은 값은 컴퓨터의 <strong>로컬 시간대</strong>를 쓴다. 로컬 시간대는 환경 변수 <code>TZ</code>(없으면 <code>/etc/localtime</code>)로 정해진다. <code>TZ</code>는 <code>Asia/Seoul</code> 같은 이름(시간대 데이터베이스 <code>$TZDIR</code>나 <code>/usr/share/zoneinfo</code>에서 찾는다)이나 <code>KST-9</code> 같은 POSIX 시간대 문자열이고, <code>&quot;&quot;</code>·<code>UTC</code>면 UTC다. 어느 것으로도 읽지 못하면(오타, 끝의 공백) UTC를 쓰고, 처음 쓸 때 표준 에러에 <code>warning: TZ `Asia/Seol` names no time zone; times are in UTC</code>를 한 줄 쓴다. 이 매뉴얼의 예제는 <code>TZ=UTC</code>로 돈다.</p>
 <p><strong>유닉스 시간</strong>(Unix time)은 1970-01-01T00:00:00Z부터 센 초의 수다. 로그와 API가 시각을 정수 하나로 주고받을 때 흔히 쓴다.</p>
-<p>시각은 UTC 기준으로 0000년부터 9999년까지 나타낼 수 있다. 계산이 이 범위를 넘으면 런타임 에러 E0503이다.</p>
+<p>시각은 <strong>보이는 날짜</strong>, 곧 값이 기억하는 시간대의 벽시계로 0000년부터 9999년까지 나타낼 수 있다. 그래서 찍은 시각은 언제나 네 자리 연도이고 <code>time.parse</code>로 다시 읽힌다. 계산이 이 범위를 넘으면 런타임 에러 E0503, <a href="#fn-time-utc"><code>time.utc</code></a>·<a href="#fn-time-local"><code>time.local</code></a>로 바꾼 시간대에서 넘으면 E0403이다(UTC로 9999-12-31T23:00Z인 시각은 서울 시간으로 10000년이다).</p>
 <h3 id="tokens">형식 토큰</h3>
 <p><code>time.parse</code>와 <code>time.format</code>의 <code>format</code> 인자는 토큰으로 모양을 적는다. 목록에 없는 글자는 그대로 쓰고 그대로 기대한다. 긴 토큰부터 맞춘다(<code>MMM</code>이 <code>MM</code>보다 먼저).</p>
 <table>
@@ -109,7 +109,7 @@ print((end - start) / 1m, &quot;minutes&quot;)</code></pre><pre class="out plain
     <tr><td><code>MM</code></td><td>두 자리 월</td><td><code>10</code></td></tr>
     <tr><td><code>MMM</code></td><td>영문 월 약자(읽을 때 대소문자 무시)</td><td><code>Oct</code></td></tr>
     <tr><td><code>DD</code></td><td>두 자리 일</td><td><code>04</code></td></tr>
-    <tr><td><code>ddd</code></td><td>영문 요일 약자(읽을 때 이름만 검사하고 날짜와 대조하지 않음)</td><td><code>Sun</code></td></tr>
+    <tr><td><code>ddd</code></td><td>영문 요일 약자(읽을 때 날짜의 요일과 맞아야 함)</td><td><code>Sun</code></td></tr>
     <tr><td><code>HH</code></td><td>두 자리 시(24시간제)</td><td><code>09</code></td></tr>
     <tr><td><code>mm</code></td><td>두 자리 분</td><td><code>05</code></td></tr>
     <tr><td><code>ss</code></td><td>두 자리 초</td><td><code>07</code></td></tr>
@@ -118,7 +118,7 @@ print((end - start) / 1m, &quot;minutes&quot;)</code></pre><pre class="out plain
     <tr><td><code>ZZ</code></td><td>오프셋(콜론 없음)</td><td><code>+0900</code></td></tr>
   </tbody>
 </table>
-<p>읽을 때는 자리 수를 정확히 맞춰야 한다(<code>9:05</code>는 <code>HH:mm</code>에 맞지 않는다). 12시간제(AM/PM)와 이스케이프는 없다.</p>
+<p>읽을 때는 자리 수를 정확히 맞춰야 한다(<code>9:05</code>는 <code>HH:mm</code>에 맞지 않는다). 12시간제(AM/PM)와 이스케이프는 없다. 형식은 코드가 정하는 것이라, 틀린 형식은 런타임 에러 E0403이다: <code>time.format</code>의 형식은 토큰이 하나 이상 있고 <code>%</code>가 없어야 하고(<code>&quot;%Y-%m-%d&quot;</code>는 strftime의 꼴이다), <code>time.parse</code>의 형식은 같은 필드를 두 번 쓰지 않는다(<code>MM</code>과 <code>MMM</code>, <code>YYYY</code>와 <code>YY</code>, <code>Z</code>와 <code>ZZ</code>는 각각 같은 필드다).</p>
 <h2 id="functions">함수</h2>
 <section class="entry" id="fn-time-now">
 <h3>time.now</h3>
@@ -177,8 +177,8 @@ print(elapsed &gt;= 50ms)</code></pre><pre class="out plain"><code>true</code></
 <p><code>Ok(time)</code>.</p>
 <h4>에러</h4>
 <ul>
-<li><code>Err({kind: 'parse, message})</code>: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일). <code>message</code>는 <code></code>cannot parse <code>2026-13-04T09:05:07Z</code> as a time: month out of range<code></code>처럼 이유를 담는다.</li>
-<li><code>s</code>가 문자열이 아니거나, <code>format</code>에 연·월·일 중 빠진 것이 있으면(<code>&quot;HH:mm&quot;</code>) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: <code>time.parse(&quot;2026-10-04 &quot; + s, &quot;YYYY-MM-DD HH:mm&quot;)</code>.</li>
+<li><code>Err({kind: 'parse, message})</code>: 형식에 맞지 않거나 범위를 넘는다(13월, 2월 30일). <code>message</code>는 <code>cannot parse `2026-13-04T09:05:07Z` as a time: month out of range</code>처럼 이유를 담는다. <code>ddd</code>가 날짜의 요일과 다르면 <code>weekday Mon does not match 2026-01-02 (Fri)</code>다.</li>
+<li><code>s</code>가 문자열이 아니거나, <code>format</code>에 연·월·일 중 빠진 것이 있거나(<code>&quot;HH:mm&quot;</code>), 같은 필드를 두 번 쓰면(<code>&quot;YYYY-MM-DD MMM&quot;</code>) 런타임 에러 E0403. 시각만 적힌 글은 날짜를 붙여 읽는다: <code>time.parse(&quot;2026-10-04 &quot; + s, &quot;YYYY-MM-DD HH:mm&quot;)</code>.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>RFC 3339</strong></p>
@@ -229,6 +229,8 @@ print(time.parse(&quot;2026-11-01 01:30&quot;, &quot;YYYY-MM-DD HH:mm&quot;)!)</
 </ul>
 <h4>돌려주는 값</h4>
 <p>문자열.</p>
+<h4>에러</h4>
+<p><code>format</code>에 토큰이 하나도 없거나(<code>&quot;hh:ii&quot;</code>) <code>%</code>가 들어 있으면(<code>&quot;%Y-%m-%d&quot;</code>) 런타임 에러 E0403. 말없이 형식 글자를 그대로 찍지 않게 한다.</p>
 <h4>예제</h4>
 <p><strong>여러 모양</strong></p>
 <div class="run"><pre><code>import time
@@ -262,7 +264,7 @@ backup-20261005-0000.tar.gz</code></pre></div>
 <li><code>t</code>: 시각.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p>UTC 시간대의 <code>time</code> 값.</p>
+<p>UTC 시간대의 <code>time</code> 값. UTC로 본 날짜가 0000~9999년 밖이면 런타임 에러 E0403.</p>
 <h4>예제</h4>
 <div class="run"><pre><code>import time
 
@@ -283,7 +285,7 @@ print(u, u == seoul, time.parts(u).hour)</code></pre><pre class="out plain"><cod
 <li><code>t</code>: 시각.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p>로컬 시간대의 <code>time</code> 값.</p>
+<p>로컬 시간대의 <code>time</code> 값. 로컬 시간대로 본 날짜가 0000~9999년 밖이면 런타임 에러 E0403.</p>
 <h4>예제</h4>
 <details class="fixture"><summary>실행 방법</summary>
 <pre class="plain shell"><code>TZ=KST-9 fung example.fung</code></pre>
@@ -301,6 +303,7 @@ print(time.local(t), time.format(time.local(t), &quot;HH:mm&quot;))</code></pre>
 <div class="sig"><code>time.unix(t)</code></div>
 <h4>설명</h4>
 <p>1970-01-01T00:00:00Z부터 <code>t</code>까지의 초를 정수로 돌려준다. 초 밑은 과거 쪽으로 내린다(<code>23:59:59.5Z</code>는 <code>…59</code>초). 1970년 전의 시각은 음수다. 시간대와 무관하다.</p>
+<p>범위의 끝에서는 <a href="#fn-time-from_unix"><code>time.from_unix</code></a>로 되돌리지 못할 수 있다. 시각의 범위는 보이는 날짜의 것이라, <code>9999-12-31T23:59:59-05:00</code>처럼 UTC로는 10000년인 시각도 있고 그 유닉스 시간은 9999년 끝(253402300799)보다 크다. <code>time.from_unix</code>는 로컬 시간대의 시각을 만들므로, 로컬 시간대로 본 날짜가 범위를 벗어나는 수는 E0403이다(둘의 차이는 하루 미만이다). 그런 시각은 글로 왕복한다: <code>time.parse(str(t))</code>.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>t</code>: 시각.</li>
@@ -322,6 +325,7 @@ print(time.unix(time.parse(&quot;1969-12-31T23:59:59Z&quot;)!))</code></pre><pre
 <div class="sig"><code>time.from_unix(n)</code></div>
 <h4>설명</h4>
 <p>정수 <code>n</code>초를 로컬 시간대의 시각으로 돌려준다. 밀리초로 된 값은 <code>n // 1000</code>으로 나눠서 넘긴다.</p>
+<p>받는 수는 로컬 시간대로 본 날짜가 0000~9999년인 것이다. 다른 시간대에서 범위 끝에 있는 시각의 <a href="#fn-time-unix"><code>time.unix</code></a>는 이 범위 밖일 수 있다(하루 미만): 그 시각은 로컬 시간대로 보일 수 없으므로 되돌리지 못한다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>n</code>: 1970-01-01T00:00:00Z부터 센 초(정수).</li>
@@ -330,7 +334,7 @@ print(time.unix(time.parse(&quot;1969-12-31T23:59:59Z&quot;)!))</code></pre><pre
 <p>로컬 시간대의 <code>time</code> 값.</p>
 <h4>에러</h4>
 <ul>
-<li>런타임 에러 E0403: <code>n</code>이 정수가 아니거나, 0000~9999년 범위를 벗어난다.</li>
+<li>런타임 에러 E0403: <code>n</code>이 정수가 아니거나, 로컬 시간대로 본 날짜가 0000~9999년 범위를 벗어난다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>로그의 유닉스 시간 읽기</strong></p>

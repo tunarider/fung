@@ -78,7 +78,7 @@ import http
 import json
 import time
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 addr = get(opts.flags, &quot;addr&quot;, &quot;127.0.0.1:9095&quot;)
 log_file = get(opts.flags, &quot;log&quot;, &quot;alerts.jsonl&quot;)
 token = env(&quot;WEBHOOK_TOKEN&quot;) ?? fail(&quot;set WEBHOOK_TOKEN&quot;)

@@ -118,7 +118,7 @@
 <li>줄바꿈: <code>Newline</code> 토큰. 윈도식 줄 끝 <code>\r\n</code>도 토큰 하나다.</li>
 <li><code>#</code>: 줄 끝까지 주석.</li>
 <li>숫자: 수 또는 기간.</li>
-<li><code>&quot;</code>: 문자열, <code></code> <code> </code><code>: 원시 문자열, </code>'`: 심볼.</li>
+<li><code>&quot;</code>: 문자열, <code>`</code>: 원시 문자열, <code>'</code>: 심볼.</li>
 <li>글자나 <code>_</code>: 이름(또는 예약어, 태그).</li>
 <li>그 밖: 연산자와 구두점. 모르는 글자면 에러.</li>
 </ul>
@@ -159,12 +159,13 @@
 <pre class="plain"><code>2:7   String  &quot;\&quot;host ${name}!\&quot;&quot;
               조각: 글자 &quot;host &quot; / 코드 &quot;name&quot; / 글자 &quot;!&quot;</code></pre>
 <p>코드 조각은 렉서가 읽지 않고 <strong>글자 그대로와 위치만</strong> 보관한다. 파서가 나중에 그 조각을 다시 렉싱하고 파싱하는데, 이때 조각이 파일의 몇째 줄 몇째 칸에서 시작했는지(<code>lex_at</code>)를 넘겨주므로 조각 안의 에러도 파일 기준 위치로 나온다.</p>
-<pre class="plain"><code>error[E0110]: unexpected end of file
+<pre class="plain"><code>error[E0110]: unexpected `}`
   --&gt; example.fung:2:21
   |
 2 | print(&quot;host ${name +} up&quot;)
   |                     ^
   |</code></pre>
+<p>조각의 코드는 닫는 <code>}</code>에서 끝나므로, 거기서 멈춘 에러는 "파일의 끝"이 아니라 <code>`}`</code>를 말한다.</p>
 <h2 id="newline-comment">줄바꿈과 주석</h2>
 <p>많은 언어의 렉서는 줄바꿈을 공백처럼 버린다. fung 렉서는 줄바꿈을 <code>Newline</code> 토큰으로 내보낸다. fung에서는 줄바꿈이 문장의 끝이기 때문이다. 그런데 늘 그런 것은 아니다. <code>+</code>로 끝나는 줄은 다음 줄로 이어지고, 괄호 안의 줄바꿈은 공백이며, 다음 줄이 <code>|&gt;</code>로 시작하면 이어진다. 이 판단은 "지금 괄호 안인가", "앞 토큰이 연산자인가" 같은 문맥이 필요하다. 렉서는 문맥을 모르므로 줄바꿈을 그대로 넘기고, <strong>파서가</strong> 문맥을 보고 버릴지 정한다(4장).</p>
 <p>주석은 반대로 토큰 줄에서 뺀다. 실행에는 아무 상관이 없기 때문이다. 다만 버리지 않고 위치와 함께 <strong>별도 목록</strong>(trivia, 자질구레한 것)에 모아 둔다. 실행 경로는 이 목록을 쓰지 않는다. 포맷터(<code>fung fmt</code>)가 코드를 다시 쓸 때 주석을 원래 자리에 돌려놓는 데 쓴다(15장).</p>
@@ -190,6 +191,7 @@ print(timeout)</code></pre><pre class="out plain"><code>1h30m</code></pre></div>
     <tr><td><code>E0101</code></td><td>fung에 없는 글자</td><td><code>a @ b</code></td></tr>
     <tr><td><code>E0102</code></td><td>잘못된 수</td><td><code>30abc</code>, 64비트를 넘는 정수</td></tr>
     <tr><td><code>E0103</code></td><td>모르는 이스케이프</td><td><code>"a\qb"</code>, <code>"\x4"</code></td></tr>
+    <tr><td><code>E0106</code></td><td>글자가 아닌 <code>\u{…}</code></td><td><code>"\u{d800}"</code>, <code>"\u{110000}"</code></td></tr>
     <tr><td><code>E0104</code></td><td>닫히지 않은 문자열</td><td><code>"abc</code>, 문자열 안의 실제 줄바꿈</td></tr>
     <tr><td><code>E0105</code></td><td>잘못된 기간</td><td><code>30m1h</code></td></tr>
   </tbody>

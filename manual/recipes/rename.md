@@ -60,7 +60,7 @@ fn target(file):
 fn rename(dir, file, dry):
   to = target(file)
   if to == file: return 'same ;;
-  if fs.exists(path.join(dir, to)):
+  if fs.exists(path.join(dir, to))!:
     eprint("skip:", file, "->", to, "(already exists)")
     return 'skipped
   ;;
@@ -69,7 +69,7 @@ fn rename(dir, file, dry):
   'renamed
 ;;
 
-opts = cli.parse(args, bools: ["dry-run"])
+opts = cli.parse(args, bools: ["dry-run"])!
 dir = first(opts.rest) ?? fail("usage: rename.fung <dir> [--dry-run]")
 dry = get(opts.flags, "dry_run", false)
 results = fs.list(dir)! |> map(f => rename(dir, f, dry))
@@ -87,7 +87,7 @@ print("${done} renamed, ${skipped} skipped${note}")
 - `target`: 이름을 몸통(`path.stem`)과 확장자(`path.ext`, 점 포함)로 나눠 몸통만 `kebab`으로 바꾸고 확장자는 소문자로 만든다. 몸통이 빈 문자열이 되면(한글만 있는 이름) 원래 이름을 지킨다.
 - `rename`: 파일 하나를 맡아 무슨 일이 있었는지를 심볼 `'same`·`'skipped`·`'renamed`로 돌려준다. `fs.move`는 대상이 있으면 덮어쓰지 않고 `Err({kind: 'exists})`로 멈추지만, `--dry-run`에서도 건너뛸 파일을 미리 보이려고 먼저 `fs.exists`로 확인하고, 있으면 표준 에러에 이유를 찍고 건너뛴다.
 - `fs.move(…)!`: 옮기기가 실패하면(권한 등) `!`가 그 자리에서 스크립트를 멈춘다. 반쯤 바꾼 상태로 조용히 넘어가지 않는다.
-- `cli.parse(args, bools: ["dry-run"])`: `--dry-run`을 값 없는 스위치로 읽는다. 옵션 이름의 `-`는 `_`로 바뀌어 `opts.flags.dry_run`이 된다. 옵션이 아닌 인자는 `opts.rest`에 순서대로 들어간다.
+- `cli.parse(args, bools: ["dry-run"])!`: `--dry-run`을 값 없는 스위치로 읽는다. 옵션 이름의 `-`는 `_`로 바뀌어 `opts.flags.dry_run`이 된다. 옵션이 아닌 인자는 `opts.rest`에 순서대로 들어간다.
 - `first(opts.rest) ?? fail(…)`: 디렉터리를 주지 않았으면 사용법을 보이고 멈춘다.
 - `done`·`skipped`: 결과 심볼 리스트에서 `filter`와 `len`으로 센다. 반복하면서 세는 변수를 따로 두지 않는다(아래 상자).
 

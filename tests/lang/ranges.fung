@@ -7,3 +7,18 @@ print(2.0 in 0..5, 2.5 in 0..5, 2.0 in [0, 1, 2], contains(0..5, 2.0))
 w = -9223372036854775808..=9223372036854775807
 print(is_empty(w), last(w), take(w, 2), drop(0..=9223372036854775807, 9223372036854775807))
 # expect: false 9223372036854775807 [-9223372036854775808, -9223372036854775807] [9223372036854775807]
+# The only empty ranges are `n..n` and `n..=n-1`: a start after the end
+# is an error (D7, err_range_reversed). Ranges are equal when they hold
+# the same numbers; they print as written (D19).
+print(5..5, is_empty(5..5), is_empty(5..=4), len(0..=-1), map(3..3, x => x))
+# expect: 5..5 true true 0 []
+print(0..5 == 0..=4, 0..0 == 3..3, 0..0 == 5..=4, 0..3 == 0..4, [0..=4] == [0..5])
+# expect: true true true false true
+print(unique([0..5, 0..=4, 1..1, 2..=1]))
+# expect: [0..5, 1..1]
+# A range value indexes like a slice of the same ends (D7); unlike a
+# written slice, `(1..=-1)` is a range value first, so it is E0522.
+xs = [1, 2, 3]
+r = 0..2
+print(xs[r], xs[(0..2)], xs[(-2..-1)], "héllo"[(1..=2)], xs[(3..3)])
+# expect: [1, 2] [1, 2] [2] él []

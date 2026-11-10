@@ -15,8 +15,7 @@ fn own_group() {
 }
 
 /// `wait_file(p)`: sleeps 5 ms at a time until `p` exists.
-const WAIT_FILE: &str =
-    "import fs\nfn wait_file(p) = fs.exists(p) then nil else fn(): sleep(5ms); wait_file(p) ;;()\n";
+const WAIT_FILE: &str = "import fs\nfn wait_file(p) = fs.exists(p)! then nil else fn(): sleep(5ms); wait_file(p) ;;()\n";
 
 /// Whether process `pid` still exists.
 fn alive(pid: &str) -> bool {
@@ -119,7 +118,7 @@ fn an_uncancelled_command_still_gives_its_output() {
     assert_eq!(
         run("r = sh(\"echo hi; echo err >&2; exit 4\")\nprint(sh(\"echo hi\")!.out, r)"),
         (
-            "hi\n Err({kind: 'exit, code: 4, out: \"hi\\n\", err: \"err\\n\", message: \"`/bin/sh` exited with code 4\"})\n".into(),
+            "hi\n Err({kind: 'exit, code: 4, signal: nil, out: \"hi\\n\", err: \"err\\n\", message: \"`/bin/sh` exited with code 4\"})\n".into(),
             "".into(),
             0
         )
@@ -163,7 +162,7 @@ fn exec_starts_on_the_pool_and_parks_on_the_loop() {
         ));
         assert_eq!(
             (o.out.as_str(), o.err.as_str()),
-            ("Ok({out: \"\", err: \"\", code: 0})\n1\n", ""),
+            ("Ok({out: \"\", err: \"\", code: 0, signal: nil})\n1\n", ""),
             "{call}"
         );
     }
@@ -210,7 +209,7 @@ fn a_pool_wait_ends_a_command_without_pidfd() {
     assert_eq!(
         (o.out.as_str(), o.err.as_str()),
         (
-            "Err({kind: 'exit, code: 3, out: \"\", err: \"\", message: \"`sh` exited with code 3\"})\n",
+            "Err({kind: 'exit, code: 3, signal: nil, out: \"\", err: \"\", message: \"`sh` exited with code 3\"})\n",
             ""
         )
     );
@@ -332,4 +331,118 @@ fn an_env_name_with_an_equals_sign_is_refused() {
     }
     let (out, err, _) = run("print(sh(\"echo $A_B\", env: {A_B: \"ok\"})!.out)");
     assert_eq!(out, "ok\n\n", "{err}");
+}
+
+/// LB28 (D26): a command a signal ended has no exit code (`code: nil`)
+/// and says which signal; one that exited has `signal: nil`, so every
+/// result has the same fields.
+#[test]
+fn a_signal_ending_a_command_is_named() {
+    let (out, err, code) = run(
+        "print(sh(\"kill -9 $$\"))\nprint(sh(\"kill -TERM $$\"))\nprint(sh(\"exit 137\"))\nprint(sh(\"true\"))",
+    );
+    assert_eq!(
+        (out.as_str(), err.as_str(), code),
+        (
+            "Err({kind: 'exit, code: nil, signal: 9, out: \"\", err: \"\", message: \"`/bin/sh` was killed by signal 9 (SIGKILL)\"})\n\
+             Err({kind: 'exit, code: nil, signal: 15, out: \"\", err: \"\", message: \"`/bin/sh` was killed by signal 15 (SIGTERM)\"})\n\
+             Err({kind: 'exit, code: 137, signal: nil, out: \"\", err: \"\", message: \"`/bin/sh` exited with code 137\"})\n\
+             Ok({out: \"\", err: \"\", code: 0, signal: nil})\n",
+            "",
+            0
+        )
+    );
+}
+
+/// LB35: a working directory that cannot be used says so (not "cannot
+/// run `ls`: no such file", as if the command were missing); `PWD` is
+/// the working directory with or without `env`; an empty `cwd` is an
+/// argument error.
+#[test]
+fn the_working_directory_is_named_and_set() {
+    let (out, err, code) = run("print(exec([\"true\"], cwd: \"/nonexistent-fung\"))\n\
+         print(exec([\"true\"], cwd: \"/etc/hosts\"))\n\
+         print(exec([\"printenv\", \"PWD\"], cwd: \"/\", env: {X: \"1\"})!.out)\n\
+         print(exec([\"printenv\", \"PWD\"], cwd: \"/\", env: {PWD: \"mine\"})!.out)\n\
+         print(sh(\"true\", cwd: \"\"))");
+    assert_eq!(
+        (out.as_str(), code),
+        (
+            "Err({kind: 'not_found, message: \"cannot run `true`: working directory `/nonexistent-fung`: no such file or directory\"})\n\
+             Err({kind: 'not_found, message: \"cannot run `true`: working directory `/etc/hosts`: not a directory\"})\n\
+             /\n\n\
+             mine\n\n",
+            1
+        ),
+        "{err}"
+    );
+    assert!(
+        err.starts_with("error[E0403]: argument `cwd` must be a non-empty str, got \"\"\n"),
+        "{err}"
+    );
+}
+
+/// LB29 (D22): a command's output past the string limit is the call's
+/// `Err`, decided while it is read: the command is ended, and fung's
+/// memory stays near the limit however much it writes (300 MB here).
+/// Run in a child process of its own, whose peak memory (`wait4`) no
+/// other test adds to.
+#[test]
+fn an_output_past_the_string_limit_ends_the_command() {
+    const CHILD: &str = "FUNG_RSS_CHILD";
+    let src = "r = exec([\"head\", \"-c\", \"300000000\", \"/dev/zero\"])\nprint(r)\nprint(sh(\"head -c 300000000 /dev/zero >&2\"))";
+    if std::env::var(CHILD).is_ok() {
+        let (out, err, code) = run(src);
+        assert_eq!(
+            (out.as_str(), err.as_str(), code),
+            (
+                "Err({kind: 'io, message: \"standard output of `head` is longer than the string limit (100000000 characters)\"})\n\
+                 Err({kind: 'io, message: \"standard error of `/bin/sh` is longer than the string limit (100000000 characters)\"})\n",
+                "",
+                0
+            )
+        );
+        return;
+    }
+    let name = concat!(
+        module_path!(),
+        "::an_output_past_the_string_limit_ends_the_command"
+    );
+    let name = name.split_once("::").unwrap().1;
+    // Reaped by `wait4` below, which gives its peak memory.
+    #[allow(clippy::zombie_processes)]
+    let mut c = child::spawn(
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", name, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped()),
+    )
+    .unwrap();
+    let mut out = String::new();
+    let mut err = String::new();
+    use std::io::Read;
+    c.stdout.take().unwrap().read_to_string(&mut out).unwrap();
+    c.stderr.take().unwrap().read_to_string(&mut err).unwrap();
+    let mut status = 0;
+    // SAFETY: an all-zero `rusage` is valid; `wait4` reaps the child
+    // `c` started (not waited for elsewhere) and fills the two.
+    let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    let pid = unsafe { libc::wait4(c.id() as libc::pid_t, &mut status, 0, &mut usage) };
+    assert_eq!(pid, c.id() as libc::pid_t);
+    assert!(
+        libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0 && out.contains("1 passed"),
+        "child failed:\n{out}\n{err}"
+    );
+    // Bytes on macOS, KiB on Linux.
+    let peak = if cfg!(target_os = "macos") {
+        usage.ru_maxrss as u64
+    } else {
+        usage.ru_maxrss as u64 * 1024
+    };
+    // About 217 MB on macOS: the limit's 100 MB in a buffer of 128 MiB,
+    // and the 64 MiB it grew from while it was copied. Reading it all
+    // (the old way) passed 300 MB.
+    assert!(peak < 300_000_000, "peak memory {peak} bytes");
 }

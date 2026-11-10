@@ -288,7 +288,10 @@ fn a_task_waiting_for_a_process_lets_others_run() {
     );
     let o = within(10, move || crate::testutil::exec(&src, Opts::default()));
     assert_eq!(o.err, "");
-    assert_eq!(o.out, "true\nOk({out: \"done\\n\", err: \"\", code: 0})\n");
+    assert_eq!(
+        o.out,
+        "true\nOk({out: \"done\\n\", err: \"\", code: 0, signal: nil})\n"
+    );
 }
 
 /// Standard input that counts the reads made on it; each read gives the
@@ -356,4 +359,95 @@ fn a_stdin_read_is_cut_at_the_deadline() {
         "{:?}",
         start.elapsed()
     );
+}
+
+/// Standard input whose reads give each step in turn: bytes, or an error
+/// of the given errno; then the end.
+struct Scripted(std::collections::VecDeque<Result<&'static [u8], i32>>);
+
+impl Read for Scripted {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self.0.pop_front() {
+            None => Ok(0),
+            Some(Ok(c)) => {
+                buf[..c.len()].copy_from_slice(c);
+                Ok(c.len())
+            }
+            Some(Err(n)) => Err(std::io::Error::from_raw_os_error(n)),
+        }
+    }
+}
+
+/// CC10: a read error of standard input is no end of the input: the read
+/// that meets it gives `Err`, after the whole lines read before it; the
+/// part of a line read before it is kept, and the next read tries again.
+#[test]
+fn a_stdin_read_error_is_an_err() {
+    let script = |steps: Vec<Result<&'static [u8], i32>>| -> Box<dyn std::io::BufRead + Send> {
+        Box::new(BufReader::with_capacity(4096, Scripted(steps.into())))
+    };
+    let stdin = script(vec![Ok(b"a\nb"), Err(libc::EIO), Ok(b"c\n")]);
+    let o = within(10, move || {
+        exec_with_stdin(
+            "print(read_line())\nprint(read_line())\nprint(read_line())\nprint(read_line())",
+            Opts::default(),
+            stdin,
+        )
+    });
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "Ok(\"a\")\nErr({kind: 'io, message: \"cannot read standard input: input/output error\"})\nOk(\"bc\")\nOk(nil)\n",
+            "",
+            0
+        )
+    );
+    let stdin = script(vec![Ok(b"a\n"), Err(libc::EISDIR), Ok(b"b\n")]);
+    let o = within(10, move || {
+        exec_with_stdin(
+            "print(read_lines())\nprint(read_lines())",
+            Opts::default(),
+            stdin,
+        )
+    });
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (
+            "Err({kind: 'io, message: \"cannot read standard input: is a directory\"})\nOk([\"b\"])\n",
+            "",
+            0
+        )
+    );
+}
+
+/// CC10: standard input inherited non-blocking (O_NONBLOCK, which the
+/// descriptor shares with the parent): a read with nothing there yet
+/// waits for the input (`blocking_reads`) instead of ending it. The input
+/// is written only once a read has found nothing (EAGAIN) and waits.
+#[test]
+fn a_non_blocking_stdin_waits_for_input() {
+    use std::io::Write;
+    let (r, mut w) = std::os::unix::net::UnixStream::pair().unwrap();
+    r.set_nonblocking(true).unwrap();
+    let r = std::fs::File::from(std::os::fd::OwnedFd::from(r));
+    let stdin = Box::new(BufReader::with_capacity(4096, crate::vm::blocking_reads(r)));
+    use std::sync::atomic::Ordering::SeqCst;
+    let waits = &crate::vm::NONBLOCKING_WAITS;
+    let before = waits.load(SeqCst);
+    let writer = std::thread::spawn(move || {
+        let start = Instant::now();
+        while waits.load(SeqCst) == before && start.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let _ = w.write_all(b"a\nb\n");
+    });
+    let o = within(10, move || {
+        exec_with_stdin("print(read_lines())", Opts::default(), stdin)
+    });
+    writer.join().unwrap();
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        ("Ok([\"a\", \"b\"])\n", "", 0)
+    );
+    assert!(waits.load(SeqCst) > before, "no read waited");
 }

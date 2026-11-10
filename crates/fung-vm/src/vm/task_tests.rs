@@ -207,7 +207,8 @@ fn sleep_waits_and_is_cancellable() {
     assert!(start.elapsed() < Duration::from_secs(2));
 
     assert_eq!(exec("sleep(1)", Opts::default()).code, "E0403");
-    assert_eq!(exec("sleep(-1s)", Opts::default()).code, "");
+    assert_eq!(exec("sleep(-1s)", Opts::default()).code, "E0403");
+    assert_eq!(exec("sleep(0s)", Opts::default()).code, "");
 }
 
 /// Set by `mark()` in `outside_lets_other_tasks_run`.
@@ -260,7 +261,7 @@ fn an_offload_lets_other_tasks_run() {
 #[test]
 fn a_panic_in_an_offload_job_is_e0801() {
     fn natives() -> Vec<Value> {
-        fn os_panic(t: &mut Task<'_>, _: Vec<Value>) -> Result<crate::vm::Flow, Stop> {
+        fn os_panic(t: &mut Task<'_>, _: crate::value::Args) -> Result<crate::vm::Flow, Stop> {
             nat::offload(t, || panic!("outside"), |_, ()| Ok(Value::Nil))
         }
         vec![Value::Native(Native::leak_step(

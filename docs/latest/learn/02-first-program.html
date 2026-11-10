@@ -227,14 +227,15 @@ error[E0502]: division by zero
 <p>많은 언어가 에러를 두 때로 나눈다. <strong>실행 전에</strong> 글만 보고 알 수 있는 것(괄호가 안 닫힘, 없는 이름)과, <strong>실행해 봐야</strong> 알 수 있는 것(파일에서 읽은 값이 숫자가 아님, 0으로 나눔)이다. 앞의 것은 일찍 잡을수록 좋다. 그래서 fung은 실행 전에 할 수 있는 검사를 최대한 하고, <code>fung check</code>로 그 검사만 따로 돌릴 수 있게 했다.</p>
 </div>
 <div class="box mistake"><b>닫는 따옴표나 ;;를 빠뜨림</b>
-<p>문자열의 닫는 <code>&quot;</code>나 블록의 닫는 <code>;;</code>를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 <strong>마지막 줄 다음</strong>으로 찍힌다. <code>print(&quot;checking ${host}&quot;</code>처럼 닫는 괄호를 빠뜨려도 <code>E0110 unexpected end of file</code>이다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다.</p>
+<p>문자열의 닫는 <code>&quot;</code>나 블록의 닫는 <code>;;</code>를 빠뜨리면 fung은 파일 끝까지 읽은 뒤에야 알아챈다. 그래서 에러 위치가 파일의 <strong>마지막 줄 다음</strong>으로 찍힌다. <code>print(&quot;checking ${host}&quot;</code>처럼 닫는 괄호를 빠뜨리면 <code>E0112 expected `,` or `)`, found end of file</code>이고, <code>note</code>가 괄호를 연 자리를 알려 준다. 위치가 파일 끝을 가리키면 그 위쪽에서 열고 닫지 않은 것을 찾는다.</p>
 <div class="run"><pre><code>host = &quot;web-1&quot;
-print(&quot;checking ${host}&quot;</code></pre><pre class="out err plain" data-code="2"><code>error[E0110]: unexpected end of file
+print(&quot;checking ${host}&quot;</code></pre><pre class="out err plain" data-code="2"><code>error[E0112]: expected `,` or `)`, found end of file
   --&gt; example.fung:3:1
   |
 3 | 
   | ^
-  |</code></pre></div>
+  |
+  note: the `(` opened at 2:6</code></pre></div>
 </div>
 <div class="box other"><b>Python과 쉘에서는</b>
 <p>Python의 <code>python3</code>, Node의 <code>node</code>를 인자 없이 실행하면 열리는 대화형 실행기가 fung의 REPL과 같은 것이다. 쉘 스크립트는 틀린 명령이 있어도 그 줄에 닿을 때까지 앞 줄을 실행하지만, fung은 이름 오타 같은 것을 실행 전에 잡아 아무것도 하지 않고 멈춘다. 쉘의 <code>set -e</code>처럼 실패하면 그 자리에서 멈추는 동작이 fung에서는 기본이다.</p>

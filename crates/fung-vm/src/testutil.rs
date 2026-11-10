@@ -495,6 +495,7 @@ pub fn boom() -> Vec<Value> {
 /// - `parks()`: how many times this task parked (`cont.rs`);
 /// - `offloads()`: how many waits on the operating system it handed off (`nat::offload`);
 /// - `yields()`: how many times it gave its turn at a yield point;
+/// - `turn_ends()`: how many of its turns ended (`Task::end_turn`);
 /// - `sole(x)`: `x` itself when the argument is the only holder of map or
 ///   list `x` (a call's last read of a local moves it, 03), else
 ///   `Err("shared")`.
@@ -560,6 +561,9 @@ pub fn probes() -> Vec<Value> {
         )),
         Value::Native(Native::leak("yields", vec![], |t: &mut Task, _| {
             Ok(Value::Int(i64::from(t.fiber.yields)))
+        })),
+        Value::Native(Native::leak("turn_ends", vec![], |t: &mut Task, _| {
+            Ok(Value::Int(i64::from(t.fiber.turn_ends)))
         })),
         Value::Native(Native::leak("offloads", vec![], |t: &mut Task, _| {
             Ok(Value::Int(i64::from(t.fiber.offloads)))
@@ -759,22 +763,22 @@ pub mod jobs {
     ///   count is reset so a test thread sees the next one;
     /// - `pool_state()`: the pool's `[threads, idle, queued]`.
     pub fn job_natives() -> Vec<Value> {
-        fn block_job(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+        fn block_job(t: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
             let n = name(&a);
             nat::offload(t, move || wait(&n), |_, ()| Ok(Value::str("done")))
         }
-        fn abandoning_block_job(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+        fn abandoning_block_job(t: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
             let n = name(&a);
             nat::offload_abandoning(t, move || wait(&n), |_, ()| Ok(Value::str("done")))
         }
-        fn count_job(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+        fn count_job(t: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
             let n = name(&a);
             nat::offload(t, move || bump(&n), |_, ()| Ok(Value::Nil))
         }
-        fn pool_thread(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+        fn pool_thread(t: &mut Task<'_>, _: crate::value::Args) -> Result<Flow, Stop> {
             nat::offload(t, thread_name, |_, s| Ok(Value::str(&s)))
         }
-        fn panic_job(t: &mut Task<'_>, _: Vec<Value>) -> Result<Flow, Stop> {
+        fn panic_job(t: &mut Task<'_>, _: crate::value::Args) -> Result<Flow, Stop> {
             nat::offload(t, || panic!("in a job"), |_, ()| Ok(Value::Nil))
         }
         let p = || vec![nat::param("name")];
@@ -809,7 +813,7 @@ pub mod jobs {
                 Ok(Value::Nil)
             },
         )));
-        fn pipe_read(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+        fn pipe_read(t: &mut Task<'_>, a: crate::value::Args) -> Result<Flow, Stop> {
             let Value::Int(fd) = a[0] else {
                 panic!("a descriptor")
             };

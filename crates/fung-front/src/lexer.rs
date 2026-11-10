@@ -392,6 +392,32 @@ fn is_ident_part(c: Option<char>) -> bool {
     c.is_some_and(unicode::is_name_continue)
 }
 
+/// The kind of a word (NFC) the lexer reads as one identifier: a
+/// reserved word, a tag (uppercase first letter), or a name; `None` for an
+/// empty word.
+fn word_kind(text: &str) -> Option<Kind> {
+    let first = text.chars().next()?;
+    Some(
+        if let Some((_, k)) = KEYWORDS.iter().find(|(w, _)| *w == text) {
+            *k
+        } else if unicode::is_upper(first) {
+            Kind::Tag
+        } else {
+            Kind::Name
+        },
+    )
+}
+
+/// Whether `s` (NFC) is the whole of one name token (01): not a reserved
+/// word, not a tag. The loader checks names from file names with it
+/// (FE30).
+pub fn is_name(s: &str) -> bool {
+    let mut cs = s.chars();
+    is_ident_start(cs.next())
+        && cs.all(unicode::is_name_continue)
+        && word_kind(s) == Some(Kind::Name)
+}
+
 fn is_hex_digit(c: Option<char>) -> bool {
     c.is_some_and(|c| c.is_ascii_hexdigit())
 }
@@ -539,38 +565,37 @@ impl<'a> Lexer<'a> {
         let written = &self.src[start..self.off];
         let text = unicode::nfc(written).into_owned();
         let raw = (text != written).then(|| written.to_string());
-        let kind = if let Some((_, k)) = KEYWORDS.iter().find(|(w, _)| *w == text) {
-            *k
-        } else if unicode::is_upper(text.chars().next().unwrap_or(first)) {
+        let kind = word_kind(&text).unwrap_or(if unicode::is_upper(first) {
             Kind::Tag
         } else {
             Kind::Name
-        };
+        });
         self.emit(kind, &text, p).raw = raw;
     }
 
     /// Tries the longest operator first so that `..=` wins over `..` and `;;`
     /// over `;` (the lexer always cuts `;;` as long as it can).
+    /// Operators are ASCII, so they are compared as prefixes of the rest
+    /// of the source, with no copy (FE39).
     fn punct(&mut self) -> Result<(), Diag> {
         let p = self.pos();
-        let rest = &self.src[self.off..];
-        let three: String = rest.chars().take(3).collect();
-        let two: String = rest.chars().take(2).collect();
-        let one: String = rest.chars().take(1).collect();
-        let (kind, len) = if let Some(k) = punct3(&three) {
+        let src = self.src;
+        let rest = &src[self.off..];
+        let prefix = |n: usize| rest.get(..n);
+        let (kind, len) = if let Some(k) = prefix(3).and_then(punct3) {
             (k, 3)
-        } else if let Some(k) = punct2(&two) {
+        } else if let Some(k) = prefix(2).and_then(punct2) {
             (k, 2)
-        } else if let Some(k) = punct1(&one) {
+        } else if let Some(k) = prefix(1).and_then(punct1) {
             (k, 1)
         } else {
+            let one: String = rest.chars().take(1).collect();
             return Err(self.err("E0101", p, &one));
         };
-        let text: String = rest.chars().take(len).collect();
         for _ in 0..len {
             self.advance();
         }
-        self.emit(kind, &text, p);
+        self.emit(kind, &rest[..len], p);
         Ok(())
     }
 }
@@ -771,7 +796,7 @@ mod tests {
     fn unknown_escape_is_e0103() {
         let d = lex_src("\tx = \"\\q\"").unwrap_err();
         assert_eq!((d.code.as_str(), d.pos.col), ("E0103", 7));
-        assert_eq!(d.args, vec![Arg::Str("\\q".to_string())]);
+        assert_eq!(d.args, vec![Arg::Str("`\\q`".to_string())]);
     }
 
     #[test]
@@ -852,11 +877,22 @@ mod tests {
     /// (FE1): `0755` would read as 755, not the octal the shell means.
     #[test]
     fn leading_zero_is_e0102() {
-        for src in ["0755", "007", "00", "01.5", "05s", "0_1", "x = 0644"] {
+        for src in ["0755", "007", "00", "0_1", "x = 0644"] {
             let d = lex_src(src).unwrap_err();
             assert_eq!(d.code, "E0102", "{src}");
             let help = d.help.unwrap_or_default();
             assert!(help.contains("0o"), "{src}: {help}");
+        }
+        // A float or a duration has no octal form: the help only says to
+        // drop the zeros.
+        for src in ["01.5", "05s", "01e3", "x = 00.25"] {
+            let d = lex_src(src).unwrap_err();
+            assert_eq!(d.code, "E0102", "{src}");
+            let help = d.help.unwrap_or_default();
+            assert!(
+                !help.contains("0o") && help.contains("drop the leading zero"),
+                "{src}: {help}"
+            );
         }
         for src in [
             "0", "0.5", "0s", "0ms", "0e3", "0x1f", "0o755", "0b10", "10", "100s",

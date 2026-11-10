@@ -69,7 +69,7 @@ const CASES: &[(&str, &str, &str)] = &[
     ),
     (
         "discard slices of a long list",
-        "xs = map(0..100000, x => x)\nfor i in 0..2000: xs[i..] ;;\neach(0..2000, i => xs[..i + 50000])\nprint(len(xs))",
+        "fn id(v) = v\nxs = map(0..100000, x => x)\nfor i in 0..2000: id(xs[i..]) ;;\neach(0..2000, i => xs[..i + 50000])\nprint(len(xs))",
         "100000\n",
     ),
     (
@@ -203,6 +203,91 @@ fn many_constants_compile_in_linear_time() {
     );
 }
 
+/// A chain of 16,000 operators compiles in linear time: constant folding
+/// looks at each operator once, bottom up, instead of walking its whole
+/// left chain again at every operator (VM18: about 1.3 s here, against
+/// about 0.02 s once).
+#[test]
+fn a_long_operator_chain_compiles_in_linear_time() {
+    let _serial = serial();
+    for (name, op, want) in [("sum", "+", "16000\n"), ("product", "*", "1\n")] {
+        let chain = vec!["x"; 16_000].join(&format!(" {op} "));
+        let src = format!("fn f(x) = {chain}\nprint(f(1))");
+        run_file(name, &src);
+        let (out, took) = run_file(name, &src);
+        eprintln!("16,000 operators ({name}) {took:?}");
+        assert_eq!(out, want);
+        assert!(
+            took < Duration::from_millis(300),
+            "16,000 operators ({name}) took {took:?}"
+        );
+    }
+}
+
+/// `fung check` on `src`: its output and how long it took.
+fn check_file(name: &str, src: &str) -> (std::process::Output, Duration) {
+    let path = std::env::temp_dir().join(format!("fung-perf-{name}-{}.fung", std::process::id()));
+    std::fs::write(&path, src).unwrap();
+    let start = Instant::now();
+    let out = Command::new(env!("CARGO_BIN_EXE_fung"))
+        .arg("check")
+        .arg(&path)
+        .output()
+        .unwrap();
+    let took = start.elapsed();
+    let _ = std::fs::remove_file(&path);
+    (out, took)
+}
+
+/// 8,000 undefined names among 8,000 names each get a "similar name"
+/// help in about linear time: the names are indexed once instead of
+/// measured against every name at every error (FE36: 26 s here before,
+/// about 0.2 s after).
+#[test]
+fn similar_names_for_many_errors_stay_linear() {
+    let _serial = serial();
+    let n = 8_000;
+    let mut src = String::new();
+    for i in 0..n {
+        src += &format!("v{i} = 1\n");
+    }
+    for i in 0..n {
+        src += &format!("print(u{i})\n");
+    }
+    check_file("similar", &src);
+    let (out, took) = check_file("similar", &src);
+    eprintln!("8,000 undefined names {took:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(err.matches("error[E0204]").count(), n, "{}", &err[..500]);
+    assert!(err.contains("help: a similar name exists: `v7999`"));
+    assert!(
+        took < Duration::from_secs(2),
+        "8,000 undefined names took {took:?}"
+    );
+}
+
+/// 9,000 nested lambdas compile in linear time: desugar reads a function's
+/// code for names only when it has both a pattern parameter and a default
+/// (FE37: about 0.6 s here before, 0.03 s after).
+#[test]
+fn nested_lambdas_desugar_in_linear_time() {
+    let _serial = serial();
+    let params: String = (0..9_000).map(|i| format!("x{i} => ")).collect();
+    let src = format!("f = {params}x0\nprint(f(1)(2)(3) != nil)\n");
+    check_file("lambdas", &src);
+    let (out, took) = check_file("lambdas", &src);
+    eprintln!("9,000 nested lambdas {took:?}");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        took < Duration::from_millis(300),
+        "9,000 nested lambdas took {took:?}"
+    );
+}
+
 /// `fmt` aligns a run of 20,000 match arms in linear time: each line of
 /// a run starts no run of its own (it took 6.8 s here when every arm
 /// scanned the rest of the run again; now about 0.2 s with the pipes, so
@@ -292,6 +377,52 @@ fn two_thousand_connections_at_once() {
         "{:?}",
         start.elapsed()
     );
+}
+
+/// `fs.read` of a FIFO keeps up with a writer that streams 4 MB in
+/// pieces larger than the FIFO's buffer (`head | cat`): within 1 s.
+/// macOS reports no readiness for a piece after the first of one large
+/// write, so a read that waited only for the event looked again only
+/// every 50 ms (`pipe::RELOOK`): about 12 s for 4 MB before. The writer
+/// starts after fung: its open waits until fung's read end is there.
+#[test]
+fn a_fifo_read_keeps_up_with_a_streaming_writer() {
+    let _serial = serial();
+    let dir = std::env::temp_dir().join(format!("fung-perf-fifo-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir(&dir).unwrap();
+    let fifo = dir.join("pipe");
+    let made = Command::new("mkfifo").arg(&fifo).status().unwrap();
+    assert!(made.success());
+    let start = Instant::now();
+    let reader = Command::new(fung_bin())
+        .args(["-e", "import fs\nprint(byte_len(fs.read(args[0])!))"])
+        .arg(&fifo)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let reader = Reaped::new(reader);
+    let writer = Command::new("sh")
+        .arg("-c")
+        .arg("head -c 4000000 /dev/zero | cat > \"$0\"")
+        .arg(&fifo)
+        .spawn()
+        .unwrap();
+    let mut writer = Reaped::new(writer);
+    let (out, killed) = reader.output_within(Duration::from_secs(30)).unwrap();
+    let took = start.elapsed();
+    assert!(writer.wait().unwrap().success());
+    let _ = std::fs::remove_dir_all(&dir);
+    eprintln!("4 MB through a FIFO {took:?}");
+    assert!(!killed, "{took:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "4000000\n",
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(took < Duration::from_secs(1), "{took:?}");
 }
 
 /// The threads of process `pid` now.

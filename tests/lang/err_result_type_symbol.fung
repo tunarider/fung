@@ -1,0 +1,5 @@
+# The annotation `Ok | Err` takes a result, a tag with one value; the symbol
+# `'Ok` is not one (SP12; another tag name takes its symbol too, 07 T1).
+fn load() -> Ok | Err = Ok
+print(load())
+# expect-error: E0404

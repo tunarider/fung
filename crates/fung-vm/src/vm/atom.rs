@@ -10,9 +10,11 @@
 //! and the meaning would hold on several cores as well. On one run thread
 //! a retry is rare: `f` never parks (effects are E0707, and a regex
 //! compiles in place while `pure` is set), and its turn does not end while
-//! it runs (`Task::end_turn` waits while `pure` is set), so it gives its
-//! turn at most once, at its first call when the turn was due as it
-//! started.
+//! it runs (`Task::end_turn` owes the turn while `pure` is set and the
+//! swap gives it once it is over, `turn_owed`), so it gives its turn at
+//! most once, at its first call when the turn was due as it started. So a
+//! long `f` holds up every other task until it returns; deadlines and
+//! signals are still looked at once a turn's work (05 "공유 상태").
 //!
 //! **`f` is pure.** It may run more than once, so it must not do
 //! anything that shows outside but the time it takes: while it runs
@@ -111,22 +113,36 @@ struct Swap {
     version: u64,
 }
 
+/// The swap is over: out of the outermost one, a turn that ended inside
+/// its function is given now (`Task::end_turn`, CC11). Not between the
+/// tries of one swap: a turn given there would let another task change
+/// the atom again, and a function longer than a turn could retry forever.
+fn left_swap(t: &mut Task<'_>) {
+    t.fiber.pure -= 1;
+    if t.fiber.pure == 0 && std::mem::take(&mut t.fiber.turn_owed) {
+        t.fiber.turn_due = true;
+    }
+}
+
 impl Cont for Swap {
     fn resume(&mut self, t: &mut Task<'_>, new: Value) -> Result<Next, Stop> {
-        t.fiber.pure -= 1;
-        need_holdable(&new)?;
+        if let Err(e) = need_holdable(&new) {
+            left_swap(t);
+            return Err(e);
+        }
         if self.a.version.get() == self.version {
+            left_swap(t);
             self.a.set(new.clone());
             return Ok(Next::Done(new));
         }
+        // Tried again, still inside the swap.
         self.version = self.a.version.get();
-        t.fiber.pure += 1;
         t.push_arg(read(&self.a));
         Ok(Next::Call(self.f.clone(), 1))
     }
 
     fn unwind(&mut self, t: &mut Task<'_>, stop: Stop) -> Result<Next, Stop> {
-        t.fiber.pure -= 1;
+        left_swap(t);
         Err(stop)
     }
 }
@@ -231,6 +247,12 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "flatten",
             "group_by",
             "pairs",
+            "keys",
+            "values",
+            "reverse",
+            "sum",
+            "min",
+            "max",
             "get",
             "put",
             "merge",
@@ -249,7 +271,8 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
             "byte_len",
             "bytes",
             "from_bytes",
-            "valid_utf8",
+            "is_utf8",
+            "sym_name",
             "int",
             "float",
             "str",
@@ -267,16 +290,27 @@ pub(crate) const PURE: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "_native.net",
-        &["local_addr", "need_count", "need_str_map", "user_agent"],
+        "_native.arg",
+        &[
+            "count",
+            "positive",
+            "dur",
+            "list_of",
+            "str_map",
+            "token",
+            "headers",
+            "header_problem",
+            "is_token",
+        ],
     ),
+    ("_native.net", &["local_addr", "user_agent"]),
     ("_native.json", &["parse", "stringify"]),
     (
         "_native.path",
         &["join", "base", "dir", "ext", "stem", "abs"],
     ),
-    ("_native.process", &["env"]),
-    ("_native.range", &["count", "items", "last", "pad", "slice"]),
+    ("_native.process", &["env", "env_all"]),
+    ("_native.range", &["items", "last", "pad", "slice"]),
     (
         "_native.regex",
         &["is_match", "find", "find_all", "replace", "split"],

@@ -123,3 +123,47 @@ if true:
   print("top clear:", for x in rx: x ;;)
 ;;
 # expect: top clear: [3]
+
+# A failed arm binds nothing: a name its pattern wrote before the guard
+# or the rest of the pattern failed is let go like any other (VM14).
+fn guard_fails():
+  (tx, rx) = channel(1)
+  p = (tx, 2)
+  print(match p:
+    (t, n) when n == 1 => send(t, n)
+    _                  => "other"
+  ;;)
+  for x in rx: print(x) ;;
+  print("done")
+;;
+guard_fails()
+# expect: other
+# expect: done
+fn pair_and_rx():
+  (tx, rx) = channel(1)
+  ((tx, 2), rx)
+;;
+fn pattern_fails():
+  (p, rx) = pair_and_rx()
+  print(match p:
+    (_t, 1) => "one"
+    _       => "other"
+  ;;)
+  for x in rx: print(x) ;;
+  print("done")
+;;
+pattern_fails()
+# expect: other
+# expect: done
+fn alternative_fails(k):
+  (p, rx) = pair_and_rx()
+  print(match p:
+    (_t, 1) | (_t, 3) when k > 0 => "one or three"
+    _                            => "other"
+  ;;)
+  for x in rx: print(x) ;;
+  print("done")
+;;
+alternative_fails(1)
+# expect: other
+# expect: done

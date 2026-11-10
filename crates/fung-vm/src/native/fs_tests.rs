@@ -359,7 +359,7 @@ fn read_write_stat_copy_move_remove() {
         without_mtimes(&show(call("stat", vec![p(&a)]))),
         r#"Ok({name: "a.txt", size: 9, is_dir: false, mtime: $TIME})"#
     );
-    assert_eq!(show(call("exists", vec![p(&a)])), "true");
+    assert_eq!(show(call("exists", vec![p(&a)])), "Ok(true)");
     assert_eq!(
         show(call("copy", vec![p(&a), p(&d.at("c.txt"))])),
         "Ok(nil)"
@@ -380,7 +380,7 @@ fn read_write_stat_copy_move_remove() {
         )
     );
     assert_eq!(show(call("remove_all", vec![p(&d.at("sub"))])), "Ok(nil)");
-    assert_eq!(show(call("exists", vec![p(&d.at("sub"))])), "false");
+    assert_eq!(show(call("exists", vec![p(&d.at("sub"))])), "Ok(false)");
     let r = call("temp_dir", vec![]).unwrap();
     let text = format(&r);
     assert!(text.starts_with("Ok(\""), "{text}");
@@ -782,8 +782,15 @@ fn failures_give_exact_messages() {
             vec![s("a\0b")],
             err("io", "cannot read `a\\u{0}b`: invalid argument".into()),
         ),
-        ("exists", vec![s("")], "false".into()),
-        ("exists", vec![s("a\0b")], "false".into()),
+        ("exists", vec![s("")], "Ok(false)".into()),
+        (
+            "exists",
+            vec![s("a\0b")],
+            err(
+                "io",
+                "cannot check whether `a\\u{0}b` exists: invalid argument".into(),
+            ),
+        ),
     ];
     for (name, args, want) in cases {
         let shown = format!(
@@ -1071,6 +1078,27 @@ fn run_in(d: &Scratch, body: &str) -> testutil::Outcome {
         &format!("import fs\nd = \"{}\"\n{body}", d.text()),
         Opts::default(),
     )
+}
+
+/// CC10: a read error on a handle is an `Err`, not the end of the file:
+/// a directory opened for reading cannot be read.
+#[test]
+fn a_handle_read_error_is_an_err() {
+    let d = Scratch::new("read-error");
+    let o = run_in(
+        &d,
+        r#"h = fs.open(d)!
+print(read_line(h))
+print(read_lines(h))"#,
+    );
+    let want = format!(
+        "Err({{kind: 'io, message: \"cannot read `{0}`: is a directory\"}})\n",
+        d.text()
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str(), o.exit),
+        (want.repeat(2).as_str(), "", 0)
+    );
 }
 
 /// Handles: write, close, closed and wrong-direction handles,
@@ -1575,6 +1603,7 @@ print(fs.stat("${d}/none"))
 print(fs.stat(""))
 print(fs.stat("${d}/a.txt/x"))
 print(fs.exists(d), fs.exists("${d}/none"), fs.exists(""), fs.exists("${d}/locked"))
+print(fs.exists("${d}/a.txt/x"), fs.exists("${d}/t/dangling"), fs.exists("${d}/t/ln_file"), fs.exists("${d}/t/locked_d/inner"))
 print(fs.read("a\u{0}b"), fs.write("a\u{0}b", ""), fs.mkdir("a\u{0}b"), fs.remove("a\u{0}b"), fs.stat("a\u{0}b"), fs.exists("a\u{0}b"))
 print(fs.move("a\u{0}b", "c"), fs.copy("${d}/a.txt", "a\u{0}b"), fs.remove_all("a\u{0}b"))"#,
     r#"print(fs.write("${d}/w.txt", "hi\n"), fs.append("${d}/w.txt", "there\n"), fs.append("${d}/new.txt", "x"))
@@ -1903,7 +1932,7 @@ fn with_open_closes_after_a_runtime_error() {
 #[test]
 fn with_temp_dir_removes_after_a_runtime_error() {
     let o = exec(
-        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); 1 / 0 ;;)), e => nil)\nprint(fs.exists(recv(out)!))",
+        "import fs\n(out_tx, out) = channel(1)\nsupervise(s => spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); 1 / 0 ;;)), e => nil)\nprint(fs.exists(recv(out)!)!)",
         Opts::default(),
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""));
@@ -1912,7 +1941,7 @@ fn with_temp_dir_removes_after_a_runtime_error() {
 #[test]
 fn with_temp_dir_removes_after_a_cancel() {
     let o = testutil::exec_waiting(
-        "import fs\n(out_tx, out) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  t = spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); recv(never) ;;))\n  dir = recv(out)!\n  cancel(t)\n  _ = await(t)\n  print(fs.exists(dir))\n;;)",
+        "import fs\n(out_tx, out) = channel(1)\n(_tx, never) = channel()\nscope(fn(s):\n  t = spawn(s, () => fs.with_temp_dir(fn(d): send(out_tx, d); recv(never) ;;))\n  dir = recv(out)!\n  cancel(t)\n  _ = await(t)\n  print(fs.exists(dir)!)\n;;)",
     );
     assert_eq!((o.out.as_str(), o.err.as_str()), ("false\n", ""));
 }
@@ -1985,8 +2014,8 @@ fn exists_and_stat_of_a_task_alone_are_not_handed_off() {
   r = f()
   [r, offloads() - n]
 ;;
-fn both() = [fs.exists("${d}/a.txt"), fs.stat("${d}/a.txt")!.size, fs.exists("${d}/none"), fs.stat("${d}/none")]
-fn one() = fs.exists("${d}/a.txt")
+fn both() = [fs.exists("${d}/a.txt")!, fs.stat("${d}/a.txt")!.size, fs.exists("${d}/none")!, fs.stat("${d}/none")]
+fn one() = fs.exists("${d}/a.txt")!
 print(count(both))
 print(timeout(() => count(both), 10s))
 (tx, rx) = channel()
@@ -2181,4 +2210,94 @@ print(fs.write("/dev/null", "x"))"#,
         .collect();
     names.sort();
     assert_eq!(names, ["dangling", "f", "h1", "h2", "ln", "made", "n", "t"]);
+}
+
+/// LB29 (D22): a file past the string limit is `fs.read`'s `Err`, not a
+/// runtime error: its size comes from outside. A file past four times
+/// the limit in bytes is refused without being read: `huge` cannot be
+/// read at all (no permission), so only that check gives its message.
+/// Sparse files: no disk is written.
+#[test]
+fn a_file_past_the_string_limit_is_an_err() {
+    let d = Scratch::new("toolong");
+    let max = crate::prelude::MAX_CHARS as u64;
+    for (name, len) in [("over", max + 1), ("huge", 4 * max + 1), ("at", max)] {
+        std::fs::File::create(d.at(name))
+            .unwrap()
+            .set_len(len)
+            .unwrap();
+    }
+    std::fs::set_permissions(d.at("huge"), std::fs::Permissions::from_mode(0o000)).unwrap();
+    if running_as_root(&d.at("huge")) {
+        return;
+    }
+    let o = run_in(
+        &d,
+        r#"print(fs.read("${d}/over"))
+print(fs.read("${d}/huge"))
+print(len(fs.read("${d}/at")!))"#,
+    );
+    let msg = |n: &str| {
+        format!(
+            "Err({{kind: 'io, message: \"cannot read `{}`: file is longer than the string limit (100000000 characters)\"}})",
+            d.at(n).display()
+        )
+    };
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            format!("{}\n{}\n100000000\n", msg("over"), msg("huge")).as_str(),
+            ""
+        )
+    );
+}
+
+/// LB29 (D22): a file with no size, such as a character device, is read
+/// only until its text passes the string limit: `/dev/zero` gives the
+/// read's `Err` at once, holding about the limit's bytes, not reading on
+/// without end (where a `timeout` could not stop the pool thread).
+#[test]
+fn a_device_past_the_string_limit_stops_its_read() {
+    let d = Scratch::new("devzero");
+    let start = std::time::Instant::now();
+    let o = run_in(&d, r#"print(fs.read("/dev/zero"))"#);
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            "Err({kind: 'io, message: \"cannot read `/dev/zero`: file is longer than the string limit (100000000 characters)\"})\n",
+            ""
+        )
+    );
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+}
+
+/// LB29 (D22): a line read from a file handle stops being read once it
+/// passes the string limit: the read gives its `Err` and the line's rest
+/// is read on, so a file of three limits without a newline gives two
+/// `Err`s, not one read of the whole file.
+#[test]
+fn a_line_past_the_string_limit_stops_its_read() {
+    let d = Scratch::new("longline");
+    let max = crate::prelude::MAX_CHARS as u64;
+    std::fs::File::create(d.at("z"))
+        .unwrap()
+        .set_len(3 * max)
+        .unwrap();
+    let o = run_in(
+        &d,
+        r#"h = fs.open("${d}/z")!
+print(read_line(h))
+print(read_line(h) |> is_err)"#,
+    );
+    assert_eq!(
+        (o.out.as_str(), o.err.as_str()),
+        (
+            format!(
+                "Err({{kind: 'io, message: \"cannot read `{}`: line is longer than the string limit (100000000 characters)\"}})\ntrue\n",
+                d.at("z").display()
+            )
+            .as_str(),
+            ""
+        )
+    );
 }

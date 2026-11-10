@@ -1,4 +1,4 @@
-# A result holds one value (VM4): Ok(1, 2) is a tag like any other, so `!`
-# refuses it as it refuses any non-result (E0605).
+# A result holds exactly one value (SP12): `Ok` and `Err` with another count
+# are a compile error (E0236), not a second kind of tag.
 print(Ok(1, 2)!)
-# expect-error: E0605
+# expect-error: E0236

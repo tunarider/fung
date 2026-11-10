@@ -104,10 +104,10 @@ print(double(21))</code></pre><pre class="out dump plain"><code>$ fung dump byte
 0003  1:14  RETURN</code></pre></div>
 <p><code>&lt;main&gt;</code>의 0005번 <code>CALL 1</code>이 실행되기 직전, 값 스택에는 아래에서부터 <code>&lt;fn print&gt;</code>, <code>double</code>, <code>21</code>이 쌓여 있다. <code>CALL 1</code>은 "맨 위 인자 하나와 그 아래의 함수"를 뜻한다. VM은 <code>double</code>의 프레임을 새로 쌓고, 그 함수의 명령 0000번부터 실행한다.</p>
 <pre class="plain"><code>CALL 1 직전                 double의 프레임이 쌓인 뒤
-[2]  21
-[1]  &lt;fn double&gt;            [1]  21           ← double 프레임의 슬롯 0(x), base = 1
+[2]  21                     [2]  21           ← double 프레임의 슬롯 0(x), base = 2
+[1]  &lt;fn double&gt;            [1]  (빈 칸)      ← floor = 1
 [0]  &lt;fn print&gt;             [0]  &lt;fn print&gt;   (main이 계산 중인 값)</code></pre>
-<p>VM은 함수 값이 있던 칸을 빼고, 그 자리부터를 새 프레임의 슬롯으로 삼는다. <code>double</code> 안의 <code>LOADLOCAL 0</code>은 "내 프레임의 슬롯 0"을 읽는다. 슬롯 0은 값 스택의 <code>base + 0</code>번 칸이고, 인자 <code>21</code>이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. <code>MUL</code>이 42를 올리고, <code>RETURN</code>이 42를 꺼낸 뒤 스택을 <code>base</code>까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 <code>&lt;main&gt;</code>의 <code>CALL 1</code>이 다시 <code>print</code>를 부른다.</p>
+<p>VM은 함수 값을 꺼내 그 칸을 비워 두고, 그 위의 인자부터를 새 프레임의 슬롯으로 삼는다. 인자를 한 칸씩 내려 함수 칸을 메우지 않으므로 인자가 몇 개든 움직이는 값이 없다. <code>double</code> 안의 <code>LOADLOCAL 0</code>은 "내 프레임의 슬롯 0"을 읽는다. 슬롯 0은 값 스택의 <code>base + 0</code>번 칸이고, 인자 <code>21</code>이 이미 그 자리에 있으므로 따로 복사할 필요가 없다. <code>MUL</code>이 42를 올리고, <code>RETURN</code>이 42를 꺼낸 뒤 스택을 <code>floor</code>(빈 칸)까지 잘라 내고 42를 부른 쪽 스택에 올린다. 함수가 남긴 임시 값은 이렇게 새지 않는다. 그다음 <code>&lt;main&gt;</code>의 <code>CALL 1</code>이 다시 <code>print</code>를 부른다.</p>
 <div class="run"><pre><code>fn double(x) = x * 2
 print(double(21))</code></pre><pre class="out plain"><code>42</code></pre></div>
 <h2 id="frames">프레임</h2>
@@ -118,6 +118,7 @@ print(double(21))</code></pre><pre class="out plain"><code>42</code></pre></div>
     <tr><td><code>closure</code></td><td>실행 중인 함수 값. 원형(8장: 명령열, 상수, 매개변수 표), 붙잡은 값(아래 클로저 절), 모듈의 전역 표(11장)를 여기서 읽는다. 진입 파일과 모듈의 본문도 붙잡은 값이 없는 클로저 하나로 돈다</td></tr>
     <tr><td><code>ip</code></td><td>다음에 실행할 명령의 번호. "돌아올 자리"는 부른 쪽 프레임의 이 값이다</td></tr>
     <tr><td><code>base</code></td><td>이 함수의 슬롯이 값 스택의 몇 번째 칸부터인가</td></tr>
+    <tr><td><code>floor</code></td><td>돌아갈 때 값 스택을 어디까지 자르나. <code>CALL</code>로 들어온 프레임은 함수 값이 있던 빈 칸(<code>base - 1</code>), 내장 함수가 되부른 프레임과 모듈 본문은 <code>base</code></td></tr>
     <tr><td><code>tail_calls</code></td><td>꼬리 호출로 이 프레임을 몇 번 다시 썼나(아래 꼬리 호출 절)</td></tr>
   </tbody>
 </table>
@@ -292,7 +293,6 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0003  3:6   MOVELOCAL    0
 0004  3:9   CONST        0    ; []
 0005  3:5   TAILCALL     2    ; 2 positional, 0 named
-0006  1:1   RETURN
 
 == go ==
 0000  2:19  LOADLOCAL    0
@@ -309,8 +309,7 @@ print(countdown(3))</code></pre><pre class="out dump plain"><code>$ fung dump by
 0011  2:57  MOVELOCAL    0
 0012  2:56  LIST         1
 0013  2:54  ADD
-0014  2:42  TAILCALL     2    ; 2 positional, 0 named
-0015  2:17  RETURN</code></pre></div>
+0014  2:42  TAILCALL     2    ; 2 positional, 0 named</code></pre></div>
 <p><code>go</code>의 0006번이 <code>LOADSELF</code>다. 최상위 함수가 자기를 부를 때도 전역을 읽지 않고 같은 명령을 쓴다.</p>
 <h2 id="globals">최상위 함수와 전역</h2>
 <p>파일 최상위의 <code>fn</code>은 <strong>끌어올려진다</strong>(hoisting). 이름 해석이 최상위 <code>fn</code>을 먼저 모아 전역 번호를 붙이고, 파일 본문의 맨 앞에서 <code>CLOSURE</code>·<code>STOREGLOBAL</code>로 만든다. 그래서 정의보다 위에서 불러도 되고, 두 함수가 서로를 불러도 된다.</p>
@@ -429,7 +428,6 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0011  1:60  CONST        1    ; 1
 0012  1:58  ADD
 0013  1:46  TAILCALL     2    ; 2 positional, 0 named
-0014  1:18  RETURN
 
 == depth ==
 0000  2:15  LOADLOCAL    0
@@ -446,7 +444,7 @@ print(count(5, 0) + depth(5))</code></pre><pre class="out dump plain"><code>$ fu
 0011  2:43  CALL         1    ; 1 positional, 0 named
 0012  2:36  ADD
 0013  2:13  RETURN</code></pre></div>
-<p><code>count</code>의 0013번은 <code>TAILCALL</code>이고, <code>depth</code>의 0011번은 그냥 <code>CALL</code>이다(<code>1 +</code>가 남아 있으므로). VM의 <code>TAILCALL</code>은 새 프레임을 쌓지 않는다. 지금 프레임의 슬롯을 지우고 새 인자를 <code>base</code> 자리로 옮긴 뒤, 프레임의 원형을 바꾸고 <code>ip</code>를 0으로 돌린다(<code>call.rs</code>의 <code>reuse_frame</code>). 그래서 <code>count(1000000, 0)</code>은 프레임 하나로 돈다.</p>
+<p><code>count</code>의 0013번은 <code>TAILCALL</code>이고, <code>depth</code>의 0011번은 그냥 <code>CALL</code>이다(<code>1 +</code>가 남아 있으므로). VM의 <code>TAILCALL</code>은 새 프레임을 쌓지 않는다. 지금 프레임의 슬롯을 지우고 새 인자를 <code>base</code> 자리로 옮긴 뒤, 프레임의 원형을 바꾸고 <code>ip</code>를 0으로 돌린다(<code>call.rs</code>의 <code>reuse_frame</code>). 그래서 <code>count(1000000, 0)</code>은 프레임 하나로 돈다. <code>TAILCALL</code>은 이렇게 지금 프레임을 스스로 끝내므로 그 뒤에는 <code>RETURN</code>이 없다. <code>count</code>의 명령이 <code>TAILCALL</code>에서 끝나는 까닭이다.</p>
 <p>꼬리가 아닌 재귀는 프레임이 쌓인다. 쌓인 프레임이 100,000개를 넘으면 E0804다(<code>MAX_FRAMES</code>). 프레임은 힙의 작은 구조체라서 이 깊이도 메모리 수십 MB 수준이지만, 끝없는 재귀를 빨리 알리려고 한도를 둔다.</p>
 <div class="run"><pre><code>fn count(n, acc) = n == 0 then acc else count(n - 1, acc + 1)
 fn depth(n) = n == 0 then 0 else 1 + depth(n - 1)

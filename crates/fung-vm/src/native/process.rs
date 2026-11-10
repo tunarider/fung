@@ -1,4 +1,4 @@
-//! `_native.process`: `exec`, `sh` and `env` (06: 명령 실행).
+//! `_native.process`: `exec`, `sh`, `env` and `env_all` (06: 명령 실행).
 //! `extras/prelude.fung` re-exports them under their plain names.
 //!
 //! A command runs with its standard output and error captured and its
@@ -22,7 +22,7 @@ use fung_front::text::lossy as show;
 use super::file::os_path;
 use super::nat::{self, native, opt, param};
 use super::oserr::reason;
-use crate::value::{Lit, MapBuilder, Module, Native, Text, Value, type_name};
+use crate::value::{Args, Lit, MapBuilder, Module, Native, Text, Value, type_name};
 use crate::vm::poller::{ExitWatch, Interest};
 use crate::vm::{CancelNode, Cont, Flow, IoRegs, Kind, Next, Pool, Stop, Task, Wake};
 
@@ -43,7 +43,8 @@ pub fn module() -> Rc<Module> {
         vec![
             ("exec", nat::native_step("exec", exec_fn, run())),
             ("sh", nat::native_step("sh", sh_fn, run())),
-            ("env", native("env", env_fn, vec![opt("name", Lit::Nil)])),
+            ("env", native("env", env_fn, vec![param("name")])),
+            ("env_all", native("env_all", env_all_fn, vec![])),
         ]
     });
     let mut m = Module::new("process", "_native.process");
@@ -54,7 +55,7 @@ pub fn module() -> Rc<Module> {
 }
 
 /// `exec(cmd, cwd, env, stdin)`: runs a program with arguments, no shell.
-fn exec_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn exec_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let argv = nat::str_list("cmd", &a[0])?;
     if argv.is_empty() {
         return Err(nat::fail(
@@ -62,7 +63,7 @@ fn exec_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
             vec![
                 nat::s("cmd"),
                 nat::s("a non-empty list of strings"),
-                nat::s("an empty list"),
+                nat::s("[]"),
             ],
         ));
     }
@@ -70,7 +71,7 @@ fn exec_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `sh(cmd, cwd, env, stdin)`: `/bin/sh -c cmd`.
-fn sh_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn sh_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let cmd = nat::need_bytes("cmd", &a[0])?;
     run_command(
         t,
@@ -79,19 +80,23 @@ fn sh_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
-/// `env(name = nil)`: one variable (nil when unset), or all of them as a
-/// map in the environment's order. Names and values are bytes (L4).
-fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    if let Some(name) = nat::opt_bytes("name", &a[0])? {
-        // No entry can have such a name.
-        if name.is_empty() || name.contains(&b'=') || name.contains(&0) {
-            return Ok(Value::Nil);
-        }
-        return Ok(match std::env::var_os(os_path(name)) {
-            Some(v) => Value::bytes(v.into_vec()),
-            None => Value::Nil,
-        });
+/// `env(name)`: one variable, nil when unset. Names and values are
+/// bytes (L4).
+fn env_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
+    let name = nat::need_bytes("name", &a[0])?;
+    // No entry can have such a name.
+    if name.is_empty() || name.contains(&b'=') || name.contains(&0) {
+        return Ok(Value::Nil);
     }
+    Ok(match std::env::var_os(os_path(name)) {
+        Some(v) => Value::bytes(v.into_vec()),
+        None => Value::Nil,
+    })
+}
+
+/// `env_all()`: every variable as a map in the environment's order: a
+/// function of its own, since `env(name)` gives one value (SP27, D32).
+fn env_all_fn(_: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     let mut m = MapBuilder::default();
     for (k, v) in std::env::vars_os() {
         m.set(Rc::new(Text::new(k.into_vec())), Value::bytes(v.into_vec()));
@@ -100,9 +105,10 @@ fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// Checks `cwd`, `env` and `stdin` (in that order), runs
-/// the command, and returns `Ok({out, err, code})`, `Err({kind: 'exit,
-/// code, out, err, message})` for a non-zero exit (code -1 when a signal
-/// ended it), or `Err({kind: 'not_found, message})` when it cannot start.
+/// the command, and returns `Ok({out, err, code: 0, signal: nil})`,
+/// `Err({kind: 'exit, code, signal, out, err, message})` for a non-zero
+/// exit (`code: nil` and the signal's number when a signal ended it,
+/// LB28), or `Err({kind: 'not_found, message})` when it cannot start.
 ///
 /// The task parks while the command runs (`CommandWait`, R4b): its end
 /// and its pipes are waited for on the event loop, so other tasks run and
@@ -115,9 +121,11 @@ fn env_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 const ENV_WANT: &str = "a map of variable names (not empty, no `=`) to strings";
 
 fn run_command(t: &mut Task<'_>, argv: Vec<Vec<u8>>, a: &[Value]) -> Result<Flow, Stop> {
-    let cwd = nat::opt_bytes("cwd", &a[1])?
-        .filter(|d| !d.is_empty())
-        .map(<[u8]>::to_vec);
+    let cwd = nat::opt_bytes("cwd", &a[1])?.map(<[u8]>::to_vec);
+    // An empty path names no directory (LB35): not "the current one".
+    if cwd.as_ref().is_some_and(Vec::is_empty) {
+        return Err(nat::not_nonempty("cwd", &a[1]));
+    }
     let env = match &a[2] {
         Value::Nil => None,
         Value::Map(m) => {
@@ -337,6 +345,12 @@ struct CommandWait {
     input: Option<Input>,
     out_buf: Vec<u8>,
     err_buf: Vec<u8>,
+    /// The characters of each output, counted as they come (LB29).
+    out_count: nat::CharCount,
+    err_count: nat::CharCount,
+    /// Which output passed the string limit: the command was ended and
+    /// the call gives its `Err` (D22).
+    too_long: Option<&'static str>,
     phase: Phase,
     cut: bool,
     /// The task's own node while it waits under a fresh root.
@@ -430,6 +444,9 @@ impl CommandWait {
             input,
             out_buf: Vec::new(),
             err_buf: Vec::new(),
+            out_count: nat::CharCount::default(),
+            err_count: nat::CharCount::default(),
+            too_long: None,
             phase: Phase::Running,
             cut: false,
             node: None,
@@ -514,6 +531,40 @@ impl CommandWait {
         }
     }
 
+    /// An output past the string limit (LB29, D22): what was read goes,
+    /// the pipes close, and the command ends as on a cancel (SIGTERM, then
+    /// SIGKILL after `TERM_GRACE`), so its memory stays near the limit
+    /// however much it writes.
+    fn check_limit(&mut self) {
+        if self.too_long.is_some() {
+            return;
+        }
+        let which = if !self.out_count.within(&self.out_buf) {
+            "standard output"
+        } else if !self.err_count.within(&self.err_buf) {
+            "standard error"
+        } else {
+            return;
+        };
+        self.too_long = Some(which);
+        self.out_buf = Vec::new();
+        self.err_buf = Vec::new();
+        self.out = None;
+        self.err = None;
+        self.input = None;
+        if self.phase != Phase::Running {
+            return;
+        }
+        let grace = Instant::now() + TERM_GRACE;
+        if self.status.is_none() {
+            self.signal(libc::SIGTERM);
+            self.phase = Phase::Terminating(grace);
+        } else if self.own {
+            self.signal_group(libc::SIGTERM);
+            self.phase = Phase::Cutting(grace);
+        }
+    }
+
     /// `look`, and when it fails (the loop refused a registration) the
     /// wait ends: what it registered leaves, and the task's node comes
     /// back before the error unwinds.
@@ -533,6 +584,7 @@ impl CommandWait {
     fn look(&mut self, t: &mut Task<'_>) -> Result<Next, Stop> {
         loop {
             self.pump();
+            self.check_limit();
             if self.status.is_none()
                 && let Some(c) = &mut self.child
             {
@@ -635,6 +687,13 @@ impl CommandWait {
             )));
         }
         let status = self.status.expect("an ended command");
+        if let Some(which) = self.too_long {
+            return Ok(Next::Done(nat::err_value(
+                "io",
+                &nat::too_long(&format!("{which} of `{name}`")),
+                Vec::new(),
+            )));
+        }
         let (o, e) = if self.cut {
             (Vec::new(), Vec::new())
         } else {
@@ -643,11 +702,6 @@ impl CommandWait {
                 std::mem::take(&mut self.err_buf),
             )
         };
-        // The output is text from outside, held in a map the return check
-        // does not walk: it keeps to the string limit here (VA9).
-        for b in [&o, &e] {
-            crate::value::check_chars(b).map_err(|d| Stop::Error(Box::new(d)))?;
-        }
         let out = Value::bytes(o);
         let err = Value::bytes(e);
         if status.success() {
@@ -655,15 +709,63 @@ impl CommandWait {
             m.set(crate::value::key("out"), out);
             m.set(crate::value::key("err"), err);
             m.set(crate::value::key("code"), Value::Int(0));
+            m.set(crate::value::key("signal"), Value::Nil);
             return Ok(Next::Done(nat::ok(Value::Map(Rc::new(m.finish())))));
         }
-        let code = status.code().map_or(-1, i64::from);
+        // Ended by a signal: no exit code, which a real code (137) would
+        // be confused with (LB28, D26).
+        use std::os::unix::process::ExitStatusExt;
+        let (code, signal, message) = match (status.code(), status.signal()) {
+            (Some(c), _) => (
+                Value::Int(c.into()),
+                Value::Nil,
+                format!("`{name}` exited with code {c}"),
+            ),
+            (None, Some(s)) => (
+                Value::Nil,
+                Value::Int(s.into()),
+                format!("`{name}` was killed by signal {s}{}", signal_name(s)),
+            ),
+            (None, None) => (Value::Nil, Value::Nil, format!("`{name}` ended abnormally")),
+        };
         Ok(Next::Done(nat::err_value(
             "exit",
-            &format!("`{name}` exited with code {code}"),
-            vec![("code", Value::Int(code)), ("out", out), ("err", err)],
+            &message,
+            vec![
+                ("code", code),
+                ("signal", signal),
+                ("out", out),
+                ("err", err),
+            ],
         )))
     }
+}
+
+/// ` (SIGKILL)` for a signal with a common name, or nothing: the numbers
+/// are the system's own (SIGBUS is 10 on macOS, 7 on Linux).
+fn signal_name(s: libc::c_int) -> String {
+    let name = match s {
+        libc::SIGHUP => "SIGHUP",
+        libc::SIGINT => "SIGINT",
+        libc::SIGQUIT => "SIGQUIT",
+        libc::SIGILL => "SIGILL",
+        libc::SIGTRAP => "SIGTRAP",
+        libc::SIGABRT => "SIGABRT",
+        libc::SIGBUS => "SIGBUS",
+        libc::SIGFPE => "SIGFPE",
+        libc::SIGKILL => "SIGKILL",
+        libc::SIGUSR1 => "SIGUSR1",
+        libc::SIGSEGV => "SIGSEGV",
+        libc::SIGUSR2 => "SIGUSR2",
+        libc::SIGPIPE => "SIGPIPE",
+        libc::SIGALRM => "SIGALRM",
+        libc::SIGTERM => "SIGTERM",
+        libc::SIGXCPU => "SIGXCPU",
+        libc::SIGXFSZ => "SIGXFSZ",
+        libc::SIGSYS => "SIGSYS",
+        _ => return String::new(),
+    };
+    format!(" ({name})")
 }
 
 impl Cont for CommandWait {
@@ -764,8 +866,9 @@ pub(crate) fn kill_own_groups() {
 /// The command to run, or the reason it cannot start, checked in
 /// argument order (`exec(cmd, cwd, env, stdin)`): the command (an empty
 /// name, a NUL in any argument, the `$PATH` lookup), the working
-/// directory, the environment (with `PWD` set to the absolute `cwd` when
-/// no `env` is given), and last whether the kernel can execute the file.
+/// directory (named in its reason, LB35), the environment (with `PWD`
+/// set to the absolute `cwd` unless `env` gives one), and last whether
+/// the kernel can execute the file.
 fn prepare(
     argv: &[Vec<u8>],
     cwd: Option<&[u8]>,
@@ -785,11 +888,14 @@ fn prepare(
         look_path(name)?
     };
     if let Some(dir) = cwd {
+        let named = |why: &str| format!("working directory `{}`: {why}", show(dir));
         if dir.contains(&0) {
             return Err("working directory contains a NUL byte".into());
         }
-        if let Err(e) = std::fs::metadata(os_path(dir)) {
-            return Err(reason(&e));
+        match std::fs::metadata(os_path(dir)) {
+            Ok(m) if !m.is_dir() => return Err(named("not a directory")),
+            Ok(_) => {}
+            Err(e) => return Err(named(&reason(&e))),
         }
     }
     if let Some(vars) = &env
@@ -797,11 +903,14 @@ fn prepare(
     {
         return Err("environment variable contains a NUL byte".into());
     }
-    let vars = match (env, cwd) {
-        (Some(vars), _) => vars,
-        (None, Some(dir)) => vec![(b"PWD".to_vec(), super::path::abs(dir))],
-        (None, None) => Vec::new(),
-    };
+    // `PWD` follows `cwd` whether or not `env` is given (LB35); a `PWD`
+    // in `env` is the caller's own.
+    let mut vars = env.unwrap_or_default();
+    if let Some(dir) = cwd
+        && !vars.iter().any(|(k, _)| k == b"PWD")
+    {
+        vars.push((b"PWD".to_vec(), super::path::abs(dir)));
+    }
     // A file the kernel cannot execute (ENOEXEC) is refused rather than
     // handed to `/bin/sh`, which the standard library's `execvp` would do:
     // shell scripts go through `sh()`.

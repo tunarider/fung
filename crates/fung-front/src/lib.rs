@@ -12,6 +12,7 @@ pub mod extras;
 pub mod format;
 pub mod lexer;
 pub mod loader;
+pub mod oserr;
 pub mod parser;
 pub mod resolve;
 pub mod source;

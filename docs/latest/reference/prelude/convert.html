@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>document.documentElement.classList.add("js")</script>
 <title>타입과 변환 · fung 매뉴얼</title>
-<meta name="description" content="fung prelude 타입과 변환: type_of, int, float, str, sym, parse_int, parse_float, parse_dur.">
+<meta name="description" content="fung prelude 타입과 변환: type_of, int, float, str, sym, sym_name, parse_int, parse_float, parse_dur.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
@@ -139,7 +139,7 @@ error[E0803]: port must be int or str, got 'float
 <div class="sig"><code>int(x)</code></div>
 <h4>설명</h4>
 <ul>
-<li>문자열: 정수 리터럴의 십진 문법을 받는다. 앞의 <code>+</code>·<code>-</code>, 자리 구분 <code>_</code>(<code>&quot;1_000&quot;</code>), 앞의 0(<code>&quot;007&quot;</code>)이 된다. 앞뒤 공백, 소수점(<code>&quot;1.5&quot;</code>), 16진(<code>&quot;0x1f&quot;</code>)은 받지 않는다.</li>
+<li>문자열: 소스의 <a href="../language/lexical.html">정수 리터럴</a> 문법에 앞의 부호 <code>-</code>·<code>+</code> 하나를 더한 것을 받는다. 자리 구분 <code>_</code>(<code>&quot;1_000&quot;</code>), 진법 접두사(<code>&quot;0x1f&quot;</code>, <code>&quot;0o755&quot;</code>, <code>&quot;0b101&quot;</code>)가 된다. 앞뒤 공백, 소수점(<code>&quot;1.5&quot;</code>), 앞의 0(<code>&quot;007&quot;</code>: 8진수는 <code>&quot;0o7&quot;</code>, 리터럴과 같은 이유로 거절), 대문자 접두사(<code>&quot;0X1F&quot;</code>)는 받지 않는다. 이 규칙은 <code>float</code>·<code>parse_int</code>·<code>parse_float</code>·<code>parse_dur</code>가 모두 같다.</li>
 <li>실수: 0 쪽으로 버린다(<code>int(3.9) == 3</code>, <code>int(-3.9) == -3</code>). 정수 범위(64비트)를 넘는 실수는 에러다.</li>
 <li>정수: 그대로.</li>
 </ul>
@@ -151,11 +151,11 @@ error[E0803]: port must be int or str, got 'float
 <h4>돌려주는 값</h4>
 <p>정수.</p>
 <h4>에러</h4>
-<p>변환할 수 없으면 런타임 에러 E0513(<code>cannot convert &quot;abc&quot; to int</code>).</p>
+<p>변환할 수 없으면 런타임 에러 E0513(<code>cannot convert &quot;abc&quot; to int</code>, 문자열은 따옴표로 보여 공백이 보인다). 앞의 0이면 도움말이 <code>0o</code>를 알려 준다.</p>
 <h4>예제</h4>
 <p><strong>문자열과 실수에서</strong></p>
-<div class="run"><pre><code>print(int(&quot;42&quot;) + 1, int(&quot;-1_000&quot;), int(&quot;+5&quot;), int(&quot;007&quot;))
-print(int(3.9), int(-3.9), int(2.5e3))</code></pre><pre class="out plain"><code>43 -1000 5 7
+<div class="run"><pre><code>print(int(&quot;42&quot;) + 1, int(&quot;-1_000&quot;), int(&quot;+5&quot;), int(&quot;0o755&quot;))
+print(int(3.9), int(-3.9), int(2.5e3))</code></pre><pre class="out plain"><code>43 -1000 5 493
 3 -3 2500</code></pre></div>
 <p><strong>변환할 수 없는 값은 멈춘다</strong></p>
 <div class="run"><pre><code>print(int(&quot; 4&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0513]: cannot convert &quot; 4&quot; to int
@@ -178,7 +178,7 @@ print(int(3.9), int(-3.9), int(2.5e3))</code></pre><pre class="out plain"><code>
 <h4>설명</h4>
 <ul>
 <li>정수: 같은 값의 실수(<code>float(3)</code>은 <code>3.0</code>).</li>
-<li>문자열: 실수 리터럴 문법을 받는다. 앞의 부호, 정수 꼴, 지수, <code>_</code>가 된다: <code>&quot;2.5&quot;</code>, <code>&quot;-1e3&quot;</code>, <code>&quot;42&quot;</code>, <code>&quot;1_000.5&quot;</code>. 점 앞이나 뒤가 빈 꼴(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>), 16진 실수, 앞뒤 공백, <code>&quot;NaN&quot;</code>·<code>&quot;inf&quot;</code>, 실수 범위를 넘는 수(<code>&quot;1e400&quot;</code>)는 거부한다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없기 때문이다.</li>
+<li>문자열: 실수 리터럴 문법(정수 리터럴도 된다)에 앞의 부호 하나를 더한 것을 받는다(<a href="#fn-int"><code>int</code></a>와 같은 규칙). 정수 꼴, 지수, <code>_</code>가 된다: <code>&quot;2.5&quot;</code>, <code>&quot;-1e3&quot;</code>, <code>&quot;42&quot;</code>, <code>&quot;1_000.5&quot;</code>. 점 앞이나 뒤가 빈 꼴(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>), 대문자 지수(<code>&quot;1E5&quot;</code>), 앞의 0(<code>&quot;01.5&quot;</code>), 16진 실수, 앞뒤 공백, <code>&quot;NaN&quot;</code>·<code>&quot;inf&quot;</code>, 실수 범위를 넘는 수(<code>&quot;1e400&quot;</code>), 0이 아닌데 0으로 반올림되는 수(<code>&quot;1e-400&quot;</code>)는 거부한다. fung의 실수는 <code>NaN</code>·<code>Inf</code>가 될 수 없고, 리터럴처럼 값을 말없이 잃지 않기 때문이다.</li>
 <li>실수: 그대로.</li>
 </ul>
 <h4>매개변수</h4>
@@ -274,20 +274,50 @@ print(handle(&quot;start&quot;), handle(&quot;stop&quot;))</code></pre><pre clas
  call path (innermost first):
    example.fung:1 &lt;entry&gt;</code></pre></div>
 <h4>같이 보기</h4>
-<p><a href="../language/values.html">비교와 동일성</a>, <a href="../errors.html#E0517">E0517</a>, <a href="#fn-str"><code>str</code></a></p>
+<p><a href="#fn-sym_name"><code>sym_name</code></a>, <a href="../language/values.html">비교와 동일성</a>, <a href="../errors.html#E0517">E0517</a>, <a href="#fn-str"><code>str</code></a></p>
+</section>
+<section class="entry" id="fn-sym_name">
+<h3>sym_name</h3>
+<p>심볼의 이름을 문자열로 돌려준다(<code>sym_name('ok) == &quot;ok&quot;</code>). <a href="#fn-sym"><code>sym</code></a>의 반대다.</p>
+<div class="sig"><code>sym_name(s)</code></div>
+<h4>설명</h4>
+<p><code>str('ok)</code>는 값을 보이는 모양 그대로 <code>&quot;'ok&quot;</code>를 준다. 사람이 읽는 글, 명령의 출력, 파일 이름, HTTP 헤더처럼 이름만 필요한 곳에는 <code>sym_name</code>을 쓴다. 값 없는 태그(<code>Red</code>)도 심볼이므로 <code>sym_name(Red)</code>는 <code>&quot;Red&quot;</code>다.</p>
+<h4>매개변수</h4>
+<ul>
+<li><code>s</code>: 심볼.</li>
+</ul>
+<h4>돌려주는 값</h4>
+<p>문자열.</p>
+<h4>에러</h4>
+<p>심볼이 아니면 런타임 에러 E0403(<code>argument `s` must be sym, got str</code>).</p>
+<h4>예제</h4>
+<p><strong>상태를 글로</strong></p>
+<div class="run"><pre><code>status = 'not_found
+print(&quot;status: ${sym_name(status)}&quot;, str(status), sym_name(Red))</code></pre><pre class="out plain"><code>status: not_found 'not_found Red</code></pre></div>
+<p><strong>문자열은 받지 않는다</strong></p>
+<div class="run"><pre><code>print(sym_name(&quot;ok&quot;))</code></pre><pre class="out err plain" data-code="1"><code>error[E0403]: argument `s` must be sym, got str
+  --&gt; example.fung:1:15
+  |
+1 | print(sym_name(&quot;ok&quot;))
+  |               ^
+  |
+ call path (innermost first):
+   example.fung:1 &lt;entry&gt;</code></pre></div>
+<h4>같이 보기</h4>
+<p><a href="#fn-sym"><code>sym</code></a>, <a href="#fn-str"><code>str</code></a></p>
 </section>
 <section class="entry" id="fn-parse_int">
 <h3>parse_int</h3>
 <p>문자열을 정수로 읽어 <code>Ok(정수)</code> 또는 <code>Err({kind: 'parse, message})</code>를 돌려준다.</p>
 <div class="sig"><code>parse_int(s)</code></div>
 <h4>설명</h4>
-<p>받는 문법은 <a href="#fn-int"><code>int</code></a>의 문자열 규칙과 같다(부호, <code>_</code>, 앞의 0은 되고, 공백·소수점·16진은 안 된다). 다른 점은 실패를 런타임 에러 대신 <code>Err</code> 값으로 돌려준다는 것 하나다. 그래서 사용자 입력, 설정 값, 외부 명령 출력처럼 틀릴 수 있는 글자에 쓴다.</p>
+<p>받는 문법은 <a href="#fn-int"><code>int</code></a>의 문자열 규칙과 같다(정수 리터럴에 앞의 부호 하나; 앞뒤 공백과 앞의 0은 안 된다). 다른 점은 실패를 런타임 에러 대신 <code>Err</code> 값으로 돌려준다는 것 하나다. 그래서 사용자 입력, 설정 값, 외부 명령 출력처럼 틀릴 수 있는 글자에 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열. 문자열이 아니면 E0403(코드의 잘못이다).</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p><code>Ok(정수)</code> 또는 <code>Err({kind: 'parse, message: &quot;not an integer: …&quot;})</code>.</p>
+<p><code>Ok(정수)</code> 또는 <code>Err({kind: 'parse, message: &quot;not an integer: …&quot;})</code>. 메시지는 입력을 따옴표로 보인다(<code>not an integer: &quot; 1&quot;</code>).</p>
 <h4>에러</h4>
 <p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
 <h4>예제</h4>
@@ -295,8 +325,8 @@ print(handle(&quot;start&quot;), handle(&quot;stop&quot;))</code></pre><pre clas
 <div class="run"><pre><code>print(parse_int(&quot;1_000&quot;), parse_int(&quot;-7&quot;))
 print(parse_int(&quot;x&quot;))
 print(parse_int(&quot; 1&quot;))</code></pre><pre class="out plain"><code>Ok(1000) Ok(-7)
-Err({kind: 'parse, message: &quot;not an integer: x&quot;})
-Err({kind: 'parse, message: &quot;not an integer:  1&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not an integer: \&quot;x\&quot;&quot;})
+Err({kind: 'parse, message: &quot;not an integer: \&quot; 1\&quot;&quot;})</code></pre></div>
 <p><strong>기본값으로 물러나기</strong></p>
 <div class="run"><pre><code>port = parse_int(env(&quot;PORT&quot;) ?? &quot;&quot;) ?? 8080
 print(port)</code></pre><pre class="out plain"><code>8080</code></pre></div>
@@ -304,7 +334,7 @@ print(port)</code></pre><pre class="out plain"><code>8080</code></pre></div>
 <p><strong>여러 개를 한 번에: 하나라도 틀리면 Err</strong></p>
 <div class="run"><pre><code>print([&quot;1&quot;, &quot;2&quot;, &quot;3&quot;] |&gt; try_map(parse_int))
 print([&quot;1&quot;, &quot;two&quot;, &quot;3&quot;] |&gt; try_map(parse_int))</code></pre><pre class="out plain"><code>Ok([1, 2, 3])
-Err({kind: 'parse, message: &quot;not an integer: two&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not an integer: \&quot;two\&quot;&quot;})</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-int"><code>int</code></a>, <a href="collections.html#fn-try_map"><code>try_map</code></a>, <a href="../language/results.html">결과값과 에러</a></p>
 </section>
@@ -313,7 +343,7 @@ Err({kind: 'parse, message: &quot;not an integer: two&quot;})</code></pre></div>
 <p>문자열을 실수로 읽어 <code>Ok(실수)</code> 또는 <code>Err({kind: 'parse, message})</code>를 돌려준다.</p>
 <div class="sig"><code>parse_float(s)</code></div>
 <h4>설명</h4>
-<p>문법은 <a href="#fn-float"><code>float</code></a>의 문자열 규칙과 같다(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>, 공백, <code>NaN</code>은 거부). 정수 꼴(<code>&quot;3&quot;</code>)은 <code>Ok(3.0)</code>이다.</p>
+<p>문법은 <a href="#fn-float"><code>float</code></a>의 문자열 규칙과 같다(<code>&quot;.5&quot;</code>, <code>&quot;1.&quot;</code>, 앞뒤 공백, 앞의 0, <code>NaN</code>은 거부). 정수 꼴(<code>&quot;3&quot;</code>)은 <code>Ok(3.0)</code>이다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>s</code>: 문자열.</li>
@@ -326,7 +356,7 @@ Err({kind: 'parse, message: &quot;not an integer: two&quot;})</code></pre></div>
 <p><strong>성공과 실패</strong></p>
 <div class="run"><pre><code>print(parse_float(&quot;2.5&quot;), parse_float(&quot;3&quot;), parse_float(&quot;1e3&quot;))
 print(parse_float(&quot;.5&quot;))</code></pre><pre class="out plain"><code>Ok(2.5) Ok(3.0) Ok(1000.0)
-Err({kind: 'parse, message: &quot;not a number: .5&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not a number: \&quot;.5\&quot;&quot;})</code></pre></div>
 <p><strong>match로 가르기</strong></p>
 <div class="run"><pre><code>fn ratio(s) = match parse_float(s):
   Ok(x)  =&gt; &quot;ratio ${x}&quot;
@@ -335,7 +365,7 @@ Err({kind: 'parse, message: &quot;not a number: .5&quot;})</code></pre></div>
 
 print(ratio(&quot;0.75&quot;))
 print(ratio(&quot;high&quot;))</code></pre><pre class="out plain"><code>ratio 0.75
-skip: not a number: high</code></pre></div>
+skip: not a number: &quot;high&quot;</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-float"><code>float</code></a>, <a href="#fn-parse_int"><code>parse_int</code></a></p>
 </section>
@@ -344,7 +374,7 @@ skip: not a number: high</code></pre></div>
 <p>기간 리터럴 문법의 문자열(<code>&quot;1h30m&quot;</code>, <code>&quot;500ms&quot;</code>)을 <code>Ok(dur)</code> 또는 <code>Err({kind: 'parse, message})</code>로 읽는다.</p>
 <div class="sig"><code>parse_dur(s)</code></div>
 <h4>설명</h4>
-<p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language/lexical.html">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 <code>-</code>를 바로 붙일 수 있고, 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). 앞뒤 공백은 허용한다. 사이의 공백(<code>&quot;1h 30m&quot;</code>, <code>&quot;- 5s&quot;</code>), 뒤의 주석(<code>&quot;5s # x&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
+<p><code>--timeout 30s</code> 같은 명령줄 옵션이나 설정 값을 기간으로 바꿀 때 쓴다. 받는 문법은 소스의 <a href="../language/lexical.html">기간 리터럴</a>과 같다: 단위는 <code>h</code> <code>m</code> <code>s</code> <code>ms</code> 넷이고 큰 것부터 붙여 쓰며(<code>&quot;1h30m&quot;</code>), 앞에 부호 <code>-</code>·<code>+</code> 하나를 바로 붙일 수 있고, 마지막 성분은 소수도 된다(<code>&quot;1.5s&quot;</code>는 <code>1s500ms</code>). <a href="#fn-int"><code>int</code></a>와 같은 규칙이라 앞뒤 공백(<code>&quot; 5s&quot;</code>, 명령 출력 끝의 <code>&quot;5s\n&quot;</code>)은 받지 않는다: 먼저 <a href="strings.html#fn-trim"><code>trim</code></a>한다. 앞의 0(<code>&quot;01s&quot;</code>), 사이의 공백(<code>&quot;1h 30m&quot;</code>, <code>&quot;- 5s&quot;</code>), 뒤의 주석(<code>&quot;5s # x&quot;</code>), 작은 단위를 먼저 쓴 것(<code>&quot;1m1h&quot;</code>), 모르는 단위(<code>&quot;2d&quot;</code>, <code>&quot;2us&quot;</code>)는 거부한다.</p>
 <p>얻은 기간은 <a href="concurrency.html#fn-sleep"><code>sleep</code></a>, <a href="concurrency.html#fn-timeout"><code>timeout</code></a>, 시각 계산에 그대로 쓴다. 기간끼리는 비교할 수 있다.</p>
 <h4>매개변수</h4>
 <ul>
@@ -356,11 +386,11 @@ skip: not a number: high</code></pre></div>
 <p><code>s</code>가 문자열이 아니면 런타임 에러 E0403.</p>
 <h4>예제</h4>
 <p><strong>여러 꼴</strong></p>
-<div class="run"><pre><code>print(parse_dur(&quot;90s&quot;)!, parse_dur(&quot; 1h30m &quot;)!, parse_dur(&quot;1.5s&quot;)!, parse_dur(&quot;-5s&quot;)!)
+<div class="run"><pre><code>print(parse_dur(&quot;90s&quot;)!, parse_dur(trim(&quot; 1h30m\n&quot;))!, parse_dur(&quot;1.5s&quot;)!, parse_dur(&quot;-5s&quot;)!)
 print(parse_dur(&quot;soon&quot;))
 print(parse_dur(&quot;1h 30m&quot;))</code></pre><pre class="out plain"><code>1m30s 1h30m 1s500ms -5s
-Err({kind: 'parse, message: &quot;not a duration: soon&quot;})
-Err({kind: 'parse, message: &quot;not a duration: 1h 30m&quot;})</code></pre></div>
+Err({kind: 'parse, message: &quot;not a duration: \&quot;soon\&quot;&quot;})
+Err({kind: 'parse, message: &quot;not a duration: \&quot;1h 30m\&quot;&quot;})</code></pre></div>
 <p><strong>옵션 값을 검사하고 상한 두기</strong></p>
 <details class="fixture"><summary>실행 방법</summary>
 <pre class="plain shell"><code>fung example.fung 45m</code></pre>

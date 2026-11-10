@@ -1,0 +1,3 @@
+# A non-zero duration that rounds to 0 ns is an error (FE31, D9).
+print(0.0000004ms)
+# expect-error: E0105

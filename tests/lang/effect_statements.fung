@@ -1,0 +1,47 @@
+# Statements that do something, or discard on purpose, are not E0234.
+fn cleanup() = print("cleaned")
+cleanup()
+# expect: cleaned
+x = 1
+x = x + 1
+assert x == 2
+_ = x == 2
+_ = print(1, _)
+_ = cleanup
+# The last expression of a block in a value place is its value.
+fn f(a):
+  b = a * 2
+  b - 1
+;;
+print(f(5))
+# expect: 9
+y = if x > 1:
+  "big"
+else:
+  "small"
+;;
+print(y)
+# expect: big
+# `nil` says "nothing" in a discarded branch.
+match x:
+  2 => print("two")
+  _ => nil
+;;
+# expect: two
+# An `if` without `else` as a statement, and `or`/`and` with a call.
+if x == 2: print("if") ;;
+# expect: if
+x == 2 or fail("never")
+x == 3 and fail("never")
+# A for statement whose body ends in a call.
+for v in [1]: print(v) ;;
+# expect: 1
+# A tag value with a call inside computes something.
+Ok(print("in a tag"))
+# expect: in a tag
+# A partial application whose fixed arguments call something computes them.
+fn loud() = print("computed")
+_f = print(loud(), _)
+print(loud(), _)
+# expect: computed
+# expect: computed

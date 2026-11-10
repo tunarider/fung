@@ -64,7 +64,7 @@ fn size_of(p) = match fs.stat(p):
   Err(_) => 0
 ;;
 
-opts = cli.parse(args)
+opts = cli.parse(args)!
 dir = first(opts.rest) ?? "."
 top = parse_int(get(opts.flags, "top", "10")) ?? fail("--top must be a number")
 min_size = parse_size(get(opts.flags, "min", "0"))

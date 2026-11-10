@@ -56,7 +56,7 @@ use std::time::{Duration, Instant};
 use super::nat::{self, native, native_step, opt, param};
 use super::oserr;
 use super::sock;
-use crate::value::{Lit, Module, Native, Value};
+use crate::value::{Args, Lit, Module, Native, Value};
 use crate::vm::FiberId;
 use crate::vm::poller::Interest;
 use crate::vm::{CancelNode, Flow, IoStep, Kind, Stop, Task, Waiter};
@@ -169,24 +169,12 @@ pub fn module() -> Rc<Module> {
                 ),
             ),
             (
-                "need_str_map",
-                native(
-                    "need_str_map",
-                    need_str_map_fn,
-                    vec![param("name"), param("m")],
-                ),
-            ),
-            (
                 "read_fields",
                 native_step(
                     "read_fields",
                     read_fields_fn,
                     vec![param("c"), param("budget"), param("max")],
                 ),
-            ),
-            (
-                "need_count",
-                native("need_count", need_count_fn, vec![param("name"), param("n")]),
             ),
             ("user_agent", native("user_agent", user_agent_fn, vec![])),
         ]
@@ -702,7 +690,10 @@ impl Conn {
     }
 
     /// Everything up to the end of the stream; more than `limit` bytes
-    /// is a `'limit` error (what was read stays unread).
+    /// is a `'limit` error (what was read stays unread). Over TLS the end
+    /// must be close_notify (LB23): the end of the stream is then the
+    /// only sign of the text's end, and a bare TCP end can come from
+    /// anyone on the path.
     fn read_all(&self, a: &mut Attempt, limit: usize) -> Result<Vec<u8>, Fail> {
         let mut st = lock(&self.rd);
         let buf = &mut st.buf;
@@ -712,6 +703,11 @@ impl Conn {
                 return Err(Fail::Limit(format!("more than {limit} bytes")));
             }
             if self.fill(a, &s.0, buf)? == 0 {
+                if let Some(t) = &self.tls
+                    && !tls::ended_cleanly(t)
+                {
+                    return Err(Fail::Network(tls::NO_CLOSE_NOTIFY.into()));
+                }
                 return Ok(std::mem::take(buf));
             }
         }
@@ -820,19 +816,16 @@ impl Conn {
         Ok(())
     }
 
-    /// A deadline `d` from now: reads and writes after it time out; 0
-    /// removes the deadline, a negative `d` is already past.
-    fn set_deadline(&self, d: i64) -> Result<(), Fail> {
+    /// A deadline `d` from now: reads and writes after it time out (`0`
+    /// is now: they time out at once); `None` removes the deadline. `d`
+    /// is never negative (`nat::opt_dur`).
+    fn set_deadline(&self, d: Option<i64>) -> Result<(), Fail> {
         if self.is_closed() {
             return Err(Fail::Closed(CLOSED.into()));
         }
         let now = Instant::now();
-        *lock(&self.deadline) = match d {
-            0 => None,
-            d if d < 0 => Some(now),
-            // a deadline too far to hold is none
-            d => now.checked_add(Duration::from_nanos(d as u64)),
-        };
+        // a deadline too far to hold is none
+        *lock(&self.deadline) = d.and_then(|d| now.checked_add(Duration::from_nanos(d as u64)));
         Ok(())
     }
 }
@@ -1283,12 +1276,13 @@ fn need_conn<'a>(name: &str, v: &'a Value) -> Result<&'a Arc<Conn>, Stop> {
     }
 }
 
-/// A count argument: an int from 0.
-fn need_count(name: &str, v: &Value) -> Result<usize, Stop> {
-    match v {
-        Value::Int(n) if *n >= 0 => Ok(*n as usize),
-        Value::Int(_) => Err(nat::not_count(name, v)),
-        _ => Err(nat::wrong_arg(name, "int", v)),
+/// `Ok(text)` of what was read, or the `Err` of text from outside past
+/// the string limit (LB29, D22): `'io`, ``<what> is longer than the
+/// string limit (100000000 characters)``.
+fn read_result(r: Result<Vec<u8>, Fail>, what: &str) -> Value {
+    match r {
+        Ok(b) if !nat::fits_limit(&b) => nat::err_value("io", &nat::too_long(what), Vec::new()),
+        r => result(r.map(|b| text(&b))),
     }
 }
 
@@ -1300,7 +1294,7 @@ fn text(b: &[u8]) -> Value {
 /// `connect(host, port, tls = false)`: `Ok(<conn>)`. With `tls`, the
 /// connection is a TLS client of `host` (`tls.rs`). A name is looked up
 /// on the pool first (a stop abandons the lookup).
-fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn connect_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let host = nat::need_str("host", &a[0])?.to_string();
     let port = nat::need_int("port", &a[1])?;
     let Value::Bool(tls) = a[2] else {
@@ -1334,7 +1328,7 @@ fn connect_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// Task 4: https through an HTTP proxy's CONNECT tunnel, which fung
 /// cannot do over the other primitives). `c` reads as closed afterwards;
 /// the timeout covers the handshake.
-fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn start_tls_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?;
     let host = nat::need_str("host", &a[1])?.to_string();
     let alpn = need_alpn(&a[2])?;
@@ -1353,7 +1347,7 @@ fn start_tls_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 
 /// `listen(addr)`: `Ok(<listener>)`. A name is looked up on the pool
 /// first.
-fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn listen_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let addr = nat::need_str("addr", &a[0])?.to_string();
     let Value::Bool(reuse_port) = a[1] else {
         return Err(nat::wrong_arg("reuse_port", "bool", &a[1]));
@@ -1380,7 +1374,7 @@ fn listen_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `local_addr(x)`: a connection's or listener's own address.
-fn local_addr_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn local_addr_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     match &a[0] {
         Value::Conn(c) => Ok(Value::str(&c.local)),
         Value::Listener(l) => Ok(Value::str(&l.addr)),
@@ -1389,7 +1383,7 @@ fn local_addr_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
 }
 
 /// `accept(l)`: `Ok(<conn>)`, the next connection.
-fn accept_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn accept_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let Value::Listener(l) = &a[0] else {
         return Err(nat::wrong_arg("l", "listener", &a[0]));
     };
@@ -1415,9 +1409,9 @@ fn read_op<T: 'static>(
 
 /// `read_line(c, limit)`: `Ok(line)` without its end, `Ok(nil)` at the
 /// end of the stream.
-fn read_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    let limit = need_count("limit", &a[1])?;
+    let limit = nat::need_count("limit", &a[1])?;
     read_op(
         t,
         c,
@@ -1464,30 +1458,10 @@ fn trim_ows(b: &[u8]) -> &[u8] {
     &b[start..end]
 }
 
-/// A header name in its usual case (`content-type` → `Content-Type`);
-/// one with a character that is no token character stays as written.
-fn canonical(k: &[u8]) -> Vec<u8> {
-    if k.is_empty() || !k.iter().all(|&b| tchar(b)) {
-        return k.to_vec();
-    }
-    let mut up = true;
-    k.iter()
-        .map(|&b| {
-            let c = if up {
-                b.to_ascii_uppercase()
-            } else {
-                b.to_ascii_lowercase()
-            };
-            up = b == b'-';
-            c
-        })
-        .collect()
-}
-
 impl Fields {
-    /// The gathered field into `out`: a key of token characters (a space
-    /// keeps it as written), a value without control characters but tab,
-    /// the value without leading blanks (the rules of `http.fung`).
+    /// The gathered field into `out`: a key of token characters (or
+    /// spaces), as written, and a value without control characters but
+    /// tab, without its leading blanks (the rules of `http.fung`).
     fn flush(&mut self) -> Result<(), String> {
         let Some(pieces) = self.pending.take() else {
             return Ok(());
@@ -1511,7 +1485,7 @@ impl Fields {
             .iter()
             .position(|&b| b != b' ' && b != b'\t')
             .unwrap_or(v.len());
-        self.out.push((canonical(k), v[start..].to_vec()));
+        self.out.push((k.to_vec(), v[start..].to_vec()));
         Ok(())
     }
 
@@ -1572,15 +1546,15 @@ impl Fields {
 /// one, read here rather than line by line in fung (L13: a head of
 /// thousands of lines cost the run thread hundreds of milliseconds).
 /// `Ok((fields, budget left))` with `fields` a list of `(name, value)`,
-/// names in their usual case; `Err` of kind `'limit` past the budget or
+/// names as written (LB26: `header_lines`); `Err` of kind `'limit` past the budget or
 /// `max` fields (0: none), `'invalid` for a line that is no header line,
 /// `'eof` when the stream ends first, else the stream's own.
-fn read_fields_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_fields_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
     let Value::Int(budget) = a[1] else {
         return Err(nat::wrong_arg("budget", "int", &a[1]));
     };
-    let max = need_count("max", &a[2])?;
+    let max = nat::need_count("max", &a[2])?;
     let mut st = Fields {
         out: Vec::new(),
         pending: None,
@@ -1607,9 +1581,9 @@ fn read_fields_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `read_raw_line(c, limit)`: `Ok(line)` with its `\n`.
-fn read_raw_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_raw_line_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    let limit = need_count("limit", &a[1])?;
+    let limit = nat::need_count("limit", &a[1])?;
     read_op(
         t,
         c,
@@ -1619,36 +1593,36 @@ fn read_raw_line_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 }
 
 /// `read_bytes(c, n)`: `Ok(text)` of exactly `n` bytes.
-fn read_bytes_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_bytes_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    let n = need_count("n", &a[1])?;
+    let n = nat::need_count("n", &a[1])?;
     read_op(
         t,
         c,
         move |c, a| c.read_bytes(a, n),
-        |r| result(r.map(|b| text(&b))),
+        |r| read_result(r, "body"),
     )
 }
 
 /// `read_all(c, limit)`: `Ok(text)` up to the end of the stream.
-fn read_all_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_all_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    let limit = need_count("limit", &a[1])?;
+    let limit = nat::need_count("limit", &a[1])?;
     read_op(
         t,
         c,
         move |c, a| c.read_all(a, limit),
-        |r| result(r.map(|b| text(&b))),
+        |r| read_result(r, "body"),
     )
 }
 
 /// `read_bytes_into(c, n, cap)`: `Ok(nil)` once `n` more raw bytes are
 /// in `c`'s body buffer; `Err('limit)` (nothing read) if it would hold
 /// more than `cap` bytes.
-fn read_bytes_into_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn read_bytes_into_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    let n = need_count("n", &a[1])?;
-    let cap = need_count("cap", &a[2])?;
+    let n = nat::need_count("n", &a[1])?;
+    let cap = nat::need_count("cap", &a[2])?;
     read_op(
         t,
         c,
@@ -1657,21 +1631,16 @@ fn read_bytes_into_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     )
 }
 
-/// `take_body(c)`: the body buffer decoded once (U+FFFD for bytes that
-/// are not UTF-8), emptied. Waits for a read in progress on `c` (in its
+/// `take_body(c)`: `Ok(text)` of the body buffer, emptied, or its `Err`
+/// past the string limit. Waits for a read in progress on `c` (in its
 /// read side's line).
-fn take_body_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn take_body_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
-    read_op(
-        t,
-        c,
-        |c, _| Ok(c.take_body()),
-        |r| text(&r.unwrap_or_default()),
-    )
+    read_op(t, c, |c, _| Ok(c.take_body()), |r| read_result(r, "body"))
 }
 
 /// `write(c, s)`: `Ok(nil)` once all of `s` is written.
-fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn write_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let c = need_conn("c", &a[0])?.clone();
     let bytes = nat::need_bytes("s", &a[1])?.to_vec();
     let mut off = 0;
@@ -1688,7 +1657,7 @@ fn write_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
 /// after close_notify on TLS): the peer reads the end of what was sent
 /// while the connection still reads what it sends (the server after 431,
 /// L13). `Ok(nil)`.
-fn close_write_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+fn close_write_fn(_: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let c = need_conn("c", &a[0])?;
     let r = c.sock().map(|s| {
         if let Some(t) = &c.tls {
@@ -1709,7 +1678,7 @@ const CLOSE_NOTIFY_WAIT: Duration = Duration::from_secs(1);
 /// connection sends close_notify first, waiting at most
 /// `CLOSE_NOTIFY_WAIT` for the socket to take it (and the task's own
 /// deadline and cancellation; L12).
-fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
+fn close_fn(t: &mut Task<'_>, a: Args) -> Result<Flow, Stop> {
     let r = match &a[0] {
         Value::Conn(c) if c.tls.is_some() => {
             if let Some(fd) = c.fd() {
@@ -1751,15 +1720,14 @@ fn close_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Flow, Stop> {
     Ok(Flow::Done(result(r.map(|()| Value::Nil))))
 }
 
-/// `set_deadline(c, d)`: reads and writes on `c` from `d` after now time
-/// out (`'timeout`); `0s` removes the deadline. It reaches the reads and
-/// writes waiting already (L12): they are woken and look again under the
-/// new deadline.
-fn set_deadline_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
+/// `set_deadline(c, d: dur | nil)`: reads and writes on `c` from `d`
+/// after now time out (`'timeout`; `0s` is now); `nil` removes the
+/// deadline (LB39: as `timeout: nil` is no limit). It reaches the reads
+/// and writes waiting already (L12): they are woken and look again under
+/// the new deadline.
+fn set_deadline_fn(t: &mut Task<'_>, a: Args) -> Result<Value, Stop> {
     let c = need_conn("c", &a[0])?;
-    let Value::Dur(d) = a[1] else {
-        return Err(nat::wrong_arg("d", "dur", &a[1]));
-    };
+    let d = nat::opt_dur("d", &a[1])?;
     let r = c.set_deadline(d);
     if r.is_ok()
         && let Some(fd) = c.fd()
@@ -1769,38 +1737,9 @@ fn set_deadline_fn(t: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
     Ok(result(r.map(|()| Value::Nil)))
 }
 
-/// `need_count(name, n)`: `nil`, or E0403 when `n` is not an int from 0
-/// (`http`'s `max_body`, which fung code cannot raise itself).
-fn need_count_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let name = nat::need_str("name", &a[0])?;
-    need_count(name, &a[1]).map(|_| Value::Nil)
-}
-
-/// `need_str_map(name, m)`: `nil`, or E0403 when `m` is not a map or a
-/// value of it is not a str (the first one, in the map's order): the
-/// `http` module's check of a header map, which fung code cannot raise
-/// itself.
-fn need_str_map_fn(_: &mut Task<'_>, a: Vec<Value>) -> Result<Value, Stop> {
-    let name = nat::need_str("name", &a[0])?;
-    let Value::Map(m) = &a[1] else {
-        return Err(nat::wrong_arg(name, "map", &a[1]));
-    };
-    if let Some((_, v)) = m.iter().find(|(_, v)| !matches!(v, Value::Str(_))) {
-        return Err(nat::fail(
-            "E0403",
-            vec![
-                nat::s(name),
-                nat::s("a map of strings"),
-                fung_front::diag::Arg::Str(format!("a map holding {}", crate::value::type_name(v))),
-            ],
-        ));
-    }
-    Ok(Value::Nil)
-}
-
 /// `user_agent()`: what the `http` client sends as `User-Agent` unless
 /// the request sets one, `fung/<version>`.
-fn user_agent_fn(_: &mut Task<'_>, _: Vec<Value>) -> Result<Value, Stop> {
+fn user_agent_fn(_: &mut Task<'_>, _: Args) -> Result<Value, Stop> {
     Ok(text(
         format!("fung/{}", crate::version::version()).as_bytes(),
     ))

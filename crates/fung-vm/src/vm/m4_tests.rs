@@ -126,13 +126,9 @@ fn review_fixes() {
     check_code(&[
         ("[1, 2, 3][1..=3]", "E0507"),
         ("Err()!", "E0117"),
-        // A result holds one value (VM4): Err(1, 2) is not one.
-        ("Err(1, 2)!", "E0605"),
+        // A result holds exactly one value (SP12): Err(1, 2) is not a value.
+        ("Err(1, 2)!", "E0236"),
     ]);
-    assert_eq!(
-        headline("Err(1, 2)!"),
-        "error[E0605]: `!` on an Err with 2 values, which is not a result (Ok(x) or Err(e))"
-    );
 }
 
 #[test]
@@ -158,13 +154,12 @@ fn result_operators() {
             "Ok(4) Err('x)\n",
         ),
         ("print(nil ?? Err(1) ?? 2)", "2\n"),
-        ("fn f(r) = r?\nprint(f(nil))", "nil\n"),
-        // Ok with several values is no result (VM4): `??` keeps it.
-        ("print(Ok(1, 2) ?? 0)", "Ok(1, 2)\n"),
     ]);
     check_code(&[
         ("Err({kind: 'x, message: \"boom\"})!", "E0603"),
         ("nil!", "E0604"),
+        // `?` takes only a result, as `!` does (SP13).
+        ("fn f(r) = r?\nf(nil)", "E0604"),
         ("5!", "E0605"),
         ("fn f(r) = r?\nf(1)", "E0605"),
     ]);

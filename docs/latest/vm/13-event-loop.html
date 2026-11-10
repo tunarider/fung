@@ -165,7 +165,8 @@ server drained</code></pre>
 <h3 id="why-pool">왜 풀인가</h3>
 <p>파일을 읽는 일은 이벤트 루프로 기다릴 수 없다. 일반 파일의 fd는 언제나 "준비됨"으로 보고되지만 실제 <code>read</code>는 디스크를 기다리며 막힌다. 이름 조회(<code>getaddrinfo</code>)는 막히는 함수만 있다. 이런 일은 다른 운영체제 스레드에서 해야 한다.</p>
 <p>FIFO(이름 있는 파이프)는 반대다. 쓰는 쪽이나 읽는 쪽을 끝없이 기다릴 수 있어서, 풀에서 하면 그 스레드가 멈춘 채 남는다. 기한이 지나도 운영체제 스레드는 멈출 수 없으니, 그런 읽기가 64개 쌓이면 풀이 가득 차 다른 파일 일이 줄에 선다. 그래서 FIFO는 소켓처럼 <code>O_NONBLOCK</code>으로 열고 실행 스레드에서 읽고 쓰며, 막히면 그 fd를 이벤트 루프에 등록하고 주차한다(<code>crates/fung-vm/src/native/pipe.rs</code>, 0.5.0 L11). 준비된 바이트만 가져오므로 취소된 읽기도 바이트를 잃지 않는다.</p>
-<p>운영체제의 차이가 하나 있다. 쓰는 쪽이 닫히면 Linux의 epoll은 <code>EPOLLHUP</code>을 알리지만, macOS는 kqueue도 <code>poll</code>도 아무것도 알리지 않는다(읽으면 0바이트, 곧 끝이다). 그래서 macOS에서는 FIFO를 기다릴 때 50ms마다 다시 본다. 또 0바이트 읽기는 "쓰는 쪽이 아직 안 옴"과 "떠남"이 같아서, 쓰는 쪽을 한 번 본 뒤에만(데이터나 EAGAIN이 온 뒤, Linux는 epoll이 깨운 뒤) 끝으로 본다.</p>
+<p>운영체제의 차이가 둘 있다. 쓰는 쪽이 닫히면 Linux의 epoll은 <code>EPOLLHUP</code>을 알리지만, macOS는 kqueue도 <code>poll</code>도 아무것도 알리지 않는다(읽으면 0바이트, 곧 끝이다). 그래서 macOS에서는 FIFO를 기다릴 때 이벤트가 없어도 다시 본다. 또 0바이트 읽기는 "쓰는 쪽이 아직 안 옴"과 "떠남"이 같아서, 쓰는 쪽을 한 번 본 뒤에만(데이터나 EAGAIN이 온 뒤, Linux는 epoll이 깨운 뒤) 끝으로 본다.</p>
+<p>둘째로, macOS는 FIFO의 버퍼(8 KiB)에 남은 자리보다 큰 쓰기 하나가 조각으로 들어갈 때 둘째 조각부터 읽을 준비를 알리지 않는다(<code>head -c 4000000 /dev/zero | cat &gt; f</code>). 50ms마다만 다시 보면 그런 쓰는 쪽에게서 50ms에 버퍼 하나밖에 읽지 못한다(4 MB에 12초). 그래서 데이터를 받은 읽기는 50 µs 뒤에 다시 보고, 아무것도 없을 때마다 그 간격을 배로 늘려 50ms에서 멈춘다. 쉬지 않고 쓰는 쪽은 바짝 따라가고(4 MB에 0.03초), 쉬는 쓰는 쪽에는 열한 번 본 뒤 50ms마다 본다.</p>
 <p>처음(R1b)에는 일마다 스레드를 새로 만들었다. 스레드 하나를 만들고 거두는 데 십몇 µs가 들어서, <code>fs.exists</code>를 5만 번 부르는 반복이 2.6배 느려졌다. 그래서 스레드를 만들어 두고 다시 쓰는 <strong>풀</strong>(pool)을 두었다(<code>crates/fung-vm/src/vm/pool.rs</code>).</p>
 <ul>
 <li>일이 들어왔을 때 노는 스레드가 없고 64개 미만이면 하나 더 만든다(<code>POOL_MAX</code>).</li>
@@ -184,7 +185,7 @@ fs.with_temp_dir(fn(dir):
   fs.write(p, &quot;21\n&quot;)!
   n = int(trim(fs.read(p)!))
   print(double(n))
-  print(fs.exists(p), fs.exists(path.join(dir, &quot;nope&quot;)))
+  print(fs.exists(p)!, fs.exists(path.join(dir, &quot;nope&quot;))!)
 ;;)</code></pre><pre class="out plain"><code>42
 true false</code></pre></div>
 <p>이 짧은 스크립트에서도 <code>fs.write</code>, <code>fs.read</code>, <code>fs.exists</code>, 임시 디렉터리 만들기와 지우기가 모두 풀의 일이다. 그동안 다른 태스크가 있었다면 그 태스크가 돌았을 것이다. 대가는 호출 하나의 왕복 비용이다. 파일 시스템 호출 하나가 약 9 µs다. 0.2.0은 태스크의 스레드가 그 자리에서 시스템 호출을 했으므로 하나씩 차례로 부르는 반복은 그때가 더 빨랐다(<code>bench/fs.fung</code> 0.082초 → 0.446초). 대신 파일을 기다리는 동안 다른 태스크가 돈다. 한 호출의 지연과 동시에 쥘 수 있는 일의 수는 함께 좋아지기 어렵다.</p>

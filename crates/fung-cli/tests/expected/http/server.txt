@@ -294,7 +294,7 @@
 \ no newline
 ==== request 19
 -- request (escaped)
-| GET /echo?a=1&b=x+y&a=2&c=%41%zz&d;e=1&%ED%95%9C=%ED%95%9C&&e=&f&%41=%2B HTTP/1.1\r
+| GET /echo?a=1&b=x+y&a=2&c=%41&d;e=1&%ED%95%9C=%ED%95%9C&&e=&f&%41=%2B HTTP/1.1\r
 | Host: x\r
 | Connection: close\r
 | \r
@@ -303,12 +303,27 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 147\r
+| Content-Length: 418\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{"A":"+","a":"1","b":"x y","e":"","f":"","한":"한"},"headers":{"connection":"close","host":"x"},"body":""}
+| {"method":"GET","target":"/echo?a=1&b=x+y&a=2&c=%41&d;e=1&%ED%95%9C=%ED%95%9C&&e=&f&%41=%2B","host":"x","path":"/echo","query":{"A":"+","a":"2","b":"x y","c":"A","d;e":"1","e":"","f":"","한":"한"},"query_pairs":[["a","1"],["b","x y"],["a","2"],["c","A"],["d;e","1"],["한","한"],["e",""],["f",""],["A","+"]],"headers":{"connection":"close","host":"x"},"header_lines":[["Host","x"],["Connection","close"]],"body":""}
 \ no newline
 ==== request 20
+-- request (escaped)
+| GET /echo?a=1&c=%41%zz HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| \r
+-- half close: no
+-- answer (escaped)
+| HTTP/1.1 400 Bad Request\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 16\r
+| Connection: close\r
+| \r
+| 400 Bad Request
+==== request 21
 -- request (escaped)
 | GET /echo%20x/%ED%95%9C/a+b HTTP/1.1\r
 | Host: x\r
@@ -319,12 +334,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 106\r
+| Content-Length: 222\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo x/한/a+b","query":{},"headers":{"connection":"close","host":"x"},"body":""}
+| {"method":"GET","target":"/echo%20x/%ED%95%9C/a+b","host":"x","path":"/echo x/한/a+b","query":{},"query_pairs":[],"headers":{"connection":"close","host":"x"},"header_lines":[["Host","x"],["Connection","close"]],"body":""}
 \ no newline
-==== request 21
+==== request 22
 -- request (escaped)
 | GET /echo? HTTP/1.1\r
 | Host: x\r
@@ -335,24 +350,16 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 96\r
+| Content-Length: 195\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":""}
-\ no newline
-==== request 22
--- request (40050 bytes, fnv1a64 61ada038dd3837db)
--- half close: no
--- answer (escaped)
-| HTTP/1.1 200 OK\r
-| Content-Type: text/plain; charset=utf-8\r
-| Date: <date>\r
-| Content-Length: 111\r
-| Connection: close\r
-| \r
-| {"method":"GET","path":"/echo","query":{"a":"1","b":"2"},"headers":{"connection":"close","host":"x"},"body":""}
+| {"method":"GET","target":"/echo?","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","host":"x"},"header_lines":[["Host","x"],["Connection","close"]],"body":""}
 \ no newline
 ==== request 23
+-- request (40050 bytes, fnv1a64 61ada038dd3837db)
+-- half close: no
+-- answer (140325 bytes, fnv1a64 cd33a8d457989cac)
+==== request 24
 -- request (40054 bytes, fnv1a64 a13d22c1a4402c7a)
 -- half close: no
 -- answer (escaped)
@@ -363,7 +370,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 24
+==== request 25
 -- request (escaped)
 | GET /echo HTTP/1.1\r
 | Host: x\r
@@ -380,12 +387,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 192\r
+| Content-Length: 351\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"cache-control":"no-cache","connection":"close","host":"x","pragma":"no-cache","x-empty":"","x-folded":"one two","x-foo":"a, b"},"body":""}
+| {"method":"GET","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","host":"x","pragma":"no-cache","x-empty":"","x-folded":"one two","x-foo":"a, b"},"header_lines":[["Host","x"],["X-Foo","a"],["x-foo","b"],["Pragma","no-cache"],["X-Folded","one two"],["X-Empty",""],["Connection","close"]],"body":""}
 \ no newline
-==== request 25
+==== request 26
 -- request (escaped)
 | GET http://example.com/echo/abs?q=1 HTTP/1.1\r
 | Host: x\r
@@ -396,12 +403,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 107\r
+| Content-Length: 250\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo/abs","query":{"q":"1"},"headers":{"connection":"close","host":"x"},"body":""}
+| {"method":"GET","target":"http://example.com/echo/abs?q=1","host":"example.com","path":"/echo/abs","query":{"q":"1"},"query_pairs":[["q","1"]],"headers":{"connection":"close","host":"x"},"header_lines":[["Host","x"],["Connection","close"]],"body":""}
 \ no newline
-==== request 26
+==== request 27
 -- request (escaped)
 | OPTIONS * HTTP/1.1\r
 | Host: x\r
@@ -414,7 +421,7 @@
 | Date: <date>\r
 | Connection: close\r
 | \r
-==== request 27
+==== request 28
 -- request (escaped)
 | GET /echo\r
 | Host: x\r
@@ -428,7 +435,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 28
+==== request 29
 -- request
 | GET /echo HTTP/1.1
 | Host: x
@@ -439,12 +446,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 96\r
+| Content-Length: 194\r
 | Connection: close\r
 | \r
-| {"method":"GET","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":""}
+| {"method":"GET","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","host":"x"},"header_lines":[["Host","x"],["Connection","close"]],"body":""}
 \ no newline
-==== request 29
+==== request 30
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -458,12 +465,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 123\r
+| Content-Length: 244\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"5","host":"x"},"body":"hello"}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","content-length":"5","host":"x"},"header_lines":[["Host","x"],["Connection","close"],["Content-Length","5"]],"body":"hello"}
 \ no newline
-==== request 30
+==== request 31
 -- request (escaped)
 | HEAD /echo HTTP/1.1\r
 | Host: x\r
@@ -477,10 +484,10 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 120\r
+| Content-Length: 241\r
 | Connection: close\r
 | \r
-==== request 31
+==== request 32
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -492,12 +499,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 118\r
+| Content-Length: 239\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"0","host":"x"},"body":""}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","content-length":"0","host":"x"},"header_lines":[["Host","x"],["Connection","close"],["Content-Length","0"]],"body":""}
 \ no newline
-==== request 32
+==== request 33
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -508,12 +515,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 97\r
+| Content-Length: 195\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":""}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","host":"x"},"header_lines":[["Host","x"],["Connection","close"]],"body":""}
 \ no newline
-==== request 33
+==== request 34
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -537,12 +544,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 103\r
+| Content-Length: 309\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","host":"x"},"body":"ab한c"}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","content-length":"99","host":"x","transfer-encoding":"chunked"},"header_lines":[["Host","x"],["Connection","close"],["Transfer-Encoding","chunked"],["Content-Length","99"]],"body":"ab한c"}
 \ no newline
-==== request 34
+==== request 35
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -557,12 +564,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 121\r
+| Content-Length: 268\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"3","host":"x"},"body":"abc"}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","content-length":"3, 3","host":"x"},"header_lines":[["Host","x"],["Connection","close"],["Content-Length","3"],["Content-Length","3"]],"body":"abc"}
 \ no newline
-==== request 35
+==== request 36
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -579,12 +586,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 144\r
+| Content-Length: 291\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","content-length":"2","expect":"100-continue","host":"x"},"body":"hi"}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","content-length":"2","expect":"100-continue","host":"x"},"header_lines":[["Host","x"],["Connection","close"],["Expect","100-continue"],["Content-Length","2"]],"body":"hi"}
 \ no newline
-==== request 36
+==== request 37
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -596,12 +603,12 @@
 | HTTP/1.1 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 124\r
+| Content-Length: 251\r
 | Connection: close\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"connection":"close","expect":"100-Continue, x","host":"x"},"body":""}
+| {"method":"POST","target":"/echo","host":"x","path":"/echo","query":{},"query_pairs":[],"headers":{"connection":"close","expect":"100-Continue, x","host":"x"},"header_lines":[["Host","x"],["Connection","close"],["Expect","100-Continue, x"]],"body":""}
 \ no newline
-==== request 37
+==== request 38
 -- request (escaped)
 | POST /echo HTTP/1.1\r
 | Host: x\r
@@ -615,7 +622,7 @@
 | Date: <date>\r
 | Content-Length: 0\r
 | \r
-==== request 38
+==== request 39
 -- request (escaped)
 | POST /echo HTTP/1.0\r
 | Expect: 100-continue\r
@@ -628,11 +635,11 @@
 | HTTP/1.0 200 OK\r
 | Content-Type: text/plain; charset=utf-8\r
 | Date: <date>\r
-| Content-Length: 112\r
+| Content-Length: 224\r
 | \r
-| {"method":"POST","path":"/echo","query":{},"headers":{"content-length":"2","expect":"100-continue"},"body":"hi"}
+| {"method":"POST","target":"/echo","host":null,"path":"/echo","query":{},"query_pairs":[],"headers":{"content-length":"2","expect":"100-continue"},"header_lines":[["Expect","100-continue"],["Content-Length","2"]],"body":"hi"}
 \ no newline
-==== request 39
+==== request 40
 -- request (escaped)
 | POST /echo HTTP/1.0\r
 | Transfer-Encoding: chunked\r
@@ -649,7 +656,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 40
+==== request 41
 -- request (escaped)
 | GET /fail HTTP/1.1\r
 | Host: x\r
@@ -665,7 +672,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 41
+==== request 42
 -- request (escaped)
 | GET /badtype HTTP/1.1\r
 | Host: x\r
@@ -681,7 +688,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 42
+==== request 43
 -- request (escaped)
 | GET /badstatus HTTP/1.1\r
 | Host: x\r
@@ -697,7 +704,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 43
+==== request 44
 -- request (escaped)
 | GET /range HTTP/1.1\r
 | Host: x\r
@@ -713,7 +720,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 44
+==== request 45
 -- request (escaped)
 | GET /badbody HTTP/1.1\r
 | Host: x\r
@@ -729,7 +736,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 45
+==== request 46
 -- request (escaped)
 | GET /badheader HTTP/1.1\r
 | Host: x\r
@@ -745,7 +752,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 46
+==== request 47
 -- request (escaped)
 | GET /badlength HTTP/1.1\r
 | Host: x\r
@@ -761,7 +768,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 47
+==== request 48
 -- request (escaped)
 | GET /te HTTP/1.1\r
 | Host: x\r
@@ -777,7 +784,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 48
+==== request 49
 -- request (escaped)
 | GET /trailer HTTP/1.1\r
 | Host: x\r
@@ -793,7 +800,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 49
+==== request 50
 -- request (escaped)
 | GET /twice HTTP/1.1\r
 | Host: x\r
@@ -809,7 +816,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 50
+==== request 51
 -- request (escaped)
 | HEAD /headlength HTTP/1.1\r
 | Host: x\r
@@ -822,7 +829,7 @@
 | Date: <date>\r
 | Connection: close\r
 | \r
-==== request 51
+==== request 52
 -- request (escaped)
 | GET /headlength HTTP/1.1\r
 | Host: x\r
@@ -838,7 +845,7 @@
 | Connection: close\r
 | \r
 | 500 Internal Server Error
-==== request 52
+==== request 53
 -- request (escaped)
 | HEAD /fail HTTP/1.1\r
 | Host: x\r
@@ -853,7 +860,7 @@
 | Content-Length: 26\r
 | Connection: close\r
 | \r
-==== request 53
+==== request 54
 -- request (escaped)
 | GARBAGE\r
 | \r
@@ -866,7 +873,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 54
+==== request 55
 -- request (escaped)
 | \r
 | GET /count HTTP/1.1\r
@@ -881,7 +888,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 55
+==== request 56
 -- request (escaped)
 | GE T /count HTTP/1.1\r
 | Host: x\r
@@ -895,7 +902,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 56
+==== request 57
 -- request (escaped)
 | G(T /count HTTP/1.1\r
 | Host: x\r
@@ -909,7 +916,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 57
+==== request 58
 -- request (escaped)
 | GET /count HTTP/1.x\r
 | Host: x\r
@@ -923,7 +930,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 58
+==== request 59
 -- request (escaped)
 | GET /count HTTP/2.0\r
 | Host: x\r
@@ -937,7 +944,7 @@
 | Connection: close\r
 | \r
 | 505 HTTP Version Not Supported
-==== request 59
+==== request 60
 -- request (escaped)
 | PRI * HTTP/2.0\r
 | \r
@@ -952,7 +959,7 @@
 | Connection: close\r
 | \r
 | 505 HTTP Version Not Supported
-==== request 60
+==== request 61
 -- request (escaped)
 | GET /count HTTP/0.9\r
 | Host: x\r
@@ -966,7 +973,7 @@
 | Connection: close\r
 | \r
 | 505 HTTP Version Not Supported
-==== request 61
+==== request 62
 -- request (escaped)
 | GET count HTTP/1.1\r
 | Host: x\r
@@ -980,7 +987,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 62
+==== request 63
 -- request (escaped)
 | GET /count%zz HTTP/1.1\r
 | Host: x\r
@@ -994,7 +1001,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 63
+==== request 64
 -- request (escaped)
 | GET /count\x01 HTTP/1.1\r
 | Host: x\r
@@ -1008,7 +1015,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 64
+==== request 65
 -- request (escaped)
 | GET  HTTP/1.1\r
 | Host: x\r
@@ -1022,23 +1029,9 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 65
--- request (escaped)
-| GET /count HTTP/1.1\r
-| \r
--- half close: no
--- answer (escaped)
-| HTTP/1.1 400 Bad Request\r
-| Content-Type: text/plain; charset=utf-8\r
-| Date: <date>\r
-| Content-Length: 16\r
-| Connection: close\r
-| \r
-| 400 Bad Request
 ==== request 66
 -- request (escaped)
 | GET /count HTTP/1.1\r
-| Host: a b\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1052,8 +1045,7 @@
 ==== request 67
 -- request (escaped)
 | GET /count HTTP/1.1\r
-| Host: x\r
-| Host: y\r
+| Host: a b\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1068,7 +1060,7 @@
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
-| X Y: 1\r
+| Host: y\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1083,7 +1075,7 @@
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
-| Bad header\r
+| X Y: 1\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1097,7 +1089,8 @@
 ==== request 70
 -- request (escaped)
 | GET /count HTTP/1.1\r
-|  Host: x\r
+| Host: x\r
+| Bad header\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1111,8 +1104,7 @@
 ==== request 71
 -- request (escaped)
 | GET /count HTTP/1.1\r
-| Host: x\r
-| X: a\x01b\r
+|  Host: x\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1127,7 +1119,7 @@
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
-| Content-Length: abc\r
+| X: a\x01b\r
 | \r
 -- half close: no
 -- answer (escaped)
@@ -1139,6 +1131,21 @@
 | \r
 | 400 Bad Request
 ==== request 73
+-- request (escaped)
+| GET /count HTTP/1.1\r
+| Host: x\r
+| Content-Length: abc\r
+| \r
+-- half close: no
+-- answer (escaped)
+| HTTP/1.1 400 Bad Request\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 16\r
+| Connection: close\r
+| \r
+| 400 Bad Request
+==== request 74
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
@@ -1154,7 +1161,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 74
+==== request 75
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
@@ -1169,7 +1176,7 @@
 | Connection: close\r
 | \r
 | 501 Not Implemented
-==== request 75
+==== request 76
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
@@ -1185,7 +1192,7 @@
 | Connection: close\r
 | \r
 | 501 Not Implemented
-==== request 76
+==== request 77
 -- request (escaped)
 | POST /count HTTP/1.1\r
 | Host: x\r
@@ -1203,7 +1210,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 77
+==== request 78
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
@@ -1216,7 +1223,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 78
+==== request 79
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
@@ -1231,7 +1238,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 79
+==== request 80
 -- request: GET /count HTT
 -- half close: yes
 -- answer (escaped)
@@ -1242,11 +1249,11 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 80
+==== request 81
 -- request
 -- half close: yes
 -- answer
-==== request 81
+==== request 82
 -- request (escaped)
 | POST /count HTTP/1.1\r
 | Host: x\r
@@ -1265,7 +1272,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 82
+==== request 83
 -- request (escaped)
 | POST /count HTTP/1.1\r
 | Host: x\r
@@ -1286,7 +1293,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 83
+==== request 84
 -- request (escaped)
 | POST /count HTTP/1.1\r
 | Host: x\r
@@ -1307,7 +1314,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 84
+==== request 85
 -- request (escaped)
 | POST /count HTTP/1.1\r
 | Host: x\r
@@ -1328,7 +1335,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 85
+==== request 86
 -- request (escaped)
 | POST /count HTTP/1.1\r
 | Host: x\r
@@ -1348,7 +1355,7 @@
 | Connection: close\r
 | \r
 | 400 Bad Request
-==== request 86
+==== request 87
 -- request (16777295 bytes, fnv1a64 0fbd43182e6ff409)
 -- half close: no
 -- answer (escaped)
@@ -1360,7 +1367,7 @@
 | Content-Length: 22\r
 | \r
 | 413 Content Too Large
-==== request 87
+==== request 88
 -- request (17826047 bytes, fnv1a64 3be340864a12f855)
 -- half close: no
 -- answer (escaped)
@@ -1372,7 +1379,7 @@
 | Content-Length: 22\r
 | \r
 | 413 Content Too Large
-==== request 88
+==== request 89
 -- request (16777467 bytes, fnv1a64 4167a7500a38fb8b)
 -- half close: no
 -- answer (escaped)
@@ -1384,7 +1391,7 @@
 | Content-Length: 22\r
 | \r
 | 413 Content Too Large
-==== request 89
+==== request 90
 -- request (16777461 bytes, fnv1a64 67c476c25377e5e6)
 -- half close: no
 -- answer (escaped)
@@ -1396,7 +1403,7 @@
 | \r
 | counted
 \ no newline
-==== request 90
+==== request 91
 -- request (16777294 bytes, fnv1a64 acb48e06dbd4f640)
 -- half close: no
 -- answer (escaped)
@@ -1408,7 +1415,7 @@
 | \r
 | counted
 \ no newline
-==== request 91
+==== request 92
 -- request (1126437 bytes, fnv1a64 85829436843c38fa)
 -- half close: no
 -- answer (escaped)
@@ -1419,526 +1426,12 @@
 | Connection: close\r
 | \r
 | 431 Request Header Fields Too Large
-==== request 92
--- request (escaped)
-| GET /count HTTP/1.1\r
-| Host: x\r
-| Connection: close\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| X: 1\r
-| \r
--- half close: no
--- answer (escaped)
-| HTTP/1.1 200 OK\r
-| Content-Type: text/plain; charset=utf-8\r
-| Date: <date>\r
-| Content-Length: 7\r
-| Connection: close\r
-| \r
-| counted
-\ no newline
 ==== request 93
 -- request (escaped)
 | GET /count HTTP/1.1\r
 | Host: x\r
 | Connection: close\r
+| X: 1\r
 | X: 1\r
 | X: 1\r
 | X: 1\r
@@ -2449,6 +1942,520 @@
 | counted
 \ no newline
 ==== request 94
+-- request (escaped)
+| GET /count HTTP/1.1\r
+| Host: x\r
+| Connection: close\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| X: 1\r
+| \r
+-- half close: no
+-- answer (escaped)
+| HTTP/1.1 200 OK\r
+| Content-Type: text/plain; charset=utf-8\r
+| Date: <date>\r
+| Content-Length: 7\r
+| Connection: close\r
+| \r
+| counted
+\ no newline
+==== request 95
 -- request (escaped)
 | GET /quit HTTP/1.1\r
 | Host: x\r

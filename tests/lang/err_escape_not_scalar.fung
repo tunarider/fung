@@ -1,0 +1,3 @@
+# A surrogate is a code point but no character (FE26).
+print("\u{d800}")
+# expect-error: E0106

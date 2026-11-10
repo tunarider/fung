@@ -11,7 +11,7 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
     <tr><td><code>float</code></td><td><code>3.14</code></td><td>64비트 실수. <code>NaN</code>·<code>Inf</code>가 되면 에러.</td></tr>
     <tr><td><code>str</code></td><td><code>"a"</code></td><td>불변 바이트 열, UTF-8로 읽는 글자 단위 인덱스.</td></tr>
     <tr><td><code>bool</code></td><td><code>true</code></td><td>조건 자리에는 bool만 온다.</td></tr>
-    <tr><td><code>nil</code></td><td><code>nil</code></td><td>"없음"이라는 정상 값. <code>==</code>, <code>??</code>, 출력, 컬렉션에 담기 외의 연산은 에러.</td></tr>
+    <tr><td><code>nil</code></td><td><code>nil</code></td><td>"없음"이라는 정상 값. <code>==</code>, <code>??</code>, 출력, 컬렉션에 담기 외의 연산(<code>!</code>·<code>?</code> 포함)은 에러.</td></tr>
     <tr><td><code>sym</code></td><td><code>'ok</code></td><td>이름만 있는 값.</td></tr>
     <tr><td><code>dur</code></td><td><code>1h30m</code></td><td>기간. 기간끼리 <code>+ -</code>와 <code>/ // %</code>, 숫자와 <code>* /</code>, 순서 비교.</td></tr>
     <tr><td><code>time</code></td><td><code>time.now()</code></td><td>시각. 리터럴 없음. <code>± dur</code>, <code>time - time</code>은 기간, 순서 비교. 출력은 ISO 8601.</td></tr>
@@ -43,7 +43,8 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
     <tr><td>dur, time</td><td>값(time은 같은 순간이면 시간대 무관)</td><td>값</td></tr>
     <tr><td>list, tuple</td><td>원소가 차례로 같음</td><td>앞 원소부터 사전식</td></tr>
     <tr><td>map</td><td>키 집합과 값이 같음(순서 무시)</td><td>에러</td></tr>
-    <tr><td>bool, nil, sym, 태그, range</td><td>값</td><td>에러</td></tr>
+    <tr><td>bool, nil, sym, 태그</td><td>값</td><td>에러</td></tr>
+    <tr><td>range</td><td>같은 정수 열(<code>0..5 == 0..=4</code>, 빈 범위끼리는 같음). 출력은 쓴 모양 그대로</td><td>에러</td></tr>
     <tr><td>fn, module, file, task, scope, sender, receiver, atom</td><td>같은 객체인가</td><td>에러</td></tr>
     <tr><td>타입이 다를 때</td><td><code>false</code>(숫자끼리 제외). 단 심볼과 문자열은 에러 E0517</td><td>에러</td></tr>
   </tbody>
@@ -53,7 +54,7 @@ lede: 값의 종류와 그 성질, 문자열·리스트·맵·튜플·태그·�
 
 ## 경계 사례와 에러 {#edges}
 
-맵의 키는 문자열이다. 다른 값을 키로 쓰면 바꾸라는 힌트와 함께 멈춘다(`group_by`의 키 함수도 문자열을 돌려줘야 한다).
+맵의 키는 문자열이다. 다른 값을 키로 쓰면 어느 자리에서든(`m[k]`, `k in m`, `get`·`put`·`remove`, `group_by`의 키 함수) 바꾸라는 힌트와 함께 E0514로 멈춘다. 심볼 키(`m['a]`)면 힌트가 문자열로 쓰는 법을 보인다.
 
 ```fung run exit=1 error=E0514
 print(group_by(["ab", "c"], s => "${len(s)}"))

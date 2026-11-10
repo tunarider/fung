@@ -3,6 +3,7 @@
 use super::{MAX_DEPTH, PResult, Parser, describe, err, s, tag_as_name};
 use crate::diag::Arg;
 use crate::lexer::Kind;
+use crate::source::Pos;
 use crate::tree::{Head, Lit, Node};
 
 impl Parser<'_> {
@@ -21,6 +22,44 @@ impl Parser<'_> {
             alt.kids.push(term);
         }
         Ok(alt)
+    }
+
+    /// destructure = d_term { "|" d_term }: the pattern of an assignment,
+    /// a `for` head and a parameter (FE32). Each alternative is a name,
+    /// `_`, a tuple, list or map, or a tag with values; a literal (number,
+    /// string, symbol, bare tag, duration, `true`/`false`/`nil`) cannot
+    /// stand at the top, since it would only check a value, but may sit
+    /// inside (`(1, y) = p`).
+    pub(super) fn destructure(&mut self) -> PResult<Node> {
+        let first = self.destructure_term()?;
+        if !self.at(Kind::Bar) {
+            return Ok(first);
+        }
+        let mut alt = Node::new(Head::Palt, first.pos, vec![first]);
+        while self.at(Kind::Bar) {
+            self.next();
+            self.skip_newlines_after_operator();
+            let term = self.destructure_term()?;
+            alt.kids.push(term);
+        }
+        Ok(alt)
+    }
+
+    fn destructure_term(&mut self) -> PResult<Node> {
+        let t = self.peek();
+        let ok = match t.kind {
+            Kind::Name | Kind::LParen | Kind::LBracket | Kind::LBrace => true,
+            Kind::Tag => self.kind_from(self.i + 1) == Kind::LParen,
+            _ => false,
+        };
+        if !ok {
+            return Err(err(
+                "E0112",
+                t.pos,
+                vec![s("a name or a destructuring pattern"), s(describe(t))],
+            ));
+        }
+        self.pat_term()
     }
 
     fn pat_term(&mut self) -> PResult<Node> {
@@ -71,6 +110,11 @@ impl Parser<'_> {
                         self.next();
                         leaf(Head::Plit, Lit::Float(-n.float))
                     }
+                    // `-1s` is a value, so a pattern too (FE32)
+                    Kind::Duration => {
+                        self.next();
+                        leaf(Head::Plit, Lit::Dur(-n.dur))
+                    }
                     _ => Err(self.unexpected()),
                 }
             }
@@ -109,13 +153,20 @@ impl Parser<'_> {
                     // A bare tag matches the symbol only (03의 함정).
                     return leaf(Head::Psym, Lit::Str(t.text.clone()));
                 }
-                self.next();
+                let open = self.next().pos;
                 // `TAG()` is E0117 here too: the bare tag is the symbol.
                 if self.at(Kind::RParen) {
                     return Err(err("E0117", t.pos, vec![s(&t.text)]));
                 }
                 let n = Node::with_lit(Head::Ptag, t.pos, Lit::Str(t.text.clone()), Vec::new());
-                self.bracketed(|p| p.pat_list(n, Kind::RParen))
+                let n = self.bracketed(|p| p.pat_list(n, open, Kind::RParen))?;
+                // A result holds exactly one value (02, SP12): another
+                // count could never match.
+                if matches!(t.text.as_str(), "Ok" | "Err") && n.kids.len() != 1 {
+                    let count = Arg::Int(n.kids.len() as i64);
+                    return Err(err("E0236", t.pos, vec![s(&t.text), count]));
+                }
+                Ok(n)
             }
             Kind::LParen => {
                 self.next();
@@ -143,7 +194,7 @@ impl Parser<'_> {
     }
 
     /// A `(…)` pattern after the `(`: `()` or a tuple with at least one comma.
-    fn ptuple(&mut self, pos: crate::source::Pos) -> PResult<Node> {
+    fn ptuple(&mut self, pos: Pos) -> PResult<Node> {
         if self.at(Kind::RParen) {
             self.next();
             return Ok(Node::new(Head::Ptuple, pos, Vec::new()));
@@ -163,7 +214,7 @@ impl Parser<'_> {
             ));
         }
         self.next();
-        self.pat_list(Node::new(Head::Ptuple, pos, vec![first]), Kind::RParen)
+        self.pat_list(Node::new(Head::Ptuple, pos, vec![first]), pos, Kind::RParen)
     }
 
     /// The items of a `[…]` pattern after the `[`: patterns, then at most
@@ -194,7 +245,7 @@ impl Parser<'_> {
             if self.at(Kind::Comma) {
                 self.next();
             } else if !self.at(Kind::RBracket) {
-                return Err(self.unexpected());
+                return Err(self.list_end(n.pos, Kind::RBracket));
             }
         }
         self.next();
@@ -252,7 +303,7 @@ impl Parser<'_> {
             if self.at(Kind::Comma) {
                 self.next();
             } else if !self.at(Kind::RBrace) {
-                return Err(self.unexpected());
+                return Err(self.list_end(n.pos, Kind::RBrace));
             }
         }
         self.next();
@@ -260,14 +311,14 @@ impl Parser<'_> {
     }
 
     /// Parses comma-separated patterns into n until the closing token.
-    fn pat_list(&mut self, mut n: Node, closer: Kind) -> PResult<Node> {
+    fn pat_list(&mut self, mut n: Node, open: Pos, closer: Kind) -> PResult<Node> {
         while !self.at(closer) {
             let k = self.pattern()?;
             n.kids.push(k);
             if self.at(Kind::Comma) {
                 self.next();
             } else if !self.at(closer) {
-                return Err(self.unexpected());
+                return Err(self.list_end(open, closer));
             }
         }
         self.next();
@@ -329,14 +380,16 @@ impl Parser<'_> {
     /// ordinary code even when the match sits in a guard.
     pub(super) fn match_expr(&mut self) -> PResult<Node> {
         let t = self.next(); // match
-        let subject = self.expr(0)?;
+        let subject = self.outside_slice(|p| p.expr(0))?;
         self.expect_desc(Kind::Colon, "`:` after the match subject")?;
-        let (saved_nest, saved_guard) = (self.nest, self.guard);
+        let (saved_nest, saved_guard, saved_slice) = (self.nest, self.guard, self.slice);
         self.nest = 0;
         self.guard = false;
+        self.slice = None;
         let r = self.match_arms(Node::new(Head::Match, t.pos, vec![subject]));
         self.nest = saved_nest;
         self.guard = saved_guard;
+        self.slice = saved_slice;
         r
     }
 
@@ -352,11 +405,19 @@ impl Parser<'_> {
             let (body, following) = self.arm_body(Node::new(Head::Block, arrow.pos, Vec::new()))?;
             if body.kids.is_empty() {
                 let p = self.peek();
-                return Err(err(
+                let mut e = err(
                     "E0112",
                     p.pos,
                     vec![s("the arm's body after `=>`"), s(describe(p))],
-                ));
+                );
+                // `1 => y => y + 1`: `y =>` was read as the next arm (FE25).
+                if following.is_some() {
+                    e.help = Some(
+                        "a lambda as an arm's value goes in parentheses: `1 => (y => y + 1)`"
+                            .to_string(),
+                    );
+                }
+                return Err(e);
             }
             n.kids
                 .push(Node::new(Head::Arm, pat.pos, vec![pat, guard, body]));
@@ -406,11 +467,11 @@ impl Parser<'_> {
     /// Parses `for pat in e: body ;;`.
     pub(super) fn for_expr(&mut self) -> PResult<Node> {
         let t = self.next(); // for
-        let pat = self.pattern()?;
+        let pat = self.destructure()?;
         self.expect_desc(Kind::KwIn, "`in` after the for pattern")?;
         // a line ending in `in` continues (01 rule 1, FE7)
         self.skip_newlines_after_operator();
-        let iter = self.expr(0)?;
+        let iter = self.outside_slice(|p| p.expr(0))?;
         self.expect_desc(Kind::Colon, "`:` after the for header")?;
         let body = self.body(t.pos)?;
         self.expect_desc(Kind::DoubleSemi, "`;;` to close the for")?;

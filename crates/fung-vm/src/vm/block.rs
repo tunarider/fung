@@ -588,6 +588,7 @@ impl Task<'_> {
             }
         }
         if self.fiber.pure > 0 {
+            self.fiber.turn_owed = true;
             super::stop::apply_in_swap(&mut self.world, self.shared);
             return false;
         }
@@ -602,11 +603,27 @@ impl Task<'_> {
         if self.fiber.cancel.is_cancelled() {
             return Err(cancelled(pos));
         }
+        self.spend_tick();
+        Ok(())
+    }
+
+    /// `tick` at the instruction frame `fi` runs, whose position is read
+    /// only for the error (VM16).
+    #[inline(always)]
+    pub(super) fn tick_in(&mut self, fi: usize) -> Result<(), Stop> {
+        if self.fiber.cancel.is_cancelled() {
+            return Err(cancelled(self.here(fi)));
+        }
+        self.spend_tick();
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn spend_tick(&mut self) {
         self.fiber.budget -= 1;
         if self.fiber.budget == 0 {
             self.end_turn();
         }
-        Ok(())
     }
 
     /// The end of a turn: a computing task sees its deadline here
@@ -616,6 +633,10 @@ impl Task<'_> {
     #[cold]
     #[inline(never)]
     fn end_turn(&mut self) {
+        #[cfg(test)]
+        {
+            self.fiber.turn_ends += 1;
+        }
         self.fiber.budget = YIELD_EVERY;
         if let Some(at) = self.fiber.cancel.deadline_at() {
             let now = Instant::now();
@@ -626,16 +647,16 @@ impl Task<'_> {
         // A swap's function runs to its end in one turn: a task that swaps
         // the same atom on every turn would otherwise make it retry forever
         // (it cannot park: effects are E0707). The events other threads
-        // posted are made here then, so that a signal or the REPL's Ctrl-C
-        // still reaches a function that never ends (review C6). The turn
-        // is owed, not dropped: the budget stays at 1, so the first tick
-        // after the function ends the turn. Refilled, a loop whose calls a
-        // round divide `YIELD_EVERY` ended every turn inside its swap and
-        // never gave one.
+        // posted are made here then, once a turn's work as outside, so that
+        // a signal or the REPL's Ctrl-C still reaches a function that never
+        // ends (review C6). The turn is owed, not dropped: the swap gives
+        // it once the function returns (`turn_owed`, CC11), so a loop whose
+        // calls a round divide `YIELD_EVERY`, ending every turn inside its
+        // swap, still gives one.
         if self.fiber.pure == 0 {
             self.fiber.turn_due = true;
         } else {
-            self.fiber.budget = 1;
+            self.fiber.turn_owed = true;
             super::stop::apply_in_swap(&mut self.world, self.shared);
         }
     }

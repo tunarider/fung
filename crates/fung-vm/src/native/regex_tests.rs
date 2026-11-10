@@ -365,8 +365,8 @@ fn ordinary_large_patterns_compile() {
     assert_eq!(ok("is_match", &["x", r"\pL{300}"]), "false");
 }
 
-/// `split` of the empty string by the empty pattern is `[]`, like the
-/// string `split("", "")`.
+/// `split` of the empty string by the empty pattern is `[]`, like
+/// `chars("")`.
 #[test]
 fn split_of_nothing_by_nothing() {
     assert_eq!(ok("split", &["", ""]), "[]");

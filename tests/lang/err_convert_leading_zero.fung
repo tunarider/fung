@@ -1,0 +1,7 @@
+# A decimal number has no leading zero, in a file or in text (SP14, D12):
+# `int("0755")` would otherwise read a file mode as decimal silently.
+# The help points at `0o`.
+print(int("0o755"))
+print(int("0755"))
+# expect: 493
+# expect-error: E0513

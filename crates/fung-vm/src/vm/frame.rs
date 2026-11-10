@@ -11,8 +11,15 @@ use crate::value::{Closure, Globals};
 pub(super) struct Frame {
     pub closure: Rc<Closure>,
     pub ip: usize,
-    /// Index into the task stack where this frame's slots start.
-    pub base: usize,
+    /// Index into the task stack where this frame's slots start (`base`).
+    /// Kept in 32 bits with `floor` so the frame stays 48 bytes: a bigger
+    /// frame made every call slower (VM16).
+    base: u32,
+    /// Where the stack is cut back to when the frame returns (`floor`):
+    /// `base`, or `base - 1` for a frame a CALL entered, whose callee slot
+    /// below its arguments stays (empty) so the arguments need not move
+    /// (VM16).
+    floor: u32,
     /// How many tail calls reused this frame (shown in call paths).
     pub tail_calls: u64,
     /// The function of a built-in module that user code called and that
@@ -35,12 +42,20 @@ pub(super) struct TailFrom {
 }
 
 impl Frame {
-    /// A frame for `closure` whose slots start at `base`.
-    pub fn new(closure: Rc<Closure>, base: usize, entry: Option<Rc<RtProto>>) -> Frame {
+    /// A frame for `closure` whose slots start at `base`, returning to
+    /// `floor`.
+    pub fn new(
+        closure: Rc<Closure>,
+        base: usize,
+        floor: usize,
+        entry: Option<Rc<RtProto>>,
+    ) -> Frame {
+        let slot = |i: usize| u32::try_from(i).expect("a stack index within 32 bits");
         Frame {
             closure,
             ip: 0,
-            base,
+            base: slot(base),
+            floor: slot(floor),
             tail_calls: 0,
             entry,
             tail_from: None,
@@ -54,7 +69,19 @@ impl Frame {
             captured: Default::default(),
             globals,
         };
-        Frame::new(Rc::new(closure), base, None)
+        Frame::new(Rc::new(closure), base, base, None)
+    }
+
+    /// Index into the task stack where this frame's slots start.
+    #[inline(always)]
+    pub fn base(&self) -> usize {
+        self.base as usize
+    }
+
+    /// Where the stack is cut back to when the frame returns.
+    #[inline(always)]
+    pub fn floor(&self) -> usize {
+        self.floor as usize
     }
 
     pub fn proto(&self) -> &Rc<RtProto> {
@@ -70,5 +97,16 @@ impl Frame {
     pub fn current_pos(&self) -> Option<fung_front::source::Pos> {
         let i = self.ip.checked_sub(1)?;
         self.closure.proto.pos.get(i).copied()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// A frame stays 48 bytes: at 56 every call got slower (`fib` +20%,
+    /// VM16), since pushing a frame copies it through the Rust stack.
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn a_frame_is_48_bytes() {
+        assert_eq!(std::mem::size_of::<super::Frame>(), 48);
     }
 }

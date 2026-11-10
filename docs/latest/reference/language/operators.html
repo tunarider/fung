@@ -90,30 +90,45 @@
 <ul>
   <li><code>==</code>와 <code>!=</code>는 값 비교. 비교는 연쇄하지 않는다: <code>a &lt; b &lt; c</code>는 문법 에러(<code>a &lt; b and b &lt; c</code>).</li>
   <li><code>and</code> <code>or</code> <code>not</code>은 bool만 받고 단락 평가한다. 빈 리스트나 0을 거짓으로 보지 않는다.</li>
+  <li>이항 연산의 두 피연산자는 왼쪽부터 평가한다. <code>and</code>·<code>or</code>·<code>then … else</code>·<code>??</code>만 오른쪽을 필요할 때 평가한다(<a href="functions.html">함수</a>의 "평가 순서").</li>
   <li><code>x in c</code> / <code>x not in c</code>: 리스트는 원소, 맵은 키, 문자열은 부분 문자열, 범위는 정수 포함 여부.</li>
 </ul>
 <h3>범위</h3>
-<p><code>a..b</code>는 <code>b</code>를 빼고, <code>a..=b</code>는 넣는다. 정수만 된다.</p>
+<p><code>a..b</code>는 <code>b</code>를 빼고, <code>a..=b</code>는 넣는다. 정수만 된다. 시작이 끝보다 뒤면 에러다(E0522): <code>a..b</code>는 <code>a &gt; b</code>, <code>a..=b</code>는 <code>a &gt; b + 1</code>일 때. 빈 범위는 <code>n..n</code>과 <code>n..=n-1</code>뿐이다. 그래서 거꾸로 세려던 <code>for i in n..0</code>이 말없이 아무것도 하지 않는 일이 없다. 끝이 시작보다 작아질 수 있는 계산이면 <code>a..max(a, b)</code>처럼 드러낸다. 범위 값으로 하는 색인 <code>xs[r]</code>은 같은 끝의 슬라이스와 같다.</p>
+<div class="run"><pre><code>xs = []
+print(0..len(xs), 0..=len(xs) - 1)
+print(0..len(xs) - 1)</code></pre><pre class="out err plain" data-code="1"><code>0..0 0..=-1
+error[E0522]: range start 0 is after its end -1
+  --&gt; example.fung:3:8
+  |
+3 | print(0..len(xs) - 1)
+  |        ^
+  |
+ call path (innermost first):
+   example.fung:3 &lt;entry&gt;
+ help: the empty ranges are `n..n` and `n..=n-1`; if the end may fall below the start, say so: `a..max(a, b)`</code></pre></div>
 <h3 id="pipe">파이프</h3>
-<p><code>|&gt;</code>는 실행 중의 연산이 아니라 컴파일할 때 평범한 호출로 바뀌는 문법 설탕이다. 규칙은 둘뿐이다.</p>
+<p><code>|&gt;</code>는 실행 중의 연산이 아니라 컴파일할 때 평범한 호출로 바뀌는 문법 설탕이다. 규칙은 하나다: 오른쪽이 <strong>괄호 없이 쓴 호출이나 태그</strong>면 왼쪽 값을 그 <strong>맨 앞 인자로</strong> 끼워 넣고, 그 밖의 식은 값을 구해 왼쪽 값으로 부른다.</p>
 <ul>
-  <li><code>x |&gt; f(a, b)</code>는 <code>f(x, a, b)</code>: 오른쪽이 호출이면 왼쪽 값을 <strong>맨 앞 인자로</strong> 넣는다.</li>
-  <li><code>x |&gt; f</code>는 <code>f(x)</code>: 오른쪽이 이름뿐이면 그것으로 부른다.</li>
+  <li><code>x |&gt; f(a, b)</code>는 <code>f(x, a, b)</code>: 호출 모양이라 끼워 넣는다.</li>
+  <li><code>x |&gt; f</code>는 <code>f(x)</code>, <code>x |&gt; m.f</code>는 <code>m.f(x)</code>, <code>x |&gt; (n =&gt; n + 1)</code>은 람다를 부른다: 호출 모양이 아니니 값으로 부른다.</li>
+  <li><code>x |&gt; (f(a))</code>는 <code>f(a)(x)</code>: 괄호는 묶음이라 괄호 친 호출은 호출 모양이 아니라 값이다. 함수를 돌려주는 함수의 결과로 부를 때 쓴다.</li>
 </ul>
-<p>태그도 같다. <code>x |&gt; Ok</code>는 <code>Ok(x)</code>, <code>x |&gt; Pair(2)</code>는 <code>Pair(x, 2)</code>다(태그의 <code>Ok(x)</code>는 호출 형태이므로). 따옴표 심볼 <code>'Ok</code>는 태그가 아니라 값이라 <code>x |&gt; 'Ok</code>는 심볼을 부르는 에러다.</p>
+<p>태그도 같다. <code>x |&gt; Ok</code>는 <code>Ok(x)</code>, <code>x |&gt; Pair(2)</code>는 <code>Pair(x, 2)</code>다(태그의 <code>Ok(x)</code>는 호출 형태이므로). 따옴표 심볼 <code>'Ok</code>는 태그가 아니라 값이라 <code>x |&gt; 'Ok</code>는 심볼을 부르는 에러다. 괄호 친 <code>x |&gt; (Ok)</code>도 마찬가지다: 괄호 안의 인자 없는 태그는 심볼 값이라 그것을 부르는 E0401이고, 태그 모양은 괄호 없는 <code>Ok</code>다.</p>
 <p>이어 쓰면 안쪽부터 감싸는 호출이 된다. <code>xs |&gt; filter(f) |&gt; map(g)</code>는 <code>map(filter(xs, f), g)</code>와 바이트코드까지 같다. 비용은 없고, 데이터가 흐르는 순서대로 읽힌다는 것이 전부다. 이름 인자도 그대로 따라간다: <code>xs |&gt; conc.pmap(f, limit: 2)</code>는 <code>conc.pmap(xs, f, limit: 2)</code>.</p>
 <p>그래서 내장 함수는 모두 <strong>다루는 대상을 첫 번째 매개변수</strong>에 둔다: 리스트 함수는 리스트가(<code>filter(xs, f)</code>), 문자열 함수는 문자열이(<code>split(s, sep)</code>), 맵 함수는 맵이(<code>put(m, k, v)</code>) 먼저다. Python의 <code>map(f, xs)</code>나 데이터를 마지막에 두는 Haskell·OCaml과 달리 Elixir와 같은 쪽이다. 직접 만드는 함수도 이렇게 두면 파이프에 그대로 이어진다.</p>
 <div class="run"><pre><code>line = &quot; ERROR,disk full &quot;
 fields = line |&gt; trim |&gt; lower |&gt; split(&quot;,&quot;)
 cfg = {host: &quot;localhost&quot;} |&gt; put(&quot;port&quot;, 8080) |&gt; merge({debug: false})
 print(fields, cfg |&gt; keys)</code></pre><pre class="out plain"><code>[&quot;error&quot;, &quot;disk full&quot;] [&quot;host&quot;, &quot;port&quot;, &quot;debug&quot;]</code></pre></div>
-<p>대상이 첫 자리가 아닌 함수에는 람다로 넘긴다: <code>5 |&gt; (n =&gt; scale(2, n))</code>.</p>
+<p>대상이 첫 자리가 아닌 함수에는 람다나 괄호 친 부분 적용으로 넘긴다: <code>5 |&gt; (n =&gt; scale(2, n))</code>, <code>5 |&gt; (scale(2, _))</code>.</p>
 <div class="aside">
-<p><strong>파이프 오른쪽 호출의 인자에 <code>_</code>를 쓰면 컴파일 에러 E0227이다.</strong> 파이프 값은 늘 첫 인자로 들어가므로 <code>"a.txt" |&gt; path.join("/tmp", _)</code>는 <code>path.join("a.txt", "/tmp", _)</code>, 곧 함수가 되어 버리던 함정이다. 다른 자리에 넣으려면 람다를 쓴다. 더 안쪽 호출의 <code>_</code>는 그대로 부분 적용이다.</p>
+<p><strong>파이프 오른쪽 호출의 인자에 <code>_</code>를 쓰면 컴파일 에러 E0227이다.</strong> 파이프 값은 늘 첫 인자로 들어가므로 <code>"a.txt" |&gt; path.join("/tmp", _)</code>는 <code>path.join("a.txt", "/tmp", _)</code>, 곧 함수가 되어 버리던 함정이다. 다른 자리에 넣으려면 람다나 괄호 친 부분 적용(<code>"a.txt" |&gt; (path.join("/tmp", _))</code>)을 쓴다. 더 안쪽 호출의 <code>_</code>는 그대로 부분 적용이다.</p>
 <p><strong>파이프 오른쪽 끝의 후위 <code>?</code>·<code>!</code>도 컴파일 에러 E0229다.</strong> 후위 연산자가 <code>|&gt;</code>보다 먼저 묶여 <code>xs |&gt; try_map(f)?</code>는 <code>try_map(f)?</code>를 파이프에 넘기는 것이 되기 때문이다. 파이프 전체의 결과를 꺼내려면 <code>(xs |&gt; try_map(f))?</code>로 감싼다.</p>
 </div>
 <pre class="frag"><code>&quot;a.txt&quot; |&gt; path.join(&quot;/tmp&quot;, _)            # E0227
 &quot;a.txt&quot; |&gt; (f =&gt; path.join(&quot;/tmp&quot;, f))     # &quot;/tmp/a.txt&quot;
+&quot;a.txt&quot; |&gt; (path.join(&quot;/tmp&quot;, _))          # &quot;/tmp/a.txt&quot;: 괄호 친 식은 값
 files |&gt; map(path.join(&quot;/tmp&quot;, _))         # _의 올바른 쓰임: map에 넘길 함수를 만든다</code></pre>
 <h3 id="precedence">우선순위</h3>
 <p>낮은 것부터 높은 것 순서.</p>
@@ -182,7 +197,7 @@ print([1, 2] |&gt; map(_, x =&gt; x))</code></pre><pre class="out err plain" dat
 2 | print([1, 2] |&gt; map(_, x =&gt; x))
   |                     ^
   |
- help: the piped value is always the first argument; to put it elsewhere, use a lambda: `x |&gt; (v =&gt; f(1, v))`</code></pre></div>
+ help: the piped value is always the first argument; to put it elsewhere, call a parenthesised partial: `x |&gt; (f(1, _))` (or a lambda: `x |&gt; (v =&gt; f(1, v))`)</code></pre></div>
 <p><code>/</code>는 언제나 실수, <code>//</code>는 정수 나눗셈이다. 0으로 나누면 에러다.</p>
 <div class="run"><pre><code>print(7 / 2, 7 // 2, 7 % 2)
 print(1 // 0)</code></pre><pre class="out err plain" data-code="1"><code>3.5 3 1

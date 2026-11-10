@@ -52,7 +52,7 @@ impl Compiler<'_> {
     /// not reported (its value is its text). Each side is evaluated once.
     pub(super) fn assert_stmt(&mut self, n: &Node) -> Result<(), Diag> {
         let e = &n.kids[0];
-        let src = &self.opts.source;
+        let src = self.opts.source;
         let mut a = Assert {
             text: e.text(src).to_string(),
             ..Assert::default()

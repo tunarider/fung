@@ -96,11 +96,11 @@
     <tr><td><code>'exists</code></td><td>이미 있다(<code>mkdir</code>할 자리에 파일이 있음, 비지 않은 디렉터리를 <code>remove</code>함, <code>move</code>할 자리에 이미 있음 등).</td></tr>
     <tr><td><code>'permission</code></td><td>권한이 없다.</td></tr>
     <tr><td><code>'io</code></td><td>그 밖의 입출력 실패(디렉터리를 파일처럼 읽음, 경로 중간이 파일임, 디스크가 참 등).</td></tr>
-    <tr><td><code>'invalid</code></td><td>잘못된 glob 패턴(<code>fs.glob</code>), 읽기로 열지 않은 핸들로 읽기(또는 그 반대).</td></tr>
+    <tr><td><code>'invalid</code></td><td>정규 파일이 아닌 것(FIFO·장치)을 복사(<code>fs.copy</code>). 잘못된 glob 패턴은 E0515, 읽기로 열지 않은 핸들로 읽기(또는 그 반대)는 E0520이다(코드의 잘못).</td></tr>
     <tr><td><code>'closed</code></td><td>닫힌 파일 핸들을 썼다(핸들 함수만).</td></tr>
   </tbody>
 </table>
-<p><code>message</code>는 <code></code>cannot read <code>nope.txt</code>: no such file or directory<code></code>처럼 "무엇을 하려다 어디서 왜"의 꼴이다. 운영체제가 말한 이유는 소문자 짧은 문장이고, 흔한 이유는 어느 운영체제에서나 같은 문구다. 결과는 <code>!</code>(실패면 멈춤), <code>?</code>(실패면 함수에서 돌려줌), <code>match</code>(종류별로 처리)로 다룬다. 결과를 쓰지 않고 버리면, 그 값이 <code>Err</code>일 때 E0606으로 멈춘다(<a href="../language/results.html">결과값과 에러</a>).</p>
+<p><code>message</code>는 <code>cannot read `nope.txt`: no such file or directory</code>처럼 "무엇을 하려다 어디서 왜"의 꼴이다. 운영체제가 말한 이유는 소문자 짧은 문장이고, 흔한 이유는 어느 운영체제에서나 같은 문구다. 결과는 <code>!</code>(실패면 멈춤), <code>?</code>(실패면 함수에서 돌려줌), <code>match</code>(종류별로 처리)로 다룬다. 결과를 쓰지 않고 버리면, 그 값이 <code>Err</code>일 때 E0606으로 멈춘다(<a href="../language/results.html">결과값과 에러</a>).</p>
 <div class="run"><pre><code>import fs
 
 match fs.read(&quot;config.txt&quot;):
@@ -129,7 +129,7 @@ match fs.read(&quot;config.txt&quot;):
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'not_found})</code>: 파일이 없다. 빈 경로 <code>&quot;&quot;</code>도 같다.</li>
-<li><code>Err({kind: 'io})</code>: 디렉터리를 읽으려 했다(<code></code>is a directory<code></code>) 등.</li>
+<li><code>Err({kind: 'io})</code>: 디렉터리를 읽으려 했다(<code>is a directory</code>) 등. 내용이 문자열 한도(1억 글자)를 넘어도 그렇다(<code>file is longer than the string limit (100000000 characters)</code>): 파일의 크기는 프로그램이 정하지 못하는 바깥 사정이라 런타임 에러가 아니다. 4억 바이트(한 글자는 4바이트 이하)보다 큰 파일은 읽지 않고 바로 거절한다.</li>
 <li><code>Err({kind: 'permission})</code>: 읽을 권한이 없다.</li>
 <li><code>path</code>가 문자열이 아니면 런타임 에러 E0403.</li>
 </ul>
@@ -195,6 +195,7 @@ print(fs.read_lines(&quot;crlf.txt&quot;)!)</code></pre><pre class="out plain"><
 <h4>설명</h4>
 <p><code>path</code>에 <code>text</code>를 쓴다. 파일이 없으면 새로 만들고, 있으면 <strong>내용을 모두 지우고</strong> 덮어쓴다(셸의 <code>&gt;</code>와 같다). 새 파일의 권한은 0666에서 umask를 뺀 것이다(셸과 같다). <code>perm</code>을 주면 파일은 정확히 그 권한이 된다(아래). 위의 디렉터리는 만들지 않으므로, 필요하면 먼저 <a href="#fn-fs-mkdir"><code>fs.mkdir</code></a>를 부른다. 줄바꿈은 자동으로 붙지 않는다.</p>
 <p>정규 파일은 <strong>통째로 바꾼다</strong>: 같은 디렉터리에 임시 파일을 쓰고 이름을 바꿔 덮으므로, 도중에 프로그램이 죽거나 디스크가 차도 파일이 반만 남지 않고, 동시에 읽는 쪽은 옛 내용이나 새 내용 하나만 본다. 실패하면 파일은 옛 내용 그대로다. 있던 파일의 권한은 그대로 남고(<code>perm</code>이 없을 때), 심볼릭 링크는 링크로 남는다(가리키는 파일을 바꾼다). 하드 링크가 여럿인 파일, 남의 파일(쓸 권한은 있는), 정규 파일이 아닌 것(<code>/dev/null</code> 같은 장치)은 그 자리에 쓴다. FIFO는 읽는 쪽에 그대로 보낸다. <a href="#fn-fs-append"><code>fs.append</code></a>는 그 자리에 덧붙인다(통째로 바꿀 수 없다).</p>
+<p>이름을 바꾸기 전에 임시 파일을 디스크에 내려 쓰므로(<code>fsync</code>) 쓰기 한 번마다 그만큼 든다. macOS에서 작은 파일 50개에 번갈아 2000번 쓰면 <code>fs.write</code>는 약 0.6초, <code>fs.append</code>는 약 0.08초이고, 실제 디스크의 Linux에서는 <code>fs.write</code> 한 번에 수 ms가 들 수 있다. 작은 파일을 아주 많이 고쳐 쓰는 스크립트는 내용을 모아 한 번에 쓰거나, 로그처럼 덧붙이기만 하면 <code>fs.append</code>나 핸들의 <a href="#fn-fs-write_line"><code>fs.write_line</code></a>을 쓴다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>path</code>: 쓸 파일의 경로.</li>
@@ -325,8 +326,8 @@ print(dirs)</code></pre><pre class="out plain"><code>[&quot;site/assets&quot;]</
 <p><code>Ok(경로 리스트)</code>. 경로는 패턴과 같은 꼴(상대 패턴이면 상대 경로)이다.</p>
 <h4>에러</h4>
 <ul>
-<li>패턴이 잘못되면 런타임 에러 E0515(<code></code>invalid pattern <code>[a</code>: a glob syntax error<code></code>)다. 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.</li>
-<li>패턴이 들어가는 디렉터리를 읽지 못하면(권한이 없는 디렉터리 등) <a href="#fn-fs-walk"><code>fs.walk</code></a>처럼 그 경로의 <code>Err</code>다(<code></code>cannot glob <code>logs/old</code>: permission denied<code></code>, <code>kind</code>는 <code>'permission</code>). 와일드카드가 고른 디렉터리도 마찬가지다. 없는 디렉터리나 파일은 맞는 것이 없을 뿐이다.</li>
+<li>패턴이 잘못되면 런타임 에러 E0515(<code>invalid pattern `[a`: a glob syntax error</code>)다. 패턴은 코드가 정하는 것이라 잘못된 정규식과 같다. 파일을 읽기 전에 검사한다.</li>
+<li>패턴이 들어가는 디렉터리를 읽지 못하면(권한이 없는 디렉터리 등) <a href="#fn-fs-walk"><code>fs.walk</code></a>처럼 그 경로의 <code>Err</code>다(<code>cannot glob `logs/old`: permission denied</code>, <code>kind</code>는 <code>'permission</code>). 와일드카드가 고른 디렉터리도 마찬가지다. 없는 디렉터리나 파일은 맞는 것이 없을 뿐이다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>확장자로 고르기</strong></p>
@@ -393,22 +394,25 @@ print(n, &quot;fung files&quot;)</code></pre><pre class="out plain"><code>2 fung
 </section>
 <section class="entry" id="fn-fs-exists">
 <h3>fs.exists</h3>
-<p>경로에 무엇이 있는지 <code>true</code>/<code>false</code>로 알려 준다.</p>
+<p>경로에 무엇이 있는지 <code>Ok(true)</code>/<code>Ok(false)</code>로 알려 준다.</p>
 <div class="sig"><code>fs.exists(path)</code></div>
 <h4>설명</h4>
-<p>파일이든 디렉터리든 있으면 <code>true</code>. 결과값이 아니라 그냥 참거짓이므로 <code>!</code> 없이 쓴다. 이유(없는지, 권한이 없는지)가 필요하면 <a href="#fn-fs-stat"><code>fs.stat</code></a>을 쓴다.</p>
+<p>파일이든 디렉터리든 있으면 <code>Ok(true)</code>, <strong>없을 때만</strong> <code>Ok(false)</code>다. "없다"는 그 이름이 없거나(<code>ENOENT</code>) 경로 중간에 디렉터리가 아닌 파일이 있는 경우(<code>a.txt/x</code>, <code>ENOTDIR</code>)다. 권한이 없어 볼 수 없는 경로처럼 있는지 없는지 알 수 없으면 <code>Err</code>다: "없다"로 읽고 파일을 새로 만드는 일이 없게 한다. 그래서 보통 <code>fs.exists(p)!</code>로 쓴다. 심볼릭 링크는 따라가서 그 대상을 본다(<a href="#fn-fs-stat"><code>fs.stat</code></a>과 같다): 가리키는 것이 없는 링크는 <code>Ok(false)</code>다.</p>
 <p>"있으면 읽는다"는 <code>fs.exists</code>로 먼저 묻기보다 <a href="#fn-fs-read"><code>fs.read</code></a>를 바로 부르고 <code>'not_found</code>를 <code>match</code>하는 편이 낫다. 묻고 읽는 사이에 다른 프로그램이 파일을 지울 수 있기 때문이다.</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>path</code>: 확인할 경로.</li>
 </ul>
 <h4>돌려주는 값</h4>
-<p><code>true</code> 또는 <code>false</code>. 빈 경로는 <code>false</code>.</p>
+<ul>
+<li><code>Ok(true)</code>: 있다. <code>Ok(false)</code>: 없다. 빈 경로는 <code>Ok(false)</code>.</li>
+<li><code>Err({kind: 'permission})</code>: 볼 권한이 없다(<code>cannot check whether `locked/x` exists: permission denied</code>). 그 밖의 실패도 <code>Err</code>다.</li>
+</ul>
 <h4>예제</h4>
 <div class="run"><pre><code>import fs
 
 fs.write(&quot;lock&quot;, &quot;&quot;)!
-print(fs.exists(&quot;lock&quot;), fs.exists(&quot;.&quot;), fs.exists(&quot;nope&quot;))</code></pre><pre class="out plain"><code>true true false</code></pre></div>
+print(fs.exists(&quot;lock&quot;)!, fs.exists(&quot;.&quot;)!, fs.exists(&quot;nope&quot;)!, fs.exists(&quot;lock/x&quot;))</code></pre><pre class="out plain"><code>true true false Ok(false)</code></pre></div>
 <h4>같이 보기</h4>
 <p><a href="#fn-fs-stat"><code>fs.stat</code></a></p>
 </section>
@@ -462,7 +466,7 @@ print(big)</code></pre><pre class="out plain"><code>[&quot;big.log&quot;]</code>
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'exists})</code>: 그 자리에 디렉터리가 아닌 파일이 있다.</li>
-<li><code>Err({kind: 'io})</code>: 중간 단계가 파일이다(<code></code>not a directory<code></code>).</li>
+<li><code>Err({kind: 'io})</code>: 중간 단계가 파일이다(<code>not a directory</code>).</li>
 <li><code>Err({kind: 'not_found})</code>: 빈 경로 <code>&quot;&quot;</code>.</li>
 <li><code>Err({kind: 'permission})</code>: 만들 권한이 없다.</li>
 </ul>
@@ -501,7 +505,7 @@ Err({kind: 'io, message: &quot;cannot create directory `data/cache`: not a direc
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'not_found})</code>: 경로가 없다.</li>
-<li><code>Err({kind: 'exists})</code>: 비지 않은 디렉터리다(<code></code>directory not empty<code></code>).</li>
+<li><code>Err({kind: 'exists})</code>: 비지 않은 디렉터리다(<code>directory not empty</code>).</li>
 </ul>
 <h4>예제</h4>
 <div class="run"><pre><code>import fs
@@ -510,7 +514,7 @@ fs.mkdir(&quot;tmp&quot;)!
 fs.write(&quot;tmp/a&quot;, &quot;&quot;)!
 print(fs.remove(&quot;tmp&quot;))
 print(fs.remove(&quot;tmp/a&quot;), fs.remove(&quot;tmp&quot;))
-print(fs.exists(&quot;tmp&quot;))</code></pre><pre class="out plain"><code>Err({kind: 'exists, message: &quot;cannot remove `tmp`: directory not empty&quot;})
+print(fs.exists(&quot;tmp&quot;)!)</code></pre><pre class="out plain"><code>Err({kind: 'exists, message: &quot;cannot remove `tmp`: directory not empty&quot;})
 Ok(nil) Ok(nil)
 false</code></pre></div>
 <h4>같이 보기</h4>
@@ -530,7 +534,7 @@ false</code></pre></div>
 <p><code>Ok(nil)</code>.</p>
 <h4>에러</h4>
 <ul>
-<li><code>Err({kind: 'io})</code>: 거절한 경로(<code></code>invalid argument<code></code>).</li>
+<li><code>Err({kind: 'io})</code>: 거절한 경로(<code>invalid argument</code>).</li>
 <li><code>Err({kind: 'permission})</code>: 안의 무엇을 지울 권한이 없다.</li>
 </ul>
 <h4>예제</h4>
@@ -539,7 +543,7 @@ false</code></pre></div>
 
 fs.mkdir(&quot;build/out&quot;)!
 fs.write(&quot;build/out/app&quot;, &quot;&quot;)!
-print(fs.remove_all(&quot;build&quot;), fs.exists(&quot;build&quot;))
+print(fs.remove_all(&quot;build&quot;), fs.exists(&quot;build&quot;)!)
 print(fs.remove_all(&quot;build&quot;))</code></pre><pre class="out plain"><code>Ok(nil) false
 Ok(nil)</code></pre></div>
 <p><strong>위험한 경로는 거절한다</strong></p>
@@ -556,7 +560,7 @@ Err({kind: 'io, message: &quot;cannot remove `/`: invalid argument&quot;})</code
 <p>파일이나 디렉터리의 이름을 바꾸거나 다른 곳으로 옮긴다.</p>
 <div class="sig"><code>fs.move(from, to, overwrite = false)</code></div>
 <h4>설명</h4>
-<p>셸의 <code>mv</code>와 비슷하지만 <strong>이미 있는 것을 덮어쓰지 않는다</strong>: <code>to</code>가 있으면 <code>Err({kind: 'exists})</code>다(셸의 <code>mv -n</code>과 같고, 실패를 알린다). 파일을 덮어쓰려면 <code>overwrite: true</code>를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux <code>renameat2</code>, macOS <code>renamex_np</code>), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 <strong>디렉터리</strong>는 <code>overwrite</code>를 줘도 덮지 않는다(<code>mv a dir</code>처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: <code>fs.move(&quot;a.txt&quot;, &quot;dir/a.txt&quot;)</code>. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다. 다른 파일 시스템으로 옮길 때(Linux의 tmpfs <code>/tmp</code> 등)는 이름 바꾸기가 닿지 않으므로, 파일이면 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(셸의 <code>mv</code>와 같다; 이때는 한 번에 일어나지 않는다). 디렉터리와 심볼릭 링크는 다른 파일 시스템으로 옮기지 않는다(<code>Err</code>, <code></code>cross-device link<code></code>).</p>
+<p>셸의 <code>mv</code>와 비슷하지만 <strong>이미 있는 것을 덮어쓰지 않는다</strong>: <code>to</code>가 있으면 <code>Err({kind: 'exists})</code>다(셸의 <code>mv -n</code>과 같고, 실패를 알린다). 파일을 덮어쓰려면 <code>overwrite: true</code>를 준다. 새 내용을 임시 파일에 다 쓴 뒤 바꿔치기할 때 쓴다. 이름 바꾸기는 한 번에 일어나서, 그 사이에 멈춰도 원래 파일은 옛 내용 그대로다. 확인과 옮기기가 운영체제의 호출 하나라서(Linux <code>renameat2</code>, macOS <code>renamex_np</code>), 확인한 뒤 옮기기 전에 다른 프로그램이 같은 이름을 만들어도 덮어쓰지 않는다. 이미 있는 <strong>디렉터리</strong>는 <code>overwrite</code>를 줘도 덮지 않는다(<code>mv a dir</code>처럼 그 안으로 옮기지도 않는다). 디렉터리 안으로 옮기려면 대상 경로에 이름까지 적는다: <code>fs.move(&quot;a.txt&quot;, &quot;dir/a.txt&quot;)</code>. 같은 디렉터리에서 대소문자만 바꾸는 이름 바꾸기도 된다. 다른 파일 시스템으로 옮길 때(Linux의 tmpfs <code>/tmp</code> 등)는 이름 바꾸기가 닿지 않으므로, 파일이면 같은 덮어쓰기 규칙으로 복사한 뒤 원본을 지운다(셸의 <code>mv</code>와 같다; 이때는 한 번에 일어나지 않는다). 디렉터리와 심볼릭 링크는 다른 파일 시스템으로 옮기지 않는다(<code>Err</code>, <code>cross-device link</code>).</p>
 <h4>매개변수</h4>
 <ul>
 <li><code>from</code>: 옮길 경로.</li>
@@ -568,7 +572,7 @@ Err({kind: 'io, message: &quot;cannot remove `/`: invalid argument&quot;})</code
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'not_found})</code>: <code>from</code>이 없거나 <code>to</code>의 위 디렉터리가 없다.</li>
-<li><code>Err({kind: 'exists})</code>: <code>to</code>가 이미 있다(<code></code>cannot move <code>a.txt</code> to <code>b.txt</code>: file exists<code></code>). 디렉터리면 <code>overwrite: true</code>여도 그렇다.</li>
+<li><code>Err({kind: 'exists})</code>: <code>to</code>가 이미 있다(<code>cannot move `a.txt` to `b.txt`: file exists</code>). 디렉터리면 <code>overwrite: true</code>여도 그렇다.</li>
 </ul>
 <h4>예제</h4>
 <p><strong>이름 바꾸기</strong></p>
@@ -615,9 +619,9 @@ Ok(nil) [&quot;a.log&quot;]</code></pre></div>
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'not_found})</code>: 원본이 없다.</li>
-<li><code>Err({kind: 'exists})</code>: <code>to</code>가 이미 있다(<code></code>cannot copy <code>a.txt</code> to <code>b.txt</code>: file exists<code></code>).</li>
-<li><code>Err({kind: 'io})</code>: 원본이나 대상이 디렉터리다(<code></code>is a directory<code></code>).</li>
-<li><code>Err({kind: 'invalid})</code>: 원본이나 대상이 정규 파일이 아니다(<code></code>not a regular file<code></code>).</li>
+<li><code>Err({kind: 'exists})</code>: <code>to</code>가 이미 있다(<code>cannot copy `a.txt` to `b.txt`: file exists</code>).</li>
+<li><code>Err({kind: 'io})</code>: 원본이나 대상이 디렉터리다(<code>is a directory</code>).</li>
+<li><code>Err({kind: 'invalid})</code>: 원본이나 대상이 정규 파일이 아니다(<code>not a regular file</code>).</li>
 </ul>
 <h4>예제</h4>
 <p><strong>고치기 전에 백업</strong></p>
@@ -708,12 +712,12 @@ fs.open(&quot;servers.txt&quot;, 'readwrite)</code></pre><pre class="out err pla
 <section class="entry" id="fn-fs-write_line">
 <h3>fs.write_line</h3>
 <p>핸들에 한 줄을 쓴다.</p>
-<div class="sig"><code>fs.write_line(f, line)</code></div>
+<div class="sig"><code>fs.write_line(file, line)</code></div>
 <h4>설명</h4>
 <p><code>line</code> 뒤에 줄바꿈 <code>\n</code>을 붙여 쓴다. <code>line</code>은 문자열이어야 한다(숫자는 <code>str(n)</code>이나 <code>&quot;${n}&quot;</code>으로). 쓰기는 버퍼에 모였다가 닫을 때 디스크에 닿는다.</p>
 <h4>매개변수</h4>
 <ul>
-<li><code>f</code>: <code>'write</code>나 <code>'append</code>로 연 핸들.</li>
+<li><code>file</code>: <code>'write</code>나 <code>'append</code>로 연 핸들.</li>
 <li><code>line</code>: 쓸 문자열(줄바꿈 없이).</li>
 </ul>
 <h4>돌려주는 값</h4>
@@ -721,7 +725,7 @@ fs.open(&quot;servers.txt&quot;, 'readwrite)</code></pre><pre class="out err pla
 <h4>에러</h4>
 <ul>
 <li><code>Err({kind: 'closed})</code>: 닫힌 핸들이다.</li>
-<li><code>'read</code>로 연 핸들이면 런타임 에러 E0520(<code></code>file <code>a.txt</code> is not open for writing<code></code>). 모드는 코드가 정하는 것이라 코드 오류다.</li>
+<li><code>'read</code>로 연 핸들이면 런타임 에러 E0520(<code>file `a.txt` is not open for writing</code>). 모드는 코드가 정하는 것이라 코드 오류다.</li>
 <li><code>line</code>이 문자열이 아니면 런타임 에러 E0403.</li>
 </ul>
 <h4>예제</h4>
@@ -729,7 +733,7 @@ fs.open(&quot;servers.txt&quot;, 'readwrite)</code></pre><pre class="out err pla
 <div class="run"><pre><code>import fs
 
 fs.with_open(&quot;squares.txt&quot;, fn(h):
-  each(range(1, 4), n =&gt; fs.write_line(h, &quot;${n} ${n * n}&quot;)!)
+  each(1..4, n =&gt; fs.write_line(h, &quot;${n} ${n * n}&quot;)!)
 ;;, mode: 'write)
 print(fs.read_lines(&quot;squares.txt&quot;)!)</code></pre><pre class="out plain"><code>[&quot;1 1&quot;, &quot;2 4&quot;, &quot;3 9&quot;]</code></pre></div>
 <h4>같이 보기</h4>
@@ -810,7 +814,7 @@ kept = fs.with_temp_dir(fn(dir):
   print(fs.read(p)!)
   dir
 ;;)
-print(fs.exists(kept))</code></pre><pre class="out plain"><code>partial
+print(fs.exists(kept)!)</code></pre><pre class="out plain"><code>partial
 false</code></pre></div>
 <p><strong>경로는 실행마다 다르다</strong></p>
 <pre><code>import fs

@@ -3,17 +3,17 @@
 0001  1:1   STOREGLOBAL  0    ; f
 0002  2:6   CONST        0    ; [1, 2]
 0003  2:1   STOREGLOBAL  1    ; xs
-0004  3:7   LOADGLOBAL   1    ; xs
+0004  3:11  LOADGLOBAL   1    ; xs
 0005  4:3   MATCH        0    ; [$0, ...$1]
 0006  4:3   JUMPIFFALSE  9
 0007  4:16  MOVELOCAL    0
-0008  4:3   JUMP         39
-0009  3:7   LOADGLOBAL   1    ; xs
+0008  4:3   JUMP         36
+0009  3:11  LOADGLOBAL   1    ; xs
 0010  5:3   MATCH        1    ; {k: $0} | {j: $0}
 0011  5:3   JUMPIFFALSE  14
 0012  5:22  MOVELOCAL    0
-0013  5:3   JUMP         39
-0014  3:7   LOADGLOBAL   1    ; xs
+0013  5:3   JUMP         36
+0014  3:11  LOADGLOBAL   1    ; xs
 0015  6:3   MATCH        2    ; Ok(1.5)
 0016  6:3   JUMPIFFALSE  25
 0017  6:14  CONST        1    ; "s"
@@ -23,67 +23,59 @@
 0021  6:26  CONST        4    ; 2
 0022  6:19  CALL         4097    ; 1 positional, 1 named
 0023  6:14  CONCAT       2
-0024  6:3   JUMP         39
-0025  3:7   LOADGLOBAL   1    ; xs
+0024  6:3   JUMP         36
+0025  3:11  LOADGLOBAL   1    ; xs
 0026  7:3   MATCH        3    ; ($0,)
 0027  7:3   JUMPIFFALSE  30
 0028  7:11  MOVELOCAL    0
-0029  7:3   JUMP         39
-0030  3:7   LOADGLOBAL   1    ; xs
-0031  8:3   MATCH        4    ; _
-0032  8:3   JUMPIFFALSE  37
-0033  8:10  CONST        5    ; true
-0034  8:10  JUMPIFFALSE  37
-0035  8:18  CONST        6    ; nil
-0036  8:3   JUMP         39
-0037  3:7   LOADGLOBAL   1    ; xs
-0038  3:1   NOMATCH
-0039  3:1   POP
-0040  10:5  CONST        7    ; {a: 1}
-0041  10:1  STOREGLOBAL  2    ; m
-0042  11:1  LOADGLOBAL   2    ; m
-0043  11:2  FIELD        8    ; a
-0044  11:1  POP
-0045  11:6  LOADGLOBAL   1    ; xs
-0046  11:9  CONST        2    ; 1
-0047  11:8  SLICE        1    ; start
-0048  11:6  POP
-0049  11:15 LOADGLOBAL   1    ; xs
-0050  11:21 CONST        4    ; 2
-0051  11:17 SLICE        6    ; end, inclusive
-0052  11:15 POP
-0053  11:25 LOADGLOBAL   1    ; xs
-0054  11:28 CONST        9    ; 0
-0055  11:27 INDEX
-0056  11:25 POP
-0057  11:33 CONST        10    ; 0..=3
-0058  11:32 POP
-0059  11:39 CONST        2    ; 1
-0060  11:44 LOADGLOBAL   1    ; xs
-0061  11:41 IN
-0062  11:39 POP
-0063  11:48 CONST        11    ; Ok(1)
-0064  11:53 UNWRAPABORT
-0065  11:48 POP
-0066  11:56 CONST        6    ; nil
-0067  11:60 COALESCE     69
-0068  11:60 JUMP         70
-0069  11:63 CONST        2    ; 1
-0070  11:56 POP
-0071  11:66 CONST        12    ; 'sym
-0072  11:66 POP
-0073  11:72 CONST        13    ; 1h
-0074  11:72 POP
-0075  11:76 CONST        14    ; <fn print>
-0076  11:82 CONST        2    ; 1
-0077  11:81 CALL         1    ; 1 positional, 0 named
-0078  11:76 POP
-0079  12:1  CONST        15    ; <fn dbg>
-0080  12:5  CONST        2    ; 1
-0081  12:5  CONST        16    ; "1"
-0082  12:4  CONST        17    ; "-e:12"
-0083  12:4  CALL         3    ; 3 positional, 0 named
-0084  1:1   RETURN
+0029  7:3   JUMP         36
+0030  8:10  CONST        5    ; true
+0031  8:10  JUMPIFFALSE  34
+0032  8:18  CONST        6    ; nil
+0033  8:3   JUMP         36
+0034  3:11  LOADGLOBAL   1    ; xs
+0035  3:5   NOMATCH
+0036  3:1   STOREGLOBAL  2    ; r
+0037  3:1   CLEARLOCAL   0
+0038  3:1   CLEARLOCAL   1
+0039  10:5  CONST        7    ; {a: 1}
+0040  10:1  STOREGLOBAL  3    ; m
+0041  11:1  CONST        8    ; <fn print>
+0042  11:7  LOADGLOBAL   3    ; m
+0043  11:8  FIELD        9    ; a
+0044  11:12 LOADGLOBAL   1    ; xs
+0045  11:15 CONST        2    ; 1
+0046  11:14 SLICE        1    ; start
+0047  11:21 LOADGLOBAL   1    ; xs
+0048  11:27 CONST        4    ; 2
+0049  11:23 SLICE        6    ; end, inclusive
+0050  11:31 LOADGLOBAL   1    ; xs
+0051  11:34 CONST        10    ; 0
+0052  11:33 INDEX
+0053  11:39 CONST        11    ; 0..=3
+0054  11:45 CONST        2    ; 1
+0055  11:50 LOADGLOBAL   1    ; xs
+0056  11:47 IN
+0057  11:54 CONST        12    ; Ok(1)
+0058  11:59 UNWRAPABORT
+0059  11:62 CONST        6    ; nil
+0060  11:66 COALESCE     62
+0061  11:66 JUMP         63
+0062  11:69 CONST        2    ; 1
+0063  11:72 CONST        13    ; 'sym
+0064  11:78 CONST        14    ; 1h
+0065  11:6  CALL         10    ; 10 positional, 0 named
+0066  11:1  POP
+0067  11:83 CONST        8    ; <fn print>
+0068  11:89 CONST        2    ; 1
+0069  11:88 CALL         1    ; 1 positional, 0 named
+0070  11:83 POP
+0071  12:1  CONST        15    ; <fn dbg>
+0072  12:5  CONST        2    ; 1
+0073  12:5  CONST        16    ; "1"
+0074  12:4  CONST        17    ; "-e:12"
+0075  12:4  CALL         3    ; 3 positional, 0 named
+0076  1:1   RETURN
 
 == f ==
 0000  1:1   LOADLOCAL    1

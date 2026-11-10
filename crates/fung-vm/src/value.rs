@@ -2,6 +2,7 @@
 //! convention: every operation returns a new value. Errors carry no position;
 //! the VM fills in the position of the failing instruction.
 
+mod args;
 mod arith;
 mod compare;
 mod dur;
@@ -26,12 +27,13 @@ pub use crate::native::file::File;
 pub use crate::native::net::{Conn, Listener};
 use crate::vm::{Atom, Receiver, RtProto, ScopeHandle, Sender, Stop, Task, TaskHandle};
 
+pub use args::Args;
 pub use arith::{add, div, floor_div, mul, neg, not, pow, rem, sub};
 pub(crate) use arith::{check_chars, check_returned, floor_div_i64, rem_i64};
 pub use compare::{compare, eq, equal, hash_value};
 #[cfg(test)]
 pub use format::format_for_print;
-pub use format::{format, result_tag, type_name, write_for_print};
+pub use format::{format, type_name, write_for_print};
 pub use items::Items;
 pub use list::{Iter as ListIter, List, ListBuilder, SMALL_MAX};
 pub use map::{Iter as MapIter, Map, MapBuilder, SMALL_MAP_MAX};
@@ -386,15 +388,41 @@ impl Drop for Tag {
     }
 }
 
-/// `start..end` or `start..=end`.
-#[derive(Debug, PartialEq, Eq)]
+/// `start..end` or `start..=end`. A range value never has its start
+/// after its end (D7, E0522): the empty ranges are `n..n` and `n..=n-1`.
+#[derive(Debug)]
 pub struct Range {
     pub start: i64,
     pub end: i64,
     pub inclusive: bool,
 }
 
+/// Two ranges are equal when they hold the same numbers (D19): `0..5`
+/// equals `0..=4`, and every empty range equals every other.
+impl PartialEq for Range {
+    fn eq(&self, other: &Range) -> bool {
+        self.ends() == other.ends()
+    }
+}
+
+impl Eq for Range {}
+
 impl Range {
+    /// Whether `start..end` (`inclusive` for `..=`) is a range value:
+    /// its start is not after its end, so the empty ranges are `n..n`
+    /// and `n..=n-1` (D7).
+    pub fn in_order(start: i64, end: i64, inclusive: bool) -> bool {
+        i128::from(start) <= i128::from(end) + i128::from(inclusive)
+    }
+
+    /// The first and the last number, `None` for an empty range: what
+    /// `==` and the hash compare (D19).
+    pub fn ends(&self) -> Option<(i64, i64)> {
+        let last = i128::from(self.end) - i128::from(!self.inclusive);
+        // Not empty: `last` lies within `start..=end`, so it fits an int.
+        (last >= i128::from(self.start)).then_some((self.start, last as i64))
+    }
+
     /// The number of integers in the range, 0 if it is empty. Counted
     /// exactly: a range wider than the int range (up to 2^64 numbers) is
     /// not empty.
@@ -456,12 +484,12 @@ impl Lit {
 /// The Rust function behind a native: it gets one argument per parameter
 /// (defaults filled in, a rest parameter as a list), laid out by the same
 /// calling convention as fung functions (06).
-pub type NativeFn = fn(&mut Task<'_>, Vec<Value>) -> Result<Value, Stop>;
+pub type NativeFn = fn(&mut Task<'_>, Args) -> Result<Value, Stop>;
 
 /// A native that calls back into fung (`map`, `with`, …): instead of
 /// calling the function itself it says what to call and how to go on
 /// (`vm/cont.rs`), so the task's one run loop makes the call.
-pub type StepFn = fn(&mut Task<'_>, Vec<Value>) -> Result<crate::vm::Flow, Stop>;
+pub type StepFn = fn(&mut Task<'_>, Args) -> Result<crate::vm::Flow, Stop>;
 
 /// How a native runs.
 #[derive(Clone, Copy, Debug)]

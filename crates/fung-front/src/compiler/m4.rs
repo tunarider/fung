@@ -1,5 +1,7 @@
 //! Collections, `!` `?` `??`, and `match`.
 
+use std::collections::{BTreeSet, HashMap};
+
 use super::{Compiler, lit_str, str_const};
 use crate::bytecode::Op;
 use crate::consts::Const;
@@ -23,7 +25,7 @@ impl Compiler<'_> {
         if matches!(
             n.head,
             Head::List | Head::Map | Head::Tuple | Head::Tag | Head::Range
-        ) && let Some(c) = constant(n)
+        ) && let Some(c) = constant(n, self.folds)
         {
             self.emit_const(c, pos);
             return Ok(());
@@ -134,9 +136,21 @@ impl Compiler<'_> {
         let last = arms.iter().position(always_matches);
         let count = last.map_or(arms.len(), |i| i + 1);
         let mut ends = Vec::new();
-        self.branches(count, |c, a| {
-            c.match_arm(subject, &arms[a], tail, &mut ends)
-        })?;
+        // Like `branches`, but an arm is reached when the arms before it
+        // failed, and a failed pattern may have written its names' slots
+        // part way, or in full before its guard failed (VM14). Those names
+        // were never bound, so nothing reads them on this path: they are
+        // held, and the statement's end lets them go (03: 값의 수명).
+        let before = self.held.clone();
+        let mut failed = BTreeSet::new();
+        let mut joined = BTreeSet::new();
+        for arm in &arms[..count] {
+            self.held = before.union(&failed).copied().collect();
+            self.match_arm(subject, arm, tail, &mut ends)?;
+            joined.append(&mut self.held);
+            super::moves::written_slots(&arm.kids[0], &mut failed);
+        }
+        self.held = joined;
         if last.is_none() {
             self.expr(subject, false)?;
             self.proto.emit(Op::NoMatch, 0, n.pos);
@@ -182,13 +196,23 @@ impl Compiler<'_> {
             // where the match ends.
             return self.expr(body, tail);
         }
-        let tries = if guard.head == Head::Nil {
+        let mut fails = Vec::new();
+        let mut taken = Vec::new();
+        let tries = if matches!(pat.head, Head::Pwild | Head::Pbind) {
+            // A name or `_` with a guard: the pattern always matches, so
+            // only the guard is tested (VM17).
+            if pat.head == Head::Pbind {
+                self.expr(subject, false)?;
+                self.store_ref(&pat.kids[0])?;
+            }
+            self.stored(pat, pat);
+            self.cond(guard, &mut fails)?;
+            Vec::new()
+        } else if guard.head == Head::Nil {
             vec![pat.clone()]
         } else {
             super::pattern::alternatives(pat)?
         };
-        let mut fails = Vec::new();
-        let mut taken = Vec::new();
         for (i, alt) in tries.iter().enumerate() {
             self.patch_all(&fails);
             fails.clear();
@@ -252,8 +276,9 @@ fn always_matches(arm: &Node) -> bool {
 /// or a list, map, tuple or tag value of such literals, folded into one
 /// constant so the VM loads it instead of building it each time.
 /// `None` for anything else (names, calls, spreads, interpolation).
-fn constant(n: &Node) -> Option<Const> {
-    let all = |kids: &[Node]| kids.iter().map(constant).collect::<Option<Vec<_>>>();
+fn constant(n: &Node, folds: &HashMap<*const Node, Const>) -> Option<Const> {
+    let one = |k: &Node| constant(k, folds);
+    let all = |kids: &[Node]| kids.iter().map(one).collect::<Option<Vec<_>>>();
     Some(match (n.head, &n.lit) {
         (Head::Int, Lit::Int(i)) => Const::Int(*i),
         (Head::Float, Lit::Float(f)) => Const::Float(*f),
@@ -266,15 +291,21 @@ fn constant(n: &Node) -> Option<Const> {
         (Head::List, _) => Const::List(all(&n.kids)?),
         (Head::Tuple, _) => Const::Tuple(all(&n.kids)?),
         (Head::Tag, Lit::Str(name)) => Const::Tag(name.clone(), all(&n.kids)?),
-        (Head::Op, _) => super::fold::fold(n)?,
-        (Head::Range, _) => match (constant(&n.kids[0])?, constant(&n.kids[1])?) {
-            (Const::Int(a), Const::Int(b)) => Const::Range(a, b, lit_str(n) == "..="),
+        (Head::Op, _) => folds.get(&(n as *const Node))?.clone(),
+        (Head::Range, _) => match (one(&n.kids[0])?, one(&n.kids[1])?) {
+            // A start after the end is not folded: the range is made at
+            // run time, where it is E0522 (D7).
+            (Const::Int(a), Const::Int(b))
+                if i128::from(a) <= i128::from(b) + i128::from(lit_str(n) == "..=") =>
+            {
+                Const::Range(a, b, lit_str(n) == "..=")
+            }
             _ => return None,
         },
         (Head::Map, _) => Const::Map(
             n.kids
                 .iter()
-                .map(|e| Some((str_const(e), constant(&e.kids[0])?)))
+                .map(|e| Some((str_const(e), one(&e.kids[0])?)))
                 .collect::<Option<_>>()?,
         ),
         _ => return None,

@@ -225,7 +225,7 @@ const PROGRAMS: &[&str] = &[
     r#"print(json.parse(1))"#,
     r#"print(json.parse(nil))"#,
     r#"print(json.parse())"#,
-    r#"print(json.parse(s: "[1]"), json.stringify(v: [1], indent: 1))"#,
+    r#"print(json.parse(s: "[1]"), json.stringify(x: [1], indent: 1))"#,
     // fs.open handles cannot be converted either
     r#"import fs
 fs.with_open("Cargo.toml", (f) => print(json.stringify(f)))"#,
