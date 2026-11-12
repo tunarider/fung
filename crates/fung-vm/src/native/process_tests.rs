@@ -223,7 +223,7 @@ fn a_pool_wait_ends_a_command_without_pidfd() {
 #[test]
 fn without_pidfd_a_timer_still_sees_the_end() {
     let o = crate::testutil::exec_prepared(
-        "print(timeout(() => sh(\"exec >/dev/null 2>&1; sleep 0.1\")!.code, 5s))",
+        "print(timeout(() => sh(\"exec >/dev/null 2>&1; sleep 0.1\")!.code, 5s)!)",
         crate::testutil::Opts::default(),
         |rt| {
             rt.shared().poller.disable_pidfd();
@@ -241,7 +241,7 @@ fn without_pidfd_a_timer_still_sees_the_end() {
 #[test]
 fn without_pidfd_commands_take_no_pool_thread() {
     let o = crate::testutil::exec_prepared(
-        "codes = scope(s => map(1..=70, _ => spawn(s, () => sh(\"sleep 0.05\")!.code)) |> map(await))\nprint(sum(codes), len(codes), pool_state()[0])",
+        "codes = scope(s => map(1..=70, _ => spawn(s, () => sh(\"sleep 0.05\")!.code)) |> map(t => await(t)!))!\nprint(sum(codes), len(codes), pool_state()[0])",
         crate::testutil::Opts {
             extra: crate::testutil::jobs::job_natives,
             ..crate::testutil::Opts::default()
@@ -385,11 +385,15 @@ fn the_working_directory_is_named_and_set() {
 /// LB29 (D22): a command's output past the string limit is the call's
 /// `Err`, decided while it is read: the command is ended, and fung's
 /// memory stays near the limit however much it writes (300 MB here).
-/// Run in a child process of its own, whose peak memory (`wait4`) no
-/// other test adds to.
+/// Run in a child process of its own, which measures its own peak memory
+/// after the program ran (no other test adds to it). Not `wait4`'s count:
+/// on Linux a forked child's peak includes the parent's memory from before
+/// `exec` (the test harness, large when other tests run beside it), while
+/// `VmHWM` is the new program's alone.
 #[test]
 fn an_output_past_the_string_limit_ends_the_command() {
     const CHILD: &str = "FUNG_RSS_CHILD";
+    const PEAK: &str = "fung peak memory: ";
     let src = "r = exec([\"head\", \"-c\", \"300000000\", \"/dev/zero\"])\nprint(r)\nprint(sh(\"head -c 300000000 /dev/zero >&2\"))";
     if std::env::var(CHILD).is_ok() {
         let (out, err, code) = run(src);
@@ -402,6 +406,7 @@ fn an_output_past_the_string_limit_ends_the_command() {
                 0
             )
         );
+        println!("{PEAK}{}", own_peak_memory());
         return;
     }
     let name = concat!(
@@ -409,8 +414,6 @@ fn an_output_past_the_string_limit_ends_the_command() {
         "::an_output_past_the_string_limit_ends_the_command"
     );
     let name = name.split_once("::").unwrap().1;
-    // Reaped by `wait4` below, which gives its peak memory.
-    #[allow(clippy::zombie_processes)]
     let mut c = child::spawn(
         std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", name, "--nocapture", "--test-threads=1"])
@@ -425,25 +428,42 @@ fn an_output_past_the_string_limit_ends_the_command() {
     use std::io::Read;
     c.stdout.take().unwrap().read_to_string(&mut out).unwrap();
     c.stderr.take().unwrap().read_to_string(&mut err).unwrap();
-    let mut status = 0;
-    // SAFETY: an all-zero `rusage` (plain integers) is valid.
-    let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
-    // SAFETY: `wait4` reaps the child `c` started (not waited for
-    // elsewhere) and fills the two out-parameters, which outlive the call.
-    let pid = unsafe { libc::wait4(c.id() as libc::pid_t, &mut status, 0, &mut usage) };
-    assert_eq!(pid, c.id() as libc::pid_t);
+    let status = c.wait().unwrap();
     assert!(
-        libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0 && out.contains("1 passed"),
+        status.success() && out.contains("1 passed"),
         "child failed:\n{out}\n{err}"
     );
-    // Bytes on macOS, KiB on Linux.
-    let peak = if cfg!(target_os = "macos") {
-        usage.ru_maxrss as u64
-    } else {
-        usage.ru_maxrss as u64 * 1024
-    };
+    // With `--nocapture` the line may follow the harness's `test … ` on
+    // the same line.
+    let peak: u64 = out
+        .lines()
+        .find_map(|l| l.split_once(PEAK))
+        .and_then(|(_, n)| n.split_whitespace().next()?.parse().ok())
+        .unwrap_or_else(|| panic!("no peak in the child's output:\n{out}"));
     // About 217 MB on macOS: the limit's 100 MB in a buffer of 128 MiB,
     // and the 64 MiB it grew from while it was copied. Reading it all
     // (the old way) passed 300 MB.
     assert!(peak < 300_000_000, "peak memory {peak} bytes");
+}
+
+/// This process's peak resident memory in bytes since it started its
+/// program: `VmHWM` on Linux, `ru_maxrss` (bytes there) on macOS.
+fn own_peak_memory() -> u64 {
+    if cfg!(target_os = "linux") {
+        let status = std::fs::read_to_string("/proc/self/status").unwrap();
+        let kib: u64 = status
+            .lines()
+            .find_map(|l| l.strip_prefix("VmHWM:"))
+            .and_then(|v| v.trim().trim_end_matches("kB").trim().parse().ok())
+            .expect("VmHWM in /proc/self/status");
+        kib * 1024
+    } else {
+        // SAFETY: an all-zero `rusage` (plain integers) is valid.
+        let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+        // SAFETY: `getrusage` fills the out-parameter, which outlives the
+        // call; RUSAGE_SELF needs nothing else.
+        let r = unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) };
+        assert_eq!(r, 0);
+        usage.ru_maxrss as u64
+    }
 }

@@ -1081,7 +1081,7 @@ fn a_cancel_does_not_wait_for_an_idle_connection() {
 fn a_stop_request_lets_the_request_in_flight_finish() {
     let _g = serial();
     let o = run(&format!(
-        "import http\n(gate_tx, gate) = channel()\nh = fn(_req): recv(gate); \"slow\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nrequest_stop()\nwait_for(() => kind(net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!)) == 'network)\nsend(gate_tx, 1)\nprint(await(t))\nprint(await(s)){SERVE_END}"
+        "import http\n(gate_tx, gate) = channel()\nh = fn(_req): recv(gate); \"slow\" ;;\n{SERVE}t = spawn(sc, () => http.get(base + \"/slow\")!.body)\nblocked(gate, 1)\nrequest_stop()\nwait_for(() => match net.connect(\"127.0.0.1\", parse_int(split(addr, \":\")[1])!):\n  Err(refused) => refused.kind == 'network\n  _ => false\n;;)\nsend(gate_tx, 1)\nprint(await(t))\nprint(await(s)){SERVE_END}"
     ));
     assert_eq!(out(&o), ("Ok(\"slow\")\nOk(Ok(nil))\n", "", 0));
 }
